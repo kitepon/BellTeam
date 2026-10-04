@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>BellTeam</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=__ASSET_VERSION__">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png?v=__ASSET_VERSION__">
+  <link rel="manifest" href="/manifest.webmanifest?v=__ASSET_VERSION__">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="BellTeam">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="stylesheet" href="/styles.css?v=__ASSET_VERSION__">
+</head>
+<body>
+  <main class="app" id="app">
+    <aside class="roster" id="roster">
+      <header class="roster-header">
+        <button class="brand-mark" id="owner-profile-button" type="button" aria-label="設定を開く">O</button>
+        <div class="header-actions">
+          <button class="circle-button" type="button" aria-label="検索" disabled>
+            <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+          </button>
+          <button class="circle-button" id="add-button" type="button" aria-label="追加">
+            <svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg>
+          </button>
+        </div>
+      </header>
+      <section class="roster-title">
+        <p class="eyebrow">BellTeam</p>
+        <h1>メンバー</h1>
+      </section>
+      <div class="bot-list" id="bot-list" aria-live="polite"></div>
+    </aside>
+
+    <section class="chat empty" id="chat">
+      <header class="chat-header">
+        <button class="circle-button back-button" id="back-button" type="button" aria-label="一覧へ戻る">
+          <svg viewBox="0 0 24 24"><path d="m15 4-8 8 8 8"/></svg>
+        </button>
+        <button class="chat-profile" id="edit-bot-button" type="button" aria-label="プロフィールを編集" disabled>
+          <span class="mini-avatar" id="header-avatar"></span>
+          <span class="chat-identity">
+            <strong id="chat-name">メンバーを選択</strong>
+            <span id="chat-status">BellTeam</span>
+          </span>
+        </button>
+        <button class="circle-button header-tool" id="screen-button" type="button" aria-label="Botの画面" hidden>
+          <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 20h8"/></svg>
+        </button>
+        <button class="circle-button header-tool" id="export-button" type="button" aria-label="会話を書き出す" title="会話をJSONで保存">
+          <svg viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/></svg>
+        </button>
+        <button class="circle-button header-tool" id="schedule-button" type="button" aria-label="自動実行予定">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>
+        </button>
+      </header>
+      <div class="screen-panel" id="screen-panel" hidden><div class="screen-bar"><span class="screen-status" id="screen-status"></span><button class="screen-close" id="screen-close" type="button">閉じる</button></div><pre class="screen-text" id="screen-text"></pre></div>
+
+      <div class="empty-state" id="empty-state">
+        <div class="empty-bell">B</div>
+        <h2>話す相手を選んでね</h2>
+        <p>メンバーとの会話と、裏で交わされた連絡を一つの流れで確認できる。</p>
+      </div>
+
+      <div class="timeline" id="timeline" aria-live="polite"></div>
+      <form class="composer" id="composer">
+        <button class="add-button" id="attachment-button" type="button" aria-label="画像を添付">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <div class="target-picker" id="target-picker" hidden>
+          <button class="target-button" id="target-button" type="button" aria-label="返信するメンバーを指定" aria-expanded="false">自動選択</button>
+          <div class="target-menu" id="target-menu" hidden></div>
+        </div>
+        <input id="message-image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+        <div class="composer-stack">
+          <p class="form-error" id="composer-error" role="alert" hidden></p>
+          <div class="attachment-previews" id="attachment-preview" hidden></div>
+          <label class="input-shell">
+            <span class="sr-only">メッセージ</span>
+            <textarea id="message-input" rows="1" maxlength="8000" placeholder="メッセージを入力…"></textarea>
+            <button class="send-button" id="send-button" type="submit" aria-label="送信">
+              <svg viewBox="0 0 24 24"><path d="m5 12 14-7-4 14-3-5-7-2Z"/></svg>
+            </button>
+          </label>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <dialog class="sheet-dialog" id="owner-dialog">
+    <div class="owner-settings-layout">
+      <header class="sheet-header">
+        <button class="text-button" type="button" data-close-dialog="owner-dialog">キャンセル</button>
+        <h2>設定</h2>
+        <button class="text-button primary" type="submit" form="owner-form">保存</button>
+      </header>
+      <div class="sheet-body">
+        <form id="owner-form">
+        <div class="owner-profile-fields">
+          <div class="avatar-editor"><div class="avatar owner-avatar" id="owner-avatar-preview">O</div><label class="upload-button">画像を選ぶ<input id="owner-avatar-file" type="file" accept="image/*"></label></div>
+          <div class="crop-editor" id="owner-crop-editor" hidden>
+            <canvas id="owner-avatar-crop" width="512" height="512" aria-label="オーナーアバターの切り抜き位置"></canvas>
+            <label class="zoom-field"><span>拡大・縮小</span><input id="owner-avatar-zoom" type="range" min="1" max="3" step="0.01" value="1"></label>
+            <p>画像をドラッグして、使いたい部分を枠に合わせてね。</p>
+          </div>
+          <label class="field"><span>名前</span><input id="owner-name" required maxlength="100" placeholder="あなたの名前"></label>
+          <label class="field"><span>プロフィール</span><textarea id="owner-description" rows="5" maxlength="8000" placeholder="仕事、関心、BellTeamに知っておいてほしいこと"></textarea></label>
+          <label class="field"><span>XのプロフィールURL</span><input id="owner-x-url" type="url" maxlength="2048" inputmode="url" placeholder="https://x.com/account"></label>
+          <label class="field"><span>GitHubのプロフィールURL</span><input id="owner-github-url" type="url" maxlength="2048" inputmode="url" placeholder="https://github.com/account"></label>
+          <section class="owner-links-section">
+            <div class="owner-links-header"><span>その他の情報源</span><button id="add-owner-link" type="button">追加</button></div>
+            <div class="owner-links" id="owner-links"></div>
+          </section>
+          <label class="field"><span>ユーザー規範（あなたの全Botに効く。製品規範より優先）</span><textarea id="user-rules" rows="8" maxlength="20000" placeholder="- 全Botに守らせたいこと"></textarea></label>
+          <p class="form-error" id="owner-form-error" role="alert"></p>
+        </div>
+      </form>
+      <section class="feature-settings-section">
+        <h3>追加機能</h3>
+        <p>未設定の機能は無効です。案内役との会話でも設定できます。秘密の値は会話へ送られません。</p>
+        <p id="connection-mode"></p>
+        <p class="form-error" id="feature-settings-error" role="alert"></p>
+        <div id="feature-settings"></div>
+      </section>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="sheet-dialog" id="bot-dialog">
+    <form id="bot-form">
+      <header class="sheet-header">
+        <button class="text-button" value="cancel" formmethod="dialog" type="button" data-close-dialog="bot-dialog">キャンセル</button>
+        <h2 id="bot-dialog-title">Botを追加</h2>
+        <button class="text-button primary" id="save-bot-button" type="submit">保存</button>
+      </header>
+      <div class="sheet-body">
+        <div class="avatar-editor"><div class="avatar violet" id="bot-avatar-preview">B</div><label class="upload-button">画像を選ぶ<input id="bot-avatar-file" type="file" accept="image/*"></label><button class="upload-button" id="character-sheet-button" type="button" hidden>キャラクターシート</button></div>
+        <div class="crop-editor" id="crop-editor" hidden>
+          <canvas id="avatar-crop" width="512" height="512" aria-label="アバターの切り抜き位置"></canvas>
+          <label class="zoom-field"><span>拡大・縮小</span><input id="avatar-zoom" type="range" min="1" max="3" step="0.01" value="1"></label>
+          <p>画像をドラッグして、使いたい部分を枠に合わせてね。</p>
+        </div>
+        <label class="field"><span>名前</span><input id="bot-name" name="name" required maxlength="100" placeholder="あかり"></label>
+        <label class="field"><span>CLI</span><select id="bot-harness" name="harness"><option value="grok">Grok</option><option value="codex">Codex</option><option value="claude">Claude</option><option value="cursor">Cursor</option></select></label>
+        <label class="field"><span>モデル</span><select id="bot-model" name="model"></select></label>
+        <label class="field" id="bot-model-custom-field" hidden><span>モデルID</span><input id="bot-model-custom" name="modelCustom" maxlength="200" placeholder="一覧に無いモデルIDを入力"></label>
+        <label class="field"><span>エフォート</span><select id="bot-reasoning-effort" name="reasoningEffort"></select></label>
+        <p class="form-error" id="bot-model-status" role="status"></p>
+        <label class="field"><span>プロフィール</span><textarea id="bot-profile-text" name="profileText" rows="3" maxlength="8000" placeholder="背景・見た目・関係性"></textarea></label>
+        <label class="field"><span>性格（考え方）</span><textarea id="bot-personality" name="personality" rows="4" maxlength="8000" placeholder="性格・価値観・好み・判断の傾向"></textarea></label>
+        <label class="field"><span>口調</span><textarea id="bot-speech-style" name="speechStyle" rows="3" maxlength="8000" placeholder="一人称・語尾・話し方。表現の見本として使うのはこの欄だけ"></textarea></label>
+        <label class="field"><span>役職</span><input id="bot-position" name="position" maxlength="100" placeholder="秘書"></label>
+        <label class="field"><span>役割</span><textarea id="bot-role" name="role" rows="3" maxlength="8000" placeholder="このBotが担当する仕事"></textarea></label>
+        <label class="field"><span>テーマ色</span><select id="bot-color" name="color"><option value="violet">紫</option><option value="rose">ローズ</option><option value="indigo">インディゴ</option></select></label>
+        <p class="form-error" id="bot-form-error" role="alert"></p>
+        <div class="bot-management-actions" id="bot-management-actions" hidden>
+          <button id="memory-button" type="button">記憶と知識</button>
+          <button id="restart-session-button" type="button">セッションを再起動</button>
+          <button class="delete-button" id="delete-bot-button" type="button">Botを削除</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="sheet-dialog" id="memory-dialog">
+    <div>
+      <header class="sheet-header">
+        <button class="text-button" type="button" data-close-dialog="memory-dialog">閉じる</button>
+        <h2 id="memory-dialog-title">記憶と知識</h2>
+        <span class="header-spacer"></span>
+      </header>
+      <div class="sheet-body memory-stack">
+        <section class="memory-panel">
+          <h3>長期記憶を追加</h3>
+          <form id="remember-form">
+            <label class="field"><span>種類</span><select id="remember-kind"><option value="fact">事実</option><option value="preference">好み</option><option value="policy">方針</option><option value="task">継続中の仕事</option><option value="config">設定</option><option value="incident">出来事</option><option value="relationship">関係</option><option value="episode">思い出</option><option value="growth">成長</option></select></label>
+            <label class="field"><span>保存先</span><select id="remember-scope"><option value="personal">このBot</option><option value="shared">BellTeam共通</option></select></label>
+            <label class="field"><span>内容</span><textarea id="remember-content" rows="3" required></textarea></label>
+            <button type="submit">記憶する</button>
+          </form>
+        </section>
+        <section class="memory-panel">
+          <h3>長期記憶を検索</h3>
+          <form id="recall-form">
+            <label class="field"><span>保存先</span><select id="recall-scope"><option value="personal">このBot</option><option value="shared">BellTeam共通</option></select></label>
+            <label class="field"><span>検索語</span><input id="recall-query" required></label>
+            <button type="submit">検索</button>
+          </form>
+          <div class="memory-results" id="memory-results"></div>
+        </section>
+        <section class="memory-panel">
+          <h3>知識を追加</h3>
+          <form id="knowledge-form">
+            <label class="field"><span>保存先</span><select id="knowledge-scope"><option value="personal">このBot</option><option value="shared">BellTeam共通</option></select></label>
+            <label class="field"><span>タイトル</span><input id="knowledge-title" required></label>
+            <label class="field"><span>内容</span><textarea id="knowledge-content" rows="4" required></textarea></label>
+            <button type="submit">知識を保存</button>
+          </form>
+        </section>
+        <section class="memory-panel">
+          <h3>知識を検索</h3>
+          <form id="knowledge-search-form">
+            <label class="field"><span>保存先</span><select id="knowledge-search-scope"><option value="personal">このBot</option><option value="shared">BellTeam共通</option></select></label>
+            <label class="field"><span>検索語</span><input id="knowledge-query" required></label>
+            <button type="submit">検索</button>
+          </form>
+          <div class="memory-results" id="knowledge-results"></div>
+        </section>
+        <p class="form-error" id="memory-form-error" role="alert"></p>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="sheet-dialog action-dialog" id="action-dialog">
+    <div>
+      <header class="sheet-header">
+        <button class="text-button" type="button" data-close-dialog="action-dialog">閉じる</button>
+        <h2>追加</h2><span class="header-spacer"></span>
+      </header>
+      <div class="sheet-body action-list">
+        <button id="action-add-bot" type="button"><strong>Botを追加</strong><span>専用プロジェクトとAIを作る</span></button>
+        <button id="action-add-room" type="button"><strong>ルームを作る</strong><span>複数のBotで仕事を共有する</span></button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="sheet-dialog" id="room-dialog">
+    <form id="room-form">
+      <header class="sheet-header">
+        <button class="text-button" type="button" data-close-dialog="room-dialog">キャンセル</button>
+        <h2 id="room-dialog-title">ルームを作る</h2>
+        <button class="text-button primary" type="submit">保存</button>
+      </header>
+      <div class="sheet-body">
+        <div class="avatar-editor"><div class="avatar room-avatar" id="room-avatar-preview">R</div><label class="upload-button">画像を選ぶ<input id="room-avatar-file" type="file" accept="image/*"></label></div>
+        <div class="crop-editor" id="room-crop-editor" hidden>
+          <canvas id="room-avatar-crop" width="512" height="512" aria-label="ルームアバターの切り抜き位置"></canvas>
+          <label class="zoom-field"><span>拡大・縮小</span><input id="room-avatar-zoom" type="range" min="1" max="3" step="0.01" value="1"></label>
+          <p>画像をドラッグして、使いたい部分を枠に合わせてね。</p>
+        </div>
+        <label class="field"><span>ルーム名</span><input id="room-name" required maxlength="100" placeholder="開発部"></label>
+        <label class="field"><span>目的</span><textarea id="room-purpose" rows="4" maxlength="8000" placeholder="この部屋で共有する仕事"></textarea></label>
+        <fieldset class="member-picker"><legend>メンバー</legend><div id="room-members"></div></fieldset>
+        <label class="field"><span>代表</span><select id="room-representative"><option value="">代表なし</option></select></label>
+        <p class="form-error" id="room-form-error" role="alert"></p>
+        <div class="bot-management-actions" id="room-management-actions" hidden>
+          <button class="delete-button" id="delete-room-button" type="button">ルームを削除</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="sheet-dialog schedule-dialog" id="character-sheet-dialog">
+    <div>
+      <header class="sheet-header">
+        <button class="text-button" type="button" data-close-dialog="character-sheet-dialog">閉じる</button>
+        <h2>キャラクターシート</h2>
+        <span class="header-spacer"></span>
+      </header>
+      <div class="sheet-body">
+        <p class="character-sheet-note">Botのプロジェクトの<code>assets/character-sheet/</code>直下にある画像。Botが自分を描く時の正本で、アバターとは別。</p>
+        <div class="character-sheet-list" id="character-sheet-list"></div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="sheet-dialog schedule-dialog" id="schedule-dialog">
+    <div>
+      <header class="sheet-header">
+        <button class="text-button" type="button" data-close-dialog="schedule-dialog">閉じる</button>
+        <h2>自動実行</h2>
+        <span class="header-spacer"></span>
+      </header>
+      <div class="sheet-body">
+        <div class="schedule-list" id="schedule-list"></div>
+        <form class="schedule-form" id="schedule-form">
+          <h3 id="schedule-form-title">予定を追加</h3>
+          <label class="field"><span>名前</span><input id="schedule-name" maxlength="100" placeholder="朝の巡回"></label>
+          <label class="field"><span>実行頻度</span><select id="schedule-kind"><option value="once">指定日時に一回</option><option value="hourly">毎時</option><option value="daily">毎日</option><option value="weekly">曜日指定</option><option value="interval_days">○日おき</option><option value="interval_hours">○時間おき</option><option value="cron">cron式</option></select></label>
+          <div id="schedule-fields"></div>
+          <fieldset class="member-picker" id="schedule-targets-field" hidden><legend>返信するメンバー（未選択なら自動選択）</legend><div id="schedule-targets"></div></fieldset>
+          <label class="field" id="schedule-action-field"><span>実行するもの</span><select id="schedule-action"><option value="prompt">AIへの指示</option><option value="command">コマンドだけ（AIを起こさない）</option></select></label>
+          <label class="field" id="schedule-prompt-field"><span>実行する指示</span><textarea id="schedule-prompt" rows="4" maxlength="8000" required placeholder="状況を確認して、必要な作業を進めて"></textarea></label>
+          <label class="field" id="schedule-command-field" hidden><span>実行するコマンド</span><textarea id="schedule-command" rows="3" maxlength="8000" placeholder="python3 -m news.export"></textarea><small>Botのプロジェクトフォルダで sh -c として実行する。失敗した時だけ会話に知らせる。</small></label>
+          <p class="form-error" id="schedule-form-error" role="alert"></p>
+          <button class="solid-button" id="schedule-submit" type="submit">予定を追加</button>
+          <button class="text-button schedule-cancel" id="schedule-cancel" type="button" hidden>編集をやめる</button>
+        </form>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="/app.js?v=__ASSET_VERSION__"></script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+出典: https://developer.apple.com/documentation/appstoreserverapi/creating-api-keys-to-authorize-api-requests
+取得日: 2026-09-28
+確度: Apple公式文書の原文
+
+---
+
+<!--
+{
+  "documentType" : "article",
+  "framework" : "AppStoreServerAPI",
+  "identifier" : "/documentation/AppStoreServerAPI/creating-api-keys-to-authorize-api-requests",
+  "metadataVersion" : "0.1.0",
+  "role" : "article",
+  "title" : "Creating API keys to authorize API requests"
+}
+-->
+
+# Creating API keys to authorize API requests
+
+Create API keys you use to sign JSON Web Tokens and authorize API requests.
+
+## Discussion
+
+The [`App Store Server API`](/documentation/AppStoreServerAPI), the <doc://com.apple.documentation/documentation/AdvancedCommerceAPI>, and the <doc://com.apple.documentation/documentation/ExternalPurchaseServerAPI> require JSON Web Tokens (JWTs) to authorize each request you make to the API. You generate JWTs using a private API key that you download from App Store Connect. For information about generating the JWT using your private key, see [Generating JSON Web Tokens for API requests](/documentation/AppStoreServerAPI/generating-json-web-tokens-for-api-requests).
+
+An API key has two parts: a public portion that Apple keeps, and a private key that you download. Use the private key to sign tokens that authorize the API to access or submit your data to the App Store.
+
+> Important:
+> Store your private keys in a secure place. Don’t share your keys, don’t store keys in a code repository, and don’t include keys in client-side code. If you suspect a private key is compromised, immediately revoke the key in App Store Connect. See <doc://com.apple.documentation/documentation/AppStoreConnectAPI/revoking-api-keys> for details.
+
+Use the API key for the App Store Server API, the Advanced Commerce API, and the External Purchase Server API. You can’t use the key for other Apple services.
+
+### Generate a private key
+
+To generate an API key to use with the App Store Server API, the Advanced Commerce API, and the External Purchase Server API, log in to [App Store Connect](https://appstoreconnect.apple.com) and complete the following steps:
+
+1. On the homepage, click Users and Access.
+2. Click the Integrations tab.
+3. In the sidebar under Keys, click In-App Purchase.
+4. Click Generate In-App Purchase Key.
+   If you already have an Active In-App Purchase key generated, click the Add (+) icon to add more.
+5. Enter a name for the key. The name is for your reference only and is not part of the key itself.
+6. Click Generate.
+
+After you generate an in-app purchase key, you cannot edit its name. If you need to make changes, revoke the key and generate a new one.
+
+The new key’s name, key ID, a download link, and other information appear on the page.
+
+### Download and store the private key
+
+After generating your API key, App Store Connect gives you the opportunity to download the private half of the key. The private key is only available for download a single time.
+
+1. Log in to [App Store Connect](https://appstoreconnect.apple.com/).
+2. On the homepage, click Users and Access.
+3. Click the Integrations tab.
+4. In the sidebar under Keys, click In-App Purchase.
+5. Navigate to a key under the Active section, then click Download Key for the key you want to download.
+6. In the dialog, click Download.
+
+The download link appears only if you haven’t yet downloaded the private key. Apple doesn’t keep a copy of the private key. Store your private key in a secure place.
+
+---
+
+Copyright &copy; 2026 Apple Inc. All rights reserved. | [Terms of Use](https://www.apple.com/legal/internet-services/terms/site.html) | [Privacy Policy](https://www.apple.com/privacy/privacy-policy)

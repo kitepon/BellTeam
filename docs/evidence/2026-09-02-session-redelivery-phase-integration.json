@@ -1,0 +1,10 @@
+{
+  "cwd": "/Users/kite/Developer/BellTeam",
+  "control_id": "session-redelivery-20260902",
+  "actor_id": "bell-parent-20260902",
+  "expected_revision": 8,
+  "phase": "integration",
+  "state": "completed",
+  "evidence": [{"type":"file","ref":"docs/evidence/2026-09-02-session-redelivery.md","digest":"9d8195337e5d592c48ebe195fb2752d17b8aa63e0d676389aa230b024a2e3181","observed_at":"2026-09-02T05:57:50.000Z"}],
+  "decision": null
+}

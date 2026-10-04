@@ -1,0 +1,22 @@
+{
+  "name": "bellteam",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "croner": "^10.0.1",
+    "jose": "6.2.12"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@apple/app-store-server-library": "3.1.0",
+    "asn1js": "^3.0.10",
+    "jsonwebtoken": "^9.0.3"
+  }
+}

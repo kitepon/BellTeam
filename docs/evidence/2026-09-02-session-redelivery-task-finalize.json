@@ -1,0 +1,9 @@
+{
+  "cwd": "/Users/kite/Developer/BellTeam",
+  "control_id": "session-redelivery-20260902",
+  "actor_id": "bell-parent-20260902",
+  "expected_revision": 10,
+  "task_id": "sr-001",
+  "finalization_ref": "docs/adr/0011-accept-session-redelivery.md",
+  "recorded_by": "bell-parent-20260902"
+}

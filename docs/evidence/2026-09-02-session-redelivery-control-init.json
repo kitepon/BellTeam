@@ -1,0 +1,34 @@
+{
+  "cwd": "/Users/kite/Developer/BellTeam",
+  "control_id": "session-redelivery-20260902",
+  "objective_ref": "docs/plan_session-redelivery-20260902.md",
+  "actor_id": "bell-parent-20260902",
+  "document_refs": [
+    "docs/plan_session-redelivery-20260902.md"
+  ],
+  "budget": {
+    "max_worker_runs": 0,
+    "max_consultations": 0,
+    "max_external_runs": 0,
+    "max_wall_time_seconds": 86400,
+    "max_cost_microusd": null,
+    "max_runs_per_approach_family": 1,
+    "max_retries_per_assignment": 0,
+    "max_integration_runs": 1
+  },
+  "lane_admission": {
+    "contract_version": "dotagents.lane-admission.v1",
+    "conditions": {
+      "planned_interruption": false,
+      "chained_acceptance": true,
+      "multi_repo_write_coordination": true,
+      "decision_evidence_required": false
+    },
+    "decision": {
+      "type": "decision",
+      "ref": "docs/plan_session-redelivery-20260902.md",
+      "digest": "34ae103f9efcb6e419878108c88a23c5729fbf57121cd2fa88c6a39d6309adc0",
+      "observed_at": "2026-09-02T00:00:00.000Z"
+    }
+  }
+}

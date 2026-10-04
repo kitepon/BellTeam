@@ -1,0 +1,481 @@
+# 原文：NodeのX509Certificate
+
+出典: https://raw.githubusercontent.com/nodejs/node/v26.10.0/doc/api/crypto.md
+取得日: 2026-09-28
+確度: 公式文書の原文節。実環境の対応は別途検証。
+
+## Class: `X509Certificate`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+Encapsulates an X509 certificate and provides read-only access to
+its information.
+
+```mjs
+const { X509Certificate } = await import('node:crypto');
+
+const x509 = new X509Certificate('{... pem encoded cert ...}');
+
+console.log(x509.subject);
+```
+
+```cjs
+const { X509Certificate } = require('node:crypto');
+
+const x509 = new X509Certificate('{... pem encoded cert ...}');
+
+console.log(x509.subject);
+```
+
+### `new X509Certificate(buffer)`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* `buffer` {string|TypedArray|Buffer|DataView} A PEM or DER encoded
+  X509 Certificate.
+
+### `x509.ca`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {boolean} Will be `true` if this is a Certificate Authority (CA)
+  certificate.
+
+### `x509.checkEmail(email[, options])`
+
+<!-- YAML
+added: v15.6.0
+changes:
+  - version: v18.0.0
+    pr-url: https://github.com/nodejs/node/pull/41600
+    description: The subject option now defaults to `'default'`.
+  - version:
+      - v17.5.0
+      - v16.14.1
+    pr-url: https://github.com/nodejs/node/pull/41599
+    description: The `wildcards`, `partialWildcards`, `multiLabelWildcards`, and
+                 `singleLabelSubdomains` options have been removed since they
+                 had no effect.
+  - version:
+    - v17.5.0
+    - v16.15.0
+    pr-url: https://github.com/nodejs/node/pull/41569
+    description: The subject option can now be set to `'default'`.
+-->
+
+* `email` {string}
+* `options` {Object}
+  * `subject` {string} `'default'`, `'always'`, or `'never'`.
+    **Default:** `'default'`.
+* Returns: {string|undefined} Returns `email` if the certificate matches,
+  `undefined` if it does not.
+
+Checks whether the certificate matches the given email address.
+
+If the `'subject'` option is undefined or set to `'default'`, the certificate
+subject is considered according to OpenSSL's default behavior.
+
+If the `'subject'` option is set to `'always'` and if the subject alternative
+name extension either does not exist or does not contain a matching email
+address, the certificate subject is considered.
+
+If the `'subject'` option is set to `'never'`, the certificate subject is never
+considered, even if the certificate contains no subject alternative names.
+
+### `x509.checkHost(name[, options])`
+
+<!-- YAML
+added: v15.6.0
+changes:
+  - version: v18.0.0
+    pr-url: https://github.com/nodejs/node/pull/41600
+    description: The subject option now defaults to `'default'`.
+  - version:
+    - v17.5.0
+    - v16.15.0
+    pr-url: https://github.com/nodejs/node/pull/41569
+    description: The subject option can now be set to `'default'`.
+-->
+
+* `name` {string}
+* `options` {Object}
+  * `subject` {string} `'default'`, `'always'`, or `'never'`.
+    **Default:** `'default'`.
+  * `wildcards` {boolean} **Default:** `true`.
+  * `partialWildcards` {boolean} **Default:** `true`.
+  * `multiLabelWildcards` {boolean} **Default:** `false`.
+  * `singleLabelSubdomains` {boolean} **Default:** `false`.
+* Returns: {string|undefined} Returns a subject name that matches `name`,
+  or `undefined` if no subject name matches `name`.
+
+Checks whether the certificate matches the given host name.
+
+If the certificate matches the given host name, the matching subject name is
+returned. The returned name might be an exact match (e.g., `foo.example.com`)
+or it might contain wildcards (e.g., `*.example.com`). Because host name
+comparisons are case-insensitive, the returned subject name might also differ
+from the given `name` in capitalization.
+
+If the `'subject'` option is undefined or set to `'default'`, the certificate
+subject is considered according to OpenSSL's default behavior.
+
+If the `'subject'` option is set to `'always'` and if the subject alternative
+name extension either does not exist or does not contain a matching DNS name,
+the certificate subject is considered.
+
+If the `'subject'` option is set to `'never'`, the certificate subject is never
+considered, even if the certificate contains no subject alternative names.
+
+### `x509.checkIP(ip)`
+
+<!-- YAML
+added: v15.6.0
+changes:
+  - version:
+      - v17.5.0
+      - v16.14.1
+    pr-url: https://github.com/nodejs/node/pull/41571
+    description: The `options` argument has been removed since it had no effect.
+-->
+
+* `ip` {string}
+* Returns: {string|undefined} Returns `ip` if the certificate matches,
+  `undefined` if it does not.
+
+Checks whether the certificate matches the given IP address (IPv4 or IPv6).
+
+Only [RFC 5280][] `iPAddress` subject alternative names are considered, and they
+must match the given `ip` address exactly. Other subject alternative names as
+well as the subject field of the certificate are ignored.
+
+### `x509.checkIssued(otherCert)`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* `otherCert` {X509Certificate}
+* Returns: {boolean}
+
+Checks whether this certificate was potentially issued by the given `otherCert`
+by comparing the certificate metadata.
+
+This is useful for pruning a list of possible issuer certificates which have been
+selected using a more rudimentary filtering routine, i.e. just based on subject
+and issuer names.
+
+Finally, to verify that this certificate's signature was produced by a private key
+corresponding to `otherCert`'s public key use [`x509.verify(publicKey)`][]
+with `otherCert`'s public key represented as a [`KeyObject`][]
+like so
+
+```js
+if (!x509.verify(otherCert.publicKey)) {
+  throw new Error('otherCert did not issue x509');
+}
+```
+
+### `x509.checkPrivateKey(privateKey)`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* `privateKey` {KeyObject} A private key.
+* Returns: {boolean}
+
+Checks whether the public key for this certificate is consistent with
+the given private key.
+
+### `x509.fingerprint`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {string}
+
+The SHA-1 fingerprint of this certificate.
+
+Because SHA-1 is cryptographically broken and because the security of SHA-1 is
+significantly worse than that of algorithms that are commonly used to sign
+certificates, consider using [`x509.fingerprint256`][] instead.
+
+### `x509.fingerprint256`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {string}
+
+The SHA-256 fingerprint of this certificate.
+
+### `x509.fingerprint512`
+
+<!-- YAML
+added:
+  - v17.2.0
+  - v16.14.0
+-->
+
+* Type: {string}
+
+The SHA-512 fingerprint of this certificate.
+
+Because computing the SHA-256 fingerprint is usually faster and because it is
+only half the size of the SHA-512 fingerprint, [`x509.fingerprint256`][] may be
+a better choice. While SHA-512 presumably provides a higher level of security in
+general, the security of SHA-256 matches that of most algorithms that are
+commonly used to sign certificates.
+
+### `x509.infoAccess`
+
+<!-- YAML
+added: v15.6.0
+changes:
+  - version:
+      - v17.3.1
+      - v16.13.2
+    pr-url: https://github.com/nodejs-private/node-private/pull/300
+    description: Parts of this string may be encoded as JSON string literals
+                 in response to CVE-2021-44532.
+-->
+
+* Type: {string}
+
+A textual representation of the certificate's authority information access
+extension.
+
+This is a line feed separated list of access descriptions. Each line begins with
+the access method and the kind of the access location, followed by a colon and
+the value associated with the access location.
+
+After the prefix denoting the access method and the kind of the access location,
+the remainder of each line might be enclosed in quotes to indicate that the
+value is a JSON string literal. For backward compatibility, Node.js only uses
+JSON string literals within this property when necessary to avoid ambiguity.
+Third-party code should be prepared to handle both possible entry formats.
+
+### `x509.issuer`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {string}
+
+The issuer identification included in this certificate.
+
+### `x509.issuerCertificate`
+
+<!-- YAML
+added: v15.9.0
+-->
+
+* Type: {X509Certificate}
+
+The issuer certificate or `undefined` if the issuer certificate is not
+available.
+
+### `x509.keyUsage`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {string\[]}
+
+An array detailing the key extended usages for this certificate.
+
+### `x509.publicKey`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {KeyObject}
+
+The public key {KeyObject} for this certificate.
+
+### `x509.raw`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {Buffer}
+
+A `Buffer` containing the DER encoding of this certificate.
+
+### `x509.serialNumber`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {string}
+
+The serial number of this certificate.
+
+Serial numbers are assigned by certificate authorities and do not uniquely
+identify certificates. Consider using [`x509.fingerprint256`][] as a unique
+identifier instead.
+
+### `x509.subject`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {string}
+
+The complete subject of this certificate.
+
+### `x509.subjectAltName`
+
+<!-- YAML
+added: v15.6.0
+changes:
+  - version:
+      - v17.3.1
+      - v16.13.2
+    pr-url: https://github.com/nodejs-private/node-private/pull/300
+    description: Parts of this string may be encoded as JSON string literals
+                 in response to CVE-2021-44532.
+-->
+
+* Type: {string}
+
+The subject alternative name specified for this certificate.
+
+This is a comma-separated list of subject alternative names. Each entry begins
+with a string identifying the kind of the subject alternative name followed by
+a colon and the value associated with the entry.
+
+Earlier versions of Node.js incorrectly assumed that it is safe to split this
+property at the two-character sequence `', '` (see [CVE-2021-44532][]). However,
+both malicious and legitimate certificates can contain subject alternative names
+that include this sequence when represented as a string.
+
+After the prefix denoting the type of the entry, the remainder of each entry
+might be enclosed in quotes to indicate that the value is a JSON string literal.
+For backward compatibility, Node.js only uses JSON string literals within this
+property when necessary to avoid ambiguity. Third-party code should be prepared
+to handle both possible entry formats.
+
+### `x509.toJSON()`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {string}
+
+There is no standard JSON encoding for X509 certificates. The
+`toJSON()` method returns a string containing the PEM encoded
+certificate.
+
+### `x509.toLegacyObject()`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {Object}
+
+Returns information about this certificate using the legacy
+[certificate object][] encoding.
+
+### `x509.toString()`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {string}
+
+Returns the PEM-encoded certificate.
+
+### `x509.validFrom`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {string}
+
+The date/time from which this certificate is valid.
+
+### `x509.validFromDate`
+
+<!-- YAML
+added:
+ - v23.0.0
+ - v22.10.0
+-->
+
+* Type: {Date}
+
+The date/time from which this certificate is valid, encapsulated in a `Date` object.
+
+### `x509.validTo`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* Type: {string}
+
+The date/time until which this certificate is valid.
+
+### `x509.validToDate`
+
+<!-- YAML
+added:
+ - v23.0.0
+ - v22.10.0
+-->
+
+* Type: {Date}
+
+The date/time until which this certificate is valid, encapsulated in a `Date` object.
+
+### `x509.signatureAlgorithm`
+
+<!-- YAML
+added: v24.9.0
+-->
+
+* Type: {string|undefined}
+
+The algorithm used to sign the certificate or `undefined` if the signature algorithm is unknown by OpenSSL.
+
+### `x509.signatureAlgorithmOid`
+
+<!-- YAML
+added: v24.9.0
+-->
+
+* Type: {string}
+
+The OID of the algorithm used to sign the certificate.
+
+### `x509.verify(publicKey)`
+
+<!-- YAML
+added: v15.6.0
+-->
+
+* `publicKey` {KeyObject} A public key.
+* Returns: {boolean}
+
+Verifies that this certificate was signed by the given public key.
+Does not perform any other validation checks on the certificate.
+

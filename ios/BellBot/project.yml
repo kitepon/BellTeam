@@ -1,0 +1,176 @@
+name: BellBot
+options:
+  bundleIdPrefix: app.bellteam
+  developmentLanguage: ja
+  deploymentTarget:
+    iOS: '17.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    # 配布者が自分の Bundle ID を渡す場所。アプリ本体、通知拡張（末尾 .NotificationService）、
+    # App Group（先頭 group.）がこの値から揃う。コマンドラインの PRODUCT_BUNDLE_IDENTIFIER では
+    # 拡張まで上書きされるため、署名時は BELLTEAM_APP_BUNDLE_IDENTIFIER を使う。
+    BELLTEAM_APP_BUNDLE_IDENTIFIER: dev.kitepon.bellbot
+    TARGETED_DEVICE_FAMILY: '1,2'
+    "TARGETED_DEVICE_FAMILY[sdk=macosx*]": '6'
+    SUPPORTS_MACCATALYST: YES
+    DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: NO
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+targets:
+  BellTeam:
+    type: application
+    platform: iOS
+    sources:
+      - path: BellBot
+      - path: Shared
+      - path: ../../services/subscriptions/product.json
+        buildPhase: resources
+    info:
+      path: BellBot/Info.plist
+      properties:
+        CFBundleDisplayName: BellTeam
+        CFBundleName: BellTeam
+        CFBundleShortVersionString: '1.0'
+        CFBundleVersion: '39'
+        UIUserInterfaceStyle: Light
+        ITSAppUsesNonExemptEncryption: false
+        LSApplicationCategoryType: public.app-category.productivity
+        BellTeamPushEnvironment: $(BELLTEAM_PUSH_ENVIRONMENT)
+        BellTeamAppGroupIdentifier: group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
+        NSUserActivityTypes:
+          - INSendMessageIntent
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        "UISupportedInterfaceOrientations~ipad":
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSLocalNetworkUsageDescription: LAN上のBellTeamへ接続するためにローカルネットワークを使います。
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+          NSExceptionDomains:
+            "127.0.0.0/8":
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "10.0.0.0/8":
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "172.16.0.0/12":
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "192.168.0.0/16":
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "169.254.0.0/16":
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "::1":
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "fc00::/7":
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "fe80::/10":
+              NSExceptionAllowsInsecureHTTPLoads: true
+        NSPhotoLibraryUsageDescription: 会話へ添付する画像を選ぶために写真を使います。
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BELLTEAM_APP_BUNDLE_IDENTIFIER)
+        PRODUCT_MODULE_NAME: BellBot
+        TARGETED_DEVICE_FAMILY: "1,2"
+        "TARGETED_DEVICE_FAMILY[sdk=macosx*]": '6'
+        CODE_SIGN_STYLE: Automatic
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": BellBot/BellBot-Mac.entitlements
+        "ENABLE_HARDENED_RUNTIME[sdk=macosx*]": YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Debug:
+          BELLTEAM_PUSH_ENVIRONMENT: development
+        Release:
+          BELLTEAM_PUSH_ENVIRONMENT: production
+    entitlements:
+      path: BellBot/BellBot.entitlements
+      properties:
+        aps-environment: development
+        com.apple.security.application-groups:
+          - group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
+        com.apple.developer.usernotifications.communication: true
+    dependencies:
+      - target: NotificationService
+        embed: true
+        link: false
+        codeSign: true
+      - sdk: Intents.framework
+  NotificationService:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: NotificationService
+        excludes:
+          - Info.plist
+          - "*.entitlements"
+      - path: Shared
+    info:
+      path: NotificationService/Info.plist
+      properties:
+        CFBundleDisplayName: BellTeam
+        CFBundleShortVersionString: '1.0'
+        CFBundleVersion: '39'
+        BellTeamAppGroupIdentifier: group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).BellNotificationService
+          NSExtensionAttributes:
+            IntentsSupported:
+              - INSendMessageIntent
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BELLTEAM_APP_BUNDLE_IDENTIFIER).NotificationService
+        TARGETED_DEVICE_FAMILY: "1,2"
+        "TARGETED_DEVICE_FAMILY[sdk=macosx*]": '6'
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: NotificationService/NotificationService.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": NotificationService/NotificationService-Mac.entitlements
+        "ENABLE_HARDENED_RUNTIME[sdk=macosx*]": YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+    entitlements:
+      path: NotificationService/NotificationService.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
+    dependencies:
+      - sdk: Intents.framework
+      - sdk: UserNotifications.framework
+  BellBotTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: BellBotTests
+    dependencies:
+      - target: BellTeam
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.bellteam.bellbot.tests
+  BellBotUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: BellBotUITests
+    dependencies:
+      - target: BellTeam
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.bellteam.bellbot.uitests
+
+schemes:
+  BellTeam:
+    build:
+      targets:
+        BellTeam: all
+    test:
+      targets:
+        - BellBotTests
+        - BellBotUITests
+      commandLineArguments:
+        -bellbot-preview: true

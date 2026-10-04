@@ -1,0 +1,208 @@
+<!-- 出典: https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/UserDefaults/AboutPreferenceDomains/AboutPreferenceDomains.html
+取得日: 2026-10-03
+確度: 公式一次資料の原文 -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+    <title>About the User Defaults System</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=7">
+    <meta charset="utf-8">
+    <meta id="book-resource-type" name="book-resource-type" content="Guide">
+    <meta scheme="apple_ref" id="identifier" name="identifier" content="//apple_ref/doc/uid/10000059i">
+    <meta id="document-version" name="document-version" content="6.0.0">
+    <meta id="build" name="build" content="c1e4c7a89af8f899a21cfa81fc33ba42" />
+    <meta id="chapterId" name="chapterId" content="10000059i-CH2">
+    <meta id="date" name="date" content="2013-10-22">
+    <meta id="description" name="description" content="Explains how to use the Cocoa defaults system to create and save user preferences.">
+    <meta id="book-title" name="book-title" content="Preferences and Settings Programming Guide">
+    <meta id="book-root" name="book-root" content="../">
+    <meta id="book-json" name="book-json" content="../book.json">
+    <meta id="devcenter" name="devcenter" content="Mac Dev Center">
+    <meta id="devcenter-url" name="devcenter-url" content="http://developer.apple.com/devcenter/mac">
+    <meta id="reflib" name="reflib" content="Documentation Archive">
+    <meta id="book-assignments" name="book-assignments" content="{Type/Guide}, {Technologies/Core Services Layer/Foundation}, {Topic/Data Management/Preference Settings}">
+    
+    
+    <meta id="copyright" name="copyright" content="Copyright 2018 Apple Inc. All Rights Reserved.">
+    <meta id="xcode-display" name="xcode-display" content="render">
+    <meta id="IndexTitle" name="IndexTitle" content="Preferences and Settings Programming Guide: About the User Defaults System">
+    <meta id="resources-uri" name="resources-uri" content="../../../../../Resources/1282">
+    <link id="book-index-page" rel="Start" title="Preferences and Settings Programming Guide" type="text/html" href="../index.html">
+    <link id="next-page" rel="Next" type="text/html" href="../AccessingPreferenceValues/AccessingPreferenceValues.html">
+    <link id="previous-page" rel="Prev" type="text/html" href="../Introduction/Introduction.html">
+    <link rel="stylesheet" type="text/css" href="../../../../../Resources/1282/CSS/screen.css">
+    
+    <!-- xcode_css -->
+    <link rel="stylesheet" type="text/css" href="../../../../../Resources/1282/CSS/feedback.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+	<meta id="platforms" name="platforms" content="">
+</head>    
+<body><a name="//apple_ref/doc/uid/10000059i-CH2" title="About the User Defaults System"></a>
+    <div id="_omniture_top">
+    <!-- SiteCatalyst code version: H.8. Copyright 1997-2006 Omniture, Inc. -->
+    <script type="text/javascript">
+    /* RSID: */
+    var s_account="awdappledeveloper"
+    </script>
+
+    <script type="text/javascript" src="https://developer.apple.com/assets/metrics/scripts/analytics.js"></script>
+    <script type="text/javascript">
+    s.channel="www.documentationarchive.developer"
+
+    /************* DO NOT ALTER ANYTHING BELOW THIS LINE ! **************/
+    var s_code=s.t();if(s_code)document.write(s_code)</script>
+    <!-- End SiteCatalyst code version: H.8. -->
+    </div>
+
+    <div id="adcHeader" class="hideOnPrint hideInXcode">
+        <div id='ssi_Header' class="hideInXcode unified">
+            <a id="ssi_LibraryTitle" href='../../../../../navigation/'>Documentation Archive</a>
+            <a id="ssi_AppleDeveloperConnection" href='https://developer.apple.com/'>Developer</a>
+            <div id='ssi_SearchButton' role="button" title="Search">Search</div>
+        </div>
+        <form id='ssi_SearchMenu' method='get' action='../../../../../search/' accept-charset='utf-8'>
+            <label for='adcsearch'>Search Documentation Archive</label>
+            
+            
+    
+            <input type='search' id='ssi_SearchField' name='q' accesskey='s' results='5' />
+        </form>
+    </div>
+
+    <header id="header">
+        <div id="title" role="banner">
+            <h1>Preferences and Settings Programming Guide</h1>
+            <span id="file_links">
+                <a id="PDF_link" role="button" tabindex='4' rel="alternate" title="Download PDF"><span id="pdf_icon"></span>PDF</a>
+                <a id="Companion_link" role="button" tabindex='3' title="Download Companion File"><span id="companion_icon"></span>Companion File</a>
+            </span>
+        </div>
+        <ul id="headerButtons" class="hideOnPrint" role="toolbar">
+            <li id="toc_button" style="display:none">
+                <button tabindex="5" id="table_of_contents" class="open" role="checkbox" aria-label="Show Table of Contents"><span class="disclosure"></span>Table of Contents</button>
+            </li>
+            <li id="jumpto_button" style="display:none" role="navigation"><select tabindex="6" id="jumpTo"><option value="top">Jump To&#133;</option></select></li>
+            <li id="downloadSample_button" style="display:none">
+                <a id="Sample_link"><button id="Sample_button">Download Sample Code</button></a>
+            </li>
+        </ul>
+    </header>
+    <nav id="tocContainer" tabindex="7">
+        <ul id="toc" role="tree"></ul>
+    </nav>
+
+    <article id="contents" tabindex="0" role="main">
+        <div id="pageNavigationLinks_top" class="pageNavigationLinks">
+            <a class='nextLink' rel='next' href='../AccessingPreferenceValues/AccessingPreferenceValues.html'>Next</a><a class='previousLink' rel='prev' href='../Introduction/Introduction.html'>Previous</a>
+        </div>
+        <a id="top" name="top"></a>
+        <a id="INDEX" href="../index.html" style="display:none;"></a>
+        
+        <a name="//apple_ref/doc/uid/10000059i-CH2-SW6" title="About the User Defaults System"></a><h1 id="pageTitle">About the User Defaults System</h1><p>The user defaults system manages the storage of preferences for each user. Most preferences are stored persistently and therefore do not change between subsequent launch cycles of your app. Apps use preferences to track user-initiated and program-initiated configuration changes.</p><section><a name="//apple_ref/doc/uid/10000059i-CH2-SW2" title="What Makes a Good Preference?"></a><h2 class="jump">What Makes a Good Preference?</h2><p>When defining your app’s preferences, it is better to use simple values and data types whenever possible. The preferences system is built around property-list data types such as strings, numbers, and dates. Although you can use an <code><a href="../../../../LegacyTechnologies/WebObjects/WebObjects_3.5/Reference/Frameworks/ObjC/Foundation/Classes/NSDataClassCluster/Description.html#//apple_ref/occ/cl/NSData" data-renderer-version="1" target="_self">NSData</a></code> object to store arbitrary objects in preferences, doing so is not recommended in most cases. </p><p>Storing objects persistently means that your app has to decode that object at some point. In the case of preferences, a stored object means decoding the object every time you access the preference. It also means that a newer version of your app has to ensure that it is able to decode objects created and written to disk using an earlier version of your app, which is potentially error prone.</p><p>A better approach for preferences is to store simple strings and values and use them to create the objects your app needs. Storing simple values means that your app can always access the value. The only thing that changes from release to release is the interpretation of the simple value and the objects your app creates in response.</p></section><section><a name="//apple_ref/doc/uid/10000059i-CH2-SW3" title="Providing a Preference Interface"></a><h2 class="jump">Providing a Preference Interface</h2><p>For user-facing preferences, <span class="content_text">Table 1-1</span> lists the options for displaying those preferences to the user. As you can see from this table, most options involve the creation of a custom user interface for managing and presenting preferences. If you are creating an iOS app, you can use a Settings bundle to present preferences, but you should do so only for settings the user changes infrequently.  </p><a name="//apple_ref/doc/uid/10000059i-CH2-SW5" title="Table 1-1Options for displaying preferences to the user "></a><div class="tableholder"><table class="graybox" border = "0" cellspacing="0" cellpadding="5"><caption class="tablecaption"><strong class="caption_number">Table 1-1</strong>&nbsp;&nbsp;Options for displaying preferences to the user </caption><tr><th scope="col" class="TableHeading_TableRow_TableCell"><p>Preference</p></th><th scope="col" class="TableHeading_TableRow_TableCell"><p>iOS</p></th><th scope="col" class="TableHeading_TableRow_TableCell"><p>OS X</p></th></tr><tr><td  scope="row"><p>Frequently changed preferences</p></td><td ><p>Custom UI</p></td><td ><p>Custom UI</p></td></tr><tr><td  scope="row"><p>Infrequently changed preferences</p></td><td ><p>Settings bundle</p></td><td ><p>Custom UI</p></td></tr></table></div><div class="notebox"><aside><a name="//apple_ref/doc/uid/10000059i-CH2-SW7" title="Note"></a><p><strong>Note:</strong>&nbsp;An example of preferences that might change frequently include things like the volume levels or control options of a game. An example of preferences that might change infrequently are the email address and server settings in the Mail app. For iOS apps, it is ultimately up to you to decide whether it is appropriate to expose preferences from the Settings app or from inside your app. </p><p></p></aside></div><p>Preferences in Mac apps should be accessible from a Preferences menu item in the app menu. Cocoa apps created using the Xcode templates provide such a menu item for you automatically. It is your responsibility to present an appropriate user interface when the user chooses this menu item. You can provide that user interface by defining an <span class="pediaLink" data-header="Target-Action" data-contents="Target-action is a design pattern in which an object holds the information necessary to send a message to another object when an event occurs. "><a href="../../../../General/Devpedia-CocoaApp-MOSX/TargetAction.html#//apple_ref/doc/uid/TP40009448-CH3" data-renderer-version="1" target="_self">action method</a></span> in your app delegate that displays a custom preferences window and <span class="recipeLink"><!--a target="_self" -->connecting that action method<!--/a--></span> to the menu item in Interface Builder. </p><p>There is no standard way to display custom preferences from inside an iOS app. You can integrate preferences in many ways, including using a separate tab in a tab-bar interface or using a custom button from one of your app’s screens. Preferences should generally be presented using a distinct view controller so that changes in preferences can be recorded when that view controller is dismissed by the user. </p></section><section><a name="//apple_ref/doc/uid/10000059i-CH2-SW1" title="The Organization of Preferences"></a><h2 class="jump">The Organization of Preferences</h2><p>Preferences are grouped into domains, each of which has a name and a specific usage. For example, there’s a domain for app-specific preferences and another for systemwide preferences that apply to all apps. All preferences are stored and accessed on a per-user basis. There is no support for sharing preferences between users.</p><p>Each preference has three components:</p><ul class="ul"><li class="li"><p>The domain in which it is stored</p></li><li class="li"><p>Its name (specified as an <code>NSString</code> object)</p></li><li class="li"><p>Its value, which can be any property-list object (<code>NSData</code>, <code>NSString</code>, <code>NSNumber</code>, <code>NSDate</code>, <code>NSArray</code>, or <code>NSDictionary</code>)</p></li></ul><p>The lifetime of a preference depends on which domain you store it in. Some domains store preferences persistently by writing them to the user’s defaults database. Such preferences continue to exist from one app launch to the next. Other domains store preferences in a more volatile way, preserving preference values only for the life of the corresponding user defaults object.</p><p>A search for the value of a given preference proceeds through the domains in an <code><a href="../../../../LegacyTechnologies/WebObjects/WebObjects_3.5/Reference/Frameworks/ObjC/Foundation/Classes/NSUserDefaults/Description.html#//apple_ref/occ/cl/NSUserDefaults" data-renderer-version="1" target="_self">NSUserDefaults</a></code> object’s search list. Only domains in the search list are searched and they are searched in the order shown in <span class="content_text">Table 1-2</span>, starting with the <code>NSArgumentDomain</code> domain. A search ends when a preference with the specified name is found. If multiple domains contain the same preference, the value is taken from the domain nearest the beginning of the search list.</p><a name="//apple_ref/doc/uid/10000059i-CH2-SW4" title="Table 1-2Search order for domains"></a><div class="tableholder"><table class="graybox" border = "0" cellspacing="0" cellpadding="5"><caption class="tablecaption"><strong class="caption_number">Table 1-2</strong>&nbsp;&nbsp;Search order for domains</caption><tr><th scope="col" class="TableHeading_TableRow_TableCell"><p>Domain</p></th><th scope="col" class="TableHeading_TableRow_TableCell"><p>State</p></th></tr><tr><td  scope="row"><p><code><a href="../../../../LegacyTechnologies/WebObjects/WebObjects_3.5/Reference/Frameworks/ObjC/Foundation/TypesAndConstants/FoundationTypesConstants/Description.html#//apple_ref/c/data/NSArgumentDomain" data-renderer-version="1" target="_self">NSArgumentDomain</a></code></p></td><td ><p>volatile</p></td></tr><tr><td  scope="row"><p>Application (Identified by the app’s identifier)</p></td><td ><p>persistent</p></td></tr><tr><td  scope="row"><p><code><a href="../../../../LegacyTechnologies/WebObjects/WebObjects_3.5/Reference/Frameworks/ObjC/Foundation/TypesAndConstants/FoundationTypesConstants/Description.html#//apple_ref/c/data/NSGlobalDomain" data-renderer-version="1" target="_self">NSGlobalDomain</a></code></p></td><td ><p>persistent</p></td></tr><tr><td  scope="row"><p>Languages (Identified by the language names)</p></td><td ><p>volatile</p></td></tr><tr><td  scope="row"><p><code><a href="../../../../LegacyTechnologies/WebObjects/WebObjects_3.5/Reference/Frameworks/ObjC/Foundation/TypesAndConstants/FoundationTypesConstants/Description.html#//apple_ref/c/data/NSRegistrationDomain" data-renderer-version="1" target="_self">NSRegistrationDomain</a></code></p></td><td ><p>volatile</p></td></tr></table></div><section><a name="//apple_ref/doc/uid/10000059i-CH2-96930" title="The Argument Domain"></a><h3 class="jump">The Argument Domain</h3><p>The argument domain comprises values set from command- line arguments (if you started the app from the command line) and is identified by the <code><a href="../../../../LegacyTechnologies/WebObjects/WebObjects_3.5/Reference/Frameworks/ObjC/Foundation/TypesAndConstants/FoundationTypesConstants/Description.html#//apple_ref/c/data/NSArgumentDomain" data-renderer-version="1" target="_self">NSArgumentDomain</a></code> constant. Values set from the command line are automatically placed into this domain by the system. To add a value to this domain, specify the preference name on the command line (preceded with a hyphen) and follow it with the corresponding value. For example, the following command launches Xcode and sets the value of its <code>IndexOnOpen</code> preference to <code><!--a  -->NO<!--/a--></code>:</p><div class="codesample clear"><table><tr><td scope="row"><pre>localhost&gt; Xcode.app/Contents/MacOS/Xcode -IndexOnOpen NO<span></span></pre></td></tr></table></div><p>Preferences set from the command line temporarily override the established values stored in the user’s defaults database. In the preceding example, setting the <code>IndexOnOpen</code> preference to <code><!--a  -->NO<!--/a--></code> prevents Xcode from indexing projects automatically, even if the preference is set to <code><!--a  -->YES<!--/a--></code> in the user defaults database.</p></section><section><a name="//apple_ref/doc/uid/10000059i-CH2-96980" title="The Application Domain"></a><h3 class="jump">The Application Domain</h3><p>The application domain contains app-specific preferences that are stored in the user defaults database of the current user. When you use the shared <code><a href="../../../../LegacyTechnologies/WebObjects/WebObjects_3.5/Reference/Frameworks/ObjC/Foundation/Classes/NSUserDefaults/Description.html#//apple_ref/occ/cl/NSUserDefaults" data-renderer-version="1" target="_self">NSUserDefaults</a></code> object (or a <code><a href="https://developer.apple.com/documentation/appkit/nsuserdefaultscontroller" class="urlLink" target="_self">NSUserDefaultsController</a></code> object in OS X) to write preferences, those preferences are automatically placed in this domain.</p><p>Because this domain is app-specific, the contents of the domain are tied to your app’s bundle identifier. The contents of this domain are stored in a file that is managed by the system. Currently, this file is located in the <em>$HOME</em><code>/Library/Preferences/</code> directory, where <em>$HOME</em> is either the app’s home directory or the user’s home directory (depending on the platform and whether your app is in a sandbox). The name of the user defaults database file is <em>&lt;ApplicationBundleIdentifer&gt;</em><code>.plist</code>, where <em>&lt;ApplicationBundleIdentifer&gt;</em> is your app’s bundle identifier. You should not modify this file directly but can inspect it during debugging to make sure preference values are being written by your app. </p></section><section><a name="//apple_ref/doc/uid/10000059i-CH2-96994" title="The Global Domain"></a><h3 class="jump">The Global Domain</h3><p>The global domain contains preferences that are applicable to all apps and is identified by the <code><a href="../../../../LegacyTechnologies/WebObjects/WebObjects_3.5/Reference/Frameworks/ObjC/Foundation/TypesAndConstants/FoundationTypesConstants/Description.html#//apple_ref/c/data/NSGlobalDomain" data-renderer-version="1" target="_self">NSGlobalDomain</a></code> constant. This domain is typically used by system frameworks to store system-wide values and should not be used by your app to store app-specific values. If you want to change the value of a preference in the global domain, write that same preference to the application domain with the new value.</p><p>Examples of how the system frameworks use this domain:</p><ul class="ul"><li class="li"><p>Instances of the <code>NSRuleView</code> class store the user’s preferred measurement units in the <code><!--a  -->AppleMeasurementUnits<!--/a--></code> key. Using this storage location causes ruler views in all apps to use the same units. </p></li><li class="li"><p>The system uses the <code><!--a  -->AppleLanguages<!--/a--></code> key to store the user’s preferred languages as an array of strings. For example, a user could specify English as the preferred language, followed by Spanish, French, German, Italian, and Swedish.</p></li></ul></section><section><a name="//apple_ref/doc/uid/20000718-97028" title="The Languages Domains"></a><a name="//apple_ref/doc/uid/10000059i-CH2-97028-BAJFFGHD" title="The Languages Domains"></a><h3 class="jump">The Languages Domains</h3><p>For each language in the <code><!--a  -->AppleLanguages<!--/a--></code> preference, the system records language-specific preference values in a domain whose name is based on the language name. Each language-specific domain contains preferences for the corresponding locale. Many classes in the Foundation framework (such as the <code>NSDate</code>, <code>NSDateFormatter</code>, <code>NSTimeZone</code>, <code>NSString</code>, and <code>NSScanner</code> classes) use this locale information to modify their behavior. For example, when you request a string representation of an <code>NSCalendarDate</code> object, the <code>NSCalendarDate</code> object uses the locale information to find the names of months and the days of the week for the user’s preferred language. </p></section><section><a name="//apple_ref/doc/uid/10000059i-CH2-97046" title="The Registration Domain"></a><h3 class="jump">The Registration Domain</h3><p>The registration domain defines the set of default values to use if a given preference is not set explicitly in one of the other domains. At launch time, an app can call the <code><a href="../../../../LegacyTechnologies/WebObjects/WebObjects_3.5/Reference/Frameworks/ObjC/Foundation/Classes/NSUserDefaults/Description.html#//apple_ref/occ/instm/NSUserDefaults/registerDefaults:" data-renderer-version="1" target="_self">registerDefaults:</a></code> method of <code>NSUserDefaults</code> to specify a default set of values for important preferences. When an app launches for the first time, most preferences have no values, so retrieving them would yield undefined results. Registering a set of default values ensures that your app always has a known good set of values to operate on.</p><p>The contents of the registration domain can be set only by using the <code><a href="../../../../LegacyTechnologies/WebObjects/WebObjects_3.5/Reference/Frameworks/ObjC/Foundation/Classes/NSUserDefaults/Description.html#//apple_ref/occ/instm/NSUserDefaults/registerDefaults:" data-renderer-version="1" target="_self">registerDefaults:</a></code> method.</p></section></section><section><a name="//apple_ref/doc/uid/10000059i-CH2-SW8" title="Viewing Preferences Using the Defaults Tool"></a><h2 class="jump">Viewing Preferences Using the Defaults Tool</h2><p>In OS X, the <code>defaults</code> command-line tool provides a way for you to examine the contents of the user defaults database. During app development, you might use this tool to validate the preferences your app is writing to disk. To do that, you would use a command of the following form from the Terminal app:</p><p><code>defaults read </code><em>&lt;application-bundle-identifier&gt;</em></p><p>To read the contents of the global domain, you would use the following command:</p><p><code>defaults read NSGlobalDomain</code></p><p>For more information about using the defaults tool to read and write preference values, see <code><!--a target="_self" -->defaults<!--/a--></code> man page.</p></section>
+        <div id="pageNavigationLinks_bottom" class="pageNavigationLinks">
+            <a class='nextLink' rel='next' href='../AccessingPreferenceValues/AccessingPreferenceValues.html'>Next</a><a class='previousLink' rel='prev' href='../Introduction/Introduction.html'>Previous</a>
+        </div><br/>
+        <div class="copyright"><br/><hr /><div align="center"><p class="content_text" lang="en" dir="ltr"> Copyright &#x00a9; 2013 Apple Inc. All Rights Reserved.  <a href="http://www.apple.com/legal/internet-services/terms/site.html" target="_blank">Terms of Use</a>   |  <a href="http://www.apple.com/privacy/" target="_blank">Privacy Policy</a>  |  Updated: 2013-10-22</p></div></div>
+
+        <div id="pediaWindow">
+            <div id="pediaHeader"></div>
+            <div id="pediaBody"></div>
+        </div>
+    </article>
+
+    <div id="blackout">
+    <div id="preload"></div>
+</div>
+<div id="modal" aria-hidden="true">
+    <div id="closebox" tabindex="0" aria-label="Close feedback form" role="button"></div>
+    <div id="sending" class="hidden">
+        <h2 tabindex="0">Sending feedback&hellip;</h2>
+        <div id="sending_img"></div>
+    </div>
+    <div id="error" class="hidden">
+        <h2 tabindex="0">We&rsquo;re sorry, an error has occurred.</h2>
+        <p>Please try submitting your feedback later.</p>
+        <div id="error_icon"></div>
+    </div>
+    <div id="success" class="hidden">
+        <h2 tabindex="0">Thank you for providing feedback!</h2>
+        <p>Your input helps improve our developer documentation.</p>
+        <div id="thank_you_icon"></div>
+    </div>
+    
+    <form id="feedback" action="#" method="post">
+        <div class="left-leaf">
+            <h2 id="helpful_title" data-asterisk="a1" tabindex="0">How helpful is this document?</h2>     
+            <sup id="a1" class="asterisk" aria-hidden="true">*</sup>
+
+            <div id="star_group" role="radiogroup" aria-required="true">
+                <label> 
+                    <input class="radio" type="radio" name="helped" value="1" /> 
+                    Very helpful
+                </label>
+                <label> 
+                    <input class="radio" type="radio" name="helped" value="2" /> 
+                    Somewhat helpful
+                </label>
+                <label>
+                    <input class="radio" type="radio" name="helped" value="3" /> 
+                    Not helpful
+                </label>
+            </div>
+        </div>
+        <div class="right-leaf">
+            <h2>How can we improve this document?</h2>
+            <div id="improve" class="checkboxes">
+                <label>
+                    <input type="checkbox" name="typo" /> 
+                    Fix typos or links
+                </label>
+                <label>
+                    <input type="checkbox" name="infoIncorrect" /> 
+                    Fix incorrect information
+                </label>
+                <label>
+                    <input type="checkbox" name="needs_examples" /> 
+                    Add or update code samples
+                </label>
+                <label>
+                    <input type="checkbox" name="needs_art" /> 
+                    Add or update illustrations
+                </label>
+                <label>
+                    <input type="checkbox" name="missingInfo" /> 
+                    Add information about...
+                </label>
+            </div>
+        </div>
+
+        <textarea id="comment" name="problem" cols="70" rows="8" placeholder="Please tell us more about your experience with this document" data-asterisk="a2" required></textarea>
+        <sup id="a2" class="asterisk" aria-hidden="true">*</sup>
+
+        <p class="fineprint">
+            <em aria-hidden="true"><span>*</span> Required information</em>
+        </p> 
+
+        <input id="submit" type="button" value="Send" />
+
+        <section id="legal">
+            <p>
+                To submit a product bug or enhancement request, please visit the 
+                <a href="https://developer.apple.com/bugreporter/" target="_blank">Bug Reporter</a> 
+                page.
+            </p>
+            <p>
+                Please read <a href="http://www.apple.com/legal/policies/ideas.html" target="_blank">Apple's Unsolicited Idea Submission Policy</a> 
+                before you send us your feedback.
+            </p> 
+        </section>
+    </form>
+</div>
+
+    
+    <script charset="utf-8" src="../../../../../Resources/1282/JavaScript/lib/prototype.js"></script>
+    <script src="../../../../../Resources/1282/JavaScript/library.js"></script>
+</body>
+</html>

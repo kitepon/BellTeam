@@ -1,0 +1,59 @@
+{
+  "cwd": "/Users/kite/Developer/BellTeam",
+  "control_id": "session-redelivery-20260902",
+  "actor_id": "bell-parent-20260902",
+  "expected_revision": 1,
+  "task": {
+    "task_id": "sr-001",
+    "title": "不達時にBotセッションを起動して一度だけ再送する",
+    "classification": "F",
+    "effect": "write",
+    "doc_ref": "docs/plan_session-redelivery-20260902.md",
+    "role": "implementer",
+    "lane": "behavior-change",
+    "depends_on": [],
+    "required_capabilities": [
+      "aiterm-release",
+      "bot-session-persistence",
+      "production-deployment"
+    ],
+    "isolation": "none",
+    "context_policy": {
+      "share_objective": true,
+      "share_current_candidate": true,
+      "share_existing_findings": true,
+      "share_failed_approaches": true,
+      "share_test_results": true
+    },
+    "validation": [
+      "Cursorの未送信入力をAitermが成功扱いしない",
+      "記録中IDへの不達時だけ同じBotプロジェクトを起動する",
+      "Aitermが返した新しいIDを永続化して同じメッセージを一度だけ再送する",
+      "DMとルームの共通配送経路、本番停止セッションで成立する"
+    ],
+    "non_goals": [
+      "セッションの常時起動",
+      "追加の識別子",
+      "永続配送キュー",
+      "監視と自動再試行"
+    ],
+    "known_traps": [
+      "送信前の一覧確認だけでは送信成立を証明できない",
+      "Bot IDをセッション名へ固定すると再起動後の最新IDを管理できない",
+      "二度目の不達まで再試行すると同一メッセージの重複実行を増やす"
+    ],
+    "read_scope": [
+      {"kind": "directory", "path": "src"},
+      {"kind": "directory", "path": "test"},
+      {"kind": "directory", "path": "docs"}
+    ],
+    "write_scope": [
+      {"kind": "directory", "path": "src"},
+      {"kind": "directory", "path": "test"},
+      {"kind": "directory", "path": "docs"},
+      {"kind": "file", "path": "Dockerfile"}
+    ],
+    "approval": null,
+    "alternative_group": null
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "cwd": "/Users/kite/Developer/BellTeam",
+  "control_id": "session-redelivery-20260902",
+  "actor_id": "bell-parent-20260902",
+  "expected_revision": 0,
+  "risk": "high",
+  "behavior_lane": "behavior-change"
+}

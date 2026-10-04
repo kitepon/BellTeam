@@ -1,0 +1,10 @@
+{
+  "name": "bellteam-subscription-worker-probe",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@apple/app-store-server-library": "3.1.0",
+    "asn1js": "^3.0.10",
+    "jsonwebtoken": "^9.0.3"
+  }
+}

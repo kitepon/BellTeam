@@ -1,0 +1,32 @@
+{
+  "cwd": "/Users/kite/Developer/BellTeam",
+  "control_id": "cursor-cold-start-delivery-20260902",
+  "objective_ref": "docs/plan_cursor-cold-start-delivery-20260902.md",
+  "actor_id": "bell-parent-cursor-20260902",
+  "document_refs": ["docs/plan_cursor-cold-start-delivery-20260902.md"],
+  "budget": {
+    "max_worker_runs": 0,
+    "max_consultations": 0,
+    "max_external_runs": 0,
+    "max_wall_time_seconds": 86400,
+    "max_cost_microusd": null,
+    "max_runs_per_approach_family": 1,
+    "max_retries_per_assignment": 0,
+    "max_integration_runs": 1
+  },
+  "lane_admission": {
+    "contract_version": "dotagents.lane-admission.v1",
+    "conditions": {
+      "planned_interruption": false,
+      "chained_acceptance": true,
+      "multi_repo_write_coordination": true,
+      "decision_evidence_required": false
+    },
+    "decision": {
+      "type": "decision",
+      "ref": "docs/plan_cursor-cold-start-delivery-20260902.md",
+      "digest": "0e276a0e1f952735c5940844e331332147f669b50924df8264fd68382a547ef1",
+      "observed_at": "2026-09-02T11:00:00.000Z"
+    }
+  }
+}

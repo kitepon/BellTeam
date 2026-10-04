@@ -1,0 +1,9 @@
+node_modules/
+.env
+runtime/
+*.log
+.control-inputs/
+ios/BellBot/build/
+ios/BellBot/DerivedData/
+ios/BellBot/**/*.xcuserstate
+ios/BellBot/**/xcuserdata/

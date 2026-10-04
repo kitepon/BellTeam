@@ -1,0 +1,979 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0257818FD6EAD80113F01926 /* NotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0F4DFFFAE06E03111B358A /* NotificationTests.swift */; };
+		025B957E795ADEEBC3666BC7 /* SelectableTextLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03043D84E81301281D2DAF1 /* SelectableTextLayoutTests.swift */; };
+		054B918C93471D915124D969 /* AuthenticationRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CADD413E6E27FE9CD4229A66 /* AuthenticationRecoveryTests.swift */; };
+		074D759AFDEEFF6FE840BD80 /* OwnerQuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3532F3AFA8FB5FAC79A9F73 /* OwnerQuestionView.swift */; };
+		097BC2376E3C25FEBD28641E /* BotSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219D6D25E6BA0B32D27F3918 /* BotSettings.swift */; };
+		0D4A7550D7A1CB322AF04B68 /* ConversationAppearanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91477F755E7B3FFAC049315 /* ConversationAppearanceUITests.swift */; };
+		0EA4B14252327E5F858F1967 /* AppleSubscriptionAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FCB6739FF40249F7E3779F /* AppleSubscriptionAccess.swift */; };
+		158521A7ACEF14BA3C0F151C /* BotAvatarCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1545E2FC5173C245DC923ED0 /* BotAvatarCache.swift */; };
+		15ABF72E470915D08210186C /* product.json in Resources */ = {isa = PBXBuildFile; fileRef = DBAD1D13AC6EF3C06BF561FB /* product.json */; };
+		174CE7F8B18C3BDD5DF90939 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4EC0870BB12FFC119FCBB8E6 /* Assets.xcassets */; };
+		1CC218461C68AD39DC83D02F /* Intents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F7AFDC6BC1AC218DA4FCDCE2 /* Intents.framework */; };
+		1D0987B137B1F5F6708F731C /* CommunicationNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0FF407A73C66DA6E4E20B8 /* CommunicationNotification.swift */; };
+		1EB95B06637C5D8F0CF5C98E /* ForegroundRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9B17BC6A80949A87D72E6A /* ForegroundRefreshTests.swift */; };
+		201E6D7B5656550CA640B97C /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E6703EEDB0CC8430773691 /* OnboardingView.swift */; };
+		2141CFF66BF32EF61ADE058E /* BellTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C25376F7F0FF8D3A6CCC0FF /* BellTheme.swift */; };
+		21C4821CBBDC41B35155B78F /* SelectableText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B1EA5240E89312F64F9402 /* SelectableText.swift */; };
+		231B9DCFD395DC309055D2C8 /* MessageText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85DB5E741758089D810A8E49 /* MessageText.swift */; };
+		29BBEC95063DB1095C1879E5 /* SchedulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA28AC7BFD35A51CF55B3E60 /* SchedulesView.swift */; };
+		34DACDAFD584A2A5DA4A83C5 /* SecretInputUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E03B5FA12F194911158CB0A /* SecretInputUITests.swift */; };
+		35B76B910CE10F6396331A23 /* BotAvatarCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1545E2FC5173C245DC923ED0 /* BotAvatarCache.swift */; };
+		36DD4FD1C3B89B6C657A1BE1 /* AvatarCropEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B68E48020A5C203154A695A5 /* AvatarCropEditor.swift */; };
+		390A4D9E0545A9B21203147A /* DesktopWorkspaceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C31E76D76A3C99D5754050E /* DesktopWorkspaceUITests.swift */; };
+		3A8887F32417ECBC087F9390 /* ServerOrigin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549845AE12463CD143CDEEB8 /* ServerOrigin.swift */; };
+		3CA85150E6BD8BE8189F7AB0 /* CommunicationNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0FF407A73C66DA6E4E20B8 /* CommunicationNotification.swift */; };
+		3F370E51E05D16A7F4A3CCD8 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E96D036E6FB833A7C3EDD3 /* Models.swift */; };
+		3F455EAA55B797780C0D75C7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F389F929181AEFB9BC90ACE /* SettingsView.swift */; };
+		43BB09184EEC31FAF35EE52C /* AvatarImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14A3883CF382AE17DAC3CE67 /* AvatarImage.swift */; };
+		4713F00A6F38AAF7DE44F8E0 /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E9D3D74EF4A36F15C49C36CE /* UserNotifications.framework */; };
+		497FA865C863E1F1305FF785 /* RoomDeletionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D550B852B0446656582D8B7 /* RoomDeletionUITests.swift */; };
+		4EA35592F0FF935859D2718E /* BotSaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254EE50E23553FA4436C995B /* BotSaveTests.swift */; };
+		5181E50997A0A3E50346B51A /* BillingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97CBCF3591B5FD4DA9FE6961 /* BillingStore.swift */; };
+		529D85B3ECEBB99D6FDF5AEA /* BillingStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E89EE9A9585139D146052FD /* BillingStoreTests.swift */; };
+		5F1AEDD6512D4EFC3E009E4F /* NetworkRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0122377D6B8287375EEC71 /* NetworkRecoveryTests.swift */; };
+		608D1EDDD04B6A1A0C0F7DCE /* DesktopWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1DC256029DCCFC2D3382D4E /* DesktopWorkspaceView.swift */; };
+		64D7E924A3D4EEF6922D2304 /* AvatarImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F156208B81C891BA501E7785 /* AvatarImagePicker.swift */; };
+		6573A20C94F32027FD985FA7 /* ConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75B87E22433703F49BF8DB76 /* ConversationView.swift */; };
+		67C076EDA84BC9E653993332 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D505AA366C00647C21E6CE8 /* AppStore.swift */; };
+		7EDA8878BC6C2253AD736426 /* CommunicationNotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E84D909378D259B30ED5A9AE /* CommunicationNotificationTests.swift */; };
+		80CF3C9F6A0C641FEE20B560 /* ConversationDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA4E9B64A2516F75A7E8655 /* ConversationDraft.swift */; };
+		82026FF65EB547C1D169EC07 /* BellDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE16A23837111EDE2A7DE6F2 /* BellDiagnostics.swift */; };
+		82C939EA660C75EED3519805 /* EventStreamLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E6415CA59C389AF3A2462C7 /* EventStreamLiveTests.swift */; };
+		8CDEEC44B651B4DA4B515D48 /* BellAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CCAEDB62892A74233BDFCB0 /* BellAPI.swift */; };
+		8E48958F4556B7FE2DBE0EE9 /* AvatarCropUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3EBBFD751613AF89CA54F1 /* AvatarCropUITests.swift */; };
+		9689FE6BEBE64717D15920F8 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 968C505620C5EFB89B646624 /* LoginView.swift */; };
+		988BFAD10B96323111424B11 /* AvatarTone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79B4C8B4F887C335AC863DBF /* AvatarTone.swift */; };
+		A0A459458B879425F7033290 /* AvatarImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3AB6A1FD4893701341E2055 /* AvatarImageTests.swift */; };
+		A13B98D604ACC4745C9C02AD /* SecretRequestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A705FBAB6CC825EC30D4D015 /* SecretRequestView.swift */; };
+		AC8602845898177F1B4ED1B7 /* ConversationFreezeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF588B2C4A45B1C56AF12E3 /* ConversationFreezeUITests.swift */; };
+		B802CD07B6DA6B53B5F8DA19 /* SubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29A5A1F43425BC7EE92C7740 /* SubscriptionView.swift */; };
+		B94461D887B611987EC659AD /* BellNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2260DBCC86E8B67926D92D /* BellNotifications.swift */; };
+		BA0FCCBDC792435CB3724421 /* FeatureSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24BE5D9C546C511849AC258D /* FeatureSettingsView.swift */; };
+		BCE2A0CEF26E911C718D1DE7 /* NotificationNavigationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2749F7F59C6FDA73CBD7A823 /* NotificationNavigationUITests.swift */; };
+		C7EDF928F89B111580BAEB5B /* SecretTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BF2159F5902850520F32BCE /* SecretTransportTests.swift */; };
+		C99C73B3266DF4792EB3D17F /* ServerOrigin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549845AE12463CD143CDEEB8 /* ServerOrigin.swift */; };
+		CF86EA52EF3720485D3AB265 /* InstalledConversationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FFC48F6891C1B67D0D7D224 /* InstalledConversationUITests.swift */; };
+		D2C41EF2F6330CC13B43961C /* NotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9CF9B993CAE157FD87092D72 /* NotificationService.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		D9090FD32702DDE687079C6D /* BellNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1230D327F5DB87E3EAEC0A /* BellNotificationService.swift */; };
+		D9D7875A215B631D4D0E4BAF /* RoomDeletionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82FA18958963479A339A70F4 /* RoomDeletionTests.swift */; };
+		D9E1CCD5CB66B80DC67DF166 /* ConversationDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0138E86CF9C413979445F108 /* ConversationDocument.swift */; };
+		DE9CF89E182A2D6AF2B4592C /* MessageInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 776478A3D8DE35F33CEB5585 /* MessageInputTests.swift */; };
+		DEFD24E9AA5B34A031FA59A3 /* ConversationAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCA2FFA3D879C25501EC4AC0 /* ConversationAppearanceTests.swift */; };
+		DF0F6D89FB75D2318FD9484E /* BellDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85C81E947834BDF63F27C14D /* BellDiagnosticsTests.swift */; };
+		E418E88290AAD63C35E3A034 /* ManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCD1040205415978F63373C /* ManagementView.swift */; };
+		E7677801888A80651A3F97D1 /* BellBotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 884428616564BE00EFB0370F /* BellBotApp.swift */; };
+		E992CDB6DC20A9F43EC92CAC /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF13D35CB467E0F42AA835C /* HomeView.swift */; };
+		EDDE752CCF33981F828EE435 /* ConversationDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F48C4A7EAAA1CFDBE5B1F39 /* ConversationDraftTests.swift */; };
+		F4E28EAECE529EA885542A2D /* OnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37AF152E2DF0BD72789A33E8 /* OnboardingTests.swift */; };
+		F5BD3CF8DF8448911A5619E8 /* PreviewFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FB291F103F8489EC171FD0 /* PreviewFixtures.swift */; };
+		F7A3610AB742DDF65F460171 /* Intents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F7AFDC6BC1AC218DA4FCDCE2 /* Intents.framework */; };
+		F8CEC404D66D5C0D890F7698 /* TabletWorkspaceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58852297683AC8B45153D2EB /* TabletWorkspaceUITests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		2E9935004786FE3E42ABCF28 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1C603972E184F4F0CAEC5D5C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A56A7BC7B59035F2BD15DB4E;
+			remoteInfo = BellTeam;
+		};
+		2F52385CAC1EF4FB692FCFAA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1C603972E184F4F0CAEC5D5C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A56A7BC7B59035F2BD15DB4E;
+			remoteInfo = BellTeam;
+		};
+		59D445B565E5903A2854114D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1C603972E184F4F0CAEC5D5C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3D3689DA5100434AEEF3C9D0;
+			remoteInfo = NotificationService;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		47F1B27D7E4AD866F5AEBAB7 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D2C41EF2F6330CC13B43961C /* NotificationService.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0138E86CF9C413979445F108 /* ConversationDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationDocument.swift; sourceTree = "<group>"; };
+		0D0FF407A73C66DA6E4E20B8 /* CommunicationNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunicationNotification.swift; sourceTree = "<group>"; };
+		13E96D036E6FB833A7C3EDD3 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		14A3883CF382AE17DAC3CE67 /* AvatarImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarImage.swift; sourceTree = "<group>"; };
+		1545E2FC5173C245DC923ED0 /* BotAvatarCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotAvatarCache.swift; sourceTree = "<group>"; };
+		19FCB6739FF40249F7E3779F /* AppleSubscriptionAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSubscriptionAccess.swift; sourceTree = "<group>"; };
+		21479869FD1BC24B77D65313 /* BellTeam.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BellTeam.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		219D6D25E6BA0B32D27F3918 /* BotSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotSettings.swift; sourceTree = "<group>"; };
+		24BE5D9C546C511849AC258D /* FeatureSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureSettingsView.swift; sourceTree = "<group>"; };
+		254EE50E23553FA4436C995B /* BotSaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotSaveTests.swift; sourceTree = "<group>"; };
+		2749F7F59C6FDA73CBD7A823 /* NotificationNavigationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationNavigationUITests.swift; sourceTree = "<group>"; };
+		29A5A1F43425BC7EE92C7740 /* SubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionView.swift; sourceTree = "<group>"; };
+		2DA4E9B64A2516F75A7E8655 /* ConversationDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationDraft.swift; sourceTree = "<group>"; };
+		2F48C4A7EAAA1CFDBE5B1F39 /* ConversationDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationDraftTests.swift; sourceTree = "<group>"; };
+		37AF152E2DF0BD72789A33E8 /* OnboardingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTests.swift; sourceTree = "<group>"; };
+		3C25376F7F0FF8D3A6CCC0FF /* BellTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellTheme.swift; sourceTree = "<group>"; };
+		3C31E76D76A3C99D5754050E /* DesktopWorkspaceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopWorkspaceUITests.swift; sourceTree = "<group>"; };
+		4D9B17BC6A80949A87D72E6A /* ForegroundRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForegroundRefreshTests.swift; sourceTree = "<group>"; };
+		4E03B5FA12F194911158CB0A /* SecretInputUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretInputUITests.swift; sourceTree = "<group>"; };
+		4E89EE9A9585139D146052FD /* BillingStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingStoreTests.swift; sourceTree = "<group>"; };
+		4EC0870BB12FFC119FCBB8E6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5240F7B27DBDA4893A69C997 /* BellBotUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BellBotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		549845AE12463CD143CDEEB8 /* ServerOrigin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerOrigin.swift; sourceTree = "<group>"; };
+		575A653FFBEBCE0085C321A4 /* BellBot.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BellBot.entitlements; sourceTree = "<group>"; };
+		58852297683AC8B45153D2EB /* TabletWorkspaceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabletWorkspaceUITests.swift; sourceTree = "<group>"; };
+		5E2260DBCC86E8B67926D92D /* BellNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellNotifications.swift; sourceTree = "<group>"; };
+		5FFC48F6891C1B67D0D7D224 /* InstalledConversationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstalledConversationUITests.swift; sourceTree = "<group>"; };
+		6BF2159F5902850520F32BCE /* SecretTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretTransportTests.swift; sourceTree = "<group>"; };
+		6CCAEDB62892A74233BDFCB0 /* BellAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellAPI.swift; sourceTree = "<group>"; };
+		75B87E22433703F49BF8DB76 /* ConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationView.swift; sourceTree = "<group>"; };
+		776478A3D8DE35F33CEB5585 /* MessageInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageInputTests.swift; sourceTree = "<group>"; };
+		79B4C8B4F887C335AC863DBF /* AvatarTone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarTone.swift; sourceTree = "<group>"; };
+		7D550B852B0446656582D8B7 /* RoomDeletionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomDeletionUITests.swift; sourceTree = "<group>"; };
+		7EF588B2C4A45B1C56AF12E3 /* ConversationFreezeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationFreezeUITests.swift; sourceTree = "<group>"; };
+		80B1EA5240E89312F64F9402 /* SelectableText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectableText.swift; sourceTree = "<group>"; };
+		82FA18958963479A339A70F4 /* RoomDeletionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomDeletionTests.swift; sourceTree = "<group>"; };
+		85C81E947834BDF63F27C14D /* BellDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellDiagnosticsTests.swift; sourceTree = "<group>"; };
+		85DB5E741758089D810A8E49 /* MessageText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageText.swift; sourceTree = "<group>"; };
+		884428616564BE00EFB0370F /* BellBotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellBotApp.swift; sourceTree = "<group>"; };
+		8F389F929181AEFB9BC90ACE /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		968C505620C5EFB89B646624 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		96E6703EEDB0CC8430773691 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		97CBCF3591B5FD4DA9FE6961 /* BillingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingStore.swift; sourceTree = "<group>"; };
+		9CF9B993CAE157FD87092D72 /* NotificationService.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = NotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		9D505AA366C00647C21E6CE8 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
+		9E6415CA59C389AF3A2462C7 /* EventStreamLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStreamLiveTests.swift; sourceTree = "<group>"; };
+		A705FBAB6CC825EC30D4D015 /* SecretRequestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretRequestView.swift; sourceTree = "<group>"; };
+		AA28AC7BFD35A51CF55B3E60 /* SchedulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulesView.swift; sourceTree = "<group>"; };
+		B3532F3AFA8FB5FAC79A9F73 /* OwnerQuestionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnerQuestionView.swift; sourceTree = "<group>"; };
+		B3AB6A1FD4893701341E2055 /* AvatarImageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarImageTests.swift; sourceTree = "<group>"; };
+		B68E48020A5C203154A695A5 /* AvatarCropEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarCropEditor.swift; sourceTree = "<group>"; };
+		BCF13D35CB467E0F42AA835C /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		BE3EBBFD751613AF89CA54F1 /* AvatarCropUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarCropUITests.swift; sourceTree = "<group>"; };
+		C03043D84E81301281D2DAF1 /* SelectableTextLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectableTextLayoutTests.swift; sourceTree = "<group>"; };
+		C226A72E68B9F9BEE6500258 /* BellBot-Mac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "BellBot-Mac.entitlements"; sourceTree = "<group>"; };
+		C89DE09C565167FBCD28C4A5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		CADD413E6E27FE9CD4229A66 /* AuthenticationRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationRecoveryTests.swift; sourceTree = "<group>"; };
+		D91477F755E7B3FFAC049315 /* ConversationAppearanceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationAppearanceUITests.swift; sourceTree = "<group>"; };
+		DB0122377D6B8287375EEC71 /* NetworkRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkRecoveryTests.swift; sourceTree = "<group>"; };
+		DBAD1D13AC6EF3C06BF561FB /* product.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = product.json; sourceTree = "<group>"; };
+		E5FB291F103F8489EC171FD0 /* PreviewFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewFixtures.swift; sourceTree = "<group>"; };
+		E84D909378D259B30ED5A9AE /* CommunicationNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunicationNotificationTests.swift; sourceTree = "<group>"; };
+		E9D3D74EF4A36F15C49C36CE /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
+		ECCD1040205415978F63373C /* ManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementView.swift; sourceTree = "<group>"; };
+		ED0F4DFFFAE06E03111B358A /* NotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationTests.swift; sourceTree = "<group>"; };
+		EE16A23837111EDE2A7DE6F2 /* BellDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellDiagnostics.swift; sourceTree = "<group>"; };
+		EF1230D327F5DB87E3EAEC0A /* BellNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellNotificationService.swift; sourceTree = "<group>"; };
+		F156208B81C891BA501E7785 /* AvatarImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarImagePicker.swift; sourceTree = "<group>"; };
+		F1DC256029DCCFC2D3382D4E /* DesktopWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopWorkspaceView.swift; sourceTree = "<group>"; };
+		F5C036D6FC0D34A88B024A9A /* BellBotTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BellBotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F7AFDC6BC1AC218DA4FCDCE2 /* Intents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Intents.framework; path = System/Library/Frameworks/Intents.framework; sourceTree = SDKROOT; };
+		FCA2FFA3D879C25501EC4AC0 /* ConversationAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationAppearanceTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		9FBF4B299D5923E07FA66FC1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F7A3610AB742DDF65F460171 /* Intents.framework in Frameworks */,
+				4713F00A6F38AAF7DE44F8E0 /* UserNotifications.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		ED2C3329FC7109C7CE5A68A9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1CC218461C68AD39DC83D02F /* Intents.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		295E5C10C2853D11253E5342 /* BellBotTests */ = {
+			isa = PBXGroup;
+			children = (
+				CADD413E6E27FE9CD4229A66 /* AuthenticationRecoveryTests.swift */,
+				B3AB6A1FD4893701341E2055 /* AvatarImageTests.swift */,
+				85C81E947834BDF63F27C14D /* BellDiagnosticsTests.swift */,
+				4E89EE9A9585139D146052FD /* BillingStoreTests.swift */,
+				254EE50E23553FA4436C995B /* BotSaveTests.swift */,
+				E84D909378D259B30ED5A9AE /* CommunicationNotificationTests.swift */,
+				FCA2FFA3D879C25501EC4AC0 /* ConversationAppearanceTests.swift */,
+				2F48C4A7EAAA1CFDBE5B1F39 /* ConversationDraftTests.swift */,
+				9E6415CA59C389AF3A2462C7 /* EventStreamLiveTests.swift */,
+				4D9B17BC6A80949A87D72E6A /* ForegroundRefreshTests.swift */,
+				776478A3D8DE35F33CEB5585 /* MessageInputTests.swift */,
+				DB0122377D6B8287375EEC71 /* NetworkRecoveryTests.swift */,
+				ED0F4DFFFAE06E03111B358A /* NotificationTests.swift */,
+				37AF152E2DF0BD72789A33E8 /* OnboardingTests.swift */,
+				82FA18958963479A339A70F4 /* RoomDeletionTests.swift */,
+				6BF2159F5902850520F32BCE /* SecretTransportTests.swift */,
+				C03043D84E81301281D2DAF1 /* SelectableTextLayoutTests.swift */,
+			);
+			path = BellBotTests;
+			sourceTree = "<group>";
+		};
+		410C9BB56D3B67991287629F /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				19FCB6739FF40249F7E3779F /* AppleSubscriptionAccess.swift */,
+				9D505AA366C00647C21E6CE8 /* AppStore.swift */,
+				14A3883CF382AE17DAC3CE67 /* AvatarImage.swift */,
+				6CCAEDB62892A74233BDFCB0 /* BellAPI.swift */,
+				EE16A23837111EDE2A7DE6F2 /* BellDiagnostics.swift */,
+				5E2260DBCC86E8B67926D92D /* BellNotifications.swift */,
+				97CBCF3591B5FD4DA9FE6961 /* BillingStore.swift */,
+				219D6D25E6BA0B32D27F3918 /* BotSettings.swift */,
+				0138E86CF9C413979445F108 /* ConversationDocument.swift */,
+				2DA4E9B64A2516F75A7E8655 /* ConversationDraft.swift */,
+				13E96D036E6FB833A7C3EDD3 /* Models.swift */,
+				E5FB291F103F8489EC171FD0 /* PreviewFixtures.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		4257A4F58FC648CBD1F36852 /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				79B4C8B4F887C335AC863DBF /* AvatarTone.swift */,
+				3C25376F7F0FF8D3A6CCC0FF /* BellTheme.swift */,
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
+		4C1A83BF6CB32918DFBA6575 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				884428616564BE00EFB0370F /* BellBotApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		4EA5C49F7D2EED587D419DCE = {
+			isa = PBXGroup;
+			children = (
+				F8B86DADFA93B9B63A59EEF0 /* BellBot */,
+				295E5C10C2853D11253E5342 /* BellBotTests */,
+				A84F0B573DCFC15FB2609D5F /* BellBotUITests */,
+				9CC8D0596CF54037BE8B1802 /* NotificationService */,
+				BCA3F3ACFE60A75083C353E5 /* Shared */,
+				E4DB2A5071C29A66F9AC47DB /* subscriptions */,
+				DC76D2B0679BB879FE9D839F /* Frameworks */,
+				E2B2A1FC31361F643ACA41A9 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6E89FA37A88D0443F27DD9EA /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B68E48020A5C203154A695A5 /* AvatarCropEditor.swift */,
+				F156208B81C891BA501E7785 /* AvatarImagePicker.swift */,
+				75B87E22433703F49BF8DB76 /* ConversationView.swift */,
+				F1DC256029DCCFC2D3382D4E /* DesktopWorkspaceView.swift */,
+				24BE5D9C546C511849AC258D /* FeatureSettingsView.swift */,
+				BCF13D35CB467E0F42AA835C /* HomeView.swift */,
+				968C505620C5EFB89B646624 /* LoginView.swift */,
+				ECCD1040205415978F63373C /* ManagementView.swift */,
+				85DB5E741758089D810A8E49 /* MessageText.swift */,
+				96E6703EEDB0CC8430773691 /* OnboardingView.swift */,
+				B3532F3AFA8FB5FAC79A9F73 /* OwnerQuestionView.swift */,
+				AA28AC7BFD35A51CF55B3E60 /* SchedulesView.swift */,
+				A705FBAB6CC825EC30D4D015 /* SecretRequestView.swift */,
+				80B1EA5240E89312F64F9402 /* SelectableText.swift */,
+				8F389F929181AEFB9BC90ACE /* SettingsView.swift */,
+				29A5A1F43425BC7EE92C7740 /* SubscriptionView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		9CC8D0596CF54037BE8B1802 /* NotificationService */ = {
+			isa = PBXGroup;
+			children = (
+				EF1230D327F5DB87E3EAEC0A /* BellNotificationService.swift */,
+			);
+			path = NotificationService;
+			sourceTree = "<group>";
+		};
+		A84F0B573DCFC15FB2609D5F /* BellBotUITests */ = {
+			isa = PBXGroup;
+			children = (
+				BE3EBBFD751613AF89CA54F1 /* AvatarCropUITests.swift */,
+				D91477F755E7B3FFAC049315 /* ConversationAppearanceUITests.swift */,
+				7EF588B2C4A45B1C56AF12E3 /* ConversationFreezeUITests.swift */,
+				3C31E76D76A3C99D5754050E /* DesktopWorkspaceUITests.swift */,
+				5FFC48F6891C1B67D0D7D224 /* InstalledConversationUITests.swift */,
+				2749F7F59C6FDA73CBD7A823 /* NotificationNavigationUITests.swift */,
+				7D550B852B0446656582D8B7 /* RoomDeletionUITests.swift */,
+				4E03B5FA12F194911158CB0A /* SecretInputUITests.swift */,
+				58852297683AC8B45153D2EB /* TabletWorkspaceUITests.swift */,
+			);
+			path = BellBotUITests;
+			sourceTree = "<group>";
+		};
+		BCA3F3ACFE60A75083C353E5 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				1545E2FC5173C245DC923ED0 /* BotAvatarCache.swift */,
+				0D0FF407A73C66DA6E4E20B8 /* CommunicationNotification.swift */,
+				549845AE12463CD143CDEEB8 /* ServerOrigin.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		DC76D2B0679BB879FE9D839F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				F7AFDC6BC1AC218DA4FCDCE2 /* Intents.framework */,
+				E9D3D74EF4A36F15C49C36CE /* UserNotifications.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		E2B2A1FC31361F643ACA41A9 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F5C036D6FC0D34A88B024A9A /* BellBotTests.xctest */,
+				5240F7B27DBDA4893A69C997 /* BellBotUITests.xctest */,
+				21479869FD1BC24B77D65313 /* BellTeam.app */,
+				9CF9B993CAE157FD87092D72 /* NotificationService.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E4DB2A5071C29A66F9AC47DB /* subscriptions */ = {
+			isa = PBXGroup;
+			children = (
+				DBAD1D13AC6EF3C06BF561FB /* product.json */,
+			);
+			name = subscriptions;
+			path = ../../services/subscriptions;
+			sourceTree = "<group>";
+		};
+		F8B86DADFA93B9B63A59EEF0 /* BellBot */ = {
+			isa = PBXGroup;
+			children = (
+				4EC0870BB12FFC119FCBB8E6 /* Assets.xcassets */,
+				C226A72E68B9F9BEE6500258 /* BellBot-Mac.entitlements */,
+				575A653FFBEBCE0085C321A4 /* BellBot.entitlements */,
+				C89DE09C565167FBCD28C4A5 /* Info.plist */,
+				4C1A83BF6CB32918DFBA6575 /* App */,
+				410C9BB56D3B67991287629F /* Core */,
+				4257A4F58FC648CBD1F36852 /* Design */,
+				6E89FA37A88D0443F27DD9EA /* Views */,
+			);
+			path = BellBot;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0A45E1FF5A1C4BFA2FDF838A /* BellBotUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 38B3D5573173910404B5AC15 /* Build configuration list for PBXNativeTarget "BellBotUITests" */;
+			buildPhases = (
+				3B26C597E4AF9307B3BC1CA2 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				225F291FBB15257D3E0AD60C /* PBXTargetDependency */,
+			);
+			name = BellBotUITests;
+			packageProductDependencies = (
+			);
+			productName = BellBotUITests;
+			productReference = 5240F7B27DBDA4893A69C997 /* BellBotUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		18B0053E7F71471C63C6EAFE /* BellBotTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 19E12D70B27475A5AEAB1BFA /* Build configuration list for PBXNativeTarget "BellBotTests" */;
+			buildPhases = (
+				D87666CD143E8E9E3D7339EB /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CCECCED3715086D003A7D04B /* PBXTargetDependency */,
+			);
+			name = BellBotTests;
+			packageProductDependencies = (
+			);
+			productName = BellBotTests;
+			productReference = F5C036D6FC0D34A88B024A9A /* BellBotTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		3D3689DA5100434AEEF3C9D0 /* NotificationService */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9DFD1BC7BA16C02BEF89AECB /* Build configuration list for PBXNativeTarget "NotificationService" */;
+			buildPhases = (
+				4C2B139DB0F7A478162F5FC6 /* Sources */,
+				9FBF4B299D5923E07FA66FC1 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NotificationService;
+			packageProductDependencies = (
+			);
+			productName = NotificationService;
+			productReference = 9CF9B993CAE157FD87092D72 /* NotificationService.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		A56A7BC7B59035F2BD15DB4E /* BellTeam */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 59EDC95C5F25C29EB1C5A0A8 /* Build configuration list for PBXNativeTarget "BellTeam" */;
+			buildPhases = (
+				63ED8F36D27107516884B944 /* Sources */,
+				5095CDC2880B80E05092DEA6 /* Resources */,
+				ED2C3329FC7109C7CE5A68A9 /* Frameworks */,
+				47F1B27D7E4AD866F5AEBAB7 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5CB43FF25E35F9D63E71B430 /* PBXTargetDependency */,
+			);
+			name = BellTeam;
+			packageProductDependencies = (
+			);
+			productName = BellTeam;
+			productReference = 21479869FD1BC24B77D65313 /* BellTeam.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1C603972E184F4F0CAEC5D5C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					0A45E1FF5A1C4BFA2FDF838A = {
+						TestTargetID = A56A7BC7B59035F2BD15DB4E;
+					};
+					3D3689DA5100434AEEF3C9D0 = {
+						ProvisioningStyle = Automatic;
+					};
+					A56A7BC7B59035F2BD15DB4E = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = A9215FA6A9AE75E1713E0D3C /* Build configuration list for PBXProject "BellBot" */;
+			developmentRegion = ja;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				ja,
+			);
+			mainGroup = 4EA5C49F7D2EED587D419DCE;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = E2B2A1FC31361F643ACA41A9 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A56A7BC7B59035F2BD15DB4E /* BellTeam */,
+				3D3689DA5100434AEEF3C9D0 /* NotificationService */,
+				18B0053E7F71471C63C6EAFE /* BellBotTests */,
+				0A45E1FF5A1C4BFA2FDF838A /* BellBotUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		5095CDC2880B80E05092DEA6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				174CE7F8B18C3BDD5DF90939 /* Assets.xcassets in Resources */,
+				15ABF72E470915D08210186C /* product.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3B26C597E4AF9307B3BC1CA2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8E48958F4556B7FE2DBE0EE9 /* AvatarCropUITests.swift in Sources */,
+				0D4A7550D7A1CB322AF04B68 /* ConversationAppearanceUITests.swift in Sources */,
+				AC8602845898177F1B4ED1B7 /* ConversationFreezeUITests.swift in Sources */,
+				390A4D9E0545A9B21203147A /* DesktopWorkspaceUITests.swift in Sources */,
+				CF86EA52EF3720485D3AB265 /* InstalledConversationUITests.swift in Sources */,
+				BCE2A0CEF26E911C718D1DE7 /* NotificationNavigationUITests.swift in Sources */,
+				497FA865C863E1F1305FF785 /* RoomDeletionUITests.swift in Sources */,
+				34DACDAFD584A2A5DA4A83C5 /* SecretInputUITests.swift in Sources */,
+				F8CEC404D66D5C0D890F7698 /* TabletWorkspaceUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4C2B139DB0F7A478162F5FC6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D9090FD32702DDE687079C6D /* BellNotificationService.swift in Sources */,
+				35B76B910CE10F6396331A23 /* BotAvatarCache.swift in Sources */,
+				1D0987B137B1F5F6708F731C /* CommunicationNotification.swift in Sources */,
+				C99C73B3266DF4792EB3D17F /* ServerOrigin.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		63ED8F36D27107516884B944 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				67C076EDA84BC9E653993332 /* AppStore.swift in Sources */,
+				0EA4B14252327E5F858F1967 /* AppleSubscriptionAccess.swift in Sources */,
+				36DD4FD1C3B89B6C657A1BE1 /* AvatarCropEditor.swift in Sources */,
+				43BB09184EEC31FAF35EE52C /* AvatarImage.swift in Sources */,
+				64D7E924A3D4EEF6922D2304 /* AvatarImagePicker.swift in Sources */,
+				988BFAD10B96323111424B11 /* AvatarTone.swift in Sources */,
+				8CDEEC44B651B4DA4B515D48 /* BellAPI.swift in Sources */,
+				E7677801888A80651A3F97D1 /* BellBotApp.swift in Sources */,
+				82026FF65EB547C1D169EC07 /* BellDiagnostics.swift in Sources */,
+				B94461D887B611987EC659AD /* BellNotifications.swift in Sources */,
+				2141CFF66BF32EF61ADE058E /* BellTheme.swift in Sources */,
+				5181E50997A0A3E50346B51A /* BillingStore.swift in Sources */,
+				158521A7ACEF14BA3C0F151C /* BotAvatarCache.swift in Sources */,
+				097BC2376E3C25FEBD28641E /* BotSettings.swift in Sources */,
+				3CA85150E6BD8BE8189F7AB0 /* CommunicationNotification.swift in Sources */,
+				D9E1CCD5CB66B80DC67DF166 /* ConversationDocument.swift in Sources */,
+				80CF3C9F6A0C641FEE20B560 /* ConversationDraft.swift in Sources */,
+				6573A20C94F32027FD985FA7 /* ConversationView.swift in Sources */,
+				608D1EDDD04B6A1A0C0F7DCE /* DesktopWorkspaceView.swift in Sources */,
+				BA0FCCBDC792435CB3724421 /* FeatureSettingsView.swift in Sources */,
+				E992CDB6DC20A9F43EC92CAC /* HomeView.swift in Sources */,
+				9689FE6BEBE64717D15920F8 /* LoginView.swift in Sources */,
+				E418E88290AAD63C35E3A034 /* ManagementView.swift in Sources */,
+				231B9DCFD395DC309055D2C8 /* MessageText.swift in Sources */,
+				3F370E51E05D16A7F4A3CCD8 /* Models.swift in Sources */,
+				201E6D7B5656550CA640B97C /* OnboardingView.swift in Sources */,
+				074D759AFDEEFF6FE840BD80 /* OwnerQuestionView.swift in Sources */,
+				F5BD3CF8DF8448911A5619E8 /* PreviewFixtures.swift in Sources */,
+				29BBEC95063DB1095C1879E5 /* SchedulesView.swift in Sources */,
+				A13B98D604ACC4745C9C02AD /* SecretRequestView.swift in Sources */,
+				21C4821CBBDC41B35155B78F /* SelectableText.swift in Sources */,
+				3A8887F32417ECBC087F9390 /* ServerOrigin.swift in Sources */,
+				3F455EAA55B797780C0D75C7 /* SettingsView.swift in Sources */,
+				B802CD07B6DA6B53B5F8DA19 /* SubscriptionView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D87666CD143E8E9E3D7339EB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				054B918C93471D915124D969 /* AuthenticationRecoveryTests.swift in Sources */,
+				A0A459458B879425F7033290 /* AvatarImageTests.swift in Sources */,
+				DF0F6D89FB75D2318FD9484E /* BellDiagnosticsTests.swift in Sources */,
+				529D85B3ECEBB99D6FDF5AEA /* BillingStoreTests.swift in Sources */,
+				4EA35592F0FF935859D2718E /* BotSaveTests.swift in Sources */,
+				7EDA8878BC6C2253AD736426 /* CommunicationNotificationTests.swift in Sources */,
+				DEFD24E9AA5B34A031FA59A3 /* ConversationAppearanceTests.swift in Sources */,
+				EDDE752CCF33981F828EE435 /* ConversationDraftTests.swift in Sources */,
+				82C939EA660C75EED3519805 /* EventStreamLiveTests.swift in Sources */,
+				1EB95B06637C5D8F0CF5C98E /* ForegroundRefreshTests.swift in Sources */,
+				DE9CF89E182A2D6AF2B4592C /* MessageInputTests.swift in Sources */,
+				5F1AEDD6512D4EFC3E009E4F /* NetworkRecoveryTests.swift in Sources */,
+				0257818FD6EAD80113F01926 /* NotificationTests.swift in Sources */,
+				F4E28EAECE529EA885542A2D /* OnboardingTests.swift in Sources */,
+				D9D7875A215B631D4D0E4BAF /* RoomDeletionTests.swift in Sources */,
+				C7EDF928F89B111580BAEB5B /* SecretTransportTests.swift in Sources */,
+				025B957E795ADEEBC3666BC7 /* SelectableTextLayoutTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		225F291FBB15257D3E0AD60C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A56A7BC7B59035F2BD15DB4E /* BellTeam */;
+			targetProxy = 2E9935004786FE3E42ABCF28 /* PBXContainerItemProxy */;
+		};
+		5CB43FF25E35F9D63E71B430 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3D3689DA5100434AEEF3C9D0 /* NotificationService */;
+			targetProxy = 59D445B565E5903A2854114D /* PBXContainerItemProxy */;
+		};
+		CCECCED3715086D003A7D04B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A56A7BC7B59035F2BD15DB4E /* BellTeam */;
+			targetProxy = 2F52385CAC1EF4FB692FCFAA /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		107CEE5FB23002BBB2A984BA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BELLTEAM_APP_BUNDLE_IDENTIFIER = dev.kitepon.bellbot;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				"TARGETED_DEVICE_FAMILY[sdk=macosx*]" = 6;
+			};
+			name = Release;
+		};
+		147CD0236E9968D0EC4E7C15 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				BELLTEAM_PUSH_ENVIRONMENT = development;
+				CODE_SIGN_ENTITLEMENTS = BellBot/BellBot.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "BellBot/BellBot-Mac.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
+				INFOPLIST_FILE = BellBot/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BELLTEAM_APP_BUNDLE_IDENTIFIER)";
+				PRODUCT_MODULE_NAME = BellBot;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				"TARGETED_DEVICE_FAMILY[sdk=macosx*]" = 6;
+			};
+			name = Debug;
+		};
+		19CE9FCB3079F993BB4AF7DC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.bellteam.bellbot.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = BellTeam;
+			};
+			name = Release;
+		};
+		286813EA28E4E36D5CAD5515 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NotificationService/NotificationService.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "NotificationService/NotificationService-Mac.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NotificationService/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BELLTEAM_APP_BUNDLE_IDENTIFIER).NotificationService";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				"TARGETED_DEVICE_FAMILY[sdk=macosx*]" = 6;
+			};
+			name = Release;
+		};
+		2882EB054830C5E38CCF0B75 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BELLTEAM_APP_BUNDLE_IDENTIFIER = dev.kitepon.bellbot;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				"TARGETED_DEVICE_FAMILY[sdk=macosx*]" = 6;
+			};
+			name = Debug;
+		};
+		62EDF4DFE235239AB3370DE5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				BELLTEAM_PUSH_ENVIRONMENT = production;
+				CODE_SIGN_ENTITLEMENTS = BellBot/BellBot.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "BellBot/BellBot-Mac.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
+				INFOPLIST_FILE = BellBot/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BELLTEAM_APP_BUNDLE_IDENTIFIER)";
+				PRODUCT_MODULE_NAME = BellBot;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				"TARGETED_DEVICE_FAMILY[sdk=macosx*]" = 6;
+			};
+			name = Release;
+		};
+		6E00F3E2DA542926F51014A9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.bellteam.bellbot.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BellTeam.app/BellTeam";
+			};
+			name = Release;
+		};
+		A48EE94F0D525B1B0CABE059 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.bellteam.bellbot.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = BellTeam;
+			};
+			name = Debug;
+		};
+		C25D390C5FE40F4D4F0667DA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NotificationService/NotificationService.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "NotificationService/NotificationService-Mac.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NotificationService/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BELLTEAM_APP_BUNDLE_IDENTIFIER).NotificationService";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				"TARGETED_DEVICE_FAMILY[sdk=macosx*]" = 6;
+			};
+			name = Debug;
+		};
+		D3DF648F29479B841A6A9AFF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.bellteam.bellbot.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BellTeam.app/BellTeam";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		19E12D70B27475A5AEAB1BFA /* Build configuration list for PBXNativeTarget "BellBotTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D3DF648F29479B841A6A9AFF /* Debug */,
+				6E00F3E2DA542926F51014A9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		38B3D5573173910404B5AC15 /* Build configuration list for PBXNativeTarget "BellBotUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A48EE94F0D525B1B0CABE059 /* Debug */,
+				19CE9FCB3079F993BB4AF7DC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		59EDC95C5F25C29EB1C5A0A8 /* Build configuration list for PBXNativeTarget "BellTeam" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				147CD0236E9968D0EC4E7C15 /* Debug */,
+				62EDF4DFE235239AB3370DE5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9DFD1BC7BA16C02BEF89AECB /* Build configuration list for PBXNativeTarget "NotificationService" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C25D390C5FE40F4D4F0667DA /* Debug */,
+				286813EA28E4E36D5CAD5515 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A9215FA6A9AE75E1713E0D3C /* Build configuration list for PBXProject "BellBot" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2882EB054830C5E38CCF0B75 /* Debug */,
+				107CEE5FB23002BBB2A984BA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 1C603972E184F4F0CAEC5D5C /* Project object */;
+}

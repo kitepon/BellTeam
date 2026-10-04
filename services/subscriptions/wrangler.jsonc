@@ -1,0 +1,29 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "bellteam-subscriptions",
+  "main": "index.mjs",
+  "compatibility_date": "2026-09-27",
+  "workers_dev": true,
+  "rules": [{ "type": "Text", "globs": ["**/*.yaml", "**/*.sh", "**/.env.example", "**/distribution/server/README.md", "**/docs/onboarding.md"], "fallthrough": true }],
+  "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [{ "name": "SUBSCRIPTION_VERIFIER", "class_name": "SubscriptionVerifier" }]
+  },
+  "migrations": [{ "tag": "subscription-verifier-v1", "new_sqlite_classes": ["SubscriptionVerifier"] }],
+  "vars": {
+    "APPLE_ENVIRONMENT": "Production",
+    "APPLE_ISSUER_ID": "09ccc6e5-d0ce-47ea-9b29-a06f65050f83"
+  },
+  "env": {
+    "sandbox": {
+      "name": "bellteam-subscriptions-sandbox",
+      "durable_objects": {
+        "bindings": [{ "name": "SUBSCRIPTION_VERIFIER", "class_name": "SubscriptionVerifier" }]
+      },
+      "vars": {
+        "APPLE_ENVIRONMENT": "Sandbox",
+        "APPLE_ISSUER_ID": "09ccc6e5-d0ce-47ea-9b29-a06f65050f83"
+      }
+    }
+  }
+}

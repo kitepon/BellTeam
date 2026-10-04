@@ -1,0 +1,10 @@
+{
+  "cwd": "/Users/kite/Developer/BellTeam",
+  "control_id": "session-redelivery-20260902",
+  "actor_id": "bell-parent-20260902",
+  "expected_revision": 5,
+  "phase": "safety_net",
+  "state": "completed",
+  "evidence": [{"type":"file","ref":"test/aiterm-transport.test.mjs","digest":"1190ae79a83c8bf9e45c4ab307ae7496f36e7aabf65bcf2c56ebad8cfda3925d","observed_at":"2026-09-02T05:57:50.000Z"}],
+  "decision": null
+}

@@ -1,0 +1,35 @@
+services:
+  bellteam:
+    build:
+      context: .
+    container_name: bellteam
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    init: true
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    environment:
+      BELLTEAM_CF_TEAM_DOMAIN: ${BELLTEAM_CF_TEAM_DOMAIN:-}
+      BELLTEAM_CF_AUD: ${BELLTEAM_CF_AUD:-}
+      BELLTEAM_BUGHUB_KEY: ${BELLTEAM_BUGHUB_KEY:-}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      BELLTEAM_SUBSCRIPTION_ENVIRONMENT: ${BELLTEAM_SUBSCRIPTION_ENVIRONMENT:-Production}
+      BELLTEAM_SUBSCRIPTION_ACCESS_MODE: ${BELLTEAM_SUBSCRIPTION_ACCESS_MODE:-subscription}
+      BELLTEAM_CALL_BRIDGE_SOCKET: ${BELLTEAM_CALL_BRIDGE_SOCKET:-/srv/bellteam/shared/tools/call-bridge/bellteam.sock}
+      BELLTEAM_CALL_BRIDGE_MCP_URL: ${BELLTEAM_CALL_BRIDGE_MCP_URL:-}
+    ports:
+      - "${BELLTEAM_BIND_IP:-0.0.0.0}:18891:4180"
+      - "${BELLTEAM_BIND_IP:-0.0.0.0}:18892:4182"
+    volumes:
+      - ./runtime/home:/home/bell
+      - cursor-cli:/home/bell/.local
+      - ./runtime/data:/srv/bellteam
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4180/healthz').then(r=>{if(!r.ok)throw Error(r.status)})"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  cursor-cli:

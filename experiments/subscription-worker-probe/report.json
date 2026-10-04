@@ -1,0 +1,248 @@
+{
+  "freeCpuLimitMs": 10,
+  "workersPlan": "Free（配置APIで確認）",
+  "conclusion": "無料のDurable Objectsで署名検証100回が成功。実際の購入・復元は未確認。",
+  "series": [
+    {
+      "id": "webcrypto-basic",
+      "title": "基礎処理",
+      "measuredAt": "2026-09-27T23:24:01.421Z",
+      "requests": 100,
+      "errors": 0,
+      "subrequests": 0,
+      "freeCpuLimitMs": 10,
+      "metrics": [
+        {
+          "label": "中央値（P50）",
+          "valueMs": 0.628
+        },
+        {
+          "label": "P95",
+          "valueMs": 0.746
+        },
+        {
+          "label": "P99",
+          "valueMs": 0.746
+        },
+        {
+          "label": "P99.9",
+          "valueMs": 2.536
+        }
+      ],
+      "workersPlan": "未確認",
+      "sourceCommit": "a7d4d1c",
+      "workerVersion": "351818a8-3899-4755-a5d3-f8d49d9cb33a",
+      "scope": "公開試験鍵を使うES256署名1回とP-256検証1回。CloudflareのGraphQL CPU指標を使用。",
+      "excluded": "Apple APIへの実通信、Apple証明書チェーンの検証、購入・復元・失効の実処理は未実施。",
+      "sources": [
+        {
+          "label": "Cloudflareの無料枠上限",
+          "url": "https://developers.cloudflare.com/workers/platform/limits/"
+        },
+        {
+          "label": "CPU指標の取得方法",
+          "url": "https://developers.cloudflare.com/analytics/graphql-api/tutorials/querying-workers-metrics/"
+        }
+      ]
+    },
+    {
+      "id": "apple-library",
+      "title": "Apple公式ライブラリ",
+      "measuredAt": "2026-09-27T23:48:43.822Z",
+      "finishedAt": "2026-09-27T23:48:45.767Z",
+      "errors": 0,
+      "requests": 100,
+      "subrequests": 0,
+      "sourceCommit": "dd8c580",
+      "workerVersion": "f9612b16-de20-4478-bc08-fc1073a307b8",
+      "metrics": [
+        {
+          "label": "中央値（P50）",
+          "valueMs": 2.937
+        },
+        {
+          "label": "P95",
+          "valueMs": 6.142
+        },
+        {
+          "label": "P99",
+          "valueMs": 7.66
+        },
+        {
+          "label": "P99.9",
+          "valueMs": 36.565
+        }
+      ],
+      "scope": "Apple公式ライブラリ3.1.0でJWT署名1回、証明書チェーンを含む署名検証3回。API応答は試験データ。",
+      "excluded": "Apple APIへの実通信、証明書のオンライン失効確認、実購入・復元・失効の処理は未実施。公開試験鍵とApple公式の公開試験データだけを使用。"
+    },
+    {
+      "id": "apple-native-client",
+      "title": "WebCryptoのJWT署名＋公式の証明書検証",
+      "measuredAt": "2026-09-28T00:02:06.502Z",
+      "finishedAt": "2026-09-28T00:02:08.606Z",
+      "errors": 0,
+      "requests": 100,
+      "subrequests": 0,
+      "sourceCommit": "0e4eb82",
+      "workerVersion": "6b886393-240e-495b-a162-faad1dd616ae",
+      "metrics": [
+        {
+          "label": "中央値（P50）",
+          "valueMs": 4.362
+        },
+        {
+          "label": "P95",
+          "valueMs": 8.343
+        },
+        {
+          "label": "P99",
+          "valueMs": 12.584
+        },
+        {
+          "label": "P99.9",
+          "valueMs": 55.501
+        }
+      ],
+      "scope": "JWT署名1回をWorkers標準のWebCryptoで実行。Apple公式の検証モジュールで証明書チェーンを含む署名検証3回。",
+      "excluded": "Apple APIへの実通信、証明書のオンライン失効確認、実購入・復元・失効の処理は未実施。公開試験鍵とApple公式の公開試験データだけを使用。"
+    },
+    {
+      "id": "apple-native-verifier",
+      "title": "ネイティブの証明書処理",
+      "measuredAt": "2026-09-28T00:43:57.516Z",
+      "finishedAt": "2026-09-28T00:43:59.490Z",
+      "requests": 100,
+      "failures": 0,
+      "sourceCommit": "f524114",
+      "workerVersion": "d13e58b3-6e04-4904-bf52-7422f2acd0c6",
+      "errors": 0,
+      "subrequests": 0,
+      "analyticsWindow": {
+        "start": "2026-09-28T00:43:57Z",
+        "end": "2026-09-28T00:44:00Z"
+      },
+      "metrics": [
+        {
+          "label": "中央値（P50）",
+          "valueMs": 5.233
+        },
+        {
+          "label": "P95",
+          "valueMs": 10.795
+        },
+        {
+          "label": "P99",
+          "valueMs": 14.432
+        },
+        {
+          "label": "P99.9",
+          "valueMs": 14.523
+        }
+      ],
+      "scope": "Node X509Certificate＋ASN1jsでチェーン・用途・期限を確認し、jsonwebtokenでES256署名を検証する3回の処理。JWT署名1回はWebCrypto。",
+      "excluded": "Apple APIへの実通信、証明書のオンライン失効確認、実購入・復元・失効の処理は未実施。公開試験鍵とApple公式の公開試験データだけを使用。購読確認サービスへは未採用。"
+    },
+    {
+      "id": "durable-object-front",
+      "title": "入口のWorker（Durable Objectsへの中継）",
+      "measuredAt": "2026-09-28T02:53:56.308Z",
+      "finishedAt": "2026-09-28T02:53:57.762Z",
+      "requests": 100,
+      "errors": 0,
+      "subrequests": 100,
+      "sourceCommit": "1fc9366",
+      "workerVersion": "a1355e8d-9335-46b6-872d-f7b52aa1480f",
+      "analyticsWindow": {
+        "start": "2026-09-28T02:53:56Z",
+        "end": "2026-09-28T02:53:58Z"
+      },
+      "metrics": [
+        {
+          "label": "中央値（P50）",
+          "valueMs": 0.582
+        },
+        {
+          "label": "P95",
+          "valueMs": 0.867
+        },
+        {
+          "label": "P99",
+          "valueMs": 1.713
+        },
+        {
+          "label": "P99.9",
+          "valueMs": 1.839
+        }
+      ],
+      "scope": "Durable Objectへ渡す入口のWorkerだけのCPU時間。100回の呼び出しが100回のサブリクエストとして集計された。Appleへの外部通信は含まない。",
+      "excluded": "署名・証明書の検証はDurable Objectで実行するため、このCPU指標に含まれない。Durable ObjectのCPU時間は未取得。"
+    }
+  ],
+  "sources": [
+    {
+      "label": "Cloudflareの無料枠上限",
+      "url": "https://developers.cloudflare.com/workers/platform/limits/"
+    },
+    {
+      "label": "CPU指標の取得方法",
+      "url": "https://developers.cloudflare.com/analytics/graphql-api/tutorials/querying-workers-metrics/"
+    },
+    {
+      "label": "Durable Objectsの無料枠",
+      "url": "https://developers.cloudflare.com/durable-objects/platform/pricing/"
+    },
+    {
+      "label": "Durable ObjectsのCPU上限",
+      "url": "https://developers.cloudflare.com/durable-objects/platform/limits/"
+    }
+  ],
+  "durableObjectTrial": {
+    "title": "無料のDurable Objectsでの署名検証",
+    "measuredAt": "2026-09-28T02:53:56.308Z",
+    "finishedAt": "2026-09-28T02:53:57.762Z",
+    "sourceCommit": "1fc9366",
+    "workerVersion": "a1355e8d-9335-46b6-872d-f7b52aa1480f",
+    "observations": [
+      {
+        "label": "試験回数",
+        "value": 100,
+        "unit": "回"
+      },
+      {
+        "label": "署名検証に成功",
+        "value": 100,
+        "unit": "回"
+      },
+      {
+        "label": "応答・検証の失敗",
+        "value": 0,
+        "unit": "件"
+      },
+      {
+        "label": "検証を行うDurable ObjectのCPU時間",
+        "value": "未取得",
+        "unit": ""
+      },
+      {
+        "label": "購読情報の保存処理",
+        "value": "なし（コード確認）",
+        "unit": ""
+      }
+    ],
+    "scope": "Apple公式ライブラリ3.1.0を使用。1リクエストにつきJWT署名1回、証明書チェーンを含む署名検証3回を実行。入口のWorkerはDurable Objectを呼び出す。",
+    "excluded": "公開試験データのみ。実際のAppleキー、Apple APIへの実通信、証明書のオンライン失効確認、実購入・復元は未検証。Durable ObjectのCPU集計は、秒単位と分単位の2期間とも空だった。",
+    "designDecision": "ストレージAPIとアラームは使わない。Cloudflare内部にSQLiteを伴う無料の構成は、オーナーが料金の説明後に製品への採用を承認した。",
+    "documentedCpuLimitMs": 30000,
+    "analyticsWindows": [
+      {
+        "start": "2026-09-28T02:53:56Z",
+        "end": "2026-09-28T02:53:58Z"
+      },
+      {
+        "start": "2026-09-28T02:53:00Z",
+        "end": "2026-09-28T02:55:00Z"
+      }
+    ]
+  }
+}

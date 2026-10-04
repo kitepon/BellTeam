@@ -1,0 +1,13 @@
+{
+  "name": "bellteam-subscription-probe-20260928",
+  "main": "index.mjs",
+  "compatibility_date": "2026-09-27",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "VERIFICATION_PROBE", "class_name": "SubscriptionVerificationProbe" }]
+  },
+  "migrations": [{ "tag": "verification-probe-v1", "new_sqlite_classes": ["SubscriptionVerificationProbe"] }]
+}

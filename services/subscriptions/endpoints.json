@@ -1,0 +1,4 @@
+{
+  "Production": "https://bellteam-subscriptions.kitepon.workers.dev/v1/subscriptions/verify",
+  "Sandbox": "https://bellteam-subscriptions-sandbox.kitepon.workers.dev/v1/subscriptions/verify"
+}

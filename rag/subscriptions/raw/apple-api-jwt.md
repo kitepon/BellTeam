@@ -1,0 +1,115 @@
+出典: https://developer.apple.com/documentation/appstoreserverapi/generating-json-web-tokens-for-api-requests
+取得日: 2026-09-28
+確度: Apple公式文書の原文
+
+---
+
+<!--
+{
+  "documentType" : "article",
+  "framework" : "AppStoreServerAPI",
+  "identifier" : "/documentation/AppStoreServerAPI/generating-json-web-tokens-for-api-requests",
+  "metadataVersion" : "0.1.0",
+  "role" : "article",
+  "title" : "Generating JSON Web Tokens for API requests"
+}
+-->
+
+# Generating JSON Web Tokens for API requests
+
+Create JSON Web Tokens signed with your private key to authorize requests for App Store Server API and External Purchase Server API.
+
+## Discussion
+
+JSON Web Token (JWT) is an open standard ([RFC 7519](https://tools.ietf.org/html/rfc7519)) that defines a way to securely transmit information. The [`App Store Server API`](/documentation/AppStoreServerAPI) and <doc://com.apple.documentation/documentation/ExternalPurchaseServerAPI> require a JWT to authorize each request you make to the API. You create the token, signing it with the private key you downloaded from App Store Connect. For more information about creating keys, see [Creating API keys to authorize API requests](/documentation/AppStoreServerAPI/creating-api-keys-to-authorize-api-requests).
+
+To generate a signed JWT:
+
+1. Create the JWT header.
+2. Create the JWT payload.
+3. Sign the JWT.
+
+Include the signed JWT in the authorization header of each API request. Generate a new signed JWT for each new request.
+
+> Tip:
+> The App Store Server Library provides an API client and creates JWTs for use with the ``doc://com.apple.appstoreserverapi/documentation/AppStoreServerAPI``. For more information, see <doc://com.apple.appstoreserverapi/documentation/AppStoreServerAPI/simplifying-your-implementation-by-using-the-app-store-server-library>.
+
+### Create the JWT header
+
+To create a JWT to communicate with the [`App Store Server API`](/documentation/AppStoreServerAPI) or <doc://com.apple.documentation/documentation/ExternalPurchaseServerAPI>, use the following fields and values in the header:
+
+|Header Field                |Value                                                             |
+|----------------------------|------------------------------------------------------------------|
+|`alg` - Encryption Algorithm|`ES256`  ![](spacer) All JWTs must be signed with ES256 encryption|
+|`kid` - Key ID              |Your private key ID from App Store Connect (Ex: `2X9R4HXF34`)     |
+|`typ` - Token Type          |`JWT`                                                             |
+
+To get your key ID, copy it from App Store Connect by logging in to [App Store Connect](https://appstoreconnect.apple.com/), then:
+
+1. Select Users and Access, then select the Keys tab.
+2. The key IDs appear in a column under the Active heading. Hover the cursor next to a key ID to display the Copy Key ID link.
+3. Click Copy Key ID.
+
+If you have more than one API key, copy the key ID of the private key that you use to sign the JWT.
+
+Here’s an example of a JWT header:
+
+```javascript
+{
+  "alg": "ES256",
+  "kid": "2X9R4HXF34",
+  "typ": "JWT"
+}
+```
+
+### Create the JWT payload
+
+The JWT payload contains information specific to the [`App Store Server API`](/documentation/AppStoreServerAPI) and <doc://com.apple.documentation/documentation/ExternalPurchaseServerAPI>, such as issuer ID and expiration time. Use the following fields — also known as JWT claims — to include these values in the JWT payload:
+
+|**Payload Field**      |**Value**                                                                                                                                              |
+|-----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+|`iss` - Issuer         |Your issuer ID from the Keys page in App Store Connect (Ex: “`57246542-96fe-1a63-e053-0824d011072a"`)                                                  |
+|`iat` - Issued At      |The time at which you issue the token, in UNIX time, in seconds (Ex: `1623085200`)                                                                     |
+|`exp` - Expiration Time|The token’s expiration time, in UNIX time, in seconds. Tokens that expire more than 60 minutes after the time in `iat` are not valid (Ex: `1623086400`)|
+|`aud` - Audience       |`appstoreconnect-v1`                                                                                                                                   |
+|`bid` - Bundle ID      |Your app’s bundle ID (Ex: `“com.example.testbundleid”)`                                                                                                |
+
+To get your issuer ID, log in to [App Store Connect](https://appstoreconnect.apple.com/), then:
+
+1. Select Users and Access, then select the Keys tab.
+2. The issuer ID appears near the top of the page. To copy the issuer ID, click Copy next to the ID.
+
+Here’s an example of a JWT payload:
+
+```javascript
+{
+  "iss": "57246542-96fe-1a63e053-0824d011072a",
+  "iat": 1623085200,
+  "exp": 1623086400,
+  "aud": "appstoreconnect-v1",
+  "bid": "com.example.testbundleid"
+}
+```
+
+Note that the JWT is valid for up to one hour after the time you indicate in the `iat` field, or it expires sooner if you set the `exp` field for an earlier time.
+
+### Sign the JWT
+
+Use the private key associated with the key ID you specified in the header to sign the token using ES256 encryption.
+
+There are a variety of open source libraries available online for creating and signing JWT tokens. See [JWT.io](https://jwt.io/) for more information.  For calls to the [`App Store Server API`](/documentation/AppStoreServerAPI), consider using the App Store Server Library to create the JWTs instead. For more information, see [Simplifying your implementation by using the App Store Server Library](/documentation/AppStoreServerAPI/simplifying-your-implementation-by-using-the-app-store-server-library).
+
+### Include the JWT in the authorization header of the request
+
+After you create and sign the JWT, provide it in the request’s authorization header as a bearer token.
+
+The following example for the [`App Store Server API`](/documentation/AppStoreServerAPI) shows a `curl` command using a bearer token. Replace the text `[signed token]` with the value of the signed JWT itself. Replace `{transactionId}` with a transaction identifier of your customer.
+
+```other
+curl -v -H 'Authorization: Bearer [signed token]' 
+"https://api.storekit.apple.com/inApps/v1/subscriptions/{transactionId}"
+```
+
+---
+
+Copyright &copy; 2026 Apple Inc. All rights reserved. | [Terms of Use](https://www.apple.com/legal/internet-services/terms/site.html) | [Privacy Policy](https://www.apple.com/privacy/privacy-policy)

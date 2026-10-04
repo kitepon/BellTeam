@@ -1,0 +1,50 @@
+{
+  "cwd": "/Users/kite/Developer/BellTeam",
+  "control_id": "cursor-cold-start-delivery-20260902",
+  "actor_id": "bell-parent-cursor-20260902",
+  "expected_revision": 1,
+  "task": {
+    "task_id": "ccsd-001",
+    "title": "Cursor冷間起動と配送状態を実結果に一致させる",
+    "classification": "F",
+    "effect": "write",
+    "doc_ref": "docs/plan_cursor-cold-start-delivery-20260902.md",
+    "role": "implementer",
+    "lane": "behavior-change",
+    "depends_on": [],
+    "required_capabilities": ["aiterm-release", "delivery-state", "production-deployment"],
+    "isolation": "none",
+    "context_policy": {
+      "share_objective": true,
+      "share_current_candidate": true,
+      "share_existing_findings": true,
+      "share_failed_approaches": true,
+      "share_test_results": true
+    },
+    "validation": [
+      "Cursorは貼付内容の反映前にEnterを送らない",
+      "BellTeamは配送完了前にdeliveredを記録しない",
+      "停止状態の4ハーネスで受信と応答を確認する",
+      "落ちた2件をなぎへ再配送する"
+    ],
+    "non_goals": ["常時起動", "追加ID", "永続配送キュー", "反復再試行", "新しいセキュリティ対策"],
+    "known_traps": [
+      "agent_done=trueは処理完了を意味しない",
+      "同じCursorプロンプトでも冷間起動時だけ競合する",
+      "受付時のメッセージ表示を完了まで遅らせない"
+    ],
+    "read_scope": [
+      {"kind": "directory", "path": "src"},
+      {"kind": "directory", "path": "test"},
+      {"kind": "directory", "path": "docs"}
+    ],
+    "write_scope": [
+      {"kind": "directory", "path": "src"},
+      {"kind": "directory", "path": "test"},
+      {"kind": "directory", "path": "docs"},
+      {"kind": "file", "path": "Dockerfile"}
+    ],
+    "approval": null,
+    "alternative_group": null
+  }
+}

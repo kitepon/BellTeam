@@ -1,0 +1,16 @@
+.git
+.control-inputs
+node_modules
+runtime
+.env
+docs/*
+!docs/bot-environment.md
+!docs/onboarding.md
+evidence
+rag
+ios
+test
+AGENTS.md
+CLAUDE.md
+scripts/deploy.sh
+scripts/seed-auth.sh

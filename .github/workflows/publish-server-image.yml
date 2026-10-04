@@ -1,0 +1,182 @@
+name: 一般配布サーバーのDocker公開
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/quolu/bellteam-server
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      BELLTEAM_SERVER_IMAGE: ghcr.io/quolu/bellteam-server:${{ github.sha }}-${{ matrix.arch }}
+      COMPOSE_FILE: runtime/server-image/compose.yaml
+      COMPOSE_PROJECT_NAME: server-smoke
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: node
+      - name: 既定ブランチの祖先確認と配布物作成
+        run: |
+          git merge-base --is-ancestor HEAD origin/main
+          node scripts/package-server.mjs runtime/server-image
+      - name: 公式の現行版からイメージを作成
+        run: |
+          docker build --pull --no-cache --platform "linux/${{ matrix.arch }}" \
+            --label "org.opencontainers.image.source=https://github.com/quolu/BellTeam" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label 'org.opencontainers.image.description=自分のマシンで動かすBellTeamの一般配布版' \
+            -t "$BELLTEAM_SERVER_IMAGE" runtime/server-image
+      - name: 個人設定と開発者免除の除去を確認
+        run: |
+          docker run --rm --entrypoint node "$BELLTEAM_SERVER_IMAGE" --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import {developerAccessAllowed, defaultCallBridgeMcpUrl} from "./src/distribution-profile.mjs";
+          assert.equal(developerAccessAllowed, false);
+          assert.equal(defaultCallBridgeMcpUrl, null);
+          assert.deepEqual(JSON.parse(fs.readFileSync("config/bots.json")).bots, []);
+          assert.equal(JSON.parse(fs.readFileSync("distribution.json")).profile, "public");
+          assert.equal(fs.existsSync("config/setup-guide.json"), true);
+          assert.equal(fs.existsSync("docs/onboarding.md"), true);
+          assert.equal(fs.existsSync("config/models.json"), false);
+          for (const path of [".env", "runtime", "services/subscriptions/keys"]) assert.equal(fs.existsSync(path), false);
+          '
+      - name: 空の永続領域と未設定の追加機能で起動
+        run: |
+          docker compose run --rm --no-deps --user root bellteam sh -c \
+            'mkdir -p /home/bell /srv/bellteam && chown bell:bell /home/bell /srv/bellteam'
+          docker compose up -d --wait --wait-timeout 120 --pull never
+          docker compose exec -T bellteam node --input-type=module -e '
+          import assert from "node:assert/strict";
+          const base = "http://127.0.0.1:4180";
+          const setup = await (await fetch(base + "/api/setup")).json();
+          assert.equal(setup.phase, "select_harness");
+          const session = await (await fetch(base + "/api/session")).json();
+          assert.equal(session.authMode, "local");
+          const settings = await (await fetch(base + "/api/settings")).json();
+          assert.equal(settings.settings.length, 5);
+          assert.ok(settings.settings.every(setting => setting.enabled === false));
+          const { subscription } = await (await fetch(base + "/api/subscription")).json();
+          assert.equal(subscription.entitled, false);
+          assert.equal(subscription.accessMode, "subscription");
+          assert.equal(subscription.canUseAI, true);
+          assert.equal((await fetch(base)).status, 200);
+          '
+      - name: モデル候補の取得と未認証Cursorの理由表示を確認
+        run: |
+          docker compose exec -T bellteam node --input-type=module -e '
+          import assert from "node:assert/strict";
+          const base = "http://127.0.0.1:4180";
+          const response = await fetch(base + "/api/models");
+          assert.equal(response.status, 200);
+          const { models } = await response.json();
+          assert.deepEqual(Object.keys(models).sort(), ["claude", "codex", "cursor", "grok"]);
+          for (const [harness, entry] of Object.entries(models)) {
+            if (harness === "cursor") {
+              assert.equal(entry.error.code, "MODEL_CATALOG_UNAVAILABLE");
+              assert.match(entry.error.message, /Authentication required/);
+              assert.deepEqual(entry.models, []);
+              continue;
+            }
+            assert.equal(entry.error, undefined, `${harness}: ${JSON.stringify(entry.error)}`);
+            assert.ok(entry.models.length > 0, harness);
+            assert.ok(entry.models.every(model => typeof model.id === "string" && Array.isArray(model.efforts)), harness);
+            assert.equal(typeof entry.source, "string", harness);
+          }
+          console.log("空の保存領域でモデル候補とCursorの認証エラーを確認しました。");
+          '
+      - name: 公式認証の開始と端末消失後の再選択を確認
+        run: |
+          docker compose exec -T bellteam node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import { readFile } from "node:fs/promises";
+          import { AitermClient } from "./src/aiterm-transport.mjs";
+          const base = "http://127.0.0.1:4180";
+          const select = async () => {
+            const response = await fetch(base + "/api/setup/harness", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ harness: "grok" }),
+            });
+            assert.equal(response.status, 200);
+            let setup = await response.json();
+            const deadline = Date.now() + 30000;
+            while (setup.auth.status === "waiting" && !(setup.auth.url && setup.auth.user_code) && Date.now() < deadline) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+              const current = await fetch(base + "/api/setup");
+              assert.equal(current.status, 200);
+              setup = await current.json();
+            }
+            assert.equal(setup.auth.status, "waiting");
+            assert.ok(Boolean(setup.auth.url && setup.auth.user_code));
+          };
+          const state = async () => JSON.parse(await readFile("/srv/bellteam/shared/onboarding.json", "utf8"));
+          const client = new AitermClient();
+          const exists = async session => (await client.call("pty_list")).structuredContent.sessions.some(item => item.session_id === session);
+          try {
+            await select();
+            const first = await state();
+            assert.equal(typeof first.authSession, "string");
+            const closed = await client.call("pty_close", { session_id: first.authSession });
+            assert.equal(closed.structuredContent.outcome, "closed");
+            assert.equal(await exists(first.authSession), false);
+            const setup = await (await fetch(base + "/api/setup")).json();
+            assert.equal(setup.auth.status, "failed");
+            await select();
+            const next = await state();
+            assert.equal(typeof next.authSession, "string");
+            assert.equal(await exists(next.authSession), true);
+            const cancelled = await client.call("agent_auth", { harness: "grok-cli", action: "cancel", session_id: next.authSession });
+            assert.equal(cancelled.structuredContent.status, "blocked");
+            assert.equal(cancelled.structuredContent.session_id, null);
+            assert.equal(await exists(next.authSession), false);
+            console.log("公式認証の開始・消失の表示・再選択・取消を確認しました。");
+          } finally { await client.close(); }
+          '
+      - name: 試験コンテナと保存先を片付ける
+        if: always()
+        run: |
+          docker compose logs --no-color
+          docker compose down --volumes
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 確認したアーキテクチャのイメージを登録
+        run: docker push "$BELLTEAM_SERVER_IMAGE"
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 両アーキテクチャの配布タグを登録
+        run: |
+          docker buildx imagetools create \
+            -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:preview" \
+            "$IMAGE:$GITHUB_SHA-amd64" "$IMAGE:$GITHUB_SHA-arm64"
+          docker buildx imagetools inspect "$IMAGE:$GITHUB_SHA"

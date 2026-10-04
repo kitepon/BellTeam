@@ -1,0 +1,10 @@
+{
+  "cwd": "/Users/kite/Developer/BellTeam",
+  "control_id": "session-redelivery-20260902",
+  "actor_id": "bell-parent-20260902",
+  "expected_revision": 4,
+  "phase": "design",
+  "state": "completed",
+  "evidence": [{"type":"file","ref":"docs/current-design.md","digest":"cf77dbfbc0d6c1ed49b8f78c23969a06419098808a7910e56ec2133ab43d585b","observed_at":"2026-09-02T05:57:50.000Z"}],
+  "decision": {"type":"decision","ref":"docs/adr/0011-accept-session-redelivery.md","digest":"b9b359ab00a2bf38f996e0f1e56b71dc8e75cb1b1a6cf29d1250745071bb55bd","observed_at":"2026-09-02T04:30:00.000Z"}
+}

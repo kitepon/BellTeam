@@ -1,0 +1,3725 @@
+{
+  "checkedAt": "2026-10-03T12:24:51.658Z",
+  "appStoreConnect": {
+    "apiAccess": {
+      "configured": true,
+      "host": "このMac",
+      "client": "apple-asc-mcp",
+      "installedVersion": "0.2.0",
+      "mcpServerName": "appstore-connect",
+      "transport": "stdio",
+      "codexRegistered": true,
+      "existingMcpSettingsPreserved": true,
+      "privateKeyReferenceOnly": true,
+      "diagnosePassed": true,
+      "advertisedToolCount": 158,
+      "verifiedReadTools": [
+        "asc_whoami",
+        "asc_get_app",
+        "asc_get_subscription"
+      ],
+      "verifiedWriteTools": [
+        "asc_set_subscription_availability",
+        "asc_set_subscription_price"
+      ]
+    },
+    "appId": "6816295589",
+    "subscriptionGroupId": "22419437",
+    "subscriptionId": "6816773787",
+    "productId": "dev.kitepon.bellbot.monthly",
+    "period": "ONE_MONTH",
+    "state": "WAITING_FOR_REVIEW",
+    "groupLocalizationId": "663a49e5-e6d9-48e5-ae6a-67f07fdea632",
+    "productLocalizationId": "7aaf414e-fe2b-4334-9937-a3414b9826e2",
+    "japanPrice": {
+      "currency": "JPY",
+      "customerPrice": "300",
+      "pricePointId": "eyJzIjoiNjgxNjc3Mzc4NyIsInQiOiJKUE4iLCJwIjoiMTAwMjYifQ",
+      "registered": true,
+      "priceId": "eyJhIjoiNjgxNjc3Mzc4NyIsImMiOiJKUCIsImQiOjAsInAiOiIwIn0",
+      "planType": "UPFRONT",
+      "resolvedError": {
+        "httpStatus": 409,
+        "code": "ENTITY_ERROR.RELATIONSHIP.INVALID",
+        "detail": "An error occurred while processing the pricing information.",
+        "pointer": "/data/relationships/subscriptionPricePoint/id",
+        "cause": "販売地域が未登録。日本の販売地域を作成した後、同じ価格IDで登録が成功。"
+      }
+    },
+    "availability": {
+      "registered": true,
+      "id": "6816773787",
+      "territories": [
+        "JPN"
+      ],
+      "availableInNewTerritories": false
+    },
+    "appVersionIds": {
+      "IOS": "a13a4fcc-82f3-46e3-8f67-b7d16e3f89ef",
+      "MAC_OS": "3826154d-d03d-4517-bf41-f8d8eb819c32"
+    },
+    "appDownloadPrice": {
+      "free": true,
+      "baseTerritory": "JPN",
+      "verified": true
+    },
+    "appAvailability": {
+      "territories": [
+        "JPN"
+      ],
+      "availableInNewTerritories": false,
+      "verified": true
+    },
+    "japaneseDescriptionRegistered": true,
+    "buildAttachedToVersions": {
+      "IOS": true,
+      "MAC_OS": true
+    },
+    "ageRatingDeclaration": "not_registered",
+    "distributionSigning": {
+      "method": "Apple公式ASC APIで証明書とプロファイルを作成し、Xcodeのmanual exportで署名",
+      "xcodeRegisteredAccountCount": 0,
+      "certificatesCreated": true,
+      "privateKeysStoredOnMac": true,
+      "keychainIdentitiesImported": true,
+      "distributionCertificateId": "GT549THY6C",
+      "macInstallerCertificateId": "9UBT3Q3J9N",
+      "profiles": {
+        "IOS": {
+          "app": {
+            "id": "26W3YK8MAN",
+            "uuid": "28be965e-4d98-4c37-bbb9-5144d4439725",
+            "state": "ACTIVE"
+          },
+          "ext": {
+            "id": "MG943ZZUMX",
+            "uuid": "bbbc5b80-55b5-474d-9e9b-ec6c46cfcff4",
+            "state": "ACTIVE"
+          }
+        },
+        "MAC_OS": {
+          "app": {
+            "id": "5BU7R59K62",
+            "uuid": "7c56c4ea-b7a4-44ba-8352-fced8f63e592",
+            "state": "ACTIVE"
+          },
+          "ext": {
+            "id": "X9ZQWAW89U",
+            "uuid": "904ba639-1f96-49a2-bada-43cc6b77ec10",
+            "state": "ACTIVE"
+          }
+        }
+      },
+      "archiveBuild": "27",
+      "iosExport": "passed",
+      "macExport": "passed",
+      "ownerAction": null,
+      "guiObservation": "agent-desktopのAppKit bridgeとJevの画面読取が失敗。署名待ちはcodesignとSecurityAgentの実行状態で確認。",
+      "existingCertificatesRevoked": false,
+      "artifactDirectory": "runtime/apple/apple-only-27",
+      "dedicatedKeychainCreated": true,
+      "appleToolPartitionConfigured": true,
+      "searchListRestored": true,
+      "dedicatedKeychainLockedAfterExport": true
+    },
+    "appleOnlySubscriptionCopyRegistered": true,
+    "copyrightRegistration": {
+      "registeredForBothPlatforms": true,
+      "proofPath": "runtime/apple-review/copyright-registration-proof.json"
+    },
+    "reviewDetailsDraft": {
+      "registeredForBothPlatforms": true,
+      "contactMatchesExistingAppleRecords": true,
+      "reviewerLoginValidated": false,
+      "notesFinalized": false,
+      "platforms": {
+        "IOS": {
+          "id": "44b7ad13-8ad8-4628-97e9-3ca0e4eb9fa3",
+          "contactMatches": true,
+          "demoCredentialsMatch": true,
+          "draftNotesMatch": true
+        },
+        "MAC_OS": {
+          "id": "4b998f6d-f19e-4b0a-97db-626a5760c6ec",
+          "contactMatches": true,
+          "demoCredentialsMatch": true,
+          "draftNotesMatch": true
+        }
+      },
+      "proofPath": "runtime/apple-review/review-details-draft-proof.json"
+    },
+    "subscriptionPricing": {
+      "baseTerritory": "JPN",
+      "baseCustomerPrice": "300",
+      "registeredTerritoryPriceCount": 175,
+      "planType": "UPFRONT",
+      "saleTerritories": [
+        "JPN"
+      ],
+      "planAvailabilityTerritories": [
+        "JPN"
+      ],
+      "availableInNewTerritories": false,
+      "availabilityChanged": false,
+      "japanPriceUnchanged": true,
+      "pricingValidationPassed": true,
+      "verifiedAt": "2026-10-02T13:25:40.242Z",
+      "proofPath": "runtime/apple-review/subscription-equalization-proof.json"
+    }
+  },
+  "worker": {
+    "implemented": true,
+    "deployed": true,
+    "iapKeyConfigured": true,
+    "preparationReport": {
+      "url": "https://bellteam-subscription-probe-20260928.kitepon.workers.dev",
+      "sourceCommit": "e68d63973b754cca89ba5212cc69ae5ff43373c7",
+      "workerVersion": "fb25e193-6139-4707-8d81-0dd5094bb0d4",
+      "httpStatus": 200,
+      "rowsChecked": 14,
+      "verifiedAt": "2026-09-28T09:30:31.186Z",
+      "proofPath": "runtime/public-preparation-report-proof.json"
+    },
+    "iapKeyCreation": {
+      "status": "generated_and_saved",
+      "name": "BellTeam subscriptions",
+      "destination": "App Store Connectのアプリ内購入",
+      "ownerConfirmed": true,
+      "privateKeySavedOnMac": true,
+      "privateKeyFormatVerified": true,
+      "sandboxSecretConfigured": true,
+      "productionSecretConfigured": true
+    },
+    "sandboxPurchaseVerified": true,
+    "freeCpuFit": true,
+    "cloudflarePlan": "Free",
+    "durableObjectTrial": {
+      "status": "passed_public_fixtures",
+      "productionDesignAccepted": true,
+      "nextOwnerDecision": null,
+      "subscriptionStorageUsed": false,
+      "requests": 100,
+      "verified": 100,
+      "failures": 0,
+      "frontWorkerCpuP999Ms": 1.839,
+      "objectCpuMeasured": false,
+      "sourceCommit": "1fc9366",
+      "workerVersion": "a1355e8d-9335-46b6-872d-f7b52aa1480f",
+      "reportPath": "experiments/subscription-worker-probe/report.json"
+    },
+    "freeCpuScope": "無料のDurable Objectsへの配置と公開試験データの100回検証、Sandboxの実購入検証は成功。Object内のCPU集計は未取得。",
+    "resolvedDeploymentError": {
+      "code": 100328,
+      "message": "CPU limits are not supported for the Free plan.",
+      "sandboxCodeDeployed": false,
+      "resolved": true,
+      "resolution": "limits.cpu_msを外し、承認済みの無料のDurable Objectsへ配置。"
+    },
+    "deployments": {
+      "sourceCommit": "2263a3f783eca8953792cecd34a6c1445db50bde",
+      "productionVersion": "45c7ed23-68c3-4ce7-a075-d23dbb827ab3",
+      "sandboxVersion": "9032e61b-f29b-4882-b6cc-e9acc0fb9598",
+      "endpointsSource": "services/subscriptions/endpoints.json",
+      "malformedRequestSmoke": {
+        "total": 4,
+        "passed": 4
+      }
+    },
+    "publicPages": {
+      "sourceCommit": "e2ed42384b30149cbcc5c96b7aba499e87229573",
+      "workerVersion": "73c09403-6604-4d9b-9fcd-40c6bc49f0d1",
+      "pagesVerified": 2,
+      "setupFilesVerified": 5,
+      "verificationAPISmokePassed": true,
+      "proofPath": "runtime/apple-only-billing/public-pages-proof.json"
+    },
+    "appleTransportRepair": {
+      "state": "deployed_real_purchase_verified",
+      "cause": "Workersでnode-fetchのCommonJS default参照が関数にならず、Appleへの通信前にTypeError。",
+      "reproducedInWorkersRuntime": true,
+      "originalOutboundRequests": 0,
+      "fix": "公式APIクライアントのHTTP通信の拡張点で標準fetchを使う。認証と応答解析は公式実装を使う。",
+      "fixedRuntimeRequests": 1,
+      "fixedRuntimeHttpStatus": 200,
+      "focusedTestsPassed": 8,
+      "allTestsPassed": 317,
+      "proofPaths": [
+        "runtime/subscription-error-probe/result-private.json",
+        "runtime/subscription-error-probe/fixed-result-private.json",
+        "runtime/subscription-error-probe/full-tests-private.log",
+        "runtime/subscription-error-probe/apple-real-request-private.json"
+      ],
+      "realPurchaseVerified": true,
+      "realSandboxApiAuthenticationPassed": true,
+      "realSandboxApiProbe": "存在しない試験取引への照会でAppleのHTTP 404を取得。実購入の検証とは区別する。",
+      "sourceCommit": "640089708328a528f4ac9cb8484ec17dd97941e8",
+      "sandboxVersion": "6e513129-e8c2-4eb9-accc-96824646d2dd",
+      "productionVersion": "65355c82-3b93-4f7b-9ea2-c750934e938d",
+      "publicSmokePassed": 4,
+      "deploymentProofPath": "runtime/subscription-error-probe/deployment-proof.json",
+      "productionContainerRestarted": false
+    },
+    "sandboxResponseRepair": {
+      "state": "deployed_real_purchase_and_restore_verified",
+      "cause": "Appleの実際のSandbox購読照会にはappAppleIdがなく、全環境で必須とする自作チェックが拒否した。",
+      "causeConfirmedFromRealPurchase": true,
+      "realResponseAppAppleIdPresent": false,
+      "realResponseBundleEnvironmentTransactionAndRenewalMatched": true,
+      "fix": "SandboxだけappAppleIdの省略を認め、値がある場合の一致とProductionの必須条件を保つ。",
+      "failingFocusedTestReproduced": true,
+      "sourceCommit": "837b364971ed218fea60f39eae4d3a13358e08d3",
+      "deploymentSourceCommit": "2263a3f783eca8953792cecd34a6c1445db50bde",
+      "focusedTestsPassed": 9,
+      "allTestsPassed": 318,
+      "allTestsSourceCommit": "837b364971ed218fea60f39eae4d3a13358e08d3",
+      "publishedRealPurchaseHttpStatus": 200,
+      "publishedRealPurchaseEntitled": true,
+      "iphoneServerVerificationEntitled": true,
+      "iphoneServerError": null,
+      "restoreButtonVerified": true,
+      "proofPaths": [
+        "runtime/apple-review/restore-apple-response-shape-private.json",
+        "runtime/apple-review/restore-fixed-real-worker-private.json",
+        "runtime/apple-review/restore-published-real-worker-private.json",
+        "runtime/apple-review/restore-fixed-iphone-server-private.json",
+        "runtime/apple-review/restore-app-id-full-tests-private.log",
+        "runtime/apple-review/sandbox-app-id-repair-deployment-proof.json"
+      ]
+    }
+  },
+  "appleServerAPI": {
+    "existingManagementKeyTested": true,
+    "dedicatedIapKeyTested": true,
+    "sandbox": {
+      "authentication": "既存キーと購入専用キーは4040010（試験用の取引IDが存在しない）、存在しないキーIDは401。購入専用キーの認証は通ると判断。",
+      "realPurchaseVerified": true,
+      "realPurchaseApiHttpStatus": 200,
+      "realPurchaseSignatureVerified": true,
+      "proofPath": "runtime/apple-review/restore-apple-response-shape-private.json"
+    },
+    "production": {
+      "httpStatus": 401,
+      "cause": "未公開アプリへの利用制限と考えられる。Apple担当者の説明とBellTeamのPREPARE_FOR_SUBMISSION状態が一致する。",
+      "causeIsInference": true,
+      "causeSource": "https://developer.apple.com/forums/thread/806452",
+      "recheckAfterPublicRelease": true,
+      "authenticated": false
+    },
+    "managementKeyUploadedToCloudflare": false
+  },
+  "integration": {
+    "appPurchaseAndRestore": true,
+    "serverEntitlementGate": false,
+    "conversationExport": true,
+    "productionServerDeployed": true,
+    "realApplePurchaseVerified": true,
+    "verification": {
+      "serverTests": {
+        "total": 252,
+        "passed": 252
+      },
+      "iPhoneSimulatorBuild": "passed",
+      "macCatalystBuild": "passed",
+      "macLocalInstall": {
+        "build": "27",
+        "signed": true,
+        "launchVerified": true,
+        "subscriptionFlowVerified": false,
+        "deviceFamilies": [
+          6
+        ],
+        "cachedMemberAvatars": 21,
+        "members22VerifiedWithJev": true,
+        "proof": "runtime/apple/apple-only-27/mac-install-27-proof.json",
+        "developerExemptionVerifiedWithJev": true,
+        "guiProof": "runtime/apple/apple-only-27/mac-gui-read-27-proof.json"
+      },
+      "appCategory": {
+        "method": "Jev Choice",
+        "category": "PRODUCTIVITY",
+        "inputTokens": 692,
+        "outputTokens": 81
+      },
+      "roomDeletion": {
+        "iPhoneSimulatorTests": {
+          "passed": 4,
+          "failed": 0
+        },
+        "macSharedTests": {
+          "passed": 2,
+          "failed": 0
+        },
+        "roomStorageDeleted": true,
+        "participantBotsRetained": true,
+        "macUITestRunner": "automation_mode_timeout",
+        "macEditorOpenedWithJev": true,
+        "macDeletionOwnerVerified": true
+      },
+      "iPadSimulatorBuild": "passed",
+      "iPadWorkspace": {
+        "simulators": [
+          {
+            "device": "iPad Pro 13-inch (M5)",
+            "os": "iPadOS 27.0",
+            "columnsRotationAndDrafts": "passed",
+            "sharedEditorSheetsAndRoomDeletionConfirmation": "passed"
+          },
+          {
+            "device": "iPad mini (A17 Pro)",
+            "os": "iPadOS 26.5",
+            "columnsRotationAndDrafts": "passed",
+            "notificationConversationNavigation": "passed"
+          }
+        ],
+        "keyboardCommandHandlers": "passed",
+        "keyboardDelegateTextUpdates": "passed",
+        "hardwareKeyboardInputVerified": false,
+        "imagePasteUI": "paste_permission_automation_timeout",
+        "imageDropUIVerified": false,
+        "physicalDeviceVerified": false,
+        "jevDeviceHubObservation": "APP_NOT_FOUND",
+        "screenshots": [
+          "docs/assets/ipad/landscape.png",
+          "docs/assets/ipad/portrait.png"
+        ],
+        "iPhoneCompatibility": {
+          "systemKeyboardCommands": "passed",
+          "imagePasteAndRejectedSendRestoration": "passed"
+        }
+      },
+      "ownerQuestionCard": {
+        "iPhoneSimulator": {
+          "device": "iPhone 17",
+          "os": "iOS 27.0",
+          "displayAndSendFailure": "passed"
+        },
+        "iPadSimulator": {
+          "device": "iPad Pro 13-inch (M5)",
+          "os": "iPadOS 26.5",
+          "displayAndSendFailure": "passed"
+        },
+        "macUITestRunner": "system_authentication_running",
+        "macJevObservation": "passed",
+        "liveAnswerDeliveryVerified": true,
+        "macImagePasteVerified": true,
+        "macImageDropVerified": false,
+        "nextAction": "Macのトロニーの会話で普通のキー入力による本文と画像2枚を一緒に送り、本文と枚数の受信を確認する。MacとiPadで画像ファイルのドロップと実機iPadの操作も確認する。",
+        "serverDeployment": {
+          "commit": "4eecafa46ad9e0e7828b4a147683f698abbeca84",
+          "verifiedBy": "トロニー",
+          "sourceAndWebMatched": true,
+          "imagesAPIAvailable": true,
+          "ownerQuestionsAPIAvailable": true
+        },
+        "macImageFilePasteVerified": true,
+        "macImageAttachmentRemovalVerified": true,
+        "liveAnswerDelivery": {
+          "platform": "Mac Catalyst",
+          "questionId": "c84ec756-270e-4924-893d-150e80786e30",
+          "answer": "アプリから受信確認",
+          "status": "answered",
+          "answeredAt": "2026-10-01T00:41:05.242Z",
+          "botReceiptConfirmed": true,
+          "verifiedBy": "トロニー"
+        },
+        "macImageDropAutomation": "native_cross_application_drag_session_not_supported",
+        "macImageOnlyDelivery": {
+          "verified": true,
+          "imageCount": 2,
+          "bothImagesOpenedByBot": true,
+          "verifiedBy": "トロニー",
+          "deliveredAt": "2026-10-01T00:45:49.343Z"
+        },
+        "macTextAndImagesDeliveryVerified": false,
+        "macAXSetValueTextDelivery": {
+          "textDisplayed": true,
+          "receivedMessage": "",
+          "causeConfirmed": false
+        },
+        "physicalKeyboardTextWithImagesDelivery": {
+          "verified": false,
+          "status": "blocked_by_automation_tool",
+          "clipboardError": "clipboard_helper_invalid",
+          "windowError": "core_graphics_window_inventory_unstable"
+        }
+      },
+      "conversationImages": {
+        "models": {
+          "macSharedTests": {
+            "passed": 2,
+            "failed": 0
+          },
+          "legacyImageURL": "passed",
+          "unsavedHistoryLabel": "passed"
+        },
+        "iPhoneSimulator": {
+          "device": "iPhone 17",
+          "os": "iOS 27.0",
+          "directAndRoomStackGallery": "passed",
+          "thumbnailAndSwipe": "passed",
+          "singleImageWithoutThumbnails": "passed",
+          "build": "24",
+          "referenceAppearance24": "passed_after_simulator_restart",
+          "imageCounts": [
+            3,
+            2
+          ],
+          "initialAutomationTimeout": "ルーム用の再起動後、アプリのidle通知を試験ランナーが受け取れず300秒でタイムアウト。Simulator再起動後、対象試験が成功。",
+          "galleryUIFocusedTests": {
+            "passed": 1,
+            "failed": 0
+          },
+          "singleImageAndUnsavedHistory24": "初回のtestLegacyImageLoadsAndUnsavedImagesKeepTheirLabelが成功。"
+        },
+        "iPadSimulator": {
+          "device": "iPad Pro 13-inch (M5)",
+          "os": "iPadOS 26.5",
+          "directAndRoomStackGallery": "passed",
+          "thumbnailAndSwipe": "passed",
+          "singleImageWithoutThumbnails": "passed",
+          "build": "24",
+          "imageCounts": [
+            3,
+            2
+          ]
+        },
+        "authenticatedImageRequests": "HTTPS試験サーバーが認証Cookieを検査し、画像本体の表示をUI試験で確認。",
+        "serverDeployment": {
+          "commit": "e791ffe3110e596e75daa2cd3c2a328737bfc298",
+          "verifiedBy": "トロニー",
+          "ownerImagesSaved": true,
+          "allImageURLsAvailable": true
+        },
+        "productionTwoImageMessage": "7fc269b4-38ba-4377-8f0d-05e297200bbf",
+        "macProductionGalleryVerified": false,
+        "macAutomation": "Jevで本番の会話を開けたが、過去の対象発言を可視範囲へ移動できず未確認。オーナーに束・全画面・切替の実画面確認を依頼。",
+        "oldUnsavedImagesRecoverable": false,
+        "serverTests": {
+          "beforeWebGalleryMerge": {
+            "passed": 256,
+            "failed": 0
+          },
+          "importedWebGalleryFocused": {
+            "passed": 2,
+            "failed": 0
+          }
+        },
+        "referenceAppearance": {
+          "cardOutsideTextBubble": true,
+          "rearCardsShiftedSidewaysAndDown": true,
+          "roundCloseButton": true,
+          "centeredThumbnails": true,
+          "iPadScreenshotsReviewed": true,
+          "iPhoneScreenshotsReviewed": true,
+          "screenshots": [
+            "docs/assets/conversation-images/iphone-stack.png",
+            "docs/assets/conversation-images/iphone-gallery.png"
+          ]
+        },
+        "build23Distribution": "AppleへアップロードしVALIDを確認。参考写真に合わせた24を配るため、Ownerグループへの追加と審査用ビルドの差し替えは行わない。",
+        "latestServerDeployment": {
+          "commit": "68f1d3278b860dd7f06c25350576fe2dd6103685",
+          "verifiedBy": "トロニー",
+          "sourceAndWebMatched": true,
+          "healthz": [
+            200,
+            200
+          ],
+          "splitUTF8RequestFixed": true
+        },
+        "distributedBuild": "24",
+        "sourceCommit": "28546f1d2908ea954cb407869612af0f7e6f0cd9",
+        "exportedDeviceFamilies": {
+          "IOS": [
+            1,
+            2
+          ],
+          "MAC_OS": [
+            6
+          ]
+        },
+        "macPackageSignatureVerified": true,
+        "temporaryHTTPSImageServerStopped": true,
+        "distributionVerifiedAt": "2026-10-01T03:14:12.782Z"
+      },
+      "communicationNotifications": {
+        "plannedBuild": "25",
+        "pullRequest": "https://github.com/quolu/BellTeam/pull/2",
+        "status": "distributed_owner_smoke_verified_device_unspecified",
+        "checkedAt": "2026-10-02T00:31:05.813759+00:00",
+        "sharedImplementation": [
+          "ios/BellBot/Shared/BotAvatarCache.swift",
+          "ios/BellBot/Shared/CommunicationNotification.swift"
+        ],
+        "notificationService": "ios/BellBot/NotificationService/BellNotificationService.swift",
+        "iPhoneSimulatorTests": {
+          "passed": 12,
+          "failed": 0,
+          "realPNGAvatar": true,
+          "contentUpdatePreservesBodyAndRoute": true
+        },
+        "macCatalystDebugBuild": {
+          "passed": true,
+          "codeSigningAllowed": false
+        },
+        "serverTests": {
+          "focusedPassed": 6,
+          "total": 266,
+          "passed": 266
+        },
+        "appleCapabilities": {
+          "main": [
+            "APP_GROUPS",
+            "USERNOTIFICATIONS_COMMUNICATION",
+            "PUSH_NOTIFICATIONS"
+          ],
+          "extension": [
+            "APP_GROUPS"
+          ]
+        },
+        "appGroupRegistration": "registered",
+        "distributionProfiles": "active",
+        "releaseArchive": {
+          "IOS": "passed",
+          "MAC_OS": "passed"
+        },
+        "uploaded": true,
+        "distributed": true,
+        "actualAvatarNotificationReceipt": "owner_verified_device_unspecified",
+        "serverDeployment": {
+          "commit": "3ac7927",
+          "verifiedBy": "トロニー",
+          "reportedDeployedAt": "2026-10-01T22:48:00Z",
+          "distributionAllowed": true
+        },
+        "ownerAction": null,
+        "approvalBox": {
+          "submitted": false,
+          "error": "CODEX_STEER_RESTART_REQUIRED"
+        },
+        "resumeDocument": "docs/communication-notifications.md",
+        "appGroupAssignment": "verified_in_four_distribution_profiles",
+        "ownerLoginConfirmedBy": "トロニー",
+        "pullRequestMerged": true,
+        "mergeCommit": "26a4efc6f955814624d5801192799c1b3acb1588",
+        "validatedImplementationCommit": "212258ab9f891fd6f8d6ecaeb018f681ee93eb57",
+        "archiveAttempt": {
+          "passed": false,
+          "reason": "本体と通知拡張の開発プロファイルにApp Groupが未割り当て",
+          "resolved": true
+        },
+        "sourceCommit": "26a4efc6f955814624d5801192799c1b3acb1588",
+        "profileEntitlementsVerified": {
+          "allTargetsShareAppGroup": true,
+          "mainCommunicationNotifications": true,
+          "mainProductionAPNs": true
+        },
+        "exported": {
+          "IOS": "passed",
+          "MAC_OS": "passed"
+        },
+        "distributionVerifiedAt": "2026-10-02T00:16:58.689Z",
+        "exportedArtifacts": {
+          "IOS": {
+            "deviceFamilies": [
+              1,
+              2
+            ],
+            "targets": [
+              {
+                "target": "app",
+                "bundleIdentifier": "dev.kitepon.bellbot",
+                "build": "25",
+                "signatureVerified": true,
+                "appGroupVerified": true
+              },
+              {
+                "target": "extension",
+                "bundleIdentifier": "dev.kitepon.bellbot.NotificationService",
+                "build": "25",
+                "signatureVerified": true,
+                "appGroupVerified": true
+              }
+            ],
+            "mainProductionAPNs": true,
+            "mainCommunicationNotifications": true
+          },
+          "MAC_OS": {
+            "deviceFamilies": [
+              6
+            ],
+            "targets": [
+              {
+                "target": "app",
+                "bundleIdentifier": "dev.kitepon.bellbot",
+                "build": "25",
+                "signatureVerified": true,
+                "appGroupVerified": true
+              },
+              {
+                "target": "extension",
+                "bundleIdentifier": "dev.kitepon.bellbot.NotificationService",
+                "build": "25",
+                "signatureVerified": true,
+                "appGroupVerified": true
+              }
+            ],
+            "mainProductionAPNs": true,
+            "mainCommunicationNotifications": true
+          }
+        },
+        "macLocalInstall": {
+          "build": "25",
+          "signed": true,
+          "launchVerified": true,
+          "deviceFamilies": [
+            6
+          ],
+          "cachedMemberAvatars": 21
+        },
+        "macActualNotification": {
+          "received": true,
+          "title": "BellTeam、トロニー",
+          "body": "返信が届きました。",
+          "senderBotId": "bot-7b140b27",
+          "messageId": "00a5a1ea-0ab3-4d3c-8d46-7c2366747dd2",
+          "senderAvatarVisuallyVerified": false,
+          "tapConversationVerified": false,
+          "observationErrors": [
+            "WINDOW_NOT_FOUND",
+            "timeoutReached",
+            "keyNotFound(fn)"
+          ],
+          "nextObservation": "実端末で送り主アバターの表示と、通知を押した時の会話移動を確認する。"
+        },
+        "physicalDeviceVerification": {
+          "iPhone": "not_verified",
+          "iPad": "not_verified"
+        },
+        "guiTools": {
+          "appleAppGroupRegistrationAndAssignment": "Jev Desktop",
+          "macNotificationText": "agent-desktop list-notifications",
+          "macNotificationVisualAndTap": "Jev Desktopのシステム画面取得が失敗し、標準Computer Useも取得とキー入力で失敗。画像とタップは未確認。"
+        },
+        "ownerActualNotification": {
+          "build": "25",
+          "device": null,
+          "received": true,
+          "senderBotId": "bot-7b140b27",
+          "senderName": "トロニー",
+          "senderAvatarVisuallyVerified": true,
+          "ownerFeedback": "問題ない",
+          "tapConversationVerified": true,
+          "verifiedBy": "オーナー",
+          "reportedBy": "トロニー",
+          "evidence": {
+            "sessionId": "50c2999e-4760-42f7-b574-f3ce8d642300",
+            "seq": 43
+          },
+          "tapOwnerFeedback": "通知押したら開いたよ",
+          "tapEvidence": {
+            "sessionId": "50c2999e-4760-42f7-b574-f3ce8d642300",
+            "seq": 45
+          }
+        }
+      }
+    },
+    "nextSteps": [
+      "修理後のiPhoneで復元の成功表示を確認し、結果を審査notesへ反映する",
+      "Sandboxで復元・更新・失効・別Apple Accountでの利用制限を実測する",
+      "購入確認の結果を審査notesへ反映し、揃えた既存のiOS・Mac下書きを公式UIで審査へ送信する",
+      "アプリ公開後にProduction APIの認証と実購入を確認する"
+    ],
+    "testFlight": {
+      "MAC_OS": {
+        "platform": "MAC_OS",
+        "id": "d75dcf45-d28b-43d8-b196-3c419932671d",
+        "build": "32",
+        "sourceCommit": "d2c807b7305311dab1cdc9479d49d2255c46f18d",
+        "processingState": "VALID",
+        "ownerGroupDistributed": true,
+        "internalBuildState": "IN_BETA_TESTING",
+        "usesNonExemptEncryption": false,
+        "deviceFamilies": [
+          6
+        ],
+        "appStoreVersionAttached": false
+      },
+      "IOS": {
+        "platform": "IOS",
+        "id": "ef50063f-f4e9-4348-8db6-b77028a36098",
+        "build": "32",
+        "sourceCommit": "d2c807b7305311dab1cdc9479d49d2255c46f18d",
+        "processingState": "VALID",
+        "ownerGroupDistributed": true,
+        "internalBuildState": "IN_BETA_TESTING",
+        "usesNonExemptEncryption": false,
+        "deviceFamilies": [
+          1,
+          2
+        ],
+        "appStoreVersionAttached": false
+      },
+      "ownerGroupBothBuildsVerified": true,
+      "ownerGroupTesterCount": 1,
+      "verifiedAt": "2026-10-03T08:20:46.864Z",
+      "proof": "runtime/apple/text-layout-32/testflight-32-proof.json"
+    },
+    "supportContact": "services/subscriptions/product.json#supportEmail",
+    "productionRestartPermission": "developer_access_owner_approved",
+    "reviewReadiness": {
+      "supportUrl": true,
+      "privacyPolicyUrl": true,
+      "screenshots": true,
+      "reviewDetails": true,
+      "ageRatingDeclaration": true,
+      "reviewSubmitted": true,
+      "privacyPolicyLinkInApp": true,
+      "publicLinksRegisteredForBothPlatforms": true,
+      "screenshotDelivery": {
+        "IOS": {
+          "complete": true,
+          "count": 2,
+          "build": "17",
+          "sourceCommit": "a2602b08a9df686c624872639f6dff6f0891f425",
+          "setId": "a74d7ac6-69fa-4d4a-9b83-192e42dd7d8a",
+          "screenshotIds": [
+            "24db3c68-d6c4-462d-a0a7-e8c4e54c0fd8",
+            "5164c768-84fd-47fb-a8c5-bdbc243610b8"
+          ],
+          "width": 1320,
+          "height": 2868,
+          "verifiedAt": "2026-09-28T09:24:51.543Z",
+          "proofPath": "runtime/apple/iphone-screenshot-proof-17.json"
+        },
+        "MAC_OS": {
+          "complete": true,
+          "count": 2,
+          "build": "27",
+          "sourceCommit": "03d07ffda2809f77e77fbdf7540232c596a12204",
+          "debugBuild": "passed",
+          "tool": "jev-desktop と macOSのウィンドウ撮影",
+          "fixtureData": true,
+          "setId": "632f5871-261f-4dc9-b31c-94edb79697d9",
+          "screenshotIds": [
+            "27800019-6486-8aa5-8008-3a80f587797f",
+            "9d400019-6486-8aa5-8003-c69ad8a33549"
+          ],
+          "width": 1280,
+          "height": 800,
+          "verifiedAt": "2026-10-02T09:48:53.396Z",
+          "proofPath": "runtime/apple-review/asc-current-assets-and-versions.json"
+        },
+        "subscription": {
+          "complete": true,
+          "count": 1,
+          "build": "27",
+          "sourceCommit": "afbeee719b16a5064be3c1d25f715d3976250594",
+          "sourceEquivalentToBuild27": true,
+          "developmentSigned": true,
+          "fixtureData": false,
+          "actualProductLoaded": true,
+          "displayPrice": "$1.99",
+          "displayCurrency": "USD",
+          "width": 2880,
+          "height": 1800,
+          "screenshotId": "756599ec-8c9f-48de-bbaa-7b3ca9e86c9f",
+          "deliveryState": "COMPLETE",
+          "verifiedAt": "2026-10-02T15:19:21.682Z",
+          "proofPaths": [
+            "runtime/apple-review/subscription-live-display-proof.json",
+            "runtime/apple-review/subscription-screenshot-registration-proof.json"
+          ]
+        },
+        "IPAD": {
+          "complete": true,
+          "count": 1,
+          "build": "27",
+          "sourceCommit": "03d07ffda2809f77e77fbdf7540232c596a12204",
+          "debugBuild": "passed",
+          "fixtureData": true,
+          "setId": "85be0d7a-bdd4-4b60-ac25-11f7b8b2cb09",
+          "screenshotIds": [
+            "fe800019-6486-8aa5-8005-0ae52beb4f0e"
+          ],
+          "width": 2064,
+          "height": 2752,
+          "verifiedAt": "2026-10-02T09:48:53.396Z",
+          "proofPath": "runtime/apple-review/asc-current-assets-and-versions.json"
+        }
+      },
+      "appScreenshotsComplete": true,
+      "privacyLabelRegistered": true,
+      "contentRightsDeclaration": true,
+      "copyrightRegistered": true,
+      "reviewContactRegistered": true,
+      "reviewDetailsRegistered": true,
+      "reviewerLoginValidated": true
+    },
+    "deployedServerCommit": "da19a6abb44b90dbc3659df4504826b32d9bf826",
+    "developerAccess": {
+      "implemented": true,
+      "ownerApproved": true,
+      "configuration": "BELLTEAM_SUBSCRIPTION_ACCESS_MODE=developer",
+      "productionApplied": true,
+      "purchaseRequired": false,
+      "purchaseClaimForged": false,
+      "clientBuild": "26",
+      "iPhoneArchive": "passed",
+      "macArchive": "passed",
+      "testFlightExport": "passed",
+      "cause": "購読対応を含む後続の本番更新後、開発者の既存サーバーが未購入として送信と予定実行を拒否。",
+      "productionRestartPermission": "owner_approved",
+      "configurationStaged": true,
+      "sourceCommit": "4613bbe",
+      "macLocalInstalled": true,
+      "deployedCommit": "8244252c032e876e661337248dd7df2da4a7b701",
+      "healthCheck": "passed",
+      "liveAccessMode": "developer",
+      "liveEntitled": false,
+      "liveCanUseAI": true,
+      "existingClientUpdateRequired": false,
+      "liveMessage": {
+        "httpStatus": 200,
+        "delivery": "delivered",
+        "replyReceived": true,
+        "replyCharacters": 7,
+        "elapsedMs": 15502,
+        "proof": "runtime/onboarding-production-bot-smoke.jsonl"
+      },
+      "publicDistributionExemptionRemoved": true,
+      "productionAccessPreservedAfterPublicTrial": true
+    },
+    "serverDistribution": {
+      "repositoryVisibility": "private",
+      "format": "docker_image_only",
+      "imagePublished": true,
+      "audit": {
+        "ownerBotConfigurationInCurrentBuild": false,
+        "callBridgeDefaultUsesOwnerLanAddress": false,
+        "diagnosticsKeyRequired": false,
+        "roomRoutingRequiresUserTypeSafeKey": false
+      },
+      "proposal": "クオ君の個人設定を除いたDockerイメージと設置手順の公開",
+      "configurationChanged": true,
+      "publicDeveloperExemptionRemoved": true,
+      "ownerApprovedExemptionRemoval": true,
+      "packagingImplemented": true,
+      "packageEntry": "scripts/package-server.mjs",
+      "installEntry": "install.sh",
+      "documentation": "docs/server-distribution.md",
+      "ownerBotConfigurationIncluded": false,
+      "ownerCallBridgeDefaultIncluded": false,
+      "bindMountPermissionErrorReproduced": true,
+      "bindMountInitializationImplemented": true,
+      "artifactGenerated": true,
+      "linuxSmoke": "passed",
+      "sourceCommit": "6ef4d2ffd3697269931e204c3c99cf25b3f07cce",
+      "linuxArchitecture": "amd64_and_arm64",
+      "cleanInstallEntryPassed": true,
+      "unpaidAIUseRejected": false,
+      "publicDeveloperModeRejected": true,
+      "ownerBotsIncluded": false,
+      "unauthenticatedApiStatus": 200,
+      "storagePermissionsVerified": true,
+      "trialContainerRemoved": true,
+      "trialVolumeRemoved": true,
+      "portableArchiveImplemented": true,
+      "portableArchiveVerified": true,
+      "realPurchaseVerified": false,
+      "linuxImageSourceCommit": "6193e3d42633f375b57920ad087899dc671fa54d",
+      "artifactDirectory": "runtime/distribution/apple-only-6ef4d2f",
+      "archive": "runtime/distribution/apple-only-6ef4d2f.tar.gz",
+      "linuxExtractionPassed": true,
+      "runtimePayloadMatchesLinuxTest": true,
+      "payloadMatchingFiles": 79,
+      "ownerApprovedFormat": true,
+      "registry": "ghcr.io",
+      "image": "ghcr.io/quolu/bellteam-server:preview",
+      "publicationWorkflow": ".github/workflows/publish-server-image.yml",
+      "installMethod": "pull_image_initialize_storage_start_wait",
+      "imageRegistered": true,
+      "imageSourceCommit": "6193e3d42633f375b57920ad087899dc671fa54d",
+      "imageDigest": "sha256:e20c9281b3117cddd687a84b640fb95b74d9b6596f9f18e8f18cf500183d91a5",
+      "publicationRunId": 36975369242,
+      "publicationGate": "passed",
+      "anonymousPull": true,
+      "anonymousRegistryStatus": 200,
+      "visibilityOwnerAction": null,
+      "browserStatus": "completed_with_jev",
+      "registryImageInstallVerified": true,
+      "architectureSmoke": {
+        "amd64": "passed",
+        "arm64": "passed"
+      },
+      "emptyStorageStartupVerified": true,
+      "optionalFeaturesInitiallyDisabled": true,
+      "onboarding": {
+        "implemented": true,
+        "sourceCommit": "8244252c032e876e661337248dd7df2da4a7b701",
+        "serverTests": {
+          "passed": 308,
+          "failed": 0
+        },
+        "integrationReview": "accepted",
+        "publishedAuthDependency": {
+          "name": "aiterm-mcp",
+          "version": "0.46.1",
+          "installedOnMac": true,
+          "officialGrokStartStatusCancel": "passed",
+          "credentialCreated": false,
+          "ciPlatforms": [
+            "macos",
+            "linux",
+            "windows"
+          ],
+          "fullCiRunId": 36967331081,
+          "fullCiConclusion": "success",
+          "releaseCommit": "d3a6c6c3f8600fbe98ca0600bad26efd6cd98434"
+        },
+        "publicContainerAuthDependencyVerified": true,
+        "preview": {
+          "url": "http://localhost:18895",
+          "profile": "public",
+          "phase": "select_harness",
+          "fiveOptionalFeaturesDisabled": true,
+          "webStatus": 200
+        },
+        "realGuideReplyVerified": false,
+        "requiredOwnerAction": "choose_harness_and_complete_official_authentication",
+        "clientVerification": {
+          "webTests": "passed",
+          "iosBuild": "passed",
+          "macCatalystBuild": "passed",
+          "errorDtoDecode": "passed",
+          "additionalXCTest": "unverified_xcode_simulator_destination_mismatch"
+        },
+        "notificationRelay": {
+          "implemented": true,
+          "deployed": false,
+          "applePrivateKeyDistributed": false,
+          "enabledByDefault": false
+        },
+        "productionDeployment": {
+          "applied": true,
+          "restartApproval": "owner_approved",
+          "approvalMessage": "本番を更新して良い",
+          "rollbackSnapshot": "runtime/backups/before-onboarding-20261002T145111",
+          "settingsAndAuthBackupVerified": true,
+          "compatibilityProbe": {
+            "existingBotCount": 22,
+            "configuredFeaturesPreserved": 5,
+            "configurationValuesPreserved": true,
+            "developerAccessPreserved": true,
+            "firstRunSkipped": true,
+            "productionWrites": false
+          },
+          "callUrlMigration": {
+            "fixed": true,
+            "realBootstrapProbe": "passed",
+            "fourHarnessRegistrationsPreserved": true
+          },
+          "state": "verified",
+          "sourceCommit": "8244252c032e876e661337248dd7df2da4a7b701",
+          "healthCheck": "passed",
+          "existingBotCount": 22,
+          "botProfilesPreserved": true,
+          "authenticationFilesPreserved": true,
+          "configuredFeaturesPreserved": 5,
+          "developerAccessPreserved": true,
+          "existingEnvironmentSetup": {
+            "total": 9,
+            "passed": 9
+          },
+          "mountsPreserved": true,
+          "firstRunSkipped": true,
+          "auditProof": "runtime/onboarding-production-audit.json",
+          "deployProof": "runtime/onboarding-production-deploy.log",
+          "liveMessageProof": "runtime/onboarding-production-bot-smoke.jsonl",
+          "liveMessage": {
+            "botId": "bot-156aa415",
+            "harness": "claude",
+            "acceptedAt": "2026-10-02T06:02:53.991Z",
+            "repliedAt": "2026-10-02T06:03:09.493Z",
+            "replyReceived": true,
+            "queueEmpty": true
+          }
+        },
+        "approvalBoxRequest": {
+          "accepted": false,
+          "error": "CODEX_STEER_RESTART_REQUIRED",
+          "ownerAnswerReceivedInChat": true
+        },
+        "imageCiProof": "runtime/onboarding-image-production-ci.log",
+        "serverTestProof": "runtime/onboarding-deploy-tests-verified.log",
+        "publicInstallerFilesVerified": true,
+        "clientCandidate": {
+          "sourceCommit": "15ce06b593bc245b133f3cf57afbe67b0b15c63e",
+          "build": "26",
+          "archive": "passed",
+          "export": "passed",
+          "signatures": "passed",
+          "keychainRestoredAndLocked": true,
+          "uploaded": true,
+          "installed": true,
+          "numberAppliedToSource": true,
+          "iosArtifact": "runtime/apple/onboarding-26/ios-export/BellTeam.ipa",
+          "macArtifact": "runtime/apple/onboarding-26/mac-export/BellTeam.pkg",
+          "verification": "runtime/apple/onboarding-26/artifact-verification.json",
+          "parentAcceptance": "runtime/apple/onboarding-26/parent-acceptance.json",
+          "archiveSourceCommit": "8edcd68181121653c824b9b2f8a5f3e9ccd62275",
+          "canonicalSourceEquivalentToArchive": true,
+          "uploadState": "completed",
+          "macLocalInstalled": true,
+          "macLocalInstallProof": "runtime/apple/onboarding-26/mac-install-26-proof.json",
+          "canonicalSourceProof": "runtime/apple/onboarding-26/canonical-source-proof.json",
+          "macLocalSignature": "Apple Development",
+          "macLocalPushEnvironment": "development",
+          "appleDistributionPushEnvironment": "production",
+          "distributed": true,
+          "appleProcessingState": "VALID",
+          "ownerGroupDistributed": true,
+          "appStoreVersionAttached": true,
+          "reviewSubmitted": false,
+          "releaseProof": "runtime/apple/onboarding-26/release-26-proof.json",
+          "macGUIReadProof": "runtime/apple/onboarding-26/mac-gui-read-26-proof.json",
+          "macMembers22VerifiedWithJev": true,
+          "macBackupPath": "runtime/backups/BellTeam-Mac-20261002T150557.zip"
+        },
+        "authRecovery": {
+          "implemented": true,
+          "focusedTests": {
+            "passed": 13,
+            "failed": 0
+          },
+          "realGrokWorktreeProbe": "passed",
+          "publicReleaseVerified": true,
+          "containerProbe": "passed",
+          "scope": "recognize_lost_auth_terminal_and_allow_reselection",
+          "publicVersion": "0.46.1",
+          "publishedMacRealProbe": "passed",
+          "containerRunId": 36971318936,
+          "resolvedCiAssertion": {
+            "runId": 36967819621,
+            "cause": "端末名は閉じた後に再利用されるため、名前の不一致を新規作成の条件にした試験が誤り。",
+            "verification": "取消・消失表示・再選択・取消後の端末実在を公開APIで確認する。"
+          },
+          "containerArchitectures": [
+            "amd64",
+            "arm64"
+          ],
+          "testedOfficialHarnesses": [
+            "grok"
+          ]
+        },
+        "verifiedAt": "2026-10-02T06:17:32.069245+00:00",
+        "remainingSteps": [
+          {
+            "id": "official_auth",
+            "owner": "user",
+            "state": "waiting",
+            "action": "試用画面で最初のハーネスを選び、公式認証を完了する。"
+          },
+          {
+            "id": "guide_reply",
+            "owner": "agent",
+            "state": "requires_official_auth",
+            "action": "案内Botとの会話を開始し、実際の返答と設定操作を確認する。"
+          },
+          {
+            "id": "image_visibility",
+            "owner": "agent",
+            "state": "completed",
+            "action": "Jevの正規操作でpackageだけPublicへ変更し、匿名取得200とrepo private維持を確認した。"
+          },
+          {
+            "id": "anonymous_install",
+            "owner": "agent",
+            "state": "completed",
+            "action": "認証情報なしで公開イメージを実取得し、空の保存先で正規installerの起動を確認した。試験環境は削除済み。"
+          },
+          {
+            "id": "production_restart",
+            "owner": "agent",
+            "state": "completed",
+            "action": "許可済みの本番再作成を行い、正常起動と既存Botの実返信を確認した。"
+          },
+          {
+            "id": "production_and_clients",
+            "owner": "agent",
+            "state": "completed",
+            "action": "本番反映・実返信、iPhone/MacのOwner内部配布、Mac26導入と既存22人の表示を確認した。"
+          }
+        ]
+      },
+      "payloadProof": "runtime/apple-only-billing/archive-linux-proof.json",
+      "anonymousRegistryProof": "runtime/apple-only-billing/public-distribution/registry-proof.json",
+      "anonymousRegistryCheckedAt": "2026-10-02T06:56:25.003101+00:00",
+      "anonymousInstallProof": "runtime/apple-only-billing/public-distribution/anonymous-install-proof.json",
+      "anonymousInstallEntry": "install.sh",
+      "anonymousInstallVerifiedAt": "2026-10-02T06:56:25.003101+00:00",
+      "anonymousInstallCalls": 1,
+      "unpaidServerCanUseAI": true
+    },
+    "reviewPreparation": "docs/app-review-preparation.md",
+    "privacyPolicySource": "services/subscriptions/public-pages.mjs",
+    "reviewEnvironment": {
+      "cloudflareAccessPermission": "review_idp_and_policy_configured",
+      "organizationReadHttpStatus": 200,
+      "serverStarted": true,
+      "realAIConfigured": true,
+      "realPurchaseVerified": false,
+      "browserStatus": "Macアプリの審査用HTTPS接続から専用アカウントでログインし、実際の2メンバー表示を確認",
+      "requiredPermission": [],
+      "browserTool": "jev-desktop",
+      "checkedAt": "2026-10-02T15:49:29.266Z",
+      "serverHealthy": true,
+      "serverDirectory": "/home/kite/BellTeam/runtime/apple-review/server",
+      "composeProject": "bellteam-review",
+      "localUrl": "http://192.168.1.2:18893",
+      "subscriptionEnvironment": "Sandbox",
+      "subscriptionAccessMode": "subscription",
+      "initialPhase": "select_harness",
+      "initialBotCount": 0,
+      "initialRoomCount": 0,
+      "optionalFeaturesEnabled": [],
+      "ownerProductionDataCopied": false,
+      "ownerAICredentialsCopied": false,
+      "officialLoginRequired": false,
+      "publicUrlConfigured": true,
+      "reviewerAutonomousLoginConfigured": true,
+      "workerLogKeysReadHttpStatus": 200,
+      "verificationProof": "runtime/apple-review/server-empty-verified.json",
+      "cloudflareProof": "runtime/apple-review/cloudflare-management-token-read.json",
+      "productionUnaffected": {
+        "startedAt": "2026-10-02T09:04:46.733116015Z",
+        "health": "healthy",
+        "restartCount": 0,
+        "checkedAt": "2026-10-02T15:49:29.905Z"
+      },
+      "selectedHarness": "codex",
+      "currentPhase": "ready",
+      "harnessAuthStatus": "authenticated",
+      "publicUrl": "https://bellteam-review.kitepon.dev",
+      "reviewerAutonomousLoginValidated": true,
+      "harnessProof": "runtime/apple-review/review-onboarding-actual-proof-private.json",
+      "cloudflareAccess": {
+        "appId": "223ae2f7-df0f-41dc-a20d-5a620d92b01e",
+        "appAndDnsCreated": true,
+        "existingApplicationsModified": false,
+        "existingTunnelConfigPreserved": true,
+        "unauthenticatedPublicResponse": 302,
+        "reviewerPolicyConfigured": true,
+        "identityProviderCreateHttpStatus": 201,
+        "proofPaths": [
+          "runtime/apple-review/cloudflare-review-route-created.json",
+          "runtime/apple-review/cloudflare-oidc-registration-attempt.json",
+          "runtime/apple-review/cloudflare-oidc-registration-proof.json",
+          "runtime/apple-review/cloudflare-review-idp-policy-proof.json"
+        ],
+        "identityProviderId": "6e4d6545-0c2c-41ec-960a-ab2183ff0bab",
+        "existingOtpPreserved": true,
+        "otherApplicationsUnchanged": true,
+        "otherApplicationCount": 20,
+        "nativeAppLoginVerified": true,
+        "reviewerProductionAccessDenied": true,
+        "reviewerProductionAccessDenialProofPath": "runtime/apple-review/reviewer-production-denial-proof.json",
+        "reviewerProductionAccessDenialUsedOwnerCookies": false,
+        "reviewerProductionAccessDenialAuthenticationCompleted": true,
+        "reviewerProductionAccessDenialFinalStatus": 200,
+        "reviewerProductionAccessDenialMessage": "That account does not have access."
+      },
+      "identityProviderService": {
+        "product": "Dex",
+        "image": "ghcr.io/dexidp/dex:v2.45.1",
+        "started": true,
+        "serverDirectory": "/home/kite/BellTeam/runtime/apple-review/identity",
+        "composeProject": "bellteam-review-login",
+        "publicIssuer": "https://bellteam-review-login.kitepon.dev",
+        "discoveryHttpStatus": 200,
+        "discoveryConfirmedFromServerAndMac": true,
+        "macUsesAuthoritativeDnsForVerification": true,
+        "passwordHashVerified": true,
+        "cloudflareRegistrationComplete": true,
+        "secretsInRepository": false,
+        "registrationRequestPrepared": true,
+        "redactedRequestPath": "runtime/apple-review/identity/cloudflare-oidc-create-redacted.json",
+        "proofPaths": [
+          "runtime/apple-review/dex-public-discovery.json",
+          "runtime/apple-review/dex-public-discovery-from-mac.json",
+          "runtime/apple-review/cloudflare-identity-route-created.json",
+          "runtime/apple-review/dex-password-oidc-proof.json",
+          "runtime/apple-review/cloudflare-oidc-registration-proof.json"
+        ],
+        "passwordLoginVerified": true,
+        "oidcCodeAndTokenVerified": true,
+        "oidcSignatureAndClaimsVerified": true,
+        "cloudflareEndToEndLoginVerified": true
+      },
+      "setupComplete": true,
+      "reviewBotCount": 2,
+      "realAIVerification": {
+        "initialGuideReplyVerified": true,
+        "guideCreatedCodexMember": true,
+        "memberReplyVerified": true,
+        "scheduleListReadVerified": true,
+        "setupComplete": true,
+        "entitled": false,
+        "accessMode": "subscription",
+        "ownerCredentialsCopied": false,
+        "proofPath": "runtime/apple-review/review-onboarding-actual-proof-private.json"
+      },
+      "nativeAppLoginProof": {
+        "developmentSigned": true,
+        "fixtureData": false,
+        "volatileServerUrlOverride": true,
+        "loggedInWithDedicatedReviewer": true,
+        "reviewBotCount": 2,
+        "loginResponseDisplayed": true,
+        "proofPaths": [
+          "runtime/apple-review/mac-review-public-login-navigation-private.jsonl",
+          "runtime/apple-review/mac-review-click-dex-login-private.json",
+          "runtime/apple-review/mac-review-external-login-result.png",
+          "runtime/apple-review/mac-review-authenticated-settings.png"
+        ]
+      }
+    },
+    "billingScope": {
+      "webAndServer": "free",
+      "appleApps": "shared_monthly_subscription",
+      "localStoreKitEntitlementRequired": true,
+      "savedSchedulesContinueWithoutSubscription": true,
+      "deviceNotificationTransaction": true,
+      "implementation": {
+        "server": "accepted",
+        "apple": "accepted",
+        "integrationReview": "accepted",
+        "serverTests": {
+          "passed": 310,
+          "failed": 0,
+          "proof": "runtime/apple-only-billing/server-tests.log",
+          "sourceCommit": "22ed2345f49f4d90a3119678660fe97f1dcbbdde"
+        },
+        "appleSourceCommit": "6ef4d2ffd3697269931e204c3c99cf25b3f07cce",
+        "guideFocusedTests": {
+          "passed": 6,
+          "failed": 0,
+          "proof": "runtime/apple-only-billing/guide-test.log"
+        },
+        "appleFocusedTests": {
+          "passed": 12,
+          "failed": 0,
+          "kind": "Foundation implementation entitlement boundary",
+          "proof": "runtime/apple/apple-only-27/focused-access-proof.json",
+          "realStoreKitPurchase": false
+        }
+      },
+      "productionDeployment": {
+        "state": "verified",
+        "applied": true,
+        "approvalBox": {
+          "accepted": false,
+          "error": "CODEX_STEER_RESTART_REQUIRED",
+          "chatQuestionPending": false,
+          "chatApprovalReceived": true
+        },
+        "requiredAction": null,
+        "restartApproval": "owner_approved",
+        "approvalMessage": "やっていいよ",
+        "sourceCommit": "da19a6abb44b90dbc3659df4504826b32d9bf826",
+        "previousSourceCommit": "8244252c032e876e661337248dd7df2da4a7b701",
+        "healthCheck": "passed",
+        "containerStartedAt": "2026-10-02T09:04:46.733116015Z",
+        "restartCount": 0,
+        "rollbackSnapshot": "runtime/backups/before-apple-only-billing-20261002T175956",
+        "rollbackImage": "bellteam-before-apple-only-billing:20261002T175956",
+        "backup": {
+          "configurationAndHomeVerified": true,
+          "archiveEntries": 33275,
+          "archiveBytes": 2390016000,
+          "archiveMode": "600",
+          "socketsExcluded": true
+        },
+        "existingBotCount": 22,
+        "botProfilesPreserved": true,
+        "authenticationPreserved": true,
+        "claudeMetadataChange": "公式Claude CLIの起動回数・機能キャッシュ・ヒント履歴だけ更新。認証情報を保持。",
+        "configuredFeaturesPreserved": 5,
+        "configurationValuesPreserved": true,
+        "developerAccessPreserved": true,
+        "firstRunSkipped": true,
+        "existingEnvironmentSetup": {
+          "total": 9,
+          "passed": 9
+        },
+        "mountsPreserved": true,
+        "conversationPrefixesPreserved": 4,
+        "legacyAPNsPreserved": true,
+        "auditChecksPassed": 14,
+        "auditProof": "runtime/apple-only-billing/production-audit.json",
+        "deployProof": "runtime/apple-only-billing/production-deploy.log",
+        "remoteDeployProof": "runtime/backups/deploy-20261002T180335.log",
+        "liveMessageProof": "runtime/apple-only-billing/production-bot-smoke.jsonl",
+        "liveMessage": {
+          "botId": "bot-156aa415",
+          "harness": "claude",
+          "acceptedAt": "2026-10-02T09:05:26.034Z",
+          "repliedAt": "2026-10-02T09:05:41.165Z",
+          "replyReceived": true,
+          "queueEmpty": true
+        },
+        "modelSelection": {
+          "tool": "pick-model",
+          "decisionProvider": "Jev",
+          "purpose": "本番更新後の読取監査と反証",
+          "harness": "Codex",
+          "model": "gpt-6.1-sol",
+          "effort": "high"
+        }
+      },
+      "realApplePurchaseVerified": false,
+      "appleMetadata": {
+        "state": "verified",
+        "proof": "runtime/apple-only-billing/apple-metadata-after.json",
+        "priceVerified": "300 JPY / ONE_MONTH"
+      },
+      "purchaseRequiresSetupComplete": true,
+      "publication": {
+        "workflowRunId": 36975369242,
+        "sourceCommit": "6193e3d42633f375b57920ad087899dc671fa54d",
+        "state": "verified",
+        "previousFailedRun": {
+          "id": 36975075420,
+          "cause": "公開試験が購読APIのsubscription応答を展開していなかった。workflowを修理して再実行。"
+        },
+        "imageDigest": "sha256:e20c9281b3117cddd687a84b640fb95b74d9b6596f9f18e8f18cf500183d91a5",
+        "anonymousInstallProof": "runtime/apple-only-billing/public-distribution/anonymous-install-proof.json",
+        "unpaidServerCanUseAI": true,
+        "productionUnchanged": true
+      },
+      "portableArchive": {
+        "sourceCommit": "6ef4d2ffd3697269931e204c3c99cf25b3f07cce",
+        "path": "runtime/distribution/apple-only-6ef4d2f.tar.gz",
+        "sha256": "1b7d9062b62cb016e7ddef55d4cee8f53ffe4ffc66a599915b869791639d5b8c",
+        "linuxExtractionProof": "runtime/apple-only-billing/archive-linux-proof.json",
+        "extractedFilesChecked": 80
+      },
+      "appleCandidate": {
+        "build": "27",
+        "sourceCommit": "6ef4d2ffd3697269931e204c3c99cf25b3f07cce",
+        "archive": "passed",
+        "export": "passed",
+        "signature": "passed",
+        "retainedAt": "runtime/apple/apple-only-27",
+        "proof": "runtime/apple-only-billing/parent-candidate-acceptance.json",
+        "distribution": "verified",
+        "localInstall": "verified",
+        "testFlightProof": "runtime/apple/apple-only-27/testflight-27-proof.json",
+        "macInstallProof": "runtime/apple/apple-only-27/mac-install-27-proof.json",
+        "macGUIProof": "runtime/apple/apple-only-27/mac-gui-read-27-proof.json",
+        "parentAppleReadback": "runtime/apple-only-billing/parent-apple-27-proof.json",
+        "releaseProof": "runtime/apple/apple-only-27/release-27-proof.json",
+        "retainedItems": 38,
+        "existingSigningAssetsPreserved": true,
+        "realStoreKitPurchaseVerified": false,
+        "reviewSubmitted": false
+      },
+      "state": "distributed_and_production_verified"
+    },
+    "reviewSubmission": {
+      "authorized": true,
+      "authorizationMessage": "では審査に出そうぜ",
+      "state": "WAITING_FOR_REVIEW",
+      "submitted": true,
+      "reviewSubmissionIds": [
+        "aaac7dce-78be-49af-a988-9d132eea8706",
+        "97b1a038-0047-49bd-b068-5b731fec5bd3"
+      ],
+      "firstSubscriptionRequiresAppVersion": true,
+      "initialFinalSubmitSurface": "App Store Connect公式API（既存下書き）",
+      "subscriptionVersionId": "9c132770-f765-483f-979e-c18bd491e0b8",
+      "subscriptionGroupVersionId": "5714d58c-4341-4038-9605-b4a125ed8e94",
+      "apiSchemaVersion": "4.5",
+      "firstSubscriptionApiRelationships": [
+        "appStoreVersion",
+        "subscriptionVersion",
+        "subscriptionGroupVersion"
+      ],
+      "iosAndMacRequireSeparateDrafts": true,
+      "subscriptionCanBeInBothDraftsSimultaneously": "公式資料に明記なし。公式UIの状態を確認して判断",
+      "requiredInputs": [],
+      "remainingRegistration": [],
+      "realApplePurchaseVerified": true,
+      "privacyAssessment": {
+        "workerLogsPersisted": true,
+        "invocationLogs": true,
+        "requestBodyLoggedByProduct": false,
+        "developerStoresChatContent": false,
+        "diagnosticsCollectionRequiresDeclaration": true,
+        "ipLogKeysConfirmed": true,
+        "tracking": false,
+        "registered": true,
+        "proofPath": "runtime/apple-review/worker-observability-oauth-proof.json",
+        "logKeysReadHttpStatus": 200,
+        "probeTailEventsObserved": 0,
+        "probeTailProvesNoCollection": false,
+        "probeTailProofPath": "runtime/apple-review/worker-own-probe-tail-private.jsonl",
+        "logKeysProofPath": "runtime/apple-review/worker-observability-log-keys-proof.json",
+        "codeAuditProofPath": "runtime/apple-review/privacy-code-audit-proof.json",
+        "workerObservability": {
+          "verifiedAt": "2026-10-02T13:41:46.117Z",
+          "productionAndSandboxVerified": true,
+          "logsEnabled": true,
+          "logsPersisted": true,
+          "invocationLogs": true,
+          "headSamplingRate": 1,
+          "tracesEnabled": false,
+          "proofPath": "runtime/apple-review/worker-observability-oauth-proof.json"
+        },
+        "logKeysRequiredPermission": "Account: Workers Observability: Write",
+        "actualLogEventFieldsPending": false,
+        "clientIpPersisted": true,
+        "ipDerivedLocationPersisted": true,
+        "userAgentAndUrlPersisted": true,
+        "personalAssociation": true,
+        "candidateCategories": [
+          {
+            "dataType": "OTHER_DIAGNOSTIC_DATA",
+            "purpose": "APP_FUNCTIONALITY",
+            "linked": true,
+            "tracking": false
+          },
+          {
+            "dataType": "PRECISE_LOCATION",
+            "purpose": "APP_FUNCTIONALITY",
+            "linked": true,
+            "tracking": false,
+            "source": "IPから推定した緯度経度。端末のGPSを取得する機能はない"
+          }
+        ],
+        "actualLogEventProofPath": "runtime/apple-review/privacy-log-event-proof-private.json",
+        "purchaseVerificationPostLogObserved": false,
+        "rawProofContainsPrivateValues": true,
+        "publicPolicyUpdate": {
+          "sourceUpdated": true,
+          "workerDryRunPassed": true,
+          "relatedTestsPassed": 7,
+          "fullTestsPassed": 310,
+          "publicDeploymentVerified": true,
+          "sourceCommit": "4dd88efa963ab1e4a16a4916322f2fbcab4317f8",
+          "workerVersionId": "8ac89267-0c82-4ad0-96b7-8fd678482470",
+          "verifiedAt": "2026-10-02T16:13:15.759Z",
+          "proofPath": "runtime/apple-review/privacy-policy-public-update-proof.json"
+        },
+        "published": true,
+        "registrationState": "published",
+        "savedCategories": [
+          {
+            "dataType": "OTHER_DIAGNOSTIC_DATA",
+            "purpose": "APP_FUNCTIONALITY",
+            "linked": true,
+            "tracking": false
+          },
+          {
+            "dataType": "PRECISE_LOCATION",
+            "purpose": "APP_FUNCTIONALITY",
+            "linked": true,
+            "tracking": false,
+            "source": "IPから推定した緯度経度。端末のGPSを取得する機能はない"
+          }
+        ],
+        "publishConfirmation": {
+          "status": "owner_agreement_received_and_published",
+          "surface": "App Store Connect Web",
+          "exactStatement": "このプライバシー情報は、アプリのプロダクトページに表示されます。公開することに伴い、回答が正確であること、App Storeレビューガイドラインおよび適用される法律に準拠していること、データの取り扱いが変更された場合は速やかに回答を更新することに同意するもの見なされます。",
+          "chatQuestionRequested": true,
+          "ownerAgreementReceived": true,
+          "screenshotPath": "runtime/apple-review/privacy-publish-confirmation.png",
+          "ownerAgreementMessage": "GO",
+          "publishedScreenshotPath": "runtime/apple-review/privacy-published.png"
+        },
+        "publicationProofPath": "runtime/apple-review/privacy-published-proof.json",
+        "publicationVerifiedAt": "2026-10-02T23:18:52.683635+00:00"
+      },
+      "privacyBrowserInspection": {
+        "tool": "jev-ultrafast と jev-desktop",
+        "status": "blocked_result_rejected",
+        "observed": "ASCの本文が遅れて表示される間にJevが停止。デスクトップでは別アプリの画面でキャンセルを1回押したためdone判定を棄却。BellTeamの申告は未確認。",
+        "possibleImpact": "別アプリの未保存の編集を閉じた可能性がある。保存・公開の操作はしていない。",
+        "humanReported": true,
+        "proofPaths": [
+          "runtime/apple-review/privacy-loading-diagnostic.json",
+          "runtime/apple-review/privacy-native-result-rejected.json"
+        ],
+        "latestAttempt": {
+          "status": "privacy_published",
+          "surface": "App Store Connect Web",
+          "loginCompletedByOwner": true,
+          "correctAppVisuallyVerified": true,
+          "appId": "6816295589",
+          "privacyDeclarationSaved": true,
+          "privacyDeclarationPublished": true,
+          "firstQuestionCollectsDataSelected": true,
+          "dataTypeSelectionVerified": true,
+          "proofPaths": [
+            "runtime/apple-review/asc-login-resumed.png",
+            "runtime/apple-review/asc-privacy-declaration-run-private.jsonl",
+            "runtime/apple-review/asc-privacy-precise-select-private.json",
+            "runtime/apple-review/asc-privacy-data-types-current.png",
+            "runtime/apple-review/asc-privacy-precise-fixed-private.json",
+            "runtime/apple-review/asc-privacy-browser-fixed-private.jsonl",
+            "runtime/apple-review/privacy-publish-confirmation.png",
+            "runtime/apple-review/privacy-published.png",
+            "runtime/apple-review/privacy-published-proof.json"
+          ],
+          "preciseLocationChecked": true,
+          "otherDiagnosticDataChecked": true,
+          "partialDataTypeSelectionVerified": false,
+          "tool": "Codexの標準Computer Use",
+          "usagePurposesSaved": true,
+          "linkedToUserSaved": true,
+          "trackingFalseSaved": true,
+          "publicationVisuallyVerified": true,
+          "ownerPublishAgreementReceived": true
+        }
+      },
+      "approvalBox": {
+        "submitted": true,
+        "error": null,
+        "conversationQuestionsPending": false,
+        "state": "owner_restore_answer_received_client_ui_repair_in_progress",
+        "previousErrors": [
+          "CODEX_STEER_RESTART_REQUIRED",
+          "connector_error"
+        ],
+        "codexRestartCompletedByOwner": true,
+        "restartGuardCleared": true,
+        "registeredListVerified": true,
+        "mobileDisplayVerified": false,
+        "answersReceived": true,
+        "proofPath": "runtime/apple-review/approval-box-delivery-proof-private.json",
+        "registeredRequests": [
+          {
+            "decisionId": "K-YLN7KE",
+            "title": "BellTeamの顔画像・アプリアイコンの配布権を確認したい",
+            "status": "answered",
+            "thisSession": true,
+            "createdAt": "2026-10-03T00:27:31.075Z",
+            "answer": {
+              "option_id": "own_or_ai",
+              "answered_at": "2026-10-03T00:30:30.590Z"
+            },
+            "delivery": "delivered"
+          },
+          {
+            "decisionId": "K-LXCZ2P",
+            "title": "iPhoneのBellTeamで接続先と購読欄を確認してほしい",
+            "status": "answered",
+            "thisSession": true,
+            "createdAt": "2026-10-03T00:27:44.725Z",
+            "answer": {
+              "text": "Dexというログイン画面が出てる。パスワードとか知らないし何したらいいかわからない。",
+              "answered_at": "2026-10-03T00:29:44.585Z"
+            },
+            "delivery": "delivered"
+          }
+        ],
+        "issueOwner": {
+          "name": "ナユタ",
+          "callSessionId": "7b8c67ec-711f-4690-a6c7-7cd9a6c7560c",
+          "repairRequestedByOwner": true,
+          "serverRecovered": true,
+          "connectorErrorDisplayRepairComplete": true,
+          "causeConfirmedByMaintainer": "本番更新時のサーバー停止中にPOSTが入り、前段がHTMLのエラーページを返した。要求はサーバー未到達で未作成。"
+        },
+        "ownerQuestionDisplayVerified": true,
+        "answerDeliveryVerified": true,
+        "followupPending": true,
+        "followupRequest": {
+          "decisionId": "K-73P44Z",
+          "title": "iPhoneのDexに審査用アカウントでログインして購読欄を確認してほしい",
+          "status": "answered",
+          "privateLoginGuidePath": "runtime/apple-review/iphone-review-login-private.txt",
+          "openInCodexStatus": "queued",
+          "answer": {
+            "text": "ログインできた。メンバーが二人いる。一人の名前が「案内役 初期設定の案内」"
+          },
+          "delivery": "delivered"
+        },
+        "repair": {
+          "sourceCommit": "46db7661d2892d6661206501baf83d72c115e270",
+          "publishedVersion": "0.1.8",
+          "npmShasum": "cab63b6b5c5669aace99dd0c21879606381618f3",
+          "parentReadSourceAndFocusedTests": true,
+          "maintainerReportedConnectorTestsPassed": 5,
+          "maintainerReportedServerTestsPassed": 21,
+          "maintainerReportedPublishedMcpSmokePassed": true,
+          "macStandardSetupPassed": true,
+          "macDoctorExitCode": 0,
+          "macRegistrationVersion": "0.1.8",
+          "activeMcpVersion": "0.1.7",
+          "activeMcpReplaced": false,
+          "settingsBackupPath": "runtime/apple-review/approval-box-before-018-settings-20261003T003533Z.tar.gz"
+        },
+        "mirroringRequest": {
+          "decisionId": "K-F2ZYTA",
+          "title": "iPhoneに出ているミラーリングの確認を済ませてほしい",
+          "status": "answered",
+          "createdAt": "2026-10-03T00:55:28.625Z",
+          "answer": {
+            "option_id": "completed"
+          },
+          "delivery": "delivered"
+        },
+        "scrollRequest": {
+          "decisionId": "K-4492KX",
+          "title": "MacのミラーリングでBellTeamの購読欄までスクロールしてほしい",
+          "status": "answered",
+          "createdAt": "2026-10-03T01:05:41.289Z",
+          "answer": {
+            "text": "その手順無理。スクローンしようとしたらミラーリング切れるじゃん。"
+          },
+          "delivery": "delivered",
+          "instructionWithdrawn": true
+        },
+        "manualDeviceRequest": {
+          "decisionId": "K-TPBK7F",
+          "title": "iPhoneを手元で操作してBellTeamの購入画面を確認してほしい",
+          "status": "answered",
+          "createdAt": "2026-10-03T01:13:19.834Z",
+          "answer": {
+            "option_id": "apple_sheet",
+            "answeredAt": "2026-10-03T01:14:24.068Z"
+          },
+          "delivery": "delivered"
+        },
+        "testPurchaseRequest": {
+          "decisionId": "K-JH78HC",
+          "title": "iPhoneのテスト購入と購入の復元を完了してほしい",
+          "status": "cancelled",
+          "createdAt": "2026-10-03T01:24:00.207Z",
+          "cancelReason": "購入後の有効表示とApple照会エラーの画像を受領。追加購入・復元は修理後に確認する。"
+        },
+        "restoreAfterRepairRequest": {
+          "decisionId": "K-S2KUR7",
+          "status": "cancelled",
+          "createdAt": "2026-10-03T01:44:18.576Z",
+          "title": "今回の写真の前に押したボタンを教えてほしい",
+          "version": 3,
+          "questionOnly": true,
+          "additionalDeviceActionRequested": false,
+          "answerReceivedInChat": true,
+          "ownerAnswer": "購入を復元",
+          "cancelReason": "会話で直前の操作の回答を受け取り、追加の質問を取り下げた。"
+        },
+        "restoreDiagnosticUnlockRequest": {
+          "decisionId": "K-P5S3V5",
+          "status": "answered",
+          "version": 3,
+          "createdAt": "2026-10-03T02:10:33.410Z",
+          "title": "復元処理を調べるため、iPhoneをロック解除したまま置いてほしい",
+          "restoreButtonPressRequested": false,
+          "mirroringReconnectRequested": false,
+          "reason": "Appleの端末操作コマンドがLockedで審査用URLへの診断起動を拒否した。",
+          "answer": {
+            "option_id": "unlocked"
+          },
+          "delivery": "delivered"
+        },
+        "restoreButtonAfterRepairRequest": {
+          "decisionId": "K-DKE657",
+          "status": "cancelled",
+          "version": 2,
+          "createdAt": "2026-10-03T02:30:00.077Z",
+          "title": "修理後のiPhoneで購入の復元を一度確認してほしい",
+          "answerReceivedIn": "chat"
+        },
+        "clientBuild28UnlockRequest": {
+          "decisionId": "K-CACSWG",
+          "status": "answered",
+          "version": 3,
+          "answer": {
+            "option_id": "unlocked"
+          }
+        },
+        "clientBuild28ScreenRequest": {
+          "decisionId": "K-E6YKEJ",
+          "status": "cancelled",
+          "version": 2,
+          "answerReceivedIn": "chat"
+        },
+        "clientBuild28PurchaseApprovalQuestion": {
+          "decisionId": "K-63D47S",
+          "status": "answered",
+          "version": 3,
+          "answer": {
+            "option_id": "closed"
+          }
+        },
+        "clientBuild28RestoreRequest": {
+          "decisionId": "K-GPHXY9",
+          "status": "answered",
+          "version": 4,
+          "title": "いまパスワードを求めている画面を教えてほしい",
+          "answerText": "もう君がシミュレーターでやったら！？"
+        }
+      },
+      "proofPath": "runtime/apple-review/review-draft-preparation.json",
+      "drafts": {
+        "MAC_OS": {
+          "id": "aaac7dce-78be-49af-a988-9d132eea8706",
+          "state": "WAITING_FOR_REVIEW",
+          "submitted": true,
+          "submittedDate": "2026-10-04T05:37:58.434Z",
+          "appStoreVersionAdded": true,
+          "itemsCount": 1,
+          "build": "39",
+          "proofPath": "runtime/apple-review/review39-final-verified.json",
+          "appStoreVersionItemId": "YWFhYzdkY2UtNzhiZS00OWFmLWE5ODgtOWQxMzJlZWE4NzA2fDZ8ODkyMTE0MjM3"
+        },
+        "IOS": {
+          "id": "97b1a038-0047-49bd-b068-5b731fec5bd3",
+          "state": "WAITING_FOR_REVIEW",
+          "submitted": true,
+          "submittedDate": "2026-10-04T05:37:49.87Z",
+          "appStoreVersionAdded": true,
+          "itemsCount": 3,
+          "build": "39",
+          "proofPath": "runtime/apple-review/review39-final-verified.json",
+          "appStoreVersionItemId": "OTdiMWEwMzgtMDA0Ny00OWJkLWIwNjgtNWI3MzFmZWM1YmQzfDZ8ODkyMDI0MTUy",
+          "subscriptionVersionAdded": true,
+          "subscriptionItemId": "OTdiMWEwMzgtMDA0Ny00OWJkLWIwNjgtNWI3MzFmZWM1YmQzfDE4fDljMTMyNzcwLWY3NjUtNDgzZi05NzllLWMxOGJkNDkxZTBiOA",
+          "subscriptionGroupVersionAdded": true,
+          "subscriptionGroupItemId": "OTdiMWEwMzgtMDA0Ny00OWJkLWIwNjgtNWI3MzFmZWM1YmQzfDE5fDU3MTRkNThjLTQzNDEtNDAzOC05NjA1LWI0YTEyNWVkOGU5NA"
+        }
+      },
+      "contactRegistration": {
+        "complete": true,
+        "phoneResolvedFromMatchingExistingAppleReviewRecords": true,
+        "privateValuesInRepository": false,
+        "proofPath": "runtime/apple-review/review-details-draft-proof.json"
+      },
+      "ageAssessment": {
+        "proposedOverride": "EIGHTEEN_PLUS",
+        "registered": true,
+        "fullQuestionnaireRequired": true,
+        "partialWriteHttpStatus": 409,
+        "contentFrequencyAnswersConfirmed": true,
+        "aiGeneratedContentMustBeConsidered": true,
+        "purposeConfirmationPending": false,
+        "proofPath": "runtime/apple-review/age-rating-saved-proof.json",
+        "source": "https://developer.apple.com/news/?id=ks775ehf",
+        "purposeConfirmedFromImplementation": true,
+        "booleanAnswersSupportedByImplementation": {
+          "advertising": false,
+          "parentalControls": false,
+          "ageAssurance": false,
+          "userGeneratedContent": false,
+          "messagingAndChat": false,
+          "unrestrictedWebAccess": false,
+          "gambling": false,
+          "lootBox": false
+        },
+        "frequencyAssessmentPending": false,
+        "contentRightsScope": "同梱画像2枚の由来と許諾は未確認。通常用途は実装から確定。公式CLIの本人利用と組込みに関する提供者の規約・技術文書を確認したが、全社への包括的な権利保証とは扱わない。",
+        "fullIntendedUseConfirmed": false,
+        "partialWriteProofPath": "runtime/apple-review/age-partial-write-proof.json",
+        "expectedAppleClientUseAssessed": true,
+        "ownerPurposeAnswerReceived": false,
+        "answerDecision": {
+          "source": "Codexが実装とAppleの定義から判断",
+          "expectedUse": "個人のAIとの一般的な業務・会話支援",
+          "infrequentTopics": "汚い言葉、恐怖、酒・たばこ・薬物、医療、成人向けや非明示的な性的内容、暴力・武器は、汎用AI会話で偶発的に触れ得るため「まれ」",
+          "noneTopics": "過激な性的描写、長時間の加虐的でリアルな暴力、賭け事・競争は提供するコンテンツや機能にないため「なし」",
+          "ownerPurposeAnswerReceived": false,
+          "outputBlockingFeatureAdded": false
+        },
+        "savedAnswers": {
+          "id": "60717aed-6ed7-4601-b153-c5c48da1a97d",
+          "appInfoId": "60717aed-6ed7-4601-b153-c5c48da1a97d",
+          "advertising": false,
+          "alcoholTobaccoOrDrugUseOrReferences": "INFREQUENT_OR_MILD",
+          "contests": "NONE",
+          "gambling": false,
+          "gamblingSimulated": "NONE",
+          "gunsOrOtherWeapons": "INFREQUENT_OR_MILD",
+          "healthOrWellnessTopics": true,
+          "kidsAgeBand": null,
+          "lootBox": false,
+          "medicalOrTreatmentInformation": "INFREQUENT_OR_MILD",
+          "messagingAndChat": false,
+          "parentalControls": false,
+          "profanityOrCrudeHumor": "INFREQUENT_OR_MILD",
+          "ageAssurance": false,
+          "sexualContentGraphicAndNudity": "NONE",
+          "sexualContentOrNudity": "INFREQUENT_OR_MILD",
+          "socialMedia": false,
+          "socialMediaAgeRestricted": false,
+          "horrorOrFearThemes": "INFREQUENT_OR_MILD",
+          "matureOrSuggestiveThemes": "INFREQUENT_OR_MILD",
+          "unrestrictedWebAccess": false,
+          "userGeneratedContent": false,
+          "violenceCartoonOrFantasy": "INFREQUENT_OR_MILD",
+          "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+          "violenceRealistic": "INFREQUENT_OR_MILD",
+          "ageRatingOverride": "SEVENTEEN_PLUS",
+          "ageRatingOverrideV2": "EIGHTEEN_PLUS",
+          "koreaAgeRatingOverride": "NONE",
+          "gracRatingClassificationNumber": null,
+          "developerAgeRatingInfoUrl": null
+        },
+        "savedAgeRatingOverride": "EIGHTEEN_PLUS",
+        "legacySavedAgeRatingOverride": "SEVENTEEN_PLUS",
+        "savedCalculatedAgeRating": "THIRTEEN_PLUS",
+        "registrationVerifiedAt": "2026-10-02T23:36:54+00:00",
+        "screenshotPath": "runtime/apple-review/age-rating-saved.png"
+      },
+      "validation": {
+        "appVersionInitialMissing": [
+          "年齢質問票",
+          "公開済みApp Privacy",
+          "コンテンツの権利",
+          "審査連絡先"
+        ],
+        "reviewContactResolvedAfterInitialAttempt": true,
+        "subscriptionPriceValidationPassed": true,
+        "subscriptionLatestMissing": [],
+        "appVersionRetriedAfterContact": true,
+        "proofPaths": [
+          "runtime/apple-review/review-draft-preparation.json",
+          "runtime/apple-review/subscription-equalization-proof.json"
+        ],
+        "subscriptionScreenshotResolved": true,
+        "privacyResolvedAfterInitialAttempt": true,
+        "ageRatingResolvedAfterInitialAttempt": true,
+        "currentReadinessProofPath": "runtime/apple-review/release-readiness-after-privacy-age-proof.json",
+        "readinessToolChecksWholeSubmission": false,
+        "appVersionLatestMissing": [],
+        "latestValidationMethod": "App Store Connect Webで既存のiOS・macOS提出下書きへの追加に成功",
+        "latestValidationAt": "2026-10-03T00:43:40.908Z",
+        "appVersionAdded": true,
+        "latestValidationScreenshotPath": "runtime/apple-review/mac-review-draft-ready.png",
+        "contentRightsResolvedAfterInitialAttempt": true,
+        "appVersionsAddedPlatforms": [
+          "IOS",
+          "MAC_OS"
+        ],
+        "appVersionsAddedProofPath": "runtime/apple-review/review-app-versions-added-proof.json"
+      },
+      "nativePurchaseAttempt": {
+        "status": "testflight_purchase_confirmation_pending",
+        "build": "27",
+        "developmentSigned": true,
+        "fixtureData": false,
+        "clickDelivered": true,
+        "storeKitPurchaseCallObserved": true,
+        "applePurchaseConfirmationVisible": false,
+        "realPurchaseVerified": false,
+        "purchaseConfirmed": false,
+        "firstNativeClickError": "INVALID_ARGS: RefEntry bounds hash does not match its geometry",
+        "refreshedRootRetrySucceeded": true,
+        "proofPaths": [
+          "runtime/apple-review/mac-review-open-apple-purchase-retry-private.json",
+          "runtime/apple-review/mac-review-purchase-current.png",
+          "runtime/apple-review/mac-review-storekit-logs-private.json",
+          "runtime/apple-review/mac-purchase-storekit-events-private.json",
+          "runtime/apple-review/mac-purchase-daemon-attempt-private.json",
+          "runtime/apple-review/mac-review-purchase-focus-readback.png"
+        ],
+        "causeConfirmed": false,
+        "sandboxEnvironmentConfirmedByDaemon": true,
+        "sandboxAccountActiveAtAttempt": false,
+        "interactiveSandboxAuthenticationStarted": true,
+        "developmentAppClosedByOwnerAgent": true,
+        "developmentAppClosedPid": 60454,
+        "testFlightCandidate": {
+          "path": "/Applications/BellBot.app",
+          "build": "27",
+          "signature": "TestFlight Beta Distribution",
+          "receiptPresent": true,
+          "reviewServerLaunchVerified": true,
+          "pid": 75670,
+          "ownerAppPidPreserved": 30866,
+          "realPurchaseVerified": false,
+          "proofPaths": [
+            "runtime/apple-review/mac-testflight-review-launch.png",
+            "runtime/apple-review/mac-testflight-open-purchase-private.json",
+            "runtime/apple-review/mac-testflight-purchase-daemon-private.json",
+            "runtime/apple-review/mac-testflight-purchase-pending.png"
+          ],
+          "purchaseClickDelivered": true,
+          "applePurchaseRequestObserved": true,
+          "authenticationStarted": true,
+          "authenticationAccountSource": "production_account_for_testflight",
+          "applePurchaseConfirmationVisible": false,
+          "fixtureData": false
+        },
+        "diagnosis": "storekitagentは正しい商品へのSandbox購入を受け、active account無しで対話認証を開始していた。認証画面が出ない理由は未特定。審査用アプリの前面化後も購入画面なし。",
+        "currentVisibleUnentitledScreenshotPath": "runtime/apple-review/mac-testflight-restart-purchase-pending.png",
+        "latestAuthenticationDiagnosticProofPath": "runtime/apple-review/mac-testflight-authentication-diagnostic-private.json",
+        "latestAuthenticationDiagnosticCauseIdentified": false,
+        "purchaseConfirmationButtonResent": false,
+        "scrollToPurchaseStateReadAttempts": {
+          "standardJevUsed": true,
+          "selectedWindowId": "w-4966",
+          "inputActions": 0,
+          "result": "abstain_on_ambiguous_scroll_target",
+          "proofPaths": [
+            "runtime/apple-review/mac-testflight-show-purchase-state-private.jsonl",
+            "runtime/apple-review/mac-testflight-show-purchase-bottom-private.jsonl",
+            "runtime/apple-review/mac-testflight-show-manage-link-private.jsonl"
+          ]
+        },
+        "standardComputerUseReadAttempt": {
+          "status": "cannot_distinguish_same_bundle_instances",
+          "inputActions": 0,
+          "processIdsObserved": [
+            30866,
+            75670
+          ],
+          "bundleId": "dev.kitepon.bellbot",
+          "macWindowIdBindingUnsupported": true,
+          "realPurchaseVerified": false,
+          "pathBindingReturnedLoginWindow": true,
+          "selectedProcessUnverified": true
+        },
+        "standardAgentDesktopReadAttempt": {
+          "status": "exact_window_purchase_pending_verified",
+          "tool": "agent-desktopの標準公開コマンド",
+          "windowId": "w-4966",
+          "processId": 75670,
+          "ownerAppProcessIdPreserved": 30866,
+          "purchaseButtonDisabled": true,
+          "restoreButtonDisabled": true,
+          "visibleProgressText": "確認しています",
+          "visibleEntitlementText": "このApple Accountの有効な購読はありません",
+          "purchaseRequestResent": false,
+          "realPurchaseVerified": false,
+          "scrollToProgressDeliveredVerified": true,
+          "proofPaths": [
+            "runtime/apple-review/mac-testflight-purchase-current-ax-private.json",
+            "runtime/apple-review/mac-testflight-purchase-bottom-ax-private.json",
+            "runtime/apple-review/mac-testflight-purchase-pending.png",
+            "runtime/apple-review/mac-testflight-after-manage-ax-private.json"
+          ]
+        },
+        "normalAppleAccountReadCheck": {
+          "surface": "購読を管理から開いた公式App Store",
+          "normalAccountAlreadySignedIn": true,
+          "authenticationPromptRequired": false,
+          "purchasePendingUnchangedAfterRead": true,
+          "storeuidVisibleWindows": 0,
+          "otherSubscriptionDetailsCopiedToPublicRecord": false,
+          "causeConfirmed": false,
+          "openedAppStoreClosedAfterRead": true
+        },
+        "latestStoreKitLogRead": {
+          "lookbackMinutes": 15,
+          "eventCount": 0,
+          "proofPath": "runtime/apple-review/mac-testflight-storekit-latest-private.json",
+          "causeConfirmed": false
+        },
+        "boundedTestFlightRestart": {
+          "status": "new_process_purchase_authentication_pending",
+          "previousProcessId": 75670,
+          "previousProcessTerminationVerified": true,
+          "ownerAppProcessIdPreserved": 30866,
+          "newProcessId": 96627,
+          "newWindowId": "w-6170",
+          "serverUrlArgumentDomainOnly": true,
+          "newPurchaseRequests": 1,
+          "samePendingRequestRepeated": false,
+          "requestId": "1287C6A6_SK2",
+          "purchaseStartedAt": "2026-10-03T08:57:49+09:00",
+          "appleAuthenticationStarted": true,
+          "appleConfirmationVisible": false,
+          "realPurchaseVerified": false,
+          "causeConfirmed": false,
+          "networkTimeoutLinkedToPurchase": false,
+          "networkTimeoutObservation": "取得済みのbag.xml接続が30秒後にタイムアウト。購入停止の原因とは確認できない。",
+          "accountSettingsChanged": false,
+          "sharedAppleProcessesRestarted": false,
+          "productCodeChanged": false,
+          "proofPaths": [
+            "runtime/apple-review/mac-testflight-restart-storekit-private.json",
+            "runtime/apple-review/mac-testflight-restart-purchase-state-private.json",
+            "runtime/apple-review/mac-testflight-restart-purchase-pending.png"
+          ]
+        },
+        "latestReadAfterManualDeviceRequest": {
+          "observedAt": "2026-10-03T01:19:04.027321+00:00",
+          "previousTestFlightProcessId": 96627,
+          "previousTestFlightProcessStillRunning": true,
+          "previousPurchaseWindowPresent": false,
+          "currentReadWindowId": "w-6337",
+          "currentReadProcessId": 89885,
+          "currentWindowContent": "本番の会話一覧",
+          "uiChangedByParent": false,
+          "newPurchaseRequestSent": false,
+          "purchaseVerified": false,
+          "proofPaths": [
+            "runtime/apple-review/mac-current-windows-private.json",
+            "runtime/apple-review/mac-current-bellteam-read-private.json"
+          ]
+        }
+      },
+      "toolRepairConsultation": {
+        "ownerRequested": true,
+        "memberName": "イサベル",
+        "memberId": "bot-2e8ca15c",
+        "callSessionId": "215ab406-8c68-466b-8cb6-53a97af775ae",
+        "delivered": true,
+        "status": "original_three_repairs_accepted_followup_requested",
+        "issues": [
+          "agent-desktopのcheck操作後にチェック状態が反映されない",
+          "browser-harnessがChrome接続許可を要求するがmac-approveで見つからない",
+          "agent-desktopのJSON読み戻しによるRefEntry bounds hash不一致（失敗refmapの実座標で担当が再現）"
+        ],
+        "requiredCompletion": "担当製品で原因確認・修理・公開・このMacへ標準導入・公開後の実操作確認。BellTeam本番の変更・再起動は含まない",
+        "memberAccepted": true,
+        "receivedResponseAt": "2026-10-02T19:11:10Z",
+        "agentDesktopVersion": "0.9.4",
+        "receiptProtocolVersion": "2.4",
+        "browserHarnessVersion": "0.1.13",
+        "localCheckoutCommit": "a9e45ff7a469179f6c0ec64b28e64166b424a289",
+        "nativeCheckoutClean": true,
+        "agentDesktopOwnerProductConfirmed": true,
+        "browserHarnessOwnershipUnderInvestigation": false,
+        "diagnosisSource": "イサベルの通話返信 seq=4/6/9と親によるコード・標準導入・実操作の受入",
+        "confirmedCauses": {
+          "check": "ChromeはAXValueの書き込み成功を返すが値もイベントも変わらない。AXPressでは切り替わる。ネイティブ・ARIA・隠れた・制御されたinputで担当が再現",
+          "macApprove": "同名Chromeが複数あるとSystem Eventsの名前指定が別PIDを参照する。対象プロファイル・DevToolsポート・待受PIDを一致させ、PIDのAXを参照する修理を導入・実測済み",
+          "boundsHash": "失敗refmapの実座標がserde flatten経由のJSON読み戻しで丸め境界を越えた。float_roundtripを有効にし、回帰試験と実失敗refmapの読み取りを確認済み"
+        },
+        "browserHarnessUpstreamConfirmed": true,
+        "browserHarnessForkRepository": "quolu/browser-harness",
+        "browserHarnessInstalledForkRevisionPrefix": "285294aa",
+        "browserHarnessUpstream": "browser-use/browser-harness",
+        "memberReviewAndTestsReported": true,
+        "parentRepairCodeReviewed": true,
+        "parentLiveVerificationPassed": true,
+        "repairCommits": {
+          "check": "f7a1459c01eca9fd4ddb141eada937178b1a9369",
+          "boundsHash": "d67729f0569f2b25b044bf3f48271d7abdad7229",
+          "macApprove": "285294aaa06b63c578e3e2bbbf2b98948457555d"
+        },
+        "reportedTests": {
+          "agentDesktop": 2367,
+          "checkFocused": 9,
+          "browserHarness": 283,
+          "chromeCheckboxKinds": 4
+        },
+        "localForkPinAlignmentRequested": true,
+        "unrelatedExistingPrHistoryRewriteExclusionRequested": true,
+        "localForkPinAlignmentVerified": true,
+        "standardInstallationVerified": true,
+        "unrelatedExistingPrHistoryRewriteExcluded": true,
+        "parentAcceptanceProofPath": "runtime/apple-review/jev-repairs-parent-acceptance.json",
+        "upstreamPullRequests": [
+          "https://github.com/lahfir/agent-desktop/pull/250",
+          "https://github.com/lahfir/agent-desktop/pull/251"
+        ],
+        "followup": {
+          "status": "published_repairs_accepted_early_save_unresolved_gui_constraint_removed_privacy_published_age_registered",
+          "member": "イサベル",
+          "callMessageSeqs": [
+            11,
+            12
+          ],
+          "browserLoading": {
+            "standardAgentRunStoppedWithEmptyPage": true,
+            "historyActions": 1,
+            "elapsedMs": 1652,
+            "finalUrl": "https://appstoreconnect.apple.com/apps",
+            "declarationSaved": false,
+            "ownedTaskTabClosed": true,
+            "dirtyCheckoutPreserved": true,
+            "proofPath": "runtime/apple-review/asc-privacy-browser-fixed-private.jsonl"
+          },
+          "nativeSettingsShortcut": {
+            "command": "agent-desktop press cmd+, --app App Store",
+            "error": "INVALID_ARGS: Unknown key comma",
+            "delivery": "not_delivered",
+            "alternateKeySenderUsed": false,
+            "resolved": true
+          },
+          "memberDiagnosisAndFocusedTestsReported": true,
+          "memberResponseSeq": 66,
+          "installationSelection": {
+            "mode": "temporary_official_checkout_with_standard_git_and_uv",
+            "canonicalCheckoutPath": "/Users/kite/Developer/jev-ultrafast",
+            "canonicalCheckoutPreserved": true,
+            "canonicalFactoryInstallationStillBlockedByDirtyCheckout": true,
+            "factoryCheckoutOverrideSupported": false,
+            "temporaryCheckoutPath": "/Users/kite/Developer/BellTeam/runtime/apple-review/jev-ultrafast-review",
+            "temporaryCheckoutPrepared": true,
+            "officialOrigin": "https://github.com/browser-use/jev-ultrafast.git",
+            "publishedRepairRevisionSelected": true,
+            "uvInstallationComplete": true,
+            "handPatchIntoDirtyCheckoutAuthorized": false,
+            "selectedRevision": "36ba3e902dfd4acf950764ff6088384a9790c8e6",
+            "selectedRevisionVerifiedInForkMain": true
+          },
+          "blankPageRepair": {
+            "revisionPrefix": "2d443cb",
+            "parentReadObservationWaitAndTests": true,
+            "exactCommitDiffStillRequired": false,
+            "published": true,
+            "memberReportedTestsPassed": 54,
+            "memberReportedRuffPassed": true,
+            "liveReproductionRunsReported": 3,
+            "revision": "2d443cb4405d8fe1c07f1cc319b42dfaa9c5fa6c",
+            "parentCodeReviewAccepted": true,
+            "upstreamPullRequest": "https://github.com/browser-use/jev-ultrafast/pull/194",
+            "parentLiveRunCompleted": true,
+            "parentLiveRunResult": "first_blank_transition_progressed_then_blocked_on_partially_rendered_app_header",
+            "parentLiveRunProofPath": "runtime/apple-review/asc-privacy-after-loading-repair-private.json"
+          },
+          "punctuationRepair": {
+            "reviewedCommit": "170df48b442d7c6c4678774efc7730dcf65ab587",
+            "parentChangeRequested": true,
+            "changeRequestCallSeq": 16,
+            "issue": "文字のキーが解決できない場合にもANSI位置を送るsilent fallbackを外し、送信前のtyped errorにする",
+            "published": true,
+            "fullTestsResultPending": false,
+            "parentChangeResolved": true,
+            "parentCodeReviewAccepted": true,
+            "appleSDKDeclarationChecked": true,
+            "publicationAuthorized": true,
+            "memberReportedTestsPassed": 2360,
+            "memberReportedClippyPassed": true,
+            "memberReportedRealMachineSymbolAndAliasPassed": true,
+            "publishedRevision": "19518b24deefa310552daf5d91942f179cf91bc3",
+            "reviewedAndPublishedSourceDiffEmpty": true,
+            "standardInstallationVerified": true,
+            "forkPinAlignmentVerified": true,
+            "nativeCheckoutClean": true,
+            "upstreamPullRequest": "https://github.com/lahfir/agent-desktop/pull/252",
+            "parentAppStoreShortcutSentOnce": true,
+            "parentShortcutDelivery": "delivered_unverified",
+            "parentAppStoreSettingsWindowObserved": true,
+            "parentSettingsWindowId": "w-5091",
+            "parentAccepted": true,
+            "parentAcceptanceProofPath": "runtime/apple-review/jev-punctuation-parent-acceptance.json"
+          },
+          "parentPublicationApprovalCallSeqs": [
+            19,
+            21
+          ],
+          "partialPageLoading": {
+            "consultationCallSeq": 22,
+            "observedUrl": "https://appstoreconnect.apple.com/apps/6816295589/distribution",
+            "observedText": "BellTeam\n配信\nアナリティクス\nTestFlight",
+            "sidebarAndMainContentAbsent": true,
+            "standardAgentResult": "blocked",
+            "customWaitOrPatchUsed": false,
+            "privacySaved": false,
+            "privacyPublished": false,
+            "causeInvestigationRequested": true,
+            "memberCauseConfirmed": true,
+            "memberResponseSeq": 25,
+            "reviewedRevision": "830f59e0c981354eee6dc0f2afc984336e22fc1c",
+            "parentFullDiffReviewed": true,
+            "parentCodeReviewAccepted": true,
+            "publicationAuthorized": true,
+            "publicationApprovalCallSeq": 26,
+            "published": true,
+            "installed": true,
+            "memberReportedTestsPassed": 58,
+            "memberReportedRuffPassed": true,
+            "memberReportedShellReproductionSuccesses": 3,
+            "memberReportedBlankReproductionSuccesses": 3,
+            "publishedRevisionVerifiedInForkMain": true,
+            "parentStandardUvSyncLockedSucceeded": true,
+            "parentLoadingTransitionPassed": true,
+            "parentReachedAppPrivacyDataCollectionQuestionnaire": true,
+            "parentAccepted": true,
+            "parentAcceptanceProofPath": "runtime/apple-review/jev-main-loading-parent-acceptance.json"
+          },
+          "nativeMultipleWindows": {
+            "consultationCallSeq": 24,
+            "error": "AMBIGUOUS_TARGET: More than one window matches the target",
+            "candidateCount": 2,
+            "standardJevRunStoppedBeforeInput": true,
+            "nativeWindowIdObservationSucceeds": true,
+            "publicJevWindowSelectorAbsent": true,
+            "customWrapperOrTreeActionsUsed": false,
+            "memberInvestigationPending": false,
+            "proofPath": "runtime/apple-review/app-store-jev-ambiguous-diagnostic-private.json",
+            "memberCauseConfirmed": true,
+            "reviewedRevision": "a9e45ff7a469179f6c0ec64b28e64166b424a289",
+            "parentFullDiffReviewed": true,
+            "parentCodeReviewAccepted": true,
+            "publicationAuthorized": true,
+            "publicationApprovalCallSeq": 32,
+            "standardInstallationAuthorized": true,
+            "memberReportedNodeTestsPassed": [
+              "run.integration.test.mjs",
+              "run.test.mjs",
+              "act.test.mjs"
+            ],
+            "memberReportedRealWindowSelectionPassed": true,
+            "memberReportedRealWindowClosedStopPassed": true,
+            "published": true,
+            "installed": true,
+            "publishedRevision": "a9e45ff7a469179f6c0ec64b28e64166b424a289",
+            "upstreamPullRequest": "https://github.com/lahfir/agent-desktop/pull/253",
+            "nativeCheckoutAndForkPinVerified": true,
+            "parentWindowSelectionPassed": true,
+            "parentWindowClosedStopPassed": true,
+            "parentSelectedSettingsWindowClosed": true,
+            "parentAppStoreMainWindowStillVisible": true,
+            "parentSandboxPaneVisible": false,
+            "parentPurchaseVerified": false,
+            "parentAccepted": true,
+            "parentAcceptanceProofPath": "runtime/apple-review/jev-window-id-parent-acceptance.json"
+          },
+          "browserModalInteraction": {
+            "consultationCallSeq": 28,
+            "standardAgentError": "ValueError: Reached the demo's model-call budget",
+            "observedHistoryCount": 11,
+            "observedModelCallCount": 120,
+            "observedElapsedMs": 33325,
+            "finalUrl": "https://appstoreconnect.apple.com/apps/6816295589/distribution/privacy",
+            "samePageFingerprintRepeated": true,
+            "backgroundTargetsChosenInOpenModal": true,
+            "candidateAndExecutionHitTestDifferenceSuspected": true,
+            "causeConfirmed": true,
+            "investigationRequested": true,
+            "budgetRaised": false,
+            "customClickOrScrollUsed": false,
+            "privacySaved": false,
+            "privacyPublished": false,
+            "ownedTaskTabClosedByStandardExit": true,
+            "proofPath": "runtime/apple-review/asc-privacy-after-main-repair-private.json",
+            "candidateAndExecutionHitTestDifferenceConfirmed": true,
+            "nestedScrollRegionUnsupportedConfirmed": true,
+            "memberResponseSeq": 29,
+            "adoptedUpstreamPullRequests": [
+              "https://github.com/browser-use/jev-ultrafast/pull/137",
+              "https://github.com/browser-use/jev-ultrafast/pull/142"
+            ],
+            "reviewedRevision": "6bbfe3d35dfd410662f09d9ea4c69c65bad3cce5",
+            "parentFullDiffReviewed": true,
+            "parentCodeReviewAccepted": true,
+            "publicationApprovalCallSeq": 30,
+            "published": true,
+            "publishedRevisionVerifiedInForkMain": true,
+            "standardUvInstallationComplete": true,
+            "memberReportedUnitTestsPassed": 64,
+            "memberReportedRuffPassed": true,
+            "memberReportedRealBrowserHitTestChecks": 6,
+            "memberReportedRealBrowserGuardChecks": 27,
+            "memberReportedCoveredAscCandidatesAfterRepair": 0,
+            "parentLiveModalVerificationComplete": false,
+            "parentLiveRunStoppedBeforeModal": true,
+            "parentLiveRunProofPath": "runtime/apple-review/asc-privacy-after-modal-repair-private.json",
+            "parentLaterReachedModal": true,
+            "parentLaterCoveredBackgroundCandidatesOffered": false,
+            "parentNestedScrollOperationSelected": false,
+            "parentLaterRunProofPath": "runtime/apple-review/asc-privacy-after-wait-repair-private.json",
+            "parentNarrowGoalReachedModal": true,
+            "parentNarrowGoalResult": "blocked_despite_nested_scroll_operation_offered",
+            "parentNarrowGoalProofPath": "runtime/apple-review/asc-privacy-data-selection-explicit-collection-private.json"
+          },
+          "routeLoadingTimeout": {
+            "consultationCallSeq": 33,
+            "observedRoute": "https://appstoreconnect.apple.com/apps/6816295589/distribution",
+            "timeFromClickToWaitedObservationMs": 3030,
+            "mainAfterWait": false,
+            "observedText": "BellTeam\n配信\nアナリティクス\nTestFlight",
+            "standardAgentResult": "blocked",
+            "customCallerWaitAdded": false,
+            "parentBudgetChanged": false,
+            "causeInvestigationRequested": true,
+            "privacySaved": false,
+            "privacyPublished": false,
+            "proofPath": "runtime/apple-review/asc-privacy-after-modal-repair-private.json",
+            "memberResponseSeq": 35,
+            "memberCauseConfirmed": true,
+            "memberObservedContentReadyMs": [
+              3235,
+              2172,
+              2091,
+              2138,
+              2299,
+              2140
+            ],
+            "reviewedRevision": "fdc2c349c7d91dd72166491e70e5977da6cc3afc",
+            "parentFullDiffReviewed": true,
+            "parentCodeReviewAccepted": true,
+            "publicationApprovalCallSeq": 36,
+            "published": true,
+            "installed": true,
+            "publishedRevisionVerifiedInForkMain": true,
+            "settleSeconds": 10,
+            "memberReportedUnitTestsPassed": 64,
+            "memberReportedRuffPassed": true,
+            "memberReportedFiveSecondReproductionSuccesses": 3,
+            "parentLoadingTransitionPassed": true,
+            "parentReachedDataTypeModal": true,
+            "parentLiveRunActions": 44,
+            "parentLiveRunResult": "blocked_without_selecting_nested_scroll_or_checkboxes",
+            "parentPrivacyGoalCompleted": false,
+            "parentLiveRunProofPath": "runtime/apple-review/asc-privacy-after-wait-repair-private.json"
+          },
+          "additionalLoadingReviewFixes": {
+            "reviewedRevision": "5460da075105a9de06ad190e85240433b1ae6a26",
+            "issues": [
+              "画面に見えない補助文字をmainの内容として数える",
+              "URLのfragmentによる画面遷移を比較から除く",
+              "mainの状態変化に関する実ブラウザ試験が無い"
+            ],
+            "parentFullDiffReviewed": true,
+            "parentCodeReviewAccepted": true,
+            "publicationApprovalCallSeq": 39,
+            "published": true,
+            "installed": true,
+            "publishedRevisionVerifiedInForkMain": true,
+            "memberResponseSeq": 40,
+            "memberReportedForkUnitTestsPassed": 65,
+            "memberReportedForkRealBrowserGuardChecks": 28,
+            "memberReportedUpstreamBranchUnitTestsPassed": 42,
+            "memberReportedUpstreamBranchRealBrowserGuardChecks": 22,
+            "memberReportedRuffPassed": true
+          },
+          "initialLoadingTimeout": {
+            "consultationCallSeq": 41,
+            "memberResponseSeq": 43,
+            "parentInitialAttemptElapsedMs": 3296,
+            "parentInitialAttemptInputActions": 0,
+            "parentInitialAttemptMain": false,
+            "parentInitialAttemptResult": "blocked",
+            "parentInitialAttemptProofPath": "runtime/apple-review/asc-privacy-data-selection-private.json",
+            "memberCauseConfirmed": true,
+            "memberObservedContentReadyAfterDocumentCompleteMs": [
+              5653,
+              4230,
+              4565,
+              5112,
+              4247
+            ],
+            "reviewedRevision": "bf0ecf3944697885c1a098f78d1de482cee33690",
+            "parentFullDiffReviewed": true,
+            "parentCodeReviewAccepted": true,
+            "publicationApprovalCallSeq": 44,
+            "initialWaitUsesSettleSeconds": true,
+            "settleSeconds": 10,
+            "memberReportedUnitTestsPassed": 66,
+            "memberReportedRuffPassed": true,
+            "memberReportedFiveSecondReproductionSuccesses": 3,
+            "published": true,
+            "installed": true,
+            "parentLiveVerificationPassed": true,
+            "privacySaved": false,
+            "privacyPublished": false,
+            "publishedRevisionVerifiedInForkMain": true,
+            "memberPublicationResponseSeq": 45,
+            "memberReportedUpstreamBranchUnitTestsPassed": 38,
+            "parentUpstreamBranchFullDiffReviewed": true,
+            "parentInitialLoadingPassed": true,
+            "parentFirstInputElapsedMs": 5449,
+            "parentLiveRunInputActions": 2,
+            "parentLiveRunResult": "blocked_on_data_collection_question_after_loading_passed",
+            "parentLiveRunProofPath": "runtime/apple-review/asc-privacy-data-selection-after-initial-wait-private.json"
+          },
+          "scrollChoiceInvestigation": {
+            "consultationRequested": true,
+            "goalIncludesDataCollectionYesAndExactTwoTypes": true,
+            "sourceRevision": "bf0ecf3944697885c1a098f78d1de482cee33690",
+            "standardAgentUsed": true,
+            "historyActions": 4,
+            "elapsedMs": 6024,
+            "nestedScrollIncludedInModelRequest": true,
+            "nestedScrollSelected": false,
+            "lastOperation": "BLOCKED",
+            "operationProbabilities": {
+              "BLOCKED": 0.43,
+              "SCROLL_DOWN": 0.22,
+              "CLICK": 0.15,
+              "WAIT": 0.1,
+              "SCROLL_REGION_DOWN_1": 0.09,
+              "DONE": 0.01
+            },
+            "confidence": 0.31,
+            "causeConfirmed": true,
+            "privacySaved": false,
+            "privacyPublished": false,
+            "proofPath": "runtime/apple-review/asc-privacy-data-selection-explicit-collection-private.json",
+            "consultationCallSeq": 47,
+            "memberResponseSeq": 48,
+            "cause": "モデルへの指示に、目標に必要な操作が見えない時にスクロールで探す判断が無い",
+            "reviewedRevision": "6c005b64fed7673942a713b3692648a8fd5a8b06",
+            "parentFullDiffReviewed": true,
+            "parentCodeReviewAccepted": true,
+            "publicationAuthorized": true,
+            "memberReportedNestedScrollReproductionSuccesses": 6,
+            "memberReportedUnitTestsPassed": 66,
+            "memberReportedRuffPassed": true,
+            "published": true,
+            "installed": true,
+            "parentLiveVerificationPassed": false,
+            "twoDataTypesSelectedBeforeSaveRemainsUnresolved": true,
+            "memberReportedExtendedInstructionUnstable": true,
+            "publicationApprovalCallSeq": 50,
+            "publishedRevisionVerifiedInForkMain": true,
+            "memberPublicationResponseSeq": 51,
+            "upstreamPullRequest": "https://github.com/browser-use/jev-ultrafast/pull/195",
+            "parentUpstreamBranchFullDiffReviewed": true,
+            "memberReportedUpstreamBranchUnitTestsPassed": 31,
+            "parentLiveRunResult": "document_scroll_did_not_move_the_modal_region",
+            "parentLiveRunElapsedMs": 8994,
+            "parentLiveRunActions": 11,
+            "parentDocumentScrollActions": 3,
+            "parentDocumentScrollActionsChangedPage": false,
+            "parentModalScrollTopAfter": 0,
+            "parentModalScrollHeight": 4274,
+            "parentModalClientHeight": 460,
+            "parentLiveRunProofPath": "runtime/apple-review/asc-privacy-data-selection-after-scroll-repair-private.json",
+            "continuedInvestigationRequested": true,
+            "continuedInvestigationCallSeq": 53
+          },
+          "memberOwnedTestResourcesCleanup": {
+            "memberResponseSeq": 52,
+            "testChromeProcessesClosedReported": true,
+            "testDaemonStoppedReported": true,
+            "testHttpServerStoppedReported": true,
+            "terminalWindowCountReported": 0,
+            "ownerChromeProcessesPreservedReported": true,
+            "ownerAppsAndTestFlightPreservedReported": true,
+            "backupAndTestSourceFilesPreserved": true,
+            "parentWindowMetadataVerification": {
+              "terminalVisibleWindows": 1,
+              "appStoreVisibleWindows": 0,
+              "chromeVisibleProcessIds": [
+                12827,
+                47163,
+                63433
+              ],
+              "ownerBellTeamVisible": true,
+              "testFlightBellTeamVisible": true
+            },
+            "parentWindowMetadataProofPath": "runtime/apple-review/cleanup-current-window-inventory-private.json",
+            "appStoreNoLongerRunningBeforeParentCloseAttempt": true,
+            "parentAppStoreCloseInputActions": 0,
+            "latestMemberReport": {
+              "seq": 66,
+              "terminalWindows": 0,
+              "testChromeProcesses": 0,
+              "reproductionHttpServers": 0,
+              "testBrowserDaemons": 0,
+              "ascChromePreserved": true,
+              "cloudflareChromePreserved": true,
+              "bookmarksChromePreserved": true,
+              "ownerAppsPreserved": true,
+              "testFlightAppPreserved": true,
+              "temporaryReviewCheckoutPreserved": true,
+              "parentLiveVerificationOfTheseLatestCounts": false
+            }
+          },
+          "pageScrollCandidateRepair": {
+            "causeConfirmed": true,
+            "cause": "文書の高さだけで文書スクロールを候補に出していたが、実ASCはbodyのoverflow:hiddenでそのホイールが文書を動かさない。",
+            "reviewedRevision": "14c57c84765eb55562a73913f382b7c560a10d1e",
+            "supersededUnpublishedRevision": "a6be34277d2fefd983c91efff78bae0202c6fe6d",
+            "parentFullDiffReviewed": true,
+            "parentCodeReviewAccepted": true,
+            "observedWheelPointUsedByInput": true,
+            "directionAndScrollChainingAssessed": true,
+            "smallViewportMeasured": true,
+            "ariaModalAloneNotTreatedAsScrollLock": true,
+            "memberReportedRealBrowserScrollCasesPassed": 9,
+            "memberReportedGuardsPassed": 37,
+            "memberReportedHitTestChecksPassed": 6,
+            "memberReportedUnitTestsPassed": 66,
+            "memberReportedRuffPassed": true,
+            "memberReportedAscDocumentScrollNotOffered": true,
+            "publicationAuthorized": true,
+            "publicationApprovalCallSeq": 57,
+            "published": true,
+            "installed": true,
+            "parentLiveVerificationPassed": true,
+            "privacySaved": false,
+            "privacyPublished": false,
+            "publishedRevisionVerifiedInForkMain": true,
+            "memberPublicationResponseSeq": 58,
+            "upstreamPullRequest": "https://github.com/browser-use/jev-ultrafast/pull/196",
+            "upstreamRevision": "ba567afa62c6a8ba9f60154c7a007fd56e805e88",
+            "parentUpstreamBranchFullDiffReviewed": true,
+            "memberReportedUpstreamUnitTestsPassed": 32,
+            "memberReportedUpstreamGuardsPassed": 30,
+            "parentLiveRunResult": "nested_region_scrolled_then_model_blocked_before_requested_checkbox_visible",
+            "parentLiveRunElapsedMs": 9650,
+            "parentLiveRunActions": 7,
+            "parentLiveRunMain": true,
+            "parentLiveRunTextLength": 1733,
+            "parentLiveRunReachedModal": true,
+            "parentLiveRunProofPath": "runtime/apple-review/asc-privacy-modal-scroll-smoke-private.json",
+            "parentLiveVerificationScope": "文書スクロールを候補から外し、入れ子の領域へのホイールで実際にスクロール位置が変わること",
+            "parentNestedRegionScrollTopBefore": 0,
+            "parentNestedRegionScrollTopAfter": 345,
+            "parentNestedRegionScrollActions": 1,
+            "parentNestedRegionScrollChangedPage": true,
+            "parentFocusedGoalCompleted": false,
+            "parentFocusedGoalStop": "1回の領域スクロール後、目的のcheckboxを表示する前にBLOCKED",
+            "parentInitialLiveRun": {
+              "result": "blocked_before_modal_with_sidebar_only_main_true",
+              "elapsedMs": 9556,
+              "actions": 6,
+              "main": true,
+              "textLength": 169,
+              "reachedModal": false,
+              "proofPath": "runtime/apple-review/asc-privacy-data-selection-after-page-scroll-repair-private.json"
+            }
+          },
+          "prematureSaveInvestigation": {
+            "requested": true,
+            "consultationCallSeq": 57,
+            "memberReportedReproductionSelectsOnlyFirstTypeBeforeSave": true,
+            "causeConfirmed": false,
+            "requiredCompletion": "再現ページで2種類を選んでから保存し、保存後の一覧に2種類だけがあることを確認する。実ASCへの保存・公開は担当へ依頼していない。",
+            "callerSideSaveGateAllowed": false,
+            "memberResponseSeq": 64,
+            "memberReportedCurrentRevisionResults": {
+              "runs": 6,
+              "done": 1,
+              "prematureSave": 3,
+              "blockedAfterFirstSelection": 2,
+              "blockedBeforeSelection": 0
+            },
+            "memberReportedAlternativeObservationResults": {
+              "runs": 6,
+              "done": 1,
+              "prematureSave": 0,
+              "blockedAfterFirstSelection": 0,
+              "blockedBeforeSelection": 5
+            },
+            "memberReportedAlternativeInstructionResults": {
+              "runs": 6,
+              "done": 0,
+              "prematureSave": 2,
+              "blockedAfterFirstSelection": 3,
+              "blockedBeforeSelection": 1
+            },
+            "memberDidNotProposeRepair": true,
+            "experimentalBranchesPublicationAuthorized": false,
+            "memberHypothesis": "長い手順を一つの目標として保つモデルの判断の限界",
+            "parentHypothesisAccepted": false,
+            "parentInspectedStandardModelInput": true,
+            "standardHarnessRetainsOriginalGoal": true,
+            "standardHarnessPassesLastTenActions": true,
+            "standardHarnessMergesMultipleGoalsIntoOneTask": true,
+            "reproductionRecordRequested": true,
+            "reproductionRecordRequestCallSeq": 61,
+            "furtherPromptExperimentsAuthorized": false,
+            "workflowArchitectureChangeAuthorized": false,
+            "parentActualModelRequestRead": true,
+            "actualRequestRecordPath": "/Users/kite/isabel-test/spa/keep-h-g2-main-1-decisions.json",
+            "actualSaveDecisionIndex": 8,
+            "originalGoalRetainedAtSave": true,
+            "recentActionsCountAtSave": 8,
+            "selectedCheckboxObservedAfterClick": true,
+            "selectedCheckboxAbsentFromSaveDecisionInput": true,
+            "secondRequiredControlAbsentFromPageTextAndElements": true,
+            "historyTruncationNotCauseOfThisRecordedSave": true,
+            "currentFormStateObservationExperimentRequested": true,
+            "currentFormStateObservationExperimentCallSeq": 63,
+            "currentFormStateObservationExperimentPublished": false,
+            "observabilityCauseHypothesisConfirmed": false,
+            "selectedCheckboxObservedAfterClickDecisionIndex": 5,
+            "currentFormStateObservationExperimentScope": "現在のフォームの状態をDOMから観測して操作候補と別に渡す案だけ。履歴の記憶・planner・工程状態機械・保存禁止gateは実装しない。",
+            "currentFormStateObservationExperimentRevision": "45d05227723770ee492cee3a39de3441cedc9d90",
+            "currentFormStateObservationExperimentActualParentRevision": "14c57c84765eb55562a73913f382b7c560a10d1e",
+            "currentFormStateObservationExperimentReportedParentRevision": "36ba3e902dfd4acf950764ff6088384a9790c8e6",
+            "experimentParentRevisionMismatchClarificationRequested": true,
+            "parentFullExperimentalDiffRead": true,
+            "parentExperimentalActualModelRequestRead": true,
+            "experimentalRequestRecordPath": "/Users/kite/isabel-test/spa/f-exp-formstate-1-decisions.json",
+            "experimentalSaveDecisionIndex": 5,
+            "requiredFactsPresentAtWrongSaveDecisionConfirmed": true,
+            "currentFormStateObservationExperimentResults": {
+              "runs": 6,
+              "done": 0,
+              "prematureSave": 6,
+              "blockedAfterFirstSelection": 0,
+              "blockedBeforeSelection": 0,
+              "savedTypes": [
+                "詳細な位置情報"
+              ]
+            },
+            "currentFormStateObservationExperimentRejected": true,
+            "aiReviewSkippedForRejectedExperiment": true,
+            "observabilityOnlyRepairDidNotImproveJudgment": true,
+            "additionalExperimentsStopped": true,
+            "stopAndCleanupCallSeq": 65,
+            "repairCompleted": false,
+            "parentJudgment": "必要な情報を渡した実験でも正確な2種類の選択前に保存した。今回の申告を安定して完了する精度に達していない。モデルの一般的な能力限界とまでは判定しない。",
+            "memberParentRevisionCorrectionSeq": 66,
+            "experimentParentRevisionMismatchClarificationReceived": true,
+            "comparisonUsesSameParentRevision": true,
+            "baselineRevision": "14c57c84765eb55562a73913f382b7c560a10d1e",
+            "memberReportedNavigationNotInsideMainInHFixture": true
+          },
+          "sidebarOnlyLoadingInvestigation": {
+            "requested": true,
+            "consultationCallSeq": 59,
+            "sourceRevision": "14c57c84765eb55562a73913f382b7c560a10d1e",
+            "observedMain": true,
+            "observedTextLength": 169,
+            "observedContent": "サイドバー項目だけでプライバシー画面の本文の操作候補がない",
+            "causeConfirmed": true,
+            "privacySaved": false,
+            "privacyPublished": false,
+            "parentLiveRunProofPath": "runtime/apple-review/asc-privacy-modal-scroll-smoke-private.json",
+            "memberResponseSeq": 60,
+            "cause": "main内のnavのサイドバー文字を本文として数え、読み込み途中でもmain=trueとしていた",
+            "reviewedRevision": "36ba3e902dfd4acf950764ff6088384a9790c8e6",
+            "parentFullDiffReviewed": true,
+            "parentCodeReviewAccepted": true,
+            "publicationAuthorized": true,
+            "publicationApprovalCallSeq": 61,
+            "memberReportedOldRevisionReproductionFailures": 3,
+            "memberReportedNewRevisionReproductionSuccesses": 3,
+            "memberReportedNavigationStructureCasesPassed": 5,
+            "memberReportedGuardsPassed": 38,
+            "memberReportedHitTestChecksPassed": 6,
+            "memberReportedUnitTestsPassed": 66,
+            "memberReportedRuffPassed": true,
+            "published": true,
+            "installed": true,
+            "parentLiveVerificationPassed": true,
+            "knownLimitation": "main内がnavigationだけの索引では最大10秒待つ。aside/tablistによるサイドバーは今回の修理に含めない。",
+            "memberPublicationResponseSeq": 62,
+            "publishedRevisionVerifiedInForkMain": true,
+            "upstreamPullRequest": "https://github.com/browser-use/jev-ultrafast/pull/194",
+            "upstreamRevision": "5e94215ad6e51464d90a5646fa2eaaffb57069ca",
+            "parentUpstreamBranchFullDiffReviewed": true,
+            "memberReportedUpstreamUnitTestsPassed": 42,
+            "memberReportedUpstreamGuardsPassed": 23,
+            "parentLiveVerificationScope": "読み込みを通過し、プライバシーのデータ種類のモーダルに到達した"
+          }
+        },
+        "originalThreeRepairsCheckoutCommit": "d67729f0569f2b25b044bf3f48271d7abdad7229"
+      },
+      "contentRightsQuestionClarifiedAndSent": true,
+      "contentRightsQuestionAnswered": true,
+      "guiOperationDecision": {
+        "status": "additional_decision_superseded_by_owner_rule_removal",
+        "basis": "/Users/kite/.codex/AGENTS.md:108",
+        "proposal": "今回のApple審査作業に限りCodexの標準ブラウザ・デスクトップ操作でApp Store Connectの申告、購入画面の確認、承認済みの提出を進める",
+        "authorizationReceived": true,
+        "approvalBoxRequested": true,
+        "approvalBoxAccepted": false,
+        "approvalBoxError": "CODEX_STEER_RESTART_REQUIRED",
+        "chatQuestionRequested": true,
+        "productionContainerRestartIncluded": false,
+        "jevRepairMarkedComplete": false,
+        "authorizationBasis": "Apple審査の既存GOと、Codexの逐次判断・独自工程管理・追加gateを禁じた一文を削除するオーナーの明示指示",
+        "ruleRemoval": {
+          "sourceRepository": "kitepon/dotagents",
+          "sourcePath": "codex/AGENTS.delta.md",
+          "commit": "8fa0e540e19b934308501d67b8cbfa027283a73b",
+          "published": true,
+          "runtimeApplied": true,
+          "ciSucceeded": true,
+          "ciUrl": "https://github.com/kitepon/dotagents/actions/runs/37075447065",
+          "removedSentence": "通常の操作ループへCodexの逐次判断や独自の工程管理・追加ゲートを重ねない。"
+        }
+      },
+      "reviewNotesRegistration": {
+        "verifiedAt": "2026-10-03T00:06:30Z",
+        "IOS": {
+          "versionId": "a13a4fcc-82f3-46e3-8f67-b7d16e3f89ef",
+          "notesSaved": true,
+          "contactAndDemoFieldsUnchanged": true
+        },
+        "MAC_OS": {
+          "versionId": "3826154d-d03d-4517-bf41-f8d8eb819c32",
+          "notesSaved": true,
+          "contactAndDemoFieldsUnchanged": true
+        },
+        "finalNotes": false,
+        "realApplePurchaseVerified": true,
+        "sourcePath": "runtime/apple-review/review-notes-current-draft.txt",
+        "status": "registered_with_purchase_verification_pending",
+        "proofPath": "runtime/apple-review/review-notes-build28-proof.json",
+        "state": "registered_for_build28_after_real_purchase_and_restore_confirmation",
+        "finalNotesRegistered": true,
+        "notesPath": "runtime/apple-review/review-notes-build28-private.txt",
+        "contactAndDemoCredentialsPreserved": true
+      },
+      "iphonePurchaseObservation": {
+        "status": "purchase_and_restore_verified_intermediate_ui_defect",
+        "installedBuild": "28",
+        "builtByDeveloper": true,
+        "testFlightSignatureVerified": false,
+        "temporaryReviewUrlRequested": true,
+        "serverUrlVisibleVerified": true,
+        "processId": 87339,
+        "ownerUnlockedAndRelocked": true,
+        "mirroringState": "iPhoneが使用されたためiPhoneミラーリングが終了しました。接続するにはiPhoneをロックしてください。",
+        "purchaseRequestSent": true,
+        "purchaseVerified": true,
+        "requiredOwnerObservation": null,
+        "proofPaths": [
+          "runtime/apple-review/iphone-installed-bellteam-private.json",
+          "runtime/apple-review/iphone-review-launch-private.json",
+          "runtime/apple-review/iphone-mirroring-device-confirmation.png",
+          "runtime/apple-review/iphone-mirroring-device-confirmation-private.json",
+          "runtime/apple-review/iphone-current-installed-app-private.json",
+          "runtime/apple-review/iphone-review-launch-confirmed-arguments-private.json",
+          "runtime/apple-review/iphone-production-server-observed.png",
+          "runtime/apple-review/iphone-review-members-confirmed.png",
+          "runtime/apple-review/iphone-review-server-confirmed.png",
+          "runtime/apple-review/iphone-review-connected-proof-private.json",
+          "runtime/apple-review/iphone-mirroring-ended-by-device-use.png",
+          "runtime/apple-review/iphone-manual-purchase-observation-request-private.json",
+          "runtime/apple-review/iphone-apple-purchase-sheet-reported-private.json",
+          "runtime/apple-review/review-server-before-purchase-completion-private.json",
+          "runtime/apple-review/iphone-purchase-local-active-worker-error.jpg",
+          "runtime/apple-review/iphone-purchase-error-server-private.json"
+        ],
+        "ownerObservedScreen": "復元のパスワード認証を通過後、途中で未購入表示を経由し、購読が有効・赤いエラーなしへ移った。",
+        "ownerObservationDecisionId": "K-TPBK7F",
+        "credentialsGuideProvided": true,
+        "privateCredentialsGuidePath": "runtime/apple-review/iphone-review-login-private.txt",
+        "credentialsInChatOrRepository": false,
+        "loginFollowupDecisionId": "K-73P44Z",
+        "ownerLoginSucceeded": true,
+        "ownerObservedMembersCount": 2,
+        "ownerObservedGuideName": "案内役 初期設定の案内",
+        "reviewEnvironmentCompositionConsistent": true,
+        "mirroringDeviceConfirmationPending": false,
+        "mirroringDecisionId": "K-F2ZYTA",
+        "visibleServerHost": "bellteam-review.kitepon.dev",
+        "temporaryLaunchArgumentsVerified": true,
+        "persistentServerSettingsChanged": false,
+        "initialIconLaunchServerHost": "bellteam.kitepon.dev",
+        "membersVisuallyVerified": true,
+        "visibleMemberNames": [
+          "案内役 初期設定の案内",
+          "ユキ 予定と文章の相談役"
+        ],
+        "subscriptionCardVisibleVerified": true,
+        "scrollInputResult": "スクロール入力2回とスワイプ1回で画面位置は変わらなかった。原因は未特定。",
+        "scrollDecisionId": "K-4492KX",
+        "manualScrollInstructionWithdrawn": true,
+        "mirroringReconnectRequested": false,
+        "manualDeviceDecisionId": "K-TPBK7F",
+        "purchaseRequestSentBy": "owner",
+        "ownerApplePurchaseSheetVisible": true,
+        "purchaseEnvironmentVerified": true,
+        "testPurchaseCompletionDecisionId": "K-JH78HC",
+        "serverPurchaseBaseline": {
+          "observedAt": "2026-10-03T01:28:33.857909+00:00",
+          "setupComplete": true,
+          "signedTransactionPresent": false,
+          "verificationPresent": false,
+          "errorCode": null,
+          "readOnly": true,
+          "proofPath": "runtime/apple-review/review-server-before-purchase-completion-private.json"
+        },
+        "ownerLocalEntitlementActive": true,
+        "ownerObservedExpiry": "2026-10-04T10:29:00+09:00",
+        "restoreVerified": true,
+        "serverPurchaseError": {
+          "observedAt": "2026-10-03T01:35:41.139123+00:00",
+          "code": "APPLE_API_ERROR",
+          "status": 502,
+          "signedTransactionPresent": false,
+          "verificationPresent": false
+        },
+        "restoreAfterRepairDecisionId": "K-S2KUR7",
+        "postRepairImage": {
+          "localEntitlementActive": true,
+          "errorVisible": true,
+          "proofPath": "runtime/apple-review/iphone-restore-error-after-transport-fix.jpg",
+          "deviceActionConfirmed": true,
+          "ownerConfirmedAction": "購入を復元"
+        },
+        "postRepairServerRead": {
+          "observedAt": "2026-10-03T01:49:56.613673+00:00",
+          "savedStateModifiedAt": "2026-10-03T01:29:39.755069+00:00",
+          "code": "APPLE_API_ERROR",
+          "signedTransactionPresent": false,
+          "verificationPresent": false,
+          "newVerificationRecorded": false,
+          "proofPath": "runtime/apple-review/iphone-restore-error-server-private.json"
+        },
+        "initialPurchaseRecheckObservation": {
+          "reproduced": true,
+          "newRequests": 0,
+          "source": "BillingStore.recheck → POST /api/subscription/refresh → Subscriptions.refresh(force)",
+          "cause": "サーバーが初回の購入情報を保存していないため、再確認は古いエラーを返す。",
+          "thisImageActionUnconfirmed": false,
+          "proofPath": "runtime/apple-review/initial-purchase-recheck-reproduction-private.json",
+          "ownerConfirmedAction": "購入を復元",
+          "explainsOwnerRestoreFailure": false
+        },
+        "postRestoreServerRead": {
+          "observedAt": "2026-10-03T01:59:57.517381+00:00",
+          "savedStateModifiedAt": "2026-10-03T01:29:39.755069+00:00",
+          "newVerificationRecorded": false,
+          "signedTransactionPresent": false,
+          "verificationPresent": false,
+          "errorCode": "APPLE_API_ERROR",
+          "proofPath": "runtime/apple-review/iphone-owner-restored-server-check-private.json"
+        },
+        "restoreInvestigation": {
+          "causeConfirmed": true,
+          "reviewDataRootConfirmed": true,
+          "reviewProcessBeforeDiagnosticRelaunch": 87339,
+          "reviewProcessBeforeDiagnosticRelaunchUnchanged": true,
+          "diagnosticLatestSettingsFailureAt": "2026-10-03T01:29:39.977Z",
+          "diagnosticSettingsFailureOccurrences": 1,
+          "historicWorkerQueryHttpStatus": 200,
+          "historicWorkerQueryEvents": 0,
+          "historicWorkerQueryEstablishesNoRequest": false,
+          "diagnosticLaunchSucceeded": true,
+          "diagnosticLaunchError": null,
+          "appStoppedByTerminateExisting": true,
+          "appRunningAfterRefusedLaunch": false,
+          "unlockDecisionId": "K-P5S3V5",
+          "purchaseOrRestoreRepeated": false,
+          "productCodeChanged": true,
+          "proofPaths": [
+            "runtime/apple-review/iphone-restore-current-process-private.json",
+            "runtime/apple-review/restore-review-diagnostics-private.jsonl",
+            "runtime/apple-review/restore-worker-token-events-private.json",
+            "runtime/apple-review/restore-worker-events-invocations-private.json",
+            "runtime/apple-review/restore-worker-invocations-invocations-private.json",
+            "runtime/apple-review/restore-diagnostic-relaunch-private.json",
+            "runtime/apple-review/restore-diagnostic-console-private.log",
+            "runtime/apple-review/restore-after-launch-refusal-processes-private.json",
+            "runtime/apple-review/restore-after-relaunch-server-private.json"
+          ],
+          "cause": "SandboxのApple応答で省略されたappAppleIdをWorkerが必須として拒否した。",
+          "unlockedDiagnosticLaunchSucceeded": true,
+          "latestAppRunning": true
+        },
+        "verifiedPurchaseEnvironment": "Sandbox",
+        "postFixServerRead": {
+          "observedAt": "2026-10-03T02:28:32.781456+00:00",
+          "savedStateModifiedAt": "2026-10-03T02:27:56.745083+00:00",
+          "signedTransactionPresent": true,
+          "verificationPresent": true,
+          "entitled": true,
+          "error": null,
+          "proofPath": "runtime/apple-review/restore-fixed-iphone-server-private.json"
+        },
+        "restoreAfterFixedResponseDecisionId": "K-DKE657",
+        "latestLaunchProofPath": "runtime/apple-review/restore-fixed-iphone-launch-private.json",
+        "ownerRestoreConfirmation": {
+          "receivedIn": "chat",
+          "passwordAuthenticationPassed": true,
+          "activeAfterRestore": true,
+          "errorVisibleAfterRestore": false,
+          "intermediateNoSubscriptionShown": true,
+          "intermediatePurchaseButtonShown": true,
+          "restoreSuccessMessageVisible": false,
+          "proofPaths": [
+            "runtime/apple-review/restore-intermediate-owner.jpg",
+            "runtime/apple-review/restore-active-owner.jpg",
+            "runtime/apple-review/restore-owner-confirmed-server-private.json"
+          ]
+        }
+      },
+      "contentRightsRegistration": {
+        "registered": true,
+        "declaration": "USES_THIRD_PARTY_CONTENT",
+        "ownerImageRightsDecisionId": "K-YLN7KE",
+        "ownerImageRightsAnswer": "own_or_ai",
+        "ownerConfirmedBothAssetsDistributable": true,
+        "uiSaved": true,
+        "apiVerified": true,
+        "proofPath": "runtime/apple-review/content-rights-registered-proof.json",
+        "screenshotPath": "runtime/apple-review/content-rights-saved.png"
+      },
+      "clientLoadingRepair": {
+        "state": "released_and_review_submission_accepted",
+        "targetBuild": "28",
+        "causeConfirmed": "初期のentitlement=nilを未購入として表示し、設定画面のApple照会と前面復帰のApple照会は処理中の状態を持っていなかった。",
+        "photoExactAsyncStageConfirmed": false,
+        "sharedBetweenIOSAndMac": true,
+        "changes": [
+          "未確認・確認中・確認失敗と確認済みの未購入を区別",
+          "復元・購入・再確認中は購入ボタンを表示しない",
+          "同時のApple照会を同じ処理で受け、復元中の自動照会は開始しない"
+        ],
+        "focusedTestsBeforeRestart": {
+          "passed": 4,
+          "failed": 0
+        },
+        "fullTestsVerified": true,
+        "uploaded": true,
+        "installed": {
+          "iphone": true,
+          "mac": false
+        },
+        "fullTestsPassed": 320,
+        "focusedTests": {
+          "passed": 6,
+          "failed": 0,
+          "resultBundlePath": "/Users/kite/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-463b47e4d06f/result-bundles/test_sim_2026-10-03T03-01-00-909Z_pid94422_c3237a94.xcresult"
+        },
+        "fullTestsProofPath": "runtime/apple-review/billing-state-full-tests-private.log",
+        "sourceCommit": "5fc7090c7fc773cc4a298b6c5e48539f30849174",
+        "archivesExported": true,
+        "archiveProofPath": "runtime/apple/billing-state-28/archive-export-proof.json",
+        "iphoneLockDecisionId": "K-CACSWG",
+        "testFlightDistributed": true,
+        "versionsAttached": true,
+        "distributionProofPath": "runtime/apple/billing-state-28/testflight-28-proof.json",
+        "iphoneLaunched": true,
+        "iphoneLaunchProofPath": "runtime/apple-review/iphone-billing-state-28-launch-private.json",
+        "macDebugLaunched": true,
+        "macDebugBuildSucceeded": true,
+        "guiObservationVerified": true,
+        "iphoneOwnerUiObservation": {
+          "purchaseCheckingVisible": true,
+          "purchaseButtonHiddenDuringPurchase": true,
+          "restoreAndRecheckDisabledDuringPurchase": true,
+          "appleTestPurchaseSheetVisible": true,
+          "chargeOccurs": false,
+          "afterSheetActive": false,
+          "afterSheetErrorVisible": false,
+          "purchaseApprovalCompleted": false,
+          "approvalDecisionId": "K-63D47S",
+          "proofPaths": [
+            "runtime/apple-review/billing28-purchase-checking-owner.jpg",
+            "runtime/apple-review/billing28-after-sheet-inactive-owner.jpg"
+          ],
+          "purchaseCancelledByOwner": true,
+          "postCancelDisplayCorrect": true,
+          "afterCompletedPurchaseActive": true,
+          "purchaseSuccessMessageVisible": true,
+          "errorVisibleAfterCompletedPurchase": false,
+          "completedPurchaseProofPath": "runtime/apple-review/billing28-active-owner.jpg",
+          "serverPurchaseSuccessProofPath": "runtime/apple-review/billing28-purchase-success-server-private.json"
+        },
+        "macUiObservation": {
+          "verified": true,
+          "source": "開発署名のビルド28",
+          "reviewServerHost": "bellteam-review.kitepon.dev",
+          "productAndPriceVisible": true,
+          "purchaseAndRestoreControlsVisible": true,
+          "errorVisible": false,
+          "paidAccessVerified": false,
+          "purchasePerformed": false,
+          "tool": "jev-desktop と agent-desktop の読取・画像確認",
+          "proofPaths": [
+            "runtime/apple-review/mac-billing-state-28-current-jev-private.jsonl",
+            "runtime/apple-review/mac-billing-state-28-final-snapshot-private.json",
+            "runtime/apple-review/mac-billing-state-28-final.png"
+          ]
+        },
+        "latestBuildRealPurchaseVerified": true,
+        "authenticationClarification": {
+          "dexAccountConfirmedByOwner": true,
+          "applePasswordRecordFound": false,
+          "appleTesterNamingReasonConfirmed": false,
+          "displayContextConfirmed": false,
+          "decisionId": "K-GPHXY9",
+          "credentialValuesInRepository": false
+        },
+        "simulatorTakeover": {
+          "requestedByOwner": true,
+          "request": "もう君がシミュレーターでやったら！？",
+          "physicalDeviceActionPending": false,
+          "state": "local_storekit_environment_rejected_purchase_restore_unverified",
+          "realBuild28PurchaseEvidencePreserved": true,
+          "localStoreKitDoesNotVerifyAppleServerSignature": true,
+          "ios265KnownIssue": "FB22237318",
+          "appleDtsSource": "https://developer.apple.com/forums/thread/826971",
+          "dedicatedIOS27SimulatorAllowed": true,
+          "testCommit": "ffa0ec1a7989911c4699548101699e00e18a220c",
+          "finalTestPassed": 0,
+          "finalTestFailed": 1,
+          "purchaseCompleted": false,
+          "restoreCompleted": false,
+          "initialWaitingPresentationVerified": true,
+          "productPresentationVerified": true,
+          "ios27Error": "SKServiceErrorDomain Code=2 / SKInternalErrorDomain Code=4",
+          "ios27RootCauseConfirmed": false,
+          "dedicatedSimulatorStopped": true,
+          "fixtureStopped": true,
+          "existingSimulatorsPreserved": true,
+          "submissionGate": false,
+          "proofPath": "runtime/apple-review/storekit-simulator-proof.json"
+        },
+        "physicalBuild28PurchaseVerified": true
+      },
+      "clientBuilds": [
+        {
+          "platform": "IOS",
+          "id": "57bbc7da-f4e7-4acf-9e90-6f8a2dac1dfb",
+          "build": "39",
+          "sourceCommit": "cfe758eb1eec74c014b84dbab1dd301a19da5f46",
+          "processingState": "VALID",
+          "ownerGroupDistributed": true,
+          "internalBuildState": "IN_BETA_TESTING",
+          "usesNonExemptEncryption": false,
+          "appStoreVersionAttached": true
+        },
+        {
+          "platform": "MAC_OS",
+          "id": "7ea4aeb3-0684-4a2e-8acb-32228cc8a4b0",
+          "build": "39",
+          "sourceCommit": "cfe758eb1eec74c014b84dbab1dd301a19da5f46",
+          "processingState": "VALID",
+          "ownerGroupDistributed": true,
+          "internalBuildState": "IN_BETA_TESTING",
+          "usesNonExemptEncryption": false,
+          "appStoreVersionAttached": true
+        }
+      ],
+      "draftsWithBuild28ProofPath": "runtime/apple-review/review-drafts-build28-proof.json",
+      "submittedAt": "2026-10-04T05:37:58.434Z",
+      "submittedResources": [
+        {
+          "platform": "MAC_OS",
+          "submissionId": "aaac7dce-78be-49af-a988-9d132eea8706",
+          "state": "WAITING_FOR_REVIEW",
+          "submittedDate": "2026-10-04T05:37:58.434Z",
+          "versionState": "WAITING_FOR_REVIEW",
+          "build": "39",
+          "items": [
+            {
+              "id": "YWFhYzdkY2UtNzhiZS00OWFmLWE5ODgtOWQxMzJlZWE4NzA2fDZ8ODkyMTE0MjM3",
+              "state": "READY_FOR_REVIEW",
+              "resources": {
+                "appStoreVersion": {
+                  "type": "appStoreVersions",
+                  "id": "3826154d-d03d-4517-bf41-f8d8eb819c32"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "platform": "IOS",
+          "submissionId": "97b1a038-0047-49bd-b068-5b731fec5bd3",
+          "state": "WAITING_FOR_REVIEW",
+          "submittedDate": "2026-10-04T05:37:49.87Z",
+          "versionState": "WAITING_FOR_REVIEW",
+          "build": "39",
+          "items": [
+            {
+              "id": "OTdiMWEwMzgtMDA0Ny00OWJkLWIwNjgtNWI3MzFmZWM1YmQzfDZ8ODkyMDI0MTUy",
+              "state": "READY_FOR_REVIEW",
+              "resources": {
+                "appStoreVersion": {
+                  "type": "appStoreVersions",
+                  "id": "a13a4fcc-82f3-46e3-8f67-b7d16e3f89ef"
+                }
+              }
+            },
+            {
+              "id": "OTdiMWEwMzgtMDA0Ny00OWJkLWIwNjgtNWI3MzFmZWM1YmQzfDE4fDljMTMyNzcwLWY3NjUtNDgzZi05NzllLWMxOGJkNDkxZTBiOA",
+              "state": "READY_FOR_REVIEW",
+              "resources": {
+                "subscriptionVersion": {
+                  "type": "subscriptionVersions",
+                  "id": "9c132770-f765-483f-979e-c18bd491e0b8"
+                }
+              }
+            },
+            {
+              "id": "OTdiMWEwMzgtMDA0Ny00OWJkLWIwNjgtNWI3MzFmZWM1YmQzfDE5fDU3MTRkNThjLTQzNDEtNDAzOC05NjA1LWI0YTEyNWVkOGU5NA",
+              "state": "READY_FOR_REVIEW",
+              "resources": {
+                "subscriptionGroupVersion": {
+                  "type": "subscriptionGroupVersions",
+                  "id": "5714d58c-4341-4038-9605-b4a125ed8e94"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "submissionProofPath": "runtime/apple-review/review39-final-verified.json",
+      "buildReplacement": {
+        "authorized": true,
+        "authorizationMessage": "では審査に出そうぜ",
+        "previousBuild": "35",
+        "build": "39",
+        "previousSubmissions": [
+          {
+            "platform": "IOS",
+            "id": "f3938c3a-e730-49ae-85a8-c129674e30a0",
+            "state": "COMPLETE",
+            "itemsState": "REMOVED"
+          },
+          {
+            "platform": "MAC_OS",
+            "id": "d0b41f3d-884c-44d5-a853-999c6c6dc4db",
+            "state": "COMPLETE",
+            "itemsState": "REMOVED"
+          }
+        ],
+        "verifiedAt": "2026-10-04T05:38:18.314Z",
+        "reviewDetailsPreserved": true,
+        "localizationsPreserved": true,
+        "initialSubscriptionAndGroupResubmitted": true,
+        "previousReplacement": {
+          "authorized": true,
+          "authorizationMessage": "差し替えようぜ",
+          "previousBuild": "28",
+          "build": "35",
+          "previousSubmissions": [
+            {
+              "platform": "MAC_OS",
+              "id": "e3a78b52-8289-45f4-8302-ce1b90aa1d88",
+              "build": "28",
+              "submittedDate": "2026-10-03T04:36:28.402Z"
+            },
+            {
+              "platform": "IOS",
+              "id": "c431396f-e1e4-4223-a21c-4e82e946fb3f",
+              "build": "28",
+              "submittedDate": "2026-10-03T04:36:24.936Z"
+            }
+          ],
+          "verifiedAt": "2026-10-03T12:24:51.658Z",
+          "reviewDetailsPreserved": true,
+          "localizationsPreserved": true,
+          "initialSubscriptionAndGroupResubmitted": true
+        }
+      },
+      "releaseType": "AFTER_APPROVAL",
+      "reviewEnvironmentRechecked": {
+        "checkedAt": "2026-10-04T05:38:18.314Z",
+        "serverHealthy": true,
+        "publicRootRedirectsToLogin": true,
+        "publicBootstrapRedirectsToLogin": true,
+        "reviewerPasswordOIDCVerified": true,
+        "proofPath": "runtime/apple-review/review39-oidc-validation-private.json",
+        "cloudflareCallbackInvoked": false
+      }
+    },
+    "clientRepairs": {
+      "sourceCommit": "b429325b6b7fddf70781c742f9d0f0b26f72f725",
+      "build": "30",
+      "typing": {
+        "applicationWideNotificationsBefore": 23,
+        "applicationWideNotificationsAfter": 0,
+        "focusedMacTestsPassed": 6,
+        "mechanism": "宛先ごとの下書きモデルを入力欄だけで観測",
+        "proofPaths": [
+          "runtime/typing-baseline.log",
+          "runtime/typing-fixed.log"
+        ],
+        "realTypingLatencyMeasured": false,
+        "normalKeyboardInputGuiVerified": false,
+        "normalKeyboardInputProof": "runtime/mac-client30-typing-action.json"
+      },
+      "avatarPicker": {
+        "mac": "画像ファイルをフォルダから選択",
+        "iphoneAndIpad": "PhotosPicker",
+        "focusedTestsPassed": 3,
+        "fileDialogObserved": true,
+        "fileSelectionToCropGuiVerified": false,
+        "proofPath": "/tmp/BellTeam-avatar-file-dialog.png"
+      },
+      "macScaling": {
+        "previousDistributionDeviceFamilies": [
+          2
+        ],
+        "currentDistributionDeviceFamilies": [
+          6
+        ],
+        "notificationExtensionDeviceFamilies": [
+          6
+        ],
+        "previousFixedTextScale": 0.77,
+        "currentFixedTextScale": 1,
+        "targetSettingsFixed": true,
+        "actualInstalledMacBuild": "30",
+        "installedMacDeviceFamilies": [
+          6
+        ],
+        "proofPaths": [
+          "runtime/mac-family-before.txt",
+          "runtime/mac-family-after.txt",
+          "runtime/apple/mac-scale-30/archive-export-proof.json",
+          "runtime/mac-client30-install.log",
+          "runtime/mac-client30-native-scale.png"
+        ]
+      },
+      "uiTestLimitations": {
+        "macUITest": "OSのUI Automation有効化でタイムアウト",
+        "iosSimulatorUITest": "Xcodeが指定Simulatorをテスト先として認識せず未実行",
+        "jevMac": "スクリーン読取TIMEOUT。実画面の画像取得は成功",
+        "headedTyping": "入力欄の空文字と送信disabledを確認。通常キー入力はフォーカス取得でTIMEOUTし、文字は未入力。イサベルへ追加実測を配送。"
+      },
+      "reviewBuildReplaced": false,
+      "existingReviewSubmissions": [
+        {
+          "id": "c431396f-e1e4-4223-a21c-4e82e946fb3f",
+          "state": "WAITING_FOR_REVIEW"
+        },
+        {
+          "id": "e3a78b52-8289-45f4-8302-ce1b90aa1d88",
+          "state": "WAITING_FOR_REVIEW"
+        }
+      ],
+      "macTypography": {
+        "build": "31",
+        "listNamePoints": 16,
+        "listDescriptionPoints": 14,
+        "bodyAndInputPoints": 18,
+        "profileBodyPoints": 18,
+        "sidebarIdealWidth": 340,
+        "installedMacBuild": "31",
+        "focusedTestsPassed": 2,
+        "proofPaths": [
+          "runtime/mac-readable-focused.log",
+          "runtime/mac-readable31.png",
+          "runtime/apple/mac-readable-31/testflight-31-proof.json"
+        ]
+      },
+      "textLayout": {
+        "build": "32",
+        "sourceCommit": "d2c807b7305311dab1cdc9479d49d2255c46f18d",
+        "repeatedProposalBenchmark": {
+          "calls": 80,
+          "beforeMilliseconds": 597.9075,
+          "afterMilliseconds": 13.6253,
+          "sameCorpus": true,
+          "isLiveResizeBenchmark": false
+        },
+        "changingWidthBenchmark": {
+          "layouts": 20,
+          "nativeMeasurements": 22,
+          "milliseconds": 145.3016
+        },
+        "geometryFocusedTestsPassed": 3,
+        "macInstalled": true,
+        "liveResizeCommandsSucceeded": 4,
+        "liveResizeBeforeAfterConditionsMatched": false,
+        "logAndProfileDisplayObserved": true,
+        "allUILatencyResolved": false,
+        "mainThreadAvatarStoreMilliseconds": [
+          68.8381,
+          43.632,
+          46.1223
+        ],
+        "remainingObservation": "SSE時の全一覧更新・アバター検証と保存を含む体感は、同一条件での追加実測が必要",
+        "proofPaths": [
+          "runtime/mac-text-measure-before.log",
+          "runtime/mac-text-resize-focused.log",
+          "runtime/mac-ui-resize-before.sample.txt",
+          "runtime/mac-ui-resize-after.sample.txt",
+          "runtime/mac-ui-log-loaded-final.png",
+          "runtime/ui-profile-api-timing.json",
+          "runtime/ui-avatar-benchmark/before.txt"
+        ]
+      }
+    },
+    "webStartupRepair": {
+      "sourceCommit": "9bdd2ad",
+      "deployed": true,
+      "cause": "起動用の依存モジュール2本がstaticFileの配信登録から漏れ、404で初期化が停止",
+      "javascriptModules": [
+        "onboarding.js",
+        "server-origin.js"
+      ],
+      "assetVersionSubstitutionFixed": "secret-input.js",
+      "serverTestsPassed": 324,
+      "publicMemberListAndConversationVerified": true,
+      "snapshotBotCount": 25,
+      "snapshotRoomCount": 4,
+      "restartApproval": "K-DG9MEG",
+      "previouslyOnlineMembers": 12,
+      "resumeMessagesSentOnceEach": true,
+      "allMembersRespondedAfterResume": true,
+      "proofPaths": [
+        "runtime/web-incident/2026-10-03-static-module-diagnosis.json",
+        "runtime/web-incident/2026-10-03-public-conversation-after-private.jpg",
+        "runtime/web-incident/2026-10-03-resume-verification-private.json"
+      ]
+    }
+  },
+  "appleWebAccess": {
+    "status": "authenticated",
+    "phoneSetupAvailable": false,
+    "paidAppsAgreement": "有効",
+    "bankAccountStatus": "有効",
+    "taxFormsStatus": "有効",
+    "browserHistoryError": "HistoryError",
+    "desktopError": "AMBIGUOUS_TARGET",
+    "chromeConnection": "修理したmac-approveがreadyを返し、元の待機list_tabsがBellTeamのASC画面を返して完了",
+    "safariError": "ACTION_NOT_SUPPORTED: 画面を読み取れない",
+    "nativeMacLockObserved": true,
+    "normalBrowser": "オーナーがパスワードを入力し、iPhoneに届いた確認コードをAppleの画面へ入力してログイン成功。ビジネス画面で有料アプリ契約・銀行口座・納税フォームの有効表示を確認。API設定を優先し、使用したタブは終了。",
+    "temporaryBrowserClosed": true,
+    "openAuthenticationTabs": 0,
+    "authenticationPromptReached": true,
+    "nextOwnerAction": null
+  },
+  "clientDelivery": {
+    "sourceCommit": "cfe758eb1eec74c014b84dbab1dd301a19da5f46",
+    "build": "39",
+    "change": "既存メンバーの保存失敗後に結果を確認し、編集値と再認証を保持する。通信診断へHTTPメソッドを追加し、応答異常の二重記録を修理する。",
+    "target": "BellTeam",
+    "product": "BellTeam.app",
+    "executable": "BellTeam",
+    "unitTests": {
+      "total": 75,
+      "passed": 73,
+      "skipped": 2,
+      "failed": 0,
+      "result": "runtime/write-recovery-39-all-unit.xcresult"
+    },
+    "nodeTests": {
+      "passed": 361,
+      "failed": 0,
+      "result": "runtime/write-recovery-39-integrated-node.log"
+    },
+    "distribution": "owner_group_distributed",
+    "installationMethod": "TestFlight",
+    "uploadMethod": "altool",
+    "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+    "builds": [
+      {
+        "platform": "IOS",
+        "id": "57bbc7da-f4e7-4acf-9e90-6f8a2dac1dfb",
+        "processingState": "VALID",
+        "internalBuildState": "IN_BETA_TESTING"
+      },
+      {
+        "platform": "MAC_OS",
+        "id": "7ea4aeb3-0684-4a2e-8acb-32228cc8a4b0",
+        "processingState": "VALID",
+        "internalBuildState": "IN_BETA_TESTING"
+      }
+    ],
+    "installationDecision": "K-P8XNN3",
+    "installationStatus": "both_devices_confirmed",
+    "writeInterruptionAcceptance": {
+      "status": "interruption_and_recovery_confirmed_with_limits",
+      "decision": "K-JPEKEW",
+      "targetBotId": "bot-57403a80",
+      "targetName": "リリーバイス",
+      "targetInactiveConfirmedBy": "トロニー",
+      "preparation": {
+        "result": "passed",
+        "test": "InstalledConversationUITests/testPrepareExistingMemberSaveInterruption",
+        "resultBundle": "runtime/installed-39-save-preparation.xcresult",
+        "finishedAtJST": "2026-10-04T13:51:41+09:00",
+        "inputModified": false,
+        "saveSubmitted": false,
+        "appReplaced": false
+      },
+      "localEvidence": {
+        "readyScreenshot": "runtime/write-39-ready.png",
+        "liveSyslog": "runtime/write-39-live-syslog.log",
+        "cfNetworkDiagnostics": "試験終了後に環境変数なしで通常起動へ戻した。ログ採取も停止済み。",
+        "sanitizedNetwork": "runtime/write-39-interruption-sanitized.json",
+        "normalLaunchScreenshot": "runtime/write-39-normal-launch.png"
+      },
+      "serverComparison": {
+        "reportedBy": "トロニー",
+        "comparedAtJST": "2026-10-04T14:00:12+09:00",
+        "targetStayedInactive": true,
+        "botJSONWrittenAtJST": "2026-10-04T13:55:48.834959590+09:00",
+        "agentsWrittenAtJST": "2026-10-04T13:55:48.835959572+09:00",
+        "bothContentHashesUnchanged": true,
+        "botJSONSHA256": "51864aa1c0aae1a72599854d90fbdd040caa37e60755f603a2ea7865c23a2979",
+        "agentsSHA256": "fa985a68101cbca266a93cb5f41f41fadd1d4ecbf24f03863e8535b3a589dee0",
+        "targetTunnelInterruptionCount": 0,
+        "limitation": "ファイルの時刻は最後の保存だけを示す。全要求の受付の記録は無い。",
+        "requestBytesInterpretation": "CFNetworkのrequest_bytes=986は本文送信量と断定しない。成功したTask118も同じ986だが、別の記録にbody S 113670がある。",
+        "clockComparison": "iPhoneの成功完了時刻がサーバー書込より約0.11秒前。別端末の時計差があるのでミリ秒の直接比較はしない。",
+        "successfulWriteCount": "最後の成功した1件を確認。途中2件がサーバーで保存されたかの直接受付記録は無い。"
+      },
+      "acceptancePending": [],
+      "ownerResponse": {
+        "decision": "K-JPEKEW",
+        "optionId": "completed",
+        "observation": "赤字でインターネット接続がオフラインのようです。最終的には正常。"
+      },
+      "physicalResult": {
+        "writeStartedAtJST": "2026-10-04T13:54:11.915466+09:00",
+        "writeInterruptedAtJST": "2026-10-04T13:54:49.445108+09:00",
+        "writeErrorCode": -1005,
+        "confirmationReadStartedAtJST": "2026-10-04T13:54:49.445232+09:00",
+        "confirmationReadErrorCode": -1009,
+        "laterOfflineWriteAtJST": "2026-10-04T13:55:03.006600+09:00",
+        "laterOfflineWriteErrorCode": -1009,
+        "successfulWriteAtJST": "2026-10-04T13:55:48.547152+09:00",
+        "successfulWriteFinishedAtJST": "2026-10-04T13:55:48.726858+09:00",
+        "successfulWriteHTTPStatus": 200,
+        "successfulWriteBodyBytes": 113670,
+        "requestMethodsDirectlyObserved": true,
+        "requestURLPath": "OSによる伏せ字。対象は準備した画面とサーバー記録から対応付けた。",
+        "sourceAndFocusedTestsAutomaticWriteRetry": false,
+        "physicalAutomaticWriteRetryVerdict": "入力操作の時刻と回数を記録していないため、追加2件のPATCHの起点を実機ログだけでは確定していない。",
+        "standaloneConfirmButtonAcceptance": "実機では未確認。共通APIのfocused testは配布前に成功済み。"
+      },
+      "limitations": [
+        "保存結果確認ボタンだけを押した実機確認は未確認。",
+        "3件のPATCHのうち後の2件の入力操作は記録していない。自動再送の不存在はソースと配布前のfocused testで確認した。",
+        "Network Link Conditionerオフは操作完了回答に基づく。OS設定の直接読み取りはしていない。",
+        "保存後に応答だけ失われた状態は今回の実機では証明できていない。共通APIのfocused testでは確認済み。"
+      ],
+      "restoration": {
+        "networkRestored": true,
+        "basis": "操作完了回答と復旧後の200応答",
+        "conditionerDisabled": "操作完了回答に基づく",
+        "normalLaunchRestored": true,
+        "logsStopped": true,
+        "additionalLoginRequired": false,
+        "conversationListVisible": true
+      },
+      "diagnosticUploadObservation": {
+        "atJST": "2026-10-04T13:54:49.451409+09:00",
+        "appLog": "診断の送信に失敗: NSURLError",
+        "observedFailures": 1,
+        "coincidentPOSTErrorCode": -1009,
+        "POSTDestinationVisibility": "OSによる伏せ字。診断送信そのものの失敗はアプリの明示ログで確認した。",
+        "offlineFailureIsDiagnosticTarget": false,
+        "persistentRetryQueue": "なし（既存の設計）"
+      }
+    },
+    "previousDelivery": {
+      "sourceCommit": "570d260ac78122ac49f6ff4031daf816ffdd2b14",
+      "build": "38",
+      "change": "アプリ本体・実行ファイル・ビルド対象・schemeをBellTeamへ統一",
+      "target": "BellTeam",
+      "product": "BellTeam.app",
+      "executable": "BellTeam",
+      "unitTests": {
+        "total": 66,
+        "passed": 64,
+        "skipped": 2,
+        "failed": 0,
+        "result": "runtime/name-38-unit-final.xcresult"
+      },
+      "distribution": "owner_group_distributed",
+      "installationMethod": "TestFlight",
+      "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+      "builds": [
+        {
+          "platform": "IOS",
+          "id": "f02f7e04-d3cf-48e7-8ff9-64bb85f4f8ad",
+          "processingState": "VALID",
+          "internalBuildState": "IN_BETA_TESTING"
+        },
+        {
+          "platform": "MAC_OS",
+          "id": "dc6b6b8c-bb15-47fb-97e1-1ccb10eff85f",
+          "processingState": "VALID",
+          "internalBuildState": "IN_BETA_TESTING"
+        }
+      ],
+      "previousDelivery": {
+        "sourceCommit": "f2a0fae6f30cd338d0ca0449ca22535371c65f6d",
+        "build": "37",
+        "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+        "builds": [
+          {
+            "platform": "IOS",
+            "id": "ac082833-2d10-4225-b2ce-219083bf720f",
+            "processingState": "VALID",
+            "internalBuildState": "IN_BETA_TESTING"
+          },
+          {
+            "platform": "MAC_OS",
+            "id": "31f452e8-0983-40d5-9762-7a852e4eeed5",
+            "processingState": "VALID",
+            "internalBuildState": "IN_BETA_TESTING"
+          }
+        ],
+        "uploadMethod": "altool",
+        "previousDelivery": {
+          "sourceCommit": "b497ba115cc022df35231f456b08f86a9f43bacd",
+          "build": "36",
+          "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+          "builds": [
+            {
+              "platform": "IOS",
+              "id": "f5d20c1e-5350-4d4d-b215-e72f1fdb5a23",
+              "processingState": "VALID",
+              "internalBuildState": "IN_BETA_TESTING"
+            },
+            {
+              "platform": "MAC_OS",
+              "id": "57bdde06-3792-496d-a1c1-7e2c84b1f543",
+              "processingState": "VALID",
+              "internalBuildState": "IN_BETA_TESTING"
+            }
+          ],
+          "iosUploadMethod": "altool",
+          "restUploadRejected": "required build metadata missing",
+          "physicalAcceptance": "pending",
+          "nextBuildReason": "Cloudflare Accessの期限切れからログイン画面へ移る経路の修理"
+        },
+        "macAcceptance": {
+          "installedPath": "/Applications/BellBot 2.app",
+          "build": "37",
+          "gatekeeper": "accepted source=Testflight",
+          "conversationVisible": true,
+          "observation": "runtime/auth-37-after-isolated-tests.png",
+          "displayName": "BellTeam"
+        },
+        "iphoneAcceptance": {
+          "installedBuild": "35",
+          "distributedBuild": "37",
+          "status": "waiting_testflight_update_and_physical_acceptance"
+        },
+        "authenticationInvestigation": {
+          "cause": "Macのホスト付き単体試験が本人と同じ保存先のCookieをsignOutで全削除していた",
+          "readOnlyProbe": "runtime/auth-cookie-read.log",
+          "fixedFocusedTests": "runtime/auth-cookie-isolated-focused.xcresult",
+          "finalUnitTests": {
+            "total": 66,
+            "passed": 64,
+            "skipped": 2,
+            "failed": 0,
+            "result": "runtime/auth-cookie-final-mode-unit.xcresult"
+          },
+          "realCookieRetainedAfterTests": true,
+          "runtimeReleaseRequiredForTestIsolation": false,
+          "finalNodeTests": {
+            "passed": 359,
+            "failed": 0,
+            "log": "runtime/auth-cookie-merged-node-final.log"
+          }
+        },
+        "manualInstallerAttempt": {
+          "path": "/Applications/BellBot.app",
+          "gatekeeper": "rejected",
+          "backup": "runtime/backups/BellBot-Mac-36-before-auth37.zip",
+          "cleanupStatus": "confirmed_removed",
+          "activeAppIsTestFlight": true,
+          "cleanupError": "NSCocoaErrorDomain/513",
+          "cleanupDecision": "K-X2FMZ7"
+        }
+      },
+      "installationDecision": "K-MHX67U",
+      "macAcceptance": {
+        "status": "confirmed",
+        "installedPath": "/Applications/BellTeam.app",
+        "displayName": "BellTeam",
+        "executable": "BellTeam",
+        "build": "38",
+        "gatekeeper": "accepted source=Testflight",
+        "conversationVisible": true,
+        "additionalLoginRequired": false,
+        "jevObservation": "done"
+      },
+      "iphoneAcceptance": {
+        "status": "confirmed",
+        "installedBuild": "38",
+        "device": "iPhone 16 Pro Max",
+        "os": "26.6.2",
+        "uiAcceptance": {
+          "result": "passed",
+          "tests": 1,
+          "failureCount": 0,
+          "test": "InstalledConversationUITests/testScrollingKeyboardAndDetailsRemainResponsive",
+          "scrollingPairs": 5,
+          "keyboard": "passed",
+          "detailsOpenAndClose": "passed",
+          "resultBundle": "runtime/installed-38-ui-acceptance.xcresult",
+          "finishedAt": "2026-10-04T01:06:57Z"
+        }
+      },
+      "macInertialScrollAcceptance": {
+        "status": "owner_confirmed_no_reproduction",
+        "decision": "K-VY4WMA",
+        "ownerAnsweredAt": "2026-10-04T01:13:44.480Z",
+        "build": "38",
+        "scrollingPairs": 5,
+        "conversationUpdatesObserved": true,
+        "result": "no_crash_or_hang",
+        "legacyCrashCause": "unknown",
+        "legacyCrashRepair": "none"
+      },
+      "openDiagnostics": {
+        "unresolvedCountReportedByTron": 18,
+        "hangAcceptance": "closed_by_tron_after_physical_acceptance",
+        "network37": {
+          "fingerprintPrefix": "6e44c365",
+          "code": "IOS_NETWORK_FAILURE",
+          "module": "bots",
+          "count": 47,
+          "lastSeen": "2026-10-04T00:38:46.029Z",
+          "version": "1.0(37)",
+          "deviceType": "Mac",
+          "appState": "inactive",
+          "route": "public",
+          "elapsedMilliseconds": 39,
+          "errorDomain": "NSURLErrorDomain",
+          "errorCode": -1005,
+          "afterRetryFailure": null,
+          "cause": "unknown",
+          "classification": "unresolved_network_path_change",
+          "httpMethod": "unidentified",
+          "pathObservation": "unsatisfied (No network route), ECONNABORTED at 2026-10-04T00:38:45.918Z",
+          "matchingFailedTask": {
+            "id": "298",
+            "durationMilliseconds": 38,
+            "requestBodyBytes": 113670,
+            "idempotent": false,
+            "path": "private",
+            "sameDiagnosticRequest": "probable_from_exact_body_size"
+          },
+          "sanitizedEvidence": "runtime/mac-network-37-003846-sanitized.json",
+          "probableRequest": {
+            "method": "PATCH",
+            "path": "/api/bots/bot-57403a80",
+            "attribution": "Tron matched current stored fields to 113670 UTF-8 bytes with Swift JSON escaping; field list independently matches BotRequest",
+            "certainty": "high_probability_not_request_history_proof",
+            "saveOutcome": "unidentified_response_loss_or_manual_retry"
+          }
+        }
+      }
+    },
+    "distributionConfirmedAtJST": "2026-10-04T13:16:20+09:00",
+    "diagnosticClosure": {
+      "unresolvedCount": 0,
+      "reportedBy": "トロニー",
+      "reportedAtJST": "2026-10-04T14:00:12+09:00",
+      "readAPIConfirmed": true,
+      "crashObservationConditionWithdrawn": true,
+      "totalDiagnosticFingerprints": 23,
+      "totalOccurrences": 4001,
+      "unchangedDuringInterruptionTest": true,
+      "lastSeenAtJST": "2026-10-04T09:38:46.029+09:00"
+    },
+    "macAcceptance": {
+      "status": "installation_confirmed",
+      "installedPath": "/Applications/BellTeam.app",
+      "build": "39",
+      "installationMethod": "TestFlight",
+      "guiObservation": "Jevの画面取得がTIMEOUT。39の現在の画面の追加確認は未完了。"
+    },
+    "iphoneAcceptance": {
+      "status": "confirmed",
+      "installedBuild": "39",
+      "device": "iPhone 16 Pro Max",
+      "os": "26.6.2",
+      "installationMethod": "TestFlight",
+      "additionalLoginRequired": false,
+      "uiAcceptance": {
+        "result": "passed",
+        "tests": 1,
+        "failureCount": 0,
+        "test": "InstalledConversationUITests/testPullToRefreshAndNotificationStatus",
+        "resultBundle": "runtime/installed-39-refresh-acceptance.xcresult",
+        "finishedAtJST": "2026-10-04T13:48:22+09:00",
+        "attachments": "runtime/installed-39-refresh-proof/"
+      }
+    },
+    "appStoreReview": {
+      "submitted": true,
+      "state": "WAITING_FOR_REVIEW",
+      "build": "39",
+      "verifiedAt": "2026-10-04T05:38:18.314Z",
+      "record": "integration.reviewSubmission",
+      "proofPath": "runtime/apple-review/review39-final-verified.json"
+    }
+  }
+}

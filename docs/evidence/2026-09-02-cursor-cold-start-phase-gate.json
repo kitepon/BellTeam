@@ -1,0 +1,8 @@
+{
+  "cwd": "/Users/kite/Developer/BellTeam",
+  "control_id": "cursor-cold-start-delivery-20260902",
+  "actor_id": "bell-parent-cursor-20260902",
+  "expected_revision": 0,
+  "risk": "high",
+  "behavior_lane": "behavior-change"
+}
