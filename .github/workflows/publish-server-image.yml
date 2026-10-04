@@ -8,7 +8,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE: ghcr.io/quolu/bellteam-server
+  IMAGE: ghcr.io/kitepon/bellteam-server
 
 jobs:
   build:
@@ -23,7 +23,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     env:
-      BELLTEAM_SERVER_IMAGE: ghcr.io/quolu/bellteam-server:${{ github.sha }}-${{ matrix.arch }}
+      BELLTEAM_SERVER_IMAGE: ghcr.io/kitepon/bellteam-server:${{ github.sha }}-${{ matrix.arch }}
       COMPOSE_FILE: runtime/server-image/compose.yaml
       COMPOSE_PROJECT_NAME: server-smoke
     steps:
@@ -40,7 +40,7 @@ jobs:
       - name: 公式の現行版からイメージを作成
         run: |
           docker build --pull --no-cache --platform "linux/${{ matrix.arch }}" \
-            --label "org.opencontainers.image.source=https://github.com/quolu/BellTeam" \
+            --label "org.opencontainers.image.source=https://github.com/kitepon/BellTeam" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --label 'org.opencontainers.image.description=自分のマシンで動かすBellTeamの一般配布版' \
             -t "$BELLTEAM_SERVER_IMAGE" runtime/server-image

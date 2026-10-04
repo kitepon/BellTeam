@@ -29,7 +29,7 @@
 
 ## 本番と反映
 
-- 本番はssh `main-server`の`/home/kite/BellTeam`。`origin`はGitHubの`quolu/BellTeam`で、GitHubの`main`を正とする。2026-09-25にサーバーの独立履歴をGitHubの履歴の上へ載せ替えた（旧履歴はサーバーのタグ`server-history-20260925`）。
+- 本番はssh `main-server`の`/home/kite/BellTeam`。`origin`はGitHubの`kitepon/BellTeam`で、GitHubの`main`を正とする。2026-09-25にサーバーの独立履歴をGitHubの履歴の上へ載せ替えた（旧履歴はサーバーのタグ`server-history-20260925`）。
 - BellTeamコンテナの再起動・再作成・停止を伴う操作は、実行前に必ず一度止まり、オーナーの許可を取ってから行う。通常のデプロイも対象とし、作業開始や実装の承認だけで再起動の許可を得たと扱わない。
 - 反映はcommitしてから`scripts/deploy.sh`一回で行う。GitHubの`main`へpushし、本番は`git merge --ff-only`で取り込むだけで、本番側でcommitを作らない。本番の作業ツリーに未commitの変更があれば反映を止める。反映するとBot全員が停止し、次のメッセージで起動する。`scripts/deploy.sh`は反映前に処理待ち一覧を`runtime/backups/`へ保存する。止めたBotへ「再開しろ」は自動で送らない。
 - `config/bots.json`はGitHubの`main`の内容が本番の台帳になる。変える時はcommitして反映する。

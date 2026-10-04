@@ -1,6 +1,6 @@
 services:
   bellteam:
-    image: ${BELLTEAM_SERVER_IMAGE:-ghcr.io/quolu/bellteam-server:preview}
+    image: ${BELLTEAM_SERVER_IMAGE:-ghcr.io/kitepon/bellteam-server:preview}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     init: true
