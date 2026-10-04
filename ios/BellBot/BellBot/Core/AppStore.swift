@@ -26,6 +26,7 @@ final class AppStore: ObservableObject {
     @Published var rooms: [Room] = []
     @Published var owner: Owner?
     @Published var eventRevision = 0
+    @Published var workingBotIDs: Set<String> = []
     @Published var connectionError: String?
     @Published var selectedTab = 0
     @Published var chatPath: [ChatTarget] = []
@@ -103,6 +104,7 @@ final class AppStore: ObservableObject {
         api.diagnostics.configure(serverURL: nil)
         bots = []
         rooms = []
+        workingBotIDs = []
         owner = nil
         setup = nil
         featureSettings = []
@@ -199,7 +201,8 @@ final class AppStore: ObservableObject {
         async let botResult: BotsResponse = api.get("/api/bots?avatar=omit")
         async let roomResult: RoomsResponse = api.get("/api/rooms?avatar=omit")
         async let ownerResult: OwnerResponse = api.get("/api/owner?avatar=omit")
-        var (bots, rooms, owner) = try await (botResult, roomResult, ownerResult)
+        async let queueResult: QueueResponse = api.get("/api/queue")
+        var (bots, rooms, owner, queue) = try await (botResult, roomResult, ownerResult, queueResult)
         let oldBots = Dictionary(uniqueKeysWithValues: self.bots.map { ($0.id, $0) })
         let oldRooms = Dictionary(uniqueKeysWithValues: self.rooms.map { ($0.id, $0) })
         for index in bots.bots.indices {
@@ -220,6 +223,7 @@ final class AppStore: ObservableObject {
         self.bots = bots.bots
         self.rooms = rooms.rooms
         self.owner = owner.owner
+        workingBotIDs = Set(queue.items.filter { $0.status == "running" }.compactMap(\.botId))
         if let server = serverURL?.absoluteString {
             do {
                 try BotAvatarCache.shared.storeVersioned(bots.bots.map { (id: $0.id, dataURL: $0.avatar, version: $0.avatarVersion) }, server: server)

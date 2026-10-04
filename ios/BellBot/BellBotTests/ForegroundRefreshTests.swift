@@ -6,10 +6,10 @@ import XCTest
 @MainActor
 final class ForegroundRefreshTests: XCTestCase {
     func testEventsDuringARefreshAreCombinedIntoOneFurtherRefresh() async throws {
-        let started = expectation(description: "知らせから最初の3GETを開始")
-        started.expectedFulfillmentCount = 3
-        let second = expectation(description: "重なった知らせを次の3GETへまとめる")
-        second.expectedFulfillmentCount = 3
+        let started = expectation(description: "知らせから最初の4GETを開始")
+        started.expectedFulfillmentCount = 4
+        let second = expectation(description: "重なった知らせを次の4GETへまとめる")
+        second.expectedFulfillmentCount = 4
         let cancelled = expectation(description: "完了した取得を取消しない")
         cancelled.isInverted = true
         let fixture = DelayedForegroundGETs(started: started, cancelled: cancelled, secondStarted: second)
@@ -20,16 +20,16 @@ final class ForegroundRefreshTests: XCTestCase {
         for _ in 0..<20 { store.requestRefreshFromEvent() }
         fixture.finishAll()
         await fulfillment(of: [second], timeout: 3)
-        XCTAssertEqual(fixture.loadCount, 6)
+        XCTAssertEqual(fixture.loadCount, 8)
         fixture.finishAll()
         await fulfillment(of: [cancelled], timeout: 0.1)
-        XCTAssertEqual(fixture.loadCount, 6)
+        XCTAssertEqual(fixture.loadCount, 8)
     }
     func testBackgroundCancelsPendingGETsBeforeTheyUpdateStateOrStartBilling() async throws {
-        let started = expectation(description: "復帰のGETを3件保留する")
-        started.expectedFulfillmentCount = 3
-        let cancelled = expectation(description: "背景移行でGETを3件取消する")
-        cancelled.expectedFulfillmentCount = 3
+        let started = expectation(description: "復帰のGETを4件保留する")
+        started.expectedFulfillmentCount = 4
+        let cancelled = expectation(description: "背景移行でGETを4件取消する")
+        cancelled.expectedFulfillmentCount = 4
         let fixture = DelayedForegroundGETs(started: started, cancelled: cancelled)
         let (store, billingReads) = makeStore(fixture)
         defer { fixture.finishAll(); store.stopEvents() }
@@ -47,12 +47,12 @@ final class ForegroundRefreshTests: XCTestCase {
     }
 
     func testNewForegroundCancelsOldGETsAndLoadsFreshState() async throws {
-        let started = expectation(description: "最初の復帰のGETを3件保留する")
-        started.expectedFulfillmentCount = 3
-        let cancelled = expectation(description: "次の復帰で古いGETを3件取消する")
-        cancelled.expectedFulfillmentCount = 3
-        let secondStarted = expectation(description: "次の復帰で新しいGETを3件始める")
-        secondStarted.expectedFulfillmentCount = 3
+        let started = expectation(description: "最初の復帰のGETを4件保留する")
+        started.expectedFulfillmentCount = 4
+        let cancelled = expectation(description: "次の復帰で古いGETを4件取消する")
+        cancelled.expectedFulfillmentCount = 4
+        let secondStarted = expectation(description: "次の復帰で新しいGETを4件始める")
+        secondStarted.expectedFulfillmentCount = 4
         let fixture = DelayedForegroundGETs(started: started, cancelled: cancelled, secondStarted: secondStarted)
         let billingRead = expectation(description: "新しい復帰から購読照会へ進む")
         let (store, billingReads) = makeStore(fixture, billingRead: billingRead)
@@ -119,9 +119,9 @@ private final class DelayedForegroundGETs {
     }
 
     func begin(_ load: DelayedForegroundProtocol) {
-        guard ["/api/bots", "/api/rooms", "/api/owner"].contains(load.request.url!.path) else { return }
+        guard ["/api/bots", "/api/rooms", "/api/owner", "/api/queue"].contains(load.request.url!.path) else { return }
         lock.lock()
-        load.firstRefresh = loads.count < 3
+        load.firstRefresh = loads.count < 4
         loads.append(load)
         let expectation = load.firstRefresh ? started : secondStarted
         lock.unlock()
@@ -169,6 +169,7 @@ private final class DelayedForegroundProtocol: URLProtocol {
         switch request.url!.path {
         case "/api/bots": body = "{\"bots\":[]}"
         case "/api/rooms": body = "{\"rooms\":[]}"
+        case "/api/queue": body = "{\"items\":[]}"
         case "/api/subscription":
             body = "{\"subscription\":{\"product_id\":\"test\",\"environment\":\"Sandbox\",\"access_mode\":\"subscription\",\"setup_complete\":true,\"entitled\":false,\"state\":\"inactive\",\"auto_renewing\":false}}"
         case "/api/owner":

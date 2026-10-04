@@ -1,5 +1,7 @@
 # RAG目録
 
+- [会話本文のMarkdown表示](markdown-display/enriched-markdown.md)と[EnrichedMarkdown公式資料](markdown-display/raw/enriched-markdown-readme.md): 標準描画・範囲選択・表のコピー、iPhoneとMac Catalystでの実測。取得日 2026-10-05。
+
 - [Release版の実機試験](apple-networking/raw/testing-a-release-build.md): 通信障害の実測と、開発端末のNetwork Link Conditionerを使うApple公式原文。取得日 2026-10-04。
 
 - [URLSessionのflush](apple-networking/raw/urlsession-flush.md): Cookie・認証情報を保存し、以後の要求を新しいTCP接続で行うApple公式仕様。取得日 2026-10-04、一次資料の原文。

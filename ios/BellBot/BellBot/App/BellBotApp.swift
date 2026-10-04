@@ -133,6 +133,8 @@ private struct RootView: View {
                     PreviewAvatarCropView()
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-chat") {
                     NavigationStack { ConversationView(target: .bot("bot-one")) }
+                } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-markdown") {
+                    NavigationStack { ConversationView(target: .bot("bot-two")) }
                 } else {
                     readyView
                 }

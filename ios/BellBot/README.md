@@ -12,6 +12,8 @@ BellTeamの公開APIを使うSwiftUIアプリ。ローカルへ直接接続し�
 
 表示はライトモードに固定する。端末のダークモード設定や時間帯による切り替えに追従しない。アプリ全体への指定には、Appleの[UIUserInterfaceStyle](https://developer.apple.com/documentation/bundleresources/information-property-list/uiuserinterfacestyle)を使う。
 
+会話本文は[EnrichedMarkdown](https://github.com/software-mansion-labs/enriched-markdown-ios)の標準スタイルで見出し・表・箇条書き・引用・コードを表示し、範囲選択とコピーに対応する。メンバー一覧の丸は、待機中が緑、仕事中が赤の点滅、オフラインが灰色になる。iPhone・iPad・Macで共通の表示部品を使う。
+
 iPadではMacと同じ`DesktopWorkspaceView.swift`を参照し、一覧・会話・詳細を並べる。狭いウィンドウでは一覧と会話を切り替え、詳細はシートで開く。縦横の回転とウィンドウのサイズ変更に対応する。詳しくは [iPad版](../../docs/ipad-app.md) を参照。
 
 ## ビルド

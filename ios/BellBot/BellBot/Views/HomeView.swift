@@ -151,7 +151,7 @@ struct HomeView: View {
                 VStack(spacing: 10) {
                     ForEach(bots) { bot in
                         NavigationLink(value: ChatTarget.bot(bot.id)) {
-                            BotRow(bot: bot)
+                            BotRow(bot: bot, working: store.workingBotIDs.contains(bot.id))
                         }
                         .buttonStyle(.plain)
                     }
@@ -210,15 +210,13 @@ private struct RoomCard: View {
 
 private struct BotRow: View {
     let bot: Bot
+    let working: Bool
 
     var body: some View {
         HStack(spacing: 15) {
             AvatarView(name: bot.name, avatar: bot.avatar, color: BellTheme.accent(bot.color), size: 57)
                 .overlay(alignment: .bottomTrailing) {
-                    Circle()
-                        .fill(bot.online ? BellTheme.mint : BellTheme.line)
-                        .frame(width: 13, height: 13)
-                        .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                    BotPresenceDot(online: bot.online, working: working, size: 13)
                         .offset(x: 2, y: 2)
                 }
             VStack(alignment: .leading, spacing: 5) {

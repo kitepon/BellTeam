@@ -1,4 +1,5 @@
 import UIKit
+import SwiftUI
 import XCTest
 @testable import BellBot
 
@@ -32,38 +33,87 @@ final class ConversationAppearanceTests: XCTestCase {
         XCTAssertEqual(unsaved.imageCount, 2)
     }
 
-    func testSelectedPartCopiesWithoutTheRestOfTheMessage() {
-        let previous = UIPasteboard.general.items
-        defer { UIPasteboard.general.items = previous }
-        let view = SelectableText.makeTextView()
-        view.attributedText = MessageText.rendered("前の文章 **コピーする部分** 後の文章")
+    func testSelectedPartCopiesWithoutTheRestOfTheMessage() async throws {
+        // 試験用の内容を先に書き、別プロセスのクリップボードを読む許可ダイアログを避ける。
+        UIPasteboard.general.items = []
+        defer { UIPasteboard.general.items = [] }
+        let (window, view) = try await renderedMessage("前の文章 **コピーする部分** 後の文章")
+        defer { window.isHidden = true }
         view.selectedRange = (view.text as NSString).range(of: "コピーする部分")
         view.copy(nil)
         XCTAssertEqual(UIPasteboard.general.string, "コピーする部分")
     }
 
-    func testSelectableMessageRetainsMarkdownAndLinks() throws {
-        let text = MessageText.rendered("**太字**と*斜体*、`code`、[資料](https://example.org)\n次の行")
-        let bold = try XCTUnwrap(text.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)
+    func testSelectableMessageRetainsMarkdownAndLinks() async throws {
+        let (window, view) = try await renderedMessage("## 見出し\n\n**太字**と*斜体*、`code`、[資料](https://example.org)\n次の行")
+        defer { window.isHidden = true }
+        let text = try XCTUnwrap(view.attributedText)
+        XCTAssertFalse(text.string.contains("##"))
+        let boldIndex = (text.string as NSString).range(of: "太字").location
+        let bold = try XCTUnwrap(text.attribute(.font, at: boldIndex, effectiveRange: nil) as? UIFont)
         XCTAssertTrue(bold.fontDescriptor.symbolicTraits.contains(.traitBold))
+        let heading = try XCTUnwrap(text.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)
+        XCTAssertGreaterThan(heading.pointSize, bold.pointSize)
         let italicIndex = (text.string as NSString).range(of: "斜体").location
         let italic = try XCTUnwrap(text.attribute(.font, at: italicIndex, effectiveRange: nil) as? UIFont)
         XCTAssertTrue(italic.fontDescriptor.symbolicTraits.contains(.traitItalic))
         let linkIndex = (text.string as NSString).range(of: "資料").location
         XCTAssertEqual(text.attribute(.link, at: linkIndex, effectiveRange: nil) as? URL,
                        URL(string: "https://example.org"))
-        XCTAssertTrue(text.string.contains("\n次の行"))
+        XCTAssertTrue(text.string.contains("\n次の行") || text.string.contains("\u{2028}次の行"))
     }
 
-    func testBareAndNamedLinksRemainTappable() {
-        let text = MessageText.attributed("参照 https://example.com と [資料](https://example.org/path)\n次の行")
-        let links = text.runs.compactMap { run -> (String, URL)? in
-            guard let url = run.link else { return nil }
-            return (String(text[run.range].characters), url)
+    func testBareAndNamedLinksRemainTappable() async throws {
+        let (window, view) = try await renderedMessage("参照 https://example.com と [資料](https://example.org/path)\n次の行")
+        defer { window.isHidden = true }
+        let text = try XCTUnwrap(view.attributedText)
+        var links: [String] = []
+        text.enumerateAttribute(.link, in: NSRange(location: 0, length: text.length)) { value, _, _ in
+            if let url = value as? URL { links.append(url.absoluteString) }
         }
-        XCTAssertEqual(links.map(\.0), ["https://example.com", "資料"])
-        XCTAssertEqual(links.map(\.1.absoluteString), ["https://example.com", "https://example.org/path"])
-        XCTAssertTrue(String(text.characters).contains("\n次の行"))
+        XCTAssertEqual(links, ["https://example.com", "https://example.org/path"])
+        XCTAssertTrue(text.string.contains("\n次の行") || text.string.contains("\u{2028}次の行"))
+    }
+
+    func testTableRendersAsAttachmentAndCopiesItsCells() async throws {
+        UIPasteboard.general.items = []
+        defer { UIPasteboard.general.items = [] }
+        let (window, view) = try await renderedMessage("| 項目 | 状態 |\n| --- | --- |\n| 調査 | 完了 |")
+        defer { window.isHidden = true }
+        let text = try XCTUnwrap(view.attributedText)
+        var attachments = 0
+        text.enumerateAttribute(.attachment, in: NSRange(location: 0, length: text.length)) { value, _, _ in
+            if value is NSTextAttachment { attachments += 1 }
+        }
+        XCTAssertEqual(attachments, 1)
+        view.selectedRange = NSRange(location: 0, length: text.length)
+        view.copy(nil)
+        let copied = try XCTUnwrap(UIPasteboard.general.string)
+        XCTAssertTrue(copied.contains("項目\t状態"))
+        XCTAssertTrue(copied.contains("調査\t完了"))
+    }
+
+    private func renderedMessage(_ source: String) async throws -> (UIWindow, UITextView) {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 340, height: 800))
+        let host = UIHostingController(rootView: MessageText(source: source))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        for _ in 0..<100 {
+            window.layoutIfNeeded()
+            if let text = textView(in: host.view), text.attributedText.length > 0 { return (window, text) }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        window.isHidden = true
+        throw NSError(domain: "Markdown表示試験", code: 1,
+                      userInfo: [NSLocalizedDescriptionKey: "本文の描画が完了しませんでした"])
+    }
+
+    private func textView(in view: UIView) -> UITextView? {
+        if let text = view as? UITextView { return text }
+        for child in view.subviews {
+            if let text = textView(in: child) { return text }
+        }
+        return nil
     }
 
     func testPortraitColorsProduceDifferentBubbleTones() throws {

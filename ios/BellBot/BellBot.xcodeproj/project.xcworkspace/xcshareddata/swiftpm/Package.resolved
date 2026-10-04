@@ -1,0 +1,15 @@
+{
+  "originHash" : "030e43ab8f39174cafb20eb6971ddbe2af84a0066aaf8b655c9e84f31ad356f4",
+  "pins" : [
+    {
+      "identity" : "enriched-markdown-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/software-mansion-labs/enriched-markdown-ios.git",
+      "state" : {
+        "revision" : "b5e6da71d9197842b242e4a0096d63d249bf364a",
+        "version" : "0.3.0"
+      }
+    }
+  ],
+  "version" : 3
+}

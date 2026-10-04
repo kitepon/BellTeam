@@ -175,6 +175,7 @@ private final class NetworkScenario {
         case "/api/bots":
             object = ["bots": [["id": "bot-network", "name": "試験", "display_name": "試験", "harness": "codex", "model": "", "reasoning_effort": "", "color": "#000000", "profile_text": "", "personality": "", "speech_style": "", "position": "", "role": "", "avatar": "", "avatarVersion": "version-a", "online": false]]]
         case "/api/rooms": object = ["rooms": []]
+        case "/api/queue": object = ["items": []]
         case "/api/owner": object = ["owner": ["name": "試験", "profile": "", "avatar": "", "avatarVersion": "", "x_url": "", "github_url": "", "links": []]]
         default: object = ["result": "ok"]
         }

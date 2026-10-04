@@ -31,6 +31,7 @@ extension AppStore {
         bots = fixture.bots
         rooms = fixture.rooms
         owner = fixture.owner
+        workingBotIDs = ["bot-one"]
         phase = .ready
     }
 }
@@ -39,12 +40,32 @@ enum PreviewMessages {
     static func items(for target: ChatTarget) -> [TimelineMessage] {
         if target == .bot("bot-one") { return items }
         if target == .bot("bot-three") { return questionItems }
-        let text = target.isRoom ? "計画室専用の会話ログです。" : "ハル専用の会話ログです。"
+        let text = target.isRoom ? "計画室専用の会話ログです。" : "ハル専用の会話ログです。\n\n" + richMarkdown
         let source: [[String: String]] = [["id": "preview-\(target.id)", "kind": "message",
             "direction": "incoming", "at": "2026-09-26T00:13:00Z", "message": text,
             "delivery": "delivered"]]
         return try! JSONDecoder().decode([TimelineMessage].self, from: JSONSerialization.data(withJSONObject: source))
     }
+
+    static let richMarkdown = """
+    ## 表示の確認
+
+    **強調**と[資料](https://example.org)を読みやすく表示します。
+
+    | 項目 | 状態 |
+    | --- | --- |
+    | 調査 | 完了 |
+    | アプリの表示確認 | 進行中 |
+
+    - 見出しと段落の余白
+    - 長い項目も字下げを揃えて折り返します。
+
+    > これは表示確認用のメモです。
+
+    ```swift
+    let status = "working"
+    ```
+    """
 
     static let updatingItems: [TimelineMessage] = {
         let lengths = [1200, 40, 1050, 90, 12, 1240, 11, 600, 90, 9]

@@ -16,6 +16,10 @@ settings:
     SUPPORTS_MACCATALYST: YES
     DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: NO
     SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+packages:
+  EnrichedMarkdown:
+    url: https://github.com/software-mansion-labs/enriched-markdown-ios.git
+    exactVersion: 0.3.0
 targets:
   BellTeam:
     type: application
@@ -93,6 +97,8 @@ targets:
           - group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         com.apple.developer.usernotifications.communication: true
     dependencies:
+      - package: EnrichedMarkdown
+        product: EnrichedMarkdown
       - target: NotificationService
         embed: true
         link: false

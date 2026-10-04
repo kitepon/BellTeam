@@ -6,7 +6,7 @@ import XCTest
 final class SelectableTextLayoutTests: XCTestCase {
     func testRepeatedSizingProposalsPreserveNativeTextGeometry() {
         let source = String(repeating: "本文の折り返しと **強調** と [資料](https://example.org) を確認します。\n", count: 100)
-        let attributed = MessageText.rendered(source)
+        let attributed = SelectableText(source).text
         let view = SelectableText.makeTextView()
         view.attributedText = attributed
         let started = ProcessInfo.processInfo.systemUptime
@@ -26,7 +26,7 @@ final class SelectableTextLayoutTests: XCTestCase {
         let view = SelectableText.makeTextView()
         let reference = SelectableText.makeTextView()
         for source in ["短文", String(repeating: "長い文章の折り返しを確認します。\n", count: 50), "別の短文"] {
-            let attributed = MessageText.rendered(source)
+            let attributed = SelectableText(source).text
             view.attributedText = attributed
             reference.attributedText = attributed
             for proposal: CGFloat in [0, 180, 410, 180, 410] {
@@ -45,7 +45,7 @@ final class SelectableTextLayoutTests: XCTestCase {
         view.textContainerInset = .zero
         view.textContainer.lineFragmentPadding = 0
         view.isScrollEnabled = false
-        view.attributedText = MessageText.rendered(String(repeating: "長い本文がウィンドウの幅に合わせて折り返されます。\n", count: 100))
+        view.attributedText = SelectableText(String(repeating: "長い本文がウィンドウの幅に合わせて折り返されます。\n", count: 100)).text
         let naturalWidth = ceil(view.attributedText.size().width)
         let started = ProcessInfo.processInfo.systemUptime
         for step in 0..<20 {

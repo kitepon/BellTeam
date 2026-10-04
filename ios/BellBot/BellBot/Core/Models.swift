@@ -115,6 +115,7 @@ struct RoomRouting: Decodable {
 
 struct QueueItem: Decodable, Identifiable {
     let id: String
+    let botId: String?
     let botName: String?
     let status: String
     let groupId: String?

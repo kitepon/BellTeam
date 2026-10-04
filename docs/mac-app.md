@@ -2,7 +2,7 @@
 
 Mac Catalystを使い、iPhone版と通信・会話・編集・秘密入力・通知を共有する。Mac用の画面は`DesktopWorkspaceView`に置く。Webページを包まず、SwiftUIで描画する。
 
-本文の範囲選択とコピーはiPhone・Mac共通の`SelectableText`で行う。会話の本文状態は共通の`ConversationView`が宛先ごとに持ち、通知から会話を切り替えた時に別の宛先の本文を残さない。仕様は [現行設計](current-design.md) に従う。
+会話のMarkdown表示・範囲選択・コピーはiPhone・Mac共通の`MessageText`とEnrichedMarkdownで行う。プロフィールなどの原文表示は共通の`SelectableText`を使う。会話の本文状態は共通の`ConversationView`が宛先ごとに持ち、通知から会話を切り替えた時に別の宛先の本文を残さない。仕様は [現行設計](current-design.md) に従う。
 
 ## 画面と操作
 
