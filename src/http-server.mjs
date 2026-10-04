@@ -599,7 +599,9 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       if (/^OWNER_QUESTION_/u.test(error.message)) return json(response, 400, { error: error.message })
       if (/^BOT_DUPLICATE/u.test(error.message)) return json(response, 409, { error: error.message })
       if (/^(?:BOT|ROOM|SCHEDULE|MEMORY|KNOWLEDGE|SEARCH|OWNER)_/u.test(error.message)) return json(response, 400, { error: error.message })
-      process.stderr.write(`BellTeam HTTP error: ${error.stack ?? error.message}\n`)
+      // fetchの失敗はスタックを持たない。どの要求が何で失敗したかを後から引けるよう、要求と原因の符号も残す（問い合わせ文字列は残さない）。
+      const cause = error.cause?.code ?? error.cause?.message
+      process.stderr.write(`BellTeam HTTP error: ${request.method} ${String(request.url).split('?')[0]}${cause ? ` cause=${cause}` : ''}: ${error.stack ?? error.message}\n`)
       if (diagnostics && request.url !== '/api/diagnostics') {
         try {
           const frames = String(error.stack ?? '').split('\n').slice(1)
