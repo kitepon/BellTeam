@@ -28,6 +28,7 @@ struct SubscriptionProductConfiguration: Decodable {
     let productId: String
     let supportUrl: URL
     let serverGuideUrl: URL
+    let repositoryUrl: URL
     let privacyPolicyUrl: URL
 }
 

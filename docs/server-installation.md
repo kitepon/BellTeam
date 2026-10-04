@@ -4,6 +4,17 @@ BellTeamは、自分のPCやサーバーで動くAIチームに、iPhone・iPad�
 
 iPhone・iPadだけでサーバーを動かすことはできません。Mac、Windows PC、またはLinuxサーバーを用意します。AIサービスは自分のアカウントで利用します。
 
+## AIにセットアップを任せる
+
+セットアップをAIに任せる方は、GitHubのURLと「これセットアップしたい」というメッセージをAIに渡せば、大体解決します。PCやサーバーを操作できるAIへ、次の内容を渡してください。
+
+```text
+https://github.com/kitepon/BellTeam
+これセットアップしたい
+```
+
+アプリの導入ガイドでは、URLと依頼文をまとめてコピー・共有できます。自分で進める場合は、以下の手順を使ってください。
+
 ## 1. PCにDockerを用意する
 
 - **Mac**：[Docker Desktopの公式手順](https://docs.docker.com/desktop/setup/install/mac-install/)に従ってインストールし、Docker Desktopを起動します。
