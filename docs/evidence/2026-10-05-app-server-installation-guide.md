@@ -24,6 +24,8 @@ XcodeBuildMCPの手動入力は入力完了と返したが、実際の入力欄�
 
 ## 手元への更新
 
-残る操作は、Mac・iPhoneのTestFlightでBellTeamを41へ更新して開くこと。更新後に導入した版と起動を確認する。既存の接続設定を変更して初回画面へ戻す操作は不要。
+Approval BoxのK-3W46KLで、オーナーがiPhoneを41へ更新して開いたと回答した。iPhoneの導入・起動は本人確認によるもの。CoreDeviceの利用条件を満たせないエラー4016で、Macからの導入版の機械読取は確認できなかった。
+
+Macの導入済みInfo.plistは40だった。残る操作はMacのTestFlightで41へ更新して開くこと。既存の接続設定を変更して初回画面へ戻す操作は不要。
 
 試験結果・画面・Jevの実行記録はGit管理外の`runtime/app-server-guide/`、署名済み配布物とApple配布確認は`runtime/apple/server-guide-41/`に保存した。
