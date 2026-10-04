@@ -78,7 +78,8 @@ test('入力拒否の分類は該当するpty_sendだけに限定し、元の理
 
 const unregistered = "aiterm: AGENT_SESSION_REQUIRED: session 'bot-a' のagent登録がありません。文字列は送信していません。"
 
-function registrationLostClient({ refusals }) {
+// sessions はpty_listが返す画面。登録だけ消えた席は画面が残り、止まっている席は画面も無い。
+function registrationLostClient({ refusals, sessions = 'bot-a\tclaude' }) {
   const calls = []
   let sends = 0
   // 断りの分類は本物のAitermClientを通す。起動用の環境は渡さず、実物のAitermを立てない。
@@ -90,6 +91,7 @@ function registrationLostClient({ refusals }) {
     if (name === 'pty_send') return { structuredContent: {
       mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: '/node', args: ['wait'] },
     } }
+    if (name === 'pty_list') return { content: [{ type: 'text', text: sessions }] }
     if (name === 'pty_close') return { content: [{ type: 'text', text: 'closed' }] }
     if (name === 'agent_launch') return { structuredContent: { session_id: 'bot-a' } }
     if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: '了解' } }
@@ -107,8 +109,8 @@ test('席の登録が消えて打つ前に断られた送信は、席を閉じ�
 
   await transport.turn(bot, '再現用の本文')
 
-  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
-  assert.deepEqual(calls[1][1], { session_id: 'bot-a' })
+  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_list', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
+  assert.deepEqual(calls[2][1], { session_id: 'bot-a' })
   assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args), [
     { session_id: 'bot-a', text: '再現用の本文', require_agent: true },
     { session_id: 'bot-a', text: '再現用の本文', require_agent: true },
@@ -124,8 +126,23 @@ test('起こし直した後も登録が無ければ、もう一度は起こし�
 
   await assert.rejects(transport.turn(bot, '再現用の本文'), /AGENT_SESSION_REQUIRED/u)
 
-  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_close', 'agent_launch', 'pty_send'])
+  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_list', 'pty_close', 'agent_launch', 'pty_send'])
   assert.equal(transport.active.size, 0)
+})
+
+test('画面が無い席が同じ符号で断られた時は、登録の消失として扱わず、閉じずに起こして送る', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-registration-lost-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const { client, calls } = registrationLostClient({ refusals: 1, sessions: '' })
+  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }) })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', project: root }
+  const written = []
+  t.mock.method(process.stderr, 'write', text => { written.push(String(text)); return true })
+
+  await transport.turn(bot, '再現用の本文')
+
+  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_list', 'agent_launch', 'pty_send', 'pty_read'])
+  assert.deepEqual(written.filter(text => text.includes('registration lost')), [])
 })
 
 test('打った後に返るmode=sentは、送り直さず無効な受け取りとして失敗にする', async () => {

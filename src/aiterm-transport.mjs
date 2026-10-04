@@ -432,12 +432,15 @@ export class AitermTransport {
       try {
         result = await this.sendToSession(session, message, imageFiles)
       } catch (error) {
+        const running = await this.isRunning(bot)
+        if (running && error.code !== 'AGENT_SESSION_REQUIRED') throw error
+        // Aitermは画面が無い席も同じ符号で断る（0.52.0）。画面が残っている時だけが登録の消失。
         // 画面は残り登録だけ消えた席は、起動もできない。閉じてから起こし直し、同じ文を1回だけ送る。
-        if (error.code === 'AGENT_SESSION_REQUIRED') {
+        if (running) {
           process.stderr.write(`BellTeam Aiterm agent registration lost, restarting: ${bot.id}\n`)
           await this.client.call('pty_close', { session_id: session })
           await this.removeRetainedImages(bot.id)
-        } else if (await this.isRunning(bot)) throw error
+        }
         session = await this.wake(bot, { setupTest })
         result = await this.sendToSession(session, message, imageFiles)
       }
