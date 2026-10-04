@@ -4,5 +4,6 @@
   "productId": "dev.kitepon.bellbot.monthly",
   "supportEmail": "kitepon@gmail.com",
   "supportUrl": "https://bellteam-subscriptions.kitepon.workers.dev/support",
+  "serverGuideUrl": "https://github.com/kitepon/BellTeam/blob/main/docs/server-installation.md",
   "privacyPolicyUrl": "https://bellteam-subscriptions.kitepon.workers.dev/privacy"
 }

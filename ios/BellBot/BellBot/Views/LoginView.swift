@@ -5,59 +5,81 @@ struct ServerSetupView: View {
     @EnvironmentObject private var store: AppStore
     @State private var address = ""
     @State private var errorText: String?
+    @State private var showingInstallationGuide = false
 
     var body: some View {
         ZStack {
             BellBackground()
-            VStack(alignment: .leading, spacing: 22) {
-                Spacer()
-                Image("BellPortrait")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 106, height: 106)
-                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                Text("チームに接続")
-                    .font(.system(size: 37, weight: .bold, design: .rounded))
-                    .foregroundStyle(BellTheme.ink)
-                Text("同じマシンならhttp://localhost:18891、iPhone・iPadならLAN上のBellTeamのURLを入力してください。外部接続はHTTPSを使います。")
-                    .foregroundStyle(BellTheme.muted)
-                TextField("http://192.168.1.2:18891", text: $address)
-                    .textContentType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
-                    .padding(18)
-                    .bellCard()
-                if let errorText {
-                    Text(errorText).font(.footnote).foregroundStyle(.red)
-                }
-                Button {
-                    Task {
-                        do {
-                            errorText = nil
-                            try await store.setServerAddress(address)
-                        } catch { errorText = error.localizedDescription }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    Image("BellPortrait")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 106, height: 106)
+                        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                    Text("BellTeamを始める")
+                        .font(.system(size: 37, weight: .bold, design: .rounded))
+                        .foregroundStyle(BellTheme.ink)
+                    Text("自分のPCやサーバーでBellTeamを動かし、このアプリから接続して使います。")
+                        .foregroundStyle(BellTheme.muted)
+                    Button { showingInstallationGuide = true } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "shippingbox").font(.title2)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("はじめて使う").font(.headline)
+                                Text("Dockerの準備からアプリへの接続まで").font(.subheadline)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
+                        .foregroundStyle(BellTheme.ink)
+                        .padding(20)
+                        .bellCard()
                     }
-                } label: {
-                    HStack {
-                        Text("続ける")
-                        Spacer()
-                        Image(systemName: "arrow.right")
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("server-installation-guide")
+                    Text("サーバーを用意済みの方").font(.headline).padding(.top, 8)
+                    Text("同じマシンならhttp://localhost:18891、iPhone・iPadならLAN上のBellTeamのURLを入力してください。外部接続はHTTPSを使います。")
+                        .foregroundStyle(BellTheme.muted)
+                    TextField("BellTeamの接続先URL", text: $address)
+                        .textContentType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .padding(18)
+                        .bellCard()
+                        .accessibilityIdentifier("server-address")
+                    if let errorText {
+                        Text(errorText).font(.footnote).foregroundStyle(.red)
                     }
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 23)
-                    .frame(height: 60)
-                    .background(BellTheme.violet, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    Button {
+                        Task {
+                            do {
+                                errorText = nil
+                                try await store.setServerAddress(address)
+                            } catch { errorText = error.localizedDescription }
+                        }
+                    } label: {
+                        HStack {
+                            Text("続ける")
+                            Spacer()
+                            Image(systemName: "arrow.right")
+                        }
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 23)
+                        .frame(height: 60)
+                        .background(BellTheme.violet, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    }
                 }
-                Spacer()
+                .padding(.horizontal, 30)
+                .frame(maxWidth: 520)
+                .padding(.vertical, 40)
+                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, 30)
-            #if targetEnvironment(macCatalyst)
-            .frame(maxWidth: 520)
-            .padding(.vertical, 40)
-            #endif
+            .scrollDismissesKeyboard(.interactively)
         }
+        .sheet(isPresented: $showingInstallationGuide) { ServerInstallationGuide() }
     }
 }
 

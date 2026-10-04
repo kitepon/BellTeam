@@ -4,6 +4,8 @@ Docker EngineとDocker Composeを使い、自分のマシンとAIの契約で動
 
 ## 設置
 
+アプリから初めて使う場合は、[サーバーの導入ガイド](https://github.com/kitepon/BellTeam/blob/main/docs/server-installation.md)でDockerの準備・ファイルの取得・アプリへの接続を確認してください。
+
 1. 設置用ファイルを展開し、そのフォルダで`./install.sh`を実行します。イメージの取得、空の保存先の所有権設定、起動と正常稼働の確認まで行います。`.env`の作成や追加機能の設定は不要です。
 2. installerが表示するURLをブラウザで開きます。同じマシンでは`http://localhost:18891`、iPhone・iPadや別のMacでは`http://このマシンのLANアドレス:18891`へ接続できます。アプリの接続先にも同じURLを指定します。
 3. 最初に使うClaude・Codex・Grok・Cursorを画面で選び、表示される公式サイトで認証します。公式CLIの初回設定も画面の案内に従って完了します。

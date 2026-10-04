@@ -131,6 +131,8 @@ private struct RootView: View {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-avatar-crop") {
                     PreviewAvatarCropView()
+                } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-server-setup") {
+                    ServerSetupView()
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-chat") {
                     NavigationStack { ConversationView(target: .bot("bot-one")) }
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-markdown") {

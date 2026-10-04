@@ -1,5 +1,7 @@
 # RAG目録
 
+- [アプリから自分のサーバーへ接続するまで](docker-server-setup/app-first-entry.md)と[Docker公式の導入入口](docker-server-setup/raw/official-guide-links.md): 接続前のアプリ内ガイド、Docker・Compose・WSL、同一マシンとLANのURL。取得日 2026-10-05。
+
 - [会話本文のMarkdown表示](markdown-display/enriched-markdown.md)と[EnrichedMarkdown公式資料](markdown-display/raw/enriched-markdown-readme.md): 標準描画・範囲選択・表のコピー、iPhoneとMac Catalystでの実測。取得日 2026-10-05。
 
 - [Release版の実機試験](apple-networking/raw/testing-a-release-build.md): 通信障害の実測と、開発端末のNetwork Link Conditionerを使うApple公式原文。取得日 2026-10-04。

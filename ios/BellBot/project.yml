@@ -29,13 +29,15 @@ targets:
       - path: Shared
       - path: ../../services/subscriptions/product.json
         buildPhase: resources
+      - path: ../../docs/server-installation.md
+        buildPhase: resources
     info:
       path: BellBot/Info.plist
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleName: BellTeam
         CFBundleShortVersionString: '1.0'
-        CFBundleVersion: '40'
+        CFBundleVersion: '41'
         UIUserInterfaceStyle: Light
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.productivity
@@ -118,7 +120,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0'
-        CFBundleVersion: '40'
+        CFBundleVersion: '41'
         BellTeamAppGroupIdentifier: group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service

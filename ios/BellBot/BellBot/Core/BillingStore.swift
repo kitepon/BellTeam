@@ -27,6 +27,7 @@ struct SubscriptionProductConfiguration: Decodable {
     let bundleId: String
     let productId: String
     let supportUrl: URL
+    let serverGuideUrl: URL
     let privacyPolicyUrl: URL
 }
 

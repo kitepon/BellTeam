@@ -1,0 +1,11 @@
+出典: [Docker公式の導入入口](raw/official-guide-links.md)、[HomebrewのDocker Compose](https://formulae.brew.sh/formula/docker-compose)
+取得日: 2026-10-05
+確度: 一次資料とHomebrewの導入案内、iOS画面試験、Mac Catalystビルドで確認
+
+# アプリから自分のサーバーへ接続するまで
+
+サーバーへの接続前に、アプリだけをダウンロードした人が読める導入案内を用意する。BellTeamは`docs/server-installation.md`をAppleアプリへ同梱し、公開GitHubでも同じ内容を読む。最初の入口は未導入者向けの案内と、稼働中のサーバーへ接続するURL入力を分ける。
+
+Mac・WindowsではDocker Desktopの公式手順を参照し、WindowsのコマンドはWSL内で実行する。既存のDocker環境を使う時も、`docker compose`が使えることが必要になる。HomebrewのComposeは、導入済みでもDockerがプラグインの保存先を知らなければ`docker compose`で見つからない。公式のHomebrew案内はDockerの`cliPluginsExtraDirs`へプラグインディレクトリを登録する方法を示す。
+
+クライアントとサーバーが同じMacならlocalhostを使う。別の端末では、サーバーを動かすPCのLANアドレスを使う。iPhoneのlocalhostはiPhone自身を指すため、PCのサーバーの接続先にはならない。
