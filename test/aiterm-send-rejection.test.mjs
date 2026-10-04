@@ -171,3 +171,70 @@ test('登録なしの分類は、打つ前に断ったpty_sendだけに限定す
   text = 'aiterm: AGENT_SESSION_REQUIRED: 理由不明'
   await assert.rejects(client.call('pty_send', { session_id: 'bot-a', text: '本文' }), error => error.code === undefined)
 })
+
+// Aiterm 0.52.0のClaude席の振り分けをなぞる。印が無ければ新しいターンとして入力受付を待ち、待った後で印を取る。
+// 待っている間に別の送信が印を取ると、後から印を取りに来た方を断る。
+function wakingClaudeClient() {
+  const calls = []
+  let launched = false
+  let marker = false
+  const tick = () => new Promise(resolve => setTimeout(resolve, 5))
+  const classifier = new AitermClient()
+  const client = { call: (name, args) => classifier.call(name, args) }
+  classifier.client = { async callTool({ name, arguments: args }) {
+    calls.push([name, args])
+    if (name === 'pty_list') return { content: [{ type: 'text', text: launched ? 'bot-a\tclaude' : '' }] }
+    if (name === 'agent_launch') { await tick(); launched = true; return { structuredContent: { session_id: 'bot-a' } } }
+    if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: '了解' } }
+    if (name !== 'pty_send') throw new Error(`unexpected tool: ${name}`)
+    if (!launched) return { isError: true, content: [{ type: 'text', text: unregistered }] }
+    if (marker) return { structuredContent: { mode: 'agent_steer', event_cursor: null, wait_process: null } }
+    await tick()
+    if (marker) return { isError: true, content: [{ type: 'text', text: 'aiterm: operation_idなしのClaude turn が未解決です。Stop結果を回収するかsessionをcloseするまで次のturnを送れません。' }] }
+    marker = true
+    return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: '/node', args: ['wait'] } } }
+  } }
+  return { client, calls }
+}
+
+test('起こしている途中の席へ次の文が重なっても、前の送信が受け付けられてから送り、差し込みにする', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-overlapping-send-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const { client, calls } = wakingClaudeClient()
+  let finish
+  const done = new Promise(resolve => { finish = resolve })
+  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => { await done; return { outcome: 'done' } } })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', project: root }
+
+  const first = transport.notify(bot, '1通目')
+  const second = transport.notify(bot, '2通目')
+
+  assert.deepEqual(await first, { delivery: 'running' })
+  assert.deepEqual(await second, { delivery: 'steered' })
+  finish()
+  await transport.idle(bot.id)
+  assert.deepEqual(calls.filter(([name]) => name === 'agent_launch').length, 1)
+  assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args.text), ['1通目', '1通目', '2通目'])
+})
+
+test('前の送信が失敗しても、同じ席への次の送信は止めない', async () => {
+  let sends = 0
+  const transport = new AitermTransport({
+    client: { async call(name) {
+      if (name === 'pty_list') return { content: [{ type: 'text', text: 'bot-a\tclaude' }] }
+      if (name !== 'pty_send') throw new Error(`unexpected ${name}`)
+      if (++sends === 1) throw new Error('aiterm: PTY_BACKEND_FAILED')
+      return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: '/node', args: ['wait'] } } }
+    } },
+    handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }),
+  })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', project: '/bots/bot-a' }
+
+  const first = transport.notify(bot, '1通目')
+  const second = transport.notify(bot, '2通目')
+
+  await assert.rejects(first, /PTY_BACKEND_FAILED/u)
+  assert.deepEqual(await second, { delivery: 'running' })
+  await transport.idle(bot.id)
+  assert.equal(transport.dispatches.size, 0)
+})

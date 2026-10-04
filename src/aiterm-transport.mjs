@@ -120,6 +120,7 @@ export class AitermTransport {
     this.queueListeners = new Set()
     this.sessions = new Map()
     this.configurationChanges = new Map()
+    this.dispatches = new Map()
   }
 
   async isRunning(bot) {
@@ -331,7 +332,7 @@ export class AitermTransport {
         this.active.set(job.id, job)
         this.emitQueue()
         await this.requireAccess({ setupTest, botId: bot.id })
-        delivery = await this.dispatch(bot, message, images, { setupTest })
+        delivery = await this.dispatchInOrder(bot, message, images, { setupTest })
         job.receipt = delivery.receipt
         await onStatus?.('running')
         acknowledged = true
@@ -422,6 +423,20 @@ export class AitermTransport {
 
   emitQueue() {
     for (const listener of this.queueListeners) listener()
+  }
+
+  // 同じ席への送信は、前の送信をAitermが受け付けてから始める。起こしている途中の席へ次の文が重なると、
+  // Aitermは両方を新しいターンとして入力受付を待たせ、後の方を「未解決のturnがある」と断る（Aiterm 0.52.0）。
+  // 受け付けた後なら、次の文は実行中のターンへの差し込みになる。
+  dispatchInOrder(bot, message, images, options) {
+    const run = () => this.dispatch(bot, message, images, options)
+    const delivery = (this.dispatches.get(bot.id) ?? Promise.resolve()).then(run)
+    const settled = delivery.then(() => {}, () => {})
+    this.dispatches.set(bot.id, settled)
+    settled.then(() => {
+      if (this.dispatches.get(bot.id) === settled) this.dispatches.delete(bot.id)
+    })
+    return delivery
   }
 
   async dispatch(bot, message, images, { setupTest = false } = {}) {
