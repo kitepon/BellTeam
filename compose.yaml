@@ -25,6 +25,11 @@ services:
       - ./runtime/home:/home/bell
       - cursor-cli:/home/bell/.local
       - ./runtime/data:/srv/bellteam
+      - type: bind
+        source: ./runtime/data/shared/throughline
+        target: /home/bell/.throughline
+        bind:
+          create_host_path: false
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4180/healthz').then(r=>{if(!r.ok)throw Error(r.status)})"]
       interval: 10s
