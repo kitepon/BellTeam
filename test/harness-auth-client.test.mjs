@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { harnessAuthTitle, harnessAuthView, renderHarnessAuth } from '../web/harness-auth.js'
+import { harnessAuthTitle, harnessAuthView, needsStartConfirmation, renderHarnessAuth } from '../web/harness-auth.js'
 
 class Element {
   constructor(tag) { this.tag = tag; this.children = []; this.attributes = {}; this.textContent = ''; this.value = ''; this.dataset = {}; this.listeners = {}; this.open = false }
@@ -34,6 +34,15 @@ test('公式認証の進行から、画面に出す物を決める', () => {
   assert.equal(harnessAuthView({ status: 'unknown' }).text, '認証の状態を確認してください。')
 })
 
+test('今の認証が消えうるAIは、認証が無い・切れていると分かっている時を除いて、始める前に知らせる', () => {
+  const codex = { id: 'codex', startWarning: 'Codexは、認証し直しを始めた時点で今の認証が消えます。' }
+  assert.equal(needsStartConfirmation(codex, { status: 'authenticated' }), true)
+  assert.equal(needsStartConfirmation(codex, { status: 'failed' }), true)
+  assert.equal(needsStartConfirmation(codex, null), true)
+  assert.equal(needsStartConfirmation(codex, { status: 'blocked' }), false)
+  assert.equal(needsStartConfirmation({ id: 'claude', startWarning: null }, { status: 'authenticated' }), false)
+})
+
 test('一覧では公式の状態を見に行かず、行を開いた時に見て、認証し直すと公式サイトとコードを出す', async () => {
   const previous = globalThis.document
   const documentListeners = []
@@ -46,7 +55,7 @@ test('一覧では公式の状態を見に行かず、行を開いた時に見�
   const calls = []
   const api = async (path, options = {}) => {
     calls.push(`${options.method ?? 'GET'} ${path}`)
-    if (path === '/api/harness-auth') return { harnesses: [{ id: 'claude', name: 'Claude', members: 10 }, { id: 'codex', name: 'Codex', members: 19 }] }
+    if (path === '/api/harness-auth') return { harnesses: [{ id: 'claude', name: 'Claude', members: 10, startWarning: null }, { id: 'codex', name: 'Codex', members: 19, startWarning: 'Codexは、認証し直しを始めた時点で今の認証が消えます。' }] }
     if (path === '/api/harness-auth/codex/start') return { harness: 'codex', auth: { status: 'waiting', url: 'https://auth.openai.com/codex/device', user_code: 'ABCD-1234', input_required: false, message: null } }
     if (path === '/api/harness-auth/codex/cancel') return { harness: 'codex', auth: null }
     if (path === '/api/harness-auth/codex') return { harness: 'codex', auth: { status: 'authenticated', url: null, user_code: null, input_required: false, message: null } }
@@ -70,8 +79,19 @@ test('一覧では公式の状態を見に行かず、行を開いた時に見�
     assert.ok(texts(codex).includes('認証済みです。'))
     assert.equal(descendants(codex).some(item => item.textContent === 'やめる'), false)
 
-    // 認証済みに見えても、押せば入り直しを始める。
+    // 認証済みに見えるCodexは、始めた時点で今の認証が消える。1回目は知らせるだけで、何も始めない。
     press('認証し直す')
+    await settle()
+    assert.deepEqual(calls.slice(1), ['GET /api/harness-auth/codex'])
+    assert.ok(texts(codex).includes('Codexは、認証し直しを始めた時点で今の認証が消えます。'))
+    press('始めない')
+    await settle()
+    assert.equal(texts(codex).includes('Codexは、認証し直しを始めた時点で今の認証が消えます。'), false)
+    assert.deepEqual(calls.slice(1), ['GET /api/harness-auth/codex'])
+
+    // 知らせを読んで、もう一度押した時に始める。
+    press('認証し直す')
+    press('今の認証を手放して始める')
     await settle()
     assert.equal(calls.at(-1), 'POST /api/harness-auth/codex/start')
     assert.ok(texts(codex).includes('公式サイトでの認証を待っています。'))

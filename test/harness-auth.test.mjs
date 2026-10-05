@@ -34,11 +34,40 @@ const bots = new Map([
 
 test('AIの種類と、それを使うメンバーの数を返す。公式の状態は見に行かない', () => {
   const client = aiterm()
-  assert.deepEqual(new HarnessAuth({ bots, client }).list(), { harnesses: [
+  const { harnesses } = new HarnessAuth({ bots, client }).list()
+  assert.deepEqual(harnesses.map(({ id, name, members }) => ({ id, name, members })), [
     { id: 'claude', name: 'Claude', members: 1 }, { id: 'codex', name: 'Codex', members: 2 },
     { id: 'grok', name: 'Grok', members: 0 }, { id: 'cursor', name: 'Cursor', members: 0 },
-  ] })
+  ])
+  // 始めた時点で今の認証が消えるAI（Codex）と、残るかを確かめられていないAI（Grok）には、始める前の知らせを付ける。
+  assert.match(harnesses.find(item => item.id === 'codex').startWarning, /始めた時点で今の認証が消えます。途中でやめても元に戻りません。/u)
+  assert.match(harnesses.find(item => item.id === 'grok').startWarning, /確かめられていません/u)
+  assert.deepEqual(harnesses.filter(item => item.startWarning === null).map(item => item.id), ['claude', 'cursor'])
   assert.deepEqual(client.calls, [])
+})
+
+test('状態を見ただけの時は利用者向けの文を返し、認証が進行中の時はAitermの案内をそのまま返す', async () => {
+  const jargon = 'Codexのログインの期限が切れています。agent_authのstartで入り直してください。'
+  let next = { status: 'blocked', message: jargon }
+  const client = { async call(name, args) {
+    if (args.action === 'start') return receipt({ status: 'blocked', session_id: 'auth-1', input_required: true, message: '公式の画面で入力してください。' })
+    return receipt(next)
+  } }
+  const auth = new HarnessAuth({ bots, client })
+  const message = async harness => (await auth.status(harness)).auth.message
+  assert.match(await message('codex'), /認証されていないか、認証の期限が切れています。「認証し直す」で公式サイトから入り直せます。/u)
+  assert.equal((await message('codex')).includes('agent_auth'), false)
+  next = { status: 'failed', message: 'Cursorのログインを確認できません…relogin:true…' }
+  assert.match(await message('cursor'), /認証の状態を確かめられませんでした/u)
+  assert.equal((await message('cursor')).includes('relogin'), false)
+  // Claudeの公式CLIは期限切れでも認証済みと答えるので、そう見える時にだけ一言添える。
+  next = { status: 'authenticated' }
+  assert.match(await message('claude'), /期限切れを見分けられない事があります/u)
+  assert.equal(await message('codex'), null)
+  // 進行中は、公式の画面の案内を落とさない。
+  assert.deepEqual((await auth.start('claude')).auth, { status: 'blocked', url: null, user_code: null, input_required: true, message: '公式の画面で入力してください。' })
+  next = { status: 'blocked', session_id: 'auth-1', input_required: true, message: '公式の画面で入力してください。' }
+  assert.equal(await message('claude'), '公式の画面で入力してください。')
 })
 
 test('認証済みに見えるAIでも入り直しを始め、通ったら認証の端末を閉じる', async () => {
@@ -100,7 +129,7 @@ test('やり直しを押し直した時は、前の認証の端末を閉じて�
 test('Aitermが値を省いた時も、無い値はnull、入力の要否は真偽で返す', async () => {
   const client = { async call() { return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', status: 'blocked' } } } }
   assert.deepEqual(await new HarnessAuth({ bots, client }).status('cursor'), {
-    harness: 'cursor', auth: { status: 'blocked', url: null, user_code: null, input_required: false, message: null },
+    harness: 'cursor', auth: { status: 'blocked', url: null, user_code: null, input_required: false, message: 'このAIは認証されていないか、認証の期限が切れています。「認証し直す」で公式サイトから入り直せます。' },
   })
 })
 

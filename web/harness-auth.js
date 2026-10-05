@@ -26,6 +26,11 @@ export function harnessAuthView(auth) {
   }
 }
 
+// 始める前の知らせが要るか。今の認証が消えうるAIで、認証が無い・切れているとは分かっていない時。
+export function needsStartConfirmation(harness, auth) {
+  return Boolean(harness.startWarning) && auth?.status !== 'blocked'
+}
+
 // AIの種類ごとの行を描く。返す stop は、設定を閉じる時に呼ぶ（見に行くのを止め、入力欄を空にする）。
 export async function renderHarnessAuth(container, { api }) {
   const stops = []
@@ -52,6 +57,8 @@ function harnessAuthItem(harness, { api }) {
   let auth = null
   let loaded = false
   let started = false
+  // 今の認証が消えうるAIでは、始める前に一度知らせて、もう一度押してもらう。
+  let confirming = false
   let busy = false
   let stopped = false
   let errorText = ''
@@ -138,12 +145,21 @@ function harnessAuthItem(harness, { api }) {
       for (const key of ['Enter', 'Up', 'Down', 'Tab']) keys.append(button(key, () => perform(() => post('input', { key }))))
       nodes.push(label, send, keys)
     }
+    const start = () => perform(async () => { confirming = false; const next = await post('start'); started = next.auth?.status !== 'authenticated'; return next })
     const actions = document.createElement('div')
     actions.className = 'secret-actions'
-    actions.append(
-      button('認証し直す', () => perform(async () => { const next = await post('start'); started = next.auth?.status !== 'authenticated'; return next })),
-      button('状態を更新', () => perform(async () => { const next = await api(path); if (next.auth?.status === 'authenticated') started = false; return next })),
-    )
+    if (confirming) {
+      const warning = Object.assign(document.createElement('p'), { className: 'form-error', textContent: harness.startWarning })
+      warning.setAttribute('role', 'alert')
+      nodes.push(warning)
+      actions.append(button('今の認証を手放して始める', start), button('始めない', () => { confirming = false; render() }))
+    } else {
+      actions.append(
+        // 認証が無い・切れていると分かっている時は、失う物が無いのですぐ始める。
+        button('認証し直す', () => { if (needsStartConfirmation(harness, auth)) { confirming = true; render() } else return start() }),
+        button('状態を更新', () => perform(async () => { const next = await api(path); if (next.auth?.status === 'authenticated') started = false; return next })),
+      )
+    }
     // やめた後は、公式の状態を見直して出す。
     if (started) actions.append(button('やめる', () => perform(async () => { await post('cancel'); started = false; return api(path) })))
     nodes.push(actions)

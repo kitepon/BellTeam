@@ -5,6 +5,21 @@
 import { runtimeEnvironment } from './runtime-home.mjs'
 import { HARNESS, HARNESSES } from './onboarding.mjs'
 
+// 認証し直しを始める前に、利用者へ知らせる事。公式CLIの動きで、Aiterm 0.53.1 で確かめた範囲（エレグ、2026-10-06）。
+// Codexの公式ログインは、始めた時点で今の資格情報を消す。ClaudeとCursorは、途中でやめれば残る。Grokは確かめられていない。
+const START_WARNING = {
+  codex: 'Codexは、認証し直しを始めた時点で今の認証が消えます。途中でやめても元に戻りません。認証が済むまで、Codexを使うメンバーは起動できません。',
+  grok: 'Grokは、認証し直しを途中でやめた時に今の認証が残るかを確かめられていません。認証が済むまで、Grokを使うメンバーが起動できなくなる事があります。',
+}
+
+// 公式の状態を見ただけの時に、利用者へ出す文。Aitermの文は道具を呼ぶ側（AI）へ向けた物なので、設定の画面にはこちらを出す。
+const STATUS_MESSAGE = {
+  blocked: 'このAIは認証されていないか、認証の期限が切れています。「認証し直す」で公式サイトから入り直せます。',
+  failed: '認証の状態を確かめられませんでした（通信できないか、認証の期限が切れています）。「認証し直す」で入り直せます。',
+}
+// Claudeの公式CLIは、期限が切れた後も認証済みと答える（Aiterm 0.53.1 でも見分けられない）。
+const CLAUDE_AUTHENTICATED_MESSAGE = 'Claudeは、認証の期限切れを見分けられない事があります。Claudeのメンバーが認証の誤りで止まる時は、認証し直してください。'
+
 export class HarnessAuthError extends Error {
   constructor(code, status, message) { super(message); this.code = code; this.status = status }
 }
@@ -20,7 +35,7 @@ export class HarnessAuth {
 
   list() {
     const members = id => [...this.bots.values()].filter(bot => bot.harness === id).length
-    return { harnesses: HARNESSES.map(({ id, name }) => ({ id, name, members: members(id) })) }
+    return { harnesses: HARNESSES.map(({ id, name }) => ({ id, name, members: members(id), startWarning: START_WARNING[id] ?? null })) }
   }
 
   status(harness) {
@@ -96,10 +111,14 @@ export class HarnessAuth {
   }
 
   // 初期設定の auth と同じ形。無い値はnull、input_required は必ず真偽で返す（アプリは初期設定と同じ型で読む）。
+  // message は、公式認証が進行中ならAitermの案内をそのまま、状態を見ただけなら利用者向けの文にする。
   snapshot(harness, receipt) {
+    const message = this.sessions.has(harness) ? receipt.message ?? null
+      : receipt.status === 'authenticated' ? (harness === 'claude' ? CLAUDE_AUTHENTICATED_MESSAGE : null)
+        : STATUS_MESSAGE[receipt.status] ?? receipt.message ?? null
     return { harness, auth: {
       status: receipt.status, url: receipt.url ?? null, user_code: receipt.user_code ?? null,
-      input_required: receipt.input_required === true, message: receipt.message ?? null,
+      input_required: receipt.input_required === true, message,
     } }
   }
 
