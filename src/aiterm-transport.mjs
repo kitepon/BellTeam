@@ -31,9 +31,11 @@ export async function completedThroughlineTurns(project, { run = execFileAsync }
   return result.turns.length
 }
 
+// 短期記憶は、直前の1セッションだけでなく直近の複数セッションから作る（オーナー裁定 2026-10-05、Approval Box K-8GPX8C）。
+// `--sessions recent` は Throughline 0.15.0 から。それより前の版は終了コード2で止まり、席が起きない。
 export async function latestThroughlineHandoffContext(project, { run = execFileAsync } = {}) {
   const { stdout } = await run('throughline', [
-    'handoff-context', '--project', project, '--json', '--disclosure', 'silent',
+    'handoff-context', '--project', project, '--json', '--disclosure', 'silent', '--sessions', 'recent',
   ], { env: runtimeEnvironment() })
   const result = JSON.parse(stdout)
   if (result.schema !== 'throughline.handoff_context.v1')

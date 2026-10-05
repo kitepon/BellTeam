@@ -240,25 +240,39 @@ test('モデルとエフォートをCLI既定へ戻す時は記憶引き継ぎ�
   ])
 })
 
-test('Throughlineからproject限定かつ案内なしの短期記憶を一回で受け取る', async () => {
+test('Throughlineからproject限定かつ案内なしで、直近の複数セッションの短期記憶を一回で受け取る', async () => {
   const calls = []
   const context = await latestThroughlineHandoffContext('/srv/bellteam/bots/bot-a/project', {
     run: async (command, args) => {
       calls.push([command, args])
+      // 0.15.0 の `--sessions recent` は、今までのキーに `sessions` を足して返す。
       return { stdout: JSON.stringify({
         schema: 'throughline.handoff_context.v1', status: 'ready',
-        sessionId: 'codex:abc', context: '直前の会話文脈',
+        sessionId: 'codex:abc', context: '直近の会話文脈',
+        sessions: [
+          { sessionId: 'codex:abc', role: 'current', firstTurnAt: 2000, lastTurnAt: 3000, turns: 4, includedTurns: 4 },
+          { sessionId: 'codex:old', role: 'past', firstTurnAt: 1000, lastTurnAt: 1500, turns: 9, includedTurns: 3 },
+        ],
       }) }
     },
   })
-  assert.equal(context, '直前の会話文脈')
+  assert.equal(context, '直近の会話文脈')
   assert.deepEqual(calls, [[
     'throughline',
     [
       'handoff-context', '--project', '/srv/bellteam/bots/bot-a/project', '--json',
-      '--disclosure', 'silent',
+      '--disclosure', 'silent', '--sessions', 'recent',
     ],
   ]])
+})
+
+test('Throughlineが引数を受け付けずに止まった時は、呼び直さずに失敗を返す', async () => {
+  // 0.14.3 以前は `--sessions` を知らず、終了コード2で止まる。版の前後は反映の順番で防ぎ、ここでは呼び直さない。
+  let calls = 0
+  await assert.rejects(latestThroughlineHandoffContext('/srv/bellteam/bots/bot-a/project', {
+    run: async () => { calls += 1; throw Object.assign(new Error('Command failed: throughline handoff-context'), { code: 2 }) },
+  }), /Command failed/u)
+  assert.equal(calls, 1)
 })
 
 test('Throughlineに前回会話がなければ空の短期記憶を受け取る', async () => {

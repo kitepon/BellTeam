@@ -192,7 +192,7 @@ AitermのMCP登録は、`aiterm-setup`が書くものと同じ形（nodeの絶�
 
 Throughline（会話の記録と引き継ぎ。担当ナユタ）はBellTeamコンテナに初期搭載する基盤である（2026-10-01 オーナー裁定）。本体はDockerfileで`throughline@latest`をnpmのglobalへ入れ、起動時とBotの変更時に`throughline install`で4ハーネス（Claude・Codex・Grok・Cursor）のhookを登録する。登録に失敗した時はBellTeamを起動しない。短期記憶、ルーム文脈、記憶候補、夜間再起動のターン数に加え、Botのターンをオーナーの会話画面へ出す道にも使う。Claude Code・Grok・Cursorは、裏で動かした作業が終わると、BellTeamを通らずに自分から次のターンを始める。BellTeamは自分が配送したターンしか見ていなかったため、そのターンの報告がオーナーへ届かなかった（2026-10-01 ラプンツェル）。Stop hookが記録元のThroughlineは、どう始まったターンも記録するので、BellTeamはThroughlineの`observer-wait`・`observer-read`で各Botの終わったターンを順に受け取り、BellTeamが配送していないターンの最後の回答をそのBotの会話画面へ出す（実装中。Throughlineの始まり方の表示・本文を削らない読み出し・`host`の修正を待つ）。
 
-起動前に、共通のオーナー情報と共通規範を各CLIのグローバル指示へ生成する。正本は各CLIのグローバル`AGENTS.md`だけとし、Claude用のグローバル`CLAUDE.md`は`@AGENTS.md`だけを記載する。BellTeamはThroughlineへBotのprojectと`silent`を渡す一回の呼び出しで、会話本文を持つ最新sessionの短期記憶を取得する。該当する会話がなければ空として起動する。Botの名前、プロフィール、性格（考え方）、口調、役職、役割と取得した短期記憶をBotプロジェクトの`AGENTS.md`へ生成する。Claude用の`CLAUDE.md`は`@AGENTS.md`だけを記載する。起動時には会話プロンプトを渡さない。各CLIは通常のプロジェクト指示としてこれらを読み、その後に実際のメッセージだけを受け取る。
+起動前に、共通のオーナー情報と共通規範を各CLIのグローバル指示へ生成する。正本は各CLIのグローバル`AGENTS.md`だけとし、Claude用のグローバル`CLAUDE.md`は`@AGENTS.md`だけを記載する。BellTeamはThroughlineへBotのproject・`silent`・`--sessions recent`を渡す一回の呼び出しで、会話本文を持つ直近の複数sessionから作った短期記憶を取得する（オーナー裁定 2026-10-05。Throughline 0.15.0以上が要り、それより前の版では起動が止まる）。該当する会話がなければ空として起動する。Botの名前、プロフィール、性格（考え方）、口調、役職、役割と取得した短期記憶をBotプロジェクトの`AGENTS.md`へ生成する。Claude用の`CLAUDE.md`は`@AGENTS.md`だけを記載する。起動時には会話プロンプトを渡さない。各CLIは通常のプロジェクト指示としてこれらを読み、その後に実際のメッセージだけを受け取る。
 
 Bot削除はAitermセッションを閉じ、参加中のルームと予定宛先から外して、Botのプロジェクトフォルダを削除する。Web UIでは削除前に確認を求める。ルーム削除は設定画面から確認後に行い、ルームの設定、会話履歴、予定を保存領域ごと削除する。参加BotとBotの個別記憶は削除しない。iPhone・Macでは共通のルーム編集画面に削除操作を置き、成功後はルーム一覧、開いている会話、そのルームの下書きから外す。削除に失敗した時は理由を表示し、ルームと下書きを残す。
 
