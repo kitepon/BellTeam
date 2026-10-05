@@ -7,7 +7,7 @@ import { runtimeEnvironment, runtimeHome } from './runtime-home.mjs'
 import { defaultCallBridgeMcpUrl } from './distribution-profile.mjs'
 import { BELLTEAM_MCP_PATH, CALL_BRIDGE_MCP_PATH, SEAT_HEADER, SEAT_VARIABLE } from './seat-mcp.mjs'
 import { configureRtk } from './rtk-hooks.mjs'
-import { aitermRegistration, configureAitermHooks } from './aiterm-hooks.mjs'
+import { aitermRegistration, aitermRelay, configureAitermHooks } from './aiterm-hooks.mjs'
 import { configureCursorInstructions } from './cursor-instructions.mjs'
 
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -49,7 +49,7 @@ const AITERM_SEAT_ENV_VARS = [
 const AITERM_INHERITED_ENV_VARS = ['BELLTEAM_ROOT', 'PLAYWRIGHT_BROWSERS_PATH', 'RTK_TELEMETRY_DISABLED', 'LC_CTYPE']
 const UNUSABLE_CODEX_MCPS = ['[mcp_servers.xcodebuildmcp]', '[mcp_servers.openai-api-key-local-confirmation]']
 
-export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridge, aiterm = aitermRegistration, platform = process.platform, internalPort = Number(process.env.BELLTEAM_INTERNAL_PORT ?? 4181), environment = process.env } = {}) {
+export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridge, aiterm = aitermRegistration, relay = aitermRelay, platform = process.platform, internalPort = Number(process.env.BELLTEAM_INTERNAL_PORT ?? 4181), environment = process.env } = {}) {
   await Promise.all([
     mkdir(join(home, '.claude'), { recursive: true }),
     mkdir(join(home, '.codex'), { recursive: true }),
@@ -65,18 +65,26 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
   const tomlSeat = (header, tail = '') => seatServers.map(([id, path]) =>
     `[mcp_servers.${id}]\nurl = "${seatUrl(path)}"\n${header}\nstartup_timeout_sec = 30\ntool_timeout_sec = 120\n${tail}`).join('\n')
   const jsonSeat = entry => Object.fromEntries(seatServers.map(([id, path]) => [id, entry(seatUrl(path))]))
-  // Aitermの登録は `aiterm-setup` が書くものと同じ形にする。同梱のaiterm-mcpを読めない環境では、PATH上の aiterm-mcp を起動先にする。
-  const aitermServer = await aiterm().catch(() => ({ command: 'aiterm-mcp', args: [] }))
-  const aitermMcp = `[mcp_servers.aiterm]\ncommand = ${JSON.stringify(aitermServer.command)}\nargs = ${JSON.stringify(aitermServer.args)}\nstartup_timeout_sec = 30\ntool_timeout_sec = 120\n`
+  // Aitermの本体は `aiterm-setup` が書くものと同じ形（nodeの絶対path＋index.js）で起こす。同梱のaiterm-mcpを読めない環境では、PATH上の aiterm-mcp を起動先にする。
+  // 中継（mcp-lazy）がある環境では、その本体を中継ごしに登録する。本体は席がAitermの道具を呼ぶまで起きない。
+  const bundledAiterm = await aiterm().catch(() => null)
+  const relayPath = bundledAiterm ? await relay() : null
+  const aitermFor = harness => relayPath ? relayedAiterm(relayPath, bundledAiterm, harness, home) : bundledAiterm ?? { command: 'aiterm-mcp', args: [] }
+  const aitermToml = harness => {
+    const server = aitermFor(harness)
+    const env = server.env ? `env = { ${Object.entries(server.env).map(([name, value]) => `${name} = ${JSON.stringify(value)}`).join(', ')} }\n` : ''
+    return `[mcp_servers.aiterm]\ncommand = ${JSON.stringify(server.command)}\nargs = ${JSON.stringify(server.args)}\n${env}startup_timeout_sec = 30\ntool_timeout_sec = 120\n`
+  }
   // Codexは、挙げた名前が席の環境に無ければ渡さないだけなので、全部挙げる。
-  const codexMcp = `${tomlSeat(`env_http_headers = { "${SEAT_HEADER}" = "${SEAT_VARIABLE}" }`)}\n${aitermMcp}env_vars = ${JSON.stringify([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS])}\n`
+  const codexMcp = `${tomlSeat(`env_http_headers = { "${SEAT_HEADER}" = "${SEAT_VARIABLE}" }`)}\n${aitermToml('codex')}env_vars = ${JSON.stringify([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS])}\n`
   // Cursorは \${env:名前} を席の環境の値へ置き換える。環境に無い名前は置き換えず、その文字列のまま渡してしまう。
   // 受け継ぐだけの変数は、本体の環境にある時だけ挙げる。
   const cursorAitermEnv = Object.fromEntries([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS.filter(name => environment[name])]
     .map(name => [name, `\${env:${name}}`]))
-  const grokMcp = `${tomlSeat(`headers = { "${SEAT_HEADER}" = "\${${SEAT_VARIABLE}}" }`, 'enabled = true\n')}\n${aitermMcp}enabled = true\n`
-  const claudeMcp = { ...jsonSeat(url => ({ type: 'http', url, headers: { [SEAT_HEADER]: `\${${SEAT_VARIABLE}}` } })), aiterm: aitermServer }
-  const cursorMcp = { ...jsonSeat(url => ({ url, headers: { [SEAT_HEADER]: `\${env:${SEAT_VARIABLE}}` } })), aiterm: { ...aitermServer, env: cursorAitermEnv } }
+  const grokMcp = `${tomlSeat(`headers = { "${SEAT_HEADER}" = "\${${SEAT_VARIABLE}}" }`, 'enabled = true\n')}\n${aitermToml('grok')}enabled = true\n`
+  const claudeMcp = { ...jsonSeat(url => ({ type: 'http', url, headers: { [SEAT_HEADER]: `\${${SEAT_VARIABLE}}` } })), aiterm: aitermFor('claude') }
+  const cursorAiterm = aitermFor('cursor')
+  const cursorMcp = { ...jsonSeat(url => ({ url, headers: { [SEAT_HEADER]: `\${env:${SEAT_VARIABLE}}` } })), aiterm: { ...cursorAiterm, env: { ...cursorAitermEnv, ...cursorAiterm.env } } }
   // Codexのアカウントに入っているプラグインは、席ごとにMCPを起こす。
   // build-ios-apps の `npx xcodebuildmcp` はXcodeの無い環境では使えない。
   // openai-developers の `openai-api-key-local-confirmation` はAPIキー設定の確認フォームで、人のいない席では答えられない。
@@ -90,6 +98,25 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
     mergeMcpConfig(join(home, '.claude.json'), claudeMcp, [...bots.values()].map(bot => bot.project)),
     mergeMcpConfig(join(home, '.cursor/mcp.json'), cursorMcp),
   ])
+}
+
+// 親配送を引き取る判定（aiterm-delivery-wake）がある親の種類。Grokの親には親配送が無い。
+const AITERM_WAKE_PARENTS = ['codex', 'claude', 'cursor']
+
+// Aitermの本体を、MCPを使う時だけ起こす中継ごしにする登録。使っていない席では本体（実占有 約45MB）が起きず、中継（約4MB）だけが残る。
+// - 記録（初期化と道具の一覧の控え）はCLIの種類ごとに分ける。Aitermの一覧は席の環境で変わらないので、同じ種類の席は共有する。
+// - 本体は一度起きたら席が終わるまで保つ（開いた端末と配送を持つので、途中で止めない）。
+// - 本体が眠っている間は、終了した席の親配送を引き取る者が居ない。Aitermの判定が「引き取る配送がある」と答えた時に、中継が本体を起こす。
+// 席を閉じる時の数え方は、Aiterm（0.51.0から）が中継の直接の子を数えない取り決めに依る。
+function relayedAiterm(relay, server, harness, home) {
+  const wake = AITERM_WAKE_PARENTS.includes(harness)
+    ? { MCP_LAZY_WAKE_COMMAND: JSON.stringify([server.command, join(dirname(server.args[0]), 'delivery-wake-cli.js'), '--parent', harness]), MCP_LAZY_WAKE_INTERVAL: '30s' }
+    : {}
+  return {
+    command: relay,
+    args: [server.command, ...server.args],
+    env: { MCP_LAZY_CACHE_DIR: join(home, '.cache/mcp-lazy', `aiterm-${harness}`), MCP_LAZY_IDLE_STOP: '0', ...wake },
+  }
 }
 
 async function writeCodexConfig(path, bots, managedConfig) {

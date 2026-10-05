@@ -139,8 +139,8 @@ Authorization = "Bearer keep-me"
 default_skills_installs_purged = true
 `, 'utf8')
 
-  // 同梱のaiterm-mcpを読めない環境。Aitermの起動先はPATH上の aiterm-mcp になる。
-  await writeHarnessConfig(new Map(), home, { aiterm: async () => { throw new Error('ERR_MODULE_NOT_FOUND') } })
+  // 同梱のaiterm-mcpを読めない環境。Aitermの起動先はPATH上の aiterm-mcp になり、中継があっても通さない。
+  await writeHarnessConfig(new Map(), home, { aiterm: async () => { throw new Error('ERR_MODULE_NOT_FOUND') }, relay: async () => '/usr/local/bin/mcp-lazy' })
 
   const config = await readFile(join(home, '.grok/config.toml'), 'utf8')
   assert.match(config, /\[mcp_servers\.x-article\]\nurl = "http:\/\/192\.168\.1\.2:39210\/mcp"/u)
@@ -203,11 +203,11 @@ KEEP = "1"
   assert.equal(grok.match(/X-Bellteam-Seat/gu)?.length, 2)
 })
 
-test('Aitermの登録はaiterm-setupが書くものと同じ形にし、timeoutを付ける', async () => {
+test('中継の無い環境では、Aitermの登録はaiterm-setupが書くものと同じ形にし、timeoutを付ける', async () => {
   const home = await mkdtemp(join(tmpdir(), 'bellteam-aiterm-registration-'))
   const registration = { command: '/usr/local/bin/node', args: ['/aiterm/dist/index.js'] }
 
-  await writeHarnessConfig(new Map(), home, { aiterm: async () => registration })
+  await writeHarnessConfig(new Map(), home, { aiterm: async () => registration, relay: async () => null })
 
   const section = '[mcp_servers.aiterm]\ncommand = "/usr/local/bin/node"\nargs = ["/aiterm/dist/index.js"]\nstartup_timeout_sec = 30\ntool_timeout_sec = 120\n'
   assert.ok((await readFile(join(home, '.codex/config.toml'), 'utf8')).includes(section))
@@ -234,7 +234,7 @@ test('CursorのAiterm登録は、席の環境にある変数だけを名前で�
   const home = await mkdtemp(join(tmpdir(), 'bellteam-aiterm-cursor-env-'))
   const aiterm = async () => ({ command: '/usr/local/bin/node', args: ['/aiterm/dist/index.js'] })
 
-  await writeHarnessConfig(new Map(), home, { aiterm, environment: { RTK_TELEMETRY_DISABLED: '1', BELLTEAM_BUGHUB_KEY: 'secret' } })
+  await writeHarnessConfig(new Map(), home, { aiterm, relay: async () => null, environment: { RTK_TELEMETRY_DISABLED: '1', BELLTEAM_BUGHUB_KEY: 'secret' } })
 
   const env = JSON.parse(await readFile(join(home, '.cursor/mcp.json'), 'utf8')).mcpServers.aiterm.env
   assert.equal(env.BELLTEAM_PROJECT, '${env:BELLTEAM_PROJECT}')
@@ -244,6 +244,43 @@ test('CursorのAiterm登録は、席の環境にある変数だけを名前で�
   for (const name of ['PLAYWRIGHT_BROWSERS_PATH', 'LC_CTYPE', 'BELLTEAM_ROOT', 'BELLTEAM_BUGHUB_KEY']) assert.equal(Object.hasOwn(env, name), false, name)
   assert.deepEqual(Object.keys(env).filter(name => /KEY|TOKEN|SECRET|_CF_/u.test(name)), [])
   assert.equal(Object.hasOwn(JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).mcpServers.aiterm, 'env'), false)
+})
+
+test('中継のある環境では、Aitermの本体を中継ごしに登録し、親配送の判定を親の種類ごとに書く', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'bellteam-aiterm-relay-'))
+  const aiterm = async () => ({ command: '/usr/local/bin/node', args: ['/aiterm/dist/index.js'] })
+  const relay = '/usr/local/bin/mcp-lazy'
+  const relayed = harness => ({
+    MCP_LAZY_CACHE_DIR: join(home, '.cache/mcp-lazy', `aiterm-${harness}`),
+    MCP_LAZY_IDLE_STOP: '0',
+    ...(harness === 'grok' ? {} : { MCP_LAZY_WAKE_COMMAND: JSON.stringify(['/usr/local/bin/node', '/aiterm/dist/delivery-wake-cli.js', '--parent', harness]), MCP_LAZY_WAKE_INTERVAL: '30s' }),
+  })
+
+  for (let pass = 0; pass < 2; pass += 1) await writeHarnessConfig(new Map(), home, { aiterm, relay: async () => relay, environment: { RTK_TELEMETRY_DISABLED: '1' } })
+
+  const claude = JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).mcpServers.aiterm
+  assert.deepEqual(claude, { command: relay, args: ['/usr/local/bin/node', '/aiterm/dist/index.js'], env: relayed('claude') })
+  const cursor = JSON.parse(await readFile(join(home, '.cursor/mcp.json'), 'utf8')).mcpServers.aiterm
+  assert.deepEqual({ command: cursor.command, args: cursor.args }, { command: claude.command, args: claude.args })
+  // Cursorは、席の環境から渡す変数と中継の設定を同じ env に持つ。
+  assert.equal(cursor.env.BELLTEAM_PROJECT, '${env:BELLTEAM_PROJECT}')
+  assert.equal(cursor.env.RTK_TELEMETRY_DISABLED, '${env:RTK_TELEMETRY_DISABLED}')
+  for (const [name, value] of Object.entries(relayed('cursor'))) assert.equal(cursor.env[name], value, name)
+
+  // CodexとGrokは行内の表で渡す。TOMLの文字列はJSONと同じ逃がし方で書ける。
+  const inline = (config, harness) => {
+    const line = config.match(/\[mcp_servers\.aiterm\]\ncommand = "\/usr\/local\/bin\/mcp-lazy"\nargs = \["\/usr\/local\/bin\/node","\/aiterm\/dist\/index\.js"\]\nenv = \{ ([^\n]+) \}\nstartup_timeout_sec = 30\ntool_timeout_sec = 120\n/u)?.[1]
+    assert.ok(line, `${harness} のAiterm登録が中継つきの形でない`)
+    return Object.fromEntries([...line.matchAll(/(\w+) = ("(?:[^"\\]|\\.)*")/gu)].map(([, name, value]) => [name, JSON.parse(value)]))
+  }
+  const codex = await readFile(join(home, '.codex/config.toml'), 'utf8')
+  assert.deepEqual(inline(codex, 'codex'), relayed('codex'))
+  // Codexへ席の環境から渡す変数名は、中継つきでも同じ表に残す。
+  assert.match(codex, /\[mcp_servers\.aiterm\]\n(?:[^\[\n][^\n]*\n)*?env_vars = \[[^\n]+\]\n/u)
+  const grok = await readFile(join(home, '.grok/config.toml'), 'utf8')
+  assert.deepEqual(inline(grok, 'grok'), relayed('grok'))
+  assert.doesNotMatch(grok, /MCP_LAZY_WAKE/u)
+  for (const config of [codex, grok]) assert.equal(config.match(/\[mcp_servers\.aiterm\]/gu)?.length, 1)
 })
 
 test('Claude設定にBotフォルダの信頼済み記録を書き、既存の項目は保持する', async () => {
