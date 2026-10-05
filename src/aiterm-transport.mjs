@@ -100,11 +100,6 @@ export class AitermClient {
         error.status = 409
         error.publicMessage = 'このBotは先に届いた送信を受け付けている途中で、メッセージは送信されませんでした。少し待ってから送り直してください。'
       }
-      // 落ちた送信のlockを片付ける途中の印が残った席（Aiterm 0.52.1）。席を閉じるまで、どの送信も打つ前に断られる。
-      // 送っていないので、閉じて（Aitermが印を片付ける）起こし直してから送り直せる。
-      if (name === 'pty_send'
-        && message.startsWith(`aiterm: agent session '${args.session_id}' に、終了した送信のlockを片付ける途中で残った印があります。`)
-        && message.includes('文字列は送信していません。')) error.code = 'AGENT_SEND_LOCK_STUCK'
       throw error
     }
     return result
@@ -462,13 +457,11 @@ export class AitermTransport {
         result = await this.sendToSession(session, message, imageFiles)
       } catch (error) {
         const running = await this.isRunning(bot)
-        // 送信のlockの印が残った席は、画面の有無に関わらず閉じる。印を片付けるのはAitermのpty_closeだけ（0.52.1）。
-        const stuck = error.code === 'AGENT_SEND_LOCK_STUCK'
-        if (running && !stuck && error.code !== 'AGENT_SESSION_REQUIRED') throw error
+        if (running && error.code !== 'AGENT_SESSION_REQUIRED') throw error
         // Aitermは画面が無い席も同じ符号で断る（0.52.0）。画面が残っている時だけが登録の消失。
         // 画面は残り登録だけ消えた席は、起動もできない。閉じてから起こし直し、同じ文を1回だけ送る。
-        if (running || stuck) {
-          process.stderr.write(`BellTeam Aiterm ${stuck ? 'send lock stuck' : 'agent registration lost'}, restarting: ${bot.id}\n`)
+        if (running) {
+          process.stderr.write(`BellTeam Aiterm agent registration lost, restarting: ${bot.id}\n`)
           await this.client.call('pty_close', { session_id: session })
           await this.removeRetainedImages(bot.id)
         }

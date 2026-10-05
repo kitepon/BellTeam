@@ -104,7 +104,7 @@ test('順番待ちの断りの分類は該当する席へのpty_sendだけに限
 const unregistered = "aiterm: AGENT_SESSION_REQUIRED: session 'bot-a' のagent登録がありません。文字列は送信していません。"
 
 // sessions はpty_listが返す画面。登録だけ消えた席は画面が残り、止まっている席は画面も無い。
-function registrationLostClient({ refusals, sessions = 'bot-a\tclaude', refusal = unregistered }) {
+function registrationLostClient({ refusals, sessions = 'bot-a\tclaude' }) {
   const calls = []
   let sends = 0
   // 断りの分類は本物のAitermClientを通す。起動用の環境は渡さず、実物のAitermを立てない。
@@ -112,7 +112,7 @@ function registrationLostClient({ refusals, sessions = 'bot-a\tclaude', refusal 
   const client = { call: (name, args) => classifier.call(name, args) }
   classifier.client = { async callTool({ name, arguments: args }) {
     calls.push([name, args])
-    if (name === 'pty_send' && ++sends <= refusals) return { isError: true, content: [{ type: 'text', text: refusal }] }
+    if (name === 'pty_send' && ++sends <= refusals) return { isError: true, content: [{ type: 'text', text: unregistered }] }
     if (name === 'pty_send') return { structuredContent: {
       mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: '/node', args: ['wait'] },
     } }
@@ -168,60 +168,6 @@ test('画面が無い席が同じ符号で断られた時は、登録の消失�
 
   assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_list', 'agent_launch', 'pty_send', 'pty_read'])
   assert.deepEqual(written.filter(text => text.includes('registration lost')), [])
-})
-
-// 落ちた送信のlockを片付ける途中の印が残った席への断り（Aiterm 0.52.1）。席を閉じるまで続く。
-const stuck = "aiterm: agent session 'bot-a' に、終了した送信のlockを片付ける途中で残った印があります。自動回収は並行送信の混線を招くため行いません。文字列は送信していません。pty_listで対象を確認し、pty_closeでsessionを閉じてから同じIDで再作成してください"
-
-for (const [label, sessions] of [['動いている席', 'bot-a\tclaude'], ['画面が無い席', '']]) {
-  test(`送信のlockの印が残って断られた送信は、${label}でも閉じて起こし直し、同じ文を1回だけ送る`, async t => {
-    const root = await mkdtemp(join(tmpdir(), 'bellteam-send-lock-stuck-'))
-    t.after(() => rm(root, { recursive: true, force: true }))
-    const { client, calls } = registrationLostClient({ refusals: 1, sessions, refusal: stuck })
-    const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }) })
-    const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', project: root }
-    const written = []
-    t.mock.method(process.stderr, 'write', text => { written.push(String(text)); return true })
-
-    await transport.turn(bot, '再現用の本文')
-
-    assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_list', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
-    assert.deepEqual(calls[2][1], { session_id: 'bot-a' })
-    assert.equal(calls.filter(([name]) => name === 'pty_send').length, 2)
-    assert.deepEqual(written.filter(text => text.includes('restarting')), ['BellTeam Aiterm send lock stuck, restarting: bot-a\n'])
-  })
-}
-
-test('起こし直した後も印が残っていれば、もう一度は起こし直さず失敗にする', async t => {
-  const root = await mkdtemp(join(tmpdir(), 'bellteam-send-lock-stuck-'))
-  t.after(() => rm(root, { recursive: true, force: true }))
-  const { client, calls } = registrationLostClient({ refusals: 2, refusal: stuck })
-  const transport = new AitermTransport({ client, handoffContext: async () => '' })
-  const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', project: root }
-  t.mock.method(process.stderr, 'write', () => true)
-
-  await assert.rejects(transport.turn(bot, '再現用の本文'), /残った印があります/u)
-
-  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_list', 'pty_close', 'agent_launch', 'pty_send'])
-  assert.equal(transport.active.size, 0)
-})
-
-test('lockの印の分類は、打つ前に断った該当の席へのpty_sendだけに限定する', async () => {
-  const client = new AitermClient()
-  client.client = { async callTool() { return { isError: true, content: [{ type: 'text', text: stuck }] } } }
-  await assert.rejects(client.call('pty_send', { session_id: 'bot-a', text: '本文' }), error => {
-    assert.equal(error.code, 'AGENT_SEND_LOCK_STUCK')
-    assert.equal(error.status, undefined)
-    assert.match(error.message, /pty_closeでsessionを閉じてから/u)
-    return true
-  })
-  await assert.rejects(client.call('pty_send', { session_id: 'bot-b', text: '本文' }), error => error.code === undefined)
-  await assert.rejects(client.call('pty_read', { session_id: 'bot-a' }), error => error.code === undefined)
-  // 「送信していません」が無い文は、打った後かもしれないので閉じない。
-  client.client = { async callTool() {
-    return { isError: true, content: [{ type: 'text', text: "aiterm: agent session 'bot-a' に、終了した送信のlockを片付ける途中で残った印があります。" }] }
-  } }
-  await assert.rejects(client.call('pty_send', { session_id: 'bot-a', text: '本文' }), error => error.code === undefined)
 })
 
 test('打った後に返るmode=sentは、送り直さず無効な受け取りとして失敗にする', async () => {
