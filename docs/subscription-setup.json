@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-03T12:24:51.658Z",
+  "checkedAt": "2026-10-05T00:48:05.450Z",
   "appStoreConnect": {
     "apiAccess": {
       "configured": true,
@@ -3052,9 +3052,9 @@
       "clientBuilds": [
         {
           "platform": "IOS",
-          "id": "57bbc7da-f4e7-4acf-9e90-6f8a2dac1dfb",
-          "build": "39",
-          "sourceCommit": "cfe758eb1eec74c014b84dbab1dd301a19da5f46",
+          "id": "186a66e4-985e-4074-973c-142969964ce7",
+          "build": "41",
+          "sourceCommit": "ef31b3fa33e193cec3735eff992611989bf57c6c",
           "processingState": "VALID",
           "ownerGroupDistributed": true,
           "internalBuildState": "IN_BETA_TESTING",
@@ -3063,9 +3063,9 @@
         },
         {
           "platform": "MAC_OS",
-          "id": "7ea4aeb3-0684-4a2e-8acb-32228cc8a4b0",
-          "build": "39",
-          "sourceCommit": "cfe758eb1eec74c014b84dbab1dd301a19da5f46",
+          "id": "74cd2ef8-102c-46cb-9de3-4538f331a153",
+          "build": "41",
+          "sourceCommit": "ef31b3fa33e193cec3735eff992611989bf57c6c",
           "processingState": "VALID",
           "ownerGroupDistributed": true,
           "internalBuildState": "IN_BETA_TESTING",
@@ -3074,18 +3074,18 @@
         }
       ],
       "draftsWithBuild28ProofPath": "runtime/apple-review/review-drafts-build28-proof.json",
-      "submittedAt": "2026-10-04T05:37:58.434Z",
+      "submittedAt": "2026-10-05T00:47:24.151Z",
       "submittedResources": [
         {
           "platform": "MAC_OS",
-          "submissionId": "aaac7dce-78be-49af-a988-9d132eea8706",
+          "submissionId": "a3504d0e-4c90-4f80-b9b7-fa5c4e19d455",
           "state": "WAITING_FOR_REVIEW",
-          "submittedDate": "2026-10-04T05:37:58.434Z",
+          "submittedDate": "2026-10-05T00:47:24.151Z",
           "versionState": "WAITING_FOR_REVIEW",
-          "build": "39",
+          "build": "41",
           "items": [
             {
-              "id": "YWFhYzdkY2UtNzhiZS00OWFmLWE5ODgtOWQxMzJlZWE4NzA2fDZ8ODkyMTE0MjM3",
+              "id": "YTM1MDRkMGUtNGM5MC00ZjgwLWI5YjctZmE1YzRlMTlkNDU1fDZ8ODkyMTE0MjM3",
               "state": "READY_FOR_REVIEW",
               "resources": {
                 "appStoreVersion": {
@@ -3098,14 +3098,14 @@
         },
         {
           "platform": "IOS",
-          "submissionId": "97b1a038-0047-49bd-b068-5b731fec5bd3",
+          "submissionId": "ecad84a9-ac34-409c-9413-95984f71bf63",
           "state": "WAITING_FOR_REVIEW",
-          "submittedDate": "2026-10-04T05:37:49.87Z",
+          "submittedDate": "2026-10-05T00:45:55.634Z",
           "versionState": "WAITING_FOR_REVIEW",
-          "build": "39",
+          "build": "41",
           "items": [
             {
-              "id": "OTdiMWEwMzgtMDA0Ny00OWJkLWIwNjgtNWI3MzFmZWM1YmQzfDZ8ODkyMDI0MTUy",
+              "id": "ZWNhZDg0YTktYWMzNC00MDljLTk0MTMtOTU5ODRmNzFiZjYzfDZ8ODkyMDI0MTUy",
               "state": "READY_FOR_REVIEW",
               "resources": {
                 "appStoreVersion": {
@@ -3115,7 +3115,7 @@
               }
             },
             {
-              "id": "OTdiMWEwMzgtMDA0Ny00OWJkLWIwNjgtNWI3MzFmZWM1YmQzfDE4fDljMTMyNzcwLWY3NjUtNDgzZi05NzllLWMxOGJkNDkxZTBiOA",
+              "id": "ZWNhZDg0YTktYWMzNC00MDljLTk0MTMtOTU5ODRmNzFiZjYzfDE4fDljMTMyNzcwLWY3NjUtNDgzZi05NzllLWMxOGJkNDkxZTBiOA",
               "state": "READY_FOR_REVIEW",
               "resources": {
                 "subscriptionVersion": {
@@ -3125,7 +3125,7 @@
               }
             },
             {
-              "id": "OTdiMWEwMzgtMDA0Ny00OWJkLWIwNjgtNWI3MzFmZWM1YmQzfDE5fDU3MTRkNThjLTQzNDEtNDAzOC05NjA1LWI0YTEyNWVkOGU5NA",
+              "id": "ZWNhZDg0YTktYWMzNC00MDljLTk0MTMtOTU5ODRmNzFiZjYzfDE5fDU3MTRkNThjLTQzNDEtNDAzOC05NjA1LWI0YTEyNWVkOGU5NA",
               "state": "READY_FOR_REVIEW",
               "resources": {
                 "subscriptionGroupVersion": {
@@ -3137,53 +3137,79 @@
           ]
         }
       ],
-      "submissionProofPath": "runtime/apple-review/review39-final-verified.json",
+      "submissionProofPath": "runtime/apple-review/review41/final-verified.json",
       "buildReplacement": {
         "authorized": true,
-        "authorizationMessage": "では審査に出そうぜ",
-        "previousBuild": "35",
-        "build": "39",
+        "authorizationMessage": "審査出してね",
+        "previousBuild": "39",
+        "build": "41",
         "previousSubmissions": [
           {
-            "platform": "IOS",
-            "id": "f3938c3a-e730-49ae-85a8-c129674e30a0",
+            "platform": "MAC_OS",
+            "id": "aaac7dce-78be-49af-a988-9d132eea8706",
             "state": "COMPLETE",
             "itemsState": "REMOVED"
           },
           {
-            "platform": "MAC_OS",
-            "id": "d0b41f3d-884c-44d5-a853-999c6c6dc4db",
+            "platform": "IOS",
+            "id": "97b1a038-0047-49bd-b068-5b731fec5bd3",
             "state": "COMPLETE",
             "itemsState": "REMOVED"
           }
         ],
-        "verifiedAt": "2026-10-04T05:38:18.314Z",
-        "reviewDetailsPreserved": true,
+        "verifiedAt": "2026-10-05T00:48:05.450Z",
+        "reviewCredentialsPreserved": true,
+        "reviewNotesOriginalPreserved": true,
+        "reviewNotesBuild41Included": true,
         "localizationsPreserved": true,
         "initialSubscriptionAndGroupResubmitted": true,
         "previousReplacement": {
           "authorized": true,
-          "authorizationMessage": "差し替えようぜ",
-          "previousBuild": "28",
-          "build": "35",
+          "authorizationMessage": "では審査に出そうぜ",
+          "previousBuild": "35",
+          "build": "39",
           "previousSubmissions": [
             {
-              "platform": "MAC_OS",
-              "id": "e3a78b52-8289-45f4-8302-ce1b90aa1d88",
-              "build": "28",
-              "submittedDate": "2026-10-03T04:36:28.402Z"
+              "platform": "IOS",
+              "id": "f3938c3a-e730-49ae-85a8-c129674e30a0",
+              "state": "COMPLETE",
+              "itemsState": "REMOVED"
             },
             {
-              "platform": "IOS",
-              "id": "c431396f-e1e4-4223-a21c-4e82e946fb3f",
-              "build": "28",
-              "submittedDate": "2026-10-03T04:36:24.936Z"
+              "platform": "MAC_OS",
+              "id": "d0b41f3d-884c-44d5-a853-999c6c6dc4db",
+              "state": "COMPLETE",
+              "itemsState": "REMOVED"
             }
           ],
-          "verifiedAt": "2026-10-03T12:24:51.658Z",
+          "verifiedAt": "2026-10-04T05:38:18.314Z",
           "reviewDetailsPreserved": true,
           "localizationsPreserved": true,
-          "initialSubscriptionAndGroupResubmitted": true
+          "initialSubscriptionAndGroupResubmitted": true,
+          "previousReplacement": {
+            "authorized": true,
+            "authorizationMessage": "差し替えようぜ",
+            "previousBuild": "28",
+            "build": "35",
+            "previousSubmissions": [
+              {
+                "platform": "MAC_OS",
+                "id": "e3a78b52-8289-45f4-8302-ce1b90aa1d88",
+                "build": "28",
+                "submittedDate": "2026-10-03T04:36:28.402Z"
+              },
+              {
+                "platform": "IOS",
+                "id": "c431396f-e1e4-4223-a21c-4e82e946fb3f",
+                "build": "28",
+                "submittedDate": "2026-10-03T04:36:24.936Z"
+              }
+            ],
+            "verifiedAt": "2026-10-03T12:24:51.658Z",
+            "reviewDetailsPreserved": true,
+            "localizationsPreserved": true,
+            "initialSubscriptionAndGroupResubmitted": true
+          }
         }
       },
       "releaseType": "AFTER_APPROVAL",
