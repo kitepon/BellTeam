@@ -1,3 +1,11 @@
+# mcp-lazy（MCPを使う時だけ本体を起こす中継。担当レオナ）。npmの同名パッケージは別の製品なので、公開リポジトリの受入済みコミットからビルドする。
+FROM golang:1.27.1-trixie AS mcp-lazy
+ARG MCP_LAZY_COMMIT=ba0f4433fa668c57f3b5df400041559d140db533
+RUN git clone https://github.com/kitepon/mcp-lazy.git /src \
+  && git -C /src checkout --detach "$MCP_LAZY_COMMIT" \
+  && cd /src \
+  && CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags '-s -w' -o /out/mcp-lazy .
+
 FROM node:current-trixie AS harnesses
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -23,6 +31,8 @@ RUN curl -fsSL https://x.ai/cli/install.sh | bash \
 # RTK（担当ドリリー）。本家のinstall.shがsha256を照合する。~/.localはcursor-cliのvolumeで隠れるため/usr/local/binへ置く。
 RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | RTK_INSTALL_DIR=/usr/local/bin sh \
   && rtk --version
+COPY --from=mcp-lazy /out/mcp-lazy /usr/local/bin/mcp-lazy
+RUN mcp-lazy --version
 
 RUN usermod -l bell -d /home/bell -m node \
   && groupmod -n bell node \
