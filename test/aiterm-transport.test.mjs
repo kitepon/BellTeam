@@ -162,6 +162,67 @@ test('新規起動後の再送も不達なら二度目をそのまま失敗に�
   assert.equal(calls.filter(call => call[0] === 'agent_launch').length, 1)
 })
 
+test('起動の準備が終わらなかった席は残った端末を閉じ、起こし直さずに失敗を返し、次の送信でもう一度起こす', async () => {
+  const calls = []
+  let launches = 0
+  const client = {
+    async call(name, args) {
+      calls.push([name, args])
+      if (name === 'pty_list') return { content: [{ type: 'text', text: '(セッション無し)' }] }
+      if (name === 'pty_send' && launches < 2) throw new Error('SESSION_NOT_FOUND')
+      if (name === 'agent_launch' && ++launches === 1) {
+        // 認証が切れたCLIがサインインの画面で止まった時のAitermの返事（0.52.2）。端末は作られて残る。
+        throw Object.assign(new Error('aiterm: session_id: bot-a\n起動準備を完了できませんでした。reason=startup_dialog'), {
+          launch: { schema: 'aiterm.agent-launch-result.v1', session_id: 'bot-a', startup: { status: 'blocked', reason: 'startup_dialog' } },
+        })
+      }
+      if (name === 'agent_launch') return { structuredContent: { session_id: 'bot-a' } }
+      if (name === 'pty_close') return { structuredContent: { outcome: 'closed' } }
+      if (name === 'pty_send') return { structuredContent: { mode: 'agent_dispatch', event_cursor: 2, wait_process: { executable: '/node', args: ['wait'] } } }
+      if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: '了解' } }
+      throw new Error(`unexpected ${name}`)
+    },
+  }
+  const transport = new AitermTransport({ client, handoffContext: noMemory, waitProcess: async () => ({ outcome: 'done' }) })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: await mkdtemp(join(tmpdir(), 'bellteam-launch-not-ready-')) }
+
+  await assert.rejects(transport.turn(bot, 'こんにちは'), error => {
+    assert.match(error.message, /起動準備を完了できませんでした/u)
+    assert.match(error.publicMessage, /メッセージは送信されませんでした。.*AIの認証が切れている可能性があります。/u)
+    return true
+  })
+  assert.deepEqual(calls.map(call => call[0]), ['pty_send', 'pty_list', 'agent_launch', 'pty_close'])
+  assert.deepEqual(calls.at(-1), ['pty_close', { session_id: 'bot-a' }])
+
+  // 認証し直した後の次の送信は、残った端末に邪魔されず、普通に起きる。
+  await transport.turn(bot, 'もう一度')
+  assert.equal(calls.filter(call => call[0] === 'agent_launch').length, 2)
+  assert.equal(calls.filter(call => call[0] === 'pty_close').length, 1)
+  assert.equal(calls.filter(call => call[0] === 'pty_send').at(-1)[1].text, 'もう一度')
+})
+
+test('端末を作る前に失敗した起動は、端末を閉じず、理由の文も付けない', async () => {
+  const calls = []
+  const client = {
+    async call(name, args) {
+      calls.push([name, args])
+      if (name === 'pty_list') return { content: [{ type: 'text', text: '(セッション無し)' }] }
+      if (name === 'pty_send') throw new Error('SESSION_NOT_FOUND')
+      if (name === 'agent_launch') throw new Error('aiterm: PTY_BACKEND_FAILED')
+      throw new Error(`unexpected ${name}`)
+    },
+  }
+  const transport = new AitermTransport({ client, handoffContext: noMemory })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: await mkdtemp(join(tmpdir(), 'bellteam-launch-failed-')) }
+
+  await assert.rejects(transport.turn(bot, 'こんにちは'), error => {
+    assert.equal(error.message, 'aiterm: PTY_BACKEND_FAILED')
+    assert.equal(error.publicMessage, undefined)
+    return true
+  })
+  assert.deepEqual(calls.map(call => call[0]), ['pty_send', 'pty_list', 'agent_launch'])
+})
+
 test('BotのCLI名を四つのAiterm harnessへ変換する', async () => {
   const launches = []
   const client = {

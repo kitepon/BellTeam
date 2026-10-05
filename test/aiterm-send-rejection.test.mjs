@@ -67,6 +67,62 @@ for (const [label, failure, status, code] of [
   })
 }
 
+test('起動の準備が終わらなかった時のAitermの返事から、残った端末の名前と理由を受け取る', async () => {
+  const launch = { schema: 'aiterm.agent-launch-result.v1', session_id: 'bot-a', startup: { status: 'blocked', reason: 'startup_dialog' } }
+  const client = new AitermClient()
+  client.client = { async callTool() {
+    return { isError: true, content: [{ type: 'text', text: 'aiterm: session_id: bot-a\n起動準備を完了できませんでした。reason=startup_dialog' }], structuredContent: launch }
+  } }
+  await assert.rejects(client.call('agent_launch', { harness: 'codex-cli' }), error => {
+    assert.match(error.message, /reason=startup_dialog/u)
+    assert.deepEqual(error.launch, launch)
+    return true
+  })
+  // ほかの道具の失敗には付けない。
+  await assert.rejects(client.call('pty_close', { session_id: 'bot-a' }), error => error.launch === undefined)
+})
+
+test('Botを起動できなかった時は、サーバー障害として記録し、利用者へ理由の文を返す', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-launch-not-ready-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const calls = []
+  const client = { async call(name, args) {
+    calls.push([name, args])
+    if (name === 'pty_send') throw new Error('SESSION_NOT_FOUND')
+    if (name === 'pty_list') return { content: [{ type: 'text', text: '(セッション無し)' }] }
+    if (name === 'pty_close') return { structuredContent: { outcome: 'closed' } }
+    if (name === 'agent_launch') throw Object.assign(new Error('aiterm: session_id: bot-a\n起動準備を完了できませんでした。reason=startup_dialog'), {
+      launch: { schema: 'aiterm.agent-launch-result.v1', session_id: 'bot-a', startup: { status: 'blocked', reason: 'startup_dialog' } },
+    })
+    throw new Error(`unexpected tool: ${name}`)
+  } }
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: root }
+  const bots = new Map([[bot.id, bot]])
+  const transport = new AitermTransport({ client, handoffContext: async () => '' })
+  const messenger = new BellTeamMessenger({ bots, transport, logPath: join(root, 'messages.jsonl') })
+  const diagnostics = []
+  const server = createBellTeamServer({
+    bots, transport, messenger, store: messenger.store, authorize: async () => true,
+    diagnostics: { async record(value) { diagnostics.push(value) } },
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  t.after(() => new Promise(resolve => server.close(resolve)))
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/bots/bot-a/messages`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message: '再現用の本文' }),
+  })
+  assert.equal(response.status, 500)
+  const body = await response.json()
+  assert.equal(body.error, 'INTERNAL_ERROR')
+  assert.match(body.message, /メッセージは送信されませんでした。.*AIの認証が切れている可能性があります。/u)
+  assert.equal(body.message.includes('pty_'), false)
+  assert.deepEqual(calls.map(call => call[0]), ['pty_send', 'pty_list', 'agent_launch', 'pty_close'])
+  assert.deepEqual(calls.at(-1), ['pty_close', { session_id: 'bot-a' }])
+  await transport.idle(bot.id)
+  assert.deepEqual(diagnostics.map(value => value.code), ['SERVER_HTTP_500'])
+})
+
 test('入力拒否の分類は該当するpty_sendだけに限定し、元の理由を保持する', async () => {
   const client = new AitermClient()
   client.client = { async callTool() {

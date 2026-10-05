@@ -80,6 +80,9 @@ export class AitermClient {
     if (result.isError) {
       const message = textResult(result) || `AITERM_TOOL_FAILED: ${name}`
       const error = new Error(message)
+      // 起動の準備が終わらなかった時、Aitermは作った端末の名前と止まった理由を構造で返す（aiterm.agent-launch-result.v1）。
+      if (name === 'agent_launch' && result.structuredContent?.schema === 'aiterm.agent-launch-result.v1')
+        error.launch = result.structuredContent
       // Aitermが未送信を明示した入力受付の拒否は、その席の状態との衝突。
       // その他の送信失敗や受付後の不明な結果まで成功・未送信と決めない。
       if (name === 'pty_send'
@@ -168,14 +171,34 @@ export class AitermTransport {
     const shortTermMemory = await this.handoffContext(bot.project)
     await this.prepareStartup(bot, shortTermMemory)
     const env = await loadBotEnvironment(bot.project)
-    const launch = await this.client.call('agent_launch', {
-      harness,
-      cwd: bot.project,
-      session_name: bot.id,
-      trust_project: true,
-      ...(bot.model ? { model: bot.model } : {}),
-      ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}),
-    }, { env })
+    let launch
+    try {
+      launch = await this.client.call('agent_launch', {
+        harness,
+        cwd: bot.project,
+        session_name: bot.id,
+        trust_project: true,
+        ...(bot.model ? { model: bot.model } : {}),
+        ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}),
+      }, { env })
+    } catch (error) {
+      // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
+      // 残すと席が「動いている」扱いになり、次の送信から起こし直せず、入力も受け付けない。BellTeamの席には、その画面へ答える人が居ない。
+      // 残った端末を閉じて、次の送信がもう一度起こせるようにする。ここでは起こし直しも送り直しもしない（オーナー裁定 K-UTA3UC）。
+      const leftover = error.launch?.session_id
+      if (typeof leftover === 'string' && leftover) {
+        try {
+          await this.client.call('pty_close', { session_id: leftover })
+        } catch (closeError) {
+          process.stderr.write(`BellTeam Aiterm: 起動に失敗した席を閉じられませんでした: ${bot.id}: ${closeError.message}\n`)
+        }
+        const reason = error.launch.startup?.reason
+        error.publicMessage = reason === 'startup_dialog'
+          ? 'このBotを起動できず、メッセージは送信されませんでした。AIが起動時の画面で止まりました。AIの認証が切れている可能性があります。'
+          : `このBotを起動できず、メッセージは送信されませんでした（${reason ?? '理由不明'}）。`
+      }
+      throw error
+    }
     const session = launch.structuredContent?.session_id
     if (typeof session !== 'string' || !session) throw new Error(`AITERM_LAUNCH_RECEIPT_INVALID: ${bot.id}`)
     this.sessions.set(bot.id, session)

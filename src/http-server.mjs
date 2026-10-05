@@ -614,7 +614,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
         }
         catch (reportError) { process.stderr.write(`BellTeam diagnostics error: ${reportError.stack ?? reportError.message}\n`) }
       }
-      return json(response, 500, { error: 'INTERNAL_ERROR' })
+      // 利用者へ理由を伝えられる失敗（Botを起動できなかった時など）は、その文も返す。記録と状態は他の500と同じ。
+      return json(response, 500, { error: 'INTERNAL_ERROR', ...(typeof error.publicMessage === 'string' ? { message: error.publicMessage } : {}) })
     }
   })
 
