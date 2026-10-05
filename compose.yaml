@@ -9,6 +9,10 @@ services:
     stdin_open: true
     tty: true
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:exec,size=8g
+      - /run:size=64m
     environment:
       BELLTEAM_CF_TEAM_DOMAIN: ${BELLTEAM_CF_TEAM_DOMAIN:-}
       BELLTEAM_CF_AUD: ${BELLTEAM_CF_AUD:-}

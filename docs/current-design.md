@@ -58,7 +58,7 @@ CLIごとの起動引数、入力方法、ターン完了の検出、確定回�
 
 ## 実装資産の永続化境界
 
-コンテナ内のBotはパスワード不要sudoを使い、必要なOSパッケージとランタイムを自分で導入できる。Pythonのpip・venv、Node/npm・Corepack、基本ビルド道具はイメージに含める。OSパッケージは全Bot共有で、Bot固有の依存関係と構築手順は各プロジェクトが所有する。
+コンテナの中は変更しない（2026-10-05 オーナー裁定：初期コンテナと、この設置の物を場所で区切る。コンテナの中は変更せず、利用者の永続データはコンテナの外に置く。名簿では区切らない）。本番の`compose.yaml`はコンテナを読み取り専用（`read_only: true`）で起こし、書けるのは割り当てた外の置き場（`/home/bell`、`/home/bell/.local`、`/srv/bellteam`）と、tmpfsの`/tmp`・`/run`だけにする。決まりの文だけでなく、作りで守る。Pythonのpip・venv、Node/npm・Corepack、基本ビルド道具はイメージに含める。Botが足すパッケージとランタイムは自分のプロジェクトの下へ入れ、複数のBotが使う物は`/srv/bellteam/shared/tools/`へ一つだけ置く。OSパッケージが要る時は、`.deb`をrootなしで外の置き場へ展開する（手順は[bot-environment.md](bot-environment.md)）。配布物の`distribution/server/compose.yaml`は、まだ読み取り専用にしていない。
 
 各Botの `environment/setup.sh` はコンテナ起動時、会話受付・予定開始前に順番に一度実行する。実行結果は同じ場所のsetup.logに残し、一席の失敗では全体の起動を止めない。`environment/env.sh` は会話用CLI起動とコマンド予定の都度読み込む。Aitermには起動専用の短命MCP接続から環境変数名を渡し、Bot間で値を共有しない。手順の正本は [bot-environment.md](bot-environment.md)。Bot台帳、CLI認証、MCP登録先は変えない。
 
