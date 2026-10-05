@@ -81,7 +81,7 @@ export class SelfTurns {
       const result = await this.read({ project: bot.project, afterCursor: current.cursor, throughCursor, pageToken })
       if (result.status === 'resync_required') {
         this.report(`BellTeam self turns: ${bot.id} の読んだ位置が古くなったので、今の位置から読み直します`)
-        return this.reset(bot)
+        return this.resync(bot, current)
       }
       if (result.status === 'projection_pending') {
         this.pending.add(bot.id)
@@ -112,6 +112,28 @@ export class SelfTurns {
       startedAt: new Date(startedAt ?? completedAt).toISOString(),
       endedAt: new Date(Math.max(completedAt, Date.now())).toISOString(),
     })
+  }
+
+  // 位置が無効になっても、その間に終わったターンは落とさない。読み直した中で、最後に見たターンより新しい分だけを受け取る。
+  // Throughline 0.14.3 は、Claudeの席の完了ターンの控えが256件を超えると、ターンが1つ増えるたびに前の位置を無効にする。
+  // 読み直しのたびに捨てていたので、その席が自分から始めたターンの回答が画面へ出なかった（2026-10-05、トロニーの席で2回）。
+  async resync(bot, current) {
+    // どこまで見たか分からない時は、初めて見るBotと同じく今の位置から始める（過去のターンを流し込まない）。
+    if (!Number.isFinite(current.lastCompletedAt)) return this.reset(bot)
+    const result = await this.read({ project: bot.project })
+    if (result.status === 'error') throw new Error(result.code ?? 'THROUGHLINE_OBSERVER_READ_FAILED')
+    if (result.status === 'projection_pending') {
+      this.pending.add(bot.id)
+      return
+    }
+    const since = current.lastCompletedAt
+    for (const turn of result.turns ?? []) {
+      if (Number.isFinite(turn.completed_at) && turn.completed_at > since) await this.accept(bot, current, turn)
+      else if (turn.source_sha256 && !current.seen.includes(turn.source_sha256))
+        current.seen = [...current.seen, turn.source_sha256].slice(-SEEN_LIMIT)
+    }
+    current.cursor = result.throughCursor ?? null
+    this.pending.delete(bot.id)
   }
 
   async reset(bot) {

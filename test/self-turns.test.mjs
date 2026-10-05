@@ -92,14 +92,69 @@ test('書きかけの時は位置を進めず、記録が変わらなくても�
   await cleanup()
 })
 
-test('位置が古くなった時は今の位置から読み直し、その間のターンは出さない', async () => {
-  const { service, answers, reported, statePath, cleanup } = await feed([
+test('位置が古くなった時は読み直し、最後に見たターンより新しい分だけを出す', async () => {
+  const { service, answers, turns, reads, reported, statePath, cleanup } = await feed([
+    { status: 'resync_required' },
+    { status: 'snapshot', throughCursor: 'c9', turns: [
+      turn('old', 'self', '前に見た報告', 1000),
+      turn('older', 'self', '控えから外れていた古い報告', 900),
+      turn('p', 'prompt', '配送したターンの回答', 5000),
+      turn('x', 'self', '間に終わった報告', 9000),
+    ] },
+  ], { state: { 'bot-r': { cursor: 'c1', seen: ['old'], lastCompletedAt: 1000 } } })
+  await service.poll()
+  assert.deepEqual(answers, [['bot-r', 'g-1', '間に終わった報告']])
+  assert.equal(turns.length, 1)
+  assert.equal(turns[0].startedAt, new Date(5000).toISOString())
+  assert.deepEqual(reads, [
+    { project: '/srv/bellteam/bots/bot-r', afterCursor: 'c1', throughCursor: null, pageToken: null },
+    { project: '/srv/bellteam/bots/bot-r' },
+  ])
+  assert.equal(reported.length, 1)
+  const saved = JSON.parse(await readFile(statePath, 'utf8')).bots['bot-r']
+  assert.equal(saved.cursor, 'c9')
+  assert.deepEqual(saved.seen, ['old', 'older', 'p', 'x'])
+  assert.equal(saved.lastCompletedAt, 9000)
+  await cleanup()
+})
+
+test('ターンが増えるたびに位置が無効になる席でも、自分から始まったターンを1回ずつ出す', async () => {
+  // Throughline 0.14.3 の、完了ターンの控えが256件を超えたClaudeの席の形。
+  const { service, answers, cleanup } = await feed([
+    { status: 'resync_required' },
+    { status: 'snapshot', throughCursor: 'c2', turns: [turn('a', 'prompt', '回答', 1000), turn('b', 'self', '報告1', 2000)] },
+    { status: 'resync_required' },
+    { status: 'snapshot', throughCursor: 'c3', turns: [turn('a', 'prompt', '回答', 1000), turn('b', 'self', '報告1', 2000), turn('c', 'self', '報告2', 3000)] },
+  ], { state: { 'bot-r': { cursor: 'c1', seen: ['a'], lastCompletedAt: 1000 } } })
+  await service.poll()
+  await service.poll()
+  assert.deepEqual(answers, [['bot-r', 'g-1', '報告1'], ['bot-r', 'g-1', '報告2']])
+  await cleanup()
+})
+
+test('どこまで見たか分からないまま位置が古くなった時は、今の位置から始めて過去のターンを出さない', async () => {
+  const { service, answers, statePath, cleanup } = await feed([
     { status: 'resync_required' },
     { status: 'snapshot', throughCursor: 'c9', turns: [turn('x', 'self', '古い報告', 9000)] },
-  ], { state: { 'bot-r': { cursor: 'c1', seen: [], lastCompletedAt: 1000 } } })
+  ], { state: { 'bot-r': { cursor: 'c1', seen: [], lastCompletedAt: null } } })
   await service.poll()
   assert.deepEqual(answers, [])
-  assert.equal(reported.length, 1)
+  assert.equal(JSON.parse(await readFile(statePath, 'utf8')).bots['bot-r'].cursor, 'c9')
+  await cleanup()
+})
+
+test('読み直しが書きかけに当たった時は位置を変えず、記録が変わらなくても次の回で読み直す', async () => {
+  let polls = 0
+  const { service, answers, statePath, cleanup } = await feed([
+    { status: 'resync_required' },
+    { status: 'projection_pending' },
+    { status: 'resync_required' },
+    { status: 'snapshot', throughCursor: 'c9', turns: [turn('x', 'self', '間に終わった報告', 9000)] },
+  ], { changed: async () => polls++ === 0, state: { 'bot-r': { cursor: 'c1', seen: [], lastCompletedAt: 1000 } } })
+  await service.poll()
+  assert.deepEqual(answers, [])
+  await service.poll()
+  assert.deepEqual(answers, [['bot-r', 'g-1', '間に終わった報告']])
   assert.equal(JSON.parse(await readFile(statePath, 'utf8')).bots['bot-r'].cursor, 'c9')
   await cleanup()
 })
