@@ -7,9 +7,10 @@ import { DatabaseSync } from 'node:sqlite'
 
 import { BellTeamMemory } from '../src/memory-service.mjs'
 
+// 実物のobserver-readは、afterCursorへ渡された値をそのまま返し、進んだ位置をthroughCursorへ入れる。
 async function fixture(observeTurns = async ({ afterCursor }) => ({
   status: afterCursor ? 'delta' : 'snapshot',
-  afterCursor: afterCursor ?? 'cursor-empty',
+  afterCursor: afterCursor ?? null,
   throughCursor: 'through-empty',
   turns: [],
   page: { complete: true, nextToken: null },
@@ -88,7 +89,7 @@ test('Throughlineの完了ターン候補はBotごとのDBとカーソルで分�
     const botId = project.endsWith('bot-a') ? 'bot-a' : 'bot-b'
     return {
       status: afterCursor ? 'delta' : 'snapshot',
-      afterCursor: `cursor-${botId}`,
+      afterCursor: afterCursor ?? null,
       throughCursor: `through-${botId}`,
       turns: afterCursor ? [] : [{
         source_sha256: `sha-${botId}`,
@@ -110,7 +111,7 @@ test('Throughlineの完了ターン候補はBotごとのDBとカーソルで分�
   assert.doesNotMatch(JSON.stringify(a), /BOT-B_/u)
   assert.match(b.items[0].assistant, /BOT-B_ASSISTANT/u)
   assert.equal(again.imported, 0)
-  assert.equal(calls.at(-1).afterCursor, 'cursor-bot-a')
+  assert.equal(calls.at(-1).afterCursor, 'through-bot-a')
 
   const organized = await memory.organizeMemoryCandidate({
     botId: 'bot-a', candidateId: a.items[0].id,
@@ -133,6 +134,41 @@ test('Throughlineの完了ターン候補はBotごとのDBとカーソルで分�
   assert.equal(resolvedCandidate.user_text, '')
   assert.equal(resolvedCandidate.assistant_text, '')
   aDb.close()
+})
+
+test('取り込み位置は、続きのページを読み終えた位置まで進み、無効と返された時は取り直す', async () => {
+  const calls = []
+  const turn = name => ({
+    source_sha256: `sha-${name}`, completed_at: Date.parse('2026-09-01T01:00:00.000Z'),
+    user: `${name}_USER`, assistant: `${name}_ASSISTANT`, truncated: false,
+  })
+  const complete = { complete: true, nextToken: null }
+  const pages = [
+    { status: 'snapshot', throughCursor: 'through-1', turns: [turn('one')], page: complete },
+    { status: 'thread_switched', throughCursor: 'through-2', turns: [turn('two')], page: { complete: false, nextToken: 'page-2' } },
+    { status: 'thread_switched', throughCursor: 'through-2', turns: [turn('three')], page: complete },
+    { status: 'resync_required', throughCursor: null, turns: [], page: complete },
+    { status: 'snapshot', throughCursor: 'through-3', turns: [turn('four')], page: complete },
+    { status: 'delta', throughCursor: 'through-3', turns: [], page: complete },
+  ]
+  const observeTurns = async ({ afterCursor, throughCursor, pageToken }) => {
+    calls.push({ afterCursor, throughCursor, pageToken })
+    return { ...pages[calls.length - 1], afterCursor: afterCursor ?? null }
+  }
+  const { memory } = await fixture(observeTurns)
+
+  assert.equal((await memory.captureConversation('bot-a')).imported, 1)
+  assert.equal((await memory.captureConversation('bot-a')).imported, 2)
+  assert.deepEqual(await memory.captureConversation('bot-a'), { status: 'snapshot', imported: 1, resynced: true })
+  assert.equal((await memory.captureConversation('bot-a')).imported, 0)
+  assert.deepEqual(calls, [
+    { afterCursor: null, throughCursor: null, pageToken: null },
+    { afterCursor: 'through-1', throughCursor: null, pageToken: null },
+    { afterCursor: 'through-1', throughCursor: 'through-2', pageToken: 'page-2' },
+    { afterCursor: 'through-2', throughCursor: null, pageToken: null },
+    { afterCursor: null, throughCursor: null, pageToken: null },
+    { afterCursor: 'through-3', throughCursor: null, pageToken: null },
+  ])
 })
 
 test('RAGはMarkdownを正本にして即時検索でき、派生DBを再構築できる', async () => {

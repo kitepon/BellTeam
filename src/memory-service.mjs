@@ -172,7 +172,7 @@ export class BellTeamMemory {
       imported += await this.importConversationTurns(bot, result.turns ?? [])
       throughCursor = result.throughCursor ?? throughCursor
       pageToken = result.page?.complete === false ? result.page.nextToken : null
-      if (!pageToken && result.afterCursor) await this.saveObserverCursor(botId, result.afterCursor)
+      if (!pageToken && throughCursor) await this.saveObserverCursor(botId, throughCursor)
     } while (pageToken || status === 'resync_required')
     return { status, imported, resynced }
   }
