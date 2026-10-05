@@ -87,7 +87,7 @@ Web UIでは画像をアップロードし、位置と拡大率を調整して�
 
 本番反映はcommitしてから`scripts/deploy.sh`一回で行う。コンテナの再起動でBot全員が停止するため、実行前に必ず一度止まり、オーナーの許可を取る。GitHubの`main`へのpush、本番のfast-forward取り込み、公式の現行版を使うキャッシュなしの再ビルド、healthz、CLIの実際の版、Bot数と稼働数の確認までを返す。ビルド失敗時はコンテナを入れ替えない。本番側ではcommitを作らないため、本番とGitHubの履歴は常に一致する。
 
-初回のAI認証はWeb画面からAitermの公開認証入口を使い、利用者が公式サイトで完了する。BellTeamはハーネスごとの認証コマンドや資格情報を所有しない。Node.js、Corepack、Claude、Codex、Grok、Aiterm、Throughline、GitHub CLIは反映のたびに公式の現行版を導入する。Cursorの公式導入先`~/.local`は専用volumeで保持し、コンテナ起動時に`cursor-agent update`で現行版にする。Throughlineは起動時に公式`throughline install`で4ハーネスのhookを更新する。
+初回のAI認証はWeb画面からAitermの公開認証入口を使い、利用者が公式サイトで完了する。初期設定の後は、設定の「AIの認証」から同じ入口で認証をやり直せる。BellTeamはハーネスごとの認証コマンドや資格情報を所有しない。Node.js、Corepack、Claude、Codex、Grok、Aiterm、Throughline、GitHub CLIは反映のたびに公式の現行版を導入する。Cursorの公式導入先`~/.local`は専用volumeで保持し、コンテナ起動時に`cursor-agent update`で現行版にする。Throughlineは起動時に公式`throughline install`で4ハーネスのhookを更新する。
 
 直接接続ではWeb UIとアプリからLANの接続先を使う。Cloudflare Accessを有効にしたときは、設置先の公開URLと許可対象を使い、BellTeamがAccess JWTの署名・発行元・audience・期限を検証する。Bot間メッセージは会話本文へ複製せず、タップで展開できる送受信履歴として表示する。
 

@@ -56,6 +56,10 @@ CLIごとの起動引数、入力方法、ターン完了の検出、確定回�
 
 ハーネス固有処理はAitermへ委ねる。BellTeamはAitermの継続セッションへターンを渡し、Aitermが返す完了と確定回答だけを共通形式で扱う。BellTeam独自のtmux操作と`src/harnesses.mjs`はAiterm移行までの既存実装であり、CLI固有処理を追加する場所にはしない。
 
+AIの公式認証は、初期設定の後も設定の「AIの認証」からやり直せる（2026-10-05 オーナー裁定、Approval Box K-UTA3UC）。AIの認証が切れると、そのAIを使うメンバーは全員起動できず、入り直しを頼める席も無くなるので、設置した人が自分で戻せる入口を本体に置く。`/api/harness-auth`はAIの種類と使用メンバー数、`/api/harness-auth/<AI>`は公式の状態、`start`・`input`・`cancel`は公式認証の進行を返す。応答の`auth`は初期設定と同じ形にする。`start`はAitermの`agent_auth`へ`relogin`を渡し、認証済みに見えるAIでも公式のログイン画面を起こす。`relogin`を知らないAitermが何も始めなかった時は、認証済みと取り違えずに409で断る。認証の画面の出し方と資格情報はAitermと公式CLIが持ち、BellTeamは進行を中継するだけにする。購読は求めない。
+
+席を起こせなかった時（認証が切れたAIが起動時の画面で止まった時など）は、Aitermに残った端末をBellTeamが閉じる。残すと席が動いている扱いになり、次の送信から起こし直せず、入力も受け付けない。閉じた後の起こし直しと送り直しはしない。失敗は500として記録し、応答に「認証が切れている可能性」の文を添える。
+
 ## 実装資産の永続化境界
 
 コンテナの中は変更しない（2026-10-05 オーナー裁定：初期コンテナと、この設置の物を場所で区切る。コンテナの中は変更せず、利用者の永続データはコンテナの外に置く。名簿では区切らない）。本番の`compose.yaml`はコンテナを読み取り専用（`read_only: true`）で起こし、書けるのは割り当てた外の置き場（`/home/bell`、`/home/bell/.local`、`/srv/bellteam`）と、tmpfsの`/tmp`・`/run`だけにする。決まりの文だけでなく、作りで守る。Pythonのpip・venv、Node/npm・Corepack、基本ビルド道具はイメージに含める。Botが足すパッケージとランタイムは自分のプロジェクトの下へ入れ、複数のBotが使う物は`/srv/bellteam/shared/tools/`へ一つだけ置く。OSパッケージが要る時は、`.deb`をrootなしで外の置き場へ展開する（手順は[bot-environment.md](bot-environment.md)）。配布物の`distribution/server/compose.yaml`は、まだ読み取り専用にしていない。

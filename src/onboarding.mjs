@@ -3,8 +3,8 @@ import { dirname, join } from 'node:path'
 import { runtimeEnvironment } from './runtime-home.mjs'
 import guide from '../config/setup-guide.json' with { type: 'json' }
 
-const HARNESS = { claude: 'claude-code', codex: 'codex-cli', grok: 'grok-cli', cursor: 'cursor-cli' }
-const HARNESSES = Object.entries({ claude: 'Claude', codex: 'Codex', grok: 'Grok', cursor: 'Cursor' }).map(([id, name]) => ({ id, name }))
+export const HARNESS = { claude: 'claude-code', codex: 'codex-cli', grok: 'grok-cli', cursor: 'cursor-cli' }
+export const HARNESSES = Object.entries({ claude: 'Claude', codex: 'Codex', grok: 'Grok', cursor: 'Cursor' }).map(([id, name]) => ({ id, name }))
 export const GUIDE_BOT_ID = 'bot-guide'
 export const GUIDE_INSTRUCTIONS = `あなたはBellTeamの初期設定を案内するメンバーです。最初に利用者へ挨拶し、BellTeamで何をしたいか一つ尋ねてください。\n追加機能の現在の状態はget_settings、設定の更新はupdate_settingsを使います。必要な機能だけ有効にし、不要・未設定の機能は無効のままにします。設定の入力値を推測で作らず、外部サービスの準備が必要な場合は公式手順を調べて利用者と進めます。\nAPIキーや合言葉はrequest_secret(toolId="bellteam-settings")で専用入力を依頼してください。提出後に届くrequestIdをupdate_settingsのsecretRequestIdへ渡せます。値を表示したり、会話へ書いたりしないでください。\n利用者が希望した設定の実動作を確認し、利用者と初期設定が済んだと合意したらcomplete_setupを使います。Webアプリと共有サーバーでの会話や予定は無料で使えます。Appleアプリでも初期設定の案内と閲覧・書き出し・管理は無料です。初期設定後のAppleアプリからの会話と予定操作には購読が必要で、購入・復元はAppleアプリの設定から行います。`
 

@@ -76,7 +76,7 @@ function logWriteRequest(request, response, write) {
   })
 }
 
-export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, notifications = null, subscriptions = null, settings = null, onboarding = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
+export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
   if (typeof authorize !== 'function') throw new Error('BELLTEAM_AUTHORIZER_REQUIRED')
   const subscribers = new Set()
   let closeWatch = null
@@ -113,6 +113,16 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
           const setup = await actions[url.pathname]()
           server.notify({ type: 'setup' })
           return json(response, 200, setup)
+        }
+        // 初期設定の後に、AIの公式認証をやり直す入口。認証が切れて全員が止まった時も、利用者がここから戻せる。
+        const harnessAuthMatch = url.pathname.match(/^\/api\/harness-auth(?:\/([a-z]+)(?:\/(start|input|cancel))?)?$/u)
+        if (harnessAuthMatch) {
+          if (!harnessAuth) return json(response, 404, { error: 'NOT_FOUND' })
+          const [, harness, action] = harnessAuthMatch
+          if (request.method === 'GET' && !action) return json(response, 200, harness ? await harnessAuth.status(harness) : harnessAuth.list())
+          if (request.method === 'POST' && action === 'input') return json(response, 200, await harnessAuth.input(harness, await readJson(request, 8192)))
+          if (request.method === 'POST' && action) return json(response, 200, await harnessAuth[action](harness))
+          return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
         }
         if (url.pathname === '/api/settings' && request.method === 'GET') return json(response, 200, { settings: settings?.list() ?? [] })
         const settingsMatch = url.pathname.match(/^\/api\/settings\/([A-Za-z]+)$/u)
@@ -732,6 +742,7 @@ async function staticFile(response, root, pathname, assetVersion) {
     ['/styles.css', 'styles.css'],
     ['/app.js', 'app.js'],
     ['/onboarding.js', 'onboarding.js'],
+    ['/harness-auth.js', 'harness-auth.js'],
     ['/server-origin.js', 'server-origin.js'],
     ['/chat-input.js', 'chat-input.js'],
     ['/rich-text.js', 'rich-text.js'],

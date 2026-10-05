@@ -28,6 +28,7 @@ import { IdleSessions } from './idle-sessions.mjs'
 import { PushNotifications } from './push-notifications.mjs'
 import { Subscriptions } from './subscriptions.mjs'
 import { Onboarding } from './onboarding.mjs'
+import { HarnessAuth } from './harness-auth.mjs'
 import { chooseRoomResponder } from './room-routing.mjs'
 import { writeHarnessConfig } from './harness-config.mjs'
 import { runtimeHome } from './runtime-home.mjs'
@@ -69,6 +70,7 @@ const onboarding = new Onboarding({
   startConversation: (bot, message) => messenger.enqueueUserTurn({ target: bot.id, message, recordUser: false }),
 })
 await onboarding.initialize()
+const harnessAuth = new HarnessAuth({ bots, client: transport.client })
 const turnReports = new TurnReports({
   bots, store, transport,
   enabled: () => settings.configuration('routing').enabled,
@@ -110,6 +112,7 @@ const serverOptions = {
   subscriptions,
   settings,
   onboarding,
+  harnessAuth,
   notifications,
   secretRequests,
   ownerQuestions,

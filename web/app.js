@@ -1,4 +1,5 @@
 import { openOnboarding, renderFeatureSettings, refreshFeatureSettingsStatus } from './onboarding.js?v=__ASSET_VERSION__'
+import { renderHarnessAuth } from './harness-auth.js?v=__ASSET_VERSION__'
 import { renderSecretRequest } from './secret-input.js?v=__ASSET_VERSION__'
 import { renderOwnerQuestion } from './owner-question.js?v=__ASSET_VERSION__'
 import { sendFailureText, claimMessageSend, claimSingleFlight, readApiError, readApiResponse, releaseSingleFlight } from './chat-input.js?v=__ASSET_VERSION__'
@@ -175,6 +176,9 @@ function clearSettingSecrets() {
   for (const input of ownerDialog.querySelectorAll('#feature-settings input[type="password"]')) input.value = ''
 }
 ownerDialog.addEventListener('close', clearSettingSecrets)
+// 設定を閉じたら、AIの認証の確認を止める。進行中の公式認証そのものは止めない（公式サイトで続けられる）。
+let harnessAuthSection = null
+ownerDialog.addEventListener('close', () => { harnessAuthSection?.stop(); harnessAuthSection = null })
 document.addEventListener('visibilitychange', () => { if (document.hidden) clearSettingSecrets() })
 addOwnerLink.addEventListener('click', () => addOwnerLinkRow())
 document.querySelector('#add-button').addEventListener('click', () => actionDialog.showModal())
@@ -419,6 +423,12 @@ async function openOwnerDialog() {
     document.querySelector('#feature-settings-error').textContent = ''
     await refreshFeatureSettingsForm()
   } catch (error) { document.querySelector('#feature-settings-error').textContent = error.message }
+  harnessAuthSection?.stop()
+  harnessAuthSection = null
+  try {
+    document.querySelector('#harness-auth-error').textContent = ''
+    harnessAuthSection = await renderHarnessAuth(document.querySelector('#harness-auth'), { api })
+  } catch (error) { document.querySelector('#harness-auth-error').textContent = error.message }
   ownerDialog.showModal()
 }
 
