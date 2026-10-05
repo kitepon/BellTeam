@@ -11,10 +11,16 @@ import { BellTeamMessenger } from '../src/messenger.mjs'
 
 const refusal = "aiterm: agent session 'bot-a' の Codex TUI が入力受付状態になりません。文字列は送信していません。少し後で pty_read(screen:true) を確認し、TUI が起動済みなら再度 pty_send してください。"
 
-for (const [label, failure, status] of [
-  ['0.48の入力受付拒否', refusal, 409],
-  ['0.49の確認画面による拒否', `${refusal}\nstate=blocked reason=hooks_review`, 409],
-  ['それ以外のAiterm障害', 'aiterm: PTY_BACKEND_FAILED', 500],
+// 同じ席への先の送信を待ち切れなかった時の断り（Aiterm 0.52.1）。持ち主が別プロセスの時と、同じプロセスの時で文面が違う。
+const busy = "aiterm: AGENT_SEND_BUSY: agent session 'bot-a' は別プロセス（pid 4242）の処理中です。60000ms待っても順番が来ませんでした。文字列は送信していません。少し後で再度 pty_send してください。"
+const busyInProcess = "aiterm: AGENT_SEND_BUSY: agent session 'bot-a' は先に受け付けた送信の処理中です。60000ms待っても順番が来ませんでした。文字列は送信していません。少し後で再度 pty_send してください。"
+
+for (const [label, failure, status, code] of [
+  ['0.48の入力受付拒否', refusal, 409, 'BOT_INPUT_NOT_READY'],
+  ['0.49の確認画面による拒否', `${refusal}\nstate=blocked reason=hooks_review`, 409, 'BOT_INPUT_NOT_READY'],
+  ['0.52.1の順番待ちの断り（別プロセス）', busy, 409, 'BOT_SEND_BUSY'],
+  ['0.52.1の順番待ちの断り（同じプロセス）', busyInProcess, 409, 'BOT_SEND_BUSY'],
+  ['それ以外のAiterm障害', 'aiterm: PTY_BACKEND_FAILED', 500, 'INTERNAL_ERROR'],
 ]) {
   test(`${label}は未配送を保持し、APIで入力受付拒否とサーバー障害を区別する`, async t => {
     const root = await mkdtemp(join(tmpdir(), 'bellteam-send-rejection-'))
@@ -45,7 +51,7 @@ for (const [label, failure, status] of [
     })
     assert.equal(response.status, status)
     const body = await response.json()
-    assert.equal(body.error, status === 409 ? 'BOT_INPUT_NOT_READY' : 'INTERNAL_ERROR')
+    assert.equal(body.error, code)
     if (status === 409) {
       assert.match(body.message, /送信されませんでした/u)
       assert.equal(body.message.includes('pty_'), false)
@@ -74,6 +80,25 @@ test('入力拒否の分類は該当するpty_sendだけに限定し、元の理
   })
   await assert.rejects(client.call('pty_send', { session_id: 'bot-b', text: '本文' }), error => error.status === undefined)
   await assert.rejects(client.call('pty_read', { session_id: 'bot-a' }), error => error.status === undefined)
+})
+
+test('順番待ちの断りの分類は該当する席へのpty_sendだけに限定し、元の理由を保持する', async () => {
+  const client = new AitermClient()
+  client.client = { async callTool() { return { isError: true, content: [{ type: 'text', text: busy }] } } }
+  await assert.rejects(client.call('pty_send', { session_id: 'bot-a', text: '本文' }), error => {
+    assert.equal(error.status, 409)
+    assert.equal(error.code, 'BOT_SEND_BUSY')
+    assert.match(error.message, /pid 4242/u)
+    assert.equal(error.publicMessage.includes('pty_'), false)
+    return true
+  })
+  await assert.rejects(client.call('pty_send', { session_id: 'bot-b', text: '本文' }), error => error.status === undefined)
+  await assert.rejects(client.call('agent_launch', { session_id: 'bot-a' }), error => error.status === undefined)
+  // 「送信していません」が無い文は、打った後かもしれないので分類しない。
+  client.client = { async callTool() {
+    return { isError: true, content: [{ type: 'text', text: "aiterm: AGENT_SEND_BUSY: agent session 'bot-a' は別プロセス（pid 4242）の処理中です。" }] }
+  } }
+  await assert.rejects(client.call('pty_send', { session_id: 'bot-a', text: '本文' }), error => error.status === undefined)
 })
 
 const unregistered = "aiterm: AGENT_SESSION_REQUIRED: session 'bot-a' のagent登録がありません。文字列は送信していません。"

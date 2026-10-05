@@ -34,7 +34,11 @@ export function internalApi(port, request = fetch) {
       ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
     })
     const result = await response.json()
-    if (!response.ok) throw new Error(result.error ?? `HTTP_${response.status}`)
+    // 符号だけでは、文が打たれたかどうかがBotに伝わらない。APIが付けた案内文も一緒に返す。
+    if (!response.ok) {
+      const code = result.error ?? `HTTP_${response.status}`
+      throw new Error(typeof result.message === 'string' && result.message ? `${code}: ${result.message}` : code)
+    }
     return result
   }
   return {

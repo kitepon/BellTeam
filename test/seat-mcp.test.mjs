@@ -179,6 +179,14 @@ test('中継の流れは届いた分からすぐ流し、本体を止める時�
   await closed
 })
 
+test('本体のAPIが断った時は、符号に続けて案内文を道具の失敗として返す', async () => {
+  const refuse = (status, body) => internalApi(4181, async () => ({ ok: false, status, json: async () => body }))
+  const busy = 'このBotは先に届いた送信を受け付けている途中で、メッセージは送信されませんでした。少し待ってから送り直してください。'
+  await assert.rejects(refuse(409, { error: 'BOT_SEND_BUSY', message: busy }).deliverMessage({ from: 'bot-a' }), { message: `BOT_SEND_BUSY: ${busy}` })
+  await assert.rejects(refuse(404, { error: 'BOT_NOT_FOUND' }).deliverMessage({ from: 'bot-a' }), { message: 'BOT_NOT_FOUND' })
+  await assert.rejects(refuse(502, {}).deliverMessage({ from: 'bot-a' }), { message: 'HTTP_502' })
+})
+
 test('道具が使う本体のAPIは、内部入口の同じ経路を呼ぶ', async () => {
   const calls = []
   const api = internalApi(4181, async (url, init) => {

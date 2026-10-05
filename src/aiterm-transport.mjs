@@ -91,6 +91,15 @@ export class AitermClient {
       if (name === 'pty_send'
         && message.startsWith('aiterm: AGENT_SESSION_REQUIRED:')
         && message.includes('文字列は送信していません。')) error.code = 'AGENT_SESSION_REQUIRED'
+      // 同じ席への先の送信が終わるのを待ち切れず、Aitermが打つ前に断った（Aiterm 0.52.1、待ちは60秒）。
+      // 登録を確かめた後の断りなので席は生きている。送っていないので、後から送り直せる。
+      if (name === 'pty_send'
+        && message.startsWith(`aiterm: AGENT_SEND_BUSY: agent session '${args.session_id}' は`)
+        && message.includes('文字列は送信していません。')) {
+        error.code = 'BOT_SEND_BUSY'
+        error.status = 409
+        error.publicMessage = 'このBotは先に届いた送信を受け付けている途中で、メッセージは送信されませんでした。少し待ってから送り直してください。'
+      }
       throw error
     }
     return result
