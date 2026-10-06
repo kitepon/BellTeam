@@ -10,6 +10,8 @@ BellTeamの公開APIを使うSwiftUIアプリ。ローカルへ直接接続し�
 
 接続後の初回画面でClaude・Codex・Grok・Cursorを一つ選び、公式サイトで認証する。「認証を確認して始める」を押すと案内役との会話を開く。追加機能は設定画面からも編集でき、秘密の値は専用のマスク付き入力欄で登録する。返信者の自動選択が未設定のルームでは、送信前に返信するメンバーを手動で選ぶ。
 
+初期設定の後は、設定の「AIの認証」から、認証が切れたAIや別のアカウントで入り直したいAIを選ぶ。状態を開くだけでは認証をやり直さない。「認証し直す」を押し、公式サイトで承認する。必要な利用者コードや入力欄は同じ画面に出る。今の認証が消える可能性があるAIは、開始前に知らせを表示して確認する。途中でやめた後も、現在の公式認証の状態を確認して表示する。iPhone・iPad・Macで同じ画面を使う。
+
 ローカル接続のOS設定は`project.yml`の`NSAllowsLocalNetworking`、ループバック・private・link-local IPのATS例外、`NSLocalNetworkUsageDescription`を使う。iOS 17以降のIP接続に必要な例外は[AppleのNSAllowsLocalNetworking](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsallowslocalnetworking)と[NSExceptionDomains](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsexceptiondomains)に従う。LANへの初回接続許可はOSが表示する。
 
 表示はライトモードに固定する。端末のダークモード設定や時間帯による切り替えに追従しない。アプリ全体への指定には、Appleの[UIUserInterfaceStyle](https://developer.apple.com/documentation/bundleresources/information-property-list/uiuserinterfacestyle)を使う。

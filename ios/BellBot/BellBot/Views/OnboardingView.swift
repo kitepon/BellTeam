@@ -77,7 +77,7 @@ struct OnboardingView: View {
             }
         }
         .task(id: store.setup?.auth?.status) {
-            while store.setup?.auth?.status == "waiting", errorText == nil, !Task.isCancelled {
+            while store.setup?.auth?.status == .waiting, errorText == nil, !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(3))
                     guard scenePhase == .active, !busy else { continue }
@@ -91,10 +91,10 @@ struct OnboardingView: View {
 
     private func authenticationText(_ auth: SetupAuthentication) -> String {
         switch auth.status {
-        case "authenticated": "認証済みです。確認して案内役との会話を始めてください。"
-        case "blocked": "認証に必要な操作を確認してください。"
-        case "failed": "認証に失敗しました。表示された理由を確認してください。"
-        default: "公式認証の完了を待っています。"
+        case .authenticated: "認証済みです。確認して案内役との会話を始めてください。"
+        case .blocked: "認証に必要な操作を確認してください。"
+        case .failed: "認証に失敗しました。表示された理由を確認してください。"
+        case .waiting: "公式認証の完了を待っています。"
         }
     }
 

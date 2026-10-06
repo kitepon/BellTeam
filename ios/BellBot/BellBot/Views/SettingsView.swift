@@ -44,6 +44,7 @@ struct SettingsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(20)
                         .bellCard()
+                        HarnessAuthenticationList()
                         FeatureSettingsList()
                         SubscriptionCard()
                         VStack(alignment: .leading, spacing: 13) {

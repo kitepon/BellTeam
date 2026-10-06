@@ -83,6 +83,10 @@ final class BellAPI {
         try await protectedJSON(path: "/api/setup/auth/input", method: "POST", body: body)
     }
 
+    func submitHarnessAuthenticationInput(harness: String, body: AuthInput) async throws -> HarnessAuthenticationResponse {
+        try await protectedJSON(path: "/api/harness-auth/\(harness)/input", method: "POST", body: body)
+    }
+
     private func protectedJSON<Body: Encodable, Response: Decodable>(path: String, method: String, body: Body) async throws -> Response {
         guard let baseURL, ServerOrigin.url(baseURL.absoluteString) != nil else { throw BellAPIError.notConfigured }
         var request = try request(path: path, method: method)

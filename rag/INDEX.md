@@ -110,3 +110,5 @@
 - [購読版](app-review/raw/working-with-subscription-versions.md)、[購読グループ版](app-review/raw/working-with-subscription-group-versions.md)、[審査提出](app-review/raw/submitting-subscriptions-and-subscription-groups-for-app-review.md): 各版の状態遷移、審査項目への追加と送信、初回購読をアプリ本体と提出する条件。取得日 2026-10-04、Apple公式原文。
 
 - [テンプレートからのアプリ提出](app-review/raw/apple-template-apps-20261006.html)と[スパムの規定](app-review/raw/apple-spam-20261006.html): 4.2.6の提供主体と、4.3の重複アプリ・独自性の条件。取得日 2026-10-06、Apple公式原文。
+
+- [SwiftUIの画面に結び付いたTask](authentication/raw/apple-view-task.md): 画面を閉じたときとidが変わったときの取消・再作成の仕様。取得日 2026-10-06、Apple公式原文。

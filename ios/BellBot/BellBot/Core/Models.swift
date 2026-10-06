@@ -173,8 +173,11 @@ struct SchedulesResponse: Decodable { let schedules: [Schedule] }
 struct ScheduleResponse: Decodable { let schedule: Schedule }
 struct SessionResponse: Decodable { let authenticated: Bool; let authMode: String }
 struct HarnessOption: Decodable, Identifiable { let id: String; let name: String }
-struct SetupAuthentication: Decodable {
-    let status: String
+enum OfficialAuthenticationStatus: String, Decodable {
+    case waiting, authenticated, blocked, failed
+}
+struct SetupAuthentication: Decodable, Equatable {
+    let status: OfficialAuthenticationStatus
     let url: String?
     let userCode: String?
     let inputRequired: Bool
@@ -191,6 +194,22 @@ struct SetupResponse: Decodable {
 struct HarnessSelection: Encodable { let harness: String }
 struct AuthInput: Encodable { let text: String?; let key: String? }
 struct SetupEmptyBody: Encodable {}
+struct HarnessAuthenticationOption: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let members: Int
+    let startWarning: String?
+
+    var usageText: String { members > 0 ? "\(members)人が使用" : "使用していません" }
+    func needsStartConfirmation(_ auth: SetupAuthentication?) -> Bool {
+        startWarning?.isEmpty == false && auth?.status != .blocked
+    }
+}
+struct HarnessAuthenticationsResponse: Decodable { let harnesses: [HarnessAuthenticationOption] }
+struct HarnessAuthenticationResponse: Decodable {
+    let harness: String
+    let auth: SetupAuthentication?
+}
 struct FeatureField: Decodable, Identifiable {
     let key: String
     let label: String

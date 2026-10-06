@@ -3401,6 +3401,49 @@
         "runtime/web-incident/2026-10-03-public-conversation-after-private.jpg",
         "runtime/web-incident/2026-10-03-resume-verification-private.json"
       ]
+    },
+    "appHarnessAuthentication": {
+      "build": "42",
+      "implementation": "completed",
+      "tests": {
+        "unit": {
+          "passed": 82,
+          "skipped": 3,
+          "failed": 0,
+          "resultBundle": "runtime/harness-auth-final-unit-signed.xcresult"
+        },
+        "ui": {
+          "devices": [
+            "iPhone 18 Pro",
+            "iPad Air 11-inch (M4)"
+          ],
+          "passedPerDevice": 1,
+          "failed": 0,
+          "resultBundle": "runtime/harness-auth-final-ui.xcresult",
+          "httpProof": "runtime/harness-auth-ui-http-proof.json"
+        },
+        "node": {
+          "passed": 399,
+          "failed": 0,
+          "log": "runtime/harness-auth-final-node.log"
+        }
+      },
+      "testflight": {
+        "status": "pending_archive"
+      },
+      "macAcceptance": {
+        "status": "pending_installation"
+      },
+      "iphoneAcceptance": {
+        "status": "pending_installation"
+      },
+      "productionAuthentication": {
+        "status": "not_started",
+        "ownerConsentRequired": true,
+        "beforeStart": "トロニーへ連絡し、実行中のCodex席が無いことと観測の用意を確認する。"
+      },
+      "existingReviewSubmissionChanged": false,
+      "plan": "docs/plan_harness-auth-app-20261006.md"
     }
   },
   "appleWebAccess": {
