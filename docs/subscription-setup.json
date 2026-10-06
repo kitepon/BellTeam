@@ -3429,21 +3429,61 @@
         }
       },
       "testflight": {
-        "status": "pending_archive"
+        "status": "distributed",
+        "verifiedAt": "2026-10-06T08:09:36.365Z",
+        "builds": [
+          {
+            "platform": "MAC_OS",
+            "id": "20bfa005-3fb0-4d5d-b0ae-5b84ed0839ff",
+            "build": "42",
+            "sourceCommit": "2cc0098d4cb00f3d2fbf5064fdd55647974331d6",
+            "processingState": "VALID",
+            "ownerGroupDistributed": true,
+            "internalBuildState": "IN_BETA_TESTING"
+          },
+          {
+            "platform": "IOS",
+            "id": "15279c21-43ea-4f05-8822-748c98899265",
+            "build": "42",
+            "sourceCommit": "2cc0098d4cb00f3d2fbf5064fdd55647974331d6",
+            "processingState": "VALID",
+            "ownerGroupDistributed": true,
+            "internalBuildState": "IN_BETA_TESTING"
+          }
+        ],
+        "proofPath": "runtime/apple/harness-auth-42/testflight-proof.json"
       },
       "macAcceptance": {
-        "status": "pending_installation"
+        "status": "waiting_owner_update",
+        "automationStatus": "not_completed",
+        "cause": "agent-desktopのアプリ読取りでAPP_UNRESPONSIVE。TestFlightの更新操作は未実行。",
+        "proofPath": "runtime/apple/harness-auth-42/mac-testflight-update.jsonl",
+        "installedBuild": "41"
       },
       "iphoneAcceptance": {
-        "status": "pending_installation"
+        "status": "waiting_owner_update"
       },
       "productionAuthentication": {
-        "status": "not_started",
+        "status": "waiting_owner_consent",
         "ownerConsentRequired": true,
-        "beforeStart": "トロニーへ連絡し、実行中のCodex席が無いことと観測の用意を確認する。"
+        "beforeStart": "トロニーへ連絡し、実行中のCodex席が無いことと観測の用意を確認する。",
+        "sequence": [
+          "Cursorの開始・取消・実状態照会",
+          "Codexを本人の公式サイト承認まで通す"
+        ],
+        "decisionId": "K-S9FC4Z",
+        "decisionStatus": "pending"
       },
       "existingReviewSubmissionChanged": false,
-      "plan": "docs/plan_harness-auth-app-20261006.md"
+      "plan": "docs/plan_harness-auth-app-20261006.md",
+      "sourceCommit": "2cc0098d4cb00f3d2fbf5064fdd55647974331d6",
+      "archive": {
+        "ios": "passed",
+        "mac": "passed",
+        "keychainSearchListRestored": true,
+        "keychainLocked": true,
+        "proofPath": "runtime/apple/harness-auth-42/archive-export-proof.json"
+      }
     }
   },
   "appleWebAccess": {
