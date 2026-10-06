@@ -120,3 +120,5 @@
 - [公開版番号とビルド番号](apple-distribution/raw/apple-version-and-build.html): App Store・TestFlight配布物の識別と版番号の設定。取得日 2026-10-06、Apple公式原文。
 
 - [iPhoneミラーリング](iphone-mirroring/raw/apple-iphone-mirroring.html): Macから実機のアプリを操作する条件と、ホーム・アプリ切替の標準操作。取得日 2026-10-06、Apple公式原文。
+
+- [SwiftUIのスクロール位置と計測](scrolling/apple-scroll-position.md): scrollToのanchorとiOS 17共通実装に使えるAPIの範囲。Apple公式原文、取得日2026-10-07。

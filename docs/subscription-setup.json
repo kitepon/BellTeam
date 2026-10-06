@@ -3596,7 +3596,7 @@
         "proofPath": "runtime/apple/network-lifecycle-43-v101/testflight-proof.json"
       },
       "physicalObservation": {
-        "status": "waiting_server_deployment_recovery",
+        "status": "waiting_iphone_mirroring_reconnect",
         "decisionId": "K-HJW3JV",
         "answerOption": "later",
         "deviceDeveloperMode": "enabled",
@@ -3629,21 +3629,23 @@
         "testPostSent": false,
         "normalAppLaunchRestored": true,
         "instrumentPromptClosedWithoutMeasurement": true,
-        "remainingOwnerAction": null,
+        "remainingOwnerAction": "実機の観測時にiPhoneをロックしたまま置く",
         "measurementWillStartAfterMirroringReconnect": true,
         "iphoneLockedAndMirroringReconnected": true,
-        "waitForMemberRecoveryNotice": true,
+        "waitForMemberRecoveryNotice": false,
         "serverDeployment": {
           "callSession": "4796e865-74d8-48c8-b9f6-00fa5e8ec989",
           "notificationSeq": 10,
           "plannedAt": "2026-10-06T22:55:00+09:00",
           "testMessageMarker": "BT-USB43-1006-A",
-          "interruptionMustBeSeparatedFromOriginalDiagnostics": true
+          "interruptionMustBeSeparatedFromOriginalDiagnostics": true,
+          "recoveryConfirmedBy": "current_chat_owner"
         },
         "latestCancelledTrace": {
           "durationSeconds": 0,
           "toc": "runtime/apple/usb-observation-20261006/authorized-02-toc.xml"
-        }
+        },
+        "currentCallSession": "525de7d4-5f59-494a-8e77-d4855ca93329"
       },
       "evidence": "docs/evidence/2026-10-06-network-lifecycle.md",
       "productionDiagnosisResolution": "not_confirmed",
@@ -3705,6 +3707,57 @@
         "productionAuthStarted": false,
         "schedulesDisplayed": true
       }
+    },
+    "conversationDisplayRepair": {
+      "build": "44",
+      "version": "1.0.1",
+      "implementation": "in_progress",
+      "requests": [
+        "会話を開いた時に最新ログを表示する",
+        "上スクロールで過去ログを読み込む",
+        "吹き出し末尾の余分な空白を省く"
+      ],
+      "spacing": {
+        "rootCause": "本文の描画ライブラリが最終段落にも区切りと外余白を付けていた",
+        "savedBodyTrailingWhitespace": 0,
+        "originalRenderedHeightPoints": 99,
+        "repairedRenderedHeightPoints": 60,
+        "implementationCommit": "e6efde3664563e13fa37e9e8757f36380a6501bf",
+        "rendererCommit": "02ace8c0e6eb72278e01580cecef47b1ee8abcc2",
+        "tests": {
+          "renderer": {
+            "passed": 48,
+            "failed": 0
+          },
+          "applicationFocused": {
+            "passed": 10,
+            "failed": 0,
+            "resultBundle": "runtime/chat-spacing-registered.xcresult"
+          }
+        }
+      },
+      "scroll": {
+        "status": "fixing_history_reading_position",
+        "fixture": "test/helpers/conversation-scroll-server.mjs",
+        "worktree": "/Users/kite/.codex/worktrees/conversation-scroll/BellTeam"
+      },
+      "tests": {
+        "appleUnit": {
+          "passed": 85,
+          "skipped": 3,
+          "failed": 0,
+          "resultBundle": "runtime/chat-layout-unit-final.xcresult"
+        },
+        "node": {
+          "passed": 405,
+          "failed": 0,
+          "log": "runtime/chat-layout-node-final.log"
+        }
+      },
+      "testflight": {
+        "status": "not_uploaded"
+      },
+      "evidence": "docs/evidence/2026-10-07-conversation-display.md"
     }
   },
   "appleWebAccess": {
