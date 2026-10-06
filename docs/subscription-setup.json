@@ -1429,11 +1429,11 @@
     "reviewSubmission": {
       "authorized": true,
       "authorizationMessage": "では審査に出そうぜ",
-      "state": "WAITING_FOR_REVIEW",
+      "state": "UNRESOLVED_ISSUES",
       "submitted": true,
       "reviewSubmissionIds": [
-        "aaac7dce-78be-49af-a988-9d132eea8706",
-        "97b1a038-0047-49bd-b068-5b731fec5bd3"
+        "a3504d0e-4c90-4f80-b9b7-fa5c4e19d455",
+        "ecad84a9-ac34-409c-9413-95984f71bf63"
       ],
       "firstSubscriptionRequiresAppVersion": true,
       "initialFinalSubmitSurface": "App Store Connect公式API（既存下書き）",
@@ -3079,14 +3079,14 @@
         {
           "platform": "MAC_OS",
           "submissionId": "a3504d0e-4c90-4f80-b9b7-fa5c4e19d455",
-          "state": "WAITING_FOR_REVIEW",
+          "state": "UNRESOLVED_ISSUES",
           "submittedDate": "2026-10-05T00:47:24.151Z",
-          "versionState": "WAITING_FOR_REVIEW",
+          "versionState": "REJECTED",
           "build": "41",
           "items": [
             {
               "id": "YTM1MDRkMGUtNGM5MC00ZjgwLWI5YjctZmE1YzRlMTlkNDU1fDZ8ODkyMTE0MjM3",
-              "state": "READY_FOR_REVIEW",
+              "state": "REJECTED",
               "resources": {
                 "appStoreVersion": {
                   "type": "appStoreVersions",
@@ -3099,14 +3099,14 @@
         {
           "platform": "IOS",
           "submissionId": "ecad84a9-ac34-409c-9413-95984f71bf63",
-          "state": "WAITING_FOR_REVIEW",
+          "state": "UNRESOLVED_ISSUES",
           "submittedDate": "2026-10-05T00:45:55.634Z",
-          "versionState": "WAITING_FOR_REVIEW",
+          "versionState": "REJECTED",
           "build": "41",
           "items": [
             {
               "id": "ZWNhZDg0YTktYWMzNC00MDljLTk0MTMtOTU5ODRmNzFiZjYzfDZ8ODkyMDI0MTUy",
-              "state": "READY_FOR_REVIEW",
+              "state": "REJECTED",
               "resources": {
                 "appStoreVersion": {
                   "type": "appStoreVersions",
@@ -3221,6 +3221,43 @@
         "reviewerPasswordOIDCVerified": true,
         "proofPath": "runtime/apple-review/review39-oidc-validation-private.json",
         "cloudflareCallbackInvoked": false
+      },
+      "rejectionResponse": {
+        "reviewerMessageDisplay": "2026-10-06 11:17 JST",
+        "guidelines": [
+          "4.3",
+          "4.2.6"
+        ],
+        "requestedQuestionCount": 9,
+        "responseDocument": "docs/app-review-response.md",
+        "responseCharacterCount": 3083,
+        "responseSha256": "63f1b7e837d51a11d05e37cfd538402bc717bbe53f8ecb9777ee349bba8172e4",
+        "sent": true,
+        "resubmitted": false,
+        "records": [
+          {
+            "platform": "IOS",
+            "submissionId": "ecad84a9-ac34-409c-9413-95984f71bf63",
+            "sent": true,
+            "senderDisplayed": "栃原開人",
+            "sentAtDisplay": "2026-10-06 12:54 JST",
+            "messageCount": 2,
+            "exactBodyVerified": true,
+            "proofPath": "runtime/apple-review/rejection-ios-sent-proof-20261006.json"
+          },
+          {
+            "platform": "MAC_OS",
+            "submissionId": "a3504d0e-4c90-4f80-b9b7-fa5c4e19d455",
+            "sent": true,
+            "senderDisplayed": "栃原開人",
+            "sentAtDisplay": "2026-10-06 12:55 JST",
+            "messageCount": 2,
+            "exactBodyVerified": true,
+            "proofPath": "runtime/apple-review/rejection-mac-sent-proof-20261006.json"
+          }
+        ],
+        "verifiedAt": "2026-10-06T03:56:37.847422+00:00",
+        "remainingAction": "Appleからの回答待ち"
       }
     },
     "clientRepairs": {
