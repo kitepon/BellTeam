@@ -18,6 +18,8 @@ BellTeamの公開APIを使うSwiftUIアプリ。ローカルへ直接接続し�
 
 会話本文は[EnrichedMarkdown](https://github.com/software-mansion-labs/enriched-markdown-ios)の標準スタイルで見出し・表・箇条書き・引用・コードを表示し、範囲選択とコピーに対応する。メンバー一覧の丸は、待機中が緑、仕事中が赤の点滅、オフラインが灰色になる。iPhone・iPad・Macで共通の表示部品を使う。
 
+吹き出しの最後に追加された段落区切りと外余白は、描画ライブラリの公開themeインターフェースで省く。段落間隔とコード枠の内側のpadding、元の本文とコピー機能は保つ。描画ソースの参照先と修正commitは `Package.resolved` を参照。
+
 iPadではMacと同じ`DesktopWorkspaceView.swift`を参照し、一覧・会話・詳細を並べる。狭いウィンドウでは一覧と会話を切り替え、詳細はシートで開く。縦横の回転とウィンドウのサイズ変更に対応する。詳しくは [iPad版](../../docs/ipad-app.md) を参照。
 
 ## ビルド

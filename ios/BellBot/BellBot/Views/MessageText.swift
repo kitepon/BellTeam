@@ -11,6 +11,7 @@ struct MessageText: View {
     var body: some View {
         EnrichedMarkdownText(source, flags: Md4cFlags(hardSoftBreaks: true))
             .markdownTheme {
+                MessageDocumentSpacing()
                 Paragraph()
                     .fontSize(fontSize)
                     .foregroundStyle(BellTheme.ink)
@@ -23,5 +24,11 @@ struct MessageText: View {
             .markdownTaskListItemToggleEnabled(false)
             .onLinkPress { openURL($0) }
             .accessibilityIdentifier(accessibilityIdentifier ?? "")
+    }
+}
+
+private struct MessageDocumentSpacing: MarkdownThemeContent {
+    func apply(to config: inout MarkdownStyleConfig, traitCollection: UITraitCollection) {
+        config.allowTrailingMargin = false
     }
 }

@@ -18,8 +18,8 @@ settings:
     SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
 packages:
   EnrichedMarkdown:
-    url: https://github.com/software-mansion-labs/enriched-markdown-ios.git
-    exactVersion: 0.3.0
+    url: https://github.com/quolu/enriched-markdown-ios.git
+    revision: 02ace8c0e6eb72278e01580cecef47b1ee8abcc2
 targets:
   BellTeam:
     type: application

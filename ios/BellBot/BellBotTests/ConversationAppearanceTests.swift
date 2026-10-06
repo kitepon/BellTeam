@@ -5,6 +5,57 @@ import XCTest
 
 @MainActor
 final class ConversationAppearanceTests: XCTestCase {
+    func testParagraphDoesNotLeaveAnEmptyLineBelowItsSource() async throws {
+        let source = "会話本文の描画で、末尾に追加された改行が空白として表示されないことを確かめます。段落の途中の折り返しと文字の大きさは保ちます。"
+        let (window, view) = try await renderedMessage(source)
+        defer { window.isHidden = true }
+        let text = try XCTUnwrap(view.attributedText)
+        let width: CGFloat = 340
+        let fitted = view.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        var attributes = text.attributes(at: 0, effectiveRange: nil)
+        let paragraph = try XCTUnwrap((attributes[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle)
+        paragraph.paragraphSpacing = 0
+        attributes[.paragraphStyle] = paragraph
+        let reference = UITextView()
+        reference.isScrollEnabled = false
+        reference.textContainerInset = .zero
+        reference.textContainer.lineFragmentPadding = 0
+        reference.attributedText = NSAttributedString(string: source, attributes: attributes)
+        let expected = reference.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        print("本文の末尾空白: \(source.count - source.trimmingCharacters(in: .whitespacesAndNewlines).count)、描画末尾: \(String(reflecting: text.string.suffix(4)))、本文高: \(fitted.height)、空白を持たない同じ字体の高さ: \(expected.height)")
+        XCTAssertEqual(text.string, source)
+        XCTAssertEqual(fitted.height, expected.height, accuracy: 0.5, "本文の下に空の行や最終段落の余白を置かない")
+    }
+
+    func testLastParagraphKeepsSpacingBetweenParagraphs() async throws {
+        let (window, view) = try await renderedMessage("一つ目の段落。\n\n二つ目の段落。")
+        defer { window.isHidden = true }
+        let text = try XCTUnwrap(view.attributedText)
+        XCTAssertEqual(text.string, "一つ目の段落。\n二つ目の段落。")
+        let first = try XCTUnwrap(text.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        let last = try XCTUnwrap(text.attribute(.paragraphStyle, at: text.length - 1, effectiveRange: nil) as? NSParagraphStyle)
+        XCTAssertEqual(first.paragraphSpacing, 16)
+        XCTAssertEqual(last.paragraphSpacing, 0)
+    }
+
+    func testCodeBlockKeepsItsPaddingAndSmallFinalTerminator() async throws {
+        let (window, view) = try await renderedMessage("```swift\nlet value = 1\n```")
+        defer { window.isHidden = true }
+        let text = try XCTUnwrap(view.attributedText)
+        XCTAssertTrue(text.string.contains("let value = 1"))
+        let tail = try XCTUnwrap(text.attribute(.paragraphStyle, at: text.length - 1, effectiveRange: nil) as? NSParagraphStyle)
+        XCTAssertEqual(tail.minimumLineHeight, 1)
+        XCTAssertEqual(tail.maximumLineHeight, 1)
+        var paddingLines = 0
+        text.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: text.length)) { value, range, _ in
+            if let style = value as? NSParagraphStyle,
+               style.minimumLineHeight == 12, style.maximumLineHeight == 12 {
+                paddingLines += range.length
+            }
+        }
+        XCTAssertGreaterThanOrEqual(paddingLines, 2)
+    }
+
     func testTimelineDecodesAllImageURLsForDirectAndRoomMessages() throws {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase

@@ -549,7 +549,7 @@
 			mainGroup = 4EA5C49F7D2EED587D419DCE;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				3B4D1DED43BC0E2D724D8722 /* XCRemoteSwiftPackageReference "enriched-markdown-ios" */,
+				D640CC690951811AB28D61D5 /* XCRemoteSwiftPackageReference "enriched-markdown-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E2B2A1FC31361F643ACA41A9 /* Products */;
@@ -1043,12 +1043,12 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		3B4D1DED43BC0E2D724D8722 /* XCRemoteSwiftPackageReference "enriched-markdown-ios" */ = {
+		D640CC690951811AB28D61D5 /* XCRemoteSwiftPackageReference "enriched-markdown-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/software-mansion-labs/enriched-markdown-ios.git";
+			repositoryURL = "https://github.com/quolu/enriched-markdown-ios.git";
 			requirement = {
-				kind = exactVersion;
-				version = 0.3.0;
+				kind = revision;
+				revision = 02ace8c0e6eb72278e01580cecef47b1ee8abcc2;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -1056,7 +1056,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		87122DBD7ADB5651138F2FD2 /* EnrichedMarkdown */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 3B4D1DED43BC0E2D724D8722 /* XCRemoteSwiftPackageReference "enriched-markdown-ios" */;
+			package = D640CC690951811AB28D61D5 /* XCRemoteSwiftPackageReference "enriched-markdown-ios" */;
 			productName = EnrichedMarkdown;
 		};
 /* End XCSwiftPackageProductDependency section */
