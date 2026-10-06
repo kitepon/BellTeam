@@ -3454,11 +3454,22 @@
         "proofPath": "runtime/apple/harness-auth-42/testflight-proof.json"
       },
       "macAcceptance": {
-        "status": "waiting_owner_update",
-        "automationStatus": "not_completed",
-        "cause": "agent-desktopのアプリ読取りでAPP_UNRESPONSIVE。TestFlightの更新操作は未実行。",
-        "proofPath": "runtime/apple/harness-auth-42/mac-testflight-update.jsonl",
-        "installedBuild": "41"
+        "status": "installation_and_readonly_confirmed",
+        "installedPath": "/Applications/BellTeam.app",
+        "installedBuild": "42",
+        "installationMethod": "TestFlight",
+        "signatureVerified": true,
+        "gatekeeper": "accepted source=Testflight",
+        "appLaunched": true,
+        "existingConnectionRetained": true,
+        "harnessListDisplayed": true,
+        "codexStatus": "authenticated",
+        "productionAuthStarted": false,
+        "verifiedAt": "2026-10-06T11:46:34.268586+00:00",
+        "proofDirectory": "runtime/apple/harness-auth-42/mac-install-resume/",
+        "guiSelection": "Jev",
+        "guiDelivery": "agent-desktop headed click",
+        "previousBlock": "既定のheadlessクリックが拒否され、TestFlightのアプリ起動入口も失敗した。既存の窓を前面にして対象を選び、標準GUI操作で42を選択。実行中の41を通常終了した直後に42へ置換された。"
       },
       "iphoneAcceptance": {
         "status": "waiting_owner_update"
@@ -3472,7 +3483,10 @@
           "Codexを本人の公式サイト承認まで通す"
         ],
         "decisionId": "K-S9FC4Z",
-        "decisionStatus": "pending"
+        "decisionStatus": "pending",
+        "decisionVersion": 2,
+        "verificationDevice": "Mac",
+        "iphoneUpdateRequiredBeforeVerification": false
       },
       "existingReviewSubmissionChanged": false,
       "plan": "docs/plan_harness-auth-app-20261006.md",
