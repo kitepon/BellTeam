@@ -167,19 +167,23 @@
       "proofPath": "runtime/apple-review/subscription-equalization-proof.json"
     },
     "latestVersionStatus": {
-      "checkedAt": "2026-10-06T12:50:00Z",
+      "checkedAt": "2026-10-06T12:56:56.477Z",
       "IOS": {
         "version": "1.0",
         "build": "41",
         "appVersionState": "READY_FOR_DISTRIBUTION",
-        "appStoreState": "READY_FOR_SALE"
+        "appStoreState": "READY_FOR_SALE",
+        "publicCatalogConfirmed": true,
+        "publicCatalogProof": "runtime/apple/network-lifecycle-43-v101/ios-public-release-proof.json",
+        "releaseDate": "2026-10-06T08:24:55Z"
       },
       "MAC_OS": {
         "version": "1.0",
         "build": "41",
         "appVersionState": "REJECTED",
         "appStoreState": "REJECTED"
-      }
+      },
+      "proofPath": "runtime/apple/network-lifecycle-43-v101/store-state-proof.json"
     }
   },
   "worker": {
@@ -3487,7 +3491,8 @@
         "previousBlock": "既定のheadlessクリックが拒否され、TestFlightのアプリ起動入口も失敗した。既存の窓を前面にして対象を選び、標準GUI操作で42を選択。実行中の41を通常終了した直後に42へ置換された。"
       },
       "iphoneAcceptance": {
-        "status": "waiting_owner_update"
+        "status": "owner_deferred",
+        "currentCandidateReference": "integration.networkLifecycleRepair.testflight"
       },
       "productionAuthentication": {
         "status": "waiting_owner_consent",
@@ -3564,7 +3569,31 @@
         }
       },
       "testflight": {
-        "status": "pending_archive"
+        "status": "distributed",
+        "verifiedAt": "2026-10-06T12:59:12.564Z",
+        "builds": [
+          {
+            "platform": "MAC_OS",
+            "id": "74f81eb1-2be8-418f-9c6f-02ef9e23129f",
+            "build": "43",
+            "version": "1.0.1",
+            "sourceCommit": "d72bba6146544cfa144a282b81f24aba6790e600",
+            "processingState": "VALID",
+            "ownerGroupDistributed": true,
+            "internalBuildState": "IN_BETA_TESTING"
+          },
+          {
+            "platform": "IOS",
+            "id": "bf734bbe-f814-4762-a201-1e63070d52cc",
+            "build": "43",
+            "version": "1.0.1",
+            "sourceCommit": "d72bba6146544cfa144a282b81f24aba6790e600",
+            "processingState": "VALID",
+            "ownerGroupDistributed": true,
+            "internalBuildState": "IN_BETA_TESTING"
+          }
+        ],
+        "proofPath": "runtime/apple/network-lifecycle-43-v101/testflight-proof.json"
       },
       "physicalObservation": {
         "status": "owner_deferred",
@@ -3572,17 +3601,19 @@
         "answerOption": "later",
         "deviceDeveloperMode": "enabled",
         "processProbeError": "com.apple.dt.CoreDeviceError/4016",
-        "startAfterConnectionMinutes": 10
+        "startAfterConnectionMinutes": 10,
+        "requiredBuild": "43",
+        "requiredVersion": "1.0.1"
       },
       "evidence": "docs/evidence/2026-10-06-network-lifecycle.md",
       "productionDiagnosisResolution": "not_confirmed",
-      "sourceCommit": "ef407a51674519a04d260f629315c3568a2e9be5",
+      "sourceCommit": "d72bba6146544cfa144a282b81f24aba6790e600",
       "archive": {
         "ios": "passed",
         "mac": "passed",
         "keychainSearchListRestored": true,
         "keychainLocked": true,
-        "proofPath": "runtime/apple/network-lifecycle-43/archive-export-proof.json"
+        "proofPath": "runtime/apple/network-lifecycle-43-v101/archive-export-proof.json"
       },
       "version": "1.0.1",
       "previousUpload": {
@@ -3596,6 +3627,26 @@
         ],
         "reason": "承認済み1.0への追加ビルドの受付終了",
         "log": "runtime/apple/network-lifecycle-43/ios-upload-43.log"
+      },
+      "existingReviewSubmissionChanged": false,
+      "macAcceptance": {
+        "status": "installation_launch_and_readonly_confirmed",
+        "installedPath": "/Applications/BellTeam.app",
+        "installedVersion": "1.0.1",
+        "installedBuild": "43",
+        "installationMethod": "TestFlight",
+        "signatureVerified": true,
+        "gatekeeper": "accepted source=Testflight",
+        "appLaunched": true,
+        "existingConnectionRetained": true,
+        "schedulesDisplayed": true,
+        "codexStatus": "authenticated",
+        "productionAuthStarted": false,
+        "verifiedAt": "2026-10-06T13:05:42.003568+00:00",
+        "proofDirectory": "runtime/apple/network-lifecycle-43-v101",
+        "guiSelection": "Jev（インストール・起動・予定と設定・Codexの閲覧）",
+        "guiDelivery": "agent-desktop headed click",
+        "launchRecovery": "agent-desktopのlaunchはnot_deliveredで失敗したため、Mac標準のopenでTestFlightを起動。Appleのβ版案内はAXから読めず、実画面で確認した次へを標準マウス操作で進めた。"
       }
     }
   },
