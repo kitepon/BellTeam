@@ -12,8 +12,20 @@ const MEMORY_KINDS = new Set([
   'fact', 'preference', 'policy', 'task', 'config', 'incident', 'relationship', 'episode', 'growth',
 ])
 
-// 全部の語を含む物が無い時に返す、近い物の上限。
+// 検索は文字の一致で探す。記憶やナレッジを語に分けて SQLite の全文検索（FTS5）へ入れ、語から文書を引く（オーナー裁定 2026-10-06）。
+// 語の分け方は2つを合わせる。単語ごと（Node.js に入っている辞書で切る）を重く、2文字ずつを支えにする。
+// 単語の切り方は辞書の版で変わるので、版が変わったら索引を作り直す。索引は元の表から作り直せる。
+const INDEX_VERSION = `1:${process.versions.icu}`
+const WORD_SEGMENTER = new Intl.Segmenter('ja', { granularity: 'word' })
+// 近い順の点（BM25）の重み。自分の文書60節と問い40件で選んだ最初の値。
+const MEMORY_WEIGHTS = { words: 1.5, pairs: 0.3 }
+const KNOWLEDGE_WEIGHTS = { titleWords: 4, bodyWords: 1.5, titlePairs: 1, bodyPairs: 0.3 }
+// 検索語の全部は含まない物（近い物）を返す上限。
 const NEAR_MATCH_LIMIT = 5
+// 文書ごとに1件へまとめる前に読む節の数（返す件数の何倍か）。同じ文書の節が続いても、返す件数に届くようにする。
+const SECTIONS_PER_DOCUMENT = 5
+// ナレッジの文書で、本文が始まる前の行数（knowledgeMarkdown の先頭の項目と題名）。
+const KNOWLEDGE_BODY_OFFSET = 11
 const CJK = '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}ー々'
 const TERM_RUNS = new RegExp(`[${CJK}]+|(?:(?![${CJK}])[\\p{L}\\p{N}_])+`, 'gu')
 const CJK_RUN = new RegExp(`^[${CJK}]`, 'u')
@@ -257,18 +269,9 @@ export class BellTeamMemory {
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     const db = await this.openMemory(bot?.id ?? null, normalizedScope)
     try {
-      const rows = searchRows(db, {
-        table: 'assertions',
-        fts: 'assertions_fts',
-        query,
-        limit,
-        columns: 'a.id, a.kind, a.content, a.importance, a.observed_at, a.metadata_json',
-        alias: 'a',
-        active: true,
-      })
       return {
         scope: normalizedScope,
-        items: rows.map(row => ({
+        items: searchMemories(db, query, limit).map(row => ({
           id: row.id,
           kind: row.kind,
           content: row.content,
@@ -308,6 +311,7 @@ export class BellTeamMemory {
   }
 
   // ナレッジの検索は、ナレッジと長期記憶の両方から探す（オーナー裁定 2026-10-06）。記憶の検索は長期記憶だけ。
+  // ナレッジを先、長期記憶を後に並べる。ナレッジは見出しで区切った節ごとに探し、文書ごとにいちばん近い節を返す。
   async searchKnowledge({ botId, query, scope = 'personal', limit = 20 }) {
     const normalizedScope = normalizeScope(scope)
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
@@ -315,45 +319,11 @@ export class BellTeamMemory {
     const knowledgeDb = openKnowledgeDb(join(ragRoot, 'index.db'))
     const memoryDb = await this.openMemory(bot?.id ?? null, normalizedScope)
     try {
-      const knowledge = {
-        db: knowledgeDb,
-        item: knowledgeItem,
-        options: {
-          table: 'documents',
-          fts: 'documents_fts',
-          query,
-          limit,
-          columns: 'd.id, d.path, d.title, d.body, d.source, d.tags, d.confidence, d.created_at',
-          alias: 'd',
-          textColumns: ['title', 'body', 'tags'],
-        },
-      }
-      const memory = {
-        db: memoryDb,
-        item: memoryItem,
-        options: {
-          table: 'assertions',
-          fts: 'assertions_fts',
-          query,
-          limit,
-          columns: 'a.id, a.kind, a.content, a.importance, a.observed_at',
-          alias: 'a',
-          active: true,
-        },
-      }
-      const found = [knowledge, memory]
-        .flatMap(store => allTermRows(store.db, store.options).map(row => store.item(row, query)))
-        .slice(0, normalizeLimit(limit))
-      if (found.length > 0) return { scope: normalizedScope, items: found }
-      const near = nearest(
-        [knowledge, memory].flatMap(store => rowCandidates(store.db, store.options).map(candidate => ({ ...candidate, item: store.item }))),
-        query,
-        limit,
-      )
-      return {
-        scope: normalizedScope,
-        items: near.map(candidate => ({ ...candidate.item(candidate.row, query), match: 'partial' })),
-      }
+      const items = [
+        ...searchSections(knowledgeDb, query, limit).map(row => knowledgeItem(row, query)),
+        ...searchMemories(memoryDb, query, limit).map(row => memoryItem(row, query)),
+      ]
+      return { scope: normalizedScope, items: items.slice(0, normalizeLimit(limit)) }
     } finally {
       knowledgeDb.close()
       memoryDb.close()
@@ -474,6 +444,7 @@ export class BellTeamMemory {
         status TEXT NOT NULL,
         resolved_at TEXT
       );
+      -- assertions_fts は前の索引（3文字ずつ）。検索では使っていない。新しい索引（memory_index）を本番で確かめた後に消す。
       CREATE VIRTUAL TABLE IF NOT EXISTS assertions_fts USING fts5(
         id UNINDEXED, kind, content,
         content='assertions', content_rowid='rowid', tokenize='trigram'
@@ -490,6 +461,11 @@ export class BellTeamMemory {
         VALUES ('delete', old.rowid, old.id, old.kind, old.content);
         INSERT INTO assertions_fts(rowid, id, kind, content) VALUES (new.rowid, new.id, new.kind, new.content);
       END;
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_index USING fts5(words, pairs, tokenize="unicode61 remove_diacritics 0");
+      CREATE TABLE IF NOT EXISTS index_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
     `)
     return db
   }
@@ -540,6 +516,7 @@ function openKnowledgeDb(path) {
       confidence TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+    -- documents_fts は前の索引（3文字ずつ）。検索では使っていない。新しい索引（section_index）を本番で確かめた後に消す。
     CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
       id UNINDEXED, title, body, tags,
       content='documents', content_rowid='rowid', tokenize='trigram'
@@ -558,6 +535,21 @@ function openKnowledgeDb(path) {
       INSERT INTO documents_fts(rowid, id, title, body, tags)
       VALUES (new.rowid, new.id, new.title, new.body, new.tags);
     END;
+    CREATE TABLE IF NOT EXISTS sections (
+      rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id TEXT NOT NULL,
+      heading TEXT NOT NULL,
+      line INTEGER NOT NULL,
+      body TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS sections_document ON sections (document_id);
+    CREATE VIRTUAL TABLE IF NOT EXISTS section_index USING fts5(
+      title_words, body_words, title_pairs, body_pairs, tokenize="unicode61 remove_diacritics 0"
+    );
+    CREATE TABLE IF NOT EXISTS index_state (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `)
   return db
 }
@@ -570,98 +562,166 @@ function upsertKnowledge(db, value) {
       path = excluded.path, title = excluded.title, body = excluded.body, source = excluded.source,
       tags = excluded.tags, confidence = excluded.confidence, created_at = excluded.created_at
   `).run(value.id, value.path, value.title, value.body, value.source ?? '', value.tags, value.confidence, value.createdAt)
+  // 文書が入れ替わったら、前の節を消す。次の検索の時に、節と索引を作り直す。
+  db.prepare('DELETE FROM section_index WHERE rowid IN (SELECT rowid FROM sections WHERE document_id = ?)').run(value.id)
+  db.prepare('DELETE FROM sections WHERE document_id = ?').run(value.id)
 }
 
-function searchRows(db, options) {
-  const rows = allTermRows(db, options)
-  return rows.length > 0 ? rows : nearRows(db, options)
+function searchMemories(db, query, limit) {
+  const expression = matchExpression(query, { words: ['words'], pairs: ['pairs'] })
+  if (!expression) return []
+  syncMemoryIndex(db)
+  const rows = db.prepare(`
+    SELECT a.id, a.kind, a.content, a.importance, a.observed_at, a.metadata_json
+    FROM memory_index i JOIN assertions a ON a.rowid = i.rowid
+    WHERE memory_index MATCH ? AND a.status = 'active'
+    ORDER BY bm25(memory_index, ${MEMORY_WEIGHTS.words}, ${MEMORY_WEIGHTS.pairs}), a.importance DESC, a.rowid DESC
+    LIMIT ?
+  `).all(expression, normalizeLimit(limit))
+  return limitNearMatches(rows, query, row => row.content)
 }
 
-function allTermRows(db, { table, fts, query, limit, columns, alias, active = false, textColumn = 'content', textColumns = [textColumn] }) {
+function searchSections(db, query, limit) {
+  const expression = matchExpression(query, { words: ['title_words', 'body_words'], pairs: ['title_pairs', 'body_pairs'] })
+  if (!expression) return []
+  syncSectionIndex(db)
+  const weights = KNOWLEDGE_WEIGHTS
+  const rows = db.prepare(`
+    SELECT d.id, d.path, d.title, d.source, d.tags, d.confidence, d.created_at, s.heading, s.line, s.body
+    FROM section_index i JOIN sections s ON s.rowid = i.rowid JOIN documents d ON d.id = s.document_id
+    WHERE section_index MATCH ?
+    ORDER BY bm25(section_index, ${weights.titleWords}, ${weights.bodyWords}, ${weights.titlePairs}, ${weights.bodyPairs}), s.rowid DESC
+    LIMIT ?
+  `).all(expression, normalizeLimit(limit) * SECTIONS_PER_DOCUMENT)
+  const seen = new Set()
+  const nearest = rows.filter(row => !seen.has(row.id) && seen.add(row.id)).slice(0, normalizeLimit(limit))
+  return limitNearMatches(nearest, query, row => `${row.title}\n${row.heading}\n${row.tags}\n${row.body}`)
+}
+
+// 検索語を、索引を引く式にする。単語の列は単語で、2文字の列は2文字の並びで引く。どれかが当たれば候補になる。
+function matchExpression(query, columns) {
+  splitQuery(query)
+  const quoted = tokens => queryTokens(tokens).map(token => `"${token.replaceAll('"', '""')}"`).join(' OR ')
+  const words = quoted(wordTokens(query))
+  const pairs = quoted(pairTokens(query))
+  return [
+    words && `{${columns.words.join(' ')}}: (${words})`,
+    pairs && `{${columns.pairs.join(' ')}}: (${pairs})`,
+  ].filter(Boolean).join(' OR ')
+}
+
+// 近い順に並んだ結果のうち、検索語の全部は含まない物（近い物）に印を付け、5件までにする。全部を含む物は減らさない。
+function limitNearMatches(rows, query, textOf) {
+  const { rawQuery, tokens, literalQuery } = splitQuery(query)
+  const required = (literalQuery ? [rawQuery] : tokens).map(term => term.toLocaleLowerCase())
+  let near = 0
+  return rows
+    .map(row => {
+      const text = textOf(row).toLocaleLowerCase()
+      return required.every(term => text.includes(term)) ? row : { ...row, near: true }
+    })
+    .filter(row => !row.near || (near += 1) <= NEAR_MATCH_LIMIT)
+}
+
+// 検索語を空白で区切る。記号を含み空白を含まない検索語（ファイル名や番号）は、区切らずそのまま扱う。
+function splitQuery(query) {
   if (typeof query !== 'string' || query.trim().length === 0) throw new Error('SEARCH_QUERY_INVALID')
   const rawQuery = query.trim()
   const tokens = rawQuery.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/u).filter(Boolean)
-  if (tokens.length === 0) return []
-  const status = active ? ` AND ${alias}.status = 'active'` : ''
   const literalQuery = /[^\p{L}\p{N}\s]/u.test(rawQuery) && !/\s/u.test(rawQuery)
-  if (!literalQuery && tokens.every(token => [...token].length >= 3)) {
-    const ftsQuery = tokens.map(token => `"${token.replaceAll('"', '""')}"`).join(' ')
-    return db.prepare(`
-      SELECT ${columns}
-      FROM ${fts} f JOIN ${table} ${alias} ON ${alias}.rowid = f.rowid
-      WHERE ${fts} MATCH ?${status}
-      ORDER BY bm25(${fts}), ${alias}.rowid DESC
-      LIMIT ?
-    `).all(ftsQuery, normalizeLimit(limit))
+  return { rawQuery, tokens, literalQuery }
+}
+
+// 索引に入っていない記憶を、語に分けて入れる。記憶の本文は書き換わらないので、入れた分は作り直さない。
+function syncMemoryIndex(db) {
+  if (!indexIsCurrent(db)) {
+    db.exec('DELETE FROM memory_index')
+    markIndexCurrent(db)
   }
-  const likeTerms = literalQuery ? [rawQuery] : tokens
-  const clauses = likeTerms.map(() => `(${textColumns.map(column => `${alias}.${column} LIKE ?`).join(' OR ')})`).join(' AND ')
-  return db.prepare(`
-    SELECT ${columns} FROM ${table} ${alias}
-    WHERE ${clauses}${status}
-    ORDER BY ${active ? `${alias}.importance DESC, ` : ''}${alias}.rowid DESC
-    LIMIT ?
-  `).all(...likeTerms.flatMap(token => textColumns.map(() => `%${token}%`)), normalizeLimit(limit))
+  const missing = db.prepare('SELECT rowid, content FROM assertions WHERE rowid NOT IN (SELECT rowid FROM memory_index)').all()
+  const insert = db.prepare('INSERT INTO memory_index (rowid, words, pairs) VALUES (?, ?, ?)')
+  for (const row of missing) insert.run(row.rowid, wordTokens(row.content).join(' '), pairTokens(row.content).join(' '))
 }
 
-// 全部の語を含む物が無い時は、語の一部が当たった物を近い順に返す。
-function nearRows(db, options) {
-  return nearest(rowCandidates(db, options), options.query, options.limit).map(candidate => ({ ...candidate.row, near: true }))
-}
-
-function rowCandidates(db, { table, columns, alias, active = false, textColumn = 'content', textColumns = [textColumn] }) {
-  return db.prepare(`
-    SELECT ${columns}, ${textColumns.map(column => `${alias}.${column}`).join(' || char(10) || ')} AS near_text
-    FROM ${table} ${alias}${active ? ` WHERE ${alias}.status = 'active'` : ''}
-    ORDER BY ${alias}.rowid DESC
-  `).all().map(row => ({ row, text: row.near_text }))
-}
-
-// 候補を検索語に近い順に並べ、点が付いた物を5件まで返す。点はBM25で、珍しい語が当たるほど高い。同じ点の時は渡された順のまま。
-function nearest(candidates, query, limit) {
-  const terms = [...new Set(searchTerms(query))]
-  if (terms.length === 0) return []
-  const counted = candidates.map(candidate => {
-    const list = searchTerms(candidate.text)
-    const counts = new Map()
-    for (const term of list) counts.set(term, (counts.get(term) ?? 0) + 1)
-    return { candidate, counts, length: list.length }
-  })
-  const averageLength = counted.reduce((sum, item) => sum + item.length, 0) / counted.length
-  const rarity = new Map(terms.map(term => {
-    const containing = counted.filter(item => item.counts.has(term)).length
-    return [term, Math.log(1 + (counted.length - containing + 0.5) / (containing + 0.5))]
-  }))
-  const scored = []
-  for (const item of counted) {
-    let score = 0
-    for (const term of terms) {
-      const frequency = item.counts.get(term) ?? 0
-      if (frequency > 0) score += rarity.get(term) * (frequency * 2.2) / (frequency + 1.2 * (0.25 + 0.75 * item.length / averageLength))
+// 節に分けていないナレッジの文書を、見出しで区切って索引へ入れる。
+function syncSectionIndex(db) {
+  if (!indexIsCurrent(db)) {
+    db.exec('DELETE FROM section_index; DELETE FROM sections;')
+    markIndexCurrent(db)
+  }
+  const missing = db.prepare('SELECT id, title, body, tags FROM documents WHERE id NOT IN (SELECT document_id FROM sections)').all()
+  const insertSection = db.prepare('INSERT INTO sections (document_id, heading, line, body) VALUES (?, ?, ?, ?)')
+  const insertIndex = db.prepare('INSERT INTO section_index (rowid, title_words, body_words, title_pairs, body_pairs) VALUES (?, ?, ?, ?, ?)')
+  for (const document of missing) {
+    for (const section of markdownSections(document.body)) {
+      const title = `${document.title} ${section.heading} ${JSON.parse(document.tags).join(' ')}`
+      const { lastInsertRowid } = insertSection.run(document.id, section.heading, section.line, section.body)
+      insertIndex.run(lastInsertRowid, wordTokens(title).join(' '), wordTokens(section.body).join(' '), pairTokens(title).join(' '), pairTokens(section.body).join(' '))
     }
-    if (score > 0) scored.push({ candidate: item.candidate, score })
   }
-  return scored
-    .sort((a, b) => b.score - a.score)
-    .slice(0, Math.min(NEAR_MATCH_LIMIT, normalizeLimit(limit)))
-    .map(item => item.candidate)
 }
 
-// 英数字は語のまま、日本語は2文字ずつに分ける。ひらがなだけの2文字は助詞や語尾が多いので数えない。
-function searchTerms(text) {
-  const terms = []
-  for (const run of text.normalize('NFKC').toLocaleLowerCase().match(TERM_RUNS) ?? []) {
-    const characters = [...run]
-    if (!CJK_RUN.test(run)) {
-      if (characters.length >= 2) terms.push(run)
+function indexIsCurrent(db) {
+  return db.prepare("SELECT value FROM index_state WHERE key = 'version'").get()?.value === INDEX_VERSION
+}
+
+function markIndexCurrent(db) {
+  db.prepare("INSERT INTO index_state (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(INDEX_VERSION)
+}
+
+// Markdownを見出しで区切る。コードの囲みの中の # は見出しにしない。本文の無い見出しは、下の節の見出しに残る。
+// 見出しの前の文は、見出しの無い節になる。line は、その節が始まる本文の行（1始まり）。
+function markdownSections(markdown) {
+  const sections = []
+  const trail = []
+  let current = { heading: '', line: 1, lines: [] }
+  let fenced = false
+  const flush = () => {
+    const body = current.lines.join('\n').trim()
+    if (body) sections.push({ heading: current.heading, line: current.line, body })
+  }
+  for (const [index, line] of markdown.split('\n').entries()) {
+    if (/^(```|~~~)/u.test(line)) fenced = !fenced
+    const heading = fenced ? null : line.match(/^(#{1,6})\s+(.*)$/u)
+    if (!heading) {
+      current.lines.push(line)
       continue
     }
-    for (let index = 0; index + 1 < characters.length; index += 1) {
-      const pair = characters[index] + characters[index + 1]
-      if (!HIRAGANA_ONLY.test(pair)) terms.push(pair)
-    }
+    flush()
+    trail.length = heading[1].length - 1
+    trail[heading[1].length - 1] = heading[2].trim()
+    current = { heading: trail.filter(Boolean).join(' > '), line: index + 1, lines: [] }
   }
-  return terms
+  flush()
+  return sections.length > 0 ? sections : [{ heading: '', line: 1, body: markdown }]
+}
+
+// 単語ごとに分ける。切るのは Node.js に入っている辞書（ICU）。記号と空白は語にしない。
+function wordTokens(text) {
+  const tokens = []
+  for (const part of WORD_SEGMENTER.segment(text.normalize('NFKC').toLocaleLowerCase())) {
+    if (part.isWordLike) tokens.push(part.segment)
+  }
+  return tokens
+}
+
+// 英数字は続きをそのまま1語に、日本語は2文字ずつに分ける。1文字だけの日本語は、その1文字を語にする。
+function pairTokens(text) {
+  const tokens = []
+  for (const run of text.normalize('NFKC').toLocaleLowerCase().match(TERM_RUNS) ?? []) {
+    const characters = [...run]
+    if (!CJK_RUN.test(run) || characters.length === 1) {
+      tokens.push(run)
+      continue
+    }
+    for (let index = 0; index + 1 < characters.length; index += 1) tokens.push(characters[index] + characters[index + 1])
+  }
+  return tokens
+}
+
+// 探す時は、ひらがなだけの短い語（助詞や語尾）を使わない。どの文にもあって、近さの手がかりにならない。
+function queryTokens(tokens) {
+  return [...new Set(tokens)].filter(token => !(HIRAGANA_ONLY.test(token) && [...token].length <= 2))
 }
 
 function knowledgeMarkdown({ id, title, source, createdAt, confidence, tags, content }) {
@@ -696,13 +756,15 @@ async function appendIndex(root, { title, relativePath, createdAt, confidence })
 function knowledgeItem(row, query) {
   return {
     id: row.id,
-    title: row.title,
+    title: row.heading ? `${row.title} > ${row.heading}` : row.title,
     excerpt: excerpt(row.body, query),
     path: row.path,
+    line: KNOWLEDGE_BODY_OFFSET + row.line,
     source: row.source,
     tags: JSON.parse(row.tags),
     confidence: row.confidence,
     createdAt: row.created_at,
+    ...(row.near ? { match: 'partial' } : {}),
   }
 }
 
@@ -716,13 +778,15 @@ function memoryItem(row, query) {
     kind: row.kind,
     importance: row.importance,
     observedAt: row.observed_at,
+    ...(row.near ? { match: 'partial' } : {}),
   }
 }
 
+// 当たった語のまわりを抜き出す。検索語の全体、空白で区切った語、単語、2文字の並びの順に探す。
 function excerpt(body, query) {
   const lowerBody = body.toLocaleLowerCase()
   const whole = query.trim().toLocaleLowerCase()
-  for (const candidate of [whole, ...whole.split(/\s+/u), ...searchTerms(whole)]) {
+  for (const candidate of [whole, ...whole.split(/\s+/u), ...queryTokens(wordTokens(whole)), ...queryTokens(pairTokens(whole))]) {
     const position = candidate ? lowerBody.indexOf(candidate) : -1
     if (position >= 0) return body.slice(Math.max(0, position - 80), position + candidate.length + 160)
   }

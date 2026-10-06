@@ -274,3 +274,84 @@ test('ナレッジの検索はナレッジと長期記憶の両方から探し�
   assert.deepEqual((await memory.searchKnowledge({ botId: 'bot-b', query: 'WAL' })).items.map(item => item.id), [other.id])
   assert.deepEqual((await memory.searchKnowledge({ botId: 'bot-a', query: 'WAL', scope: 'shared' })).items.map(item => item.id), [shared.id])
 })
+
+test('ナレッジは見出しで区切った節ごとに探し、文書ごとにいちばん近い節の場所を返す', async () => {
+  const { root, memory } = await fixture()
+  const long = await memory.recordKnowledge({
+    botId: 'bot-a',
+    title: 'SQLiteの運用の覚え書き',
+    tags: ['sqlite'],
+    content: [
+      '公式の文書から要る所を写した。',
+      '',
+      '## バックアップ',
+      '',
+      '動いている最中でも、online backup なら壊れない写しが取れる。',
+      '',
+      '## 戻し方',
+      '',
+      '### WALの扱い',
+      '',
+      '戻す時は、横に残った古いWALを消す。残すと本体と組み合わさって壊れる事がある。',
+      '',
+      '```',
+      '# ここは見出しではない',
+      '```',
+    ].join('\n'),
+  })
+  await memory.recordKnowledge({ botId: 'bot-a', title: '別の覚え書き', content: '検索は文字の一致で当てる。' })
+
+  // 1つの文書に当たる節が2つあっても、返すのは文書ごとに1件。題名に見出しが付き、抜粋はその節から取る。
+  const found = await memory.searchKnowledge({ botId: 'bot-a', query: '古いWALを消す' })
+  assert.deepEqual(found.items.map(item => item.id), [long.id])
+  assert.equal(found.items[0].title, 'SQLiteの運用の覚え書き > 戻し方 > WALの扱い')
+  assert.match(found.items[0].excerpt, /^戻す時は、横に残った古いWALを消す。/u)
+  assert.equal(found.items[0].match, undefined)
+  // line は、文書のファイルの中で、その節の見出しがある行。
+  const lines = (await readFile(join(root, 'bots', 'bot-a', 'rag', found.items[0].path), 'utf8')).split('\n')
+  assert.equal(lines[found.items[0].line - 1], '### WALの扱い')
+
+  // 見出しより前の文は、題名だけの節になる。コードの囲みの中の # は見出しにしない。
+  const lead = await memory.searchKnowledge({ botId: 'bot-a', query: '公式の文書' })
+  assert.deepEqual([lead.items[0].title, lines[lead.items[0].line - 1]], ['SQLiteの運用の覚え書き', '公式の文書から要る所を写した。'])
+  const fenced = await memory.searchKnowledge({ botId: 'bot-a', query: 'ここは見出しではない' })
+  assert.equal(fenced.items[0].title, 'SQLiteの運用の覚え書き > 戻し方 > WALの扱い')
+
+  // 言い方が違う問いは、近い物として返る。題名とタグの語も当たる。
+  const near = await memory.searchKnowledge({ botId: 'bot-a', query: 'バックアップは稼働中でも安全？' })
+  assert.deepEqual([near.items[0].title, near.items[0].match], ['SQLiteの運用の覚え書き > バックアップ', 'partial'])
+  assert.equal((await memory.searchKnowledge({ botId: 'bot-a', query: 'sqlite' })).items[0].id, long.id)
+})
+
+test('索引は、番号やファイル名や1文字の語でも引け、語の切り方の版が変わったら作り直す', async () => {
+  const { root, memory } = await fixture()
+  const ruling = await memory.remember({ botId: 'bot-a', content: '裁定 K-Z7ECDC: 長期記憶は起動時に読ませない', kind: 'policy', importance: 9 })
+  const file = await memory.remember({ botId: 'bot-a', content: 'throughline.db は共有の置き場へ移した', kind: 'config' })
+  const seat = await memory.remember({ botId: 'bot-a', content: '席が起き直した後に数える', kind: 'task' })
+
+  const ids = async query => (await memory.recallMemory({ botId: 'bot-a', query })).items.map(item => [item.id, item.match])
+  assert.deepEqual(await ids('K-Z7ECDC'), [[ruling.id, undefined]])
+  assert.deepEqual(await ids('throughline.db'), [[file.id, undefined]])
+  assert.deepEqual(await ids('席'), [[seat.id, undefined]])
+  // 重要度の高い物を先に出すのは、点が同じ時だけ。近い順が先。
+  assert.deepEqual(await ids('長期記憶 起動時'), [[ruling.id, undefined]])
+  assert.deepEqual(await ids('起動時にロードする案'), [[ruling.id, 'partial']])
+
+  // 版の印を書き換えると、次の検索で索引を作り直す。結果は同じ。
+  const dbPath = join(root, 'bots', 'bot-a', 'memory', 'memory.db')
+  const db = new DatabaseSync(dbPath)
+  db.prepare("UPDATE index_state SET value = 'old' WHERE key = 'version'").run()
+  db.exec("DELETE FROM memory_index; INSERT INTO memory_index (rowid, words, pairs) VALUES (999, '古い 切り方', '古い 切り')")
+  db.close()
+  assert.deepEqual(await ids('K-Z7ECDC'), [[ruling.id, undefined]])
+  const rebuilt = new DatabaseSync(dbPath)
+  assert.equal(rebuilt.prepare('SELECT count(*) AS count FROM memory_index').get().count, 3)
+  assert.notEqual(rebuilt.prepare("SELECT value FROM index_state WHERE key = 'version'").get().value, 'old')
+  rebuilt.close()
+
+  // ナレッジの索引は、文書を作り直した時（rebuildKnowledgeIndex）にも入れ直す。
+  const note = await memory.recordKnowledge({ botId: 'bot-a', title: '反映の手順', content: '## 確かめ\n\n割り当てを見る。' })
+  assert.equal((await memory.searchKnowledge({ botId: 'bot-a', query: '割り当て' })).items[0].title, '反映の手順 > 確かめ')
+  await memory.rebuildKnowledgeIndex({ botId: 'bot-a' })
+  assert.deepEqual((await memory.searchKnowledge({ botId: 'bot-a', query: '割り当て' })).items.map(item => item.id), [note.id])
+})
