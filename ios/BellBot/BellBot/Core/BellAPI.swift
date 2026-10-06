@@ -15,6 +15,8 @@ enum BellAPIError: LocalizedError {
     case unauthorized
     case accessLoginRequired
     case invalidResponse
+    case backgroundSendUnavailable
+    case backgroundSendExpired
     case server(String)
     case httpStatus(Int, String?)
 
@@ -24,6 +26,8 @@ enum BellAPIError: LocalizedError {
         case .accessLoginRequired: "Cloudflare Accessへログインしてください。"
         case .unauthorized: "認証が切れました。もう一度ログインしてください。"
         case .invalidResponse: "BellTeamからの応答を読み取れませんでした。"
+        case .backgroundSendUnavailable: "送信に必要な実行時間を確保できませんでした。アプリを前面に戻して送信してください。"
+        case .backgroundSendExpired: "背景で送信を確認できる時間が終了しました。送信済みの場合があるため、会話を確認してください。"
         case .server(let message): "BellTeam: \(message)"
         case .httpStatus(let status, let message): "BellTeam: \(message ?? "HTTP \(status)")"
         }
@@ -118,6 +122,13 @@ final class BellAPI {
     func post<Body: Encodable, T: Decodable>(_ path: String, body: Body) async throws -> T {
         let payload = try JSONEncoder().encode(body)
         return try decode(T.self, from: try await data(path: path, method: "POST", body: payload), path: path, method: "POST")
+    }
+
+    @MainActor
+    func sendMessage(_ path: String, body: SendMessageBody) async throws {
+        try await BackgroundMessageSend().run {
+            let _: APIAcknowledgement = try await self.post(path, body: body)
+        }
     }
 
     func patch<Body: Encodable, T: Decodable>(_ path: String, body: Body) async throws -> T {

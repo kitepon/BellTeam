@@ -3530,7 +3530,7 @@
           "fingerprintPrefix": "7290fa8f",
           "code": "IOS_NETWORK_TIMEOUT",
           "module": "conversation",
-          "count": 8,
+          "count": 9,
           "status": "open",
           "rootCause": "unknown"
         },
@@ -3596,7 +3596,7 @@
         "proofPath": "runtime/apple/network-lifecycle-43-v101/testflight-proof.json"
       },
       "physicalObservation": {
-        "status": "physical_capture_failed_before_test_post",
+        "status": "background_post_timeout_reproduced",
         "decisionId": "K-HJW3JV",
         "answerOption": "later",
         "deviceDeveloperMode": "enabled",
@@ -3626,10 +3626,10 @@
         "currentCaptureAnswer": "capture_now",
         "currentCaptureDurationSeconds": 120,
         "captureStarted": true,
-        "testPostSent": false,
+        "testPostSent": true,
         "normalAppLaunchRestored": true,
         "instrumentPromptClosedWithoutMeasurement": true,
-        "remainingOwnerAction": "フラジャイルの会話へBT-USB43-1006-Aと入力して、送らずiPhoneをロックする",
+        "remainingOwnerAction": null,
         "measurementWillStartAfterMirroringReconnect": false,
         "iphoneLockedAndMirroringReconnected": true,
         "waitForMemberRecoveryNotice": false,
@@ -3639,13 +3639,20 @@
           "plannedAt": "2026-10-06T22:55:00+09:00",
           "testMessageMarker": "BT-USB43-1006-A",
           "interruptionMustBeSeparatedFromOriginalDiagnostics": true,
-          "recoveryConfirmedBy": "current_chat_owner"
+          "recoveryConfirmedBy": "current_chat_owner",
+          "latestNotice": {
+            "callSession": "38722012-211b-45b8-8748-a7c03d947dbb",
+            "seq": 2,
+            "expectedAt": "2026-10-07T08:03:00+09:00",
+            "waitForRecoveryNotice": true,
+            "postSendDelayChanges": true
+          }
         },
         "latestCancelledTrace": {
           "durationSeconds": 0,
           "toc": "runtime/apple/usb-observation-20261006/authorized-02-toc.xml"
         },
-        "currentCallSession": "525de7d4-5f59-494a-8e77-d4855ca93329",
+        "currentCallSession": "38722012-211b-45b8-8748-a7c03d947dbb",
         "additionalMeasurementRequestedByMember": true,
         "memberWithdrewCaptureRequest": {
           "callSession": "525de7d4-5f59-494a-8e77-d4855ca93329",
@@ -3662,13 +3669,40 @@
           "testPostSent": false
         },
         "currentInputDecisionId": "K-3VNLXY",
-        "currentInputDecisionStatus": "pending",
+        "currentInputDecisionStatus": "answered",
         "currentInputDecisionVersion": 2,
         "proposedTestRecipient": {
           "name": "フラジャイル",
           "id": "bot-a855525f",
-          "permission": "waiting_owner_answer",
+          "permission": "owner_approved_and_one_test_completed",
           "expectedResponseDelaySeconds": 5.7
+        },
+        "currentInputAnswer": "fragile_ready",
+        "reproducedPost": {
+          "version": "1.0.1",
+          "build": "44",
+          "recipientId": "bot-a855525f",
+          "assistantAttempts": 1,
+          "automaticReplays": 0,
+          "sentAt": "2026-10-07T07:43:50+09:00",
+          "homeCompletedAt": "2026-10-07T07:43:51.329+09:00",
+          "returnRequestedAt": "2026-10-07T07:44:55.908+09:00",
+          "backgroundSeconds": 64.6,
+          "serverArrivalAt": "2026-10-07T07:43:50.662+09:00",
+          "serverSavedAt": "2026-10-07T07:43:50.692+09:00",
+          "serverStatus": 200,
+          "serverElapsedMilliseconds": 5721,
+          "diagnosticError": -1001,
+          "diagnosticElapsedMilliseconds": 66543,
+          "diagnosticCountBefore": 8,
+          "diagnosticCountAfter": 9,
+          "draftRestored": true,
+          "evidencePath": "runtime/apple/chat-scroll-44/physical-background-post-44.json",
+          "serverEvidenceCallSession": "525de7d4-5f59-494a-8e77-d4855ca93329",
+          "serverEvidenceSeq": [
+            17,
+            19
+          ]
         }
       },
       "evidence": "docs/evidence/2026-10-06-network-lifecycle.md",
@@ -3910,6 +3944,78 @@
         "usbConnection": true,
         "mirroringState": "iPhoneが使用されたため終了"
       }
+    },
+    "backgroundMessageSendRepair": {
+      "version": "1.0.1",
+      "build": "45",
+      "status": "tests_passed",
+      "scope": "メッセージPOSTの間だけUIKitの背景実行時間を要求する。送信後の会話取得は前面へ戻ってから始める。",
+      "diagnosticRootCauseConfirmed": false,
+      "diagnosticCasesReference": "integration.networkLifecycleRepair.diagnosticCases",
+      "physicalReproductionReference": "integration.networkLifecycleRepair.physicalObservation.reproducedPost",
+      "tests": {
+        "focused": {
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0,
+          "resultBundle": "runtime/background-send-focused-2.xcresult"
+        },
+        "initialSimulatorBackgroundPost": {
+          "passed": 1,
+          "failed": 0,
+          "resultBundle": "runtime/background-send-ui.xcresult"
+        },
+        "node": {
+          "passed": 405,
+          "failed": 0,
+          "log": "runtime/background-send-node-final.log"
+        },
+        "simulatorBackgroundPost": {
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "resultBundle": "runtime/background-send-ui-native-state.xcresult",
+          "noBackgroundReadsAfterSend": true,
+          "foregroundConversationRead": true,
+          "noDraftRestoration": true,
+          "postCount": 1
+        },
+        "initialFinalAttempt": {
+          "appleUnitPassed": 90,
+          "appleUnitSkipped": 3,
+          "uiFailed": 1,
+          "resultBundle": "runtime/background-send-final.xcresult",
+          "reason": "非同期処理が保持した送信開始時の画面状態を参照し、背景で一覧GETを始めた"
+        },
+        "intermediateUIAttempt": {
+          "uiFailed": 1,
+          "resultBundle": "runtime/background-send-ui-live-state.xcresult",
+          "reason": "previewはAppStoreへのsceneChanged通知を停止していたため、前面復帰で一覧取得を始めなかった"
+        },
+        "appleFinal": {
+          "passed": 92,
+          "unitPassed": 91,
+          "uiPassed": 1,
+          "failed": 0,
+          "skipped": 3,
+          "resultBundle": "runtime/background-send-final-2.xcresult"
+        },
+        "macNative": {
+          "passed": 6,
+          "failed": 0,
+          "resultBundle": "runtime/background-send-mac-native-3.xcresult",
+          "log": "runtime/background-send-mac-native-3.log",
+          "nativeUIKitExecutionTime": "acquired_and_finished",
+          "scope": "背景送信の対象単体試験。テスト用のローカル署名で、App Group等の配布用権限は使用しない。"
+        }
+      },
+      "testflight": {
+        "status": "not_uploaded"
+      },
+      "physicalAcceptance": {
+        "status": "pending_distribution"
+      },
+      "evidence": "docs/evidence/2026-10-07-background-message-send.md"
     }
   },
   "appleWebAccess": {

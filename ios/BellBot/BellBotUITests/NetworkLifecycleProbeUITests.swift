@@ -34,7 +34,16 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         let error = app.staticTexts["send-error"]
         let report = ["backgroundAt": sendBackgroundAt, "returnedAt": sendReturnedAt, "errorVisible": error.exists] as [String: Any]
         attach(try JSONSerialization.data(withJSONObject: report), name: "POSTの画面状態")
-
+        XCTAssertFalse(error.exists, "背景で応答を受けた送信を失敗と表示しない")
+        XCTAssertEqual(input.value as? String, "", "成功した送信を下書きへ戻さない")
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: sendProof) as? [String: Any])
+        let records = try XCTUnwrap(proof["records"] as? [[String: Any]])
+        XCTAssertEqual(records.count, 1, "POSTを再送しない")
+        let completed = try XCTUnwrap(records.first?["completedAt"] as? Double, "遅らせた応答が完了している")
+        let reads = try XCTUnwrap(proof["reads"] as? [[String: Any]])
+        XCTAssertTrue(reads.filter { ($0["receivedAt"] as? Double ?? 0) > completed }.isEmpty,
+                      "送信完了後の一覧取得は、前面復帰まで始めない")
+        XCTAssertTrue(waitForReadAfterResponse(base, completed: completed), "前面復帰で会話を読み直す")
     }
 
     func testMeasureScheduleRequestsAcrossBackground() throws {
@@ -71,6 +80,18 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         while Date() < limit {
             if let value = try? JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any],
                let records = value["records"] as? [[String: Any]], records.count >= count { return true }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return false
+    }
+
+    private func waitForReadAfterResponse(_ base: URL, completed: Double) -> Bool {
+        let limit = Date().addingTimeInterval(5)
+        while Date() < limit {
+            if let value = try? JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any],
+               let reads = value["reads"] as? [[String: Any]],
+               reads.contains(where: { ($0["receivedAt"] as? Double ?? 0) > completed &&
+                   ($0["path"] as? String)?.hasSuffix("/messages") == true }) { return true }
             Thread.sleep(forTimeInterval: 0.1)
         }
         return false

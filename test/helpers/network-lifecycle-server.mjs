@@ -6,13 +6,15 @@ const source = await readFile(new URL('../../ios/BellBot/BellBot/Core/PreviewFix
 const fixture = JSON.parse(source.match(/let source = """\n([\s\S]*?)\n\s*"""/u)[1])
 let mode = 'post'
 let records = []
+let reads = []
 let active = 0
 let peak = 0
 const server = createServer(async (request, response) => {
   const path = new URL(request.url, 'http://localhost').pathname
   const json = value => { response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(value)) }
-  if (path === '/test/reset') { mode = new URL(request.url, 'http://localhost').searchParams.get('mode') ?? 'post'; records = []; active = 0; peak = 0; return json({ ok: true }) }
-  if (path === '/test/proof') return json({ mode, active, peak, records })
+  if (path === '/test/reset') { mode = new URL(request.url, 'http://localhost').searchParams.get('mode') ?? 'post'; records = []; reads = []; active = 0; peak = 0; return json({ ok: true }) }
+  if (path === '/test/proof') return json({ mode, active, peak, records, reads })
+  if (request.method === 'GET') reads.push({ path, receivedAt: Date.now() })
   if (path === '/api/subscription') return json({ subscription: { productId: 'dev.kitepon.bellbot.monthly', environment: 'Production', accessMode: 'developer', setupComplete: true, entitled: false, state: 'none', autoRenewing: false } })
   if (path === '/api/settings') return json({ settings: [] })
   if (path === '/api/harness-auth') return json({ harnesses: [] })

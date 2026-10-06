@@ -14,6 +14,7 @@ private struct ConversationContent: View {
     let target: ChatTarget
 
     @EnvironmentObject private var store: AppStore
+    @Environment(\.scenePhase) private var scenePhase
     @State private var messages: [TimelineMessage] = []
     @State private var queue: [QueueItem] = []
     @State private var hasMore = false
@@ -53,6 +54,7 @@ private struct ConversationContent: View {
     private var title: String { target.isRoom ? (room?.name ?? "ルーム") : (bot?.displayName ?? "メンバー") }
     private var avatar: String { target.isRoom ? (room?.avatar ?? "") : (bot?.avatar ?? "") }
     private var accent: Color { target.isRoom ? BellTheme.violet : BellTheme.accent(bot?.color ?? "violet") }
+    private var appIsActive: Bool { UIApplication.shared.applicationState == .active }
 
     var body: some View {
         ZStack {
@@ -138,7 +140,9 @@ private struct ConversationContent: View {
                     .onChange(of: scrollToBottomRevision) { _, _ in
                         withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
                     }
-                    .onChange(of: store.eventRevision) { _, _ in Task { await refresh() } }
+                    .onChange(of: store.eventRevision) { _, _ in
+                        if appIsActive { Task { await refresh() } }
+                    }
                 }
             }
         }
@@ -185,6 +189,9 @@ private struct ConversationContent: View {
             if case .failure(let error) = result { errorText = error.localizedDescription }
         }
         .task { await loadInitial() }
+        .onChange(of: scenePhase) { _, next in
+            if next == .active { Task { await refresh() } }
+        }
         .onAppear {
             visibleAttachments = store.draft(for: target).attachments
             selectedTargets = store.draft(for: target).selectedTargets
@@ -463,7 +470,7 @@ private struct ConversationContent: View {
     }
 
     private func refresh() async {
-        guard !loading else { return }
+        guard !loading, appIsActive else { return }
         do {
             async let waiting: QueueResponse = store.api.get(target.path + "/queue")
             let latestPath = target.path + "/messages?limit=20"
@@ -519,11 +526,13 @@ private struct ConversationContent: View {
             targets: target.isRoom && !selectedTargets.isEmpty ? Array(selectedTargets) : nil
         )
         do {
-            let _: APIAcknowledgement = try await store.api.post(target.path + "/messages", body: body)
-            await refresh()
+            try await store.api.sendMessage(target.path + "/messages", body: body)
             hasUnreadMessages = false
             scrollToBottomRevision += 1
-            await store.refreshFromView()
+            if appIsActive {
+                await refresh()
+                if appIsActive { await store.refreshFromView() }
+            }
         } catch {
             // 送信中に書き始めた続きは消さず、送れなかった本文の後ろに残す。
             draft = [message, draft].filter { !$0.isEmpty }.joined(separator: "\n")

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0257818FD6EAD80113F01926 /* NotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0F4DFFFAE06E03111B358A /* NotificationTests.swift */; };
 		025B957E795ADEEBC3666BC7 /* SelectableTextLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03043D84E81301281D2DAF1 /* SelectableTextLayoutTests.swift */; };
+		051328459388F592552BDFD5 /* BackgroundMessageSend.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E67A016DC4094A638EB362 /* BackgroundMessageSend.swift */; };
 		054B918C93471D915124D969 /* AuthenticationRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CADD413E6E27FE9CD4229A66 /* AuthenticationRecoveryTests.swift */; };
 		058A119AEB52889040256F15 /* HarnessAuthenticationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71785B41220656576156BBC5 /* HarnessAuthenticationUITests.swift */; };
 		074D759AFDEEFF6FE840BD80 /* OwnerQuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3532F3AFA8FB5FAC79A9F73 /* OwnerQuestionView.swift */; };
@@ -49,6 +50,7 @@
 		608D1EDDD04B6A1A0C0F7DCE /* DesktopWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1DC256029DCCFC2D3382D4E /* DesktopWorkspaceView.swift */; };
 		64D7E924A3D4EEF6922D2304 /* AvatarImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F156208B81C891BA501E7785 /* AvatarImagePicker.swift */; };
 		6573A20C94F32027FD985FA7 /* ConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75B87E22433703F49BF8DB76 /* ConversationView.swift */; };
+		66B5AD528D7B5A21566CD326 /* BackgroundMessageSendTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE1FA71AEBBE1E4EF674E584 /* BackgroundMessageSendTests.swift */; };
 		67C076EDA84BC9E653993332 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D505AA366C00647C21E6CE8 /* AppStore.swift */; };
 		69E9BC12563E9EB63A76D270 /* ConversationScrollUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3261621AD9FBA22C17AA737C /* ConversationScrollUITests.swift */; };
 		6DFD51FD8407166077C47F9D /* MemberActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4537AD2FAFC47BE3355B1516 /* MemberActivityTests.swift */; };
@@ -198,6 +200,7 @@
 		C226A72E68B9F9BEE6500258 /* BellBot-Mac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "BellBot-Mac.entitlements"; sourceTree = "<group>"; };
 		C6541CB30BEDC47A2F0317DA /* ServerSetupUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSetupUITests.swift; sourceTree = "<group>"; };
 		C89DE09C565167FBCD28C4A5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C9E67A016DC4094A638EB362 /* BackgroundMessageSend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundMessageSend.swift; sourceTree = "<group>"; };
 		CADD413E6E27FE9CD4229A66 /* AuthenticationRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationRecoveryTests.swift; sourceTree = "<group>"; };
 		D58A3CE120C4F244848F01B6 /* HarnessAuthenticationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessAuthenticationTests.swift; sourceTree = "<group>"; };
 		D91477F755E7B3FFAC049315 /* ConversationAppearanceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationAppearanceUITests.swift; sourceTree = "<group>"; };
@@ -215,6 +218,7 @@
 		F5C036D6FC0D34A88B024A9A /* BellBotTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BellBotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F7AFDC6BC1AC218DA4FCDCE2 /* Intents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Intents.framework; path = System/Library/Frameworks/Intents.framework; sourceTree = SDKROOT; };
 		FCA2FFA3D879C25501EC4AC0 /* ConversationAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationAppearanceTests.swift; sourceTree = "<group>"; };
+		FE1FA71AEBBE1E4EF674E584 /* BackgroundMessageSendTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundMessageSendTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -252,6 +256,7 @@
 			children = (
 				CADD413E6E27FE9CD4229A66 /* AuthenticationRecoveryTests.swift */,
 				B3AB6A1FD4893701341E2055 /* AvatarImageTests.swift */,
+				FE1FA71AEBBE1E4EF674E584 /* BackgroundMessageSendTests.swift */,
 				85C81E947834BDF63F27C14D /* BellDiagnosticsTests.swift */,
 				4E89EE9A9585139D146052FD /* BillingStoreTests.swift */,
 				254EE50E23553FA4436C995B /* BotSaveTests.swift */,
@@ -279,6 +284,7 @@
 				19FCB6739FF40249F7E3779F /* AppleSubscriptionAccess.swift */,
 				9D505AA366C00647C21E6CE8 /* AppStore.swift */,
 				14A3883CF382AE17DAC3CE67 /* AvatarImage.swift */,
+				C9E67A016DC4094A638EB362 /* BackgroundMessageSend.swift */,
 				6CCAEDB62892A74233BDFCB0 /* BellAPI.swift */,
 				EE16A23837111EDE2A7DE6F2 /* BellDiagnostics.swift */,
 				5E2260DBCC86E8B67926D92D /* BellNotifications.swift */,
@@ -623,6 +629,7 @@
 				43BB09184EEC31FAF35EE52C /* AvatarImage.swift in Sources */,
 				64D7E924A3D4EEF6922D2304 /* AvatarImagePicker.swift in Sources */,
 				988BFAD10B96323111424B11 /* AvatarTone.swift in Sources */,
+				051328459388F592552BDFD5 /* BackgroundMessageSend.swift in Sources */,
 				8CDEEC44B651B4DA4B515D48 /* BellAPI.swift in Sources */,
 				E7677801888A80651A3F97D1 /* BellBotApp.swift in Sources */,
 				82026FF65EB547C1D169EC07 /* BellDiagnostics.swift in Sources */,
@@ -664,6 +671,7 @@
 			files = (
 				054B918C93471D915124D969 /* AuthenticationRecoveryTests.swift in Sources */,
 				A0A459458B879425F7033290 /* AvatarImageTests.swift in Sources */,
+				66B5AD528D7B5A21566CD326 /* BackgroundMessageSendTests.swift in Sources */,
 				DF0F6D89FB75D2318FD9484E /* BellDiagnosticsTests.swift in Sources */,
 				529D85B3ECEBB99D6FDF5AEA /* BillingStoreTests.swift in Sources */,
 				4EA35592F0FF935859D2718E /* BotSaveTests.swift in Sources */,
