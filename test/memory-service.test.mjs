@@ -356,6 +356,32 @@ test('索引は、番号やファイル名や1文字の語でも引け、語の�
   assert.deepEqual((await memory.searchKnowledge({ botId: 'bot-a', query: '割り当て' })).items.map(item => item.id), [note.id])
 })
 
+test('番号やファイル名をそのまま引いた時は、その文字の並びを含む物があれば近い物を返さない', async () => {
+  const { memory } = await fixture()
+  const ruling = await memory.remember({ botId: 'bot-a', content: '裁定 K-Z7ECDC: 長期記憶は起動時に読ませない', kind: 'policy' })
+  const other = await memory.remember({ botId: 'bot-a', content: '裁定 K-7PP7PA: バックアップの前に整理が要る', kind: 'policy' })
+  const recall = async query => (await memory.recallMemory({ botId: 'bot-a', query })).items.map(item => [item.id, item.match])
+  // 番号を切った K は、もう1つの番号にも当たる。そのままの番号がある時は、そちらだけを返す。
+  assert.deepEqual(await recall('K-Z7ECDC'), [[ruling.id, undefined]])
+  // そのままの番号がどこにも無い時は、今までどおり近い物を印つきで返す。
+  assert.deepEqual((await recall('K-Z7ECDX')).map(([, match]) => match), ['partial', 'partial'])
+  // 語を並べた時は、全部を含む物の後ろに近い物が付く（変えていない）。
+  assert.deepEqual(await recall('裁定 起動時'), [[ruling.id, undefined], [other.id, 'partial']])
+
+  // ナレッジは、番号を含む節を文書の代表にする。番号が記憶にしか無い時も、ナレッジの近い物は返さない。
+  const note = await memory.recordKnowledge({
+    botId: 'bot-a',
+    title: '裁定の控え',
+    content: '## K の付く番号\n\nK-7PP7PA と K-8GPX8C と K-L6XNU9 は別の話。K の番号は決裁箱が付ける。\n\n## 起動時\n\nK-Z7ECDC で決まった。',
+  })
+  await memory.recordKnowledge({ botId: 'bot-a', title: '別の控え', content: 'K-QQKTSL は取り下げた。' })
+  const search = async query => (await memory.searchKnowledge({ botId: 'bot-a', query })).items.map(item => [item.id, item.title, item.match])
+  assert.deepEqual(await search('K-Z7ECDC'), [[note.id, '裁定の控え > 起動時', undefined], [ruling.id, '長期記憶（policy）', undefined]])
+  assert.deepEqual(await search('K-7PP7PA'), [[note.id, '裁定の控え > K の付く番号', undefined], [other.id, '長期記憶（policy）', undefined]])
+  const withoutNote = await memory.searchKnowledge({ botId: 'bot-b', query: 'K-Z7ECDC' })
+  assert.deepEqual(withoutNote.items, [])
+})
+
 test('索引へ入れる途中で失敗した時は、入れかけの分を残さない', async () => {
   const { root, memory } = await fixture()
   const first = await memory.recordKnowledge({ botId: 'bot-a', title: '反映の手順', content: '割り当てを見る。' })
