@@ -3629,7 +3629,7 @@
         "testPostSent": false,
         "normalAppLaunchRestored": true,
         "instrumentPromptClosedWithoutMeasurement": true,
-        "remainingOwnerAction": "トロニーの会話へBT-USB43-1006-Aと入力して、送らずiPhoneをロックする",
+        "remainingOwnerAction": "フラジャイルの会話へBT-USB43-1006-Aと入力して、送らずiPhoneをロックする",
         "measurementWillStartAfterMirroringReconnect": false,
         "iphoneLockedAndMirroringReconnected": true,
         "waitForMemberRecoveryNotice": false,
@@ -3662,7 +3662,14 @@
           "testPostSent": false
         },
         "currentInputDecisionId": "K-3VNLXY",
-        "currentInputDecisionStatus": "pending"
+        "currentInputDecisionStatus": "pending",
+        "currentInputDecisionVersion": 2,
+        "proposedTestRecipient": {
+          "name": "フラジャイル",
+          "id": "bot-a855525f",
+          "permission": "waiting_owner_answer",
+          "expectedResponseDelaySeconds": 5.7
+        }
       },
       "evidence": "docs/evidence/2026-10-06-network-lifecycle.md",
       "productionDiagnosisResolution": "not_confirmed",
@@ -3831,7 +3838,32 @@
         }
       },
       "testflight": {
-        "status": "not_uploaded"
+        "status": "distributed",
+        "verifiedAt": "2026-10-06T16:14:18.100Z",
+        "builds": [
+          {
+            "platform": "MAC_OS",
+            "id": "7c5697c0-e6f3-4f92-aad7-13511f0d452b",
+            "build": "44",
+            "version": "1.0.1",
+            "sourceCommit": "24a8dcf68d793955809f4026809240d711457a73",
+            "processingState": "VALID",
+            "ownerGroupDistributed": true,
+            "internalBuildState": "IN_BETA_TESTING"
+          },
+          {
+            "platform": "IOS",
+            "id": "8e646cff-e10d-4bf7-9887-00ec60a63214",
+            "build": "44",
+            "version": "1.0.1",
+            "sourceCommit": "24a8dcf68d793955809f4026809240d711457a73",
+            "processingState": "VALID",
+            "ownerGroupDistributed": true,
+            "internalBuildState": "IN_BETA_TESTING"
+          }
+        ],
+        "proofPath": "runtime/apple/chat-scroll-44/testflight-proof.json",
+        "existingStoreBuildRelationshipsUnchanged": true
       },
       "evidence": "docs/evidence/2026-10-07-conversation-display.md",
       "iphonePreparation": {
@@ -3841,7 +3873,43 @@
         "testPostSent": false,
         "httpCaptureStarted": false
       },
-      "sourceCommit": "804348c5cbbd9b8e716d52a1b81d4a88efa767f4"
+      "sourceCommit": "804348c5cbbd9b8e716d52a1b81d4a88efa767f4",
+      "archive": {
+        "status": "passed",
+        "sourceCommit": "24a8dcf68d793955809f4026809240d711457a73",
+        "proofPath": "runtime/apple/chat-scroll-44/archive-export-proof.json",
+        "keychainSearchListRestored": true,
+        "keychainLocked": true
+      },
+      "macAcceptance": {
+        "status": "installation_launch_connection_and_conversation_smoke_passed",
+        "installedVersion": "1.0.1",
+        "installedBuild": "44",
+        "installedPath": "/Applications/BellTeam.app",
+        "installationMethod": "TestFlight",
+        "signatureVerified": true,
+        "gatekeeper": "accepted source=Testflight",
+        "existingConnectionRetained": true,
+        "windowInspection": "agent-desktopの名前指定ではwindowなしと返った。CUAの絶対appパス指定では実際のチーム一覧を確認できた。",
+        "conversationRepairSmoke": "passed",
+        "proofDirectory": "runtime/apple/chat-scroll-44",
+        "appLaunched": true,
+        "latestMessageVisibleOnOpen": true,
+        "trailingExtraWhitespaceAbsent": true,
+        "olderHistoryLoadedByScrolling": true,
+        "olderHistoryObserved": "前日までの履歴を上スクロールで追加表示",
+        "guiSelection": "Jev",
+        "guiDelivery": "agent-desktop headed clickとmouse-wheel、起動の画面確認はCUAの絶対appパス指定",
+        "verifiedAt": "2026-10-06T16:34:43.189248+00:00"
+      },
+      "iphoneAcceptance": {
+        "status": "waiting_owner_operation_while_phone_in_use",
+        "installedVersion": "1.0.1",
+        "installedBuild": "43",
+        "requiredBuild": "44",
+        "usbConnection": true,
+        "mirroringState": "iPhoneが使用されたため終了"
+      }
     }
   },
   "appleWebAccess": {
