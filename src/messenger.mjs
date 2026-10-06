@@ -174,6 +174,9 @@ export class BellTeamMessenger {
         from: target, target: 'user', reply: explicitReply.message,
       }
     }
+    // Botが回答を空で終えた時（Aiterm 0.54.0から、空の回答は誤りではなく空の本文で届く）は、空の発言を会話へ足さない。
+    if (typeof reply !== 'string' || !reply.trim())
+      return { delivery: 'delivered', delivery_id: deliveryId, from: target, target: 'user', reply: null }
     const replyId = this.deliveryId()
     this.claimedReplyIds.add(replyId)
     await this.append(this.record({ deliveryId: replyId, from: target, target: 'user', message: reply }))

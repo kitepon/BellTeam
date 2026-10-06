@@ -359,6 +359,48 @@ test('通常ターン中にBotがuserへ明示送信しても自動回答を重�
   assert.equal(result.reply_id, 'delivery-2')
 })
 
+test('Botが回答を空で終えたターンは、空の発言を会話へ足さない', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-user-empty-'))
+  const bot = { id: 'bot-a', name: 'あかり', role: '調査担当' }
+  const turns = []
+  const messenger = new BellTeamMessenger({
+    bots: new Map([[bot.id, bot]]), transport: { async turn() { return ' \n' } },
+    logPath: join(root, 'direct.jsonl'), onTurnEnd: turn => turns.push(turn.botId),
+    deliveryId: (() => { let id = 0; return () => `delivery-${++id}` })(),
+  })
+
+  const result = await messenger.userTurn({ target: bot.id, message: '記録だけしておいて' })
+
+  const records = (await readFile(join(root, 'direct.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse)
+  assert.deepEqual(records.map(record => record.message), ['記録だけしておいて'])
+  assert.deepEqual(result, { delivery: 'delivered', delivery_id: 'delivery-1', from: bot.id, target: 'user', reply: null })
+  assert.deepEqual(turns, [bot.id])
+})
+
+test('Botがuserへ明示送信してから回答を空で終えたターンは、明示送信を返信として扱う', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-user-empty-explicit-'))
+  const bot = { id: 'bot-a', name: 'あかり', role: '調査担当' }
+  let messenger
+  messenger = new BellTeamMessenger({
+    bots: new Map([[bot.id, bot]]),
+    transport: {
+      async turn() {
+        await messenger.sendmessage({ from: bot.id, target: 'user', message: '終わりました。' })
+        return ''
+      },
+    },
+    logPath: join(root, 'direct.jsonl'),
+    deliveryId: (() => { let id = 0; return () => `delivery-${++id}` })(),
+  })
+
+  const result = await messenger.userTurn({ target: bot.id, message: '片付けて' })
+
+  const records = (await readFile(join(root, 'direct.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse)
+  assert.deepEqual(records.map(record => record.message), ['片付けて', '終わりました。'])
+  assert.equal(result.reply, '終わりました。')
+  assert.equal(result.reply_id, 'delivery-2')
+})
+
 test('オーナーが送った画像を全部オーナーの場所へ残し、会話ログから参照する', async () => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-owner-image-'))
   const bot = { id: 'bot-a', name: 'あかり', role: '調査担当', project: join(root, 'bots/bot-a') }
