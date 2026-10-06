@@ -3644,7 +3644,7 @@
             "callSession": "38722012-211b-45b8-8748-a7c03d947dbb",
             "seq": 2,
             "expectedAt": "2026-10-07T08:03:00+09:00",
-            "waitForRecoveryNotice": true,
+            "waitForRecoveryNotice": false,
             "postSendDelayChanges": true
           }
         },
@@ -3948,7 +3948,7 @@
     "backgroundMessageSendRepair": {
       "version": "1.0.1",
       "build": "45",
-      "status": "tests_passed",
+      "status": "distributed_mac_confirmed_waiting_owner",
       "scope": "メッセージPOSTの間だけUIKitの背景実行時間を要求する。送信後の会話取得は前面へ戻ってから始める。",
       "diagnosticRootCauseConfirmed": false,
       "diagnosticCasesReference": "integration.networkLifecycleRepair.diagnosticCases",
@@ -4007,15 +4007,164 @@
           "log": "runtime/background-send-mac-native-3.log",
           "nativeUIKitExecutionTime": "acquired_and_finished",
           "scope": "背景送信の対象単体試験。テスト用のローカル署名で、App Group等の配布用権限は使用しない。"
-        }
+        },
+        "simulatorProofPath": "runtime/apple/background-send-45/simulator-background-post-proof.json"
       },
       "testflight": {
-        "status": "not_uploaded"
+        "verifiedAt": "2026-10-06T23:15:56.570Z",
+        "builds": [
+          {
+            "platform": "MAC_OS",
+            "id": "47da60d9-6258-4392-847d-1a2a991e59d4",
+            "build": "45",
+            "version": "1.0.1",
+            "sourceCommit": "1d497feeea2cc3dd7ad9f94abb797affcb1fe248",
+            "processingState": "VALID",
+            "ownerGroupDistributed": true,
+            "internalBuildState": "IN_BETA_TESTING"
+          },
+          {
+            "platform": "IOS",
+            "id": "b029386c-ca47-4106-bca5-7733ba996961",
+            "build": "45",
+            "version": "1.0.1",
+            "sourceCommit": "1d497feeea2cc3dd7ad9f94abb797affcb1fe248",
+            "processingState": "VALID",
+            "ownerGroupDistributed": true,
+            "internalBuildState": "IN_BETA_TESTING"
+          }
+        ],
+        "existingReviewVersions": [
+          {
+            "platform": "IOS",
+            "versionId": "a13a4fcc-82f3-46e3-8f67-b7d16e3f89ef",
+            "buildId": "186a66e4-985e-4074-973c-142969964ce7",
+            "reviewBuild": "41",
+            "unchanged": true
+          },
+          {
+            "platform": "MAC_OS",
+            "versionId": "3826154d-d03d-4517-bf41-f8d8eb819c32",
+            "buildId": "74cd2ef8-102c-46cb-9de3-4538f331a153",
+            "reviewBuild": "41",
+            "unchanged": true
+          }
+        ],
+        "status": "distributed",
+        "proofPath": "runtime/apple/background-send-45/testflight-proof.json"
       },
       "physicalAcceptance": {
-        "status": "pending_distribution"
+        "status": "waiting_owner_lock_and_one_additional_post_permission",
+        "requiredVersion": "1.0.1",
+        "requiredBuild": "45",
+        "recipientId": "bot-bdf99000",
+        "recipientName": "ラプラス",
+        "testMessage": "BT-USB45-1007-A 通信の試験。返事は『受け取った』だけでいい。",
+        "ownerConfirmation": "native_async_question_pending",
+        "approvalBoxRequest": "failed_not_created",
+        "approvalBoxError": "CODEX_STEER_RESTART_REQUIRED",
+        "approvalBoxErrorMessage": "親のCodexはhookの導入前から動いています。完全終了して再起動してください",
+        "postAttempts": 0,
+        "checkMemberImmediatelyBeforePost": true,
+        "currentCallSession": "38722012-211b-45b8-8748-a7c03d947dbb",
+        "currentMember": "トロニー",
+        "guiBlocker": "iPhoneミラーリングは本体使用により終了し、ロック待ち",
+        "bodyNeedsExactVerificationBeforePost": true,
+        "installedBuildBefore": "44",
+        "deviceMetadataProof": "runtime/apple/background-send-45/iphone-apps-current.json"
       },
-      "evidence": "docs/evidence/2026-10-07-background-message-send.md"
+      "evidence": "docs/evidence/2026-10-07-background-message-send.md",
+      "sourceCommit": "1d497feeea2cc3dd7ad9f94abb797affcb1fe248",
+      "memberCoordination": {
+        "callSession": "38722012-211b-45b8-8748-a7c03d947dbb",
+        "reportedAt": "2026-10-07T08:09:20+09:00",
+        "reportSeq": 5,
+        "delivery": "delivered",
+        "requested": "本番復旧確認と、修理後の実機確認用の遅い送り先・手順",
+        "previousReportDelivery": "BellTeam unavailable during deployment",
+        "recoveryConfirmed": true,
+        "recoverySeq": 6,
+        "productionInterruption": {
+          "from": "2026-10-07T08:07:43+09:00",
+          "to": "2026-10-07T08:08:09+09:00"
+        },
+        "testRecipient": {
+          "id": "bot-bdf99000",
+          "name": "ラプラス",
+          "harness": "claude",
+          "firstPostSinceDeploymentRequired": true,
+          "expectedDelaySeconds": 12,
+          "text": "BT-USB45-1007-A 通信の試験。返事は『受け取った』だけでいい。",
+          "checkWithMemberImmediatelyBeforeSend": true,
+          "noticeSeq": 7,
+          "previousRecipientBecameActiveAt": "2026-10-07T08:11:58+09:00"
+        }
+      },
+      "archive": {
+        "sourceCommit": "1d497feeea2cc3dd7ad9f94abb797affcb1fe248",
+        "build": "45",
+        "version": "1.0.1",
+        "startedAt": "2026-10-06T23:07:43.693Z",
+        "archives": {
+          "ios": {
+            "path": "/Users/kite/Developer/BellTeam/runtime/apple/background-send-45/ios-45.xcarchive",
+            "status": "passed"
+          },
+          "mac": {
+            "path": "/Users/kite/Developer/BellTeam/runtime/apple/background-send-45/mac-45.xcarchive",
+            "status": "passed"
+          }
+        },
+        "exports": {
+          "ios": {
+            "path": "/Users/kite/Developer/BellTeam/runtime/apple/background-send-45/ios-export",
+            "status": "passed"
+          },
+          "mac": {
+            "path": "/Users/kite/Developer/BellTeam/runtime/apple/background-send-45/mac-export",
+            "status": "passed"
+          }
+        },
+        "searchListRestored": true,
+        "keychainLocked": true,
+        "finishedAt": "2026-10-06T23:11:06.333Z",
+        "macSignature": "verified",
+        "packageSignature": "Apple 3rd Party Mac Developer Installer"
+      },
+      "existingAppStoreState": {
+        "checkedAt": "2026-10-06T23:11:12.542Z",
+        "states": [
+          {
+            "platform": "IOS",
+            "version": "1.0",
+            "state": "READY_FOR_SALE",
+            "build": "41"
+          },
+          {
+            "platform": "MAC_OS",
+            "version": "1.0",
+            "state": "REJECTED",
+            "build": "41"
+          }
+        ]
+      },
+      "macAcceptance": {
+        "status": "installation_launch_and_existing_connection_confirmed",
+        "version": "1.0.1",
+        "build": "45",
+        "installedPath": "/Applications/BellTeam.app",
+        "installationMethod": "TestFlight",
+        "signatureVerified": true,
+        "gatekeeper": "accepted source=Testflight",
+        "appLaunched": true,
+        "existingConnectionRetained": true,
+        "existingConversationDisplayed": true,
+        "productionAuthStarted": false,
+        "verifiedAt": "2026-10-06T23:20:57.594718+00:00",
+        "proofDirectory": "runtime/apple/background-send-45",
+        "guiSelection": "Jev（TestFlightの検索とBellTeamの選択）",
+        "guiUpdate": "Jevが更新ボタンを解決できなかったため、実画面で45と更新ボタンを確認して標準マウスで実施。古いMacアプリを通常終了して置換を完了。"
+      }
     }
   },
   "appleWebAccess": {
