@@ -240,3 +240,37 @@ test('全部の語を含む物が無い時は、近い物を印つきで5件ま�
   assert.equal(recalled.items.length, 1)
   assert.equal(recalled.items[0].match, 'partial')
 })
+
+test('ナレッジの検索はナレッジと長期記憶の両方から探し、記憶の検索は長期記憶だけを探す', async () => {
+  const { memory } = await fixture()
+  const note = await memory.recordKnowledge({
+    botId: 'bot-a', title: 'SQLiteのWAL', content: 'WALは書き込みの控え。', source: 'https://sqlite.org/wal.html',
+  })
+  const episode = await memory.remember({ botId: 'bot-a', content: 'WALを消し忘れてDBを戻し直した', kind: 'episode', importance: 7 })
+  const outdated = await memory.remember({ botId: 'bot-a', content: 'WALは気にしなくてよい', kind: 'fact' })
+  await memory.reviseMemory({ botId: 'bot-a', id: outdated.id, content: '戻す時は横の控えを消す' })
+  const other = await memory.remember({ botId: 'bot-b', content: 'WALの話は別の席の記憶', kind: 'fact' })
+  const shared = await memory.remember({ botId: 'bot-a', content: 'WALの共通の決まり', kind: 'policy', scope: 'shared' })
+
+  // ナレッジが先、長期記憶が後。改訂前の記憶は返らない。
+  const found = await memory.searchKnowledge({ botId: 'bot-a', query: 'WAL' })
+  assert.deepEqual(found.items.map(item => [item.id, item.source, item.match]), [
+    [note.id, 'https://sqlite.org/wal.html', undefined],
+    [episode.id, 'memory', undefined],
+  ])
+  assert.deepEqual(
+    { title: found.items[1].title, kind: found.items[1].kind, importance: found.items[1].importance, excerpt: found.items[1].excerpt },
+    { title: '長期記憶（episode）', kind: 'episode', importance: 7, excerpt: 'WALを消し忘れてDBを戻し直した' },
+  )
+
+  // 記憶の検索は長期記憶だけ。
+  assert.deepEqual((await memory.recallMemory({ botId: 'bot-a', query: 'WAL' })).items.map(item => item.id), [episode.id])
+
+  // 全部の語を含む物が無い時の近い物も、両方から探す。
+  const near = await memory.searchKnowledge({ botId: 'bot-a', query: 'DBを戻し直した時の話を知りたい' })
+  assert.deepEqual([near.items[0].id, near.items[0].source, near.items[0].match], [episode.id, 'memory', 'partial'])
+
+  // 他の席と共通は、それぞれのナレッジと長期記憶だけ。
+  assert.deepEqual((await memory.searchKnowledge({ botId: 'bot-b', query: 'WAL' })).items.map(item => item.id), [other.id])
+  assert.deepEqual((await memory.searchKnowledge({ botId: 'bot-a', query: 'WAL', scope: 'shared' })).items.map(item => item.id), [shared.id])
+})

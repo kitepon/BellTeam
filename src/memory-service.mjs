@@ -307,37 +307,56 @@ export class BellTeamMemory {
     return { id, title: title.trim(), path: relativePath, scope: normalizedScope, createdAt }
   }
 
+  // ナレッジの検索は、ナレッジと長期記憶の両方から探す（オーナー裁定 2026-10-06）。記憶の検索は長期記憶だけ。
   async searchKnowledge({ botId, query, scope = 'personal', limit = 20 }) {
     const normalizedScope = normalizeScope(scope)
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     const ragRoot = await this.ensureRag(bot?.id ?? null, normalizedScope)
-    const db = openKnowledgeDb(join(ragRoot, 'index.db'))
+    const knowledgeDb = openKnowledgeDb(join(ragRoot, 'index.db'))
+    const memoryDb = await this.openMemory(bot?.id ?? null, normalizedScope)
     try {
-      const rows = searchRows(db, {
-        table: 'documents',
-        fts: 'documents_fts',
+      const knowledge = {
+        db: knowledgeDb,
+        item: knowledgeItem,
+        options: {
+          table: 'documents',
+          fts: 'documents_fts',
+          query,
+          limit,
+          columns: 'd.id, d.path, d.title, d.body, d.source, d.tags, d.confidence, d.created_at',
+          alias: 'd',
+          textColumns: ['title', 'body', 'tags'],
+        },
+      }
+      const memory = {
+        db: memoryDb,
+        item: memoryItem,
+        options: {
+          table: 'assertions',
+          fts: 'assertions_fts',
+          query,
+          limit,
+          columns: 'a.id, a.kind, a.content, a.importance, a.observed_at',
+          alias: 'a',
+          active: true,
+        },
+      }
+      const found = [knowledge, memory]
+        .flatMap(store => allTermRows(store.db, store.options).map(row => store.item(row, query)))
+        .slice(0, normalizeLimit(limit))
+      if (found.length > 0) return { scope: normalizedScope, items: found }
+      const near = nearest(
+        [knowledge, memory].flatMap(store => rowCandidates(store.db, store.options).map(candidate => ({ ...candidate, item: store.item }))),
         query,
         limit,
-        columns: 'd.id, d.path, d.title, d.body, d.source, d.tags, d.confidence, d.created_at',
-        alias: 'd',
-        textColumns: ['title', 'body', 'tags'],
-      })
+      )
       return {
         scope: normalizedScope,
-        items: rows.map(row => ({
-          id: row.id,
-          title: row.title,
-          excerpt: excerpt(row.body, query),
-          path: row.path,
-          source: row.source,
-          tags: JSON.parse(row.tags),
-          confidence: row.confidence,
-          createdAt: row.created_at,
-          ...(row.near ? { match: 'partial' } : {}),
-        })),
+        items: near.map(candidate => ({ ...candidate.item(candidate.row, query), match: 'partial' })),
       }
     } finally {
-      db.close()
+      knowledgeDb.close()
+      memoryDb.close()
     }
   }
 
@@ -585,19 +604,28 @@ function allTermRows(db, { table, fts, query, limit, columns, alias, active = fa
   `).all(...likeTerms.flatMap(token => textColumns.map(() => `%${token}%`)), normalizeLimit(limit))
 }
 
-// 全部の語を含む物が無い時は、語の一部が当たった物を近い順に返す。点はBM25で、珍しい語が当たるほど高い。
-function nearRows(db, { table, query, limit, columns, alias, active = false, textColumn = 'content', textColumns = [textColumn] }) {
+// 全部の語を含む物が無い時は、語の一部が当たった物を近い順に返す。
+function nearRows(db, options) {
+  return nearest(rowCandidates(db, options), options.query, options.limit).map(candidate => ({ ...candidate.row, near: true }))
+}
+
+function rowCandidates(db, { table, columns, alias, active = false, textColumn = 'content', textColumns = [textColumn] }) {
+  return db.prepare(`
+    SELECT ${columns}, ${textColumns.map(column => `${alias}.${column}`).join(' || char(10) || ')} AS near_text
+    FROM ${table} ${alias}${active ? ` WHERE ${alias}.status = 'active'` : ''}
+    ORDER BY ${alias}.rowid DESC
+  `).all().map(row => ({ row, text: row.near_text }))
+}
+
+// 候補を検索語に近い順に並べ、点が付いた物を5件まで返す。点はBM25で、珍しい語が当たるほど高い。同じ点の時は渡された順のまま。
+function nearest(candidates, query, limit) {
   const terms = [...new Set(searchTerms(query))]
   if (terms.length === 0) return []
-  const rows = db.prepare(`
-    SELECT ${columns}, ${alias}.rowid AS near_rowid, ${textColumns.map(column => `${alias}.${column}`).join(' || char(10) || ')} AS near_text
-    FROM ${table} ${alias}${active ? ` WHERE ${alias}.status = 'active'` : ''}
-  `).all()
-  const counted = rows.map(row => {
-    const list = searchTerms(row.near_text)
+  const counted = candidates.map(candidate => {
+    const list = searchTerms(candidate.text)
     const counts = new Map()
     for (const term of list) counts.set(term, (counts.get(term) ?? 0) + 1)
-    return { row, counts, length: list.length }
+    return { candidate, counts, length: list.length }
   })
   const averageLength = counted.reduce((sum, item) => sum + item.length, 0) / counted.length
   const rarity = new Map(terms.map(term => {
@@ -611,12 +639,12 @@ function nearRows(db, { table, query, limit, columns, alias, active = false, tex
       const frequency = item.counts.get(term) ?? 0
       if (frequency > 0) score += rarity.get(term) * (frequency * 2.2) / (frequency + 1.2 * (0.25 + 0.75 * item.length / averageLength))
     }
-    if (score > 0) scored.push({ row: item.row, score })
+    if (score > 0) scored.push({ candidate: item.candidate, score })
   }
   return scored
-    .sort((a, b) => b.score - a.score || b.row.near_rowid - a.row.near_rowid)
+    .sort((a, b) => b.score - a.score)
     .slice(0, Math.min(NEAR_MATCH_LIMIT, normalizeLimit(limit)))
-    .map(({ row }) => ({ ...row, near: true }))
+    .map(item => item.candidate)
 }
 
 // 英数字は語のまま、日本語は2文字ずつに分ける。ひらがなだけの2文字は助詞や語尾が多いので数えない。
@@ -663,6 +691,32 @@ async function appendIndex(root, { title, relativePath, createdAt, confidence })
   const path = join(root, 'INDEX.md')
   const current = await readFile(path, 'utf8')
   await writeFile(path, `${current}- [${relativePath}](${relativePath}) — ${title} (${createdAt.slice(0, 10)}・${confidence})\n`, 'utf8')
+}
+
+function knowledgeItem(row, query) {
+  return {
+    id: row.id,
+    title: row.title,
+    excerpt: excerpt(row.body, query),
+    path: row.path,
+    source: row.source,
+    tags: JSON.parse(row.tags),
+    confidence: row.confidence,
+    createdAt: row.created_at,
+  }
+}
+
+// ナレッジの検索に混ぜて返す長期記憶。本文の全体は recall_memory で読める。
+function memoryItem(row, query) {
+  return {
+    id: row.id,
+    title: `長期記憶（${row.kind}）`,
+    excerpt: excerpt(row.content, query),
+    source: 'memory',
+    kind: row.kind,
+    importance: row.importance,
+    observedAt: row.observed_at,
+  }
 }
 
 function excerpt(body, query) {
