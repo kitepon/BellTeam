@@ -165,6 +165,21 @@
       "pricingValidationPassed": true,
       "verifiedAt": "2026-10-02T13:25:40.242Z",
       "proofPath": "runtime/apple-review/subscription-equalization-proof.json"
+    },
+    "latestVersionStatus": {
+      "checkedAt": "2026-10-06T12:50:00Z",
+      "IOS": {
+        "version": "1.0",
+        "build": "41",
+        "appVersionState": "READY_FOR_DISTRIBUTION",
+        "appStoreState": "READY_FOR_SALE"
+      },
+      "MAC_OS": {
+        "version": "1.0",
+        "build": "41",
+        "appVersionState": "REJECTED",
+        "appStoreState": "REJECTED"
+      }
     }
   },
   "worker": {
@@ -3484,7 +3499,7 @@
         ],
         "decisionId": "K-S9FC4Z",
         "decisionStatus": "answered_deferred",
-        "decisionVersion": 2,
+        "decisionVersion": 4,
         "verificationDevice": "Mac",
         "iphoneUpdateRequiredBeforeVerification": false,
         "answerOption": "later"
@@ -3559,7 +3574,29 @@
         "processProbeError": "com.apple.dt.CoreDeviceError/4016",
         "startAfterConnectionMinutes": 10
       },
-      "evidence": "docs/evidence/2026-10-06-network-lifecycle.md"
+      "evidence": "docs/evidence/2026-10-06-network-lifecycle.md",
+      "productionDiagnosisResolution": "not_confirmed",
+      "sourceCommit": "ef407a51674519a04d260f629315c3568a2e9be5",
+      "archive": {
+        "ios": "passed",
+        "mac": "passed",
+        "keychainSearchListRestored": true,
+        "keychainLocked": true,
+        "proofPath": "runtime/apple/network-lifecycle-43/archive-export-proof.json"
+      },
+      "version": "1.0.1",
+      "previousUpload": {
+        "version": "1.0",
+        "build": "43",
+        "platform": "IOS",
+        "status": "rejected_before_processing",
+        "errorCodes": [
+          "90062",
+          "90186"
+        ],
+        "reason": "承認済み1.0への追加ビルドの受付終了",
+        "log": "runtime/apple/network-lifecycle-43/ios-upload-43.log"
+      }
     }
   },
   "appleWebAccess": {
