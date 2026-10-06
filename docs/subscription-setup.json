@@ -3629,7 +3629,7 @@
         "testPostSent": false,
         "normalAppLaunchRestored": true,
         "instrumentPromptClosedWithoutMeasurement": true,
-        "remainingOwnerAction": null,
+        "remainingOwnerAction": "トロニーの会話へBT-USB43-1006-Aと入力して、送らずiPhoneをロックする",
         "measurementWillStartAfterMirroringReconnect": false,
         "iphoneLockedAndMirroringReconnected": true,
         "waitForMemberRecoveryNotice": false,
@@ -3660,7 +3660,9 @@
           "exportError": "Document Missing Template Error",
           "httpDataReadable": false,
           "testPostSent": false
-        }
+        },
+        "currentInputDecisionId": "K-3VNLXY",
+        "currentInputDecisionStatus": "pending"
       },
       "evidence": "docs/evidence/2026-10-06-network-lifecycle.md",
       "productionDiagnosisResolution": "not_confirmed",
