@@ -319,10 +319,12 @@ export class BellTeamMemory {
     const knowledgeDb = openKnowledgeDb(join(ragRoot, 'index.db'))
     const memoryDb = await this.openMemory(bot?.id ?? null, normalizedScope)
     try {
-      const items = [
+      const found = [
         ...searchSections(knowledgeDb, query, limit).map(row => knowledgeItem(row, query)),
         ...searchMemories(memoryDb, query, limit).map(row => memoryItem(row, query)),
       ]
+      // 番号やファイル名をそのまま引いて、片方にだけその文字の並びがあった時も、もう片方の近い物は返さない。
+      const items = splitQuery(query).literalQuery && found.some(item => !item.match) ? found.filter(item => !item.match) : found
       return { scope: normalizedScope, items: items.slice(0, normalizeLimit(limit)) }
     } finally {
       knowledgeDb.close()
@@ -578,7 +580,7 @@ function searchMemories(db, query, limit) {
     ORDER BY bm25(memory_index, ${MEMORY_WEIGHTS.words}, ${MEMORY_WEIGHTS.pairs}), a.importance DESC, a.rowid DESC
     LIMIT ?
   `).all(expression, normalizeLimit(limit))
-  return limitNearMatches(rows, query, row => row.content)
+  return capNearMatches(markNearMatches(rows, query, row => row.content))
 }
 
 function searchSections(db, query, limit) {
@@ -593,9 +595,9 @@ function searchSections(db, query, limit) {
     ORDER BY bm25(section_index, ${weights.titleWords}, ${weights.bodyWords}, ${weights.titlePairs}, ${weights.bodyPairs}), s.rowid DESC
     LIMIT ?
   `).all(expression, normalizeLimit(limit) * SECTIONS_PER_DOCUMENT)
+  const sections = markNearMatches(rows, query, row => `${row.title}\n${row.heading}\n${row.tags}\n${row.body}`)
   const seen = new Set()
-  const nearest = rows.filter(row => !seen.has(row.id) && seen.add(row.id)).slice(0, normalizeLimit(limit))
-  return limitNearMatches(nearest, query, row => `${row.title}\n${row.heading}\n${row.tags}\n${row.body}`)
+  return capNearMatches(sections.filter(row => !seen.has(row.id) && seen.add(row.id)).slice(0, normalizeLimit(limit)))
 }
 
 // 検索語を、索引を引く式にする。単語の列は単語で、2文字の列は2文字の並びで引く。どれかが当たれば候補になる。
@@ -610,17 +612,23 @@ function matchExpression(query, columns) {
   ].filter(Boolean).join(' OR ')
 }
 
-// 近い順に並んだ結果のうち、検索語の全部は含まない物（近い物）に印を付け、5件までにする。全部を含む物は減らさない。
-function limitNearMatches(rows, query, textOf) {
+// 近い順に並んだ結果のうち、検索語の全部は含まない物（近い物）に印を付ける。
+// 番号やファイル名をそのまま引いて、その文字の並びを含む物があった時は、近い物を返さない。
+// 番号を切った切れ端（K-Z7ECDC の K）が、他の番号に当たるだけなので。
+function markNearMatches(rows, query, textOf) {
   const { rawQuery, tokens, literalQuery } = splitQuery(query)
   const required = (literalQuery ? [rawQuery] : tokens).map(term => term.toLocaleLowerCase())
+  const marked = rows.map(row => {
+    const text = textOf(row).toLocaleLowerCase()
+    return required.every(term => text.includes(term)) ? row : { ...row, near: true }
+  })
+  return literalQuery && marked.some(row => !row.near) ? marked.filter(row => !row.near) : marked
+}
+
+// 近い物は5件までにする。全部を含む物は減らさない。
+function capNearMatches(rows) {
   let near = 0
-  return rows
-    .map(row => {
-      const text = textOf(row).toLocaleLowerCase()
-      return required.every(term => text.includes(term)) ? row : { ...row, near: true }
-    })
-    .filter(row => !row.near || (near += 1) <= NEAR_MATCH_LIMIT)
+  return rows.filter(row => !row.near || (near += 1) <= NEAR_MATCH_LIMIT)
 }
 
 // 検索語を空白で区切る。記号を含み空白を含まない検索語（ファイル名や番号）は、区切らずそのまま扱う。
