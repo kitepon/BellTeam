@@ -3596,7 +3596,7 @@
         "proofPath": "runtime/apple/network-lifecycle-43-v101/testflight-proof.json"
       },
       "physicalObservation": {
-        "status": "waiting_owner_http_capture_consent",
+        "status": "waiting_iphone_lock_for_authorized_capture",
         "decisionId": "K-HJW3JV",
         "answerOption": "later",
         "deviceDeveloperMode": "enabled",
@@ -3606,7 +3606,7 @@
         "deviceConnection": "USB_connected_and_process_listing_passed",
         "requiredBuildInstalled": true,
         "currentCaptureDecisionId": "K-SFRB7V",
-        "currentCaptureDecisionStatus": "pending",
+        "currentCaptureDecisionStatus": "answered",
         "individualProcessInstrumentResult": "target_process_not_found",
         "appRestrictedLoggingResult": "no_network_entries",
         "cancelledTrace": {
@@ -3622,7 +3622,15 @@
         "ownerConnectionUpdate": {
           "source": "current_chat",
           "status": "connected"
-        }
+        },
+        "currentCaptureAnswer": "capture_now",
+        "currentCaptureDurationSeconds": 120,
+        "captureStarted": false,
+        "testPostSent": false,
+        "normalAppLaunchRestored": true,
+        "instrumentPromptClosedWithoutMeasurement": true,
+        "remainingOwnerAction": "iPhoneのサイドボタンでロックし、返事はMacから行う",
+        "measurementWillStartAfterMirroringReconnect": true
       },
       "evidence": "docs/evidence/2026-10-06-network-lifecycle.md",
       "productionDiagnosisResolution": "not_confirmed",
