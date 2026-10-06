@@ -3531,7 +3531,7 @@
           "code": "IOS_NETWORK_TIMEOUT",
           "module": "conversation",
           "count": 8,
-          "status": "open",
+          "status": "resolved_by_owner_latest_version_policy",
           "rootCause": "unknown"
         },
         {
@@ -3539,7 +3539,7 @@
           "code": "IOS_NETWORK_FAILURE",
           "module": "conversation",
           "count": 27,
-          "status": "open",
+          "status": "resolved_by_owner_latest_version_policy",
           "rootCause": "unknown"
         },
         {
@@ -3547,7 +3547,7 @@
           "code": "IOS_NETWORK_TIMEOUT",
           "module": "schedules",
           "count": 6,
-          "status": "open",
+          "status": "resolved_by_owner_latest_version_policy",
           "rootCause": "unknown"
         }
       ],
@@ -3596,7 +3596,7 @@
         "proofPath": "runtime/apple/network-lifecycle-43-v101/testflight-proof.json"
       },
       "physicalObservation": {
-        "status": "waiting_iphone_mirroring_reconnect",
+        "status": "additional_capture_not_required",
         "decisionId": "K-HJW3JV",
         "answerOption": "later",
         "deviceDeveloperMode": "enabled",
@@ -3629,8 +3629,8 @@
         "testPostSent": false,
         "normalAppLaunchRestored": true,
         "instrumentPromptClosedWithoutMeasurement": true,
-        "remainingOwnerAction": "実機の観測時にiPhoneをロックしたまま置く",
-        "measurementWillStartAfterMirroringReconnect": true,
+        "remainingOwnerAction": null,
+        "measurementWillStartAfterMirroringReconnect": false,
         "iphoneLockedAndMirroringReconnected": true,
         "waitForMemberRecoveryNotice": false,
         "serverDeployment": {
@@ -3645,10 +3645,15 @@
           "durationSeconds": 0,
           "toc": "runtime/apple/usb-observation-20261006/authorized-02-toc.xml"
         },
-        "currentCallSession": "525de7d4-5f59-494a-8e77-d4855ca93329"
+        "currentCallSession": "525de7d4-5f59-494a-8e77-d4855ca93329",
+        "additionalMeasurementRequestedByMember": false,
+        "memberWithdrewCaptureRequest": {
+          "callSession": "525de7d4-5f59-494a-8e77-d4855ca93329",
+          "seq": 2
+        }
       },
       "evidence": "docs/evidence/2026-10-06-network-lifecycle.md",
-      "productionDiagnosisResolution": "not_confirmed",
+      "productionDiagnosisResolution": "resolved_without_root_cause_confirmation",
       "sourceCommit": "d72bba6146544cfa144a282b81f24aba6790e600",
       "archive": {
         "ios": "passed",
@@ -3706,6 +3711,35 @@
         "networkRootCauseConfirmed": false,
         "productionAuthStarted": false,
         "schedulesDisplayed": true
+      },
+      "resolutionEvidence": {
+        "source": "BellTeam担当トロニーの返信",
+        "callSession": "525de7d4-5f59-494a-8e77-d4855ca93329",
+        "seq": 2,
+        "resolvedAt": "2026-10-07T00:12:37+09:00",
+        "reportVersions": [
+          "1.0(41)"
+        ],
+        "noReportsVersions": [
+          "42",
+          "43"
+        ],
+        "physicalOwnerMessages": {
+          "count": 5,
+          "serverHTTPStatuses": [
+            200,
+            200,
+            200,
+            200,
+            200
+          ],
+          "aborted": 0,
+          "from": "2026-10-06T23:47:00+09:00",
+          "to": "2026-10-07T00:06:00+09:00"
+        },
+        "reason": "最新版で出ていない報告は原因未確定でも閉じるというオーナー基準",
+        "unresolvedCount": 0,
+        "rootCauseConfirmed": false
       }
     },
     "conversationDisplayRepair": {
