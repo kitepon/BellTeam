@@ -116,3 +116,5 @@
 - [限られた背景実行時間](ios-network/raw/apple-background-execution.md)と[背景のURLSession](ios-network/raw/apple-background-sessions.md): UIKitの実行時間の要求、終了、通常のdataTaskとの役割の違い。取得日 2026-10-06、Apple公式原文。
 
 - [公開版番号とビルド番号](apple-distribution/raw/apple-version-and-build.html): App Store・TestFlight配布物の識別と版番号の設定。取得日 2026-10-06、Apple公式原文。
+
+- [iPhoneミラーリング](iphone-mirroring/raw/apple-iphone-mirroring.html): Macから実機のアプリを操作する条件と、ホーム・アプリ切替の標準操作。取得日 2026-10-06、Apple公式原文。

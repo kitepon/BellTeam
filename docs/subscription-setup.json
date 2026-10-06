@@ -3491,8 +3491,8 @@
         "previousBlock": "既定のheadlessクリックが拒否され、TestFlightのアプリ起動入口も失敗した。既存の窓を前面にして対象を選び、標準GUI操作で42を選択。実行中の41を通常終了した直後に42へ置換された。"
       },
       "iphoneAcceptance": {
-        "status": "owner_deferred",
-        "currentCandidateReference": "integration.networkLifecycleRepair.testflight"
+        "status": "installation_and_existing_conversation_confirmed",
+        "currentCandidateReference": "integration.networkLifecycleRepair.iphoneAcceptance"
       },
       "productionAuthentication": {
         "status": "waiting_owner_consent",
@@ -3596,14 +3596,33 @@
         "proofPath": "runtime/apple/network-lifecycle-43-v101/testflight-proof.json"
       },
       "physicalObservation": {
-        "status": "owner_deferred",
+        "status": "waiting_owner_http_capture_consent",
         "decisionId": "K-HJW3JV",
         "answerOption": "later",
         "deviceDeveloperMode": "enabled",
-        "processProbeError": "com.apple.dt.CoreDeviceError/4016",
         "startAfterConnectionMinutes": 10,
         "requiredBuild": "43",
-        "requiredVersion": "1.0.1"
+        "requiredVersion": "1.0.1",
+        "deviceConnection": "USB_connected_and_process_listing_passed",
+        "requiredBuildInstalled": true,
+        "currentCaptureDecisionId": "K-SFRB7V",
+        "currentCaptureDecisionStatus": "pending",
+        "individualProcessInstrumentResult": "target_process_not_found",
+        "appRestrictedLoggingResult": "no_network_entries",
+        "cancelledTrace": {
+          "durationSeconds": 0,
+          "httpRows": 0,
+          "taskRows": 0,
+          "processRows": 0,
+          "proofDirectory": "runtime/apple/usb-observation-20261006"
+        },
+        "traceRootCauseConfirmed": false,
+        "previousProcessProbeError": "com.apple.dt.CoreDeviceError/4016",
+        "processProbeError": null,
+        "ownerConnectionUpdate": {
+          "source": "current_chat",
+          "status": "connected"
+        }
       },
       "evidence": "docs/evidence/2026-10-06-network-lifecycle.md",
       "productionDiagnosisResolution": "not_confirmed",
@@ -3647,6 +3666,23 @@
         "guiSelection": "Jev（インストール・起動・予定と設定・Codexの閲覧）",
         "guiDelivery": "agent-desktop headed click",
         "launchRecovery": "agent-desktopのlaunchはnot_deliveredで失敗したため、Mac標準のopenでTestFlightを起動。Appleのβ版案内はAXから読めず、実画面で確認した次へを標準マウス操作で進めた。"
+      },
+      "iphoneAcceptance": {
+        "status": "installation_launch_and_existing_conversation_confirmed",
+        "version": "1.0.1",
+        "build": "43",
+        "installationMethod": "TestFlight via iPhoneミラーリング",
+        "existingConnectionRetained": true,
+        "existingConversationDisplayed": true,
+        "verifiedAt": "2026-10-06T13:25:23.335117+00:00",
+        "proofDirectory": "runtime/apple/usb-observation-20261006",
+        "guiSelection": "Jevはミラーリング内の操作対象を取得できなかった",
+        "guiDelivery": "実画面を確認した標準マウス操作",
+        "physicalProcessListing": "passed",
+        "previousCoreDevice4016": "resolved",
+        "networkRootCauseConfirmed": false,
+        "productionAuthStarted": false,
+        "schedulesDisplayed": true
       }
     }
   },
