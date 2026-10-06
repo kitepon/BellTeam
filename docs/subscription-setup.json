@@ -3531,7 +3531,7 @@
           "code": "IOS_NETWORK_TIMEOUT",
           "module": "conversation",
           "count": 8,
-          "status": "resolved_by_owner_latest_version_policy",
+          "status": "open",
           "rootCause": "unknown"
         },
         {
@@ -3539,7 +3539,7 @@
           "code": "IOS_NETWORK_FAILURE",
           "module": "conversation",
           "count": 27,
-          "status": "resolved_by_owner_latest_version_policy",
+          "status": "open",
           "rootCause": "unknown"
         },
         {
@@ -3547,7 +3547,7 @@
           "code": "IOS_NETWORK_TIMEOUT",
           "module": "schedules",
           "count": 6,
-          "status": "resolved_by_owner_latest_version_policy",
+          "status": "open",
           "rootCause": "unknown"
         }
       ],
@@ -3596,7 +3596,7 @@
         "proofPath": "runtime/apple/network-lifecycle-43-v101/testflight-proof.json"
       },
       "physicalObservation": {
-        "status": "additional_capture_not_required",
+        "status": "ready_for_authorized_physical_observation_after_display_repair",
         "decisionId": "K-HJW3JV",
         "answerOption": "later",
         "deviceDeveloperMode": "enabled",
@@ -3646,14 +3646,16 @@
           "toc": "runtime/apple/usb-observation-20261006/authorized-02-toc.xml"
         },
         "currentCallSession": "525de7d4-5f59-494a-8e77-d4855ca93329",
-        "additionalMeasurementRequestedByMember": false,
+        "additionalMeasurementRequestedByMember": true,
         "memberWithdrewCaptureRequest": {
           "callSession": "525de7d4-5f59-494a-8e77-d4855ca93329",
-          "seq": 2
-        }
+          "seq": 2,
+          "supersededBySeq": 3
+        },
+        "previousEmptyTraceTarget": "macOS host (iPhoneではなかった)"
       },
       "evidence": "docs/evidence/2026-10-06-network-lifecycle.md",
-      "productionDiagnosisResolution": "resolved_without_root_cause_confirmation",
+      "productionDiagnosisResolution": "not_confirmed",
       "sourceCommit": "d72bba6146544cfa144a282b81f24aba6790e600",
       "archive": {
         "ios": "passed",
@@ -3739,7 +3741,14 @@
         },
         "reason": "最新版で出ていない報告は原因未確定でも閉じるというオーナー基準",
         "unresolvedCount": 0,
-        "rootCauseConfirmed": false
+        "rootCauseConfirmed": false,
+        "supersededBy": {
+          "callSession": "525de7d4-5f59-494a-8e77-d4855ca93329",
+          "seq": 3,
+          "reopenedAt": "2026-10-07T00:18:36+09:00",
+          "reason": "閉じる基準には、可能な調査を尽くして原因不明という条件があった",
+          "unresolvedCount": 3
+        }
       }
     },
     "conversationDisplayRepair": {
@@ -3791,7 +3800,14 @@
       "testflight": {
         "status": "not_uploaded"
       },
-      "evidence": "docs/evidence/2026-10-07-conversation-display.md"
+      "evidence": "docs/evidence/2026-10-07-conversation-display.md",
+      "iphonePreparation": {
+        "usbTransport": "wired",
+        "mirroringReconnected": true,
+        "proofScreenshot": "runtime/apple/chat-scroll-44/mirroring-reconnected.png",
+        "testPostSent": false,
+        "httpCaptureStarted": false
+      }
     }
   },
   "appleWebAccess": {
