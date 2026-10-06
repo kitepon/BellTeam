@@ -3764,7 +3764,7 @@
     "conversationDisplayRepair": {
       "build": "44",
       "version": "1.0.1",
-      "implementation": "in_progress",
+      "implementation": "completed",
       "requests": [
         "会話を開いた時に最新ログを表示する",
         "上スクロールで過去ログを読み込む",
@@ -3790,9 +3790,25 @@
         }
       },
       "scroll": {
-        "status": "fixing_history_reading_position",
+        "status": "implemented",
+        "implementationCommit": "804348c",
         "fixture": "test/helpers/conversation-scroll-server.mjs",
-        "worktree": "/Users/kite/.codex/worktrees/conversation-scroll/BellTeam"
+        "tests": {
+          "ipad": {
+            "passed": 5,
+            "failed": 0,
+            "log": "runtime/apple/chat-scroll-44/ipad-proof/log-run14.txt",
+            "resultBundle": "/tmp/claude-501/scroll/result-run14.xcresult"
+          }
+        },
+        "freezeRegression": {
+          "status": "same_keyboard_wait_failure_before_and_after",
+          "codeRegressionProven": false,
+          "softwareKeyboardCauseConfirmed": false,
+          "updatedChatFiveScrollRoundTripsPassed": true,
+          "followingDetailSheetChecked": false,
+          "proofDirectory": "runtime/apple/chat-scroll-44/ipad-proof"
+        }
       },
       "tests": {
         "appleUnit": {
@@ -3805,6 +3821,13 @@
           "passed": 405,
           "failed": 0,
           "log": "runtime/chat-layout-node-final.log"
+        },
+        "iphoneUI": {
+          "passed": 6,
+          "failed": 0,
+          "resultBundle": "runtime/chat-layout-iphone-final.xcresult",
+          "log": "runtime/chat-layout-iphone-final.log",
+          "includesExistingFreezeRegression": true
         }
       },
       "testflight": {
@@ -3817,7 +3840,8 @@
         "proofScreenshot": "runtime/apple/chat-scroll-44/mirroring-reconnected.png",
         "testPostSent": false,
         "httpCaptureStarted": false
-      }
+      },
+      "sourceCommit": "804348c5cbbd9b8e716d52a1b81d4a88efa767f4"
     }
   },
   "appleWebAccess": {

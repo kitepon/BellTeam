@@ -9,3 +9,5 @@
 原文は[scrollTo](raw/apple-scrollto.md)と[位置計測](raw/apple-scroll-geometry.md)に保存した。
 
 `defaultScrollAnchor(_:)`はiOS・iPadOS・Mac Catalyst 17以降で使える。初期表示と内容の高さの変化を扱い、利用者は初期位置からスクロールできる。末尾を初期位置にする最小候補として、独自の高さ追従処理より先に試す。位置保持の実効結果は画面で確認する。[公式原文](raw/apple-default-scroll-anchor.md)。
+
+`scrollPosition(id:anchor:)`と`scrollTargetLayout`もiOS 17から使える。IDで指定したビューを、データの並び替えや表示領域の変化の後も見える位置に保つ標準APIである。会話への採用は今回試していない。[位置のBindingの原文](raw/apple-scroll-position-binding.md)、[対象配置の原文](raw/apple-scroll-target-layout.md)。
