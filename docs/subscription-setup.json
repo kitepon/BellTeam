@@ -3596,7 +3596,7 @@
         "proofPath": "runtime/apple/network-lifecycle-43-v101/testflight-proof.json"
       },
       "physicalObservation": {
-        "status": "ready_for_authorized_physical_observation_after_display_repair",
+        "status": "physical_capture_failed_before_test_post",
         "decisionId": "K-HJW3JV",
         "answerOption": "later",
         "deviceDeveloperMode": "enabled",
@@ -3625,7 +3625,7 @@
         },
         "currentCaptureAnswer": "capture_now",
         "currentCaptureDurationSeconds": 120,
-        "captureStarted": false,
+        "captureStarted": true,
         "testPostSent": false,
         "normalAppLaunchRestored": true,
         "instrumentPromptClosedWithoutMeasurement": true,
@@ -3652,7 +3652,15 @@
           "seq": 2,
           "supersededBySeq": 3
         },
-        "previousEmptyTraceTarget": "macOS host (iPhoneではなかった)"
+        "previousEmptyTraceTarget": "macOS host (iPhoneではなかった)",
+        "latestCaptureAttempt": {
+          "trace": "runtime/apple/usb-observation-20261006/authorized-03-iphone.trace",
+          "requestedDurationSeconds": 120,
+          "exitCode": 1,
+          "exportError": "Document Missing Template Error",
+          "httpDataReadable": false,
+          "testPostSent": false
+        }
       },
       "evidence": "docs/evidence/2026-10-06-network-lifecycle.md",
       "productionDiagnosisResolution": "not_confirmed",
