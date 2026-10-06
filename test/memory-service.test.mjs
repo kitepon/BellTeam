@@ -70,7 +70,11 @@ test('同じ記憶は根拠だけを追加し、更新・固定・成長統合�
   assert.equal(revised.supersedesId, evolving.id)
   assert.equal(growth.kind, 'growth')
   assert.equal((await memory.recallMemory({ botId: 'bot-a', query: '古い個別' })).items.length, 0)
-  assert.equal((await memory.recallMemory({ botId: 'bot-a', query: '想像で補ってしまう' })).items.length, 0)
+  // 改訂前の記憶は返らない。言い回しが近い改訂後の記憶が、近い物の印つきで返る。
+  assert.deepEqual(
+    (await memory.recallMemory({ botId: 'bot-a', query: '想像で補ってしまう' })).items.map(item => [item.id, item.match]),
+    [[revised.id, 'partial']],
+  )
   assert.equal((await memory.recallMemory({ botId: 'bot-a', query: '実測する' })).items[0].id, revised.id)
 
   const db = new DatabaseSync(join(root, 'bots', 'bot-a', 'memory', 'memory.db'))
@@ -194,4 +198,45 @@ test('RAGはMarkdownを正本にして即時検索でき、派生DBを再構築�
   await rm(join(root, 'bots', 'bot-a', 'rag', 'index.db'), { force: true })
   assert.deepEqual(await memory.rebuildKnowledgeIndex({ botId: 'bot-a' }), { scope: 'personal', count: 1 })
   assert.equal((await memory.searchKnowledge({ botId: 'bot-a', query: 'SQLite' })).items[0].id, saved.id)
+})
+
+test('全部の語を含む物が無い時は、近い物を印つきで5件まで返す', async () => {
+  const { memory } = await fixture()
+  const backup = await memory.recordKnowledge({
+    botId: 'bot-a', title: 'バックアップの取り方', content: '毎日04:50に2本目のディスクへ取る。残すのは7日分。',
+  })
+  const restore = await memory.recordKnowledge({
+    botId: 'bot-a', title: '戻す時の手順', content: 'DBを戻す時は席を止めてから元の場所へ置き、横のWALを消す。',
+  })
+  for (let index = 0; index < 6; index += 1) {
+    await memory.recordKnowledge({ botId: 'bot-a', title: `検索の覚え書き${index}`, content: `検索は文字の一致で当てる。覚え書きの${index}番。` })
+  }
+
+  // 全部の語を含む文書がある時は、今までと同じ結果で、印は付かない。
+  const exact = await memory.searchKnowledge({ botId: 'bot-a', query: 'バックアップ ディスク' })
+  assert.deepEqual(exact.items.map(item => [item.id, item.match]), [[backup.id, undefined]])
+
+  // 語を並べた検索で、全部はそろわない時。
+  const listed = await memory.searchKnowledge({ botId: 'bot-a', query: 'バックアップ スケジュール 保持期間' })
+  assert.equal(listed.items[0].id, backup.id)
+  assert.equal(listed.items[0].match, 'partial')
+
+  // 文で聞いた時。抜粋は当たった語のまわりを返す。
+  const sentence = await memory.searchKnowledge({ botId: 'bot-a', query: 'WALファイルを残したままDBを復元するとどうなる？' })
+  assert.equal(sentence.items[0].id, restore.id)
+  assert.match(sentence.items[0].excerpt, /WAL/u)
+
+  // 近い物は5件まで。
+  const many = await memory.searchKnowledge({ botId: 'bot-a', query: '検索の覚え書きを全部読みたい' })
+  assert.equal(many.items.length, 5)
+  assert.ok(many.items.every(item => item.match === 'partial'))
+
+  // どの語も当たらない時は0件のまま。
+  assert.deepEqual((await memory.searchKnowledge({ botId: 'bot-a', query: 'Stripe 決済 webhook' })).items, [])
+  assert.deepEqual((await memory.searchKnowledge({ botId: 'bot-b', query: 'バックアップ スケジュール' })).items, [])
+
+  await memory.remember({ botId: 'bot-a', content: '申請は似た話を小分けにせず1件にまとめる', kind: 'policy', importance: 8 })
+  const recalled = await memory.recallMemory({ botId: 'bot-a', query: '承認依頼 申請 分割' })
+  assert.equal(recalled.items.length, 1)
+  assert.equal(recalled.items[0].match, 'partial')
 })

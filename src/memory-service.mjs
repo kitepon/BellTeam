@@ -12,6 +12,13 @@ const MEMORY_KINDS = new Set([
   'fact', 'preference', 'policy', 'task', 'config', 'incident', 'relationship', 'episode', 'growth',
 ])
 
+// 全部の語を含む物が無い時に返す、近い物の上限。
+const NEAR_MATCH_LIMIT = 5
+const CJK = '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}ー々'
+const TERM_RUNS = new RegExp(`[${CJK}]+|(?:(?![${CJK}])[\\p{L}\\p{N}_])+`, 'gu')
+const CJK_RUN = new RegExp(`^[${CJK}]`, 'u')
+const HIRAGANA_ONLY = /^[\p{Script=Hiragana}ー]+$/u
+
 export class BellTeamMemory {
   constructor({ registry, root, now = () => new Date(), id = randomUUID, observeTurns = observeThroughlineTurns }) {
     this.registry = registry
@@ -268,6 +275,7 @@ export class BellTeamMemory {
           importance: row.importance,
           observedAt: row.observed_at,
           metadata: JSON.parse(row.metadata_json),
+          ...(row.near ? { match: 'partial' } : {}),
         })),
       }
     } finally {
@@ -325,6 +333,7 @@ export class BellTeamMemory {
           tags: JSON.parse(row.tags),
           confidence: row.confidence,
           createdAt: row.created_at,
+          ...(row.near ? { match: 'partial' } : {}),
         })),
       }
     } finally {
@@ -544,7 +553,12 @@ function upsertKnowledge(db, value) {
   `).run(value.id, value.path, value.title, value.body, value.source ?? '', value.tags, value.confidence, value.createdAt)
 }
 
-function searchRows(db, { table, fts, query, limit, columns, alias, active = false, textColumn = 'content', textColumns = [textColumn] }) {
+function searchRows(db, options) {
+  const rows = allTermRows(db, options)
+  return rows.length > 0 ? rows : nearRows(db, options)
+}
+
+function allTermRows(db, { table, fts, query, limit, columns, alias, active = false, textColumn = 'content', textColumns = [textColumn] }) {
   if (typeof query !== 'string' || query.trim().length === 0) throw new Error('SEARCH_QUERY_INVALID')
   const rawQuery = query.trim()
   const tokens = rawQuery.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/u).filter(Boolean)
@@ -569,6 +583,57 @@ function searchRows(db, { table, fts, query, limit, columns, alias, active = fal
     ORDER BY ${active ? `${alias}.importance DESC, ` : ''}${alias}.rowid DESC
     LIMIT ?
   `).all(...likeTerms.flatMap(token => textColumns.map(() => `%${token}%`)), normalizeLimit(limit))
+}
+
+// 全部の語を含む物が無い時は、語の一部が当たった物を近い順に返す。点はBM25で、珍しい語が当たるほど高い。
+function nearRows(db, { table, query, limit, columns, alias, active = false, textColumn = 'content', textColumns = [textColumn] }) {
+  const terms = [...new Set(searchTerms(query))]
+  if (terms.length === 0) return []
+  const rows = db.prepare(`
+    SELECT ${columns}, ${alias}.rowid AS near_rowid, ${textColumns.map(column => `${alias}.${column}`).join(' || char(10) || ')} AS near_text
+    FROM ${table} ${alias}${active ? ` WHERE ${alias}.status = 'active'` : ''}
+  `).all()
+  const counted = rows.map(row => {
+    const list = searchTerms(row.near_text)
+    const counts = new Map()
+    for (const term of list) counts.set(term, (counts.get(term) ?? 0) + 1)
+    return { row, counts, length: list.length }
+  })
+  const averageLength = counted.reduce((sum, item) => sum + item.length, 0) / counted.length
+  const rarity = new Map(terms.map(term => {
+    const containing = counted.filter(item => item.counts.has(term)).length
+    return [term, Math.log(1 + (counted.length - containing + 0.5) / (containing + 0.5))]
+  }))
+  const scored = []
+  for (const item of counted) {
+    let score = 0
+    for (const term of terms) {
+      const frequency = item.counts.get(term) ?? 0
+      if (frequency > 0) score += rarity.get(term) * (frequency * 2.2) / (frequency + 1.2 * (0.25 + 0.75 * item.length / averageLength))
+    }
+    if (score > 0) scored.push({ row: item.row, score })
+  }
+  return scored
+    .sort((a, b) => b.score - a.score || b.row.near_rowid - a.row.near_rowid)
+    .slice(0, Math.min(NEAR_MATCH_LIMIT, normalizeLimit(limit)))
+    .map(({ row }) => ({ ...row, near: true }))
+}
+
+// 英数字は語のまま、日本語は2文字ずつに分ける。ひらがなだけの2文字は助詞や語尾が多いので数えない。
+function searchTerms(text) {
+  const terms = []
+  for (const run of text.normalize('NFKC').toLocaleLowerCase().match(TERM_RUNS) ?? []) {
+    const characters = [...run]
+    if (!CJK_RUN.test(run)) {
+      if (characters.length >= 2) terms.push(run)
+      continue
+    }
+    for (let index = 0; index + 1 < characters.length; index += 1) {
+      const pair = characters[index] + characters[index + 1]
+      if (!HIRAGANA_ONLY.test(pair)) terms.push(pair)
+    }
+  }
+  return terms
 }
 
 function knowledgeMarkdown({ id, title, source, createdAt, confidence, tags, content }) {
@@ -601,9 +666,13 @@ async function appendIndex(root, { title, relativePath, createdAt, confidence })
 }
 
 function excerpt(body, query) {
-  const position = body.toLocaleLowerCase().indexOf(query.trim().toLocaleLowerCase())
-  if (position < 0) return body.slice(0, 240)
-  return body.slice(Math.max(0, position - 80), position + query.length + 160)
+  const lowerBody = body.toLocaleLowerCase()
+  const whole = query.trim().toLocaleLowerCase()
+  for (const candidate of [whole, ...whole.split(/\s+/u), ...searchTerms(whole)]) {
+    const position = candidate ? lowerBody.indexOf(candidate) : -1
+    if (position >= 0) return body.slice(Math.max(0, position - 80), position + candidate.length + 160)
+  }
+  return body.slice(0, 240)
 }
 
 function requireBot(registry, id) {
