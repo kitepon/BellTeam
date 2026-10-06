@@ -634,30 +634,52 @@ function splitQuery(query) {
 
 // 索引に入っていない記憶を、語に分けて入れる。記憶の本文は書き換わらないので、入れた分は作り直さない。
 function syncMemoryIndex(db) {
-  if (!indexIsCurrent(db)) {
-    db.exec('DELETE FROM memory_index')
-    markIndexCurrent(db)
-  }
-  const missing = db.prepare('SELECT rowid, content FROM assertions WHERE rowid NOT IN (SELECT rowid FROM memory_index)').all()
-  const insert = db.prepare('INSERT INTO memory_index (rowid, words, pairs) VALUES (?, ?, ?)')
-  for (const row of missing) insert.run(row.rowid, wordTokens(row.content).join(' '), pairTokens(row.content).join(' '))
+  const current = indexIsCurrent(db)
+  const missing = 'SELECT rowid, content FROM assertions WHERE rowid NOT IN (SELECT rowid FROM memory_index) ORDER BY rowid'
+  if (current && !db.prepare(`${missing} LIMIT 1`).get()) return
+  inOneTransaction(db, () => {
+    if (!current) {
+      db.exec('DELETE FROM memory_index')
+      markIndexCurrent(db)
+    }
+    const insert = db.prepare('INSERT INTO memory_index (rowid, words, pairs) VALUES (?, ?, ?)')
+    for (const row of db.prepare(missing).all()) insert.run(row.rowid, wordTokens(row.content).join(' '), pairTokens(row.content).join(' '))
+  })
 }
 
 // 節に分けていないナレッジの文書を、見出しで区切って索引へ入れる。
 function syncSectionIndex(db) {
-  if (!indexIsCurrent(db)) {
-    db.exec('DELETE FROM section_index; DELETE FROM sections;')
-    markIndexCurrent(db)
-  }
-  const missing = db.prepare('SELECT id, title, body, tags FROM documents WHERE id NOT IN (SELECT document_id FROM sections)').all()
-  const insertSection = db.prepare('INSERT INTO sections (document_id, heading, line, body) VALUES (?, ?, ?, ?)')
-  const insertIndex = db.prepare('INSERT INTO section_index (rowid, title_words, body_words, title_pairs, body_pairs) VALUES (?, ?, ?, ?, ?)')
-  for (const document of missing) {
-    for (const section of markdownSections(document.body)) {
-      const title = `${document.title} ${section.heading} ${JSON.parse(document.tags).join(' ')}`
-      const { lastInsertRowid } = insertSection.run(document.id, section.heading, section.line, section.body)
-      insertIndex.run(lastInsertRowid, wordTokens(title).join(' '), wordTokens(section.body).join(' '), pairTokens(title).join(' '), pairTokens(section.body).join(' '))
+  const current = indexIsCurrent(db)
+  const missing = 'SELECT id, title, body, tags FROM documents WHERE id NOT IN (SELECT document_id FROM sections) ORDER BY rowid'
+  if (current && !db.prepare(`${missing} LIMIT 1`).get()) return
+  inOneTransaction(db, () => {
+    if (!current) {
+      db.exec('DELETE FROM section_index; DELETE FROM sections;')
+      markIndexCurrent(db)
     }
+    const insertSection = db.prepare('INSERT INTO sections (document_id, heading, line, body) VALUES (?, ?, ?, ?)')
+    const insertIndex = db.prepare('INSERT INTO section_index (rowid, title_words, body_words, title_pairs, body_pairs) VALUES (?, ?, ?, ?, ?)')
+    for (const document of db.prepare(missing).all()) {
+      // タグは、手で直した文書では配列でない事がある。
+      const tags = [].concat(JSON.parse(document.tags) ?? []).join(' ')
+      for (const section of markdownSections(document.body)) {
+        const title = `${document.title} ${section.heading} ${tags}`
+        const { lastInsertRowid } = insertSection.run(document.id, section.heading, section.line, section.body)
+        insertIndex.run(lastInsertRowid, wordTokens(title).join(' '), wordTokens(section.body).join(' '), pairTokens(title).join(' '), pairTokens(section.body).join(' '))
+      }
+    }
+  })
+}
+
+// 索引へ入れる分と版の印を、1回で確定する。途中でサーバーが止まっても、全部入っているか、何も入っていないかのどちらかになる。
+function inOneTransaction(db, work) {
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    work()
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
   }
 }
 

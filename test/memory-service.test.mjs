@@ -355,3 +355,26 @@ test('索引は、番号やファイル名や1文字の語でも引け、語の�
   await memory.rebuildKnowledgeIndex({ botId: 'bot-a' })
   assert.deepEqual((await memory.searchKnowledge({ botId: 'bot-a', query: '割り当て' })).items.map(item => item.id), [note.id])
 })
+
+test('索引へ入れる途中で失敗した時は、入れかけの分を残さない', async () => {
+  const { root, memory } = await fixture()
+  const first = await memory.recordKnowledge({ botId: 'bot-a', title: '反映の手順', content: '割り当てを見る。' })
+  const second = await memory.recordKnowledge({ botId: 'bot-a', title: '戻す手順', content: '割り当てを戻す。' })
+  const dbPath = join(root, 'bots', 'bot-a', 'rag', 'index.db')
+
+  // 2つ目の文書のタグを読めない形にして、1つ目を入れた後で失敗させる。
+  const broken = new DatabaseSync(dbPath)
+  broken.prepare("UPDATE documents SET tags = '{' WHERE id = ?").run(second.id)
+  broken.close()
+  await assert.rejects(memory.searchKnowledge({ botId: 'bot-a', query: '割り当て' }))
+  const half = new DatabaseSync(dbPath)
+  assert.equal(half.prepare('SELECT count(*) AS count FROM sections').get().count, 0)
+  assert.equal(half.prepare('SELECT count(*) AS count FROM section_index').get().count, 0)
+  assert.equal(half.prepare('SELECT count(*) AS count FROM index_state').get().count, 0)
+  half.prepare("UPDATE documents SET tags = '[]' WHERE id = ?").run(second.id)
+  half.close()
+
+  // 直すと、次の検索で2つとも入る。
+  const found = await memory.searchKnowledge({ botId: 'bot-a', query: '割り当て' })
+  assert.deepEqual(found.items.map(item => item.id).sort(), [first.id, second.id].sort())
+})
