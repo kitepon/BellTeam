@@ -112,3 +112,5 @@
 - [テンプレートからのアプリ提出](app-review/raw/apple-template-apps-20261006.html)と[スパムの規定](app-review/raw/apple-spam-20261006.html): 4.2.6の提供主体と、4.3の重複アプリ・独自性の条件。取得日 2026-10-06、Apple公式原文。
 
 - [SwiftUIの画面に結び付いたTask](authentication/raw/apple-view-task.md): 画面を閉じたときとidが変わったときの取消・再作成の仕様。取得日 2026-10-06、Apple公式原文。
+
+- [限られた背景実行時間](ios-network/raw/apple-background-execution.md)と[背景のURLSession](ios-network/raw/apple-background-sessions.md): UIKitの実行時間の要求、終了、通常のdataTaskとの役割の違い。取得日 2026-10-06、Apple公式原文。

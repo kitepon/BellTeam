@@ -2,11 +2,13 @@ import SwiftUI
 
 struct SchedulesView: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.scenePhase) private var scenePhase
     @State private var entries: [ScheduledEntry] = []
     @State private var loading = true
     @State private var errorText: String?
     @State private var editing: ScheduledEntry?
     @State private var creating = false
+    @State private var loadTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -63,28 +65,43 @@ struct SchedulesView: View {
                 ScheduleEditor(initial: entry)
                     .environmentObject(store)
             }
-            .task { await load() }
+            .task(id: scenePhase) { if scenePhase == .active { await load() } }
             .onChange(of: store.eventRevision) { _, _ in Task { await load() } }
+            .onChange(of: scenePhase) { _, next in
+                if next != .active { loadTask?.cancel(); loading = false }
+            }
+            .onDisappear { loadTask?.cancel() }
         }
     }
 
     private func load() async {
+        guard scenePhase == .active else { return }
+        loadTask?.cancel()
+        let task = Task { await fetchEntries() }
+        loadTask = task
+        await task.value
+    }
+
+    private func fetchEntries() async {
         loading = entries.isEmpty
         do {
             var result: [ScheduledEntry] = []
             for bot in store.bots {
                 let response: SchedulesResponse = try await store.api.get("/api/bots/\(bot.id)/schedules")
+                try Task.checkCancellation()
                 result += response.schedules.map { ScheduledEntry(target: .bot(bot.id), ownerName: bot.displayName, schedule: $0) }
             }
             for room in store.rooms {
                 let response: SchedulesResponse = try await store.api.get("/api/rooms/\(room.id)/schedules")
+                try Task.checkCancellation()
                 result += response.schedules.map { ScheduledEntry(target: .room(room.id), ownerName: room.name, schedule: $0) }
             }
             entries = result.filter { $0.schedule.nextRunAt != nil || $0.schedule.enabled == true }
                 .sorted { (BellDate.parse($0.schedule.nextRunAt ?? "") ?? .distantFuture) <
                           (BellDate.parse($1.schedule.nextRunAt ?? "") ?? .distantFuture) }
             errorText = nil
-        } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        } catch is CancellationError { return }
+        catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch { errorText = error.localizedDescription }
         loading = false
     }

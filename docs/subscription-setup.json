@@ -3483,10 +3483,11 @@
           "Codexを本人の公式サイト承認まで通す"
         ],
         "decisionId": "K-S9FC4Z",
-        "decisionStatus": "pending",
+        "decisionStatus": "answered_deferred",
         "decisionVersion": 2,
         "verificationDevice": "Mac",
-        "iphoneUpdateRequiredBeforeVerification": false
+        "iphoneUpdateRequiredBeforeVerification": false,
+        "answerOption": "later"
       },
       "existingReviewSubmissionChanged": false,
       "plan": "docs/plan_harness-auth-app-20261006.md",
@@ -3498,6 +3499,67 @@
         "keychainLocked": true,
         "proofPath": "runtime/apple/harness-auth-42/archive-export-proof.json"
       }
+    },
+    "networkLifecycleRepair": {
+      "build": "43",
+      "reproducedDefect": "予定の取得Taskが背景移行後も次のGETを始める",
+      "implementation": "completed",
+      "diagnosticRootCauseConfirmed": false,
+      "diagnosticCases": [
+        {
+          "fingerprintPrefix": "7290fa8f",
+          "code": "IOS_NETWORK_TIMEOUT",
+          "module": "conversation",
+          "count": 8,
+          "status": "open",
+          "rootCause": "unknown"
+        },
+        {
+          "fingerprintPrefix": "573cc8df",
+          "code": "IOS_NETWORK_FAILURE",
+          "module": "conversation",
+          "count": 27,
+          "status": "open",
+          "rootCause": "unknown"
+        },
+        {
+          "fingerprintPrefix": "eedcde4c",
+          "code": "IOS_NETWORK_TIMEOUT",
+          "module": "schedules",
+          "count": 6,
+          "status": "open",
+          "rootCause": "unknown"
+        }
+      ],
+      "tests": {
+        "scheduleCancellationAndResume": "passed",
+        "scheduleResultBundle": "runtime/network-lifecycle-schedules-resume-final.xcresult",
+        "postBackgroundObservation": "no_failure_reproduced",
+        "postResultBundle": "runtime/network-lifecycle-post-final.xcresult",
+        "appleUnit": {
+          "passed": 82,
+          "skipped": 3,
+          "failed": 0,
+          "resultBundle": "runtime/network-lifecycle-unit-final.xcresult"
+        },
+        "node": {
+          "passed": 400,
+          "failed": 0,
+          "log": "runtime/network-lifecycle-node-final.log"
+        }
+      },
+      "testflight": {
+        "status": "pending_archive"
+      },
+      "physicalObservation": {
+        "status": "owner_deferred",
+        "decisionId": "K-HJW3JV",
+        "answerOption": "later",
+        "deviceDeveloperMode": "enabled",
+        "processProbeError": "com.apple.dt.CoreDeviceError/4016",
+        "startAfterConnectionMinutes": 10
+      },
+      "evidence": "docs/evidence/2026-10-06-network-lifecycle.md"
     }
   },
   "appleWebAccess": {
