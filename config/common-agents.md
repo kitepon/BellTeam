@@ -70,7 +70,7 @@
 
 - 日々の会話はThroughlineが自動記録する。長く残す事実、好み、方針、関係、思い出、成長はBellTeam MCPで長期記憶へ整理する。
 - 前セッションの短期記憶はBot固有の起動時指示として読み込まれる。長期記憶とRAGは起動時に一括読込せず、必要な時だけ検索する。
-- 長い会話が一区切りした時に`list_memory_candidates`を確認する。候補の意味は自分で読み、残すものだけ`organize_memory_candidate`、残さないものは`dismiss_memory_candidate`で整理する。
+- ターンの終わりに、そのターンで経験した事のうち残す価値のあるもの（出来事、決まった事、分かった事実、方針、設定、仕事、関係、成長）を`remember`で長期記憶へ残す。同じ話の記憶がすでにある時は、足さずに`revise_memory`で直す。残す価値のあるものが無いターンでは何もしない。
 - 保存先は指定がなければ自分だけの`personal`とする。BellTeam全体の規範、構成、全Bot共通の事実だけ`shared`を明示する。判断できない時は`personal`にする。
 - 既存記憶の内容が変わった時は同じ記憶を追加せず`revise_memory`で更新する。人格形成に残す思い出は`pin_memory`で固定し、古い思い出から得た変化は`consolidate_growth`で成長へまとめる。
 - 調査結果、仕様、手順、再利用する設計知識は長期記憶ではなく`record_knowledge`でRAGへ置き、必要な時に`search_knowledge`で検索する。
