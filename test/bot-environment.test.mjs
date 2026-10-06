@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { loadBotEnvironment, restoreBotEnvironments } from '../src/bot-environment.mjs'
+import { loadBotEnvironment, removeSeatClaudeCopies, restoreBotEnvironments } from '../src/bot-environment.mjs'
 import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
 import { runShellCommand } from '../src/scheduler.mjs'
 import { runtimeEnvironment, runtimeEnvironmentKeys, runtimeHome } from '../src/runtime-home.mjs'
@@ -43,6 +43,44 @@ test('Bot別のPATH・npm導入先・複雑な環境変数を子プロセスへ�
   const result = await runShellCommand({ cwd: a, command: 'printf "%s" "$CUSTOM_VALUE"' })
   assert.equal(result.code, 0)
   assert.equal(result.stdout, envA.CUSTOM_VALUE)
+})
+
+test('席ではClaude Codeを自動更新させない', async t => {
+  const { a } = await fixture(t)
+  assert.equal((await loadBotEnvironment(a)).DISABLE_AUTOUPDATER, '1')
+  const result = await runShellCommand({ cwd: a, command: 'printf "%s" "$DISABLE_AUTOUPDATER"' })
+  assert.equal(result.stdout, '1')
+})
+
+test('席に出来たClaude Codeの写しとその入口だけを片付け、席のほかの物を残す', async t => {
+  const { bots, a, b } = await fixture(t)
+  const present = async path => access(path).then(() => true, () => false)
+  // bot-a：自動更新で出来た写しと入口。同じ置き場に、席が入れた別の道具と、同じscopeの別のパッケージがある。
+  await mkdir(join(a, '.local/lib/node_modules/@anthropic-ai/claude-code/bin'), { recursive: true })
+  await writeFile(join(a, '.local/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe'), 'copy')
+  await mkdir(join(a, '.local/lib/node_modules/@anthropic-ai/sdk'), { recursive: true })
+  await writeFile(join(a, '.local/lib/node_modules/@anthropic-ai/sdk/index.js'), 'sdk')
+  await mkdir(join(a, '.local/lib/node_modules/mcp-remote'), { recursive: true })
+  await writeFile(join(a, '.local/lib/node_modules/mcp-remote/proxy.js'), 'tool')
+  await mkdir(join(a, '.local/bin'), { recursive: true })
+  await symlink('../lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe', join(a, '.local/bin/claude'))
+  await symlink('../lib/node_modules/mcp-remote/proxy.js', join(a, '.local/bin/mcp-remote'))
+  // bot-b：写しは無く、席が自分で置いた `claude` という名前の入口だけがある。
+  await mkdir(join(b, '.local/bin'), { recursive: true })
+  await writeFile(join(b, '.local/bin/claude'), '#!/bin/sh\n')
+  const reports = []
+
+  assert.deepEqual(await removeSeatClaudeCopies(bots, { report: message => reports.push(message) }), ['bot-a'])
+
+  assert.equal(await present(join(a, '.local/lib/node_modules/@anthropic-ai/claude-code')), false)
+  assert.equal(await present(join(a, '.local/bin/claude')), false)
+  assert.equal(await readFile(join(a, '.local/lib/node_modules/@anthropic-ai/sdk/index.js'), 'utf8'), 'sdk')
+  assert.equal(await readFile(join(a, '.local/bin/mcp-remote'), 'utf8'), 'tool')
+  assert.equal(await readFile(join(b, '.local/bin/claude'), 'utf8'), '#!/bin/sh\n')
+  assert.equal(reports.length, 1)
+  // 2回目は何もしない。
+  assert.deepEqual(await removeSeatClaudeCopies(bots, { report: message => reports.push(message) }), [])
+  assert.equal(reports.length, 1)
 })
 
 test('復元はenv.shより先に実行でき、失敗したBotのログを残して次のBotへ進む', async t => {

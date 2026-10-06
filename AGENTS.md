@@ -33,7 +33,7 @@
 - BellTeamコンテナの再起動・再作成・停止を伴う操作は、実行前に必ず一度止まり、オーナーの許可を取ってから行う。通常のデプロイも対象とし、作業開始や実装の承認だけで再起動の許可を得たと扱わない。
 - 反映はcommitしてから`scripts/deploy.sh`一回で行う。GitHubの`main`へpushし、本番は`git merge --ff-only`で取り込むだけで、本番側でcommitを作らない。本番の作業ツリーに未commitの変更があれば反映を止める。反映するとBot全員が停止し、次のメッセージで起動する。`scripts/deploy.sh`は反映前に処理待ち一覧を`runtime/backups/`へ保存する。止めたBotへ「再開しろ」は自動で送らない。
 - `config/bots.json`はGitHubの`main`の内容が本番の台帳になる。変える時はcommitして反映する。
-- Node.js・CorepackとCLI（Claude・Codex・Grok・Cursor・Aiterm・Throughline・GitHub CLI）は版を固定しない。`scripts/deploy.sh`は毎回ベースイメージを取得し、キャッシュなしで公式の現行版からビルドする。永続volume上のCursorはコンテナ起動時に公式`cursor-agent update`で更新する。
+- Node.js・CorepackとCLI（Claude・Codex・Grok・Cursor・Aiterm・Throughline・GitHub CLI）は版を固定しない。`scripts/deploy.sh`は毎回ベースイメージを取得し、キャッシュなしで公式の現行版からビルドする。永続volume上のCursorはコンテナ起動時に公式`cursor-agent update`で更新する。Claude Codeは席で自動更新させない（席の環境に`DISABLE_AUTOUPDATER=1`）。更新は`npm install -g`で席の`.local`へ写しを作り、席ごとに版がずれるため。席の`.local`に出来た写しはコンテナ起動時に片付け、全席がコンテナの物を使う（オーナーの指摘 2026-10-06）。
 - Web APIは`http://192.168.1.2:18891/api/...`（`127.0.0.1`ではbindしない）。tokenは本番の`runtime/web.env`の`BELLTEAM_WEB_TOKEN`。
 
 ## 試験

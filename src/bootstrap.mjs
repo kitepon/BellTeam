@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { BotRegistry } from './bot-registry.mjs'
-import { restoreBotEnvironments } from './bot-environment.mjs'
+import { removeSeatClaudeCopies, restoreBotEnvironments } from './bot-environment.mjs'
 import { configureHarnesses } from './harness-config.mjs'
 import { createGlobalInstructionsRefresher } from './global-instructions.mjs'
 import { OwnerProfile } from './owner-profile.mjs'
@@ -39,6 +39,7 @@ await Promise.all([
   mkdir(join(root, 'logs'), { recursive: true }),
   mkdir(join(root, 'shared', 'tools'), { recursive: true }),
 ])
+await removeSeatClaudeCopies(bots)
 await restoreBotEnvironments(bots)
 await configure(bots)
 

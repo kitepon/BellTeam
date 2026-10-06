@@ -52,6 +52,8 @@ for deb in "$S"/cache/archives/*.deb; do dpkg -x "$deb" "$R"; done
 
 `BELLTEAM_PROJECT` は自分のプロジェクトの絶対パスになる。既定のPATHは自分の `.local/bin`、`node_modules/.bin`、コンテナのPATHの順。npmのグローバル導入先も自分の `.local` に設定される。npmとpipのキャッシュはそれぞれ自分の `.cache/npm`、`.cache/pip` に置く。共有のHOMEとCLI認証・MCP登録先は従来のまま。
 
+Claude Codeはコンテナに入っている物を全席で使う。席の環境には `DISABLE_AUTOUPDATER=1` が入り、Claude Codeは席で自分を更新しない（更新すると `npm install -g` で自分の `.local` に写しが出来て、席ごとに版がずれる）。自分の `.local` に残っているClaude Codeの写し（`lib/node_modules/@anthropic-ai/claude-code` と、それを指す `bin/claude`）は、コンテナ起動時にBellTeamが片付ける。版は、ほかのCLIと同じく反映の時に変わる。
+
 追加の設定は `environment/env.sh` に書く。例えば前述のPython環境を使う場合は次のようにする。
 
 ```bash

@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process'
-import { access, mkdir, open } from 'node:fs/promises'
+import { access, mkdir, open, realpath, rm, rmdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { runtimeEnvironment } from './runtime-home.mjs'
@@ -19,7 +19,36 @@ export function baseBotEnvironment(project, inherited = process.env) {
     PIP_CACHE_DIR: join(project, '.cache/pip'),
     GH_CONFIG_DIR: join(github, 'gh'),
     GIT_CONFIG_GLOBAL: join(github, 'gitconfig'),
+    // Claude Codeは自分を更新する時に `npm install -g` を流す。席のnpmの導入先は席の `.local` なので、
+    // 席ごとに写しが出来て、席はコンテナの物ではなく写しを使い続ける（2026-10-06、18席に4つの版）。
+    // 席では更新させず、全席がコンテナの物を使う。版は、ほかのCLIと同じく反映の時に変わる（オーナーの指摘 2026-10-06「共通化しなかった？」）。
+    DISABLE_AUTOUPDATER: '1',
   }
+}
+
+// 席の `.local` に出来たClaude Codeの写しを片付ける（コンテナ起動ごとに一度、setup.shより前）。
+// 消すのはCLIの写しと、それを指す入口だけ。席のほかの物には触らない。
+// setup.shが自分で入れ直す席は、その席の版を使い続ける。一席の失敗で起動を止めない。
+export async function removeSeatClaudeCopies(bots, { report = message => process.stderr.write(`${message}\n`) } = {}) {
+  const removed = []
+  for (const bot of bots.values()) {
+    const prefix = join(bot.project, '.local')
+    const copy = join(prefix, 'lib/node_modules/@anthropic-ai/claude-code')
+    try {
+      if (!await exists(copy)) continue
+      const entry = join(prefix, 'bin/claude')
+      if (await exists(entry) && (await realpath(entry)).startsWith(`${await realpath(copy)}/`)) await rm(entry)
+      await rm(copy, { recursive: true })
+      await rmdir(join(prefix, 'lib/node_modules/@anthropic-ai')).catch(error => {
+        if (error.code !== 'ENOTEMPTY' && error.code !== 'ENOENT') throw error
+      })
+      removed.push(bot.id)
+      report(`BellTeam environment ${bot.id}: 席のClaude Codeの写しを片付けました`)
+    } catch (error) {
+      report(`BellTeam environment ${bot.id}: 席のClaude Codeの写しを片付けられませんでした（${error.message}）`)
+    }
+  }
+  return removed
 }
 
 // env.shはBot自身が所有するシェル設定。値をツール引数やログへ出さない。
