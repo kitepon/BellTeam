@@ -45,6 +45,8 @@ private struct ConversationContent: View {
     @State private var isAtBottom = true
     @State private var hasUnreadMessages = false
     @State private var scrollToBottomRevision = 0
+    @State private var measuredRow: String?
+    @State private var scroll = ScrollTracker()
 
     private var bot: Bot? { store.bots.first { $0.id == target.id } }
     private var room: Room? { store.rooms.first { $0.id == target.id } }
@@ -60,56 +62,63 @@ private struct ConversationContent: View {
                     ScrollView {
                         // 更新と自動スクロールが重なっても、読み込んだ行の配置を一度で確定する。
                         VStack(spacing: 17) {
-                            if hasMore {
-                                Button {
-                                    Task {
-                                        if let anchor = await loadOlder() {
-                                            proxy.scrollTo(anchor, anchor: .top)
-                                        }
-                                    }
-                                } label: {
-                                    if loadingOlder { ProgressView() }
-                                    else { Text("以前のメッセージを読む") }
-                                }
-                                .font(BellTheme.messageHelperFont.weight(.semibold))
-                                .padding(.vertical, 12)
-                                .disabled(loadingOlder)
-                            }
                             if loading && messages.isEmpty {
                                 ProgressView().padding(.top, 90)
                             } else if messages.isEmpty {
                                 emptyConversation
                             }
                             ForEach(messages) { message in
-                                if let request = message.secretRequest {
-                                    SecretRequestCard(request: request)
-                                        .id(message.id)
-                                } else if let question = message.ownerQuestion {
-                                    OwnerQuestionCard(question: question)
-                                        .id(message.id)
-                                } else {
-                                    MessageRow(message: message, isRoom: target.isRoom, bot: bot,
-                                               bots: store.bots, api: store.api)
-                                        .id(message.id)
+                                Group {
+                                    if let request = message.secretRequest {
+                                        SecretRequestCard(request: request)
+                                    } else if let question = message.ownerQuestion {
+                                        OwnerQuestionCard(question: question)
+                                    } else {
+                                        MessageRow(message: message, isRoom: target.isRoom, bot: bot,
+                                                   bots: store.bots, api: store.api)
+                                    }
+                                }
+                                .id(message.id)
+                                .background(alignment: .top) {
+                                    // 各行の上端に0高の目印を置く。過去を足した後、足す前の先頭行をこの目印で元の画面位置へ戻す。
+                                    Color.clear.frame(height: 0).id(ScrollTracker.rowTopID(message.id))
+                                        .background {
+                                            // 先頭行の位置は常に測っておく。取得の応答が速くても、足す前の位置が必ず手元にある。
+                                            if message.id == (measuredRow ?? messages.first?.id) {
+                                                GeometryReader { row in
+                                                    Color.clear.preference(key: ScrollMetricsKey.self,
+                                                        value: ScrollMetrics(boundary: row.frame(in: .named("conversation-scroll")).minY))
+                                                }
+                                            }
+                                        }
                                 }
                             }
                             if !queue.isEmpty { queueStrip }
                             Color.clear.frame(height: 2).id("bottom")
                                 .background {
                                     GeometryReader { bottom in
-                                        Color.clear.preference(key: BottomPositionKey.self,
-                                            value: bottom.frame(in: .named("conversation-scroll")).maxY)
+                                        Color.clear.preference(key: ScrollMetricsKey.self,
+                                            value: ScrollMetrics(bottom: bottom.frame(in: .named("conversation-scroll")).maxY))
                                     }
                                 }
+                        }
+                        .background {
+                            GeometryReader { content in
+                                let frame = content.frame(in: .named("conversation-scroll"))
+                                Color.clear.preference(key: ScrollMetricsKey.self,
+                                    value: ScrollMetrics(top: frame.minY, height: frame.height))
+                            }
                         }
                         .padding(.horizontal, 18)
                         .padding(.top, 20)
                         .padding(.bottom, 18 + (attachments.isEmpty ? 0 : attachmentStripHeight))
                     }
                     .coordinateSpace(name: "conversation-scroll")
-                    .onPreferenceChange(BottomPositionKey.self) { bottomY in
-                        isAtBottom = bottomY <= viewport.size.height + 48
-                        if isAtBottom { hasUnreadMessages = false }
+                    .onPreferenceChange(ScrollMetricsKey.self) { metrics in
+                        scrollChanged(metrics, viewportHeight: viewport.size.height, proxy: proxy)
+                    }
+                    .overlay(alignment: .top) {
+                        if loadingOlder { ProgressView().padding(.top, 12) }
                     }
                     .overlay(alignment: .bottom) {
                         if hasUnreadMessages {
@@ -123,6 +132,8 @@ private struct ConversationContent: View {
                         }
                     }
                     .scrollDismissesKeyboard(.interactively)
+                    .accessibilityIdentifier("conversation-messages")
+                    .defaultScrollAnchor(.bottom)
                     .refreshable { await refresh() }
                     .onChange(of: scrollToBottomRevision) { _, _ in
                         withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -387,7 +398,6 @@ private struct ConversationContent: View {
             messages = result.items
             queue = queued.items
             hasMore = result.hasMore
-            scrollToBottomRevision += 1
             errorText = nil
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
@@ -397,8 +407,41 @@ private struct ConversationContent: View {
         loading = false
     }
 
-    private func loadOlder() async -> String? {
-        guard hasMore, let oldest = messages.first?.id else { return nil }
+    // 上端へスクロールしたら過去を自動で取得し、取得後は先頭だった行を元の画面位置へ戻し続ける。
+    private func scrollChanged(_ metrics: ScrollMetrics, viewportHeight: CGFloat, proxy: ScrollViewProxy) {
+        guard let top = metrics.top, let height = metrics.height, let bottom = metrics.bottom else { return }
+        let grew = height > scroll.height + 0.5
+        let scrolled = abs(height - scroll.height) <= 0.5 && abs(top - scroll.top) > 0.01
+        scroll.height = height
+        scroll.top = top
+        isAtBottom = bottom <= viewportHeight + 48
+        if isAtBottom { hasUnreadMessages = false }
+        if grew {
+            // 初期位置と末尾への追従は.defaultScrollAnchor(.bottom)に任せる。足した過去の行の高さが後から伸びる間だけ、固定した行を元の位置へ戻す。
+            if let row = scroll.pin, let y = scroll.pinnedY { scrollRow(row, to: y, viewportHeight: viewportHeight, proxy: proxy) }
+            return
+        }
+        // 固定した行の位置は、利用者のスクロールに合わせて毎回更新する。伸びた分だけを打ち消すので、慣性スクロール中でも保たれる。
+        if let boundary = metrics.boundary {
+            if scroll.pin != nil && (boundary < 0 || boundary > viewportHeight) { scroll.pin = nil; measuredRow = nil }
+            scroll.pinnedY = boundary
+        }
+        guard scrolled else { return }
+        // 上端の外へ出ると、次に上端へ着いた時の取得を許可する。取得の失敗では許可しないので、失敗が繰り返し再試行されない。
+        let atTop = top >= 19.5
+        if !atTop { scroll.canLoadOlder = true }
+        if atTop && scroll.canLoadOlder && scroll.pin == nil && hasMore && !loadingOlder, let oldest = messages.first?.id, let y = metrics.boundary {
+            scroll.canLoadOlder = false
+            Task { await loadOlder(before: oldest, at: y, proxy: proxy, viewportHeight: viewportHeight) }
+        }
+    }
+
+    private func scrollRow(_ id: String, to y: CGFloat, viewportHeight: CGFloat, proxy: ScrollViewProxy) {
+        proxy.scrollTo(ScrollTracker.rowTopID(id), anchor: UnitPoint(x: 0, y: y / viewportHeight))
+    }
+
+    private func loadOlder(before oldest: String, at y: CGFloat, proxy: ScrollViewProxy, viewportHeight: CGFloat) async {
+        measuredRow = oldest
         loadingOlder = true
         defer { loadingOlder = false }
         do {
@@ -407,10 +450,16 @@ private struct ConversationContent: View {
             let known = Set(messages.map(\.id))
             messages = result.items.filter { !known.contains($0.id) } + messages
             hasMore = result.hasMore
-            return oldest
-        } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = error.localizedDescription }
-        return nil
+            // 足した行のMarkdownは後から高さが伸びる。伸びるたびに同じ位置へ戻すため、行と位置を覚えておく。
+            scroll.pin = oldest
+            scrollRow(oldest, to: scroll.pinnedY ?? y, viewportHeight: viewportHeight, proxy: proxy)
+        } catch let error where BellAPIError.isAuthenticationError(error) {
+            measuredRow = nil
+            store.requireLogin(for: error)
+        } catch {
+            measuredRow = nil
+            errorText = error.localizedDescription
+        }
     }
 
     private func refresh() async {
@@ -568,12 +617,34 @@ struct PendingImage: Identifiable {
     }
 }
 
-private struct BottomPositionKey: PreferenceKey {
-    static var defaultValue: CGFloat = .infinity
+// 会話のスクロール位置の計測値。各計測点が自分の値だけを入れ、reduceで一つにまとめる。
+private struct ScrollMetrics: Equatable {
+    var top: CGFloat?
+    var height: CGFloat?
+    var bottom: CGFloat?
+    var boundary: CGFloat?
+}
 
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+private struct ScrollMetricsKey: PreferenceKey {
+    static var defaultValue = ScrollMetrics()
+
+    static func reduce(value: inout ScrollMetrics, nextValue: () -> ScrollMetrics) {
+        let next = nextValue()
+        value.top = next.top ?? value.top
+        value.height = next.height ?? value.height
+        value.bottom = next.bottom ?? value.bottom
+        value.boundary = next.boundary ?? value.boundary
     }
+}
+
+// スクロール中に毎フレーム書き換える値。画面の再描画を起こさないよう@Stateの値ではなく参照型に置く。
+private final class ScrollTracker {
+    static func rowTopID(_ id: String) -> String { "top-\(id)" }
+    var height: CGFloat = 0
+    var top: CGFloat = 0
+    var pin: String?
+    var pinnedY: CGFloat?
+    var canLoadOlder = true
 }
 
 struct EmptyBody: Encodable {}
