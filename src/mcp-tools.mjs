@@ -195,7 +195,7 @@ export const bellTeamTools = Object.freeze([
   },
   {
     name: 'search_knowledge',
-    description: '個人またはBellTeam共通のRAGを検索する。scope省略時はpersonalで、共通RAGはsharedを明示した時だけ検索する。',
+    description: '個人またはBellTeam共通のナレッジ（RAG）と長期記憶を検索する。scope省略時はpersonalで、共通はsharedを明示した時だけ検索する。',
     inputSchema: objectSchema({
       query: { type: 'string', minLength: 1 },
       scope: { type: 'string', enum: ['personal', 'shared'] },
