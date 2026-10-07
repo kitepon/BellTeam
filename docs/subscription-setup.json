@@ -3529,7 +3529,7 @@
         "currentCandidateReference": "integration.networkLifecycleRepair.iphoneAcceptance"
       },
       "productionAuthentication": {
-        "status": "waiting_owner_official_site_login_and_member_start_notice",
+        "status": "codex_waiting_official_site_approval",
         "ownerConsentRequired": true,
         "beforeStart": "トロニーへ連絡し、実行中のCodex席が無いことと観測の用意を確認する。",
         "sequence": [
@@ -3542,7 +3542,7 @@
         "verificationDevice": "Mac",
         "iphoneUpdateRequiredBeforeVerification": false,
         "answerOption": "later",
-        "preStartStatus": "waiting_member_acceptance_completion_new_start_notice_and_owner_ready",
+        "preStartStatus": "start_performed_after_member_go_and_immediate_notice",
         "currentSeatObservation": {
           "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
           "seq": 5,
@@ -3586,8 +3586,8 @@
           "gui": "Jevで開始・取消・状態更新の対象を選び、本番の表示を確認。"
         },
         "codexLiveCheck": {
-          "status": "waiting_owner_official_site_login_and_member_start_notice",
-          "started": false,
+          "status": "waiting_official_site_approval",
+          "started": true,
           "readinessQuestion": "owner_official_site_login_requested_in_current_chat",
           "relatedThreadNotificationRequiresPermission": [
             {
@@ -3624,7 +3624,7 @@
             ],
             "onePasswordCli": "not_signed_in",
             "ownerOperation": "スマホでhttps://auth.openai.com/codex/deviceへログインし、コード入力画面まで進む。",
-            "approvalBoxRequest": "created_pending",
+            "approvalBoxRequest": "answered_text_code_not_yet_issued",
             "approvalBoxError": null,
             "nativeQuestion": "same_request_registered_in_approval_box",
             "proofDirectory": "runtime/apple/codex-auth-20261007",
@@ -3632,7 +3632,7 @@
             "requestRecheckedAt": "2026-10-07T03:19:30.630261+00:00",
             "approvalBoxPreviousError": "CODEX_STEER_RESTART_REQUIRED",
             "approvalBoxDecisionId": "K-JXN8U4",
-            "approvalBoxDecisionVersion": 1
+            "approvalBoxRegisteredVersion": 1
           },
           "handoff": {
             "threadId": "01a113dc-f72a-79e0-8354-f811a1289e03",
@@ -3642,7 +3642,7 @@
             "moveDelivery": "delivered",
             "memberConfirmedSeq": 2,
             "previousCallClosed": true,
-            "pendingReply": "本人の公式ページの準備回答（K-JXN8U4）と、受入完了後にトロニーが別に送る開始合図。両方の後に開始直前の連絡を行う。",
+            "pendingReply": "本人の公式サイトでの承認とアプリの認証済みへの遷移。その後トロニーに新しいCodexの起動を確認してもらう。",
             "duplicateContinuation": {
               "threadId": "01a113dd-1f43-7f11-bf2b-485686e39cb1",
               "callSession": "968725fb-2aff-44dd-a90d-1ab851b6f8c3",
@@ -3702,7 +3702,39 @@
             "status": "superseded_by_acceptance_hold",
             "supersededByMemberSeq": 18
           },
-          "ownerOperationDecisionId": "K-JXN8U4"
+          "ownerOperationDecisionId": "K-CU88PG",
+          "ownerPreparationReply": {
+            "decisionId": "K-JXN8U4",
+            "answerText": "こーどがわからん",
+            "source": "approval_box_owner_answer",
+            "recordedAt": "2026-10-07T03:23:44.813956+00:00",
+            "codeIssued": false,
+            "codeAbsenceExplainedToOwner": true,
+            "reportedToMemberSeq": 23,
+            "siteLoginReadinessExplicitlyConfirmed": false
+          },
+          "startedAtRecorded": "2026-10-07T03:29:15.723290+00:00",
+          "startAttempts": 1,
+          "preStartNoticeSeq": 28,
+          "memberStartPermitSeq": 26,
+          "deviceCodeIssued": true,
+          "deviceCodeStoredInRepository": false,
+          "appStatusAfterStart": "公式サイトでの認証を待っています。",
+          "startConfirmationDisplayed": true,
+          "startConfirmationAccepted": true,
+          "ownerBrowserClosedBeforeCode": true,
+          "ownerBrowserReopenRequestedAfterCode": true,
+          "guiSelection": "Jev",
+          "proofScreenshot": "runtime/apple/codex-auth-20261007/device-code-current-private.png",
+          "previousOwnerOperationDecisionId": "K-JXN8U4",
+          "officialSiteApprovalRequest": {
+            "decisionId": "K-CU88PG",
+            "status": "pending",
+            "registeredVersion": 1,
+            "deviceCodeIncludedOnlyInOwnerRequest": true,
+            "deviceCodeStoredInRepository": false
+          },
+          "startReportedToMemberSeq": 29
         },
         "ownerConsentReceived": true,
         "currentCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
@@ -3738,17 +3770,25 @@
           "blockedOperations": []
         },
         "acceptanceHold": {
-          "status": "active_waiting_member_new_start_notice",
+          "status": "released_member_start_permitted",
           "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
           "memberNoticeSeq": 18,
-          "blockedOperations": [
-            "codex_authentication_start"
-          ],
-          "reason": "ナユタとエレグがCodexの席で受入中。トロニーの別の始めていいという合図が届くまで開始しない。",
+          "blockedOperations": [],
+          "reason": "受入は完了。フラジャイルの作業が区切りで止まるのを待ち、トロニーの別の開始合図を受けてから開始する。",
           "reportedIssue": "AitermのCodex hookはreadyになったが、ナユタのsetup時点ではdisabledだったためApproval Boxの切替が行われず専用hookが残った。起動順序を所有担当が調査・修理する。",
-          "productionTestPostAndNewBotRequestsPermitted": true
+          "productionTestPostAndNewBotRequestsPermitted": true,
+          "memberProgressSeq": 25,
+          "acceptanceCompleted": true,
+          "reportedCompletionAtJST": "2026-10-07 12:24",
+          "reportedActiveSeats": {
+            "ナユタ": "idle",
+            "フラジャイル": "working"
+          },
+          "ownerEstimateCommunicated": "担当の見込みでは数分。開始合図後にコードを発行して渡す。",
+          "memberStartPermitSeq": 26
         },
-        "ownerOperationDecisionId": "K-JXN8U4"
+        "ownerOperationDecisionId": "K-CU88PG",
+        "previousOwnerOperationDecisionId": "K-JXN8U4"
       },
       "existingReviewSubmissionChanged": false,
       "plan": "docs/plan_harness-auth-app-20261006.md",
@@ -3781,6 +3821,16 @@
             "repairVerification": "遅延20秒の画面試験でPOST1回、復帰まで追加GET0、エラーと下書き復元なし。",
             "unexplained": "8回目のサーバー未到達POSTは保存済み応答待ちの再現では説明できない。実機でOSが停止した時点も未観測。",
             "sameRootCauseAsOtherCases": "not_proven"
+          },
+          "latestRead": {
+            "lastSeenAt": "2026-10-06T22:44:57.259Z",
+            "version": "1.0.1",
+            "build": "44",
+            "count": 9,
+            "build45Occurrences": 0,
+            "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+            "memberSeq": 22,
+            "reportedAtJST": "2026-10-07 12:21"
           }
         },
         {
@@ -3798,6 +3848,16 @@
             "repairVerification": "45の背景送信処理はPOSTへ適用されるが、41の27回との因果は未証明。",
             "unexplained": "保存された2通と2回の失敗の対応が未確定。SSE切断は別GETでありPOSTの応答喪失の証拠に使わない。inactiveはエラー記録時の状態。",
             "sameRootCauseAsOtherCases": "not_proven"
+          },
+          "latestRead": {
+            "lastSeenAt": "2026-10-06T05:11:55.769Z",
+            "version": "1.0",
+            "build": "41",
+            "count": 27,
+            "build45Occurrences": 0,
+            "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+            "memberSeq": 22,
+            "reportedAtJST": "2026-10-07 12:21"
           }
         },
         {
@@ -3814,6 +3874,16 @@
             "repairVerification": "同じ背景移行で最初の接続を取消し、次のGETを始めず、前面復帰で読み直すことを確認。",
             "unexplained": "元の約82秒の時間切れの根因は未確定。GETの接続切断時の1回取り直しを含む経過時間の可能性が残る。",
             "sameRootCauseAsOtherCases": "not_proven"
+          },
+          "latestRead": {
+            "lastSeenAt": "2026-10-06T00:06:55.805Z",
+            "version": "1.0",
+            "build": "41",
+            "count": 6,
+            "build45Occurrences": 0,
+            "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+            "memberSeq": 22,
+            "reportedAtJST": "2026-10-07 12:21"
           }
         }
       ],
@@ -4076,7 +4146,7 @@
         "bugHubRecipient": "フラジャイル",
         "closureCondition": "やれる事をやり切った上で、最新版で出ない。iPhoneの45導入と通常利用、既存サーバーログとの照合を確認し、根因未確定と再現した欠陥の修理済みを分ける。",
         "additionalManualPostTest": false,
-        "status": "server_correlation_completed_handed_to_bughub_waiting_owner_version_and_usage",
+        "status": "closure_requested_waiting_actual_bughub_status",
         "memberConfirmedSeq": 10,
         "deliveredToBugHubMember": true,
         "serverCorrelation": {
@@ -4084,7 +4154,18 @@
           "573cc8df": "26・27回目の時刻の本体ログは10/6 15:24の再作成で残っていない。保存済み2通は14:10:25と14:11:08。",
           "eedcde4c": "GETのためサーバーに照合用の記録が無い。"
         },
-        "nextMemberAction": "BugHubに45以上の記録が出た時に、その時刻のサーバー記録を照合してベルとフラジャイルへ知らせる。"
+        "nextMemberAction": "BugHubに45以上の記録が出た時に、その時刻のサーバー記録を照合してベルとフラジャイルへ知らせる。",
+        "ownerBuild45ConfirmationDecisionId": "K-SSSL3T",
+        "latestReadRequestSeq": 21,
+        "latestReadResponseSeq": 22,
+        "countsUnchanged": true,
+        "newFingerprintCountChanged": false,
+        "build45FailuresObserved": false,
+        "rootCauseRemainsUnconfirmed": true,
+        "build45InstallationTimeKnown": false,
+        "closureRequested": true,
+        "closureJudgement": "利用可能な旧証拠とソース・再現の照合を完了し、iPhone45の導入と起動は本人確認済み。最新APIで旧3件の増加と45の失敗は無く、通常利用で確認するオーナー裁定と既存の解決条件に沿って解決登録を依頼。過去全件の根因確定・根治の証明とはしない。",
+        "closureRequestSeq": 24
       }
     },
     "conversationDisplayRepair": {
@@ -4339,7 +4420,7 @@
         "proofPath": "runtime/apple/background-send-45/testflight-proof.json"
       },
       "physicalAcceptance": {
-        "status": "manual_test_cancelled_waiting_owner_build45_confirmation_and_usage_feedback",
+        "status": "build45_owner_confirmed_waiting_current_diagnostic_read_and_usage_feedback",
         "requiredVersion": "1.0.1",
         "requiredBuild": "45",
         "recipientId": "bot-bdf99000",
@@ -4353,7 +4434,7 @@
         "checkMemberImmediatelyBeforePost": true,
         "currentCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
         "currentMember": "トロニー",
-        "guiBlocker": "ミラーリングの再接続が中断。MacのWi-FiとBluetoothは有効。端末の現在の到達性とロック状態を確認中。",
+        "guiBlocker": null,
         "bodyNeedsExactVerificationBeforePost": true,
         "installedBuildBefore": "44",
         "deviceMetadataProof": "runtime/apple/background-send-45/iphone-apps-current.json",
@@ -4369,7 +4450,7 @@
           "wifi": "on",
           "bluetooth": "on"
         },
-        "remainingOwnerAction": "iPhoneのTestFlightでBellTeamを1.0.1（45）へ更新して起動する。既に45なら起動確認だけ。USB・帰宅・追加の送信試験は不要。",
+        "remainingOwnerAction": null,
         "deviceConnectionEvidence": "runtime/apple/asc-followup-20261007/device-lock-state.log",
         "ownerLocationUpdate": {
           "source": "current_chat",
@@ -4385,14 +4466,16 @@
         "usageAcceptance": "通常利用で変な動きが出た時にオーナーから報告を受け、診断と照合する。追加試験なしで解決済みとはしない。",
         "ownerVersionRequest": {
           "threadId": "01a113dc-f72a-79e0-8354-f811a1289e03",
-          "status": "pending_in_approval_box_current_thread",
+          "status": "answered",
           "approvalBoxRequest": "created_pending",
           "approvalBoxError": null,
           "approvalBoxPreviousError": "CODEX_STEER_RESTART_REQUIRED",
           "decisionId": "K-SSSL3T",
-          "decisionVersion": 1
+          "answerOption": "already45",
+          "answerRecordedAt": "2026-10-07T03:22:55.315806+00:00",
+          "registeredDecisionVersion": 1
         },
-        "currentInstalledBuild": "unknown",
+        "currentInstalledBuild": "45",
         "lastPhysicallyConfirmedBuild": "44",
         "appleTesterObservation": {
           "observedAt": "2026-10-07T10:15:00+09:00",
@@ -4401,6 +4484,18 @@
           "deviceSummary": "MacBook Air + 2 other devices",
           "iphoneBuildConfirmed": false,
           "proofPath": "runtime/apple/asc-recheck-20261007/proof.json"
+        },
+        "currentInstalledVersion": "1.0.1",
+        "ownerInstallationConfirmation": {
+          "decisionId": "K-SSSL3T",
+          "answerOption": "already45",
+          "version": "1.0.1",
+          "build": "45",
+          "appLaunched": true,
+          "source": "approval_box_owner_answer",
+          "recordedAt": "2026-10-07T03:22:55.315806+00:00",
+          "independentlyMeasuredOnDevice": false,
+          "reportedToMemberSeq": 20
         }
       },
       "evidence": "docs/evidence/2026-10-07-background-message-send.md",
