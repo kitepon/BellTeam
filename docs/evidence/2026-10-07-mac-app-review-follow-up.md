@@ -19,3 +19,7 @@ Jev Bookmarksは認証が切れた専用Chromeのログイン画面を選び、�
 ## Appleの一次資料
 
 [App Reviewのメッセージへの返信](https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/reply-to-app-review-messages)は、拒絶についてメッセージと資料で説明できること、返信の入力と送信の手順を案内している。[審査ガイドライン](https://developer.apple.com/app-store/review/guidelines/)の4.3は重複・独自性、4.2.6はテンプレートや生成サービスと内容提供者による提出を扱う。今回の補足は、前回の回答と同じ製品の事実を示すものであり、Appleの承認を保証するものではない。
+
+## 追加返信後の再確認
+
+トロニーとの残件確認と並行し、Appleの公式APIと通常のChromeで審査状態を読み直した。Jev Bookmarksの専用Chromeはログイン画面で止まり、本文を読めていなかった。通常のChromeではJevで提出ページを確認でき、メッセージ数は追加返信後のままで、最新は開発者が送った補足だった。Appleから新しい返答は無く、審査対象も拒絶・未解決の状態で保持されていた。新たな送信や再提出は行っていない。確認時刻・件数・状態・証拠は準備状況の正本へ記録した。

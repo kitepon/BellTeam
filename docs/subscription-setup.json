@@ -3295,9 +3295,21 @@
           "verificationProofPath": "runtime/apple/asc-followup-20261007/final-message-proof.json",
           "stateProofPath": "runtime/apple/asc-followup-20261007/final-store-state.json",
           "currentSubmissionState": "UNRESOLVED_ISSUES",
-          "currentCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
+          "currentCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
           "gui": "Jevデスクトップで入力・送信対象を選択。表示した返信欄に直接入力し、送信前と再読み込み後に全文一致を確認。",
-          "clipboardRead": "agent-desktopのpackaged helper欠落を明示し、Mac標準のpbpasteで選択した審査本文を読む一時的な手順を使用。ツールの不足は未修理。"
+          "clipboardRead": "agent-desktopのpackaged helper欠落を明示し、Mac標準のpbpasteで選択した審査本文を読む一時的な手順を使用。ツールの不足は未修理。",
+          "latestRecheck": {
+            "checkedAt": "2026-10-07T01:12:18Z",
+            "messageCount": 3,
+            "newAppleReply": false,
+            "latestMessageSender": "developer",
+            "latestMessageDateDisplayed": "2026-10-07 08:58 JST",
+            "build": "41",
+            "versionState": "REJECTED",
+            "submissionState": "UNRESOLVED_ISSUES",
+            "guiSelection": "Jev",
+            "proofPath": "runtime/apple/asc-recheck-20261007/proof.json"
+          }
         }
       }
     },
@@ -3687,7 +3699,15 @@
           "module": "conversation",
           "count": 9,
           "status": "open",
-          "rootCause": "unknown"
+          "rootCause": "unknown",
+          "assessment": {
+            "confirmedDefect": "送信応答を待つ間の背景実行時間要求が無い。44の保存済みPOSTで時間切れと下書き復元を実機再現。",
+            "repairVersion": "1.0.1",
+            "repairBuild": "45",
+            "repairVerification": "遅延20秒の画面試験でPOST1回、復帰まで追加GET0、エラーと下書き復元なし。",
+            "unexplained": "8回目のサーバー未到達POSTは保存済み応答待ちの再現では説明できない。実機でOSが停止した時点も未観測。",
+            "sameRootCauseAsOtherCases": "not_proven"
+          }
         },
         {
           "fingerprintPrefix": "573cc8df",
@@ -3695,7 +3715,16 @@
           "module": "conversation",
           "count": 27,
           "status": "open",
-          "rootCause": "unknown"
+          "rootCause": "unknown",
+          "assessment": {
+            "confirmedDefect": null,
+            "repairVersion": null,
+            "repairBuild": null,
+            "relatedRepairBuild": "45",
+            "repairVerification": "45の背景送信処理はPOSTへ適用されるが、41の27回との因果は未証明。",
+            "unexplained": "保存された2通と2回の失敗の対応が未確定。SSE切断は別GETでありPOSTの応答喪失の証拠に使わない。inactiveはエラー記録時の状態。",
+            "sameRootCauseAsOtherCases": "not_proven"
+          }
         },
         {
           "fingerprintPrefix": "eedcde4c",
@@ -3703,7 +3732,15 @@
           "module": "schedules",
           "count": 6,
           "status": "open",
-          "rootCause": "unknown"
+          "rootCause": "unknown",
+          "assessment": {
+            "confirmedDefect": "予定取得Taskが背景へ移っても次のメンバーGETを始める。",
+            "repairVersion": "1.0.1",
+            "repairBuild": "43",
+            "repairVerification": "同じ背景移行で最初の接続を取消し、次のGETを始めず、前面復帰で読み直すことを確認。",
+            "unexplained": "元の約82秒の時間切れの根因は未確定。GETの接続切断時の1回取り直しを含む経過時間の可能性が残る。",
+            "sameRootCauseAsOtherCases": "not_proven"
+          }
         }
       ],
       "tests": {
@@ -3807,7 +3844,7 @@
           "durationSeconds": 0,
           "toc": "runtime/apple/usb-observation-20261006/authorized-02-toc.xml"
         },
-        "currentCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
+        "currentCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
         "additionalMeasurementRequestedByMember": true,
         "memberWithdrewCaptureRequest": {
           "callSession": "525de7d4-5f59-494a-8e77-d4855ca93329",
@@ -3955,6 +3992,25 @@
           "reason": "閉じる基準には、可能な調査を尽くして原因不明という条件があった",
           "unresolvedCount": 3
         }
+      },
+      "diagnosticCaseReview": {
+        "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+        "memberRequestSeq": 8,
+        "responseSeq": 9,
+        "responseDelivered": true,
+        "serverCorrelationOwner": "トロニー",
+        "bugHubRecipient": "フラジャイル",
+        "closureCondition": "やれる事をやり切った上で、最新版で出ない。iPhoneの45導入と通常利用、既存サーバーログとの照合を確認し、根因未確定と再現した欠陥の修理済みを分ける。",
+        "additionalManualPostTest": false,
+        "status": "server_correlation_completed_handed_to_bughub_waiting_owner_version_and_usage",
+        "memberConfirmedSeq": 10,
+        "deliveredToBugHubMember": true,
+        "serverCorrelation": {
+          "7290fa8f": "9回目の到達・保存1件・約5.7秒後の200は一致。8回目は本体にPOSTの行なし。",
+          "573cc8df": "26・27回目の時刻の本体ログは10/6 15:24の再作成で残っていない。保存済み2通は14:10:25と14:11:08。",
+          "eedcde4c": "GETのためサーバーに照合用の記録が無い。"
+        },
+        "nextMemberAction": "BugHubに45以上の記録が出た時に、その時刻のサーバー記録を照合してベルとフラジャイルへ知らせる。"
       }
     },
     "conversationDisplayRepair": {
@@ -4209,7 +4265,7 @@
         "proofPath": "runtime/apple/background-send-45/testflight-proof.json"
       },
       "physicalAcceptance": {
-        "status": "manual_test_cancelled_by_owner_waiting_usage_feedback",
+        "status": "manual_test_cancelled_waiting_owner_build45_confirmation_and_usage_feedback",
         "requiredVersion": "1.0.1",
         "requiredBuild": "45",
         "recipientId": "bot-bdf99000",
@@ -4221,7 +4277,7 @@
         "approvalBoxErrorMessage": "親のCodexはhookの導入前から動いています。完全終了して再起動してください",
         "postAttempts": 0,
         "checkMemberImmediatelyBeforePost": true,
-        "currentCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
+        "currentCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
         "currentMember": "トロニー",
         "guiBlocker": "ミラーリングの再接続が中断。MacのWi-FiとBluetoothは有効。端末の現在の到達性とロック状態を確認中。",
         "bodyNeedsExactVerificationBeforePost": true,
@@ -4239,7 +4295,7 @@
           "wifi": "on",
           "bluetooth": "on"
         },
-        "remainingOwnerAction": null,
+        "remainingOwnerAction": "iPhoneのTestFlightでBellTeamを1.0.1（45）へ更新して起動する。既に45なら起動確認だけ。USB・帰宅・追加の送信試験は不要。",
         "deviceConnectionEvidence": "runtime/apple/asc-followup-20261007/device-lock-state.log",
         "ownerLocationUpdate": {
           "source": "current_chat",
@@ -4252,7 +4308,23 @@
           "recordedAt": "2026-10-07T00:49:00.737538+00:00"
         },
         "additionalPostPlanned": false,
-        "usageAcceptance": "通常利用で変な動きが出た時にオーナーから報告を受け、診断と照合する。追加試験なしで解決済みとはしない。"
+        "usageAcceptance": "通常利用で変な動きが出た時にオーナーから報告を受け、診断と照合する。追加試験なしで解決済みとはしない。",
+        "ownerVersionRequest": {
+          "threadId": "01a113dc-f72a-79e0-8354-f811a1289e03",
+          "status": "pending_in_current_thread",
+          "approvalBoxRequest": "failed_not_created",
+          "approvalBoxError": "CODEX_STEER_RESTART_REQUIRED"
+        },
+        "currentInstalledBuild": "unknown",
+        "lastPhysicallyConfirmedBuild": "44",
+        "appleTesterObservation": {
+          "observedAt": "2026-10-07T10:15:00+09:00",
+          "latestInstalledBuild": "45",
+          "devicesCombined": true,
+          "deviceSummary": "MacBook Air + 2 other devices",
+          "iphoneBuildConfirmed": false,
+          "proofPath": "runtime/apple/asc-recheck-20261007/proof.json"
+        }
       },
       "evidence": "docs/evidence/2026-10-07-background-message-send.md",
       "sourceCommit": "1d497feeea2cc3dd7ad9f94abb797affcb1fe248",
