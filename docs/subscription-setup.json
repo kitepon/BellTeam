@@ -4731,7 +4731,7 @@
     "networkReportingRepair": {
       "version": "1.0.1",
       "build": "47",
-      "status": "input_visibility_verified_preparing_signed_build",
+      "status": "ready_waiting_server_deployment",
       "policy": "https://github.com/kitepon/ServerManager/blob/ef578fe/bughub/NETWORK_REPORTING.md",
       "scope": "通信の報告を操作の対処後へ移し、実害と確認できた復旧から重大度を付ける。正常取消は送らず、操作成功を確認した参考はinfo。",
       "tests": {
@@ -4800,7 +4800,9 @@
           "severity": "warn",
           "reportedVersion": "1.0.1(47)",
           "image": "runtime/network-reporting-46/input-keyboard-final-attachments/68BC5794-BD30-4AA7-8662-237E9C7D1CB0.png"
-        }
+        },
+        "isolatedReceiver": "stopped_after_verification",
+        "isolatedReceiverStopped": true
       },
       "currentOwnerThread": "01a11545-8215-7612-8766-58b18d67db02",
       "currentCall": "019cf9e8-dd29-4dea-82ef-1b5dee4666cc",
@@ -4817,8 +4819,49 @@
       },
       "physicalCommunicationTest": "not_resumed_owner_normal_usage",
       "pastDiagnosticRecords": "unchanged",
-      "archiveExport": "pending",
-      "upload": "pending",
+      "archiveExport": {
+        "status": "passed",
+        "sourceCommit": "79f85c2ec403c3b32dcba5e26e4442894c359bf4",
+        "proof": "runtime/apple/network-reporting-47/archive-export-proof.json",
+        "packageProof": "runtime/apple/network-reporting-47/package-proof.json",
+        "iosAppAndExtension": "1.0.1(47)",
+        "macAppAndExtension": "1.0.1(47)",
+        "codesignVerified": true,
+        "macPackageSignatureVerified": true,
+        "searchListRestored": true,
+        "keychainLocked": true
+      },
+      "upload": {
+        "status": "altool_succeeded_both_platforms",
+        "internalDistributionStarted": false,
+        "iosLog": "runtime/apple/network-reporting-47/ios-upload-47.log",
+        "macLog": "runtime/apple/network-reporting-47/mac-upload-47.log",
+        "appleProcessing": "VALID_both_platforms",
+        "receipt": "runtime/apple/network-reporting-47/upload-receipt.json",
+        "reviewAssociationUnchanged": true,
+        "reviewProof": "runtime/apple/network-reporting-46/review-association-before-distribution.json",
+        "builds": [
+          {
+            "id": "ebfa6c93-cde5-4933-a359-394f7c639934",
+            "platform": "MAC_OS",
+            "version": "1.0.1",
+            "build": "47",
+            "processingState": "VALID",
+            "ownerGroupDistributed": false,
+            "internalBuildState": "READY_FOR_BETA_TESTING"
+          },
+          {
+            "id": "707b4b94-18cc-486c-a608-f02e3ecc3a15",
+            "platform": "IOS",
+            "version": "1.0.1",
+            "build": "47",
+            "processingState": "VALID",
+            "ownerGroupDistributed": false,
+            "internalBuildState": "READY_FOR_BETA_TESTING"
+          }
+        ],
+        "verifiedAt": "2026-10-07T07:52:38.169Z"
+      },
       "supersededCandidates": [
         {
           "build": "46",
@@ -4845,7 +4888,9 @@
             "receipt": "runtime/apple/network-reporting-46/upload-receipt.json",
             "reviewAssociationUnchanged": true,
             "reviewProof": "runtime/apple/network-reporting-46/review-association-before-distribution.json"
-          }
+          },
+          "receipt": "runtime/apple/network-reporting-46/superseded-receipt.json",
+          "processingState": "VALID_both_platforms_owner_group_not_distributed"
         }
       ]
     }
