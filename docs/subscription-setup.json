@@ -3530,17 +3530,29 @@
         "verificationDevice": "Mac",
         "iphoneUpdateRequiredBeforeVerification": false,
         "answerOption": "later",
-        "preStartStatus": "waiting_noah_completion_and_immediate_member_recheck",
+        "preStartStatus": "noah_completed_waiting_owner_ready_and_immediate_notice",
         "currentSeatObservation": {
           "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
-          "seq": 3,
-          "observedAt": "2026-10-07T10:00:00+09:00",
+          "seq": 5,
+          "observedAt": "2026-10-07T10:04:13+09:00",
           "codex": {
+            "activeSeats": [
+              "bot-2094dc6d",
+              "bot-4366a50b",
+              "bot-a855525f",
+              "bot-f1066783"
+            ],
+            "state": "idle_composer_ready",
+            "startingSeats": 0,
+            "pendingChildDeliveries": 0,
+            "processingMessages": 0,
             "authentication": "authenticated",
-            "credentialLastUpdated": "2026-10-05",
+            "credentialLastUpdated": "2026-10-05T23:12:20+09:00",
             "startCalled": false,
-            "noStartWindow": "10:00のノアの予定ターン完了と、担当の再確認・開始合図まで",
-            "startNoticePending": true
+            "noahScheduledTurnCompleted": true,
+            "memberStartPermitted": true,
+            "startNoticePending": true,
+            "immediateNoticeRequired": "本人のスマホの準備後、開始直前に同じ通話へ一通送り、担当が席を見直す。時間が空いた場合はこの観測を直前の状態とみなさない。"
           }
         },
         "cursorLiveCheck": {
@@ -3615,7 +3627,7 @@
             "moveDelivery": "delivered",
             "memberConfirmedSeq": 2,
             "previousCallClosed": true,
-            "pendingReply": "ノアの予定完了後、Codex席を再確認した開始合図。本人のスマホで公式ページへログインできたという回答。",
+            "pendingReply": "本人のスマホで公式ページへログインし、コード入力画面を開いたという回答。準備後に開始直前の連絡を行う。",
             "duplicateContinuation": {
               "threadId": "01a113dd-1f43-7f11-bf2b-485686e39cb1",
               "callSession": "968725fb-2aff-44dd-a90d-1ab851b6f8c3",
@@ -3638,7 +3650,16 @@
               "state": "idle",
               "notificationSent": false
             }
-          ]
+          ],
+          "memberStartNotice": {
+            "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+            "seq": 5,
+            "confirmedAt": "2026-10-07T10:04:13+09:00",
+            "noahScheduledTurnCompleted": true,
+            "startPermittedAfterOwnerReady": true,
+            "immediateNoticeRequired": true,
+            "ownerReadyReceived": false
+          }
         },
         "ownerConsentReceived": true,
         "currentCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6"
