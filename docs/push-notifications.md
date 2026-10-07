@@ -52,7 +52,7 @@ Apple Developer の Certificates, Identifiers & Profiles で、署名の前に�
 - `POST /api/notifications/devices`: `token`・`environment`・`server`・任意の`previousToken`で端末登録。
 - `POST /api/notifications/unregister`: `token`で登録解除。
 
-APNsへの送信失敗は`SERVER_PUSH_FAILED`（その通知1件が届かない。`warn`）、通知の機能を開始できなかった失敗は`SERVER_PUSH_UNAVAILABLE`（`high`）、iPhoneの登録失敗は`IOS_PUSH_FAILED`として既存のBughub診断へ渡す。診断にはエラー種別だけを記録し、端末トークン・秘密鍵・署名JWTを含めない。送信を自動で繰り返さない。APNsへの接続は使い回し、5分使わなかった接続は閉じて次の送信で新しく開く（長く使わなかった接続は途中の経路で切れていて、次の送信が`APNS_CONNECTION_FAILED`になるため）。認証トークン（署名JWT）は50分ごとに一度だけ作り、端末の数だけ同時に送る時も同じトークンを使う（同じ接続へ違うトークンが続けて届くと、APNsが`TooManyProviderTokenUpdates`の429で拒むため）。APNsが受理しても端末への表示を保証するものではない。
+APNsへの送信失敗は`SERVER_PUSH_SEND_FAILED`（その通知1件が届かない。`warn`）、通知の機能を開始できなかった失敗は`SERVER_PUSH_UNAVAILABLE`（`high`）、iPhoneの登録失敗は`IOS_PUSH_FAILED`として既存のBughub診断へ渡す。診断にはエラー種別だけを記録し、端末トークン・秘密鍵・署名JWTを含めない。送信を自動で繰り返さない。APNsへの接続は使い回し、5分使わなかった接続は閉じて次の送信で新しく開く（長く使わなかった接続は途中の経路で切れていて、次の送信が`APNS_CONNECTION_FAILED`になるため）。認証トークン（署名JWT）は50分ごとに一度だけ作り、端末の数だけ同時に送る時も同じトークンを使う（同じ接続へ違うトークンが続けて届くと、APNsが`TooManyProviderTokenUpdates`の429で拒むため）。APNsが受理しても端末への表示を保証するものではない。
 
 ## Appleの仕様
 

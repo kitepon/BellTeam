@@ -4,27 +4,30 @@ import { createServer } from 'node:http'
 import { dirname } from 'node:path'
 
 // 通信の失敗は、エラーの種類や回数だけでは重大度も責任のある箇所も決まらない（ServerManagerの bughub/NETWORK_REPORTING.md）。
-// 3つ目がtrueの報告は、送信元（アプリ）が実害と復帰の可否から付けた `severity` を使う。
-// 付けていない版の報告は、影響と対処が未確認の `warn` として残す。
-// `info` は適切に処理した参考記録で、修理の対象にしない。行は `resolved` で作り、回数・時刻・診断だけを進める。管理口で開いた行は開いたままにする。
+// 3つ目がtrueの報告は、送信元（アプリ）が実害と復帰の可否から付けた `severity` を使い、重大度ごとに別の行にする。
+// `info`（適切に処理した参考記録）は、その報告の診断に「実害が無い」と「アプリの対処」の行がある時だけ参考として扱い、`resolved` で作る。
+// `severity` の無い旧形式の報告と、根拠の無い `info` は未評価。確認できないだけでは下げず、今までの重大度のまま登録して、文面に暫定と出す。
 // サーバー自身の報告は、呼ぶ場所ごとに影響が決まるので、codeを分けて重大度を持つ。
 const severities = new Set(['fatal', 'high', 'warn', 'info'])
 const reports = {
   IOS_HANG: ['high', 'Appleアプリが応答しなくなった'],
   IOS_CRASH: ['fatal', 'Appleアプリが異常終了した'],
-  IOS_NETWORK_TIMEOUT: ['warn', 'Appleアプリの通信が時間切れになった', true],
+  IOS_NETWORK_TIMEOUT: ['high', 'Appleアプリの通信が時間切れになった', true],
   IOS_NETWORK_FAILURE: ['warn', 'Appleアプリの通信に失敗した', true],
-  IOS_HTTP_5XX: ['warn', 'Appleアプリがサーバーエラーを受け取った', true],
-  IOS_RESPONSE_INVALID: ['warn', 'Appleアプリが応答を読み取れなかった', true],
+  IOS_HTTP_5XX: ['high', 'Appleアプリがサーバーエラーを受け取った', true],
+  IOS_RESPONSE_INVALID: ['high', 'Appleアプリが応答を読み取れなかった', true],
   SERVER_SECRET_FAILED: ['high', '秘密情報の登録処理に失敗した'],
   SERVER_HTTP_500: ['high', 'BellTeamのAPI処理に失敗した'],
-  SERVER_PUSH_FAILED: ['warn', '端末へ通知を届けられなかった（その通知だけ。原因は未確定）'],
+  // 送信の失敗と設定の反映の失敗を分ける前の記録。保存済みの行のために残し、新しくは記録しない。
+  SERVER_PUSH_FAILED: ['high', '端末への通知送信に失敗した'],
+  SERVER_PUSH_SEND_FAILED: ['warn', '端末へ通知を届けられなかった（その通知だけ。原因は未確定）'],
   SERVER_PUSH_UNAVAILABLE: ['high', '通知の機能を開始できなかった'],
   SERVER_FEATURE_CONFIGURATION_FAILED: ['high', '起動時に機能の設定を反映できなかった'],
   SERVER_CALL_CONFIGURATION_FAILED: ['warn', '通話の設定をメンバーへ反映できなかった'],
   IOS_PUSH_FAILED: ['warn', '端末の通知登録に失敗した', true],
 }
 const assessments = { info: '適切に処理した参考記録', warn: '影響あり', high: '影響あり', fatal: '影響あり' }
+const referenceGrounds = [/^user_impact=none$/mu, /^app_handling=\S/mu]
 const modules = new Set(['app', 'session', 'conversation', 'events', 'image', 'bots', 'rooms', 'owner', 'schedules', 'settings', 'queue', 'server', 'secrets', 'notifications'])
 
 export class Diagnostics {
@@ -51,10 +54,11 @@ export class Diagnostics {
       if (version !== undefined && (typeof version !== 'string' || version.length > 40 || !/^[\w.+() -]+$/u.test(version))) throw new Error('DIAGNOSTIC_INVALID')
       if (log !== undefined && (typeof log !== 'string' || !log.trim() || Buffer.byteLength(log) > 49152)) throw new Error('DIAGNOSTIC_INVALID')
       // 送信元が重大度を付けた報告は、重大度ごとに別の行にする。参考の記録が、影響のあった記録を薄めない。
-      const severity = bySender && assessed ? assessed : fixed
-      const fingerprint = createHash('sha256').update(bySender && assessed ? `${code}:${module}:${assessed}` : `${code}:${module}`).digest('hex')
+      const evaluated = Boolean(bySender && assessed) && (assessed !== 'info' || referenceGrounds.every(line => line.test(log ?? '')))
+      const severity = evaluated ? assessed : fixed
+      const fingerprint = createHash('sha256').update(evaluated ? `${code}:${module}:${assessed}` : `${code}:${module}`).digest('hex')
       const previous = this.rows.get(fingerprint)
-      const message = bySender ? `${template}（${assessed ? assessments[assessed] : '影響とアプリの対処は未確認'}）` : template
+      const message = bySender ? `${template}（${evaluated ? assessments[assessed] : '重大度は旧契約の暫定。影響とアプリの対処は未評価'}）` : template
       const row = {
         fingerprint,
         severity,

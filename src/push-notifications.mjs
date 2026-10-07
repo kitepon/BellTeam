@@ -57,7 +57,7 @@ export class PushNotifications {
       this.provider = provider
       return this.status()
     } catch (error) {
-      // 通知の機能が動いていない状態。1件の送信の失敗（SERVER_PUSH_FAILED）とは影響が違うので、分けて記録する。
+      // 通知の機能が動いていない状態。1件の送信の失敗（SERVER_PUSH_SEND_FAILED）とは影響が違うので、分けて記録する。
       await this.recordFailure(error, 'SERVER_PUSH_UNAVAILABLE')
       throw error
     }
@@ -128,7 +128,7 @@ export class PushNotifications {
     void task.finally(() => this.inflight.delete(task))
   }
 
-  async recordFailure(error, report = 'SERVER_PUSH_FAILED') {
+  async recordFailure(error, report = 'SERVER_PUSH_SEND_FAILED') {
     // 接続URL・端末トークン・署名付き取引・秘密鍵は診断へ含めない。
     const code = /^[A-Z_0-9]+$/u.test(error.code ?? '') ? error.code : 'PUSH_SEND_FAILED'
     this.error = { code, message: '通知の設定・送信を確認できませんでした。設定と診断情報を確認してください。' }

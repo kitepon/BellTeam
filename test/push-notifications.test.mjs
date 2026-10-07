@@ -96,7 +96,7 @@ test('失効端末は削除し、通信障害は再試行せず秘密を含め�
   service.secret({ id: 'request-a', botId: 'bot-a' })
   await service.close()
   assert.equal(count, 1)
-  assert.equal(reports[0].code, 'SERVER_PUSH_FAILED')
+  assert.equal(reports[0].code, 'SERVER_PUSH_SEND_FAILED')
   assert.ok(!JSON.stringify(reports).includes(device.token))
   provider.send = async () => { throw Object.assign(new Error('期限切れ'), { code: 'APNS_UNREGISTERED' }) }
   service.secret({ id: 'request-b', botId: 'bot-a' })
