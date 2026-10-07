@@ -3699,7 +3699,25 @@
           }
         },
         "ownerConsentReceived": true,
-        "currentCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6"
+        "currentCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+        "deploymentHold": {
+          "status": "active_waiting_member_recovery_notice",
+          "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+          "memberNoticeSeq": 14,
+          "localAcknowledgementSeq": 15,
+          "localAcknowledgementDelivered": true,
+          "reportedDeploymentNumber": 18,
+          "reportedOwnerDecision": "K-8QH3PK",
+          "reportedAtJST": "2026-10-07 12:00",
+          "estimatedRecoveryAtJST": "2026-10-07 12:08",
+          "authenticationStarted": false,
+          "blockedOperations": [
+            "codex_authentication_start",
+            "production_test_post",
+            "new_bot_requests"
+          ],
+          "releaseCondition": "トロニーの起き直したという連絡を受けるまで、本番操作を始めない。本人のスマホ準備が先に揃っても待つ。"
+        }
       },
       "existingReviewSubmissionChanged": false,
       "plan": "docs/plan_harness-auth-app-20261006.md",
