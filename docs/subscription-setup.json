@@ -167,7 +167,7 @@
       "proofPath": "runtime/apple-review/subscription-equalization-proof.json"
     },
     "latestVersionStatus": {
-      "checkedAt": "2026-10-06T12:56:56.477Z",
+      "checkedAt": "2026-10-07T00:03:00.228Z",
       "IOS": {
         "version": "1.0",
         "build": "41",
@@ -175,15 +175,17 @@
         "appStoreState": "READY_FOR_SALE",
         "publicCatalogConfirmed": true,
         "publicCatalogProof": "runtime/apple/network-lifecycle-43-v101/ios-public-release-proof.json",
-        "releaseDate": "2026-10-06T08:24:55Z"
+        "releaseDate": "2026-10-06T08:24:55Z",
+        "submissionState": "COMPLETE"
       },
       "MAC_OS": {
         "version": "1.0",
         "build": "41",
         "appVersionState": "REJECTED",
-        "appStoreState": "REJECTED"
+        "appStoreState": "REJECTED",
+        "submissionState": "UNRESOLVED_ISSUES"
       },
-      "proofPath": "runtime/apple/network-lifecycle-43-v101/store-state-proof.json"
+      "proofPath": "runtime/apple/asc-followup-20261007/final-store-state.json"
     }
   },
   "worker": {
@@ -3276,7 +3278,27 @@
           }
         ],
         "verifiedAt": "2026-10-06T03:56:37.847422+00:00",
-        "remainingAction": "Appleからの回答待ち"
+        "remainingAction": "Appleからの回答待ち",
+        "macFollowUp": {
+          "status": "sent_and_saved_text_verified",
+          "sentDateDisplayed": "2026-10-07 08:58 JST",
+          "replyCharacters": 573,
+          "responseFile": "docs/app-review-mac-follow-up.md",
+          "previousReplyExactTextVerified": true,
+          "previousReplyCharacters": 3083,
+          "messageCountBefore": 2,
+          "messageCountAfter": 3,
+          "savedReplyExactMatch": true,
+          "pageReloadVerified": true,
+          "existingReviewBuild": "41",
+          "resubmitted": false,
+          "verificationProofPath": "runtime/apple/asc-followup-20261007/final-message-proof.json",
+          "stateProofPath": "runtime/apple/asc-followup-20261007/final-store-state.json",
+          "currentSubmissionState": "UNRESOLVED_ISSUES",
+          "currentCallSession": "38722012-211b-45b8-8748-a7c03d947dbb",
+          "gui": "Jevデスクトップで入力・送信対象を選択。表示した返信欄に直接入力し、送信前と再読み込み後に全文一致を確認。",
+          "clipboardRead": "agent-desktopのpackaged helper欠落を明示し、Mac標準のpbpasteで選択した審査本文を読む一時的な手順を使用。ツールの不足は未修理。"
+        }
       }
     },
     "clientRepairs": {
@@ -3495,7 +3517,7 @@
         "currentCandidateReference": "integration.networkLifecycleRepair.iphoneAcceptance"
       },
       "productionAuthentication": {
-        "status": "waiting_owner_consent",
+        "status": "cursor_live_checks_passed_waiting_codex_owner_ready",
         "ownerConsentRequired": true,
         "beforeStart": "トロニーへ連絡し、実行中のCodex席が無いことと観測の用意を確認する。",
         "sequence": [
@@ -3507,7 +3529,64 @@
         "decisionVersion": 4,
         "verificationDevice": "Mac",
         "iphoneUpdateRequiredBeforeVerification": false,
-        "answerOption": "later"
+        "answerOption": "later",
+        "preStartStatus": "requested_current_active_seat_status_from_tronny_readonly",
+        "currentSeatObservation": {
+          "sourceCallSession": "38722012-211b-45b8-8748-a7c03d947dbb",
+          "seq": 9,
+          "observedAt": "2026-10-07T09:10:36+09:00",
+          "cursor": {
+            "seats": 1,
+            "running": 0,
+            "queuedMessages": 0
+          },
+          "codex": {
+            "seats": 19,
+            "activeSeats": [
+              "bot-4366a50b",
+              "bot-a855525f",
+              "bot-f1066783"
+            ],
+            "state": "idle_composer_ready",
+            "noStartWindow": "09:55から10:00のノアのターン完了まで",
+            "requiresOwnerOfficialSiteReadyNow": true,
+            "requiresImmediateMemberRecheck": true,
+            "crossThreadCallsMustBeConsidered": true
+          }
+        },
+        "cursorLiveCheck": {
+          "version": "1.0.1",
+          "build": "45",
+          "device": "Mac",
+          "steps": [
+            "authenticated_before_start",
+            "start",
+            "waiting_for_official_site",
+            "cancel",
+            "refresh_actual_status"
+          ],
+          "statusAfterRefresh": "authenticated",
+          "cancelButtonRemoved": true,
+          "officialSiteApprovalNotPerformed": true,
+          "proofDirectory": "runtime/apple/asc-followup-20261007",
+          "verifiedAt": "2026-10-07T00:22:23.204783+00:00",
+          "gui": "Jevで開始・取消・状態更新の対象を選び、本番の表示を確認。"
+        },
+        "codexLiveCheck": {
+          "status": "waiting_owner_official_site_ready_now_and_immediate_seat_check",
+          "started": false,
+          "readinessQuestion": "native_async_question_pending",
+          "relatedThreadNotificationRequiresPermission": [
+            {
+              "id": "01a1136c-7e13-74c0-acfb-666a7bd45ced",
+              "title": "ナユタとASCの状況を確認"
+            },
+            {
+              "id": "01a1136d-6439-7490-accd-c838b66c9478",
+              "title": "リマインダー"
+            }
+          ]
+        }
       },
       "existingReviewSubmissionChanged": false,
       "plan": "docs/plan_harness-auth-app-20261006.md",
@@ -4054,13 +4133,13 @@
         "proofPath": "runtime/apple/background-send-45/testflight-proof.json"
       },
       "physicalAcceptance": {
-        "status": "waiting_owner_lock_and_one_additional_post_permission",
+        "status": "waiting_owner_device_reconnection",
         "requiredVersion": "1.0.1",
         "requiredBuild": "45",
         "recipientId": "bot-bdf99000",
         "recipientName": "ラプラス",
         "testMessage": "BT-USB45-1007-A 通信の試験。返事は『受け取った』だけでいい。",
-        "ownerConfirmation": "native_async_question_pending",
+        "ownerConfirmation": "approved_in_current_chat_waiting_device_reconnection",
         "approvalBoxRequest": "failed_not_created",
         "approvalBoxError": "CODEX_STEER_RESTART_REQUIRED",
         "approvalBoxErrorMessage": "親のCodexはhookの導入前から動いています。完全終了して再起動してください",
@@ -4068,10 +4147,24 @@
         "checkMemberImmediatelyBeforePost": true,
         "currentCallSession": "38722012-211b-45b8-8748-a7c03d947dbb",
         "currentMember": "トロニー",
-        "guiBlocker": "iPhoneミラーリングは本体使用により終了し、ロック待ち",
+        "guiBlocker": "ミラーリングの再接続が中断。MacのWi-FiとBluetoothは有効。端末の現在の到達性とロック状態を確認中。",
         "bodyNeedsExactVerificationBeforePost": true,
         "installedBuildBefore": "44",
-        "deviceMetadataProof": "runtime/apple/background-send-45/iphone-apps-current.json"
+        "deviceMetadataProof": "runtime/apple/background-send-45/iphone-apps-current.json",
+        "ownerApproval": {
+          "source": "current_chat",
+          "text": "進めなよ。特にASC",
+          "scope": "iPhone45への更新と、ラプラスへの追加1回の修理後送信試験",
+          "recordedAt": "2026-10-06T23:34:54.013687+00:00"
+        },
+        "deviceAvailability": "unavailable",
+        "deviceReadError": "com.apple.dt.CoreDeviceError/4016",
+        "macWirelessConditions": {
+          "wifi": "on",
+          "bluetooth": "on"
+        },
+        "remainingOwnerAction": "iPhoneのUSBをつなぎ直し、ロック解除と必要な信頼を済ませ、Wi-FiとBluetoothを有効にして再ロックし、Macから回答する",
+        "deviceConnectionEvidence": "runtime/apple/asc-followup-20261007/device-lock-state.log"
       },
       "evidence": "docs/evidence/2026-10-07-background-message-send.md",
       "sourceCommit": "1d497feeea2cc3dd7ad9f94abb797affcb1fe248",
