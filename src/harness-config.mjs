@@ -30,7 +30,10 @@ export async function configureHarnesses(bots, home = runtimeHome(), { run = exe
   }
   // AitermのMCPはBellTeamが登録するので、親配送のhookも同じ場所で登録する。登録できなくてもBotは動かし、理由を記録する。
   try {
-    await aitermHooks(home)
+    const { codex } = await aitermHooks(home) ?? {}
+    // 席が動いている間に初めて登録した時は restart_required になる（その席は起き直すまで、番の途中の配送を受けない）。
+    if (codex && codex.status !== 'ready')
+      report(`BellTeam Aiterm: Codexの親配送hookは ${codex.status}${codex.reason_code ? `（${codex.reason_code}）` : ''}`)
   } catch (error) {
     report(`BellTeam Aiterm: 親配送のhookを登録できませんでした（${error.message}）`)
   }

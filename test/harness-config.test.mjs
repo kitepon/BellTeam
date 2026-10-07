@@ -331,6 +331,26 @@ test('Aitermの親配送hookを登録できなくても設定の反映は止め�
   assert.deepEqual(reported, ['BellTeam Aiterm: 親配送のhookを登録できませんでした（ERR_MODULE_NOT_FOUND）'])
 })
 
+test('Codexの親配送hookが ready 以外で返った時は、設定の反映を止めず、状態と理由を記録する', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'bellteam-aiterm-codex-hooks-status-'))
+  const reported = []
+  const configure = codex => configureHarnesses(new Map(), home, {
+    run: async () => {},
+    rtk: async () => {},
+    aitermHooks: async () => ({ codex }),
+    report: message => reported.push(message),
+  })
+  await configure({ status: 'ready', changed: false })
+  await configure(null)
+  assert.deepEqual(reported, [])
+  await configure({ status: 'failed', reason_code: 'CODEX_APP_SERVER_UNAVAILABLE', changed: false })
+  await configure({ status: 'restart_required', changed: true })
+  assert.deepEqual(reported, [
+    'BellTeam Aiterm: Codexの親配送hookは failed（CODEX_APP_SERVER_UNAVAILABLE）',
+    'BellTeam Aiterm: Codexの親配送hookは restart_required',
+  ])
+})
+
 test('Mac以外では、席で使えないCodexプラグインのMCPを起動させない設定を1つずつだけ置く', async () => {
   const home = await mkdtemp(join(tmpdir(), 'bellteam-harness-xcode-'))
   const names = ['xcodebuildmcp', 'openai-api-key-local-confirmation']

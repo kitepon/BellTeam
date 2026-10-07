@@ -26,7 +26,7 @@ test('中継は、実行できる実体がある時だけそのpathを返す', a
 test('Aitermの親配送hookだけをClaudeとCursorの共有設定へ登録する', async () => {
   const home = await mkdtemp(join(tmpdir(), 'bellteam-aiterm-hooks-'))
   const calls = []
-  await configureAitermHooks(home, {
+  const result = await configureAitermHooks(home, {
     dist: '/aiterm/dist',
     load: async path => path.endsWith('setup-node.js')
       ? { setupNodeExecutable: () => '/usr/local/bin/node' }
@@ -40,4 +40,24 @@ test('Aitermの親配送hookだけをClaudeとCursorの共有設定へ登録す�
     ['claude', join(home, '.claude/settings.json'), registration],
     ['cursor', join(home, '.cursor/hooks.json'), registration],
   ])
+  // Codexの入口が無いAiterm（0.56.0より前）では、Codexの分は登録しない。
+  assert.deepEqual(result, { codex: null })
+})
+
+test('Codexの親配送hookは、Aitermに入口がある時に、コンテナのCodexを渡して登録する', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'bellteam-aiterm-codex-hooks-'))
+  const calls = []
+  const outcome = { status: 'ready', changed: true }
+  const result = await configureAitermHooks(home, {
+    dist: '/aiterm/dist',
+    load: async path => path.endsWith('setup-node.js')
+      ? { setupNodeExecutable: () => '/usr/local/bin/node' }
+      : {
+          mergeClaudeParentHooks: () => calls.push(['claude']),
+          mergeCursorParentHooks: () => calls.push(['cursor']),
+          ensureCodexParentSteer: async (...args) => { calls.push(['codex', ...args]); return outcome },
+        },
+  })
+  assert.deepEqual(calls, [['claude'], ['cursor'], ['codex', home, { binary: '/usr/local/bin/codex' }]])
+  assert.deepEqual(result, { codex: outcome })
 })
