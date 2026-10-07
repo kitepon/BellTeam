@@ -4731,7 +4731,7 @@
     "networkReportingRepair": {
       "version": "1.0.1",
       "build": "47",
-      "status": "ready_waiting_server_deployment",
+      "status": "completed_distribution_and_device_acceptance",
       "policy": "https://github.com/kitepon/ServerManager/blob/ef578fe/bughub/NETWORK_REPORTING.md",
       "scope": "通信の報告を操作の対処後へ移し、実害と確認できた復旧から重大度を付ける。正常取消は送らず、操作成功を確認した参考はinfo。",
       "tests": {
@@ -4808,14 +4808,19 @@
       "currentCall": "019cf9e8-dd29-4dea-82ef-1b5dee4666cc",
       "member": "トロニー",
       "releaseGate": {
-        "status": "waiting_server_deployment",
+        "status": "server_deployed",
         "decisionId": "K-U5UURD",
         "requiredServerCommit": "641295f",
-        "macInstallation": "pending",
-        "iphoneUpdateRequest": "not_sent",
-        "internalDistribution": "not_started",
+        "macInstallation": "completed",
+        "iphoneUpdateRequest": "completed_owner_confirmed",
+        "internalDistribution": "completed",
         "automaticDistribution": false,
-        "groupProof": "runtime/apple/network-reporting-46/beta-groups-before-upload.json"
+        "groupProof": "runtime/apple/network-reporting-46/beta-groups-before-upload.json",
+        "serverCommit": "8261fdc",
+        "serverRepairCommit": "641295f",
+        "containerReplacedAt": "2026-10-07T19:47:40+09:00",
+        "serverHealthy": true,
+        "confirmationSource": "トロニー通話seq15"
       },
       "physicalCommunicationTest": "not_resumed_owner_normal_usage",
       "pastDiagnosticRecords": "unchanged",
@@ -4892,7 +4897,88 @@
           "receipt": "runtime/apple/network-reporting-46/superseded-receipt.json",
           "processingState": "VALID_both_platforms_owner_group_not_distributed"
         }
-      ]
+      ],
+      "testflight": {
+        "verifiedAt": "2026-10-07T10:55:19.200Z",
+        "builds": [
+          {
+            "platform": "MAC_OS",
+            "id": "ebfa6c93-cde5-4933-a359-394f7c639934",
+            "build": "47",
+            "version": "1.0.1",
+            "sourceCommit": "79f85c2ec403c3b32dcba5e26e4442894c359bf4",
+            "processingState": "VALID",
+            "ownerGroupDistributed": true,
+            "internalBuildState": "IN_BETA_TESTING"
+          },
+          {
+            "platform": "IOS",
+            "id": "707b4b94-18cc-486c-a608-f02e3ecc3a15",
+            "build": "47",
+            "version": "1.0.1",
+            "sourceCommit": "79f85c2ec403c3b32dcba5e26e4442894c359bf4",
+            "processingState": "VALID",
+            "ownerGroupDistributed": true,
+            "internalBuildState": "IN_BETA_TESTING"
+          }
+        ],
+        "existingReviewVersions": [
+          {
+            "platform": "IOS",
+            "versionId": "a13a4fcc-82f3-46e3-8f67-b7d16e3f89ef",
+            "buildId": "186a66e4-985e-4074-973c-142969964ce7",
+            "reviewBuild": "41",
+            "unchanged": true
+          },
+          {
+            "platform": "MAC_OS",
+            "versionId": "3826154d-d03d-4517-bf41-f8d8eb819c32",
+            "buildId": "74cd2ef8-102c-46cb-9de3-4538f331a153",
+            "reviewBuild": "41",
+            "unchanged": true
+          }
+        ]
+      },
+      "iphoneAcceptance": {
+        "status": "owner_confirmed_updated_and_launched",
+        "version": "1.0.1",
+        "build": "47",
+        "decisionId": "K-DB98TH",
+        "optionId": "updated47",
+        "physicalCommunicationTest": "not_resumed_owner_normal_usage",
+        "source": "Approval Boxの回答"
+      },
+      "macAcceptance": {
+        "verifiedAt": "2026-10-07T11:02:28.874949+00:00",
+        "version": "1.0.1",
+        "build": "47",
+        "installedPath": "/Applications/BellTeam.app",
+        "signatureVerified": true,
+        "gatekeeperSource": "Testflight",
+        "processId": 39396,
+        "existingConnectionPreserved": true,
+        "memberListDisplayed": true,
+        "conversationDisplayed": true,
+        "conversationInputDisplayed": true,
+        "schedulesDisplayed": true,
+        "launch": "macOS_open_after_agent_desktop_inventory_failure",
+        "jevUsedFor": [
+          "conversation",
+          "schedules"
+        ],
+        "testflightSelection": "observed_mouse_after_Jev_abstained",
+        "screenshots": [
+          "runtime/apple/network-reporting-47/mac-launched.png",
+          "runtime/apple/network-reporting-47/mac-conversation.png",
+          "runtime/apple/network-reporting-47/mac-schedules.png"
+        ]
+      },
+      "productionDiagnosticObservation": {
+        "status": "natural_failure_observation_by_product_owners",
+        "syntheticReportsSent": 0,
+        "physicalDisruptionTest": "not_resumed",
+        "historicalRecords": "unchanged"
+      }
     }
   },
   "appleWebAccess": {
