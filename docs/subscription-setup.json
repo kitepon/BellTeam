@@ -3573,7 +3573,7 @@
           "gui": "Jevで開始・取消・状態更新の対象を選び、本番の表示を確認。"
         },
         "codexLiveCheck": {
-          "status": "waiting_owner_official_site_ready_now_and_immediate_seat_check",
+          "status": "deferred_owner_away_waiting_official_site_ready",
           "started": false,
           "readinessQuestion": "native_async_question_pending",
           "relatedThreadNotificationRequiresPermission": [
@@ -3585,7 +3585,12 @@
               "id": "01a1136d-6439-7490-accd-c838b66c9478",
               "title": "リマインダー"
             }
-          ]
+          ],
+          "ownerLocationUpdate": {
+            "source": "current_chat",
+            "status": "away",
+            "recordedAt": "2026-10-07T00:28:37.183454+00:00"
+          }
         }
       },
       "existingReviewSubmissionChanged": false,
@@ -4133,13 +4138,13 @@
         "proofPath": "runtime/apple/background-send-45/testflight-proof.json"
       },
       "physicalAcceptance": {
-        "status": "waiting_owner_device_reconnection",
+        "status": "deferred_owner_away",
         "requiredVersion": "1.0.1",
         "requiredBuild": "45",
         "recipientId": "bot-bdf99000",
         "recipientName": "ラプラス",
         "testMessage": "BT-USB45-1007-A 通信の試験。返事は『受け取った』だけでいい。",
-        "ownerConfirmation": "approved_in_current_chat_waiting_device_reconnection",
+        "ownerConfirmation": "one_additional_post_approved_in_current_chat_execution_deferred_owner_away",
         "approvalBoxRequest": "failed_not_created",
         "approvalBoxError": "CODEX_STEER_RESTART_REQUIRED",
         "approvalBoxErrorMessage": "親のCodexはhookの導入前から動いています。完全終了して再起動してください",
@@ -4163,8 +4168,13 @@
           "wifi": "on",
           "bluetooth": "on"
         },
-        "remainingOwnerAction": "iPhoneのUSBをつなぎ直し、ロック解除と必要な信頼を済ませ、Wi-FiとBluetoothを有効にして再ロックし、Macから回答する",
-        "deviceConnectionEvidence": "runtime/apple/asc-followup-20261007/device-lock-state.log"
+        "remainingOwnerAction": "帰宅後、iPhoneをMacへ接続してミラーリングできる状態を用意する。外出中の操作依頼は保留。",
+        "deviceConnectionEvidence": "runtime/apple/asc-followup-20261007/device-lock-state.log",
+        "ownerLocationUpdate": {
+          "source": "current_chat",
+          "text": "今ミラーリングはできませんよ。私は外出ちゅです。",
+          "recordedAt": "2026-10-07T00:28:37.183454+00:00"
+        }
       },
       "evidence": "docs/evidence/2026-10-07-background-message-send.md",
       "sourceCommit": "1d497feeea2cc3dd7ad9f94abb797affcb1fe248",
