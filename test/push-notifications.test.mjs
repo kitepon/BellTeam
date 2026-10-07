@@ -161,6 +161,7 @@ test('relayの設定反映は実接続を待ち、失敗を診断と状態へ残
   assert.equal(service.status().configured, false)
   assert.equal(service.status().error.code, 'PUSH_RELAY_CONNECTION_FAILED')
   assert.equal(reports.at(-1).diagnostic_log, 'PUSH_RELAY_CONNECTION_FAILED')
+  assert.equal(reports.at(-1).code, 'SERVER_PUSH_UNAVAILABLE')
   assert.ok(!JSON.stringify(reports).includes('PRIVATE_URL'))
   service.request = async () => Response.json({ configured: true, environments: ['production'] })
   await service.configure({ enabled: true, relayUrl: 'https://relay.example' })

@@ -94,6 +94,10 @@ test('iPhone診断の受付はCloudflare認証後に限り、Bot一覧の更新�
     assert.equal(diagnostics.list()[0].occurrence_count, 1)
     assert.equal(diagnostics.list()[0].diagnostic_log, 'call_stack_tree={"callStacks":[]}')
     assert.equal((await fetch(url, { method: 'POST', headers, body: JSON.stringify({ code: 'SERVER_HTTP_500', module: 'server' }) })).status, 400)
+    const handled = JSON.stringify({ code: 'IOS_NETWORK_FAILURE', module: 'queue', app_version: '1.0.1(46)', severity: 'info', diagnostic_log: 'outcome=recovered' })
+    assert.equal((await fetch(url, { method: 'POST', headers, body: handled })).status, 202)
+    assert.equal(diagnostics.list().find(row => row.category === 'IOS_NETWORK_FAILURE').severity, 'info')
+    assert.equal((await fetch(url, { method: 'POST', headers, body: JSON.stringify({ code: 'IOS_NETWORK_FAILURE', module: 'queue', severity: 'urgent' }) })).status, 400)
   } finally {
     await new Promise(resolve => server.close(resolve))
   }
@@ -119,4 +123,50 @@ test('サーバーの500エラーはメッセージを除いたスタックを�
   } finally {
     await new Promise(resolve => server.close(resolve))
   }
+})
+
+test('通信の失敗は、送信元が付けた重大度で登録する。付いていない報告は未確認のwarnにする', async () => {
+  const diagnostics = new Diagnostics(join(root, 'network.json'))
+  await diagnostics.initialize()
+  const unassessed = await diagnostics.record({ code: 'IOS_NETWORK_TIMEOUT', module: 'conversation', app_version: '1.0.1(45)' })
+  assert.equal(unassessed.severity, 'warn')
+  assert.equal(unassessed.message_template, 'Appleアプリの通信が時間切れになった（影響とアプリの対処は未確認）')
+  const harmed = await diagnostics.record({ code: 'IOS_NETWORK_TIMEOUT', module: 'conversation', severity: 'high', diagnostic_log: 'impact=input_lost' })
+  assert.equal(harmed.severity, 'high')
+  assert.equal(harmed.message_template, 'Appleアプリの通信が時間切れになった（影響あり）')
+  assert.notEqual(harmed.fingerprint, unassessed.fingerprint)
+  assert.equal(diagnostics.list().find(row => row.fingerprint === unassessed.fingerprint).occurrence_count, 1)
+  await assert.rejects(() => diagnostics.record({ code: 'IOS_NETWORK_TIMEOUT', module: 'conversation', severity: 'critical' }), /DIAGNOSTIC_INVALID/u)
+  await assert.rejects(() => diagnostics.record({ code: 'IOS_HTTP_5XX', module: 'bots', severity: 3 }), /DIAGNOSTIC_INVALID/u)
+  // アプリ自身の異常（ハング・クラッシュ）は、送信元の重大度を読まない。
+  assert.equal((await diagnostics.record({ code: 'IOS_CRASH', module: 'app', severity: 'info' })).severity, 'fatal')
+})
+
+test('適切に処理した通信の失敗（info）は参考として残し、解決済みの行を開き直さない', async () => {
+  const diagnostics = new Diagnostics(join(root, 'reference.json'))
+  await diagnostics.initialize()
+  const report = { code: 'IOS_NETWORK_FAILURE', module: 'queue', severity: 'info', diagnostic_log: 'outcome=recovered' }
+  const first = await diagnostics.record(report)
+  assert.equal(first.severity, 'info')
+  assert.equal(first.status, 'open')
+  assert.equal(first.message_template, 'Appleアプリの通信に失敗した（適切に処理した参考記録）')
+  await diagnostics.setStatus(first.fingerprint, 'resolved')
+  const again = await diagnostics.record(report)
+  assert.equal(again.status, 'resolved')
+  assert.equal(again.occurrence_count, 2)
+  // 影響のあった報告は別の行で、解決済みでも開き直す。
+  const harmed = await diagnostics.record({ ...report, severity: 'warn' })
+  await diagnostics.setStatus(harmed.fingerprint, 'resolved')
+  assert.equal((await diagnostics.record({ ...report, severity: 'warn' })).status, 'open')
+  assert.equal(diagnostics.list().find(row => row.fingerprint === first.fingerprint).status, 'resolved')
+})
+
+test('サーバーの通知と設定の失敗は、影響ごとのcodeで登録する', async () => {
+  const diagnostics = new Diagnostics(join(root, 'server-reports.json'))
+  await diagnostics.initialize()
+  assert.equal((await diagnostics.record({ code: 'SERVER_PUSH_FAILED', module: 'notifications', diagnostic_log: 'APNS_TIMEOUT' })).severity, 'warn')
+  assert.equal((await diagnostics.record({ code: 'SERVER_PUSH_UNAVAILABLE', module: 'notifications', diagnostic_log: 'PUSH_RELAY_CONNECTION_FAILED' })).severity, 'high')
+  // 起動時の記録が弾かれると、設定を反映できなかった機能があるだけでサーバーが起動できなくなる。
+  assert.equal((await diagnostics.record({ code: 'SERVER_FEATURE_CONFIGURATION_FAILED', module: 'server', diagnostic_log: 'notifications' })).severity, 'high')
+  assert.equal((await diagnostics.record({ code: 'SERVER_CALL_CONFIGURATION_FAILED', module: 'server', diagnostic_log: 'CALL_CONFIGURATION_FAILED' })).severity, 'warn')
 })
