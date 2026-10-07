@@ -59,7 +59,10 @@ struct OwnerQuestionCard: View {
             errorText = nil
             await store.refreshFromView()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = "送れませんでした（\(error.localizedDescription)）" }
+        catch {
+            errorText = BellAPIError.operationFailureMessage(error)
+            store.api.diagnostics.report(error, path: "/api/owner-questions", method: "POST", observation: .write)
+        }
     }
 }
 

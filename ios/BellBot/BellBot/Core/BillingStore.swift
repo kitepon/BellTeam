@@ -114,7 +114,11 @@ final class BillingStore: ObservableObject {
                     if Task.isCancelled { return }
                     guard let self else { return }
                     do { try await self.deliver(transaction) }
-                    catch { self.errorText = error.localizedDescription; return }
+                    catch {
+                        self.errorText = error.localizedDescription
+                        self.api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
+                        return
+                    }
                 }
             }
             try await refreshEntitlement()
@@ -124,6 +128,7 @@ final class BillingStore: ObservableObject {
         } catch {
             entitlementCheck = .failed
             errorText = error.localizedDescription
+            api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
         }
     }
 
@@ -149,7 +154,10 @@ final class BillingStore: ObservableObject {
         if isDeveloper { return }
         await loadProduct()
         do { try await refreshEntitlement() }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = error.localizedDescription
+            api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
+        }
     }
 
     func loadProduct() async {
@@ -158,25 +166,38 @@ final class BillingStore: ObservableObject {
             let products = try await Product.products(for: [Self.configuration.productId])
             guard let product = products.first else { throw BellAPIError.server("App Storeから購読商品を取得できませんでした。") }
             self.product = product
-        } catch { errorText = error.localizedDescription }
+        } catch {
+            errorText = error.localizedDescription
+            api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
+        }
     }
 
     @discardableResult
     func refreshFromServer() async -> Bool {
         do { try await readStatus(); return true }
-        catch { errorText = error.localizedDescription; return false }
+        catch {
+            errorText = error.localizedDescription
+            api.diagnostics.report(error, path: "/api/subscription", method: "GET", observation: .subscription)
+            return false
+        }
     }
 
     func openSetupGuide() async {
         do { try await onSetupRequired?() }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = error.localizedDescription
+            api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
+        }
     }
 
     func refreshAppleAccess() async {
         guard !isDeveloper, !working else { return }
         do { try await refreshEntitlement() }
         catch is CancellationError { return }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = error.localizedDescription
+            api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
+        }
     }
 
     func requirePaidAccess(initialGuide: Bool = false) async throws {
@@ -211,7 +232,10 @@ final class BillingStore: ObservableObject {
             case .userCancelled: break
             @unknown default: throw BellAPIError.invalidResponse
             }
-        } catch { errorText = error.localizedDescription }
+        } catch {
+            errorText = error.localizedDescription
+            api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
+        }
     }
 
     func restore() async {
@@ -229,7 +253,10 @@ final class BillingStore: ObservableObject {
             } else {
                 message = "このApple Accountに有効な購読はありません。"
             }
-        } catch { errorText = error.localizedDescription }
+        } catch {
+            errorText = error.localizedDescription
+            api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
+        }
     }
 
     func recheck() async {
@@ -242,7 +269,10 @@ final class BillingStore: ObservableObject {
             status = response.subscription
             try await refreshEntitlement()
             if let error = response.subscription.error { throw BellAPIError.server(error.message) }
-        } catch { errorText = error.localizedDescription }
+        } catch {
+            errorText = error.localizedDescription
+            api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
+        }
     }
 
     private func readStatus() async throws {

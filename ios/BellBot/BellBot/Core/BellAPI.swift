@@ -20,6 +20,15 @@ enum BellAPIError: LocalizedError {
     case server(String)
     case httpStatus(Int, String?)
 
+    static func operationFailureMessage(_ error: Error) -> String {
+        if error is URLError || error is DecodingError || (error as? BellAPIError).map({
+            switch $0 { case .invalidResponse, .backgroundSendExpired: true; default: false }
+        }) == true {
+            return "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n\(error.localizedDescription)"
+        }
+        return error.localizedDescription
+    }
+
     var errorDescription: String? {
         switch self {
         case .notConfigured: "接続先を設定してください。"
@@ -72,10 +81,7 @@ final class BellAPI {
             let (data, response) = try await session.data(for: request)
             try validate(response, data: data)
             responseData = data
-        } catch {
-            diagnostics.report(error, path: path, method: "POST")
-            throw error
-        }
+        } catch { try Task.checkCancellation(); throw error }
         return try decode(SecretRequestResponse.self, from: responseData, path: path, method: "POST")
     }
 
@@ -104,7 +110,7 @@ final class BellAPI {
             let (data, response) = try await session.data(for: request)
             try validate(response, data: data)
             responseData = data
-        } catch { diagnostics.report(error, path: path, method: method); throw error }
+        } catch { try Task.checkCancellation(); throw error }
         return try decode(Response.self, from: responseData, path: path, method: method)
     }
 
@@ -163,7 +169,6 @@ final class BellAPI {
     }
 
     private func imageResponse(_ path: String) async throws -> (data: Data, mimeType: String) {
-        let started = DispatchTime.now().uptimeNanoseconds
         do {
             let (data, response) = try await load(request(path: path, method: "GET"))
             try validate(response, data: data)
@@ -173,7 +178,6 @@ final class BellAPI {
             return (data, mime)
         } catch {
             try Task.checkCancellation()
-            diagnostics.report(error, path: path, method: "GET", elapsedMilliseconds: BellDiagnostics.elapsedMilliseconds(since: started))
             throw error
         }
     }
@@ -192,14 +196,12 @@ final class BellAPI {
                 if let payload = try parser.feed(byte) { try await onEvent(payload["type"] as? String) }
             }
         } catch {
-            // 切断は再接続ループ（AppStore.startEvents）が連続失敗としてまとめて報告する。
-            if !(error is URLError) { diagnostics.report(error, path: "/api/events", method: "GET") }
+            // 表示・再接続・停止を扱うAppStoreが、影響を確認して報告する。
             throw error
         }
     }
 
     private func data(path: String, method: String, body: Data? = nil) async throws -> Data {
-        let started = DispatchTime.now().uptimeNanoseconds
         do {
             var request = try request(path: path, method: method)
             if let body {
@@ -215,7 +217,6 @@ final class BellAPI {
             return data
         } catch {
             try Task.checkCancellation()
-            diagnostics.report(error, path: path, method: method, elapsedMilliseconds: BellDiagnostics.elapsedMilliseconds(since: started))
             throw error
         }
     }
@@ -232,11 +233,7 @@ final class BellAPI {
     }
 
     private func decode<T: Decodable>(_ type: T.Type, from data: Data, path: String, method: String) throws -> T {
-        do { return try decoder.decode(type, from: data) }
-        catch {
-            diagnostics.report(error, path: path, method: method)
-            throw error
-        }
+        try decoder.decode(type, from: data)
     }
 
     private func request(path: String, method: String) throws -> URLRequest {

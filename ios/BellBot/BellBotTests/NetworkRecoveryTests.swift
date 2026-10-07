@@ -66,16 +66,20 @@ final class NetworkRecoveryTests: XCTestCase {
         let api = makeAPI(scenario)
         api.diagnostics.configure(serverURL: api.baseURL)
         api.diagnostics.updateAppState("active")
-        do {
-            let _: [String: String] = try await api.get("/api/session")
-            XCTFail("2回の切断を成功として返さない")
-        } catch let error as URLError { XCTAssertEqual(error.code, .networkConnectionLost) }
-        XCTAssertEqual(scenario.count("/api/session"), 2)
+        let previous = BellNotifications.shared.onOpen
+        defer { BellNotifications.shared.onOpen = previous }
+        let store = AppStore(api: api)
+        store.rooms = [Room(id: "previous", name: "保持する一覧", purpose: "", representativeId: nil, memberIds: [], avatar: "", recent: nil)]
+        await store.refreshFromView()
+        XCTAssertEqual(store.rooms.first?.name, "保持する一覧")
+        XCTAssertNotNil(store.connectionError)
         XCTAssertEqual(scenario.reports.count, 1)
         let log = try XCTUnwrap(scenario.reports.first?.log)
         XCTAssertTrue(log.contains("connection_route=public"))
         XCTAssertTrue(log.contains("app_state=active"))
-        XCTAssertTrue(log.contains("request_elapsed_ms="))
+        XCTAssertTrue(log.contains("severity=warn"))
+        XCTAssertTrue(log.contains("app_handling=error_shown_data_retained"))
+        XCTAssertTrue(log.contains("app_defect=not_established"))
         XCTAssertFalse(log.contains("network.test.invalid"))
     }
 
@@ -87,7 +91,7 @@ final class NetworkRecoveryTests: XCTestCase {
             XCTFail("切断したPOSTを成功として返さない")
         } catch let error as URLError { XCTAssertEqual(error.code, .networkConnectionLost) }
         XCTAssertEqual(scenario.count("/api/bots/bot-a/messages"), 1)
-        XCTAssertEqual(scenario.reports.count, 1)
+        XCTAssertEqual(scenario.reports.count, 0)
     }
 
     func testNotificationFailureHasOnlyItsStageReport() async {

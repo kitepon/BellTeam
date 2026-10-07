@@ -305,7 +305,10 @@ private struct DesktopInspector: View {
                                 try await store.authorizeAIUse(target: target)
                                 let _: APIAcknowledgement = try await store.api.post(target.path + "/restart", body: EmptyBody())
                                 errorText = nil
-                            } catch { errorText = error.localizedDescription }
+                            } catch {
+                                errorText = BellAPIError.operationFailureMessage(error)
+                                store.api.diagnostics.report(error, path: target.path + "/restart", method: "POST", observation: .write)
+                            }
                         }
                     }.buttonStyle(.bordered)
                     #endif

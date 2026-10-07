@@ -102,7 +102,10 @@ struct SchedulesView: View {
             errorText = nil
         } catch is CancellationError { return }
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = error.localizedDescription
+            store.api.diagnostics.report(error, path: "/api/schedules", method: "GET", observation: .read(error, retainedData: !entries.isEmpty))
+        }
         loading = false
     }
 
@@ -112,7 +115,10 @@ struct SchedulesView: View {
             let _: APIAcknowledgement = try await store.api.post(entry.path + "/run", body: ScheduleEmptyBody())
             await load()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = BellAPIError.operationFailureMessage(error)
+            store.api.diagnostics.report(error, path: entry.path, method: "POST", observation: .write)
+        }
     }
 
     private func remove(_ entry: ScheduledEntry) async {
@@ -120,7 +126,10 @@ struct SchedulesView: View {
             try await store.api.delete(entry.path)
             await load()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = BellAPIError.operationFailureMessage(error)
+            store.api.diagnostics.report(error, path: entry.path, method: "DELETE", observation: .write)
+        }
     }
 }
 
@@ -425,7 +434,10 @@ private struct ScheduleEditor: View {
             }
             dismiss()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = BellAPIError.operationFailureMessage(error)
+            store.api.diagnostics.report(error, path: "/api/schedules", method: initial == nil ? "POST" : "PATCH", observation: .write)
+        }
     }
 }
 

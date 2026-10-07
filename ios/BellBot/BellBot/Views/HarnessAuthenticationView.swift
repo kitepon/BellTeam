@@ -42,7 +42,10 @@ struct HarnessAuthenticationList: View {
             harnesses = response.harnesses
         } catch is CancellationError { }
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = error.localizedDescription
+            store.api.diagnostics.report(error, path: "/api/harness-auth", method: "GET", observation: .read(error, retainedData: !harnesses.isEmpty))
+        }
     }
 }
 
@@ -88,7 +91,7 @@ private struct HarnessAuthenticationView: View {
                     if flow.needsStartConfirmation { confirming = true }
                     else { run { try await flow.start() } }
                 }.accessibilityIdentifier("harness-auth-start")
-                Button("状態を更新") { run { try await flow.refresh() } }
+                Button("状態を更新") { run(method: "GET") { try await flow.refresh() } }
                     .accessibilityIdentifier("harness-auth-refresh")
                 if flow.started {
                     Button("やめる") { run { try await flow.cancel() } }
@@ -107,13 +110,13 @@ private struct HarnessAuthenticationView: View {
             Button("始めない", role: .cancel) { }
             Button("今の認証を手放して始める", role: .destructive) { run { try await flow.start() } }
         } message: { Text(flow.harness.startWarning ?? "") }
-        .task { await perform { try await flow.refresh() } }
+        .task { await perform(method: "GET") { try await flow.refresh() } }
         .task(id: polling) {
             while polling && !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(3)) }
                 catch is CancellationError { return }
                 catch { errorText = error.localizedDescription; return }
-                if polling && !Task.isCancelled { await perform { try await flow.poll() } }
+                if polling && !Task.isCancelled { await perform(method: "GET") { try await flow.poll() } }
             }
         }
         .onChange(of: scenePhase) { _, next in if next != .active { input = "" } }
@@ -147,16 +150,19 @@ private struct HarnessAuthenticationView: View {
         }
     }
 
-    private func run(_ action: @escaping () async throws -> Void) {
+    private func run(method: String = "POST", _ action: @escaping () async throws -> Void) {
         input = ""
-        Task { await perform(action) }
+        Task { await perform(method: method, action) }
     }
 
-    private func perform(_ action: () async throws -> Void) async {
+    private func perform(method: String = "POST", _ action: () async throws -> Void) async {
         errorText = nil
         do { try await action() }
         catch is CancellationError { }
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = method == "GET" ? error.localizedDescription : BellAPIError.operationFailureMessage(error)
+            store.api.diagnostics.report(error, path: "/api/harness-auth", method: method, observation: method == "GET" ? .read(error, retainedData: flow.auth != nil) : .secretWrite)
+        }
     }
 }

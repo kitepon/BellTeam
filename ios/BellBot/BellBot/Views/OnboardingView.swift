@@ -62,7 +62,7 @@ struct OnboardingView: View {
                             }
                             Button("認証を確認して始める") { perform { try await store.startGuide() } }
                                 .buttonStyle(.borderedProminent).disabled(busy)
-                            Button("認証の状態を更新") { perform { try await store.refreshSetup() } }.disabled(busy)
+                            Button("認証の状態を更新") { perform(method: "GET") { try await store.refreshSetup() } }.disabled(busy)
                             Menu("使うAIを変更") {
                                 ForEach(setup.harnesses) { harness in
                                     Button(harness.name) { perform { try await store.chooseHarness(harness.id) } }
@@ -83,7 +83,11 @@ struct OnboardingView: View {
                     guard scenePhase == .active, !busy else { continue }
                     try await store.refreshSetup()
                 } catch is CancellationError { return }
-                catch { errorText = error.localizedDescription; return }
+                catch {
+                    errorText = error.localizedDescription
+                    store.api.diagnostics.report(error, path: "/api/setup", method: "GET", observation: .read(error, retainedData: store.setup != nil))
+                    return
+                }
             }
         }
         .onChange(of: scenePhase) { _, next in if next != .active { input = "" } }
@@ -98,7 +102,7 @@ struct OnboardingView: View {
         }
     }
 
-    private func perform(_ action: @escaping () async throws -> Void) {
+    private func perform(method: String = "POST", _ action: @escaping () async throws -> Void) {
         guard !busy else { return }
         busy = true
         errorText = nil
@@ -106,7 +110,10 @@ struct OnboardingView: View {
             defer { busy = false }
             do { try await action() }
             catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-            catch { errorText = error.localizedDescription }
+            catch {
+                errorText = method == "GET" ? error.localizedDescription : BellAPIError.operationFailureMessage(error)
+                store.api.diagnostics.report(error, path: "/api/setup", method: method, observation: method == "GET" ? .read(error, retainedData: store.setup != nil) : .secretWrite)
+            }
         }
     }
 }

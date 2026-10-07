@@ -37,7 +37,13 @@ extension BellAPI {
             let _: APIAcknowledgement = try await patch("/api/bots/\(id)", body: settings.normalized)
             return .saved
         } catch let error as URLError where error.code == .networkConnectionLost || error.code == .timedOut {
-            return try await confirmBotSettings(id: id, settings: settings)
+            let result = try await confirmBotSettings(id: id, settings: settings)
+            let observation: BellDiagnosticObservation
+            if case .confirmed = result {
+                observation = .init(impact: .handled, handling: "saved_content_confirmed_by_read", recovery: "recovered", input: "retained")
+            } else { observation = .write }
+            diagnostics.report(error, path: "/api/bots/\(id)", method: "PATCH", observation: observation)
+            return result
         }
     }
 

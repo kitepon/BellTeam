@@ -205,6 +205,7 @@ struct BotEditor: View {
         catch {
             guard !Task.isCancelled else { return }
             modelErrorText = error.localizedDescription
+            store.api.diagnostics.report(error, path: "/api/models", method: "GET", observation: .read(error, retainedData: !catalog.isEmpty))
         }
         // 候補を読めなかった時も、保存済みのモデルを「CLIの既定」に見せない。
         let configuredModel = model == "__custom__" ? customModel : model
@@ -237,7 +238,10 @@ struct BotEditor: View {
             try await store.refresh()
             close()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = BellAPIError.operationFailureMessage(error)
+            store.api.diagnostics.report(error, path: "/api/bots", method: nil, observation: .write)
+        }
     }
 
     private var settings: BotSettings {
@@ -260,7 +264,10 @@ struct BotEditor: View {
         defer { saving = false }
         do { saveResult = try await store.api.confirmBotSettings(id: initial.id, settings: submittedSettings) }
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = error.localizedDescription
+            store.api.diagnostics.report(error, path: "/api/bots", method: "GET", observation: .read(error, retainedData: true))
+        }
     }
 
     private func close() {
@@ -399,11 +406,16 @@ struct RoomEditor: View {
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch BellAPIError.invalidResponse {
             errorText = "保存結果を確認できませんでした。やり直す前にルーム一覧を確認してください。\nBellTeamからの応答を読み取れませんでした。"
+            store.api.diagnostics.report(BellAPIError.invalidResponse, path: "/api/rooms", method: initial == nil ? "POST" : "PATCH", observation: .write)
         }
         catch let error as URLError {
             errorText = "接続が切れ、保存結果を確認できませんでした。やり直す前にルーム一覧を確認してください。\n\(error.localizedDescription)"
+            store.api.diagnostics.report(error, path: "/api/rooms", method: initial == nil ? "POST" : "PATCH", observation: .write)
         }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = BellAPIError.operationFailureMessage(error)
+            store.api.diagnostics.report(error, path: "/api/rooms", method: initial == nil ? "POST" : "PATCH", observation: .write)
+        }
     }
 
     private func deleteRoom() async {
@@ -414,6 +426,9 @@ struct RoomEditor: View {
             try await store.deleteRoom(initial.id)
             dismiss()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = BellAPIError.operationFailureMessage(error)
+            store.api.diagnostics.report(error, path: "/api/rooms", method: "DELETE", observation: .write)
+        }
     }
 }

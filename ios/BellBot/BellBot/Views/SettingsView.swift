@@ -194,7 +194,10 @@ private struct ProfileEditor: View {
             let response: UserRulesResponse = try await store.api.get("/api/user-rules")
             rules = response.text
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = error.localizedDescription
+            store.api.diagnostics.report(error, path: "/api/owner", method: "GET", observation: .read(error, retainedData: store.owner != nil))
+        }
         loading = false
     }
 
@@ -213,6 +216,9 @@ private struct ProfileEditor: View {
             try await store.refresh()
             dismiss()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = error.localizedDescription }
+        catch {
+            errorText = BellAPIError.operationFailureMessage(error)
+            store.api.diagnostics.report(error, path: "/api/owner", method: nil, observation: .write)
+        }
     }
 }

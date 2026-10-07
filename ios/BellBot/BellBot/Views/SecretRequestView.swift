@@ -107,6 +107,7 @@ struct SecretInputSheet: View {
             store.requireLogin(for: error)
         } catch {
             errorText = "登録結果を確認できませんでした。閉じて最新の状態を確認してください。"
+            store.api.diagnostics.report(error, path: "/api/secret-requests", method: "POST", observation: .secretWrite)
         }
     }
 }

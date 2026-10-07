@@ -2,6 +2,36 @@ import XCTest
 @testable import BellBot
 
 final class BellDiagnosticsTests: XCTestCase {
+    func testSameOfflineErrorKeepsMajorImpactVisibleWithoutAssigningAppDefect() {
+        var logs: [String] = []
+        let diagnostics = BellDiagnostics { _, _, _, log in logs.append(log) }
+        let error = URLError(.notConnectedToInternet)
+        diagnostics.report(error, path: "/api/session", method: "GET", observation: .startup)
+        diagnostics.report(error, path: "/api/bots", method: "GET", observation: .read(error, retainedData: true))
+        XCTAssertEqual(logs.count, 2)
+        XCTAssertTrue(logs[0].contains("severity=high"))
+        XCTAssertTrue(logs[0].contains("user_impact=app_unavailable"))
+        XCTAssertTrue(logs[1].contains("severity=warn"))
+        XCTAssertTrue(logs[1].contains("app_handling=error_shown_data_retained"))
+        XCTAssertTrue(logs.allSatisfy { $0.contains("cause_assessment=unconfirmed") && $0.contains("app_defect=not_established") })
+    }
+
+    func testReadFailureIsNotNoImpactOnlyBecauseItPreservesData() {
+        var log = ""
+        let diagnostics = BellDiagnostics { _, _, _, value in log = value }
+        diagnostics.report(URLError(.timedOut), path: "/api/schedules", method: "GET", observation: .read(URLError(.timedOut), retainedData: true))
+        XCTAssertTrue(log.contains("severity=warn"))
+        XCTAssertFalse(log.contains("user_impact=none"))
+    }
+
+    func testExpectedCancellationDoesNotBecomeRepairRequest() {
+        var count = 0
+        let diagnostics = BellDiagnostics { _, _, _, _ in count += 1 }
+        diagnostics.report(CancellationError(), path: "/api/schedules", method: "GET", observation: .read(CancellationError(), retainedData: false))
+        diagnostics.reportPush(CancellationError(), stage: "register_device")
+        XCTAssertEqual(count, 0)
+    }
+
     func testNetworkLogExcludesURLAndErrorText() {
         let error = URLError(.timedOut, userInfo: [
             NSLocalizedDescriptionKey: "https://example.invalid/private?token=secret"

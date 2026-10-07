@@ -31,22 +31,22 @@ final class BotSaveTests: XCTestCase {
         XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
     }
 
-    func testPATCHFailureIncludesHTTPMethodInDiagnostic() async throws {
+    func testTransportFailureWaitsForHandledOutcome() async throws {
         let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: false)
-        let recorded = expectation(description: "保存要求の診断")
+        var reports = 0
         let diagnostics = BellDiagnostics { _, _, _, log in
             XCTAssertTrue(log.contains("http_method=PATCH"))
-            recorded.fulfill()
+            reports += 1
         }
         let api = makeAPI(fixture, diagnostics: diagnostics)
         do {
             let _: APIAcknowledgement = try await api.patch("/api/bots/member", body: newSettings)
             XCTFail("応答喪失を再現する")
         } catch { XCTAssertEqual((error as? URLError)?.code, .networkConnectionLost) }
-        await fulfillment(of: [recorded], timeout: 2)
+        XCTAssertEqual(reports, 0, "操作結果を扱う前に、輸送層だけでは修理要求を登録しない")
     }
 
-    func testProtectedResponseDecodingFailureIsReportedOnce() async throws {
+    func testProtectedDecodeFailureWaitsForHandledOutcome() async throws {
         let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: false)
         var count = 0
         let diagnostics = BellDiagnostics { _, _, _, log in
@@ -58,7 +58,23 @@ final class BotSaveTests: XCTestCase {
             _ = try await api.finishSecretRequest(id: "request", value: nil)
             XCTFail("保存の応答を秘密入力の応答としては読めない")
         } catch { XCTAssertTrue(error is DecodingError) }
-        XCTAssertEqual(count, 1)
+        XCTAssertEqual(count, 0, "秘密入力の処理結果は、画面で扱ってから報告する")
+    }
+
+    func testConfirmedSaveIsReferenceWithEvidenceAndNoRepeatedWrite() async throws {
+        let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: true)
+        var logs: [String] = []
+        let diagnostics = BellDiagnostics { _, _, _, log in logs.append(log) }
+        let result = try await makeAPI(fixture, diagnostics: diagnostics).saveBotSettings(id: "member", settings: newSettings)
+        guard case .confirmed = result else { return XCTFail("応答を失っても、保存した内容を読み戻して確認する") }
+        XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
+        let log = try XCTUnwrap(logs.first)
+        XCTAssertEqual(logs.count, 1)
+        XCTAssertTrue(log.contains("severity=info"))
+        XCTAssertTrue(log.contains("user_impact=none"))
+        XCTAssertTrue(log.contains("app_handling=saved_content_confirmed_by_read"))
+        XCTAssertTrue(log.contains("recovery=recovered"))
+        XCTAssertFalse(log.contains(newSettings.profileText))
     }
 
     func testTimedOutWriteAlsoChecksTheSavedContent() async throws {

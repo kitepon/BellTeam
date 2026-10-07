@@ -8,6 +8,7 @@ extension AppStore {
         if let index = arguments.firstIndex(of: "-bellbot-preview-server"), arguments.indices.contains(index + 1) {
             api.baseURL = URL(string: arguments[index + 1])
         }
+        api.diagnostics.configure(serverURL: api.baseURL)
         let source = """
         {
           "bots": [

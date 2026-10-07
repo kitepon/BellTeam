@@ -27,7 +27,10 @@ struct FeatureSettingsList: View {
         .task {
             do { try await store.refreshSettings() }
             catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-            catch { errorText = error.localizedDescription }
+            catch {
+                errorText = error.localizedDescription
+                store.api.diagnostics.report(error, path: "/api/settings", method: "GET", observation: .read(error, retainedData: !store.featureSettings.isEmpty))
+            }
         }
     }
 }
@@ -87,7 +90,10 @@ private struct FeatureSettingEditor: View {
                 fields = current.fields
                 values = Dictionary(uniqueKeysWithValues: current.fields.map { ($0.key, $0.secret ? "" : $0.value) })
             } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-            catch { errorText = error.localizedDescription }
+            catch {
+                errorText = error.localizedDescription
+                store.api.diagnostics.report(error, path: "/api/settings", method: "GET", observation: .read(error, retainedData: !store.featureSettings.isEmpty))
+            }
             loading = false
         }
         .onChange(of: scenePhase) { _, next in if next != .active { clearSecrets() } }
@@ -116,6 +122,9 @@ private struct FeatureSettingEditor: View {
             if currentSetting.error == nil { dismiss() }
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
-        } catch { errorText = error.localizedDescription }
+        } catch {
+            errorText = BellAPIError.operationFailureMessage(error)
+            store.api.diagnostics.report(error, path: "/api/settings", method: nil, observation: .secretWrite)
+        }
     }
 }

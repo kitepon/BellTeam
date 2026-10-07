@@ -124,6 +124,7 @@ final class AppStore: ObservableObject {
             requireLogin(for: error)
         } catch {
             phase = .failure(error.localizedDescription)
+            api.diagnostics.report(error, path: "/api/session", method: "GET", observation: .startup)
         }
     }
 
@@ -143,6 +144,7 @@ final class AppStore: ObservableObject {
             return
         } catch {
             phase = .failure(error.localizedDescription)
+            api.diagnostics.report(error, path: "/api/session", method: "GET", observation: .startup)
         }
     }
 
@@ -230,7 +232,7 @@ final class AppStore: ObservableObject {
             } catch {
                 Logger(subsystem: "app.bellteam.bellbot", category: "notifications")
                     .error("通知アバターの保存に失敗: \(error.localizedDescription, privacy: .private)")
-                api.diagnostics.reportPush(error, stage: "avatar_cache")
+                api.diagnostics.reportPush(error, stage: "avatar_cache", observation: .avatarCache)
             }
         }
     }
@@ -283,7 +285,10 @@ final class AppStore: ObservableObject {
         catch is CancellationError { return }
         catch let error as URLError where error.code == .cancelled { return }
         catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error) }
-        catch { connectionError = error.localizedDescription }
+        catch {
+            connectionError = error.localizedDescription
+            api.diagnostics.report(error, path: "/api/bots", method: "GET", observation: .read(error, retainedData: !bots.isEmpty || !rooms.isEmpty))
+        }
     }
 
     func sceneChanged(to next: ScenePhase) {
@@ -343,15 +348,17 @@ final class AppStore: ObservableObject {
                 } catch BellAPIError.httpStatus(let status, _) where status == 429 || status >= 500 {
                     if Task.isCancelled { return }
                     connectionError = "更新へ接続できません。再接続しています。"
+                    api.diagnostics.report(BellAPIError.httpStatus(status, nil), path: "/api/events", method: "GET", observation: .reconnecting)
                 } catch let error as URLError {
                     if Task.isCancelled { return }
                     // 切断1回は想定内。連続して失敗が続く時だけ、その連続を1件として報告する。
                     failures += 1
-                    if failures == Self.eventsFailureReportThreshold { api.diagnostics.report(error, path: "/api/events", method: "GET", elapsedMilliseconds: BellDiagnostics.elapsedMilliseconds(since: requestStarted)) }
                     connectionError = "更新へ接続できません。再接続しています。"
+                    if failures == Self.eventsFailureReportThreshold { api.diagnostics.report(error, path: "/api/events", method: "GET", observation: .reconnecting, elapsedMilliseconds: BellDiagnostics.elapsedMilliseconds(since: requestStarted)) }
                 } catch {
                     if Task.isCancelled { return }
                     connectionError = error.localizedDescription
+                    api.diagnostics.report(error, path: "/api/events", method: "GET", observation: .read(error, retainedData: !bots.isEmpty || !rooms.isEmpty))
                     return
                 }
                 if Date().timeIntervalSince(connectedAt) > 30 { reconnectDelay = 1_000_000_000; failures = 0 }

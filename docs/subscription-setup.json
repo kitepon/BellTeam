@@ -4727,6 +4727,86 @@
         "guiSelection": "Jev（TestFlightの検索とBellTeamの選択）",
         "guiUpdate": "Jevが更新ボタンを解決できなかったため、実画面で45と更新ボタンを確認して標準マウスで実施。古いMacアプリを通常終了して置換を完了。"
       }
+    },
+    "networkReportingRepair": {
+      "version": "1.0.1",
+      "build": "46",
+      "status": "tested_waiting_server_then_distribution",
+      "policy": "https://github.com/kitepon/ServerManager/blob/ef578fe/bughub/NETWORK_REPORTING.md",
+      "scope": "通信の報告を操作の対処後へ移し、実害と確認できた復旧から重大度を付ける。正常取消は送らず、操作成功を確認した参考はinfo。",
+      "tests": {
+        "focused": {
+          "passed": 23,
+          "failed": 0,
+          "resultBundle": "runtime/network-reporting-focused.xcresult"
+        },
+        "appleUnitFinal": {
+          "passed": 95,
+          "failed": 0,
+          "skipped": 3,
+          "resultBundle": "runtime/network-reporting-unit-final.xcresult"
+        },
+        "nodeFinal": {
+          "passed": 410,
+          "failed": 0,
+          "log": "runtime/network-reporting-node-final.log"
+        },
+        "simulatorIntegration": {
+          "passed": 2,
+          "failed": 0,
+          "resultBundle": "runtime/network-reporting-ui.xcresult",
+          "testedBuildLabel": "45",
+          "scope": "候補の実装。配布番号を46へ更新する前のDebug版。"
+        },
+        "expectedCancellation": {
+          "passed": 1,
+          "failed": 0,
+          "resultBundle": "runtime/network-reporting-cancellation-verified.xcresult",
+          "connectionClosed": true,
+          "reports": 0,
+          "foregroundReload": true
+        },
+        "failureDisplay": {
+          "passed": 1,
+          "failed": 0,
+          "resultBundle": "runtime/network-reporting-display-verified.xcresult",
+          "postCount": 1,
+          "inputRetained": true,
+          "severity": "warn",
+          "reportedVersion": "1.0.1(46)",
+          "instructionsFullyVisible": true
+        },
+        "macInitial": {
+          "passed": 22,
+          "failed": 1,
+          "resultBundle": "runtime/network-reporting-mac.xcresult",
+          "failure": "testUnchangedAvatarsAreNotDownloadedAgainのApp Groupアクセス。ローカル署名で配布用entitlementsを省いた試験。",
+          "signedRecheck": "passed"
+        },
+        "macSignedRecheck": {
+          "passed": 1,
+          "failed": 0,
+          "resultBundle": "runtime/network-reporting-mac-signed.xcresult",
+          "scope": "既存アバター試験のApp Group権限。正規Apple Development署名では成功。"
+        }
+      },
+      "currentOwnerThread": "01a11545-8215-7612-8766-58b18d67db02",
+      "currentCall": "019cf9e8-dd29-4dea-82ef-1b5dee4666cc",
+      "member": "トロニー",
+      "releaseGate": {
+        "status": "waiting_server_deployment",
+        "decisionId": "K-U5UURD",
+        "requiredServerCommit": "641295f",
+        "macInstallation": "pending",
+        "iphoneUpdateRequest": "not_sent",
+        "internalDistribution": "not_started",
+        "automaticDistribution": false,
+        "groupProof": "runtime/apple/network-reporting-46/beta-groups-before-upload.json"
+      },
+      "physicalCommunicationTest": "not_resumed_owner_normal_usage",
+      "pastDiagnosticRecords": "unchanged",
+      "archiveExport": "pending",
+      "upload": "pending"
     }
   },
   "appleWebAccess": {

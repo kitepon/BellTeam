@@ -126,7 +126,7 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
             do {
                 let _: PushRegistration = try await api.post("/api/notifications/unregister", body: PushToken(token: token))
                 UserDefaults.standard.removeObject(forKey: "bellbot.pushToken")
-            } catch { api.diagnostics.reportPush(error, stage: "unregister", elapsedMilliseconds: BellDiagnostics.elapsedMilliseconds(since: started)) }
+            } catch { api.diagnostics.reportPush(error, stage: "unregister", observation: .notificationDetach, elapsedMilliseconds: BellDiagnostics.elapsedMilliseconds(since: started)) }
         }
         api = nil
         token = nil

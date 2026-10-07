@@ -224,7 +224,10 @@ private struct ConversationContent: View {
             let kind = target.isRoom ? "rooms" : "bots"
             exportDocument = ConversationDocument(data: try await store.api.exportConversation("/api/\(kind)/\(target.id)/export"))
             showingExport = true
-        } catch { errorText = error.localizedDescription }
+        } catch {
+            errorText = error.localizedDescription
+            store.api.diagnostics.report(error, path: target.path + "/messages", method: "GET", observation: .read(error, retainedData: !messages.isEmpty))
+        }
     }
 
     private var emptyConversation: some View {
@@ -264,6 +267,7 @@ private struct ConversationContent: View {
                 Text(errorText)
                     .font(BellTheme.messageHelperFont)
                     .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("send-error")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -408,8 +412,10 @@ private struct ConversationContent: View {
             errorText = nil
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
-        } catch {
+        } catch is CancellationError { }
+        catch {
             errorText = error.localizedDescription
+            store.api.diagnostics.report(error, path: target.path + "/messages", method: "GET", observation: .read(error, retainedData: !messages.isEmpty))
         }
         loading = false
     }
@@ -466,6 +472,7 @@ private struct ConversationContent: View {
         } catch {
             measuredRow = nil
             errorText = error.localizedDescription
+            store.api.diagnostics.report(error, path: target.path + "/messages", method: "GET", observation: .read(error, retainedData: !messages.isEmpty))
         }
     }
 
@@ -499,7 +506,11 @@ private struct ConversationContent: View {
             }
             errorText = nil
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = error.localizedDescription }
+        catch is CancellationError { }
+        catch {
+            errorText = error.localizedDescription
+            store.api.diagnostics.report(error, path: target.path + "/messages", method: "GET", observation: .read(error, retainedData: !messages.isEmpty))
+        }
     }
 
     // 送信した本文と画像はすぐ入力欄から外す。Botの起動と受付を待つと数秒以上かかるため、
@@ -514,7 +525,11 @@ private struct ConversationContent: View {
         defer { sending = false }
         do { try await store.authorizeAIUse(target: target) }
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error); return }
-        catch { errorText = error.localizedDescription; return }
+        catch {
+            errorText = error.localizedDescription
+            store.api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .read(error, retainedData: true))
+            return
+        }
         let message = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let sent = attachments
         draft = ""
@@ -538,7 +553,8 @@ private struct ConversationContent: View {
             draft = [message, draft].filter { !$0.isEmpty }.joined(separator: "\n")
             attachments = sent + attachments
             if BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-            else { errorText = error.localizedDescription }
+            else { errorText = BellAPIError.operationFailureMessage(error) }
+            store.api.diagnostics.report(error, path: target.path + "/messages", method: "POST", observation: .write)
         }
     }
 
@@ -1086,7 +1102,10 @@ private struct AuthenticatedImage: View {
         }
         .task(id: path) {
             do { image = UIImage(data: try await api.image(path)) }
-            catch { failed = true }
+            catch {
+                failed = true
+                api.diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: image != nil))
+            }
         }
     }
 }
@@ -1232,6 +1251,7 @@ struct BotScreenView: View {
                 break
             } catch {
                 errorText = error.localizedDescription
+                store.api.diagnostics.report(error, path: "/api/bots/\(bot.id)/screen", method: "GET", observation: .read(error, retainedData: !screen.isEmpty))
                 break
             }
             try? await Task.sleep(for: .seconds(2))

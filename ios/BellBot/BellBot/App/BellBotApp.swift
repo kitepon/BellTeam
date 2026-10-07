@@ -35,6 +35,9 @@ struct BellBotApp: App {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-bellbot-preview") }) {
                     store.preparePreview()
+                    if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-reporting") {
+                        await store.billing.connect()
+                    }
                 } else {
                     await store.bootstrap()
                 }
