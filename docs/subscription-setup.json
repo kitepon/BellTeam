@@ -3542,7 +3542,7 @@
         "verificationDevice": "Mac",
         "iphoneUpdateRequiredBeforeVerification": false,
         "answerOption": "later",
-        "preStartStatus": "noah_completed_waiting_owner_ready_and_immediate_notice",
+        "preStartStatus": "waiting_member_acceptance_completion_new_start_notice_and_owner_ready",
         "currentSeatObservation": {
           "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
           "seq": 5,
@@ -3624,12 +3624,15 @@
             ],
             "onePasswordCli": "not_signed_in",
             "ownerOperation": "スマホでhttps://auth.openai.com/codex/deviceへログインし、コード入力画面まで進む。",
-            "approvalBoxRequest": "failed_not_created",
-            "approvalBoxError": "CODEX_STEER_RESTART_REQUIRED",
-            "nativeQuestion": "pending_in_current_thread",
+            "approvalBoxRequest": "created_pending",
+            "approvalBoxError": null,
+            "nativeQuestion": "same_request_registered_in_approval_box",
             "proofDirectory": "runtime/apple/codex-auth-20261007",
             "requestThreadId": "01a113dc-f72a-79e0-8354-f811a1289e03",
-            "requestRecheckedAt": "2026-10-07T01:01:09.285748+00:00"
+            "requestRecheckedAt": "2026-10-07T03:19:30.630261+00:00",
+            "approvalBoxPreviousError": "CODEX_STEER_RESTART_REQUIRED",
+            "approvalBoxDecisionId": "K-JXN8U4",
+            "approvalBoxDecisionVersion": 1
           },
           "handoff": {
             "threadId": "01a113dc-f72a-79e0-8354-f811a1289e03",
@@ -3639,7 +3642,7 @@
             "moveDelivery": "delivered",
             "memberConfirmedSeq": 2,
             "previousCallClosed": true,
-            "pendingReply": "本人のスマホで公式ページへログインし、コード入力画面を開いたという回答。準備後に開始直前の連絡を行う。",
+            "pendingReply": "本人の公式ページの準備回答（K-JXN8U4）と、受入完了後にトロニーが別に送る開始合図。両方の後に開始直前の連絡を行う。",
             "duplicateContinuation": {
               "threadId": "01a113dd-1f43-7f11-bf2b-485686e39cb1",
               "callSession": "968725fb-2aff-44dd-a90d-1ab851b6f8c3",
@@ -3695,13 +3698,16 @@
             "noahScheduledTurnCompleted": true,
             "startPermittedAfterOwnerReady": true,
             "immediateNoticeRequired": true,
-            "ownerReadyReceived": false
-          }
+            "ownerReadyReceived": false,
+            "status": "superseded_by_acceptance_hold",
+            "supersededByMemberSeq": 18
+          },
+          "ownerOperationDecisionId": "K-JXN8U4"
         },
         "ownerConsentReceived": true,
         "currentCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
         "deploymentHold": {
-          "status": "active_waiting_member_recovery_notice",
+          "status": "released_member_recovery_confirmed",
           "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
           "memberNoticeSeq": 14,
           "localAcknowledgementSeq": 15,
@@ -3711,13 +3717,38 @@
           "reportedAtJST": "2026-10-07 12:00",
           "estimatedRecoveryAtJST": "2026-10-07 12:08",
           "authenticationStarted": false,
-          "blockedOperations": [
+          "releaseCondition": "トロニーの起き直したという連絡を受けるまで、本番操作を始めない。本人のスマホ準備が先に揃っても待つ。",
+          "recoveryOwnerMessage": "起き直したよ",
+          "recoveryOwnerRecordedAt": "2026-10-07T03:19:30.630008+00:00",
+          "memberRecoverySeq": 18,
+          "memberReportedAtJST": "2026-10-07 12:20",
+          "productionHead": "aa5b4b2",
+          "deployExit": 0,
+          "productionWorktreeChanges": 0,
+          "serverState": "running_healthy",
+          "restartCount": 0,
+          "healthz": "ok",
+          "localReadOnlyHealthz": "ok",
+          "codexAuthentication": "authenticated",
+          "operationsHeldDuringDeployment": [
             "codex_authentication_start",
             "production_test_post",
             "new_bot_requests"
           ],
-          "releaseCondition": "トロニーの起き直したという連絡を受けるまで、本番操作を始めない。本人のスマホ準備が先に揃っても待つ。"
-        }
+          "blockedOperations": []
+        },
+        "acceptanceHold": {
+          "status": "active_waiting_member_new_start_notice",
+          "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+          "memberNoticeSeq": 18,
+          "blockedOperations": [
+            "codex_authentication_start"
+          ],
+          "reason": "ナユタとエレグがCodexの席で受入中。トロニーの別の始めていいという合図が届くまで開始しない。",
+          "reportedIssue": "AitermのCodex hookはreadyになったが、ナユタのsetup時点ではdisabledだったためApproval Boxの切替が行われず専用hookが残った。起動順序を所有担当が調査・修理する。",
+          "productionTestPostAndNewBotRequestsPermitted": true
+        },
+        "ownerOperationDecisionId": "K-JXN8U4"
       },
       "existingReviewSubmissionChanged": false,
       "plan": "docs/plan_harness-auth-app-20261006.md",
@@ -4354,9 +4385,12 @@
         "usageAcceptance": "通常利用で変な動きが出た時にオーナーから報告を受け、診断と照合する。追加試験なしで解決済みとはしない。",
         "ownerVersionRequest": {
           "threadId": "01a113dc-f72a-79e0-8354-f811a1289e03",
-          "status": "pending_in_current_thread",
-          "approvalBoxRequest": "failed_not_created",
-          "approvalBoxError": "CODEX_STEER_RESTART_REQUIRED"
+          "status": "pending_in_approval_box_current_thread",
+          "approvalBoxRequest": "created_pending",
+          "approvalBoxError": null,
+          "approvalBoxPreviousError": "CODEX_STEER_RESTART_REQUIRED",
+          "decisionId": "K-SSSL3T",
+          "decisionVersion": 1
         },
         "currentInstalledBuild": "unknown",
         "lastPhysicallyConfirmedBuild": "44",
