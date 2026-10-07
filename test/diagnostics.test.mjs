@@ -97,6 +97,7 @@ test('iPhone診断の受付はCloudflare認証後に限り、Bot一覧の更新�
     const handled = JSON.stringify({ code: 'IOS_NETWORK_FAILURE', module: 'queue', app_version: '1.0.1(46)', severity: 'info', diagnostic_log: 'outcome=recovered' })
     assert.equal((await fetch(url, { method: 'POST', headers, body: handled })).status, 202)
     assert.equal(diagnostics.list().find(row => row.category === 'IOS_NETWORK_FAILURE').severity, 'info')
+    assert.equal(diagnostics.list().find(row => row.category === 'IOS_NETWORK_FAILURE').status, 'resolved')
     assert.equal((await fetch(url, { method: 'POST', headers, body: JSON.stringify({ code: 'IOS_NETWORK_FAILURE', module: 'queue', severity: 'urgent' }) })).status, 400)
   } finally {
     await new Promise(resolve => server.close(resolve))
@@ -142,23 +143,27 @@ test('通信の失敗は、送信元が付けた重大度で登録する。付�
   assert.equal((await diagnostics.record({ code: 'IOS_CRASH', module: 'app', severity: 'info' })).severity, 'fatal')
 })
 
-test('適切に処理した通信の失敗（info）は参考として残し、解決済みの行を開き直さない', async () => {
+test('適切に処理した通信の失敗（info）は参考として残し、修理の対象（open）にしない', async () => {
   const diagnostics = new Diagnostics(join(root, 'reference.json'))
   await diagnostics.initialize()
   const report = { code: 'IOS_NETWORK_FAILURE', module: 'queue', severity: 'info', diagnostic_log: 'outcome=recovered' }
   const first = await diagnostics.record(report)
   assert.equal(first.severity, 'info')
-  assert.equal(first.status, 'open')
+  assert.equal(first.status, 'resolved')
   assert.equal(first.message_template, 'Appleアプリの通信に失敗した（適切に処理した参考記録）')
-  await diagnostics.setStatus(first.fingerprint, 'resolved')
   const again = await diagnostics.record(report)
   assert.equal(again.status, 'resolved')
   assert.equal(again.occurrence_count, 2)
+  assert.equal(again.diagnostic_log, 'outcome=recovered')
+  assert.equal(diagnostics.list('open').length, 0)
+  // 管理口で開いた参考の行は、次の報告でも開いたままにする。
+  await diagnostics.setStatus(first.fingerprint, 'open')
+  assert.equal((await diagnostics.record(report)).status, 'open')
   // 影響のあった報告は別の行で、解決済みでも開き直す。
   const harmed = await diagnostics.record({ ...report, severity: 'warn' })
+  assert.equal(harmed.status, 'open')
   await diagnostics.setStatus(harmed.fingerprint, 'resolved')
   assert.equal((await diagnostics.record({ ...report, severity: 'warn' })).status, 'open')
-  assert.equal(diagnostics.list().find(row => row.fingerprint === first.fingerprint).status, 'resolved')
 })
 
 test('サーバーの通知と設定の失敗は、影響ごとのcodeで登録する', async () => {

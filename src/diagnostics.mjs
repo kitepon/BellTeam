@@ -5,7 +5,8 @@ import { dirname } from 'node:path'
 
 // 通信の失敗は、エラーの種類や回数だけでは重大度も責任のある箇所も決まらない（ServerManagerの bughub/NETWORK_REPORTING.md）。
 // 3つ目がtrueの報告は、送信元（アプリ）が実害と復帰の可否から付けた `severity` を使う。
-// 付けていない版の報告は、影響と対処が未確認の `warn` として残す。`info` は適切に処理した参考記録で、解決済みの行を開き直さない。
+// 付けていない版の報告は、影響と対処が未確認の `warn` として残す。
+// `info` は適切に処理した参考記録で、修理の対象にしない。行は `resolved` で作り、回数・時刻・診断だけを進める。管理口で開いた行は開いたままにする。
 // サーバー自身の報告は、呼ぶ場所ごとに影響が決まるので、codeを分けて重大度を持つ。
 const severities = new Set(['fatal', 'high', 'warn', 'info'])
 const reports = {
@@ -62,7 +63,7 @@ export class Diagnostics {
         category: code,
         occurrence_count: (previous?.occurrence_count ?? 0) + 1,
         last_seen: new Date().toISOString(),
-        status: severity === 'info' ? previous?.status ?? 'open' : 'open',
+        status: severity === 'info' ? previous?.status ?? 'resolved' : 'open',
         ...(version ? { app_version: version } : previous?.app_version ? { app_version: previous.app_version } : {}),
         ...(log ? {
           diagnostic_log: log,
