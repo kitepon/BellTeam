@@ -3299,7 +3299,7 @@
           "gui": "Jevデスクトップで入力・送信対象を選択。表示した返信欄に直接入力し、送信前と再読み込み後に全文一致を確認。",
           "clipboardRead": "agent-desktopのpackaged helper欠落を明示し、Mac標準のpbpasteで選択した審査本文を読む一時的な手順を使用。ツールの不足は未修理。",
           "latestRecheck": {
-            "checkedAt": "2026-10-07T01:12:18Z",
+            "checkedAt": "2026-10-07T03:45:42.126625+00:00",
             "messageCount": 3,
             "newAppleReply": false,
             "latestMessageSender": "developer",
@@ -3308,7 +3308,15 @@
             "versionState": "REJECTED",
             "submissionState": "UNRESOLVED_ISSUES",
             "guiSelection": "Jev",
-            "proofPath": "runtime/apple/asc-recheck-20261007/proof.json"
+            "messageBodyRechecked": true,
+            "proofPath": "runtime/apple/asc-recheck-20261007/final-review-messages.png"
+          },
+          "latestApiRecheck": {
+            "checkedAt": "2026-10-07T03:37:58.569807+00:00",
+            "build": "41",
+            "versionState": "REJECTED",
+            "submissionState": "UNRESOLVED_ISSUES",
+            "messageBodyRechecked": false
           }
         }
       }
@@ -3529,7 +3537,7 @@
         "currentCandidateReference": "integration.networkLifecycleRepair.iphoneAcceptance"
       },
       "productionAuthentication": {
-        "status": "codex_waiting_official_site_approval",
+        "status": "completed",
         "ownerConsentRequired": true,
         "beforeStart": "トロニーへ連絡し、実行中のCodex席が無いことと観測の用意を確認する。",
         "sequence": [
@@ -3542,7 +3550,7 @@
         "verificationDevice": "Mac",
         "iphoneUpdateRequiredBeforeVerification": false,
         "answerOption": "later",
-        "preStartStatus": "start_performed_after_member_go_and_immediate_notice",
+        "preStartStatus": "completed",
         "currentSeatObservation": {
           "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
           "seq": 5,
@@ -3586,7 +3594,7 @@
           "gui": "Jevで開始・取消・状態更新の対象を選び、本番の表示を確認。"
         },
         "codexLiveCheck": {
-          "status": "waiting_official_site_approval",
+          "status": "completed",
           "started": true,
           "readinessQuestion": "owner_official_site_login_requested_in_current_chat",
           "relatedThreadNotificationRequiresPermission": [
@@ -3642,7 +3650,7 @@
             "moveDelivery": "delivered",
             "memberConfirmedSeq": 2,
             "previousCallClosed": true,
-            "pendingReply": "本人の公式サイトでの承認とアプリの認証済みへの遷移。その後トロニーに新しいCodexの起動を確認してもらう。",
+            "pendingReply": "認証・診断3件の注記を保った解決登録は完了。Mac版ASCはAppleの返答待ち。",
             "duplicateContinuation": {
               "threadId": "01a113dd-1f43-7f11-bf2b-485686e39cb1",
               "callSession": "968725fb-2aff-44dd-a90d-1ab851b6f8c3",
@@ -3702,7 +3710,7 @@
             "status": "superseded_by_acceptance_hold",
             "supersededByMemberSeq": 18
           },
-          "ownerOperationDecisionId": "K-CU88PG",
+          "ownerOperationDecisionId": "K-WLQSEN",
           "ownerPreparationReply": {
             "decisionId": "K-JXN8U4",
             "answerText": "こーどがわからん",
@@ -3726,15 +3734,85 @@
           "ownerBrowserReopenRequestedAfterCode": true,
           "guiSelection": "Jev",
           "proofScreenshot": "runtime/apple/codex-auth-20261007/device-code-current-private.png",
-          "previousOwnerOperationDecisionId": "K-JXN8U4",
+          "previousOwnerOperationDecisionId": "K-CU88PG",
           "officialSiteApprovalRequest": {
             "decisionId": "K-CU88PG",
-            "status": "pending",
+            "status": "blocked_answer_superseded_by_owner_correction_and_authentication",
             "registeredVersion": 1,
             "deviceCodeIncludedOnlyInOwnerRequest": true,
-            "deviceCodeStoredInRepository": false
+            "deviceCodeStoredInRepository": false,
+            "answerOption": "blocked"
           },
-          "startReportedToMemberSeq": 29
+          "startReportedToMemberSeq": 29,
+          "ownerApprovalBlock": {
+            "decisionId": "K-CU88PG",
+            "attachmentId": "att_yK3L1b0r6N5wz2Dfd95GvQ",
+            "attachmentLocalPath": "/Users/kite/.approval-box/attachments/K-CU88PG/1_IMG_4281.png",
+            "cause": "入力された9文字の5文字目が、発行値の数字と異なる英字になっていた。",
+            "issuedCodeMatchedAppAccessibleText": true,
+            "authRestarted": false,
+            "correctedOwnerOperation": "下段先頭の英字を発行値の数字へ訂正し、続行と公式承認を行う。",
+            "recordedAt": "2026-10-07T03:33:34.409327+00:00",
+            "status": "resolved_owner_completed_approval",
+            "laterOwnerCorrectionReportedByMemberSeq": 30
+          },
+          "codeCorrectionRequest": {
+            "decisionId": "K-WLQSEN",
+            "status": "answered",
+            "answerOption": "approved",
+            "source": "approval_box_owner_answer",
+            "recordedAt": "2026-10-07T03:34:37.727028+00:00",
+            "cancelAttemptOutcome": "already_answered_no_pending_operation"
+          },
+          "officialApprovalCompleted": true,
+          "appStatusAfterApproval": "認証済みです。",
+          "deviceCodeNoLongerDisplayed": true,
+          "cancelButtonRemoved": true,
+          "postApprovalScreenshot": "runtime/apple/codex-auth-20261007/authenticated-after-owner-approval.png",
+          "completedAtRecorded": "2026-10-07T03:34:37.727028+00:00",
+          "authenticationStartCount": 1,
+          "authenticationCancelCount": 0,
+          "authenticationInputCount": 0,
+          "serverAcceptance": {
+            "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+            "memberSeq": 30,
+            "startAtJST": "2026-10-07 12:28:04",
+            "startHttpStatus": 200,
+            "startCount": 1,
+            "credentialsUpdatedAtJST": "2026-10-07 12:32:22",
+            "authenticatedAtJST": "2026-10-07 12:32:25",
+            "incomingCodexMessagesWhileUnauthenticated": 0,
+            "failedTurnsWhileUnauthenticated": 0
+          },
+          "memberCompletionSeq": 31,
+          "memberSeatRecoverySeq": 33,
+          "newCodexSmoke": {
+            "status": "passed",
+            "harness": "codex-cli",
+            "newSessionLaunched": true,
+            "responseReceived": true,
+            "sessionClosed": true,
+            "reportedAtJST": "2026-10-07 12:33",
+            "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+            "memberSeq": 31
+          },
+          "seatRecovery": {
+            "fragileNoticeAtJST": "2026-10-07 12:33:14",
+            "elegNoticeAtJST": "2026-10-07 12:33:17",
+            "bothNoticesAccepted": true,
+            "bothWorkingAfterRecovery": true,
+            "nayutaWasNotPaused": true,
+            "memberSeq": 33
+          },
+          "nextAuthenticationNotice": {
+            "estimatedExpiryAtJST": "2026-11-06 12:31",
+            "estimateSource": "トロニー",
+            "notificationRescheduledByMember": true,
+            "scheduledAtJST": "2026-11-05 12:00",
+            "memberSeq": 31
+          },
+          "ownerOperationPending": false,
+          "completionReportedToMemberSeq": 32
         },
         "ownerConsentReceived": true,
         "currentCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
@@ -3787,8 +3865,9 @@
           "ownerEstimateCommunicated": "担当の見込みでは数分。開始合図後にコードを発行して渡す。",
           "memberStartPermitSeq": 26
         },
-        "ownerOperationDecisionId": "K-CU88PG",
-        "previousOwnerOperationDecisionId": "K-JXN8U4"
+        "ownerOperationDecisionId": "K-WLQSEN",
+        "previousOwnerOperationDecisionId": "K-CU88PG",
+        "ownerOperationPending": false
       },
       "existingReviewSubmissionChanged": false,
       "plan": "docs/plan_harness-auth-app-20261006.md",
@@ -3812,7 +3891,7 @@
           "code": "IOS_NETWORK_TIMEOUT",
           "module": "conversation",
           "count": 9,
-          "status": "open",
+          "status": "resolved",
           "rootCause": "unknown",
           "assessment": {
             "confirmedDefect": "送信応答を待つ間の背景実行時間要求が無い。44の保存済みPOSTで時間切れと下書き復元を実機再現。",
@@ -3831,6 +3910,16 @@
             "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
             "memberSeq": 22,
             "reportedAtJST": "2026-10-07 12:21"
+          },
+          "resolution": {
+            "httpStatus": 200,
+            "resolvedAtJST": "2026-10-07 12:27:10",
+            "readBackConfirmed": true,
+            "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+            "memberSeq": 31,
+            "recheckMemberSeq": 33,
+            "lastSeenAndBuildAndCountPreserved": true,
+            "rootCauseRemainsUnknown": true
           }
         },
         {
@@ -3838,7 +3927,7 @@
           "code": "IOS_NETWORK_FAILURE",
           "module": "conversation",
           "count": 27,
-          "status": "open",
+          "status": "resolved",
           "rootCause": "unknown",
           "assessment": {
             "confirmedDefect": null,
@@ -3858,6 +3947,16 @@
             "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
             "memberSeq": 22,
             "reportedAtJST": "2026-10-07 12:21"
+          },
+          "resolution": {
+            "httpStatus": 200,
+            "resolvedAtJST": "2026-10-07 12:27:10",
+            "readBackConfirmed": true,
+            "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+            "memberSeq": 31,
+            "recheckMemberSeq": 33,
+            "lastSeenAndBuildAndCountPreserved": true,
+            "rootCauseRemainsUnknown": true
           }
         },
         {
@@ -3865,7 +3964,7 @@
           "code": "IOS_NETWORK_TIMEOUT",
           "module": "schedules",
           "count": 6,
-          "status": "open",
+          "status": "resolved",
           "rootCause": "unknown",
           "assessment": {
             "confirmedDefect": "予定取得Taskが背景へ移っても次のメンバーGETを始める。",
@@ -3884,6 +3983,16 @@
             "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
             "memberSeq": 22,
             "reportedAtJST": "2026-10-07 12:21"
+          },
+          "resolution": {
+            "httpStatus": 200,
+            "resolvedAtJST": "2026-10-07 12:27:10",
+            "readBackConfirmed": true,
+            "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+            "memberSeq": 31,
+            "recheckMemberSeq": 33,
+            "lastSeenAndBuildAndCountPreserved": true,
+            "rootCauseRemainsUnknown": true
           }
         }
       ],
@@ -4146,7 +4255,7 @@
         "bugHubRecipient": "フラジャイル",
         "closureCondition": "やれる事をやり切った上で、最新版で出ない。iPhoneの45導入と通常利用、既存サーバーログとの照合を確認し、根因未確定と再現した欠陥の修理済みを分ける。",
         "additionalManualPostTest": false,
-        "status": "closure_requested_waiting_actual_bughub_status",
+        "status": "completed_resolved_notes_verified",
         "memberConfirmedSeq": 10,
         "deliveredToBugHubMember": true,
         "serverCorrelation": {
@@ -4154,7 +4263,7 @@
           "573cc8df": "26・27回目の時刻の本体ログは10/6 15:24の再作成で残っていない。保存済み2通は14:10:25と14:11:08。",
           "eedcde4c": "GETのためサーバーに照合用の記録が無い。"
         },
-        "nextMemberAction": "BugHubに45以上の記録が出た時に、その時刻のサーバー記録を照合してベルとフラジャイルへ知らせる。",
+        "nextMemberAction": "再発時、本体がopenへ戻して回数を足す。その記録と同時刻のサーバー記録を照合して再調査する。",
         "ownerBuild45ConfirmationDecisionId": "K-SSSL3T",
         "latestReadRequestSeq": 21,
         "latestReadResponseSeq": 22,
@@ -4165,7 +4274,35 @@
         "build45InstallationTimeKnown": false,
         "closureRequested": true,
         "closureJudgement": "利用可能な旧証拠とソース・再現の照合を完了し、iPhone45の導入と起動は本人確認済み。最新APIで旧3件の増加と45の失敗は無く、通常利用で確認するオーナー裁定と既存の解決条件に沿って解決登録を依頼。過去全件の根因確定・根治の証明とはしない。",
-        "closureRequestSeq": 24
+        "closureRequestSeq": 24,
+        "closureConfirmedMemberSeq": 31,
+        "closureRecheckedMemberSeq": 33,
+        "coreUnresolvedCount": 0,
+        "coreResolvedCount": 26,
+        "notesStatus": "published_parent_json_and_images_verified",
+        "notesRequestedByMemberAtJST": "2026-10-07 12:33:14",
+        "notesRequired": [
+          "過去全件の根因は未確定",
+          "旧い未到達POST・-1005・約82秒を43/45で根治した証明ではない",
+          "45の導入時刻は不明なので無再発の長さは断定しない",
+          "再発時は同時刻のサーバー記録を照合して再調査する"
+        ],
+        "automaticReopenOnRecurrence": true,
+        "notesConfirmedMemberSeq": 34,
+        "notesUpdatedAt": "2026-10-07T03:34:47.606Z",
+        "parentVerification": {
+          "matchingIssues": 3,
+          "allStateResolved": true,
+          "allUpstreamStatusResolved": true,
+          "allFourCaveatsPublished": true,
+          "countsAndLastSeenAndVersionsPreserved": true,
+          "bugHubResolvedCount": 26,
+          "bugHubOpenCount": 0,
+          "screenshotsReviewed": 3,
+          "proofPath": "runtime/apple/diagnostic-closure-20261007/notes-proof-private.json",
+          "sourceDirectory": "/srv/bellteam/bots/bot-a855525f/.cache/bughub-investigation-release/",
+          "verifiedAt": "2026-10-07T03:42:35.646605+00:00"
+        }
       }
     },
     "conversationDisplayRepair": {
@@ -4314,7 +4451,7 @@
     "backgroundMessageSendRepair": {
       "version": "1.0.1",
       "build": "45",
-      "status": "distributed_mac_confirmed_waiting_owner",
+      "status": "completed_owner_build45_confirmed_diagnostics_resolved_with_notes",
       "scope": "メッセージPOSTの間だけUIKitの背景実行時間を要求する。送信後の会話取得は前面へ戻ってから始める。",
       "diagnosticRootCauseConfirmed": false,
       "diagnosticCasesReference": "integration.networkLifecycleRepair.diagnosticCases",
@@ -4420,7 +4557,7 @@
         "proofPath": "runtime/apple/background-send-45/testflight-proof.json"
       },
       "physicalAcceptance": {
-        "status": "build45_owner_confirmed_waiting_current_diagnostic_read_and_usage_feedback",
+        "status": "owner_build45_confirmed_normal_usage_acceptance",
         "requiredVersion": "1.0.1",
         "requiredBuild": "45",
         "recipientId": "bot-bdf99000",
