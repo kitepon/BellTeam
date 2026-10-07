@@ -3647,6 +3647,31 @@
               "confirmedByMemberSeq": 3,
               "closedAt": "2026-10-07T09:59:15+09:00",
               "survivingThreadId": "01a113dc-f72a-79e0-8354-f811a1289e03"
+            },
+            "relationship": "owner_selected_parallel_continuation",
+            "originThreadId": "01a1136a-7803-7ef0-ad31-9c5cc71f15fd",
+            "relationshipCorrectionSource": {
+              "callSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+              "memberSeq": 12,
+              "description": "01a113d5・01a113dc・01a113ddは同じ旧タスクから立った並行の継続先で、01a113dcは01a113d5の直接の後継ではない。オーナーが01a113dcを正しい継続先と指定済み。"
+            },
+            "olderParallelThread": {
+              "threadId": "01a113d5-d57d-7ad3-9a33-2e7eff9b795c",
+              "title": "BellTeam｜ベルチーム（自動引き継ぎ）",
+              "archived": true,
+              "status": "notLoaded",
+              "latestTurnStatus": "completed",
+              "latestTurnCompletedAt": "2026-10-07T00:54:40+00:00",
+              "newTurnsAfterLatestCompletion": false,
+              "oldCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
+              "oldCallStatus": "hungup",
+              "parentDelivery": "closed",
+              "questionDisposition": "withdrawn_by_notice_in_current_thread",
+              "questionCardRemoval": "unsupported_not_performed",
+              "questionInHistory": true,
+              "reactivatedForCleanup": false,
+              "reportSeq": 13,
+              "reportDelivery": "delivered"
             }
           },
           "relatedThreadObservation": [
