@@ -3532,25 +3532,15 @@
         "answerOption": "later",
         "preStartStatus": "waiting_noah_completion_and_immediate_member_recheck",
         "currentSeatObservation": {
-          "sourceCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
-          "seq": 2,
-          "observedAt": "2026-10-07T09:49:28+09:00",
+          "sourceCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
+          "seq": 3,
+          "observedAt": "2026-10-07T10:00:00+09:00",
           "codex": {
-            "activeSeats": [
-              "bot-4366a50b",
-              "bot-a855525f",
-              "bot-f1066783"
-            ],
-            "state": "idle_composer_ready",
-            "startingSeats": 0,
-            "pendingChildDeliveries": 0,
-            "processingMessages": 0,
             "authentication": "authenticated",
-            "noStartWindow": "09:55から10:00のノアの予定ターン完了まで",
+            "credentialLastUpdated": "2026-10-05",
+            "startCalled": false,
+            "noStartWindow": "10:00のノアの予定ターン完了と、担当の再確認・開始合図まで",
             "startNoticePending": true
-          },
-          "cursor": {
-            "authentication": "authenticated"
           }
         },
         "cursorLiveCheck": {
@@ -3595,7 +3585,7 @@
             "text": "では進めろ。",
             "recordedAt": "2026-10-07T00:49:00.737661+00:00"
           },
-          "currentCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
+          "currentCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
           "preparation": {
             "verifiedAt": "2026-10-07T00:53:59.857010+00:00",
             "device": "Mac",
@@ -3612,18 +3602,28 @@
             "ownerOperation": "スマホでhttps://auth.openai.com/codex/deviceへログインし、コード入力画面まで進む。",
             "approvalBoxRequest": "failed_not_created",
             "approvalBoxError": "CODEX_STEER_RESTART_REQUIRED",
-            "nativeQuestion": "pending",
-            "proofDirectory": "runtime/apple/codex-auth-20261007"
+            "nativeQuestion": "pending_in_current_thread",
+            "proofDirectory": "runtime/apple/codex-auth-20261007",
+            "requestThreadId": "01a113dc-f72a-79e0-8354-f811a1289e03",
+            "requestRecheckedAt": "2026-10-07T01:01:09.285748+00:00"
           },
           "handoff": {
-            "threadId": "01a113d5-d57d-7ad3-9a33-2e7eff9b795c",
-            "previousCallSession": "38722012-211b-45b8-8748-a7c03d947dbb",
-            "newCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
+            "threadId": "01a113dc-f72a-79e0-8354-f811a1289e03",
+            "previousCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
+            "newCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
             "moveMessageSeq": 1,
             "moveDelivery": "delivered",
             "memberConfirmedSeq": 2,
             "previousCallClosed": true,
-            "pendingReply": "ノアの予定完了後、Codex席を再確認した開始合図。"
+            "pendingReply": "ノアの予定完了後、Codex席を再確認した開始合図。本人のスマホで公式ページへログインできたという回答。",
+            "duplicateContinuation": {
+              "threadId": "01a113dd-1f43-7f11-bf2b-485686e39cb1",
+              "callSession": "968725fb-2aff-44dd-a90d-1ab851b6f8c3",
+              "status": "closed_without_authentication_operations",
+              "confirmedByMemberSeq": 3,
+              "closedAt": "2026-10-07T09:59:15+09:00",
+              "survivingThreadId": "01a113dc-f72a-79e0-8354-f811a1289e03"
+            }
           },
           "relatedThreadObservation": [
             {
@@ -3641,7 +3641,7 @@
           ]
         },
         "ownerConsentReceived": true,
-        "currentCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2"
+        "currentCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6"
       },
       "existingReviewSubmissionChanged": false,
       "plan": "docs/plan_harness-auth-app-20261006.md",
