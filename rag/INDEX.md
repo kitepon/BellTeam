@@ -119,6 +119,8 @@
 
 - [SwiftUIの画面に結び付いたTask](authentication/raw/apple-view-task.md): 画面を閉じたときとidが変わったときの取消・再作成の仕様。取得日 2026-10-06、Apple公式原文。
 
+- [Codexのdevice code認証](authentication/raw/openai-codex-device-auth-20261007.md): 公式ブラウザでログインし、CLIが発行したコードを入力する手順。取得日 2026-10-07、OpenAI公式原文。
+
 - [限られた背景実行時間](ios-network/raw/apple-background-execution.md)と[背景のURLSession](ios-network/raw/apple-background-sessions.md): UIKitの実行時間の要求、終了、通常のdataTaskとの役割の違い。取得日 2026-10-06、Apple公式原文。
 
 - [公開版番号とビルド番号](apple-distribution/raw/apple-version-and-build.html): App Store・TestFlight配布物の識別と版番号の設定。取得日 2026-10-06、Apple公式原文。

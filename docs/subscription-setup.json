@@ -3295,7 +3295,7 @@
           "verificationProofPath": "runtime/apple/asc-followup-20261007/final-message-proof.json",
           "stateProofPath": "runtime/apple/asc-followup-20261007/final-store-state.json",
           "currentSubmissionState": "UNRESOLVED_ISSUES",
-          "currentCallSession": "38722012-211b-45b8-8748-a7c03d947dbb",
+          "currentCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
           "gui": "Jevデスクトップで入力・送信対象を選択。表示した返信欄に直接入力し、送信前と再読み込み後に全文一致を確認。",
           "clipboardRead": "agent-desktopのpackaged helper欠落を明示し、Mac標準のpbpasteで選択した審査本文を読む一時的な手順を使用。ツールの不足は未修理。"
         }
@@ -3517,7 +3517,7 @@
         "currentCandidateReference": "integration.networkLifecycleRepair.iphoneAcceptance"
       },
       "productionAuthentication": {
-        "status": "cursor_live_checks_passed_waiting_codex_owner_ready",
+        "status": "waiting_owner_official_site_login_and_member_start_notice",
         "ownerConsentRequired": true,
         "beforeStart": "トロニーへ連絡し、実行中のCodex席が無いことと観測の用意を確認する。",
         "sequence": [
@@ -3525,33 +3525,32 @@
           "Codexを本人の公式サイト承認まで通す"
         ],
         "decisionId": "K-S9FC4Z",
-        "decisionStatus": "answered_deferred",
+        "decisionStatus": "deferred_answer_superseded_by_current_chat_go",
         "decisionVersion": 4,
         "verificationDevice": "Mac",
         "iphoneUpdateRequiredBeforeVerification": false,
         "answerOption": "later",
-        "preStartStatus": "requested_current_active_seat_status_from_tronny_readonly",
+        "preStartStatus": "waiting_noah_completion_and_immediate_member_recheck",
         "currentSeatObservation": {
-          "sourceCallSession": "38722012-211b-45b8-8748-a7c03d947dbb",
-          "seq": 9,
-          "observedAt": "2026-10-07T09:10:36+09:00",
-          "cursor": {
-            "seats": 1,
-            "running": 0,
-            "queuedMessages": 0
-          },
+          "sourceCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
+          "seq": 2,
+          "observedAt": "2026-10-07T09:49:28+09:00",
           "codex": {
-            "seats": 19,
             "activeSeats": [
               "bot-4366a50b",
               "bot-a855525f",
               "bot-f1066783"
             ],
             "state": "idle_composer_ready",
-            "noStartWindow": "09:55から10:00のノアのターン完了まで",
-            "requiresOwnerOfficialSiteReadyNow": true,
-            "requiresImmediateMemberRecheck": true,
-            "crossThreadCallsMustBeConsidered": true
+            "startingSeats": 0,
+            "pendingChildDeliveries": 0,
+            "processingMessages": 0,
+            "authentication": "authenticated",
+            "noStartWindow": "09:55から10:00のノアの予定ターン完了まで",
+            "startNoticePending": true
+          },
+          "cursor": {
+            "authentication": "authenticated"
           }
         },
         "cursorLiveCheck": {
@@ -3573,9 +3572,9 @@
           "gui": "Jevで開始・取消・状態更新の対象を選び、本番の表示を確認。"
         },
         "codexLiveCheck": {
-          "status": "deferred_owner_away_waiting_official_site_ready",
+          "status": "waiting_owner_official_site_login_and_member_start_notice",
           "started": false,
-          "readinessQuestion": "native_async_question_pending",
+          "readinessQuestion": "owner_official_site_login_requested_in_current_chat",
           "relatedThreadNotificationRequiresPermission": [
             {
               "id": "01a1136c-7e13-74c0-acfb-666a7bd45ced",
@@ -3590,8 +3589,59 @@
             "source": "current_chat",
             "status": "away",
             "recordedAt": "2026-10-07T00:28:37.183454+00:00"
-          }
-        }
+          },
+          "ownerProgressGo": {
+            "source": "current_chat",
+            "text": "では進めろ。",
+            "recordedAt": "2026-10-07T00:49:00.737661+00:00"
+          },
+          "currentCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
+          "preparation": {
+            "verifiedAt": "2026-10-07T00:53:59.857010+00:00",
+            "device": "Mac",
+            "version": "1.0.1",
+            "build": "45",
+            "appState": "authenticated",
+            "guiSelection": "Jev",
+            "macOfficialSiteBlock": "Google Password Managerが保存済みパスキーのTouch IDを要求。",
+            "alternateMethods": [
+              "passkey_or_security_key",
+              "account_recovery_not_used"
+            ],
+            "onePasswordCli": "not_signed_in",
+            "ownerOperation": "スマホでhttps://auth.openai.com/codex/deviceへログインし、コード入力画面まで進む。",
+            "approvalBoxRequest": "failed_not_created",
+            "approvalBoxError": "CODEX_STEER_RESTART_REQUIRED",
+            "nativeQuestion": "pending",
+            "proofDirectory": "runtime/apple/codex-auth-20261007"
+          },
+          "handoff": {
+            "threadId": "01a113d5-d57d-7ad3-9a33-2e7eff9b795c",
+            "previousCallSession": "38722012-211b-45b8-8748-a7c03d947dbb",
+            "newCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
+            "moveMessageSeq": 1,
+            "moveDelivery": "delivered",
+            "memberConfirmedSeq": 2,
+            "previousCallClosed": true,
+            "pendingReply": "ノアの予定完了後、Codex席を再確認した開始合図。"
+          },
+          "relatedThreadObservation": [
+            {
+              "id": "01a1136c-7e13-74c0-acfb-666a7bd45ced",
+              "title": "ナユタとASCの状況を確認",
+              "state": "idle",
+              "notificationSent": false
+            },
+            {
+              "id": "01a1136d-6439-7490-accd-c838b66c9478",
+              "title": "リマインダー",
+              "state": "idle",
+              "notificationSent": false
+            }
+          ]
+        },
+        "ownerConsentReceived": true,
+        "currentCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2"
       },
       "existingReviewSubmissionChanged": false,
       "plan": "docs/plan_harness-auth-app-20261006.md",
@@ -3736,7 +3786,7 @@
           "durationSeconds": 0,
           "toc": "runtime/apple/usb-observation-20261006/authorized-02-toc.xml"
         },
-        "currentCallSession": "38722012-211b-45b8-8748-a7c03d947dbb",
+        "currentCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
         "additionalMeasurementRequestedByMember": true,
         "memberWithdrewCaptureRequest": {
           "callSession": "525de7d4-5f59-494a-8e77-d4855ca93329",
@@ -4138,19 +4188,19 @@
         "proofPath": "runtime/apple/background-send-45/testflight-proof.json"
       },
       "physicalAcceptance": {
-        "status": "deferred_owner_away",
+        "status": "manual_test_cancelled_by_owner_waiting_usage_feedback",
         "requiredVersion": "1.0.1",
         "requiredBuild": "45",
         "recipientId": "bot-bdf99000",
         "recipientName": "ラプラス",
         "testMessage": "BT-USB45-1007-A 通信の試験。返事は『受け取った』だけでいい。",
-        "ownerConfirmation": "one_additional_post_approved_in_current_chat_execution_deferred_owner_away",
+        "ownerConfirmation": "manual_post_test_cancelled_in_current_chat",
         "approvalBoxRequest": "failed_not_created",
         "approvalBoxError": "CODEX_STEER_RESTART_REQUIRED",
         "approvalBoxErrorMessage": "親のCodexはhookの導入前から動いています。完全終了して再起動してください",
         "postAttempts": 0,
         "checkMemberImmediatelyBeforePost": true,
-        "currentCallSession": "38722012-211b-45b8-8748-a7c03d947dbb",
+        "currentCallSession": "2cf30a15-ec1a-43b9-a0d2-b8954a0606b2",
         "currentMember": "トロニー",
         "guiBlocker": "ミラーリングの再接続が中断。MacのWi-FiとBluetoothは有効。端末の現在の到達性とロック状態を確認中。",
         "bodyNeedsExactVerificationBeforePost": true,
@@ -4168,13 +4218,20 @@
           "wifi": "on",
           "bluetooth": "on"
         },
-        "remainingOwnerAction": "帰宅後、iPhoneをMacへ接続してミラーリングできる状態を用意する。外出中の操作依頼は保留。",
+        "remainingOwnerAction": null,
         "deviceConnectionEvidence": "runtime/apple/asc-followup-20261007/device-lock-state.log",
         "ownerLocationUpdate": {
           "source": "current_chat",
           "text": "今ミラーリングはできませんよ。私は外出ちゅです。",
           "recordedAt": "2026-10-07T00:28:37.183454+00:00"
-        }
+        },
+        "ownerTestDecision": {
+          "text": "では進めろ。iPhone通信試験は俺が使ってるから変なら言うからいい。",
+          "source": "current_chat",
+          "recordedAt": "2026-10-07T00:49:00.737538+00:00"
+        },
+        "additionalPostPlanned": false,
+        "usageAcceptance": "通常利用で変な動きが出た時にオーナーから報告を受け、診断と照合する。追加試験なしで解決済みとはしない。"
       },
       "evidence": "docs/evidence/2026-10-07-background-message-send.md",
       "sourceCommit": "1d497feeea2cc3dd7ad9f94abb797affcb1fe248",
