@@ -4730,8 +4730,8 @@
     },
     "networkReportingRepair": {
       "version": "1.0.1",
-      "build": "46",
-      "status": "tested_waiting_server_then_distribution",
+      "build": "47",
+      "status": "input_visibility_verified_preparing_signed_build",
       "policy": "https://github.com/kitepon/ServerManager/blob/ef578fe/bughub/NETWORK_REPORTING.md",
       "scope": "通信の報告を操作の対処後へ移し、実害と確認できた復旧から重大度を付ける。正常取消は送らず、操作成功を確認した参考はinfo。",
       "tests": {
@@ -4788,6 +4788,18 @@
           "failed": 0,
           "resultBundle": "runtime/network-reporting-mac-signed.xcresult",
           "scope": "既存アバター試験のApp Group権限。正規Apple Development署名では成功。"
+        },
+        "inputVisibility": {
+          "passed": 1,
+          "failed": 0,
+          "resultBundle": "runtime/network-reporting-input-keyboard-final.xcresult",
+          "inputVisibleWithKeyboard": true,
+          "instructionsFullyVisible": true,
+          "editingAfterFailure": true,
+          "postCount": 1,
+          "severity": "warn",
+          "reportedVersion": "1.0.1(47)",
+          "image": "runtime/network-reporting-46/input-keyboard-final-attachments/68BC5794-BD30-4AA7-8662-237E9C7D1CB0.png"
         }
       },
       "currentOwnerThread": "01a11545-8215-7612-8766-58b18d67db02",
@@ -4806,7 +4818,36 @@
       "physicalCommunicationTest": "not_resumed_owner_normal_usage",
       "pastDiagnosticRecords": "unchanged",
       "archiveExport": "pending",
-      "upload": "pending"
+      "upload": "pending",
+      "supersededCandidates": [
+        {
+          "build": "46",
+          "status": "uploaded_not_distributed",
+          "reason": "案内の複数行表示が入力欄の高さを変え、キーボード下に一部が隠れた。画像で再現し、47で入力欄の高さを保つ配置へ修理。",
+          "archiveExport": {
+            "status": "passed",
+            "sourceCommit": "0f55d20dd34763a852f2c04ea2fdcfc1556fd619",
+            "proof": "runtime/apple/network-reporting-46/archive-export-proof.json",
+            "iosAppAndExtension": "1.0.1(46)",
+            "macAppAndExtension": "1.0.1(46)",
+            "codesignVerified": true,
+            "macPackageSignatureVerified": true,
+            "searchListRestored": true,
+            "keychainLocked": true
+          },
+          "upload": {
+            "status": "altool_succeeded_both_platforms",
+            "completedAt": "2026-10-07T07:42:20Z",
+            "internalDistributionStarted": false,
+            "iosLog": "runtime/apple/network-reporting-46/ios-upload-46.log",
+            "macLog": "runtime/apple/network-reporting-46/mac-upload-46.log",
+            "appleProcessing": "waiting_builds_to_appear_in_api",
+            "receipt": "runtime/apple/network-reporting-46/upload-receipt.json",
+            "reviewAssociationUnchanged": true,
+            "reviewProof": "runtime/apple/network-reporting-46/review-association-before-distribution.json"
+          }
+        }
+      ]
     }
   },
   "appleWebAccess": {

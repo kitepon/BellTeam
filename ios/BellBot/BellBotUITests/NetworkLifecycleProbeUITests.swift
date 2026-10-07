@@ -18,6 +18,13 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         XCTAssertTrue(failure.label.contains("現在の状態を更新して確認してください"))
         XCTAssertGreaterThan(failure.frame.height, 36, "再操作前の確認手順まで複数行で表示する")
         XCTAssertEqual(input.value as? String, "REPORTING-PROBE-46")
+        XCTAssertTrue(input.isHittable)
+        XCTAssertTrue(app.keyboards.firstMatch.exists)
+        let visibleInput = XCTAttachment(screenshot: app.screenshot())
+        visibleInput.name = "失敗案内とキーボード表示中の入力欄"
+        visibleInput.lifetime = .keepAlways; add(visibleInput)
+        input.tap(); input.typeText(" 続けて入力")
+        XCTAssertEqual(input.value as? String, "REPORTING-PROBE-46 続けて入力")
         let proof = try reportingProof(base, expectedSeverity: "warn")
         XCTAssertEqual((proof["requests"] as? [[String: Any]])?.filter { $0["method"] as? String == "POST" && ($0["path"] as? String)?.hasSuffix("/messages") == true }.count, 1)
         let row = try XCTUnwrap((proof["reports"] as? [[String: Any]])?.first)

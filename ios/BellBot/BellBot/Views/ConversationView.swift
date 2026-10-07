@@ -263,14 +263,6 @@ private struct ConversationContent: View {
 
     private var composer: some View {
         VStack(spacing: 8) {
-            if let errorText {
-                Text(errorText)
-                    .font(BellTheme.messageHelperFont)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("send-error")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
             if let room { targetPicker(room) }
             ConversationInput(draft: store.draft(for: target), sending: sending, hasAttachments: !attachments.isEmpty,
                               onSend: { Task { await send() } },
@@ -301,10 +293,24 @@ private struct ConversationContent: View {
         .padding(.top, 11)
         .padding(.bottom, 8)
         .background(.regularMaterial)
-        // 添付画像の並びは入力欄の真上に重ねる。入力欄の高さを変えると、キーボード表示中は
+        // 失敗の案内と添付画像は入力欄の真上に重ねる。入力欄の高さを変えると、キーボード表示中は
         // 入力欄がキーボードの下へはみ出した（iPhone Simulator、iOS 26）。
         .overlay(alignment: .top) {
-            if !attachments.isEmpty { attachmentStrip.offset(y: -attachmentStripHeight) }
+            VStack(spacing: 8) {
+                if let errorText {
+                    Text(errorText)
+                        .font(BellTheme.messageHelperFont)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("send-error")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 8)
+                        .background(.regularMaterial)
+                }
+                if !attachments.isEmpty { attachmentStrip }
+            }
+            .alignmentGuide(.top) { $0[.bottom] }
         }
     }
 
