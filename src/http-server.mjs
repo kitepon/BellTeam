@@ -69,6 +69,7 @@ const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const FAST_MODE_MESSAGES = {
   BOT_FAST_MODE_UNAVAILABLE: 'ファストモードへ切り替えられません。BellTeamに入っているAitermが、ファストモードの切り替えに対応していません。保存は変えていません。',
   BOT_FAST_MODE_UNSUPPORTED: 'ファストモードへ切り替えられません。このBotのCLIとモデルは、ファストモードに対応していません。保存は変えていません。',
+  BOT_FAST_MODE_ACCOUNT_UNAVAILABLE: 'ファストモードへ切り替えられません。このBotのCLIのアカウントでは、今はファストモードを使えません。保存は変えていません。',
 }
 function logWriteRequest(request, response, write) {
   const path = String(request.url).split('?')[0]
@@ -620,7 +621,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       if (error.message === 'OWNER_QUESTION_CLOSED') return json(response, 409, { error: error.message })
       if (/^OWNER_QUESTION_/u.test(error.message)) return json(response, 400, { error: error.message })
       if (/^BOT_DUPLICATE/u.test(error.message)) return json(response, 409, { error: error.message })
-      if (Object.hasOwn(FAST_MODE_MESSAGES, error.message)) return json(response, 400, { error: error.message, message: FAST_MODE_MESSAGES[error.message] })
+      if (Object.hasOwn(FAST_MODE_MESSAGES, error.message))
+        return json(response, 400, { error: error.message, message: `${FAST_MODE_MESSAGES[error.message]}${typeof error.detail === 'string' ? ` 理由：${error.detail}` : ''}` })
       if (/^(?:BOT|ROOM|SCHEDULE|MEMORY|KNOWLEDGE|SEARCH|OWNER)_/u.test(error.message)) return json(response, 400, { error: error.message })
       // fetchの失敗はスタックを持たない。どの要求が何で失敗したかを後から引けるよう、要求と原因の符号も残す（問い合わせ文字列は残さない）。
       const cause = error.cause?.code ?? error.cause?.message

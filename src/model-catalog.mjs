@@ -31,10 +31,13 @@ export class LiveModelCatalog {
         || !Array.isArray(value.efforts) || !value.efforts.every(effort => typeof effort === 'string')
         || !Array.isArray(value.models) || value.models.length === 0
         || !value.models.every(model => typeof model.id === 'string' && Array.isArray(model.efforts)
-          && model.efforts.every(effort => typeof effort === 'string')))
+          && model.efforts.every(effort => typeof effort === 'string'))
+        || (value.fast_unavailable != null && typeof value.fast_unavailable.message !== 'string'))
         throw new ModelCatalogError('MODEL_CATALOG_INVALID', harness, 'Aitermの応答形式が一致しません')
+      // fast_unavailable: そのCLIのアカウントでファストモードを使えない時の理由（{ code, message }）。使える時と、先に分からないCLIは null。
       return { efforts: value.efforts, models: value.models, source: value.source,
-        harnessVersion: value.harness_version, defaultModel: value.default_model }
+        harnessVersion: value.harness_version, defaultModel: value.default_model,
+        fastUnavailable: value.fast_unavailable ?? null }
     } catch (error) {
       if (error instanceof ModelCatalogError) throw error
       const code = error instanceof SyntaxError ? 'MODEL_CATALOG_INVALID'

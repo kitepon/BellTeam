@@ -209,7 +209,8 @@ export class AitermTransport {
     // Aitermは、ファストモードにできなかった席も通常の速度で起こし、実際の状態を返す（利用枠が尽きた時など）。
     // 保存が「有効」のまま実際は通常の速度、という食い違いを残さないよう、保存を実際へ合わせる。
     if (bot.fastMode === true && launch.structuredContent.fast === false) {
-      process.stderr.write(`BellTeam Aiterm: ファストモードで起こせなかったため、通常の速度で起こしました: ${bot.id}\n`)
+      const reason = launch.structuredContent.fast_error?.code
+      process.stderr.write(`BellTeam Aiterm: ファストモードで起こせなかったため、通常の速度で起こしました: ${bot.id}${typeof reason === 'string' ? `（${reason}）` : ''}\n`)
       await this.updateFastMode(bot.id, false)
     }
     return session

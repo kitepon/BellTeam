@@ -209,7 +209,7 @@ export const bellTeamTools = Object.freeze([
   },
   {
     name: 'set_fast_mode',
-    description: 'BotのCLIのファストモード（応答を速くする設定。利用枠を多く使い、Claudeでは別払いになる）を切り替える。既定は使わない。複数の仕事が重なって捌くのが大変な時だけ有効にし、落ち着いたら無効へ戻す。botId省略時は自分。稼働中なら現在の作業の後に適用する。CLIやモデルが対応していない時は保存せずに断り、適用できなかった時は元の値へ戻す。今の値はget_selfのfastModeで確かめる。',
+    description: 'BotのCLIのファストモード（応答を速くする設定。利用枠を多く使い、Claudeでは別払いになる）を切り替える。既定は使わない。複数の仕事が重なって捌くのが大変な時だけ有効にし、落ち着いたら無効へ戻す。botId省略時は自分。稼働中なら現在の作業の後に適用する。CLIやモデルが対応していない時と、そのCLIのアカウントで使えない時（Claudeは別払いが有効な時だけ使える）は、保存せずに理由を返して断る。適用できなかった時は元の値へ戻す。今の値はget_selfのfastModeで確かめる。',
     inputSchema: objectSchema({
       enabled: { type: 'boolean', description: 'trueで有効、falseで無効（通常の速度）。' },
       botId: { type: 'string', minLength: 1 },

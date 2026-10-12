@@ -138,7 +138,7 @@ export class BotRegistry extends Map {
     if (profile.fastMode && ['harness', 'model', 'fastMode'].some(field => profile[field] !== current[field])) {
       const problem = await this.fastModeProblem(profile)
       // 有効を指定した保存は断る。CLIやモデルだけを替えた先が切り替えられない時は、Claude Codeの動きと同じく無効へ戻す。
-      if (problem && Object.hasOwn(changes, 'fastMode')) throw new Error(problem)
+      if (problem && Object.hasOwn(changes, 'fastMode')) throw fastModeError(problem)
       if (problem) profile = { ...profile, fastMode: false }
     }
     return Object.freeze(profile)
@@ -154,15 +154,17 @@ export class BotRegistry extends Map {
   // 一覧に無いモデル（別名など）は、適用する時のAitermの判定に任せる。
   async validateFastMode(profile) {
     const problem = profile.fastMode ? await this.fastModeProblem(profile) : null
-    if (problem) throw new Error(problem)
+    if (problem) throw fastModeError(problem)
   }
 
   async fastModeProblem(profile) {
     const catalog = await this.models.forHarness(profile.harness)
     const models = catalog.models ?? []
-    if (!models.some(model => typeof model.fast === 'boolean')) return 'BOT_FAST_MODE_UNAVAILABLE'
+    if (!models.some(model => typeof model.fast === 'boolean')) return { code: 'BOT_FAST_MODE_UNAVAILABLE' }
+    // アカウントの都合（Claudeの別払いが無効など）で使えない時は、Aitermが返した理由を添えて断る。
+    if (catalog.fastUnavailable) return { code: 'BOT_FAST_MODE_ACCOUNT_UNAVAILABLE', detail: catalog.fastUnavailable.message }
     const model = models.find(candidate => candidate.id === (profile.model || catalog.defaultModel))
-    return model && model.fast !== true ? 'BOT_FAST_MODE_UNSUPPORTED' : null
+    return model && model.fast !== true ? { code: 'BOT_FAST_MODE_UNSUPPORTED' } : null
   }
 
   async remove(id) {
@@ -281,6 +283,10 @@ export class BotRegistry extends Map {
   async writeScheduleDocument(id, schedules) {
     await writeAtomic(join(this.projectPath(id), 'schedule.json'), scheduleDocument(schedules))
   }
+}
+
+function fastModeError({ code, detail }) {
+  return Object.assign(new Error(code), detail ? { detail } : {})
 }
 
 function normalizeProfile(value) {

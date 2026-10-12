@@ -26,6 +26,19 @@ test('4ハーネスを正規APIで取得し、次の取得では新モデルと�
   assert.equal(closed, 5)
 })
 
+test('ファストモードの可否は、Aitermが返したモデルごとの項目とアカウントの理由をそのまま渡す', async () => {
+  const reply = extra => ({ structuredContent: { ...response('claude-code', 'opus').structuredContent, models: [{ id: 'opus', efforts: [], fast: true }], ...extra } })
+  const catalogFor = extra => new LiveModelCatalog({ client: () => ({ call: async () => reply(extra), close: async () => {} }) })
+
+  const refused = await catalogFor({ fast_unavailable: { code: 'FAST_MODE_UNAVAILABLE', message: 'extra_usage_disabled' } }).forHarness('claude')
+  assert.equal(refused.models[0].fast, true)
+  assert.deepEqual(refused.fastUnavailable, { code: 'FAST_MODE_UNAVAILABLE', message: 'extra_usage_disabled' })
+  assert.equal((await catalogFor({ fast_unavailable: null }).forHarness('claude')).fastUnavailable, null)
+  // ファストモードを知らないAitermは項目を返さない。
+  assert.equal((await catalogFor({}).forHarness('claude')).fastUnavailable, null)
+  await assert.rejects(catalogFor({ fast_unavailable: 'no' }).forHarness('claude'), error => error.code === 'MODEL_CATALOG_INVALID')
+})
+
 test('一覧取得失敗はそのハーネスの理由を返し、成功した他の一覧と混ぜて代用しない', async () => {
   const catalog = new LiveModelCatalog({ client: () => ({
     call: async (_, { harness }) => {

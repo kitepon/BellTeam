@@ -311,6 +311,21 @@ test('ファストモードは既定で無効にし、Aitermの一覧が切り�
   assert.equal((await registry.update('bot-a', { fastMode: false })).fastMode, false)
   registry.models = models
 
+  // アカウントの都合で使えない時は、Aitermの理由を添えて断る。CLIやモデルだけを替えた時は、無効へ戻して保存する。
+  registry.models = { forHarness: async () => ({
+    efforts: [], defaultModel: 'default', models: [{ id: 'opus', efforts: [], fast: true }],
+    fastUnavailable: { code: 'FAST_MODE_UNAVAILABLE', message: 'extra_usage_disabled' },
+  }) }
+  await assert.rejects(registry.update('bot-a', { harness: 'claude', model: 'opus', fastMode: true }),
+    error => error.message === 'BOT_FAST_MODE_ACCOUNT_UNAVAILABLE' && error.detail === 'extra_usage_disabled')
+  assert.equal(registry.get('bot-a').harness, 'grok')
+  registry.models = models
+  await registry.update('bot-a', { model: 'grok-4.7', fastMode: true })
+  registry.models = { forHarness: async () => ({ efforts: [], defaultModel: 'default', models: [{ id: 'opus', efforts: [], fast: true }], fastUnavailable: { code: 'FAST_MODE_UNAVAILABLE', message: 'extra_usage_disabled' } }) }
+  const moved = await registry.update('bot-a', { harness: 'claude', model: 'opus' })
+  assert.deepEqual([moved.harness, moved.fastMode], ['claude', false])
+  await registry.update('bot-a', { harness: 'grok', model: 'grok-4.7' })
+
   // 一覧に無いモデル（別名など）は、適用する時のAitermの判定に任せる。
   registry.models = { forHarness: async () => ({ efforts: [], defaultModel: 'default', models: [{ id: 'opus', efforts: [], fast: true }] }) }
   assert.equal((await registry.update('bot-a', { harness: 'claude', model: 'claude-opus-5-5', fastMode: true })).fastMode, true)

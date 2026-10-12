@@ -545,6 +545,16 @@ test('稼働中Botのファストモード切り替えを適用へ渡し、適�
   assert.equal(refusal.error, 'BOT_FAST_MODE_UNSUPPORTED')
   assert.match(refusal.message, /対応していません。保存は変えていません。$/u)
   assert.equal(applied.length, 2)
+
+  // アカウントの都合で断った時は、Aitermの理由も返す。
+  bots.previewUpdate = async () => { throw Object.assign(new Error('BOT_FAST_MODE_ACCOUNT_UNAVAILABLE'), { detail: 'extra_usage_disabled' }) }
+  const account = await (await fetch(`http://127.0.0.1:${server.address().port}/api/bots/bot-a`, {
+    method: 'PATCH',
+    headers: { 'cf-access-jwt-assertion': 'test-assertion', 'content-type': 'application/json' },
+    body: JSON.stringify({ fastMode: true }),
+  })).json()
+  assert.equal(account.error, 'BOT_FAST_MODE_ACCOUNT_UNAVAILABLE')
+  assert.match(account.message, /今はファストモードを使えません。保存は変えていません。 理由：extra_usage_disabled$/u)
 })
 
 test('Bot作成APIは偽の初回会話を作らず、作成結果を一度だけ返す', async (t) => {
