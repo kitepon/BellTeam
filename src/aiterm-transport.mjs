@@ -118,7 +118,7 @@ export class AitermClient {
 }
 
 export class AitermTransport {
-  constructor({ client = new AitermClient(), tempRoot = tmpdir(), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, requireAccess = async () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS } = {}) {
+  constructor({ client = new AitermClient(), tempRoot = tmpdir(), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS } = {}) {
     this.client = client
     this.interimInterval = interimInterval
     this.tempRoot = tempRoot
@@ -126,6 +126,7 @@ export class AitermTransport {
     this.handoffContext = handoffContext
     this.prepareStartup = prepareStartup
     this.updateSession = updateSession
+    this.updateFastMode = updateFastMode
     this.requireAccess = requireAccess
     this.activeId = activeId
     this.now = now
@@ -180,6 +181,8 @@ export class AitermTransport {
         trust_project: true,
         ...(bot.model ? { model: bot.model } : {}),
         ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}),
+        // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。共有の設定に残った値で起きないよう、必ず真偽で渡す。
+        fast: bot.fastMode === true,
       }, { env })
     } catch (error) {
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
@@ -203,6 +206,13 @@ export class AitermTransport {
     if (typeof session !== 'string' || !session) throw new Error(`AITERM_LAUNCH_RECEIPT_INVALID: ${bot.id}`)
     this.sessions.set(bot.id, session)
     await this.updateSession(bot.id, session)
+    // Aitermは、ファストモードにできなかった席も通常の速度で起こし、実際の状態を返す（利用枠が尽きた時など）。
+    // 保存が「有効」のまま実際は通常の速度、という食い違いを残さないよう、保存を実際へ合わせる。
+    if (bot.fastMode === true && launch.structuredContent.fast === false) {
+      const reason = launch.structuredContent.fast_error?.code
+      process.stderr.write(`BellTeam Aiterm: ファストモードで起こせなかったため、通常の速度で起こしました: ${bot.id}${typeof reason === 'string' ? `（${reason}）` : ''}\n`)
+      await this.updateFastMode(bot.id, false)
+    }
     return session
   }
 
@@ -225,6 +235,7 @@ export class AitermTransport {
     const configuration = { session_id: this.session(next) }
     if (current.model !== next.model) configuration.model = next.model
     if (current.reasoningEffort !== next.reasoningEffort) configuration.reasoning_effort = next.reasoningEffort
+    if ((current.fastMode === true) !== (next.fastMode === true)) configuration.fast = next.fastMode === true
     if (next.harness === 'cursor' && configuration.reasoning_effort && !configuration.model) configuration.model = next.model
     await this.client.call('agent_configure', configuration)
     return { botId: next.id, session: this.session(next), mode: 'configure' }

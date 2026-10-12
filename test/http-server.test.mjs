@@ -97,7 +97,7 @@ test('Web APIはCloudflare Access認証を必須にし、一覧・会話取得�
   assert.equal(botsResponse.status, 200)
   assert.deepEqual(await botsResponse.json(), { bots: [{
     id: bot.id, displayName: bot.displayName, harness: 'grok', color: 'rose', online: true,
-    name: bot.name, model: '', reasoningEffort: '', profileText: '', personality: '', speechStyle: '', position: bot.position, role: '', avatar: '', avatarVersion: '',
+    name: bot.name, model: '', reasoningEffort: '', fastMode: false, profileText: '', personality: '', speechStyle: '', position: bot.position, role: '', avatar: '', avatarVersion: '',
     recent: { id: '1', kind: 'message', direction: 'incoming', message: 'こんにちは', at: '2026-09-02T01:02:03.000Z' },
   }] })
 
@@ -469,6 +469,92 @@ test('稼働中BotのCLI・モデル・エフォート変更を配送後に適�
   assert.equal(modelResult.applying, true)
   assert.deepEqual(applied.at(-1), { current: 'codex', next: 'codex', model: 'gpt-5.6-terra', effort: 'xhigh' })
   assert.deepEqual(runningChecks, ['grok', 'codex'])
+})
+
+test('稼働中Botのファストモード切り替えを適用へ渡し、適用できなかった時は保存を元へ戻す', async (t) => {
+  const bot = { id: 'bot-a', name: 'ベル', displayName: 'ベル', harness: 'claude', session: 'bot-a', project: '/bots/bot-a', model: 'opus', reasoningEffort: 'high', fastMode: false }
+  const bots = new Map([[bot.id, bot]])
+  const saved = []
+  bots.refresh = async () => bots
+  bots.update = async (id, changes) => {
+    saved.push(changes)
+    const updated = { ...bots.get(id), ...changes }
+    bots.set(id, updated)
+    return updated
+  }
+  bots.previewUpdate = async (id, changes) => ({ ...bots.get(id), ...changes })
+  const applied = []
+  let fail = false
+  let settle
+  const server = createBellTeamServer({
+    bots, authorize: mockAuthorize, messenger: {}, store: {},
+    transport: {
+      async isRunning() { return true },
+      async reconfigure(current, next) {
+        applied.push([current.fastMode, next.fastMode])
+        // 保存の応答の後に結果が出る（現在の作業の後に並ぶ）形を再現する。
+        await new Promise(resolve => { settle = resolve })
+        if (fail) throw new Error('AITERM_FAST_UNAVAILABLE')
+        return { mode: 'configure' }
+      },
+    },
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  t.after(() => server.close())
+  const patch = body => fetch(`http://127.0.0.1:${server.address().port}/api/bots/bot-a`, {
+    method: 'PATCH',
+    headers: { 'cf-access-jwt-assertion': 'test-assertion', 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(response => response.json())
+
+  const enabled = await patch({ fastMode: true })
+  assert.equal(enabled.bot.fastMode, true)
+  assert.equal(enabled.configurationChanged, true)
+  assert.equal(enabled.harnessChanged, false)
+  assert.equal(enabled.applying, true)
+  settle()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(bots.get('bot-a').fastMode, true)
+
+  fail = true
+  const disabled = await patch({ fastMode: false })
+  assert.equal(disabled.bot.fastMode, false)
+  settle()
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(bots.get('bot-a').fastMode, true)
+  assert.deepEqual(applied, [[false, true], [true, false]])
+  assert.deepEqual(saved, [{ fastMode: true }, { fastMode: false }, { fastMode: true }])
+
+  // 同じ値の保存は、適用へ渡さない。
+  fail = false
+  const same = await patch({ fastMode: true })
+  assert.equal(same.configurationChanged, false)
+  assert.equal(same.applying, false)
+  assert.equal(applied.length, 2)
+
+  // 保存の前に断った時は、符号と訳を返し、適用へ渡さない。
+  bots.previewUpdate = async () => { throw new Error('BOT_FAST_MODE_UNSUPPORTED') }
+  const refused = await fetch(`http://127.0.0.1:${server.address().port}/api/bots/bot-a`, {
+    method: 'PATCH',
+    headers: { 'cf-access-jwt-assertion': 'test-assertion', 'content-type': 'application/json' },
+    body: JSON.stringify({ fastMode: true }),
+  })
+  assert.equal(refused.status, 400)
+  const refusal = await refused.json()
+  assert.equal(refusal.error, 'BOT_FAST_MODE_UNSUPPORTED')
+  assert.match(refusal.message, /対応していません。保存は変えていません。$/u)
+  assert.equal(applied.length, 2)
+
+  // アカウントの都合で断った時は、Aitermの理由も返す。
+  bots.previewUpdate = async () => { throw Object.assign(new Error('BOT_FAST_MODE_ACCOUNT_UNAVAILABLE'), { detail: 'extra_usage_disabled' }) }
+  const account = await (await fetch(`http://127.0.0.1:${server.address().port}/api/bots/bot-a`, {
+    method: 'PATCH',
+    headers: { 'cf-access-jwt-assertion': 'test-assertion', 'content-type': 'application/json' },
+    body: JSON.stringify({ fastMode: true }),
+  })).json()
+  assert.equal(account.error, 'BOT_FAST_MODE_ACCOUNT_UNAVAILABLE')
+  assert.match(account.message, /今はファストモードを使えません。保存は変えていません。 理由：extra_usage_disabled$/u)
 })
 
 test('Bot作成APIは偽の初回会話を作らず、作成結果を一度だけ返す', async (t) => {

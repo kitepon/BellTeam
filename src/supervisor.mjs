@@ -56,6 +56,7 @@ const transport = new AitermTransport({
     await onboarding.prepareStartup(bot)
   },
   updateSession: (botId, session) => bots.updateSession(botId, session),
+  updateFastMode: (botId, fastMode) => bots.update(botId, { fastMode }),
 })
 const idleSessions = new IdleSessions({ bots, transport })
 const logPath = join(root, 'logs/direct-messages.jsonl')

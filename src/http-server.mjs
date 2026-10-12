@@ -65,6 +65,12 @@ function sendAvatar(request, response, avatar, url) {
 // 保存が届いたか・応答を返し終えたかを、端末側の時刻と後から照合するため（本文と問い合わせ文字列は残さない）。
 // 応答を返し終える前に接続が切れた時は、状態コードの代わりに aborted と書く。
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+// ファストモードを保存しなかった理由。切り替えたBot（MCPの set_fast_mode）と設定画面が、符号だけでなく訳を読めるようにする。
+const FAST_MODE_MESSAGES = {
+  BOT_FAST_MODE_UNAVAILABLE: 'ファストモードへ切り替えられません。BellTeamに入っているAitermが、ファストモードの切り替えに対応していません。保存は変えていません。',
+  BOT_FAST_MODE_UNSUPPORTED: 'ファストモードへ切り替えられません。このBotのCLIとモデルは、ファストモードに対応していません。保存は変えていません。',
+  BOT_FAST_MODE_ACCOUNT_UNAVAILABLE: 'ファストモードへ切り替えられません。このBotのCLIのアカウントでは、今はファストモードを使えません。保存は変えていません。',
+}
 function logWriteRequest(request, response, write) {
   const path = String(request.url).split('?')[0]
   if (!WRITE_METHODS.has(request.method) || !path.startsWith('/api/')) return
@@ -263,6 +269,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
               harness: bot.harness,
               model: bot.model ?? '',
               reasoningEffort: bot.reasoningEffort ?? '',
+              fastMode: bot.fastMode === true,
               color: bot.color ?? 'violet',
               profileText: bot.profileText ?? '',
               personality: bot.personality ?? '',
@@ -353,13 +360,19 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
             const changes = await readJson(request)
             const candidate = await bots.previewUpdate(botId, changes)
             const harnessChanged = candidate.harness !== current.harness
+            const fastModeChanged = candidate.fastMode !== current.fastMode
             const configurationChanged = harnessChanged || candidate.model !== current.model
-              || candidate.reasoningEffort !== current.reasoningEffort
+              || candidate.reasoningEffort !== current.reasoningEffort || fastModeChanged
             const wasRunning = configurationChanged ? await transport.isRunning(current) : false
             // 稼働中Botへの適用は現在の作業の後に並ぶ。保存の応答はそれを待たずに返す。
             if (wasRunning) {
               transport.reconfigure(current, candidate)
-                .catch(error => process.stderr.write(`BellTeam reconfigure error: ${error.stack ?? error.message}\n`))
+                .catch(async error => {
+                  process.stderr.write(`BellTeam reconfigure error: ${error.stack ?? error.message}\n`)
+                  // ファストモードを当てられなかった時は、保存した値を元へ戻す。記録が「有効」のまま、実際は通常の速度、という食い違いを残さない。
+                  if (fastModeChanged && bots.get(botId)?.fastMode === candidate.fastMode) await bots.update(botId, { fastMode: current.fastMode })
+                })
+                .catch(error => process.stderr.write(`BellTeam fast mode restore error: ${error.stack ?? error.message}\n`))
             }
             const bot = await bots.update(botId, changes)
             return json(response, 200, { bot, harnessChanged, configurationChanged, applying: wasRunning })
@@ -608,6 +621,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       if (error.message === 'OWNER_QUESTION_CLOSED') return json(response, 409, { error: error.message })
       if (/^OWNER_QUESTION_/u.test(error.message)) return json(response, 400, { error: error.message })
       if (/^BOT_DUPLICATE/u.test(error.message)) return json(response, 409, { error: error.message })
+      if (Object.hasOwn(FAST_MODE_MESSAGES, error.message))
+        return json(response, 400, { error: error.message, message: `${FAST_MODE_MESSAGES[error.message]}${typeof error.detail === 'string' ? ` 理由：${error.detail}` : ''}` })
       if (/^(?:BOT|ROOM|SCHEDULE|MEMORY|KNOWLEDGE|SEARCH|OWNER)_/u.test(error.message)) return json(response, 400, { error: error.message })
       // fetchの失敗はスタックを持たない。どの要求が何で失敗したかを後から引けるよう、要求と原因の符号も残す（問い合わせ文字列は残さない）。
       const cause = error.cause?.code ?? error.cause?.message

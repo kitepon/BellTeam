@@ -52,7 +52,7 @@ test('seedからBot別プロジェクトを作り、プロフィール変更を�
   assert.equal(registry.get('bot-b').personality, '明るく率直に話す')
 
   const profile = JSON.parse(await readFile(join(root, 'bots/bot-b/bot.json'), 'utf8'))
-  assert.equal(profile.schema, 'bellteam.bot.v7')
+  assert.equal(profile.schema, 'bellteam.bot.v8')
   assert.equal(profile.profileText, '調査チームの一員')
   assert.equal(profile.speechStyle, '一人称は私')
   assert.equal(profile.session, 'bot-b')
@@ -128,7 +128,7 @@ test('旧肩書きは役職へ移さず、プロフィールから除去する',
   assert.equal(registry.get('bot-a').position, '')
   assert.equal(registry.get('bot-a').displayName, 'あかり')
   const migrated = JSON.parse(await readFile(profilePath, 'utf8'))
-  assert.equal(migrated.schema, 'bellteam.bot.v7')
+  assert.equal(migrated.schema, 'bellteam.bot.v8')
   assert.equal(migrated.personality, '率直')
   assert.equal(migrated.profileText, '')
   assert.equal(migrated.speechStyle, '')
@@ -277,4 +277,56 @@ test('新しいエフォートは最新のCLI一覧から受け入れ、取得�
   assert.equal(registry.get('bot-a').reasoningEffort, 'next-effort')
   await registry.update('bot-a', { role: 'プロフィールだけを変更' })
   assert.equal(registry.get('bot-a').reasoningEffort, 'next-effort')
+})
+
+test('ファストモードは既定で無効にし、Aitermの一覧が切り替えられると返すモデルだけ有効を保存する', async () => {
+  const { root, registry } = await fixture()
+  assert.equal(registry.get('bot-a').fastMode, false)
+  assert.equal(JSON.parse(await readFile(join(root, 'bots/bot-a/bot.json'), 'utf8')).fastMode, false)
+
+  // ファストモードを知らないAiterm（一覧に fast が無い）では、有効を保存しない。
+  await assert.rejects(registry.update('bot-a', { fastMode: true }), /BOT_FAST_MODE_UNAVAILABLE/u)
+  await assert.rejects(registry.update('bot-a', { fastMode: 'on' }), /BOT_FAST_MODE_INVALID/u)
+
+  registry.models = { forHarness: async () => ({
+    efforts: ['low', 'high'], defaultModel: 'grok-4.6',
+    models: [{ id: 'grok-4.7', efforts: ['low', 'high'], fast: true }, { id: 'grok-4.6', efforts: ['low', 'high'], fast: false }],
+  }) }
+  // モデル未指定の席は、CLIの既定モデルで判定する。
+  await assert.rejects(registry.update('bot-a', { fastMode: true }), /BOT_FAST_MODE_UNSUPPORTED/u)
+  const enabled = await registry.update('bot-a', { model: 'grok-4.7', fastMode: true })
+  assert.equal(enabled.fastMode, true)
+  assert.equal(JSON.parse(await readFile(join(root, 'bots/bot-a/bot.json'), 'utf8')).fastMode, true)
+
+  // 切り替えられないモデルを有効と一緒に指定した保存は断る。モデルだけを替えた時は、無効へ戻して保存する。
+  await assert.rejects(registry.update('bot-a', { model: 'grok-4.6', fastMode: true }), /BOT_FAST_MODE_UNSUPPORTED/u)
+  assert.equal(registry.get('bot-a').model, 'grok-4.7')
+  const switched = await registry.update('bot-a', { model: 'grok-4.6' })
+  assert.deepEqual([switched.model, switched.fastMode], ['grok-4.6', false])
+  const models = registry.models
+  await registry.update('bot-a', { model: 'grok-4.7', fastMode: true })
+  // プロフィールだけの変更と、無効へ戻す保存は、一覧を引かない。
+  registry.models = { forHarness: async () => { throw new Error('MODEL_CATALOG_UNAVAILABLE') } }
+  assert.equal((await registry.update('bot-a', { role: 'プロフィールだけを変更' })).fastMode, true)
+  assert.equal((await registry.update('bot-a', { fastMode: false })).fastMode, false)
+  registry.models = models
+
+  // アカウントの都合で使えない時は、Aitermの理由を添えて断る。CLIやモデルだけを替えた時は、無効へ戻して保存する。
+  registry.models = { forHarness: async () => ({
+    efforts: [], defaultModel: 'default', models: [{ id: 'opus', efforts: [], fast: true }],
+    fastUnavailable: { code: 'FAST_MODE_UNAVAILABLE', message: 'extra_usage_disabled' },
+  }) }
+  await assert.rejects(registry.update('bot-a', { harness: 'claude', model: 'opus', fastMode: true }),
+    error => error.message === 'BOT_FAST_MODE_ACCOUNT_UNAVAILABLE' && error.detail === 'extra_usage_disabled')
+  assert.equal(registry.get('bot-a').harness, 'grok')
+  registry.models = models
+  await registry.update('bot-a', { model: 'grok-4.7', fastMode: true })
+  registry.models = { forHarness: async () => ({ efforts: [], defaultModel: 'default', models: [{ id: 'opus', efforts: [], fast: true }], fastUnavailable: { code: 'FAST_MODE_UNAVAILABLE', message: 'extra_usage_disabled' } }) }
+  const moved = await registry.update('bot-a', { harness: 'claude', model: 'opus' })
+  assert.deepEqual([moved.harness, moved.fastMode], ['claude', false])
+  await registry.update('bot-a', { harness: 'grok', model: 'grok-4.7' })
+
+  // 一覧に無いモデル（別名など）は、適用する時のAitermの判定に任せる。
+  registry.models = { forHarness: async () => ({ efforts: [], defaultModel: 'default', models: [{ id: 'opus', efforts: [], fast: true }] }) }
+  assert.equal((await registry.update('bot-a', { harness: 'claude', model: 'claude-opus-5-5', fastMode: true })).fastMode, true)
 })

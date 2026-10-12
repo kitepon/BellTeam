@@ -257,7 +257,7 @@ test('MCPから全Botの管理、画像設定、会話取得、ユーザー送�
   await writeFile(avatarPath, Buffer.from('iVBORw0KGgo=', 'base64'))
 
   assert.deepEqual((await callBellTeamTool({ ...context, name: 'list_bots' })).bots[1], {
-    id: 'bot-b', name: 'ゆず', position: '開発主任', cli: 'codex', profileText: '', personality: '率直', speechStyle: '', role: '開発',
+    id: 'bot-b', name: 'ゆず', position: '開発主任', cli: 'codex', fastMode: false, profileText: '', personality: '率直', speechStyle: '', role: '開発',
   })
   assert.equal((await callBellTeamTool({ ...context, name: 'get_bot', arguments: { botId: 'bot-b' } })).bot.displayName, 'ゆず 開発主任')
   assert.deepEqual(await callBellTeamTool({ ...context, name: 'restart_session' }), { restarting: 'bot-a' })
@@ -277,6 +277,29 @@ test('MCPから全Botの管理、画像設定、会話取得、ユーザー送�
   assert.ok(calls.some(call => call[0] === 'message' && call[1].from === 'user'))
   for (const name of ['list_bots', 'get_bot', 'restart_session', 'delete_bot', 'update_bot', 'set_avatar', 'list_messages', 'send_user_message'])
     assert.ok(bellTeamTools.some(tool => tool.name === name), `${name}がない`)
+})
+
+test('set_fast_modeは、自分または指定したBotのファストモードを設定画面と同じ適用経路へ渡す', async () => {
+  const calls = []
+  const registry = new Map([
+    ['bot-a', { id: 'bot-a', name: 'あかり', harness: 'claude', fastMode: false }],
+    ['bot-b', { id: 'bot-b', name: 'ゆず', harness: 'codex', fastMode: true }],
+  ])
+  registry.refresh = async () => registry
+  const configure = async (botId, changes) => { calls.push([botId, changes]); return { bot: { ...registry.get(botId), ...changes }, applying: true } }
+  const context = { from: 'bot-a', registry, configure }
+
+  const own = await callBellTeamTool({ ...context, name: 'set_fast_mode', arguments: { enabled: true } })
+  assert.equal(own.bot.fastMode, true)
+  assert.equal(own.applying, true)
+  await callBellTeamTool({ ...context, name: 'set_fast_mode', arguments: { enabled: false, botId: 'bot-b' } })
+  assert.deepEqual(calls, [['bot-a', { fastMode: true }], ['bot-b', { fastMode: false }]])
+  await assert.rejects(callBellTeamTool({ ...context, name: 'set_fast_mode', arguments: { enabled: true, botId: 'bot-x' } }), /BOT_NOT_FOUND/u)
+
+  const tool = bellTeamTools.find(candidate => candidate.name === 'set_fast_mode')
+  assert.deepEqual(tool.inputSchema.required, ['enabled'])
+  assert.equal(tool.inputSchema.properties.enabled.type, 'boolean')
+  assert.equal(Object.hasOwn(bellTeamTools.find(candidate => candidate.name === 'update_bot').inputSchema.properties, 'fastMode'), false)
 })
 
 test('update_botのCLI・モデル・エフォート変更は設定画面と同じ適用経路へ渡す', async () => {
