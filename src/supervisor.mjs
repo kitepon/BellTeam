@@ -5,6 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 
 import { bots, ownerProfile, refreshGlobalInstructions, settings, userRules } from './bootstrap.mjs'
 import { CharacterSheets } from './character-sheets.mjs'
+import { createBugHubSecurity } from './bughub-security.mjs'
 import { createCallBridgeServer, listenCallBridge } from './call-bridge-server.mjs'
 import { AitermTransport } from './aiterm-transport.mjs'
 import { ConversationStore } from './conversation-store.mjs'
@@ -148,7 +149,7 @@ const internalPort = Number(process.env.BELLTEAM_INTERNAL_PORT ?? 4181)
 const callBridgeHeaders = join(root, 'shared/tools/call-bridge/headers')
 const seatMcp = createSeatMcp({
   bots,
-  tools: { registry: bots, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },
+  tools: { registry: bots, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },
   callBridge: () => {
     const config = settings.configuration('callBridge')
     return config.enabled ? { url: config.url, headersFile: callBridgeHeaders } : null

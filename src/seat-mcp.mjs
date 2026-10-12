@@ -19,7 +19,7 @@ export const BELLTEAM_MCP_PATH = '/mcp'
 export const CALL_BRIDGE_MCP_PATH = '/mcp/call-bridge'
 export const CALLER_ID_HEADER = 'X-Call-Bridge-Caller-Id'
 
-const INSTRUCTIONS = 'BellTeamのBot、プロフィール、アバター、予定、直接会話、ルーム、長期記憶、RAGはこのMCPで扱う。端末を直接操作しない。Botへの個別連絡はsendmessage、ルームへの新規投稿はsendroommessage、受信したルーム発言への返答または沈黙はrespond_to_roomを使う。同時に複数のルーム発言を受けた時はrespond_to_roomのmessageIdへ届いたメッセージIDを指定する。ルームで返答不要ならaction=silentを選び、沈黙する旨を投稿しない。targetsには処理が必要なBotだけを指定し、特定の一人だけに必要な連絡はsendmessageを使う。Bot宛てのメッセージはAitermへ直ちに渡し、Aitermが差し込みか新規ターンを決める。runningまたはsteeredは受付済みなので再送しない。長期記憶とRAGは起動時に一括読込せず、必要な時だけ検索する。ユーザー規範の現在値の確認はget_user_rulesを使う。トークン・パスワードの受取はrequest_secretで専用入力を依頼する。オーナーに裁定や選択を求める時はask_ownerで選択肢のカードを出し、答えは次のメッセージで受け取る。オーナーの判断・承認・操作が必要な時は、Approval Boxのrequest_decisionでも申請する。値を通常チャットで求めず、保存ファイルを表示せず、利用するプログラムへ直接読み込ませる。'
+const INSTRUCTIONS = 'BellTeamのBot、プロフィール、アバター、予定、直接会話、ルーム、長期記憶、RAGはこのMCPで扱う。端末を直接操作しない。Botへの個別連絡はsendmessage、ルームへの新規投稿はsendroommessage、受信したルーム発言への返答または沈黙はrespond_to_roomを使う。同時に複数のルーム発言を受けた時はrespond_to_roomのmessageIdへ届いたメッセージIDを指定する。ルームで返答不要ならaction=silentを選び、沈黙する旨を投稿しない。targetsには処理が必要なBotだけを指定し、特定の一人だけに必要な連絡はsendmessageを使う。Bot宛てのメッセージはAitermへ直ちに渡し、Aitermが差し込みか新規ターンを決める。runningまたはsteeredは受付済みなので再送しない。長期記憶とRAGは起動時に一括読込せず、必要な時だけ検索する。ユーザー規範の現在値の確認はget_user_rulesを使う。トークン・パスワードの受取はrequest_secretで専用入力を依頼する。オーナーに裁定や選択を求める時はask_ownerで選択肢のカードを出し、答えは次のメッセージで受け取る。オーナーの判断・承認・操作が必要な時は、Approval Boxのrequest_decisionでも申請する。セキュリティの問題（SEC番号の所見）の一覧・詳細・登録・編集・完了・再開は、bughub_で始まる道具でBugHubへ記録する。値を通常チャットで求めず、保存ファイルを表示せず、利用するプログラムへ直接読み込ませる。'
 
 export function seatBotId(request, bots) {
   const value = request.headers[SEAT_HEADER.toLowerCase()]
