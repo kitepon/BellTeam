@@ -14,7 +14,7 @@ const BOT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/u
 const COLORS = new Set(['rose', 'indigo', 'violet'])
 const HARNESSES = new Set(['claude', 'codex', 'grok', 'cursor'])
-const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'color'])
+const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'color'])
 const exec = promisify(execFile)
 
 export class BotRegistry extends Map {
@@ -83,6 +83,7 @@ export class BotRegistry extends Map {
       harness: input.harness ?? 'grok',
       model: input.model ?? '',
       reasoningEffort: input.reasoningEffort ?? '',
+      fastMode: input.fastMode ?? false,
       color: input.color ?? 'violet',
       profileText: input.profileText ?? '',
       personality: input.personality ?? '',
@@ -94,6 +95,7 @@ export class BotRegistry extends Map {
       project,
     })
     await this.validateEffort(profile)
+    await this.validateFastMode(profile)
     await ensureProjectFolders(project)
     await ensureGitProject(project)
     await this.writeProfile(profile)
@@ -130,9 +132,15 @@ export class BotRegistry extends Map {
     for (const key of Object.keys(changes)) {
       if (!PROFILE_FIELDS.has(key)) throw new Error(`BOT_UPDATE_FIELD_INVALID: ${key}`)
     }
-    const profile = normalizeProfile({ ...current, ...changes })
+    let profile = normalizeProfile({ ...current, ...changes })
     if (['harness', 'model', 'reasoningEffort'].some(field => profile[field] !== current[field]))
       await this.validateEffort(profile)
+    if (profile.fastMode && ['harness', 'model', 'fastMode'].some(field => profile[field] !== current[field])) {
+      const problem = await this.fastModeProblem(profile)
+      // 有効を指定した保存は断る。CLIやモデルだけを替えた先が切り替えられない時は、Claude Codeの動きと同じく無効へ戻す。
+      if (problem && Object.hasOwn(changes, 'fastMode')) throw new Error(problem)
+      if (problem) profile = { ...profile, fastMode: false }
+    }
     return Object.freeze(profile)
   }
 
@@ -140,6 +148,21 @@ export class BotRegistry extends Map {
     if (!profile.reasoningEffort) return
     const catalog = await this.models.forHarness(profile.harness)
     if (!catalog.efforts.includes(profile.reasoningEffort)) throw new Error('BOT_REASONING_EFFORT_INVALID')
+  }
+
+  // ファストモードの切り替え方はAitermが所有する。BellTeamは、Aitermの一覧がそのモデルで切り替えられると返す時だけ有効を保存する。
+  // 一覧に無いモデル（別名など）は、適用する時のAitermの判定に任せる。
+  async validateFastMode(profile) {
+    const problem = profile.fastMode ? await this.fastModeProblem(profile) : null
+    if (problem) throw new Error(problem)
+  }
+
+  async fastModeProblem(profile) {
+    const catalog = await this.models.forHarness(profile.harness)
+    const models = catalog.models ?? []
+    if (!models.some(model => typeof model.fast === 'boolean')) return 'BOT_FAST_MODE_UNAVAILABLE'
+    const model = models.find(candidate => candidate.id === (profile.model || catalog.defaultModel))
+    return model && model.fast !== true ? 'BOT_FAST_MODE_UNSUPPORTED' : null
   }
 
   async remove(id) {
@@ -199,16 +222,16 @@ export class BotRegistry extends Map {
 
   async readProfile(id) {
     const value = JSON.parse(await readFile(join(this.projectPath(id), 'bot.json'), 'utf8'))
-    if (!['bellteam.bot.v1', 'bellteam.bot.v2', 'bellteam.bot.v3', 'bellteam.bot.v4', 'bellteam.bot.v5', 'bellteam.bot.v6', 'bellteam.bot.v7'].includes(value?.schema)) throw new Error(`BOT_PROFILE_INVALID: ${id}`)
+    if (!['bellteam.bot.v1', 'bellteam.bot.v2', 'bellteam.bot.v3', 'bellteam.bot.v4', 'bellteam.bot.v5', 'bellteam.bot.v6', 'bellteam.bot.v7', 'bellteam.bot.v8'].includes(value?.schema)) throw new Error(`BOT_PROFILE_INVALID: ${id}`)
     return normalizeProfile({ ...value, id, project: this.projectPath(id) })
   }
 
   async writeProfile(profile) {
     const value = {
-      schema: 'bellteam.bot.v7', id: profile.id, session: profile.session,
+      schema: 'bellteam.bot.v8', id: profile.id, session: profile.session,
       name: profile.name, position: profile.position, role: profile.role,
       profileText: profile.profileText, personality: profile.personality, speechStyle: profile.speechStyle, avatar: profile.avatar, color: profile.color,
-      harness: profile.harness, model: profile.model, reasoningEffort: profile.reasoningEffort,
+      harness: profile.harness, model: profile.model, reasoningEffort: profile.reasoningEffort, fastMode: profile.fastMode,
     }
     await writeAtomic(join(profile.project, 'bot.json'), value)
   }
@@ -239,7 +262,7 @@ export class BotRegistry extends Map {
       const path = join(this.botsRoot, entry.name, 'bot.json')
       if (!await exists(path)) continue
       const value = JSON.parse(await readFile(path, 'utf8'))
-      if (value?.schema === 'bellteam.bot.v7' && !Object.hasOwn(value, 'title')) continue
+      if (value?.schema === 'bellteam.bot.v8' && !Object.hasOwn(value, 'title')) continue
       const profile = normalizeProfile({ ...value, id: entry.name, project: this.projectPath(entry.name) })
       await this.writeProfile(profile)
       await this.writeInstructions(profile)
@@ -274,6 +297,8 @@ function normalizeProfile(value) {
   if (!HARNESSES.has(value.harness)) throw new Error(`BOT_HARNESS_INVALID: ${value.id}`)
   if (model && !MODEL_ID.test(model)) throw new Error('BOT_MODEL_INVALID')
   if (value.harness === 'cursor' && reasoningEffort && !model) throw new Error('BOT_CURSOR_MODEL_REQUIRED_FOR_EFFORT')
+  // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。保存が無いプロフィールは false として読む。
+  if (value.fastMode !== undefined && typeof value.fastMode !== 'boolean') throw new Error('BOT_FAST_MODE_INVALID')
   if (!COLORS.has(value.color ?? 'violet')) throw new Error('BOT_COLOR_INVALID')
   for (const [field, content] of [['profileText', value.profileText ?? ''], ['personality', value.personality ?? ''], ['speechStyle', value.speechStyle ?? ''], ['role', role]]) {
     if (typeof content !== 'string' || content.length > 8_000)
@@ -287,6 +312,7 @@ function normalizeProfile(value) {
     harness: value.harness,
     model,
     reasoningEffort,
+    fastMode: value.fastMode === true,
     color: value.color ?? 'violet',
     profileText: value.profileText ?? '',
     personality: value.personality ?? '',

@@ -261,6 +261,64 @@ test('起動時にBot固有のモデルとエフォートをAitermへ渡す', as
 
   assert.equal(launches[0].model, 'gpt-5.6-sol')
   assert.equal(launches[0].reasoning_effort, 'high')
+  assert.equal(launches[0].fast, false)
+})
+
+test('起動時のファストモードは、保存が有効のBotだけ有効で渡し、ほかは必ず無効で渡す', async () => {
+  const launches = []
+  const client = {
+    async call(name, args) {
+      if (name === 'pty_list') return { content: [{ type: 'text', text: '(セッション無し)' }] }
+      if (name === 'agent_launch') { launches.push(args); return { structuredContent: { session_id: args.session_name } } }
+      throw new Error(`unexpected ${name}`)
+    },
+  }
+  const transport = new AitermTransport({ client, handoffContext: noMemory })
+  const project = await mkdtemp(join(tmpdir(), 'bellteam-fast-launch-'))
+
+  await transport.ensure({ id: 'bot-a', session: 'bot-a', harness: 'claude', project, model: 'opus', reasoningEffort: 'high', fastMode: true })
+  await transport.ensure({ id: 'bot-b', session: 'bot-b', harness: 'claude', project, model: 'opus', reasoningEffort: 'high', fastMode: false })
+  await transport.ensure({ id: 'bot-c', session: 'bot-c', harness: 'codex', project })
+
+  assert.deepEqual(launches.map(launch => launch.fast), [true, false, false])
+})
+
+test('ファストモードで起こせず通常の速度で起きた席は、保存を無効へ合わせる', async () => {
+  const updates = []
+  const results = [{ session_id: 'bot-a', fast: false }, { session_id: 'bot-b', fast: true }, { session_id: 'bot-c', fast: false }, { session_id: 'bot-d' }]
+  const client = {
+    async call(name) {
+      if (name === 'pty_list') return { content: [{ type: 'text', text: '(セッション無し)' }] }
+      if (name === 'agent_launch') return { structuredContent: results.shift() }
+      throw new Error(`unexpected ${name}`)
+    },
+  }
+  const transport = new AitermTransport({ client, handoffContext: noMemory, updateFastMode: async (id, value) => updates.push([id, value]) })
+  const project = await mkdtemp(join(tmpdir(), 'bellteam-fast-receipt-'))
+
+  await transport.ensure({ id: 'bot-a', session: 'bot-a', harness: 'claude', project, fastMode: true })
+  await transport.ensure({ id: 'bot-b', session: 'bot-b', harness: 'claude', project, fastMode: true })
+  await transport.ensure({ id: 'bot-c', session: 'bot-c', harness: 'claude', project, fastMode: false })
+  // 返りに状態が無い時（古いAiterm）は、保存を変えない。
+  await transport.ensure({ id: 'bot-d', session: 'bot-d', harness: 'claude', project, fastMode: true })
+
+  assert.deepEqual(updates, [['bot-a', false]])
+})
+
+test('ファストモードだけの切り替えは、会話セッションを保ってAitermへ渡す', async () => {
+  const calls = []
+  const transport = new AitermTransport({
+    client: { async call(name, args) { calls.push([name, args]); return {} } },
+    handoffContext: noMemory,
+  })
+  const current = { id: 'bot-a', session: 'bot-a', harness: 'claude', project: '/bots/bot-a', model: 'opus', reasoningEffort: 'high', fastMode: false }
+
+  assert.deepEqual(await transport.reconfigure(current, { ...current, fastMode: true }), { botId: 'bot-a', session: 'bot-a', mode: 'configure' })
+  assert.deepEqual(await transport.reconfigure({ ...current, fastMode: true }, current), { botId: 'bot-a', session: 'bot-a', mode: 'configure' })
+  assert.deepEqual(calls, [
+    ['agent_configure', { session_id: 'bot-a', fast: true }],
+    ['agent_configure', { session_id: 'bot-a', fast: false }],
+  ])
 })
 
 test('同じCLIのモデルとエフォートは会話セッションを保って変更する', async () => {
@@ -297,7 +355,7 @@ test('モデルとエフォートをCLI既定へ戻す時は記憶引き継ぎ�
   assert.deepEqual(await transport.reconfigure(current, next), { botId: 'bot-a', session: 'codex-new', mode: 'restart' })
   assert.deepEqual(calls, [
     ['pty_close', { session_id: 'bot-a' }],
-    ['agent_launch', { harness: 'codex-cli', cwd: project, session_name: 'bot-a', trust_project: true }],
+    ['agent_launch', { harness: 'codex-cli', cwd: project, session_name: 'bot-a', trust_project: true, fast: false }],
   ])
 })
 
@@ -386,6 +444,7 @@ test('停止後は短期記憶を起動指示へ準備してからプロンプ�
     cwd: project,
     session_name: 'bot-a',
     trust_project: true,
+    fast: false,
   }])
   assert.deepEqual(startups, [['bot-a', `短期記憶:${project}`]])
 })
@@ -412,7 +471,7 @@ test('長期記憶とRAGは起動引数へ渡さない', async () => {
   await transport.ensure({ id: 'bot-a', session: 'bot-a', harness: 'claude', project })
 
   assert.deepEqual(startups, ['前セッションの短期記憶だけ'])
-  assert.deepEqual(launches, [{ harness: 'claude-code', cwd: project, session_name: 'bot-a', trust_project: true }])
+  assert.deepEqual(launches, [{ harness: 'claude-code', cwd: project, session_name: 'bot-a', trust_project: true, fast: false }])
 })
 
 test('ユーザーターンはAitermの完了後に確定回答を回収し、複数の画像一時ファイルを削除する', async () => {
@@ -688,7 +747,7 @@ test('Botセッションを閉じて新しいセッションIDで起動し直す
   assert.deepEqual(await transport.restart(bot), { botId: 'bot-a', session: 'grok-new' })
   assert.deepEqual(calls, [
     ['pty_close', { session_id: 'bot-a' }],
-    ['agent_launch', { harness: 'grok-cli', cwd: project, session_name: 'bot-a', trust_project: true }],
+    ['agent_launch', { harness: 'grok-cli', cwd: project, session_name: 'bot-a', trust_project: true, fast: false }],
   ])
 })
 

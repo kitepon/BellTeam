@@ -208,6 +208,14 @@ export const bellTeamTools = Object.freeze([
     inputSchema: objectSchema({ botId: { type: 'string', minLength: 1 } }),
   },
   {
+    name: 'set_fast_mode',
+    description: 'BotのCLIのファストモード（応答を速くする設定。利用枠を多く使い、Claudeでは別払いになる）を切り替える。既定は使わない。複数の仕事が重なって捌くのが大変な時だけ有効にし、落ち着いたら無効へ戻す。botId省略時は自分。稼働中なら現在の作業の後に適用する。CLIやモデルが対応していない時は保存せずに断り、適用できなかった時は元の値へ戻す。今の値はget_selfのfastModeで確かめる。',
+    inputSchema: objectSchema({
+      enabled: { type: 'boolean', description: 'trueで有効、falseで無効（通常の速度）。' },
+      botId: { type: 'string', minLength: 1 },
+    }, ['enabled']),
+  },
+  {
     name: 'delete_bot',
     description: 'BotのAIセッションを終了し、プロジェクトフォルダと登録を削除する。botId省略時は自分。',
     inputSchema: objectSchema({ botId: { type: 'string', minLength: 1 } }),
@@ -470,7 +478,7 @@ async function runBellTeamTool({ name, arguments: args = {}, from, registry, bug
   if (name === 'list_bots') {
     await registry.refresh?.()
     return { bots: [...registry.values()].map(bot => ({
-      id: bot.id, name: bot.name, position: bot.position ?? '', cli: bot.harness, profileText: bot.profileText ?? '', personality: bot.personality, speechStyle: bot.speechStyle ?? '', role: bot.role,
+      id: bot.id, name: bot.name, position: bot.position ?? '', cli: bot.harness, fastMode: bot.fastMode === true, profileText: bot.profileText ?? '', personality: bot.personality, speechStyle: bot.speechStyle ?? '', role: bot.role,
     })) }
   }
   if (name === 'get_bot') return { bot: requireBot(registry, args.botId) }
@@ -491,6 +499,12 @@ async function runBellTeamTool({ name, arguments: args = {}, from, registry, bug
     const botId = args.botId ?? from
     requireBot(registry, botId)
     return restart(botId)
+  }
+  if (name === 'set_fast_mode') {
+    const botId = args.botId ?? from
+    requireBot(registry, botId)
+    // 稼働中セッションへの適用が要るので、モデル・エフォートと同じく設定画面と同じ経路（supervisor）で保存と適用を行う。
+    return configure(botId, { fastMode: args.enabled })
   }
   if (name === 'delete_bot') {
     const botId = args.botId ?? from
