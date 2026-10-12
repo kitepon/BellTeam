@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { extname, isAbsolute, join, normalize, resolve, sep } from 'node:path'
+import { bugHubSecurityTools } from './bughub-security.mjs'
 import { runtimeHome } from './runtime-home.mjs'
 
 const intervalScheduleProperties = {
@@ -406,6 +407,7 @@ export const bellTeamTools = Object.freeze([
     description: '代表としてルームの自動実行予定を削除する。',
     inputSchema: objectSchema({ roomId: { type: 'string', minLength: 1 }, id: { type: 'string', minLength: 1 } }, ['roomId', 'id']),
   },
+  ...bugHubSecurityTools,
 ])
 
 // 画像本体（data URL）は1枚で十万文字を超え、CLIの道具の上限を超える。返事では本体を外し、有無と取得先だけを返す。
@@ -427,7 +429,7 @@ export async function callBellTeamTool({ internalUrl = '', ...context }) {
   return shaped
 }
 
-async function runBellTeamTool({ name, arguments: args = {}, from, registry, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, deliverMessage, deliverRoomMessage, listQueued, restart, remove, configure, requestSecret, getSecretRequest, askOwner, getSettings, updateSettings, completeSetup, getModels }) {
+async function runBellTeamTool({ name, arguments: args = {}, from, registry, bugHubSecurity, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, deliverMessage, deliverRoomMessage, listQueued, restart, remove, configure, requestSecret, getSecretRequest, askOwner, getSettings, updateSettings, completeSetup, getModels }) {
   const tool = bellTeamTools.find(item => item.name === name)
   if (!tool) throw new Error(`TOOL_NOT_FOUND: ${name}`)
   assertKeys(args, Object.keys(tool.inputSchema.properties))
@@ -435,6 +437,10 @@ async function runBellTeamTool({ name, arguments: args = {}, from, registry, mes
   if (!registry.get(from)) throw new Error(`BOT_NOT_FOUND: ${from}`)
   await rooms?.refresh?.()
 
+  if (name.startsWith('bughub_')) {
+    if (!bugHubSecurity) throw new Error('BUGHUB_SECURITY_NOT_CONFIGURED')
+    return bugHubSecurity({ name, args, from })
+  }
   if (name === 'list_models') return getModels(args.harness)
   if (name === 'get_settings') return getSettings()
   if (name === 'update_settings') {
