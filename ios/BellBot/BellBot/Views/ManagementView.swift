@@ -1,15 +1,35 @@
 import SwiftUI
 
 private struct ModelsResponse: Decodable { let models: [String: HarnessModels] }
-private struct HarnessModels: Decodable {
+struct HarnessModels: Decodable {
     let efforts: [String]
     let models: [ModelChoice]
     let error: ModelCatalogFailure?
+    let defaultModel: String?
+    let fastUnavailable: ModelCatalogFailure?
+
+    func fastModeUnavailableReason(model: String) -> String? {
+        if let error { return error.message }
+        if let fastUnavailable { return fastUnavailable.message }
+        let selectedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        if selectedModel.isEmpty {
+            guard let defaultModel, let choice = models.first(where: { $0.id == defaultModel }) else {
+                return "既定モデルの対応を確認できません。"
+            }
+            return choice.fast ? nil : "このモデルはファストモードに対応していません。"
+        }
+        if let choice = models.first(where: { $0.id == selectedModel }), !choice.fast {
+            return "このモデルはファストモードに対応していません。"
+        }
+        // 一覧に無いIDはサーバーとAitermが可否を判定する。
+        return nil
+    }
 }
-private struct ModelCatalogFailure: Decodable { let code: String; let message: String }
-private struct ModelChoice: Decodable, Identifiable {
+struct ModelCatalogFailure: Decodable { let code: String; let message: String }
+struct ModelChoice: Decodable, Identifiable {
     let id: String
     let efforts: [String]
+    let fast: Bool
 }
 
 struct BotEditor: View {
@@ -30,6 +50,7 @@ struct BotEditor: View {
     @State private var model = ""
     @State private var customModel = ""
     @State private var effort = ""
+    @State private var fastMode = false
     @State private var color = "violet"
     @State private var avatar = ""
     @State private var cropSource: AvatarCropSource?
@@ -51,6 +72,7 @@ struct BotEditor: View {
         _harness = State(initialValue: initial?.harness ?? "codex")
         _model = State(initialValue: initial?.model ?? "")
         _effort = State(initialValue: initial?.reasoningEffort ?? "")
+        _fastMode = State(initialValue: initial?.fastMode ?? false)
         _color = State(initialValue: initial?.color ?? "violet")
         _avatar = State(initialValue: initial?.avatar ?? "")
     }
@@ -60,6 +82,17 @@ struct BotEditor: View {
         if let listed = modelChoices.first(where: { $0.id == model }) { return listed.efforts }
         if harness == "cursor" && model.isEmpty { return [] }
         return catalog[harness]?.efforts ?? []
+    }
+    private var fastModeUnavailableReason: String? {
+        if loadingModels { return "モデル候補を読み込んでいます。" }
+        guard let selected = catalog[harness] else {
+            return modelErrorText ?? "モデル候補を読み込めませんでした。"
+        }
+        let selectedModel = model == "__custom__" ? customModel : model
+        if model == "__custom__" && selectedModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "モデルIDを入力してください。"
+        }
+        return selected.fastModeUnavailableReason(model: selectedModel)
     }
 
     var body: some View {
@@ -122,11 +155,15 @@ struct BotEditor: View {
                             }
                         }
                         .disabled(catalog[harness]?.error != nil)
-                        if let failure = catalog[harness]?.error {
-                            Text(failure.message).font(.footnote).foregroundStyle(.red)
-                        }
                     }
-                    if let modelErrorText { Text(modelErrorText).font(.footnote).foregroundStyle(.red) }
+                    Toggle("ファストモード", isOn: $fastMode)
+                        .disabled(!fastMode && fastModeUnavailableReason != nil)
+                        .accessibilityIdentifier("fast-mode-toggle")
+                    Text("オンにすると利用枠を多く使います。")
+                        .font(.footnote).foregroundStyle(BellTheme.muted)
+                    if let reason = fastModeUnavailableReason {
+                        Text(reason).font(.footnote).foregroundStyle(.red)
+                    }
                 }
                 Section("プロフィール") {
                     profileField("背景・見た目・関係性", text: $profileText)
@@ -193,6 +230,7 @@ struct BotEditor: View {
                 position = draft.position; role = draft.role; avatar = draft.avatar
                 color = draft.color; harness = draft.harness; model = draft.model
                 effort = draft.reasoningEffort
+                fastMode = draft.fastMode
             }
             store.botEditorDrafts[initial.id] = settings
         }
@@ -229,17 +267,20 @@ struct BotEditor: View {
         submittedSettings = request
         do {
             if let initial {
-                saveResult = try await store.api.saveBotSettings(id: initial.id, settings: request)
+                saveResult = try await store.api.saveBotSettings(id: initial.id, settings: request,
+                                                                 originalFastMode: initial.fastMode)
                 guard case .saved? = saveResult else { return }
             } else {
-                let _: APIAcknowledgement = try await store.api.post("/api/bots", body: request)
+                let body = BotSettingsRequest(settings: request, originalFastMode: false)
+                let _: APIAcknowledgement = try await store.api.post("/api/bots", body: body)
                 saveResult = .saved
             }
             try await store.refresh()
             close()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch {
-            errorText = BellAPIError.operationFailureMessage(error)
+            if case BellAPIError.httpStatus(_, let message?) = error { errorText = message }
+            else { errorText = BellAPIError.operationFailureMessage(error) }
             store.api.diagnostics.report(error, path: "/api/bots", method: nil, observation: .write)
         }
     }
@@ -248,7 +289,8 @@ struct BotEditor: View {
         BotSettings(name: name, profileText: profileText, personality: personality,
                     speechStyle: speechStyle, position: position, role: role, avatar: avatar,
                     color: color, harness: harness,
-                    model: model == "__custom__" ? customModel : model, reasoningEffort: effort)
+                    model: model == "__custom__" ? customModel : model, reasoningEffort: effort,
+                    fastMode: fastMode)
     }
 
     private var hasSavedResult: Bool {

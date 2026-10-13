@@ -7,7 +7,7 @@ final class BotSaveTests: XCTestCase {
     func testLostResponseAfterSavingIsConfirmedWithoutResendingPATCH() async throws {
         let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: true)
         let api = makeAPI(fixture)
-        let result = try await api.saveBotSettings(id: "member", settings: newSettings)
+        let result = try await api.saveBotSettings(id: "member", settings: newSettings, originalFastMode: false)
         guard case .confirmed = result else { return XCTFail("応答を失っても保存内容を読み直して確認する") }
         XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
         XCTAssertEqual(fixture.saved, newSettings.normalized)
@@ -17,7 +17,7 @@ final class BotSaveTests: XCTestCase {
         let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: false)
         let api = makeAPI(fixture)
         let input = newSettings
-        let result = try await api.saveBotSettings(id: "member", settings: input)
+        let result = try await api.saveBotSettings(id: "member", settings: input, originalFastMode: false)
         guard case .different = result else { return XCTFail("現在の保存内容が入力と違うと示す") }
         XCTAssertEqual(fixture.saved, oldSettings)
         XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
@@ -25,7 +25,7 @@ final class BotSaveTests: XCTestCase {
 
     func testUnavailableReadLeavesResultUnconfirmedWithoutResendingPATCH() async throws {
         let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: true, readError: .notConnectedToInternet)
-        let result = try await makeAPI(fixture).saveBotSettings(id: "member", settings: newSettings)
+        let result = try await makeAPI(fixture).saveBotSettings(id: "member", settings: newSettings, originalFastMode: false)
         guard case .unconfirmed(let error) = result else { return XCTFail("読み直しも失敗した時は未確認と示す") }
         XCTAssertEqual((error as? URLError)?.code, .notConnectedToInternet)
         XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
@@ -65,7 +65,7 @@ final class BotSaveTests: XCTestCase {
         let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: true)
         var logs: [String] = []
         let diagnostics = BellDiagnostics { _, _, _, log in logs.append(log) }
-        let result = try await makeAPI(fixture, diagnostics: diagnostics).saveBotSettings(id: "member", settings: newSettings)
+        let result = try await makeAPI(fixture, diagnostics: diagnostics).saveBotSettings(id: "member", settings: newSettings, originalFastMode: false)
         guard case .confirmed = result else { return XCTFail("応答を失っても、保存した内容を読み戻して確認する") }
         XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
         let log = try XCTUnwrap(logs.first)
@@ -79,7 +79,7 @@ final class BotSaveTests: XCTestCase {
 
     func testTimedOutWriteAlsoChecksTheSavedContent() async throws {
         let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: true, writeError: .timedOut)
-        let result = try await makeAPI(fixture).saveBotSettings(id: "member", settings: newSettings)
+        let result = try await makeAPI(fixture).saveBotSettings(id: "member", settings: newSettings, originalFastMode: false)
         guard case .confirmed = result else { return XCTFail("時間切れでも保存内容を確認する") }
         XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
     }
@@ -87,7 +87,7 @@ final class BotSaveTests: XCTestCase {
     func testExplicitConfirmationAfterReconnectDoesNotWriteAgain() async throws {
         let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: true, readError: .notConnectedToInternet)
         let api = makeAPI(fixture)
-        _ = try await api.saveBotSettings(id: "member", settings: newSettings)
+        _ = try await api.saveBotSettings(id: "member", settings: newSettings, originalFastMode: false)
         fixture.readError = nil
         let result = try await api.confirmBotSettings(id: "member", settings: newSettings)
         guard case .confirmed = result else { return XCTFail("回線復帰後は読み取りだけで確認する") }
@@ -97,10 +97,28 @@ final class BotSaveTests: XCTestCase {
     func testAuthenticationFailureDuringConfirmationStillRequiresLogin() async throws {
         let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: true, readStatus: 401)
         do {
-            _ = try await makeAPI(fixture).saveBotSettings(id: "member", settings: newSettings)
+            _ = try await makeAPI(fixture).saveBotSettings(id: "member", settings: newSettings, originalFastMode: false)
             XCTFail("認証エラーは再認証の処理へ返す")
         } catch { XCTAssertTrue(BellAPIError.isAuthenticationError(error)) }
         XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
+    }
+
+    func testFastModeIsSentOnlyWhenChanged() throws {
+        let unchanged = try JSONSerialization.jsonObject(with: JSONEncoder().encode(
+            BotSettingsRequest(settings: newSettings, originalFastMode: false))) as! [String: Any]
+        XCTAssertNil(unchanged["fastMode"])
+
+        let enabled = BotSettings(name: newSettings.name, profileText: newSettings.profileText,
+                                  personality: newSettings.personality, speechStyle: newSettings.speechStyle,
+                                  position: newSettings.position, role: newSettings.role, avatar: newSettings.avatar,
+                                  color: newSettings.color, harness: newSettings.harness, model: newSettings.model,
+                                  reasoningEffort: newSettings.reasoningEffort, fastMode: true)
+        let changed = try JSONSerialization.jsonObject(with: JSONEncoder().encode(
+            BotSettingsRequest(settings: enabled, originalFastMode: false))) as! [String: Any]
+        XCTAssertEqual(changed["fastMode"] as? Bool, true)
+        let turnedOff = try JSONSerialization.jsonObject(with: JSONEncoder().encode(
+            BotSettingsRequest(settings: newSettings, originalFastMode: true))) as! [String: Any]
+        XCTAssertEqual(turnedOff["fastMode"] as? Bool, false)
     }
 
     @MainActor
@@ -123,12 +141,12 @@ final class BotSaveTests: XCTestCase {
 
     private var oldSettings: BotSettings {
         BotSettings(name: "試験メンバー", profileText: "以前の内容", personality: "", speechStyle: "",
-                    position: "", role: "", avatar: "", color: "violet", harness: "codex", model: "", reasoningEffort: "")
+                    position: "", role: "", avatar: "", color: "violet", harness: "codex", model: "", reasoningEffort: "", fastMode: false)
     }
 
     private var newSettings: BotSettings {
         BotSettings(name: " 試験メンバー ", profileText: "入力は残す", personality: "", speechStyle: "",
-                    position: "", role: "", avatar: "", color: "violet", harness: "codex", model: "", reasoningEffort: "")
+                    position: "", role: "", avatar: "", color: "violet", harness: "codex", model: "", reasoningEffort: "", fastMode: false)
     }
 
     private func makeAPI(_ fixture: SaveFixture, diagnostics: BellDiagnostics = BellDiagnostics(onReport: { _, _, _, _ in })) -> BellAPI {
@@ -169,7 +187,13 @@ private final class SaveProtocol: URLProtocol {
         fixture.methods.append(request.httpMethod!)
         if request.httpMethod == "PATCH" {
             if fixture.applyBeforeFailure {
-                do { fixture.saved = try JSONDecoder().decode(BotSettings.self, from: body()) }
+                do {
+                    var merged = try JSONSerialization.jsonObject(with: JSONEncoder().encode(fixture.saved)) as! [String: Any]
+                    let changes = try JSONSerialization.jsonObject(with: body()) as! [String: Any]
+                    merged.merge(changes) { _, new in new }
+                    fixture.saved = try JSONDecoder().decode(BotSettings.self,
+                                                              from: JSONSerialization.data(withJSONObject: merged))
+                }
                 catch { client?.urlProtocol(self, didFailWithError: error); return }
             }
             client?.urlProtocol(self, didFailWithError: URLError(fixture.writeError))
@@ -199,5 +223,34 @@ private final class SaveProtocol: URLProtocol {
             if count == 0 { return data }
             data.append(contentsOf: bytes.prefix(count))
         }
+    }
+}
+
+final class FastModeTests: XCTestCase {
+    func testDefaultModelAndListedModelUseTheirFastCapability() {
+        let catalog = HarnessModels(efforts: [], models: [
+            ModelChoice(id: "normal", efforts: [], fast: false),
+            ModelChoice(id: "fast", efforts: [], fast: true),
+        ], error: nil, defaultModel: "normal", fastUnavailable: nil)
+
+        XCTAssertNotNil(catalog.fastModeUnavailableReason(model: ""))
+        XCTAssertNotNil(catalog.fastModeUnavailableReason(model: "normal"))
+        XCTAssertNotNil(catalog.fastModeUnavailableReason(model: " normal "))
+        XCTAssertNil(catalog.fastModeUnavailableReason(model: "fast"))
+        XCTAssertNil(catalog.fastModeUnavailableReason(model: "custom-model"),
+                     "一覧外のIDはサーバーとAitermへ判定を任せる")
+    }
+
+    func testAccountUnavailableReasonIsShown() {
+        let catalog = HarnessModels(efforts: [], models: [ModelChoice(id: "fast", efforts: [], fast: true)],
+                                    error: nil, defaultModel: "fast",
+                                    fastUnavailable: ModelCatalogFailure(code: "ACCOUNT", message: "別払いが無効です。"))
+        XCTAssertEqual(catalog.fastModeUnavailableReason(model: "fast"), "別払いが無効です。")
+    }
+
+    func testMissingDefaultModelCannotBeEnabled() {
+        let catalog = HarnessModels(efforts: [], models: [ModelChoice(id: "fast", efforts: [], fast: true)],
+                                    error: nil, defaultModel: "not-listed", fastUnavailable: nil)
+        XCTAssertNotNil(catalog.fastModeUnavailableReason(model: ""))
     }
 }

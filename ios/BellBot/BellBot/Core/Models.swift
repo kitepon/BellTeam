@@ -7,6 +7,7 @@ struct Bot: Decodable, Identifiable {
     let harness: String
     let model: String
     let reasoningEffort: String
+    let fastMode: Bool
     let color: String
     let profileText: String
     let personality: String
@@ -120,6 +121,16 @@ struct QueueItem: Decodable, Identifiable {
     let status: String
     let groupId: String?
     let message: String?
+
+    static func displayItems(_ items: [QueueItem]) -> [QueueItem] {
+        enum Key: Hashable { case bot(String, String), unknown(String) }
+        var seen: Set<Key> = []
+        return items.filter { item in
+            // botIdを持たない古い項目同士は、別の配送として残す。
+            let key = item.botId.map { Key.bot($0, item.status) } ?? .unknown(item.id)
+            return seen.insert(key).inserted
+        }
+    }
 }
 
 struct Schedule: Decodable, Identifiable {

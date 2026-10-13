@@ -4,6 +4,23 @@ import XCTest
 
 @MainActor
 final class MemberActivityTests: XCTestCase {
+    func testConversationQueueShowsOneRowPerBotAndStatus() throws {
+        let response = try JSONDecoder().decode(QueueResponse.self, from: Data("""
+        {"items":[
+          {"id":"first","botId":"bot-one","status":"running"},
+          {"id":"steered","botId":"bot-one","status":"running"},
+          {"id":"waiting","botId":"bot-one","status":"queued"},
+          {"id":"other","botId":"bot-two","status":"running"},
+          {"id":"legacy-one","status":"running"},
+          {"id":"legacy-two","status":"running"}
+        ]}
+        """.utf8))
+
+        XCTAssertEqual(QueueItem.displayItems(response.items).map(\.id),
+                       ["first", "waiting", "other", "legacy-one", "legacy-two"])
+        XCTAssertEqual(response.items.count, 6, "配送項目そのものは変更しない")
+    }
+
     func testRunningWorkUsesBotIdentityAndUpdatesWhenWorkEnds() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MemberActivityProtocol.self]

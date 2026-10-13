@@ -144,7 +144,7 @@ struct DesktopWorkspaceView: View {
                     ForEach(visibleBots) { bot in
                         row(target: .bot(bot.id), name: bot.displayName, subtitle: bot.recent?.preview ?? bot.position,
                             avatar: bot.avatar, color: BellTheme.accent(bot.color), online: bot.online,
-                            working: store.workingBotIDs.contains(bot.id))
+                            working: store.workingBotIDs.contains(bot.id), fastMode: bot.fastMode)
                     }
                     if visibleBots.isEmpty && visibleRooms.isEmpty { Text("見つかりませんでした").font(.footnote).padding() }
                 }
@@ -178,7 +178,8 @@ struct DesktopWorkspaceView: View {
             .font(BellTheme.secondaryFont.weight(.semibold)).foregroundStyle(BellTheme.muted).padding(.horizontal, 10).padding(.vertical, 8)
     }
 
-    private func row(target: ChatTarget, name: String, subtitle: String, avatar: String, color: Color, online: Bool, working: Bool = false) -> some View {
+    private func row(target: ChatTarget, name: String, subtitle: String, avatar: String, color: Color,
+                     online: Bool, working: Bool = false, fastMode: Bool = false) -> some View {
         Button {
             store.selectedTab = 0
             store.chatPath = [target]
@@ -190,7 +191,10 @@ struct DesktopWorkspaceView: View {
                         if !target.isRoom { BotPresenceDot(online: online, working: working, size: 9) }
                     }
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(name).font(.system(size: BellTheme.listNameFontSize, weight: .semibold)).lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(name).font(.system(size: BellTheme.listNameFontSize, weight: .semibold)).lineLimit(1)
+                        if fastMode { BotFastModeBadge() }
+                    }
                     Text(subtitle).font(.system(size: BellTheme.listDetailFontSize)).foregroundStyle(BellTheme.muted).lineLimit(1)
                 }
                 Spacer(minLength: 0)

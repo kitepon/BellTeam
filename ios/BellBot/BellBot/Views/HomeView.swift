@@ -225,6 +225,7 @@ private struct BotRow: View {
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .foregroundStyle(BellTheme.ink)
                         .lineLimit(1)
+                    if bot.fastMode { BotFastModeBadge() }
                     Spacer(minLength: 4)
                     Text(BellDate.short(bot.recent?.at))
                         .font(.system(size: 12))

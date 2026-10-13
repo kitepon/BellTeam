@@ -12,9 +12,9 @@ extension AppStore {
         let source = """
         {
           "bots": [
-            {"id":"bot-one","name":"ユキ","displayName":"ユキ","harness":"claude","model":"opus","reasoningEffort":"high","color":"indigo","profileText":"","personality":"","speechStyle":"","position":"","role":"相談と実務","avatar":"","online":true,"recent":{"id":"m1","kind":"message","direction":"incoming","at":"2026-09-26T00:12:00Z","message":"今朝の準備ができました。確認していただけますか？"}},
-            {"id":"bot-two","name":"ハル","displayName":"ハル","harness":"codex","model":"","reasoningEffort":"","color":"violet","profileText":"","personality":"","speechStyle":"","position":"","role":"","avatar":"","online":true,"recent":{"id":"m2","kind":"message","direction":"incoming","at":"2026-09-25T23:54:00Z","message":"おかえりなさい。今日も一緒に進めましょう。"}},
-            {"id":"bot-three","name":"ナギ","displayName":"ナギ","harness":"grok","model":"","reasoningEffort":"","color":"rose","profileText":"","personality":"","speechStyle":"","position":"","role":"","avatar":"","online":false,"recent":{"id":"m3","kind":"message","direction":"outgoing","at":"2026-09-24T08:30:00Z","message":"資料をお願い"}}
+            {"id":"bot-one","name":"ユキ","displayName":"ユキ","harness":"claude","model":"opus","reasoningEffort":"high","fastMode":true,"color":"indigo","profileText":"","personality":"","speechStyle":"","position":"","role":"相談と実務","avatar":"","online":true,"recent":{"id":"m1","kind":"message","direction":"incoming","at":"2026-09-26T00:12:00Z","message":"今朝の準備ができました。確認していただけますか？"}},
+            {"id":"bot-two","name":"ハル","displayName":"ハル","harness":"codex","model":"","reasoningEffort":"","fastMode":false,"color":"violet","profileText":"","personality":"","speechStyle":"","position":"","role":"","avatar":"","online":true,"recent":{"id":"m2","kind":"message","direction":"incoming","at":"2026-09-25T23:54:00Z","message":"おかえりなさい。今日も一緒に進めましょう。"}},
+            {"id":"bot-three","name":"ナギ","displayName":"ナギ","harness":"grok","model":"","reasoningEffort":"","fastMode":false,"color":"rose","profileText":"","personality":"","speechStyle":"","position":"","role":"","avatar":"","online":false,"recent":{"id":"m3","kind":"message","direction":"outgoing","at":"2026-09-24T08:30:00Z","message":"資料をお願い"}}
           ],
           "rooms": [
             {"id":"planning","name":"計画室","purpose":"今日の仕事を一緒に進める","representativeId":"bot-one","memberIds":["bot-one","bot-three"],"avatar":"","recent":{"id":"r1","kind":"message","at":"2026-09-26T00:04:00Z","message":"明日の予定を整理しました。","sender":{"id":"bot-three","name":"ナギ"}}},

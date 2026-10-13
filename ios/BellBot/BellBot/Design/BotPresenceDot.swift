@@ -18,3 +18,13 @@ struct BotPresenceDot: View {
             .accessibilityLabel(working ? "仕事中" : online ? "オンライン・待機中" : "オフライン")
     }
 }
+
+struct BotFastModeBadge: View {
+    var body: some View {
+        Text("⚡ ファスト")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(BellTheme.violet)
+            .lineLimit(1)
+            .accessibilityLabel("ファストモード中")
+    }
+}

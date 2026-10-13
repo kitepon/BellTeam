@@ -154,10 +154,13 @@ private struct ConversationContent: View {
                 HStack(spacing: 10) {
                     AvatarView(name: title, avatar: avatar, color: accent, size: 34, isRoom: target.isRoom)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(title)
-                            .font(.system(size: BellTheme.listNameFontSize + 2, weight: .bold, design: .rounded))
-                            .foregroundStyle(BellTheme.ink)
-                            .lineLimit(1)
+                        HStack(spacing: 6) {
+                            Text(title)
+                                .font(.system(size: BellTheme.listNameFontSize + 2, weight: .bold, design: .rounded))
+                                .foregroundStyle(BellTheme.ink)
+                                .lineLimit(1)
+                            if bot?.fastMode == true { BotFastModeBadge() }
+                        }
                         Text(target.isRoom ? "\(room?.memberIds.count ?? 0)人のルーム" : (bot?.online == true ? "オンライン" : "オフライン"))
                             .font(.system(size: BellTheme.listDetailFontSize))
                             .foregroundStyle(BellTheme.muted)
@@ -246,7 +249,7 @@ private struct ConversationContent: View {
 
     private var queueStrip: some View {
         VStack(alignment: .leading, spacing: 9) {
-            ForEach(queue) { item in
+            ForEach(QueueItem.displayItems(queue)) { item in
                 HStack(spacing: 9) {
                     ProgressView().controlSize(.mini)
                     Text("\(item.botName ?? title) · \(item.status == "queued" ? "送信待ち" : "処理中")")
