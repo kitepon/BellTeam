@@ -45,6 +45,9 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public CancellationToken ViewToken => selection?.Token ?? connection?.Token ?? CancellationToken.None;
     public CancellationToken ConnectionToken => connection?.Token ?? CancellationToken.None;
     public ManagementApi Management => new(api ?? throw new BellApiException("接続先を設定してください。"));
+    public PlanningApi Planning => new(api ?? throw new BellApiException("接続先を設定してください。"));
+    public event Action? ServerChanged;
+    public ConversationEntry[] Conversations => all.ToArray();
     public Bot[] Bots => all.Where(entry => entry.Bot is not null).Select(entry => entry.Bot!).ToArray();
     public string? ActionError { get => actionError; private set { actionError = value; Changed(); } }
     public bool ScreenVisible { get => screenVisible; private set { screenVisible = value; Changed(); Changed(nameof(ProfileVisible)); } }
@@ -124,7 +127,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             await foreach (var item in current.EventsAsync(token))
             {
                 ConnectionStatus = "接続済み・新着を受信中";
-                if (item.EnumerateObject().Any()) await RefreshAsync(current, token);
+                if (item.EnumerateObject().Any()) { await RefreshAsync(current, token); ServerChanged?.Invoke(); }
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
