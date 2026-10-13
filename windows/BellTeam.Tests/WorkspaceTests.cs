@@ -86,4 +86,26 @@ public sealed class WorkspaceTests
         thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
+
+    [Theory]
+    [InlineData("前文 <pasted_content>中身</pasted_content> 後文", "前文", "<pasted_content>中身</pasted_content>", "後文")]
+    [InlineData("前の段落\n\n<div>\nHTMLの塊\n</div>\n\n後の段落", "前の段落", "<div>\nHTMLの塊\n</div>", "後の段落")]
+    public void HtmlLikeTextKeepsItsSourceAndSurroundingParagraphs(string source, string before, string unknown, string after)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var document = MarkdownView.Parse(source);
+                var text = new TextRange(document.ContentStart, document.ContentEnd).Text.Replace("\r\n", "\n");
+                Assert.Contains(before, text);
+                Assert.Contains(unknown, text);
+                Assert.Contains(after, text);
+            }
+            catch (Exception error) { failure = error; }
+        });
+        thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
 }

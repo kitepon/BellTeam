@@ -24,7 +24,7 @@ SSEの切断・応答形式の異常は画面下部に表示する。「再接�
 
 ## このPCへの導入
 
-PowerShell 7、Git、.NET SDKがあるWindowsで、mainへ取り込まれたcommitから実行する。installerは既定ブランチへの取り込みを確認し、.NETを同梱したビルドを作る。配布するCPUは導入するPCのx64またはarm64に合わせる。
+PowerShell 7と.NET SDKがあるWindowsで、取り出してあるソースから実行する。installerは.NETを同梱したビルドを作る。Gitの取得やブランチ・未commit差分の確認は行わない。配布するCPUは導入するPCのx64またはarm64に合わせる。依存の復元は.NET標準の処理に従い、未取得のNuGetパッケージがある場合はネットワーク接続が必要。
 
 ```powershell
 pwsh -NoProfile -File scripts/install-windows.ps1 -ServerUrl 'http://サーバーのLANアドレス:18891' -NoLaunch
@@ -68,11 +68,11 @@ dotnet publish windows/BellTeam.App/BellTeam.App.csproj -c Release -r win-x64 --
 
 ### 確かめた事
 
-FOXでReleaseビルドと.NET同梱ビルドが成功。URL、設定の保存、実際のAPIと同じJSON、HTTPの拒否・認証・JSON不正、SSEのUTF-8・複数行・切断、下書き、返信先、会話切替の競合、配送状態の更新、Markdownの単体試験46件が成功した。試験は窓を表示しない。
+FOXでReleaseビルドと.NET同梱ビルドが成功。URL、設定の保存、実際のAPIと同じJSON、HTTPの拒否・認証・JSON不正、SSEのUTF-8・複数行・切断、下書き、返信先、会話切替の競合、配送状態の更新、Markdownの単体試験が成功した。試験は窓を表示しない。`<pasted_content>`を含む行と行頭から始まるHTML風の塊は、タグ・中身・前後の段落を文字として読めることを追加試験で確認した。
 
 FOXからLANの本番サーバーへの読み取りsmokeで、local認証、メンバーとルームの一覧、会話履歴、SSEの接続を確認した。人工データと実データのPNGで、3ペイン、日本語本文、プロフィール、Markdownの見出し・強調・引用・コード・表の配置を確認した。本番へ試しの文は送っていない。
 
-Windows nativeの`npm test`は426件中397件成功・29件失敗。例えば`test/bot-environment.test.mjs`とサーバーinstaller試験は`spawn sh ENOENT`、配布archive試験は`docs/onboarding.md`の収録確認で失敗した。サーバーの試験はLinuxコンテナで確認する。Windows版の変更は`src/`・`test/`・`web/`・`config/`を含まない。
+Windows nativeの`npm test`は426件中397件成功・29件失敗。例えば`test/bot-environment.test.mjs`とサーバーinstaller試験は`spawn sh ENOENT`、配布archive試験は`docs/onboarding.md`の収録確認で失敗した。サーバーの試験はLinuxコンテナで確認する。PRの初版はトロニーがLinuxコンテナで426件すべての成功を確認した。Windows版の変更は`src/`・`test/`・`web/`・`config/`を含まない。
 
 ### 見ていない事と次の確認
 

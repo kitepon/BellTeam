@@ -15,14 +15,6 @@ if ($Uninstall) {
     exit
 }
 
-# 配布するソースは、既定ブランチへ取り込まれたcommitに限る。
-& git -C $taskRepository fetch origin main
-if ($LASTEXITCODE -ne 0) { throw 'mainの取得に失敗しました。' }
-& git -C $taskRepository merge-base --is-ancestor HEAD origin/main
-if ($LASTEXITCODE -ne 0) { throw 'このcommitはmainへ取り込まれていません。取り込み後に導入してください。' }
-$taskChanges = & git -C $taskRepository status --porcelain -- windows scripts/install-windows.ps1 scripts/uninstall-windows.ps1
-if ($taskChanges) { throw 'Windowsアプリのソースに未commitの変更があります。commit後に導入してください。' }
-
 $taskExe = Join-Path $taskInstall 'BellTeam.exe'
 $taskRunning = Get-CimInstance Win32_Process -Filter "Name='BellTeam.exe'" | Where-Object { $_.ExecutablePath -eq $taskExe }
 if ($taskRunning) { throw 'BellTeamを閉じてから入れ直してください。' }
