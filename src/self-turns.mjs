@@ -2,7 +2,9 @@
 // Claude Code・Grok・Cursorは、裏で動かした作業が終わると、BellTeamを通らずに次のターンを始める。
 // BellTeamは配送したターンしか見ていないので、そのターンの報告がオーナーへ届かなかった（2026-10-01 ラプンツェル）。
 // Throughlineはどう始まったターンもStop hookで記録し、turn_startで始まり方を返す（0.10.22、--wire v2）。
-// BellTeamが配送したターン（prompt）は配送の側で画面に出しているので、ここでは自分から始まったターン（self）だけを出す。
+// BellTeamが配送したターン（prompt）は配送の側で画面に出しているので、ここでは自分から始まったターン（self）を出す。
+// Aitermが子の結果を親の席へ渡して始めたターンも、記録ではpromptになる。BellTeamは配送していないので、selfと同じく出す
+// （2026-10-13、リリーバイスの席で、子の結果で始まったターンの回答がオーナーの画面に出なかった）。
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
@@ -15,6 +17,14 @@ const execFileAsync = promisify(execFile)
 const INTERVAL_MS = 5000
 // thread_switched（/clearなど）で読み終えた分がまた届くので、Botごとに最近の鍵を覚えて重複を落とす。
 const SEEN_LIMIT = 500
+// Aitermが子の結果を渡す文の頭（aiterm-mcp の src/parent-delivery.ts の answerMessage）。
+// 配送したターンの途中に子の結果が差し込まれた時は、頭が配送した文になるので当たらない。
+const CHILD_RESULT_PREFACE = 'Aitermの子エージェントからの実行結果です。'
+
+function startedOutsideDelivery(turn) {
+  if (turn.turn_start === 'self') return true
+  return turn.turn_start === 'prompt' && typeof turn.user === 'string' && turn.user.trimStart().startsWith(CHILD_RESULT_PREFACE)
+}
 
 export class SelfTurns {
   constructor({ bots, statePath, appendAnswer, afterTurn = () => {}, read = readObserverTurns, changed = throughlineChanged(), report = message => process.stderr.write(`${message}\n`), groupId = randomUUID, intervalMs = INTERVAL_MS }) {
@@ -104,7 +114,7 @@ export class SelfTurns {
     const completedAt = Number.isFinite(turn.completed_at) ? turn.completed_at : Date.now()
     current.lastCompletedAt = Math.max(current.lastCompletedAt ?? 0, completedAt)
     const text = typeof turn.assistant === 'string' ? turn.assistant.trim() : ''
-    if (turn.turn_start !== 'self' || !text) return
+    if (!startedOutsideDelivery(turn) || !text) return
     await this.appendAnswer(bot.id, this.groupId(), text)
     // 自分から始まったターンも、配送したターンと同じく報告漏れを確かめる。幅は前のターンの終わりから、いま画面へ出した回答まで。
     this.afterTurn({

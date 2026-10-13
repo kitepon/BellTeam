@@ -64,6 +64,23 @@ test('自分から始まったターンの回答だけを出し、報告漏れ�
   await cleanup()
 })
 
+test('Aitermの子の結果で始まったターンの回答も出す。配送したターンへ子の結果が差し込まれた時は出さない', async () => {
+  // 2026-10-13 22:22、リリーバイスの席の記録の形。Throughlineは改行を空白にして返す。
+  const child = 'Aitermの子エージェントからの実行結果です。子の回答として扱ってください。 delivery_id=d-1 session=child harness=codex-cli launch_id=l-1 turn_id=t-1 outcome=done 担当の成果'
+  const delivered = '「オーナー」からあなたへ次のメッセージが届いています。 進みを教えて'
+  const { service, answers, turns, cleanup } = await feed([
+    { status: 'delta', throughCursor: 'c2', page: { complete: true }, turns: [
+      { ...turn('b', 'prompt', '担当の成果を受け取ったよ。', 2000), user: child },
+      { ...turn('c', 'prompt', '指揮官への返事', 3000), user: `${delivered} ${child}` },
+      { ...turn('d', 'prompt', '', 4000), user: child },
+    ] },
+  ], { state: { 'bot-r': { cursor: 'c1', seen: ['a'], lastCompletedAt: 1000 } } })
+  await service.poll()
+  assert.deepEqual(answers, [['bot-r', 'g-1', '担当の成果を受け取ったよ。']])
+  assert.deepEqual(turns.map(value => [value.context, value.startedAt]), [['self', new Date(1000).toISOString()]])
+  await cleanup()
+})
+
 test('ページを続けて読み、/clearのあとに同じターンが届いても1回しか出さない', async () => {
   const { service, reads, answers, cleanup } = await feed([
     { status: 'delta', throughCursor: 'c2', page: { complete: false, nextToken: 'p2' }, turns: [turn('c', 'self', '報告1', 3000)] },
