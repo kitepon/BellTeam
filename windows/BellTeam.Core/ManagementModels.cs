@@ -15,7 +15,7 @@ public sealed record BotSettings
     public required string Harness { get; init; }
     public string Model { get; init; } = "";
     public string ReasoningEffort { get; init; } = "";
-    [JsonIgnore] public BotSettings Normalized => this with { Name = Name.Trim(), Position = Position.Trim(), Model = Model.Trim(), ReasoningEffort = ReasoningEffort.Trim() };
+    [JsonIgnore] public BotSettings Normalized => this with { Name = Name.Trim(), Position = Position.Trim(), Model = Model.Trim(), ReasoningEffort = ReasoningEffort.Trim(), ProfileText = TextContent.Normalize(ProfileText), Personality = TextContent.Normalize(Personality), SpeechStyle = TextContent.Normalize(SpeechStyle), Role = TextContent.Normalize(Role) };
     public Dictionary<string, object?> Fields() => new() { ["name"] = Name, ["profileText"] = ProfileText, ["personality"] = Personality, ["speechStyle"] = SpeechStyle, ["position"] = Position, ["role"] = Role, ["avatar"] = Avatar, ["color"] = Color, ["harness"] = Harness, ["model"] = Model, ["reasoningEffort"] = ReasoningEffort };
     public Dictionary<string, object?> ChangesFrom(BotSettings before)
     {
@@ -36,7 +36,7 @@ public sealed record RoomSettings(string Name, string Purpose, string[] MemberId
     {
         var changes = new Dictionary<string, object?>();
         if (Name.Trim() != before.Name.Trim()) changes["name"] = Name.Trim();
-        if (Purpose != before.Purpose) changes["purpose"] = Purpose;
+        if (TextContent.Normalize(Purpose) != TextContent.Normalize(before.Purpose)) changes["purpose"] = TextContent.Normalize(Purpose);
         if (!MemberIds.ToHashSet().SetEquals(before.MemberIds)) changes["memberIds"] = MemberIds;
         if (RepresentativeId != before.RepresentativeId) changes["representativeId"] = RepresentativeId;
         if (Avatar != before.Avatar) changes["avatar"] = Avatar;

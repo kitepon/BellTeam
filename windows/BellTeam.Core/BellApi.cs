@@ -42,7 +42,7 @@ public sealed class BellApi : IDisposable
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, target.Path + "/messages")
         {
-            Content = JsonContent.Create(new { message = text, images = images.Select(image => new ImagePayload(image.Mime, Convert.ToBase64String(image.Bytes))).ToArray(), targets }, options: Json)
+            Content = JsonContent.Create(new { message = TextContent.Normalize(text), images = images.Select(image => new ImagePayload(image.Mime, Convert.ToBase64String(image.Bytes))).ToArray(), targets }, options: Json)
         };
         var result = await JsonAsync<JsonElement>(request, token);
         if (result.ValueKind != JsonValueKind.Object) throw new BellApiException("BellTeamからの送信応答を読み取れませんでした。");
@@ -78,7 +78,7 @@ public sealed class BellApi : IDisposable
     }
 
     public async Task<OwnerQuestion> AnswerAsync(string id, string? choice, string? text, CancellationToken token = default)
-        => (await PostAsync<QuestionResponse>($"/api/owner-questions/{Uri.EscapeDataString(id)}/answer", new { choice, text }, token)).Question;
+        => (await PostAsync<QuestionResponse>($"/api/owner-questions/{Uri.EscapeDataString(id)}/answer", new { choice, text = text is null ? null : TextContent.Normalize(text) }, token)).Question;
 
     public async Task<byte[]> ImageAsync(string path, CancellationToken token = default)
     {
