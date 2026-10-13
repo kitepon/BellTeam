@@ -178,4 +178,4 @@ dotnet run --project windows/BellTeam.UiChecks/BellTeam.UiChecks.csproj -c Relea
 
 22:49:54〜22:50:10 JSTに、トロニーが通常の利用者・非管理者・パッケージ外から0.4.1を導入した。exeの版は`0.4.1+93e1d1b2589cdeb5ccdb56f7bcee61d53cf3480d`、DisplayVersionは0.4.1、設定は前後で同じ。22:50:13 JSTの導入exeのsmokeは終了コード0で、local認証、41メンバー、3ルーム、会話10件、SSE接続を確認し、終了後のBellTeam.exeは0件だった。
 
-0.4.2は単体試験152件、全窓を表示しない操作確認、8画面の描画、同梱x64ビルド、LAN読み取りsmokeが成功。模擬Cookieの保存・別プロセス復元・ログアウト・別プロセスで空の確認が成功した。導入スクリプトのPowerShell構文を確認した。実導入はトロニーが行う。
+0.4.2は単体試験156件、全窓を表示しない操作確認、8画面の描画、同梱x64ビルド、LAN読み取りsmokeが成功。模擬Cookieの保存・別プロセス復元・ログアウト・別プロセスで空の確認が成功した。導入スクリプトのPowerShell構文を確認した。実導入はトロニーが行う。

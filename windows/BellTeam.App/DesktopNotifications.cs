@@ -28,7 +28,7 @@ public sealed class WindowsNotificationSink(string appId = DesktopShortcut.AppId
     public void Show(MessageNotification message)
     {
         var xml = ToastNotificationManager.GetTemplateContent(ToastTemplateType.ToastText02);
-        var lines = xml.GetElementsByTagName("text"); lines[0].AppendChild(xml.CreateTextNode(message.Title)); lines[1].AppendChild(xml.CreateTextNode(message.Preview));
+        var lines = xml.GetElementsByTagName("text"); lines[0].AppendChild(xml.CreateTextNode(message.Title)); lines[1].AppendChild(xml.CreateTextNode(message.Body));
         if (suppressPopup) { var audio = xml.CreateElement("audio"); audio.SetAttribute("silent", "true"); xml.DocumentElement.AppendChild(audio); }
         var toast = new ToastNotification(xml) { SuppressPopup = suppressPopup }; toast.Activated += OnActivated; toast.Dismissed += OnDismissed; toast.Failed += OnFailed;
         lock (gate) visible.Add(toast, message);

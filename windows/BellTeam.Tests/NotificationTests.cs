@@ -11,6 +11,17 @@ namespace BellTeam.Tests;
 public sealed class NotificationTests
 {
     private static RecentMessage Recent(string id, string direction = "incoming", string? kind = "message", string? sender = null) => new() { Id = id, At = DateTimeOffset.UtcNow, Direction = direction, Kind = kind, Message = "新しい文", Sender = sender is null ? null : new Member { Id = sender } };
+    [Theory]
+    [InlineData(false,"message","返信が届きました。")]
+    [InlineData(true,"message","ルームに新しいメッセージが届きました。")]
+    [InlineData(false,"secret_request","秘密情報の入力が必要です。")]
+    [InlineData(false,"owner_question","選んでほしいことがあります。")]
+    public void NotificationContainsOnlyNamesAndFixedText(bool room,string kind,string expected)
+    {
+        var source = Recent("new",kind:kind,sender:"bot-haru") with { Message = "通知へ載せない会話本文と入力依頼の説明", Sender = new Member { Id = "bot-haru",Name="ハル" } };
+        var notification = MessageNotification.FromRecent("https://example.test/",new("target",room),room?"計画室":"ユキ",Recent("old"),source)!;
+        Assert.Equal(expected,notification.Body); Assert.Equal(room?"ハル · 計画室":"ユキ",notification.Title); Assert.DoesNotContain(source.Message,JsonSerializer.Serialize(notification,BellApi.Json));
+    }
     [Fact]
     public void NewIncomingOnlyAndFirstMessageAfterEmptyConversationAreEligible()
     {

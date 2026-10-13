@@ -207,6 +207,7 @@ public partial class MainWindow : Window
     }
     private async Task ChangeServerAsync(string address)
     {
+        if (address == model.Server) { await ConnectAsync(address); return; }
         model.SignOut();
         try { if (notifications is not null) await notifications.SetEnabledAsync(false, persist: false); if (access is not null) await access.SignOutAsync(); await ConnectAsync(address); }
         catch (Exception error) { model.ReportActionError(error.Message); }
