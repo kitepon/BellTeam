@@ -11,17 +11,26 @@ public partial class MainWindow : Window
 {
     private readonly Workspace model;
     private readonly DesktopAccess? access;
+    private readonly DesktopNotifications? notifications;
     private bool inspectorVisible = true;
     private EditorWindow? page;
     private bool loadingOlder;
     public Task PageReady { get; private set; } = Task.CompletedTask;
-    public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null)
+    public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null, DesktopNotifications? notifications = null)
     {
         this.model = model;
         this.access = access;
+        this.notifications = notifications;
         SetResourceReference(StyleProperty, typeof(Window));
         InitializeComponent();
         DataContext = model;
+        if (notifications is not null) notifications.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(DesktopNotifications.Error) && notifications.Error is { } error) Dispatcher.Invoke(() => model.ReportActionError(error)); };
+        model.MessageArrived += async message =>
+        {
+            if (notifications?.Enabled != true || IsActive && page is null && model.Selected?.Target == message.Target) return;
+            await notifications.NotifyAsync(message);
+            if (!notifications.Enabled) model.ReportActionError(notifications.Status);
+        };
         UpdateWelcome(); ProfileLayout();
         model.Messages.CollectionChanged += (_, _) => UpdateWelcome();
         MessageScroll.ScrollChanged += async (_, args) =>
@@ -138,7 +147,7 @@ public partial class MainWindow : Window
     private void Schedules_Click(object sender, RoutedEventArgs e) => ShowSchedules();
     private void Settings_Click(object sender, RoutedEventArgs e) => ShowSettings();
     public void ShowSchedules() { if (!model.Connected) return; var editor = new SchedulesWindow(model); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
-    public void ShowSettings() { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
+    public void ShowSettings() { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings, notifications, () => _ = SignOutAsync()); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
     private bool ShowPage(EditorWindow editor)
     {
         if (page?.CanNavigateAway == false) { editor.Close(); model.ReportActionError("操作が終わってから画面を切り替えてください。"); return false; }
@@ -168,9 +177,10 @@ public partial class MainWindow : Window
         WelcomeNote.Text = model.Loading ? "" : model.HasSelection ? "最初のメッセージを送って、会話を始めましょう。" : "左のメンバーやルームを選んで、会話を始めましょう。";
     }
     private void NewMessages_Click(object sender, RoutedEventArgs e) { MessageScroll.ScrollToEnd(); NewMessagesButton.Visibility = Visibility.Collapsed; }
-    public async Task PrepareRenderAsync()
+    public async Task PrepareRenderAsync(bool bottomOfPage = false)
     {
         await Task.WhenAll(Descendants<RemoteImage>(Root).Select(image => image.LoadTask).Concat(Descendants<AvatarTile>(Root).Select(tile => tile.LoadTask)));
+        if (bottomOfPage) page?.ScrollToEndForRender();
         Root.UpdateLayout();
     }
     private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
@@ -187,7 +197,20 @@ public partial class MainWindow : Window
     {
         if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから接続先を変更してください。"); return; }
         var dialog = new ConnectionWindow(model.Server) { Owner = this };
-        if (dialog.ShowDialog() == true) { ShowConversation(); _ = ConnectAsync(dialog.Address); }
+        if (dialog.ShowDialog() == true) { ShowConversation(); _ = ChangeServerAsync(dialog.Address); }
+    }
+    private async Task SignOutAsync()
+    {
+        ShowConversation(); model.SignOut();
+        try { if (notifications is not null) await notifications.SetEnabledAsync(false, persist: false); if (access is not null) await access.SignOutAsync(); }
+        catch (Exception error) { model.ReportActionError(error.Message); }
+    }
+    private async Task ChangeServerAsync(string address)
+    {
+        if (address == model.Server) { await ConnectAsync(address); return; }
+        model.SignOut();
+        try { if (notifications is not null) await notifications.SetEnabledAsync(false, persist: false); if (access is not null) await access.SignOutAsync(); await ConnectAsync(address); }
+        catch (Exception error) { model.ReportActionError(error.Message); }
     }
     public async Task ConnectAsync(string address)
     {
@@ -204,6 +227,7 @@ public partial class MainWindow : Window
                 await model.ReconnectAsync();
             }
             if (!setup.Complete && setup.GuideBotId is { } guide && model.Entries.FirstOrDefault(entry => entry.Target == new ChatTarget(guide, false)) is { } conversation) await model.SelectAsync(conversation);
+            if (notifications is not null) await notifications.InitializeAsync();
         }
         catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { }
         catch (Exception error) { model.ReportActionError(error.Message); }
@@ -213,6 +237,14 @@ public partial class MainWindow : Window
         if (access is null) return;
         try { if (new AccessLoginWindow(access, ServerOrigin.Parse(model.Server)) { Owner = this }.ShowDialog() == true) await ConnectAsync(model.Server); }
         catch (Exception) { model.ReportActionError("ログイン画面を開けませんでした。接続先とWebView2 Runtimeを確認してください。"); }
+    }
+    public async Task OpenNotificationAsync(string server, ChatTarget target)
+    {
+        if (server != model.Server || !model.Connected) { model.ReportActionError("通知の接続先へ接続してから、会話を開いてください。"); return; }
+        if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから通知の会話を開いてください。"); return; }
+        var entry = model.Conversations.FirstOrDefault(item => item.Target == target);
+        if (entry is null) { model.ReportActionError("通知の会話が見つかりません。メンバーとルームの一覧を更新してください。"); return; }
+        ShowConversation(); if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal; Show(); Activate(); await model.SelectAsync(entry);
     }
     private void Inspector_Click(object sender, RoutedEventArgs e) => ToggleInspector();
     private void ToggleInspector()

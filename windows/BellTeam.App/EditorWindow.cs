@@ -24,6 +24,7 @@ public class EditorWindow : Window
     public bool CanNavigateAway => !Busy || closeWhileReading;
     private readonly ScrollViewer scroller = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     public Task ReadyTask => Task.WhenAll(InitialLoads);
+    public void ScrollToEndForRender() { scroller.ScrollToEnd(); scroller.UpdateLayout(); }
     public EditorWindow(string title, CancellationToken parent = default)
     {
         SetResourceReference(StyleProperty, typeof(Window)); SetResourceReference(BackgroundProperty, "ConversationBackground");

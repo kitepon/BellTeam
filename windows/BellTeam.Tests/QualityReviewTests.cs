@@ -1,9 +1,6 @@
-using System.ComponentModel;
-using System.Net.Http;
-using System.Reflection;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
 using System.Windows.Threading;
 using BellTeam.App;
 using BellTeam.Core;
@@ -11,6 +8,13 @@ using BellTeam.Core;
 namespace BellTeam.Tests;
 public sealed class QualityReviewTests
 {
+    [Fact]
+    public void UnshownWindowHasNoRestoreBoundsToPersist() => Sta(() =>
+    {
+        var window = new Window(); var bounds = window.RestoreBounds;
+        Assert.True(bounds.IsEmpty);
+        Assert.Throws<ArgumentException>(() => JsonSerializer.Serialize(new WindowPlacement(bounds.Left,bounds.Top,bounds.Width,bounds.Height,false),BellApi.Json)); window.Close();
+    });
     [Theory]
     [InlineData(1, "画像")]
     [InlineData(3, "画像3枚")]

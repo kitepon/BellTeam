@@ -22,9 +22,15 @@ public partial class App : Application
             if (e.Args is ["--configure", var server])
             {
                 var store = new SettingsStore(SettingsStore.UserDirectory);
-                store.Save(store.Load() with { ServerUrl = ServerOrigin.Parse(server).AbsoluteUri });
+                var configuration = store.Load(); var origin = ServerOrigin.Parse(server);
+                if (configuration.ServerUrl is { } previous && previous != origin.AbsoluteUri) await new DesktopAccess().SignOutAsync();
+                store.Save(configuration with { ServerUrl = origin.AbsoluteUri });
                 Shutdown(0);
                 return;
+            }
+            if (e.Args is ["--install-shortcut"])
+            {
+                DesktopShortcut.Create(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "BellTeam.lnk"), Environment.ProcessPath!); Shutdown(0); return;
             }
             if (e.Args is ["--render-editor", var editorKind, var editorAddress, var editorId, var editorOutput])
             {
@@ -47,11 +53,11 @@ public partial class App : Application
             {
                 using var pageWorkspace = new Workspace(); await pageWorkspace.ConnectAsync(pageAddress, listen: false);
                 if (pageWorkspace.ConnectionError is { } failure) throw new BellApiException(failure);
-                var pageWindow = new MainWindow(pageWorkspace, persistPlacement: false);
-                if (pageKind == "settings") pageWindow.ShowSettings(); else if (pageKind == "schedules") pageWindow.ShowSchedules(); else throw new ArgumentException("未対応のページです。");
+                var pageWindow = new MainWindow(pageWorkspace, persistPlacement: false, notifications: new DesktopNotifications(new WindowsNotificationSink(), new SettingsStore(SettingsStore.UserDirectory), (_, _) => { }));
+                if (pageKind is "settings" or "settings-lower") pageWindow.ShowSettings(); else if (pageKind == "schedules") pageWindow.ShowSchedules(); else throw new ArgumentException("未対応のページです。");
                 await pageWindow.PageReady;
                 var pageRoot = (FrameworkElement)pageWindow.Content; pageRoot.Measure(new Size(1280, 820)); pageRoot.Arrange(new Rect(0, 0, 1280, 820)); pageRoot.UpdateLayout();
-                await pageWindow.PrepareRenderAsync(); WritePng(pageWindow, 1280, 820, pageOutput); pageWindow.Close(); Shutdown(0); return;
+                await pageWindow.PrepareRenderAsync(bottomOfPage: pageKind == "settings-lower"); WritePng(pageWindow, 1280, 820, pageOutput); pageWindow.Close(); Shutdown(0); return;
             }
             if (e.Args is ["--render-preview", _] || e.Args is ["--render-url", _, _] || e.Args is ["--render-url", _, _, _])
             {
@@ -74,15 +80,17 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|schedules> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|settings-lower|schedules> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
 
+            MainWindow? main = null;
+            instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));
+            if (!instance.IsPrimary) { Shutdown(0); return; }
             var access = new DesktopAccess();
             var workspace = new Workspace(origin => new BellApi(origin, cookies: access.Cookies), access.RestoreAsync);
-            var main = new MainWindow(workspace, access: access);
-            instance = new SingleInstance(() => Dispatcher.Invoke(() => { main.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));
-            if (!instance.IsPrimary) { Shutdown(0); return; }
+            var notifications = new DesktopNotifications(new WindowsNotificationSink(), new SettingsStore(SettingsStore.UserDirectory), (server, target) => Dispatcher.BeginInvoke(() => _ = main!.OpenNotificationAsync(server, target)));
+            main = new MainWindow(workspace, access: access, notifications: notifications);
             MainWindow = main;
-            main.Closed += (_, _) => { workspace.Dispose(); Shutdown(); };
+            main.Closed += async (_, _) => { workspace.Dispose(); try { await notifications.DisposeAsync(); } catch (Exception error) { MessageBox.Show("通知の終了処理を完了できませんでした。" + error.Message, "BellTeam", MessageBoxButton.OK, MessageBoxImage.Error); } finally { Shutdown(); } };
             main.Show();
             var settings = new SettingsStore(SettingsStore.UserDirectory).Load();
             if (settings.ServerUrl is { } url) await main.ConnectAsync(url);

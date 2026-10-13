@@ -9,18 +9,34 @@ using Microsoft.Web.WebView2.Wpf;
 
 namespace BellTeam.App;
 
-public sealed class DesktopAccess(string? profileDirectory = null)
+public sealed class DesktopAccess
 {
-    public string ProfileDirectory { get; } = profileDirectory ?? Path.Combine(SettingsStore.UserDirectory, "WebView2");
+    public string ProfileDirectory { get; }
+    private readonly Func<string, Task<CoreWebView2Environment>> createEnvironment;
+    public DesktopAccess(string? profileDirectory = null) : this(profileDirectory, directory => CoreWebView2Environment.CreateAsync(userDataFolder: directory)) { }
+    internal DesktopAccess(string? profileDirectory, Func<string, Task<CoreWebView2Environment>> createEnvironment) { ProfileDirectory = profileDirectory ?? Path.Combine(SettingsStore.UserDirectory, "WebView2"); this.createEnvironment = createEnvironment; }
     public CookieContainer Cookies { get; } = new();
     public async Task RestoreAsync(Uri origin)
     {
-        if (origin.Scheme != "https") return;
-        using var source = new HwndSource(new HwndSourceParameters("BellTeamログイン情報の読み取り") { Width = 1, Height = 1, WindowStyle = unchecked((int)0x80000000), ExtendedWindowStyle = 0x08000000 });
-        var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: ProfileDirectory);
-        var controller = await environment.CreateCoreWebView2ControllerAsync(source.Handle);
-        try { controller.IsVisible = false; await CopyCookiesAsync(controller.CoreWebView2, origin); }
-        finally { controller.Close(); }
+        if (origin.Scheme != "https" || !Directory.Exists(ProfileDirectory)) return;
+        await WithBrowserAsync(browser => CopyCookiesAsync(browser, origin));
+    }
+    public async Task SignOutAsync()
+    {
+        AccessCookies.Clear(Cookies);
+        if (Directory.Exists(ProfileDirectory)) await WithBrowserAsync(browser => { browser.CookieManager.DeleteAllCookies(); return Task.CompletedTask; });
+    }
+    private async Task WithBrowserAsync(Func<CoreWebView2, Task> operation)
+    {
+        try
+        {
+            using var source = new HwndSource(new HwndSourceParameters("BellTeamログイン情報の読み取り") { Width = 1, Height = 1, WindowStyle = unchecked((int)0x80000000), ExtendedWindowStyle = 0x08000000 });
+            var environment = await createEnvironment(ProfileDirectory);
+            var controller = await environment.CreateCoreWebView2ControllerAsync(source.Handle);
+            try { controller.IsVisible = false; await operation(controller.CoreWebView2); }
+            finally { controller.Close(); }
+            }
+        catch (Exception) { throw new BellApiException("ログイン情報を開けませんでした。WebView2 Runtimeと接続先を確認して、開き直してください。"); }
     }
     public async Task<bool> CopyCookiesAsync(CoreWebView2 browser, Uri origin)
     {

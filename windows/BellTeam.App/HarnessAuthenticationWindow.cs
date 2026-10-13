@@ -21,7 +21,7 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
     public HarnessAuthenticationWindow(Workspace workspace, HarnessAuthenticationOption harness, Func<string, bool>? confirm = null) : base(harness.Name, workspace.ConnectionToken)
     {
         api = new(workspace.Management.Api); this.harness = harness;
-        this.confirm = confirm ?? (warning => MessageBox.Show(this, warning, "AIの認証をやり直しますか？", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes);
+        this.confirm = confirm ?? (warning => new AuthenticationConfirmationWindow(warning) { Owner = this }.ShowDialog() == true);
         SaveButton.Visibility = Visibility.Collapsed; CloseButton.Content = "閉じる"; Body.MaxWidth = 650;
         Deactivated += (_, _) => { input.Clear(); StopReading(); }; Closed += (_, _) => { input.Clear(); StopReading(); };
         Activated += (_, _) => UpdatePolling(); timer.Tick += async (_, _) => await PollAsync(); Render();
@@ -91,5 +91,15 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         catch (OperationCanceledException) when (current.IsCancellationRequested) { }
         catch (Exception error) { pollingFailed = true; timer.Stop(); Status.Text = error.Message; }
         finally { reading = null; }
+    }
+}
+public sealed class AuthenticationConfirmationWindow : EditorWindow
+{
+    public AuthenticationConfirmationWindow(string warning) : base("AIの認証をやり直しますか？")
+    {
+        Width = 700; Height = 330; MinHeight = 280;
+        Heading("AIの認証をやり直しますか？"); Body.Children.Add(SecretCard.CardBody(warning));
+        CloseButton.Content = "始めない"; CloseButton.IsCancel = true;
+        SaveButton.Content = "今の認証を手放して始める"; SaveButton.Click += (_, _) => DialogResult = true;
     }
 }

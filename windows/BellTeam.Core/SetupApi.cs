@@ -23,9 +23,9 @@ public sealed record SetupState
 public sealed class SetupApi(BellApi api)
 {
     public Task<SetupState> StatusAsync(CancellationToken token = default) => api.GetAsync<SetupState>("/api/setup", token);
-    public Task<SetupState> SelectAsync(string harness, CancellationToken token = default) => PostAsync("/api/setup/harness", new { harness }, token);
+    public Task<SetupState> SelectAsync(string harness, CancellationToken token = default) => api.PostAsync<SetupState>("/api/setup/harness", new { harness }, token);
     public Task<SetupState> InputAsync(string? text, string? key, CancellationToken token = default) => PostAsync("/api/setup/auth/input", text is null ? new Dictionary<string, string> { ["key"] = key! } : new Dictionary<string, string> { ["text"] = text }, token);
-    public Task<SetupState> StartAsync(CancellationToken token = default) => PostAsync("/api/setup/start", new { }, token);
+    public Task<SetupState> StartAsync(CancellationToken token = default) => api.PostAsync<SetupState>("/api/setup/start", new { }, token);
     private async Task<SetupState> PostAsync(string path, object body, CancellationToken token)
     {
         try { return await api.PostAsync<SetupState>(path, body, token); }

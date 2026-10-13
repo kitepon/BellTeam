@@ -5,7 +5,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>BellTeam</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.4.1</Version>
+    <Version>0.4.2</Version>
     <ApplicationIcon>Assets/BellTeam.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>

@@ -18,6 +18,7 @@ public sealed class HarnessAuthenticationApi(BellApi api)
     private static string Path(string harness) => "/api/harness-auth/" + Uri.EscapeDataString(harness);
     private async Task<HarnessAuthenticationResponse> WriteAsync(string harness, string action, object body, CancellationToken token)
     {
+        if (action != "input") return await api.PostAsync<HarnessAuthenticationResponse>(Path(harness) + "/" + action, body, token);
         try { return await api.PostAsync<HarnessAuthenticationResponse>(Path(harness) + "/" + action, body, token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception error) { throw new BellApiException("操作の結果を確認できませんでした。入力欄を閉じて、認証の状態を更新して確認してください。", (error as BellApiException)?.Status); }

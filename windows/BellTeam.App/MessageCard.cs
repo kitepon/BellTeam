@@ -61,7 +61,7 @@ public sealed class MessageCard : ContentControl
             var accent = BellColors.Accent(Workspace.IsRoom ? Workspace.Bots.FirstOrDefault(bot => bot.Id == message.Sender?.Id)?.Color : Workspace.Selected?.Bot?.Color);
             var card = new Border { Child = stack, Padding = new Thickness(16, 12, 16, 12), CornerRadius = new CornerRadius(21), BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(message.IsOutgoing ? Color.FromRgb(229, 227, 240) : Color.FromArgb(90, accent.R, accent.G, accent.B)), Background = new SolidColorBrush(message.IsOutgoing ? Colors.White : Color.FromArgb(46, accent.R, accent.G, accent.B)) };
             bubble = card; accentName = null;
-            var row = new StackPanel { Margin = message.IsOutgoing ? new Thickness(45, 0, 0, 0) : new Thickness(0, 0, 45, 0) }; row.Children.Add(card); row.Children.Add(delivery);
+            var row = new StackPanel { MaxWidth = 900, HorizontalAlignment = message.IsOutgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left, Margin = message.IsOutgoing ? new Thickness(45, 0, 0, 0) : new Thickness(0, 0, 45, 0) }; row.Children.Add(card); row.Children.Add(delivery);
             Content = message.Kind == "peer" ? new Expander { Header = $"{message.PeerName ?? "メンバー"}との連絡", Content = row } : row;
         }
         heading!.Text = message.IsOutgoing ? "あなた" : message.Sender?.Title ?? Author;

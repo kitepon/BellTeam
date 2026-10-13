@@ -15,7 +15,7 @@ public static class UiChecks {
   [STAThread] public static void Main(string[] args) {
     var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown }; app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/BellTeam;component/Theme.xaml") });
     var dispatcher = Dispatcher.CurrentDispatcher; SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
-    dispatcher.BeginInvoke(async () => { try { if (args is ["--access-cookie", var action, var profile]) await AccessCookieCheck.Run([action,profile]); else if (args.Length == 0) await Run(); else throw new ArgumentException("引数は --access-cookie <write|read> <試験プロファイル> です。"); } catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; } finally { app.Shutdown(); dispatcher.InvokeShutdown(); } });
+    dispatcher.BeginInvoke(async () => { try { if (args is ["--access-cookie", var action, var profile]) await AccessCookieCheck.Run([action,profile]); else if (args is ["--notification-register"]) await NativeNotificationCheck.RunAsync(); else if (args is ["--notification-silent"]) await NativeNotificationCheck.RunAsync(showSilently:true); else if (args.Length == 0) await Run(); else throw new ArgumentException("引数は --access-cookie <write|read|clear|empty> <試験プロファイル> または --notification-register です。"); } catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; } finally { app.Shutdown(); dispatcher.InvokeShutdown(); } });
     Dispatcher.Run();
   }
   private static async Task Run() {
@@ -26,6 +26,7 @@ public static class UiChecks {
       var path = request.RequestUri!.AbsolutePath;
       object result = path switch {
         "/api/session" => new { authenticated = true, authMode = "local" },
+        "/api/setup" => new { phase = "ready", harness = (string?)null, harnesses = Array.Empty<object>(), guideBotId = (string?)null, complete = true, auth = (object?)null },
         "/api/bots" => new { bots = new[] { new { id = "one", name = "ユキ", displayName = "ユキ", color = "indigo" } } },
         "/api/rooms" => new { rooms = Array.Empty<object>() }, "/api/queue" => new { items = Array.Empty<object>() },
         "/api/owner" => new { owner = new { name = "利用者" } }, "/api/settings" => new { settings = Array.Empty<object>() },
@@ -38,6 +39,8 @@ public static class UiChecks {
       return JsonSerializer.Serialize(result, BellApi.Json);
     })));
     var disconnected = new MainWindow(workspace, persistPlacement:false); disconnected.ShowSettings(); disconnected.ShowSchedules();
+    var disconnectedRoot = (FrameworkElement)disconnected.Content; disconnectedRoot.Measure(new Size(1280,820)); disconnectedRoot.Arrange(new Rect(0,0,1280,820)); disconnectedRoot.UpdateLayout();
+    Check(Descendants<TextBlock>(disconnectedRoot).Single(text=>System.Windows.Automation.AutomationProperties.GetName(text)=="ファストモード中").Visibility==Visibility.Collapsed,"会話を選ぶ前にファストの印が出ます。");
     Check(((FrameworkElement)disconnected.FindName("PageArea")).Visibility == Visibility.Collapsed && workspace.ActionError is null,"未接続で設定のページが開きました。"); disconnected.Close();
     await workspace.ConnectAsync("http://localhost", listen:false);
     var window = new MainWindow(workspace, persistPlacement:false); var root = (FrameworkElement)window.Content;
@@ -64,8 +67,14 @@ public static class UiChecks {
     Check(workspace.Messages.Count == 41,"以前のメッセージが増えていません。");
     Check(Math.Abs((scroll.VerticalOffset-offset) - (scroll.ExtentHeight-oldHeight)) < 1,"以前の履歴を追加して位置がずれました。");
     Check(Application.Current.Windows.Cast<Window>().All(candidate => new WindowInteropHelper(candidate).Handle == IntPtr.Zero),"確認で窓のハンドルを作成しました。");
+    root.Measure(new Size(5120,1400)); root.Arrange(new Rect(0,0,5120,1400)); root.UpdateLayout();
+    Check(Descendants<ProfileView>(root).Single().ActualWidth <= 760,"横長の窓でプロフィールが伸びすぎます。");
+    Check(Descendants<MessageCard>(root).Where(card=>card.Content is StackPanel).All(card=>((StackPanel)card.Content).ActualWidth<=900),"横長の窓で吹き出しが伸びすぎます。");
+    workspace.DraftText = "同じ接続先の下書き"; await (Task)typeof(MainWindow).GetMethod("ChangeServerAsync",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(window,[workspace.Server])!;
+    await workspace.SelectAsync(workspace.Entries.Single()); Check(workspace.DraftText=="同じ接続先の下書き","同じ接続先の再入力でログアウトしています。"); workspace.DraftText="";
     workspace.Messages.Clear(); typeof(Workspace).GetProperty(nameof(Workspace.Loading))!.SetValue(workspace,true);
     Check(!((TextBlock)window.FindName("WelcomeNote")).Text.Contains("最初のメッセージ"),"読込中に送信の案内が出ます。");
+    Check(Application.Current.Windows.Cast<Window>().All(candidate => new WindowInteropHelper(candidate).Handle == IntPtr.Zero),"再接続の確認で窓を表示しました。");
     window.Close(); Console.WriteLine("画面内移動・新着・過去ログ位置・前面非表示の確認に成功しました。");
   }
   private static void Check(bool value,string message) { if (!value) throw new InvalidOperationException(message); }

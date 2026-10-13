@@ -7,6 +7,7 @@ public sealed record LocalSettings
 {
     public string? ServerUrl { get; init; }
     public WindowPlacement? Window { get; init; }
+    public bool NotificationsEnabled { get; init; }
 }
 public sealed class SettingsStore(string directory)
 {

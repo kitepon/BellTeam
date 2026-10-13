@@ -32,15 +32,8 @@ if ($ServerUrl) {
 New-Item -ItemType Directory -Force -Path $taskInstall | Out-Null
 Get-ChildItem -LiteralPath $taskPublish | Copy-Item -Destination $taskInstall -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'uninstall-windows.ps1') -Destination (Join-Path $taskInstall 'uninstall-windows.ps1') -Force
-$taskMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'BellTeam.lnk'
-$taskShell = New-Object -ComObject WScript.Shell
-$taskShortcut = $taskShell.CreateShortcut($taskMenu)
-$taskShortcut.TargetPath = $taskExe
-$taskShortcut.IconLocation = "$taskExe,0"
-$taskShortcut.WorkingDirectory = $taskInstall
-$taskShortcut.Description = 'BellTeam'
-$taskShortcut.Save()
-[System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($taskShell) | Out-Null
+$taskShortcutInstall = Start-Process -FilePath $taskExe -ArgumentList '--install-shortcut' -WindowStyle Hidden -Wait -PassThru
+if ($taskShortcutInstall.ExitCode -ne 0) { throw 'BellTeamのスタートメニュー登録に失敗しました。' }
 
 $taskRegistry = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\BellTeam'
 New-Item -Path $taskRegistry -Force | Out-Null
