@@ -4979,6 +4979,43 @@
         "physicalDisruptionTest": "not_resumed",
         "historicalRecords": "unchanged"
       }
+    },
+    "fastModeAndQueuePresentation": {
+      "version": "1.0.1",
+      "build": "48",
+      "sourceCommit": "2282987910420e1e06fdd9fce17099785a0d7200",
+      "status": "mac_installed_iphone_update_requested",
+      "scope": "Mac・iPhoneのファストモード切替と表示、会話の同じ席・同じ状態の配送表示を1行にまとめる",
+      "tests": {
+        "focusedApple": { "passed": 16, "failed": 0 },
+        "nodeFinal": { "passed": 433, "failed": 0 },
+        "macCatalystBuild": "passed"
+      },
+      "distribution": {
+        "appId": "6816295589",
+        "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+        "iosBuildId": "05b2a5d7-e6e9-4a20-9ea1-4b32da1f4895",
+        "macBuildId": "3114b5f0-28e4-4e88-89f6-aeef9f8cf7e3",
+        "iosProcessing": "VALID",
+        "macProcessing": "VALID",
+        "internalBuildState": "IN_BETA_TESTING",
+        "appAndNotificationExtensionVersionsMatch": true,
+        "archiveAndExportDirectory": "runtime/apple/fast-mode-48"
+      },
+      "macAcceptance": {
+        "installedPath": "/Applications/BellTeam.app",
+        "installedBuild": "48",
+        "gatekeeperSource": "Testflight",
+        "appLaunched": true,
+        "activeConversationQueueRowsObserved": 1,
+        "productionFastModeChangedForTesting": false
+      },
+      "iphoneAcceptance": {
+        "observedInstalledBuild": "47",
+        "status": "waiting_owner_testflight_update",
+        "decisionId": "K-SUWV3A"
+      },
+      "syntheticMacUIReferencePR": "https://github.com/kitepon/BellTeam/pull/13"
     }
   },
   "appleWebAccess": {
