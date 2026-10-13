@@ -981,3 +981,321 @@ test('エラーで終わったターンは、Claudeのエラーの知らせを�
     assert.deepEqual(received, expected)
   }
 })
+
+// Aiterm 0.60.0（ADR 0122）がBellTeamの印の付いた差し込みへ返す形。
+function steerReceipt({ cursor = 40, steerId = '0123456789abcdef' } = {}) {
+  return {
+    structuredContent: {
+      schema: 'aiterm.pty-send-result.v1', mode: 'agent_steer', session_id: 'bot-a', event_cursor: cursor,
+      wait_process: { executable: '/node', args: ['aiterm-wait', '--session', 'bot-a', '--cursor', String(cursor), '--steer', steerId] },
+    },
+    _meta: { 'aiterm/steer': { schema: 'aiterm.steer-ref.v1', steer_id: steerId, interim_from: `v1:${cursor}:b:900` } },
+  }
+}
+
+test('BellTeamが始めていないターンへの差し込みは、その文を取ったターンの終わりまで処理中に出し、合間の言葉を出す', async () => {
+  const calls = []
+  const waits = []
+  let finish
+  const waiting = new Promise(resolve => { finish = resolve })
+  const written = [{ seq: 1, text: '見てくるね', kind: 'interim', at: null, turn_id: null }]
+  const transport = new AitermTransport({
+    client: { async call(name, args, options) {
+      calls.push([name, args, options])
+      if (name === 'pty_send') return steerReceipt()
+      if (name === 'pty_observe')
+        return { structuredContent: { state: 'busy' }, ...interimWords(40, written.filter(word => word.seq > options.meta['aiterm/interim_after'])) }
+      throw new Error(`unexpected ${name}`)
+    } },
+    handoffContext: noMemory, interimInterval: 5,
+    waitProcess: async process => { waits.push(process); return waiting },
+  })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: '/bots/bot-a' }
+  const statuses = [], words = [], answers = [], turnEnds = []
+  const accepted = await transport.notify(bot, '追加の依頼', {
+    onStatus: status => statuses.push(status), onInterim: batch => words.push(...batch),
+    onAnswer: text => answers.push(text), onTurnEnd: window => turnEnds.push(window),
+  })
+  assert.deepEqual(accepted, { delivery: 'steered' })
+  assert.deepEqual(statuses, ['running'])
+  assert.deepEqual(transport.queueItems({ botId: bot.id }).map(item => item.status), ['running'])
+  finish({ outcome: 'done', turn_id: 'turn-x', steer: { placement: 'same_turn', taken_at: null } })
+  await transport.idle(bot.id)
+  assert.deepEqual(statuses, ['running', 'delivered'])
+  assert.deepEqual(words, [{ text: '見てくるね', kind: 'interim' }])
+  // そのターンの回答は、ターンを始めた側が出す。差し込みの側では読まない。
+  assert.deepEqual(answers, [])
+  assert.deepEqual(turnEnds, [])
+  assert.equal(calls.some(([name]) => name === 'pty_read'), false)
+  assert.deepEqual(calls.find(([name]) => name === 'pty_send')[2], { meta: { 'aiterm/caller': 'BellTeam' } })
+  assert.deepEqual(calls.find(([name]) => name === 'pty_observe')[2],
+    { meta: { 'aiterm/caller': 'BellTeam', 'aiterm/interim_after': 0, 'aiterm/interim_from': 'v1:40:b:900' } })
+  assert.deepEqual(waits[0].args.slice(-2), ['--steer', '0123456789abcdef'])
+  assert.deepEqual(transport.queueItems({ botId: bot.id }), [])
+})
+
+test('前のターンが終わった後で新しいターンになった差し込みは、そのターンの回答を読む', async () => {
+  const reads = []
+  const transport = new AitermTransport({
+    client: { async call(name, args) {
+      if (name === 'pty_send') return steerReceipt()
+      if (name === 'pty_read') {
+        reads.push(args)
+        return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: '答えたよ', turn_id: 'turn-y' } }
+      }
+      throw new Error(`unexpected ${name}`)
+    } },
+    handoffContext: noMemory, now: () => '2026-10-13T12:00:00.000Z',
+    waitProcess: async () => ({ outcome: 'done', turn_id: 'turn-y', steer: { placement: 'next_turn', taken_at: '2026-10-13T12:00:01.000Z' } }),
+  })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: '/bots/bot-a' }
+  const user = transport.turn(bot, '頼む')
+  assert.deepEqual(await user.accepted, { delivery: 'steered' })
+  assert.equal(await user, '答えたよ')
+  const order = []
+  await transport.notify(bot, '連絡', {
+    onStatus: status => order.push(['status', status]), onAnswer: text => order.push(['answer', text]),
+    onTurnEnd: window => order.push(['end', window]),
+  })
+  await transport.idle(bot.id)
+  assert.deepEqual(order, [
+    ['status', 'running'], ['answer', '答えたよ'], ['status', 'delivered'],
+    ['end', { startedAt: '2026-10-13T12:00:00.000Z', endedAt: '2026-10-13T12:00:00.000Z' }],
+  ])
+  assert.deepEqual(reads, [{ session_id: 'bot-a', agent_transcript: true }, { session_id: 'bot-a', agent_transcript: true }])
+})
+
+test('追っているターンへの差し込みは、合間の言葉も回答も重ねず、元の配送の終わりを待って配達済みにする', async () => {
+  const calls = []
+  let finishTurn, finishSteer
+  const turnDone = new Promise(resolve => { finishTurn = resolve })
+  const steerDone = new Promise(resolve => { finishSteer = resolve })
+  const transport = new AitermTransport({
+    client: { async call(name, args, options) {
+      calls.push([name, args, options])
+      if (name === 'pty_send') return calls.filter(([tool]) => tool === 'pty_send').length === 1
+        ? { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: '/node', args: ['wait'] } } }
+        : steerReceipt()
+      if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: 'まとめて回答' } }
+      throw new Error(`unexpected ${name}`)
+    } },
+    handoffContext: noMemory, interimInterval: 5,
+    waitProcess: async process => process.args.includes('--steer') ? steerDone : turnDone,
+  })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: '/bots/bot-a' }
+  const first = transport.turn(bot, '最初')
+  await first.accepted
+  const statuses = []
+  const second = transport.turn(bot, '追加', { onStatus: status => statuses.push(status), onInterim: () => { throw new Error('合間の言葉は元の配送が出す') } })
+  assert.deepEqual(await second.accepted, { delivery: 'steered' })
+  finishSteer({ outcome: 'done', turn_id: 'turn-x', steer: { placement: 'same_turn', taken_at: null } })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(statuses, ['running'])
+  finishTurn({ outcome: 'done' })
+  assert.equal(await first, 'まとめて回答')
+  assert.deepEqual(await second, { delivery: 'steered' })
+  assert.deepEqual(statuses, ['running', 'delivered'])
+  assert.equal(calls.some(([name]) => name === 'pty_observe'), false)
+  assert.equal(calls.filter(([name]) => name === 'pty_read').length, 1)
+})
+
+test('会話の記録に入らなかった差し込みは、failedにする', async () => {
+  const transport = new AitermTransport({
+    client: { async call(name) {
+      if (name === 'pty_send') return steerReceipt()
+      throw new Error(`unexpected ${name}`)
+    } },
+    handoffContext: noMemory, waitProcess: async () => ({ outcome: 'not_taken' }),
+  })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', project: '/bots/bot-a' }
+  const statuses = []
+  const completion = transport.turn(bot, '届いて', { onStatus: status => statuses.push(status) })
+  assert.deepEqual(await completion.accepted, { delivery: 'steered' })
+  await assert.rejects(completion, /AITERM_TURN_NOT_TAKEN/u)
+  assert.deepEqual(statuses, ['running', 'failed'])
+})
+
+test('終わりまで追った差し込みの画像は、そのターンが終わったら消す', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-image-follow-'))
+  let imagePath
+  const transport = new AitermTransport({
+    tempRoot: root,
+    client: { async call(name, args) {
+      if (name === 'pty_send') { imagePath = args.image[0]; return steerReceipt() }
+      throw new Error(`unexpected ${name}`)
+    } },
+    handoffContext: noMemory,
+    waitProcess: async () => ({ outcome: 'done', steer: { placement: 'same_turn', taken_at: null } }),
+  })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'grok', project: '/bots/bot-a' }
+  assert.deepEqual(await transport.notify(bot, '画像を見て', { images: [{ mime: 'image/png', data: 'iVBORw0KGgo=' }] }), { delivery: 'steered' })
+  await transport.idle(bot.id)
+  await assert.rejects(access(imagePath), /ENOENT/u)
+})
+
+// Aiterm 0.60.0（ADR 0122）がBellTeamの印の付いたpty_listへ返す形。
+function seatTurns(turn) {
+  return {
+    content: [{ type: 'text', text: 'bot-a\t(agent)' }],
+    _meta: { 'aiterm/seat_turns': { schema: 'aiterm.seat-turns.v1', seats: turn === undefined ? [] : [{ session_id: 'bot-a', launch_id: 'launch-a', harness: 'codex-cli', turn }] } },
+  }
+}
+
+function runningTurn(turnId, cursor = 900) {
+  return {
+    state: 'running', turn_id: turnId, started_at: '2026-10-13T12:45:27.000Z', event_cursor: cursor, interim_from: `v1:${cursor}:b:${cursor}`,
+    wait_process: { executable: '/node', args: ['aiterm-wait', '--session', 'bot-a', '--cursor', String(cursor)] },
+  }
+}
+
+test('BellTeamが始めていないターンを見つけたら、終わるまで処理中に出し、そのターンの合間の言葉だけを出す', async () => {
+  const calls = []
+  let finish
+  const waiting = new Promise(resolve => { finish = resolve })
+  const written = [
+    { seq: 1, text: '子の結果を見るね', kind: 'interim', at: '2026-10-13T12:45:30.000Z', turn_id: 'turn-x' },
+    { seq: 2, text: '次のターンの言葉', kind: 'interim', at: null, turn_id: 'turn-y' },
+    { seq: 3, text: 'まとめるよ', kind: 'interim', at: null, turn_id: null },
+  ]
+  const transport = new AitermTransport({
+    client: { async call(name, args, options) {
+      calls.push([name, args, options])
+      if (name === 'pty_list') return seatTurns(runningTurn('turn-x'))
+      if (name === 'pty_observe')
+        return { structuredContent: { state: 'busy' }, ...interimWords(900, written.filter(word => word.seq > options.meta['aiterm/interim_after'])) }
+      throw new Error(`unexpected ${name}`)
+    } },
+    handoffContext: noMemory, interimInterval: 5, activeId: () => 'job-1', waitProcess: async () => waiting,
+  })
+  const bot = { id: 'bot-a', session: 'bot-a', name: 'リリーバイス', harness: 'codex', project: '/bots/bot-a' }
+  const said = []
+  const options = { onInterim: (botId, groupId, words) => said.push([botId, groupId, words]), groupId: () => 'g-1' }
+  assert.equal(await transport.watchSeatTurns([bot], options), true)
+  assert.deepEqual(calls[0], ['pty_list', {}, { meta: { 'aiterm/caller': 'BellTeam' } }])
+  const item = {
+    id: 'job-1', botId: 'bot-a', botName: 'リリーバイス', status: 'running', startedAt: '2026-10-13T12:45:27.000Z',
+    context: 'self', contextId: 'bot-a', groupId: 'g-1', target: 'bot-a',
+  }
+  assert.deepEqual(transport.queueItems({ botId: bot.id }), [item])
+  // 追っている間にもう一度聞いても、同じターンを2つ追わない。
+  assert.equal(await transport.watchSeatTurns([bot], options), true)
+  assert.deepEqual(transport.queueItems(), [item])
+  finish({ outcome: 'done', turn_id: 'turn-x' })
+  await transport.idle(bot.id)
+  assert.deepEqual(transport.queueItems(), [])
+  assert.deepEqual(said.flatMap(([botId, groupId, words]) => words.map(word => [botId, groupId, word])), [
+    ['bot-a', 'g-1', { text: '子の結果を見るね', kind: 'interim', at: '2026-10-13T12:45:30.000Z' }],
+    ['bot-a', 'g-1', { text: 'まとめるよ', kind: 'interim' }],
+  ])
+  assert.equal(calls.find(([name]) => name === 'pty_observe')[2].meta['aiterm/interim_from'], 'v1:900:b:900')
+  // 回答はThroughlineの側が出す。ここでは読まない。
+  assert.equal(calls.some(([name]) => name === 'pty_read'), false)
+  // Aitermへ聞いた後に終わったターンを、もう一度追い始めない。
+  assert.equal(await transport.watchSeatTurns([bot], options), true)
+  assert.deepEqual(transport.queueItems(), [])
+})
+
+test('止められたターンは、席の今のターンが替わった時に追うのをやめる', async () => {
+  let turn = runningTurn('turn-x')
+  let stopped = false
+  const transport = new AitermTransport({
+    client: { async call(name) {
+      if (name === 'pty_list') return seatTurns(turn)
+      throw new Error(`unexpected ${name}`)
+    } },
+    handoffContext: noMemory,
+    // 止められたターンでは、Aitermの待ちは返らない。
+    waitProcess: (process, signal) => new Promise((resolve, reject) => {
+      signal.addEventListener('abort', () => { stopped = true; reject(new Error('aborted')) })
+    }),
+  })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: '/bots/bot-a' }
+  await transport.watchSeatTurns([bot])
+  assert.equal(transport.isIdle(bot.id), false)
+  // 分からない（記録の末尾を書いている途中）間は、追い続ける。
+  turn = null
+  await transport.watchSeatTurns([bot])
+  assert.equal(transport.isIdle(bot.id), false)
+  turn = { state: 'idle' }
+  await transport.watchSeatTurns([bot])
+  await transport.idle(bot.id)
+  assert.equal(stopped, true)
+  assert.equal(transport.watches.size, 0)
+  // 席が閉じた時も同じ。
+  turn = runningTurn('turn-z')
+  await transport.watchSeatTurns([bot])
+  assert.equal(transport.isIdle(bot.id), false)
+  turn = undefined
+  await transport.watchSeatTurns([bot])
+  await transport.idle(bot.id)
+  assert.equal(transport.watches.size, 0)
+})
+
+test('エラーで終わった見つけたターンは、Aitermが返した理由を合間の言葉として出す', async () => {
+  const transport = new AitermTransport({
+    client: { async call(name) {
+      if (name === 'pty_list') return seatTurns(runningTurn('turn-x'))
+      if (name === 'pty_observe') return { structuredContent: { state: 'busy' }, ...interimWords(900, []) }
+      throw new Error(`unexpected ${name}`)
+    } },
+    handoffContext: noMemory, interimInterval: 5,
+    waitProcess: async () => ({ outcome: 'error', error: 'stream disconnected' }),
+  })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: '/bots/bot-a' }
+  const said = []
+  await transport.watchSeatTurns([bot], { onInterim: (botId, groupId, words) => said.push(...words) })
+  await transport.idle(bot.id)
+  assert.deepEqual(said, [{ text: 'AITERM_TURN_ERROR: stream disconnected', kind: 'error' }])
+})
+
+test('配送中の席のターンは追わず、席の今のターンを返さないAitermでは何もしない', async () => {
+  let listed = seatTurns(runningTurn('turn-x'))
+  const transport = new AitermTransport({
+    client: { async call(name) {
+      if (name === 'pty_list') return listed
+      throw new Error(`unexpected ${name}`)
+    } },
+    handoffContext: noMemory, waitProcess: async () => { throw new Error('追わない') },
+  })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: '/bots/bot-a' }
+  transport.active.set('job', { bot, info: {} })
+  assert.equal(await transport.watchSeatTurns([bot]), true)
+  assert.equal(transport.watches.size, 0)
+  transport.active.clear()
+  // Aiterm 0.59.1までは、印を付けても結果に何も足さない。
+  listed = { content: [{ type: 'text', text: 'bot-a\t(agent)' }] }
+  assert.equal(await transport.watchSeatTurns([bot]), false)
+  assert.equal(transport.watches.size, 0)
+  listed = { _meta: { 'aiterm/seat_turns': { schema: 'aiterm.seat-turns.v1', error: 'ENOENT' } } }
+  await assert.rejects(transport.watchSeatTurns([bot]), /AITERM_SEAT_TURNS_INVALID: ENOENT/u)
+})
+
+test('見つけたターンを追っている席への差し込みは、その見張りに合間の言葉を任せる', async () => {
+  let finishTurn
+  const turnDone = new Promise(resolve => { finishTurn = resolve })
+  const observes = []
+  const transport = new AitermTransport({
+    client: { async call(name, args, options) {
+      if (name === 'pty_list') return seatTurns(runningTurn('turn-x'))
+      if (name === 'pty_send') return steerReceipt({ cursor: 950 })
+      if (name === 'pty_observe') { observes.push(options.meta['aiterm/interim_from']); return { structuredContent: { state: 'busy' }, ...interimWords(900, []) } }
+      throw new Error(`unexpected ${name}`)
+    } },
+    handoffContext: noMemory, interimInterval: 5,
+    waitProcess: async process => process.args.includes('--steer')
+      ? { outcome: 'done', turn_id: 'turn-x', steer: { placement: 'same_turn', taken_at: null } } : turnDone,
+  })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: '/bots/bot-a' }
+  await transport.watchSeatTurns([bot])
+  const statuses = []
+  const steer = transport.turn(bot, '頼む。完成させてくれ。', { onStatus: status => statuses.push(status), onInterim: () => {} })
+  assert.deepEqual(await steer.accepted, { delivery: 'steered' })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(statuses, ['running'])
+  finishTurn({ outcome: 'done', turn_id: 'turn-x' })
+  assert.deepEqual(await steer, { delivery: 'steered' })
+  await transport.idle(bot.id)
+  assert.deepEqual(statuses, ['running', 'delivered'])
+  // 差し込みの側は、合間の言葉を読みに行かない。
+  assert.deepEqual(observes, [])
+})

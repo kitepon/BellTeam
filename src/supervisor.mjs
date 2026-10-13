@@ -24,6 +24,7 @@ import { SecretRequests, secretCompletionMessage } from './secret-requests.mjs'
 import { OwnerQuestions, ownerAnswerMessage } from './owner-questions.mjs'
 import { RoomRegistry } from './room-registry.mjs'
 import { TurnReports, judgeOwnerReport } from './turn-reports.mjs'
+import { SeatTurns } from './seat-turns.mjs'
 import { SelfTurns } from './self-turns.mjs'
 import { IdleSessions } from './idle-sessions.mjs'
 import { PushNotifications } from './push-notifications.mjs'
@@ -86,6 +87,11 @@ const selfTurns = new SelfTurns({
   afterTurn: turn => turnReports.afterTurn(turn),
 })
 await selfTurns.initialize()
+// BellTeamが始めていないターンも、Aitermに席の今のターンを聞いて「処理中」と合間の言葉に出す。
+const seatTurns = new SeatTurns({
+  bots, transport,
+  appendInterimWords: (botId, groupId, words) => messenger.appendInterimWords(botId, groupId, words),
+})
 const rooms = new RoomRegistry({ roomsRoot: join(root, 'rooms'), bots })
 await rooms.initialize()
 const roomMessenger = new RoomMessenger({
@@ -221,6 +227,7 @@ server.listen(Number(process.env.BELLTEAM_WEB_PORT ?? 4180), '0.0.0.0')
 internalServer.listen(internalPort, '127.0.0.1')
 scheduler.start()
 selfTurns.start()
+seatTurns.start()
 idleSessions.start()
 
 process.stderr.write('BellTeam ready\n')
@@ -228,6 +235,7 @@ await waitForShutdown()
 scheduler.stop()
 await idleSessions.stop()
 await selfTurns.stop()
+await seatTurns.stop()
 await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
 await new Promise((resolve, reject) => internalServer.close(error => error ? reject(error) : resolve()))
 if (adminServer) await closeServer(adminServer)
