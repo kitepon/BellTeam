@@ -9,7 +9,7 @@ import { SelfTurns, readObserverTurns, throughlineChanged } from '../src/self-tu
 const bots = new Map([['bot-r', { id: 'bot-r', project: '/srv/bellteam/bots/bot-r' }]])
 const turn = (key, start, assistant, completed) => ({ source_sha256: key, turn_start: start, assistant, completed_at: completed, host: 'claude', truncated: false })
 
-async function feed(pages, { changed = async () => true, state = null } = {}) {
+async function feed(pages, { changed = async () => true, state = null, shown = () => null } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'self-turns-'))
   const statePath = join(dir, 'self-turns.json')
   if (state) await writeFile(statePath, JSON.stringify({ schema: 'bellteam.self-turns.v1', bots: state }))
@@ -18,7 +18,7 @@ async function feed(pages, { changed = async () => true, state = null } = {}) {
   const turns = []
   const reported = []
   const service = new SelfTurns({
-    bots, statePath, changed,
+    bots, statePath, changed, shown,
     read: async request => { reads.push(request); return pages.shift() },
     appendAnswer: async (...args) => answers.push(args),
     afterTurn: value => turns.push(value),
@@ -79,6 +79,41 @@ test('Aitermの子の結果で始まったターンの回答も出す。配送�
   assert.deepEqual(answers, [['bot-r', 'g-1', '担当の成果を受け取ったよ。']])
   assert.deepEqual(turns.map(value => [value.context, value.startedAt]), [['self', new Date(1000).toISOString()]])
   await cleanup()
+})
+
+const seen = { 'bot-r': { cursor: 'c1', seen: ['a'], lastCompletedAt: 1000 } }
+const selfPage = (assistant, completed) => [{ status: 'delta', throughCursor: 'c2', page: { complete: true }, turns: [turn('b', 'self', assistant, completed)] }]
+
+test('合間の言葉として先に出した文が回答の頭に全部並んでいる時は、その分を外して出す', async () => {
+  const shown = { words: ['一つ目', '二つ目'], endedAt: 5000 }
+  const { service, answers, cleanup } = await feed(selfPage('一つ目\n\n二つ目\n\n終わりました。', 6000), { state: structuredClone(seen), shown: () => shown })
+  await service.poll()
+  assert.deepEqual(answers, [['bot-r', 'g-1', '終わりました。']])
+  // 外した分は、次のターンの回答からもう一度外さない。
+  assert.deepEqual(shown.words, [])
+  await cleanup()
+})
+
+test('追っている途中に記録が先に届いた時も、頭に並んでいる分を外す', async () => {
+  const { service, answers, cleanup } = await feed(selfPage('一つ目\n\n終わりました。', 6000), { state: structuredClone(seen), shown: () => ({ words: ['一つ目'], endedAt: null }) })
+  await service.poll()
+  assert.deepEqual(answers, [['bot-r', 'g-1', '終わりました。']])
+  await cleanup()
+})
+
+test('出した文が1つでも頭に合わない時、別のターンの分の時、外すと何も残らない時は、回答をそのまま出す', async () => {
+  for (const [assistant, shown] of [
+    ['一つ目\n\n終わりました。', { words: ['一つ目', '二つ目'], endedAt: 5000 }],
+    ['前置き\n\n一つ目\n\n終わりました。', { words: ['一つ目'], endedAt: 5000 }],
+    ['一つ目\n\n終わりました。', { words: ['一つ目'], endedAt: 6000 - 60_001 }],
+    ['一つ目\n\n二つ目', { words: ['一つ目', '二つ目'], endedAt: 5000 }],
+    ['一つ目\n\n終わりました。', { words: [], endedAt: 5000 }],
+  ]) {
+    const { service, answers, cleanup } = await feed(selfPage(assistant, 6000), { state: structuredClone(seen), shown: () => shown })
+    await service.poll()
+    assert.deepEqual(answers, [['bot-r', 'g-1', assistant]])
+    await cleanup()
+  }
 })
 
 test('ページを続けて読み、/clearのあとに同じターンが届いても1回しか出さない', async () => {

@@ -21,17 +21,35 @@ const SEEN_LIMIT = 500
 // 配送したターンの途中に子の結果が差し込まれた時は、頭が配送した文になるので当たらない。
 const CHILD_RESULT_PREFACE = 'Aitermの子エージェントからの実行結果です。'
 
+// 追ったターンの終わり（Aitermの待ちが返った時刻）と、Throughlineの記録の終わりを、同じターンとみなす幅。
+const SAME_TURN_MS = 60_000
+
+// 合間の言葉として先に画面へ出した文が、回答の頭に順番どおり全部並んでいる時だけ、その分を外す。
+// Throughlineはターンの文を全部つなげて返すので、外さないと同じ文が2回出る（2026-10-14、Codexの席）。
+// 1つでも合わない時、別のターンの分の時、外すと何も残らない時は、回答をそのまま出す。
+function withoutShownWords(text, shown, completedAt) {
+  if (!shown?.words.length) return text
+  if (shown.endedAt !== null && Math.abs(completedAt - shown.endedAt) > SAME_TURN_MS) return text
+  let rest = text
+  for (const word of shown.words) {
+    if (!rest.startsWith(word)) return text
+    rest = rest.slice(word.length).trimStart()
+  }
+  return rest || text
+}
+
 function startedOutsideDelivery(turn) {
   if (turn.turn_start === 'self') return true
   return turn.turn_start === 'prompt' && typeof turn.user === 'string' && turn.user.trimStart().startsWith(CHILD_RESULT_PREFACE)
 }
 
 export class SelfTurns {
-  constructor({ bots, statePath, appendAnswer, afterTurn = () => {}, read = readObserverTurns, changed = throughlineChanged(), report = message => process.stderr.write(`${message}\n`), groupId = randomUUID, intervalMs = INTERVAL_MS }) {
+  constructor({ bots, statePath, appendAnswer, afterTurn = () => {}, shown = () => null, read = readObserverTurns, changed = throughlineChanged(), report = message => process.stderr.write(`${message}\n`), groupId = randomUUID, intervalMs = INTERVAL_MS }) {
     this.bots = bots
     this.statePath = statePath
     this.appendAnswer = appendAnswer
     this.afterTurn = afterTurn
+    this.shown = shown
     this.read = read
     this.changed = changed
     this.report = report
@@ -113,8 +131,12 @@ export class SelfTurns {
     const startedAt = current.lastCompletedAt
     const completedAt = Number.isFinite(turn.completed_at) ? turn.completed_at : Date.now()
     current.lastCompletedAt = Math.max(current.lastCompletedAt ?? 0, completedAt)
-    const text = typeof turn.assistant === 'string' ? turn.assistant.trim() : ''
-    if (!startedOutsideDelivery(turn) || !text) return
+    const whole = typeof turn.assistant === 'string' ? turn.assistant.trim() : ''
+    if (!startedOutsideDelivery(turn) || !whole) return
+    const shown = this.shown(bot.id)
+    const text = withoutShownWords(whole, shown, completedAt)
+    // 外した分を、次のターンの回答からもう一度外さない。
+    if (text !== whole) shown.words.length = 0
     await this.appendAnswer(bot.id, this.groupId(), text)
     // 自分から始まったターンも、配送したターンと同じく報告漏れを確かめる。幅は前のターンの終わりから、いま画面へ出した回答まで。
     this.afterTurn({

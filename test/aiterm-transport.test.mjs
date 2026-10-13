@@ -1190,6 +1190,11 @@ test('BellTeamが始めていないターンを見つけたら、終わるまで
   assert.equal(calls.find(([name]) => name === 'pty_observe')[2].meta['aiterm/interim_from'], 'v1:900:b:900')
   // 回答はThroughlineの側が出す。ここでは読まない。
   assert.equal(calls.some(([name]) => name === 'pty_read'), false)
+  // 出した文と追い終えた時刻を覚える。Throughlineの側が、回答の頭に重なる分を外すのに使う。
+  const shown = transport.shownInSelfTurn(bot.id)
+  assert.deepEqual(shown.words, ['子の結果を見るね', 'まとめるよ'])
+  assert.ok(Number.isFinite(shown.endedAt))
+  assert.equal(transport.shownInSelfTurn('bot-z'), null)
   // Aitermへ聞いた後に終わったターンを、もう一度追い始めない。
   assert.equal(await transport.watchSeatTurns([bot], options), true)
   assert.deepEqual(transport.queueItems(), [])
@@ -1246,6 +1251,8 @@ test('エラーで終わった見つけたターンは、Aitermが返した理�
   await transport.watchSeatTurns([bot], { onInterim: (botId, groupId, words) => said.push(...words) })
   await transport.idle(bot.id)
   assert.deepEqual(said, [{ text: 'AITERM_TURN_ERROR: stream disconnected', kind: 'error' }])
+  // エラーの知らせは回答の文ではないので、出した文には数えない。
+  assert.deepEqual(transport.shownInSelfTurn(bot.id).words, [])
 })
 
 test('配送中の席のターンは追わず、席の今のターンを返さないAitermでは何もしない', async () => {

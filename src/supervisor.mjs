@@ -85,6 +85,7 @@ const selfTurns = new SelfTurns({
   bots, statePath: join(root, 'logs/self-turns.json'),
   appendAnswer: (botId, groupId, text) => messenger.appendInterimWords(botId, groupId, [{ text, kind: 'answer' }]),
   afterTurn: turn => turnReports.afterTurn(turn),
+  shown: botId => transport.shownInSelfTurn(botId),
 })
 await selfTurns.initialize()
 // BellTeamが始めていないターンも、Aitermに席の今のターンを聞いて「処理中」と合間の言葉に出す。

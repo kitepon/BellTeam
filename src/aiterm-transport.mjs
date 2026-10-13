@@ -142,6 +142,9 @@ export class AitermTransport {
     this.watches = new Map()
     // 席ごとの、最後に終わりまで追ったターン。Aitermへ聞いた後に終わったターンを、もう一度追い始めない。
     this.followedTurns = new Map()
+    // 席ごとの、最後に追ったターンで合間の言葉として出した文。そのターンの回答はself-turns.mjsがThroughlineから出し、
+    // Throughlineはターンの文を全部つなげて返すので、先に出した分を回答の頭から外すのに使う。
+    this.shownWords = new Map()
   }
 
   async isRunning(bot) {
@@ -511,12 +514,17 @@ export class AitermTransport {
     }
     const stop = new AbortController()
     const ended = new Promise(resolve => stop.signal.addEventListener('abort', resolve, { once: true }))
+    const shown = { words: [], endedAt: null }
     this.followedTurns.set(bot.id, turn.turn_id)
     this.watches.set(bot.id, { turnId: turn.turn_id, end: () => stop.abort() })
+    this.shownWords.set(bot.id, shown)
     this.active.set(job.id, job)
     this.emitQueue()
     job.completion = (async () => {
-      const say = onInterim ? words => onInterim(bot.id, group, words) : null
+      const say = onInterim ? async words => {
+        await onInterim(bot.id, group, words)
+        shown.words.push(...words.filter(word => word.kind !== 'error').map(word => word.text.trim()).filter(Boolean))
+      } : null
       const interim = say ? this.followInterim(session, turn, say, { from: turn.interim_from, turnId: turn.turn_id }) : null
       try {
         let failure = null
@@ -530,11 +538,17 @@ export class AitermTransport {
       } catch (error) {
         process.stderr.write(`BellTeam seat turn error: ${error.stack ?? error.message}\n`)
       } finally {
+        shown.endedAt = Date.parse(this.now())
         this.watches.delete(bot.id)
         this.active.delete(job.id)
         this.emitQueue()
       }
     })()
+  }
+
+  // 席が自分で始めたターンのうち、最後に追ったターンで合間の言葉として出した文と、追い終えた時刻。
+  shownInSelfTurn(botId) {
+    return this.shownWords.get(botId) ?? null
   }
 
   async idle(botId) {
