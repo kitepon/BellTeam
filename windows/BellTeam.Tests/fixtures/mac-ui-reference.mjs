@@ -17,6 +17,9 @@ const schedules = {
 const feature = (id, title) => ({ id, title, enabled: true, status: 'enabled', fields: [] })
 const routes = { '/api/session': { authenticated: true, authMode: 'local' }, '/api/bots': { bots: fixture.bots }, '/api/rooms': { rooms: fixture.rooms }, '/api/models': { models }, '/api/owner': { owner: fixture.owner }, '/api/user-rules': { text: 'チーム全員へ共有する指示。' }, '/api/settings': { settings: [feature('routing','AIによるルーム応答の振り分け'),feature('callBridge','メンバー間の連携'),feature('notifications','通知')] }, '/api/queue': { items: Array.from({ length: 12 }, (_, index) => ({ id: `job-${index}`, botId: 'bot-one', botName: 'ユキ', status: 'running', context: 'direct', contextId: 'bot-one' })) } }
 let writes = 0
+routes['/api/harness-auth'] = { harnesses: [{ id: 'codex', name: 'Codex', members: 2, startWarning: 'Codexは、認証し直しを始めた時点で今の認証が消えます。' }, { id: 'claude', name: 'Claude', members: 1, startWarning: null }] }
+routes['/api/harness-auth/codex'] = { harness: 'codex', auth: { status: 'waiting', url: 'https://example.com/login', user_code: 'TEST-CODE', input_required: false, message: '公式サイトで認証してください。' } }
+routes['/api/setup'] = { phase: 'select_harness', harness: null, harnesses: [{ id: 'codex', name: 'Codex' }, { id: 'claude', name: 'Claude' }, { id: 'grok', name: 'Grok' }, { id: 'cursor', name: 'Cursor' }], guideBotId: null, complete: false, auth: null }
 const server = createServer((request, response) => {
   if (request.method !== 'GET') { writes++; response.writeHead(405); response.end(); return }
   const path = new URL(request.url, 'http://localhost').pathname
@@ -35,7 +38,9 @@ server.listen(0, '127.0.0.1', async () => {
       ['01-workspace.png', ['--render-url', origin, 'bot-one']],
       ['02-member-editor.png', ['--render-editor', 'member', origin, 'bot-one']],
       ['03-schedules.png', ['--render-page', 'schedules', origin]],
-      ['04-settings.png', ['--render-page', 'settings', origin]]
+      ['04-settings.png', ['--render-page', 'settings', origin]],
+      ['05-setup.png', ['--render-editor', 'setup', origin, '-']],
+      ['06-authentication.png', ['--render-editor', 'authentication', origin, 'codex']]
     ]
     for (const [name, args] of frames) {
       const output = join(destination, name)

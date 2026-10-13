@@ -9,6 +9,7 @@ namespace BellTeam.Core;
 public sealed class BellApiException(string message, HttpStatusCode? status = null) : Exception(message)
 {
     public HttpStatusCode? Status { get; } = status;
+    public bool RequiresLogin => Status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden || (int?)Status is >= 300 and < 400;
 }
 
 public sealed class BellApi : IDisposable
@@ -19,11 +20,12 @@ public sealed class BellApi : IDisposable
     };
     private readonly HttpClient client;
     public Uri Origin { get; }
+    public event Action? AuthenticationRequired;
 
-    public BellApi(Uri origin, HttpMessageHandler? handler = null)
+    public BellApi(Uri origin, HttpMessageHandler? handler = null, CookieContainer? cookies = null)
     {
         Origin = origin;
-        client = new HttpClient(handler ?? new HttpClientHandler { AllowAutoRedirect = false })
+        client = new HttpClient(handler ?? new HttpClientHandler { AllowAutoRedirect = false, CookieContainer = cookies ?? new CookieContainer() })
         {
             BaseAddress = origin,
             Timeout = Timeout.InfiniteTimeSpan
@@ -120,11 +122,14 @@ public sealed class BellApi : IDisposable
         catch (JsonException error) { throw new BellApiException("BellTeamからの応答を読み取れませんでした。" + error.Message); }
     }
 
-    private static async Task ValidateAsync(HttpResponseMessage response, CancellationToken token)
+    private async Task ValidateAsync(HttpResponseMessage response, CancellationToken token)
     {
         var status = (int)response.StatusCode;
         if (status is >= 300 and < 400 || status is 401 or 403)
-            throw new BellApiException("Cloudflare Accessへログインしてください。Windows版の外部ログインは次の段階で対応します。", response.StatusCode);
+        {
+            AuthenticationRequired?.Invoke();
+            throw new BellApiException("Cloudflare Accessへログインしてください。", response.StatusCode);
+        }
         if (response.IsSuccessStatusCode) return;
         var body = await response.Content.ReadAsStringAsync(token);
         string detail = $"HTTP {status}";

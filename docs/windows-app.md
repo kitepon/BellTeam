@@ -39,7 +39,7 @@ LAN接続で一覧・会話・プロフィールを使う1段目に、画像・�
 
 接続先は初回の「接続先」で入力し、このPCの`%LOCALAPPDATA%\BellTeam\settings.json`へ保存する。HTTPS、またはlocalhost・LANのHTTPを受け付ける。判定は`web/server-origin.js`の通信条件と`ios/BellBot/Shared/ServerOrigin.swift`の接続先条件に合わせる。認証情報、パス、クエリー、フラグメント付きの接続先は断る。サーバーの利用者設定は埋め込まない。
 
-SSEの切断・応答形式の異常は画面下部に表示する。「再接続」で利用者が接続し直す。常駐、タスクトレイ、自動起動、自動再試行、通知は入れない。閉じると終了する。
+SSEの切断・応答形式の異常は画面下部に表示する。「再接続」で利用者が接続し直す。常駐、タスクトレイ、自動起動、自動再試行は入れない。起動中の通知は後続の段階。閉じると終了する。
 
 ## このPCへの導入
 
@@ -138,14 +138,14 @@ Windows nativeの`npm test`は426件中397件成功・29件失敗。例えば`te
 - 前面に表示した実際の窓での操作、IMEの変換確定、範囲選択・コピー、複数モニター・表示倍率を変えた時の表示、二重起動時の既存窓の表示は未確認。FOXでは別のBotが画面を操作しているため、担当者と時刻を合わせて確認する。
 - 同じ接続先を指定した入れ直しはトロニーが実行済み。接続先を省略した更新での設定保持とアンインストールの実行は未確認。導入前にinstaller・uninstallerのPowerShell構文を確認し、通常の利用者から削除の入口が登録されたことを確認した。
 - arm64のビルドと端末上の動作は未確認。
-- 2段目の利用者による実画面操作（画像のファイル選択・ドロップ・貼り付け・拡大、保存ダイアログ、カードの操作、Bot画面の表示）は未確認。3aの編集・切り抜き、3bの予定・設定、ファストモードの実画面操作は未確認。3aと3bの導入はトロニーが実行済み。ファストモードの操作条件を修正した版の導入は未確認。秘密入力は本番の依頼を使って試さず、模擬応答で確認する。mainへの取り込み後の導入と、通常の利用者からの確認はトロニーが行う。
-- Cloudflare Access、AIの認証・初回設定、通知は後続の段階。現段階でそれらを使う画面は提供しない。
+- 2段目の利用者による実画面操作（画像のファイル選択・ドロップ・貼り付け・拡大、保存ダイアログ、カードの操作、Bot画面の表示）は未確認。3aの編集・切り抜き、3bの予定・設定、ファストモードの実画面操作は未確認。3aと3bの導入はトロニーが実行済み。ファストモードの操作条件を修正した版はトロニーが導入済み。秘密入力は本番の依頼を使って試さず、模擬応答で確認する。mainへの取り込み後の導入と、通常の利用者からの確認はトロニーが行う。
+- Cloudflare Accessの本人によるログインと、実際のAI認証・初回設定は未確認。AI認証を始める操作は本番へ送らず、模擬応答だけで確認した。起動中の通知は後続の段階。
 
 ## 後続の段階
 
 追加機能のmainへの取り込みとFOXへの再導入はトロニーが行う。
 
-4段目: Cloudflare Access、AIの認証、初回設定、アプリが起きている間のWindows通知。通知は既定でオフ。
+4段目の残り: アプリが起きている間のWindows通知。通知は既定でオフ。
 
 ## 資料
 
@@ -154,3 +154,22 @@ Windows nativeの`npm test`は426件中397件成功・29件失敗。例えば`te
 - [JSONの必須プロパティ](https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/required-properties)
 - [Markdig](https://github.com/xoofx/markdig)
 - [デスクトップアプリでのWindows Runtime API](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/winrt-apis-desktop-apps)
+
+## 外部ログインとAI認証・初回設定
+
+外部接続で認証が必要な時は「ログインして始める」からCloudflare Accessの専用画面を開く。会話画面はWPFのまま、WebView2をログインだけに使う。端末の`%LOCALAPPDATA%\BellTeam\WebView2`にログイン情報を保存し、次の起動で読み直す。APIには接続先の有効な`CF_Authorization` Cookieだけを渡す。ログイン画面を閉じるとWebView2を解放する。WebView2 Runtimeの失敗や認証・設定の異常は表示し、自動で繰り返さない。
+
+初回設定が済んでいない接続先では、AIの選択、公式サイトへのリンク、利用者コード、専用のマスク入力、案内役との会話開始へ進む。設定の「AIの認証」はCLIごとの利用人数を表示し、公式の状態確認、再認証、専用入力とキー送信、取消に対応する。サーバーの開始警告を表示し、確認を断れば開始しない。認証待ちの表示中だけ3秒ごとに状態を読み、失敗・非アクティブ化・終了で止める。これは失敗の再試行ではなく、進行中の公式認証の状態照会である。入力は送信・非アクティブ化・終了時に消し、通信失敗の詳細へ値を含めない。
+
+22:27:49〜22:28:03 JST、トロニーが通常の利用者・非管理者・パッケージ外・窓なしで画面改修版を再導入した。exeの版は`0.4.0+24c3d807ee22d3ffe638113428827871e67ecab5`、DisplayVersionは0.4.0、設定は前後で同じ。22:28:06 JSTの導入exeのsmokeは終了コード0・成功で、41メンバー、3ルーム、会話10件、SSE接続を確認。終了後のBellTeam.exeは0件。Windowsがexeから取得する32pxのアイコンは32bit・934色で、スタートメニューはexeのアイコンを参照していた。
+
+確認用の`BellTeam.UiChecks`が通常のApp起動も実行する事を、Cookie試験の引数付き実行で発見した。以前の確認では試験対象の窓だけのHWNDを検査していたため、別の通常窓の非表示を証明できていなかった。実際の前面への影響は未観測。確認用プログラムを素のApplicationと共通Themeへ分離し、全WindowのHWNDが無いことを検査して操作確認をやり直した。製品の通常起動は変更していない。
+
+模擬Cookieの非表示保存と別プロセスからの復元は、次の試験用入口で再実行できる。専用の試験プロファイルを指定し、利用者の本物のログイン情報へ触れない。
+
+```powershell
+dotnet run --project windows/BellTeam.UiChecks/BellTeam.UiChecks.csproj -c Release -- --access-cookie write windows/artifacts/access-cookie-check
+dotnet run --project windows/BellTeam.UiChecks/BellTeam.UiChecks.csproj -c Release -- --access-cookie read windows/artifacts/access-cookie-check
+```
+
+[ログイン・初回設定・AI認証の比較資料](windows-auth-ui.md)に画面と検証結果を載せる。

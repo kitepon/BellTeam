@@ -24,6 +24,26 @@ public sealed class SettingsWindow(Workspace workspace, Action? changeServer = n
             edit.Click += (_, _) => { var editor = new ProfileEditor(workspace) { Owner = DialogOwner }; _ = editor.InitializeAsync(); editor.ShowDialog(); _ = ReloadAsync(); }; profile.Children.Add(edit); Body.Children.Add(Card(profile));
             var connection = new StackPanel { Margin = new Thickness(20) }; connection.Children.Add(new TextBlock { Text = "接続先", FontSize = 17, FontWeight = FontWeights.SemiBold }); connection.Children.Add(new TextBlock { Text = new Uri(workspace.Server).Authority, FontSize = 16, Foreground = Brushes.SlateGray, Margin = new Thickness(0, 12, 0, 8) }); connection.Children.Add(new TextBlock { Text = workspace.AuthMode == "cloudflare" ? "Cloudflare Accessで認証済み" : "ローカル接続", FontSize = 14, Foreground = Brushes.MediumAquamarine });
             if (changeServer is not null) { var change = new Button { Content = "接続先を変更", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 14, 0, 0) }; change.Click += (_, _) => changeServer(); connection.Children.Add(change); } Body.Children.Add(Card(connection));
+            var authentication = new StackPanel { Margin = new Thickness(20) };
+            authentication.Children.Add(new TextBlock { Text = "AIの認証", FontSize = 20, FontWeight = FontWeights.SemiBold });
+            authentication.Children.Add(new TextBlock { Text = "AIの認証が切れたときや、別のアカウントで入り直すときに使います。", FontSize = 14, Foreground = Brushes.SlateGray, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 12) });
+            try
+            {
+                var harnesses = (await new HarnessAuthenticationApi(workspace.Management.Api).ListAsync(Token)).Harnesses; Token.ThrowIfCancellationRequested();
+                foreach (var harness in harnesses)
+                {
+                    var row = new DockPanel(); var usage = new TextBlock { Text = harness.UsageText, Foreground = Brushes.SlateGray, FontSize = 14 }; DockPanel.SetDock(usage, Dock.Right); row.Children.Add(usage); row.Children.Add(new TextBlock { Text = harness.Name, FontSize = 17 });
+                    var open = new Button { Content = row, HorizontalContentAlignment = HorizontalAlignment.Stretch }; open.SetResourceReference(StyleProperty, "QuietButton");
+                    open.Click += (_, _) => { var editor = new HarnessAuthenticationWindow(workspace, harness) { Owner = DialogOwner }; _ = editor.InitializeAsync(); editor.ShowDialog(); }; authentication.Children.Add(open);
+                }
+            }
+            catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
+            catch (Exception error)
+            {
+                authentication.Children.Add(new TextBlock { Text = "AIの種類を確認できませんでした。\n" + error.Message, Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap });
+                var retry = new Button { Content = "一覧を更新", HorizontalAlignment = HorizontalAlignment.Left }; retry.Click += (_, _) => _ = ReloadAsync(); authentication.Children.Add(retry);
+            }
+            Body.Children.Add(Card(authentication));
             Heading("追加機能"); Body.Children.Add(new TextBlock { Text = "未設定の機能は無効です。案内役との会話でも設定できます。", FontSize = 14, Foreground = Brushes.SlateGray, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
             foreach (var feature in features)
             {

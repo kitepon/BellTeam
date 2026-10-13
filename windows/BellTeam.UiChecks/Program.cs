@@ -12,10 +12,10 @@ using System.ComponentModel;
 using BellTeam.App;
 using BellTeam.Core;
 public static class UiChecks {
-  [STAThread] public static void Main() {
-    var app = new App(); app.InitializeComponent();
+  [STAThread] public static void Main(string[] args) {
+    var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown }; app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/BellTeam;component/Theme.xaml") });
     var dispatcher = Dispatcher.CurrentDispatcher; SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
-    dispatcher.BeginInvoke(async () => { try { await Run(); } catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; } finally { app.Shutdown(); dispatcher.InvokeShutdown(); } });
+    dispatcher.BeginInvoke(async () => { try { if (args is ["--access-cookie", var action, var profile]) await AccessCookieCheck.Run([action,profile]); else if (args.Length == 0) await Run(); else throw new ArgumentException("引数は --access-cookie <write|read> <試験プロファイル> です。"); } catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; } finally { app.Shutdown(); dispatcher.InvokeShutdown(); } });
     Dispatcher.Run();
   }
   private static async Task Run() {
@@ -63,7 +63,7 @@ public static class UiChecks {
     older.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Layout();
     Check(workspace.Messages.Count == 41,"以前のメッセージが増えていません。");
     Check(Math.Abs((scroll.VerticalOffset-offset) - (scroll.ExtentHeight-oldHeight)) < 1,"以前の履歴を追加して位置がずれました。");
-    Check(new WindowInteropHelper(window).Handle == IntPtr.Zero,"確認で窓のハンドルを作成しました。");
+    Check(Application.Current.Windows.Cast<Window>().All(candidate => new WindowInteropHelper(candidate).Handle == IntPtr.Zero),"確認で窓のハンドルを作成しました。");
     workspace.Messages.Clear(); typeof(Workspace).GetProperty(nameof(Workspace.Loading))!.SetValue(workspace,true);
     Check(!((TextBlock)window.FindName("WelcomeNote")).Text.Contains("最初のメッセージ"),"読込中に送信の案内が出ます。");
     window.Close(); Console.WriteLine("画面内移動・新着・過去ログ位置・前面非表示の確認に成功しました。");
