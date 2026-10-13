@@ -10,13 +10,15 @@ namespace BellTeam.App;
 public partial class MainWindow : Window
 {
     private readonly Workspace model;
+    private readonly DesktopAccess? access;
     private bool inspectorVisible = true;
     private EditorWindow? page;
     private bool loadingOlder;
     public Task PageReady { get; private set; } = Task.CompletedTask;
-    public MainWindow(Workspace model, bool persistPlacement = true)
+    public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null)
     {
         this.model = model;
+        this.access = access;
         SetResourceReference(StyleProperty, typeof(Window));
         InitializeComponent();
         DataContext = model;
@@ -92,7 +94,7 @@ public partial class MainWindow : Window
         }
         finally { loadingOlder = false; }
     }
-    private async void Reconnect_Click(object sender, RoutedEventArgs e) { if (page?.CanNavigateAway == false) return; ShowConversation(); await model.ReconnectAsync(); }
+    private async void Reconnect_Click(object sender, RoutedEventArgs e) { if (page?.CanNavigateAway == false || model.Server.Length == 0) return; ShowConversation(); await ConnectAsync(model.Server); }
     private async void Export_Click(object sender, RoutedEventArgs e)
     {
         if (model.Selected is not { } entry) return;
@@ -185,7 +187,32 @@ public partial class MainWindow : Window
     {
         if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから接続先を変更してください。"); return; }
         var dialog = new ConnectionWindow(model.Server) { Owner = this };
-        if (dialog.ShowDialog() == true) { ShowConversation(); _ = model.ConnectAsync(dialog.Address); }
+        if (dialog.ShowDialog() == true) { ShowConversation(); _ = ConnectAsync(dialog.Address); }
+    }
+    public async Task ConnectAsync(string address)
+    {
+        await model.ConnectAsync(address);
+        if (!model.Connected) return;
+        try
+        {
+            var setup = await new SetupApi(model.Management.Api).StatusAsync(model.ConnectionToken);
+            if (setup.Phase != "ready")
+            {
+                var editor = new SetupWindow(model, setup) { Owner = this };
+                editor.ShowDialog(); setup = editor.State;
+                if (setup.Phase != "ready") return;
+                await model.ReconnectAsync();
+            }
+            if (!setup.Complete && setup.GuideBotId is { } guide && model.Entries.FirstOrDefault(entry => entry.Target == new ChatTarget(guide, false)) is { } conversation) await model.SelectAsync(conversation);
+        }
+        catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { }
+        catch (Exception error) { model.ReportActionError(error.Message); }
+    }
+    private async void Login_Click(object sender, RoutedEventArgs e)
+    {
+        if (access is null) return;
+        try { if (new AccessLoginWindow(access, ServerOrigin.Parse(model.Server)) { Owner = this }.ShowDialog() == true) await ConnectAsync(model.Server); }
+        catch (Exception) { model.ReportActionError("ログイン画面を開けませんでした。接続先とWebView2 Runtimeを確認してください。"); }
     }
     private void Inspector_Click(object sender, RoutedEventArgs e) => ToggleInspector();
     private void ToggleInspector()

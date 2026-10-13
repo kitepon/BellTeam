@@ -38,6 +38,8 @@ public partial class App : Application
                 else if (editorKind == "feature") { var feature = new FeatureEditor(editorWorkspace, editorId, "追加機能"); editor = feature; await feature.InitializeAsync(); }
                 else if (editorKind == "schedules") { var schedules = new SchedulesWindow(editorWorkspace); editor = schedules; await schedules.InitializeAsync(); }
                 else if (editorKind == "new-schedule") editor = new ScheduleEditor(editorWorkspace, null);
+                else if (editorKind == "setup") editor = new SetupWindow(editorWorkspace, await new SetupApi(editorWorkspace.Management.Api).StatusAsync());
+                else if (editorKind == "authentication") { var option = (await new HarnessAuthenticationApi(editorWorkspace.Management.Api).ListAsync(editorWorkspace.ConnectionToken)).Harnesses.Single(item => item.Id == editorId); var authentication = new HarnessAuthenticationWindow(editorWorkspace, option); editor = authentication; await authentication.InitializeAsync(); }
                 else throw new ArgumentException("未対応の編集画面です。");
                 await editor.ReadyTask; WritePng(editor, (int)editor.Width, (int)editor.Height, editorOutput); editor.Close(); Shutdown(0); return;
             }
@@ -72,17 +74,18 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|schedules> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|schedules> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
 
-            var workspace = new Workspace();
-            var main = new MainWindow(workspace);
+            var access = new DesktopAccess();
+            var workspace = new Workspace(origin => new BellApi(origin, cookies: access.Cookies), access.RestoreAsync);
+            var main = new MainWindow(workspace, access: access);
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));
             if (!instance.IsPrimary) { Shutdown(0); return; }
             MainWindow = main;
             main.Closed += (_, _) => { workspace.Dispose(); Shutdown(); };
             main.Show();
             var settings = new SettingsStore(SettingsStore.UserDirectory).Load();
-            if (settings.ServerUrl is { } url) await workspace.ConnectAsync(url);
+            if (settings.ServerUrl is { } url) await main.ConnectAsync(url);
             else main.OpenConnectionSettings();
         }
         catch (Exception error)

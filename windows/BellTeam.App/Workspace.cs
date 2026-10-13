@@ -22,7 +22,8 @@ public sealed record ConversationEntry(ChatTarget Target, string Name, string Su
 public sealed class Workspace : INotifyPropertyChanged, IDisposable
 {
     private readonly Func<Uri, BellApi> apiFactory;
-    public Workspace(Func<Uri, BellApi>? apiFactory = null) => this.apiFactory = apiFactory ?? (origin => new BellApi(origin));
+    private readonly Func<Uri, Task>? prepareConnection;
+    public Workspace(Func<Uri, BellApi>? apiFactory = null, Func<Uri, Task>? prepareConnection = null) { this.apiFactory = apiFactory ?? (origin => new BellApi(origin)); this.prepareConnection = prepareConnection; }
     private BellApi? api;
     private CancellationTokenSource? connection;
     private CancellationTokenSource? selection;
@@ -32,6 +33,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     private QueueItem[] queue = [];
     private string search = "";
     private string? connectionError;
+    private bool needsLogin;
     private string connectionStatus = "接続先を設定してください。";
     public string OwnerName { get; private set; } = "あなた";
     public string AuthMode { get; private set; } = "local";
@@ -65,6 +67,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public AttachmentPreview[] Attachments => Draft?.Attachments.Select(image => new AttachmentPreview(image, attachmentPreviews[image])).ToArray() ?? [];
     public string Search { get => search; set { search = value; Changed(); Filter(); } }
     public string? ConnectionError { get => connectionError; private set { connectionError = value; Changed(); } }
+    public bool NeedsLogin { get => needsLogin; private set { needsLogin = value; Changed(); } }
     public string ConnectionStatus { get => connectionStatus; private set { connectionStatus = value; Changed(); } }
     public ConversationEntry? Selected => selected;
     public bool HasSelection => selected is not null;
@@ -115,15 +118,19 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         Loading = false;
         Changed(nameof(Selected)); Changed(nameof(HasSelection)); Changed(nameof(Connected)); Changed(nameof(EditLabel)); Changed(nameof(CanShowScreen)); Changed(nameof(IsRoom)); Changed(nameof(Title)); Changed(nameof(Profile)); Changed(nameof(Server)); DraftChanged();
         ConnectionError = null;
+        NeedsLogin = false;
         ActionError = null;
         ConnectionStatus = "接続を確認しています…";
         var current = api;
+        current.AuthenticationRequired += () => { if (api == current) NeedsLogin = true; };
         var token = connection.Token;
         try
         {
+            if (prepareConnection is not null) await prepareConnection(origin);
+            token.ThrowIfCancellationRequested();
             var session = await current.GetAsync<SessionInfo>("/api/session", token);
             AuthMode = session.AuthMode; Changed(nameof(AuthMode));
-            if (!session.Authenticated) throw new BellApiException("Cloudflare Accessへログインしてください。Windows版の外部ログインは次の段階で対応します。");
+            if (!session.Authenticated) { NeedsLogin = session.AuthMode == "cloudflare"; throw new BellApiException(NeedsLogin ? "Cloudflare Accessへログインしてください。" : "接続先が認証を拒否しました。サーバーの設定を確認してください。"); }
             await RefreshAsync(current, token);
             ready = true; Changed(nameof(Connected));
             ConnectionStatus = "接続済み";
