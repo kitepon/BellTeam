@@ -36,10 +36,12 @@ public partial class App : Application
                 if (model.Entries.FirstOrDefault() is { } first) await model.SelectAsync(first);
                 if (model.ConnectionError is { } renderError) throw new BellApiException(renderError);
                 var root = (FrameworkElement)window.Content;
-                root.Measure(new Size(1280, 820));
-                root.Arrange(new Rect(0, 0, 1280, 820));
+                var height = e.Args[0] == "--render-preview" ? 1200 : 820;
+                root.Measure(new Size(1280, height));
+                root.Arrange(new Rect(0, 0, 1280, height));
                 root.UpdateLayout();
-                var bitmap = new RenderTargetBitmap(1280, 820, 96, 96, PixelFormats.Pbgra32);
+                await window.PrepareRenderAsync();
+                var bitmap = new RenderTargetBitmap(1280, height, 96, 96, PixelFormats.Pbgra32);
                 bitmap.Render(root);
                 var encoder = new PngBitmapEncoder();
                 encoder.Frames.Add(BitmapFrame.Create(bitmap));

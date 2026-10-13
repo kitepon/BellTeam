@@ -33,24 +33,29 @@
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <DockPanel Margin="20,16">
         <Button DockPanel.Dock="Right" Content="詳細" Click="Inspector_Click" ToolTip="詳細パネルを表示・非表示（Ctrl+Shift+I）"/>
+        <Button DockPanel.Dock="Right" Content="会話を書き出す" Click="Export_Click" IsEnabled="{Binding HasSelection}"/>
         <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
       </DockPanel>
-      <ScrollViewer x:Name="MessageScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="16,0,16,14" AutomationProperties.Name="会話">
+      <ScrollViewer x:Name="MessageScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="16,0,16,14" AutomationProperties.Name="会話" AllowDrop="True" PreviewDragOver="Images_DragOver" Drop="Images_Drop">
         <StackPanel>
           <Button Content="以前のメッセージを読む" Visibility="{Binding HasMore, Converter={StaticResource Visible}}" Click="Older_Click"/>
-          <ItemsControl ItemsSource="{Binding Messages}"><ItemsControl.ItemTemplate><DataTemplate><local:MessageCard Message="{Binding}" Author="{Binding DataContext.Title, RelativeSource={RelativeSource AncestorType=Window}}" Margin="0,5"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+          <ItemsControl ItemsSource="{Binding Messages}"><ItemsControl.ItemTemplate><DataTemplate><local:MessageCard Message="{Binding Message}" Workspace="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Author="{Binding DataContext.Title, RelativeSource={RelativeSource AncestorType=Window}}" Margin="0,5"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
         </StackPanel>
       </ScrollViewer>
       <StackPanel Grid.Row="2" Margin="16,10,16,16">
         <Expander Header="返信するメンバーを選択" Visibility="{Binding IsRoom, Converter={StaticResource Visible}}"><ScrollViewer MaxHeight="120" VerticalScrollBarVisibility="Auto"><ItemsControl ItemsSource="{Binding ReplyMembers}"><ItemsControl.ItemTemplate><DataTemplate><CheckBox Content="{Binding Name}" IsChecked="{Binding Selected}" Margin="3"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer></Expander>
         <TextBlock Text="{Binding SendError}" Foreground="#AF384D" TextWrapping="Wrap" Margin="0,5" AutomationProperties.Name="送信の失敗"/>
-        <TextBox x:Name="Composer" Text="{Binding DraftText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="74" MaxHeight="180" VerticalScrollBarVisibility="Auto" FontSize="18" PreviewKeyDown="Composer_KeyDown" AutomationProperties.Name="メッセージ"/>
-        <DockPanel Margin="0,7,0,0"><Button DockPanel.Dock="Right" Content="{Binding SendLabel}" IsEnabled="{Binding CanSend}" Click="Send_Click" Background="#E8E0F2"/><TextBlock Text="送信  Enter    改行  Shift+Enter" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center"/></DockPanel>
+        <ScrollViewer MaxHeight="140" VerticalScrollBarVisibility="Auto"><ItemsControl ItemsSource="{Binding Attachments}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Border Margin="3" Padding="4" BorderBrush="#DCD7E5" BorderThickness="1"><StackPanel Width="100"><Image Source="{Binding Preview}" Height="64" Stretch="Uniform"/><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="12"/><Button Content="取り外す" Tag="{Binding Data}" Click="RemoveImage_Click" FontSize="12"/></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
+        <TextBox x:Name="Composer" Text="{Binding DraftText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="74" MaxHeight="180" VerticalScrollBarVisibility="Auto" FontSize="18" PreviewKeyDown="Composer_KeyDown" AutomationProperties.Name="メッセージ" AllowDrop="True" PreviewDragOver="Images_DragOver" Drop="Images_Drop"/>
+        <DockPanel Margin="0,7,0,0"><Button DockPanel.Dock="Right" Content="{Binding SendLabel}" IsEnabled="{Binding CanSend}" Click="Send_Click" Background="#E8E0F2"/><Button DockPanel.Dock="Left" Content="画像を添付" Click="Attach_Click" IsEnabled="{Binding CanAttach}"/><TextBlock Text="送信  Enter    改行  Shift+Enter" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center"/></DockPanel>
       </StackPanel>
     </Grid>
     <Border x:Name="Inspector" Grid.Column="2" Background="#FFFEFF" BorderBrush="#E0DBE8" BorderThickness="1,0,0,0">
-      <ScrollViewer VerticalScrollBarVisibility="Auto"><TextBox Text="{Binding Profile, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" FontSize="18" BorderThickness="0" Background="Transparent" Margin="22" AutomationProperties.Name="プロフィール"/></ScrollViewer>
+      <Grid>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding ProfileVisible, Converter={StaticResource Visible}}"><StackPanel Margin="22"><TextBox Text="{Binding Profile, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" FontSize="18" BorderThickness="0" Background="Transparent" AutomationProperties.Name="プロフィール"/><Button Content="Botの画面を見る" Click="Screen_Click" Visibility="{Binding CanShowScreen, Converter={StaticResource Visible}}"/></StackPanel></ScrollViewer>
+        <Grid Visibility="{Binding ScreenVisible, Converter={StaticResource Visible}}" Margin="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions><WrapPanel><Button Content="プロフィールに戻る" Click="Profile_Click"/><Button Content="再読込" Click="Screen_Click"/></WrapPanel><TextBox Grid.Row="1" Text="{Binding Screen, Mode=OneWay}" FontFamily="Cascadia Mono, Consolas" FontSize="12" IsReadOnly="True" AcceptsReturn="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Botの画面"/><TextBlock Grid.Row="2" Text="{Binding ScreenStatus}" TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="5"/></Grid>
+      </Grid>
     </Border>
-    <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding ConnectionError}" Foreground="#AF384D" Background="#FFF1F3" TextWrapping="Wrap" Padding="12,6" AutomationProperties.Name="接続の失敗"/>
+    <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Background="#FFF1F3"><TextBlock Text="{Binding ConnectionError}" Foreground="#AF384D" TextWrapping="Wrap" Margin="12,3" AutomationProperties.Name="接続の失敗"/><TextBlock Text="{Binding ActionError}" Foreground="#AF384D" TextWrapping="Wrap" Margin="12,3" AutomationProperties.Name="操作の失敗"/></StackPanel>
   </Grid>
 </Window>
