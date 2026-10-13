@@ -56,6 +56,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public ManagementApi Management => new(api ?? throw new BellApiException("接続先を設定してください。"));
     public PlanningApi Planning => new(api ?? throw new BellApiException("接続先を設定してください。"));
     public event Action? ServerChanged;
+    public event Action<MessageNotification>? MessageArrived;
     public ConversationEntry[] Conversations => all.ToArray();
     public Bot[] Bots => all.Where(entry => entry.Bot is not null).Select(entry => entry.Bot!).ToArray();
     public string? ActionError { get => actionError; private set { actionError = value; Changed(); } }
@@ -70,6 +71,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public bool NeedsLogin { get => needsLogin; private set { needsLogin = value; Changed(); } }
     public string ConnectionStatus { get => connectionStatus; private set { connectionStatus = value; Changed(); } }
     public ConversationEntry? Selected => selected;
+    public bool SelectedFastMode => selected?.FastMode == true;
     public bool HasSelection => selected is not null;
     public bool Connected => ready;
     public string EditLabel => IsRoom ? "ルームを編集" : "メンバーを編集";
@@ -95,7 +97,11 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     private static string Empty(string value, string replacement = "未設定") => string.IsNullOrWhiteSpace(value) ? replacement : value;
     public event PropertyChangedEventHandler? PropertyChanged;
     public event Action<bool>? ScrollToBottom;
-    private void Changed([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new(name));
+    private void Changed([CallerMemberName] string? name = null)
+    {
+        PropertyChanged?.Invoke(this, new(name));
+        if (name == nameof(Selected)) PropertyChanged?.Invoke(this, new(nameof(SelectedFastMode)));
+    }
     private void DraftChanged() { Changed(nameof(DraftText)); Changed(nameof(SendError)); Changed(nameof(SendLabel)); Changed(nameof(CanSend)); Changed(nameof(CanAttach)); Changed(nameof(Attachments)); }
 
     public async Task ConnectAsync(string address, bool listen = true)
@@ -147,14 +153,14 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             await foreach (var item in current.EventsAsync(token))
             {
                 ConnectionStatus = "接続済み・新着を受信中";
-                if (item.EnumerateObject().Any()) { await RefreshAsync(current, token); ServerChanged?.Invoke(); }
+                if (item.EnumerateObject().Any()) { await RefreshAsync(current, token, notify: true); ServerChanged?.Invoke(); }
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error) { if (api == current) { ConnectionError = error.Message; ConnectionStatus = "新着の受信が停止しました。"; } }
     }
 
-    private async Task RefreshAsync(BellApi current, CancellationToken token)
+    private async Task RefreshAsync(BellApi current, CancellationToken token, bool notify = false)
     {
         await refreshLock.WaitAsync(token);
         try
@@ -166,8 +172,12 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             token.ThrowIfCancellationRequested();
             OwnerName = owner.Owner.Name; Changed(nameof(OwnerName));
             queue = activity.Items; var working = queue.Where(item => item.Status == "running").Select(item => item.BotId).ToHashSet();
+            var previous = all.ToDictionary(entry => entry.Target);
             all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, bot.Recent?.Preview ?? bot.Position, bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null, Server, working.Contains(bot.Id)))
                 .Concat(rooms.Rooms.Select(room => new ConversationEntry(new(room.Id, true), room.Name, room.Recent?.Preview ?? room.Purpose, room.Recent?.At ?? DateTimeOffset.MinValue, null, room, Server))).ToList();
+            if (notify)
+                foreach (var entry in all)
+                    if (previous.TryGetValue(entry.Target, out var before) && MessageNotification.FromRecent(Server, entry.Target, entry.Name, before.Bot?.Recent ?? before.Room?.Recent, entry.Bot?.Recent ?? entry.Room?.Recent) is { } notification) MessageArrived?.Invoke(notification);
             var usedAvatars = all.Select(entry => entry.AvatarUrl).ToHashSet(); foreach (var key in avatars.Keys.Where(key => !usedAvatars.Contains(key)).ToArray()) avatars.Remove(key);
             var known = all.Select(entry => entry.Target).ToHashSet();
             foreach (var key in drafts.Keys.Where(key => key.Item1 == Server && !known.Contains(key.Item2)).ToArray())
@@ -387,6 +397,14 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     }
 
     public async Task ReconnectAsync() { if (api is not null) await ConnectAsync(Server); }
+    public void SignOut()
+    {
+        connection?.Cancel(); selection?.Cancel(); ReturnToProfile(); ready = false; selected = null;
+        all.Clear(); queue = []; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); drafts.Clear(); attachmentPreviews.Clear(); avatars.Clear(); OwnerName = "あなた";
+        HasMore = false; Loading = false; ConnectionError = ActionError = null; NeedsLogin = AuthMode == "cloudflare"; ConnectionStatus = "ログアウトしました。";
+        foreach (var name in new[] { nameof(Connected), nameof(Selected), nameof(HasSelection), nameof(IsRoom), nameof(Title), nameof(Profile), nameof(OwnerName), nameof(OnlineSummary), nameof(ActivityText), nameof(HasActivity), nameof(CanShowScreen) }) Changed(name);
+        DraftChanged();
+    }
     public void LoadPreview()
     {
         preview = true;

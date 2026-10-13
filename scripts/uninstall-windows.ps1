@@ -13,4 +13,4 @@ if (Test-Path -LiteralPath $taskMenu) { Remove-Item -LiteralPath $taskMenu }
 $taskRegistry = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\BellTeam'
 if (Test-Path -LiteralPath $taskRegistry) { Remove-Item -LiteralPath $taskRegistry }
 if (Test-Path -LiteralPath $taskInstall) { Remove-Item -LiteralPath $taskInstall -Recurse -Force }
-Write-Output 'BellTeamを削除しました。接続先と窓の設定は、このPCのLocalAppData\BellTeamに保持しています。'
+Write-Output 'BellTeamを削除しました。接続先・窓・通知の設定とログイン情報は、このPCのLocalAppData\BellTeamに保持しています。'

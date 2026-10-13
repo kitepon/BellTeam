@@ -40,9 +40,12 @@ server.listen(0, '127.0.0.1', async () => {
       ['03-schedules.png', ['--render-page', 'schedules', origin]],
       ['04-settings.png', ['--render-page', 'settings', origin]],
       ['05-setup.png', ['--render-editor', 'setup', origin, '-']],
-      ['06-authentication.png', ['--render-editor', 'authentication', origin, 'codex']]
+      ['06-authentication.png', ['--render-editor', 'authentication', origin, 'codex']],
+      ['07-settings-cloudflare.png', ['--render-page', 'settings', origin]],
+      ['08-settings-lower.png', ['--render-page', 'settings-lower', origin]]
     ]
     for (const [name, args] of frames) {
+      if (name === '07-settings-cloudflare.png') routes['/api/session'].authMode = 'cloudflare'
       const output = join(destination, name)
       await new Promise((success, failure) => {
         const child = spawn(executable, [...args, output], { windowsHide: true, stdio: ['ignore', 'inherit', 'inherit'] })

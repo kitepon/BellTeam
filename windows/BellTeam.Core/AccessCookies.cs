@@ -4,6 +4,7 @@ namespace BellTeam.Core;
 
 public static class AccessCookies
 {
+    public static void Clear(CookieContainer destination) { foreach (Cookie cookie in destination.GetAllCookies()) { cookie.Expired = true; destination.Add(cookie); } }
     public static void Replace(CookieContainer destination, Uri origin, IEnumerable<Cookie> cookies)
     {
         foreach (Cookie previous in destination.GetCookies(origin)) if (previous.Name == "CF_Authorization") previous.Expired = true;

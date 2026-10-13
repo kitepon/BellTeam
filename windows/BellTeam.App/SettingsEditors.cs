@@ -5,7 +5,7 @@ using BellTeam.Core;
 
 namespace BellTeam.App;
 
-public sealed class SettingsWindow(Workspace workspace, Action? changeServer = null) : EditorWindow("設定", workspace.ConnectionToken)
+public sealed class SettingsWindow(Workspace workspace, Action? changeServer = null, DesktopNotifications? notifications = null, Action? signOut = null) : EditorWindow("設定", workspace.ConnectionToken)
 {
     public async Task InitializeAsync()
     {
@@ -24,6 +24,7 @@ public sealed class SettingsWindow(Workspace workspace, Action? changeServer = n
             edit.Click += (_, _) => { var editor = new ProfileEditor(workspace) { Owner = DialogOwner }; _ = editor.InitializeAsync(); editor.ShowDialog(); _ = ReloadAsync(); }; profile.Children.Add(edit); Body.Children.Add(Card(profile));
             var connection = new StackPanel { Margin = new Thickness(20) }; connection.Children.Add(new TextBlock { Text = "接続先", FontSize = 17, FontWeight = FontWeights.SemiBold }); connection.Children.Add(new TextBlock { Text = new Uri(workspace.Server).Authority, FontSize = 16, Foreground = Brushes.SlateGray, Margin = new Thickness(0, 12, 0, 8) }); connection.Children.Add(new TextBlock { Text = workspace.AuthMode == "cloudflare" ? "Cloudflare Accessで認証済み" : "ローカル接続", FontSize = 14, Foreground = Brushes.MediumAquamarine });
             if (changeServer is not null) { var change = new Button { Content = "接続先を変更", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 14, 0, 0) }; change.Click += (_, _) => changeServer(); connection.Children.Add(change); } Body.Children.Add(Card(connection));
+            if (workspace.AuthMode == "cloudflare" && signOut is not null) { var logout = new Button { Content = "ログアウト", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) }; logout.Click += (_, _) => signOut(); connection.Children.Add(logout); }
             var authentication = new StackPanel { Margin = new Thickness(20) };
             authentication.Children.Add(new TextBlock { Text = "AIの認証", FontSize = 20, FontWeight = FontWeights.SemiBold });
             authentication.Children.Add(new TextBlock { Text = "AIの認証が切れたときや、別のアカウントで入り直すときに使います。", FontSize = 14, Foreground = Brushes.SlateGray, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 12) });
@@ -44,6 +45,13 @@ public sealed class SettingsWindow(Workspace workspace, Action? changeServer = n
                 var retry = new Button { Content = "一覧を更新", HorizontalAlignment = HorizontalAlignment.Left }; retry.Click += (_, _) => _ = ReloadAsync(); authentication.Children.Add(retry);
             }
             Body.Children.Add(Card(authentication));
+            if (notifications is not null)
+            {
+                var localNotifications = new StackPanel { Margin = new Thickness(20) }; localNotifications.Children.Add(new TextBlock { Text = "このPCの通知", FontSize = 20, FontWeight = FontWeights.SemiBold });
+                var enabled = new CheckBox { Content = "新しいメッセージを通知する", Margin = new Thickness(0, 15, 0, 12) }; enabled.SetBinding(CheckBox.IsCheckedProperty, new System.Windows.Data.Binding(nameof(DesktopNotifications.Enabled)) { Source = notifications, Mode = System.Windows.Data.BindingMode.OneWay });
+                enabled.Click += async (_, _) => { var next = enabled.IsChecked == true; enabled.IsEnabled = false; await notifications.SetEnabledAsync(next); enabled.IsEnabled = true; }; localNotifications.Children.Add(enabled);
+                var status = new TextBlock { FontSize = 14, Foreground = Brushes.SlateGray, TextWrapping = TextWrapping.Wrap }; status.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding(nameof(DesktopNotifications.Status)) { Source = notifications }); localNotifications.Children.Add(status); Body.Children.Add(Card(localNotifications));
+            }
             Heading("追加機能"); Body.Children.Add(new TextBlock { Text = "未設定の機能は無効です。案内役との会話でも設定できます。", FontSize = 14, Foreground = Brushes.SlateGray, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
             foreach (var feature in features)
             {

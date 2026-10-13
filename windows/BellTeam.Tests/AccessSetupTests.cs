@@ -13,6 +13,44 @@ namespace BellTeam.Tests;
 public sealed class AccessSetupTests
 {
     private const string FakeSecret = "模擬認証入力-表示しない";
+    [Fact]
+    public void LogoutClearsTheConversationDraftAndRequiresAccessAgain()
+    {
+        RunSta(() =>
+        {
+            using var workspace = new Workspace(origin => new BellApi(origin,new StubHandler((request,_)=>Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch { "/api/session" => """{"authenticated":true,"authMode":"cloudflare"}""", "/api/bots" => ApiTests.Bots, "/api/rooms" => ApiTests.Rooms, "/api/queue" => ApiTests.EmptyQueue, "/api/owner" => ApiTests.Owner, _ => ApiTests.Page })))));
+            Await(workspace.ConnectAsync("https://example.test",listen:false)); var target = workspace.Entries[0].Target; Await(workspace.SelectAsync(workspace.Entries[0])); workspace.DraftText="残さない下書き"; workspace.SignOut();
+            Assert.False(workspace.Connected); Assert.True(workspace.NeedsLogin); Assert.Null(workspace.Selected); Assert.Empty(workspace.Entries); Assert.Empty(workspace.Messages);
+            Await(workspace.ConnectAsync("https://example.test",listen:false)); Await(workspace.SelectAsync(workspace.Entries.Single(item=>item.Target==target))); Assert.Empty(workspace.DraftText);
+        });
+    }
+    [Theory]
+    [InlineData("setup-select")] [InlineData("setup-start")] [InlineData("auth-start")] [InlineData("auth-cancel")]
+    public async Task NonInputRejectionsKeepTheKnownServerReason(string action)
+    {
+        using var api = new BellApi(new("http://localhost/"), new StubHandler((_, _) => Task.FromResult(StubHandler.Json("""{"error":"SETUP_AUTH_REQUIRED","message":"公式認証を済ませてください。"}""", HttpStatusCode.Conflict))));
+        Func<Task> perform = action switch { "setup-select" => () => new SetupApi(api).SelectAsync("codex"), "setup-start" => () => new SetupApi(api).StartAsync(), "auth-start" => () => new HarnessAuthenticationApi(api).StartAsync("codex"), _ => () => new HarnessAuthenticationApi(api).CancelAsync("codex") };
+        var error = await Assert.ThrowsAsync<BellApiException>(perform); Assert.Contains("公式認証を済ませてください。", error.Message); Assert.DoesNotContain("結果を確認できません", error.Message);
+    }
+    [Fact]
+    public void RestoreSkipsUnusedProfilesAndRuntimeFailureIsJapanese()
+    {
+        RunSta(() =>
+        {
+            var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "BellTeam-access-" + Guid.NewGuid()); var calls = 0;
+            var access = new DesktopAccess(path, _ => { calls++; return Task.FromException<Microsoft.Web.WebView2.Core.CoreWebView2Environment>(new InvalidOperationException("Mock runtime missing")); });
+            Await(access.RestoreAsync(new("https://example.com/"))); Assert.Equal(0, calls);
+            System.IO.Directory.CreateDirectory(path);
+            try { var error = Assert.Throws<BellApiException>(() => Await(access.RestoreAsync(new("https://example.com/")))); Assert.Contains("WebView2 Runtime", error.Message); Assert.DoesNotContain("Mock runtime missing", error.ToString()); Assert.Equal(1, calls); }
+            finally { System.IO.Directory.Delete(path); }
+        });
+    }
+    [Fact]
+    public void LogoutClearsApiCookiesAndConfirmationUsesTheMacCaptions()
+    {
+        var jar = new CookieContainer(); jar.Add(new Cookie("CF_Authorization", "模擬値", "/", "one.example")); jar.Add(new Cookie("IdP", "模擬値", "/", "two.example")); AccessCookies.Clear(jar); Assert.Empty(jar.GetAllCookies().Cast<Cookie>());
+        RunSta(() => { var confirmation = new AuthenticationConfirmationWindow("認証が消えます。"); var buttons = Descendants<Button>(confirmation).Select(button => button.Content as string).ToArray(); Assert.Contains("始めない", buttons); Assert.Contains("今の認証を手放して始める", buttons); confirmation.Close(); });
+    }
     public const string Waiting = """{"phase":"authenticate","harness":"codex","harnesses":[{"id":"codex","name":"Codex"}],"guideBotId":"bot-guide","complete":false,"auth":{"status":"waiting","url":"https://example.com/login","user_code":"TEST-CODE","input_required":true,"message":"公式認証を待っています。"}}""";
     [Fact]
     public void OnlyUnexpiredServerAccessCookieIsCopiedAndOldLoginIsRemoved()
