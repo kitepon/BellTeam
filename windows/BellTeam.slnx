@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="BellTeam.Core/BellTeam.Core.csproj" />
+  <Project Path="BellTeam.App/BellTeam.App.csproj" />
+  <Project Path="BellTeam.Tests/BellTeam.Tests.csproj" />
+</Solution>

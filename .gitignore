@@ -3,6 +3,10 @@ node_modules/
 runtime/
 *.log
 .control-inputs/
+windows/**/bin/
+windows/**/obj/
+windows/TestResults/
+windows/artifacts/
 ios/BellBot/build/
 ios/BellBot/DerivedData/
 ios/BellBot/**/*.xcuserstate
