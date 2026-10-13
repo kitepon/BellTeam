@@ -22,6 +22,8 @@ iPad版は [BellTeam for iPad](docs/ipad-app.md)。Mac版と同じ画面ファ�
 
 Mac版は [BellTeam for Mac](docs/mac-app.md)。一覧・会話・詳細を並べ、キーボード操作と画像ファイルの添付に対応する。
 
+Windows版は [BellTeam for Windows](docs/windows-app.md)。Mac版を基準にしたWPFアプリで、LANへの接続、一覧・会話・プロフィール、送信と新着の受信に対応する。
+
 現行設計の正本は [docs/current-design.md](docs/current-design.md)、最後に実測した運用状況は [docs/current-status.md](docs/current-status.md) に置く。
 
 自動実行は一回・毎時・毎日・曜日指定・○日おき・○時間おき・cron式から選べる。日おきは開始日と時刻を設定し、2日おきなら開始日・2日後・4日後に実行する。時間おきは毎日の開始時・終了時・間隔・実行する分を設定し、9時〜18時の3時間おきなら9・12・15・18時に実行する。Bot・ルームとも、実行済みで次回のない単発予定は自動実行一覧に表示しない。保存済みの実行記録は保持する。

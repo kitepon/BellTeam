@@ -1,5 +1,7 @@
 # RAG目録
 
+- [Windowsのネイティブ会話クライアント](windows-native/wpf-client.md): WPFの部品でのMarkdown表示、窓を表示しない配置確認、APIの必須項目・SSEの読み取り。取得日2026-10-13、公式資料とFOX実測。
+
 - [App Reviewへの返信](app-review/raw/apple-reply-to-review-excerpt.md)と[4.3・4.2.6の抜粋](app-review/raw/apple-guidelines-43-426-excerpts.md): 拒絶への説明と補足資料を審査メッセージで届けるApple公式手順・規定。取得日2026-10-07。Mac版への送信・保存の実測は[検証記録](../docs/evidence/2026-10-07-mac-app-review-follow-up.md)に記載。
 
 - [送信の短い背景実行時間](ios-background-send/raw/apple-background-execution.md): 送信開始前のUIKitへの実行時間要求と、処理完了時の終了。Apple公式原文、取得日2026-10-07。
