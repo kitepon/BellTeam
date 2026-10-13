@@ -7,11 +7,12 @@ using System.Windows.Media.Imaging;
 
 namespace BellTeam.App;
 
-public sealed record ConversationEntry(ChatTarget Target, string Name, string Subtitle, DateTimeOffset RecentAt, Bot? Bot, Room? Room)
+public sealed record ConversationEntry(ChatTarget Target, string Name, string Subtitle, DateTimeOffset RecentAt, Bot? Bot, Room? Room, string? Origin = null)
 {
     public string Group => Target.IsRoom ? "ルーム" : "メンバー";
     public string Initial => Name.Length == 0 ? "?" : System.Globalization.StringInfo.GetNextTextElement(Name);
     public string Presence => Bot is { Online: true } ? "●" : "";
+    public string? AvatarUrl => Origin is not null && (Bot?.AvatarVersion ?? Room?.AvatarVersion ?? "").Length != 0 ? Origin + $"api/{(Target.IsRoom ? "rooms" : "bots")}/{Uri.EscapeDataString(Target.Id)}/avatar?v={Bot?.AvatarVersion ?? Room!.AvatarVersion}" : null;
 }
 
 public sealed class Workspace : INotifyPropertyChanged, IDisposable
@@ -31,15 +32,20 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     private bool hasMore;
     private bool loading;
     private bool preview;
+    private bool ready;
     private readonly Dictionary<ImageAttachment, BitmapSource> attachmentPreviews = [];
     private CancellationTokenSource? screenCancellation;
     private bool screenVisible;
     private string screen = "";
     private string screenStatus = "";
     private string? actionError;
+    private readonly Dictionary<string, Task<BitmapSource>> avatars = [];
     public ObservableCollection<ConversationEntry> Entries { get; } = [];
     public ObservableCollection<MessageItem> Messages { get; } = [];
     public CancellationToken ViewToken => selection?.Token ?? connection?.Token ?? CancellationToken.None;
+    public CancellationToken ConnectionToken => connection?.Token ?? CancellationToken.None;
+    public ManagementApi Management => new(api ?? throw new BellApiException("接続先を設定してください。"));
+    public Bot[] Bots => all.Where(entry => entry.Bot is not null).Select(entry => entry.Bot!).ToArray();
     public string? ActionError { get => actionError; private set { actionError = value; Changed(); } }
     public bool ScreenVisible { get => screenVisible; private set { screenVisible = value; Changed(); Changed(nameof(ProfileVisible)); } }
     public bool ProfileVisible => !ScreenVisible;
@@ -52,6 +58,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public string ConnectionStatus { get => connectionStatus; private set { connectionStatus = value; Changed(); } }
     public ConversationEntry? Selected => selected;
     public bool HasSelection => selected is not null;
+    public bool Connected => ready;
+    public string EditLabel => IsRoom ? "ルームを編集" : "メンバーを編集";
     public bool CanAttach => HasSelection && Draft is { Attaching: false };
     public bool IsRoom => selected?.Target.IsRoom == true;
     public string Title => selected?.Name ?? "チームと、同じデスクで。";
@@ -76,6 +84,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public async Task ConnectAsync(string address, bool listen = true)
     {
         var origin = ServerOrigin.Parse(address);
+        ready = false;
         SaveReplyMembers();
         ReturnToProfile();
         connection?.Cancel();
@@ -83,12 +92,13 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         api?.Dispose();
         connection?.Dispose();
         api = apiFactory(origin);
+        avatars.Clear();
         connection = new CancellationTokenSource();
         selected = null;
         all.Clear(); Entries.Clear(); Messages.Clear(); ReplyMembers.Clear();
         HasMore = false;
         Loading = false;
-        Changed(nameof(Selected)); Changed(nameof(HasSelection)); Changed(nameof(CanShowScreen)); Changed(nameof(IsRoom)); Changed(nameof(Title)); Changed(nameof(Profile)); Changed(nameof(Server)); DraftChanged();
+        Changed(nameof(Selected)); Changed(nameof(HasSelection)); Changed(nameof(Connected)); Changed(nameof(EditLabel)); Changed(nameof(CanShowScreen)); Changed(nameof(IsRoom)); Changed(nameof(Title)); Changed(nameof(Profile)); Changed(nameof(Server)); DraftChanged();
         ConnectionError = null;
         ActionError = null;
         ConnectionStatus = "接続を確認しています…";
@@ -99,6 +109,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             var session = await current.GetAsync<SessionInfo>("/api/session", token);
             if (!session.Authenticated) throw new BellApiException("Cloudflare Accessへログインしてください。Windows版の外部ログインは次の段階で対応します。");
             await RefreshAsync(current, token);
+            ready = true; Changed(nameof(Connected));
             ConnectionStatus = "接続済み";
             if (listen) _ = ListenAsync(current, token);
         }
@@ -125,16 +136,23 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         await refreshLock.WaitAsync(token);
         try
         {
-            var bots = await current.GetAsync<BotsResponse>("/api/bots", token);
-            var rooms = await current.GetAsync<RoomsResponse>("/api/rooms", token);
+            var bots = await current.GetAsync<BotsResponse>("/api/bots?avatar=omit", token);
+            var rooms = await current.GetAsync<RoomsResponse>("/api/rooms?avatar=omit", token);
             token.ThrowIfCancellationRequested();
-            all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, bot.Recent?.Preview ?? bot.Position, bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null))
-                .Concat(rooms.Rooms.Select(room => new ConversationEntry(new(room.Id, true), room.Name, room.Recent?.Preview ?? room.Purpose, room.Recent?.At ?? DateTimeOffset.MinValue, null, room))).ToList();
+            all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, bot.Recent?.Preview ?? bot.Position, bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null, Server))
+                .Concat(rooms.Rooms.Select(room => new ConversationEntry(new(room.Id, true), room.Name, room.Recent?.Preview ?? room.Purpose, room.Recent?.At ?? DateTimeOffset.MinValue, null, room, Server))).ToList();
+            var usedAvatars = all.Select(entry => entry.AvatarUrl).ToHashSet(); foreach (var key in avatars.Keys.Where(key => !usedAvatars.Contains(key)).ToArray()) avatars.Remove(key);
+            var known = all.Select(entry => entry.Target).ToHashSet();
+            foreach (var key in drafts.Keys.Where(key => key.Item1 == Server && !known.Contains(key.Item2)).ToArray())
+            {
+                foreach (var image in drafts[key].Attachments) attachmentPreviews.Remove(image);
+                drafts.Remove(key);
+            }
             Filter();
             if (selected is { } active)
             {
                 selected = all.FirstOrDefault(item => item.Target == active.Target);
-                Changed(nameof(Selected)); Changed(nameof(HasSelection)); Changed(nameof(CanShowScreen)); Changed(nameof(IsRoom)); Changed(nameof(Title)); Changed(nameof(Profile));
+                Changed(nameof(Selected)); Changed(nameof(HasSelection)); Changed(nameof(EditLabel)); Changed(nameof(CanShowScreen)); Changed(nameof(IsRoom)); Changed(nameof(Title)); Changed(nameof(Profile));
                 if (selected is not null) await RefreshMessagesAsync(current, selected.Target, token);
                 else { ReturnToProfile(); selection?.Cancel(); Messages.Clear(); ReplyMembers.Clear(); HasMore = false; DraftChanged(); }
             }
@@ -163,7 +181,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         foreach (var id in entry.Room?.MemberIds ?? [])
             ReplyMembers.Add(new MemberChoice(id, all.FirstOrDefault(item => item.Target == new ChatTarget(id, false))?.Name ?? id, Draft!.Targets.Contains(id)));
         ActionError = null;
-        Changed(nameof(Selected)); Changed(nameof(HasSelection)); Changed(nameof(IsRoom)); Changed(nameof(Title)); Changed(nameof(Profile)); Changed(nameof(CanShowScreen)); DraftChanged();
+        Changed(nameof(Selected)); Changed(nameof(HasSelection)); Changed(nameof(EditLabel)); Changed(nameof(IsRoom)); Changed(nameof(Title)); Changed(nameof(Profile)); Changed(nameof(CanShowScreen)); DraftChanged();
         if (preview) { foreach (var item in PreviewMessages()) Messages.Add(new(item)); return; }
         if (api is null) return;
         Loading = true;
@@ -251,15 +269,29 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     }
 
     public void ReportActionError(string message) => ActionError = message;
+    public async Task RefreshManagementAsync()
+    {
+        if (api is null || connection is null) return;
+        try { await RefreshAsync(api, connection.Token); }
+        catch (Exception error) { ActionError = "保存は受け付けられましたが、一覧の更新を確認できませんでした。" + error.Message; }
+    }
+    public Task<BitmapSource> AvatarAsync(string url)
+    {
+        if (avatars.TryGetValue(url, out var existing)) return existing;
+        async Task<BitmapSource> Load() => await ImageCodec.DecodeAsync(await (api ?? throw new BellApiException("接続先を設定してください。")).ImageAsync(url, ConnectionToken));
+        var task = Load(); avatars[url] = task; return task;
+    }
     public async Task AttachFilesAsync(string[] paths)
     {
         if (Draft is not { } draft) return;
         if (draft.Attaching) { ActionError = "画像の読み込みが終わってから追加してください。"; return; }
+        var key = (Server, selected!.Target);
         draft.Attaching = true; ActionError = null; DraftChanged();
         try
         {
             var loaded = new List<(ImageAttachment Data, BitmapSource Preview)>();
             foreach (var path in paths) loaded.Add(await ImageCodec.ReadAsync(path));
+            if (!drafts.TryGetValue(key, out var current) || current != draft) return;
             foreach (var image in loaded) { attachmentPreviews[image.Data] = image.Preview; draft.Attachments.Add(image.Data); }
         }
         catch (Exception error) { ActionError = "画像を読み込めませんでした。" + error.Message; }
@@ -337,7 +369,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         new() { Id = "preview-secret", At = DateTimeOffset.Now, SecretRequest = new() { Id = "preview-secret", BotId = "preview", ToolId = "test", Label = "確認用の入力", Message = "これは表示確認用の人工データです。", Status = "pending" } },
         new() { Id = "preview-question", At = DateTimeOffset.Now, OwnerQuestion = new() { Id = "preview-question", BotId = "preview", Question = "どちらから始めましょうか。", Options = ["画像を確認", "会話を書き出す"], AllowOther = true, Status = "open" } }
     ];
-    public void Dispose() { ReturnToProfile(); connection?.Cancel(); selection?.Cancel(); connection?.Dispose(); selection?.Dispose(); api?.Dispose(); attachmentPreviews.Clear(); }
+    public void Dispose() { ReturnToProfile(); connection?.Cancel(); selection?.Cancel(); connection?.Dispose(); selection?.Dispose(); api?.Dispose(); attachmentPreviews.Clear(); avatars.Clear(); drafts.Clear(); }
 }
 
 public sealed record AttachmentPreview(ImageAttachment Data, BitmapSource Preview) { public string Name => Data.Name; }

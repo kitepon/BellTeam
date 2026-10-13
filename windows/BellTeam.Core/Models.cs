@@ -37,6 +37,9 @@ public sealed record Bot
     public string Position { get; init; } = "";
     public string Role { get; init; } = "";
     public bool Online { get; init; }
+    public string Color { get; init; } = "violet";
+    public string Avatar { get; init; } = "";
+    public string AvatarVersion { get; init; } = "";
     public RecentMessage? Recent { get; init; }
 }
 public sealed record Room
@@ -45,6 +48,9 @@ public sealed record Room
     public required string Name { get; init; }
     public string Purpose { get; init; } = "";
     public required string[] MemberIds { get; init; }
+    public string? RepresentativeId { get; init; }
+    public string Avatar { get; init; } = "";
+    public string AvatarVersion { get; init; } = "";
     public RecentMessage? Recent { get; init; }
 }
 public sealed record TimelineMessage
