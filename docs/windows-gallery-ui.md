@@ -18,4 +18,4 @@ Mac版のMessageImageGalleryに合わせ、サムネイルからの直接選択�
 node windows/BellTeam.Tests/fixtures/mac-ui-reference.mjs windows/artifacts/publish-gallery/BellTeam.exe windows/artifacts/gallery-reference gallery
 ```
 
-修正版の利用者による実画面操作、IME、画像の貼付・ドロップ、通知など、残る確認は[前面確認の記録](windows-final-check.md)に従う。取り込みとFOXへの導入はトロニーが行う。
+トロニーが全差分をレビューし、Linuxコンテナでサーバー試験434件・失敗0を確認してmainへ取り込んだ。2026-10-14 01:02:55〜01:03:06 JSTに通常の利用者からFOXへ再導入され、導入exeの読み取りsmokeも成功した。版と導入結果、修正版の本人操作、IME、画像の貼付・ドロップ、通知などの残る確認は[前面確認の記録](windows-final-check.md)に従う。
