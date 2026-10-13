@@ -24,7 +24,9 @@ SSEの切断・応答形式の異常は画面下部に表示する。「再接�
 
 ## このPCへの導入
 
-PowerShell 7と.NET SDKがあるWindowsで、取り出してあるソースから実行する。installerは.NETを同梱したビルドを作る。Gitの取得やブランチ・未commit差分の確認は行わない。配布するCPUは導入するPCのx64またはarm64に合わせる。依存の復元は.NET標準の処理に従い、未取得のNuGetパッケージがある場合はネットワーク接続が必要。
+PowerShell 7と.NET SDKがあるWindowsで、通常の利用者としてパッケージの外のPowerShell 7を開き、取り出してあるソースから実行する。導入・削除はCodexなどのパッケージ版アプリの中から実行しない。installerは.NETを同梱したビルドを作る。Gitの取得やブランチ・未commit差分の確認は行わない。配布するCPUは導入するPCのx64またはarm64に合わせる。依存の復元は.NET標準の処理に従い、未取得のNuGetパッケージがある場合はネットワーク接続が必要。
+
+FOXのパッケージ版Codexから導入した時は、設定ファイルが`%LOCALAPPDATA%\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\BellTeam\settings.json`に存在し、通常の利用者から読む`%LOCALAPPDATA%\BellTeam`とHKCUのアンインストール登録は存在しなかった。アプリ本体とスタートメニューは通常の利用者からも見えていた。Codex内からは設定と登録を読めたが、レジストリの実際の保存先は未確認。導入後の確認は、通常の利用者からも設定・登録・導入exeを読み、突き合わせる。
 
 ```powershell
 pwsh -NoProfile -File scripts/install-windows.ps1 -ServerUrl 'http://サーバーのLANアドレス:18891' -NoLaunch
@@ -70,11 +72,20 @@ dotnet publish windows/BellTeam.App/BellTeam.App.csproj -c Release -r win-x64 --
 
 FOXでReleaseビルドと.NET同梱ビルドが成功。URL、設定の保存、実際のAPIと同じJSON、HTTPの拒否・認証・JSON不正、SSEのUTF-8・複数行・切断、下書き、返信先、会話切替の競合、配送状態の更新、Markdownの単体試験が成功した。試験は窓を表示しない。`<pasted_content>`を含む行と行頭から始まるHTML風の塊は、タグ・中身・前後の段落を文字として読めることを追加試験で確認した。
 
-FOXからLANの本番サーバーへの読み取りsmokeで、local認証、メンバーとルームの一覧、会話履歴、SSEの接続を確認した。人工データと実データのPNGで、3ペイン、日本語本文、プロフィール、Markdownの見出し・強調・引用・コード・表の配置を確認した。
+FOXのパッケージ版Codex内から起動した確認用プロセスで、LANの本番サーバーへの読み取りsmokeが成功し、local認証、メンバーとルームの一覧、会話履歴、SSEの接続を確認した。同じ実行環境で人工データと実データをPNGへ描き、3ペイン、日本語本文、プロフィール、Markdownの見出し・強調・引用・コード・表の配置を確認した。
 
-2026-10-13 10:56 JST、mainの`d817648`からFOXへ`-NoLaunch`で導入した。導入先は`%LOCALAPPDATA%\Programs\BellTeam`。スタートメニューのショートカットがこの場所のexeを指すこと、HKCUのアンインストール登録が導入先の削除スクリプトを指すこと、`%LOCALAPPDATA%\BellTeam\settings.json`にLANの接続先が保存されたことを確認した。10:57 JSTに導入したexeのsmokeも成功した。
+2026-10-13 10:56 JST、Codex内からmainの`d817648`を`-NoLaunch`で導入した。Codex内では設定とアンインストール登録を読めたが、11:03〜11:05 JSTにトロニーが通常の利用者と管理者から読むと、通常の設定先とHKCUの登録は存在しなかった。このため、Codex内だけの確認を利用者への導入確認として扱わない。10:57 JSTにCodex内から起動した導入exeのsmokeは成功した。
 
-アプリ共通のCoreを使った送受信は、出荷exeへ送信専用の入口を足さず、git管理外の確認用の道具で試した。10:57 JSTの初回は、送信の受付と指定文の履歴への記録、トロニーの席への到達を確認した。トロニーのサーバー確認では、通話で始まった番への差し込みと重なり、返答が会話へ記録されなかった。確認用の道具も、引用中の「受け取った」を別の報告文から拾っていたため、その結果を返答の確認とは扱わなかった。
+11:07:52〜11:08:04 JST、トロニーがFOXの通常の利用者`kite_`・非管理者・パッケージ外・窓なしで、同じinstallerを`-NoLaunch`付きで実行した。ソースは`windows-install-evidence`の`0890c11`で、mainの`d817648`との差はこの文書だけ。`GetCurrentPackageFullName`の結果は15700だった。11:08:25 JSTに同じ利用者から次を確認した。
+
+- 導入先: `%LOCALAPPDATA%\Programs\BellTeam`、404ファイル、`uninstall-windows.ps1`あり。実行ファイルの版は`0.1.0+0890c11…`。スタートメニューの`BellTeam.lnk`は11:08:04 JSTに登録。
+- 設定: `%LOCALAPPDATA%\BellTeam\settings.json`が11:08:02 JSTに保存され、内容は`{"serverUrl":"http://192.168.1.2:18891/","window":null}`。
+- 登録: `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\BellTeam`。DisplayNameはBellTeam、DisplayVersionは0.1.0、Publisherはkitepon。InstallLocationは導入先、UninstallStringとQuietUninstallStringはPowerShell 7から導入先の`uninstall-windows.ps1`を呼ぶ。NoModifyとNoRepairは1。
+- 導入exeのsmoke: 11:08:05 JSTに通常の利用者から実行し、終了コード0・ok=true。local認証、36メンバー、3ルーム、会話10件と以前の履歴の存在、SSE接続を確認。終了後のBellTeam.exeは0件で、マビノギとOpenLogicool.Hostは動いたまま。
+
+文書の枝から作った版のため、PRをmainへ取り込んだ後、トロニーがmainから再導入して版のcommitを確認する。
+
+アプリ共通のCoreを使った送受信は、出荷exeへ送信専用の入口を足さず、Codex内から起動したgit管理外の確認用の道具で試した。10:57 JSTの初回は、送信の受付と指定文の履歴への記録、トロニーの席への到達を確認した。トロニーのサーバー確認では、通話で始まった番への差し込みと重なり、返答が会話へ記録されなかった。確認用の道具も、引用中の「受け取った」を別の報告文から拾っていたため、その結果を返答の確認とは扱わなかった。
 
 トロニーの指示で、11:01 JSTに待ち行列が0件であることを確認し、前置きの通話を入れずに2回目を1通だけ送った。SSEの新着からincomingの本文「受け取った」を完全一致で確認した。初回・2回目とも送信の自動再試行はしていない。アプリと確認用のプロセスはすべて終了している。
 
@@ -83,7 +94,7 @@ Windows nativeの`npm test`は426件中397件成功・29件失敗。例えば`te
 ### 見ていない事と次の確認
 
 - 前面に表示した実際の窓での操作、IMEの変換確定、範囲選択・コピー、複数モニター・表示倍率を変えた時の表示、二重起動時の既存窓の表示は未確認。FOXでは別のBotが画面を操作しているため、担当者と時刻を合わせて確認する。
-- 入れ直しとアンインストールの実行は未確認。導入前にinstaller・uninstallerのPowerShell構文を確認し、導入後に削除の入口が登録されたことを確認した。
+- 同じ接続先を指定した入れ直しはトロニーが実行済み。接続先を省略した更新での設定保持とアンインストールの実行は未確認。導入前にinstaller・uninstallerのPowerShell構文を確認し、通常の利用者から削除の入口が登録されたことを確認した。
 - arm64のビルドと端末上の動作は未確認。
 - Cloudflare Access、画像、カード、管理、通知は後続の段階。現段階でそれらを使う画面は提供しない。
 
