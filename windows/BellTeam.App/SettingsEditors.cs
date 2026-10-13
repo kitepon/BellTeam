@@ -1,26 +1,42 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using BellTeam.Core;
 
 namespace BellTeam.App;
 
-public sealed class SettingsWindow(Workspace workspace) : EditorWindow("設定", workspace.ConnectionToken)
+public sealed class SettingsWindow(Workspace workspace, Action? changeServer = null) : EditorWindow("設定", workspace.ConnectionToken)
 {
     public async Task InitializeAsync()
     {
         SaveButton.Visibility = Visibility.Collapsed; CloseButton.Content = "閉じる";
-        Heading("あなた"); ActionButton("プロフィールと規範を編集", () => { var editor = new ProfileEditor(workspace) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); });
-        Heading("追加機能");
-        Body.Children.Add(new TextBlock { Text = "未設定の機能は無効です。案内役との会話でも設定できます。", TextWrapping = TextWrapping.Wrap });
         await RunAsync(async () =>
         {
             var owner = (await workspace.Planning.OwnerAsync(Token)).Owner;
-            Body.Children.Insert(1, SecretCard.CardBody(owner.Name + "\n" + owner.Profile));
-            foreach (var feature in await workspace.Planning.FeaturesAsync(Token))
-                ActionButton(feature.Title + "　" + feature.StatusText, () => { var editor = new FeatureEditor(workspace, feature.Id, feature.Title) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); _ = ReloadAsync(); });
+            var features = await workspace.Planning.FeaturesAsync(Token); Token.ThrowIfCancellationRequested(); Body.Children.Clear();
+            Body.Children.Add(new TextBlock { Text = "設定", FontSize = 32, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 24) });
+            var profile = new StackPanel { Margin = new Thickness(25) };
+            var portraitEntry = new ConversationEntry(new("owner", false), owner.Name, "", DateTimeOffset.MinValue, new Bot { Id = "owner", Name = owner.Name, DisplayName = owner.Name, Avatar = owner.Avatar }, null);
+            profile.Children.Add(new AvatarTile { Entry = portraitEntry, Workspace = workspace, Width = 83, Height = 83, HorizontalAlignment = HorizontalAlignment.Center });
+            profile.Children.Add(new TextBlock { Text = owner.Name, FontSize = 24, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 15, 0, 10) });
+            if (owner.Profile.Length != 0) profile.Children.Add(new TextBlock { Text = owner.Profile, FontSize = 16, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Foreground = Brushes.SlateGray });
+            var edit = new Button { Content = "プロフィールと規範を編集", HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 18, 0, 0) }; edit.SetResourceReference(StyleProperty, "PrimaryButton");
+            edit.Click += (_, _) => { var editor = new ProfileEditor(workspace) { Owner = DialogOwner }; _ = editor.InitializeAsync(); editor.ShowDialog(); _ = ReloadAsync(); }; profile.Children.Add(edit); Body.Children.Add(Card(profile));
+            var connection = new StackPanel { Margin = new Thickness(20) }; connection.Children.Add(new TextBlock { Text = "接続先", FontSize = 17, FontWeight = FontWeights.SemiBold }); connection.Children.Add(new TextBlock { Text = new Uri(workspace.Server).Authority, FontSize = 16, Foreground = Brushes.SlateGray, Margin = new Thickness(0, 12, 0, 8) }); connection.Children.Add(new TextBlock { Text = workspace.AuthMode == "cloudflare" ? "Cloudflare Accessで認証済み" : "ローカル接続", FontSize = 14, Foreground = Brushes.MediumAquamarine });
+            if (changeServer is not null) { var change = new Button { Content = "接続先を変更", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 14, 0, 0) }; change.Click += (_, _) => changeServer(); connection.Children.Add(change); } Body.Children.Add(Card(connection));
+            Heading("追加機能"); Body.Children.Add(new TextBlock { Text = "未設定の機能は無効です。案内役との会話でも設定できます。", FontSize = 14, Foreground = Brushes.SlateGray, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
+            foreach (var feature in features)
+            {
+                var row = new DockPanel { Margin = new Thickness(12) }; row.Children.Add(new TextBlock { Text = feature.StatusText, FontSize = 14, Foreground = feature.ApplyFailed ? Brushes.Firebrick : Brushes.SlateGray, HorizontalAlignment = HorizontalAlignment.Right }); DockPanel.SetDock(row.Children[0], Dock.Right);
+                row.Children.Add(new TextBlock { Text = feature.Title, FontSize = 17, TextWrapping = TextWrapping.Wrap });
+                var button = new Button { Content = row, HorizontalContentAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0) }; button.SetResourceReference(StyleProperty, "QuietButton"); button.Foreground = new SolidColorBrush(Color.FromRgb(33, 41, 61));
+                button.Click += (_, _) => { var editor = new FeatureEditor(workspace, feature.Id, feature.Title) { Owner = DialogOwner }; _ = editor.InitializeAsync(); editor.ShowDialog(); _ = ReloadAsync(); }; Body.Children.Add(Card(button));
+            }
+            Body.Children.Add(new TextBlock { Text = "BellTeam for Windows " + typeof(MainWindow).Assembly.GetName().Version?.ToString(3), FontSize = 14, Foreground = Brushes.SlateGray, Margin = new Thickness(4, 16, 0, 4) });
             return false;
-        });
+        }, canClose: true);
     }
+    private static Border Card(UIElement content) => new() { Child = content, Background = Brushes.White, CornerRadius = new CornerRadius(24), BorderBrush = new SolidColorBrush(Color.FromRgb(229, 227, 240)), BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 0, 12) };
     private async Task ReloadAsync() { Body.Children.Clear(); await InitializeAsync(); }
 }
 
@@ -99,7 +115,7 @@ public sealed class ProfileEditor(Workspace workspace) : EditorWindow("プロフ
             var api = workspace.Planning;
             var original = (await api.OwnerAsync(Token)).Owner;
             var originalRules = (await api.RulesAsync(Token)).Text; Token.ThrowIfCancellationRequested();
-            Heading("あなた"); var avatar = new AvatarPicker(original.Avatar); Body.Children.Add(avatar); InitialLoads.Add(avatar.LoadAsync());
+            Heading("あなた"); var avatar = new AvatarPicker(original.Avatar, name: original.Name); Body.Children.Add(avatar); InitialLoads.Add(avatar.LoadAsync());
             var name = TextField("名前", original.Name); var profile = TextField("プロフィール", original.Profile, true);
             Heading("リンク"); var x = TextField("XのURL", original.XUrl); var github = TextField("GitHubのURL", original.GithubUrl);
             var links = new List<(TextBox Label, TextBox Url)>(); var linkPanel = new StackPanel(); Body.Children.Add(linkPanel);

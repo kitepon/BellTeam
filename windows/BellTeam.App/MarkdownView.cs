@@ -28,7 +28,7 @@ public sealed class MarkdownView : RichTextBox
     private static void SourceChanged(DependencyObject target, DependencyPropertyChangedEventArgs args)
     {
         var view = (MarkdownView)target;
-        var document = new FlowDocument { FontFamily = new FontFamily("Yu Gothic UI"), FontSize = view.FontSize, PagePadding = new Thickness(0) };
+        var document = new FlowDocument { FontFamily = new FontFamily("Yu Gothic UI"), FontSize = view.FontSize, LineHeight = view.FontSize * 1.5, Foreground = new SolidColorBrush(Color.FromRgb(33, 41, 61)), PagePadding = new Thickness(0) };
         foreach (var block in Markdown.Parse((string?)args.NewValue ?? "", Pipeline)) document.Blocks.Add(Render(block));
         view.Document = document;
     }

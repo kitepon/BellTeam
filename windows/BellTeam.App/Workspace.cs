@@ -7,12 +7,15 @@ using System.Windows.Media.Imaging;
 
 namespace BellTeam.App;
 
-public sealed record ConversationEntry(ChatTarget Target, string Name, string Subtitle, DateTimeOffset RecentAt, Bot? Bot, Room? Room, string? Origin = null)
+public sealed record ConversationEntry(ChatTarget Target, string Name, string Subtitle, DateTimeOffset RecentAt, Bot? Bot, Room? Room, string? Origin = null, bool Working = false)
 {
     public string Group => Target.IsRoom ? "ルーム" : "メンバー";
     public string Initial => Name.Length == 0 ? "?" : System.Globalization.StringInfo.GetNextTextElement(Name);
     public string Presence => Bot is { Online: true } ? "●" : "";
     public bool FastMode => Bot?.FastMode == true;
+    public bool IsMember => Bot is not null;
+    public string PreviewText => TextContent.Normalize(Subtitle).Replace('\n', ' ');
+    public System.Windows.Media.Brush PresenceBrush => Working ? System.Windows.Media.Brushes.IndianRed : Bot?.Online == true ? System.Windows.Media.Brushes.MediumAquamarine : System.Windows.Media.Brushes.LightSlateGray;
     public string? AvatarUrl => Origin is not null && (Bot?.AvatarVersion ?? Room?.AvatarVersion ?? "").Length != 0 ? Origin + $"api/{(Target.IsRoom ? "rooms" : "bots")}/{Uri.EscapeDataString(Target.Id)}/avatar?v={Bot?.AvatarVersion ?? Room!.AvatarVersion}" : null;
 }
 
@@ -26,9 +29,12 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     private readonly Dictionary<(string, ChatTarget), ConversationDraft> drafts = [];
     private readonly SemaphoreSlim refreshLock = new(1);
     private List<ConversationEntry> all = [];
+    private QueueItem[] queue = [];
     private string search = "";
     private string? connectionError;
     private string connectionStatus = "接続先を設定してください。";
+    public string OwnerName { get; private set; } = "あなた";
+    public string AuthMode { get; private set; } = "local";
     private ConversationEntry? selected;
     private bool hasMore;
     private bool loading;
@@ -67,6 +73,10 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public bool CanAttach => HasSelection && Draft is { Attaching: false };
     public bool IsRoom => selected?.Target.IsRoom == true;
     public string Title => selected?.Name ?? "チームと、同じデスクで。";
+    public string OnlineSummary => $"{all.Count(entry => entry.Bot?.Online == true)}人オンライン";
+    public string ConversationSubtitle => selected?.Bot is { } bot ? bot.Online ? "オンライン" : "次のメッセージで起動します" : selected?.Room is { } room ? $"{room.MemberIds.Length}人のメンバー" : "";
+    public string ActivityText => selected is { } entry ? string.Join('\n', QueueItem.DisplayItems(queue.Where(item => entry.Target.IsRoom ? item.Context == "room" && item.ContextId == entry.Target.Id : item.BotId == entry.Target.Id)).Select(item => $"◌  {item.BotName ?? entry.Name} · {(item.Status == "queued" ? "送信待ち" : "処理中")}")) : "";
+    public bool HasActivity => ActivityText.Length != 0;
     public string Server => api?.Origin.AbsoluteUri ?? "";
     public bool HasMore { get => hasMore; private set { hasMore = value; Changed(); } }
     public bool Loading { get => loading; private set { loading = value; Changed(); Changed(nameof(CanSend)); } }
@@ -99,7 +109,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         avatars.Clear();
         connection = new CancellationTokenSource();
         selected = null;
-        all.Clear(); Entries.Clear(); Messages.Clear(); ReplyMembers.Clear();
+        all.Clear(); queue = []; OwnerName = "あなた"; AuthMode = "local"; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear();
+        Changed(nameof(OwnerName)); Changed(nameof(AuthMode)); Changed(nameof(OnlineSummary));
         HasMore = false;
         Loading = false;
         Changed(nameof(Selected)); Changed(nameof(HasSelection)); Changed(nameof(Connected)); Changed(nameof(EditLabel)); Changed(nameof(CanShowScreen)); Changed(nameof(IsRoom)); Changed(nameof(Title)); Changed(nameof(Profile)); Changed(nameof(Server)); DraftChanged();
@@ -111,6 +122,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         try
         {
             var session = await current.GetAsync<SessionInfo>("/api/session", token);
+            AuthMode = session.AuthMode; Changed(nameof(AuthMode));
             if (!session.Authenticated) throw new BellApiException("Cloudflare Accessへログインしてください。Windows版の外部ログインは次の段階で対応します。");
             await RefreshAsync(current, token);
             ready = true; Changed(nameof(Connected));
@@ -142,8 +154,12 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         {
             var bots = await current.GetAsync<BotsResponse>("/api/bots?avatar=omit", token);
             var rooms = await current.GetAsync<RoomsResponse>("/api/rooms?avatar=omit", token);
+            var activity = await current.GetAsync<QueueResponse>("/api/queue", token);
+            var owner = await current.GetAsync<OwnerResponse>("/api/owner?avatar=omit", token);
             token.ThrowIfCancellationRequested();
-            all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, bot.Recent?.Preview ?? bot.Position, bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null, Server))
+            OwnerName = owner.Owner.Name; Changed(nameof(OwnerName));
+            queue = activity.Items; var working = queue.Where(item => item.Status == "running").Select(item => item.BotId).ToHashSet();
+            all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, bot.Recent?.Preview ?? bot.Position, bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null, Server, working.Contains(bot.Id)))
                 .Concat(rooms.Rooms.Select(room => new ConversationEntry(new(room.Id, true), room.Name, room.Recent?.Preview ?? room.Purpose, room.Recent?.At ?? DateTimeOffset.MinValue, null, room, Server))).ToList();
             var usedAvatars = all.Select(entry => entry.AvatarUrl).ToHashSet(); foreach (var key in avatars.Keys.Where(key => !usedAvatars.Contains(key)).ToArray()) avatars.Remove(key);
             var known = all.Select(entry => entry.Target).ToHashSet();
@@ -153,6 +169,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
                 drafts.Remove(key);
             }
             Filter();
+            Changed(nameof(OnlineSummary)); Changed(nameof(ConversationSubtitle));
+            Changed(nameof(ActivityText)); Changed(nameof(HasActivity));
             if (selected is { } active)
             {
                 selected = all.FirstOrDefault(item => item.Target == active.Target);
@@ -179,6 +197,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         selection = connection is null ? new CancellationTokenSource() : CancellationTokenSource.CreateLinkedTokenSource(connection.Token);
         var token = selection.Token;
         selected = entry;
+        Changed(nameof(ConversationSubtitle));
+        Changed(nameof(ActivityText)); Changed(nameof(HasActivity));
         if (!drafts.ContainsKey((Server, entry.Target))) drafts[(Server, entry.Target)] = new ConversationDraft();
         Messages.Clear(); HasMore = false;
         ReplyMembers.Clear();
@@ -217,7 +237,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             else Messages[index].Update(merged[index]);
         }
         if (last is null) HasMore = page.HasMore;
-        if (page.Items.Length != 0) ScrollToBottom?.Invoke(false);
+            if (page.Items.Length != 0 && (last is null || merged.LastOrDefault()?.Id != last)) ScrollToBottom?.Invoke(false);
     }
 
     public async Task LoadOlderAsync()
@@ -272,7 +292,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         if (Draft is { } draft) draft.Targets = ReplyMembers.Where(item => item.Selected).Select(item => item.Id).ToArray();
     }
 
-    public void ReportActionError(string message) => ActionError = message;
+    public void ReportActionError(string? message) => ActionError = message;
     public async Task RefreshManagementAsync()
     {
         if (api is null || connection is null) return;

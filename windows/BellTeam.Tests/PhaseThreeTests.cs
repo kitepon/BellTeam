@@ -113,7 +113,7 @@ public sealed class PhaseThreeTests
             var load = picker.LoadAsync();
             picker.Children.OfType<Button>().Single(button => (string)button.Content == "写真を取り外す").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var bitmap = BitmapSource.Create(2, 2, 96, 96, PixelFormats.Bgra32, null, new byte[16], 8); bitmap.Freeze(); decoded.SetResult(bitmap); Await(load);
-            Assert.Equal("", picker.Value); Assert.Null(picker.Children.OfType<Image>().Single().Source);
+            Assert.Equal("", picker.Value); Assert.Null(picker.Preview.Source);
         });
     }
     [Fact]
@@ -122,7 +122,7 @@ public sealed class PhaseThreeTests
         var removed = false;
         using var workspace = new Workspace(origin => new BellApi(origin, new StubHandler((request, _) => Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch
         {
-            "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/rooms" => removed ? "{\"rooms\":[]}" : ApiTests.Rooms, _ => ApiTests.Page
+            "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/owner" => ApiTests.Owner, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => removed ? "{\"rooms\":[]}" : ApiTests.Rooms, _ => ApiTests.Page
         })))));
         await workspace.ConnectAsync("http://localhost", listen: false);
         await workspace.SelectAsync(workspace.Entries.Single(entry => entry.Target.IsRoom)); workspace.DraftText = "削除される部屋の下書き";
@@ -148,7 +148,7 @@ public sealed class PhaseThreeTests
                     var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) };
                     response.Content.Headers.ContentType = new MediaTypeHeaderValue("image/png"); return response;
                 }
-                return StubHandler.Json(request.RequestUri.AbsolutePath switch { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/rooms" => ApiTests.Rooms, _ => ApiTests.Page });
+                return StubHandler.Json(request.RequestUri.AbsolutePath switch { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/owner" => ApiTests.Owner, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, _ => ApiTests.Page });
             })));
             Await(workspace.ConnectAsync("http://localhost", listen: false));
             var remote = new RemoteImage(workspace, "/api/message-images/user/test.png");

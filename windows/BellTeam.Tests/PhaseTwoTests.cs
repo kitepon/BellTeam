@@ -116,7 +116,7 @@ public sealed class PhaseTwoTests
         {
             var path = request.RequestUri!.AbsolutePath;
             if (path.EndsWith("/screen", StringComparison.Ordinal)) { requests++; return Task.FromResult(StubHandler.Json("{\"online\":false,\"screen\":\"\"}")); }
-            return Task.FromResult(StubHandler.Json(path switch { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/rooms" => ApiTests.Rooms, _ => ApiTests.Page }));
+            return Task.FromResult(StubHandler.Json(path switch { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/owner" => ApiTests.Owner, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, _ => ApiTests.Page }));
         })));
         await workspace.ConnectAsync("http://localhost", listen: false);
         await workspace.SelectAsync(workspace.Entries.Single(item => !item.Target.IsRoom));
@@ -142,7 +142,7 @@ public sealed class PhaseTwoTests
                 Assert.Equal("", body.RootElement.GetProperty("message").GetString()); Assert.Single(body.RootElement.GetProperty("images").EnumerateArray());
                 started.SetResult(); return await finish.Task;
             }
-            return StubHandler.Json(request.RequestUri!.AbsolutePath switch { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/rooms" => ApiTests.Rooms, _ => ApiTests.Page });
+            return StubHandler.Json(request.RequestUri!.AbsolutePath switch { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/owner" => ApiTests.Owner, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, _ => ApiTests.Page });
         })));
         await workspace.ConnectAsync("http://localhost", listen: false);
         await workspace.SelectAsync(workspace.Entries.Single(item => !item.Target.IsRoom));

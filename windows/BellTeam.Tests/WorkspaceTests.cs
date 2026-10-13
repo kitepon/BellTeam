@@ -14,7 +14,7 @@ public sealed class WorkspaceTests
         using var workspace = new Workspace(origin => new BellApi(origin, new StubHandler((request, _) => Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch
         {
             "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}",
-            "/api/bots" => ApiTests.Bots, "/api/rooms" => ApiTests.Rooms, _ => ApiTests.Page
+            "/api/bots" => ApiTests.Bots, "/api/owner" => ApiTests.Owner, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, _ => ApiTests.Page
         })))));
         await workspace.ConnectAsync("http://localhost", listen: false);
         var bot = workspace.Entries.Single(item => !item.Target.IsRoom);
@@ -35,7 +35,7 @@ public sealed class WorkspaceTests
         {
             var path = request.RequestUri!.AbsolutePath;
             if (path == "/api/bots/bot-bell/messages") { waiting.SetResult(); await Task.Delay(Timeout.Infinite, token); }
-            return StubHandler.Json(path switch { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/rooms" => ApiTests.Rooms, _ => ApiTests.Page });
+            return StubHandler.Json(path switch { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/owner" => ApiTests.Owner, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, _ => ApiTests.Page });
         })));
         await workspace.ConnectAsync("http://localhost", listen: false);
         var old = workspace.SelectAsync(workspace.Entries.Single(item => !item.Target.IsRoom));

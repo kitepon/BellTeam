@@ -12,14 +12,20 @@ namespace BellTeam.App;
 public sealed class AvatarPicker : StackPanel
 {
     private readonly Image image = new() { Width = 80, Height = 80, Stretch = Stretch.Uniform };
+    internal Image Preview => image;
+    private readonly UIElement placeholder;
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, FontSize = 14 };
     private readonly Func<byte[], Task<BitmapSource>> decode;
     public string Value { get; private set; }
-    public AvatarPicker(string value, Func<byte[], Task<BitmapSource>>? decode = null)
+    public AvatarPicker(string value, Func<byte[], Task<BitmapSource>>? decode = null, string name = "B", string color = "violet", bool isRoom = false, bool compact = false)
     {
         this.decode = decode ?? ImageCodec.DecodeAsync;
-        Value = value; Children.Add(image); Children.Add(status);
-        var choose = new Button { Content = "写真を変更", HorizontalAlignment = HorizontalAlignment.Left };
+        Value = value;
+        placeholder = isRoom ? new System.Windows.Shapes.Path { Data = AvatarTile.CreateRoomSymbol(), Fill = Brushes.White, Stretch = Stretch.Uniform, Width = 50, Height = 50, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+            : new TextBlock { Text = name.Length == 0 ? "B" : System.Globalization.StringInfo.GetNextTextElement(name), FontSize = 34, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var portrait = new Grid { Width = 80, Height = 80, Clip = new RectangleGeometry(new Rect(0, 0, 80, 80), 24, 24) }; portrait.Children.Add(placeholder); portrait.Children.Add(image);
+        Children.Add(new Border { Child = portrait, Background = new SolidColorBrush(BellColors.Accent(color)), CornerRadius = new CornerRadius(24), HorizontalAlignment = HorizontalAlignment.Center }); Children.Add(status);
+        var choose = new Button { Content = "写真を変更", HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 2) };
         choose.Click += async (_, _) =>
         {
             var file = new OpenFileDialog { Filter = "画像|*.png;*.jpg;*.jpeg;*.webp;*.gif" };
@@ -32,19 +38,26 @@ public sealed class AvatarPicker : StackPanel
             }
             catch (Exception error) { status.Text = "画像を読み込めませんでした。" + error.Message; }
         };
-        var remove = new Button { Content = "写真を取り外す", HorizontalAlignment = HorizontalAlignment.Left };
-        remove.Click += (_, _) => { Value = ""; image.Source = null; status.Text = "保存すると写真を取り外します。"; };
+        var remove = new Button { Content = "写真を取り外す", HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12 };
+        remove.SetResourceReference(StyleProperty, "QuietButton");
+        remove.Click += (_, _) => { Value = ""; image.Source = null; placeholder.Visibility = Visibility.Visible; status.Text = "保存すると写真を取り外します。"; };
         Children.Add(choose); Children.Add(remove);
+        if (compact)
+        {
+            var portraitView = Children[0]; Children.Remove(portraitView); Children.Remove(choose); Children.Remove(remove);
+            var row = new Grid { Margin = new Thickness(0, 0, 0, 12) }; row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(96) }); row.ColumnDefinitions.Add(new ColumnDefinition()); row.Children.Add(portraitView);
+            var actions = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; choose.HorizontalAlignment = remove.HorizontalAlignment = HorizontalAlignment.Left; choose.Margin = new Thickness(0, 0, 0, 4); actions.Children.Add(choose); actions.Children.Add(remove); Grid.SetColumn(actions, 1); row.Children.Add(actions); Children.Insert(0, row);
+        }
     }
     public async Task LoadAsync()
     {
         var requested = Value;
-        if (requested.Length == 0) { image.Source = null; return; }
+        if (requested.Length == 0) { image.Source = null; placeholder.Visibility = Visibility.Visible; return; }
         try
         {
             var comma = requested.IndexOf(','); if (comma < 0 || !requested.StartsWith("data:image/", StringComparison.Ordinal)) throw new InvalidDataException("アバターの形式が一致しません。");
             var bitmap = await decode(Convert.FromBase64String(requested[(comma + 1)..]));
-            if (Value == requested) { image.Source = bitmap; status.Text = ""; }
+            if (Value == requested) { image.Source = bitmap; placeholder.Visibility = Visibility.Collapsed; status.Text = ""; }
         }
         catch (Exception error) { if (Value == requested) status.Text = "画像を読み込めませんでした。" + error.Message; }
     }

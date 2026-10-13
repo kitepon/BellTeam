@@ -15,6 +15,8 @@ public sealed class StubHandler(Func<HttpRequestMessage, CancellationToken, Task
 
 public sealed class ApiTests
 {
+    public const string EmptyQueue = """{"items":[]}""";
+    public const string Owner = """{"owner":{"name":"利用者"}}""";
     public const string Bots = """{"bots":[{"id":"bot-bell","name":"ベル","displayName":"ベル 開発","harness":"codex","profileText":"プロフィール","online":true,"recent":{"id":"m1","at":"2026-10-13T01:00:00Z","message":"こんにちは"}}]}""";
     public const string Rooms = """{"rooms":[{"id":"room-work","name":"作業部屋","purpose":"開発","memberIds":["bot-bell"],"recent":null}]}""";
     public const string Page = """{"items":[{"id":"m1","kind":"message","direction":"incoming","at":"2026-10-13T01:00:00Z","message":"**こんにちは**","image_count":2}],"has_more":true}""";
@@ -22,7 +24,7 @@ public sealed class ApiTests
     [Fact]
     public async Task ReadsActualApiShapes()
     {
-        using var api = new BellApi(new("http://localhost/"), new StubHandler((request, _) => Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch { "/api/bots" => Bots, "/api/rooms" => Rooms, _ => Page }))));
+        using var api = new BellApi(new("http://localhost/"), new StubHandler((request, _) => Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch { "/api/bots" => Bots, "/api/owner" => ApiTests.Owner, "/api/queue" => EmptyQueue, "/api/rooms" => Rooms, _ => Page }))));
         Assert.Equal("プロフィール", (await api.GetAsync<BotsResponse>("/api/bots")).Bots[0].ProfileText);
         Assert.Equal("bot-bell", (await api.GetAsync<RoomsResponse>("/api/rooms")).Rooms[0].MemberIds[0]);
         var page = await api.GetAsync<MessagePage>("/api/bots/bot-bell/messages");
