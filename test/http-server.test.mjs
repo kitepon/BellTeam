@@ -922,6 +922,31 @@ test('同じ変更で続けて鳴った知らせは1件にまとめ、次の変�
   controller.abort()
 })
 
+test('メンバーの設定が変わった時も、アプリへ知らせを流す', async (t) => {
+  const watchers = []
+  const bots = Object.assign(new Map(), { watch(notify) { watchers.push(notify); return () => {} } })
+  const server = createBellTeamServer({
+    bots, authorize: mockAuthorize,
+    store: { async timeline() { return [] }, async watch() { return () => {} } },
+    messageEventWindow: 20,
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  t.after(() => { server.closeAllConnections(); server.close() })
+  await server.startMessageWatch()
+  assert.equal(watchers.length, 1)
+  const controller = new AbortController()
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/events`, {
+    headers: { 'cf-access-jwt-assertion': 'test-assertion' }, signal: controller.signal,
+  })
+  const reader = response.body.getReader()
+  let text = ''
+  while (!text.includes('event: ready')) text += new TextDecoder().decode((await reader.read()).value)
+  watchers[0]()
+  while (!text.includes('event: messages\n')) text += new TextDecoder().decode((await reader.read()).value)
+  controller.abort()
+})
+
 test('待機中の接続は手前の中継より長く保つ', async (t) => {
   const server = createBellTeamServer({ bots: new Map(), authorize: mockAuthorize, messenger: {}, store: {}, transport: {} })
   server.listen(0, '127.0.0.1')

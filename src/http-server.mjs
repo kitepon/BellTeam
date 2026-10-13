@@ -666,6 +666,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     if (secretRequests) stops.push(secretRequests.watch(notify))
     if (ownerQuestions) stops.push(ownerQuestions.watch(notify))
     if (rooms?.watch) stops.push(await rooms.watch(notify))
+    // メンバーの追加・設定変更・削除。Botが自分で設定を替えた時も、アプリの一覧へ映す。
+    if (bots?.watch) stops.push(bots.watch(notify))
     if (transport?.watchQueue) stops.push(transport.watchQueue(notify))
     closeWatch = () => stops.forEach(stop => stop())
   }
