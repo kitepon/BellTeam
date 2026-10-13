@@ -7,6 +7,8 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Reflection;
+using System.ComponentModel;
 using BellTeam.App;
 using BellTeam.Core;
 public static class UiChecks {
@@ -35,11 +37,17 @@ public static class UiChecks {
       };
       return JsonSerializer.Serialize(result, BellApi.Json);
     })));
+    var disconnected = new MainWindow(workspace, persistPlacement:false); disconnected.ShowSettings(); disconnected.ShowSchedules();
+    Check(((FrameworkElement)disconnected.FindName("PageArea")).Visibility == Visibility.Collapsed && workspace.ActionError is null,"未接続で設定のページが開きました。"); disconnected.Close();
     await workspace.ConnectAsync("http://localhost", listen:false);
     var window = new MainWindow(workspace, persistPlacement:false); var root = (FrameworkElement)window.Content;
     async Task Layout() { root.Measure(new Size(1280,820)); root.Arrange(new Rect(0,0,1280,820)); root.UpdateLayout(); await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); root.UpdateLayout(); }
     window.ShowSettings(); await window.PageReady; await Layout();
     Check(((FrameworkElement)window.FindName("PageArea")).Visibility == Visibility.Visible,"設定から勝手に会話へ戻りました。");
+    var page = (EditorWindow)typeof(MainWindow).GetField("page",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(window)!;
+    var completion = new TaskCompletionSource<bool>(); var writing = (Task)typeof(EditorWindow).GetMethod("RunAsync",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(page,[new Func<Task<bool>>(()=>completion.Task),false])!;
+    var closing = new CancelEventArgs(); typeof(Window).GetMethod("OnClosing",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(window,[closing]); Check(closing.Cancel,"ページへの書込中に窓を閉じられます。"); completion.SetResult(false); await writing;
+    closing = new(); typeof(Window).GetMethod("OnClosing",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(window,[closing]); Check(!closing.Cancel,"書込後も窓を閉じられません。");
     var list = (ListBox)window.FindName("ConversationList"); var entry = workspace.Entries.Single(); list.SelectedItem = entry; await Layout();
     Check(((FrameworkElement)window.FindName("PageArea")).Visibility == Visibility.Collapsed,"一覧から会話へ戻れません。");
     window.ShowSchedules(); await window.PageReady; await Layout();
@@ -56,6 +64,8 @@ public static class UiChecks {
     Check(workspace.Messages.Count == 41,"以前のメッセージが増えていません。");
     Check(Math.Abs((scroll.VerticalOffset-offset) - (scroll.ExtentHeight-oldHeight)) < 1,"以前の履歴を追加して位置がずれました。");
     Check(new WindowInteropHelper(window).Handle == IntPtr.Zero,"確認で窓のハンドルを作成しました。");
+    workspace.Messages.Clear(); typeof(Workspace).GetProperty(nameof(Workspace.Loading))!.SetValue(workspace,true);
+    Check(!((TextBlock)window.FindName("WelcomeNote")).Text.Contains("最初のメッセージ"),"読込中に送信の案内が出ます。");
     window.Close(); Console.WriteLine("画面内移動・新着・過去ログ位置・前面非表示の確認に成功しました。");
   }
   private static void Check(bool value,string message) { if (!value) throw new InvalidOperationException(message); }

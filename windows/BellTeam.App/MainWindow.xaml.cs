@@ -32,6 +32,7 @@ public partial class MainWindow : Window
         };
         ConversationList.PreviewMouseDown += (_, args) => { if (page is not null && args.OriginalSource is DependencyObject target && ItemsControl.ContainerFromElement(ConversationList, target) is ListBoxItem) ShowConversation(); };
         Closed += (_, _) => page?.Close();
+        Closing += (_, args) => { if (page?.CanNavigateAway == false) args.Cancel = true; };
         DataObject.AddPastingHandler(Composer, Composer_Pasting);
         model.ScrollToBottom += force =>
         {
@@ -134,8 +135,8 @@ public partial class MainWindow : Window
     private void OpenMenu_Click(object sender, RoutedEventArgs e) { if (sender is Button { ContextMenu: { } menu } button) { menu.PlacementTarget = button; menu.IsOpen = true; } }
     private void Schedules_Click(object sender, RoutedEventArgs e) => ShowSchedules();
     private void Settings_Click(object sender, RoutedEventArgs e) => ShowSettings();
-    public void ShowSchedules() { var editor = new SchedulesWindow(model); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
-    public void ShowSettings() { var editor = new SettingsWindow(model, OpenConnectionSettings); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
+    public void ShowSchedules() { if (!model.Connected) return; var editor = new SchedulesWindow(model); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
+    public void ShowSettings() { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
     private bool ShowPage(EditorWindow editor)
     {
         if (page?.CanNavigateAway == false) { editor.Close(); model.ReportActionError("操作が終わってから画面を切り替えてください。"); return false; }
@@ -162,7 +163,7 @@ public partial class MainWindow : Window
     {
         Welcome.Visibility = !model.HasSelection || model.Messages.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         WelcomeTitle.Text = model.HasSelection ? model.Loading ? "読み込み中…" : model.Title + "との会話" : "チームと、同じデスクで。";
-        WelcomeNote.Text = model.HasSelection ? "最初のメッセージを送って、会話を始めましょう。" : "左のメンバーやルームを選んで、会話を始めましょう。";
+        WelcomeNote.Text = model.Loading ? "" : model.HasSelection ? "最初のメッセージを送って、会話を始めましょう。" : "左のメンバーやルームを選んで、会話を始めましょう。";
     }
     private void NewMessages_Click(object sender, RoutedEventArgs e) { MessageScroll.ScrollToEnd(); NewMessagesButton.Visibility = Visibility.Collapsed; }
     public async Task PrepareRenderAsync()

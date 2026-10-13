@@ -22,6 +22,7 @@ public sealed class MessageCard : ContentControl
     private SecretCard? secret;
     private QuestionCard? question;
     private Border? bubble;
+    private readonly TextBlock imageLabel = new() { Foreground = Brushes.SlateGray, FontSize = 14, Margin = new Thickness(0, 6, 0, 6) };
     private string? accentName;
     private readonly TextBlock delivery = new() { FontSize = 14, Foreground = Brushes.SlateGray, Margin = new Thickness(5, 6, 5, 0) };
     private static void Changed(DependencyObject sender, DependencyPropertyChangedEventArgs args)
@@ -53,7 +54,8 @@ public sealed class MessageCard : ContentControl
             messageId = message.Id; secret = null; question = null;
             stack = new StackPanel(); heading = new TextBlock { FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(97, 71, 212)), Margin = new Thickness(0, 0, 0, 8) };
             body = new MarkdownView { FontSize = 18 }; images = new RemoteImages(Workspace);
-            stack.Children.Add(heading); stack.Children.Add(images); stack.Children.Add(body);
+            if (imageLabel.Parent is Panel previousImageParent) previousImageParent.Children.Remove(imageLabel);
+            stack.Children.Add(heading); stack.Children.Add(images); stack.Children.Add(imageLabel); stack.Children.Add(body);
             // 行の部品を作り直す時は以前の親から状態欄を外す。
             if (delivery.Parent is Panel parent) parent.Children.Remove(delivery);
             var accent = BellColors.Accent(Workspace.IsRoom ? Workspace.Bots.FirstOrDefault(bot => bot.Id == message.Sender?.Id)?.Color : Workspace.Selected?.Bot?.Color);
@@ -66,6 +68,9 @@ public sealed class MessageCard : ContentControl
         heading.Visibility = message.Kind == "peer" || Workspace.IsRoom && !message.IsOutgoing ? Visibility.Visible : Visibility.Collapsed;
         UpdateAccent();
         images!.Update(message.DisplayedImageUrls);
+        var count = message.ImageCount ?? 1;
+        imageLabel.Text = count > 1 ? $"画像{count}枚" : "画像";
+        imageLabel.Visibility = message.Image == true && message.DisplayedImageUrls.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         try { body!.Source = message.Message ?? ""; }
         catch (NotSupportedException error) { body!.Document = new System.Windows.Documents.FlowDocument(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(error.Message))); }
         body!.Visibility = message.SecretRequest is null && message.OwnerQuestion is null ? Visibility.Visible : Visibility.Collapsed;

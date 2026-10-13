@@ -13,7 +13,7 @@ Windowsでは写真から色を推定せず、利用者が設定したテーマ�
 
 ## 確認
 
-単体試験117件、.NET同梱x64ビルドが成功。`BellTeam.UiChecks`で、予定・設定から会話へ戻る、新着で読書位置を動かさない、過去ログを追加しても位置を保つ、という操作を実際のWPF部品で確認した。確認中に窓のハンドルを作っていないことも検査した。
+単体試験119件、.NET同梱x64ビルドが成功。`BellTeam.UiChecks`で、予定・設定から会話へ戻る、新着で読書位置を動かさない、過去ログを追加しても位置を保つ、という操作を実際のWPF部品で確認した。確認中に窓のハンドルを作っていないことも検査した。
 
 ```powershell
 dotnet run --project windows/BellTeam.UiChecks/BellTeam.UiChecks.csproj -c Release
@@ -25,3 +25,5 @@ node windows/BellTeam.Tests/fixtures/mac-ui-reference.mjs windows/artifacts/publ
 ## 続ける内容
 
 画面改修の途中結果をまとめた資料。Accessログイン・初回設定、AI認証、起動中の通知、FOXで前面に出した操作確認を続ける。Appleの購入とAPNs登録はWindowsの対象に含めない。
+
+レビュー後、画像URLが無いメッセージの「画像／画像N枚」を復元した。未接続時のページ移動、ページへの書込中の終了、読込中の案内も非表示の表示部品で確認した。アイコンは32bitの8サイズ（16・20・24・32・40・48・64・256px）へ変換し、256pxはPNGで格納する。Windows 10のアイコン用フォントも指定した。
