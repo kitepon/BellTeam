@@ -33,6 +33,11 @@ public partial class App : Application
                 EditorWindow editor;
                 if (editorKind == "member") { var member = new MemberEditor(editorWorkspace, editorId); editor = member; await member.InitializeAsync(); }
                 else if (editorKind is "room" or "new-room") { var room = new RoomEditor(editorWorkspace, editorKind == "new-room" ? null : editorId); editor = room; await room.InitializeAsync(); }
+                else if (editorKind == "settings") { var settingsEditor = new SettingsWindow(editorWorkspace); editor = settingsEditor; await settingsEditor.InitializeAsync(); }
+                else if (editorKind == "profile") { var profile = new ProfileEditor(editorWorkspace); editor = profile; await profile.InitializeAsync(); }
+                else if (editorKind == "feature") { var feature = new FeatureEditor(editorWorkspace, editorId, "追加機能"); editor = feature; await feature.InitializeAsync(); }
+                else if (editorKind == "schedules") { var schedules = new SchedulesWindow(editorWorkspace); editor = schedules; await schedules.InitializeAsync(); }
+                else if (editorKind == "new-schedule") editor = new ScheduleEditor(editorWorkspace, null);
                 else throw new ArgumentException("未対応の編集画面です。");
                 await editor.ReadyTask; WritePng(editor, (int)editor.Width, (int)editor.Height, editorOutput); editor.Close(); Shutdown(0); return;
             }
@@ -56,7 +61,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-url <URL> <PNG>、--render-editor <member|room|new-room> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-url <URL> <PNG>、--render-editor <member|room|new-room|settings|profile|feature|schedules|new-schedule> <URL> <ID> <PNG> のいずれかです。");
 
             var workspace = new Workspace();
             var main = new MainWindow(workspace);
