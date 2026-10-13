@@ -12,6 +12,7 @@ public sealed record ConversationEntry(ChatTarget Target, string Name, string Su
     public string Group => Target.IsRoom ? "ルーム" : "メンバー";
     public string Initial => Name.Length == 0 ? "?" : System.Globalization.StringInfo.GetNextTextElement(Name);
     public string Presence => Bot is { Online: true } ? "●" : "";
+    public bool FastMode => Bot?.FastMode == true;
     public string? AvatarUrl => Origin is not null && (Bot?.AvatarVersion ?? Room?.AvatarVersion ?? "").Length != 0 ? Origin + $"api/{(Target.IsRoom ? "rooms" : "bots")}/{Uri.EscapeDataString(Target.Id)}/avatar?v={Bot?.AvatarVersion ?? Room!.AvatarVersion}" : null;
 }
 

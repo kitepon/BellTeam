@@ -37,6 +37,7 @@ public sealed record Bot
     public string Position { get; init; } = "";
     public string Role { get; init; } = "";
     public bool Online { get; init; }
+    public bool FastMode { get; init; }
     public string Color { get; init; } = "violet";
     public string Avatar { get; init; } = "";
     public string AvatarVersion { get; init; } = "";

@@ -13,6 +13,8 @@ public sealed class ModelPicker : StackPanel
     private readonly TextBox custom = new();
     private readonly TextBlock customLabel = new() { Text = "モデルID", Margin = new Thickness(0, 9, 0, 5) };
     private readonly TextBlock error = new() { TextWrapping = TextWrapping.Wrap, Foreground = System.Windows.Media.Brushes.Firebrick };
+    private readonly CheckBox fast = new() { Content = "ファストモード", Margin = new Thickness(0, 12, 0, 6) };
+    private readonly TextBlock fastReason = new() { TextWrapping = TextWrapping.Wrap, FontSize = 14, Margin = new Thickness(0, 0, 0, 8) };
     private bool updating;
     private string? loadError;
     public ModelPicker(BotSettings initial)
@@ -22,6 +24,8 @@ public sealed class ModelPicker : StackPanel
         if (!harnesses.Any(option => option.Id == initial.Harness)) harnesses.Add(new(initial.Harness, initial.Harness + "（現在の設定）"));
         harness.ItemsSource = harnesses;
         Add("CLI", harness); Add("モデル", model); Children.Add(customLabel); Children.Add(custom); Add("エフォート", effort); Children.Add(error);
+        fast.IsChecked = initial.FastMode; Children.Add(fast);
+        Children.Add(new TextBlock { Text = "入れると利用枠を多く使います。", TextWrapping = TextWrapping.Wrap, FontSize = 14 }); Children.Add(fastReason);
         harness.SelectionChanged += (_, _) => { if (updating || harness.SelectedValue is not string id) return; selection.SelectHarness(id); Render(); };
         model.SelectionChanged += (_, _) => { if (updating || model.SelectedValue is not string id) return; selection.SelectModel(id == "__custom__" ? custom.Text : id); RenderEffort(); customLabel.Visibility = custom.Visibility = id == "__custom__" ? Visibility.Visible : Visibility.Collapsed; };
         custom.TextChanged += (_, _) => { if (updating || model.SelectedValue as string != "__custom__") return; selection.SelectModel(custom.Text); RenderEffort(); };
@@ -60,11 +64,16 @@ public sealed class ModelPicker : StackPanel
         choices.AddRange(selection.Efforts.Where(value => value.Length != 0).Select(value => new FormOption(value, value)));
         if (selection.Effort.Length != 0 && !choices.Any(choice => choice.Id == selection.Effort)) choices.Add(new(selection.Effort, selection.Effort + "（現在の設定）"));
         effort.ItemsSource = choices; effort.SelectedValue = selection.Effort; updating = false;
+        var reason = loadError ?? selection.FastUnavailableReason;
+        fast.IsEnabled = reason is null;
+        fastReason.Text = reason ?? "";
+        fastReason.Visibility = reason is null ? Visibility.Collapsed : Visibility.Visible;
     }
+    public void SetSavedFastMode(bool value) => fast.IsChecked = value;
     public BotSettings Apply(BotSettings settings)
     {
         if (model.SelectedValue as string == "__custom__" && string.IsNullOrWhiteSpace(custom.Text)) throw new ArgumentException("モデルIDを入力してください。");
-        return settings with { Harness = selection.Harness, Model = selection.Model, ReasoningEffort = selection.Effort };
+        return settings with { Harness = selection.Harness, Model = selection.Model, ReasoningEffort = selection.Effort, FastMode = fast.IsChecked == true };
     }
 }
 
@@ -103,6 +112,7 @@ public sealed class MemberEditor(Workspace workspace, string id) : EditorWindow(
                 BotSettingsResponse result;
                 try { result = await api.SaveBotAsync(id, submitted, Token); }
                 catch { confirm.Visibility = Visibility.Visible; throw; }
+                models.SetSavedFastMode(result.Bot.FastMode);
                 await workspace.RefreshManagementAsync();
                 if (result.Applying) { Saved = true; Status.Foreground = System.Windows.Media.Brushes.DarkSlateGray; Status.Text = "設定を保存しました。現在の作業が終わってから適用します。"; return false; }
                 return true;
