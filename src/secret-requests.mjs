@@ -87,12 +87,23 @@ export class SecretRequests {
     return this.finish(id, async item => ({ ...item, status: 'cancelled' }))
   }
 
-  async finish(id, update) {
+  // 依頼したBotが、未入力の自分の依頼を取り下げる。画面のカードはオーナーの取消と同じ「取消」になる。
+  // 取り下げた本人へは通知しない（道具の返りで分かる。通知すると、自分の取り下げで自分の番がもう1回起きる）。
+  async withdraw(id, botId) {
+    if (this.get(id).botId !== botId) throw new Error('SECRET_REQUEST_NOT_FOUND')
+    return this.finish(id, async item => ({ ...item, status: 'cancelled', withdrawn: true }), { notify: false })
+  }
+
+  async finish(id, update, { notify = true } = {}) {
     const item = this.get(id)
     if (item.status !== 'pending' || this.busy.has(id)) throw new Error('SECRET_REQUEST_CLOSED')
     this.busy.add(id)
     try {
       const result = await update(item)
+      if (!notify) {
+        await this.save({ ...result, notification: 'not_needed' })
+        return this.get(id)
+      }
       await this.save({ ...result, notification: 'pending' })
       // 保存先だけを通常の配送経路へ渡す。秘密の値はコールバックに渡さない。
       let notification

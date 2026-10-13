@@ -94,4 +94,4 @@ Web UIでは画像をアップロードし、位置と拡大率を調整して�
 
 ## トークン・パスワードの受取
 
-Botは共通MCPの `request_secret` で、iPhone・Webの会話へ専用の入力カードを出せる。値はチャットへ送らず、利用者の永続領域に保存する。使い方・保存場所・通知・失敗時の扱いは [秘密情報の入力](docs/secret-input.md) を参照。
+Botは共通MCPの `request_secret` で、iPhone・Webの会話へ専用の入力カードを出せる。要らなくなった未入力の依頼は、依頼したBotが `cancel_secret_request` で取り下げる。値はチャットへ送らず、利用者の永続領域に保存する。使い方・保存場所・通知・失敗時の扱いは [秘密情報の入力](docs/secret-input.md) を参照。

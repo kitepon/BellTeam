@@ -58,6 +58,11 @@ export const bellTeamTools = Object.freeze([
     inputSchema: objectSchema({ requestId: { type: 'string' } }, ['requestId']),
   },
   {
+    name: 'cancel_secret_request',
+    description: '自分が依頼した、まだ入力されていない秘密情報入力を取り下げる。要らなくなった依頼のカードを、オーナーの手を借りずに片付ける時に使う。画面のカードは「取消」になる。入力済み・取消済みの依頼と、ほかのBotの依頼は取り下げられない。値は扱わない。',
+    inputSchema: objectSchema({ requestId: { type: 'string' } }, ['requestId']),
+  },
+  {
     name: 'ask_owner',
     description: 'オーナーに裁定や選択を求める時、選択肢のカードをオーナーとの会話画面へ出す。オーナーは選択肢を押すか、allowOtherがtrueなら文章で答える。答えは次のオーナーからのメッセージとして届くので、このツールを待ち続けずターンを終える。',
     inputSchema: objectSchema({
@@ -437,7 +442,7 @@ export async function callBellTeamTool({ internalUrl = '', ...context }) {
   return shaped
 }
 
-async function runBellTeamTool({ name, arguments: args = {}, from, registry, bugHubSecurity, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, deliverMessage, deliverRoomMessage, listQueued, restart, remove, configure, requestSecret, getSecretRequest, askOwner, getSettings, updateSettings, completeSetup, getModels }) {
+async function runBellTeamTool({ name, arguments: args = {}, from, registry, bugHubSecurity, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, deliverMessage, deliverRoomMessage, listQueued, restart, remove, configure, requestSecret, getSecretRequest, cancelSecretRequest, askOwner, getSettings, updateSettings, completeSetup, getModels }) {
   const tool = bellTeamTools.find(item => item.name === name)
   if (!tool) throw new Error(`TOOL_NOT_FOUND: ${name}`)
   assertKeys(args, Object.keys(tool.inputSchema.properties))
@@ -464,6 +469,7 @@ async function runBellTeamTool({ name, arguments: args = {}, from, registry, bug
     if (result.request.botId !== from) throw new Error('SECRET_REQUEST_NOT_FOUND')
     return result
   }
+  if (name === 'cancel_secret_request') return cancelSecretRequest(args.requestId, from)
   if (name === 'sendmessage') {
     const { image, ...message } = args
     return (deliverMessage ?? (value => messenger.sendmessage(value)))({

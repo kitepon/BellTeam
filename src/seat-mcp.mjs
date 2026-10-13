@@ -50,6 +50,7 @@ export function internalApi(port, request = fetch) {
     },
     requestSecret: value => call('/api/secret-requests', value),
     getSecretRequest: id => call(`/api/secret-requests/${encodeURIComponent(id)}`, undefined, 'GET'),
+    cancelSecretRequest: (id, botId) => call(`/api/secret-requests/${encodeURIComponent(id)}/cancel`, { botId }),
     askOwner: value => call('/api/owner-questions', value),
     getSettings: () => call('/api/settings', undefined, 'GET'),
     updateSettings: (id, value) => call(`/api/settings/${encodeURIComponent(id)}`, value, 'PATCH'),

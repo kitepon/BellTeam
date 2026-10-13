@@ -176,6 +176,11 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
           if (!match) return json(response, 404, { error: 'NOT_FOUND' })
           const [, id, action] = match
           if (request.method === 'GET' && !action) return json(response, 200, { request: secretRequests.get(id) })
+          // 席（内側）から出来るのは、依頼したBotが自分の未入力の依頼を取り下げる事だけ。値の登録は、オーナーの画面の専用経路だけが受ける。
+          if (internal && request.method === 'POST' && action === 'cancel') {
+            const body = await readJson(request, 8192)
+            return json(response, 200, { request: await secretRequests.withdraw(id, body?.botId) })
+          }
           if (request.method !== 'POST' || !action || internal) return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
           if (authMode(request) !== 'local' && !request.socket.encrypted && request.headers['x-forwarded-proto'] !== 'https') {
             return json(response, 426, { error: 'SECRET_HTTPS_REQUIRED' })
