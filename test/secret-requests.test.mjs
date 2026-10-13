@@ -74,6 +74,79 @@ test('通知失敗を登録済みの状態とともに明示する', async t => 
   assert.equal(result.notification, 'failed')
 })
 
+test('依頼したBotは未入力の自分の依頼を取り下げられ、本人への通知は起こさない', async t => {
+  const { service, delivered, bots, rooms, root } = await fixture(t)
+  const events = []
+  service.watch(() => events.push('change'))
+  const request = await service.create(input)
+  // ほかのBotの依頼は取り下げられない。依頼は未入力のまま残る。
+  await assert.rejects(service.withdraw(request.id, 'bot-b'), /SECRET_REQUEST_NOT_FOUND/u)
+  await assert.rejects(service.withdraw(request.id, undefined), /SECRET_REQUEST_NOT_FOUND/u)
+  assert.equal(service.get(request.id).status, 'pending')
+  const before = events.length
+  const result = await service.withdraw(request.id, 'bot-a')
+  assert.equal(result.status, 'cancelled')
+  assert.equal(result.withdrawn, true)
+  assert.equal(result.notification, 'not_needed')
+  assert.equal(result.path, undefined)
+  assert.deepEqual(delivered, [])
+  assert.ok(events.length > before)
+  // 画面のカードは、オーナーの取消と同じ「取消」になる。秘密のファイルは作らない。
+  assert.equal(service.timeline({ botId: 'bot-a' })[0].secret_request.status, 'cancelled')
+  await assert.rejects(readdir(join(root, 'shared/tools/example/secrets')), /ENOENT/u)
+  // 取り下げた後と、入力済みの依頼は、取り下げも入力もできない。
+  await assert.rejects(service.withdraw(request.id, 'bot-a'), /SECRET_REQUEST_CLOSED/u)
+  await assert.rejects(service.submit(request.id, 'late'), /SECRET_REQUEST_CLOSED/u)
+  const submitted = await service.create(input)
+  await service.submit(submitted.id, 'dummy-secret')
+  await assert.rejects(service.withdraw(submitted.id, 'bot-a'), /SECRET_REQUEST_CLOSED/u)
+  assert.equal(service.get(submitted.id).status, 'submitted')
+  const restored = new SecretRequests({ root, bots, rooms, notify: () => {} })
+  await restored.initialize()
+  assert.equal(restored.get(request.id).status, 'cancelled')
+})
+
+test('MCPの取り下げは呼び出しBotの番号を付けて渡し、内側のHTTPは取り下げだけを受ける', async t => {
+  const { root, bots, rooms, service } = await fixture(t)
+  const calls = []
+  const result = await callBellTeamTool({ name: 'cancel_secret_request', arguments: { requestId: 'r-1' }, from: 'bot-a', registry: bots,
+    cancelSecretRequest: async (id, botId) => { calls.push([id, botId]); return { request: { id, status: 'cancelled' } } } })
+  assert.deepEqual(calls, [['r-1', 'bot-a']])
+  assert.equal(result.request.status, 'cancelled')
+  await assert.rejects(callBellTeamTool({ name: 'cancel_secret_request', arguments: { requestId: 'r-1', value: 'secret' }, from: 'bot-a', registry: bots }), /ARGUMENT/u)
+
+  const options = { bots, rooms, secretRequests: service, store: { timeline: async () => [], watch: async () => () => {} }, transport: {},
+    authorize: req => req.headers.authorization === 'Bearer test' }
+  const publicServer = createBellTeamServer(options)
+  const internalServer = createBellTeamServer({ ...options, internal: true })
+  for (const server of [publicServer, internalServer]) {
+    server.listen(0, '127.0.0.1'); await once(server, 'listening')
+    t.after(() => { server.closeAllConnections(); server.close() })
+  }
+  const base = `http://127.0.0.1:${publicServer.address().port}`
+  const internal = `http://127.0.0.1:${internalServer.address().port}`
+  const headers = { authorization: 'Bearer test', 'content-type': 'application/json', 'x-forwarded-proto': 'https' }
+  const request = await service.create(input)
+  const cancel = (origin, body) => fetch(`${origin}/api/secret-requests/${request.id}/cancel`, { method: 'POST', headers, body: JSON.stringify(body) })
+  // ほかのBotの番号と、番号なしは断る。値の登録は内側からは受けないまま。
+  assert.equal((await cancel(internal, { botId: 'bot-b' })).status, 404)
+  assert.equal((await cancel(internal, {})).status, 404)
+  assert.equal((await fetch(`${internal}/api/secret-requests/${request.id}/submit`, { method: 'POST', headers, body: JSON.stringify({ value: 'x', botId: 'bot-a' }) })).status, 405)
+  assert.equal(service.get(request.id).status, 'pending')
+  const withdrawn = await cancel(internal, { botId: 'bot-a' })
+  assert.equal(withdrawn.status, 200)
+  assert.equal((await withdrawn.json()).request.status, 'cancelled')
+  assert.equal((await cancel(internal, { botId: 'bot-a' })).status, 409)
+  // オーナーの画面からの取消は今までどおり（依頼したBotへ通知する）。
+  const other = await service.create(input)
+  const owner = await fetch(`${base}/api/secret-requests/${other.id}/cancel`, { method: 'POST', headers, body: '{}' })
+  assert.equal(owner.status, 200)
+  const cancelled = (await owner.json()).request
+  assert.equal(cancelled.status, 'cancelled')
+  assert.equal(cancelled.withdrawn, undefined)
+  assert.equal(cancelled.notification, 'sent')
+})
+
 test('MCPは呼び出しBotの入力依頼と状態取得だけを提供し、値を受け取らない', async t => {
   const { bots, service } = await fixture(t)
   const args = { ...input }; delete args.botId
