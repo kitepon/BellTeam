@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using BellTeam.Core;
+using Microsoft.Win32;
+using System.Windows.Media;
 
 namespace BellTeam.App;
 
@@ -14,6 +16,7 @@ public partial class MainWindow : Window
         this.model = model;
         InitializeComponent();
         DataContext = model;
+        DataObject.AddPastingHandler(Composer, Composer_Pasting);
         model.ScrollToBottom += force =>
         {
             if (force || MessageScroll.ScrollableHeight - MessageScroll.VerticalOffset < 80)
@@ -25,6 +28,7 @@ public partial class MainWindow : Window
                 InspectorColumn.Width = model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star);
         };
         PreviewKeyDown += Window_KeyDown;
+        StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) model.ReturnToProfile(); };
         if (persistPlacement)
         {
             var placement = new SettingsStore(SettingsStore.UserDirectory).Load().Window;
@@ -54,6 +58,51 @@ public partial class MainWindow : Window
     private async void Send_Click(object sender, RoutedEventArgs e) => await model.SendAsync();
     private async void Older_Click(object sender, RoutedEventArgs e) => await model.LoadOlderAsync();
     private async void Reconnect_Click(object sender, RoutedEventArgs e) => await model.ReconnectAsync();
+    private async void Export_Click(object sender, RoutedEventArgs e)
+    {
+        if (model.Selected is not { } entry) return;
+        var dialog = new SaveFileDialog { FileName = $"BellTeam-{entry.Target.Id}.json", Filter = "JSONファイル|*.json", DefaultExt = ".json" };
+        if (dialog.ShowDialog(this) == true) await model.ExportAsync(dialog.FileName);
+    }
+    private async void Attach_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog { Filter = "画像|*.png;*.jpg;*.jpeg;*.webp;*.gif", Multiselect = true, Title = "画像を添付" };
+        if (dialog.ShowDialog(this) == true) await model.AttachFilesAsync(dialog.FileNames);
+    }
+    private void RemoveImage_Click(object sender, RoutedEventArgs e) { if (sender is Button { Tag: ImageAttachment image }) model.RemoveAttachment(image); }
+    private void Images_DragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop)) { e.Effects = model.CanAttach ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; }
+    }
+    private async void Images_Drop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData(DataFormats.FileDrop) is string[] paths) { e.Handled = true; await model.AttachFilesAsync(paths); }
+    }
+    private async void Composer_Pasting(object sender, DataObjectPastingEventArgs e)
+    {
+        if (e.DataObject.GetData(DataFormats.Bitmap) is System.Windows.Media.Imaging.BitmapSource image)
+        {
+            e.CancelCommand();
+            try { model.AttachClipboardImage(image); } catch (Exception error) { model.ReportActionError("画像を貼り付けられませんでした。" + error.Message); }
+        }
+        else if (e.DataObject.GetData(DataFormats.FileDrop) is string[] paths) { e.CancelCommand(); await model.AttachFilesAsync(paths); }
+    }
+    private async void Screen_Click(object sender, RoutedEventArgs e) => await model.OpenScreenAsync();
+    private void Profile_Click(object sender, RoutedEventArgs e) => model.ReturnToProfile();
+    public async Task PrepareRenderAsync()
+    {
+        await Task.WhenAll(Descendants<RemoteImage>(Root).Select(image => image.LoadTask));
+        Root.UpdateLayout();
+    }
+    private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T found) yield return found;
+            foreach (var nested in Descendants<T>(child)) yield return nested;
+        }
+    }
     private void Connection_Click(object sender, RoutedEventArgs e) => OpenConnectionSettings();
     public void OpenConnectionSettings()
     {
@@ -64,6 +113,7 @@ public partial class MainWindow : Window
     private void ToggleInspector()
     {
         inspectorVisible = !inspectorVisible;
+        if (!inspectorVisible) model.ReturnToProfile();
         Inspector.Visibility = inspectorVisible ? Visibility.Visible : Visibility.Collapsed;
         InspectorColumn.MinWidth = inspectorVisible ? 280 : 0;
         InspectorColumn.Width = inspectorVisible ? model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star) : new GridLength(0);

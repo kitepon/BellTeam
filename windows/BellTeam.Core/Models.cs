@@ -59,8 +59,39 @@ public sealed record TimelineMessage
     public string? Delivery { get; init; }
     public bool? Image { get; init; }
     [JsonPropertyName("image_count")] public int? ImageCount { get; init; }
+    [JsonPropertyName("image_url")] public string? ImageUrl { get; init; }
+    [JsonPropertyName("image_urls")] public string[]? ImageUrls { get; init; }
+    [JsonPropertyName("secret_request")] public SecretRequest? SecretRequest { get; init; }
+    [JsonPropertyName("owner_question")] public OwnerQuestion? OwnerQuestion { get; init; }
+    public string[] DisplayedImageUrls => ImageUrls ?? (ImageUrl is { } url ? [url] : []);
     public bool IsOutgoing => Direction == "outgoing" || Sender?.Id == "user";
 }
+public sealed record SecretRequest
+{
+    public required string Id { get; init; }
+    public required string BotId { get; init; }
+    public required string ToolId { get; init; }
+    public required string Label { get; init; }
+    public required string Message { get; init; }
+    public required string Status { get; init; }
+    public string? Notification { get; init; }
+}
+public sealed record OwnerQuestion
+{
+    public required string Id { get; init; }
+    public required string BotId { get; init; }
+    public required string Question { get; init; }
+    public required string[] Options { get; init; }
+    public required bool AllowOther { get; init; }
+    public required string Status { get; init; }
+    public string? Answer { get; init; }
+}
+public sealed record SecretResponse { public required SecretRequest Request { get; init; } }
+public sealed record QuestionResponse { public required OwnerQuestion Question { get; init; } }
+public sealed record ScreenResponse { public required bool Online { get; init; } public required string Screen { get; init; } }
+public sealed record ImageAttachment(string Name, string Mime, byte[] Bytes);
+public sealed record ImagePayload(string Mime, string Data);
+public sealed record DraftContent(string Text, ImageAttachment[] Images, string[] Targets);
 public sealed record MessagePage
 {
     public required TimelineMessage[] Items { get; init; }

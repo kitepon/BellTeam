@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><IsTestProject>true</IsTestProject><IsPackable>false</IsPackable></PropertyGroup>
+  <PropertyGroup><TargetFramework>net10.0-windows10.0.19041.0</TargetFramework><UseWPF>true</UseWPF><IsTestProject>true</IsTestProject><IsPackable>false</IsPackable></PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../BellTeam.Core/BellTeam.Core.csproj" />
     <ProjectReference Include="../BellTeam.App/BellTeam.App.csproj" />

@@ -1,0 +1,1773 @@
+<!-- 出典: https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/winrt-apis-desktop-apps / 取得日: 2026-10-13 / 確度: 公式原文 -->
+ <!DOCTYPE html>
+		<html
+			class="layout layout-holy-grail   show-table-of-contents conceptual show-breadcrumb default-focus"
+			lang="en-us"
+			dir="ltr"
+			data-authenticated="false"
+			data-auth-status-determined="false"
+			data-target="docs"
+			x-ms-format-detection="none"
+		>
+			
+		<head>
+			<title>Call Windows Runtime APIs in desktop apps - Windows apps | Microsoft Learn</title>
+			<meta charset="utf-8" />
+			<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+			<meta name="color-scheme" content="light dark" />
+
+			<meta name="description" content="Learn how to configure your WPF, Windows Forms, or Win32 desktop app to call Windows Runtime APIs and add modern Windows experiences." />
+			<link rel="canonical" href="https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/winrt-apis-desktop-apps" /> 
+
+			<!-- Non-customizable open graph and sharing-related metadata -->
+			<meta name="twitter:card" content="summary_large_image" />
+			<meta name="twitter:site" content="@MicrosoftLearn" />
+			<meta property="og:type" content="website" />
+			<meta property="og:image:alt" content="Microsoft Learn" />
+			<meta property="og:image" content="https://learn.microsoft.com/en-us/media/open-graph-image.png" />
+			<!-- Page specific open graph and sharing-related metadata -->
+			<meta property="og:title" content="Call Windows Runtime APIs in desktop apps - Windows apps" />
+			<meta property="og:url" content="https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/winrt-apis-desktop-apps" />
+			<meta property="og:description" content="Learn how to configure your WPF, Windows Forms, or Win32 desktop app to call Windows Runtime APIs and add modern Windows experiences." />
+			<meta name="platform_id" content="6a0ca0cf-567b-e61f-95be-a751f7ab0c3d" /> 
+			<meta name="locale" content="en-us" />
+			 
+			<meta name="uhfHeaderId" content="MSDocsHeader-WinDevCenter" />
+
+			<meta name="page_type" content="conceptual" />
+
+			<!--page specific meta tags-->
+			
+
+			<!-- custom meta tags -->
+			
+		<meta name="ms.service" content="windows-app-sdk" />
+	
+		<meta name="recommendations" content="true" />
+	
+		<meta name="ROBOTS" content="INDEX, FOLLOW" />
+	
+		<meta name="author" content="GrantMeStrength" />
+	
+		<meta name="ms.author" content="jken" />
+	
+		<meta name="Search.Product" content="eADQiWindows 10XVcnh" />
+	
+		<meta name="breadcrumb_path" content="/windows/breadcrumbs/toc.json" />
+	
+		<meta name="feedback_product_url" content="https://www.microsoft.com/en-us/windowsinsider/feedbackhub/fb" />
+	
+		<meta name="feedback_system" content="OpenSource" />
+	
+		<meta name="zone_pivot_group_filename" content="apps/zone-pivot-groups.json" />
+	
+		<meta name="ms.subservice" content="apps" />
+	
+		<meta name="ms.update-cycle" content="365-days" />
+	
+		<meta name="ms.date" content="2026-10-03T00:00:00Z" />
+	
+		<meta name="ms.topic" content="how-to" />
+	
+		<meta name="keywords" content="windows 11, windows app sdk, winrt, desktop app" />
+	
+		<meta name="ms.localizationpriority" content="medium" />
+	
+		<meta name="zone_pivot_groups" content="desktop-framework" />
+	
+		<meta name="document_id" content="c54cdc1f-865a-db1e-e8a5-138954f711a5" />
+	
+		<meta name="document_version_independent_id" content="c54cdc1f-865a-db1e-e8a5-138954f711a5" />
+	
+		<meta name="updated_at" content="2026-10-03T17:39:00Z" />
+	
+		<meta name="original_content_git_url" content="https://github.com/MicrosoftDocs/windows-dev-docs-pr/blob/live/hub/apps/desktop/modernize/winrt-apis-desktop-apps.md" />
+	
+		<meta name="gitcommit" content="https://github.com/MicrosoftDocs/windows-dev-docs-pr/blob/386e6c2156b30d3b65d43a72fe312b6ec0bbd7db/hub/apps/desktop/modernize/winrt-apis-desktop-apps.md" />
+	
+		<meta name="git_commit_id" content="386e6c2156b30d3b65d43a72fe312b6ec0bbd7db" />
+	
+		<meta name="site_name" content="Docs" />
+	
+		<meta name="depot_name" content="MSDN.windows-uwp-hub" />
+	
+		<meta name="schema" content="Conceptual" />
+	
+		<meta name="toc_rel" content="../../windows-app-sdk/migrate-to-windows-app-sdk/toc.json" />
+	
+		<meta name="pdf_url_template" content="https://learn.microsoft.com/pdfstore/en-us/MSDN.windows-uwp-hub/{branchName}{pdfName}" />
+	
+		<meta name="feedback_help_link_type" content="" />
+	
+		<meta name="feedback_help_link_url" content="" />
+	
+		<meta name="word_count" content="991" />
+	
+		<meta name="asset_id" content="apps/desktop/modernize/winrt-apis-desktop-apps" />
+	
+		<meta name="moniker_range_name" content="" />
+	
+		<meta name="item_type" content="Content" />
+	
+		<meta name="source_path" content="hub/apps/desktop/modernize/winrt-apis-desktop-apps.md" />
+	
+		<meta name="previous_tlsh_hash" content="884BB3C1850F8F1D5E595D7B30A7B511E1E0CCC49BA05DCC2D32E2566B32FFB17BA8BE17C11F9A24D37226310A926D4F5E83FF2D91356712A6AC04658204B75154BC32B19E" />
+	
+		<meta name="github_feedback_content_git_url" content="https://github.com/MicrosoftDocs/windows-dev-docs/blob/docs/hub/apps/desktop/modernize/winrt-apis-desktop-apps.md" />
+	
+		<meta name="markdown_url" content="https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/winrt-apis-desktop-apps?accept=text/markdown" />
+	 
+		<meta name="cmProducts" content="https://authoring-docs-microsoft.poolparty.biz/devrel/bcbcbad5-4208-4783-8035-8481272c98b8" data-source="generated" />
+	
+		<meta name="cmProducts" content="https://authoring-docs-microsoft.poolparty.biz/devrel/7696cda6-0510-47f6-8302-71bb5d2e28cf" data-source="generated" />
+	
+		<meta name="spProducts" content="https://authoring-docs-microsoft.poolparty.biz/devrel/43b2e5aa-8a6d-4de2-a252-692232e5edc8" data-source="generated" />
+	
+		<meta name="spProducts" content="https://authoring-docs-microsoft.poolparty.biz/devrel/69c76c32-967e-4c65-b89a-74cc527db725" data-source="generated" />
+	
+
+			<!-- Apply persisted/system theme before first paint to prevent wrong-theme flash when scripts are deferred. -->
+			<script id="theme-preference">
+				(function () {
+			try {
+				var stored = localStorage.getItem('theme');
+				var theme = /^(light|dark|high-contrast)$/.test(stored)
+					? stored
+					: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+				document.documentElement.classList.add('theme-' + theme);
+			} catch (e) {}
+		})();;
+			</script>
+
+			<script id="atlas-layout-preferences">
+				(function () {
+			try {
+				var state = JSON.parse(localStorage.getItem('atlas-layout-preferences') || '{}');
+				var view = state["docs-layout-persistence"] || {};
+				var excludesKey = "";
+				var blocked = {};
+				if (excludesKey) {
+					var exclusions = JSON.parse(localStorage.getItem('atlas-layout-exclusions') || '{}');
+					if (Object.prototype.hasOwnProperty.call(exclusions, excludesKey)) {
+						var scoped = exclusions[excludesKey];
+						if (scoped) {
+							if (typeof scoped === 'object') blocked = scoped;
+						}
+					}
+				}
+				var html = document.documentElement;
+				for (var c in view) {
+					if (Object.prototype.hasOwnProperty.call(blocked, c)) continue;
+					if (view[c]) html.classList.add(c);
+					else html.classList.remove(c);
+				}
+			} catch (e) {}
+		})();;
+			</script>
+
+			<!-- assets and js globals -->
+			
+			<link rel="stylesheet" href="/static/assets/0.4.03571.8296-bb082b73/styles/site.css" />
+			
+			<script src="https://wcpstatic.microsoft.com/mscc/lib/v2/wcp-consent.js"></script>
+			<!-- Keep this URL in sync with oneDSScriptSelector in instrumentation/one-ds.ts. -->
+			<script async src="https://js.monitor.azure.com/scripts/c/ms.jsll-4.min.js"></script>
+			
+
+			<!-- msdocs global object -->
+			<script id="msdocs-script">
+		var msDocs = {
+  "environment": {
+    "accessLevel": "online",
+    "azurePortalHostname": "portal.azure.com",
+    "reviewFeatures": false,
+    "supportLevel": "production",
+    "systemContent": true,
+    "siteName": "learn",
+    "legacyHosting": false
+  },
+  "data": {
+    "contentLocale": "en-us",
+    "contentDir": "ltr",
+    "userLocale": "en-us",
+    "userDir": "ltr",
+    "pageTemplate": "Conceptual",
+    "layoutStateStorageKey": "docs-layout-persistence",
+    "brand": "",
+    "context": {},
+    "standardFeedback": false,
+    "showFeedbackReport": false,
+    "feedbackHelpLinkType": "",
+    "feedbackHelpLinkUrl": "",
+    "feedbackSystem": "OpenSource",
+    "feedbackGitHubRepo": "",
+    "feedbackProductUrl": "https://www.microsoft.com/en-us/windowsinsider/feedbackhub/fb",
+    "extendBreadcrumb": false,
+    "isEditDisplayable": true,
+    "isPrivateUnauthorized": false,
+    "hideViewSource": false,
+    "isPermissioned": false,
+    "hasRecommendations": true,
+    "openSourceFeedbackIssueUrl": "https://github.com/MicrosoftDocs/windows-dev-docs/issues/new?template=1-customer-feedback.yml",
+    "openSourceFeedbackIssueTitle": "",
+    "openSourceFeedbackIssueLabels": "needs-triage"
+  },
+  "functions": {}
+};;
+	</script>
+
+			<!-- base scripts, msdocs global should be before this -->
+			<script
+				src="/static/assets/0.4.03571.8296-bb082b73/scripts/en-us/index-docs.js"
+				async
+			></script>
+			
+
+			<!-- json-ld -->
+			
+		<script >bazadebezolkohpepadr="1722939748"</script><script type="text/javascript" src="https://learn.microsoft.com/akam/13/66b1f907"  defer></script></head>
+	
+			<body
+				id="body"
+				data-bi-name="body"
+				class="layout-body "
+				lang="en-us"
+				dir="ltr"
+			>
+				<header class="layout-body-header background-color-body-medium">
+		<div class="header-holder has-default-focus">
+			
+		<a
+			href="#main"
+			
+			style="z-index: 1070"
+			class="outline-color-text visually-hidden-until-focused position-fixed inner-focus focus-visible top-0 left-0 right-0 padding-xs text-align-center background-color-body"
+			
+		>
+			Skip to main content
+		</a>
+	
+		<a
+			href="#"
+			data-skip-to-ask-learn
+			style="z-index: 1070"
+			class="outline-color-text visually-hidden-until-focused position-fixed inner-focus focus-visible top-0 left-0 right-0 padding-xs text-align-center background-color-body"
+			hidden
+		>
+			Skip to Ask Learn chat experience
+		</a>
+	
+
+			<div hidden id="cookie-consent-holder" data-test-id="cookie-consent-container"></div>
+			<!-- Unsupported browser warning -->
+			<div
+				id="unsupported-browser"
+				style="background-color: white; color: black; padding: 16px; border-bottom: 1px solid grey;"
+				hidden
+			>
+				<div style="max-width: 800px; margin: 0 auto;">
+					<p style="font-size: 24px">This browser is no longer supported.</p>
+					<p style="font-size: 16px; margin-top: 16px;">
+						Upgrade to Microsoft Edge to take advantage of the latest features, security updates, and technical support.
+					</p>
+					<div style="margin-top: 12px;">
+						<a
+							href="https://go.microsoft.com/fwlink/p/?LinkID=2092881 "
+							style="background-color: #0078d4; border: 1px solid #0078d4; color: white; padding: 6px 12px; border-radius: 2px; display: inline-block;"
+						>
+							Download Microsoft Edge
+						</a>
+						<a
+							href="https://learn.microsoft.com/en-us/lifecycle/faq/internet-explorer-microsoft-edge"
+							style="background-color: white; padding: 6px 12px; border: 1px solid #505050; color: #171717; border-radius: 2px; display: inline-block;"
+						>
+							More info about Internet Explorer and Microsoft Edge
+						</a>
+					</div>
+				</div>
+			</div>
+			<!-- site header -->
+			<div
+				id="ms--site-header"
+				data-test-id="site-header-wrapper"
+				itemscope="itemscope"
+				itemtype="http://schema.org/Organization"
+			>
+				<div
+					id="ms--mobile-nav"
+					class="site-header display-none-tablet padding-inline-none gap-none"
+					data-bi-name="mobile-header"
+					data-test-id="mobile-header"
+				></div>
+				<div
+					id="ms--primary-nav"
+					class="site-header display-none display-flex-tablet"
+					data-bi-name="L1-header"
+					data-test-id="primary-header"
+				></div>
+				<div
+					id="ms--secondary-nav"
+					class="site-header display-none display-flex-tablet"
+					data-bi-name="L2-header"
+					data-test-id="secondary-header"
+					
+				></div>
+			</div>
+			
+		<!-- banner -->
+		<div data-banner>
+			<div id="disclaimer-holder"></div>
+			
+		</div>
+		<!-- banner end -->
+	
+		</div>
+	</header>
+				 <section
+					id="layout-body-menu"
+					class="layout-body-menu border-right display-flex background-color-body-medium"
+					data-bi-name="menu"
+			  >
+					
+		<div
+			id="left-container"
+			class="left-container display-none padding-none display-block-tablet width-full display-none-until-layout-restored"
+			data-toc-container="true"
+		>
+			<div
+				id="ms--toc-content"
+				class="padding-left-sm padding-right-none padding-bottom-sm height-full"
+			>
+				<nav
+					id="affixed-left-container"
+					class="margin-top-xxs-tablet position-sticky display-flex flex-direction-column width-full"
+					aria-label="Primary"
+					data-bi-name="left-toc"
+					role="navigation"
+				>
+					<div
+						id="ms--collapsible-toc-header"
+						class="display-flex flex-direction-row-reverse justify-content-center align-items-center margin-bottom-xxs margin-right-xxs"
+					>
+						<button
+							type="button"
+							class="button button-clear button-sm inner-focus"
+							data-collapsible-toc-toggle
+							aria-expanded="true"
+							hidden
+							aria-controls="ms--toc-content"
+							aria-label="Table of contents"
+						>
+							<span class="icon icon-mirrored-rtl" aria-hidden="true">
+								<span
+									class="docon docon-panel-left-contract display-none-layout-menu-collapsed"
+								></span>
+								<span
+									class="docon docon-panel-left-expand display-none display-inline-layout-menu-collapsed"
+								></span>
+							</span>
+						</button>
+						<div
+							id="ms--collapsible-toc-moniker-slot"
+							class="flex-grow-1 display-none-layout-menu-collapsed"
+						></div>
+					</div>
+				</nav>
+			</div>
+		</div>
+	
+			  </section>
+
+				<main
+					id="main"
+					role="main"
+					class="layout-body-main "
+					data-bi-name="content"
+					lang="en-us"
+					dir="ltr"
+				>
+					
+			<div
+		id="ms--content-header"
+		class="content-header default-focus border-bottom-none"
+		data-bi-name="content-header"
+	>
+		<div class="content-header-controls margin-xxs margin-inline-sm-tablet">
+			<button
+				type="button"
+				class="contents-button button button-sm margin-right-xxs"
+				data-bi-name="contents-expand"
+				aria-haspopup="true"
+				data-contents-button
+			>
+				<span class="icon" aria-hidden="true"><span class="docon docon-menu"></span></span>
+				<span class="contents-expand-title"> Table of contents </span>
+			</button>
+			<button
+				type="button"
+				class="ap-collapse-behavior ap-expanded button button-sm"
+				data-bi-name="ap-collapse"
+				aria-controls="action-panel"
+			>
+				<span class="icon" aria-hidden="true"><span class="docon docon-exit-mode"></span></span>
+				<span>Exit editor mode</span>
+			</button>
+		</div>
+	</div> 
+		<div
+			id="action-panel"
+			role="region"
+			aria-label="Action Panel"
+			class="action-panel"
+			tabindex="-1"
+		></div>
+	
+			<div
+				data-main-column
+				class="reading-width margin-inline-auto layout-padding padding-top-none padding-top-sm-tablet padding-bottom-sm"
+			>
+				<div>
+					
+		<div id="article-header" class="background-color-body margin-bottom-xs display-none-print">
+			<div class="display-flex align-items-center justify-content-space-between">
+				
+		<details
+			id="article-header-breadcrumbs-overflow-popover"
+			class="popover popover-left"
+			data-for="article-header-breadcrumbs"
+		>
+			<summary
+				class="button button-clear button-primary button-sm inner-focus"
+				aria-label="All breadcrumbs"
+			>
+				<span class="icon" aria-hidden="true">
+					<span class="docon docon-more"></span>
+				</span>
+			</summary>
+			<div id="article-header-breadcrumbs-overflow" class="popover-content"></div>
+		</details>
+
+		<bread-crumbs
+			id="article-header-breadcrumbs"
+			role="group"
+			aria-label="Breadcrumbs"
+			data-test-id="article-header-breadcrumbs"
+			class="overflow-hidden flex-grow-1 margin-right-sm margin-right-md-tablet margin-right-lg-desktop margin-left-negative-xxs padding-left-xxs"
+		></bread-crumbs>
+	 
+		<div
+			id="article-header-page-actions"
+			class="opacity-none margin-left-auto display-flex flex-wrap-no-wrap align-items-stretch"
+		>
+			
+		<button
+			class="button button-sm border-none inner-focus display-none-tablet flex-shrink-0 "
+			data-bi-name="ask-learn-assistant-entry"
+			data-test-id="ask-learn-assistant-modal-entry-mobile"
+			data-ask-learn-modal-entry
+			
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			aria-label="Ask Learn"
+			hidden
+		>
+			<span class="icon" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+		</button>
+		<button
+			class="button button-sm display-none display-inline-flex-tablet display-none-desktop flex-shrink-0 margin-right-xxs border-color-ask-learn "
+			data-bi-name="ask-learn-assistant-entry"
+			
+			data-test-id="ask-learn-assistant-modal-entry-tablet"
+			data-ask-learn-modal-entry
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+			<span>Ask Learn</span>
+		</button>
+		<button
+			class="button button-sm display-none flex-shrink-0 display-inline-flex-desktop margin-right-xxs border-color-ask-learn "
+			data-bi-name="ask-learn-assistant-entry"
+			
+			data-test-id="ask-learn-assistant-flyout-entry"
+			data-ask-learn-flyout-entry
+			data-flyout-button="toggle"
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			aria-controls="ask-learn-flyout"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+			<span>Ask Learn</span>
+		</button>
+	 
+
+			<details class="popover popover-right" id="article-header-page-actions-overflow">
+				<summary
+					class="justify-content-flex-start button button-clear button-sm button-primary inner-focus"
+					aria-label="More actions"
+					aria-expanded="false"
+					title="More actions"
+				>
+					<span class="icon" aria-hidden="true">
+						<span class="docon docon-more-vertical"></span>
+					</span>
+				</summary>
+				<div class="popover-content">
+					
+		<button
+			type="button"
+			id="ms--focus-mode-button"
+			data-focus-mode
+			data-bi-name="focus-mode-entry"
+			data-page-action-item="overflow-all"
+			data-popover-close
+			class="button button-clear button-sm button-block justify-content-flex-start text-align-left inner-focus display-none display-inline-flex-tablet"
+		>
+			<span class="icon" aria-hidden="true">
+				<span class="docon docon-glasses"></span>
+			</span>
+			<span>Reading mode</span>
+		</button>
+	 
+		<button
+			data-page-action-item="overflow-mobile"
+			type="button"
+			class="display-block-layout-menu-collapsed button-block button-sm inner-focus button button-clear display-none-tablet justify-content-flex-start text-align-left"
+			data-bi-name="contents-expand"
+			data-contents-button
+			data-popover-close
+		>
+			<span class="icon" aria-hidden="true"
+				><span class="docon docon-editor-list-bullet"></span
+			></span>
+			<span class="contents-expand-title">Table of contents</span>
+		</button>
+	 
+		<a
+			id="lang-link-overflow"
+			class="button-sm inner-focus button button-clear button-block justify-content-flex-start text-align-left"
+			data-bi-name="language-toggle"
+			data-page-action-item="overflow-all"
+			data-check-hidden="true"
+			data-read-in-link
+			href="#"
+			hidden
+		>
+			<span class="icon" aria-hidden="true" data-read-in-link-icon>
+				<span class="docon docon-locale-globe"></span>
+			</span>
+			<span data-read-in-link-text>Read in English</span>
+		</a>
+	
+					
+		<button
+			type="button"
+			class="collection button button-clear button-sm button-block justify-content-flex-start text-align-left inner-focus"
+			data-list-type="collection"
+			data-bi-name="collection"
+			data-page-action-item="overflow-all"
+			data-check-hidden="true"
+			data-popover-close
+		>
+			<span class="icon" aria-hidden="true">
+				<span class="docon docon-circle-addition"></span>
+			</span>
+			<span class="collection-status">Add</span>
+		</button>
+	 
+		<button
+			type="button"
+			class="collection button button-block button-clear button-sm justify-content-flex-start text-align-left inner-focus"
+			data-list-type="plan"
+			data-bi-name="plan"
+			data-page-action-item="overflow-all"
+			data-check-hidden="true"
+			data-popover-close
+			hidden
+		>
+			<span class="icon" aria-hidden="true">
+				<span class="docon docon-circle-addition"></span>
+			</span>
+			<span class="plan-status">Add to Plans</span>
+		</button>
+	 
+					
+		<a
+			data-contenteditbtn
+			class="button button-clear button-block button-sm inner-focus justify-content-flex-start text-align-left text-decoration-none"
+			data-bi-name="edit"
+			data-page-action-item="overflow-all"
+			data-check-hidden="true"
+			
+			href="https://github.com/MicrosoftDocs/windows-dev-docs/blob/docs/hub/apps/desktop/modernize/winrt-apis-desktop-apps.md"
+			data-original_content_git_url="https://github.com/MicrosoftDocs/windows-dev-docs-pr/blob/live/hub/apps/desktop/modernize/winrt-apis-desktop-apps.md"
+			data-original_content_git_url_template="{repo}/blob/{branch}/hub/apps/desktop/modernize/winrt-apis-desktop-apps.md"
+			data-pr_repo=""
+			data-pr_branch=""
+		>
+			<span class="icon" aria-hidden="true">
+				<span class="docon docon-edit-outline"></span>
+			</span>
+			<span>Edit</span>
+		</a>
+	  
+		<hr class="margin-block-xxs" />
+		
+				<button
+					class="button button-block button-clear button-sm justify-content-flex-start text-align-left inner-focus"
+					type="button"
+					data-bi-name="copy-markdown"
+					data-page-action-item="overflow-all"
+					data-copy-markdown
+					data-copy-state="idle"
+					data-check-hidden="true"
+				>
+					<span class="icon color-primary" aria-hidden="true">
+						<span data-show-when="idle" class="docon docon-code-lang"></span>
+						<span data-show-when="loading" class="loader" hidden></span>
+						<span data-show-when="success" class="docon docon-check-mark" hidden></span>
+					</span>
+					<span>Copy Markdown</span>
+				</button>
+		   
+				<button
+					class="button button-block button-clear button-sm justify-content-flex-start text-align-left inner-focus"
+					type="button"
+					data-bi-name="print"
+					data-page-action-item="overflow-all"
+					data-popover-close
+					data-print-page
+					data-check-hidden="true"
+				>
+					<span class="icon color-primary" aria-hidden="true">
+						<span class="docon docon-print"></span>
+					</span>
+					<span>Print</span>
+				</button>
+		  
+	
+				</div>
+			</details>
+		</div>
+	
+			</div>
+		</div>
+	  
+		<!-- privateUnauthorizedTemplate is hidden by default -->
+		<div unauthorized-private-section data-bi-name="permission-content-unauthorized-private" hidden>
+			<hr class="hr margin-top-xs margin-bottom-sm" />
+			<div class="notification notification-info">
+				<div class="notification-content">
+					<p class="margin-top-none notification-title">
+						<span class="icon" aria-hidden="true"
+							><span class="docon docon-exclamation-circle-solid"></span
+						></span>
+						<span>Note</span>
+					</p>
+					<p class="margin-top-none authentication-determined not-authenticated">
+						Access to this page requires authorization. You can try <a class="docs-sign-in" href="#" data-bi-name="permission-content-sign-in">signing in</a> or <a  class="docs-change-directory" data-bi-name="permisson-content-change-directory">changing directories</a>.
+					</p>
+					<p class="margin-top-none authentication-determined authenticated">
+						Access to this page requires authorization. You can try <a class="docs-change-directory" data-bi-name="permisson-content-change-directory">changing directories</a>.
+					</p>
+				</div>
+			</div>
+		</div>
+	
+					<div class="content"><h1 id="call-windows-runtime-apis-in-desktop-apps">Call Windows Runtime APIs in desktop apps</h1></div>
+					
+		<div
+			id="article-metadata"
+			data-bi-name="article-metadata"
+			data-test-id="article-metadata"
+			class="page-metadata-container display-flex gap-xxs justify-content-space-between align-items-center flex-wrap-wrap"
+		>
+			 
+				<div
+					id="user-feedback"
+					class="margin-block-xxs display-none display-none-print"
+					hidden
+					data-hide-on-archived
+				>
+					
+		<button
+			id="user-feedback-button"
+			data-test-id="conceptual-feedback-button"
+			class="button button-sm button-clear button-primary display-none"
+			type="button"
+			data-bi-name="user-feedback-button"
+			data-user-feedback-button
+			hidden
+		>
+			<span class="icon" aria-hidden="true">
+				<span class="docon docon-like"></span>
+			</span>
+			<span>Feedback</span>
+		</button>
+	
+				</div>
+		  
+		</div>
+	 
+		<div data-id="ai-summary" class="display-none-print">
+			<div id="ms--ai-summary-cta" class="margin-top-xs display-flex align-items-center">
+				<span class="icon" aria-hidden="true">
+					<span class="docon docon-sparkle-fill gradient-text-vivid"></span>
+				</span>
+				<button
+					id="ms--ai-summary"
+					type="button"
+					class="tag tag-sm tag-suggestion margin-left-xxs"
+					data-test-id="ai-summary-cta"
+					data-bi-name="ai-summary-cta"
+					data-an="ai-summary"
+				>
+					<span class="ai-summary-cta-text">
+						Summarize this article for me
+					</span>
+				</button>
+			</div>
+			<!-- Slot where the client will render the summary card after the user clicks the CTA -->
+			<div id="ms--ai-summary-header" class="margin-top-xs"></div>
+		</div>
+	 
+		<nav
+			id="center-doc-outline"
+			class="doc-outline display-none-desktop display-none-print margin-bottom-sm"
+			data-bi-name="intopic toc"
+			aria-label="In this article"
+		>
+			<h2 id="ms--in-this-article" class="title is-6 margin-block-xs">
+				In this article
+			</h2>
+		</nav>
+	 <div class="content"><p>This article describes how to configure your desktop app projects to call Windows Runtime (WinRT) APIs — the APIs that power modern Windows features such as notifications, file pickers, sharing, and more.</p>
+<div class="NOTE">
+<p>Note</p>
+<p>Some WinRT APIs are not supported in desktop apps. For more information, see <a href="winrt-api-desktop-app-support" data-linktype="relative-path">Support for WinRT APIs in desktop apps</a>.</p>
+</div>
+<div class="zone has-pivot" data-pivot="dotnet">
+<h2 id="configure-a-net-project">Configure a .NET project</h2>
+<p><a id="net-6-and-later-use-the-target-framework-moniker-option"></a></p>
+<h3 id="net-6-and-later-use-the-target-framework-moniker-option">.NET 6 and later: Use the Target Framework Moniker option</h3>
+<p>Specify a Windows OS version-specific <a href="/en-us/dotnet/standard/frameworks" data-linktype="absolute-path">Target Framework Moniker</a> (TFM) in your project file. This adds a reference to the appropriate <a href="https://www.nuget.org/packages/Microsoft.Windows.SDK.NET.Ref" data-linktype="external">Windows SDK targeting package</a> at build time.</p>
+<ol>
+<li><p>In Visual Studio, select <strong>Project &gt; [<em>ProjectName</em>] Properties</strong>.</p>
+</li>
+<li><p>On the properties page, find <strong>Application &gt; General</strong> by selecting it in the left side navigation or scrolling to it.</p>
+</li>
+<li><p>Choose settings for:</p>
+<ol>
+<li><strong>Target framework</strong> - This is initially set to the .NET version you selected when the project was created, but you can change it here.</li>
+<li><strong>Target OS</strong> - Leave this set to Windows.</li>
+<li><strong>Target OS version</strong> - Select the version for the API set you want to use, typically the latest.</li>
+<li><strong>Supported OS version</strong> (Optional) - See the next section for more information.</li>
+</ol>
+</li>
+</ol>
+<p><span class="mx-imgBorder">
+<img src="images/target-framework-settings-vs.png" alt="Target framework settings in Visual Studio." data-linktype="relative-path">
+</span>
+</p>
+<p>In the Target Framework Moniker, these values translate like this:</p>
+<ul>
+<li><strong>Target framework</strong> - <code>net10.0</code></li>
+<li><strong>Target OS</strong> - <code>-windows</code></li>
+<li><strong>Target OS version</strong> - <code>10.0.22621.0</code></li>
+</ul>
+<pre><code class="lang-xml">&lt;TargetFramework&gt;net10.0-windows10.0.22621.0&lt;/TargetFramework&gt;
+&lt;!-- If set... --&gt;
+&lt;SupportedOSPlatformVersion&gt;10.0.19041.0&lt;/SupportedOSPlatformVersion&gt;
+</code></pre>
+<p>You can also set the values by manually editing the project file.</p>
+<ol>
+<li><p>In Visual Studio, right-click your project in <strong>Solution Explorer</strong> and choose <strong>Edit Project File</strong>.</p>
+</li>
+<li><p>Replace the <strong>TargetFramework</strong> value with a Windows-version-specific TFM.</p>
+<table>
+<thead>
+<tr>
+<th>Target</th>
+<th>TFM</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Windows 11, version 24H2</td>
+<td><code>net10.0-windows10.0.26100.0</code></td>
+</tr>
+<tr>
+<td>Windows 11, version 22H2</td>
+<td><code>net10.0-windows10.0.22621.0</code></td>
+</tr>
+<tr>
+<td>Windows 11 (initial release)</td>
+<td><code>net10.0-windows10.0.22000.0</code></td>
+</tr>
+<tr>
+<td>Windows 10, version 2004</td>
+<td><code>net10.0-windows10.0.19041.0</code></td>
+</tr>
+<tr>
+<td>Windows 10, version 1903</td>
+<td><code>net10.0-windows10.0.18362.0</code></td>
+</tr>
+<tr>
+<td>Windows 10, version 1809</td>
+<td><code>net10.0-windows10.0.17763.0</code></td>
+</tr>
+</tbody>
+</table>
+<div class="NOTE">
+<p>Note</p>
+<p>The values shown are for .NET 10. Update as needed for other versions of .NET: <code>net8.0</code>, <code>net9.0</code>.</p>
+</div>
+<p>Example:</p>
+<pre><code class="lang-xml">&lt;Project Sdk="Microsoft.NET.Sdk"&gt;
+  &lt;PropertyGroup&gt;
+    &lt;OutputType&gt;WinExe&lt;/OutputType&gt;
+    &lt;TargetFramework&gt;net8.0-windows10.0.19041.0&lt;/TargetFramework&gt;
+  &lt;/PropertyGroup&gt;
+&lt;/Project&gt;
+</code></pre>
+</li>
+<li><p>Save and close the project file.</p>
+</li>
+</ol>
+<div class="TIP">
+<p>Tip</p>
+<p>The version specified by the TFM indicates which APIs are available to your app. It doesn't control the OS version that your app supports at runtime. It's used to select the reference assemblies that your project compiles against, and to select assets from NuGet packages. Think of this version as the "platform version" or "OS API version" to disambiguate it from the runtime OS version. For more info, see <a href="/en-us/dotnet/standard/frameworks#os-version-in-tfms" data-linktype="absolute-path">Target frameworks: OS version in TFMs</a>.</p>
+</div>
+<h4 id="supporting-a-minimum-windows-version">Supporting a minimum Windows version</h4>
+<p>To allow your app to run on a Windows version older than your TFM target, set the <strong>SupportedOSVersion</strong> (<code>SupportedOSPlatformVersion</code>), as shown in the previous section. For more info, see <a href="/en-us/dotnet/standard/frameworks#support-older-os-versions" data-linktype="absolute-path">Target frameworks: Support older OS versions</a>.</p>
+<p>When you target a range of OS versions, guard calls to APIs that aren't available on all versions using <a href="/en-us/uwp/api/windows.foundation.metadata.apiinformation" data-linktype="absolute-path">ApiInformation</a> checks. For more information, see <a href="/en-us/windows/uwp/debug-test-perf/version-adaptive-apps" data-linktype="absolute-path">Version adaptive apps</a>.</p>
+<p>When <strong>SupportedOSVersion</strong> is set, Visual Studio will give a warning for APIs that need a runtime check. For example, if the target version is 19041, and the minimum version is 17763, you will see a warning like this when you call <a href="/en-us/uwp/api/windows.applicationmodel.appinfo.current" data-linktype="absolute-path">AppInfo.Current</a>.</p>
+<pre><code class="lang-console">CA1416	Using platform dependent API on a component makes the code no longer work across all platforms.
+
+This call site is reachable on: 'Windows' 10.0.17763.0 and later. 'AppInfo.Current' is only supported on: 'Windows' 10.0.19041.0 and later.
+</code></pre>
+<pre><code class="lang-xml">&lt;Project Sdk="Microsoft.NET.Sdk"&gt;
+  &lt;PropertyGroup&gt;
+    &lt;OutputType&gt;WinExe&lt;/OutputType&gt;
+    &lt;TargetFramework&gt;net8.0-windows10.0.19041.0&lt;/TargetFramework&gt;
+    &lt;SupportedOSPlatformVersion&gt;10.0.17763.0&lt;/SupportedOSPlatformVersion&gt;
+    &lt;TargetPlatformMinVersion&gt;10.0.17763.0&lt;/TargetPlatformMinVersion&gt;
+  &lt;/PropertyGroup&gt;
+&lt;/Project&gt;
+</code></pre>
+<div class="NOTE">
+<p>Note</p>
+<p>You can also manually add <a href="/en-us/dotnet/api/microsoft.build.utilities.sdkmanifest.targetplatformminversion" data-linktype="absolute-path">TargetPlatformMinVersion</a>, but this does not provide compile-time warnings in Visual Studio.</p>
+</div>
+<h4 id="winrt-apis-not-supported-in-net-6-and-later">WinRT APIs not supported in .NET 6 and later</h4>
+<p>In .NET 6 and later, several WinRT APIs in the <strong>Windows.UI</strong> namespace are not supported. Use the equivalent APIs in the <strong>Microsoft.UI</strong> namespace (provided by the Windows App SDK) instead:</p>
+<table>
+<thead>
+<tr>
+<th>Unsupported</th>
+<th>Use instead</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Windows.UI.Colors</code></td>
+<td><a href="/en-us/windows/windows-app-sdk/api/winrt/microsoft.ui.colors" data-linktype="absolute-path"><code>Microsoft.UI.Colors</code></a></td>
+</tr>
+<tr>
+<td><code>Windows.UI.ColorHelper</code></td>
+<td><a href="/en-us/windows/windows-app-sdk/api/winrt/microsoft.ui.colorhelper" data-linktype="absolute-path"><code>Microsoft.UI.ColorHelper</code></a></td>
+</tr>
+<tr>
+<td><code>Windows.UI.Text</code> (most types)</td>
+<td><a href="/en-us/windows/windows-app-sdk/api/winrt/microsoft.ui.text" data-linktype="absolute-path"><code>Microsoft.UI.Text</code></a></td>
+</tr>
+<tr>
+<td><code>Windows.UI.Xaml</code> (all types)</td>
+<td><a href="/en-us/windows/windows-app-sdk/api/winrt/microsoft.ui.xaml" data-linktype="absolute-path"><code>Microsoft.UI.Xaml</code></a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="net-core-3x-or-net-framework-install-the-nuget-package">.NET Core 3.x or .NET Framework: Install the NuGet package</h3>
+<div class="NOTE">
+<p>Note</p>
+<p>.NET Core 3.x reached end of support in December 2022. For new projects, use .NET 6 or later with the TFM approach described above. The NuGet package approach below applies to .NET Framework 4.x projects and existing .NET Core 3.x apps that have not yet been updated.</p>
+</div>
+<p>If your app targets .NET Core 3.x or .NET Framework, install the <a href="https://www.nuget.org/packages/Microsoft.Windows.SDK.Contracts" data-linktype="external"><code>Microsoft.Windows.SDK.Contracts</code></a> NuGet package:</p>
+<ol>
+<li><p>In Visual Studio, right-click your project and choose <strong>Manage NuGet Packages</strong>.</p>
+</li>
+<li><p>Search for <code>Microsoft.Windows.SDK.Contracts</code>.</p>
+</li>
+<li><p>Select the package version matching your minimum Windows target:</p>
+<table>
+<thead>
+<tr>
+<th>Package version</th>
+<th>Windows target</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10.0.19041.xxxx</td>
+<td>Windows 10, version 2004</td>
+</tr>
+<tr>
+<td>10.0.18362.xxxx</td>
+<td>Windows 10, version 1903</td>
+</tr>
+<tr>
+<td>10.0.17763.xxxx</td>
+<td>Windows 10, version 1809</td>
+</tr>
+<tr>
+<td>10.0.17134.xxxx</td>
+<td>Windows 10, version 1803</td>
+</tr>
+</tbody>
+</table>
+</li>
+<li><p>Click <strong>Install</strong>.</p>
+</li>
+</ol>
+<h3 id="multi-targeting-net-6-and-earlier-net-versions">Multi-targeting .NET 6+ and earlier .NET versions</h3>
+<p>Configure the project file to use the TFM approach for .NET 6+ and the NuGet package for earlier versions:</p>
+<pre><code class="lang-xml">&lt;Project Sdk="Microsoft.NET.Sdk.WindowsDesktop"&gt;
+  &lt;PropertyGroup&gt;
+    &lt;OutputType&gt;WinExe&lt;/OutputType&gt;
+    &lt;TargetFrameworks&gt;netcoreapp3.1;net8.0-windows10.0.19041.0&lt;/TargetFrameworks&gt;
+    &lt;UseWPF&gt;true&lt;/UseWPF&gt;
+  &lt;/PropertyGroup&gt;
+  &lt;ItemGroup&gt;
+    &lt;!-- netcoreapp3.1 is EOL; include only when maintaining an existing app --&gt;
+    &lt;PackageReference Condition="'$(TargetFramework)' == 'netcoreapp3.1'"
+                     Include="Microsoft.Windows.SDK.Contracts"
+                     Version="10.0.19041.0"/&gt;
+  &lt;/ItemGroup&gt;
+&lt;/Project&gt;
+</code></pre>
+<h4 id="conditional-compilation">Conditional compilation</h4>
+<p><a id="conditional-compilation"></a></p>
+<p>When multi-targeting across .NET 6+ and earlier versions, use conditional compilation to write version-specific code in a single project. For more information, see <a href="/en-us/dotnet/standard/frameworks#preprocessor-symbols" data-linktype="absolute-path">Target frameworks: Preprocessor symbols</a>.</p>
+<pre><code class="lang-csharp">#if NET6_0_OR_GREATER
+    // Code that uses .NET 6+ APIs or TFM-available WinRT APIs
+#else
+    // Fallback code for .NET Core 3.x / .NET Framework
+#endif
+</code></pre>
+</div>
+<div class="zone has-pivot" data-pivot="win32">
+<h2 id="configure-a-c-win32-project">Configure a C++ (Win32) project</h2>
+<p>Use <a href="../../develop/cpp-winrt/intro-to-using-cpp-with-winrt" data-linktype="relative-path">C++/WinRT</a> to consume WinRT APIs from C++ desktop apps.</p>
+<ul>
+<li>Install the <a href="https://www.nuget.org/packages/Microsoft.Windows.CppWinRT/" data-linktype="external">Microsoft.Windows.CppWinRT</a> NuGet package.</li>
+<li>Because C++/WinRT uses features from the C++17 standard, ensure the project property <strong>C/C++ &gt; Language &gt; C++ Language Standard</strong> is set to <strong>ISO C++17 Standard (/std:c++17)</strong> or later in Visual Studio.</li>
+</ul>
+<p>For more details, see <a href="../../develop/cpp-winrt/intro-to-using-cpp-with-winrt#visual-studio-support-for-cwinrt-xaml-the-vsix-extension-and-the-nuget-package" data-linktype="relative-path">Visual Studio support for C++/WinRT</a>.</p>
+</div>
+<h2 id="next-steps">Next steps</h2>
+<p>You can now call <a href="/en-us/uwp/api" data-linktype="absolute-path">Windows Runtime (WinRT) APIs</a> from the <em>Windows SDK</em>.</p>
+<p>To also call WinRT APIs from the <em>Windows App SDK</em>, see the following article:</p>
+<div class="nextstepaction">
+<p><a href="../../windows-app-sdk/use-windows-app-sdk-in-existing-project" data-linktype="relative-path">Use the Windows App SDK in an existing project</a></p>
+</div>
+<p>Some WinRT APIs require package identity. For more info see:</p>
+<ul>
+<li><a href="../../package-and-deploy/packaging/" data-linktype="relative-path">Packaging overview</a></li>
+<li><a href="modernize-packaged-apps" data-linktype="relative-path">Features that require package identity</a></li>
+<li><a href="../../windows-app-sdk/single-project-msix" data-linktype="relative-path">Package your app using single-project MSIX</a></li>
+<li><a href="grant-identity-to-nonpackaged-apps-overview" data-linktype="relative-path">Grant identity to a non-packaged app</a></li>
+</ul>
+<h2 id="related-content">Related content</h2>
+<ul>
+<li><a href="../../windows-app-sdk/support" data-linktype="relative-path">Windows App SDK supported Windows releases</a></li>
+<li><a href="winrt-api-desktop-app-support" data-linktype="relative-path">Support for WinRT APIs in desktop apps</a></li>
+<li><a href="./" data-linktype="relative-path">Modernize your desktop apps</a></li>
+</ul>
+</div>
+					
+		<div
+			id="ms--inline-notifications"
+			class="margin-block-xs"
+			data-bi-name="inline-notification"
+		></div>
+	 
+		<div
+			id="assertive-live-region"
+			role="alert"
+			aria-live="assertive"
+			class="visually-hidden"
+			aria-relevant="additions"
+			aria-atomic="true"
+		></div>
+		<div
+			id="polite-live-region"
+			role="status"
+			aria-live="polite"
+			class="visually-hidden"
+			aria-relevant="additions"
+			aria-atomic="true"
+		></div>
+	
+					
+			
+		<!-- feedback section -->
+		<section
+			class="feedback-section position-relative margin-top-lg border border-radius padding-xxs display-none-print"
+			data-bi-name="open-source-feedback-section"
+			data-open-source-feedback-section
+			hidden
+		>
+			<div class="display-flex flex-direction-column flex-direction-row-tablet">
+				<div
+					class="width-450-tablet padding-inline-xs padding-inline-xs-tablet padding-top-xs padding-bottom-sm padding-top-xs-tablet background-color-body-medium"
+				>
+					<div class="display-flex flex-direction-column">
+						<div class="padding-bottom-xxs">
+							<span class="icon margin-right-xxs" aria-hidden="true">
+								<span class="docon docon-brand-github"></span>
+							</span>
+							<span class="font-weight-semibold">
+								Collaborate with us on GitHub
+							</span>
+						</div>
+						<span class="line-height-normal">
+							The source for this content can be found on GitHub, where you can also create and review issues and pull requests. For more information, see <a href="https://learn.microsoft.com/contribute/content/how-to-write-quick-edits">our contributor guide</a>.
+						</span>
+					</div>
+				</div>
+				<div
+					class="display-flex gap-xs width-full-tablet flex-direction-column padding-xs justify-content-space-evenly"
+				>
+					<div class="media">
+						
+					<div class="media-left">
+						<div class="image image-36x36" hidden data-open-source-image-container>
+							<img
+								class="theme-display is-light"
+								src="https://learn.microsoft.com/windows/images/windows11.svg"
+								aria-hidden="true"
+								data-open-source-image-light
+							/>
+							<img
+								class="theme-display is-dark is-high-contrast"
+								src="https://learn.microsoft.com/windows/images/windows11.svg"
+								aria-hidden="true"
+								data-open-source-image-dark
+							/>
+						</div>
+					</div>
+			  
+
+						<div class="media-content">
+							<p
+								class="font-size-xl font-weight-semibold margin-bottom-xxs"
+								data-open-source-product-title
+							>
+								Windows developer
+							</p>
+							<div class="display-flex gap-xs flex-direction-column">
+								<p class="line-height-normal" data-open-source-product-description></p>
+								<div class="display-flex gap-xs flex-direction-column">
+									<a href="#" data-github-link>
+										<span class="icon margin-right-xxs" aria-hidden="true">
+											<span class="docon docon-bug"></span>
+										</span>
+										<span>Open a documentation issue</span>
+									</a>
+									<a
+										href="https://www.microsoft.com/en-us/windowsinsider/feedbackhub/fb"
+										class="display-block margin-top-auto font-size-md"
+										data-feedback-product-url
+									>
+										<span class="icon margin-right-xxs" aria-hidden="true">
+											<span class="docon docon-feedback"></span>
+										</span>
+										<span>Provide product feedback</span>
+									</a>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</section>
+		<!-- end feedback section -->
+	
+			
+		<!-- feedback section -->
+		<section
+			id="site-user-feedback-footer"
+			class="font-size-sm margin-top-md display-none-print display-none-desktop"
+			data-test-id="site-user-feedback-footer"
+			data-bi-name="site-feedback-section"
+		>
+			<hr class="hr" />
+			<h2 id="ms--feedback" class="title is-3">Feedback</h2>
+			<div class="display-flex flex-wrap-wrap align-items-center">
+				<p class="font-weight-semibold margin-xxs margin-left-none">
+					Was this page helpful?
+				</p>
+				<div class="buttons">
+					<button
+						class="thumb-rating-button like button button-primary button-sm"
+						data-test-id="footer-rating-yes"
+						data-binary-rating-response="rating-yes"
+						type="button"
+						title="This article is helpful"
+						data-bi-name="button-rating-yes"
+						aria-pressed="false"
+					>
+						<span class="icon" aria-hidden="true">
+							<span class="docon docon-like"></span>
+						</span>
+						<span>Yes</span>
+					</button>
+					<button
+						class="thumb-rating-button dislike button button-primary button-sm"
+						id="standard-rating-no-button"
+						hidden
+						data-test-id="footer-rating-no"
+						data-binary-rating-response="rating-no"
+						type="button"
+						title="This article is not helpful"
+						data-bi-name="button-rating-no"
+						aria-pressed="false"
+					>
+						<span class="icon" aria-hidden="true">
+							<span class="docon docon-dislike"></span>
+						</span>
+						<span>No</span>
+					</button>
+					<details
+						class="popover popover-top"
+						id="mobile-help-popover"
+						data-test-id="footer-feedback-popover"
+					>
+						<summary
+							class="thumb-rating-button dislike button button-primary button-sm"
+							data-test-id="details-footer-rating-no"
+							data-binary-rating-response="rating-no"
+							title="This article is not helpful"
+							data-bi-name="button-rating-no"
+							aria-pressed="false"
+							data-bi-an="feedback-unhelpful-popover"
+						>
+							<span class="icon" aria-hidden="true">
+								<span class="docon docon-dislike"></span>
+							</span>
+							<span>No</span>
+						</summary>
+						<div
+							class="popover-content width-200 width-300-tablet"
+							role="dialog"
+							aria-labelledby="popover-heading"
+							aria-describedby="popover-description"
+						>
+							<p id="popover-heading" class="font-size-lg margin-bottom-xxs font-weight-semibold">
+								Need help with this topic?
+							</p>
+							<p id="popover-description" class="font-size-sm margin-bottom-xs">
+								Want to try using Ask Learn to clarify or guide you through this topic?
+							</p>
+							
+		<div class="buttons flex-direction-row flex-wrap justify-content-center gap-xxs">
+			<div>
+		<button
+			class="button button-sm border inner-focus display-none margin-right-xxs"
+			data-bi-name="ask-learn-assistant-entry-troubleshoot"
+			data-test-id="ask-learn-assistant-modal-entry-mobile-feedback"
+			data-ask-learn-modal-entry-feedback
+			data-bi-an=feedback-unhelpful-popover
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			aria-label="Ask Learn"
+			hidden
+		>
+			<span class="icon" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+		</button>
+		<button
+			class="button button-sm display-inline-flex display-none-desktop flex-shrink-0 margin-right-xxs border-color-ask-learn margin-right-xxs"
+			data-bi-name="ask-learn-assistant-entry-troubleshoot"
+			data-bi-an=feedback-unhelpful-popover
+			data-test-id="ask-learn-assistant-modal-entry-tablet-feedback"
+			data-ask-learn-modal-entry-feedback
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+			<span>Ask Learn</span>
+		</button>
+		<button
+			class="button button-sm display-none flex-shrink-0 display-inline-flex-desktop margin-right-xxs border-color-ask-learn margin-right-xxs"
+			data-bi-name="ask-learn-assistant-entry-troubleshoot"
+			data-bi-an=feedback-unhelpful-popover
+			data-test-id="ask-learn-assistant-flyout-entry-feedback"
+			data-ask-learn-flyout-entry-show-only
+			data-flyout-button="toggle"
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			aria-controls="ask-learn-flyout"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+			<span>Ask Learn</span>
+		</button>
+	</div>
+			<button
+				type="button"
+				class="button button-sm margin-right-xxs"
+				data-help-option="suggest-fix"
+				data-bi-name="feedback-suggest"
+				data-bi-an="feedback-unhelpful-popover"
+				data-test-id="suggest-fix"
+			>
+				<span class="icon" aria-hidden="true">
+					<span class="docon docon-feedback"></span>
+				</span>
+				<span> Suggest a fix? </span>
+			</button>
+		</div>
+	
+						</div>
+					</details>
+				</div>
+			</div>
+		</section>
+		<!-- end feedback section -->
+	
+		
+				</div>
+				
+		<div id="ms--additional-resources-mobile" class="display-none-print">
+			<hr class="hr" hidden />
+			<h2 id="ms--additional-resources-mobile-heading" class="title is-3" hidden>
+				Additional resources
+			</h2>
+			
+		<section
+			id="right-rail-recommendations-mobile"
+			class=""
+			data-bi-name="recommendations"
+			hidden
+		></section>
+	 
+		<section
+			id="right-rail-training-mobile"
+			class=""
+			data-bi-name="learning-resource-card"
+			hidden
+		></section>
+	 
+		<section
+			id="right-rail-events-mobile"
+			class=""
+			data-bi-name="events-card"
+			hidden
+		></section>
+	
+		</div>
+	 
+		<div
+			id="article-metadata-footer"
+			data-bi-name="article-metadata-footer"
+			data-test-id="article-metadata-footer"
+			class="page-metadata-container"
+		>
+			<hr class="hr" />
+			<ul class="metadata page-metadata" data-bi-name="page info" lang="en-us" dir="ltr">
+				<li class="visibility-hidden-visual-diff">
+			<span class="badge badge-sm text-wrap-pretty">
+				<span>Last updated on <local-time format="twoDigitNumeric"
+		datetime="2026-10-03T08:00:00.000Z"
+		data-article-date-source="calculated"
+		class="is-invisible"
+	>
+		2026-10-03
+	</local-time></span>
+			</span>
+		</li>
+			</ul>
+		</div>
+	
+			</div>
+		
+				</main>
+				<aside
+					id="layout-body-aside"
+					class="layout-body-aside  "
+					data-bi-name="aside"
+					aria-label="Additional resources"
+			  >
+					
+		<div
+			id="ms--additional-resources"
+			class="right-container padding-sm display-none display-block-desktop height-full"
+			data-bi-name="pageactions"
+		>
+			<div id="affixed-right-container" data-bi-name="right-column">
+				
+		<nav
+			id="side-doc-outline"
+			class="doc-outline border-bottom padding-bottom-xs margin-bottom-xs scrollbar-width-thin"
+			data-bi-name="intopic toc"
+			aria-label="In this article"
+		>
+			<h3>In this article</h3>
+		</nav>
+	
+				<!-- Feedback -->
+				
+		<section
+			id="ms--site-user-feedback-right-rail"
+			class="font-size-sm display-none-print"
+			data-test-id="site-user-feedback-right-rail"
+			data-bi-name="site-feedback-right-rail"
+		>
+			<div class="display-flex flex-wrap-wrap align-items-center">
+				<p class="font-weight-semibold margin-xxs margin-left-none">
+					Was this page helpful?
+				</p>
+				<div class="display-flex flex-wrap-nowrap">
+					<button
+						class="thumb-rating-button like inner-focus"
+						data-test-id="right-rail-rating-yes"
+						data-binary-rating-response="rating-yes"
+						type="button"
+						title="This article is helpful"
+						aria-label="This article is helpful"
+						data-bi-name="button-rating-yes"
+						aria-pressed="false"
+					>
+						<span class="icon" aria-hidden="true">
+							<span class="docon docon-like"></span>
+						</span>
+					</button>
+					<button
+						class="thumb-rating-button dislike inner-focus"
+						id="right-rail-no-button"
+						hidden
+						data-test-id="right-rail-rating-no"
+						data-binary-rating-response="rating-no"
+						type="button"
+						title="This article is not helpful"
+						aria-label="This article is not helpful"
+						data-bi-name="button-rating-no"
+						aria-pressed="false"
+					>
+						<span class="icon" aria-hidden="true">
+							<span class="docon docon-dislike"></span>
+						</span>
+					</button>
+					<details class="popover popover-right" id="help-popover" data-test-id="feedback-popover">
+						<summary
+							tabindex="0"
+							class="thumb-rating-button dislike inner-focus"
+							data-test-id="details-right-rail-rating-no"
+							data-binary-rating-response="rating-no"
+							title="This article is not helpful"
+							aria-label="This article is not helpful"
+							data-bi-name="button-rating-no"
+							aria-pressed="false"
+							data-bi-an="feedback-unhelpful-popover"
+						>
+							<span class="icon" aria-hidden="true">
+								<span class="docon docon-dislike"></span>
+							</span>
+						</summary>
+						<div
+							class="popover-content width-200 width-300-tablet"
+							role="dialog"
+							aria-labelledby="popover-heading-right-rail"
+							aria-describedby="popover-description-right-rail"
+						>
+							<p
+								id="popover-heading-right-rail"
+								class="font-size-lg margin-bottom-xxs font-weight-semibold"
+							>
+								Need help with this topic?
+							</p>
+							<p id="popover-description-right-rail" class="font-size-sm margin-bottom-xs">
+								Want to try using Ask Learn to clarify or guide you through this topic?
+							</p>
+							
+		<div class="buttons flex-direction-row flex-wrap justify-content-center gap-xxs">
+			<div>
+		<button
+			class="button button-sm border inner-focus display-none margin-right-xxs"
+			data-bi-name="ask-learn-assistant-entry-troubleshoot"
+			data-test-id="ask-learn-assistant-modal-entry-mobile-feedback"
+			data-ask-learn-modal-entry-feedback
+			data-bi-an=feedback-unhelpful-popover
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			aria-label="Ask Learn"
+			hidden
+		>
+			<span class="icon" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+		</button>
+		<button
+			class="button button-sm display-inline-flex display-none-desktop flex-shrink-0 margin-right-xxs border-color-ask-learn margin-right-xxs"
+			data-bi-name="ask-learn-assistant-entry-troubleshoot"
+			data-bi-an=feedback-unhelpful-popover
+			data-test-id="ask-learn-assistant-modal-entry-tablet-feedback"
+			data-ask-learn-modal-entry-feedback
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+			<span>Ask Learn</span>
+		</button>
+		<button
+			class="button button-sm display-none flex-shrink-0 display-inline-flex-desktop margin-right-xxs border-color-ask-learn margin-right-xxs"
+			data-bi-name="ask-learn-assistant-entry-troubleshoot"
+			data-bi-an=feedback-unhelpful-popover
+			data-test-id="ask-learn-assistant-flyout-entry-feedback"
+			data-ask-learn-flyout-entry-show-only
+			data-flyout-button="toggle"
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			aria-controls="ask-learn-flyout"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+			<span>Ask Learn</span>
+		</button>
+	</div>
+			<button
+				type="button"
+				class="button button-sm margin-right-xxs"
+				data-help-option="suggest-fix"
+				data-bi-name="feedback-suggest"
+				data-bi-an="feedback-unhelpful-popover"
+				data-test-id="suggest-fix"
+			>
+				<span class="icon" aria-hidden="true">
+					<span class="docon docon-feedback"></span>
+				</span>
+				<span> Suggest a fix? </span>
+			</button>
+		</div>
+	
+						</div>
+					</details>
+				</div>
+			</div>
+		</section>
+	
+			</div>
+		</div>
+	
+			  </aside> <section
+					id="layout-body-flyout"
+					class="layout-body-flyout "
+					data-bi-name="flyout"
+			  >
+					 <div
+	class="height-full border-left background-color-body-medium"
+	id="ask-learn-flyout"
+></div>
+			  </section> <div class="layout-body-footer " data-bi-name="layout-footer">
+		<footer
+			id="footer"
+			data-test-id="footer"
+			data-bi-name="footer"
+			class="footer-layout padding-xs padding-sm-desktop has-default-focus border-top"
+			role="contentinfo"
+		>
+			<div class="display-flex gap-xs flex-wrap-wrap is-full-height padding-right-lg-desktop">
+				
+		<a
+			data-mscc-ic="false"
+			href="#"
+			data-bi-name="select-locale"
+			class="locale-selector-link flex-shrink-0 button button-sm button-clear external-link-indicator"
+			id=""
+			title=""
+			><span class="icon" aria-hidden="true"
+				><span class="docon docon-world"></span></span
+			><span class="local-selector-link-text">en-us</span></a
+		>
+	 <div class="ccpa-privacy-link" data-ccpa-privacy-link hidden>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://aka.ms/yourcaliforniaprivacychoices"
+			data-bi-name="your-privacy-choices"
+			class="button button-sm button-clear flex-shrink-0 external-link-indicator"
+			id=""
+			title=""
+			>
+		<svg
+			xmlns="http://www.w3.org/2000/svg"
+			viewBox="0 0 30 14"
+			xml:space="preserve"
+			height="16"
+			width="43"
+			aria-hidden="true"
+			focusable="false"
+		>
+			<path
+				d="M7.4 12.8h6.8l3.1-11.6H7.4C4.2 1.2 1.6 3.8 1.6 7s2.6 5.8 5.8 5.8z"
+				style="fill-rule:evenodd;clip-rule:evenodd;fill:#fff"
+			></path>
+			<path
+				d="M22.6 0H7.4c-3.9 0-7 3.1-7 7s3.1 7 7 7h15.2c3.9 0 7-3.1 7-7s-3.2-7-7-7zm-21 7c0-3.2 2.6-5.8 5.8-5.8h9.9l-3.1 11.6H7.4c-3.2 0-5.8-2.6-5.8-5.8z"
+				style="fill-rule:evenodd;clip-rule:evenodd;fill:#06f"
+			></path>
+			<path
+				d="M24.6 4c.2.2.2.6 0 .8L22.5 7l2.2 2.2c.2.2.2.6 0 .8-.2.2-.6.2-.8 0l-2.2-2.2-2.2 2.2c-.2.2-.6.2-.8 0-.2-.2-.2-.6 0-.8L20.8 7l-2.2-2.2c-.2-.2-.2-.6 0-.8.2-.2.6-.2.8 0l2.2 2.2L23.8 4c.2-.2.6-.2.8 0z"
+				style="fill:#fff"
+			></path>
+			<path
+				d="M12.7 4.1c.2.2.3.6.1.8L8.6 9.8c-.1.1-.2.2-.3.2-.2.1-.5.1-.7-.1L5.4 7.7c-.2-.2-.2-.6 0-.8.2-.2.6-.2.8 0L8 8.6l3.8-4.5c.2-.2.6-.2.9 0z"
+				style="fill:#06f"
+			></path>
+		</svg>
+	
+			<span>Your Privacy Choices</span></a
+		>
+	
+	</div>
+				<div class="flex-shrink-0">
+		<div class="dropdown has-caret-up">
+			<button
+				data-test-id="theme-selector-button"
+				class="dropdown-trigger button button-clear button-sm inner-focus theme-dropdown-trigger"
+				aria-controls="{{ themeMenuId }}"
+				aria-haspopup="true"
+				aria-expanded="false"
+				data-bi-name="theme"
+			>
+				<span class="icon" aria-hidden="true"><span class="docon docon-sun"></span></span>
+				<span>Theme</span>
+				<span class="icon expanded-indicator" aria-hidden="true">
+					<span class="docon docon-chevron-down-light"></span>
+				</span>
+			</button>
+			<div class="dropdown-menu" id="{{ themeMenuId }}" role="menu">
+				<ul class="theme-selector padding-xxs" data-test-id="theme-dropdown-menu" role="none">
+					<li class="theme display-block" role="none">
+						<button
+							class="button button-clear button-sm theme-control button-block justify-content-flex-start text-align-left"
+							role="menuitemradio"
+							aria-checked="false"
+							data-theme-to="light"
+							tabindex="-1"
+						>
+							<span class="theme-light margin-right-xxs">
+								<span
+									class="theme-selector-icon border display-inline-block has-body-background"
+									aria-hidden="true"
+								>
+									<svg class="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 14">
+										<rect width="22" height="14" class="has-fill-body-background" />
+										<rect x="5" y="5" width="12" height="4" class="has-fill-secondary" />
+										<rect x="5" y="2" width="2" height="1" class="has-fill-secondary" />
+										<rect x="8" y="2" width="2" height="1" class="has-fill-secondary" />
+										<rect x="11" y="2" width="3" height="1" class="has-fill-secondary" />
+										<rect x="1" y="1" width="2" height="2" class="has-fill-secondary" />
+										<rect x="5" y="10" width="7" height="2" rx="0.3" class="has-fill-primary" />
+										<rect x="19" y="1" width="2" height="2" rx="1" class="has-fill-secondary" />
+									</svg>
+								</span>
+							</span>
+							<span> Light </span>
+						</button>
+					</li>
+					<li class="theme display-block" role="none">
+						<button
+							class="button button-clear button-sm theme-control button-block justify-content-flex-start text-align-left"
+							role="menuitemradio"
+							aria-checked="false"
+							data-theme-to="dark"
+							tabindex="-1"
+						>
+							<span class="theme-dark margin-right-xxs">
+								<span
+									class="border theme-selector-icon display-inline-block has-body-background"
+									aria-hidden="true"
+								>
+									<svg class="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 14">
+										<rect width="22" height="14" class="has-fill-body-background" />
+										<rect x="5" y="5" width="12" height="4" class="has-fill-secondary" />
+										<rect x="5" y="2" width="2" height="1" class="has-fill-secondary" />
+										<rect x="8" y="2" width="2" height="1" class="has-fill-secondary" />
+										<rect x="11" y="2" width="3" height="1" class="has-fill-secondary" />
+										<rect x="1" y="1" width="2" height="2" class="has-fill-secondary" />
+										<rect x="5" y="10" width="7" height="2" rx="0.3" class="has-fill-primary" />
+										<rect x="19" y="1" width="2" height="2" rx="1" class="has-fill-secondary" />
+									</svg>
+								</span>
+							</span>
+							<span> Dark </span>
+						</button>
+					</li>
+					<li class="theme display-block" role="none">
+						<button
+							class="button button-clear button-sm theme-control button-block justify-content-flex-start text-align-left"
+							role="menuitemradio"
+							aria-checked="false"
+							data-theme-to="high-contrast"
+							tabindex="-1"
+						>
+							<span class="theme-high-contrast margin-right-xxs">
+								<span
+									class="border theme-selector-icon display-inline-block has-body-background"
+									aria-hidden="true"
+								>
+									<svg class="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 14">
+										<rect width="22" height="14" class="has-fill-body-background" />
+										<rect x="5" y="5" width="12" height="4" class="has-fill-secondary" />
+										<rect x="5" y="2" width="2" height="1" class="has-fill-secondary" />
+										<rect x="8" y="2" width="2" height="1" class="has-fill-secondary" />
+										<rect x="11" y="2" width="3" height="1" class="has-fill-secondary" />
+										<rect x="1" y="1" width="2" height="2" class="has-fill-secondary" />
+										<rect x="5" y="10" width="7" height="2" rx="0.3" class="has-fill-primary" />
+										<rect x="19" y="1" width="2" height="2" rx="1" class="has-fill-secondary" />
+									</svg>
+								</span>
+							</span>
+							<span> High contrast </span>
+						</button>
+					</li>
+				</ul>
+			</div>
+		</div>
+	</div>
+			</div>
+			<ul class="links" data-bi-name="footerlinks">
+				<li class="manage-cookies-holder" hidden=""></li>
+				<li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://learn.microsoft.com/en-us/principles-for-ai-generated-content"
+			data-bi-name="aiDisclaimer"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>AI Disclaimer</a
+		>
+	
+	</li><li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://learn.microsoft.com/en-us/previous-versions/"
+			data-bi-name="archivelink"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>Previous Versions</a
+		>
+	
+	</li> <li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://techcommunity.microsoft.com/t5/microsoft-learn-blog/bg-p/MicrosoftLearnBlog"
+			data-bi-name="bloglink"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>Blog</a
+		>
+	
+	</li> <li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://learn.microsoft.com/en-us/contribute"
+			data-bi-name="contributorGuide"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>Contribute</a
+		>
+	
+	</li><li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://go.microsoft.com/fwlink/?LinkId=521839"
+			data-bi-name="privacy"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>Privacy</a
+		>
+	
+	</li><li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://go.microsoft.com/fwlink/?linkid=2259814"
+			data-bi-name="consumer-health-privacy"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>Consumer Health Privacy</a
+		>
+	
+	</li><li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://learn.microsoft.com/en-us/legal/termsofuse"
+			data-bi-name="termsofuse"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>Terms of Use</a
+		>
+	
+	</li><li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://www.microsoft.com/legal/intellectualproperty/Trademarks/"
+			data-bi-name="trademarks"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>Trademarks</a
+		>
+	
+	</li>
+				<li>&copy; Microsoft 2026</li>
+			</ul>
+		</footer>
+	</footer>
+			<noscript><img src="https://learn.microsoft.com/akam/13/pixel_66b1f907?a=dD05Y2I5NzAwMDM2M2NlOWFjYzkzYjQ3M2E0NzA1YzNmN2U1NGMxMmNmJmpzPW9mZg==" style="visibility: hidden; position: absolute; left: -999px; top: -999px;" /></noscript></body>
+		</html>

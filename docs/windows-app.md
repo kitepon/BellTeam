@@ -2,7 +2,7 @@
 
 Mac版の`DesktopWorkspaceView`を基準に、WPFと.NETでWindowsの画面を描く。Web UIは表示しない。会話・プロフィールの正本は、Mac版と同じBellTeamのHTTP APIである。通信・JSONモデル・SSE・下書き・設定は`windows/BellTeam.Core`、Windowsの部品・Markdownの描画・窓の制御は`windows/BellTeam.App`へ置く。
 
-この版はLAN接続で会話する1段目。Appleの課金とAPNsの登録はWindowsへ移植しない。サーバーの通常会話APIのエラーは理由付きで表示する。現行の`src/supervisor.mjs`はmessenger・room-messenger・transportの`requireAccess`へ購読判定を渡しておらず、通常会話APIを購読状態で拒否する配線は有効になっていない。
+LAN接続で一覧・会話・プロフィールを使う1段目に、画像・カード・書き出し・Botの画面の2段目を加えた。Appleの課金とAPNsの登録はWindowsへ移植しない。サーバーの通常会話APIのエラーは理由付きで表示する。現行の`src/supervisor.mjs`はmessenger・room-messenger・transportの`requireAccess`へ購読判定を渡しておらず、通常会話APIを購読状態で拒否する配線は有効になっていない。
 
 ## 画面と操作
 
@@ -15,6 +15,12 @@ Mac版の`DesktopWorkspaceView`を基準に、WPFと.NETでWindowsの画面を�
 - 送信直後に本文を入力欄から外し、受付を待つ間は「送信中…」を表示する。失敗した本文は、送信中に書いた続きの前へ戻す。通信断など受付結果が不明な時は、再操作前に会話を更新するよう表示する。送信を自動で繰り返さない。
 - MarkdownはMarkdigで解析してWPFのFlowDocumentへ描く。見出し、強調、引用、コード、リスト、チェック項目、表、リンクを表示し、本文の範囲選択・コピーができる。リンクは既定のブラウザーへ渡す。HTMLは文字として表示する。未対応の構文要素は、表示できない理由を該当メッセージに出す。
 - Bot間の連絡は折り畳み、開くと本文を読める。
+- 「画像を添付」、会話へのファイルのドロップ、入力欄への画像・画像ファイルの貼り付けで複数画像を添付できる。選んだだけでは送信しない。候補を取り外せ、画像だけでも送信できる。PNG・JPEG・WebP・GIFの元データを送信し、表示は先頭のフレームを使う。クリップボードのビットマップはPNGへ変換する。画像1枚はサーバーと同じ25MBまで。送信失敗時は画像も元の下書きへ戻し、送信中に追加した画像を残す。
+- 会話の画像はBellTeamのAPIから読み、クリックすると別の窓で拡大する。複数画像は「前の画像」「次の画像」で切り替える。読込に失敗した時は理由を表示する。
+- 秘密入力のカードでは「安全な入力欄を開く」からマスクされた専用欄を開き、「登録して続ける」または「入力を断る」を選ぶ。値は通常の会話・下書き・設定・診断へ入れず、専用POSTへだけ渡す。送信時、窓を閉じる時、非アクティブになった時に入力欄を消す。失敗時は例外の本文を出さず、結果を最新の状態で確認するよう表示する。登録済み・取消済みと、AIへの通知失敗も表示する。
+- オーナーへの問いは、選択肢または許可されている「その他（文章で答える）」から回答する。回答中は重ねて送れない。SSEで同じ問いが更新されても書きかけを残し、回答済みになると答えを表示する。
+- 「会話を書き出す」は、選択したメンバーまたはルームの会話をJSONとして、利用者が選んだ場所へ保存する。画像はサーバーが返す取得URLを含む。
+- 「Botの画面を見る」は右の詳細欄を画面へ切り替える。表示中は2秒ごとに読み取り、失敗すると停止する。「再読込」で利用者が読み直せる。プロフィールへ戻る、会話を切り替える、詳細を隠す、窓を最小化する、窓を閉じる操作で更新を止める。詳細を隠す・最小化する時はプロフィールへ戻る。
 
 推奨サイズは1280×820 DIP、最小サイズは1100×640 DIP。左の推奨幅は340 DIP。一覧の名前は16、補助文は14、本文・入力欄・プロフィールは18 DIPとする。WPFのベクター描画とPerMonitorV2を使う。窓の大きさ・位置・最大化状態をこのPCへ保存する。通常起動は利用者ごとに1つの窓だけで、再起動すると既存の窓を表示する。
 
@@ -68,6 +74,8 @@ dotnet publish windows/BellTeam.App/BellTeam.App.csproj -c Release -r win-x64 --
 
 `--render-preview`は人工データ、`--render-url`は実サーバーの読み取り結果を使う。画像とsmoke結果には会話・プロフィールが含まれ得るため、生成物はgit管理外とする。`--configure <URL>`は窓を出さず、このPCの接続先だけを保存する導入用の入口。
 
+画像の読み込みにはWindows標準の`Windows.Graphics.Imaging.BitmapDecoder`を使い、WPFへ描く。SDKの参照はWindowsの版を付けたTargetFrameworkから.NETが取得する。追加のWindows App SDK runtimeは使わない。`--render-preview`は画像とカードを含む人工データを1280×1200で描く。
+
 ### 確かめた事
 
 FOXでReleaseビルドと.NET同梱ビルドが成功。URL、設定の保存、実際のAPIと同じJSON、HTTPの拒否・認証・JSON不正、SSEのUTF-8・複数行・切断、下書き、返信先、会話切替の競合、配送状態の更新、Markdownの単体試験が成功した。試験は窓を表示しない。`<pasted_content>`を含む行と行頭から始まるHTML風の塊は、タグ・中身・前後の段落を文字として読めることを追加試験で確認した。
@@ -78,12 +86,12 @@ FOXのパッケージ版Codex内から起動した確認用プロセスで、LAN
 
 11:07:52〜11:08:04 JST、トロニーがFOXの通常の利用者`kite_`・非管理者・パッケージ外・窓なしで、同じinstallerを`-NoLaunch`付きで実行した。ソースは`windows-install-evidence`の`0890c11`で、mainの`d817648`との差はこの文書だけ。`GetCurrentPackageFullName`の結果は15700だった。11:08:25 JSTに同じ利用者から次を確認した。
 
-- 導入先: `%LOCALAPPDATA%\Programs\BellTeam`、404ファイル、`uninstall-windows.ps1`あり。実行ファイルの版は`0.1.0+0890c11…`。スタートメニューの`BellTeam.lnk`は11:08:04 JSTに登録。
+- 導入先: `%LOCALAPPDATA%\Programs\BellTeam`、404ファイル、`uninstall-windows.ps1`あり。11:08時点のソースは文書の枝。スタートメニューの`BellTeam.lnk`は11:08:04 JSTに登録。
 - 設定: `%LOCALAPPDATA%\BellTeam\settings.json`が11:08:02 JSTに保存され、内容は`{"serverUrl":"http://192.168.1.2:18891/","window":null}`。
 - 登録: `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\BellTeam`。DisplayNameはBellTeam、DisplayVersionは0.1.0、Publisherはkitepon。InstallLocationは導入先、UninstallStringとQuietUninstallStringはPowerShell 7から導入先の`uninstall-windows.ps1`を呼ぶ。NoModifyとNoRepairは1。
 - 導入exeのsmoke: 11:08:05 JSTに通常の利用者から実行し、終了コード0・ok=true。local認証、36メンバー、3ルーム、会話10件と以前の履歴の存在、SSE接続を確認。終了後のBellTeam.exeは0件で、マビノギとOpenLogicool.Hostは動いたまま。
 
-文書の枝から作った版のため、PRをmainへ取り込んだ後、トロニーがmainから再導入して版のcommitを確認する。
+11:14:02〜11:14:10 JST、トロニーが同じ利用者・非管理者・パッケージ外・窓なしでmainの`e96c9a7`から再導入した。exeの版は`0.1.0+e96c9a7fc42f21d480362f4ebbaea90fb8c45e50`。接続先の設定とアンインストール登録は入れ直し前後で同じ。11:14:12 JSTの導入exeのsmokeも終了コード0・ok=trueで、同じ一覧・履歴・SSEの接続を確認し、終了後のBellTeam.exeは0件だった。
 
 アプリ共通のCoreを使った送受信は、出荷exeへ送信専用の入口を足さず、Codex内から起動したgit管理外の確認用の道具で試した。10:57 JSTの初回は、送信の受付と指定文の履歴への記録、トロニーの席への到達を確認した。トロニーのサーバー確認では、通話で始まった番への差し込みと重なり、返答が会話へ記録されなかった。確認用の道具も、引用中の「受け取った」を別の報告文から拾っていたため、その結果を返答の確認とは扱わなかった。
 
@@ -91,20 +99,24 @@ FOXのパッケージ版Codex内から起動した確認用プロセスで、LAN
 
 Windows nativeの`npm test`は426件中397件成功・29件失敗。例えば`test/bot-environment.test.mjs`とサーバーinstaller試験は`spawn sh ENOENT`、配布archive試験は`docs/onboarding.md`の収録確認で失敗した。サーバーの試験はLinuxコンテナで確認する。PRの初版はトロニーがLinuxコンテナで426件すべての成功を確認した。Windows版の変更は`src/`・`test/`・`web/`・`config/`を含まない。
 
+2段目は、Codex内で模擬HTTP応答とローカルHTTPサーバーを使って、画像付き・画像だけの送信、送信中の画像追加と失敗時の復元、画像・カードのJSON、回答と書き出し、PNG・JPEG・WebP・GIFのデコードを確認した。秘密入力はダミーの値だけで、専用のPOST、307を追わないこと、例外・画面のエラー・標準出力に値を出さないこと、入力欄の送信失敗・非アクティブ化・終了時の消去を確認した。Bot画面の更新がプロフィールへ戻る操作で停止すること、問いの更新で書きかけが残ることも確認した。
+
+11:38 JSTに、Codex内の確認用の道具から本番を読むだけで、Bot画面、122件を含む会話のJSON書き出し、PNG画像の取得と1295×855でのデコードを確認した。36席の直近30件までの会話を読み、オーナーへの問い4件のJSONも読み取れた。秘密入力の登録・取消、問いへの回答、画像送信などの試しのPOSTは本番へ送っていない。人工データのPNGでは画像・秘密入力カード・問いの選択肢と入力欄を確認した。
+
 ### 見ていない事と次の確認
 
 - 前面に表示した実際の窓での操作、IMEの変換確定、範囲選択・コピー、複数モニター・表示倍率を変えた時の表示、二重起動時の既存窓の表示は未確認。FOXでは別のBotが画面を操作しているため、担当者と時刻を合わせて確認する。
 - 同じ接続先を指定した入れ直しはトロニーが実行済み。接続先を省略した更新での設定保持とアンインストールの実行は未確認。導入前にinstaller・uninstallerのPowerShell構文を確認し、通常の利用者から削除の入口が登録されたことを確認した。
 - arm64のビルドと端末上の動作は未確認。
-- Cloudflare Access、画像、カード、管理、通知は後続の段階。現段階でそれらを使う画面は提供しない。
+- 2段目の利用者による実画面操作（画像のファイル選択・ドロップ・貼り付け・拡大、保存ダイアログ、カードの操作、Bot画面の表示）と、2段目の導入は未確認。秘密入力は本番の依頼を使って試さず、模擬応答で確認する。mainへの取り込み後の導入と、通常の利用者からの確認はトロニーが行う。
+- Cloudflare Access、管理、通知は後続の段階。現段階でそれらを使う画面は提供しない。
 
 ## 後続の段階
 
-1段目をmainへ取り込み、FOXで導入・送信・実画面を確認した後に続ける。
+2段目をmainへ取り込み、通常の利用者から導入と必要な実画面の確認を行った後に続ける。
 
-1. 画像の添付と表示、秘密の入力、オーナーへの問い、会話の書き出し、Botの画面。
-2. メンバー編集、AI設定、アバターの切り抜き、ルームの作成・編集・削除、予定、機能設定、利用者の決まり、オーナーのプロフィール。
-3. Cloudflare Access、AIの認証、初回設定、アプリが起きている間のWindows通知。通知は既定でオフ。
+1. 3段目: メンバー編集、AI設定、アバターの切り抜き、ルームの作成・編集・削除、予定、機能設定、利用者の決まり、オーナーのプロフィール。
+2. 4段目: Cloudflare Access、AIの認証、初回設定、アプリが起きている間のWindows通知。通知は既定でオフ。
 
 ## 資料
 
@@ -112,3 +124,4 @@ Windows nativeの`npm test`は426件中397件成功・29件失敗。例えば`te
 - [WPFのFlowDocument](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/flow-document-overview)
 - [JSONの必須プロパティ](https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/required-properties)
 - [Markdig](https://github.com/xoofx/markdig)
+- [デスクトップアプリでのWindows Runtime API](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/winrt-apis-desktop-apps)

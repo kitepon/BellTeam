@@ -36,14 +36,63 @@ public sealed class BellApi : IDisposable
         return await JsonAsync<T>(request, token);
     }
 
-    public async Task SendAsync(ChatTarget target, string text, string[]? targets, CancellationToken token = default)
+    public Task SendAsync(ChatTarget target, string text, string[]? targets, CancellationToken token = default)
+        => SendAsync(target, text, [], targets, token);
+    public async Task SendAsync(ChatTarget target, string text, ImageAttachment[] images, string[]? targets, CancellationToken token = default)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, target.Path + "/messages")
         {
-            Content = JsonContent.Create(new { message = text, images = Array.Empty<object>(), targets }, options: Json)
+            Content = JsonContent.Create(new { message = text, images = images.Select(image => new ImagePayload(image.Mime, Convert.ToBase64String(image.Bytes))).ToArray(), targets }, options: Json)
         };
         var result = await JsonAsync<JsonElement>(request, token);
         if (result.ValueKind != JsonValueKind.Object) throw new BellApiException("BellTeamからの送信応答を読み取れませんでした。");
+    }
+
+    public async Task<T> PostAsync<T>(string path, object body, CancellationToken token = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(body, options: Json) };
+        return await JsonAsync<T>(request, token);
+    }
+
+    public async Task<SecretRequest> FinishSecretAsync(string id, string? value, CancellationToken token = default)
+    {
+        // 専用POST。値を例外・診断へ含めず、リダイレクト先へ本文を渡さない。
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/secret-requests/{Uri.EscapeDataString(id)}/{(value is null ? "cancel" : "submit")}")
+            {
+                Content = JsonContent.Create(value is null ? new Dictionary<string, string>() : new Dictionary<string, string> { ["value"] = value }, options: Json)
+            };
+            request.Headers.CacheControl = new CacheControlHeaderValue { NoStore = true };
+            return (await JsonAsync<SecretResponse>(request, token)).Request;
+        }
+        catch (Exception) { throw new BellApiException("登録結果を確認できませんでした。閉じて最新の状態を確認してください。"); }
+    }
+
+    public async Task<OwnerQuestion> AnswerAsync(string id, string? choice, string? text, CancellationToken token = default)
+        => (await PostAsync<QuestionResponse>($"/api/owner-questions/{Uri.EscapeDataString(id)}/answer", new { choice, text }, token)).Question;
+
+    public async Task<byte[]> ImageAsync(string path, CancellationToken token = default)
+    {
+        var url = new Uri(Origin, path);
+        if (url.GetLeftPart(UriPartial.Authority) != Origin.GetLeftPart(UriPartial.Authority))
+            throw new BellApiException("画像の接続先がBellTeamと異なります。");
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using var response = await client.SendAsync(request, timeout.Token);
+        await ValidateAsync(response, timeout.Token);
+        if (response.Content.Headers.ContentType?.MediaType is not ("image/png" or "image/jpeg" or "image/webp" or "image/gif"))
+            throw new BellApiException("画像ではない応答を受け取りました。");
+        return await response.Content.ReadAsByteArrayAsync(timeout.Token);
+    }
+
+    public async Task<byte[]> ExportAsync(ChatTarget target, CancellationToken token = default)
+    {
+        var document = await GetAsync<JsonElement>(target.Path + "/export", token);
+        if (document.ValueKind != JsonValueKind.Object || !document.TryGetProperty("format", out var format) || format.GetString() != "bellteam.conversation.v1")
+            throw new BellApiException("会話の書き出し形式を読み取れませんでした。");
+        return JsonSerializer.SerializeToUtf8Bytes(document, new JsonSerializerOptions(Json) { WriteIndented = true });
     }
 
     private async Task<T> JsonAsync<T>(HttpRequestMessage request, CancellationToken token)
