@@ -31,7 +31,7 @@ public partial class App : Application
                 using var editorWorkspace = new Workspace(); await editorWorkspace.ConnectAsync(editorAddress, listen: false);
                 if (editorWorkspace.ConnectionError is { } connectionError) throw new BellApiException(connectionError);
                 EditorWindow editor;
-                if (editorKind == "member") { var member = new MemberEditor(editorWorkspace, editorId); editor = member; await member.InitializeAsync(); }
+                if (editorKind is "member" or "new-member") { var member = new MemberEditor(editorWorkspace, editorKind == "new-member" ? null : editorId); editor = member; await member.InitializeAsync(); }
                 else if (editorKind is "room" or "new-room") { var room = new RoomEditor(editorWorkspace, editorKind == "new-room" ? null : editorId); editor = room; await room.InitializeAsync(); }
                 else if (editorKind == "settings") { var settingsEditor = new SettingsWindow(editorWorkspace); editor = settingsEditor; await settingsEditor.InitializeAsync(); }
                 else if (editorKind == "profile") { var profile = new ProfileEditor(editorWorkspace); editor = profile; await profile.InitializeAsync(); }
@@ -41,14 +41,25 @@ public partial class App : Application
                 else throw new ArgumentException("未対応の編集画面です。");
                 await editor.ReadyTask; WritePng(editor, (int)editor.Width, (int)editor.Height, editorOutput); editor.Close(); Shutdown(0); return;
             }
-            if (e.Args is ["--render-preview", _] || e.Args is ["--render-url", _, _])
+            if (e.Args is ["--render-page", var pageKind, var pageAddress, var pageOutput])
+            {
+                using var pageWorkspace = new Workspace(); await pageWorkspace.ConnectAsync(pageAddress, listen: false);
+                if (pageWorkspace.ConnectionError is { } failure) throw new BellApiException(failure);
+                var pageWindow = new MainWindow(pageWorkspace, persistPlacement: false);
+                if (pageKind == "settings") pageWindow.ShowSettings(); else if (pageKind == "schedules") pageWindow.ShowSchedules(); else throw new ArgumentException("未対応のページです。");
+                await pageWindow.PageReady;
+                var pageRoot = (FrameworkElement)pageWindow.Content; pageRoot.Measure(new Size(1280, 820)); pageRoot.Arrange(new Rect(0, 0, 1280, 820)); pageRoot.UpdateLayout();
+                await pageWindow.PrepareRenderAsync(); WritePng(pageWindow, 1280, 820, pageOutput); pageWindow.Close(); Shutdown(0); return;
+            }
+            if (e.Args is ["--render-preview", _] || e.Args is ["--render-url", _, _] || e.Args is ["--render-url", _, _, _])
             {
                 // HWNDを作らず、WPFの部品を画像へ描く。Show・Activateは呼ばない。
                 var model = new Workspace();
                 var window = new MainWindow(model, persistPlacement: false);
                 if (e.Args[0] == "--render-url") await model.ConnectAsync(e.Args[1], listen: false);
                 else model.LoadPreview();
-                if (model.Entries.FirstOrDefault() is { } first) await model.SelectAsync(first);
+                var first = e.Args is ["--render-url", _, var conversationId, _] ? model.Entries.FirstOrDefault(entry => entry.Target.Id == conversationId) ?? throw new BellApiException("指定した会話がありません。") : model.Entries.FirstOrDefault();
+                if (first is not null) await model.SelectAsync(first);
                 if (model.ConnectionError is { } renderError) throw new BellApiException(renderError);
                 var root = (FrameworkElement)window.Content;
                 var height = e.Args[0] == "--render-preview" ? 1200 : 820;
@@ -61,7 +72,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-url <URL> <PNG>、--render-editor <member|room|new-room|settings|profile|feature|schedules|new-schedule> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|schedules> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule> <URL> <ID> <PNG> のいずれかです。");
 
             var workspace = new Workspace();
             var main = new MainWindow(workspace);

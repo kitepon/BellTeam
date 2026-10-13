@@ -20,6 +20,7 @@ public sealed class ModelPicker : StackPanel
     public ModelPicker(BotSettings initial)
     {
         selection = new(initial.Harness, initial.Model, initial.ReasoningEffort);
+        System.Windows.Automation.AutomationProperties.SetName(custom, "モデルID");
         var harnesses = new List<FormOption> { new("codex", "Codex"), new("claude", "Claude"), new("grok", "Grok"), new("cursor", "Cursor") };
         if (!harnesses.Any(option => option.Id == initial.Harness)) harnesses.Add(new(initial.Harness, initial.Harness + "（現在の設定）"));
         harness.ItemsSource = harnesses;
@@ -34,7 +35,12 @@ public sealed class ModelPicker : StackPanel
         Render(); harness.IsEnabled = model.IsEnabled = effort.IsEnabled = false; error.Text = "モデル候補を読み込んでいます…";
     }
     private static ComboBox Combo() => new() { DisplayMemberPath = nameof(FormOption.Label), SelectedValuePath = nameof(FormOption.Id), Padding = new Thickness(8), Margin = new Thickness(0, 0, 0, 8) };
-    private void Add(string label, UIElement control) { Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 9, 0, 5) }); Children.Add(control); }
+    private void Add(string label, UIElement control)
+    {
+        System.Windows.Automation.AutomationProperties.SetName(control, label);
+        var row = new Grid { Margin = new Thickness(0, 5, 0, 5) }; row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) }); row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.Children.Add(new TextBlock { Text = label, FontSize = 14, Foreground = System.Windows.Media.Brushes.SlateGray, VerticalAlignment = VerticalAlignment.Center }); Grid.SetColumn(control, 1); row.Children.Add(control); Children.Add(row);
+    }
     public async Task LoadAsync(ManagementApi api, CancellationToken token)
     {
         try { selection.SetCatalog((await api.Api.GetAsync<ModelsResponse>("/api/models", token)).Models); }
@@ -82,7 +88,7 @@ public sealed class ModelPicker : StackPanel
     }
 }
 
-public sealed class MemberEditor(Workspace workspace, string id) : EditorWindow("メンバーを編集", workspace.ConnectionToken)
+public sealed class MemberEditor(Workspace workspace, string? id) : EditorWindow(id is null ? "メンバーを追加" : "メンバーを編集", workspace.ConnectionToken)
 {
     private BotSettings? original;
     private Dictionary<string, object?> submitted = [];
@@ -94,17 +100,29 @@ public sealed class MemberEditor(Workspace workspace, string id) : EditorWindow(
         try
         {
             var api = workspace.Management;
-            original = (await api.GetBotAsync(id, Token)).Bot;
+            original = id is null ? new BotSettings { Name = "", Harness = "codex" } : (await api.GetBotAsync(id, Token)).Bot;
             Token.ThrowIfCancellationRequested();
-            Heading("メンバー"); var avatar = new AvatarPicker(original.Avatar); Body.Children.Add(avatar); InitialLoads.Add(avatar.LoadAsync());
-            var name = TextField("名前", original.Name); var position = TextField("役職", original.Position);
-            var color = Choice("テーマ色", [new("violet", "紫"), new("rose", "ローズ"), new("indigo", "インディゴ")], original.Color);
-            Heading("AI"); var models = new ModelPicker(original); Body.Children.Add(models); ModelLoad = models.LoadAsync(api, Token); InitialLoads.Add(ModelLoad);
-            Heading("プロフィール"); var profile = TextField("背景・見た目・関係性", original.ProfileText, true); var personality = TextField("性格・考え方", original.Personality, true); var speech = TextField("口調", original.SpeechStyle, true); var role = TextField("担当する仕事", original.Role, true);
+            var memberSection = Section("メンバー"); var avatar = new AvatarPicker(original.Avatar, name: original.Name, color: original.Color, compact: true); memberSection.Children.Add(avatar); InitialLoads.Add(avatar.LoadAsync());
+            var name = TextField("名前", original.Name, parent: memberSection, inlineLabel: true); var position = TextField("役職", original.Position, parent: memberSection, inlineLabel: true);
+            var color = Choice("テーマ色", [new("violet", "紫"), new("rose", "ローズ"), new("indigo", "インディゴ")], original.Color, memberSection, inlineLabel: true);
+            var aiSection = Section("AI"); var models = new ModelPicker(original); aiSection.Children.Add(models); ModelLoad = models.LoadAsync(api, Token); InitialLoads.Add(ModelLoad);
+            var profileSection = Section("プロフィール"); var profile = TextField("背景・見た目・関係性", original.ProfileText, true, profileSection); var personality = TextField("性格・考え方", original.Personality, true, profileSection); var speech = TextField("口調", original.SpeechStyle, true, profileSection); var role = TextField("担当する仕事", original.Role, true, profileSection);
+            foreach (var field in new[] { profile, personality, speech, role }) field.MinHeight = 120;
+            var sections = Body.Children.Cast<UIElement>().ToArray(); Body.Children.Clear();
+            var layout = new Grid(); layout.ColumnDefinitions.Add(new ColumnDefinition()); layout.ColumnDefinitions.Add(new ColumnDefinition()); layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var identity = new StackPanel(); foreach (var section in sections.Take(4)) identity.Children.Add(section);
+            var biography = new StackPanel(); foreach (var section in sections.Skip(4)) biography.Children.Add(section);
+            layout.Children.Add(identity); layout.Children.Add(biography); Body.Children.Add(layout);
+            void ArrangeSections(double width)
+            {
+                var wide = width >= 920; layout.ColumnDefinitions[0].Width = wide ? new GridLength(330) : new GridLength(1, GridUnitType.Star); layout.ColumnDefinitions[1].Width = wide ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+                Grid.SetColumn(biography, wide ? 1 : 0); Grid.SetRow(biography, wide ? 0 : 1); biography.Margin = wide ? new Thickness(24, 0, 0, 0) : new Thickness(0);
+            }
+            ArrangeSections(Width); SizeChanged += (_, args) => ArrangeSections(args.NewSize.Width);
             var confirm = new Button { Content = "保存結果を確認", Visibility = Visibility.Collapsed };
             confirm.Click += async (_, _) => await RunAsync(async () =>
             {
-                if (submitted.Count == 0) { Status.Text = "先に変更を保存してください。"; return false; }
+                if (submitted.Count == 0 || id is null) { Status.Text = "先に変更を保存してください。"; return false; }
                 if (await api.ConfirmBotAsync(id, submitted, Token)) { await workspace.RefreshManagementAsync(); return true; }
                 Status.Text = "現在の設定が保存した内容と一致しません。設定を確認してから編集してください。"; return false;
             }); Actions.Children.Insert(0, confirm);
@@ -113,10 +131,10 @@ public sealed class MemberEditor(Workspace workspace, string id) : EditorWindow(
                 if (string.IsNullOrWhiteSpace(name.Text)) throw new ArgumentException("名前を入力してください。");
                 var edited = models.Apply(original with { Name = name.Text, Position = position.Text, ProfileText = profile.Text, Personality = personality.Text, SpeechStyle = speech.Text, Role = role.Text, Avatar = avatar.Value, Color = (string?)color.SelectedValue ?? original.Color });
                 submitted = edited.ChangesFrom(original);
-                if (submitted.Count == 0) return true;
+                if (submitted.Count == 0 && id is not null) return true;
                 BotSettingsResponse result;
-                try { result = await api.SaveBotAsync(id, submitted, Token); }
-                catch { confirm.Visibility = Visibility.Visible; throw; }
+                try { result = id is null ? await api.CreateBotAsync(edited, Token) : await api.SaveBotAsync(id, submitted, Token); }
+                catch { if (id is not null) confirm.Visibility = Visibility.Visible; throw; }
                 models.SetSavedFastMode(result.Bot.FastMode);
                 await workspace.RefreshManagementAsync();
                 if (result.Applying) { Saved = true; Status.Foreground = System.Windows.Media.Brushes.DarkSlateGray; Status.Text = "設定を保存しました。現在の作業が終わってから適用します。"; return false; }
@@ -139,7 +157,7 @@ public sealed class RoomEditor(Workspace workspace, string? id) : EditorWindow(i
             var api = workspace.Management;
             var original = id is null ? new RoomSettings("", "", [], null, "") : RoomSettings.From((await api.Api.GetAsync<RoomResponse>(new ChatTarget(id, true).Path, Token)).Room);
             Token.ThrowIfCancellationRequested();
-            Heading("ルーム"); var avatar = new AvatarPicker(original.Avatar); Body.Children.Add(avatar); InitialLoads.Add(avatar.LoadAsync());
+            Heading("ルーム"); var avatar = new AvatarPicker(original.Avatar, name: original.Name, isRoom: true); Body.Children.Add(avatar); InitialLoads.Add(avatar.LoadAsync());
             var name = TextField("ルーム名", original.Name); var purpose = TextField("この部屋で共有する仕事", original.Purpose, true);
             Heading("メンバー"); var members = new List<(FormOption Member, CheckBox Choice)>();
             var representative = new ComboBox { DisplayMemberPath = nameof(FormOption.Label), SelectedValuePath = nameof(FormOption.Id), Padding = new Thickness(8) };

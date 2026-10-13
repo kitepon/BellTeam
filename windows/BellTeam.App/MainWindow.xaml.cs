@@ -11,21 +11,42 @@ public partial class MainWindow : Window
 {
     private readonly Workspace model;
     private bool inspectorVisible = true;
+    private EditorWindow? page;
+    private bool loadingOlder;
+    public Task PageReady { get; private set; } = Task.CompletedTask;
     public MainWindow(Workspace model, bool persistPlacement = true)
     {
         this.model = model;
+        SetResourceReference(StyleProperty, typeof(Window));
         InitializeComponent();
         DataContext = model;
+        UpdateWelcome(); ProfileLayout();
+        model.Messages.CollectionChanged += (_, _) => UpdateWelcome();
+        MessageScroll.ScrollChanged += async (_, args) =>
+        {
+            if (!ReferenceEquals(args.OriginalSource, MessageScroll)) return;
+            if (MessageScroll.ScrollableHeight - MessageScroll.VerticalOffset < 80) NewMessagesButton.Visibility = Visibility.Collapsed;
+            var previousBottomDistance = args.ExtentHeight - args.ExtentHeightChange - args.ViewportHeight - args.VerticalOffset;
+            if (!loadingOlder && args.ExtentHeightChange > 0 && previousBottomDistance < 80) _ = Dispatcher.BeginInvoke(() => MessageScroll.ScrollToEnd());
+            if (!loadingOlder && args.VerticalChange < 0 && args.VerticalOffset < 48 && model.HasMore && !model.Loading) await LoadOlderPreservingPositionAsync();
+        };
+        ConversationList.PreviewMouseDown += (_, args) => { if (page is not null && args.OriginalSource is DependencyObject target && ItemsControl.ContainerFromElement(ConversationList, target) is ListBoxItem) ShowConversation(); };
+        Closed += (_, _) => page?.Close();
+        Closing += (_, args) => { if (page?.CanNavigateAway == false) args.Cancel = true; };
         DataObject.AddPastingHandler(Composer, Composer_Pasting);
         model.ScrollToBottom += force =>
         {
             if (force || MessageScroll.ScrollableHeight - MessageScroll.VerticalOffset < 80)
                 Dispatcher.BeginInvoke(() => MessageScroll.ScrollToEnd());
+            else NewMessagesButton.Visibility = Visibility.Visible;
         };
         model.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(Workspace.IsRoom) && inspectorVisible)
                 InspectorColumn.Width = model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star);
+            if (args.PropertyName == nameof(Workspace.Selected) && page is null) ProfileLayout();
+            if (args.PropertyName is nameof(Workspace.Loading) or nameof(Workspace.Selected)) UpdateWelcome();
+            if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible;
         };
         PreviewKeyDown += Window_KeyDown;
         StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) model.ReturnToProfile(); };
@@ -53,11 +74,25 @@ public partial class MainWindow : Window
     private async void Conversation_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (ConversationList.SelectedItem is ConversationEntry entry && model.Selected?.Target != entry.Target)
+        {
+            ShowConversation();
             await model.SelectAsync(entry);
+        }
     }
     private async void Send_Click(object sender, RoutedEventArgs e) => await model.SendAsync();
-    private async void Older_Click(object sender, RoutedEventArgs e) => await model.LoadOlderAsync();
-    private async void Reconnect_Click(object sender, RoutedEventArgs e) => await model.ReconnectAsync();
+    private async void Older_Click(object sender, RoutedEventArgs e) => await LoadOlderPreservingPositionAsync();
+    private async Task LoadOlderPreservingPositionAsync()
+    {
+        if (loadingOlder) return;
+        loadingOlder = true; var target = model.Selected?.Target; var offset = MessageScroll.VerticalOffset; var height = MessageScroll.ExtentHeight;
+        try
+        {
+            await model.LoadOlderAsync();
+            if (model.Selected?.Target == target) { MessageScroll.UpdateLayout(); MessageScroll.ScrollToVerticalOffset(offset + MessageScroll.ExtentHeight - height); }
+        }
+        finally { loadingOlder = false; }
+    }
+    private async void Reconnect_Click(object sender, RoutedEventArgs e) { if (page?.CanNavigateAway == false) return; ShowConversation(); await model.ReconnectAsync(); }
     private async void Export_Click(object sender, RoutedEventArgs e)
     {
         if (model.Selected is not { } entry) return;
@@ -96,8 +131,41 @@ public partial class MainWindow : Window
         else { var editor = new MemberEditor(model, entry.Target.Id) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); }
     }
     private void CreateRoom_Click(object sender, RoutedEventArgs e) { var editor = new RoomEditor(model, null) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); }
-    private void Schedules_Click(object sender, RoutedEventArgs e) { var editor = new SchedulesWindow(model) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); }
-    private void Settings_Click(object sender, RoutedEventArgs e) { var editor = new SettingsWindow(model) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); }
+    private void CreateMember_Click(object sender, RoutedEventArgs e) { var editor = new MemberEditor(model, null) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); }
+    private void OpenMenu_Click(object sender, RoutedEventArgs e) { if (sender is Button { ContextMenu: { } menu } button) { menu.PlacementTarget = button; menu.IsOpen = true; } }
+    private void Schedules_Click(object sender, RoutedEventArgs e) => ShowSchedules();
+    private void Settings_Click(object sender, RoutedEventArgs e) => ShowSettings();
+    public void ShowSchedules() { if (!model.Connected) return; var editor = new SchedulesWindow(model); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
+    public void ShowSettings() { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
+    private bool ShowPage(EditorWindow editor)
+    {
+        if (page?.CanNavigateAway == false) { editor.Close(); model.ReportActionError("操作が終わってから画面を切り替えてください。"); return false; }
+        if (IsLoaded) editor.Owner = this;
+        model.ReturnToProfile(); PageHost.Content = null; page?.Close(); page = editor;
+        PageHost.Content = editor.AsPage(ShowConversation); PageArea.Visibility = Visibility.Visible;
+        ConversationArea.Visibility = Inspector.Visibility = Visibility.Collapsed;
+        SchedulesNav.Background = editor is SchedulesWindow ? Brushes.White : Brushes.Transparent; SettingsNav.Background = editor is SettingsWindow ? Brushes.White : Brushes.Transparent;
+        return true;
+    }
+    private void ShowConversation()
+    {
+        if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから画面を切り替えてください。"); return; }
+        PageHost.Content = null; page?.Close(); page = null; PageArea.Visibility = Visibility.Collapsed;
+        ConversationArea.Visibility = Visibility.Visible; SchedulesNav.Background = SettingsNav.Background = Brushes.Transparent; ProfileLayout();
+    }
+    private void ProfileLayout()
+    {
+        var show = inspectorVisible && model.HasSelection;
+        Inspector.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        InspectorColumn.MinWidth = show ? 280 : 0; InspectorColumn.Width = show ? model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star) : new GridLength(0);
+    }
+    private void UpdateWelcome()
+    {
+        Welcome.Visibility = !model.HasSelection || model.Messages.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        WelcomeTitle.Text = model.HasSelection ? model.Loading ? "読み込み中…" : model.Title + "との会話" : "チームと、同じデスクで。";
+        WelcomeNote.Text = model.Loading ? "" : model.HasSelection ? "最初のメッセージを送って、会話を始めましょう。" : "左のメンバーやルームを選んで、会話を始めましょう。";
+    }
+    private void NewMessages_Click(object sender, RoutedEventArgs e) { MessageScroll.ScrollToEnd(); NewMessagesButton.Visibility = Visibility.Collapsed; }
     public async Task PrepareRenderAsync()
     {
         await Task.WhenAll(Descendants<RemoteImage>(Root).Select(image => image.LoadTask).Concat(Descendants<AvatarTile>(Root).Select(tile => tile.LoadTask)));
@@ -115,20 +183,21 @@ public partial class MainWindow : Window
     private void Connection_Click(object sender, RoutedEventArgs e) => OpenConnectionSettings();
     public void OpenConnectionSettings()
     {
+        if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから接続先を変更してください。"); return; }
         var dialog = new ConnectionWindow(model.Server) { Owner = this };
-        if (dialog.ShowDialog() == true) _ = model.ConnectAsync(dialog.Address);
+        if (dialog.ShowDialog() == true) { ShowConversation(); _ = model.ConnectAsync(dialog.Address); }
     }
     private void Inspector_Click(object sender, RoutedEventArgs e) => ToggleInspector();
     private void ToggleInspector()
     {
         inspectorVisible = !inspectorVisible;
         if (!inspectorVisible) model.ReturnToProfile();
-        Inspector.Visibility = inspectorVisible ? Visibility.Visible : Visibility.Collapsed;
-        InspectorColumn.MinWidth = inspectorVisible ? 280 : 0;
-        InspectorColumn.Width = inspectorVisible ? model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        ProfileLayout();
     }
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D2) { ShowSchedules(); e.Handled = true; }
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.OemComma) { ShowSettings(); e.Handled = true; }
         if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
         if (e.Key == Key.I && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) { ToggleInspector(); e.Handled = true; }
     }

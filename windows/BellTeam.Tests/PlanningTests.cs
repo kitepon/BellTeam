@@ -195,7 +195,7 @@ public sealed class PlanningTests
                 if (request.Method != HttpMethod.Get) writes++;
                 return Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch
                 {
-                    "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/rooms" => ApiTests.Rooms,
+                    "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms,
                     "/api/owner" => "{\"owner\":{\"name\":\"オーナー\",\"profile\":\"原\\n文\",\"links\":[]}}", "/api/user-rules" => "{\"text\":\"決まり\\n続き\"}", _ => ApiTests.Page
                 }));
             })));
@@ -207,7 +207,7 @@ public sealed class PlanningTests
     }
     private static Workspace WorkspaceWithFeatures(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? write = null) => new(origin => new BellApi(origin, new StubHandler((request, token) =>
         request.Method != HttpMethod.Get ? write!(request, token) : Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch
-        { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/rooms" => ApiTests.Rooms, "/api/settings" => "{\"settings\":[" + FeatureJson + "]}", _ => ApiTests.Page })))));
+        { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, "/api/owner" => ApiTests.Owner, "/api/settings" => "{\"settings\":[" + FeatureJson + "]}", _ => ApiTests.Page })))));
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
     {
         if (root is T found) yield return found;

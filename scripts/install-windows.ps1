@@ -36,6 +36,7 @@ $taskMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'BellTeam.lnk'
 $taskShell = New-Object -ComObject WScript.Shell
 $taskShortcut = $taskShell.CreateShortcut($taskMenu)
 $taskShortcut.TargetPath = $taskExe
+$taskShortcut.IconLocation = "$taskExe,0"
 $taskShortcut.WorkingDirectory = $taskInstall
 $taskShortcut.Description = 'BellTeam'
 $taskShortcut.Save()

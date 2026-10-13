@@ -5,9 +5,11 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>BellTeam</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.3.3</Version>
+    <Version>0.4.0</Version>
+    <ApplicationIcon>Assets/BellTeam.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <Resource Include="../../ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" Link="Assets/BellTeam.png" />
     <InternalsVisibleTo Include="BellTeam.Tests" />
     <ProjectReference Include="../BellTeam.Core/BellTeam.Core.csproj" />
     <PackageReference Include="Markdig" Version="1.4.0" />

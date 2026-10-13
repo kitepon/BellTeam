@@ -64,7 +64,7 @@ public sealed class FastModeTests
             using var unavailable = new BellApi(new("http://localhost/"), new StubHandler((_, _) => Task.FromResult(StubHandler.Json("{\"message\":\"取得できません。\"}", HttpStatusCode.ServiceUnavailable))));
             Await(picker.LoadAsync(new(unavailable), CancellationToken.None)); Assert.True(picker.Apply(original).FastMode); Assert.Empty(picker.Apply(original).ChangesFrom(original)); Assert.True(picker.Children.OfType<CheckBox>().Single().IsEnabled);
             var nextPicker = new ModelPicker(original); using var api = CatalogApi(); Await(nextPicker.LoadAsync(new(api), CancellationToken.None));
-            var combos = nextPicker.Children.OfType<ComboBox>().ToArray(); combos[1].SelectedValue = "test-normal";
+            var combos = Descendants<ComboBox>(nextPicker).ToArray(); combos[1].SelectedValue = "test-normal";
             var changes = nextPicker.Apply(original).ChangesFrom(original); Assert.Equal("test-normal", changes["model"]); Assert.False(changes.ContainsKey("fastMode")); Assert.True(nextPicker.Children.OfType<CheckBox>().Single().IsEnabled);
             nextPicker.SetSavedFastMode(false); Assert.False(nextPicker.Apply(original).FastMode);
             combos[1].SelectedValue = "test-fast"; Assert.True(nextPicker.Children.OfType<CheckBox>().Single().IsEnabled);
@@ -104,7 +104,7 @@ public sealed class FastModeTests
         var fast = false; var selectedChanged = 0;
         using var workspace = new Workspace(origin => new BellApi(origin, new StubHandler((request, _) => Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch
         {
-            "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => Bots(fast), "/api/rooms" => ApiTests.Rooms, _ => ApiTests.Page
+            "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => Bots(fast), "/api/owner" => ApiTests.Owner, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, _ => ApiTests.Page
         })))));
         await workspace.ConnectAsync("http://localhost", listen: false); await workspace.SelectAsync(workspace.Entries.Single(entry => !entry.Target.IsRoom));
         workspace.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(Workspace.Selected)) selectedChanged++; };
@@ -127,13 +127,13 @@ public sealed class FastModeTests
                 }
                 return StubHandler.Json(request.RequestUri!.AbsolutePath switch
                 {
-                    "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => Bots(!patched), "/api/rooms" => ApiTests.Rooms, "/api/models" => JsonSerializer.Serialize(Catalog, BellApi.Json),
+                    "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => Bots(!patched), "/api/owner" => ApiTests.Owner, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, "/api/models" => JsonSerializer.Serialize(Catalog, BellApi.Json),
                     "/api/bots/bot-bell" => JsonSerializer.Serialize(new { bot = Initial(true) }, BellApi.Json), _ => ApiTests.Page
                 });
             })));
             Await(workspace.ConnectAsync("http://localhost", listen: false));
             var editor = new MemberEditor(workspace, "bot-bell"); Await(editor.InitializeAsync()); Await(editor.ModelLoad);
-            var picker = Descendants<ModelPicker>(editor).Single(); picker.Children.OfType<ComboBox>().ElementAt(1).SelectedValue = "test-normal";
+            var picker = Descendants<ModelPicker>(editor).Single(); Descendants<ComboBox>(picker).ElementAt(1).SelectedValue = "test-normal";
             Descendants<Button>(editor).Single(button => (string)button.Content == "保存").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
             Assert.True(submitted); Assert.False(picker.Children.OfType<CheckBox>().Single().IsChecked); Assert.False(workspace.Entries.Single(entry => !entry.Target.IsRoom).FastMode);
             Assert.Contains(Descendants<TextBlock>(editor), text => text.Text.Contains("現在の作業が終わってから適用")); editor.Close();

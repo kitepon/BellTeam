@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using BellTeam.Core;
 
 namespace BellTeam.App;
@@ -19,35 +20,43 @@ public sealed class SchedulesWindow : EditorWindow
         var entries = new List<ScheduledEntry>();
         foreach (var target in workspace.Conversations)
             entries.AddRange((await workspace.Planning.SchedulesAsync(target.Target, Token)).Schedules.Select(schedule => new ScheduledEntry(target.Target, target.Name, schedule)));
-        Token.ThrowIfCancellationRequested(); Body.Children.Clear(); Heading("予定");
-        Body.Children.Add(new TextBlock { Text = "チームに任せた仕事の、これから。", Margin = new Thickness(0, 0, 0, 12) });
-        ActionButton("予定を追加", () => Edit(null)); ActionButton("再読込", () => _ = InitializeAsync());
+        Token.ThrowIfCancellationRequested(); Body.Children.Clear();
+        var heading = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+        var add = new Button { Content = "予定を追加", Tag = "\uE710", VerticalAlignment = VerticalAlignment.Top }; add.SetResourceReference(StyleProperty, "PrimaryButton"); add.Click += (_, _) => Edit(null); DockPanel.SetDock(add, Dock.Right); heading.Children.Add(add);
+        var refresh = new Button { Content = "\uE72C", FontFamily = new FontFamily("Segoe Fluent Icons"), ToolTip = "再読込", VerticalAlignment = VerticalAlignment.Top }; refresh.SetResourceReference(StyleProperty, "IconButton"); refresh.Click += (_, _) => _ = InitializeAsync(); DockPanel.SetDock(refresh, Dock.Right); heading.Children.Add(refresh);
+        System.Windows.Automation.AutomationProperties.SetName(refresh, "再読込");
+        var title = new StackPanel(); title.Children.Add(new TextBlock { Text = "予定", FontSize = 32, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 8) }); title.Children.Add(new TextBlock { Text = "チームに任せた仕事の、これから。", FontSize = 16, Foreground = Brushes.SlateGray, Margin = new Thickness(0, 0, 0, 18) }); heading.Children.Add(title); Body.Children.Add(heading);
         var shown = entries.Where(entry => entry.Schedule.NextRunAt is not null || entry.Schedule.Enabled).OrderBy(entry => entry.Schedule.NextRunAt is { } next ? DateTimeOffset.Parse(next, CultureInfo.InvariantCulture) : DateTimeOffset.MaxValue).ToArray();
         if (shown.Length == 0) Heading("予定はありません");
         foreach (var entry in shown)
         {
-            Heading(entry.OwnerName + " · " + entry.Schedule.Title);
-            Body.Children.Add(SecretCard.CardBody(entry.Schedule.Command ?? entry.Schedule.Prompt ?? ""));
-            Body.Children.Add(new TextBlock { Text = entry.Schedule.NextRunAt is { } next ? "次回 " + DateTimeOffset.Parse(next, CultureInfo.InvariantCulture).ToLocalTime().ToString("M/d (ddd) HH:mm") : "次回未定" });
-            var row = new WrapPanel(); Body.Children.Add(row);
-            void Button(string label, Action action) { var button = new Button { Content = label }; button.Click += (_, _) => action(); row.Children.Add(button); }
-            Button("今すぐ実行", () => _ = RunAsync(async () => { await workspace.Planning.RunScheduleAsync(entry, Token); Status.Text = "実行を受け付けました。再読込で次回を確認できます。"; return false; }));
-            Button("編集", () => Edit(entry));
+            var card = new StackPanel { Margin = new Thickness(18) };
+            var owner = workspace.Conversations.FirstOrDefault(candidate => candidate.Target == entry.Target) ?? new ConversationEntry(entry.Target, entry.OwnerName, "", DateTimeOffset.MinValue, null, null);
+            var caption = new DockPanel { Margin = new Thickness(0, 0, 0, 12) }; caption.Children.Add(new AvatarTile { Entry = owner, Workspace = workspace, Width = 42, Height = 42, Margin = new Thickness(0, 0, 12, 0) });
+            var labels = new StackPanel(); labels.Children.Add(new TextBlock { Text = entry.OwnerName, FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(97, 71, 212)) }); labels.Children.Add(new TextBlock { Text = entry.Schedule.Title, FontSize = 18, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 0) }); caption.Children.Add(labels); card.Children.Add(caption);
+            card.Children.Add(new TextBlock { Text = entry.Schedule.Command ?? entry.Schedule.Prompt ?? "", FontSize = 14, TextWrapping = TextWrapping.Wrap, Foreground = Brushes.SlateGray, MaxHeight = 65, TextTrimming = TextTrimming.CharacterEllipsis });
+            card.Children.Add(new TextBlock { Text = entry.Schedule.NextRunAt is { } next ? "次回 " + DateTimeOffset.Parse(next, CultureInfo.InvariantCulture).ToLocalTime().ToString("M/d (ddd) HH:mm") : "次回未定", FontSize = 14, Foreground = new SolidColorBrush(Color.FromRgb(97, 71, 212)), Margin = new Thickness(0, 14, 0, 12) });
+            card.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(229, 227, 240)), Margin = new Thickness(0, 0, 0, 6) });
+            var row = new DockPanel { LastChildFill = false }; card.Children.Add(row);
+            void Button(string label, Action action, Dock dock = Dock.Right) { var button = new Button { Content = label, HorizontalAlignment = HorizontalAlignment.Left }; button.SetResourceReference(StyleProperty, "QuietButton"); button.Click += (_, _) => action(); DockPanel.SetDock(button, dock); row.Children.Add(button); }
+            Button("今すぐ実行", () => _ = RunAsync(async () => { await workspace.Planning.RunScheduleAsync(entry, Token); Status.Text = "実行を受け付けました。再読込で次回を確認できます。"; return false; }), Dock.Left);
             Button("削除", () =>
             {
-                if (new ConfirmationWindow("予定を削除", "この予定を削除しますか？", "削除") { Owner = this }.ShowDialog() == true)
+                if (new ConfirmationWindow("予定を削除", "この予定を削除しますか？", "削除") { Owner = DialogOwner }.ShowDialog() == true)
                     _ = DeleteAsync(entry);
             });
+            Button("編集", () => Edit(entry));
+            Body.Children.Add(new Border { Child = card, Background = Brushes.White, CornerRadius = new CornerRadius(24), BorderBrush = new SolidColorBrush(Color.FromRgb(229, 227, 240)), BorderThickness = new Thickness(1), Margin = new Thickness(0, 16, 0, 0) });
         }
         return false;
-    });
+    }, canClose: true);
     private async Task DeleteAsync(ScheduledEntry entry)
     {
         var deleted = false;
         await RunAsync(async () => { await workspace.Planning.DeleteScheduleAsync(entry, Token); deleted = true; return false; });
         if (deleted) await InitializeAsync();
     }
-    private void Edit(ScheduledEntry? entry) { var editor = new ScheduleEditor(workspace, entry) { Owner = this }; editor.ShowDialog(); _ = InitializeAsync(); }
+    private void Edit(ScheduledEntry? entry) { var editor = new ScheduleEditor(workspace, entry) { Owner = DialogOwner }; editor.ShowDialog(); _ = InitializeAsync(); }
 }
 
 public sealed class ScheduleEditor : EditorWindow
