@@ -330,3 +330,22 @@ test('ファストモードは既定で無効にし、Aitermの一覧が切り�
   registry.models = { forHarness: async () => ({ efforts: [], defaultModel: 'default', models: [{ id: 'opus', efforts: [], fast: true }] }) }
   assert.equal((await registry.update('bot-a', { harness: 'claude', model: 'claude-opus-5-5', fastMode: true })).fastMode, true)
 })
+
+test('メンバーの追加・設定変更・削除を購読者へ知らせ、購読をやめた後は知らせない', async () => {
+  const { registry } = await fixture()
+  let count = 0
+  const stop = registry.watch(() => { count += 1 })
+  await registry.update('bot-a', { position: '調査' })
+  assert.equal(count, 1)
+  const created = await registry.create({ name: '追加', harness: 'codex' })
+  assert.equal(count, 2)
+  await registry.remove(created.id)
+  assert.equal(count, 3)
+  // 断られた保存は一覧を変えないので、知らせない。
+  await assert.rejects(registry.update('bot-a', { unknown: true }), /BOT_UPDATE_FIELD_INVALID/u)
+  assert.equal(count, 3)
+  stop()
+  await registry.update('bot-a', { position: '' })
+  assert.equal(count, 3)
+})
+

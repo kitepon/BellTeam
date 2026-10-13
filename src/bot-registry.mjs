@@ -27,6 +27,17 @@ export class BotRegistry extends Map {
     this.botId = botId
     this.onChange = onChange
     this.models = models
+    this.watchers = new Set()
+  }
+
+  // 一覧と設定の変更を、同じprocessの購読者へ知らせる（アプリが一覧を読み直すための知らせに使う）。
+  watch(onChange) {
+    this.watchers.add(onChange)
+    return () => this.watchers.delete(onChange)
+  }
+
+  changed() {
+    for (const watcher of this.watchers) watcher()
   }
 
   async initialize() {
@@ -103,6 +114,7 @@ export class BotRegistry extends Map {
     await this.writeInstructions(profile)
     await this.refresh()
     await this.onChange(this)
+    this.changed()
     return this.get(id)
   }
 
@@ -111,6 +123,7 @@ export class BotRegistry extends Map {
     await this.writeProfile(profile)
     await this.writeInstructions(profile)
     await this.refresh()
+    this.changed()
     return this.get(id)
   }
 
@@ -174,6 +187,7 @@ export class BotRegistry extends Map {
     await rm(bot.project, { recursive: true, force: true })
     await this.refresh()
     await this.onChange(this)
+    this.changed()
     return { id }
   }
 
