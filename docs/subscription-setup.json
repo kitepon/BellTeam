@@ -4984,7 +4984,7 @@
       "version": "1.0.1",
       "build": "48",
       "sourceCommit": "2282987910420e1e06fdd9fce17099785a0d7200",
-      "status": "mac_installed_iphone_update_requested",
+      "status": "mac_and_iphone_installed",
       "scope": "Mac・iPhoneのファストモード切替と表示、会話の同じ席・同じ状態の配送表示を1行にまとめる",
       "tests": {
         "focusedApple": { "passed": 16, "failed": 0 },
@@ -5011,9 +5011,12 @@
         "productionFastModeChangedForTesting": false
       },
       "iphoneAcceptance": {
-        "observedInstalledBuild": "47",
-        "status": "waiting_owner_testflight_update",
-        "decisionId": "K-SUWV3A"
+        "observedInstalledBuild": "48",
+        "status": "installation_and_launch_confirmed",
+        "decisionId": "K-SUWV3A",
+        "installationMethod": "TestFlight",
+        "ownerConfirmedLaunch": true,
+        "deviceReadConfirmed": true
       },
       "syntheticMacUIReferencePR": "https://github.com/kitepon/BellTeam/pull/13"
     }
