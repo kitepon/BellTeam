@@ -51,8 +51,12 @@ export class ConversationStore {
       if (complete === bytesRead) return next
 
       // 改行で終わっていない最後の行は、次の読み込みでもう一度読む。今回の結果にだけ足す。
+      // 追記の途中だと、その行はまだJSONになっていない（ext4では4096バイトの境で切れて見える）。
+      // 壊れた記録と決めるとAPIが500を返すので（2026-10-13に2回）、今回の結果には入れず、行が書き終わった後の読み込みで読む。
+      const rest = buffer.toString('utf8', complete, bytesRead)
+      if (!isJson(rest)) return next
       const tail = { ...next, entries: [...next.entries], statuses: new Map(next.statuses) }
-      parseLines(buffer.toString('utf8', complete, bytesRead), tail)
+      parseLines(rest, tail)
       return tail
     } finally {
       await file.close()
@@ -138,6 +142,15 @@ function peerItem(record, direction, peer) {
 
 function emptyRead() {
   return { ino: null, offset: 0, lines: 0, entries: [], statuses: new Map() }
+}
+
+function isJson(text) {
+  try {
+    JSON.parse(text)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function parseLines(text, read) {
