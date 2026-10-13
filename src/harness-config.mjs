@@ -24,7 +24,7 @@ export async function configureHarnesses(bots, home = runtimeHome(), { run = exe
   }
   // RTKはオーナーの指示で標準搭載する（インフラ整備の部屋 2026-09-27）。登録できなくてもBotは動かし、理由を記録する。
   try {
-    await rtk(home, { run })
+    await rtk(home)
   } catch (error) {
     report(`BellTeam RTK: hookを登録できませんでした（${error.message}）`)
   }
@@ -49,7 +49,7 @@ const AITERM_SEAT_ENV_VARS = [
   'npm_config_cache', 'npm_config_prefix', 'PIP_CACHE_DIR',
 ]
 // 本体の環境にある時だけ席へ受け継がれる変数。
-const AITERM_INHERITED_ENV_VARS = ['BELLTEAM_ROOT', 'PLAYWRIGHT_BROWSERS_PATH', 'RTK_TELEMETRY_DISABLED', 'LC_CTYPE']
+const AITERM_INHERITED_ENV_VARS = ['BELLTEAM_ROOT', 'PLAYWRIGHT_BROWSERS_PATH', 'RTK_TELEMETRY_DISABLED', 'RTK_SUPPRESS_HOOK_WARNING', 'LC_CTYPE']
 const UNUSABLE_CODEX_MCPS = ['[mcp_servers.xcodebuildmcp]', '[mcp_servers.openai-api-key-local-confirmation]']
 
 export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridge, aiterm = aitermRegistration, relay = aitermRelay, platform = process.platform, internalPort = Number(process.env.BELLTEAM_INTERNAL_PORT ?? 4181), environment = process.env } = {}) {
