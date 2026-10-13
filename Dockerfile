@@ -61,6 +61,7 @@ ENV HOME=/home/bell \
   BELLTEAM_ROOT=/srv/bellteam \
   BELLTEAM_BOTS_CONFIG=/app/config/bots.json \
   RTK_TELEMETRY_DISABLED=1 \
+  RTK_SUPPRESS_HOOK_WARNING=1 \
   TERM=xterm-256color
 
 CMD ["sh", "-c", "cursor-agent update && exec node src/supervisor.mjs"]

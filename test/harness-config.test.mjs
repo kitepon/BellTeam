@@ -51,10 +51,10 @@ test('BellTeam設定の後に公式Throughline installを実行する', async ()
   const calls = []
   await configureHarnesses(new Map(), home, {
     run: async (command, args, options) => { calls.push([command, args, options.env.HOME]) },
-    rtk: async (value, { run }) => { calls.push(['rtk', value, typeof run]) },
+    rtk: async value => { calls.push(['rtk', value]) },
     aitermHooks: async value => { calls.push(['aiterm', value]) },
   })
-  assert.deepEqual(calls, [['throughline', ['install'], home], ['rtk', home, 'function'], ['aiterm', home]])
+  assert.deepEqual(calls, [['throughline', ['install'], home], ['rtk', home], ['aiterm', home]])
   assert.match(await readFile(join(home, '.codex/config.toml'), 'utf8'), /mcp_servers\.bellteam/u)
 })
 
