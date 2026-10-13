@@ -89,9 +89,16 @@ public partial class MainWindow : Window
     }
     private async void Screen_Click(object sender, RoutedEventArgs e) => await model.OpenScreenAsync();
     private void Profile_Click(object sender, RoutedEventArgs e) => model.ReturnToProfile();
+    private void Edit_Click(object sender, RoutedEventArgs e)
+    {
+        if (model.Selected is not { } entry) return;
+        if (entry.Target.IsRoom) { var editor = new RoomEditor(model, entry.Target.Id) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); }
+        else { var editor = new MemberEditor(model, entry.Target.Id) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); }
+    }
+    private void CreateRoom_Click(object sender, RoutedEventArgs e) { var editor = new RoomEditor(model, null) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); }
     public async Task PrepareRenderAsync()
     {
-        await Task.WhenAll(Descendants<RemoteImage>(Root).Select(image => image.LoadTask));
+        await Task.WhenAll(Descendants<RemoteImage>(Root).Select(image => image.LoadTask).Concat(Descendants<AvatarTile>(Root).Select(tile => tile.LoadTask)));
         Root.UpdateLayout();
     }
     private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject

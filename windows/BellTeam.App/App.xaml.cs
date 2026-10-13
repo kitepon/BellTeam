@@ -26,6 +26,16 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
+            if (e.Args is ["--render-editor", var editorKind, var editorAddress, var editorId, var editorOutput])
+            {
+                using var editorWorkspace = new Workspace(); await editorWorkspace.ConnectAsync(editorAddress, listen: false);
+                if (editorWorkspace.ConnectionError is { } connectionError) throw new BellApiException(connectionError);
+                EditorWindow editor;
+                if (editorKind == "member") { var member = new MemberEditor(editorWorkspace, editorId); editor = member; await member.InitializeAsync(); }
+                else if (editorKind is "room" or "new-room") { var room = new RoomEditor(editorWorkspace, editorKind == "new-room" ? null : editorId); editor = room; await room.InitializeAsync(); }
+                else throw new ArgumentException("未対応の編集画面です。");
+                await editor.ReadyTask; WritePng(editor, (int)editor.Width, (int)editor.Height, editorOutput); editor.Close(); Shutdown(0); return;
+            }
             if (e.Args is ["--render-preview", _] || e.Args is ["--render-url", _, _])
             {
                 // HWNDを作らず、WPFの部品を画像へ描く。Show・Activateは呼ばない。
@@ -41,18 +51,12 @@ public partial class App : Application
                 root.Arrange(new Rect(0, 0, 1280, height));
                 root.UpdateLayout();
                 await window.PrepareRenderAsync();
-                var bitmap = new RenderTargetBitmap(1280, height, 96, 96, PixelFormats.Pbgra32);
-                bitmap.Render(root);
-                var encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                var output = Path.GetFullPath(e.Args[^1]);
-                Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-                using (var stream = File.Create(output)) encoder.Save(stream);
+                WritePng(window, 1280, height, e.Args[^1]);
                 model.Dispose();
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-url <URL> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-url <URL> <PNG>、--render-editor <member|room|new-room> <URL> <ID> <PNG> のいずれかです。");
 
             var workspace = new Workspace();
             var main = new MainWindow(workspace);
@@ -76,6 +80,17 @@ public partial class App : Application
             else MessageBox.Show(error.Message, "BellTeam", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
+    }
+    private static void WritePng(Window window, int width, int height, string path)
+    {
+        var root = (FrameworkElement)window.Content;
+        // Contentだけを描く画像にも、実際の窓の背景を含める。
+        if (root is System.Windows.Controls.Panel { Background: null } panel) panel.Background = window.Background ?? SystemColors.WindowBrush;
+        root.Measure(new Size(width, height)); root.Arrange(new Rect(0, 0, width, height)); root.UpdateLayout();
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32); bitmap.Render(root);
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        var output = Path.GetFullPath(path); Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+        using var stream = File.Create(output); encoder.Save(stream);
     }
     protected override void OnExit(ExitEventArgs e) { instance?.Dispose(); base.OnExit(e); }
 }

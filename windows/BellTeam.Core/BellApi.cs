@@ -49,11 +49,19 @@ public sealed class BellApi : IDisposable
     }
 
     public async Task<T> PostAsync<T>(string path, object body, CancellationToken token = default)
+        => await WriteAsync<T>(HttpMethod.Post, path, body, token);
+    public async Task<T> WriteAsync<T>(HttpMethod method, string path, object body, CancellationToken token = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(body, options: Json) };
+        using var request = new HttpRequestMessage(method, path) { Content = JsonContent.Create(body, options: Json) };
         return await JsonAsync<T>(request, token);
     }
-
+    public async Task DeleteAsync(string path, CancellationToken token = default)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        using var request = new HttpRequestMessage(HttpMethod.Delete, path);
+        using var response = await client.SendAsync(request, timeout.Token);
+        await ValidateAsync(response, timeout.Token);
+    }
     public async Task<SecretRequest> FinishSecretAsync(string id, string? value, CancellationToken token = default)
     {
         // 専用POST。値を例外・診断へ含めず、リダイレクト先へ本文を渡さない。
