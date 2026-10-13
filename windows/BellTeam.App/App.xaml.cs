@@ -32,6 +32,15 @@ public partial class App : Application
             {
                 DesktopShortcut.Create(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "BellTeam.lnk"), Environment.ProcessPath!); Shutdown(0); return;
             }
+            if (e.Args is ["--render-gallery", var galleryAddress, var galleryId, var galleryOutput])
+            {
+                using var galleryWorkspace = new Workspace(); await galleryWorkspace.ConnectAsync(galleryAddress,listen:false);
+                if (galleryWorkspace.ConnectionError is { } failure) throw new BellApiException(failure);
+                var target = galleryWorkspace.Entries.Single(item=>item.Target.Id==galleryId); await galleryWorkspace.SelectAsync(target);
+                var paths = galleryWorkspace.Messages.SelectMany(item=>item.Message.DisplayedImageUrls).Distinct().ToArray();
+                if (paths.Length==0) throw new BellApiException("表示する画像がありません。");
+                var gallery = new ImageGallery(galleryWorkspace,paths,0); await gallery.ReadyTask; WritePng(gallery,960,720,galleryOutput); gallery.Close(); Shutdown(0); return;
+            }
             if (e.Args is ["--render-editor", var editorKind, var editorAddress, var editorId, var editorOutput])
             {
                 using var editorWorkspace = new Workspace(); await editorWorkspace.ConnectAsync(editorAddress, listen: false);
@@ -80,7 +89,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|settings-lower|schedules> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|settings-lower|schedules> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));

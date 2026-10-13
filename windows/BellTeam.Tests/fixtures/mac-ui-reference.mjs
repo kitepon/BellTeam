@@ -17,15 +17,18 @@ const schedules = {
 const feature = (id, title) => ({ id, title, enabled: true, status: 'enabled', fields: [] })
 const routes = { '/api/session': { authenticated: true, authMode: 'local' }, '/api/bots': { bots: fixture.bots }, '/api/rooms': { rooms: fixture.rooms }, '/api/models': { models }, '/api/owner': { owner: fixture.owner }, '/api/user-rules': { text: 'チーム全員へ共有する指示。' }, '/api/settings': { settings: [feature('routing','AIによるルーム応答の振り分け'),feature('callBridge','メンバー間の連携'),feature('notifications','通知')] }, '/api/queue': { items: Array.from({ length: 12 }, (_, index) => ({ id: `job-${index}`, botId: 'bot-one', botName: 'ユキ', status: 'running', context: 'direct', contextId: 'bot-one' })) } }
 let writes = 0
+let gallery = false
+const galleryAssets = { '/api/message-images/demo/one.png': 'ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png', '/api/message-images/demo/two.png': 'docs/assets/mac-ui-reference-48/01-workspace.png' }
 routes['/api/harness-auth'] = { harnesses: [{ id: 'codex', name: 'Codex', members: 2, startWarning: 'Codexは、認証し直しを始めた時点で今の認証が消えます。' }, { id: 'claude', name: 'Claude', members: 1, startWarning: null }] }
 routes['/api/harness-auth/codex'] = { harness: 'codex', auth: { status: 'waiting', url: 'https://example.com/login', user_code: 'TEST-CODE', input_required: false, message: '公式サイトで認証してください。' } }
 routes['/api/setup'] = { phase: 'select_harness', harness: null, harnesses: [{ id: 'codex', name: 'Codex' }, { id: 'claude', name: 'Claude' }, { id: 'grok', name: 'Grok' }, { id: 'cursor', name: 'Cursor' }], guideBotId: null, complete: false, auth: null }
 const server = createServer((request, response) => {
   if (request.method !== 'GET') { writes++; response.writeHead(405); response.end(); return }
   const path = new URL(request.url, 'http://localhost').pathname
+  if (galleryAssets[path]) { response.writeHead(200, { 'content-type': 'image/png' }); response.end(readFileSync(galleryAssets[path])); return }
   let value = routes[path]
   const chat = path.match(/^\/api\/(bots|rooms)\/([^/]+)(?:\/(messages|schedules))?$/)
-  if (chat) { const [, kind, id, action] = chat; value = action === 'messages' ? { items: messages, has_more: false } : action === 'schedules' ? { schedules: schedules[id] ?? [] } : kind === 'bots' ? { bot: fixture.bots.find(bot => bot.id === id) } : { room: fixture.rooms.find(room => room.id === id) } }
+  if (chat) { const [, kind, id, action] = chat; value = action === 'messages' ? { items: gallery ? [...messages, { id: 'gallery', at: '2026-10-13T09:03:00Z', direction: 'incoming', kind: 'message', image: true, image_urls: Object.keys(galleryAssets) }] : messages, has_more: false } : action === 'schedules' ? { schedules: schedules[id] ?? [] } : kind === 'bots' ? { bot: fixture.bots.find(bot => bot.id === id) } : { room: fixture.rooms.find(room => room.id === id) } }
   response.writeHead(value ? 200 : 404, { 'content-type': 'application/json' }); response.end(JSON.stringify(value ?? { error: 'NOT_FOUND' }))
 })
 server.listen(0, '127.0.0.1', async () => {
@@ -42,10 +45,14 @@ server.listen(0, '127.0.0.1', async () => {
       ['05-setup.png', ['--render-editor', 'setup', origin, '-']],
       ['06-authentication.png', ['--render-editor', 'authentication', origin, 'codex']],
       ['07-settings-cloudflare.png', ['--render-page', 'settings', origin]],
-      ['08-settings-lower.png', ['--render-page', 'settings-lower', origin]]
+      ['08-settings-lower.png', ['--render-page', 'settings-lower', origin]],
+      ['09-gallery.png', ['--render-gallery', origin, 'bot-one']]
     ]
-    for (const [name, args] of frames) {
+    if (process.argv[4] && process.argv[4] !== 'gallery') throw new Error('WINDOWS_RENDER_SCENE_UNKNOWN')
+    const selectedFrames = process.argv[4] === 'gallery' ? frames.filter(([name]) => name === '09-gallery.png') : frames
+    for (const [name, args] of selectedFrames) {
       if (name === '07-settings-cloudflare.png') routes['/api/session'].authMode = 'cloudflare'
+      if (name === '09-gallery.png') gallery = true
       const output = join(destination, name)
       await new Promise((success, failure) => {
         const child = spawn(executable, [...args, output], { windowsHide: true, stdio: ['ignore', 'inherit', 'inherit'] })
