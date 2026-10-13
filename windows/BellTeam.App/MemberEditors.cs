@@ -25,6 +25,7 @@ public sealed class ModelPicker : StackPanel
         harness.ItemsSource = harnesses;
         Add("CLI", harness); Add("モデル", model); Children.Add(customLabel); Children.Add(custom); Add("エフォート", effort); Children.Add(error);
         fast.IsChecked = initial.FastMode; Children.Add(fast);
+        fast.Checked += (_, _) => RenderFast(); fast.Unchecked += (_, _) => RenderFast();
         Children.Add(new TextBlock { Text = "入れると利用枠を多く使います。", TextWrapping = TextWrapping.Wrap, FontSize = 14 }); Children.Add(fastReason);
         harness.SelectionChanged += (_, _) => { if (updating || harness.SelectedValue is not string id) return; selection.SelectHarness(id); Render(); };
         model.SelectionChanged += (_, _) => { if (updating || model.SelectedValue is not string id) return; selection.SelectModel(id == "__custom__" ? custom.Text : id); RenderEffort(); customLabel.Visibility = custom.Visibility = id == "__custom__" ? Visibility.Visible : Visibility.Collapsed; };
@@ -64,8 +65,12 @@ public sealed class ModelPicker : StackPanel
         choices.AddRange(selection.Efforts.Where(value => value.Length != 0).Select(value => new FormOption(value, value)));
         if (selection.Effort.Length != 0 && !choices.Any(choice => choice.Id == selection.Effort)) choices.Add(new(selection.Effort, selection.Effort + "（現在の設定）"));
         effort.ItemsSource = choices; effort.SelectedValue = selection.Effort; updating = false;
+        RenderFast();
+    }
+    private void RenderFast()
+    {
         var reason = loadError ?? selection.FastUnavailableReason;
-        fast.IsEnabled = reason is null;
+        fast.IsEnabled = fast.IsChecked == true || reason is null;
         fastReason.Text = reason ?? "";
         fastReason.Visibility = reason is null ? Visibility.Collapsed : Visibility.Visible;
     }

@@ -59,6 +59,6 @@ public sealed class ModelSelection(string harness, string model, string effort)
     public string? FastUnavailableReason => !Catalog.TryGetValue(Harness, out var catalog) ? "モデル候補を取得できていません。"
         : catalog.Error is not null ? catalog.Error.Message
         : catalog.FastUnavailable is not null ? catalog.FastUnavailable.Message
-        : catalog.Models.FirstOrDefault(choice => choice.Id == (Model.Length == 0 ? catalog.DefaultModel : Model))?.Fast == true ? null
-        : "選択したモデルはファストモードに対応していません。";
+        : catalog.Models.FirstOrDefault(choice => choice.Id == (Model.Length == 0 ? catalog.DefaultModel : Model))?.Fast == false ? "選択したモデルはファストモードに対応していません。"
+        : null;
 }

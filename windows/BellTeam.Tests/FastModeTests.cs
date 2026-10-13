@@ -38,7 +38,7 @@ public sealed class FastModeTests
     [InlineData("codex", "", true)]
     [InlineData("codex", "test-fast", true)]
     [InlineData("codex", "test-normal", false)]
-    [InlineData("codex", "unknown", false)]
+    [InlineData("codex", "unknown", true)]
     [InlineData("claude", "test-fast", false)]
     public void PickerUsesDefaultAndNamedModelCapabilities(string harness, string model, bool available)
     {
@@ -62,13 +62,29 @@ public sealed class FastModeTests
         {
             var original = Initial(true); var picker = new ModelPicker(original);
             using var unavailable = new BellApi(new("http://localhost/"), new StubHandler((_, _) => Task.FromResult(StubHandler.Json("{\"message\":\"取得できません。\"}", HttpStatusCode.ServiceUnavailable))));
-            Await(picker.LoadAsync(new(unavailable), CancellationToken.None)); Assert.True(picker.Apply(original).FastMode); Assert.Empty(picker.Apply(original).ChangesFrom(original)); Assert.False(picker.Children.OfType<CheckBox>().Single().IsEnabled);
+            Await(picker.LoadAsync(new(unavailable), CancellationToken.None)); Assert.True(picker.Apply(original).FastMode); Assert.Empty(picker.Apply(original).ChangesFrom(original)); Assert.True(picker.Children.OfType<CheckBox>().Single().IsEnabled);
             var nextPicker = new ModelPicker(original); using var api = CatalogApi(); Await(nextPicker.LoadAsync(new(api), CancellationToken.None));
             var combos = nextPicker.Children.OfType<ComboBox>().ToArray(); combos[1].SelectedValue = "test-normal";
-            var changes = nextPicker.Apply(original).ChangesFrom(original); Assert.Equal("test-normal", changes["model"]); Assert.False(changes.ContainsKey("fastMode")); Assert.False(nextPicker.Children.OfType<CheckBox>().Single().IsEnabled);
+            var changes = nextPicker.Apply(original).ChangesFrom(original); Assert.Equal("test-normal", changes["model"]); Assert.False(changes.ContainsKey("fastMode")); Assert.True(nextPicker.Children.OfType<CheckBox>().Single().IsEnabled);
             nextPicker.SetSavedFastMode(false); Assert.False(nextPicker.Apply(original).FastMode);
             combos[1].SelectedValue = "test-fast"; Assert.True(nextPicker.Children.OfType<CheckBox>().Single().IsEnabled);
             combos[0].SelectedValue = "claude"; Assert.False(nextPicker.Children.OfType<CheckBox>().Single().IsEnabled);
+        });
+    }
+    [Theory]
+    [InlineData("catalog-error")]
+    [InlineData("unsupported")]
+    [InlineData("account-unavailable")]
+    public void EnabledFastCanAlwaysBeTurnedOffButCannotBeTurnedBackOnWhenUnavailable(string reason)
+    {
+        RunSta(() =>
+        {
+            var original = Initial(true) with { Harness = reason == "account-unavailable" ? "claude" : "codex", Model = reason == "unsupported" ? "test-normal" : "test-fast" };
+            var picker = new ModelPicker(original); var fast = picker.Children.OfType<CheckBox>().Single(); Assert.True(fast.IsEnabled);
+            using var api = reason == "catalog-error" ? new BellApi(new("http://localhost/"), new StubHandler((_, _) => Task.FromResult(StubHandler.Json("{\"message\":\"取得できません。\"}", HttpStatusCode.ServiceUnavailable)))) : CatalogApi();
+            Await(picker.LoadAsync(new(api), CancellationToken.None)); Assert.True(fast.IsEnabled);
+            fast.IsChecked = false; Assert.False(fast.IsEnabled);
+            var changes = picker.Apply(original).ChangesFrom(original); Assert.Single(changes); Assert.Equal(false, changes["fastMode"]);
         });
     }
     [Theory]
