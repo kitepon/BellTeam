@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { DatabaseSync } from 'node:sqlite'
 
-import { BellTeamMemory } from '../src/memory-service.mjs'
+import { BellTeamMemory, observeThroughlineTurns } from '../src/memory-service.mjs'
 
 // 実物のobserver-readは、afterCursorへ渡された値をそのまま返し、進んだ位置をthroughCursorへ入れる。
 async function fixture(observeTurns = async ({ afterCursor }) => ({
@@ -173,6 +173,65 @@ test('取り込み位置は、続きのページを読み終えた位置まで�
     { afterCursor: null, throughCursor: null, pageToken: null },
     { afterCursor: 'through-3', throughCursor: null, pageToken: null },
   ])
+})
+
+test('候補の取り込みはThroughlineへv2で全文を求め、v2でない返事は受け取らない', async () => {
+  const calls = []
+  const run = async (command, args) => { calls.push([command, args]); return { stdout: JSON.stringify({ schema: 'throughline.observer_read.v2', status: 'delta', turns: [] }) } }
+  await observeThroughlineTurns({ project: '/p', afterCursor: 'c1', throughCursor: 'c2', pageToken: 't', limit: 100 }, { run })
+  assert.deepEqual(calls, [['throughline', ['observer-read', '--project', '/p', '--wire', 'v2', '--limit', '100', '--json', '--after-cursor', 'c1', '--through-cursor', 'c2', '--page-token', 't']]])
+  const old = async () => ({ stdout: JSON.stringify({ schema: 'throughline.observer_read.v1', status: 'delta', turns: [] }) })
+  await assert.rejects(observeThroughlineTurns({ project: '/p', limit: 100 }, { run: old }), /THROUGHLINE_OBSERVER_READ_INVALID/)
+})
+
+// 偽のThroughline。最初の読み出しで渡された番を全部返し、その後は空の続きを返す。
+function turnsOnce(turns) {
+  return async ({ afterCursor }) => ({
+    status: afterCursor ? 'delta' : 'snapshot', afterCursor: afterCursor ?? null, throughCursor: 'through-1',
+    turns: afterCursor ? [] : turns.map(([user, assistant], index) => ({
+      source_sha256: `sha-${index}`, completed_at: Date.parse('2026-09-01T01:00:00.000Z') + index, user, assistant, truncated: false,
+    })),
+    page: { complete: true, nextToken: null },
+  })
+}
+
+test('候補は本文を上限まで全文で持ち、超えた分は頭と末尾を残す', async () => {
+  const full = '全'.repeat(4000)
+  const long = `HEAD${'長'.repeat(1996)}${'略'.repeat(500)}${'長'.repeat(1995)}😀TAIL`
+  const { memory } = await fixture(turnsOnce([[full, 'FULL_ASSISTANT'], [long, 'LONG_ASSISTANT']]))
+
+  const [kept] = (await memory.listMemoryCandidates({ botId: 'bot-a' })).items
+  assert.equal(kept.user, full)
+  assert.equal(kept.assistant, 'FULL_ASSISTANT')
+  assert.equal(kept.truncated, false)
+  await memory.dismissMemoryCandidate({ botId: 'bot-a', candidateId: kept.id })
+  const [cut] = (await memory.listMemoryCandidates({ botId: 'bot-a' })).items
+  assert.equal(cut.user, `HEAD${'長'.repeat(1996)}\n（中略 500字）\n${'長'.repeat(1995)}😀TAIL`)
+  assert.equal(cut.assistant, 'LONG_ASSISTANT')
+  assert.equal(cut.truncated, true)
+})
+
+test('候補の一覧は本文の合計が目安に収まる件数だけを返し、未整理の件数を添える', async () => {
+  const body = '字'.repeat(1500)
+  const { memory } = await fixture(turnsOnce(Array.from({ length: 5 }, (_, index) => [body, `${index}${body}`])))
+
+  const first = await memory.listMemoryCandidates({ botId: 'bot-a' })
+  assert.equal(first.pending, 5)
+  assert.deepEqual(first.items.map(item => item.assistant[0]), ['0', '1'])
+  assert.equal((await memory.listMemoryCandidates({ botId: 'bot-a', limit: 1 })).items.length, 1)
+
+  for (const item of first.items) await memory.dismissMemoryCandidate({ botId: 'bot-a', candidateId: item.id })
+  const second = await memory.listMemoryCandidates({ botId: 'bot-a' })
+  assert.equal(second.pending, 3)
+  assert.deepEqual(second.items.map(item => item.assistant[0]), ['2', '3'])
+})
+
+test('候補の一覧は、1件目が目安より長くても返す', async () => {
+  const { memory } = await fixture(turnsOnce([['字'.repeat(5000), '答'.repeat(5000)], ['短い依頼', '短い答え']]))
+  const listed = await memory.listMemoryCandidates({ botId: 'bot-a' })
+  assert.equal(listed.pending, 2)
+  assert.equal(listed.items.length, 1)
+  assert.ok(listed.items[0].user.length + listed.items[0].assistant.length > 8000)
 })
 
 test('RAGはMarkdownを正本にして即時検索でき、派生DBを再構築できる', async () => {

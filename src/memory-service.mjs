@@ -26,6 +26,12 @@ const NEAR_MATCH_LIMIT = 5
 const SECTIONS_PER_DOCUMENT = 5
 // ナレッジの文書で、本文が始まる前の行数（knowledgeMarkdown の先頭の項目と題名）。
 const KNOWLEDGE_BODY_OFFSET = 11
+// 候補に持つ本文の上限（user・assistant それぞれの字数）。超えた分は頭と末尾を半分ずつ残す。
+// 席の番4,894件で測ると、超えるのは user の1.6%、assistant の0.1%（2026-10-14）。
+const CANDIDATE_BODY_LIMIT = 4000
+// 候補の一覧が1回に返す本文の合計の目安（字数）。上限いっぱいの候補1件ぶん。
+// 本文が空で入っていた間、20件の一覧の返りは7,000字ほどだった。全文で持つと26,000字ほどになるので、返す件数を合計で止める。
+const CANDIDATE_LIST_CHARS = 8000
 const CJK = '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}ー々'
 const TERM_RUNS = new RegExp(`[${CJK}]+|(?:(?![${CJK}])[\\p{L}\\p{N}_])+`, 'gu')
 const CJK_RUN = new RegExp(`^[${CJK}]`, 'u')
@@ -200,18 +206,27 @@ export class BellTeamMemory {
     const capture = await this.captureConversation(botId)
     const db = await this.openMemory(botId, 'personal')
     try {
-      const items = db.prepare(`
+      const rows = db.prepare(`
         SELECT id, user_text, assistant_text, completed_at, truncated
         FROM conversation_candidates WHERE status = 'pending'
         ORDER BY completed_at ASC LIMIT ?
-      `).all(normalizeLimit(limit)).map(row => ({
-        id: row.id,
-        user: row.user_text,
-        assistant: row.assistant_text,
-        completedAt: new Date(row.completed_at).toISOString(),
-        truncated: Boolean(row.truncated),
-      }))
-      return { ...capture, items }
+      `).all(normalizeLimit(limit))
+      const pending = db.prepare(`SELECT count(*) AS count FROM conversation_candidates WHERE status = 'pending'`).get().count
+      // 1回に返す本文は、合計が目安に収まる件数まで。1件目は長くても返す。続きは、返した分を整理か破棄した後の呼び出しで返る。
+      const items = []
+      let chars = 0
+      for (const row of rows) {
+        chars += row.user_text.length + row.assistant_text.length
+        if (items.length > 0 && chars > CANDIDATE_LIST_CHARS) break
+        items.push({
+          id: row.id,
+          user: row.user_text,
+          assistant: row.assistant_text,
+          completedAt: new Date(row.completed_at).toISOString(),
+          truncated: Boolean(row.truncated),
+        })
+      }
+      return { ...capture, pending, items }
     } finally {
       db.close()
     }
@@ -361,11 +376,14 @@ export class BellTeamMemory {
       for (const turn of turns) {
         const sourceSha = turn.source_sha256
         const candidateId = `turn-${sourceSha}`
+        const user = candidateBody(turn.user)
+        const assistant = candidateBody(turn.assistant)
+        const truncated = turn.truncated || user.truncated || assistant.truncated
         const result = db.prepare(`
           INSERT OR IGNORE INTO conversation_candidates
             (id, source_sha256, user_text, assistant_text, completed_at, truncated, status, resolved_at)
           VALUES (?, ?, ?, ?, ?, ?, 'pending', NULL)
-        `).run(candidateId, sourceSha, turn.user ?? '', turn.assistant ?? '', Number(turn.completed_at), turn.truncated ? 1 : 0)
+        `).run(candidateId, sourceSha, user.text, assistant.text, Number(turn.completed_at), truncated ? 1 : 0)
         if (result.changes === 0) continue
         imported += 1
       }
@@ -846,11 +864,28 @@ function normalizeLimit(value) {
   return Number.isInteger(number) && number > 0 ? Math.min(number, 100) : 20
 }
 
-async function observeThroughlineTurns({ project, afterCursor, throughCursor, pageToken, limit }) {
-  const args = ['observer-read', '--project', project, '--limit', String(limit), '--json']
+// 長い本文は、頭と末尾を残して間を落とす。依頼は頭に、番の途中で届いた文と結論は末尾に在る。
+function candidateBody(value) {
+  const text = value ?? ''
+  const chars = Array.from(text)
+  if (chars.length <= CANDIDATE_BODY_LIMIT) return { text, truncated: false }
+  const half = CANDIDATE_BODY_LIMIT / 2
+  return {
+    text: `${chars.slice(0, half).join('')}\n（中略 ${chars.length - CANDIDATE_BODY_LIMIT}字）\n${chars.slice(-half).join('')}`,
+    truncated: true,
+  }
+}
+
+// 本文を切らずに返す --wire v2 で読む。指定なし（v1）は、1回の読み出しの本文を合計4,000字で止め、
+// 使い切った後の番を空の本文で返す。候補の6割が本文なしで入っていた（2026-10-14）。
+// 位置を渡さない読み出しは続きのページを読めないので、1回に読む数は上限の100件から減らさない。
+export async function observeThroughlineTurns({ project, afterCursor, throughCursor, pageToken, limit }, { run = execFileAsync } = {}) {
+  const args = ['observer-read', '--project', project, '--wire', 'v2', '--limit', String(limit), '--json']
   if (afterCursor) args.push('--after-cursor', afterCursor)
   if (throughCursor) args.push('--through-cursor', throughCursor)
   if (pageToken) args.push('--page-token', pageToken)
-  const { stdout } = await execFileAsync('throughline', args, { env: runtimeEnvironment(), maxBuffer: 4 * 1024 * 1024 })
-  return JSON.parse(stdout)
+  const { stdout } = await run('throughline', args, { env: runtimeEnvironment(), maxBuffer: 16 * 1024 * 1024 })
+  const result = JSON.parse(stdout)
+  if (result.schema !== 'throughline.observer_read.v2') throw new Error(`THROUGHLINE_OBSERVER_READ_INVALID: ${result.schema}`)
+  return result
 }
