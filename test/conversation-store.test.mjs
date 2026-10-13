@@ -111,6 +111,29 @@ test('同時の呼び出しは同じ結果を返し、短くなったログは�
   assert.deepEqual((await store.records()).map(record => record.delivery_id), ['9'])
 })
 
+test('追記の途中で切れて見える最後の行は今回の結果に入れず、書き終わった後の読み込みで返す', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-conversation-partial-'))
+  const logPath = join(root, 'direct.jsonl')
+  const second = JSON.stringify(direct('2', { message: '途中で切れて見える行' }))
+  const cut = Math.floor(Buffer.byteLength(second) / 2)
+  await writeFile(logPath, Buffer.concat([Buffer.from(line(direct('1'))), Buffer.from(second).subarray(0, cut)]))
+  const store = new ConversationStore({ logPath })
+
+  // 書きかけの行で止めない。読めた行だけを返す。
+  assert.deepEqual((await store.records()).map(record => record.delivery_id), ['1'])
+  assert.deepEqual((await store.records()).map(record => record.delivery_id), ['1'])
+
+  await appendFile(logPath, Buffer.concat([Buffer.from(second).subarray(cut), Buffer.from(`\n${line(direct('3'))}`)]))
+  assert.deepEqual((await store.records()).map(record => [record.delivery_id, record.message]), [['1', 'm1'], ['2', '途中で切れて見える行'], ['3', 'm3']])
+})
+
+test('JSONとして書き終わった最後の行が知らない種類なら、改行が無くても止める', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-conversation-unknown-tail-'))
+  const logPath = join(root, 'direct.jsonl')
+  await writeFile(logPath, line(direct('1')) + JSON.stringify({ schema: 'unknown' }))
+  await assert.rejects(new ConversationStore({ logPath }).records(), /MESSAGE_LOG_INVALID: line 2/)
+})
+
 test('改行で終わっていない最後の行も返し、続きが書かれても重ねない。壊れた行は毎回同じ行番号で知らせる', async () => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-conversation-tail-'))
   const logPath = join(root, 'direct.jsonl')
