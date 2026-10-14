@@ -5019,6 +5019,48 @@
         "deviceReadConfirmed": true
       },
       "syntheticMacUIReferencePR": "https://github.com/kitepon/BellTeam/pull/13"
+    },
+    "subscriptionInitialLoadRepair": {
+      "version": "1.0.1",
+      "build": "49",
+      "repairCommit": "0c903a4677105a4301e325c0a0b56c8b37725d23",
+      "sourceCommit": "817da14bc8aebfa9b7fdd1250c85758a124b1c03",
+      "status": "mac_installed_iphone_owner_update_pending",
+      "scope": "初回購読GET失敗時の誤案内を未確認表示に直し、再確認でGETを再取得する",
+      "tests": {
+        "beforeFix": "iOS Simulatorで誤案内を再現",
+        "focusedApple": { "passed": 15, "failed": 0 },
+        "nodeFinal": { "passed": 458, "failed": 0 },
+        "macCatalystBuild": "passed",
+        "macMockUI": "GET /api/subscription 503で確認不能表示、再確認後のGET 200で開発者表示を確認"
+      },
+      "distribution": {
+        "approvalDecisionId": "K-PDZ4EG",
+        "appId": "6816295589",
+        "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+        "iosBuildId": "b7240d45-5716-4372-9173-85250875ccba",
+        "macBuildId": "35e32344-e006-41e0-8565-51d220e20884",
+        "iosProcessing": "VALID",
+        "macProcessing": "VALID",
+        "internalBuildState": "IN_BETA_TESTING",
+        "appAndNotificationExtensionVersionsMatch": true,
+        "archiveAndExportDirectory": "runtime/apple/subscription-initial-load-49",
+        "appStorePublicSubmission": false
+      },
+      "macAcceptance": {
+        "installedPath": "/Applications/BellTeam.app",
+        "installedBuild": "49",
+        "gatekeeperSource": "Testflight",
+        "appLaunched": true,
+        "mockDebugAppStopped": true,
+        "mockServerStopped": true
+      },
+      "iphoneAcceptance": {
+        "status": "owner_update_pending",
+        "decisionId": "K-DSL7JK",
+        "deviceState": "unavailable",
+        "installationMethod": "TestFlight"
+      }
     }
   },
   "appleWebAccess": {

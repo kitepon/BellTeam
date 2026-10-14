@@ -33,6 +33,10 @@ macOSの4欄は同じ `BillingStore` と `SubscriptionView` を通る適用範�
 
 iOS（iPhone・iPad）も同じSwift実装を使い、ハーネスに依存しない。iPhone 17 Pro Simulatorで購読のfocused test 15件を確認した。iPad固有の画面と4ハーネス別の実機試験は未実施。
 
-## 配布状態
+## 配布と導入
 
-この記録の試験は修理ソースの隔離検証であり、TestFlight・App Storeへの公開、Mac・iPhone実機への導入、公開後の動作確認は含まない。
+修理ソース `0c903a4` にビルド番号49の変更を加えた `817da14` をGitHubのmainへpushした。Mac・iPhoneの署名付きアーカイブ、配布用pkg・IPAの書き出し、Appleの事前検証に成功した。両OSの本体と通知拡張は49で揃う。Appleの処理は両方 `VALID`、オーナー向けTestFlight内部配布は `IN_BETA_TESTING`。App Storeの一般公開は行っていない。
+
+MacはTestFlightから `/Applications/BellTeam.app` を49へ更新した。Gatekeeperの出所は `Testflight`、アプリを通常起動し、実行ファイルと通知拡張の49を確認した。別に作り物データを使うDebugアプリで、模擬 `GET /api/subscription` の503後に「購読の状態を確認できませんでした。再確認してください。」が表示されることを画面で確認した。「再確認」を押すとGETを再取得し、200の開発者区分で「開発者として利用中」へ変わった。模擬サーバーとDebugアプリは停止し、通常のTestFlight版49を再起動した。
+
+iPhone版49は内部配布済み。実機はこのMacから `unavailable` のため、本人にTestFlightでの更新・起動を依頼して回答待ち。端末上の導入と画面表示は未確認。
