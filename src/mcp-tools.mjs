@@ -132,32 +132,6 @@ export const bellTeamTools = Object.freeze([
     }, ['query']),
   },
   {
-    name: 'list_memory_candidates',
-    description: 'Throughlineに自動記録された自分の完了会話から、まだ長期記憶として整理していない候補を取得する。内容を読んで記憶するか破棄するか判断する。',
-    inputSchema: objectSchema({ limit: { type: 'integer', minimum: 1, maximum: 100 } }),
-  },
-  {
-    name: 'organize_memory_candidate',
-    description: '会話候補をAIの判断で長期記憶へ整理する。意味が変わる情報はrevise_memoryを使う。scope省略時はpersonal。',
-    inputSchema: objectSchema({
-      candidateId: { type: 'string', minLength: 1 },
-      memories: {
-        type: 'array', minItems: 1,
-        items: objectSchema({
-          content: { type: 'string', minLength: 1 },
-          kind: { type: 'string', enum: ['fact', 'preference', 'policy', 'task', 'config', 'incident', 'relationship', 'episode', 'growth'] },
-          scope: { type: 'string', enum: ['personal', 'shared'] },
-          importance: { type: 'integer', minimum: 1, maximum: 10 },
-        }, ['content']),
-      },
-    }, ['candidateId', 'memories']),
-  },
-  {
-    name: 'dismiss_memory_candidate',
-    description: '長期記憶へ残す必要がない会話候補を整理済みにする。',
-    inputSchema: objectSchema({ candidateId: { type: 'string', minLength: 1 } }, ['candidateId']),
-  },
-  {
     name: 'revise_memory',
     description: '自分の既存記憶を新しい内容へ更新し、古い記憶を履歴として残す。',
     inputSchema: objectSchema({
@@ -493,9 +467,6 @@ async function runBellTeamTool({ name, arguments: args = {}, from, registry, bug
   if (name === 'get_user_rules') return { text: await userRules.get() }
   if (name === 'remember') return { memory: await memory.remember({ botId: from, ...args, sourceRef: 'mcp' }) }
   if (name === 'recall_memory') return memory.recallMemory({ botId: from, ...args })
-  if (name === 'list_memory_candidates') return memory.listMemoryCandidates({ botId: from, ...args })
-  if (name === 'organize_memory_candidate') return memory.organizeMemoryCandidate({ botId: from, ...args })
-  if (name === 'dismiss_memory_candidate') return memory.dismissMemoryCandidate({ botId: from, ...args })
   if (name === 'revise_memory') return { memory: await memory.reviseMemory({ botId: from, ...args }) }
   if (name === 'pin_memory') return { memory: await memory.pinMemory({ botId: from, ...args }) }
   if (name === 'consolidate_growth') return { memory: await memory.consolidateGrowth({ botId: from, ...args }) }

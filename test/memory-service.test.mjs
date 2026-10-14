@@ -5,16 +5,9 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { DatabaseSync } from 'node:sqlite'
 
-import { BellTeamMemory, observeThroughlineTurns } from '../src/memory-service.mjs'
+import { BellTeamMemory } from '../src/memory-service.mjs'
 
-// 実物のobserver-readは、afterCursorへ渡された値をそのまま返し、進んだ位置をthroughCursorへ入れる。
-async function fixture(observeTurns = async ({ afterCursor }) => ({
-  status: afterCursor ? 'delta' : 'snapshot',
-  afterCursor: afterCursor ?? null,
-  throughCursor: 'through-empty',
-  turns: [],
-  page: { complete: true, nextToken: null },
-})) {
+async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-memory-'))
   const registry = new Map([
     ['bot-a', { id: 'bot-a', project: join(root, 'bots', 'bot-a') }],
@@ -27,7 +20,6 @@ async function fixture(observeTurns = async ({ afterCursor }) => ({
     root,
     now: () => new Date('2026-09-01T00:00:00.000Z'),
     id: () => `id-${++sequence}`,
-    observeTurns,
   })
   await memory.initialize()
   return { root, registry, memory }
@@ -84,154 +76,6 @@ test('同じ記憶は根拠だけを追加し、更新・固定・成長統合�
   assert.equal(db.prepare('SELECT status FROM assertions WHERE id = ?').get(oldEpisode.id).status, 'consolidated')
   assert.equal(db.prepare('SELECT status FROM assertions WHERE id = ?').get(first.id).status, 'active')
   db.close()
-})
-
-test('Throughlineの完了ターン候補はBotごとのDBとカーソルで分離される', async () => {
-  const calls = []
-  const observeTurns = async ({ project, afterCursor }) => {
-    calls.push({ project, afterCursor })
-    const botId = project.endsWith('bot-a') ? 'bot-a' : 'bot-b'
-    return {
-      status: afterCursor ? 'delta' : 'snapshot',
-      afterCursor: afterCursor ?? null,
-      throughCursor: `through-${botId}`,
-      turns: afterCursor ? [] : [{
-        source_sha256: `sha-${botId}`,
-        completed_at: Date.parse('2026-09-01T01:00:00.000Z'),
-        user: `${botId.toUpperCase()}_USER`,
-        assistant: `${botId.toUpperCase()}_ASSISTANT`,
-        truncated: false,
-      }],
-      page: { complete: true, nextToken: null },
-    }
-  }
-  const { root, memory } = await fixture(observeTurns)
-  const a = await memory.listMemoryCandidates({ botId: 'bot-a' })
-  const b = await memory.listMemoryCandidates({ botId: 'bot-b' })
-  const again = await memory.listMemoryCandidates({ botId: 'bot-a' })
-
-  assert.equal(a.imported, 1)
-  assert.match(a.items[0].assistant, /BOT-A_ASSISTANT/u)
-  assert.doesNotMatch(JSON.stringify(a), /BOT-B_/u)
-  assert.match(b.items[0].assistant, /BOT-B_ASSISTANT/u)
-  assert.equal(again.imported, 0)
-  assert.equal(calls.at(-1).afterCursor, 'through-bot-a')
-
-  const organized = await memory.organizeMemoryCandidate({
-    botId: 'bot-a', candidateId: a.items[0].id,
-    memories: [
-      { content: 'Aだけの長期記憶', kind: 'episode' },
-      { content: '全Bot共通の方針', kind: 'policy', scope: 'shared' },
-    ],
-  })
-  assert.equal(organized.status, 'organized')
-  assert.equal((await memory.listMemoryCandidates({ botId: 'bot-a' })).items.length, 0)
-  assert.equal((await memory.recallMemory({ botId: 'bot-a', query: 'Aだけの長期記憶' })).items.length, 1)
-  assert.equal((await memory.recallMemory({ botId: 'bot-b', query: 'Aだけの長期記憶' })).items.length, 0)
-  assert.equal((await memory.recallMemory({ botId: 'bot-b', query: '全Bot共通', scope: 'shared' })).items.length, 1)
-  assert.equal((await memory.dismissMemoryCandidate({ botId: 'bot-b', candidateId: b.items[0].id })).status, 'dismissed')
-  assert.equal((await memory.listMemoryCandidates({ botId: 'bot-b' })).items.length, 0)
-
-  const aDb = new DatabaseSync(join(root, 'bots', 'bot-a', 'memory', 'memory.db'))
-  assert.match(aDb.prepare(`SELECT content FROM raw_events WHERE source_ref = ?`).get(`throughline:sha-bot-a`).content, /BOT-A_USER/u)
-  const resolvedCandidate = aDb.prepare(`SELECT user_text, assistant_text FROM conversation_candidates WHERE id = ?`).get(a.items[0].id)
-  assert.equal(resolvedCandidate.user_text, '')
-  assert.equal(resolvedCandidate.assistant_text, '')
-  aDb.close()
-})
-
-test('取り込み位置は、続きのページを読み終えた位置まで進み、無効と返された時は取り直す', async () => {
-  const calls = []
-  const turn = name => ({
-    source_sha256: `sha-${name}`, completed_at: Date.parse('2026-09-01T01:00:00.000Z'),
-    user: `${name}_USER`, assistant: `${name}_ASSISTANT`, truncated: false,
-  })
-  const complete = { complete: true, nextToken: null }
-  const pages = [
-    { status: 'snapshot', throughCursor: 'through-1', turns: [turn('one')], page: complete },
-    { status: 'thread_switched', throughCursor: 'through-2', turns: [turn('two')], page: { complete: false, nextToken: 'page-2' } },
-    { status: 'thread_switched', throughCursor: 'through-2', turns: [turn('three')], page: complete },
-    { status: 'resync_required', throughCursor: null, turns: [], page: complete },
-    { status: 'snapshot', throughCursor: 'through-3', turns: [turn('four')], page: complete },
-    { status: 'delta', throughCursor: 'through-3', turns: [], page: complete },
-  ]
-  const observeTurns = async ({ afterCursor, throughCursor, pageToken }) => {
-    calls.push({ afterCursor, throughCursor, pageToken })
-    return { ...pages[calls.length - 1], afterCursor: afterCursor ?? null }
-  }
-  const { memory } = await fixture(observeTurns)
-
-  assert.equal((await memory.captureConversation('bot-a')).imported, 1)
-  assert.equal((await memory.captureConversation('bot-a')).imported, 2)
-  assert.deepEqual(await memory.captureConversation('bot-a'), { status: 'snapshot', imported: 1, resynced: true })
-  assert.equal((await memory.captureConversation('bot-a')).imported, 0)
-  assert.deepEqual(calls, [
-    { afterCursor: null, throughCursor: null, pageToken: null },
-    { afterCursor: 'through-1', throughCursor: null, pageToken: null },
-    { afterCursor: 'through-1', throughCursor: 'through-2', pageToken: 'page-2' },
-    { afterCursor: 'through-2', throughCursor: null, pageToken: null },
-    { afterCursor: null, throughCursor: null, pageToken: null },
-    { afterCursor: 'through-3', throughCursor: null, pageToken: null },
-  ])
-})
-
-test('候補の取り込みはThroughlineへv2で全文を求め、v2でない返事は受け取らない', async () => {
-  const calls = []
-  const run = async (command, args) => { calls.push([command, args]); return { stdout: JSON.stringify({ schema: 'throughline.observer_read.v2', status: 'delta', turns: [] }) } }
-  await observeThroughlineTurns({ project: '/p', afterCursor: 'c1', throughCursor: 'c2', pageToken: 't', limit: 100 }, { run })
-  assert.deepEqual(calls, [['throughline', ['observer-read', '--project', '/p', '--wire', 'v2', '--limit', '100', '--json', '--after-cursor', 'c1', '--through-cursor', 'c2', '--page-token', 't']]])
-  const old = async () => ({ stdout: JSON.stringify({ schema: 'throughline.observer_read.v1', status: 'delta', turns: [] }) })
-  await assert.rejects(observeThroughlineTurns({ project: '/p', limit: 100 }, { run: old }), /THROUGHLINE_OBSERVER_READ_INVALID/)
-})
-
-// 偽のThroughline。最初の読み出しで渡された番を全部返し、その後は空の続きを返す。
-function turnsOnce(turns) {
-  return async ({ afterCursor }) => ({
-    status: afterCursor ? 'delta' : 'snapshot', afterCursor: afterCursor ?? null, throughCursor: 'through-1',
-    turns: afterCursor ? [] : turns.map(([user, assistant], index) => ({
-      source_sha256: `sha-${index}`, completed_at: Date.parse('2026-09-01T01:00:00.000Z') + index, user, assistant, truncated: false,
-    })),
-    page: { complete: true, nextToken: null },
-  })
-}
-
-test('候補は本文を上限まで全文で持ち、超えた分は頭と末尾を残す', async () => {
-  const full = '全'.repeat(4000)
-  const long = `HEAD${'長'.repeat(1996)}${'略'.repeat(500)}${'長'.repeat(1995)}😀TAIL`
-  const { memory } = await fixture(turnsOnce([[full, 'FULL_ASSISTANT'], [long, 'LONG_ASSISTANT']]))
-
-  const [kept] = (await memory.listMemoryCandidates({ botId: 'bot-a' })).items
-  assert.equal(kept.user, full)
-  assert.equal(kept.assistant, 'FULL_ASSISTANT')
-  assert.equal(kept.truncated, false)
-  await memory.dismissMemoryCandidate({ botId: 'bot-a', candidateId: kept.id })
-  const [cut] = (await memory.listMemoryCandidates({ botId: 'bot-a' })).items
-  assert.equal(cut.user, `HEAD${'長'.repeat(1996)}\n（中略 500字）\n${'長'.repeat(1995)}😀TAIL`)
-  assert.equal(cut.assistant, 'LONG_ASSISTANT')
-  assert.equal(cut.truncated, true)
-})
-
-test('候補の一覧は本文の合計が目安に収まる件数だけを返し、未整理の件数を添える', async () => {
-  const body = '字'.repeat(1500)
-  const { memory } = await fixture(turnsOnce(Array.from({ length: 5 }, (_, index) => [body, `${index}${body}`])))
-
-  const first = await memory.listMemoryCandidates({ botId: 'bot-a' })
-  assert.equal(first.pending, 5)
-  assert.deepEqual(first.items.map(item => item.assistant[0]), ['0', '1'])
-  assert.equal((await memory.listMemoryCandidates({ botId: 'bot-a', limit: 1 })).items.length, 1)
-
-  for (const item of first.items) await memory.dismissMemoryCandidate({ botId: 'bot-a', candidateId: item.id })
-  const second = await memory.listMemoryCandidates({ botId: 'bot-a' })
-  assert.equal(second.pending, 3)
-  assert.deepEqual(second.items.map(item => item.assistant[0]), ['2', '3'])
-})
-
-test('候補の一覧は、1件目が目安より長くても返す', async () => {
-  const { memory } = await fixture(turnsOnce([['字'.repeat(5000), '答'.repeat(5000)], ['短い依頼', '短い答え']]))
-  const listed = await memory.listMemoryCandidates({ botId: 'bot-a' })
-  assert.equal(listed.pending, 2)
-  assert.equal(listed.items.length, 1)
-  assert.ok(listed.items[0].user.length + listed.items[0].assistant.length > 8000)
 })
 
 test('RAGはMarkdownを正本にして即時検索でき、派生DBを再構築できる', async () => {
