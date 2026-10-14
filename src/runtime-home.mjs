@@ -10,6 +10,9 @@ export function runtimeHome(environment = process.env) {
   return home
 }
 
+// 本体だけが使う合鍵。本体が起こす道具と席へは渡さない（診断の管理口の鍵。読むのは feature-settings.mjs）。
+const SERVER_ONLY_KEYS = ['BELLTEAM_BUGHUB_KEY']
+
 export function runtimeEnvironment(inherited = process.env, home = runtimeHome(inherited)) {
   const environment = {
     ...inherited,
@@ -22,6 +25,7 @@ export function runtimeEnvironment(inherited = process.env, home = runtimeHome(i
   }
   // 明示するとClaudeのuser MCP正本まで .claude/.claude.json へ移る。HOME既定に揃える。
   delete environment.CLAUDE_CONFIG_DIR
+  for (const name of SERVER_ONLY_KEYS) delete environment[name]
   return environment
 }
 

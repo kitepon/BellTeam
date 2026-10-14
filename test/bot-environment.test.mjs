@@ -52,6 +52,42 @@ test('席ではClaude Codeを自動更新させない', async t => {
   assert.equal(result.stdout, '1')
 })
 
+test('本体だけが使う合鍵は、席の復元・コマンド予定・CLI起動のどの環境にも入らない', async t => {
+  const { bots, a, b } = await fixture(t)
+  const previous = process.env.BELLTEAM_BUGHUB_KEY
+  process.env.BELLTEAM_BUGHUB_KEY = 'diagnostic-secret'
+  t.after(() => {
+    if (previous === undefined) delete process.env.BELLTEAM_BUGHUB_KEY
+    else process.env.BELLTEAM_BUGHUB_KEY = previous
+  })
+  // bot-b：env.shが同じ名前を自分で入れても、席の環境には出さない。
+  await writeFile(join(b, 'environment/env.sh'), 'BELLTEAM_BUGHUB_KEY=own-copy\nOWN_MARKER=kept\n')
+  for (const project of [a, b]) {
+    const env = await loadBotEnvironment(project)
+    assert.equal(Object.hasOwn(env, 'BELLTEAM_BUGHUB_KEY'), false)
+    const result = await runShellCommand({ cwd: project, command: 'printf "%s" "${BELLTEAM_BUGHUB_KEY-absent}"' })
+    assert.equal(result.stdout, 'absent')
+  }
+  assert.equal((await loadBotEnvironment(b)).OWN_MARKER, 'kept')
+  await writeFile(join(a, 'environment/setup.sh'), 'printf "%s" "${BELLTEAM_BUGHUB_KEY-absent}" > setup-result\n')
+  await restoreBotEnvironments(bots, { report() {} })
+  assert.equal(await readFile(join(a, 'setup-result'), 'utf8'), 'absent')
+  const calls = []
+  const client = { async call(name, args, options) {
+    calls.push({ name, args, options })
+    return { structuredContent: { session_id: args.session_name } }
+  } }
+  const transport = new AitermTransport({ client, handoffContext: async () => '' })
+  for (const harness of ['grok', 'claude', 'codex', 'cursor']) {
+    await transport.wake({ id: harness, harness, project: b })
+    assert.equal(calls.at(-1).name, 'agent_launch')
+    assert.equal(Object.hasOwn(calls.at(-1).options.env, 'BELLTEAM_BUGHUB_KEY'), false)
+    assert.equal(JSON.stringify(calls.at(-1)).includes('diagnostic-secret'), false)
+  }
+  // 本体の環境は変えない（診断の管理口は本体が自分の環境から読む）。
+  assert.equal(process.env.BELLTEAM_BUGHUB_KEY, 'diagnostic-secret')
+})
+
 test('席に出来たClaude Codeの写しとその入口だけを片付け、席のほかの物を残す', async t => {
   const { bots, a, b } = await fixture(t)
   const present = async path => access(path).then(() => true, () => false)

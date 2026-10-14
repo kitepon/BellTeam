@@ -22,6 +22,16 @@ test('未指定の実行ホームは製品内で完結し、相対指定を拒�
   assert.equal(env.MARKER, 'kept')
 })
 
+test('本体だけが使う合鍵は、本体が起こす道具と席の環境へ渡さない', () => {
+  const inherited = { BELLTEAM_HOME: '/runtime', BELLTEAM_BUGHUB_KEY: 'diagnostic-secret', MARKER: 'kept' }
+  const env = runtimeEnvironment(inherited)
+  assert.equal(Object.hasOwn(env, 'BELLTEAM_BUGHUB_KEY'), false)
+  assert.equal(JSON.stringify(env).includes('diagnostic-secret'), false)
+  assert.equal(env.MARKER, 'kept')
+  // 本体が自分で読む元の環境は変えない。
+  assert.equal(inherited.BELLTEAM_BUGHUB_KEY, 'diagnostic-secret')
+})
+
 test('Throughlineの読み取りにも設定生成と同じホームを渡す', async () => {
   const calls = []
   const run = async (command, args, options) => {
