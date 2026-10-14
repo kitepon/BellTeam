@@ -168,6 +168,31 @@ test('MCPの長期記憶とRAGは呼出元BotをBellTeam側で確定する', asy
     assert.ok(!bellTeamTools.some(tool => tool.name === name), `${name}が残っている`)
 })
 
+test('rememberとrevise_memoryは、2,000字を超えた記憶も保存して、分ける様に返りで知らせる', async () => {
+  const registry = new Map([['bot-a', { id: 'bot-a' }]])
+  registry.refresh = async () => registry
+  const saved = []
+  const memory = {
+    async remember(value) { saved.push(value.content.length); return { id: 'memory-1' } },
+    async reviseMemory(value) { saved.push(value.content.length); return { id: 'memory-2' } },
+  }
+  const context = { from: 'bot-a', registry, memory, messenger: {} }
+
+  const short = await callBellTeamTool({ ...context, name: 'remember', arguments: { content: 'あ'.repeat(2000) } })
+  assert.deepEqual(short, { memory: { id: 'memory-1' } })
+
+  const long = await callBellTeamTool({ ...context, name: 'remember', arguments: { content: 'あ'.repeat(2001) } })
+  assert.deepEqual(long.memory, { id: 'memory-1' })
+  assert.match(long.notice, /2001字/)
+  assert.match(long.notice, /分ける/)
+
+  const revised = await callBellTeamTool({ ...context, name: 'revise_memory', arguments: { id: 'memory-1', content: 'い'.repeat(3000) } })
+  assert.deepEqual(revised.memory, { id: 'memory-2' })
+  assert.match(revised.notice, /3000字/)
+
+  assert.deepEqual(saved, [2000, 2001, 3000])
+})
+
 test('update_selfは呼出元以外のBot IDを受け付けない', async () => {
   await assert.rejects(
     callBellTeamTool({
