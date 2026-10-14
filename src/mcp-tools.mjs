@@ -201,7 +201,7 @@ export const bellTeamTools = Object.freeze([
   },
   {
     name: 'update_self',
-    description: '自分の名前、プロフィール、性格（考え方）、口調、役職、役割、アバターを変更する。',
+    description: '自分の名前、プロフィール、性格（考え方）、口調、役職、役割、アバター、CLI、モデル、エフォートを変更する。CLI、モデル、エフォートは設定画面と同じ経路で保存し、今の作業の後に適用する。同じCLIの中でモデルやエフォートを変える時は会話を続けたまま切り替え、CLIを変える時だけセッションを起こし直す。',
     inputSchema: objectSchema({
       name: { type: 'string', minLength: 1, maxLength: 100 },
       profileText: { type: 'string', maxLength: 8000, description: 'プロフィール。背景・見た目・関係性。表現の見本にはしない。' },
@@ -211,6 +211,9 @@ export const bellTeamTools = Object.freeze([
       role: { type: 'string', maxLength: 8000 },
       avatar: { type: 'string', maxLength: 3000000 },
       color: { type: 'string', enum: ['rose', 'indigo', 'violet'] },
+      harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor'], description: 'CLI種別' },
+      model: { type: 'string', maxLength: 200, description: 'モデルID。空文字でそのCLIの既定へ戻す。' },
+      reasoningEffort: { type: 'string', description: 'エフォート。空文字でそのCLIの既定へ戻す。最新の候補はlist_modelsで取得する。保存時もCLIの現在の一覧で確認する。' },
     }),
   },
   {
@@ -500,9 +503,8 @@ async function runBellTeamTool({ name, arguments: args = {}, from, registry, bug
     requireBot(registry, botId)
     return remove(botId)
   }
-  if (name === 'update_self') return { bot: await registry.update(from, args) }
-  if (name === 'update_bot') {
-    const { botId, ...changes } = args
+  if (name === 'update_self' || name === 'update_bot') {
+    const { botId, ...changes } = name === 'update_self' ? { ...args, botId: from } : args
     // CLI・モデル・エフォートは稼働中セッションへの適用が要るので、設定画面と同じ経路（supervisor）で保存と適用を行う。
     if (['harness', 'model', 'reasoningEffort'].some(key => Object.hasOwn(changes, key))) return configure(botId, changes)
     return { bot: await registry.update(botId, changes) }
