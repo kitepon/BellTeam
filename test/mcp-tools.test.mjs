@@ -345,6 +345,28 @@ test('update_botのCLI・モデル・エフォート変更は設定画面と同�
   assert.equal(schema.reasoningEffort.enum, undefined, '動的な候補をMCP起動時のenumに固定しない')
 })
 
+test('update_selfのCLI・モデル・エフォート変更は自分の席を設定画面と同じ適用経路へ渡す', async () => {
+  const calls = []
+  const registry = new Map([['bot-a', { id: 'bot-a', name: 'あかり', harness: 'claude', model: 'opus', reasoningEffort: 'high' }]])
+  registry.refresh = async () => registry
+  registry.update = async (id, changes) => { calls.push(['update', id, changes]); return { ...registry.get(id), ...changes } }
+  const configure = async (botId, changes) => { calls.push(['configure', botId, changes]); return { bot: { ...registry.get(botId), ...changes }, applying: true } }
+  const context = { from: 'bot-a', registry, configure }
+
+  await callBellTeamTool({ ...context, name: 'update_self', arguments: { reasoningEffort: 'xhigh' } })
+  await callBellTeamTool({ ...context, name: 'update_self', arguments: { harness: 'codex', model: '' } })
+  await callBellTeamTool({ ...context, name: 'update_self', arguments: { role: '整備' } })
+  assert.deepEqual(calls, [
+    ['configure', 'bot-a', { reasoningEffort: 'xhigh' }],
+    ['configure', 'bot-a', { harness: 'codex', model: '' }],
+    ['update', 'bot-a', { role: '整備' }],
+  ])
+  const schema = bellTeamTools.find(tool => tool.name === 'update_self').inputSchema.properties
+  assert.deepEqual(schema.harness.enum, ['claude', 'codex', 'grok', 'cursor'])
+  assert.equal(schema.reasoningEffort.enum, undefined, '動的な候補をMCP起動時のenumに固定しない')
+  assert.equal(Object.hasOwn(schema, 'botId'), false)
+})
+
 test('MCPのモデル一覧は画面と同じAPIへCLIを渡す', async () => {
   const registry = new Map([['bot-a', { id: 'bot-a' }]])
   registry.refresh = async () => {}
