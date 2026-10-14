@@ -14,6 +14,8 @@
 
 AppleアプリはStoreKitで本人の購入・復元・取引の更新を受け取り、検証済みの現在の利用権と猶予期間から有料操作を判定する。起動・復元・取引更新・前面復帰・有料操作の直前に確認し、共有サーバーの`entitled`で別のApple Accountのアプリを解錠しない。署名付き購入情報を利用者のサーバーへ送り、運営による検証後にAppleへ取引の完了を伝える。復元の`AppStore.sync()`は利用者が復元を選んだ時だけ呼ぶ。商品とアプリの識別子は [product.json](../services/subscriptions/product.json) が正本。
 
+初回の`GET /api/subscription`に失敗してサーバーの権利区分が未確認の時は、StoreKitの有効な利用権または初期案内の権利がある場合を除き、有料操作を止めて「確認できない」と案内する。未確認を未購入と断定しない。送信前の入力は保持し、設定の「BellTeamの購読」にある「再確認」はまずGETをやり直す。確認済みの開発者区分・有効購読・未購入はそれぞれの既存動作を保つ。
+
 運営のCloudflareはAppleの最新購読状態を照会する。購入専用キーはCloudflareのsecretだけに置き、アプリ・利用者のサーバー・公開ソースへ含めない。会話本文やAIの認証情報を受け取らず、購読情報を保存しない。
 
 オーナーの開発・運用環境では、対象サーバーの`BELLTEAM_SUBSCRIPTION_ACCESS_MODE=developer`でAppleアプリの購読を免除し、「開発者として利用中」と表示する。Appleへの購読照会・購入提示は行わず、`entitled`を有効と偽らない。一般配布版はこの免除を受け付けない。通常の`subscription`でもWebとサーバーは無料で、`canUseAI`は常にtrueを返す。`entitled`はAppleの購入情報を検証した結果だけを表す。

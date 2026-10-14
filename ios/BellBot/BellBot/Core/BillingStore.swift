@@ -78,8 +78,10 @@ final class BillingStore: ObservableObject {
     var progressText: String { operation?.text ?? "購読を確認しています" }
     var presentation: SubscriptionPresentation {
         if checking { return .checking }
+        if isDeveloper { return .active }
         if entitlementCheck == .failed { return .unavailable }
-        return hasPaidAccess ? .active : .inactive
+        if hasPaidAccess { return .active }
+        return status == nil ? .unavailable : .inactive
     }
     var isDeveloper: Bool { status?.accessMode == .developer }
     var hasPaidAccess: Bool { isDeveloper || entitlement?.isActive(at: Date()) == true }
@@ -151,7 +153,7 @@ final class BillingStore: ObservableObject {
         operation = .check
         defer { operation = nil }
         guard await refreshFromServer() else { entitlementCheck = .failed; return }
-        if isDeveloper { return }
+        if isDeveloper { entitlementCheck = .complete; return }
         await loadProduct()
         do { try await refreshEntitlement() }
         catch {
@@ -201,10 +203,21 @@ final class BillingStore: ObservableObject {
     }
 
     func requirePaidAccess(initialGuide: Bool = false) async throws {
-        if !isDeveloper && !initialGuide { try await refreshEntitlement() }
+        if !isDeveloper && !initialGuide {
+            do { try await refreshEntitlement() }
+            catch {
+                if status == nil { throw unconfirmedAccessError }
+                throw error
+            }
+        }
         guard AppleSubscriptionAccess.permitsAI(developer: isDeveloper, entitlement: entitlement, initialGuide: initialGuide, now: Date()) else {
+            if status == nil { throw unconfirmedAccessError }
             throw BellAPIError.server("AppleアプリからのAI利用には月額購読が必要です。設定の「BellTeamの購読」で購入または復元してください。Web版と初期案内、会話の閲覧・書き出しは無料で使えます。")
         }
+    }
+
+    private var unconfirmedAccessError: BellAPIError {
+        .server("購読の状態を確認できませんでした。設定の「BellTeamの購読」で再確認してください。")
     }
 
     func purchase(_ action: PurchaseAction) async {

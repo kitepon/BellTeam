@@ -73,7 +73,12 @@ private struct SubscriptionContent: View {
                     Button("購入を復元") { Task { await billing.restore() } }
                         .accessibilityIdentifier("subscription-restore")
                 }
-                Button("再確認") { Task { await billing.recheck() } }
+                Button("再確認") {
+                    Task {
+                        if billing.status == nil { await billing.loadSubscription() }
+                        else { await billing.recheck() }
+                    }
+                }
             }
             .disabled(billing.checking)
             if !billing.isDeveloper {
