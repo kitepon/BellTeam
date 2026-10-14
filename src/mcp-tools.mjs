@@ -397,6 +397,18 @@ export const bellTeamTools = Object.freeze([
   ...bugHubSecurityTools,
 ])
 
+// 長期記憶の1件は1つの話にする（2026-10-14 オーナー裁定）。直すたびに前の版へ足して伸びるので、長い物は拒まずに、返りで分ける様に知らせる。
+const MEMORY_SPLIT_NOTICE_CHARS = 2000
+
+function withMemoryLengthNotice(memory, content) {
+  const length = typeof content === 'string' ? content.trim().length : 0
+  if (length <= MEMORY_SPLIT_NOTICE_CHARS) return { memory }
+  return {
+    memory,
+    notice: `この記憶は${length}字ある。1件は1つの話にして、${MEMORY_SPLIT_NOTICE_CHARS}字を超える時は分ける。手順・仕様・調べた結果はrecord_knowledgeへ置き、記憶には出来事と結末を残す。`,
+  }
+}
+
 // 画像本体（data URL）は1枚で十万文字を超え、CLIの道具の上限を超える。返事では本体を外し、有無と取得先だけを返す。
 function withoutAvatarBody(value, avatarUrl) {
   if (!value || typeof value !== 'object' || !Object.hasOwn(value, 'avatar')) return value
@@ -465,9 +477,9 @@ async function runBellTeamTool({ name, arguments: args = {}, from, registry, bug
   if (name === 'get_self') return { bot: registry.get(from) }
   if (name === 'get_owner_profile') return { owner: await ownerProfile.get() }
   if (name === 'get_user_rules') return { text: await userRules.get() }
-  if (name === 'remember') return { memory: await memory.remember({ botId: from, ...args, sourceRef: 'mcp' }) }
+  if (name === 'remember') return withMemoryLengthNotice(await memory.remember({ botId: from, ...args, sourceRef: 'mcp' }), args.content)
   if (name === 'recall_memory') return memory.recallMemory({ botId: from, ...args })
-  if (name === 'revise_memory') return { memory: await memory.reviseMemory({ botId: from, ...args }) }
+  if (name === 'revise_memory') return withMemoryLengthNotice(await memory.reviseMemory({ botId: from, ...args }), args.content)
   if (name === 'pin_memory') return { memory: await memory.pinMemory({ botId: from, ...args }) }
   if (name === 'consolidate_growth') return { memory: await memory.consolidateGrowth({ botId: from, ...args }) }
   if (name === 'record_knowledge') return { knowledge: await memory.recordKnowledge({ botId: from, ...args }) }
