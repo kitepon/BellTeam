@@ -393,25 +393,6 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
           }
         }
 
-        const candidateActionMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/memory\/candidates\/([^/]+)\/(organize|dismiss)$/u)
-        if (request.method === 'POST' && candidateActionMatch) {
-          const [, botId, candidateId, action] = candidateActionMatch
-          if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-          if (action === 'organize') return json(response, 200, await memory.organizeMemoryCandidate({
-            botId, candidateId, ...await readJson(request),
-          }))
-          return json(response, 200, await memory.dismissMemoryCandidate({ botId, candidateId }))
-        }
-
-        const candidatesMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/memory\/candidates$/u)
-        if (request.method === 'GET' && candidatesMatch) {
-          const botId = candidatesMatch[1]
-          if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-          return json(response, 200, await memory.listMemoryCandidates({
-            botId, limit: url.searchParams.get('limit') ?? undefined,
-          }))
-        }
-
         const memoryPinMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/memory\/([^/]+)\/pin$/u)
         if (request.method === 'POST' && memoryPinMatch) {
           const [, botId, id] = memoryPinMatch

@@ -1,12 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { execFile } from 'node:child_process'
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { promisify } from 'node:util'
-import { runtimeEnvironment } from './runtime-home.mjs'
-
-const execFileAsync = promisify(execFile)
 
 const MEMORY_KINDS = new Set([
   'fact', 'preference', 'policy', 'task', 'config', 'incident', 'relationship', 'episode', 'growth',
@@ -26,24 +21,17 @@ const NEAR_MATCH_LIMIT = 5
 const SECTIONS_PER_DOCUMENT = 5
 // ナレッジの文書で、本文が始まる前の行数（knowledgeMarkdown の先頭の項目と題名）。
 const KNOWLEDGE_BODY_OFFSET = 11
-// 候補に持つ本文の上限（user・assistant それぞれの字数）。超えた分は頭と末尾を半分ずつ残す。
-// 席の番4,894件で測ると、超えるのは user の1.6%、assistant の0.1%（2026-10-14）。
-const CANDIDATE_BODY_LIMIT = 4000
-// 候補の一覧が1回に返す本文の合計の目安（字数）。上限いっぱいの候補1件ぶん。
-// 本文が空で入っていた間、20件の一覧の返りは7,000字ほどだった。全文で持つと26,000字ほどになるので、返す件数を合計で止める。
-const CANDIDATE_LIST_CHARS = 8000
 const CJK = '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}ー々'
 const TERM_RUNS = new RegExp(`[${CJK}]+|(?:(?![${CJK}])[\\p{L}\\p{N}_])+`, 'gu')
 const CJK_RUN = new RegExp(`^[${CJK}]`, 'u')
 const HIRAGANA_ONLY = /^[\p{Script=Hiragana}ー]+$/u
 
 export class BellTeamMemory {
-  constructor({ registry, root, now = () => new Date(), id = randomUUID, observeTurns = observeThroughlineTurns }) {
+  constructor({ registry, root, now = () => new Date(), id = randomUUID }) {
     this.registry = registry
     this.root = root
     this.now = now
     this.id = id
-    this.observeTurns = observeTurns
   }
 
   async initialize() {
@@ -174,111 +162,6 @@ export class BellTeamMemory {
     return { ...growth, sourceMemoryIds: memoryIds }
   }
 
-  async captureConversation(botId) {
-    const bot = requireBot(this.registry, botId)
-    let afterCursor = await this.observerCursor(botId)
-    let throughCursor = null
-    let pageToken = null
-    let imported = 0
-    let resynced = false
-    let status = 'snapshot'
-    do {
-      const result = await this.observeTurns({ project: bot.project, afterCursor, throughCursor, pageToken, limit: 100 })
-      status = result.status
-      if (status === 'resync_required') {
-        if (resynced) throw new Error('THROUGHLINE_RESYNC_FAILED')
-        afterCursor = null
-        throughCursor = null
-        pageToken = null
-        resynced = true
-        continue
-      }
-      if (status === 'projection_pending') return { status, imported, resynced }
-      imported += await this.importConversationTurns(bot, result.turns ?? [])
-      throughCursor = result.throughCursor ?? throughCursor
-      pageToken = result.page?.complete === false ? result.page.nextToken : null
-      if (!pageToken && throughCursor) await this.saveObserverCursor(botId, throughCursor)
-    } while (pageToken || status === 'resync_required')
-    return { status, imported, resynced }
-  }
-
-  async listMemoryCandidates({ botId, limit = 20 }) {
-    const capture = await this.captureConversation(botId)
-    const db = await this.openMemory(botId, 'personal')
-    try {
-      const rows = db.prepare(`
-        SELECT id, user_text, assistant_text, completed_at, truncated
-        FROM conversation_candidates WHERE status = 'pending'
-        ORDER BY completed_at ASC LIMIT ?
-      `).all(normalizeLimit(limit))
-      const pending = db.prepare(`SELECT count(*) AS count FROM conversation_candidates WHERE status = 'pending'`).get().count
-      // 1回に返す本文は、合計が目安に収まる件数まで。1件目は長くても返す。続きは、返した分を整理か破棄した後の呼び出しで返る。
-      const items = []
-      let chars = 0
-      for (const row of rows) {
-        chars += row.user_text.length + row.assistant_text.length
-        if (items.length > 0 && chars > CANDIDATE_LIST_CHARS) break
-        items.push({
-          id: row.id,
-          user: row.user_text,
-          assistant: row.assistant_text,
-          completedAt: new Date(row.completed_at).toISOString(),
-          truncated: Boolean(row.truncated),
-        })
-      }
-      return { ...capture, pending, items }
-    } finally {
-      db.close()
-    }
-  }
-
-  async organizeMemoryCandidate({ botId, candidateId, memories }) {
-    if (!Array.isArray(memories) || memories.length === 0) throw new Error('MEMORY_CANDIDATE_MEMORIES_INVALID')
-    const db = await this.openMemory(botId, 'personal')
-    let candidate
-    try {
-      candidate = db.prepare(`SELECT * FROM conversation_candidates WHERE id = ? AND status = 'pending'`).get(candidateId)
-    } finally {
-      db.close()
-    }
-    if (!candidate) throw new Error(`MEMORY_CANDIDATE_NOT_FOUND: ${candidateId}`)
-    const saved = []
-    for (const memory of memories) {
-      saved.push(await this.remember({
-        botId, ...memory, sourceRef: `throughline:${candidate.source_sha256}`,
-        metadata: { candidateId, sourceSha256: candidate.source_sha256 },
-        rawContent: `user: ${candidate.user_text}\nassistant: ${candidate.assistant_text}`,
-      }))
-    }
-    const updateDb = await this.openMemory(botId, 'personal')
-    try {
-      updateDb.prepare(`
-        UPDATE conversation_candidates
-        SET status = 'organized', resolved_at = ?, user_text = '', assistant_text = ''
-        WHERE id = ?
-      `)
-        .run(this.now().toISOString(), candidateId)
-    } finally {
-      updateDb.close()
-    }
-    return { id: candidateId, status: 'organized', memories: saved }
-  }
-
-  async dismissMemoryCandidate({ botId, candidateId }) {
-    const db = await this.openMemory(botId, 'personal')
-    try {
-      const result = db.prepare(`
-        UPDATE conversation_candidates
-        SET status = 'dismissed', resolved_at = ?, user_text = '', assistant_text = ''
-        WHERE id = ? AND status = 'pending'
-      `).run(this.now().toISOString(), candidateId)
-      if (result.changes === 0) throw new Error(`MEMORY_CANDIDATE_NOT_FOUND: ${candidateId}`)
-    } finally {
-      db.close()
-    }
-    return { id: candidateId, status: 'dismissed' }
-  }
-
   async recallMemory({ botId, query, scope = 'personal', limit = 20 }) {
     const normalizedScope = normalizeScope(scope)
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
@@ -368,56 +251,6 @@ export class BellTeamMemory {
     return { scope: normalizedScope, count }
   }
 
-  async importConversationTurns(bot, turns) {
-    const db = await this.openMemory(bot.id, 'personal')
-    let imported = 0
-    try {
-      db.exec('BEGIN')
-      for (const turn of turns) {
-        const sourceSha = turn.source_sha256
-        const candidateId = `turn-${sourceSha}`
-        const user = candidateBody(turn.user)
-        const assistant = candidateBody(turn.assistant)
-        const truncated = turn.truncated || user.truncated || assistant.truncated
-        const result = db.prepare(`
-          INSERT OR IGNORE INTO conversation_candidates
-            (id, source_sha256, user_text, assistant_text, completed_at, truncated, status, resolved_at)
-          VALUES (?, ?, ?, ?, ?, ?, 'pending', NULL)
-        `).run(candidateId, sourceSha, user.text, assistant.text, Number(turn.completed_at), truncated ? 1 : 0)
-        if (result.changes === 0) continue
-        imported += 1
-      }
-      db.exec('COMMIT')
-    } catch (error) {
-      db.exec('ROLLBACK')
-      throw error
-    } finally {
-      db.close()
-    }
-    return imported
-  }
-
-  async observerCursor(botId) {
-    const db = await this.openMemory(botId, 'personal')
-    try {
-      return db.prepare(`SELECT value FROM observer_state WHERE key = 'completed_turns_cursor'`).get()?.value ?? null
-    } finally {
-      db.close()
-    }
-  }
-
-  async saveObserverCursor(botId, cursor) {
-    const db = await this.openMemory(botId, 'personal')
-    try {
-      db.prepare(`
-        INSERT INTO observer_state (key, value) VALUES ('completed_turns_cursor', ?)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value
-      `).run(cursor)
-    } finally {
-      db.close()
-    }
-  }
-
   async openMemory(botId, scope) {
     const directory = await this.ensureMemory(botId, scope)
     const db = new DatabaseSync(join(directory, 'memory.db'))
@@ -449,20 +282,6 @@ export class BellTeamMemory {
         observed_at TEXT NOT NULL,
         speaker TEXT,
         source_ref TEXT
-      );
-      CREATE TABLE IF NOT EXISTS observer_state (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS conversation_candidates (
-        id TEXT PRIMARY KEY,
-        source_sha256 TEXT NOT NULL UNIQUE,
-        user_text TEXT NOT NULL,
-        assistant_text TEXT NOT NULL,
-        completed_at INTEGER NOT NULL,
-        truncated INTEGER NOT NULL,
-        status TEXT NOT NULL,
-        resolved_at TEXT
       );
       -- assertions_fts は前の索引（3文字ずつ）。検索では使っていない。新しい索引（memory_index）を本番で確かめた後に消す。
       CREATE VIRTUAL TABLE IF NOT EXISTS assertions_fts USING fts5(
@@ -862,30 +681,4 @@ function normalizeImportance(value) {
 function normalizeLimit(value) {
   const number = Number(value ?? 20)
   return Number.isInteger(number) && number > 0 ? Math.min(number, 100) : 20
-}
-
-// 長い本文は、頭と末尾を残して間を落とす。依頼は頭に、番の途中で届いた文と結論は末尾に在る。
-function candidateBody(value) {
-  const text = value ?? ''
-  const chars = Array.from(text)
-  if (chars.length <= CANDIDATE_BODY_LIMIT) return { text, truncated: false }
-  const half = CANDIDATE_BODY_LIMIT / 2
-  return {
-    text: `${chars.slice(0, half).join('')}\n（中略 ${chars.length - CANDIDATE_BODY_LIMIT}字）\n${chars.slice(-half).join('')}`,
-    truncated: true,
-  }
-}
-
-// 本文を切らずに返す --wire v2 で読む。指定なし（v1）は、1回の読み出しの本文を合計4,000字で止め、
-// 使い切った後の番を空の本文で返す。候補の6割が本文なしで入っていた（2026-10-14）。
-// 位置を渡さない読み出しは続きのページを読めないので、1回に読む数は上限の100件から減らさない。
-export async function observeThroughlineTurns({ project, afterCursor, throughCursor, pageToken, limit }, { run = execFileAsync } = {}) {
-  const args = ['observer-read', '--project', project, '--wire', 'v2', '--limit', String(limit), '--json']
-  if (afterCursor) args.push('--after-cursor', afterCursor)
-  if (throughCursor) args.push('--through-cursor', throughCursor)
-  if (pageToken) args.push('--page-token', pageToken)
-  const { stdout } = await run('throughline', args, { env: runtimeEnvironment(), maxBuffer: 16 * 1024 * 1024 })
-  const result = JSON.parse(stdout)
-  if (result.schema !== 'throughline.observer_read.v2') throw new Error(`THROUGHLINE_OBSERVER_READ_INVALID: ${result.schema}`)
-  return result
 }
