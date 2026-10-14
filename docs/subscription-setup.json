@@ -5025,7 +5025,7 @@
       "build": "49",
       "repairCommit": "0c903a4677105a4301e325c0a0b56c8b37725d23",
       "sourceCommit": "817da14bc8aebfa9b7fdd1250c85758a124b1c03",
-      "status": "mac_installed_iphone_owner_update_pending",
+      "status": "mac_installed_iphone_owner_reported_install_and_launch",
       "scope": "初回購読GET失敗時の誤案内を未確認表示に直し、再確認でGETを再取得する",
       "tests": {
         "beforeFix": "iOS Simulatorで誤案内を再現",
@@ -5056,9 +5056,13 @@
         "mockServerStopped": true
       },
       "iphoneAcceptance": {
-        "status": "owner_update_pending",
+        "status": "owner_reported_install_and_launch",
         "decisionId": "K-DSL7JK",
+        "ownerConfirmedBuild": "49",
+        "ownerConfirmedLaunch": true,
         "deviceState": "unavailable",
+        "deviceReadConfirmed": false,
+        "deviceReadError": "CoreDevice 4016: trusted connectivity unavailable",
         "installationMethod": "TestFlight"
       }
     }

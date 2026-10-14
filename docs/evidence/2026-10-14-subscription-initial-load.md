@@ -39,4 +39,4 @@ iOS（iPhone・iPad）も同じSwift実装を使い、ハーネスに依存し�
 
 MacはTestFlightから `/Applications/BellTeam.app` を49へ更新した。Gatekeeperの出所は `Testflight`、アプリを通常起動し、実行ファイルと通知拡張の49を確認した。別に作り物データを使うDebugアプリで、模擬 `GET /api/subscription` の503後に「購読の状態を確認できませんでした。再確認してください。」が表示されることを画面で確認した。「再確認」を押すとGETを再取得し、200の開発者区分で「開発者として利用中」へ変わった。模擬サーバーとDebugアプリは停止し、通常のTestFlight版49を再起動した。
 
-iPhone版49は内部配布済み。実機はこのMacから `unavailable` のため、本人にTestFlightでの更新・起動を依頼して回答待ち。端末上の導入と画面表示は未確認。
+iPhone版49は内部配布済み。オーナーはTestFlightで49へ更新して起動したと回答した。実機はこのMacから `unavailable` で、CoreDeviceのアプリ照会も4016（信頼済み接続が利用できない）で止まった。端末上の版番号をこちらで読み取った実測と、誤案内のiPhone実画面確認は行っていない。
