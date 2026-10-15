@@ -5065,6 +5065,35 @@
         "deviceReadError": "CoreDevice 4016: trusted connectivity unavailable",
         "installationMethod": "TestFlight"
       }
+    },
+    "bugHubSevenAppRepair": {
+      "version": "1.0.1",
+      "build": "50",
+      "sourceCommit": "08d29fe7aabbfeefd53690e0f843c652d7360407",
+      "repairCommit": "d08c89744c12ac11e23d06fe6d68520cc4f3cc9c",
+      "status": "signed_validated_approval_pending",
+      "scope": "未解決7件の要求単位診断と隔離で再現した会話・予定の誤った空表示の修理",
+      "caseEvaluation": "docs/evidence/2026-10-15-bughub-seven-app.md",
+      "tests": {
+        "networkFocused": "-1001・HTTP500・events502と再接続・POST-1005の模擬試験成功",
+        "foregroundFocused": "背景移行での保留GET取消と古い結果の不反映2件成功",
+        "iphoneUI": "再接続文の既存表示、会話500・予定初回失敗の修正前後、POST-1005の入力保持と1回送信を作り物データで確認",
+        "macCatalystBuild": "passed",
+        "nodeFinal": { "passed": 459, "failed": 0 },
+        "unsignedAppGroupTest": "署名条件による既知の権限失敗として分離"
+      },
+      "distribution": {
+        "approvalDecisionId": "K-Q3SAN9",
+        "appId": "6816295589",
+        "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+        "archiveAndExportDirectory": "runtime/apple/bughub-seven-50",
+        "iosArchiveAndExport": "passed",
+        "macArchiveAndExport": "passed",
+        "appAndNotificationExtensionVersionsMatch": true,
+        "applePrevalidation": "both_no_errors",
+        "uploadStatus": "awaiting_owner_decision",
+        "appStorePublicSubmission": false
+      }
     }
   },
   "appleWebAccess": {
