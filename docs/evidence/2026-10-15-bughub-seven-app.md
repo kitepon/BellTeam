@@ -29,3 +29,11 @@ focused testの実測: `NetworkRecoveryTests`の-1001・500・502・POST -1005�
 ## 進行状態
 
 この文書は隔離検証とコード読取りの現在地。7件を解決済みへ変更する根拠ではない。Mac Catalystのビルドは画面変更まで成功。iPhone実機・本番通信断・実課金・確認前POST再送の試験は行わない。配布候補 `1.0.1(50)` のiPhone用IPAとMac用pkgはGitHub main `08d29fe`から署名付きで作成し、本体と通知拡張の版番号50、Appleの事前検証エラーなしを確認した。TestFlightへのアップロードと端末導入はオーナーの決裁待ち。
+
+## 10/15 16:09受信のMac inactive 2件
+
+トロニーが原本を確認し、`c882af7b`は6→7、`eb39292e`は3→4になった。両方とも版49、Mac、inactive、公開接続、GET、`NSURLErrorDomain -1001`、warn/open、`feature_unavailable`・`error_shown_data_retained`・`manual_retry_available`である。16:09:14.636/.637 JSTは診断の受信時刻であり、要求の失敗時刻ではない。原本に要求path・開始/失敗時刻・開始時のapp状態・TaskMetricsは無い。特に49の一覧診断の`/api/bots`は報告側の固定値なので、実際に失敗したGETを証明しない。
+
+版49と候補50の会話・一覧の状態遷移をコードで比較した。`.inactive`移行ではAppStoreは保留GETを取り消さず、`.background`移行では前面復帰TaskとSSEを取り消す。再び`.active`になると接続プールをflushし、一覧を読み直してSSEを張り直す。会話の更新は開始時にactiveかを確認するが、始まった後のGETをinactiveで専用取消しない。失敗時は既存会話・下書きを保持し、一覧は4種類の取得が揃ってからまとめて反映する。候補50は要求単位の診断と初回取得失敗時の空表示だけを変え、取消・再送・復帰の条件は変えていない。
+
+今回の2行だけでは、そのGETがactiveで始まりinactiveになったのか、inactive中に始まったのか、どの通信段で止まったのか分からない。既存データ喪失や復帰失敗は観測されていない。取消条件を増やす追加修理は行わず、次の版50診断とサーバーのGETログで照合する。Mac inactiveの実機故障試験は行わない。
