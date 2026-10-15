@@ -5150,6 +5150,35 @@
         "deviceReadReason": "実機操作・照会を再開しない条件",
         "installationMethod": "TestFlight"
       }
+    },
+    "bugHubStaleBannerRepair": {
+      "version": "1.0.1",
+      "build": "52",
+      "sourceCommit": "1cdd7d91e853706926d5454cc1d6fc4d01268fca",
+      "status": "signed_validated_decision_preparation",
+      "scope": "一覧GETとSSEの表示エラー状態を分け、成功した側のエラーだけを消す",
+      "caseEvaluation": "docs/evidence/2026-10-15-bughub-seven-app.md",
+      "tests": {
+        "beforeFix": "SSE通知なしのGET失敗後の成功で古いエラーが残ることを隔離再現",
+        "focusedAfterFix": { "passed": 3, "failed": 0 },
+        "relatedRegression": { "passed": 3, "failed": 0 },
+        "macCatalystBuild": "passed",
+        "nodeFinal": { "passed": 459, "failed": 0 },
+        "realDeviceFaultInjection": false
+      },
+      "distribution": {
+        "appId": "6816295589",
+        "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+        "archiveAndExportDirectory": "runtime/apple/bughub-stale-banner-52",
+        "iosIpaSHA256": "6761619dc7af9400aaae2cd93b20e54f515e728dd45409ab42ceb0153493a5c3",
+        "macPkgSHA256": "9979e121671658dd4fde172bd70b585a33eff31a20bd06bbe1a4cc8fe874755f",
+        "iosArchiveAndExport": "passed",
+        "macArchiveAndExport": "passed",
+        "appAndNotificationExtensionVersionsMatch": true,
+        "applePrevalidation": "both_no_errors",
+        "uploadStatus": "awaiting_owner_decision",
+        "appStorePublicSubmission": false
+      }
     }
   },
   "appleWebAccess": {
