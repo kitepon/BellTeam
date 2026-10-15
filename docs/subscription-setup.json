@@ -5155,7 +5155,7 @@
       "version": "1.0.1",
       "build": "52",
       "sourceCommit": "1cdd7d91e853706926d5454cc1d6fc4d01268fca",
-      "status": "signed_validated_approval_pending",
+      "status": "internal_distributed_mac_downloading_iphone_owner_pending",
       "scope": "一覧GETとSSEの表示エラー状態を分け、成功した側のエラーだけを消す",
       "caseEvaluation": "docs/evidence/2026-10-15-bughub-seven-app.md",
       "tests": {
@@ -5177,8 +5177,28 @@
         "macArchiveAndExport": "passed",
         "appAndNotificationExtensionVersionsMatch": true,
         "applePrevalidation": "both_no_errors",
-        "uploadStatus": "awaiting_owner_decision",
+        "uploadStatus": "internal_distribution_active",
+        "iosBuildId": "1961a592-766c-4320-8b7e-7dce1c6122fb",
+        "macBuildId": "6e245e23-4e58-4959-a160-85b33682ef60",
+        "iosProcessing": "VALID",
+        "macProcessing": "VALID",
+        "internalBuildState": "IN_BETA_TESTING",
         "appStorePublicSubmission": false
+      },
+      "macAcceptance": {
+        "installedPath": "/Applications/BellTeam.app",
+        "installedBuild": "51",
+        "targetBuild": "52",
+        "testflightDownloadState": "downloading",
+        "gatekeeperSource": "Testflight",
+        "targetBuildLaunched": false
+      },
+      "iphoneAcceptance": {
+        "status": "owner_install_pending",
+        "decisionId": "K-7HUJYX",
+        "deviceReadConfirmed": false,
+        "deviceReadReason": "実機操作・照会を再開しない条件",
+        "installationMethod": "TestFlight"
       }
     }
   },

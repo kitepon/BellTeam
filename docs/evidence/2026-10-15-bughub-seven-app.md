@@ -84,3 +84,5 @@ focused testの実測: `NetworkRecoveryTests`の-1001・500・502・POST -1005�
 修正後のiOS Simulator focused testは、GET失敗→成功時の旧エラー消去と既知一覧・下書き保持、SSE未回復中のGET成功で再接続警告維持、SSE回復とGET失敗が重なる時のGETエラー維持の3件が成功（`runtime/bughub-stale-banner-fixed.xcresult`）。既存のSSE 502復帰・GET失敗診断・認証復帰の3件も成功（`runtime/bughub-stale-banner-regression.xcresult`）。Mac Catalystビルド成功、リポジトリ全459試験成功。実環境での新修理の表示は未確認。Apple配布は版52の署名候補を別に作り、51の配布承認を流用しない。
 
 版52はmain `1cdd7d9`からiPhone IPAとMac pkgを署名付きで書き出した。本体・通知拡張とも52で、IPA内の版番号とMacアーカイブの署名を照合した。両成果物のApple事前検証はエラーなし。検査値と配布待ちの状態は`docs/subscription-setup.json`に保存する。TestFlightへのアップロードと端末導入は新しい決裁の対象とする。
+
+オーナーの版52配布承認を受け、Mac・iPhone版はAppleで両方VALID、オーナー向け内部グループで`IN_BETA_TESTING`になった。MacのTestFlightは52を表示するが、更新後しばらく「ダウンロード中」のままで、`/Applications/BellTeam.app`はまだ51。TestFlightの停止・再開と通常の再起動後も同じ表示で、インストール52の完了と起動は未確認。iPhone本人のTestFlight更新・起動は決裁箱で依頼中で、こちらから端末操作・照会はしない。配布の受領と端末導入を区別して記録する。
