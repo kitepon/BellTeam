@@ -26,6 +26,78 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         XCTAssertTrue((proof["requests"] as? [[String: Any]])?.filter { $0["method"] as? String == "PATCH" }.isEmpty == true)
     }
 
+    func testFeatureSettingKeepsKnownValuesAfterLaterReadFailure() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else { throw XCTSkip("通信報告の隔離サーバーが必要です。") }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset?mode=settings-known-after-write-failure")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server]
+        app.launch(); defer { app.terminate() }
+        app.tabBars.buttons["設定"].tap()
+        let setting = app.staticTexts["試験機能"]
+        for _ in 0..<5 where !setting.isHittable { app.scrollViews.firstMatch.swipeUp() }
+        XCTAssertTrue(setting.waitForExistence(timeout: 5))
+        setting.tap()
+        let field = app.textFields["試験の値"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertEqual(field.value as? String, "保持する値")
+        app.buttons["保存"].tap()
+        XCTAssertTrue(app.buttons["再読み込み"].waitForExistence(timeout: 5))
+        XCTAssertEqual(field.value as? String, "保持する値", "後続GET失敗でも取得済みの編集値を保持する")
+        XCTAssertTrue(app.switches["有効にする"].exists)
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        XCTAssertEqual((proof["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String) == "/api/settings" }.count, 3)
+        XCTAssertEqual((proof["requests"] as? [[String: Any]])?.filter { ($0["method"] as? String) == "PATCH" && ($0["path"] as? String) == "/api/settings/routing" }.count, 1)
+        let image = XCTAttachment(screenshot: app.screenshot()); image.name = "既知設定の後続GET失敗"; image.lifetime = .keepAlways; add(image)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.staticTexts["試験機能"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["有効"].exists, "失敗前に取得した一覧を保持する")
+    }
+
+    func testKnownScheduleSurvivesBackgroundCancellationAndReloadsOnReturn() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else { throw XCTSkip("通信報告の隔離サーバーが必要です。") }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset?mode=schedule-known")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server]
+        app.launch(); defer { app.terminate() }
+        app.tabBars.buttons["予定"].tap()
+        XCTAssertTrue(app.staticTexts["隔離予定"].waitForExistence(timeout: 6))
+        let before = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let prior = (before["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/schedules") == true }.count ?? 0
+
+        XCUIDevice.shared.press(.home)
+        _ = try data(base, "/test/mode?mode=schedule-pending")
+        app.activate()
+        let deadline = Date().addingTimeInterval(5)
+        var current: [[String: Any]] = []
+        while Date() < deadline {
+            let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+            current = (proof["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/schedules") == true } ?? []
+            if current.count > prior { break }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        XCTAssertEqual(current.count, prior + 1)
+        let retained = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        retained.name = "既知予定を表示したまま次のGETが保留中"
+        retained.lifetime = .keepAlways; add(retained)
+
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 1)
+        let stopped = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let reads = (stopped["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/schedules") == true } ?? []
+        XCTAssertEqual(reads.count, prior + 1, "背景では次の逐次GETを始めない")
+        XCTAssertEqual(reads.last?["closed"] as? Bool, true, "進行中GETを取り消す")
+
+        _ = try data(base, "/test/mode?mode=schedule-known")
+        app.activate()
+        XCTAssertTrue(app.staticTexts["隔離予定"].waitForExistence(timeout: 6))
+        XCUIDevice.shared.press(.home)
+        _ = try data(base, "/test/mode?mode=normal")
+        app.activate()
+        XCTAssertTrue(app.staticTexts["予定はありません"].waitForExistence(timeout: 8), "復帰時に正常な新しい結果を反映する")
+    }
+
     func testFailedImagePostRestoresComposerWithoutResend() throws {
         guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else { throw XCTSkip("通信報告の隔離サーバーが必要です。") }
         let base = try XCTUnwrap(URL(string: server))

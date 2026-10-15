@@ -19,6 +19,7 @@ await reset('normal')
 const bot = () => ({ id: 'bot-one', ...saved, displayName: saved.name, online: true, recent: null })
 const owner = { name: '試験用', profile: '', avatar: '', xUrl: '', githubUrl: '', links: [] }
 const subscription = { productId: 'dev.kitepon.bellbot.monthly', environment: 'Sandbox', accessMode: 'developer', setupComplete: true, entitled: false, state: 'none', checkedAt: null, expiresAt: null, validUntil: null, autoRenewing: false, error: null }
+const setting = { id: 'routing', title: '試験機能', enabled: true, status: 'enabled', error: null, fields: [{ key: 'label', label: '試験の値', secret: false, value: '保持する値', configured: true }] }
 const message = { id: 'probe-message', kind: 'message', direction: 'incoming', at: '2026-10-07T00:00:00Z', message: '試験用の会話', delivery: 'delivered' }
 const json = (response, value) => { response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify(value)) }
 const server = createServer(async (request, response) => {
@@ -42,6 +43,10 @@ const server = createServer(async (request, response) => {
     if (mode === 'save-confirmed') { request.socket.destroy(); return }
     return json(response, {})
   }
+  if (request.method === 'PATCH' && url.pathname === '/api/settings/routing') {
+    for await (const _ of request) { }
+    return json(response, { setting })
+  }
   if (url.pathname.endsWith('/schedules')) {
     if (mode === 'schedule-pending') return
     if (mode === 'schedule-known' && url.pathname === '/api/bots/bot-one/schedules') {
@@ -59,10 +64,11 @@ const server = createServer(async (request, response) => {
   if (url.pathname === '/api/subscription') return json(response, { subscription })
   if (url.pathname === '/api/settings') {
     settingsReads++
-    if (mode === 'settings-editor-failure' && settingsReads === 2) {
+    if ((mode === 'settings-editor-failure' && settingsReads === 2) ||
+        (mode === 'settings-known-after-write-failure' && settingsReads === 3)) {
       response.writeHead(503); response.end(); return
     }
-    return json(response, { settings: [{ id: 'routing', title: '試験機能', enabled: true, status: 'enabled', error: null, fields: [{ key: 'label', label: '試験の値', secret: false, value: '保持する値', configured: true }] }] })
+    return json(response, { settings: [setting] })
   }
   if (url.pathname === '/api/setup') return json(response, { phase: 'ready', complete: true, harnesses: [], guideBotId: null, auth: null })
   if (url.pathname === '/api/session') return json(response, { authenticated: true, authMode: 'local' })

@@ -5102,13 +5102,15 @@
       "version": "1.0.1",
       "build": "51",
       "sourceCommit": "420bf459d05b6d183722015122fb9de93df59a29",
-      "status": "signed_validated_approval_pending",
+      "status": "uploaded_apple_processing",
       "scope": "候補50の7件診断・表示修理に設定Editor初回GET失敗の保存防止を追加。予定背景取消と画像付きPOSTの保持を隔離確認",
       "caseEvaluation": "docs/evidence/2026-10-15-bughub-seven-app.md",
       "tests": {
         "featureSettingsBeforeFix": "iPhone Simulatorで初回GET 503後に未取得値の保存が有効になることを再現",
         "featureSettingsAfterFix": "初回GET 503では保存無効と手動再読込表示、GET 200後に既知値表示と保存有効",
-        "scheduleBackground": "進行中GETの取消、次の逐次GET停止、前面復帰後の再取得を隔離UIで確認。既知行保持の実画面は未確認",
+        "knownSettingsLaterReadFailure": "取得済み値でPATCH後の3回目GETを503にし、Editorの値・有効スイッチ・一覧の既知状態をiPhone Simulatorで保持確認",
+        "scheduleBackground": "進行中GETの取消、次の逐次GET停止、前面復帰後の再取得を隔離UIで確認",
+        "knownScheduleBackground": "既知予定行を表示したまま保留GETを背景取消し、画面保持と復帰後の再取得をiPhone Simulatorで確認",
         "postWithImage": "iPhone Simulatorで画像1件・本文を含むPOST1回、結果未確定後の文字・画像・既存会話保持を確認",
         "macCatalystBuild": "passed",
         "nodeFinal": { "passed": 459, "failed": 0 }
@@ -5124,7 +5126,11 @@
         "macArchiveAndExport": "passed",
         "appAndNotificationExtensionVersionsMatch": true,
         "applePrevalidation": "both_no_errors",
-        "uploadStatus": "awaiting_owner_decision",
+        "uploadStatus": "both_accepted_apple_processing",
+        "iosDeliveryUUID": "4f68c17a-4edc-42e6-9619-31f764280986",
+        "macBuildId": "8c47b3e7-8804-42a5-a23b-96503e33ceea",
+        "macProcessing": "VALID",
+        "iosProcessing": "awaiting_apple_processing",
         "appStorePublicSubmission": false
       }
     }
