@@ -5155,7 +5155,7 @@
       "version": "1.0.1",
       "build": "52",
       "sourceCommit": "1cdd7d91e853706926d5454cc1d6fc4d01268fca",
-      "status": "signed_validated_decision_preparation",
+      "status": "signed_validated_approval_pending",
       "scope": "一覧GETとSSEの表示エラー状態を分け、成功した側のエラーだけを消す",
       "caseEvaluation": "docs/evidence/2026-10-15-bughub-seven-app.md",
       "tests": {
@@ -5167,6 +5167,7 @@
         "realDeviceFaultInjection": false
       },
       "distribution": {
+        "approvalDecisionId": "K-S7P5Z3",
         "appId": "6816295589",
         "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
         "archiveAndExportDirectory": "runtime/apple/bughub-stale-banner-52",
