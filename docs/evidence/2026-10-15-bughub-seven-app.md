@@ -18,7 +18,9 @@
 
 通常のURLSession要求に要求単位のdelegateを付け、失敗した要求の経路、メソッド、端末での開始・失敗時刻、開始時の画面状態、試行回数、取得できたTaskMetricsの接続・要求・応答時刻と接続再利用を、既存`diagnostic_log`へ添える。製品が生成する既存のBot・ルームIDは要求の照合に使うため経路へ残し、任意のIDは`:id`へ置き換える。URL query、host、名前、本文、認証情報は記録しない。TaskMetricsが無い時は`task_metrics_available=false`とする。-1005の既存GET再取得以外の再送、ID体系、キューは加えない。Appleの[一次資料と解釈](../../rag/apple-networking/task-metrics.md)を参照。
 
-模擬通信では-1001、HTTP 500、events 502、POST -1005の診断に要求経路と時刻が付き、URLSessionTaskMetricsが収集された。events 502後のSSE復帰と、前面復帰GETの背景移行時取消もfocused testで確認した。署名を切ったNetworkRecoveryTests全体の1件はApp Group権限不足で失敗しており、この通信修理の試験失敗とは分ける。
+本体の指紋は`code:module:severity`を使うため、同じ3値なら診断ログの項目追加だけでは指紋を変えない。ただし50は失敗した実経路からmoduleを選ぶ。49でbotsやmessagesへ固定していた報告の実GETがrooms・owner・queue等なら、将来はmoduleが変わり別指紋になり得る。旧7件の原本・累計・openは移動・統合しない。
+
+模擬通信では-1001、HTTP 500、events 502、POST -1005の診断に要求経路と時刻が付いた。-1001とHTTP 500ではTaskMetricsも収集できた。events 502では`bytes(for:)`が応答ヘッダーを返した時点で判定するため、その瞬間のTaskMetrics取得は保証できず、模擬試験では未取得と記録された。events 502後のSSE復帰と、前面復帰GETの背景移行時取消もfocused testで確認した。署名を切ったNetworkRecoveryTests全体の1件はApp Group権限不足で失敗しており、この通信修理の試験失敗とは分ける。
 
 focused testの実測: `NetworkRecoveryTests`の-1001・500・502・POST -1005は各成功、502から再接続中表示・通知受信後の消去も成功、`ForegroundRefreshTests`の背景取消2件は成功、`BellDiagnosticsTests`の既存5件と生成済みの不透明IDだけを残す1件は成功。作り物データの`ConnectionErrorUITests`は、iPhoneの再接続文を表示する既存動作を1件成功で確認した。Mac Catalystビルド成功。サーバー担当の変更を取り込んだリポジトリの`npm test`は459件成功。
 

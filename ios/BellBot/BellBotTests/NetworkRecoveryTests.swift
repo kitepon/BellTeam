@@ -164,6 +164,9 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertEqual(scenario.reports.count, 1)
         XCTAssertEqual(scenario.reports[0].code, "IOS_HTTP_5XX")
         XCTAssertTrue(scenario.reports[0].log.contains("request_route=/api/events"))
+        XCTAssertTrue(scenario.reports[0].log.contains("request_started_at_ms="))
+        XCTAssertTrue(scenario.reports[0].log.contains("request_failed_at_ms="))
+        XCTAssertTrue(scenario.reports[0].log.contains("task_metrics_available="))
         XCTAssertTrue(scenario.reports[0].log.contains("severity=warn"))
     }
 
