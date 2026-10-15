@@ -20,7 +20,14 @@ struct BellRequestTrace {
         switch parts[1] {
         case "events", "queue", "session", "subscription", "models", "settings", "bots", "rooms", "owner":
             var safe = parts
-            if ["bots", "rooms", "settings"].contains(parts[1]), safe.count > 2 { safe[2] = ":id" }
+            if ["bots", "rooms"].contains(parts[1]), safe.count > 2 {
+                let prefix = parts[1] == "bots" ? "bot-" : "room-"
+                let suffix = safe[2].dropFirst(prefix.count)
+                let generated = safe[2].hasPrefix(prefix) && suffix.count == 8
+                    && suffix.allSatisfy { "0123456789abcdef".contains($0) }
+                if !generated { safe[2] = ":id" }
+            }
+            if parts[1] == "settings", safe.count > 2 { safe[2] = ":id" }
             if safe.count > 4 { safe[4] = ":id" }
             if safe.count > 5 { safe = Array(safe.prefix(5)) }
             if ["events", "queue", "session", "models", "owner"].contains(parts[1]) { safe = Array(safe.prefix(2)) }

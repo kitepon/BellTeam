@@ -37,6 +37,7 @@ private struct ConversationContent: View {
     }
     @State private var selectedTargets: Set<String> = []
     @State private var errorText: String?
+    @State private var initialLoadFailed = false
     #if !targetEnvironment(macCatalyst)
     @State private var showingDetail = false
     #endif
@@ -67,7 +68,8 @@ private struct ConversationContent: View {
                             if loading && messages.isEmpty {
                                 ProgressView().padding(.top, 90)
                             } else if messages.isEmpty {
-                                emptyConversation
+                                if initialLoadFailed { failedConversation }
+                                else { emptyConversation }
                             }
                             ForEach(messages) { message in
                                 Group {
@@ -247,6 +249,17 @@ private struct ConversationContent: View {
         .padding(.top, 100)
     }
 
+    private var failedConversation: some View {
+        ContentUnavailableView {
+            Label("会話を読み込めませんでした", systemImage: "wifi.exclamationmark")
+        } description: {
+            Text("再読み込みしてください。")
+        } actions: {
+            Button("再読み込み") { Task { await loadInitial() } }
+        }
+        .padding(.top, 60)
+    }
+
     private var queueStrip: some View {
         VStack(alignment: .leading, spacing: 9) {
             ForEach(QueueItem.displayItems(queue)) { item in
@@ -419,11 +432,13 @@ private struct ConversationContent: View {
             queue = queued.items
             hasMore = result.hasMore
             errorText = nil
+            initialLoadFailed = false
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
         } catch is CancellationError { }
         catch {
             errorText = error.localizedDescription
+            initialLoadFailed = true
             store.api.diagnostics.report(error, path: target.path + "/messages", method: "GET", observation: .read(error, retainedData: !messages.isEmpty))
         }
         loading = false
@@ -514,10 +529,12 @@ private struct ConversationContent: View {
                 scrollToBottomRevision += 1
             }
             errorText = nil
+            initialLoadFailed = false
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch is CancellationError { }
         catch {
             errorText = error.localizedDescription
+            if messages.isEmpty { initialLoadFailed = true }
             store.api.diagnostics.report(error, path: target.path + "/messages", method: "GET", observation: .read(error, retainedData: !messages.isEmpty))
         }
     }

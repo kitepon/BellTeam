@@ -46,6 +46,15 @@ final class BellDiagnosticsTests: XCTestCase {
             BellAPIError.httpStatus(503, "private response"), module: "queue")
         XCTAssertEqual(log, "module=queue\nhttp_status=503")
     }
+
+    func testRequestRouteKeepsOnlyGeneratedOpaqueMemberIds() {
+        XCTAssertEqual(BellRequestTrace.route(for: "/api/bots/bot-deadbeef/schedules"),
+                       "/api/bots/bot-deadbeef/schedules")
+        XCTAssertEqual(BellRequestTrace.route(for: "/api/rooms/room-1234abcd/messages"),
+                       "/api/rooms/room-1234abcd/messages")
+        XCTAssertEqual(BellRequestTrace.route(for: "/api/bots/private-name/messages"),
+                       "/api/bots/:id/messages")
+    }
 }
 
 final class EventStreamTests: XCTestCase {
