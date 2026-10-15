@@ -5102,7 +5102,7 @@
       "version": "1.0.1",
       "build": "51",
       "sourceCommit": "420bf459d05b6d183722015122fb9de93df59a29",
-      "status": "internal_distributed_mac_installed_iphone_owner_pending",
+      "status": "internal_distributed_mac_installed_iphone_owner_reported",
       "scope": "候補50の7件診断・表示修理に設定Editor初回GET失敗の保存防止を追加。予定背景取消と画像付きPOSTの保持を隔離確認",
       "caseEvaluation": "docs/evidence/2026-10-15-bughub-seven-app.md",
       "tests": {
@@ -5142,8 +5142,10 @@
         "appLaunched": true
       },
       "iphoneAcceptance": {
-        "status": "owner_install_pending",
+        "status": "owner_reported_install_and_launch",
         "decisionId": "K-A632F2",
+        "ownerConfirmedBuild": "51",
+        "ownerConfirmedLaunch": true,
         "deviceReadConfirmed": false,
         "deviceReadReason": "実機操作・照会を再開しない条件",
         "installationMethod": "TestFlight"
