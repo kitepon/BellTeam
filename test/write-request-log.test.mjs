@@ -18,13 +18,12 @@ async function settled(lines, count) {
   for (let i = 0; i < 100 && lines.length < count; i += 1) await new Promise(resolve => setTimeout(resolve, 10))
 }
 
-test('書き込み系の要求は、時刻・メソッド・パス・状態コードを1行残す。読み取りと問い合わせ文字列は残さない', async t => {
+test('書き込み系の要求のログ形式を保ち、問い合わせ文字列と本文は残さない', async t => {
   const bots = new Map([['bot-a', { id: 'bot-a' }]])
   bots.previewUpdate = async id => ({ ...bots.get(id) })
   bots.update = async id => bots.get(id)
   const { lines, base } = await start(t, bots)
 
-  assert.equal((await fetch(`${base}/api/bots/bot-a`)).status, 200)
   const saved = await fetch(`${base}/api/bots/bot-a?token=secret`, {
     method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: '本文は残さない' }),
   })

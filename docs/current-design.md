@@ -4,6 +4,8 @@
 
 ## 公開認証
 
+APIの通信診断では、POST・PUT・PATCH・DELETEの既存の `BellTeam write:` ログを保ち、GET・HEADには `BellTeam read:` を残す。読み取りは受付時の `started` と、接続終了時のHTTP状態または `aborted`・所要時間を記録する。両行の時刻は同じ受付時刻で、追加の要求IDは作らない。本文・問い合わせ文字列・Cookie・認証ヘッダーは記録しない。`/healthz`、静的ファイル、MCPは対象外。SSEは接続の受付と閉鎖だけを記録する。正常終了はNodeが応答をOSへ渡した事を示し、端末が受け取った証明にはしない。同じ時刻・経路の要求が重なる場合、ログだけで一意に対応付けたとは扱わない。
+
 未設定のコンテナではWeb UIと管理APIを直接使える。同じマシン・LANからのHTTP接続を許可する。Cloudflare Accessを設定して有効にした公開ドメインの接続では、`Cf-Access-Jwt-Assertion`の署名・発行元・audience・期限を検証し、未認証なら拒否する。LANの直接接続は維持する。ブラウザにBellTeam独自のアクセスキーを保存しない。`/healthz`は監視用、`/api/session`は接続確認用に未認証でも状態を返す。
 
 コンテナ内のMCP連携はloopback専用の内部HTTP入口を使う。BellTeam MCPと通話MCPは席ごとのプロセスを起こさず、各CLIがこの入口の`/mcp`と`/mcp/call-bridge`へHTTPで直結する。どの席かは、席のCLIが持つ`AITERM_SESSION_ID`（Aitermが席をBot IDと同じ名前のセッションで起こして付ける）を各CLIの設定でヘッダー`X-Bellteam-Seat`へ写して伝える。名札がBot台帳に無い要求（席が起こした子など）には、どちらの入口も`BELLTEAM_SEAT_UNRESOLVED`（400）を返す。403にしないのは、Claude Codeが403を「認証が要る」と判定して全席共有の`~/.claude/mcp-needs-auth-cache.json`へサーバー名で記録し、その後しばらく本物のClaudeの席まで接続を飛ばすため（400・404・409・421・422・503は記録されない事を実測）。通話ブリッジは名札の無いBellTeamの合言葉を所属全体として扱うため、名札なしでは中継しない。実測と経緯は [席ごとのMCPをHTTPへ寄せる](plan_mcp-http-consolidation-20261004.md)。追加機能の設定は永続領域へ保存し、環境変数は初回移行に使う。初回のハーネス選択、公式認証、案内botとの会話、追加機能の設定と反映は [初期設定](onboarding.md) に従う。
