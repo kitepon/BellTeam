@@ -5071,7 +5071,7 @@
       "build": "50",
       "sourceCommit": "08d29fe7aabbfeefd53690e0f843c652d7360407",
       "repairCommit": "d08c89744c12ac11e23d06fe6d68520cc4f3cc9c",
-      "status": "signed_validated_approval_pending",
+      "status": "signed_validated_superseded_before_upload",
       "scope": "未解決7件の要求単位診断と隔離で再現した会話・予定の誤った空表示の修理",
       "caseEvaluation": "docs/evidence/2026-10-15-bughub-seven-app.md",
       "tests": {
@@ -5084,11 +5084,42 @@
       },
       "distribution": {
         "approvalDecisionId": "K-Q3SAN9",
+        "approvalDecisionStatus": "cancelled",
         "appId": "6816295589",
         "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
         "archiveAndExportDirectory": "runtime/apple/bughub-seven-50",
         "iosIpaSHA256": "9adc3e5c74c0cc5689be75fc5c3a629cb27881dcb5f6aaa81b1d14cc2cd9b1ab",
         "macPkgSHA256": "7c0e2e7f4e365f2d6a4488650fad728fb423eb97fd255096f40067c0129ad31f",
+        "iosArchiveAndExport": "passed",
+        "macArchiveAndExport": "passed",
+        "appAndNotificationExtensionVersionsMatch": true,
+        "applePrevalidation": "both_no_errors",
+        "uploadStatus": "not_uploaded_superseded_by_build_51",
+        "appStorePublicSubmission": false
+      }
+    },
+    "bugHubSevenSettingsFollowup": {
+      "version": "1.0.1",
+      "build": "51",
+      "sourceCommit": "420bf459d05b6d183722015122fb9de93df59a29",
+      "status": "signed_validated_approval_pending",
+      "scope": "候補50の7件診断・表示修理に設定Editor初回GET失敗の保存防止を追加。予定背景取消と画像付きPOSTの保持を隔離確認",
+      "caseEvaluation": "docs/evidence/2026-10-15-bughub-seven-app.md",
+      "tests": {
+        "featureSettingsBeforeFix": "iPhone Simulatorで初回GET 503後に未取得値の保存が有効になることを再現",
+        "featureSettingsAfterFix": "初回GET 503では保存無効と手動再読込表示、GET 200後に既知値表示と保存有効",
+        "scheduleBackground": "進行中GETの取消、次の逐次GET停止、前面復帰後の再取得を隔離UIで確認。既知行保持の実画面は未確認",
+        "postWithImage": "iPhone Simulatorで画像1件・本文を含むPOST1回、結果未確定後の文字・画像・既存会話保持を確認",
+        "macCatalystBuild": "passed",
+        "nodeFinal": { "passed": 459, "failed": 0 }
+      },
+      "distribution": {
+        "approvalDecisionId": "K-E9FBDF",
+        "appId": "6816295589",
+        "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+        "archiveAndExportDirectory": "runtime/apple/bughub-seven-51",
+        "iosIpaSHA256": "76c71bec815acddde34769629e9d265b8e00064f4198955c144382d6c873fab8",
+        "macPkgSHA256": "9dc954b30d70b110d413ffc5ff6592cb9269810b9ac914649412fb3510db4615",
         "iosArchiveAndExport": "passed",
         "macArchiveAndExport": "passed",
         "appAndNotificationExtensionVersionsMatch": true,
