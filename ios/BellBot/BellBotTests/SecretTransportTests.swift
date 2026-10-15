@@ -19,7 +19,7 @@ final class SecretTransportTests: XCTestCase {
         do {
             _ = try await api.finishSecretRequest(id: "redirect", value: "dummy")
             XCTFail("リダイレクトを拒否する必要があります。")
-        } catch BellAPIError.httpStatus(let status, _) {
+        } catch BellAPIError.httpStatus(let status, _, _) {
             XCTAssertEqual(status, 307)
         }
     }

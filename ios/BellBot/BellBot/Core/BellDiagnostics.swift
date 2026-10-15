@@ -3,6 +3,58 @@ import MetricKit
 import OSLog
 import UIKit
 
+/// 失敗した要求だけに添える計測値。URL、query、本文、識別子は記録しない。
+struct BellRequestTrace {
+    static let userInfoKey = "BellTeamRequestTrace"
+    let route: String
+    let method: String
+    let startedAt: Date
+    let failedAt: Date
+    let appStateAtStart: String
+    let attempts: Int
+    let metrics: URLSessionTaskMetrics?
+
+    static func route(for path: String) -> String {
+        let parts = path.split(separator: "/").map(String.init)
+        guard parts.first == "api", parts.count >= 2 else { return "other" }
+        switch parts[1] {
+        case "events", "queue", "session", "subscription", "models", "settings", "bots", "rooms", "owner":
+            var safe = parts
+            if ["bots", "rooms", "settings"].contains(parts[1]), safe.count > 2 { safe[2] = ":id" }
+            if safe.count > 4 { safe[4] = ":id" }
+            if safe.count > 5 { safe = Array(safe.prefix(5)) }
+            if ["events", "queue", "session", "models", "owner"].contains(parts[1]) { safe = Array(safe.prefix(2)) }
+            return "/" + safe.joined(separator: "/")
+        default: return "/api/other"
+        }
+    }
+
+    static func from(_ error: Error) -> Self? {
+        if let url = error as? URLError { return url.userInfo[userInfoKey] as? Self }
+        if case BellAPIError.httpStatus(_, _, let trace) = error { return trace }
+        return nil
+    }
+
+    var log: String {
+        let milliseconds: (Date) -> Int64 = { Int64($0.timeIntervalSince1970 * 1000) }
+        var result = "\nrequest_route=\(route)\nrequest_method=\(method)"
+        result += "\nrequest_started_at_ms=\(milliseconds(startedAt))\nrequest_failed_at_ms=\(milliseconds(failedAt))"
+        result += "\napp_state_at_request_start=\(appStateAtStart)\nrequest_attempts=\(attempts)"
+        guard let metrics else { return result + "\ntask_metrics_available=false" }
+        result += "\ntask_metrics_available=true\ntransaction_count=\(metrics.transactionMetrics.count)"
+        if let transaction = metrics.transactionMetrics.last {
+            if let value = transaction.fetchStartDate { result += "\nmetrics_fetch_start_ms=\(milliseconds(value))" }
+            if let value = transaction.connectStartDate { result += "\nmetrics_connect_start_ms=\(milliseconds(value))" }
+            if let value = transaction.connectEndDate { result += "\nmetrics_connect_end_ms=\(milliseconds(value))" }
+            if let value = transaction.requestStartDate { result += "\nmetrics_request_start_ms=\(milliseconds(value))" }
+            if let value = transaction.requestEndDate { result += "\nmetrics_request_end_ms=\(milliseconds(value))" }
+            if let value = transaction.responseStartDate { result += "\nmetrics_response_start_ms=\(milliseconds(value))" }
+            result += "\nmetrics_reused_connection=\(transaction.isReusedConnection)"
+        }
+        return result
+    }
+}
+
 /// 通信の値ではなく、操作を扱った後に確認できた影響を渡す。
 struct BellDiagnosticObservation {
     enum Impact: String {
@@ -102,6 +154,11 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         lock.lock(); appState = state; lock.unlock()
     }
 
+    func requestStartAppState() -> String {
+        lock.lock(); defer { lock.unlock() }
+        return appState
+    }
+
     func report(_ error: Error, path: String, method: String?, observation: BellDiagnosticObservation, elapsedMilliseconds: Int? = nil) {
         // 通知APIの失敗はBellNotificationsがstage付きで1回記録する。
         if path == "/api/notifications" || path.hasPrefix("/api/notifications/") { return }
@@ -109,7 +166,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         let code: String
         if let urlError = error as? URLError {
             code = urlError.code == .timedOut ? "IOS_NETWORK_TIMEOUT" : "IOS_NETWORK_FAILURE"
-        } else if case BellAPIError.httpStatus(let status, _) = error, status >= 500 {
+        } else if case BellAPIError.httpStatus(let status, _, _) = error, status >= 500 {
             code = "IOS_HTTP_5XX"
         } else if error is DecodingError || isInvalidResponse(error) {
             code = "IOS_RESPONSE_INVALID"
@@ -120,10 +177,11 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         } else {
             return
         }
-        let module = Self.module(for: path)
+        let trace = BellRequestTrace.from(error)
+        let module = Self.module(for: trace?.route ?? path)
         send(code: code, module: module, version: Self.currentVersion, severity: observation.impact.severity,
              log: Self.errorLog(error, module: module) + (method.map { "\nhttp_method=\($0)" } ?? "")
-                + observation.log + contextLog(elapsedMilliseconds))
+                + (trace?.log ?? "") + observation.log + contextLog(elapsedMilliseconds))
     }
 
     /// 通知登録の失敗。stage は失敗した段（server_status・authorization・apns_token・register_device・unregister・avatar_cache）。
@@ -215,7 +273,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         if let urlError = error as? URLError {
             return "module=\(module)\nerror_domain=NSURLErrorDomain\nerror_code=\(urlError.errorCode)"
         }
-        if case BellAPIError.httpStatus(let status, _) = error {
+        if case BellAPIError.httpStatus(let status, _, _) = error {
             return "module=\(module)\nhttp_status=\(status)"
         }
         if let decoding = error as? DecodingError {

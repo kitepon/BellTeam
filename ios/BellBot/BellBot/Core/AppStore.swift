@@ -345,10 +345,10 @@ final class AppStore: ObservableObject {
                 } catch let error where BellAPIError.isAuthenticationError(error) {
                     if !Task.isCancelled { requireLogin(for: error) }
                     return
-                } catch BellAPIError.httpStatus(let status, _) where status == 429 || status >= 500 {
+                } catch BellAPIError.httpStatus(let status, _, let trace) where status == 429 || status >= 500 {
                     if Task.isCancelled { return }
                     connectionError = "更新へ接続できません。再接続しています。"
-                    api.diagnostics.report(BellAPIError.httpStatus(status, nil), path: "/api/events", method: "GET", observation: .reconnecting)
+                    api.diagnostics.report(BellAPIError.httpStatus(status, nil, trace), path: "/api/events", method: "GET", observation: .reconnecting)
                 } catch let error as URLError {
                     if Task.isCancelled { return }
                     // 切断1回は想定内。連続して失敗が続く時だけ、その連続を1件として報告する。

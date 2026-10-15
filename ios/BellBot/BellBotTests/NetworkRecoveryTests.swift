@@ -87,11 +87,105 @@ final class NetworkRecoveryTests: XCTestCase {
         let scenario = NetworkScenario(failures: 2)
         let api = makeAPI(scenario)
         do {
-            let _: [String: String] = try await api.post("/api/bots/bot-a/messages", body: ["message": "手元だけの試験"])
+            let _: [String: String] = try await api.post("/api/bots/bot-a/messages", body: ["message": "本文の秘密値"])
             XCTFail("切断したPOSTを成功として返さない")
-        } catch let error as URLError { XCTAssertEqual(error.code, .networkConnectionLost) }
+        } catch let error as URLError {
+            XCTAssertEqual(error.code, .networkConnectionLost)
+            api.diagnostics.report(error, path: "/api/bots", method: "POST", observation: .write)
+        }
         XCTAssertEqual(scenario.count("/api/bots/bot-a/messages"), 1)
-        XCTAssertEqual(scenario.reports.count, 0)
+        XCTAssertEqual(scenario.reports.count, 1)
+        let log = scenario.reports[0].log
+        XCTAssertTrue(log.contains("request_route=/api/bots/:id/messages"))
+        XCTAssertTrue(log.contains("request_attempts=1"))
+        XCTAssertTrue(log.contains("user_impact=result_unconfirmed"))
+        XCTAssertFalse(log.contains("本文の秘密値"))
+    }
+
+    func testTimedOutGETReportKeepsItsOwnRouteAndStartStateWithoutQuery() async {
+        let scenario = NetworkScenario(failures: 1, failureCode: .timedOut)
+        let api = makeAPI(scenario)
+        api.diagnostics.updateAppState("active")
+        do {
+            let _: [String: String] = try await api.get("/api/bots/private-bot/messages?after=private-token")
+            XCTFail("時間切れを失敗として返す")
+        } catch {
+            api.diagnostics.updateAppState("background")
+            api.diagnostics.report(error, path: "/api/bots", method: "GET", observation: .read(error, retainedData: true))
+        }
+        let log = scenario.reports.first?.log ?? ""
+        XCTAssertTrue(log.contains("request_route=/api/bots/:id/messages"))
+        XCTAssertTrue(log.contains("app_state_at_request_start=active"))
+        XCTAssertTrue(log.contains("app_state=background"))
+        XCTAssertTrue(log.contains("request_started_at_ms="))
+        XCTAssertTrue(log.contains("request_failed_at_ms="))
+        XCTAssertEqual(scenario.count("/api/bots/private-bot/messages"), 1)
+        XCTAssertEqual(scenario.reports.first?.code, "IOS_NETWORK_TIMEOUT")
+        XCTAssertTrue(log.contains("request_attempts=1"))
+        XCTAssertTrue(log.contains("task_metrics_available=true"))
+        XCTAssertFalse(log.contains("private-bot"))
+        XCTAssertFalse(log.contains("private-token"))
+    }
+
+    func testHTTP500ReportUsesFailedConversationRoute() async {
+        let scenario = NetworkScenario(failures: 0, httpStatus: 500)
+        let api = makeAPI(scenario)
+        do {
+            let _: [String: String] = try await api.get("/api/rooms/private-room/messages?after=private-token")
+            XCTFail("500を成功として返さない")
+        } catch {
+            api.diagnostics.report(error, path: "/api/bots", method: "GET", observation: .read(error, retainedData: true))
+        }
+        let report = scenario.reports.first
+        XCTAssertEqual(report?.code, "IOS_HTTP_5XX")
+        XCTAssertTrue(report?.log.contains("module=conversation") == true)
+        XCTAssertTrue(report?.log.contains("request_route=/api/rooms/:id/messages") == true)
+        XCTAssertTrue(report?.log.contains("http_status=500") == true)
+        XCTAssertTrue(report?.log.contains("task_metrics_available=true") == true)
+        XCTAssertFalse(report?.log.contains("private-room") == true)
+        XCTAssertFalse(report?.log.contains("private-token") == true)
+    }
+
+    func testEvents502ThenReadyReportsInterruptionAndReceivesUpdate() async throws {
+        let scenario = NetworkScenario(failures: 0, events502ThenReady: true)
+        let api = makeAPI(scenario)
+        do {
+            try await api.events { _ in }
+            XCTFail("初回502を成功にしない")
+        } catch BellAPIError.httpStatus(let status, _, let trace) {
+            XCTAssertEqual(status, 502)
+            api.diagnostics.report(BellAPIError.httpStatus(status, nil, trace), path: "/api/events",
+                                   method: "GET", observation: .reconnecting)
+        }
+        var received: [String] = []
+        try await api.events { type in if let type { received.append(type) } }
+        XCTAssertEqual(received, ["messages"])
+        XCTAssertEqual(scenario.count("/api/events"), 2)
+        XCTAssertEqual(scenario.reports.count, 1)
+        XCTAssertEqual(scenario.reports[0].code, "IOS_HTTP_5XX")
+        XCTAssertTrue(scenario.reports[0].log.contains("request_route=/api/events"))
+        XCTAssertTrue(scenario.reports[0].log.contains("severity=warn"))
+    }
+
+    func testEvents502ShowsReconnectThenClearsItAfterReady() async {
+        let scenario = NetworkScenario(failures: 0, events502ThenReady: true, holdEventsOpen: true)
+        let api = makeAPI(scenario)
+        let previousOpen = BellNotifications.shared.onOpen
+        defer { BellNotifications.shared.onOpen = previousOpen }
+        let store = AppStore(api: api)
+        defer { store.stopEvents() }
+        let banner = expectation(description: "502で再接続を表示")
+        let recovered = expectation(description: "再接続後の知らせを受信")
+        let errorObservation = store.$connectionError.compactMap { $0 }.sink { value in
+            if value.contains("再接続") { banner.fulfill() }
+        }
+        let eventObservation = store.$eventRevision.dropFirst().sink { _ in recovered.fulfill() }
+        store.startEvents()
+        await fulfillment(of: [banner, recovered], timeout: 4)
+        XCTAssertNil(store.connectionError)
+        XCTAssertEqual(scenario.count("/api/events"), 2)
+        XCTAssertEqual(scenario.reports.filter { $0.code == "IOS_HTTP_5XX" }.count, 1)
+        withExtendedLifetime((errorObservation, eventObservation)) {}
     }
 
     func testNotificationFailureHasOnlyItsStageReport() async {
@@ -146,15 +240,25 @@ private final class NetworkScenario {
     private var storedReports: [(code: String, log: String)] = []
     private var storedQueries: [(String, String?)] = []
     let failures: Int
+    let failureCode: URLError.Code
     let avatars: Bool
     let accessExpired: Bool
+    let httpStatus: Int
+    let events502ThenReady: Bool
+    let holdEventsOpen: Bool
     private let png: Data
 
     @MainActor
-    init(failures: Int, avatars: Bool = false, accessExpired: Bool = false) {
+    init(failures: Int, failureCode: URLError.Code = .networkConnectionLost,
+         avatars: Bool = false, accessExpired: Bool = false, httpStatus: Int = 200,
+         events502ThenReady: Bool = false, holdEventsOpen: Bool = false) {
         self.failures = failures
+        self.failureCode = failureCode
         self.avatars = avatars
         self.accessExpired = accessExpired
+        self.httpStatus = httpStatus
+        self.events502ThenReady = events502ThenReady
+        self.holdEventsOpen = holdEventsOpen
         png = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { c in
             UIColor.systemPink.setFill(); c.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
         }.pngData()!
@@ -172,7 +276,11 @@ private final class NetworkScenario {
         let count = counts[path]!
         storedQueries.append((path, request.url!.query))
         lock.unlock()
-        if count <= failures { throw URLError(.networkConnectionLost) }
+        if count <= failures { throw URLError(failureCode) }
+        if events502ThenReady, path == "/api/events" {
+            if count == 1 { return (Data("{\"error\":\"MOCK_UNAVAILABLE\"}".utf8), "application/json") }
+            return (Data("data: {\"type\":\"messages\"}\n\n".utf8), "text/event-stream")
+        }
         if avatars, path.hasSuffix("/avatar") { return (png, "image/png") }
         let object: [String: Any]
         switch path {
@@ -196,10 +304,14 @@ private final class NetworkScenarioProtocol: URLProtocol {
         do {
             let (data, mime) = try Self.scenario.response(request)
             let url = Self.scenario.accessExpired ? URL(string: "https://test.cloudflareaccess.com/cdn-cgi/access/login")! : request.url!
-            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": mime])!
+            let status = Self.scenario.events502ThenReady && request.url!.path == "/api/events"
+                && Self.scenario.count("/api/events") == 1 ? 502 : Self.scenario.httpStatus
+            let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": mime])!
             client!.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client!.urlProtocol(self, didLoad: data)
-            client!.urlProtocolDidFinishLoading(self)
+            if !(Self.scenario.holdEventsOpen && request.url!.path == "/api/events" && status == 200) {
+                client!.urlProtocolDidFinishLoading(self)
+            }
         } catch { client!.urlProtocol(self, didFailWithError: error) }
     }
 }

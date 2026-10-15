@@ -34,6 +34,9 @@ extension AppStore {
         owner = fixture.owner
         workingBotIDs = ["bot-one"]
         phase = .ready
+        if arguments.contains("-bellbot-preview-connection-error") {
+            connectionError = "更新へ接続できません。再接続しています。"
+        }
     }
 }
 

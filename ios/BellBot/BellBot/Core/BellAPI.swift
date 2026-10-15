@@ -18,7 +18,7 @@ enum BellAPIError: LocalizedError {
     case backgroundSendUnavailable
     case backgroundSendExpired
     case server(String)
-    case httpStatus(Int, String?)
+    case httpStatus(Int, String?, BellRequestTrace? = nil)
 
     static func operationFailureMessage(_ error: Error) -> String {
         if error is URLError || error is DecodingError || (error as? BellAPIError).map({
@@ -38,7 +38,7 @@ enum BellAPIError: LocalizedError {
         case .backgroundSendUnavailable: "送信に必要な実行時間を確保できませんでした。アプリを前面に戻して送信してください。"
         case .backgroundSendExpired: "背景で送信を確認できる時間が終了しました。送信済みの場合があるため、会話を確認してください。"
         case .server(let message): "BellTeam: \(message)"
-        case .httpStatus(let status, let message): "BellTeam: \(message ?? "HTTP \(status)")"
+        case .httpStatus(let status, let message, _): "BellTeam: \(message ?? "HTTP \(status)")"
         }
     }
 }
@@ -163,15 +163,16 @@ final class BellAPI {
         do {
             let result = try await imageResponse(path)
             return "data:\(result.mimeType);base64,\(result.data.base64EncodedString())"
-        } catch BellAPIError.httpStatus(404, "AVATAR_NOT_FOUND") {
+        } catch BellAPIError.httpStatus(404, "AVATAR_NOT_FOUND", _) {
             return ""
         }
     }
 
     private func imageResponse(_ path: String) async throws -> (data: Data, mimeType: String) {
         do {
-            let (data, response) = try await load(request(path: path, method: "GET"))
-            try validate(response, data: data)
+            let (data, response, trace) = try await load(request(path: path, method: "GET"))
+            do { try validate(response, data: data) }
+            catch { throw traced(error, with: trace) }
             guard let mime = (response as? HTTPURLResponse)?.mimeType, mime.hasPrefix("image/") else {
                 throw BellAPIError.invalidResponse
             }
@@ -183,10 +184,13 @@ final class BellAPI {
     }
 
     func events(_ onEvent: @escaping (String?) async throws -> Void) async throws {
+        let startedAt = Date()
+        let startedState = diagnostics.requestStartAppState()
+        let metrics = BellTaskMetricsCollector()
         do {
             var request = try request(path: "/api/events", method: "GET")
             request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-            let (bytes, response) = try await session.bytes(for: request)
+            let (bytes, response) = try await session.bytes(for: request, delegate: metrics)
             try validate(response)
             guard (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type")?.hasPrefix("text/event-stream") == true else {
                 throw BellAPIError.invalidResponse
@@ -197,7 +201,9 @@ final class BellAPI {
             }
         } catch {
             // 表示・再接続・停止を扱うAppStoreが、影響を確認して報告する。
-            throw error
+            throw traced(error, with: BellRequestTrace(route: "/api/events", method: "GET",
+                startedAt: startedAt, failedAt: Date(), appStateAtStart: startedState,
+                attempts: 1, metrics: metrics.snapshot()))
         }
     }
 
@@ -208,8 +214,9 @@ final class BellAPI {
                 request.httpBody = body
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             }
-            let (data, response) = try await load(request)
-            try validate(response, data: data)
+            let (data, response, trace) = try await load(request)
+            do { try validate(response, data: data) }
+            catch { throw traced(error, with: trace) }
             if !(data.isEmpty || (response as? HTTPURLResponse)?.statusCode == 204),
                (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type")?.contains("application/json") != true {
                 throw BellAPIError.invalidResponse
@@ -221,15 +228,45 @@ final class BellAPI {
         }
     }
 
-    private func load(_ request: URLRequest) async throws -> (Data, URLResponse) {
-        do { return try await session.data(for: request) }
-        catch let error as URLError where request.httpMethod == "GET" && error.code == .networkConnectionLost {
+    private func load(_ request: URLRequest) async throws -> (Data, URLResponse, BellRequestTrace) {
+        let startedAt = Date()
+        let startedState = diagnostics.requestStartAppState()
+        var attempts = 1
+        var metrics = BellTaskMetricsCollector()
+        do {
+            let (data, response): (Data, URLResponse)
+            do { (data, response) = try await session.data(for: request, delegate: metrics) }
+            catch let error as URLError where request.httpMethod == "GET" && error.code == .networkConnectionLost {
+                try Task.checkCancellation()
+                #if DEBUG
+                Logger(subsystem: "app.bellteam.bellbot", category: "network").debug("GETの接続切断から1回だけ取り直す")
+                #endif
+                attempts = 2
+                metrics = BellTaskMetricsCollector()
+                (data, response) = try await session.data(for: request, delegate: metrics)
+            }
+            return (data, response, BellRequestTrace(route: BellRequestTrace.route(for: request.url!.path),
+                method: request.httpMethod ?? "GET", startedAt: startedAt, failedAt: Date(),
+                appStateAtStart: startedState, attempts: attempts, metrics: metrics.snapshot()))
+        } catch {
             try Task.checkCancellation()
-            #if DEBUG
-            Logger(subsystem: "app.bellteam.bellbot", category: "network").debug("GETの接続切断から1回だけ取り直す")
-            #endif
-            return try await session.data(for: request)
+            let trace = BellRequestTrace(route: BellRequestTrace.route(for: request.url!.path),
+                method: request.httpMethod ?? "GET", startedAt: startedAt, failedAt: Date(),
+                appStateAtStart: startedState, attempts: attempts, metrics: metrics.snapshot())
+            throw traced(error, with: trace)
         }
+    }
+
+    private func traced(_ error: Error, with trace: BellRequestTrace) -> Error {
+        if let url = error as? URLError {
+            var userInfo = url.userInfo
+            userInfo[BellRequestTrace.userInfoKey] = trace
+            return URLError(url.code, userInfo: userInfo)
+        }
+        if case BellAPIError.httpStatus(let status, let message, _) = error {
+            return BellAPIError.httpStatus(status, message, trace)
+        }
+        return error
     }
 
     private func decode<T: Decodable>(_ type: T.Type, from data: Data, path: String, method: String) throws -> T {
@@ -273,6 +310,20 @@ private final class SecretRedirectDelegate: NSObject, URLSessionTaskDelegate {
                     completionHandler: @escaping (URLRequest?) -> Void) {
         // 認証切れ等のリダイレクト先へPOST本文を転送しない。
         completionHandler(nil)
+    }
+}
+
+private final class BellTaskMetricsCollector: NSObject, URLSessionTaskDelegate {
+    private let lock = NSLock()
+    private var collected: URLSessionTaskMetrics?
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
+        lock.lock(); collected = metrics; lock.unlock()
+    }
+
+    func snapshot() -> URLSessionTaskMetrics? {
+        lock.lock(); defer { lock.unlock() }
+        return collected
     }
 }
 

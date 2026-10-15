@@ -63,7 +63,7 @@ final class HarnessAuthenticationTests: XCTestCase {
         do {
             try await flow.start()
             XCTFail("公式認証の失敗を成功扱いしない")
-        } catch BellAPIError.httpStatus(let status, let message) {
+        } catch BellAPIError.httpStatus(let status, let message, _) {
             XCTAssertEqual(status, 409)
             XCTAssertEqual(message, "BellTeamを更新してください。")
         }

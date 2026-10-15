@@ -279,7 +279,7 @@ struct BotEditor: View {
             close()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch {
-            if case BellAPIError.httpStatus(_, let message?) = error { errorText = message }
+            if case BellAPIError.httpStatus(_, let message?, _) = error { errorText = message }
             else { errorText = BellAPIError.operationFailureMessage(error) }
             store.api.diagnostics.report(error, path: "/api/bots", method: nil, observation: .write)
         }
