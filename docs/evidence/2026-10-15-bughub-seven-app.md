@@ -86,3 +86,5 @@ focused testの実測: `NetworkRecoveryTests`の-1001・500・502・POST -1005�
 版52はmain `1cdd7d9`からiPhone IPAとMac pkgを署名付きで書き出した。本体・通知拡張とも52で、IPA内の版番号とMacアーカイブの署名を照合した。両成果物のApple事前検証はエラーなし。検査値と配布待ちの状態は`docs/subscription-setup.json`に保存する。TestFlightへのアップロードと端末導入は新しい決裁の対象とする。
 
 オーナーの版52配布承認を受け、Mac・iPhone版はAppleで両方VALID、オーナー向け内部グループで`IN_BETA_TESTING`になった。MacのTestFlightは52を表示するが、更新後しばらく「ダウンロード中」のままで、`/Applications/BellTeam.app`はまだ51。TestFlightの停止・再開と通常の再起動後も同じ表示で、インストール52の完了と起動は未確認。iPhone本人のTestFlight更新・起動は決裁箱で依頼中で、こちらから端末操作・照会はしない。配布の受領と端末導入を区別して記録する。
+
+Macのダウンロード表示は開始から十数分後も続き、表示メニューの更新でも変わらなかった。空き容量は十分で、TestFlight画面に認証やインストールのエラー表示は無い。原因は未特定。Macの51を保持し、TestFlightのダウンロードが完了した後に本体・通知拡張52、配布署名と通常起動を確認する。配布用pkgを別経路で直接導入してTestFlight導入済みとは扱わない。

@@ -5190,6 +5190,8 @@
         "installedBuild": "51",
         "targetBuild": "52",
         "testflightDownloadState": "downloading",
+        "lastObservedAtJST": "2026-10-16 08:25",
+        "nextCheck": "TestFlightの正規ダウンロード完了後に/Applicationsの本体・通知拡張52と通常起動を確認",
         "gatekeeperSource": "Testflight",
         "targetBuildLaunched": false
       },
