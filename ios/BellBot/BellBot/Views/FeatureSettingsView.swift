@@ -45,57 +45,53 @@ private struct FeatureSettingEditor: View {
     @State private var fields: [FeatureField] = []
     @State private var saving = false
     @State private var loading = true
+    @State private var loaded = false
     @State private var errorText: String?
 
     private var currentSetting: FeatureSetting { store.featureSettings.first { $0.id == setting.id } ?? setting }
 
     var body: some View {
         Form {
-            Section {
-                Toggle("有効にする", isOn: $enabled)
-                Text("必要な項目を登録してから有効にしてください。秘密の値は会話へ送られません。")
-                    .font(.caption).foregroundStyle(BellTheme.muted)
-            }
-            if let failure = currentSetting.error {
-                Section("反映エラー") {
-                    Text(failure.message).foregroundStyle(.red)
-                    Text(failure.code).font(.caption).foregroundStyle(BellTheme.muted)
+            if loaded {
+                Section {
+                    Toggle("有効にする", isOn: $enabled)
+                    Text("必要な項目を登録してから有効にしてください。秘密の値は会話へ送られません。")
+                        .font(.caption).foregroundStyle(BellTheme.muted)
                 }
-            }
-            Section("設定") {
-                ForEach(fields) { field in
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(field.label).font(.subheadline)
-                        if field.secret {
-                            SecureField(field.configured ? "登録済み・変更するときだけ入力" : "未設定", text: value(for: field.key))
-                                .textContentType(.password)
-                        } else {
-                            TextField(field.label, text: value(for: field.key))
-                        }
+                if let failure = currentSetting.error {
+                    Section("反映エラー") {
+                        Text(failure.message).foregroundStyle(.red)
+                        Text(failure.code).font(.caption).foregroundStyle(BellTheme.muted)
                     }
-                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                }
+                Section("設定") {
+                    ForEach(fields) { field in
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(field.label).font(.subheadline)
+                            if field.secret {
+                                SecureField(field.configured ? "登録済み・変更するときだけ入力" : "未設定", text: value(for: field.key))
+                                    .textContentType(.password)
+                            } else {
+                                TextField(field.label, text: value(for: field.key))
+                            }
+                        }
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    }
                 }
             }
             if loading { ProgressView() }
-            if let errorText { Text(errorText).font(.footnote).foregroundStyle(.red) }
-            Button("保存") { Task { await save() } }.disabled(loading || saving)
+            if let errorText {
+                Section {
+                    if !loaded { Text("設定を読み込めませんでした").font(.headline) }
+                    Text(errorText).font(.footnote).foregroundStyle(.red)
+                    Button("再読み込み") { Task { await loadSettings() } }.disabled(loading)
+                }
+            }
+            Button("保存") { Task { await save() } }.disabled(loading || saving || !loaded)
         }
         .navigationTitle(setting.title)
         .scrollContentBackground(.hidden).background(BellBackground())
-        .task {
-            do {
-                try await store.refreshSettings()
-                guard let current = store.featureSettings.first(where: { $0.id == setting.id }) else { throw BellAPIError.invalidResponse }
-                enabled = current.enabled
-                fields = current.fields
-                values = Dictionary(uniqueKeysWithValues: current.fields.map { ($0.key, $0.secret ? "" : $0.value) })
-            } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-            catch {
-                errorText = error.localizedDescription
-                store.api.diagnostics.report(error, path: "/api/settings", method: "GET", observation: .read(error, retainedData: !store.featureSettings.isEmpty))
-            }
-            loading = false
-        }
+        .task { await loadSettings() }
         .onChange(of: scenePhase) { _, next in if next != .active { clearSecrets() } }
         .onDisappear { clearSecrets() }
     }
@@ -105,6 +101,24 @@ private struct FeatureSettingEditor: View {
     }
 
     private func clearSecrets() { for field in fields where field.secret { values[field.key] = "" } }
+
+    private func loadSettings() async {
+        loading = true
+        defer { loading = false }
+        do {
+            try await store.refreshSettings()
+            guard let current = store.featureSettings.first(where: { $0.id == setting.id }) else { throw BellAPIError.invalidResponse }
+            enabled = current.enabled
+            fields = current.fields
+            values = Dictionary(uniqueKeysWithValues: current.fields.map { ($0.key, $0.secret ? "" : $0.value) })
+            loaded = true
+            errorText = nil
+        } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        catch {
+            errorText = error.localizedDescription
+            store.api.diagnostics.report(error, path: "/api/settings", method: "GET", observation: .read(error, retainedData: !store.featureSettings.isEmpty))
+        }
+    }
 
     private func save() async {
         saving = true
