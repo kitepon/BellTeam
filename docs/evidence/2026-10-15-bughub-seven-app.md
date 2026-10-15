@@ -74,3 +74,11 @@ focused testの実測: `NetworkRecoveryTests`の-1001・500・502・POST -1005�
 別のアプリ表示欠陥を隔離で確認した。模擬-1001で一覧更新に失敗した後、SSE通知なしで同じ一覧GETを成功させると、Bot一覧は新しい値へ更新されても古い`connectionError`が残った。`runtime/bughub-stale-banner-isolated.xcresult`のfocused testはこの期待で失敗し、再現用patchを`runtime/bughub-stale-banner-isolated.patch`へ保存した。最初の試行は署名なしApp Groupのアバター取得で止まり、fixtureの版付きアバターだけを外して切り分けた。この表示欠陥が今回のMac実機2件で発生した証拠はない。`connectionError`はSSEの再接続警告にも使うため、成功GETで単純に消す修理はしない。通常GETとSSEのエラー状態を区別する最小設計、focused test、Mac/iOSの配布が残工程。版51のバイナリは未変更で、BugHub原本の状態・重大度・指紋も変更していない。
 
 適用範囲: Mac Catalystは今回の実診断と同じSwift実装。iOSも同じBellAPI・会話・一覧のコードを使うが、この事象の実機再現はしていない。Windows nativeは別の`HttpClient`実装でURLSessionTaskMetricsを使わず、この二件をそのまま適用・検証した扱いにしない。Linuxは本体とログの設置であり、このSwiftUIクライアントの修理対象ではない。Claude Code・Codex・Grok・Cursorのどの席かに応じた分岐はこのGET経路にない。Bot IDだけではハーネス別の発生・不発生を判定しない。
+
+## 一覧GETとSSEの表示状態を分ける修理
+
+隔離の修正前試験では、一覧GETを一度-1001にした後、SSE通知を発生させず次の一覧GETを成功させた。Bot一覧は更新されたが、`connectionError`は古い-1001のまま残った（`runtime/bughub-stale-banner-isolated.xcresult`）。最初の署名なし試行はApp Groupのアバター取得で失敗したため、再現fixtureだけ版付きアバターを外して切り分けた。再現patchは`runtime/bughub-stale-banner-isolated.patch`に保存した。この表示欠陥は今回のMac実機2件で観測されたと扱わない。
+
+`AppStore`の通常一覧GET、SSE、通知のエラーを別々に保持し、画面へ見せる`connectionError`だけを合成する。通常GET成功時はGETのエラーだけ消し、SSE警告が未回復なら表示を維持する。SSE通知時はSSEの警告だけ消し、GETが失敗したままならそのエラーを残す。再認証時はすべて消す。inactive取消・GETの再試行条件・診断指紋・BugHub状態には変更を加えない。
+
+修正後のiOS Simulator focused testは、GET失敗→成功時の旧エラー消去と既知一覧・下書き保持、SSE未回復中のGET成功で再接続警告維持、SSE回復とGET失敗が重なる時のGETエラー維持の3件が成功（`runtime/bughub-stale-banner-fixed.xcresult`）。既存のSSE 502復帰・GET失敗診断・認証復帰の3件も成功（`runtime/bughub-stale-banner-regression.xcresult`）。Mac Catalystビルド成功、リポジトリ全459試験成功。実環境での新修理の表示は未確認。Apple配布は版52の署名候補を別に作り、51の配布承認を流用しない。
