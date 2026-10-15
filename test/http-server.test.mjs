@@ -223,9 +223,6 @@ test('Web APIの記憶とRAGはMCPと同じ共通サービスを呼ぶ', async (
   const memory = {
     async remember(value) { calls.push(['remember', value]); return { id: 'memory-1' } },
     async recallMemory(value) { calls.push(['recall', value]); return { items: [] } },
-    async listMemoryCandidates(value) { calls.push(['candidates', value]); return { items: [] } },
-    async organizeMemoryCandidate(value) { calls.push(['organize', value]); return { status: 'organized' } },
-    async dismissMemoryCandidate(value) { calls.push(['dismiss', value]); return { status: 'dismissed' } },
     async reviseMemory(value) { calls.push(['revise', value]); return { id: 'memory-2' } },
     async pinMemory(value) { calls.push(['pin', value]); return { id: value.id } },
     async consolidateGrowth(value) { calls.push(['consolidate', value]); return { id: 'memory-3' } },
@@ -244,11 +241,9 @@ test('Web APIの記憶とRAGはMCPと同じ共通サービスを呼ぶ', async (
 
   await fetch(`${base}/api/bots/bot-a/memory`, { method: 'POST', headers, body: JSON.stringify({ content: '思い出', kind: 'episode' }) })
   await fetch(`${base}/api/bots/bot-a/memory?query=${encodeURIComponent('思い出')}`, { headers })
-  await fetch(`${base}/api/bots/bot-a/memory/candidates?limit=5`, { headers })
-  await fetch(`${base}/api/bots/bot-a/memory/candidates/turn-1/organize`, {
-    method: 'POST', headers, body: JSON.stringify({ memories: [{ content: '会話の記憶' }] }),
-  })
-  await fetch(`${base}/api/bots/bot-a/memory/candidates/turn-2/dismiss`, { method: 'POST', headers, body: '{}' })
+  // 会話の候補は 2026-10-14 にやめた。口も無い。
+  assert.equal((await fetch(`${base}/api/bots/bot-a/memory/candidates?limit=5`, { headers })).status, 404)
+  assert.equal((await fetch(`${base}/api/bots/bot-a/memory/candidates/turn-2/dismiss`, { method: 'POST', headers, body: '{}' })).status, 404)
   await fetch(`${base}/api/bots/bot-a/memory/memory-1`, {
     method: 'PATCH', headers, body: JSON.stringify({ content: '更新後' }),
   })
@@ -262,9 +257,6 @@ test('Web APIの記憶とRAGはMCPと同じ共通サービスを呼ぶ', async (
   assert.deepEqual(calls, [
     ['remember', { botId: 'bot-a', content: '思い出', kind: 'episode', sourceRef: 'ui' }],
     ['recall', { botId: 'bot-a', query: '思い出', scope: 'personal' }],
-    ['candidates', { botId: 'bot-a', limit: '5' }],
-    ['organize', { botId: 'bot-a', candidateId: 'turn-1', memories: [{ content: '会話の記憶' }] }],
-    ['dismiss', { botId: 'bot-a', candidateId: 'turn-2' }],
     ['revise', { botId: 'bot-a', id: 'memory-1', content: '更新後' }],
     ['pin', { botId: 'bot-a', id: 'memory-2', pinned: true }],
     ['consolidate', { botId: 'bot-a', memoryIds: ['memory-1'], content: '成長した' }],

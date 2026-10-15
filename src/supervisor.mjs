@@ -52,7 +52,6 @@ const memory = new BellTeamMemory({ registry: bots, root })
 await memory.initialize()
 const transport = new AitermTransport({
   prepareStartup: async (bot, shortTermMemory) => {
-    await memory.captureConversation(bot.id)
     await bots.prepareStartupContext(bot.id, shortTermMemory)
     await onboarding.prepareStartup(bot)
   },

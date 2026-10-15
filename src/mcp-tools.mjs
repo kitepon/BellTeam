@@ -132,32 +132,6 @@ export const bellTeamTools = Object.freeze([
     }, ['query']),
   },
   {
-    name: 'list_memory_candidates',
-    description: 'Throughlineに自動記録された自分の完了会話から、まだ長期記憶として整理していない候補を取得する。内容を読んで記憶するか破棄するか判断する。',
-    inputSchema: objectSchema({ limit: { type: 'integer', minimum: 1, maximum: 100 } }),
-  },
-  {
-    name: 'organize_memory_candidate',
-    description: '会話候補をAIの判断で長期記憶へ整理する。意味が変わる情報はrevise_memoryを使う。scope省略時はpersonal。',
-    inputSchema: objectSchema({
-      candidateId: { type: 'string', minLength: 1 },
-      memories: {
-        type: 'array', minItems: 1,
-        items: objectSchema({
-          content: { type: 'string', minLength: 1 },
-          kind: { type: 'string', enum: ['fact', 'preference', 'policy', 'task', 'config', 'incident', 'relationship', 'episode', 'growth'] },
-          scope: { type: 'string', enum: ['personal', 'shared'] },
-          importance: { type: 'integer', minimum: 1, maximum: 10 },
-        }, ['content']),
-      },
-    }, ['candidateId', 'memories']),
-  },
-  {
-    name: 'dismiss_memory_candidate',
-    description: '長期記憶へ残す必要がない会話候補を整理済みにする。',
-    inputSchema: objectSchema({ candidateId: { type: 'string', minLength: 1 } }, ['candidateId']),
-  },
-  {
     name: 'revise_memory',
     description: '自分の既存記憶を新しい内容へ更新し、古い記憶を履歴として残す。',
     inputSchema: objectSchema({
@@ -227,7 +201,7 @@ export const bellTeamTools = Object.freeze([
   },
   {
     name: 'update_self',
-    description: '自分の名前、プロフィール、性格（考え方）、口調、役職、役割、アバターを変更する。',
+    description: '自分の名前、プロフィール、性格（考え方）、口調、役職、役割、アバター、CLI、モデル、エフォートを変更する。CLI、モデル、エフォートは設定画面と同じ経路で保存し、今の作業の後に適用する。同じCLIの中でモデルやエフォートを変える時は会話を続けたまま切り替え、CLIを変える時だけセッションを起こし直す。',
     inputSchema: objectSchema({
       name: { type: 'string', minLength: 1, maxLength: 100 },
       profileText: { type: 'string', maxLength: 8000, description: 'プロフィール。背景・見た目・関係性。表現の見本にはしない。' },
@@ -237,6 +211,9 @@ export const bellTeamTools = Object.freeze([
       role: { type: 'string', maxLength: 8000 },
       avatar: { type: 'string', maxLength: 3000000 },
       color: { type: 'string', enum: ['rose', 'indigo', 'violet'] },
+      harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor'], description: 'CLI種別' },
+      model: { type: 'string', maxLength: 200, description: 'モデルID。空文字でそのCLIの既定へ戻す。' },
+      reasoningEffort: { type: 'string', description: 'エフォート。空文字でそのCLIの既定へ戻す。最新の候補はlist_modelsで取得する。保存時もCLIの現在の一覧で確認する。' },
     }),
   },
   {
@@ -423,6 +400,18 @@ export const bellTeamTools = Object.freeze([
   ...bugHubSecurityTools,
 ])
 
+// 長期記憶の1件は1つの話にする（2026-10-14 オーナー裁定）。直すたびに前の版へ足して伸びるので、長い物は拒まずに、返りで分ける様に知らせる。
+const MEMORY_SPLIT_NOTICE_CHARS = 2000
+
+function withMemoryLengthNotice(memory, content) {
+  const length = typeof content === 'string' ? content.trim().length : 0
+  if (length <= MEMORY_SPLIT_NOTICE_CHARS) return { memory }
+  return {
+    memory,
+    notice: `この記憶は${length}字ある。1件は1つの話にして、${MEMORY_SPLIT_NOTICE_CHARS}字を超える時は分ける。手順・仕様・調べた結果はrecord_knowledgeへ置き、記憶には出来事と結末を残す。`,
+  }
+}
+
 // 画像本体（data URL）は1枚で十万文字を超え、CLIの道具の上限を超える。返事では本体を外し、有無と取得先だけを返す。
 function withoutAvatarBody(value, avatarUrl) {
   if (!value || typeof value !== 'object' || !Object.hasOwn(value, 'avatar')) return value
@@ -491,12 +480,9 @@ async function runBellTeamTool({ name, arguments: args = {}, from, registry, bug
   if (name === 'get_self') return { bot: registry.get(from) }
   if (name === 'get_owner_profile') return { owner: await ownerProfile.get() }
   if (name === 'get_user_rules') return { text: await userRules.get() }
-  if (name === 'remember') return { memory: await memory.remember({ botId: from, ...args, sourceRef: 'mcp' }) }
+  if (name === 'remember') return withMemoryLengthNotice(await memory.remember({ botId: from, ...args, sourceRef: 'mcp' }), args.content)
   if (name === 'recall_memory') return memory.recallMemory({ botId: from, ...args })
-  if (name === 'list_memory_candidates') return memory.listMemoryCandidates({ botId: from, ...args })
-  if (name === 'organize_memory_candidate') return memory.organizeMemoryCandidate({ botId: from, ...args })
-  if (name === 'dismiss_memory_candidate') return memory.dismissMemoryCandidate({ botId: from, ...args })
-  if (name === 'revise_memory') return { memory: await memory.reviseMemory({ botId: from, ...args }) }
+  if (name === 'revise_memory') return withMemoryLengthNotice(await memory.reviseMemory({ botId: from, ...args }), args.content)
   if (name === 'pin_memory') return { memory: await memory.pinMemory({ botId: from, ...args }) }
   if (name === 'consolidate_growth') return { memory: await memory.consolidateGrowth({ botId: from, ...args }) }
   if (name === 'record_knowledge') return { knowledge: await memory.recordKnowledge({ botId: from, ...args }) }
@@ -517,9 +503,8 @@ async function runBellTeamTool({ name, arguments: args = {}, from, registry, bug
     requireBot(registry, botId)
     return remove(botId)
   }
-  if (name === 'update_self') return { bot: await registry.update(from, args) }
-  if (name === 'update_bot') {
-    const { botId, ...changes } = args
+  if (name === 'update_self' || name === 'update_bot') {
+    const { botId, ...changes } = name === 'update_self' ? { ...args, botId: from } : args
     // CLI・モデル・エフォートは稼働中セッションへの適用が要るので、設定画面と同じ経路（supervisor）で保存と適用を行う。
     if (['harness', 'model', 'reasoningEffort'].some(key => Object.hasOwn(changes, key))) return configure(botId, changes)
     return { bot: await registry.update(botId, changes) }

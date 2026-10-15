@@ -82,6 +82,21 @@ function logWriteRequest(request, response, write) {
   })
 }
 
+// 読み取りは受付時にも残す。応答待ちのGETと、記録されなかったGETを区別するため。
+// finishは端末の受領ではなく、Nodeが応答をOSへ渡し終えた事を表す。
+function logReadRequest(request, response, write) {
+  const path = String(request.url).split('?')[0]
+  if (!['GET', 'HEAD'].includes(request.method) || !path.startsWith('/api/')) return
+  const started = Date.now()
+  const prefix = `BellTeam read: ${new Date(started).toISOString()} ${request.method} ${path}`
+  write(`${prefix} started\n`)
+  let finished = false
+  response.once('finish', () => { finished = true })
+  response.once('close', () => {
+    write(`${prefix} ${finished ? response.statusCode : 'aborted'} ${Date.now() - started}ms\n`)
+  })
+}
+
 export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
   if (typeof authorize !== 'function') throw new Error('BELLTEAM_AUTHORIZER_REQUIRED')
   const subscribers = new Set()
@@ -95,6 +110,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
 
   const server = createServer(async (request, response) => {
     logWriteRequest(request, response, writeLog)
+    logReadRequest(request, response, writeLog)
     try {
       const url = new URL(request.url, 'http://bellteam.local')
       if (request.method === 'GET' && url.pathname === '/healthz') return json(response, 200, { status: 'ok' })
@@ -391,25 +407,6 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
             })().catch(error => process.stderr.write(`BellTeam delete error: ${error.stack ?? error.message}\n`))
             return json(response, 202, { deleting: botId })
           }
-        }
-
-        const candidateActionMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/memory\/candidates\/([^/]+)\/(organize|dismiss)$/u)
-        if (request.method === 'POST' && candidateActionMatch) {
-          const [, botId, candidateId, action] = candidateActionMatch
-          if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-          if (action === 'organize') return json(response, 200, await memory.organizeMemoryCandidate({
-            botId, candidateId, ...await readJson(request),
-          }))
-          return json(response, 200, await memory.dismissMemoryCandidate({ botId, candidateId }))
-        }
-
-        const candidatesMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/memory\/candidates$/u)
-        if (request.method === 'GET' && candidatesMatch) {
-          const botId = candidatesMatch[1]
-          if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-          return json(response, 200, await memory.listMemoryCandidates({
-            botId, limit: url.searchParams.get('limit') ?? undefined,
-          }))
         }
 
         const memoryPinMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/memory\/([^/]+)\/pin$/u)

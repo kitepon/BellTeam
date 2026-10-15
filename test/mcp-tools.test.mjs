@@ -131,9 +131,6 @@ test('MCPの長期記憶とRAGは呼出元BotをBellTeam側で確定する', asy
   const memory = {
     async remember(value) { calls.push(['remember', value]); return { id: 'memory-1' } },
     async recallMemory(value) { calls.push(['recall', value]); return { items: [] } },
-    async listMemoryCandidates(value) { calls.push(['candidates', value]); return { items: [] } },
-    async organizeMemoryCandidate(value) { calls.push(['organize', value]); return { status: 'organized' } },
-    async dismissMemoryCandidate(value) { calls.push(['dismiss', value]); return { status: 'dismissed' } },
     async reviseMemory(value) { calls.push(['revise', value]); return { id: 'memory-2' } },
     async pinMemory(value) { calls.push(['pin', value]); return { id: value.id } },
     async consolidateGrowth(value) { calls.push(['consolidate', value]); return { id: 'memory-3' } },
@@ -144,11 +141,6 @@ test('MCPの長期記憶とRAGは呼出元BotをBellTeam側で確定する', asy
 
   await callBellTeamTool({ ...context, name: 'remember', arguments: { content: '大切な思い出', kind: 'episode' } })
   await callBellTeamTool({ ...context, name: 'recall_memory', arguments: { query: '思い出' } })
-  await callBellTeamTool({ ...context, name: 'list_memory_candidates', arguments: { limit: 5 } })
-  await callBellTeamTool({ ...context, name: 'organize_memory_candidate', arguments: {
-    candidateId: 'turn-1', memories: [{ content: '会話から得た記憶', kind: 'fact' }],
-  } })
-  await callBellTeamTool({ ...context, name: 'dismiss_memory_candidate', arguments: { candidateId: 'turn-2' } })
   await callBellTeamTool({ ...context, name: 'revise_memory', arguments: { id: 'memory-1', content: '更新後' } })
   await callBellTeamTool({ ...context, name: 'pin_memory', arguments: { id: 'memory-2' } })
   await callBellTeamTool({ ...context, name: 'consolidate_growth', arguments: {
@@ -160,9 +152,6 @@ test('MCPの長期記憶とRAGは呼出元BotをBellTeam側で確定する', asy
   assert.deepEqual(calls, [
     ['remember', { botId: 'bot-a', content: '大切な思い出', kind: 'episode', sourceRef: 'mcp' }],
     ['recall', { botId: 'bot-a', query: '思い出' }],
-    ['candidates', { botId: 'bot-a', limit: 5 }],
-    ['organize', { botId: 'bot-a', candidateId: 'turn-1', memories: [{ content: '会話から得た記憶', kind: 'fact' }] }],
-    ['dismiss', { botId: 'bot-a', candidateId: 'turn-2' }],
     ['revise', { botId: 'bot-a', id: 'memory-1', content: '更新後' }],
     ['pin', { botId: 'bot-a', id: 'memory-2' }],
     ['consolidate', { botId: 'bot-a', memoryIds: ['memory-1', 'memory-2'], content: '成長した' }],
@@ -170,11 +159,38 @@ test('MCPの長期記憶とRAGは呼出元BotをBellTeam側で確定する', asy
     ['search', { botId: 'bot-a', query: '設計', scope: 'shared' }],
   ])
   for (const name of [
-    'remember', 'recall_memory', 'list_memory_candidates', 'organize_memory_candidate',
-    'dismiss_memory_candidate', 'revise_memory', 'pin_memory', 'consolidate_growth',
+    'remember', 'recall_memory', 'revise_memory', 'pin_memory', 'consolidate_growth',
     'record_knowledge', 'search_knowledge',
   ])
     assert.ok(bellTeamTools.some(tool => tool.name === name), `${name}がない`)
+  // 会話の候補は 2026-10-14 にやめた。席はターンの終わりに remember で残す。
+  for (const name of ['list_memory_candidates', 'organize_memory_candidate', 'dismiss_memory_candidate'])
+    assert.ok(!bellTeamTools.some(tool => tool.name === name), `${name}が残っている`)
+})
+
+test('rememberとrevise_memoryは、2,000字を超えた記憶も保存して、分ける様に返りで知らせる', async () => {
+  const registry = new Map([['bot-a', { id: 'bot-a' }]])
+  registry.refresh = async () => registry
+  const saved = []
+  const memory = {
+    async remember(value) { saved.push(value.content.length); return { id: 'memory-1' } },
+    async reviseMemory(value) { saved.push(value.content.length); return { id: 'memory-2' } },
+  }
+  const context = { from: 'bot-a', registry, memory, messenger: {} }
+
+  const short = await callBellTeamTool({ ...context, name: 'remember', arguments: { content: 'あ'.repeat(2000) } })
+  assert.deepEqual(short, { memory: { id: 'memory-1' } })
+
+  const long = await callBellTeamTool({ ...context, name: 'remember', arguments: { content: 'あ'.repeat(2001) } })
+  assert.deepEqual(long.memory, { id: 'memory-1' })
+  assert.match(long.notice, /2001字/)
+  assert.match(long.notice, /分ける/)
+
+  const revised = await callBellTeamTool({ ...context, name: 'revise_memory', arguments: { id: 'memory-1', content: 'い'.repeat(3000) } })
+  assert.deepEqual(revised.memory, { id: 'memory-2' })
+  assert.match(revised.notice, /3000字/)
+
+  assert.deepEqual(saved, [2000, 2001, 3000])
 })
 
 test('update_selfは呼出元以外のBot IDを受け付けない', async () => {
@@ -327,6 +343,28 @@ test('update_botのCLI・モデル・エフォート変更は設定画面と同�
   assert.deepEqual(schema.harness.enum, ['claude', 'codex', 'grok', 'cursor'])
   assert.equal(schema.reasoningEffort.type, 'string')
   assert.equal(schema.reasoningEffort.enum, undefined, '動的な候補をMCP起動時のenumに固定しない')
+})
+
+test('update_selfのCLI・モデル・エフォート変更は自分の席を設定画面と同じ適用経路へ渡す', async () => {
+  const calls = []
+  const registry = new Map([['bot-a', { id: 'bot-a', name: 'あかり', harness: 'claude', model: 'opus', reasoningEffort: 'high' }]])
+  registry.refresh = async () => registry
+  registry.update = async (id, changes) => { calls.push(['update', id, changes]); return { ...registry.get(id), ...changes } }
+  const configure = async (botId, changes) => { calls.push(['configure', botId, changes]); return { bot: { ...registry.get(botId), ...changes }, applying: true } }
+  const context = { from: 'bot-a', registry, configure }
+
+  await callBellTeamTool({ ...context, name: 'update_self', arguments: { reasoningEffort: 'xhigh' } })
+  await callBellTeamTool({ ...context, name: 'update_self', arguments: { harness: 'codex', model: '' } })
+  await callBellTeamTool({ ...context, name: 'update_self', arguments: { role: '整備' } })
+  assert.deepEqual(calls, [
+    ['configure', 'bot-a', { reasoningEffort: 'xhigh' }],
+    ['configure', 'bot-a', { harness: 'codex', model: '' }],
+    ['update', 'bot-a', { role: '整備' }],
+  ])
+  const schema = bellTeamTools.find(tool => tool.name === 'update_self').inputSchema.properties
+  assert.deepEqual(schema.harness.enum, ['claude', 'codex', 'grok', 'cursor'])
+  assert.equal(schema.reasoningEffort.enum, undefined, '動的な候補をMCP起動時のenumに固定しない')
+  assert.equal(Object.hasOwn(schema, 'botId'), false)
 })
 
 test('MCPのモデル一覧は画面と同じAPIへCLIを渡す', async () => {
