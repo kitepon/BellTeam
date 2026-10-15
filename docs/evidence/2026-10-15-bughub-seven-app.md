@@ -60,3 +60,17 @@ focused testの実測: `NetworkRecoveryTests`の-1001・500・502・POST -1005�
 - 既知予定行の背景取消: 最初の取得で「隔離予定」を表示し、背景→前面で次のGETを保留した。その間も既知行が画面に残ることをスクリーンショットで確認。再び背景へ移すと保留GETが閉じ、後続の逐次GETは増えない。前面復帰後は既知行を表示し、次の正常な空結果で「予定はありません」へ更新した。`runtime/schedule-known-background.xcresult`と添付画像を確認した。前のrefreshableを使うXCTest試行はアイドル待ちで中止し、この試験ではscenePhaseによる既存の再取得経路を使った。手動プル操作そのものはこの追加試験の対象外。
 
 2組合せとも候補51のアプリコードに追加修理は無い。追加したのは隔離fixtureとUI試験だけなので、署名済み51との差分による再署名・Apple事前検証は不要。App Store Connect接続ツールのRESTアップロードは属性名不足でAppleに拒否されたため、同じツールのApple公式`altool`方式で両成果物を送信し、いずれも受領された。署名済みバイナリの変更はない。
+
+## 10/16 00:53のMac版51・同時刻の時間切れ2件
+
+トロニーの保存原本を本番コンテナ内から読み取った。`c882af7b`は7→8で`/api/bots/bot-57403a80/messages`、`eb39292e`は4→5で`/api/bots`。どちらもMac版51・public・GET・`-1001`で、要求開始`00:52:11.808`、失敗`00:53:12.807` JST、開始時`inactive`、アプリの試行回数1。TaskMetricsは利用可能で2トランザクション。診断に記録される**最後のトランザクションだけ**の`fetchStartDate`と`requestStartDate`は`00:52:11.817`、`isReusedConnection=true`。`requestEndDate`と`responseStartDate`は記録されていない。診断の受信は`00:53:12.870/.871`で、要求の失敗時刻と区別する。両者の開始・失敗時刻が同じでも、同一接続・同一原因とは判定しない。
+
+`request_attempts=1`は`BellAPI.load`が数えるアプリの`session.data(for:)`呼出し回数であり、GETの`networkConnectionLost`を捕捉した時だけ2になる。`transaction_count=2`はAppleが1つのURLSessionTask内で記録した要求・応答トランザクション数で、アプリの再送2回を意味しない。最初のトランザクションの段・redirectCount・接続識別子はこの診断にない。最後の接続再利用だけから二つの要求が同一接続だったとも、本体到達や取消との相関とも言えない。60.999秒はAppleの既定60秒の追加データ待ち時間と整合するが、どの区間で待ったかは特定できない。[Appleの原文](../../rag/apple-networking/raw/urlsession-task-metrics.md)を参照。
+
+アプリは既存会話のGET失敗でメッセージと下書きを消さずエラーを表示する。一覧のBot・ルーム・owner・queueは全部揃ってから反映するため、失敗時は既存一覧を残す。原本の`error_shown_data_retained`は、報告時に既存データが空でなかったことを渡すコード上の分類で、利用者がその後の復帰を確認した証拠ではない。`manual_retry_available`も分類値で、手動操作や成功の観測ではない。次のactiveでは接続をflushして一覧を読み直し、会話はactive時やSSE通知で再取得する。今回の実要求が成功した後続記録、画面表示、利用者操作は原本に無く、実環境での復帰は未確認。
+
+トロニーのホスト保存記録では、この要求窓の本体GET受付・終了ログは無く、稼働コンテナにもその計測コードがまだ入っていない。本体例外0と診断POST各202は、元GETが届かなかった証拠ではない。cloudflaredの近い`/api/bots`取消とevents取消は相関IDが無く、今回の失敗要求との対応を決めない。container再起動0、journal抽出異常0、直前のsar標本も個々の要求の原因を証明しない。原因・本体到達・回復時刻は欠測のまま。
+
+別のアプリ表示欠陥を隔離で確認した。模擬-1001で一覧更新に失敗した後、SSE通知なしで同じ一覧GETを成功させると、Bot一覧は新しい値へ更新されても古い`connectionError`が残った。`runtime/bughub-stale-banner-isolated.xcresult`のfocused testはこの期待で失敗し、再現用patchを`runtime/bughub-stale-banner-isolated.patch`へ保存した。最初の試行は署名なしApp Groupのアバター取得で止まり、fixtureの版付きアバターだけを外して切り分けた。この表示欠陥が今回のMac実機2件で発生した証拠はない。`connectionError`はSSEの再接続警告にも使うため、成功GETで単純に消す修理はしない。通常GETとSSEのエラー状態を区別する最小設計、focused test、Mac/iOSの配布が残工程。版51のバイナリは未変更で、BugHub原本の状態・重大度・指紋も変更していない。
+
+適用範囲: Mac Catalystは今回の実診断と同じSwift実装。iOSも同じBellAPI・会話・一覧のコードを使うが、この事象の実機再現はしていない。Windows nativeは別の`HttpClient`実装でURLSessionTaskMetricsを使わず、この二件をそのまま適用・検証した扱いにしない。Linuxは本体とログの設置であり、このSwiftUIクライアントの修理対象ではない。Claude Code・Codex・Grok・Cursorのどの席かに応じた分岐はこのGET経路にない。Bot IDだけではハーネス別の発生・不発生を判定しない。
