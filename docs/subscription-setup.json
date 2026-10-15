@@ -5087,6 +5087,8 @@
         "appId": "6816295589",
         "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
         "archiveAndExportDirectory": "runtime/apple/bughub-seven-50",
+        "iosIpaSHA256": "9adc3e5c74c0cc5689be75fc5c3a629cb27881dcb5f6aaa81b1d14cc2cd9b1ab",
+        "macPkgSHA256": "7c0e2e7f4e365f2d6a4488650fad728fb423eb97fd255096f40067c0129ad31f",
         "iosArchiveAndExport": "passed",
         "macArchiveAndExport": "passed",
         "appAndNotificationExtensionVersionsMatch": true,
