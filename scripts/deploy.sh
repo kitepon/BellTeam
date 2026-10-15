@@ -23,7 +23,7 @@ printf '作業中のBot: %s\n' "${busy:-なし}"
 
 # 再ビルドは本番側で切り離して走らせる。公式の現行版を毎回取得し、ビルドが成功してからコンテナを入れ替える。
 log="runtime/backups/deploy-$(date +%Y%m%dT%H%M%S).log"
-ssh "$host" "cd $dir && setsid nohup sh -c 'docker compose build --pull --no-cache && docker compose up -d --no-build; echo deploy-exit=\$?' > $log 2>&1 < /dev/null &"
+ssh "$host" "cd $dir && setsid nohup sh -c 'docker compose build --pull --no-cache && sh scripts/update-cursor.sh && docker compose up -d --no-build; echo deploy-exit=\$?' > $log 2>&1 < /dev/null &"
 for _ in $(seq 1 360); do
   if ssh "$host" "grep -q '^deploy-exit=' $dir/$log" 2>/dev/null; then break; fi
   sleep 5

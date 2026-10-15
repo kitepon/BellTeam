@@ -72,6 +72,12 @@ AIの公式認証は、初期設定の後も設定の「AIの認証」からや�
 
 ## 実装資産の永続化境界
 
+SEC-014の先行段（2026-10-15の段階実装承認）として、Cursor更新は本体のCMDから外す。本体は`node src/supervisor.mjs`だけで起動する。`scripts/deploy.sh`はimageのビルド後に`scripts/update-cursor.sh`を実行し、成功した時だけ本体を入れ替える。一般配布installerも同じ段を使う。
+
+更新用の`compose.cursor-update.yaml`は本体のcomposeへmergeしない。新しくビルド/取得した本体imageから、root所有の固定入口`/usr/local/bin/bellteam-update-cursor`だけを起こす。渡すのはCursorのnamed volumeだけで、本体のenvironment/env_file、runtime/home、runtime/data、SSH鍵、Docker socket、host PIDは渡さない。HOMEは一時的なtmpfs、root filesystemはread-only、UID/GID1000。固定入口は環境をHOME/PATHだけに組み立て、公式`cursor-agent update`を実行して終了する。volumeは本体composeの正規化された名前を使い、別のCursorコピーは作らない。通常の再起動では更新を実行しない。更新失敗時は本体の入れ替えへ進まないが、公式updaterがvolumeを変更した可能性はあるため、旧processのまま無条件に安全と断定しない。
+
+この段は更新への鍵持込みを閉じるためのもの。本体/席のUID分離、鍵file、状態の置き場、稼働中のmoduleの分離は次段に残る。SEC-014全体の完了とはしない。本番反映は試験成功後、動いている席が反映担当だけの時に行い、セシルへ事前に実時刻を伝えてホスト側の同時監査を合わせる。
+
 コンテナの中は変更しない（2026-10-05 オーナー裁定：初期コンテナと、この設置の物を場所で区切る。コンテナの中は変更せず、利用者の永続データはコンテナの外に置く。名簿では区切らない）。本番の`compose.yaml`はコンテナを読み取り専用（`read_only: true`）で起こし、書けるのは割り当てた外の置き場（`/home/bell`、`/home/bell/.local`、`/srv/bellteam`）と、tmpfsの`/tmp`・`/run`だけにする。決まりの文だけでなく、作りで守る。Pythonのpip・venv、Node/npm・Corepack、基本ビルド道具はイメージに含める。Botが足すパッケージとランタイムは自分のプロジェクトの下へ入れ、複数のBotが使う物は`/srv/bellteam/shared/tools/`へ一つだけ置く。OSパッケージが要る時は、`.deb`をrootなしで外の置き場へ展開する（手順は[bot-environment.md](bot-environment.md)）。配布物の`distribution/server/compose.yaml`は、まだ読み取り専用にしていない。
 
 各Botの `environment/setup.sh` はコンテナ起動時、会話受付・予定開始前に順番に一度実行する。実行結果は同じ場所のsetup.logに残し、一席の失敗では全体の起動を止めない。`environment/env.sh` は会話用CLI起動とコマンド予定の都度読み込む。Aitermには起動専用の短命MCP接続から環境変数名を渡し、Bot間で値を共有しない。手順の正本は [bot-environment.md](bot-environment.md)。Bot台帳、CLI認証、MCP登録先は変えない。
