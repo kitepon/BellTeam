@@ -34,6 +34,10 @@ focused testの実測: `NetworkRecoveryTests`の-1001・500・502・POST -1005�
 
 トロニーが原本を確認し、`c882af7b`は6→7、`eb39292e`は3→4になった。両方とも版49、Mac、inactive、公開接続、GET、`NSURLErrorDomain -1001`、warn/open、`feature_unavailable`・`error_shown_data_retained`・`manual_retry_available`である。16:09:14.636/.637 JSTは診断の受信時刻であり、要求の失敗時刻ではない。原本に要求path・開始/失敗時刻・開始時のapp状態・TaskMetricsは無い。特に49の一覧診断の`/api/bots`は報告側の固定値なので、実際に失敗したGETを証明しない。
 
+会話側も49の`ConversationView.loadInitial`と`refresh`はmessagesとqueueを並列GETし、どちらが失敗してもmessagesのpathを診断へ渡す。したがって中央の`conversation` moduleから実GETをmessagesと確定できない。50では失敗した要求自身の経路を使う。
+
+トロニーのホスト原本照合では、15:59〜16:19に本体例外0、16:09:14.635/.636の診断POSTは202（2ms/1ms）。16:08:13にcloudflaredはGET owner/rooms/bots/queueと`bot-57403a80/messages`の`context canceled`を記録し、別にevents取消2件・schedules取消1件があった。CaddyのBellTeam warnはevents2件（UA BellTeam/49）、再接続ログ0。要求の実失敗時刻と個別の相関が無いため、このGET群を16:09の2診断そのものとは断定しない。本体`c35e382`にはGET受付/終了ログがまだ本番反映されておらず、到達と完了の欠測が残る。本体例外0や取消ログの数から、端末要求の未到達を推定しない。
+
 版49と候補50の会話・一覧の状態遷移をコードで比較した。`.inactive`移行ではAppStoreは保留GETを取り消さず、`.background`移行では前面復帰TaskとSSEを取り消す。再び`.active`になると接続プールをflushし、一覧を読み直してSSEを張り直す。会話の更新は開始時にactiveかを確認するが、始まった後のGETをinactiveで専用取消しない。失敗時は既存会話・下書きを保持し、一覧は4種類の取得が揃ってからまとめて反映する。候補50は要求単位の診断と初回取得失敗時の空表示だけを変え、取消・再送・復帰の条件は変えていない。
 
-今回の2行だけでは、そのGETがactiveで始まりinactiveになったのか、inactive中に始まったのか、どの通信段で止まったのか分からない。既存データ喪失や復帰失敗は観測されていない。取消条件を増やす追加修理は行わず、次の版50診断とサーバーのGETログで照合する。Mac inactiveの実機故障試験は行わない。
+今回の2行だけでは、そのGETがactiveで始まりinactiveになったのか、inactive中に始まったのか、どの通信段で止まったのか分からない。既存データ喪失や復帰失敗は観測されていない。取消条件を増やす追加修理は行わず、次の版50診断と、本体のGETログが反映された後の記録で照合する。Mac inactiveの実機故障試験は行わない。
