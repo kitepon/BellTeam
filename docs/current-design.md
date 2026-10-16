@@ -80,6 +80,8 @@ SEC-014の先行段（2026-10-15の段階実装承認）として、Cursor更新
 
 この段は更新への鍵持込みを閉じるためのもの。本体/席のUID分離、鍵file、状態の置き場、稼働中のmoduleの分離は次段に残る。SEC-014全体の完了とはしない。本番反映は試験成功後、動いている席が反映担当だけの時に行い、セシルへ事前に実時刻を伝えてホスト側の同時監査を合わせる。
 
+この「動いている」はターン途中の席を指し、入力待ちのCLIが起きているだけなら除く（2026-10-16 セシルのstaged_a条件確認）。`check-deploy-quiet`はprocessで席とsessionを対応づけ、BellTeamの既存`AitermTransport.seatTurns`で番の状態を読み、未対応の席は同じtransportの構造化`observe`で確認する。後者は入力待ち・起動後process0・子配送待ち0が揃う時だけidleとする。配送queueは状態読取の前後に確認し、他席の配送・途中ターン・欠測/未対応/読取失敗はexit2で保留。更新直前と本体up直前の両方で判定し、端末の起動/送信/終了、画面本文の取得、鍵の取得はしない。
+
 コンテナの中は変更しない（2026-10-05 オーナー裁定：初期コンテナと、この設置の物を場所で区切る。コンテナの中は変更せず、利用者の永続データはコンテナの外に置く。名簿では区切らない）。本番の`compose.yaml`はコンテナを読み取り専用（`read_only: true`）で起こし、書けるのは割り当てた外の置き場（`/home/bell`、`/home/bell/.local`、`/srv/bellteam`）と、tmpfsの`/tmp`・`/run`だけにする。決まりの文だけでなく、作りで守る。Pythonのpip・venv、Node/npm・Corepack、基本ビルド道具はイメージに含める。Botが足すパッケージとランタイムは自分のプロジェクトの下へ入れ、複数のBotが使う物は`/srv/bellteam/shared/tools/`へ一つだけ置く。OSパッケージが要る時は、`.deb`をrootなしで外の置き場へ展開する（手順は[bot-environment.md](bot-environment.md)）。配布物の`distribution/server/compose.yaml`は、まだ読み取り専用にしていない。
 
 各Botの `environment/setup.sh` はコンテナ起動時、会話受付・予定開始前に順番に一度実行する。実行結果は同じ場所のsetup.logに残し、一席の失敗では全体の起動を止めない。`environment/env.sh` は会話用CLI起動とコマンド予定の都度読み込む。Aitermには起動専用の短命MCP接続から環境変数名を渡し、Bot間で値を共有しない。手順の正本は [bot-environment.md](bot-environment.md)。Bot台帳、CLI認証、MCP登録先は変えない。
