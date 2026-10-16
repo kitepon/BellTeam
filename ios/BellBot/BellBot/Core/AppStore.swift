@@ -28,6 +28,9 @@ final class AppStore: ObservableObject {
     @Published var eventRevision = 0
     @Published var workingBotIDs: Set<String> = []
     @Published var connectionError: String?
+    private var refreshError: String?
+    private var eventsError: String?
+    private var notificationError: String?
     @Published var selectedTab = 0
     @Published var chatPath: [ChatTarget] = []
     private var drafts: [ChatTarget: ConversationDraft] = [:]
@@ -281,14 +284,24 @@ final class AppStore: ObservableObject {
     }
 
     func refreshFromView() async {
-        do { try await refresh(); await billing.refreshFromServer() }
+        do {
+            try await refresh()
+            refreshError = nil
+            updateConnectionError()
+            await billing.refreshFromServer()
+        }
         catch is CancellationError { return }
         catch let error as URLError where error.code == .cancelled { return }
         catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error) }
         catch {
-            connectionError = error.localizedDescription
+            refreshError = error.localizedDescription
+            updateConnectionError()
             api.diagnostics.report(error, path: "/api/bots", method: "GET", observation: .read(error, retainedData: !bots.isEmpty || !rooms.isEmpty))
         }
+    }
+
+    private func updateConnectionError() {
+        connectionError = eventsError ?? refreshError ?? notificationError
     }
 
     func sceneChanged(to next: ScenePhase) {
@@ -336,28 +349,33 @@ final class AppStore: ObservableObject {
                         guard let self else { return }
                         if type == "settings" { try await self.refreshSettings() }
                         if type == "setup" { try await self.refreshSetup() }
-                        self.connectionError = nil
+                        self.eventsError = nil
+                        self.updateConnectionError()
                         self.eventRevision += 1
                         self.requestRefreshFromEvent()
                     }
                     if Task.isCancelled { return }
-                    connectionError = "更新の接続が切れました。再接続しています。"
+                    eventsError = "更新の接続が切れました。再接続しています。"
+                    updateConnectionError()
                 } catch let error where BellAPIError.isAuthenticationError(error) {
                     if !Task.isCancelled { requireLogin(for: error) }
                     return
                 } catch BellAPIError.httpStatus(let status, _, let trace) where status == 429 || status >= 500 {
                     if Task.isCancelled { return }
-                    connectionError = "更新へ接続できません。再接続しています。"
+                    eventsError = "更新へ接続できません。再接続しています。"
+                    updateConnectionError()
                     api.diagnostics.report(BellAPIError.httpStatus(status, nil, trace), path: "/api/events", method: "GET", observation: .reconnecting)
                 } catch let error as URLError {
                     if Task.isCancelled { return }
                     // 切断1回は想定内。連続して失敗が続く時だけ、その連続を1件として報告する。
                     failures += 1
-                    connectionError = "更新へ接続できません。再接続しています。"
+                    eventsError = "更新へ接続できません。再接続しています。"
+                    updateConnectionError()
                     if failures == Self.eventsFailureReportThreshold { api.diagnostics.report(error, path: "/api/events", method: "GET", observation: .reconnecting, elapsedMilliseconds: BellDiagnostics.elapsedMilliseconds(since: requestStarted)) }
                 } catch {
                     if Task.isCancelled { return }
-                    connectionError = error.localizedDescription
+                    eventsError = error.localizedDescription
+                    updateConnectionError()
                     api.diagnostics.report(error, path: "/api/events", method: "GET", observation: .read(error, retainedData: !bots.isEmpty || !rooms.isEmpty))
                     return
                 }
@@ -381,7 +399,10 @@ final class AppStore: ObservableObject {
         foregroundTask?.cancel()
         foregroundTask = nil
         stopEvents()
-        connectionError = nil
+        refreshError = nil
+        eventsError = nil
+        notificationError = nil
+        updateConnectionError()
         phase = authMode == "cloudflare" ? .signIn : .failure("接続先が認証を拒否しました。サーバーの設定を確認してください。")
     }
 
@@ -420,8 +441,13 @@ final class AppStore: ObservableObject {
             do {
                 let response: SecretRequestResponse = try await api.get("/api/secret-requests/\(id)")
                 if response.request.status == "pending" { notificationSecret = response.request }
+                notificationError = nil
+                updateConnectionError()
             } catch let error where BellAPIError.isAuthenticationError(error) { pendingNotification = route; requireLogin(for: error) }
-            catch { connectionError = error.localizedDescription }
+            catch {
+                notificationError = error.localizedDescription
+                updateConnectionError()
+            }
         }
     }
 

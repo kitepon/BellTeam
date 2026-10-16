@@ -127,6 +127,68 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertFalse(log.contains("private-token"))
     }
 
+    func testSuccessfulManualGETClearsOnlyItsErrorAndKeepsDraft() async {
+        let scenario = NetworkScenario(failures: 1, failureCode: .timedOut, skipAvatarVersion: true)
+        let store = AppStore(api: makeAPI(scenario))
+        store.phase = .ready
+        store.rooms = [Room(id: "known", name: "既知の一覧", purpose: "", representativeId: nil, memberIds: [], avatar: "", recent: nil)]
+        store.draft(for: .bot("bot-network")).text = "未送信の本文"
+        await store.refreshFromView()
+        XCTAssertNotNil(store.connectionError)
+        XCTAssertEqual(store.rooms.first?.name, "既知の一覧")
+        await store.refreshFromView()
+        XCTAssertEqual(store.bots.first?.id, "bot-network")
+        XCTAssertNil(store.connectionError)
+        XCTAssertEqual(store.draft(for: .bot("bot-network")).text, "未送信の本文")
+        XCTAssertEqual(scenario.count("/api/bots"), 2, "GETの時間切れを自動再送しない")
+    }
+
+    func testSuccessfulGETDoesNotHideSSEReconnectWarning() async {
+        let scenario = NetworkScenario(failures: 0, events502ThenReady: true, holdEventsOpen: true, skipAvatarVersion: true)
+        let store = AppStore(api: makeAPI(scenario))
+        store.phase = .ready
+        defer { store.stopEvents() }
+        let warning = expectation(description: "SSEの再接続警告")
+        var sawWarning = false
+        let observation = store.$connectionError.compactMap { $0 }.sink { value in
+            if value.contains("再接続"), !sawWarning { sawWarning = true; warning.fulfill() }
+        }
+        store.startEvents()
+        await fulfillment(of: [warning], timeout: 2)
+        await store.refreshFromView()
+        XCTAssertEqual(store.bots.first?.id, "bot-network")
+        XCTAssertTrue(store.connectionError?.contains("再接続") == true)
+        XCTAssertEqual(scenario.count("/api/bots"), 1)
+        withExtendedLifetime(observation) {}
+    }
+
+    func testSSERecoveryKeepsOutstandingGETErrorUntilGETRecovers() async {
+        let scenario = NetworkScenario(failures: 1, failureCode: .timedOut,
+                                       events502ThenReady: true, holdEventsOpen: true, skipAvatarVersion: true)
+        let store = AppStore(api: makeAPI(scenario))
+        store.phase = .ready
+        defer { store.stopEvents() }
+        let warning = expectation(description: "SSEの再接続警告")
+        let event = expectation(description: "SSEの回復")
+        var errorAtEvent: String?
+        var sawWarning = false
+        let warningObservation = store.$connectionError.compactMap { $0 }.sink { value in
+            if value.contains("再接続"), !sawWarning { sawWarning = true; warning.fulfill() }
+        }
+        let eventObservation = store.$eventRevision.dropFirst().sink { _ in
+            errorAtEvent = store.connectionError
+            event.fulfill()
+        }
+        store.startEvents()
+        await fulfillment(of: [warning], timeout: 2)
+        await store.refreshFromView()
+        XCTAssertEqual(scenario.count("/api/bots"), 1)
+        await fulfillment(of: [event], timeout: 3)
+        XCTAssertNotNil(errorAtEvent, "SSE回復時に未解決の一覧GETエラーを消さない")
+        XCTAssertFalse(errorAtEvent?.contains("再接続") == true)
+        withExtendedLifetime((warningObservation, eventObservation)) {}
+    }
+
     func testHTTP500ReportUsesFailedConversationRoute() async {
         let scenario = NetworkScenario(failures: 0, httpStatus: 500)
         let api = makeAPI(scenario)
@@ -164,6 +226,9 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertEqual(scenario.reports.count, 1)
         XCTAssertEqual(scenario.reports[0].code, "IOS_HTTP_5XX")
         XCTAssertTrue(scenario.reports[0].log.contains("request_route=/api/events"))
+        XCTAssertTrue(scenario.reports[0].log.contains("request_started_at_ms="))
+        XCTAssertTrue(scenario.reports[0].log.contains("request_failed_at_ms="))
+        XCTAssertTrue(scenario.reports[0].log.contains("task_metrics_available="))
         XCTAssertTrue(scenario.reports[0].log.contains("severity=warn"))
     }
 
@@ -246,12 +311,14 @@ private final class NetworkScenario {
     let httpStatus: Int
     let events502ThenReady: Bool
     let holdEventsOpen: Bool
+    let skipAvatarVersion: Bool
     private let png: Data
 
     @MainActor
     init(failures: Int, failureCode: URLError.Code = .networkConnectionLost,
          avatars: Bool = false, accessExpired: Bool = false, httpStatus: Int = 200,
-         events502ThenReady: Bool = false, holdEventsOpen: Bool = false) {
+         events502ThenReady: Bool = false, holdEventsOpen: Bool = false,
+         skipAvatarVersion: Bool = false) {
         self.failures = failures
         self.failureCode = failureCode
         self.avatars = avatars
@@ -259,6 +326,7 @@ private final class NetworkScenario {
         self.httpStatus = httpStatus
         self.events502ThenReady = events502ThenReady
         self.holdEventsOpen = holdEventsOpen
+        self.skipAvatarVersion = skipAvatarVersion
         png = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { c in
             UIColor.systemPink.setFill(); c.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
         }.pngData()!
@@ -285,7 +353,7 @@ private final class NetworkScenario {
         let object: [String: Any]
         switch path {
         case "/api/bots":
-            object = ["bots": [["id": "bot-network", "name": "試験", "display_name": "試験", "harness": "codex", "model": "", "reasoning_effort": "", "fast_mode": false, "color": "#000000", "profile_text": "", "personality": "", "speech_style": "", "position": "", "role": "", "avatar": "", "avatarVersion": "version-a", "online": false]]]
+            object = ["bots": [["id": "bot-network", "name": "試験", "display_name": "試験", "harness": "codex", "model": "", "reasoning_effort": "", "fast_mode": false, "color": "#000000", "profile_text": "", "personality": "", "speech_style": "", "position": "", "role": "", "avatar": "", "avatarVersion": skipAvatarVersion ? "" : "version-a", "online": false]]]
         case "/api/rooms": object = ["rooms": []]
         case "/api/queue": object = ["items": []]
         case "/api/owner": object = ["owner": ["name": "試験", "profile": "", "avatar": "", "avatarVersion": "", "x_url": "", "github_url": "", "links": []]]

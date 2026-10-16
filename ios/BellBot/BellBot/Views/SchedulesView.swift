@@ -30,9 +30,20 @@ struct SchedulesView: View {
                         if loading {
                             ProgressView().frame(maxWidth: .infinity).padding(.top, 75)
                         } else if entries.isEmpty {
-                            ContentUnavailableView("予定はありません", systemImage: "calendar.badge.plus",
-                                                   description: Text("右上の＋から追加できます。"))
+                            if errorText != nil {
+                                ContentUnavailableView {
+                                    Label("予定を読み込めませんでした", systemImage: "wifi.exclamationmark")
+                                } description: {
+                                    Text("再読み込みしてください。")
+                                } actions: {
+                                    Button("再読み込み") { Task { await load() } }
+                                }
                                 .frame(maxWidth: .infinity)
+                            } else {
+                                ContentUnavailableView("予定はありません", systemImage: "calendar.badge.plus",
+                                                       description: Text("右上の＋から追加できます。"))
+                                    .frame(maxWidth: .infinity)
+                            }
                         } else {
                             ForEach(entries) { entry in
                                 ScheduleCard(entry: entry, bot: store.bots.first { $0.id == entry.target.id }) {

@@ -34,6 +34,15 @@ extension AppStore {
         owner = fixture.owner
         workingBotIDs = ["bot-one"]
         phase = .ready
+        if arguments.contains("-bellbot-preview-attachment") {
+            let picture = UIGraphicsImageRenderer(size: CGSize(width: 16, height: 16)).image { context in
+                UIColor.systemBlue.setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 16, height: 16))
+            }
+            if let data = picture.pngData(), let image = PendingImage(data: data) {
+                draft(for: .bot("bot-one")).attachments = [image]
+            }
+        }
         if arguments.contains("-bellbot-preview-connection-error") {
             connectionError = "更新へ接続できません。再接続しています。"
         }

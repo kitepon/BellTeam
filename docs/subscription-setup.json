@@ -5065,6 +5065,143 @@
         "deviceReadError": "CoreDevice 4016: trusted connectivity unavailable",
         "installationMethod": "TestFlight"
       }
+    },
+    "bugHubSevenAppRepair": {
+      "version": "1.0.1",
+      "build": "50",
+      "sourceCommit": "08d29fe7aabbfeefd53690e0f843c652d7360407",
+      "repairCommit": "d08c89744c12ac11e23d06fe6d68520cc4f3cc9c",
+      "status": "signed_validated_superseded_before_upload",
+      "scope": "未解決7件の要求単位診断と隔離で再現した会話・予定の誤った空表示の修理",
+      "caseEvaluation": "docs/evidence/2026-10-15-bughub-seven-app.md",
+      "tests": {
+        "networkFocused": "-1001・HTTP500・events502と再接続・POST-1005の模擬試験成功",
+        "foregroundFocused": "背景移行での保留GET取消と古い結果の不反映2件成功",
+        "iphoneUI": "再接続文の既存表示、会話500・予定初回失敗の修正前後、POST-1005の入力保持と1回送信を作り物データで確認",
+        "macCatalystBuild": "passed",
+        "nodeFinal": { "passed": 459, "failed": 0 },
+        "unsignedAppGroupTest": "署名条件による既知の権限失敗として分離"
+      },
+      "distribution": {
+        "approvalDecisionId": "K-Q3SAN9",
+        "approvalDecisionStatus": "cancelled",
+        "appId": "6816295589",
+        "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+        "archiveAndExportDirectory": "runtime/apple/bughub-seven-50",
+        "iosIpaSHA256": "9adc3e5c74c0cc5689be75fc5c3a629cb27881dcb5f6aaa81b1d14cc2cd9b1ab",
+        "macPkgSHA256": "7c0e2e7f4e365f2d6a4488650fad728fb423eb97fd255096f40067c0129ad31f",
+        "iosArchiveAndExport": "passed",
+        "macArchiveAndExport": "passed",
+        "appAndNotificationExtensionVersionsMatch": true,
+        "applePrevalidation": "both_no_errors",
+        "uploadStatus": "not_uploaded_superseded_by_build_51",
+        "appStorePublicSubmission": false
+      }
+    },
+    "bugHubSevenSettingsFollowup": {
+      "version": "1.0.1",
+      "build": "51",
+      "sourceCommit": "420bf459d05b6d183722015122fb9de93df59a29",
+      "status": "internal_distributed_mac_installed_iphone_owner_reported",
+      "scope": "候補50の7件診断・表示修理に設定Editor初回GET失敗の保存防止を追加。予定背景取消と画像付きPOSTの保持を隔離確認",
+      "caseEvaluation": "docs/evidence/2026-10-15-bughub-seven-app.md",
+      "tests": {
+        "featureSettingsBeforeFix": "iPhone Simulatorで初回GET 503後に未取得値の保存が有効になることを再現",
+        "featureSettingsAfterFix": "初回GET 503では保存無効と手動再読込表示、GET 200後に既知値表示と保存有効",
+        "knownSettingsLaterReadFailure": "取得済み値でPATCH後の3回目GETを503にし、Editorの値・有効スイッチ・一覧の既知状態をiPhone Simulatorで保持確認",
+        "scheduleBackground": "進行中GETの取消、次の逐次GET停止、前面復帰後の再取得を隔離UIで確認",
+        "knownScheduleBackground": "既知予定行を表示したまま保留GETを背景取消し、画面保持と復帰後の再取得をiPhone Simulatorで確認",
+        "postWithImage": "iPhone Simulatorで画像1件・本文を含むPOST1回、結果未確定後の文字・画像・既存会話保持を確認",
+        "macCatalystBuild": "passed",
+        "nodeFinal": { "passed": 459, "failed": 0 }
+      },
+      "distribution": {
+        "approvalDecisionId": "K-E9FBDF",
+        "appId": "6816295589",
+        "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+        "archiveAndExportDirectory": "runtime/apple/bughub-seven-51",
+        "iosIpaSHA256": "76c71bec815acddde34769629e9d265b8e00064f4198955c144382d6c873fab8",
+        "macPkgSHA256": "9dc954b30d70b110d413ffc5ff6592cb9269810b9ac914649412fb3510db4615",
+        "iosArchiveAndExport": "passed",
+        "macArchiveAndExport": "passed",
+        "appAndNotificationExtensionVersionsMatch": true,
+        "applePrevalidation": "both_no_errors",
+        "uploadStatus": "internal_distribution_active",
+        "iosBuildId": "4f68c17a-4edc-42e6-9619-31f764280986",
+        "macBuildId": "8c47b3e7-8804-42a5-a23b-96503e33ceea",
+        "macProcessing": "VALID",
+        "iosProcessing": "VALID",
+        "internalBuildState": "IN_BETA_TESTING",
+        "appStorePublicSubmission": false
+      },
+      "macAcceptance": {
+        "installedPath": "/Applications/BellTeam.app",
+        "installedBuild": "51",
+        "notificationExtensionBuild": "51",
+        "gatekeeperSource": "Testflight",
+        "appLaunched": true
+      },
+      "iphoneAcceptance": {
+        "status": "owner_reported_install_and_launch",
+        "decisionId": "K-A632F2",
+        "ownerConfirmedBuild": "51",
+        "ownerConfirmedLaunch": true,
+        "deviceReadConfirmed": false,
+        "deviceReadReason": "実機操作・照会を再開しない条件",
+        "installationMethod": "TestFlight"
+      }
+    },
+    "bugHubStaleBannerRepair": {
+      "version": "1.0.1",
+      "build": "52",
+      "sourceCommit": "1cdd7d91e853706926d5454cc1d6fc4d01268fca",
+      "status": "internal_distributed_mac_downloading_iphone_owner_pending",
+      "scope": "一覧GETとSSEの表示エラー状態を分け、成功した側のエラーだけを消す",
+      "caseEvaluation": "docs/evidence/2026-10-15-bughub-seven-app.md",
+      "tests": {
+        "beforeFix": "SSE通知なしのGET失敗後の成功で古いエラーが残ることを隔離再現",
+        "focusedAfterFix": { "passed": 3, "failed": 0 },
+        "relatedRegression": { "passed": 3, "failed": 0 },
+        "macCatalystBuild": "passed",
+        "nodeFinal": { "passed": 459, "failed": 0 },
+        "realDeviceFaultInjection": false
+      },
+      "distribution": {
+        "approvalDecisionId": "K-S7P5Z3",
+        "appId": "6816295589",
+        "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+        "archiveAndExportDirectory": "runtime/apple/bughub-stale-banner-52",
+        "iosIpaSHA256": "6761619dc7af9400aaae2cd93b20e54f515e728dd45409ab42ceb0153493a5c3",
+        "macPkgSHA256": "9979e121671658dd4fde172bd70b585a33eff31a20bd06bbe1a4cc8fe874755f",
+        "iosArchiveAndExport": "passed",
+        "macArchiveAndExport": "passed",
+        "appAndNotificationExtensionVersionsMatch": true,
+        "applePrevalidation": "both_no_errors",
+        "uploadStatus": "internal_distribution_active",
+        "iosBuildId": "1961a592-766c-4320-8b7e-7dce1c6122fb",
+        "macBuildId": "6e245e23-4e58-4959-a160-85b33682ef60",
+        "iosProcessing": "VALID",
+        "macProcessing": "VALID",
+        "internalBuildState": "IN_BETA_TESTING",
+        "appStorePublicSubmission": false
+      },
+      "macAcceptance": {
+        "installedPath": "/Applications/BellTeam.app",
+        "installedBuild": "51",
+        "targetBuild": "52",
+        "testflightDownloadState": "downloading",
+        "lastObservedAtJST": "2026-10-16 08:25",
+        "nextCheck": "TestFlightの正規ダウンロード完了後に/Applicationsの本体・通知拡張52と通常起動を確認",
+        "gatekeeperSource": "Testflight",
+        "targetBuildLaunched": false
+      },
+      "iphoneAcceptance": {
+        "status": "owner_install_pending",
+        "decisionId": "K-7HUJYX",
+        "deviceReadConfirmed": false,
+        "deviceReadReason": "実機操作・照会を再開しない条件",
+        "installationMethod": "TestFlight"
+      }
     }
   },
   "appleWebAccess": {
