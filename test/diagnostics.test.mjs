@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
@@ -119,10 +119,66 @@ test('サーバーの500エラーはメッセージを除いたスタックを�
     const row = diagnostics.list()[0]
     assert.equal(row.category, 'SERVER_HTTP_500')
     assert.match(row.diagnostic_log, /^Error\n\s+at /u)
+    assert.match(row.diagnostic_log, /^operation=member_list_read$/mu)
+    assert.match(row.diagnostic_log, /^trigger=unknown$/mu)
+    assert.match(row.diagnostic_log, /^expected_result=bot_list_response$/mu)
+    assert.match(row.diagnostic_log, /^result_basis=server_observation$/mu)
+    assert.match(row.diagnostic_log, /^screen_observation=not_observed$/mu)
     assert.doesNotMatch(row.diagnostic_log, /private response content/u)
-    assert.doesNotMatch(row.diagnostic_log, new RegExp(process.cwd(), 'u'))
+    assert.equal(row.diagnostic_log.includes(process.cwd()), false)
   } finally {
     await new Promise(resolve => server.close(resolve))
+  }
+})
+
+test('根拠付き調査注記は管理GETだけへ添え、診断原本と集計を変更せず設置間で共有しない', async () => {
+  const file = join(root, 'investigated.json')
+  const investigationsFile = join(root, 'investigations.json')
+  const raw = new Diagnostics(file)
+  await raw.initialize()
+  const original = await raw.record({ code: 'IOS_HTTP_5XX', module: 'conversation', app_version: '1.0(35)', diagnostic_log: 'module=conversation\nhttp_status=500' })
+  const before = await readFile(file, 'utf8')
+  const investigation = { summary: '最新35は操作復元不能。過去のPOST失敗は別条件。', evidence: ['fixture/historical.json#POST'], updated_at: '2026-10-16T03:25:00Z' }
+  await writeFile(investigationsFile, JSON.stringify({ [original.fingerprint]: investigation }))
+  const diagnostics = new Diagnostics(file, { investigationsFile })
+  await diagnostics.initialize()
+  const server = createDiagnosticsAdminServer({ diagnostics, key: 'synthetic-admin-key' })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/api/admin/logs`
+    assert.equal((await fetch(url)).status, 401)
+    const [annotated] = await (await fetch(url, { headers: { authorization: 'Bearer synthetic-admin-key' } })).json()
+    assert.deepEqual(annotated, { ...original, investigation })
+    diagnostics.list()[0].investigation.summary = '呼出元の書換え'
+    assert.deepEqual(diagnostics.list()[0].investigation, investigation)
+    assert.equal(await readFile(file, 'utf8'), before)
+    assert.deepEqual(diagnostics.rows.get(original.fingerprint), original)
+    await diagnostics.record({ code: 'IOS_HTTP_5XX', module: 'conversation' })
+    const [saved] = JSON.parse(await readFile(file, 'utf8'))
+    assert.equal(saved.occurrence_count, 2)
+    assert.equal(saved.diagnostic_log, original.diagnostic_log)
+    assert.equal(saved.severity, original.severity)
+    assert.equal(saved.status, original.status)
+    assert.equal(Object.hasOwn(saved, 'investigation'), false)
+    const otherInstallation = new Diagnostics(file)
+    await otherInstallation.initialize()
+    assert.equal(Object.hasOwn(otherInstallation.list()[0], 'investigation'), false)
+  } finally {
+    await new Promise(resolve => server.close(resolve))
+  }
+})
+
+test('任意の調査注記fileが無い・JSONでない時も診断原本を取得できる', async () => {
+  const file = join(root, 'notes-optional.json')
+  const investigationsFile = join(root, 'notes-invalid.json')
+  const diagnostics = new Diagnostics(file, { investigationsFile })
+  await diagnostics.initialize()
+  const original = await diagnostics.record({ code: 'IOS_HTTP_5XX', module: 'conversation' })
+  assert.deepEqual(diagnostics.list(), [original])
+  for (const invalid of ['not JSON', JSON.stringify({ [original.fingerprint]: { summary: '形式不足' } })]) {
+    await writeFile(investigationsFile, invalid)
+    await diagnostics.initialize()
+    assert.deepEqual(diagnostics.list(), [original])
   }
 })
 

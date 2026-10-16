@@ -30,9 +30,21 @@ const assessments = { info: '適切に処理した参考記録', warn: '影響�
 const referenceGrounds = [/^user_impact=none$/mu, /^app_handling=\S/mu]
 const modules = new Set(['app', 'session', 'conversation', 'events', 'image', 'bots', 'rooms', 'owner', 'schedules', 'settings', 'queue', 'server', 'secrets', 'notifications'])
 
+// BugHubが既に受け取る調査注記の形式。不正な注記で原本の取得まで失敗させない。
+function validInvestigation(value) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    && typeof value.summary === 'string' && value.summary.length <= 4000
+    && Array.isArray(value.evidence) && value.evidence.length <= 20
+    && value.evidence.every(entry => typeof entry === 'string' && entry.length <= 1000)
+    && typeof value.updated_at === 'string' && /^\d{4}-\d{2}-\d{2}T.*Z$/u.test(value.updated_at)
+    && Number.isFinite(Date.parse(value.updated_at))
+}
+
 export class Diagnostics {
-  constructor(file) {
+  constructor(file, { investigationsFile = null } = {}) {
     this.file = file
+    this.investigationsFile = investigationsFile
+    this.investigations = {}
     this.rows = new Map()
     this.pending = Promise.resolve()
   }
@@ -42,6 +54,18 @@ export class Diagnostics {
       for (const row of JSON.parse(await readFile(this.file, 'utf8'))) this.rows.set(row.fingerprint, row)
     } catch (error) {
       if (error.code !== 'ENOENT') throw error
+    }
+    // 設置ごとの任意の調査注記。読めなくても診断の受付や本体を止めない。
+    if (this.investigationsFile) {
+      this.investigations = {}
+      try {
+        const notes = JSON.parse(await readFile(this.investigationsFile, 'utf8'))
+        if (!notes || typeof notes !== 'object' || Array.isArray(notes)
+          || Object.entries(notes).some(([fingerprint, value]) => !/^[a-f0-9]{64}$/u.test(fingerprint) || !validInvestigation(value))) throw new Error('INVALID_INVESTIGATIONS')
+        this.investigations = notes
+      } catch (error) {
+        if (error.code !== 'ENOENT') process.stderr.write('BellTeam: 診断の調査注記を読み込めませんでした。診断原本はそのまま返します。\n')
+      }
     }
   }
 
@@ -91,6 +115,9 @@ export class Diagnostics {
     if (!['all', 'open', 'resolved'].includes(status) || !Number.isInteger(limit) || limit < 1 || limit > 1000) throw new Error('DIAGNOSTIC_INVALID')
     return [...this.rows.values()].filter(row => status === 'all' || row.status === status)
       .sort((a, b) => b.last_seen.localeCompare(a.last_seen)).slice(0, limit)
+      // 調査注記は報告元の読取表示にだけ添える。受信した診断原本と集計は書き換えない。
+      .map(row => Object.hasOwn(this.investigations, row.fingerprint)
+        ? { ...row, investigation: structuredClone(this.investigations[row.fingerprint]) } : row)
   }
 
   setStatus(fingerprint, status) {
