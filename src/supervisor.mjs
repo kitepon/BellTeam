@@ -44,7 +44,9 @@ const subscriptions = new Subscriptions({
   accessMode: process.env.BELLTEAM_SUBSCRIPTION_ACCESS_MODE ?? 'subscription',
 })
 await subscriptions.initialize()
-const diagnostics = new Diagnostics(join(root, 'logs/diagnostics.json'))
+const diagnostics = new Diagnostics(join(root, 'logs/diagnostics.json'), {
+  investigationsFile: process.env.BELLTEAM_DIAGNOSTIC_INVESTIGATIONS ?? null,
+})
 await diagnostics.initialize()
 const notifications = new PushNotifications({ root, bots, diagnostics })
 await notifications.initialize()

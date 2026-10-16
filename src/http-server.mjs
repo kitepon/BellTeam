@@ -5,6 +5,7 @@ import { createServer } from 'node:http'
 import { extname, join } from 'node:path'
 import { SubscriptionAccessError } from './subscriptions.mjs'
 import { LiveModelCatalog, ModelCatalogError } from './model-catalog.mjs'
+import { diagnosticRequestContext } from './diagnostic-request-context.mjs'
 
 const contentTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -636,7 +637,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
             .map(line => line.replaceAll(process.cwd(), '<app>'))
           await diagnostics.record({
             code: 'SERVER_HTTP_500', module: 'server',
-            diagnostic_log: `${error.constructor.name}\n${frames.join('\n')}`,
+            diagnostic_log: `${error.constructor.name}\n${frames.join('\n')}\n${diagnosticRequestContext(request, frames)}`,
           })
         }
         catch (reportError) { process.stderr.write(`BellTeam diagnostics error: ${reportError.stack ?? reportError.message}\n`) }
