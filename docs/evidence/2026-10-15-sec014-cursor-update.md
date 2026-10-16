@@ -26,3 +26,5 @@ main-server上で、現用imageに候補の固定入口とCMDを重ねた試験i
 `BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-7b140b27 sh scripts/deploy.sh` は、build後のCursor更新直前と本体up直前にqueue/process metadataを読み直す。直接の端末操作は行わない。読み取れない物や他BotのCLIが残る時はexit2で保留し、Cursor更新/本体upへ進まない。CLIの作業中/idleをこの道具では断定しないため、idleのCLIも保留する保守的な条件である。初回の本番読み取りは他BotのCLI22席を見つけ保留した。確認失敗の両箇所でupが呼ばれないことを代替Dockerで検証し、合成Docker環境でも他席CLIなしの通過/他席CLIありの拒否を確認した。
 
 本番container ID/StartedAt、実HOME/data/Cursor volumeは未変更。私だけの条件が満たせた反映時刻をセシルへ事前に通知し、ラプラスの同時確認と合わせる。入れた後のstartup0/server_processes≥2/missing無しはセシルv3.1で確認する。専用利用者/鍵file/stateの境目は未達のまま、SEC-014をこの段だけで閉じない。
+
+10/16 21:30の旧判定もidle CLIを含め22席で保留した。その後セシルが「動いている」はターン途中で、待機CLIは除くと確認した。上記の存在だけで止める判定は当時の履歴として残し、現行設計はcurrent-design.mdの読取りターン状態/構造化idle観測と配送queueによる判定へ修正する。欠測をidleと推測せず保留し、他席を閉じて通すことはしない。
