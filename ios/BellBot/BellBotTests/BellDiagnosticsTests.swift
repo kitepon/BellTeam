@@ -55,6 +55,48 @@ final class BellDiagnosticsTests: XCTestCase {
         XCTAssertEqual(BellRequestTrace.route(for: "/api/bots/private-name/messages"),
                        "/api/bots/:id/messages")
     }
+
+    func testRequestContextSeparatesContractFromObservedFailure() {
+        var logs: [String] = []
+        let diagnostics = BellDiagnostics { _, _, _, log in logs.append(log) }
+        let trace = BellRequestTrace(route: "/api/bots/bot-deadbeef/messages", method: "POST",
+            startedAt: Date(), failedAt: Date(), appStateAtStart: "active", attempts: 1, metrics: nil)
+        diagnostics.report(BellAPIError.httpStatus(500, "private response", trace),
+            path: "/api/bots/private-name/messages?token=secret", method: "POST", observation: .write)
+        let log = logs[0]
+        XCTAssertTrue(log.contains("scope=app_request\noperation=message_send\ntrigger=unknown"))
+        XCTAssertTrue(log.contains("expected_result=send_result_returned\nactual_result=http_500"))
+        XCTAssertTrue(log.contains("expectation_basis=code_contract\nresult_basis=request_observation"))
+        XCTAssertTrue(log.contains("handling_basis=code_classification\nscreen_observation=not_observed"))
+        XCTAssertFalse(log.contains("private response"))
+        XCTAssertFalse(log.contains("private-name"))
+        XCTAssertFalse(log.contains("secret"))
+    }
+
+    func testRequestContextDoesNotInferOperationFromFallbackPath() {
+        var log = ""
+        let diagnostics = BellDiagnostics { _, _, _, value in log = value }
+        diagnostics.report(URLError(.timedOut), path: "/api/bots", method: "GET",
+            observation: .read(URLError(.timedOut), retainedData: true))
+        XCTAssertTrue(log.contains("scope=app_operation"))
+        XCTAssertTrue(log.contains("operation=unknown\ntrigger=unknown"))
+        XCTAssertTrue(log.contains("expected_result=successful_response\nactual_result=network_timeout"))
+        XCTAssertTrue(log.contains("result_basis=request_observation"))
+    }
+
+    func testScheduleTimeoutUsesTracedRequestWithoutClaimingScreenObservation() {
+        var log = ""
+        let diagnostics = BellDiagnostics { _, _, _, value in log = value }
+        let trace = BellRequestTrace(route: "/api/bots/bot-deadbeef/schedules", method: "GET",
+            startedAt: Date(), failedAt: Date(), appStateAtStart: "active", attempts: 1, metrics: nil)
+        let error = URLError(.timedOut, userInfo: [BellRequestTrace.userInfoKey: trace])
+        diagnostics.report(error, path: "/api/schedules", method: "GET",
+            observation: .read(error, retainedData: true))
+        XCTAssertTrue(log.contains("operation=schedule_read\ntrigger=unknown"))
+        XCTAssertTrue(log.contains("expected_result=schedule_entries_loaded\nactual_result=network_timeout"))
+        XCTAssertTrue(log.contains("screen_observation=not_observed"))
+        XCTAssertTrue(log.contains("request_route=/api/bots/bot-deadbeef/schedules"))
+    }
 }
 
 final class EventStreamTests: XCTestCase {

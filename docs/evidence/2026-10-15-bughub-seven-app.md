@@ -112,3 +112,11 @@ Macのダウンロード表示は開始から十数分後も続き、表示メ�
 この3行だけから新しいアプリ対処不良は確定しない。版51で別途再現した一覧GET成功後の古い警告残りは版52で修理済みだが、この3件で警告が残ったとの証拠は無い。まずSEC014のGET受付・終了ログ反映とその後の同種事象で端末診断を照合する。再試行の内訳がなお原因判断を妨げる場合は、既存`diagnostic_log`へ初回・再試行それぞれの開始/失敗時刻とTaskMetrics有無を加える最小案を検討する。新ID、永続キュー、再送の追加は不要。
 
 適用の補正: この3行の**実診断はiPhone/iOS**。Mac Catalystは同じSwiftの通信・表示コードを使うが、この3行をMac実測とは扱わない。Windows nativeは別の`HttpClient`実装、Linuxは本体・ログ設置。ハーネス別の通信分岐や4ハーネスそれぞれの実測は無い。iPhone実機での故障操作と保持・復帰画面の実測は行っていない。
+
+## 10/16の版52予定GETと操作文脈の診断改善
+
+トロニーの通話報告seq68による新しい`8988b6a2`の1行は、iPhone版52・publicでの`GET /api/bots/bot-da7c1cb5/schedules`。端末の要求開始12:32:13.086、失敗12:32:16.096 JST（3.010秒）、開始時の診断状態active、アプリ試行1、TaskMetrics取引1、`-1001`である。診断受信は12:32:19.309。原本はフラジャイル席の`.cache/bughub-evidence-audit-20261016/schedule-delta-1242.json`。これは個別予定の読取要求と時間切れまでは特定できるが、HTTP/2切替後の実transport、原因、画面での保持と復帰は分からない。切替失敗や版52の表示修理の回帰とは判定しない。従来の版49の発生とも混ぜない。
+
+アプリの`BellDiagnostics.report`が作る既存`diagnostic_log`へ、`scope`、`operation`、`trigger`、`expected_result`、`actual_result`、`expectation_basis`、`result_basis`、`handling_basis`、`screen_observation`を追加する。要求traceがある時だけ`scope=app_request`とし、無い時は`app_operation`として推測を避ける。失敗した要求自身のtraceから分かるメソッドと安全化した経路だけで操作を分類する。会話GET/POST、SSE接続、Bot一覧GET、購読状態GET、設定GET、個別予定GET、session GETだけを名付け、それ以外は`operation=unknown`にする。起点操作は観測していないため`trigger=unknown`、実画面も`screen_observation=not_observed`。期待は`code_contract`、HTTP/URLSessionの失敗は`request_observation`、画面への扱いは`code_classification`と明記する。通知・MetricKitの報告は今回のHTTP操作棚卸しの対象外として変更しない。例外本文、URL query、鍵、会話本文は増やさない。既存のcode/module/severity、再送・取消条件、BugHub原本と指紋は変更しない。
+
+局所検査ではMac Catalystのアプリ本体ビルドと`BellDiagnosticsTests`の追加3件のコンパイルが成功し、リポジトリの`npm test`も成功した。**XCTestは実行できていない**。このMacのCoreSimulatorはXcodeより古くSimulatorを列挙できず、Mac Catalystの署名なしテストランナーはLaunchServices `-10699`で起動を拒否された。署名ありでは開発チーム未設定でビルドが止まる。したがって追加3件を成功と数えず、iPhone実機での今回の予定失敗の再現・保持・復帰も未実施とする。版52のTestFlight配布物にはこの診断変更は入らない。

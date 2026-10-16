@@ -175,7 +175,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
             code = urlError.code == .timedOut ? "IOS_NETWORK_TIMEOUT" : "IOS_NETWORK_FAILURE"
         } else if case BellAPIError.httpStatus(let status, _, _) = error, status >= 500 {
             code = "IOS_HTTP_5XX"
-        } else if error is DecodingError || isInvalidResponse(error) {
+        } else if error is DecodingError || Self.isInvalidResponse(error) {
             code = "IOS_RESPONSE_INVALID"
         } else if case BellAPIError.backgroundSendExpired = error {
             code = "IOS_NETWORK_TIMEOUT"
@@ -188,7 +188,10 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         let module = Self.module(for: trace?.route ?? path)
         send(code: code, module: module, version: Self.currentVersion, severity: observation.impact.severity,
              log: Self.errorLog(error, module: module) + (method.map { "\nhttp_method=\($0)" } ?? "")
-                + (trace?.log ?? "") + observation.log + contextLog(elapsedMilliseconds))
+                + (trace?.log ?? "")
+                + Self.requestContextLog(error: error, route: trace?.route ?? "unknown",
+                                         method: trace?.method ?? method ?? "unknown", hasRequestTrace: trace != nil)
+                + observation.log + contextLog(elapsedMilliseconds))
     }
 
     /// 通知登録の失敗。stage は失敗した段（server_status・authorization・apns_token・register_device・unregister・avatar_cache）。
@@ -271,7 +274,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         }
     }
 
-    private func isInvalidResponse(_ error: Error) -> Bool {
+    private static func isInvalidResponse(_ error: Error) -> Bool {
         if case BellAPIError.invalidResponse = error { return true }
         return false
     }
@@ -295,6 +298,59 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
             return "module=\(module)\nerror_type=DecodingError.\(kind)"
         }
         return "module=\(module)\nerror_type=InvalidResponse"
+    }
+
+    /// 要求についてコードから分かる目的と、実際に観測した失敗を別の根拠で記録する。
+    private static func requestContextLog(error: Error, route: String, method: String, hasRequestTrace: Bool) -> String {
+        let operation: String
+        let expected: String
+        switch (method, route) {
+        case ("GET", "/api/events"):
+            (operation, expected) = ("event_stream_connect", "sse_stream_connected")
+        case ("GET", "/api/bots"):
+            (operation, expected) = ("member_list_read", "member_list_loaded")
+        case ("GET", "/api/session"):
+            (operation, expected) = ("session_check", "session_confirmed")
+        case ("GET", "/api/subscription"):
+            (operation, expected) = ("subscription_status_read", "subscription_status_loaded")
+        case ("GET", let path) where path == "/api/settings" || path.hasPrefix("/api/settings/"):
+            (operation, expected) = ("settings_read", "settings_loaded")
+        case ("GET", let path) where path.hasSuffix("/schedules"):
+            (operation, expected) = ("schedule_read", "schedule_entries_loaded")
+        case ("GET", let path) where path.hasSuffix("/messages"):
+            (operation, expected) = ("conversation_read", "messages_loaded")
+        case ("POST", let path) where path.hasSuffix("/messages"):
+            (operation, expected) = ("message_send", "send_result_returned")
+        default:
+            (operation, expected) = ("unknown", "successful_response")
+        }
+
+        let actual: String
+        let resultBasis: String
+        if case BellAPIError.httpStatus(let status, _, _) = error {
+            actual = "http_\(status)"
+            resultBasis = "request_observation"
+        } else if let urlError = error as? URLError {
+            switch urlError.code {
+            case .timedOut: actual = "network_timeout"
+            case .networkConnectionLost: actual = "connection_lost"
+            default: actual = "network_failure"
+            }
+            resultBasis = "request_observation"
+        } else if case BellAPIError.backgroundSendExpired = error {
+            actual = "background_send_expired"
+            resultBasis = "code_classification"
+        } else if case BellAPIError.backgroundSendUnavailable = error {
+            actual = "background_send_unavailable"
+            resultBasis = "code_classification"
+        } else {
+            actual = "response_invalid"
+            resultBasis = "code_classification"
+        }
+        return "\nscope=\(hasRequestTrace ? "app_request" : "app_operation")\noperation=\(operation)\ntrigger=unknown"
+            + "\nexpected_result=\(expected)\nactual_result=\(actual)"
+            + "\nexpectation_basis=code_contract\nresult_basis=\(resultBasis)"
+            + "\nhandling_basis=code_classification\nscreen_observation=not_observed"
     }
 
     private static func stackLog(_ tree: MXCallStackTree) -> String {
