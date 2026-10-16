@@ -13,4 +13,6 @@ test
 AGENTS.md
 CLAUDE.md
 scripts/deploy.sh
+scripts/check-deploy-quiet.sh
+scripts/check-deploy-quiet.mjs
 scripts/seed-auth.sh

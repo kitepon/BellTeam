@@ -16,3 +16,13 @@ main-server上で、現用imageに候補の固定入口とCMDを重ねた試験i
 これは公式の全ハーネス再ビルドの代替ではない。10/16までに現行版からの全image隔離ビルド、本体の起動/機能、Cursorの実更新、静かな時の最終再確認と反映手順、戻しの実測を完了する。実反映時刻は試験後にセシルへ送る。戻す場合は更新CMDを含む旧imageを鍵付きで起動し直さず、候補の直接CMDを維持して旧imageを使う。状態/会話/予定を古いbackupへ戻さない。Cursor不良なら、鍵の無い更新箱で公式の既知正常な版へ戻す方法を隔離検証してから扱う。
 
 詳細証拠の所有者はトロニー。`/srv/bellteam/bots/bot-7b140b27/integrations/sec-014-proposal-20261015/`。SEC-014全体は開いたまま。鍵の値の読み取り/再発行なし。
+
+## 10/16の全イメージ隔離
+
+公式現行版からキャッシュなしで全イメージをビルドし、本番と別のHOME/data/Cursor volume、network=noneで本体を起動した。4種類の合成BotのsetupはUID1000、本体の鍵名なし。各CLIのバージョン実行、4種類のMCP設定、合成席名札でのget_self、既存の合成設定保持、Codex hookの並び、通常API読取りと更新、GET受付/終了ログとquery非記録が通った。実認証や本番のデータを隔離箱へ持ち込まず、実AIターンの受入とは区別する。
+
+同じ合成データで旧イメージへ戻す時はCMDを固定Nodeへoverrideし、増えた最新状態を保持したまま候補へ戻せた。小規模の合成環境での停止からreadyは約1秒で、全席のsetupを復元する本番の停止時間の保証ではない。Cursorの切戻しは鍵無し箱でbin/agent・bin/cursor-agent・share/cursor-agentだけを控えから復元し、更新で増えた不良releaseを除去、無関係の最新ファイルを保持する方法を隔離確認した。
+
+`BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-7b140b27 sh scripts/deploy.sh` は、build後のCursor更新直前と本体up直前にqueue/process metadataを読み直す。直接の端末操作は行わない。読み取れない物や他BotのCLIが残る時はexit2で保留し、Cursor更新/本体upへ進まない。CLIの作業中/idleをこの道具では断定しないため、idleのCLIも保留する保守的な条件である。初回の本番読み取りは他BotのCLI22席を見つけ保留した。確認失敗の両箇所でupが呼ばれないことを代替Dockerで検証し、合成Docker環境でも他席CLIなしの通過/他席CLIありの拒否を確認した。
+
+本番container ID/StartedAt、実HOME/data/Cursor volumeは未変更。私だけの条件が満たせた反映時刻をセシルへ事前に通知し、ラプラスの同時確認と合わせる。入れた後のstartup0/server_processes≥2/missing無しはセシルv3.1で確認する。専用利用者/鍵file/stateの境目は未達のまま、SEC-014をこの段だけで閉じない。
