@@ -168,17 +168,27 @@ test('根拠付き調査注記は管理GETだけへ添え、診断原本と集�
   }
 })
 
-test('任意の調査注記fileが無い・JSONでない時も診断原本を取得できる', async () => {
+test('明示した調査注記fileの欠落・不正は値を含めず警告し、診断原本は取得できる', async () => {
   const file = join(root, 'notes-optional.json')
-  const investigationsFile = join(root, 'notes-invalid.json')
+  const investigationsFile = join(root, 'notes-private-file.json')
   const diagnostics = new Diagnostics(file, { investigationsFile })
-  await diagnostics.initialize()
-  const original = await diagnostics.record({ code: 'IOS_HTTP_5XX', module: 'conversation' })
-  assert.deepEqual(diagnostics.list(), [original])
-  for (const invalid of ['not JSON', JSON.stringify({ [original.fingerprint]: { summary: '形式不足' } })]) {
-    await writeFile(investigationsFile, invalid)
+  const warnings = []
+  const stderr = process.stderr.write
+  process.stderr.write = chunk => { warnings.push(String(chunk)); return true }
+  try {
     await diagnostics.initialize()
+    const original = await diagnostics.record({ code: 'IOS_HTTP_5XX', module: 'conversation' })
     assert.deepEqual(diagnostics.list(), [original])
+    for (const invalid of ['not JSON', JSON.stringify({ [original.fingerprint]: { summary: 'synthetic-private-note' } })]) {
+      await writeFile(investigationsFile, invalid)
+      await diagnostics.initialize()
+      assert.deepEqual(diagnostics.list(), [original])
+    }
+    assert.equal(warnings.length, 3)
+    assert.ok(warnings.every(line => line === 'BellTeam: 診断の調査注記を読み込めませんでした。診断原本はそのまま返します。\n'))
+    assert.doesNotMatch(warnings.join(''), /notes-private-file|synthetic-private-note|not JSON/u)
+  } finally {
+    process.stderr.write = stderr
   }
 })
 

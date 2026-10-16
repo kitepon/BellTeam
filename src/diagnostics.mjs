@@ -64,7 +64,7 @@ export class Diagnostics {
           || Object.entries(notes).some(([fingerprint, value]) => !/^[a-f0-9]{64}$/u.test(fingerprint) || !validInvestigation(value))) throw new Error('INVALID_INVESTIGATIONS')
         this.investigations = notes
       } catch (error) {
-        if (error.code !== 'ENOENT') process.stderr.write('BellTeam: 診断の調査注記を読み込めませんでした。診断原本はそのまま返します。\n')
+        process.stderr.write('BellTeam: 診断の調査注記を読み込めませんでした。診断原本はそのまま返します。\n')
       }
     }
   }

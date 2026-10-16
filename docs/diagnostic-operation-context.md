@@ -15,13 +15,13 @@
 | セッションGET | session_check | session_status_response | session_confirmed |
 | 機能設定GET | settings_read | settings_response | settings_loaded |
 
-不明な入口はoperation/expected_result=unknown。AitermTransport.dispatchを示すstackがある場合だけfailure_stage=dispatch。それだけで配送状態や原因は決めない。アプリは要求trace無しならoperation=unknownで、呼出側の代替pathから実要求を作らない。
+サーバーの不明な入口はoperation/expected_result=unknown。AitermTransport.dispatchを示すstackがある場合だけfailure_stage=dispatch。それだけで配送状態や原因は決めない。アプリは要求trace無しならscope=app_operation、operation=unknown、expected_result=successful_responseという一般の期待だけを記録し、呼出側の代替pathから実要求や具体的な目的を作らない。
 
 ## 過去登録の説明を添える
 
 設置側が用意するJSONの絶対pathをBELLTEAM_DIAGNOSTIC_INVESTIGATIONSへ渡す。JSONは既存fingerprintをキーとし、値はBugHubが既に扱うinvestigation形：summary（4000字以内）、evidence（20件以下、各1000字以内の根拠参照）、updated_at（UTC ISO日時）。
 
-Diagnostics.listの管理GETだけへこの注記を添える。診断原文・版・受信日時・回数・状態・重大度は書き換えず、保存fileにも注記を混ぜない。設置側のpathを指定しない環境には注記を付けず、他の利用者の同じ指紋へ特定設置の過去履歴を配布しない。注記fileは起動時に読み、無い/読めない場合も診断原本の取得と受付は継続する。
+Diagnostics.listの管理GETだけへこの注記を添える。診断原文・版・受信日時・回数・状態・重大度は書き換えず、保存fileにも注記を混ぜない。設置側のpathを指定しない環境には注記を付けず、他の利用者の同じ指紋へ特定設置の過去履歴を配布しない。注記fileは起動時に読み、明示したfileの欠落/読取・形式の失敗は値を含まない汎用警告を出し、診断原本の取得と受付は継続する。
 
 BellTeam内部設置のJSON所有者はトロニー。置き場はbot-7b140b27/integrations/bughub-event-audit-20261016/registration-investigations.json。private composeからその既存data bind内のpathを指定する。一般配布のcomposeには指定しない。BugHubのsignature adapter→collector→investigation表示という既存経路を使用し、中央DBを書き換えない。JSON更新後の適用は通常の反映窓で行う。特定の原本と新しい説明を混ぜず、注記には評価日時と対象の版/受信時刻を含める。
 
