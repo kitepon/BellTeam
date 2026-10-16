@@ -5190,14 +5190,16 @@
         "installedBuild": "51",
         "targetBuild": "52",
         "testflightDownloadState": "downloading",
-        "lastObservedAtJST": "2026-10-16 08:25",
+        "lastObservedAtJST": "2026-10-16 11:20",
         "nextCheck": "TestFlightの正規ダウンロード完了後に/Applicationsの本体・通知拡張52と通常起動を確認",
         "gatekeeperSource": "Testflight",
         "targetBuildLaunched": false
       },
       "iphoneAcceptance": {
-        "status": "owner_install_pending",
+        "status": "owner_reported_install_and_launch",
         "decisionId": "K-7HUJYX",
+        "ownerConfirmedBuild": "52",
+        "ownerConfirmedLaunch": true,
         "deviceReadConfirmed": false,
         "deviceReadReason": "実機操作・照会を再開しない条件",
         "installationMethod": "TestFlight"
