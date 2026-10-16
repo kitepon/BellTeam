@@ -119,4 +119,19 @@ Macのダウンロード表示は開始から十数分後も続き、表示メ�
 
 アプリの`BellDiagnostics.report`が作る既存`diagnostic_log`へ、`scope`、`operation`、`trigger`、`expected_result`、`actual_result`、`expectation_basis`、`result_basis`、`handling_basis`、`screen_observation`を追加する。要求traceがある時だけ`scope=app_request`とし、無い時は`app_operation`として推測を避ける。失敗した要求自身のtraceから分かるメソッドと安全化した経路だけで操作を分類する。会話GET/POST、SSE接続、Bot一覧GET、購読状態GET、設定GET、個別予定GET、session GETだけを名付け、それ以外は`operation=unknown`にする。起点操作は観測していないため`trigger=unknown`、実画面も`screen_observation=not_observed`。期待は`code_contract`、HTTP/URLSessionの失敗は`request_observation`、画面への扱いは`code_classification`と明記する。通知・MetricKitの報告は今回のHTTP操作棚卸しの対象外として変更しない。例外本文、URL query、鍵、会話本文は増やさない。既存のcode/module/severity、再送・取消条件、BugHub原本と指紋は変更しない。
 
-局所検査ではMac Catalystのアプリ本体ビルドと`BellDiagnosticsTests`の追加3件のコンパイルが成功し、リポジトリの`npm test`も成功した。**XCTestは実行できていない**。このMacのCoreSimulatorはXcodeより古くSimulatorを列挙できず、Mac Catalystの署名なしテストランナーはLaunchServices `-10699`で起動を拒否された。署名ありでは開発チーム未設定でビルドが止まる。したがって追加3件を成功と数えず、iPhone実機での今回の予定失敗の再現・保持・復帰も未実施とする。版52のTestFlight配布物にはこの診断変更は入らない。
+初回の局所検査ではMac Catalystのアプリ本体ビルドと`BellDiagnosticsTests`の追加3件のコンパイル、リポジトリの`npm test`が成功した。iOS SimulatorはCoreSimulatorとXcodeの版差で列挙できず、署名なしMac CatalystテストランナーもLaunchServices `-10699`で起動を拒否された。
+
+その後、既存のApple Development証明書を証明書IDで明示して、別bundle ID `dev.kitepon.bellbot.contextprobe20261016`、専用の一時DerivedData、App Group・通知のentitlement無しでMac Catalystのテスト用アプリとテスト束を署名した。一時schemeには`BellBotTests`だけを載せ、Debugの`-bellbot-preview`で起動した。`-bellbot-preview-server`を渡さないため、プレビューコードはAPI接続先をnilにする。署名・bundle ID・xctestrunの引数を起動前に確認した。`BellDiagnosticsTests`は**9件成功・失敗0・skip0**で、追加3件もxcresultで個別に成功を確認した。証拠は`runtime/bughub-operation-context-focused-maccatalyst.xcresult`。試験後は一時scheme・テスト用アプリ・専用ビルド出力を削除し、試験プロセスが残らず、`/Applications/BellTeam.app`が版51のままなのを確認した。iOS SimulatorとiPhone実機での試験は未実施。今回の実機予定失敗の再現・保持・復帰も観測していない。版52のTestFlight配布物にはこの診断変更は入らない。
+
+## 10/16 13:06の後続GET報告
+
+トロニーの通話報告seq74では、`c882af7b`の会話GET時間切れが11→12（最新12:44 JST）、`8988b6a2`の予定GET時間切れが7→8（最新12:45 JST）になった。報告時点ではこの2行の根因、実transport、実画面での保持・復帰は未確認。12:15のHTTP/2切替前と特定した従来の4要求へ、今回の切替後の発生を含めない。
+
+指定されたフラジャイル席の`.cache/bughub-evidence-audit-20261016/get-delta-1306.json`を13:17頃に必要な診断項目だけで読むと、会話は累計12のままだったが、予定の最新行は既に累計9・13:09:32受信へ更新されていた。これは12:45の累計8の原文ではないため、以下を別の記録として扱う。
+
+| 保存fileを読んだ時の最新行 | 要求単位で確認した内容 | 限界 |
+| --- | --- | --- |
+| `c882af7b`累計12 | 版52の会話`GET /api/bots/bot-ca9fed97/messages`、12:44:26.729→28.223 JST、開始active、`-1001`、試行1・取引1・接続再利用true。診断は`error_shown_read_unavailable`に分類。 | 画面での表示・回復は直接観測していない。 |
+| `8988b6a2`累計9 | 版52の個別予定`GET /api/bots/bot-220e0f1b/schedules`、13:09:28.533→31.540 JST、開始active、`-1001`、試行1・取引1・接続再利用true。診断は`error_shown_data_retained`に分類。 | 13:06報告の累計8とは別の最新行。8の要求経路・開始/失敗時刻を9から復元しない。画面での保持・回復も直接観測していない。 |
+
+両行のTaskMetricsとアプリ分類だけで通信断の区間やサーバー到達、HTTP/2の利用、版52の画面修理の再発は判定しない。指紋・累計・状態・重大度を変更しない。
