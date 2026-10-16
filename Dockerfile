@@ -52,6 +52,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --cache /root/.npm
 COPY . .
+RUN install -o root -g root -m 0755 scripts/cursor-update-entrypoint.sh /usr/local/bin/bellteam-update-cursor
 RUN chown -R bell:bell /app
 
 USER bell
@@ -64,4 +65,4 @@ ENV HOME=/home/bell \
   RTK_SUPPRESS_HOOK_WARNING=1 \
   TERM=xterm-256color
 
-CMD ["sh", "-c", "cursor-agent update && exec node src/supervisor.mjs"]
+CMD ["/usr/local/bin/node", "src/supervisor.mjs"]

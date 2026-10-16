@@ -5,6 +5,10 @@ set -eu
 cd "$(dirname "$0")/.."
 host=main-server
 dir=/home/kite/BellTeam
+quiet_except=${BELLTEAM_DEPLOY_QUIET_EXCEPT:-}
+case "$quiet_except" in *[!a-zA-Z0-9_-]*) echo 'invalid quiet Bot ID' >&2; exit 2;; esac
+quiet_check=:
+if [ -n "$quiet_except" ]; then quiet_check="sh scripts/check-deploy-quiet.sh $quiet_except"; fi
 
 # 反映するのはcommit済みの内容だけ。本番でcommitを作らないので、履歴はGitHubのmainと常に一致する。
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
@@ -23,7 +27,7 @@ printf '作業中のBot: %s\n' "${busy:-なし}"
 
 # 再ビルドは本番側で切り離して走らせる。公式の現行版を毎回取得し、ビルドが成功してからコンテナを入れ替える。
 log="runtime/backups/deploy-$(date +%Y%m%dT%H%M%S).log"
-ssh "$host" "cd $dir && setsid nohup sh -c 'docker compose build --pull --no-cache && docker compose up -d --no-build; echo deploy-exit=\$?' > $log 2>&1 < /dev/null &"
+ssh "$host" "cd $dir && setsid nohup sh -c 'docker compose build --pull --no-cache && $quiet_check && sh scripts/update-cursor.sh && $quiet_check && docker compose up -d --no-build; echo deploy-exit=\$?' > $log 2>&1 < /dev/null &"
 for _ in $(seq 1 360); do
   if ssh "$host" "grep -q '^deploy-exit=' $dir/$log" 2>/dev/null; then break; fi
   sleep 5

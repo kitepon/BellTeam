@@ -13,9 +13,18 @@ test('installerはDockerの起動完了後に直接接続URLと公式認証の�
   const root = await mkdtemp(join(tmpdir(), 'bellteam-install-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   await copyFile(new URL('../distribution/server/install.sh', import.meta.url), join(root, 'install.sh'))
+  await mkdir(join(root, 'scripts'))
+  await copyFile(new URL('../scripts/update-cursor.sh', import.meta.url), join(root, 'scripts/update-cursor.sh'))
+  await copyFile(new URL('../compose.cursor-update.yaml', import.meta.url), join(root, 'compose.cursor-update.yaml'))
   const commands = join(root, 'commands')
   await mkdir(join(root, 'bin'))
-  await writeFile(join(root, 'bin/docker'), `#!/bin/sh\nprintf '%s\\n' "$*" >> "$TEST_COMMANDS"\nif [ "$2" = port ]; then printf '%s\\n' "$TEST_ENDPOINT"; fi\n`)
+  await writeFile(join(root, 'bin/docker'), `#!/bin/sh
+printf '%s\\n' "$*" >> "$TEST_COMMANDS"
+if [ "$2" = config ] && [ "$3" = --images ]; then printf '%s\\n' fixture-server; fi
+if [ "$2" = config ] && [ "$3" = --format ]; then printf '%s\\n' 'name: fixture' 'services:' '  bellteam:' '    environment:' '      BELLTEAM_BUGHUB_KEY: synthetic-only' 'volumes:' '  cursor-cli:' '    name: fixture-cursor'; fi
+if [ "$2" = port ]; then printf '%s\\n' "$TEST_ENDPOINT"; fi
+case "$*" in *'--no-deps cursor-update') exit "\${TEST_CURSOR_EXIT:-0}";; esac
+`)
   await chmod(join(root, 'bin/docker'), 0o755)
   for (const [endpoint, url] of [['0.0.0.0:18891', 'http://localhost:18891'], ['192.168.1.25:18891', 'http://192.168.1.25:18891'], ['[::]:18891', 'http://localhost:18891']]) {
     await writeFile(commands, '')
@@ -27,9 +36,19 @@ test('installerはDockerの起動完了後に直接接続URLと公式認証の�
     const calls = (await readFile(commands, 'utf8')).trim().split('\n')
     assert.equal(calls[0], 'compose pull')
     assert.match(calls[1], /^compose run --rm --no-deps --user root bellteam/)
-    assert.equal(calls[2], 'compose up -d --wait --wait-timeout 120')
-    assert.equal(calls[3], 'compose port bellteam 4180')
+    assert.equal(calls[2], 'compose config --images')
+    assert.equal(calls[3], 'compose config --format yaml')
+    assert.equal(calls[4], 'volume inspect fixture-cursor')
+    assert.match(calls[5], /compose -f .*compose.cursor-update.yaml run --rm --no-deps cursor-update$/)
+    assert.equal(calls[6], 'compose up -d --wait --wait-timeout 120')
+    assert.equal(calls[7], 'compose port bellteam 4180')
+    assert.doesNotMatch(stdout, /synthetic-only/)
   }
+  await writeFile(commands, '')
+  await assert.rejects(exec('sh', [join(root, 'install.sh')], {
+    env: { ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH}`, TEST_COMMANDS: commands, TEST_CURSOR_EXIT: '37' },
+  }), error => error.code === 37)
+  assert.doesNotMatch(await readFile(commands, 'utf8'), /compose up /)
 })
 
 test('配布archiveはcommitから必要な公開ファイルを収録し個人設定を除く', async t => {
@@ -42,6 +61,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'web/index.html', 'integrations/bellteam.mjs', 'config/common-agents.md', 'config/models.json',
     'config/setup-guide.json', 'docs/bot-environment.md', 'docs/onboarding.md',
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
+    'compose.cursor-update.yaml', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
     'runtime/home/auth.json', '.env', 'config/bots.json', 'services/subscriptions/keys/private.p8',
   ]
   for (const path of paths) {
@@ -60,6 +80,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   const pathsInArchive = (await exec('tar', ['-tzf', result.archive])).stdout.trim().split('\n').map(path => path.replace(/^\.\//, ''))
   assert.ok(pathsInArchive.includes('config/setup-guide.json'))
   assert.ok(pathsInArchive.includes('docs/onboarding.md'))
+  for (const path of ['compose.cursor-update.yaml', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh']) assert.ok(pathsInArchive.includes(path))
   assert.ok(!pathsInArchive.includes('config/models.json'), 'モデル候補は導入先CLIから取得し古い一覧を同梱しない')
   assert.deepEqual(JSON.parse(await readFile(join(output, 'config/bots.json'), 'utf8')).bots, [])
   for (const path of ['.env', 'runtime/home/auth.json', 'services/subscriptions/keys/private.p8']) assert.ok(!pathsInArchive.includes(path))

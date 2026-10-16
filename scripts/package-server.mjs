@@ -22,6 +22,7 @@ try {
     'docs/bot-environment.md', 'docs/onboarding.md',
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
     'distribution/server',
+    'compose.cursor-update.yaml', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
   ], { cwd: root })
   await exec('tar', ['-xf', archive, '-C', output])
   for (const [source, target] of [

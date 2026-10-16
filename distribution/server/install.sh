@@ -4,6 +4,9 @@ cd "$(dirname "$0")"
 docker compose pull
 docker compose run --rm --no-deps --user root bellteam sh -c \
   'mkdir -p /home/bell /srv/bellteam && chown bell:bell /home/bell /srv/bellteam'
+updater=./scripts/update-cursor.sh
+[ -f "$updater" ] || updater=../../scripts/update-cursor.sh
+sh "$updater"
 docker compose up -d --wait --wait-timeout 120
 
 endpoint=$(docker compose port bellteam 4180)
