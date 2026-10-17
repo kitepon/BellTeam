@@ -42,7 +42,7 @@ iPhone・iPad・Macのメンバー編集では、AIのエフォートの下に�
 
 通知をタップした時は共通の`AppStore`が会話の宛先を変え、同じ会話の通知でもログの更新を要求する。共通の`ConversationView`が宛先ごとの本文状態を所有し、別の会話へ切り替えた時は以前の本文を引き継がない。未送信の文章は会話ごとの下書きとして保持する。
 
-配布はTestFlightとし、Apple Developerの署名とApp Store Connectで配布する。
+AppleアプリはApp Storeで公開し、Apple Developerの署名とApp Store Connectで配布する。
 
 ## iPadアプリ
 
@@ -74,7 +74,9 @@ AIの公式認証は、初期設定の後も設定の「AIの認証」からや�
 
 ## 実装資産の永続化境界
 
-SEC-014の先行段（2026-10-15の段階実装承認）として、Cursor更新は本体のCMDから外す。本体は`node src/supervisor.mjs`だけで起動する。`scripts/deploy.sh`はimageのビルド後に`scripts/update-cursor.sh`を実行し、成功した時だけ本体を入れ替える。一般配布installerも同じ段を使う。
+SEC-014の先行段（2026-10-15の段階実装承認）として、Cursor更新は本体のCMDから外す。本体は`node src/supervisor.mjs`だけで起動する。`scripts/deploy.sh`はimageのビルド後に`scripts/update-cursor.sh`を実行し、成功した時だけ本体を入れ替える。一般配布installerは公開の`compose.yaml`と`install.sh`だけで導入できる。pullしたimageから更新用のcomposeと既存scriptを一時領域へ取り出し、本体を停止してから同じ更新段を実行する。成功後だけ起動し、失敗時は停止したことを表示する。
+
+一般配布imageはmainの配布対象source変更と手動実行で作成する。amd64/arm64のネイティブCIで2fileからの実installer、初期設定、モデル候補、公式認証入口、個人設定非包含を確認し、両方の成功後だけcommit tag・`latest`・互換の`preview`を公開する。旧公開版は検査失敗時には更新しない。
 
 更新用の`compose.cursor-update.yaml`は本体のcomposeへmergeしない。新しくビルド/取得した本体imageから、root所有の固定入口`/usr/local/bin/bellteam-update-cursor`だけを起こす。渡すのはCursorのnamed volumeだけで、本体のenvironment/env_file、runtime/home、runtime/data、SSH鍵、Docker socket、host PIDは渡さない。HOMEは一時的なtmpfs、root filesystemはread-only、UID/GID1000。固定入口は環境をHOME/PATHだけに組み立て、公式`cursor-agent update`を実行して終了する。volumeは本体composeの正規化された名前を使い、別のCursorコピーは作らない。通常の再起動では更新を実行しない。更新失敗時は本体の入れ替えへ進まないが、公式updaterがvolumeを変更した可能性はあるため、旧processのまま無条件に安全と断定しない。
 
@@ -82,7 +84,7 @@ SEC-014の先行段（2026-10-15の段階実装承認）として、Cursor更新
 
 この「動いている」はターン途中の席を指し、入力待ちのCLIが起きているだけなら除く（2026-10-16 セシルのstaged_a条件確認）。`check-deploy-quiet`はargvを読まずexe/cwdで候補processを見つけ、PID/親/開始tickを保持して席とsessionを対応づける。既存`AitermTransport.seatTurns`のrunningを保留し、idleまたは未対応の席は同じtransportの構造化`observe`で確認する。2026-10-17のB案に従い、入力待ち・子配送待ち0を前後で確認し、CLI本体の全子孫をLinux `/proc`から調べる。Aitermの起動後process集計値は使わない。固定nodeで動く既知Aiterm/Approval Box0.1.26 MCPと固定mcp-lazyの直接親子、Claude CLI直接子のApproval Box0.1.26待受hookだけを許容し、その下の別作業も含めて全行を確認する。Codexのnode入口と唯一の固定native CLIを区別して親を照合し、固定code-mode-hostの直接子・引数無しというCLI補助も確認する。その下の仕事は許容しない。同じBot配下の候補PIDが登録rootのtreeへ対応しない時は保留し、最後に候補探索も再実行する。開始tick/親/exe/argvの前後変化・未知process・読取失敗・別版/別root/余分引数は保留。席探索を含めてCLI本体のargvやenviron/認証fileは読まない。対応を確認できないCLI構成は保留する。配送queueは状態読取の前後に確認し、他席の配送・途中ターン・欠測/未対応/読取失敗はexit2で保留。更新直前と本体up直前の両方で判定し、端末の起動/送信/終了、画面本文の取得、鍵の取得はしない。複数の読取りを原子的な観測とは扱わず、観測の間だけで発生・終了した仕事まで検出できるとは保証しない。
 
-コンテナの中は変更しない（2026-10-05 オーナー裁定：初期コンテナと、この設置の物を場所で区切る。コンテナの中は変更せず、利用者の永続データはコンテナの外に置く。名簿では区切らない）。本番の`compose.yaml`はコンテナを読み取り専用（`read_only: true`）で起こし、書けるのは割り当てた外の置き場（`/home/bell`、`/home/bell/.local`、`/srv/bellteam`）と、tmpfsの`/tmp`・`/run`だけにする。決まりの文だけでなく、作りで守る。Pythonのpip・venv、Node/npm・Corepack、基本ビルド道具はイメージに含める。Botが足すパッケージとランタイムは自分のプロジェクトの下へ入れ、複数のBotが使う物は`/srv/bellteam/shared/tools/`へ一つだけ置く。OSパッケージが要る時は、`.deb`をrootなしで外の置き場へ展開する（手順は[bot-environment.md](bot-environment.md)）。配布物の`distribution/server/compose.yaml`は、まだ読み取り専用にしていない。
+コンテナの中は変更しない（2026-10-05 オーナー裁定：初期コンテナと、この設置の物を場所で区切る。コンテナの中は変更せず、利用者の永続データはコンテナの外に置く。名簿では区切らない）。本番と一般配布のcomposeはコンテナを読み取り専用（`read_only: true`）で起こし、書けるのは割り当てた外の置き場（`/home/bell`、`/home/bell/.local`、`/srv/bellteam`）と、tmpfsの`/tmp`・`/run`だけにする。決まりの文だけでなく、作りで守る。Pythonのpip・venv、Node/npm・Corepack、基本ビルド道具はイメージに含める。Botが足すパッケージとランタイムは自分のプロジェクトの下へ入れ、複数のBotが使う物は`/srv/bellteam/shared/tools/`へ一つだけ置く。OSパッケージが要る時は、`.deb`をrootなしで外の置き場へ展開する（手順は[bot-environment.md](bot-environment.md)）。
 
 各Botの `environment/setup.sh` はコンテナ起動時、会話受付・予定開始前に順番に一度実行する。実行結果は同じ場所のsetup.logに残し、一席の失敗では全体の起動を止めない。`environment/env.sh` は会話用CLI起動とコマンド予定の都度読み込む。Aitermには起動専用の短命MCP接続から環境変数名を渡し、Bot間で値を共有しない。手順の正本は [bot-environment.md](bot-environment.md)。Bot台帳、CLI認証、MCP登録先は変えない。
 

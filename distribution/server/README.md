@@ -39,8 +39,10 @@ iPhone・Macアプリからの通常の会話と予定操作は共通の月額�
 
 ## 版の確認と更新
 
-イメージ内の`/app/distribution.json`にソースのGit commitを記録しています。`docker compose exec bellteam cat /app/distribution.json`で確認できます。更新は`./install.sh`で行います。再作成すると実行中のメンバーが停止するため、実行中の作業を確認してから行ってください。
+イメージ内の`/app/distribution.json`にソースのGit commitを記録しています。`docker compose exec bellteam cat /app/distribution.json`で確認できます。既定の公開タグは`latest`です。以前の`preview`も同じ検査済みイメージを指します。更新は`./install.sh`で行います。再作成すると実行中のメンバーが停止するため、実行中の作業を確認してから行ってください。
+
+設置には`compose.yaml`と`install.sh`だけを同じフォルダへ保存してください。installerは取得したイメージに入っている更新手順を使うため、別のスクリプトを手で配置する必要はありません。更新時は本体を止めてからCursorを更新し、成功後に起動します。更新に失敗した場合は停止したままエラーを表示します。コンテナ本体は読み取り専用で動作し、利用者の会話・設定・追加ツールは割り当てた永続領域へ保存します。
 
 Claude・Codex・Grokなどのコマンドは、イメージに入っている物を全メンバーが使います。版が変わるのはイメージを更新した時です。Claude Codeはメンバーのフォルダの中で自分を更新しません（メンバーごとに版がずれるのを防ぐため）。メンバーのフォルダ（`.local`）に残っているClaude Codeの写しは、サーバーの起動時に片付けます。消すのはその写しと入口だけで、ほかのデータには触りません。詳しくは`docs/bot-environment.md`にあります。
 
-アプリはTestFlightで試験中です。Appleの実購入・復元とWSLでの動作は未検証です。
+AppleアプリはApp Storeで公開されています。Appleの実購入・復元とWSLでの動作の検証状況は、アプリとサーバーの対応する配布記録を参照してください。

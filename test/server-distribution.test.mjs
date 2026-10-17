@@ -12,43 +12,64 @@ const exec = promisify(execFile)
 test('installerはDockerの起動完了後に直接接続URLと公式認証の案内を返す', async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-install-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  await copyFile(new URL('../distribution/server/install.sh', import.meta.url), join(root, 'install.sh'))
-  await mkdir(join(root, 'scripts'))
-  await copyFile(new URL('../scripts/update-cursor.sh', import.meta.url), join(root, 'scripts/update-cursor.sh'))
-  await copyFile(new URL('../compose.cursor-update.yaml', import.meta.url), join(root, 'compose.cursor-update.yaml'))
+  const install = join(root, 'install')
+  const image = join(root, 'image')
+  await mkdir(install)
+  await mkdir(join(image, 'scripts'), { recursive: true })
+  for (const path of ['install.sh', 'compose.yaml']) {
+    await copyFile(new URL(`../distribution/server/${path}`, import.meta.url), join(install, path))
+  }
+  await copyFile(new URL('../scripts/update-cursor.sh', import.meta.url), join(image, 'scripts/update-cursor.sh'))
+  await copyFile(new URL('../compose.cursor-update.yaml', import.meta.url), join(image, 'compose.cursor-update.yaml'))
   const commands = join(root, 'commands')
   await mkdir(join(root, 'bin'))
   await writeFile(join(root, 'bin/docker'), `#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_COMMANDS"
-if [ "$2" = config ] && [ "$3" = --images ]; then printf '%s\\n' fixture-server; fi
+if [ "$2" = config ] && [ "$3" = --images ]; then printf '%s\\n' "\${TEST_IMAGES-fixture-server}"; fi
 if [ "$2" = config ] && [ "$3" = --format ]; then printf '%s\\n' 'name: fixture' 'services:' '  bellteam:' '    environment:' '      BELLTEAM_BUGHUB_KEY: synthetic-only' 'volumes:' '  cursor-cli:' '    name: fixture-cursor'; fi
 if [ "$2" = port ]; then printf '%s\\n' "$TEST_ENDPOINT"; fi
-case "$*" in *'--no-deps cursor-update') exit "\${TEST_CURSOR_EXIT:-0}";; esac
+case "$*" in
+  'run --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/'*)
+    [ "\${TEST_EXTRACT_EXIT:-0}" = 0 ] || exit "$TEST_EXTRACT_EXIT"
+    for path do :; done
+    cat "$TEST_IMAGE/\${path#/app/}";;
+  *'--no-deps cursor-update') exit "\${TEST_CURSOR_EXIT:-0}";;
+esac
 `)
   await chmod(join(root, 'bin/docker'), 0o755)
+  const env = { ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH}`, TEST_COMMANDS: commands, TEST_IMAGE: image }
   for (const [endpoint, url] of [['0.0.0.0:18891', 'http://localhost:18891'], ['192.168.1.25:18891', 'http://192.168.1.25:18891'], ['[::]:18891', 'http://localhost:18891']]) {
     await writeFile(commands, '')
-    const { stdout } = await exec('sh', [join(root, 'install.sh')], {
-      env: { ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH}`, TEST_COMMANDS: commands, TEST_ENDPOINT: endpoint },
+    const { stdout } = await exec('sh', [join(install, 'install.sh')], {
+      env: { ...env, TEST_ENDPOINT: endpoint },
     })
     assert.match(stdout, new RegExp(url.replaceAll('.', '\\.')))
     assert.match(stdout, /公式サイトで認証/)
     const calls = (await readFile(commands, 'utf8')).trim().split('\n')
     assert.equal(calls[0], 'compose pull')
-    assert.match(calls[1], /^compose run --rm --no-deps --user root bellteam/)
-    assert.equal(calls[2], 'compose config --images')
-    assert.equal(calls[3], 'compose config --format yaml')
-    assert.equal(calls[4], 'volume inspect fixture-cursor')
-    assert.match(calls[5], /compose -f .*compose.cursor-update.yaml run --rm --no-deps cursor-update$/)
-    assert.equal(calls[6], 'compose up -d --wait --wait-timeout 120')
-    assert.equal(calls[7], 'compose port bellteam 4180')
+    assert.equal(calls[1], 'compose config --images')
+    assert.equal(calls[2], 'run --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/compose.cursor-update.yaml')
+    assert.equal(calls[3], 'run --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/scripts/update-cursor.sh')
+    assert.match(calls[4], /^compose run --rm --no-deps --user root bellteam/)
+    assert.equal(calls[5], 'compose stop bellteam')
+    assert.equal(calls[6], 'compose config --images')
+    assert.equal(calls[7], 'compose config --format yaml')
+    assert.equal(calls[8], 'volume inspect fixture-cursor')
+    assert.match(calls[9], /compose -f .*compose.cursor-update.yaml run --rm --no-deps cursor-update$/)
+    assert.equal(calls[10], 'compose up -d --wait --wait-timeout 120')
+    assert.equal(calls[11], 'compose port bellteam 4180')
     assert.doesNotMatch(stdout, /synthetic-only/)
   }
   await writeFile(commands, '')
-  await assert.rejects(exec('sh', [join(root, 'install.sh')], {
-    env: { ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH}`, TEST_COMMANDS: commands, TEST_CURSOR_EXIT: '37' },
-  }), error => error.code === 37)
+  await assert.rejects(exec('sh', [join(install, 'install.sh')], {
+    env: { ...env, TEST_CURSOR_EXIT: '37' },
+  }), error => error.code === 37 && /停止したまま/.test(error.stderr))
   assert.doesNotMatch(await readFile(commands, 'utf8'), /compose up /)
+  for (const extra of [{ TEST_EXTRACT_EXIT: '23' }, { TEST_IMAGES: 'first\nsecond' }, { TEST_IMAGES: '' }]) {
+    await writeFile(commands, '')
+    await assert.rejects(exec('sh', [join(install, 'install.sh')], { env: { ...env, ...extra } }))
+    assert.doesNotMatch(await readFile(commands, 'utf8'), /compose (run|stop|up) /)
+  }
 })
 
 test('配布archiveはcommitから必要な公開ファイルを収録し個人設定を除く', async t => {
