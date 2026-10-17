@@ -48,6 +48,16 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
+    services:
+      install-registry:
+        image: registry:3
+        ports:
+          - 5000:5000
+        options: >-
+          --health-cmd "wget -q --spider http://127.0.0.1:5000/v2/"
+          --health-interval 1s
+          --health-timeout 3s
+          --health-retries 30
     env:
       BELLTEAM_SERVER_IMAGE: ghcr.io/kitepon/bellteam-server:${{ github.sha }}-${{ matrix.arch }}
       COMPOSE_FILE: ${{ github.workspace }}/runtime/server-install/compose.yaml
@@ -87,7 +97,6 @@ jobs:
           '
       - name: 2fileのinstallerで空の永続領域から取得・更新・起動
         run: |
-          docker run -d --name server-install-registry -p 127.0.0.1:5000:5000 registry:3
           install_image="localhost:5000/bellteam-server:latest"
           docker tag "$BELLTEAM_SERVER_IMAGE" "$install_image"
           docker push "$install_image"
@@ -216,7 +225,6 @@ jobs:
             docker compose logs --no-color || true
             docker compose down --volumes || true
           fi
-          docker rm -f server-install-registry >/dev/null 2>&1 || true
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
