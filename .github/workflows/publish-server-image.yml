@@ -2,6 +2,32 @@ name: 一般配布サーバーのDocker公開
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - package.json
+      - package-lock.json
+      - src/**
+      - web/**
+      - integrations/**
+      - distribution/server/**
+      - scripts/package-server.mjs
+      - scripts/update-cursor.sh
+      - scripts/cursor-update-entrypoint.sh
+      - compose.cursor-update.yaml
+      - config/common-agents.md
+      - config/setup-guide.json
+      - docs/bot-environment.md
+      - docs/onboarding.md
+      - services/subscriptions/product.json
+      - services/subscriptions/endpoints.json
+      - .github/workflows/publish-server-image.yml
+
+concurrency:
+  group: public-server-image
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -24,7 +50,7 @@ jobs:
     timeout-minutes: 45
     env:
       BELLTEAM_SERVER_IMAGE: ghcr.io/kitepon/bellteam-server:${{ github.sha }}-${{ matrix.arch }}
-      COMPOSE_FILE: runtime/server-image/compose.yaml
+      COMPOSE_FILE: ${{ github.workspace }}/runtime/server-install/compose.yaml
       COMPOSE_PROJECT_NAME: server-smoke
     steps:
       - uses: actions/checkout@v7
@@ -59,13 +85,46 @@ jobs:
           assert.equal(fs.existsSync("config/models.json"), false);
           for (const path of [".env", "runtime", "services/subscriptions/keys"]) assert.equal(fs.existsSync(path), false);
           '
-      - name: 空の永続領域と未設定の追加機能で起動
+      - name: 2fileのinstallerで空の永続領域から取得・更新・起動
         run: |
-          docker compose run --rm --no-deps --user root bellteam sh -c \
-            'mkdir -p /home/bell /srv/bellteam && chown bell:bell /home/bell /srv/bellteam'
-          docker compose up -d --wait --wait-timeout 120 --pull never
+          docker run -d --name server-install-registry -p 127.0.0.1:5000:5000 registry:3
+          install_image="localhost:5000/bellteam-server:latest"
+          docker tag "$BELLTEAM_SERVER_IMAGE" "$install_image"
+          docker push "$install_image"
+          docker create --name server-install-replacement "$BELLTEAM_SERVER_IMAGE"
+          docker commit --change 'LABEL bellteam.test=remote-tag-moved' server-install-replacement localhost:5000/bellteam-server:replacement
+          docker rm server-install-replacement
+          docker push localhost:5000/bellteam-server:replacement
+          mkdir -p runtime/server-install
+          cp runtime/server-image/compose.yaml runtime/server-image/install.sh runtime/server-install/
+          # 最初のpull直後にregistry側だけlatestを別imageへ動かす。
+          # ローカルcacheを変えず、抽出・準備・更新・起動が元imageを使うことを確認する。
+          export TEST_REAL_DOCKER="$(command -v docker)"
+          export TEST_TAG_MOVED="$GITHUB_WORKSPACE/runtime/tag-moved"
+          mkdir -p runtime/docker-test-bin
+          cat > runtime/docker-test-bin/docker <<'SH'
+          #!/bin/sh
+          set -eu
+          for last do :; done
+          if [ "$1" = run ] && [ "$last" = /app/compose.cursor-update.yaml ] && [ ! -f "$TEST_TAG_MOVED" ]; then
+            curl -fsS -H 'Accept: application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json' \
+              http://127.0.0.1:5000/v2/bellteam-server/manifests/replacement -o "$TEST_TAG_MOVED.manifest"
+            media_type=$(jq -r .mediaType "$TEST_TAG_MOVED.manifest")
+            curl -fsS -X PUT -H "Content-Type: $media_type" --data-binary "@$TEST_TAG_MOVED.manifest" \
+              http://127.0.0.1:5000/v2/bellteam-server/manifests/latest >/dev/null
+            touch "$TEST_TAG_MOVED"
+          fi
+          exec "$TEST_REAL_DOCKER" "$@"
+          SH
+          chmod +x runtime/docker-test-bin/docker
+          PATH="$GITHUB_WORKSPACE/runtime/docker-test-bin:$PATH" BELLTEAM_SERVER_IMAGE="$install_image" sh runtime/server-install/install.sh
+          test -f "$TEST_TAG_MOVED"
+          test "$(docker inspect --format '{{.Image}}' "$(docker compose ps -q bellteam)")" = "$(docker image inspect --format '{{.Id}}' "$BELLTEAM_SERVER_IMAGE")"
+          test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$(docker compose ps -q bellteam)")" = true
           docker compose exec -T bellteam node --input-type=module -e '
           import assert from "node:assert/strict";
+          import fs from "node:fs";
+          assert.throws(() => fs.writeFileSync("/app/.distribution-write-test", "probe"), { code: "EROFS" });
           const base = "http://127.0.0.1:4180";
           const setup = await (await fetch(base + "/api/setup")).json();
           assert.equal(setup.phase, "select_harness");
@@ -153,8 +212,11 @@ jobs:
       - name: 試験コンテナと保存先を片付ける
         if: always()
         run: |
-          docker compose logs --no-color
-          docker compose down --volumes
+          if [ -f "$COMPOSE_FILE" ]; then
+            docker compose logs --no-color || true
+            docker compose down --volumes || true
+          fi
+          docker rm -f server-install-registry >/dev/null 2>&1 || true
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -177,6 +239,6 @@ jobs:
       - name: 両アーキテクチャの配布タグを登録
         run: |
           docker buildx imagetools create \
-            -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:preview" \
+            -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest" -t "$IMAGE:preview" \
             "$IMAGE:$GITHUB_SHA-amd64" "$IMAGE:$GITHUB_SHA-arm64"
           docker buildx imagetools inspect "$IMAGE:$GITHUB_SHA"
