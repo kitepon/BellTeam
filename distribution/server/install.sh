@@ -10,12 +10,12 @@ trap 'rm -rf "$staging"' 0
 trap 'exit 1' 1 2 15
 mkdir "$staging/scripts"
 for path in compose.cursor-update.yaml scripts/update-cursor.sh; do
-  if ! docker run --rm --network none --read-only --entrypoint /bin/cat "$image" "/app/$path" > "$staging/$path"; then
+  if ! docker run --pull never --rm --network none --read-only --entrypoint /bin/cat "$image" "/app/$path" > "$staging/$path"; then
     echo '取得したBellTeamイメージから更新手順を読み出せませんでした。起動は行っていません。' >&2
     exit 1
   fi
 done
-docker compose run --rm --no-deps --user root bellteam sh -c \
+docker compose run --pull never --rm --no-deps --user root bellteam sh -c \
   'mkdir -p /home/bell /srv/bellteam && chown bell:bell /home/bell /srv/bellteam'
 docker compose stop bellteam
 if sh "$staging/scripts/update-cursor.sh"; then
@@ -25,7 +25,7 @@ else
   echo 'Cursorの更新に失敗しました。BellTeamは停止したままです。表示されたエラーを確認してください。' >&2
   exit "$result"
 fi
-docker compose up -d --wait --wait-timeout 120
+docker compose up -d --wait --wait-timeout 120 --pull never
 
 endpoint=$(docker compose port bellteam 4180)
 case "$endpoint" in

@@ -76,7 +76,7 @@ AIの公式認証は、初期設定の後も設定の「AIの認証」からや�
 
 SEC-014の先行段（2026-10-15の段階実装承認）として、Cursor更新は本体のCMDから外す。本体は`node src/supervisor.mjs`だけで起動する。`scripts/deploy.sh`はimageのビルド後に`scripts/update-cursor.sh`を実行し、成功した時だけ本体を入れ替える。一般配布installerは公開の`compose.yaml`と`install.sh`だけで導入できる。pullしたimageから更新用のcomposeと既存scriptを一時領域へ取り出し、本体を停止してから同じ更新段を実行する。成功後だけ起動し、失敗時は停止したことを表示する。
 
-一般配布imageはmainの配布対象source変更と手動実行で作成する。amd64/arm64のネイティブCIで2fileからの実installer、初期設定、モデル候補、公式認証入口、個人設定非包含を確認し、両方の成功後だけcommit tag・`latest`・互換の`preview`を公開する。旧公開版は検査失敗時には更新しない。
+一般配布imageはmainの配布対象source変更と手動実行で作成する。amd64/arm64のネイティブCIで2fileからの実installer、導入中のregistryタグ変更、初期設定、モデル候補、公式認証入口、個人設定非包含を確認し、両方の成功後だけcommit tag・`latest`・互換の`preview`を公開する。installerは最初のpull後の抽出・準備・起動を`--pull never`にし、導入中の公開タグ変更で別imageを取り直さない。旧公開版は検査失敗時には更新しない。
 
 更新用の`compose.cursor-update.yaml`は本体のcomposeへmergeしない。新しくビルド/取得した本体imageから、root所有の固定入口`/usr/local/bin/bellteam-update-cursor`だけを起こす。渡すのはCursorのnamed volumeだけで、本体のenvironment/env_file、runtime/home、runtime/data、SSH鍵、Docker socket、host PIDは渡さない。HOMEは一時的なtmpfs、root filesystemはread-only、UID/GID1000。固定入口は環境をHOME/PATHだけに組み立て、公式`cursor-agent update`を実行して終了する。volumeは本体composeの正規化された名前を使い、別のCursorコピーは作らない。通常の再起動では更新を実行しない。更新失敗時は本体の入れ替えへ進まないが、公式updaterがvolumeを変更した可能性はあるため、旧processのまま無条件に安全と断定しない。
 

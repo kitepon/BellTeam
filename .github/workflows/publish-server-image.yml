@@ -88,12 +88,38 @@ jobs:
       - name: 2fileのinstallerで空の永続領域から取得・更新・起動
         run: |
           docker run -d --name server-install-registry -p 127.0.0.1:5000:5000 registry:3
-          install_image="localhost:5000/bellteam-server:$GITHUB_SHA-${{ matrix.arch }}"
+          install_image="localhost:5000/bellteam-server:latest"
           docker tag "$BELLTEAM_SERVER_IMAGE" "$install_image"
           docker push "$install_image"
+          docker create --name server-install-replacement "$BELLTEAM_SERVER_IMAGE"
+          docker commit --change 'LABEL bellteam.test=remote-tag-moved' server-install-replacement localhost:5000/bellteam-server:replacement
+          docker rm server-install-replacement
+          docker push localhost:5000/bellteam-server:replacement
           mkdir -p runtime/server-install
           cp runtime/server-image/compose.yaml runtime/server-image/install.sh runtime/server-install/
-          BELLTEAM_SERVER_IMAGE="$install_image" sh runtime/server-install/install.sh
+          # 最初のpull直後にregistry側だけlatestを別imageへ動かす。
+          # ローカルcacheを変えず、抽出・準備・更新・起動が元imageを使うことを確認する。
+          export TEST_REAL_DOCKER="$(command -v docker)"
+          export TEST_TAG_MOVED="$GITHUB_WORKSPACE/runtime/tag-moved"
+          mkdir -p runtime/docker-test-bin
+          cat > runtime/docker-test-bin/docker <<'SH'
+          #!/bin/sh
+          set -eu
+          for last do :; done
+          if [ "$1" = run ] && [ "$last" = /app/compose.cursor-update.yaml ] && [ ! -f "$TEST_TAG_MOVED" ]; then
+            curl -fsS -H 'Accept: application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json' \
+              http://127.0.0.1:5000/v2/bellteam-server/manifests/replacement -o "$TEST_TAG_MOVED.manifest"
+            media_type=$(jq -r .mediaType "$TEST_TAG_MOVED.manifest")
+            curl -fsS -X PUT -H "Content-Type: $media_type" --data-binary "@$TEST_TAG_MOVED.manifest" \
+              http://127.0.0.1:5000/v2/bellteam-server/manifests/latest >/dev/null
+            touch "$TEST_TAG_MOVED"
+          fi
+          exec "$TEST_REAL_DOCKER" "$@"
+          SH
+          chmod +x runtime/docker-test-bin/docker
+          PATH="$GITHUB_WORKSPACE/runtime/docker-test-bin:$PATH" BELLTEAM_SERVER_IMAGE="$install_image" sh runtime/server-install/install.sh
+          test -f "$TEST_TAG_MOVED"
+          test "$(docker inspect --format '{{.Image}}' "$(docker compose ps -q bellteam)")" = "$(docker image inspect --format '{{.Id}}' "$BELLTEAM_SERVER_IMAGE")"
           test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$(docker compose ps -q bellteam)")" = true
           docker compose exec -T bellteam node --input-type=module -e '
           import assert from "node:assert/strict";

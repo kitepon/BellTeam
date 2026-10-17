@@ -29,7 +29,7 @@ if [ "$2" = config ] && [ "$3" = --images ]; then printf '%s\\n' "\${TEST_IMAGES
 if [ "$2" = config ] && [ "$3" = --format ]; then printf '%s\\n' 'name: fixture' 'services:' '  bellteam:' '    environment:' '      BELLTEAM_BUGHUB_KEY: synthetic-only' 'volumes:' '  cursor-cli:' '    name: fixture-cursor'; fi
 if [ "$2" = port ]; then printf '%s\\n' "$TEST_ENDPOINT"; fi
 case "$*" in
-  'run --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/'*)
+  'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/'*)
     [ "\${TEST_EXTRACT_EXIT:-0}" = 0 ] || exit "$TEST_EXTRACT_EXIT"
     for path do :; done
     cat "$TEST_IMAGE/\${path#/app/}";;
@@ -48,15 +48,15 @@ esac
     const calls = (await readFile(commands, 'utf8')).trim().split('\n')
     assert.equal(calls[0], 'compose pull')
     assert.equal(calls[1], 'compose config --images')
-    assert.equal(calls[2], 'run --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/compose.cursor-update.yaml')
-    assert.equal(calls[3], 'run --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/scripts/update-cursor.sh')
-    assert.match(calls[4], /^compose run --rm --no-deps --user root bellteam/)
+    assert.equal(calls[2], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/compose.cursor-update.yaml')
+    assert.equal(calls[3], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/scripts/update-cursor.sh')
+    assert.match(calls[4], /^compose run --pull never --rm --no-deps --user root bellteam/)
     assert.equal(calls[5], 'compose stop bellteam')
     assert.equal(calls[6], 'compose config --images')
     assert.equal(calls[7], 'compose config --format yaml')
     assert.equal(calls[8], 'volume inspect fixture-cursor')
     assert.match(calls[9], /compose -f .*compose.cursor-update.yaml run --rm --no-deps cursor-update$/)
-    assert.equal(calls[10], 'compose up -d --wait --wait-timeout 120')
+    assert.equal(calls[10], 'compose up -d --wait --wait-timeout 120 --pull never')
     assert.equal(calls[11], 'compose port bellteam 4180')
     assert.doesNotMatch(stdout, /synthetic-only/)
   }
