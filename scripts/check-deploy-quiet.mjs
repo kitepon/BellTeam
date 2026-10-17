@@ -58,7 +58,7 @@ export function trustedIdleTree(rows, pid, harness, botId) {
     : harness === 'grok-cli' ? '/usr/local/bin/grok' : harness === 'codex-cli' ? nodeExe : null
   if (!rootExe || root?.exe !== rootExe || root.cwd !== `/srv/bellteam/bots/${botId}`) return false
   // 孤立行、重複PID、cycleを許さず、渡された全行がrootの子孫であることを確認する。
-  if (byPid.size !== rows.length || processDescendants(byPid, pid).length !== rows.length) return false
+  if (byPid.size !== rows.length || byPid.has(root.ppid) || processDescendants(byPid, pid).length !== rows.length) return false
   // Codexの登録identityはnode入口。実CLIはその唯一の固定native子で、MCPの直接親はこちら。
   const nativeCli = harness === 'codex-cli' ? rows.filter(row => row.ppid === pid && row.exe === codexExe) : []
   if (harness === 'codex-cli' && nativeCli.length !== 1) return false

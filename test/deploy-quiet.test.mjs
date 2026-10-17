@@ -107,6 +107,7 @@ test('別作業、hookの下の作業、重複PIDや孤立行を拒否する', (
     { pid: 30, ppid, pgid: 10, start: '120', state: 'S', exe: '/usr/bin/bash', argv: null }], 10, 'claude-code', 'bot-peer'), false)
   assert.equal(trustedIdleTree([root, hook, hook], 10, 'claude-code', 'bot-peer'), false)
   assert.equal(trustedIdleTree([root, { ...hook, ppid: 999 }], 10, 'claude-code', 'bot-peer'), false)
+  assert.equal(trustedIdleTree([{ ...root, ppid: 20 }, hook], 10, 'claude-code', 'bot-peer'), false)
 })
 
 test('同じPIDでも開始tick、親、exeやargvが変われば保留する', async () => {
