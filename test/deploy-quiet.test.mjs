@@ -16,6 +16,7 @@ const root = { pid: 10, ppid: 1, pgid: 10, start: '100', state: 'S',
   exe: '/usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe', argv: null, cwd: '/srv/bellteam/bots/bot-peer' }
 const hook = { pid: 20, ppid: 10, pgid: 10, start: '110', state: 'S', exe: nodeExe,
   argv: [nodeExe, `${approval}approval-box-claude-hook.mjs`] }
+const peerSeat = { botId: 'bot-peer', session: 'peer', candidates: [root, hook].map(({pid, ppid, start, exe}) => ({pid, ppid, start, exe})) }
 const idle = { exists: true, state: 'idle', reason: 'composer_ready', pending_child_deliveries: 0,
   launch_id: 'synthetic-launch', harness: 'claude-code',
   harness_process: { pid: 10, process_group_id: 10, started_identity: 'synthetic-start', argv_digest: 'a'.repeat(64) } }
@@ -41,12 +42,12 @@ test('子待ち/状態欠測/identity欠測を入力待ちだけでidle認定し
   for (const observed of [{ ...idle, pending_child_deliveries: 1 },
     { ...idle, pending_child_deliveries: null }, { ...idle, harness_process: null },
     { ...idle, state: 'blocked' }, { ...idle, exists: false }]) {
-    const turns = await collectDeployTurns({ seatTurns: async () => null, observe: async () => observed }, [{ botId: 'bot-peer', session: 'peer' }],
+    const turns = await collectDeployTurns({ seatTurns: async () => null, observe: async () => observed }, [peerSeat],
       { confirmIdle: (transport, seat) => confirmDeployIdle(transport, seat, procFixture()) })
     assert.equal(turns.get('peer'), null)
   }
   const turns = await collectDeployTurns({ seatTurns: async () => null,
-    observe: async () => ({ exists: true, state: 'busy' }) }, [{ botId: 'bot-peer', session: 'peer' }],
+    observe: async () => ({ exists: true, state: 'busy' }) }, [peerSeat],
     { confirmIdle: (transport, seat) => confirmDeployIdle(transport, seat, procFixture()) })
   assert.equal(turns.get('peer').state, 'running')
   const stop = new AbortController()
@@ -59,7 +60,7 @@ test('B案は計数値の0/1/null/欠測に依存せず全子孫と前後観測�
   for (const count of [0, 1, 8, null, undefined]) {
     let calls = 0
     const result = await confirmDeployIdle({ observe: async () => { calls++; return { ...idle,
-      activity: { post_startup_process_count: count } } } }, { botId: 'bot-peer', session: 'peer' }, procFixture())
+      activity: { post_startup_process_count: count } } } }, peerSeat, procFixture())
     assert.equal(result.state, 'idle')
     assert.equal(calls, 2)
   }
@@ -86,6 +87,10 @@ test('Codexのnode入口と唯一の固定native CLIを区別してMCPの親を�
   assert.equal(trustedIdleTree([wrapper, native, { ...mcp, ppid: 10 }], 10, 'codex-cli', 'bot-peer'), false)
   assert.equal(trustedIdleTree([wrapper, native, { ...native, pid: 12 }], 10, 'codex-cli', 'bot-peer'), false)
   assert.equal(trustedIdleTree([wrapper, { ...native, exe: '/other/codex' }], 10, 'codex-cli', 'bot-peer'), false)
+  const helper = { pid: 40, ppid: 11, pgid: 10, start: '130', state: 'S', exe: native.exe + '-code-mode-host', argv: [native.exe + '-code-mode-host'] }
+  assert.equal(trustedIdleTree([wrapper, native, mcp, helper], 10, 'codex-cli', 'bot-peer'), true)
+  assert.equal(trustedIdleTree([wrapper, native, helper, { ...helper, pid: 50, ppid: 40 }], 10, 'codex-cli', 'bot-peer'), false)
+  assert.equal(trustedIdleTree([wrapper, native, { ...helper, argv: [...helper.argv, '--extra'] }], 10, 'codex-cli', 'bot-peer'), false)
 })
 
 test('hookの別root/版/余分引数/別exe/別親/非Claudeと似た名前を拒否する', () => {
@@ -117,7 +122,7 @@ test('同じPIDでも開始tick、親、exeやargvが変われば保留する', 
     let n = 0
     fixture.readTree = async () => ++n === 1 ? structuredClone([root, hook])
       : [root, hook].map(row => row.pid === changed.pid ? changed : row)
-    const result = await confirmDeployIdle({ observe: async () => idle }, { botId: 'bot-peer', session: 'peer' }, fixture)
+    const result = await confirmDeployIdle({ observe: async () => idle }, peerSeat, fixture)
     assert.equal(result, null)
     assert.doesNotMatch(JSON.stringify(result), /private-canary/u)
   }
@@ -128,12 +133,12 @@ test('前後観測で番/親identity/launch/子待ちが変わったら通さな
     { ...idle, launch_id: 'replacement' }, { ...idle, harness_process: { ...idle.harness_process, argv_digest: 'b'.repeat(64) } }]) {
     let n = 0
     const result = await confirmDeployIdle({ observe: async () => ++n === 1 ? idle : after },
-      { botId: 'bot-peer', session: 'peer' }, procFixture())
+      peerSeat, procFixture())
     assert.notEqual(result?.state, 'idle')
   }
   const fixture = procFixture()
   fixture.readStart = async () => 'different-start'
-  assert.equal(await confirmDeployIdle({ observe: async () => idle }, { botId: 'bot-peer', session: 'peer' }, fixture), null)
+  assert.equal(await confirmDeployIdle({ observe: async () => idle }, peerSeat, fixture), null)
 })
 
 test('最後の観測中に現れた子孫も再読取りで検出する', async () => {
@@ -141,7 +146,7 @@ test('最後の観測中に現れた子孫も再読取りで検出する', async
   let n = 0
   fixture.readTree = async () => ++n < 3 ? structuredClone([root, hook]) : [root, hook,
     { pid: 30, ppid: 10, pgid: 10, start: '120', state: 'S', exe: '/usr/bin/bash', argv: null }]
-  assert.equal(await confirmDeployIdle({ observe: async () => idle }, { botId: 'bot-peer', session: 'peer' }, fixture), null)
+  assert.equal(await confirmDeployIdle({ observe: async () => idle }, peerSeat, fixture), null)
 })
 
 test('process読取失敗は秘密を出さず未分類にする', async () => {
@@ -216,7 +221,7 @@ test('状態読取中に入った配送を後のqueueで見つけ、読取失敗
     readSeats: async () => { calls.push('process'); return { seats: [{ botId: 'bot-peer', session: 'peer' }], unknown: 0 } },
     readSeatTurns: async () => { calls.push('turns'); return new Map([['peer', { state: 'idle' }]]) },
   })
-  assert.deepEqual(calls, ['queue', 'process', 'turns', 'queue'])
+  assert.deepEqual(calls, ['queue', 'process', 'turns', 'process', 'queue'])
   assert.equal(result.quiet, false)
   const failed = await checkDeployQuiet({ except: 'bot-self', fetchQueue: async () => [],
     readSeats: async () => ({ seats: [{ botId: 'bot-peer', session: 'peer' }], unknown: 0 }),
@@ -241,16 +246,18 @@ test('processから席名を対応づけ、設定欠損を無視せず、他proc
   const proc = join(root, 'proc'), bots = join(root, 'bots')
   await mkdir(proc)
   await mkdir(bots)
-  for (const [pid, id, executable] of [['1', 'bot-peer', 'codex'], ['2', 'bot-missing', 'claude'], ['3', 'bot-self', 'codex'], ['4', 'bot-helper', 'node']]) {
+  for (const [pid, id, executable] of [['1', 'bot-peer', 'codex'], ['2', 'bot-missing', 'claude'], ['3', 'bot-self', 'codex'], ['4', 'bot-helper', 'python3']]) {
     await mkdir(join(proc, pid))
     await symlink(join(bots, id), join(proc, pid, 'cwd'))
     await symlink(`/synthetic/${executable}`, join(proc, pid, 'exe'))
-    await writeFile(join(proc, pid, 'cmdline'), executable + '\0')
+    const fields = ['S', 0, Number(pid), ...Array(16).fill(0), '100']
+    await writeFile(join(proc, pid, 'stat'), `${pid} (fixture) ${fields.join(' ')}\n`)
+    // CLIのcmdlineは作らない。席探索からargvを読もうとすれば失敗する。
   }
   await mkdir(join(bots, 'bot-peer'))
   await writeFile(join(bots, 'bot-peer', 'bot.json'), JSON.stringify({ id: 'bot-peer', session: 'different-seat-name', profileText: 'synthetic-private-profile' }))
   const result = await readDeploySeats({ proc, root: bots, except: 'bot-self' })
-  assert.deepEqual(result, { seats: [{ botId: 'bot-peer', session: 'different-seat-name' }, { botId: 'bot-missing', session: null }], unknown: 0 })
+  assert.deepEqual(result, { seats: [{ botId: 'bot-peer', session: 'different-seat-name', project: `${bots}/bot-peer`, candidates: [{pid: 1, ppid: 0, start: '100', exe: '/synthetic/codex'}] }, { botId: 'bot-missing', session: null, project: `${bots}/bot-missing`, candidates: [{pid: 2, ppid: 0, start: '100', exe: '/synthetic/claude'}] }], unknown: 0 })
   assert.doesNotMatch(JSON.stringify(result), /synthetic-private-profile/u)
 })
 
@@ -260,6 +267,51 @@ test('CLI入口の入力不正は秘密を含まない固定警告とexit2で止
     assert.equal(error.stderr, 'DEPLOY_QUIET_UNAVAILABLE\n')
     return true
   })
+})
+
+test('席探索から判定まで根CLIのcmdline無しで通し、同Botの別CLI rootを保留する', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'bellteam-quiet-end-to-end-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const proc = join(directory, 'proc'), bots = join(directory, 'bots'), project = join(bots, 'bot-peer')
+  await mkdir(proc)
+  await mkdir(project, { recursive: true })
+  await writeFile(join(project, 'bot.json'), JSON.stringify({ id: 'bot-peer', session: 'peer' }))
+  const add = async row => {
+    const path = join(proc, String(row.pid))
+    await mkdir(path)
+    await symlink(row.exe, join(path, 'exe'))
+    await symlink(project, join(path, 'cwd'))
+    const fields = [row.state, row.ppid, row.pgid, ...Array(16).fill(0), row.start]
+    await writeFile(join(path, 'stat'), `${row.pid} (fixture) ${fields.join(' ')}\n`)
+    if (row.argv) await writeFile(join(path, 'cmdline'), row.argv.join('\0') + '\0')
+  }
+  await add(root)
+  await add(hook)
+  const run = async state => checkDeployQuiet({ except: 'bot-self', fetchQueue: async () => [],
+    readSeats: () => readDeploySeats({ proc, root: bots, except: 'bot-self' }),
+    readSeatTurns: seats => collectDeployTurns({ seatTurns: async () => new Map([['peer', state]]), observe: async () => idle }, seats,
+      { confirmIdle: (transport, seat) => confirmDeployIdle(transport, seat,
+        { readTable: () => readProcTable(proc), readTree: (table, pid) => readProcTree(table, pid, proc), readStart: async () => 'synthetic-start' }) }),
+  })
+  assert.equal((await run(null)).quiet, true)
+  assert.equal((await run({ state: 'idle' })).quiet, true)
+  await add({ ...root, pid: 50, ppid: 1, start: '150' })
+  for (const state of [null, { state: 'idle' }]) {
+    const result = await run(state)
+    assert.equal(result.quiet, false)
+    assert.deepEqual(result.unclassifiedBots, ['bot-peer'])
+  }
+})
+
+test('観測中に別rootが現れた場合も最後の席探索で保留する', async () => {
+  let reads = 0
+  const result = await checkDeployQuiet({ except: 'bot-self', fetchQueue: async () => [],
+    readSeats: async () => ({ unknown: 0, seats: [{ ...peerSeat, candidates: ++reads === 1 ? peerSeat.candidates
+      : [...peerSeat.candidates, {pid: 50, ppid: 1, start: '150', exe: root.exe}] }] }),
+    readSeatTurns: async () => new Map([['peer', { state: 'idle' }]]),
+  })
+  assert.equal(result.quiet, false)
+  assert.deepEqual(result.unclassifiedBots, ['bot-peer'])
 })
 
 test('quiet反映はCursor更新前と本体up前の両方で静かな条件を確かめる', async t => {
