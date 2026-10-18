@@ -57,13 +57,39 @@ export class AitermClient {
     this.env = env
     this.client = null
     this.transport = null
+    this.connecting = null
   }
 
   async connect() {
+    if (this.connecting) return this.connecting
     if (this.client) return
     this.client = new Client({ name: 'bellteam', version: '0.1.0' }, { capabilities: {} })
     this.transport = new StdioClientTransport({ command: this.command, stderr: 'inherit', ...(this.env ? { env: this.env } : {}) })
-    await this.client.connect(this.transport)
+    const client = this.client
+    const transport = this.transport
+    client.onclose = () => {
+      if (this.client === client) {
+        this.client = null
+        this.transport = null
+      }
+    }
+    // clientを作っただけでは初期化は終わっていない。同時の呼出しも同じ接続完了を待つ。
+    this.connecting = (async () => {
+      try {
+        await client.connect(transport)
+      } catch (error) {
+        // 失敗した接続を次の要求へ持ち越さない。この要求そのものを自動再送はしない。
+        await transport.close().catch(() => {})
+        this.client = null
+        this.transport = null
+        throw error
+      }
+    })()
+    try {
+      await this.connecting
+    } finally {
+      this.connecting = null
+    }
   }
 
   async call(name, args = {}, { env, meta } = {}) {
