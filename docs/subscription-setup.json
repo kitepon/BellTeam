@@ -5228,7 +5228,26 @@
       },
       "build53PubliclySubmitted": false,
       "serverChanged": false,
-      "tronyContactSessionId": "f422de2d-eb86-4797-b608-4a821e5daecd"
+      "tronyContactSessionId": "f422de2d-eb86-4797-b608-4a821e5daecd",
+      "serverObservation": {
+        "source": "トロニーの通話seq2",
+        "observedAtJST": "2026-10-19 08:42",
+        "runningHealthy": true,
+        "restarts": 0,
+        "healthzStatus": 200,
+        "botListStatus": 200,
+        "botCount": 45,
+        "roomListStatus": 200,
+        "roomCount": 3,
+        "postReleaseLogLinesAvailable": 8,
+        "postReleaseHttp5xxMatches": 0,
+        "postReleaseErrorFatalMatches": 0,
+        "diagnosticsCompared": 33,
+        "diagnosticsChanged": 0,
+        "existingOpenDiagnostics": 9,
+        "externalConnectionAndDeviceFlowsVerified": false,
+        "serverChangedOrRestarted": false
+      }
     },
     "bugHubAppRepair53": {
       "version": "1.0.1",
