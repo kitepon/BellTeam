@@ -102,6 +102,22 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertFalse(log.contains("本文の秘密値"))
     }
 
+    func testHTTP500PostTellsUserToCheckConversationBeforeRetry() async {
+        let scenario = NetworkScenario(failures: 0, httpStatus: 500)
+        let api = makeAPI(scenario)
+        do {
+            let _: [String: String] = try await api.post("/api/bots/bot-a/messages", body: ["message": "未送信か不明な本文"])
+            XCTFail("500を成功として返さない")
+        } catch {
+            let guidance = BellAPIError.operationFailureMessage(error)
+            XCTAssertTrue(guidance.contains("操作の結果を確認できませんでした"))
+            XCTAssertTrue(guidance.contains("現在の状態を更新して確認してください"))
+            api.diagnostics.report(error, path: "/api/bots/bot-a/messages", method: "POST", observation: .write)
+        }
+        XCTAssertEqual(scenario.count("/api/bots/bot-a/messages"), 1)
+        XCTAssertTrue(scenario.reports.first?.log.contains("user_impact=result_unconfirmed") == true)
+    }
+
     func testTimedOutGETReportKeepsItsOwnRouteAndStartStateWithoutQuery() async {
         let scenario = NetworkScenario(failures: 1, failureCode: .timedOut)
         let api = makeAPI(scenario)

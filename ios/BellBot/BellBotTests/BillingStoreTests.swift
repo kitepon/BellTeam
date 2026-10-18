@@ -123,6 +123,20 @@ final class BillingStoreTests: XCTestCase {
         XCTAssertEqual(billing.presentation, .active)
     }
 
+    func testKnownAppleEntitlementStaysActiveWhenSubscriptionScreenGETTimesOut() async {
+        let scenario = BillingScenario(responses: [.mode("subscription"), .failure])
+        let active = activeEntitlement
+        let billing = BillingStore(api: makeAPI(scenario), readAppleEntitlement: {
+            AppleSubscriptionSnapshot(entitlement: active, transaction: nil)
+        })
+        await billing.connect()
+        XCTAssertEqual(billing.presentation, .active)
+        await billing.loadSubscription()
+        XCTAssertEqual(billing.presentation, .active, "取得失敗は表示しつつ、確認済みの有効なApple権利は維持する")
+        XCTAssertNotNil(billing.errorText)
+        XCTAssertEqual(scenario.requests.filter { $0.path == "/api/subscription" }.count, 2)
+    }
+
     func testConfirmedUnpurchasedKeepsSubscriptionGuidanceAfterLaterFailure() async {
         let scenario = BillingScenario(responses: [.mode("subscription"), .failure])
         let billing = BillingStore(api: makeAPI(scenario), readAppleEntitlement: {

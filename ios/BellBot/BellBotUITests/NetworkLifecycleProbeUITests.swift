@@ -98,6 +98,42 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["予定はありません"].waitForExistence(timeout: 8), "復帰時に正常な新しい結果を反映する")
     }
 
+    func testConversationGETCancelsOnBackgroundAndReloadsOnReturn() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else { throw XCTSkip("通信報告の隔離サーバーが必要です。") }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset?mode=normal")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-chat", "-bellbot-preview-server", server]
+        app.launch(); defer { app.terminate() }
+        XCTAssertTrue(app.staticTexts["試験用の会話"].waitForExistence(timeout: 6))
+        let before = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let prior = (before["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/messages") == true }.count ?? 0
+
+        XCUIDevice.shared.press(.home)
+        _ = try data(base, "/test/mode?mode=conversation-pending")
+        app.activate()
+        let deadline = Date().addingTimeInterval(5)
+        var reads: [[String: Any]] = []
+        while Date() < deadline {
+            let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+            reads = (proof["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/messages") == true } ?? []
+            if reads.count > prior { break }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        XCTAssertGreaterThan(reads.count, prior)
+        XCTAssertTrue(app.staticTexts["試験用の会話"].exists, "保留中も既知会話を表示する")
+
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 1)
+        let stopped = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let pending = (stopped["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/messages") == true } ?? []
+        XCTAssertEqual(pending.last?["closed"] as? Bool, true, "背景へ移ったら進行中の会話GETを閉じる")
+
+        _ = try data(base, "/test/mode?mode=normal")
+        app.activate()
+        XCTAssertTrue(app.staticTexts["試験用の会話"].waitForExistence(timeout: 6))
+    }
+
     func testFailedImagePostRestoresComposerWithoutResend() throws {
         guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else { throw XCTSkip("通信報告の隔離サーバーが必要です。") }
         let base = try XCTUnwrap(URL(string: server))

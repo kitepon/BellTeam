@@ -78,9 +78,8 @@ final class BillingStore: ObservableObject {
     var progressText: String { operation?.text ?? "購読を確認しています" }
     var presentation: SubscriptionPresentation {
         if checking { return .checking }
-        if isDeveloper { return .active }
-        if entitlementCheck == .failed { return .unavailable }
         if hasPaidAccess { return .active }
+        if entitlementCheck == .failed { return .unavailable }
         return status == nil ? .unavailable : .inactive
     }
     var isDeveloper: Bool { status?.accessMode == .developer }

@@ -20,6 +20,8 @@ private struct ConversationContent: View {
     @State private var hasMore = false
     @State private var loading = true
     @State private var loadingOlder = false
+    @State private var readTask: Task<Void, Never>?
+    @State private var olderTask: Task<Void, Never>?
     @State private var sending = false
     private var draft: String {
         get { store.draft(for: target).text }
@@ -138,12 +140,12 @@ private struct ConversationContent: View {
                     .scrollDismissesKeyboard(.interactively)
                     .accessibilityIdentifier("conversation-messages")
                     .defaultScrollAnchor(.bottom)
-                    .refreshable { await refresh() }
+                    .refreshable { await load() }
                     .onChange(of: scrollToBottomRevision) { _, _ in
                         withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
                     }
                     .onChange(of: store.eventRevision) { _, _ in
-                        if appIsActive { Task { await refresh() } }
+                        if appIsActive { Task { await load() } }
                     }
                 }
             }
@@ -193,9 +195,14 @@ private struct ConversationContent: View {
                       defaultFilename: "BellTeam-\(target.id)") { result in
             if case .failure(let error) = result { errorText = error.localizedDescription }
         }
-        .task { await loadInitial() }
+        .task(id: scenePhase) { if scenePhase == .active { await load() } }
         .onChange(of: scenePhase) { _, next in
-            if next == .active { Task { await refresh() } }
+            if next != .active {
+                readTask?.cancel()
+                olderTask?.cancel()
+                loading = false
+                loadingOlder = false
+            }
         }
         .onAppear {
             visibleAttachments = store.draft(for: target).attachments
@@ -204,6 +211,8 @@ private struct ConversationContent: View {
         }
         .onChange(of: selectedTargets) { _, next in store.draft(for: target).selectedTargets = next }
         .onDisappear {
+            readTask?.cancel()
+            olderTask?.cancel()
             if BellNotifications.shared.visibleConversation == target { BellNotifications.shared.visibleConversation = nil }
         }
         #if targetEnvironment(macCatalyst)
@@ -398,6 +407,14 @@ private struct ConversationContent: View {
 
     private var canSend: Bool { !sending && (store.draft(for: target).hasText || !attachments.isEmpty) }
 
+    private func load() async {
+        guard scenePhase == .active else { return }
+        readTask?.cancel()
+        let task = Task { if messages.isEmpty { await loadInitial() } else { await refresh() } }
+        readTask = task
+        await task.value
+    }
+
     private func loadInitial() async {
         loading = true
         #if DEBUG
@@ -428,6 +445,7 @@ private struct ConversationContent: View {
             async let page: ListResponse<TimelineMessage> = store.api.get(target.path + "/messages?limit=10")
             async let waiting: QueueResponse = store.api.get(target.path + "/queue")
             let (result, queued) = try await (page, waiting)
+            try Task.checkCancellation()
             messages = result.items
             queue = queued.items
             hasMore = result.hasMore
@@ -435,7 +453,7 @@ private struct ConversationContent: View {
             initialLoadFailed = false
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
-        } catch is CancellationError { }
+        } catch is CancellationError { return }
         catch {
             errorText = error.localizedDescription
             initialLoadFailed = true
@@ -467,9 +485,10 @@ private struct ConversationContent: View {
         // 上端の外へ出ると、次に上端へ着いた時の取得を許可する。取得の失敗では許可しないので、失敗が繰り返し再試行されない。
         let atTop = top >= 19.5
         if !atTop { scroll.canLoadOlder = true }
-        if atTop && scroll.canLoadOlder && scroll.pin == nil && hasMore && !loadingOlder, let oldest = messages.first?.id, let y = metrics.boundary {
+        if scenePhase == .active && atTop && scroll.canLoadOlder && scroll.pin == nil && hasMore && !loadingOlder,
+           let oldest = messages.first?.id, let y = metrics.boundary {
             scroll.canLoadOlder = false
-            Task { await loadOlder(before: oldest, at: y, proxy: proxy, viewportHeight: viewportHeight) }
+            olderTask = Task { await loadOlder(before: oldest, at: y, proxy: proxy, viewportHeight: viewportHeight) }
         }
     }
 
@@ -484,13 +503,15 @@ private struct ConversationContent: View {
         do {
             let path = target.path + "/messages?limit=20&before=\(oldest.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? oldest)"
             let result: ListResponse<TimelineMessage> = try await store.api.get(path)
+            try Task.checkCancellation()
             let known = Set(messages.map(\.id))
             messages = result.items.filter { !known.contains($0.id) } + messages
             hasMore = result.hasMore
             // 足した行のMarkdownは後から高さが伸びる。伸びるたびに同じ位置へ戻すため、行と位置を覚えておく。
             scroll.pin = oldest
             scrollRow(oldest, to: scroll.pinnedY ?? y, viewportHeight: viewportHeight, proxy: proxy)
-        } catch let error where BellAPIError.isAuthenticationError(error) {
+        } catch is CancellationError { }
+        catch let error where BellAPIError.isAuthenticationError(error) {
             measuredRow = nil
             store.requireLogin(for: error)
         } catch {
@@ -510,6 +531,7 @@ private struct ConversationContent: View {
                 async let latest: ListResponse<TimelineMessage> = store.api.get(latestPath)
                 async let after: ListResponse<TimelineMessage> = store.api.get(target.path + "/messages?after=\(encodedId)")
                 let (page, additions, queued) = try await (latest, after, waiting)
+                try Task.checkCancellation()
                 let known = Set(messages.map(\.id))
                 let newMessages = additions.items.filter { !known.contains($0.id) }
                 let updates = Dictionary(uniqueKeysWithValues: page.items.map { ($0.id, $0) })
@@ -523,6 +545,7 @@ private struct ConversationContent: View {
             } else {
                 let page: ListResponse<TimelineMessage> = try await store.api.get(latestPath)
                 let queued = try await waiting
+                try Task.checkCancellation()
                 queue = queued.items
                 messages = page.items
                 hasMore = page.hasMore
@@ -571,7 +594,7 @@ private struct ConversationContent: View {
             hasUnreadMessages = false
             scrollToBottomRevision += 1
             if appIsActive {
-                await refresh()
+                await load()
                 if appIsActive { await store.refreshFromView() }
             }
         } catch {

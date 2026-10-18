@@ -54,7 +54,10 @@ const server = createServer(async (request, response) => {
     }
     return json(response, { schedules: [] })
   }
-  if (url.pathname.endsWith('/messages')) return json(response, { items: [message], hasMore: false })
+  if (url.pathname.endsWith('/messages')) {
+    if (mode === 'conversation-pending') return
+    return json(response, { items: [message], hasMore: false })
+  }
   if (url.pathname.endsWith('/queue') || url.pathname === '/api/queue') return json(response, { items: [] })
   if (url.pathname === '/api/bots/bot-one') return json(response, { bot: saved })
   if (url.pathname === '/api/bots') return json(response, { bots: [bot()] })

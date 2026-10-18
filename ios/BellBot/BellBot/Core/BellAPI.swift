@@ -22,7 +22,11 @@ enum BellAPIError: LocalizedError {
 
     static func operationFailureMessage(_ error: Error) -> String {
         if error is URLError || error is DecodingError || (error as? BellAPIError).map({
-            switch $0 { case .invalidResponse, .backgroundSendExpired: true; default: false }
+            switch $0 {
+            case .invalidResponse, .backgroundSendExpired: true
+            case .httpStatus(let status, _, _) where status >= 500: true
+            default: false
+            }
         }) == true {
             return "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n\(error.localizedDescription)"
         }
