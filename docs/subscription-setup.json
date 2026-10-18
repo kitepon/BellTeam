@@ -5204,6 +5204,37 @@
         "deviceReadReason": "実機操作・照会を再開しない条件",
         "installationMethod": "TestFlight"
       }
+    },
+    "bugHubAppRepair53": {
+      "version": "1.0.1",
+      "build": "53",
+      "repairCommit": "cf38bf2",
+      "sourceCommit": "c7dcc5ee94fe2c298340a9cf3bf26b28675b336b",
+      "caseEvaluation": "docs/evidence/2026-10-18-bughub-app-repair.md",
+      "status": "internal_distributed_device_acceptance_unverified",
+      "distribution": {
+        "approvalDecisionId": "K-HK5LMH",
+        "appId": "6816295589",
+        "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+        "archiveAndExportDirectory": "runtime/apple/bughub-app-53",
+        "iosIpaSHA256": "5a72d0c60818a25e1a64d720c2386be6a22e100fe182c067b85864450afe5301",
+        "macPkgSHA256": "9f68b89806a13d0b39c771e0e8b5b429848bc699a8fc21e9ba1ee16b86917650",
+        "applePrevalidation": "both_no_errors",
+        "uploadMethod": "altool",
+        "iosBuildId": "dfd08fe7-56c7-4a8f-b5c5-410479fadf81",
+        "macBuildId": "1f9a2940-db00-4cee-bf1a-61a825054ef6",
+        "iosProcessing": "VALID",
+        "macProcessing": "VALID",
+        "iosInternalBuildState": "IN_BETA_TESTING",
+        "macInternalBuildState": "IN_BETA_TESTING",
+        "verifiedAt": "2026-10-18T09:11:51Z",
+        "appStorePublicSubmission": false
+      },
+      "deviceAcceptance": {
+        "macVerified": false,
+        "iphoneVerified": false,
+        "reason": "端末操作・照会を行っていない"
+      }
     }
   },
   "appleWebAccess": {

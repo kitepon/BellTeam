@@ -27,7 +27,7 @@
 
 修理コードはまだ配布済みのMac/iPhone版52へ入っていない。App Store Connectの両platform 1.0.1（52）は審査待ちで、提出・TestFlight導入・本人端末操作は今回変更していない。既存BugHub原本の指紋・累計・状態・重大度も変更していない。
 
-最終の会話背景取消UI試験は`runtime/bughub-conversation-final.xcresult`で再確認した。iOS Simulatorの修正3条件はそれぞれ成功し、Mac Catalystのアプリ本体ビルドも成功した。`TESTGATE_FULL=1 npm test`は終了コード0。新しい実機通信障害を起こす試験、版52の差し替え、Appleへのアップロード、本番反映は行っていない。
+最終の会話背景取消UI試験は`runtime/bughub-conversation-final.xcresult`で再確認した。iOS Simulatorの修正3条件はそれぞれ成功し、Mac Catalystのアプリ本体ビルドも成功した。`TESTGATE_FULL=1 npm test`は終了コード0。新しい実機通信障害を起こす試験、版52の差し替え、本番反映は行っていない。
 
 ## 配布候補53
 
@@ -38,4 +38,6 @@
 | `ios-export/BellTeam.ipa` | `5a72d0c60818a25e1a64d720c2386be6a22e100fe182c067b85864450afe5301` | 展開した本体・通知拡張が53。配布署名を`codesign --verify --deep --strict`で確認。 |
 | `mac-export/BellTeam.pkg` | `9f68b89806a13d0b39c771e0e8b5b429848bc699a8fc21e9ba1ee16b86917650` | archiveの本体・通知拡張が53。アプリ署名とpkg署名を確認。 |
 
-Appleの公式`altool`事前検証はIPA・pkgとも`No errors validating archive`。これは送信・Appleでの処理・内部配布の成功を意味しない。ビルド53は未アップロードで、Mac・iPhoneへの導入も未実施。ASCで審査待ちのビルド52と既存TestFlight状態は変更していない。次の承認対象は、53を両platformの内部TestFlightへ送信・オーナー用グループに追加する工程。一般公開用のApp Store提出は別工程とする。
+Appleの公式`altool`事前検証はIPA・pkgとも`No errors validating archive`。事前検証だけの時点では送信・Appleでの処理・内部配布の成功を意味しないため、両platformの内部TestFlight送信を次の承認対象として分けた。一般公開用のApp Store提出は別工程とする。
+
+10/18、決裁箱「修理版53をMac・iPhoneの内部TestFlightへ送信してよい？」のGOを受け、検査値とmain祖先を再確認して両成果物をApple公式`altool`で送信した。iOS build `dfd08fe7-56c7-4a8f-b5c5-410479fadf81`、macOS build `1f9a2940-db00-4cee-bf1a-61a825054ef6`は共に`VALID`。オーナー用内部グループ`58133050-1c39-4915-b6da-aac18b95921b`へ追加した後、それぞれ`IN_BETA_TESTING`をAPIで再読取した。端末での版53導入・起動は未確認。App Store審査対象の52はiOS `WAITING_FOR_REVIEW`、macOS `IN_REVIEW`で、こちらから差し替えていない。現行配布状態の構造化記録は`docs/subscription-setup.json`の`integration.bugHubAppRepair53`を参照。
