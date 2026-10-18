@@ -16,12 +16,20 @@ const mcpCommands = [[nodeExe, aitermScript], [nodeExe, `${approvalRoot}cli.mjs`
 // 全PIDの親と開始tickだけを読む。argv/environ/画面/認証fileは一覧に含めない。
 export async function readProcTable(proc = '/proc') {
   const rows = new Map()
-  for (const pid of (await readdir(proc)).filter(pid => /^\d+$/u.test(pid))) {
-    const stat = await readFile(`${proc}/${pid}/stat`, 'utf8')
-    const fields = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/u)
-    if (fields.length < 20 || !/^\d+$/u.test(fields[19])) throw new Error('DEPLOY_PROCESS_UNKNOWN')
-    rows.set(Number(pid), { pid: Number(pid), ppid: Number(fields[1]), pgid: Number(fields[2]),
-      start: fields[19], state: fields[0] })
+  const pids = (await readdir(proc)).filter(pid => /^\d+$/u.test(pid))
+  // 採取の競合時間を短くする。欠測は飛ばさず、同じbatchの読取完了後に保留する。
+  for (let offset = 0; offset < pids.length; offset += 32) {
+    const batch = await Promise.allSettled(pids.slice(offset, offset + 32).map(async pid => {
+      const stat = await readFile(`${proc}/${pid}/stat`, 'utf8')
+      const fields = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/u)
+      if (fields.length < 20 || !/^\d+$/u.test(fields[19])) throw new Error('DEPLOY_PROCESS_UNKNOWN')
+      return { pid: Number(pid), ppid: Number(fields[1]), pgid: Number(fields[2]),
+        start: fields[19], state: fields[0] }
+    }))
+    for (const result of batch) {
+      if (result.status === 'rejected') throw result.reason
+      rows.set(result.value.pid, result.value)
+    }
   }
   return rows
 }

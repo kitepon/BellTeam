@@ -23,6 +23,43 @@ const idle = { exists: true, state: 'idle', reason: 'composer_ready', pending_ch
 const procFixture = (rows = [root, hook]) => ({ readTable: async () => new Map(rows.map(row => [row.pid, row])),
   readTree: async () => structuredClone(rows), readStart: async () => 'synthetic-start' })
 
+async function statTableFixture(t, count = 65) {
+  const proc = await mkdtemp(join(tmpdir(), 'bellteam-proc-table-'))
+  t.after(() => rm(proc, {recursive:true, force:true}))
+  for (let pid = 1; pid <= count; pid++) {
+    const dir = join(proc, String(pid))
+    await mkdir(dir)
+    const fields = ['S', String(pid === 1 ? 0 : 1), '1', ...Array(16).fill('0'), String(100 + pid)]
+    await writeFile(join(dir, 'stat'), `${pid} (fixture name) ${fields.join(' ')}\n`)
+  }
+  return proc
+}
+
+test('process表は複数batchを含む全PIDの親・開始tickを保持する', async t => {
+  const proc = await statTableFixture(t)
+  const rows = await readProcTable(proc)
+  assert.equal(rows.size, 65)
+  for (let pid = 1; pid <= 65; pid++)
+    assert.deepEqual(rows.get(pid), {pid, ppid:pid === 1 ? 0 : 1, pgid:1, start:String(100 + pid), state:'S'})
+})
+
+test('process表の後ろのbatchにstat欠測が1件あればidle観測前に保留する', async t => {
+  const proc = await statTableFixture(t)
+  await rm(join(proc, '65', 'stat'))
+  await assert.rejects(readProcTable(proc), {code:'ENOENT'})
+  const turns = await collectDeployTurns({seatTurns:async()=>null,
+    observe:async()=>assert.fail('欠測表からidle観測へ進まない')}, [peerSeat], {
+    confirmIdle:(transport, seat)=>confirmDeployIdle(transport, seat, {readTable:()=>readProcTable(proc)}),
+  })
+  assert.equal(turns.get(peerSeat.session), null)
+})
+
+test('process表の後ろのbatchに不正statが1件あれば全表を返さない', async t => {
+  const proc = await statTableFixture(t)
+  await writeFile(join(proc, '65', 'stat'), '65 (fixture) S 1 1 invalid\n')
+  await assert.rejects(readProcTable(proc), /DEPLOY_PROCESS_UNKNOWN/u)
+})
+
 test('ターン情報の無いハーネスは構造化idle観測で確認し、既知ターンはそのまま使う', async () => {
   const calls = []
   const turns = await collectDeployTurns({
