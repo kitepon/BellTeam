@@ -67,6 +67,8 @@ test('seedからBot別プロジェクトを作り、プロフィール変更を�
   assert.match(instructions, /## 口調\n\n「一人称は私」/u)
   assert.match(instructions, /設計者/u)
   assert.match(instructions, /実装担当/u)
+  assert.match(instructions, /あなた自身が責任を持って進める担当の仕事/u)
+  assert.match(instructions, /作業手順の詳細はこのプロジェクトの `docs\/`/u)
   assert.equal(await readFile(join(root, 'bots/bot-b/CLAUDE.md'), 'utf8'), '@AGENTS.md\n')
   assert.ok((await import('node:fs')).existsSync(join(root, 'bots/bot-b/docs')), 'Bot作成時にdocs/を作る')
   assert.ok((await import('node:fs')).existsSync(join(root, 'bots/bot-b/assets/character-sheet')), 'Bot作成時にassets/character-sheet/を作る')
