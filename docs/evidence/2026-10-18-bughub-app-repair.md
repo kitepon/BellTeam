@@ -26,3 +26,14 @@
 修理コードはまだ配布済みのMac/iPhone版52へ入っていない。App Store Connectの両platform 1.0.1（52）は審査待ちで、提出・TestFlight導入・本人端末操作は今回変更していない。既存BugHub原本の指紋・累計・状態・重大度も変更していない。
 
 最終の会話背景取消UI試験は`runtime/bughub-conversation-final.xcresult`で再確認した。iOS Simulatorの修正3条件はそれぞれ成功し、Mac Catalystのアプリ本体ビルドも成功した。`TESTGATE_FULL=1 npm test`は終了コード0。新しい実機通信障害を起こす試験、版52の差し替え、Appleへのアップロード、本番反映は行っていない。
+
+## 配布候補53
+
+修理commit `cf38bf2`の後、アプリ本体と通知拡張のビルド番号だけを`c7dcc5ee94fe2c298340a9cf3bf26b28675b336b`で53に揃えた。両platformのマーケティング版は1.0.1のまま。`runtime/apple/bughub-app-53/`へiPhone archive・IPAとMac Catalyst archive・pkgを作成した。
+
+| 成果物 | SHA-256 | 確認 |
+| --- | --- | --- |
+| `ios-export/BellTeam.ipa` | `5a72d0c60818a25e1a64d720c2386be6a22e100fe182c067b85864450afe5301` | 展開した本体・通知拡張が53。配布署名を`codesign --verify --deep --strict`で確認。 |
+| `mac-export/BellTeam.pkg` | `9f68b89806a13d0b39c771e0e8b5b429848bc699a8fc21e9ba1ee16b86917650` | archiveの本体・通知拡張が53。アプリ署名とpkg署名を確認。 |
+
+Appleの公式`altool`事前検証はIPA・pkgとも`No errors validating archive`。これは送信・Appleでの処理・内部配布の成功を意味しない。ビルド53は未アップロードで、Mac・iPhoneへの導入も未実施。ASCで審査待ちのビルド52と既存TestFlight状態は変更していない。次の承認対象は、53を両platformの内部TestFlightへ送信・オーナー用グループに追加する工程。一般公開用のApp Store提出は別工程とする。
