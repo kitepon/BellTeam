@@ -2,16 +2,15 @@ import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import test from 'node:test'
 
 import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 import { BellTeamMessenger } from '../src/messenger.mjs'
 
-async function delayedServer(t, { failFirst = false } = {}) {
+async function delayedServer({ failFirst = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-mcp-connect-'))
-  t.after(() => rm(root, { recursive: true, force: true }))
   const command = join(root, 'server.mjs')
   await writeFile(command, `#!/usr/bin/env node
 import { createInterface } from 'node:readline'
@@ -42,22 +41,29 @@ createInterface({ input: process.stdin }).on('line', line => {
 })
 `)
   await chmod(command, 0o700)
-  return command
+  // Windowsはshebangを起動しない。SDKのcross-spawnが扱う.cmdから同じNodeで実行する。
+  if (process.platform === 'win32') {
+    const launcher = join(root, 'server.cmd')
+    const quote = value => `"${value.replaceAll('%', '%%')}"`
+    await writeFile(launcher, `@echo off\r\n${quote(process.execPath)} ${quote(command)}\r\n`)
+    return { command: launcher, root }
+  }
+  return { command, root }
 }
 
 test('同時の最初のMCP呼出しは同じ初期化の完了を待つ', { timeout: 5000 }, async t => {
-  const command = await delayedServer(t)
+  const { command, root } = await delayedServer()
   const client = new AitermClient({ command })
-  t.after(() => client.close())
+  t.after(async () => { await client.close(); await rm(root, { recursive: true, force: true }) })
   const results = await Promise.allSettled([client.call('first'), client.call('second'), client.call('third')])
   assert.deepEqual(results.map(result => result.status), ['fulfilled', 'fulfilled', 'fulfilled'])
   for (const result of results) assert.equal(result.value.content[0].text, 'initialized')
 })
 
 test('MCP初期化失敗を返した後の別の呼出しで接続を作り直せる', { timeout: 5000 }, async t => {
-  const command = await delayedServer(t, { failFirst: true })
+  const { command, root } = await delayedServer({ failFirst: true })
   const client = new AitermClient({ command })
-  t.after(() => client.close())
+  t.after(async () => { await client.close(); await rm(root, { recursive: true, force: true }) })
   const failed = await Promise.allSettled([client.call('first'), client.call('second'), client.call('third')])
   assert.deepEqual(failed.map(result => result.status), ['rejected', 'rejected', 'rejected'])
   for (const result of failed) {
@@ -69,9 +75,9 @@ test('MCP初期化失敗を返した後の別の呼出しで接続を作り直�
 })
 
 test('MCP終了後の別の要求は接続を作り直し、受け付けた要求を再送しない', { timeout: 5000 }, async t => {
-  const command = await delayedServer(t)
+  const { command, root } = await delayedServer()
   const client = new AitermClient({ command })
-  t.after(() => client.close())
+  t.after(async () => { await client.close(); await rm(root, { recursive: true, force: true }) })
   await client.call('first')
   const closed = new Promise(resolve => {
     const onclose = client.client.onclose
@@ -84,10 +90,9 @@ test('MCP終了後の別の要求は接続を作り直し、受け付けた要�
 })
 
 test('初回接続中の別Bot宛て同時POSTも500にせず各1件を受け付ける', { timeout: 5000 }, async t => {
-  const command = await delayedServer(t)
+  const { command, root } = await delayedServer()
   const client = new AitermClient({ command })
   const transport = new AitermTransport({ client })
-  const root = dirname(command)
   const bots = new Map(['bot-a', 'bot-b'].map(id => [id, { id, session: id, harness: 'codex', project: root }]))
   const messenger = new BellTeamMessenger({ bots, transport, logPath: join(root, 'messages.jsonl') })
   const diagnostics = []
@@ -98,6 +103,7 @@ test('初回接続中の別Bot宛て同時POSTも500にせず各1件を受け付
   t.after(async () => {
     await new Promise(resolve => server.close(resolve))
     await transport.close()
+    await rm(root, { recursive: true, force: true })
   })
   const results = await Promise.all([...bots.keys()].map(id => fetch(`http://127.0.0.1:${server.address().port}/api/bots/${id}/messages`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'isolated-fixture-message' }),
