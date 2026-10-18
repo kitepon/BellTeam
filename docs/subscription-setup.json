@@ -5205,6 +5205,31 @@
         "installationMethod": "TestFlight"
       }
     },
+    "appStoreRelease101": {
+      "checkedAt": "2026-10-18T23:39:23Z",
+      "evidence": "docs/evidence/2026-10-19-asc-release.md",
+      "appId": "6816295589",
+      "ios": {
+        "version": "1.0.1",
+        "build": "52",
+        "appStoreState": "READY_FOR_SALE",
+        "appVersionState": "READY_FOR_DISTRIBUTION",
+        "reviewSubmissionState": "COMPLETE",
+        "reviewItemState": "APPROVED",
+        "japanStorefrontVersion": "1.0.1",
+        "japanStorefrontReleaseAt": "2026-10-18T17:20:31Z"
+      },
+      "mac": {
+        "version": "1.0.1",
+        "build": "52",
+        "appStoreState": "IN_REVIEW",
+        "reviewSubmissionState": "IN_REVIEW",
+        "releaseType": "AFTER_APPROVAL"
+      },
+      "build53PubliclySubmitted": false,
+      "serverChanged": false,
+      "tronyContactSessionId": "f422de2d-eb86-4797-b608-4a821e5daecd"
+    },
     "bugHubAppRepair53": {
       "version": "1.0.1",
       "build": "53",
