@@ -292,9 +292,9 @@ test('processから席名を対応づけ、設定欠損を無視せず、他proc
     // CLIのcmdlineは作らない。席探索からargvを読もうとすれば失敗する。
   }
   await mkdir(join(bots, 'bot-peer'))
-  await writeFile(join(bots, 'bot-peer', 'bot.json'), JSON.stringify({ id: 'bot-peer', session: 'different-seat-name', profileText: 'synthetic-private-profile' }))
+  await writeFile(join(bots, 'bot-peer', 'bot.json'), JSON.stringify({ id: 'bot-peer', session: 'different-seat-name', name:'待機の担当', profileText: 'synthetic-private-profile' }))
   const result = await readDeploySeats({ proc, root: bots, except: 'bot-self' })
-  assert.deepEqual(result, { seats: [{ botId: 'bot-peer', session: 'different-seat-name', project: `${bots}/bot-peer`, candidates: [{pid: 1, ppid: 0, start: '100', exe: '/synthetic/codex'}] }, { botId: 'bot-missing', session: null, project: `${bots}/bot-missing`, candidates: [{pid: 2, ppid: 0, start: '100', exe: '/synthetic/claude'}] }], unknown: 0 })
+  assert.deepEqual(result, { seats: [{ botId: 'bot-peer', name:'待機の担当', session: 'different-seat-name', project: `${bots}/bot-peer`, candidates: [{pid: 1, ppid: 0, start: '100', exe: '/synthetic/codex'}] }, { botId: 'bot-missing', session: null, project: `${bots}/bot-missing`, candidates: [{pid: 2, ppid: 0, start: '100', exe: '/synthetic/claude'}] }], unknown: 0 })
   assert.doesNotMatch(JSON.stringify(result), /synthetic-private-profile/u)
 })
 
@@ -369,7 +369,10 @@ if [ "$1" = exec ]; then
   count=$(cat "$FIXTURE_COUNT")
   count=$((count+1)); printf '%s' "$count" > "$FIXTURE_COUNT"
   cat >/dev/null
-  if [ "$count" = "$FIXTURE_BLOCK_AT" ]; then exit 2; fi
+  if [ "$count" = "$FIXTURE_BLOCK_AT" ]; then
+    printf '%s\\n' '{"diagnostics":[{"reason":"table_stat_missing"}]}'
+    exit 2
+  fi
 fi
 if [ "$2" = config ] && [ "$3" = --images ]; then echo fixture-server; fi
 if [ "$2" = config ] && [ "$3" = --format ]; then printf '%s\\n' 'name: fixture' 'volumes:' '  cursor-cli:' '    name: fixture-cursor'; fi
@@ -391,6 +394,7 @@ if [ "$2" = config ] && [ "$3" = --format ]; then printf '%s\\n' 'name: fixture'
     } else {
       assert.doesNotMatch(calls, /compose up/u)
       assert.match(stdout, /deploy-exit=2/u)
+      assert.match(stdout, /table_stat_missing/u)
     }
   }
 })
