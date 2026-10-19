@@ -637,7 +637,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
             .map(line => line.replaceAll(process.cwd(), '<app>'))
           await diagnostics.record({
             code: 'SERVER_HTTP_500', module: 'server',
-            diagnostic_log: `${error.constructor.name}\n${frames.join('\n')}\n${diagnosticRequestContext(request, frames)}`,
+            diagnostic_log: `${error.constructor.name}\n${frames.join('\n')}\n${diagnosticRequestContext(request, frames, error)}`,
           })
         }
         catch (reportError) { process.stderr.write(`BellTeam diagnostics error: ${reportError.stack ?? reportError.message}\n`) }

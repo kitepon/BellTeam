@@ -1,5 +1,7 @@
+import { diagnosticFailureDetails } from './diagnostic-report-context.mjs'
+
 // 要求の意味とHTTP処理で観測した失敗。本人の操作や配送結果は推定しない。
-export function diagnosticRequestContext({ method, url }, frames = []) {
+export function diagnosticRequestContext({ method, url }, frames = [], error = null) {
   const requestMethod = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].includes(method) ? method : 'unknown'
   const path = typeof url === 'string' ? url.split(/[?#]/u, 1)[0] : ''
   let operation = 'unknown'
@@ -36,7 +38,9 @@ export function diagnosticRequestContext({ method, url }, frames = []) {
     operation = 'settings_read'
     expected = 'settings_response'
   }
-  const stage = frames.some(frame => /\bat (?:async )?AitermTransport\.dispatch\b/u.test(frame)) ? 'dispatch' : 'unknown'
+  const stage = frames.some(frame => /\bat (?:async )?AitermClient\.connect\b/u.test(frame)) ? 'mcp_connect'
+    : frames.some(frame => /\bat (?:async )?AitermClient\.call\b/u.test(frame)) ? 'mcp_call'
+      : frames.some(frame => /\bat (?:async )?AitermTransport\.dispatch\b/u.test(frame)) ? 'dispatch' : 'unknown'
   return [
     'context_source=server_request_handler',
     'scope=server_request',
@@ -50,6 +54,8 @@ export function diagnosticRequestContext({ method, url }, frames = []) {
     'result_basis=server_observation',
     'http_status=500',
     `failure_stage=${stage}`,
+    ...Object.entries(diagnosticFailureDetails(error)).map(([key, value]) => `${key}=${value}`),
+    'cause_status=unconfirmed',
     'app_handling=error_response_selected',
     'handling_basis=code_classification',
     'screen_observation=not_observed',

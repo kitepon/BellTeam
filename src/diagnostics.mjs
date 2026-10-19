@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { dirname } from 'node:path'
+import { diagnosticReportContext } from './diagnostic-report-context.mjs'
 
 // 通信の失敗は、エラーの種類や回数だけでは重大度も責任のある箇所も決まらない（ServerManagerの bughub/NETWORK_REPORTING.md）。
 // 3つ目がtrueの報告は、送信元（アプリ）が実害と復帰の可否から付けた `severity` を使い、重大度ごとに別の行にする。
@@ -80,18 +81,21 @@ export class Diagnostics {
       // 送信元が重大度を付けた報告は、重大度ごとに別の行にする。参考の記録が、影響のあった記録を薄めない。
       const evaluated = Boolean(bySender && assessed) && (assessed !== 'info' || referenceGrounds.every(line => line.test(log ?? '')))
       const severity = evaluated ? assessed : fixed
-      const fingerprint = createHash('sha256').update(evaluated ? `${code}:${module}:${assessed}` : `${code}:${module}`).digest('hex')
+      const context = diagnosticReportContext(log)
+      const legacyKey = evaluated ? `${code}:${module}:${assessed}` : `${code}:${module}`
+      const fingerprint = createHash('sha256').update(context ? `${legacyKey}:request:${context.key}` : legacyKey).digest('hex')
       const previous = this.rows.get(fingerprint)
       const message = bySender ? `${template}（${evaluated ? assessments[assessed] : '重大度は旧契約の暫定。影響とアプリの対処は未評価'}）` : template
       const row = {
         fingerprint,
         severity,
-        message_template: message,
+        message_template: context ? `${message}。${context.description}` : message,
         module,
         category: code,
         occurrence_count: (previous?.occurrence_count ?? 0) + 1,
         last_seen: new Date().toISOString(),
         status: severity === 'info' ? previous?.status ?? 'resolved' : 'open',
+        ...(context ? { report_context: context.context } : {}),
         ...(version ? { app_version: version } : previous?.app_version ? { app_version: previous.app_version } : {}),
         ...(log ? {
           diagnostic_log: log,

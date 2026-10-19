@@ -40,7 +40,8 @@ test('messages POST失敗をHTTPから管理診断へ渡し、診断原本に本
     assert.deepEqual(await response.json(), { error: 'INTERNAL_ERROR' })
     assert.equal(dispatched, 1)
     const [row] = await (await fetch(`http://127.0.0.1:${admin.address().port}/api/admin/logs`, { headers: { authorization: 'Bearer synthetic-admin-secret' } })).json()
-    assert.equal(row.fingerprint, createHash('sha256').update('SERVER_HTTP_500:server').digest('hex'))
+    assert.notEqual(row.fingerprint, createHash('sha256').update('SERVER_HTTP_500:server').digest('hex'))
+    assert.equal(row.report_context.operation, 'message_send')
     assert.deepEqual([row.status, row.severity, row.occurrence_count], ['open', 'high', 1])
     for (const line of ['operation=message_send', 'trigger=unknown', 'request_method=POST', 'request_route=/api/bots/:id/messages', 'expected_result=message_acceptance_response', 'expectation_basis=code_contract', 'actual_result=http_500_response_selected', 'result_basis=server_observation', 'failure_stage=dispatch', 'handling_basis=code_classification', 'screen_observation=not_observed', 'response_delivery=unknown', 'delivery_outcome=unknown']) assert.ok(row.diagnostic_log.split('\n').includes(line), line)
     const persisted = await readFile(file, 'utf8')
@@ -98,7 +99,9 @@ test('会話と個別予定のGET失敗はアプリと同じoperationで記録�
       for (const field of ['scope=server_request', `operation=${operation}`, `request_route=${route}`, `expected_result=${expected}`, 'trigger=unknown', 'result_basis=server_observation']) assert.ok(row.diagnostic_log.split('\n').includes(field), field)
       assert.doesNotMatch(row.diagnostic_log, /private-bot|private-room|synthetic-secret/u)
     }
-    assert.equal(diagnostics.list()[0].occurrence_count, 3)
+    assert.equal(diagnostics.list().length, 2)
+    assert.equal(diagnostics.list().find(row => row.report_context.operation === 'schedule_read').occurrence_count, 2)
+    assert.equal(diagnostics.list().find(row => row.report_context.operation === 'conversation_read').occurrence_count, 1)
   } finally {
     await new Promise(resolve => server.close(resolve))
   }
