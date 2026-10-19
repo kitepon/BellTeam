@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { dirname } from 'node:path'
+import { diagnosticReportContext } from './diagnostic-report-context.mjs'
 
 // 通信の失敗は、エラーの種類や回数だけでは重大度も責任のある箇所も決まらない（ServerManagerの bughub/NETWORK_REPORTING.md）。
 // 3つ目がtrueの報告は、送信元（アプリ）が実害と復帰の可否から付けた `severity` を使い、重大度ごとに別の行にする。
@@ -80,18 +81,22 @@ export class Diagnostics {
       // 送信元が重大度を付けた報告は、重大度ごとに別の行にする。参考の記録が、影響のあった記録を薄めない。
       const evaluated = Boolean(bySender && assessed) && (assessed !== 'info' || referenceGrounds.every(line => line.test(log ?? '')))
       const severity = evaluated ? assessed : fixed
-      const fingerprint = createHash('sha256').update(evaluated ? `${code}:${module}:${assessed}` : `${code}:${module}`).digest('hex')
+      const context = diagnosticReportContext(log)
+      const legacyKey = evaluated ? `${code}:${module}:${assessed}` : `${code}:${module}`
+      const fingerprint = createHash('sha256').update(context ? `${legacyKey}:request:${context.key}` : legacyKey).digest('hex')
       const previous = this.rows.get(fingerprint)
       const message = bySender ? `${template}（${evaluated ? assessments[assessed] : '重大度は旧契約の暫定。影響とアプリの対処は未評価'}）` : template
       const row = {
         fingerprint,
         severity,
-        message_template: message,
+        message_template: context ? `${message}。${context.description}` : message,
         module,
         category: code,
         occurrence_count: (previous?.occurrence_count ?? 0) + 1,
         last_seen: new Date().toISOString(),
         status: severity === 'info' ? previous?.status ?? 'resolved' : 'open',
+        ...(previous?.investigation_note ? { investigation_note: previous.investigation_note } : {}),
+        ...(context ? { report_context: context.context } : {}),
         ...(version ? { app_version: version } : previous?.app_version ? { app_version: previous.app_version } : {}),
         ...(log ? {
           diagnostic_log: log,
@@ -116,16 +121,42 @@ export class Diagnostics {
     return [...this.rows.values()].filter(row => status === 'all' || row.status === status)
       .sort((a, b) => b.last_seen.localeCompare(a.last_seen)).slice(0, limit)
       // 調査注記は報告元の読取表示にだけ添える。受信した診断原本と集計は書き換えない。
-      .map(row => Object.hasOwn(this.investigations, row.fingerprint)
-        ? { ...row, investigation: structuredClone(this.investigations[row.fingerprint]) } : row)
+      .map(row => {
+        const existing = this.investigations[row.fingerprint]
+        const note = row.investigation_note
+        // 既存調査のsummary/evidence/時刻は上限まで無変更で保つ。
+        // 後から付けた判定は要求発生時の原文と混ぜず、中央の既存追加文脈へ投影する。
+        return { ...row,
+          ...(existing ? { investigation: structuredClone(existing) } : {}),
+          ...(note ? { diagnostic_context: {
+            ...structuredClone(row.diagnostic_context ?? {}),
+            investigation_note: structuredClone(note),
+          } } : {}),
+        }
+      })
   }
 
-  setStatus(fingerprint, status) {
+  setStatus(fingerprint, status, { note } = {}) {
+    return this.updateInvestigation(fingerprint, { status, note })
+  }
+
+  setNote(fingerprint, note) {
+    if (note === undefined) return Promise.reject(new Error('DIAGNOSTIC_INVALID'))
+    return this.updateInvestigation(fingerprint, { note })
+  }
+
+  updateInvestigation(fingerprint, { status, note }) {
     const task = this.pending.then(async () => {
       if (typeof fingerprint !== 'string' || !/^[a-f0-9]{64}$/u.test(fingerprint)) throw new Error('DIAGNOSTIC_INVALID')
+      if (status !== undefined && !['open', 'resolved'].includes(status)) throw new Error('DIAGNOSTIC_INVALID')
+      if (note !== undefined && (typeof note !== 'string' || !note.trim() || note.length > 2000)) throw new Error('DIAGNOSTIC_INVALID')
       const row = this.rows.get(fingerprint)
       if (!row) throw new Error('DIAGNOSTIC_NOT_FOUND')
-      row.status = status
+      if (status !== undefined) row.status = status
+      if (note !== undefined) row.investigation_note = {
+        summary: note, updated_at: new Date().toISOString(),
+        occurrence_count: row.occurrence_count, status: row.status,
+      }
       await this.save()
       return row
     })
@@ -155,7 +186,11 @@ export function createDiagnosticsAdminServer({ diagnostics, key }) {
       if (request.method === 'POST' && ['/api/admin/logs/resolve', '/api/admin/logs/reopen'].includes(url.pathname)) {
         const body = await readSmallJson(request)
         const status = url.pathname.endsWith('/resolve') ? 'resolved' : 'open'
-        return send(response, 200, await diagnostics.setStatus(body.fingerprint, status))
+        return send(response, 200, await diagnostics.setStatus(body.fingerprint, status, { note: body.note }))
+      }
+      if (request.method === 'POST' && url.pathname === '/api/admin/logs/annotate') {
+        const body = await readSmallJson(request)
+        return send(response, 200, await diagnostics.setNote(body.fingerprint, body.note))
       }
       return send(response, 404, { error: 'NOT_FOUND' })
     } catch (error) {
