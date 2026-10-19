@@ -124,15 +124,15 @@ export class Diagnostics {
       .map(row => {
         const existing = this.investigations[row.fingerprint]
         const note = row.investigation_note
-        if (!note) return existing ? { ...row, investigation: structuredClone(existing) } : row
-        // 後の再発を過去の終了理由で説明しないよう、記録時の累計と状態を表示する。
-        const summary = `調査記録（累計${note.occurrence_count}件時点、状態=${note.status}）: ${note.summary}`
-        const prior = existing ? `\n既存調査: ${existing.summary}` : ''
-        return { ...row, investigation: {
-          summary: (summary + prior).slice(0, 4000),
-          evidence: structuredClone(existing?.evidence ?? []),
-          updated_at: note.updated_at,
-        } }
+        // 既存調査のsummary/evidence/時刻は上限まで無変更で保つ。
+        // 後から付けた判定は要求発生時の原文と混ぜず、中央の既存追加文脈へ投影する。
+        return { ...row,
+          ...(existing ? { investigation: structuredClone(existing) } : {}),
+          ...(note ? { diagnostic_context: {
+            ...structuredClone(row.diagnostic_context ?? {}),
+            investigation_note: structuredClone(note),
+          } } : {}),
+        }
       })
   }
 
