@@ -146,6 +146,119 @@ export async function confirmDeployIdle(transport, seat, { signal, readTable = r
   return { state: 'idle' }
 }
 
+// 診断は既に読んだ固定metadataだけから作る。診断先の失敗で判定を変えない。
+function emitDeployTrace(emit, event) {
+  if (typeof emit === 'function') try { emit(event) } catch { /* admission stays unchanged */ }
+}
+const identity = treeIdentity
+const hooks = (rows, pid) => rows.filter(row => row.ppid === pid && row.exe === nodeExe
+  && sameArgs(row.argv, [nodeExe, `${approvalRoot}approval-box-claude-hook.mjs`]))
+const hookKey = (rows, pid) => JSON.stringify(hooks(rows, pid).map(row => [row.pid, row.start]).sort())
+const idle = idleObservation
+const validNative = o => Number.isSafeInteger(o?.harness_process?.pid) && o.harness_process.pid > 0
+  && typeof o.harness_process.started_identity === 'string' && !!o.harness_process.started_identity
+  && /^[a-f0-9]{64}$/u.test(o.harness_process.argv_digest ?? '') && typeof o.launch_id === 'string' && !!o.launch_id
+const observationKey = observationIdentity
+
+export function createTracedConfirm(api, emit, dependencies = {}) {
+  const tableReader = dependencies.readTable ?? api.readProcTable
+  const treeReader = dependencies.readTree ?? api.readProcTree
+  const startReader = dependencies.readStart ?? readStartIdentity
+  return async (transport, seat, {signal} = {}) => {
+    const started = performance.now()
+    let stage = 'BEGIN', tableIndex = 0, treeIndex = 0, observeIndex = 0
+    let beforeTable, firstTree, firstObservation
+    const stages = new Map()
+    const log = (code, fields = {}) => {
+      let reason
+      if (code === 'READ_ERROR') reason = fields.stage.startsWith('TABLE_') && fields.proc_part === 'STAT'
+        && ['ENOENT','ESRCH'].includes(fields.error_code) ? 'table_stat_missing'
+        : fields.stage.startsWith('TREE_') && fields.proc_part === 'EXE'
+          && ['ENOENT','ESRCH'].includes(fields.error_code) ? 'tree_exe_missing' : 'read_unavailable'
+      if (code === 'RESULT' && fields.unclassified) {
+        const last = stages.get(fields.stage) ?? {}
+        reason = fields.stage.startsWith('TREE_') ? last.hook_identity_changed ? 'hook_changed'
+          : !last.trusted ? 'tree_untrusted' : !last.candidates_covered ? 'candidate_coverage_missing' : 'tree_changed'
+          : fields.stage === 'START_IDENTITY' ? 'start_identity_changed'
+          : fields.stage.startsWith('OBSERVE_') ? !last.idle ? 'observe_not_idle'
+            : !last.native_valid ? 'identity_unavailable' : !last.root_in_initial_table || !last.initial_group_matches
+              ? 'root_identity_changed' : 'observation_changed' : 'unclassified'
+      }
+      stages.set(code, fields)
+      emitDeployTrace(emit, {botId:seat.botId, name:seat.name ?? seat.botId, code,
+        ms:Math.round(performance.now()-started), ...fields, ...(reason ? {reason} : {})})
+    }
+    const errorFields = error => {
+      const allowed = ['ENOENT','ESRCH','EACCES','EPERM','IDENTITY_UNAVAILABLE']
+      const match = /^\/proc\/(\d+)\/(stat|exe|cmdline|cwd)$/u.exec(error?.path ?? '')
+      return {error_code:allowed.includes(error?.code) ? error.code : 'OTHER',
+        proc_part:match ? match[2].toUpperCase() : 'UNKNOWN',
+        missing_initial_candidate:!!match && (seat.candidates ?? []).some(row => row.pid === Number(match[1])),
+        observed_root_known:!!firstObservation?.harness_process,
+        missing_observed_root:!!match && firstObservation?.harness_process?.pid === Number(match[1])}
+    }
+    const observedTransport = {observe:async value => {
+      stage = 'OBSERVE_' + (++observeIndex)
+      const readAt = performance.now()
+      try {
+        const o = await transport.observe(value)
+        if (observeIndex === 1) firstObservation = o
+        const native = o?.harness_process
+        log(stage, {read_ms:performance.now()-readAt, idle:idle(o), busy:o?.exists === true && o.state === 'busy',
+          native_valid:validNative(o), root_in_initial_table:beforeTable?.has(native?.pid) ?? false,
+          initial_group_matches:!!native && beforeTable?.get(native.pid)?.pgid === native.process_group_id,
+          same_observation_as_first:observationKey(o ?? {}) === observationKey(firstObservation ?? {})})
+        return o
+      } catch (error) {log('READ_ERROR', {stage, read_ms:performance.now()-readAt, ...errorFields(error)}); throw error}
+    }}
+    const readTable = async () => {
+      stage = 'TABLE_' + (++tableIndex)
+      const readAt = performance.now()
+      try {
+        const value = await tableReader()
+        if (tableIndex === 1) beforeTable = value
+        log(stage, {read_ms:performance.now()-readAt, rows:value.size})
+        return value
+      } catch (error) {log('READ_ERROR', {stage, read_ms:performance.now()-readAt, ...errorFields(error)}); throw error}
+    }
+    const readStart = async pid => {
+      stage = 'START_IDENTITY'
+      const readAt = performance.now()
+      try {
+        const value = await startReader(pid)
+        log(stage, {read_ms:performance.now()-readAt, matches_observation:value === firstObservation?.harness_process?.started_identity})
+        return value
+      } catch (error) {log('READ_ERROR', {stage, read_ms:performance.now()-readAt, ...errorFields(error)}); throw error}
+    }
+    const readTree = async (table, pid) => {
+      stage = 'TREE_' + (++treeIndex)
+      const readAt = performance.now()
+      try {
+        const rows = await treeReader(table, pid)
+        if (treeIndex === 1) firstTree = rows
+        log(stage, {read_ms:performance.now()-readAt, rows:rows.length,
+          trusted:api.trustedIdleTree(rows,pid,firstObservation?.harness,seat.botId,seat.project),
+          candidates_covered:Array.isArray(seat.candidates) && seat.candidates.every(c => rows.some(r =>
+            r.pid === c.pid && r.ppid === c.ppid && r.start === c.start && r.exe === c.exe)),
+          tree_same_as_first:identity(rows) === identity(firstTree),
+          hook_count:hooks(rows,pid).length,
+          hook_identity_changed:hookKey(rows,pid) !== hookKey(firstTree,pid),
+          direct_node_count:rows.filter(row => row.ppid === pid && row.exe === nodeExe).length})
+        return rows
+      } catch (error) {log('READ_ERROR', {stage, read_ms:performance.now()-readAt, ...errorFields(error)}); throw error}
+    }
+    try {
+      const value = await api.confirmDeployIdle(observedTransport,seat,{signal,readTable,readTree,readStart})
+      log('RESULT', {stage, idle:value?.state === 'idle', running:value?.state === 'running', unclassified:value === null})
+      return value
+    } catch (error) {
+      log('THROWN', {stage, ...errorFields(error), aborted:signal?.aborted === true})
+      throw error
+    }
+  }
+}
+
+
 // processは席を見つけるためだけに使う。待機CLIを作業中とはしない。
 export async function readDeploySeats({ proc = '/proc', root = '/srv/bellteam/bots', except } = {}) {
   const candidates = new Map()
@@ -174,7 +287,7 @@ export async function readDeploySeats({ proc = '/proc', root = '/srv/bellteam/bo
     try {
       const profile = JSON.parse(await readFile(`${root}/${botId}/bot.json`, 'utf8'))
       if (profile.id !== botId || typeof profile.session !== 'string' || !profile.session.trim()) throw new Error('INVALID_SEAT')
-      seats.push({ botId, session: profile.session, project: `${root}/${botId}`, candidates: processes })
+      seats.push({ botId, ...(typeof profile.name === 'string' ? { name: profile.name } : {}), session: profile.session, project: `${root}/${botId}`, candidates: processes })
     } catch {
       seats.push({ botId, session: null, project: `${root}/${botId}`, candidates: processes })
     }
@@ -203,20 +316,24 @@ export function assessDeployQuiet({ except, items, seats, turns, unknown = 0 }) 
 }
 
 // seatTurns未対応のハーネスは、本体がidle観測にも使う構造化observeで確かめる。
-export async function collectDeployTurns(transport, seats, { signal, confirmIdle = confirmDeployIdle } = {}) {
+export async function collectDeployTurns(transport, seats, { signal, confirmIdle = confirmDeployIdle, trace } = {}) {
   const turns = await transport.seatTurns() ?? new Map()
   for (const { session } of seats) {
     if (signal?.aborted) throw new Error('DEPLOY_QUIET_TURNS_UNAVAILABLE')
-    if (!session || turns.get(session)?.state === 'running') continue
+    if (!session) continue
+    const seat = seats.find(seat => seat.session === session)
+    const reportRunning = () => emitDeployTrace(trace, {code:'ACTUAL_TURN', reason:'actual_turn', botId:seat.botId, name:seat.name ?? seat.botId})
+    if (turns.get(session)?.state === 'running') { reportRunning(); continue }
     try {
-      turns.set(session, await confirmIdle(transport, seats.find(seat => seat.session === session), { signal }))
-    } catch { turns.set(session, null) }
+      turns.set(session, await confirmIdle(transport, seat, { signal }))
+      if (turns.get(session)?.state === 'running') reportRunning()
+    } catch { turns.set(session, null); emitDeployTrace(trace, {code:'TURN_UNCLASSIFIED',botId:seat.botId,name:seat.name ?? seat.botId}) }
   }
   return turns
 }
 
 // 本体の既存読取経路。起動/送信/終了は行わず、画面本文を取得/出力しない。
-async function readTurns(seats) {
+async function readTurns(seats, { trace } = {}) {
   const { AitermClient, AitermTransport } = await import('/app/src/aiterm-transport.mjs')
   const transport = new AitermTransport({ client: new AitermClient({ env: {
     HOME: '/home/bell', BELLTEAM_HOME: '/home/bell',
@@ -225,8 +342,9 @@ async function readTurns(seats) {
   const stop = new AbortController()
   let timer
   try {
-    return await Promise.race([collectDeployTurns(transport, seats, { signal: stop.signal }), new Promise((_, reject) => {
-      timer = setTimeout(() => { stop.abort(); reject(new Error('DEPLOY_QUIET_TURNS_UNAVAILABLE')) }, 10000)
+    return await Promise.race([collectDeployTurns(transport, seats, { signal: stop.signal, trace,
+      confirmIdle: typeof trace === 'function' ? createTracedConfirm({readProcTable,readProcTree,trustedIdleTree,confirmDeployIdle},trace) : confirmDeployIdle }), new Promise((_, reject) => {
+      timer = setTimeout(() => { stop.abort(); emitDeployTrace(trace, {code:'TIMEOUT',reason:'timeout'}); reject(new Error('DEPLOY_QUIET_TURNS_UNAVAILABLE')) }, 10000)
     })])
   } finally {
     stop.abort()
@@ -235,40 +353,57 @@ async function readTurns(seats) {
   }
 }
 
-export async function checkDeployQuiet({ except, fetchQueue, readSeats = readDeploySeats, readSeatTurns = readTurns }) {
+export async function checkDeployQuiet({ except, fetchQueue, trace, readSeats = readDeploySeats,
+  readSeatTurns = seats => readTurns(seats, {trace}) }) {
   if (!botIdPattern.test(except ?? '')) throw new Error('DEPLOY_QUIET_BOT_REQUIRED')
   const before = await fetchQueue()
   const { seats, unknown } = await readSeats({ except })
   let turns = null
   // 読取失敗/未対応の席は保留する。queueの空だけではidleと決めない。
-  if (seats.length) try { turns = await readSeatTurns(seats) } catch { /* 未分類として保留 */ }
+  if (seats.length) try { turns = await readSeatTurns(seats) } catch { emitDeployTrace(trace,{code:'TURNS_UNAVAILABLE',reason:'turns_unavailable'}) }
   const final = await readSeats({ except })
   // 観測中に現れた別rootやPID再利用も、最後の候補探索で止める。
   const candidateKey = seat => JSON.stringify([seat.session, [...(seat.candidates ?? [])].sort((a, b) => a.pid - b.pid)])
   const byBot = new Map(final.seats.map(seat => [seat.botId, seat]))
   for (const seat of seats) {
     const after = byBot.get(seat.botId)
-    if (!after || candidateKey(seat) !== candidateKey(after)) turns?.set(seat.session, null)
+    if (!after || candidateKey(seat) !== candidateKey(after)) {
+      turns?.set(seat.session, null)
+      emitDeployTrace(trace,{code:'CANDIDATES_CHANGED',reason:'candidate_changed',botId:seat.botId,name:seat.name ?? seat.botId})
+    }
     byBot.delete(seat.botId)
   }
   seats.push(...byBot.values())
-  for (const seat of byBot.values()) turns?.set(seat.session, null)
+  for (const seat of byBot.values()) {
+    turns?.set(seat.session, null)
+    emitDeployTrace(trace,{code:'CANDIDATES_CHANGED',reason:'candidate_changed',botId:seat.botId,name:seat.name ?? seat.botId})
+  }
   const after = await fetchQueue()
   if (!Array.isArray(before) || !Array.isArray(after)) throw new Error('DEPLOY_QUIET_QUEUE_INVALID')
+  for (const [stage, items] of [['BEFORE',before],['AFTER',after]]) for (const item of items) {
+    if (botIdPattern.test(item?.botId ?? '') && item.botId !== except) {
+      const seat = seats.find(seat => seat.botId === item.botId)
+      emitDeployTrace(trace,{code:'QUEUE',reason:'queue',stage,botId:item.botId,
+        name:seat?.name ?? (typeof item.botName === 'string' ? item.botName : item.botId)})
+    }
+  }
+  if (unknown + final.unknown) emitDeployTrace(trace,{code:'UNKNOWN_CANDIDATES',reason:'unknown_candidates',count:unknown + final.unknown})
   return assessDeployQuiet({ except, items: [...before, ...after], seats, turns, unknown: unknown + final.unknown })
 }
 
 async function main() {
+  const diagnostics = []
   try {
-    const result = await checkDeployQuiet({ except: process.argv[2], fetchQueue: async () => {
+    const result = await checkDeployQuiet({ except: process.argv[2], trace:event=>diagnostics.push(event), fetchQueue: async () => {
       const response = await fetch('http://127.0.0.1:4181/api/queue', { signal: AbortSignal.timeout(5000) })
       if (!response.ok) throw new Error('DEPLOY_QUIET_QUEUE_UNAVAILABLE')
       return (await response.json()).items
     } })
-    console.log(JSON.stringify({ at: new Date().toISOString(), ...result }))
+    console.log(JSON.stringify({ at: new Date().toISOString(), ...result, diagnostics }))
     if (!result.quiet) process.exitCode = 2
   } catch {
     // 例外本文/環境/プロフィールは出さず、読取失敗は止める。
+    if (diagnostics.length) console.log(JSON.stringify({at:new Date().toISOString(),diagnostics}))
     console.error('DEPLOY_QUIET_UNAVAILABLE')
     process.exitCode = 2
   }
