@@ -32,9 +32,9 @@ const privacyBody = `<h1>BellTeam プライバシー方針</h1>
 <p><a href="mailto:${product.supportEmail}">${product.supportEmail}</a></p>`
 
 const supportBody = `<h1>BellTeam サポート</h1>
-<p>BellTeamは、自分のマシンで動くAIチームと、iPhone・Macから会話するアプリです。Dockerを使えるマシンへ設置し、自分が契約するAIサービスを使います。</p>
+<p>BellTeamは、自分のマシンで動くAIチームと、iPhone・iPadから会話するアプリです。Dockerを使えるマシンへ設置し、自分が契約するAIサービスを使います。</p>
 <h2>サーバーの設置</h2>
-<p>Dockerイメージと設置用ファイルを配布します。アプリはTestFlightで試験中です。<a href="/server/README.md">設置手順</a>を読み、同じフォルダへ<a href="/server/compose.yaml">compose.yaml</a>、<a href="/server/install.sh">install.sh</a>、<a href="/server/.env.example">.env.example</a>を保存してください。</p>
+<p>Dockerイメージと設置用ファイルを配布します。<a href="https://apps.apple.com/jp/app/bellteam/id6816295589">iPhone・iPadアプリはApp Storeで公開中</a>です。Macアプリは審査中です。<a href="/server/README.md">設置手順</a>を読み、同じフォルダへ<a href="/server/compose.yaml">compose.yaml</a>、<a href="/server/install.sh">install.sh</a>、<a href="/server/.env.example">.env.example</a>を保存してください。</p>
 <p>追加機能の設定や.envの作成は不要です。起動後の画面で最初に使うAIを選び、公式サイトで認証すると、案内役が会話で初期設定を進めます。同じマシンやLANから直接接続できます。詳しい仕様は<a href="/server/docs/onboarding.md">初回設定と追加機能</a>を参照してください。</p>
 <h2>お問い合わせ</h2>
 <p><a class="contact" href="mailto:${product.supportEmail}">${product.supportEmail}</a></p>
