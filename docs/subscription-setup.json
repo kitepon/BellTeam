@@ -5303,6 +5303,8 @@
         "appAndNotificationExtensionVersionsMatch": true,
         "signatureVerification": "passed",
         "applePrevalidation": "no_errors",
+        "approvalDecisionId": "K-S2U4S9",
+        "approvalDecisionStatus": "pending",
         "uploadStatus": "not_uploaded_awaiting_approval",
         "appStorePublicSubmission": false,
         "iphoneInstalledAndLaunched": false
