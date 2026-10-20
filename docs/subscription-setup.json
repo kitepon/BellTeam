@@ -5255,7 +5255,7 @@
       "repairCommit": "cf38bf2",
       "sourceCommit": "c7dcc5ee94fe2c298340a9cf3bf26b28675b336b",
       "caseEvaluation": "docs/evidence/2026-10-18-bughub-app-repair.md",
-      "status": "internal_distributed_iphone_launched_delete_button_unverified",
+      "status": "internal_distributed_iphone_ui_accepted",
       "distribution": {
         "approvalDecisionId": "K-HK5LMH",
         "appId": "6816295589",
@@ -5315,7 +5315,8 @@
         "iphoneAcceptanceDecisionId": "K-7ZJBYE",
         "iphoneAcceptanceDecisionStatus": "answered_installed_launched",
         "iphoneDeleteButtonDecisionId": "K-RPN94A",
-        "iphoneDeleteButtonDecisionStatus": "pending"
+        "iphoneDeleteButtonDecisionStatus": "answered_visible",
+        "iphoneDeleteButtonVisible": true
       }
     }
   },
