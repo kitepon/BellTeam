@@ -1231,6 +1231,9 @@ struct ConversationDetailView: View {
             .onChange(of: room?.id) { _, id in
                 if target.isRoom && id == nil { dismiss() }
             }
+            .onChange(of: bot?.id) { _, id in
+                if !target.isRoom && id == nil { dismiss() }
+            }
         }
     }
 }

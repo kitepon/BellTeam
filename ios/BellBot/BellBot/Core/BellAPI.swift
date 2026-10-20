@@ -20,14 +20,18 @@ enum BellAPIError: LocalizedError {
     case server(String)
     case httpStatus(Int, String?, BellRequestTrace? = nil)
 
-    static func operationFailureMessage(_ error: Error) -> String {
-        if error is URLError || error is DecodingError || (error as? BellAPIError).map({
+    static func operationResultUnconfirmed(_ error: Error) -> Bool {
+        error is URLError || error is DecodingError || (error as? BellAPIError).map({
             switch $0 {
             case .invalidResponse, .backgroundSendExpired: true
             case .httpStatus(let status, _, _) where status >= 500: true
             default: false
             }
-        }) == true {
+        }) == true
+    }
+
+    static func operationFailureMessage(_ error: Error) -> String {
+        if operationResultUnconfirmed(error) {
             return "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n\(error.localizedDescription)"
         }
         return error.localizedDescription

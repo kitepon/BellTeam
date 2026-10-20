@@ -23,6 +23,7 @@ final class AppStore: ObservableObject {
     var routingEnabled: Bool { featureSettings.first { $0.id == "routing" }?.status == "enabled" }
     var notificationsEnabled: Bool { featureSettings.first { $0.id == "notifications" }?.status == "enabled" }
     @Published var bots: [Bot] = []
+    @Published private(set) var pendingBotDeletionIDs: Set<String> = []
     @Published var rooms: [Room] = []
     @Published var owner: Owner?
     @Published var eventRevision = 0
@@ -90,7 +91,10 @@ final class AppStore: ObservableObject {
 
     func setServerAddress(_ address: String) async throws {
         guard let url = ServerOrigin.url(address) else { throw BellAPIError.server("HTTPS、またはlocalhost・LANのHTTP接続先URLを入力してください。") }
-        if serverURL != url { botEditorDrafts.removeAll() }
+        if serverURL != url {
+            botEditorDrafts.removeAll()
+            pendingBotDeletionIDs.removeAll()
+        }
         serverURL = url
         api.baseURL = url
         api.diagnostics.configure(serverURL: url)
@@ -106,6 +110,7 @@ final class AppStore: ObservableObject {
         api.baseURL = nil
         api.diagnostics.configure(serverURL: nil)
         bots = []
+        pendingBotDeletionIDs.removeAll()
         rooms = []
         workingBotIDs = []
         owner = nil
@@ -225,7 +230,7 @@ final class AppStore: ObservableObject {
         owner.owner.avatar = try await avatar(owner.owner.avatar, version: owner.owner.avatarVersion,
             previous: self.owner?.avatar, previousVersion: self.owner?.avatarVersion, path: "/api/owner/avatar")
         try Task.checkCancellation()
-        self.bots = bots.bots
+        applyFetchedBots(bots.bots)
         self.rooms = rooms.rooms
         self.owner = owner.owner
         workingBotIDs = Set(queue.items.filter { $0.status == "running" }.compactMap(\.botId))
@@ -270,6 +275,34 @@ final class AppStore: ObservableObject {
                         representativeId: saved.representativeId, memberIds: saved.memberIds,
                         avatar: saved.avatar, recent: previous?.recent)
         rooms = (rooms.filter { $0.id != saved.id } + [room]).sorted { $0.id < $1.id }
+    }
+
+    // DELETEの202は受付だけ。成功した一覧読取で消失を確認してから画面を片付ける。
+    func requestBotDeletion(_ id: String) async throws {
+        try await api.delete("/api/bots/\(id)")
+        if bots.contains(where: { $0.id == id }) { pendingBotDeletionIDs.insert(id) }
+    }
+
+    func confirmBotDeletion(_ id: String) async throws -> Bool {
+        try await refresh()
+        refreshError = nil
+        updateConnectionError()
+        return !bots.contains(where: { $0.id == id })
+    }
+
+    func applyFetchedBots(_ fetched: [Bot]) {
+        let currentIDs = Set(fetched.map(\.id))
+        let removedIDs = Set(bots.map(\.id)).subtracting(currentIDs)
+        bots = fetched
+        pendingBotDeletionIDs.formIntersection(currentIDs)
+        chatPath.removeAll { target in
+            if case .bot(let id) = target { return removedIDs.contains(id) }
+            return false
+        }
+        for id in removedIDs {
+            removeDraft(for: .bot(id))
+            botEditorDrafts.removeValue(forKey: id)
+        }
     }
 
     func deleteRoom(_ id: String) async throws {
@@ -422,6 +455,7 @@ final class AppStore: ObservableObject {
         for draft in drafts.values { draft.clear() }
         drafts.removeAll()
         botEditorDrafts.removeAll()
+        pendingBotDeletionIDs.removeAll()
         notificationSecret = nil
         pendingNotification = nil
         for cookie in api.cookieStorage.cookies ?? [] { api.cookieStorage.deleteCookie(cookie) }

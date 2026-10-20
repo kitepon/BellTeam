@@ -40,6 +40,8 @@ struct BotEditor: View {
     @State private var catalog: [String: HarnessModels] = [:]
     @State private var loadingModels = true
     @State private var saving = false
+    @State private var confirmingDeletion = false
+    @State private var deletionResultUnconfirmed = false
     @State private var name = ""
     @State private var position = ""
     @State private var role = ""
@@ -94,6 +96,9 @@ struct BotEditor: View {
         }
         return selected.fastModeUnavailableReason(model: selectedModel)
     }
+    private var deletionPending: Bool {
+        initial.map { store.pendingBotDeletionIDs.contains($0.id) } ?? false
+    }
 
     var body: some View {
         NavigationStack {
@@ -119,6 +124,7 @@ struct BotEditor: View {
                         Text("インディゴ").tag("indigo")
                     }
                 }
+                .disabled(deletionPending || deletionResultUnconfirmed)
                 Section("AI") {
                     // Macのポップアップでは、候補が届く前に作った選択欄が保存済みのモデルを「CLIの既定」と表示した。
                     // 候補を読み終えてから選択欄を作る。
@@ -165,11 +171,30 @@ struct BotEditor: View {
                         Text(reason).font(.footnote).foregroundStyle(.red)
                     }
                 }
+                .disabled(deletionPending || deletionResultUnconfirmed)
                 Section("プロフィール") {
                     profileField("背景・見た目・関係性", text: $profileText)
                     profileField("性格・考え方", text: $personality)
                     profileField("口調", text: $speechStyle)
                     profileField("担当する仕事", text: $role)
+                }
+                .disabled(deletionPending || deletionResultUnconfirmed)
+                if initial != nil {
+                    Section {
+                        if deletionPending || deletionResultUnconfirmed {
+                            Text(deletionPending
+                                 ? "削除を受け付けました。メンバーが一覧から消えるまで、削除完了は確認できません。"
+                                 : "削除要求の結果を確認できませんでした。再操作する前に一覧を確認してください。")
+                                .font(.footnote).foregroundStyle(BellTheme.muted)
+                            Button("削除結果を確認") { Task { await confirmDeletion() } }
+                                .accessibilityIdentifier("confirm-member-deletion")
+                        } else {
+                            Button("メンバーを削除", role: .destructive) { confirmingDeletion = true }
+                                .accessibilityIdentifier("delete-member")
+                        }
+                    } footer: {
+                        Text("このメンバーの会話・予定・記憶を含むプロジェクトを削除し、ルームから外します。元に戻せません。")
+                    }
                 }
                 if let saveResult {
                     switch saveResult {
@@ -197,9 +222,11 @@ struct BotEditor: View {
             .navigationTitle(initial == nil ? "メンバーを追加" : "メンバーを編集")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button(hasSavedResult ? "閉じる" : "キャンセル") { close() } }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(hasSavedResult || deletionPending || deletionResultUnconfirmed ? "閉じる" : "キャンセル") { close() }.disabled(saving)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("保存") { Task { await save() } }.fontWeight(.semibold).disabled(saving)
+                    Button("保存") { Task { await save() } }.fontWeight(.semibold).disabled(saving || deletionPending || deletionResultUnconfirmed)
                         .accessibilityIdentifier("save-member")
                 }
             }
@@ -211,6 +238,15 @@ struct BotEditor: View {
             }
             .sheet(item: $cropSource) { source in
                 AvatarCropEditor(image: source.image) { avatar = $0 }
+            }
+            .alert("「\(initial?.displayName ?? "")」を削除しますか？", isPresented: $confirmingDeletion) {
+                Button("削除", role: .destructive) { Task { await deleteMember() } }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("AIセッションを停止し、このメンバーの設定・会話・予定・記憶を含むプロジェクトを削除します。ルームからも外れ、元に戻せません。")
+            }
+            .onChange(of: store.bots.map(\.id)) { _, ids in
+                if let initial, !ids.contains(initial.id) { close() }
             }
         }
     }
@@ -256,6 +292,7 @@ struct BotEditor: View {
     }
 
     private func save() async {
+        guard !deletionPending && !deletionResultUnconfirmed else { return }
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             errorText = "名前を入力してください。"; return
         }
@@ -282,6 +319,39 @@ struct BotEditor: View {
             if case BellAPIError.httpStatus(_, let message?, _) = error { errorText = message }
             else { errorText = BellAPIError.operationFailureMessage(error) }
             store.api.diagnostics.report(error, path: "/api/bots", method: nil, observation: .write)
+        }
+    }
+
+    private func deleteMember() async {
+        guard let initial, !deletionPending && !deletionResultUnconfirmed else { return }
+        saving = true
+        defer { saving = false }
+        errorText = nil
+        saveResult = nil
+        submittedSettings = nil
+        do {
+            try await store.requestBotDeletion(initial.id)
+        } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        catch {
+            deletionResultUnconfirmed = BellAPIError.operationResultUnconfirmed(error)
+            errorText = BellAPIError.operationFailureMessage(error)
+            store.api.diagnostics.report(error, path: "/api/bots/\(initial.id)", method: "DELETE", observation: .write)
+        }
+    }
+
+    private func confirmDeletion() async {
+        guard let initial else { return }
+        saving = true
+        defer { saving = false }
+        errorText = nil
+        do {
+            if try await store.confirmBotDeletion(initial.id) == false {
+                errorText = "メンバーはまだ一覧にあります。削除完了は確認できません。"
+            }
+        } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        catch {
+            errorText = "削除結果を確認できませんでした。\n\(error.localizedDescription)"
+            store.api.diagnostics.report(error, path: "/api/bots", method: "GET", observation: .read(error, retainedData: true))
         }
     }
 
