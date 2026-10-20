@@ -8,4 +8,6 @@ iPhone Simulatorの新しい対象試験は、202後の保持・一覧消失後�
 
 ASCではiOSの1.0.1（52）が既に公開され、1.0.1（53）は内部TestFlightにある。最初の1.0.1（54）のApple事前検証は90062・90186で拒否された。公開済み1.0.1のpre-release trainが閉じていたためで、Appleへは送信していない。[Appleのビルド登録の説明](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds)に従い、版を1.0.2へ上げたcommit `00af686`からiPhoneアプリと通知拡張の54を作り直した。
 
-1.0.2（54）のiPhone archive・IPAは`runtime/apple/member-deletion-54/`に置いた。IPAのSHA-256は`4e906cdb07d7ac142a3eb964dd0dcf9b56435d7730a54557e7f601bfe7a66659`。展開した本体・通知拡張の版を確認し、両署名の`codesign --verify --strict`が成功。Apple公式`altool`事前検証も`No errors validating archive`。ここまででAppleへのアップロード、内部TestFlight配布、端末への導入・起動はまだ行っていない。決裁箱に「iPhoneメンバー削除版1.0.2（54）を内部TestFlightへ送信してよい？」（`K-S2U4S9`）を申請し、回答待ち。許可を受けた場合だけIPAを送信し、Appleでの処理とオーナー用内部グループへの配布を確認する。
+1.0.2（54）のiPhone archive・IPAは`runtime/apple/member-deletion-54/`に置いた。IPAのSHA-256は`4e906cdb07d7ac142a3eb964dd0dcf9b56435d7730a54557e7f601bfe7a66659`。展開した本体・通知拡張の版を確認し、両署名の`codesign --verify --strict`が成功。Apple公式`altool`事前検証も`No errors validating archive`。
+
+決裁箱「iPhoneメンバー削除版1.0.2（54）を内部TestFlightへ送信してよい？」（`K-S2U4S9`）のGOを受け、同じIPAの検査値とsource commitのmain祖先を再確認し、Appleへ一度だけ送信した。Appleのbuild `c09c145c-aeca-452c-bc05-42b729da8b49`は`VALID`、オーナー用内部グループへ追加した後の`internalBuildState`は`IN_BETA_TESTING`。一般公開審査の提出と本番コンテナの更新は行っていない。iPhone端末での導入・起動、実際のメンバー削除は未確認。

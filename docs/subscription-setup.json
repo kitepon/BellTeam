@@ -5286,7 +5286,7 @@
       "repairCommit": "36d48a9",
       "versionCommit": "00af686",
       "evidence": "docs/evidence/2026-10-20-iphone-member-deletion.md",
-      "status": "signed_validated_awaiting_testflight_approval",
+      "status": "internal_distributed_device_acceptance_unverified",
       "serverChanged": false,
       "productionMemberDeletedForTesting": false,
       "tests": {
@@ -5304,8 +5304,12 @@
         "signatureVerification": "passed",
         "applePrevalidation": "no_errors",
         "approvalDecisionId": "K-S2U4S9",
-        "approvalDecisionStatus": "pending",
-        "uploadStatus": "not_uploaded_awaiting_approval",
+        "approvalDecisionStatus": "answered_send_internal",
+        "uploadStatus": "internal_distribution_active",
+        "iosBuildId": "c09c145c-aeca-452c-bc05-42b729da8b49",
+        "iosProcessing": "VALID",
+        "iosInternalBuildState": "IN_BETA_TESTING",
+        "verifiedAt": "2026-10-20T11:41:12Z",
         "appStorePublicSubmission": false,
         "iphoneInstalledAndLaunched": false
       }
