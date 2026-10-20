@@ -5255,7 +5255,7 @@
       "repairCommit": "cf38bf2",
       "sourceCommit": "c7dcc5ee94fe2c298340a9cf3bf26b28675b336b",
       "caseEvaluation": "docs/evidence/2026-10-18-bughub-app-repair.md",
-      "status": "internal_distributed_iphone_ui_accepted",
+      "status": "internal_distributed_device_acceptance_unverified",
       "distribution": {
         "approvalDecisionId": "K-HK5LMH",
         "appId": "6816295589",
@@ -5286,7 +5286,7 @@
       "repairCommit": "36d48a9",
       "versionCommit": "00af686",
       "evidence": "docs/evidence/2026-10-20-iphone-member-deletion.md",
-      "status": "internal_distributed_device_acceptance_unverified",
+      "status": "internal_distributed_iphone_ui_accepted",
       "serverChanged": false,
       "productionMemberDeletedForTesting": false,
       "tests": {
