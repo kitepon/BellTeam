@@ -5279,6 +5279,34 @@
         "iphoneVerified": false,
         "reason": "端末操作・照会を行っていない"
       }
+    },
+    "iphoneMemberDeletion54": {
+      "version": "1.0.2",
+      "build": "54",
+      "repairCommit": "36d48a9",
+      "versionCommit": "00af686",
+      "evidence": "docs/evidence/2026-10-20-iphone-member-deletion.md",
+      "status": "signed_validated_awaiting_testflight_approval",
+      "serverChanged": false,
+      "productionMemberDeletedForTesting": false,
+      "tests": {
+        "focusedAfterRepair": { "passed": 4, "failed": 0 },
+        "relatedBeforeFinalAdjustment": { "passed": 8, "failed": 0 },
+        "nodeFinal": "TESTGATE_FULL=1 npm test exit 0",
+        "macCatalystBuild": "passed"
+      },
+      "distribution": {
+        "appId": "6816295589",
+        "ownerGroupId": "58133050-1c39-4915-b6da-aac18b95921b",
+        "archiveAndExportDirectory": "runtime/apple/member-deletion-54",
+        "iosIpaSHA256": "4e906cdb07d7ac142a3eb964dd0dcf9b56435d7730a54557e7f601bfe7a66659",
+        "appAndNotificationExtensionVersionsMatch": true,
+        "signatureVerification": "passed",
+        "applePrevalidation": "no_errors",
+        "uploadStatus": "not_uploaded_awaiting_approval",
+        "appStorePublicSubmission": false,
+        "iphoneInstalledAndLaunched": false
+      }
     }
   },
   "appleWebAccess": {
