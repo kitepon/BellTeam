@@ -5311,7 +5311,9 @@
         "iosInternalBuildState": "IN_BETA_TESTING",
         "verifiedAt": "2026-10-20T11:41:12Z",
         "appStorePublicSubmission": false,
-        "iphoneInstalledAndLaunched": false
+        "iphoneInstalledAndLaunched": false,
+        "iphoneAcceptanceDecisionId": "K-7ZJBYE",
+        "iphoneAcceptanceDecisionStatus": "pending"
       }
     }
   },

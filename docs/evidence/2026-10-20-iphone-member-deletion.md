@@ -10,4 +10,4 @@ ASCではiOSの1.0.1（52）が既に公開され、1.0.1（53）は内部TestFl
 
 1.0.2（54）のiPhone archive・IPAは`runtime/apple/member-deletion-54/`に置いた。IPAのSHA-256は`4e906cdb07d7ac142a3eb964dd0dcf9b56435d7730a54557e7f601bfe7a66659`。展開した本体・通知拡張の版を確認し、両署名の`codesign --verify --strict`が成功。Apple公式`altool`事前検証も`No errors validating archive`。
 
-決裁箱「iPhoneメンバー削除版1.0.2（54）を内部TestFlightへ送信してよい？」（`K-S2U4S9`）のGOを受け、同じIPAの検査値とsource commitのmain祖先を再確認し、Appleへ一度だけ送信した。Appleのbuild `c09c145c-aeca-452c-bc05-42b729da8b49`は`VALID`、オーナー用内部グループへ追加した後の`internalBuildState`は`IN_BETA_TESTING`。一般公開審査の提出と本番コンテナの更新は行っていない。iPhone端末での導入・起動、実際のメンバー削除は未確認。
+決裁箱「iPhoneメンバー削除版1.0.2（54）を内部TestFlightへ送信してよい？」（`K-S2U4S9`）のGOを受け、同じIPAの検査値とsource commitのmain祖先を再確認し、Appleへ一度だけ送信した。Appleのbuild `c09c145c-aeca-452c-bc05-42b729da8b49`は`VALID`、オーナー用内部グループへ追加した後の`internalBuildState`は`IN_BETA_TESTING`。一般公開審査の提出と本番コンテナの更新は行っていない。iPhone端末での導入・起動と削除ボタンの表示は、決裁箱「TestFlightのBellTeam 1.0.2（54）をiPhoneへ導入して起動できた？」（`K-7ZJBYE`）への回答待ち。実際のメンバー削除は依頼していない。
