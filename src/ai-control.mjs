@@ -9,6 +9,13 @@ export function aiControlError(code, status, message) {
 export function stopRegisteredWork({ bots, transport, scheduler }) {
   const targets = new Map([...bots.values()].map(bot => [bot.id, bot]))
   for (const job of transport.jobs) targets.set(job.bot.id, job.bot)
+  if (transport.executionBridge) {
+    let stopping, commands
+    try { stopping = transport.interruptMany([...targets.values()]) } catch (error) { stopping = Promise.reject(error) }
+    try { commands = scheduler.interruptCommands() } catch { commands = false }
+    return Promise.all([stopping, Promise.resolve(commands).catch(() => false)])
+      .then(([result, commandsConfirmed]) => ({ unconfirmedBotIds: result.unconfirmedBotIds, commandsConfirmed: commandsConfirmed === true }))
+  }
   // Establish every barrier synchronously, even if one target rejects.
   const stopping = [...targets.values()].map(bot => {
     try { return { bot, result: transport.interrupt(bot) } }

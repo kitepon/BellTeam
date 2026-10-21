@@ -177,6 +177,21 @@ test('roots読取は期待世代をそのまま返し、空・別席・世代欠
   await assert.rejects(bridge.roots(A.session_id), { code: 'EXECUTION_UNCONFIRMED' })
 })
 
+test('preparingの状態照会は作用確定に昇格させず、欠測したlaunchからsendへ進まない', async () => {
+  const f = fixture({ send: () => { throw Error('synthetic lost launch response') } })
+  const handle = await f.reserve()
+  await assert.rejects(handle.invoke('agent_launch', { session_name: B.session_id }), { effect: 'possible' })
+  const call = f.client.call
+  f.client.call = async (...args) => {
+    const result = await call(...args)
+    if (args[1]?.action === 'status') result.structuredContent.operations.launch = 'preparing'
+    return result
+  }
+  assert.equal((await handle.status()).operations.launch, 'preparing')
+  await assert.rejects(handle.invoke('pty_send', { session_id: B.session_id }), { code: 'EXECUTION_UNCONFIRMED' })
+  assert.equal(f.calls.filter(call => call.name === 'pty_send').length, 0)
+})
+
 test('短命MCPへのenv起動でもmetaを保持し、possible typed返却は同名再利用を止める', { timeout: 10000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-wire-child-'))
   t.after(() => rm(root, { force: true, recursive: true }))

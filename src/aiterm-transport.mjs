@@ -10,6 +10,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
 import { returnedExecutionError, ERROR_META } from './execution-bridge.mjs'
+import { reserveExecution, dispatchExecution, finishExecution, interruptExecutions } from './execution-transport.mjs'
 
 const HARNESS = new Map([
   ['claude', 'claude-code'],
@@ -151,8 +152,9 @@ export class AitermClient {
 }
 
 export class AitermTransport {
-  constructor({ client = new AitermClient(), tempRoot = tmpdir(), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS } = {}) {
+  constructor({ client = new AitermClient(), executionBridge = null, tempRoot = tmpdir(), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS } = {}) {
     this.client = client
+    this.executionBridge = executionBridge
     this.interimInterval = interimInterval
     this.tempRoot = tempRoot
     this.waitProcess = waitProcess
@@ -210,6 +212,7 @@ export class AitermTransport {
     this.assertWorkAllowed()
     this.requireSessionKnown(bot.id)
     const version = this.stopVersions.get(bot.id)
+    await this.executionStopping?.catch(() => {})
     await this.interruptions.get(bot.id)
     this.requireStopVersion(bot.id, version)
     const running = await this.isRunning(bot)
@@ -228,7 +231,7 @@ export class AitermTransport {
     return pending
   }
 
-  async wakeNow(bot, { setupTest = false } = {}) {
+  async wakeNow(bot, { setupTest = false, execution = null } = {}) {
     await this.requireAccess({ setupTest, botId: bot.id })
     await mkdir(bot.project, { recursive: true })
     const harness = HARNESS.get(bot.harness)
@@ -241,19 +244,19 @@ export class AitermTransport {
       launch = await this.changeSession(bot, 'agent_launch', {
         harness,
         cwd: bot.project,
-        session_name: bot.id,
+        session_name: execution?.reservation.target.session_id ?? bot.id,
         trust_project: true,
         ...(bot.model ? { model: bot.model } : {}),
         ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}),
         // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。共有の設定に残った値で起きないよう、必ず真偽で渡す。
         fast: bot.fastMode === true,
-      }, { env })
+      }, { env, ...(execution ? { execution } : {}) })
     } catch (error) {
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
       // 残すと席が「動いている」扱いになり、次の送信から起こし直せず、入力も受け付けない。BellTeamの席には、その画面へ答える人が居ない。
       // 残った端末を閉じて、次の送信がもう一度起こせるようにする。ここでは起こし直しも送り直しもしない（オーナー裁定 K-UTA3UC）。
       const leftover = error.launch?.session_id
-      if (typeof leftover === 'string' && leftover) {
+      if (!execution && typeof leftover === 'string' && leftover) {
         try {
           await this.changeSession(bot, 'pty_close', { session_id: leftover })
         } catch (closeError) {
@@ -326,6 +329,10 @@ export class AitermTransport {
   // 利用者が今の動作を止める。turnの完了は待たず、先に要求済みの送信/起動だけを確定させて席を閉じる。
   // 新しい送信はこの処理の後へ並び、古い配送は閉鎖確認後にstoppedとなる。
   interrupt(bot) {
+    if (this.executionBridge) return this.interruptMany([bot]).then(result => {
+      if (result.unconfirmedBotIds.length) throw Object.assign(new Error('停止を確認できませんでした。'), { code: 'BOT_STOP_UNCONFIRMED' })
+      return { botId: bot.id, status: 'stopped', online: false }
+    })
     if (this.interruptions.has(bot.id)) return this.interruptions.get(bot.id)
     const jobs = [...new Set([...this.jobs, ...this.active.values()])].filter(job => job.bot.id === bot.id)
     this.stopVersions.set(bot.id, (this.stopVersions.get(bot.id) ?? 0) + 1)
@@ -371,6 +378,11 @@ export class AitermTransport {
     return operation
   }
 
+  interruptMany(bots) {
+    if (!this.executionBridge) throw new Error('EXECUTION_BRIDGE_REQUIRED')
+    return interruptExecutions(this, bots)
+  }
+
   requireStopVersion(botId, version) {
     this.assertWorkAllowed()
     if (this.stopVersions.get(botId) !== version) throw stoppedError()
@@ -380,7 +392,8 @@ export class AitermTransport {
   changeSession(bot, name, args, options) {
     if (name !== 'pty_close') this.assertWorkAllowed()
     this.requireSessionKnown(bot.id)
-    const pending = Promise.resolve(this.client.call(name, args, options))
+    const { execution, ...clientOptions } = options ?? {}
+    const pending = Promise.resolve(execution ? execution.invoke(name, args, clientOptions) : this.client.call(name, args, options))
     const changes = this.sessionChanges.get(bot.id) ?? new Set()
     changes.add(pending)
     this.sessionChanges.set(bot.id, changes)
@@ -390,7 +403,7 @@ export class AitermTransport {
     }
     pending.then(clear, error => {
       // RPCのrejectは遠隔の変更を取り消さない。後から旧closeが届き得る同名の席を自動で再利用しない。
-      if ((error?.aitermResponseReturned !== true && error?.launch?.schema !== 'aiterm.agent-launch-result.v1')
+      if ((error?.effect !== 'not_started' && error?.aitermResponseReturned !== true && error?.launch?.schema !== 'aiterm.agent-launch-result.v1')
         || error?.executionError?.effect === 'possible')
         this.uncertainChanges.set(bot.id, name)
       clear()
@@ -537,6 +550,8 @@ export class AitermTransport {
     }
     // 既に受理されたsend/doneは保持して停止の結論を待つ。停止未確認なら通常の結果処理へ戻る。
     const checkpoint = async () => {
+      await this.executionStopping?.catch(() => {})
+      if (job.stopped) throw stoppedError()
       if (!job.stopRequested) return
       try { await job.interruption } catch (error) {
         if (!job.receipt) throw error
@@ -556,19 +571,22 @@ export class AitermTransport {
       // 差し込んだ文を取ったターンの終わりまで追ったか。追えなかった差し込みの画像は、次のターンまで残す。
       let followed = false
       try {
+        await this.executionStopping?.catch(() => {})
         const interruption = this.interruptions.get(bot.id)
         if (interruption) await interruption
         if (job.stopRequested) throw stoppedError()
         const configuration = this.configurationChanges.get(bot.id)
         if (configuration) await configuration
         check()
+        if (this.executionBridge) await reserveExecution(this, job)
+        check()
         this.active.set(job.id, job)
         this.emitQueue()
         await this.requireAccess({ setupTest, botId: bot.id })
         check()
-        delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check })
+        delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job })
         job.receipt = delivery.receipt
-        if (job.stopRequested) await checkpoint()
+        await checkpoint()
         const steered = delivery.receipt.mode === 'agent_steer'
         followed = !steered || delivery.steer !== null
         // 同じ席のターンをもう追っているjobが在れば、合間の言葉はそちらが出す（同じ言葉を2回出さない）。
@@ -576,13 +594,13 @@ export class AitermTransport {
         // 次の送信はこの印を見て決めるので、返りを受け取ってからここまでawaitを挟まない。
         job.follows = followed && !follower
         await onStatus?.('running')
-        if (job.stopRequested) await checkpoint()
+        await checkpoint()
         acknowledged = true
         accept({ delivery: steered ? 'steered' : 'running' })
         // 待つ手がかりを返さない差し込み（Aiterm 0.59.1まで）は、同じ席のjobの終わりを待つ。無ければ、終わりを知る道が無い。
         if (!followed) {
           if (parent) await parent.completion
-          if (job.stopRequested) await checkpoint()
+          await checkpoint()
           await onStatus?.('delivered')
           return { delivery: 'steered' }
         }
@@ -599,14 +617,15 @@ export class AitermTransport {
           throw error
         }
         await interim?.stop()
-        if (job.stopRequested) await checkpoint()
+        await finishExecution(job, 'completion')
+        await checkpoint()
         if (completion.turn_id) this.followedTurns.set(bot.id, completion.turn_id)
         // 動いていたターンが取り込んだ差し込みは、そのターンの一部。回答は、そのターンを始めた側が出す
         // （BellTeamが始めたターンは元の配送、席が自分で始めたターンはself-turns.mjs）。
         // 取り込まれたかを見分けられなかった時（unknown）も、回答を2回出さないよう同じに扱う。
         if (steered && completion.steer?.placement !== 'next_turn') {
           await follower?.completion.catch(() => {})
-          if (job.stopRequested) await checkpoint()
+          await checkpoint()
           await onStatus?.('delivered')
           return { delivery: 'steered' }
         }
@@ -617,28 +636,31 @@ export class AitermTransport {
           ...(completion.operation_id ? { operation_id: completion.operation_id } : {}),
         }), completion)
         const answer = transcript ? await readAnswer() : undefined
-        if (job.stopRequested) await checkpoint()
+        await checkpoint()
         // 画面に出すだけの回答なので、読めなくても配送は完了として扱う。
         if (!transcript && onAnswer) {
           try {
             const text = await readAnswer()
-            if (job.stopRequested) await checkpoint()
+            await checkpoint()
             if (typeof text === 'string' && text.trim()) await onAnswer(text)
           } catch (error) {
             process.stderr.write(`BellTeam answer read error: ${error.stack ?? error.message}\n`)
           }
         }
-        if (job.stopRequested) await checkpoint()
+        await checkpoint()
         await onStatus?.('delivered')
-        if (job.stopRequested) await checkpoint()
+        await checkpoint()
         onTurnEnd?.({ startedAt: job.startedAt, endedAt: this.now() })
         return transcript ? answer : { delivery: 'delivered' }
       } catch (error) {
+        await this.executionStopping?.catch(() => {})
+        if (job.stopped) error = stoppedError()
         if (job.stopRequested) {
           try { await job.interruption } catch (stopError) { error = stopError }
           if (job.stopped) error = stoppedError()
         }
         if (['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) && !job.receipt) job.stopped = true
+        if (job.execution && !job.receipt && !job.execution.issued.size) await finishExecution(job, 'not_sent')
         if (!acknowledged) rejectAcceptance(error)
         await onStatus?.(job.stopped ? 'stopped' : 'failed')
         throw error
@@ -789,7 +811,11 @@ export class AitermTransport {
     return delivery
   }
 
-  async dispatch(bot, message, images, { setupTest = false, check = () => {} } = {}) {
+  async dispatch(bot, message, images, { setupTest = false, check = () => {}, executionJob } = {}) {
+    if (this.executionBridge) {
+      const delivery = await dispatchExecution(this, executionJob, bot, message, images, { setupTest, check })
+      return { ...delivery, steer: delivery.receipt.mode === 'agent_steer' ? steerFollow(delivery.result) : null }
+    }
     check()
     const imageFiles = await this.imageFiles(images)
     try {
