@@ -196,3 +196,68 @@ test('HTTP一覧の消失は全掃除完了後だけ、pendingは一覧だけに
   await assert.rejects(stat(join(f.stateRoot, '.deleting/bot-b')), { code: 'ENOENT' })
   await assert.rejects(stat(join(f.stateRoot, '.deleting/bot-b.json')), { code: 'ENOENT' })
 })
+
+
+function gate() {
+  let release
+  const promise = new Promise(resolve => { release = resolve })
+  return { promise, release }
+}
+
+for (const crossing of ['list_snapshot', 'running_response', 'other_timeline']) {
+  test(`退役renameをまたぐGETの${crossing}を削除待ちへ再確認する`, { timeout: 5000 }, async t => {
+    const f = await fixture(t); await f.registry.initialize()
+    await f.registry.create({ name: 'Concurrent synthetic' })
+    const reached = gate(), continueGet = gate(), retired = gate(), continueRemove = gate()
+    t.after(() => { continueGet.release(); continueRemove.release() })
+    const originalRefresh = f.registry.refresh.bind(f.registry)
+    f.registry.refresh = async () => {
+      try { await stat(join(f.stateRoot, 'bot-b')) } catch (error) {
+        if (error.code !== 'ENOENT') throw error
+        retired.release()
+        await continueRemove.promise
+      }
+      return originalRefresh()
+    }
+    const originalList = f.registry.listForClient.bind(f.registry)
+    let firstList = true, firstRunning = true
+    f.registry.listForClient = async () => {
+      const snapshot = await originalList()
+      if (crossing === 'list_snapshot' && firstList) {
+        firstList = false; reached.release(); await continueGet.promise
+      }
+      return snapshot
+    }
+    const runningInputs = []
+    const server = createBellTeamServer({ bots: f.registry, authorize: () => true,
+      messenger: {}, store: { async timeline(_kind, id) {
+        if (crossing === 'other_timeline' && id === 'bot-a') {
+          reached.release(); await continueGet.promise
+        }
+        return []
+      } },
+      transport: { async runningBots(bots) {
+        runningInputs.push(bots.map(bot => bot.id))
+        if (crossing === 'running_response' && firstRunning) {
+          firstRunning = false; reached.release(); await continueGet.promise
+        }
+        return new Set(bots.map(bot => bot.id))
+      } },
+    })
+    server.listen(0, '127.0.0.1'); await once(server, 'listening'); t.after(() => server.close())
+    const url = `http://127.0.0.1:${server.address().port}/api/bots`
+    const response = fetch(url)
+    await reached.promise
+    const removing = f.registry.remove('bot-b')
+    await retired.promise
+    assert.equal(f.registry.has('bot-b'), false)
+    assert.equal(f.registry.isDeleting('bot-b'), true)
+    continueGet.release()
+    const item = (await (await response).json()).bots.find(bot => bot.id === 'bot-b')
+    assert.equal(item.deleting, true); assert.equal(item.online, false)
+    if (crossing === 'list_snapshot') assert.equal(runningInputs[0].includes('bot-b'), false)
+    continueRemove.release(); await removing
+    assert.equal(f.registry.isDeleting('bot-b'), false)
+    assert.equal((await (await fetch(url)).json()).bots.some(bot => bot.id === 'bot-b'), false)
+  })
+}

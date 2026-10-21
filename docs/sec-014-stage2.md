@@ -206,3 +206,14 @@ client lists and prevents the app from declaring completion or discarding drafts
 The receipt is never an execution target. A receipt prepared before a failed
 retirement rename is discarded on initialization without deleting the active Bot.
 Pending cleanup is retried by registry remove(id) or normal initialization; there is no new public HTTP retry endpoint in this component.
+
+
+An in-process deletion intent is set and the active Map entry is removed
+synchronously before awaiting the retirement rename. A failed rename restores
+that active entry; refresh never reactivates an entry with an active intent.
+GET list snapshots recheck this intent before passing targets to runningBots
+and again immediately before response serialization. A running observation
+already issued before retirement may finish, but cannot override the pending
+flag or report online:true while the intent remains active. This is local
+registry coordination, not a multi-process registry lock or a cancellation
+of an already issued observation.

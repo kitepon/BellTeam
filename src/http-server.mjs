@@ -280,7 +280,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
         }
         if (request.method === 'GET' && url.pathname === '/api/bots') {
           const all = bots.listForClient ? await bots.listForClient() : [...bots.values()]
-          const running = await transport.runningBots(all.filter(bot => !bot.deleting))
+          const deleting = bot => bot.deleting || bots.isDeleting?.(bot.id) === true
+          const running = await transport.runningBots(all.filter(bot => !deleting(bot)))
           const list = await Promise.all(all.map(async bot => {
             const items = await timeline('bots', bot.id)
             const last = items.at(-1) ?? null
@@ -299,11 +300,16 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
               position: bot.position ?? '',
               role: bot.role ?? '',
               ...listAvatar(bot.avatar, url),
-              online: !bot.deleting && running.has(bot.id),
-              ...(bot.deleting ? { deleting: true } : {}),
+              online: !deleting(bot) && running.has(bot.id),
+              ...(deleting(bot) ? { deleting: true } : {}),
               recent: last && { id: last.id, kind: last.kind, direction: last.direction, message: last.message, image: last.image, at: last.at },
             }
           }))
+          // Another item's timeline may have awaited after this item rendered.
+          // No await separates this final check from serializing the response.
+          for (const item of list) {
+            if (bots.isDeleting?.(item.id)) { item.deleting = true; item.online = false }
+          }
           return json(response, 200, { bots: list })
         }
         if (request.method === 'GET' && url.pathname === '/api/rooms') {

@@ -39,6 +39,7 @@ export class BotRegistry extends Map {
     this.onChange = onChange
     this.models = models
     this.watchers = new Set()
+    this.deletionIntents = new Set()
   }
 
   // 一覧と設定の変更を、同じprocessの購読者へ知らせる（アプリが一覧を読み直すための知らせに使う）。
@@ -96,7 +97,9 @@ export class BotRegistry extends Map {
     }
     profiles.sort((a, b) => a.id.localeCompare(b.id))
     this.clear()
-    for (const profile of profiles) this.set(profile.id, Object.freeze(profile))
+    for (const profile of profiles) {
+      if (!this.deletionIntents.has(profile.id)) this.set(profile.id, Object.freeze(profile))
+    }
     return this
   }
 
@@ -235,8 +238,17 @@ export class BotRegistry extends Map {
         // Keep a separate listing receipt until both roots are fully removed.
         // Its presence alone never permits deleting an active project on recovery.
         await writeAtomic(record, { schema: 'bellteam.bot-deletion.v1', profile: bot })
-        await rename(this.statePath(id), pending)
+        // Mark synchronously before the first retirement filesystem await.
+        this.deletionIntents.add(id)
+        this.delete(id)
+        try { await rename(this.statePath(id), pending) } catch (error) {
+          this.deletionIntents.delete(id)
+          this.set(id, bot)
+          throw error
+        }
       }
+      this.deletionIntents.add(id)
+      this.delete(id)
       await this.refresh()
       await this.onChange(this)
       this.changed()
@@ -251,11 +263,16 @@ export class BotRegistry extends Map {
     return { id }
   }
 
+  isDeleting(id) {
+    return this.deletionIntents.has(id)
+  }
+
   async finishRemoval(id) {
     try {
       await rm(this.projectPath(id), { recursive: true, force: true })
       await rm(join(this.stateRoot, '.deleting', id), { recursive: true, force: true })
       await rm(join(this.stateRoot, '.deleting', `${id}.json`), { force: true })
+      this.deletionIntents.delete(id)
     } catch {
       // Retry remove(id), or initialize a new registry to resume the same intent.
       // No profile needs to survive a partially removed pending directory.
@@ -287,9 +304,10 @@ export class BotRegistry extends Map {
   // pending deletion receipt until BOTH project and state cleanup have succeeded.
   async listForClient() {
     const listed = new Map(this)
-    if (!this.separateState) return [...listed.values()]
+    const result = () => [...listed.values()].map(bot => this.isDeleting(bot.id) ? { ...bot, deleting: true } : bot)
+    if (!this.separateState) return result()
     const pendingRoot = join(this.stateRoot, '.deleting')
-    if (!await pathExists(pendingRoot)) return [...listed.values()]
+    if (!await pathExists(pendingRoot)) return result()
     for (const entry of await readdir(pendingRoot, { withFileTypes: true })) {
       if (!entry.isFile() || !entry.name.endsWith('.json')) continue
       const id = entry.name.slice(0, -5)
@@ -303,7 +321,7 @@ export class BotRegistry extends Map {
         throw registryError('BOT_DELETE_RECORD_INVALID')
       listed.set(id, { ...normalizeProfile(record.profile), project: this.projectPath(id), deleting: true })
     }
-    return [...listed.values()].sort((a, b) => a.id.localeCompare(b.id))
+    return result().sort((a, b) => a.id.localeCompare(b.id))
   }
 
   async listSchedules(id) {
