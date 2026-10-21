@@ -10,6 +10,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
 import { requireSeatProject, seatCommandSpec } from './seat-command.mjs'
+import { createSeatProcessRunner } from './seat-process.mjs'
 
 const HARNESS = new Map([
   ['claude', 'claude-code'],
@@ -24,10 +25,11 @@ const INTERIM_INTERVAL_MS = 3000
 const CALLER_META = { 'aiterm/caller': 'BellTeam' }
 export const NIGHTLY_RESTART_TURNS = 20
 
-export async function completedThroughlineTurns(project, { run = execFileAsync } = {}) {
-  const { stdout } = await run('throughline', [
+export async function completedThroughlineTurns(project, { run = execFileAsync, seatCommands = false } = {}) {
+  const execute = seatCommands ? createSeatProcessRunner(project) : run
+  const { stdout } = await execute('throughline', [
     'observer-read', '--project', project, '--limit', String(NIGHTLY_RESTART_TURNS), '--json',
-  ], { env: runtimeEnvironment() })
+  ], seatCommands ? {} : { env: runtimeEnvironment() })
   const result = JSON.parse(stdout)
   if (result.schema !== 'throughline.observer_read.v1' || !Array.isArray(result.turns))
     throw new Error('THROUGHLINE_OBSERVER_READ_INVALID')
@@ -36,10 +38,11 @@ export async function completedThroughlineTurns(project, { run = execFileAsync }
 
 // 短期記憶は、直前の1セッションだけでなく直近の複数セッションから作る（オーナー裁定 2026-10-05、Approval Box K-8GPX8C）。
 // `--sessions recent` は Throughline 0.15.0 から。それより前の版は終了コード2で止まり、席が起きない。
-export async function latestThroughlineHandoffContext(project, { run = execFileAsync } = {}) {
-  const { stdout } = await run('throughline', [
+export async function latestThroughlineHandoffContext(project, { run = execFileAsync, seatCommands = false } = {}) {
+  const execute = seatCommands ? createSeatProcessRunner(project) : run
+  const { stdout } = await execute('throughline', [
     'handoff-context', '--project', project, '--json', '--disclosure', 'silent', '--sessions', 'recent',
-  ], { env: runtimeEnvironment() })
+  ], seatCommands ? {} : { env: runtimeEnvironment() })
   const result = JSON.parse(stdout)
   if (result.schema !== 'throughline.handoff_context.v1')
     throw new Error('THROUGHLINE_HANDOFF_CONTEXT_INVALID')
@@ -894,7 +897,11 @@ export class AitermTransport {
   }
 }
 
-function runWaitProcess(waitProcess, signal = null) {
+export function runWaitProcess(waitProcess, signal = null, options = {}) {
+  const seatProject = Object.hasOwn(options, 'seatProject') ? options.seatProject : null
+  if (seatProject !== null) return createSeatProcessRunner(seatProject)(waitProcess.executable, waitProcess.args, { signal }).then(({ stdout }) => {
+    try { return JSON.parse(stdout.trim()) } catch { throw new Error('AITERM_WAIT_INVALID') }
+  })
   return new Promise((resolve, reject) => {
     const child = spawn(waitProcess.executable, waitProcess.args, {
       env: runtimeEnvironment(), stdio: ['ignore', 'pipe', 'pipe'], ...(signal ? { signal } : {}),

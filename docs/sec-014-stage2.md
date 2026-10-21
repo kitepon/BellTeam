@@ -68,6 +68,17 @@ branch's fix. SDK child startup is verified in an isolated UID1001 fixture;
 all supervisor/launch/wait/setup/schedule/configuration paths and the four real
 CLI integrations still need wiring and acceptance.
 
+`createSeatProcessRunner(project)` now provides a bounded-output command reader
+through the same installed entry, with stdin EOF and cancellation that returns
+only after the wrapper closes. It rejects a server-evaluated `env` option; it
+does not copy that environment or include command output in failure messages.
+Throughline count/handoff queries can opt in with `seatCommands: true`, and
+`runWaitProcess` can opt in with `seatProject`. Explicit invalid seatProject
+values are rejected rather than selecting the legacy reader. These options
+are not enabled in the supervisor; target-specific launch environments, setup,
+configuration and all production paths still need wiring. An isolated test
+uses a synthetic Throughline executable and wait JSON, not real CLI state.
+
 The newly introduced `shared/ai-control.json` stop intent belongs in the
 server-owned state migration, backup and latest-generation rollback plan.
 Returning to an older code version must not silently ignore a persisted ON.
