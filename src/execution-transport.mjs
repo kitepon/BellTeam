@@ -1,7 +1,7 @@
 // Optional integration: supplied only after the Aiterm execution runtime is
 // accepted. No live mount, relation graph, retry or legacy-close fallback here.
 import { isDeepStrictEqual as same } from 'node:util'
-import { deliveryExecutionRef, roomExecutionRef } from './execution-bridge.mjs'
+import { callExecutionRef, deliveryExecutionRef, roomExecutionRef } from './execution-bridge.mjs'
 
 const unknown = cause => Object.assign(new Error('停止を確認できませんでした。', { cause }), { code: 'BOT_STOP_UNCONFIRMED' })
 
@@ -10,10 +10,13 @@ export async function reserveExecution(transport, job) {
   if (observed?.schema !== 'aiterm.pty-observe-result.v1' || observed.session_id !== transport.session(job.bot)
     || typeof observed.exists !== 'boolean' || (observed.exists ? !/^[0-9a-f]{32}$/u.test(observed.launch_id ?? '') : observed.launch_id !== null))
     throw unknown()
-  const ref = job.info.context === 'room' ? roomExecutionRef : deliveryExecutionRef
+  const deliveryId = job.info.groupId ?? job.id
+  const request = job.info.call
+    ? callExecutionRef({ ...job.info.call, deliveryId }, observed.session_id)
+    : (job.info.context === 'room' ? roomExecutionRef : deliveryExecutionRef)(deliveryId, observed.session_id)
   const source = job.executionSource?.source ?? { launch: null, boundary: null }
   job.execution = await transport.executionBridge.reserve({
-    request: ref(job.info.groupId ?? job.id, observed.session_id),
+    request,
     sourceSession: job.executionSource?.sourceSession ?? null, source,
     targetSession: observed.session_id, expectedLaunch: observed.launch_id,
   }, { sourceContext: source.launch ? source : null })

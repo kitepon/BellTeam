@@ -88,6 +88,7 @@ export class BellTeamMessenger {
       schema: 'bellteam.direct-message.v1', delivery_id: deliveryId, at: this.now(),
       from, target, from_identity: identity, target_identity: memberIdentity(this.bots, target),
       message, image: false, delivery: 'running', session_id: sessionId,
+      call_event: event, call_seq: seq,
     })
     const party = event === 'session.reply' ? 'local' : 'member'
     const replyHint = replyRequired === false ? ''
@@ -96,7 +97,8 @@ export class BellTeamMessenger {
     try {
       check()
       const result = await this.transport.notify(bot, envelope, {
-        queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from, fromName: sourceLabel, target: bot.id, message },
+        queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from, fromName: sourceLabel, target: bot.id, message,
+          call: { sessionId, event, seq } },
         onStatus: status => this.appendDeliveryStatus(deliveryId, status),
         onInterim: words => this.appendInterimWords(bot.id, deliveryId, words),
         onAnswer: text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }]),

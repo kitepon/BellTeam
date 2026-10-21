@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { stopRegisteredWork } from '../src/ai-control.mjs'
 import { applyExecutionCancellation } from '../src/execution-transport.mjs'
+import { BellTeamMessenger } from '../src/messenger.mjs'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
@@ -307,4 +308,30 @@ test('jobを持たない連鎖先も、停止前の設定準備のversionを進�
   release.resolve()
   assert.equal((await change).code, 'BOT_STOPPED')
   assert.equal(f.calls.some(call => call.action === 'raw:agent_configure'), false)
+})
+
+test('通話の各配送はsession/event/seqと実targetで登録し、世代不明の外部発信元は補完しない', async t => {
+  for (const [event, seq] of [['session.message', 0], ['session.reply', 2], ['session.reply', null], ['session.reply', '2']]) {
+    await t.test(`${event}/${seq ?? 'missing'}/${typeof seq}`, { timeout: 2000 }, async t => {
+      const f = await fixture(t), bot = f.bots[0]
+      const messenger = new BellTeamMessenger({ bots: new Map(f.bots.map(bot => [bot.id, bot])), transport: f.transport,
+        logPath: join(bot.project, 'calls.jsonl'), deliveryId: () => 'existing-call-delivery' })
+      await messenger.receiveCallBridge({ event, seq, session_id: 'existing-call', target_id: bot.id,
+        source_system: 'bellteam', source_id: f.bots[1].id, source_label: 'synthetic', message: 'synthetic',
+        executionSource: { sourceSession: f.bots[1].id, source: { launch: f.launches.get(f.bots[1].id), boundary: null } } })
+      const registration = f.calls.find(call => call.action === 'register')
+      assert.deepEqual(registration.input.request, typeof seq === 'number'
+        ? { kind: 'call', call_session_id: 'existing-call', event, seq, target_session_id: bot.session }
+        : { kind: 'delivery', delivery_id: 'existing-call-delivery', target_session_id: bot.session })
+      assert.equal(registration.input.sourceSession, null)
+      assert.deepEqual(registration.input.source, { launch: null, boundary: null })
+      assert.equal(registration.options.sourceContext, null)
+      assert.equal(f.calls.filter(call => call.action === 'pty_send').length, 1)
+      // Confirmed closure finishes this accepted delivery without inventing an
+      // external source edge or a native completion based on its call label.
+      assert.equal((await f.transport.interrupt(bot)).status, 'stopped')
+      await f.transport.idle(bot.id)
+      assert.equal(f.calls.find(call => call.action === 'finish').evidence.kind, 'interrupted')
+    })
+  }
 })

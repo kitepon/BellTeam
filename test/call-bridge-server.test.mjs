@@ -54,6 +54,12 @@ test('通話電話帳をUNIXソケットで提供し、外部発信者を本人�
     })
     assert.equal(reply.status, 200)
     assert.match(sent[1].text, /from_party=local/u)
+    assert.deepEqual(sent[0].options.queue.call, { sessionId: 'session-1', event: 'session.message', seq: null })
+    assert.deepEqual(sent[1].options.queue.call, { sessionId: 'session-1', event: 'session.reply', seq: 2 })
+    assert.equal(sent[1].options.executionSource, undefined, 'the caller label is not runtime generation evidence')
+    const latest = (await readFile(join(root, 'messages.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse).at(-1)
+    assert.equal(latest.call_event, 'session.reply')
+    assert.equal(latest.call_seq, 2)
   } finally {
     await close()
     await rm(root, { recursive: true, force: true })
