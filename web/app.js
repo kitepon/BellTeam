@@ -6,6 +6,7 @@ import { sendFailureText, claimMessageSend, claimSingleFlight, readApiError, rea
 import { richTextHtml } from './rich-text.js?v=__ASSET_VERSION__'
 import { hasUnreadConversation, newestByRecent } from './activity-order.js?v=__ASSET_VERSION__'
 import { openImageViewer, renderImageStack } from './image-gallery.js?v=__ASSET_VERSION__'
+import { requestMemberStop } from './member-stop.js?v=__ASSET_VERSION__'
 
 const READ_RECEIPTS_KEY = 'bellteam-read-receipts.v1'
 
@@ -44,6 +45,8 @@ const composer = document.querySelector('#composer')
 const messageInput = document.querySelector('#message-input')
 const composerError = document.querySelector('#composer-error')
 const sendButton = document.querySelector('#send-button')
+const stopButton = document.querySelector('#stop-button')
+const stoppingMembers = new Set()
 const attachmentButton = document.querySelector('#attachment-button')
 const messageImage = document.querySelector('#message-image')
 const attachmentPreview = document.querySelector('#attachment-preview')
@@ -320,6 +323,7 @@ messageInput.addEventListener('paste', event => {
   addPendingImages(images)
 })
 composer.addEventListener('submit', sendMessage)
+stopButton.addEventListener('click', () => { if (state.selectedType === 'bot' && state.selected) void stopMember(state.selected.id) })
 boot().catch(cause => {
   const error = document.createElement('p')
   error.className = 'form-error'
@@ -515,6 +519,7 @@ function renderBots() {
 async function selectBot(bot) {
   state.selected = bot
   state.selectedType = 'bot'
+  updateSendButton()
   targetPicker.hidden = true
   toggleTargetMenu(false)
   chat.classList.remove('empty')
@@ -539,6 +544,7 @@ async function selectRoom(room) {
   screenButton.hidden = true
   state.selected = room
   state.selectedType = 'room'
+  updateSendButton()
   chat.classList.remove('empty')
   app.classList.add('chat-open')
   chatName.textContent = room.name
@@ -607,6 +613,7 @@ function clearSelection() {
   headerAvatar.textContent = ''
   headerAvatar.style.backgroundImage = ''
   editBotButton.disabled = true
+  stopButton.hidden = true
 }
 
 async function openBotDialog(bot = null) {
@@ -1480,6 +1487,7 @@ function renderTail(items) {
   const tail = state.timelineQueue.filter(entry => !renderedIds.has(entry.groupId)).map(renderQueuedItem)
   if (state.selectedType === 'bot' && state.timelineQueue.some(entry => entry.status === 'running')) tail.push(renderThinking(state.selected.id))
   timelineTail.replaceChildren(...tail)
+  updateSendButton()
 }
 
 timeline.addEventListener('scroll', () => {
@@ -1632,6 +1640,15 @@ function renderQueueStatus(items) {
     const label = document.createElement('span')
     label.textContent = `${item.botName} · ${item.status === 'queued' ? '送信待ち' : '処理中'}`
     row.append(label)
+    const stop = document.createElement('button')
+    stop.type = 'button'
+    stop.textContent = '■'
+    stop.title = `${item.botName}の動作を停止`
+    stop.setAttribute('aria-label', stop.title)
+    stop.dataset.stopBotId = item.botId
+    stop.disabled = stoppingMembers.has(item.botId)
+    stop.addEventListener('click', () => { void stopMember(item.botId) })
+    row.append(stop)
     list.append(row)
   }
   return list
@@ -1645,7 +1662,7 @@ function roomTimelineItem(record) {
   const delivery = routing?.status === 'failed' || deliveries.some(item => item.delivery === 'failed') ? 'failed'
     : deliveries.some(item => item.delivery === 'running') ? 'running'
       : deliveries.some(item => item.delivery === 'queued') ? 'queued'
-        : 'delivered'
+        : deliveries.some(item => item.delivery === 'stopped') ? 'stopped' : 'delivered'
   return {
     id: record.id,
     kind: 'message',
@@ -1668,7 +1685,7 @@ function roomTimelineItem(record) {
 
 function deliveryLabel(delivery) {
   return new Map([
-    ['queued', '送信待ち'], ['running', '処理中'], ['delivered', '配達済み'], ['failed', '配達失敗'],
+    ['queued', '送信待ち'], ['running', '処理中'], ['delivered', '配達済み'], ['failed', '配達失敗'], ['stopped', '停止'],
   ]).get(delivery) ?? ''
 }
 
@@ -1797,6 +1814,44 @@ function imageLabel(item) {
 function updateSendButton() {
   const key = state.selected ? `${state.selectedType}:${state.selected.id}` : ''
   sendButton.disabled = state.sending.has(key) || (messageInput.value.trim().length === 0 && !state.pendingImages.length)
+  const stopping = state.selectedType === 'bot' && state.selected && stoppingMembers.has(state.selected.id)
+  const busy = state.selectedType === 'bot' && state.selected && state.timelineQueue.some(item => item.botId === state.selected.id)
+  stopButton.hidden = !busy && !stopping
+  stopButton.disabled = Boolean(stopping)
+  sendButton.hidden = Boolean(busy || stopping)
+  for (const button of document.querySelectorAll('[data-stop-bot-id]')) button.disabled = stoppingMembers.has(button.dataset.stopBotId)
+}
+
+async function stopMember(botId) {
+  if (!claimSingleFlight(stoppingMembers, botId)) return
+  const selected = state.selected
+  const selectedType = state.selectedType
+  const sameConversation = () => state.selected?.id === selected?.id && state.selectedType === selectedType
+  updateSendButton()
+  try {
+    await requestMemberStop(botId, api)
+    if (sameConversation()) {
+      composerError.hidden = true
+      if (selectedType === 'bot') chatStatus.textContent = '停止しました'
+    }
+    try {
+      await loadBots()
+      if (sameConversation()) await loadMessages()
+    } catch {
+      if (sameConversation()) {
+        composerError.textContent = '停止しました。表示を更新できなかったので、会話を開き直してください。'
+        composerError.hidden = false
+      }
+    }
+  } catch {
+    if (sameConversation()) {
+      composerError.textContent = '停止結果を確認できませんでした。メンバーの状態を確認してください。'
+      composerError.hidden = false
+    }
+  } finally {
+    releaseSingleFlight(stoppingMembers, botId)
+    updateSendButton()
+  }
 }
 
 function readImage(file) {
