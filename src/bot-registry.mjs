@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { access, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
 
 import { Cron } from 'croner'
@@ -18,10 +18,21 @@ const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', '
 const exec = promisify(execFile)
 
 export class BotRegistry extends Map {
-  constructor({ seedPath, botsRoot, now = () => new Date(), id = randomUUID, botId = () => `bot-${randomUUID().slice(0, 8)}`, onChange = async () => {}, models = new LiveModelCatalog() }) {
+  constructor(options) {
+    const { seedPath, botsRoot, now = () => new Date(), id = randomUUID, botId = () => `bot-${randomUUID().slice(0, 8)}`, onChange = async () => {}, models = new LiveModelCatalog() } = options
+    const stateRoot = Object.hasOwn(options, 'stateRoot') ? options.stateRoot : botsRoot
     super()
     this.seedPath = seedPath
     this.botsRoot = botsRoot
+    if (typeof stateRoot !== 'string' || !isAbsolute(stateRoot) || stateRoot.includes('\0'))
+      throw Object.assign(new Error('BOT_STATE_ROOT_INVALID'), { code: 'BOT_STATE_ROOT_INVALID' })
+    this.stateRoot = resolve(stateRoot)
+    this.separateState = this.stateRoot !== resolve(botsRoot)
+    const inside = relative(resolve(botsRoot), this.stateRoot)
+    const enclosing = relative(this.stateRoot, resolve(botsRoot))
+    if (this.separateState && (inside !== '..' && !inside.startsWith('../')
+      || enclosing !== '..' && !enclosing.startsWith('../')))
+      throw Object.assign(new Error('BOT_STATE_ROOT_INVALID'), { code: 'BOT_STATE_ROOT_INVALID' })
     this.now = now
     this.id = id
     this.botId = botId
@@ -42,21 +53,31 @@ export class BotRegistry extends Map {
 
   async initialize() {
     await mkdir(this.botsRoot, { recursive: true })
-    const initialized = join(this.botsRoot, '.initialized')
+    const initialized = join(this.stateRoot, '.initialized')
+    if (this.separateState && !await exists(initialized)) {
+      // Existing seat records must be migrated explicitly, never silently
+      // reseeded from config or adopted while a split migration is incomplete.
+      for (const entry of await readdir(this.botsRoot, { withFileTypes: true })) {
+        const legacy = entry.name === '.initialized' || entry.isDirectory() && BOT_ID.test(entry.name)
+          && await exists(join(this.botsRoot, entry.name, 'bot.json'))
+        if (legacy) throw Object.assign(new Error('BOT_STATE_MIGRATION_REQUIRED'), { code: 'BOT_STATE_MIGRATION_REQUIRED' })
+      }
+    }
+    await mkdir(this.stateRoot, { recursive: true, mode: 0o700 })
     if (!await exists(initialized)) {
       const seeds = await loadBots(this.seedPath)
       for (const seed of seeds.values()) {
         const project = this.projectPath(seed.id)
         await ensureProjectFolders(project)
         await ensureGitProject(project)
-        const profilePath = join(project, 'bot.json')
+        const profilePath = join(this.statePath(seed.id), 'bot.json')
         if (!await exists(profilePath)) await this.writeProfile(normalizeProfile({ ...seed, project }))
-        const schedulePath = join(project, 'schedule.json')
+        const schedulePath = join(this.statePath(seed.id), 'schedule.json')
         if (!await exists(schedulePath)) await writeAtomic(schedulePath, scheduleDocument([]))
         const profile = await this.readProfile(seed.id)
         await this.writeInstructions(profile)
       }
-      await writeFile(initialized, '')
+      await writeFile(initialized, '', { mode: 0o600 })
     }
     await this.migrateProfiles()
     await this.refresh()
@@ -66,9 +87,9 @@ export class BotRegistry extends Map {
 
   async refresh() {
     const profiles = []
-    for (const entry of await readdir(this.botsRoot, { withFileTypes: true })) {
+    for (const entry of await readdir(this.stateRoot, { withFileTypes: true })) {
       if (!entry.isDirectory() || !BOT_ID.test(entry.name)) continue
-      const path = join(this.botsRoot, entry.name, 'bot.json')
+      const path = join(this.stateRoot, entry.name, 'bot.json')
       if (!await exists(path)) continue
       profiles.push(await this.readProfile(entry.name))
     }
@@ -81,6 +102,11 @@ export class BotRegistry extends Map {
   projectPath(id) {
     validateId(id)
     return join(this.botsRoot, id)
+  }
+
+  statePath(id) {
+    validateId(id)
+    return join(this.stateRoot, id)
   }
 
   async create(input, { id = this.botId() } = {}) {
@@ -110,7 +136,7 @@ export class BotRegistry extends Map {
     await ensureProjectFolders(project)
     await ensureGitProject(project)
     await this.writeProfile(profile)
-    await writeAtomic(join(project, 'schedule.json'), scheduleDocument([]))
+    await writeAtomic(join(this.statePath(id), 'schedule.json'), scheduleDocument([]))
     await this.writeInstructions(profile)
     await this.refresh()
     await this.onChange(this)
@@ -185,6 +211,7 @@ export class BotRegistry extends Map {
     const bot = this.get(id)
     if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
     await rm(bot.project, { recursive: true, force: true })
+    if (this.separateState) await rm(this.statePath(id), { recursive: true, force: true })
     await this.refresh()
     await this.onChange(this)
     this.changed()
@@ -237,7 +264,7 @@ export class BotRegistry extends Map {
   }
 
   async readProfile(id) {
-    const value = JSON.parse(await readFile(join(this.projectPath(id), 'bot.json'), 'utf8'))
+    const value = JSON.parse(await readFile(join(this.statePath(id), 'bot.json'), 'utf8'))
     if (!['bellteam.bot.v1', 'bellteam.bot.v2', 'bellteam.bot.v3', 'bellteam.bot.v4', 'bellteam.bot.v5', 'bellteam.bot.v6', 'bellteam.bot.v7', 'bellteam.bot.v8'].includes(value?.schema)) throw new Error(`BOT_PROFILE_INVALID: ${id}`)
     return normalizeProfile({ ...value, id, project: this.projectPath(id) })
   }
@@ -249,7 +276,8 @@ export class BotRegistry extends Map {
       profileText: profile.profileText, personality: profile.personality, speechStyle: profile.speechStyle, avatar: profile.avatar, color: profile.color,
       harness: profile.harness, model: profile.model, reasoningEffort: profile.reasoningEffort, fastMode: profile.fastMode,
     }
-    await writeAtomic(join(profile.project, 'bot.json'), value)
+    await mkdir(this.statePath(profile.id), { recursive: true, mode: 0o700 })
+    await writeAtomic(join(this.statePath(profile.id), 'bot.json'), value)
   }
 
   async writeInstructions(profile) {
@@ -273,9 +301,9 @@ export class BotRegistry extends Map {
   }
 
   async migrateProfiles() {
-    for (const entry of await readdir(this.botsRoot, { withFileTypes: true })) {
+    for (const entry of await readdir(this.stateRoot, { withFileTypes: true })) {
       if (!entry.isDirectory() || !BOT_ID.test(entry.name)) continue
-      const path = join(this.botsRoot, entry.name, 'bot.json')
+      const path = join(this.stateRoot, entry.name, 'bot.json')
       if (!await exists(path)) continue
       const value = JSON.parse(await readFile(path, 'utf8'))
       if (value?.schema === 'bellteam.bot.v8' && !Object.hasOwn(value, 'title')) continue
@@ -286,7 +314,7 @@ export class BotRegistry extends Map {
   }
 
   async readScheduleDocument(id) {
-    const path = join(this.projectPath(id), 'schedule.json')
+    const path = join(this.statePath(id), 'schedule.json')
     if (!await exists(path)) await writeAtomic(path, scheduleDocument([]))
     const value = JSON.parse(await readFile(path, 'utf8'))
     if (value?.schema !== 'bellteam.schedule.v1' || !Array.isArray(value.schedules))
@@ -295,7 +323,7 @@ export class BotRegistry extends Map {
   }
 
   async writeScheduleDocument(id, schedules) {
-    await writeAtomic(join(this.projectPath(id), 'schedule.json'), scheduleDocument(schedules))
+    await writeAtomic(join(this.statePath(id), 'schedule.json'), scheduleDocument(schedules))
   }
 }
 

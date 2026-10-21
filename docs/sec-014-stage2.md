@@ -101,6 +101,29 @@ mode is enabled by default. Server-evaluated environments remain prohibited.
 These options do not migrate pre-existing setup-log ownership; that remains
 part of the planned state/seat ownership migration.
 
+`BotRegistry({stateRoot})` can now place authoritative `bot.json`,
+`schedule.json`, and `.initialized` in a separate server-owned directory,
+while `botsRoot` still locates each seat project, instructions, environment,
+memory and artifacts. Fresh state directories use 0700 and new state files
+0600. An existing directory's ownership/mode is not changed by this option.
+The production bootstrap does not select this layout yet.
+
+Invalid stateRoot values and a new state root overlapping the seat project
+root are rejected. If legacy profiles or their initialization marker exist,
+the new layout requires explicit completed migration before initialization;
+it does not silently reseed over those records. Once migrated, refresh/profile
+updates/schedules only use the new authority and ignore old seat copies.
+Creating and deleting a bot manage its corresponding state directory as well
+as its seat project; other bot artifacts remain in their original projects.
+
+This is a path-selection component, not the migration/rollback executor. Tests
+copy only synthetic records to model a completed migration. Production state
+must still be captured consistently, migrated and backed up, and inverse
+migration must preserve the newest generation. Server UID allocation, all
+state categories, read-only mount topology, old setup-log ownership and full
+seat-UID file operations remain unverified. A server-owned stateRoot must not
+be inferred from path strings or mkdir permissions alone.
+
 The newly introduced `shared/ai-control.json` stop intent belongs in the
 server-owned state migration, backup and latest-generation rollback plan.
 Returning to an older code version must not silently ignore a persisted ON.
