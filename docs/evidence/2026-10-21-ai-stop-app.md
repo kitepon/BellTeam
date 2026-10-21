@@ -11,3 +11,11 @@ Simulatorでは停止APIの200・不一致・202・502・通信断・404を扱�
 内部配布候補はcommit`48169ab`の1.0.2（55）。`runtime/apple/ai-stop-55/`にiPhone archive・IPAとMac Catalyst archive・pkgを保存した。本体と通知拡張の版は両platformで1.0.2（55）。IPA内の両署名、Mac archiveの署名とpkgの署名を検証し、Apple公式`altool`の事前検証は両成果物で`No errors validating archive`。IPAのSHA-256は`08c0957e24a838c031d861efa63f7038d01e2231979e4e4780668b5cb08ef568`、pkgは`97d0297cf46ede0986109df3cbcba7bcf8a41b09f167abe0341f0ed9ad8e73d4`。
 
 Appleへの送信、TestFlight内部配布、端末導入・起動、実メンバー停止は未実施。サーバーAPIの実装・隔離試験の結果を照合した後、内部TestFlight送信は従来の成果物ごとの個別承認に従う。
+
+## 全体停止の追加依頼
+
+オーナーから、担当が呼んだ相手の連鎖停止とBellTeam全体停止のON/OFFが追加で依頼された。連鎖停止の実行はAiterm、全体停止の状態・起動/配送/予定の制御はBellTeam本体が持つ。Appleアプリは全体停止の表示と操作を担当する。
+
+アプリcommit`d1b2f39`で共通設定画面へトグルを追加した。GETの状態を正本として、ON要求の202は「停止中」、全対象を確認した`stopped`だけを停止済みと表示する。502・503・通信断ではPATCHを自動再送せずGETで状態を読み直す。GET不能なら古いON/OFFを隠し、状態未確認を表示する。SSEの`ai-control`と前面復帰でも読み直す。ON中に送信や手動予定実行が423で拒否された時は、全体停止中と案内する。Simulatorの対象4件とMac Catalystビルドが成功した。本番の全体停止は試していない。
+
+上記の55 IPA・pkgは全体停止トグルを含まない旧候補となった。Appleへ送信しない。全体停止APIと連鎖停止の責務境界がmainで確定した後、新しい配布成果物を作る。
