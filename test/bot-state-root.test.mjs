@@ -230,7 +230,7 @@ for (const crossing of ['list_snapshot', 'running_response', 'other_timeline']) 
     }
     const runningInputs = []
     const server = createBellTeamServer({ bots: f.registry, authorize: () => true,
-      messenger: {}, store: { async timeline(_kind, id) {
+      messenger: {}, store: { async timeline(id) {
         if (crossing === 'other_timeline' && id === 'bot-a') {
           reached.release(); await continueGet.promise
         }
