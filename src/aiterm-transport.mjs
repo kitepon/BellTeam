@@ -10,7 +10,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
 import { returnedExecutionError, ERROR_META } from './execution-bridge.mjs'
-import { reserveExecution, dispatchExecution, finishExecution, interruptExecutions } from './execution-transport.mjs'
+import { reserveExecution, dispatchExecution, finishExecution, applyExecutionStop, applyExecutionCancellation, interruptExecutions } from './execution-transport.mjs'
 
 const HARNESS = new Map([
   ['claude', 'claude-code'],
@@ -232,6 +232,7 @@ export class AitermTransport {
   }
 
   async wakeNow(bot, { setupTest = false, execution = null } = {}) {
+    const version = this.stopVersions.get(bot.id)
     await this.requireAccess({ setupTest, botId: bot.id })
     await mkdir(bot.project, { recursive: true })
     const harness = HARNESS.get(bot.harness)
@@ -241,6 +242,7 @@ export class AitermTransport {
     const env = await loadBotEnvironment(bot.project)
     let launch
     try {
+      this.requireStopVersion(bot.id, version)
       launch = await this.changeSession(bot, 'agent_launch', {
         harness,
         cwd: bot.project,
@@ -394,6 +396,8 @@ export class AitermTransport {
     this.requireSessionKnown(bot.id)
     const { execution, ...clientOptions } = options ?? {}
     const pending = Promise.resolve(execution ? execution.invoke(name, args, clientOptions) : this.client.call(name, args, options))
+    pending.executionBound = Boolean(execution)
+    pending.executionSession = args.session_id ?? args.session_name
     const changes = this.sessionChanges.get(bot.id) ?? new Set()
     changes.add(pending)
     this.sessionChanges.set(bot.id, changes)
@@ -552,6 +556,7 @@ export class AitermTransport {
     const checkpoint = async () => {
       await this.executionStopping?.catch(() => {})
       if (job.stopped) throw stoppedError()
+      if (job.executionStopResult && job.receipt) job.stopRequested = false
       if (!job.stopRequested) return
       try { await job.interruption } catch (error) {
         if (!job.receipt) throw error
@@ -586,6 +591,7 @@ export class AitermTransport {
         check()
         delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job })
         job.receipt = delivery.receipt
+        await applyExecutionStop(job)
         await checkpoint()
         const steered = delivery.receipt.mode === 'agent_steer'
         followed = !steered || delivery.steer !== null
@@ -654,6 +660,7 @@ export class AitermTransport {
         return transcript ? answer : { delivery: 'delivered' }
       } catch (error) {
         await this.executionStopping?.catch(() => {})
+        applyExecutionCancellation(job, error)
         if (job.stopped) error = stoppedError()
         if (job.stopRequested) {
           try { await job.interruption } catch (stopError) { error = stopError }

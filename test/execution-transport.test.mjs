@@ -5,9 +5,20 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { stopRegisteredWork } from '../src/ai-control.mjs'
+import { applyExecutionCancellation } from '../src/execution-transport.mjs'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
+
+test('未送信取消は確認したsource/期待target世代にだけ結び、無関係な拒否や受理済み回答を停止にしない', () => {
+  const a = { session_id: 'bot-a', launch_id: 'a'.repeat(32) }, d = { session_id: 'bot-d', launch_id: 'd'.repeat(32) }
+  const make = source => ({ execution: { record: { source: { status: 'verified', point: { launch: source } } }, reservation: { target: { session_id: 'bot-b', expected_launch_id: null } } },
+    executionStopResult: { targets: [{ launch: a, outcome: 'closed' }] } })
+  const unrelated = make(d); applyExecutionCancellation(unrelated, { effect: 'not_started' }); assert.equal(unrelated.stopped, undefined)
+  const cancelled = make(a); applyExecutionCancellation(cancelled, { effect: 'not_started' }); assert.equal(cancelled.stopped, true)
+  const unknown = make(a); applyExecutionCancellation(unknown, { effect: 'possible' }); assert.equal(unknown.stopped, undefined)
+  const accepted = { ...make(a), receipt: { mode: 'agent_dispatch' } }; applyExecutionCancellation(accepted, { effect: 'not_started' }); assert.equal(accepted.stopped, undefined)
+})
 async function fixture(t) {
   const project = await mkdtemp(join(tmpdir(), 'execution-transport-'))
   t.after(() => rm(project, { recursive: true, force: true }))
@@ -134,15 +145,37 @@ test('停止が部分未確認なら、停止待ち中のdoneを失わず通常�
   assert.deepEqual(a.statuses, ['running', 'delivered'])
 })
 
-test('既発行sendのreceipt後着を待ってから停止し、本文を重送しない', async t => {
+test('RPC応答待ちより先に停止を届け、後着した受付receiptを保持して整理する', async t => {
   const f = await fixture(t), entered = deferred(), release = deferred()
   f.onSend(async () => { entered.resolve(); await release.promise })
   const a = f.start(f.bots[0], 'a'); await entered.promise
   const stopped = f.transport.interrupt(f.bots[0])
-  await tick(); assert.equal(f.calls.some(call => call.action === 'stop'), false)
-  release.resolve(); await stopped
+  await stopped
+  assert.equal(f.calls.some(call => call.action === 'stop'), true)
+  release.resolve()
   assert.equal((await a.result).code, 'BOT_STOPPED')
   assert.equal(f.calls.filter(call => call.action === 'pty_send').length, 1)
+})
+
+test('無関係な席の未着手dispatch/wake/旧変更は停止要求を待たせず、その席を抑止しない', async t => {
+  const f = await fixture(t), pending = deferred()
+  f.transport.dispatches.set(f.bots[2].id, pending.promise)
+  f.transport.waking.set(f.bots[2].id, pending.promise)
+  pending.promise.executionSession = f.bots[2].session
+  f.transport.sessionChanges.set(f.bots[2].id, new Set([pending.promise]))
+  assert.equal((await f.transport.interrupt(f.bots[0])).status, 'stopped')
+  assert.equal(f.transport.uncertainChanges.has(f.bots[2].id), false)
+  pending.resolve()
+})
+
+test('未接続の旧変更が対象に残る場合もstopは先に送り、成功へ丸めず再利用を抑止する', async t => {
+  const f = await fixture(t), pending = deferred()
+  pending.promise.executionSession = f.bots[0].session
+  f.transport.sessionChanges.set(f.bots[0].id, new Set([pending.promise]))
+  await assert.rejects(f.transport.interrupt(f.bots[0]), { code: 'BOT_STOP_UNCONFIRMED' })
+  assert.equal(f.calls.filter(call => call.action === 'stop').length, 1)
+  await assert.rejects(f.transport.ensure(f.bots[0]), { code: 'BOT_SESSION_UNCONFIRMED' })
+  pending.resolve()
 })
 
 test('同じ席名でも古い世代の停止結果を新世代jobの停止確認に流用しない', async t => {

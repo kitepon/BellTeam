@@ -56,6 +56,26 @@ export async function finishExecution(job, kind) {
   }
 }
 
+export async function applyExecutionStop(job) {
+  const target = job.execution?.binding?.target?.launch
+  if (!target || !job.executionStopResult?.targets.some(value =>
+    ['closed', 'already_closed'].includes(value.outcome) && same(value.launch, target))) return false
+  job.stopped = true
+  job.controller?.abort()
+  await finishExecution(job, 'interrupted')
+  return true
+}
+
+export function applyExecutionCancellation(job, error) {
+  if (job.receipt || error?.effect !== 'not_started' || !job.executionStopResult) return
+  const record = job.execution?.record
+  const source = record?.source.status === 'verified' ? record.source.point?.launch : null
+  const expected = job.execution?.reservation.target
+  const target = expected?.expected_launch_id ? { session_id: expected.session_id, launch_id: expected.expected_launch_id } : null
+  if (job.executionStopResult.targets.some(value => ['closed', 'already_closed'].includes(value.outcome)
+    && (same(value.launch, source) || same(value.launch, target)))) job.stopped = true
+}
+
 export function interruptExecutions(transport, bots) {
   if (transport.executionStopping) return Promise.reject(unknown())
   const roots = [...new Map(bots.map(bot => [bot.id, bot])).values()]
@@ -64,20 +84,27 @@ export function interruptExecutions(transport, bots) {
   for (const bot of roots) transport.stopVersions.set(bot.id, (transport.stopVersions.get(bot.id) ?? 0) + 1)
   const closing = Promise.resolve().then(async () => {
     const reads = new Map(), expected = new Map()
+    const legacyGaps = new Set(transport.uncertainChanges.keys())
+    const gapSessions = new Map([...legacyGaps].map(id => [id,
+      transport.sessions.get(id) ?? jobs.find(job => job.bot.id === id)?.bot.session ?? roots.find(bot => bot.id === id)?.session ?? id]))
+    for (const [id, pending] of transport.sessionChanges) {
+      const unbound = [...pending].find(value => !value.executionBound)
+      if (unbound) { legacyGaps.add(id); gapSessions.set(id, unbound.executionSession ?? transport.sessions.get(id) ?? id) }
+    }
     try {
-      // Wait only issued dispatch/change calls, never a turn's idle/completion.
-      await Promise.allSettled([...transport.dispatches.values(), ...transport.waking.values()])
-      while (transport.sessionChanges.size)
-        await Promise.allSettled([...transport.sessionChanges.values()].flatMap(set => [...set]))
+      // Dispatch promises include queues/preflight, not just native issuance.
+      // Send stop first; Aiterm cancels preparing and drains actual issuance.
       for (const bot of roots) {
         try {
-          transport.requireSessionKnown(bot.id)
           const read = await transport.executionBridge.roots(transport.session(bot))
           reads.set(bot.id, read)
           for (const root of read.roots) expected.set(JSON.stringify(root), root)
         } catch { reads.set(bot.id, null) }
       }
       const result = expected.size ? await transport.executionBridge.stop([...expected.values()]) : null
+      const affectedLegacy = [...legacyGaps].filter(id => rootIds.has(id)
+        || result?.targets.some(target => target.launch.session_id === gapSessions.get(id)))
+      for (const id of affectedLegacy) transport.uncertainChanges.set(id, 'legacy_change_pending')
       for (const target of result?.targets ?? []) if (target.outcome === 'unknown') {
         for (const bot of [...roots, ...jobs.map(job => job.bot)])
           if (transport.session(bot) === target.launch.session_id) transport.uncertainChanges.set(bot.id, 'agent_stop')
@@ -85,15 +112,16 @@ export function interruptExecutions(transport, bots) {
       const confirmed = result?.targets.filter(target => ['closed', 'already_closed'].includes(target.outcome)).map(target => target.launch) ?? []
       const confirmedBots = new Set()
       for (const job of jobs) {
-        const target = job.execution?.binding?.target?.launch
-        const stopped = target && confirmed.some(launch => same(launch, target))
+        job.executionStopResult = result
+        const stopped = await applyExecutionStop(job)
         const unsentRoot = rootIds.has(job.bot.id) && !job.receipt && !job.execution?.issued.size
           && reads.get(job.bot.id)?.roots.some(root => confirmed.some(launch => same(launch, root)))
         if (!stopped && !unsentRoot) continue
         confirmedBots.add(job.bot.id)
-        job.stopped = true
-        job.controller?.abort()
-        await finishExecution(job, stopped ? 'interrupted' : 'not_sent')
+        if (!stopped) {
+          job.stopped = true; job.controller?.abort()
+          await finishExecution(job, 'not_sent')
+        }
       }
       for (const botId of confirmedBots) {
         if (!rootIds.has(botId)) transport.stopVersions.set(botId, (transport.stopVersions.get(botId) ?? 0) + 1)
@@ -106,6 +134,7 @@ export function interruptExecutions(transport, bots) {
         // resolves. Use the final stop coverage; an unknown/missing root itself
         // must still remain unconfirmed.
         return !read?.roots.length || read.observation === 'unknown' || result?.status !== 'stopped'
+          || affectedLegacy.length > 0
           || read.roots.some(root => !confirmed.some(launch => same(launch, root)))
       }).map(bot => bot.id)
       return { unconfirmedBotIds, cascade: result }
