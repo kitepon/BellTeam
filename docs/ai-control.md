@@ -1,4 +1,16 @@
-# BellTeam全体停止
+# BellTeam全体停止（会話維持型へ改修中）
+
+## 現在の要求と受入範囲
+
+停止はEsc相当のCLI中断操作で現在の処理を止め、会話/session/launchを残す。キーが効かない時もclose/killへ自動昇格しない。個別・連鎖・全体に同じ条件を適用する。旧mainのセッション終了型停止を、このまま本番へ反映しない。
+
+`ExecutionBridge.interrupt(roots)`と`session-interruption.mjs`が、Aitermの`agent_stop`へ`aiterm.cascade-stop-request.v2`/`mode: interrupt`を1回だけ送る結果読取を提供する。runの中断とsession維持の両方が確認された結果だけをconfirmedとして読む。キー受付だけ、局所idleだけ、旧closed/already_closed/absent成功から全体の中断を推定しない。未対応・部分・未確認はそのまま保持し、旧finishのlaunch閉鎖証拠を代用しない。
+
+この新methodはまだ旧transport/HTTP/Web/Appleの停止経路へ配線していない。Aitermの受領版13c7e61もread-onlyの未対応結果を返し、キー作用は未実装。新規結果読取8件と実SDK/実constructor接続4件は、実中断や本番受入ではない。全体ONの新受付抑止と、同じlaunchへの新依頼再開を旧要求抑止と分ける接続も残る。
+
+## 未置換の旧実装記録
+
+以下のclose/online:false/旧全体stoppedの説明は現HEADに残る旧仕様の記録で、会話維持型の完成契約ではない。該当経路の置換と対応受入が終わるまで本体・審査用本体・段2を配備しない。正常な管理用close自体を廃止する要求ではない。
 
 全体停止の正本・受付抑止・予定制御はBellTeam本体、表示とON/OFF要求はWebとAppleアプリが持つ。個別停止APIは`POST /api/bots/:id/stop`。連鎖停止の関係記録・寿命・実行はAitermの担当で、この変更では未接続。本番反映の前提を満たした扱いにはしない。
 
