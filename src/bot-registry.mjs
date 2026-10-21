@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
+import { lstatSync } from 'node:fs'
 import { access, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
@@ -267,6 +268,21 @@ export class BotRegistry extends Map {
     return this.deletionIntents.has(id)
   }
 
+  clientListingState(id) {
+    validateId(id)
+    if (this.isDeleting(id)) return 'pending'
+    if (this.has(id)) return 'active'
+    if (this.separateState) {
+      try {
+        if (lstatSync(join(this.stateRoot, '.deleting', `${id}.json`)).isFile()) return 'pending'
+        throw registryError('BOT_DELETE_RECORD_INVALID')
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error
+      }
+    }
+    return 'absent'
+  }
+
   async finishRemoval(id) {
     try {
       await rm(this.projectPath(id), { recursive: true, force: true })
@@ -304,7 +320,10 @@ export class BotRegistry extends Map {
   // pending deletion receipt until BOTH project and state cleanup have succeeded.
   async listForClient() {
     const listed = new Map(this)
-    const result = () => [...listed.values()].map(bot => this.isDeleting(bot.id) ? { ...bot, deleting: true } : bot)
+    const result = () => [...listed.values()].flatMap(bot => {
+      const state = this.clientListingState(bot.id)
+      return state === 'absent' ? [] : [{ ...bot, ...(state === 'pending' ? { deleting: true } : {}) }]
+    })
     if (!this.separateState) return result()
     const pendingRoot = join(this.stateRoot, '.deleting')
     if (!await pathExists(pendingRoot)) return result()

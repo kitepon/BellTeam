@@ -204,8 +204,8 @@ function gate() {
   return { promise, release }
 }
 
-for (const crossing of ['list_snapshot', 'running_response', 'other_timeline']) {
-  test(`退役renameをまたぐGETの${crossing}を削除待ちへ再確認する`, { timeout: 5000 }, async t => {
+for (const phase of ['during', 'completed']) for (const crossing of ['list_snapshot', 'running_response', 'other_timeline']) {
+  test(`退役renameをまたぐGETの${crossing}/${phase}を現在状態へ再確認する`, { timeout: 5000 }, async t => {
     const f = await fixture(t); await f.registry.initialize()
     await f.registry.create({ name: 'Concurrent synthetic' })
     const reached = gate(), continueGet = gate(), retired = gate(), continueRemove = gate()
@@ -252,9 +252,17 @@ for (const crossing of ['list_snapshot', 'running_response', 'other_timeline']) 
     await retired.promise
     assert.equal(f.registry.has('bot-b'), false)
     assert.equal(f.registry.isDeleting('bot-b'), true)
+    if (phase === 'completed') {
+      continueRemove.release(); await removing
+      assert.equal(f.registry.isDeleting('bot-b'), false)
+      assert.equal(f.registry.clientListingState('bot-b'), 'absent')
+      for (const path of [join(f.botsRoot, 'bot-b'), join(f.stateRoot, '.deleting/bot-b'), join(f.stateRoot, '.deleting/bot-b.json')])
+        await assert.rejects(stat(path), { code: 'ENOENT' })
+    }
     continueGet.release()
     const item = (await (await response).json()).bots.find(bot => bot.id === 'bot-b')
-    assert.equal(item.deleting, true); assert.equal(item.online, false)
+    if (phase === 'completed') assert.equal(item, undefined)
+    else { assert.equal(item.deleting, true); assert.equal(item.online, false) }
     if (crossing === 'list_snapshot') assert.equal(runningInputs[0].includes('bot-b'), false)
     continueRemove.release(); await removing
     assert.equal(f.registry.isDeleting('bot-b'), false)

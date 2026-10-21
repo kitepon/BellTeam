@@ -217,3 +217,15 @@ already issued before retirement may finish, but cannot override the pending
 flag or report online:true while the intent remains active. This is local
 registry coordination, not a multi-process registry lock or a cancellation
 of an already issued observation.
+
+
+A list read that outlives complete removal must also drop its stale item after
+the intent has been released. clientListingState(id) checks the active Map,
+in-process intent and deletion-receipt metadata synchronously; only a missing
+receipt is treated as absent, while other filesystem errors fail the read.
+The HTTP handler uses that state before runningBots and immediately before JSON
+serialization, without an intervening await. It drops absent items rather than
+returning the old profile or online observation after deletion completes.
+The receipt's contents remain validated by listForClient. This retains the
+local registry/single-process scope; it does not introduce a distributed lock
+or prevent a previously serialized response from arriving late on the network.
