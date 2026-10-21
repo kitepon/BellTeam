@@ -4,20 +4,25 @@ import XCTest
 
 @MainActor
 final class BotStopTests: XCTestCase {
-    func testOnlyMatching200ConfirmsTheInterruptionAndSessionPreservation() async throws {
+    func testOnlyMatching202ReportsSentAndMatchingLegacy200ConfirmsInterruption() async throws {
         let (api, session) = makeAPI()
         defer { session.invalidateAndCancel() }
 
-        try await api.stopBot("bot-confirmed")
-        try await api.stopBot("bot-still-online")
-        for id in ["bot-wrong-id", "bot-wrong-status", "bot-session-closed", "bot-accepted", "bot-malformed"] {
+        let sent = try await api.stopBot("bot-sent")
+        XCTAssertEqual(sent, .sent)
+        let confirmed = try await api.stopBot("bot-confirmed")
+        XCTAssertEqual(confirmed, .confirmed)
+        let stillOnline = try await api.stopBot("bot-still-online")
+        XCTAssertEqual(stillOnline, .confirmed)
+        for id in ["bot-wrong-id", "bot-wrong-status", "bot-session-closed", "bot-mismatched-202", "bot-mismatched-200", "bot-malformed"] {
             do {
-                try await api.stopBot(id)
+                _ = try await api.stopBot(id)
                 XCTFail("一致しない停止応答を完了扱いしてはいけません: \(id)")
             } catch {
                 XCTAssertTrue(BellAPIError.operationResultUnconfirmed(error), id)
             }
         }
+        XCTAssertEqual(BotStopProtocol.requestCount(for: "bot-sent"), 1)
         XCTAssertEqual(BotStopProtocol.requestCount(for: "bot-confirmed"), 1)
         XCTAssertEqual(BotStopProtocol.requestCount(for: "bot-still-online"), 1)
         XCTAssertTrue(BotStopProtocol.allRequestsHadNoBody)
@@ -29,7 +34,7 @@ final class BotStopTests: XCTestCase {
 
         for id in ["bot-server-error", "bot-lost-response"] {
             do {
-                try await api.stopBot(id)
+                _ = try await api.stopBot(id)
                 XCTFail("結果を確認できない要求を完了扱いしてはいけません: \(id)")
             } catch {
                 XCTAssertTrue(BellAPIError.operationResultUnconfirmed(error), id)
@@ -38,7 +43,7 @@ final class BotStopTests: XCTestCase {
         }
 
         do {
-            try await api.stopBot("bot-missing")
+            _ = try await api.stopBot("bot-missing")
             XCTFail("存在しないメンバーを停止済みにしてはいけません")
         } catch BellAPIError.httpStatus(404, _, _) {
             XCTAssertEqual(BotStopProtocol.requestCount(for: "bot-missing"), 1)
@@ -96,9 +101,9 @@ private final class BotStopProtocol: URLProtocol {
         let status: Int
         let body: String
         switch id {
-        case "bot-accepted":
+        case "bot-sent":
             status = 202
-            body = #"{"botId":"bot-accepted","status":"interrupted","sessionPreserved":true}"#
+            body = #"{"botId":"bot-sent","status":"stop_sent"}"#
         case "bot-server-error":
             status = 502
             body = #"{"error":"BOT_STOP_UNCONFIRMED"}"#
@@ -106,14 +111,20 @@ private final class BotStopProtocol: URLProtocol {
             status = 404
             body = #"{"error":"BOT_NOT_FOUND"}"#
         case "bot-wrong-id":
-            status = 200
-            body = #"{"botId":"bot-other","status":"interrupted","sessionPreserved":true}"#
+            status = 202
+            body = #"{"botId":"bot-other","status":"stop_sent"}"#
         case "bot-wrong-status":
-            status = 200
-            body = #"{"botId":"bot-wrong-status","status":"stopped","sessionPreserved":true}"#
+            status = 202
+            body = #"{"botId":"bot-wrong-status","status":"stopped"}"#
         case "bot-session-closed":
             status = 200
             body = #"{"botId":"bot-session-closed","status":"interrupted","sessionPreserved":false}"#
+        case "bot-mismatched-202":
+            status = 202
+            body = #"{"botId":"bot-mismatched-202","status":"interrupted","sessionPreserved":true}"#
+        case "bot-mismatched-200":
+            status = 200
+            body = #"{"botId":"bot-mismatched-200","status":"stop_sent"}"#
         case "bot-still-online":
             status = 200
             body = #"{"botId":"bot-still-online","status":"interrupted","sessionPreserved":true,"online":true}"#

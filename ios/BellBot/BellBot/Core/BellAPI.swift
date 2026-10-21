@@ -160,18 +160,12 @@ final class BellAPI {
         _ = try await data(path: path, method: "DELETE")
     }
 
-    func stopBot(_ id: String) async throws {
-        struct StopResponse: Decodable {
-            let botId: String
-            let status: String
-            let sessionPreserved: Bool
-        }
+    func stopBot(_ id: String) async throws -> BotStopOutcome {
         let path = "/api/bots/\(id)/stop"
-        let responseData = try await data(path: path, method: "POST", expectedStatus: 200)
-        let result = try decode(StopResponse.self, from: responseData, path: path, method: "POST")
-        guard result.botId == id, result.status == "interrupted", result.sessionPreserved else {
-            throw BellAPIError.invalidResponse
-        }
+        let (body, status) = try await dataWithStatus(path: path, method: "POST")
+        let result = try decode(BotStopResponse.self, from: body, path: path, method: "POST")
+        guard let outcome = result.outcome(httpStatus: status, expectedBotId: id) else { throw BellAPIError.invalidResponse }
+        return outcome
     }
 
     func exportConversation(_ path: String) async throws -> Data {
@@ -230,7 +224,11 @@ final class BellAPI {
         }
     }
 
-    private func data(path: String, method: String, body: Data? = nil, expectedStatus: Int? = nil) async throws -> Data {
+    private func data(path: String, method: String, body: Data? = nil) async throws -> Data {
+        try await dataWithStatus(path: path, method: method, body: body).0
+    }
+
+    private func dataWithStatus(path: String, method: String, body: Data? = nil) async throws -> (Data, Int) {
         do {
             var request = try request(path: path, method: method)
             if let body {
@@ -240,14 +238,12 @@ final class BellAPI {
             let (data, response, trace) = try await load(request)
             do { try validate(response, data: data) }
             catch { throw traced(error, with: trace) }
-            if let expectedStatus, (response as? HTTPURLResponse)?.statusCode != expectedStatus {
+            guard let http = response as? HTTPURLResponse else { throw BellAPIError.invalidResponse }
+            if !(data.isEmpty || http.statusCode == 204),
+               http.value(forHTTPHeaderField: "Content-Type")?.contains("application/json") != true {
                 throw BellAPIError.invalidResponse
             }
-            if !(data.isEmpty || (response as? HTTPURLResponse)?.statusCode == 204),
-               (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type")?.contains("application/json") != true {
-                throw BellAPIError.invalidResponse
-            }
-            return data
+            return (data, http.statusCode)
         } catch {
             try Task.checkCancellation()
             throw error
