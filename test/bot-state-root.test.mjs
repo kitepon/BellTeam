@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { once } from 'node:events'
+import { createBellTeamServer } from '../src/http-server.mjs'
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -112,6 +114,7 @@ test('project削除失敗は正本を退役しIDを予約、再起動は未完�
   await chmod(project, 0o500)
   await assert.rejects(f.registry.remove('bot-b'), { code: 'BOT_DELETE_PENDING' })
   assert.equal(f.registry.has('bot-b'), false)
+  assert.equal((await f.registry.listForClient()).find(bot => bot.id === 'bot-b').deleting, true)
   await f.registry.refresh(); assert.equal(f.registry.has('bot-b'), false)
   assert.equal(await readFile(join(project, 'keep.txt'), 'utf8'), 'synthetic')
   assert.equal((await stat(pending)).isDirectory(), true)
@@ -136,6 +139,7 @@ test('正本退役後のstate掃除失敗も記録を保持し、同じremoveで
   assert.equal(changes, 1); assert.equal(f.registry.has('bot-b'), false)
   await assert.rejects(stat(join(f.botsRoot, 'bot-b')), { code: 'ENOENT' })
   assert.equal((await stat(pending)).isDirectory(), true)
+  assert.equal((await f.registry.listForClient()).find(bot => bot.id === 'bot-b').deleting, true)
   await assert.rejects(f.registry.create({ name: 'Replacement' }), { code: 'BOT_DELETE_PENDING' })
   await chmod(pendingRoot, 0o700); f.registry.onChange = async () => {}
   assert.deepEqual(await f.registry.remove('bot-b'), { id: 'bot-b' })
@@ -156,4 +160,39 @@ test('退役renameの失敗ではprojectとactive正本を消さない', async t
     assert.equal((await stat(join(f.botsRoot, 'bot-b/environment'))).isDirectory(), true)
     assert.equal(JSON.parse(await readFile(join(f.stateRoot, 'bot-b/bot.json'))).name, 'Still active')
   } finally { await chmod(f.stateRoot, 0o700) }
+  const restarted = new BotRegistry(f.options); await restarted.initialize()
+  assert.equal(restarted.get('bot-b').name, 'Still active')
+  assert.equal((await stat(join(f.botsRoot, 'bot-b/environment'))).isDirectory(), true)
+  await assert.rejects(stat(join(f.stateRoot, '.deleting/bot-b.json')), { code: 'ENOENT' })
+})
+
+
+test('HTTP一覧の消失は全掃除完了後だけ、pendingは一覧だけに残して起動対象にしない', async t => {
+  const f = await fixture(t); await f.registry.initialize()
+  await f.registry.create({ name: 'Pending synthetic' })
+  const runningInputs = []
+  const server = createBellTeamServer({ bots: f.registry, authorize: () => true,
+    messenger: {}, store: { async timeline() { return [] } },
+    transport: { async runningBots(bots) { runningInputs.push(bots.map(bot => bot.id)); return new Set() } },
+  })
+  server.listen(0, '127.0.0.1'); await once(server, 'listening'); t.after(() => server.close())
+  const url = `http://127.0.0.1:${server.address().port}/api/bots`
+  const list = async () => { const response = await fetch(url); assert.equal(response.status, 200); return (await response.json()).bots }
+  assert.equal((await list()).some(bot => bot.id === 'bot-b'), true)
+  const project = join(f.botsRoot, 'bot-b')
+  await writeFile(join(project, 'keep.txt'), 'synthetic')
+  await chmod(project, 0o500)
+  try {
+    await assert.rejects(f.registry.remove('bot-b'), { code: 'BOT_DELETE_PENDING' })
+    const pending = (await list()).find(bot => bot.id === 'bot-b')
+    assert.equal(pending.deleting, true); assert.equal(pending.online, false)
+    assert.equal(f.registry.has('bot-b'), false)
+    assert.equal(runningInputs.at(-1).includes('bot-b'), false)
+    assert.equal(await readFile(join(project, 'keep.txt'), 'utf8'), 'synthetic')
+  } finally { await chmod(project, 0o700) }
+  await f.registry.remove('bot-b')
+  assert.equal((await list()).some(bot => bot.id === 'bot-b'), false)
+  await assert.rejects(stat(project), { code: 'ENOENT' })
+  await assert.rejects(stat(join(f.stateRoot, '.deleting/bot-b')), { code: 'ENOENT' })
+  await assert.rejects(stat(join(f.stateRoot, '.deleting/bot-b.json')), { code: 'ENOENT' })
 })

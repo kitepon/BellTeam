@@ -279,8 +279,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
           return asset.stream.pipe(response)
         }
         if (request.method === 'GET' && url.pathname === '/api/bots') {
-          const all = [...bots.values()]
-          const running = await transport.runningBots(all)
+          const all = bots.listForClient ? await bots.listForClient() : [...bots.values()]
+          const running = await transport.runningBots(all.filter(bot => !bot.deleting))
           const list = await Promise.all(all.map(async bot => {
             const items = await timeline('bots', bot.id)
             const last = items.at(-1) ?? null
@@ -299,7 +299,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
               position: bot.position ?? '',
               role: bot.role ?? '',
               ...listAvatar(bot.avatar, url),
-              online: running.has(bot.id),
+              online: !bot.deleting && running.has(bot.id),
+              ...(bot.deleting ? { deleting: true } : {}),
               recent: last && { id: last.id, kind: last.kind, direction: last.direction, message: last.message, image: last.image, at: last.at },
             }
           }))

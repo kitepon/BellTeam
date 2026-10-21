@@ -135,7 +135,8 @@ export class BotRegistry extends Map {
     await this.validateEffort(profile)
     await this.validateFastMode(profile)
     if (this.separateState) {
-      if (await pathExists(join(this.stateRoot, '.deleting', id)))
+      if (await pathExists(join(this.stateRoot, '.deleting', id))
+        || await pathExists(join(this.stateRoot, '.deleting', `${id}.json`)))
         throw registryError('BOT_DELETE_PENDING')
       // Claim a fresh project atomically; never adopt an orphan, file or symlink.
       try { await mkdir(project) } catch (error) {
@@ -225,19 +226,23 @@ export class BotRegistry extends Map {
       await rm(bot.project, { recursive: true, force: true })
     } else {
       const pending = join(this.stateRoot, '.deleting', id)
-      const resuming = await pathExists(pending)
-      if (resuming && bot) throw registryError('BOT_DELETE_CONFLICT')
+      const record = join(this.stateRoot, '.deleting', `${id}.json`)
+      const resuming = !bot && (await pathExists(pending) || await pathExists(record))
+      if (bot && await pathExists(pending)) throw registryError('BOT_DELETE_CONFLICT')
       if (!resuming) {
         if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
         await mkdir(join(this.stateRoot, '.deleting'), { recursive: true, mode: 0o700 })
-        // Durable intent and removal from the active registry are one rename.
-        // The pending ID stays reserved until BOTH roots have been cleaned.
+        // Keep a separate listing receipt until both roots are fully removed.
+        // Its presence alone never permits deleting an active project on recovery.
+        await writeAtomic(record, { schema: 'bellteam.bot-deletion.v1', profile: bot })
         await rename(this.statePath(id), pending)
       }
       await this.refresh()
       await this.onChange(this)
       this.changed()
       await this.finishRemoval(id)
+      await this.onChange(this)
+      this.changed()
       return { id }
     }
     await this.refresh()
@@ -250,6 +255,7 @@ export class BotRegistry extends Map {
     try {
       await rm(this.projectPath(id), { recursive: true, force: true })
       await rm(join(this.stateRoot, '.deleting', id), { recursive: true, force: true })
+      await rm(join(this.stateRoot, '.deleting', `${id}.json`), { force: true })
     } catch {
       // Retry remove(id), or initialize a new registry to resume the same intent.
       // No profile needs to survive a partially removed pending directory.
@@ -260,11 +266,44 @@ export class BotRegistry extends Map {
   async resumePendingRemovals() {
     const pendingRoot = join(this.stateRoot, '.deleting')
     if (!await pathExists(pendingRoot)) return
+    const ids = new Set()
     for (const entry of await readdir(pendingRoot, { withFileTypes: true })) {
-      if (!entry.isDirectory() || !BOT_ID.test(entry.name)) continue
-      if (await pathExists(this.statePath(entry.name))) throw registryError('BOT_DELETE_CONFLICT')
-      await this.finishRemoval(entry.name)
+      if (entry.isDirectory() && BOT_ID.test(entry.name)) ids.add(entry.name)
+      if (entry.isFile() && entry.name.endsWith('.json') && BOT_ID.test(entry.name.slice(0, -5)))
+        ids.add(entry.name.slice(0, -5))
     }
+    for (const id of ids) {
+      if (await pathExists(this.statePath(id))) {
+        if (await pathExists(join(pendingRoot, id))) throw registryError('BOT_DELETE_CONFLICT')
+        // A prepared receipt whose retirement rename never committed.
+        await rm(join(pendingRoot, `${id}.json`), { force: true })
+        continue
+      }
+      await this.finishRemoval(id)
+    }
+  }
+
+  // Active execution uses the Map only. Client listings additionally retain a
+  // pending deletion receipt until BOTH project and state cleanup have succeeded.
+  async listForClient() {
+    const listed = new Map(this)
+    if (!this.separateState) return [...listed.values()]
+    const pendingRoot = join(this.stateRoot, '.deleting')
+    if (!await pathExists(pendingRoot)) return [...listed.values()]
+    for (const entry of await readdir(pendingRoot, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith('.json')) continue
+      const id = entry.name.slice(0, -5)
+      if (!BOT_ID.test(id) || listed.has(id)) continue
+      let record
+      try { record = JSON.parse(await readFile(join(pendingRoot, entry.name), 'utf8')) } catch (error) {
+        if (error.code === 'ENOENT') continue // Cleanup committed during this read.
+        throw error
+      }
+      if (record?.schema !== 'bellteam.bot-deletion.v1' || record.profile?.id !== id)
+        throw registryError('BOT_DELETE_RECORD_INVALID')
+      listed.set(id, { ...normalizeProfile(record.profile), project: this.projectPath(id), deleting: true })
+    }
+    return [...listed.values()].sort((a, b) => a.id.localeCompare(b.id))
   }
 
   async listSchedules(id) {

@@ -197,6 +197,12 @@ No surviving bot.json inside the pending directory is needed to resume cleanup.
 This is file-operation/process-restart recovery, not a claim of power-loss
 persistence, multi-process registry locking, symlink-safe parent traversal or
 completed state migration. An HTTP 202 still means acceptance. After retirement,
-list disappearance means the Bot is inactive, and does not prove all residual
-files were removed. Pending cleanup is retried by registry remove(id) or normal
-initialization; there is no new public HTTP retry endpoint in this component.
+the active registry no longer dispatches the Bot during cleanup. A separate
+server-owned `.deleting/<id>.json` listing receipt retains the full profile in
+GET /api/bots with deleting:true and online:false until project, retired state
+and finally this receipt have all been removed. List disappearance therefore
+retains the Apple 54 deletion-completion contract. A failure keeps the Bot in
+client lists and prevents the app from declaring completion or discarding drafts.
+The receipt is never an execution target. A receipt prepared before a failed
+retirement rename is discarded on initialization without deleting the active Bot.
+Pending cleanup is retried by registry remove(id) or normal initialization; there is no new public HTTP retry endpoint in this component.
