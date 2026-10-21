@@ -210,7 +210,7 @@ final class AppStore: ObservableObject {
                     aiControlError = "変更を保存できませんでした。現在の状態を表示しています。"
                 case BellAPIError.httpStatus(502, _, _):
                     if self.aiControl?.state != .stopped {
-                        aiControlError = "停止を確認できませんでした。現在の状態を表示しています。"
+                        aiControlError = "処理中断を確認できませんでした。現在の状態を表示しています。"
                     }
                 default:
                     aiControlError = "通信後の現在の状態を読み直しました。"

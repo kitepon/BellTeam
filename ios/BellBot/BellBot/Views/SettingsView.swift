@@ -108,7 +108,7 @@ private struct AIControlCard: View {
                     .font(.subheadline)
                     .foregroundStyle(control.state == .unconfirmed ? .red : BellTheme.muted)
                 if control.state == .unconfirmed && !control.unconfirmedBotIds.isEmpty {
-                    Text("停止を確認できなかったメンバー: \(control.unconfirmedBotIds.count)人")
+                    Text("処理中断を確認できなかったメンバー: \(control.unconfirmedBotIds.count)人")
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
@@ -138,9 +138,9 @@ private struct AIControlCard: View {
     private func status(for control: AIControl) -> String {
         switch control.state {
         case .enabled: "動作可能です。"
-        case .stopping: "全員の停止を処理中です。"
-        case .stopped: "メンバーの停止を確認しました。OFFにすると新しい依頼から動けます。"
-        case .unconfirmed: "一部の停止を確認できませんでした。全体停止はONのままです。"
+        case .stopping: "全体の処理を中断中です。"
+        case .stopped: "進行中の処理がないことを確認しました。会話はそのままです。OFFにすると新しい依頼を受け付けます。"
+        case .unconfirmed: "処理中断を確認できませんでした。全体停止はONのままです。"
         }
     }
 }

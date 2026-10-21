@@ -164,12 +164,12 @@ final class BellAPI {
         struct StopResponse: Decodable {
             let botId: String
             let status: String
-            let online: Bool
+            let sessionPreserved: Bool
         }
         let path = "/api/bots/\(id)/stop"
         let responseData = try await data(path: path, method: "POST", expectedStatus: 200)
         let result = try decode(StopResponse.self, from: responseData, path: path, method: "POST")
-        guard result.botId == id, result.status == "stopped", !result.online else {
+        guard result.botId == id, result.status == "interrupted", result.sessionPreserved else {
             throw BellAPIError.invalidResponse
         }
     }
