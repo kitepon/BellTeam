@@ -326,8 +326,8 @@ private struct ConversationContent: View {
         stopNotice = nil
         defer { stoppingBotID = nil }
         do {
-            try await store.api.stopBot(id)
-            stopNotice = .confirmed(name)
+            let outcome = try await store.api.stopBot(id)
+            stopNotice = outcome == .sent ? .sent : .confirmed(name)
             await load()
             await store.refreshFromView()
         } catch let error where BellAPIError.isAuthenticationError(error) {
@@ -341,21 +341,23 @@ private struct ConversationContent: View {
     }
 
     private enum StopNotice {
+        case sent
         case confirmed(String)
         case unconfirmed
         case failed(String)
 
         var message: String {
             switch self {
+            case .sent: "停止操作を送りました。会話は続けられます。"
             case .confirmed(let name): "\(name)は今、処理を実行していません。同じ会話で新しい依頼を続けられます。"
-            case .unconfirmed: "処理を中断できたか確認できませんでした。状況を確認してから操作してください。"
+            case .unconfirmed: "停止操作の結果を確認できませんでした。状況を確認してから操作してください。"
             case .failed(let reason): reason
             }
         }
 
         var isError: Bool {
             switch self {
-            case .confirmed: false
+            case .sent, .confirmed: false
             case .unconfirmed, .failed: true
             }
         }

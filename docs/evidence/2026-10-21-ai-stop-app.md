@@ -27,3 +27,9 @@ Appleへの送信、TestFlight内部配布、端末導入・起動、実メン�
 新しい個別API契約は、body無しの`POST /api/bots/:id/stop`に対し、HTTP 200で`botId`一致・`status=interrupted`・`sessionPreserved=true`が揃った場合だけ中断確認済みとする。`online`とキューの消失を成功条件にしない。200以外、不正応答、通信断では完了表示も自動再送もしない。個別会話には、同じ会話で新しい依頼を続けられると表示する。全体停止の`stopped`は、全対象の処理中断または実行なし、会話維持、コマンド終了が確認された状態として表示する。
 
 AppleアプリのAPI判定・会話表示・全体停止表示と契約試験を更新した。Simulatorの個別API対象2件が成功し、Mac Catalystビルドも終了コード0で成功した。既存の`WKWebsiteDataStore.default()`のactor警告は残る。Nodeの関連gateと`TESTGATE_FULL=1 npm test`も終了コード0で成功した。本番メンバーの中断、Aiterm実runtimeの受入、Appleへの送信は行っていない。旧55のIPA・pkgは新方式も全体停止トグルも含まないため、配布しない。新たな採番・署名はruntime受入と成果物ごとの従来の条件が整ってから行う。
+
+## 2026-10-22 停止操作の送信受付
+
+サーバーの個別停止は`POST /api/bots/:id/stop`のHTTP 202 `{botId,status:"stop_sent"}`を返す方式へ変わった。これは通常中断操作を送った確認であり、処理の終了証明ではない。Appleアプリは202と対象ID・`stop_sent`の一致で「停止操作を送りました。会話は続けられます。」と表示する。旧HTTP 200の`interrupted`・`sessionPreserved:true`は別の確認済み結果として読み続ける。HTTP statusと本文が食い違う時、502、通信断、不正応答は成功扱いせず、自動再送しない。全体停止の`stopped`表示も全対象への操作送信成功を表す文言に直した。停止ボタンの位置と表示条件は変えていない。
+
+Foundationだけの応答モデルを使った合成JSON単体確認7件は成功。既存URLProtocol試験のfixtureも202・旧200・不正応答へ更新し、Xcodeの`build-for-testing`でコンパイルした。アプリ本体のビルドも成功した。いずれもビルド専用で、Simulatorの起動・導入やXCTestの実行はしていない。Macの実画面、実メンバー、TestFlight、配布物にも触れていない。

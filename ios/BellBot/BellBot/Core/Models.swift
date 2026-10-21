@@ -181,6 +181,24 @@ struct RoomsResponse: Decodable { var rooms: [Room] }
 struct RoomResponse: Decodable { let room: Room }
 struct OwnerResponse: Decodable { var owner: Owner }
 struct QueueResponse: Decodable { let items: [QueueItem] }
+
+enum BotStopOutcome: Equatable { case sent, confirmed }
+
+struct BotStopResponse: Decodable {
+    let botId: String
+    let status: String
+    let sessionPreserved: Bool?
+
+    func outcome(httpStatus: Int, expectedBotId: String) -> BotStopOutcome? {
+        guard botId == expectedBotId else { return nil }
+        return switch (httpStatus, status) {
+        case (202, "stop_sent"): .sent
+        case (200, "interrupted") where sessionPreserved == true: .confirmed
+        default: nil
+        }
+    }
+}
+
 struct AIControlResponse: Decodable { let control: AIControl }
 struct AIControlUpdate: Encodable { let paused: Bool }
 
