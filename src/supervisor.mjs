@@ -7,7 +7,7 @@ import { bots, ownerProfile, refreshGlobalInstructions, settings, userRules } fr
 import { CharacterSheets } from './character-sheets.mjs'
 import { createBugHubSecurity } from './bughub-security.mjs'
 import { createCallBridgeServer, listenCallBridge } from './call-bridge-server.mjs'
-import { AitermTransport } from './aiterm-transport.mjs'
+import { createManagedTransport } from './aiterm-transport.mjs'
 import { AiControl, stopRegisteredWork } from './ai-control.mjs'
 import { ConversationStore } from './conversation-store.mjs'
 import { Diagnostics, createDiagnosticsAdminServer } from './diagnostics.mjs'
@@ -59,7 +59,7 @@ const aiControl = new AiControl({
   beforeResume: at => scheduler.prepareResume(new Date(at)),
 })
 await aiControl.initialize()
-const transport = new AitermTransport({
+const transport = createManagedTransport({
   assertWorkAllowed: () => aiControl.assertEnabled(),
   prepareStartup: async (bot, shortTermMemory) => {
     await bots.prepareStartupContext(bot.id, shortTermMemory)

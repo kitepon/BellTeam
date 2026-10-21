@@ -192,7 +192,7 @@ test('preparingの状態照会は作用確定に昇格させず、欠測したla
   assert.equal(f.calls.filter(call => call.name === 'pty_send').length, 0)
 })
 
-test('短命MCPへのenv起動でもmetaを保持し、possible typed返却は同名再利用を止める', { timeout: 10000 }, async t => {
+test('引数付きstdio入口を短命env起動へ引継ぎmetaを保持し、possible返却は同名再利用を止める', { timeout: 10000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-wire-child-'))
   t.after(() => rm(root, { force: true, recursive: true }))
   const sdk = new URL('../node_modules/@modelcontextprotocol/sdk/dist/esm/server/', import.meta.url)
@@ -203,15 +203,16 @@ test('短命MCPへのenv起動でもmetaを保持し、possible typed返却は�
   const {StdioServerTransport}=await import(${JSON.stringify(new URL('stdio.js', sdk).href)});
   const {z}=await import(${JSON.stringify(new URL('../node_modules/zod/index.js', import.meta.url).href)});
   const server=new McpServer({name:'synthetic-wire',version:'1'});
-  server.registerTool('agent_launch',{inputSchema:{session_name:z.string(),env_vars:z.array(z.string()).optional()}},async(args,extra)=>({content:[],structuredContent:{session_id:args.session_name,meta:extra._meta}}));
+  server.registerTool('agent_launch',{inputSchema:{session_name:z.string(),env_vars:z.array(z.string()).optional()}},async(args,extra)=>({content:[],structuredContent:{session_id:args.session_name,meta:extra._meta,argv:process.argv.slice(2)}}));
   server.registerTool('agent_execution',{inputSchema:{action:z.literal('register'),source_session_id:z.string().nullable(),reservation:z.any(),env_vars:z.array(z.string()).optional()}},async(args,extra)=>({content:[],structuredContent:{schema:'aiterm.execution-record.v1',reservation:args.reservation,source:${JSON.stringify({ ...source, status: 'unknown', reason: 'caller_unbound', point: null })},relation:{request:args.reservation.request,target:null,phase:'reserved',completion:'open',target_fence:'unknown',lifecycle:'tracking'}},_meta:{received:extra._meta}}));
   server.registerTool('pty_close',{inputSchema:{session_id:z.string()}},async()=>(${JSON.stringify(typed('EXECUTION_UNCONFIRMED', 'possible'))}));
   await server.connect(new StdioServerTransport());
 })();\n`, { mode: 0o700 })
-  const client = new AitermClient({ command: path }); t.after(() => client.close())
+  const client = new AitermClient({ command: process.execPath, args: [path, '--native-execution-fixture'] }); t.after(() => client.close())
   const meta = { 'aiterm/caller': 'BellTeam', [EXECUTION_META]: { schema: 'aiterm.execution-ref.v1', request } }
   const result = await client.call('agent_launch', { session_name: B.session_id }, { env: { PATH: process.env.PATH, BELLTEAM_ROOT: root }, meta })
   assert.deepEqual(result.structuredContent.meta, meta)
+  assert.deepEqual(result.structuredContent.argv, ['--native-execution-fixture'])
   // The server observes metadata on a separate env-launched stdio connection;
   // it does not promote the claim or this synthetic context to verified.
   const registers = []

@@ -9,7 +9,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
-import { returnedExecutionError, ERROR_META } from './execution-bridge.mjs'
+import { ExecutionBridge, returnedExecutionError, ERROR_META } from './execution-bridge.mjs'
 import { reserveExecution, dispatchExecution, finishExecution, applyExecutionStop, applyExecutionCancellation, interruptExecutions } from './execution-transport.mjs'
 
 const HARNESS = new Map([
@@ -24,6 +24,13 @@ const INTERIM_INTERVAL_MS = 3000
 // Aitermは、要求の_metaにこの印がある時だけ、BellTeamのための手がかりを結果へ足す（Aiterm ADR 0071・0122）。
 const CALLER_META = { 'aiterm/caller': 'BellTeam' }
 export const NIGHTLY_RESTART_TURNS = 20
+
+// Supervisor uses one SDK client for normal dispatch, relation registration
+// and interruption. An unavailable execution runtime must reject the request;
+// it must not silently select the legacy dispatch/close path.
+export function createManagedTransport({ client = new AitermClient(), ...options } = {}) {
+  return new AitermTransport({ ...options, client, executionBridge: new ExecutionBridge(client) })
+}
 
 export async function completedThroughlineTurns(project, { run = execFileAsync } = {}) {
   const { stdout } = await run('throughline', [
@@ -54,8 +61,9 @@ export async function latestThroughlineHandoffContext(project, { run = execFileA
 }
 
 export class AitermClient {
-  constructor({ command = 'aiterm-mcp', env = runtimeEnvironment() } = {}) {
+  constructor({ command = 'aiterm-mcp', args = [], env = runtimeEnvironment() } = {}) {
     this.command = command
+    this.args = [...args]
     this.env = env
     this.client = null
     this.transport = null
@@ -66,7 +74,7 @@ export class AitermClient {
     if (this.connecting) return this.connecting
     if (this.client) return
     this.client = new Client({ name: 'bellteam', version: '0.1.0' }, { capabilities: {} })
-    this.transport = new StdioClientTransport({ command: this.command, stderr: 'inherit', ...(this.env ? { env: this.env } : {}) })
+    this.transport = new StdioClientTransport({ command: this.command, args: this.args, stderr: 'inherit', ...(this.env ? { env: this.env } : {}) })
     const client = this.client
     const transport = this.transport
     client.onclose = () => {
@@ -97,7 +105,7 @@ export class AitermClient {
   async call(name, args = {}, { env, meta } = {}) {
     if (env) {
       // Aitermは値ではなくMCPプロセスの変数名を受け取る。起動ごとに専用の短命接続を使う。
-      const launcher = new AitermClient({ command: this.command, env })
+      const launcher = new AitermClient({ command: this.command, args: this.args, env })
       try {
         const env_vars = Object.keys(env).filter(key => runtimeEnvironmentKeys.includes(key) || env[key] !== process.env[key])
         return await launcher.call(name, { ...args, env_vars }, { meta })
