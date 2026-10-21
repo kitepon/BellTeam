@@ -52,11 +52,11 @@ export async function removeSeatClaudeCopies(bots, { report = message => process
 }
 
 // env.shはBot自身が所有するシェル設定。値をツール引数やログへ出さない。
-export async function loadBotEnvironment(project, inherited = process.env) {
+export async function loadBotEnvironment(project, inherited = process.env, { run = exec } = {}) {
   const env = baseBotEnvironment(project, inherited)
   const path = join(project, 'environment/env.sh')
   if (!await exists(path)) return env
-  const { stdout } = await exec('bash', ['--noprofile', '--norc', '-c',
+  const { stdout } = await run('bash', ['--noprofile', '--norc', '-c',
     'set -ae\n. "$1" >&2\nexec "$2" -e \'process.stdout.write(JSON.stringify(process.env))\'',
     'bellteam-environment', path, process.execPath,
   ], { cwd: project, env })

@@ -47,6 +47,33 @@ need to be root-owned and protected in the deployment.
 
 ## Current execution inventory
 
+The optional `AitermClient({seatProject, command, args})` uses
+`seatCommandSpec` to start its stdio MCP through the root-installed
+`/usr/local/libexec/bellteam-seat-exec`. No server environment is passed.
+The C entry clears the environment and drops real/effective/saved UID and GID
+to 1000 with empty supplementary groups before executing Node or seat files.
+`run-seat-command.mjs` checks the seat identity, evaluates `env.sh` there, and
+starts the command with stdin/stdout preserved. Environment preparation and
+the command each have a process group; TERM/INT/HUP are forwarded and a
+stopping group receives KILL after 250ms. Exit and failure results are kept.
+This is the approved staged-A accident boundary; bell's existing management
+sudo capability remains deliberately available.
+
+The option is not supplied by the production supervisor. Combining it with
+the old per-launch `{env}` option throws `SEAT_DYNAMIC_ENV_UNWIRED` before
+launch: per-target dynamic environment must be loaded under the seat identity,
+and cannot be silently copied from server evaluation. The existing short-lived
+legacy connection now retains request meta, matching the stop integration
+branch's fix. SDK child startup is verified in an isolated UID1001 fixture;
+all supervisor/launch/wait/setup/schedule/configuration paths and the four real
+CLI integrations still need wiring and acceptance.
+
+The newly introduced `shared/ai-control.json` stop intent belongs in the
+server-owned state migration, backup and latest-generation rollback plan.
+Returning to an older code version must not silently ignore a persisted ON.
+State migration, independent read-only mounts, backups, rollback and deployment
+downtime measurement are not implemented by these entry components.
+
 | Existing route | Stage-2 work still required |
 | --- | --- |
 | `aiterm-transport.mjs`: SDK `StdioClientTransport`, wait-process spawn, Throughline reads | Start the MCP process and all CLI-related children as UID1000; verify termination/cancellation and no privileged inherited environment |
