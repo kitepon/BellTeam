@@ -105,6 +105,7 @@ struct TimelineMessage: Decodable, Identifiable {
         if values.contains("failed") { return "failed" }
         if values.contains("running") { return "running" }
         if values.contains("queued") { return "queued" }
+        if values.contains("stopped") { return "stopped" }
         return values.isEmpty ? nil : "delivered"
     }
 }

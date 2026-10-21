@@ -351,6 +351,20 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
           return sheet.stream.pipe(response)
         }
 
+        const stopMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/stop$/u)
+        if (stopMatch) {
+          if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+          const bot = bots.get(stopMatch[1])
+          if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
+          try {
+            const result = await transport.interrupt(bot)
+            server.notify({ type: 'bots' })
+            return json(response, 200, result)
+          } catch {
+            return json(response, 502, { error: 'BOT_STOP_UNCONFIRMED', message: '停止を確認できませんでした。メンバーの状態を確認してください。' })
+          }
+        }
+
         const restartMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/restart$/u)
         if (request.method === 'POST' && restartMatch) {
           const botId = restartMatch[1]
@@ -613,6 +627,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
         }
         return json(response, 500, { error: 'SECRET_OPERATION_FAILED' })
       }
+      if (error.code === 'BOT_SESSION_UNCONFIRMED') return json(response, 503, { error: error.code, message: error.publicMessage })
       if (error instanceof ModelCatalogError) return json(response, error.code === 'MODEL_HARNESS_INVALID' ? 400 : 503, { error: error.code, message: error.message })
       if (error.message === 'INVALID_JSON') return json(response, 400, { error: 'INVALID_JSON' })
       if (error.message === 'DIAGNOSTIC_INVALID' || error.message === 'REQUEST_TOO_LARGE') return json(response, 400, { error: error.message })
@@ -765,6 +780,7 @@ async function staticFile(response, root, pathname, assetVersion) {
     ['/harness-auth.js', 'harness-auth.js'],
     ['/server-origin.js', 'server-origin.js'],
     ['/chat-input.js', 'chat-input.js'],
+    ['/member-stop.js', 'member-stop.js'],
     ['/rich-text.js', 'rich-text.js'],
     ['/secret-input.js', 'secret-input.js'],
     ['/owner-question.js', 'owner-question.js'],

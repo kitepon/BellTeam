@@ -437,7 +437,7 @@
         "liveAnswerDelivery": {
           "platform": "Mac Catalyst",
           "questionId": "c84ec756-270e-4924-893d-150e80786e30",
-          "answer": "アプリから受信確認",
+          "answer": "要約: オーナーがアプリの質問カードに回答し、Botへの受領を確認した。",
           "status": "answered",
           "answeredAt": "2026-10-01T00:41:05.242Z",
           "botReceiptConfirmed": true,
@@ -729,7 +729,7 @@
           "senderBotId": "bot-7b140b27",
           "senderName": "トロニー",
           "senderAvatarVisuallyVerified": true,
-          "ownerFeedback": "問題ない",
+          "ownerFeedback": "要約: オーナーが通知アイコンの表示に問題がないと確認した。",
           "tapConversationVerified": true,
           "verifiedBy": "オーナー",
           "reportedBy": "トロニー",
@@ -737,7 +737,7 @@
             "sessionId": "50c2999e-4760-42f7-b574-f3ce8d642300",
             "seq": 43
           },
-          "tapOwnerFeedback": "通知押したら開いたよ",
+          "tapOwnerFeedback": "要約: オーナーが通知を押してアプリが開いたと確認した。",
           "tapEvidence": {
             "sessionId": "50c2999e-4760-42f7-b574-f3ce8d642300",
             "seq": 45
@@ -1449,7 +1449,7 @@
     },
     "reviewSubmission": {
       "authorized": true,
-      "authorizationMessage": "では審査に出そうぜ",
+      "authorizationMessage": "要約: オーナーが審査提出を指示した。",
       "state": "UNRESOLVED_ISSUES",
       "submitted": true,
       "reviewSubmissionIds": [
@@ -1556,7 +1556,7 @@
           "chatQuestionRequested": true,
           "ownerAgreementReceived": true,
           "screenshotPath": "runtime/apple-review/privacy-publish-confirmation.png",
-          "ownerAgreementMessage": "GO",
+          "ownerAgreementMessage": "要約: オーナーがプライバシー申告の公開を許可した。",
           "publishedScreenshotPath": "runtime/apple-review/privacy-published.png"
         },
         "publicationProofPath": "runtime/apple-review/privacy-published-proof.json",
@@ -1639,7 +1639,7 @@
             "thisSession": true,
             "createdAt": "2026-10-03T00:27:44.725Z",
             "answer": {
-              "text": "Dexというログイン画面が出てる。パスワードとか知らないし何したらいいかわからない。",
+              "text": "要約: オーナーはログイン画面を確認し、認証方法の案内を求めた。",
               "answered_at": "2026-10-03T00:29:44.585Z"
             },
             "delivery": "delivered"
@@ -1663,7 +1663,7 @@
           "privateLoginGuidePath": "runtime/apple-review/iphone-review-login-private.txt",
           "openInCodexStatus": "queued",
           "answer": {
-            "text": "ログインできた。メンバーが二人いる。一人の名前が「案内役 初期設定の案内」"
+            "text": "要約: オーナーはログインに成功し、メンバー2人と案内役を確認した。"
           },
           "delivery": "delivered"
         },
@@ -1698,7 +1698,7 @@
           "status": "answered",
           "createdAt": "2026-10-03T01:05:41.289Z",
           "answer": {
-            "text": "その手順無理。スクローンしようとしたらミラーリング切れるじゃん。"
+            "text": "要約: オーナーはスクロール時にミラーリングが切れると報告した。"
           },
           "delivery": "delivered",
           "instructionWithdrawn": true
@@ -1730,7 +1730,7 @@
           "questionOnly": true,
           "additionalDeviceActionRequested": false,
           "answerReceivedInChat": true,
-          "ownerAnswer": "購入を復元",
+          "ownerAnswer": "要約: オーナーは直前に購入復元を実行したと回答した。",
           "cancelReason": "会話で直前の操作の回答を受け取り、追加の質問を取り下げた。"
         },
         "restoreDiagnosticUnlockRequest": {
@@ -1782,7 +1782,7 @@
           "status": "answered",
           "version": 4,
           "title": "いまパスワードを求めている画面を教えてほしい",
-          "answerText": "もう君がシミュレーターでやったら！？"
+          "answerText": "要約: オーナーがシミュレーターでの確認を担当へ提案した。"
         }
       },
       "proofPath": "runtime/apple-review/review-draft-preparation.json",
@@ -3045,7 +3045,7 @@
         },
         "simulatorTakeover": {
           "requestedByOwner": true,
-          "request": "もう君がシミュレーターでやったら！？",
+          "request": "要約: オーナーがシミュレーターでの確認を担当へ提案した。",
           "physicalDeviceActionPending": false,
           "state": "local_storekit_environment_rejected_purchase_restore_unverified",
           "realBuild28PurchaseEvidencePreserved": true,
@@ -3161,7 +3161,7 @@
       "submissionProofPath": "runtime/apple-review/review41/final-verified.json",
       "buildReplacement": {
         "authorized": true,
-        "authorizationMessage": "審査出してね",
+        "authorizationMessage": "要約: オーナーが審査提出を指示した。",
         "previousBuild": "39",
         "build": "41",
         "previousSubmissions": [
@@ -3186,7 +3186,7 @@
         "initialSubscriptionAndGroupResubmitted": true,
         "previousReplacement": {
           "authorized": true,
-          "authorizationMessage": "では審査に出そうぜ",
+          "authorizationMessage": "要約: オーナーが審査提出を指示した。",
           "previousBuild": "35",
           "build": "39",
           "previousSubmissions": [
@@ -3209,7 +3209,7 @@
           "initialSubscriptionAndGroupResubmitted": true,
           "previousReplacement": {
             "authorized": true,
-            "authorizationMessage": "差し替えようぜ",
+            "authorizationMessage": "要約: オーナーがビルド差し替えを指示した。",
             "previousBuild": "28",
             "build": "35",
             "previousSubmissions": [
@@ -3614,7 +3614,7 @@
           },
           "ownerProgressGo": {
             "source": "current_chat",
-            "text": "では進めろ。",
+            "text": "要約: オーナーが作業続行を指示した。",
             "recordedAt": "2026-10-07T00:49:00.737661+00:00"
           },
           "currentCallSession": "bfe6d388-6a4c-405e-b656-4a05204482d6",
@@ -3713,7 +3713,7 @@
           "ownerOperationDecisionId": "K-WLQSEN",
           "ownerPreparationReply": {
             "decisionId": "K-JXN8U4",
-            "answerText": "こーどがわからん",
+            "answerText": "要約: オーナーは認証コードを確認できないと回答した。",
             "source": "approval_box_owner_answer",
             "recordedAt": "2026-10-07T03:23:44.813956+00:00",
             "codeIssued": false,
@@ -3828,7 +3828,7 @@
           "estimatedRecoveryAtJST": "2026-10-07 12:08",
           "authenticationStarted": false,
           "releaseCondition": "トロニーの起き直したという連絡を受けるまで、本番操作を始めない。本人のスマホ準備が先に揃っても待つ。",
-          "recoveryOwnerMessage": "起き直したよ",
+          "recoveryOwnerMessage": "要約: オーナーから再開の連絡を受けた。",
           "recoveryOwnerRecordedAt": "2026-10-07T03:19:30.630008+00:00",
           "memberRecoverySeq": 18,
           "memberReportedAtJST": "2026-10-07 12:20",
@@ -4253,7 +4253,7 @@
         "responseDelivered": true,
         "serverCorrelationOwner": "トロニー",
         "bugHubRecipient": "フラジャイル",
-        "closureCondition": "やれる事をやり切った上で、最新版で出ない。iPhoneの45導入と通常利用、既存サーバーログとの照合を確認し、根因未確定と再現した欠陥の修理済みを分ける。",
+        "closureCondition": "要約: 可能な検証を終え、最新版で再発しないことを解決条件とする。iPhoneの45導入と通常利用、既存サーバーログとの照合を確認し、根因未確定と再現した欠陥の修理済みを分ける。",
         "additionalManualPostTest": false,
         "status": "completed_resolved_notes_verified",
         "memberConfirmedSeq": 10,
@@ -4562,7 +4562,7 @@
         "requiredBuild": "45",
         "recipientId": "bot-bdf99000",
         "recipientName": "ラプラス",
-        "testMessage": "BT-USB45-1007-A 通信の試験。返事は『受け取った』だけでいい。",
+        "testMessage": "要約: 通信試験用の定型メッセージを用意したが、送信はしていない。",
         "ownerConfirmation": "manual_post_test_cancelled_in_current_chat",
         "approvalBoxRequest": "failed_not_created",
         "approvalBoxError": "CODEX_STEER_RESTART_REQUIRED",
@@ -4577,7 +4577,7 @@
         "deviceMetadataProof": "runtime/apple/background-send-45/iphone-apps-current.json",
         "ownerApproval": {
           "source": "current_chat",
-          "text": "進めなよ。特にASC",
+          "text": "要約: オーナーが作業続行とASC確認の優先を指示した。",
           "scope": "iPhone45への更新と、ラプラスへの追加1回の修理後送信試験",
           "recordedAt": "2026-10-06T23:34:54.013687+00:00"
         },
@@ -4591,11 +4591,11 @@
         "deviceConnectionEvidence": "runtime/apple/asc-followup-20261007/device-lock-state.log",
         "ownerLocationUpdate": {
           "source": "current_chat",
-          "text": "今ミラーリングはできませんよ。私は外出ちゅです。",
+          "text": "要約: オーナーは外出中でミラーリングできないと報告した。",
           "recordedAt": "2026-10-07T00:28:37.183454+00:00"
         },
         "ownerTestDecision": {
-          "text": "では進めろ。iPhone通信試験は俺が使ってるから変なら言うからいい。",
+          "text": "要約: オーナーが続行を指示し、iPhone通信試験の異常時は本人から連絡するとした。",
           "source": "current_chat",
           "recordedAt": "2026-10-07T00:49:00.737538+00:00"
         },
@@ -4656,7 +4656,7 @@
           "harness": "claude",
           "firstPostSinceDeploymentRequired": true,
           "expectedDelaySeconds": 12,
-          "text": "BT-USB45-1007-A 通信の試験。返事は『受け取った』だけでいい。",
+          "text": "要約: 通信試験用の定型メッセージを用意したが、送信はしていない。",
           "checkWithMemberImmediatelyBeforeSend": true,
           "noticeSeq": 7,
           "previousRecipientBecameActiveAt": "2026-10-07T08:11:58+09:00"
@@ -5417,7 +5417,7 @@
       "ownerResponse": {
         "decision": "K-JPEKEW",
         "optionId": "completed",
-        "observation": "赤字でインターネット接続がオフラインのようです。最終的には正常。"
+        "observation": "要約: 赤字の通信エラー表示が最終的に正常表示へ変わった。"
       },
       "physicalResult": {
         "writeStartedAtJST": "2026-10-04T13:54:11.915466+09:00",

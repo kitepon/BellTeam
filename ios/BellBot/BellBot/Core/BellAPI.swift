@@ -159,6 +159,20 @@ final class BellAPI {
         _ = try await data(path: path, method: "DELETE")
     }
 
+    func stopBot(_ id: String) async throws {
+        struct StopResponse: Decodable {
+            let botId: String
+            let status: String
+            let online: Bool
+        }
+        let path = "/api/bots/\(id)/stop"
+        let responseData = try await data(path: path, method: "POST", expectedStatus: 200)
+        let result = try decode(StopResponse.self, from: responseData, path: path, method: "POST")
+        guard result.botId == id, result.status == "stopped", !result.online else {
+            throw BellAPIError.invalidResponse
+        }
+    }
+
     func exportConversation(_ path: String) async throws -> Data {
         try await data(path: path, method: "GET")
     }
@@ -215,7 +229,7 @@ final class BellAPI {
         }
     }
 
-    private func data(path: String, method: String, body: Data? = nil) async throws -> Data {
+    private func data(path: String, method: String, body: Data? = nil, expectedStatus: Int? = nil) async throws -> Data {
         do {
             var request = try request(path: path, method: method)
             if let body {
@@ -225,6 +239,9 @@ final class BellAPI {
             let (data, response, trace) = try await load(request)
             do { try validate(response, data: data) }
             catch { throw traced(error, with: trace) }
+            if let expectedStatus, (response as? HTTPURLResponse)?.statusCode != expectedStatus {
+                throw BellAPIError.invalidResponse
+            }
             if !(data.isEmpty || (response as? HTTPURLResponse)?.statusCode == 204),
                (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type")?.contains("application/json") != true {
                 throw BellAPIError.invalidResponse
