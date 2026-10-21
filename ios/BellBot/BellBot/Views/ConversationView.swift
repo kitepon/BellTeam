@@ -333,7 +333,8 @@ private struct ConversationContent: View {
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
         } catch {
-            stopNotice = BellAPIError.operationResultUnconfirmed(error) ? .unconfirmed : .failed(error.localizedDescription)
+            stopNotice = error is CancellationError || BellAPIError.operationResultUnconfirmed(error)
+                ? .unconfirmed : .failed(error.localizedDescription)
             store.api.diagnostics.report(error, path: "/api/bots/\(id)/stop", method: "POST", observation: .write)
             await load()
         }
