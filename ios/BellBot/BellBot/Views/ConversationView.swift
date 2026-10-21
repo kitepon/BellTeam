@@ -347,8 +347,8 @@ private struct ConversationContent: View {
 
         var message: String {
             switch self {
-            case .confirmed(let name): "\(name)の直前の動作を停止しました。新しい依頼で再起動できます。"
-            case .unconfirmed: "停止できたか確認できませんでした。状況を確認してから操作してください。"
+            case .confirmed(let name): "\(name)は今、処理を実行していません。同じ会話で新しい依頼を続けられます。"
+            case .unconfirmed: "処理を中断できたか確認できませんでした。状況を確認してから操作してください。"
             case .failed(let reason): reason
             }
         }
@@ -1085,7 +1085,7 @@ private struct MessageRow: View {
         return switch message.status {
         case "queued": "送信待ち"
         case "running": "処理中"
-        case "stopped": "停止"
+        case "stopped": "中断"
         case "delivered": "配達済み"
         case "failed": "配達失敗"
         default: ""

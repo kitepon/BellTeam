@@ -4,12 +4,13 @@ import XCTest
 
 @MainActor
 final class BotStopTests: XCTestCase {
-    func testOnlyMatching200ConfirmsTheStop() async throws {
+    func testOnlyMatching200ConfirmsTheInterruptionAndSessionPreservation() async throws {
         let (api, session) = makeAPI()
         defer { session.invalidateAndCancel() }
 
         try await api.stopBot("bot-confirmed")
-        for id in ["bot-wrong-id", "bot-wrong-status", "bot-still-online", "bot-accepted", "bot-malformed"] {
+        try await api.stopBot("bot-still-online")
+        for id in ["bot-wrong-id", "bot-wrong-status", "bot-session-closed", "bot-accepted", "bot-malformed"] {
             do {
                 try await api.stopBot(id)
                 XCTFail("一致しない停止応答を完了扱いしてはいけません: \(id)")
@@ -18,6 +19,7 @@ final class BotStopTests: XCTestCase {
             }
         }
         XCTAssertEqual(BotStopProtocol.requestCount(for: "bot-confirmed"), 1)
+        XCTAssertEqual(BotStopProtocol.requestCount(for: "bot-still-online"), 1)
         XCTAssertTrue(BotStopProtocol.allRequestsHadNoBody)
     }
 
@@ -96,7 +98,7 @@ private final class BotStopProtocol: URLProtocol {
         switch id {
         case "bot-accepted":
             status = 202
-            body = #"{"botId":"bot-accepted","status":"stopped","online":false}"#
+            body = #"{"botId":"bot-accepted","status":"interrupted","sessionPreserved":true}"#
         case "bot-server-error":
             status = 502
             body = #"{"error":"BOT_STOP_UNCONFIRMED"}"#
@@ -105,19 +107,22 @@ private final class BotStopProtocol: URLProtocol {
             body = #"{"error":"BOT_NOT_FOUND"}"#
         case "bot-wrong-id":
             status = 200
-            body = #"{"botId":"bot-other","status":"stopped","online":false}"#
+            body = #"{"botId":"bot-other","status":"interrupted","sessionPreserved":true}"#
         case "bot-wrong-status":
             status = 200
-            body = #"{"botId":"bot-wrong-status","status":"pending","online":false}"#
+            body = #"{"botId":"bot-wrong-status","status":"stopped","sessionPreserved":true}"#
+        case "bot-session-closed":
+            status = 200
+            body = #"{"botId":"bot-session-closed","status":"interrupted","sessionPreserved":false}"#
         case "bot-still-online":
             status = 200
-            body = #"{"botId":"bot-still-online","status":"stopped","online":true}"#
+            body = #"{"botId":"bot-still-online","status":"interrupted","sessionPreserved":true,"online":true}"#
         case "bot-malformed":
             status = 200
-            body = #"{"botId":"bot-malformed","status":"stopped"}"#
+            body = #"{"botId":"bot-malformed","status":"interrupted"}"#
         default:
             status = 200
-            body = #"{"botId":"bot-confirmed","status":"stopped","online":false}"#
+            body = #"{"botId":"bot-confirmed","status":"interrupted","sessionPreserved":true}"#
         }
         let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1",
                                        headerFields: ["Content-Type": "application/json"])!
