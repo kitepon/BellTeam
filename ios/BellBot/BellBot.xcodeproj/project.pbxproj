@@ -26,6 +26,7 @@
 		1EB95B06637C5D8F0CF5C98E /* ForegroundRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9B17BC6A80949A87D72E6A /* ForegroundRefreshTests.swift */; };
 		201E6D7B5656550CA640B97C /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E6703EEDB0CC8430773691 /* OnboardingView.swift */; };
 		2141CFF66BF32EF61ADE058E /* BellTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C25376F7F0FF8D3A6CCC0FF /* BellTheme.swift */; };
+		21865A6DB6A8E3D02E2392D2 /* AIControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32531494CC727C6D89D3A94F /* AIControlTests.swift */; };
 		21C4821CBBDC41B35155B78F /* SelectableText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B1EA5240E89312F64F9402 /* SelectableText.swift */; };
 		231B9DCFD395DC309055D2C8 /* MessageText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85DB5E741758089D810A8E49 /* MessageText.swift */; };
 		29BBEC95063DB1095C1879E5 /* SchedulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA28AC7BFD35A51CF55B3E60 /* SchedulesView.swift */; };
@@ -156,6 +157,7 @@
 		2B2A8FB3518CD560089CC23F /* HarnessAuthenticationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessAuthenticationView.swift; sourceTree = "<group>"; };
 		2DA4E9B64A2516F75A7E8655 /* ConversationDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationDraft.swift; sourceTree = "<group>"; };
 		2F48C4A7EAAA1CFDBE5B1F39 /* ConversationDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationDraftTests.swift; sourceTree = "<group>"; };
+		32531494CC727C6D89D3A94F /* AIControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIControlTests.swift; sourceTree = "<group>"; };
 		3261621AD9FBA22C17AA737C /* ConversationScrollUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationScrollUITests.swift; sourceTree = "<group>"; };
 		37AF152E2DF0BD72789A33E8 /* OnboardingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTests.swift; sourceTree = "<group>"; };
 		3C25376F7F0FF8D3A6CCC0FF /* BellTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellTheme.swift; sourceTree = "<group>"; };
@@ -264,6 +266,7 @@
 		295E5C10C2853D11253E5342 /* BellBotTests */ = {
 			isa = PBXGroup;
 			children = (
+				32531494CC727C6D89D3A94F /* AIControlTests.swift */,
 				CADD413E6E27FE9CD4229A66 /* AuthenticationRecoveryTests.swift */,
 				B3AB6A1FD4893701341E2055 /* AvatarImageTests.swift */,
 				FE1FA71AEBBE1E4EF674E584 /* BackgroundMessageSendTests.swift */,
@@ -687,6 +690,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				21865A6DB6A8E3D02E2392D2 /* AIControlTests.swift in Sources */,
 				054B918C93471D915124D969 /* AuthenticationRecoveryTests.swift in Sources */,
 				A0A459458B879425F7033290 /* AvatarImageTests.swift in Sources */,
 				66B5AD528D7B5A21566CD326 /* BackgroundMessageSendTests.swift in Sources */,

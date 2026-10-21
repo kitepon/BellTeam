@@ -28,6 +28,10 @@ final class AppStore: ObservableObject {
     @Published var owner: Owner?
     @Published var eventRevision = 0
     @Published var workingBotIDs: Set<String> = []
+    @Published private(set) var aiControl: AIControl?
+    @Published private(set) var aiControlLoading = false
+    @Published private(set) var aiControlUpdating = false
+    @Published private(set) var aiControlError: String?
     @Published var connectionError: String?
     private var refreshError: String?
     private var eventsError: String?
@@ -49,6 +53,9 @@ final class AppStore: ObservableObject {
     private var foregroundTask: Task<Void, Never>?
     private var scenePhase: ScenePhase = .inactive
     private var checkingLogin = false
+    private var aiControlEpoch = 0
+    private var aiControlReadSequence = 0
+    private var aiControlRefreshPending = false
 
     func draft(for target: ChatTarget) -> ConversationDraft {
         if let draft = drafts[target] { return draft }
@@ -94,6 +101,7 @@ final class AppStore: ObservableObject {
         if serverURL != url {
             botEditorDrafts.removeAll()
             pendingBotDeletionIDs.removeAll()
+            resetAIControl()
         }
         serverURL = url
         api.baseURL = url
@@ -166,6 +174,89 @@ final class AppStore: ObservableObject {
     func refreshSettings() async throws {
         let response: FeatureSettingsResponse = try await api.get("/api/settings")
         featureSettings = response.settings
+    }
+
+    func refreshAIControl() async {
+        if aiControlUpdating {
+            aiControlRefreshPending = true
+            return
+        }
+        await readAIControl()
+    }
+
+    func setAIControlPaused(_ paused: Bool) async {
+        guard !aiControlUpdating, let aiControl, aiControl.paused != paused else { return }
+        let epoch = aiControlEpoch
+        aiControlReadSequence += 1
+        aiControlLoading = false
+        aiControlUpdating = true
+        aiControlError = nil
+        do {
+            let response: AIControlResponse = try await api.patch("/api/ai-control", body: AIControlUpdate(paused: paused))
+            guard epoch == aiControlEpoch else { return }
+            self.aiControl = response.control
+        } catch let error where BellAPIError.isAuthenticationError(error) {
+            guard epoch == aiControlEpoch else { return }
+            requireLogin(for: error)
+            return
+        } catch {
+            guard epoch == aiControlEpoch else { return }
+            api.diagnostics.report(error, path: "/api/ai-control", method: "PATCH", observation: .write)
+            // PATCHを再送しない。通信断や5xx後もGETの現在値だけを表示する。
+            await readAIControl()
+            if self.aiControl != nil {
+                switch error {
+                case BellAPIError.httpStatus(503, _, _):
+                    aiControlError = "変更を保存できませんでした。現在の状態を表示しています。"
+                case BellAPIError.httpStatus(502, _, _):
+                    if self.aiControl?.state != .stopped {
+                        aiControlError = "停止を確認できませんでした。現在の状態を表示しています。"
+                    }
+                default:
+                    aiControlError = "通信後の現在の状態を読み直しました。"
+                }
+            }
+        }
+        guard epoch == aiControlEpoch else { return }
+        if aiControlRefreshPending {
+            aiControlRefreshPending = false
+            await readAIControl()
+        }
+        aiControlUpdating = false
+    }
+
+    private func readAIControl() async {
+        let epoch = aiControlEpoch
+        aiControlReadSequence += 1
+        let sequence = aiControlReadSequence
+        aiControlLoading = true
+        do {
+            let response: AIControlResponse = try await api.get("/api/ai-control")
+            guard epoch == aiControlEpoch, sequence == aiControlReadSequence else { return }
+            aiControl = response.control
+            aiControlError = nil
+        } catch let error where BellAPIError.isAuthenticationError(error) {
+            guard epoch == aiControlEpoch, sequence == aiControlReadSequence else { return }
+            aiControl = nil
+            requireLogin(for: error)
+            return
+        } catch {
+            guard epoch == aiControlEpoch, sequence == aiControlReadSequence else { return }
+            aiControl = nil
+            aiControlError = "全体停止の状態を確認できませんでした。接続を確認して再読み込みしてください。"
+            api.diagnostics.report(error, path: "/api/ai-control", method: "GET", observation: .read(error, retainedData: false))
+        }
+        aiControlLoading = false
+    }
+
+    private func resetAIControl() {
+        aiControlEpoch += 1
+        aiControlReadSequence += 1
+        aiControl = nil
+        aiControlLoading = false
+        aiControlUpdating = false
+        aiControlRefreshPending = false
+        aiControlError = nil
     }
 
     func refreshSetup() async throws { setup = try await api.get("/api/setup") }
@@ -352,6 +443,8 @@ final class AppStore: ObservableObject {
                 if Task.isCancelled { return }
                 await refreshFromView()
                 if Task.isCancelled { return }
+                await refreshAIControl()
+                if Task.isCancelled { return }
                 await billing.refreshAppleAccess()
                 if Task.isCancelled { return }
                 if scenePhase == .active, case .ready = phase {
@@ -382,6 +475,7 @@ final class AppStore: ObservableObject {
                         guard let self else { return }
                         if type == "settings" { try await self.refreshSettings() }
                         if type == "setup" { try await self.refreshSetup() }
+                        if type == "ai-control" { await self.refreshAIControl() }
                         self.eventsError = nil
                         self.updateConnectionError()
                         self.eventRevision += 1
@@ -432,6 +526,7 @@ final class AppStore: ObservableObject {
         foregroundTask?.cancel()
         foregroundTask = nil
         stopEvents()
+        resetAIControl()
         refreshError = nil
         eventsError = nil
         notificationError = nil
@@ -456,6 +551,7 @@ final class AppStore: ObservableObject {
         drafts.removeAll()
         botEditorDrafts.removeAll()
         pendingBotDeletionIDs.removeAll()
+        resetAIControl()
         notificationSecret = nil
         pendingNotification = nil
         for cookie in api.cookieStorage.cookies ?? [] { api.cookieStorage.deleteCookie(cookie) }

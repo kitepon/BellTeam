@@ -46,6 +46,7 @@ enum BellAPIError: LocalizedError {
         case .backgroundSendUnavailable: "送信に必要な実行時間を確保できませんでした。アプリを前面に戻して送信してください。"
         case .backgroundSendExpired: "背景で送信を確認できる時間が終了しました。送信済みの場合があるため、会話を確認してください。"
         case .server(let message): "BellTeam: \(message)"
+        case .httpStatus(423, "AI_GLOBAL_PAUSED", _): "BellTeamは全体停止中です。設定でOFFにしてから操作してください。"
         case .httpStatus(let status, let message, _): "BellTeam: \(message ?? "HTTP \(status)")"
         }
     }

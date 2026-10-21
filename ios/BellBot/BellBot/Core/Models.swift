@@ -181,6 +181,19 @@ struct RoomsResponse: Decodable { var rooms: [Room] }
 struct RoomResponse: Decodable { let room: Room }
 struct OwnerResponse: Decodable { var owner: Owner }
 struct QueueResponse: Decodable { let items: [QueueItem] }
+struct AIControlResponse: Decodable { let control: AIControl }
+struct AIControlUpdate: Encodable { let paused: Bool }
+
+struct AIControl: Decodable, Equatable {
+    enum State: String, Decodable { case enabled, stopping, stopped, unconfirmed }
+
+    let paused: Bool
+    let state: State
+    let updatedAt: String?
+    let unconfirmedBotIds: [String]
+    let commandsConfirmed: Bool?
+    let error: String?
+}
 struct SchedulesResponse: Decodable { let schedules: [Schedule] }
 struct ScheduleResponse: Decodable { let schedule: Schedule }
 struct SessionResponse: Decodable { let authenticated: Bool; let authMode: String }
