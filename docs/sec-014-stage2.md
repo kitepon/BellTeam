@@ -247,3 +247,30 @@ returning the old profile or online observation after deletion completes.
 The receipt's contents remain validated by listForClient. This retains the
 local registry/single-process scope; it does not introduce a distributed lock
 or prevent a previously serialized response from arriving late on the network.
+
+## Offline transfer of the global pause intent
+
+`transferAiControlState({legacyRoot, stateRoot, direction})` is an offline
+preparation component. `to-server` copies `shared/ai-control.json` below
+legacyRoot to `ai-control.json` below stateRoot. `to-legacy` copies the CURRENT
+server file back over the obsolete legacy copy. Both writers must be stopped
+for the entire operation; this component does not establish that condition.
+Never use a pre-migration backup as the rollback source.
+
+The original bytes, including paused and resumedAt, are retained. Older valid
+v1 files without resumedAt stay unchanged. A missing/invalid source fails;
+it does not create an enabled default. A different existing server file blocks
+to-server; an identical file is unchanged. Files are written through a private
+0600 temporary file, file sync, rename and destination-directory sync. Newly
+created destination directories use 0700. Source/destination file symlinks are
+rejected. Parent path replacement, concurrent writers and hardware crash
+durability are outside this offline component's acceptance.
+
+The source is retained; no key/owner/settings/project migration, source
+retirement, bootstrap path switch, backup restoration or mount is performed.
+This branch does not yet contain the new AiControl runtime. The transfer is
+not connected to supervisor startup or deployment. A compatible corrected
+runtime must read the destination path and reject new work when paused; its
+native interruption/session-preservation acceptance remains a separate
+deployment prerequisite. Other server state and the complete forward/reverse
+migration remain unfinished.
