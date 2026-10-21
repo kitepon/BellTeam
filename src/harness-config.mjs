@@ -5,7 +5,7 @@ import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { runtimeEnvironment, runtimeHome } from './runtime-home.mjs'
 import { defaultCallBridgeMcpUrl } from './distribution-profile.mjs'
-import { BELLTEAM_MCP_PATH, CALL_BRIDGE_MCP_PATH, SEAT_HEADER, SEAT_VARIABLE } from './seat-mcp.mjs'
+import { BELLTEAM_MCP_PATH, CALL_BRIDGE_MCP_PATH, SEAT_HEADER, SEAT_VARIABLE, LAUNCH_HEADER, LAUNCH_VARIABLE } from './seat-mcp.mjs'
 import { configureRtk } from './rtk-hooks.mjs'
 import { aitermRegistration, aitermRelay, configureAitermHooks } from './aiterm-hooks.mjs'
 import { configureCursorInstructions } from './cursor-instructions.mjs'
@@ -79,15 +79,15 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
     return `[mcp_servers.aiterm]\ncommand = ${JSON.stringify(server.command)}\nargs = ${JSON.stringify(server.args)}\n${env}startup_timeout_sec = 30\ntool_timeout_sec = 120\n`
   }
   // Codexは、挙げた名前が席の環境に無ければ渡さないだけなので、全部挙げる。
-  const codexMcp = `${tomlSeat(`env_http_headers = { "${SEAT_HEADER}" = "${SEAT_VARIABLE}" }`)}\n${aitermToml('codex')}env_vars = ${JSON.stringify([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS])}\n`
+  const codexMcp = `${tomlSeat(`env_http_headers = { "${SEAT_HEADER}" = "${SEAT_VARIABLE}", "${LAUNCH_HEADER}" = "${LAUNCH_VARIABLE}" }`)}\n${aitermToml('codex')}env_vars = ${JSON.stringify([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS])}\n`
   // Cursorは \${env:名前} を席の環境の値へ置き換える。環境に無い名前は置き換えず、その文字列のまま渡してしまう。
   // 受け継ぐだけの変数は、本体の環境にある時だけ挙げる。
   const cursorAitermEnv = Object.fromEntries([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS.filter(name => environment[name])]
     .map(name => [name, `\${env:${name}}`]))
-  const grokMcp = `${tomlSeat(`headers = { "${SEAT_HEADER}" = "\${${SEAT_VARIABLE}}" }`, 'enabled = true\n')}\n${aitermToml('grok')}enabled = true\n`
-  const claudeMcp = { ...jsonSeat(url => ({ type: 'http', url, headers: { [SEAT_HEADER]: `\${${SEAT_VARIABLE}}` } })), aiterm: aitermFor('claude') }
+  const grokMcp = `${tomlSeat(`headers = { "${SEAT_HEADER}" = "\${${SEAT_VARIABLE}}", "${LAUNCH_HEADER}" = "\${${LAUNCH_VARIABLE}}" }`, 'enabled = true\n')}\n${aitermToml('grok')}enabled = true\n`
+  const claudeMcp = { ...jsonSeat(url => ({ type: 'http', url, headers: { [SEAT_HEADER]: `\${${SEAT_VARIABLE}}`, [LAUNCH_HEADER]: `\${${LAUNCH_VARIABLE}}` } })), aiterm: aitermFor('claude') }
   const cursorAiterm = aitermFor('cursor')
-  const cursorMcp = { ...jsonSeat(url => ({ url, headers: { [SEAT_HEADER]: `\${env:${SEAT_VARIABLE}}` } })), aiterm: { ...cursorAiterm, env: { ...cursorAitermEnv, ...cursorAiterm.env } } }
+  const cursorMcp = { ...jsonSeat(url => ({ url, headers: { [SEAT_HEADER]: `\${env:${SEAT_VARIABLE}}`, [LAUNCH_HEADER]: `\${env:${LAUNCH_VARIABLE}}` } })), aiterm: { ...cursorAiterm, env: { ...cursorAitermEnv, ...cursorAiterm.env } } }
   // Codexのアカウントに入っているプラグインは、席ごとにMCPを起こす。
   // build-ios-apps の `npx xcodebuildmcp` はXcodeの無い環境では使えない。
   // openai-developers の `openai-api-key-local-confirmation` はAPIキー設定の確認フォームで、人のいない席では答えられない。

@@ -9,6 +9,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
+import { returnedExecutionError, ERROR_META } from './execution-bridge.mjs'
 
 const HARNESS = new Map([
   ['claude', 'claude-code'],
@@ -98,7 +99,7 @@ export class AitermClient {
       const launcher = new AitermClient({ command: this.command, env })
       try {
         const env_vars = Object.keys(env).filter(key => runtimeEnvironmentKeys.includes(key) || env[key] !== process.env[key])
-        return await launcher.call(name, { ...args, env_vars })
+        return await launcher.call(name, { ...args, env_vars }, { meta })
       } finally {
         await launcher.close()
       }
@@ -110,6 +111,8 @@ export class AitermClient {
       const error = new Error(message)
       // tool handlerがエラー結果を返し終えた事と、RPC timeout/通信断で結果が不明な事を区別する。
       error.aitermResponseReturned = true
+      const executionError = returnedExecutionError(result._meta?.[ERROR_META])
+      if (executionError) error.executionError = executionError
       // 起動の準備が終わらなかった時、Aitermは作った端末の名前と止まった理由を構造で返す（aiterm.agent-launch-result.v1）。
       if (name === 'agent_launch' && result.structuredContent?.schema === 'aiterm.agent-launch-result.v1')
         error.launch = result.structuredContent
@@ -387,7 +390,8 @@ export class AitermTransport {
     }
     pending.then(clear, error => {
       // RPCのrejectは遠隔の変更を取り消さない。後から旧closeが届き得る同名の席を自動で再利用しない。
-      if (error?.aitermResponseReturned !== true && error?.launch?.schema !== 'aiterm.agent-launch-result.v1')
+      if ((error?.aitermResponseReturned !== true && error?.launch?.schema !== 'aiterm.agent-launch-result.v1')
+        || error?.executionError?.effect === 'possible')
         this.uncertainChanges.set(bot.id, name)
       clear()
     })
@@ -507,8 +511,8 @@ export class AitermTransport {
 
   // 通知で始まったターンの最後の回答は誰にも配送しない。onAnswerがあれば、そのBotの会話画面へ出すために渡す。
   // onTurnEndは、差し込みではなく新しく始まったターンが終わった時だけ、その時間の幅を渡して呼ぶ。
-  async notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null } = {}) {
-    const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd })
+  async notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource } = {}) {
+    const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource })
     completion.catch(error => process.stderr.write(`BellTeam Aiterm delivery error: ${error.stack ?? error.message}\n`))
     return completion.accepted
   }
@@ -522,8 +526,8 @@ export class AitermTransport {
     return this.wake(bot)
   }
 
-  submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {} } = {}) {
-    const job = { id: this.activeId(), bot, controller: new AbortController(), info: { ...info, message: info.message ?? message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}) }, startedAt: this.now() }
+  submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource } = {}) {
+    const job = { id: this.activeId(), bot, controller: new AbortController(), executionSource: executionSource ? structuredClone(executionSource) : null, info: { ...info, message: info.message ?? message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}) }, startedAt: this.now() }
     this.jobs.add(job)
     const check = () => {
       if (job.stopRequested) throw stoppedError()

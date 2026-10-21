@@ -174,6 +174,7 @@ const internalPort = Number(process.env.BELLTEAM_INTERNAL_PORT ?? 4181)
 const callBridgeHeaders = join(root, 'shared/tools/call-bridge/headers')
 const seatMcp = createSeatMcp({
   bots,
+  toolsForSource: executionSource => internalApi(internalPort, fetch, { executionSource }),
   admitWork: () => aiControl.admit(),
   assertWorkAllowed: () => aiControl.assertEnabled(),
   tools: { registry: bots, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },

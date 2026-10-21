@@ -25,3 +25,13 @@ ON中の送信・起動・手動予定実行・再起動は423 `AI_GLOBAL_PAUSED
 コマンド予定は環境設定の読取と本文を同じprocess groupで実行し、取消時にTERM、必要ならKILL、group消失まで確認する。切り離されたprocess・既に終わった外部操作の取消まで保証しない。Windowsでgroup全体を確認できない場合は未確認とする。登録メンバーからAitermで呼び出した子孫の停止は、別途連鎖停止契約を接続して受け入れる必要がある。
 
 開発検証は合成クライアント・合成プロセスとブラウザfixtureだけで行い、本番のメンバーや全体停止は操作しない。
+
+## 連鎖停止の隔離接続部品
+
+`execution-bridge.mjs`はAitermのローカルwire v1に対する登録・状態照会・終了証拠・root照会・停止のadapter。既存delivery ID、room message IDと実配送先、call event/seq（欠測時は既存delivery ID）を使い、新しいIDや本文queueを作らない。関係の寿命、世代検証、終了fence、退役、実際の閉鎖はAitermが持つ。
+
+`agent_execution`で先に登録した同じ参照をlaunch/sendの`_meta["aiterm/execution"]`へ渡す。成功した作用に追跡の結合失敗が付いても元のreceiptとsteer/interim情報を保持し、再送しない。結果不明のまま次の作用へ進まず、明示的な状態照会だけを可能にする。終了証拠は対応するPoint/Launchを渡し、局所doneやqueue消失だけでbranchを退役させない。親の席が無い場合も`agent_execution_roots`で記録済みの未解決世代を読み、Bot名の全履歴から世代を推測しない。
+
+4ハーネス設定は`AITERM_AGENT_LAUNCH_ID`を`X-Bellteam-Launch-Id`へ動的に写す。受信時に席名と世代候補を固定し、内部の配送要求からjobへ渡す。モデルの道具引数からは指定させない。欠測/未展開の値はnullで、現在のjobから補完しない。これはruntime claimの輸送であり、ヘッダーだけで検証済みにするものではない。nativeの呼出境界は共通には取れないためnullを保つ。設定生成と合成MCP要求での確認を、4種類の実CLIで受信済みとは扱わない。
+
+このadapterは稼働transportへまだmountしていない。Aiterm本体への公開口・実runtime検証・全変更口の共通受付・期待世代の閉鎖adapterを接続し、停止APIと全体停止から呼ぶ統合受入が残る。call-bridgeの外部経路も、この部品だけで追跡済みとはしない。未対応の稼働版へ新しいtoolを呼んだり、旧closeへfallbackしたりしない。

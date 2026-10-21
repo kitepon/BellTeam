@@ -33,7 +33,7 @@ export class BellTeamMessenger {
   }
 
   // Botの送信（MCP）は画像1枚の `image`、ユーザーの送信は複数枚の `images` で渡す。
-  async sendmessage({ from, target, message, image = null, images = image ? [image] : [] }) {
+  async sendmessage({ from, target, message, image = null, images = image ? [image] : [], executionSource }) {
     const check = target === 'user' ? () => {} : this.admitWork()
     await this.bots.refresh?.()
     if (!['user', 'scheduler'].includes(from) && !this.bots.has(from)) throw new Error(`SENDER_NOT_FOUND: ${from}`)
@@ -60,6 +60,7 @@ export class BellTeamMessenger {
       try { check() }
       catch (error) { await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
       delivery = await this.transport.notify(bot, directEnvelope(memberIdentity(this.bots, from), message), {
+        ...(executionSource ? { executionSource } : {}),
         images,
         queue: {
           context: 'direct', contextId: bot.id, groupId: deliveryId,

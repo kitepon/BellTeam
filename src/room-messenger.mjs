@@ -39,7 +39,7 @@ export class RoomMessenger {
   }
 
   // Botの発言（MCP）は画像1枚の `image`、ユーザーの発言は複数枚の `images` で渡す。
-  async sendRoomMessageInOrder({ from, room: roomId, message, image = null, images = image ? [image] : [], targets = null, kind = 'message', schedule = null, responseTo = null }, check = () => {}) {
+  async sendRoomMessageInOrder({ from, room: roomId, message, image = null, images = image ? [image] : [], targets = null, kind = 'message', schedule = null, responseTo = null, executionSource }, check = () => {}) {
     check()
     await Promise.all([this.rooms.refresh?.(), this.bots.refresh?.()])
     const room = this.rooms.get(roomId)
@@ -108,6 +108,7 @@ export class RoomMessenger {
     try { check() } catch (error) { await failedRouting(error); throw error }
     const deliveries = await Promise.allSettled(deliveryTargets.map(id => this.transport.notify(
       this.bots.get(id), roomEnvelope(record, { silent: !responders.includes(id) }), {
+        ...(executionSource ? { executionSource } : {}),
         images,
         queue: {
           context: 'room', contextId: room.id, groupId: record.id,
