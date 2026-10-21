@@ -10,7 +10,9 @@
 
 受理receipt/doneの後着を保持し、中断が未確認なら通常観測を続ける。キーの結果不明だけでは同launchの新依頼を永久禁止しない。従来からの未確定close/configure等の欠測は別に保持する。新呼出や旧parent returnの実受付fence、元run中断と同一harness/会話維持の実証拠はAiterm側の残工程であり、Bridgeだけで補わない。
 
-supervisorはcreateManagedTransportで、配送と中断を同じAitermClient/ExecutionBridgeへ接続する。通常18入口のAitermだけではcontrolsを提供しないため、Aiterm側の正規native実行入口と、実4CLIでの中断・会話維持の受入は残る。本番反映とApple配布も未実施。合成接続を実中断の受入へ付け替えない。次の本体/審査用/段2配備は新方式の受入後だけとする。
+supervisorはcreateManagedTransportで、配送と中断を同じAitermClient/ExecutionBridgeへ接続する。bootstrapがAiterm自身からscopeを読み、`execution-native-server.js --execution-interrupt --state-root … --socket … --steer-provider …`の登録をsupervisorと4CLIで共用する。通常18ツールの入口は停止を提供しない。native親hookも同じ登録をAitermのsetupへ渡し、旧hookへ変換しない。native wakeが未接続の間は旧lazy wakeへ戻さず直結する。
+
+Aiterm候補d4f51efとSteer候補7a8bd27を隔離rootで起動し、本体のAitermClientからstdio接続して通常18＋停止等3ツールを読むところまで確認した。これはCLIを起動・中断する試験ではない。Aiterm native hook登録、中断後の同会話への次入力と実4CLIでの受入、依存配布物の更新は残る。本番反映とApple配布も未実施。次の本体/審査用/段2配備は新方式の受入後だけとする。
 
 ## 個別停止API
 

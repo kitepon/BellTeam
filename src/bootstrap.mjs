@@ -11,17 +11,21 @@ import { UserRules } from './user-rules.mjs'
 import { runtimeHome } from './runtime-home.mjs'
 import { FeatureSettings } from './feature-settings.mjs'
 import { defaultCallBridgeMcpUrl } from './distribution-profile.mjs'
+import { aitermExecutionRegistration } from './aiterm-hooks.mjs'
 
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const home = runtimeHome()
 const root = process.env.BELLTEAM_ROOT ?? '/srv/bellteam'
 const configPath = process.env.BELLTEAM_BOTS_CONFIG ?? join(appRoot, 'config/bots.json')
+// Supervisorと4CLIは同じnative入口を使う。通常18ツールの入口では停止を提供できない。
+// 登録の読取失敗を通常入口へのfallbackで隠さず、起動時に返す。
+export const aiterm = await aitermExecutionRegistration()
 export const settings = new FeatureSettings({ root, environment: {
   ...process.env,
   BELLTEAM_CALL_BRIDGE_MCP_URL: process.env.BELLTEAM_CALL_BRIDGE_MCP_URL || defaultCallBridgeMcpUrl || '',
 } })
 await settings.initialize()
-const configure = bots => configureHarnesses(bots, home, { callBridge: settings.configuration('callBridge') })
+const configure = bots => configureHarnesses(bots, home, { aiterm: async () => aiterm, callBridge: settings.configuration('callBridge') })
 
 export const ownerProfile = new OwnerProfile({ root })
 await ownerProfile.initialize()

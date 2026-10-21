@@ -3,11 +3,11 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mkdir, writeFile } from 'node:fs/promises'
 
-import { bots, ownerProfile, refreshGlobalInstructions, settings, userRules } from './bootstrap.mjs'
+import { aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules } from './bootstrap.mjs'
 import { CharacterSheets } from './character-sheets.mjs'
 import { createBugHubSecurity } from './bughub-security.mjs'
 import { createCallBridgeServer, listenCallBridge } from './call-bridge-server.mjs'
-import { createManagedTransport } from './aiterm-transport.mjs'
+import { AitermClient, createManagedTransport } from './aiterm-transport.mjs'
 import { AiControl, stopRegisteredWork } from './ai-control.mjs'
 import { ConversationStore } from './conversation-store.mjs'
 import { Diagnostics, createDiagnosticsAdminServer } from './diagnostics.mjs'
@@ -60,6 +60,7 @@ const aiControl = new AiControl({
 })
 await aiControl.initialize()
 const transport = createManagedTransport({
+  client: new AitermClient(aiterm),
   assertWorkAllowed: () => aiControl.assertEnabled(),
   prepareStartup: async (bot, shortTermMemory) => {
     await bots.prepareStartupContext(bot.id, shortTermMemory)
@@ -206,7 +207,7 @@ const configureCalls = async config => {
     await writeFile(callBridgeHeaders, `Authorization: Bearer ${config.token}\n`, { mode: 0o600 })
     if (callBridgeSocket) closeCallBridge = await listenCallBridge(createCallBridgeServer({ bots, messenger }), callBridgeSocket)
   }
-  await writeHarnessConfig(bots, runtimeHome(), { callBridge: config })
+  await writeHarnessConfig(bots, runtimeHome(), { aiterm: async () => aiterm, callBridge: config })
 }
 for (const [id, apply] of [['diagnostics', configureDiagnostics], ['callBridge', configureCalls], ['notifications', value => notifications.configure(value)]]) {
   try { await apply(settings.configuration(id)) }

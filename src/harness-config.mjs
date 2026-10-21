@@ -13,8 +13,9 @@ import { configureCursorInstructions } from './cursor-instructions.mjs'
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const execFileAsync = promisify(execFile)
 
-export async function configureHarnesses(bots, home = runtimeHome(), { run = execFileAsync, rtk = configureRtk, aitermHooks = configureAitermHooks, cursorInstructions = configureCursorInstructions, callBridge, report = message => process.stderr.write(`${message}\n`) } = {}) {
-  await writeHarnessConfig(bots, home, { callBridge })
+export async function configureHarnesses(bots, home = runtimeHome(), { run = execFileAsync, rtk = configureRtk, aitermHooks = configureAitermHooks, aiterm = aitermRegistration, cursorInstructions = configureCursorInstructions, callBridge, report = message => process.stderr.write(`${message}\n`) } = {}) {
+  const registration = await aiterm().catch(() => null)
+  await writeHarnessConfig(bots, home, { callBridge, aiterm: async () => registration })
   await run('throughline', ['install'], { env: runtimeEnvironment(process.env, home) })
   // Cursor CLIは ~/.cursor/AGENTS.md を読まないので、起動時指示はsessionStartのhookで渡す。
   try {
@@ -30,7 +31,7 @@ export async function configureHarnesses(bots, home = runtimeHome(), { run = exe
   }
   // AitermのMCPはBellTeamが登録するので、親配送のhookも同じ場所で登録する。登録できなくてもBotは動かし、理由を記録する。
   try {
-    const { codex } = await aitermHooks(home) ?? {}
+    const { codex } = await aitermHooks(home, registration ? { registration } : {}) ?? {}
     // 席が動いている間に初めて登録した時は restart_required になる（その席は起き直すまで、番の途中の配送を受けない）。
     if (codex && codex.status !== 'ready')
       report(`BellTeam Aiterm: Codexの親配送hookは ${codex.status}${codex.reason_code ? `（${codex.reason_code}）` : ''}`)
@@ -74,7 +75,9 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
   // Aitermの本体は `aiterm-setup` が書くものと同じ形（nodeの絶対path＋index.js）で起こす。同梱のaiterm-mcpを読めない環境では、PATH上の aiterm-mcp を起動先にする。
   // 中継（mcp-lazy）がある環境では、その本体を中継ごしに登録する。本体は席がAitermの道具を呼ぶまで起きない。
   const bundledAiterm = await aiterm().catch(() => null)
-  const relayPath = bundledAiterm ? await relay() : null
+  // 旧wakeは通常profileのworkerを起こす。nativeの親配送も同じscopeへ接続するまで、
+  // native入口は直結し、通常入口のcache/wakeへ置き換えない。
+  const relayPath = bundledAiterm && !bundledAiterm.args.includes('--execution-interrupt') ? await relay() : null
   const aitermFor = harness => relayPath ? relayedAiterm(relayPath, bundledAiterm, harness, home) : bundledAiterm ?? { command: 'aiterm-mcp', args: [] }
   const aitermToml = harness => {
     const server = aitermFor(harness)

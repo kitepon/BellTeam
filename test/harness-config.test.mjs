@@ -6,6 +6,28 @@ import test from 'node:test'
 
 import { configureHarnesses, writeHarnessConfig } from '../src/harness-config.mjs'
 
+test('四つのCLIと親hookへ同一native登録を渡し旧lazy wakeを起こさない', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'bellteam-native-registration-'))
+  const registration = { command: '/candidate/node', args: ['/candidate/dist/execution-native-server.js',
+    '--execution-interrupt', '--state-root', '/isolated/state', '--socket', '/isolated/tmux.sock', '--steer-provider', '/candidate/steer/index.js'] }
+  let hookRegistration
+  await configureHarnesses(new Map(), home, {
+    aiterm: async () => registration,
+    run: async () => {}, rtk: async () => {}, cursorInstructions: async () => {},
+    aitermHooks: async (_, options) => { hookRegistration = options.registration },
+  })
+  assert.deepEqual(hookRegistration, registration)
+  assert.deepEqual(JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).mcpServers.aiterm, registration)
+  const cursor = JSON.parse(await readFile(join(home, '.cursor/mcp.json'), 'utf8')).mcpServers.aiterm
+  assert.deepEqual(cursor.args.slice(1), [registration.command, ...registration.args])
+  for (const file of ['.codex/config.toml', '.grok/config.toml']) {
+    const config = await readFile(join(home, file), 'utf8')
+    assert.ok(config.includes(`command = ${JSON.stringify(registration.command)}`))
+    assert.ok(config.includes(`args = ${JSON.stringify(registration.args)}`))
+    assert.doesNotMatch(config, /MCP_LAZY_WAKE/)
+  }
+})
+
 test('通話OFFでは四つのCLIから管理登録を外し、他のMCPを保持する', async () => {
   const home = await mkdtemp(join(tmpdir(), 'bellteam-call-disabled-'))
   const bots = new Map()
