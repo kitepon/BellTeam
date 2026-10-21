@@ -86,11 +86,19 @@ export function interruptExecutions(transport, bots) {
     const reads = new Map(), expected = new Map()
     const legacyGaps = new Set(transport.uncertainChanges.keys())
     const gapSessions = new Map([...legacyGaps].map(id => [id,
-      transport.sessions.get(id) ?? jobs.find(job => job.bot.id === id)?.bot.session ?? roots.find(bot => bot.id === id)?.session ?? id]))
-    for (const [id, pending] of transport.sessionChanges) {
-      const unbound = [...pending].find(value => !value.executionBound)
-      if (unbound) { legacyGaps.add(id); gapSessions.set(id, unbound.executionSession ?? transport.sessions.get(id) ?? id) }
+      transport.stopSessions.get(id) ?? transport.sessions.get(id) ?? jobs.find(job => job.bot.id === id)?.bot.session ?? roots.find(bot => bot.id === id)?.session ?? id]))
+    const captureLegacy = () => {
+      for (const id of transport.uncertainChanges.keys()) {
+        legacyGaps.add(id)
+        if (!gapSessions.has(id)) gapSessions.set(id, transport.stopSessions.get(id) ?? transport.sessions.get(id)
+          ?? jobs.find(job => job.bot.id === id)?.bot.session ?? roots.find(bot => bot.id === id)?.session ?? id)
+      }
+      for (const [id, pending] of transport.sessionChanges) {
+        const unbound = [...pending].find(value => !value.executionBound && value.executionIssued !== false)
+        if (unbound) { legacyGaps.add(id); gapSessions.set(id, unbound.executionSession ?? transport.sessions.get(id) ?? id) }
+      }
     }
+    captureLegacy()
     try {
       // Dispatch promises include queues/preflight, not just native issuance.
       // Send stop first; Aiterm cancels preparing and drains actual issuance.
@@ -102,9 +110,16 @@ export function interruptExecutions(transport, bots) {
         } catch { reads.set(bot.id, null) }
       }
       const result = expected.size ? await transport.executionBridge.stop([...expected.values()]) : null
-      const affectedLegacy = [...legacyGaps].filter(id => rootIds.has(id)
-        || result?.targets.some(target => target.launch.session_id === gapSessions.get(id)))
-      for (const id of affectedLegacy) transport.uncertainChanges.set(id, 'legacy_change_pending')
+      captureLegacy()
+      // Idle restart/configuration preparations are not jobs. Invalidate their
+      // captured version too when the stop reaches that exact session slot.
+      const reachedBots = new Set()
+      for (const [id, session] of transport.stopSessions) if (result?.targets.some(target => target.launch.session_id === session)) {
+        reachedBots.add(id)
+        if (!rootIds.has(id)) transport.stopVersions.set(id, (transport.stopVersions.get(id) ?? 0) + 1)
+        if (result.targets.some(target => target.launch.session_id === session && target.outcome === 'unknown'))
+          transport.uncertainChanges.set(id, 'agent_stop')
+      }
       for (const target of result?.targets ?? []) if (target.outcome === 'unknown') {
         for (const bot of [...roots, ...jobs.map(job => job.bot)])
           if (transport.session(bot) === target.launch.session_id) transport.uncertainChanges.set(bot.id, 'agent_stop')
@@ -124,10 +139,14 @@ export function interruptExecutions(transport, bots) {
         }
       }
       for (const botId of confirmedBots) {
-        if (!rootIds.has(botId)) transport.stopVersions.set(botId, (transport.stopVersions.get(botId) ?? 0) + 1)
+        if (!rootIds.has(botId) && !reachedBots.has(botId)) transport.stopVersions.set(botId, (transport.stopVersions.get(botId) ?? 0) + 1)
         transport.watches.get(botId)?.end()
         await transport.removeRetainedImages(botId)
       }
+      captureLegacy()
+      const affectedLegacy = [...legacyGaps].filter(id => rootIds.has(id)
+        || result?.targets.some(target => target.launch.session_id === gapSessions.get(id)))
+      for (const id of affectedLegacy) transport.uncertainChanges.set(id, 'legacy_change_pending')
       const unconfirmedBotIds = roots.filter(bot => {
         const read = reads.get(bot.id)
         // A read may lack a run boundary that the subsequent confirmed closure
@@ -148,6 +167,7 @@ export function interruptExecutions(transport, bots) {
       for (const job of jobs) if (!job.stopped && job.receipt) job.stopRequested = false
     }
   })
+  closing.rootIds = rootIds
   transport.executionStopping = closing
   for (const job of jobs) if (rootIds.has(job.bot.id)) { job.stopRequested = true; job.interruption = closing }
   const clear = () => {

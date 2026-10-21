@@ -175,6 +175,7 @@ export class AitermTransport {
     this.jobs = new Set()
     this.interruptions = new Map()
     this.stopVersions = new Map()
+    this.stopSessions = new Map()
     this.waking = new Map()
     this.sessionChanges = new Map()
     this.uncertainChanges = new Map()
@@ -211,8 +212,8 @@ export class AitermTransport {
   async ensure(bot) {
     this.assertWorkAllowed()
     this.requireSessionKnown(bot.id)
-    const version = this.stopVersions.get(bot.id)
-    await this.executionStopping?.catch(() => {})
+    const version = this.captureStopVersion(bot)
+    if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
     await this.interruptions.get(bot.id)
     this.requireStopVersion(bot.id, version)
     const running = await this.isRunning(bot)
@@ -232,7 +233,8 @@ export class AitermTransport {
   }
 
   async wakeNow(bot, { setupTest = false, execution = null } = {}) {
-    const version = this.stopVersions.get(bot.id)
+    const version = this.captureStopVersion(bot)
+    if (this.executionBridge && !execution) await this.awaitUnboundAdmission(bot, version)
     await this.requireAccess({ setupTest, botId: bot.id })
     await mkdir(bot.project, { recursive: true })
     const harness = HARNESS.get(bot.harness)
@@ -288,7 +290,8 @@ export class AitermTransport {
   async restart(bot) {
     this.assertWorkAllowed()
     this.requireSessionKnown(bot.id)
-    const version = this.stopVersions.get(bot.id)
+    const version = this.captureStopVersion(bot)
+    if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
     await this.interruptions.get(bot.id)
     await this.idle(bot.id)
     this.requireStopVersion(bot.id, version)
@@ -299,7 +302,8 @@ export class AitermTransport {
   async reconfigure(current, next) {
     this.assertWorkAllowed()
     this.requireSessionKnown(current.id)
-    const version = this.stopVersions.get(current.id)
+    const version = this.captureStopVersion(current)
+    if (this.executionBridge) await this.awaitUnboundAdmission(current, version)
     await this.interruptions.get(current.id)
     await this.requireAccess({ setupTest: false, botId: next.id })
     await this.idle(current.id)
@@ -320,7 +324,8 @@ export class AitermTransport {
     return { botId: next.id, session: this.session(next), mode: 'configure' }
   }
 
-  async stop(bot, version = this.stopVersions.get(bot.id)) {
+  async stop(bot, version = this.captureStopVersion(bot)) {
+    if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
     await this.idle(bot.id)
     this.requireStopVersion(bot.id, version)
     const result = await this.changeSession(bot, 'pty_close', { session_id: this.session(bot) })
@@ -391,12 +396,46 @@ export class AitermTransport {
   }
 
   // session_idだけに作用する変更の発行と返却を追う。応答待ちのcloseを残したまま同じ席を起こさない。
+  captureStopVersion(bot) {
+    if (this.executionBridge) this.stopSessions.set(bot.id, this.session(bot))
+    return this.stopVersions.get(bot.id)
+  }
+
+  async awaitUnboundAdmission(bot, version, barrier = this.executionStopping) {
+    while (barrier) {
+      let result
+      try { result = await barrier } catch (cause) {
+        throw Object.assign(new Error('停止結果が未確認のため変更できません。', { cause }), { code: 'BOT_STOP_UNCONFIRMED', effect: 'not_started' })
+      }
+      if (barrier.rootIds?.has(bot.id) || result?.cascade?.targets.some(value => value.launch.session_id === this.session(bot)))
+        throw Object.assign(stoppedError(), { effect: 'not_started' })
+      barrier = this.executionStopping !== barrier ? this.executionStopping : null
+    }
+    if (this.stopVersions.get(bot.id) !== version) throw Object.assign(stoppedError(), { effect: 'not_started' })
+    this.requireSessionKnown(bot.id)
+  }
+
   changeSession(bot, name, args, options) {
     if (name !== 'pty_close') this.assertWorkAllowed()
     this.requireSessionKnown(bot.id)
     const { execution, ...clientOptions } = options ?? {}
-    const pending = Promise.resolve(execution ? execution.invoke(name, args, clientOptions) : this.client.call(name, args, options))
+    const version = this.captureStopVersion(bot), barrier = this.executionStopping
+    let issued = false
+    const invoke = () => {
+      if (name !== 'pty_close') this.assertWorkAllowed()
+      issued = true
+      return execution ? execution.invoke(name, args, clientOptions) : this.client.call(name, args, options)
+    }
+    const pending = this.executionBridge && !execution ? (async () => {
+      await this.awaitUnboundAdmission(bot, version, barrier)
+      // A new stop can start between async admission and this continuation.
+      while (this.executionStopping) await this.awaitUnboundAdmission(bot, version)
+      if (this.stopVersions.get(bot.id) !== version) throw Object.assign(stoppedError(), { effect: 'not_started' })
+      this.requireSessionKnown(bot.id)
+      return invoke()
+    })() : Promise.resolve(invoke())
     pending.executionBound = Boolean(execution)
+    Object.defineProperty(pending, 'executionIssued', { get: () => issued })
     pending.executionSession = args.session_id ?? args.session_name
     const changes = this.sessionChanges.get(bot.id) ?? new Set()
     changes.add(pending)
@@ -407,8 +446,8 @@ export class AitermTransport {
     }
     pending.then(clear, error => {
       // RPCのrejectは遠隔の変更を取り消さない。後から旧closeが届き得る同名の席を自動で再利用しない。
-      if ((error?.effect !== 'not_started' && error?.aitermResponseReturned !== true && error?.launch?.schema !== 'aiterm.agent-launch-result.v1')
-        || error?.executionError?.effect === 'possible')
+      if (issued && ((error?.effect !== 'not_started' && error?.aitermResponseReturned !== true && error?.launch?.schema !== 'aiterm.agent-launch-result.v1')
+        || error?.executionError?.effect === 'possible'))
         this.uncertainChanges.set(bot.id, name)
       clear()
     })
@@ -447,8 +486,12 @@ export class AitermTransport {
   }
 
   stopForConfiguration(bot) {
-    const version = this.stopVersions.get(bot.id)
-    const run = () => this.stop(bot, version)
+    const version = this.captureStopVersion(bot)
+    const barrier = this.executionStopping
+    const run = async () => {
+      if (this.executionBridge) await this.awaitUnboundAdmission(bot, version, barrier)
+      return this.stop(bot, version)
+    }
     const previous = this.configurationChanges.get(bot.id) ?? Promise.resolve()
     const pending = previous.then(run, run)
     this.configurationChanges.set(bot.id, pending)

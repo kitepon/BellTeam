@@ -218,3 +218,93 @@ test('停止RPCの作用不明は同名再利用を抑止し、受理済みの�
   assert.deepEqual(await a.completion, { delivery: 'delivered' })
   assert.equal(f.calls.filter(call => call.action === 'pty_send').length, 1)
 })
+
+test('roots読取後の連鎖停止中に来た未結合変更は発行せず、対象の変更を取消す', async t => {
+  const operations = {
+    restart: f => f.transport.restart(f.bots[0]),
+    reconfigure: f => f.transport.reconfigure(f.bots[0], { ...f.bots[0], model: 'synthetic-next' }),
+    configurationClose: f => f.transport.stopForConfiguration(f.bots[0]),
+    idleClose: f => f.transport.closeIdle(f.bots[0]),
+    directLaunch: f => f.transport.changeSession(f.bots[0], 'agent_launch', { session_name: f.bots[0].session }),
+  }
+  for (const [name, operation] of Object.entries(operations)) await t.test(name, { timeout: 2000 }, async t => {
+    const f = await fixture(t), entered = deferred(), release = deferred()
+    f.onStop(async () => { entered.resolve(); await release.promise })
+    const stopped = f.transport.interrupt(f.bots[0])
+    await entered.promise
+    const change = operation(f).catch(error => error)
+    await tick()
+    assert.equal(f.calls.some(call => call.action.startsWith('raw:') && call.action !== 'raw:pty_observe'), false)
+    release.resolve()
+    assert.equal((await stopped).status, 'stopped', 'unissued changes must not create legacy pending gaps')
+    assert.equal((await change).code, 'BOT_STOPPED')
+    assert.equal(f.transport.uncertainChanges.has(f.bots[0].id), false)
+  })
+})
+
+test('連鎖で到達したidle席への設定変更も、root以外だからと停止中に発行しない', { timeout: 2000 }, async t => {
+  const f = await fixture(t), entered = deferred(), release = deferred()
+  f.onStop(async () => { entered.resolve(); await release.promise })
+  const stopped = f.transport.interrupt(f.bots[0])
+  await entered.promise
+  const change = f.transport.reconfigure(f.bots[1], { ...f.bots[1], model: 'synthetic-next' }).catch(error => error)
+  await tick(); release.resolve()
+  assert.equal((await stopped).status, 'stopped')
+  assert.equal((await change).code, 'BOT_STOPPED')
+  assert.equal(f.calls.some(call => call.action === 'raw:agent_configure'), false)
+})
+
+test('無関係な席の新しい設定変更は停止を待たせず、停止終了後に一度だけ発行する', { timeout: 2000 }, async t => {
+  const f = await fixture(t), entered = deferred(), release = deferred()
+  const original = f.transport.client.call.bind(f.transport.client)
+  f.transport.client.call = async (name, args, options) => {
+    if (name !== 'agent_configure') return original(name, args, options)
+    f.calls.push({ action: 'raw:agent_configure', args })
+    return { structuredContent: {} }
+  }
+  f.onStop(async () => { entered.resolve(); await release.promise })
+  const stopped = f.transport.interrupt(f.bots[0])
+  await entered.promise
+  const change = f.transport.reconfigure(f.bots[2], { ...f.bots[2], model: 'synthetic-next' })
+  await tick()
+  assert.equal(f.calls.some(call => call.action === 'raw:agent_configure'), false)
+  release.resolve()
+  assert.equal((await stopped).status, 'stopped')
+  assert.equal((await change).mode, 'configure')
+  assert.equal(f.calls.filter(call => call.action === 'raw:agent_configure').length, 1)
+})
+
+test('停止前に受け付けた再起動は、準備が後着しても依頼時versionを保持して取消す', { timeout: 2000 }, async t => {
+  const f = await fixture(t), entered = deferred(), release = deferred()
+  f.transport.requireAccess = async () => { entered.resolve(); await release.promise }
+  const change = f.transport.restart(f.bots[0]).catch(error => error)
+  await entered.promise
+  assert.equal((await f.transport.interrupt(f.bots[0])).status, 'stopped')
+  release.resolve()
+  assert.equal((await change).code, 'BOT_STOPPED')
+  assert.equal(f.calls.some(call => call.action === 'raw:pty_close'), false)
+})
+
+test('job整理のawait中に判明した旧変更の作用不明も、返却直前に再照合して保持する', { timeout: 2000 }, async t => {
+  const f = await fixture(t), entered = deferred(), release = deferred()
+  const a = f.start(f.bots[0], 'a'); await a.completion.accepted; await tick()
+  f.records[0].finish = async () => { entered.resolve(); await release.promise }
+  const stopped = f.transport.interrupt(f.bots[0]).catch(error => error)
+  await entered.promise
+  f.transport.uncertainChanges.set(f.bots[0].id, 'synthetic-late-rpc-timeout')
+  release.resolve()
+  assert.equal((await stopped).code, 'BOT_STOP_UNCONFIRMED')
+  await assert.rejects(f.transport.ensure(f.bots[0]), { code: 'BOT_SESSION_UNCONFIRMED' })
+  assert.equal((await a.result).code, 'BOT_STOPPED')
+})
+
+test('jobを持たない連鎖先も、停止前の設定準備のversionを進めて後着変更を取消す', { timeout: 2000 }, async t => {
+  const f = await fixture(t), entered = deferred(), release = deferred()
+  f.transport.requireAccess = async () => { entered.resolve(); await release.promise }
+  const change = f.transport.reconfigure(f.bots[1], { ...f.bots[1], model: 'synthetic-next' }).catch(error => error)
+  await entered.promise
+  assert.equal((await f.transport.interrupt(f.bots[0])).status, 'stopped')
+  release.resolve()
+  assert.equal((await change).code, 'BOT_STOPPED')
+  assert.equal(f.calls.some(call => call.action === 'raw:agent_configure'), false)
+})
