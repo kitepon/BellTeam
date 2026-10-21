@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { loadBotEnvironment } from './bot-environment.mjs'
+import { createSeatProcessRunner } from './seat-process.mjs'
 
 import { completedThroughlineTurns, NIGHTLY_RESTART_TURNS } from './aiterm-transport.mjs'
 
@@ -147,7 +148,13 @@ export function tokyoMaintenanceDate(now) {
   return `${values.year}-${values.month}-${values.day}`
 }
 
-export async function runShellCommand({ command, cwd }) {
+export async function runShellCommand({ command, cwd }, options = {}) {
+  if (Object.hasOwn(options, 'seatProject')) {
+    if (options.seatProject !== cwd) throw Object.assign(new Error('SEAT_PROJECT_MISMATCH'), { code: 'SEAT_PROJECT_MISMATCH' })
+    return createSeatProcessRunner(options.seatProject)('sh', ['-c', command], {
+      signal: options.signal, acceptNonzero: true,
+    })
+  }
   const env = await loadBotEnvironment(cwd)
   return new Promise((resolve, reject) => {
     const child = spawn('sh', ['-c', command], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] })

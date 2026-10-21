@@ -2,7 +2,9 @@ import { execFile, spawn } from 'node:child_process'
 import { access, mkdir, open, realpath, rm, rmdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { fileURLToPath } from 'node:url'
 import { runtimeEnvironment } from './runtime-home.mjs'
+import { createSeatProcessRunner } from './seat-process.mjs'
 
 const exec = promisify(execFile)
 const root = process.env.BELLTEAM_ROOT ?? '/srv/bellteam'
@@ -65,10 +67,26 @@ export async function loadBotEnvironment(project, inherited = process.env, { run
 
 // コンテナ起動ごとに一度、順番に復元する。aptなどの共有インストーラを並走させない。
 // 一席の失敗で全員の会話を止めない。本人がログを読んで修正し、同じスクリプトを手動実行する。
-export async function restoreBotEnvironments(bots, { report = message => process.stderr.write(`${message}\n`) } = {}) {
+export async function restoreBotEnvironments(bots, { report = message => process.stderr.write(`${message}\n`), seatCommands = false } = {}) {
+  if (typeof seatCommands !== 'boolean') throw Object.assign(new Error('SEAT_COMMAND_MODE_INVALID'), { code: 'SEAT_COMMAND_MODE_INVALID' })
   const results = []
   for (const bot of bots.values()) {
     const directory = join(bot.project, 'environment')
+    if (seatCommands) {
+      let result
+      try {
+        const { stdout } = await createSeatProcessRunner(bot.project, { environment: 'base' })(process.execPath,
+          [fileURLToPath(new URL('./run-seat-setup.mjs', import.meta.url)), bot.project])
+        result = JSON.parse(stdout)
+        if (result.present === false) continue
+        if (result.present !== true || !(result.code === null || Number.isInteger(result.code))) throw Error('SETUP_RESULT_INVALID')
+      } catch {
+        result = { code: null }
+      }
+      results.push({ botId: bot.id, code: result.code })
+      report(`BellTeam environment ${bot.id}: ${result.code === 0 ? 'restored' : `failed (${result.code}); ${join(directory, 'setup.log')}`}`)
+      continue
+    }
     await mkdir(directory, { recursive: true })
     const script = join(directory, 'setup.sh')
     if (!await exists(script)) continue

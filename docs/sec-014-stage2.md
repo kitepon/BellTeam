@@ -75,9 +75,31 @@ does not copy that environment or include command output in failure messages.
 Throughline count/handoff queries can opt in with `seatCommands: true`, and
 `runWaitProcess` can opt in with `seatProject`. Explicit invalid seatProject
 values are rejected rather than selecting the legacy reader. These options
-are not enabled in the supervisor; target-specific launch environments, setup,
+are not enabled in the supervisor; target-specific launch environments,
 configuration and all production paths still need wiring. An isolated test
 uses a synthetic Throughline executable and wait JSON, not real CLI state.
+
+`restoreBotEnvironments(bots, {seatCommands: true})` now runs setup through
+the fixed UID entry. `environment: 'base'` intentionally skips `env.sh` so
+setup can repair an environment that is not yet usable. `run-seat-setup.mjs`
+creates the environment directory and mode-0600 setup log as UID1000, runs
+setup sequentially, and returns only presence/exit metadata to the server.
+A failed setup does not prevent the following bot's setup. The setup child
+stays in the wrapper's process group for cancellation. The setup helper handles
+termination and escalates its immediate child after 150ms so it can reap it
+before the outer wrapper's 250ms group fallback. Isolated testing confirmed
+the immediate TERM-ignoring child's disappearance before cancellation returned;
+this does not certify detached or different-UID descendants.
+
+`runShellCommand(request, {seatProject: request.cwd, signal})` opts a scheduled
+command into the configured seat environment. A mismatched or invalid project
+does not fall back to server execution. Exit status and bounded stdout/stderr
+remain available for the scheduler's existing failure notice. Cancellation
+waits for the wrapper to close. For scheduler construction, supply this function
+through its existing `runCommand` dependency; no new scheduler or supervisor
+mode is enabled by default. Server-evaluated environments remain prohibited.
+These options do not migrate pre-existing setup-log ownership; that remains
+part of the planned state/seat ownership migration.
 
 The newly introduced `shared/ai-control.json` stop intent belongs in the
 server-owned state migration, backup and latest-generation rollback plan.

@@ -5,13 +5,14 @@ import { seatCommandSpec } from './seat-command.mjs'
 
 const failure = (code, properties = {}) => Object.assign(new Error(code), { code, ...properties })
 
-export function createSeatProcessRunner(project) {
+export function createSeatProcessRunner(project, { environment = 'configured' } = {}) {
   // Validate before a caller can supply input or start a process.
-  seatCommandSpec('true', [], { project })
+  seatCommandSpec('true', [], { project, environment })
   return (command, args = [], options = {}) => {
     if (Object.hasOwn(options, 'env')) throw failure('SEAT_DYNAMIC_ENV_UNWIRED')
-    const { signal, input, maxBuffer = 16 * 1024 * 1024 } = options
-    const spec = seatCommandSpec(command, args, { project })
+    const { signal, input, maxBuffer = 16 * 1024 * 1024, acceptNonzero = false } = options
+    if (typeof acceptNonzero !== 'boolean') throw failure('SEAT_EXIT_MODE_INVALID')
+    const spec = seatCommandSpec(command, args, { project, environment })
     if (!Number.isSafeInteger(maxBuffer) || maxBuffer < 1) throw failure('SEAT_BUFFER_INVALID')
     if (input !== undefined && typeof input !== 'string' && !Buffer.isBuffer(input)) throw failure('SEAT_INPUT_INVALID')
     if (signal?.aborted) return Promise.reject(failure('ABORT_ERR', { name: 'AbortError', effect: 'not_started' }))
@@ -42,8 +43,9 @@ export function createSeatProcessRunner(project) {
         signal?.removeEventListener('abort', abort)
         if (spawnError || stopped) return reject(spawnError ?? stopped)
         if (inputError) return reject(inputError)
-        if (exitCode !== 0 || exitSignal) return reject(failure('SEAT_PROCESS_FAILED', { exitCode, signal: exitSignal }))
-        resolve({ stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString() })
+        if (!acceptNonzero && (exitCode !== 0 || exitSignal)) return reject(failure('SEAT_PROCESS_FAILED', { exitCode, signal: exitSignal }))
+        resolve({ stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString(),
+          ...(acceptNonzero ? { code: exitCode, signal: exitSignal } : {}) })
       })
       // Fixed-stdin consumers require EOF; no input means an empty stream.
       child.stdin.end(input)

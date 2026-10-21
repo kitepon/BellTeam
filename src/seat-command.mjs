@@ -10,15 +10,17 @@ export function requireSeatProject(project) {
   return project
 }
 
-export function seatCommandSpec(command, args = [], { project } = {}) {
+export function seatCommandSpec(command, args = [], { project, environment = 'configured' } = {}) {
   requireSeatProject(project)
+  if (!['configured', 'base'].includes(environment)) throw invalid('SEAT_ENVIRONMENT_MODE_INVALID')
   if (typeof command !== 'string' || !command
     || !Array.isArray(args) || !args.every(value => typeof value === 'string'))
     throw invalid('SEAT_COMMAND_ARGUMENTS')
   return {
     command: 'sudo',
     args: ['-n', '--', '/usr/local/libexec/bellteam-seat-exec', '--', process.execPath,
-      fileURLToPath(new URL('./run-seat-command.mjs', import.meta.url)), project, '--', command, ...args],
+      fileURLToPath(new URL('./run-seat-command.mjs', import.meta.url)), project,
+      ...(environment === 'base' ? ['--base-environment'] : []), '--', command, ...args],
     // No inherited server environment; the privileged entry clears even this.
     env: { PATH: '/usr/local/bin:/usr/bin:/bin' },
   }

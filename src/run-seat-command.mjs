@@ -1,7 +1,7 @@
 // Runs only after seat-exec has dropped all identity slots to the seat UID.
 import { spawn } from 'node:child_process'
 import { isAbsolute } from 'node:path'
-import { loadBotEnvironment } from './bot-environment.mjs'
+import { baseBotEnvironment, loadBotEnvironment } from './bot-environment.mjs'
 
 let active, stopping = false, stopSignal
 function signalGroup(signal, child) {
@@ -53,10 +53,14 @@ async function run(command, args, options, capture = false) {
 }
 
 try {
-  const [project, separator, command, ...args] = process.argv.slice(2)
+  const [project, ...parameters] = process.argv.slice(2)
+  const baseOnly = parameters[0] === '--base-environment'
+  if (baseOnly) parameters.shift()
+  const [separator, command, ...args] = parameters
   if (process.getuid() !== 1000 || process.geteuid() !== 1000 || process.getgid() !== 1000
     || !isAbsolute(project ?? '') || separator !== '--' || !command) throw Error('IDENTITY_OR_ARGUMENTS')
-  const env = await loadBotEnvironment(project, process.env, {
+  // setup must run before env.sh is usable. Both modes stay in the seat UID.
+  const env = baseOnly ? baseBotEnvironment(project, process.env) : await loadBotEnvironment(project, process.env, {
     run: (command, args, options) => run(command, args, options, true),
   })
   if (stopping) throw Error('STOPPED')
