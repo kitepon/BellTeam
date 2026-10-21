@@ -25,6 +25,11 @@ token, and invalid inputs are rejected before opening the destination. The
 content/update decision and approved supply path belong to Fragile; this entry
 does not fetch, issue, authenticate, log, or hash a credential.
 
+The supplier must close stdin after the complete line. A newline alone does
+not complete `read(MAX_INPUT + 1)`; the entry waits for EOF. The future supply
+adapter must explicitly end the input stream and await the exit result. It must
+not leave a pipe open while waiting for the installer to finish.
+
 The entry writes a newly created private temporary file, sets ownership, syncs
 the new file, then atomically renames it within the same directory. Input,
 write, ownership, and sync failures before the rename preserve the live file.
