@@ -3,12 +3,15 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
+import { requireSeatProject, seatCommandSpec } from './seat-command.mjs'
+import { createSeatProcessRunner } from './seat-process.mjs'
 
 const HARNESS = new Map([
   ['claude', 'claude-code'],
@@ -23,10 +26,11 @@ const INTERIM_INTERVAL_MS = 3000
 const CALLER_META = { 'aiterm/caller': 'BellTeam' }
 export const NIGHTLY_RESTART_TURNS = 20
 
-export async function completedThroughlineTurns(project, { run = execFileAsync } = {}) {
-  const { stdout } = await run('throughline', [
+export async function completedThroughlineTurns(project, { run = execFileAsync, seatCommands = false } = {}) {
+  const execute = seatCommands ? createSeatProcessRunner(project) : run
+  const { stdout } = await execute('throughline', [
     'observer-read', '--project', project, '--limit', String(NIGHTLY_RESTART_TURNS), '--json',
-  ], { env: runtimeEnvironment() })
+  ], seatCommands ? {} : { env: runtimeEnvironment() })
   const result = JSON.parse(stdout)
   if (result.schema !== 'throughline.observer_read.v1' || !Array.isArray(result.turns))
     throw new Error('THROUGHLINE_OBSERVER_READ_INVALID')
@@ -35,10 +39,11 @@ export async function completedThroughlineTurns(project, { run = execFileAsync }
 
 // 短期記憶は、直前の1セッションだけでなく直近の複数セッションから作る（オーナー裁定 2026-10-05、Approval Box K-8GPX8C）。
 // `--sessions recent` は Throughline 0.15.0 から。それより前の版は終了コード2で止まり、席が起きない。
-export async function latestThroughlineHandoffContext(project, { run = execFileAsync } = {}) {
-  const { stdout } = await run('throughline', [
+export async function latestThroughlineHandoffContext(project, { run = execFileAsync, seatCommands = false } = {}) {
+  const execute = seatCommands ? createSeatProcessRunner(project) : run
+  const { stdout } = await execute('throughline', [
     'handoff-context', '--project', project, '--json', '--disclosure', 'silent', '--sessions', 'recent',
-  ], { env: runtimeEnvironment() })
+  ], seatCommands ? {} : { env: runtimeEnvironment() })
   const result = JSON.parse(stdout)
   if (result.schema !== 'throughline.handoff_context.v1')
     throw new Error('THROUGHLINE_HANDOFF_CONTEXT_INVALID')
@@ -52,8 +57,13 @@ export async function latestThroughlineHandoffContext(project, { run = execFileA
 }
 
 export class AitermClient {
-  constructor({ command = 'aiterm-mcp', env = runtimeEnvironment() } = {}) {
+  constructor(options = {}) {
+    const { command = 'aiterm-mcp', args = [], env = runtimeEnvironment() } = options
+    const seatProject = Object.hasOwn(options, 'seatProject') ? options.seatProject : null
+    if (seatProject !== null) requireSeatProject(seatProject)
     this.command = command
+    this.args = args
+    this.seatProject = seatProject
     this.env = env
     this.client = null
     this.transport = null
@@ -63,8 +73,10 @@ export class AitermClient {
   async connect() {
     if (this.connecting) return this.connecting
     if (this.client) return
+    const spec = this.seatProject !== null ? seatCommandSpec(this.command, this.args, { project: this.seatProject })
+      : { command: this.command, args: this.args, ...(this.env ? { env: this.env } : {}) }
     this.client = new Client({ name: 'bellteam', version: '0.1.0' }, { capabilities: {} })
-    this.transport = new StdioClientTransport({ command: this.command, stderr: 'inherit', ...(this.env ? { env: this.env } : {}) })
+    this.transport = new StdioClientTransport({ ...spec, stderr: 'inherit' })
     const client = this.client
     const transport = this.transport
     client.onclose = () => {
@@ -92,13 +104,37 @@ export class AitermClient {
     }
   }
 
-  async call(name, args = {}, { env, meta } = {}) {
+  async launchOptions(project) {
+    return this.seatProject !== null ? { launchProject: requireSeatProject(project) }
+      : { env: await loadBotEnvironment(project) }
+  }
+
+  async call(name, args = {}, options = {}) {
+    const { env, meta, launchProject } = options
+    if (this.seatProject !== null) requireSeatProject(this.seatProject)
+    if (Object.hasOwn(options, 'launchProject')) {
+      requireSeatProject(launchProject)
+      if (this.seatProject === null || name !== 'agent_launch' || args.cwd !== launchProject
+        || Object.hasOwn(options, 'env') || Object.hasOwn(args, 'env_vars'))
+        throw Object.assign(new Error('SEAT_LAUNCH_ARGUMENTS'), { code: 'SEAT_LAUNCH_ARGUMENTS' })
+      const { stdout } = await createSeatProcessRunner(launchProject)(process.execPath,
+        [fileURLToPath(new URL('./run-seat-aiterm-launch.mjs', import.meta.url))], {
+          input: JSON.stringify({ command: this.command, args: this.args, launch: args, meta }),
+        })
+      const response = JSON.parse(stdout)
+      if (response.error) throw Object.assign(new Error(response.error.message), response.error)
+      if (!response.result || !Array.isArray(response.result.content)) throw new Error('SEAT_LAUNCH_RESULT_INVALID')
+      return response.result
+    }
     if (env) {
+      // Per-target launch environment needs the seat-side loading contract too.
+      // Do not silently serialize a server-evaluated environment across this boundary.
+      if (this.seatProject !== null) throw new Error('SEAT_DYNAMIC_ENV_UNWIRED')
       // Aitermは値ではなくMCPプロセスの変数名を受け取る。起動ごとに専用の短命接続を使う。
-      const launcher = new AitermClient({ command: this.command, env })
+      const launcher = new AitermClient({ command: this.command, args: this.args, env })
       try {
         const env_vars = Object.keys(env).filter(key => runtimeEnvironmentKeys.includes(key) || env[key] !== process.env[key])
-        return await launcher.call(name, { ...args, env_vars })
+        return await launcher.call(name, { ...args, env_vars }, { meta })
       } finally {
         await launcher.close()
       }
@@ -229,7 +265,8 @@ export class AitermTransport {
     if (!harness) throw new Error(`HARNESS_UNSUPPORTED: ${bot.harness}`)
     const shortTermMemory = await this.handoffContext(bot.project)
     await this.prepareStartup(bot, shortTermMemory)
-    const env = await loadBotEnvironment(bot.project)
+    const launchOptions = this.client.launchOptions
+      ? await this.client.launchOptions(bot.project) : { env: await loadBotEnvironment(bot.project) }
     let launch
     try {
       launch = await this.changeSession(bot, 'agent_launch', {
@@ -241,7 +278,7 @@ export class AitermTransport {
         ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}),
         // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。共有の設定に残った値で起きないよう、必ず真偽で渡す。
         fast: bot.fastMode === true,
-      }, { env })
+      }, launchOptions)
     } catch (error) {
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
       // 残すと席が「動いている」扱いになり、次の送信から起こし直せず、入力も受け付けない。BellTeamの席には、その画面へ答える人が居ない。
@@ -882,7 +919,11 @@ export class AitermTransport {
   }
 }
 
-function runWaitProcess(waitProcess, signal = null) {
+export function runWaitProcess(waitProcess, signal = null, options = {}) {
+  const seatProject = Object.hasOwn(options, 'seatProject') ? options.seatProject : null
+  if (seatProject !== null) return createSeatProcessRunner(seatProject)(waitProcess.executable, waitProcess.args, { signal }).then(({ stdout }) => {
+    try { return JSON.parse(stdout.trim()) } catch { throw new Error('AITERM_WAIT_INVALID') }
+  })
   return new Promise((resolve, reject) => {
     const child = spawn(waitProcess.executable, waitProcess.args, {
       env: runtimeEnvironment(), stdio: ['ignore', 'pipe', 'pipe'], ...(signal ? { signal } : {}),

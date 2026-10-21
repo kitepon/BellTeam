@@ -180,7 +180,7 @@ test('Aitermの短命MCP接続は環境値を個別に持ち、ツール引数�
     const { StdioServerTransport } = await import(${JSON.stringify(new URL('server/stdio.js', sdk).href)});
     const { CallToolRequestSchema } = await import(${JSON.stringify(new URL('types.js', sdk).href)});
     const server = new Server({name:'test',version:'1'}, {capabilities:{tools:{}}});
-    server.setRequestHandler(CallToolRequestSchema, async request => ({content:[{type:'text',text:JSON.stringify({marker:process.env.ENV_TEST_MARKER,home:process.env.HOME,codexHome:process.env.CODEX_HOME,args:request.params.arguments})}]}));
+    server.setRequestHandler(CallToolRequestSchema, async request => ({content:[{type:'text',text:JSON.stringify({marker:process.env.ENV_TEST_MARKER,home:process.env.HOME,codexHome:process.env.CODEX_HOME,args:request.params.arguments,meta:request.params._meta})}]}));
     await server.connect(new StdioServerTransport());
   })();\n`, { mode: 0o755 })
   const client = new AitermClient({ command })
@@ -189,11 +189,12 @@ test('Aitermの短命MCP接続は環境値を個別に持ち、ツール引数�
   assert.equal(normal.codexHome, join(runtimeHome(), '.codex'))
   await client.close()
   const results = await Promise.all(['first value', 'second value'].map(marker => client.call(
-    'agent_launch', { harness: 'grok-cli' }, { env: { ...runtimeEnvironment(), ENV_TEST_MARKER: marker } },
+    'agent_launch', { harness: 'grok-cli' }, { env: { ...runtimeEnvironment(), ENV_TEST_MARKER: marker }, meta: { 'aiterm/caller': 'BellTeam', synthetic_marker: marker } },
   )))
   for (const [i, marker] of ['first value', 'second value'].entries()) {
     const data = JSON.parse(results[i].content[0].text)
     assert.equal(data.marker, marker)
+    assert.deepEqual(data.meta, { 'aiterm/caller': 'BellTeam', synthetic_marker: marker })
     assert.equal(data.home, runtimeHome())
     assert.equal(data.codexHome, join(runtimeHome(), '.codex'))
     assert.ok(data.args.env_vars.includes('ENV_TEST_MARKER'))

@@ -279,8 +279,11 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
           return asset.stream.pipe(response)
         }
         if (request.method === 'GET' && url.pathname === '/api/bots') {
-          const all = [...bots.values()]
-          const running = await transport.runningBots(all)
+          const all = bots.listForClient ? await bots.listForClient() : [...bots.values()]
+          const listingState = id => bots.clientListingState?.(id)
+            ?? (bots.isDeleting?.(id) ? 'pending' : bots.has(id) ? 'active' : 'absent')
+          const deleting = bot => bot.deleting || listingState(bot.id) === 'pending'
+          const running = await transport.runningBots(all.filter(bot => !deleting(bot) && listingState(bot.id) === 'active'))
           const list = await Promise.all(all.map(async bot => {
             const items = await timeline('bots', bot.id)
             const last = items.at(-1) ?? null
@@ -299,11 +302,21 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
               position: bot.position ?? '',
               role: bot.role ?? '',
               ...listAvatar(bot.avatar, url),
-              online: running.has(bot.id),
+              online: !deleting(bot) && running.has(bot.id),
+              ...(deleting(bot) ? { deleting: true } : {}),
               recent: last && { id: last.id, kind: last.kind, direction: last.direction, message: last.message, image: last.image, at: last.at },
             }
           }))
-          return json(response, 200, { bots: list })
+          // Another item's timeline may have awaited after this item rendered.
+          // No await separates this final check from serializing the response.
+          const current = []
+          for (const item of list) {
+            const state = listingState(item.id)
+            if (state === 'absent') continue
+            if (state === 'pending') { item.deleting = true; item.online = false }
+            current.push(item)
+          }
+          return json(response, 200, { bots: current })
         }
         if (request.method === 'GET' && url.pathname === '/api/rooms') {
           await rooms.refresh()
