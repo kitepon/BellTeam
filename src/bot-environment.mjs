@@ -21,7 +21,7 @@ export function baseBotEnvironment(project, inherited = process.env) {
     GIT_CONFIG_GLOBAL: join(github, 'gitconfig'),
     // Claude Codeは自分を更新する時に `npm install -g` を流す。席のnpmの導入先は席の `.local` なので、
     // 席ごとに写しが出来て、席はコンテナの物ではなく写しを使い続ける（2026-10-06、18席に4つの版）。
-    // 席では更新させず、全席がコンテナの物を使う。版は、ほかのCLIと同じく反映の時に変わる（オーナーの指摘 2026-10-06「共通化しなかった？」）。
+    // 席では更新させず、全席がコンテナの物を使う。版は、ほかのCLIと同じく反映の時に変わる（オーナーの指摘 2026-10-06）。
     DISABLE_AUTOUPDATER: '1',
   }
 }
