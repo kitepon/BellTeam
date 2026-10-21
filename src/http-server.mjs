@@ -627,6 +627,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
         }
         return json(response, 500, { error: 'SECRET_OPERATION_FAILED' })
       }
+      if (error.code === 'BOT_SESSION_UNCONFIRMED') return json(response, 503, { error: error.code, message: error.publicMessage })
       if (error instanceof ModelCatalogError) return json(response, error.code === 'MODEL_HARNESS_INVALID' ? 400 : 503, { error: error.code, message: error.message })
       if (error.message === 'INVALID_JSON') return json(response, 400, { error: 'INVALID_JSON' })
       if (error.message === 'DIAGNOSTIC_INVALID' || error.message === 'REQUEST_TOO_LARGE') return json(response, 400, { error: error.message })

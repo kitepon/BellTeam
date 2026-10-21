@@ -4,7 +4,7 @@ import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { AitermTransport } from '../src/aiterm-transport.mjs'
+import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 import { ConversationStore } from '../src/conversation-store.mjs'
 import { requestMemberStop } from '../web/member-stop.js'
@@ -210,6 +210,49 @@ test('発行済みの旧closeが返る前に停止完了や同名再起動を許
     assert.equal(f.calls.filter(([name]) => name === 'pty_close').length, 1)
     assert.equal(f.alive.has('bot-a'), true)
   })
+})
+
+test('旧closeの結果不明rejectは、席が消えていても成功や同名再利用に変えない', async t => {
+  for (const action of ['restart', 'closeIdle', 'stopForConfiguration']) await t.test(action, { timeout: 2000 }, async t => {
+    const reply = deferred(), entered = deferred()
+    const f = await fixture(t, { onClose: async (args, alive) => {
+      alive.delete(args.session_id)
+      entered.resolve()
+      await reply.promise
+      throw new Error('RPC response lost')
+    } })
+    const old = f.transport[action](f.bots[0]).catch(error => error)
+    await entered.promise
+    const stopping = f.transport.interrupt(f.bots[0]).catch(error => error)
+    reply.resolve()
+    assert.equal((await stopping).code, 'BOT_STOP_UNCONFIRMED')
+    await old
+    const next = f.start(f.bots[0], '後続')
+    const error = await next.result
+    if (action === 'stopForConfiguration') assert.match(error.message, /RPC response lost/u)
+    else assert.equal(error.code, 'BOT_SESSION_UNCONFIRMED')
+    assert.equal(f.calls.some(([name]) => name === 'agent_launch'), false)
+    assert.equal(f.transport.uncertainChanges.has('bot-a'), true)
+  })
+})
+
+test('返却済みのtool拒否はRPC結果不明と区別し、停止失敗後も席を利用できる', { timeout: 2000 }, async t => {
+  const f = await fixture(t, { onClose: () => { throw Object.assign(new Error('明示的な拒否'), { aitermResponseReturned: true }) } })
+  await assert.rejects(f.transport.interrupt(f.bots[0]), error => error.code === 'BOT_STOP_UNCONFIRMED')
+  assert.equal(f.transport.uncertainChanges.has('bot-a'), false)
+  const next = f.start(f.bots[0], '新しい文')
+  await next.completion.accepted
+  f.waits.get('1').resolve({ outcome: 'done' })
+  assert.equal(await next.result, '回答')
+})
+
+test('MCPのtoolエラー結果と、transportの応答欠測rejectは別の印になる', async () => {
+  const client = new AitermClient()
+  client.connect = async () => {}
+  client.client = { callTool: async () => ({ isError: true, content: [{ type: 'text', text: 'aiterm: close拒否' }] }) }
+  await assert.rejects(client.call('pty_close', { session_id: 'synthetic' }), error => error.aitermResponseReturned === true)
+  client.client.callTool = async () => { throw new Error('RPC response lost') }
+  await assert.rejects(client.call('pty_close', { session_id: 'synthetic' }), error => error.aitermResponseReturned !== true)
 })
 
 test('消失を確認できない観測・違う席の観測は停止成功にしない', async t => {

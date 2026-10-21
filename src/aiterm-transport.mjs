@@ -108,6 +108,8 @@ export class AitermClient {
     if (result.isError) {
       const message = textResult(result) || `AITERM_TOOL_FAILED: ${name}`
       const error = new Error(message)
+      // tool handlerがエラー結果を返し終えた事と、RPC timeout/通信断で結果が不明な事を区別する。
+      error.aitermResponseReturned = true
       // 起動の準備が終わらなかった時、Aitermは作った端末の名前と止まった理由を構造で返す（aiterm.agent-launch-result.v1）。
       if (name === 'agent_launch' && result.structuredContent?.schema === 'aiterm.agent-launch-result.v1')
         error.launch = result.structuredContent
@@ -169,6 +171,7 @@ export class AitermTransport {
     this.stopVersions = new Map()
     this.waking = new Map()
     this.sessionChanges = new Map()
+    this.uncertainChanges = new Map()
     // 席ごとの、BellTeamが始めていないターンを追っている見張り（watchTurn）。
     this.watches = new Map()
     // 席ごとの、最後に終わりまで追ったターン。Aitermへ聞いた後に終わったターンを、もう一度追い始めない。
@@ -200,6 +203,7 @@ export class AitermTransport {
   }
 
   async ensure(bot) {
+    this.requireSessionKnown(bot.id)
     const version = this.stopVersions.get(bot.id)
     await this.interruptions.get(bot.id)
     this.requireStopVersion(bot.id, version)
@@ -210,6 +214,7 @@ export class AitermTransport {
   }
 
   wake(bot, options = {}) {
+    this.requireSessionKnown(bot.id)
     const pending = this.wakeNow(bot, options)
     this.waking.set(bot.id, pending)
     const clear = () => { if (this.waking.get(bot.id) === pending) this.waking.delete(bot.id) }
@@ -270,6 +275,7 @@ export class AitermTransport {
   }
 
   async restart(bot) {
+    this.requireSessionKnown(bot.id)
     const version = this.stopVersions.get(bot.id)
     await this.interruptions.get(bot.id)
     await this.idle(bot.id)
@@ -279,6 +285,7 @@ export class AitermTransport {
   }
 
   async reconfigure(current, next) {
+    this.requireSessionKnown(current.id)
     const version = this.stopVersions.get(current.id)
     await this.interruptions.get(current.id)
     await this.requireAccess({ setupTest: false, botId: next.id })
@@ -322,6 +329,7 @@ export class AitermTransport {
         // 発行済みの旧close/configureも返却まで待つ。idle待ち中で未発行の操作はstopVersionで無効化する。
         while (this.sessionChanges.get(bot.id)?.size)
           await Promise.allSettled([...this.sessionChanges.get(bot.id)])
+        this.requireSessionKnown(bot.id)
         const before = await this.observe(bot)
         if (before?.schema !== 'aiterm.pty-observe-result.v1' || before.session_id !== this.session(bot)
           || typeof before.exists !== 'boolean') throw new Error('AITERM_STOP_OBSERVATION_INVALID')
@@ -361,6 +369,7 @@ export class AitermTransport {
 
   // session_idだけに作用する変更の発行と返却を追う。応答待ちのcloseを残したまま同じ席を起こさない。
   changeSession(bot, name, args, options) {
+    this.requireSessionKnown(bot.id)
     const pending = Promise.resolve(this.client.call(name, args, options))
     const changes = this.sessionChanges.get(bot.id) ?? new Set()
     changes.add(pending)
@@ -369,8 +378,21 @@ export class AitermTransport {
       changes.delete(pending)
       if (!changes.size && this.sessionChanges.get(bot.id) === changes) this.sessionChanges.delete(bot.id)
     }
-    pending.then(clear, clear)
+    pending.then(clear, error => {
+      // RPCのrejectは遠隔の変更を取り消さない。後から旧closeが届き得る同名の席を自動で再利用しない。
+      if (error?.aitermResponseReturned !== true && error?.launch?.schema !== 'aiterm.agent-launch-result.v1')
+        this.uncertainChanges.set(bot.id, name)
+      clear()
+    })
     return pending
+  }
+
+  requireSessionKnown(botId) {
+    if (!this.uncertainChanges.has(botId)) return
+    const error = new Error('メンバーの状態を確認できないため、送信できませんでした。')
+    error.code = 'BOT_SESSION_UNCONFIRMED'
+    error.publicMessage = error.message
+    throw error
   }
 
   // セッションの状態と活動をAitermに観測させる。cursorを渡すと、前回の観測からの変化も返る。
@@ -496,7 +518,10 @@ export class AitermTransport {
   submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false } = {}) {
     const job = { id: this.activeId(), bot, controller: new AbortController(), info: { ...info, message: info.message ?? message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}) }, startedAt: this.now() }
     this.jobs.add(job)
-    const check = () => { if (job.stopRequested) throw stoppedError() }
+    const check = () => {
+      if (job.stopRequested) throw stoppedError()
+      this.requireSessionKnown(bot.id)
+    }
     // 既に受理されたsend/doneは保持して停止の結論を待つ。停止未確認なら通常の結果処理へ戻る。
     const checkpoint = async () => {
       if (!job.stopRequested) return
@@ -520,7 +545,7 @@ export class AitermTransport {
       try {
         const interruption = this.interruptions.get(bot.id)
         if (interruption) await interruption
-        check()
+        if (job.stopRequested) throw stoppedError()
         const configuration = this.configurationChanges.get(bot.id)
         if (configuration) await configuration
         check()
