@@ -5,6 +5,7 @@ import { isDeepStrictEqual as same } from 'node:util'
 export const EXECUTION_META = 'aiterm/execution'
 export const BINDING_META = 'aiterm/execution_binding'
 export const ERROR_META = 'aiterm/execution_error'
+export const SOURCE_META = 'aiterm/execution_source'
 const codes = new Set(['INVALID', 'NOT_FOUND', 'CONFLICT', 'STOPPING', 'STALE_GENERATION', 'UNCONFIRMED', 'BUSY', 'STATE_UNAVAILABLE', 'UNSUPPORTED'].map(value => `EXECUTION_${value}`))
 const session = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/u.test(value)
 const launch = value => value && session(value.session_id) && typeof value.launch_id === 'string' && /^[0-9a-f]{32}$/u.test(value.launch_id)
@@ -71,13 +72,19 @@ export function callExecutionRef({ sessionId, event, seq, deliveryId }, targetSe
 
 export class ExecutionBridge {
   constructor(client) { this.client = client }
-  async reserve({ request, sourceSession = null, source = { launch: null, boundary: null }, targetSession, expectedLaunch = null }) {
+  async reserve({ request, sourceSession = null, source = { launch: null, boundary: null }, targetSession, expectedLaunch = null }, { sourceContext = null, ...options } = {}) {
+    // Host-only context comes from the captured ingress, separately from the
+    // public register claim. Missing context must never fall back to that claim.
+    if (sourceContext !== null && !point(sourceContext)) throw failure('EXECUTION_INVALID', 'not_started')
+    const meta = { ...options.meta, [SOURCE_META]: {
+      schema: 'aiterm.execution-source.v1', source: structuredClone(sourceContext),
+    } }
     const reservation = structuredClone({ schema: 'aiterm.execution-reservation.v1', request, source,
       target: { session_id: targetSession, expected_launch_id: expectedLaunch } })
     const handle = new ExecutionRequest(this.client, reservation)
     handle.record = readRecord(await call(this.client, 'agent_execution', {
       action: 'register', source_session_id: sourceSession, reservation,
-    }), reservation.request, reservation)
+    }, { ...options, meta }), reservation.request, reservation)
     handle.registered = true
     return handle
   }

@@ -10,6 +10,7 @@ import { createBellTeamServer } from '../src/http-server.mjs'
 import { createSeatMcp, internalApi, seatExecutionSource, SEAT_HEADER, LAUNCH_HEADER } from '../src/seat-mcp.mjs'
 import { writeHarnessConfig } from '../src/harness-config.mjs'
 import { RoomMessenger } from '../src/room-messenger.mjs'
+import { ExecutionBridge, deliveryExecutionRef, SOURCE_META } from '../src/execution-bridge.mjs'
 
 const bots = () => Object.assign(new Map([['bot-a', { id: 'bot-a', name: 'A', launch_id: 'f'.repeat(32) }], ['bot-b', { id: 'bot-b', name: 'B' }]]), { async refresh() {} })
 const headers = (seat, launch) => ({ [SEAT_HEADER.toLowerCase()]: seat, [LAUNCH_HEADER.toLowerCase()]: launch })
@@ -24,9 +25,23 @@ test('sourceは受信ヘッダーの世代だけを保持し、欠測をBot名�
 })
 
 test('同時MCP要求のsourceを混ぜず、モデル引数で受信時のsourceを書き換えられない', async t => {
-  const registry = bots(), deliveries = []
+  const registry = bots(), deliveries = [], registrations = []
+  const bridge = new ExecutionBridge({ async call(name, args, options) {
+    registrations.push({ name, args: structuredClone(args), meta: structuredClone(options.meta) })
+    return { structuredContent: { schema: 'aiterm.execution-record.v1', reservation: args.reservation,
+      source: { status: 'unknown', reason: 'caller_unbound', point: null, boundary_status: 'missing' },
+      relation: { request: args.reservation.request, target: null, phase: 'reserved', completion: 'open', target_fence: 'unknown', lifecycle: 'tracking' } } }
+  } })
   const seatMcp = createSeatMcp({ bots: registry, tools: { registry }, toolsForSource: source => ({
-    deliverMessage: async value => { await new Promise(r => setImmediate(r)); deliveries.push({ value, source }); return { delivery: 'running' } },
+    deliverMessage: async value => {
+      await new Promise(r => setImmediate(r))
+      deliveries.push({ value, source })
+      await bridge.reserve({ request: deliveryExecutionRef(`synthetic-${value.message}`, value.target),
+        sourceSession: source.sourceSession, source: source.source, targetSession: value.target }, {
+        sourceContext: source.source.launch ? source.source : null,
+      })
+      return { delivery: 'running' }
+    },
   }) })
   const server = createBellTeamServer({ bots: registry, internal: true, authorize: () => true, seatMcp, messenger: {}, store: {}, transport: {}, writeLog: () => {} })
   server.listen(0, '127.0.0.1'); await once(server, 'listening')
@@ -48,6 +63,12 @@ test('同時MCP要求のsourceを混ぜず、モデル引数で受信時のsourc
     assert.equal(item.source.source.boundary, null)
   }
   assert.equal(deliveries.length, 2)
+  assert.equal(registrations.length, 2)
+  for (const registration of registrations) {
+    const expected = registration.args.reservation.request.delivery_id.slice(-1).toLowerCase()
+    assert.deepEqual(registration.meta[SOURCE_META], { schema: 'aiterm.execution-source.v1',
+      source: { launch: { session_id: `bot-${expected}`, launch_id: expected.repeat(32) }, boundary: null } })
+  }
 })
 
 test('内部APIでは受信時sourceを配送とroomへ結び、入力内の偽sourceより優先する', async () => {

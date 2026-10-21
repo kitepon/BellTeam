@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { ExecutionBridge, deliveryExecutionRef, roomExecutionRef, callExecutionRef, EXECUTION_META, BINDING_META, ERROR_META } from '../src/execution-bridge.mjs'
+import { ExecutionBridge, deliveryExecutionRef, roomExecutionRef, callExecutionRef, EXECUTION_META, BINDING_META, ERROR_META, SOURCE_META } from '../src/execution-bridge.mjs'
 import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
 
 const A = { session_id: 'bot-a', launch_id: 'a'.repeat(32) }, B = { session_id: 'bot-b', launch_id: 'b'.repeat(32) }
@@ -53,6 +53,26 @@ test('reservationを先に登録し、同じ元参照をsend metaへ渡して既
   assert.equal(result._meta['aiterm/interim_words'].keep, true)
   const finished = await handle.finish({ kind: 'completion', target })
   assert.equal(finished.relation.lifecycle, 'retired')
+})
+
+test('host source contextはregister claimと分離し、未指定をclaimから補わない', async () => {
+  const f = fixture()
+  await f.reserve()
+  assert.deepEqual(f.calls[0].options.meta[SOURCE_META], { schema: 'aiterm.execution-source.v1', source: null })
+  const context = structuredClone(source.point)
+  const claimed = { launch: { ...A, launch_id: 'c'.repeat(32) }, boundary: null }
+  const pending = f.bridge.reserve({ request, sourceSession: A.session_id, source: claimed, targetSession: B.session_id }, {
+    sourceContext: context, meta: { keep: 'host', [SOURCE_META]: { schema: 'forged', source: claimed } },
+  })
+  context.launch.launch_id = 'd'.repeat(32)
+  await pending
+  assert.deepEqual(f.calls[1].args.reservation.source, claimed)
+  assert.equal(Object.hasOwn(f.calls[1].args, 'sourceContext'), false)
+  assert.deepEqual(f.calls[1].options.meta, { keep: 'host', [SOURCE_META]: {
+    schema: 'aiterm.execution-source.v1', source: source.point,
+  } })
+  await assert.rejects(f.bridge.reserve({ request, targetSession: B.session_id }, { sourceContext: { launch: A } }), { code: 'EXECUTION_INVALID', effect: 'not_started' })
+  assert.equal(f.calls.length, 2)
 })
 
 test('成功receiptにbinding失敗が付いても捨てず、再送せずstatusだけを使う', async () => {
@@ -169,6 +189,7 @@ test('短命MCPへのenv起動でもmetaを保持し、possible typed返却は�
   const {z}=await import(${JSON.stringify(new URL('../node_modules/zod/index.js', import.meta.url).href)});
   const server=new McpServer({name:'synthetic-wire',version:'1'});
   server.registerTool('agent_launch',{inputSchema:{session_name:z.string(),env_vars:z.array(z.string()).optional()}},async(args,extra)=>({content:[],structuredContent:{session_id:args.session_name,meta:extra._meta}}));
+  server.registerTool('agent_execution',{inputSchema:{action:z.literal('register'),source_session_id:z.string().nullable(),reservation:z.any(),env_vars:z.array(z.string()).optional()}},async(args,extra)=>({content:[],structuredContent:{schema:'aiterm.execution-record.v1',reservation:args.reservation,source:${JSON.stringify({ ...source, status: 'unknown', reason: 'caller_unbound', point: null })},relation:{request:args.reservation.request,target:null,phase:'reserved',completion:'open',target_fence:'unknown',lifecycle:'tracking'}},_meta:{received:extra._meta}}));
   server.registerTool('pty_close',{inputSchema:{session_id:z.string()}},async()=>(${JSON.stringify(typed('EXECUTION_UNCONFIRMED', 'possible'))}));
   await server.connect(new StdioServerTransport());
 })();\n`, { mode: 0o700 })
@@ -176,6 +197,17 @@ test('短命MCPへのenv起動でもmetaを保持し、possible typed返却は�
   const meta = { 'aiterm/caller': 'BellTeam', [EXECUTION_META]: { schema: 'aiterm.execution-ref.v1', request } }
   const result = await client.call('agent_launch', { session_name: B.session_id }, { env: { PATH: process.env.PATH, BELLTEAM_ROOT: root }, meta })
   assert.deepEqual(result.structuredContent.meta, meta)
+  // The server observes metadata on a separate env-launched stdio connection;
+  // it does not promote the claim or this synthetic context to verified.
+  const registers = []
+  const bridge = new ExecutionBridge({ async call(...args) {
+    const result = await client.call(...args); registers.push(result); return result
+  } })
+  const handle = await bridge.reserve({ request, sourceSession: A.session_id, source: source.point, targetSession: B.session_id }, {
+    env: { PATH: process.env.PATH, BELLTEAM_ROOT: root }, sourceContext: source.point,
+  })
+  assert.deepEqual(registers[0]._meta.received[SOURCE_META], { schema: 'aiterm.execution-source.v1', source: source.point })
+  assert.equal(handle.record.source.status, 'unknown')
   const transport = new AitermTransport({ client })
   const bot = { id: 'synthetic', session: 'synthetic' }
   await assert.rejects(transport.changeSession(bot, 'pty_close', { session_id: bot.session }), e => e.aitermResponseReturned && e.executionError.effect === 'possible')
