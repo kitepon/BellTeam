@@ -21,3 +21,19 @@ test('構築後の不正設定もconnect/動的env分岐の前で拒否し、SDK
   await assert.rejects(client.call('synthetic', {}, { env: { SYNTHETIC_SERVER_ONLY: 'canary' } }), { code: 'SEAT_PROJECT_INVALID' })
   assert.equal(client.client, null)
 })
+
+test('席launchは対象projectだけを渡し、server env指定/別tool/不一致を作用前に拒否する', async () => {
+  const client = new AitermClient({ seatProject: '/synthetic-control', command: '/must-not-start' })
+  assert.deepEqual(await client.launchOptions('/synthetic-target'), { launchProject: '/synthetic-target' })
+  for (const project of [undefined, '', false, 'relative'])
+    await assert.rejects(client.launchOptions(project), { code: 'SEAT_PROJECT_INVALID' })
+  for (const [name, args, options] of [
+    ['probe', { cwd: '/synthetic-target' }, { launchProject: '/synthetic-target' }],
+    ['agent_launch', { cwd: '/other' }, { launchProject: '/synthetic-target' }],
+    ['agent_launch', { cwd: '/synthetic-target' }, { launchProject: '/synthetic-target', env: {} }],
+    ['agent_launch', { cwd: '/synthetic-target', env_vars: ['SERVER'] }, { launchProject: '/synthetic-target' }],
+  ]) await assert.rejects(client.call(name, args, options), { code: 'SEAT_LAUNCH_ARGUMENTS' })
+  await assert.rejects(new AitermClient().call('agent_launch', { cwd: '/synthetic-target' },
+    { launchProject: '/synthetic-target' }), { code: 'SEAT_LAUNCH_ARGUMENTS' })
+  assert.equal(client.client, null)
+})

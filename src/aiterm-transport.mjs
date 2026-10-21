@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -103,8 +104,28 @@ export class AitermClient {
     }
   }
 
-  async call(name, args = {}, { env, meta } = {}) {
+  async launchOptions(project) {
+    return this.seatProject !== null ? { launchProject: requireSeatProject(project) }
+      : { env: await loadBotEnvironment(project) }
+  }
+
+  async call(name, args = {}, options = {}) {
+    const { env, meta, launchProject } = options
     if (this.seatProject !== null) requireSeatProject(this.seatProject)
+    if (Object.hasOwn(options, 'launchProject')) {
+      requireSeatProject(launchProject)
+      if (this.seatProject === null || name !== 'agent_launch' || args.cwd !== launchProject
+        || Object.hasOwn(options, 'env') || Object.hasOwn(args, 'env_vars'))
+        throw Object.assign(new Error('SEAT_LAUNCH_ARGUMENTS'), { code: 'SEAT_LAUNCH_ARGUMENTS' })
+      const { stdout } = await createSeatProcessRunner(launchProject)(process.execPath,
+        [fileURLToPath(new URL('./run-seat-aiterm-launch.mjs', import.meta.url))], {
+          input: JSON.stringify({ command: this.command, args: this.args, launch: args, meta }),
+        })
+      const response = JSON.parse(stdout)
+      if (response.error) throw Object.assign(new Error(response.error.message), response.error)
+      if (!response.result || !Array.isArray(response.result.content)) throw new Error('SEAT_LAUNCH_RESULT_INVALID')
+      return response.result
+    }
     if (env) {
       // Per-target launch environment needs the seat-side loading contract too.
       // Do not silently serialize a server-evaluated environment across this boundary.
@@ -244,7 +265,8 @@ export class AitermTransport {
     if (!harness) throw new Error(`HARNESS_UNSUPPORTED: ${bot.harness}`)
     const shortTermMemory = await this.handoffContext(bot.project)
     await this.prepareStartup(bot, shortTermMemory)
-    const env = await loadBotEnvironment(bot.project)
+    const launchOptions = this.client.launchOptions
+      ? await this.client.launchOptions(bot.project) : { env: await loadBotEnvironment(bot.project) }
     let launch
     try {
       launch = await this.changeSession(bot, 'agent_launch', {
@@ -256,7 +278,7 @@ export class AitermTransport {
         ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}),
         // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。共有の設定に残った値で起きないよう、必ず真偽で渡す。
         fast: bot.fastMode === true,
-      }, { env })
+      }, launchOptions)
     } catch (error) {
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
       // 残すと席が「動いている」扱いになり、次の送信から起こし直せず、入力も受け付けない。BellTeamの席には、その画面へ答える人が居ない。

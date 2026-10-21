@@ -62,7 +62,25 @@ sudo capability remains deliberately available.
 The option is not supplied by the production supervisor. Combining it with
 the old per-launch `{env}` option throws `SEAT_DYNAMIC_ENV_UNWIRED` before
 launch: per-target dynamic environment must be loaded under the seat identity,
-and cannot be silently copied from server evaluation. The existing short-lived
+and cannot be silently copied from server evaluation. A new explicit
+`client.launchOptions(targetProject)` selects `{launchProject}` in seat mode.
+`wakeNow` uses it without reading the target's env.sh as the server. The target
+wrapper loads the environment under UID1000, then `run-seat-aiterm-launch.mjs`
+opens a short-lived SDK connection under that identity. Only environment names
+are passed as Aiterm `env_vars`; the MCP process reads their values locally.
+The server receives only the tool result or original returned-error/launch
+receipt classification. Parallel target calls use separate processes and keep
+request metadata. The legacy `{env}` combination still fails before launch.
+
+An isolated synthetic MCP verified all four harness selectors, two concurrent
+target environments, mode-0600 seat-owned env.sh unreadable by the UID1001
+parent, rejected target environments, and startup receipt preservation. This
+is not acceptance of four real CLI launches or Aiterm's native launch-config
+file path. The installed Aiterm source inspected here exposes agent_launch
+through env_vars; no launch-config-file path was established. Supervisor
+configuration and all real SDK/native paths remain unaccepted.
+
+The existing short-lived
 legacy connection now retains request meta, matching the stop integration
 branch's fix. SDK child startup is verified in an isolated UID1001 fixture;
 all supervisor/launch/wait/setup/schedule/configuration paths and the four real
