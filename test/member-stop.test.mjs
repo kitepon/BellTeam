@@ -171,13 +171,67 @@ test('既に無い席の停止は起動せず成功し、停止前から待っ�
   const old = f.start(f.bots[0], '動作中')
   await old.completion.accepted
   const restarting = f.transport.restart(f.bots[0]).catch(error => error)
-  await tick()
   await f.transport.interrupt(f.bots[0])
   assert.equal((await old.result).code, 'BOT_STOPPED')
   assert.equal((await restarting).code, 'BOT_STOPPED')
   await f.transport.interrupt(f.bots[0])
   assert.equal(f.calls.filter(([name]) => name === 'pty_close').length, 1)
   assert.equal(f.calls.filter(([name]) => name === 'agent_launch').length, 0)
+})
+
+test('停止前のensureと席一覧の遅い観測から、閉じた席を起こしたり再追跡したりしない', async t => {
+  const f = await fixture(t)
+  const query = deferred(), entered = deferred()
+  const call = f.transport.client.call
+  f.transport.client.call = async (name, args, options) => {
+    if (name === 'pty_list') { entered.resolve(); return query.promise }
+    return call(name, args, options)
+  }
+  const ensuring = f.transport.ensure(f.bots[0]).catch(error => error)
+  const watching = f.transport.watchSeatTurns(f.bots)
+  await entered.promise
+  await f.transport.interrupt(f.bots[0])
+  query.resolve({ content: [{ type: 'text', text: '' }], _meta: { 'aiterm/seat_turns': {
+    schema: 'aiterm.seat-turns.v1', seats: [{ session_id: 'old-a', turn: {
+      state: 'running', turn_id: 'stale', wait_process: { executable: 'synthetic', args: ['stale'] },
+    } }],
+  } } })
+  assert.equal((await ensuring).code, 'BOT_STOPPED')
+  await watching
+  assert.equal(f.transport.queueItems().length, 0)
+  assert.equal(f.calls.some(([name]) => name === 'agent_launch'), false)
+})
+
+test('停止より前に読み始めた回答の後着を、新しい回答として出さない', { timeout: 2000 }, async t => {
+  const f = await fixture(t)
+  const reading = deferred(), answer = deferred()
+  const call = f.transport.client.call
+  f.transport.client.call = async (name, args, options) => {
+    if (name === 'pty_read') { reading.resolve(); await answer.promise }
+    return call(name, args, options)
+  }
+  const old = f.start(f.bots[0], '動作中')
+  await old.completion.accepted
+  f.waits.get('1').resolve({ outcome: 'done' })
+  await reading.promise
+  const stopping = f.transport.interrupt(f.bots[0])
+  await tick()
+  assert.equal(f.alive.has('old-a'), false)
+  answer.resolve()
+  await stopping
+  assert.equal((await old.result).code, 'BOT_STOPPED')
+})
+
+test('4ハーネスとも同じ停止口で対象の席だけを閉じる', async t => {
+  for (const harness of ['claude', 'codex', 'grok', 'cursor']) await t.test(harness, async t => {
+    const f = await fixture(t)
+    f.bots[0].harness = harness
+    const old = f.start(f.bots[0], '合成作業')
+    await old.completion.accepted
+    await f.transport.interrupt(f.bots[0])
+    assert.equal((await old.result).code, 'BOT_STOPPED')
+    assert.equal(f.alive.has('old-b'), true)
+  })
 })
 
 test('自分から動いたターンの見張りも対象の停止後に外す', { timeout: 2000 }, async t => {
