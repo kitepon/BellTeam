@@ -10,9 +10,9 @@
 
 旧v2の証拠読取部品は停止ボタンの実行経路から外した。診断の不足を、停止発行や次入力を塞ぐ条件にしない。
 
-supervisorはcreateManagedTransportで、配送と中断を同じAitermClient/ExecutionBridgeへ接続する。bootstrapがAiterm自身からscopeを読み、`execution-native-server.js --execution-interrupt --state-root … --socket … --steer-provider …`の登録をsupervisorと4CLIで共用する。通常18ツールの入口は停止を提供しない。native親hookも同じ登録をAitermのsetupへ渡し、旧hookへ変換しない。native wakeが未接続の間は旧lazy wakeへ戻さず直結する。
+supervisorはcreateManagedTransportで、配送と中断を同じAitermClient/ExecutionBridgeへ接続する。bootstrapがAiterm自身からscopeを読み、`execution-native-server.js --execution-interrupt --state-root … --socket … --steer-provider …`の登録をsupervisorと4CLIで共用する。通常18ツールの入口は停止を提供しない。native親hookも同じ登録をAitermのsetupへ渡し、旧hookへ変換しない。CLIのMCPは既存mcp-lazyで同じcommand/全argsを包み、使用するまで本体を起こさない。旧18tool cacheとnative21tool cacheを分け、旧static delivery-wakeを付けない。起動後は既存のIDLE_STOP=0で維持する。本体SDKの停止は直接nativeへ送る。
 
-Aiterm候補d4f51efとSteer候補7a8bd27を隔離rootで起動し、本体のAitermClientからstdio接続して通常18＋停止等3ツールを読むところまで確認した。これはCLIを起動・中断する試験ではない。Aiterm native hook登録、中断後の同会話への次入力と実4CLIでの受入、依存配布物の更新は残る。本番反映とApple配布も未実施。次の本体/審査用/段2配備は新方式の受入後だけとする。
+Aiterm候補184d612とSteer候補f77ab68のnpm形式配布物を自己隔離prefixへ導入し、実stdioで21ツール、native hook設定、実HTTPから自己所有のtmux試験端末4つへの末端→親のキー各1回と次入力を確認した。CLI用の既存mcp-lazyを経由した接続も同じ結果。端末内の入力受信器と関係記録は合成である。Aiterm担当は自己隔離の実Codex1会話と親子2会話で、通常中断と同launch/native会話への次入力・実assistant回答を確認した。実4CLI全種の受入、依存物の正式公開、本番反映とApple配布は残る。次の本体/審査用/段2配備は新方式の受入後だけとする。
 
 ## 個別停止API
 

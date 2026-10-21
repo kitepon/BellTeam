@@ -13,9 +13,9 @@ import { configureCursorInstructions } from './cursor-instructions.mjs'
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const execFileAsync = promisify(execFile)
 
-export async function configureHarnesses(bots, home = runtimeHome(), { run = execFileAsync, rtk = configureRtk, aitermHooks = configureAitermHooks, aiterm = aitermRegistration, cursorInstructions = configureCursorInstructions, callBridge, report = message => process.stderr.write(`${message}\n`) } = {}) {
+export async function configureHarnesses(bots, home = runtimeHome(), { run = execFileAsync, rtk = configureRtk, aitermHooks = configureAitermHooks, aiterm = aitermRegistration, relay = aitermRelay, cursorInstructions = configureCursorInstructions, callBridge, report = message => process.stderr.write(`${message}\n`) } = {}) {
   const registration = await aiterm().catch(() => null)
-  await writeHarnessConfig(bots, home, { callBridge, aiterm: async () => registration })
+  await writeHarnessConfig(bots, home, { callBridge, aiterm: async () => registration, relay })
   await run('throughline', ['install'], { env: runtimeEnvironment(process.env, home) })
   // Cursor CLIは ~/.cursor/AGENTS.md を読まないので、起動時指示はsessionStartのhookで渡す。
   try {
@@ -75,9 +75,7 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
   // Aitermの本体は `aiterm-setup` が書くものと同じ形（nodeの絶対path＋index.js）で起こす。同梱のaiterm-mcpを読めない環境では、PATH上の aiterm-mcp を起動先にする。
   // 中継（mcp-lazy）がある環境では、その本体を中継ごしに登録する。本体は席がAitermの道具を呼ぶまで起きない。
   const bundledAiterm = await aiterm().catch(() => null)
-  // 旧wakeは通常profileのworkerを起こす。nativeの親配送も同じscopeへ接続するまで、
-  // native入口は直結し、通常入口のcache/wakeへ置き換えない。
-  const relayPath = bundledAiterm && !bundledAiterm.args.includes('--execution-interrupt') ? await relay() : null
+  const relayPath = bundledAiterm ? await relay() : null
   const aitermFor = harness => relayPath ? relayedAiterm(relayPath, bundledAiterm, harness, home) : bundledAiterm ?? { command: 'aiterm-mcp', args: [] }
   const aitermToml = harness => {
     const server = aitermFor(harness)
@@ -125,13 +123,16 @@ const AITERM_WAKE_PARENTS = ['codex', 'claude', 'cursor']
 // - 本体が眠っている間は、終了した席の親配送を引き取る者が居ない。Aitermの判定が「引き取る配送がある」と答えた時に、中継が本体を起こす。
 // 席を閉じる時の数え方は、Aiterm（0.51.0から）が中継の直接の子を数えない取り決めに依る。
 function relayedAiterm(relay, server, harness, home) {
-  const wake = AITERM_WAKE_PARENTS.includes(harness)
+  const native = server.args.includes('--execution-interrupt')
+  // Native MCP uses the same lazy relay, but not its old static-profile worker
+  // or 18-tool cache. Once invoked it stays connected for the session lifetime.
+  const wake = !native && AITERM_WAKE_PARENTS.includes(harness)
     ? { MCP_LAZY_WAKE_COMMAND: JSON.stringify([server.command, join(dirname(server.args[0]), 'delivery-wake-cli.js'), '--parent', harness]), MCP_LAZY_WAKE_INTERVAL: '30s' }
     : {}
   return {
     command: relay,
     args: [server.command, ...server.args],
-    env: { MCP_LAZY_CACHE_DIR: join(home, '.cache/mcp-lazy', `aiterm-${harness}`), MCP_LAZY_IDLE_STOP: '0', ...wake },
+    env: { MCP_LAZY_CACHE_DIR: join(home, '.cache/mcp-lazy', `aiterm-${native ? 'native-' : ''}${harness}`), MCP_LAZY_IDLE_STOP: '0', ...wake },
   }
 }
 

@@ -13,6 +13,7 @@ test('四つのCLIと親hookへ同一native登録を渡し旧lazy wakeを起こ�
   let hookRegistration
   await configureHarnesses(new Map(), home, {
     aiterm: async () => registration,
+    relay: async () => null,
     run: async () => {}, rtk: async () => {}, cursorInstructions: async () => {},
     aitermHooks: async (_, options) => { hookRegistration = options.registration },
   })
@@ -25,6 +26,28 @@ test('四つのCLIと親hookへ同一native登録を渡し旧lazy wakeを起こ�
     assert.ok(config.includes(`command = ${JSON.stringify(registration.command)}`))
     assert.ok(config.includes(`args = ${JSON.stringify(registration.args)}`))
     assert.doesNotMatch(config, /MCP_LAZY_WAKE/)
+  }
+})
+
+test('native入口も既存relayを使い、scope引数を保持して旧cacheとwakeを共有しない', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'bellteam-native-lazy-'))
+  const registration = { command: '/candidate/node', args: ['/candidate/dist/execution-native-server.js',
+    '--execution-interrupt', '--state-root', '/isolated/state', '--socket', '/isolated/tmux.sock', '--steer-provider', '/candidate/steer/index.js'] }
+  await writeHarnessConfig(new Map(), home, { aiterm: async () => registration, relay: async () => '/candidate/mcp-lazy' })
+  const claude = JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).mcpServers.aiterm
+  assert.equal(claude.command, '/candidate/mcp-lazy')
+  assert.deepEqual(claude.args, [registration.command, ...registration.args])
+  assert.equal(claude.env.MCP_LAZY_IDLE_STOP, '0')
+  assert.equal(claude.env.MCP_LAZY_CACHE_DIR, join(home, '.cache/mcp-lazy/aiterm-native-claude'))
+  assert.equal(claude.env.MCP_LAZY_WAKE_COMMAND, undefined)
+  const cursor = JSON.parse(await readFile(join(home, '.cursor/mcp.json'), 'utf8')).mcpServers.aiterm
+  assert.deepEqual(cursor.args.slice(1), [claude.command, ...claude.args])
+  assert.equal(cursor.env.MCP_LAZY_IDLE_STOP, '0')
+  for (const file of ['.codex/config.toml', '.grok/config.toml']) {
+    const config = await readFile(join(home, file), 'utf8')
+    assert.ok(config.includes(`args = ${JSON.stringify([registration.command, ...registration.args])}`))
+    assert.doesNotMatch(config, /MCP_LAZY_WAKE/)
+    assert.match(config, /aiterm-native-/)
   }
 })
 
