@@ -160,7 +160,7 @@ function parseLines(text, read) {
       const record = JSON.parse(line)
       if (record?.schema === 'bellteam.direct-message.v1' || record?.schema === 'bellteam.interim-word.v1') read.entries.push(record)
       else if (record?.schema === 'bellteam.delivery-status.v1'
-        && ['running', 'delivered', 'failed'].includes(record.delivery)) {
+        && ['running', 'delivered', 'failed', 'stopped'].includes(record.delivery)) {
         read.statuses.set(record.delivery_id, record.delivery)
       } else throw new Error('schema')
     } catch {

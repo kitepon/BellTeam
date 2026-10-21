@@ -97,7 +97,7 @@ export class BellTeamMessenger {
       })
       return { delivery: result.delivery, delivery_id: deliveryId, target }
     } catch (error) {
-      await this.appendDeliveryStatus(deliveryId, 'failed')
+      await this.appendDeliveryStatus(deliveryId, error.code === 'BOT_STOPPED' ? 'stopped' : 'failed')
       throw error
     }
   }
