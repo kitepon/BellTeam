@@ -21,6 +21,19 @@ final class MemberActivityTests: XCTestCase {
         XCTAssertEqual(response.items.count, 6, "配送項目そのものは変更しない")
     }
 
+    func testStoppedDeliveryIsDistinctAndAnotherRunningMemberRemainsVisible() throws {
+        let messages = try JSONDecoder().decode([TimelineMessage].self, from: Data("""
+        [
+          {"id":"direct","at":"2026-10-21T00:00:00Z","direction":"outgoing","delivery":"stopped"},
+          {"id":"room-stopped","at":"2026-10-21T00:00:00Z","direction":"outgoing",
+           "deliveries":[{"target":"bot-one","delivery":"stopped"},{"target":"bot-two","delivery":"delivered"}]},
+          {"id":"room-running","at":"2026-10-21T00:00:00Z","direction":"outgoing",
+           "deliveries":[{"target":"bot-one","delivery":"stopped"},{"target":"bot-two","delivery":"running"}]}
+        ]
+        """.utf8))
+        XCTAssertEqual(messages.map(\.status), ["stopped", "stopped", "running"])
+    }
+
     func testRunningWorkUsesBotIdentityAndUpdatesWhenWorkEnds() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MemberActivityProtocol.self]

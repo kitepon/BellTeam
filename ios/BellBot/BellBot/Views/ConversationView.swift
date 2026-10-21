@@ -23,6 +23,8 @@ private struct ConversationContent: View {
     @State private var readTask: Task<Void, Never>?
     @State private var olderTask: Task<Void, Never>?
     @State private var sending = false
+    @State private var stoppingBotID: String?
+    @State private var stopNotice: StopNotice?
     private var draft: String {
         get { store.draft(for: target).text }
         nonmutating set { store.draft(for: target).text = newValue }
@@ -277,6 +279,16 @@ private struct ConversationContent: View {
                     Text("\(item.botName ?? title) · \(item.status == "queued" ? "送信待ち" : "処理中")")
                         .font(BellTheme.messageHelperFont.weight(.medium))
                     Spacer()
+                    if target.isRoom, isStopRow(item), let id = item.botId {
+                        Button(stoppingBotID == id ? "停止中…" : "止める") {
+                            Task { await stopBot(id, name: item.botName ?? title) }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(stoppingBotID != nil)
+                        .accessibilityLabel("\(item.botName ?? title)の今の動作を止める")
+                        .accessibilityIdentifier("stop-bot-\(id)")
+                    }
                 }
             }
         }
@@ -286,11 +298,75 @@ private struct ConversationContent: View {
         .background(BellTheme.violetLight.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
     }
 
+    private func isStopRow(_ item: QueueItem) -> Bool {
+        guard let id = item.botId, ["running", "queued"].contains(item.status) else { return false }
+        guard target.isRoom, room?.memberIds.contains(id) == true else { return false }
+        return QueueItem.displayItems(queue).first {
+            $0.botId == id && ["running", "queued"].contains($0.status)
+        }?.id == item.id
+    }
+
+    private var currentBotCanStop: Bool {
+        guard case .bot(let id) = target else { return false }
+        return queue.contains { $0.botId == id && ["running", "queued"].contains($0.status) }
+    }
+
+    private func stopNoticeView(_ notice: StopNotice) -> some View {
+        Text(notice.message)
+            .font(BellTheme.messageHelperFont)
+            .foregroundStyle(notice.isError ? Color.red : BellTheme.violet)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(BellTheme.violetLight.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func stopBot(_ id: String, name: String) async {
+        guard stoppingBotID == nil else { return }
+        stoppingBotID = id
+        stopNotice = nil
+        defer { stoppingBotID = nil }
+        do {
+            try await store.api.stopBot(id)
+            stopNotice = .confirmed(name)
+            await load()
+            await store.refreshFromView()
+        } catch let error where BellAPIError.isAuthenticationError(error) {
+            store.requireLogin(for: error)
+        } catch {
+            stopNotice = BellAPIError.operationResultUnconfirmed(error) ? .unconfirmed : .failed(error.localizedDescription)
+            store.api.diagnostics.report(error, path: "/api/bots/\(id)/stop", method: "POST", observation: .write)
+            await load()
+        }
+    }
+
+    private enum StopNotice {
+        case confirmed(String)
+        case unconfirmed
+        case failed(String)
+
+        var message: String {
+            switch self {
+            case .confirmed(let name): "\(name)の直前の動作を停止しました。新しい依頼で再起動できます。"
+            case .unconfirmed: "停止できたか確認できませんでした。状況を確認してから操作してください。"
+            case .failed(let reason): reason
+            }
+        }
+
+        var isError: Bool {
+            switch self {
+            case .confirmed: false
+            case .unconfirmed, .failed: true
+            }
+        }
+    }
+
     private var composer: some View {
         VStack(spacing: 8) {
             if let room { targetPicker(room) }
             ConversationInput(draft: store.draft(for: target), sending: sending, hasAttachments: !attachments.isEmpty,
                               onSend: { Task { await send() } },
+                              canStop: currentBotCanStop, stopping: stoppingBotID != nil,
+                              onStop: { if case .bot(let id) = target { Task { await stopBot(id, name: title) } } },
                               onPasteImages: { attachments.append(contentsOf: $0) },
                               onPasteFailure: { errorText = $0 }) {
                 #if targetEnvironment(macCatalyst)
@@ -322,6 +398,7 @@ private struct ConversationContent: View {
         // 入力欄がキーボードの下へはみ出した（iPhone Simulator、iOS 26）。
         .overlay(alignment: .top) {
             VStack(spacing: 8) {
+                if let stopNotice { stopNoticeView(stopNotice) }
                 if let errorText {
                     Text(errorText)
                         .font(BellTheme.messageHelperFont)
@@ -435,7 +512,17 @@ private struct ConversationContent: View {
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-bellbot-preview") })
             && !ProcessInfo.processInfo.arguments.contains("-bellbot-preview-server") {
             messages = PreviewMessages.items(for: target)
-            queue = []
+            if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-stop") {
+                queue = target.isRoom ? [
+                    QueueItem(id: "preview-room-running", botId: "bot-one", botName: "ユキ",
+                              status: "running", groupId: nil, message: nil),
+                    QueueItem(id: "preview-room-queued", botId: "bot-three", botName: "ナギ",
+                              status: "queued", groupId: nil, message: nil),
+                ] : [
+                    QueueItem(id: "preview-bot-running", botId: target.id, botName: title,
+                              status: "running", groupId: nil, message: nil),
+                ]
+            } else { queue = [] }
             hasMore = false
             loading = false
             return
@@ -630,6 +717,9 @@ private struct ConversationInput<AttachmentButton: View>: View {
     let sending: Bool
     let hasAttachments: Bool
     let onSend: () -> Void
+    let canStop: Bool
+    let stopping: Bool
+    let onStop: () -> Void
     let onPasteImages: ([PendingImage]) -> Void
     let onPasteFailure: (String) -> Void
     @ViewBuilder let attachmentButton: () -> AttachmentButton
@@ -650,6 +740,19 @@ private struct ConversationInput<AttachmentButton: View>: View {
                 }
             }
             .padding(.vertical, 10)
+            if canStop {
+                Button(action: onStop) {
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(.red, in: Circle())
+                }
+                .accessibilityLabel("今の動作を止める")
+                .accessibilityIdentifier("stop-current-bot")
+                .disabled(stopping)
+                .padding(.bottom, 1)
+            }
             Button(action: onSend) {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 17, weight: .bold))
@@ -981,6 +1084,7 @@ private struct MessageRow: View {
         return switch message.status {
         case "queued": "送信待ち"
         case "running": "処理中"
+        case "stopped": "停止"
         case "delivered": "配達済み"
         case "failed": "配達失敗"
         default: ""
