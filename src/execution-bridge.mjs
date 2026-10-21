@@ -1,6 +1,7 @@
 // Adapter for Aiterm execution wire v1; not mounted on the live transport yet.
 // Aiterm owns relation storage, generation checks, fences and retirement.
 import { isDeepStrictEqual as same } from 'node:util'
+import { requestSessionInterruption } from './session-interruption.mjs'
 
 export const EXECUTION_META = 'aiterm/execution'
 export const BINDING_META = 'aiterm/execution_binding'
@@ -72,6 +73,9 @@ export function callExecutionRef({ sessionId, event, seq, deliveryId }, targetSe
 
 export class ExecutionBridge {
   constructor(client) { this.client = client }
+  async interrupt(roots) {
+    return requestSessionInterruption(args => call(this.client, 'agent_stop', args), roots)
+  }
   async reserve({ request, sourceSession = null, source = { launch: null, boundary: null }, targetSession, expectedLaunch = null }, { sourceContext = null, ...options } = {}) {
     // Host-only context comes from the captured ingress, separately from the
     // public register claim. Missing context must never fall back to that claim.
@@ -105,6 +109,8 @@ export class ExecutionBridge {
     return data
   }
   async stop(roots) {
+    // Historical close-based v1 transport; not eligible for owner stop UI.
+    // Production wiring stays blocked until this caller is replaced by v2.
     if (!Array.isArray(roots) || !roots.length || !roots.every(launch)) throw failure('EXECUTION_INVALID', 'not_started')
     const expected = structuredClone(roots)
     const result = await call(this.client, 'agent_stop', { schema: 'aiterm.cascade-stop-request.v1', roots: expected })
