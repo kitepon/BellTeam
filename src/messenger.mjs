@@ -17,7 +17,7 @@ export function userEnvelope(from, message) {
 
 export class BellTeamMessenger {
   // onTurnEndは、Botのターンが終わった時にオーナーへの報告漏れを確かめる処理（turn-reports.mjs）を呼ぶ。
-  constructor({ bots, transport, logPath, assets = null, onMessage = () => {}, onTurnEnd = () => {}, requireAccess = async () => {}, now = () => new Date().toISOString(), deliveryId = randomUUID }) {
+  constructor({ bots, transport, logPath, assets = null, onMessage = () => {}, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, now = () => new Date().toISOString(), deliveryId = randomUUID }) {
     this.bots = bots
     this.transport = transport
     this.logPath = logPath
@@ -25,6 +25,7 @@ export class BellTeamMessenger {
     this.onMessage = onMessage
     this.onTurnEnd = onTurnEnd
     this.requireAccess = requireAccess
+    this.admitWork = admitWork
     this.now = now
     this.deliveryId = deliveryId
     this.store = new ConversationStore({ logPath })
@@ -33,6 +34,7 @@ export class BellTeamMessenger {
 
   // Botの送信（MCP）は画像1枚の `image`、ユーザーの送信は複数枚の `images` で渡す。
   async sendmessage({ from, target, message, image = null, images = image ? [image] : [] }) {
+    const check = target === 'user' ? () => {} : this.admitWork()
     await this.bots.refresh?.()
     if (!['user', 'scheduler'].includes(from) && !this.bots.has(from)) throw new Error(`SENDER_NOT_FOUND: ${from}`)
     if (target === 'user' && from === 'user') throw new Error('USER_TO_USER_NOT_ALLOWED')
@@ -55,6 +57,8 @@ export class BellTeamMessenger {
     await this.append(record)
     let delivery = null
     if (bot) {
+      try { check() }
+      catch (error) { await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
       delivery = await this.transport.notify(bot, directEnvelope(memberIdentity(this.bots, from), message), {
         images,
         queue: {
@@ -71,6 +75,7 @@ export class BellTeamMessenger {
   }
 
   async receiveCallBridge({ event, session_id: sessionId, target_id: target, source_system: sourceSystem, source_id: sourceId, source_label: sourceLabel, message, reply_required: replyRequired = true, seq = null }) {
+    const check = this.admitWork()
     await this.bots.refresh?.()
     const bot = this.bots.get(target)
     if (!bot) throw new Error(`BOT_NOT_FOUND: ${target}`)
@@ -88,6 +93,7 @@ export class BellTeamMessenger {
       : `\n\n返信する時は call-bridge MCP の call_send に session_id=${sessionId}、from_party=${party} を指定して。`
     const envelope = `「${sourceLabel}」（${sourceSystem}:${sourceId}）から通話が届いています。session_id=${sessionId}${seq == null ? '' : ` seq=${seq}`}\n\n${message}${replyHint}`
     try {
+      check()
       const result = await this.transport.notify(bot, envelope, {
         queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from, fromName: sourceLabel, target: bot.id, message },
         onStatus: status => this.appendDeliveryStatus(deliveryId, status),
@@ -97,7 +103,7 @@ export class BellTeamMessenger {
       })
       return { delivery: result.delivery, delivery_id: deliveryId, target }
     } catch (error) {
-      await this.appendDeliveryStatus(deliveryId, error.code === 'BOT_STOPPED' ? 'stopped' : 'failed')
+      await this.appendDeliveryStatus(deliveryId, ['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) ? 'stopped' : 'failed')
       throw error
     }
   }
@@ -120,6 +126,7 @@ export class BellTeamMessenger {
   }
 
   async prepareUserTurn({ target, message, images = [], recordUser = true }) {
+    const check = this.admitWork()
     await this.bots.refresh?.()
     const bot = this.bots.get(target)
     if (!bot) throw new Error(`BOT_NOT_FOUND: ${target}`)
@@ -138,12 +145,13 @@ export class BellTeamMessenger {
     const knownReplyIds = new Set((await this.store.records())
       .filter(record => record.from === target && record.target === 'user')
       .map(record => record.delivery_id))
-    return { target, message, images, bot, deliveryId, knownReplyIds, startedAt }
+    return { target, message, images, bot, deliveryId, knownReplyIds, startedAt, check }
   }
 
   startUserTurn(prepared) {
     const { target, message, images, bot, deliveryId } = prepared
     return this.transport.turn(bot, userEnvelope(memberIdentity(this.bots, 'user'), message), {
+      admissionCheck: prepared.check,
       images,
       queue: {
         context: 'direct', contextId: target, groupId: deliveryId,

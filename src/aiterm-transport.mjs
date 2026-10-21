@@ -148,7 +148,7 @@ export class AitermClient {
 }
 
 export class AitermTransport {
-  constructor({ client = new AitermClient(), tempRoot = tmpdir(), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS } = {}) {
+  constructor({ client = new AitermClient(), tempRoot = tmpdir(), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS } = {}) {
     this.client = client
     this.interimInterval = interimInterval
     this.tempRoot = tempRoot
@@ -158,6 +158,7 @@ export class AitermTransport {
     this.updateSession = updateSession
     this.updateFastMode = updateFastMode
     this.requireAccess = requireAccess
+    this.assertWorkAllowed = assertWorkAllowed
     this.activeId = activeId
     this.now = now
     this.active = new Map()
@@ -203,6 +204,7 @@ export class AitermTransport {
   }
 
   async ensure(bot) {
+    this.assertWorkAllowed()
     this.requireSessionKnown(bot.id)
     const version = this.stopVersions.get(bot.id)
     await this.interruptions.get(bot.id)
@@ -214,6 +216,7 @@ export class AitermTransport {
   }
 
   wake(bot, options = {}) {
+    this.assertWorkAllowed()
     this.requireSessionKnown(bot.id)
     const pending = this.wakeNow(bot, options)
     this.waking.set(bot.id, pending)
@@ -275,6 +278,7 @@ export class AitermTransport {
   }
 
   async restart(bot) {
+    this.assertWorkAllowed()
     this.requireSessionKnown(bot.id)
     const version = this.stopVersions.get(bot.id)
     await this.interruptions.get(bot.id)
@@ -285,6 +289,7 @@ export class AitermTransport {
   }
 
   async reconfigure(current, next) {
+    this.assertWorkAllowed()
     this.requireSessionKnown(current.id)
     const version = this.stopVersions.get(current.id)
     await this.interruptions.get(current.id)
@@ -364,11 +369,13 @@ export class AitermTransport {
   }
 
   requireStopVersion(botId, version) {
+    this.assertWorkAllowed()
     if (this.stopVersions.get(botId) !== version) throw stoppedError()
   }
 
   // session_idだけに作用する変更の発行と返却を追う。応答待ちのcloseを残したまま同じ席を起こさない。
   changeSession(bot, name, args, options) {
+    if (name !== 'pty_close') this.assertWorkAllowed()
     this.requireSessionKnown(bot.id)
     const pending = Promise.resolve(this.client.call(name, args, options))
     const changes = this.sessionChanges.get(bot.id) ?? new Set()
@@ -431,8 +438,8 @@ export class AitermTransport {
     return pending
   }
 
-  turn(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null } = {}) {
-    return this.submit(bot, message, { images, info: queue, onStatus, onInterim, transcript: true })
+  turn(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, admissionCheck = () => {} } = {}) {
+    return this.submit(bot, message, { images, info: queue, onStatus, onInterim, admissionCheck, transcript: true })
   }
 
   // BellTeamが追っているターンの合間の言葉を、完了まで数秒おきにAitermから受け取る。
@@ -515,11 +522,13 @@ export class AitermTransport {
     return this.wake(bot)
   }
 
-  submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false } = {}) {
+  submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {} } = {}) {
     const job = { id: this.activeId(), bot, controller: new AbortController(), info: { ...info, message: info.message ?? message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}) }, startedAt: this.now() }
     this.jobs.add(job)
     const check = () => {
       if (job.stopRequested) throw stoppedError()
+      this.assertWorkAllowed()
+      admissionCheck()
       this.requireSessionKnown(bot.id)
     }
     // 既に受理されたsend/doneは保持して停止の結論を待つ。停止未確認なら通常の結果処理へ戻る。
@@ -625,6 +634,7 @@ export class AitermTransport {
           try { await job.interruption } catch (stopError) { error = stopError }
           if (job.stopped) error = stoppedError()
         }
+        if (['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) && !job.receipt) job.stopped = true
         if (!acknowledged) rejectAcceptance(error)
         await onStatus?.(job.stopped ? 'stopped' : 'failed')
         throw error
@@ -817,6 +827,7 @@ export class AitermTransport {
   // require_agentで、登録が無い席へ普通の端末として打たれる（mode=sent）のを止める。
   // BellTeamの印を付けると、差し込みの返りに、その文を取ったターンを追う手がかりが入る（Aiterm 0.60.0、ADR 0122）。
   async sendToSession(session, message, imageFiles) {
+    this.assertWorkAllowed()
     return this.client.call('pty_send', {
       session_id: session,
       text: message,

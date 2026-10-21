@@ -98,7 +98,7 @@ function logReadRequest(request, response, write) {
   })
 }
 
-export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
+export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
   if (typeof authorize !== 'function') throw new Error('BELLTEAM_AUTHORIZER_REQUIRED')
   const subscribers = new Set()
   let closeWatch = null
@@ -122,6 +122,16 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       if (internal && seatMcp && (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/'))) return await seatMcp(request, response, url)
 
       if (url.pathname.startsWith('/api/')) {
+        if (url.pathname === '/api/ai-control') {
+          if (!aiControl) return json(response, 404, { error: 'NOT_FOUND' })
+          if (request.method === 'GET') return json(response, 200, { control: aiControl.snapshot() })
+          if (request.method !== 'PATCH') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+          const body = await readJson(request, 8192)
+          if (!body || Array.isArray(body) || Object.keys(body).length !== 1 || typeof body.paused !== 'boolean')
+            return json(response, 400, { error: 'AI_CONTROL_INVALID' })
+          const result = await aiControl.update(body.paused)
+          return json(response, result.status, { control: result.control, ...(result.error ? { error: result.error } : {}) })
+        }
         if (url.pathname === '/api/setup' && request.method === 'GET') return json(response, 200, onboarding ? await onboarding.status() : { phase: 'ready', harness: null, harnesses: [], guideBotId: null, complete: true, auth: null })
         if (url.pathname.startsWith('/api/setup/') && request.method === 'POST') {
           if (!onboarding) return json(response, 404, { error: 'NOT_FOUND' })
@@ -367,6 +377,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
 
         const restartMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/restart$/u)
         if (request.method === 'POST' && restartMatch) {
+          aiControl?.assertEnabled()
           const botId = restartMatch[1]
           const bot = bots.get(botId)
           if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
@@ -682,6 +693,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     // メンバーの追加・設定変更・削除。Botが自分で設定を替えた時も、アプリの一覧へ映す。
     if (bots?.watch) stops.push(bots.watch(notify))
     if (transport?.watchQueue) stops.push(transport.watchQueue(notify))
+    if (aiControl) stops.push(aiControl.watch(() => server.notify({ type: 'ai-control' })))
     closeWatch = () => stops.forEach(stop => stop())
   }
   server.on('close', () => {
@@ -781,6 +793,7 @@ async function staticFile(response, root, pathname, assetVersion) {
     ['/server-origin.js', 'server-origin.js'],
     ['/chat-input.js', 'chat-input.js'],
     ['/member-stop.js', 'member-stop.js'],
+    ['/ai-control.js', 'ai-control.js'],
     ['/rich-text.js', 'rich-text.js'],
     ['/secret-input.js', 'secret-input.js'],
     ['/owner-question.js', 'owner-question.js'],

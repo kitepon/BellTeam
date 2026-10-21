@@ -83,11 +83,13 @@ test('複数の画像は本文と同じ配達でAIへ渡し、画像本体はロ
   await messenger.userTurn({ target: bot.id, message: 'この画像を見て', images })
 
   assert.equal(calls.length, 1)
-  const [calledBot, envelope, { onStatus, onInterim, ...turnOptions }] = calls[0]
+  const [calledBot, envelope, { onStatus, onInterim, admissionCheck, ...turnOptions }] = calls[0]
   assert.equal(calledBot, bot)
   assert.equal(envelope, userEnvelope({ id: 'user', name: 'ユーザー', role: 'オーナー' }, 'この画像を見て'))
   assert.equal(typeof onStatus, 'function')
   assert.equal(typeof onInterim, 'function')
+  assert.equal(typeof admissionCheck, 'function')
+  assert.doesNotThrow(admissionCheck)
   assert.deepEqual(turnOptions, {
     images,
     queue: {

@@ -222,7 +222,7 @@ export class BotRegistry extends Map {
     return true
   }
 
-  async markScheduleRun(id, scheduleId, ranAt) {
+  async markScheduleRun(id, scheduleId, ranAt, { skipped = false } = {}) {
     const schedules = await this.listSchedules(id)
     const current = schedules.find(item => item.id === scheduleId)
     if (!current) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
@@ -230,7 +230,7 @@ export class BotRegistry extends Map {
     const updated = normalizeSchedule({
       ...current,
       enabled: current.kind === 'once' ? false : current.enabled,
-      lastRunAt: timestamp,
+      lastRunAt: skipped ? current.lastRunAt : timestamp,
     }, new Date(timestamp))
     await this.writeScheduleDocument(id, schedules.map(item => item.id === scheduleId ? updated : item))
     return updated

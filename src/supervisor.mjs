@@ -8,6 +8,7 @@ import { CharacterSheets } from './character-sheets.mjs'
 import { createBugHubSecurity } from './bughub-security.mjs'
 import { createCallBridgeServer, listenCallBridge } from './call-bridge-server.mjs'
 import { AitermTransport } from './aiterm-transport.mjs'
+import { AiControl, stopRegisteredWork } from './ai-control.mjs'
 import { ConversationStore } from './conversation-store.mjs'
 import { Diagnostics, createDiagnosticsAdminServer } from './diagnostics.mjs'
 import { createBellTeamServer } from './http-server.mjs'
@@ -52,7 +53,14 @@ const notifications = new PushNotifications({ root, bots, diagnostics })
 await notifications.initialize()
 const memory = new BellTeamMemory({ registry: bots, root })
 await memory.initialize()
+const aiControl = new AiControl({
+  path: join(root, 'shared/ai-control.json'),
+  stopAll: () => stopRegisteredWork({ bots, transport, scheduler }),
+  beforeResume: at => scheduler.prepareResume(new Date(at)),
+})
+await aiControl.initialize()
 const transport = new AitermTransport({
+  assertWorkAllowed: () => aiControl.assertEnabled(),
   prepareStartup: async (bot, shortTermMemory) => {
     await bots.prepareStartupContext(bot.id, shortTermMemory)
     await onboarding.prepareStartup(bot)
@@ -66,6 +74,8 @@ const store = new ConversationStore({ logPath })
 const assets = new MessageAssets({ root })
 const messenger = new BellTeamMessenger({
   bots, transport, logPath, assets,
+  admitWork: () => aiControl.admit(),
+  requireAccess: () => aiControl.assertEnabled(),
   onMessage: record => notifications.direct(record),
   onTurnEnd: turn => turnReports.afterTurn(turn),
 })
@@ -77,7 +87,7 @@ await onboarding.initialize()
 const harnessAuth = new HarnessAuth({ bots, client: transport.client })
 const turnReports = new TurnReports({
   bots, store, transport,
-  enabled: () => settings.configuration('routing').enabled,
+  enabled: () => !aiControl.paused && settings.configuration('routing').enabled,
   judge: value => judgeOwnerReport({ ...value, apiKey: settings.configuration('routing').apiKey }),
   appendInterimWords: (botId, groupId, words) => messenger.appendInterimWords(botId, groupId, words),
 })
@@ -98,13 +108,18 @@ const rooms = new RoomRegistry({ roomsRoot: join(root, 'rooms'), bots })
 await rooms.initialize()
 const roomMessenger = new RoomMessenger({
   rooms, bots, transport, assets,
+  admitWork: () => aiControl.admit(),
+  requireAccess: () => aiControl.assertEnabled(),
   automaticRouting: () => settings.configuration('routing').enabled,
   chooseResponder: value => chooseRoomResponder({ ...value, apiKey: settings.configuration('routing').apiKey }),
   onMessage: record => notifications.room(record),
   onInterimWords: (botId, groupId, words) => messenger.appendInterimWords(botId, groupId, words),
   onTurnEnd: turn => turnReports.afterTurn(turn),
 })
-const scheduler = new BotScheduler({ registry: bots, messenger, transport, rooms, roomMessenger })
+const scheduler = new BotScheduler({ registry: bots, messenger, transport, rooms, roomMessenger,
+  paused: () => aiControl.paused,
+  assertWorkAllowed: () => aiControl.assertEnabled(),
+})
 const characterSheets = new CharacterSheets({ projectPath: id => bots.projectPath(id) })
 const secretRequests = new SecretRequests({
   root, bots, rooms,
@@ -119,6 +134,7 @@ const ownerQuestions = new OwnerQuestions({
 })
 await ownerQuestions.initialize()
 const serverOptions = {
+  aiControl,
   subscriptions,
   settings,
   onboarding,
@@ -158,6 +174,8 @@ const internalPort = Number(process.env.BELLTEAM_INTERNAL_PORT ?? 4181)
 const callBridgeHeaders = join(root, 'shared/tools/call-bridge/headers')
 const seatMcp = createSeatMcp({
   bots,
+  admitWork: () => aiControl.admit(),
+  assertWorkAllowed: () => aiControl.assertEnabled(),
   tools: { registry: bots, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },
   callBridge: () => {
     const config = settings.configuration('callBridge')
@@ -225,6 +243,7 @@ settings.onChange = async (id, config) => {
 }
 
 await server.startMessageWatch()
+if (aiControl.paused) void aiControl.enforce()
 server.listen(Number(process.env.BELLTEAM_WEB_PORT ?? 4180), '0.0.0.0')
 internalServer.listen(internalPort, '127.0.0.1')
 scheduler.start()

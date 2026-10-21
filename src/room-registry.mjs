@@ -168,11 +168,11 @@ export class RoomRegistry extends Map {
     await this.writeScheduleDocument(id, schedules.filter(item => item.id !== scheduleId))
   }
 
-  async markScheduleRun(id, scheduleId, ranAt) {
+  async markScheduleRun(id, scheduleId, ranAt, { skipped = false } = {}) {
     const schedules = await this.listSchedules(id)
     const current = schedules.find(item => item.id === scheduleId)
     if (!current) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
-    const base = normalizeSchedule({ ...current, lastRunAt: new Date(ranAt).toISOString(), enabled: current.kind === 'once' ? false : current.enabled }, new Date(ranAt))
+    const base = normalizeSchedule({ ...current, lastRunAt: skipped ? current.lastRunAt : new Date(ranAt).toISOString(), enabled: current.kind === 'once' ? false : current.enabled }, new Date(ranAt))
     const updated = { ...base, targets: current.targets ?? null }
     await this.writeScheduleDocument(id, schedules.map(item => item.id === scheduleId ? updated : item))
     return updated

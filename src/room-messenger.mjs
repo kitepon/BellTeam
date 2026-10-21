@@ -4,7 +4,7 @@ import { memberIdentity } from './member-identity.mjs'
 import { chooseRoomResponder, roomTurnsFromThroughline } from './room-routing.mjs'
 
 export class RoomMessenger {
-  constructor({ rooms, bots, transport, assets = null, onMessage = () => {}, onInterimWords = null, onTurnEnd = () => {}, requireAccess = async () => {}, automaticRouting = () => true, now = () => new Date().toISOString(), messageId = randomUUID, roomTurns = roomTurnsFromThroughline, chooseResponder = chooseRoomResponder }) {
+  constructor({ rooms, bots, transport, assets = null, onMessage = () => {}, onInterimWords = null, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, automaticRouting = () => true, now = () => new Date().toISOString(), messageId = randomUUID, roomTurns = roomTurnsFromThroughline, chooseResponder = chooseRoomResponder }) {
     this.rooms = rooms
     this.bots = bots
     this.transport = transport
@@ -13,6 +13,7 @@ export class RoomMessenger {
     this.onInterimWords = onInterimWords
     this.onTurnEnd = onTurnEnd
     this.requireAccess = requireAccess
+    this.admitWork = admitWork
     this.now = now
     this.messageId = messageId
     this.roomTurns = roomTurns
@@ -22,10 +23,12 @@ export class RoomMessenger {
   }
 
   sendroommessage(input) {
+    let check
+    try { check = this.admitWork() } catch (error) { return Promise.reject(error) }
     const previous = this.roomTasks.get(input.room) ?? Promise.resolve()
     const current = previous.then(
-      () => this.sendRoomMessageInOrder(input),
-      () => this.sendRoomMessageInOrder(input),
+      () => this.sendRoomMessageInOrder(input, check),
+      () => this.sendRoomMessageInOrder(input, check),
     )
     this.roomTasks.set(input.room, current)
     const clear = () => {
@@ -36,7 +39,8 @@ export class RoomMessenger {
   }
 
   // Botの発言（MCP）は画像1枚の `image`、ユーザーの発言は複数枚の `images` で渡す。
-  async sendRoomMessageInOrder({ from, room: roomId, message, image = null, images = image ? [image] : [], targets = null, kind = 'message', schedule = null, responseTo = null }) {
+  async sendRoomMessageInOrder({ from, room: roomId, message, image = null, images = image ? [image] : [], targets = null, kind = 'message', schedule = null, responseTo = null }, check = () => {}) {
+    check()
     await Promise.all([this.rooms.refresh?.(), this.bots.refresh?.()])
     const room = this.rooms.get(roomId)
     if (!room) throw new Error(`ROOM_NOT_FOUND: ${roomId}`)
@@ -52,6 +56,7 @@ export class RoomMessenger {
     }
     const sender = memberIdentity(this.bots, from)
     await this.requireAccess()
+    check()
     const members = room.memberIds.map(id => memberIdentity(this.bots, id))
     const representative = room.representativeId ? memberIdentity(this.bots, room.representativeId) : null
     const snapshot = { id: room.id, name: room.name, purpose: room.purpose, representative, members }
@@ -72,24 +77,35 @@ export class RoomMessenger {
     }
     await this.rooms.appendMessage(room.id, record)
     this.onMessage(record)
+    const failedRouting = async error => {
+      const stopped = ['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code)
+      await this.rooms.appendMessage(room.id, {
+        schema: 'bellteam.room-routing-status.v1', message_id: id,
+        routing: stopped ? { status: 'ready', responders: [] } : { status: 'failed', responders: [], error: error.message }, at: this.now(),
+      })
+      if (stopped) for (const target of deliveryTargets) await this.rooms.appendMessage(room.id, {
+        schema: 'bellteam.room-delivery-status.v1', message_id: id, target, at: this.now(), delivery: 'stopped',
+      })
+    }
     let responders
     try {
       const turns = await this.roomTurns({
         projectPath: this.rooms.roomsRoot, roomId: room.id, messageId: id,
         speaker: sender.name, text: message || '画像',
       })
+      // History loading can overlap a global stop. Do not start a routing AI afterwards.
+      await this.requireAccess()
+      check()
       responders = manualResponders ?? (automaticRouting ? await this.chooseResponder({ room, turns, members }) : [])
       await this.rooms.appendMessage(room.id, {
         schema: 'bellteam.room-routing-status.v1', message_id: id,
         routing: { status: 'ready', responders }, at: this.now(),
       })
     } catch (error) {
-      await this.rooms.appendMessage(room.id, {
-        schema: 'bellteam.room-routing-status.v1', message_id: id,
-        routing: { status: 'failed', responders: [], error: error.message }, at: this.now(),
-      })
+      await failedRouting(error)
       throw error
     }
+    try { check() } catch (error) { await failedRouting(error); throw error }
     const deliveries = await Promise.allSettled(deliveryTargets.map(id => this.transport.notify(
       this.bots.get(id), roomEnvelope(record, { silent: !responders.includes(id) }), {
         images,
