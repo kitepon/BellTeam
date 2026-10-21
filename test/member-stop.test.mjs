@@ -151,6 +151,67 @@ test('close拒否時は停止とせず、受理済みターンの通常完了を
   assert.deepEqual(statuses, ['running', 'delivered'])
 })
 
+test('停止要求後に受理receiptが返り、閉鎖に失敗しても、受理した作業を追い直す', { timeout: 2000 }, async t => {
+  const sending = deferred(), entered = deferred()
+  const f = await fixture(t, { onSend: async () => { entered.resolve(); await sending.promise },
+    onClose: () => { throw new Error('SEND_LOCK_BUSY') } })
+  const statuses = []
+  const old = f.start(f.bots[0], '送信応答待ち', { onStatus: status => statuses.push(status) })
+  await entered.promise
+  const stopping = f.transport.interrupt(f.bots[0]).catch(error => error)
+  sending.resolve()
+  assert.equal((await stopping).code, 'BOT_STOP_UNCONFIRMED')
+  await old.completion.accepted
+  f.waits.get('1').resolve({ outcome: 'done' })
+  assert.equal(await old.result, '回答')
+  assert.deepEqual(statuses, ['running', 'delivered'])
+  assert.deepEqual(f.sent, ['送信応答待ち'])
+})
+
+test('閉鎖の応答待ち中にdoneが返り、閉鎖に失敗した時は保持した回答を続けて渡す', { timeout: 2000 }, async t => {
+  const closing = deferred(), entered = deferred()
+  const f = await fixture(t, { onClose: async () => { entered.resolve(); await closing.promise; throw new Error('CLOSE_FAILED') } })
+  const statuses = []
+  const old = f.start(f.bots[0], '完了競合', { onStatus: status => statuses.push(status) })
+  await old.completion.accepted
+  const stopping = f.transport.interrupt(f.bots[0]).catch(error => error)
+  await entered.promise
+  f.waits.get('1').resolve({ outcome: 'done' })
+  await tick()
+  assert.equal(f.calls.some(([name]) => name === 'pty_read'), false)
+  closing.resolve()
+  assert.equal((await stopping).code, 'BOT_STOP_UNCONFIRMED')
+  assert.equal(await old.result, '回答')
+  assert.deepEqual(statuses, ['running', 'delivered'])
+})
+
+test('発行済みの旧closeが返る前に停止完了や同名再起動を許さない', async t => {
+  for (const action of ['restart', 'closeIdle', 'stopForConfiguration']) await t.test(action, { timeout: 2000 }, async t => {
+    const reply = deferred(), entered = deferred()
+    const f = await fixture(t, { onClose: async (args, alive) => {
+      alive.delete(args.session_id)
+      entered.resolve()
+      await reply.promise
+    } })
+    const old = f.transport[action](f.bots[0]).catch(error => error)
+    await entered.promise
+    let finished = false
+    const stopping = f.transport.interrupt(f.bots[0]).then(value => { finished = true; return value })
+    const next = f.start(f.bots[0], '新しい作業')
+    await tick()
+    assert.equal(finished, false)
+    assert.equal(f.calls.some(([name]) => name === 'agent_launch'), false)
+    reply.resolve()
+    await stopping
+    await old
+    await next.completion.accepted
+    f.waits.get('1').resolve({ outcome: 'done' })
+    assert.equal(await next.result, '回答')
+    assert.equal(f.calls.filter(([name]) => name === 'pty_close').length, 1)
+    assert.equal(f.alive.has('bot-a'), true)
+  })
+})
+
 test('消失を確認できない観測・違う席の観測は停止成功にしない', async t => {
   for (const mode of ['still-exists', 'malformed', 'wrong-session', 'unavailable']) await t.test(mode, async t => {
     const f = await fixture(t, { observation: (args, alive) => {

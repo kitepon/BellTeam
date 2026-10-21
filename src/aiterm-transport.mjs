@@ -168,6 +168,7 @@ export class AitermTransport {
     this.interruptions = new Map()
     this.stopVersions = new Map()
     this.waking = new Map()
+    this.sessionChanges = new Map()
     // 席ごとの、BellTeamが始めていないターンを追っている見張り（watchTurn）。
     this.watches = new Map()
     // 席ごとの、最後に終わりまで追ったターン。Aitermへ聞いた後に終わったターンを、もう一度追い始めない。
@@ -226,7 +227,7 @@ export class AitermTransport {
     const env = await loadBotEnvironment(bot.project)
     let launch
     try {
-      launch = await this.client.call('agent_launch', {
+      launch = await this.changeSession(bot, 'agent_launch', {
         harness,
         cwd: bot.project,
         session_name: bot.id,
@@ -243,7 +244,7 @@ export class AitermTransport {
       const leftover = error.launch?.session_id
       if (typeof leftover === 'string' && leftover) {
         try {
-          await this.client.call('pty_close', { session_id: leftover })
+          await this.changeSession(bot, 'pty_close', { session_id: leftover })
         } catch (closeError) {
           process.stderr.write(`BellTeam Aiterm: 起動に失敗した席を閉じられませんでした: ${bot.id}: ${closeError.message}\n`)
         }
@@ -295,13 +296,14 @@ export class AitermTransport {
     if (current.reasoningEffort !== next.reasoningEffort) configuration.reasoning_effort = next.reasoningEffort
     if ((current.fastMode === true) !== (next.fastMode === true)) configuration.fast = next.fastMode === true
     if (next.harness === 'cursor' && configuration.reasoning_effort && !configuration.model) configuration.model = next.model
-    await this.client.call('agent_configure', configuration)
+    await this.changeSession(current, 'agent_configure', configuration)
     return { botId: next.id, session: this.session(next), mode: 'configure' }
   }
 
-  async stop(bot) {
+  async stop(bot, version = this.stopVersions.get(bot.id)) {
     await this.idle(bot.id)
-    const result = await this.client.call('pty_close', { session_id: this.session(bot) })
+    this.requireStopVersion(bot.id, version)
+    const result = await this.changeSession(bot, 'pty_close', { session_id: this.session(bot) })
     await this.removeRetainedImages(bot.id)
     return result
   }
@@ -317,10 +319,13 @@ export class AitermTransport {
         // MCP送信の応答待ちをabortするだけでは未送信を証明できない。同名の席を再利用する前に旧呼出を終える。
         await this.dispatches.get(bot.id)
         await this.waking.get(bot.id)?.catch(() => {})
+        // 発行済みの旧close/configureも返却まで待つ。idle待ち中で未発行の操作はstopVersionで無効化する。
+        while (this.sessionChanges.get(bot.id)?.size)
+          await Promise.allSettled([...this.sessionChanges.get(bot.id)])
         const before = await this.observe(bot)
         if (before?.schema !== 'aiterm.pty-observe-result.v1' || before.session_id !== this.session(bot)
           || typeof before.exists !== 'boolean') throw new Error('AITERM_STOP_OBSERVATION_INVALID')
-        if (before.exists) await this.client.call('pty_close', { session_id: this.session(bot) })
+        if (before.exists) await this.changeSession(bot, 'pty_close', { session_id: this.session(bot) })
         const after = await this.observe(bot)
         if (after?.schema !== 'aiterm.pty-observe-result.v1' || after.session_id !== this.session(bot)
           || after.exists !== false) throw new Error('AITERM_STOP_NOT_CONFIRMED')
@@ -354,6 +359,20 @@ export class AitermTransport {
     if (this.stopVersions.get(botId) !== version) throw stoppedError()
   }
 
+  // session_idだけに作用する変更の発行と返却を追う。応答待ちのcloseを残したまま同じ席を起こさない。
+  changeSession(bot, name, args, options) {
+    const pending = Promise.resolve(this.client.call(name, args, options))
+    const changes = this.sessionChanges.get(bot.id) ?? new Set()
+    changes.add(pending)
+    this.sessionChanges.set(bot.id, changes)
+    const clear = () => {
+      changes.delete(pending)
+      if (!changes.size && this.sessionChanges.get(bot.id) === changes) this.sessionChanges.delete(bot.id)
+    }
+    pending.then(clear, clear)
+    return pending
+  }
+
   // セッションの状態と活動をAitermに観測させる。cursorを渡すと、前回の観測からの変化も返る。
   async observe(bot, cursor) {
     const result = await this.client.call('pty_observe', { session_id: this.session(bot), ...(cursor ? { cursor } : {}) })
@@ -365,7 +384,7 @@ export class AitermTransport {
     if (!this.isIdle(bot.id) || this.configurationChanges.has(bot.id) || this.interruptions.has(bot.id)) return false
     // 閉じている間の送信は、設定変更と同じ順序で、閉じ終わってから通常の不達復旧へ進める。
     const closing = (async () => {
-      await this.client.call('pty_close', { session_id: this.session(bot) })
+      await this.changeSession(bot, 'pty_close', { session_id: this.session(bot) })
       await this.removeRetainedImages(bot.id)
       return true
     })()
@@ -378,7 +397,8 @@ export class AitermTransport {
   }
 
   stopForConfiguration(bot) {
-    const run = () => this.stop(bot)
+    const version = this.stopVersions.get(bot.id)
+    const run = () => this.stop(bot, version)
     const previous = this.configurationChanges.get(bot.id) ?? Promise.resolve()
     const pending = previous.then(run, run)
     this.configurationChanges.set(bot.id, pending)
@@ -467,7 +487,7 @@ export class AitermTransport {
   async restartNow(bot, version = this.stopVersions.get(bot.id)) {
     await this.requireAccess({ setupTest: false, botId: bot.id })
     this.requireStopVersion(bot.id, version)
-    await this.client.call('pty_close', { session_id: this.session(bot) })
+    await this.changeSession(bot, 'pty_close', { session_id: this.session(bot) })
     await this.removeRetainedImages(bot.id)
     this.requireStopVersion(bot.id, version)
     return this.wake(bot)
@@ -477,6 +497,16 @@ export class AitermTransport {
     const job = { id: this.activeId(), bot, controller: new AbortController(), info: { ...info, message: info.message ?? message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}) }, startedAt: this.now() }
     this.jobs.add(job)
     const check = () => { if (job.stopRequested) throw stoppedError() }
+    // 既に受理されたsend/doneは保持して停止の結論を待つ。停止未確認なら通常の結果処理へ戻る。
+    const checkpoint = async () => {
+      if (!job.stopRequested) return
+      try { await job.interruption } catch (error) {
+        if (!job.receipt) throw error
+        job.stopRequested = false
+        return
+      }
+      if (job.stopped) throw stoppedError()
+    }
     const parent = [...this.active.values()].reverse().find(item => item.bot.id === bot.id)
     let accept
     let rejectAcceptance
@@ -499,8 +529,8 @@ export class AitermTransport {
         await this.requireAccess({ setupTest, botId: bot.id })
         check()
         delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check })
-        check()
         job.receipt = delivery.receipt
+        if (job.stopRequested) await checkpoint()
         const steered = delivery.receipt.mode === 'agent_steer'
         followed = !steered || delivery.steer !== null
         // 同じ席のターンをもう追っているjobが在れば、合間の言葉はそちらが出す（同じ言葉を2回出さない）。
@@ -508,13 +538,13 @@ export class AitermTransport {
         // 次の送信はこの印を見て決めるので、返りを受け取ってからここまでawaitを挟まない。
         job.follows = followed && !follower
         await onStatus?.('running')
-        check()
+        if (job.stopRequested) await checkpoint()
         acknowledged = true
         accept({ delivery: steered ? 'steered' : 'running' })
         // 待つ手がかりを返さない差し込み（Aiterm 0.59.1まで）は、同じ席のjobの終わりを待つ。無ければ、終わりを知る道が無い。
         if (!followed) {
           if (parent) await parent.completion
-          check()
+          if (job.stopRequested) await checkpoint()
           await onStatus?.('delivered')
           return { delivery: 'steered' }
         }
@@ -531,14 +561,14 @@ export class AitermTransport {
           throw error
         }
         await interim?.stop()
-        check()
+        if (job.stopRequested) await checkpoint()
         if (completion.turn_id) this.followedTurns.set(bot.id, completion.turn_id)
         // 動いていたターンが取り込んだ差し込みは、そのターンの一部。回答は、そのターンを始めた側が出す
         // （BellTeamが始めたターンは元の配送、席が自分で始めたターンはself-turns.mjs）。
         // 取り込まれたかを見分けられなかった時（unknown）も、回答を2回出さないよう同じに扱う。
         if (steered && completion.steer?.placement !== 'next_turn') {
           await follower?.completion.catch(() => {})
-          check()
+          if (job.stopRequested) await checkpoint()
           await onStatus?.('delivered')
           return { delivery: 'steered' }
         }
@@ -549,20 +579,20 @@ export class AitermTransport {
           ...(completion.operation_id ? { operation_id: completion.operation_id } : {}),
         }), completion)
         const answer = transcript ? await readAnswer() : undefined
-        check()
+        if (job.stopRequested) await checkpoint()
         // 画面に出すだけの回答なので、読めなくても配送は完了として扱う。
         if (!transcript && onAnswer) {
           try {
             const text = await readAnswer()
-            check()
+            if (job.stopRequested) await checkpoint()
             if (typeof text === 'string' && text.trim()) await onAnswer(text)
           } catch (error) {
             process.stderr.write(`BellTeam answer read error: ${error.stack ?? error.message}\n`)
           }
         }
-        check()
+        if (job.stopRequested) await checkpoint()
         await onStatus?.('delivered')
-        check()
+        if (job.stopRequested) await checkpoint()
         onTurnEnd?.({ startedAt: job.startedAt, endedAt: this.now() })
         return transcript ? answer : { delivery: 'delivered' }
       } catch (error) {
@@ -738,14 +768,14 @@ export class AitermTransport {
         // 画面は残り登録だけ消えた席は、起動もできない。閉じてから起こし直し、同じ文を1回だけ送る。
         if (running) {
           process.stderr.write(`BellTeam Aiterm agent registration lost, restarting: ${bot.id}\n`)
-          await this.client.call('pty_close', { session_id: session })
+          await this.changeSession(bot, 'pty_close', { session_id: session })
           await this.removeRetainedImages(bot.id)
         }
+        check()
         session = await this.wake(bot, { setupTest })
         check()
         result = await this.sendToSession(session, message, imageFiles)
       }
-      check()
       const receipt = result.structuredContent
       if (receipt?.mode !== 'agent_steer'
         && (receipt?.mode !== 'agent_dispatch' || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process))
