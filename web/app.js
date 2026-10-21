@@ -1836,14 +1836,14 @@ async function stopMember(botId) {
     await requestMemberStop(botId, api)
     if (sameConversation()) {
       composerError.hidden = true
-      if (selectedType === 'bot') chatStatus.textContent = '停止しました'
+      if (selectedType === 'bot') chatStatus.textContent = '処理を中断しました。会話は続けられます'
     }
     try {
       await loadBots()
       if (sameConversation()) await loadMessages()
     } catch {
       if (sameConversation()) {
-        composerError.textContent = '停止しました。表示を更新できなかったので、会話を開き直してください。'
+        composerError.textContent = '処理を中断しました。会話は保持しています。表示を更新できなかったので、会話を開き直してください。'
         composerError.hidden = false
       }
     }

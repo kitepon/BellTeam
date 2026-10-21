@@ -1,18 +1,28 @@
 # BellTeam全体停止（会話維持型へ改修中）
 
-## 現在の要求と受入範囲
+## 会話を残す中断方式への接続（開発中・本番未反映）
 
-停止はEsc相当のCLI中断操作で現在の処理を止め、会話/session/launchを残す。キーが効かない時もclose/killへ自動昇格しない。個別・連鎖・全体に同じ条件を適用する。旧mainのセッション終了型停止を、このまま本番へ反映しない。
+オーナーの指定はEsc相当で現在処理を中断し、会話/session/launchを残すこと。AIへ停止を頼む文を送らない。実行基盤はAiterm、Bridge/API/WebはBellTeam、Apple UIは別担当が持つ。
 
-`ExecutionBridge.interrupt(roots)`と`session-interruption.mjs`が、Aitermの`agent_stop`へ`aiterm.cascade-stop-request.v2`/`mode: interrupt`を1回だけ送る結果読取を提供する。runの中断とsession維持の両方が確認された結果だけをconfirmedとして読む。キー受付だけ、局所idleだけ、旧closed/already_closed/absent成功から全体の中断を推定しない。未対応・部分・未確認はそのまま保持し、旧finishのlaunch閉鎖証拠を代用しない。
+停止API→transport→ExecutionBridge.interrupt→agent_stop v2/mode interruptを接続した。旧セッション閉鎖型のinterruptとBridgeのv1 stop発行口は除去。Aiterm連鎖口が未接続なら502で止まり、pty_close/キー直送へ戻らない。管理操作のrestart/configuration/shutdown等は別の機能として保持する。
 
-この新methodはまだ旧transport/HTTP/Web/Appleの停止経路へ配線していない。Aitermの受領版13c7e61もread-onlyの未対応結果を返し、キー作用は未実装。新規結果読取8件と実SDK/実constructor接続4件は、実中断や本番受入ではない。全体ONの新受付抑止と、同じlaunchへの新依頼再開を旧要求抑止と分ける接続も残る。
+中断とsession維持の両確認がある結果だけを確認済みとして読む。キー受付だけ、旧closed/absent結果、queue消失から成功を推定しない。受理済みjobを停止表示へ変えるのは、bindingのPointと結果のrunが完全一致した場合だけ。already_idleや同じlaunchの別run結果で元jobを消さない。v1 finish(kind=interrupted)はlaunch閉鎖の証拠なので、新中断後には送らず、Aitermが関係更新を所有する。
 
-## 未置換の旧実装記録
+受理receipt/doneの後着を保持し、中断が未確認なら通常観測を続ける。キーの結果不明だけでは同launchの新依頼を永久禁止しない。従来からの未確定close/configure等の欠測は別に保持する。新呼出や旧parent returnの実受付fence、元run中断と同一harness/会話維持の実証拠はAiterm側の残工程であり、Bridgeだけで補わない。
 
-以下のclose/online:false/旧全体stoppedの説明は現HEADに残る旧仕様の記録で、会話維持型の完成契約ではない。該当経路の置換と対応受入が終わるまで本体・審査用本体・段2を配備しない。正常な管理用close自体を廃止する要求ではない。
+受領Aiterm619cdc5のagent_stopはread-only計画/unsupported-not_sentを返す段階。private Codex/Claude Esc部品は公開stopへ未接続。supervisorのexecutionBridge注入、実4CLI、会話維持の実runtime受入、本番反映、Apple配布は未完。合成接続を実中断の受入へ付け替えない。次の本体/審査用/段2配備は新方式の受入後だけとする。
 
-全体停止の正本・受付抑止・予定制御はBellTeam本体、表示とON/OFF要求はWebとAppleアプリが持つ。個別停止APIは`POST /api/bots/:id/stop`。連鎖停止の関係記録・寿命・実行はAitermの担当で、この変更では未接続。本番反映の前提を満たした扱いにはしない。
+## 個別停止API
+
+認証済み `POST /api/bots/:id/stop` は本文なし。返却を待って、中断/実行なしと会話維持・連鎖全範囲を確認できた時だけ200を返す。
+
+```json
+{"botId":"bot-a","status":"interrupted","sessionPreserved":true}
+```
+
+`online`は成功条件に含めない。会話は保持され、同じ会話へ新しい依頼を送れる。局所already_idleでも未解決の下流やcoverage不足があれば200にしない。未対応/一部未確認/通信断/不正応答は502 `BOT_STOP_UNCONFIRMED`。200以外や不正結果をアプリ/Webで完了表示せず、自動再送もしない。queue読直しは表示更新用で、中断成功の証拠ではない。個別POSTには202の受付成功を定義していない。
+
+全体停止の正本・受付抑止・予定制御はBellTeam本体、表示とON/OFF要求はWebとAppleアプリが持つ。個別停止APIは`POST /api/bots/:id/stop`。連鎖停止の関係記録・寿命・実行はAitermの担当で、公開runtimeへの接続と実受入は未完。本番反映の前提を満たした扱いにはしない。
 
 ## API
 
@@ -22,7 +32,7 @@
 {"control":{"paused":false,"state":"enabled","updatedAt":null,"unconfirmedBotIds":[],"commandsConfirmed":null,"error":null}}
 ```
 
-`enabled`は新しい仕事を受けられる状態。ONは受付を同期的に止め、意図を保存してから登録メンバーと進行中のコマンド予定を停止する。保存成功後に202を返す。`stopping`は処理中、`stopped`は対象全件の閉鎖・コマンド終了を確認できた状態、`unconfirmed`は未確認を含む状態。未確認でもONを保持する。既に停止確認済みなら200、処理中なら202、未確認なら502 `AI_STOP_UNCONFIRMED`で現在の正本を返し、同じONから停止処理を自動再実行しない。
+`enabled`は新しい仕事を受けられる状態。ONは受付を同期的に止め、意図を保存してから登録メンバーと進行中のコマンド予定を停止する。保存成功後に202を返す。`stopping`は処理中、`stopped`は対象全件の処理中断/実行なしと会話維持・コマンド終了を確認できた状態、`unconfirmed`は未確認を含む状態。未確認でもONを保持する。既に停止確認済みなら200、処理中なら202、未確認なら502 `AI_STOP_UNCONFIRMED`で現在の正本を返し、同じONから停止処理を自動再実行しない。
 
 OFFは期限を過ぎた予定を実行せずに消化し、状態保存が成功してから200を返して受付を開く。未実行を実行済みの時刻にはしない。一回予定は無効化、繰返し予定は次の時刻へ進む。会話と予定の定義は削除しない。解除後に新しく登録した依頼は通常どおり扱う。停止前の保存待ち・部屋の順序待ちだった入力は、ON/OFFをまたいでも復活しない。
 
@@ -40,9 +50,9 @@ ON中の送信・起動・手動予定実行・再起動は423 `AI_GLOBAL_PAUSED
 
 ## 連鎖停止の隔離接続部品
 
-`execution-bridge.mjs`はAitermのローカルwire v1に対する登録・状態照会・終了証拠・root照会・停止のadapter。既存delivery ID、room message IDと実配送先、call event/seq（欠測時は既存delivery ID）を使い、新しいIDや本文queueを作らない。関係の寿命、世代検証、終了fence、退役、実際の閉鎖はAitermが持つ。
+`execution-bridge.mjs`はAitermのローカルwire v1に対する登録・状態照会・終了証拠・root照会・停止のadapter。既存delivery ID、room message IDと実配送先、call event/seq（欠測時は既存delivery ID）を使い、新しいIDや本文queueを作らない。関係の寿命、世代検証、終了fence、退役、実際の処理中断はAitermが持つ。
 
-`agent_execution`で先に登録した同じ参照をlaunch/sendの`_meta["aiterm/execution"]`へ渡す。成功した作用に追跡の結合失敗が付いても元のreceiptとsteer/interim情報を保持し、再送しない。結果不明のまま次の作用へ進まず、明示的な状態照会だけを可能にする。終了証拠は対応するPoint/Launchを渡し、局所doneやqueue消失だけでbranchを退役させない。親の席が無い場合も`agent_execution_roots`で記録済みの未解決世代を読み、Bot名の全履歴から世代を推測しない。
+`agent_execution`で先に登録した同じ参照をlaunch/sendの`_meta["aiterm/execution"]`へ渡す。成功した作用に追跡の結合失敗が付いても元のreceiptとsteer/interim情報を保持し、再送しない。結果不明のまま次の作用へ進まず、明示的な状態照会だけを可能にする。通常完了/未送信の証拠は対応するPointを渡し、局所doneやqueue消失だけでbranchを退役させない。親の席が無い場合も`agent_execution_roots`で記録済みの未解決世代を読み、Bot名の全履歴から世代を推測しない。
 
 Bridge本体のstdio起動環境は元HTTP呼出元を表さない。hostからのregisterでは、HTTP受信時に固定したPointを別引数`reserve(input, {sourceContext})`から`_meta["aiterm/execution_source"] = {schema:"aiterm.execution-source.v1",source:Point|null}`へ写す。registerのsource claimやsource_session_idからは補わず、context未指定は明示null。既存wire引数は変えない。値は発行前に複製し、他のmetaを保持する。モデル入力や呼出側のmetaで、このcontextを書き換えさせない。
 

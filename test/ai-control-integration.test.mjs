@@ -36,7 +36,7 @@ test('全体停止は全登録席と台帳から消えた進行jobを止め、�
     transport: { jobs: [{ bot: { id: 'deleted' } }, { bot: { id: 'a' } }], interrupt(bot) {
       called.push(bot.id)
       if (bot.id === 'b') throw Error('fixture reject')
-      return waiting.promise.then(() => ({ botId: bot.id, status: 'stopped', online: false }))
+      return waiting.promise.then(() => ({ botId: bot.id, status: 'interrupted', sessionPreserved: true }))
     } },
     scheduler: { interruptCommands() { called.push('command'); return true } },
   })
@@ -54,7 +54,7 @@ test('認証済みAPIだけが全体ON/OFFを変更し、ON中は送信・再起
   const messenger = new BellTeamMessenger({ bots, transport: {}, logPath: join(root, 'messages.jsonl'), requireAccess: () => c.assertEnabled() })
   const f = await serve(t, { aiControl: c, bots, messenger,
     store: { timeline: async () => [] },
-    transport: { restart() { restarts++; return Promise.resolve() }, async interrupt() { individual++; return { botId: bot.id, status: 'stopped', online: false } } },
+    transport: { restart() { restarts++; return Promise.resolve() }, async interrupt() { individual++; return { botId: bot.id, status: 'interrupted', sessionPreserved: true } } },
   })
   assert.equal((await fetch(f.base + '/api/ai-control')).status, 401)
   assert.equal((await fetch(f.base + '/api/ai-control', { method: 'PATCH', body: '{"paused":true}' })).status, 401)
@@ -118,10 +118,10 @@ test('全体ONの後に起動準備が返ってもlaunch/sendせず停止とし�
   await preparing.promise
   const sentBeforePause = calls.filter(name => name === 'pty_send').length
   paused = true
-  const stop = transport.interrupt(bot)
+  const stop = transport.interrupt(bot).catch(error => error)
   release.resolve()
-  assert.equal((await stop).status, 'stopped')
-  assert.equal((await failed).code, 'BOT_STOPPED')
+  assert.equal((await stop).code, 'BOT_STOP_UNCONFIRMED')
+  assert.equal((await failed).code, 'AI_GLOBAL_PAUSED')
   assert.equal(statuses.at(-1), 'stopped')
   assert.equal(calls.includes('agent_launch'), false)
   assert.equal(calls.filter(name => name === 'pty_send').length, sentBeforePause)

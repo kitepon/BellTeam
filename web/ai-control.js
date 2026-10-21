@@ -1,4 +1,4 @@
-const labels = { enabled: '動作可能', stopping: '停止中…', stopped: '全員の停止を確認しました', unconfirmed: '一部の停止を確認できていません' }
+const labels = { enabled: '動作可能', stopping: '停止中…', stopped: '全員の処理中断を確認しました（会話は保持）', unconfirmed: '一部の停止を確認できていません' }
 
 export function validAiControl(value) {
   return value && typeof value.paused === 'boolean' && Object.hasOwn(labels, value.state)

@@ -28,7 +28,7 @@ export function stopRegisteredWork({ bots, transport, scheduler }) {
       unconfirmedBotIds: stopping.filter((item, i) => {
         const result = results[i]
         return result.status !== 'fulfilled' || result.value?.botId !== item.bot.id
-          || result.value?.status !== 'stopped' || result.value?.online !== false
+          || result.value?.status !== 'interrupted' || result.value?.sessionPreserved !== true
       }).map(item => item.bot.id),
       commandsConfirmed: commandsConfirmed === true,
     }))
@@ -90,7 +90,7 @@ export class AiControl {
       if (value.resumedAt != null && (typeof value.resumedAt !== 'string' || !Number.isFinite(Date.parse(value.resumedAt))))
         throw new Error('INVALID_CONTROL')
       this.resumedAt = value.resumedAt ?? null
-      // Re-observe after restart. A saved ON is not evidence of current absence.
+      // Re-observe after restart. A saved ON is not evidence of a current interruption.
       this.state = this.paused ? 'unconfirmed' : 'enabled'
       this.error = this.paused ? 'AI_STOP_UNCONFIRMED' : null
     } catch (error) {

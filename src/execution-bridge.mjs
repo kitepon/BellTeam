@@ -108,24 +108,7 @@ export class ExecutionBridge {
     // Empty roots are a read result, never an implicit successful stop.
     return data
   }
-  async stop(roots) {
-    // Historical close-based v1 transport; not eligible for owner stop UI.
-    // Production wiring stays blocked until this caller is replaced by v2.
-    if (!Array.isArray(roots) || !roots.length || !roots.every(launch)) throw failure('EXECUTION_INVALID', 'not_started')
-    const expected = structuredClone(roots)
-    const result = await call(this.client, 'agent_stop', { schema: 'aiterm.cascade-stop-request.v1', roots: expected })
-    if (result?._meta?.[ERROR_META]) throw failure()
-    const data = result?.structuredContent
-    if (data?.schema !== 'aiterm.cascade-stop-result.v1' || !same(data.roots, expected)
-      || !['stopped', 'partial', 'unconfirmed'].includes(data.status)
-      || !['complete', 'incomplete'].includes(data.relation_coverage) || !Array.isArray(data.unresolved)
-      || !Array.isArray(data.targets) || !data.targets.every(item => item && launch(item.launch)
-        && ['closed', 'already_closed', 'unknown', 'unsupported', 'replaced'].includes(item.outcome))) throw failure()
-    if (data.status === 'stopped' && (data.relation_coverage !== 'complete' || data.unresolved.length
-      || data.targets.some(item => !['closed', 'already_closed'].includes(item.outcome))
-      || expected.some(root => !data.targets.some(item => same(item.launch, root))))) throw failure()
-    return data
-  }
+
 }
 
 class ExecutionRequest {

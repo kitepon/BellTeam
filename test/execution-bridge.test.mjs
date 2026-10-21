@@ -132,15 +132,15 @@ test('違う元参照・target世代の結合情報は採用せず、成功し�
   }
 })
 
-test('agent_stopは部分結果をそのまま返し、欠測や別rootを成功にしない', async () => {
+test('agent_stop v2は旧v1の閉鎖と部分結果を新中断へ流用しない', async () => {
   const base = { schema: 'aiterm.cascade-stop-result.v1', roots: [A], status: 'stopped', relation_coverage: 'complete', unresolved: [], targets: [{ launch: A, outcome: 'closed', reason: 'closed' }] }
   for (const change of [r => { r.roots = [B] }, r => { r.targets = [] }, r => { r.relation_coverage = 'incomplete' }, r => { r.unresolved = [{ request, reason: 'missing' }] }]) {
     const result = structuredClone(base); change(result)
     const bridge = new ExecutionBridge({ async call() { return { structuredContent: result } } })
-    await assert.rejects(bridge.stop([A]), { code: 'EXECUTION_UNCONFIRMED' })
+    await assert.rejects(bridge.interrupt([A]), { code: 'EXECUTION_UNCONFIRMED' })
   }
   const partial = { ...base, status: 'partial', relation_coverage: 'incomplete', unresolved: [{ request, reason: 'missing' }] }
-  assert.equal((await new ExecutionBridge({ async call() { return { structuredContent: partial } } }).stop([A])).status, 'partial')
+  await assert.rejects(new ExecutionBridge({ async call() { return { structuredContent: partial } } }).interrupt([A]), { code: 'EXECUTION_UNCONFIRMED' })
 })
 
 test('prompt付きlaunchの後に同じ参照の本文を重ねて送らない', async () => {

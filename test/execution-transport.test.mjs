@@ -14,7 +14,7 @@ const deferred = () => { let resolve, reject; const promise = new Promise((yes, 
 test('未送信取消は確認したsource/期待target世代にだけ結び、無関係な拒否や受理済み回答を停止にしない', () => {
   const a = { session_id: 'bot-a', launch_id: 'a'.repeat(32) }, d = { session_id: 'bot-d', launch_id: 'd'.repeat(32) }
   const make = source => ({ execution: { record: { source: { status: 'verified', point: { launch: source } } }, reservation: { target: { session_id: 'bot-b', expected_launch_id: null } } },
-    executionStopResult: { targets: [{ launch: a, outcome: 'closed' }] } })
+    executionStopResult: { targets: [{ launch: a, interruption: 'interrupted', session_preserved: 'confirmed' }] } })
   const unrelated = make(d); applyExecutionCancellation(unrelated, { effect: 'not_started' }); assert.equal(unrelated.stopped, undefined)
   const cancelled = make(a); applyExecutionCancellation(cancelled, { effect: 'not_started' }); assert.equal(cancelled.stopped, true)
   const unknown = make(a); applyExecutionCancellation(unknown, { effect: 'possible' }); assert.equal(unknown.stopped, undefined)
@@ -26,7 +26,7 @@ async function fixture(t) {
   const bots = ['a', 'b', 'd'].map(id => ({ id: `bot-${id}`, session: `bot-${id}`, project, harness: 'codex' }))
   const launches = new Map(bots.map((bot, i) => [bot.id, { session_id: bot.session, launch_id: String(i + 1).repeat(32) }]))
   const calls = [], waits = new Map(), records = []
-  let stopTargets = bots.slice(0, 2).map(bot => launches.get(bot.id)), beforeSend = async () => {}, beforeStop = async () => {}, partial = false, missingRoots = false
+  let stopTargets = bots.slice(0, 2).map(bot => launches.get(bot.id)), beforeSend = async () => {}, beforeStop = async () => {}, partial = false, missingRoots = false, transformResult = value => value
   const bridge = {
     async reserve(input, options) {
       calls.push({ action: 'register', input: structuredClone(input), options: structuredClone(options) })
@@ -56,10 +56,14 @@ async function fixture(t) {
       calls.push({ action: 'roots', session_id })
       return { roots: missingRoots ? [] : [{ session_id, launch_id: launches.get(session_id)?.launch_id ?? '1'.repeat(32) }], relation_coverage: missingRoots ? 'incomplete' : 'complete' }
     },
-    async stop(roots) {
+    async interrupt(roots) {
       calls.push({ action: 'stop', roots })
       await beforeStop()
-      return { status: partial ? 'partial' : 'stopped', targets: stopTargets.map(launch => ({ launch, outcome: 'closed' })) }
+      return transformResult({ status: partial ? 'unconfirmed' : 'confirmed', targets: stopTargets.map(launch => {
+        const run = records.find(handle => handle.binding?.target?.launch.launch_id === launch.launch_id)?.binding.target
+          ?? { launch, boundary: { event_cursor: 1, operation_id: null, turn_id: 'turn-1', steer_id: null } }
+        return { launch, run, interruption: 'interrupted', session_preserved: 'confirmed' }
+      }) })
     },
   }
   const client = { async call(name, args) {
@@ -81,7 +85,7 @@ async function fixture(t) {
     return { completion, result: completion.catch(error => error), statuses }
   }
   return { bots, launches, calls, waits, records, transport, start,
-    onSend(fn) { beforeSend = fn }, onStop(fn) { beforeStop = fn },
+    onSend(fn) { beforeSend = fn }, onStop(fn) { beforeStop = fn }, transform(fn) { transformResult = fn },
     setTargets(value) { stopTargets = value }, partial() { partial = true }, missingRoots() { missingRoots = true } }
 }
 
@@ -109,7 +113,7 @@ test('absent席は同じ登録の空launch→send各1回で起動し、生close�
   f.waits.get('1').resolve({ outcome: 'done' }); await a.completion
 })
 
-test('親absentでも保存rootsを使い、連鎖先のclosedが停止receiptに先行してもstoppedへ整理する', { timeout: 2000 }, async t => {
+test('保存rootsを使い、連鎖先waiter終了が中断receiptに先行しても一致runだけstoppedへ整理する', { timeout: 2000 }, async t => {
   const f = await fixture(t)
   const a = f.start(f.bots[0], 'a'), b = f.start(f.bots[1], 'b'), d = f.start(f.bots[2], 'd')
   await Promise.all([a.completion.accepted, b.completion.accepted, d.completion.accepted]); await tick()
@@ -122,7 +126,7 @@ test('親absentでも保存rootsを使い、連鎖先のclosedが停止receipt�
   await tick()
   assert.deepEqual(b.statuses, ['running'])
   release.resolve()
-  assert.equal((await stopped).status, 'stopped')
+  assert.equal((await stopped).status, 'interrupted')
   assert.equal((await a.result).code, 'BOT_STOPPED')
   assert.equal((await b.result).code, 'BOT_STOPPED')
   assert.deepEqual(b.statuses, ['running', 'stopped'])
@@ -164,7 +168,7 @@ test('無関係な席の未着手dispatch/wake/旧変更は停止要求を待た
   f.transport.waking.set(f.bots[2].id, pending.promise)
   pending.promise.executionSession = f.bots[2].session
   f.transport.sessionChanges.set(f.bots[2].id, new Set([pending.promise]))
-  assert.equal((await f.transport.interrupt(f.bots[0])).status, 'stopped')
+  assert.equal((await f.transport.interrupt(f.bots[0])).status, 'interrupted')
   assert.equal(f.transport.uncertainChanges.has(f.bots[2].id), false)
   pending.resolve()
 })
@@ -209,12 +213,12 @@ test('roots空/coverage欠測を成功にせず、旧closeへfallbackしない',
   assert.equal(f.calls.some(call => call.action === 'raw:pty_close'), false)
 })
 
-test('停止RPCの作用不明は同名再利用を抑止し、受理済みの元回答は観測を続ける', async t => {
+test('中断RPCの結果不明で同じ会話を永久禁止せず、受理済み回答も観測を続ける', async t => {
   const f = await fixture(t)
   f.onStop(async () => { throw Object.assign(Error('synthetic lost stop response'), { effect: 'possible' }) })
   const a = f.start(f.bots[0], 'a'); await a.completion.accepted; await tick()
   await assert.rejects(f.transport.interrupt(f.bots[0]), { code: 'BOT_STOP_UNCONFIRMED' })
-  await assert.rejects(f.transport.ensure(f.bots[0]), { code: 'BOT_SESSION_UNCONFIRMED' })
+  assert.equal(f.transport.uncertainChanges.has(f.bots[0].id), false)
   f.waits.get('1').resolve({ outcome: 'done' })
   assert.deepEqual(await a.completion, { delivery: 'delivered' })
   assert.equal(f.calls.filter(call => call.action === 'pty_send').length, 1)
@@ -237,7 +241,7 @@ test('roots読取後の連鎖停止中に来た未結合変更は発行せず、
     await tick()
     assert.equal(f.calls.some(call => call.action.startsWith('raw:') && call.action !== 'raw:pty_observe'), false)
     release.resolve()
-    assert.equal((await stopped).status, 'stopped', 'unissued changes must not create legacy pending gaps')
+    assert.equal((await stopped).status, 'interrupted', 'unissued changes must not create legacy pending gaps')
     assert.equal((await change).code, 'BOT_STOPPED')
     assert.equal(f.transport.uncertainChanges.has(f.bots[0].id), false)
   })
@@ -250,7 +254,7 @@ test('連鎖で到達したidle席への設定変更も、root以外だからと
   await entered.promise
   const change = f.transport.reconfigure(f.bots[1], { ...f.bots[1], model: 'synthetic-next' }).catch(error => error)
   await tick(); release.resolve()
-  assert.equal((await stopped).status, 'stopped')
+  assert.equal((await stopped).status, 'interrupted')
   assert.equal((await change).code, 'BOT_STOPPED')
   assert.equal(f.calls.some(call => call.action === 'raw:agent_configure'), false)
 })
@@ -270,7 +274,7 @@ test('無関係な席の新しい設定変更は停止を待たせず、停止�
   await tick()
   assert.equal(f.calls.some(call => call.action === 'raw:agent_configure'), false)
   release.resolve()
-  assert.equal((await stopped).status, 'stopped')
+  assert.equal((await stopped).status, 'interrupted')
   assert.equal((await change).mode, 'configure')
   assert.equal(f.calls.filter(call => call.action === 'raw:agent_configure').length, 1)
 })
@@ -280,21 +284,17 @@ test('停止前に受け付けた再起動は、準備が後着しても依頼�
   f.transport.requireAccess = async () => { entered.resolve(); await release.promise }
   const change = f.transport.restart(f.bots[0]).catch(error => error)
   await entered.promise
-  assert.equal((await f.transport.interrupt(f.bots[0])).status, 'stopped')
+  assert.equal((await f.transport.interrupt(f.bots[0])).status, 'interrupted')
   release.resolve()
   assert.equal((await change).code, 'BOT_STOPPED')
   assert.equal(f.calls.some(call => call.action === 'raw:pty_close'), false)
 })
 
-test('job整理のawait中に判明した旧変更の作用不明も、返却直前に再照合して保持する', { timeout: 2000 }, async t => {
-  const f = await fixture(t), entered = deferred(), release = deferred()
+test('中断結果の返却中に判明した旧変更の作用不明も返却前に保持する', async t => {
+  const f = await fixture(t)
   const a = f.start(f.bots[0], 'a'); await a.completion.accepted; await tick()
-  f.records[0].finish = async () => { entered.resolve(); await release.promise }
-  const stopped = f.transport.interrupt(f.bots[0]).catch(error => error)
-  await entered.promise
-  f.transport.uncertainChanges.set(f.bots[0].id, 'synthetic-late-rpc-timeout')
-  release.resolve()
-  assert.equal((await stopped).code, 'BOT_STOP_UNCONFIRMED')
+  f.onStop(async () => { f.transport.uncertainChanges.set(f.bots[0].id, 'synthetic-late-rpc-timeout') })
+  await assert.rejects(f.transport.interrupt(f.bots[0]), { code: 'BOT_STOP_UNCONFIRMED' })
   await assert.rejects(f.transport.ensure(f.bots[0]), { code: 'BOT_SESSION_UNCONFIRMED' })
   assert.equal((await a.result).code, 'BOT_STOPPED')
 })
@@ -304,7 +304,7 @@ test('jobを持たない連鎖先も、停止前の設定準備のversionを進�
   f.transport.requireAccess = async () => { entered.resolve(); await release.promise }
   const change = f.transport.reconfigure(f.bots[1], { ...f.bots[1], model: 'synthetic-next' }).catch(error => error)
   await entered.promise
-  assert.equal((await f.transport.interrupt(f.bots[0])).status, 'stopped')
+  assert.equal((await f.transport.interrupt(f.bots[0])).status, 'interrupted')
   release.resolve()
   assert.equal((await change).code, 'BOT_STOPPED')
   assert.equal(f.calls.some(call => call.action === 'raw:agent_configure'), false)
@@ -327,11 +327,65 @@ test('通話の各配送はsession/event/seqと実targetで登録し、世代不
       assert.deepEqual(registration.input.source, { launch: null, boundary: null })
       assert.equal(registration.options.sourceContext, null)
       assert.equal(f.calls.filter(call => call.action === 'pty_send').length, 1)
-      // Confirmed closure finishes this accepted delivery without inventing an
-      // external source edge or a native completion based on its call label.
-      assert.equal((await f.transport.interrupt(bot)).status, 'stopped')
+      // Exact-run interruption preserves the session and does not send the
+      // obsolete launch-closure finish or invent an external source edge.
+      assert.equal((await f.transport.interrupt(bot)).status, 'interrupted')
       await f.transport.idle(bot.id)
-      assert.equal(f.calls.find(call => call.action === 'finish').evidence.kind, 'interrupted')
+      assert.equal(f.calls.some(call => call.action === 'finish' && call.evidence.kind === 'interrupted'), false)
     })
   }
+})
+
+
+test('同一launchの別run中断を受理済みjobへ流用せず、元回答を保持する', async t => {
+  const f = await fixture(t), a = f.start(f.bots[0], 'a')
+  await a.completion.accepted; await tick()
+  f.setTargets([f.launches.get(f.bots[0].id)])
+  f.transform(result => { result.targets[0].run = { ...result.targets[0].run,
+    boundary: { ...result.targets[0].run.boundary, turn_id: 'another-run' } }; return result })
+  assert.equal((await f.transport.interrupt(f.bots[0])).sessionPreserved, true)
+  assert.deepEqual(a.statuses, ['running'])
+  f.waits.get('1').resolve({ outcome: 'done' })
+  assert.deepEqual(await a.completion, { delivery: 'delivered' })
+  assert.equal(f.calls.some(call => call.action === 'finish' && call.evidence.kind === 'interrupted'), false)
+})
+
+test('局所idle確認で受理済みjobや会話を消さず、遅い通常完了を保持する', async t => {
+  const f = await fixture(t), a = f.start(f.bots[0], 'a')
+  await a.completion.accepted; await tick()
+  f.setTargets([f.launches.get(f.bots[0].id)])
+  f.transform(result => { result.targets[0] = { ...result.targets[0], run: null, interruption: 'already_idle' }; return result })
+  assert.equal((await f.transport.interrupt(f.bots[0])).status, 'interrupted')
+  assert.deepEqual(a.statuses, ['running'])
+  f.waits.get('1').resolve({ outcome: 'done' }); await a.completion
+  assert.deepEqual(a.statuses, ['running', 'delivered'])
+})
+
+test('キー受付のみは未確認で、同じlaunchの新依頼を永久禁止せず既存回答も失わない', async t => {
+  const f = await fixture(t), a = f.start(f.bots[0], 'a')
+  await a.completion.accepted; await tick()
+  const launch = f.launches.get(f.bots[0].id)
+  f.transform(result => ({ ...result, status: 'unconfirmed', targets: result.targets.map(target => ({ ...target,
+    interruption: 'unconfirmed', session_preserved: 'unconfirmed', key: 'Escape', key_receipt: 'accepted' })) }))
+  await assert.rejects(f.transport.interrupt(f.bots[0]), { code: 'BOT_STOP_UNCONFIRMED' })
+  assert.equal(f.transport.uncertainChanges.size, 0)
+  const next = f.start(f.bots[0], 'new')
+  await next.completion.accepted; await tick()
+  assert.deepEqual(f.launches.get(f.bots[0].id), launch)
+  for (const wait of f.waits.values()) wait.resolve({ outcome: 'done' })
+  assert.deepEqual(await a.completion, { delivery: 'delivered' })
+  assert.deepEqual(await next.completion, { delivery: 'delivered' })
+  assert.equal(f.calls.filter(call => call.action === 'agent_launch' || call.action === 'raw:pty_close').length, 0)
+})
+
+test('中断確認とwaiter doneの競合で旧finish closure/completionを新たに送らない', async t => {
+  const f = await fixture(t), entered = deferred(), release = deferred()
+  const a = f.start(f.bots[0], 'a'); await a.completion.accepted; await tick()
+  f.onStop(async () => { entered.resolve(); await release.promise })
+  const stopping = f.transport.interrupt(f.bots[0]); await entered.promise
+  f.waits.get('1').resolve({ outcome: 'done' }); await tick()
+  assert.equal(f.calls.some(call => call.action === 'finish'), false)
+  release.resolve(); await stopping
+  assert.equal((await a.result).code, 'BOT_STOPPED')
+  assert.equal(f.calls.some(call => call.action === 'finish'), false)
 })

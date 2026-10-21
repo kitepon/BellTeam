@@ -1,6 +1,7 @@
 // Optional integration: supplied only after the Aiterm execution runtime is
 // accepted. No live mount, relation graph, retry or legacy-close fallback here.
 import { isDeepStrictEqual as same } from 'node:util'
+import { confirmedSessionInterruption } from './session-interruption.mjs'
 import { callExecutionRef, deliveryExecutionRef, roomExecutionRef } from './execution-bridge.mjs'
 
 const unknown = cause => Object.assign(new Error('停止を確認できませんでした。', { cause }), { code: 'BOT_STOP_UNCONFIRMED' })
@@ -49,9 +50,9 @@ export async function finishExecution(job, kind) {
   const handle = job.execution
   if (!handle) return
   const target = handle.binding?.target
-  if (kind === 'completion' && !target?.boundary || kind === 'interrupted' && !target) return
+  if (!['completion', 'not_sent'].includes(kind) || kind === 'completion' && !target?.boundary) return
   try {
-    await handle.finish(kind === 'not_sent' ? { kind } : { kind, target: kind === 'interrupted' ? target.launch : target })
+    await handle.finish(kind === 'not_sent' ? { kind } : { kind, target })
   } catch {
     // Delivery completion is separate from relation/fence confirmation. Keep
     // the accepted result; the Aiterm record remains unresolved, never resent.
@@ -60,12 +61,15 @@ export async function finishExecution(job, kind) {
 }
 
 export async function applyExecutionStop(job) {
-  const target = job.execution?.binding?.target?.launch
-  if (!target || !job.executionStopResult?.targets.some(value =>
-    ['closed', 'already_closed'].includes(value.outcome) && same(value.launch, target))) return false
+  const point = job.execution?.binding?.target
+  // A launch can host several successive runs. Only the exact accepted run
+  // may be stopped; an idle launch or an old run is not this job's receipt.
+  if (!job.receipt || !point?.boundary || !job.executionStopResult?.targets.some(value =>
+    value.interruption === 'interrupted' && confirmedSessionInterruption(value) && same(value.run, point))) return false
   job.stopped = true
   job.controller?.abort()
-  await finishExecution(job, 'interrupted')
+  // Aiterm owns relation updates for v2. The v1 interrupted finish means
+  // launch closure and must never be synthesized for a preserved session.
   return true
 }
 
@@ -75,7 +79,7 @@ export function applyExecutionCancellation(job, error) {
   const source = record?.source.status === 'verified' ? record.source.point?.launch : null
   const expected = job.execution?.reservation.target
   const target = expected?.expected_launch_id ? { session_id: expected.session_id, launch_id: expected.expected_launch_id } : null
-  if (job.executionStopResult.targets.some(value => ['closed', 'already_closed'].includes(value.outcome)
+  if (job.executionStopResult.targets.some(value => confirmedSessionInterruption(value)
     && (same(value.launch, source) || same(value.launch, target)))) job.stopped = true
 }
 
@@ -112,7 +116,7 @@ export function interruptExecutions(transport, bots) {
           for (const root of read.roots) expected.set(JSON.stringify(root), root)
         } catch { reads.set(bot.id, null) }
       }
-      const result = expected.size ? await transport.executionBridge.stop([...expected.values()]) : null
+      const result = expected.size ? await transport.executionBridge.interrupt([...expected.values()]) : null
       captureLegacy()
       // Idle restart/configuration preparations are not jobs. Invalidate their
       // captured version too when the stop reaches that exact session slot.
@@ -120,20 +124,13 @@ export function interruptExecutions(transport, bots) {
       for (const [id, session] of transport.stopSessions) if (result?.targets.some(target => target.launch.session_id === session)) {
         reachedBots.add(id)
         if (!rootIds.has(id)) transport.stopVersions.set(id, (transport.stopVersions.get(id) ?? 0) + 1)
-        if (result.targets.some(target => target.launch.session_id === session && target.outcome === 'unknown'))
-          transport.uncertainChanges.set(id, 'agent_stop')
       }
-      for (const target of result?.targets ?? []) if (target.outcome === 'unknown') {
-        for (const bot of [...roots, ...jobs.map(job => job.bot)])
-          if (transport.session(bot) === target.launch.session_id) transport.uncertainChanges.set(bot.id, 'agent_stop')
-      }
-      const confirmed = result?.targets.filter(target => ['closed', 'already_closed'].includes(target.outcome)).map(target => target.launch) ?? []
+      const confirmed = result?.targets.filter(confirmedSessionInterruption).map(target => target.launch) ?? []
       const confirmedBots = new Set()
       for (const job of jobs) {
         job.executionStopResult = result
         const stopped = await applyExecutionStop(job)
         const unsentRoot = rootIds.has(job.bot.id) && !job.receipt && !job.execution?.issued.size
-          && reads.get(job.bot.id)?.roots.some(root => confirmed.some(launch => same(launch, root)))
         if (!stopped && !unsentRoot) continue
         confirmedBots.add(job.bot.id)
         if (!stopped) {
@@ -143,8 +140,8 @@ export function interruptExecutions(transport, bots) {
       }
       for (const botId of confirmedBots) {
         if (!rootIds.has(botId) && !reachedBots.has(botId)) transport.stopVersions.set(botId, (transport.stopVersions.get(botId) ?? 0) + 1)
-        transport.watches.get(botId)?.end()
-        await transport.removeRetainedImages(botId)
+        // Self-turn watchers and retained images belong to a run; do not
+        // clear every watcher/image for a preserved session by Bot ID.
       }
       captureLegacy()
       const affectedLegacy = [...legacyGaps].filter(id => rootIds.has(id)
@@ -152,17 +149,16 @@ export function interruptExecutions(transport, bots) {
       for (const id of affectedLegacy) transport.uncertainChanges.set(id, 'legacy_change_pending')
       const unconfirmedBotIds = roots.filter(bot => {
         const read = reads.get(bot.id)
-        // A read may lack a run boundary that the subsequent confirmed closure
-        // resolves. Use the final stop coverage; an unknown/missing root itself
-        // must still remain unconfirmed.
-        return !read?.roots.length || read.observation === 'unknown' || result?.status !== 'stopped'
+        // Only the final v2 receipt proves the interruption and preserved
+        // session across the complete relation set. Empty roots remain unknown.
+        return !read?.roots.length || read.observation === 'unknown' || result?.status !== 'confirmed'
           || affectedLegacy.length > 0
           || read.roots.some(root => !confirmed.some(launch => same(launch, root)))
       }).map(bot => bot.id)
       return { unconfirmedBotIds, cascade: result }
     } catch (cause) {
-      if (expected.size && cause?.effect !== 'not_started')
-        for (const bot of roots) transport.uncertainChanges.set(bot.id, 'agent_stop')
+      // A missing key receipt is not a delayed close. Do not permanently
+      // forbid new work in the same launch; Aiterm owns temporary run fences.
       throw unknown(cause)
     }
     finally {

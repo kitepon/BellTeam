@@ -333,60 +333,19 @@ export class AitermTransport {
     return result
   }
 
-  // 利用者が今の動作を止める。turnの完了は待たず、先に要求済みの送信/起動だけを確定させて席を閉じる。
-  // 新しい送信はこの処理の後へ並び、古い配送は閉鎖確認後にstoppedとなる。
+  // 会話を残した現在処理の中断。未対応環境でclose/キー直送へ戻さない。
   interrupt(bot) {
-    if (this.executionBridge) return this.interruptMany([bot]).then(result => {
-      if (result.unconfirmedBotIds.length) throw Object.assign(new Error('停止を確認できませんでした。'), { code: 'BOT_STOP_UNCONFIRMED' })
-      return { botId: bot.id, status: 'stopped', online: false }
+    if (!this.executionBridge) return Promise.reject(Object.assign(
+      new Error('処理の中断を確認できませんでした。'), { code: 'BOT_STOP_UNCONFIRMED' }))
+    return this.interruptMany([bot]).then(result => {
+      if (result.unconfirmedBotIds.length) throw Object.assign(
+        new Error('処理の中断を確認できませんでした。'), { code: 'BOT_STOP_UNCONFIRMED', cascade: result.cascade })
+      return { botId: bot.id, status: 'interrupted', sessionPreserved: true }
     })
-    if (this.interruptions.has(bot.id)) return this.interruptions.get(bot.id)
-    const jobs = [...new Set([...this.jobs, ...this.active.values()])].filter(job => job.bot.id === bot.id)
-    this.stopVersions.set(bot.id, (this.stopVersions.get(bot.id) ?? 0) + 1)
-    const closing = Promise.resolve().then(async () => {
-      try {
-        // MCP送信の応答待ちをabortするだけでは未送信を証明できない。同名の席を再利用する前に旧呼出を終える。
-        await this.dispatches.get(bot.id)
-        await this.waking.get(bot.id)?.catch(() => {})
-        // 発行済みの旧close/configureも返却まで待つ。idle待ち中で未発行の操作はstopVersionで無効化する。
-        while (this.sessionChanges.get(bot.id)?.size)
-          await Promise.allSettled([...this.sessionChanges.get(bot.id)])
-        this.requireSessionKnown(bot.id)
-        const before = await this.observe(bot)
-        if (before?.schema !== 'aiterm.pty-observe-result.v1' || before.session_id !== this.session(bot)
-          || typeof before.exists !== 'boolean') throw new Error('AITERM_STOP_OBSERVATION_INVALID')
-        if (before.exists) await this.changeSession(bot, 'pty_close', { session_id: this.session(bot) })
-        const after = await this.observe(bot)
-        if (after?.schema !== 'aiterm.pty-observe-result.v1' || after.session_id !== this.session(bot)
-          || after.exists !== false) throw new Error('AITERM_STOP_NOT_CONFIRMED')
-        for (const job of jobs) { job.stopped = true; job.controller?.abort() }
-        this.watches.get(bot.id)?.end()
-        await this.removeRetainedImages(bot.id)
-        return { botId: bot.id, status: 'stopped', online: false }
-      } catch (cause) {
-        // 閉鎖できなかった席の既に受理済みのターンは、通常の完了観測を続ける。未送信文は勝手に再送しない。
-        for (const job of jobs) if (job.receipt) job.stopRequested = false
-        const error = new Error('停止を確認できませんでした。メンバーの状態を確認してください。', { cause })
-        error.code = 'BOT_STOP_UNCONFIRMED'
-        throw error
-      }
-    })
-    for (const job of jobs) { job.stopRequested = true; job.interruption = closing }
-    const operation = closing.then(async result => {
-      await Promise.allSettled(jobs.map(job => job.completion))
-      return result
-    })
-    this.interruptions.set(bot.id, operation)
-    const clear = () => {
-      if (this.interruptions.get(bot.id) === operation) this.interruptions.delete(bot.id)
-      this.emitQueue()
-    }
-    operation.then(clear, clear)
-    return operation
   }
 
   interruptMany(bots) {
-    if (!this.executionBridge) throw new Error('EXECUTION_BRIDGE_REQUIRED')
+    if (!this.executionBridge) throw Object.assign(new Error('EXECUTION_BRIDGE_REQUIRED'), { code: 'BOT_STOP_UNCONFIRMED' })
     return interruptExecutions(this, bots)
   }
 
@@ -666,8 +625,8 @@ export class AitermTransport {
           throw error
         }
         await interim?.stop()
-        await finishExecution(job, 'completion')
         await checkpoint()
+        await finishExecution(job, 'completion')
         if (completion.turn_id) this.followedTurns.set(bot.id, completion.turn_id)
         // 動いていたターンが取り込んだ差し込みは、そのターンの一部。回答は、そのターンを始めた側が出す
         // （BellTeamが始めたターンは元の配送、席が自分で始めたターンはself-turns.mjs）。
