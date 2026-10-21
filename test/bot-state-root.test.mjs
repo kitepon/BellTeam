@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { BotRegistry } from '../src/bot-registry.mjs'
@@ -81,4 +81,79 @@ test('不正またはprojectと重なるstateRootをlegacyへ落とさない', a
   const f = await fixture(t)
   for (const stateRoot of [undefined, null, '', false, 0, {}, 'relative', '/invalid\0path', join(f.botsRoot, 'bot-a/state'), f.root])
     assert.throws(() => new BotRegistry({ ...f.options, stateRoot }), { code: 'BOT_STATE_ROOT_INVALID' })
+})
+
+
+test('split作成は既存project・file・dangling symlinkを再利用しない', async t => {
+  const f = await fixture(t); await f.registry.initialize()
+  const orphan = join(f.botsRoot, 'bot-b')
+  await mkdir(join(orphan, 'environment'), { recursive: true })
+  await mkdir(join(orphan, 'memory'))
+  await writeFile(join(orphan, 'environment/env.sh'), 'synthetic untrusted env')
+  await writeFile(join(orphan, 'memory/previous-session.md'), 'synthetic orphan memory')
+  await assert.rejects(f.registry.create({ name: 'New' }), { code: 'BOT_PROJECT_EXISTS' })
+  assert.equal(await readFile(join(orphan, 'environment/env.sh'), 'utf8'), 'synthetic untrusted env')
+  assert.equal(await readFile(join(orphan, 'memory/previous-session.md'), 'utf8'), 'synthetic orphan memory')
+  await assert.rejects(stat(join(f.stateRoot, 'bot-b')), { code: 'ENOENT' })
+  await rm(orphan, { recursive: true })
+  await writeFile(orphan, 'synthetic orphan file')
+  await assert.rejects(f.registry.create({ name: 'New' }, { id: 'bot-b' }), { code: 'BOT_PROJECT_EXISTS' })
+  await rm(orphan)
+  await symlink(join(f.root, 'absent'), orphan)
+  await assert.rejects(f.registry.create({ name: 'New' }, { id: 'bot-b' }), { code: 'BOT_PROJECT_EXISTS' })
+})
+
+test('project削除失敗は正本を退役しIDを予約、再起動は未完削除を再開する', async t => {
+  const f = await fixture(t); await f.registry.initialize()
+  await f.registry.create({ name: 'Remove synthetic' })
+  const project = join(f.botsRoot, 'bot-b'), pending = join(f.stateRoot, '.deleting/bot-b')
+  await writeFile(join(project, 'keep.txt'), 'synthetic')
+  t.after(() => chmod(project, 0o700).catch(() => {}))
+  await chmod(project, 0o500)
+  await assert.rejects(f.registry.remove('bot-b'), { code: 'BOT_DELETE_PENDING' })
+  assert.equal(f.registry.has('bot-b'), false)
+  await f.registry.refresh(); assert.equal(f.registry.has('bot-b'), false)
+  assert.equal(await readFile(join(project, 'keep.txt'), 'utf8'), 'synthetic')
+  assert.equal((await stat(pending)).isDirectory(), true)
+  await assert.rejects(f.registry.create({ name: 'Replacement' }), { code: 'BOT_DELETE_PENDING' })
+  await assert.rejects(new BotRegistry(f.options).initialize(), { code: 'BOT_DELETE_PENDING' })
+  await chmod(project, 0o700)
+  const restarted = new BotRegistry(f.options); await restarted.initialize()
+  assert.equal(restarted.has('bot-b'), false); assert.equal(restarted.has('bot-a'), true)
+  await assert.rejects(stat(project), { code: 'ENOENT' })
+  await assert.rejects(stat(pending), { code: 'ENOENT' })
+})
+
+test('正本退役後のstate掃除失敗も記録を保持し、同じremoveで再開できる', async t => {
+  const f = await fixture(t); await f.registry.initialize()
+  await f.registry.create({ name: 'Remove synthetic' })
+  const pendingRoot = join(f.stateRoot, '.deleting'), pending = join(pendingRoot, 'bot-b')
+  await mkdir(pendingRoot)
+  let changes = 0
+  f.registry.onChange = async () => { changes++; await chmod(pendingRoot, 0o500) }
+  t.after(() => chmod(pendingRoot, 0o700).catch(error => { if (error.code !== 'ENOENT') throw error }))
+  await assert.rejects(f.registry.remove('bot-b'), { code: 'BOT_DELETE_PENDING' })
+  assert.equal(changes, 1); assert.equal(f.registry.has('bot-b'), false)
+  await assert.rejects(stat(join(f.botsRoot, 'bot-b')), { code: 'ENOENT' })
+  assert.equal((await stat(pending)).isDirectory(), true)
+  await assert.rejects(f.registry.create({ name: 'Replacement' }), { code: 'BOT_DELETE_PENDING' })
+  await chmod(pendingRoot, 0o700); f.registry.onChange = async () => {}
+  assert.deepEqual(await f.registry.remove('bot-b'), { id: 'bot-b' })
+  await assert.rejects(stat(pending), { code: 'ENOENT' })
+  await f.registry.create({ name: 'Fresh replacement' })
+  assert.equal(f.registry.get('bot-b').name, 'Fresh replacement')
+})
+
+
+test('退役renameの失敗ではprojectとactive正本を消さない', async t => {
+  const f = await fixture(t); await f.registry.initialize()
+  await f.registry.create({ name: 'Still active' })
+  await mkdir(join(f.stateRoot, '.deleting'))
+  await chmod(f.stateRoot, 0o500)
+  try {
+    await assert.rejects(f.registry.remove('bot-b'), { code: 'EACCES' })
+    assert.equal(f.registry.has('bot-b'), true)
+    assert.equal((await stat(join(f.botsRoot, 'bot-b/environment'))).isDirectory(), true)
+    assert.equal(JSON.parse(await readFile(join(f.stateRoot, 'bot-b/bot.json'))).name, 'Still active')
+  } finally { await chmod(f.stateRoot, 0o700) }
 })

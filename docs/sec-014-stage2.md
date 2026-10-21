@@ -175,3 +175,28 @@ The ordinary test run skips the root-only UID case; it is separately executed
 for the actual UID boundary. The next-GET test uses a stub endpoint, not BugHub
 production. Directory read-only mount protection and actual root-installed CLI
 acceptance are still separate integration checks.
+
+
+### Split-state creation and interrupted deletion
+
+A new split-mode Bot claims its project directory with exclusive mkdir.
+An existing directory, file or symlink is rejected with BOT_PROJECT_EXISTS;
+its environment, memory and documents are never attached to the new Bot.
+A pending deletion also reserves the ID (BOT_DELETE_PENDING).
+
+Removal first renames the authoritative state directory, within stateRoot,
+to `.deleting/<id>`. Only after this succeeds is the Bot absent from the active
+registry. It then removes the project and finally the pending state directory.
+If the rename fails, the active profile and project remain unchanged. If either
+cleanup fails, BOT_DELETE_PENDING is returned and the persistent pending ID
+blocks reuse. Calling remove(id) again resumes cleanup even without an active
+profile. initialize() also resumes pending removals before loading profiles;
+a remaining cleanup failure blocks startup rather than resurrecting the Bot.
+No surviving bot.json inside the pending directory is needed to resume cleanup.
+
+This is file-operation/process-restart recovery, not a claim of power-loss
+persistence, multi-process registry locking, symlink-safe parent traversal or
+completed state migration. An HTTP 202 still means acceptance. After retirement,
+list disappearance means the Bot is inactive, and does not prove all residual
+files were removed. Pending cleanup is retried by registry remove(id) or normal
+initialization; there is no new public HTTP retry endpoint in this component.

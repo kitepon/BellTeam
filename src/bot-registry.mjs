@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
-import { access, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { access, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
 
@@ -79,6 +79,7 @@ export class BotRegistry extends Map {
       }
       await writeFile(initialized, '', { mode: 0o600 })
     }
+    if (this.separateState) await this.resumePendingRemovals()
     await this.migrateProfiles()
     await this.refresh()
     await Promise.all([...this.values()].map(profile => this.writeInstructions(profile)))
@@ -133,6 +134,15 @@ export class BotRegistry extends Map {
     })
     await this.validateEffort(profile)
     await this.validateFastMode(profile)
+    if (this.separateState) {
+      if (await pathExists(join(this.stateRoot, '.deleting', id)))
+        throw registryError('BOT_DELETE_PENDING')
+      // Claim a fresh project atomically; never adopt an orphan, file or symlink.
+      try { await mkdir(project) } catch (error) {
+        if (error.code === 'EEXIST') throw registryError('BOT_PROJECT_EXISTS')
+        throw error
+      }
+    }
     await ensureProjectFolders(project)
     await ensureGitProject(project)
     await this.writeProfile(profile)
@@ -207,15 +217,54 @@ export class BotRegistry extends Map {
   }
 
   async remove(id) {
+    validateId(id)
     await this.refresh()
     const bot = this.get(id)
-    if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
-    await rm(bot.project, { recursive: true, force: true })
-    if (this.separateState) await rm(this.statePath(id), { recursive: true, force: true })
+    if (!this.separateState) {
+      if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
+      await rm(bot.project, { recursive: true, force: true })
+    } else {
+      const pending = join(this.stateRoot, '.deleting', id)
+      const resuming = await pathExists(pending)
+      if (resuming && bot) throw registryError('BOT_DELETE_CONFLICT')
+      if (!resuming) {
+        if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
+        await mkdir(join(this.stateRoot, '.deleting'), { recursive: true, mode: 0o700 })
+        // Durable intent and removal from the active registry are one rename.
+        // The pending ID stays reserved until BOTH roots have been cleaned.
+        await rename(this.statePath(id), pending)
+      }
+      await this.refresh()
+      await this.onChange(this)
+      this.changed()
+      await this.finishRemoval(id)
+      return { id }
+    }
     await this.refresh()
     await this.onChange(this)
     this.changed()
     return { id }
+  }
+
+  async finishRemoval(id) {
+    try {
+      await rm(this.projectPath(id), { recursive: true, force: true })
+      await rm(join(this.stateRoot, '.deleting', id), { recursive: true, force: true })
+    } catch {
+      // Retry remove(id), or initialize a new registry to resume the same intent.
+      // No profile needs to survive a partially removed pending directory.
+      throw registryError('BOT_DELETE_PENDING')
+    }
+  }
+
+  async resumePendingRemovals() {
+    const pendingRoot = join(this.stateRoot, '.deleting')
+    if (!await pathExists(pendingRoot)) return
+    for (const entry of await readdir(pendingRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !BOT_ID.test(entry.name)) continue
+      if (await pathExists(this.statePath(entry.name))) throw registryError('BOT_DELETE_CONFLICT')
+      await this.finishRemoval(entry.name)
+    }
   }
 
   async listSchedules(id) {
@@ -324,6 +373,17 @@ export class BotRegistry extends Map {
 
   async writeScheduleDocument(id, schedules) {
     await writeAtomic(join(this.statePath(id), 'schedule.json'), scheduleDocument(schedules))
+  }
+}
+
+function registryError(code) {
+  return Object.assign(new Error(code), { code })
+}
+
+async function pathExists(path) {
+  try { await lstat(path); return true } catch (error) {
+    if (error.code === 'ENOENT') return false
+    throw error
   }
 }
 
