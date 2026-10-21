@@ -6,6 +6,38 @@ import { callExecutionRef, deliveryExecutionRef, roomExecutionRef } from './exec
 
 const unknown = cause => Object.assign(new Error('停止を確認できませんでした。', { cause }), { code: 'BOT_STOP_UNCONFIRMED' })
 
+export function sendStopOperations(transport, bots) {
+  const roots = [...new Map(bots.map(bot => [bot.id, bot])).values()]
+  const rootIds = new Set(roots.map(bot => bot.id))
+  const jobs = [...new Set([...transport.jobs, ...transport.active.values()])]
+  for (const bot of roots) transport.stopVersions.set(bot.id, (transport.stopVersions.get(bot.id) ?? 0) + 1)
+  // Start the actual stop RPC before any relation/status/disk read.
+  let sent
+  try { sent = transport.requestStop(roots.map(bot => transport.session(bot))) }
+  catch (error) { sent = Promise.reject(error) }
+  const operation = Promise.resolve(sent).then(cascade => {
+    const sentSessions = new Set(cascade.targets.filter(target => ['sent', 'idle'].includes(target.status)).map(target => target.session_id))
+    for (const job of jobs) if (sentSessions.has(transport.session(job.bot))) {
+      job.stopped = true
+      job.controller?.abort()
+    }
+    // Descendants can be BellTeam members too. Cancel only preparations that
+    // existed when the owner clicked Stop; a new owner input is still allowed.
+    for (const [id, session] of transport.stopSessions) if (!rootIds.has(id) && sentSessions.has(session))
+      transport.stopVersions.set(id, (transport.stopVersions.get(id) ?? 0) + 1)
+    const failed = cascade.targets.some(target => target.status === 'failed') || ['partial', 'failed'].includes(cascade.status)
+    return { requestSent: true, cascade, unconfirmedBotIds: roots.filter(bot => failed || !sentSessions.has(transport.session(bot))).map(bot => bot.id) }
+  }).finally(() => {
+    for (const job of jobs) if (!job.stopped) job.stopRequested = false
+    if (transport.executionStopping === operation) transport.executionStopping = null
+    transport.emitQueue()
+  })
+  operation.rootIds = rootIds
+  transport.executionStopping = operation
+  for (const job of jobs) if (rootIds.has(job.bot.id)) { job.stopRequested = true; job.interruption = operation }
+  return operation
+}
+
 export async function reserveExecution(transport, job) {
   const observed = await transport.observe(job.bot)
   if (observed?.schema !== 'aiterm.pty-observe-result.v1' || observed.session_id !== transport.session(job.bot)

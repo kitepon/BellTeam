@@ -2,13 +2,13 @@
 
 ## 会話を残す中断方式への接続（開発中・本番未反映）
 
-オーナーの指定はEsc相当で現在処理を中断し、会話/session/launchを残すこと。AIへ停止を頼む文を送らない。実行基盤はAiterm、Bridge/API/WebはBellTeam、Apple UIは別担当が持つ。
+オーナーの指定は各ハーネスで人が通常使う中断操作に相当する動作で、会話/sessionを閉じないこと。AIへ停止を頼む文を送らない。実行基盤はAiterm、Bridge/API/WebはBellTeam、Apple UIは別担当が持つ。
 
-停止API→transport→ExecutionBridge.interrupt→agent_stop v2/mode interruptを接続した。旧セッション閉鎖型のinterruptとBridgeのv1 stop発行口は除去。Aiterm連鎖口が未接続なら502で止まり、pty_close/キー直送へ戻らない。管理操作のrestart/configuration/shutdown等は別の機能として保持する。
+停止ボタンはtransportから`agent_stop({session_id})`を1回呼ぶ。全体停止は`{session_ids:[...]}`を1回渡し、Aitermが重複を除き、記録済みの呼出先を末端から親へ順に中断する。事前roots照会、旧v2の終了証明、journal保存、drain完了を待たせない。通常中断キーの選択もAitermが持つ。管理操作のrestart/configuration/shutdownは別の機能。
 
-中断とsession維持の両確認がある結果だけを確認済みとして読む。キー受付だけ、旧closed/absent結果、queue消失から成功を推定しない。受理済みjobを停止表示へ変えるのは、bindingのPointと結果のrunが完全一致した場合だけ。already_idleや同じlaunchの別run結果で元jobを消さない。v1 finish(kind=interrupted)はlaunch閉鎖の証拠なので、新中断後には送らず、Aitermが関係更新を所有する。
+返却の`sent`は通常中断操作の送信結果であり、native終了証明ではない。`failed`や`partial`は失敗として返す。会話やセッションの削除、close/killへの切替、同sessionへの永続停止印は作らない。停止要求時に存在した配送の待機を取り消し、次の新しい入力は受け付ける。
 
-受理receipt/doneの後着を保持し、中断が未確認なら通常観測を続ける。キーの結果不明だけでは同launchの新依頼を永久禁止しない。従来からの未確定close/configure等の欠測は別に保持する。新呼出や旧parent returnの実受付fence、元run中断と同一harness/会話維持の実証拠はAiterm側の残工程であり、Bridgeだけで補わない。
+旧v2の証拠読取部品は停止ボタンの実行経路から外した。診断の不足を、停止発行や次入力を塞ぐ条件にしない。
 
 supervisorはcreateManagedTransportで、配送と中断を同じAitermClient/ExecutionBridgeへ接続する。bootstrapがAiterm自身からscopeを読み、`execution-native-server.js --execution-interrupt --state-root … --socket … --steer-provider …`の登録をsupervisorと4CLIで共用する。通常18ツールの入口は停止を提供しない。native親hookも同じ登録をAitermのsetupへ渡し、旧hookへ変換しない。native wakeが未接続の間は旧lazy wakeへ戻さず直結する。
 
@@ -16,13 +16,13 @@ Aiterm候補d4f51efとSteer候補7a8bd27を隔離rootで起動し、本体のAit
 
 ## 個別停止API
 
-認証済み `POST /api/bots/:id/stop` は本文なし。返却を待って、中断/実行なしと会話維持・連鎖全範囲を確認できた時だけ200を返す。
+認証済み`POST /api/bots/:id/stop`は本文なし。Aitermが通常中断操作を送れたら202を返す。
 
 ```json
-{"botId":"bot-a","status":"interrupted","sessionPreserved":true}
+{"botId":"bot-a","status":"stop_sent"}
 ```
 
-`online`は成功条件に含めない。会話は保持され、同じ会話へ新しい依頼を送れる。局所already_idleでも未解決の下流やcoverage不足があれば200にしない。未対応/一部未確認/通信断/不正応答は502 `BOT_STOP_UNCONFIRMED`。200以外や不正結果をアプリ/Webで完了表示せず、自動再送もしない。queue読直しは表示更新用で、中断成功の証拠ではない。個別POSTには202の受付成功を定義していない。
+Webは「停止操作を送りました」と表示する。`online:false`やqueue消失を成功条件にしない。中断操作の失敗・未対応・通信断は502 `BOT_STOP_UNCONFIRMED`。POSTを自動再送しない。旧部品の確認済み200応答も互換読取だけは維持する。
 
 全体停止の正本・受付抑止・予定制御はBellTeam本体、表示とON/OFF要求はWebとAppleアプリが持つ。個別停止APIは`POST /api/bots/:id/stop`。連鎖停止の関係記録・寿命・実行はAitermの担当で、公開runtimeへの接続と実受入は未完。本番反映の前提を満たした扱いにはしない。
 
@@ -34,7 +34,7 @@ Aiterm候補d4f51efとSteer候補7a8bd27を隔離rootで起動し、本体のAit
 {"control":{"paused":false,"state":"enabled","updatedAt":null,"unconfirmedBotIds":[],"commandsConfirmed":null,"error":null}}
 ```
 
-`enabled`は新しい仕事を受けられる状態。ONは受付を同期的に止め、意図を保存してから登録メンバーと進行中のコマンド予定を停止する。保存成功後に202を返す。`stopping`は処理中、`stopped`は対象全件の処理中断/実行なしと会話維持・コマンド終了を確認できた状態、`unconfirmed`は未確認を含む状態。未確認でもONを保持する。既に停止確認済みなら200、処理中なら202、未確認なら502 `AI_STOP_UNCONFIRMED`で現在の正本を返し、同じONから停止処理を自動再実行しない。
+`enabled`は新しい仕事を受けられる状態。ONは受付を同期的に止め、保存完了を待たずに登録メンバーと進行中のコマンド予定へ停止を発行する。意図の保存は並行し、保存成功後に202を返す。`stopping`は操作処理中、`stopped`は対象への停止操作が成功した状態、`unconfirmed`は操作失敗や保存失敗を含む状態。未確認でもONを保持する。自動再送はせず、明示的にもう一度操作した場合は再発行できる。
 
 OFFは期限を過ぎた予定を実行せずに消化し、状態保存が成功してから200を返して受付を開く。未実行を実行済みの時刻にはしない。一回予定は無効化、繰返し予定は次の時刻へ進む。会話と予定の定義は削除しない。解除後に新しく登録した依頼は通常どおり扱う。停止前の保存待ち・部屋の順序待ちだった入力は、ON/OFFをまたいでも復活しない。
 
@@ -50,7 +50,7 @@ ON中の送信・起動・手動予定実行・再起動は423 `AI_GLOBAL_PAUSED
 
 開発検証は合成クライアント・合成プロセスとブラウザfixtureだけで行い、本番のメンバーや全体停止は操作しない。
 
-## 連鎖停止の隔離接続部品
+## 旧v2の隔離接続部品（停止ボタンの経路では使わない）
 
 `execution-bridge.mjs`はAitermのローカルwire v1に対する登録・状態照会・終了証拠・root照会・停止のadapter。既存delivery ID、room message IDと実配送先、call event/seq（欠測時は既存delivery ID）を使い、新しいIDや本文queueを作らない。関係の寿命、世代検証、終了fence、退役、実際の処理中断はAitermが持つ。
 

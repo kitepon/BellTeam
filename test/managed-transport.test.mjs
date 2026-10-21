@@ -22,21 +22,13 @@ async function fixture(t, mode) {
   server.setRequestHandler(CallToolRequestSchema, async request => {
     const { name, arguments: args } = request.params
     calls.push({ name, args: structuredClone(args) })
-    if (name === 'agent_execution_roots') return { content: [], structuredContent: {
-      schema: 'aiterm.execution-roots.v1', session_id: bot.session, observation: 'present',
-      current: launch, roots: [launch], relation_coverage: 'complete', unresolved: [],
-    } }
-    assert.equal(name, 'agent_stop', 'stop must not issue close or raw key fallback')
-    assert.deepEqual(args, { schema: 'aiterm.cascade-stop-request.v2', mode: 'interrupt', roots: [launch] })
+    assert.equal(name, 'agent_stop', 'stop must not wait for roots/status or issue close/raw key fallback')
+    assert.deepEqual(args, { session_id: bot.session })
     if (mode === 'unsupported') return { isError: true, content: [{ type: 'text', text: 'unsupported' }] }
-    const confirmed = mode === 'confirmed'
+    const sent = mode === 'confirmed'
     return { content: [], structuredContent: {
-      schema: 'aiterm.cascade-stop-result.v2', mode: 'interrupt', roots: [launch],
-      status: confirmed ? 'confirmed' : 'unconfirmed', relation_coverage: confirmed ? 'complete' : 'incomplete',
-      unresolved: confirmed ? [] : [{ reason: 'native_interruption_unconfirmed' }],
-      targets: [{ launch, run: { launch, boundary: { event_cursor: 1, operation_id: null, turn_id: 'fixture-turn', steer_id: null } },
-        key: 'Escape', key_receipt: 'accepted', interruption: confirmed ? 'interrupted' : 'unconfirmed',
-        session_preserved: confirmed ? 'confirmed' : 'unconfirmed', reason: 'synthetic' }],
+      status: sent ? 'sent' : 'partial',
+      targets: [{ session_id: bot.session, status: sent ? 'sent' : 'failed' }],
     } }
   })
   const sdk = new Client({ name: 'bellteam', version: 'synthetic' })
@@ -59,13 +51,13 @@ async function http(t, options) {
   return `http://127.0.0.1:${server.address().port}`
 }
 
-test('supervisor transport routes individual HTTP stop through the shared SDK v2 control', async t => {
+test('supervisor sends stop immediately through one SDK call without roots/proof reads', async t => {
   const f = await fixture(t, 'confirmed')
   const base = await http(t, f)
   const response = await fetch(`${base}/api/bots/bot-a/stop`, { method: 'POST' })
-  assert.equal(response.status, 200)
-  assert.deepEqual(await response.json(), { botId: 'bot-a', status: 'interrupted', sessionPreserved: true })
-  assert.deepEqual(f.calls.map(c => c.name), ['agent_execution_roots', 'agent_stop'])
+  assert.equal(response.status, 202)
+  assert.deepEqual(await response.json(), { botId: 'bot-a', status: 'stop_sent' })
+  assert.deepEqual(f.calls.map(c => c.name), ['agent_stop'])
   assert.equal(f.transport.session(f.bot), 'bot-a')
 })
 
@@ -75,10 +67,10 @@ test('supervisor transport reports native control unsupported without legacy clo
   const response = await fetch(`${base}/api/bots/bot-a/stop`, { method: 'POST' })
   assert.equal(response.status, 502)
   assert.equal((await response.json()).error, 'BOT_STOP_UNCONFIRMED')
-  assert.deepEqual(f.calls.map(c => c.name), ['agent_execution_roots', 'agent_stop'])
+  assert.deepEqual(f.calls.map(c => c.name), ['agent_stop'])
 })
 
-test('global HTTP pause keeps admission blocked when the connected SDK only acknowledges Escape', async t => {
+test('global HTTP pause keeps admission blocked when one stop operation failed', async t => {
   const f = await fixture(t, 'unconfirmed')
   const directory = await mkdtemp(join(tmpdir(), 'managed-pause-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
@@ -95,5 +87,22 @@ test('global HTTP pause keeps admission blocked when the connected SDK only ackn
   assert.equal(state.state, 'unconfirmed')
   assert.deepEqual(state.unconfirmedBotIds, ['bot-a'])
   assert.throws(() => aiControl.admit(), { code: 'AI_GLOBAL_PAUSED' })
-  assert.deepEqual(f.calls.map(c => c.name), ['agent_execution_roots', 'agent_stop'])
+  assert.deepEqual(f.calls.map(c => c.name), ['agent_stop'])
+})
+
+test('global roots are sent in one batch and a following stop can use the same sessions', async () => {
+  const calls = []
+  const client = { async call(name, args) {
+    calls.push({ name, args })
+    return { structuredContent: { status: 'sent', targets: args.session_ids.map(session_id => ({ session_id, status: 'sent' })) } }
+  } }
+  const transport = createManagedTransport({ client })
+  const bots = [{ id: 'bot-a', session: 'bot-a' }, { id: 'bot-b', session: 'bot-b' }]
+  const first = await transport.interruptMany([...bots, bots[0]])
+  assert.deepEqual(first.unconfirmedBotIds, [])
+  assert.deepEqual(calls, [{ name: 'agent_stop', args: { session_ids: ['bot-a', 'bot-b'] } }])
+  assert.equal(transport.executionStopping, null)
+  assert.equal(transport.uncertainChanges.size, 0)
+  await transport.interruptMany(bots)
+  assert.equal(calls.length, 2)
 })

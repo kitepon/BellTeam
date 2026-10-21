@@ -15,12 +15,12 @@ async function fixture(t, options = {}) {
   return control
 }
 
-test('ONは保存待ちより先に受付を止め、停止完了を確認してからstoppedとなる', async t => {
+test('ONは保存待ちより先に受付を閉じて停止を発行する', async t => {
   const save = deferred(), stopping = deferred(); let calls = 0
   const c = await fixture(t, { save: () => save.promise, stopAll: () => { calls++; return stopping.promise } })
   const on = c.update(true)
   assert.throws(() => c.assertEnabled(), { code: 'AI_GLOBAL_PAUSED', status: 423 })
-  assert.equal(c.snapshot().state, 'stopping'); assert.equal(calls, 0)
+  assert.equal(c.snapshot().state, 'stopping'); assert.equal(calls, 1)
   assert.equal(c.update(true), on)
   save.resolve(); assert.equal((await on).status, 202); assert.equal(calls, 1)
   const pending = c.enforcement
@@ -29,13 +29,15 @@ test('ONは保存待ちより先に受付を止め、停止完了を確認して
   assert.equal((await c.update(true)).status, 200); assert.equal(calls, 1)
 })
 
-test('一部未確認でもONを維持し、成功表示や同じONの自動再実行をしない', async t => {
+test('一部未確認ならONを維持し自動再送しないが、明示の再操作は発行する', async t => {
   let calls = 0
   const c = await fixture(t, { stopAll: () => { calls++; return { unconfirmedBotIds: ['bot-b', 'bot-b'], commandsConfirmed: true } } })
   await c.update(true); await c.enforcement
   assert.deepEqual(c.snapshot().unconfirmedBotIds, ['bot-b'])
   assert.equal(c.snapshot().state, 'unconfirmed'); assert.equal(c.snapshot().paused, true)
-  assert.equal((await c.update(true)).status, 502); assert.equal(calls, 1)
+  await Promise.resolve(); assert.equal(calls, 1)
+  assert.equal((await c.update(true)).status, 202); await c.enforcement
+  assert.equal(calls, 2)
 })
 
 test('コマンド未確認と停止結果の破損を全体停止成功にしない', async t => {
@@ -53,6 +55,17 @@ test('ONの保存失敗でも実停止を試みて受付抑止を残す', async 
   assert.equal(calls, 1); assert.equal(c.snapshot().state, 'unconfirmed')
   assert.equal(c.snapshot().error, 'AI_CONTROL_SAVE_FAILED')
   assert.throws(() => c.assertEnabled(), { code: 'AI_GLOBAL_PAUSED' })
+})
+
+test('先に保存が失敗しても遅着の停止結果で保存失敗を消さず、キーを再送しない', async t => {
+  const stopping = deferred(); let calls = 0
+  const c = await fixture(t, { save: async () => { throw Error('disk failed') }, stopAll: () => { calls++; return stopping.promise } })
+  assert.equal((await c.update(true)).status, 503)
+  const pending = c.enforcement
+  stopping.resolve(done()); await pending
+  assert.equal(c.snapshot().error, 'AI_CONTROL_SAVE_FAILED')
+  assert.equal(c.snapshot().state, 'unconfirmed')
+  assert.equal(calls, 1)
 })
 
 test('OFFは保存成功まで再開せず、保存に失敗したらONのままにする', async t => {

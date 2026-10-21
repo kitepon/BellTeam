@@ -73,7 +73,7 @@ test('認証済みAPIだけが全体ON/OFFを変更し、ON中は送信・再起
   assert.equal((await f.request('/api/bots/bot-a/messages')).status, 200)
   stopped.resolve({ unconfirmedBotIds: ['bot-a'], commandsConfirmed: true }); await c.enforcement
   const partial = await f.request('/api/ai-control', { method: 'PATCH', body: '{"paused":true}' })
-  assert.equal(partial.status, 502); assert.equal((await partial.json()).control.paused, true)
+  assert.equal(partial.status, 202); assert.equal((await partial.json()).control.paused, true)
   assert.equal((await f.request('/api/ai-control', { method: 'PATCH', body: '{"paused":false}' })).status, 200)
   assert.equal((await (await f.request('/api/ai-control')).json()).control.state, 'enabled')
 })

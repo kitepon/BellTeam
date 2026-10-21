@@ -368,10 +368,10 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
           if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
           try {
             const result = await transport.interrupt(bot)
-            if (result?.botId !== bot.id || result.status !== 'interrupted' || result.sessionPreserved !== true)
+            if (result?.botId !== bot.id || !(result.status === 'stop_sent' || result.status === 'interrupted' && result.sessionPreserved === true))
               throw new Error('BOT_STOP_UNCONFIRMED')
             server.notify({ type: 'bots' })
-            return json(response, 200, result)
+            return json(response, result.status === 'stop_sent' ? 202 : 200, result)
           } catch {
             return json(response, 502, { error: 'BOT_STOP_UNCONFIRMED', message: '処理の中断を確認できませんでした。会話を確認してください。' })
           }

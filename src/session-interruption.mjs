@@ -13,6 +13,20 @@ const boundary = value => value && Number.isSafeInteger(value.event_cursor) && v
   && (value.steer_id === null || typeof value.steer_id === 'string' && /^[0-9a-f]{16}$/u.test(value.steer_id))
 const point = value => value && launch(value.launch) && (value.boundary === null || boundary(value.boundary))
 
+// Stop-button path: Aiterm owns the harness-specific operation and traversal.
+// This acknowledges sending that operation, not a proof of native completion.
+export async function sendSessionStop(client, sessions) {
+  const ids = [...new Set(sessions)]
+  if (!ids.length) return { status: 'idle', targets: [] }
+  const result = await client.call('agent_stop', ids.length === 1 ? { session_id: ids[0] } : { session_ids: ids })
+  const data = result?.structuredContent
+  if (result?.isError || !data || !['sent', 'partial', 'failed', 'idle'].includes(data.status)
+    || !Array.isArray(data.targets) || data.targets.some(target => !target || typeof target.session_id !== 'string'
+      || !['sent', 'failed', 'idle'].includes(target.status))
+    || ids.some(id => !data.targets.some(target => target.session_id === id))) throw failure()
+  return data
+}
+
 export function confirmedSessionInterruption(target) {
   return target?.session_preserved === 'confirmed'
     && ['interrupted', 'already_idle'].includes(target.interruption)

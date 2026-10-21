@@ -136,8 +136,6 @@ export class AiControl {
     if (paused && this.desired && this.pendingIntent?.paused) return this.pendingIntent.operation
     if (paused && this.desired && this.state === 'stopped') return Promise.resolve({ status: 200, control: this.snapshot() })
     if (paused && this.desired && this.enforcement) return Promise.resolve({ status: 202, control: this.snapshot() })
-    if (paused && this.desired && this.state === 'unconfirmed')
-      return Promise.resolve({ status: 502, error: 'AI_STOP_UNCONFIRMED', control: this.snapshot() })
     this.desired = paused
     const revision = ++this.revision
     // Close admission synchronously, before storage or any stop RPC can await.
@@ -147,6 +145,9 @@ export class AiControl {
       this.state = 'stopping'
       this.error = null
       this.changed()
+      // Emergency action precedes disk acknowledgement. A blocked or failed
+      // state write must never delay sending the interruption.
+      this.enforce(revision)
     }
     const operation = this.writes.then(async () => {
       const updatedAt = this.now()
@@ -161,15 +162,12 @@ export class AiControl {
         this.paused = true
         this.state = 'unconfirmed'
         this.error = 'AI_CONTROL_SAVE_FAILED'
-        // A storage failure must not turn a safety stop into a no-op.
-        if (paused) this.enforce(revision, false)
         this.changed()
         return { status: 503, error: 'AI_CONTROL_SAVE_FAILED', control: this.snapshot() }
       }
       this.updatedAt = updatedAt
       this.resumedAt = resumedAt
-      if (paused) this.enforce(revision)
-      else if (revision === this.revision) {
+      if (!paused && revision === this.revision) {
         this.paused = false
         this.state = 'enabled'
         this.error = null
@@ -201,8 +199,9 @@ export class AiControl {
         throw new Error('STOP_RESULT_INVALID')
       this.unconfirmedBotIds = [...new Set(result.unconfirmedBotIds)].sort()
       this.commandsConfirmed = result.commandsConfirmed
-      this.state = saved && !this.unconfirmedBotIds.length && result.commandsConfirmed ? 'stopped' : 'unconfirmed'
-      this.error = !saved ? (this.error ?? 'AI_CONTROL_SAVE_FAILED') : this.state === 'unconfirmed' ? 'AI_STOP_UNCONFIRMED' : null
+      const persisted = saved && !['AI_CONTROL_SAVE_FAILED', 'AI_CONTROL_STATE_INVALID'].includes(this.error)
+      this.state = persisted && !this.unconfirmedBotIds.length && result.commandsConfirmed ? 'stopped' : 'unconfirmed'
+      this.error = !persisted ? (this.error ?? 'AI_CONTROL_SAVE_FAILED') : this.state === 'unconfirmed' ? 'AI_STOP_UNCONFIRMED' : null
     }).catch(() => {
       if (revision !== this.revision || !this.paused) return
       this.state = 'unconfirmed'

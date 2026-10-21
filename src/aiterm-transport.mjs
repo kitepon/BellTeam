@@ -10,7 +10,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
 import { ExecutionBridge, returnedExecutionError, ERROR_META } from './execution-bridge.mjs'
-import { reserveExecution, dispatchExecution, finishExecution, applyExecutionStop, applyExecutionCancellation, interruptExecutions } from './execution-transport.mjs'
+import { reserveExecution, dispatchExecution, finishExecution, applyExecutionStop, applyExecutionCancellation, interruptExecutions, sendStopOperations } from './execution-transport.mjs'
+import { sendSessionStop } from './session-interruption.mjs'
 
 const HARNESS = new Map([
   ['claude', 'claude-code'],
@@ -29,7 +30,7 @@ export const NIGHTLY_RESTART_TURNS = 20
 // and interruption. An unavailable execution runtime must reject the request;
 // it must not silently select the legacy dispatch/close path.
 export function createManagedTransport({ client = new AitermClient(), ...options } = {}) {
-  return new AitermTransport({ ...options, client, executionBridge: new ExecutionBridge(client) })
+  return new AitermTransport({ ...options, client, executionBridge: new ExecutionBridge(client), requestStop: sessions => sendSessionStop(client, sessions) })
 }
 
 export async function completedThroughlineTurns(project, { run = execFileAsync } = {}) {
@@ -160,9 +161,10 @@ export class AitermClient {
 }
 
 export class AitermTransport {
-  constructor({ client = new AitermClient(), executionBridge = null, tempRoot = tmpdir(), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS } = {}) {
+  constructor({ client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS } = {}) {
     this.client = client
     this.executionBridge = executionBridge
+    this.requestStop = requestStop
     this.interimInterval = interimInterval
     this.tempRoot = tempRoot
     this.waitProcess = waitProcess
@@ -348,11 +350,13 @@ export class AitermTransport {
     return this.interruptMany([bot]).then(result => {
       if (result.unconfirmedBotIds.length) throw Object.assign(
         new Error('処理の中断を確認できませんでした。'), { code: 'BOT_STOP_UNCONFIRMED', cascade: result.cascade })
-      return { botId: bot.id, status: 'interrupted', sessionPreserved: true }
+      return result.requestSent ? { botId: bot.id, status: 'stop_sent' }
+        : { botId: bot.id, status: 'interrupted', sessionPreserved: true }
     })
   }
 
   interruptMany(bots) {
+    if (this.requestStop) return sendStopOperations(this, bots)
     if (!this.executionBridge) throw Object.assign(new Error('EXECUTION_BRIDGE_REQUIRED'), { code: 'BOT_STOP_UNCONFIRMED' })
     return interruptExecutions(this, bots)
   }

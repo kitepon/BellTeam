@@ -80,6 +80,8 @@ test('Webは対象ID付きの停止確認だけを成功とし、不明な結果
   assert.equal(calls, 1)
   const result = { botId: 'bot-a', status: 'interrupted', sessionPreserved: true, online: true }
   assert.equal(await requestMemberStop('bot-a', async () => result), result)
+  const sent = { botId: 'bot-a', status: 'stop_sent' }
+  assert.equal(await requestMemberStop('bot-a', async () => sent), sent)
 })
 
 
