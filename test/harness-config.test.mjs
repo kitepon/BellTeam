@@ -214,7 +214,9 @@ test('中継の無い環境では、Aitermの登録はaiterm-setupが書くも�
   assert.ok((await readFile(join(home, '.grok/config.toml'), 'utf8')).includes(`${section}enabled = true\n`))
   assert.deepEqual(JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).mcpServers.aiterm, registration)
   const cursor = JSON.parse(await readFile(join(home, '.cursor/mcp.json'), 'utf8')).mcpServers.aiterm
-  assert.deepEqual({ command: cursor.command, args: cursor.args }, registration)
+  assert.equal(cursor.command, process.execPath)
+  assert.match(cursor.args[0], /\/src\/run-aiterm-mcp\.mjs$/u)
+  assert.deepEqual(cursor.args.slice(1), [registration.command, ...registration.args])
 })
 
 test('CodexのAiterm登録にだけ、席の環境から渡す変数名を挙げ、本体専用の変数は挙げない', async () => {
@@ -224,7 +226,7 @@ test('CodexのAiterm登録にだけ、席の環境から渡す変数名を挙げ
 
   const codex = await readFile(join(home, '.codex/config.toml'), 'utf8')
   const names = JSON.parse(codex.match(/\[mcp_servers\.aiterm\]\n(?:[^\[\n][^\n]*\n)*?env_vars = (\[[^\n]+\])\n/u)[1])
-  for (const name of ['BELLTEAM_PROJECT', 'GH_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'XDG_CONFIG_HOME', 'npm_config_prefix'])
+  for (const name of ['BELLTEAM_PROJECT', 'GH_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'XDG_CONFIG_HOME', 'npm_config_prefix', 'AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP'])
     assert.ok(names.includes(name), name)
   assert.deepEqual(names.filter(name => /KEY|TOKEN|SECRET|_CF_/u.test(name)), [])
   assert.doesNotMatch(await readFile(join(home, '.grok/config.toml'), 'utf8'), /env_vars/u)
@@ -240,6 +242,9 @@ test('CursorのAiterm登録は、席の環境にある変数だけを名前で�
   assert.equal(env.BELLTEAM_PROJECT, '${env:BELLTEAM_PROJECT}')
   assert.equal(env.GH_CONFIG_DIR, '${env:GH_CONFIG_DIR}')
   assert.equal(env.RTK_TELEMETRY_DISABLED, '${env:RTK_TELEMETRY_DISABLED}')
+  // 本体に無くてもCLI起動時の値を動的に読む。未展開値は入口で除く。
+  for (const name of ['AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP'])
+    assert.equal(env[name], `\${env:${name}}`, name)
   // 本体の環境に無い変数を挙げると、Cursorは「${env:…}」という文字列をそのまま値にしてしまう。
   for (const name of ['PLAYWRIGHT_BROWSERS_PATH', 'LC_CTYPE', 'BELLTEAM_ROOT', 'BELLTEAM_BUGHUB_KEY']) assert.equal(Object.hasOwn(env, name), false, name)
   assert.deepEqual(Object.keys(env).filter(name => /KEY|TOKEN|SECRET|_CF_/u.test(name)), [])
@@ -261,7 +266,9 @@ test('中継のある環境では、Aitermの本体を中継ごしに登録し�
   const claude = JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).mcpServers.aiterm
   assert.deepEqual(claude, { command: relay, args: ['/usr/local/bin/node', '/aiterm/dist/index.js'], env: relayed('claude') })
   const cursor = JSON.parse(await readFile(join(home, '.cursor/mcp.json'), 'utf8')).mcpServers.aiterm
-  assert.deepEqual({ command: cursor.command, args: cursor.args }, { command: claude.command, args: claude.args })
+  assert.equal(cursor.command, process.execPath)
+  assert.match(cursor.args[0], /\/src\/run-aiterm-mcp\.mjs$/u)
+  assert.deepEqual(cursor.args.slice(1), [claude.command, ...claude.args])
   // Cursorは、席の環境から渡す変数と中継の設定を同じ env に持つ。
   assert.equal(cursor.env.BELLTEAM_PROJECT, '${env:BELLTEAM_PROJECT}')
   assert.equal(cursor.env.RTK_TELEMETRY_DISABLED, '${env:RTK_TELEMETRY_DISABLED}')

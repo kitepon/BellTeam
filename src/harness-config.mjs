@@ -50,6 +50,9 @@ const AITERM_SEAT_ENV_VARS = [
 ]
 // 本体の環境にある時だけ席へ受け継がれる変数。
 const AITERM_INHERITED_ENV_VARS = ['BELLTEAM_ROOT', 'PLAYWRIGHT_BROWSERS_PATH', 'RTK_TELEMETRY_DISABLED', 'RTK_SUPPRESS_HOOK_WARNING', 'LC_CTYPE']
+// AitermがCLI起動時に付ける。本体の環境にはまだ無い場合がある。
+const AITERM_RUNTIME_ENV_VARS = ['AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE']
+const AITERM_TEMP_ENV_VARS = ['TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP']
 const UNUSABLE_CODEX_MCPS = ['[mcp_servers.xcodebuildmcp]', '[mcp_servers.openai-api-key-local-confirmation]']
 
 export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridge, aiterm = aitermRegistration, relay = aitermRelay, platform = process.platform, internalPort = Number(process.env.BELLTEAM_INTERNAL_PORT ?? 4181), environment = process.env } = {}) {
@@ -79,15 +82,22 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
     return `[mcp_servers.aiterm]\ncommand = ${JSON.stringify(server.command)}\nargs = ${JSON.stringify(server.args)}\n${env}startup_timeout_sec = 30\ntool_timeout_sec = 120\n`
   }
   // Codexは、挙げた名前が席の環境に無ければ渡さないだけなので、全部挙げる。
-  const codexMcp = `${tomlSeat(`env_http_headers = { "${SEAT_HEADER}" = "${SEAT_VARIABLE}", "${LAUNCH_HEADER}" = "${LAUNCH_VARIABLE}" }`)}\n${aitermToml('codex')}env_vars = ${JSON.stringify([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS])}\n`
+  const codexMcp = `${tomlSeat(`env_http_headers = { "${SEAT_HEADER}" = "${SEAT_VARIABLE}", "${LAUNCH_HEADER}" = "${LAUNCH_VARIABLE}" }`)}\n${aitermToml('codex')}env_vars = ${JSON.stringify([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS, ...AITERM_RUNTIME_ENV_VARS, ...AITERM_TEMP_ENV_VARS])}\n`
   // Cursorは \${env:名前} を席の環境の値へ置き換える。環境に無い名前は置き換えず、その文字列のまま渡してしまう。
   // 受け継ぐだけの変数は、本体の環境にある時だけ挙げる。
-  const cursorAitermEnv = Object.fromEntries([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS.filter(name => environment[name])]
+  // runtimeと一時領域はCLI固有の値もあるため、本体の有無で除外しない。
+  // 未定義の参照はrun-aiterm-mcpがAiterm/中継へ渡す前に取り除く。
+  const cursorAitermEnv = Object.fromEntries([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS.filter(name => environment[name]), ...AITERM_RUNTIME_ENV_VARS, ...AITERM_TEMP_ENV_VARS]
     .map(name => [name, `\${env:${name}}`]))
   const grokMcp = `${tomlSeat(`headers = { "${SEAT_HEADER}" = "\${${SEAT_VARIABLE}}", "${LAUNCH_HEADER}" = "\${${LAUNCH_VARIABLE}}" }`, 'enabled = true\n')}\n${aitermToml('grok')}enabled = true\n`
   const claudeMcp = { ...jsonSeat(url => ({ type: 'http', url, headers: { [SEAT_HEADER]: `\${${SEAT_VARIABLE}}`, [LAUNCH_HEADER]: `\${${LAUNCH_VARIABLE}}` } })), aiterm: aitermFor('claude') }
   const cursorAiterm = aitermFor('cursor')
-  const cursorMcp = { ...jsonSeat(url => ({ url, headers: { [SEAT_HEADER]: `\${env:${SEAT_VARIABLE}}`, [LAUNCH_HEADER]: `\${env:${LAUNCH_VARIABLE}}` } })), aiterm: { ...cursorAiterm, env: { ...cursorAitermEnv, ...cursorAiterm.env } } }
+  const cursorMcp = { ...jsonSeat(url => ({ url, headers: { [SEAT_HEADER]: `\${env:${SEAT_VARIABLE}}`, [LAUNCH_HEADER]: `\${env:${LAUNCH_VARIABLE}}` } })), aiterm: {
+    ...cursorAiterm,
+    command: process.execPath,
+    args: [join(appRoot, 'src/run-aiterm-mcp.mjs'), cursorAiterm.command, ...(cursorAiterm.args ?? [])],
+    env: { ...cursorAitermEnv, ...cursorAiterm.env },
+  } }
   // Codexのアカウントに入っているプラグインは、席ごとにMCPを起こす。
   // build-ios-apps の `npx xcodebuildmcp` はXcodeの無い環境では使えない。
   // openai-developers の `openai-api-key-local-confirmation` はAPIキー設定の確認フォームで、人のいない席では答えられない。

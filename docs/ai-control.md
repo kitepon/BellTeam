@@ -34,4 +34,8 @@ ON中の送信・起動・手動予定実行・再起動は423 `AI_GLOBAL_PAUSED
 
 4ハーネス設定は`AITERM_AGENT_LAUNCH_ID`を`X-Bellteam-Launch-Id`へ動的に写す。受信時に席名と世代候補を固定し、内部の配送要求からjobへ渡す。モデルの道具引数からは指定させない。欠測/未展開の値はnullで、現在のjobから補完しない。これはruntime claimの輸送であり、ヘッダーだけで検証済みにするものではない。nativeの呼出境界は共通には取れないためnullを保つ。設定生成と合成MCP要求での確認を、4種類の実CLIで受信済みとは扱わない。
 
+CodexのAiterm stdio継承リストには`AITERM_SESSION_ID`、`AITERM_AGENT_SESSION_ID`、`AITERM_AGENT_LAUNCH_ID`、`AITERM_STATE_BASE`と、一時領域の`TMPDIR`、`XDG_RUNTIME_DIR`、`TEMP`、`TMP`を指定する。Cursorも同じ名前をCLI起動時に動的に読む。本体の環境にまだ無い名前を除外しない。Cursor専用の`run-aiterm-mcp.mjs`は、この8名の未展開参照だけを除いてから登録先またはlazy relayを起動し、stdio・終了値・終了signalを引き継ぐ。値の補完や再試行はしない。既存のsource別名不一致もそのままAitermの検証へ渡す。
+
+state/socketの選択は呼出元識別と別で、実値を保つ。これらの継承設定だけで現在launchの照合やstate scope一致、coverage完全を認定しない。
+
 このadapterは稼働transportへまだmountしていない。Aiterm本体への公開口・実runtime検証・全変更口の共通受付・期待世代の閉鎖adapterを接続し、停止APIと全体停止から呼ぶ統合受入が残る。call-bridgeの外部経路も、この部品だけで追跡済みとはしない。未対応の稼働版へ新しいtoolを呼んだり、旧closeへfallbackしたりしない。
