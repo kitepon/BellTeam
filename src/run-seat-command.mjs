@@ -1,17 +1,30 @@
 // Runs only after seat-exec has dropped all identity slots to the seat UID.
 import { spawn } from 'node:child_process'
 import { isAbsolute } from 'node:path'
-import { setTimeout as delay } from 'node:timers/promises'
 import { loadBotEnvironment } from './bot-environment.mjs'
 
 let active, stopping = false, stopSignal
-function signalGroup(signal) {
-  if (!active?.pid) return
-  try { process.kill(-active.pid, signal) } catch (error) { if (error.code !== 'ESRCH') throw error }
+function signalGroup(signal, child) {
+  if (!child?.pid) return
+  try { process.kill(-child.pid, signal) } catch (error) { if (error.code !== 'ESRCH') throw error }
+}
+function groupExists(child) {
+  if (!child?.pid) return false
+  try { process.kill(-child.pid, 0); return true } catch (error) { return error.code !== 'ESRCH' }
 }
 for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(signal, () => {
   stopping = true; stopSignal = signal
-  try { signalGroup(signal) } catch { /* fixed failure below; no process details */ }
+  const running = active
+  // Start on receipt, not close: a TERM-ignoring process or inherited stdout
+  // pipe can otherwise prevent close forever. Bind escalation to this child.
+  if (running && !running.stop) {
+    running.stop = new Promise(resolve => { running.resolveStop = resolve })
+    running.timer = setTimeout(() => {
+      try { signalGroup('SIGKILL', running.child) } catch {}
+      running.resolveStop()
+    }, 250)
+  }
+  try { signalGroup(signal, running?.child) } catch { /* no process details */ }
 })
 
 async function run(command, args, options, capture = false) {
@@ -19,18 +32,20 @@ async function run(command, args, options, capture = false) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { ...options, detached: true,
       stdio: capture ? ['ignore', 'pipe', 'ignore'] : 'inherit' })
-    active = child
+    const running = { child, timer: null }
+    active = running
     const output = []
     if (capture) child.stdout.on('data', chunk => output.push(chunk))
     child.once('error', reject)
     child.once('close', async (code, signal) => {
-      if (stopping) {
-        // Keep the group identity until escalation; do not exit on the sudo/
-        // shell monitor alone while its synthetic/real descendants can remain.
-        await delay(250)
-        try { signalGroup('SIGKILL') } catch {}
+      // A leader can exit while its group remains alive without holding stdio.
+      // Cancel escalation only when the group is already absent; otherwise
+      // wait for the signal-time escalation before this wrapper exits.
+      if (running.stop) {
+        if (!groupExists(child)) { clearTimeout(running.timer); running.resolveStop() }
+        await running.stop
       }
-      active = null
+      if (active === running) active = null
       if (capture && (code !== 0 || signal || stopping)) reject(Error('ENVIRONMENT_FAILED'))
       else resolve({ stdout: Buffer.concat(output).toString(), code, signal })
     })

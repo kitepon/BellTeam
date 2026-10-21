@@ -74,6 +74,17 @@ Returning to an older code version must not silently ignore a persisted ON.
 State migration, independent read-only mounts, backups, rollback and deployment
 downtime measurement are not implemented by these entry components.
 
+Cancellation escalation starts when TERM/INT/HUP is received, independently of
+the child's close event. The 250ms timer captures that child's group; it is
+canceled only when the group is already absent. A leader exiting while its
+group remains alive does not let the wrapper exit before escalation. This also
+covers an environment descendant retaining the capture pipe.
+
+Only omitted or explicitly null seatProject selects the legacy path. Every
+explicit invalid value, including empty/false/undefined, throws the typed
+SEAT_PROJECT_INVALID error before an SDK connection or dynamic-env branch.
+The project is checked again at connect/call, and no truthiness fallback exists.
+
 | Existing route | Stage-2 work still required |
 | --- | --- |
 | `aiterm-transport.mjs`: SDK `StdioClientTransport`, wait-process spawn, Throughline reads | Start the MCP process and all CLI-related children as UID1000; verify termination/cancellation and no privileged inherited environment |

@@ -9,7 +9,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
-import { seatCommandSpec } from './seat-command.mjs'
+import { requireSeatProject, seatCommandSpec } from './seat-command.mjs'
 
 const HARNESS = new Map([
   ['claude', 'claude-code'],
@@ -53,7 +53,10 @@ export async function latestThroughlineHandoffContext(project, { run = execFileA
 }
 
 export class AitermClient {
-  constructor({ command = 'aiterm-mcp', args = [], env = runtimeEnvironment(), seatProject = null } = {}) {
+  constructor(options = {}) {
+    const { command = 'aiterm-mcp', args = [], env = runtimeEnvironment() } = options
+    const seatProject = Object.hasOwn(options, 'seatProject') ? options.seatProject : null
+    if (seatProject !== null) requireSeatProject(seatProject)
     this.command = command
     this.args = args
     this.seatProject = seatProject
@@ -66,9 +69,9 @@ export class AitermClient {
   async connect() {
     if (this.connecting) return this.connecting
     if (this.client) return
-    this.client = new Client({ name: 'bellteam', version: '0.1.0' }, { capabilities: {} })
-    const spec = this.seatProject ? seatCommandSpec(this.command, this.args, { project: this.seatProject })
+    const spec = this.seatProject !== null ? seatCommandSpec(this.command, this.args, { project: this.seatProject })
       : { command: this.command, args: this.args, ...(this.env ? { env: this.env } : {}) }
+    this.client = new Client({ name: 'bellteam', version: '0.1.0' }, { capabilities: {} })
     this.transport = new StdioClientTransport({ ...spec, stderr: 'inherit' })
     const client = this.client
     const transport = this.transport
@@ -98,10 +101,11 @@ export class AitermClient {
   }
 
   async call(name, args = {}, { env, meta } = {}) {
+    if (this.seatProject !== null) requireSeatProject(this.seatProject)
     if (env) {
       // Per-target launch environment needs the seat-side loading contract too.
       // Do not silently serialize a server-evaluated environment across this boundary.
-      if (this.seatProject) throw new Error('SEAT_DYNAMIC_ENV_UNWIRED')
+      if (this.seatProject !== null) throw new Error('SEAT_DYNAMIC_ENV_UNWIRED')
       // Aitermは値ではなくMCPプロセスの変数名を受け取る。起動ごとに専用の短命接続を使う。
       const launcher = new AitermClient({ command: this.command, args: this.args, env })
       try {

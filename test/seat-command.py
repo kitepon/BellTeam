@@ -1,5 +1,5 @@
 """UID1001 fixture only. All environment/canary values are synthetic."""
-import json,os,pathlib,subprocess,time,unittest
+import json,os,pathlib,signal,subprocess,time,unittest
 
 ENTRY=['sudo','-n','--','/usr/local/libexec/bellteam-seat-exec','--','/usr/local/bin/node','/app/src/run-seat-command.mjs']
 PROJECT='/synthetic-seat-project'
@@ -49,5 +49,35 @@ finally{await c.close()}
    self.assertEqual(out,'');self.assertFalse(pathlib.Path('/proc',str(pid)).exists())
   finally:
    if child.poll() is None:child.kill();child.wait()
+ def force_cancel(self,code,project=PROJECT,marker='/tmp/seat-ignore-pid'):
+  path=pathlib.Path(marker);path.unlink(missing_ok=True)
+  child=subprocess.Popen([*ENTRY,project,'--','/usr/bin/python3','-I','-c',code],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+  try:
+   deadline=time.monotonic()+3
+   while not path.exists() and time.monotonic()<deadline:time.sleep(.02)
+   self.assertTrue(path.exists());pid=int(path.read_text());started=time.monotonic();child.terminate()
+   out,err=child.communicate(timeout=3)
+   self.assertLess(time.monotonic()-started,2)
+   self.assertNotEqual(child.returncode,0)
+   deadline=time.monotonic()+1
+   while pathlib.Path('/proc',str(pid)).exists() and time.monotonic()<deadline:time.sleep(.02)
+   status=pathlib.Path('/proc',str(pid),'stat')
+   self.assertFalse(status.exists(),status.read_text() if status.exists() else '')
+   self.assertNotIn('must-not-run',out)
+  finally:
+   if child.poll() is None:child.kill();child.wait()
+   if path.exists():
+    try:os.kill(int(path.read_text()),signal.SIGKILL)
+    except (ProcessLookupError,PermissionError):pass
+ def test_term_ignored_by_target_escalates_before_close(self):
+  self.force_cancel("import os,pathlib,signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);pathlib.Path('/tmp/seat-ignore-target-pid').write_text(str(os.getpid()));time.sleep(30)",marker='/tmp/seat-ignore-target-pid')
+ def test_term_ignored_during_env_never_starts_target(self):
+  self.force_cancel("print('must-not-run')",project='/synthetic-ignore-project')
+ def test_env_descendant_holding_stdout_cannot_block_escalation(self):
+  self.force_cancel("print('must-not-run')",project='/synthetic-pipe-project',marker='/tmp/seat-pipe-pid')
+  self.assertTrue(pathlib.Path('/tmp/seat-pipe-fd').read_text().startswith(('socket:[','pipe:[')))
+ def test_env_leader_close_does_not_cancel_escalation_for_live_group(self):
+  self.force_cancel("print('must-not-run')",project='/synthetic-orphan-project',marker='/tmp/seat-orphan-pid')
+  self.assertEqual(pathlib.Path('/tmp/seat-orphan-fd').read_text(),'/dev/null')
 
 if __name__=='__main__':unittest.main(verbosity=2)
