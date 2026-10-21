@@ -1,5 +1,5 @@
-// Optional integration: supplied only after the Aiterm execution runtime is
-// accepted. No live mount, relation graph, retry or legacy-close fallback here.
+// Execution registration stays in Aiterm. The immediate stop-button path below
+// sends one session/batch request without waiting for the older proof adapter.
 import { isDeepStrictEqual as same } from 'node:util'
 import { confirmedSessionInterruption } from './session-interruption.mjs'
 import { callExecutionRef, deliveryExecutionRef, roomExecutionRef } from './execution-bridge.mjs'

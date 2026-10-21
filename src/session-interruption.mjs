@@ -1,5 +1,5 @@
-// Session-preserving stop v2 only. No close fallback, key retry or inference
-// from an accepted key, absent session, idle display, or queue removal.
+// The stop button sends the normal harness interruption through Aiterm.
+// The older v2 proof reader below is retained for adapter compatibility only.
 import { isDeepStrictEqual as same } from 'node:util'
 
 const failure = (code = 'EXECUTION_UNCONFIRMED', effect = 'possible') =>

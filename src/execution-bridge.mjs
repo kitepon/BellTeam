@@ -1,5 +1,5 @@
-// Adapter for Aiterm execution wire v1; not mounted on the live transport yet.
-// Aiterm owns relation storage, generation checks, fences and retirement.
+// Adapter for Aiterm execution registration and the older v2 observation API.
+// Aiterm owns relations; the stop button uses sendSessionStop directly.
 import { isDeepStrictEqual as same } from 'node:util'
 import { requestSessionInterruption } from './session-interruption.mjs'
 
