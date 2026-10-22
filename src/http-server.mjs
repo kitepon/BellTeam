@@ -6,6 +6,7 @@ import { extname, join } from 'node:path'
 import { SubscriptionAccessError } from './subscriptions.mjs'
 import { LiveModelCatalog, ModelCatalogError } from './model-catalog.mjs'
 import { diagnosticRequestContext } from './diagnostic-request-context.mjs'
+import { returnedExecutionError } from './execution-bridge.mjs'
 
 const contentTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -671,6 +672,13 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
         catch (reportError) { process.stderr.write(`BellTeam diagnostics error: ${reportError.stack ?? reportError.message}\n`) }
       }
       // 利用者へ理由を伝えられる失敗（Botを起動できなかった時など）は、その文も返す。記録と状態は他の500と同じ。
+      const execution = returnedExecutionError(error.executionError) ?? returnedExecutionError(error)
+      if (execution) return json(response, 500, {
+        error: execution.code, effect: execution.effect, follow_up: execution.follow_up,
+        message: execution.effect === 'possible'
+          ? '入力が届いたか確認できません。同じ内容を再送せず、配送履歴と受信側の状態を確認してください。'
+          : '今回の入力は送信されていません。原因を確認し、同じ内容を自動再送しないでください。',
+      })
       return json(response, 500, { error: 'INTERNAL_ERROR', ...(typeof error.publicMessage === 'string' ? { message: error.publicMessage } : {}) })
     }
   })
