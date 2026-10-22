@@ -14,13 +14,14 @@ Aitermの正規リポジトリで、両観測が同じ厳密なソケット欠�
 
 オーナーの個別許可を受け、13:17 JSTにBellTeam `71ecf08` を正規の`scripts/deploy.sh`一回で本番反映した。旧イメージ`sha256:9cb23dd9ccf303a218ae69db91cbf31a2494062667ca00aee4c676a96bab7da8`は`bellteam-rollback:20261022-aiterm0611`として保持した。新イメージは`sha256:ca0ef95397e3a25660644bf82352cdf69d2893e2a8d8696c17b2d019b5c5d94a`。healthは正常でAiterm 0.61.2が入ったが、ソケット未作成からの予定配送は`EXECUTION_UNSUPPORTED`で失敗した。実行登録の空観測は成功した一方、Aitermの`prepareCreation`が最初の`agent_launch`でも既存tmux serverのownerを要求していた。0.61.2の修理は冷間起動の一段目までで、完了と判断したのは誤りだった。
 
-公開Aitermの`pty_open`で新コンテナに一時端末`bellteam_recovery_20261022_after0612`を開くと、新しいBot席が起動し、直近の配送エラーは止まった。恒久修理はAiterm側で、最初の`new-session`の実receiptに含まれるnative session IDとserver PIDを、作成後のprocess開始識別子と照合して結び付ける。補助sessionや自動再送は足さない。修正前に冷間作成の回帰試験が失敗し、修正後に合成の実行作成・実tmuxの冷間作成・終了後の空状態、関連試験が成功した。Aiterm 0.61.3の並行修理を統合した候補枝`fix/cold-native-launch-20261022`を3環境CIで検証中。
+公開Aitermの`pty_open`で新コンテナに一時端末`bellteam_recovery_20261022_after0612`を開くと、新しいBot席が起動し、直近の配送エラーは止まった。恒久修理はAiterm側で、最初の`new-session`の実receiptに含まれるnative session IDとserver PIDを、作成後のprocess開始識別子と照合して結び付ける。補助sessionや自動再送は足さない。修正前に冷間作成の回帰試験が失敗し、修正後に合成の実行作成・実tmuxの冷間作成・終了後の空状態、関連試験が成功した。Aiterm 0.61.3の並行修理を統合した0.61.4の製品CIはmacOS、Linux、Windowsで成功し、実tmuxの冷間作成試験はmacOSとLinuxで実行されて成功した。npmとOfficial MCP Registryへ公開され、公開npm packageの冷間作成も実走で成功した。
 
-## 未完了
+二度目の個別許可を受け、14:08 JSTにBellTeam `9b404c5` を`scripts/deploy.sh`一回で反映し、Aiterm 0.61.4を導入した。旧0.61.2イメージ`sha256:ca0ef95397e3a25660644bf82352cdf69d2893e2a8d8696c17b2d019b5c5d94a`は`bellteam-rollback:20261022-aiterm0612`として保持した。新イメージは`sha256:d6cd9794f538efd7b5283d4450eeae15ef7d856e7da96a2282f73cbadf282372`。healthは正常。旧一時端末は存在せず、新コンテナの空ソケット状態からtmux server（PID 1801、開始識別子 `Thu Oct 22 05:09:31 2026`）とBot席`bot-a855525f`・`bot-47fad91c`が作成された。直近ログに`EXECUTION_UNSUPPORTED`・`EXECUTION_UNCONFIRMED`・配送エラーは無い。
 
-- Aitermの冷間作成修理を3環境CIで受け入れ、新しい版として公式releaseと公開package smokeまで完了する。
-- BellTeamコンテナを再び作り直す場合、`AGENTS.md`に従ってその操作への新たなオーナーの明示許可を取る。旧イメージを保持し、`scripts/deploy.sh`一回で導入する。
-- 本番で一時端末が無い冷間状態から実行登録と席作成、実チャット配送まで確認する。確認後も一時端末が残っていればAitermの公開`pty_close`で閉じる。
-- オーナーの依頼に従い、修理と本番確認の完了後にトロニーとエレグへ不具合と再発防止の結果を報告する。
+オーナーの指示に従い、最終報告と「ふざけんな」をトロニー（配送ID`6e1ceea3-9045-4906-8a58-48f6fa9228bd`）とエレグ（配送ID`a632bcf2-ede7-4018-b404-b8160474b43f`）へそれぞれ1通送った。どちらも直接チャットAPIはHTTP 200で受け付けた。エレグの配送状態は`delivered`、トロニーは確認時点で`running`。重複送信はしていない。
 
-現在の本番はAiterm 0.61.2と一時端末で動いており、冷間起動の恒久対策は未導入である。
+## 残確認
+
+- トロニーへ送った最終報告の配送状態が`delivered`になるまで確認する。
+
+現在の本番はAiterm 0.61.4で、冷間起動に一時端末を使っていない。
