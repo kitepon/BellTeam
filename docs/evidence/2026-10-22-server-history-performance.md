@@ -45,7 +45,7 @@ Node v26.12.1、60 Bot、直接メッセージ30,000件＋配送状態10,000件�
 
 同じ比較を使うConversationStoreも確認し、room/直接会話の2回帰を追加して初版で2件とも失敗することを確認。各readerが最後に観測したファイル総sizeをoffsetと別に保持し、総size減少なら正本から全再構築する。同サイズの内容変更判定も観測総sizeとmtimeで行う。不存在時は観測サイズを捨てる。Bot索引/過去statusを含むキャッシュも再構築される。
 
-回帰は、同inode/有効な改行なし末尾/総sizeが旧offsetを下回らない縮小、同サイズ書換え、繰返し読取、縮小後の通常追記と配送状態更新、以前の応答保持を確認。関連4ファイル52件成功、追補後の`TESTGATE_FULL=1 npm test`は641pass/0fail/skip/cancel。初版の性能表は004226a時点の計測で、この追補で性能再計測は行っていない。本番反映とmain統合は引き続き未実施。
+回帰は、同inode/有効な改行なし末尾/総sizeが旧offsetを下回らない縮小、同サイズ書換え、繰返し読取、縮小後の通常追記と配送状態更新、以前の応答保持を確認。関連4ファイル52件成功、追補後の`TESTGATE_FULL=1 npm test`は641pass/0fail/skip/cancel。初版の性能表は004226a時点の計測で、この追補で性能再計測は行っていない。この時点では本番反映とmain統合は未実施だった。
 
 ## ログ画面とAitermの境界（調査結果）
 
@@ -55,6 +55,25 @@ Node v26.12.1、60 Bot、直接メッセージ30,000件＋配送状態10,000件�
 
 ## 反映と戻し方
 
-ここまで実装/隔離検証のみ。本番再作成、通常deploy、実Bot操作、本文再送は0。反映はownerの個別許可後に正規scripts/deploy.shを1回。全Botが中断し、次のメッセージで起動する影響を事前に伝える。
+この段階では実装/隔離検証のみで、本番再作成、通常deploy、実Bot操作、本文再送は0だった。反映はownerの個別許可後に正規scripts/deploy.shを1回行い、全Botが中断して次のメッセージで起動する影響を事前に伝える条件とした。
 
-互換修理は保存形式/APIを変えないので、コード上はこの修理commitのrevertで旧方式へ戻せる。ただし本番rollbackも再作成を伴うため別の許可が必要。過去の旧0.61.4 imageが消えている制約があり、同一旧imageへの即時復帰を約束しない。実行前に現image IDと保存経路を本番担当が具体的に確認し、未確認ならその制約をownerへ示す。現時点の本番が変わっていないことの照会もこの文書作成時には行っていない。
+互換修理は保存形式/APIを変えないので、コード上はこの修理commitのrevertで旧方式へ戻せる。ただし本番rollbackも再作成を伴うため別の許可が必要。過去の旧0.61.4 imageが消えている制約があり、同一旧imageへの即時復帰を約束しない。実行前に現image IDと保存経路を本番担当が具体的に確認し、未確認ならその制約をownerへ示す。この文書作成時点では本番の状態を照会していなかった。
+
+## 2026-10-23 本番反映の実測
+
+PR49はmain `59df581b6c7cd391891d14c64245b37b8f6b9aa8` に統合された。オーナーが決裁箱「サーバー高速化修理をBellTeam本番へ1回反映してよい？」に `deploy_once` で回答した。最初の実行前照合では共有checkoutにApple担当の未commit差分15 pathと別HEADがあり、ベルはdeployを実行せずトロニーへ返した。Apple担当が差分を専用branch `apple-performance-58` のcommit `13996c7c6874be4018873c4012dc19f2b0286866` に保全した後、ベルはbranch/main、HEAD、origin/main、GitHub remote mainが承認対象と一致し、差分が空であることを再確認した。
+
+反映前の本番はHEAD `c3a5edfa51e65193ae5faee09c2456ae398b1507`、tracked clean、health正常。稼働イメージID `sha256:db72d49595675a057af63adedec27b60526fc4a943d549f049ff42328690e199` は保全タグ `bellteam-rollback:20261022-before-pr49` と一致し、競合するdeploy processは無かった。ベルが `sh scripts/deploy.sh` を1回だけ実行し、本番HEADは `59df581b6c7cd391891d14c64245b37b8f6b9aa8`、tracked cleanとなった。処理待ち6件（bot-a855525f、bot-7b140b27、bot-47fad91c）は `runtime/backups/queue-before-deploy-20261023T0442.json` に保存された。正規スクリプトのログは `runtime/backups/deploy-20261023T044238.log`、末尾は `deploy-exit=0`。
+
+新コンテナIDは `1cde4781af369e64f8739ca8bca49a44f2524cea98fa6c252846e470ae86f887`、イメージIDは `sha256:1044f0a494517403a71279817e132e515c516030cc915b4e9accdf46e38ff0a1`。稼働状態とDocker healthは正常、内部healthzは `{"status":"ok"}`。CLIはNode v26.12.1、Codex CLI 0.163.0、Claude Code 2.1.308、Grok 1.0.67、Cursor 2026.10.22-27dcf5f、GitHub CLI 2.103.0、Aiterm 0.61.5、Throughline 0.16.41。60 Bot中0席onlineで、実Botへの新規送信は行っていない。旧イメージの保全タグは旧IDのまま保持した。
+
+同じ内部読取APIへの各1回の所要時間は次のとおり。外部ネットワークとアプリ画面の時間を含まず、各1回なので性能改善の統計的判定には用いない。
+
+| endpoint | 反映前HTTP/秒 | 反映後HTTP/秒 |
+| --- | ---: | ---: |
+| `/api/bots?avatar=omit` | 200 / 0.649695 | 200 / 0.041462 |
+| `/api/rooms?avatar=omit` | 200 / 0.024912 | 200 / 0.021506 |
+| Bot履歴 `?limit=10` | 200 / 0.036412 | 200 / 0.019761 |
+| Room履歴 `?limit=10` | 200 / 0.019551 | 200 / 0.017077 |
+
+再作成後の10分範囲のコンテナログでは `EXECUTION_UNCONFIRMED`、`EXECUTION_UNSUPPORTED`、`delivery error`、`scheduler error`、`SERVER_HTTP_500` は検出0。これは読取APIの疎通と起動後ログの確認であり、実Bot配送・iPhone画面・すべての履歴条件の本番受入ではない。追加deploy、個席restart、未知POST、旧failed本文の再送、rollbackは行っていない。rollbackの再作成には別の個別許可が必要。
