@@ -1,4 +1,4 @@
-# トロニー宛て配送の停止と応急復旧
+# トロニー宛て配送停止と冷間起動の修理
 
 2026-10-22 11:02 JST、`POST /api/bots/bot-7b140b27/messages` が2回ともHTTP 500で、トロニーへのユーザー発言を配送できなかった。BellTeamコンテナ自体は10:54から稼働し、Dockerのhealthは正常だった。予定配送も `EXECUTION_UNCONFIRMED` を繰り返していた。
 
@@ -12,9 +12,15 @@ Aitermの正規リポジトリで、両観測が同じ厳密なソケット欠�
 
 公式npm publishは最初の2試行でregistryのHTTP 503を受けたが、同じtagの3回目で成功した。`npm view aiterm-mcp@0.61.2` が0.61.2を返し、公開packageを隔離導入した冷間観測は `{state:"known",sessions:[],server:null}` を返した。Official MCP Registryの登録ジョブも再実行で成功した。
 
+オーナーの個別許可を受け、13:17 JSTにBellTeam `71ecf08` を正規の`scripts/deploy.sh`一回で本番反映した。旧イメージ`sha256:9cb23dd9ccf303a218ae69db91cbf31a2494062667ca00aee4c676a96bab7da8`は`bellteam-rollback:20261022-aiterm0611`として保持した。新イメージは`sha256:ca0ef95397e3a25660644bf82352cdf69d2893e2a8d8696c17b2d019b5c5d94a`。healthは正常でAiterm 0.61.2が入ったが、ソケット未作成からの予定配送は`EXECUTION_UNSUPPORTED`で失敗した。実行登録の空観測は成功した一方、Aitermの`prepareCreation`が最初の`agent_launch`でも既存tmux serverのownerを要求していた。0.61.2の修理は冷間起動の一段目までで、完了と判断したのは誤りだった。
+
+公開Aitermの`pty_open`で新コンテナに一時端末`bellteam_recovery_20261022_after0612`を開くと、新しいBot席が起動し、直近の配送エラーは止まった。恒久修理はAiterm側で、最初の`new-session`の実receiptに含まれるnative session IDとserver PIDを、作成後のprocess開始識別子と照合して結び付ける。補助sessionや自動再送は足さない。修正前に冷間作成の回帰試験が失敗し、修正後に合成の実行作成・実tmuxの冷間作成・終了後の空状態、関連試験が成功した。Aiterm 0.61.3の並行修理を統合した候補枝`fix/cold-native-launch-20261022`を3環境CIで検証中。
+
 ## 未完了
 
-- 本番コンテナの再作成。`AGENTS.md`に従い、件名「BellTeam本番コンテナを再作成してAiterm 0.61.2を導入する」でオーナー決裁を申請済み。npm公開は確認済みで、許可が届いてから `scripts/deploy.sh` を一回実行する。旧イメージは現在 `sha256:9cb23dd9ccf303a218ae69db91cbf31a2494062667ca00aee4c676a96bab7da8`。実行前に保持する。
-- 反映後にAitermの版、ソケット未作成からの実行登録、BellTeamの配送を確認し、一時端末をAitermの公開 `pty_close` で閉じる。閉じた後も冷間起動が成功することを確認する。
+- Aitermの冷間作成修理を3環境CIで受け入れ、新しい版として公式releaseと公開package smokeまで完了する。
+- BellTeamコンテナを再び作り直す場合、`AGENTS.md`に従ってその操作への新たなオーナーの明示許可を取る。旧イメージを保持し、`scripts/deploy.sh`一回で導入する。
+- 本番で一時端末が無い冷間状態から実行登録と席作成、実チャット配送まで確認する。確認後も一時端末が残っていればAitermの公開`pty_close`で閉じる。
+- オーナーの依頼に従い、修理と本番確認の完了後にトロニーとエレグへ不具合と再発防止の結果を報告する。
 
-本番コンテナの再起動や再作成は、この記録時点では行っていない。
+現在の本番はAiterm 0.61.2と一時端末で動いており、冷間起動の恒久対策は未導入である。
