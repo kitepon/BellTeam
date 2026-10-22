@@ -28,6 +28,12 @@ Appleの結合ソースは`e11a053c4067bcf2a2349f55bb2669108f159853`、サーバ
 
 ビルド番号は本体・通知拡張とも`1.0.3 (59)`。Appleソースと版を含むアーカイブ時のcommitは`9ca8547d64e2e308da9fa004195999374e76506d`で、後続のサーバー監視修理はApple本体のsourceを変えていない。`runtime/apple/performance-59/ios-59.xcarchive`と`mac-59.xcarchive`を作り、厳格な署名検証と本体・通知拡張の版一致を確認した。書き出し後のiOS IPAのSHA-256は`6404b27f17836c25ec98e0397c905cc7f96b95c6f7e01112c7cd4951770f3eca`、Mac pkgは`1e72bad24fc19078dbfe9a13cdf3213fe4d635f310a27c90acc8b49da31d152c`。Mac pkgのInstaller署名とApple公式の両成果物の事前検証は成功した。
 
-この記録時点でGitHub `main`へのpush、Appleへの送信、TestFlight内部配布、Mac導入後smoke、サーバー本番反映は未実施。公開対象commitを`origin/main`の祖先にしてから送信する。本番BellTeamコンテナの再作成・再起動には別個のオーナー許可が必要。iPhone実機の挙動は、内部TestFlight配布後にオーナー本人が確認する。
+GitHub `main`は`bbd5f5b523dac70c012e7746cf73beeffb39253c`へ通常の前進pushで更新した。アーカイブ元`9ca8547`が`origin/main`の祖先であることを確認してからAppleへ送った。iOS IPAのdelivery/build IDは`21fb5a21-6792-4f64-825b-7316bffa2fcf`、Mac pkgは`ba75d5e9-9ffd-476b-94dd-94ff3250db67`。両方の`1.0.3 (59)`がAppleで`VALID`となり、既存の内部グループ「BellTeam オーナー」`58133050-1c39-4915-b6da-aac18b95921b`へ追加した。再読取した両方の`internalBuildState`は`IN_BETA_TESTING`。
+
+MacのTestFlightは当初古い候補を表示していた。`表示 > 更新`で再読込し、画面にビルド59が表示された後に「アップデート」を選んだ。`/Applications/BellTeam.app`と通知拡張がともに59であり、厳格な署名検証とGatekeeperのTestFlight受理を確認した。TestFlightのBellTeam行と更新ボタンはアクセシビリティ上のClick操作を受けず、Jevは対象に確信を持てず停止した。画面上の位置を確認した標準のデスクトップ操作で選び、導入版の実ファイルを別経路で読み取って確認した。
+
+導入済みMac版59を通常起動し、既存の試験用ルームを開いた。会話を上へスクロールすると表示する内容が変わり、入力欄は残った。入力欄へ短い試験文字を物理入力すると送信ボタンが有効になり、全選択して消すと無効へ戻った。送信、設定変更、実Bot操作はしていない。確認のために起動したBellTeamアプリは通常終了し、終了を確認した。MacのXCTest自動試験は開発用署名profile不足で未実施のままであり、このsmokeは自動試験の代替結果として記録しない。
+
+サーバー本番反映は未実施。本番BellTeamコンテナの再作成・再起動には別個のオーナー許可が必要。iPhone実機の操作感は、内部TestFlightからオーナー本人が確認する。
 
 取得済み本文と行高の保持、余白と配置範囲の計算は履歴行数に比例する。サーバーの初期索引作成にはメモリを使い、逆時刻順の大量挿入には並べ替えコストが残る。Macのrootだけの監視通知は、対象を確定するため既知部屋の3ファイルのstatを読む。これらは今回の表示契約と通知の取りこぼし防止のため残した処理であり、実機の速度・電池消費の改善率を推定しない。
