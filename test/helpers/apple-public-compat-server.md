@@ -24,4 +24,8 @@ Appleの隔離Debug checkoutへ、既存の`-bellbot-preview -bellbot-preview-se
 
 ここでのサーバー試験は、旧サーバーが何を返すかの証拠である。Apple側の実build番号・新API404の扱い・旧通知後の画面更新は、Apple担当の実UI試験の結果を別に返却する。実配布build58と未配布受信候補を区別し、source SHA/試験範囲を記録する。端末別の同梱CLI、匿名installer、公開タグの受入はセンチの検証結果を参照する。
 
+旧room監視はschedule.jsonを通知しない。room予定の場面は実GETの表示データ確認に使い、PR50の予定通知へ読み替えない。
+
+予定は`enabled:true`、`nextRunAt:2099-01-01T00:00:00.000Z`でApple予定一覧の表示条件を満たす。既定titleはBotが「結合試験予定 bot-one」、roomが「結合試験予定 planning」。`title` queryで変更できる。予定の実行器やschedulerを構築せず、人工Bot registryは保存/一覧/通知だけを持つ。手動runを含むAPI書込みは405で、予定実行へ接続しない。
+
 サーバーの focused 試験：`node --test test/apple-public-compat.test.mjs`。

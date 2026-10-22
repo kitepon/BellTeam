@@ -75,8 +75,18 @@ test('公開6dはqueue/カード/予定を旧通知し、再接続で実readyを
   assert.equal((await f.get('/api/rooms/planning/queue')).items.length, 1)
   const card = await f.get('/test/question'); await sse.next()
   assert.ok((await f.get('/api/bots/bot-three/messages')).items.some(x => x.id === card.id))
-  const schedule = await f.get('/test/bot-schedule'); await sse.next()
-  assert.ok((await f.get('/api/bots/bot-one/schedules')).schedules.some(x => x.id === schedule.id && !x.enabled))
+  for (const kind of ['bot', 'room']) {
+    const schedule = await f.get(`/test/${kind}-schedule`)
+    // 旧room監視はschedule.jsonを通知しないため、Botだけ旧通知を照合する。
+    if (kind === 'bot') await sse.next()
+    const path = kind === 'bot' ? '/api/bots/bot-one/schedules' : '/api/rooms/planning/schedules'
+    assert.equal(schedule.enabled, true)
+    assert.equal(schedule.nextRunAt, '2099-01-01T00:00:00.000Z')
+    assert.equal(schedule.name, `結合試験予定 ${kind === 'bot' ? 'bot-one' : 'planning'}`)
+    assert.ok((await f.get(path)).schedules.some(x => x.id === schedule.id && x.enabled && x.nextRunAt === schedule.nextRunAt))
+    assert.equal((await fetch(f.url + `${path}/${schedule.id}/run`, { method: 'POST' })).status, 405)
+  }
+  assert.ok((await f.get('/test/proof')).cli.every(x => ['pty_list', 'pty_read'].includes(x.name)))
   await f.get('/test/reconnect'); assert.equal(await sse.next(), null)
   const next = await f.events()
   assert.equal((await f.get('/test/proof')).events.filter(x => x.event === 'ready').length, 2)
