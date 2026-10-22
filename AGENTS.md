@@ -32,8 +32,9 @@
 - 本番はssh `main-server`の`/home/kite/BellTeam`。`origin`はGitHubの`kitepon/BellTeam`で、GitHubの`main`を正とする。2026-09-25にサーバーの独立履歴をGitHubの履歴の上へ載せ替えた（旧履歴はサーバーのタグ`server-history-20260925`）。
 - BellTeamコンテナの再起動・再作成・停止を伴う操作は、実行前に必ず一度止まり、オーナーの許可を取ってから行う。通常のデプロイも対象とし、作業開始や実装の承認だけで再起動の許可を得たと扱わない。
 - 反映はcommitしてから`scripts/deploy.sh`一回で行う。GitHubの`main`へpushし、本番は`git merge --ff-only`で取り込むだけで、本番側でcommitを作らない。本番の作業ツリーに未commitの変更があれば反映を止める。反映するとBot全員が停止し、次のメッセージで起動する。`scripts/deploy.sh`は反映前に処理待ち一覧を`runtime/backups/`へ保存する。止めたBotへ「再開しろ」は自動で送らない。
+- 内部本番を含むBellTeam更新は、必ず配布担当センチへ対象と差分を渡し、必要な事前試験と結果を受けて進める。可能な限り商用コンテナを内部で先に使う。`BELLTEAM_DEPLOY_IMAGE=repo@sha256:digest`と既存quiet対象を指定する経路では、センチが公式現行版からbuildして受け入れた同じimageを再buildせず使う。内部profile等の外付け差分は`distribution/internal/README.md`に従う。未変更public構成と内部構成を混同しない。
 - `config/bots.json`はGitHubの`main`の内容が本番の台帳になる。変える時はcommitして反映する。
-- Node.js・CorepackとCLI（Claude・Codex・Grok・Cursor・Aiterm・Throughline・GitHub CLI）は版を固定しない。`scripts/deploy.sh`は毎回ベースイメージを取得し、キャッシュなしで公式の現行版からビルドする。永続volume上のCursorは反映前に、本体の鍵やhome/dataを渡さない使い捨てコンテナで公式`cursor-agent update`を実行する（SEC-014段階実装の承認、2026-10-15）。本体の起動中にCursorを更新しない。Claude Codeは席で自動更新させない（席の環境に`DISABLE_AUTOUPDATER=1`）。更新は`npm install -g`で席の`.local`へ写しを作り、席ごとに版がずれるため。席の`.local`に出来た写しはコンテナ起動時に片付け、全席がコンテナの物を使う（オーナーの指摘 2026-10-06）。
+- Node.js・CorepackとCLI（Claude・Codex・Grok・Cursor・Aiterm・Throughline・GitHub CLI）は版を固定しない。商用候補のbuild時はベースイメージを取得し、キャッシュなしで公式の現行版を導入する。内部先行利用と外部への昇格ではその同じimageを使う。`scripts/deploy.sh`のimage無指定経路は従来どおり毎回公式現行版からbuildする。永続volume上のCursorは反映前に、本体の鍵やhome/dataを渡さない使い捨てコンテナで公式`cursor-agent update`を実行する（SEC-014段階実装の承認、2026-10-15）。本体の起動中にCursorを更新しない。Claude Codeは席で自動更新させない（席の環境に`DISABLE_AUTOUPDATER=1`）。更新は`npm install -g`で席の`.local`へ写しを作り、席ごとに版がずれるため。席の`.local`に出来た写しはコンテナ起動時に片付け、全席がコンテナの物を使う（オーナーの指摘 2026-10-06）。
 - Web APIは`http://192.168.1.2:18891/api/...`（`127.0.0.1`ではbindしない）。tokenは本番の`runtime/web.env`の`BELLTEAM_WEB_TOKEN`。
 
 ## 試験
