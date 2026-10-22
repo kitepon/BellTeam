@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 #if DEBUG
 import OSLog
 #endif
@@ -49,6 +50,46 @@ enum BellAPIError: LocalizedError {
         case .httpStatus(423, "AI_GLOBAL_PAUSED", _): "BellTeamは全体停止中です。設定でOFFにしてから操作してください。"
         case .httpStatus(let status, let message, _): "BellTeam: \(message ?? "HTTP \(status)")"
         }
+    }
+}
+
+enum BellEventTopic: String, CaseIterable, Sendable {
+    case timeline, queue, bots, rooms, owner, settings, requests, questions, aiControl = "ai-control", setup, schedules
+}
+
+struct BellEvent: Sendable {
+    enum Scope: Sendable {
+        case all
+        case targeted(topics: Set<BellEventTopic>, botIDs: Set<String>, roomIDs: Set<String>)
+    }
+
+    let type: String?
+    let scope: Scope
+
+    init(payload: [String: Any], eventName: String?) {
+        if let rawType = payload["type"], !(rawType is String) {
+            type = nil
+            scope = .all
+            return
+        }
+        type = payload["type"] as? String ?? eventName
+        guard type == "messages", let rawAll = payload["all"] as? NSNumber,
+              CFGetTypeID(rawAll) == CFBooleanGetTypeID(), !rawAll.boolValue,
+              let rawTopics = payload["topics"] as? [String], !rawTopics.isEmpty,
+              let rawBotIDs = payload["botIds"] as? [String],
+              let rawRoomIDs = payload["roomIds"] as? [String],
+              rawBotIDs.allSatisfy({ !$0.isEmpty }), rawRoomIDs.allSatisfy({ !$0.isEmpty }) else {
+            scope = .all
+            return
+        }
+        let topics = Set(rawTopics.compactMap(BellEventTopic.init(rawValue:)))
+        guard topics.count == Set(rawTopics).count,
+              (topics.isDisjoint(with: [.timeline, .queue, .requests, .questions, .schedules])
+               || !rawBotIDs.isEmpty || !rawRoomIDs.isEmpty) else {
+            scope = .all
+            return
+        }
+        scope = .targeted(topics: topics, botIDs: Set(rawBotIDs), roomIDs: Set(rawRoomIDs))
     }
 }
 
@@ -200,7 +241,7 @@ final class BellAPI {
         }
     }
 
-    func events(_ onEvent: @escaping (String?) async throws -> Void) async throws {
+    func events(_ onEvent: @escaping (BellEvent) async throws -> Void) async throws {
         let startedAt = Date()
         let startedState = diagnostics.requestStartAppState()
         let metrics = BellTaskMetricsCollector()
@@ -215,7 +256,7 @@ final class BellAPI {
             var parser = SSEParser()
             for try await byte in bytes {
                 if let payload = try parser.feed(byte) {
-                    try await onEvent(payload["type"] as? String ?? parser.lastEventName)
+                    try await onEvent(BellEvent(payload: payload, eventName: parser.lastEventName))
                 }
             }
         } catch {

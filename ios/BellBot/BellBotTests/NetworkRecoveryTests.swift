@@ -247,7 +247,7 @@ final class NetworkRecoveryTests: XCTestCase {
                                    method: "GET", observation: .reconnecting)
         }
         var received: [String] = []
-        try await api.events { type in if let type { received.append(type) } }
+        try await api.events { event in if let type = event.type { received.append(type) } }
         XCTAssertEqual(received, ["messages"])
         XCTAssertEqual(scenario.count("/api/events"), 2)
         XCTAssertEqual(scenario.reports.count, 1)
@@ -293,6 +293,120 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertEqual(scenario.count("/api/events"), 2)
         XCTAssertEqual(scenario.count("/api/bots"), 1)
         XCTAssertTrue(store.bots.contains(where: { $0.id == "bot-network" }))
+    }
+
+    func testTargetedSSEUpdatesOnlyAffectedConversationAndBotList() async {
+        let stream = "event: messages\ndata: {\"at\":\"2026-10-23T00:00:00Z\",\"all\":false,\"topics\":[\"timeline\"],\"botIds\":[\"bot-network\"],\"roomIds\":[]}\n\n"
+        let scenario = NetworkScenario(failures: 0, holdEventsOpen: true,
+                                       skipAvatarVersion: true, eventStream: stream)
+        let store = AppStore(api: makeAPI(scenario))
+        defer { store.stopEvents() }
+        var changedTargets: [ChatTarget] = []
+        let observation = store.conversationChanges.sink { changedTargets.append($0) }
+        store.startEvents()
+        for _ in 0..<80 where store.bots.isEmpty {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertEqual(changedTargets, [.bot("bot-network")])
+        XCTAssertEqual(store.eventRevision, 0)
+        XCTAssertEqual(scenario.count("/api/bots"), 1)
+        XCTAssertEqual(scenario.count("/api/rooms"), 0)
+        XCTAssertEqual(scenario.count("/api/owner"), 0)
+        XCTAssertEqual(scenario.count("/api/queue"), 0)
+        withExtendedLifetime(observation) {}
+    }
+
+    func testInitialReadyClosesTheGapBetweenFirstReadAndEventConnection() async {
+        let scenario = NetworkScenario(failures: 0, holdEventsOpen: true,
+                                       skipAvatarVersion: true,
+                                       eventStream: "event: ready\ndata: {}\n\n")
+        let store = AppStore(api: makeAPI(scenario))
+        defer { store.stopEvents() }
+        store.startEvents()
+        for _ in 0..<80 where store.bots.isEmpty {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertEqual(store.eventRevision, 1)
+        XCTAssertEqual(scenario.count("/api/bots"), 1)
+        XCTAssertEqual(scenario.count("/api/rooms"), 1)
+        XCTAssertEqual(scenario.count("/api/owner"), 1)
+        XCTAssertEqual(scenario.count("/api/queue"), 1)
+    }
+
+    func testTargetedScheduleEventDoesNotFetchConversationOrLists() async {
+        let stream = "event: messages\ndata: {\"all\":false,\"topics\":[\"schedules\"],\"botIds\":[\"bot-network\"],\"roomIds\":[]}\n\n"
+        let scenario = NetworkScenario(failures: 0, holdEventsOpen: true, eventStream: stream)
+        let store = AppStore(api: makeAPI(scenario))
+        defer { store.stopEvents() }
+        let notified = expectation(description: "予定だけを更新")
+        let observation = store.scheduleChanges.sink { targets in
+            XCTAssertEqual(targets, [.bot("bot-network")])
+            notified.fulfill()
+        }
+        store.startEvents()
+        await fulfillment(of: [notified], timeout: 4)
+        XCTAssertEqual(store.eventRevision, 0)
+        XCTAssertEqual(scenario.count("/api/bots"), 0)
+        XCTAssertEqual(scenario.count("/api/rooms"), 0)
+        withExtendedLifetime(observation) {}
+    }
+
+    func testMixedBotRoomQueueEventKeepsEveryTarget() async {
+        let stream = "event: messages\ndata: {\"all\":false,\"topics\":[\"timeline\",\"queue\"],\"botIds\":[\"bot-network\"],\"roomIds\":[\"room-a\"]}\n\n"
+        let scenario = NetworkScenario(failures: 0, holdEventsOpen: true,
+                                       skipAvatarVersion: true, eventStream: stream)
+        let store = AppStore(api: makeAPI(scenario))
+        defer { store.stopEvents() }
+        var changedTargets: [ChatTarget] = []
+        let observation = store.conversationChanges.sink { changedTargets.append($0) }
+        store.startEvents()
+        for _ in 0..<80 where scenario.count("/api/bots") + scenario.count("/api/rooms") + scenario.count("/api/queue") < 3 {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertEqual(Set(changedTargets), [.bot("bot-network"), .room("room-a")])
+        XCTAssertEqual(scenario.count("/api/bots"), 1)
+        XCTAssertEqual(scenario.count("/api/rooms"), 1)
+        XCTAssertEqual(scenario.count("/api/queue"), 1)
+        XCTAssertEqual(scenario.count("/api/owner"), 0)
+        withExtendedLifetime(observation) {}
+    }
+
+    func testQueueOnlyEventReadsQueueWithoutUnrelatedLists() async {
+        let stream = "event: messages\ndata: {\"all\":false,\"topics\":[\"queue\"],\"botIds\":[\"bot-network\"],\"roomIds\":[]}\n\n"
+        let scenario = NetworkScenario(failures: 0, holdEventsOpen: true, eventStream: stream)
+        let store = AppStore(api: makeAPI(scenario))
+        defer { store.stopEvents() }
+        let notified = expectation(description: "該当会話の処理状態を更新")
+        let observation = store.conversationChanges.sink { target in
+            if target == .bot("bot-network") { notified.fulfill() }
+        }
+        store.startEvents()
+        await fulfillment(of: [notified], timeout: 4)
+        for _ in 0..<80 where scenario.count("/api/queue") == 0 {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertEqual(scenario.count("/api/queue"), 1)
+        XCTAssertEqual(scenario.count("/api/bots"), 0)
+        XCTAssertEqual(scenario.count("/api/rooms"), 0)
+        XCTAssertEqual(scenario.count("/api/owner"), 0)
+        withExtendedLifetime(observation) {}
+    }
+
+    func testUnknownTopicFallsBackToFullRefresh() async {
+        let stream = "event: messages\ndata: {\"all\":false,\"topics\":[\"future-topic\"],\"botIds\":[\"bot-network\"],\"roomIds\":[]}\n\n"
+        let scenario = NetworkScenario(failures: 0, holdEventsOpen: true,
+                                       skipAvatarVersion: true, eventStream: stream)
+        let store = AppStore(api: makeAPI(scenario))
+        defer { store.stopEvents() }
+        store.startEvents()
+        for _ in 0..<80 where store.bots.isEmpty {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertEqual(store.eventRevision, 1)
+        XCTAssertEqual(scenario.count("/api/bots"), 1)
+        XCTAssertEqual(scenario.count("/api/rooms"), 1)
+        XCTAssertEqual(scenario.count("/api/owner"), 1)
+        XCTAssertEqual(scenario.count("/api/queue"), 1)
     }
 
     func testNotificationFailureHasOnlyItsStageReport() async {
@@ -353,6 +467,7 @@ private final class NetworkScenario {
     let httpStatus: Int
     let events502ThenReady: Bool
     let readyOnlyAfterReconnect: Bool
+    let eventStream: String?
     let holdEventsOpen: Bool
     let skipAvatarVersion: Bool
     private let png: Data
@@ -361,7 +476,8 @@ private final class NetworkScenario {
     init(failures: Int, failureCode: URLError.Code = .networkConnectionLost,
          avatars: Bool = false, accessExpired: Bool = false, httpStatus: Int = 200,
          events502ThenReady: Bool = false, holdEventsOpen: Bool = false,
-         skipAvatarVersion: Bool = false, readyOnlyAfterReconnect: Bool = false) {
+         skipAvatarVersion: Bool = false, readyOnlyAfterReconnect: Bool = false,
+         eventStream: String? = nil) {
         self.failures = failures
         self.failureCode = failureCode
         self.avatars = avatars
@@ -369,6 +485,7 @@ private final class NetworkScenario {
         self.httpStatus = httpStatus
         self.events502ThenReady = events502ThenReady
         self.readyOnlyAfterReconnect = readyOnlyAfterReconnect
+        self.eventStream = eventStream
         self.holdEventsOpen = holdEventsOpen
         self.skipAvatarVersion = skipAvatarVersion
         png = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { c in
@@ -389,6 +506,9 @@ private final class NetworkScenario {
         storedQueries.append((path, request.url!.query))
         lock.unlock()
         if count <= failures { throw URLError(failureCode) }
+        if path == "/api/events", let eventStream {
+            return (Data(eventStream.utf8), "text/event-stream")
+        }
         if events502ThenReady, path == "/api/events" {
             if count == 1 { return (Data("{\"error\":\"MOCK_UNAVAILABLE\"}".utf8), "application/json") }
             if readyOnlyAfterReconnect {

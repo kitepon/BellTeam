@@ -1,3 +1,4 @@
+import { TimelineIndex, timelinePage, recentTimeline, fullTimeline } from './timeline-index.mjs'
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
@@ -104,23 +105,17 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
   const subscribers = new Set()
   let closeWatch = null
   let pendingNotify = null
-  const timelines = new WeakMap()
-  const timeline = async (kind, id) => {
-    const base = await (kind === 'rooms' ? rooms.messages(id) : store.timeline(id))
-    const extra = [
-      ...secretRequests?.timeline(kind === 'rooms' ? { roomId: id } : { botId: id }) ?? [],
-      ...(kind === 'bots' ? ownerQuestions?.timeline({ botId: id }) ?? [] : []),
-    ]
-    // Cards are few, but changes to an old card still have to invalidate the view.
-    const signature = JSON.stringify(extra)
-    const previous = timelines.get(base)
-    if (previous?.signature === signature) return previous.items
-    const items = [...base, ...extra].sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''))
-    timelines.set(base, { signature, items })
-    return items
+  const sources = async (kind, id, prepared = null) => {
+    const base = prepared ?? (kind === 'rooms'
+      ? rooms.messageView ? await rooms.messageView(id) : new TimelineIndex(await rooms.messages(id))
+      : store.timelineView ? await store.timelineView(id) : new TimelineIndex(await store.timeline(id)))
+    const target = kind === 'rooms' ? { roomId: id } : { botId: id }
+    const extra = service => service?.timelineView?.(target) ?? new TimelineIndex(service?.timeline(target) ?? [])
+    return [base, extra(secretRequests), ...(kind === 'bots' ? [extra(ownerQuestions)] : [])]
   }
+  const timeline = async (kind, id) => fullTimeline(await sources(kind, id))
   const messagePage = async (kind, id, url) => {
-    const page = pageItems(await timeline(kind, id), url)
+    const page = timelinePage(await sources(kind, id), url)
     return { ...page, items: page.items.map(webMessage) }
   }
 
@@ -305,10 +300,11 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
         }
         if (request.method === 'GET' && url.pathname === '/api/bots') {
           const all = [...bots.values()]
-          const running = await transport.runningBots(all)
+          const [running, views] = await Promise.all([
+            transport.runningBots(all), store.timelineViews?.(all.map(bot => bot.id)),
+          ])
           const list = await Promise.all(all.map(async bot => {
-            const items = await timeline('bots', bot.id)
-            const last = items.at(-1) ?? null
+            const last = recentTimeline(await sources('bots', bot.id, views?.get(bot.id)))
             return {
               id: bot.id,
               name: bot.name ?? bot.displayName ?? bot.id,
@@ -333,7 +329,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
         if (request.method === 'GET' && url.pathname === '/api/rooms') {
           await rooms.refresh()
           const list = await Promise.all([...rooms.values()].map(async room => ({
-            ...room, ...listAvatar(room.avatar, url), recent: (await timeline('rooms', room.id)).at(-1) ?? null,
+            ...room, ...listAvatar(room.avatar, url), recent: recentTimeline(await sources('rooms', room.id)),
           })))
           return json(response, 200, { rooms: list })
         }
@@ -697,24 +693,42 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     }
   })
 
-  server.notify = data => {
+  const writeEvent = data => {
     for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: ${JSON.stringify(data)}\n\n`)
   }
+  server.notify = data => writeEvent({ at: new Date().toISOString(), topics: data.type ? [data.type] : [], botIds: [], roomIds: [], ...data, all: true })
   server.startMessageWatch = async () => {
     if (closeWatch) return
-    const notify = () => {
-      // アプリは知らせ1件ごとに一覧を読み直す。同じ変更の知らせを重ねて流さない。
+    const knownTopics = new Set(['timeline', 'queue', 'bots', 'rooms', 'owner', 'settings', 'requests', 'questions', 'ai-control', 'setup', 'schedules'])
+    let changes = null
+    const notify = change => {
+      changes ??= { all: false, topics: new Set(), botIds: new Set(), roomIds: new Set() }
+      if (!change || typeof change.all !== 'boolean' || !Array.isArray(change.topics) || !change.topics.length
+        || !Array.isArray(change.botIds) || !Array.isArray(change.roomIds)) changes.all = true
+      else {
+        changes.all ||= change.all
+        for (const topic of change.topics) {
+          if (!knownTopics.has(topic)) changes.all = true
+          else changes.topics.add(topic)
+        }
+        for (const name of ['botIds', 'roomIds']) for (const id of change[name]) {
+          if (typeof id !== 'string' || !id) changes.all = true
+          else changes[name].add(id)
+        }
+        if (change.topics.some(topic => ['timeline', 'queue', 'requests', 'questions', 'schedules'].includes(topic))
+          && !change.botIds.length && !change.roomIds.length) changes.all = true
+      }
       if (pendingNotify) return
       pendingNotify = setTimeout(() => {
         pendingNotify = null
-        for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: {"at":${JSON.stringify(new Date().toISOString())}}\n\n`)
+        const current = changes; changes = null
+        writeEvent({ at: new Date().toISOString(), all: current.all, topics: [...current.topics], botIds: [...current.botIds], roomIds: [...current.roomIds] })
       }, messageEventWindow)
     }
     const stops = [await store.watch(notify)]
     if (secretRequests) stops.push(secretRequests.watch(notify))
     if (ownerQuestions) stops.push(ownerQuestions.watch(notify))
     if (rooms?.watch) stops.push(await rooms.watch(notify))
-    // メンバーの追加・設定変更・削除。Botが自分で設定を替えた時も、アプリの一覧へ映す。
     if (bots?.watch) stops.push(bots.watch(notify))
     if (transport?.watchQueue) stops.push(transport.watchQueue(notify))
     if (aiControl) stops.push(aiControl.watch(() => server.notify({ type: 'ai-control' })))

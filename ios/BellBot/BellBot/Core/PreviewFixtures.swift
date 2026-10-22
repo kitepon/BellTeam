@@ -80,12 +80,12 @@ enum PreviewMessages {
     ```
     """
 
-    private static func makeUpdatingItems(count: Int) -> [TimelineMessage] {
+    private static func makeUpdatingItems(count: Int, idPrefix: String = "updating") -> [TimelineMessage] {
         let lengths = [1200, 40, 1050, 90, 12, 1240, 11, 600, 90, 9]
         let paragraph = "これは会話画面の更新とスクロールを確認するためのテスト文章です。\n\n"
         let rows: [[String: String]] = (0..<count).map { index in
             let length = lengths[index % lengths.count]
-            return ["id": "updating-\(index)", "kind": "message",
+            return ["id": "\(idPrefix)-\(index)", "kind": "message",
              "direction": index.isMultiple(of: 2) ? "incoming" : "outgoing",
              "at": "2026-01-01T00:00:00Z",
              "message": String(String(repeating: paragraph, count: 40).prefix(length)),
@@ -96,6 +96,16 @@ enum PreviewMessages {
 
     static let updatingItems = makeUpdatingItems(count: 10)
     static let performanceItems = makeUpdatingItems(count: 100)
+
+    static let statefulAdditions = makeUpdatingItems(count: 100, idPrefix: "stateful-new")
+
+    static let statefulItems: [TimelineMessage] = {
+        let source = """
+        [{"id":"stateful-secret","kind":"secret_request","direction":"incoming","at":"2026-09-26T00:15:00Z","message":"試験用の秘密入力です。","secretRequest":{"id":"stateful-secret","botId":"bot-one","toolId":"fixture","label":"試験用キー","message":"試験用の秘密入力です。","status":"pending"}}]
+        """
+        let secret = try! JSONDecoder().decode([TimelineMessage].self, from: Data(source.utf8))
+        return performanceItems + questionItems + secret
+    }()
 
     static let questionItems: [TimelineMessage] = {
         let source = """

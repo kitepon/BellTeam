@@ -1,12 +1,16 @@
 import SwiftUI
 
+final class SecretRequestCardState: ObservableObject {
+    @Published var result: SecretRequest?
+}
+
 struct SecretRequestCard: View {
     let request: SecretRequest
     @EnvironmentObject private var store: AppStore
     @State private var showingInput = false
-    @State private var result: SecretRequest?
+    @ObservedObject var state: SecretRequestCardState
 
-    private var current: SecretRequest { result ?? request }
+    private var current: SecretRequest { state.result ?? request }
     private var name: String { store.bots.first { $0.id == request.botId }?.name ?? request.botId }
 
     var body: some View {
@@ -36,9 +40,10 @@ struct SecretRequestCard: View {
         .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 20))
         .overlay(RoundedRectangle(cornerRadius: 20).stroke(BellTheme.violet.opacity(0.2)))
         .sheet(isPresented: $showingInput) {
-            SecretInputSheet(request: request) { result = $0 }
+            SecretInputSheet(request: request) { state.result = $0 }
                 .environmentObject(store)
         }
+        .preference(key: ConversationPresentationKey.self, value: showingInput)
     }
 }
 

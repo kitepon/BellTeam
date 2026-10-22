@@ -36,8 +36,8 @@ export class BotRegistry extends Map {
     return () => this.watchers.delete(onChange)
   }
 
-  changed() {
-    for (const watcher of this.watchers) watcher()
+  changed(id = null, topic = 'bots') {
+    for (const watcher of this.watchers) watcher({ all: topic !== 'schedules', topics: [topic], botIds: id ? [id] : [], roomIds: [] })
   }
 
   async initialize() {
@@ -114,7 +114,7 @@ export class BotRegistry extends Map {
     await this.writeInstructions(profile)
     await this.refresh()
     await this.onChange(this)
-    this.changed()
+    this.changed(id)
     return this.get(id)
   }
 
@@ -123,7 +123,7 @@ export class BotRegistry extends Map {
     await this.writeProfile(profile)
     await this.writeInstructions(profile)
     await this.refresh()
-    this.changed()
+    this.changed(id)
     return this.get(id)
   }
 
@@ -187,7 +187,7 @@ export class BotRegistry extends Map {
     await rm(bot.project, { recursive: true, force: true })
     await this.refresh()
     await this.onChange(this)
-    this.changed()
+    this.changed(id)
     return { id }
   }
 
@@ -296,6 +296,7 @@ export class BotRegistry extends Map {
 
   async writeScheduleDocument(id, schedules) {
     await writeAtomic(join(this.projectPath(id), 'schedule.json'), scheduleDocument(schedules))
+    this.changed(id, 'schedules')
   }
 }
 

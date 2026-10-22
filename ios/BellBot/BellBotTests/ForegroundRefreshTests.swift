@@ -149,7 +149,7 @@ private final class DelayedForegroundProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "foreground.test.invalid" }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
-        if request.url!.path == "/api/subscription" { finish() }
+        if request.url!.path == "/api/subscription" || request.url!.path == "/api/ai-control" { finish() }
         else { Self.fixture!.begin(self) }
     }
     override func stopLoading() {
@@ -172,6 +172,8 @@ private final class DelayedForegroundProtocol: URLProtocol {
         case "/api/queue": body = "{\"items\":[]}"
         case "/api/subscription":
             body = "{\"subscription\":{\"product_id\":\"test\",\"environment\":\"Sandbox\",\"access_mode\":\"subscription\",\"setup_complete\":true,\"entitled\":false,\"state\":\"inactive\",\"auto_renewing\":false}}"
+        case "/api/ai-control":
+            body = "{\"control\":{\"paused\":false,\"state\":\"enabled\",\"unconfirmed_bot_ids\":[]}}"
         case "/api/owner":
             let name = firstRefresh ? "古い状態" : "新しい状態"
             body = "{\"owner\":{\"name\":\"\(name)\",\"profile\":\"\",\"avatar\":\"\",\"x_url\":\"\",\"github_url\":\"\",\"links\":[]}}"
