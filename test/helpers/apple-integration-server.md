@@ -36,13 +36,16 @@ HTTP中継と製品サーバーは両方127.0.0.1だけへbindする。iOS Simul
 | Botプロフィール | `/test/bot-profile?bot=bot-two` | 人工registry更新、bots限定通知 |
 | 不明な宛先 | `/test/unknown` | 実履歴へ未知status、all:true |
 | 旧形式 | `/test/legacy` | 試験中継からmessages `{at}`を注入 |
-| 不正JSON | `/test/invalid` | 試験中継からmessages `{broken`を注入 |
+| 不正scope | `/test/invalid-scope` | 有効JSON `{at,all:false,topics:["timeline"]}`。対象配列を省略し、Appleの全体照合を確認 |
+| 不正JSON | `/test/invalid` | 試験中継からmessages `{broken`を注入。Appleの停止・表示を最後に確認 |
 | 未知topic | `/test/unknown-topic` | 試験中継からall:false/future-topicを注入 |
 | 再接続 | `/test/reconnect` | SSEを閉じる。アプリが再接続した時のreadyは実製品 |
 | 証拠 | `/test/proof` | API要求/応答status、配信、操作、人工CLI、接続数、sourceRevision |
 | 場面表 | `/test/scenarios` | 全場面の説明 |
 
-実履歴、room、カード、queueはPR50の製品コードを通す。Bot予定/owner/プロフィールの通知元は人工registryであり、製品BotRegistry自身の保存試験を代替しない。製品側のBot予定通知は`server-performance-remaining.test.mjs`で検証する。legacy/invalid/unknown-topicは製品が生成した通知ではなく、Apple受信の互換フォールバック試験用である。
+実履歴、room、カード、queueはPR50の製品コードを通す。Bot予定/owner/プロフィールの通知元は人工registryであり、製品BotRegistry自身の保存試験を代替しない。製品側のBot予定通知は`server-performance-remaining.test.mjs`で検証する。legacy/invalid-scope/invalid/unknown-topicは製品が生成した通知ではなく、Apple受信の試験用である。
+
+旧形式、不正scope、未知topic、all:trueを先に確認する。`invalid-scope`はJSONとして読めるが対象を特定できない通知で、全体照合を期待する。`invalid`はJSON解析そのものが失敗するため、応答形式の異常として接続停止とエラー表示を期待する。以後の通知を受ける試験は同じ接続で続けず、破損JSONを最後に検査する。Nodeのhelper試験はrawの配送を確認するだけで、Appleの停止・表示の代わりにはしない。
 
 `/test/proof`の`events`には接続番号、event名、raw frame、解析JSON、配信時刻、`origin`が入る。`product-server`と`test-injection`を区別する。`requests`にはmethod/path/query/受付時刻/HTTP statusが入る。SSEは終了しないので記録のstatus=200は接続応答であり終了ではない。`changes`は各製品watch/queueから受けた通知の発生源、時刻、元のchange。50ms窓で別の通知が合流するため、必要topicと宛先の包含を確認し、追加topicを欠落や異常と判定しない。`controls`は人工操作の履歴。`connections`は累積、`subscribers`は現在数。resetは証拠も消すが累積接続番号は維持する。clear-proofは現在の接続にreadyを再配信しない。
 

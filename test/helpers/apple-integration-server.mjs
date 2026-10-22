@@ -49,6 +49,7 @@ export const integrationScenarios = {
   unknown: '未知delivery_idのstatusを実履歴へ追加（all:true）',
   legacy: '試験中継から旧messages {at}だけを注入',
   invalid: '試験中継から不正JSONを注入',
+  'invalid-scope': '有効JSONのall:false/timelineからbotIdsとroomIdsを省略して注入',
   'unknown-topic': '試験中継から未知topic/all:falseを注入',
   reconnect: '現在のSSE接続を終了。再接続のreadyは実サーバーが送る',
   proof: 'sourceRevision、要求/応答、配信frame、操作、接続数、人工CLI記録',
@@ -197,6 +198,7 @@ export async function startAppleIntegrationServer({ port = 0 } = {}) {
     else if (scene === 'bot-profile') { requireBot(bot); state.bots.set(bot, { ...state.bots.get(bot), name: text, displayName: text }); notifyBots(scoped('bots', [bot])) }
     else if (scene === 'unknown-topic') inject(JSON.stringify({ at: new Date().toISOString(), all: false, topics: ['future-topic'], botIds: [bot], roomIds: [] }))
     else if (scene === 'legacy') inject(JSON.stringify({ at: new Date().toISOString() }))
+    else if (scene === 'invalid-scope') inject(JSON.stringify({ at: new Date().toISOString(), all: false, topics: ['timeline'] }))
     else if (scene === 'invalid') inject('{broken')
     else if (scene === 'reconnect') closeStreams()
     return { ok: true, id, text }
