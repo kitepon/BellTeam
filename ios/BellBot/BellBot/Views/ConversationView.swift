@@ -1567,6 +1567,16 @@ private struct ScreenResponse: Decodable {
     let screen: String
 }
 
+private struct BotScreenText: View, Equatable {
+    let value: String
+
+    var body: some View {
+        SelectableText(value, font: .monospacedSystemFont(ofSize: 12, weight: .regular))
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(16)
+    }
+}
+
 struct BotScreenView: View {
     let bot: Bot
     var embedded = false
@@ -1594,10 +1604,8 @@ struct BotScreenView: View {
         ZStack {
             BellBackground()
             ScrollView([.horizontal, .vertical]) {
-                SelectableText(screen.isEmpty ? (online ? "画面は空です" : "次のメッセージで起動します") : screen,
-                               font: .monospacedSystemFont(ofSize: 12, weight: .regular))
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .padding(16)
+                BotScreenText(value: screen.isEmpty ? (online ? "画面は空です" : "次のメッセージで起動します") : screen)
+                    .equatable()
             }
             .background(.white.opacity(0.8), in: RoundedRectangle(cornerRadius: 18))
             .padding(16)
@@ -1619,9 +1627,9 @@ struct BotScreenView: View {
         while !Task.isCancelled {
             do {
                 let result: ScreenResponse = try await store.api.get("/api/bots/\(bot.id)/screen")
-                online = result.online
-                screen = result.screen
-                errorText = nil
+                if online != result.online { online = result.online }
+                if screen != result.screen { screen = result.screen }
+                if errorText != nil { errorText = nil }
             } catch let error where BellAPIError.isAuthenticationError(error) {
                 store.requireLogin(for: error)
                 break
