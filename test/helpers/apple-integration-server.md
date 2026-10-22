@@ -44,7 +44,7 @@ HTTP中継と製品サーバーは両方127.0.0.1だけへbindする。iOS Simul
 
 実履歴、room、カード、queueはPR50の製品コードを通す。Bot予定/owner/プロフィールの通知元は人工registryであり、製品BotRegistry自身の保存試験を代替しない。製品側のBot予定通知は`server-performance-remaining.test.mjs`で検証する。legacy/invalid/unknown-topicは製品が生成した通知ではなく、Apple受信の互換フォールバック試験用である。
 
-`/test/proof`の`events`には接続番号、event名、raw frame、解析JSON、配信時刻、`origin`が入る。`product-server`と`test-injection`を区別する。`requests`にはmethod/path/query/受付時刻/HTTP statusが入る。SSEは終了しないので記録のstatus=200は接続応答であり終了ではない。`controls`は人工操作の履歴。`connections`は累積、`subscribers`は現在数。resetは証拠も消すが累積接続番号は維持する。clear-proofは現在の接続にreadyを再配信しない。
+`/test/proof`の`events`には接続番号、event名、raw frame、解析JSON、配信時刻、`origin`が入る。`product-server`と`test-injection`を区別する。`requests`にはmethod/path/query/受付時刻/HTTP statusが入る。SSEは終了しないので記録のstatus=200は接続応答であり終了ではない。`changes`は各製品watch/queueから受けた通知の発生源、時刻、元のchange。50ms窓で別の通知が合流するため、必要topicと宛先の包含を確認し、追加topicを欠落や異常と判定しない。`controls`は人工操作の履歴。`connections`は累積、`subscribers`は現在数。resetは証拠も消すが累積接続番号は維持する。clear-proofは現在の接続にreadyを再配信しない。
 
 初回readyは接続前の初期GETと接続までの隙間を埋める全体照合、再接続readyも全体照合を期待する。各場面では通知を受けてから画面の文字/状態とGET記録を比較する。別Bot通知時の無関係な会話GET抑制、対象新着の表示を代表UIで検証する。予定だけの通知は予定画面への更新を期待し、会話GETを必須としない。時刻やGET数は人工結合試験の結果であり、本番性能の証明には使わない。
 

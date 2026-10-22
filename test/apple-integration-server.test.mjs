@@ -68,7 +68,12 @@ test('Apple結合入口のqueue/カード/予定/ownerは実GETと対応する�
   for (const active of ['1', '0']) {
     await f.get(`/test/queue?bot=bot-one&room=planning&active=${active}`)
     const change = await sse.message()
-    assert.deepEqual(change.topics, ['queue']); assert.deepEqual(change.botIds, ['bot-one']); assert.deepEqual(change.roomIds, ['planning'])
+    // 同じ窓の履歴通知も合流する。queueと必要な宛先が消えていないことを確認する。
+    assert.equal(change.all, false)
+    assert.ok(change.topics.includes('queue'))
+    assert.ok(change.botIds.includes('bot-one')); assert.ok(change.roomIds.includes('planning'))
+    const proof = await f.get('/test/proof')
+    assert.ok(proof.changes.some(x => x.source === 'transport-queue' && x.change.topics.includes('queue') && x.change.botIds.includes('bot-one') && x.change.roomIds.includes('planning')))
     assert.equal((await f.get('/api/rooms/planning/queue')).items.length, active === '1' ? 1 : 0)
   }
   const request = await f.get('/test/request?bot=bot-one&room=planning')

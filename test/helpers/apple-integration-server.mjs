@@ -61,7 +61,7 @@ export async function startAppleIntegrationServer({ port = 0 } = {}) {
   const { stdout } = await promisify(execFile)('git', ['rev-parse', 'HEAD'], { cwd: repo })
   const sourceRevision = stdout.trim()
   let state, sequence = 0, connectionSequence = 0, actions = Promise.resolve()
-  let requests = [], events = [], controls = [], cli = [], diagnostics = []
+  let requests = [], events = [], changes = [], controls = [], cli = [], diagnostics = []
   const streams = new Set()
   const nextId = prefix => `${prefix}-${++sequence}`
   const closeStreams = () => { for (const stream of streams) { stream.upstream.destroy(); stream.response.end() } }
@@ -88,7 +88,7 @@ export async function startAppleIntegrationServer({ port = 0 } = {}) {
   async function reset() {
     closeStreams()
     if (state) { await stop(state.server); await rm(state.root, { recursive: true, force: true }) }
-    requests = []; events = []; controls = []; cli = []; diagnostics = []; sequence = 0
+    requests = []; events = []; changes = []; controls = []; cli = []; diagnostics = []; sequence = 0
     const root = await mkdtemp(join(tmpdir(), 'bell-apple-integration-'))
     const bots = new Map(fixture.bots.map(bot => [bot.id, { ...bot, session: bot.id }]))
     const listeners = new Set(), schedules = new Map()
@@ -117,6 +117,18 @@ export async function startAppleIntegrationServer({ port = 0 } = {}) {
       if (name === 'pty_read') return { content: [{ type: 'text', text: '結合試験の人工画面' }] }
       throw new Error(`FIXTURE_CLI_UNEXPECTED: ${name}`)
     } } })
+    // 製品へ渡す通知をそのまま記録し、合流後のSSEと発生源を照合する。
+    for (const [source, target, method] of [
+      ['conversation-store', store, 'watch'], ['room-registry', rooms, 'watch'],
+      ['secret-requests', secretRequests, 'watch'], ['owner-questions', ownerQuestions, 'watch'],
+      ['fixture-bots', bots, 'watch'], ['transport-queue', transport, 'watchQueue'],
+    ]) {
+      const watch = target[method].bind(target)
+      target[method] = listener => watch(change => {
+        changes.push({ source, at: Date.now(), change: structuredClone(change) })
+        listener(change)
+      })
+    }
     const owner = structuredClone(fixture.owner)
     // 予定の実行器は構築しない。未来予定は表示用で、時刻実行も手動runの接続先も持たない。
     const server = createBellTeamServer({
@@ -139,9 +151,9 @@ export async function startAppleIntegrationServer({ port = 0 } = {}) {
     const bot = q.get('bot') ?? 'bot-one', room = q.get('room') ?? 'planning'
     const requireBot = id => { if (!state.bots.has(id)) throw new Error(`UNKNOWN_FIXTURE_BOT: ${id}`); return id }
     if (scene === 'reset') return reset()
-    if (scene === 'clear-proof') { requests = []; events = []; controls = []; cli = []; diagnostics = []; return { ok: true } }
+    if (scene === 'clear-proof') { requests = []; events = []; changes = []; controls = []; cli = []; diagnostics = []; return { ok: true } }
     if (scene === 'scenarios') return integrationScenarios
-    if (scene === 'proof') return { sourceRevision, requests, events, controls, cli, diagnostics, subscribers: streams.size, connections: connectionSequence, botIds: [...state.bots.keys()], roomIds: [...state.rooms.keys()] }
+    if (scene === 'proof') return { sourceRevision, requests, events, changes, controls, cli, diagnostics, subscribers: streams.size, connections: connectionSequence, botIds: [...state.bots.keys()], roomIds: [...state.rooms.keys()] }
     if (!Object.hasOwn(integrationScenarios, scene)) throw new Error('UNKNOWN_SCENE')
     controls.push({ scene, query: url.search, at: Date.now() })
     const id = nextId(scene), text = q.get('text') ?? `${id} 新着です。`
