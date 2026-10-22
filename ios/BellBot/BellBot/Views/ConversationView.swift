@@ -54,6 +54,9 @@ private struct ConversationContent: View {
     @State private var scrollToBottomRevision = 0
     @State private var measuredRow: String?
     @State private var scroll = ScrollTracker()
+    @State private var renderedRows: (first: String, last: String)?
+    @State private var rowIsPresenting = false
+    @State private var measuredContentWidth: CGFloat?
 
     private var bot: Bot? { store.bots.first { $0.id == target.id } }
     private var room: Room? { store.rooms.first { $0.id == target.id } }
@@ -71,8 +74,10 @@ private struct ConversationContent: View {
             BellBackground()
             ScrollViewReader { proxy in
                 GeometryReader { viewport in
+                    let rowWidth = measuredContentWidth ?? (viewport.size.width - 36)
+                    let window = conversationWindow(width: rowWidth, botsByID: botsByID)
                     ScrollView {
-                        // 更新と自動スクロールが重なっても、読み込んだ行の配置を一度で確定する。
+                        // 画面の周囲だけを配置し、画面外は行の高さを持つ余白にする。
                         VStack(spacing: 17) {
                             if loading && messages.isEmpty {
                                 ProgressView().padding(.top, 90)
@@ -80,8 +85,16 @@ private struct ConversationContent: View {
                                 if initialLoadFailed { failedConversation }
                                 else { emptyConversation }
                             }
-                            ForEach(messages) { message in
-                                timelineRow(message, selectedBot: selectedBot, botsByID: botsByID)
+                            if !messages.isEmpty {
+                                VStack(spacing: 0) {
+                                    Color.clear.frame(height: window.before)
+                                    VStack(spacing: 17) {
+                                        ForEach(messages[window.range]) { message in
+                                            timelineRow(message, selectedBot: selectedBot, botsByID: botsByID, width: rowWidth)
+                                        }
+                                    }
+                                    Color.clear.frame(height: window.after)
+                                }
                             }
                             if !queue.isEmpty { queueStrip }
                             Color.clear.frame(height: 2).id("bottom")
@@ -96,7 +109,7 @@ private struct ConversationContent: View {
                             GeometryReader { content in
                                 let frame = content.frame(in: .named("conversation-scroll"))
                                 Color.clear.preference(key: ScrollMetricsKey.self,
-                                    value: ScrollMetrics(top: frame.minY, height: frame.height))
+                                    value: ScrollMetrics(top: frame.minY, height: frame.height, width: content.size.width))
                             }
                         }
                         .padding(.horizontal, 18)
@@ -105,7 +118,14 @@ private struct ConversationContent: View {
                     }
                     .coordinateSpace(name: "conversation-scroll")
                     .onPreferenceChange(ScrollMetricsKey.self) { metrics in
-                        scrollChanged(metrics, viewportHeight: viewport.size.height, proxy: proxy)
+                        scrollChanged(metrics, viewportSize: viewport.size, botsByID: botsByID, proxy: proxy)
+                    }
+                    .onPreferenceChange(ConversationPresentationKey.self) { presenting in
+                        rowIsPresenting = presenting
+                        if !presenting && scroll.pendingBottomScroll {
+                            scroll.pendingBottomScroll = false
+                            scrollToBottomRevision += 1
+                        }
                     }
                     .overlay(alignment: .top) {
                         if loadingOlder { ProgressView().padding(.top, 12) }
@@ -114,6 +134,7 @@ private struct ConversationContent: View {
                         if hasUnreadMessages {
                             Button("新着メッセージ ↓") {
                                 hasUnreadMessages = false
+                                renderedRows = nil
                                 scrollToBottomRevision += 1
                             }
                             .font(BellTheme.messageHelperFont.weight(.semibold))
@@ -126,6 +147,8 @@ private struct ConversationContent: View {
                     .defaultScrollAnchor(.bottom)
                     .refreshable { await load() }
                     .onChange(of: scrollToBottomRevision) { _, _ in
+                        if rowIsPresenting { scroll.pendingBottomScroll = true; return }
+                        renderedRows = nil
                         withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
                     }
                     .onChange(of: store.eventRevision) { _, _ in
@@ -224,22 +247,35 @@ private struct ConversationContent: View {
         }
     }
 
-    private func timelineRow(_ message: TimelineMessage, selectedBot: Bot?, botsByID: [String: Bot]) -> some View {
+    private func timelineRow(_ message: TimelineMessage, selectedBot: Bot?, botsByID: [String: Bot], width: CGFloat) -> some View {
         let senderBot = (message.sender?.id).flatMap { botsByID[$0] }
         let label = replyLabel(for: message, botsByID: botsByID)
+        let keepsMarkdownHeight = message.secretRequest == nil && message.ownerQuestion == nil
+            && message.displayedImageURLs.isEmpty && message.image != true
+        let minimumHeight: CGFloat? = keepsMarkdownHeight
+            ? measuredHeight(message, width: width, botsByID: botsByID) : nil
         return Group {
             if let request = message.secretRequest {
-                SecretRequestCard(request: request)
+                SecretRequestCard(request: request, state: scroll.secretState(for: message.id))
             } else if let question = message.ownerQuestion {
-                OwnerQuestionCard(question: question)
+                OwnerQuestionCard(question: question, state: scroll.questionState(for: message.id))
             } else {
                 MessageRow(message: message, isRoom: target.isRoom, bot: selectedBot,
                            senderBot: senderBot, replyLabel: label, api: store.api)
                     .equatable()
             }
         }
+        // 同じ本文と幅では、Markdown再描画中も測定済みの高さを保つ。
+        .frame(minHeight: minimumHeight, alignment: .top)
         .id(message.id)
         .background(alignment: .top) { rowTopMarker(for: message.id) }
+        .background {
+            GeometryReader { row in
+                let metric = ConversationRowMetric(message: message, layoutWidth: width,
+                                                   replyLabel: label, frame: row.frame(in: .named("conversation-scroll")))
+                Color.clear.preference(key: ScrollMetricsKey.self, value: ScrollMetrics(rows: [message.id: metric]))
+            }
+        }
     }
 
     private func rowTopMarker(for messageID: String) -> some View {
@@ -544,6 +580,21 @@ private struct ConversationContent: View {
     private func loadInitial() async {
         loading = true
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-window-state") {
+            messages = PreviewMessages.statefulItems
+            hasMore = false
+            loading = false
+            scrollToBottomRevision += 1
+            if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-window-state-updates") {
+                for addition in PreviewMessages.statefulAdditions {
+                    do { try await Task.sleep(for: .milliseconds(200)) }
+                    catch { return }
+                    messages.append(addition)
+                    if isAtBottom { scrollToBottomRevision += 1 }
+                }
+            }
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-updating-chat") {
             let performance = ProcessInfo.processInfo.arguments.contains("-bellbot-preview-performance-chat")
             let fixture = performance ? PreviewMessages.performanceItems : PreviewMessages.updatingItems
@@ -602,16 +653,36 @@ private struct ConversationContent: View {
     }
 
     // 上端へスクロールしたら過去を自動で取得し、取得後は先頭だった行を元の画面位置へ戻し続ける。
-    private func scrollChanged(_ metrics: ScrollMetrics, viewportHeight: CGFloat, proxy: ScrollViewProxy) {
-        guard let top = metrics.top, let height = metrics.height, let bottom = metrics.bottom else { return }
-        let grew = height > scroll.height + 0.5
+    private func scrollChanged(_ metrics: ScrollMetrics, viewportSize: CGSize, botsByID: [String: Bot], proxy: ScrollViewProxy) {
+        guard let top = metrics.top, let height = metrics.height, let bottom = metrics.bottom,
+              let width = metrics.width else { return }
+        if measuredContentWidth != width { measuredContentWidth = width }
+        let viewportHeight = viewportSize.height
+        let resized = abs(width - scroll.contentWidth) > 0.5
+        let heightChanged = abs(height - scroll.height) > 0.5
+        for (id, row) in metrics.rows {
+            // 列の幅が変わった直後は、以前の幅の最小高を使った計測を保存しない。
+            if abs(row.frame.width - row.layoutWidth) < 0.5 { scroll.rowSizes[id] = row }
+        }
+        // 新しく表示したMarkdownの高さが確定した時と幅変更時は、直前に見えていた行を保つ。
+        if (heightChanged || resized), !isAtBottom, scroll.pin == nil,
+           let anchor = scroll.visibleAnchor, metrics.rows[anchor.id] != nil {
+            scrollRow(anchor.id, to: anchor.y, viewportHeight: viewportHeight, proxy: proxy)
+        } else if let message = messages.first(where: { message in
+            guard let frame = metrics.rows[message.id]?.frame else { return false }
+            return frame.maxY > 0 && frame.minY < viewportHeight
+        }), let frame = metrics.rows[message.id]?.frame {
+            scroll.visibleAnchor = (message.id, frame.minY)
+        }
+        scroll.contentWidth = width
+        updateWindow(metrics, viewportHeight: viewportHeight, width: width, botsByID: botsByID)
         let scrolled = abs(height - scroll.height) <= 0.5 && abs(top - scroll.top) > 0.01
         scroll.height = height
         scroll.top = top
         isAtBottom = bottom <= viewportHeight + 48
         if isAtBottom { hasUnreadMessages = false }
-        if grew {
-            // 初期位置と末尾への追従は.defaultScrollAnchor(.bottom)に任せる。足した過去の行の高さが後から伸びる間だけ、固定した行を元の位置へ戻す。
+        if heightChanged {
+            // 初期位置と末尾への追従は.defaultScrollAnchor(.bottom)に任せる。推定した余白とMarkdownの実高の差を、増減の両方で補正する。
             if let row = scroll.pin {
                 scroll.pinPhase = .correcting
                 scrollRow(row, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
@@ -646,6 +717,58 @@ private struct ConversationContent: View {
             scroll.canLoadOlder = false
             olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
         }
+    }
+
+    private func conversationWindow(width: CGFloat, botsByID: [String: Bot]) -> (range: Range<Int>, before: CGFloat, after: CGFloat) {
+        let lower = renderedRows.flatMap { bounds in messages.firstIndex { $0.id == bounds.first } }
+            ?? max(0, messages.count - 10)
+        let upper = renderedRows.flatMap { bounds in messages.firstIndex { $0.id == bounds.last } }.map { $0 + 1 }
+            ?? messages.count
+        let range = lower..<max(lower, upper)
+        return (range, messages[..<lower].reduce(0) { $0 + rowHeight($1, width: width, botsByID: botsByID) + 17 },
+                messages[range.upperBound...].reduce(0) { $0 + rowHeight($1, width: width, botsByID: botsByID) + 17 })
+    }
+
+    private func measuredHeight(_ message: TimelineMessage, width: CGFloat, botsByID: [String: Bot]) -> CGFloat? {
+        guard let row = scroll.rowSizes[message.id], row.message == message,
+              row.replyLabel == replyLabel(for: message, botsByID: botsByID),
+              abs(row.frame.width - width) < 0.5 else { return nil }
+        return row.frame.height
+    }
+
+    private func rowHeight(_ message: TimelineMessage, width: CGFloat, botsByID: [String: Bot]) -> CGFloat {
+        measuredHeight(message, width: width, botsByID: botsByID) ?? 180
+    }
+
+    private func updateWindow(_ metrics: ScrollMetrics, viewportHeight: CGFloat, width: CGFloat, botsByID: [String: Bot]) {
+        guard !rowIsPresenting, !messages.isEmpty, let top = metrics.top,
+              let anchor = messages.first(where: { message in
+                  guard let frame = metrics.rows[message.id]?.frame else { return false }
+                  return frame.maxY > 0 && frame.minY < viewportHeight
+              }) else { return }
+        var offset = top
+        var lower = messages.count - 1
+        var upper = 0
+        for (index, message) in messages.enumerated() {
+            let rowHeight = rowHeight(message, width: width, botsByID: botsByID)
+            if offset + rowHeight >= -viewportHeight * 2 && offset <= viewportHeight * 3 {
+                lower = min(lower, index)
+                upper = max(upper, index + 1)
+            }
+            offset += rowHeight + 17
+        }
+        if let index = messages.firstIndex(where: { $0.id == anchor.id }) {
+            lower = min(lower, index)
+            upper = max(upper, index + 1)
+        }
+        if let pin = scroll.pin, let index = messages.firstIndex(where: { $0.id == pin }) {
+            lower = min(lower, index)
+            upper = max(upper, index + 1)
+        }
+        guard upper > lower else { return }
+        let current = conversationWindow(width: width, botsByID: botsByID).range
+        guard lower != current.lowerBound || upper != current.upperBound else { return }
+        renderedRows = (messages[lower].id, messages[upper - 1].id)
     }
 
     private func scrollRow(_ id: String, to y: CGFloat, viewportHeight: CGFloat, proxy: ScrollViewProxy) {
@@ -882,12 +1005,27 @@ struct PendingImage: Identifiable {
     }
 }
 
+// 開いた画面の元の行は、画面を閉じるまで保持する。
+struct ConversationPresentationKey: PreferenceKey {
+    static var defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = nextValue() || value }
+}
+
 // 会話のスクロール位置の計測値。各計測点が自分の値だけを入れ、reduceで一つにまとめる。
+private struct ConversationRowMetric: Equatable {
+    let message: TimelineMessage
+    let layoutWidth: CGFloat
+    let replyLabel: String?
+    let frame: CGRect
+}
+
 private struct ScrollMetrics: Equatable {
     var top: CGFloat?
     var height: CGFloat?
     var bottom: CGFloat?
     var boundary: CGFloat?
+    var width: CGFloat?
+    var rows: [String: ConversationRowMetric] = [:]
 }
 
 private struct ScrollMetricsKey: PreferenceKey {
@@ -899,6 +1037,8 @@ private struct ScrollMetricsKey: PreferenceKey {
         value.height = next.height ?? value.height
         value.bottom = next.bottom ?? value.bottom
         value.boundary = next.boundary ?? value.boundary
+        value.width = next.width ?? value.width
+        value.rows.merge(next.rows) { _, next in next }
     }
 }
 
@@ -908,17 +1048,37 @@ private final class ReadCoordinator {
     var generation = 0
 }
 
-// スクロール中に毎フレーム書き換える値。画面の再描画を起こさないよう@Stateの値ではなく参照型に置く。
+// 行の実測と、再配置しても残す操作状態。毎フレームの計測で親を再描画しないよう参照型に置く。
 private final class ScrollTracker {
     // 追加した過去行の配置中は、元の先頭行が一度画面に戻るまで固定を解除しない。
     enum PinPhase { case awaitingGrowth, correcting, aligned }
     static func rowTopID(_ id: String) -> String { "top-\(id)" }
+    private var secretStates: [String: SecretRequestCardState] = [:]
+    private var questionStates: [String: OwnerQuestionCardState] = [:]
+    var pendingBottomScroll = false
+    var rowSizes: [String: ConversationRowMetric] = [:]
+    var visibleAnchor: (id: String, y: CGFloat)?
+    var contentWidth: CGFloat = 0
     var height: CGFloat = 0
     var top: CGFloat = 0
     var pin: String?
     var pinPhase = PinPhase.awaitingGrowth
     var pinnedY: CGFloat = 0
     var canLoadOlder = true
+
+    func secretState(for id: String) -> SecretRequestCardState {
+        if let state = secretStates[id] { return state }
+        let state = SecretRequestCardState()
+        secretStates[id] = state
+        return state
+    }
+
+    func questionState(for id: String) -> OwnerQuestionCardState {
+        if let state = questionStates[id] { return state }
+        let state = OwnerQuestionCardState()
+        questionStates[id] = state
+        return state
+    }
 }
 
 struct EmptyBody: Encodable {}
@@ -1159,6 +1319,7 @@ private struct MessageRow: View, Equatable {
                 }
                 .presentationDetents([.medium, .large])
             }
+            .preference(key: ConversationPresentationKey.self, value: showingPeer)
         } else {
             HStack(alignment: .bottom, spacing: 8) {
                 if message.isOutgoing { Spacer(minLength: 45) }
@@ -1280,6 +1441,7 @@ private struct MessageImages: View {
         .fullScreenCover(isPresented: $showingGallery) {
             MessageImageGallery(paths: paths, api: api)
         }
+        .preference(key: ConversationPresentationKey.self, value: showingGallery)
     }
 }
 

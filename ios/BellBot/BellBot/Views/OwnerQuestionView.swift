@@ -1,15 +1,19 @@
 import SwiftUI
 
+final class OwnerQuestionCardState: ObservableObject {
+    @Published var result: OwnerQuestion?
+    @Published var other = ""
+    @Published var sending = false
+    @Published var errorText: String?
+}
+
 /// Botがオーナーへ選択を求めるカード。押した答えは通常のオーナーからのメッセージとしてBotへ届く。
 struct OwnerQuestionCard: View {
     let question: OwnerQuestion
+    @ObservedObject var state: OwnerQuestionCardState
     @EnvironmentObject private var store: AppStore
-    @State private var result: OwnerQuestion?
-    @State private var other = ""
-    @State private var sending = false
-    @State private var errorText: String?
 
-    private var current: OwnerQuestion { result ?? question }
+    private var current: OwnerQuestion { state.result ?? question }
     private var name: String { store.bots.first { $0.id == question.botId }?.name ?? question.botId }
 
     var body: some View {
@@ -24,21 +28,22 @@ struct OwnerQuestionCard: View {
                     .foregroundStyle(BellTheme.violet)
                     .accessibilityIdentifier("owner-question-answer")
             } else {
-                FlowButtons(options: question.options, disabled: sending) { option in
+                FlowButtons(options: question.options, disabled: state.sending) { option in
                     Task { await answer(OwnerAnswerBody(choice: option, text: nil)) }
                 }
                 if question.allowOther {
                     HStack {
-                        TextField("その他（文章で答える）", text: $other, axis: .vertical)
+                        TextField("その他（文章で答える）", text: $state.other, axis: .vertical)
                             .lineLimit(1...4)
                             .textFieldStyle(.roundedBorder)
-                            .disabled(sending)
-                        Button("送る") { Task { await answer(OwnerAnswerBody(choice: nil, text: other)) } }
-                            .disabled(sending || other.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .accessibilityIdentifier("owner-question-other")
+                            .disabled(state.sending)
+                        Button("送る") { Task { await answer(OwnerAnswerBody(choice: nil, text: state.other)) } }
+                            .disabled(state.sending || state.other.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
-                if sending { ProgressView() }
-                if let errorText { Text(errorText).font(.footnote).foregroundStyle(.red) }
+                if state.sending { ProgressView() }
+                if let errorText = state.errorText { Text(errorText).font(.footnote).foregroundStyle(.red) }
             }
         }
         .foregroundStyle(BellTheme.ink)
@@ -49,18 +54,18 @@ struct OwnerQuestionCard: View {
     }
 
     private func answer(_ body: OwnerAnswerBody) async {
-        guard !sending else { return }
-        sending = true
-        defer { sending = false }
+        guard !state.sending else { return }
+        state.sending = true
+        defer { state.sending = false }
         do {
             try await store.authorizeAIUse(target: .bot(question.botId))
             let response: OwnerQuestionResponse = try await store.api.post("/api/owner-questions/\(question.id)/answer", body: body)
-            result = response.question
-            errorText = nil
+            state.result = response.question
+            state.errorText = nil
             await store.refreshFromView()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch {
-            errorText = BellAPIError.operationFailureMessage(error)
+            state.errorText = BellAPIError.operationFailureMessage(error)
             store.api.diagnostics.report(error, path: "/api/owner-questions", method: "POST", observation: .write)
         }
     }

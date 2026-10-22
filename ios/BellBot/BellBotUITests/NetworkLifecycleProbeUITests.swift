@@ -1,5 +1,7 @@
 import XCTest
 
+// ホームボタンとタブバーを使うiPhone・iPad用の試験。
+#if !targetEnvironment(macCatalyst)
 final class NetworkLifecycleProbeUITests: XCTestCase {
     func testFeatureSettingEditorRequiresSuccessfulInitialRead() throws {
         guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else { throw XCTSkip("通信報告の隔離サーバーが必要です。") }
@@ -476,3 +478,4 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         return try XCTUnwrap(result).get()
     }
 }
+#endif
