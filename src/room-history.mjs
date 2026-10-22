@@ -38,7 +38,7 @@ export class RoomHistory {
       const { bytesRead } = await file.read(buffer, 0, buffer.length, this.read.offset)
       const complete = bytesRead ? buffer.lastIndexOf(0x0a, bytesRead - 1) + 1 : 0
       const records = buffer.toString('utf8', 0, complete).split('\n').filter(Boolean).map(line => JSON.parse(line))
-      // Project/validate before commit so a bad batch does not poison the prefix.
+      // 不正行を含む一群が確定済みの履歴を壊さないよう、反映前に検証する。
       for (const record of records) validate(record)
       if (records.length) { apply(records, this.read); this.preview = null }
       this.read.offset += complete; this.read.mtimeMs = mtimeMs; this.read.signature = signature
@@ -64,7 +64,7 @@ function project(message, state) {
     routing: state.routing.get(message.id) ?? message.routing }
 }
 function validate(record) {
-  // The old projection required non-null rows and non-null delivery entries.
+  // 従来の表示処理でも、行と配送項目がnullの場合は失敗していた。
   if (record == null) throw new TypeError('ROOM_MESSAGE_INVALID')
   if (Array.isArray(record.deliveries)) for (const item of record.deliveries) if (item == null) throw new TypeError('ROOM_MESSAGE_INVALID')
 }

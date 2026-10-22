@@ -1,7 +1,7 @@
 import { TimelineIndex } from './timeline-index.mjs'
 
-// Index cards once at load/save, rather than filtering the complete collection
-// for every Bot in /api/bots. Only display metadata is materialized here.
+// 読込・保存時にカードを対象別へ索引化し、Bot一覧の各行で全カードを走査しない。
+// ここでは公開用の表示行だけを組み立てる。
 export class CardTimelines {
   constructor(bots, kind) { this.bots = bots; this.kind = kind; this.groups = new Map() }
   group(key) {
@@ -23,8 +23,8 @@ export class CardTimelines {
   }
   get(target) {
     const group = this.group(target.roomId ? `room:${target.roomId}` : `bot:${target.botId}`)
-    // Sender names are live profile data. Check distinct senders in this group,
-    // not every historical card across all Bots.
+    // 送信者名は現在のプロフィールに合わせる。全Botの過去カードを走査せず、
+    // この会話に属する送信者だけを確認する。
     for (const [bot, previous] of group.names) {
       const name = this.bots.get(bot)?.name ?? bot
       if (name === previous) continue

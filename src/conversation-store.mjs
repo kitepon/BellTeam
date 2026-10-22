@@ -48,8 +48,8 @@ export class ConversationStore {
       const buffer = Buffer.alloc(size - this.read.offset)
       const { bytesRead } = await file.read(buffer, 0, buffer.length, this.read.offset)
       const complete = bytesRead ? buffer.lastIndexOf(0x0a, bytesRead - 1) + 1 : 0
-      // Validate the entire committed batch before touching indexes. A malformed
-      // line must keep failing at the same offset, without exposing half a batch.
+      // 索引を変える前に確定行をまとめて検証し、不正行があれば同じ位置で失敗させる。
+      // 検証に失敗した一群のうち、一部だけを表示へ反映しない。
       const records = parseRecords(buffer.toString('utf8', 0, complete), this.read.lines)
       if (records.length) {
         const change = applyRecords(records, this.read)
@@ -63,8 +63,8 @@ export class ConversationStore {
       let value
       try { value = JSON.parse(rest) } catch { return this.read }
       validateRecord(value, this.read.lines + 1)
-      // A complete newline-free tail is provisional. Reuse its projection while
-      // unchanged; it must never enter the committed prefix twice.
+      // JSONとして完結していても、改行なしの末尾は暫定表示とする。
+      // 内容が同じ間は表示を再利用し、確定した行へ二重に追加しない。
       if (this.preview?.text !== rest || this.preview.base !== this.read) {
         const state = cloneRead(this.read)
         applyRecords([value], state)
@@ -97,8 +97,8 @@ export class ConversationStore {
     })
     watcher.on('error', () => this.changed({ all: true }))
     this.listeners.add(onChange)
-    // The initial baseline may be read by another consumer first. Reset events
-    // are deliberately global; clients also reconcile on every ready.
+    // 初回の読取は別の利用箇所が先に行う場合もある。再構築時は全体へ通知し、
+    // クライアントも初回・再接続のreadyごとに全体を照合する。
     return () => { this.listeners.delete(onChange); watcher.close() }
   }
 }

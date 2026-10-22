@@ -1,5 +1,5 @@
-// Process-local indexes over immutable display rows. Pages copy only returned rows;
-// full legacy snapshots remain ordinary arrays and are never mutated afterwards.
+// 表示行の索引はプロセス内にだけ持ち、ページは返す行だけを配列へ写す。
+// 旧APIが返す全行の配列は、返した後に書き換えない。
 export class TimelineIndex {
   constructor(items = [], keys = items.map(() => Symbol())) {
     this.nodes = items.map((item, n) => ({ key: keys[n], item, order: n })).sort((a, b) => compareTime(a.item, b.item))
@@ -33,7 +33,7 @@ export class TimelineIndex {
       } else node.item = item
     } else {
       const node = { key, item, order: this.nextOrder++ }
-      // Equal timestamps retain append order, matching stable Array.sort.
+      // 同時刻の行は追記順を保ち、安定ソートする従来のArray.sortと揃える。
       let index = this.length
       if (index && compareTime(this.at(-1), item) > 0) {
         let low = 0, high = index
@@ -46,7 +46,7 @@ export class TimelineIndex {
       }
       this.nodes.splice(index, 0, node)
       for (let i = index; i < this.length; i++) this.positions.set(this.nodes[i].key, i)
-      // Normally an append touches one ID. Out-of-order insertion must shift IDs.
+      // 通常の末尾追記は1つのIDだけを追加する。時刻順の途中へ挿す場合はID位置も更新する。
       if (index === this.length - 1) {
         if (!this.ids.has(item.id)) this.ids.set(item.id, index)
       } else {
@@ -63,8 +63,8 @@ export class TimelineIndex {
 export const compareTime = (a, b) => (a.at ?? '').localeCompare(b.at ?? '')
 const earlier = (sources, a, b) => compareTime(sources[a.source].at(a.index), sources[b.source].at(b.index)) || a.source - b.source || a.index - b.index
 
-// Merge three already ordered streams (history, requests, questions). Cursor IDs
-// use per-stream indexes. Stable ties put history before requests before questions.
+// 時刻順の履歴・秘密入力依頼・質問を結合し、カーソルのIDは各列の索引で探す。
+// 同時刻では履歴、秘密入力依頼、質問の順を保つ。
 export function timelinePage(sources, url) {
   const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit')) || 10))
   const after = url.searchParams.get('after'), before = url.searchParams.get('before')
@@ -92,12 +92,12 @@ export function timelinePage(sources, url) {
   })
   const allAfter = Boolean(after && target)
   const total = ends.reduce((sum, end, n) => sum + end - starts[n], 0)
-  // Legacy unknown-after uses slice(-limit), whose negative index truncates
-  // toward zero. Normal/before slice(end-limit, end) rounds the other way.
+  // 従来の未知afterはslice(-limit)を使い、負の添字の端数を0の方向へ丸める。
+  // 通常/beforeのslice(end-limit, end)とは、整数化する向きが異なる。
   const pageLimit = after && !target ? Math.trunc(limit) : limit
   const count = allAfter ? total : Math.min(pageLimit, total)
   const items = mergeItems(sources, starts, ends, allAfter, count)
-  // Legacy after (including unknown cursor) never advertises a previous page.
+  // 従来のafterは、未知のカーソルの場合も前ページの有無をfalseで返す。
   return { items, has_more: after ? false : total > count }
 }
 
