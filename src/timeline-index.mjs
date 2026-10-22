@@ -92,7 +92,10 @@ export function timelinePage(sources, url) {
   })
   const allAfter = Boolean(after && target)
   const total = ends.reduce((sum, end, n) => sum + end - starts[n], 0)
-  const count = allAfter ? total : Math.min(limit, total)
+  // Legacy unknown-after uses slice(-limit), whose negative index truncates
+  // toward zero. Normal/before slice(end-limit, end) rounds the other way.
+  const pageLimit = after && !target ? Math.trunc(limit) : limit
+  const count = allAfter ? total : Math.min(pageLimit, total)
   const items = mergeItems(sources, starts, ends, allAfter, count)
   // Legacy after (including unknown cursor) never advertises a previous page.
   return { items, has_more: after ? false : total > count }

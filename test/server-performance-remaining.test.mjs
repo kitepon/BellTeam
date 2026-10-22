@@ -232,3 +232,18 @@ test('indexed stable merges/pages match the reference across generated inserts/s
   assert.ok(before.every(row=>row.status==='old'))
  }
 })
+
+
+test('unknown after preserves negative-slice truncation for fractional limits', async () => {
+ const { TimelineIndex, timelinePage } = await load('src/timeline-index.mjs')
+ for (const size of [0, 1, 2, 3, 10]) {
+  const rows = Array.from({length:size}, (_, i) => ({id:'m'+i, at:String(i).padStart(2,'0')}))
+  const sources = [new TimelineIndex(rows)]
+  for (const limit of ['1.1', '1.5', '2.9', '0.5', '-1.5', '0', '200.5', 'Infinity', 'bad']) {
+   for (const prefix of ['', 'after=missing&', 'before=m2&', 'after=m1&']) {
+    const url = new URL('http://fixture/?'+prefix+'limit='+limit)
+    assert.deepEqual(timelinePage(sources,url), pageItems(rows,url), `${size} rows / ${url.search}`)
+   }
+  }
+ }
+})
