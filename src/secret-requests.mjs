@@ -1,3 +1,4 @@
+import { CardTimelines } from './card-timelines.mjs'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
@@ -13,6 +14,7 @@ export class SecretRequests {
     this.notify = notify
     this.onRequest = onRequest
     this.items = new Map()
+    this.cardTimelines = new CardTimelines(bots, 'secret_request')
     this.busy = new Set()
     this.events = new EventEmitter()
   }
@@ -23,6 +25,7 @@ export class SecretRequests {
       if (!file.endsWith('.json')) continue
       const item = JSON.parse(await readFile(join(this.directory, file), 'utf8'))
       this.items.set(item.id, item)
+      this.cardTimelines.put(item)
     }
   }
 
@@ -53,16 +56,8 @@ export class SecretRequests {
     return this.get(item.id)
   }
 
-  timeline({ botId, roomId }) {
-    return [...this.items.values()]
-      .filter(item => roomId ? item.roomId === roomId : item.botId === botId && !item.roomId)
-      .map(item => ({
-        id: item.id, kind: 'secret_request', direction: 'incoming', at: item.at,
-        message: item.message,
-        sender: { id: item.botId, name: this.bots.get(item.botId)?.name ?? item.botId },
-        secret_request: { ...item },
-      }))
-  }
+  timeline(target) { return this.cardTimelines.timeline(target) }
+  timelineView(target) { return this.cardTimelines.view(target) }
 
   watch(listener) {
     this.events.on('change', listener)
@@ -125,7 +120,8 @@ export class SecretRequests {
     await writeFile(`${path}.tmp`, JSON.stringify(item), { mode: 0o600 })
     await rename(`${path}.tmp`, path)
     this.items.set(item.id, item)
-    this.events.emit('change')
+    this.cardTimelines.put(item)
+    this.events.emit('change', { all: false, topics: ['requests'], botIds: [item.botId], roomIds: item.roomId ? [item.roomId] : [] })
   }
 }
 

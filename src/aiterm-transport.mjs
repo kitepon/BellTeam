@@ -205,8 +205,11 @@ export class AitermTransport {
   // 渡したBotのうち、席が動いているもののid。Aitermのpty_listは呼ぶたびにtmuxを1回起動するので、
   // 一覧のように何人も続けて調べる時は、Botごとに呼ばずこれを1回呼ぶ。
   async runningBots(bots) {
-    const result = await this.client.call('pty_list')
-    const sessions = new Set(textResult(result).split('\n').map(line => line.split('\t', 1)[0]))
+    const pending = this.runningSnapshot ??= Promise.resolve().then(() => this.client.call('pty_list'))
+      .then(result => new Set(textResult(result).split('\n').map(line => line.split('\t', 1)[0])))
+    let sessions
+    try { sessions = await pending }
+    finally { if (this.runningSnapshot === pending) this.runningSnapshot = null }
     return new Set(bots.filter(bot => sessions.has(this.session(bot))).map(bot => bot.id))
   }
 
@@ -395,6 +398,7 @@ export class AitermTransport {
     const invoke = () => {
       if (name !== 'pty_close') this.assertWorkAllowed()
       issued = true
+      this.runningSnapshot = null
       return execution ? execution.invoke(name, args, clientOptions) : this.client.call(name, args, options)
     }
     const pending = this.executionBridge && !execution ? (async () => {
@@ -412,6 +416,7 @@ export class AitermTransport {
     changes.add(pending)
     this.sessionChanges.set(bot.id, changes)
     const clear = () => {
+      this.runningSnapshot = null
       changes.delete(pending)
       if (!changes.size && this.sessionChanges.get(bot.id) === changes) this.sessionChanges.delete(bot.id)
     }
@@ -600,7 +605,7 @@ export class AitermTransport {
         if (this.executionBridge) await reserveExecution(this, job)
         check()
         this.active.set(job.id, job)
-        this.emitQueue()
+        this.emitQueue(job)
         await this.requireAccess({ setupTest, botId: bot.id })
         check()
         delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job })
@@ -694,7 +699,7 @@ export class AitermTransport {
         } else await this.removeTemporaryImages(delivery?.imageFiles)
         this.active.delete(job.id)
         this.jobs.delete(job)
-        this.emitQueue()
+        this.emitQueue(job)
       }
     })()
     job.completion = completion
@@ -753,7 +758,7 @@ export class AitermTransport {
     this.watches.set(bot.id, { turnId: turn.turn_id, end: () => stop.abort() })
     this.shownWords.set(bot.id, shown)
     this.active.set(job.id, job)
-    this.emitQueue()
+    this.emitQueue(job)
     job.completion = (async () => {
       const say = onInterim ? async words => {
         await onInterim(bot.id, group, words)
@@ -775,7 +780,7 @@ export class AitermTransport {
         shown.endedAt = Date.parse(this.now())
         this.watches.delete(bot.id)
         this.active.delete(job.id)
-        this.emitQueue()
+        this.emitQueue(job)
       }
     })()
   }
@@ -814,8 +819,9 @@ export class AitermTransport {
     return () => this.queueListeners.delete(listener)
   }
 
-  emitQueue() {
-    for (const listener of this.queueListeners) listener()
+  emitQueue(job) {
+    const change = { all: !job?.bot?.id, topics: ['queue'], botIds: job?.bot?.id ? [job.bot.id] : [], roomIds: job?.info?.context === 'room' && job.info.contextId ? [job.info.contextId] : [] }
+    for (const listener of this.queueListeners) listener(change)
   }
 
   // 同じ席への送信は、前の送信をAitermが受け付けてから始める。起こしている途中の席へ次の文が重なると、

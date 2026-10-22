@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { watch } from 'node:fs'
-import { appendFile, mkdir, readFile, readdir, rm } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { exists, normalizeSchedule, scheduleDocument, validateAvatar, writeAtomic } from './bot-registry.mjs'
@@ -18,6 +18,7 @@ export class RoomRegistry extends Map {
     this.id = id
     this.roomId = roomId
     this.histories = new Map()
+    this.definitions = new Map()
   }
 
   async initialize() {
@@ -26,16 +27,23 @@ export class RoomRegistry extends Map {
   }
 
   async refresh() {
-    const rooms = []
+    const rooms = [], definitions = new Map()
     for (const entry of await readdir(this.roomsRoot, { withFileTypes: true })) {
       if (!entry.isDirectory() || !ROOM_ID.test(entry.name)) continue
       const path = join(this.roomsRoot, entry.name, 'room.json')
-      if (!await exists(path)) continue
-      rooms.push(await this.read(entry.name))
+      let info
+      try { info = await stat(path, { bigint: true }) }
+      catch (error) { if (error.code === 'ENOENT') continue; throw error }
+      const signature = `${info.dev}:${info.ino}:${info.size}:${info.mtimeNs}:${info.ctimeNs}`
+      const cached = this.definitions.get(entry.name)
+      const room = cached?.signature === signature ? normalizeRoom(cached.room, this.bots) : await this.read(entry.name)
+      definitions.set(entry.name, { signature, room })
+      rooms.push(room)
     }
     rooms.sort((a, b) => a.id.localeCompare(b.id))
     this.clear()
     for (const room of rooms) this.set(room.id, Object.freeze(room))
+    this.definitions = definitions
     for (const id of this.histories.keys()) if (!this.has(id)) this.histories.delete(id)
     return this
   }
@@ -109,6 +117,12 @@ export class RoomRegistry extends Map {
     return this.histories.get(id).messages()
   }
 
+  async messageView(id) {
+    this.require(id)
+    if (!this.histories.has(id)) this.histories.set(id, new RoomHistory(join(this.roomPath(id), 'messages.jsonl')))
+    return this.histories.get(id).view()
+  }
+
   async appendMessage(id, record) {
     this.require(id)
     const path = join(this.roomPath(id), 'messages.jsonl')
@@ -118,10 +132,35 @@ export class RoomRegistry extends Map {
 
   async watch(onChange) {
     await mkdir(this.roomsRoot, { recursive: true })
+    const observed = new Map()
+    const historyStat = async id => {
+      const info = await stat(join(this.roomPath(id), 'messages.jsonl'), { bigint: true })
+      return { ino: `${info.dev}:${info.ino}`, size: info.size, time: `${info.mtimeNs}:${info.ctimeNs}` }
+    }
+    let pending = Promise.resolve(), closed = false
+    const unknown = () => { if (!closed) onChange({ all: true, topics: ['rooms', 'schedules', 'timeline'], botIds: [], roomIds: [] }) }
+    const dispatch = async name => {
+      const parts = typeof name === 'string' ? name.split(/[\\/]/u) : []
+      if (!ROOM_ID.test(parts[0] ?? '') || parts.length !== 2) return unknown()
+      const topic = { 'messages.jsonl': 'timeline', 'room.json': 'rooms', 'schedule.json': 'schedules' }[parts[1]]
+      if (!topic) return
+      let all = false
+      if (topic === 'timeline') {
+        const current = await historyStat(parts[0]), old = observed.get(parts[0])
+        all = !old || current.ino !== old.ino || current.size < old.size || (current.size === old.size && current.time !== old.time)
+        observed.set(parts[0], current)
+      }
+      if (!closed) onChange({ all, topics: [topic], botIds: [], roomIds: [parts[0]] })
+    }
     const watcher = watch(this.roomsRoot, { recursive: true }, (_event, name) => {
-      if (name?.endsWith('messages.jsonl')) onChange()
+      pending = pending.then(() => dispatch(name)).catch(unknown)
     })
-    return () => watcher.close()
+    watcher.on('error', unknown)
+    for (const id of this.keys()) {
+      try { observed.set(id, await historyStat(id)) }
+      catch (error) { if (error.code !== 'ENOENT') unknown() }
+    }
+    return () => { closed = true; watcher.close() }
   }
 
   async listSchedules(id) {

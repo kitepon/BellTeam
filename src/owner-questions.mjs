@@ -1,3 +1,4 @@
+import { CardTimelines } from './card-timelines.mjs'
 // Botがオーナーへ裁定や選択を求める選択肢カード（オーナー裁定 2026-10-01）。
 // Botは待たずにターンを終え、オーナーの答えは通常のオーナーからのメッセージとしてBotへ届く。
 import { randomUUID } from 'node:crypto'
@@ -14,6 +15,7 @@ export class OwnerQuestions {
     this.now = now
     this.id = id
     this.items = new Map()
+    this.cardTimelines = new CardTimelines(bots, 'owner_question')
     this.busy = new Set()
     this.events = new EventEmitter()
   }
@@ -24,6 +26,7 @@ export class OwnerQuestions {
       if (!file.endsWith('.json')) continue
       const item = JSON.parse(await readFile(join(this.directory, file), 'utf8'))
       this.items.set(item.id, item)
+      this.cardTimelines.put(item)
     }
   }
 
@@ -51,16 +54,8 @@ export class OwnerQuestions {
     return this.get(item.id)
   }
 
-  timeline({ botId }) {
-    return [...this.items.values()]
-      .filter(item => item.botId === botId)
-      .map(item => ({
-        id: item.id, kind: 'owner_question', direction: 'incoming', at: item.at,
-        message: item.question,
-        sender: { id: item.botId, name: this.bots.get(item.botId)?.name ?? item.botId },
-        owner_question: { ...item },
-      }))
-  }
+  timeline(target) { return this.cardTimelines.timeline(target) }
+  timelineView(target) { return this.cardTimelines.view(target) }
 
   watch(listener) {
     this.events.on('change', listener)
@@ -90,7 +85,8 @@ export class OwnerQuestions {
     await writeFile(`${path}.tmp`, JSON.stringify(item), { mode: 0o600 })
     await rename(`${path}.tmp`, path)
     this.items.set(item.id, item)
-    this.events.emit('change')
+    this.cardTimelines.put(item)
+    this.events.emit('change', { all: false, topics: ['questions'], botIds: [item.botId], roomIds: item.roomId ? [item.roomId] : [] })
   }
 }
 
