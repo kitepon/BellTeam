@@ -87,7 +87,15 @@ USB接続とiPhoneミラーリングで導入済みのBellTeam 56を開き、送
 
 Appleのソースcommitは`8fb39e4`で、Markdown依存は公開commit`ae28d48`。iPhone/iPad用`runtime/apple/performance-58/ios-58.xcarchive`と`ios-export/BellTeam.ipa`を作った。IPAのSHA-256は`e53f17f5a4ec72ab268056bc1421e23cb53eb7fe50effd5fb17a8cbdb6eb49ce`。アーカイブの本体・通知拡張とIPA内の両者はすべて1.0.3（58）。アーカイブの両署名が有効で、Apple公式の事前検証は`No errors validating archive`。
 
-Mac Catalyst用`runtime/apple/performance-58/mac-58.xcarchive`と`mac-export/BellTeam.pkg`も作った。pkgのSHA-256は`15e88f0eb320d0437675bcb84b0934e37fecf3e60a9de64fe767a4c2fc2b5b90`。アーカイブの本体・通知拡張はともに1.0.3（58）。アプリとInstaller pkgの署名が有効で、Apple公式の事前検証は`No errors validating archive`。App Store Connectで送信前にビルド58が未登録であることを確認した。内部TestFlightへの送信・処理完了・端末導入はこの記録時点では未完了。
+Mac Catalyst用`runtime/apple/performance-58/mac-58.xcarchive`と`mac-export/BellTeam.pkg`も作った。pkgのSHA-256は`15e88f0eb320d0437675bcb84b0934e37fecf3e60a9de64fe767a4c2fc2b5b90`。アーカイブの本体・通知拡張はともに1.0.3（58）。アプリとInstaller pkgの署名が有効で、Apple公式の事前検証は`No errors validating archive`。App Store Connectで送信前にビルド58が未登録であることを確認した。
+
+## ビルド58の内部TestFlight配布と導入
+
+iPhone/iPad用IPAをApple公式`altool`で一度送信し、`No errors uploading archive`を確認した。ビルドIDは`d11d5c48-de03-4afe-a17a-27fd8fe69b4e`。App Store Connectで`1.0.3（58）/ IOS`、`processingState=VALID`を読み戻し、既存の内部グループ「BellTeam オーナー」`58133050-1c39-4915-b6da-aac18b95921b`へ追加した。再読取の`internalBuildState`は`IN_BETA_TESTING`。
+
+Mac pkgも一度送信し、`No errors uploading archive`を確認した。ビルドIDは`c1671ec7-18fe-4acb-bdf1-e84c65de8177`。`1.0.3（58）/ MAC_OS`、`processingState=VALID`を読み戻し、同じ内部グループへ追加した。再読取の`internalBuildState`は`IN_BETA_TESTING`。MacのTestFlightで58の更新が現れ、そこから導入した。`/Applications/BellTeam.app`の版58と署名を確認し、起動してホーム画面を表示できた。確認のために開いたアプリは終了した。
+
+iPhoneはミラーリング時に本体が使用中だったため操作しなかった。オーナーは内部TestFlightから自分でiPhoneの挙動を確認すると明示した。iPhone/iPad実機への58導入と操作感はオーナーの確認待ち。今回の修理による実機CPU・電池消費の短縮値は測っておらず、数値効果を主張しない。
 
 サーバーの履歴走査修理は別担当がPR49を本番へ反映した。Appleビルド58の変更はその本番反映に含まれない。サーバーの検証と反映結果は[サーバー履歴の性能記録](2026-10-22-server-history-performance.md)にある。SSEの宛先追加は発火元から常に正確な宛先を確定できず、[未合意の検討材料](../plan_sse-targeted-updates-20261022.md)に留めた。
 
