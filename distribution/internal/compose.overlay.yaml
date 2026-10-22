@@ -1,4 +1,4 @@
-# Internal installation only. The public package exports distribution/server, not this directory.
+# 内部運用専用。一般配布へ取り出すのはdistribution/serverで、このディレクトリは含めない。
 name: bellteam
 services:
   bellteam:
