@@ -42,8 +42,8 @@ export const integrationScenarios = {
   'request-cancel': '?id=省略時は最後の依頼 : カード取消',
   question: '?bot=bot-three : 実OwnerQuestionsの選択肢カード作成（questions）',
   answer: '?id=省略時は最後の質問 : 「はい」で回答',
-  'bot-schedule': '?bot=bot-one : 人工registry通知＋実APIの無効な予定（schedules）',
-  'room-schedule': '?room=planning : 実roomの無効な予定保存（schedules）',
+  'bot-schedule': '?bot=bot-one : 実行器を持たない人工registryの未来予定（schedules）',
+  'room-schedule': '?room=planning : 実行器を持たないroomの未来予定保存（schedules）',
   owner: '人工ownerを変更し、人工registryからowner通知',
   'bot-profile': '?bot=bot-two : 人工Bot名変更＋bots通知',
   unknown: '未知delivery_idのstatusを実履歴へ追加（all:true）',
@@ -118,6 +118,7 @@ export async function startAppleIntegrationServer({ port = 0 } = {}) {
       throw new Error(`FIXTURE_CLI_UNEXPECTED: ${name}`)
     } } })
     const owner = structuredClone(fixture.owner)
+    // 予定の実行器は構築しない。未来予定は表示用で、時刻実行も手動runの接続先も持たない。
     const server = createBellTeamServer({
       bots, rooms, store, transport, secretRequests, ownerQuestions,
       authorize: () => true, authMode: () => 'local', writeLog() {},
@@ -173,7 +174,8 @@ export async function startAppleIntegrationServer({ port = 0 } = {}) {
       return item
     } else if (scene === 'answer') return state.ownerQuestions.answer(q.get('id') ?? state.lastQuestion, { choice: 'はい' })
     else if (scene === 'bot-schedule' || scene === 'room-schedule') {
-      const input = { kind: 'once', at: '2099-01-01T00:00:00Z', enabled: false, prompt: text, name: text }
+      const name = q.get('title') ?? `結合試験予定 ${scene === 'bot-schedule' ? bot : room}`
+      const input = { kind: 'once', at: '2099-01-01T00:00:00Z', enabled: true, prompt: text, name }
       if (scene === 'room-schedule') return state.rooms.setSchedule(room, input)
       requireBot(bot)
       const item = normalizeSchedule({ ...input, id, lastRunAt: null }, new Date())

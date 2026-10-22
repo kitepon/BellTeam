@@ -30,8 +30,8 @@ HTTP中継と製品サーバーは両方127.0.0.1だけへbindする。iOS Simul
 | 依頼カード | `/test/request?bot=bot-one&room=planning` | 実SecretRequests、requests、該当会話 |
 | 依頼取消 | `/test/request-cancel` | 省略時は直前依頼。`id`指定も可 |
 | 質問カード/回答 | `/test/question?bot=bot-three`、`/test/answer` | 実OwnerQuestions、questions、bot-three。回答は直前idか指定id |
-| Bot予定 | `/test/bot-schedule?bot=bot-one` | 人工registryへ無効な予定を追加しschedules通知、bot-one |
-| room予定 | `/test/room-schedule?room=planning` | 実room定義へ無効な予定を保存、実watchのschedules、planning |
+| Bot予定 | `/test/bot-schedule?bot=bot-one` | 人工registryへ未来予定「結合試験予定 bot-one」を追加しschedules通知、bot-one |
+| room予定 | `/test/room-schedule?room=planning` | 実room定義へ未来予定「結合試験予定 planning」を保存、実watchのschedules、planning |
 | owner | `/test/owner` | 人工ownerデータと人工registryのowner限定通知 |
 | Botプロフィール | `/test/bot-profile?bot=bot-two` | 人工registry更新、bots限定通知 |
 | 不明な宛先 | `/test/unknown` | 実履歴へ未知status、all:true |
@@ -47,5 +47,7 @@ HTTP中継と製品サーバーは両方127.0.0.1だけへbindする。iOS Simul
 `/test/proof`の`events`には接続番号、event名、raw frame、解析JSON、配信時刻、`origin`が入る。`product-server`と`test-injection`を区別する。`requests`にはmethod/path/query/受付時刻/HTTP statusが入る。SSEは終了しないので記録のstatus=200は接続応答であり終了ではない。`controls`は人工操作の履歴。`connections`は累積、`subscribers`は現在数。resetは証拠も消すが累積接続番号は維持する。clear-proofは現在の接続にreadyを再配信しない。
 
 初回readyは接続前の初期GETと接続までの隙間を埋める全体照合、再接続readyも全体照合を期待する。各場面では通知を受けてから画面の文字/状態とGET記録を比較する。別Bot通知時の無関係な会話GET抑制、対象新着の表示を代表UIで検証する。予定だけの通知は予定画面への更新を期待し、会話GETを必須としない。時刻やGET数は人工結合試験の結果であり、本番性能の証明には使わない。
+
+予定は`enabled:true`、`nextRunAt:2099-01-01T00:00:00.000Z`でApple予定一覧の表示条件を満たす。既定titleはBotが「結合試験予定 bot-one」、roomが「結合試験予定 planning」。`title` queryで変更できる。予定の実行器やschedulerを構築せず、人工Bot registryは保存/一覧/通知だけを持つ。手動runを含むAPI書込みは405で、予定実行へ接続しない。
 
 helper自身の試験：`node --test test/apple-integration-server.test.mjs`。

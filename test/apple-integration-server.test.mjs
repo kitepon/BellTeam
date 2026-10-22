@@ -84,11 +84,16 @@ test('Apple結合入口のqueue/カード/予定/ownerは実GETと対応する�
     const item = await f.get(`/test/${kind}-schedule`), notice = await sse.message()
     assert.equal(notice.all, false); assert.deepEqual(notice.topics, ['schedules'])
     const path = kind === 'bot' ? '/api/bots/bot-one/schedules' : '/api/rooms/planning/schedules'
-    assert.ok((await f.get(path)).schedules.some(x => x.id === item.id && x.enabled === false))
+    assert.equal(item.enabled, true)
+    assert.equal(item.nextRunAt, '2099-01-01T00:00:00.000Z')
+    assert.equal(item.name, `結合試験予定 ${kind === 'bot' ? 'bot-one' : 'planning'}`)
+    assert.ok((await f.get(path)).schedules.some(x => x.id === item.id && x.enabled && x.nextRunAt === item.nextRunAt))
+    assert.equal((await fetch(f.url + `${path}/${item.id}/run`, { method: 'POST' })).status, 405)
   }
   await f.get('/test/owner?text=人工利用者'); change = await sse.message()
   assert.deepEqual(change.topics, ['owner']); assert.equal(change.all, false)
   assert.equal((await f.get('/api/owner')).owner.name, '人工利用者')
+  assert.ok((await f.get('/test/proof')).cli.every(x => ['pty_list', 'pty_read'].includes(x.name)))
   sse.abort.abort()
 })
 
