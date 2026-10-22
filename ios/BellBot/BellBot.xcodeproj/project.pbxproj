@@ -1084,7 +1084,7 @@
 			repositoryURL = "https://github.com/quolu/enriched-markdown-ios.git";
 			requirement = {
 				kind = revision;
-				revision = 02ace8c0e6eb72278e01580cecef47b1ee8abcc2;
+				revision = ae28d48c07788b16244e95d4925ea389d554e62e;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

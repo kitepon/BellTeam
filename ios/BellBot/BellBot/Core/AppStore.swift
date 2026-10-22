@@ -524,10 +524,15 @@ final class AppStore: ObservableObject {
                 do {
                     try await api.events { [weak self] type in
                         guard let self else { return }
+                        let reconnected = self.eventsError != nil
                         self.eventsError = nil
                         self.updateConnectionError()
                         switch type {
-                        case "ready": break
+                        case "ready":
+                            if reconnected {
+                                self.eventRevision += 1
+                                self.requestRefreshFromEvent()
+                            }
                         case "settings": try await self.refreshSettings()
                         case "setup": try await self.refreshSetup()
                         case "ai-control": await self.refreshAIControl()

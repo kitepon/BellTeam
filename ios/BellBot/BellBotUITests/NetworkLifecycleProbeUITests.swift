@@ -64,7 +64,9 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         app.tabBars.buttons["予定"].tap()
         XCTAssertTrue(app.staticTexts["隔離予定"].waitForExistence(timeout: 6))
         let before = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
-        let prior = (before["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/schedules") == true }.count ?? 0
+        let initialReads = (before["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/schedules") == true } ?? []
+        let prior = initialReads.count
+        let targets = Set(initialReads.compactMap { $0["path"] as? String })
 
         XCUIDevice.shared.press(.home)
         _ = try data(base, "/test/mode?mode=schedule-pending")
@@ -74,10 +76,12 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         while Date() < deadline {
             let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
             current = (proof["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/schedules") == true } ?? []
-            if current.count > prior { break }
+            if current.count >= prior + targets.count { break }
             Thread.sleep(forTimeInterval: 0.1)
         }
-        XCTAssertEqual(current.count, prior + 1)
+        let resumedReads = Array(current.dropFirst(prior))
+        XCTAssertEqual(resumedReads.count, targets.count)
+        XCTAssertEqual(Set(resumedReads.compactMap { $0["path"] as? String }), targets)
         let retained = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         retained.name = "既知予定を表示したまま次のGETが保留中"
         retained.lifetime = .keepAlways; add(retained)
@@ -86,8 +90,8 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 1)
         let stopped = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
         let reads = (stopped["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/schedules") == true } ?? []
-        XCTAssertEqual(reads.count, prior + 1, "背景では次の逐次GETを始めない")
-        XCTAssertEqual(reads.last?["closed"] as? Bool, true, "進行中GETを取り消す")
+        XCTAssertEqual(reads.count, current.count, "背景では新しいGETを始めない")
+        XCTAssertTrue(reads.suffix(targets.count).allSatisfy { $0["closed"] as? Bool == true }, "進行中GETを取り消す")
 
         _ = try data(base, "/test/mode?mode=schedule-known")
         app.activate()

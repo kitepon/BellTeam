@@ -157,9 +157,9 @@ final class ConversationAppearanceUITests: XCTestCase {
         let option = app.buttons["チームだけ"]
         XCTAssertTrue(option.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["全員に公開"].exists)
-        // 試験用の起動では接続先が無く、答えは送れない。カードは開いたまま理由を出す。
+        // 試験用の起動では購読状態を確認できず、カードは開いたまま理由を出す。
         option.tap()
-        let failure = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "送れませんでした")).firstMatch
+        let failure = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "購読の状態を確認できませんでした")).firstMatch
         XCTAssertTrue(failure.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["チームだけ"].isEnabled)
         app.terminate()

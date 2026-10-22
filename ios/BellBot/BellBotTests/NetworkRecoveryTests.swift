@@ -280,6 +280,21 @@ final class NetworkRecoveryTests: XCTestCase {
         withExtendedLifetime((errorObservation, eventObservation)) {}
     }
 
+    func testReadyAfterReconnectFetchesUpdatesMissedDuringDisconnection() async {
+        let scenario = NetworkScenario(failures: 0, events502ThenReady: true,
+                                       holdEventsOpen: true, skipAvatarVersion: true,
+                                       readyOnlyAfterReconnect: true)
+        let store = AppStore(api: makeAPI(scenario))
+        defer { store.stopEvents() }
+        store.startEvents()
+        for _ in 0..<80 where !store.bots.contains(where: { $0.id == "bot-network" }) {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertEqual(scenario.count("/api/events"), 2)
+        XCTAssertEqual(scenario.count("/api/bots"), 1)
+        XCTAssertTrue(store.bots.contains(where: { $0.id == "bot-network" }))
+    }
+
     func testNotificationFailureHasOnlyItsStageReport() async {
         let scenario = NetworkScenario(failures: 2)
         let api = makeAPI(scenario)
@@ -337,6 +352,7 @@ private final class NetworkScenario {
     let accessExpired: Bool
     let httpStatus: Int
     let events502ThenReady: Bool
+    let readyOnlyAfterReconnect: Bool
     let holdEventsOpen: Bool
     let skipAvatarVersion: Bool
     private let png: Data
@@ -345,13 +361,14 @@ private final class NetworkScenario {
     init(failures: Int, failureCode: URLError.Code = .networkConnectionLost,
          avatars: Bool = false, accessExpired: Bool = false, httpStatus: Int = 200,
          events502ThenReady: Bool = false, holdEventsOpen: Bool = false,
-         skipAvatarVersion: Bool = false) {
+         skipAvatarVersion: Bool = false, readyOnlyAfterReconnect: Bool = false) {
         self.failures = failures
         self.failureCode = failureCode
         self.avatars = avatars
         self.accessExpired = accessExpired
         self.httpStatus = httpStatus
         self.events502ThenReady = events502ThenReady
+        self.readyOnlyAfterReconnect = readyOnlyAfterReconnect
         self.holdEventsOpen = holdEventsOpen
         self.skipAvatarVersion = skipAvatarVersion
         png = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { c in
@@ -374,6 +391,9 @@ private final class NetworkScenario {
         if count <= failures { throw URLError(failureCode) }
         if events502ThenReady, path == "/api/events" {
             if count == 1 { return (Data("{\"error\":\"MOCK_UNAVAILABLE\"}".utf8), "application/json") }
+            if readyOnlyAfterReconnect {
+                return (Data("event: ready\ndata: {\"type\":\"ready\"}\n\n".utf8), "text/event-stream")
+            }
             return (Data("data: {\"type\":\"messages\"}\n\n".utf8), "text/event-stream")
         }
         if avatars, path.hasSuffix("/avatar") { return (png, "image/png") }
