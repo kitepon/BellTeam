@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { watch } from 'node:fs'
 import { appendFile, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 import { exists, normalizeSchedule, scheduleDocument, validateAvatar, writeAtomic } from './bot-registry.mjs'
 import { RoomHistory } from './room-history.mjs'
@@ -132,34 +132,75 @@ export class RoomRegistry extends Map {
 
   async watch(onChange) {
     await mkdir(this.roomsRoot, { recursive: true })
-    const observed = new Map()
-    const historyStat = async id => {
-      const info = await stat(join(this.roomPath(id), 'messages.jsonl'), { bigint: true })
-      return { ino: `${info.dev}:${info.ino}`, size: info.size, time: `${info.mtimeNs}:${info.ctimeNs}` }
-    }
-    let pending = Promise.resolve(), closed = false
+    const files = { 'room.json': 'rooms', 'schedule.json': 'schedules', 'messages.jsonl': 'timeline' }
+    const observed = new Map(), names = new Set()
+    let pending = Promise.resolve(), queued = false, closed = false
     const unknown = () => { if (!closed) onChange({ all: true, topics: ['rooms', 'schedules', 'timeline'], botIds: [], roomIds: [] }) }
-    const dispatch = async name => {
-      const parts = typeof name === 'string' ? name.split(/[\\/]/u) : []
-      if (!ROOM_ID.test(parts[0] ?? '') || parts.length !== 2) return unknown()
-      const topic = { 'messages.jsonl': 'timeline', 'room.json': 'rooms', 'schedule.json': 'schedules' }[parts[1]]
-      if (!topic) return
-      let all = false
-      if (topic === 'timeline') {
-        const current = await historyStat(parts[0]), old = observed.get(parts[0])
-        all = !old || current.ino !== old.ino || current.size < old.size || (current.size === old.size && current.time !== old.time)
-        observed.set(parts[0], current)
+    const info = async (id, file) => {
+      try {
+        const value = await stat(join(this.roomPath(id), file), { bigint: true })
+        return { ino: `${value.dev}:${value.ino}`, size: value.size, time: `${value.mtimeNs}:${value.ctimeNs}` }
+      } catch (error) { if (error.code === 'ENOENT') return null; throw error }
+    }
+    const ids = async () => (await readdir(this.roomsRoot, { withFileTypes: true }))
+      .filter(entry => entry.isDirectory() && ROOM_ID.test(entry.name)).map(entry => entry.name)
+    const same = (a, b) => a === b || (a && b && a.ino === b.ino && a.size === b.size && a.time === b.time)
+    const reconcile = async targets => {
+      for (const [id, selected] of targets) {
+        const previous = observed.get(id) ?? new Map(), current = new Map(previous), topics = []
+        let all = false
+        for (const file of selected) {
+          const before = previous.get(file) ?? null, after = await info(id, file)
+          current.set(file, after)
+          if (same(before, after)) continue
+          topics.push(files[file])
+          // 履歴の初出・置換・縮小・同サイズ書換えは従来どおり全体照合する。
+          if (file === 'messages.jsonl' && (!before || !after || before.ino !== after.ino
+            || after.size < before.size || (after.size === before.size && after.time !== before.time))) all = true
+        }
+        if ([...current.values()].some(Boolean)) observed.set(id, current)
+        else observed.delete(id)
+        if (!closed && topics.length) onChange({ all, topics, botIds: [], roomIds: [id] })
       }
-      if (!closed) onChange({ all, topics: [topic], botIds: [], roomIds: [parts[0]] })
     }
-    const watcher = watch(this.roomsRoot, { recursive: true }, (_event, name) => {
-      pending = pending.then(() => dispatch(name)).catch(unknown)
-    })
+    const dispatch = async batch => {
+      const targets = new Map()
+      const add = (id, selected) => targets.set(id, new Set([...(targets.get(id) ?? []), ...selected]))
+      let scan = false
+      for (const name of batch) {
+        const parts = typeof name === 'string' ? name.split(/[\\/]/u) : []
+        // Macは親名やroot名だけを返す。名前を推測せずstat差分で対象を確定する。
+        if (name === basename(this.roomsRoot) || !ROOM_ID.test(parts[0] ?? '') || parts.length > 2) scan = true
+        else if (parts.length === 1) add(parts[0], Object.keys(files))
+        else if (files[parts[1]]) add(parts[0], [parts[1]])
+      }
+      if (scan) for (const id of new Set([...observed.keys(), ...await ids()])) add(id, Object.keys(files))
+      await reconcile(targets)
+    }
+    const enqueue = name => {
+      names.add(name)
+      // 処理中の通知は次の一群へまとめる。時間で変更を隠すキャッシュは使わない。
+      if (!queued) {
+        queued = true
+        pending = pending.then(async () => {
+          queued = false
+          const batch = [...names]; names.clear()
+          if (!closed) await dispatch(batch)
+        }).catch(unknown)
+      }
+      return pending
+    }
+    const watcher = watch(this.roomsRoot, { recursive: true }, (_event, name) => enqueue(name))
     watcher.on('error', unknown)
-    for (const id of this.keys()) {
-      try { observed.set(id, await historyStat(id)) }
-      catch (error) { if (error.code !== 'ENOENT') unknown() }
-    }
+    // 初回・再接続はreadyで全体照合する。監視登録中の通知は初期statの後に処理する。
+    pending = (async () => {
+      for (const id of await ids()) {
+        const initial = new Map()
+        for (const file of Object.keys(files)) initial.set(file, await info(id, file))
+        observed.set(id, initial)
+      }
+    })().catch(unknown)
+    await pending
     return () => { closed = true; watcher.close() }
   }
 
