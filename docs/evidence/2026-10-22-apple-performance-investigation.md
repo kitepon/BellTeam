@@ -36,7 +36,9 @@ USB接続とiPhoneミラーリングで導入済みのBellTeam 56を開き、送
 
 ## iPhone本体の入力中に検出した停止
 
-オーナーがUSB接続のiPhone本体で日本語入力・変換した36秒のSwiftUI記録では、BellTeamのメインスレッドに開始20.23秒から約571.81msの停止を1件検出した。対応する高頻度Time Profiler標本では、停止付近のメインスレッド6,388標本のうち約4,305標本に `HomeView.bots` の並べ替えが含まれ、`BellDate.parse` とICUの日付解析が比較の中で繰り返された。`AppStore.sceneChanged(to:) → refreshFromView() → refresh()` の呼び出しも同じ窓にある。これは画面復帰に伴う一覧更新の可能性があり、**日本語入力そのものが停止を起こしたとは断定しない**。一方、会話画面の背後にあるホーム画面でも並べ替えが走り、全体的な一時停止を作れることは実機の呼び出し履歴で確認した。記録と抽出XMLは `runtime/apple/performance-20261022/iphone-56-native-input-*` に置いた。入力した本文は記録・報告していない。
+オーナーがUSB接続のiPhone本体で日本語入力・変換した36秒のSwiftUI記録では、BellTeamのメインスレッドに開始20.23秒から約571.81msの停止を特定した。対応する高頻度Time Profiler標本では、停止付近のメインスレッド6,388標本のうち約4,305標本に `HomeView.bots` の並べ替えが含まれ、`BellDate.parse` とICUの日付解析が比較の中で繰り返された。`AppStore.sceneChanged(to:) → refreshFromView() → refresh()` の呼び出しも同じ窓にある。これは画面復帰に伴う一覧更新の可能性があり、**日本語入力そのものが停止を起こしたとは断定しない**。一方、会話画面の背後にあるホーム画面でも並べ替えが走り、全体的な一時停止を作れることは実機の呼び出し履歴で確認した。記録と抽出XMLは `runtime/apple/performance-20261022/iphone-56-native-input-*` に置いた。入力した本文は記録・報告していない。
+
+後で`potential-hangs`表を全件読み直すと、56の36秒記録にはBellTeamメインスレッドの250ms超が計6行（約486ms〜1.15秒）あった。上記の日時解析へ原因を絞ったのは最初の約572msの1件で、残る5件の根因は未特定。当初「1件」と報告したのは特定済みの停止だけで、表の全件数としては不正確だった。
 
 `BellDate.parse` は呼び出すたびにISO8601日時解析器を新たに作っていた。`HomeView.bots` と `HomeView.rooms` は並べ替えの比較ごとに左右の日時を解析していた。`BellDate` の解析器をMainActor上で共有し、ホーム画面の各行の日付を並べ替え前に一度だけ計算する修正を作った。同じbody更新中に一覧を二度計算しないよう、表示部品へ計算済み配列を渡す。日時の比較順と同時刻の元の順序は維持する。iPhone SimulatorのDebugビルドと `ConversationFreezeUITests` 1件、Mac CatalystのDebugビルド、`npm test` 635件が成功。修正後のiPhone実機の停止時間は未測定。
 
@@ -62,9 +64,15 @@ USB接続とiPhoneミラーリングで導入済みのBellTeam 56を開き、送
 
 250ms超の停止は約612msと586msの2件。どちらの時間窓も、メインスレッド標本はアプリ切り替え時の`FBSSceneSnapshotAction`とSwiftUIレイアウトに集中し、`HomeView.bots`や日時解析のフレームは上位に無い。56の記録はiPhone本体の日本語入力、57の記録はミラーリングでのアプリ切り替えで、採取方法も異なる。これらの標本数や停止件数を修正前後の同条件比較として扱わず、入力中の改善判定は保留する。
 
+オーナーがiPhone本体でBellTeam 57の会話を開き、短文の日本語入力・変換・消去を行った36秒のSwiftUI記録を別に採取した。56と同じ端末・計測テンプレートを使い、ミラーリングは終了した。`potential-hangs`表にはBellTeamメインスレッドの約397msのMicrohangが1行、別にSpringBoardの約278msが1行ある。BellTeamの停止付近2,532標本ではAttributeGraphの型情報走査とSwiftの型名処理が多く、ビルド57のdSYMで引いたアプリ内フレームには`RootView`と`SubscriptionContent`の型情報生成がある。`HomeView.bots`と日時解析は、この停止の上位フレームに無い。原本は`runtime/apple/performance-20261022/iphone-57-native-input-swiftui.trace`、抽出は同じ場所の`iphone-57-native-input-*.xml`。
+
+56の同形式36秒記録の停止6行に対し、57は1行まで減った。ただし入力文・操作順・画面状態を機械的に固定していないため、この差を再現性ある短縮率とは扱わない。57にも停止が残り、スクロールとログ表示の実機性能、電池消費は未判定。オーナーは57を「明らかに軽くなった」が「満足はできない」と評価した。
+
+オーナーは後続方針として、実測を必須にせずAppleアプリのコード上の非効率を複数agentで洗い出し、確認できた効率化をすべて適用して次の内部TestFlightへ出すよう指示した。現行57の改善で完了とはせず、共通コードとOS別画面の調査・修理を続ける。
+
 ## 次に確かめること
 
-1. ミラーリングを経由しない日本語入力で、57の入力欄と画面更新を短く記録する。56で検出した約572ms停止が同じ条件で再発するか確認する。`.equatable()`の実機効果と入力欄の重さは分けて判定する。
-2. iPad実機の導入・操作を確認する。Macは起動まで確認済み。
+1. コード上で確認できる非効率を修理し、iPhone/iPad・Macの次版をビルドして内部TestFlightへ配布する。
+2. iPad実機の導入・操作は未確認。Macは57の起動まで確認済み。
 
 実Botの編集・削除画面を反復する旧試験は再開しない。本番サーバーは変更していない。旧担当が追加した人工100行fixtureは `PreviewFixtures.swift` と `ConversationView.swift` にあり、合成計測へ利用した。修正範囲は `MessageText.swift` の比較、`ConversationView.swift` の `.equatable()` と位置固定状態、`ConversationScrollUITests.swift` の可視判定と新着後の取得判定、`BellTheme.swift` の日時解析器、`HomeView.swift` の並べ替え。`project.yml` と生成済み `Info.plist` のビルド番号は57へ採番した。

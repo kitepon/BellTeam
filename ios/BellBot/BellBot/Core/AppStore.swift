@@ -56,6 +56,21 @@ final class AppStore: ObservableObject {
     private var aiControlEpoch = 0
     private var aiControlReadSequence = 0
     private var aiControlRefreshPending = false
+    private struct AvatarCacheEntry: Equatable {
+        let id: String
+        let dataURL: String
+        let version: String?
+    }
+    private struct AvatarRequest: Sendable {
+        let inline: String
+        let version: String?
+        let previous: String?
+        let previousVersion: String?
+        let path: String
+        let botID: String?
+    }
+    private var savedAvatarCacheServer: String?
+    private var savedAvatarCacheEntries: [AvatarCacheEntry] = []
 
     func draft(for target: ChatTarget) -> ConversationDraft {
         if let draft = drafts[target] { return draft }
@@ -173,7 +188,7 @@ final class AppStore: ObservableObject {
 
     func refreshSettings() async throws {
         let response: FeatureSettingsResponse = try await api.get("/api/settings")
-        featureSettings = response.settings
+        if featureSettings != response.settings { featureSettings = response.settings }
     }
 
     func refreshAIControl() async {
@@ -229,24 +244,24 @@ final class AppStore: ObservableObject {
         let epoch = aiControlEpoch
         aiControlReadSequence += 1
         let sequence = aiControlReadSequence
-        aiControlLoading = true
+        if !aiControlLoading { aiControlLoading = true }
         do {
             let response: AIControlResponse = try await api.get("/api/ai-control")
             guard epoch == aiControlEpoch, sequence == aiControlReadSequence else { return }
-            aiControl = response.control
-            aiControlError = nil
+            if aiControl != response.control { aiControl = response.control }
+            if aiControlError != nil { aiControlError = nil }
         } catch let error where BellAPIError.isAuthenticationError(error) {
             guard epoch == aiControlEpoch, sequence == aiControlReadSequence else { return }
-            aiControl = nil
+            if aiControl != nil { aiControl = nil }
             requireLogin(for: error)
             return
         } catch {
             guard epoch == aiControlEpoch, sequence == aiControlReadSequence else { return }
-            aiControl = nil
+            if aiControl != nil { aiControl = nil }
             aiControlError = "全体停止の状態を確認できませんでした。接続を確認して再読み込みしてください。"
             api.diagnostics.report(error, path: "/api/ai-control", method: "GET", observation: .read(error, retainedData: false))
         }
-        aiControlLoading = false
+        if aiControlLoading { aiControlLoading = false }
     }
 
     private func resetAIControl() {
@@ -306,45 +321,80 @@ final class AppStore: ObservableObject {
         var (bots, rooms, owner, queue) = try await (botResult, roomResult, ownerResult, queueResult)
         let oldBots = Dictionary(uniqueKeysWithValues: self.bots.map { ($0.id, $0) })
         let oldRooms = Dictionary(uniqueKeysWithValues: self.rooms.map { ($0.id, $0) })
-        for index in bots.bots.indices {
-            let bot = bots.bots[index]
-            bots.bots[index].avatar = try await avatar(bot.avatar, version: bot.avatarVersion,
+        let botRequests = bots.bots.map { bot in
+            AvatarRequest(inline: bot.avatar, version: bot.avatarVersion,
                 previous: oldBots[bot.id]?.avatar, previousVersion: oldBots[bot.id]?.avatarVersion,
                 path: "/api/bots/\(bot.id)/avatar", botID: bot.id)
         }
-        for index in rooms.rooms.indices {
-            let room = rooms.rooms[index]
-            rooms.rooms[index].avatar = try await avatar(room.avatar, version: room.avatarVersion,
+        let roomRequests = rooms.rooms.map { room in
+            AvatarRequest(inline: room.avatar, version: room.avatarVersion,
                 previous: oldRooms[room.id]?.avatar, previousVersion: oldRooms[room.id]?.avatarVersion,
-                path: "/api/rooms/\(room.id)/avatar")
+                path: "/api/rooms/\(room.id)/avatar", botID: nil)
         }
-        owner.owner.avatar = try await avatar(owner.owner.avatar, version: owner.owner.avatarVersion,
-            previous: self.owner?.avatar, previousVersion: self.owner?.avatarVersion, path: "/api/owner/avatar")
+        let ownerRequest = AvatarRequest(inline: owner.owner.avatar, version: owner.owner.avatarVersion,
+            previous: self.owner?.avatar, previousVersion: self.owner?.avatarVersion,
+            path: "/api/owner/avatar", botID: nil)
+        async let botAvatars = resolveAvatars(botRequests)
+        async let roomAvatars = resolveAvatars(roomRequests)
+        async let ownerAvatar = avatar(ownerRequest)
+        let (resolvedBots, resolvedRooms, resolvedOwner) = try await (botAvatars, roomAvatars, ownerAvatar)
+        for index in bots.bots.indices { bots.bots[index].avatar = resolvedBots[index] }
+        for index in rooms.rooms.indices { rooms.rooms[index].avatar = resolvedRooms[index] }
+        owner.owner.avatar = resolvedOwner
         try Task.checkCancellation()
         applyFetchedBots(bots.bots)
-        self.rooms = rooms.rooms
-        self.owner = owner.owner
-        workingBotIDs = Set(queue.items.filter { $0.status == "running" }.compactMap(\.botId))
+        if self.rooms != rooms.rooms { self.rooms = rooms.rooms }
+        if self.owner != owner.owner { self.owner = owner.owner }
+        let runningBotIDs = Set(queue.items.filter { $0.status == "running" }.compactMap(\.botId))
+        if workingBotIDs != runningBotIDs { workingBotIDs = runningBotIDs }
         if let server = serverURL?.absoluteString {
-            do {
-                try BotAvatarCache.shared.storeVersioned(bots.bots.map { (id: $0.id, dataURL: $0.avatar, version: $0.avatarVersion) }, server: server)
-            } catch {
-                Logger(subsystem: "app.bellteam.bellbot", category: "notifications")
-                    .error("通知アバターの保存に失敗: \(error.localizedDescription, privacy: .private)")
-                api.diagnostics.reportPush(error, stage: "avatar_cache", observation: .avatarCache)
+            let entries = bots.bots.map { AvatarCacheEntry(id: $0.id, dataURL: $0.avatar, version: $0.avatarVersion) }
+                .sorted { $0.id < $1.id }
+            if server != savedAvatarCacheServer || entries != savedAvatarCacheEntries {
+                do {
+                    try await BotAvatarCacheAccess.shared.storeVersioned(
+                        entries.map { (id: $0.id, dataURL: $0.dataURL, version: $0.version) }, server: server)
+                    savedAvatarCacheServer = server
+                    savedAvatarCacheEntries = entries
+                } catch {
+                    Logger(subsystem: "app.bellteam.bellbot", category: "notifications")
+                        .error("通知アバターの保存に失敗: \(error.localizedDescription, privacy: .private)")
+                    api.diagnostics.reportPush(error, stage: "avatar_cache", observation: .avatarCache)
+                }
             }
         }
     }
 
-    private func avatar(_ inline: String, version: String?, previous: String?, previousVersion: String?, path: String, botID: String? = nil) async throws -> String {
+    private func resolveAvatars(_ requests: [AvatarRequest]) async throws -> [String] {
+        try await withThrowingTaskGroup(of: (Int, String).self) { group in
+            var resolved = Array(repeating: "", count: requests.count)
+            for (index, request) in requests.enumerated() {
+                if let immediate = immediateAvatar(request) {
+                    resolved[index] = immediate
+                } else {
+                    group.addTask { [self] in (index, try await avatar(request)) }
+                }
+            }
+            for try await (index, value) in group { resolved[index] = value }
+            return resolved
+        }
+    }
+
+    private func immediateAvatar(_ request: AvatarRequest) -> String? {
         // 版を持たない既存の応答は、これまでの画像本体をそのまま使う。
-        guard let version else { return inline }
+        guard let version = request.version else { return request.inline }
         if version.isEmpty { return "" }
-        if !inline.isEmpty { return inline }
-        if version == previousVersion, let previous { return previous }
-        if let botID, let server = serverURL?.absoluteString,
-           let cached = try BotAvatarCache.shared.dataURL(botID: botID, server: server, version: version) { return cached }
-        return try await api.avatar(path + "?v=" + version)
+        if !request.inline.isEmpty { return request.inline }
+        if version == request.previousVersion, let previous = request.previous { return previous }
+        return nil
+    }
+
+    private func avatar(_ request: AvatarRequest) async throws -> String {
+        if let immediate = immediateAvatar(request) { return immediate }
+        guard let version = request.version else { return request.inline }
+        if let botID = request.botID, let server = serverURL?.absoluteString,
+           let cached = try await BotAvatarCacheAccess.shared.dataURL(botID: botID, server: server, version: version) { return cached }
+        return try await api.avatar(request.path + "?v=" + version)
     }
 
     func requestRefreshFromEvent() {
@@ -355,7 +405,7 @@ final class AppStore: ObservableObject {
             defer { if !Task.isCancelled { eventRefreshTask = nil } }
             while eventRefreshRequested && !Task.isCancelled {
                 eventRefreshRequested = false
-                await refreshFromView()
+                await refreshFromView(refreshSubscription: false)
             }
         }
     }
@@ -384,7 +434,7 @@ final class AppStore: ObservableObject {
     func applyFetchedBots(_ fetched: [Bot]) {
         let currentIDs = Set(fetched.map(\.id))
         let removedIDs = Set(bots.map(\.id)).subtracting(currentIDs)
-        bots = fetched
+        if bots != fetched { bots = fetched }
         pendingBotDeletionIDs.formIntersection(currentIDs)
         chatPath.removeAll { target in
             if case .bot(let id) = target { return removedIDs.contains(id) }
@@ -407,12 +457,12 @@ final class AppStore: ObservableObject {
         removeDraft(for: .room(id))
     }
 
-    func refreshFromView() async {
+    func refreshFromView(refreshSubscription: Bool = true) async {
         do {
             try await refresh()
             refreshError = nil
             updateConnectionError()
-            await billing.refreshFromServer()
+            if refreshSubscription { await billing.refreshFromServer() }
         }
         catch is CancellationError { return }
         catch let error as URLError where error.code == .cancelled { return }
@@ -425,7 +475,8 @@ final class AppStore: ObservableObject {
     }
 
     private func updateConnectionError() {
-        connectionError = eventsError ?? refreshError ?? notificationError
+        let next = eventsError ?? refreshError ?? notificationError
+        if connectionError != next { connectionError = next }
     }
 
     func sceneChanged(to next: ScenePhase) {
@@ -473,13 +524,18 @@ final class AppStore: ObservableObject {
                 do {
                     try await api.events { [weak self] type in
                         guard let self else { return }
-                        if type == "settings" { try await self.refreshSettings() }
-                        if type == "setup" { try await self.refreshSetup() }
-                        if type == "ai-control" { await self.refreshAIControl() }
                         self.eventsError = nil
                         self.updateConnectionError()
-                        self.eventRevision += 1
-                        self.requestRefreshFromEvent()
+                        switch type {
+                        case "ready": break
+                        case "settings": try await self.refreshSettings()
+                        case "setup": try await self.refreshSetup()
+                        case "ai-control": await self.refreshAIControl()
+                        case "bots": self.requestRefreshFromEvent()
+                        default:
+                            self.eventRevision += 1
+                            self.requestRefreshFromEvent()
+                        }
                     }
                     if Task.isCancelled { return }
                     eventsError = "更新の接続が切れました。再接続しています。"

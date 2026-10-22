@@ -1,4 +1,5 @@
 import PhotosUI
+import ImageIO
 import UniformTypeIdentifiers
 import SwiftUI
 
@@ -20,14 +21,14 @@ private struct ConversationContent: View {
     @State private var hasMore = false
     @State private var loading = true
     @State private var loadingOlder = false
-    @State private var readTask: Task<Void, Never>?
+    @State private var reader = ReadCoordinator()
     @State private var olderTask: Task<Void, Never>?
     @State private var sending = false
     @State private var stoppingBotID: String?
     @State private var stopNotice: StopNotice?
     private var draft: String {
         get { store.draft(for: target).text }
-        nonmutating set { store.draft(for: target).text = newValue }
+        nonmutating set { store.draft(for: target).setTextExternally(newValue) }
     }
     @State private var choosingFile = false
     @State private var selectedPhotos: [PhotosPickerItem] = []
@@ -62,7 +63,11 @@ private struct ConversationContent: View {
     private var appIsActive: Bool { UIApplication.shared.applicationState == .active }
 
     var body: some View {
-        ZStack {
+        let botsByID: [String: Bot] = target.isRoom
+            ? Dictionary(store.bots.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            : [:]
+        let selectedBot = bot
+        return ZStack {
             BellBackground()
             ScrollViewReader { proxy in
                 GeometryReader { viewport in
@@ -76,30 +81,7 @@ private struct ConversationContent: View {
                                 else { emptyConversation }
                             }
                             ForEach(messages) { message in
-                                Group {
-                                    if let request = message.secretRequest {
-                                        SecretRequestCard(request: request)
-                                    } else if let question = message.ownerQuestion {
-                                        OwnerQuestionCard(question: question)
-                                    } else {
-                                        MessageRow(message: message, isRoom: target.isRoom, bot: bot,
-                                                   bots: store.bots, api: store.api)
-                                    }
-                                }
-                                .id(message.id)
-                                .background(alignment: .top) {
-                                    // 各行の上端に0高の目印を置く。過去を足した後、足す前の先頭行をこの目印で元の画面位置へ戻す。
-                                    Color.clear.frame(height: 0).id(ScrollTracker.rowTopID(message.id))
-                                        .background {
-                                            // 先頭行の位置は常に測っておく。取得の応答が速くても、足す前の位置が必ず手元にある。
-                                            if message.id == (measuredRow ?? messages.first?.id) {
-                                                GeometryReader { row in
-                                                    Color.clear.preference(key: ScrollMetricsKey.self,
-                                                        value: ScrollMetrics(boundary: row.frame(in: .named("conversation-scroll")).minY))
-                                                }
-                                            }
-                                        }
-                                }
+                                timelineRow(message, selectedBot: selectedBot, botsByID: botsByID)
                             }
                             if !queue.isEmpty { queueStrip }
                             Color.clear.frame(height: 2).id("bottom")
@@ -200,7 +182,10 @@ private struct ConversationContent: View {
         .task(id: scenePhase) { if scenePhase == .active { await load() } }
         .onChange(of: scenePhase) { _, next in
             if next != .active {
-                readTask?.cancel()
+                reader.task?.cancel()
+                reader.task = nil
+                reader.again = false
+                reader.generation += 1
                 olderTask?.cancel()
                 loading = false
                 loadingOlder = false
@@ -213,7 +198,10 @@ private struct ConversationContent: View {
         }
         .onChange(of: selectedTargets) { _, next in store.draft(for: target).selectedTargets = next }
         .onDisappear {
-            readTask?.cancel()
+            reader.task?.cancel()
+            reader.task = nil
+            reader.again = false
+            reader.generation += 1
             olderTask?.cancel()
             if BellNotifications.shared.visibleConversation == target { BellNotifications.shared.visibleConversation = nil }
         }
@@ -230,6 +218,48 @@ private struct ConversationContent: View {
         .onChange(of: selectedPhotos) { _, items in
             guard !items.isEmpty else { return }
             Task { await loadPhotos(items) }
+        }
+    }
+
+    private func timelineRow(_ message: TimelineMessage, selectedBot: Bot?, botsByID: [String: Bot]) -> some View {
+        let senderBot = (message.sender?.id).flatMap { botsByID[$0] }
+        let label = replyLabel(for: message, botsByID: botsByID)
+        return Group {
+            if let request = message.secretRequest {
+                SecretRequestCard(request: request)
+            } else if let question = message.ownerQuestion {
+                OwnerQuestionCard(question: question)
+            } else {
+                MessageRow(message: message, isRoom: target.isRoom, bot: selectedBot,
+                           senderBot: senderBot, replyLabel: label, api: store.api)
+                    .equatable()
+            }
+        }
+        .id(message.id)
+        .background(alignment: .top) { rowTopMarker(for: message.id) }
+    }
+
+    private func rowTopMarker(for messageID: String) -> some View {
+        Color.clear.frame(height: 0).id(ScrollTracker.rowTopID(messageID))
+            .background {
+                if messageID == (measuredRow ?? messages.first?.id) {
+                    GeometryReader { row in
+                        Color.clear.preference(key: ScrollMetricsKey.self,
+                            value: ScrollMetrics(boundary: row.frame(in: .named("conversation-scroll")).minY))
+                    }
+                }
+            }
+    }
+
+    private func replyLabel(for message: TimelineMessage, botsByID: [String: Bot]) -> String? {
+        guard target.isRoom, let routing = message.routing else { return nil }
+        switch routing.status {
+        case "pending": return "返信者を判定中"
+        case "failed": return "返信者の判定に失敗"
+        case "ready":
+            let names = routing.responders.map { botsByID[$0]?.displayName ?? $0 }
+            return "返信: \(names.isEmpty ? "なし" : names.joined(separator: "、"))"
+        default: return nil
         }
     }
 
@@ -272,14 +302,15 @@ private struct ConversationContent: View {
     }
 
     private var queueStrip: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            ForEach(QueueItem.displayItems(queue)) { item in
+        let displayItems = QueueItem.displayItems(queue)
+        return VStack(alignment: .leading, spacing: 9) {
+            ForEach(displayItems) { item in
                 HStack(spacing: 9) {
                     ProgressView().controlSize(.mini)
                     Text("\(item.botName ?? title) · \(item.status == "queued" ? "送信待ち" : "処理中")")
                         .font(BellTheme.messageHelperFont.weight(.medium))
                     Spacer()
-                    if target.isRoom, isStopRow(item), let id = item.botId {
+                    if target.isRoom, isStopRow(item, in: displayItems), let id = item.botId {
                         Button(stoppingBotID == id ? "停止中…" : "止める") {
                             Task { await stopBot(id, name: item.botName ?? title) }
                         }
@@ -298,10 +329,10 @@ private struct ConversationContent: View {
         .background(BellTheme.violetLight.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
     }
 
-    private func isStopRow(_ item: QueueItem) -> Bool {
+    private func isStopRow(_ item: QueueItem, in displayItems: [QueueItem]) -> Bool {
         guard let id = item.botId, ["running", "queued"].contains(item.status) else { return false }
         guard target.isRoom, room?.memberIds.contains(id) == true else { return false }
-        return QueueItem.displayItems(queue).first {
+        return displayItems.first {
             $0.botId == id && ["running", "queued"].contains($0.status)
         }?.id == item.id
     }
@@ -489,9 +520,21 @@ private struct ConversationContent: View {
 
     private func load() async {
         guard scenePhase == .active else { return }
-        readTask?.cancel()
-        let task = Task { if messages.isEmpty { await loadInitial() } else { await refresh() } }
-        readTask = task
+        if let task = reader.task {
+            reader.again = true
+            await task.value
+            return
+        }
+        reader.generation += 1
+        let generation = reader.generation
+        let task = Task {
+            repeat {
+                reader.again = false
+                if messages.isEmpty { await loadInitial() } else { await refresh() }
+            } while reader.again && !Task.isCancelled && scenePhase == .active
+            if reader.generation == generation { reader.task = nil }
+        }
+        reader.task = task
         await task.value
     }
 
@@ -615,12 +658,17 @@ private struct ConversationContent: View {
             let result: ListResponse<TimelineMessage> = try await store.api.get(path)
             try Task.checkCancellation()
             let known = Set(messages.map(\.id))
-            messages = result.items.filter { !known.contains($0.id) } + messages
+            let older = result.items.filter { !known.contains($0.id) }
             hasMore = result.hasMore
-            // 足した行のMarkdownは後から高さが伸びる。伸びるたびに同じ位置へ戻すため、行と位置を覚えておく。
-            scroll.pin = oldest
-            scroll.pinPhase = .awaitingGrowth
-            scrollRow(oldest, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
+            if !older.isEmpty {
+                messages = older + messages
+                // 足した行のMarkdownは後から高さが伸びる。伸びるたびに同じ位置へ戻すため、行と位置を覚えておく。
+                scroll.pin = oldest
+                scroll.pinPhase = .awaitingGrowth
+                scrollRow(oldest, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
+            } else {
+                measuredRow = nil
+            }
         } catch is CancellationError { }
         catch let error where BellAPIError.isAuthenticationError(error) {
             measuredRow = nil
@@ -645,10 +693,21 @@ private struct ConversationContent: View {
                 try Task.checkCancellation()
                 let known = Set(messages.map(\.id))
                 let newMessages = additions.items.filter { !known.contains($0.id) }
-                let updates = Dictionary(uniqueKeysWithValues: page.items.map { ($0.id, $0) })
+                let indices = Dictionary(uniqueKeysWithValues: messages.enumerated().map { ($0.element.id, $0.offset) })
+                var updated = messages
+                var changed = !newMessages.isEmpty
+                for item in page.items {
+                    if let index = indices[item.id], updated[index] != item {
+                        updated[index] = item
+                        changed = true
+                    }
+                }
                 let wasAtBottom = isAtBottom
-                messages = messages.map { updates[$0.id] ?? $0 } + newMessages
-                queue = queued.items
+                if changed {
+                    updated.append(contentsOf: newMessages)
+                    messages = updated
+                }
+                if queue != queued.items { queue = queued.items }
                 if !newMessages.isEmpty {
                     if wasAtBottom { scrollToBottomRevision += 1 }
                     else { hasUnreadMessages = true }
@@ -657,9 +716,9 @@ private struct ConversationContent: View {
                 let page: ListResponse<TimelineMessage> = try await store.api.get(latestPath)
                 let queued = try await waiting
                 try Task.checkCancellation()
-                queue = queued.items
-                messages = page.items
-                hasMore = page.hasMore
+                if queue != queued.items { queue = queued.items }
+                if messages != page.items { messages = page.items }
+                if hasMore != page.hasMore { hasMore = page.hasMore }
                 scrollToBottomRevision += 1
             }
             errorText = nil
@@ -751,12 +810,14 @@ private struct ConversationInput<AttachmentButton: View>: View {
     private var canSend: Bool { !sending && (draft.hasText || hasAttachments) }
 
     var body: some View {
+        // External clear and failed-send restore must reach the UIKit view.
+        let _ = draft.textRevision
         HStack(alignment: .bottom, spacing: 12) {
             attachmentButton()
             ZStack(alignment: .topLeading) {
-                MessageInput(text: $draft.text, onSend: onSend,
+                MessageInput(text: Binding(get: { draft.text }, set: { draft.setTextFromInput($0) }), onSend: onSend,
                              onPasteImages: onPasteImages, onPasteFailure: onPasteFailure)
-                if draft.text.isEmpty {
+                if draft.isEmpty {
                     Text("メッセージを入力…")
                         .font(.system(size: BellTheme.inputFontSize))
                         .foregroundStyle(BellTheme.muted)
@@ -838,6 +899,12 @@ private struct ScrollMetricsKey: PreferenceKey {
     }
 }
 
+private final class ReadCoordinator {
+    var task: Task<Void, Never>?
+    var again = false
+    var generation = 0
+}
+
 // スクロール中に毎フレーム書き換える値。画面の再描画を起こさないよう@Stateの値ではなく参照型に置く。
 private final class ScrollTracker {
     // 追加した過去行の配置中は、元の先頭行が一度画面に戻るまで固定を解除しない。
@@ -887,7 +954,10 @@ private struct MessageInput: UIViewRepresentable {
 
     func updateUIView(_ view: MessageTextView, context: Context) {
         context.coordinator.parent = self
-        if view.text != text { view.text = text }
+        if view.text != text {
+            view.text = text
+            view.invalidateSizeMeasurement()
+        }
         update(view)
     }
 
@@ -900,7 +970,7 @@ private struct MessageInput: UIViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: MessageTextView, context: Context) -> CGSize? {
         let width = proposal.width ?? uiView.bounds.width
         let lineHeight = uiView.font!.lineHeight
-        let height = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
+        let height = uiView.measuredHeight(forWidth: width)
         return CGSize(width: width, height: min(max(height, lineHeight), lineHeight * 5))
     }
 
@@ -912,6 +982,7 @@ private struct MessageInput: UIViewRepresentable {
         init(_ parent: MessageInput) { self.parent = parent }
 
         func textViewDidChange(_ textView: UITextView) {
+            (textView as? MessageTextView)?.invalidateSizeMeasurement()
             parent.text = textView.text
         }
     }
@@ -921,13 +992,38 @@ final class MessageTextView: UITextView {
     var onSend: () -> Void = {}
     var onPasteImages: ([PendingImage]) -> Void = { _ in }
     var onPasteFailure: (String) -> Void = { _ in }
+    private var measuredWidth: CGFloat?
+    private var measuredHeight: CGFloat = 0
+    private var sizeMeasurementIsValid = false
+    private var cachedPasteboardState: PasteboardState?
+
+    private struct PasteboardState {
+        let changeCount: Int
+        let fileURLs: [URL]
+        let hasImages: Bool
+    }
+
+    func invalidateSizeMeasurement() {
+        sizeMeasurementIsValid = false
+    }
+
+    func measuredHeight(forWidth width: CGFloat) -> CGFloat {
+        if sizeMeasurementIsValid, measuredWidth == width { return measuredHeight }
+        measuredHeight = sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
+        measuredWidth = width
+        sizeMeasurementIsValid = true
+        return measuredHeight
+    }
 
     override var keyCommands: [UIKeyCommand]? {
         #if !targetEnvironment(macCatalyst)
         guard traitCollection.userInterfaceIdiom == .pad else { return super.keyCommands }
         #endif
-        let newlineKeys: [UIKeyModifierFlags] = [.shift, .alternate]
-        let newlines = newlineKeys.map { flags in
+        return Self.returnKeyCommands
+    }
+
+    private static let returnKeyCommands: [UIKeyCommand] = {
+        let newlines = [UIKeyModifierFlags.shift, .alternate].map { flags in
             let command = UIKeyCommand(input: "\r", modifierFlags: flags, action: #selector(insertNewline(_:)))
             command.wantsPriorityOverSystemBehavior = true
             return command
@@ -935,28 +1031,31 @@ final class MessageTextView: UITextView {
         let send = UIKeyCommand(input: "\r", modifierFlags: [], action: #selector(sendWithReturn(_:)))
         send.wantsPriorityOverSystemBehavior = true
         return newlines + [send]
-    }
+    }()
 
     @objc private func sendWithReturn(_ command: UIKeyCommand) { onSend() }
     @objc private func insertNewline(_ command: UIKeyCommand) { insertText("\n") }
 
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
-        if action == #selector(paste(_:)), !pastedFileURLs.isEmpty || UIPasteboard.general.hasImages { return true }
+        if action == #selector(paste(_:)) {
+            let contents = pasteboardState
+            if !contents.fileURLs.isEmpty || contents.hasImages { return true }
+        }
         return super.canPerformAction(action, withSender: sender)
     }
 
     // コピーした画像ファイル（Finderなど）はファイル本体を、コピーした画像はその画像を添付にする。
     // ファイルのコピーはアイコン画像も一緒に載るため、ファイルを先に見る。
     override func paste(_ sender: Any?) {
-        let pasteboard = UIPasteboard.general
-        let files = pastedFileURLs
+        let contents = pasteboardState
+        let files = contents.fileURLs
         if !files.isEmpty {
             do { onPasteImages(try files.map(PendingImage.init(fileURL:))) }
             catch { onPasteFailure(error.localizedDescription) }
             return
         }
-        if pasteboard.hasImages {
-            let images = pasteboard.items.compactMap { item -> PendingImage? in
+        if contents.hasImages {
+            let images = UIPasteboard.general.items.compactMap { item -> PendingImage? in
                 for (type, value) in item where UTType(type)?.conforms(to: .image) == true {
                     if let data = value as? Data, let image = PendingImage(data: data) { return image }
                     if let data = (value as? UIImage)?.pngData(), let image = PendingImage(data: data) { return image }
@@ -970,41 +1069,49 @@ final class MessageTextView: UITextView {
         super.paste(sender)
     }
 
-    private var pastedFileURLs: [URL] {
-        guard UIPasteboard.general.hasURLs else { return [] }
-        return (UIPasteboard.general.urls ?? []).filter(\.isFileURL)
+    private var pasteboardState: PasteboardState {
+        let pasteboard = UIPasteboard.general
+        if let cachedPasteboardState, cachedPasteboardState.changeCount == pasteboard.changeCount {
+            return cachedPasteboardState
+        }
+        let hasImages = pasteboard.hasImages
+        let state = PasteboardState(
+            changeCount: pasteboard.changeCount,
+            fileURLs: pasteboard.hasURLs ? (pasteboard.urls ?? []).filter(\.isFileURL) : [],
+            hasImages: hasImages
+        )
+        cachedPasteboardState = state
+        return state
     }
 }
 
-private struct MessageRow: View {
+private struct MessageRow: View, Equatable {
     let message: TimelineMessage
     let isRoom: Bool
     let bot: Bot?
-    let bots: [Bot]
+    let senderBot: Bot?
+    let replyLabel: String?
     let api: BellAPI
     @State private var showingPeer = false
+
+    static func == (lhs: MessageRow, rhs: MessageRow) -> Bool {
+        lhs.message == rhs.message && lhs.isRoom == rhs.isRoom
+            && lhs.bot?.id == rhs.bot?.id && lhs.bot?.color == rhs.bot?.color
+            && lhs.bot?.avatar == rhs.bot?.avatar
+            && lhs.senderBot?.id == rhs.senderBot?.id && lhs.senderBot?.color == rhs.senderBot?.color
+            && lhs.senderBot?.avatar == rhs.senderBot?.avatar
+            && lhs.replyLabel == rhs.replyLabel && lhs.api === rhs.api
+    }
 
     private var senderName: String? {
         if message.isPeer { return message.peerName }
         if isRoom && !message.isOutgoing { return message.sender?.title }
         return nil
     }
-    private var senderBot: Bot? { bots.first { $0.id == message.sender?.id } }
     private var bubbleAccent: Color { AvatarTone.accent(for: isRoom ? senderBot : bot) }
     private var hasImageStack: Bool { message.displayedImageURLs.count > 1 }
     private var hasBubbleContent: Bool {
         !hasImageStack || message.message?.isEmpty == false || replyLabel != nil
-    }
-    private var replyLabel: String? {
-        guard isRoom, let routing = message.routing else { return nil }
-        switch routing.status {
-        case "pending": return "返信者を判定中"
-        case "failed": return "返信者の判定に失敗"
-        case "ready":
-            let names = routing.responders.map { id in bots.first { $0.id == id }?.displayName ?? id }
-            return "返信: \(names.isEmpty ? "なし" : names.joined(separator: "、"))"
-        default: return nil
-        }
     }
 
     var body: some View {
@@ -1135,13 +1242,13 @@ private struct MessageImages: View {
         Button { showingGallery = true } label: {
             VStack(alignment: outgoing ? .trailing : .leading, spacing: 10) {
                 if paths.count == 1 {
-                    AuthenticatedImage(path: paths[0], api: api)
+                    AuthenticatedImage(path: paths[0], api: api, maxPixelSize: nil)
                         .frame(maxWidth: 230)
                         .accessibilityIdentifier("message-image-\(messageID)-0")
                 } else {
                     ZStack {
                         ForEach(Array(paths.prefix(3).enumerated()).reversed(), id: \.offset) { depth, path in
-                            AuthenticatedImage(path: path, api: api, fillsFrame: true)
+                            AuthenticatedImage(path: path, api: api, maxPixelSize: 1024, fillsFrame: true)
                                 .frame(width: cardWidth, height: cardWidth * 1.4)
                                 .overlay { if depth > 0 { Color.white.opacity(0.28) } }
                                 .clipShape(RoundedRectangle(cornerRadius: 18))
@@ -1200,7 +1307,7 @@ private struct MessageImageGallery: View {
             }
             TabView(selection: $selection) {
                 ForEach(Array(paths.enumerated()), id: \.offset) { index, path in
-                    AuthenticatedImage(path: path, api: api)
+                    AuthenticatedImage(path: path, api: api, maxPixelSize: nil)
                         .padding(.horizontal, 16)
                         .accessibilityIdentifier("image-gallery-image-\(index)")
                         .tag(index)
@@ -1221,7 +1328,7 @@ private struct MessageImageGallery: View {
                                 HStack(spacing: 10) {
                                     ForEach(Array(paths.enumerated()), id: \.offset) { index, path in
                                         Button { selection = index } label: {
-                                            AuthenticatedImage(path: path, api: api, fillsFrame: true)
+                                            AuthenticatedImage(path: path, api: api, maxPixelSize: 192, fillsFrame: true)
                                                 .frame(width: 64, height: 64)
                                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                                                 .opacity(index == selection ? 1 : 0.5)
@@ -1263,6 +1370,7 @@ private struct MessageImageGallery: View {
 private struct AuthenticatedImage: View {
     let path: String
     let api: BellAPI
+    var maxPixelSize: Int? = 1024
     var fillsFrame = false
     @State private var image: UIImage?
     @State private var failed = false
@@ -1282,13 +1390,96 @@ private struct AuthenticatedImage: View {
                 ProgressView().frame(width: 120, height: 90)
             }
         }
-        .task(id: path) {
-            do { image = UIImage(data: try await api.image(path)) }
+        .task(id: "\(conversationImageOrigin(api.baseURL))|\(path)") {
+            do {
+                image = try await ConversationImageCache.shared.image(
+                    path: path,
+                    origin: conversationImageOrigin(api.baseURL),
+                    maxPixelSize: maxPixelSize,
+                    api: api
+                )
+            }
             catch {
                 failed = true
                 api.diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: image != nil))
             }
         }
+    }
+}
+
+private func conversationImageOrigin(_ url: URL?) -> String {
+    guard let url, var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+          let scheme = components.scheme?.lowercased(), let host = components.host?.lowercased() else {
+        return "unconfigured"
+    }
+    if (scheme == "https" && components.port == 443) || (scheme == "http" && components.port == 80) {
+        components.port = nil
+    }
+    return "\(scheme)://\(host)\(components.port.map { ":\($0)" } ?? "")"
+}
+
+/// 認証付き画像の取得をpath単位で共有し、表示サイズごとに縮小復号した結果を保持する。
+private actor ConversationImageCache {
+    static let shared = ConversationImageCache()
+
+    private let encodedImages = NSCache<NSString, NSData>()
+    private let decodedImages = NSCache<NSString, UIImage>()
+    private var requests: [RequestKey: Task<Data, Error>] = [:]
+
+    private init() {
+        encodedImages.totalCostLimit = 64 * 1024 * 1024
+        decodedImages.totalCostLimit = 64 * 1024 * 1024
+    }
+
+    func image(path: String, origin: String, maxPixelSize: Int?, api: BellAPI) async throws -> UIImage {
+        let requestKey = RequestKey(origin: origin, path: path)
+        let imageKey = "\(origin)|\(path)#\(maxPixelSize.map(String.init) ?? "original")" as NSString
+        let dataKey = "\(origin)|\(path)" as NSString
+        if let cached = decodedImages.object(forKey: imageKey) { return cached }
+
+        let data: Data
+        if let cached = encodedImages.object(forKey: dataKey) {
+            data = cached as Data
+        } else if let request = requests[requestKey] {
+            data = try await request.value
+        } else {
+            let request = Task { try await api.image(path) }
+            requests[requestKey] = request
+            do {
+                data = try await request.value
+                encodedImages.setObject(data as NSData, forKey: dataKey, cost: data.count)
+                requests[requestKey] = nil
+            } catch {
+                requests[requestKey] = nil
+                throw error
+            }
+        }
+
+        let image = try await Task.detached(priority: .userInitiated) {
+            try Self.decode(data: data, maxPixelSize: maxPixelSize)
+        }.value
+        decodedImages.setObject(image, forKey: imageKey, cost: image.cgImage.map { $0.bytesPerRow * $0.height } ?? 0)
+        return image
+    }
+
+    private struct RequestKey: Hashable {
+        let origin: String
+        let path: String
+    }
+
+    private static func decode(data: Data, maxPixelSize: Int?) throws -> UIImage {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { throw BellAPIError.invalidResponse }
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        guard let width = properties?[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties?[kCGImagePropertyPixelHeight] as? Int else { throw BellAPIError.invalidResponse }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize ?? max(width, height),
+            kCGImageSourceCreateThumbnailWithTransform: true
+        ]
+        let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+        guard let cgImage else { throw BellAPIError.invalidResponse }
+        return UIImage(cgImage: cgImage)
     }
 }
 

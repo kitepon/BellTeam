@@ -1,6 +1,6 @@
 import Foundation
 
-struct Bot: Decodable, Identifiable {
+struct Bot: Decodable, Identifiable, Equatable {
     let id: String
     let name: String
     let displayName: String
@@ -20,7 +20,7 @@ struct Bot: Decodable, Identifiable {
     let recent: RecentMessage?
 }
 
-struct Room: Decodable, Identifiable {
+struct Room: Decodable, Identifiable, Equatable {
     let id: String
     let name: String
     let purpose: String
@@ -31,7 +31,7 @@ struct Room: Decodable, Identifiable {
     let recent: RecentMessage?
 }
 
-struct Owner: Decodable {
+struct Owner: Decodable, Equatable {
     let name: String
     let profile: String
     var avatar: String
@@ -41,13 +41,13 @@ struct Owner: Decodable {
     let links: [OwnerLink]
 }
 
-struct OwnerLink: Decodable, Identifiable {
+struct OwnerLink: Decodable, Identifiable, Equatable {
     let label: String
     let url: String
     var id: String { label + url }
 }
 
-struct Member: Decodable, Identifiable {
+struct Member: Decodable, Identifiable, Equatable {
     let id: String
     let name: String?
     let displayName: String?
@@ -56,12 +56,12 @@ struct Member: Decodable, Identifiable {
     var title: String { displayName ?? name ?? id }
 }
 
-struct Delivery: Decodable {
+struct Delivery: Decodable, Equatable {
     let target: String
     let delivery: String
 }
 
-struct RecentMessage: Decodable {
+struct RecentMessage: Decodable, Equatable {
     let id: String
     let kind: String?
     let direction: String?
@@ -75,7 +75,7 @@ struct RecentMessage: Decodable {
     }
 }
 
-struct TimelineMessage: Decodable, Identifiable {
+struct TimelineMessage: Decodable, Identifiable, Equatable {
     let id: String
     let kind: String?
     let direction: String?
@@ -110,12 +110,12 @@ struct TimelineMessage: Decodable, Identifiable {
     }
 }
 
-struct RoomRouting: Decodable {
+struct RoomRouting: Decodable, Equatable {
     let status: String
     let responders: [String]
 }
 
-struct QueueItem: Decodable, Identifiable {
+struct QueueItem: Decodable, Identifiable, Equatable {
     let id: String
     let botId: String?
     let botName: String?
@@ -134,7 +134,7 @@ struct QueueItem: Decodable, Identifiable {
     }
 }
 
-struct Schedule: Decodable, Identifiable {
+struct Schedule: Decodable, Identifiable, Equatable {
     let id: String
     let name: String?
     let kind: String
@@ -157,7 +157,7 @@ struct Schedule: Decodable, Identifiable {
     var title: String { name?.isEmpty == false ? name! : (prompt ?? command ?? "予定") }
 }
 
-enum ChatTarget: Hashable {
+enum ChatTarget: Hashable, Sendable {
     case bot(String)
     case room(String)
 
@@ -253,7 +253,7 @@ struct HarnessAuthenticationResponse: Decodable {
     let harness: String
     let auth: SetupAuthentication?
 }
-struct FeatureField: Decodable, Identifiable {
+struct FeatureField: Decodable, Identifiable, Equatable {
     let key: String
     let label: String
     let secret: Bool
@@ -261,8 +261,8 @@ struct FeatureField: Decodable, Identifiable {
     let configured: Bool
     var id: String { key }
 }
-struct FeatureSettingError: Decodable { let code: String; let message: String }
-struct FeatureSetting: Decodable, Identifiable {
+struct FeatureSettingError: Decodable, Equatable { let code: String; let message: String }
+struct FeatureSetting: Decodable, Identifiable, Equatable {
     let id: String
     let title: String
     let enabled: Bool
@@ -290,7 +290,7 @@ struct SendMessageBody: Encodable {
     let targets: [String]?
 }
 
-struct SecretRequest: Decodable, Identifiable {
+struct SecretRequest: Decodable, Identifiable, Equatable {
     let id: String
     let botId: String
     let roomId: String?
@@ -303,7 +303,7 @@ struct SecretRequest: Decodable, Identifiable {
 
 struct SecretRequestResponse: Decodable { let request: SecretRequest }
 
-struct OwnerQuestion: Decodable, Identifiable {
+struct OwnerQuestion: Decodable, Identifiable, Equatable {
     let id: String
     let botId: String
     let question: String

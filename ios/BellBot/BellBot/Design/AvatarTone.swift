@@ -5,12 +5,10 @@ enum AvatarTone {
 
     static func accent(for bot: Bot?) -> Color {
         let fallback = BellTheme.accent(bot?.color ?? "violet")
-        guard let avatar = bot?.avatar, avatar.hasPrefix("data:image/"),
-              let comma = avatar.firstIndex(of: ",") else { return fallback }
+        guard let avatar = bot?.avatar, avatar.hasPrefix("data:image/") else { return fallback }
         let key = avatar as NSString
         if let cached = cache.object(forKey: key) { return Color(uiColor: cached) }
-        guard let data = Data(base64Encoded: String(avatar[avatar.index(after: comma)...])),
-              let image = UIImage(data: data)?.cgImage,
+        guard let image = AvatarPortraitCache.image(for: avatar)?.cgImage,
               let color = representativeColor(image) else { return fallback }
         cache.setObject(color, forKey: key)
         return Color(uiColor: color)

@@ -6,6 +6,17 @@ import XCTest
 
 @MainActor
 final class NetworkRecoveryTests: XCTestCase {
+    func testIdenticalRefreshDoesNotPublishWholeAppAgain() async {
+        let scenario = NetworkScenario(failures: 0)
+        let store = AppStore(api: makeAPI(scenario))
+        await store.refreshFromView(refreshSubscription: false)
+        var updates = 0
+        let observation = store.objectWillChange.sink { updates += 1 }
+        await store.refreshFromView(refreshSubscription: false)
+        XCTAssertEqual(updates, 0)
+        withExtendedLifetime(observation) {}
+    }
+
     func testAccessRedirectDuringRefreshOpensLoginInsteadOfLeavingAnErrorBanner() async {
         let scenario = NetworkScenario(failures: 0, accessExpired: true)
         let api = makeAPI(scenario)

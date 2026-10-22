@@ -112,6 +112,16 @@ final class EventStreamTests: XCTestCase {
         XCTAssertEqual(try parse(stream), [nil, "settings"])
     }
 
+    func testEventNameDistinguishesReadyFromMessageUpdate() throws {
+        var parser = SSEParser()
+        var names: [String?] = []
+        let stream = "event: ready\ndata: {}\n\nevent: messages\ndata: {\"at\":\"2026-10-22T00:00:00Z\"}\n\n"
+        for byte in stream.utf8 {
+            if try parser.feed(byte) != nil { names.append(parser.lastEventName) }
+        }
+        XCTAssertEqual(names, ["ready", "messages"])
+    }
+
     func testCRLFAndSplitDataLines() throws {
         XCTAssertEqual(try parse(": keepalive\r\n\r\ndata: {\"type\":\r\ndata: \"setup\"}\r\n\r\n"), ["setup"])
     }

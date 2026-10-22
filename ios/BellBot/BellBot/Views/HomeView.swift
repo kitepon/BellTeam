@@ -153,7 +153,7 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity)
                     .bellCard()
             } else {
-                VStack(spacing: 10) {
+                LazyVStack(spacing: 10) {
                     ForEach(bots) { bot in
                         NavigationLink(value: ChatTarget.bot(bot.id)) {
                             BotRow(bot: bot, working: store.workingBotIDs.contains(bot.id))

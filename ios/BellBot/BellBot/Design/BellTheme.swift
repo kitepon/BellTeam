@@ -76,9 +76,7 @@ struct AvatarView: View {
     var isRoom = false
 
     private var portrait: UIImage? {
-        guard avatar.hasPrefix("data:image/"), let comma = avatar.firstIndex(of: ","),
-              let data = Data(base64Encoded: String(avatar[avatar.index(after: comma)...])) else { return nil }
-        return UIImage(data: data)
+        AvatarPortraitCache.image(for: avatar)
     }
 
     var body: some View {
@@ -107,8 +105,23 @@ struct AvatarView: View {
     }
 }
 
+enum AvatarPortraitCache {
+    private static let images = NSCache<NSString, UIImage>()
+
+    static func image(for avatar: String) -> UIImage? {
+        guard avatar.hasPrefix("data:image/"), let comma = avatar.firstIndex(of: ",") else { return nil }
+        let key = avatar as NSString
+        if let cached = images.object(forKey: key) { return cached }
+        guard let data = Data(base64Encoded: String(avatar[avatar.index(after: comma)...])),
+              let image = UIImage(data: data) else { return nil }
+        images.setObject(image, forKey: key)
+        return image
+    }
+}
+
 @MainActor
 enum BellDate {
+    private static let parsed = NSCache<NSString, NSDate>()
     private static let precise: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -117,7 +130,11 @@ enum BellDate {
     private static let standard = ISO8601DateFormatter()
 
     static func parse(_ value: String) -> Date? {
-        precise.date(from: value) ?? standard.date(from: value)
+        let key = value as NSString
+        if let cached = parsed.object(forKey: key) { return cached as Date }
+        guard let date = precise.date(from: value) ?? standard.date(from: value) else { return nil }
+        parsed.setObject(date as NSDate, forKey: key)
+        return date
     }
 
     static func short(_ value: String?) -> String {

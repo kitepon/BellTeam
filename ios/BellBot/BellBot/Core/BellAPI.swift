@@ -214,7 +214,9 @@ final class BellAPI {
             }
             var parser = SSEParser()
             for try await byte in bytes {
-                if let payload = try parser.feed(byte) { try await onEvent(payload["type"] as? String) }
+                if let payload = try parser.feed(byte) {
+                    try await onEvent(payload["type"] as? String ?? parser.lastEventName)
+                }
             }
         } catch {
             // 表示・再接続・停止を扱うAppStoreが、影響を確認して報告する。
@@ -353,16 +355,26 @@ private final class BellTaskMetricsCollector: NSObject, URLSessionTaskDelegate {
 struct SSEParser {
     private var line = Data()
     private var eventData = Data()
+    private var eventName: String?
+    private(set) var lastEventName: String?
 
     mutating func feed(_ byte: UInt8) throws -> [String: Any]? {
         if byte == 13 { return nil }
         if byte != 10 { line.append(byte); return nil }
         defer { line.removeAll(keepingCapacity: true) }
         if line.isEmpty {
-            defer { eventData.removeAll(keepingCapacity: true) }
+            defer {
+                eventData.removeAll(keepingCapacity: true)
+                eventName = nil
+            }
             guard !eventData.isEmpty else { return nil }
             guard let payload = try JSONSerialization.jsonObject(with: eventData) as? [String: Any] else { throw BellAPIError.invalidResponse }
+            lastEventName = eventName
             return payload
+        }
+        if line.starts(with: "event:".utf8) {
+            eventName = String(decoding: line.dropFirst(6), as: UTF8.self)
+                .trimmingCharacters(in: .whitespaces)
         }
         if line.starts(with: "data:".utf8) {
             if !eventData.isEmpty { eventData.append(10) }
