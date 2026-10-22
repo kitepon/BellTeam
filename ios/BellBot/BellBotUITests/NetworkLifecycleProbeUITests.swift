@@ -337,6 +337,107 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["予定はありません"].waitForExistence(timeout: 12))
     }
 
+    func testRealServerTargetsOpenConversationAndFallsBackForLegacyEvents() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_APPLE_INTEGRATION_URL"] else {
+            throw XCTSkip("実サーバー結合用の隔離fixtureが必要です。")
+        }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server, "-bellbot-preview-events"]
+        app.launch(); defer { app.terminate() }
+        let member = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "ユキ")).firstMatch
+        XCTAssertTrue(member.waitForExistence(timeout: 10))
+        member.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["message-text-baseline-bot-one-2"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForIntegration(base) { ($0["subscribers"] as? Int ?? 0) > 0 })
+        XCTAssertTrue(waitForIntegration(base) { proof in
+            self.integrationPaths(proof).isSuperset(of: ["/api/bots", "/api/rooms", "/api/owner", "/api/queue"])
+        }, "初回readyで接続前の隙間を全体照合する")
+        _ = try data(base, "/test/clear-proof")
+
+        _ = try data(base, "/test/bot?bot=bot-two")
+        XCTAssertTrue(waitForIntegration(base) { proof in
+            let paths = self.integrationPaths(proof)
+            return paths.contains("/api/bots")
+        })
+        let unrelated = try integrationProof(base)
+        XCTAssertFalse(integrationPaths(unrelated).contains("/api/bots/bot-one/messages"), "別Botの通知で開いている会話を読み直さない")
+        attach(try data(base, "/test/proof"), name: "別Bot通知時の対象GET")
+
+        _ = try data(base, "/test/clear-proof")
+        let updated = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/bot?bot=bot-one")) as? [String: Any])
+        let id = try XCTUnwrap(updated["id"] as? String)
+        XCTAssertTrue(app.descendants(matching: .any)["message-text-\(id)"].firstMatch.waitForExistence(timeout: 10), "対象Botの新着を表示する")
+        XCTAssertTrue(integrationPaths(try integrationProof(base)).contains("/api/bots/bot-one/messages"))
+        attach(try data(base, "/test/proof"), name: "対象Bot通知時の表示とGET")
+
+        for scenario in ["legacy", "invalid-scope", "unknown-topic", "unknown"] {
+            _ = try data(base, "/test/clear-proof")
+            _ = try data(base, "/test/\(scenario)")
+            XCTAssertTrue(waitForIntegration(base) { proof in
+                self.integrationPaths(proof).isSuperset(of: ["/api/bots", "/api/rooms", "/api/owner", "/api/queue"])
+            }, "\(scenario)では全体を照合する")
+            attach(try data(base, "/test/proof"), name: "\(scenario)通知時の全体照合")
+        }
+        _ = try data(base, "/test/clear-proof")
+        _ = try data(base, "/test/reconnect")
+        XCTAssertTrue(waitForIntegration(base) { proof in
+            let ready = (proof["events"] as? [[String: Any]] ?? []).contains { $0["event"] as? String == "ready" }
+            return ready && self.integrationPaths(proof).isSuperset(of: ["/api/bots", "/api/rooms", "/api/owner", "/api/queue"])
+        }, "再接続時のreadyで全体を照合する")
+        attach(try data(base, "/test/proof"), name: "再接続時の全体照合")
+        _ = try data(base, "/test/clear-proof")
+        _ = try data(base, "/test/invalid")
+        XCTAssertTrue(app.staticTexts["connection-error"].waitForExistence(timeout: 10), "壊れたJSONは画面に異常を表示する")
+        XCTAssertTrue(waitForIntegration(base) { ($0["subscribers"] as? Int ?? 0) == 0 }, "応答形式の異常ではSSEを停止する")
+        XCTAssertTrue(integrationPaths(try integrationProof(base)).isDisjoint(with: ["/api/bots", "/api/rooms", "/api/owner", "/api/queue"]),
+                      "壊れたJSONで全体照合を装わない")
+        attach(try data(base, "/test/proof"), name: "壊れたJSON通知時の停止")
+    }
+
+    func testRealServerScheduleEventReadsOnlyAffectedSource() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_APPLE_INTEGRATION_URL"] else {
+            throw XCTSkip("実サーバー結合用の隔離fixtureが必要です。")
+        }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server, "-bellbot-preview-events"]
+        app.launch(); defer { app.terminate() }
+        XCTAssertTrue(app.tabBars.buttons["予定"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["予定"].tap()
+        XCTAssertTrue(waitForIntegration(base) { proof in
+            self.integrationPaths(proof).filter { $0.hasSuffix("/schedules") }.count == 5
+        }, "初回は全Botと部屋の予定を取得する")
+        _ = try data(base, "/test/clear-proof")
+
+        let changed = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/bot-schedule?bot=bot-one")) as? [String: Any])
+        let title = try XCTUnwrap(changed["name"] as? String)
+        XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 10), "予定通知で該当するカードを表示する")
+        let paths = integrationPaths(try integrationProof(base))
+        XCTAssertEqual(paths.filter { $0.hasSuffix("/schedules") }, ["/api/bots/bot-one/schedules"])
+        XCTAssertFalse(paths.contains("/api/bots/bot-one/messages"))
+        attach(try data(base, "/test/proof"), name: "実サーバーとAppleの予定対象通知の結合証拠")
+    }
+
+    private func integrationProof(_ base: URL) throws -> [String: Any] {
+        try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+    }
+
+    private func integrationPaths(_ proof: [String: Any]) -> Set<String> {
+        Set((proof["requests"] as? [[String: Any]] ?? []).compactMap { $0["path"] as? String })
+    }
+
+    private func waitForIntegration(_ base: URL, until condition: ([String: Any]) -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline {
+            if let proof = try? integrationProof(base), condition(proof) { return true }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return false
+    }
+
     private func waitForRequests(_ base: URL, count: Int) -> Bool {
         let limit = Date().addingTimeInterval(5)
         while Date() < limit {

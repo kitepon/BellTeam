@@ -339,7 +339,10 @@ final class NetworkRecoveryTests: XCTestCase {
         let store = AppStore(api: makeAPI(scenario))
         defer { store.stopEvents() }
         let notified = expectation(description: "予定だけを更新")
-        let observation = store.scheduleChanges.sink { notified.fulfill() }
+        let observation = store.scheduleChanges.sink { targets in
+            XCTAssertEqual(targets, [.bot("bot-network")])
+            notified.fulfill()
+        }
         store.startEvents()
         await fulfillment(of: [notified], timeout: 4)
         XCTAssertEqual(store.eventRevision, 0)
@@ -387,6 +390,23 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertEqual(scenario.count("/api/rooms"), 0)
         XCTAssertEqual(scenario.count("/api/owner"), 0)
         withExtendedLifetime(observation) {}
+    }
+
+    func testUnknownTopicFallsBackToFullRefresh() async {
+        let stream = "event: messages\ndata: {\"all\":false,\"topics\":[\"future-topic\"],\"botIds\":[\"bot-network\"],\"roomIds\":[]}\n\n"
+        let scenario = NetworkScenario(failures: 0, holdEventsOpen: true,
+                                       skipAvatarVersion: true, eventStream: stream)
+        let store = AppStore(api: makeAPI(scenario))
+        defer { store.stopEvents() }
+        store.startEvents()
+        for _ in 0..<80 where store.bots.isEmpty {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertEqual(store.eventRevision, 1)
+        XCTAssertEqual(scenario.count("/api/bots"), 1)
+        XCTAssertEqual(scenario.count("/api/rooms"), 1)
+        XCTAssertEqual(scenario.count("/api/owner"), 1)
+        XCTAssertEqual(scenario.count("/api/queue"), 1)
     }
 
     func testNotificationFailureHasOnlyItsStageReport() async {

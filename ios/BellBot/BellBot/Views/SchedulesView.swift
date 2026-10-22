@@ -92,63 +92,72 @@ struct SchedulesView: View {
                     loading = false
                 }
             }
-            .onChange(of: store.eventRevision) { _, _ in requestRefreshAfterCurrentLoad() }
-            .onReceive(store.scheduleChanges) { requestRefreshAfterCurrentLoad() }
+            .onChange(of: store.eventRevision) { _, _ in requestRefreshAfterCurrentLoad(.all) }
+            .onReceive(store.scheduleChanges) { targets in
+                requestRefreshAfterCurrentLoad(.targets(targets))
+            }
             .onDisappear { refreshState.cancel() }
         }
     }
 
-    private func load() async {
+    private func load(_ request: ScheduleRefreshRequest = .all) async {
         guard scenePhase == .active, store.selectedTab == 1 else { return }
         if let task = refreshState.task {
-            refreshState.needsRefresh = true
+            refreshState.enqueue(request)
             await task.value
             return
         }
         let generation = refreshState.begin()
         let task = Task { @MainActor in
-            repeat {
-                refreshState.needsRefresh = false
-                await fetchEntries()
-            } while refreshState.needsRefresh
-                && !Task.isCancelled
-                && refreshState.generation == generation
-                && scenePhase == .active
-                && store.selectedTab == 1
+            var next: ScheduleRefreshRequest? = request
+            while let current = next,
+                  !Task.isCancelled,
+                  refreshState.generation == generation,
+                  scenePhase == .active,
+                  store.selectedTab == 1 {
+                await fetchEntries(current)
+                next = refreshState.takePending()
+            }
             refreshState.finish(generation)
         }
         refreshState.task = task
         await task.value
     }
 
-    private func requestRefreshAfterCurrentLoad() {
+    private func requestRefreshAfterCurrentLoad(_ request: ScheduleRefreshRequest) {
         guard scenePhase == .active, store.selectedTab == 1 else { return }
         guard refreshState.task != nil else {
-            Task { await load() }
+            Task { await load(request) }
             return
         }
-        refreshState.needsRefresh = true
+        refreshState.enqueue(request)
     }
 
-    private func fetchEntries() async {
+    private func fetchEntries(_ requested: ScheduleRefreshRequest) async {
         loading = entries.isEmpty
         do {
             let sources = store.bots.map { (target: ChatTarget.bot($0.id), name: $0.displayName) }
                 + store.rooms.map { (target: ChatTarget.room($0.id), name: $0.name) }
+            let request = refreshState.hasLoadedAll ? requested : .all
             let api = store.api
-            let result = try await withThrowingTaskGroup(of: (Int, [ScheduledEntry]).self) { group in
-                for (index, source) in sources.enumerated() {
+            let fetched = try await withThrowingTaskGroup(of: (ChatTarget, [ScheduledEntry]).self) { group in
+                for source in sources where request.includes(source.target) {
                     group.addTask {
                         let response: SchedulesResponse = try await api.get(source.target.path + "/schedules")
                         try Task.checkCancellation()
-                        return (index, response.schedules.map {
+                        return (source.target, response.schedules.map {
                             ScheduledEntry(target: source.target, ownerName: source.name, schedule: $0)
                         })
                     }
                 }
-                var pages = Array(repeating: [ScheduledEntry](), count: sources.count)
-                for try await (index, page) in group { pages[index] = page }
-                return pages.flatMap { $0 }
+                var pages: [ChatTarget: [ScheduledEntry]] = [:]
+                for try await (target, page) in group { pages[target] = page }
+                return pages
+            }
+            try Task.checkCancellation()
+            let existing = Dictionary(grouping: entries, by: \.target)
+            let result = sources.flatMap { source in
+                fetched[source.target] ?? existing[source.target] ?? []
             }
             let dated = result.enumerated()
                 .filter { $0.element.schedule.nextRunAt != nil || $0.element.schedule.enabled == true }
@@ -160,6 +169,7 @@ struct SchedulesView: View {
                 $0.date == $1.date ? $0.offset < $1.offset : $0.date < $1.date
             }.map(\.entry)
             if entries != newEntries { entries = newEntries }
+            if case .all = request { refreshState.hasLoadedAll = true }
             errorText = nil
         } catch is CancellationError { return }
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
@@ -194,10 +204,30 @@ struct SchedulesView: View {
     }
 }
 
+private enum ScheduleRefreshRequest {
+    case all
+    case targets(Set<ChatTarget>)
+
+    func includes(_ target: ChatTarget) -> Bool {
+        switch self {
+        case .all: true
+        case .targets(let targets): targets.contains(target)
+        }
+    }
+
+    func merging(_ other: Self) -> Self {
+        switch (self, other) {
+        case (.all, _), (_, .all): .all
+        case (.targets(let first), .targets(let second)): .targets(first.union(second))
+        }
+    }
+}
+
 @MainActor
 private final class ScheduleRefreshState {
     var task: Task<Void, Never>?
-    var needsRefresh = false
+    var hasLoadedAll = false
+    private var pending: ScheduleRefreshRequest?
     private(set) var generation = 0
 
     func begin() -> Int {
@@ -208,14 +238,23 @@ private final class ScheduleRefreshState {
     func finish(_ taskGeneration: Int) {
         guard generation == taskGeneration else { return }
         task = nil
-        needsRefresh = false
+        pending = nil
+    }
+
+    func enqueue(_ request: ScheduleRefreshRequest) {
+        pending = pending.map { $0.merging(request) } ?? request
+    }
+
+    func takePending() -> ScheduleRefreshRequest? {
+        defer { pending = nil }
+        return pending
     }
 
     func cancel() {
         generation += 1
         task?.cancel()
         task = nil
-        needsRefresh = false
+        pending = nil
     }
 }
 

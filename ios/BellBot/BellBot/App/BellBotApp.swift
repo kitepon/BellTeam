@@ -201,6 +201,7 @@ private struct BellTabs: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             if let error = store.connectionError {
                 Text(error)
+                    .accessibilityIdentifier("connection-error")
                     .font(.caption)
                     .foregroundStyle(.red)
                     .lineLimit(2)

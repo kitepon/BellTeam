@@ -33,7 +33,7 @@ final class AppStore: ObservableObject {
     @Published var owner: Owner?
     @Published var eventRevision = 0
     let conversationChanges = PassthroughSubject<ChatTarget, Never>()
-    let scheduleChanges = PassthroughSubject<Void, Never>()
+    let scheduleChanges = PassthroughSubject<Set<ChatTarget>, Never>()
     @Published var workingBotIDs: Set<String> = []
     @Published private(set) var aiControl: AIControl?
     @Published private(set) var aiControlLoading = false
@@ -665,7 +665,9 @@ final class AppStore: ObservableObject {
             for id in botIDs { conversationChanges.send(.bot(id)) }
             for id in roomIDs { conversationChanges.send(.room(id)) }
         }
-        if topics.contains(.schedules) { scheduleChanges.send() }
+        if topics.contains(.schedules) {
+            scheduleChanges.send(Set(botIDs.map(ChatTarget.bot) + roomIDs.map(ChatTarget.room)))
+        }
         if topics.contains(.settings) { try await refreshSettings() }
         if topics.contains(.setup) { try await refreshSetup() }
         if topics.contains(.aiControl) { await refreshAIControl() }
