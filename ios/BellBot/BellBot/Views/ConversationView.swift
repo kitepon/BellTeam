@@ -131,6 +131,9 @@ private struct ConversationContent: View {
                     .onChange(of: store.eventRevision) { _, _ in
                         if appIsActive { Task { await load() } }
                     }
+                    .onReceive(store.conversationChanges) { changedTarget in
+                        if changedTarget == target && appIsActive { Task { await load() } }
+                    }
                 }
             }
         }

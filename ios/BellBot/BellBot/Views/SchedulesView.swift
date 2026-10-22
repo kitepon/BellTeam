@@ -93,6 +93,7 @@ struct SchedulesView: View {
                 }
             }
             .onChange(of: store.eventRevision) { _, _ in requestRefreshAfterCurrentLoad() }
+            .onReceive(store.scheduleChanges) { requestRefreshAfterCurrentLoad() }
             .onDisappear { refreshState.cancel() }
         }
     }

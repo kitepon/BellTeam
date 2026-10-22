@@ -99,6 +99,25 @@ final class ConversationScrollUITests: XCTestCase {
         XCTAssertTrue(text("m031").waitForExistence(timeout: 5))
     }
 
+    func testTargetedEventDoesNotReloadAnotherConversation() throws {
+        try openConversation("ユキ", failBefore: false, total: 30, events: true)
+        XCTAssertTrue(text("m030").waitForExistence(timeout: 10))
+        var subscriberConnected = false
+        for _ in 0..<50 {
+            let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data("/test/proof")) as? [String: Any])
+            if (proof["subscribers"] as? Int ?? 0) > 0 { subscriberConnected = true; break }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        XCTAssertTrue(subscriberConnected, "試験用SSEへ接続した後に通知する")
+        let before = try requests().count
+        _ = try data("/test/notify?bot=bot-two")
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertEqual(try requests().count, before, "別Botの通知で表示中の会話を取得しない")
+        _ = try data("/test/append?targeted=1")
+        XCTAssertTrue(text("m031").waitForExistence(timeout: 10), "表示中のBotの新着は反映する")
+        XCTAssertGreaterThan(try requests().count, before)
+    }
+
     private func scrollUntilOlderRequested() throws {
         let scroll = conversationScroll()
         for _ in 0..<12 where try !requests().contains(where: { $0.contains("before=") }) { scroll.swipeDown() }
@@ -106,10 +125,11 @@ final class ConversationScrollUITests: XCTestCase {
         XCTAssertTrue(try requests().contains(where: { $0.contains("before=") }), "上端へ着いたら過去を取得する")
     }
 
-    private func openConversation(_ name: String, failBefore: Bool, total: Int = 60) throws {
+    private func openConversation(_ name: String, failBefore: Bool, total: Int = 60, events: Bool = false) throws {
         _ = try data("/test/reset?failBefore=\(failBefore ? 1 : 0)&total=\(total)")
         app = XCUIApplication()
         app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", base.absoluteString]
+        if events { app.launchArguments.append("-bellbot-preview-events") }
         app.launch()
         let member = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", name)).firstMatch
         XCTAssertTrue(member.waitForExistence(timeout: 10))

@@ -58,8 +58,19 @@ const server = createServer((request, response) => {
   if (path === '/test/append') {
     const id = `m${String(messages.length + 1).padStart(3, '0')}`
     messages.push({ id, kind: 'message', direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at: new Date().toISOString(), message: `${id} 新着です。`, delivery: 'delivered' })
-    for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: {"type":"messages"}\n\n`)
+    const targeted = url.searchParams.get('targeted') === '1'
+    const payload = targeted
+      ? { at: new Date().toISOString(), all: false, topics: ['timeline'], botIds: ['bot-one'], roomIds: [] }
+      : { type: 'messages' }
+    for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: ${JSON.stringify(payload)}\n\n`)
     return json({ id })
+  }
+  if (path === '/test/notify') {
+    const bot = url.searchParams.get('bot')
+    if (bot !== 'bot-one' && bot !== 'bot-two') return json({ error: 'UNKNOWN_BOT' }, 400)
+    const payload = { at: new Date().toISOString(), all: false, topics: ['timeline'], botIds: [bot], roomIds: [] }
+    for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: ${JSON.stringify(payload)}\n\n`)
+    return json({ ok: true })
   }
   if (path === '/api/events') {
     response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' })
