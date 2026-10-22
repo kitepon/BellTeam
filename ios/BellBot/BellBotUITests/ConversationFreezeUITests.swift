@@ -1,6 +1,27 @@
 import XCTest
 
 final class ConversationFreezeUITests: XCTestCase {
+    /// 取得済み100行を更新しても、スクロールと入力欄が応答する。
+    func testLongConversationRemainsResponsiveDuringUpdates() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview-updating-chat", "-bellbot-preview-performance-chat"]
+        app.launch()
+        defer { app.terminate() }
+        let member = app.staticTexts["ユキ"].firstMatch
+        XCTAssertTrue(member.waitForExistence(timeout: 10))
+        member.tap()
+        let field = app.textViews["message-input"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        let scroll = app.scrollViews.firstMatch
+        for _ in 0..<3 {
+            scroll.swipeDown()
+            scroll.swipeUp()
+        }
+        field.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+    }
+
     func testConversationRemainsResponsiveDuringUpdatesAndScrolling() {
         continueAfterFailure = false
         let app = XCUIApplication()
