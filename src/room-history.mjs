@@ -5,6 +5,7 @@ export class RoomHistory {
   constructor(path) {
     this.path = path
     this.read = emptyRead()
+    this.observedSize = null
     this.queue = Promise.resolve()
   }
 
@@ -27,12 +28,17 @@ export class RoomHistory {
     try { file = await open(this.path, 'r') }
     catch (error) {
       if (error.code !== 'ENOENT') throw error
+      this.observedSize = null
       return this.read = emptyRead()
     }
     try {
       const { ino, size, mtimeMs } = await file.stat()
-      if (ino !== this.read.ino || size < this.read.offset
-        || size === this.read.offset && mtimeMs !== this.read.mtimeMs) this.read = emptyRead()
+      // offset excludes a newline-free tail; only the last total size detects
+      // truncation that leaves the file larger than that committed prefix.
+      const shrunk = this.observedSize !== null && size < this.observedSize
+      const rewritten = size === this.observedSize && mtimeMs !== this.read.mtimeMs
+      this.observedSize = size
+      if (ino !== this.read.ino || shrunk || rewritten) this.read = emptyRead()
       if (ino === this.read.ino && size === this.read.offset) return this.read
       const buffer = Buffer.alloc(size - this.read.offset)
       const { bytesRead } = await file.read(buffer, 0, buffer.length, this.read.offset)

@@ -8,6 +8,7 @@ export class ConversationStore {
     // ログは追記だけ（BellTeamMessenger.append）。読み終えた行までの結果を持ち、次は増えた分だけ読む。
     // 全体を呼び出しのたびに読み直すと、同時の呼び出しの数だけログの写しがメモリに乗る。
     this.read = emptyRead()
+    this.observedSize = null
     this.queue = Promise.resolve()
   }
 
@@ -37,14 +38,18 @@ export class ConversationStore {
       file = await open(this.logPath, 'r')
     } catch (error) {
       if (error.code !== 'ENOENT') throw error
+      this.observedSize = null
       this.read = emptyRead()
       return this.read
     }
     try {
       const { size, ino, mtimeMs } = await file.stat()
       // 別のファイルに替わったか短くなった時は、最初から読み直す。
-      if (ino !== this.read.ino || size < this.read.offset
-        || size === this.read.offset && mtimeMs !== this.read.mtimeMs) this.read = { ...emptyRead(), ino, mtimeMs }
+      // 改行なしの末尾はoffsetに含めないため、前回の総sizeと比較する。
+      const shrunk = this.observedSize !== null && size < this.observedSize
+      const rewritten = size === this.observedSize && mtimeMs !== this.read.mtimeMs
+      this.observedSize = size
+      if (ino !== this.read.ino || shrunk || rewritten) this.read = { ...emptyRead(), ino, mtimeMs }
       if (size === this.read.offset) return this.read
 
       const buffer = Buffer.alloc(size - this.read.offset)

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
-import { appendFile, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdtemp, rename, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -96,6 +96,65 @@ test('過去の配送状態と追記は両Botへ反映し、変更前の応答�
   await appendFile(path, line({ schema: 'bellteam.interim-word.v1', bot: 'bot-b', id: 'word', text: 'working', at: '2026-10-22T00:00:01Z' }))
   assert.equal((await store.timeline('bot-a')).length, 1)
   assert.equal((await store.timeline('bot-b')).length, 2)
+})
+
+test('改行なし末尾を読んだroomログが同inodeで未確定offsetより大きく縮んでも再構築する', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bell-room-tail-shrink-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const rooms = new RoomRegistry({ roomsRoot: root, bots: new Map(), roomId: () => 'room-a' })
+  await rooms.initialize()
+  await rooms.create({ name: 'test', memberIds: [] })
+  const path = join(root, 'room-a/messages.jsonl')
+  const prefix = line({ id: 'old', message: 'old' })
+  const original = prefix + JSON.stringify({ id: 'tail', message: 'x'.repeat(500) })
+  const replacement = line({ id: 'new', message: 'y'.repeat(75) })
+  assert.ok(Buffer.byteLength(prefix) < Buffer.byteLength(replacement))
+  assert.ok(Buffer.byteLength(replacement) < Buffer.byteLength(original))
+  await writeFile(path, original)
+  const oldInode = (await stat(path)).ino
+  const before = await rooms.messages('room-a')
+  assert.deepEqual(before.map(x => x.id), ['old', 'tail'])
+  // Also preserve the documented same-size rewrite recovery with a tail.
+  const sameSize = line({ id: 'alt', message: 'old' }) + JSON.stringify({ id: 'tail', message: 'z'.repeat(500) })
+  assert.equal(Buffer.byteLength(sameSize), Buffer.byteLength(original))
+  await writeFile(path, sameSize)
+  await utimes(path, new Date(), new Date(Date.now() + 2000))
+  assert.deepEqual((await rooms.messages('room-a')).map(x => x.id), ['alt', 'tail'])
+  await writeFile(path, replacement)
+  assert.equal((await stat(path)).ino, oldInode)
+  for (let i = 0; i < 2; i++) assert.deepEqual((await rooms.messages('room-a')).map(x => x.id), ['new'])
+  assert.deepEqual(before.map(x => x.id), ['old', 'tail'])
+  await appendFile(path, line({ id: 'next', message: 'next' }))
+  assert.deepEqual((await rooms.messages('room-a')).map(x => x.id), ['new', 'next'])
+})
+
+test('直接会話も改行なし末尾後の同inode縮小で旧Bot索引と配送状態を破棄する', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bell-direct-tail-shrink-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const path = join(root, 'direct.jsonl')
+  const prefix = line(direct('old', 'bot-a'))
+  const original = prefix + JSON.stringify({ ...direct('tail', 'bot-b'), message: 'x'.repeat(500) })
+  const replacement = line({ ...direct('new', 'bot-a'), message: 'y'.repeat(75) })
+  assert.ok(Buffer.byteLength(prefix) < Buffer.byteLength(replacement))
+  assert.ok(Buffer.byteLength(replacement) < Buffer.byteLength(original))
+  await writeFile(path, original)
+  const oldInode = (await stat(path)).ino
+  const store = new ConversationStore({ logPath: path })
+  assert.deepEqual((await store.timeline('bot-a')).map(x => x.id), ['old'])
+  assert.deepEqual((await store.timeline('bot-b')).map(x => x.id), ['tail'])
+  const sameSize = line(direct('alt', 'bot-a')) + JSON.stringify({ ...direct('tail', 'bot-b'), message: 'z'.repeat(500) })
+  assert.equal(Buffer.byteLength(sameSize), Buffer.byteLength(original))
+  await writeFile(path, sameSize)
+  await utimes(path, new Date(), new Date(Date.now() + 2000))
+  assert.deepEqual((await store.timeline('bot-a')).map(x => x.id), ['alt'])
+  await writeFile(path, replacement)
+  assert.equal((await stat(path)).ino, oldInode)
+  for (let i = 0; i < 2; i++) {
+    assert.deepEqual((await store.timeline('bot-a')).map(x => x.id), ['new'])
+    assert.deepEqual(await store.timeline('bot-b'), [])
+  }
+  await appendFile(path, line({ schema: 'bellteam.delivery-status.v1', delivery_id: 'new', delivery: 'delivered' }))
+  assert.equal((await store.timeline('bot-a'))[0].delivery, 'delivered')
 })
 
 test('ページ外の画像を整形せず、before/afterとカード変更の既存応答を保つ', async t => {

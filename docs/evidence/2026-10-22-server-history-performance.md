@@ -39,7 +39,15 @@ Node v26.12.1、60 Bot、直接メッセージ30,000件＋配送状態10,000件�
 
 当席原本は`integrations/apple-performance-20261022/`のserver-regression-before.log、server-focused-after.log、server-full-explicit-after.log、server-benchmark-{before,after}.json、server-memory-{before,after}.json。
 
-## ログ画面とAitermの境界
+## 独立レビューで判明した改行なし末尾と縮小の組合せ
+
+ベルが、末尾に有効JSONがあり改行だけがない状態を読取後、同じinodeのファイルを縮小し、新しい総sizeが最後の改行offset以上となる場合の欠陥を再現した。初版004226aはoffsetとの比較だけで縮小を判定し、以前のprefixを残した位置から新ファイルの途中をparseしてエラーを繰り返した。従来の単独の縮小試験と単独の末尾試験では、この組合せを検出できていなかった。
+
+同じ比較を使うConversationStoreも確認し、room/直接会話の2回帰を追加して初版で2件とも失敗することを確認。各readerが最後に観測したファイル総sizeをoffsetと別に保持し、総size減少なら正本から全再構築する。同サイズの内容変更判定も観測総sizeとmtimeで行う。不存在時は観測サイズを捨てる。Bot索引/過去statusを含むキャッシュも再構築される。
+
+回帰は、同inode/有効な改行なし末尾/総sizeが旧offsetを下回らない縮小、同サイズ書換え、繰返し読取、縮小後の通常追記と配送状態更新、以前の応答保持を確認。関連4ファイル52件成功、追補後の`TESTGATE_FULL=1 npm test`は641pass/0fail/skip/cancel。初版の性能表は004226a時点の計測で、この追補で性能再計測は行っていない。本番反映とmain統合は引き続き未実施。
+
+## ログ画面とAitermの境界（調査結果）
 
 現行BotScreenViewは開いている間`GET /api/bots/{id}/screen`完了→2秒sleepを反復する。AppleからisRunningを別HTTP呼出ししているコードではない。サーバーのAitermTransport.screenはisRunning→runningBots([bot])→pty_listを1回、onlineならpty_read(screen:true,raw:true,timeout:0,lines:40)を1回。停止席ならlist1/read0。別の`GET /api/bots`も自身のrunningBots(all)でpty_listを1回行うため、画面pollとSSE由来の一覧GETが重なれば複数listが生じ得る。
 
