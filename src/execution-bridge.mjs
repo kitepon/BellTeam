@@ -33,7 +33,14 @@ async function call(client, name, args, options) {
     const result = await client.call(name, args, options)
     if (result?.isError) {
       const receipt = returnedExecutionError(result._meta?.[ERROR_META])
-      throw receipt ? Object.assign(failure(receipt.code, receipt.effect), receipt) : failure()
+      // Keep the native refusal available to the existing HTTP cause log.
+      // The typed execution receipt still determines whether input may have
+      // been issued; native text never grants a retry or changes acceptance.
+      const detail = result.content?.filter(item => item.type === 'text' && typeof item.text === 'string')
+        .map(item => item.text).join('\n').slice(0, 2000)
+      const cause = detail ? new Error(detail) : undefined
+      throw receipt ? Object.assign(failure(receipt.code, receipt.effect, cause), receipt)
+        : failure('EXECUTION_UNCONFIRMED', 'possible', cause)
     }
     return result
   } catch (cause) {
