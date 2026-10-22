@@ -40,6 +40,13 @@ USB接続とiPhoneミラーリングで導入済みのBellTeam 56を開き、送
 
 `BellDate.parse` は呼び出すたびにISO8601日時解析器を新たに作っていた。`HomeView.bots` と `HomeView.rooms` は並べ替えの比較ごとに左右の日時を解析していた。`BellDate` の解析器をMainActor上で共有し、ホーム画面の各行の日付を並べ替え前に一度だけ計算する修正を作った。同じbody更新中に一覧を二度計算しないよう、表示部品へ計算済み配列を渡す。日時の比較順と同時刻の元の順序は維持する。iPhone SimulatorのDebugビルドと `ConversationFreezeUITests` 1件、Mac CatalystのDebugビルド、`npm test` 635件が成功。修正後のiPhone実機の停止時間は未測定。
 
+## ビルド57の配布前確認
+
+- 固定ソースは `0c3423bc91b862bba88a6ab1437fe1ea693a55bc`。アーカイブ時に `HEAD` とGitHubの `origin/main` が一致し、作業ツリーはcleanだった。公開対象が既定ブランチの祖先であることも確認した。
+- iPhone/iPad: `runtime/apple/performance-57/ios-57-corrected.xcarchive` から `ios-export/BellTeam.ipa` を生成。SHA-256は `34abc1e5c15dbc422579cf2288e31e78527e40f4e26bbb3ea910d85df33322d5`。IPA内の本体と通知拡張はともに1.0.3（57）。archiveの厳格な署名確認とApple公式の事前検証は成功。
+- Mac Catalyst: `runtime/apple/performance-57/mac-57.xcarchive` から `mac-export/BellTeam.pkg` を生成。SHA-256は `b9b4138deecd2df00ef3ab8effae9f109c5862c899798d2a70442c41a6595a57`。archiveの本体と通知拡張はともに1.0.3（57）。archiveの厳格な署名確認、pkgのInstaller署名確認、Apple公式の事前検証は成功。
+- 最初のiOS archive `ios-57.xcarchive` は通知拡張が56だったため配布候補から外した。正本 `project.yml` と生成済み拡張 `Info.plist` を57へ揃えたcommit `0c3423b` から、上記の修正版を作り直した。Appleへの送信はまだ行っていない。
+
 ## 次に確かめること
 
 1. オーナーがiPhone本体で日本語入力・変換する間に、USBで実入力を短く記録する。ミラーリングを経由しない操作で、入力欄の更新と停止時間を確認する。
