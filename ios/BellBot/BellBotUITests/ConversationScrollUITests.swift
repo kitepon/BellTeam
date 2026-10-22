@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 /// 会話の初回の末尾表示と、上端スクロールでの過去取得を、HTTP fixtureで確認する。
 /// fixtureは `test/helpers/conversation-scroll-server.mjs`（環境変数 BELLTEAM_SCROLL_FIXTURE_URL）。
@@ -76,7 +77,7 @@ final class ConversationScrollUITests: XCTestCase {
         XCTAssertTrue(text("m030").waitForExistence(timeout: 10))
         let scroll = conversationScroll()
         let oldest = text("m001")
-        for _ in 0..<20 where !oldest.isHittable { scroll.swipeDown() }
+        for _ in 0..<20 where !(oldest.exists && oldest.isHittable) { scroll.swipeDown() }
         XCTAssertTrue(oldest.isHittable, "最古の行が画面に見えるまで上へ読む")
         for _ in 0..<3 { scroll.swipeDown() }
         Thread.sleep(forTimeInterval: 3)
@@ -94,10 +95,48 @@ final class ConversationScrollUITests: XCTestCase {
         print("新着前のm001 minY=\(before) 新着後=\(oldest.frame.minY)")
         XCTAssertTrue(try requests().contains(where: { $0.contains("after=m030") }), "更新で新着を取得した")
         XCTAssertEqual(oldest.frame.minY, before, accuracy: 2, "読んでいる位置が動かない")
-        XCTAssertFalse(text("m031").isHittable, "末尾へ飛ばない")
+        XCTAssertFalse(text("m031").exists && text("m031").isHittable, "末尾へ飛ばない")
         app.buttons["新着メッセージ ↓"].tap()
         XCTAssertTrue(text("m031").waitForExistence(timeout: 5))
+        XCTAssertTrue(text("m031").isHittable, "新着ボタンから最新行へ戻る")
     }
+
+    /// 画面外の行を入れ替えながら、複数ページの最古まで読み進められる。
+    func testWindowCanReachOldestAcrossMultiplePages() throws {
+        try openConversation("ユキ", failBefore: false)
+        XCTAssertTrue(text("m060").waitForExistence(timeout: 10))
+        let scroll = conversationScroll()
+        for _ in 0..<50 where !(text("m001").exists && text("m001").isHittable) { scroll.swipeDown() }
+        XCTAssertTrue(text("m001").isHittable, "範囲を入れ替えながら最古まで読める")
+        let before = text("m001").frame.minY
+        Thread.sleep(forTimeInterval: 3)
+        XCTAssertEqual(text("m001").frame.minY, before, accuracy: 2)
+        XCTAssertEqual(try requests().filter { $0.contains("before=") },
+                       ["?limit=20&before=m051", "?limit=20&before=m031", "?limit=20&before=m011"])
+        XCTAssertFalse(text("m060").exists, "最古を読んでいる間は最新の本文を描画しない")
+    }
+
+    #if !targetEnvironment(macCatalyst)
+    func testOlderReadingPositionSurvivesTabletRotation() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "iPadの幅変更を確認する試験です。")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        try openConversation("ユキ", failBefore: false)
+        XCTAssertTrue(text("m060").waitForExistence(timeout: 10))
+        try scrollUntilOlderRequested()
+        let row = text("m051")
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 3)
+        let before = row.frame.minY
+        let width = conversationScroll().frame.width
+        XCUIDevice.shared.orientation = .portrait
+        Thread.sleep(forTimeInterval: 3)
+        XCTAssertNotEqual(conversationScroll().frame.width, width, "会話の幅が変わる条件で確認する")
+        XCTAssertEqual(row.frame.minY, before, accuracy: 2, "幅に応じてMarkdownが折り返されても読書位置を保つ")
+        XCTAssertTrue(app.textViews["message-input"].exists)
+    }
+
+    #endif
 
     private func scrollUntilOlderRequested() throws {
         let scroll = conversationScroll()
