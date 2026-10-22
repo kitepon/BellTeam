@@ -49,7 +49,11 @@ export class BotScheduler {
         for (const schedule of await this.registry.listSchedules(bot.id)) {
           if (!schedule.enabled || !schedule.nextRunAt || new Date(schedule.nextRunAt) > now) continue
           try { await this.dispatchBotSchedule(bot, schedule) }
-          catch (error) { if (error.code === 'AI_GLOBAL_PAUSED') return; throw error }
+          catch (error) {
+            if (error.code === 'AI_GLOBAL_PAUSED') return
+            // 配送の失敗・結果不明も今回の試行として記録する。同じ本文を次のtickで再送しない。
+            reportError(error)
+          }
           await this.registry.markScheduleRun(bot.id, schedule.id, now)
         }
       }
@@ -59,7 +63,11 @@ export class BotScheduler {
           for (const schedule of await this.rooms.listSchedules(room.id)) {
             if (!schedule.enabled || !schedule.nextRunAt || new Date(schedule.nextRunAt) > now) continue
             try { await this.dispatchRoomSchedule(room, schedule) }
-            catch (error) { if (error.code === 'AI_GLOBAL_PAUSED') return; throw error }
+            catch (error) {
+              if (error.code === 'AI_GLOBAL_PAUSED') return
+              // 一部の参加者へ届いた発言も、予定全体を自動で送り直さない。
+              reportError(error)
+            }
             await this.rooms.markScheduleRun(room.id, schedule.id, now)
           }
         }
