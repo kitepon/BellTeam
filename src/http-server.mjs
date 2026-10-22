@@ -104,11 +104,25 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
   const subscribers = new Set()
   let closeWatch = null
   let pendingNotify = null
-  const timeline = async (kind, id) => [
-    ...await (kind === 'rooms' ? rooms.messages(id) : store.timeline(id)),
-    ...secretRequests?.timeline(kind === 'rooms' ? { roomId: id } : { botId: id }) ?? [],
-    ...(kind === 'bots' ? ownerQuestions?.timeline({ botId: id }) ?? [] : []),
-  ].sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''))
+  const timelines = new WeakMap()
+  const timeline = async (kind, id) => {
+    const base = await (kind === 'rooms' ? rooms.messages(id) : store.timeline(id))
+    const extra = [
+      ...secretRequests?.timeline(kind === 'rooms' ? { roomId: id } : { botId: id }) ?? [],
+      ...(kind === 'bots' ? ownerQuestions?.timeline({ botId: id }) ?? [] : []),
+    ]
+    // Cards are few, but changes to an old card still have to invalidate the view.
+    const signature = JSON.stringify(extra)
+    const previous = timelines.get(base)
+    if (previous?.signature === signature) return previous.items
+    const items = [...base, ...extra].sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''))
+    timelines.set(base, { signature, items })
+    return items
+  }
+  const messagePage = async (kind, id, url) => {
+    const page = pageItems(await timeline(kind, id), url)
+    return { ...page, items: page.items.map(webMessage) }
+  }
 
   const server = createServer(async (request, response) => {
     logWriteRequest(request, response, writeLog)
@@ -578,7 +592,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
           await rooms.refresh()
           const roomId = roomMessagesMatch[1]
           if (!rooms.has(roomId)) return json(response, 404, { error: 'ROOM_NOT_FOUND' })
-          if (request.method === 'GET') return json(response, 200, pageItems((await timeline('rooms', roomId)).map(webMessage), url))
+          if (request.method === 'GET') return json(response, 200, await messagePage('rooms', roomId, url))
           if (request.method === 'POST') {
             const body = await readJson(request, MESSAGE_MAX_BYTES)
             const message = typeof body.message === 'string' ? body.message.trim() : ''
@@ -601,7 +615,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
         if (match) {
           const botId = match[1]
           if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-          if (request.method === 'GET') return json(response, 200, pageItems((await timeline('bots', botId)).map(webMessage), url))
+          if (request.method === 'GET') return json(response, 200, await messagePage('bots', botId, url))
           if (request.method === 'POST') {
             const body = await readJson(request, MESSAGE_MAX_BYTES)
             const message = typeof body.message === 'string' ? body.message.trim() : ''

@@ -8,6 +8,7 @@ export class ConversationStore {
     // ログは追記だけ（BellTeamMessenger.append）。読み終えた行までの結果を持ち、次は増えた分だけ読む。
     // 全体を呼び出しのたびに読み直すと、同時の呼び出しの数だけログの写しがメモリに乗る。
     this.read = emptyRead()
+    this.observedSize = null
     this.queue = Promise.resolve()
   }
 
@@ -18,12 +19,17 @@ export class ConversationStore {
   // 直接会話と合間の言葉を、ログに書かれた順に返す。合間の言葉は表示だけの記録で、配送状態を持たない。
   async entries() {
     // 呼び出しごとに、前の読み込みが終わってから増えた分を読む。自分が書いた直後の行も必ず見える。
-    const run = this.queue.then(() => this.readAppended())
-    this.queue = run.catch(() => {})
-    const { entries, statuses } = await run
-    return entries.map(record => record.schema === 'bellteam.direct-message.v1' && statuses.has(record.delivery_id)
+    const snapshot = await this.snapshot()
+    const { entries, statuses } = snapshot
+    return snapshot.resolved ??= entries.map(record => record.schema === 'bellteam.direct-message.v1' && statuses.has(record.delivery_id)
       ? { ...record, delivery: statuses.get(record.delivery_id) }
       : record)
+  }
+
+  async snapshot() {
+    const run = this.queue.then(() => this.readAppended())
+    this.queue = run.catch(() => {})
+    return run
   }
 
   async readAppended() {
@@ -32,19 +38,25 @@ export class ConversationStore {
       file = await open(this.logPath, 'r')
     } catch (error) {
       if (error.code !== 'ENOENT') throw error
+      this.observedSize = null
       this.read = emptyRead()
       return this.read
     }
     try {
-      const { size, ino } = await file.stat()
+      const { size, ino, mtimeMs } = await file.stat()
       // 別のファイルに替わったか短くなった時は、最初から読み直す。
-      if (ino !== this.read.ino || size < this.read.offset) this.read = { ...emptyRead(), ino }
+      // 改行なしの末尾はoffsetに含めないため、前回の総sizeと比較する。
+      const shrunk = this.observedSize !== null && size < this.observedSize
+      const rewritten = size === this.observedSize && mtimeMs !== this.read.mtimeMs
+      this.observedSize = size
+      if (ino !== this.read.ino || shrunk || rewritten) this.read = { ...emptyRead(), ino, mtimeMs }
       if (size === this.read.offset) return this.read
 
       const buffer = Buffer.alloc(size - this.read.offset)
       const { bytesRead } = await file.read(buffer, 0, buffer.length, this.read.offset)
       const complete = bytesRead ? buffer.lastIndexOf(0x0a, bytesRead - 1) + 1 : 0
-      const next = { ...this.read, entries: [...this.read.entries], statuses: new Map(this.read.statuses) }
+      const next = copyRead(this.read)
+      next.mtimeMs = mtimeMs
       parseLines(buffer.toString('utf8', 0, complete), next)
       next.offset += complete
       this.read = next
@@ -55,7 +67,7 @@ export class ConversationStore {
       // 壊れた記録と決めるとAPIが500を返すので（2026-10-13に2回）、今回の結果には入れず、行が書き終わった後の読み込みで読む。
       const rest = buffer.toString('utf8', complete, bytesRead)
       if (!isJson(rest)) return next
-      const tail = { ...next, entries: [...next.entries], statuses: new Map(next.statuses) }
+      const tail = copyRead(next)
       parseLines(rest, tail)
       return tail
     } finally {
@@ -64,8 +76,14 @@ export class ConversationStore {
   }
 
   async timeline(botId) {
+    // Only a participant's new rows or delivery changes invalidate its view.
+    // Unrelated Bot activity does not rebuild every conversation in /api/bots.
+    const snapshot = await this.snapshot()
+    if (snapshot.timelines.has(botId)) return snapshot.timelines.get(botId)
     const items = []
-    for (const record of await this.entries()) {
+    for (const raw of snapshot.byBot.get(botId) ?? []) {
+      const record = raw.schema === 'bellteam.direct-message.v1' && snapshot.statuses.has(raw.delivery_id)
+        ? { ...raw, delivery: snapshot.statuses.get(raw.delivery_id) } : raw
       if (record.schema === 'bellteam.interim-word.v1') {
         if (record.bot === botId) items.push(interimItem(record))
       } else if (record.from === 'user' && record.target === botId) {
@@ -78,6 +96,7 @@ export class ConversationStore {
         items.push(peerItem(record, 'received', record.from))
       }
     }
+    snapshot.timelines.set(botId, items)
     return items
   }
 
@@ -141,7 +160,18 @@ function peerItem(record, direction, peer) {
 }
 
 function emptyRead() {
-  return { ino: null, offset: 0, lines: 0, entries: [], statuses: new Map() }
+  return { ino: null, mtimeMs: null, offset: 0, lines: 0, entries: [], statuses: new Map(),
+    byBot: new Map(), byDelivery: new Map(), timelines: new Map() }
+}
+
+function copyRead(read) {
+  return { ...read, resolved: undefined, entries: [...read.entries], statuses: new Map(read.statuses),
+    byBot: new Map(read.byBot), byDelivery: new Map(read.byDelivery), timelines: new Map(read.timelines) }
+}
+
+function participants(record) {
+  return record.schema === 'bellteam.interim-word.v1' ? [record.bot]
+    : [...new Set([record.from, record.target].filter(id => id !== 'user'))]
 }
 
 function isJson(text) {
@@ -154,14 +184,28 @@ function isJson(text) {
 }
 
 function parseLines(text, read) {
+  const copied = new Set()
   for (const line of text.split('\n').filter(Boolean)) {
     read.lines += 1
     try {
       const record = JSON.parse(line)
-      if (record?.schema === 'bellteam.direct-message.v1' || record?.schema === 'bellteam.interim-word.v1') read.entries.push(record)
+      if (record?.schema === 'bellteam.direct-message.v1' || record?.schema === 'bellteam.interim-word.v1') {
+        read.entries.push(record)
+        if (record.schema === 'bellteam.direct-message.v1') read.byDelivery.set(record.delivery_id, record)
+        for (const bot of participants(record)) {
+          if (!copied.has(bot)) {
+            read.byBot.set(bot, [...read.byBot.get(bot) ?? []])
+            copied.add(bot)
+          }
+          read.byBot.get(bot).push(record)
+          read.timelines.delete(bot)
+        }
+      }
       else if (record?.schema === 'bellteam.delivery-status.v1'
         && ['running', 'delivered', 'failed', 'stopped'].includes(record.delivery)) {
         read.statuses.set(record.delivery_id, record.delivery)
+        const original = read.byDelivery.get(record.delivery_id)
+        if (original) for (const bot of participants(original)) read.timelines.delete(bot)
       } else throw new Error('schema')
     } catch {
       throw new Error(`MESSAGE_LOG_INVALID: line ${read.lines}`)

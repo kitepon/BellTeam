@@ -4,6 +4,7 @@ import { appendFile, mkdir, readFile, readdir, rm } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { exists, normalizeSchedule, scheduleDocument, validateAvatar, writeAtomic } from './bot-registry.mjs'
+import { RoomHistory } from './room-history.mjs'
 
 const ROOM_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u
 const FIELDS = new Set(['name', 'purpose', 'representativeId', 'memberIds', 'avatar'])
@@ -16,6 +17,7 @@ export class RoomRegistry extends Map {
     this.now = now
     this.id = id
     this.roomId = roomId
+    this.histories = new Map()
   }
 
   async initialize() {
@@ -34,6 +36,7 @@ export class RoomRegistry extends Map {
     rooms.sort((a, b) => a.id.localeCompare(b.id))
     this.clear()
     for (const room of rooms) this.set(room.id, Object.freeze(room))
+    for (const id of this.histories.keys()) if (!this.has(id)) this.histories.delete(id)
     return this
   }
 
@@ -70,6 +73,7 @@ export class RoomRegistry extends Map {
     this.require(id)
     await rm(this.roomPath(id), { recursive: true })
     this.delete(id)
+    this.histories.delete(id)
     return { id }
   }
 
@@ -101,30 +105,8 @@ export class RoomRegistry extends Map {
 
   async messages(id) {
     this.require(id)
-    let body
-    try { body = await readFile(join(this.roomPath(id), 'messages.jsonl'), 'utf8') }
-    catch (error) { if (error.code === 'ENOENT') return []; throw error }
-    const messages = []
-    const statuses = new Map()
-    const routing = new Map()
-    for (const line of body.split('\n').filter(Boolean)) {
-      const record = JSON.parse(line)
-      if (record?.schema === 'bellteam.room-delivery-status.v1') {
-        statuses.set(`${record.message_id}\0${record.target}`, record.delivery)
-      } else if (record?.schema === 'bellteam.room-routing-status.v1') {
-        routing.set(record.message_id, record.routing)
-      } else messages.push(record)
-    }
-    return messages.map(message => ({
-      ...message,
-      ...(Array.isArray(message.deliveries) ? {
-        deliveries: message.deliveries.map(item => ({
-          ...item,
-          delivery: statuses.get(`${message.id}\0${item.target}`) ?? item.delivery,
-        })),
-      } : {}),
-      routing: routing.get(message.id) ?? message.routing,
-    }))
+    if (!this.histories.has(id)) this.histories.set(id, new RoomHistory(join(this.roomPath(id), 'messages.jsonl')))
+    return this.histories.get(id).messages()
   }
 
   async appendMessage(id, record) {
