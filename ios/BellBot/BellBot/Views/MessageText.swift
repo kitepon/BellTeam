@@ -1,12 +1,18 @@
 import EnrichedMarkdown
 import SwiftUI
 
-struct MessageText: View {
+struct MessageText: View, Equatable {
     let source: String
     var fontSize: CGFloat = BellTheme.messageFontSize
     var lineSpacing: CGFloat = 4
     var accessibilityIdentifier: String?
     @Environment(\.openURL) private var openURL
+
+    static func == (lhs: MessageText, rhs: MessageText) -> Bool {
+        lhs.source == rhs.source && lhs.fontSize == rhs.fontSize
+            && lhs.lineSpacing == rhs.lineSpacing
+            && lhs.accessibilityIdentifier == rhs.accessibilityIdentifier
+    }
 
     var body: some View {
         EnrichedMarkdownText(source, flags: Md4cFlags(hardSoftBreaks: true))

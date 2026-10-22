@@ -107,11 +107,17 @@ struct AvatarView: View {
     }
 }
 
+@MainActor
 enum BellDate {
+    private static let precise: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    private static let standard = ISO8601DateFormatter()
+
     static func parse(_ value: String) -> Date? {
-        let precise = ISO8601DateFormatter()
-        precise.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return precise.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+        precise.date(from: value) ?? standard.date(from: value)
     }
 
     static func short(_ value: String?) -> String {

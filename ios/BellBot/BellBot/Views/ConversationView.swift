@@ -499,15 +499,18 @@ private struct ConversationContent: View {
         loading = true
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-updating-chat") {
+            let performance = ProcessInfo.processInfo.arguments.contains("-bellbot-preview-performance-chat")
+            let fixture = performance ? PreviewMessages.performanceItems : PreviewMessages.updatingItems
+            let visibleCount = performance ? 97 : 7
             try? await Task.sleep(for: .milliseconds(350))
-            messages = PreviewMessages.updatingItems
+            messages = fixture
             hasMore = false
             loading = false
             scrollToBottomRevision += 1
             for tick in 0..<100 {
                 do { try await Task.sleep(for: .milliseconds(200)) }
                 catch { return }
-                messages = Array(PreviewMessages.updatingItems.prefix(7 + tick % 4))
+                messages = Array(fixture.prefix(visibleCount + tick % 4))
                 if tick.isMultiple(of: 4) { scrollToBottomRevision += 1 }
             }
             return
@@ -563,12 +566,29 @@ private struct ConversationContent: View {
         if isAtBottom { hasUnreadMessages = false }
         if grew {
             // 初期位置と末尾への追従は.defaultScrollAnchor(.bottom)に任せる。足した過去の行の高さが後から伸びる間だけ、固定した行を元の位置へ戻す。
-            if let row = scroll.pin, let y = scroll.pinnedY { scrollRow(row, to: y, viewportHeight: viewportHeight, proxy: proxy) }
+            if let row = scroll.pin {
+                scroll.pinPhase = .correcting
+                scrollRow(row, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
+            }
             return
         }
         // 固定した行の位置は、利用者のスクロールに合わせて毎回更新する。伸びた分だけを打ち消すので、慣性スクロール中でも保たれる。
         if let boundary = metrics.boundary {
-            if scroll.pin != nil && (boundary < 0 || boundary > viewportHeight) { scroll.pin = nil; measuredRow = nil }
+            if let row = scroll.pin {
+                let outside = boundary < 0 || boundary > viewportHeight
+                switch scroll.pinPhase {
+                case .awaitingGrowth:
+                    if outside { return }
+                case .correcting:
+                    if outside {
+                        scrollRow(row, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
+                        return
+                    }
+                    scroll.pinPhase = .aligned
+                case .aligned:
+                    if outside { scroll.pin = nil; measuredRow = nil }
+                }
+            }
             scroll.pinnedY = boundary
         }
         guard scrolled else { return }
@@ -576,9 +596,9 @@ private struct ConversationContent: View {
         let atTop = top >= 19.5
         if !atTop { scroll.canLoadOlder = true }
         if scenePhase == .active && atTop && scroll.canLoadOlder && scroll.pin == nil && hasMore && !loadingOlder,
-           let oldest = messages.first?.id, let y = metrics.boundary {
+           let oldest = messages.first?.id, metrics.boundary != nil {
             scroll.canLoadOlder = false
-            olderTask = Task { await loadOlder(before: oldest, at: y, proxy: proxy, viewportHeight: viewportHeight) }
+            olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
         }
     }
 
@@ -586,7 +606,7 @@ private struct ConversationContent: View {
         proxy.scrollTo(ScrollTracker.rowTopID(id), anchor: UnitPoint(x: 0, y: y / viewportHeight))
     }
 
-    private func loadOlder(before oldest: String, at y: CGFloat, proxy: ScrollViewProxy, viewportHeight: CGFloat) async {
+    private func loadOlder(before oldest: String, proxy: ScrollViewProxy, viewportHeight: CGFloat) async {
         measuredRow = oldest
         loadingOlder = true
         defer { loadingOlder = false }
@@ -599,7 +619,8 @@ private struct ConversationContent: View {
             hasMore = result.hasMore
             // 足した行のMarkdownは後から高さが伸びる。伸びるたびに同じ位置へ戻すため、行と位置を覚えておく。
             scroll.pin = oldest
-            scrollRow(oldest, to: scroll.pinnedY ?? y, viewportHeight: viewportHeight, proxy: proxy)
+            scroll.pinPhase = .awaitingGrowth
+            scrollRow(oldest, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
         } catch is CancellationError { }
         catch let error where BellAPIError.isAuthenticationError(error) {
             measuredRow = nil
@@ -819,11 +840,14 @@ private struct ScrollMetricsKey: PreferenceKey {
 
 // スクロール中に毎フレーム書き換える値。画面の再描画を起こさないよう@Stateの値ではなく参照型に置く。
 private final class ScrollTracker {
+    // 追加した過去行の配置中は、元の先頭行が一度画面に戻るまで固定を解除しない。
+    enum PinPhase { case awaitingGrowth, correcting, aligned }
     static func rowTopID(_ id: String) -> String { "top-\(id)" }
     var height: CGFloat = 0
     var top: CGFloat = 0
     var pin: String?
-    var pinnedY: CGFloat?
+    var pinPhase = PinPhase.awaitingGrowth
+    var pinnedY: CGFloat = 0
     var canLoadOlder = true
 }
 
@@ -1009,6 +1033,7 @@ private struct MessageRow: View {
                             if let text = message.message {
                                 MessageText(source: text, fontSize: BellTheme.peerMessageFontSize, lineSpacing: 0,
                                             accessibilityIdentifier: "message-text-\(message.id)")
+                                    .equatable()
                             }
                             if !message.displayedImageURLs.isEmpty {
                                 MessageImages(paths: message.displayedImageURLs, messageID: message.id,
@@ -1057,6 +1082,7 @@ private struct MessageRow: View {
                             }
                             if let text = message.message, !text.isEmpty {
                                 MessageText(source: text, accessibilityIdentifier: "message-text-\(message.id)")
+                                    .equatable()
                             }
                             if let replyLabel {
                                 Text(replyLabel)

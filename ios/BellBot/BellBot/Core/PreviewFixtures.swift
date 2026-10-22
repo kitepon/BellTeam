@@ -80,18 +80,22 @@ enum PreviewMessages {
     ```
     """
 
-    static let updatingItems: [TimelineMessage] = {
+    private static func makeUpdatingItems(count: Int) -> [TimelineMessage] {
         let lengths = [1200, 40, 1050, 90, 12, 1240, 11, 600, 90, 9]
         let paragraph = "これは会話画面の更新とスクロールを確認するためのテスト文章です。\n\n"
-        let rows = lengths.enumerated().map { index, length in
-            ["id": "updating-\(index)", "kind": "message",
+        let rows: [[String: String]] = (0..<count).map { index in
+            let length = lengths[index % lengths.count]
+            return ["id": "updating-\(index)", "kind": "message",
              "direction": index.isMultiple(of: 2) ? "incoming" : "outgoing",
              "at": "2026-01-01T00:00:00Z",
              "message": String(String(repeating: paragraph, count: 40).prefix(length)),
              "delivery": "delivered"]
         }
         return try! JSONDecoder().decode([TimelineMessage].self, from: JSONSerialization.data(withJSONObject: rows))
-    }()
+    }
+
+    static let updatingItems = makeUpdatingItems(count: 10)
+    static let performanceItems = makeUpdatingItems(count: 100)
 
     static let questionItems: [TimelineMessage] = {
         let source = """

@@ -75,15 +75,16 @@ final class ConversationScrollUITests: XCTestCase {
         try openConversation("ユキ", failBefore: false, total: 30)
         XCTAssertTrue(text("m030").waitForExistence(timeout: 10))
         let scroll = conversationScroll()
-        for _ in 0..<12 where !text("m001").exists { scroll.swipeDown() }
-        XCTAssertTrue(text("m001").waitForExistence(timeout: 5))
+        let oldest = text("m001")
+        for _ in 0..<20 where !oldest.isHittable { scroll.swipeDown() }
+        XCTAssertTrue(oldest.isHittable, "最古の行が画面に見えるまで上へ読む")
         for _ in 0..<3 { scroll.swipeDown() }
         Thread.sleep(forTimeInterval: 3)
-        let oldest = text("m001")
         let before = oldest.frame.minY
+        let refreshesBeforeAppend = try requests().filter { $0.contains("after=m030") }.count
         _ = try data("/test/append")
         // 引き下げ更新の操作が取りこぼされることがあるため、更新の要求が出るまで引き直す（操作の再試行で、アプリの再試行ではない）。
-        for _ in 0..<3 where try !requests().contains(where: { $0.contains("after=m030") }) {
+        for _ in 0..<3 where try requests().filter({ $0.contains("after=m030") }).count == refreshesBeforeAppend {
             scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15))
                 .press(forDuration: 0.1, thenDragTo: scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)))
             Thread.sleep(forTimeInterval: 2)

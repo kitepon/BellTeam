@@ -8,23 +8,28 @@ struct HomeView: View {
 
     private var bots: [Bot] {
         let filtered = store.bots.filter { search.isEmpty || $0.displayName.localizedCaseInsensitiveContains(search) }
-        return filtered.enumerated().sorted {
-            let left = BellDate.parse($0.element.recent?.at ?? "") ?? .distantPast
-            let right = BellDate.parse($1.element.recent?.at ?? "") ?? .distantPast
-            return left == right ? $0.offset < $1.offset : left > right
-        }.map(\.element)
+        return recentFirst(filtered) { $0.recent?.at }
     }
 
     private var rooms: [Room] {
-        store.rooms.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
-            .enumerated().sorted {
-                let left = BellDate.parse($0.element.recent?.at ?? "") ?? .distantPast
-                let right = BellDate.parse($1.element.recent?.at ?? "") ?? .distantPast
-                return left == right ? $0.offset < $1.offset : left > right
-            }.map(\.element)
+        let filtered = store.rooms.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
+        return recentFirst(filtered) { $0.recent?.at }
+    }
+
+    private func recentFirst<Item>(_ items: [Item], at: (Item) -> String?) -> [Item] {
+        let dated: [(offset: Int, item: Item, date: Date)] = items.enumerated().map { pair in
+            let date = at(pair.element).flatMap { BellDate.parse($0) } ?? .distantPast
+            return (pair.offset, pair.element, date)
+        }
+        let sorted = dated.sorted { left, right in
+            left.date == right.date ? left.offset < right.offset : left.date > right.date
+        }
+        return sorted.map { $0.item }
     }
 
     var body: some View {
+        let visibleBots = bots
+        let visibleRooms = rooms
         NavigationStack(path: $store.chatPath) {
             ZStack {
                 BellBackground()
@@ -33,8 +38,8 @@ struct HomeView: View {
                         header
                         introduction
                         searchField
-                        if !rooms.isEmpty { roomsSection }
-                        botsSection
+                        if !visibleRooms.isEmpty { roomsSection(visibleRooms) }
+                        botsSection(visibleBots)
                         Text("あなたとチームの会話は、ここに集まります。")
                             .font(.footnote)
                             .foregroundStyle(BellTheme.muted)
@@ -121,7 +126,7 @@ struct HomeView: View {
         }
     }
 
-    private var roomsSection: some View {
+    private func roomsSection(_ rooms: [Room]) -> some View {
         VStack(alignment: .leading, spacing: 15) {
             sectionTitle("ルーム", symbol: "person.3.sequence.fill")
             ScrollView(.horizontal, showsIndicators: false) {
@@ -140,7 +145,7 @@ struct HomeView: View {
         }
     }
 
-    private var botsSection: some View {
+    private func botsSection(_ bots: [Bot]) -> some View {
         VStack(alignment: .leading, spacing: 15) {
             sectionTitle("メンバー", symbol: "bubble.left.and.text.bubble.right.fill")
             if bots.isEmpty {
