@@ -99,6 +99,21 @@ test('typed拒否・possible・通信欠測を区別し、いずれもsendを自
   }
 })
 
+test('Aitermの失敗理由をcauseへ残し、元の受付分類と送信1回を維持する', async () => {
+  for (const withTypedError of [true, false]) {
+    const result = { isError: true, content: [{ type: 'text', text: 'native input failed after partial paste' }],
+      ...(withTypedError ? { _meta: typed('EXECUTION_BUSY', 'possible')._meta } : {}) }
+    const f = fixture({ send: () => result }), handle = await f.reserve()
+    await assert.rejects(handle.invoke('pty_send', { session_id: B.session_id }), error => {
+      assert.equal(error.code, withTypedError ? 'EXECUTION_BUSY' : 'EXECUTION_UNCONFIRMED')
+      assert.equal(error.effect, 'possible')
+      assert.equal(error.cause?.message, 'native input failed after partial paste')
+      return true
+    })
+    assert.equal(f.calls.filter(call => call.name === 'pty_send').length, 1)
+  }
+})
+
 test('register応答欠測で実行へ進まず、受付済みかは既存参照のstatusで調べる', async () => {
   const calls = [], f = fixture()
   const bridge = new ExecutionBridge({ async call(name, args) {
