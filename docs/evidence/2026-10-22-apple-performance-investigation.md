@@ -26,9 +26,9 @@
 
 `ScrollTracker` に `awaitingGrowth → correcting → aligned` の状態を持たせ、行の追加・高さの更新後に固定行が見えるまで位置補正を続ける。変更後、同じ試験をログなしで連続2回成功した。`ConversationScrollUITests` の5件中、新着試験だけは当初失敗した。動画では試験が最古行を読み込んだだけで画面に見えたと誤認し、上端に届かないまま新着確認を始めていた。試験を実際の可視状態までスクロールするよう直し、追加後の取得回数が増えたことを判定して、当該1件と関連5件の一括実行が成功した。最終の関連5件は同じ実行で5件成功。Mac CatalystのDebugビルドも成功。これは合成履歴での読み位置修理であり、オーナーの全体的な操作遅延の根因と同一とは判定しない。
 
-試作と読み位置修理はビルド57の候補へ含めた。TestFlightへはまだ配布していない。
+試作と読み位置修理はビルド57へ含め、既存のオーナー用内部TestFlightへ配布した。
 
-## iPhone現行56の実機基準
+## iPhone版56の実機基準
 
 USB接続とiPhoneミラーリングで導入済みのBellTeam 56を開き、送信・設定変更をせず会話のスクロールを記録した。最初の30秒Time Profilerでは短いスクロール2回で250ms超の停止0件。続く41秒のSwiftUI記録では連続スクロールで過去ログの追加まで進み、画面の引っかかり判定0件。250ms超の停止は記録開始0.77秒後の約496msが1件で、スクロール操作開始前のため操作由来とは判定しない。SwiftUIの記録には `MessageText` と `EnrichedMarkdownText` のbody更新が各52回、`MessageRow` が20回、MarkdownのUIView更新が55回あった。現行56のdSYMのUUIDは記録された本体と一致する。原本は `runtime/apple/performance-20261022/iphone-56-*` に置いた。
 
@@ -45,12 +45,26 @@ USB接続とiPhoneミラーリングで導入済みのBellTeam 56を開き、送
 - 固定ソースは `0c3423bc91b862bba88a6ab1437fe1ea693a55bc`。アーカイブ時に `HEAD` とGitHubの `origin/main` が一致し、作業ツリーはcleanだった。公開対象が既定ブランチの祖先であることも確認した。
 - iPhone/iPad: `runtime/apple/performance-57/ios-57-corrected.xcarchive` から `ios-export/BellTeam.ipa` を生成。SHA-256は `34abc1e5c15dbc422579cf2288e31e78527e40f4e26bbb3ea910d85df33322d5`。IPA内の本体と通知拡張はともに1.0.3（57）。archiveの厳格な署名確認とApple公式の事前検証は成功。
 - Mac Catalyst: `runtime/apple/performance-57/mac-57.xcarchive` から `mac-export/BellTeam.pkg` を生成。SHA-256は `b9b4138deecd2df00ef3ab8effae9f109c5862c899798d2a70442c41a6595a57`。archiveの本体と通知拡張はともに1.0.3（57）。archiveの厳格な署名確認、pkgのInstaller署名確認、Apple公式の事前検証は成功。
-- 最初のiOS archive `ios-57.xcarchive` は通知拡張が56だったため配布候補から外した。正本 `project.yml` と生成済み拡張 `Info.plist` を57へ揃えたcommit `0c3423b` から、上記の修正版を作り直した。Appleへの送信はまだ行っていない。
+- 最初のiOS archive `ios-57.xcarchive` は通知拡張が56だったため配布候補から外した。正本 `project.yml` と生成済み拡張 `Info.plist` を57へ揃えたcommit `0c3423b` から、上記の修正版を作り直した。Appleへ送ったのは修正版だけ。
+
+## ビルド57の内部TestFlight配布
+
+- オーナーの申請「ビルド57をオーナー用内部TestFlightへ送る」で、iPhone/iPadとMacの両方に許可を受けた。送信前に成果物のSHA-256が上記の値と一致し、App Store Connectに57が未登録であることを確認した。
+- iOS IPAをApple公式`altool`経由で1回送信し、`No errors uploading archive`を得た。delivery UUIDとbuild IDは`8f1e9146-51d6-41b0-9b87-f43caa3eb305`。App Store Connectで`1.0.3 / IOS`、`processingState=VALID`を読み戻した。
+- Mac pkgも同様に1回送信し、`No errors uploading archive`を得た。delivery UUIDとbuild IDは`6f2200ec-14b0-4b6d-9d97-68dcf710198a`。`1.0.3 / MAC_OS`、`processingState=VALID`を読み戻した。
+- 両buildを既存の内部グループ「BellTeam オーナー」`58133050-1c39-4915-b6da-aac18b95921b`へ追加し、APIがそれぞれのbuild IDとgroup IDを返した。再読取の`internalBuildState`は両方`IN_BETA_TESTING`。`asc_get_build`はグループ関連そのものを返さないため、紐付けは追加APIの応答と内部テスト状態で確認した。
+- iPhone(Kaito)ではTestFlightに57の更新が表示され、そこから導入した。`devicectl`で導入済みBellTeamが`1.0.3 (57)`であることと、起動してホーム画面が表示できることを確認した。
+- MacもTestFlightに57の更新が表示され、そこから導入した。`/Applications/BellTeam.app/Contents/Info.plist`のビルド番号は57。起動してホーム画面が表示できることを確認し、確認のために開いたアプリは終了した。iPad実機への導入・操作は未確認。
+
+## iPhone版57の配布後確認
+
+30秒のTime ProfilerをiPhone実機の全プロセスで記録し、BellTeamをホームへ戻して再表示する操作を2回行った。BellTeamのメインスレッドは1,526標本で、その呼び出し履歴に`HomeView.bots.getter`が36標本、`HomeView.recentFirst`が32標本あった。記録した本体UUID`0B1F326C-D78C-34C8-890E-DD17B0C34978`はビルド57のdSYMと一致し、アプリ内のフレームはそのdSYMで確認した。原本は`runtime/apple/performance-20261022/iphone-57-home-profile.trace`、抽出は同じ場所の`iphone-57-home-*.xml`。
+
+250ms超の停止は約612msと586msの2件。どちらの時間窓も、メインスレッド標本はアプリ切り替え時の`FBSSceneSnapshotAction`とSwiftUIレイアウトに集中し、`HomeView.bots`や日時解析のフレームは上位に無い。56の記録はiPhone本体の日本語入力、57の記録はミラーリングでのアプリ切り替えで、採取方法も異なる。これらの標本数や停止件数を修正前後の同条件比較として扱わず、入力中の改善判定は保留する。
 
 ## 次に確かめること
 
-1. オーナーがiPhone本体で日本語入力・変換する間に、USBで実入力を短く記録する。ミラーリングを経由しない操作で、入力欄の更新と停止時間を確認する。
-2. 修正候補をiPhoneへ届けた後、同じ会話の入力・画面復帰で停止時間を比べる。`.equatable()` の実機効果と入力欄の重さも分ける。トロニーから会話件数と本文長の集計は受領済み。
-3. 現行56で検出した約572msの停止がビルド57で減るか、iPhone実機の同じ画面復帰・入力操作で比べる。iPad・Macの共通動作も確認する。
+1. ミラーリングを経由しない日本語入力で、57の入力欄と画面更新を短く記録する。56で検出した約572ms停止が同じ条件で再発するか確認する。`.equatable()`の実機効果と入力欄の重さは分けて判定する。
+2. iPad実機の導入・操作を確認する。Macは起動まで確認済み。
 
-実Botの編集・削除画面を反復する旧試験は再開しない。本番とTestFlight配布物は変更していない。旧担当が追加した人工100行fixtureは `PreviewFixtures.swift` と `ConversationView.swift` にあり、合成計測へ利用した。修正範囲は `MessageText.swift` の比較、`ConversationView.swift` の `.equatable()` と位置固定状態、`ConversationScrollUITests.swift` の可視判定と新着後の取得判定、`BellTheme.swift` の日時解析器、`HomeView.swift` の並べ替え。`project.yml` と生成済み `Info.plist` のビルド番号は57へ採番した。
+実Botの編集・削除画面を反復する旧試験は再開しない。本番サーバーは変更していない。旧担当が追加した人工100行fixtureは `PreviewFixtures.swift` と `ConversationView.swift` にあり、合成計測へ利用した。修正範囲は `MessageText.swift` の比較、`ConversationView.swift` の `.equatable()` と位置固定状態、`ConversationScrollUITests.swift` の可視判定と新着後の取得判定、`BellTheme.swift` の日時解析器、`HomeView.swift` の並べ替え。`project.yml` と生成済み `Info.plist` のビルド番号は57へ採番した。
