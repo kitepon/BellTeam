@@ -27,6 +27,13 @@ const owner = { name: '試験用', profile: '', avatar: '', xUrl: '', githubUrl:
 const subscription = { productId: 'dev.kitepon.bellbot.monthly', environment: 'Sandbox', accessMode: 'developer', setupComplete: true, entitled: false, state: 'none', checkedAt: null, expiresAt: null, validUntil: null, autoRenewing: false, error: null }
 const setting = { id: 'routing', title: '試験機能', enabled: true, status: 'enabled', error: null, fields: [{ key: 'label', label: '試験の値', secret: false, value: '保持する値', configured: true }] }
 const message = { id: 'probe-message', kind: 'message', direction: 'incoming', at: '2026-10-07T00:00:00Z', message: '試験用の会話', delivery: 'delivered' }
+const longMessage = { ...message, at: '2026-10-07T01:00:00Z', message: Array.from({ length: 6 }, (_, index) =>
+  `${index + 1}段目。画面の高さを越える直前の返信です。配布候補の確認を続け、処理待ちと次の作業時刻を読み合わせます。`).join('\n\n') }
+const priorMessages = Array.from({ length: 35 }, (_, index) => ({
+  id: `prior-${index}`, kind: 'message', direction: index % 2 ? 'outgoing' : 'incoming',
+  at: new Date(Date.UTC(2026, 9, 7, 0, index)).toISOString(),
+  message: `先行する会話 ${index + 1}`, delivery: 'delivered',
+}))
 const json = (response, value) => { response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify(value)) }
 const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://localhost')
@@ -55,7 +62,7 @@ const server = createServer(async (request, response) => {
     const body = JSON.parse(Buffer.concat(chunks).toString())
     record.imageCount = body.images?.length ?? 0
     if (mode === 'post-failure') { request.socket.destroy(); return }
-    if (mode === 'post-wait') {
+    if (['post-wait', 'post-wait-long', 'post-wait-history'].includes(mode)) {
       pendingPost = { response }
       sentMessages.push({ id: 'accepted-message', kind: 'message', direction: 'outgoing',
         sender: { id: 'user', name: '試験用' }, at: new Date().toISOString(),
@@ -86,7 +93,8 @@ const server = createServer(async (request, response) => {
   }
   if (url.pathname.endsWith('/messages')) {
     if (mode === 'conversation-pending') return
-    return json(response, { items: [message, ...sentMessages], hasMore: false })
+    const items = mode === 'post-wait-history' ? [...priorMessages, longMessage] : [mode === 'post-wait-long' ? longMessage : message]
+    return json(response, { items: [...items, ...sentMessages], hasMore: false })
   }
   if (url.pathname.endsWith('/queue') || url.pathname === '/api/queue') return json(response, { items: [] })
   if (url.pathname === '/api/bots/bot-one') return json(response, { bot: saved })

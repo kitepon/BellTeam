@@ -208,6 +208,60 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         XCTAssertEqual(input.value as? String, "続けて入力", "送信後に書いた下書きを保つ")
     }
 
+    func testSentTextIsVisibleAboveComposerWithKeyboardAndLongReply() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else {
+            throw XCTSkip("通信報告の隔離サーバーが必要です。")
+        }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset?mode=post-wait-history")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-chat", "-bellbot-preview-server", server,
+                               "-bellbot-preview-reporting", "-bellbot-preview-events"]
+        app.launch(); defer { app.terminate() }
+        let input = app.textViews["message-input"]
+        let scroll = app.scrollViews["conversation-messages"]
+        XCTAssertTrue(app.descendants(matching: .any)["message-text-probe-message"].firstMatch.waitForExistence(timeout: 6))
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap(); input.typeText("アークって何？")
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "キーボードを開いたまま送信する")
+        let dragStart = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+        let dragEnd = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+        dragStart.press(forDuration: 0.1, thenDragTo: dragEnd)
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "直前の返信を読みながらキーボードを保つ")
+        app.buttons["送信"].tap()
+        let pending = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "message-text-local-pending-"))
+            .firstMatch
+        XCTAssertTrue(pending.waitForExistence(timeout: 3))
+        let pendingFrame = pending.frame
+        let visibleBottom = min(scroll.frame.maxY, input.frame.minY)
+        print("送信直後の本文=\(pendingFrame) 会話領域=\(scroll.frame) 入力欄=\(input.frame) キーボード=\(app.keyboards.firstMatch.frame)")
+        let before = XCTAttachment(screenshot: app.screenshot())
+        before.name = "長い返信とキーボードの後の送信直後"
+        before.lifetime = .keepAlways; add(before)
+        XCTAssertLessThanOrEqual(pendingFrame.maxY, visibleBottom - 4,
+                                 "受付中の本人本文を入力欄の上へ完全に表示する")
+        XCTAssertGreaterThanOrEqual(pendingFrame.minY, scroll.frame.minY,
+                                    "受付中の本文が会話領域の上端からも出ない")
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let post = (proof["requests"] as? [[String: Any]])?.first {
+            $0["method"] as? String == "POST" && ($0["path"] as? String)?.hasSuffix("/messages") == true
+        }
+        XCTAssertEqual(post?["closed"] as? Bool, false, "応答前の可視性を測る")
+        input.tap(); input.typeText("続き")
+        XCTAssertEqual(input.value as? String, "続き", "応答待ち中も次の入力を受け付ける")
+        _ = try data(base, "/test/complete-post")
+        let accepted = app.descendants(matching: .any)["message-text-accepted-message"].firstMatch
+        XCTAssertTrue(accepted.waitForExistence(timeout: 5))
+        print("正本の本文=\(accepted.frame) 会話領域=\(scroll.frame) 入力欄=\(input.frame)")
+        XCTAssertLessThanOrEqual(accepted.frame.maxY, min(scroll.frame.maxY, input.frame.minY) - 4,
+                                 "正本へ置換した後も本人本文を入力欄の上へ表示する")
+        XCTAssertEqual(input.value as? String, "続き", "正本へ置換しても次の下書きを保つ")
+        scroll.swipeDown(); scroll.swipeUp()
+        XCTAssertTrue(accepted.waitForExistence(timeout: 5), "送信後も会話をスクロールできる")
+    }
+
     func testReportingUsesHandledWriteResultAndPreservesDraft() throws {
         guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else { throw XCTSkip("通信報告の隔離サーバーが必要です。") }
         let base = try XCTUnwrap(URL(string: server))

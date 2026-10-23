@@ -158,6 +158,9 @@ private struct ConversationContent: View {
                     .refreshable { await load() }
                     .onChange(of: scrollToBottomRevision) { _, _ in
                         if rowIsPresenting { scroll.pendingBottomScroll = true; return }
+                        scroll.followingBottom = true
+                        scroll.pin = nil
+                        measuredRow = nil
                         renderedRows = nil
                         withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
                     }
@@ -679,7 +682,8 @@ private struct ConversationContent: View {
             if abs(row.frame.width - row.layoutWidth) < 0.5 { scroll.rowSizes[id] = row }
         }
         // 新しく表示したMarkdownの高さが確定した時と幅変更時は、直前に見えていた行を保つ。
-        if (heightChanged || resized), !isAtBottom, scroll.pin == nil,
+        // 明示的に末尾へ移る間は、古い読書位置への補正でその移動を打ち消さない。
+        if (heightChanged || resized), !isAtBottom, !scroll.followingBottom, scroll.pin == nil,
            let anchor = scroll.visibleAnchor, metrics.rows[anchor.id] != nil {
             scrollRow(anchor.id, to: anchor.y, viewportHeight: viewportHeight, proxy: proxy)
         } else if let message = messages.first(where: { message in
@@ -694,7 +698,10 @@ private struct ConversationContent: View {
         scroll.height = height
         scroll.top = top
         isAtBottom = bottom <= viewportHeight + 48
-        if isAtBottom { hasUnreadMessages = false }
+        if isAtBottom {
+            hasUnreadMessages = false
+            scroll.followingBottom = false
+        }
         if heightChanged {
             // 初期位置と末尾への追従は.defaultScrollAnchor(.bottom)に任せる。推定した余白とMarkdownの実高の差を、増減の両方で補正する。
             if let row = scroll.pin {
@@ -907,6 +914,9 @@ private struct ConversationContent: View {
         draft = ""
         attachments = []
         errorText = nil
+        scroll.followingBottom = true
+        scroll.pin = nil
+        measuredRow = nil
         awaitingSendResponse = true
         pendingSends.append(PendingSend(id: pendingID, body: message, imageCount: sent.count,
                                         at: Date().ISO8601Format(), acceptedID: nil))
@@ -1122,6 +1132,7 @@ private final class ScrollTracker {
     private var secretStates: [String: SecretRequestCardState] = [:]
     private var questionStates: [String: OwnerQuestionCardState] = [:]
     var pendingBottomScroll = false
+    var followingBottom = false
     var rowSizes: [String: ConversationRowMetric] = [:]
     var visibleAnchor: (id: String, y: CGFloat)?
     var contentWidth: CGFloat = 0
