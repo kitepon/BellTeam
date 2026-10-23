@@ -16,8 +16,7 @@ private struct ConversationContent: View {
 
     @EnvironmentObject private var store: AppStore
     @Environment(\.scenePhase) private var scenePhase
-    @State private var receivedMessages: [TimelineMessage] = []
-    @State private var pendingSends: [PendingSend] = []
+    @State private var timeline = ConversationTimelineState()
     @State private var awaitingSendResponse = false
     @State private var queue: [QueueItem] = []
     @State private var hasMore = false
@@ -60,13 +59,7 @@ private struct ConversationContent: View {
     @State private var rowIsPresenting = false
     @State private var measuredContentWidth: CGFloat?
 
-    private var messages: [TimelineMessage] {
-        let receivedIDs = Set(receivedMessages.map(\.id))
-        return receivedMessages + pendingSends.filter { pending in
-            guard let acceptedID = pending.acceptedID else { return true }
-            return !receivedIDs.contains(acceptedID)
-        }.map(\.message)
-    }
+    private var messages: [TimelineMessage] { timeline.visibleMessages }
 
     private var bot: Bot? { store.bots.first { $0.id == target.id } }
     private var room: Room? { store.rooms.first { $0.id == target.id } }
@@ -583,7 +576,7 @@ private struct ConversationContent: View {
         let task = Task {
             repeat {
                 reader.again = false
-                if receivedMessages.isEmpty { await loadInitial() } else { await refresh() }
+                if timeline.receivedMessages.isEmpty { await loadInitial() } else { await refresh() }
             } while reader.again && !Task.isCancelled && scenePhase == .active
             if reader.generation == generation { reader.task = nil }
         }
@@ -595,7 +588,7 @@ private struct ConversationContent: View {
         loading = true
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-window-state") {
-            receivedMessages = PreviewMessages.statefulItems
+            timeline.replaceReceived(PreviewMessages.statefulItems)
             hasMore = false
             loading = false
             scrollToBottomRevision += 1
@@ -603,7 +596,7 @@ private struct ConversationContent: View {
                 for addition in PreviewMessages.statefulAdditions {
                     do { try await Task.sleep(for: .milliseconds(200)) }
                     catch { return }
-                    receivedMessages.append(addition)
+                    timeline.appendReceived(addition)
                     if isAtBottom { scrollToBottomRevision += 1 }
                 }
             }
@@ -614,21 +607,21 @@ private struct ConversationContent: View {
             let fixture = performance ? PreviewMessages.performanceItems : PreviewMessages.updatingItems
             let visibleCount = performance ? 97 : 7
             try? await Task.sleep(for: .milliseconds(350))
-            receivedMessages = fixture
+            timeline.replaceReceived(fixture)
             hasMore = false
             loading = false
             scrollToBottomRevision += 1
             for tick in 0..<100 {
                 do { try await Task.sleep(for: .milliseconds(200)) }
                 catch { return }
-                receivedMessages = Array(fixture.prefix(visibleCount + tick % 4))
+                timeline.replaceReceived(Array(fixture.prefix(visibleCount + tick % 4)))
                 if tick.isMultiple(of: 4) { scrollToBottomRevision += 1 }
             }
             return
         }
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-bellbot-preview") })
             && !ProcessInfo.processInfo.arguments.contains("-bellbot-preview-server") {
-            receivedMessages = PreviewMessages.items(for: target)
+            timeline.replaceReceived(PreviewMessages.items(for: target))
             if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-stop") {
                 queue = target.isRoom ? [
                     QueueItem(id: "preview-room-running", botId: "bot-one", botName: "ユキ",
@@ -651,8 +644,7 @@ private struct ConversationContent: View {
             let (result, queued) = try await (page, waiting)
             try Task.checkCancellation()
             guard !awaitingSendResponse else { loading = false; return }
-            receivedMessages = result.items
-            reconcileAcceptedSends()
+            timeline.replaceReceived(result.items)
             queue = queued.items
             hasMore = result.hasMore
             errorText = nil
@@ -804,11 +796,9 @@ private struct ConversationContent: View {
             let path = target.path + "/messages?limit=20&before=\(oldest.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? oldest)"
             let result: ListResponse<TimelineMessage> = try await store.api.get(path)
             try Task.checkCancellation()
-            let known = Set(receivedMessages.map(\.id))
-            let older = result.items.filter { !known.contains($0.id) }
             hasMore = result.hasMore
+            let older = timeline.prependReceived(result.items)
             if !older.isEmpty {
-                receivedMessages = older + receivedMessages
                 // 足した行のMarkdownは後から高さが伸びる。伸びるたびに同じ位置へ戻すため、行と位置を覚えておく。
                 scroll.pin = oldest
                 scroll.pinPhase = .awaitingGrowth
@@ -832,32 +822,17 @@ private struct ConversationContent: View {
         do {
             async let waiting: QueueResponse = store.api.get(target.path + "/queue")
             let latestPath = target.path + "/messages?limit=20"
-            if let lastId = receivedMessages.last?.id {
+            if let lastId = timeline.receivedMessages.last?.id {
                 let encodedId = lastId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? lastId
                 async let latest: ListResponse<TimelineMessage> = store.api.get(latestPath)
                 async let after: ListResponse<TimelineMessage> = store.api.get(target.path + "/messages?after=\(encodedId)")
                 let (page, additions, queued) = try await (latest, after, waiting)
                 try Task.checkCancellation()
                 guard !awaitingSendResponse else { return }
-                let known = Set(receivedMessages.map(\.id))
-                let newMessages = additions.items.filter { !known.contains($0.id) }
-                let indices = Dictionary(uniqueKeysWithValues: receivedMessages.enumerated().map { ($0.element.id, $0.offset) })
-                var updated = receivedMessages
-                var changed = !newMessages.isEmpty
-                for item in page.items {
-                    if let index = indices[item.id], updated[index] != item {
-                        updated[index] = item
-                        changed = true
-                    }
-                }
                 let wasAtBottom = isAtBottom
-                if changed {
-                    updated.append(contentsOf: newMessages)
-                    receivedMessages = updated
-                }
-                reconcileAcceptedSends()
+                let newMessageCount = timeline.mergeRefresh(latest: page.items, after: additions.items)
                 if queue != queued.items { queue = queued.items }
-                if !newMessages.isEmpty {
+                if newMessageCount > 0 {
                     if wasAtBottom { scrollToBottomRevision += 1 }
                     else { hasUnreadMessages = true }
                 }
@@ -867,8 +842,7 @@ private struct ConversationContent: View {
                 try Task.checkCancellation()
                 guard !awaitingSendResponse else { return }
                 if queue != queued.items { queue = queued.items }
-                if receivedMessages != page.items { receivedMessages = page.items }
-                reconcileAcceptedSends()
+                timeline.replaceReceived(page.items)
                 if hasMore != page.hasMore { hasMore = page.hasMore }
                 scrollToBottomRevision += 1
             }
@@ -884,15 +858,8 @@ private struct ConversationContent: View {
         }
     }
 
-    private func reconcileAcceptedSends() {
-        let receivedIDs = Set(receivedMessages.map(\.id))
-        pendingSends.removeAll { pending in
-            pending.acceptedID.map(receivedIDs.contains) ?? false
-        }
-    }
-
     private func restoreUnconfirmedSend(id: String, message: String, images: [PendingImage]) {
-        pendingSends.removeAll { $0.id == id }
+        timeline.rejectSend(id: id)
         // 送信中に書き始めた続きは消さず、元の本文の後ろへ残す。
         draft = [message, draft].filter { !$0.isEmpty }.joined(separator: "\n")
         attachments = images + attachments
@@ -918,8 +885,7 @@ private struct ConversationContent: View {
         scroll.pin = nil
         measuredRow = nil
         awaitingSendResponse = true
-        pendingSends.append(PendingSend(id: pendingID, body: message, imageCount: sent.count,
-                                        at: Date().ISO8601Format(), acceptedID: nil))
+        timeline.beginSend(id: pendingID, body: message, imageCount: sent.count, at: Date().ISO8601Format())
         hasUnreadMessages = false
         scrollToBottomRevision += 1
         do { try await store.authorizeAIUse(target: target) }
@@ -945,9 +911,7 @@ private struct ConversationContent: View {
         do {
             let acknowledgement = try await store.api.sendMessage(target.path + "/messages", body: body)
             let acceptedID = try acknowledgement.messageID(for: target)
-            if let index = pendingSends.firstIndex(where: { $0.id == pendingID }) {
-                pendingSends[index].acceptedID = acceptedID
-            }
+            timeline.acceptSend(id: pendingID, serverID: acceptedID)
             awaitingSendResponse = false
             if appIsActive {
                 await load()
@@ -978,22 +942,6 @@ private struct ConversationContent: View {
         } catch {
             errorText = "画像を読み込めませんでした。"
         }
-    }
-}
-
-private struct PendingSend {
-    let id: String
-    let body: String
-    let imageCount: Int
-    let at: String
-    var acceptedID: String?
-
-    var message: TimelineMessage {
-        TimelineMessage(id: id, kind: "message", direction: "outgoing", sender: nil, targets: nil,
-                        at: at, message: body, image: imageCount > 0,
-                        imageCount: imageCount > 0 ? imageCount : nil, imageUrl: nil, imageUrls: nil,
-                        delivery: acceptedID == nil ? "submitting" : "accepted", deliveries: nil,
-                        routing: nil, peerName: nil, peerPosition: nil, secretRequest: nil, ownerQuestion: nil)
     }
 }
 
