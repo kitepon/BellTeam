@@ -64,13 +64,15 @@ export function trustedIdleTree(rows, pid, harness, botId, project = `/srv/bellt
   const byPid = new Map(rows.map(row => [row.pid, row]))
   const root = byPid.get(pid)
   const rootExe = harness === 'claude-code' ? '/usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe'
-    : harness === 'grok-cli' ? '/usr/local/bin/grok' : harness === 'codex-cli' ? nodeExe : null
+    : harness === 'grok-cli' ? '/usr/local/bin/grok' : harness === 'codex-cli'
+      ? [nodeExe, codexExe].includes(root?.exe) ? root.exe : null : null
   if (!rootExe || root?.exe !== rootExe || root.cwd !== project) return false
   // 孤立行、重複PID、cycleを許さず、渡された全行がrootの子孫であることを確認する。
   if (byPid.size !== rows.length || byPid.has(root.ppid) || processDescendants(byPid, pid).length !== rows.length) return false
-  // Codexの登録identityはnode入口。実CLIはその唯一の固定native子で、MCPの直接親はこちら。
-  const nativeCli = harness === 'codex-cli' ? rows.filter(row => row.ppid === pid && row.exe === codexExe) : []
-  if (harness === 'codex-cli' && nativeCli.length !== 1) return false
+  // 観測identityがnode入口なら唯一のnative子、native直起動ならそのrootがMCPの親になる。
+  const wrapper = harness === 'codex-cli' && root.exe === nodeExe
+  const nativeCli = wrapper ? rows.filter(row => row.ppid === pid && row.exe === codexExe) : []
+  if (wrapper && nativeCli.length !== 1) return false
   const cliPid = nativeCli[0]?.pid ?? pid
   // 登録元が解決した同scopeの正規native入口だけを既存MCP一覧へ加える。
   const commands = nativeRegistration ? [...mcpCommands, [nativeRegistration.command, ...nativeRegistration.args]] : mcpCommands

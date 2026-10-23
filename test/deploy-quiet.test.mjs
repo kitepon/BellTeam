@@ -157,6 +157,18 @@ test('Codexのnode入口と唯一の固定native CLIを区別してMCPの親を�
   assert.equal(trustedIdleTree([wrapper, native, { ...helper, argv: [...helper.argv, '--extra'] }], 10, 'codex-cli', 'bot-peer'), false)
 })
 
+test('観測identityが固定Codex native直起動なら、そのrootと既知の直接子だけを認識する', () => {
+  const exe = '/usr/local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex'
+  const direct = {...root,exe}
+  const mcp = {pid:30,ppid:10,pgid:10,start:'120',state:'S',exe:relay,argv:[relay,nodeExe,aiterm]}
+  const helper = {pid:40,ppid:10,pgid:10,start:'130',state:'S',exe:exe+'-code-mode-host',argv:[exe+'-code-mode-host']}
+  assert.equal(trustedIdleTree([direct,mcp,helper],10,'codex-cli','bot-peer'),true)
+  for (const changed of [{...direct,exe:'/other/codex'}, {...direct,cwd:'/other/project'}, {...direct,state:'T'}])
+    assert.equal(trustedIdleTree([changed,mcp,helper],10,'codex-cli','bot-peer'),false)
+  assert.equal(trustedIdleTree([direct,mcp,helper,{...direct,pid:50,ppid:10,start:'140'}],10,'codex-cli','bot-peer'),false)
+  assert.equal(trustedIdleTree([direct,mcp,{...helper,ppid:30}],10,'codex-cli','bot-peer'),false)
+})
+
 test('hookの別root/版/余分引数/別exe/別親/非Claudeと似た名前を拒否する', () => {
   const bad = [
     { ...hook, argv: [nodeExe, '/other/approval-box-claude-hook.mjs'] },
