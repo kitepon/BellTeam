@@ -32,6 +32,8 @@ Bot側の受信・返答完了と、本文の受付receiptは別に確認する�
 
 製品は同じ元request/launch/creator nativeとserver、未発行の初期本文とsend、現在のCLI終了を受付と作用直前に照合する。実close・不在確認・metadata commit後の `aiterm.closed-launch.v1` 証明を `_meta['aiterm/closed_launch']` に返す。本体は元execution recordが不変で、receiptのrequest/target/管理RPC ref/不在・commit証拠が一致した時だけ、対応する局所agent_launch不明を解除する。停止・処理中・後発の不明が割り込んだ場合は解除しない。同じcause文字列でも後発の不明は別として扱う。
 
+close応答のstructuredContentは別管理requestのExecutionRecordであり、元deliveryのrecordではない。本体は管理recordのrequest/期待launch/close受付を照合し、元requestのstatusを読み直して変更されていないことも確認する。
+
 元unknown execution/failed履歴/送信元は保持し、本文の自動再送・新しいdelivery作成は行わない。結果欠測・不正receiptでは局所不明を残す。後の新しい起動へ古いclosed receiptを流用しない。close後の新配送は依頼元・対象・単独実行者を合わせた別の通常工程にする。
 
 ## 検証

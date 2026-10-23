@@ -51,6 +51,14 @@ async function fixture(t) {
           evidence: { native: { schema: 'aiterm.execution-native.v1', native_id: '$4', server: { pid: 45, started_identity: 'fake-server' } },
             initial_prompt: 'none', initial_prompt_delivery: null, harness_alive: false, absence_confirmed: true, metadata_committed: true },
         }
+        const management = value._meta[CLOSED_LAUNCH_META].management_ref
+        value.structuredContent = {
+          ...value.structuredContent,
+          reservation: { ...value.structuredContent.reservation, request: management,
+            target: { session_id: B.session_id, expected_launch_id: B.launch_id } },
+          operations: { launch: 'not_issued', send: 'accepted' },
+          relation: { ...value.structuredContent.relation, request: management, target: { launch: B, boundary: null }, phase: 'invoked' },
+        }
         const detached = structuredClone(value)
         return alterReceipt ? alterReceipt(detached) : detached
       }
@@ -168,7 +176,7 @@ test('明示closeは元unknownを保持し、本文や新配送を発行せず�
   assert.equal(result.delivery_id, id); assert.equal(result.closed.outcome, 'closed')
   assert.equal(f.closes, 1); assert.equal(f.transport.uncertainChanges.has('bot-b'), false)
   assert.deepEqual(f.record, original); assert.deepEqual(await f.messenger.store.records(), history); assert.deepEqual(f.bodies, [])
-  assert.deepEqual(f.calls.map(call => [call.name, call.args.action]), [['agent_execution', 'status'], ['agent_execution', 'close_launch']])
+  assert.deepEqual(f.calls.map(call => [call.name, call.args.action]), [['agent_execution', 'status'], ['agent_execution', 'close_launch'], ['agent_execution', 'status']])
   await assert.rejects(f.messenger.closeDeliveryLaunch(id, B), { code: 'EXECUTION_CONFLICT' })
   assert.equal(f.closes, 1)
 })
@@ -185,13 +193,20 @@ for (const [name, alter] of Object.entries({
   absence: value => { value._meta[CLOSED_LAUNCH_META].evidence.absence_confirmed = false },
   commit: value => { value._meta[CLOSED_LAUNCH_META].evidence.metadata_committed = false },
   missing: value => { delete value._meta[CLOSED_LAUNCH_META] },
-  original: value => { value.structuredContent.operations.launch = 'accepted' },
+  'management-record': value => { value.structuredContent.operations.launch = 'accepted' },
 })) test(`不正なclose証明(${name})は不明を解除しない`, async t => {
   const f = await fixture(t)
   f.receipt(value => { alter(value); return value })
   await assert.rejects(f.messenger.closeDeliveryLaunch(id, B), { code: 'EXECUTION_UNCONFIRMED' })
   assert.equal(f.transport.uncertainChanges.get('bot-b'), 'agent_launch'); assert.deepEqual(f.bodies, [])
   assert.equal((await f.messenger.store.records())[0].delivery, 'failed')
+})
+
+test('closed証明が有効でも元unknown recordの書換えは受け入れない', async t => {
+  const f = await fixture(t)
+  f.receipt(value => { f.record.operations.launch = 'accepted'; return value })
+  await assert.rejects(f.messenger.closeDeliveryLaunch(id, B), { code: 'EXECUTION_UNCONFIRMED' })
+  assert.equal(f.transport.uncertainChanges.has('bot-b'), true); assert.deepEqual(f.bodies, [])
 })
 
 test('closeの重複・途中停止と同じcauseの後発不明を先のreceiptで解消しない', async t => {

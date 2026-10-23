@@ -128,10 +128,9 @@ export class ExecutionBridge {
     if (original.operations?.launch !== 'unknown' || original.operations?.send !== 'not_issued')
       throw failure('EXECUTION_CONFLICT', 'not_started')
     const result = await call(this.client, 'agent_execution', { action: 'close_launch', request, target })
-    const record = readRecord(result, request, original.reservation)
     const receipt = result?._meta?.[CLOSED_LAUNCH_META]
     const management = receipt?.management_ref, evidence = receipt?.evidence, native = evidence?.native
-    if (!same(record, original) || receipt?.schema !== 'aiterm.closed-launch.v1' || receipt.version !== 1
+    if (receipt?.schema !== 'aiterm.closed-launch.v1' || receipt.version !== 1
       || receipt.action !== 'close_launch' || receipt.outcome !== 'closed'
       || !same(receipt.request, request) || !same(receipt.target, target)
       || management?.kind !== 'mcp' || management.tool !== 'pty_close'
@@ -143,6 +142,13 @@ export class ExecutionBridge {
       || typeof native.server.started_identity !== 'string' || !native.server.started_identity || native.server.started_identity.length > 256
       || evidence.initial_prompt !== 'none' || evidence.initial_prompt_delivery !== null || evidence.harness_alive !== false
       || evidence.absence_confirmed !== true || evidence.metadata_committed !== true) throw failure()
+    // This is the new SDK management operation's record. The failed delivery
+    // remains unknown; it must not be mistaken for the successful close ref.
+    const record = readRecord(result, management)
+    if (record.stopping !== false || record.operations?.launch !== 'not_issued' || record.operations?.send !== 'accepted'
+      || !same(record.reservation.target, { session_id: target.session_id, expected_launch_id: target.launch_id })
+      || !same(record.relation.target, { launch: target, boundary: null })
+      || !same(await this.status(request), original)) throw failure()
     return structuredClone(receipt)
   }
   async roots(sessionId) {
