@@ -19,14 +19,16 @@ First prepare BellTeam with its existing installer. Run `sh bridge/install.sh --
 To apply the optional BellTeam connection, use the same Compose project name and the same three files:
 
 ```sh
-docker compose --project-directory . --env-file bridge/bridge.env \
+set --
+if [ -f .env ]; then set -- --env-file .env; fi
+docker compose --project-directory . "$@" --env-file bridge/bridge.env \
   -f compose.yaml -f bridge/compose.yaml -f bridge/compose.bellteam.yaml \
   up -d --no-deps --pull never bellteam
 ```
 
 This last command recreates BellTeam with the optional connection. Perform it when existing work can be interrupted. It does not pull a new server image. Enable Calls in BellTeam settings with URL `http://call-bridge:18910/mcp` and your Bridge token. Saved BellTeam settings remain authoritative; the environment URL only seeds an unset installation.
 
-The combination permits the existing MCP Host values `call-bridge:18910,127.0.0.1:*,localhost:*` through `CALL_BRIDGE_ALLOWED_HOSTS`. When an Origin-bearing client is used, set its actual Origin in the existing `CALL_BRIDGE_ALLOWED_ORIGINS` setting.
+The combination preserves your existing `CALL_BRIDGE_ALLOWED_HOSTS` and appends `call-bridge:18910`. When no custom list is set, the existing loopback values `127.0.0.1:*,localhost:*` are retained. Existing BellTeam `.env` values are read first, with the explicitly supplied Bridge settings layered after them. When an Origin-bearing client is used, set its actual Origin in the existing `CALL_BRIDGE_ALLOWED_ORIGINS` setting.
 
 Only `runtime/data/shared/sockets/call-bridge` is shared with Bridge, read-only, for the existing BellTeam socket contract. Bridge never receives BellTeam's entire HOME, data, CLI authentication or Bot registry. Neither service has `depends_on`; each can run, stop and update independently. Removing the optional connection does not remove either service's saved data.
 

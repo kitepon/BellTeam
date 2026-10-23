@@ -24,7 +24,11 @@ fi
 if ! "$pull"; then CALL_BRIDGE_PULL_POLICY=never; export CALL_BRIDGE_PULL_POLICY; fi
 compose() {
   if "$combined"; then
-    docker compose --project-directory "$root" --env-file bridge/bridge.env -f compose.yaml -f bridge/compose.yaml -f bridge/compose.bellteam.yaml "$@"
+    if [ -f .env ]; then
+      docker compose --project-directory "$root" --env-file .env --env-file bridge/bridge.env -f compose.yaml -f bridge/compose.yaml -f bridge/compose.bellteam.yaml "$@"
+    else
+      docker compose --project-directory "$root" --env-file bridge/bridge.env -f compose.yaml -f bridge/compose.yaml -f bridge/compose.bellteam.yaml "$@"
+    fi
   else
     docker compose --project-directory "$root" --env-file bridge/bridge.env -f bridge/compose.yaml "$@"
   fi

@@ -7,7 +7,7 @@ services:
       BELLTEAM_CALL_BRIDGE_SOCKET: /srv/bellteam/shared/sockets/call-bridge/bellteam.sock
   call-bridge:
     environment:
-      CALL_BRIDGE_ALLOWED_HOSTS: call-bridge:18910,127.0.0.1:*,localhost:*
+      CALL_BRIDGE_ALLOWED_HOSTS: "${CALL_BRIDGE_ALLOWED_HOSTS:-127.0.0.1:*,localhost:*},call-bridge:18910"
       CALL_BRIDGE_BELLTEAM_UNIX: /run/bellteam/bellteam.sock
     volumes:
       - ./runtime/data/shared/sockets/call-bridge:/run/bellteam:ro
