@@ -6,6 +6,18 @@ import XCTest
 
 @MainActor
 final class NetworkRecoveryTests: XCTestCase {
+    func testMessageAcknowledgementUsesExistingDirectAndRoomIDs() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let direct = try decoder.decode(MessageSendAcknowledgement.self,
+                                        from: Data(#"{"delivery_id":"delivery-one"}"#.utf8))
+        XCTAssertEqual(try direct.messageID(for: .bot("bot-one")), "delivery-one")
+        let room = try decoder.decode(MessageSendAcknowledgement.self,
+                                      from: Data(#"{"id":"room-message-one"}"#.utf8))
+        XCTAssertEqual(try room.messageID(for: .room("planning")), "room-message-one")
+        XCTAssertThrowsError(try room.messageID(for: .bot("bot-one")))
+    }
+
     func testIdenticalRefreshDoesNotPublishWholeAppAgain() async {
         let scenario = NetworkScenario(failures: 0)
         let store = AppStore(api: makeAPI(scenario))

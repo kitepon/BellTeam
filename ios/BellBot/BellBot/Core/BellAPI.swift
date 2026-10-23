@@ -181,9 +181,10 @@ final class BellAPI {
     }
 
     @MainActor
-    func sendMessage(_ path: String, body: SendMessageBody) async throws {
+    func sendMessage(_ path: String, body: SendMessageBody) async throws -> MessageSendAcknowledgement {
         try await BackgroundMessageSend().run {
-            let _: APIAcknowledgement = try await self.post(path, body: body)
+            let acknowledgement: MessageSendAcknowledgement = try await self.post(path, body: body)
+            return acknowledgement
         }
     }
 

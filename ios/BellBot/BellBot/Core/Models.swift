@@ -279,6 +279,18 @@ struct FeatureSettingResponse: Decodable { let setting: FeatureSetting }
 struct FeatureSettingUpdate: Encodable { let enabled: Bool; let values: [String: String] }
 struct APIAcknowledgement: Decodable {}
 
+struct MessageSendAcknowledgement: Decodable {
+    let id: String?
+    let deliveryId: String?
+
+    func messageID(for target: ChatTarget) throws -> String {
+        guard let value = target.isRoom ? id : deliveryId, !value.isEmpty else {
+            throw BellAPIError.invalidResponse
+        }
+        return value
+    }
+}
+
 struct ImagePayload: Encodable {
     let mime: String
     let data: String

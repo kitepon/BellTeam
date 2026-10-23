@@ -164,6 +164,50 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         let image = XCTAttachment(screenshot: app.screenshot()); image.name = "画像付き送信失敗後の入力保持"; image.lifetime = .keepAlways; add(image)
     }
 
+    func testSentTextAppearsBeforeServerAcknowledgementAndReconciles() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else {
+            throw XCTSkip("通信報告の隔離サーバーが必要です。")
+        }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset?mode=post-wait")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-chat", "-bellbot-preview-server", server,
+                               "-bellbot-preview-reporting", "-bellbot-preview-events"]
+        app.launch(); defer { app.terminate() }
+        let input = app.textViews["message-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        let connected = Date().addingTimeInterval(5)
+        var subscribers = 0
+        while Date() < connected && subscribers == 0 {
+            let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+            subscribers = proof["subscribers"] as? Int ?? 0
+            if subscribers == 0 { Thread.sleep(forTimeInterval: 0.1) }
+        }
+        XCTAssertGreaterThan(subscribers, 0, "通知接続を開いてから送信する")
+        input.tap(); input.typeText("応答前に表示する本文")
+        app.buttons["送信"].tap()
+        let pending = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "message-text-local-pending-"))
+            .firstMatch
+        XCTAssertTrue(pending.waitForExistence(timeout: 3), "HTTP応答を保留しても押した本文を会話に出す")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "受付確認中")).firstMatch.exists)
+        XCTAssertFalse(app.descendants(matching: .any)["message-text-accepted-message"].firstMatch.exists,
+                       "履歴通知が受付応答に先行しても同じ本文を二重に置かない")
+        let before = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let posts = (before["requests"] as? [[String: Any]])?.filter {
+            $0["method"] as? String == "POST" && ($0["path"] as? String)?.hasSuffix("/messages") == true
+        }
+        XCTAssertEqual(posts?.count, 1)
+        XCTAssertEqual(posts?.first?["closed"] as? Bool, false, "サーバーがまだ応答していない")
+        input.tap(); input.typeText("続けて入力")
+        XCTAssertEqual(input.value as? String, "続けて入力", "HTTP待機中も入力は応答する")
+        _ = try data(base, "/test/complete-post")
+        let accepted = app.descendants(matching: .any)["message-text-accepted-message"].firstMatch
+        XCTAssertTrue(accepted.waitForExistence(timeout: 5), "既存の配送IDを持つ正本へ置き換える")
+        XCTAssertFalse(pending.exists, "仮表示と正本を重複させない")
+        XCTAssertEqual(input.value as? String, "続けて入力", "送信後に書いた下書きを保つ")
+    }
+
     func testReportingUsesHandledWriteResultAndPreservesDraft() throws {
         guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else { throw XCTSkip("通信報告の隔離サーバーが必要です。") }
         let base = try XCTUnwrap(URL(string: server))
