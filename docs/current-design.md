@@ -8,7 +8,9 @@
 
 BellTeamは各OSSの公開CLI/MCP/APIを使うアプリケーションであり、Aiterm・Steer・Throughline・mcp-lazy・RTK・call-bridgeの実行判断や製品状態を所有しない。Bot・配送・ルームとの対応付けはBellTeamの接続処理に置く。各OSSはBellTeamの台帳や内部パスがない環境でも単独で導入・起動・操作・更新できることを保つ。商用コンテナへの同梱は配布構成であり、製品本体へBellTeam固有の依存を追加する理由にしない。
 
-HTTPの公開入口は`src/http-server.mjs`の`createBellTeamServer`であり、認証・経路の選択・既存サービスの呼出し・サーバー終了の接続を持つ。入出力の表現は`http-response.mjs`、要求ログは`http-request-log.mjs`、画像と静的ファイルの配信は`http-assets.mjs`、既存の失敗をHTTPと診断へ写す処理は`http-errors.mjs`、会話の統合・ページ・画像URL表現は`http-messages.mjs`、SSEの接続・通知集約・監視解除は`http-events.mjs`が持つ。これらはHTTP向けの変換と接続であり、配送・実行・記憶などの正本や製品処理を複製しない。既存の関数・定数のexport、経路・応答形式・ログ形式、接続と監視の終了順を維持する。
+HTTPの公開入口は`src/http-server.mjs`の`createBellTeamServer`であり、認証・要求ログ・共通の失敗応答・静的配信・接続終了を所有する。機能の受付は`http-application-api.mjs`（設定・初期設定・認証・利用契約・オーナー・共通イベント）、`http-bot-api.mjs`、`http-room-api.mjs`、`http-delivery-api.mjs`、`http-schedule-api.mjs`、`http-conversation-api.mjs`へ分ける。制御系の早期返却の後に台帳をrefreshする位置を保ち、機能handlerは未一致の時だけfalseを返す。公開route/status/JSONと既存サービスの同一実体を保ち、HTTPとMCPへ業務判断や保存処理を二重実装しない。
+
+入出力の表現は`http-response.mjs`、要求ログは`http-request-log.mjs`、画像と静的ファイルの配信は`http-assets.mjs`、既存の失敗をHTTPと診断へ写す処理は`http-errors.mjs`、会話の統合・ページ・画像URL表現は`http-messages.mjs`、SSEの接続・通知集約・監視解除は`http-events.mjs`が持つ。既存の関数・定数のexport、ログ形式、接続と監視の終了順を維持する。
 
 `src/aiterm-transport.mjs`は、Aitermの返却をBotの実行・配送へ対応付けるBellTeam側の接続である。MCP接続の寿命・環境変数の渡し方・返却済みの失敗は`aiterm-client.mjs`、Aitermから返った待機用プロセスの実行は`aiterm-wait-process.mjs`、Throughlineの公開CLIによる会話数と継続文脈の読取りは`throughline-context.mjs`へ分ける。Throughline接続はAitermのBot実行管理やMCP clientへ依存しない。従来の`aiterm-transport.mjs`からのexportは維持し、各製品の公開入出力と返却された状態の意味を変えない。
 
