@@ -2,6 +2,7 @@
 const operations = new Map([
   ['message_send', 'メッセージ送信'], ['conversation_read', '会話取得'],
   ['member_list_read', 'Bot一覧取得'], ['schedule_read', '予定取得'],
+  ['model_catalog_read', 'モデル一覧取得'],
   ['subscription_status_read', '購読状態取得'], ['event_stream_connect', 'SSE接続'],
   ['session_check', 'セッション確認'], ['settings_read', '設定取得'],
 ])
