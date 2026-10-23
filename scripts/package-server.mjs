@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { chmod, copyFile, mkdir, mkdtemp, open, rm, writeFile } from 'node:fs/promises'
+import { chmod, cp, copyFile, mkdir, mkdtemp, open, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -34,6 +34,8 @@ try {
     ['install.sh', 'install.sh'],
   ]) await copyFile(join(output, 'distribution/server', source), join(output, target))
   await chmod(join(output, 'install.sh'), 0o755)
+  await cp(join(output, 'distribution/server/bridge'), join(output, 'bridge'), { recursive: true })
+  await chmod(join(output, 'bridge/install.sh'), 0o755)
   await rm(join(output, 'distribution'), { recursive: true })
   await writeFile(join(output, 'distribution.json'), JSON.stringify({
     schema: 'bellteam.server.distribution.v1', sourceCommit, profile: 'public',
