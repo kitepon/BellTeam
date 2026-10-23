@@ -8,6 +8,8 @@
 
 修理後は送信を押した時点で本文と画像枚数を会話末尾に「受付確認中」として表示する。サーバー履歴の通知がHTTP応答より先着しても仮行を二重に並べず、直接会話の`delivery_id`またはルーム発言の`id`を応答から受けた後、該当する正本の行へ置き換える。履歴取得が一時的に失敗した時は仮行を「受付済み・反映待ち」として残す。受付を確認できない失敗では仮行を外し、送信中に書き足した下書きを保ちながら元の本文・画像を入力欄へ戻す。本文の自動再送はしない。
 
+変更ファイル: 会話の表示・突合は`ios/BellBot/BellBot/Views/ConversationView.swift`、応答IDの読取は`ios/BellBot/BellBot/Core/BellAPI.swift`と`Models.swift`。試験は`ios/BellBot/BellBotTests/NetworkRecoveryTests.swift`、`ios/BellBot/BellBotUITests/NetworkLifecycleProbeUITests.swift`、`test/fixtures/bughub-ui-probe.mjs`、`test/helpers/network-lifecycle-server.mjs`。版番号は`ios/BellBot/project.yml`、本体と通知拡張の`Info.plist`を更新した。
+
 ## 確認
 
 - 修理前: 人工POST保留時、送信した本文が会話へ出ず、専用UI試験が失敗。
