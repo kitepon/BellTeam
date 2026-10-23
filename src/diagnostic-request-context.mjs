@@ -1,7 +1,11 @@
 import { diagnosticFailureDetails } from './diagnostic-report-context.mjs'
+import { returnedExecutionError } from './execution-bridge.mjs'
 
 // 要求の意味とHTTP処理で観測した失敗。本人の操作や配送結果は推定しない。
 export function diagnosticRequestContext({ method, url }, frames = [], error = null) {
+  // 既に返された型付きreceiptの観測値だけを残す。本文から受付/未送信を推測しない。
+  // 既存の集約キーは変えず、古いunknown報告を書き換えない。
+  const execution = returnedExecutionError(error?.executionError) ?? returnedExecutionError(error)
   const requestMethod = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].includes(method) ? method : 'unknown'
   const path = typeof url === 'string' ? url.split(/[?#]/u, 1)[0] : ''
   let operation = 'unknown'
@@ -63,6 +67,11 @@ export function diagnosticRequestContext({ method, url }, frames = [], error = n
     'http_status=500',
     `failure_stage=${stage}`,
     ...Object.entries(diagnosticFailureDetails(error)).map(([key, value]) => `${key}=${value}`),
+    ...(execution ? [
+      `execution_code=${execution.code}`,
+      `execution_effect=${execution.effect}`,
+      `execution_follow_up=${execution.follow_up}`,
+    ] : []),
     'cause_status=unconfirmed',
     'app_handling=error_response_selected',
     'handling_basis=code_classification',
