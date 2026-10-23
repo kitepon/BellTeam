@@ -13,6 +13,10 @@ export function diagnosticRequestContext({ method, url }, frames = [], error = n
     route = `/api/${messages[1]}/:id/messages`
     operation = requestMethod === 'POST' ? 'message_send' : 'conversation_read'
     expected = requestMethod === 'POST' ? 'message_acceptance_response' : 'conversation_data_response'
+  } else if (requestMethod === 'POST' && ['/api/deliveries/direct', '/api/deliveries/room'].includes(path)) {
+    route = path
+    operation = 'message_send'
+    expected = 'message_acceptance_response'
   } else if (path === '/api/bots' && requestMethod === 'GET') {
     route = '/api/bots'
     operation = 'member_list_read'
