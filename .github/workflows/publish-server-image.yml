@@ -1,40 +1,24 @@
-name: 一般配布サーバーのDocker候補作成
+name: 商用候補のnative受入（非公開試験）
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - Dockerfile
-      - .dockerignore
-      - package.json
-      - package-lock.json
-      - src/**
-      - web/**
-      - integrations/**
-      - distribution/server/**
-      - scripts/package-server.mjs
-      - scripts/update-cursor.sh
-      - scripts/cursor-update-entrypoint.sh
-      - compose.cursor-update.yaml
-      - config/common-agents.md
-      - config/setup-guide.json
-      - docs/bot-environment.md
-      - docs/onboarding.md
-      - services/subscriptions/product.json
-      - services/subscriptions/endpoints.json
-      - .github/workflows/publish-server-image.yml
+    inputs:
+      source:
+        description: 試験する固定BellTeam source SHA
+        required: true
+        type: string
+      aiterm_version:
+        description: 公式latestの期待版（固定導入はしない）
+        required: true
+        type: string
+        default: 0.61.8
 
 concurrency:
-  group: public-server-image
-  cancel-in-progress: true
+  group: centi-native-acceptance-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
-  packages: write
-
-env:
-  IMAGE: ghcr.io/kitepon/bellteam-server
 
 jobs:
   build:
@@ -59,25 +43,31 @@ jobs:
           --health-timeout 3s
           --health-retries 30
     env:
-      BELLTEAM_SERVER_IMAGE: ghcr.io/kitepon/bellteam-server:${{ github.sha }}-${{ matrix.arch }}
+      BELLTEAM_SERVER_IMAGE: centi-native-test:${{ github.run_id }}-${{ matrix.arch }}
+      ACCEPTANCE_SOURCE: ${{ inputs.source }}
+      ACCEPTANCE_VERSION: ${{ inputs.aiterm_version }}
       COMPOSE_FILE: ${{ github.workspace }}/runtime/server-install/compose.yaml
       COMPOSE_PROJECT_NAME: server-smoke
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          ref: ${{ inputs.source }}
       - uses: actions/setup-node@v7
         with:
           node-version: node
       - name: 既定ブランチの祖先確認と配布物作成
         run: |
-          git merge-base --is-ancestor HEAD origin/main
+          # 非公開の事前試験。main祖先条件は通常の候補公開workflowで維持する。
+          test "${#ACCEPTANCE_SOURCE}" = 40
+          case "$ACCEPTANCE_SOURCE" in *[!0-9a-f]*) exit 1;; esac
+          test "$(git rev-parse HEAD)" = "$ACCEPTANCE_SOURCE"
           node scripts/package-server.mjs runtime/server-image
       - name: 公式の現行版からイメージを作成
         run: |
           docker build --pull --no-cache --platform "linux/${{ matrix.arch }}" \
             --label "org.opencontainers.image.source=https://github.com/kitepon/BellTeam" \
-            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.revision=$ACCEPTANCE_SOURCE" \
             --label 'org.opencontainers.image.description=自分のマシンで動かすBellTeamの一般配布版' \
             -t "$BELLTEAM_SERVER_IMAGE" runtime/server-image
       - name: 個人設定と開発者免除の除去を確認
@@ -218,6 +208,25 @@ jobs:
             console.log("公式認証の開始・消失の表示・再選択・取消を確認しました。");
           } finally { await client.close(); }
           '
+      - uses: actions/checkout@v7
+        with:
+          repository: kitepon/aiterm-mcp
+          ref: dd94e82d1ac69cf57c23c6dc87b873b7ca9c4047
+          path: runtime/aiterm-source
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: runtime/acceptance-tools
+      - name: 同梱実物の回復と別世代receiptをnativeで確認
+        run: |
+          python3 runtime/acceptance-tools/test/helpers/commercial-native-acceptance.py \
+            "$BELLTEAM_SERVER_IMAGE" "$ACCEPTANCE_SOURCE" "$ACCEPTANCE_VERSION" \
+            "${{ matrix.arch }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: commercial-native-${{ matrix.arch }}
+          path: runtime/commercial-native-${{ matrix.arch }}/
       - name: 試験コンテナと保存先を片付ける
         if: always()
         run: |
@@ -225,34 +234,3 @@ jobs:
             docker compose logs --no-color || true
             docker compose down --volumes || true
           fi
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: 確認したアーキテクチャのイメージを登録
-        run: docker push "$BELLTEAM_SERVER_IMAGE"
-
-  candidate:
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: 両アーキテクチャの候補を登録
-        run: |
-          docker buildx imagetools create \
-            -t "$IMAGE:$GITHUB_SHA" \
-            "$IMAGE:$GITHUB_SHA-amd64" "$IMAGE:$GITHUB_SHA-arm64"
-          docker buildx imagetools inspect "$IMAGE:$GITHUB_SHA"
-          {
-            echo '## 内部先行利用する候補'
-            echo "source: $GITHUB_SHA"
-            echo '同じdigestで内部受入を終えてから、安定版反映workflowを実行してください。'
-            docker buildx imagetools inspect "$IMAGE:$GITHUB_SHA"
-          } >> "$GITHUB_STEP_SUMMARY"
