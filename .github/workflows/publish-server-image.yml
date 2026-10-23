@@ -1,4 +1,4 @@
-name: 一般配布サーバーのDocker公開
+name: 一般配布サーバーのDocker候補作成
 
 on:
   workflow_dispatch:
@@ -233,7 +233,7 @@ jobs:
       - name: 確認したアーキテクチャのイメージを登録
         run: docker push "$BELLTEAM_SERVER_IMAGE"
 
-  publish:
+  candidate:
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -244,9 +244,15 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: 両アーキテクチャの配布タグを登録
+      - name: 両アーキテクチャの候補を登録
         run: |
           docker buildx imagetools create \
-            -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest" -t "$IMAGE:preview" \
+            -t "$IMAGE:$GITHUB_SHA" \
             "$IMAGE:$GITHUB_SHA-amd64" "$IMAGE:$GITHUB_SHA-arm64"
           docker buildx imagetools inspect "$IMAGE:$GITHUB_SHA"
+          {
+            echo '## 内部先行利用する候補'
+            echo "source: $GITHUB_SHA"
+            echo '同じdigestで内部受入を終えてから、安定版反映workflowを実行してください。'
+            docker buildx imagetools inspect "$IMAGE:$GITHUB_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"

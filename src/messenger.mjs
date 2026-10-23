@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 
 import { memberIdentity } from './member-identity.mjs'
 import { ConversationStore } from './conversation-store.mjs'
+import { deliveryExecutionRef } from './execution-bridge.mjs'
 
 export function directEnvelope(from, message) {
   const identity = typeof from === 'string' ? { id: from, name: from, position: '', role: '' } : from
@@ -109,6 +110,31 @@ export class BellTeamMessenger {
       await this.appendDeliveryStatus(deliveryId, ['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) ? 'stopped' : 'failed')
       throw error
     }
+  }
+
+  async resumeDelivery(deliveryId, target) {
+    const check = this.admitWork()
+    await this.bots.refresh?.()
+    const record = (await this.store.records()).find(row => row.delivery_id === deliveryId)
+    if (!record) throw Object.assign(new Error('DELIVERY_NOT_FOUND'), { code: 'DELIVERY_NOT_FOUND', status: 404 })
+    // 今回の回復対象は本文だけのBot間直接配送。通話や添付を新しい配送へ複製しない。
+    if (record.delivery !== 'failed' || record.image || record.session_id || !this.bots.has(record.from) || !this.bots.has(record.target))
+      throw Object.assign(new Error('DELIVERY_NOT_RESUMABLE'), { code: 'DELIVERY_NOT_RESUMABLE', status: 409 })
+    const bot = this.bots.get(record.target)
+    await this.requireAccess({ from: record.from, target: bot.id })
+    check()
+    const execution = await this.transport.reconcileLaunch(bot, deliveryExecutionRef(deliveryId, target?.session_id), target)
+    check()
+    const result = await this.transport.notify(bot, directEnvelope(record.from_identity ?? record.from, record.message), {
+      recoveredExecution: execution,
+      queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from: record.from,
+        fromName: record.from_identity?.name ?? record.from, target: bot.id, message: record.message },
+      onStatus: status => this.appendDeliveryStatus(deliveryId, status),
+      onInterim: words => this.appendInterimWords(bot.id, deliveryId, words),
+      onAnswer: text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }]),
+      onTurnEnd: window => this.onTurnEnd({ botId: bot.id, context: 'direct', ...window }),
+    })
+    return { delivery: result.delivery, delivery_id: deliveryId, from: record.from, target: bot.id }
   }
 
   async enqueueUserTurn(input) {

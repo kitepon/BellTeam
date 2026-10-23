@@ -60,18 +60,22 @@ export async function readProcTree(table, pid, proc = '/proc') {
 
 const sameArgs = (a, b) => Array.isArray(a) && a.length === b.length && a.every((value, i) => value === b[i])
 
-export function trustedIdleTree(rows, pid, harness, botId, project = `/srv/bellteam/bots/${botId}`) {
+export function trustedIdleTree(rows, pid, harness, botId, project = `/srv/bellteam/bots/${botId}`, nativeRegistration) {
   const byPid = new Map(rows.map(row => [row.pid, row]))
   const root = byPid.get(pid)
   const rootExe = harness === 'claude-code' ? '/usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe'
-    : harness === 'grok-cli' ? '/usr/local/bin/grok' : harness === 'codex-cli' ? nodeExe : null
+    : harness === 'grok-cli' ? '/usr/local/bin/grok' : harness === 'codex-cli'
+      ? [nodeExe, codexExe].includes(root?.exe) ? root.exe : null : null
   if (!rootExe || root?.exe !== rootExe || root.cwd !== project) return false
   // 孤立行、重複PID、cycleを許さず、渡された全行がrootの子孫であることを確認する。
   if (byPid.size !== rows.length || byPid.has(root.ppid) || processDescendants(byPid, pid).length !== rows.length) return false
-  // Codexの登録identityはnode入口。実CLIはその唯一の固定native子で、MCPの直接親はこちら。
-  const nativeCli = harness === 'codex-cli' ? rows.filter(row => row.ppid === pid && row.exe === codexExe) : []
-  if (harness === 'codex-cli' && nativeCli.length !== 1) return false
+  // 観測identityがnode入口なら唯一のnative子、native直起動ならそのrootがMCPの親になる。
+  const wrapper = harness === 'codex-cli' && root.exe === nodeExe
+  const nativeCli = wrapper ? rows.filter(row => row.ppid === pid && row.exe === codexExe) : []
+  if (wrapper && nativeCli.length !== 1) return false
   const cliPid = nativeCli[0]?.pid ?? pid
+  // 登録元が解決した同scopeの正規native入口だけを既存MCP一覧へ加える。
+  const commands = nativeRegistration ? [...mcpCommands, [nativeRegistration.command, ...nativeRegistration.args]] : mcpCommands
   const relays = new Map()
   for (const row of rows) {
     if (!Number.isSafeInteger(row.pid) || !Number.isSafeInteger(row.ppid) || !/^\d+$/u.test(row.start)
@@ -79,7 +83,7 @@ export function trustedIdleTree(rows, pid, harness, botId, project = `/srv/bellt
     if (row.pid === pid) continue
     const parent = byPid.get(row.ppid)
     if (!parent || !/^\d+$/u.test(parent.start) || BigInt(parent.start) > BigInt(row.start)) return false
-    if (row.exe === relayExe && row.ppid === cliPid && mcpCommands.some(args => sameArgs(row.argv, [relayExe, ...args])))
+    if (row.exe === relayExe && row.ppid === cliPid && commands.some(args => sameArgs(row.argv, [relayExe, ...args])))
       relays.set(row.pid, row.argv.slice(1))
   }
   for (const row of rows) {
@@ -129,20 +133,20 @@ export async function confirmDeployIdle(transport, seat, { signal, readTable = r
   if (await readStart(native.pid) !== native.started_identity) return null
   check()
   const first = await readTree(before, native.pid)
-  if (!trustedIdleTree(first, native.pid, observed.harness, seat.botId, seat.project)) return null
+  if (!trustedIdleTree(first, native.pid, observed.harness, seat.botId, seat.project, seat.nativeRegistration)) return null
   // 同じBotフォルダの別CLI/別nodeを登録rootへ勝手に畳まない。
   if (!Array.isArray(seat.candidates) || seat.candidates.some(candidate => !first.some(row =>
     row.pid === candidate.pid && row.ppid === candidate.ppid && row.start === candidate.start && row.exe === candidate.exe))) return null
   check()
   const second = await readTree(await readTable(), native.pid)
-  if (!trustedIdleTree(second, native.pid, observed.harness, seat.botId, seat.project) || treeIdentity(first) !== treeIdentity(second)) return null
+  if (!trustedIdleTree(second, native.pid, observed.harness, seat.botId, seat.project, seat.nativeRegistration) || treeIdentity(first) !== treeIdentity(second)) return null
   check()
   const after = await transport.observe({ session: seat.session })
   if (after?.exists === true && after.state === 'busy') return { state: 'running' }
   if (!idleObservation(after) || observationIdentity(observed) !== observationIdentity(after)) return null
   check()
   const final = await readTree(await readTable(), native.pid)
-  if (!trustedIdleTree(final, native.pid, observed.harness, seat.botId, seat.project) || treeIdentity(first) !== treeIdentity(final)) return null
+  if (!trustedIdleTree(final, native.pid, observed.harness, seat.botId, seat.project, seat.nativeRegistration) || treeIdentity(first) !== treeIdentity(final)) return null
   return { state: 'idle' }
 }
 
@@ -237,7 +241,7 @@ export function createTracedConfirm(api, emit, dependencies = {}) {
         const rows = await treeReader(table, pid)
         if (treeIndex === 1) firstTree = rows
         log(stage, {read_ms:performance.now()-readAt, rows:rows.length,
-          trusted:api.trustedIdleTree(rows,pid,firstObservation?.harness,seat.botId,seat.project),
+          trusted:api.trustedIdleTree(rows,pid,firstObservation?.harness,seat.botId,seat.project,seat.nativeRegistration),
           candidates_covered:Array.isArray(seat.candidates) && seat.candidates.every(c => rows.some(r =>
             r.pid === c.pid && r.ppid === c.ppid && r.start === c.start && r.exe === c.exe)),
           tree_same_as_first:identity(rows) === identity(firstTree),
@@ -335,6 +339,10 @@ export async function collectDeployTurns(transport, seats, { signal, confirmIdle
 // 本体の既存読取経路。起動/送信/終了は行わず、画面本文を取得/出力しない。
 async function readTurns(seats, { trace } = {}) {
   const { AitermClient, AitermTransport } = await import('/app/src/aiterm-transport.mjs')
+  const { aitermExecutionRegistration } = await import('/app/src/aiterm-hooks.mjs')
+  // descriptorの取得だけで、hook登録・manager作成・端末作用は行わない。
+  const nativeRegistration = await aitermExecutionRegistration()
+  const scopedSeats = seats.map(seat => ({ ...seat, nativeRegistration }))
   const transport = new AitermTransport({ client: new AitermClient({ env: {
     HOME: '/home/bell', BELLTEAM_HOME: '/home/bell',
     PATH: '/home/bell/.local/bin:/usr/local/bin:/usr/bin:/bin',
@@ -342,7 +350,7 @@ async function readTurns(seats, { trace } = {}) {
   const stop = new AbortController()
   let timer
   try {
-    return await Promise.race([collectDeployTurns(transport, seats, { signal: stop.signal, trace,
+    return await Promise.race([collectDeployTurns(transport, scopedSeats, { signal: stop.signal, trace,
       confirmIdle: typeof trace === 'function' ? createTracedConfirm({readProcTable,readProcTree,trustedIdleTree,confirmDeployIdle},trace) : confirmDeployIdle }), new Promise((_, reject) => {
       timer = setTimeout(() => { stop.abort(); emitDeployTrace(trace, {code:'TIMEOUT',reason:'timeout'}); reject(new Error('DEPLOY_QUIET_TURNS_UNAVAILABLE')) }, 10000)
     })])

@@ -102,6 +102,24 @@ export class ExecutionBridge {
   async status(request) {
     return readRecord(await call(this.client, 'agent_execution', { action: 'status', request }), request)
   }
+  async reconcileLaunch(request, target) {
+    if (!launch(target) || request?.target_session_id !== target.session_id) throw failure('EXECUTION_INVALID', 'not_started')
+    // 再registerせず、元の送信元・予約を使う。宛先世代の照合はAitermが行う。
+    const original = await this.status(request)
+    if (original.operations?.send === 'accepted') throw failure('EXECUTION_CONFLICT', 'not_started')
+    const handle = new ExecutionRequest(this.client, structuredClone(original.reservation))
+    const result = await call(this.client, 'agent_execution', { action: 'reconcile_launch', request, target })
+    const record = readRecord(result, request, original.reservation)
+    handle.acceptBinding(result, record)
+    if (record.stopping !== false || record.operations?.launch !== 'accepted' || record.operations?.send !== 'not_issued'
+      || record.relation.lifecycle !== 'tracking' || record.relation.completion !== 'open'
+      || record.relation.target_fence !== 'open' || !same(handle.binding?.target, { launch: target, boundary: null }))
+      throw failure()
+    handle.record = record
+    handle.registered = true
+    handle.issued.add('launch')
+    return handle
+  }
   async roots(sessionId) {
     if (!session(sessionId)) throw failure('EXECUTION_INVALID', 'not_started')
     const data = (await call(this.client, 'agent_execution_roots', { session_id: sessionId }))?.structuredContent

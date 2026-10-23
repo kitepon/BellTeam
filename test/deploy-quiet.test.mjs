@@ -115,6 +115,33 @@ test('確認済みMCPは中継と直接子だけ許容し、hookと同居でき�
   }
 })
 
+test('登録元の同scope native MCPは待機として扱い、別scopeと余分な作用は拒否する', async () => {
+  const nativeRegistration = { command: nodeExe, args: [
+    '/usr/local/lib/node_modules/aiterm-mcp/dist/execution-native-server.js',
+    '--execution-interrupt', '--state-root', '/tmp/fixture-state',
+    '--socket', '/tmp/fixture-socket', '--steer-provider', '/fixture/provider.js',
+  ] }
+  const command = [nativeRegistration.command, ...nativeRegistration.args]
+  const relayRow = { pid: 30, ppid: 10, pgid: 10, start: '120', state: 'S', exe: relay, argv: [relay, ...command] }
+  const serverRow = { pid: 40, ppid: 30, pgid: 30, start: '130', state: 'S', exe: nodeExe, argv: command }
+  const rows = [root, hook, relayRow, serverRow]
+  const seat = { ...peerSeat, nativeRegistration,
+    candidates: rows.map(({pid, ppid, start, exe}) => ({pid, ppid, start, exe})) }
+  // 修理前は、正規descriptorを渡しても旧index入口だけを認識していた。
+  assert.equal(trustedIdleTree(rows, 10, 'claude-code', 'bot-peer'), false)
+  assert.equal((await confirmDeployIdle({observe:async()=>idle}, seat, procFixture(rows))).state, 'idle')
+  for (const args of [command.map(v=>v==='/tmp/fixture-state'?'/tmp/other-state':v),
+    command.map(v=>v==='/tmp/fixture-socket'?'/tmp/other-socket':v),
+    command.map(v=>v==='/fixture/provider.js'?'/other/provider.js':v), [...command,'--extra']]) {
+    const changed = [root, hook, {...relayRow,argv:[relay,...args]}, {...serverRow,argv:args}]
+    assert.equal(await confirmDeployIdle({observe:async()=>idle}, seat, procFixture(changed)), null)
+  }
+  const work = {pid:50,ppid:40,pgid:30,start:'140',state:'S',exe:'/usr/bin/python3',argv:null}
+  assert.equal(await confirmDeployIdle({observe:async()=>idle}, seat, procFixture([...rows,work])), null)
+  const stopped = await confirmDeployIdle({observe:async()=>({...idle,state:'busy'})}, seat, procFixture(rows))
+  assert.equal(stopped.state, 'running')
+})
+
 test('Codexのnode入口と唯一の固定native CLIを区別してMCPの親を確認する', () => {
   const wrapper = { ...root, exe: nodeExe }
   const native = { pid: 11, ppid: 10, pgid: 10, start: '101', state: 'S', argv: null,
@@ -128,6 +155,18 @@ test('Codexのnode入口と唯一の固定native CLIを区別してMCPの親を�
   assert.equal(trustedIdleTree([wrapper, native, mcp, helper], 10, 'codex-cli', 'bot-peer'), true)
   assert.equal(trustedIdleTree([wrapper, native, helper, { ...helper, pid: 50, ppid: 40 }], 10, 'codex-cli', 'bot-peer'), false)
   assert.equal(trustedIdleTree([wrapper, native, { ...helper, argv: [...helper.argv, '--extra'] }], 10, 'codex-cli', 'bot-peer'), false)
+})
+
+test('観測identityが固定Codex native直起動なら、そのrootと既知の直接子だけを認識する', () => {
+  const exe = '/usr/local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex'
+  const direct = {...root,exe}
+  const mcp = {pid:30,ppid:10,pgid:10,start:'120',state:'S',exe:relay,argv:[relay,nodeExe,aiterm]}
+  const helper = {pid:40,ppid:10,pgid:10,start:'130',state:'S',exe:exe+'-code-mode-host',argv:[exe+'-code-mode-host']}
+  assert.equal(trustedIdleTree([direct,mcp,helper],10,'codex-cli','bot-peer'),true)
+  for (const changed of [{...direct,exe:'/other/codex'}, {...direct,cwd:'/other/project'}, {...direct,state:'T'}])
+    assert.equal(trustedIdleTree([changed,mcp,helper],10,'codex-cli','bot-peer'),false)
+  assert.equal(trustedIdleTree([direct,mcp,helper,{...direct,pid:50,ppid:10,start:'140'}],10,'codex-cli','bot-peer'),false)
+  assert.equal(trustedIdleTree([direct,mcp,{...helper,ppid:30}],10,'codex-cli','bot-peer'),false)
 })
 
 test('hookの別root/版/余分引数/別exe/別親/非Claudeと似た名前を拒否する', () => {
