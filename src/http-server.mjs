@@ -1,124 +1,26 @@
-import { TimelineIndex, timelinePage, recentTimeline, fullTimeline } from './timeline-index.mjs'
-import { createHash } from 'node:crypto'
-import { createReadStream } from 'node:fs'
-import { readFile, stat } from 'node:fs/promises'
 import { createServer } from 'node:http'
-import { extname, join } from 'node:path'
-import { SubscriptionAccessError } from './subscriptions.mjs'
-import { LiveModelCatalog, ModelCatalogError } from './model-catalog.mjs'
-import { diagnosticRequestContext } from './diagnostic-request-context.mjs'
-import { returnedExecutionError } from './execution-bridge.mjs'
+import { recentTimeline } from './timeline-index.mjs'
+import { LiveModelCatalog } from './model-catalog.mjs'
 import { stopFailureReport } from './stop-failure-report.mjs'
+import { json, readJson } from './http-response.mjs'
+import { logWriteRequest, logReadRequest } from './http-request-log.mjs'
+import { listAvatar, sendAvatar, staticFile } from './http-assets.mjs'
+import { respondHttpError } from './http-errors.mjs'
+import { createMessageViews, webMessage, messageImages, MESSAGE_MAX_BYTES } from './http-messages.mjs'
+import { createMessageEvents, EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS } from './http-events.mjs'
 
-const contentTypes = new Map([
-  ['.html', 'text/html; charset=utf-8'],
-  ['.css', 'text/css; charset=utf-8'],
-  ['.js', 'text/javascript; charset=utf-8'],
-  ['.svg', 'image/svg+xml'],
-  ['.png', 'image/png'],
-  ['.webmanifest', 'application/manifest+json'],
-])
+export { avatarVersion } from './http-assets.mjs'
+export { pageItems } from './http-messages.mjs'
+export { EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS }
 
-// 会話の知らせ（SSE）を黙らせない間隔。
-export const EVENT_KEEPALIVE_MS = 25000
-// 一つの変更で複数の監視が続けて鳴る。この間の知らせは1件にまとめる。
-export const MESSAGE_EVENT_WINDOW_MS = 50
 // 待機中の接続を閉じるまでの時間。Nodeの既定5秒は、再利用の瞬間に閉じて通信断（-1005）を起こす。
 // 手前の中継（cloudflaredの既定90秒）より長く保つ。
 export const KEEP_ALIVE_TIMEOUT_MS = 125000
 
-const avatarVersions = new Map()
-
-// アバターはdata URLで保存している。版は中身から決め、アプリは版が変わった時だけ画像を取り直す。
-export function avatarVersion(avatar) {
-  if (typeof avatar !== 'string' || !avatar) return ''
-  let version = avatarVersions.get(avatar)
-  if (!version) {
-    if (avatarVersions.size >= 256) avatarVersions.clear()
-    version = createHash('sha256').update(avatar).digest('hex').slice(0, 16)
-    avatarVersions.set(avatar, version)
-  }
-  return version
-}
-
-// 一覧の `?avatar=omit` は画像本体を外す。指定の無い古いアプリには今までどおり本体を返す。
-function listAvatar(avatar, url) {
-  const value = typeof avatar === 'string' ? avatar : ''
-  return { avatar: url.searchParams.get('avatar') === 'omit' ? '' : value, avatarVersion: avatarVersion(value) }
-}
-
-function sendAvatar(request, response, avatar, url) {
-  const match = typeof avatar === 'string' ? avatar.match(/^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/]+={0,2})$/u) : null
-  if (!match) return json(response, 404, { error: 'AVATAR_NOT_FOUND' })
-  const version = avatarVersion(avatar)
-  const headers = {
-    etag: `"${version}"`,
-    // 版つきURLの中身は変わらない。版の無い取得は毎回確かめさせる。
-    'cache-control': url.searchParams.get('v') === version ? 'private, max-age=31536000, immutable' : 'private, no-cache',
-  }
-  if (request.headers['if-none-match'] === headers.etag) {
-    response.writeHead(304, headers)
-    return response.end()
-  }
-  const body = Buffer.from(match[2], 'base64')
-  response.writeHead(200, { ...headers, 'content-type': match[1], 'content-length': body.length })
-  response.end(body)
-}
-
-// 書き込み系の要求は、受付の時刻と結果を1行残す。
-// 保存が届いたか・応答を返し終えたかを、端末側の時刻と後から照合するため（本文と問い合わせ文字列は残さない）。
-// 応答を返し終える前に接続が切れた時は、状態コードの代わりに aborted と書く。
-const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
-// ファストモードを保存しなかった理由。切り替えたBot（MCPの set_fast_mode）と設定画面が、符号だけでなく訳を読めるようにする。
-const FAST_MODE_MESSAGES = {
-  BOT_FAST_MODE_UNAVAILABLE: 'ファストモードへ切り替えられません。BellTeamに入っているAitermが、ファストモードの切り替えに対応していません。保存は変えていません。',
-  BOT_FAST_MODE_UNSUPPORTED: 'ファストモードへ切り替えられません。このBotのCLIとモデルは、ファストモードに対応していません。保存は変えていません。',
-  BOT_FAST_MODE_ACCOUNT_UNAVAILABLE: 'ファストモードへ切り替えられません。このBotのCLIのアカウントでは、今はファストモードを使えません。保存は変えていません。',
-}
-function logWriteRequest(request, response, write) {
-  const path = String(request.url).split('?')[0]
-  if (!WRITE_METHODS.has(request.method) || !path.startsWith('/api/')) return
-  const started = Date.now()
-  let finished = false
-  response.once('finish', () => { finished = true })
-  response.once('close', () => {
-    write(`BellTeam write: ${new Date(started).toISOString()} ${request.method} ${path} ${finished ? response.statusCode : 'aborted'} ${Date.now() - started}ms\n`)
-  })
-}
-
-// 読み取りは受付時にも残す。応答待ちのGETと、記録されなかったGETを区別するため。
-// finishは端末の受領ではなく、Nodeが応答をOSへ渡し終えた事を表す。
-function logReadRequest(request, response, write) {
-  const path = String(request.url).split('?')[0]
-  if (!['GET', 'HEAD'].includes(request.method) || !path.startsWith('/api/')) return
-  const started = Date.now()
-  const prefix = `BellTeam read: ${new Date(started).toISOString()} ${request.method} ${path}`
-  write(`${prefix} started\n`)
-  let finished = false
-  response.once('finish', () => { finished = true })
-  response.once('close', () => {
-    write(`${prefix} ${finished ? response.statusCode : 'aborted'} ${Date.now() - started}ms\n`)
-  })
-}
-
 export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
   if (typeof authorize !== 'function') throw new Error('BELLTEAM_AUTHORIZER_REQUIRED')
-  const subscribers = new Set()
-  let closeWatch = null
-  let pendingNotify = null
-  const sources = async (kind, id, prepared = null) => {
-    const base = prepared ?? (kind === 'rooms'
-      ? rooms.messageView ? await rooms.messageView(id) : new TimelineIndex(await rooms.messages(id))
-      : store.timelineView ? await store.timelineView(id) : new TimelineIndex(await store.timeline(id)))
-    const target = kind === 'rooms' ? { roomId: id } : { botId: id }
-    const extra = service => service?.timelineView?.(target) ?? new TimelineIndex(service?.timeline(target) ?? [])
-    return [base, extra(secretRequests), ...(kind === 'bots' ? [extra(ownerQuestions)] : [])]
-  }
-  const timeline = async (kind, id) => fullTimeline(await sources(kind, id))
-  const messagePage = async (kind, id, url) => {
-    const page = timelinePage(await sources(kind, id), url)
-    return { ...page, items: page.items.map(webMessage) }
-  }
+  const events = createMessageEvents({ store, secretRequests, ownerQuestions, rooms, bots, transport, aiControl, eventKeepalive, messageEventWindow })
+  const { sources, timeline, messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions })
 
   const server = createServer(async (request, response) => {
     logWriteRequest(request, response, writeLog)
@@ -272,20 +174,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
           return json(response, 200, { text })
         }
         if (request.method === 'GET' && url.pathname === '/api/events') {
-          response.writeHead(200, {
-            'content-type': 'text/event-stream',
-            'cache-control': 'no-cache, no-transform',
-            connection: 'keep-alive',
-          })
-          response.write('event: ready\ndata: {}\n\n')
-          subscribers.add(response)
-          // 知らせの無い間も流れを止めない。アプリ（URLSessionの既定60秒）や途中の中継が、黙った接続を時間切れにするため。
-          const keepalive = setInterval(() => response.write(': keepalive\n\n'), eventKeepalive)
-          request.on('close', () => {
-            clearInterval(keepalive)
-            subscribers.delete(response)
-          })
-          return
+          return events.connect(request, response)
         }
         const imageAssetMatch = url.pathname.match(/^\/api\/message-images\/([a-z0-9-]+)\/([a-z0-9-]+\.(?:png|jpg|webp|gif))$/u)
         if (request.method === 'GET' && imageAssetMatch) {
@@ -641,238 +530,23 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
       return staticFile(response, staticRoot, url.pathname, assetVersion)
     } catch (error) {
-      if (typeof error.code === 'string' && Number.isInteger(error.status)) return json(response, error.status, { error: error.code, message: error.publicMessage ?? error.message })
-      if (error instanceof SubscriptionAccessError) return json(response, error.status, { error: error.code, message: error.message })
-      if (request.url?.startsWith('/api/subscription') && ['INVALID_JSON', 'REQUEST_TOO_LARGE'].includes(error.message))
-        return json(response, 400, { error: error.message, message: '購入情報または動作確認のリクエスト形式を確認してください。' })
-      if (error.message === 'PUSH_DEVICE_INVALID') return json(response, 400, { error: error.message })
-      if (['PUSH_NOT_CONFIGURED', 'PUSH_ENVIRONMENT_UNAVAILABLE'].includes(error.message))
-        return json(response, 503, { error: error.message })
-      if (request.url?.startsWith('/api/secret-requests')) {
-        const statuses = {
-          SECRET_REQUEST_NOT_FOUND: 404, SECRET_REQUEST_CLOSED: 409,
-          SECRET_REQUEST_INVALID: 400, SECRET_VALUE_INVALID: 400, SECRET_ROOM_INVALID: 400,
-          BOT_NOT_FOUND: 404, INVALID_JSON: 400, REQUEST_TOO_LARGE: 400,
-        }
-        if (Object.hasOwn(statuses, error.message)) return json(response, statuses[error.message], { error: error.message })
-        // この入口のエラーは、入力値を含み得る例外本文・スタックを記録しない。
-        process.stderr.write('BellTeam: 秘密情報の登録処理に失敗しました\n')
-        try {
-          await diagnostics?.record({ code: 'SERVER_SECRET_FAILED', module: 'secrets', diagnostic_log: '秘密情報の登録処理に失敗。入力値・例外本文は記録しません。' })
-        } catch {
-          process.stderr.write('BellTeam: 秘密情報処理の診断を保存できませんでした\n')
-        }
-        return json(response, 500, { error: 'SECRET_OPERATION_FAILED' })
-      }
-      if (error.code === 'BOT_SESSION_UNCONFIRMED') return json(response, 503, { error: error.code, message: error.publicMessage })
-      if (error instanceof ModelCatalogError) return json(response, error.code === 'MODEL_HARNESS_INVALID' ? 400 : 503, { error: error.code, message: error.message })
-      if (error.message === 'INVALID_JSON') return json(response, 400, { error: 'INVALID_JSON' })
-      if (error.message === 'DIAGNOSTIC_INVALID' || error.message === 'REQUEST_TOO_LARGE') return json(response, 400, { error: error.message })
-      if (error.message === 'IMAGE_ASSET_NOT_FOUND') return json(response, 404, { error: error.message })
-      if (error.message === 'CHARACTER_SHEET_NOT_FOUND') return json(response, 404, { error: error.message })
-      if (error.message === 'CHARACTER_SHEET_INVALID') return json(response, 400, { error: error.message })
-      if (/^IMAGE_/u.test(error.message)) return json(response, 400, { error: error.message })
-      if (/^(?:BOT|ROOM|SCHEDULE|QUEUE|OWNER_QUESTION)_(?:NOT_FOUND)/u.test(error.message)) return json(response, 404, { error: error.message })
-      if (error.message === 'OWNER_QUESTION_CLOSED') return json(response, 409, { error: error.message })
-      if (/^OWNER_QUESTION_/u.test(error.message)) return json(response, 400, { error: error.message })
-      if (/^BOT_DUPLICATE/u.test(error.message)) return json(response, 409, { error: error.message })
-      if (Object.hasOwn(FAST_MODE_MESSAGES, error.message))
-        return json(response, 400, { error: error.message, message: `${FAST_MODE_MESSAGES[error.message]}${typeof error.detail === 'string' ? ` 理由：${error.detail}` : ''}` })
-      if (/^(?:BOT|ROOM|SCHEDULE|MEMORY|KNOWLEDGE|SEARCH|OWNER)_/u.test(error.message)) return json(response, 400, { error: error.message })
-      // fetchの失敗はスタックを持たない。どの要求が何で失敗したかを後から引けるよう、要求と原因の符号も残す（問い合わせ文字列は残さない）。
-      const cause = error.cause?.code ?? error.cause?.message
-      process.stderr.write(`BellTeam HTTP error: ${request.method} ${String(request.url).split('?')[0]}${cause ? ` cause=${cause}` : ''}: ${error.stack ?? error.message}\n`)
-      if (diagnostics && request.url !== '/api/diagnostics') {
-        try {
-          const frames = String(error.stack ?? '').split('\n').slice(1)
-            .filter(line => /^\s*at\s/u.test(line)).slice(0, 20)
-            .map(line => line.replaceAll(process.cwd(), '<app>'))
-          await diagnostics.record({
-            code: 'SERVER_HTTP_500', module: 'server',
-            diagnostic_log: `${error.constructor.name}\n${frames.join('\n')}\n${diagnosticRequestContext(request, frames, error)}`,
-          })
-        }
-        catch (reportError) { process.stderr.write(`BellTeam diagnostics error: ${reportError.stack ?? reportError.message}\n`) }
-      }
-      // 利用者へ理由を伝えられる失敗（Botを起動できなかった時など）は、その文も返す。記録と状態は他の500と同じ。
-      const execution = returnedExecutionError(error.executionError) ?? returnedExecutionError(error)
-      if (execution) return json(response, 500, {
-        error: execution.code, effect: execution.effect, follow_up: execution.follow_up,
-        message: execution.effect === 'possible'
-          ? '入力が届いたか確認できません。同じ内容を再送せず、配送履歴と受信側の状態を確認してください。'
-          : '今回の入力は送信されていません。原因を確認し、同じ内容を自動再送しないでください。',
-      })
-      return json(response, 500, { error: 'INTERNAL_ERROR', ...(typeof error.publicMessage === 'string' ? { message: error.publicMessage } : {}) })
+      return respondHttpError(request, response, error, diagnostics)
     }
   })
 
-  const writeEvent = data => {
-    for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: ${JSON.stringify(data)}\n\n`)
-  }
-  server.notify = data => writeEvent({ at: new Date().toISOString(), topics: data.type ? [data.type] : [], botIds: [], roomIds: [], ...data, all: true })
-  server.startMessageWatch = async () => {
-    if (closeWatch) return
-    const knownTopics = new Set(['timeline', 'queue', 'bots', 'rooms', 'owner', 'settings', 'requests', 'questions', 'ai-control', 'setup', 'schedules'])
-    let changes = null
-    const notify = change => {
-      changes ??= { all: false, topics: new Set(), botIds: new Set(), roomIds: new Set() }
-      if (!change || typeof change.all !== 'boolean' || !Array.isArray(change.topics) || !change.topics.length
-        || !Array.isArray(change.botIds) || !Array.isArray(change.roomIds)) changes.all = true
-      else {
-        changes.all ||= change.all
-        for (const topic of change.topics) {
-          if (!knownTopics.has(topic)) changes.all = true
-          else changes.topics.add(topic)
-        }
-        for (const name of ['botIds', 'roomIds']) for (const id of change[name]) {
-          if (typeof id !== 'string' || !id) changes.all = true
-          else changes[name].add(id)
-        }
-        if (change.topics.some(topic => ['timeline', 'queue', 'requests', 'questions', 'schedules'].includes(topic))
-          && !change.botIds.length && !change.roomIds.length) changes.all = true
-      }
-      if (pendingNotify) return
-      pendingNotify = setTimeout(() => {
-        pendingNotify = null
-        const current = changes; changes = null
-        writeEvent({ at: new Date().toISOString(), all: current.all, topics: [...current.topics], botIds: [...current.botIds], roomIds: [...current.roomIds] })
-      }, messageEventWindow)
-    }
-    const stops = [await store.watch(notify)]
-    if (secretRequests) stops.push(secretRequests.watch(notify))
-    if (ownerQuestions) stops.push(ownerQuestions.watch(notify))
-    if (rooms?.watch) stops.push(await rooms.watch(notify))
-    if (bots?.watch) stops.push(bots.watch(notify))
-    if (transport?.watchQueue) stops.push(transport.watchQueue(notify))
-    if (aiControl) stops.push(aiControl.watch(() => server.notify({ type: 'ai-control' })))
-    closeWatch = () => stops.forEach(stop => stop())
-  }
-  server.on('close', () => {
-    closeWatch?.()
-    closeWatch = null
-    clearTimeout(pendingNotify)
-    pendingNotify = null
-  })
+  server.notify = events.notify
+  server.startMessageWatch = events.startMessageWatch
+  server.on('close', events.stopWatching)
   server.keepAliveTimeout = KEEP_ALIVE_TIMEOUT_MS
   // 止める時に処理中だった接続は、応答を返し終えたら閉じる。待機時間の満了まで停止を待たせない。
   // 知らせの流れは自分からは終わらないので、ここで終える。アプリは再接続する。
   const closeServer = server.close.bind(server)
   server.close = callback => {
-    for (const subscriber of subscribers) subscriber.end()
+    events.endConnections()
     if (internal) seatMcp?.close()
     const reap = setInterval(() => server.closeIdleConnections(), 50)
     server.once('close', () => clearInterval(reap))
     return closeServer(callback)
   }
   return server
-}
-
-// 会話は最新から読む。limit=最新からの件数、before=そのIDより前、after=そのIDより後（差分）。
-export function pageItems(items, url) {
-  const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit')) || 10))
-  const before = url.searchParams.get('before')
-  const after = url.searchParams.get('after')
-  if (after) {
-    const index = items.findIndex(item => item.id === after)
-    return { items: index < 0 ? items.slice(-limit) : items.slice(index + 1), has_more: false }
-  }
-  let end = items.length
-  if (before) {
-    const index = items.findIndex(item => item.id === before)
-    if (index >= 0) end = index
-  }
-  const start = Math.max(0, end - limit)
-  return { items: items.slice(start, end), has_more: start > 0 }
-}
-
-// 画像の保存先は記録に残し、画面へは取得用のURLだけを渡す。`image_url` は1枚しか読まない古いアプリ向けに1枚目を入れる。
-function webMessage(item) {
-  const imageAsset = item.imageAsset ?? item.image_asset ?? null
-  const { imageAsset: _camelAsset, image_asset: _snakeAsset, imageAssets: camelAssets, image_assets: snakeAssets, ...visible } = item
-  const imageAssets = camelAssets ?? snakeAssets ?? []
-  const assets = imageAssets.length ? imageAssets : imageAsset ? [imageAsset] : []
-  if (!assets.length) return visible
-  const urls = assets.map(asset => `/api/message-images/${encodeURIComponent(asset.owner)}/${encodeURIComponent(asset.file)}`)
-  return { ...visible, image: true, image_url: urls[0], image_urls: urls }
-}
-
-// 画像を何枚も付けた送信を受ける。Cloudflareの無料プランが受ける本文の上限（100MB）に収める。
-const MESSAGE_MAX_BYTES = 96 * 1024 * 1024
-
-// 送信の画像は `images`（複数）で受ける。1枚の `image` しか送らない古いアプリの送信も受ける。
-function messageImages(body) {
-  if (Array.isArray(body.images)) {
-    if (body.images.some(image => !image || typeof image !== 'object')) throw new Error('IMAGE_INVALID')
-    return body.images
-  }
-  if (body.images !== undefined) throw new Error('IMAGE_INVALID')
-  return body.image ? [body.image] : []
-}
-
-// 塊ごとに文字へ直すと、塊の境目で割れた日本語が化けるので、全部つないでから読む。
-async function readJson(request, maxBytes = 16 * 1024 * 1024) {
-  const chunks = []
-  let bytes = 0
-  for await (const chunk of request) {
-    bytes += chunk.length
-    if (bytes > maxBytes) throw new Error('REQUEST_TOO_LARGE')
-    chunks.push(chunk)
-  }
-  try { return JSON.parse(Buffer.concat(chunks).toString('utf8')) }
-  catch { throw new Error('INVALID_JSON') }
-}
-
-function json(response, status, value) {
-  const body = JSON.stringify(value)
-  response.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'content-length': Buffer.byteLength(body),
-    'cache-control': 'no-store',
-  })
-  response.end(body)
-}
-
-async function staticFile(response, root, pathname, assetVersion) {
-  if (!root) return json(response, 404, { error: 'NOT_FOUND' })
-  const files = new Map([
-    ['/', 'index.html'],
-    ['/index.html', 'index.html'],
-    ['/styles.css', 'styles.css'],
-    ['/app.js', 'app.js'],
-    ['/onboarding.js', 'onboarding.js'],
-    ['/harness-auth.js', 'harness-auth.js'],
-    ['/server-origin.js', 'server-origin.js'],
-    ['/chat-input.js', 'chat-input.js'],
-    ['/member-stop.js', 'member-stop.js'],
-    ['/ai-control.js', 'ai-control.js'],
-    ['/rich-text.js', 'rich-text.js'],
-    ['/secret-input.js', 'secret-input.js'],
-    ['/owner-question.js', 'owner-question.js'],
-    ['/activity-order.js', 'activity-order.js'],
-    ['/image-gallery.js', 'image-gallery.js'],
-    ['/manifest.webmanifest', 'manifest.webmanifest'],
-    ['/icons/apple-touch-icon.png', 'icons/apple-touch-icon.png'],
-    ['/apple-touch-icon.png', 'icons/apple-touch-icon.png'],
-    ['/icons/icon-192.png', 'icons/icon-192.png'],
-    ['/icons/icon-512.png', 'icons/icon-512.png'],
-  ])
-  const name = files.get(pathname)
-  if (!name) return json(response, 404, { error: 'NOT_FOUND' })
-  const file = join(root, name)
-  const info = await stat(file)
-  if (['index.html', 'app.js', 'rich-text.js', 'secret-input.js'].includes(name)) {
-    const body = (await readFile(file, 'utf8')).replaceAll('__ASSET_VERSION__', assetVersion)
-    response.writeHead(200, {
-      'content-type': contentTypes.get(extname(file)),
-      'content-length': Buffer.byteLength(body),
-      'cache-control': name === 'index.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
-    })
-    return response.end(body)
-  }
-  response.writeHead(200, {
-    'content-type': contentTypes.get(extname(file)) ?? 'application/octet-stream',
-    'content-length': info.size,
-    'cache-control': 'public, max-age=31536000, immutable',
-  })
-  createReadStream(file).pipe(response)
 }
