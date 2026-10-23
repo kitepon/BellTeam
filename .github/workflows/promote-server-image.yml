@@ -1,0 +1,54 @@
+name: 内部受入済みサーバーを安定版へ反映
+
+on:
+  workflow_dispatch:
+    inputs:
+      digest:
+        description: 内部受入に使った両archのindex digest（sha256:から始まる値）
+        required: true
+        type: string
+      source:
+        description: imageに記録された40文字のsource commit
+        required: true
+        type: string
+      result:
+        description: センチの事前試験と内部先行受入の結果の記録先
+        required: true
+        type: string
+
+concurrency:
+  group: public-server-stable
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/kitepon/bellteam-server
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ACCEPTED_DIGEST: ${{ inputs.digest }}
+      ACCEPTED_SOURCE: ${{ inputs.source }}
+      ACCEPTANCE_RESULT: ${{ inputs.result }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: node
+      - uses: docker/setup-buildx-action@v4
+      - name: 内部で使った固定物とsourceを照合
+        run: node scripts/promote-server-image.mjs check
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 再buildせず同じdigestを安定版へ反映
+        run: node scripts/promote-server-image.mjs promote
