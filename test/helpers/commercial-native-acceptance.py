@@ -29,10 +29,11 @@ try:
     assert hashlib.sha256(package.read_bytes()).hexdigest() == '5c47b0640bc07262fc9362dca49d8c57d5e6d545181524938cb9da8263acda42'
     with tarfile.open(package) as tar:
         files = {m.name.removeprefix('package/'): hashlib.sha256(tar.extractfile(m).read()).hexdigest() for m in tar.getmembers() if m.isfile()}
-    check = """const fs=require('fs'),c=require('crypto');const d=JSON.parse(fs.readFileSync('/app/distribution.json'));if(d.sourceCommit!==process.argv[2])throw Error('source');const pkg='/usr/local/lib/node_modules/aiterm-mcp/';if(JSON.parse(fs.readFileSync(pkg+'package.json')).version!==process.argv[3])throw Error('version');let o={};for(const p of JSON.parse(process.argv[1]))o[p]=c.createHash('sha256').update(fs.readFileSync(pkg+p)).digest('hex');console.log(JSON.stringify(o))"""
+    check = """const fs=require('fs'),c=require('crypto');const d=JSON.parse(fs.readFileSync('/app/distribution.json'));if(d.sourceCommit!==process.argv[2])throw Error('source');const pkg='/usr/local/lib/node_modules/aiterm-mcp/';if(JSON.parse(fs.readFileSync(pkg+'package.json')).version!==process.argv[3])throw Error('version');if(require('child_process').spawnSync('sh',['-c','command -v op']).status===0||fs.existsSync('/srv/bellteam/shared/tools/onepassword')||Object.keys(process.env).some(k=>/^(OP_|ONEPASSWORD_)/.test(k)))throw Error('owner-private OP input');let o={};for(const p of JSON.parse(process.argv[1]))o[p]=c.createHash('sha256').update(fs.readFileSync(pkg+p)).digest('hex');console.log(JSON.stringify(o))"""
     actual = json.loads(docker(['run','--rm','--network','none','--read-only','--entrypoint','node',image,'-e',check,json.dumps(list(files)),source,version], 'package-provenance'))
     assert actual == files
     report['matched_aiterm_files'] = len(files)
+    report['op_entry_private_directory_and_op_env_absent'] = True
     script = """import os,pathlib,shutil
 r=pathlib.Path('/tmp/native-tests');t=r/'test';t.mkdir(parents=True)
 names=['execution-configure-host-native.test.mjs','execution-dispatch.test.mjs','execution-launch-reconcile.test.mjs','execution-launch-reconcile-native.test.mjs']

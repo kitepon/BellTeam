@@ -208,6 +208,21 @@ jobs:
             console.log("公式認証の開始・消失の表示・再選択・取消を確認しました。");
           } finally { await client.close(); }
           '
+      - name: 同じ保存先の更新で設定を保持する
+        run: |
+          mkdir -p "runtime/commercial-native-${{ matrix.arch }}"
+          docker compose exec -T bellteam node --input-type=module -e '
+          import assert from "node:assert/strict"; import fs from "node:fs";
+          const response=await fetch("http://127.0.0.1:4180/api/owner",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"native-update-fixture"})});
+          assert.equal(response.status,200);fs.writeFileSync("/home/bell/.native-update-marker","synthetic-home");fs.writeFileSync("/home/bell/.local/.native-update-marker","synthetic-volume");
+          '
+          sh runtime/server-install/install.sh --no-pull
+          docker compose exec -T bellteam node --input-type=module -e '
+          import assert from "node:assert/strict";import fs from "node:fs";
+          assert.equal((await(await fetch("http://127.0.0.1:4180/api/owner")).json()).owner.name,"native-update-fixture");
+          assert.equal(fs.readFileSync("/home/bell/.native-update-marker","utf8"),"synthetic-home");assert.equal(fs.readFileSync("/home/bell/.local/.native-update-marker","utf8"),"synthetic-volume");
+          console.log(JSON.stringify({passed:true,owner:true,home:true,cursorVolume:true,sourceInstallerNoPull:true}));
+          ' > "runtime/commercial-native-${{ matrix.arch }}/update-retention.json"
       - uses: actions/checkout@v7
         with:
           repository: kitepon/aiterm-mcp
