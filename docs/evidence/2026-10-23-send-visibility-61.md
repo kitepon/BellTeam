@@ -19,3 +19,16 @@ Debug時系列では、仮行追加による高さ変化で古い`visibleAnchor`
 版61の最終ソースでiPhoneの同可視性試験を再実行し、仮行・正本行とも本文下端491.7pt、入力欄上端567.7ptだった。Mac Catalyst Debugビルドは成功し、`TESTGATE_FULL=1 npm test`は705件成功、失敗・skipゼロ。変更後のアプリを実機へ入れた結果ではないため、オーナーの体感判定は保留する。
 
 版60の送信失敗・結果不明・連続同文・画像・背景復帰の扱いと既存IDによる正本照合は変更していない。診断分類の別件修理は、この版の表示修理へ混ぜていない。
+
+## 版61の内部配布と導入後確認
+
+製品ソースと版番号のcommitは`a0289ea634d14a7a412c660f004b9448914f8351`で、GitHub `main`へ通常pushした。アーカイブ時にAppleソースの未commit差分はなく、このcommitが`origin/main`の祖先であることを確認した。iPhone/iPadとMacのアーカイブは両方成功し、本体と通知拡張はいずれも`1.0.3 (61)`。両アーカイブの厳格な署名検証、iOS IPAとMac pkgのApple公式事前検証、Mac pkgのInstaller署名確認が成功した。
+
+| 成果物 | SHA-256 | Apple build ID | 読戻した状態 |
+| --- | --- | --- | --- |
+| iPhone/iPad用`runtime/apple/send-visibility61/ios-export/BellTeam.ipa` | `c36d7c8d75eff4d7953bb42dd433fb9dccd5e62e6d6eb19dbab6634a4c9fc820` | `db20a4ea-475a-4cd2-8139-ab09c9036509` | `VALID`、オーナー用内部グループで`IN_BETA_TESTING` |
+| Mac用`runtime/apple/send-visibility61/mac-export/BellTeam.pkg` | `e53605497d7a87dd72c6cbdce54264a7e61cfac730e8267e54e0479fc0e4491f` | `667db38e-e583-4a78-8bc1-7fc5e512820c` | `VALID`、同グループで`IN_BETA_TESTING` |
+
+MacのTestFlight画面が版61と「アップデート」を表示したことを確認して導入した。`/Applications/BellTeam.app`本体と通知拡張は61で、厳格な署名検証とGatekeeperの`source=Testflight`判定は成功。通常起動し、トロニーの直接会話を開き、試験文字の物理入力で送信ボタンが有効、全消去で無効に戻ることを確認した。試験文字は送信せず、確認用に起動したアプリは終了した。
+
+TestFlightの操作はまず`jev-desktop`へ依頼したが、項目選択が`ACTION_NOT_SUPPORTED`で止まった。画面を読み直して対象を版61に限定し、同じ上流の`agent-desktop`で更新した。iPhone実機の版61への更新と、送信直後の表示・操作感はオーナーの確認待ち。BellTeamサーバー本体の変更と本番コンテナ再起動は行っていない。
