@@ -12,6 +12,8 @@ HTTPの公開入口は`src/http-server.mjs`の`createBellTeamServer`であり、
 
 `src/aiterm-transport.mjs`は、Aitermの返却をBotの実行・配送へ対応付けるBellTeam側の接続である。MCP接続の寿命・環境変数の渡し方・返却済みの失敗は`aiterm-client.mjs`、Aitermから返った待機用プロセスの実行は`aiterm-wait-process.mjs`、Throughlineの公開CLIによる会話数と継続文脈の読取りは`throughline-context.mjs`へ分ける。Throughline接続はAitermのBot実行管理やMCP clientへ依存しない。従来の`aiterm-transport.mjs`からのexportは維持し、各製品の公開入出力と返却された状態の意味を変えない。
 
+同じBotの席に対する操作は`bot-session-state.mjs`の`BotSessionState`が所有する。現在のsession対応、停止時点の既存version、発行待ちの席変更、不明な返却とその更新位置、停止待ちを一つの実体に保持する。起動照合/元起動のcloseはここから既存ExecutionBridgeへ接続し、native世代や作用の判定はAitermに残す。配送側は処理中・設定反映中・起動中などの事実を関数で渡し、席状態の部品へ配送jobや本文を渡さない。既存内部参照は同じMapへの参照を維持し、別の状態正本を作らない。AitermTransportは配送/ターンの受理・進行・完了を管理し、席変更の発行と照合をこの部品へ委譲する。停止・不明・未送信の既存判定と発行順は変えず、再試行や新しいIDを加えない。
+
 ## 公開認証
 
 APIの通信診断では、POST・PUT・PATCH・DELETEの既存の `BellTeam write:` ログを保ち、GET・HEADには `BellTeam read:` を残す。読み取りは受付時の `started` と、接続終了時のHTTP状態または `aborted`・所要時間を記録する。両行の時刻は同じ受付時刻で、追加の要求IDは作らない。本文・問い合わせ文字列・Cookie・認証ヘッダーは記録しない。`/healthz`、静的ファイル、MCPは対象外。SSEは接続の受付と閉鎖だけを記録する。正常終了はNodeが応答をOSへ渡した事を示し、端末が受け取った証明にはしない。同じ時刻・経路の要求が重なる場合、ログだけで一意に対応付けたとは扱わない。

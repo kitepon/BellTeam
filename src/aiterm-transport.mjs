@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { isDeepStrictEqual as same } from 'node:util'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -11,6 +10,8 @@ import { sendSessionStop } from './session-interruption.mjs'
 import { AitermClient, textResult } from './aiterm-client.mjs'
 import { latestThroughlineHandoffContext } from './throughline-context.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
+import { BotSessionState } from './bot-session-state.mjs'
+import { stoppedError } from './bot-execution-errors.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
 export { completedThroughlineTurns, latestThroughlineHandoffContext, NIGHTLY_RESTART_TURNS } from './throughline-context.mjs'
@@ -25,25 +26,6 @@ const HARNESS = new Map([
 const INTERIM_INTERVAL_MS = 3000
 // Aitermは、要求の_metaにこの印がある時だけ、BellTeamのための手がかりを結果へ足す（Aiterm ADR 0071・0122）。
 const CALLER_META = { 'aiterm/caller': 'BellTeam' }
-
-// Keep the public cause strings while distinguishing a later uncertainty with
-// the same cause. These identities are local to this transport, never wire IDs.
-class UncertainSessionChanges extends Map {
-  versions = new Map()
-  set(id, cause, request = null) {
-    this.versions.set(id, { request: structuredClone(request) })
-    return super.set(id, cause)
-  }
-  delete(id) {
-    this.versions.set(id, { request: null })
-    return super.delete(id)
-  }
-  clear() {
-    for (const id of this.keys()) this.versions.set(id, { request: null })
-    super.clear()
-  }
-  version(id) { return this.versions.get(id) }
-}
 
 // Supervisor uses one SDK client for normal dispatch, relation registration
 // and interruption. An unavailable execution runtime must reject the request;
@@ -71,16 +53,11 @@ export class AitermTransport {
     this.active = new Map()
     this.retainedImages = new Map()
     this.queueListeners = new Set()
-    this.sessions = new Map()
     this.configurationChanges = new Map()
     this.dispatches = new Map()
     this.jobs = new Set()
     this.interruptions = new Map()
-    this.stopVersions = new Map()
-    this.stopSessions = new Map()
     this.waking = new Map()
-    this.sessionChanges = new Map()
-    this.uncertainChanges = new UncertainSessionChanges()
     // 席ごとの、BellTeamが始めていないターンを追っている見張り（watchTurn）。
     this.watches = new Map()
     // 席ごとの、最後に終わりまで追ったターン。Aitermへ聞いた後に終わったターンを、もう一度追い始めない。
@@ -88,7 +65,29 @@ export class AitermTransport {
     // 席ごとの、最後に追ったターンで合間の言葉として出した文。そのターンの回答はself-turns.mjsがThroughlineから出し、
     // Throughlineはターンの文を全部つなげて返すので、先に出した分を回答の頭から外すのに使う。
     this.shownWords = new Map()
+    this.sessionState = new BotSessionState({
+      assertWorkAllowed: () => this.assertWorkAllowed(),
+      executionBridge: () => this.executionBridge,
+      call: (name, args, options) => this.client.call(name, args, options),
+      invalidateRunning: () => { this.runningSnapshot = null },
+      activity: {
+        configuration: id => this.configurationChanges.has(id),
+        interruption: id => this.interruptions.has(id),
+        waking: id => this.waking.has(id),
+        hasJobs: id => [...this.jobs].some(job => job.bot.id === id),
+        idle: id => this.isIdle(id),
+      },
+    })
+    // Compatibility references share the component's actual state, never copies.
+    this.sessions = this.sessionState.sessions
+    this.stopVersions = this.sessionState.stopVersions
+    this.stopSessions = this.sessionState.stopSessions
+    this.sessionChanges = this.sessionState.sessionChanges
+    this.uncertainChanges = this.sessionState.uncertainChanges
   }
+
+  get executionStopping() { return this.sessionState.stopping }
+  set executionStopping(value) { this.sessionState.stopping = value }
 
   async isRunning(bot) {
     return (await this.runningBots([bot])).has(bot.id)
@@ -257,163 +256,32 @@ export class AitermTransport {
   }
 
   requireStopVersion(botId, version) {
-    this.assertWorkAllowed()
-    if (this.stopVersions.get(botId) !== version) throw stoppedError()
+    return this.sessionState.requireStopVersion(botId, version)
   }
 
   // session_idだけに作用する変更の発行と返却を追う。応答待ちのcloseを残したまま同じ席を起こさない。
   captureStopVersion(bot) {
-    if (this.executionBridge) this.stopSessions.set(bot.id, this.session(bot))
-    return this.stopVersions.get(bot.id)
+    return this.sessionState.captureStopVersion(bot)
   }
 
-  async awaitUnboundAdmission(bot, version, barrier = this.executionStopping) {
-    while (barrier) {
-      let result
-      try { result = await barrier } catch (cause) {
-        throw Object.assign(new Error('停止結果が未確認のため変更できません。', { cause }), { code: 'BOT_STOP_UNCONFIRMED', effect: 'not_started' })
-      }
-      if (barrier.rootIds?.has(bot.id) || result?.cascade?.targets.some(value => value.launch.session_id === this.session(bot)))
-        throw Object.assign(stoppedError(), { effect: 'not_started' })
-      barrier = this.executionStopping !== barrier ? this.executionStopping : null
-    }
-    if (this.stopVersions.get(bot.id) !== version) throw Object.assign(stoppedError(), { effect: 'not_started' })
-    this.requireSessionKnown(bot.id)
+  awaitUnboundAdmission(bot, version, barrier) {
+    return this.sessionState.awaitUnboundAdmission(bot, version, barrier)
   }
 
   changeSession(bot, name, args, options) {
-    if (name !== 'pty_close') this.assertWorkAllowed()
-    this.requireSessionKnown(bot.id)
-    const { execution, ...clientOptions } = options ?? {}
-    const version = this.captureStopVersion(bot), barrier = this.executionStopping
-    let issued = false
-    const invoke = () => {
-      if (name !== 'pty_close') this.assertWorkAllowed()
-      issued = true
-      this.runningSnapshot = null
-      return execution ? execution.invoke(name, args, clientOptions) : this.client.call(name, args, options)
-    }
-    const pending = this.executionBridge && !execution ? (async () => {
-      await this.awaitUnboundAdmission(bot, version, barrier)
-      // A new stop can start between async admission and this continuation.
-      while (this.executionStopping) await this.awaitUnboundAdmission(bot, version)
-      if (this.stopVersions.get(bot.id) !== version) throw Object.assign(stoppedError(), { effect: 'not_started' })
-      this.requireSessionKnown(bot.id)
-      return invoke()
-    })() : Promise.resolve(invoke())
-    pending.executionBound = Boolean(execution)
-    Object.defineProperty(pending, 'executionIssued', { get: () => issued })
-    pending.executionSession = args.session_id ?? args.session_name
-    const changes = this.sessionChanges.get(bot.id) ?? new Set()
-    changes.add(pending)
-    this.sessionChanges.set(bot.id, changes)
-    const clear = () => {
-      this.runningSnapshot = null
-      changes.delete(pending)
-      if (!changes.size && this.sessionChanges.get(bot.id) === changes) this.sessionChanges.delete(bot.id)
-    }
-    pending.then(clear, error => {
-      // RPCのrejectは遠隔の変更を取り消さない。後から旧closeが届き得る同名の席を自動で再利用しない。
-      if (issued && ((error?.effect !== 'not_started' && error?.aitermResponseReturned !== true && error?.launch?.schema !== 'aiterm.agent-launch-result.v1')
-        || error?.executionError?.effect === 'possible'))
-        this.uncertainChanges.set(bot.id, name, execution?.reservation?.request)
-      clear()
-    })
-    return pending
+    return this.sessionState.changeSession(bot, name, args, options)
   }
 
   requireSessionKnown(botId) {
-    if (!this.uncertainChanges.has(botId)) return
-    const error = new Error('メンバーの状態を確認できないため、送信できませんでした。')
-    error.code = 'BOT_SESSION_UNCONFIRMED'
-    error.publicMessage = error.message
-    throw error
+    return this.sessionState.requireSessionKnown(botId)
   }
 
-  async reconcileLaunch(bot, request, target) {
-    this.assertWorkAllowed()
-    const session = this.session(bot) ?? bot.id
-    const uncertainty = this.uncertainChanges.get(bot.id)
-    const uncertaintyVersion = this.uncertainChanges.version(bot.id)
-    const version = this.captureStopVersion(bot)
-    const busy = () => this.executionStopping || this.sessionChanges.has(bot.id) || this.configurationChanges.has(bot.id)
-      || this.interruptions.has(bot.id) || [...this.jobs].some(job => job.bot.id === bot.id) || !this.isIdle(bot.id)
-    if (!this.executionBridge || target?.session_id !== session || request?.target_session_id !== session
-      || (uncertainty && uncertainty !== 'agent_launch'))
-      throw Object.assign(new Error('起動結果を照合できません。'), { code: 'BOT_SESSION_UNCONFIRMED' })
-    if (busy()) throw Object.assign(new Error('この席は処理中です。'), { code: 'EXECUTION_BUSY', effect: 'not_started' })
-    // 既存の席変更一覧へ載せ、照合と設定変更・停止が交差しても不明を勝手に解除しない。
-    const pending = this.executionBridge.reconcileLaunch(request, target)
-    pending.executionBound = true
-    pending.executionIssued = true
-    pending.executionSession = session
-    const changes = new Set([pending])
-    this.sessionChanges.set(bot.id, changes)
-    try {
-      const execution = await pending
-      this.requireStopVersion(bot.id, version)
-      if (this.executionStopping || this.uncertainChanges.get(bot.id) !== uncertainty
-        || this.uncertainChanges.version(bot.id) !== uncertaintyVersion
-        || this.sessionChanges.get(bot.id) !== changes || changes.size !== 1
-        || [...this.jobs].some(job => job.bot.id === bot.id))
-        throw Object.assign(new Error('照合中に席の状態が変わりました。'), { code: 'BOT_SESSION_UNCONFIRMED' })
-      if (!same(execution.binding?.target?.launch, target)) throw new Error('EXECUTION_UNCONFIRMED')
-      this.sessions.set(bot.id, session)
-      this.uncertainChanges.delete(bot.id)
-      return execution
-    } finally {
-      changes.delete(pending)
-      if (!changes.size && this.sessionChanges.get(bot.id) === changes) this.sessionChanges.delete(bot.id)
-    }
+  reconcileLaunch(bot, request, target) {
+    return this.sessionState.reconcileLaunch(bot, request, target)
   }
 
-  async closeLaunch(bot, inputRequest, inputTarget) {
-    const { request, target } = structuredClone({ request: inputRequest, target: inputTarget })
-    this.assertWorkAllowed()
-    const session = this.session(bot) ?? bot.id
-    const uncertainty = this.uncertainChanges.get(bot.id)
-    const uncertaintyVersion = this.uncertainChanges.version(bot.id)
-    const version = this.captureStopVersion(bot)
-    const busy = () => this.executionStopping || this.sessionChanges.has(bot.id) || this.configurationChanges.has(bot.id)
-      || this.interruptions.has(bot.id) || this.waking.has(bot.id)
-      || [...this.jobs].some(job => job.bot.id === bot.id) || !this.isIdle(bot.id)
-    if (!this.executionBridge || target?.session_id !== session || request?.target_session_id !== session
-      || (uncertainty !== undefined && (uncertainty !== 'agent_launch' || !same(uncertaintyVersion?.request, request))))
-      throw Object.assign(new Error('起動結果を照合できません。'), { code: 'BOT_SESSION_UNCONFIRMED' })
-    if (busy()) throw Object.assign(new Error('この席は処理中です。'), { code: 'EXECUTION_BUSY', effect: 'not_started' })
-    // No session-only close, registration or body dispatch belongs here. The
-    // product owns atomic original-request / expected-generation validation.
-    const pending = this.executionBridge.closeLaunch(request, target)
-    pending.executionBound = true
-    pending.executionIssued = true
-    pending.executionSession = session
-    const changes = new Set([pending])
-    this.sessionChanges.set(bot.id, changes)
-    try {
-      const receipt = await pending
-      this.requireStopVersion(bot.id, version)
-      if (this.executionStopping || this.uncertainChanges.version(bot.id) !== uncertaintyVersion
-        || this.uncertainChanges.get(bot.id) !== uncertainty
-        || this.sessionChanges.get(bot.id) !== changes || changes.size !== 1
-        || this.configurationChanges.has(bot.id) || this.interruptions.has(bot.id) || this.waking.has(bot.id)
-        || [...this.jobs].some(job => job.bot.id === bot.id) || !this.isIdle(bot.id)
-        || (this.session(bot) ?? bot.id) !== session)
-        throw Object.assign(new Error('照合中に席の状態が変わりました。'), { code: 'BOT_SESSION_UNCONFIRMED' })
-      this.sessions.delete(bot.id)
-      this.runningSnapshot = null
-      this.uncertainChanges.delete(bot.id)
-      return receipt
-    } catch (error) {
-      // With no prior local fence (for example after reconnect), a missing or
-      // malformed close response still must not authorize a new dispatch.
-      if (uncertainty === undefined && error.effect !== 'not_started'
-        && this.uncertainChanges.version(bot.id) === uncertaintyVersion)
-        this.uncertainChanges.set(bot.id, 'close_launch', request)
-      throw error
-    } finally {
-      changes.delete(pending)
-      if (!changes.size && this.sessionChanges.get(bot.id) === changes) this.sessionChanges.delete(bot.id)
-    }
+  closeLaunch(bot, inputRequest, inputTarget) {
+    return this.sessionState.closeLaunch(bot, inputRequest, inputTarget)
   }
 
   // セッションの状態と活動をAitermに観測させる。cursorを渡すと、前回の観測からの変化も返る。
@@ -879,7 +747,7 @@ export class AitermTransport {
   }
 
   session(bot) {
-    return this.sessions.get(bot.id) ?? bot.session
+    return this.sessionState.session(bot)
   }
 
   async imageFiles(images) {
@@ -935,11 +803,7 @@ export class AitermTransport {
   }
 }
 
-function stoppedError() {
-  const error = new Error('メンバーの動作を停止しました。')
-  error.code = 'BOT_STOPPED'
-  return error
-}
+
 
 // 差し込みの返りにある、その文を取ったターンを追う手がかり（Aiterm 0.60.0、ADR 0122）。
 // Aitermは、差し込みの控えを取れた時だけ、完了の位置・待ち・合間の言葉の読み始めをそろえて返す。
