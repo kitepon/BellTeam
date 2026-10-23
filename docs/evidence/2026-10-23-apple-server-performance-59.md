@@ -44,6 +44,12 @@ MacのTestFlightは当初古い候補を表示していた。`表示 > 更新`�
 
 2026-10-23 02:49 UTCに本番checkoutは`42460b8`、BellTeamコンテナは上記の固定digestへ切り替わった。`main-server`の`runtime/backups/deploy-20261023T024920.log`は`deploy-exit=0`。02:49:26と02:49:31の待機判定は実行担当`bot-7b140b27`を除くCLI・queue・runningがすべて0で`quiet:true`だった。直前の`queue-before-deploy-20261023T1149.json`は2件とも実行担当の処理で、他メンバーの処理は保存対象になっていない。旧image ID`sha256:1044f0a494517403a71279817e132e515c516030cc915b4e9accdf46e38ff0a1`は`bellteam-rollback:20261023-performance-pre59`へ保全済み。
 
-反映後のcheckoutはtracked差分なし、healthzは`ok`。実APIの読み取りではBot62件・room6件・queue3件、選んだBotの履歴1件・予定6件をいずれもHTTP 200で取得した。SSEはHTTP 200の`text/event-stream`で`event: ready`と`data: {}`を返した。コンテナのlabel revisionは`42460b8`、Nodeは26.12.1、Aitermは0.61.8、Throughlineは0.16.43。本人の実Botやメッセージを試験用に変更していない。Botの起動・配送とデータ保持の最終受入、今回の新対象の別件承認原本は実行担当からの返却待ちで、ここでは完了と判定しない。
+反映後のcheckoutはtracked差分なし、healthzは`ok`。実APIの読み取りではBot62件・room6件・queue3件、選んだBotの履歴1件・予定6件をいずれもHTTP 200で取得した。SSEはHTTP 200の`text/event-stream`で`event: ready`と`data: {}`を返した。コンテナのlabel revisionは`42460b8`、Nodeは26.12.1、Aitermは0.61.8、Throughlineは0.16.43。本人の実Botやメッセージを試験用に変更していない。
+
+実行担当トロニーは別件の決裁箱「配送修理と新共通規範を含む商用コンテナへ本番を切り替えてよい？」を正規に読み戻し、`answered`・version 3・`deploy_when_quiet`・回答02:33:58 UTCを確認した。正規deploy入口は02:49:18 UTCに1回だけ呼ばれ、ログのSHA-256は`f8a76076371588c299f63298295971f624a312a073898b9205cf4c967e9c1b81`。コンテナはhealthy・restart 0・read-only root。旧imageとCursor/内部構成の復旧点は保全され、復元操作はしていない。
+
+担当の事後原本では、nightly backupの正規verifyはDB514件・bad 0・論理file159634件一致・取得失敗0。全514件の本番DB pathに欠落なし、代表4DBのquick_checkはすべて`ok`。反映前の直接会話14139件を保持し、JSON不正行0だった。Bot起動・配送は、オーナーの限定停止と本人再開指示に従うPepperの通常MCP1回がrunningとなり、本人の11:54 JSTの再開点検は正常・未完なしだった。全席の再開や未知本文の再送はしていない。残る限定配送の監査は別の担当作業として続くため、ここで全席の配送完了とは主張しない。
+
+一般配布への昇格run `39892221365`は`42460b8`と上記固定digestを照合して成功し、同digestを再ビルドせず`ghcr.io/kitepon/bellteam-server:latest`と`:preview`へ反映した。内部先行の結果と安定版の実物が同じであることを、公開ジョブのdigest出力で確認した。
 
 取得済み本文と行高の保持、余白と配置範囲の計算は履歴行数に比例する。サーバーの初期索引作成にはメモリを使い、逆時刻順の大量挿入には並べ替えコストが残る。Macのrootだけの監視通知は、対象を確定するため既知部屋の3ファイルのstatを読む。これらは今回の表示契約と通知の取りこぼし防止のため残した処理であり、実機の速度・電池消費の改善率を推定しない。
