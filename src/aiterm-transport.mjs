@@ -1,5 +1,6 @@
 import { execFile, spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual as same } from 'node:util'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -438,6 +439,41 @@ export class AitermTransport {
     throw error
   }
 
+  async reconcileLaunch(bot, request, target) {
+    this.assertWorkAllowed()
+    const session = this.session(bot) ?? bot.id
+    const uncertainty = this.uncertainChanges.get(bot.id)
+    const version = this.captureStopVersion(bot)
+    const busy = () => this.executionStopping || this.sessionChanges.has(bot.id) || this.configurationChanges.has(bot.id)
+      || this.interruptions.has(bot.id) || [...this.jobs].some(job => job.bot.id === bot.id) || !this.isIdle(bot.id)
+    if (!this.executionBridge || target?.session_id !== session || request?.target_session_id !== session
+      || (uncertainty && uncertainty !== 'agent_launch'))
+      throw Object.assign(new Error('起動結果を照合できません。'), { code: 'BOT_SESSION_UNCONFIRMED' })
+    if (busy()) throw Object.assign(new Error('この席は処理中です。'), { code: 'EXECUTION_BUSY', effect: 'not_started' })
+    // 既存の席変更一覧へ載せ、照合と設定変更・停止が交差しても不明を勝手に解除しない。
+    const pending = this.executionBridge.reconcileLaunch(request, target)
+    pending.executionBound = true
+    pending.executionIssued = true
+    pending.executionSession = session
+    const changes = new Set([pending])
+    this.sessionChanges.set(bot.id, changes)
+    try {
+      const execution = await pending
+      this.requireStopVersion(bot.id, version)
+      if (this.executionStopping || this.uncertainChanges.get(bot.id) !== uncertainty
+        || this.sessionChanges.get(bot.id) !== changes || changes.size !== 1
+        || [...this.jobs].some(job => job.bot.id === bot.id))
+        throw Object.assign(new Error('照合中に席の状態が変わりました。'), { code: 'BOT_SESSION_UNCONFIRMED' })
+      if (!same(execution.binding?.target?.launch, target)) throw new Error('EXECUTION_UNCONFIRMED')
+      this.sessions.set(bot.id, session)
+      this.uncertainChanges.delete(bot.id)
+      return execution
+    } finally {
+      changes.delete(pending)
+      if (!changes.size && this.sessionChanges.get(bot.id) === changes) this.sessionChanges.delete(bot.id)
+    }
+  }
+
   // セッションの状態と活動をAitermに観測させる。cursorを渡すと、前回の観測からの変化も返る。
   async observe(bot, cursor) {
     const result = await this.client.call('pty_observe', { session_id: this.session(bot), ...(cursor ? { cursor } : {}) })
@@ -547,8 +583,8 @@ export class AitermTransport {
 
   // 通知で始まったターンの最後の回答は誰にも配送しない。onAnswerがあれば、そのBotの会話画面へ出すために渡す。
   // onTurnEndは、差し込みではなく新しく始まったターンが終わった時だけ、その時間の幅を渡して呼ぶ。
-  async notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource } = {}) {
-    const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource })
+  async notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution } = {}) {
+    const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution })
     completion.catch(error => process.stderr.write(`BellTeam Aiterm delivery error: ${error.stack ?? error.message}\n`))
     return completion.accepted
   }
@@ -562,7 +598,7 @@ export class AitermTransport {
     return this.wake(bot)
   }
 
-  submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource } = {}) {
+  submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null } = {}) {
     const job = { id: this.activeId(), bot, controller: new AbortController(), executionSource: executionSource ? structuredClone(executionSource) : null, info: { ...info, message: info.message ?? message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}) }, startedAt: this.now() }
     this.jobs.add(job)
     const check = () => {
@@ -602,7 +638,14 @@ export class AitermTransport {
         const configuration = this.configurationChanges.get(bot.id)
         if (configuration) await configuration
         check()
-        if (this.executionBridge) await reserveExecution(this, job)
+        if (recoveredExecution) {
+          if (recoveredExecution.reservation.request.kind !== 'delivery'
+            || recoveredExecution.reservation.request.delivery_id !== info.groupId
+            || recoveredExecution.binding?.target?.launch.session_id !== this.session(bot))
+            throw Object.assign(new Error('EXECUTION_INVALID'), { code: 'EXECUTION_INVALID', effect: 'not_started' })
+          job.execution = recoveredExecution
+          job.executionWasPresent = true
+        } else if (this.executionBridge) await reserveExecution(this, job)
         check()
         this.active.set(job.id, job)
         this.emitQueue(job)
