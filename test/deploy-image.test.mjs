@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { mkdtemp, mkdir, copyFile, writeFile, readFile, chmod, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, copyFile, writeFile, readFile, chmod, rm, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -10,7 +10,7 @@ const exec = promisify(execFile)
 const image = `ghcr.io/fixture/server@sha256:${'a'.repeat(64)}`
 
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), 'bellteam-image deploy-'))
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'bellteam-image deploy-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   await mkdir(join(root, 'scripts'))
   await mkdir(join(root, 'bin'))

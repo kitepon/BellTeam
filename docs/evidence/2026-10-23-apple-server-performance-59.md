@@ -52,4 +52,6 @@ MacのTestFlightは当初古い候補を表示していた。`表示 > 更新`�
 
 一般配布への昇格run `39892221365`は`42460b8`と上記固定digestを照合して成功し、同digestを再ビルドせず`ghcr.io/kitepon/bellteam-server:latest`と`:preview`へ反映した。内部先行の結果と安定版の実物が同じであることを、公開ジョブのdigest出力で確認した。
 
+商用コンテナ統合後のMac全試験は、初回686件中685件成功・1件失敗。失敗は`test/deploy-image.test.mjs`の人工一時フォルダがmacOSで同じ実体を`/var`と`/private/var`で表し、実行先の物理パスと未解決の期待パスを文字列比較したものだった。fixture作成時に`realpath`で物理パスへ揃え、製品の反映scriptは変えていない。対象10件と`TESTGATE_FULL=1 npm test`の全686件が成功した。原本は`runtime/apple/performance-59/npm-test-commercial-verified.log`。
+
 取得済み本文と行高の保持、余白と配置範囲の計算は履歴行数に比例する。サーバーの初期索引作成にはメモリを使い、逆時刻順の大量挿入には並べ替えコストが残る。Macのrootだけの監視通知は、対象を確定するため既知部屋の3ファイルのstatを読む。これらは今回の表示契約と通知の取りこぼし防止のため残した処理であり、実機の速度・電池消費の改善率を推定しない。
