@@ -25,6 +25,7 @@ try {
     'compose.cursor-update.yaml', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
   ], { cwd: root })
   await exec('tar', ['-xf', archive, '-C', output])
+  await mkdir(join(output, 'bridge'))
   for (const [source, target] of [
     ['distribution-profile.mjs', 'src/distribution-profile.mjs'],
     ['bots.json', 'config/bots.json'],
@@ -32,8 +33,10 @@ try {
     ['.env.example', '.env.example'],
     ['README.md', 'README.md'],
     ['install.sh', 'install.sh'],
+    ...['compose.yaml', 'compose.bellteam.yaml', 'bridge.env.example', 'README.md', 'install.sh'].map(name => [`bridge/${name}`, `bridge/${name}`]),
   ]) await copyFile(join(output, 'distribution/server', source), join(output, target))
   await chmod(join(output, 'install.sh'), 0o755)
+  await chmod(join(output, 'bridge/install.sh'), 0o755)
   await rm(join(output, 'distribution'), { recursive: true })
   await writeFile(join(output, 'distribution.json'), JSON.stringify({
     schema: 'bellteam.server.distribution.v1', sourceCommit, profile: 'public',

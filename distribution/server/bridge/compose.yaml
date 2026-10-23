@@ -1,0 +1,26 @@
+services:
+  call-bridge:
+    image: ${CALL_BRIDGE_IMAGE:?Set CALL_BRIDGE_IMAGE in bridge/bridge.env}
+    pull_policy: ${CALL_BRIDGE_PULL_POLICY:-missing}
+    init: true
+    restart: unless-stopped
+    read_only: true
+    env_file: ./bridge/bridge.env
+    environment:
+      CALL_BRIDGE_HOST: 0.0.0.0
+      CALL_BRIDGE_PORT: "18910"
+      CALL_BRIDGE_DB: /app/data/calls.db
+      PYTHONDONTWRITEBYTECODE: "1"
+    tmpfs:
+      - /tmp:size=64m
+    ports:
+      - "${CALL_BRIDGE_BIND_IP:-127.0.0.1}:${CALL_BRIDGE_PUBLISHED_PORT:-18910}:18910"
+    volumes:
+      - ./runtime/call-bridge/data:/app/data
+      - ./runtime/call-bridge/auth:/run/call-bridge:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18910/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s

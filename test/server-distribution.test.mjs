@@ -105,6 +105,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
     'compose.cursor-update.yaml', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
     'runtime/home/auth.json', '.env', 'config/bots.json', 'services/subscriptions/keys/private.p8',
+    'distribution/server/bridge/bridge.env',
   ]
   for (const path of paths) {
     await mkdir(join(root, path, '..'), { recursive: true })
@@ -114,6 +115,9 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   for (const path of ['distribution-profile.mjs', 'bots.json', 'compose.yaml', '.env.example', 'README.md', 'install.sh']) {
     await copyFile(new URL(`../distribution/server/${path}`, import.meta.url), join(root, 'distribution/server', path))
   }
+  const bridgeFiles = ['compose.yaml', 'compose.bellteam.yaml', 'bridge.env.example', 'README.md', 'install.sh']
+  await mkdir(join(root, 'distribution/server/bridge'), { recursive: true })
+  for (const name of bridgeFiles) await copyFile(new URL(`../distribution/server/bridge/${name}`, import.meta.url), join(root, 'distribution/server/bridge', name))
   await exec('git', ['init', '-q'], { cwd: root })
   await exec('git', ['add', '.'], { cwd: root })
   await exec('git', ['-c', 'user.name=配布試験', '-c', 'user.email=test@example.com', 'commit', '-qm', '配布試験の入力'], { cwd: root })
@@ -122,6 +126,8 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   const pathsInArchive = (await exec('tar', ['-tzf', result.archive])).stdout.trim().split('\n').map(path => path.replace(/^\.\//, ''))
   assert.ok(pathsInArchive.includes('config/setup-guide.json'))
   assert.ok(pathsInArchive.includes('docs/onboarding.md'))
+  for (const name of bridgeFiles) assert.ok(pathsInArchive.includes(`bridge/${name}`))
+  assert.ok(!pathsInArchive.includes('bridge/bridge.env'), '利用者のBridge認証設定は配布しない')
   for (const path of ['compose.cursor-update.yaml', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh']) assert.ok(pathsInArchive.includes(path))
   assert.ok(!pathsInArchive.includes('config/models.json'), 'モデル候補は導入先CLIから取得し古い一覧を同梱しない')
   assert.deepEqual(JSON.parse(await readFile(join(output, 'config/bots.json'), 'utf8')).bots, [])
