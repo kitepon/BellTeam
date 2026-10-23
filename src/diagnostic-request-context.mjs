@@ -21,6 +21,10 @@ export function diagnosticRequestContext({ method, url }, frames = [], error = n
     route = '/api/bots'
     operation = 'member_list_read'
     expected = 'bot_list_response'
+  } else if (path === '/api/models' && requestMethod === 'GET') {
+    route = '/api/models'
+    operation = 'model_catalog_read'
+    expected = 'model_catalog_response'
   } else if (/^\/api\/(bots|rooms)\/[a-z0-9-]+\/schedules$/u.test(path) && requestMethod === 'GET') {
     route = `/api/${path.split('/')[2]}/:id/schedules`
     operation = 'schedule_read'
