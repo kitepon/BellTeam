@@ -7,6 +7,7 @@ export const EXECUTION_META = 'aiterm/execution'
 export const BINDING_META = 'aiterm/execution_binding'
 export const ERROR_META = 'aiterm/execution_error'
 export const SOURCE_META = 'aiterm/execution_source'
+export const CLOSED_LAUNCH_META = 'aiterm/closed_launch'
 const codes = new Set(['INVALID', 'NOT_FOUND', 'CONFLICT', 'STOPPING', 'STALE_GENERATION', 'UNCONFIRMED', 'BUSY', 'STATE_UNAVAILABLE', 'UNSUPPORTED'].map(value => `EXECUTION_${value}`))
 const session = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/u.test(value)
 const launch = value => value && session(value.session_id) && typeof value.launch_id === 'string' && /^[0-9a-f]{32}$/u.test(value.launch_id)
@@ -119,6 +120,30 @@ export class ExecutionBridge {
     handle.registered = true
     handle.issued.add('launch')
     return handle
+  }
+  async closeLaunch(inputRequest, inputTarget) {
+    const { request, target } = structuredClone({ request: inputRequest, target: inputTarget })
+    if (!launch(target) || request?.target_session_id !== target.session_id) throw failure('EXECUTION_INVALID', 'not_started')
+    const original = await this.status(request)
+    if (original.operations?.launch !== 'unknown' || original.operations?.send !== 'not_issued')
+      throw failure('EXECUTION_CONFLICT', 'not_started')
+    const result = await call(this.client, 'agent_execution', { action: 'close_launch', request, target })
+    const record = readRecord(result, request, original.reservation)
+    const receipt = result?._meta?.[CLOSED_LAUNCH_META]
+    const management = receipt?.management_ref, evidence = receipt?.evidence, native = evidence?.native
+    if (!same(record, original) || receipt?.schema !== 'aiterm.closed-launch.v1' || receipt.version !== 1
+      || receipt.action !== 'close_launch' || receipt.outcome !== 'closed'
+      || !same(receipt.request, request) || !same(receipt.target, target)
+      || management?.kind !== 'mcp' || management.tool !== 'pty_close'
+      || management.target_session_id !== target.session_id || !Number.isSafeInteger(management.process_pid)
+      || management.process_pid <= 0 || typeof management.process_started_identity !== 'string' || !management.process_started_identity
+      || !(Number.isSafeInteger(management.request_id) || typeof management.request_id === 'string' && management.request_id.length > 0)
+      || native?.schema !== 'aiterm.execution-native.v1' || !/^\$\d+$/u.test(native.native_id)
+      || !Number.isSafeInteger(native.server?.pid) || native.server.pid <= 0
+      || typeof native.server.started_identity !== 'string' || !native.server.started_identity || native.server.started_identity.length > 256
+      || evidence.initial_prompt !== 'none' || evidence.initial_prompt_delivery !== null || evidence.harness_alive !== false
+      || evidence.absence_confirmed !== true || evidence.metadata_committed !== true) throw failure()
+    return structuredClone(receipt)
   }
   async roots(sessionId) {
     if (!session(sessionId)) throw failure('EXECUTION_INVALID', 'not_started')

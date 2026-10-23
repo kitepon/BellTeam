@@ -349,6 +349,11 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
           const { target } = await readJson(request)
           return json(response, 200, await messenger.resumeDelivery(resumeDeliveryMatch[1], target))
         }
+        const closeLaunchMatch = url.pathname.match(/^\/api\/deliveries\/direct\/([a-f0-9-]+)\/close-launch$/u)
+        if (request.method === 'POST' && closeLaunchMatch) {
+          const { target } = await readJson(request)
+          return json(response, 200, await messenger.closeDeliveryLaunch(closeLaunchMatch[1], target))
+        }
         if (request.method === 'POST' && url.pathname === '/api/deliveries/room') {
           return json(response, 200, await roomMessenger.sendroommessage(await readJson(request)))
         }

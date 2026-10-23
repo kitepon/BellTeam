@@ -137,6 +137,22 @@ export class BellTeamMessenger {
     return { delivery: result.delivery, delivery_id: deliveryId, from: record.from, target: bot.id }
   }
 
+  async closeDeliveryLaunch(deliveryId, target) {
+    const check = this.admitWork()
+    await this.bots.refresh?.()
+    const record = (await this.store.records()).find(row => row.delivery_id === deliveryId)
+    if (!record) throw Object.assign(new Error('DELIVERY_NOT_FOUND'), { code: 'DELIVERY_NOT_FOUND', status: 404 })
+    if (record.delivery !== 'failed' || record.image || record.session_id || !this.bots.has(record.from) || !this.bots.has(record.target))
+      throw Object.assign(new Error('DELIVERY_NOT_RESUMABLE'), { code: 'DELIVERY_NOT_RESUMABLE', status: 409 })
+    const bot = this.bots.get(record.target)
+    await this.requireAccess({ from: record.from, target: bot.id })
+    check()
+    const closed = await this.transport.closeLaunch(bot, deliveryExecutionRef(deliveryId, target?.session_id), target)
+    // Keep the original failed history and unknown execution. A new delivery
+    // is an explicit separate action by the original sender.
+    return { delivery_id: deliveryId, from: record.from, target: bot.id, closed }
+  }
+
   async enqueueUserTurn(input) {
     const prepared = await this.prepareUserTurn(input)
     const completion = this.startUserTurn(prepared)

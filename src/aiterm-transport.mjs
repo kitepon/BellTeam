@@ -27,6 +27,25 @@ const INTERIM_INTERVAL_MS = 3000
 const CALLER_META = { 'aiterm/caller': 'BellTeam' }
 export const NIGHTLY_RESTART_TURNS = 20
 
+// Keep the public cause strings while distinguishing a later uncertainty with
+// the same cause. These identities are local to this transport, never wire IDs.
+class UncertainSessionChanges extends Map {
+  versions = new Map()
+  set(id, cause, request = null) {
+    this.versions.set(id, { request: structuredClone(request) })
+    return super.set(id, cause)
+  }
+  delete(id) {
+    this.versions.set(id, { request: null })
+    return super.delete(id)
+  }
+  clear() {
+    for (const id of this.keys()) this.versions.set(id, { request: null })
+    super.clear()
+  }
+  version(id) { return this.versions.get(id) }
+}
+
 // Supervisor uses one SDK client for normal dispatch, relation registration
 // and interruption. An unavailable execution runtime must reject the request;
 // it must not silently select the legacy dispatch/close path.
@@ -189,7 +208,7 @@ export class AitermTransport {
     this.stopSessions = new Map()
     this.waking = new Map()
     this.sessionChanges = new Map()
-    this.uncertainChanges = new Map()
+    this.uncertainChanges = new UncertainSessionChanges()
     // 席ごとの、BellTeamが始めていないターンを追っている見張り（watchTurn）。
     this.watches = new Map()
     // 席ごとの、最後に終わりまで追ったターン。Aitermへ聞いた後に終わったターンを、もう一度追い始めない。
@@ -425,7 +444,7 @@ export class AitermTransport {
       // RPCのrejectは遠隔の変更を取り消さない。後から旧closeが届き得る同名の席を自動で再利用しない。
       if (issued && ((error?.effect !== 'not_started' && error?.aitermResponseReturned !== true && error?.launch?.schema !== 'aiterm.agent-launch-result.v1')
         || error?.executionError?.effect === 'possible'))
-        this.uncertainChanges.set(bot.id, name)
+        this.uncertainChanges.set(bot.id, name, execution?.reservation?.request)
       clear()
     })
     return pending
@@ -443,6 +462,7 @@ export class AitermTransport {
     this.assertWorkAllowed()
     const session = this.session(bot) ?? bot.id
     const uncertainty = this.uncertainChanges.get(bot.id)
+    const uncertaintyVersion = this.uncertainChanges.version(bot.id)
     const version = this.captureStopVersion(bot)
     const busy = () => this.executionStopping || this.sessionChanges.has(bot.id) || this.configurationChanges.has(bot.id)
       || this.interruptions.has(bot.id) || [...this.jobs].some(job => job.bot.id === bot.id) || !this.isIdle(bot.id)
@@ -461,6 +481,7 @@ export class AitermTransport {
       const execution = await pending
       this.requireStopVersion(bot.id, version)
       if (this.executionStopping || this.uncertainChanges.get(bot.id) !== uncertainty
+        || this.uncertainChanges.version(bot.id) !== uncertaintyVersion
         || this.sessionChanges.get(bot.id) !== changes || changes.size !== 1
         || [...this.jobs].some(job => job.bot.id === bot.id))
         throw Object.assign(new Error('照合中に席の状態が変わりました。'), { code: 'BOT_SESSION_UNCONFIRMED' })
@@ -468,6 +489,55 @@ export class AitermTransport {
       this.sessions.set(bot.id, session)
       this.uncertainChanges.delete(bot.id)
       return execution
+    } finally {
+      changes.delete(pending)
+      if (!changes.size && this.sessionChanges.get(bot.id) === changes) this.sessionChanges.delete(bot.id)
+    }
+  }
+
+  async closeLaunch(bot, inputRequest, inputTarget) {
+    const { request, target } = structuredClone({ request: inputRequest, target: inputTarget })
+    this.assertWorkAllowed()
+    const session = this.session(bot) ?? bot.id
+    const uncertainty = this.uncertainChanges.get(bot.id)
+    const uncertaintyVersion = this.uncertainChanges.version(bot.id)
+    const version = this.captureStopVersion(bot)
+    const busy = () => this.executionStopping || this.sessionChanges.has(bot.id) || this.configurationChanges.has(bot.id)
+      || this.interruptions.has(bot.id) || this.waking.has(bot.id)
+      || [...this.jobs].some(job => job.bot.id === bot.id) || !this.isIdle(bot.id)
+    if (!this.executionBridge || target?.session_id !== session || request?.target_session_id !== session
+      || (uncertainty !== undefined && (uncertainty !== 'agent_launch' || !same(uncertaintyVersion?.request, request))))
+      throw Object.assign(new Error('起動結果を照合できません。'), { code: 'BOT_SESSION_UNCONFIRMED' })
+    if (busy()) throw Object.assign(new Error('この席は処理中です。'), { code: 'EXECUTION_BUSY', effect: 'not_started' })
+    // No session-only close, registration or body dispatch belongs here. The
+    // product owns atomic original-request / expected-generation validation.
+    const pending = this.executionBridge.closeLaunch(request, target)
+    pending.executionBound = true
+    pending.executionIssued = true
+    pending.executionSession = session
+    const changes = new Set([pending])
+    this.sessionChanges.set(bot.id, changes)
+    try {
+      const receipt = await pending
+      this.requireStopVersion(bot.id, version)
+      if (this.executionStopping || this.uncertainChanges.version(bot.id) !== uncertaintyVersion
+        || this.uncertainChanges.get(bot.id) !== uncertainty
+        || this.sessionChanges.get(bot.id) !== changes || changes.size !== 1
+        || this.configurationChanges.has(bot.id) || this.interruptions.has(bot.id) || this.waking.has(bot.id)
+        || [...this.jobs].some(job => job.bot.id === bot.id) || !this.isIdle(bot.id)
+        || (this.session(bot) ?? bot.id) !== session)
+        throw Object.assign(new Error('照合中に席の状態が変わりました。'), { code: 'BOT_SESSION_UNCONFIRMED' })
+      this.sessions.delete(bot.id)
+      this.runningSnapshot = null
+      this.uncertainChanges.delete(bot.id)
+      return receipt
+    } catch (error) {
+      // With no prior local fence (for example after reconnect), a missing or
+      // malformed close response still must not authorize a new dispatch.
+      if (uncertainty === undefined && error.effect !== 'not_started'
+        && this.uncertainChanges.version(bot.id) === uncertaintyVersion)
+        this.uncertainChanges.set(bot.id, 'close_launch', request)
+      throw error
     } finally {
       changes.delete(pending)
       if (!changes.size && this.sessionChanges.get(bot.id) === changes) this.sessionChanges.delete(bot.id)
