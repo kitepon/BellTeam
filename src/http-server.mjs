@@ -8,6 +8,7 @@ import { SubscriptionAccessError } from './subscriptions.mjs'
 import { LiveModelCatalog, ModelCatalogError } from './model-catalog.mjs'
 import { diagnosticRequestContext } from './diagnostic-request-context.mjs'
 import { returnedExecutionError } from './execution-bridge.mjs'
+import { stopFailureReport } from './stop-failure-report.mjs'
 
 const contentTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -393,7 +394,9 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
               throw new Error('BOT_STOP_UNCONFIRMED')
             server.notify({ type: 'bots' })
             return json(response, result.status === 'stop_sent' ? 202 : 200, result)
-          } catch {
+          } catch (error) {
+            try { writeLog(`BellTeam stop failure: ${JSON.stringify(stopFailureReport(bot.id, error))}\n`) }
+            catch { /* Reporting must not change the stop response or retry it. */ }
             return json(response, 502, { error: 'BOT_STOP_UNCONFIRMED', message: '処理の中断を確認できませんでした。会話を確認してください。' })
           }
         }
