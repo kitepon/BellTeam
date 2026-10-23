@@ -26,6 +26,16 @@ Bot側の受信・返答完了と、本文の受付receiptは別に確認する�
 
 更新後は、確認済み未発行の対象だけを依頼者が通常MCPで一度届け直す方法も使える。旧refを新scopeへ流用せず、旧failed ID/receiptと通常の新delivery IDを記録する。未発行と確定できないものをこの方法へ含めず、他の担当者は並行再送しない。同runtimeでこのAPIを使える場合の元ID再開とは、記録と手順を区別する。
 
+## 起動結果不明のままCLIが終了した場合の明示close
+
+`POST /api/deliveries/direct/<元delivery_id>/close-launch` は同じ `target` を受け取り、保存された本文だけのfailed直接配送を特定する。これは本文を送る入口ではない。既存の認証・利用条件を確認し、Aitermの `agent_execution.action=close_launch` に元requestと期待launchを渡す。session_idだけの `pty_close` へは落とさない。対応する製品候補の正式公開と商用受入前には使用しない。
+
+製品は同じ元request/launch/creator nativeとserver、未発行の初期本文とsend、現在のCLI終了を受付と作用直前に照合する。実close・不在確認・metadata commit後の `aiterm.closed-launch.v1` 証明を `_meta['aiterm/closed_launch']` に返す。本体は元execution recordが不変で、receiptのrequest/target/管理RPC ref/不在・commit証拠が一致した時だけ、対応する局所agent_launch不明を解除する。停止・処理中・後発の不明が割り込んだ場合は解除しない。同じcause文字列でも後発の不明は別として扱う。
+
+close応答のstructuredContentは別管理requestのExecutionRecordであり、元deliveryのrecordではない。本体は管理recordのrequest/期待launch/close受付を照合し、元requestのstatusを読み直して変更されていないことも確認する。
+
+元unknown execution/failed履歴/送信元は保持し、本文の自動再送・新しいdelivery作成は行わない。結果欠測・不正receiptでは局所不明を残す。後の新しい起動へ古いclosed receiptを流用しない。close後の新配送は依頼元・対象・単独実行者を合わせた別の通常工程にする。
+
 ## 検証
 
 `node --test test/delivery-recovery.test.mjs` は人工応答とloopback HTTPで元source/予約・保存本文・一度のsend、重複・停止・世代失効・非対応・不正receiptの扱いを確認する。実Botや本物の認証は使わない。製品nativeの隔離受入と商用image受入は、固定source/tgz/digestを付けた担当記録で別に扱う。
