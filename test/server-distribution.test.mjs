@@ -29,6 +29,7 @@ if [ "$2" = config ] && [ "$3" = --images ]; then printf '%s\\n' "\${TEST_IMAGES
 if [ "$2" = config ] && [ "$3" = --format ]; then printf '%s\\n' 'name: fixture' 'services:' '  bellteam:' '    environment:' '      BELLTEAM_BUGHUB_KEY: synthetic-only' 'volumes:' '  cursor-cli:' '    name: fixture-cursor'; fi
 if [ "$2" = port ]; then printf '%s\\n' "$TEST_ENDPOINT"; fi
 case "$*" in
+  'image inspect fixture-server') exit "\${TEST_INSPECT_EXIT:-0}";;
   'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/'*)
     [ "\${TEST_EXTRACT_EXIT:-0}" = 0 ] || exit "$TEST_EXTRACT_EXIT"
     for path do :; done
@@ -69,6 +70,26 @@ esac
     await writeFile(commands, '')
     await assert.rejects(exec('sh', [join(install, 'install.sh')], { env: { ...env, ...extra } }))
     assert.doesNotMatch(await readFile(commands, 'utf8'), /compose (run|stop|up) /)
+  }
+  // ローカルbuildを使うときも、公開版と同じ更新・起動経路で設定を保持する。
+  await writeFile(commands, '')
+  await exec('sh', [join(install, 'install.sh'), '--no-pull'], {
+    env: { ...env, TEST_ENDPOINT: '127.0.0.1:18891' },
+  })
+  const localCalls = (await readFile(commands, 'utf8')).trim().split('\n')
+  assert.deepEqual(localCalls.slice(0, 2), ['compose config --images', 'image inspect fixture-server'])
+  assert.ok(!localCalls.includes('compose pull'))
+  assert.ok(localCalls.some(call => call.endsWith('--no-deps cursor-update')))
+  assert.ok(localCalls.includes('compose up -d --wait --wait-timeout 120 --pull never'))
+  await writeFile(commands, '')
+  await assert.rejects(exec('sh', [join(install, 'install.sh'), '--no-pull'], {
+    env: { ...env, TEST_INSPECT_EXIT: '1' },
+  }), error => /先にビルド/.test(error.stderr))
+  assert.doesNotMatch(await readFile(commands, 'utf8'), /compose (pull|run|stop|up) /)
+  for (const args of [['--unknown'], ['--no-pull', 'extra']]) {
+    await writeFile(commands, '')
+    await assert.rejects(exec('sh', [join(install, 'install.sh'), ...args], { env }), error => error.code === 2)
+    assert.equal(await readFile(commands, 'utf8'), '')
   }
 })
 

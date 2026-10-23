@@ -4,6 +4,8 @@
 
 一般配布サーバーは[設置案内](distribution/server/README.md)を参照。追加機能を設定せずにコンテナを起動し、Webで最初に使うAIを選んで公式認証を完了すると、案内役との会話を始められる。初回設定の仕様は[初回設定と追加機能](docs/onboarding.md)に置く。Macから同じマシンへ、iPhone・iPadから同じLANのマシンへ直接接続できる。
 
+ソースから一般利用者向けのコンテナを作る場合も、設置案内の[ソースから構築する](distribution/server/README.md#ソースから構築する)に従ってpublic構成を生成し、ローカルイメージをinstallerへ渡す。リポジトリ直下のComposeは開発者の運用向けである。
+
 ## 通話ブリッジの接続
 
 通話を設定すると、BellTeamはClaude、Codex、Grok、Cursorの全Botへ`call-bridge` MCPを登録する。各CLIはBellTeam本体の内部入口（コンテナ内のloopback）へHTTPで接続し、本体がメインサーバーのHTTP MCPへ中継する。Bearer認証値と接続先はCLI設定に書かず、本体が`/srv/bellteam/shared/tools/call-bridge/headers`（権限600）から読んで付ける。接続先と合言葉は設定画面または案内役との会話で登録する。既存の`BELLTEAM_CALL_BRIDGE_MCP_URL`と認証ファイルは初回に移行する。未設定の通話は無効になり、Webと基本の管理操作を使える。
