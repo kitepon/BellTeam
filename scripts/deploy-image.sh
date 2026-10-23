@@ -1,0 +1,35 @@
+#!/bin/sh
+# deploy.shが本番側で呼ぶ内部adapter。受入済みの商用imageを同じdigestで使う。
+set -eu
+cd "$(dirname "$0")/.."
+repo=$(pwd)
+: "${BELLTEAM_SERVER_IMAGE:?受入imageを指定してください}"
+: "${BELLTEAM_DEPLOY_QUIET_EXCEPT:?quiet対象Botを指定してください}"
+export COMPOSE_FILE="$repo/distribution/server/compose.yaml:$repo/distribution/internal/compose.overlay.yaml"
+export COMPOSE_PROJECT_NAME=bellteam
+export BELLTEAM_INTERNAL_PROFILE_FILE="$repo/src/distribution-profile.mjs"
+
+staging=
+finish() {
+  result=$?
+  trap - 0
+  if [ -n "$staging" ]; then rm -rf "$staging"; fi
+  printf 'deploy-exit=%s\n' "$result"
+}
+trap finish 0
+trap 'exit 1' 1 2 15
+
+# 取得・資材準備の失敗では、旧本体を止めない。
+docker compose pull bellteam
+staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-deploy-image.XXXXXX")
+mkdir "$staging/scripts"
+for path in compose.cursor-update.yaml scripts/update-cursor.sh; do
+  docker run --pull never --rm --network none --read-only --entrypoint /bin/cat \
+    "$BELLTEAM_SERVER_IMAGE" "/app/$path" > "$staging/$path"
+done
+
+# 両地点の既存quietを旧本体で観測する。停止してquietを作らない。
+sh scripts/check-deploy-quiet.sh "$BELLTEAM_DEPLOY_QUIET_EXCEPT"
+sh "$staging/scripts/update-cursor.sh"
+sh scripts/check-deploy-quiet.sh "$BELLTEAM_DEPLOY_QUIET_EXCEPT"
+docker compose up -d --no-build --pull never
