@@ -1,10 +1,9 @@
 import { json, readJson } from './http-response.mjs'
 import { recentTimeline } from './timeline-index.mjs'
 import { listAvatar, sendAvatar } from './http-assets.mjs'
-import { stopFailureReport } from './stop-failure-report.mjs'
 import { messageImages, MESSAGE_MAX_BYTES } from './http-messages.mjs'
 
-export function createBotApi({ bots, rooms, transport, memory, characterSheets, aiControl, notify, writeLog, sources, store, messagePage, messenger }) {
+export function createBotApi({ bots, transport, administration, memory, characterSheets, aiControl, notify, sources, store, messagePage, messenger }) {
   return async (request, response, url) => {
     if (request.method === 'GET' && url.pathname === '/api/bots') {
       const all = [...bots.values()]
@@ -66,14 +65,10 @@ export function createBotApi({ bots, rooms, transport, memory, characterSheets, 
       const bot = bots.get(stopMatch[1])
       if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
       try {
-        const result = await transport.interrupt(bot)
-        if (result?.botId !== bot.id || !(result.status === 'stop_sent' || result.status === 'interrupted' && result.sessionPreserved === true))
-          throw new Error('BOT_STOP_UNCONFIRMED')
+        const result = await administration.stop(bot)
         notify({ type: 'bots' })
         return json(response, result.status === 'stop_sent' ? 202 : 200, result)
-      } catch (error) {
-        try { writeLog(`BellTeam stop failure: ${JSON.stringify(stopFailureReport(bot.id, error))}\n`) }
-        catch { /* Reporting must not change the stop response or retry it. */ }
+      } catch {
         return json(response, 502, { error: 'BOT_STOP_UNCONFIRMED', message: '処理の中断を確認できませんでした。会話を確認してください。' })
       }
     }
@@ -84,7 +79,7 @@ export function createBotApi({ bots, rooms, transport, memory, characterSheets, 
       const botId = restartMatch[1]
       const bot = bots.get(botId)
       if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      transport.restart(bot).catch(error => process.stderr.write(`BellTeam restart error: ${error.stack ?? error.message}\n`))
+      administration.restart(bot)
       return json(response, 202, { restarting: botId })
     }
 
@@ -105,35 +100,9 @@ export function createBotApi({ bots, rooms, transport, memory, characterSheets, 
       const botId = profileMatch[1]
       if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
       if (request.method === 'GET') return json(response, 200, { bot: bots.get(botId) })
-      if (request.method === 'PATCH') {
-        const current = bots.get(botId)
-        const changes = await readJson(request)
-        const candidate = await bots.previewUpdate(botId, changes)
-        const harnessChanged = candidate.harness !== current.harness
-        const fastModeChanged = candidate.fastMode !== current.fastMode
-        const configurationChanged = harnessChanged || candidate.model !== current.model
-          || candidate.reasoningEffort !== current.reasoningEffort || fastModeChanged
-        const wasRunning = configurationChanged ? await transport.isRunning(current) : false
-        // 稼働中Botへの適用は現在の作業の後に並ぶ。保存の応答はそれを待たずに返す。
-        if (wasRunning) {
-          transport.reconfigure(current, candidate)
-            .catch(async error => {
-              process.stderr.write(`BellTeam reconfigure error: ${error.stack ?? error.message}\n`)
-              // ファストモードを当てられなかった時は、保存した値を元へ戻す。記録が「有効」のまま、実際は通常の速度、という食い違いを残さない。
-              if (fastModeChanged && bots.get(botId)?.fastMode === candidate.fastMode) await bots.update(botId, { fastMode: current.fastMode })
-            })
-            .catch(error => process.stderr.write(`BellTeam fast mode restore error: ${error.stack ?? error.message}\n`))
-        }
-        const bot = await bots.update(botId, changes)
-        return json(response, 200, { bot, harnessChanged, configurationChanged, applying: wasRunning })
-      }
+      if (request.method === 'PATCH') return json(response, 200, await administration.update(botId, await readJson(request)))
       if (request.method === 'DELETE') {
-        const bot = bots.get(botId)
-        void (async () => {
-          await transport.stop(bot)
-          await rooms.removeBot(botId)
-          await bots.remove(botId)
-        })().catch(error => process.stderr.write(`BellTeam delete error: ${error.stack ?? error.message}\n`))
+        administration.remove(botId)
         return json(response, 202, { deleting: botId })
       }
     }

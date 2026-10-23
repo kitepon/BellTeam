@@ -15,7 +15,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     secretRequests, ownerQuestions, bots, rooms, roomMessenger, messenger,
     store, transport, memory, ownerProfile, userRules, characterSheets,
     refreshGlobalInstructions, assets, scheduler, diagnostics,
-    idleSessions, selfTurns, seatTurns,
+    idleSessions, selfTurns, seatTurns, administration,
   } = services
   const { aiterm } = bootstrap
   const serverOptions = {
@@ -41,6 +41,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     models: new LiveModelCatalog({ cwd: root }),
     scheduler,
     diagnostics,
+    administration,
   }
   const internalPort = Number(environment.BELLTEAM_INTERNAL_PORT ?? 4181)
   const callBridgeHeaders = join(root, 'shared/tools/call-bridge/headers')

@@ -1,0 +1,64 @@
+import { stopFailureReport } from './stop-failure-report.mjs'
+
+// Botの設定変更・停止・削除の業務判断。HTTP APIと、HTTP経由で届く席MCPのupdate_self/update_bot/delete_botが
+// 同じ判断を使う。応答の形と状態コードはHTTPが持ち、ここは保存と稼働中の席への反映の順序を決める。
+export class BotAdministration {
+  constructor({ bots, rooms, transport, writeLog = line => process.stderr.write(line) }) {
+    this.bots = bots
+    this.rooms = rooms
+    this.transport = transport
+    this.writeLog = writeLog
+  }
+
+  // 保存は先に返し、稼働中Botへの適用は現在の作業の後に並ぶ。
+  async update(botId, changes) {
+    const current = this.bots.get(botId)
+    const candidate = await this.bots.previewUpdate(botId, changes)
+    const harnessChanged = candidate.harness !== current.harness
+    const fastModeChanged = candidate.fastMode !== current.fastMode
+    const configurationChanged = harnessChanged || candidate.model !== current.model
+      || candidate.reasoningEffort !== current.reasoningEffort || fastModeChanged
+    const wasRunning = configurationChanged ? await this.transport.isRunning(current) : false
+    if (wasRunning) this.apply(current, candidate, { fastModeChanged })
+    const bot = await this.bots.update(botId, changes)
+    return { bot, harnessChanged, configurationChanged, applying: wasRunning }
+  }
+
+  apply(current, candidate, { fastModeChanged }) {
+    this.transport.reconfigure(current, candidate)
+      .catch(async error => {
+        this.writeLog(`BellTeam reconfigure error: ${error.stack ?? error.message}\n`)
+        // ファストモードを当てられなかった時は、保存した値を元へ戻す。記録が「有効」のまま、実際は通常の速度、という食い違いを残さない。
+        if (fastModeChanged && this.bots.get(current.id)?.fastMode === candidate.fastMode) await this.bots.update(current.id, { fastMode: current.fastMode })
+      })
+      .catch(error => this.writeLog(`BellTeam fast mode restore error: ${error.stack ?? error.message}\n`))
+  }
+
+  // 会話を残した現在処理の中断。確認できない結果は成功へ丸めず、報告を残して失敗にする。
+  async stop(bot) {
+    try {
+      const result = await this.transport.interrupt(bot)
+      if (result?.botId !== bot.id || !(result.status === 'stop_sent' || result.status === 'interrupted' && result.sessionPreserved === true))
+        throw new Error('BOT_STOP_UNCONFIRMED')
+      return result
+    } catch (error) {
+      try { this.writeLog(`BellTeam stop failure: ${JSON.stringify(stopFailureReport(bot.id, error))}\n`) }
+      catch { /* Reporting must not change the stop response or retry it. */ }
+      throw Object.assign(new Error('BOT_STOP_UNCONFIRMED', { cause: error }), { code: 'BOT_STOP_UNCONFIRMED' })
+    }
+  }
+
+  restart(bot) {
+    this.transport.restart(bot).catch(error => this.writeLog(`BellTeam restart error: ${error.stack ?? error.message}\n`))
+  }
+
+  // 席を閉じ、部屋から外し、台帳から消す。応答は待たせない。
+  remove(botId) {
+    const bot = this.bots.get(botId)
+    void (async () => {
+      await this.transport.stop(bot)
+      await this.rooms.removeBot(botId)
+      await this.bots.remove(botId)
+    })().catch(error => this.writeLog(`BellTeam delete error: ${error.stack ?? error.message}\n`))
+  }
+}

@@ -43,6 +43,21 @@ export class BotSessionState {
     if (this.stopVersions.get(botId) !== version) throw stoppedError()
   }
 
+  // 停止世代を進める。進める前に捕まえた世代で待っている変更・起動・配送は、停止として終わる。
+  invalidate(botId) {
+    this.stopVersions.set(botId, (this.stopVersions.get(botId) ?? 0) + 1)
+  }
+
+  // 停止が届いた席名を捕まえていたBotを返し、根ではないものの世代も進める（子孫の席もBellTeamのメンバーであり得る）。
+  invalidateReached(reached, rootIds) {
+    const bots = new Set()
+    for (const [id, session] of this.stopSessions) if (reached(session)) {
+      bots.add(id)
+      if (!rootIds.has(id)) this.invalidate(id)
+    }
+    return bots
+  }
+
   captureStopVersion(bot) {
     if (this.executionBridge) this.stopSessions.set(bot.id, this.session(bot))
     return this.stopVersions.get(bot.id)
@@ -118,7 +133,7 @@ export class BotSessionState {
     const uncertaintyVersion = this.uncertainChanges.version(bot.id)
     const version = this.captureStopVersion(bot)
     const busy = () => this.stopping || this.sessionChanges.has(bot.id) || this.activity.configuration(bot.id)
-      || this.activity.interruption(bot.id) || this.activity.hasJobs(bot.id) || !this.activity.idle(bot.id)
+      || this.activity.hasJobs(bot.id) || !this.activity.idle(bot.id)
     if (!this.executionBridge || target?.session_id !== session || request?.target_session_id !== session
       || (uncertainty && uncertainty !== 'agent_launch'))
       throw Object.assign(new Error('起動結果を照合できません。'), { code: 'BOT_SESSION_UNCONFIRMED' })
@@ -156,8 +171,7 @@ export class BotSessionState {
     const uncertaintyVersion = this.uncertainChanges.version(bot.id)
     const version = this.captureStopVersion(bot)
     const busy = () => this.stopping || this.sessionChanges.has(bot.id) || this.activity.configuration(bot.id)
-      || this.activity.interruption(bot.id) || this.activity.waking(bot.id)
-      || this.activity.hasJobs(bot.id) || !this.activity.idle(bot.id)
+      || this.activity.waking(bot.id) || this.activity.hasJobs(bot.id) || !this.activity.idle(bot.id)
     if (!this.executionBridge || target?.session_id !== session || request?.target_session_id !== session
       || (uncertainty !== undefined && (uncertainty !== 'agent_launch' || !same(uncertaintyVersion?.request, request))))
       throw Object.assign(new Error('起動結果を照合できません。'), { code: 'BOT_SESSION_UNCONFIRMED' })
@@ -176,7 +190,7 @@ export class BotSessionState {
       if (this.stopping || this.uncertainChanges.version(bot.id) !== uncertaintyVersion
         || this.uncertainChanges.get(bot.id) !== uncertainty
         || this.sessionChanges.get(bot.id) !== changes || changes.size !== 1
-        || this.activity.configuration(bot.id) || this.activity.interruption(bot.id) || this.activity.waking(bot.id)
+        || this.activity.configuration(bot.id) || this.activity.waking(bot.id)
         || this.activity.hasJobs(bot.id) || !this.activity.idle(bot.id)
         || (this.session(bot) ?? bot.id) !== session)
         throw Object.assign(new Error('照合中に席の状態が変わりました。'), { code: 'BOT_SESSION_UNCONFIRMED' })

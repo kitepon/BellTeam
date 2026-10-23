@@ -5,13 +5,14 @@ import { join } from 'node:path'
 
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { ExecutionBridge } from './execution-bridge.mjs'
-import { reserveExecution, dispatchExecution, finishExecution, applyExecutionStop, applyExecutionCancellation, interruptExecutions, sendStopOperations } from './execution-transport.mjs'
+import { reserveExecution, dispatchExecution, interruptExecutions, sendStopOperations } from './execution-transport.mjs'
 import { sendSessionStop } from './session-interruption.mjs'
 import { AitermClient, textResult } from './aiterm-client.mjs'
 import { latestThroughlineHandoffContext } from './throughline-context.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
 import { BotSessionState } from './bot-session-state.mjs'
-import { stoppedError } from './bot-execution-errors.mjs'
+import { DeliveryJob } from './delivery-job.mjs'
+import { SeatActivity, SeatTurnWatch } from './seat-activity.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
 export { completedThroughlineTurns, latestThroughlineHandoffContext, NIGHTLY_RESTART_TURNS } from './throughline-context.mjs'
@@ -34,6 +35,8 @@ export function createManagedTransport({ client = new AitermClient(), ...options
   return new AitermTransport({ ...options, client, executionBridge: new ExecutionBridge(client), requestStop: sessions => sendSessionStop(client, sessions) })
 }
 
+// BellTeamとAitermの間。席の状態（BotSessionState）と席の活動（SeatActivity）を持ち、一回の配送（DeliveryJob）を進める。
+// Aitermのnativeな実行判断はAitermに在り、ここは返却を事実として受け取る。
 export class AitermTransport {
   constructor({ client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS } = {}) {
     this.client = client
@@ -50,40 +53,46 @@ export class AitermTransport {
     this.assertWorkAllowed = assertWorkAllowed
     this.activeId = activeId
     this.now = now
-    this.active = new Map()
     this.retainedImages = new Map()
-    this.queueListeners = new Set()
-    this.configurationChanges = new Map()
-    this.dispatches = new Map()
-    this.jobs = new Set()
-    this.interruptions = new Map()
-    this.waking = new Map()
-    // 席ごとの、BellTeamが始めていないターンを追っている見張り（watchTurn）。
-    this.watches = new Map()
-    // 席ごとの、最後に終わりまで追ったターン。Aitermへ聞いた後に終わったターンを、もう一度追い始めない。
-    this.followedTurns = new Map()
-    // 席ごとの、最後に追ったターンで合間の言葉として出した文。そのターンの回答はself-turns.mjsがThroughlineから出し、
-    // Throughlineはターンの文を全部つなげて返すので、先に出した分を回答の頭から外すのに使う。
-    this.shownWords = new Map()
+    this.activity = new SeatActivity()
     this.sessionState = new BotSessionState({
       assertWorkAllowed: () => this.assertWorkAllowed(),
       executionBridge: () => this.executionBridge,
       call: (name, args, options) => this.client.call(name, args, options),
       invalidateRunning: () => { this.runningSnapshot = null },
       activity: {
-        configuration: id => this.configurationChanges.has(id),
-        interruption: id => this.interruptions.has(id),
-        waking: id => this.waking.has(id),
-        hasJobs: id => [...this.jobs].some(job => job.bot.id === id),
-        idle: id => this.isIdle(id),
+        configuration: id => this.activity.configurationChanges.has(id),
+        waking: id => this.activity.waking.has(id),
+        hasJobs: id => this.activity.hasJobs(id),
+        idle: id => this.activity.idle(id),
       },
     })
-    // Compatibility references share the component's actual state, never copies.
+    // Aitermへ向く処理（execution-transport）に渡す席の窓口。transport全体ではなく、使う操作だけ。
+    const transport = this
+    this.seat = {
+      sessionState: this.sessionState,
+      activity: this.activity,
+      get executionBridge() { return transport.executionBridge },
+      requestStop: sessions => this.requestStop(sessions),
+      session: bot => this.session(bot),
+      observe: bot => this.observe(bot),
+      wake: (bot, options) => this.wake(bot, options),
+      imageFiles: images => this.imageFiles(images),
+      removeTemporaryImages: files => this.removeTemporaryImages(files),
+    }
+    // Compatibility references share the components' actual state, never copies.
     this.sessions = this.sessionState.sessions
     this.stopVersions = this.sessionState.stopVersions
     this.stopSessions = this.sessionState.stopSessions
     this.sessionChanges = this.sessionState.sessionChanges
     this.uncertainChanges = this.sessionState.uncertainChanges
+    this.active = this.activity.active
+    this.jobs = this.activity.jobs
+    this.watches = this.activity.watches
+    this.followedTurns = this.activity.followedTurns
+    this.configurationChanges = this.activity.configurationChanges
+    this.dispatches = this.activity.dispatches
+    this.waking = this.activity.waking
   }
 
   get executionStopping() { return this.sessionState.stopping }
@@ -118,7 +127,6 @@ export class AitermTransport {
     this.requireSessionKnown(bot.id)
     const version = this.captureStopVersion(bot)
     if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
-    await this.interruptions.get(bot.id)
     this.requireStopVersion(bot.id, version)
     const running = await this.isRunning(bot)
     this.requireStopVersion(bot.id, version)
@@ -129,11 +137,7 @@ export class AitermTransport {
   wake(bot, options = {}) {
     this.assertWorkAllowed()
     this.requireSessionKnown(bot.id)
-    const pending = this.wakeNow(bot, options)
-    this.waking.set(bot.id, pending)
-    const clear = () => { if (this.waking.get(bot.id) === pending) this.waking.delete(bot.id) }
-    pending.then(clear, clear)
-    return pending
+    return this.activity.waking.track(bot.id, this.wakeNow(bot, options))
   }
 
   async wakeNow(bot, { setupTest = false, execution = null } = {}) {
@@ -196,7 +200,6 @@ export class AitermTransport {
     this.requireSessionKnown(bot.id)
     const version = this.captureStopVersion(bot)
     if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
-    await this.interruptions.get(bot.id)
     await this.idle(bot.id)
     this.requireStopVersion(bot.id, version)
     const session = await this.restartNow(bot, version)
@@ -208,7 +211,6 @@ export class AitermTransport {
     this.requireSessionKnown(current.id)
     const version = this.captureStopVersion(current)
     if (this.executionBridge) await this.awaitUnboundAdmission(current, version)
-    await this.interruptions.get(current.id)
     await this.requireAccess({ setupTest: false, botId: next.id })
     await this.idle(current.id)
     this.requireStopVersion(current.id, version)
@@ -250,9 +252,9 @@ export class AitermTransport {
   }
 
   interruptMany(bots) {
-    if (this.requestStop) return sendStopOperations(this, bots)
+    if (this.requestStop) return sendStopOperations(this.seat, bots)
     if (!this.executionBridge) throw Object.assign(new Error('EXECUTION_BRIDGE_REQUIRED'), { code: 'BOT_STOP_UNCONFIRMED' })
-    return interruptExecutions(this, bots)
+    return interruptExecutions(this.seat, bots)
   }
 
   requireStopVersion(botId, version) {
@@ -291,20 +293,14 @@ export class AitermTransport {
   }
 
   // 動いていない席を閉じる。配送中・配送待ちがあれば閉じない。閉じた後の配送は不達になり、通常の経路で起動し直す。
-  async closeIdle(bot) {
-    if (!this.isIdle(bot.id) || this.configurationChanges.has(bot.id) || this.interruptions.has(bot.id)) return false
+  closeIdle(bot) {
+    if (!this.isIdle(bot.id) || this.activity.configurationChanges.has(bot.id)) return Promise.resolve(false)
     // 閉じている間の送信は、設定変更と同じ順序で、閉じ終わってから通常の不達復旧へ進める。
-    const closing = (async () => {
+    return this.activity.configurationChanges.track(bot.id, (async () => {
       await this.changeSession(bot, 'pty_close', { session_id: this.session(bot) })
       await this.removeRetainedImages(bot.id)
       return true
-    })()
-    this.configurationChanges.set(bot.id, closing)
-    try {
-      return await closing
-    } finally {
-      if (this.configurationChanges.get(bot.id) === closing) this.configurationChanges.delete(bot.id)
-    }
+    })())
   }
 
   stopForConfiguration(bot) {
@@ -314,14 +310,9 @@ export class AitermTransport {
       if (this.executionBridge) await this.awaitUnboundAdmission(bot, version, barrier)
       return this.stop(bot, version)
     }
-    const previous = this.configurationChanges.get(bot.id) ?? Promise.resolve()
-    const pending = previous.then(run, run)
-    this.configurationChanges.set(bot.id, pending)
+    const previous = this.activity.configurationChanges.get(bot.id) ?? Promise.resolve()
     // 失敗時は次の配送にもエラーを返し、利用者が設定を直すまで旧登録へ送らない。
-    pending.then(() => {
-      if (this.configurationChanges.get(bot.id) === pending) this.configurationChanges.delete(bot.id)
-    }, () => {})
-    return pending
+    return this.activity.configurationChanges.track(bot.id, previous.then(run, run), { clearOnFailure: false })
   }
 
   turn(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, admissionCheck = () => {} } = {}) {
@@ -408,29 +399,23 @@ export class AitermTransport {
     return this.wake(bot)
   }
 
+  // 一回の配送。受付（Aitermの受理）までと、受理したターンの終わりまでを一つのjobとして進める。
+  // 続けてよいかはjobの停止結論と席の状態に聞き、停止の結論を決めるのはjob（DeliveryJob）だけ。
   submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null } = {}) {
-    const job = { id: this.activeId(), bot, controller: new AbortController(), executionSource: executionSource ? structuredClone(executionSource) : null, info: { ...info, message: info.message ?? message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}) }, startedAt: this.now() }
-    this.jobs.add(job)
+    const job = new DeliveryJob({
+      id: this.activeId(), bot, startedAt: this.now(),
+      executionSource: executionSource ? structuredClone(executionSource) : null,
+      info: { ...info, message: info.message ?? message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}) },
+      stopping: () => this.executionStopping,
+    })
+    this.activity.register(job)
     const check = () => {
-      if (job.stopRequested) throw stoppedError()
+      job.assertNotStopped()
       this.assertWorkAllowed()
       admissionCheck()
       this.requireSessionKnown(bot.id)
     }
-    // 既に受理されたsend/doneは保持して停止の結論を待つ。停止未確認なら通常の結果処理へ戻る。
-    const checkpoint = async () => {
-      await this.executionStopping?.catch(() => {})
-      if (job.stopped) throw stoppedError()
-      if (job.executionStopResult && job.receipt) job.stopRequested = false
-      if (!job.stopRequested) return
-      try { await job.interruption } catch (error) {
-        if (!job.receipt) throw error
-        job.stopRequested = false
-        return
-      }
-      if (job.stopped) throw stoppedError()
-    }
-    const parent = [...this.active.values()].reverse().find(item => item.bot.id === bot.id)
+    const parent = this.activity.latest(bot.id)
     let accept
     let rejectAcceptance
     const accepted = new Promise((resolve, reject) => { accept = resolve; rejectAcceptance = reject })
@@ -442,10 +427,8 @@ export class AitermTransport {
       let followed = false
       try {
         await this.executionStopping?.catch(() => {})
-        const interruption = this.interruptions.get(bot.id)
-        if (interruption) await interruption
-        if (job.stopRequested) throw stoppedError()
-        const configuration = this.configurationChanges.get(bot.id)
+        job.assertNotStopped()
+        const configuration = this.activity.configurationChanges.get(bot.id)
         if (configuration) await configuration
         check()
         if (recoveredExecution) {
@@ -455,30 +438,30 @@ export class AitermTransport {
             throw Object.assign(new Error('EXECUTION_INVALID'), { code: 'EXECUTION_INVALID', effect: 'not_started' })
           job.execution = recoveredExecution
           job.executionWasPresent = true
-        } else if (this.executionBridge) await reserveExecution(this, job)
+        } else if (this.executionBridge) await reserveExecution(this.seat, job)
         check()
-        this.active.set(job.id, job)
-        this.emitQueue(job)
+        this.activity.admit(job)
         await this.requireAccess({ setupTest, botId: bot.id })
         check()
         delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job })
+        // 受理した。送信中に届いた停止の結果があれば、この受理と照らす。
         job.receipt = delivery.receipt
-        await applyExecutionStop(job)
-        await checkpoint()
+        await job.applyStopResult(job.executionStopResult)
+        await job.checkpoint()
         const steered = delivery.receipt.mode === 'agent_steer'
         followed = !steered || delivery.steer !== null
         // 同じ席のターンをもう追っているjobが在れば、合間の言葉はそちらが出す（同じ言葉を2回出さない）。
-        const follower = steered ? this.follower(bot.id) : null
+        const follower = steered ? this.activity.follower(bot.id) : null
         // 次の送信はこの印を見て決めるので、返りを受け取ってからここまでawaitを挟まない。
         job.follows = followed && !follower
         await onStatus?.('running')
-        await checkpoint()
+        await job.checkpoint()
         acknowledged = true
         accept({ delivery: steered ? 'steered' : 'running' })
         // 待つ手がかりを返さない差し込み（Aiterm 0.59.1まで）は、同じ席のjobの終わりを待つ。無ければ、終わりを知る道が無い。
         if (!followed) {
           if (parent) await parent.completion
-          await checkpoint()
+          await job.checkpoint()
           await onStatus?.('delivered')
           return { delivery: 'steered' }
         }
@@ -495,15 +478,15 @@ export class AitermTransport {
           throw error
         }
         await interim?.stop()
-        await checkpoint()
-        await finishExecution(job, 'completion')
-        if (completion.turn_id) this.followedTurns.set(bot.id, completion.turn_id)
+        await job.checkpoint()
+        await job.finishExecution('completion')
+        if (completion.turn_id) this.activity.followedTurns.set(bot.id, completion.turn_id)
         // 動いていたターンが取り込んだ差し込みは、そのターンの一部。回答は、そのターンを始めた側が出す
         // （BellTeamが始めたターンは元の配送、席が自分で始めたターンはself-turns.mjs）。
         // 取り込まれたかを見分けられなかった時（unknown）も、回答を2回出さないよう同じに扱う。
         if (steered && completion.steer?.placement !== 'next_turn') {
           await follower?.completion.catch(() => {})
-          await checkpoint()
+          await job.checkpoint()
           await onStatus?.('delivered')
           return { delivery: 'steered' }
         }
@@ -514,32 +497,24 @@ export class AitermTransport {
           ...(completion.operation_id ? { operation_id: completion.operation_id } : {}),
         }), completion)
         const answer = transcript ? await readAnswer() : undefined
-        await checkpoint()
+        await job.checkpoint()
         // 画面に出すだけの回答なので、読めなくても配送は完了として扱う。
         if (!transcript && onAnswer) {
           try {
             const text = await readAnswer()
-            await checkpoint()
+            await job.checkpoint()
             if (typeof text === 'string' && text.trim()) await onAnswer(text)
           } catch (error) {
             process.stderr.write(`BellTeam answer read error: ${error.stack ?? error.message}\n`)
           }
         }
-        await checkpoint()
+        await job.checkpoint()
         await onStatus?.('delivered')
-        await checkpoint()
+        await job.checkpoint()
         onTurnEnd?.({ startedAt: job.startedAt, endedAt: this.now() })
         return transcript ? answer : { delivery: 'delivered' }
-      } catch (error) {
-        await this.executionStopping?.catch(() => {})
-        applyExecutionCancellation(job, error)
-        if (job.stopped) error = stoppedError()
-        if (job.stopRequested) {
-          try { await job.interruption } catch (stopError) { error = stopError }
-          if (job.stopped) error = stoppedError()
-        }
-        if (['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) && !job.receipt) job.stopped = true
-        if (job.execution && !job.receipt && !job.execution.issued.size) await finishExecution(job, 'not_sent')
+      } catch (cause) {
+        const error = await job.failure(cause)
         if (!acknowledged) rejectAcceptance(error)
         await onStatus?.(job.stopped ? 'stopped' : 'failed')
         throw error
@@ -550,9 +525,7 @@ export class AitermTransport {
           retained.push(...temporary)
           this.retainedImages.set(bot.id, retained)
         } else await this.removeTemporaryImages(delivery?.imageFiles)
-        this.active.delete(job.id)
-        this.jobs.delete(job)
-        this.emitQueue(job)
+        this.activity.release(job)
       }
     })()
     job.completion = completion
@@ -562,7 +535,7 @@ export class AitermTransport {
 
   // その席のターンを終わりまで追っているjob（配送で始めたターン、追っている差し込み、見つけた席のターン）。
   follower(botId) {
-    return [...this.active.values()].reverse().find(job => job.bot.id === botId && job.follows)
+    return this.activity.follower(botId)
   }
 
   // 席の今のターン（Aiterm 0.60.0、ADR 0122）。席のsessionごとに、動いているターン・{ state: 'idle' }・null（分からない）。
@@ -583,14 +556,14 @@ export class AitermTransport {
     const turns = await this.seatTurns()
     if (!turns) return false
     for (const bot of bots) {
-      if (this.interruptions.has(bot.id) || versions.get(bot.id) !== this.stopVersions.get(bot.id)) continue
+      if (versions.get(bot.id) !== this.stopVersions.get(bot.id)) continue
       const session = this.session(bot)
       const turn = turns.get(session)
-      const watch = this.watches.get(bot.id)
+      const watch = this.activity.watches.get(bot.id)
       // 追っているターンがもう動いていない。止められたターンでは、Aitermの待ちは返らない（完了の印だけを待つ）。
       // nullは「分からない」なので、追い続ける。
       if (watch && turn !== null && (turn?.state !== 'running' || turn.turn_id !== watch.turnId)) watch.end()
-      if (turn?.state === 'running' && this.isIdle(bot.id) && this.followedTurns.get(bot.id) !== turn.turn_id)
+      if (turn?.state === 'running' && this.isIdle(bot.id) && this.activity.followedTurns.get(bot.id) !== turn.turn_id)
         this.watchTurn(bot, session, turn, { onInterim, groupId })
     }
     return true
@@ -599,30 +572,19 @@ export class AitermTransport {
   // 見つけたターンを終わりまで「処理中」に出し、合間の言葉を出す。
   // 回答は運ばない。席が自分で始めたターンの回答は、self-turns.mjsがThroughlineから出す（オーナー裁定 2026-10-01）。
   watchTurn(bot, session, turn, { onInterim, groupId }) {
-    const group = groupId()
-    const job = {
-      id: this.activeId(), bot, follows: true, startedAt: turn.started_at ?? this.now(),
-      info: { context: 'self', contextId: bot.id, groupId: group, target: bot.id },
-    }
-    const stop = new AbortController()
-    const ended = new Promise(resolve => stop.signal.addEventListener('abort', resolve, { once: true }))
-    const shown = { words: [], endedAt: null }
-    this.followedTurns.set(bot.id, turn.turn_id)
-    this.watches.set(bot.id, { turnId: turn.turn_id, end: () => stop.abort() })
-    this.shownWords.set(bot.id, shown)
-    this.active.set(job.id, job)
-    this.emitQueue(job)
-    job.completion = (async () => {
+    const watch = new SeatTurnWatch({ id: this.activeId(), bot, turn, groupId: groupId(), now: this.now() })
+    this.activity.beginWatch(watch)
+    watch.completion = (async () => {
       const say = onInterim ? async words => {
-        await onInterim(bot.id, group, words)
-        shown.words.push(...words.filter(word => word.kind !== 'error').map(word => word.text.trim()).filter(Boolean))
+        await onInterim(bot.id, watch.info.groupId, words)
+        watch.shown.words.push(...words.filter(word => word.kind !== 'error').map(word => word.text.trim()).filter(Boolean))
       } : null
       const interim = say ? this.followInterim(session, turn, say, { from: turn.interim_from, turnId: turn.turn_id }) : null
       try {
         let failure = null
-        await Promise.race([ended, this.waitUntilDone(turn, stop.signal).catch(error => { failure = error })])
+        await Promise.race([watch.ended, this.waitUntilDone(turn, watch.stop.signal).catch(error => { failure = error })])
         const seen = await interim?.stop()
-        if (!failure || stop.signal.aborted) return
+        if (!failure || watch.stop.signal.aborted) return
         // エラーや利用上限で終わったターンは、配送したターンと同じく、記録に知らせが無い時だけAitermが返した理由を出す。
         if (interim && !seen.error && /^AITERM_TURN_(ERROR|RATE_LIMITED)/u.test(failure.message))
           await say([{ text: failure.message, kind: 'error' }])
@@ -630,26 +592,23 @@ export class AitermTransport {
       } catch (error) {
         process.stderr.write(`BellTeam seat turn error: ${error.stack ?? error.message}\n`)
       } finally {
-        shown.endedAt = Date.parse(this.now())
-        this.watches.delete(bot.id)
-        this.active.delete(job.id)
-        this.emitQueue(job)
+        watch.shown.endedAt = Date.parse(this.now())
+        this.activity.endWatch(watch)
       }
     })()
   }
 
   // 席が自分で始めたターンのうち、最後に追ったターンで合間の言葉として出した文と、追い終えた時刻。
   shownInSelfTurn(botId) {
-    return this.shownWords.get(botId) ?? null
+    return this.activity.shownWords.get(botId) ?? null
   }
 
-  async idle(botId) {
-    while ([...this.active.values()].some(job => job.bot.id === botId))
-      await Promise.all([...this.active.values()].filter(job => job.bot.id === botId).map(job => job.completion.catch(() => {})))
+  idle(botId) {
+    return this.activity.whenIdle(botId)
   }
 
   isIdle(botId) {
-    return ![...this.active.values()].some(job => job.bot.id === botId)
+    return this.activity.idle(botId)
   }
 
   restartIfIdle(bot) {
@@ -657,24 +616,16 @@ export class AitermTransport {
     return this.restart(bot).then(result => ({ restarted: true, ...result }))
   }
 
-  queueItems({ botId = null, roomId = null } = {}) {
-    return [...this.active.values()]
-      .filter(job => !botId || job.bot.id === botId)
-      .filter(job => !roomId || (job.info.context === 'room' && job.info.contextId === roomId))
-      .map(job => ({
-        id: job.id, botId: job.bot.id, botName: job.bot.displayName ?? job.bot.name ?? job.bot.id,
-        status: 'running', startedAt: job.startedAt, ...job.info,
-      }))
+  queueItems(filter) {
+    return this.activity.items(filter)
   }
 
   watchQueue(listener) {
-    this.queueListeners.add(listener)
-    return () => this.queueListeners.delete(listener)
+    return this.activity.watch(listener)
   }
 
-  emitQueue(job) {
-    const change = { all: !job?.bot?.id, topics: ['queue'], botIds: job?.bot?.id ? [job.bot.id] : [], roomIds: job?.info?.context === 'room' && job.info.contextId ? [job.info.contextId] : [] }
-    for (const listener of this.queueListeners) listener(change)
+  emitQueue(item) {
+    this.activity.emit(item)
   }
 
   // 同じ席への送信は、前の送信をAitermが受け付けてから始める。起こしている途中の席へ次の文が重なると、
@@ -682,18 +633,14 @@ export class AitermTransport {
   // 受け付けた後なら、次の文は実行中のターンへの差し込みになる。
   dispatchInOrder(bot, message, images, options) {
     const run = () => { options?.check?.(); return this.dispatch(bot, message, images, options) }
-    const delivery = (this.dispatches.get(bot.id) ?? Promise.resolve()).then(run)
-    const settled = delivery.then(() => {}, () => {})
-    this.dispatches.set(bot.id, settled)
-    settled.then(() => {
-      if (this.dispatches.get(bot.id) === settled) this.dispatches.delete(bot.id)
-    })
+    const delivery = (this.activity.dispatches.get(bot.id) ?? Promise.resolve()).then(run)
+    this.activity.dispatches.track(bot.id, delivery.then(() => {}, () => {}))
     return delivery
   }
 
   async dispatch(bot, message, images, { setupTest = false, check = () => {}, executionJob } = {}) {
     if (this.executionBridge) {
-      const delivery = await dispatchExecution(this, executionJob, bot, message, images, { setupTest, check })
+      const delivery = await dispatchExecution(this.seat, executionJob, bot, message, images, { setupTest, check })
       return { ...delivery, steer: delivery.receipt.mode === 'agent_steer' ? steerFollow(delivery.result) : null }
     }
     check()
@@ -796,8 +743,8 @@ export class AitermTransport {
   }
 
   async close() {
-    for (const watch of this.watches.values()) watch.end()
-    const botIds = new Set([...this.active.values()].map(job => job.bot.id))
+    for (const watch of this.activity.watches.values()) watch.end()
+    const botIds = new Set([...this.activity.active.values()].map(item => item.bot.id))
     await Promise.all([...botIds].map(botId => this.idle(botId)))
     await this.client.close?.()
   }

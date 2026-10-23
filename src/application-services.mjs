@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { CharacterSheets } from './character-sheets.mjs'
+import { BotAdministration } from './bot-administration.mjs'
 import { AitermClient, createManagedTransport } from './aiterm-transport.mjs'
 import { AiControl, stopRegisteredWork } from './ai-control.mjs'
 import { ConversationStore } from './conversation-store.mjs'
@@ -107,6 +108,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     assertWorkAllowed: () => aiControl.assertEnabled(),
   })
   const characterSheets = new CharacterSheets({ projectPath: id => bots.projectPath(id) })
+  // Bot設定変更・停止・削除の業務判断。公開APIと席MCPが同じ判断を使う。
+  const administration = new BotAdministration({ bots, rooms, transport })
   const secretRequests = new SecretRequests({
     root, bots, rooms,
     onRequest: item => notifications.secret(item),
@@ -124,6 +127,6 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
-    scheduler, diagnostics, idleSessions, selfTurns, seatTurns,
+    scheduler, diagnostics, idleSessions, selfTurns, seatTurns, administration,
   }
 }

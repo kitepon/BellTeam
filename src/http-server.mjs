@@ -1,5 +1,6 @@
 import { createControlApi, createApplicationApi } from './http-application-api.mjs'
 import { createBotApi } from './http-bot-api.mjs'
+import { BotAdministration } from './bot-administration.mjs'
 import { createRoomApi } from './http-room-api.mjs'
 import { createDeliveryApi } from './http-delivery-api.mjs'
 import { createScheduleApi } from './http-schedule-api.mjs'
@@ -21,7 +22,7 @@ export { EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS }
 // 手前の中継（cloudflaredの既定90秒）より長く保つ。
 export const KEEP_ALIVE_TIMEOUT_MS = 125000
 
-export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
+export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
   if (typeof authorize !== 'function') throw new Error('BELLTEAM_AUTHORIZER_REQUIRED')
   const events = createMessageEvents({ store, secretRequests, ownerQuestions, rooms, bots, transport, aiControl, eventKeepalive, messageEventWindow })
   const { sources, timeline, messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions })
@@ -29,7 +30,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
   const controlApi = createControlApi({ aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models })
   const featureApis = [
     createApplicationApi({ ownerProfile, refreshGlobalInstructions, userRules, events, assets }),
-    createBotApi({ bots, rooms, transport, memory, characterSheets, aiControl, notify: event => server.notify(event), writeLog, sources, store, messagePage, messenger }),
+    createBotApi({ bots, transport, memory, characterSheets, aiControl, notify: event => server.notify(event), sources, store, messagePage, messenger,
+      administration: administration ?? new BotAdministration({ bots, rooms, transport, writeLog }) }),
     createRoomApi({ rooms, transport, sources, messagePage, roomMessenger }),
     createDeliveryApi({ messenger, roomMessenger, transport }),
     createScheduleApi({ bots, scheduler }),
