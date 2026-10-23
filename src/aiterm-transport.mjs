@@ -1,18 +1,19 @@
-import { execFile, spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual as same } from 'node:util'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { loadBotEnvironment } from './bot-environment.mjs'
-import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
-import { ExecutionBridge, returnedExecutionError, ERROR_META } from './execution-bridge.mjs'
+import { ExecutionBridge } from './execution-bridge.mjs'
 import { reserveExecution, dispatchExecution, finishExecution, applyExecutionStop, applyExecutionCancellation, interruptExecutions, sendStopOperations } from './execution-transport.mjs'
 import { sendSessionStop } from './session-interruption.mjs'
+import { AitermClient, textResult } from './aiterm-client.mjs'
+import { latestThroughlineHandoffContext } from './throughline-context.mjs'
+import { runWaitProcess } from './aiterm-wait-process.mjs'
+
+export { AitermClient } from './aiterm-client.mjs'
+export { completedThroughlineTurns, latestThroughlineHandoffContext, NIGHTLY_RESTART_TURNS } from './throughline-context.mjs'
 
 const HARNESS = new Map([
   ['claude', 'claude-code'],
@@ -20,12 +21,10 @@ const HARNESS = new Map([
   ['grok', 'grok-cli'],
   ['cursor', 'cursor-cli'],
 ])
-const execFileAsync = promisify(execFile)
 // 合間の言葉を取りに行く間隔。Aitermのpty_observeは画面本文を読まない軽い呼び出し。
 const INTERIM_INTERVAL_MS = 3000
 // Aitermは、要求の_metaにこの印がある時だけ、BellTeamのための手がかりを結果へ足す（Aiterm ADR 0071・0122）。
 const CALLER_META = { 'aiterm/caller': 'BellTeam' }
-export const NIGHTLY_RESTART_TURNS = 20
 
 // Keep the public cause strings while distinguishing a later uncertainty with
 // the same cause. These identities are local to this transport, never wire IDs.
@@ -51,133 +50,6 @@ class UncertainSessionChanges extends Map {
 // it must not silently select the legacy dispatch/close path.
 export function createManagedTransport({ client = new AitermClient(), ...options } = {}) {
   return new AitermTransport({ ...options, client, executionBridge: new ExecutionBridge(client), requestStop: sessions => sendSessionStop(client, sessions) })
-}
-
-export async function completedThroughlineTurns(project, { run = execFileAsync } = {}) {
-  const { stdout } = await run('throughline', [
-    'observer-read', '--project', project, '--limit', String(NIGHTLY_RESTART_TURNS), '--json',
-  ], { env: runtimeEnvironment() })
-  const result = JSON.parse(stdout)
-  if (result.schema !== 'throughline.observer_read.v1' || !Array.isArray(result.turns))
-    throw new Error('THROUGHLINE_OBSERVER_READ_INVALID')
-  return result.turns.length
-}
-
-// 短期記憶は、直前の1セッションだけでなく直近の複数セッションから作る（オーナー裁定 2026-10-05、Approval Box K-8GPX8C）。
-// `--sessions recent` は Throughline 0.15.0 から。それより前の版は終了コード2で止まり、席が起きない。
-export async function latestThroughlineHandoffContext(project, { run = execFileAsync } = {}) {
-  const { stdout } = await run('throughline', [
-    'handoff-context', '--project', project, '--json', '--disclosure', 'silent', '--sessions', 'recent',
-  ], { env: runtimeEnvironment() })
-  const result = JSON.parse(stdout)
-  if (result.schema !== 'throughline.handoff_context.v1')
-    throw new Error('THROUGHLINE_HANDOFF_CONTEXT_INVALID')
-  if (result.status === 'empty' && result.sessionId === null && result.context === '') return ''
-  if (result.status !== 'ready'
-    || typeof result.sessionId !== 'string'
-    || !result.sessionId
-    || typeof result.context !== 'string'
-    || !result.context.trim()) throw new Error('THROUGHLINE_HANDOFF_CONTEXT_INVALID')
-  return result.context.trim()
-}
-
-export class AitermClient {
-  constructor({ command = 'aiterm-mcp', args = [], env = runtimeEnvironment() } = {}) {
-    this.command = command
-    this.args = [...args]
-    this.env = env
-    this.client = null
-    this.transport = null
-    this.connecting = null
-  }
-
-  async connect() {
-    if (this.connecting) return this.connecting
-    if (this.client) return
-    this.client = new Client({ name: 'bellteam', version: '0.1.0' }, { capabilities: {} })
-    this.transport = new StdioClientTransport({ command: this.command, args: this.args, stderr: 'inherit', ...(this.env ? { env: this.env } : {}) })
-    const client = this.client
-    const transport = this.transport
-    client.onclose = () => {
-      if (this.client === client) {
-        this.client = null
-        this.transport = null
-      }
-    }
-    // clientを作っただけでは初期化は終わっていない。同時の呼出しも同じ接続完了を待つ。
-    this.connecting = (async () => {
-      try {
-        await client.connect(transport)
-      } catch (error) {
-        // 失敗した接続を次の要求へ持ち越さない。この要求そのものを自動再送はしない。
-        await transport.close().catch(() => {})
-        this.client = null
-        this.transport = null
-        throw error
-      }
-    })()
-    try {
-      await this.connecting
-    } finally {
-      this.connecting = null
-    }
-  }
-
-  async call(name, args = {}, { env, meta } = {}) {
-    if (env) {
-      // Aitermは値ではなくMCPプロセスの変数名を受け取る。起動ごとに専用の短命接続を使う。
-      const launcher = new AitermClient({ command: this.command, args: this.args, env })
-      try {
-        const env_vars = Object.keys(env).filter(key => runtimeEnvironmentKeys.includes(key) || env[key] !== process.env[key])
-        return await launcher.call(name, { ...args, env_vars }, { meta })
-      } finally {
-        await launcher.close()
-      }
-    }
-    await this.connect()
-    const result = await this.client.callTool({ name, arguments: args, ...(meta ? { _meta: meta } : {}) })
-    if (result.isError) {
-      const message = textResult(result) || `AITERM_TOOL_FAILED: ${name}`
-      const error = new Error(message)
-      // tool handlerがエラー結果を返し終えた事と、RPC timeout/通信断で結果が不明な事を区別する。
-      error.aitermResponseReturned = true
-      const executionError = returnedExecutionError(result._meta?.[ERROR_META])
-      if (executionError) error.executionError = executionError
-      // 起動の準備が終わらなかった時、Aitermは作った端末の名前と止まった理由を構造で返す（aiterm.agent-launch-result.v1）。
-      if (name === 'agent_launch' && result.structuredContent?.schema === 'aiterm.agent-launch-result.v1')
-        error.launch = result.structuredContent
-      // Aitermが未送信を明示した入力受付の拒否は、その席の状態との衝突。
-      // その他の送信失敗や受付後の不明な結果まで成功・未送信と決めない。
-      if (name === 'pty_send'
-        && message.startsWith(`aiterm: agent session '${args.session_id}' の `)
-        && message.includes(' TUI が入力受付状態になりません。文字列は送信していません。')) {
-        error.code = 'BOT_INPUT_NOT_READY'
-        error.status = 409
-        error.publicMessage = 'このBotは現在入力を受け付けられず、メッセージは送信されませんでした。Botの画面を確認してください。'
-      }
-      // 席の登録が無いsessionを、Aitermが打つ前に断った（require_agent、Aiterm 0.52.0）。送っていないので、起こし直して送り直せる。
-      if (name === 'pty_send'
-        && message.startsWith('aiterm: AGENT_SESSION_REQUIRED:')
-        && message.includes('文字列は送信していません。')) error.code = 'AGENT_SESSION_REQUIRED'
-      // 同じ席への先の送信が終わるのを待ち切れず、Aitermが打つ前に断った（Aiterm 0.52.1、待ちは60秒）。
-      // 登録を確かめた後の断りなので席は生きている。送っていないので、後から送り直せる。
-      if (name === 'pty_send'
-        && message.startsWith(`aiterm: AGENT_SEND_BUSY: agent session '${args.session_id}' は`)
-        && message.includes('文字列は送信していません。')) {
-        error.code = 'BOT_SEND_BUSY'
-        error.status = 409
-        error.publicMessage = 'このBotは先に届いた送信を受け付けている途中で、メッセージは送信されませんでした。少し待ってから送り直してください。'
-      }
-      throw error
-    }
-    return result
-  }
-
-  async close() {
-    await this.transport?.close()
-    this.client = null
-    this.transport = null
-  }
 }
 
 export class AitermTransport {
@@ -1061,30 +933,6 @@ export class AitermTransport {
     await Promise.all([...botIds].map(botId => this.idle(botId)))
     await this.client.close?.()
   }
-}
-
-function runWaitProcess(waitProcess, signal = null) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(waitProcess.executable, waitProcess.args, {
-      env: runtimeEnvironment(), stdio: ['ignore', 'pipe', 'pipe'], ...(signal ? { signal } : {}),
-    })
-    let stdout = ''
-    let stderr = ''
-    child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk })
-    child.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk })
-    child.once('error', reject)
-    child.once('close', () => {
-      try {
-        resolve(JSON.parse(stdout.trim()))
-      } catch {
-        reject(new Error(`AITERM_WAIT_INVALID: ${stderr.trim()}`))
-      }
-    })
-  })
-}
-
-function textResult(result) {
-  return result?.content?.find(item => item.type === 'text')?.text ?? ''
 }
 
 function stoppedError() {

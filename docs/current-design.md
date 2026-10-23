@@ -8,6 +8,8 @@ BellTeamは各OSSの公開CLI/MCP/APIを使うアプリケーションであり�
 
 HTTPの公開入口は`src/http-server.mjs`の`createBellTeamServer`であり、認証・経路の選択・既存サービスの呼出し・サーバー終了の接続を持つ。入出力の表現は`http-response.mjs`、要求ログは`http-request-log.mjs`、画像と静的ファイルの配信は`http-assets.mjs`、既存の失敗をHTTPと診断へ写す処理は`http-errors.mjs`、会話の統合・ページ・画像URL表現は`http-messages.mjs`、SSEの接続・通知集約・監視解除は`http-events.mjs`が持つ。これらはHTTP向けの変換と接続であり、配送・実行・記憶などの正本や製品処理を複製しない。既存の関数・定数のexport、経路・応答形式・ログ形式、接続と監視の終了順を維持する。
 
+`src/aiterm-transport.mjs`は、Aitermの返却をBotの実行・配送へ対応付けるBellTeam側の接続である。MCP接続の寿命・環境変数の渡し方・返却済みの失敗は`aiterm-client.mjs`、Aitermから返った待機用プロセスの実行は`aiterm-wait-process.mjs`、Throughlineの公開CLIによる会話数と継続文脈の読取りは`throughline-context.mjs`へ分ける。Throughline接続はAitermのBot実行管理やMCP clientへ依存しない。従来の`aiterm-transport.mjs`からのexportは維持し、各製品の公開入出力と返却された状態の意味を変えない。
+
 ## 公開認証
 
 APIの通信診断では、POST・PUT・PATCH・DELETEの既存の `BellTeam write:` ログを保ち、GET・HEADには `BellTeam read:` を残す。読み取りは受付時の `started` と、接続終了時のHTTP状態または `aborted`・所要時間を記録する。両行の時刻は同じ受付時刻で、追加の要求IDは作らない。本文・問い合わせ文字列・Cookie・認証ヘッダーは記録しない。`/healthz`、静的ファイル、MCPは対象外。SSEは接続の受付と閉鎖だけを記録する。正常終了はNodeが応答をOSへ渡した事を示し、端末が受け取った証明にはしない。同じ時刻・経路の要求が重なる場合、ログだけで一意に対応付けたとは扱わない。
