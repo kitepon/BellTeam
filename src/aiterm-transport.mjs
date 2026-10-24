@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { loadBotEnvironment } from './bot-environment.mjs'
-import { ExecutionBridge } from './execution-bridge.mjs'
 import { reserveExecution, dispatchExecution, interruptExecutions, sendStopOperations } from './execution-transport.mjs'
 import { sendSessionStop } from './session-interruption.mjs'
 import { AitermClient, textResult } from './aiterm-client.mjs'
@@ -28,11 +27,10 @@ const INTERIM_INTERVAL_MS = 3000
 // Aitermは、要求の_metaにこの印がある時だけ、BellTeamのための手がかりを結果へ足す（Aiterm ADR 0071・0122）。
 const CALLER_META = { 'aiterm/caller': 'BellTeam' }
 
-// Supervisor uses one SDK client for normal dispatch, relation registration
-// and interruption. An unavailable execution runtime must reject the request;
-// it must not silently select the legacy dispatch/close path.
+// Ordinary delivery uses Aiterm directly. Execution tracking never gates input.
+// Stop forwarding uses the direct agent_stop control.
 export function createManagedTransport({ client = new AitermClient(), ...options } = {}) {
-  return new AitermTransport({ ...options, client, executionBridge: new ExecutionBridge(client), requestStop: sessions => sendSessionStop(client, sessions) })
+  return new AitermTransport({ ...options, client, executionBridge: null, requestStop: sessions => sendSessionStop(client, sessions) })
 }
 
 // BellTeamとAitermの間。席の状態（BotSessionState）と席の活動（SeatActivity）を持ち、一回の配送（DeliveryJob）を進める。
@@ -239,9 +237,9 @@ export class AitermTransport {
     return result
   }
 
-  // 会話を残した現在処理の中断。未対応環境でclose/キー直送へ戻さない。
+  // 会話を残した現在処理の中断。通常の停止配送か旧追跡adapterを使う。
   interrupt(bot) {
-    if (!this.executionBridge) return Promise.reject(Object.assign(
+    if (!this.requestStop && !this.executionBridge) return Promise.reject(Object.assign(
       new Error('処理の中断を確認できませんでした。'), { code: 'BOT_STOP_UNCONFIRMED' }))
     return this.interruptMany([bot]).then(result => {
       if (result.unconfirmedBotIds.length) throw Object.assign(

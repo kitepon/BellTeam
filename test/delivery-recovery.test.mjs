@@ -4,8 +4,8 @@ import { once } from 'node:events'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { createManagedTransport } from '../src/aiterm-transport.mjs'
-import { BINDING_META, EXECUTION_META, ERROR_META, CLOSED_LAUNCH_META } from '../src/execution-bridge.mjs'
+import { AitermTransport } from '../src/aiterm-transport.mjs'
+import { ExecutionBridge, BINDING_META, EXECUTION_META, ERROR_META, CLOSED_LAUNCH_META } from '../src/execution-bridge.mjs'
 import { BellTeamMessenger } from '../src/messenger.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 
@@ -88,7 +88,8 @@ async function fixture(t) {
     if (name === 'pty_observe' || name === 'pty_read') return { content: [] }
     assert.fail(`起動やcloseなどの別操作を発行しない: ${name}`)
   } }
-  const transport = createManagedTransport({ client })
+  // Historical explicit recovery adapter: ordinary production delivery has no tracking admission.
+  const transport = new AitermTransport({ client, executionBridge: new ExecutionBridge(client) })
   transport.waitUntilDone = async () => ({ turn_id: 'fixture-turn' })
   const bots = new Map([['bot-a', { id: 'bot-a', name: '現在の名前', session: A.session_id }],
     ['bot-b', { id: 'bot-b', name: '宛先', session: B.session_id }]])

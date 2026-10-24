@@ -14,6 +14,8 @@ HTTPの公開入口は`src/http-server.mjs`の`createBellTeamServer`であり、
 
 `src/aiterm-transport.mjs`は、Aitermの返却をBotの実行・配送へ対応付けるBellTeam側の接続である。MCP接続の寿命・環境変数の渡し方・返却済みの失敗は`aiterm-client.mjs`、Aitermから返った待機用プロセスの実行は`aiterm-wait-process.mjs`、Throughlineの公開CLIによる会話数と継続文脈の読取りは`throughline-context.mjs`へ分ける。Throughline接続はAitermのBot実行管理やMCP clientへ依存しない。従来の`aiterm-transport.mjs`からのexportは維持し、各製品の公開入出力と返却された状態の意味を変えない。
 
+通常の`createManagedTransport`はAitermへ直接配送し、ExecutionBridgeの登録・共有追跡graphを入力の受付条件にしない。記録の取得や保存のために通常配送・停止を止めない。個別停止と全体停止は既存の`agent_stop`へ直接渡し、Aitermが通常の親子関係から末端へ停止キーを送る。送信受付と停止完了の証明は区別し、キー送信結果は`stop_sent`として返す。Aiterm 0.61.17のnative互換MCP入口（標準18tool＋直接停止1tool）と組み合わせ、旧graph/unknownを新送信の先行条件として読み書きしない。明示注入の旧ExecutionBridge接続は互換ライブラリとして残るが通常factoryからは使わない。
+
 同じBotの席に対する操作は`bot-session-state.mjs`の`BotSessionState`が所有する。現在のsession対応、停止時点の既存version、発行待ちの席変更、不明な返却とその更新位置、停止待ちを一つの実体に保持する。起動照合/元起動のcloseはここから既存ExecutionBridgeへ接続し、native世代や作用の判定はAitermに残す。配送側は処理中・設定反映中・起動中などの事実を関数で渡し、席状態の部品へ配送jobや本文を渡さない。既存内部参照は同じMapへの参照を維持し、別の状態正本を作らない。AitermTransportは配送/ターンの受理・進行・完了を管理し、席変更の発行と照合をこの部品へ委譲する。停止・不明・未送信の既存判定と発行順は変えず、再試行や新しいIDを加えない。
 
 一回の配送の事実と停止の結論は`delivery-job.mjs`の`DeliveryJob`だけが決める。停止経路は停止要求・Aitermの停止結果・操作の終了を伝え、送信処理は節目（checkpoint）で続けてよいかを聞き、失敗時の最終エラーもjobが停止の結論から決める。受理済みの送信を停止で成功へ丸めず、未送信の実行登録だけをnot_sentで閉じる。席で今起きていることの正本は`seat-activity.mjs`の`SeatActivity`で、受付前も含む配送job、「処理中」として見せる活動（受付済みの配送と席が自分で始めたターンの見張り`SeatTurnWatch`）、追い終えたターン、席ごとの進行中操作（設定変更・送信の順番・起動）を一つで持ち、空いているか・誰がターンを追っているか・停止の対象を答える。停止の二経路（停止ボタンの一括停止と実行登録ごとの中断）は`execution-transport.mjs`の共通の骨格（根の停止世代を進める→配送jobへ停止要求→進行中の停止として公開→終了時に止まらなかったjobを解放）を使い、停止世代の更新は`BotSessionState`だけが行う。`execution-transport.mjs`はtransport全体ではなく、席の窓口（session/observe/wake/画像/実行橋/席状態/活動）だけを受け取る。

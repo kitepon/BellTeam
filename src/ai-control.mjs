@@ -9,7 +9,7 @@ export function aiControlError(code, status, message) {
 export function stopRegisteredWork({ bots, transport, scheduler }) {
   const targets = new Map([...bots.values()].map(bot => [bot.id, bot]))
   for (const job of transport.jobs) targets.set(job.bot.id, job.bot)
-  if (transport.executionBridge) {
+  if (transport.requestStop || transport.executionBridge) {
     let stopping, commands
     try { stopping = transport.interruptMany([...targets.values()]) } catch (error) { stopping = Promise.reject(error) }
     try { commands = scheduler.interruptCommands() } catch { commands = false }
