@@ -8,6 +8,7 @@ import { createBellTeamServer } from '../../src/http-server.mjs'
 const root = resolve(`runtime/network-reporting-46/bughub-three-${process.pid}`)
 await mkdir(root, { recursive: true })
 let mode = 'normal', sequence = 0, requests = [], diagnostics, intake, settingsReads = 0
+let stopScenario = false, stopAccepted = false
 let pendingPost = null, sentMessages = []
 let subscribers = []
 let saved = { name: 'ユキ', profileText: '', personality: '', speechStyle: '', position: '', role: '相談と実務', avatar: '', color: 'indigo', harness: 'claude', model: 'opus', reasoningEffort: 'high' }
@@ -17,6 +18,7 @@ async function reset(next) {
     pendingPost = null
   }
   mode = next; requests = []; settingsReads = 0; sentMessages = []
+  stopScenario = next === 'stop-http-502'; stopAccepted = false
   diagnostics = new Diagnostics(`${root}/scenario-${++sequence}.json`)
   await diagnostics.initialize()
   intake = createBellTeamServer({ authorize: async () => true, bots: { refresh: async () => {} }, diagnostics })
@@ -67,6 +69,11 @@ const server = createServer(async (request, response) => {
       response.end(JSON.stringify({ error: 'TEST_HTTP_503' }))
       return
     }
+    if (mode === 'post-http-500') {
+      response.writeHead(500, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'TEST_HTTP_500' }))
+      return
+    }
     if (['post-wait', 'post-wait-long', 'post-wait-history'].includes(mode)) {
       pendingPost = { response }
       sentMessages.push({ id: 'accepted-message', kind: 'message', direction: 'outgoing',
@@ -78,6 +85,17 @@ const server = createServer(async (request, response) => {
       return
     }
     return json(response, { delivery_id: 'accepted-message', delivery: 'running', from: 'user', target: 'bot-one' })
+  }
+  if (request.method === 'POST' && url.pathname === '/api/bots/bot-one/stop') {
+    if (mode === 'stop-http-502') {
+      response.writeHead(502, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'TEST_HTTP_502' }))
+      return
+    }
+    stopAccepted = true
+    response.writeHead(202, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ bot_id: 'bot-one', status: 'stop_sent' }))
+    return
   }
   if (request.method === 'PATCH' && url.pathname === '/api/bots/bot-one') {
     const chunks = []; for await (const chunk of request) chunks.push(chunk)
@@ -101,7 +119,8 @@ const server = createServer(async (request, response) => {
     const items = mode === 'post-wait-history' ? [...priorMessages, longMessage] : [mode === 'post-wait-long' ? longMessage : message]
     return json(response, { items: [...items, ...sentMessages], hasMore: false })
   }
-  if (url.pathname.endsWith('/queue') || url.pathname === '/api/queue') return json(response, { items: [] })
+  if (url.pathname.endsWith('/queue') || url.pathname === '/api/queue') return json(response, { items: stopScenario && !stopAccepted
+    ? [{ id: 'running-one', botId: 'bot-one', botName: 'ユキ', status: 'running', groupId: null, message: null }] : [] })
   if (url.pathname === '/api/bots/bot-one') return json(response, { bot: bot() })
   if (url.pathname === '/api/bots') return json(response, { bots: [bot()] })
   if (url.pathname === '/api/rooms') return json(response, { rooms: [] })
