@@ -437,3 +437,19 @@ if [ "$2" = config ] && [ "$3" = --format ]; then printf '%s\\n' 'name: fixture'
     }
   }
 })
+
+for (const localNode of ['environment/node_modules/node/bin/node', 'environment/node-v22.23.4/bin/node']) {
+  test(`同じBotの${localNode} wrapperでも唯一の公式Codex子と全子孫を確認する`, () => {
+    const wrapper = { ...root, exe: `/srv/bellteam/bots/bot-peer/${localNode}` }
+    const native = { pid: 11, ppid: 10, pgid: 10, start: '101', state: 'S', argv: null,
+      exe: '/usr/local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex' }
+    const mcp = { pid: 30, ppid: 11, pgid: 10, start: '120', state: 'S', exe: relay, argv: [relay, nodeExe, aiterm] }
+    assert.equal(trustedIdleTree([wrapper,native,mcp],10,'codex-cli','bot-peer'),true)
+    for(const changed of [[],[{...native,exe:'/other/codex'}],[native,{...native,pid:12}],[native,{...mcp,ppid:10}],
+      [native,mcp,{pid:40,ppid:11,pgid:10,start:'130',state:'S',exe:nodeExe,argv:[nodeExe,'/work/task.mjs']}],
+      [{...native,state:'Z'}]]) assert.equal(trustedIdleTree([wrapper,...changed],10,'codex-cli','bot-peer'),false)
+    for(const exe of ['/srv/bellteam/bots/bot-other/environment/node_modules/node/bin/node',
+      '/srv/bellteam/bots/bot-peer/other/node','/srv/bellteam/bots/bot-peer/environment/node-v22.23.4/bin/other'])
+      assert.equal(trustedIdleTree([{...wrapper,exe},native,mcp],10,'codex-cli','bot-peer'),false)
+  })
+}
