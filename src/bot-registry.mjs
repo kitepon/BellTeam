@@ -1,14 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { execFile } from 'node:child_process'
 import { lstatSync } from 'node:fs'
-import { access, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
-import { promisify } from 'node:util'
 
 import { Cron } from 'croner'
 
 import { loadBots } from './bots.mjs'
-import { CHARACTER_SHEET_DIRECTORY } from './character-sheets.mjs'
+import { ProjectFiles } from './project-files.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
 
 const BOT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u
@@ -16,11 +14,10 @@ const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/u
 const COLORS = new Set(['rose', 'indigo', 'violet'])
 const HARNESSES = new Set(['claude', 'codex', 'grok', 'cursor'])
 const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'color'])
-const exec = promisify(execFile)
 
 export class BotRegistry extends Map {
   constructor(options) {
-    const { seedPath, botsRoot, now = () => new Date(), id = randomUUID, botId = () => `bot-${randomUUID().slice(0, 8)}`, onChange = async () => {}, models = new LiveModelCatalog() } = options
+    const { seedPath, botsRoot, now = () => new Date(), id = randomUUID, botId = () => `bot-${randomUUID().slice(0, 8)}`, onChange = async () => {}, models = new LiveModelCatalog(), projectFiles = new ProjectFiles() } = options
     const stateRoot = Object.hasOwn(options, 'stateRoot') ? options.stateRoot : botsRoot
     super()
     this.seedPath = seedPath
@@ -39,6 +36,7 @@ export class BotRegistry extends Map {
     this.botId = botId
     this.onChange = onChange
     this.models = models
+    this.projectFiles = projectFiles
     this.watchers = new Set()
     this.deletionIntents = new Set()
   }
@@ -54,7 +52,7 @@ export class BotRegistry extends Map {
   }
 
   async initialize() {
-    await mkdir(this.botsRoot, { recursive: true })
+    await this.projectFiles.ensureRoot(this.botsRoot)
     const initialized = join(this.stateRoot, '.initialized')
     if (this.separateState && !await exists(initialized)) {
       // Existing seat records must be migrated explicitly, never silently
@@ -70,8 +68,7 @@ export class BotRegistry extends Map {
       const seeds = await loadBots(this.seedPath)
       for (const seed of seeds.values()) {
         const project = this.projectPath(seed.id)
-        await ensureProjectFolders(project)
-        await ensureGitProject(project)
+        await this.projectFiles.initialize(project)
         const profilePath = join(this.statePath(seed.id), 'bot.json')
         if (!await exists(profilePath)) await this.writeProfile(normalizeProfile({ ...seed, project }))
         const schedulePath = join(this.statePath(seed.id), 'schedule.json')
@@ -143,13 +140,9 @@ export class BotRegistry extends Map {
         || await pathExists(join(this.stateRoot, '.deleting', `${id}.json`)))
         throw registryError('BOT_DELETE_PENDING')
       // Claim a fresh project atomically; never adopt an orphan, file or symlink.
-      try { await mkdir(project) } catch (error) {
-        if (error.code === 'EEXIST') throw registryError('BOT_PROJECT_EXISTS')
-        throw error
-      }
+      await this.projectFiles.claim(project)
     }
-    await ensureProjectFolders(project)
-    await ensureGitProject(project)
+    await this.projectFiles.initialize(project)
     await this.writeProfile(profile)
     await writeAtomic(join(this.statePath(id), 'schedule.json'), scheduleDocument([]))
     await this.writeInstructions(profile)
@@ -227,7 +220,7 @@ export class BotRegistry extends Map {
     const bot = this.get(id)
     if (!this.separateState) {
       if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
-      await rm(bot.project, { recursive: true, force: true })
+      await this.projectFiles.remove(bot.project)
     } else {
       const pending = join(this.stateRoot, '.deleting', id)
       const record = join(this.stateRoot, '.deleting', `${id}.json`)
@@ -285,7 +278,7 @@ export class BotRegistry extends Map {
 
   async finishRemoval(id) {
     try {
-      await rm(this.projectPath(id), { recursive: true, force: true })
+      await this.projectFiles.remove(this.projectPath(id))
       await rm(join(this.stateRoot, '.deleting', id), { recursive: true, force: true })
       await rm(join(this.stateRoot, '.deleting', `${id}.json`), { force: true })
       this.deletionIntents.delete(id)
@@ -406,23 +399,14 @@ export class BotRegistry extends Map {
   }
 
   async writeInstructions(profile) {
-    const memoryPath = join(profile.project, 'memory', 'previous-session.md')
-    const shortTermMemory = await exists(memoryPath) ? (await readFile(memoryPath, 'utf8')).trim() : ''
-    const body = `# 自分のBot情報\n\nあなたのBellTeam Bot IDは \`${profile.id}\` である。\n\n## 名前\n\n「${profile.name}」\n\n## プロフィール\n\n「${profile.profileText || '指定なし'}」\n\n## 性格（考え方）\n\n「${profile.personality || '指定なし'}」\n\n## 口調\n\n「${profile.speechStyle || '指定なし'}」\n\n## 役職\n\n「${profile.position || '指定なし'}」\n\n## 役割\n\n「${profile.role || '指定なし'}」\n\n# 作業手順\n\n上の役割は、あなた自身が責任を持って進める担当の仕事である。役割欄は担当を短く記し、具体的な作業手順はここへ混ぜない。作業手順の詳細はこのプロジェクトの \`docs/\` に自分で置き、着手前に読む。\n\n# 前セッションの短期記憶\n\n${shortTermMemory || 'なし'}\n`
-    await Promise.all([
-      writeFile(join(profile.project, 'AGENTS.md'), body, { mode: 0o644 }),
-      writeFile(join(profile.project, 'CLAUDE.md'), '@AGENTS.md\n', { mode: 0o644 }),
-    ])
+    await this.projectFiles.writeInstructions(profile)
   }
 
   async prepareStartupContext(id, shortTermMemory) {
     await this.refresh()
     const profile = this.get(id)
     if (!profile) throw new Error(`BOT_NOT_FOUND: ${id}`)
-    const directory = join(profile.project, 'memory')
-    await mkdir(directory, { recursive: true })
-    await writeFile(join(directory, 'previous-session.md'), `${shortTermMemory.trim()}\n`, { mode: 0o600 })
-    await this.writeInstructions(profile)
+    await this.projectFiles.prepareStartupContext(profile, shortTermMemory)
   }
 
   async migrateProfiles() {
@@ -510,10 +494,6 @@ function normalizeProfile(value) {
   }
 }
 
-// Botプロジェクトの固定フォルダ: 手順書のdocs/、環境構築のenvironment/、キャラクターシート（設定画）のassets/character-sheet/。
-async function ensureProjectFolders(project) {
-  for (const folder of ['docs', 'environment', CHARACTER_SHEET_DIRECTORY]) await mkdir(join(project, folder), { recursive: true })
-}
 
 function legacyIdentity(displayName) {
   if (typeof displayName !== 'string') return { name: '', role: '' }
@@ -630,14 +610,5 @@ export async function exists(path) {
   } catch (error) {
     if (error.code === 'ENOENT') return false
     throw error
-  }
-}
-
-async function ensureGitProject(project) {
-  try {
-    await access(join(project, '.git'))
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error
-    await exec('git', ['init', '-q'], { cwd: project })
   }
 }

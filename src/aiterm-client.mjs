@@ -61,6 +61,10 @@ export class AitermClient {
       : { env: await loadBotEnvironment(project) }
   }
 
+  authOptions() {
+    return this.seatProject !== null ? {} : { env: runtimeEnvironment() }
+  }
+
   async call(name, args = {}, options = {}) {
     const { env, meta, launchProject } = options
     if (this.seatProject !== null) requireSeatProject(this.seatProject)

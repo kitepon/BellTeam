@@ -103,7 +103,7 @@ export class HarnessAuth {
       harness: HARNESS[harness], action, ...options,
       ...(session ? { session_id: session } : {}),
       ...(cwd ? { cwd } : {}),
-    }, { env: runtimeEnvironment() })
+    }, this.client.authOptions?.() ?? { env: runtimeEnvironment() })
     const receipt = result.structuredContent
     if (receipt?.schema !== 'aiterm.agent-auth-result.v1' || !['waiting', 'authenticated', 'blocked', 'failed'].includes(receipt.status))
       throw new HarnessAuthError('HARNESS_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。')

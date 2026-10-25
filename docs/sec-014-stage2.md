@@ -6,7 +6,7 @@ the running server, credentials, owners, mounts, or container user.
 
 ## Integration with the current owners (2026-10-25)
 
-The branch is integrated with main `ff2aafa5ddbb372984b48829f64cc164a9a31be6`.
+The branch is integrated with main `85a91b218f5cd05bea70a2f292a41755778b6fcc`.
 The seat SDK option belongs to `aiterm-client.mjs`, Throughline reads to
 `throughline-context.mjs`, and wait-process reads to `aiterm-wait-process.mjs`.
 `AitermTransport` selects the target's seat launch options without restoring the
@@ -19,9 +19,10 @@ The registry keeps its separate state path and emits the current schedule-change
 notification after saving there. Optional seat commands preserve the current
 command cancellation path and accept its caller-provided signal.
 
-This is source integration of the previously accepted components. Production
-bootstrap wiring, complete state migration, protected mounts, latest-state
-rollback, four real CLI integrations and downtime measurement remain unaccepted.
+This is source integration of the previously accepted components. The branch now wires the seat adapters into bootstrap and application services,
+as described below. Complete state migration, the final image/installer and
+protected mounts, latest-state rollback, four real CLI integrations and downtime
+measurement remain unaccepted.
 
 ## First component: fixed SCE maintenance entry
 
@@ -78,7 +79,8 @@ stopping group receives KILL after 250ms. Exit and failure results are kept.
 This is the approved staged-A accident boundary; bell's existing management
 sudo capability remains deliberately available.
 
-The option is not supplied by the production supervisor. Combining it with
+The branch bootstrap/application services now select the seat option. It is
+not deployed, and the final image/installer is unfinished. Combining it with
 the old per-launch `{env}` option throws `SEAT_DYNAMIC_ENV_UNWIRED` before
 launch: per-target dynamic environment must be loaded under the seat identity,
 and cannot be silently copied from server evaluation. A new explicit
@@ -111,9 +113,8 @@ only after the wrapper closes. It rejects a server-evaluated `env` option; it
 does not copy that environment or include command output in failure messages.
 Throughline count/handoff queries can opt in with `seatCommands: true`, and
 `runWaitProcess` can opt in with `seatProject`. Explicit invalid seatProject
-values are rejected rather than selecting the legacy reader. These options
-are not enabled in the supervisor; target-specific launch environments,
-configuration and all production paths still need wiring. An isolated test
+values are rejected rather than selecting the legacy reader. The branch now selects these readers in application services; the final
+installed UID boundary and every production path still need acceptance. An isolated test
 uses a synthetic Throughline executable and wait JSON, not real CLI state.
 
 `restoreBotEnvironments(bots, {seatCommands: true})` now runs setup through
@@ -143,7 +144,8 @@ part of the planned state/seat ownership migration.
 while `botsRoot` still locates each seat project, instructions, environment,
 memory and artifacts. Fresh state directories use 0700 and new state files
 0600. An existing directory's ownership/mode is not changed by this option.
-The production bootstrap does not select this layout yet.
+The branch bootstrap now selects state/bots; the deployed installation has not
+been migrated and still uses the legacy layout.
 
 Invalid stateRoot values and a new state root overlapping the seat project
 root are rejected. If legacy profiles or their initialization marker exist,
@@ -287,9 +289,9 @@ durability are outside this offline component's acceptance.
 
 The source is retained; no key/owner/settings/project migration, source
 retirement, bootstrap path switch, backup restoration or mount is performed.
-The transfer is not connected to supervisor startup or deployment. The new
-AiControl runtime is present after the integration below, but must still be
-wired to the destination path. Native interruption/session preservation in
+The transfer is not connected to the deployment migration. The branch
+application services now select state/ai-control.json, while the deployed
+installation still reads the legacy path. Native interruption/session preservation in
 the split deployment remains a separate prerequisite. Other server state and
 the complete forward/reverse migration remain unfinished.
 
@@ -305,3 +307,62 @@ that the default parallel run passed. No assertion or production setting was
 relaxed. Logs are held in Trony's sec-014-stage2-resume-20261025 integration
 evidence directory. Runtime startup-failure cleanup is a separate lifecycle
 concern; these results do not establish acceptance of a deployed UID split.
+
+## Seat-owned operations wired in the branch (2026-10-25)
+
+ProjectFiles owns project creation, git initialization, generated instructions,
+startup context and project removal. BotRegistry retains only server profile,
+schedule and deletion state. The branch bootstrap supplies SeatRuntime's
+project adapter, so the server does not create a seat repository or evaluate
+its git configuration itself. The same fixed UID entry performs CLI/hook
+configuration, global instruction writes, Claude-copy cleanup and memory/RAG
+operations. The existing memory locations and content policy stay unchanged.
+Only operation inputs/results cross stdin/stdout; no server environment or
+whole feature-settings document is supplied to the child.
+
+Application services now select the seat SDK client, handoff/wait readers,
+Throughline turn count/observer reads and change-signature reads, setup and
+scheduled-command adapters. Authentication uses that seat client's base
+connection without serializing a server environment. The bootstrap's model
+catalog uses the same seat SDK entry. Feature changes update CLI configuration
+through the seat adapter.
+
+Server-authoritative bots, subscription, onboarding and global-pause files
+select state/ paths. Bot message-image assets select state/bots/<id>/messages/
+assets, retaining their owner/file URL references and deletion lifecycle. A
+private image supplied by a Bot is read as UID1000 and stored as server state;
+base64 uploads still use the ordinary byte reader. Existing files require an
+explicit migration before this layout is deployable.
+
+Call-bridge credentials remain a SERVER operation. The branch selects
+state/call-bridge/headers for initial settings import, normal settings updates
+and the seat-MCP relay. Moving the writer to the seat merely because the old
+file was UID1000-owned would break the actual ownership contract. Normal CLI
+registrations use the per-seat proxy. The private credential migration and
+host prepare/issue maintenance paths remain to be implemented and accepted.
+The separate socket placement and the outer bridge's read-only directory bind
+are coordinated with the bridge owner; actual cross-UID connection and inode
+regeneration are not accepted yet.
+
+A network-disabled, read-only isolated fixture ran the real fixed C/sudo entry
+from UID1001 into UID/GID1000. It checked server-owned profiles/schedules,
+seat-owned git/instructions/startup files, memory and knowledge roundtrips,
+private seat files inaccessible to UID1001, private image read/storage and
+removal of both roots. Server-only synthetic environment names were absent
+in the seat. No credentials, real Bot state, real CLI conversations or host
+mount/owner changes were used. The default-parallel Node suite passed 776
+tests with zero failures, cancellations or skips for this wiring checkpoint.
+
+This is NOT whole-runtime or release acceptance. The final Docker user/entry,
+fresh installation, complete stopped-writer migration and inverse migration,
+independent protected mounts, socket/credential maintenance, private character
+sheet streaming, scheduled-command cancellation acknowledgement, four real
+CLI integrations and measured downtime remain open. The branch stays Draft
+and must not be deployed as a completed UID split.
+
+Native Aiterm registration is resolved through the seat entry too. Resolving
+localParentWorkerRuntime.scope() as UID1001 would select the server's native
+state root/socket instead of the UID1000 CLI hooks. The isolated regression
+compares both registrations and requires the installed seat scope to belong
+to UID1000. Configuration, memory and cleanup requests carry only id/project
+pairs for the registry, avoiding unrelated avatars/profile text on each call.

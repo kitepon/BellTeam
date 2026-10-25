@@ -11,6 +11,7 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 import { runtimeEnvironment, runtimeHome } from './runtime-home.mjs'
+import { createSeatProcessRunner } from './seat-process.mjs'
 
 const execFileAsync = promisify(execFile)
 // 記録の変化を見に行く間隔。変化が無ければThroughlineを呼ばない。
@@ -190,12 +191,13 @@ export class SelfTurns {
   }
 }
 
-export async function readObserverTurns({ project, afterCursor, throughCursor, pageToken }, { run = execFileAsync } = {}) {
+export async function readObserverTurns({ project, afterCursor, throughCursor, pageToken }, { run = execFileAsync, seatCommands = false } = {}) {
   const args = ['observer-read', '--project', project, '--wire', 'v2', '--limit', '100', '--json']
   if (afterCursor) args.push('--after-cursor', afterCursor)
   if (throughCursor) args.push('--through-cursor', throughCursor)
   if (pageToken) args.push('--page-token', pageToken)
-  const { stdout } = await run('throughline', args, { env: runtimeEnvironment(), maxBuffer: 16 * 1024 * 1024 })
+  const execute = seatCommands ? createSeatProcessRunner(project) : run
+  const { stdout } = await execute('throughline', args, { ...(seatCommands ? {} : { env: runtimeEnvironment() }), maxBuffer: 16 * 1024 * 1024 })
   const result = JSON.parse(stdout)
   if (result.schema !== 'throughline.observer_read.v2') throw new Error(`THROUGHLINE_OBSERVER_READ_INVALID: ${result.schema}`)
   return result

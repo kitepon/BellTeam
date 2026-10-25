@@ -13,12 +13,13 @@ export class OnboardingError extends Error {
 }
 
 export class Onboarding {
-  constructor({ root, bots, client, subscriptions, startConversation }) {
-    this.path = join(root, 'shared/onboarding.json')
+  constructor({ root, path = join(root, 'shared/onboarding.json'), bots, client, subscriptions, startConversation, projectFiles = null }) {
+    this.path = path
     this.bots = bots
     this.client = client
     this.subscriptions = subscriptions
     this.startConversation = startConversation
+    this.projectFiles = projectFiles
     this.state = { harness: null, guideBotId: null, authSession: null, started: false, complete: false }
     this.auth = null
     this.pending = Promise.resolve()
@@ -111,8 +112,10 @@ export class Onboarding {
   }
 
   async prepareStartup(bot) {
-    if (bot.id === this.state.guideBotId && !this.state.complete)
-      await appendFile(join(bot.project, 'AGENTS.md'), `\n# 初期設定の案内\n\n${GUIDE_INSTRUCTIONS}\n`)
+    if (bot.id !== this.state.guideBotId || this.state.complete) return
+    const text = `\n# 初期設定の案内\n\n${GUIDE_INSTRUCTIONS}\n`
+    if (this.projectFiles) await this.projectFiles.appendInstructions(bot, text)
+    else await appendFile(join(bot.project, 'AGENTS.md'), text)
   }
 
   complete(botId = this.state.guideBotId) {
@@ -130,7 +133,7 @@ export class Onboarding {
       harness: HARNESS[this.state.harness], action,
       ...(this.state.authSession ? { session_id: this.state.authSession } : {}),
       ...(this.state.guideBotId ? { cwd: this.bots.get(this.state.guideBotId)?.project } : {}),
-    }, { env: runtimeEnvironment() })
+    }, this.client.authOptions?.() ?? { env: runtimeEnvironment() })
     const receipt = result.structuredContent
     if (receipt?.schema !== 'aiterm.agent-auth-result.v1' || !['waiting', 'authenticated', 'blocked', 'failed'].includes(receipt.status))
       throw new OnboardingError('SETUP_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。')
