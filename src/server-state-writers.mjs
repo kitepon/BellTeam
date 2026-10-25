@@ -37,20 +37,55 @@ function validate(plan, containers) {
     for (const mount of container.mounts) {
       if (typeof mount.RW !== 'boolean') invalid()
       if (mount.Type === 'bind') path(mount.Source)
-      else if (mount.Type === 'volume') { if (typeof mount.Name !== 'string' || !mount.Name) invalid() }
+      else if (mount.Type === 'volume') {
+        if (typeof mount.Name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(mount.Name)) invalid()
+        path(mount.Source)
+      }
       else if (mount.Type !== 'tmpfs') invalid()
     }
   }
 }
 
-export function stateWriterSources(plan, containers) {
+export function stateWriterVolumes(plan, containers) {
   validate(plan, containers)
-  return [...new Set([...plan.roots, ...containers.filter(c => c.running || c.restarting)
-    .flatMap(c => c.mounts.filter(m => m.RW && m.Type === 'bind').map(m => m.Source))])].sort()
+  return [...new Set(containers.filter(c => c.running || c.restarting)
+    .flatMap(c => c.mounts.filter(m => m.RW && m.Type === 'volume').map(m => m.Name)))].sort()
 }
 
-export function assertStateWritersStopped(plan, containers, canonical) {
-  const sources = stateWriterSources(plan, containers)
+function volumePaths(plan, containers, volumes) {
+  if (!Array.isArray(volumes)) invalid()
+  const descriptions = new Map()
+  for (const record of volumes) {
+    if (typeof record?.name !== 'string' || descriptions.has(record.name)) invalid()
+    descriptions.set(record.name, record)
+  }
+  const result = new Map()
+  for (const name of stateWriterVolumes(plan, containers)) {
+    const record = descriptions.get(name)
+    if (!record || record.driver !== 'local') invalid()
+    const paths = [path(record.mountpoint)]
+    if (record.optionCount === 0) {
+      if ([record.type, record.device, record.options].some(value => value !== null)) invalid()
+    } else {
+      if (record.optionCount !== 3 || record.type !== 'none'
+        || !['bind', 'bind,rw', 'rw,bind', 'rbind'].includes(record.options)) invalid()
+      paths.push(path(record.device))
+    }
+    result.set(name, paths)
+  }
+  return result
+}
+
+export function stateWriterSources(plan, containers, volumes = []) {
+  const backing = volumePaths(plan, containers, volumes)
+  return [...new Set([...plan.roots, ...containers.filter(c => c.running || c.restarting)
+    .flatMap(c => c.mounts.filter(m => m.RW && ['bind', 'volume'].includes(m.Type)).map(m => m.Source)),
+  ...[...backing.values()].flat()])].sort()
+}
+
+export function assertStateWritersStopped(plan, containers, canonical, volumes = []) {
+  const sources = stateWriterSources(plan, containers, volumes)
+  const backing = volumePaths(plan, containers, volumes)
   if (!Array.isArray(canonical)) invalid()
   const aliases = new Map()
   for (const entry of canonical) {
@@ -58,9 +93,13 @@ export function assertStateWritersStopped(plan, containers, canonical) {
     path(entry.source); aliases.set(entry.source, path(entry.canonical))
   }
   if (sources.some(source => !aliases.has(source))) invalid()
+  for (const c of containers.filter(c => c.running || c.restarting)) for (const m of c.mounts.filter(m => m.RW && m.Type === 'volume')) {
+    if (aliases.get(m.Source) !== aliases.get(backing.get(m.Name)[0])) invalid()
+  }
   const roots = plan.roots.map(source => aliases.get(source))
   const writers = containers.filter(c => c.running || c.restarting).filter(c => c.mounts.some(m => m.RW && (
     m.Type === 'volume' && m.Name === plan.volume
+    || m.Type === 'volume' && backing.get(m.Name).some(source => roots.some(root => overlaps(root, aliases.get(source))))
     || m.Type === 'bind' && roots.some(root => overlaps(root, aliases.get(m.Source)))
   ))).map(c => c.id)
   if (writers.length) throw Object.assign(new Error('SERVER_STATE_WRITERS_RUNNING'), { writers })
@@ -72,23 +111,28 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const mode = process.argv[2]
     if (mode === 'plan' && process.argv.length === 3) {
       console.log(JSON.stringify(stateWriterPlan(JSON.parse(await streamText(process.stdin)))))
-    } else if (['sources', 'verify'].includes(mode) && process.argv.length === 3) {
+    } else if (['volumes', 'sources', 'verify'].includes(mode) && process.argv.length === 3) {
       const plan = JSON.parse(await readFile('/check/plan.json', 'utf8'))
       const text = await readFile('/check/containers.jsonl', 'utf8')
       const containers = text.split('\n').filter(Boolean).map(line => JSON.parse(line))
-      if (mode === 'sources') {
-        for (const source of stateWriterSources(plan, containers)) {
+      if (mode === 'volumes') console.log(stateWriterVolumes(plan, containers).join('\n'))
+      else {
+        const records = (await readFile('/check/volumes.jsonl', 'utf8')).split('\n').filter(Boolean).map(line => JSON.parse(line))
+        if (mode === 'sources') {
+        const backing = [...volumePaths(plan, containers, records).values()].flat()
+        for (const source of stateWriterSources(plan, containers, records)) {
           const observed = containers.some(c => (c.running || c.restarting)
-            && c.mounts.some(m => m.RW && m.Type === 'bind' && m.Source === source))
+            && c.mounts.some(m => m.RW && ['bind', 'volume'].includes(m.Type) && m.Source === source)) || backing.includes(source)
           console.log(`${observed ? 'observed' : 'planned'}\n${source}`)
         }
-      }
-      else {
+        }
+        else {
         const lines = (await readFile('/check/canonical.txt', 'utf8')).trimEnd().split('\n')
         if (lines.length % 2) invalid()
         const canonical = []
         for (let i = 0; i < lines.length; i += 2) canonical.push({ source: lines[i], canonical: lines[i + 1] })
-        console.log(JSON.stringify(assertStateWritersStopped(plan, containers, canonical)))
+        console.log(JSON.stringify(assertStateWritersStopped(plan, containers, canonical, records)))
+        }
       }
     } else invalid()
   } catch (error) {

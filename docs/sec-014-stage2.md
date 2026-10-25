@@ -495,3 +495,21 @@ Cursor volume writer at a different target as blocked, and an RO data reader
 as allowed. Its three containers, volume and synthetic host directory were
 removed and absence checked. No production mounts or real Bot operations.
 This does not accept the entire installer, supervisor, migration or downtime.
+
+Named RW volumes are also compared by their actual backing identities, not
+only by the Cursor name. The installer reads selected volume inspect metadata:
+local driver mountpoint and, for known local bind options, device. Unknown
+drivers/options or disagreement with the container's volume Source abort
+before preparation. Remote driver option credentials are not serialized.
+All observed backing/device paths must resolve on the host; canonical aliases
+are compared with both protected bind roots. RO and stopped volumes need no
+backing lookup; proved disjoint local volumes remain allowed. This requires
+the administrator to be able to resolve the relevant host metadata.
+
+The old exported checker missed a running named volume whose backing path
+was a protected root (red assertion retained). New related tests: 12 passed;
+explicit full gate: 805 passed, no failure/cancellation/skip. A new isolated
+Docker fixture used an actual default local volume backing path and a local
+driver_opts type=none/o=bind/device path; each was blocked for data and HOME
+(four cases). Its two containers/volumes and synthetic directory were removed
+and absence checked. This is not execution of the entire migration installer.

@@ -30,6 +30,17 @@ reader() {
     --mount "type=bind,source=$staging,target=/check,readonly" \
     --entrypoint /usr/local/bin/node "$image" /app/src/server-state-writers.mjs "$1"
 }
+reader volumes > "$staging/volume-names.txt"
+: > "$staging/volumes.jsonl"
+while IFS= read -r volume; do
+  [ -n "$volume" ] || continue
+  case "$volume" in *[!a-zA-Z0-9_.-]*) echo SERVER_STATE_VOLUME_INVALID >&2; exit 1;; esac
+  # Read backing metadata, not arbitrary driver option values. Unsupported
+  # drivers/options remain unknown; credentials in remote-driver options are
+  # never copied to the evidence directory.
+  docker volume inspect --format '{"name":{{json .Name}},"driver":{{json .Driver}},"mountpoint":{{json .Mountpoint}},"optionCount":{{len .Options}},"type":{{if and (eq .Driver "local") (eq (index .Options "type") "none")}}{{json (index .Options "type")}}{{else}}null{{end}},"device":{{if and (eq .Driver "local") (eq (index .Options "type") "none") (or (eq (index .Options "o") "bind") (eq (index .Options "o") "bind,rw") (eq (index .Options "o") "rw,bind") (eq (index .Options "o") "rbind"))}}{{json (index .Options "device")}}{{else}}null{{end}},"options":{{if and (eq .Driver "local") (eq (index .Options "type") "none") (or (eq (index .Options "o") "bind") (eq (index .Options "o") "bind,rw") (eq (index .Options "o") "rw,bind") (eq (index .Options "o") "rbind"))}}{{json (index .Options "o")}}{{else}}null{{end}}}' \
+    "$volume" >> "$staging/volumes.jsonl"
+done < "$staging/volume-names.txt"
 reader sources > "$staging/sources.txt"
 : > "$staging/canonical.txt"
 while IFS= read -r kind && IFS= read -r source; do

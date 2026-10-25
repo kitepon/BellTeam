@@ -11,7 +11,8 @@ const config = { services: { bellteam: { environment: { SECRET: 'synthetic-only'
 const plan = stateWriterPlan(config)
 const container = (mounts, extra = {}) => ({ id: 'synthetic-id', running: true, restarting: false, mounts, ...extra })
 const bind = (Source, RW = true) => ({ Type: 'bind', Source, RW })
-const aliases = containers => stateWriterSources(plan, containers).map(source => ({ source, canonical: source }))
+const aliases = (containers, volumes = [], target = plan) => stateWriterSources(target, containers, volumes).map(source => ({ source, canonical: source }))
+const volumeInfo = (name, mountpoint, extra = {}) => ({ name, mountpoint, driver: 'local', optionCount: 0, type: null, device: null, options: null, ...extra })
 
 test('state writer plan extracts only required normalized mounts, without credentials', () => {
   assert.deepEqual(plan, { roots: ['/runtime/data', '/runtime/home'], volume: 'fixture_cursor-cli' })
@@ -40,8 +41,9 @@ test('read-only readers, stopped writers and sibling prefixes do not block', () 
 })
 
 test('shared Cursor volume writers block regardless of container mount target', () => {
-  const containers = [container([{ Type: 'volume', Name: plan.volume, RW: true }])]
-  assert.throws(() => assertStateWritersStopped(plan, containers, aliases(containers)), /WRITERS_RUNNING/)
+  const containers = [container([{ Type: 'volume', Name: plan.volume, Source: '/docker/cursor', RW: true }])]
+  const volumes = [volumeInfo(plan.volume, '/docker/cursor')]
+  assert.throws(() => assertStateWritersStopped(plan, containers, aliases(containers, volumes), volumes), /WRITERS_RUNNING/)
 })
 
 test('canonical paths catch a bind through a different symlink alias', () => {
@@ -69,4 +71,39 @@ test('normal image CLI accepts Compose on stdin without echoing environment', as
   assert.equal(await closed, 0)
   assert.deepEqual(JSON.parse(Buffer.concat(output)), plan)
   assert.equal(Buffer.concat(errors).toString(), '')
+})
+
+test('named volume backing and local bind devices cannot alias the data/HOME roots unnoticed', () => {
+  for (const root of plan.roots) {
+    const containers = [container([{ Type: 'volume', Name: 'unrelated-name', Source: root, RW: true }])]
+    const direct = [volumeInfo('unrelated-name', root)]
+    assert.throws(() => assertStateWritersStopped(plan, containers, aliases(containers, direct), direct), /WRITERS_RUNNING/)
+    containers[0].mounts[0].Source = '/docker/unrelated/_data'
+    const bound = [volumeInfo('unrelated-name', '/docker/unrelated/_data', { optionCount: 3, type: 'none', device: root, options: 'bind' })]
+    assert.throws(() => assertStateWritersStopped(plan, containers, aliases(containers, bound), bound), /WRITERS_RUNNING/)
+    const aliased = bound.map(record => ({ ...record, device: '/alias' }))
+    const canonical = aliases(containers, aliased).map(entry => entry.source === '/alias' ? { ...entry, canonical: root } : entry)
+    assert.throws(() => assertStateWritersStopped(plan, containers, canonical, aliased), /WRITERS_RUNNING/)
+  }
+})
+
+test('volume metadata absence, unknown drivers/options and inconsistent mountpoints are unavailable', () => {
+  const containers = [container([{ Type: 'volume', Name: 'other', Source: '/docker/other', RW: true }])]
+  for (const records of [[], [volumeInfo('other', '/docker/other', { driver: 'remote' })],
+    [volumeInfo('other', '/docker/other', { optionCount: 1 })],
+    [volumeInfo('other', '/docker/other', { optionCount: 3, type: 'nfs', device: '/x', options: 'bind' })]]) {
+    assert.throws(() => aliases(containers, records), /WRITER_METADATA_INVALID/)
+  }
+  const wrong = [volumeInfo('other', '/docker/different')]
+  assert.throws(() => assertStateWritersStopped(plan, containers, aliases(containers, wrong), wrong), /WRITER_METADATA_INVALID/)
+})
+
+test('proved disjoint local volumes remain allowed; stopped/RO volumes need no backing read', () => {
+  const containers = [container([{ Type: 'volume', Name: 'other', Source: '/docker/other', RW: true }])]
+  const volumes = [volumeInfo('other', '/docker/other')]
+  assert.deepEqual(assertStateWritersStopped(plan, containers, aliases(containers, volumes), volumes), { writers: 0 })
+  containers[0].mounts[0].RW = false
+  assert.deepEqual(assertStateWritersStopped(plan, containers, aliases(containers)), { writers: 0 })
+  containers[0].mounts[0].RW = true; containers[0].running = false
+  assert.deepEqual(assertStateWritersStopped(plan, containers, aliases(containers)), { writers: 0 })
 })
