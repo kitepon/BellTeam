@@ -14,6 +14,7 @@ on:
       - integrations/**
       - distribution/server/**
       - scripts/package-server.mjs
+      - scripts/assert-state-writers-stopped.sh
       - scripts/update-cursor.sh
       - scripts/cursor-update-entrypoint.sh
       - scripts/seat-exec.c

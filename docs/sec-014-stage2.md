@@ -466,3 +466,32 @@ Stop or preparation failure aborts before Cursor update and server startup.
 Docker-command fixtures cover those failures; this does not establish actual
 writer disappearance or integrate state transfer, protected mounts, ownership
 restoration or fresh-install supervisor acceptance. NOTDEPLOYABLE remains.
+
+## Offline installer writer observation
+
+The normal public installer stops BellTeam, then runs the image-owned
+`assert-state-writers-stopped.sh` before root preparation or Cursor update.
+It extracts only normalized data/HOME bind identities and the resolved Cursor
+volume name from Compose. It reads Docker container running/restarting flags
+and mounts without inspecting environments, then resolves bind identities on
+the host with `realpath` before comparison. Parent, descendant and aliased
+bind paths and the shared Cursor volume count as writers when mounted RW;
+read-only readers and stopped containers do not. Missing or malformed metadata
+fails before any preparation/update/start. The image reader has network none,
+read-only root, no Docker socket and only the private metadata directory RO.
+
+`realpath` must be available to the installer. Only planned fresh directories
+may have missing suffixes; a running container's bind source must resolve on
+the host. A remote Docker daemon/VM-only source path that the installer cannot
+resolve is unavailable metadata, not proof of no writer. This observation is
+not a lock against another administrator creating a writer afterward; the
+offline administrative window remains a precondition. The shared-volume
+checker does not itself perform state migration, ownership changes or backup.
+
+Related Node tests: 9 passed. Explicit full gate: 802 passed, no failures,
+cancellations or skips. An isolated actual Docker fixture observed created/
+stopped writers as allowed, a running data bind writer as blocked, a running
+Cursor volume writer at a different target as blocked, and an RO data reader
+as allowed. Its three containers, volume and synthetic host directory were
+removed and absence checked. No production mounts or real Bot operations.
+This does not accept the entire installer, supervisor, migration or downtime.

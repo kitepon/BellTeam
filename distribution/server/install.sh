@@ -19,13 +19,14 @@ staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-install.XXXXXX")
 trap 'rm -rf "$staging"' 0
 trap 'exit 1' 1 2 15
 mkdir "$staging/scripts"
-for path in compose.cursor-update.yaml scripts/update-cursor.sh; do
+for path in compose.cursor-update.yaml scripts/update-cursor.sh scripts/assert-state-writers-stopped.sh; do
   if ! docker run --pull never --rm --network none --read-only --entrypoint /bin/cat "$image" "/app/$path" > "$staging/$path"; then
     echo '取得したBellTeamイメージから更新手順を読み出せませんでした。起動は行っていません。' >&2
     exit 1
   fi
 done
 docker compose stop bellteam
+sh "$staging/scripts/assert-state-writers-stopped.sh"
 # The normal entry only starts UID1001's server. Maintenance selects its
 # image-owned shell explicitly and must never run alongside seat writers.
 docker compose run --pull never --rm --no-deps --user 0:0 --entrypoint /bin/sh bellteam -c \

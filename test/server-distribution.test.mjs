@@ -20,18 +20,26 @@ test('installerはDockerの起動完了後に直接接続URLと公式認証の�
     await copyFile(new URL(`../distribution/server/${path}`, import.meta.url), join(install, path))
   }
   await copyFile(new URL('../scripts/update-cursor.sh', import.meta.url), join(image, 'scripts/update-cursor.sh'))
+  await copyFile(new URL('../scripts/assert-state-writers-stopped.sh', import.meta.url), join(image, 'scripts/assert-state-writers-stopped.sh'))
   await copyFile(new URL('../compose.cursor-update.yaml', import.meta.url), join(image, 'compose.cursor-update.yaml'))
   const commands = join(root, 'commands')
   await mkdir(join(root, 'bin'))
   await writeFile(join(root, 'bin/docker'), `#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_COMMANDS"
 if [ "$2" = config ] && [ "$3" = --images ]; then printf '%s\\n' "\${TEST_IMAGES-fixture-server}"; fi
-if [ "$2" = config ] && [ "$3" = --format ]; then printf '%s\\n' 'name: fixture' 'services:' '  bellteam:' '    environment:' '      BELLTEAM_BUGHUB_KEY: synthetic-only' 'volumes:' '  cursor-cli:' '    name: fixture-cursor'; fi
+if [ "$2" = config ] && [ "$3" = --format ]; then
+  if [ "$4" = json ]; then printf '%s\\n' '{"services":{"bellteam":{"environment":{"SECRET":"synthetic-only"}}}}'
+  else printf '%s\\n' 'name: fixture' 'services:' '  bellteam:' '    environment:' '      BELLTEAM_BUGHUB_KEY: synthetic-only' 'volumes:' '  cursor-cli:' '    name: fixture-cursor'; fi
+fi
 if [ "$2" = port ]; then printf '%s\\n' "$TEST_ENDPOINT"; fi
 case "$*" in
   'compose stop bellteam') exit "\${TEST_STOP_EXIT:-0}";;
   'compose run --pull never --rm --no-deps --user 0:0 --entrypoint /bin/sh bellteam -c '*) exit "\${TEST_PREPARE_EXIT:-0}";;
   'image inspect fixture-server') exit "\${TEST_INSPECT_EXIT:-0}";;
+  'image inspect --format {{.Id}} fixture-server') printf 'sha256:%s\\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;;
+  *'/app/src/server-state-writers.mjs plan') printf '%s\\n' '{"roots":["/fixture/data","/fixture/home"],"volume":"fixture-cursor"}';;
+  *'/app/src/server-state-writers.mjs sources') printf 'planned\\n%s\\n' "$TEST_IMAGE";;
+  *'/app/src/server-state-writers.mjs verify') exit "\${TEST_WRITERS_EXIT:-0}";;
   'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/'*)
     [ "\${TEST_EXTRACT_EXIT:-0}" = 0 ] || exit "$TEST_EXTRACT_EXIT"
     for path do :; done
@@ -53,14 +61,16 @@ esac
     assert.equal(calls[1], 'compose config --images')
     assert.equal(calls[2], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/compose.cursor-update.yaml')
     assert.equal(calls[3], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/scripts/update-cursor.sh')
-    assert.equal(calls[4], 'compose stop bellteam')
-    assert.match(calls[5], /^compose run --pull never --rm --no-deps --user 0:0 --entrypoint \/bin\/sh bellteam -c /)
-    assert.equal(calls[6], 'compose config --images')
-    assert.equal(calls[7], 'compose config --format yaml')
-    assert.equal(calls[8], 'volume inspect fixture-cursor')
-    assert.match(calls[9], /compose -f .*compose.cursor-update.yaml run --rm --no-deps cursor-update$/)
-    assert.equal(calls[10], 'compose up -d --wait --wait-timeout 120 --pull never')
-    assert.equal(calls[11], 'compose port bellteam 4180')
+    assert.equal(calls[4], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/scripts/assert-state-writers-stopped.sh')
+    const stopped = calls.indexOf('compose stop bellteam')
+    const verified = calls.findIndex(call => call.endsWith('/app/src/server-state-writers.mjs verify'))
+    const prepared = calls.findIndex(call => /^compose run --pull never --rm --no-deps --user 0:0 --entrypoint \/bin\/sh bellteam -c /u.test(call))
+    const updated = calls.findIndex(call => call.endsWith('--no-deps cursor-update'))
+    const started = calls.indexOf('compose up -d --wait --wait-timeout 120 --pull never')
+    assert.ok(stopped >= 0 && verified > stopped && prepared > verified && updated > prepared && started > updated)
+    assert.ok(calls.includes('compose config --format json'))
+    assert.ok(calls.includes('ps -aq --no-trunc'))
+    assert.equal(calls.at(-1), 'compose port bellteam 4180')
     assert.doesNotMatch(stdout, /synthetic-only/)
   }
   await writeFile(commands, '')
@@ -68,13 +78,13 @@ esac
     env: { ...env, TEST_CURSOR_EXIT: '37' },
   }), error => error.code === 37 && /停止したまま/.test(error.stderr))
   assert.doesNotMatch(await readFile(commands, 'utf8'), /compose up /)
-  for (const extra of [{ TEST_STOP_EXIT: '41' }, { TEST_PREPARE_EXIT: '42' }]) {
+  for (const extra of [{ TEST_STOP_EXIT: '41' }, { TEST_PREPARE_EXIT: '42' }, { TEST_WRITERS_EXIT: '43' }]) {
     await writeFile(commands, '')
     await assert.rejects(exec('sh', [join(install, 'install.sh')], { env: { ...env, ...extra } }),
-                         error => error.code === Number(extra.TEST_STOP_EXIT ?? extra.TEST_PREPARE_EXIT))
+                         error => error.code === Number(extra.TEST_STOP_EXIT ?? extra.TEST_PREPARE_EXIT ?? extra.TEST_WRITERS_EXIT))
     const failedCalls = await readFile(commands, 'utf8')
     assert.doesNotMatch(failedCalls, /--no-deps cursor-update|compose up /)
-    if (extra.TEST_STOP_EXIT) assert.doesNotMatch(failedCalls, /compose run /)
+    if (extra.TEST_STOP_EXIT || extra.TEST_WRITERS_EXIT) assert.doesNotMatch(failedCalls, /compose run /)
   }
   for (const extra of [{ TEST_EXTRACT_EXIT: '23' }, { TEST_IMAGES: 'first\nsecond' }, { TEST_IMAGES: '' }]) {
     await writeFile(commands, '')
@@ -115,6 +125,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
     'compose.cursor-update.yaml', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
     'scripts/seat-exec.c', 'scripts/server-start.c',
+    'scripts/assert-state-writers-stopped.sh',
     'runtime/home/auth.json', '.env', 'config/bots.json', 'services/subscriptions/keys/private.p8',
     'distribution/server/bridge/bridge.env',
   ]

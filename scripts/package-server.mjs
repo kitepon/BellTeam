@@ -24,6 +24,7 @@ try {
     'distribution/server',
     'compose.cursor-update.yaml', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
     'scripts/seat-exec.c', 'scripts/server-start.c',
+    'scripts/assert-state-writers-stopped.sh',
   ], { cwd: root })
   await exec('tar', ['-xf', archive, '-C', output])
   await mkdir(join(output, 'bridge'))
