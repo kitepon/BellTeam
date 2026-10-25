@@ -354,4 +354,25 @@ final class GoalsUITests: XCTestCase {
         let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual((proof["writes"] as? [[String: Any]])?.count, 0)
     }
+
+    func testGrokSignedCurrentTokensRemainVisible() async throws {
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_GOALS_FIXTURE_URL"])
+        let reset = try XCTUnwrap(URL(string: url + "/test/reset"))
+        let (_, response) = try await URLSession.shared.data(from: reset)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", url]
+        app.launch()
+        defer { app.terminate() }
+        app.tabBars.buttons["ゴール"].tap()
+        XCTAssertTrue(app.staticTexts["Grokの資料をまとめる"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["一時停止 · 待機"].exists)
+        XCTAssertTrue(app.staticTexts["使用トークン -1 · 経過 14s"].exists,
+                      "符号付きの現在値を0へ補正しない")
+        XCTAssertFalse(app.staticTexts["ゴールを読み込めませんでした"].exists)
+        let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
+        let (data, _) = try await URLSession.shared.data(from: proofURL)
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual((proof["writes"] as? [[String: Any]])?.count, 0)
+    }
 }

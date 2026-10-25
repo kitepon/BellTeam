@@ -3,6 +3,7 @@ import { createServer } from 'node:http'
 const full = process.env.GOALS_FIXTURE_FULL === '1'
 const tagged = process.env.GOALS_FIXTURE_TAGGED === '1'
 const grok = process.env.GOALS_FIXTURE_GROK === '1'
+const grokSignedTokens = process.env.GOALS_FIXTURE_GROK_SIGNED_TOKENS === '1'
 const binding = id => ({ sessionId: `session-${id}`, launchId: '0123456789abcdef0123456789abcdef', threadId: `thread-${id}` })
 const capabilities = (goal, available = true) => {
   const status = goal?.kind === 'codex-cli' ? goal.native.status : goal?.kind === 'claude-code' ? goal.phase : goal?.status
@@ -29,7 +30,7 @@ const grokGoal = () => ({ kind: 'grok-cli', native: {
   goal_id: 'fixture-goal', objective: 'Grokの資料をまとめる', status: 'active', phase: 'Executing',
   token_budget: 20000, elapsed_ms: 910000, tokens_used_high_water: 19000,
 }, current_status: { source: '/goal status', status: 'UserPaused', phase: 'Idle',
-  tokens_used: 4906, elapsed_display: '14s' } })
+  tokens_used: grokSignedTokens ? -1 : 4906, elapsed_display: '14s' } })
 const inspectOnly = { inspect: true, create: false, edit: false, pause: false, resume: false, clear: false }
 const initialSnapshots = () => {
   const one = grok ? grokGoal() : tagged ? claudeGoal() : null

@@ -115,7 +115,7 @@ private enum NativeGoal: Decodable {
                            reportedTurns: try value.decodeIfPresent(Int.self, forKey: .reportedTurns))
         case "grok-cli":
             let current = try value.decode(GrokCurrentStatus.self, forKey: .currentStatus)
-            guard current.tokensUsed >= 0, !current.elapsedDisplay.isEmpty else {
+            guard !current.elapsedDisplay.isEmpty else {
                 throw DecodingError.dataCorruptedError(forKey: .currentStatus, in: value, debugDescription: "Invalid Grok current status")
             }
             self = .grok(native: try value.decode(GrokGoalNative.self, forKey: .native), current: current)

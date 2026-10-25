@@ -29,3 +29,5 @@ iPadの[人工編集画面](images/2026-10-25-goals-ipad-editor.png)では目的
 ## Grokの現在状態（追加の人工検証）
 
 Native `128d000`のGrokゴール読取とRoot HTTPで固定された`kind=grok-cli`、`native`、`current_status`を別型で受ける。現在の状態・phase・使用トークン・経過時間は`current_status`だけを表示し、保存された`native.phase`、累積high-water、`elapsed_ms`を現在値に代入しない。人工データでは保存値を`active/Executing/19,000/910,000ms`、現在値を`UserPaused/Idle/4,906/14s`と食い違わせ、画面が「一時停止 · 待機」「使用トークン 4,906 · 経過 14s」と表示した。能力はinspectだけを有効とし、変更ボタンも変更POSTも0。別Botのbusyは`availability=unavailable`・goal省略としてエラーを表示し、「ゴールなし」へ変換しなかった。iPhone Simulatorのfocused画面試験1件成功・失敗0。XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-7078e2c59646/result-bundles/test_sim_2026-10-25T19-30-43-159Z_pid85321_4e3d2854.xcresult`。この人工fixtureは実Grok workerへの接続ではない。Nativeのbusy-active、同workerのpause/clear、他OS、正式Goal供給は未受入で、PR #91をDraftに保つ。
+
+独立source確認で、`current_status.tokens_used`は符号付きsafeIntegerであり、初回実装の非負guardがHTTPの正当な`-1`を拒否すると分かった。非負guardだけを除き、人工`-1`を0へ補正せず「使用トークン -1 · 経過 14s」と表示した。focused画面試験1件成功・失敗0、変更POST0。XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-7078e2c59646/result-bundles/test_sim_2026-10-25T19-43-40-590Z_pid85321_82590557.xcresult`。これは固定schemaの境界確認であり、実CLIで負の値が発生した観測ではない。
