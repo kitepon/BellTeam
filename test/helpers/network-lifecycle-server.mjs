@@ -32,7 +32,8 @@ const server = createServer(async (request, response) => {
     await new Promise(resolve => setTimeout(resolve, mode === 'post' ? 20000 : mode === 'schedules-fast' ? 1000 : 8000))
     record.completedAt = Date.now()
     active--
-    return json(path.endsWith('/schedules') ? { schedules: [] } : { delivery: 'running' })
+    return json(path.endsWith('/schedules') ? { schedules: [] }
+      : { delivery_id: 'background-probe-message', delivery: 'running' })
   }
   if (path.endsWith('/messages') || path.endsWith('/timeline')) return json({ items: [], hasMore: false })
   response.statusCode = 404

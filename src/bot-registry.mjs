@@ -49,8 +49,8 @@ export class BotRegistry extends Map {
     return () => this.watchers.delete(onChange)
   }
 
-  changed() {
-    for (const watcher of this.watchers) watcher()
+  changed(id = null, topic = 'bots') {
+    for (const watcher of this.watchers) watcher({ all: topic !== 'schedules', topics: [topic], botIds: id ? [id] : [], roomIds: [] })
   }
 
   async initialize() {
@@ -155,7 +155,7 @@ export class BotRegistry extends Map {
     await this.writeInstructions(profile)
     await this.refresh()
     await this.onChange(this)
-    this.changed()
+    this.changed(id)
     return this.get(id)
   }
 
@@ -164,7 +164,7 @@ export class BotRegistry extends Map {
     await this.writeProfile(profile)
     await this.writeInstructions(profile)
     await this.refresh()
-    this.changed()
+    this.changed(id)
     return this.get(id)
   }
 
@@ -260,7 +260,7 @@ export class BotRegistry extends Map {
     }
     await this.refresh()
     await this.onChange(this)
-    this.changed()
+    this.changed(id)
     return { id }
   }
 
@@ -374,7 +374,7 @@ export class BotRegistry extends Map {
     return true
   }
 
-  async markScheduleRun(id, scheduleId, ranAt) {
+  async markScheduleRun(id, scheduleId, ranAt, { skipped = false } = {}) {
     const schedules = await this.listSchedules(id)
     const current = schedules.find(item => item.id === scheduleId)
     if (!current) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
@@ -382,7 +382,7 @@ export class BotRegistry extends Map {
     const updated = normalizeSchedule({
       ...current,
       enabled: current.kind === 'once' ? false : current.enabled,
-      lastRunAt: timestamp,
+      lastRunAt: skipped ? current.lastRunAt : timestamp,
     }, new Date(timestamp))
     await this.writeScheduleDocument(id, schedules.map(item => item.id === scheduleId ? updated : item))
     return updated
@@ -449,6 +449,7 @@ export class BotRegistry extends Map {
 
   async writeScheduleDocument(id, schedules) {
     await writeAtomic(join(this.statePath(id), 'schedule.json'), scheduleDocument(schedules))
+    this.changed(id, 'schedules')
   }
 }
 

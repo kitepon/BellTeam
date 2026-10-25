@@ -4,6 +4,25 @@ This branch implements the approved staged-A boundary. Stage 1 is already
 deployed. This branch is not a deployable stage-2 release yet. It does not change
 the running server, credentials, owners, mounts, or container user.
 
+## Integration with the current owners (2026-10-25)
+
+The branch is integrated with main `ff2aafa5ddbb372984b48829f64cc164a9a31be6`.
+The seat SDK option belongs to `aiterm-client.mjs`, Throughline reads to
+`throughline-context.mjs`, and wait-process reads to `aiterm-wait-process.mjs`.
+`AitermTransport` selects the target's seat launch options without restoring the
+old transport implementation. The existing native interruption and returned
+execution-error classification are retained; the seat-side launch result also
+retains that typed execution error.
+
+Client listing and pending deletion semantics now belong to `http-bot-api.mjs`.
+The registry keeps its separate state path and emits the current schedule-change
+notification after saving there. Optional seat commands preserve the current
+command cancellation path and accept its caller-provided signal.
+
+This is source integration of the previously accepted components. Production
+bootstrap wiring, complete state migration, protected mounts, latest-state
+rollback, four real CLI integrations and downtime measurement remain unaccepted.
+
 ## First component: fixed SCE maintenance entry
 
 `scripts/install-sce-headers.py` is source for the agreed root-owned host entry
@@ -268,9 +287,34 @@ durability are outside this offline component's acceptance.
 
 The source is retained; no key/owner/settings/project migration, source
 retirement, bootstrap path switch, backup restoration or mount is performed.
-This branch does not yet contain the new AiControl runtime. The transfer is
-not connected to supervisor startup or deployment. A compatible corrected
-runtime must read the destination path and reject new work when paused; its
-native interruption/session-preservation acceptance remains a separate
-deployment prerequisite. Other server state and the complete forward/reverse
-migration remain unfinished.
+The transfer is not connected to supervisor startup or deployment. The new
+AiControl runtime is present after the integration below, but must still be
+wired to the destination path. Native interruption/session preservation in
+the split deployment remains a separate prerequisite. Other server state and
+the complete forward/reverse migration remain unfinished.
+
+## Integration with current owners (2026-10-25)
+
+The preparation branch now incorporates main ff2aafa. Seat SDK launch options
+belong to AitermClient; per-target environment loading stays inside UID1000.
+The current returned-execution-error metadata and native interruption path
+are retained. The old close-based interruption is not restored.
+
+Throughline and wait execution options live in their current modules.
+Pending-deletion listing handling lives in http-bot-api while preserving the
+current parallel timeline reads. Schedule persistence retains its change
+notification, and optional seat commands accept the caller's abort signal.
+These remain optional components: application wiring, dedicated server UID,
+state migration, read-only mounts, backup/rollback, real four-CLI acceptance
+and measured downtime are still pending.
+
+The owner-module focused set passed 81 tests. The first complete run reported
+770 passes and one EMFILE failure opening the application runtime's filesystem
+watcher; its own stalled test process was interrupted. The runtime file passed
+all four tests in isolation. A subsequent complete run with one test file at a
+time passed 771 tests, with zero failures, cancellations or skips. The first
+failure is retained as a resource-exhaustion result, not replaced by a claim
+that the default parallel run passed. No assertion or production setting was
+relaxed. Logs are held in Trony's sec-014-stage2-resume-20261025 integration
+evidence directory. Runtime startup-failure cleanup is a separate lifecycle
+concern; these results do not establish acceptance of a deployed UID split.

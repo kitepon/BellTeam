@@ -4,7 +4,42 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { aitermRegistration, aitermRelay, configureAitermHooks } from '../src/aiterm-hooks.mjs'
+import { aitermExecutionRegistration, aitermRegistration, aitermRelay, configureAitermHooks } from '../src/aiterm-hooks.mjs'
+
+test('停止用登録はAiterm自身が選ぶscopeと同じ配布物のproviderを使う', async () => {
+  const registration = await aitermExecutionRegistration({
+    dist: '/candidate/aiterm/dist',
+    load: async path => path.endsWith('setup-node.js')
+      ? { setupNodeExecutable: () => process.execPath }
+      : { localParentWorkerRuntime: { scope: () => ({ state_root: '/isolated/state', multiplexer: { kind: 'socket', key: '/isolated/tmux.sock' } }) } },
+    resolveProvider: file => { assert.equal(file, '/candidate/aiterm/dist/execution-native-server.js'); return '/candidate/steer/index.js' },
+  })
+  assert.deepEqual(registration, {
+    command: process.execPath,
+    args: ['/candidate/aiterm/dist/execution-native-server.js', '--execution-interrupt',
+      '--state-root', '/isolated/state', '--socket', '/isolated/tmux.sock', '--steer-provider', '/candidate/steer/index.js'],
+  })
+})
+
+test('native hookは登録済みMCPと同じ入口をAitermのnative setupへ渡し旧hookを作らない', async () => {
+  const registration = { command: process.execPath, args: ['/candidate/aiterm/dist/execution-native-server.js', '--execution-interrupt'] }
+  const expectedScope = { state_root: '/isolated/state', multiplexer: { kind: 'socket', key: '/isolated/tmux.sock' } }
+  const providerFile = '/candidate/steer/index.js'
+  const calls = []
+  const result = await configureAitermHooks('/isolated/home', {
+    registration, codex: '/candidate/codex',
+    load: async path => {
+      assert.ok(path.startsWith('/candidate/aiterm/dist/'))
+      if (path.endsWith('/execution-native-server.js')) return { parseNativeExecutionArguments: args => {
+        assert.deepEqual(args, ['--execution-interrupt']); return { expectedScope, providerFile }
+      } }
+      assert.ok(path.endsWith('/execution-native-setup.js'))
+      return { configureNativeExecutionHooks: async (...args) => { calls.push(args); return { results: { codex: { status: 'ready' } } } } }
+    },
+  })
+  assert.deepEqual(calls, [['/isolated/home', { registration, expectedScope, providerFile, codexBinary: '/candidate/codex' }]])
+  assert.equal(result.codex.status, 'ready')
+})
 
 test('Aitermの登録はnodeの絶対pathと同梱のindex.jsにする', async () => {
   assert.deepEqual(

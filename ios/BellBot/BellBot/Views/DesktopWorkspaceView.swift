@@ -111,7 +111,9 @@ struct DesktopWorkspaceView: View {
     }
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let visibleBots = visibleBots
+        let visibleRooms = visibleRooms
+        return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 Image(systemName: "sparkles").foregroundStyle(BellTheme.violet).font(.title2)
                 Text("BellTeam").font(.system(size: 22, weight: .bold, design: .rounded))
@@ -134,7 +136,7 @@ struct DesktopWorkspaceView: View {
             .padding(10).background(.white.opacity(0.8), in: RoundedRectangle(cornerRadius: 10))
             .padding(.horizontal, 14).padding(.bottom, 8)
             ScrollView {
-                VStack(alignment: .leading, spacing: 5) {
+                LazyVStack(alignment: .leading, spacing: 5) {
                     sectionTitle("ルーム", count: visibleRooms.count)
                     ForEach(visibleRooms) { room in
                         row(target: .room(room.id), name: room.name, subtitle: room.recent?.preview ?? room.purpose,

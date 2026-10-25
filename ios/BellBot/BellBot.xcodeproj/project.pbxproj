@@ -15,6 +15,7 @@
 		074D759AFDEEFF6FE840BD80 /* OwnerQuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3532F3AFA8FB5FAC79A9F73 /* OwnerQuestionView.swift */; };
 		097BC2376E3C25FEBD28641E /* BotSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219D6D25E6BA0B32D27F3918 /* BotSettings.swift */; };
 		0D4A7550D7A1CB322AF04B68 /* ConversationAppearanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91477F755E7B3FFAC049315 /* ConversationAppearanceUITests.swift */; };
+		0DA1D18D904869960DA78C0B /* ConversationTimelineStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 111BABF39834B4AAC46442D0 /* ConversationTimelineStateTests.swift */; };
 		0EA4B14252327E5F858F1967 /* AppleSubscriptionAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FCB6739FF40249F7E3779F /* AppleSubscriptionAccess.swift */; };
 		158521A7ACEF14BA3C0F151C /* BotAvatarCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1545E2FC5173C245DC923ED0 /* BotAvatarCache.swift */; };
 		15ABF72E470915D08210186C /* product.json in Resources */ = {isa = PBXBuildFile; fileRef = DBAD1D13AC6EF3C06BF561FB /* product.json */; };
@@ -26,6 +27,7 @@
 		1EB95B06637C5D8F0CF5C98E /* ForegroundRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9B17BC6A80949A87D72E6A /* ForegroundRefreshTests.swift */; };
 		201E6D7B5656550CA640B97C /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E6703EEDB0CC8430773691 /* OnboardingView.swift */; };
 		2141CFF66BF32EF61ADE058E /* BellTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C25376F7F0FF8D3A6CCC0FF /* BellTheme.swift */; };
+		21865A6DB6A8E3D02E2392D2 /* AIControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32531494CC727C6D89D3A94F /* AIControlTests.swift */; };
 		21C4821CBBDC41B35155B78F /* SelectableText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B1EA5240E89312F64F9402 /* SelectableText.swift */; };
 		231B9DCFD395DC309055D2C8 /* MessageText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85DB5E741758089D810A8E49 /* MessageText.swift */; };
 		29BBEC95063DB1095C1879E5 /* SchedulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA28AC7BFD35A51CF55B3E60 /* SchedulesView.swift */; };
@@ -89,6 +91,7 @@
 		DF0F6D89FB75D2318FD9484E /* BellDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85C81E947834BDF63F27C14D /* BellDiagnosticsTests.swift */; };
 		E418E88290AAD63C35E3A034 /* ManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCD1040205415978F63373C /* ManagementView.swift */; };
 		E622638566142F3843466A17 /* EnrichedMarkdown-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 02A2B4BCE78F123FC85C4D97 /* EnrichedMarkdown-LICENSE.txt */; };
+		E64F670E80420BA038094CCF /* ConversationTimelineState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1591BB8E9DBEBF507281786 /* ConversationTimelineState.swift */; };
 		E7677801888A80651A3F97D1 /* BellBotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 884428616564BE00EFB0370F /* BellBotApp.swift */; };
 		E992CDB6DC20A9F43EC92CAC /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF13D35CB467E0F42AA835C /* HomeView.swift */; };
 		EDDE752CCF33981F828EE435 /* ConversationDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F48C4A7EAAA1CFDBE5B1F39 /* ConversationDraftTests.swift */; };
@@ -142,6 +145,7 @@
 		02A2B4BCE78F123FC85C4D97 /* EnrichedMarkdown-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "EnrichedMarkdown-LICENSE.txt"; sourceTree = "<group>"; };
 		0D0FF407A73C66DA6E4E20B8 /* CommunicationNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunicationNotification.swift; sourceTree = "<group>"; };
 		0DA5119779328CE482E4FA75 /* server-installation.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "server-installation.md"; sourceTree = "<group>"; };
+		111BABF39834B4AAC46442D0 /* ConversationTimelineStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationTimelineStateTests.swift; sourceTree = "<group>"; };
 		13E96D036E6FB833A7C3EDD3 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		14A3883CF382AE17DAC3CE67 /* AvatarImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarImage.swift; sourceTree = "<group>"; };
 		1545E2FC5173C245DC923ED0 /* BotAvatarCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotAvatarCache.swift; sourceTree = "<group>"; };
@@ -156,6 +160,7 @@
 		2B2A8FB3518CD560089CC23F /* HarnessAuthenticationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessAuthenticationView.swift; sourceTree = "<group>"; };
 		2DA4E9B64A2516F75A7E8655 /* ConversationDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationDraft.swift; sourceTree = "<group>"; };
 		2F48C4A7EAAA1CFDBE5B1F39 /* ConversationDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationDraftTests.swift; sourceTree = "<group>"; };
+		32531494CC727C6D89D3A94F /* AIControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIControlTests.swift; sourceTree = "<group>"; };
 		3261621AD9FBA22C17AA737C /* ConversationScrollUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationScrollUITests.swift; sourceTree = "<group>"; };
 		37AF152E2DF0BD72789A33E8 /* OnboardingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTests.swift; sourceTree = "<group>"; };
 		3C25376F7F0FF8D3A6CCC0FF /* BellTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellTheme.swift; sourceTree = "<group>"; };
@@ -205,6 +210,7 @@
 		BCF13D35CB467E0F42AA835C /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		BE3EBBFD751613AF89CA54F1 /* AvatarCropUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarCropUITests.swift; sourceTree = "<group>"; };
 		C03043D84E81301281D2DAF1 /* SelectableTextLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectableTextLayoutTests.swift; sourceTree = "<group>"; };
+		C1591BB8E9DBEBF507281786 /* ConversationTimelineState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationTimelineState.swift; sourceTree = "<group>"; };
 		C226A72E68B9F9BEE6500258 /* BellBot-Mac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "BellBot-Mac.entitlements"; sourceTree = "<group>"; };
 		C4AF8080EA273CDB10D9D3F3 /* BotStopUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotStopUITests.swift; sourceTree = "<group>"; };
 		C6541CB30BEDC47A2F0317DA /* ServerSetupUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSetupUITests.swift; sourceTree = "<group>"; };
@@ -264,6 +270,7 @@
 		295E5C10C2853D11253E5342 /* BellBotTests */ = {
 			isa = PBXGroup;
 			children = (
+				32531494CC727C6D89D3A94F /* AIControlTests.swift */,
 				CADD413E6E27FE9CD4229A66 /* AuthenticationRecoveryTests.swift */,
 				B3AB6A1FD4893701341E2055 /* AvatarImageTests.swift */,
 				FE1FA71AEBBE1E4EF674E584 /* BackgroundMessageSendTests.swift */,
@@ -274,6 +281,7 @@
 				E84D909378D259B30ED5A9AE /* CommunicationNotificationTests.swift */,
 				FCA2FFA3D879C25501EC4AC0 /* ConversationAppearanceTests.swift */,
 				2F48C4A7EAAA1CFDBE5B1F39 /* ConversationDraftTests.swift */,
+				111BABF39834B4AAC46442D0 /* ConversationTimelineStateTests.swift */,
 				9E6415CA59C389AF3A2462C7 /* EventStreamLiveTests.swift */,
 				4D9B17BC6A80949A87D72E6A /* ForegroundRefreshTests.swift */,
 				D58A3CE120C4F244848F01B6 /* HarnessAuthenticationTests.swift */,
@@ -304,6 +312,7 @@
 				219D6D25E6BA0B32D27F3918 /* BotSettings.swift */,
 				0138E86CF9C413979445F108 /* ConversationDocument.swift */,
 				2DA4E9B64A2516F75A7E8655 /* ConversationDraft.swift */,
+				C1591BB8E9DBEBF507281786 /* ConversationTimelineState.swift */,
 				43A258F77FFF85F8B7D633F6 /* HarnessAuthenticationFlow.swift */,
 				13E96D036E6FB833A7C3EDD3 /* Models.swift */,
 				E5FB291F103F8489EC171FD0 /* PreviewFixtures.swift */,
@@ -660,6 +669,7 @@
 				3CA85150E6BD8BE8189F7AB0 /* CommunicationNotification.swift in Sources */,
 				D9E1CCD5CB66B80DC67DF166 /* ConversationDocument.swift in Sources */,
 				80CF3C9F6A0C641FEE20B560 /* ConversationDraft.swift in Sources */,
+				E64F670E80420BA038094CCF /* ConversationTimelineState.swift in Sources */,
 				6573A20C94F32027FD985FA7 /* ConversationView.swift in Sources */,
 				608D1EDDD04B6A1A0C0F7DCE /* DesktopWorkspaceView.swift in Sources */,
 				BA0FCCBDC792435CB3724421 /* FeatureSettingsView.swift in Sources */,
@@ -687,6 +697,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				21865A6DB6A8E3D02E2392D2 /* AIControlTests.swift in Sources */,
 				054B918C93471D915124D969 /* AuthenticationRecoveryTests.swift in Sources */,
 				A0A459458B879425F7033290 /* AvatarImageTests.swift in Sources */,
 				66B5AD528D7B5A21566CD326 /* BackgroundMessageSendTests.swift in Sources */,
@@ -697,6 +708,7 @@
 				7EDA8878BC6C2253AD736426 /* CommunicationNotificationTests.swift in Sources */,
 				DEFD24E9AA5B34A031FA59A3 /* ConversationAppearanceTests.swift in Sources */,
 				EDDE752CCF33981F828EE435 /* ConversationDraftTests.swift in Sources */,
+				0DA1D18D904869960DA78C0B /* ConversationTimelineStateTests.swift in Sources */,
 				82C939EA660C75EED3519805 /* EventStreamLiveTests.swift in Sources */,
 				1EB95B06637C5D8F0CF5C98E /* ForegroundRefreshTests.swift in Sources */,
 				3900FB43D6AC03466EBDFA50 /* HarnessAuthenticationTests.swift in Sources */,
@@ -1080,7 +1092,7 @@
 			repositoryURL = "https://github.com/quolu/enriched-markdown-ios.git";
 			requirement = {
 				kind = revision;
-				revision = 02ace8c0e6eb72278e01580cecef47b1ee8abcc2;
+				revision = ae28d48c07788b16244e95d4925ea389d554e62e;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

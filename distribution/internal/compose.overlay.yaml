@@ -1,0 +1,31 @@
+# 内部運用専用。一般配布へ取り出すのはdistribution/serverで、このディレクトリは含めない。
+name: bellteam
+services:
+  bellteam:
+    container_name: bellteam
+    environment:
+      BELLTEAM_DIAGNOSTIC_INVESTIGATIONS: /srv/bellteam/bots/bot-7b140b27/integrations/bughub-event-audit-20261016/registration-investigations.json
+      BELLTEAM_SUBSCRIPTION_ACCESS_MODE: ${BELLTEAM_SUBSCRIPTION_ACCESS_MODE:-developer}
+    volumes:
+      - type: bind
+        source: /home/kite/BellTeam/runtime/home
+        target: /home/bell
+      - cursor-cli:/home/bell/.local
+      - type: bind
+        source: /home/kite/BellTeam/runtime/data
+        target: /srv/bellteam
+      - type: bind
+        source: /home/kite/BellTeam/runtime/data/shared/throughline
+        target: /home/bell/.throughline
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BELLTEAM_INTERNAL_PROFILE_FILE}
+        target: /app/src/distribution-profile.mjs
+        read_only: true
+        bind:
+          create_host_path: false
+volumes:
+  cursor-cli:
+    external: true
+    name: bellteam_cursor-cli

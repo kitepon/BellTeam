@@ -212,7 +212,9 @@ test('command予定はAIへ配達せずコマンドを実行し、失敗した�
   await scheduler.runDue(new Date('2026-09-04T00:40:01.000Z'))
   await new Promise(resolve => setImmediate(resolve))
 
-  assert.deepEqual(commands, [{ command: 'python3 -m news.export', cwd: join(root, 'bots/bot-a') }])
+  assert.deepEqual(commands.map(({ signal, ...command }) => command), [{ command: 'python3 -m news.export', cwd: join(root, 'bots/bot-a') }])
+  assert.equal(commands[0].signal instanceof AbortSignal, true)
+  assert.equal(commands[0].signal.aborted, false)
   assert.deepEqual(sent, [])
   const [schedule] = await registry.listSchedules('bot-a')
   assert.equal(schedule.lastRunAt, '2026-09-04T00:40:01.000Z')

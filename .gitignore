@@ -11,3 +11,6 @@ ios/BellBot/build/
 ios/BellBot/DerivedData/
 ios/BellBot/**/*.xcuserstate
 ios/BellBot/**/xcuserdata/
+
+# Local configuration of the optional independent Bridge installation.
+bridge.env

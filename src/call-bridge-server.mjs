@@ -50,6 +50,7 @@ export function createCallBridgeServer({ bots, messenger }) {
           const result = await messenger.receiveCallBridge(body)
           return json(response, 200, result)
         } catch (error) {
+          if (error.code === 'AI_GLOBAL_PAUSED') return json(response, 423, { error: error.code })
           const code = String(error.message ?? '')
           return json(response, code.startsWith('BOT_NOT_FOUND:') ? 404 : 502, { error: code })
         }

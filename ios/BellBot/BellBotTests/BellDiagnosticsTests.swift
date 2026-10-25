@@ -112,6 +112,43 @@ final class EventStreamTests: XCTestCase {
         XCTAssertEqual(try parse(stream), [nil, "settings"])
     }
 
+    func testEventNameDistinguishesReadyFromMessageUpdate() throws {
+        var parser = SSEParser()
+        var names: [String?] = []
+        let stream = "event: ready\ndata: {}\n\nevent: messages\ndata: {\"at\":\"2026-10-22T00:00:00Z\"}\n\n"
+        for byte in stream.utf8 {
+            if try parser.feed(byte) != nil { names.append(parser.lastEventName) }
+        }
+        XCTAssertEqual(names, ["ready", "messages"])
+    }
+
+    func testTargetedMessageEventKeepsEveryAffectedConversation() {
+        let event = BellEvent(payload: [
+            "at": "2026-10-23T00:00:00Z", "all": false,
+            "topics": ["timeline", "queue"],
+            "botIds": ["bot-a", "bot-b"], "roomIds": ["room-a"]
+        ], eventName: "messages")
+        guard case .targeted(let topics, let botIDs, let roomIDs) = event.scope else {
+            return XCTFail("宛先付き通知を全体通知へ変えない")
+        }
+        XCTAssertEqual(topics, [.timeline, .queue])
+        XCTAssertEqual(botIDs, ["bot-a", "bot-b"])
+        XCTAssertEqual(roomIDs, ["room-a"])
+    }
+
+    func testLegacyAndInvalidEventScopesRequireFullRefresh() {
+        let payloads: [[String: Any]] = [
+            ["at": "旧形式"],
+            ["all": false, "topics": ["timeline"], "botIds": [], "roomIds": []],
+            ["all": false, "topics": ["未知"], "botIds": ["bot-a"], "roomIds": []],
+            ["all": 0, "topics": ["timeline"], "botIds": ["bot-a"], "roomIds": []]
+        ]
+        for payload in payloads {
+            let event = BellEvent(payload: payload, eventName: "messages")
+            guard case .all = event.scope else { return XCTFail("未対応の通知を部分更新にしない") }
+        }
+    }
+
     func testCRLFAndSplitDataLines() throws {
         XCTAssertEqual(try parse(": keepalive\r\n\r\ndata: {\"type\":\r\ndata: \"setup\"}\r\n\r\n"), ["setup"])
     }

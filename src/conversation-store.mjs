@@ -1,93 +1,105 @@
 import { watch } from 'node:fs'
 import { mkdir, open } from 'node:fs/promises'
 import { dirname, basename } from 'node:path'
+import { TimelineIndex } from './timeline-index.mjs'
 
 export class ConversationStore {
   constructor({ logPath }) {
     this.logPath = logPath
-    // ログは追記だけ（BellTeamMessenger.append）。読み終えた行までの結果を持ち、次は増えた分だけ読む。
-    // 全体を呼び出しのたびに読み直すと、同時の呼び出しの数だけログの写しがメモリに乗る。
     this.read = emptyRead()
+    this.observedSize = null
     this.queue = Promise.resolve()
+    this.listeners = new Set()
+    this.preview = null
   }
-
-  async records() {
-    return (await this.entries()).filter(record => record.schema === 'bellteam.direct-message.v1')
-  }
-
-  // 直接会話と合間の言葉を、ログに書かれた順に返す。合間の言葉は表示だけの記録で、配送状態を持たない。
+  async records() { return (await this.entries()).filter(record => record.schema === 'bellteam.direct-message.v1') }
   async entries() {
-    // 呼び出しごとに、前の読み込みが終わってから増えた分を読む。自分が書いた直後の行も必ず見える。
+    const state = await this.snapshot()
+    return state.resolved ??= state.entries.map(record => record.schema === 'bellteam.direct-message.v1' && state.statuses.has(record.delivery_id)
+      ? { ...record, delivery: state.statuses.get(record.delivery_id) } : record)
+  }
+  snapshot() {
     const run = this.queue.then(() => this.readAppended())
     this.queue = run.catch(() => {})
-    const { entries, statuses } = await run
-    return entries.map(record => record.schema === 'bellteam.direct-message.v1' && statuses.has(record.delivery_id)
-      ? { ...record, delivery: statuses.get(record.delivery_id) }
-      : record)
+    return run
   }
-
   async readAppended() {
     let file
-    try {
-      file = await open(this.logPath, 'r')
-    } catch (error) {
+    try { file = await open(this.logPath, 'r') }
+    catch (error) {
       if (error.code !== 'ENOENT') throw error
-      this.read = emptyRead()
-      return this.read
+      if (this.observedSize !== null) this.changed({ all: true })
+      this.observedSize = null; this.preview = null
+      return this.read = emptyRead()
     }
     try {
-      const { size, ino } = await file.stat()
-      // 別のファイルに替わったか短くなった時は、最初から読み直す。
-      if (ino !== this.read.ino || size < this.read.offset) this.read = { ...emptyRead(), ino }
+      const info = await file.stat({ bigint: true })
+      const size = Number(info.size), ino = `${info.dev}:${info.ino}`, mtimeMs = Number(info.mtimeMs)
+      const signature = `${info.mtimeNs}:${info.ctimeNs}`
+      const reset = ino !== this.read.ino || (this.observedSize !== null && size < this.observedSize)
+        || (size === this.observedSize && signature !== this.read.signature)
+      this.observedSize = size
+      if (reset) {
+        this.read = { ...emptyRead(), ino, mtimeMs, signature }
+        this.preview = null
+        this.changed({ all: true })
+      }
       if (size === this.read.offset) return this.read
-
       const buffer = Buffer.alloc(size - this.read.offset)
       const { bytesRead } = await file.read(buffer, 0, buffer.length, this.read.offset)
       const complete = bytesRead ? buffer.lastIndexOf(0x0a, bytesRead - 1) + 1 : 0
-      const next = { ...this.read, entries: [...this.read.entries], statuses: new Map(this.read.statuses) }
-      parseLines(buffer.toString('utf8', 0, complete), next)
-      next.offset += complete
-      this.read = next
-      if (complete === bytesRead) return next
-
-      // 改行で終わっていない最後の行は、次の読み込みでもう一度読む。今回の結果にだけ足す。
-      // 追記の途中だと、その行はまだJSONになっていない（ext4では4096バイトの境で切れて見える）。
-      // 壊れた記録と決めるとAPIが500を返すので（2026-10-13に2回）、今回の結果には入れず、行が書き終わった後の読み込みで読む。
-      const rest = buffer.toString('utf8', complete, bytesRead)
-      if (!isJson(rest)) return next
-      const tail = { ...next, entries: [...next.entries], statuses: new Map(next.statuses) }
-      parseLines(rest, tail)
-      return tail
-    } finally {
-      await file.close()
-    }
-  }
-
-  async timeline(botId) {
-    const items = []
-    for (const record of await this.entries()) {
-      if (record.schema === 'bellteam.interim-word.v1') {
-        if (record.bot === botId) items.push(interimItem(record))
-      } else if (record.from === 'user' && record.target === botId) {
-        items.push(messageItem(record, 'outgoing'))
-      } else if (record.from === botId && record.target === 'user') {
-        items.push(messageItem(record, 'incoming'))
-      } else if (record.from === botId && record.target !== 'user') {
-        items.push(peerItem(record, 'sent', record.target))
-      } else if (record.target === botId && record.from !== 'user') {
-        items.push(peerItem(record, 'received', record.from))
+      // 索引を変える前に確定行をまとめて検証し、不正行があれば同じ位置で失敗させる。
+      // 検証に失敗した一群のうち、一部だけを表示へ反映しない。
+      const records = parseRecords(buffer.toString('utf8', 0, complete), this.read.lines)
+      if (records.length) {
+        const change = applyRecords(records, this.read)
+        this.read.offset += complete
+        this.preview = null
+        this.changed(change)
       }
-    }
-    return items
+      this.read.mtimeMs = mtimeMs; this.read.signature = signature
+      if (complete === bytesRead) return this.read
+      const rest = buffer.toString('utf8', complete, bytesRead)
+      let value
+      try { value = JSON.parse(rest) } catch { return this.read }
+      validateRecord(value, this.read.lines + 1)
+      // JSONとして完結していても、改行なしの末尾は暫定表示とする。
+      // 内容が同じ間は表示を再利用し、確定した行へ二重に追加しない。
+      if (this.preview?.text !== rest || this.preview.base !== this.read) {
+        const state = cloneRead(this.read)
+        applyRecords([value], state)
+        this.preview = { text: rest, base: this.read, state }
+        this.changed(changeFor([value], this.read))
+      }
+      return this.preview.state
+    } finally { await file.close() }
   }
-
+  async timelineView(botId) {
+    const state = await this.snapshot()
+    return botView(state, botId).index
+  }
+  async timeline(botId) {
+    const state = await this.snapshot(), view = botView(state, botId)
+    return view.snapshot ??= (state.byBot.get(botId) ?? []).map(key => view.index.get(key))
+  }
+  async timelineViews(botIds) {
+    const state = await this.snapshot()
+    return new Map(botIds.map(id => [id, botView(state, id).index]))
+  }
+  changed(change) {
+    for (const listener of this.listeners) listener({ topics: ['timeline'], botIds: [], roomIds: [], all: false, ...change })
+  }
   async watch(onChange) {
     await mkdir(dirname(this.logPath), { recursive: true })
     const filename = basename(this.logPath)
-    const watcher = watch(dirname(this.logPath), (event, changed) => {
-      if (changed === filename) onChange()
+    const watcher = watch(dirname(this.logPath), (_event, changed) => {
+      if (changed == null || changed === filename) this.snapshot().catch(() => this.changed({ all: true }))
     })
-    return () => watcher.close()
+    watcher.on('error', () => this.changed({ all: true }))
+    this.listeners.add(onChange)
+    // 初回の読取は別の利用箇所が先に行う場合もある。再構築時は全体へ通知し、
+    // クライアントも初回・再接続のreadyごとに全体を照合する。
+    return () => { this.listeners.delete(onChange); watcher.close() }
   }
 }
 
@@ -141,30 +153,86 @@ function peerItem(record, direction, peer) {
 }
 
 function emptyRead() {
-  return { ino: null, offset: 0, lines: 0, entries: [], statuses: new Map() }
+  return { ino: null, mtimeMs: null, offset: 0, lines: 0, entries: [], statuses: new Map(), byBot: new Map(), byDelivery: new Map(), views: new Map(), resolved: null }
 }
-
-function isJson(text) {
-  try {
-    JSON.parse(text)
-    return true
-  } catch {
-    return false
+function participants(record) {
+  return record.schema === 'bellteam.interim-word.v1' ? [record.bot]
+    : [...new Set([record.from, record.target].filter(id => id !== 'user'))]
+}
+function display(record, bot, statuses) {
+  if (record.schema === 'bellteam.interim-word.v1') return interimItem(record)
+  const value = statuses.has(record.delivery_id) ? { ...record, delivery: statuses.get(record.delivery_id) } : record
+  if (record.from === 'user' && record.target === bot) return messageItem(value, 'outgoing')
+  if (record.from === bot && record.target === 'user') return messageItem(value, 'incoming')
+  if (record.from === bot && record.target !== 'user') return peerItem(value, 'sent', record.target)
+  return peerItem(value, 'received', record.from)
+}
+function botView(state, bot) {
+  if (!state.views.has(bot)) {
+    const records = state.byBot.get(bot) ?? []
+    const view = { index: new TimelineIndex(records.map(record => display(record, bot, state.statuses)), records), snapshot: null }
+    state.views.set(bot, view)
   }
+  return state.views.get(bot)
 }
-
-function parseLines(text, read) {
-  for (const line of text.split('\n').filter(Boolean)) {
-    read.lines += 1
-    try {
-      const record = JSON.parse(line)
-      if (record?.schema === 'bellteam.direct-message.v1' || record?.schema === 'bellteam.interim-word.v1') read.entries.push(record)
-      else if (record?.schema === 'bellteam.delivery-status.v1'
-        && ['running', 'delivered', 'failed', 'stopped'].includes(record.delivery)) {
-        read.statuses.set(record.delivery_id, record.delivery)
-      } else throw new Error('schema')
-    } catch {
-      throw new Error(`MESSAGE_LOG_INVALID: line ${read.lines}`)
+function put(view, key, item) {
+  view.index.set(key, item); view.snapshot = null
+}
+function changeFor(records, state) {
+  const bots = new Set(); let all = false
+  for (const record of records) {
+    if (record.schema === 'bellteam.delivery-status.v1') {
+      const originals = state.byDelivery.get(record.delivery_id)
+      if (!originals?.length) all = true
+      for (const original of originals ?? []) for (const bot of participants(original)) bots.add(bot)
+    } else for (const bot of participants(record)) bots.add(bot)
+  }
+  return { botIds: [...bots], all }
+}
+function applyRecords(records, state) {
+  for (const record of records) {
+    state.lines++
+    if (record.schema === 'bellteam.delivery-status.v1') {
+      state.statuses.set(record.delivery_id, record.delivery)
+      for (const original of state.byDelivery.get(record.delivery_id) ?? []) {
+        for (const bot of participants(original)) {
+          const view = state.views.get(bot)
+          if (view) put(view, original, display(original, bot, state.statuses))
+        }
+      }
+    } else {
+      state.entries.push(record)
+      if (record.schema === 'bellteam.direct-message.v1') {
+        if (!state.byDelivery.has(record.delivery_id)) state.byDelivery.set(record.delivery_id, [])
+        state.byDelivery.get(record.delivery_id).push(record)
+      }
+      for (const bot of participants(record)) {
+        if (!state.byBot.has(bot)) state.byBot.set(bot, [])
+        state.byBot.get(bot).push(record)
+        const view = state.views.get(bot)
+        if (view) put(view, record, display(record, bot, state.statuses))
+      }
     }
   }
+  state.resolved = null
+  return changeFor(records, state)
+}
+function validateRecord(record, line) {
+  if (record?.schema === 'bellteam.direct-message.v1' || record?.schema === 'bellteam.interim-word.v1'
+    || (record?.schema === 'bellteam.delivery-status.v1' && ['running', 'delivered', 'failed', 'stopped'].includes(record.delivery))) return
+  throw new Error(`MESSAGE_LOG_INVALID: line ${line}`)
+}
+function parseRecords(text, offset) {
+  return text.split('\n').filter(Boolean).map((line, index) => {
+    let record
+    try { record = JSON.parse(line) } catch { throw new Error(`MESSAGE_LOG_INVALID: line ${offset + index + 1}`) }
+    validateRecord(record, offset + index + 1)
+    return record
+  })
+}
+function cloneRead(source) {
+  const state = { ...emptyRead(), ino: source.ino, mtimeMs: source.mtimeMs, offset: source.offset }
+  applyRecords(source.entries, state)
+  state.statuses = new Map(source.statuses); state.lines = source.lines
+  return state
 }

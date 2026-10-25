@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 #if DEBUG
 import OSLog
 #endif
@@ -46,8 +47,49 @@ enum BellAPIError: LocalizedError {
         case .backgroundSendUnavailable: "送信に必要な実行時間を確保できませんでした。アプリを前面に戻して送信してください。"
         case .backgroundSendExpired: "背景で送信を確認できる時間が終了しました。送信済みの場合があるため、会話を確認してください。"
         case .server(let message): "BellTeam: \(message)"
+        case .httpStatus(423, "AI_GLOBAL_PAUSED", _): "BellTeamは全体停止中です。設定でOFFにしてから操作してください。"
         case .httpStatus(let status, let message, _): "BellTeam: \(message ?? "HTTP \(status)")"
         }
+    }
+}
+
+enum BellEventTopic: String, CaseIterable, Sendable {
+    case timeline, queue, bots, rooms, owner, settings, requests, questions, aiControl = "ai-control", setup, schedules
+}
+
+struct BellEvent: Sendable {
+    enum Scope: Sendable {
+        case all
+        case targeted(topics: Set<BellEventTopic>, botIDs: Set<String>, roomIDs: Set<String>)
+    }
+
+    let type: String?
+    let scope: Scope
+
+    init(payload: [String: Any], eventName: String?) {
+        if let rawType = payload["type"], !(rawType is String) {
+            type = nil
+            scope = .all
+            return
+        }
+        type = payload["type"] as? String ?? eventName
+        guard type == "messages", let rawAll = payload["all"] as? NSNumber,
+              CFGetTypeID(rawAll) == CFBooleanGetTypeID(), !rawAll.boolValue,
+              let rawTopics = payload["topics"] as? [String], !rawTopics.isEmpty,
+              let rawBotIDs = payload["botIds"] as? [String],
+              let rawRoomIDs = payload["roomIds"] as? [String],
+              rawBotIDs.allSatisfy({ !$0.isEmpty }), rawRoomIDs.allSatisfy({ !$0.isEmpty }) else {
+            scope = .all
+            return
+        }
+        let topics = Set(rawTopics.compactMap(BellEventTopic.init(rawValue:)))
+        guard topics.count == Set(rawTopics).count,
+              (topics.isDisjoint(with: [.timeline, .queue, .requests, .questions, .schedules])
+               || !rawBotIDs.isEmpty || !rawRoomIDs.isEmpty) else {
+            scope = .all
+            return
+        }
+        scope = .targeted(topics: topics, botIDs: Set(rawBotIDs), roomIDs: Set(rawRoomIDs))
     }
 }
 
@@ -139,9 +181,10 @@ final class BellAPI {
     }
 
     @MainActor
-    func sendMessage(_ path: String, body: SendMessageBody) async throws {
+    func sendMessage(_ path: String, body: SendMessageBody) async throws -> MessageSendAcknowledgement {
         try await BackgroundMessageSend().run {
-            let _: APIAcknowledgement = try await self.post(path, body: body)
+            let acknowledgement: MessageSendAcknowledgement = try await self.post(path, body: body)
+            return acknowledgement
         }
     }
 
@@ -159,18 +202,12 @@ final class BellAPI {
         _ = try await data(path: path, method: "DELETE")
     }
 
-    func stopBot(_ id: String) async throws {
-        struct StopResponse: Decodable {
-            let botId: String
-            let status: String
-            let online: Bool
-        }
+    func stopBot(_ id: String) async throws -> BotStopOutcome {
         let path = "/api/bots/\(id)/stop"
-        let responseData = try await data(path: path, method: "POST", expectedStatus: 200)
-        let result = try decode(StopResponse.self, from: responseData, path: path, method: "POST")
-        guard result.botId == id, result.status == "stopped", !result.online else {
-            throw BellAPIError.invalidResponse
-        }
+        let (body, status) = try await dataWithStatus(path: path, method: "POST")
+        let result = try decode(BotStopResponse.self, from: body, path: path, method: "POST")
+        guard let outcome = result.outcome(httpStatus: status, expectedBotId: id) else { throw BellAPIError.invalidResponse }
+        return outcome
     }
 
     func exportConversation(_ path: String) async throws -> Data {
@@ -205,7 +242,7 @@ final class BellAPI {
         }
     }
 
-    func events(_ onEvent: @escaping (String?) async throws -> Void) async throws {
+    func events(_ onEvent: @escaping (BellEvent) async throws -> Void) async throws {
         let startedAt = Date()
         let startedState = diagnostics.requestStartAppState()
         let metrics = BellTaskMetricsCollector()
@@ -219,7 +256,9 @@ final class BellAPI {
             }
             var parser = SSEParser()
             for try await byte in bytes {
-                if let payload = try parser.feed(byte) { try await onEvent(payload["type"] as? String) }
+                if let payload = try parser.feed(byte) {
+                    try await onEvent(BellEvent(payload: payload, eventName: parser.lastEventName))
+                }
             }
         } catch {
             // 表示・再接続・停止を扱うAppStoreが、影響を確認して報告する。
@@ -229,7 +268,11 @@ final class BellAPI {
         }
     }
 
-    private func data(path: String, method: String, body: Data? = nil, expectedStatus: Int? = nil) async throws -> Data {
+    private func data(path: String, method: String, body: Data? = nil) async throws -> Data {
+        try await dataWithStatus(path: path, method: method, body: body).0
+    }
+
+    private func dataWithStatus(path: String, method: String, body: Data? = nil) async throws -> (Data, Int) {
         do {
             var request = try request(path: path, method: method)
             if let body {
@@ -239,14 +282,12 @@ final class BellAPI {
             let (data, response, trace) = try await load(request)
             do { try validate(response, data: data) }
             catch { throw traced(error, with: trace) }
-            if let expectedStatus, (response as? HTTPURLResponse)?.statusCode != expectedStatus {
+            guard let http = response as? HTTPURLResponse else { throw BellAPIError.invalidResponse }
+            if !(data.isEmpty || http.statusCode == 204),
+               http.value(forHTTPHeaderField: "Content-Type")?.contains("application/json") != true {
                 throw BellAPIError.invalidResponse
             }
-            if !(data.isEmpty || (response as? HTTPURLResponse)?.statusCode == 204),
-               (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type")?.contains("application/json") != true {
-                throw BellAPIError.invalidResponse
-            }
-            return data
+            return (data, http.statusCode)
         } catch {
             try Task.checkCancellation()
             throw error
@@ -356,16 +397,26 @@ private final class BellTaskMetricsCollector: NSObject, URLSessionTaskDelegate {
 struct SSEParser {
     private var line = Data()
     private var eventData = Data()
+    private var eventName: String?
+    private(set) var lastEventName: String?
 
     mutating func feed(_ byte: UInt8) throws -> [String: Any]? {
         if byte == 13 { return nil }
         if byte != 10 { line.append(byte); return nil }
         defer { line.removeAll(keepingCapacity: true) }
         if line.isEmpty {
-            defer { eventData.removeAll(keepingCapacity: true) }
+            defer {
+                eventData.removeAll(keepingCapacity: true)
+                eventName = nil
+            }
             guard !eventData.isEmpty else { return nil }
             guard let payload = try JSONSerialization.jsonObject(with: eventData) as? [String: Any] else { throw BellAPIError.invalidResponse }
+            lastEventName = eventName
             return payload
+        }
+        if line.starts(with: "event:".utf8) {
+            eventName = String(decoding: line.dropFirst(6), as: UTF8.self)
+                .trimmingCharacters(in: .whitespaces)
         }
         if line.starts(with: "data:".utf8) {
             if !eventData.isEmpty { eventData.append(10) }

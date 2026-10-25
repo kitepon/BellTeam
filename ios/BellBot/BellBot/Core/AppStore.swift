@@ -2,6 +2,11 @@ import Foundation
 import WebKit
 import OSLog
 import SwiftUI
+import Combine
+
+private enum EventResource: Hashable {
+    case all, bots, rooms, owner, queue
+}
 
 @MainActor
 final class AppStore: ObservableObject {
@@ -27,7 +32,13 @@ final class AppStore: ObservableObject {
     @Published var rooms: [Room] = []
     @Published var owner: Owner?
     @Published var eventRevision = 0
+    let conversationChanges = PassthroughSubject<ChatTarget, Never>()
+    let scheduleChanges = PassthroughSubject<Set<ChatTarget>, Never>()
     @Published var workingBotIDs: Set<String> = []
+    @Published private(set) var aiControl: AIControl?
+    @Published private(set) var aiControlLoading = false
+    @Published private(set) var aiControlUpdating = false
+    @Published private(set) var aiControlError: String?
     @Published var connectionError: String?
     private var refreshError: String?
     private var eventsError: String?
@@ -45,10 +56,28 @@ final class AppStore: ObservableObject {
     let billing: BillingStore
     private var eventsTask: Task<Void, Never>?
     private var eventRefreshTask: Task<Void, Never>?
-    private var eventRefreshRequested = false
+    private var eventRefreshResources: Set<EventResource> = []
     private var foregroundTask: Task<Void, Never>?
     private var scenePhase: ScenePhase = .inactive
     private var checkingLogin = false
+    private var aiControlEpoch = 0
+    private var aiControlReadSequence = 0
+    private var aiControlRefreshPending = false
+    private struct AvatarCacheEntry: Equatable {
+        let id: String
+        let dataURL: String
+        let version: String?
+    }
+    private struct AvatarRequest: Sendable {
+        let inline: String
+        let version: String?
+        let previous: String?
+        let previousVersion: String?
+        let path: String
+        let botID: String?
+    }
+    private var savedAvatarCacheServer: String?
+    private var savedAvatarCacheEntries: [AvatarCacheEntry] = []
 
     func draft(for target: ChatTarget) -> ConversationDraft {
         if let draft = drafts[target] { return draft }
@@ -94,6 +123,7 @@ final class AppStore: ObservableObject {
         if serverURL != url {
             botEditorDrafts.removeAll()
             pendingBotDeletionIDs.removeAll()
+            resetAIControl()
         }
         serverURL = url
         api.baseURL = url
@@ -165,7 +195,90 @@ final class AppStore: ObservableObject {
 
     func refreshSettings() async throws {
         let response: FeatureSettingsResponse = try await api.get("/api/settings")
-        featureSettings = response.settings
+        if featureSettings != response.settings { featureSettings = response.settings }
+    }
+
+    func refreshAIControl() async {
+        if aiControlUpdating {
+            aiControlRefreshPending = true
+            return
+        }
+        await readAIControl()
+    }
+
+    func setAIControlPaused(_ paused: Bool) async {
+        guard !aiControlUpdating, let aiControl, aiControl.paused != paused else { return }
+        let epoch = aiControlEpoch
+        aiControlReadSequence += 1
+        aiControlLoading = false
+        aiControlUpdating = true
+        aiControlError = nil
+        do {
+            let response: AIControlResponse = try await api.patch("/api/ai-control", body: AIControlUpdate(paused: paused))
+            guard epoch == aiControlEpoch else { return }
+            self.aiControl = response.control
+        } catch let error where BellAPIError.isAuthenticationError(error) {
+            guard epoch == aiControlEpoch else { return }
+            requireLogin(for: error)
+            return
+        } catch {
+            guard epoch == aiControlEpoch else { return }
+            api.diagnostics.report(error, path: "/api/ai-control", method: "PATCH", observation: .write)
+            // PATCHを再送しない。通信断や5xx後もGETの現在値だけを表示する。
+            await readAIControl()
+            if self.aiControl != nil {
+                switch error {
+                case BellAPIError.httpStatus(503, _, _):
+                    aiControlError = "変更を保存できませんでした。現在の状態を表示しています。"
+                case BellAPIError.httpStatus(502, _, _):
+                    if self.aiControl?.state != .stopped {
+                        aiControlError = "停止操作の結果を確認できませんでした。現在の状態を表示しています。"
+                    }
+                default:
+                    aiControlError = "通信後の現在の状態を読み直しました。"
+                }
+            }
+        }
+        guard epoch == aiControlEpoch else { return }
+        if aiControlRefreshPending {
+            aiControlRefreshPending = false
+            await readAIControl()
+        }
+        aiControlUpdating = false
+    }
+
+    private func readAIControl() async {
+        let epoch = aiControlEpoch
+        aiControlReadSequence += 1
+        let sequence = aiControlReadSequence
+        if !aiControlLoading { aiControlLoading = true }
+        do {
+            let response: AIControlResponse = try await api.get("/api/ai-control")
+            guard epoch == aiControlEpoch, sequence == aiControlReadSequence else { return }
+            if aiControl != response.control { aiControl = response.control }
+            if aiControlError != nil { aiControlError = nil }
+        } catch let error where BellAPIError.isAuthenticationError(error) {
+            guard epoch == aiControlEpoch, sequence == aiControlReadSequence else { return }
+            if aiControl != nil { aiControl = nil }
+            requireLogin(for: error)
+            return
+        } catch {
+            guard epoch == aiControlEpoch, sequence == aiControlReadSequence else { return }
+            if aiControl != nil { aiControl = nil }
+            aiControlError = "全体停止の状態を確認できませんでした。接続を確認して再読み込みしてください。"
+            api.diagnostics.report(error, path: "/api/ai-control", method: "GET", observation: .read(error, retainedData: false))
+        }
+        if aiControlLoading { aiControlLoading = false }
+    }
+
+    private func resetAIControl() {
+        aiControlEpoch += 1
+        aiControlReadSequence += 1
+        aiControl = nil
+        aiControlLoading = false
+        aiControlUpdating = false
+        aiControlRefreshPending = false
+        aiControlError = nil
     }
 
     func refreshSetup() async throws { setup = try await api.get("/api/setup") }
@@ -212,59 +325,125 @@ final class AppStore: ObservableObject {
         async let roomResult: RoomsResponse = api.get("/api/rooms?avatar=omit")
         async let ownerResult: OwnerResponse = api.get("/api/owner?avatar=omit")
         async let queueResult: QueueResponse = api.get("/api/queue")
-        var (bots, rooms, owner, queue) = try await (botResult, roomResult, ownerResult, queueResult)
+        let (bots, rooms, owner, queue) = try await (botResult, roomResult, ownerResult, queueResult)
+        async let resolvedBots = withResolvedBotAvatars(bots.bots)
+        async let resolvedRooms = withResolvedRoomAvatars(rooms.rooms)
+        async let resolvedOwner = withResolvedOwnerAvatar(owner.owner)
+        let (botList, roomList, ownerValue) = try await (resolvedBots, resolvedRooms, resolvedOwner)
+        try Task.checkCancellation()
+        applyFetchedBots(botList)
+        if self.rooms != roomList { self.rooms = roomList }
+        if self.owner != ownerValue { self.owner = ownerValue }
+        applyFetchedQueue(queue.items)
+        await storeBotAvatarsIfChanged(botList)
+    }
+
+    private func withResolvedBotAvatars(_ fetched: [Bot]) async throws -> [Bot] {
+        var bots = fetched
         let oldBots = Dictionary(uniqueKeysWithValues: self.bots.map { ($0.id, $0) })
-        let oldRooms = Dictionary(uniqueKeysWithValues: self.rooms.map { ($0.id, $0) })
-        for index in bots.bots.indices {
-            let bot = bots.bots[index]
-            bots.bots[index].avatar = try await avatar(bot.avatar, version: bot.avatarVersion,
+        let requests = bots.map { bot in
+            AvatarRequest(inline: bot.avatar, version: bot.avatarVersion,
                 previous: oldBots[bot.id]?.avatar, previousVersion: oldBots[bot.id]?.avatarVersion,
                 path: "/api/bots/\(bot.id)/avatar", botID: bot.id)
         }
-        for index in rooms.rooms.indices {
-            let room = rooms.rooms[index]
-            rooms.rooms[index].avatar = try await avatar(room.avatar, version: room.avatarVersion,
+        let avatars = try await resolveAvatars(requests)
+        for index in bots.indices { bots[index].avatar = avatars[index] }
+        return bots
+    }
+
+    private func withResolvedRoomAvatars(_ fetched: [Room]) async throws -> [Room] {
+        var rooms = fetched
+        let oldRooms = Dictionary(uniqueKeysWithValues: self.rooms.map { ($0.id, $0) })
+        let requests = rooms.map { room in
+            AvatarRequest(inline: room.avatar, version: room.avatarVersion,
                 previous: oldRooms[room.id]?.avatar, previousVersion: oldRooms[room.id]?.avatarVersion,
-                path: "/api/rooms/\(room.id)/avatar")
+                path: "/api/rooms/\(room.id)/avatar", botID: nil)
         }
-        owner.owner.avatar = try await avatar(owner.owner.avatar, version: owner.owner.avatarVersion,
-            previous: self.owner?.avatar, previousVersion: self.owner?.avatarVersion, path: "/api/owner/avatar")
-        try Task.checkCancellation()
-        applyFetchedBots(bots.bots)
-        self.rooms = rooms.rooms
-        self.owner = owner.owner
-        workingBotIDs = Set(queue.items.filter { $0.status == "running" }.compactMap(\.botId))
+        let avatars = try await resolveAvatars(requests)
+        for index in rooms.indices { rooms[index].avatar = avatars[index] }
+        return rooms
+    }
+
+    private func withResolvedOwnerAvatar(_ fetched: Owner) async throws -> Owner {
+        var owner = fetched
+        let request = AvatarRequest(inline: owner.avatar, version: owner.avatarVersion,
+            previous: self.owner?.avatar, previousVersion: self.owner?.avatarVersion,
+            path: "/api/owner/avatar", botID: nil)
+        owner.avatar = try await avatar(request)
+        return owner
+    }
+
+    private func applyFetchedQueue(_ items: [QueueItem]) {
+        let runningBotIDs = Set(items.filter { $0.status == "running" }.compactMap(\.botId))
+        if workingBotIDs != runningBotIDs { workingBotIDs = runningBotIDs }
+    }
+
+    private func storeBotAvatarsIfChanged(_ bots: [Bot]) async {
         if let server = serverURL?.absoluteString {
-            do {
-                try BotAvatarCache.shared.storeVersioned(bots.bots.map { (id: $0.id, dataURL: $0.avatar, version: $0.avatarVersion) }, server: server)
-            } catch {
-                Logger(subsystem: "app.bellteam.bellbot", category: "notifications")
-                    .error("通知アバターの保存に失敗: \(error.localizedDescription, privacy: .private)")
-                api.diagnostics.reportPush(error, stage: "avatar_cache", observation: .avatarCache)
+            let entries = bots.map { AvatarCacheEntry(id: $0.id, dataURL: $0.avatar, version: $0.avatarVersion) }
+                .sorted { $0.id < $1.id }
+            if server != savedAvatarCacheServer || entries != savedAvatarCacheEntries {
+                do {
+                    try await BotAvatarCacheAccess.shared.storeVersioned(
+                        entries.map { (id: $0.id, dataURL: $0.dataURL, version: $0.version) }, server: server)
+                    savedAvatarCacheServer = server
+                    savedAvatarCacheEntries = entries
+                } catch {
+                    Logger(subsystem: "app.bellteam.bellbot", category: "notifications")
+                        .error("通知アバターの保存に失敗: \(error.localizedDescription, privacy: .private)")
+                    api.diagnostics.reportPush(error, stage: "avatar_cache", observation: .avatarCache)
+                }
             }
         }
     }
 
-    private func avatar(_ inline: String, version: String?, previous: String?, previousVersion: String?, path: String, botID: String? = nil) async throws -> String {
+    private func resolveAvatars(_ requests: [AvatarRequest]) async throws -> [String] {
+        try await withThrowingTaskGroup(of: (Int, String).self) { group in
+            var resolved = Array(repeating: "", count: requests.count)
+            for (index, request) in requests.enumerated() {
+                if let immediate = immediateAvatar(request) {
+                    resolved[index] = immediate
+                } else {
+                    group.addTask { [self] in (index, try await avatar(request)) }
+                }
+            }
+            for try await (index, value) in group { resolved[index] = value }
+            return resolved
+        }
+    }
+
+    private func immediateAvatar(_ request: AvatarRequest) -> String? {
         // 版を持たない既存の応答は、これまでの画像本体をそのまま使う。
-        guard let version else { return inline }
+        guard let version = request.version else { return request.inline }
         if version.isEmpty { return "" }
-        if !inline.isEmpty { return inline }
-        if version == previousVersion, let previous { return previous }
-        if let botID, let server = serverURL?.absoluteString,
-           let cached = try BotAvatarCache.shared.dataURL(botID: botID, server: server, version: version) { return cached }
-        return try await api.avatar(path + "?v=" + version)
+        if !request.inline.isEmpty { return request.inline }
+        if version == request.previousVersion, let previous = request.previous { return previous }
+        return nil
+    }
+
+    private func avatar(_ request: AvatarRequest) async throws -> String {
+        if let immediate = immediateAvatar(request) { return immediate }
+        guard let version = request.version else { return request.inline }
+        if let botID = request.botID, let server = serverURL?.absoluteString,
+           let cached = try await BotAvatarCacheAccess.shared.dataURL(botID: botID, server: server, version: version) { return cached }
+        return try await api.avatar(request.path + "?v=" + version)
     }
 
     func requestRefreshFromEvent() {
-        eventRefreshRequested = true
+        requestRefreshFromEvent(resources: [.all])
+    }
+
+    private func requestRefreshFromEvent(resources: Set<EventResource>) {
+        eventRefreshResources.formUnion(resources)
         guard eventRefreshTask == nil else { return }
         eventRefreshTask = Task { [weak self] in
             guard let self else { return }
             defer { if !Task.isCancelled { eventRefreshTask = nil } }
-            while eventRefreshRequested && !Task.isCancelled {
-                eventRefreshRequested = false
-                await refreshFromView()
+            while !eventRefreshResources.isEmpty && !Task.isCancelled {
+                let resources = eventRefreshResources
+                eventRefreshResources.removeAll()
+                if resources.contains(.all) { await refreshFromView(refreshSubscription: false) }
+                else { await refreshResourcesFromEvent(resources) }
             }
         }
     }
@@ -293,7 +472,7 @@ final class AppStore: ObservableObject {
     func applyFetchedBots(_ fetched: [Bot]) {
         let currentIDs = Set(fetched.map(\.id))
         let removedIDs = Set(bots.map(\.id)).subtracting(currentIDs)
-        bots = fetched
+        if bots != fetched { bots = fetched }
         pendingBotDeletionIDs.formIntersection(currentIDs)
         chatPath.removeAll { target in
             if case .bot(let id) = target { return removedIDs.contains(id) }
@@ -316,12 +495,12 @@ final class AppStore: ObservableObject {
         removeDraft(for: .room(id))
     }
 
-    func refreshFromView() async {
+    func refreshFromView(refreshSubscription: Bool = true) async {
         do {
             try await refresh()
             refreshError = nil
             updateConnectionError()
-            await billing.refreshFromServer()
+            if refreshSubscription { await billing.refreshFromServer() }
         }
         catch is CancellationError { return }
         catch let error as URLError where error.code == .cancelled { return }
@@ -333,8 +512,46 @@ final class AppStore: ObservableObject {
         }
     }
 
+    private func getForEvent<T: Decodable>(_ needed: Bool, path: String) async throws -> T? {
+        guard needed else { return nil }
+        return try await api.get(path)
+    }
+
+    private func refreshResourcesFromEvent(_ resources: Set<EventResource>) async {
+        do {
+            async let bots: BotsResponse? = getForEvent(resources.contains(.bots), path: "/api/bots?avatar=omit")
+            async let rooms: RoomsResponse? = getForEvent(resources.contains(.rooms), path: "/api/rooms?avatar=omit")
+            async let owner: OwnerResponse? = getForEvent(resources.contains(.owner), path: "/api/owner?avatar=omit")
+            async let queue: QueueResponse? = getForEvent(resources.contains(.queue), path: "/api/queue")
+            let (botResponse, roomResponse, ownerResponse, queueResponse) = try await (bots, rooms, owner, queue)
+            var botList: [Bot]?
+            var roomList: [Room]?
+            var ownerValue: Owner?
+            if let botResponse { botList = try await withResolvedBotAvatars(botResponse.bots) }
+            if let roomResponse { roomList = try await withResolvedRoomAvatars(roomResponse.rooms) }
+            if let ownerResponse { ownerValue = try await withResolvedOwnerAvatar(ownerResponse.owner) }
+            try Task.checkCancellation()
+            if let botList {
+                applyFetchedBots(botList)
+                await storeBotAvatarsIfChanged(botList)
+            }
+            if let roomList, self.rooms != roomList { self.rooms = roomList }
+            if let ownerValue, self.owner != ownerValue { self.owner = ownerValue }
+            if let queueResponse { applyFetchedQueue(queueResponse.items) }
+        } catch is CancellationError { return }
+        catch let error as URLError where error.code == .cancelled { return }
+        catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error) }
+        catch {
+            refreshError = error.localizedDescription
+            updateConnectionError()
+            api.diagnostics.report(error, path: "/api/bots", method: "GET",
+                                   observation: .read(error, retainedData: !bots.isEmpty || !rooms.isEmpty))
+        }
+    }
+
     private func updateConnectionError() {
-        connectionError = eventsError ?? refreshError ?? notificationError
+        let next = eventsError ?? refreshError ?? notificationError
+        if connectionError != next { connectionError = next }
     }
 
     func sceneChanged(to next: ScenePhase) {
@@ -351,6 +568,8 @@ final class AppStore: ObservableObject {
                 await api.resetConnections()
                 if Task.isCancelled { return }
                 await refreshFromView()
+                if Task.isCancelled { return }
+                await refreshAIControl()
                 if Task.isCancelled { return }
                 await billing.refreshAppleAccess()
                 if Task.isCancelled { return }
@@ -378,14 +597,35 @@ final class AppStore: ObservableObject {
                 let connectedAt = Date()
                 let requestStarted = DispatchTime.now().uptimeNanoseconds
                 do {
-                    try await api.events { [weak self] type in
+                    try await api.events { [weak self] event in
                         guard let self else { return }
-                        if type == "settings" { try await self.refreshSettings() }
-                        if type == "setup" { try await self.refreshSetup() }
                         self.eventsError = nil
                         self.updateConnectionError()
-                        self.eventRevision += 1
-                        self.requestRefreshFromEvent()
+                        switch event.type {
+                        case "ready":
+                            self.eventRevision += 1
+                            self.requestRefreshFromEvent()
+                        case "settings": try await self.refreshSettings()
+                        case "setup": try await self.refreshSetup()
+                        case "ai-control": await self.refreshAIControl()
+                        case "bots": self.requestRefreshFromEvent()
+                        case "messages":
+                            switch event.scope {
+                            case .all:
+                                self.eventRevision += 1
+                                self.requestRefreshFromEvent()
+                            case .targeted(let topics, let botIDs, let roomIDs):
+                                if self.refreshError != nil {
+                                    self.eventRevision += 1
+                                    self.requestRefreshFromEvent()
+                                } else {
+                                    try await self.applyTargetedEvent(topics: topics, botIDs: botIDs, roomIDs: roomIDs)
+                                }
+                            }
+                        default:
+                            self.eventRevision += 1
+                            self.requestRefreshFromEvent()
+                        }
                     }
                     if Task.isCancelled { return }
                     eventsError = "更新の接続が切れました。再接続しています。"
@@ -420,18 +660,42 @@ final class AppStore: ObservableObject {
         }
     }
 
+    private func applyTargetedEvent(topics: Set<BellEventTopic>, botIDs: Set<String>, roomIDs: Set<String>) async throws {
+        if !topics.isDisjoint(with: [.timeline, .queue, .requests, .questions]) {
+            for id in botIDs { conversationChanges.send(.bot(id)) }
+            for id in roomIDs { conversationChanges.send(.room(id)) }
+        }
+        if topics.contains(.schedules) {
+            scheduleChanges.send(Set(botIDs.map(ChatTarget.bot) + roomIDs.map(ChatTarget.room)))
+        }
+        if topics.contains(.settings) { try await refreshSettings() }
+        if topics.contains(.setup) { try await refreshSetup() }
+        if topics.contains(.aiControl) { await refreshAIControl() }
+        var resources: Set<EventResource> = []
+        if !topics.isDisjoint(with: [.timeline, .requests, .questions]) {
+            if !botIDs.isEmpty { resources.insert(.bots) }
+            if !roomIDs.isEmpty { resources.insert(.rooms) }
+        }
+        if topics.contains(.bots) { resources.insert(.bots) }
+        if topics.contains(.rooms) { resources.insert(.rooms) }
+        if topics.contains(.owner) { resources.insert(.owner) }
+        if topics.contains(.queue) { resources.insert(.queue) }
+        if !resources.isEmpty { requestRefreshFromEvent(resources: resources) }
+    }
+
     func stopEvents() {
         eventsTask?.cancel()
         eventsTask = nil
         eventRefreshTask?.cancel()
         eventRefreshTask = nil
-        eventRefreshRequested = false
+        eventRefreshResources.removeAll()
     }
 
     func requireLogin() {
         foregroundTask?.cancel()
         foregroundTask = nil
         stopEvents()
+        resetAIControl()
         refreshError = nil
         eventsError = nil
         notificationError = nil
@@ -456,6 +720,7 @@ final class AppStore: ObservableObject {
         drafts.removeAll()
         botEditorDrafts.removeAll()
         pendingBotDeletionIDs.removeAll()
+        resetAIControl()
         notificationSecret = nil
         pendingNotification = nil
         for cookie in api.cookieStorage.cookies ?? [] { api.cookieStorage.deleteCookie(cookie) }

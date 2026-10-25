@@ -78,6 +78,43 @@ test('未知のHTTP操作の失敗はoperationを作らずunknownで記録する
   }
 })
 
+test('Bot間とroom配送のHTTP失敗を具体化し、旧unknown集約と秘密値を保持境界に置く', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-delivery-context-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const file = join(root, 'diagnostics.json'), diagnostics = new Diagnostics(file)
+  await diagnostics.initialize()
+  const legacy = await diagnostics.record({ code: 'SERVER_HTTP_500', module: 'server', severity: 'high', diagnostic_log: 'operation=unknown' })
+  await diagnostics.setStatus(legacy.fingerprint, 'resolved')
+  const prior = structuredClone(diagnostics.list()[0])
+  let invoked = 0
+  const fail = async body => {
+    assert.equal(body.message, 'synthetic-private-body')
+    invoked++
+    throw new Error('synthetic-private-error')
+  }
+  const bots = new Map(); bots.refresh = async () => {}
+  const server = createBellTeamServer({ authorize: () => true, bots, diagnostics,
+    messenger: { sendmessage: fail }, roomMessenger: { sendroommessage: fail } })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => new Promise(resolve => server.close(resolve)))
+  for (const path of ['/api/deliveries/direct', '/api/deliveries/room']) {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}${path}?token=synthetic-private-token`, {
+      method: 'POST', body: JSON.stringify({ target: 'synthetic-private-target', message: 'synthetic-private-body' }),
+    })
+    assert.equal(response.status, 500)
+    const row = diagnostics.list().find(value => value.fingerprint !== legacy.fingerprint)
+    assert.equal(row.report_context.operation, 'message_send')
+    assert.match(row.diagnostic_log, /^expected_result=message_acceptance_response$/mu)
+    assert.ok(row.diagnostic_log.split('\n').includes(`request_route=${path}`))
+    assert.match(row.diagnostic_log, /^delivery_outcome=unknown$/mu)
+    assert.doesNotMatch(row.diagnostic_log, /synthetic-private/u)
+  }
+  assert.equal(invoked, 2)
+  assert.deepEqual(diagnostics.list().find(row => row.fingerprint === legacy.fingerprint), prior)
+  assert.equal(diagnostics.list().find(row => row.fingerprint !== legacy.fingerprint).occurrence_count, 2)
+  assert.doesNotMatch(await readFile(file, 'utf8'), /synthetic-private/u)
+})
+
 test('会話と個別予定のGET失敗はアプリと同じoperationで記録する', async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-read-context-'))
   t.after(() => rm(root, { recursive: true, force: true }))

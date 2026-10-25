@@ -44,6 +44,7 @@ struct SettingsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(20)
                         .bellCard()
+                        AIControlCard()
                         HarnessAuthenticationList()
                         FeatureSettingsList()
                         SubscriptionCard()
@@ -84,6 +85,62 @@ struct SettingsView: View {
             .sheet(isPresented: $editingProfile) {
                 ProfileEditor().environmentObject(store)
             }
+        }
+    }
+}
+
+private struct AIControlCard: View {
+    @EnvironmentObject private var store: AppStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            Label("AIの全体停止", systemImage: "stop.circle")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(BellTheme.ink)
+            if let control = store.aiControl {
+                Toggle("全員の動作を止める", isOn: Binding(
+                    get: { store.aiControl?.paused ?? control.paused },
+                    set: { paused in Task { await store.setAIControlPaused(paused) } }
+                ))
+                .disabled(store.aiControlUpdating)
+                .accessibilityIdentifier("ai-control-toggle")
+                Text(status(for: control))
+                    .font(.subheadline)
+                    .foregroundStyle(control.state == .unconfirmed ? .red : BellTheme.muted)
+                if control.state == .unconfirmed && !control.unconfirmedBotIds.isEmpty {
+                    Text("停止操作を確認できなかったメンバー: \(control.unconfirmedBotIds.count)人")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                if control.state == .stopping || control.state == .unconfirmed {
+                    Button("状態を更新") { Task { await store.refreshAIControl() } }
+                        .disabled(store.aiControlLoading || store.aiControlUpdating)
+                        .accessibilityIdentifier("ai-control-refresh")
+                }
+            } else if !store.aiControlLoading {
+                Text("全体停止の状態を確認できません。")
+                    .font(.subheadline)
+                    .foregroundStyle(.red)
+                Button("状態を再確認") { Task { await store.refreshAIControl() } }
+                    .accessibilityIdentifier("ai-control-refresh")
+            }
+            if store.aiControlLoading || store.aiControlUpdating { ProgressView() }
+            if let error = store.aiControlError {
+                Text(error).font(.caption).foregroundStyle(.red)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .bellCard()
+        .task { await store.refreshAIControl() }
+    }
+
+    private func status(for control: AIControl) -> String {
+        switch control.state {
+        case .enabled: "動作可能です。"
+        case .stopping: "全体へ停止操作を送っています。"
+        case .stopped: "全体へ停止操作を送りました。会話は続けられます。OFFにすると新しい依頼を受け付けます。"
+        case .unconfirmed: "停止操作の結果を確認できませんでした。全体停止はONのままです。"
         }
     }
 }

@@ -42,6 +42,25 @@ final class ConversationDraftTests: XCTestCase {
         withExtendedLifetime(observation) {}
     }
 
+    func testAppendingTextPublishesOnlyWhenInputStateChanges() {
+        let draft = ConversationDraft()
+        var updates = 0
+        let observation = draft.objectWillChange.sink { updates += 1 }
+
+        draft.setTextFromInput(" ")
+        XCTAssertEqual(updates, 1, "空欄表示を消す境目だけ通知する")
+        for value in [" a", " ab", " abc", " abcd"] {
+            draft.setTextFromInput(value)
+        }
+        XCTAssertEqual(updates, 2, "送信可能になった境目だけ追加通知する")
+        XCTAssertTrue(draft.hasText)
+
+        draft.setTextFromInput(" \n")
+        XCTAssertFalse(draft.hasText)
+        XCTAssertEqual(updates, 3, "末尾削除で送信可否が変わる時は通知する")
+        withExtendedLifetime(observation) {}
+    }
+
     func testSignOutClearsDraftsAlreadyHeldByInputViews() async {
         let previousOpen = BellNotifications.shared.onOpen
         defer { BellNotifications.shared.onOpen = previousOpen }

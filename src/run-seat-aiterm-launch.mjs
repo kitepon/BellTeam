@@ -1,6 +1,6 @@
 // The fixed entry and run-seat-command have already loaded this target's env
 // as UID1000. Only the MCP result crosses back; environment values stay here.
-import { AitermClient } from './aiterm-transport.mjs'
+import { AitermClient } from './aiterm-client.mjs'
 
 let client
 try {
@@ -19,7 +19,7 @@ try {
     response = { result: await client.call('agent_launch', { ...request.launch, env_vars }, { meta: request.meta }) }
   } catch (error) {
     response = { error: Object.fromEntries(['message', 'code', 'status', 'publicMessage',
-      'aitermResponseReturned', 'launch'].filter(key => error[key] !== undefined).map(key => [key, error[key]])) }
+      'aitermResponseReturned', 'executionError', 'launch'].filter(key => error[key] !== undefined).map(key => [key, error[key]])) }
   }
   await client.close()
   client = null

@@ -25,7 +25,7 @@ Webアプリとサーバーは無料です。初期設定の後も、すべて�
 | 診断連携 | 診断APIの合鍵 |
 | 通知 | 運営の通知送信サービスの接続先 |
 
-直接接続で始められます。外部から接続するときはCloudflare TunnelとAccessを設定し、Tunnelの転送先をこのマシンの18891番ポートにします。通話MCPはこの配布物へ含めていません。設定後に各メンバーのCLIへ登録します。詳しい設定仕様は[初回設定と追加機能](docs/onboarding.md)を参照してください。
+直接接続で始められます。外部から接続するときはCloudflare TunnelとAccessを設定し、Tunnelの転送先をこのマシンの18891番ポートにします。通話MCPのimageは別の公開製品です。任意の[Bridge配布構成](bridge/README.md)を使うと、単独serviceとして導入・更新でき、選んだ場合だけBellTeamへ接続できます。設定後に各メンバーのCLIへ登録します。詳しい設定仕様は[初回設定と追加機能](docs/onboarding.md)を参照してください。
 
 特定のIPアドレスへ接続を限定するときだけ、`.env.example`を`.env`へコピーし、`BELLTEAM_BIND_IP`を指定します。既存の環境変数による追加機能の設定は初回に保存済み設定へ移行し、以後は画面の設定を使います。
 
@@ -48,3 +48,26 @@ iPhone・Macアプリからの通常の会話と予定操作は共通の月額�
 Claude・Codex・Grokなどのコマンドは、イメージに入っている物を全メンバーが使います。版が変わるのはイメージを更新した時です。Claude Codeはメンバーのフォルダの中で自分を更新しません（メンバーごとに版がずれるのを防ぐため）。メンバーのフォルダ（`.local`）に残っているClaude Codeの写しは、サーバーの起動時に片付けます。消すのはその写しと入口だけで、ほかのデータには触りません。詳しくは`docs/bot-environment.md`にあります。
 
 AppleアプリはApp Storeで公開されています。Appleの実購入・復元とWSLでの動作の検証状況は、アプリとサーバーの対応する配布記録を参照してください。
+
+## ソースから構築する
+
+公開済みDockerイメージを使う場合は、上の設置手順だけで導入できます。ソースから構築する場合は、DockerとComposeに加えてGitとNode.js 24以上を用意し、配布用の構成を生成します。リポジトリ直下のComposeとprofileは開発者の運用向けです。
+
+```sh
+git clone https://github.com/kitepon/BellTeam.git
+cd BellTeam
+mkdir -p runtime
+source_work=$(mktemp -d "$PWD/runtime/source-build.XXXXXX")
+node scripts/package-server.mjs "$source_work/context"
+docker build --pull --no-cache -t bellteam-server:local "$source_work/context"
+mkdir -p ../bellteam-server
+cp "$source_work/context/compose.yaml" "$source_work/context/install.sh" ../bellteam-server/
+cd ../bellteam-server
+BELLTEAM_SERVER_IMAGE=bellteam-server:local sh install.sh --no-pull
+```
+
+`package-server.mjs`はcommit済みのソースを取り出し、空のメンバー構成と一般配布用profileに差し替えます。作業中の未commit変更は入りません。生成したcontextとarchiveはビルド用で、会話や認証情報を置く設置フォルダとは分けます。
+
+`--no-pull`は指定したローカルイメージを使い、通常のinstallerと同じ手順で保存先の準備・Cursor更新・起動を行います。イメージが無ければ、既存のBellTeamを停止する前にエラーになります。これは完全なオフライン導入ではなく、ビルドとCursorの公式更新には通信が必要です。
+
+ソース版を更新するときは、リポジトリで`git pull --ff-only`したあと、`mkdir -p runtime`からの手順をもう一度実行します。設置先の`bellteam-server/runtime`とDocker volumeは残してください。別の設置フォルダを使っている場合は、コピー先と移動先をそのフォルダへ合わせます。ローカル版を使い続ける場合は、更新時も`BELLTEAM_SERVER_IMAGE=bellteam-server:local sh install.sh --no-pull`を指定してください。

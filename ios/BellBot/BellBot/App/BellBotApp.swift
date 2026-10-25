@@ -35,6 +35,9 @@ struct BellBotApp: App {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-bellbot-preview") }) {
                     store.preparePreview()
+                    if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-events") {
+                        store.startEvents()
+                    }
                     if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-reporting") {
                         await store.billing.connect()
                     }
@@ -198,6 +201,7 @@ private struct BellTabs: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             if let error = store.connectionError {
                 Text(error)
+                    .accessibilityIdentifier("connection-error")
                     .font(.caption)
                     .foregroundStyle(.red)
                     .lineLimit(2)

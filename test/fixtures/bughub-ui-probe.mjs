@@ -8,9 +8,15 @@ import { createBellTeamServer } from '../../src/http-server.mjs'
 const root = resolve(`runtime/network-reporting-46/bughub-three-${process.pid}`)
 await mkdir(root, { recursive: true })
 let mode = 'normal', sequence = 0, requests = [], diagnostics, intake, settingsReads = 0
+let pendingPost = null, sentMessages = []
+let subscribers = []
 let saved = { name: 'ユキ', profileText: '', personality: '', speechStyle: '', position: '', role: '相談と実務', avatar: '', color: 'indigo', harness: 'claude', model: 'opus', reasoningEffort: 'high' }
 async function reset(next) {
-  mode = next; requests = []; settingsReads = 0
+  if (pendingPost) {
+    if (!pendingPost.response.destroyed) { pendingPost.response.writeHead(503); pendingPost.response.end() }
+    pendingPost = null
+  }
+  mode = next; requests = []; settingsReads = 0; sentMessages = []
   diagnostics = new Diagnostics(`${root}/scenario-${++sequence}.json`)
   await diagnostics.initialize()
   intake = createBellTeamServer({ authorize: async () => true, bots: { refresh: async () => {} }, diagnostics })
@@ -21,13 +27,34 @@ const owner = { name: '試験用', profile: '', avatar: '', xUrl: '', githubUrl:
 const subscription = { productId: 'dev.kitepon.bellbot.monthly', environment: 'Sandbox', accessMode: 'developer', setupComplete: true, entitled: false, state: 'none', checkedAt: null, expiresAt: null, validUntil: null, autoRenewing: false, error: null }
 const setting = { id: 'routing', title: '試験機能', enabled: true, status: 'enabled', error: null, fields: [{ key: 'label', label: '試験の値', secret: false, value: '保持する値', configured: true }] }
 const message = { id: 'probe-message', kind: 'message', direction: 'incoming', at: '2026-10-07T00:00:00Z', message: '試験用の会話', delivery: 'delivered' }
+const longMessage = { ...message, at: '2026-10-07T01:00:00Z', message: Array.from({ length: 6 }, (_, index) =>
+  `${index + 1}段目。画面の高さを越える直前の返信です。配布候補の確認を続け、処理待ちと次の作業時刻を読み合わせます。`).join('\n\n') }
+const priorMessages = Array.from({ length: 35 }, (_, index) => ({
+  id: `prior-${index}`, kind: 'message', direction: index % 2 ? 'outgoing' : 'incoming',
+  at: new Date(Date.UTC(2026, 9, 7, 0, index)).toISOString(),
+  message: `先行する会話 ${index + 1}`, delivery: 'delivered',
+}))
 const json = (response, value) => { response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify(value)) }
 const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://localhost')
   if (url.pathname === '/test/reset') { await reset(url.searchParams.get('mode') ?? 'normal'); return json(response, { ok: true }) }
   if (url.pathname === '/test/mode') { mode = url.searchParams.get('mode') ?? 'normal'; return json(response, { ok: true }) }
-  if (url.pathname === '/test/proof') return json(response, { requests, reports: diagnostics.list() })
+  if (url.pathname === '/test/proof') return json(response, { requests, reports: diagnostics.list(), subscribers: subscribers.length })
+  if (url.pathname === '/test/complete-post') {
+    if (!pendingPost) { response.writeHead(409); response.end(); return }
+    const waiting = pendingPost
+    pendingPost = null
+    json(waiting.response, { delivery_id: 'accepted-message', delivery: 'running', from: 'user', target: 'bot-one' })
+    return json(response, { ok: true })
+  }
   if (url.pathname === '/api/diagnostics') { intake.emit('request', request, response); return }
+  if (url.pathname === '/api/events') {
+    response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
+    response.write(': open\n\n')
+    subscribers.push(response)
+    request.on('close', () => { subscribers = subscribers.filter(item => item !== response) })
+    return
+  }
   const record = { method: request.method, path: url.pathname, at: Date.now(), closed: false }
   requests.push(record); response.once('close', () => { record.closed = true })
   if (request.method === 'POST' && url.pathname.endsWith('/messages')) {
@@ -35,7 +62,17 @@ const server = createServer(async (request, response) => {
     const body = JSON.parse(Buffer.concat(chunks).toString())
     record.imageCount = body.images?.length ?? 0
     if (mode === 'post-failure') { request.socket.destroy(); return }
-    return json(response, {})
+    if (['post-wait', 'post-wait-long', 'post-wait-history'].includes(mode)) {
+      pendingPost = { response }
+      sentMessages.push({ id: 'accepted-message', kind: 'message', direction: 'outgoing',
+        sender: { id: 'user', name: '試験用' }, at: new Date().toISOString(),
+        message: body.message, delivery: 'running' })
+      const event = { type: 'messages', at: new Date().toISOString(), all: false,
+        topics: ['timeline'], botIds: ['bot-one'], roomIds: [] }
+      for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: ${JSON.stringify(event)}\n\n`)
+      return
+    }
+    return json(response, { delivery_id: 'accepted-message', delivery: 'running', from: 'user', target: 'bot-one' })
   }
   if (request.method === 'PATCH' && url.pathname === '/api/bots/bot-one') {
     const chunks = []; for await (const chunk of request) chunks.push(chunk)
@@ -56,7 +93,8 @@ const server = createServer(async (request, response) => {
   }
   if (url.pathname.endsWith('/messages')) {
     if (mode === 'conversation-pending') return
-    return json(response, { items: [message], hasMore: false })
+    const items = mode === 'post-wait-history' ? [...priorMessages, longMessage] : [mode === 'post-wait-long' ? longMessage : message]
+    return json(response, { items: [...items, ...sentMessages], hasMore: false })
   }
   if (url.pathname.endsWith('/queue') || url.pathname === '/api/queue') return json(response, { items: [] })
   if (url.pathname === '/api/bots/bot-one') return json(response, { bot: saved })

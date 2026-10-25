@@ -6,6 +6,51 @@ import test from 'node:test'
 
 import { configureHarnesses, writeHarnessConfig } from '../src/harness-config.mjs'
 
+test('四つのCLIと親hookへ同一native登録を渡し旧lazy wakeを起こさない', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'bellteam-native-registration-'))
+  const registration = { command: '/candidate/node', args: ['/candidate/dist/execution-native-server.js',
+    '--execution-interrupt', '--state-root', '/isolated/state', '--socket', '/isolated/tmux.sock', '--steer-provider', '/candidate/steer/index.js'] }
+  let hookRegistration
+  await configureHarnesses(new Map(), home, {
+    aiterm: async () => registration,
+    relay: async () => null,
+    run: async () => {}, rtk: async () => {}, cursorInstructions: async () => {},
+    aitermHooks: async (_, options) => { hookRegistration = options.registration },
+  })
+  assert.deepEqual(hookRegistration, registration)
+  assert.deepEqual(JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).mcpServers.aiterm, registration)
+  const cursor = JSON.parse(await readFile(join(home, '.cursor/mcp.json'), 'utf8')).mcpServers.aiterm
+  assert.deepEqual(cursor.args.slice(1), [registration.command, ...registration.args])
+  for (const file of ['.codex/config.toml', '.grok/config.toml']) {
+    const config = await readFile(join(home, file), 'utf8')
+    assert.ok(config.includes(`command = ${JSON.stringify(registration.command)}`))
+    assert.ok(config.includes(`args = ${JSON.stringify(registration.args)}`))
+    assert.doesNotMatch(config, /MCP_LAZY_WAKE/)
+  }
+})
+
+test('native入口も既存relayを使い、scope引数を保持して旧cacheとwakeを共有しない', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'bellteam-native-lazy-'))
+  const registration = { command: '/candidate/node', args: ['/candidate/dist/execution-native-server.js',
+    '--execution-interrupt', '--state-root', '/isolated/state', '--socket', '/isolated/tmux.sock', '--steer-provider', '/candidate/steer/index.js'] }
+  await writeHarnessConfig(new Map(), home, { aiterm: async () => registration, relay: async () => '/candidate/mcp-lazy' })
+  const claude = JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).mcpServers.aiterm
+  assert.equal(claude.command, '/candidate/mcp-lazy')
+  assert.deepEqual(claude.args, [registration.command, ...registration.args])
+  assert.equal(claude.env.MCP_LAZY_IDLE_STOP, '0')
+  assert.equal(claude.env.MCP_LAZY_CACHE_DIR, join(home, '.cache/mcp-lazy/aiterm-native-claude'))
+  assert.equal(claude.env.MCP_LAZY_WAKE_COMMAND, undefined)
+  const cursor = JSON.parse(await readFile(join(home, '.cursor/mcp.json'), 'utf8')).mcpServers.aiterm
+  assert.deepEqual(cursor.args.slice(1), [claude.command, ...claude.args])
+  assert.equal(cursor.env.MCP_LAZY_IDLE_STOP, '0')
+  for (const file of ['.codex/config.toml', '.grok/config.toml']) {
+    const config = await readFile(join(home, file), 'utf8')
+    assert.ok(config.includes(`args = ${JSON.stringify([registration.command, ...registration.args])}`))
+    assert.doesNotMatch(config, /MCP_LAZY_WAKE/)
+    assert.match(config, /aiterm-native-/)
+  }
+})
+
 test('通話OFFでは四つのCLIから管理登録を外し、他のMCPを保持する', async () => {
   const home = await mkdtemp(join(tmpdir(), 'bellteam-call-disabled-'))
   const bots = new Map()
@@ -29,18 +74,18 @@ test('四つのハーネスへBellTeam設定を反映する', async () => {
   const config = await readFile(join(home, '.codex/config.toml'), 'utf8')
   assert.match(config, /\[projects\."\/srv\/bellteam\/bots\/bot-new"\]\ntrust_level = "trusted"/u)
   // 席ごとのnodeを起こさず、supervisorの内部入口へHTTPで直結する。席の名札は各CLIの書き方で環境変数から写す。
-  assert.match(config, /\[mcp_servers\.bellteam\]\nurl = "http:\/\/127\.0\.0\.1:4181\/mcp"\nenv_http_headers = \{ "X-Bellteam-Seat" = "AITERM_SESSION_ID" \}\nstartup_timeout_sec = 30\ntool_timeout_sec = 120\n/u)
+  assert.match(config, /\[mcp_servers\.bellteam\]\nurl = "http:\/\/127\.0\.0\.1:4181\/mcp"\nenv_http_headers = \{ "X-Bellteam-Seat" = "AITERM_SESSION_ID", "X-Bellteam-Launch-Id" = "AITERM_AGENT_LAUNCH_ID" \}\nstartup_timeout_sec = 30\ntool_timeout_sec = 120\n/u)
   assert.match(config, /\[mcp_servers\.call-bridge\]\nurl = "http:\/\/127\.0\.0\.1:4181\/mcp\/call-bridge"\nenv_http_headers = /u)
   const grok = await readFile(join(home, '.grok/config.toml'), 'utf8')
-  assert.match(grok, /\[mcp_servers\.bellteam\]\nurl = "http:\/\/127\.0\.0\.1:4181\/mcp"\nheaders = \{ "X-Bellteam-Seat" = "\$\{AITERM_SESSION_ID\}" \}\nstartup_timeout_sec = 30\ntool_timeout_sec = 120\nenabled = true\n/u)
+  assert.match(grok, /\[mcp_servers\.bellteam\]\nurl = "http:\/\/127\.0\.0\.1:4181\/mcp"\nheaders = \{ "X-Bellteam-Seat" = "\$\{AITERM_SESSION_ID\}", "X-Bellteam-Launch-Id" = "\$\{AITERM_AGENT_LAUNCH_ID\}" \}\nstartup_timeout_sec = 30\ntool_timeout_sec = 120\nenabled = true\n/u)
   assert.match(grok, /\[mcp_servers\.call-bridge\]\nurl = "http:\/\/127\.0\.0\.1:4181\/mcp\/call-bridge"\nheaders = [^\n]+\nstartup_timeout_sec = 30\ntool_timeout_sec = 120\nenabled = true\n/u)
   const claude = JSON.parse(await readFile(join(home, '.claude.json'), 'utf8'))
   const cursor = JSON.parse(await readFile(join(home, '.cursor/mcp.json'), 'utf8'))
   for (const value of [claude, cursor]) assert.deepEqual(Object.keys(value.mcpServers).sort(), ['aiterm', 'bellteam', 'call-bridge'])
-  assert.deepEqual(claude.mcpServers.bellteam, { type: 'http', url: 'http://127.0.0.1:4181/mcp', headers: { 'X-Bellteam-Seat': '${AITERM_SESSION_ID}' } })
-  assert.deepEqual(claude.mcpServers['call-bridge'], { type: 'http', url: 'http://127.0.0.1:4181/mcp/call-bridge', headers: { 'X-Bellteam-Seat': '${AITERM_SESSION_ID}' } })
-  assert.deepEqual(cursor.mcpServers.bellteam, { url: 'http://127.0.0.1:4181/mcp', headers: { 'X-Bellteam-Seat': '${env:AITERM_SESSION_ID}' } })
-  assert.deepEqual(cursor.mcpServers['call-bridge'], { url: 'http://127.0.0.1:4181/mcp/call-bridge', headers: { 'X-Bellteam-Seat': '${env:AITERM_SESSION_ID}' } })
+  assert.deepEqual(claude.mcpServers.bellteam, { type: 'http', url: 'http://127.0.0.1:4181/mcp', headers: { 'X-Bellteam-Seat': '${AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${AITERM_AGENT_LAUNCH_ID}' } })
+  assert.deepEqual(claude.mcpServers['call-bridge'], { type: 'http', url: 'http://127.0.0.1:4181/mcp/call-bridge', headers: { 'X-Bellteam-Seat': '${AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${AITERM_AGENT_LAUNCH_ID}' } })
+  assert.deepEqual(cursor.mcpServers.bellteam, { url: 'http://127.0.0.1:4181/mcp', headers: { 'X-Bellteam-Seat': '${env:AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${env:AITERM_AGENT_LAUNCH_ID}' } })
+  assert.deepEqual(cursor.mcpServers['call-bridge'], { url: 'http://127.0.0.1:4181/mcp/call-bridge', headers: { 'X-Bellteam-Seat': '${env:AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${env:AITERM_AGENT_LAUNCH_ID}' } })
   // 合言葉と通話ブリッジの接続先は、席のCLIの設定へ書かない。
   for (const path of ['.codex/config.toml', '.grok/config.toml', '.claude.json', '.cursor/mcp.json'])
     assert.doesNotMatch(await readFile(join(home, path), 'utf8'), /Bearer |18910|header-file|mcp-remote/u)
@@ -214,7 +259,9 @@ test('中継の無い環境では、Aitermの登録はaiterm-setupが書くも�
   assert.ok((await readFile(join(home, '.grok/config.toml'), 'utf8')).includes(`${section}enabled = true\n`))
   assert.deepEqual(JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).mcpServers.aiterm, registration)
   const cursor = JSON.parse(await readFile(join(home, '.cursor/mcp.json'), 'utf8')).mcpServers.aiterm
-  assert.deepEqual({ command: cursor.command, args: cursor.args }, registration)
+  assert.equal(cursor.command, process.execPath)
+  assert.match(cursor.args[0], /\/src\/run-aiterm-mcp\.mjs$/u)
+  assert.deepEqual(cursor.args.slice(1), [registration.command, ...registration.args])
 })
 
 test('CodexのAiterm登録にだけ、席の環境から渡す変数名を挙げ、本体専用の変数は挙げない', async () => {
@@ -224,7 +271,7 @@ test('CodexのAiterm登録にだけ、席の環境から渡す変数名を挙げ
 
   const codex = await readFile(join(home, '.codex/config.toml'), 'utf8')
   const names = JSON.parse(codex.match(/\[mcp_servers\.aiterm\]\n(?:[^\[\n][^\n]*\n)*?env_vars = (\[[^\n]+\])\n/u)[1])
-  for (const name of ['BELLTEAM_PROJECT', 'GH_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'XDG_CONFIG_HOME', 'npm_config_prefix'])
+  for (const name of ['BELLTEAM_PROJECT', 'GH_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'XDG_CONFIG_HOME', 'npm_config_prefix', 'AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP'])
     assert.ok(names.includes(name), name)
   assert.deepEqual(names.filter(name => /KEY|TOKEN|SECRET|_CF_/u.test(name)), [])
   assert.doesNotMatch(await readFile(join(home, '.grok/config.toml'), 'utf8'), /env_vars/u)
@@ -240,6 +287,9 @@ test('CursorのAiterm登録は、席の環境にある変数だけを名前で�
   assert.equal(env.BELLTEAM_PROJECT, '${env:BELLTEAM_PROJECT}')
   assert.equal(env.GH_CONFIG_DIR, '${env:GH_CONFIG_DIR}')
   assert.equal(env.RTK_TELEMETRY_DISABLED, '${env:RTK_TELEMETRY_DISABLED}')
+  // 本体に無くてもCLI起動時の値を動的に読む。未展開値は入口で除く。
+  for (const name of ['AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP'])
+    assert.equal(env[name], `\${env:${name}}`, name)
   // 本体の環境に無い変数を挙げると、Cursorは「${env:…}」という文字列をそのまま値にしてしまう。
   for (const name of ['PLAYWRIGHT_BROWSERS_PATH', 'LC_CTYPE', 'BELLTEAM_ROOT', 'BELLTEAM_BUGHUB_KEY']) assert.equal(Object.hasOwn(env, name), false, name)
   assert.deepEqual(Object.keys(env).filter(name => /KEY|TOKEN|SECRET|_CF_/u.test(name)), [])
@@ -261,7 +311,9 @@ test('中継のある環境では、Aitermの本体を中継ごしに登録し�
   const claude = JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).mcpServers.aiterm
   assert.deepEqual(claude, { command: relay, args: ['/usr/local/bin/node', '/aiterm/dist/index.js'], env: relayed('claude') })
   const cursor = JSON.parse(await readFile(join(home, '.cursor/mcp.json'), 'utf8')).mcpServers.aiterm
-  assert.deepEqual({ command: cursor.command, args: cursor.args }, { command: claude.command, args: claude.args })
+  assert.equal(cursor.command, process.execPath)
+  assert.match(cursor.args[0], /\/src\/run-aiterm-mcp\.mjs$/u)
+  assert.deepEqual(cursor.args.slice(1), [claude.command, ...claude.args])
   // Cursorは、席の環境から渡す変数と中継の設定を同じ env に持つ。
   assert.equal(cursor.env.BELLTEAM_PROJECT, '${env:BELLTEAM_PROJECT}')
   assert.equal(cursor.env.RTK_TELEMETRY_DISABLED, '${env:RTK_TELEMETRY_DISABLED}')

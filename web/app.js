@@ -7,6 +7,7 @@ import { richTextHtml } from './rich-text.js?v=__ASSET_VERSION__'
 import { hasUnreadConversation, newestByRecent } from './activity-order.js?v=__ASSET_VERSION__'
 import { openImageViewer, renderImageStack } from './image-gallery.js?v=__ASSET_VERSION__'
 import { requestMemberStop } from './member-stop.js?v=__ASSET_VERSION__'
+import { aiControlView } from './ai-control.js?v=__ASSET_VERSION__'
 
 const READ_RECEIPTS_KEY = 'bellteam-read-receipts.v1'
 
@@ -14,6 +15,8 @@ const app = document.querySelector('#app')
 const botList = document.querySelector('#bot-list')
 const ownerProfileButton = document.querySelector('#owner-profile-button')
 const ownerDialog = document.querySelector('#owner-dialog')
+const aiControl = aiControlView(document.querySelector('#ai-control'), api)
+document.addEventListener('visibilitychange', () => { if (!document.hidden && ownerDialog.open) void aiControl.refresh() })
 const ownerForm = document.querySelector('#owner-form')
 const ownerName = document.querySelector('#owner-name')
 const ownerDescription = document.querySelector('#owner-description')
@@ -410,6 +413,7 @@ function renderOwner() {
 
 async function openOwnerDialog() {
   if (!state.owner) return
+  void aiControl.refresh()
   ownerForm.reset()
   ownerFormError.textContent = ''
   try {
@@ -1832,14 +1836,14 @@ async function stopMember(botId) {
     await requestMemberStop(botId, api)
     if (sameConversation()) {
       composerError.hidden = true
-      if (selectedType === 'bot') chatStatus.textContent = '停止しました'
+      if (selectedType === 'bot') chatStatus.textContent = '停止操作を送りました。会話は続けられます'
     }
     try {
       await loadBots()
       if (sameConversation()) await loadMessages()
     } catch {
       if (sameConversation()) {
-        composerError.textContent = '停止しました。表示を更新できなかったので、会話を開き直してください。'
+        composerError.textContent = '停止操作を送りました。表示を更新できなかったので、会話を開き直してください。'
         composerError.hidden = false
       }
     }
@@ -1890,6 +1894,7 @@ async function connectEvents() {
         const data = block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5)).join('\n')
         if (!data) continue
         const payload = JSON.parse(data)
+        if (payload.type === 'ai-control' && ownerDialog.open) void aiControl.refresh()
         if (payload.type === 'settings') {
           await loadFeatureSettings()
           if (ownerDialog.open) refreshFeatureSettingsStatus(document.querySelector('#feature-settings'), state.settings)

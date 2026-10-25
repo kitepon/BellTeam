@@ -2,6 +2,24 @@
 
 本書をBellTeamの現行設計の正本とする。本書は成立させる製品契約を記録し、未実装の項目は実装済みとして扱わない。
 
+## 製品とHTTPの責務
+
+プロセス入口`src/supervisor.mjs`は設置のbootstrapを読み、runtimeの構築・開始・signal待ち・終了を接続する。`application-services.mjs`はBot/会話/予定/記憶などのサービス実体と相互callbackを既存順で構築する。`application-features.mjs`は任意機能の設定反映と診断server/Bridge socket/CLI登録を所有し、設定保存の応答と現在ターン後の反映を区別する。`application-runtime.mjs`はこれらと公開/内部HTTP・MCPを接続し、startで機能反映・通信口と監視を開始、closeで予定・監視・HTTP・任意機能・transport・通知を順に閉じる。factoryのimportや構築だけで通信口や背景監視を開始せず、既存の本番root/HOME/portと、プロセス入口からの初期化・反映・終了順を保つ。
+
+BellTeamは各OSSの公開CLI/MCP/APIを使うアプリケーションであり、Aiterm・Steer・Throughline・mcp-lazy・RTK・call-bridgeの実行判断や製品状態を所有しない。Bot・配送・ルームとの対応付けはBellTeamの接続処理に置く。各OSSはBellTeamの台帳や内部パスがない環境でも単独で導入・起動・操作・更新できることを保つ。商用コンテナへの同梱は配布構成であり、製品本体へBellTeam固有の依存を追加する理由にしない。
+
+HTTPの公開入口は`src/http-server.mjs`の`createBellTeamServer`であり、認証・要求ログ・共通の失敗応答・静的配信・接続終了を所有する。機能の受付は`http-application-api.mjs`（設定・初期設定・認証・利用契約・オーナー・共通イベント）、`http-bot-api.mjs`、`http-room-api.mjs`、`http-delivery-api.mjs`、`http-schedule-api.mjs`、`http-conversation-api.mjs`へ分ける。制御系の早期返却の後に台帳をrefreshする位置を保ち、機能handlerは未一致の時だけfalseを返す。公開route/status/JSONと既存サービスの同一実体を保ち、HTTPとMCPへ業務判断や保存処理を二重実装しない。Botの設定変更（保存の先行と稼働中の席への適用、ファストモードを当てられなかった時の保存戻し）・停止結果の確認と失敗報告・削除の順序（席を閉じる→部屋から外す→台帳から消す）は`bot-administration.mjs`の`BotAdministration`が持ち、`http-bot-api.mjs`は状態コードとJSONだけを決める。席MCPの`update_self`/`update_bot`/`delete_bot`はHTTP経由で同じ判断に届く。
+
+入出力の表現は`http-response.mjs`、要求ログは`http-request-log.mjs`、画像と静的ファイルの配信は`http-assets.mjs`、既存の失敗をHTTPと診断へ写す処理は`http-errors.mjs`、会話の統合・ページ・画像URL表現は`http-messages.mjs`、SSEの接続・通知集約・監視解除は`http-events.mjs`が持つ。既存の関数・定数のexport、ログ形式、接続と監視の終了順を維持する。
+
+`src/aiterm-transport.mjs`は、Aitermの返却をBotの実行・配送へ対応付けるBellTeam側の接続である。MCP接続の寿命・環境変数の渡し方・返却済みの失敗は`aiterm-client.mjs`、Aitermから返った待機用プロセスの実行は`aiterm-wait-process.mjs`、Throughlineの公開CLIによる会話数と継続文脈の読取りは`throughline-context.mjs`へ分ける。Throughline接続はAitermのBot実行管理やMCP clientへ依存しない。従来の`aiterm-transport.mjs`からのexportは維持し、各製品の公開入出力と返却された状態の意味を変えない。
+
+通常の`createManagedTransport`はAitermへ直接配送し、ExecutionBridgeの登録・共有追跡graphを入力の受付条件にしない。記録の取得や保存のために通常配送・停止を止めない。個別停止と全体停止は既存の`agent_stop`へ直接渡し、Aitermが通常の親子関係から末端へ停止キーを送る。送信受付と停止完了の証明は区別し、キー送信結果は`stop_sent`として返す。Aiterm 0.61.17のnative互換MCP入口（標準18tool＋直接停止1tool）と組み合わせ、旧graph/unknownを新送信の先行条件として読み書きしない。明示注入の旧ExecutionBridge接続は互換ライブラリとして残るが通常factoryからは使わない。
+
+同じBotの席に対する操作は`bot-session-state.mjs`の`BotSessionState`が所有する。現在のsession対応、停止時点の既存version、発行待ちの席変更、不明な返却とその更新位置、停止待ちを一つの実体に保持する。起動照合/元起動のcloseはここから既存ExecutionBridgeへ接続し、native世代や作用の判定はAitermに残す。配送側は処理中・設定反映中・起動中などの事実を関数で渡し、席状態の部品へ配送jobや本文を渡さない。既存内部参照は同じMapへの参照を維持し、別の状態正本を作らない。AitermTransportは配送/ターンの受理・進行・完了を管理し、席変更の発行と照合をこの部品へ委譲する。停止・不明・未送信の既存判定と発行順は変えず、再試行や新しいIDを加えない。
+
+一回の配送の事実と停止の結論は`delivery-job.mjs`の`DeliveryJob`だけが決める。停止経路は停止要求・Aitermの停止結果・操作の終了を伝え、送信処理は節目（checkpoint）で続けてよいかを聞き、失敗時の最終エラーもjobが停止の結論から決める。受理済みの送信を停止で成功へ丸めず、未送信の実行登録だけをnot_sentで閉じる。席で今起きていることの正本は`seat-activity.mjs`の`SeatActivity`で、受付前も含む配送job、「処理中」として見せる活動（受付済みの配送と席が自分で始めたターンの見張り`SeatTurnWatch`）、追い終えたターン、席ごとの進行中操作（設定変更・送信の順番・起動）を一つで持ち、空いているか・誰がターンを追っているか・停止の対象を答える。停止の二経路（停止ボタンの一括停止と実行登録ごとの中断）は`execution-transport.mjs`の共通の骨格（根の停止世代を進める→配送jobへ停止要求→進行中の停止として公開→終了時に止まらなかったjobを解放）を使い、停止世代の更新は`BotSessionState`だけが行う。`execution-transport.mjs`はtransport全体ではなく、席の窓口（session/observe/wake/画像/実行橋/席状態/活動）だけを受け取る。
+
 ## 公開認証
 
 APIの通信診断では、POST・PUT・PATCH・DELETEの既存の `BellTeam write:` ログを保ち、GET・HEADには `BellTeam read:` を残す。読み取りは受付時の `started` と、接続終了時のHTTP状態または `aborted`・所要時間を記録する。両行の時刻は同じ受付時刻で、追加の要求IDは作らない。本文・問い合わせ文字列・Cookie・認証ヘッダーは記録しない。`/healthz`、静的ファイル、MCPは対象外。SSEは接続の受付と閉鎖だけを記録する。正常終了はNodeが応答をOSへ渡した事を示し、端末が受け取った証明にはしない。同じ時刻・経路の要求が重なる場合、ログだけで一意に対応付けたとは扱わない。
@@ -11,6 +29,8 @@ APIの通信診断では、POST・PUT・PATCH・DELETEの既存の `BellTeam wri
 コンテナ内のMCP連携はloopback専用の内部HTTP入口を使う。BellTeam MCPと通話MCPは席ごとのプロセスを起こさず、各CLIがこの入口の`/mcp`と`/mcp/call-bridge`へHTTPで直結する。どの席かは、席のCLIが持つ`AITERM_SESSION_ID`（Aitermが席をBot IDと同じ名前のセッションで起こして付ける）を各CLIの設定でヘッダー`X-Bellteam-Seat`へ写して伝える。名札がBot台帳に無い要求（席が起こした子など）には、どちらの入口も`BELLTEAM_SEAT_UNRESOLVED`（400）を返す。403にしないのは、Claude Codeが403を「認証が要る」と判定して全席共有の`~/.claude/mcp-needs-auth-cache.json`へサーバー名で記録し、その後しばらく本物のClaudeの席まで接続を飛ばすため（400・404・409・421・422・503は記録されない事を実測）。通話ブリッジは名札の無いBellTeamの合言葉を所属全体として扱うため、名札なしでは中継しない。実測と経緯は [席ごとのMCPをHTTPへ寄せる](plan_mcp-http-consolidation-20261004.md)。追加機能の設定は永続領域へ保存し、環境変数は初回移行に使う。初回のハーネス選択、公式認証、案内botとの会話、追加機能の設定と反映は [初期設定](onboarding.md) に従う。
 
 ## iPhoneアプリ
+
+全体停止の正本・受付抑止・予定制御は本体が持ち、WebとAppleアプリの設定画面は`GET/PATCH /api/ai-control`でON/OFFを操作する。停止処理中・確認済み・一部未確認を分け、通信断では変更を再送せず正本を読み直す。詳細は[全体停止](ai-control.md)。Aitermが所有する連鎖停止は別工程で、この全体制御部品にはまだ接続していない。
 
 メンバーが処理中の個別会話には入力欄の横に■の停止ボタンを表示し、確認ダイアログ無しで`POST /api/bots/:id/stop`を呼ぶ。ルームでは処理中のメンバー行から個別に止める。停止は対象の現在のAI席と要求時点の当該配送を中断し、メンバー・会話・予定と入力中の下書きは残す。後の新しいメッセージや予定は通常どおり起動できる。サーバーは古い送信/起動の返却と順序を合わせて対象の席を閉じ、正規観測で同じ席が消失した時だけ200 `{botId,status:"stopped",online:false}`を返す。closeの返却やqueue消失だけでは停止完了とせず、失敗や観測不能は502 `BOT_STOP_UNCONFIRMED`。端末の通信断・不正応答も結果未確認としてPOSTを自動再送しない。中断した配送は`stopped`として記録し、配達失敗や正常完了と区別する。停止は対象AI席の閉鎖までで、既に行った外部操作の取消、切り離されたprocessや他席・remote作業の停止を保証するものではない。
 

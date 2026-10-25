@@ -42,6 +42,12 @@ struct BotAvatarCache {
         for avatar in avatars {
             guard let name = Self.fileName(for: avatar.id) else { continue }
             let file = directory.appendingPathComponent(name)
+            if let version = avatar.version, previous[name] == version,
+               FileManager.default.fileExists(atPath: file.path), avatar.dataURL.hasPrefix("data:image/") {
+                current[name] = version
+                kept.insert(name)
+                continue
+            }
             if let data = Self.imageData(from: avatar.dataURL) {
                 if avatar.version == nil || previous[name] != avatar.version || !FileManager.default.fileExists(atPath: file.path) {
                     try data.write(to: file, options: .atomic)
@@ -135,5 +141,17 @@ struct BotAvatarCache {
             case .invalidImage: return "通知のアバター画像を読み込めません。"
             }
         }
+    }
+}
+
+actor BotAvatarCacheAccess {
+    static let shared = BotAvatarCacheAccess()
+
+    func storeVersioned(_ avatars: [(id: String, dataURL: String, version: String?)], server: String) throws {
+        try BotAvatarCache.shared.storeVersioned(avatars, server: server)
+    }
+
+    func dataURL(botID: String, server: String, version: String) throws -> String? {
+        try BotAvatarCache.shared.dataURL(botID: botID, server: server, version: version)
     }
 }

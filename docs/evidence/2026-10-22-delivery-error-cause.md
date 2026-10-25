@@ -1,0 +1,9 @@
+# 配送エラーの原因説明を保持する
+
+フラジャイル宛の2026-10-22 12:04 JSTの送信失敗は、Aitermの実行登録にunknown slotを残した。その後の配送は登録で拒否された。最初の失敗を調べた際、BellTeamのExecutionBridgeがisError応答のtextを破棄しており、既存HTTPログにはEXECUTION_UNCONFIRMEDしか残っていなかった。
+
+isErrorのtextをError.causeへ保持し、既存HTTPログで読めるようにした。causeの説明は最大2000文字。元のcode/effect/follow_up、エラー応答、送信回数は変えない。成功receiptとbinding未確認の扱いも維持する。
+
+新回帰は元コードでcause欠落により失敗し、修理後に成功。typed error有無の両方で説明保持、受付分類維持、送信1回を確認した。関連48件、全628件が成功した。
+
+これは原因説明の保持の修理であり、既存unknown slotの解除や配送復旧を実施するものではない。Aitermでも元handlerのisError説明が失われる経路があり、その修理はAiterm担当が進めている。本番反映は別途行う。

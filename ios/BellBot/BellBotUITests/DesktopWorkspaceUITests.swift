@@ -2,6 +2,33 @@
 import XCTest
 
 final class DesktopWorkspaceUITests: XCTestCase {
+    func testMacLongConversationCanScrollAndAcceptInput() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview-updating-chat", "-bellbot-preview-performance-chat"]
+        app.launch()
+        defer { app.terminate() }
+        let bot = app.buttons["conversation-bot-one"]
+        XCTAssertTrue(bot.waitForExistence(timeout: 10))
+        bot.click()
+        let input = app.textViews["message-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        let rows = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "message-text-updating-"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(rows.count, 0)
+        XCTAssertLessThan(rows.count, 100, "Macも画面外の全行を配置しない")
+        let scroll = app.scrollViews["conversation-messages"]
+        scroll.scroll(byDeltaX: 0, deltaY: -500)
+        scroll.scroll(byDeltaX: 0, deltaY: 500)
+        input.click()
+        input.typeText("Mac会話の入力確認")
+        XCTAssertEqual(input.value as? String, "Mac会話の入力確認")
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Macの100行更新と入力"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testMacHasOneInspectorButtonAndNoProfilePopup() {
         let app = XCUIApplication()
         app.launchArguments = ["-bellbot-preview"]

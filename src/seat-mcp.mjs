@@ -15,6 +15,8 @@ import { bellTeamTools, callBellTeamTool } from './mcp-tools.mjs'
 // 席が起こした子は自分のセッション名を持つので、台帳に無い名札になる。
 export const SEAT_HEADER = 'X-Bellteam-Seat'
 export const SEAT_VARIABLE = 'AITERM_SESSION_ID'
+export const LAUNCH_HEADER = 'X-Bellteam-Launch-Id'
+export const LAUNCH_VARIABLE = 'AITERM_AGENT_LAUNCH_ID'
 export const BELLTEAM_MCP_PATH = '/mcp'
 export const CALL_BRIDGE_MCP_PATH = '/mcp/call-bridge'
 export const CALLER_ID_HEADER = 'X-Call-Bridge-Caller-Id'
@@ -26,8 +28,17 @@ export function seatBotId(request, bots) {
   return typeof value === 'string' && bots.has(value) ? value : null
 }
 
+// A runtime claim captured at HTTP ingress, never a verified execution or a model argument.
+export function seatExecutionSource(request, bots) {
+  const sourceSession = seatBotId(request, bots)
+  const value = request.headers[LAUNCH_HEADER.toLowerCase()]
+  const launch = sourceSession && typeof value === 'string' && /^[0-9a-f]{32}$/u.test(value)
+    ? { session_id: sourceSession, launch_id: value } : null
+  return { sourceSession, source: { launch, boundary: null } }
+}
+
 // 道具のうち、配送・設定・再起動は本体のAPIと同じ経路を通す。
-export function internalApi(port, request = fetch) {
+export function internalApi(port, request = fetch, { executionSource } = {}) {
   const call = async (path, body, method = 'POST') => {
     const response = await request(`http://127.0.0.1:${port}${path}`, {
       method,
@@ -42,8 +53,8 @@ export function internalApi(port, request = fetch) {
     return result
   }
   return {
-    deliverMessage: value => call('/api/deliveries/direct', value),
-    deliverRoomMessage: value => call('/api/deliveries/room', value),
+    deliverMessage: value => call('/api/deliveries/direct', executionSource ? { ...value, executionSource } : value),
+    deliverRoomMessage: value => call('/api/deliveries/room', executionSource ? { ...value, executionSource } : value),
     listQueued: async botId => {
       const result = await call('/api/queue', undefined, 'GET')
       return { items: botId ? result.items.filter(item => item.botId === botId) : result.items }
@@ -63,7 +74,7 @@ export function internalApi(port, request = fetch) {
 }
 
 // tools: callBellTeamTool へ渡す依存（台帳・配送・記憶など）。callBridge: () => ({ url, headersFile }) または null。
-export function createSeatMcp({ bots, tools, callBridge = () => null }) {
+export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), callBridge = () => null, assertWorkAllowed = () => {}, admitWork = () => assertWorkAllowed }) {
   const relays = new Set()
   const handle = async (request, response, url) => {
     if (url.pathname !== BELLTEAM_MCP_PATH && url.pathname !== CALL_BRIDGE_MCP_PATH) return reply(response, 404, { error: 'NOT_FOUND' })
@@ -72,12 +83,18 @@ export function createSeatMcp({ bots, tools, callBridge = () => null }) {
     // サーバー名で記録し、その後しばらく本物の席の接続まで飛ばす（2026-10-04、試験用の席1つで2席が道具なしで起きた）。
     const from = seatBotId(request, bots)
     if (!from) return reply(response, 400, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
-    if (url.pathname === CALL_BRIDGE_MCP_PATH) return relayCallBridge(request, response, { from, callBridge, relays })
+    if (url.pathname === CALL_BRIDGE_MCP_PATH) {
+      let check
+      try { check = admitWork(); check() }
+      catch (error) { return reply(response, error.status ?? 502, { error: error.code ?? 'CALL_BRIDGE_UNAVAILABLE' }) }
+      return relayCallBridge(request, response, { from, callBridge, relays, assertWorkAllowed: check })
+    }
     if (request.method !== 'POST') return reply(response, 405, { error: 'METHOD_NOT_ALLOWED' }, { allow: 'POST' })
+    const scopedTools = { ...tools, ...toolsForSource(seatExecutionSource(request, bots)) }
     const server = new Server({ name: 'bellteam', version: '0.1.0' }, { capabilities: { tools: {} }, instructions: INSTRUCTIONS })
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: bellTeamTools }))
     server.setRequestHandler(CallToolRequestSchema, async call => ({
-      content: [{ type: 'text', text: JSON.stringify(await callBellTeamTool({ ...tools, name: call.params.name, arguments: call.params.arguments, from })) }],
+      content: [{ type: 'text', text: JSON.stringify(await callBellTeamTool({ ...scopedTools, name: call.params.name, arguments: call.params.arguments, from })) }],
     }))
     // 接続ごとの状態を持たない。要求ごとに受け口を作り、応答を返したら閉じる。
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })
@@ -95,7 +112,7 @@ const RELAYED_RESPONSE_HEADERS = ['content-type', 'cache-control', 'mcp-session-
 
 // 通話ブリッジのMCPへ、要求と応答をためずにそのまま流す。合言葉と発信者の名札はここで付け、
 // 席のCLIが付けてきた Authorization と名札は流さない。応答の待ち時間に上限を置かない（黙った流れを切らない）。
-async function relayCallBridge(request, response, { from, callBridge, relays }) {
+async function relayCallBridge(request, response, { from, callBridge, relays, assertWorkAllowed }) {
   const target = callBridge()
   if (!target) return reply(response, 404, { error: 'CALL_BRIDGE_DISABLED' })
   const headers = Object.fromEntries(RELAYED_REQUEST_HEADERS.flatMap(name => request.headers[name] === undefined ? [] : [[name, request.headers[name]]]))
@@ -110,6 +127,9 @@ async function relayCallBridge(request, response, { from, callBridge, relays }) 
     if (at > 0) headers[line.slice(0, at).trim()] = line.slice(at + 1).trim()
   }
   headers[CALLER_ID_HEADER] = from
+  // Reading credentials may overlap ON. Do not begin a new upstream call afterwards.
+  try { assertWorkAllowed() }
+  catch (error) { return reply(response, error.status ?? 502, { error: error.code ?? 'CALL_BRIDGE_UNAVAILABLE' }) }
   const url = new URL(target.url)
   const upstream = (url.protocol === 'https:' ? httpsRequest : httpRequest)(url, { method: request.method, headers }, answer => {
     // 合言葉は席では直せない。401をそのまま返すと、CLIがこの入口へ認証を始めようとする。
