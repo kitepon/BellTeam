@@ -1,4 +1,4 @@
-const statusText = { waiting: '公式認証の完了を待っています。', authenticated: '認証済みです。確認して案内役との会話を始めてください。', blocked: '認証に必要な操作を確認してください。', failed: '認証に失敗しました。表示された理由を確認してください。' }
+import { authFlowView, renderAuthFlow } from './auth-flow.js?v=__ASSET_VERSION__'
 
 export function openOnboarding(initial, { api, onReady }) {
   const dialog = document.createElement('dialog')
@@ -11,6 +11,8 @@ export function openOnboarding(initial, { api, onReady }) {
   document.body.append(dialog)
   let setup = initial
   let busy = false
+  let revision = 0
+  let inputBlocked = false
   let stopped = false
   let timer
   let errorText = ''
@@ -40,15 +42,17 @@ export function openOnboarding(initial, { api, onReady }) {
   }
   function schedule() {
     clearTimeout(timer)
-    if (stopped || document.hidden || errorText || setup.auth?.status !== 'waiting') return
+    if (stopped || document.hidden || errorText || !['open_url', 'device_code', 'paste_code', 'select', 'waiting'].includes(authFlowView(setup.auth).stage)) return
     timer = setTimeout(async () => {
       if (busy) { schedule(); return }
+      const observedRevision = revision
       try {
         const next = await api('/api/setup')
+        if (stopped || observedRevision !== revision) return
         // 状態が同じ間は、入力中の認証欄を作り直さない。
         if (JSON.stringify(next) !== JSON.stringify(setup)) { setup = next; render() }
         schedule()
-      } catch (error) { errorText = error.message; render() }
+      } catch (error) { if (stopped || observedRevision !== revision) return; errorText = error.message; render() }
     }, 3000)
   }
   async function post(path, body = {}) {
@@ -60,12 +64,14 @@ export function openOnboarding(initial, { api, onReady }) {
   async function perform(action) {
     if (busy) return
     busy = true
+    revision++
     clearTimeout(timer)
     errorText = ''
     clear()
     render()
     try {
       setup = await action()
+      inputBlocked = false
       if (setup.phase === 'ready') { await onReady(setup); dialog.close(); return }
     } catch (error) { errorText = error.message }
     finally { busy = false; if (!stopped) { render(); schedule() } }
@@ -88,53 +94,11 @@ export function openOnboarding(initial, { api, onReady }) {
       content.append(name)
       const auth = setup.auth
       if (auth) {
-        const state = document.createElement('p')
-        state.setAttribute('role', 'status')
-        state.textContent = statusText[auth.status] ?? '認証状態を確認してください。'
-        content.append(state)
-        if (auth.message) content.append(Object.assign(document.createElement('p'), { textContent: auth.message }))
-        if (auth.url) {
-          const url = new URL(auth.url)
-          if (url.protocol === 'https:') {
-            const link = document.createElement('a')
-            link.href = url.href
-            link.target = '_blank'
-            link.rel = 'noopener noreferrer'
-            link.textContent = '公式サイトで認証する'
-            content.append(link)
-          }
-        }
-        if (auth.user_code) {
-          const code = document.createElement('p')
-          code.className = 'auth-user-code'
-          code.textContent = `利用者コード: ${auth.user_code}`
-          content.append(code)
-        }
-        if (auth.input_required) {
-          const label = document.createElement('label')
-          label.className = 'field'
-          label.append(Object.assign(document.createElement('span'), { textContent: '認証に必要な入力' }))
-          password = document.createElement('input')
-          password.type = 'password'
-          password.autocomplete = 'off'
-          password.autocapitalize = 'none'
-          password.spellcheck = false
-          password.disabled = busy
-          label.append(password)
-          const send = document.createElement('button')
-          send.type = 'button'
-          send.textContent = '入力を送る'
-          send.disabled = true
-          password.addEventListener('input', () => { send.disabled = busy || !password.value })
-          send.addEventListener('click', () => {
-            const text = password.value
-            void perform(() => post('auth/input', { text }))
-          })
-          const keys = document.createElement('div')
-          keys.className = 'secret-actions'
-          for (const key of ['Enter', 'Up', 'Down', 'Tab']) keys.append(button(key, () => post('auth/input', { key })))
-          content.append(label, send, keys)
-        }
+        const flow = renderAuthFlow(inputBlocked ? { auth_ui: { stage: 'unavailable', title: '認証結果を確認してください', message: '同じ入力を繰り返さず、状態を更新してください。', binding: null } } : auth, { name: setup.harnesses.find(h => h.id === setup.harness)?.name ?? '公式', busy,
+          respond: input => perform(async () => { try { return await post('auth/input', input) } catch (error) { inputBlocked = true; throw error } }),
+        })
+        password = flow.password
+        content.append(...flow.elements)
       }
       content.append(button('認証を確認して始める', () => post('start')), button('認証の状態を更新', () => api('/api/setup')))
       const change = document.createElement('details')

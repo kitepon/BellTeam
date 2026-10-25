@@ -59,6 +59,7 @@ export class AitermClient {
     await this.connect()
     const result = await this.client.callTool({ name, arguments: args, ...(meta ? { _meta: meta } : {}) })
     if (result.isError) {
+      if (name === 'agent_auth' && result.structuredContent?.schema === 'aiterm.auth-response-error.v1') return result
       const message = textResult(result) || `AITERM_TOOL_FAILED: ${name}`
       const error = new Error(message)
       // tool handlerがエラー結果を返し終えた事と、RPC timeout/通信断で結果が不明な事を区別する。
