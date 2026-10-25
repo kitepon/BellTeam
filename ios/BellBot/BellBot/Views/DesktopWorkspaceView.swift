@@ -154,7 +154,7 @@ struct DesktopWorkspaceView: View {
                 .padding(.horizontal, 10).padding(.bottom, 15)
             }
             Divider()
-            HStack(spacing: 8) {
+            HStack(spacing: 4) {
                 Button { store.selectedTab = 1; compactColumn = .detail } label: { Label("予定", systemImage: "calendar") }
                     .keyboardShortcut("2", modifiers: .command)
                 Spacer()
@@ -164,7 +164,8 @@ struct DesktopWorkspaceView: View {
                 Button { store.selectedTab = 2; compactColumn = .detail } label: { Label("設定", systemImage: "gearshape") }
                     .keyboardShortcut(",", modifiers: .command)
             }
-            .font(BellTheme.controlsFont).buttonStyle(.borderless).padding(18)
+            .font(BellTheme.controlsFont).buttonStyle(.borderless)
+            .padding(.horizontal, 10).padding(.vertical, 18)
             HStack(spacing: 7) {
                 Circle().fill(BellTheme.mint).frame(width: 6, height: 6)
                 Text("\(store.bots.filter(\.online).count)人オンライン")

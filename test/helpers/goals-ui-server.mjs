@@ -29,22 +29,36 @@ const initialSnapshots = () => new Map([
     message: 'このメンバーではゴール機能をまだ利用できません。' }],
 ])
 let snapshots = initialSnapshots()
-let writes = []
+let writes = [], reads = []
+let nextOutcome = null
 const json = (response, body, status = 200) => {
   response.writeHead(status, { 'content-type': 'application/json' })
   response.end(JSON.stringify(body))
 }
 const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1')
-  if (url.pathname === '/test/reset') { snapshots = initialSnapshots(); writes = []; return json(response, { ok: true }) }
-  if (url.pathname === '/test/proof') return json(response, { writes })
+  if (url.pathname === '/test/reset') { snapshots = initialSnapshots(); writes = []; reads = []; nextOutcome = null; return json(response, { ok: true }) }
+  if (url.pathname === '/test/proof') return json(response, { writes, reads })
+  if (url.pathname === '/test/next') {
+    if (!['unconfirmed', 'drop-response'].includes(url.searchParams.get('mode'))) return json(response, { error: 'UNKNOWN_MODE' }, 400)
+    nextOutcome = url.searchParams.get('mode')
+    return json(response, { ok: true })
+  }
+  if (url.pathname === '/test/fields') {
+    const snapshot = snapshots.get(url.searchParams.get('bot'))
+    if (!snapshot) return json(response, { error: 'BOT_NOT_FOUND' }, 404)
+    if (url.searchParams.get('mode') !== 'objective-only') return json(response, { error: 'UNKNOWN_MODE' }, 400)
+    snapshot.fieldCapabilities.edit = { objective: true, tokenBudget: false, combined: false }
+    snapshot.observedAt = new Date().toISOString()
+    return json(response, { ok: true })
+  }
   if (url.pathname === '/api/goals' && request.method === 'GET')
     return json(response, { goals: [...snapshots.values()] })
   const match = url.pathname.match(/^\/api\/bots\/(bot-[a-z]+)\/goal$/u)
   if (!match) return json(response, { error: 'NOT_FOUND' }, 404)
   const snapshot = snapshots.get(match[1])
   if (!snapshot) return json(response, { error: 'BOT_NOT_FOUND' }, 404)
-  if (request.method === 'GET') return json(response, { snapshot })
+  if (request.method === 'GET') { reads.push(snapshot.botId); return json(response, { snapshot }) }
   if (request.method !== 'POST') return json(response, { error: 'METHOD_NOT_ALLOWED' }, 405)
   const chunks = []
   for await (const chunk of request) chunks.push(chunk)
@@ -57,6 +71,7 @@ const server = createServer(async (request, response) => {
     return json(response, { error: 'GOAL_FIELDS_CANNOT_COMBINE' }, 400)
   writes.push({ action: input.action, botId: snapshot.botId,
     objective: Object.hasOwn(input, 'objective'), tokenBudget: Object.hasOwn(input, 'tokenBudget') })
+  if (nextOutcome === 'unconfirmed') { nextOutcome = null; return json(response, { outcome: 'unconfirmed', snapshot }, 202) }
   if (input.action === 'pause') snapshot.goal.status = 'paused'
   if (input.action === 'resume') snapshot.goal.status = 'active'
   if (input.action === 'clear') snapshot.goal = null
@@ -68,6 +83,7 @@ const server = createServer(async (request, response) => {
   snapshot.capabilities = capabilities(snapshot.goal)
   snapshot.fieldCapabilities = fieldCapabilities(snapshot.capabilities)
   snapshot.observedAt = new Date().toISOString()
+  if (nextOutcome === 'drop-response') { nextOutcome = null; request.socket.destroy(); return }
   json(response, { outcome: 'confirmed', snapshot })
 })
 server.listen(0, '127.0.0.1', () => console.log(JSON.stringify({ url: `http://127.0.0.1:${server.address().port}` })))
