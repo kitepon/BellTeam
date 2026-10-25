@@ -1,0 +1,78 @@
+{
+  "schema": "bellteam.apple-internal-delivery.v1",
+  "product": "BellTeam",
+  "bundleId": "dev.kitepon.bellbot",
+  "appStoreConnectAppId": "6816295589",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "63",
+  "signedSourceCommit": "d490e0e0ebb8e14c0cc66bcfa925f31fdf0b6aec",
+  "repairMergeCommit": "7f408a9f1eb2eeb5769eaefb993673a13805c85f",
+  "versionMergeCommit": "d490e0e0ebb8e14c0cc66bcfa925f31fdf0b6aec",
+  "ownerApproval": {
+    "title": "BellTeam版63を署名してオーナー内部TestFlightへ配布する",
+    "choice": "go",
+    "answeredAt": "2026-10-25T02:07:48.023Z"
+  },
+  "betaGroup": {
+    "id": "58133050-1c39-4915-b6da-aac18b95921b",
+    "name": "BellTeam オーナー",
+    "internal": true
+  },
+  "artifacts": [
+    {
+      "platform": "IOS",
+      "relativePath": "runtime/apple/build63/ios-export/BellTeam.ipa",
+      "sha256": "93f2d331d6ec77d0a607f4a09b4df0d7527ab0543a231e127a34cb8e1fcbc34e",
+      "appBundleVersion": "63",
+      "extensionBundleVersion": "63",
+      "archiveSignature": "strict-valid",
+      "exportSignature": "Apple Distribution, strict-valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadDeliveryUuid": "7e18162a-f247-4697-ba82-b1905f0c3561",
+      "uploadResult": "no-errors",
+      "appStoreConnectBuildId": "7e18162a-f247-4697-ba82-b1905f0c3561",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    },
+    {
+      "platform": "MAC_OS",
+      "relativePath": "runtime/apple/build63/mac-export/BellTeam.pkg",
+      "sha256": "5a71668f804cca8aec88dc5501a46237501f0bcdbea8364ad9b88e1204d8c882",
+      "appBundleVersion": "63",
+      "extensionBundleVersion": "63",
+      "architectures": ["arm64", "x86_64"],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "Apple Distribution, strict-valid",
+      "installerSignature": "valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadDeliveryUuid": "40e68486-4892-4a2d-beab-fed2f2060eef",
+      "uploadResult": "no-errors",
+      "appStoreConnectBuildId": "40e68486-4892-4a2d-beab-fed2f2060eef",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    }
+  ],
+  "macTestFlightSmoke": {
+    "installedPath": "/Applications/BellTeam.app",
+    "appBundleVersion": "63",
+    "extensionBundleVersion": "63",
+    "strictSignature": "valid",
+    "gatekeeperSource": "Testflight",
+    "observedRunningProcessId": 24764,
+    "visibleResult": "member-list-and-detail",
+    "appAlreadyRunningWhenInspected": true,
+    "observedProcessNotTerminated": true,
+    "realBotMessageSent": false
+  },
+  "remaining": {
+    "ownerIPhoneCheck": "pending-next-normal-use",
+    "ownerCheckTitle": "BellTeam版63のiPhone送信本文の見え方を通常使用で確認する",
+    "ownerImageOperationOrder": "unconfirmed"
+  },
+  "serverContainerRestarted": false,
+  "publicAppStoreReleased": false
+}
