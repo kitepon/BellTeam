@@ -13,37 +13,51 @@ const exists = async path => { try { return await lstat(path) } catch (error) { 
 async function directory(path) {
   if (dirname(path) !== path) await directory(dirname(path))
   const info = await exists(path)
-  if (!info) { await directory(dirname(path)); await mkdir(path, { mode: 0o700 }); return }
+  if (!info) { await mkdir(path, { mode: 0o700 }); await syncDirectory(dirname(path)); return }
   if (!info.isDirectory() || info.isSymbolicLink()) throw failure('SERVER_STATE_DIRECTORY_INVALID')
 }
+async function useFile(file, run) {
+  let value, error
+  try { value = await run(file) } catch (failure) { error = failure }
+  try { await file.close() } catch (failure) {
+    error = error ? new AggregateError([error, failure], 'SERVER_STATE_CLOSE_FAILED') : failure
+  }
+  if (error) throw error
+  return value
+}
 async function syncDirectory(path) {
-  const file = await open(path, 'r')
-  try { await file.sync() } finally { await file.close() }
+  await useFile(await open(path, 'r'), file => file.sync())
+}
+async function syncAncestors(path, root) {
+  for (;;) {
+    await syncDirectory(path)
+    if (path === root) return
+    path = dirname(path)
+  }
 }
 async function regular(path) {
   await directory(dirname(path))
   const info = await lstat(path)
   if (!info.isFile() || info.nlink !== 1) throw failure('SERVER_STATE_FILE_INVALID')
   const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
-  const opened = await file.stat()
-  if (opened.dev !== info.dev || opened.ino !== info.ino) { await file.close(); throw failure('SERVER_STATE_FILE_CHANGED') }
-  return file
+  try {
+    const opened = await file.stat()
+    if (opened.dev !== info.dev || opened.ino !== info.ino) throw failure('SERVER_STATE_FILE_CHANGED')
+    return file
+  } catch (error) { return useFile(file, () => { throw error }) }
 }
 async function equalFiles(a, b) {
-  const left = await regular(a), right = await regular(b)
-  try {
+  return useFile(await regular(a), async left => useFile(await regular(b), async right => {
     const x = Buffer.alloc(65536), y = Buffer.alloc(65536)
     while (true) {
       const [l, r] = await Promise.all([left.read(x), right.read(y)])
       if (l.bytesRead !== r.bytesRead || !x.subarray(0, l.bytesRead).equals(y.subarray(0, r.bytesRead))) return false
       if (!l.bytesRead) return true
     }
-  } finally { await left.close(); await right.close() }
+  }))
 }
-async function moveFile(source, destination) {
-  const original = await regular(source)
-  const before = await original.stat()
-  await original.close()
+async function moveFile(source, destination, root) {
+  const before = await useFile(await regular(source), file => file.stat())
   await directory(dirname(destination))
   if (await exists(destination)) {
     if (!await equalFiles(source, destination)) throw failure('SERVER_STATE_TRANSFER_CONFLICT')
@@ -52,21 +66,21 @@ async function moveFile(source, destination) {
     try {
       await copyFile(source, temporary, constants.COPYFILE_EXCL)
       await chmod(temporary, 0o600)
-      const file = await open(temporary, 'r+')
-      try { await file.sync() } finally { await file.close() }
+      await useFile(await open(temporary, 'r+'), file => file.sync())
       // No stopped writer may have changed the source or created a target.
       if (await exists(destination)) throw failure('SERVER_STATE_TRANSFER_CONFLICT')
       await rename(temporary, destination)
       await syncDirectory(dirname(destination))
     } finally { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error }) }
   }
+  await syncAncestors(dirname(destination), root)
   const after = await lstat(source)
   if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.ctimeMs !== after.ctimeMs
     || before.mtimeMs !== after.mtimeMs || !after.isFile() || after.nlink !== 1) throw failure('SERVER_STATE_FILE_CHANGED')
   await unlink(source)
   await syncDirectory(dirname(source))
 }
-async function moveTree(source, destination) {
+async function moveTree(source, destination, root) {
   const info = await exists(source)
   if (!info) return
   if (!info.isDirectory() || info.isSymbolicLink()) throw failure('SERVER_STATE_DIRECTORY_INVALID')
@@ -74,23 +88,22 @@ async function moveTree(source, destination) {
   await directory(destination)
   for (const entry of await readdir(source, { withFileTypes: true })) {
     const from = join(source, entry.name), to = join(destination, entry.name)
-    if (entry.isDirectory()) await moveTree(from, to)
-    else if (entry.isFile()) await moveFile(from, to)
+    if (entry.isDirectory()) await moveTree(from, to, root)
+    else if (entry.isFile()) await moveFile(from, to, root)
     else throw failure('SERVER_STATE_FILE_INVALID')
   }
   await rmdir(source)
   await syncDirectory(dirname(source))
 }
 async function validateJson(path, valid) {
-  const file = await regular(path)
-  try { if (!valid(JSON.parse(await file.readFile('utf8')))) throw failure('SERVER_STATE_DOCUMENT_INVALID') }
-  catch (error) { if (error instanceof SyntaxError) throw failure('SERVER_STATE_DOCUMENT_INVALID'); throw error }
-  finally { await file.close() }
+  return useFile(await regular(path), async file => {
+    try { if (!valid(JSON.parse(await file.readFile('utf8')))) throw failure('SERVER_STATE_DOCUMENT_INVALID') }
+    catch (error) { if (error instanceof SyntaxError) throw failure('SERVER_STATE_DOCUMENT_INVALID'); throw error }
+  })
 }
 async function marker(path) {
   await directory(dirname(path))
-  const file = await open(path, 'wx', 0o600)
-  try { await file.sync() } finally { await file.close() }
+  await useFile(await open(path, 'wx', 0o600), file => file.sync())
   await syncDirectory(dirname(path))
 }
 
@@ -130,6 +143,8 @@ export async function transferServerState({ root, direction }) {
   ]
   const remaining = (await Promise.all(fromFiles.map(exists))).some(Boolean)
   if (await exists(toMarker)) {
+    await useFile(await regular(toMarker), () => {})
+    if (await exists(fromMarker)) await useFile(await regular(fromMarker), () => {})
     if (remaining) throw failure('SERVER_STATE_TRANSFER_CONFLICT')
     // Recovery after the target commit but before retiring the source marker.
     if (await exists(fromMarker)) { await unlink(fromMarker); await syncDirectory(from) }
@@ -139,7 +154,7 @@ export async function transferServerState({ root, direction }) {
     if (!ids.size && !remaining) return { direction, status: 'fresh' }
     throw failure('SERVER_STATE_MIGRATION_MARKER_MISSING')
   }
-  await regular(fromMarker).then(file => file.close())
+  await useFile(await regular(fromMarker), () => {})
   // Validate every remaining profile/schedule before removing any source file.
   for (const id of ids) {
     for (const name of ['bot.json', 'schedule.json']) {
@@ -150,8 +165,8 @@ export async function transferServerState({ root, direction }) {
     }
   }
   for (const id of ids) {
-    for (const name of ['bot.json', 'schedule.json']) if (await exists(join(from, id, name))) await moveFile(join(from, id, name), join(to, id, name))
-    await moveTree(join(from, id, 'messages/assets'), join(to, id, 'messages/assets'))
+    for (const name of ['bot.json', 'schedule.json']) if (await exists(join(from, id, name))) await moveFile(join(from, id, name), join(to, id, name), root)
+    await moveTree(join(from, id, 'messages/assets'), join(to, id, 'messages/assets'), root)
   }
   for (const pair of pairs) {
     const [a, b] = direction === 'to-server' ? pair : [...pair].reverse()
@@ -159,10 +174,12 @@ export async function transferServerState({ root, direction }) {
     if (!await exists(source)) continue
     if (a.endsWith('/ai-control.json')) {
       await transferAiControlState({ legacyRoot: root, stateRoot: join(root, 'state'), direction })
+      await syncAncestors(dirname(target), root)
       await unlink(source)
       await syncDirectory(dirname(source))
-    } else await moveFile(source, target)
+    } else await moveFile(source, target, root)
   }
+  await syncAncestors(to, root)
   await marker(toMarker) // Complete all state before making the new registry bootable.
   await unlink(fromMarker)
   await syncDirectory(from)

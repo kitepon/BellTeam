@@ -94,3 +94,63 @@ test('空設置と壊れた既設置を区別し、AI停止文書を有効既定
   assert.equal((await transferServerState({ root: empty, direction: 'to-server' })).status, 'fresh')
   await assert.rejects(transferServerState({ root: 'relative', direction: 'to-server' }), { code: 'SERVER_STATE_TRANSFER_OPTIONS' })
 })
+
+test('不正なtarget markerや旧markerをcommit扱いせず、正しい旧完了印を残す', async t => {
+  const f = await fixture(t)
+  await mkdir(join(f.root, 'state/bots'), { recursive: true })
+  await symlink(join(f.root, 'bots/.initialized'), join(f.root, 'state/bots/.initialized'))
+  await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_FILE_INVALID' })
+  assert.ok((await lstat(join(f.root, 'bots/.initialized'))).isFile())
+  await rm(join(f.root, 'state/bots/.initialized'))
+  await f.transfer('to-server')
+  await link(join(f.root, 'state/bots/.initialized'), join(f.root, 'bots/.initialized'))
+  await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_FILE_INVALID' })
+  assert.ok((await lstat(join(f.root, 'bots/.initialized'))).isFile())
+})
+
+test('target新祖先の同期が失敗したらsourceを退役せず、既存targetから同期を再試行する', async t => {
+  const f = await fixture(t)
+  await mkdir(join(f.root, 'state/bots/bot-a'), { recursive: true })
+  const fs = (await import('node:fs')).default, { syncBuiltinESMExports } = await import('node:module')
+  const original = fs.promises.open, fault = new Error('synthetic ancestor fsync failure')
+  fs.promises.open = async (...args) => {
+    const file = await original(...args)
+    if (args[0] === join(f.root, 'state/bots')) file.sync = async () => { throw fault }
+    return file
+  }
+  syncBuiltinESMExports()
+  try {
+    await assert.rejects(f.transfer('to-server'), error => error === fault)
+    assert.equal(JSON.parse(await f.get('bots/bot-a/bot.json')).id, 'bot-a')
+    await f.absent('state/bots/.initialized')
+  } finally { fs.promises.open = original; syncBuiltinESMExports() }
+  assert.equal((await f.transfer('to-server')).status, 'transferred')
+})
+
+test('後続open拒否やopen後stat失敗でも取得済handleを閉じ、元例外を返す', async t => {
+  const f = await fixture(t)
+  await f.put('state/bots/bot-a/bot.json', f.profile('bot-a'))
+  await link(join(f.root, 'state/bots/bot-a/bot.json'), join(f.root, 'linked-profile'))
+  const fs = (await import('node:fs')).default, { syncBuiltinESMExports } = await import('node:module')
+  const original = fs.promises.open
+  let opened = 0, closed = 0, statCalls = 0, inject = false, failAt = 1
+  const fault = new Error('synthetic handle stat failure')
+  fs.promises.open = async (...args) => {
+    const file = await original(...args), close = file.close.bind(file), stat = file.stat.bind(file)
+    opened++
+    file.close = async () => { try { return await close() } finally { closed++ } }
+    file.stat = async () => { if (inject && args[0] === join(f.root, 'bots/bot-a/bot.json') && ++statCalls === failAt) throw fault; return stat() }
+    return file
+  }
+  syncBuiltinESMExports()
+  try {
+    await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_FILE_INVALID' })
+    assert.equal(opened, closed)
+    await rm(join(f.root, 'linked-profile')); inject = true
+    for (const call of [1, 3]) {
+      failAt = call; statCalls = 0
+      await assert.rejects(f.transfer('to-server'), error => error === fault)
+      assert.equal(opened, closed)
+    }
+  } finally { fs.promises.open = original; syncBuiltinESMExports() }
+})

@@ -437,3 +437,15 @@ The privileged offline caller and installer must still wire those conditions
 and must not start either generation after a transfer error. The branch stays
 Draft and NOTDEPLOYABLE pending that integration and the existing four-CLI/PGID
 and downtime acceptance.
+
+The independent ccde review found missing durability for new target ancestor
+entries before source retirement, unchecked commit-marker symlinks and a
+handle leak on a later acquisition/stat failure. New directories now sync their
+parent before use, and all target ancestors inside the data root sync before
+source unlink (including AI-control and the final marker). A failed sync leaves
+the source recoverable. Both commit markers are validated as regular, single-
+link NOFOLLOW files before any recovery deletion. One owned-handle scope closes
+on every later acquisition/stat failure and preserves the original exception,
+aggregating an additional close error when necessary. Regressions exercise
+marker symlinks/hardlinks, an actual-directory-fsync fault preserving source,
+and acquisition/stat failures with zero unclosed handles.
