@@ -83,3 +83,42 @@ test('a failed older list read removes stale rows but retains another member new
   list.reject(Error('artificial read failed')); await refresh
   assert.equal(f.row('a'), undefined); assert.ok(f.button('b', '再開')); assert.match(f.notice.textContent, /artificial read failed/)
 })
+
+test('a same-binding refresh before mutation completion is reconciled after commit without repeating the mutation', async () => {
+  const held = deferred(); let current = snapshot('a', 'A'), writes = 0, readbacks = 0
+  const f = fixture(async (path, options) => {
+    if (options?.method === 'POST') { writes++; return held.promise }
+    if (path === '/api/goals') return { goals: [current] }
+    readbacks++; return { snapshot: current }
+  })
+  await f.view.open(); const changing = f.button('a', '一時停止').events.click[0]()
+  await f.view.refresh(); assert.ok(f.button('a', '一時停止'))
+  current = snapshot('a', 'A', 'paused'); held.resolve({ outcome: 'confirmed', snapshot: current }); await changing
+  assert.equal(writes, 1); assert.equal(readbacks, 1); assert.equal(f.button('a', '再開').disabled, false)
+})
+
+test('a new thread refresh supersedes an in-flight post-completion readback', async () => {
+  const held = deferred(), readback = deferred(), reading = deferred(); let current = snapshot('a', 'A')
+  const f = fixture(async (path, options) => {
+    if (options?.method === 'POST') return held.promise
+    if (path === '/api/goals') return { goals: [current] }
+    reading.resolve(); return readback.promise
+  })
+  await f.view.open(); const changing = f.button('a', '一時停止').events.click[0]()
+  await f.view.refresh(); held.resolve({ outcome: 'confirmed', snapshot: snapshot('a', 'A', 'paused') }); await reading.promise
+  current = snapshot('a', 'B'); await f.view.refresh(); readback.resolve({ snapshot: snapshot('a', 'A', 'paused') }); await changing
+  assert.equal(f.objective('a'), 'B'); assert.equal(f.button('a', '再開'), undefined); assert.equal(f.button('a', '一時停止').disabled, false)
+})
+
+test('failed same-binding reconciliation removes stale controls and releases pending without a mutation retry', async () => {
+  const held = deferred(); let writes = 0
+  const f = fixture(async (path, options) => {
+    if (options?.method === 'POST') { writes++; return held.promise }
+    if (path === '/api/goals') return { goals: [snapshot('a', 'A')] }
+    throw Error('artificial read failed')
+  })
+  await f.view.open(); const changing = f.button('a', '一時停止').events.click[0](); await f.view.refresh()
+  held.resolve({ outcome: 'confirmed', snapshot: snapshot('a', 'A', 'paused') }); await changing
+  assert.equal(writes, 1); assert.equal(f.button('a', '一時停止'), undefined); assert.match(f.notice.textContent, /確認できませんでした/)
+  await f.view.refresh(); assert.equal(f.button('a', '一時停止').disabled, false)
+})

@@ -159,7 +159,28 @@ export function goalsView(dialog, api, getBots) {
         snapshots = snapshots.map(item => item.botId === snapshot.botId ? { botId: item.botId, availability: 'unavailable', goal: null } : item)
         report('変更結果と現在の状態を確認できませんでした。更新して確認してください。')
       }
-    } finally { pending.delete(snapshot.botId); refreshButton.disabled = refreshing; render() }
+    } finally {
+      // A list read may have superseded this write before it committed. Do not
+      // apply its old response, but reconcile the still-visible same binding
+      // with a new read started after completion. A different thread stays put.
+      const visible = snapshots.find(item => item.botId === snapshot.botId)
+      if (!stillCurrent() && visible && ['sessionId', 'launchId', 'threadId'].every(key => visible.binding?.[key] === snapshot.binding?.[key])) {
+        const read = advance(snapshot.botId)
+        try {
+          const result = await api(`/api/bots/${encodeURIComponent(snapshot.botId)}/goal`)
+          if (observed(snapshot.botId) === read) {
+            if (result.snapshot?.botId !== snapshot.botId) throw new Error('ゴールを確認できませんでした')
+            snapshots = snapshots.map(item => item.botId === snapshot.botId ? result.snapshot : item)
+          }
+        } catch {
+          if (observed(snapshot.botId) === read) {
+            snapshots = snapshots.map(item => item.botId === snapshot.botId ? { botId: item.botId, availability: 'unavailable', goal: null } : item)
+            report('変更後の現在の状態を確認できませんでした。更新して確認してください。')
+          }
+        }
+      }
+      pending.delete(snapshot.botId); refreshButton.disabled = refreshing; render()
+    }
   }
   refreshButton.addEventListener('click', () => { report(''); void refresh() })
   return { open: async () => { dialog.showModal(); report(''); await refresh() }, refresh }
