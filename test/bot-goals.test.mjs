@@ -88,3 +88,34 @@ test('native拒否と取得不能は具体的に返し、壊れた返却は診�
   assert.equal((await lost.service.mutate(bot, { action: 'clear', binding }, { origin: 'user' })).outcome, 'unconfirmed')
   assert.equal(lost.calls.length, 1); assert.equal(lost.reports.length, 1)
 })
+
+test('native field能力を操作と状態で制限し、省略された旧結果だけ従来能力を使う', async () => {
+  const fields = { create: { objective: true, token_budget: true }, edit: { objective: true, token_budget: true, combined: false } }
+  const result = await fixture({ result: native({ field_capabilities: fields }) }).service.inspect(bot)
+  assert.deepEqual(result.fieldCapabilities, { create: { objective: false, tokenBudget: false, combined: false }, edit: { objective: true, tokenBudget: true, combined: false } })
+  const budgetOnly = await fixture({ result: native({ field_capabilities: { ...fields, edit: { objective: false, token_budget: true } } }) }).service.inspect(bot)
+  assert.deepEqual(budgetOnly.fieldCapabilities.edit, { objective: false, tokenBudget: true, combined: false })
+  const legacy = await fixture().service.inspect(bot)
+  assert.deepEqual(legacy.fieldCapabilities.edit, { objective: true, tokenBudget: true, combined: true })
+  const disabled = await fixture({ result: native({ capabilities: { ...native().capabilities, edit: false }, field_capabilities: fields }) }).service.inspect(bot)
+  assert.deepEqual(disabled.fieldCapabilities.edit, { objective: false, tokenBudget: false, combined: false })
+})
+
+test('不正なfield能力を有効な旧契約へ読み替えず、取得不能として診断する', async () => {
+  for (const fields of [null, {}, { create: { objective: true, token_budget: true }, edit: { objective: true, token_budget: true, combined: 'false' } }]) {
+    const f = fixture({ result: native({ field_capabilities: fields }) })
+    const result = await f.service.inspect(bot)
+    assert.equal(result.availability, 'unavailable'); assert.equal(f.reports.length, 1)
+    assert.deepEqual(result.fieldCapabilities.edit, { objective: false, tokenBudget: false, combined: false })
+  }
+})
+
+test('予算だけの編集を目的文なしで一回渡し、nativeの複合拒否は再送しない', async () => {
+  const fields = { create: { objective: false, token_budget: false }, edit: { objective: false, token_budget: true } }
+  const f = fixture({ result: native({ outcome: 'applied', mutation: 'acknowledged', field_capabilities: fields }) })
+  assert.equal((await f.service.mutate(bot, { action: 'edit', binding, tokenBudget: 10 }, { origin: 'user' })).outcome, 'confirmed')
+  assert.equal(f.calls[0][1].token_budget, 10); assert.equal(Object.hasOwn(f.calls[0][1], 'objective'), false); assert.equal(f.calls.length, 1)
+  const denied = fixture({ result: native({ outcome: 'unsupported', mutation: 'not_issued', field_capabilities: fields }) })
+  await assert.rejects(denied.service.mutate(bot, { action: 'edit', binding, objective: '目的', tokenBudget: 10 }, { origin: 'user' }), { code: 'GOAL_UNAVAILABLE' })
+  assert.equal(denied.calls.length, 1)
+})

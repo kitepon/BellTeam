@@ -122,3 +122,36 @@ test('failed same-binding reconciliation removes stale controls and releases pen
   assert.equal(writes, 1); assert.equal(f.button('a', '一時停止'), undefined); assert.match(f.notice.textContent, /確認できませんでした/)
   await f.view.refresh(); assert.equal(f.button('a', '一時停止').disabled, false)
 })
+
+test('budget-only native editor omits the objective and sends one explicit budget mutation', async () => {
+  const current = { ...snapshot('a', 'A'), fieldCapabilities: { edit: { objective: false, tokenBudget: true, combined: false } } }, writes = []
+  const f = fixture(async (_path, options) => {
+    if (!options) return { goals: [current] }
+    writes.push(JSON.parse(options.body)); return { outcome: 'confirmed', snapshot: current }
+  })
+  await f.view.open(); f.button('a', '編集').events.click[0]()
+  assert.equal(f.row('a').all().find(node => node.tagName === 'textarea'), undefined)
+  const budget = f.row('a').all().find(node => node.tagName === 'input')
+  budget.value = '42'; budget.events.input[0]()
+  f.row('a').all().find(node => node.tagName === 'form').events.submit[0]({ preventDefault() {} })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(writes, [{ action: 'edit', binding: current.binding, tokenBudget: 42 }])
+})
+
+test('separate native fields never become an automatic combined request', async () => {
+  const current = { ...snapshot('a', 'A'), fieldCapabilities: { edit: { objective: true, tokenBudget: true, combined: false } } }, writes = []
+  const f = fixture(async (_path, options) => {
+    if (!options) return { goals: [current] }
+    writes.push(JSON.parse(options.body)); return { outcome: 'confirmed', snapshot: current }
+  })
+  await f.view.open(); f.button('a', '編集').events.click[0]()
+  let nodes = f.row('a').all()
+  assert.equal(nodes.find(node => node.tagName === 'input'), undefined)
+  const input = nodes.find(node => node.tagName === 'textarea'); input.value = '新目的'; input.events.input[0]()
+  const choice = nodes.find(node => node.tagName === 'select'); choice.value = 'budget'; choice.events.change[0]()
+  nodes = f.row('a').all(); assert.equal(nodes.find(node => node.tagName === 'textarea'), undefined)
+  const budget = nodes.find(node => node.tagName === 'input'); budget.value = '7'; budget.events.input[0]()
+  nodes.find(node => node.tagName === 'form').events.submit[0]({ preventDefault() {} })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(writes, [{ action: 'edit', binding: current.binding, tokenBudget: 7 }])
+})

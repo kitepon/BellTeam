@@ -52,7 +52,8 @@ export function goalsView(dialog, api, getBots) {
       const actions = element('div', undefined, 'goal-actions')
       const capabilities = snapshot.capabilities ?? {}
       const editAction = goal ? 'edit' : 'create'
-      if (capabilities[editAction]) actions.append(button(titles[editAction], () => {
+      const fields = snapshot.fieldCapabilities?.[editAction] ?? { objective: true, tokenBudget: codexGoal || capabilities.tokenBudget === true, combined: true }
+      if (capabilities[editAction] && (fields.objective || fields.tokenBudget)) actions.append(button(titles[editAction], () => {
         drafts.set(snapshot.botId, { action: editAction, binding: { ...snapshot.binding }, objective: goal?.objective ?? '', budget: goal?.tokenBudget == null ? '' : String(goal.tokenBudget), budgetChanged: false })
         render()
         body.querySelector(`[data-goal-bot="${CSS.escape(snapshot.botId)}"] textarea`)?.focus()
@@ -67,32 +68,46 @@ export function goalsView(dialog, api, getBots) {
       if (draft) {
         const bindingChanged = ['sessionId', 'launchId', 'threadId'].some(key => draft.binding[key] !== snapshot.binding?.[key])
         const form = element('form', undefined, 'goal-form')
+        if (fields.objective && fields.tokenBudget && fields.combined === false) {
+          const choiceLabel = element('label', undefined, 'field'); choiceLabel.append(element('span', '変更する項目'))
+          const choice = element('select')
+          for (const [value, title] of [['objective', '目的'], ['budget', 'トークン予算']]) {
+            const option = element('option', title); option.value = value; choice.append(option)
+          }
+          choice.value = draft.field ?? 'objective'
+          choice.addEventListener('change', () => { draft.field = choice.value; render() })
+          choiceLabel.append(choice); form.append(choiceLabel)
+          form.append(element('p', '目的と予算は、一項目ずつ保存してください。', 'goal-meta'))
+        }
+        const editObjective = fields.objective && (fields.combined !== false || draft.field !== 'budget')
+        const editBudget = fields.tokenBudget && (fields.combined !== false || !fields.objective || draft.field === 'budget')
         const label = element('label', undefined, 'field')
         label.append(element('span', '目的'))
         const input = element('textarea'); input.rows = 4; input.maxLength = 4000; input.required = true; input.value = draft.objective
         input.addEventListener('input', () => { draft.objective = input.value })
-        label.append(input); form.append(label)
+        label.append(input); if (editObjective) form.append(label)
         const budgetLabel = element('label', undefined, 'field'); budgetLabel.append(element('span', 'トークン予算（任意）'))
         const budget = element('input'); budget.type = 'number'; budget.min = '1'; budget.step = '1'; budget.value = draft.budget
         budget.addEventListener('input', () => { draft.budget = budget.value; draft.budgetChanged = true })
         budgetLabel.append(budget)
-        if (codexGoal || capabilities.tokenBudget === true) form.append(budgetLabel)
-        if (goal && codexGoal) form.append(element('p', '目的を変えると使用量が初期化されます。', 'goal-meta'))
-        if (goal && (codexGoal || capabilities.tokenBudget === true)) form.append(element('p', '予算を空にした場合、現在の指定は変更しません。', 'goal-meta'))
+        if (editBudget) form.append(budgetLabel)
+        if (goal && codexGoal && editObjective) form.append(element('p', '目的を変えると使用量が初期化されます。', 'goal-meta'))
+        if (goal && editBudget) form.append(element('p', '予算を空にした場合、現在の指定は変更しません。', 'goal-meta'))
         const controls = element('div', undefined, 'goal-actions')
-        const save = element('button', '保存'); save.type = 'submit'; save.disabled = pending.has(snapshot.botId) || bindingChanged
+        const save = element('button', '保存'); save.type = 'submit'; save.disabled = pending.has(snapshot.botId) || bindingChanged || !capabilities[draft.action] || (!editObjective && !editBudget)
         if (bindingChanged) form.append(element('p', '会話が変わりました。この編集を閉じて、現在のゴールから編集し直してください。', 'goal-meta'))
         controls.append(save, button('編集をやめる', () => { drafts.delete(snapshot.botId); render() }))
         form.append(controls)
         form.addEventListener('submit', event => {
           event.preventDefault()
-          if (bindingChanged) return
-          if (!draft.objective.trim()) { input.focus(); return }
-          const data = { objective: draft.objective.trim() }
-          if ((codexGoal || capabilities.tokenBudget === true) && draft.budgetChanged && draft.budget !== '') {
+          if (save.disabled) return
+          if (editObjective && !draft.objective.trim()) { input.focus(); return }
+          const data = editObjective ? { objective: draft.objective.trim() } : {}
+          if (editBudget && draft.budgetChanged && draft.budget !== '') {
             data.tokenBudget = Number(draft.budget)
             if (!Number.isSafeInteger(data.tokenBudget) || data.tokenBudget <= 0) { budget.focus(); return }
           }
+          if (!Object.keys(data).length) { budget.focus(); return }
           void mutate({ ...snapshot, binding: draft.binding }, draft.action, data)
         })
         card.append(form)

@@ -2,6 +2,11 @@
 const actions = ['inspect', 'create', 'edit', 'pause', 'resume', 'clear']
 const statuses = new Set(['active', 'paused', 'blocked', 'usageLimited', 'budgetLimited', 'complete'])
 const noCapabilities = () => Object.fromEntries(actions.map(action => [action, false]))
+const fieldCapabilities = (capabilities, fields) => Object.fromEntries(['create', 'edit'].map(action => [action, {
+  objective: capabilities[action] && (fields ? fields[action].objective : true),
+  tokenBudget: capabilities[action] && (fields ? fields[action].token_budget : true),
+  combined: capabilities[action] && (fields ? fields[action].objective && fields[action].token_budget && fields[action].combined !== false : true),
+}]))
 const failure = (code, status, message) => Object.assign(new Error(message), { code, status, publicMessage: message })
 const validLaunch = id => typeof id === 'string' && /^[0-9a-f]{32}$/u.test(id)
 const validGoal = (goal, thread) => goal === null || goal && goal.threadId === thread
@@ -15,7 +20,8 @@ export class BotGoals {
     this.transport = transport; this.admitWork = admitWork; this.reportError = reportError; this.now = now
   }
   unavailable(bot, message = 'ゴールの状態を取得できません。更新して確認してください。') {
-    return { botId: bot.id, availability: 'unavailable', capabilities: noCapabilities(), binding: null, observedAt: this.now(), message }
+    const capabilities = noCapabilities()
+    return { botId: bot.id, availability: 'unavailable', capabilities, fieldCapabilities: fieldCapabilities(capabilities), binding: null, observedAt: this.now(), message }
   }
   async list(bots) { return Promise.all(bots.map(bot => this.inspect(bot))) }
 
@@ -43,6 +49,11 @@ export class BotGoals {
       || !['confirmed', 'not_attempted', 'failed', 'mismatch'].includes(result.readback)
       || !actions.every(action => typeof result.capabilities?.[action] === 'boolean')
       || typeof result.reason !== 'string' || !Number.isFinite(Date.parse(result.observed_at))) throw new Error('GOAL_RESULT_INVALID')
+    if (Object.hasOwn(result, 'field_capabilities') && !['create', 'edit'].every(action => {
+      const fields = result.field_capabilities?.[action]
+      return fields && typeof fields.objective === 'boolean' && typeof fields.token_budget === 'boolean'
+        && (!Object.hasOwn(fields, 'combined') || typeof fields.combined === 'boolean')
+    })) throw new Error('GOAL_FIELD_CAPABILITIES_INVALID')
     const binding = result.binding
     if (binding !== null && (!binding || binding.session_id !== args.session_id || binding.launch_id !== args.launch_id
       || typeof binding.thread_id !== 'string' || !binding.thread_id
@@ -61,7 +72,7 @@ export class BotGoals {
       capabilities.pause &&= result.goal?.status === 'active'
       capabilities.resume &&= result.goal?.status === 'paused'
     }
-    return { botId: bot.id, availability, capabilities,
+    return { botId: bot.id, availability, capabilities, fieldCapabilities: fieldCapabilities(capabilities, result.field_capabilities),
       binding: result.binding ? { sessionId: result.binding.session_id, launchId: result.binding.launch_id, threadId: result.binding.thread_id } : null,
       ...(Object.hasOwn(result, 'goal') ? { goal: structuredClone(result.goal) } : {}),
       observedAt: result.observed_at,
