@@ -29,6 +29,8 @@ if [ "$2" = config ] && [ "$3" = --images ]; then printf '%s\\n' "\${TEST_IMAGES
 if [ "$2" = config ] && [ "$3" = --format ]; then printf '%s\\n' 'name: fixture' 'services:' '  bellteam:' '    environment:' '      BELLTEAM_BUGHUB_KEY: synthetic-only' 'volumes:' '  cursor-cli:' '    name: fixture-cursor'; fi
 if [ "$2" = port ]; then printf '%s\\n' "$TEST_ENDPOINT"; fi
 case "$*" in
+  'compose stop bellteam') exit "\${TEST_STOP_EXIT:-0}";;
+  'compose run --pull never --rm --no-deps --user 0:0 --entrypoint /bin/sh bellteam -c '*) exit "\${TEST_PREPARE_EXIT:-0}";;
   'image inspect fixture-server') exit "\${TEST_INSPECT_EXIT:-0}";;
   'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/'*)
     [ "\${TEST_EXTRACT_EXIT:-0}" = 0 ] || exit "$TEST_EXTRACT_EXIT"
@@ -51,8 +53,8 @@ esac
     assert.equal(calls[1], 'compose config --images')
     assert.equal(calls[2], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/compose.cursor-update.yaml')
     assert.equal(calls[3], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/scripts/update-cursor.sh')
-    assert.match(calls[4], /^compose run --pull never --rm --no-deps --user root bellteam/)
-    assert.equal(calls[5], 'compose stop bellteam')
+    assert.equal(calls[4], 'compose stop bellteam')
+    assert.match(calls[5], /^compose run --pull never --rm --no-deps --user 0:0 --entrypoint \/bin\/sh bellteam -c /)
     assert.equal(calls[6], 'compose config --images')
     assert.equal(calls[7], 'compose config --format yaml')
     assert.equal(calls[8], 'volume inspect fixture-cursor')
@@ -66,6 +68,14 @@ esac
     env: { ...env, TEST_CURSOR_EXIT: '37' },
   }), error => error.code === 37 && /停止したまま/.test(error.stderr))
   assert.doesNotMatch(await readFile(commands, 'utf8'), /compose up /)
+  for (const extra of [{ TEST_STOP_EXIT: '41' }, { TEST_PREPARE_EXIT: '42' }]) {
+    await writeFile(commands, '')
+    await assert.rejects(exec('sh', [join(install, 'install.sh')], { env: { ...env, ...extra } }),
+                         error => error.code === Number(extra.TEST_STOP_EXIT ?? extra.TEST_PREPARE_EXIT))
+    const failedCalls = await readFile(commands, 'utf8')
+    assert.doesNotMatch(failedCalls, /--no-deps cursor-update|compose up /)
+    if (extra.TEST_STOP_EXIT) assert.doesNotMatch(failedCalls, /compose run /)
+  }
   for (const extra of [{ TEST_EXTRACT_EXIT: '23' }, { TEST_IMAGES: 'first\nsecond' }, { TEST_IMAGES: '' }]) {
     await writeFile(commands, '')
     await assert.rejects(exec('sh', [join(install, 'install.sh')], { env: { ...env, ...extra } }))

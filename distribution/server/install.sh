@@ -25,9 +25,11 @@ for path in compose.cursor-update.yaml scripts/update-cursor.sh; do
     exit 1
   fi
 done
-docker compose run --pull never --rm --no-deps --user root bellteam sh -c \
-  'mkdir -p /home/bell /srv/bellteam && chown bell:bell /home/bell /srv/bellteam'
 docker compose stop bellteam
+# The normal entry only starts UID1001's server. Maintenance selects its
+# image-owned shell explicitly and must never run alongside seat writers.
+docker compose run --pull never --rm --no-deps --user 0:0 --entrypoint /bin/sh bellteam -c \
+  'mkdir -p /home/bell /srv/bellteam && chown bell:bell /home/bell /srv/bellteam'
 if sh "$staging/scripts/update-cursor.sh"; then
   :
 else

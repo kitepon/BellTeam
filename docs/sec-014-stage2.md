@@ -458,3 +458,11 @@ both markers across two sync failures, then verifies file/ancestor sync before
 old-marker unlink in forward and reverse transfers. Related selection: 31
 passed; testgate selection: 336 passed; explicit full gate: 795 passed, no
 failures/cancellations/skips. These are content-component results only.
+
+The public installer's maintenance command now follows successful service
+stop and explicitly overrides the fixed server entry with the image shell as
+UID/GID 0:0. The former argv through the UID1001-only entry was incompatible.
+Stop or preparation failure aborts before Cursor update and server startup.
+Docker-command fixtures cover those failures; this does not establish actual
+writer disappearance or integrate state transfer, protected mounts, ownership
+restoration or fresh-install supervisor acceptance. NOTDEPLOYABLE remains.
