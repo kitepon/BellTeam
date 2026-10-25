@@ -5,6 +5,7 @@ import { basename, dirname, join } from 'node:path'
 
 import { exists, normalizeSchedule, scheduleDocument, validateAvatar, writeAtomic } from './bot-registry.mjs'
 import { RoomHistory } from './room-history.mjs'
+import { mutateSchedules, nextScheduleRevision, scheduleRevision } from './schedule-mutations.mjs'
 
 const ROOM_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u
 const FIELDS = new Set(['name', 'purpose', 'representativeId', 'memberIds', 'avatar'])
@@ -92,11 +93,10 @@ export class RoomRegistry extends Map {
         memberIds: room.memberIds.filter(id => id !== botId),
         representativeId: room.representativeId === botId ? null : room.representativeId,
       })
-      const schedules = await this.listSchedules(room.id)
-      await this.writeScheduleDocument(room.id, schedules.map(schedule => ({
+      await mutateSchedules(this, room.id, schedules => ({ schedules: schedules.map(schedule => ({
         ...schedule,
         targets: schedule.targets?.filter(id => id !== botId) ?? null,
-      })))
+      })) }))
     }
   }
 
@@ -211,33 +211,32 @@ export class RoomRegistry extends Map {
 
   async setSchedule(id, input) {
     const room = this.require(id)
-    const document = await this.readScheduleDocument(id)
-    const existing = input.id ? document.schedules.find(item => item.id === input.id) : null
-    if (input.id && !existing) throw new Error(`SCHEDULE_NOT_FOUND: ${input.id}`)
-    const targets = input.targets == null ? null : uniqueMembers(input.targets, room.memberIds)
-    if (input.command !== undefined) throw new Error('SCHEDULE_COMMAND_ROOM_UNSUPPORTED')
-    const schedule = { ...normalizeSchedule({ ...input, id: input.id ?? this.id(), lastRunAt: null }, this.now()), targets }
-    const schedules = existing
-      ? document.schedules.map(item => item.id === schedule.id ? schedule : item)
-      : [...document.schedules, schedule]
-    await this.writeScheduleDocument(id, schedules)
-    return schedule
+    return mutateSchedules(this, id, schedules => {
+      const existing = input.id ? schedules.find(item => item.id === input.id) : null
+      if (input.id && !existing) throw new Error(`SCHEDULE_NOT_FOUND: ${input.id}`)
+      const targets = input.targets == null ? null : uniqueMembers(input.targets, room.memberIds)
+      if (input.command !== undefined) throw new Error('SCHEDULE_COMMAND_ROOM_UNSUPPORTED')
+      const schedule = { ...normalizeSchedule({ ...input, id: input.id ?? this.id(), lastRunAt: null, revision: nextScheduleRevision(existing) }, this.now()), targets }
+      return { schedules: existing ? schedules.map(item => item.id === schedule.id ? schedule : item) : [...schedules, schedule], value: schedule }
+    })
   }
 
   async removeSchedule(id, scheduleId) {
-    const schedules = await this.listSchedules(id)
-    if (!schedules.some(item => item.id === scheduleId)) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
-    await this.writeScheduleDocument(id, schedules.filter(item => item.id !== scheduleId))
+    return mutateSchedules(this, id, schedules => {
+      if (!schedules.some(item => item.id === scheduleId)) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
+      return { schedules: schedules.filter(item => item.id !== scheduleId) }
+    })
   }
 
-  async markScheduleRun(id, scheduleId, ranAt, { skipped = false } = {}) {
-    const schedules = await this.listSchedules(id)
-    const current = schedules.find(item => item.id === scheduleId)
-    if (!current) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
-    const base = normalizeSchedule({ ...current, lastRunAt: skipped ? current.lastRunAt : new Date(ranAt).toISOString(), enabled: current.kind === 'once' ? false : current.enabled }, new Date(ranAt))
-    const updated = { ...base, targets: current.targets ?? null }
-    await this.writeScheduleDocument(id, schedules.map(item => item.id === scheduleId ? updated : item))
-    return updated
+  async markScheduleRun(id, scheduleId, ranAt, { skipped = false, expectedRevision } = {}) {
+    return mutateSchedules(this, id, schedules => {
+      const current = schedules.find(item => item.id === scheduleId)
+      if (expectedRevision !== undefined && (!current || scheduleRevision(current) !== expectedRevision)) return { value: current ?? null }
+      if (!current) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
+      const base = normalizeSchedule({ ...current, lastRunAt: skipped ? current.lastRunAt : new Date(ranAt).toISOString(), enabled: current.kind === 'once' ? false : current.enabled }, new Date(ranAt))
+      const updated = { ...base, targets: current.targets ?? null }
+      return { schedules: schedules.map(item => item.id === scheduleId ? updated : item), value: updated }
+    })
   }
 
   require(id) {
