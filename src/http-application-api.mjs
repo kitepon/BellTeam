@@ -1,5 +1,6 @@
 import { json, readJson } from './http-response.mjs'
 import { listAvatar, sendAvatar } from './http-assets.mjs'
+import { SubscriptionAccessError } from './subscriptions.mjs'
 
 export function createControlApi({ aiControl, onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models }) {
   return async (request, response, url) => {
