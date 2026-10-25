@@ -69,6 +69,25 @@ test('権限・不正stat・列挙エラーを消失として取り直さない'
   }
 })
 
+test('消失と権限・不正statが混在すれば同batch/後続batchとも再列挙しない', async () => {
+  for (const offset of [2, 34]) for (const mode of ['permission','malformed']) {
+    let lists = 0
+    await assert.rejects(readProcTable('/synthetic', {
+      list:async()=>{ lists++; return Array.from({length:offset}, (_,i)=>String(i+1)) },
+      read:async path=>{
+        const pid = Number(path.split('/')[2])
+        if(pid===1) throw Object.assign(new Error('gone'), {code:'ENOENT',path})
+        if(pid===offset) {
+          if(mode==='permission') throw Object.assign(new Error('denied'), {code:'EACCES',path})
+          return 'invalid'
+        }
+        return `${pid} (fixture) ${['S','0','1',...Array(16).fill('0'),'100'].join(' ')}`
+      },
+    }), mode==='permission' ? {code:'EACCES'} : /DEPLOY_PROCESS_UNKNOWN/u)
+    assert.equal(lists,1)
+  }
+})
+
 test('取り直した完全表でも対象root消失はidleとして許さない', async () => {
   let lists = 0, observed = 0
   const table = await readProcTable('/synthetic', {

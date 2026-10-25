@@ -15,8 +15,13 @@ const mcpCommands = [[nodeExe, aitermScript], [nodeExe, `${approvalRoot}cli.mjs`
 
 // 全PIDの親と開始tickだけを読む。argv/environ/画面/認証fileは一覧に含めない。
 export async function readProcTable(proc = '/proc', { list = readdir, read = readFile } = {}) {
+  const isVanishedStat = error => {
+    const relative = typeof error?.path === 'string' && error.path.startsWith(`${proc}/`)
+      ? error.path.slice(proc.length + 1) : ''
+    return ['ENOENT', 'ESRCH'].includes(error?.code) && /^\d+\/stat$/u.test(relative)
+  }
   const snapshot = async () => {
-    const rows = new Map()
+    const rows = new Map(), errors = []
     const pids = (await list(proc)).filter(pid => /^\d+$/u.test(pid))
     // 欠測行を省かず、同じbatchの読取を終えてから不完全な表全体を破棄する。
     for (let offset = 0; offset < pids.length; offset += 32) {
@@ -28,18 +33,18 @@ export async function readProcTable(proc = '/proc', { list = readdir, read = rea
           start: fields[19], state: fields[0] }
       }))
       for (const result of batch) {
-        if (result.status === 'rejected') throw result.reason
-        rows.set(result.value.pid, result.value)
+        if (result.status === 'rejected') errors.push(result.reason)
+        else rows.set(result.value.pid, result.value)
       }
     }
+    // 同batchと後続batchの権限・不正値等を、一時消失より先に返す。
+    if (errors.length) throw errors.find(error => !isVanishedStat(error)) ?? errors[0]
     return rows
   }
   try { return await snapshot() } catch (error) {
     // PID列挙直後の消失だけ、全PIDを列挙し直した完全な表を一度だけ採る。
     // 対象root/候補の消失・再利用は後段のidentity/全子孫/候補照合で引き続き拒否する。
-    const relative = typeof error?.path === 'string' && error.path.startsWith(`${proc}/`)
-      ? error.path.slice(proc.length + 1) : ''
-    if (!['ENOENT', 'ESRCH'].includes(error?.code) || !/^\d+\/stat$/u.test(relative)) throw error
+    if (!isVanishedStat(error)) throw error
     return snapshot()
   }
 }
