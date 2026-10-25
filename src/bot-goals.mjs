@@ -22,6 +22,28 @@ const claudeStatus = native => keysOnly(native, ['type', 'condition', 'met', 'se
   && (!Object.hasOwn(native, 'reason') || typeof native.reason === 'string')
   && ['iterations', 'tokens'].every(key => !Object.hasOwn(native, key) || natural(native[key]))
   && (!Object.hasOwn(native, 'durationMs') || Number.isFinite(native.durationMs) && native.durationMs >= 0)
+const grokPhases = ['Idle', 'Planning', 'Executing']
+const grokCounters = ['elapsed_ms', 'total_worker_rounds', 'total_verify_rounds', 'token_baseline', 'tokens_used_high_water',
+  'parent_tokens_spent', 'last_session_tokens_seen', 'evaluator_blocked_streak', 'classifier_runs_attempted',
+  'rounds_since_verify', 'classifier_stall_count', 'consecutive_not_achieved', 'last_strategist_fired_at', 'strategist_cap_bonus']
+const grokSnapshot = native => keysOnly(native, ['goal_id', 'objective', 'status', 'phase', 'token_budget', 'created_at',
+  'current_subagent_id', 'current_subagent_role', 'history', 'verifier_id', ...grokCounters])
+  && typeof native.goal_id === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(native.goal_id)
+  && typeof native.objective === 'string' && native.objective.length > 0
+  && ['active', 'user_paused'].includes(native.status) && grokPhases.includes(native.phase)
+  && Number.isSafeInteger(native.token_budget) && native.token_budget > 0
+  && typeof native.created_at === 'string' && Number.isFinite(Date.parse(native.created_at))
+  && ['current_subagent_id', 'current_subagent_role'].every(key => native[key] === null || typeof native[key] === 'string')
+  && typeof native.verifier_id === 'string' && native.verifier_id.length > 0
+  && grokCounters.every(key => natural(native[key]))
+  && Array.isArray(native.history) && native.history.every(row => keysOnly(row, ['timestamp', 'event', 'detail'])
+    && typeof row.timestamp === 'string' && Number.isFinite(Date.parse(row.timestamp)) && typeof row.event === 'string'
+    && (!Object.hasOwn(row, 'detail') || typeof row.detail === 'string'))
+// The persisted phase and accounting are not the current worker observation.
+const grokCurrent = current => keysOnly(current, ['source', 'status', 'phase', 'tokens_used', 'elapsed_display'])
+  && current.source === '/goal status' && ['Active', 'UserPaused'].includes(current.status) && grokPhases.includes(current.phase)
+  && Number.isSafeInteger(current.tokens_used) && typeof current.elapsed_display === 'string'
+  && current.elapsed_display.length <= 64 && /^(?:\d+s|\d+m[0-5]\ds|\d+h[0-5]\dm)$/u.test(current.elapsed_display)
 const validNativeGoal = (goal, result) => goal === null || (
   goal?.kind === 'codex-cli' && result.harness === 'codex-cli' && keysOnly(goal, ['kind', 'native'])
     && keysOnly(goal.native, ['threadId', 'objective', 'status', 'tokenBudget', 'tokensUsed', 'timeUsedSeconds', 'createdAt', 'updatedAt'])
@@ -30,8 +52,11 @@ const validNativeGoal = (goal, result) => goal === null || (
   || goal?.kind === 'claude-code' && result.harness === 'claude-code' && keysOnly(goal, ['kind', 'phase', 'native', 'reported_turns'])
     && goal.phase === 'active' && claudeStatus(goal.native) && goal.native.met === false
     && (!Object.hasOwn(goal, 'reported_turns') || natural(goal.reported_turns))
+  || goal?.kind === 'grok-cli' && result.harness === 'grok-cli' && keysOnly(goal, ['kind', 'native', 'current_status'])
+    && grokSnapshot(goal.native) && grokCurrent(goal.current_status)
 )
-const goalStatus = goal => goal?.kind === 'codex-cli' ? goal.native.status : goal?.kind === 'claude-code' ? goal.phase : goal?.status
+const goalStatus = goal => goal?.kind === 'codex-cli' ? goal.native.status : goal?.kind === 'claude-code' ? goal.phase
+  : goal?.kind === 'grok-cli' ? goal.current_status.status === 'UserPaused' ? 'paused' : 'active' : goal?.status
 
 export class BotGoals {
   constructor({ transport, admitWork = () => () => {}, reportError = async () => {}, now = () => new Date().toISOString() }) {

@@ -1,0 +1,21 @@
+{
+  "schema": "aiterm.agent-goal-result.v2",
+  "session_id": "grok-binding-fixture",
+  "launch_id": "7df9812d487fc554201c8231d8ca1734",
+  "harness": "grok-cli",
+  "binding": null,
+  "availability": "unavailable",
+  "capabilities": {
+    "inspect": false,
+    "create": false,
+    "edit": false,
+    "pause": false,
+    "resume": false,
+    "clear": false
+  },
+  "outcome": "unavailable",
+  "mutation": "not_requested",
+  "readback": "failed",
+  "reason": "native_goal_status_input_unconfirmed",
+  "observed_at": "2026-10-25T19:03:35.245Z"
+}

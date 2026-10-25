@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
 import { goalsView } from '../web/goals.js'
+
+const grokNative=JSON.parse(readFileSync(new URL('./fixtures/grok-goal-paused-native.json',import.meta.url)))
 
 // Independent response ordering, not native goal behavior. The actual module
 // runs with a small DOM fixture so deferred reads/writes can be ordered exactly.
@@ -204,4 +207,17 @@ test('Codex native wrapper keeps objective, accounting and paused resume control
   const f = fixture(async () => ({ goals: [current] }))
   await f.view.open(); assert.equal(f.objective('a'), '元のCodex目的'); assert.ok(f.button('a', '再開'))
   assert.match(f.row('a').all().map(node => node.textContent).join('\n'), /使用量 12 \/ 予算 20 · 作業時間 3秒/)
+})
+
+test('Grokはfresh current_statusの一時停止・使用量・時間を表示し、保存phaseと操作を補わない', async()=>{
+  const goal=structuredClone(grokNative.goal)
+  goal.native.status='active';goal.native.phase='Executing';goal.native.tokens_used_high_water=99999;goal.native.elapsed_ms=999999
+  const current={...snapshot('a','A'),goal,capabilities:grokNative.capabilities}
+  const f=fixture(async()=>({goals:[current]}));await f.view.open()
+  const nodes=f.row('a').all(),text=nodes.map(n=>n.textContent).join('\n')
+  assert.equal(nodes.find(n=>n.className==='goal-status').textContent,'一時停止')
+  assert.equal(f.objective('a'),goal.native.objective)
+  assert.match(text,/4,906/);assert.match(text,/14s/);assert.match(text,/待機/)
+  assert.equal(text.includes('99,999'),false);assert.equal(text.includes('999999'),false)
+  assert.equal(nodes.some(n=>n.tagName==='button'),false)
 })

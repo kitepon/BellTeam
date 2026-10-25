@@ -1,5 +1,6 @@
 const statuses = { active: '進行中', paused: '一時停止', blocked: '進行できない状態', usageLimited: '利用制限', budgetLimited: '予算に到達', complete: '完了' }
 const titles = { create: 'ゴールを設定', edit: '編集', pause: '一時停止', resume: '再開', clear: '取り消す' }
+const grokPhases = { Idle: '待機', Planning: '計画中', Executing: '実行中' }
 const element = (tag, text, className) => {
   const node = document.createElement(tag)
   if (text !== undefined) node.textContent = text
@@ -41,8 +42,11 @@ export function goalsView(dialog, api, getBots) {
       }
       const original = snapshot.goal
       const claude = original?.kind === 'claude-code'
+      const grok = original?.kind === 'grok-cli'
       const goal = original?.kind === 'codex-cli' ? original.native
-        : claude ? { objective: original.native.condition, status: original.phase } : original
+        : claude ? { objective: original.native.condition, status: original.phase }
+          : grok ? { objective: original.native.objective, tokenBudget: original.native.token_budget,
+            status: original.current_status.status === 'UserPaused' ? 'paused' : 'active' } : original
       const codexGoal = getBots().find(bot => bot.id === snapshot.botId)?.harness === 'codex'
       card.append(element('p', goal ? statuses[goal.status] ?? '状態を確認できません' : 'ゴールなし', 'goal-status'))
       if (goal) {
@@ -55,7 +59,9 @@ export function goalsView(dialog, api, getBots) {
           }
           if (Object.hasOwn(original, 'reported_turns')) metrics.push(`CLI表示ターン数 ${amount(original.reported_turns)}`)
         }
-        const details = element('p', claude ? metrics.join(' · ') || '使用量・作業時間はまだ取得していません。'
+        const details = element('p', grok
+          ? `使用量 ${amount(original.current_status.tokens_used)} / 予算 ${budgetText} · 作業時間 ${original.current_status.elapsed_display} · ${grokPhases[original.current_status.phase]}`
+          : claude ? metrics.join(' · ') || '使用量・作業時間はまだ取得していません。'
           : `使用量 ${amount(goal.tokensUsed)} / 予算 ${budgetText} · 作業時間 ${amount(goal.timeUsedSeconds)}秒`, 'goal-meta')
         card.append(details)
       }

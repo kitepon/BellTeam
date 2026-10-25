@@ -1,0 +1,71 @@
+{
+  "schema": "aiterm.agent-goal-result.v2",
+  "session_id": "grok-binding-fixture",
+  "launch_id": "51e8f80efff303c76ca2d7e83402f3b5",
+  "harness": "grok-cli",
+  "binding": {
+    "session_id": "grok-binding-fixture",
+    "launch_id": "51e8f80efff303c76ca2d7e83402f3b5",
+    "thread_id": "01a172b7-5344-7080-bcc5-059411a7d4e7"
+  },
+  "availability": "available",
+  "capabilities": {
+    "inspect": true,
+    "create": false,
+    "edit": false,
+    "pause": false,
+    "resume": false,
+    "clear": false
+  },
+  "outcome": "observed",
+  "mutation": "not_requested",
+  "readback": "confirmed",
+  "goal": {
+    "kind": "grok-cli",
+    "native": {
+      "goal_id": "b9fbb12a-4f0c-424d-978a-124fffea3ac0",
+      "objective": "Artificial native goal contract",
+      "status": "user_paused",
+      "phase": "Idle",
+      "token_budget": 1,
+      "elapsed_ms": 14995,
+      "created_at": "2026-10-25T10:59:39.498679548+00:00",
+      "current_subagent_id": null,
+      "current_subagent_role": null,
+      "total_worker_rounds": 0,
+      "total_verify_rounds": 0,
+      "token_baseline": 1339,
+      "tokens_used_high_water": 4906,
+      "parent_tokens_spent": 0,
+      "last_session_tokens_seen": 1339,
+      "history": [
+        {
+          "timestamp": "2026-10-25T10:59:39.500244686+00:00",
+          "event": "goal_created"
+        },
+        {
+          "timestamp": "2026-10-25T10:59:54.497729662+00:00",
+          "event": "goal_paused",
+          "detail": "user"
+        }
+      ],
+      "evaluator_blocked_streak": 0,
+      "verifier_id": "3df1ee118292",
+      "classifier_runs_attempted": 0,
+      "rounds_since_verify": 0,
+      "classifier_stall_count": 0,
+      "consecutive_not_achieved": 0,
+      "last_strategist_fired_at": 0,
+      "strategist_cap_bonus": 0
+    },
+    "current_status": {
+      "source": "/goal status",
+      "status": "UserPaused",
+      "phase": "Idle",
+      "tokens_used": 4906,
+      "elapsed_display": "14s"
+    }
+  },
+  "reason": "native_goal_observed",
+  "observed_at": "2026-10-25T19:01:36.478Z"
+}
