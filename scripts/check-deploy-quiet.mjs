@@ -63,14 +63,18 @@ const sameArgs = (a, b) => Array.isArray(a) && a.length === b.length && a.every(
 export function trustedIdleTree(rows, pid, harness, botId, project = `/srv/bellteam/bots/${botId}`, nativeRegistration) {
   const byPid = new Map(rows.map(row => [row.pid, row]))
   const root = byPid.get(pid)
+  // Bot環境で選ばれたNode wrapperも、唯一の公式native子を後段で検証する。
+  const projectNode = root?.exe === `${project}/environment/node_modules/node/bin/node`
+    || root?.exe?.startsWith(`${project}/environment/`)
+      && /^node-v\d+\.\d+\.\d+\/bin\/node$/u.test(root.exe.slice(`${project}/environment/`.length))
   const rootExe = harness === 'claude-code' ? '/usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe'
     : harness === 'grok-cli' ? '/usr/local/bin/grok' : harness === 'codex-cli'
-      ? [nodeExe, codexExe].includes(root?.exe) ? root.exe : null : null
+      ? ([nodeExe, codexExe].includes(root?.exe) || projectNode) ? root.exe : null : null
   if (!rootExe || root?.exe !== rootExe || root.cwd !== project) return false
   // 孤立行、重複PID、cycleを許さず、渡された全行がrootの子孫であることを確認する。
   if (byPid.size !== rows.length || byPid.has(root.ppid) || processDescendants(byPid, pid).length !== rows.length) return false
   // 観測identityがnode入口なら唯一のnative子、native直起動ならそのrootがMCPの親になる。
-  const wrapper = harness === 'codex-cli' && root.exe === nodeExe
+  const wrapper = harness === 'codex-cli' && root.exe !== codexExe
   const nativeCli = wrapper ? rows.filter(row => row.ppid === pid && row.exe === codexExe) : []
   if (wrapper && nativeCli.length !== 1) return false
   const cliPid = nativeCli[0]?.pid ?? pid
