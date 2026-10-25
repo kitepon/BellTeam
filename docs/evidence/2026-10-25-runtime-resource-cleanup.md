@@ -16,6 +16,16 @@ The new integration test uses real isolated state, a call-bridge socket and a
 real ConversationStore watch, then fails rooms-watch acquisition. The original
 EMFILE error reaches the caller and the watch, socket and client are released.
 
+Independent review then reproduced a close-listener exception escaping the
+HTTP server's EventEmitter, bypassing the runtime's close promise and leaving
+later resources open. The HTTP owner now records that watch-close failure in
+its close callback result. It does not throw from the close listener. A second
+real runtime regression closes the actual store watch and injects a failure,
+then verifies the original error is returned, both HTTP listeners and the
+feature socket close, notifications/client close once, and repeated close
+calls share the same promise and error. No uncaughtException handler is needed
+to make this test complete.
+
 During validation, an independent existing command-stop fixture failed at
 assert.ok(pid), with pid equal to zero. Its direct write to the ready file
 exposes an empty file before the PID bytes are written. The fixture now installs
@@ -26,9 +36,13 @@ The stop-confirmation and process-disappearance assertions remain unchanged.
 ## Validation and limits
 
 - Unmodified main ff2aafa, default-parallel complete suite: 742 passed.
-- Focused watcher/runtime tests: 8 passed. Command-stop fixture: 1 passed.
-- Complete suite after both repairs, original default parallelism: 746 passed,
+- Initial focused watcher/runtime tests: 8 passed. Command-stop fixture: 1 passed.
+- Initial complete suite after the two repairs, original default parallelism: 746 passed,
   with zero failures, cancellations or skips. No concurrency reduction was used.
+- After the required HTTP close-contract correction, focused watcher/runtime
+  tests: 9 passed. The revised complete default-parallel suite passed 747,
+  with zero failures, cancellations or skips. Every runtime test again ended
+  with zero live watchers and zero kernel watches. The earlier 746 is not reused.
 - Every isolated runtime test ended with zero live FSWatchers and zero kernel
   watch descriptors. The process kept one inotify FD after first use; repeated
   cycles did not increase that count. FD count alone does not prove an active

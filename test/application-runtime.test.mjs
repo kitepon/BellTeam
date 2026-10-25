@@ -54,6 +54,56 @@ test('監視開始に失敗した本体は取得済み監視と機能のsocket�
   assert.equal(clientClosed, 1)
 })
 
+test('実HTTP終了のwatch例外を呼出元へ返し、後続の資源も解放して再closeで同じ結果を返す', { timeout: 5000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-watch-close-failure-'))
+  const home = join(root, 'home'), socketPath = join(root, 'calls.sock')
+  const seedPath = join(root, 'seed.json')
+  await writeFile(seedPath, JSON.stringify({ schema: 'bellteam.bots.v1', bots: [] }))
+  const bots = new BotRegistry({ seedPath, botsRoot: join(root, 'bots') })
+  const settings = new FeatureSettings({ root, environment: {} })
+  const ownerProfile = new OwnerProfile({ root }), userRules = new UserRules({ root })
+  for (const value of [bots, settings, ownerProfile, userRules]) await value.initialize()
+  await settings.update('callBridge', { enabled: true,
+    values: { url: 'http://127.0.0.1:9/mcp', token: 'synthetic-close-token' } }, { allowSecretValues: true })
+  let clientClosed = 0, notificationsClosed = 0, failure
+  const runtime = await createApplicationRuntime({ root, appRoot, home,
+    environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0', BELLTEAM_CALL_BRIDGE_SOCKET: socketPath },
+    bootstrap: { bots, settings, ownerProfile, userRules,
+      aiterm: { command: 'synthetic-aiterm', args: ['/synthetic/native.js', '--execution-interrupt'] },
+      refreshGlobalInstructions: async () => {} },
+    client: { async call() { return { content: [{ type: 'text', text: '(セッション無し)' }] } }, async close() { clientClosed++ } },
+  })
+  t.after(async () => { await runtime.close().catch(() => {}); await rm(root, { recursive: true, force: true }) })
+  const watch = runtime.services.store.watch.bind(runtime.services.store)
+  const original = new Error('synthetic real HTTP watch close failure')
+  runtime.services.store.watch = async (...args) => {
+    const stop = await watch(...args)
+    return () => { stop(); throw original }
+  }
+  const closeNotifications = runtime.services.notifications.close.bind(runtime.services.notifications)
+  runtime.services.notifications.close = async () => { notificationsClosed++; await closeNotifications() }
+  await runtime.start()
+  if (!runtime.server.listening) await once(runtime.server, 'listening')
+  if (!runtime.internalServer.listening) await once(runtime.internalServer, 'listening')
+  assert.ok((await stat(socketPath)).isSocket())
+  const firstClose = runtime.close()
+  assert.equal(runtime.close(), firstClose)
+  await assert.rejects(firstClose, error => {
+    failure = error
+    assert.equal(error.message, 'APPLICATION_CLOSE_FAILED')
+    assert.equal(error.errors[0].message, 'MESSAGE_WATCH_CLOSE_FAILED')
+    return error.errors[0].errors[0] === original
+  })
+  assert.equal(runtime.services.store.listeners.size, 0)
+  assert.equal(runtime.server.listening, false)
+  assert.equal(runtime.internalServer.listening, false)
+  await assert.rejects(stat(socketPath), { code: 'ENOENT' })
+  assert.equal(clientClosed, 1)
+  assert.equal(notificationsClosed, 1)
+  assert.equal(runtime.close(), firstClose)
+  await assert.rejects(runtime.close(), error => error === failure)
+})
+
 test('runtime factoryのimportだけでは本体起動・台帳作成・CLI接続をしない', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'bellteam-runtime-import-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
