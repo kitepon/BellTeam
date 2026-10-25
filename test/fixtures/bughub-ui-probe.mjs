@@ -115,6 +115,7 @@ const server = createServer(async (request, response) => {
     return json(response, { schedules: [] })
   }
   if (url.pathname.endsWith('/messages')) {
+    if (mode === 'conversation-timeout') return
     if (mode === 'conversation-pending') return
     const items = mode === 'post-wait-history' ? [...priorMessages, longMessage] : [mode === 'post-wait-long' ? longMessage : message]
     return json(response, { items: [...items, ...sentMessages], hasMore: false })

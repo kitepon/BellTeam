@@ -140,6 +140,45 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["試験用の会話"].waitForExistence(timeout: 6))
     }
 
+    func testConversationTimeoutKeepsKnownRowsUntilExplicitReload() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else {
+            throw XCTSkip("通信報告の隔離サーバーが必要です。")
+        }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset?mode=normal")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-chat", "-bellbot-preview-server", server]
+        app.launch(); defer { app.terminate() }
+        let oldRow = app.staticTexts["試験用の会話"]
+        XCTAssertTrue(oldRow.waitForExistence(timeout: 6))
+        let before = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let prior = (before["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/messages") == true }.count ?? 0
+
+        _ = try data(base, "/test/mode?mode=conversation-timeout")
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(app.staticTexts["send-error"].waitForExistence(timeout: 75), "時間切れを画面へ表示する")
+        XCTAssertTrue(oldRow.exists, "時間切れでも既知の会話行を保つ")
+        let failed = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let reads = (failed["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/messages") == true } ?? []
+        XCTAssertGreaterThan(reads.count, prior, "画面を開き直した時のGETを観測する")
+        XCTAssertTrue(reads.dropFirst(prior).allSatisfy { $0["closed"] as? Bool == true })
+        Thread.sleep(forTimeInterval: 0.5)
+        let stable = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let stableCount = (stable["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/messages") == true }.count
+        XCTAssertEqual(stableCount, reads.count, "時間切れ後はGETを自動再送しない")
+
+        _ = try data(base, "/test/mode?mode=normal")
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(app.staticTexts["send-error"].waitForNonExistence(timeout: 8))
+        XCTAssertTrue(oldRow.exists)
+        let recovered = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let later = (recovered["requests"] as? [[String: Any]])?.filter { ($0["path"] as? String)?.hasSuffix("/messages") == true } ?? []
+        XCTAssertGreaterThan(later.count, reads.count, "利用者が画面を開き直した後の正常GETを確認する")
+        XCTAssertTrue(later.dropFirst(reads.count).allSatisfy { $0["closed"] as? Bool == true })
+    }
+
     func testFailedImagePostRestoresComposerWithoutResend() throws {
         guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else { throw XCTSkip("通信報告の隔離サーバーが必要です。") }
         let base = try XCTUnwrap(URL(string: server))
