@@ -14,7 +14,10 @@ export function goalsView(dialog, api, getBots) {
   const notice = dialog.querySelector('[data-goals-notice]')
   const refreshButton = dialog.querySelector('[data-goals-refresh]')
   const pending = new Set(), drafts = new Map()
-  let snapshots = [], revision = 0
+  const observations = new Map()
+  const observed = id => observations.get(id) ?? 0
+  const advance = id => { const next = observed(id) + 1; observations.set(id, next); return next }
+  let snapshots = [], revision = 0, refreshing = false
   const report = text => { notice.textContent = text; notice.hidden = !text }
   const button = (label, run) => {
     const control = element('button', label)
@@ -100,46 +103,63 @@ export function goalsView(dialog, api, getBots) {
   }
   async function refresh() {
     const current = ++revision
+    const expected = new Map([...new Set([...getBots().map(bot => bot.id), ...snapshots.map(item => item.botId)])].map(id => [id, advance(id)]))
+    const stillCurrent = id => observed(id) === (expected.get(id) ?? 0)
+    refreshing = true
+    report('')
     refreshButton.disabled = true
     try {
       const result = await api('/api/goals')
       if (current !== revision) return
       if (!Array.isArray(result?.goals)) throw new Error('ゴールの一覧を確認できませんでした')
-      snapshots = result.goals; render()
+      // A new list read supersedes earlier operations on each member. A
+      // different member's later mutation keeps its own newer observation.
+      const previous = new Map(snapshots.map(item => [item.botId, item]))
+      const received = new Set(result.goals.map(item => item.botId))
+      const newer = snapshots.filter(item => !stillCurrent(item.botId) && !received.has(item.botId))
+      snapshots = [...result.goals.map(item => stillCurrent(item.botId) ? item : previous.get(item.botId)).filter(Boolean), ...newer]
+      render()
     } catch (error) {
       if (current !== revision) return
       // A stale snapshot must not keep offering mutations after a failed read.
-      snapshots = []; body.replaceChildren(element('p', 'ゴールの状態を取得できません。更新して確認してください。'))
+      snapshots = snapshots.filter(item => !stillCurrent(item.botId))
+      render()
+      if (!snapshots.length) body.replaceChildren(element('p', 'ゴールの状態を取得できません。更新して確認してください。'))
       report(error instanceof TypeError ? '接続できませんでした。更新して確認してください。' : error.message)
-    } finally { if (current === revision) refreshButton.disabled = false }
+    } finally { if (current === revision) { refreshing = false; refreshButton.disabled = false } }
   }
   async function mutate(snapshot, action, data = {}) {
     if (pending.has(snapshot.botId)) return
+    const expected = advance(snapshot.botId)
+    const stillCurrent = () => observed(snapshot.botId) === expected
     pending.add(snapshot.botId); report(''); render()
-    ++revision // In-flight old reads must not overwrite a mutation result.
     try {
       const result = await api(`/api/bots/${encodeURIComponent(snapshot.botId)}/goal`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action, binding: snapshot.binding, ...data }),
       })
+      if (!stillCurrent()) return
       if (!['confirmed', 'unconfirmed'].includes(result?.outcome) || result.snapshot?.botId !== snapshot.botId)
         throw new Error('ゴールの変更結果を確認できませんでした')
       snapshots = snapshots.map(item => item.botId === snapshot.botId ? result.snapshot : item)
       if (result.outcome === 'confirmed') drafts.delete(snapshot.botId)
       else report('変更結果を確認できませんでした。現在の状態を確認してから操作してください。')
     } catch (error) {
+      if (!stillCurrent()) return
       // Never repeat a goal mutation after an unknown network outcome.
       report('変更結果を確認できませんでした。現在の状態を確認しています。')
       try {
         const result = await api(`/api/bots/${encodeURIComponent(snapshot.botId)}/goal`)
+        if (!stillCurrent()) return
         if (result.snapshot?.botId !== snapshot.botId) throw new Error('ゴールを確認できませんでした')
         snapshots = snapshots.map(item => item.botId === snapshot.botId ? result.snapshot : item)
         report('変更の応答を確認できませんでした。現在取得できた状態を表示しています。操作前に確認してください。')
       } catch {
+        if (!stillCurrent()) return
         snapshots = snapshots.map(item => item.botId === snapshot.botId ? { botId: item.botId, availability: 'unavailable', goal: null } : item)
         report('変更結果と現在の状態を確認できませんでした。更新して確認してください。')
       }
-    } finally { ++revision; pending.delete(snapshot.botId); refreshButton.disabled = false; render() }
+    } finally { pending.delete(snapshot.botId); refreshButton.disabled = refreshing; render() }
   }
   refreshButton.addEventListener('click', () => { report(''); void refresh() })
   return { open: async () => { dialog.showModal(); report(''); await refresh() }, refresh }
