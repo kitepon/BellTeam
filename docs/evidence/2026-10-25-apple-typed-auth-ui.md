@@ -2,7 +2,7 @@
 
 ## 契約と修理範囲
 
-Root Draft PR #94の`9e1b0c94548cb0b187fbdcb84a42519d4f098ae1`を読んだ。初期設定と通常の4ハーネス認証は、従来の`auth`内に`auth_ui`を返す。入力は既存の`/api/setup/auth/input`と`/api/harness-auth/:harness/input`へ、`auth_ui.binding`全フィールド、`auth_ui.prompt_digest`、型付き`response`をそのまま送る。RootがNative向けの`expected_binding`と`expected_prompt_digest`へ変換する。AppleはID・digest・CLIキーを生成しない。
+Root PR #94の`9e1b0c94548cb0b187fbdcb84a42519d4f098ae1`で固定され、後に`main`へ統合された契約を読んだ。初期設定と通常の4ハーネス認証は、従来の`auth`内に`auth_ui`を返す。入力は既存の`/api/setup/auth/input`と`/api/harness-auth/:harness/input`へ、`auth_ui.binding`全フィールド、`auth_ui.prompt_digest`、型付き`response`をそのまま送る。RootがNative向けの`expected_binding`と`expected_prompt_digest`へ変換する。AppleはID・digest・CLIキーを生成しない。
 
 旧Apple画面は`input_required`だけで自由入力とEnter/Up/Down/Tabを出していた。両画面で共通の型付き案内を使い、公式リンク、利用者コード、選択肢、認証コード欄を`auth_ui`から表示する。入力種別とbindingとdigestが揃わない状態ではPOSTしない。結果不明のPOST後は明示GETまで入力を止め、先に始まったGETが新しい結果へ上書きしない。
 
@@ -20,5 +20,7 @@ Root Draft PR #94の`9e1b0c94548cb0b187fbdcb84a42519d4f098ae1`を読んだ。初
 - Rootの`paste_code`契約どおり、型付き案内でも有効なHTTPSのURLが欠ける時はコードを送れない。focused単体試験1件成功・失敗0。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T13-29-15-828Z_pid8412_f0c55554.xcresult`。変更後のMac Catalyst Debugビルドも成功。
 - URL条件を加えた後の4ハーネス画面試験も1件成功・失敗0。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T13-30-40-309Z_pid8412_ad9ff218.xcresult`。
 - Root PR #94で再現された「古いGET Aを保留→新しいGET Bで認証完了→Aの旧状態またはエラーが後着」の順序をAppleの通常認証と初期設定の両方で人工再現した。各GETの開始番号で最新だけを採用し、Aの旧waitingと503を無視した。先のPOST競合・結果不明と合わせてfocused4件成功・失敗0。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T13-35-07-519Z_pid8412_2387b32b.xcresult`。
+- Root PR #94と関連PR #97・#98を取り込んだ`main`へ追従後、型付きbinding/返信と認証順序のfocused単体試験5件成功・失敗0。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-7078e2c59646/result-bundles/test_sim_2026-10-25T17-16-02-373Z_pid85321_e1e1d22f.xcresult`。iPad Pro 11インチ（M5）/ iOS 27.0 SimulatorのCodex device code代表画面も1件成功・失敗0で、公式リンク・利用者コードを表示し、入力欄は出さなかった。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-7078e2c59646/result-bundles/test_sim_2026-10-25T17-17-10-368Z_pid85321_36962f75.xcresult`。
+- 別識別子`dev.kitepon.bellbot.authprobe`のMac Catalyst Debugアプリを人工APIへ接続し、Codex device codeの[代表画面](images/2026-10-26-auth-mac-codex.png)を実表示で確認した。公式リンク・利用者コードが読め、コード入力欄は無い。アクセシビリティでも同じ表示を確認。終了後は隔離アプリのPID消失を確認した。
 
-Root PR #94はDraftで、Nativeの正式版・他OS・実Owner認証は未受入。Appleの実認証、署名、配布、本番コンテナへの操作は行っていない。
+Root PR #94は`main`へ統合済み。Native Authの正式公開物は供給済みだが、最終imageと実HTTP通常段階、実Owner認証は未受入。Appleの実認証、署名、配布、本番コンテナへの操作は行っていない。

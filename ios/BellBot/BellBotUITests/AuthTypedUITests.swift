@@ -1,6 +1,32 @@
 import XCTest
 
 final class AuthTypedUITests: XCTestCase {
+    func testTabletDeviceCodeInstructions() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "iPadの認証画面試験")
+        let address = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_AUTH_TYPED_URL"])
+        let base = try XCTUnwrap(URL(string: address))
+        _ = try request(base, "/test/reset")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", address]
+        app.launch()
+        defer { app.terminate() }
+        let settings = app.buttons["設定"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 10))
+        settings.tap()
+        let entry = app.buttons["harness-auth-codex"]
+        for _ in 0..<5 where !entry.isHittable { app.scrollViews.firstMatch.swipeUp() }
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        entry.tap()
+        XCTAssertTrue(app.staticTexts["Codexの公式サイトを開く"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.links["harness-auth-link"].exists || app.buttons["harness-auth-link"].exists)
+        XCTAssertTrue(app.staticTexts["harness-auth-code"].exists)
+        XCTAssertFalse(app.secureTextFields["harness-auth-input"].exists)
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = "iPadの型付き認証案内"
+        capture.lifetime = .keepAlways
+        add(capture)
+    }
+
     func testFourHarnessesUseTypedInstructions() throws {
         let address = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_AUTH_TYPED_URL"])
         let base = try XCTUnwrap(URL(string: address))
