@@ -39,6 +39,27 @@ test('初期設定中は旧接続テストで案内会話を終えず、案内�
   assert.equal(restarted, guide.id)
 })
 
+test('作業中のメンバーへの接続確認は409で拒否し、待機後の明示操作だけを実行する', async t => {
+  const bot = { id: 'bot-guide' }
+  let idle = false
+  const calls = []
+  const { base } = await listen(t, { bots: new Map([[bot.id, bot]]), authorize: () => true,
+    subscriptions: { async runSetupTest(botId, run) { calls.push(['setup', botId]); return { reply: await run() } } },
+    transport: { isIdle: () => idle, async setupTest(value) { calls.push(['run', value.id]); return '接続できました' } },
+  })
+  const confirm = () => fetch(`${base}/api/subscription/setup-test`, { method: 'POST',
+    headers: { 'content-type': 'application/json' }, body: JSON.stringify({ botId: bot.id }) })
+  const busy = await confirm()
+  assert.equal(busy.status, 409)
+  assert.deepEqual(await busy.json(), { error: 'SETUP_BOT_BUSY', message: 'メンバーが作業中です。完了してから動作確認してください。' })
+  assert.deepEqual(calls, [])
+  idle = true
+  const ready = await confirm()
+  assert.equal(ready.status, 200)
+  assert.deepEqual(await ready.json(), { reply: '接続できました' })
+  assert.deepEqual(calls, [['setup', bot.id], ['run', bot.id]])
+})
+
 test('席のAPIは認証開始と入力を拒否し、案内会話の開始・完了は保持する', async t => {
   const calls = [], events = []
   const onboarding = {
