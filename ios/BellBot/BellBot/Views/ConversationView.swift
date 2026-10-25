@@ -124,7 +124,7 @@ private struct ConversationContent: View {
                     }
                     // キーボードで見える高さだけが縮む時は、本文の計測値が変わらず上の通知が来ない。
                     .onChange(of: viewport.size.height) { oldHeight, newHeight in
-                        if oldHeight > 0 && newHeight < oldHeight - 0.5 && (isAtBottom || scroll.followingBottom) {
+                        if oldHeight > 0 && newHeight < oldHeight - 0.5 && isAtBottom {
                             scroll.followingBottom = true
                             proxy.scrollTo("bottom", anchor: .bottom)
                         }
