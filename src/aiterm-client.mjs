@@ -2,6 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
 import { returnedExecutionError, ERROR_META } from './execution-bridge.mjs'
+import { authenticationPreflightFailure } from './agent-launch-error.mjs'
 
 export class AitermClient {
   constructor({ command = 'aiterm-mcp', args = [], env = runtimeEnvironment() } = {}) {
@@ -64,6 +65,13 @@ export class AitermClient {
       const error = new Error(message)
       // tool handlerがエラー結果を返し終えた事と、RPC timeout/通信断で結果が不明な事を区別する。
       error.aitermResponseReturned = true
+      if (['agent_launch', 'claude_agent'].includes(name)) {
+        const preflight = authenticationPreflightFailure(result.structuredContent)
+        if (preflight) {
+          error.agentLaunchError = preflight
+          error.code = preflight.code
+        }
+      }
       const executionError = returnedExecutionError(result._meta?.[ERROR_META])
       if (executionError) error.executionError = executionError
       // 起動の準備が終わらなかった時、Aitermは作った端末の名前と止まった理由を構造で返す（aiterm.agent-launch-result.v1）。
