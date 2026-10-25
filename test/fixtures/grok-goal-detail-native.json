@@ -1,0 +1,106 @@
+{
+  "schema": "aiterm.agent-goal-result.v2",
+  "session_id": "grok-binding-fixture",
+  "launch_id": "c2fac5a43626cad378c6bf1423072a81",
+  "harness": "grok-cli",
+  "binding": {
+    "session_id": "grok-binding-fixture",
+    "launch_id": "c2fac5a43626cad378c6bf1423072a81",
+    "thread_id": "01a172b7-5344-7080-bcc5-059411a7d4e7"
+  },
+  "availability": "available",
+  "capabilities": {
+    "inspect": true,
+    "create": false,
+    "edit": false,
+    "pause": false,
+    "resume": false,
+    "clear": false
+  },
+  "outcome": "observed",
+  "mutation": "not_requested",
+  "readback": "confirmed",
+  "goal": {
+    "kind": "grok-cli",
+    "native": {
+      "goal_id": "b9fbb12a-4f0c-424d-978a-124fffea3ac0",
+      "objective": "Artificial native goal contract",
+      "status": "active",
+      "phase": "Idle",
+      "token_budget": 1,
+      "elapsed_ms": 15015,
+      "created_at": "2026-10-25T10:59:39.498679548+00:00",
+      "current_subagent_id": null,
+      "current_subagent_role": null,
+      "total_worker_rounds": 0,
+      "total_verify_rounds": 0,
+      "token_baseline": 1339,
+      "tokens_used_high_water": 4906,
+      "parent_tokens_spent": 0,
+      "last_session_tokens_seen": 1339,
+      "history": [
+        {
+          "timestamp": "2026-10-25T10:59:39.500244686+00:00",
+          "event": "goal_created"
+        },
+        {
+          "timestamp": "2026-10-25T10:59:54.497729662+00:00",
+          "event": "goal_paused",
+          "detail": "user"
+        },
+        {
+          "timestamp": "2026-10-25T19:03:34.707340819+00:00",
+          "event": "goal_resumed"
+        },
+        {
+          "timestamp": "2026-10-25T19:04:59.356770268+00:00",
+          "event": "goal_resumed"
+        },
+        {
+          "timestamp": "2026-10-25T19:05:57.531089145+00:00",
+          "event": "goal_resumed"
+        },
+        {
+          "timestamp": "2026-10-25T19:08:22.998700944+00:00",
+          "event": "goal_resumed"
+        },
+        {
+          "timestamp": "2026-10-25T19:15:51.621455788+00:00",
+          "event": "goal_resumed"
+        },
+        {
+          "timestamp": "2026-10-25T19:37:33.817708902+00:00",
+          "event": "goal_resumed"
+        },
+        {
+          "timestamp": "2026-10-25T19:38:50.072372304+00:00",
+          "event": "goal_resumed"
+        },
+        {
+          "timestamp": "2026-10-25T19:51:42.251229585+00:00",
+          "event": "goal_resumed"
+        }
+      ],
+      "evaluator_blocked_streak": 0,
+      "verifier_id": "3df1ee118292",
+      "classifier_runs_attempted": 0,
+      "rounds_since_verify": 0,
+      "classifier_stall_count": 0,
+      "consecutive_not_achieved": 0,
+      "last_strategist_fired_at": 0,
+      "strategist_cap_bonus": 0
+    },
+    "current_status": {
+      "source": "goal detail",
+      "status": "Active",
+      "phase": null,
+      "tokens_used": null,
+      "status_display": "Active ⸬ · Planning",
+      "phase_display": "Planning",
+      "budget_display": "4.9k / 1 tokens (100%)",
+      "elapsed_display": "26s"
+    }
+  },
+  "reason": "native_goal_observed",
+  "observed_at": "2026-10-25T19:51:42.479Z"
+}

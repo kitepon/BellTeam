@@ -160,6 +160,16 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .input-shell { display: flex; width: 100%; align-items: end; min-width: 0; min-height: 48px; padding: 6px 7px 6px 18px; border: 1px solid #e8e8ea; border-radius: 26px; background: #fff; box-shadow: 0 10px 32px rgba(0,0,0,.08); }
 .input-shell textarea { flex: 1; min-width: 0; min-height: calc(1.45em + 14px); max-height: calc(7.25em + 14px); overflow-y: hidden; padding: 7px 0; resize: none; border: 0; outline: 0; line-height: 1.45; }
 .input-shell textarea::placeholder { color: #c3c3c7; }
+.goal-card { padding: 18px 0; border-bottom: 1px solid var(--line); }
+.goal-card h3 { margin: 0 0 8px; }
+.goal-status { font-weight: 700; }
+.goal-objective { white-space: pre-wrap; overflow-wrap: anywhere; }
+.goal-meta { color: #676076; font-size: 13px; line-height: 1.5; }
+.goal-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.goal-actions button { min-height: 40px; padding: 8px 14px; border: 0; border-radius: 12px; background: #eee9fb; cursor: pointer; }
+.goal-actions button:disabled { opacity: .5; cursor: default; }
+.goal-form { display: grid; gap: 12px; margin-top: 14px; }
+#goals-dialog [data-goals-refresh] { justify-self: end; }
 .send-button { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border: 0; border-radius: 50%; background: #111; color: #fff; cursor: pointer; }
 .send-button svg { width: 19px; height: 19px; }
 .send-button:disabled { background: #dadadd; }

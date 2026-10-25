@@ -23,12 +23,12 @@ async function fixture(t, mode) {
     const { name, arguments: args } = request.params
     calls.push({ name, args: structuredClone(args) })
     assert.equal(name, 'agent_stop', 'stop must not wait for roots/status or issue close/raw key fallback')
-    assert.deepEqual(args, { session_id: bot.session })
+    assert.deepEqual(args, { session_id: bot.session, ...(args.pause_goals ? { pause_goals: true } : {}) })
     if (mode === 'unsupported') return { isError: true, content: [{ type: 'text', text: 'unsupported' }] }
     const sent = mode === 'confirmed'
     return { content: [], structuredContent: {
       status: sent ? 'sent' : 'partial',
-      targets: [{ session_id: bot.session, status: sent ? 'sent' : 'failed' }],
+      targets: [{ session_id: bot.session, status: sent ? 'sent' : 'failed', ...(args.pause_goals ? { goal_pause: sent ? 'no_goal' : 'outcome_unknown' } : {}) }],
     } }
   })
   const sdk = new Client({ name: 'bellteam', version: 'synthetic' })

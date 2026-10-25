@@ -1,0 +1,27 @@
+{
+  "stage": "existing-native-client wiring; not release-ready",
+  "prototypeSource": "5b3867d2090d2cb236e7ab05c5316a97a15f4e03",
+  "existingTransportOnly": true,
+  "legacyGraphClientAdded": false,
+  "fakeMcpTypedFocused": {
+    "tests": 18,
+    "pass": 18,
+    "fail": 0
+  },
+  "validation": "synthetic transport/native typed results and real application-runtime lifecycle, not a live native MCP worker",
+  "remaining": [
+    "normal MCP handshake against prototype and isolated native goal worker",
+    "global AI stop must pause native goal continuation before interruption",
+    "CLI/platform and inactive-session acceptance",
+    "full suite and independent candidate acceptance"
+  ],
+  "source": {
+    "src/bot-goals.mjs": "ff6ebd3b5bafbb9eca1874a1e710e5aa94c9cde740f33efc3e00e8a795f17fd1",
+    "src/aiterm-client.mjs": "92c367d257a057765edf268e8cc6a670e7c70f89add862934d94a967385b45e4",
+    "src/application-services.mjs": "781869063f491bbf06c327e3f9a37d9a635624aeeeeb6e46b813b6e5c913d1ab",
+    "src/application-runtime.mjs": "7e8ae3996e87156af32aa479015cbd40cfbbd99a7345331c70e47e472138d6be",
+    "web/goals.js": "23d1a26f3e23b000477c725593df7c1f57fe7e5b4a69f6e0d0472c2b6053c2e0",
+    "test/bot-goals.test.mjs": "a46b76884fd519e24ab95b863b195d814011f8d272988eb97922da037f992d2f"
+  },
+  "logSha256": "89757d4cdc55f9fff00ac585819a3977e4fe7aea6e70ad0a52ad27d8cca0d683"
+}

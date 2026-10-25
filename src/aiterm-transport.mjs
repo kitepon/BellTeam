@@ -30,7 +30,7 @@ const CALLER_META = { 'aiterm/caller': 'BellTeam' }
 // Ordinary delivery uses Aiterm directly. Execution tracking never gates input.
 // Stop forwarding uses the direct agent_stop control.
 export function createManagedTransport({ client = new AitermClient(), ...options } = {}) {
-  return new AitermTransport({ ...options, client, executionBridge: null, requestStop: sessions => sendSessionStop(client, sessions) })
+  return new AitermTransport({ ...options, client, executionBridge: null, requestStop: (sessions, stopOptions) => sendSessionStop(client, sessions, stopOptions) })
 }
 
 // BellTeamとAitermの間。席の状態（BotSessionState）と席の活動（SeatActivity）を持ち、一回の配送（DeliveryJob）を進める。
@@ -72,7 +72,7 @@ export class AitermTransport {
       sessionState: this.sessionState,
       activity: this.activity,
       get executionBridge() { return transport.executionBridge },
-      requestStop: sessions => this.requestStop(sessions),
+      requestStop: (sessions, options) => this.requestStop(sessions, options),
       session: bot => this.session(bot),
       observe: bot => this.observe(bot),
       wake: (bot, options) => this.wake(bot, options),
@@ -273,10 +273,13 @@ export class AitermTransport {
     })
   }
 
-  interruptMany(bots) {
-    if (this.requestStop) return sendStopOperations(this.seat, bots)
+  interruptMany(bots, options = {}) {
+    if (this.requestStop) return sendStopOperations(this.seat, bots, options)
     if (!this.executionBridge) throw Object.assign(new Error('EXECUTION_BRIDGE_REQUIRED'), { code: 'BOT_STOP_UNCONFIRMED' })
-    return interruptExecutions(this.seat, bots)
+    const stopping = interruptExecutions(this.seat, bots)
+    // The historical adapter still interrupts the turn, but cannot confirm
+    // native goal pause. Keep the owner's global stop visibly unconfirmed.
+    return options.pauseGoals ? stopping.then(result => ({ ...result, unconfirmedBotIds: [...new Set(bots.map(bot => bot.id))] })) : stopping
   }
 
   requireStopVersion(botId, version) {

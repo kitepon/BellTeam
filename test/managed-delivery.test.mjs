@@ -59,13 +59,15 @@ test('global stop uses one direct batch and existing scheduler command interrupt
   const transport = createManagedTransport({ client: { async call(name, args) {
     calls.push({ name, args })
     assert.equal(name, 'agent_stop')
-    return sent(args.session_ids)
+    const result = sent(args.session_ids)
+    for (const target of result.structuredContent.targets) target.goal_pause = 'no_goal'
+    return result
   } } })
   const result = await stopRegisteredWork({ bots: new Map(group.map(bot => [bot.id, bot])), transport,
     scheduler: { interruptCommands() { commandStops++; return true } } })
   assert.deepEqual(result, { unconfirmedBotIds: [], commandsConfirmed: true })
   assert.equal(commandStops, 1)
-  assert.deepEqual(calls, [{ name: 'agent_stop', args: { session_ids: group.map(bot => bot.id) } }])
+  assert.deepEqual(calls, [{ name: 'agent_stop', args: { session_ids: group.map(bot => bot.id), pause_goals: true } }])
 })
 
 test('a failed direct stop is reported without closing, tracking lookup or resend', async () => {

@@ -1,0 +1,36 @@
+{
+  "passed": true,
+  "sourceRoot": "/srv/bellteam/bots/bot-7b140b27/work/BellTeam-goals-ui-20261025",
+  "commonSha256": "4a57d6cc056f9807b009082dd8218b5338b6ca93850fbbf4672ef445c0d075cd",
+  "toolDescriptionSha256": "5d7face743616d6027fd43fb20bd7b9e2df10255e012a11fe93ecaa7131cd668",
+  "fourCli": {
+    "claude": {
+      "completeTextMatch": true,
+      "fastSectionOnce": true,
+      "sha256": "9c174b601f5a4f210e45b167351d296ca38400f91bfe98efafe7585a32e7682e"
+    },
+    "codex": {
+      "completeTextMatch": true,
+      "fastSectionOnce": true,
+      "sha256": "9c174b601f5a4f210e45b167351d296ca38400f91bfe98efafe7585a32e7682e"
+    },
+    "grok": {
+      "completeTextMatch": true,
+      "fastSectionOnce": true,
+      "sha256": "9c174b601f5a4f210e45b167351d296ca38400f91bfe98efafe7585a32e7682e"
+    },
+    "cursor": {
+      "completeTextMatch": true,
+      "fastSectionOnce": true,
+      "sha256": "9c174b601f5a4f210e45b167351d296ca38400f91bfe98efafe7585a32e7682e"
+    }
+  },
+  "cursorActualHookFulltext": true,
+  "claudeReference": true,
+  "repeatedGenerationSame": true,
+  "syntheticHomeOnly": true,
+  "sourcePreflightOnly": true,
+  "finalImageGeneration": false,
+  "finalImageAccepted": false,
+  "actualAgentBehaviorProven": false
+}
