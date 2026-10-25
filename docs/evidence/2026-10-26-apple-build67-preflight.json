@@ -1,0 +1,66 @@
+{
+  "schema": "bellteam.apple-unsigned-preflight.v1",
+  "sourceCommit": "9f8bed9744b51d4d73b227eab54936e87faf16d3",
+  "sourceTree": "01463bac34e568ae6def86ab888478164a083522",
+  "appleProductSourceDiffFromBuiltCommit": [],
+  "baseMainCommit": "ede959b21f1a0291c7727e93f45320ecb7222318",
+  "pullRequest": 100,
+  "bundleId": "dev.kitepon.bellbot",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "67",
+  "xcodegen": {
+    "command": "xcodegen generate --spec ios/BellBot/project.yml",
+    "extraTrackedDiff": false
+  },
+  "builds": [
+    {
+      "platform": "IOS",
+      "destination": "generic/platform=iOS",
+      "configuration": "Release",
+      "jobs": 2,
+      "codeSigningAllowed": false,
+      "command": "xcodebuild -quiet -jobs 2 -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam -configuration Release -destination 'generic/platform=iOS' -derivedDataPath runtime/apple/build67/ios-derived CODE_SIGNING_ALLOWED=NO build",
+      "exitCode": 0,
+      "logPath": "runtime/apple/build67/ios-release.log",
+      "logSha256": "6aad6e1d1e29fbdf46d64ea175a1aef5ab45030dcb71bff7188940b9a6ce815e",
+      "app": {
+        "binaryPath": "runtime/apple/build67/ios-derived/Build/Products/Release-iphoneos/BellTeam.app/BellTeam",
+        "binarySha256": "988c831d8ce521672de32d5ce38e60966db9390b255fae6341644cbf2ac54e82",
+        "architectures": ["arm64"],
+        "bundleVersion": "67"
+      },
+      "notificationService": {
+        "binaryPath": "runtime/apple/build67/ios-derived/Build/Products/Release-iphoneos/BellTeam.app/PlugIns/NotificationService.appex/NotificationService",
+        "binarySha256": "0cd8757c8d9eb8000356e13aca2926069f5d3673fd3ce3ac7d10cad7923236c0",
+        "architectures": ["arm64"],
+        "bundleVersion": "67"
+      }
+    },
+    {
+      "platform": "MAC_OS",
+      "destination": "generic/platform=macOS,variant=Mac Catalyst",
+      "configuration": "Release",
+      "jobs": 2,
+      "codeSigningAllowed": false,
+      "command": "xcodebuild -quiet -jobs 2 -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam -configuration Release -destination 'generic/platform=macOS,variant=Mac Catalyst' -derivedDataPath runtime/apple/build67/mac-derived CODE_SIGNING_ALLOWED=NO build",
+      "exitCode": 0,
+      "logPath": "runtime/apple/build67/mac-release.log",
+      "logSha256": "cbbccc68a004688bfa63a09da4aa55fd1ccce2c1bdad85477bebcaca00146440",
+      "app": {
+        "binaryPath": "runtime/apple/build67/mac-derived/Build/Products/Release-maccatalyst/BellTeam.app/Contents/MacOS/BellTeam",
+        "binarySha256": "3e8503bff1b6ef03403c9e8a267bf860653fd4db0266f7eabb82e907408c8523",
+        "architectures": ["arm64", "x86_64"],
+        "bundleVersion": "67"
+      },
+      "notificationService": {
+        "binaryPath": "runtime/apple/build67/mac-derived/Build/Products/Release-maccatalyst/BellTeam.app/Contents/PlugIns/NotificationService.appex/Contents/MacOS/NotificationService",
+        "binarySha256": "2c32d48680b1ec4d697e91763cbb3c3695ca5d1eb82357c91cb7de48365fb756",
+        "architectures": ["arm64", "x86_64"],
+        "bundleVersion": "67"
+      }
+    }
+  ],
+  "signed": false,
+  "uploadedToAppStoreConnect": false,
+  "distributedToTestFlight": false
+}
