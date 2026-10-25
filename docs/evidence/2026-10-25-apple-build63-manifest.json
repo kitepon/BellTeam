@@ -68,9 +68,14 @@
     "observedProcessNotTerminated": true,
     "realBotMessageSent": false
   },
+  "ownerIPhoneAcceptance": {
+    "title": "BellTeam版63のiPhone送信本文の見え方を通常使用で確認する",
+    "choice": "good",
+    "answer": "本文が全文見え操作も問題ない",
+    "answeredAt": "2026-10-25T02:32:49.845Z",
+    "result": "passed-normal-use"
+  },
   "remaining": {
-    "ownerIPhoneCheck": "pending-next-normal-use",
-    "ownerCheckTitle": "BellTeam版63のiPhone送信本文の見え方を通常使用で確認する",
     "ownerImageOperationOrder": "unconfirmed"
   },
   "serverContainerRestarted": false,
