@@ -53,6 +53,7 @@ export class AitermTransport {
     this.now = now
     this.retainedImages = new Map()
     this.activity = new SeatActivity()
+    this.restarts = new Map()
     this.sessionState = new BotSessionState({
       assertWorkAllowed: () => this.assertWorkAllowed(),
       executionBridge: () => this.executionBridge,
@@ -194,14 +195,35 @@ export class AitermTransport {
   }
 
   async restart(bot) {
+    const existing = this.restarts.get(bot.id)
+    if (existing) return existing
     this.assertWorkAllowed()
     this.requireSessionKnown(bot.id)
+    // 明示再起動は、終了できないターンからも席を戻す操作。旧設定の
+    // idle待ちを無効にし、旧CLIを閉じてから保存済み設定で起動する。
+    this.sessionState.invalidate(bot.id)
     const version = this.captureStopVersion(bot)
-    if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
-    await this.idle(bot.id)
-    this.requireStopVersion(bot.id, version)
-    const session = await this.restartNow(bot, version)
-    return { botId: bot.id, session }
+    const previousJobs = [...this.activity.jobs].filter(job => job.bot.id === bot.id)
+    const previousWatch = this.activity.watches.get(bot.id)
+    const previousChanges = [...(this.sessionChanges.get(bot.id) ?? [])]
+    const previousWake = this.activity.waking.get(bot.id)
+    const pending = (async () => {
+      if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
+      // 発行済みの起動・設定RPCが後から新個体へ届かないよう、その返却だけを
+      // 待つ。ターンの完了や、まだ発行していない旧idle待ちは待たない。
+      await Promise.allSettled([...previousChanges, ...(previousWake ? [previousWake] : [])])
+      this.requireSessionKnown(bot.id)
+      this.requireStopVersion(bot.id, version)
+      const session = await this.restartNow(bot, version, () => {
+        for (const job of previousJobs) job.markStopped()
+        previousWatch?.end()
+      })
+      return { botId: bot.id, session }
+    })()
+    this.restarts.set(bot.id, pending)
+    const clear = () => { if (this.restarts.get(bot.id) === pending) this.restarts.delete(bot.id) }
+    pending.then(clear, clear)
+    return this.activity.configurationChanges.track(bot.id, pending, { clearOnFailure: false })
   }
 
   async reconfigure(current, next) {
@@ -210,6 +232,8 @@ export class AitermTransport {
     const version = this.captureStopVersion(current)
     if (this.executionBridge) await this.awaitUnboundAdmission(current, version)
     await this.requireAccess({ setupTest: false, botId: next.id })
+    const restarting = this.restarts.get(current.id)
+    if (restarting) await restarting
     await this.idle(current.id)
     this.requireStopVersion(current.id, version)
     const requiresRestart = current.harness !== next.harness
@@ -388,10 +412,11 @@ export class AitermTransport {
     return completion.accepted
   }
 
-  async restartNow(bot, version = this.stopVersions.get(bot.id)) {
+  async restartNow(bot, version = this.stopVersions.get(bot.id), onClosed = () => {}) {
     await this.requireAccess({ setupTest: false, botId: bot.id })
     this.requireStopVersion(bot.id, version)
     await this.changeSession(bot, 'pty_close', { session_id: this.session(bot) })
+    onClosed()
     await this.removeRetainedImages(bot.id)
     this.requireStopVersion(bot.id, version)
     return this.wake(bot)
