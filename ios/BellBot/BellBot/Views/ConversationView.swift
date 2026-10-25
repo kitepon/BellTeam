@@ -763,11 +763,12 @@ private struct ConversationContent: View {
 
     private func updateWindow(_ metrics: ScrollMetrics, viewportHeight: CGFloat, width: CGFloat, botsByID: [String: Bot]) {
         // 末尾への移動中は中間地点の行へ表示範囲を切り替えず、到着後に更新する。
-        guard !rowIsPresenting, !scroll.followingBottom, !messages.isEmpty, let top = metrics.top,
-              let anchor = messages.first(where: { message in
-                  guard let frame = metrics.rows[message.id]?.frame else { return false }
-                  return frame.maxY > 0 && frame.minY < viewportHeight
-              }) else { return }
+        guard !rowIsPresenting, !scroll.followingBottom, !messages.isEmpty, let top = metrics.top else { return }
+        // 描画済みの行を飛び越えても、スクロール位置と保持した行高から範囲を求める。
+        let anchor = messages.first(where: { message in
+            guard let frame = metrics.rows[message.id]?.frame else { return false }
+            return frame.maxY > 0 && frame.minY < viewportHeight
+        })
         var offset = top
         var lower = messages.count - 1
         var upper = 0
@@ -779,7 +780,7 @@ private struct ConversationContent: View {
             }
             offset += rowHeight + 17
         }
-        if let index = messages.firstIndex(where: { $0.id == anchor.id }) {
+        if let anchor, let index = messages.firstIndex(where: { $0.id == anchor.id }) {
             lower = min(lower, index)
             upper = max(upper, index + 1)
         }

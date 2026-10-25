@@ -158,7 +158,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .attachment-preview img { width: 100%; height: 100%; border-radius: 18px; object-fit: cover; }
 .attachment-preview button { position: absolute; top: -7px; right: -7px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 2px solid #fff; border-radius: 50%; background: #222; color: #fff; cursor: pointer; line-height: 1; }
 .input-shell { display: flex; width: 100%; align-items: end; min-width: 0; min-height: 48px; padding: 6px 7px 6px 18px; border: 1px solid #e8e8ea; border-radius: 26px; background: #fff; box-shadow: 0 10px 32px rgba(0,0,0,.08); }
-.input-shell textarea { flex: 1; min-width: 0; max-height: 120px; padding: 7px 0; resize: none; border: 0; outline: 0; line-height: 1.45; }
+.input-shell textarea { flex: 1; min-width: 0; min-height: calc(1.45em + 14px); max-height: calc(7.25em + 14px); overflow-y: hidden; padding: 7px 0; resize: none; border: 0; outline: 0; line-height: 1.45; }
 .input-shell textarea::placeholder { color: #c3c3c7; }
 .send-button { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border: 0; border-radius: 50%; background: #111; color: #fff; cursor: pointer; }
 .send-button svg { width: 19px; height: 19px; }

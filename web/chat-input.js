@@ -5,6 +5,38 @@ export function claimMessageSend(state, key, value, pendingImages = []) {
   return { message, pendingImages: [...pendingImages] }
 }
 
+// Native input, restored drafts and line wrapping share the same measurement.
+// Limit whole lines rather than a fixed pixel height that clips the last line.
+export function installMessageInputSizing(input) {
+  let measuredWidth = 0
+  const resize = () => {
+    if (input.clientWidth === 0) return
+    const style = getComputedStyle(input)
+    const line = parseFloat(style.lineHeight)
+    const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
+    const border = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth)
+    const previousScroll = input.scrollTop
+    const typingAtEnd = document.activeElement === input && input.selectionEnd === input.value.length
+    input.style.height = '0px'
+    const content = input.scrollHeight + border
+    const maximum = line * 5 + padding + border
+    input.style.height = `${Math.min(Math.max(content, line + padding + border), maximum)}px`
+    input.style.overflowY = content > maximum ? 'auto' : 'hidden'
+    input.scrollTop = content <= maximum ? 0 : typingAtEnd ? input.scrollHeight : previousScroll
+  }
+  input.addEventListener('input', resize)
+  const observer = new ResizeObserver(() => {
+    const width = input.clientWidth
+    if (width === measuredWidth) return
+    measuredWidth = width
+    resize()
+  })
+  observer.observe(input)
+  document.fonts.ready.then(resize)
+  resize()
+  return resize
+}
+
 export function claimSingleFlight(inFlight, key) {
   if (inFlight.has(key)) return false
   inFlight.add(key)
