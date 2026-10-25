@@ -125,7 +125,7 @@ function harnessAuthItem(harness, { api }) {
       nodes.push(link)
     }
     if (view.code) nodes.push(Object.assign(document.createElement('p'), { className: 'auth-user-code', textContent: `利用者コード: ${view.code}` }))
-    if (view.input && started) {
+    if (view.input) {
       const label = document.createElement('label')
       label.className = 'field'
       label.append(Object.assign(document.createElement('span'), { textContent: '認証に必要な入力' }))
@@ -156,12 +156,12 @@ function harnessAuthItem(harness, { api }) {
     } else {
       actions.append(
         // 認証が無い・切れていると分かっている時は、失う物が無いのですぐ始める。
-        button('認証し直す', () => { if (needsStartConfirmation(harness, auth)) { confirming = true; render() } else return start() }),
+        ...(view.input ? [] : [button('認証し直す', () => { if (needsStartConfirmation(harness, auth)) { confirming = true; render() } else return start() })]),
         button('状態を更新', () => perform(async () => { const next = await api(path); if (next.auth?.status === 'authenticated') started = false; return next })),
       )
     }
     // やめた後は、公式の状態を見直して出す。
-    if (started) actions.append(button('やめる', () => perform(async () => { await post('cancel'); started = false; return api(path) })))
+    if (started || view.input) actions.append(button('やめる', () => perform(async () => { await post('cancel'); started = false; return api(path) })))
     nodes.push(actions)
     if (errorText) {
       const error = Object.assign(document.createElement('p'), { className: 'form-error', textContent: errorText })

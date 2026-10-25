@@ -30,6 +30,7 @@ export class HarnessAuth {
     this.client = client
     // 進行中の公式認証（Aitermの端末）。AIの種類ごとに1つ。
     this.sessions = new Map()
+    this.adopted = new Set()
     this.pending = Promise.resolve()
   }
 
@@ -66,10 +67,35 @@ export class HarnessAuth {
       const session = this.sessions.get(harness)
       if (!session) throw new HarnessAuthError('HARNESS_AUTH_NOT_RUNNING', 409, '認証のやり直しを開始してください。')
       if ((typeof text === 'string') === (typeof key === 'string')) throw new HarnessAuthError('HARNESS_AUTH_INPUT_INVALID', 400, '認証の入力またはキーを指定してください。')
+      if (this.adopted.has(harness)) {
+        const receipt = await this.call(harness, 'status')
+        this.requireWaitingSession(harness, session, receipt)
+      }
       if (text !== undefined) await this.client.call('pty_send', { session_id: session, text, enter: true, raw: true })
       else await this.client.call('pty_key', { session_id: session, key })
       return this.observe(harness)
     })
+  }
+
+  adopt(harness, { sessionId } = {}) {
+    return this.change(async () => {
+      this.require(harness)
+      if (typeof sessionId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/u.test(sessionId))
+        throw new HarnessAuthError('HARNESS_AUTH_INPUT_INVALID', 400, '既存の認証を指定してください。')
+      if (this.sessions.has(harness) && this.sessions.get(harness) !== sessionId)
+        throw new HarnessAuthError('HARNESS_AUTH_ALREADY_RUNNING', 409, '別の認証が進行しています。')
+      const receipt = await this.call(harness, 'status', { session_id: sessionId })
+      this.requireWaitingSession(harness, sessionId, receipt)
+      this.sessions.set(harness, sessionId)
+      this.adopted.add(harness)
+      return this.snapshot(harness, receipt)
+    })
+  }
+
+  requireWaitingSession(harness, sessionId, receipt) {
+    if (receipt.harness !== HARNESS[harness] || receipt.session_id !== sessionId
+      || !['waiting', 'blocked'].includes(receipt.status) || receipt.input_required !== true)
+      throw new HarnessAuthError('HARNESS_AUTH_SESSION_CHANGED', 409, '既存の認証の入力待ちを確認できません。状態を更新してください。')
   }
 
   cancel(harness) {
@@ -94,6 +120,7 @@ export class HarnessAuth {
   async end(harness) {
     await this.call(harness, 'cancel')
     this.sessions.delete(harness)
+    this.adopted.delete(harness)
   }
 
   async call(harness, action, options = {}) {

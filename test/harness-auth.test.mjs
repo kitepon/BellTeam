@@ -172,3 +172,65 @@ test('認証のやり直しを持たないサーバーでは、その道は無�
   t.after(() => server.close())
   assert.equal((await fetch(`http://127.0.0.1:${server.address().port}/api/harness-auth`)).status, 404)
 })
+
+function externalAuth() {
+  const calls = []
+  const state = { harness: 'claude-code', status: 'blocked', session_id: 't1', input_required: true }
+  const client = { async call(name, args) {
+    calls.push([name, args])
+    if (name === 'pty_send' || name === 'pty_key') return {}
+    assert.equal(name, 'agent_auth'); assert.equal(args.action, 'status')
+    return receipt(state)
+  } }
+  return { calls, state, auth: new HarnessAuth({ bots, client }) }
+}
+
+test('既authPTYを正規statusで同harness/sessionへ確認し、新start/cancelなしで通常inputへ渡す', async () => {
+  const f = externalAuth()
+  const adopted = await f.auth.adopt('claude', { sessionId: 't1' })
+  assert.equal(adopted.auth.input_required, true)
+  assert.deepEqual(f.calls.map(([, args]) => args.action), ['status'])
+  assert.equal(f.calls[0][1].session_id, 't1')
+  await f.auth.input('claude', { text: 'synthetic-authorization-code' })
+  assert.equal(f.calls[1][1].action, 'status')
+  assert.deepEqual(f.calls[2], ['pty_send', { session_id: 't1', text: 'synthetic-authorization-code', enter: true, raw: true }])
+  assert.equal(f.calls[3][1].action, 'status')
+})
+
+test('別harness/session・非入力待ち・別の管理中flowは採用せず既flowを閉じない', async () => {
+  for (const changed of [{ harness: 'codex-cli' }, { session_id: 't2' }, { status: 'authenticated' }, { input_required: false }]) {
+    const f = externalAuth(); Object.assign(f.state, changed)
+    await assert.rejects(f.auth.adopt('claude', { sessionId: 't1' }), { code: 'HARNESS_AUTH_SESSION_CHANGED' })
+    assert.equal(f.auth.sessions.has('claude'), false)
+    assert.ok(f.calls.every(([name, args]) => name === 'agent_auth' && args.action === 'status'))
+  }
+  const f = externalAuth(); f.auth.sessions.set('claude', 'other')
+  await assert.rejects(f.auth.adopt('claude', { sessionId: 't1' }), { code: 'HARNESS_AUTH_ALREADY_RUNNING' })
+  assert.equal(f.auth.sessions.get('claude'), 'other'); assert.deepEqual(f.calls, [])
+})
+
+test('採用後も入力直前に正規statusを再確認し、失われたflowへcodeを送らない', async () => {
+  const f = externalAuth(); await f.auth.adopt('claude', { sessionId: 't1' })
+  f.state.session_id = 'replacement'
+  await assert.rejects(f.auth.input('claude', { text: 'must-not-send' }), { code: 'HARNESS_AUTH_SESSION_CHANGED' })
+  assert.equal(f.calls.filter(([name]) => name === 'pty_send').length, 0)
+})
+
+test('採用HTTPはOwner認証後だけ、内部席と余分な入力を拒否する', async t => {
+  const f = externalAuth(); let allowed = false
+  const server = createBellTeamServer({ bots, authorize: () => allowed, harnessAuth: f.auth })
+  server.listen(0, '127.0.0.1'); await once(server, 'listening'); t.after(() => server.close())
+  const base = `http://127.0.0.1:${server.address().port}/api/harness-auth/claude`
+  const post = body => fetch(base + '/adopt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  assert.equal((await post({ sessionId: 't1' })).status, 401); assert.deepEqual(f.calls, [])
+  allowed = true
+  assert.equal((await post({ sessionId: 't1', text: 'forbidden-code' })).status, 400)
+  assert.equal((await post({ sessionId: 't1' })).status, 200)
+  assert.equal((await (await fetch(base)).json()).auth.input_required, true)
+  const internal = createBellTeamServer({ bots, internal: true, authorize: () => true, harnessAuth: f.auth })
+  internal.listen(0, '127.0.0.1'); await once(internal, 'listening'); t.after(() => internal.close())
+  const path = `http://127.0.0.1:${internal.address().port}/api/harness-auth/claude`
+  for (const action of ['adopt', 'start', 'input', 'cancel']) assert.equal((await fetch(path + '/' + action, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: 't1' }) })).status, 403)
+  assert.equal((await fetch(path)).status, 403)
+  assert.equal(f.calls.filter(([name]) => name === 'pty_send').length, 0)
+})

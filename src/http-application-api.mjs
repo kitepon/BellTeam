@@ -29,10 +29,17 @@ export function createControlApi({ aiControl, onboarding, internal, notify, harn
       return json(response, 200, setup)
     }
     // 初期設定の後に、AIの公式認証をやり直す入口。認証が切れて全員が止まった時も、利用者がここから戻せる。
-    const harnessAuthMatch = url.pathname.match(/^\/api\/harness-auth(?:\/([a-z]+)(?:\/(start|input|cancel))?)?$/u)
+    const harnessAuthMatch = url.pathname.match(/^\/api\/harness-auth(?:\/([a-z]+)(?:\/(start|input|cancel|adopt))?)?$/u)
     if (harnessAuthMatch) {
+      if (internal) return json(response, 403, { error: 'HARNESS_AUTH_OWNER_REQUIRED' })
       if (!harnessAuth) return json(response, 404, { error: 'NOT_FOUND' })
       const [, harness, action] = harnessAuthMatch
+      if (request.method === 'POST' && action === 'adopt') {
+        const body = await readJson(request, 8192)
+        if (!body || Array.isArray(body) || Object.keys(body).length !== 1 || typeof body.sessionId !== 'string')
+          return json(response, 400, { error: 'HARNESS_AUTH_INPUT_INVALID' })
+        return json(response, 200, await harnessAuth.adopt(harness, body))
+      }
       if (request.method === 'GET' && !action) return json(response, 200, harness ? await harnessAuth.status(harness) : harnessAuth.list())
       if (request.method === 'POST' && action === 'input') return json(response, 200, await harnessAuth.input(harness, await readJson(request, 8192)))
       if (request.method === 'POST' && action) return json(response, 200, await harnessAuth[action](harness))
