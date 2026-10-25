@@ -155,3 +155,25 @@ test('separate native fields never become an automatic combined request', async 
   await new Promise(resolve => setImmediate(resolve))
   assert.deepEqual(writes, [{ action: 'edit', binding: current.binding, tokenBudget: 7 }])
 })
+
+test('same-binding field changes use the supported field while keeping the objective draft and binding', async () => {
+  let current = { ...snapshot('a', 'A'), fieldCapabilities: { edit: { objective: true, tokenBudget: true, combined: false } } }
+  const writes = []
+  const f = fixture(async (_path, options) => {
+    if (!options) return { goals: [current] }
+    writes.push(JSON.parse(options.body)); return { outcome: 'confirmed', snapshot: current }
+  })
+  await f.view.open(); f.button('a', '編集').events.click[0]()
+  let nodes = f.row('a').all()
+  const input = nodes.find(node => node.tagName === 'textarea'); input.value = '保持する目的'; input.events.input[0]()
+  const choice = nodes.find(node => node.tagName === 'select'); choice.value = 'budget'; choice.events.change[0]()
+  current = { ...current, fieldCapabilities: { edit: { objective: true, tokenBudget: false, combined: false } } }
+  await f.view.refresh(); nodes = f.row('a').all()
+  assert.equal(nodes.find(node => node.tagName === 'select'), undefined)
+  assert.equal(nodes.find(node => node.tagName === 'input'), undefined)
+  assert.equal(nodes.find(node => node.tagName === 'textarea').value, '保持する目的')
+  assert.equal(f.button('a', '保存').disabled, false)
+  nodes.find(node => node.tagName === 'form').events.submit[0]({ preventDefault() {} })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(writes, [{ action: 'edit', binding: current.binding, objective: '保持する目的' }])
+})

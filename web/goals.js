@@ -79,7 +79,7 @@ export function goalsView(dialog, api, getBots) {
           choiceLabel.append(choice); form.append(choiceLabel)
           form.append(element('p', '目的と予算は、一項目ずつ保存してください。', 'goal-meta'))
         }
-        const editObjective = fields.objective && (fields.combined !== false || draft.field !== 'budget')
+        const editObjective = fields.objective && (!fields.tokenBudget || fields.combined !== false || draft.field !== 'budget')
         const editBudget = fields.tokenBudget && (fields.combined !== false || !fields.objective || draft.field === 'budget')
         const label = element('label', undefined, 'field')
         label.append(element('span', '目的'))
