@@ -179,6 +179,25 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         XCTAssertTrue(later.dropFirst(reads.count).allSatisfy { $0["closed"] as? Bool == true })
     }
 
+    func testSSE502ShowsReconnectThenClearsOnReady() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else {
+            throw XCTSkip("通信報告の隔離サーバーが必要です。")
+        }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset?mode=events-http-502-once")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server,
+                               "-bellbot-preview-events"]
+        app.launch(); defer { app.terminate() }
+        let banner = app.staticTexts["connection-error"]
+        XCTAssertTrue(banner.waitForExistence(timeout: 8), "初回502で再接続を表示する")
+        XCTAssertTrue(banner.waitForNonExistence(timeout: 10), "ready後に再接続表示を消す")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "ユキ")).firstMatch.exists)
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        XCTAssertEqual(proof["eventRequests"] as? Int, 2, "初回502から一度だけ正規再接続する")
+        XCTAssertEqual(proof["subscribers"] as? Int, 1)
+    }
+
     func testFailedImagePostRestoresComposerWithoutResend() throws {
         guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else { throw XCTSkip("通信報告の隔離サーバーが必要です。") }
         let base = try XCTUnwrap(URL(string: server))
