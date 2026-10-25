@@ -22,3 +22,11 @@ Root対象61件、さらに初期設定HTTPを加えた対象群と最終全756�
 ## 残条件
 
 本PRは本体/Web source段階で、Nativeの正式版番号/tar供給・必要OS・Apple同契約・最終候補image・4種類の通常画面から公式認証完了までの結合とOwner受入が残る。未公開.17基点候補を正式.17として同梱しない。現Ownerの認証flowを失う本体再作成、新start/cancel、旧generic入力への案内は行っていない。
+
+## 独立レビュー PR94-CENTI-1 の修理
+
+設定と初期設定のpollAを保留→画面をhidden/visibleにしてpollB開始→Bの認証完了が先着→Aの旧コード入力または旧エラーが後着、という実モジュール人工DOMの反例を再現した。以前はperformだけが観測世代を進めていたため、read同士を順序付けできなかった。
+
+両画面でpoll開始時にも同じ観測世代を進め、各readの成功/失敗は自分が最新観測である間だけ適用する。新しいstatusや変更、結果不明の表示を古いreadが巻き戻さない。コード入力後の明示更新待ち/専用respond/POST一回/旧poll対変更の修理は保持する。
+
+新4反例は未修理headで4fail→修理後4pass、既必要境界を含む対象15pass、明示全体760pass/failcancelSkip0。元全756ログ/Native専用入力/4人工画面の成功原本は保存し、同じ成功群や実Native workerを再実行していない。製品増分は両Webmoduleのpoll観測番号だけ。現Ownerflow/実コード/本番作用0、Draftと正式Native/OS/Apple/最終image/公式完了の残条件を維持。

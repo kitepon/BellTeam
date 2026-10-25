@@ -45,7 +45,7 @@ export function openOnboarding(initial, { api, onReady }) {
     if (stopped || document.hidden || errorText || !['open_url', 'device_code', 'paste_code', 'select', 'waiting'].includes(authFlowView(setup.auth).stage)) return
     timer = setTimeout(async () => {
       if (busy) { schedule(); return }
-      const observedRevision = revision
+      const observedRevision = ++revision
       try {
         const next = await api('/api/setup')
         if (stopped || observedRevision !== revision) return

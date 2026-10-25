@@ -62,7 +62,7 @@ function harnessAuthItem(harness, { api }) {
     if (stopped || !details.open || document.hidden || errorText || !harnessAuthView(auth).poll) return
     timer = setTimeout(async () => {
       if (busy) { schedule(); return }
-      const observedRevision = revision
+      const observedRevision = ++revision
       try {
         const next = (await api(path)).auth
         if (stopped || observedRevision !== revision) return
