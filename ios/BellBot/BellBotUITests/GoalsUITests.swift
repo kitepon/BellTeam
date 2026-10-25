@@ -403,4 +403,38 @@ final class GoalsUITests: XCTestCase {
         let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual((proof["writes"] as? [[String: Any]])?.count, 0)
     }
+
+    func testGrokIdleClearIsOneWriteAndReadsBackNoGoal() async throws {
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_GOALS_FIXTURE_URL"])
+        let reset = try XCTUnwrap(URL(string: url + "/test/reset"))
+        let (_, response) = try await URLSession.shared.data(from: reset)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", url]
+        app.launch()
+        defer { app.terminate() }
+        app.tabBars.buttons["ゴール"].tap()
+        let clear = app.buttons["goal-clear-bot-one"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 10))
+        clear.tap()
+        XCTAssertTrue(clear.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["ゴールなし"].waitForExistence(timeout: 5))
+
+        let detailURL = try XCTUnwrap(URL(string: url + "/api/bots/bot-one/goal"))
+        let (detailData, _) = try await URLSession.shared.data(from: detailURL)
+        let detail = try XCTUnwrap(JSONSerialization.jsonObject(with: detailData) as? [String: Any])
+        let snapshot = try XCTUnwrap(detail["snapshot"] as? [String: Any])
+        XCTAssertTrue(snapshot["goal"] is NSNull, "fresh読戻しでもgoal:null")
+        XCTAssertEqual((snapshot["capabilities"] as? [String: Any])?["clear"] as? Bool, false)
+
+        app.buttons["ゴールを更新"].tap()
+        XCTAssertFalse(clear.waitForExistence(timeout: 2))
+        let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
+        let (proofData, _) = try await URLSession.shared.data(from: proofURL)
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: proofData) as? [String: Any])
+        let writes = try XCTUnwrap(proof["writes"] as? [[String: Any]])
+        XCTAssertEqual(writes.count, 1)
+        XCTAssertEqual(writes[0]["action"] as? String, "clear")
+        XCTAssertEqual(writes[0]["botId"] as? String, "bot-one")
+    }
 }

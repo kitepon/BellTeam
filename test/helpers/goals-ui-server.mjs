@@ -5,6 +5,7 @@ const tagged = process.env.GOALS_FIXTURE_TAGGED === '1'
 const grok = process.env.GOALS_FIXTURE_GROK === '1'
 const grokSignedTokens = process.env.GOALS_FIXTURE_GROK_SIGNED_TOKENS === '1'
 const grokDetail = process.env.GOALS_FIXTURE_GROK_DETAIL === '1'
+const grokClear = process.env.GOALS_FIXTURE_GROK_CLEAR === '1'
 const binding = id => ({ sessionId: `session-${id}`, launchId: '0123456789abcdef0123456789abcdef', threadId: `thread-${id}` })
 const capabilities = (goal, available = true) => {
   const status = goal?.kind === 'codex-cli' ? goal.native.status : goal?.kind === 'claude-code' ? goal.phase : goal?.status
@@ -40,7 +41,7 @@ const inspectOnly = { inspect: true, create: false, edit: false, pause: false, r
 const initialSnapshots = () => {
   const one = grok ? grokGoal() : tagged ? claudeGoal() : null
   const two = tagged || grok ? { kind: 'codex-cli', native: { ...activeGoal } } : { ...activeGoal }
-  const oneCapabilities = grok ? inspectOnly : capabilities(one)
+  const oneCapabilities = grok ? { ...inspectOnly, clear: grokClear } : capabilities(one)
   return new Map([
   ['bot-one', { botId: 'bot-one', availability: 'available', binding: binding('bot-one'), goal: one,
     capabilities: oneCapabilities, fieldCapabilities: fieldCapabilities(oneCapabilities),
