@@ -35,6 +35,7 @@ struct DesktopWorkspaceView: View {
                 switch store.selectedTab {
                 case 1: SchedulesView()
                 case 2: SettingsView()
+                case 3: GoalsView()
                 default:
                     if let selection {
                         #if targetEnvironment(macCatalyst)
@@ -156,6 +157,9 @@ struct DesktopWorkspaceView: View {
             HStack(spacing: 8) {
                 Button { store.selectedTab = 1; compactColumn = .detail } label: { Label("予定", systemImage: "calendar") }
                     .keyboardShortcut("2", modifiers: .command)
+                Spacer()
+                Button { store.selectedTab = 3; compactColumn = .detail } label: { Label("ゴール", systemImage: "target") }
+                    .keyboardShortcut("3", modifiers: .command)
                 Spacer()
                 Button { store.selectedTab = 2; compactColumn = .detail } label: { Label("設定", systemImage: "gearshape") }
                     .keyboardShortcut(",", modifiers: .command)
