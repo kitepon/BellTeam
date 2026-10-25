@@ -49,12 +49,100 @@ private struct GoalBinding: Codable, Equatable {
     let threadId: String
 }
 
-private struct NativeGoal: Decodable {
+private struct CodexGoal: Decodable {
     let objective: String
     let status: GoalStatus
     let tokenBudget: Int?
     let tokensUsed: Int
     let timeUsedSeconds: Double
+}
+
+private struct ClaudeGoalStatus: Decodable {
+    let type: String
+    let condition: String
+    let met: Bool
+    let sentinel: Bool?
+    let tokens: Int?
+    let durationMs: Double?
+    let iterations: Int?
+}
+
+private enum ClaudeGoalPhase: String, Decodable { case active }
+private enum GoalHistoryKind: String, Decodable { case claudeCode = "claude-code" }
+private enum GoalTerminal: String, Decodable {
+    case cleared, achieved
+    var title: String { self == .cleared ? "取消" : "達成" }
+}
+
+private enum NativeGoal: Decodable {
+    case codex(CodexGoal)
+    case claude(phase: ClaudeGoalPhase, native: ClaudeGoalStatus, reportedTurns: Int?)
+
+    private enum CodingKeys: String, CodingKey { case kind, native, phase, reportedTurns }
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.container(keyedBy: CodingKeys.self)
+        switch try value.decodeIfPresent(String.self, forKey: .kind) {
+        case nil: self = .codex(try CodexGoal(from: decoder))
+        case "codex-cli": self = .codex(try value.decode(CodexGoal.self, forKey: .native))
+        case "claude-code":
+            let native = try value.decode(ClaudeGoalStatus.self, forKey: .native)
+            guard native.type == "goal_status", !native.met else {
+                throw DecodingError.dataCorruptedError(forKey: .native, in: value, debugDescription: "Invalid Claude goal")
+            }
+            self = .claude(phase: try value.decode(ClaudeGoalPhase.self, forKey: .phase), native: native,
+                           reportedTurns: try value.decodeIfPresent(Int.self, forKey: .reportedTurns))
+        default: throw DecodingError.dataCorruptedError(forKey: .kind, in: value, debugDescription: "Unknown goal kind")
+        }
+    }
+
+    var objective: String {
+        switch self {
+        case .codex(let goal): goal.objective
+        case .claude(_, let native, _): native.condition
+        }
+    }
+    var tokenBudget: Int? {
+        if case .codex(let goal) = self { return goal.tokenBudget }
+        return nil
+    }
+    var statusTitle: String {
+        switch self {
+        case .codex(let goal): goal.status.title
+        case .claude: "進行中"
+        }
+    }
+    var isActive: Bool {
+        switch self {
+        case .codex(let goal): goal.status == .active
+        case .claude: true
+        }
+    }
+    var isPaused: Bool {
+        if case .codex(let goal) = self { return goal.status == .paused }
+        return false
+    }
+    var usageText: String {
+        switch self {
+        case .codex(let goal):
+            return "使用量 \(goal.tokensUsed.formatted()) / 予算 \(goal.tokenBudget.map { $0.formatted() } ?? "指定なし") · 作業時間 \(goal.timeUsedSeconds.formatted())秒"
+        case .claude(_, let native, let reportedTurns):
+            var parts: [String] = []
+            if let tokens = native.tokens { parts.append("使用トークン \(tokens.formatted())") }
+            if let durationMs = native.durationMs { parts.append("実行時間 \(durationMs.formatted())ミリ秒") }
+            if let iterations = native.iterations { parts.append("反復数 \(iterations.formatted())") }
+            if let reportedTurns { parts.append("CLI表示ターン数 \(reportedTurns.formatted())") }
+            return parts.isEmpty ? "使用量・作業時間はまだ取得していません。" : parts.joined(separator: " · ")
+        }
+    }
+}
+
+private struct GoalNativeHistory: Decodable {
+    let kind: GoalHistoryKind
+    let terminal: GoalTerminal
+    let native: ClaudeGoalStatus
+
+    var title: String { terminal.title }
 }
 
 private struct GoalSnapshot: Decodable, Identifiable {
@@ -64,6 +152,7 @@ private struct GoalSnapshot: Decodable, Identifiable {
     let fieldCapabilities: GoalFieldCapabilities
     let binding: GoalBinding?
     let goal: NativeGoal?
+    let nativeHistory: GoalNativeHistory?
     let observedAt: String?
     let message: String?
 
@@ -78,11 +167,12 @@ private struct GoalChangeRequest: Encodable {
 }
 
 private enum GoalViewError: LocalizedError {
-    case changedConversation, invalidResponse, outcomeUnconfirmed, readbackAfterUnknown, unknownOutcome
+    case changedConversation, refreshing, invalidResponse, outcomeUnconfirmed, readbackAfterUnknown, unknownOutcome
 
     var errorDescription: String? {
         switch self {
         case .changedConversation: "会話が変わりました。現在のゴールを更新してから操作してください。"
+        case .refreshing: "ゴールの更新が終わってから保存してください。"
         case .invalidResponse: "ゴールの応答を確認できませんでした。更新して確認してください。"
         case .outcomeUnconfirmed: "変更結果を確認できませんでした。現在の状態を確認してから操作してください。"
         case .readbackAfterUnknown: "変更の応答を確認できませんでした。現在取得できた状態を表示しています。操作前に確認してください。"
@@ -163,7 +253,7 @@ struct GoalsView: View {
                 }
             }
             .sheet(item: $editing) { selection in
-                GoalEditor(selection: selection, snapshots: $snapshots) { objective, tokenBudget in
+                GoalEditor(selection: selection, snapshots: $snapshots, refreshing: $loading) { objective, tokenBudget in
                     try await change(selection.snapshot, action: selection.action,
                                      objective: objective, tokenBudget: tokenBudget)
                 }
@@ -216,6 +306,7 @@ struct GoalsView: View {
 
     @MainActor private func change(_ snapshot: GoalSnapshot, action: String,
                                     objective: String? = nil, tokenBudget: Int? = nil) async throws {
+        guard !loading else { throw GoalViewError.refreshing }
         guard !mutating && !needsRefresh else { throw GoalViewError.outcomeUnconfirmed }
         guard let current = snapshots.first(where: { $0.botId == snapshot.botId }),
               let binding = snapshot.binding, current.binding == binding else {
@@ -278,12 +369,16 @@ private struct GoalCard: View {
                     ? "このメンバーではゴール機能を使えません。" : "ゴールの状態を取得できません。"))
                     .foregroundStyle(BellTheme.muted)
             } else {
-                Text(snapshot.goal?.status.title ?? "ゴールなし")
+                Text(snapshot.goal?.statusTitle ?? "ゴールなし")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(BellTheme.violet)
                 if let goal = snapshot.goal {
                     Text(goal.objective).textSelection(.enabled)
-                    Text("使用量 \(goal.tokensUsed.formatted()) / 予算 \(goal.tokenBudget.map { $0.formatted() } ?? "指定なし") · 作業時間 \(goal.timeUsedSeconds.formatted())秒")
+                    Text(goal.usageText)
+                        .font(.footnote).foregroundStyle(BellTheme.muted)
+                }
+                if let history = snapshot.nativeHistory {
+                    Text("前のゴール：\(history.title) · \(history.native.condition)")
                         .font(.footnote).foregroundStyle(BellTheme.muted)
                 }
                 if let observedAt = snapshot.observedAt {
@@ -292,7 +387,10 @@ private struct GoalCard: View {
                 }
                 actions
                 if snapshot.goal != nil {
-                    Text("一時停止したゴールは再開できます。取り消すとゴールは消えます。今の処理を中断するには会話の停止ボタンを使ってください。")
+                    let pause = snapshot.capabilities.pause || snapshot.capabilities.resume
+                        ? "一時停止したゴールは再開できます。" : ""
+                    let clear = snapshot.capabilities.clear ? "取り消すとゴールは消えます。" : ""
+                    Text(pause + clear + "今の処理を中断するには会話の停止ボタンを使ってください。")
                         .font(.footnote).foregroundStyle(BellTheme.muted)
                 }
             }
@@ -313,11 +411,11 @@ private struct GoalCard: View {
                 Button("編集") { onEdit("edit") }
                     .accessibilityIdentifier("goal-edit-\(snapshot.botId)")
             }
-            if snapshot.goal?.status == .active && snapshot.capabilities.pause {
+            if snapshot.goal?.isActive == true && snapshot.capabilities.pause {
                 Button("一時停止") { onAction("pause") }
                     .accessibilityIdentifier("goal-pause-\(snapshot.botId)")
             }
-            if snapshot.goal?.status == .paused && snapshot.capabilities.resume {
+            if snapshot.goal?.isPaused == true && snapshot.capabilities.resume {
                 Button("再開") { onAction("resume") }
                     .accessibilityIdentifier("goal-resume-\(snapshot.botId)")
             }
@@ -338,6 +436,7 @@ private struct GoalEditor: View {
     @Environment(\.dismiss) private var dismiss
     let selection: GoalEditorSelection
     @Binding var snapshots: [GoalSnapshot]
+    @Binding var refreshing: Bool
     let onSave: (String?, Int?) async throws -> Void
     @State private var objective: String
     @State private var budget: String
@@ -346,10 +445,11 @@ private struct GoalEditor: View {
     @State private var saving = false
     @State private var errorText: String?
 
-    init(selection: GoalEditorSelection, snapshots: Binding<[GoalSnapshot]>,
+    init(selection: GoalEditorSelection, snapshots: Binding<[GoalSnapshot]>, refreshing: Binding<Bool>,
          onSave: @escaping (String?, Int?) async throws -> Void) {
         self.selection = selection
         _snapshots = snapshots
+        _refreshing = refreshing
         self.onSave = onSave
         _objective = State(initialValue: selection.snapshot.goal?.objective ?? "")
         _budget = State(initialValue: selection.snapshot.goal?.tokenBudget.map(String.init) ?? "")
@@ -371,7 +471,7 @@ private struct GoalEditor: View {
         fields?.tokenBudget == true && (!separateChoice || selectedField == .budget)
     }
     private var canSave: Bool {
-        guard !saving, !bindingChanged, current?.availability == .available,
+        guard !saving, !refreshing, !bindingChanged, current?.availability == .available,
               (selection.action == "create" ? current?.capabilities.create : current?.capabilities.edit) == true else { return false }
         if editsObjective {
             let value = objective.trimmingCharacters(in: .whitespacesAndNewlines)

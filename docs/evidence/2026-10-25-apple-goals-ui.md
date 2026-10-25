@@ -12,8 +12,14 @@ iPhone 16 Pro Max / iOS 26.5 Simulatorの隔離プレビューと人工`test/hel
 
 変更POSTの応答を人工サーバーが切断した条件でも、画面は同じBotの現在状態をGETで1回読み直し、実際に一時停止となった状態と応答断の案内を表示した。サーバー記録は変更POST1回・Botの詳細GET1回で自動再送なし。focused画面試験1件成功・失敗0、XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T10-55-32-526Z_pid8412_8c0decb7.xcresult`。読戻しまで失敗する場合は別条件として未確認。
 
+独立レビューで、編集シートを開いたまま古い一覧GETが進むと、変更POSTまたは結果不明の状態を後から上書きできる順序が見つかった。`GoalsView`は一覧更新中の保存を画面と変更処理の両方で止める。人工一覧GETを保留したiPhone画面では保存ボタンが無効・POST0、旧GETを返してから保存すると未送信の目的文を保持し、目的だけのPOSTが1回出た。focused1件成功・失敗0、XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T11-51-42-974Z_pid8412_80e2c5aa.xcresult`。結果不明の自動更新を使って状態を上書きする経路は作っていない。
+
+本体PR #79のv2契約に合わせ、Codexの`kind=codex-cli/native`とClaudeの`kind=claude-code/phase/native`を別型で読む。人工Claudeの状態文、存在する使用トークン・実行時間・反復数・CLI表示ターン数と、v2 Codexの目的を画面で確認した。Claudeには未対応のpause/editを出さず、clear後の`nativeHistory.terminal=cleared`を「前のゴール：取消」と表示し、達成にしなかった。focused画面試験1件成功・失敗0、人工サーバーの変更はclear POST1回。XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T12-01-10-169Z_pid8412_31b9efeb.xcresult`。使用量の無いClaude状態へ0を補う表示はしない。これは型付き人工データであり、実Claude workerの操作ではない。
+
 隔離Mac Catalyst Debugビルドは成功。通常アプリとは別識別子`dev.kitepon.bellbot.goalprobe`で人工APIのゴール一覧を開き、3状態と操作ボタンを画面・アクセシビリティで確認した。[Macの人工一覧](images/2026-10-25-goals-mac-list.png)。試験後は隔離アプリとサーバーを通常終了し、PIDと待受の消失を確認した。
 
 iPad Pro 11インチ（M5）/ iOS 27.0 Simulatorでも同じ人工APIの3状態を一覧で確認し、focused画面試験1件成功・失敗0。初回画面ではサイドバー下部の「ゴール」が2行に折り返したため、下部ボタンの横余白を詰めた。修正後のfocused1件成功・失敗0、[iPadの人工一覧](images/2026-10-25-goals-ipad-list.png)では予定・ゴール・設定が1行で読める。修正後XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T11-03-41-762Z_pid8412_53ab0184.xcresult`。SimulatorはShutdownを確認した。
 
-初回の画面試験は「設定」タブをゴールの設定操作と取り違え、次回は人工APIの状態をリセットせず前回の取消結果を引き継いだ。操作の識別子と人工APIの初期化を直した後の結果を採用した。変更POSTと読戻しがともに失敗する場合、実native CLIとの結合は未確認。本体PR #79は通常CLIの設定・他CLI/OS・正式上流公開を残すDraftであり、このApple画面を実Botで使える成果とは扱わない。実Bot操作、通常アプリ、署名、TestFlight、本番コンテナ停止は0。
+iPadの[人工編集画面](images/2026-10-25-goals-ipad-editor.png)では目的だけの設定と予算だけの編集を行い、人工サーバーは`create objective=true/tokenBudget=false`と`edit objective=false/tokenBudget=true`の2POSTを記録。focused画面試験の最終XCResult `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T11-30-12-000Z_pid8412_dca1c92f.xcresult`を直接読み、1件成功・失敗0と確認した。XcodeBuildMCPの呼出しは300秒で時間切れになったが、XCTest本体は正常終了まで続いた。最初の2回はシート内の日本語入力後に短い待ち時間で編集ボタンを探して失敗し、POSTがまだ出ていなかった。最終実行では保存処理が`canSave=true`で呼ばれ、POSTが2件出て両編集に成功した。XCTestが各操作後にアニメーション終了通知を最大60秒ずつ待つため、実行に923秒かかった。確認用の一時Debugログは結果を読んだ後に削除した。人工試験は実際の利用者による日本語IME変換操作の受入にはしない。
+
+初回のiPhone画面試験は「設定」タブをゴールの設定操作と取り違え、次回は人工APIの状態をリセットせず前回の取消結果を引き継いだ。操作の識別子と人工APIの初期化を直した後の結果を採用した。変更POSTと読戻しがともに失敗する場合、実native CLIとの結合は未確認。本体PR #79は通常CLIの設定・他CLI/OS・正式上流公開を残すDraftであり、このApple画面を実Botで使える成果とは扱わない。実Bot操作、通常アプリ、署名、TestFlight、本番コンテナ停止は0。

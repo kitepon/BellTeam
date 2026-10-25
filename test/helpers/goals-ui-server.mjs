@@ -1,44 +1,69 @@
 import { createServer } from 'node:http'
 
 const full = process.env.GOALS_FIXTURE_FULL === '1'
+const tagged = process.env.GOALS_FIXTURE_TAGGED === '1'
 const binding = id => ({ sessionId: `session-${id}`, launchId: '0123456789abcdef0123456789abcdef', threadId: `thread-${id}` })
-const capabilities = (goal, available = true) => ({
+const capabilities = (goal, available = true) => {
+  const status = goal?.kind === 'codex-cli' ? goal.native.status : goal?.kind === 'claude-code' ? goal.phase : goal?.status
+  const claude = goal?.kind === 'claude-code'
+  return {
   inspect: available,
   create: available && !goal && full,
   edit: available && !!goal && full,
-  pause: available && goal?.status === 'active',
-  resume: available && goal?.status === 'paused',
+  pause: available && !claude && status === 'active',
+  resume: available && !claude && status === 'paused',
   clear: available && !!goal,
-})
+  }
+}
 const fieldCapabilities = value => ({
   create: { objective: value.create, tokenBudget: value.create, combined: false },
   edit: { objective: value.edit, tokenBudget: value.edit, combined: false },
 })
 const activeGoal = { threadId: 'thread-bot-two', objective: '利用者に今日の進捗を届ける', status: 'active',
   tokenBudget: 12000, tokensUsed: 3400, timeUsedSeconds: 128, createdAt: 1, updatedAt: 1 }
-const initialSnapshots = () => new Map([
-  ['bot-one', { botId: 'bot-one', availability: 'available', binding: binding('bot-one'), goal: null,
-    capabilities: capabilities(null), fieldCapabilities: fieldCapabilities(capabilities(null)),
+const claudeGoal = () => ({ kind: 'claude-code', phase: 'active', native: {
+  type: 'goal_status', condition: '資料を整理して報告する', met: false, tokens: 1234, durationMs: 5000, iterations: 3,
+}, reported_turns: 2 })
+const initialSnapshots = () => {
+  const one = tagged ? claudeGoal() : null
+  const two = tagged ? { kind: 'codex-cli', native: { ...activeGoal } } : { ...activeGoal }
+  return new Map([
+  ['bot-one', { botId: 'bot-one', availability: 'available', binding: binding('bot-one'), goal: one,
+    capabilities: capabilities(one), fieldCapabilities: fieldCapabilities(capabilities(one)),
     observedAt: '2026-10-25T00:00:00Z', message: null }],
-  ['bot-two', { botId: 'bot-two', availability: 'available', binding: binding('bot-two'), goal: { ...activeGoal },
-    capabilities: capabilities(activeGoal), fieldCapabilities: fieldCapabilities(capabilities(activeGoal)),
+  ['bot-two', { botId: 'bot-two', availability: 'available', binding: binding('bot-two'), goal: two,
+    capabilities: capabilities(two), fieldCapabilities: fieldCapabilities(capabilities(two)),
     observedAt: '2026-10-25T00:00:00Z', message: null }],
   ['bot-three', { botId: 'bot-three', availability: 'unsupported', binding: null,
     capabilities: capabilities(null, false), fieldCapabilities: fieldCapabilities(capabilities(null, false)),
     observedAt: '2026-10-25T00:00:00Z',
     message: 'このメンバーではゴール機能をまだ利用できません。' }],
-])
+  ])
+}
 let snapshots = initialSnapshots()
 let writes = [], reads = []
 let nextOutcome = null
+let holdNextList = false, heldLists = []
 const json = (response, body, status = 200) => {
   response.writeHead(status, { 'content-type': 'application/json' })
   response.end(JSON.stringify(body))
 }
 const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1')
-  if (url.pathname === '/test/reset') { snapshots = initialSnapshots(); writes = []; reads = []; nextOutcome = null; return json(response, { ok: true }) }
-  if (url.pathname === '/test/proof') return json(response, { writes, reads })
+  if (url.pathname === '/test/reset') {
+    for (const held of heldLists) json(held.response, { error: 'FIXTURE_RESET' }, 503)
+    snapshots = initialSnapshots(); writes = []; reads = []; nextOutcome = null
+    holdNextList = false; heldLists = []
+    return json(response, { ok: true })
+  }
+  if (url.pathname === '/test/proof') return json(response, { writes, reads, heldLists: heldLists.length })
+  if (url.pathname === '/test/hold-list') { holdNextList = true; return json(response, { ok: true }) }
+  if (url.pathname === '/test/release-list') {
+    const released = heldLists.length
+    for (const held of heldLists) json(held.response, { goals: held.goals })
+    heldLists = []
+    return json(response, { released })
+  }
   if (url.pathname === '/test/next') {
     if (!['unconfirmed', 'drop-response'].includes(url.searchParams.get('mode'))) return json(response, { error: 'UNKNOWN_MODE' }, 400)
     nextOutcome = url.searchParams.get('mode')
@@ -52,8 +77,14 @@ const server = createServer(async (request, response) => {
     snapshot.observedAt = new Date().toISOString()
     return json(response, { ok: true })
   }
-  if (url.pathname === '/api/goals' && request.method === 'GET')
+  if (url.pathname === '/api/goals' && request.method === 'GET') {
+    if (holdNextList) {
+      holdNextList = false
+      heldLists.push({ response, goals: structuredClone([...snapshots.values()]) })
+      return
+    }
     return json(response, { goals: [...snapshots.values()] })
+  }
   const match = url.pathname.match(/^\/api\/bots\/(bot-[a-z]+)\/goal$/u)
   if (!match) return json(response, { error: 'NOT_FOUND' }, 404)
   const snapshot = snapshots.get(match[1])
@@ -72,9 +103,14 @@ const server = createServer(async (request, response) => {
   writes.push({ action: input.action, botId: snapshot.botId,
     objective: Object.hasOwn(input, 'objective'), tokenBudget: Object.hasOwn(input, 'tokenBudget') })
   if (nextOutcome === 'unconfirmed') { nextOutcome = null; return json(response, { outcome: 'unconfirmed', snapshot }, 202) }
-  if (input.action === 'pause') snapshot.goal.status = 'paused'
-  if (input.action === 'resume') snapshot.goal.status = 'active'
-  if (input.action === 'clear') snapshot.goal = null
+  const currentGoal = snapshot.goal?.kind === 'codex-cli' ? snapshot.goal.native : snapshot.goal
+  if (input.action === 'pause') currentGoal.status = 'paused'
+  if (input.action === 'resume') currentGoal.status = 'active'
+  if (input.action === 'clear') {
+    if (snapshot.goal?.kind === 'claude-code') snapshot.nativeHistory = { kind: 'claude-code', terminal: 'cleared',
+      native: { ...snapshot.goal.native, met: true, sentinel: true } }
+    snapshot.goal = null
+  }
   if (input.action === 'create') snapshot.goal = { ...activeGoal, threadId: snapshot.binding.threadId,
     objective: input.objective, tokenBudget: input.tokenBudget ?? null, tokensUsed: 0 }
   if (input.action === 'edit') snapshot.goal = { ...snapshot.goal,
