@@ -221,3 +221,20 @@ test('Grokはfresh current_statusの一時停止・使用量・時間を表示�
   assert.equal(text.includes('99,999'),false);assert.equal(text.includes('999999'),false)
   assert.equal(nodes.some(n=>n.tagName==='button'),false)
 })
+
+test('Grok detailは原文表示を使い、null会計を保存数値で埋めず、phase表示nullも許す',async()=>{
+  for(const paused of [false,true]){
+    const native=JSON.parse(readFileSync(new URL('./fixtures/grok-goal-detail-native.json',import.meta.url)))
+    const goal=native.goal;goal.native.phase='Idle';goal.native.tokens_used_high_water=99999
+    if(paused){goal.current_status.status='Paused';goal.current_status.status_display='Paused';goal.current_status.phase_display=null}
+    const current={...snapshot('a','A'),goal,capabilities:native.capabilities}
+    const f=fixture(async()=>({goals:[current]}));await f.view.open()
+    const nodes=f.row('a').all(),text=nodes.map(n=>n.textContent).join('\n')
+    assert.equal(nodes.find(n=>n.className==='goal-status').textContent,goal.current_status.status_display)
+    assert.equal(f.objective('a'),goal.native.objective)
+    assert.match(text,/4\.9k \/ 1 tokens \(100%\)/);assert.match(text,/26s/)
+    if(!paused)assert.match(text,/Planning/)
+    assert.doesNotMatch(text,/4,906|99,999|待機|使用量 —|undefined|null/)
+    assert.equal(nodes.some(n=>n.tagName==='button'),false)
+  }
+})

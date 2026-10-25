@@ -40,10 +40,18 @@ const grokSnapshot = native => keysOnly(native, ['goal_id', 'objective', 'status
     && typeof row.timestamp === 'string' && Number.isFinite(Date.parse(row.timestamp)) && typeof row.event === 'string'
     && (!Object.hasOwn(row, 'detail') || typeof row.detail === 'string'))
 // The persisted phase and accounting are not the current worker observation.
-const grokCurrent = current => keysOnly(current, ['source', 'status', 'phase', 'tokens_used', 'elapsed_display'])
-  && current.source === '/goal status' && ['Active', 'UserPaused'].includes(current.status) && grokPhases.includes(current.phase)
-  && Number.isSafeInteger(current.tokens_used) && typeof current.elapsed_display === 'string'
-  && current.elapsed_display.length <= 64 && /^(?:\d+s|\d+m[0-5]\ds|\d+h[0-5]\dm)$/u.test(current.elapsed_display)
+const grokDisplay = (value, max) => typeof value === 'string' && value.length > 0 && value.length <= max
+const grokElapsed = value => typeof value === 'string' && value.length <= 64
+  && /^(?:\d+s|\d+m[0-5]\ds|\d+h[0-5]\dm)$/u.test(value)
+const grokCurrent = current => (
+  keysOnly(current, ['source', 'status', 'phase', 'tokens_used', 'elapsed_display'])
+    && current.source === '/goal status' && ['Active', 'UserPaused'].includes(current.status) && grokPhases.includes(current.phase)
+    && Number.isSafeInteger(current.tokens_used)
+  || keysOnly(current, ['source', 'status', 'phase', 'tokens_used', 'status_display', 'phase_display', 'budget_display', 'elapsed_display'])
+    && current.source === 'goal detail' && ['Active', 'Paused'].includes(current.status)
+    && current.phase === null && current.tokens_used === null && grokDisplay(current.status_display, 128)
+    && (current.phase_display === null || grokDisplay(current.phase_display, 64)) && grokDisplay(current.budget_display, 128)
+) && grokElapsed(current.elapsed_display)
 const validNativeGoal = (goal, result) => goal === null || (
   goal?.kind === 'codex-cli' && result.harness === 'codex-cli' && keysOnly(goal, ['kind', 'native'])
     && keysOnly(goal.native, ['threadId', 'objective', 'status', 'tokenBudget', 'tokensUsed', 'timeUsedSeconds', 'createdAt', 'updatedAt'])
@@ -56,7 +64,7 @@ const validNativeGoal = (goal, result) => goal === null || (
     && grokSnapshot(goal.native) && grokCurrent(goal.current_status)
 )
 const goalStatus = goal => goal?.kind === 'codex-cli' ? goal.native.status : goal?.kind === 'claude-code' ? goal.phase
-  : goal?.kind === 'grok-cli' ? goal.current_status.status === 'UserPaused' ? 'paused' : 'active' : goal?.status
+  : goal?.kind === 'grok-cli' ? ['UserPaused', 'Paused'].includes(goal.current_status.status) ? 'paused' : 'active' : goal?.status
 
 export class BotGoals {
   constructor({ transport, admitWork = () => () => {}, reportError = async () => {}, now = () => new Date().toISOString() }) {

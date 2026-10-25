@@ -56,3 +56,31 @@ test('Grok current_status欠測や型不正を保存snapshotだけの成功に�
     assert.equal(s.availability,'unavailable');assert.equal('goal' in s,false)
     assert.equal(f.reports.length,1);assert.equal(f.calls(),1)}
 })
+
+test('Grok実行中detailのnullと原文をHTTPに保持し、保存会計を補完しない',async t=>{
+  const source=read('detail');source.goal.native.phase='Idle'
+  source.goal.native.tokens_used_high_water=4906;source.goal.native.elapsed_ms=999999
+  const f=fixture(source),get=await http(t,f),response=await get(),{snapshot}=await response.json()
+  assert.equal(response.status,200);assert.equal(snapshot.availability,'available')
+  assert.deepEqual(snapshot.goal,source.goal)
+  assert.equal(snapshot.goal.current_status.phase,null);assert.equal(snapshot.goal.current_status.tokens_used,null)
+  assert.equal(snapshot.goal.current_status.budget_display,'4.9k / 1 tokens (100%)')
+  assert.deepEqual(snapshot.capabilities,source.capabilities);assert.equal(f.calls(),1);assert.deepEqual(f.reports,[])
+  const paused=read('detail');paused.goal.current_status.status='Paused';paused.goal.current_status.phase_display=null
+  f.set(paused);const next=await (await get()).json()
+  assert.equal(next.snapshot.availability,'available');assert.equal(next.snapshot.goal.current_status.phase_display,null)
+  assert.equal(next.snapshot.capabilities.resume,false)
+})
+
+test('Grok detail型の混在・欠測を保存snapshot成功へ補わない',async()=>{
+  const cases=[r=>r.goal.current_status.phase='Planning',r=>r.goal.current_status.tokens_used=4906,
+    r=>delete r.goal.current_status.phase_display,r=>r.goal.current_status.phase_display='',
+    r=>r.goal.current_status.status='UserPaused',r=>r.goal.current_status.status_display='',
+    r=>r.goal.current_status.status_display='x'.repeat(129),r=>r.goal.current_status.phase_display='x'.repeat(65),
+    r=>r.goal.current_status.budget_display='',r=>r.goal.current_status.budget_display='x'.repeat(129),
+    r=>r.goal.current_status.extra='unexpected',r=>r.goal.current_status.source='/goal status',
+    r=>r.goal.current_status.elapsed_display='unknown']
+  for(const change of cases){const source=read('detail');change(source);const f=fixture(source),s=await f.goals.inspect(f.bot)
+    assert.equal(s.availability,'unavailable');assert.equal('goal' in s,false)
+    assert.equal(f.reports.length,1);assert.equal(f.calls(),1)}
+})

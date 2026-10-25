@@ -43,12 +43,13 @@ export function goalsView(dialog, api, getBots) {
       const original = snapshot.goal
       const claude = original?.kind === 'claude-code'
       const grok = original?.kind === 'grok-cli'
+      const grokDetail = grok && original.current_status.source === 'goal detail'
       const goal = original?.kind === 'codex-cli' ? original.native
         : claude ? { objective: original.native.condition, status: original.phase }
           : grok ? { objective: original.native.objective, tokenBudget: original.native.token_budget,
-            status: original.current_status.status === 'UserPaused' ? 'paused' : 'active' } : original
+            status: ['UserPaused', 'Paused'].includes(original.current_status.status) ? 'paused' : 'active' } : original
       const codexGoal = getBots().find(bot => bot.id === snapshot.botId)?.harness === 'codex'
-      card.append(element('p', goal ? statuses[goal.status] ?? '状態を確認できません' : 'ゴールなし', 'goal-status'))
+      card.append(element('p', grokDetail ? original.current_status.status_display : goal ? statuses[goal.status] ?? '状態を確認できません' : 'ゴールなし', 'goal-status'))
       if (goal) {
         card.append(element('p', goal.objective, 'goal-objective'))
         const budgetText = !Object.hasOwn(goal, 'tokenBudget') ? '—' : goal.tokenBudget === null ? '指定なし' : amount(goal.tokenBudget)
@@ -59,7 +60,9 @@ export function goalsView(dialog, api, getBots) {
           }
           if (Object.hasOwn(original, 'reported_turns')) metrics.push(`CLI表示ターン数 ${amount(original.reported_turns)}`)
         }
-        const details = element('p', grok
+        const details = element('p', grokDetail
+          ? [original.current_status.budget_display, `作業時間 ${original.current_status.elapsed_display}`, original.current_status.phase_display].filter(value => value !== null).join(' · ')
+          : grok
           ? `使用量 ${amount(original.current_status.tokens_used)} / 予算 ${budgetText} · 作業時間 ${original.current_status.elapsed_display} · ${grokPhases[original.current_status.phase]}`
           : claude ? metrics.join(' · ') || '使用量・作業時間はまだ取得していません。'
           : `使用量 ${amount(goal.tokensUsed)} / 予算 ${budgetText} · 作業時間 ${amount(goal.timeUsedSeconds)}秒`, 'goal-meta')
