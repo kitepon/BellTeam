@@ -50,7 +50,7 @@ export function goalsView(dialog, api, getBots) {
       const capabilities = snapshot.capabilities ?? {}
       const editAction = goal ? 'edit' : 'create'
       if (capabilities[editAction]) actions.append(button(titles[editAction], () => {
-        drafts.set(snapshot.botId, { action: editAction, objective: goal?.objective ?? '', budget: goal?.tokenBudget == null ? '' : String(goal.tokenBudget), budgetChanged: false })
+        drafts.set(snapshot.botId, { action: editAction, binding: { ...snapshot.binding }, objective: goal?.objective ?? '', budget: goal?.tokenBudget == null ? '' : String(goal.tokenBudget), budgetChanged: false })
         render()
         body.querySelector(`[data-goal-bot="${CSS.escape(snapshot.botId)}"] textarea`)?.focus()
       }))
@@ -62,6 +62,7 @@ export function goalsView(dialog, api, getBots) {
       card.append(actions)
       const draft = drafts.get(snapshot.botId)
       if (draft) {
+        const bindingChanged = ['sessionId', 'launchId', 'threadId'].some(key => draft.binding[key] !== snapshot.binding?.[key])
         const form = element('form', undefined, 'goal-form')
         const label = element('label', undefined, 'field')
         label.append(element('span', '目的'))
@@ -76,18 +77,20 @@ export function goalsView(dialog, api, getBots) {
         if (goal && codexGoal) form.append(element('p', '目的を変えると使用量が初期化されます。', 'goal-meta'))
         if (goal && (codexGoal || capabilities.tokenBudget === true)) form.append(element('p', '予算を空にした場合、現在の指定は変更しません。', 'goal-meta'))
         const controls = element('div', undefined, 'goal-actions')
-        const save = element('button', '保存'); save.type = 'submit'; save.disabled = pending.has(snapshot.botId)
+        const save = element('button', '保存'); save.type = 'submit'; save.disabled = pending.has(snapshot.botId) || bindingChanged
+        if (bindingChanged) form.append(element('p', '会話が変わりました。この編集を閉じて、現在のゴールから編集し直してください。', 'goal-meta'))
         controls.append(save, button('編集をやめる', () => { drafts.delete(snapshot.botId); render() }))
         form.append(controls)
         form.addEventListener('submit', event => {
           event.preventDefault()
+          if (bindingChanged) return
           if (!draft.objective.trim()) { input.focus(); return }
           const data = { objective: draft.objective.trim() }
           if ((codexGoal || capabilities.tokenBudget === true) && draft.budgetChanged && draft.budget !== '') {
             data.tokenBudget = Number(draft.budget)
             if (!Number.isSafeInteger(data.tokenBudget) || data.tokenBudget <= 0) { budget.focus(); return }
           }
-          void mutate(snapshot, draft.action, data)
+          void mutate({ ...snapshot, binding: draft.binding }, draft.action, data)
         })
         card.append(form)
       }
