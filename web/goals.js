@@ -55,7 +55,7 @@ export function goalsView(dialog, api, getBots) {
         body.querySelector(`[data-goal-bot="${CSS.escape(snapshot.botId)}"] textarea`)?.focus()
       }))
       if (goal && goal.status === 'active' && capabilities.pause) actions.append(button(titles.pause, () => mutate(snapshot, 'pause')))
-      if (goal && goal.status !== 'active' && capabilities.resume)
+      if (goal && goal.status === 'paused' && capabilities.resume)
         actions.append(button(titles.resume, () => mutate(snapshot, 'resume')))
       if (goal && capabilities.clear) actions.append(button(titles.clear, () => mutate(snapshot, 'clear')))
       for (const control of actions.children) control.disabled = pending.has(snapshot.botId)
