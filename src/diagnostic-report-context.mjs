@@ -1,4 +1,5 @@
 import { authenticationPreflightCodes } from './agent-launch-error.mjs'
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 
 // 既存の診断文脈だけから集約の単位を決める。本文や任意のエラー文字列は使わない。
 const operations = new Map([
@@ -10,6 +11,7 @@ const operations = new Map([
 ])
 export const diagnosticCauseCodes = new Set([
   ...authenticationPreflightCodes,
+  'MCP_REQUEST_TIMEOUT',
   'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'EPIPE',
   'ENOENT', 'EACCES', 'ERR_STREAM_PREMATURE_CLOSE',
   'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT',
@@ -22,11 +24,12 @@ const results = new Map([
   ['background_send_unavailable', '背景送信を開始できない'], ['response_invalid', '応答形式の異常'],
   ['http_500_response_selected', 'HTTP500応答を選択'],
 ])
+const failureCode = error => error instanceof McpError && error.code === ErrorCode.RequestTimeout ? 'MCP_REQUEST_TIMEOUT' : error?.code
 
 export function diagnosticFailureDetails(error) {
   const type = error?.constructor?.name
-  const code = error?.code
-  const cause = error?.cause?.code
+  const code = failureCode(error)
+  const cause = failureCode(error?.cause)
   return {
     error_type: errorTypes.has(type) ? type : 'unknown',
     error_code: diagnosticCauseCodes.has(code) ? code : 'unknown',
