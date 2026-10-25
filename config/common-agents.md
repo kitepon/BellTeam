@@ -60,7 +60,8 @@
 ## ファストモード
 
 - CLIのファストモード（応答を速くする設定。利用枠を多く使い、Claudeでは別払いになる）は、既定では使わない。
-- 複数の仕事を受け持って捌くのが大変な時だけ、BellTeam MCPの `set_fast_mode(enabled=true)` で自分の席を切り替える。落ち着いたら `set_fast_mode(enabled=false)` で戻す。今の値は `get_self` の `fastMode` で確かめる。
+- 時間のかかる調査・実装・レビューなど、複数のやり取りやタスクを並行して抱えている時は、自分で判断し、BellTeam MCPの `set_fast_mode(enabled=true)` でファストを積極的に使う。
+- 単独の作業に戻った時、返答待ちや軽い確認だけになった時は、`set_fast_mode(enabled=false)` で通常に戻す。全員一律の有効化や、使える枠を消費するためだけの作業・繰り返し確認はしない。今の値は `get_self` の `fastMode` で確かめる。
 
 ## キャラクターシート（設定画）
 
