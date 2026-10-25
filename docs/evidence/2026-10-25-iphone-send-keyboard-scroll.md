@@ -10,11 +10,12 @@ iPhone 16 Pro Max / iOS 26.5 Simulatorで、試験専用HTTPサーバーの長�
 
 ## 修理と確認
 
-`ConversationView.swift`で会話の表示高さの縮小を観測し、直前に末尾を見ていた場合だけ、アニメーションなしで末尾へ追従させた。過去ログを読んでいる場合は移動しない。
+`ConversationView.swift`で会話の表示高さの縮小を観測し、末尾を見ている場合だけ、アニメーションなしで末尾へ追従させた。過去ログを読んでいる場合は移動しない。明示的な末尾移動の途中という追加条件は今回の再現では通らず、修理対象へ含めなかった。
 
 - 修理前に失敗した`testAcceptedSendRemainsVisibleAfterKeyboardReopens`は修理後に成功。正本行の下端は`491.7pt`、入力欄上端は`567.7pt`。最終XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-463b47e4d06f/result-bundles/test_sim_2026-10-25T01-27-57-406Z_pid67816_b68f8874.xcresult`。
 - `testKeyboardReopenKeepsOlderReadingPosition`は成功。長い返信の読書位置はキーボード再表示の前後とも`392.3pt`で、末尾へ飛ばなかった。
 - 既存の`testSentTextIsVisibleAboveComposerWithKeyboardAndLongReply`も成功。以上の関連iPhone画面試験は合計3件成功。
+- iPad Pro 11-inch (M5) / iOS 26.5 Simulatorで、横3列・右プロフィールあり/なし・英字QWERTY・キーボード開閉/入力再開の既存focused UI試験が1件成功。最初の実行は試験が大文字`Q`だけを探して停止したが、録画で小文字`q`の英字配列を実見し、試験側の判定だけを直した。成功XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-9cdb5724cf73/result-bundles/test_sim_2026-10-25T01-52-42-641Z_pid49762_496f8b95.xcresult`。
 - Mac Catalystの署名無しDebugビルド成功。Nodeの全742試験成功。`git diff --check`成功。
 
-iPad横3列の既存画面試験は試験用Simulatorで英字QWERTYを選択できず、その条件を成立させる前に停止した。iPad版62の修理は先に実機で合格済みだが、今回の変更をiPad実機で確認した結果ではない。オーナー画像と今回の隔離再現が同じ操作順・同じ内部状態だったことも未証明。Apple内部TestFlightへの新ビルド配布と実機受入は、この候補のレビュー後に行う。
+iPad版62の修理は先に実機で合格済みだが、今回の変更をiPad実機で確認した結果ではない。オーナー画像と今回の隔離再現が同じ操作順・同じ内部状態だったことも未証明。Apple内部TestFlightへの新ビルド配布と実機受入は、この候補のレビュー後に行う。
