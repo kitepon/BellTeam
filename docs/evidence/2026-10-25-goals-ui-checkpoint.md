@@ -11,3 +11,5 @@ HTTPは既存Owner認証の後で登録Botを解決し、goalサービスへ委�
 **native goalサービスとruntime bootstrapへの配線はまだ無い。現sourceではサービス未構成のgoal APIは503を返す。** native契約はAiterm担当エレグが実装中。このcheckpointは独立したgoal台帳を持たず、サービスを注入する本体境界と共通Web UIの人工fixture検証までである。native goalの取得・変更・再開が実際にできた証拠にはしない。
 
 実Bot goal変更0、実Codex RPC0、Apple UI受入0、本番反映0。機能が未完なので全Node試験はまだ行っていない。native adapter/API配線とCLI別能力の対応、通常利用経路・必要回帰・独立受入・候補配布・Owner通常使用を残す。原本の数値とSHAは同名JSON。
+
+Ownerの使用量リセット後の最新指示に合わせ、既存の共通規範とset_fast_mode説明の2pathを『通常を基本、ファスト優先なし、複数対応が大変で必要な時は自律利用可』へ整理した。Frから既担当への依頼として同じ通常source工程へまとめ、必要のない別build/本番操作を追加しない。MCP18件とCursor指示5件、隔離合成HOMEの4CLI期待全文/新節一回/再生成同一/Claude参照/実Cursor hookを確認。旧の積極利用という文言を次回起動で復元しない。新しい同梱CLIや別払い設定は変えていない。native接続未完のDraft状態を維持する。
