@@ -22,6 +22,9 @@ final class AppStore: ObservableObject {
     @Published var phase: Phase = .checking
     @Published private(set) var serverURL: URL?
     @Published var setup: SetupResponse?
+    @Published private(set) var setupAuthNeedsRefresh = false
+    private var setupAuthRevision = 0
+    private var setupAuthUpdating = false
     @Published var featureSettings: [FeatureSetting] = []
     @Published var authMode = "local"
     var openLoginAutomatically = false
@@ -145,6 +148,9 @@ final class AppStore: ObservableObject {
         workingBotIDs = []
         owner = nil
         setup = nil
+        setupAuthNeedsRefresh = false
+        setupAuthRevision += 1
+        setupAuthUpdating = false
         featureSettings = []
         authMode = "local"
         phase = .setup
@@ -281,17 +287,38 @@ final class AppStore: ObservableObject {
         aiControlError = nil
     }
 
-    func refreshSetup() async throws { setup = try await api.get("/api/setup") }
+    func refreshSetup(explicit: Bool = false) async throws {
+        if setupAuthUpdating || (setupAuthNeedsRefresh && !explicit) { return }
+        let revision = setupAuthRevision
+        let next: SetupResponse = try await api.get("/api/setup")
+        guard !setupAuthUpdating, revision == setupAuthRevision,
+              (!setupAuthNeedsRefresh || explicit) else { return }
+        setup = next
+        if explicit { setupAuthNeedsRefresh = false }
+    }
 
     func chooseHarness(_ harness: String) async throws {
+        setupAuthRevision += 1
+        setupAuthUpdating = true
+        defer { setupAuthUpdating = false; setupAuthRevision += 1 }
         setup = try await api.post("/api/setup/harness", body: HarnessSelection(harness: harness))
     }
 
-    func submitAuthInput(text: String? = nil, key: String? = nil) async throws {
-        setup = try await api.submitAuthenticationInput(AuthInput(text: text, key: key))
+    func submitAuthResponse(_ response: AuthenticationReply.Response, for ui: AuthenticationUI) async throws {
+        guard !setupAuthNeedsRefresh, setup?.auth?.authUi == ui, let reply = ui.reply(response) else {
+            throw BellAPIError.server("認証画面が更新されました。状態を確認してから操作してください。")
+        }
+        setupAuthRevision += 1
+        setupAuthUpdating = true
+        defer { setupAuthUpdating = false; setupAuthRevision += 1 }
+        do { setup = try await api.submitAuthenticationInput(reply) }
+        catch { setupAuthNeedsRefresh = true; throw error }
     }
 
     func startGuide() async throws {
+        setupAuthRevision += 1
+        setupAuthUpdating = true
+        defer { setupAuthUpdating = false; setupAuthRevision += 1 }
         setup = try await api.post("/api/setup/start", body: SetupEmptyBody())
         guard setup?.phase == "ready" else { throw BellAPIError.server("公式認証を完了してから、もう一度確認してください。") }
         try await enterConversations(openGuide: true)

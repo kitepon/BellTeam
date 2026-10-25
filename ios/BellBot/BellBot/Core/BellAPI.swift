@@ -139,11 +139,11 @@ final class BellAPI {
         try await protectedJSON(path: "/api/settings/\(id)", method: "PATCH", body: body)
     }
 
-    func submitAuthenticationInput(_ body: AuthInput) async throws -> SetupResponse {
+    func submitAuthenticationInput(_ body: AuthenticationReply) async throws -> SetupResponse {
         try await protectedJSON(path: "/api/setup/auth/input", method: "POST", body: body)
     }
 
-    func submitHarnessAuthenticationInput(harness: String, body: AuthInput) async throws -> HarnessAuthenticationResponse {
+    func submitHarnessAuthenticationInput(harness: String, body: AuthenticationReply) async throws -> HarnessAuthenticationResponse {
         try await protectedJSON(path: "/api/harness-auth/\(harness)/input", method: "POST", body: body)
     }
 
