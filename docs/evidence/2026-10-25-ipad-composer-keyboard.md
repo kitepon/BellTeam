@@ -17,4 +17,17 @@
 
 未修理の再現XCResultは`test_sim_2026-10-24T23-59-34-948Z_pid49454_60c8d00c.xcresult`、配置だけを変えた初回成功は`test_sim_2026-10-25T00-01-20-796Z_pid49454_ae6981cd.xcresult`。XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-463b47e4d06f/result-bundles/`にある。スクリーンショットは作業treeの`runtime/apple/ipad-composer-keyboard/`に書き出した。
 
-これは今回のiPad入力欄の隔離受入であり、版61導入後に報告されたiPhone白い吹き出しの半スクロール再発の原因判定ではない。実機操作・実メンバーへの送信・署名・TestFlight配布は行っていない。
+これは今回のiPad入力欄の隔離受入であり、版61導入後に報告されたiPhone白い吹き出しの半スクロール再発の原因判定ではない。隔離試験で実機や実メンバーへの送信は行っていない。
+
+## 版62の内部配布
+
+修理PR #70は`d939f048c9ffdfc9e82b99f3ea84c8dab3fabfd8`、本体と通知拡張の番号を62へ揃えたPR #71は`f16b2aaba220e91ebb66461a2f9c86e86fcf5ea3`としてGitHub `main`へ通常統合した。配布担当センチの事前受入と、決裁箱「BellTeam版62を署名してオーナー内部TestFlightへ配布する」の許可を確認した。
+
+`f16b2aa`の同じソースからiOSとMac Catalystの署名付きReleaseアーカイブを書き出した。本体と通知拡張は両方`1.0.3 (62)`。アーカイブの厳格な署名検査、Mac pkgのInstaller署名、Apple公式の両成果物の事前検証が成功した。Mac本体はarm64とx86_64を含む。
+
+| 成果物 | SHA-256 | Apple build ID | 読戻した状態 |
+| --- | --- | --- | --- |
+| iPhone/iPad用`runtime/apple/build62/ios-export/BellTeam.ipa` | `75fdd80889f89b91864afca7c2634a93d6d41c362a1eebfaf66d06747f3da07c` | `ad818960-16d1-4179-9178-55f8f3828fd5` | `VALID`、オーナー内部グループで`IN_BETA_TESTING` |
+| Mac用`runtime/apple/build62/mac-export/BellTeam.pkg` | `0fceff56e33a24080ae231d8b8a712487799688a3f6739f1c71ab44745df6309` | `75165479-c013-4b7a-84c3-959612ee0730` | `VALID`、同グループで`IN_BETA_TESTING` |
+
+MacのTestFlightは版62の「アップデート」から「開く」へ変わり、`/Applications/BellTeam.app`の本体・通知拡張は62だった。厳格な署名検査とGatekeeperの`source=Testflight`を確認し、新しいプロセスでメンバー一覧と初期会話案内が表示された。確認用に起動したプロセスは正規終了した。Macからの実メッセージ送信はしていない。iPad実機で入力欄がキーボード上に出るかは、オーナーの次の通常使用の判定待ち。一般App Store公開とBellTeam本番コンテナ更新は行っていない。
