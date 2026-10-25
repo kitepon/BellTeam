@@ -69,9 +69,14 @@
     "visibleResult": "member-and-room-list",
     "realBotMessageSent": false
   },
+  "ownerMacAcceptance": {
+    "title": "BellTeam版64のMac過去ログ表示を通常使用で確認する",
+    "answeredAt": "2026-10-25T05:56:35.147Z",
+    "answer": "はなしたとおり。崩れではなくなったよ。\n上にスクロールできるときと、できない時があるってこと。",
+    "result": "partial"
+  },
   "remaining": {
-    "ownerMacCheck": "pending-next-normal-use",
-    "ownerCheckTitle": "BellTeam版64のMac過去ログ表示を通常使用で確認する",
+    "intermittentMacUpScroll": "unresolved",
     "ownerOriginalOperationOrder": "unconfirmed"
   },
   "serverContainerRestarted": false,
