@@ -118,6 +118,7 @@ const server = createServer(async (request, response) => {
     return json(response, { setting })
   }
   if (url.pathname.endsWith('/schedules')) {
+    if (mode === 'schedules-timeout') return
     if (mode === 'schedule-pending') return
     if (mode === 'schedule-known' && url.pathname === '/api/bots/bot-one/schedules') {
       return json(response, { schedules: [{ id: 'fixture-one', name: '隔離予定', kind: 'command', command: 'noop', enabled: true, nextRunAt: '2026-10-16T09:00:00Z' }] })
@@ -130,6 +131,7 @@ const server = createServer(async (request, response) => {
     const items = mode === 'post-wait-history' ? [...priorMessages, longMessage] : [mode === 'post-wait-long' ? longMessage : message]
     return json(response, { items: [...items, ...sentMessages], hasMore: false })
   }
+  if (mode === 'queue-timeout' && url.pathname.endsWith('/queue')) return
   if (url.pathname.endsWith('/queue') || url.pathname === '/api/queue') return json(response, { items: stopScenario && !stopAccepted
     ? [{ id: 'running-one', botId: 'bot-one', botName: 'ユキ', status: 'running', groupId: null, message: null }] : [] })
   if (url.pathname === '/api/bots/bot-one') return json(response, { bot: bot() })
