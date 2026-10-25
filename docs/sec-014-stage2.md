@@ -293,20 +293,7 @@ wired to the destination path. Native interruption/session preservation in
 the split deployment remains a separate prerequisite. Other server state and
 the complete forward/reverse migration remain unfinished.
 
-## Integration with current owners (2026-10-25)
-
-The preparation branch now incorporates main ff2aafa. Seat SDK launch options
-belong to AitermClient; per-target environment loading stays inside UID1000.
-The current returned-execution-error metadata and native interruption path
-are retained. The old close-based interruption is not restored.
-
-Throughline and wait execution options live in their current modules.
-Pending-deletion listing handling lives in http-bot-api while preserving the
-current parallel timeline reads. Schedule persistence retains its change
-notification, and optional seat commands accept the caller's abort signal.
-These remain optional components: application wiring, dedicated server UID,
-state migration, read-only mounts, backup/rollback, real four-CLI acceptance
-and measured downtime are still pending.
+## Validation of the integration (2026-10-25)
 
 The owner-module focused set passed 81 tests. The first complete run reported
 770 passes and one EMFILE failure opening the application runtime's filesystem
