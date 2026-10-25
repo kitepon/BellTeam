@@ -30,4 +30,6 @@
 | iPhone/iPad用`runtime/apple/build62/ios-export/BellTeam.ipa` | `75fdd80889f89b91864afca7c2634a93d6d41c362a1eebfaf66d06747f3da07c` | `ad818960-16d1-4179-9178-55f8f3828fd5` | `VALID`、オーナー内部グループで`IN_BETA_TESTING` |
 | Mac用`runtime/apple/build62/mac-export/BellTeam.pkg` | `0fceff56e33a24080ae231d8b8a712487799688a3f6739f1c71ab44745df6309` | `75165479-c013-4b7a-84c3-959612ee0730` | `VALID`、同グループで`IN_BETA_TESTING` |
 
+配布の固定値とAppleの受領・処理結果は[manifest](2026-10-25-apple-build62-manifest.json)にまとめた。
+
 MacのTestFlightは版62の「アップデート」から「開く」へ変わり、`/Applications/BellTeam.app`の本体・通知拡張は62だった。厳格な署名検査とGatekeeperの`source=Testflight`を確認し、新しいプロセスでメンバー一覧と初期会話案内が表示された。確認用に起動したプロセスは正規終了した。Macからの実メッセージ送信はしていない。iPad実機で入力欄がキーボード上に出るかは、オーナーの次の通常使用の判定待ち。一般App Store公開とBellTeam本番コンテナ更新は行っていない。
