@@ -194,13 +194,13 @@ test('同じ席名でも古い世代の停止結果を新世代jobの停止確�
   assert.deepEqual(a.statuses, ['running', 'delivered'])
 })
 
-test('全体ONはroots集合へstopを1回だけ渡し、コマンド取消も行う', async t => {
+test('旧adapterの全体ONも中断とcommand取消は送るがnative goal停止は未確認に残す', async t => {
   const f = await fixture(t)
   let commands = 0
   f.setTargets([...f.launches.values()])
   const result = await stopRegisteredWork({ bots: new Map(f.bots.map(bot => [bot.id, bot])), transport: f.transport,
     scheduler: { interruptCommands() { commands++; return true } } })
-  assert.deepEqual(result, { unconfirmedBotIds: [], commandsConfirmed: true })
+  assert.deepEqual(result, { unconfirmedBotIds: f.bots.map(bot => bot.id), commandsConfirmed: true })
   assert.equal(f.calls.filter(call => call.action === 'stop').length, 1)
   assert.equal(f.calls.find(call => call.action === 'stop').roots.length, 3)
   assert.equal(commands, 1)
