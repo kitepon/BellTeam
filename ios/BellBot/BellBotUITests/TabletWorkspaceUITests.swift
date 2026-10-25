@@ -44,6 +44,69 @@ final class TabletWorkspaceUITests: XCTestCase {
         app.terminate()
     }
 
+    func testLandscapeInspectorKeepsComposerAboveKeyboard() {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview"]
+        app.launch(); defer { app.terminate() }
+
+        let first = app.buttons["conversation-bot-one"]
+        XCTAssertTrue(first.waitForExistence(timeout: 10))
+        first.tap()
+        let input = app.textViews["message-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["メンバーを編集"].waitForExistence(timeout: 5), "右の詳細パネルを開いて確認する")
+
+        input.tap()
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
+        let switcher = keyboard.buttons["emoji"]
+        for _ in 0..<4 {
+            if keyboard.keys["Q"].exists { break }
+            XCTAssertTrue(switcher.exists, "英字キーボードへ切り替える")
+            let previous = switcher.value as? String ?? ""
+            switcher.tap()
+            let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", previous), object: switcher)
+            _ = XCTWaiter.wait(for: [changed], timeout: 3)
+        }
+        XCTAssertTrue(keyboard.keys["Q"].exists, "英字QWERTYで確認する")
+        input.typeText("composer visible")
+        let send = app.buttons["送信"]
+        XCTAssertTrue(send.isEnabled)
+        attach(app, name: "iPad横向き・詳細表示・英字入力中")
+        let last = app.descendants(matching: .any)["message-text-p3"].firstMatch
+        XCTAssertTrue(last.exists)
+        XCTAssertTrue(input.isHittable, "詳細パネルと英字キーボードを開いても入力欄を操作できる")
+        XCTAssertTrue(send.isHittable, "詳細パネルと英字キーボードを開いても送信ボタンを操作できる")
+        XCTAssertLessThanOrEqual(last.frame.maxY, input.frame.minY - 4, "会話の末尾を入力欄の上に表示する")
+
+        app.buttons["詳細パネル"].tap()
+        if !keyboard.exists { input.tap(); XCTAssertTrue(keyboard.waitForExistence(timeout: 5)) }
+        attach(app, name: "iPad横向き・詳細なし・キーボード表示後")
+        XCTAssertTrue(input.isHittable)
+        XCTAssertTrue(send.isHittable)
+        XCTAssertLessThanOrEqual(last.frame.maxY, input.frame.minY - 4)
+
+        let hide = keyboard.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@ OR label CONTAINS[c] %@",
+                                                          "キーボードを非表示", "Hide keyboard")).firstMatch
+        XCTAssertTrue(hide.exists)
+        hide.tap()
+        let hidden = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: keyboard)
+        XCTAssertEqual(XCTWaiter.wait(for: [hidden], timeout: 5), .completed, "キーボードを閉じる")
+        input.tap()
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
+        attach(app, name: "iPad横向き・入力再開")
+        XCTAssertTrue(input.isHittable, "入力を再開しても入力欄を操作できる")
+        XCTAssertTrue(send.isHittable, "入力を再開しても送信ボタンを操作できる")
+        XCTAssertEqual(input.value as? String, "composer visible")
+        app.buttons["詳細パネル"].tap()
+        XCTAssertTrue(app.buttons["メンバーを編集"].waitForExistence(timeout: 5))
+        attach(app, name: "iPad横向き・入力再開後に詳細を開く")
+        XCTAssertTrue(input.isHittable)
+        XCTAssertTrue(send.isHittable)
+        XCTAssertLessThanOrEqual(last.frame.maxY, input.frame.minY - 4)
+    }
+
     func testMemberAndRoomEditorsUseSharedSheets() {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()

@@ -131,4 +131,5 @@
 - [iPhoneミラーリング](iphone-mirroring/raw/apple-iphone-mirroring.html): Macから実機のアプリを操作する条件と、ホーム・アプリ切替の標準操作。取得日 2026-10-06、Apple公式原文。
 
 - [SwiftUIのスクロール位置と計測](scrolling/apple-scroll-position.md): scrollToのanchorとiOS 17共通実装に使えるAPIの範囲。Apple公式原文、取得日2026-10-07。
+- [SwiftUIの背景とキーボード安全領域](keyboard/apple-keyboard-background-layout.md): 背景だけを安全領域へ広げるApple公式配置と、iPad横画面で入力欄が隠れた実測。取得日2026-10-25。
 - [Windows通知の仕様と実測](windows-native/notifications.md): 組込APIとAppUserModelID、初回Setting読取の制約、SDK自己完結配布の欠落、FOXの非表示履歴確認。取得日2026-10-13、一次資料と実測。

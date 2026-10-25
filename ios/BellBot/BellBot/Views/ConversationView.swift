@@ -74,7 +74,6 @@ private struct ConversationContent: View {
             : [:]
         let selectedBot = bot
         return ZStack {
-            BellBackground()
             ScrollViewReader { proxy in
                 GeometryReader { viewport in
                     let rowWidth = measuredContentWidth ?? (viewport.size.width - 36)
@@ -166,6 +165,8 @@ private struct ConversationContent: View {
                 }
             }
         }
+        // 背景をZStackの子にすると、iPad横画面では入力欄もキーボードの安全領域へ広がる。
+        .background { BellBackground() }
         .safeAreaInset(edge: .bottom, spacing: 0) { composer }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
