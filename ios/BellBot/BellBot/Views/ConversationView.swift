@@ -762,7 +762,8 @@ private struct ConversationContent: View {
     }
 
     private func updateWindow(_ metrics: ScrollMetrics, viewportHeight: CGFloat, width: CGFloat, botsByID: [String: Bot]) {
-        guard !rowIsPresenting, !messages.isEmpty, let top = metrics.top,
+        // 末尾への移動中は中間地点の行へ表示範囲を切り替えず、到着後に更新する。
+        guard !rowIsPresenting, !scroll.followingBottom, !messages.isEmpty, let top = metrics.top,
               let anchor = messages.first(where: { message in
                   guard let frame = metrics.rows[message.id]?.frame else { return false }
                   return frame.maxY > 0 && frame.minY < viewportHeight
