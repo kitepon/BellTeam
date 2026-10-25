@@ -10,7 +10,7 @@ final class HarnessAuthenticationFlow: ObservableObject {
     @Published private(set) var started = false
     @Published private(set) var busy = false
     @Published private(set) var needsRefresh = false
-    private var mutationRevision = 0
+    private var requestSequence = 0
 
     init(harness: HarnessAuthenticationOption, api: BellAPI) {
         self.harness = harness
@@ -21,6 +21,8 @@ final class HarnessAuthenticationFlow: ObservableObject {
     private var path: String { "/api/harness-auth/\(harness.id)" }
 
     func refresh() async throws {
+        guard !busy else { throw BellAPIError.server("認証の処理が終わってから操作してください。") }
+        requestSequence += 1
         try await perform { try await api.get(path) }
         needsRefresh = false
     }
@@ -28,10 +30,16 @@ final class HarnessAuthenticationFlow: ObservableObject {
     // 待っている間の照会では、入力欄を無効にしない。利用者の操作が始まったら照会Taskを取り消す。
     func poll() async throws {
         guard !busy && !needsRefresh else { return }
-        let revision = mutationRevision
-        let next: HarnessAuthenticationResponse = try await api.get(path)
+        requestSequence += 1
+        let sequence = requestSequence
+        let next: HarnessAuthenticationResponse
+        do { next = try await api.get(path) }
+        catch {
+            if sequence != requestSequence || busy || needsRefresh { return }
+            throw error
+        }
         try Task.checkCancellation()
-        if !busy && !needsRefresh && revision == mutationRevision { apply(next) }
+        if !busy && !needsRefresh && sequence == requestSequence { apply(next) }
     }
 
     func start() async throws {
@@ -66,7 +74,7 @@ final class HarnessAuthenticationFlow: ObservableObject {
 
     private func perform(mutation: Bool = false, _ action: () async throws -> HarnessAuthenticationResponse) async throws {
         guard !busy else { throw BellAPIError.server("認証の処理が終わってから操作してください。") }
-        if mutation { mutationRevision += 1 }
+        if mutation { requestSequence += 1 }
         busy = true
         defer { busy = false }
         let next = try await action()

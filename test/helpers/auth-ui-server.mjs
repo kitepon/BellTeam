@@ -22,10 +22,12 @@ const stages = {
 const state = new Map()
 let writes = []
 let setupStatus = 'waiting', setupWrites = [], setupReads = 0, holdNextSetup = false, heldSetup = [], setupUnknown = false
+let holdNextHarness = null, heldHarness = [], harnessReads = 0
 const initial = () => {
   state.clear(); for (const id of Object.keys(stages)) state.set(id, { status: 'blocked', ui: stages[id] })
   writes = []; setupStatus = 'waiting'; setupWrites = []; setupReads = 0
   holdNextSetup = false; heldSetup = []; setupUnknown = false
+  holdNextHarness = null; heldHarness = []; harnessReads = 0
 }
 initial()
 const auth = id => {
@@ -56,19 +58,44 @@ const server = createServer(async (request, response) => {
       held.response.writeHead(503, { 'content-type': 'application/json' })
       held.response.end(JSON.stringify({ error: 'FIXTURE_RESET' }))
     }
+    for (const held of heldHarness) {
+      held.response.writeHead(503, { 'content-type': 'application/json' })
+      held.response.end(JSON.stringify({ error: 'FIXTURE_RESET' }))
+    }
     initial(); return json({ ok: true })
   }
-  if (path === '/test/proof') return json({ writes, setupWrites, setupReads, heldSetupReads: heldSetup.length })
+  if (path === '/test/proof') return json({ writes, setupWrites, setupReads, heldSetupReads: heldSetup.length,
+    harnessReads, heldHarnessReads: heldHarness.length })
   if (path === '/test/setup/hold') { holdNextSetup = true; return json({ ok: true }) }
-  if (path === '/test/setup/release') {
+  if (path === '/test/setup/set-complete') { setupStatus = 'authenticated'; return json({ ok: true }) }
+  if (path === '/test/setup/release' || path === '/test/setup/release-error') {
+    const failed = path.endsWith('release-error')
     for (const held of heldSetup) {
-      held.response.writeHead(200, { 'content-type': 'application/json' })
-      held.response.end(JSON.stringify(held.snapshot))
+      held.response.writeHead(failed ? 503 : 200, { 'content-type': 'application/json' })
+      held.response.end(JSON.stringify(failed ? { error: 'OLD_READ' } : held.snapshot))
     }
     const count = heldSetup.length; heldSetup = []
     return json({ count })
   }
   if (path === '/test/setup/next-unknown') { setupUnknown = true; return json({ ok: true }) }
+  const harnessControl = path.match(/^\/test\/harness\/(hold|set-complete|release|release-error)\/(claude|codex|grok|cursor)$/u)
+  if (harnessControl) {
+    const [, action, id] = harnessControl
+    if (action === 'hold') { holdNextHarness = id; return json({ ok: true }) }
+    if (action === 'set-complete') {
+      state.set(id, { status: 'authenticated', ui: { stage: 'complete', title: '認証が完了しました',
+        message: '確認済みです。', url: null, user_code: null, input: null, choices: [] } })
+      return json({ ok: true })
+    }
+    const failed = action === 'release-error'
+    const released = heldHarness.filter(held => held.id === id)
+    heldHarness = heldHarness.filter(held => held.id !== id)
+    for (const held of released) {
+      held.response.writeHead(failed ? 503 : 200, { 'content-type': 'application/json' })
+      held.response.end(JSON.stringify(failed ? { error: 'OLD_READ' } : held.snapshot))
+    }
+    return json({ count: released.length })
+  }
   if (path === '/api/setup' && request.method === 'GET') {
     setupReads += 1
     if (holdNextSetup) { holdNextSetup = false; heldSetup.push({ response, snapshot: setup() }); return }
@@ -88,7 +115,15 @@ const server = createServer(async (request, response) => {
   const match = path.match(/^\/api\/harness-auth\/(claude|codex|grok|cursor)(?:\/(input))?$/u)
   if (!match) return json({ error: 'NOT_FOUND' }, 404)
   const [, id, action] = match
-  if (request.method === 'GET' && !action) return json({ harness: id, auth: auth(id) })
+  if (request.method === 'GET' && !action) {
+    harnessReads += 1
+    if (holdNextHarness === id) {
+      holdNextHarness = null
+      heldHarness.push({ id, response, snapshot: { harness: id, auth: auth(id) } })
+      return
+    }
+    return json({ harness: id, auth: auth(id) })
+  }
   if (request.method !== 'POST' || action !== 'input') return json({ error: 'NOT_FOUND' }, 404)
   let raw = ''
   for await (const chunk of request) raw += chunk

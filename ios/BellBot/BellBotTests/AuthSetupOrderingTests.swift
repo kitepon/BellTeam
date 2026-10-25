@@ -55,6 +55,53 @@ final class AuthSetupOrderingTests: XCTestCase {
         XCTAssertEqual(store.setup?.auth?.status, .authenticated)
     }
 
+    func testNewerSetupReadKeepsCompletionAgainstOldStateAndError() async throws {
+        let base = try fixtureURL()
+        for release in ["release", "release-error"] {
+            try await reset(base)
+            let store = makeStore(base)
+            try await store.refreshSetup(explicit: true)
+            try await get(base, "/test/setup/hold")
+            let oldRead = Task { try await store.refreshSetup() }
+            for _ in 0..<50 {
+                if try await proof(base).heldSetupReads == 1 { break }
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            let setupHold = try await proof(base)
+            XCTAssertEqual(setupHold.heldSetupReads, 1)
+            try await get(base, "/test/setup/set-complete")
+            try await store.refreshSetup()
+            XCTAssertEqual(store.setup?.auth?.status, .authenticated)
+            try await get(base, "/test/setup/\(release)")
+            try await oldRead.value
+            XCTAssertEqual(store.setup?.auth?.status, .authenticated, "旧GETの\(release)を採用しない")
+        }
+    }
+
+    func testNewerHarnessReadKeepsCompletionAgainstOldStateAndError() async throws {
+        let base = try fixtureURL()
+        for release in ["release", "release-error"] {
+            try await reset(base)
+            let option = HarnessAuthenticationOption(id: "cursor", name: "Cursor", members: 1, startWarning: nil)
+            let flow = HarnessAuthenticationFlow(harness: option, api: BellAPI(baseURL: base))
+            try await flow.refresh()
+            try await get(base, "/test/harness/hold/cursor")
+            let oldRead = Task { try await flow.poll() }
+            for _ in 0..<50 {
+                if try await proof(base).heldHarnessReads == 1 { break }
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            let harnessHold = try await proof(base)
+            XCTAssertEqual(harnessHold.heldHarnessReads, 1)
+            try await get(base, "/test/harness/set-complete/cursor")
+            try await flow.refresh()
+            XCTAssertEqual(flow.auth?.status, .authenticated)
+            try await get(base, "/test/harness/\(release)/cursor")
+            try await oldRead.value
+            XCTAssertEqual(flow.auth?.status, .authenticated, "旧GETの\(release)を採用しない")
+        }
+    }
+
     private func makeStore(_ base: URL) -> AppStore {
         let api = BellAPI(baseURL: base, diagnostics: BellDiagnostics(onReport: { _, _, _, _ in }))
         return AppStore(api: api, webDataStore: .nonPersistent())
@@ -81,13 +128,15 @@ final class AuthSetupOrderingTests: XCTestCase {
         let setupReads: Int
         let heldSetupReads: Int
         let setupWrites: Int
+        let heldHarnessReads: Int
 
-        private enum CodingKeys: String, CodingKey { case setupReads, heldSetupReads, setupWrites }
+        private enum CodingKeys: String, CodingKey { case setupReads, heldSetupReads, setupWrites, heldHarnessReads }
         init(from decoder: Decoder) throws {
             let value = try decoder.container(keyedBy: CodingKeys.self)
             setupReads = try value.decode(Int.self, forKey: .setupReads)
             heldSetupReads = try value.decode(Int.self, forKey: .heldSetupReads)
             setupWrites = try value.decode([Write].self, forKey: .setupWrites).count
+            heldHarnessReads = try value.decode(Int.self, forKey: .heldHarnessReads)
         }
     }
 }

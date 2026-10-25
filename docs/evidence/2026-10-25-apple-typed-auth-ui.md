@@ -19,5 +19,6 @@ Root Draft PR #94の`9e1b0c94548cb0b187fbdcb84a42519d4f098ae1`を読んだ。初
 - 最終のfocused画面試験で、Grokが2番目の方法を選んだ後とCursorのコード画面にも、型付きURLから公式リンクが表示されることを確認した。4ハーネス1件成功・失敗0。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T13-27-06-574Z_pid8412_3b123e6c.xcresult`。旧APIの回帰画面試験も最後のUI変更後に1件成功・失敗0。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T13-25-51-395Z_pid8412_91aa355c.xcresult`。
 - Rootの`paste_code`契約どおり、型付き案内でも有効なHTTPSのURLが欠ける時はコードを送れない。focused単体試験1件成功・失敗0。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T13-29-15-828Z_pid8412_f0c55554.xcresult`。変更後のMac Catalyst Debugビルドも成功。
 - URL条件を加えた後の4ハーネス画面試験も1件成功・失敗0。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T13-30-40-309Z_pid8412_ad9ff218.xcresult`。
+- Root PR #94で再現された「古いGET Aを保留→新しいGET Bで認証完了→Aの旧状態またはエラーが後着」の順序をAppleの通常認証と初期設定の両方で人工再現した。各GETの開始番号で最新だけを採用し、Aの旧waitingと503を無視した。先のPOST競合・結果不明と合わせてfocused4件成功・失敗0。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T13-35-07-519Z_pid8412_2387b32b.xcresult`。
 
 Root PR #94はDraftで、Nativeの正式版・他OS・実Owner認証は未受入。Appleの実認証、署名、配布、本番コンテナへの操作は行っていない。

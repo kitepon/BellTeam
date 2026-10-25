@@ -24,6 +24,7 @@ final class AppStore: ObservableObject {
     @Published var setup: SetupResponse?
     @Published private(set) var setupAuthNeedsRefresh = false
     private var setupAuthRevision = 0
+    private var setupReadSequence = 0
     private var setupAuthUpdating = false
     @Published var featureSettings: [FeatureSetting] = []
     @Published var authMode = "local"
@@ -150,6 +151,7 @@ final class AppStore: ObservableObject {
         setup = nil
         setupAuthNeedsRefresh = false
         setupAuthRevision += 1
+        setupReadSequence += 1
         setupAuthUpdating = false
         featureSettings = []
         authMode = "local"
@@ -290,8 +292,16 @@ final class AppStore: ObservableObject {
     func refreshSetup(explicit: Bool = false) async throws {
         if setupAuthUpdating || (setupAuthNeedsRefresh && !explicit) { return }
         let revision = setupAuthRevision
-        let next: SetupResponse = try await api.get("/api/setup")
-        guard !setupAuthUpdating, revision == setupAuthRevision,
+        setupReadSequence += 1
+        let sequence = setupReadSequence
+        let next: SetupResponse
+        do { next = try await api.get("/api/setup") }
+        catch {
+            if sequence != setupReadSequence || revision != setupAuthRevision
+                || (setupAuthNeedsRefresh && !explicit) { return }
+            throw error
+        }
+        guard !setupAuthUpdating, revision == setupAuthRevision, sequence == setupReadSequence,
               (!setupAuthNeedsRefresh || explicit) else { return }
         setup = next
         if explicit { setupAuthNeedsRefresh = false }
