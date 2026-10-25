@@ -18,4 +18,8 @@
 
 同ソースでiPhone 16 Pro Max / iOS 26.5 Simulatorの既存画面試験`testWindowCanReachOldestAcrossMultiplePages`と`testNewMessageWhileReadingOlderDoesNotJumpToBottom`が2件成功・失敗0件。XcodeBuildMCPの呼出しは300秒で時間切れとなったが、残ったXCTestは正常終了し、XCResult `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T06-18-37-004Z_pid8412_ab95b55b.xcresult`を読んで合否を確定した。隔離Mac Catalyst Debugビルドも成功した。
 
+Macでは`npm test`がtestgate選択の46ファイルで成功し、続けて`TESTGATE_FULL=1 npm test`で全99ファイルを実行して終了コード0だった。独立レビュー担当TronyはPR #80の`c35e423eecef55e699c0fca24388e0a4902d4df2`をLinuxで試し、既定の全Node試験747件成功・失敗・取消・スキップ0件と報告した。MacのUI試験・ビルドとLinuxのNode試験は別の検証結果である。
+
+人工画面3枚の下部には「更新へ接続できません。再接続しています。」の警告がある。履歴ページのHTTP GETと可視行の前後確認は成立するが、この画面をSSE接続の正常性の証拠にはしない。警告の発生条件は今回特定しておらず、上スクロール修理の受入範囲にも含めない。
+
 オーナーが実際にホイールとトラックパッドのどちらを使ったか、隔離操作と元の不発の順序が同じだったかは未確認。通常のMacアプリ画面・実Bot・メンバー設定には触れていない。署名・TestFlight配布・本番コンテナ操作はまだ行っていない。
