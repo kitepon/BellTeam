@@ -437,4 +437,29 @@ final class GoalsUITests: XCTestCase {
         XCTAssertEqual(writes[0]["action"] as? String, "clear")
         XCTAssertEqual(writes[0]["botId"] as? String, "bot-one")
     }
+
+    func testGrokActiveAndDetailDoNotOfferClear() async throws {
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_GOALS_FIXTURE_URL"])
+        let reset = try XCTUnwrap(URL(string: url + "/test/reset"))
+        let (_, response) = try await URLSession.shared.data(from: reset)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", url]
+        app.launch()
+        defer { app.terminate() }
+        app.tabBars.buttons["ゴール"].tap()
+        XCTAssertTrue(app.staticTexts["進行中 · 待機"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["goal-clear-bot-one"].exists)
+
+        let detailURL = try XCTUnwrap(URL(string: url + "/test/grok-detail-no-clear"))
+        let (_, changed) = try await URLSession.shared.data(from: detailURL)
+        XCTAssertEqual((changed as? HTTPURLResponse)?.statusCode, 200)
+        app.buttons["ゴールを更新"].tap()
+        XCTAssertTrue(app.staticTexts["Active ⸬ · Planning"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["goal-clear-bot-one"].exists)
+        let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
+        let (data, _) = try await URLSession.shared.data(from: proofURL)
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual((proof["writes"] as? [[String: Any]])?.count, 0)
+    }
 }

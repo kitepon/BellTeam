@@ -6,6 +6,7 @@ const grok = process.env.GOALS_FIXTURE_GROK === '1'
 const grokSignedTokens = process.env.GOALS_FIXTURE_GROK_SIGNED_TOKENS === '1'
 const grokDetail = process.env.GOALS_FIXTURE_GROK_DETAIL === '1'
 const grokClear = process.env.GOALS_FIXTURE_GROK_CLEAR === '1'
+const grokActiveNoClear = process.env.GOALS_FIXTURE_GROK_ACTIVE_NO_CLEAR === '1'
 const binding = id => ({ sessionId: `session-${id}`, launchId: '0123456789abcdef0123456789abcdef', threadId: `thread-${id}` })
 const capabilities = (goal, available = true) => {
   const status = goal?.kind === 'codex-cli' ? goal.native.status : goal?.kind === 'claude-code' ? goal.phase : goal?.status
@@ -29,19 +30,20 @@ const claudeGoal = () => ({ kind: 'claude-code', phase: 'active', native: {
   type: 'goal_status', condition: '資料を整理して報告する', met: false, tokens: 1234, durationMs: 5000, iterations: 3,
 }, reported_turns: 2 })
 const grokGoal = () => ({ kind: 'grok-cli', native: {
-  goal_id: 'fixture-goal', objective: 'Grokの資料をまとめる', status: 'active', phase: grokDetail ? 'Idle' : 'Executing',
+  goal_id: 'fixture-goal', objective: 'Grokの資料をまとめる', status: grokClear ? 'user_paused' : 'active',
+  phase: grokDetail ? 'Idle' : 'Executing',
   token_budget: 20000, elapsed_ms: 910000, tokens_used_high_water: 19000,
 }, current_status: grokDetail
   ? { source: 'goal detail', status: 'Active', phase: null, tokens_used: null,
     status_display: 'Active ⸬ · Planning', phase_display: 'Planning',
     budget_display: '4.9k / 1 tokens (100%)', elapsed_display: '26s' }
-  : { source: '/goal status', status: 'UserPaused', phase: 'Idle',
+  : { source: '/goal status', status: grokActiveNoClear ? 'Active' : 'UserPaused', phase: 'Idle',
     tokens_used: grokSignedTokens ? -1 : 4906, elapsed_display: '14s' } })
 const inspectOnly = { inspect: true, create: false, edit: false, pause: false, resume: false, clear: false }
 const initialSnapshots = () => {
   const one = grok ? grokGoal() : tagged ? claudeGoal() : null
   const two = tagged || grok ? { kind: 'codex-cli', native: { ...activeGoal } } : { ...activeGoal }
-  const oneCapabilities = grok ? { ...inspectOnly, clear: grokClear } : capabilities(one)
+  const oneCapabilities = grok ? { ...inspectOnly, clear: grokClear && !grokDetail && !grokActiveNoClear } : capabilities(one)
   return new Map([
   ['bot-one', { botId: 'bot-one', availability: 'available', binding: binding('bot-one'), goal: one,
     capabilities: oneCapabilities, fieldCapabilities: fieldCapabilities(oneCapabilities),
@@ -75,6 +77,15 @@ const server = createServer(async (request, response) => {
   if (url.pathname === '/test/grok-null-phase') {
     if (!grokDetail) return json(response, { error: 'WRONG_FIXTURE' }, 409)
     snapshots.get('bot-one').goal.current_status.phase_display = null
+    return json(response, { ok: true })
+  }
+  if (url.pathname === '/test/grok-detail-no-clear') {
+    if (!grokActiveNoClear) return json(response, { error: 'WRONG_FIXTURE' }, 409)
+    snapshots.get('bot-one').goal.current_status = {
+      source: 'goal detail', status: 'Active', phase: null, tokens_used: null,
+      status_display: 'Active ⸬ · Planning', phase_display: 'Planning',
+      budget_display: '4.9k / 1 tokens (100%)', elapsed_display: '26s',
+    }
     return json(response, { ok: true })
   }
   if (url.pathname === '/test/hold-list') { holdNextList = true; return json(response, { ok: true }) }
