@@ -16,6 +16,8 @@ iPhone 16 Pro Max / iOS 26.5 Simulatorの隔離プレビューと人工`test/hel
 
 本体PR #79のv2契約に合わせ、Codexの`kind=codex-cli/native`とClaudeの`kind=claude-code/phase/native`を別型で読む。人工Claudeの状態文、存在する使用トークン・実行時間・反復数・CLI表示ターン数と、v2 Codexの目的を画面で確認した。Claudeには未対応のpause/editを出さず、clear後の`nativeHistory.terminal=cleared`を「前のゴール：取消」と表示し、達成にしなかった。focused画面試験1件成功・失敗0、人工サーバーの変更はclear POST1回。XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T12-01-10-169Z_pid8412_31b9efeb.xcresult`。使用量の無いClaude状態へ0を補う表示はしない。これは型付き人工データであり、実Claude workerの操作ではない。
 
+v2型の追加後も、v1のCodex平坦形式を使うiPhone一覧・pause/resume/clearのfocused画面試験1件が成功・失敗0。XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T12-07-13-746Z_pid8412_b9cc4598.xcresult`。
+
 隔離Mac Catalyst Debugビルドは成功。通常アプリとは別識別子`dev.kitepon.bellbot.goalprobe`で人工APIのゴール一覧を開き、3状態と操作ボタンを画面・アクセシビリティで確認した。[Macの人工一覧](images/2026-10-25-goals-mac-list.png)。試験後は隔離アプリとサーバーを通常終了し、PIDと待受の消失を確認した。
 
 iPad Pro 11インチ（M5）/ iOS 27.0 Simulatorでも同じ人工APIの3状態を一覧で確認し、focused画面試験1件成功・失敗0。初回画面ではサイドバー下部の「ゴール」が2行に折り返したため、下部ボタンの横余白を詰めた。修正後のfocused1件成功・失敗0、[iPadの人工一覧](images/2026-10-25-goals-ipad-list.png)では予定・ゴール・設定が1行で読める。修正後XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T11-03-41-762Z_pid8412_53ab0184.xcresult`。SimulatorはShutdownを確認した。
