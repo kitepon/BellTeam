@@ -101,7 +101,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   const paths = [
     'Dockerfile', '.dockerignore', 'package.json', 'package-lock.json', 'src/supervisor.mjs',
     'web/index.html', 'integrations/bellteam.mjs', 'config/common-agents.md', 'config/models.json',
-    'config/setup-guide.json', 'docs/bot-environment.md', 'docs/onboarding.md',
+    'config/setup-guide.json', 'config/ponytail-LICENSE', 'docs/bot-environment.md', 'docs/onboarding.md',
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
     'compose.cursor-update.yaml', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
     'runtime/home/auth.json', '.env', 'config/bots.json', 'services/subscriptions/keys/private.p8',
@@ -125,6 +125,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   const result = JSON.parse((await exec(process.execPath, [join(root, 'scripts/package-server.mjs'), output])).stdout)
   const pathsInArchive = (await exec('tar', ['-tzf', result.archive])).stdout.trim().split('\n').map(path => path.replace(/^\.\//, ''))
   assert.ok(pathsInArchive.includes('config/setup-guide.json'))
+  assert.ok(pathsInArchive.includes('config/ponytail-LICENSE'))
   assert.ok(pathsInArchive.includes('docs/onboarding.md'))
   for (const name of bridgeFiles) assert.ok(pathsInArchive.includes(`bridge/${name}`))
   assert.ok(!pathsInArchive.includes('bridge/bridge.env'), '利用者のBridge認証設定は配布しない')
