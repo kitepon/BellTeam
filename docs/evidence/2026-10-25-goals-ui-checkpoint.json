@@ -1,0 +1,80 @@
+{
+  "status": "API and Web checkpoint; native service not connected; not deployable",
+  "base": "ed68c0bd1d771f80768aec2a5c10a6dd30cb06ed",
+  "httpFocused": {
+    "pass": 9,
+    "fail": 0
+  },
+  "browser": {
+    "nativeAdapterUsed": false,
+    "results": [
+      {
+        "width": 1100,
+        "writes": [
+          "edit",
+          "pause",
+          "resume",
+          "clear",
+          "create",
+          "pause",
+          "resume",
+          "pause"
+        ],
+        "readOnlyOpen": true,
+        "unavailableSeparated": true,
+        "xssAbsent": true,
+        "mutationLossReadbackNoResend": true,
+        "staleReadIgnored": true,
+        "pass": true
+      },
+      {
+        "width": 390,
+        "writes": [
+          "edit",
+          "pause",
+          "resume",
+          "clear",
+          "create",
+          "pause",
+          "resume",
+          "pause"
+        ],
+        "readOnlyOpen": true,
+        "unavailableSeparated": true,
+        "xssAbsent": true,
+        "mutationLossReadbackNoResend": true,
+        "staleReadIgnored": true,
+        "pass": true
+      }
+    ]
+  },
+  "limitations": [
+    "goal service is an injected artificial fixture, not a native adapter",
+    "no runtime bootstrap/native goal service wiring yet",
+    "no real Bot goal changes",
+    "no Apple UI acceptance",
+    "no full suite yet; feature implementation remains in progress"
+  ],
+  "initialVerificationFailures": [
+    "browser waiter initially matched an existing unavailable-row label before refresh finished; now waits for all stale cards to disappear",
+    "HTTP fixture initially omitted native error code; now calls real AiControl.assertEnabled and expects its 423 response"
+  ],
+  "evidence": {
+    "browser-goals.mjs": "5c2bff2e29aae32afdee9371a90351b8efff4dc9532daa8c9d113a809ae5470f",
+    "browser-goals-results.json": "4230969487fb75111919a4926cc16ed240c21a6254c38ff64ff6404460101957",
+    "browser-goals.log": "268ef4291685c08b4040b93349e832830b95b460e6d475d614d85421e3ea2518",
+    "browser-goals-layout-final.log": "268ef4291685c08b4040b93349e832830b95b460e6d475d614d85421e3ea2518",
+    "http-goals-focused.log": "6b38925a5a2b401a4554d1ccd2964bca5b3ea7ca8700fac4f791a0f81f23832c",
+    "http-goals-focused-final.log": "6c5c65b0d864060b5aab6e483825e2a3fc37a7399894e0c18ca21834790f0b05"
+  },
+  "source": {
+    "web/goals.js": "fa2b4dc296088d298bb65f1600064de891d55595ad41ea5c885fe3feb24c10e2",
+    "web/app.js": "3aeba98023977f2f89eacb7a2d2d27ce61a35d0cfc83a34d3792af4fae007618",
+    "web/index.html": "d05714e23ffa245ce25235db0c0115bfe3e8e2bdf25e7b9936b092a12e3f0c3b",
+    "web/styles.css": "09ea2e9af5c8ff895dd5c693aec40af1a7254036d3194dfec940115b8fa52650",
+    "src/http-assets.mjs": "13b2a7ae289aac119e8f551ad4f234ad3feacacf6a3abf4aaa32e4e00cb58e7a",
+    "src/http-goal-api.mjs": "89818cebdbf043fe7c681b1086b3a0a03a28e0adb4452c9c0dd3be20164e5f2e",
+    "src/http-server.mjs": "6ff2dad010bd7d1fa413d104170ad26f54c75f2a234da6175f4a057ce840c47e",
+    "test/http-goal-api.test.mjs": "07d21aea3c2f531d824dd25fe6ae9681ace99c05e5959f4c964129a680ac729b"
+  }
+}

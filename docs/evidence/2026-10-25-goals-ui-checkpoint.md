@@ -1,0 +1,13 @@
+# ゴール一覧・操作画面とHTTPのcheckpoint
+
+メンバー一覧のゴールボタンから、各メンバーの目的・現在状態・取得時刻・取得できる使用量を表示する。設定、編集、一時停止、再開、取り消しは正本のcapabilitiesに応じて表示する。未対応・取得不能とゴールなしを区別し、通信断の後は変更を自動再送せず現在状態を読み直す。
+
+HTTPは既存Owner認証の後で登録Botを解決し、goalサービスへ委譲する。unauthenticatedは401、席のloopback入口はOwner操作の根拠を持たないので変更を403にし、HTTP本文のoriginを受け付けない。既存の全AI停止中はcreate/edit/resumeを開始せず、pause/clearは許す。新しい認証方式やIDを追加していない。
+
+通常Chromiumの人工APIで1100px/390pxの両画面から設定・編集・一時停止・再開・取消、取得不能/未対応、変更応答断の一回送信と読戻し、遅い旧GETの無視、失敗した一覧読取り後の古い操作消去を確認。両画面の原画像も閲覧し、最後のメンバーまでdialog内で到達できることを確認した。実HTTPサーバーでgoal6件＋既存routing3件のfocused9件成功。
+
+初回fixtureの失敗は、古い取得不能行をrefresh完了と誤認したbrowser待機条件と、HTTP fixtureのエラーに既存codeが無かったこと。待機は古いcardの除去まで確認し、HTTPは実AiControl.assertEnabledを使う形に修正した。製品の判定緩和で成功にしていない。
+
+**native goalサービスとruntime bootstrapへの配線はまだ無い。現sourceではサービス未構成のgoal APIは503を返す。** native契約はAiterm担当エレグが実装中。このcheckpointは独立したgoal台帳を持たず、サービスを注入する本体境界と共通Web UIの人工fixture検証までである。native goalの取得・変更・再開が実際にできた証拠にはしない。
+
+実Bot goal変更0、実Codex RPC0、Apple UI受入0、本番反映0。機能が未完なので全Node試験はまだ行っていない。native adapter/API配線とCLI別能力の対応、通常利用経路・必要回帰・独立受入・候補配布・Owner通常使用を残す。原本の数値とSHAは同名JSON。

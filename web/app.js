@@ -8,10 +8,13 @@ import { hasUnreadConversation, newestByRecent } from './activity-order.js?v=__A
 import { openImageViewer, renderImageStack } from './image-gallery.js?v=__ASSET_VERSION__'
 import { requestMemberStop } from './member-stop.js?v=__ASSET_VERSION__'
 import { aiControlView } from './ai-control.js?v=__ASSET_VERSION__'
+import { goalsView } from './goals.js?v=__ASSET_VERSION__'
 
 const READ_RECEIPTS_KEY = 'bellteam-read-receipts.v1'
 
 const app = document.querySelector('#app')
+const goals = goalsView(document.querySelector('#goals-dialog'), api, () => state.bots)
+document.querySelector('#goals-button').addEventListener('click', () => { void goals.open() })
 const botList = document.querySelector('#bot-list')
 const ownerProfileButton = document.querySelector('#owner-profile-button')
 const ownerDialog = document.querySelector('#owner-dialog')
