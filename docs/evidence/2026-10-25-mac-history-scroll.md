@@ -16,4 +16,12 @@
 
 同ソースのiPhone 16 Pro Max / iOS 26.5 Simulatorで、既存の`ConversationScrollUITests/testNewMessageWhileReadingOlderDoesNotJumpToBottom`が1件成功した。XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-9cdb5724cf73/result-bundles/test_sim_2026-10-25T04-17-58-448Z_pid44139_c40f3a37.xcresult`。Mac Catalystの隔離Debugビルドと、着手時の`main`に対するNode全742試験も成功。並行して進んだ別件の`main`を取り込んだ後の最初の`npm test`では、合成commandのprocess group終了確認1件が失敗し、試験プロセスが終了しなかったため自分の試験だけ中断した。該当1件のfocused試験は成功し、`npm test`の再実行も成功した。ただしtestgateが対象を選んだ再実行は113件であり、統合後に全742件を再実行した結果ではない。MacのXCTestは隔離runnerがアプリ試験開始前に`Early unexpected exit, operation never finished bootstrapping`で終了したため、Mac画面の受入は実Workspaceの人工HTTP・アクセシビリティ座標・画面画像で行った。今回の修理を、既完了のiPhone版63の送信表示修理の結果で代用していない。
 
-新着から末尾へ戻った後、ウィンドウ高を768ptから720ptへ変えても、見えているm027は`x=493pt, y=-1019pt, 幅158.8pt, 高さ23pt`のまま全表示された。[高さ変更後の画面](images/2026-10-25-mac-history-scroll-resized.png)。それ以前に650ptを要求した操作は実692ptでTIMEOUTとなったため、その試行の成否を根拠にしない。オーナーの実Macアプリ、実Bot、メンバーの設定には触れていない。署名・TestFlight・本番コンテナの操作も行っていない。
+新着から末尾へ戻った後、ウィンドウ高を768ptから720ptへ変えても、見えているm027は`x=493pt, y=-1019pt, 幅158.8pt, 高さ23pt`のまま全表示された。[高さ変更後の画面](images/2026-10-25-mac-history-scroll-resized.png)。それ以前に650ptを要求した操作は実692ptでTIMEOUTとなったため、その試行の成否を根拠にしない。調査・修理の段階ではオーナーの実Macアプリ、実Bot、メンバー設定に触れず、署名・TestFlight・本番コンテナ操作も行っていない。
+
+## 版64の内部配布
+
+修理PR #75と版番号PR #76はトロニーの独立レビューとセンチの事前受入で必須修正0件となり、GitHub `main`の`85a91b218f5cd05bea70a2f292a41755778b6fcc`へ通常統合した。決裁箱「BellTeam版64を署名してオーナー内部TestFlightへ配布する」の許可後、同じAppleソースでiPhone/iPad版とMac版を署名・書き出し・Apple事前検証・各1回アップロードした。両方`VALID`となり、既存の「BellTeam オーナー」内部グループで`IN_BETA_TESTING`を読み戻した。成果物のSHA-256、Apple build IDと配布結果は[非秘密manifest](2026-10-25-apple-build64-manifest.json)に固定した。
+
+MacのTestFlightには版64の「アップデート」が表示された。旧版63のMacアプリが起動中の間は「ダウンロード中」のまま実ファイルが変わらず、アプリを通常終了した直後にTestFlightが「開く」へ変わった。`/Applications/BellTeam.app`の本体・通知拡張は64で、厳格な署名検査とGatekeeperの`source=Testflight`を確認した。TestFlightから64を開き、メンバー・ルーム一覧が表示された。実Botへの確認専用メッセージは送っていない。`jev-desktop`は更新対象を一意に選べず操作前に停止したため、上流`agent-desktop`でBellTeam版64の表示を読んで更新した。
+
+オーナーの普段のMac利用で過去ログが崩れず読めるかは、決裁箱「BellTeam版64のMac過去ログ表示を通常使用で確認する」の回答待ち。元の報告と隔離再現の操作順の一致は未判定のまま。一般App Store公開とBellTeam本番コンテナ更新は行っていない。
