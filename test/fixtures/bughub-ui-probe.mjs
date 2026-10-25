@@ -8,6 +8,7 @@ import { createBellTeamServer } from '../../src/http-server.mjs'
 const root = resolve(`runtime/network-reporting-46/bughub-three-${process.pid}`)
 await mkdir(root, { recursive: true })
 let mode = 'normal', sequence = 0, requests = [], diagnostics, intake, settingsReads = 0
+let stopScenario = false, stopAccepted = false
 let pendingPost = null, sentMessages = []
 let subscribers = []
 let saved = { name: 'ユキ', profileText: '', personality: '', speechStyle: '', position: '', role: '相談と実務', avatar: '', color: 'indigo', harness: 'claude', model: 'opus', reasoningEffort: 'high' }
@@ -17,12 +18,13 @@ async function reset(next) {
     pendingPost = null
   }
   mode = next; requests = []; settingsReads = 0; sentMessages = []
+  stopScenario = next === 'stop-http-502'; stopAccepted = false
   diagnostics = new Diagnostics(`${root}/scenario-${++sequence}.json`)
   await diagnostics.initialize()
   intake = createBellTeamServer({ authorize: async () => true, bots: { refresh: async () => {} }, diagnostics })
 }
 await reset('normal')
-const bot = () => ({ id: 'bot-one', ...saved, displayName: saved.name, online: true, recent: null })
+const bot = () => ({ id: 'bot-one', ...saved, displayName: saved.name, fastMode: false, online: true, recent: null })
 const owner = { name: '試験用', profile: '', avatar: '', xUrl: '', githubUrl: '', links: [] }
 const subscription = { productId: 'dev.kitepon.bellbot.monthly', environment: 'Sandbox', accessMode: 'developer', setupComplete: true, entitled: false, state: 'none', checkedAt: null, expiresAt: null, validUntil: null, autoRenewing: false, error: null }
 const setting = { id: 'routing', title: '試験機能', enabled: true, status: 'enabled', error: null, fields: [{ key: 'label', label: '試験の値', secret: false, value: '保持する値', configured: true }] }
@@ -62,6 +64,16 @@ const server = createServer(async (request, response) => {
     const body = JSON.parse(Buffer.concat(chunks).toString())
     record.imageCount = body.images?.length ?? 0
     if (mode === 'post-failure') { request.socket.destroy(); return }
+    if (mode === 'post-http-503') {
+      response.writeHead(503, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'TEST_HTTP_503' }))
+      return
+    }
+    if (mode === 'post-http-500') {
+      response.writeHead(500, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'TEST_HTTP_500' }))
+      return
+    }
     if (['post-wait', 'post-wait-long', 'post-wait-history'].includes(mode)) {
       pendingPost = { response }
       sentMessages.push({ id: 'accepted-message', kind: 'message', direction: 'outgoing',
@@ -73,6 +85,17 @@ const server = createServer(async (request, response) => {
       return
     }
     return json(response, { delivery_id: 'accepted-message', delivery: 'running', from: 'user', target: 'bot-one' })
+  }
+  if (request.method === 'POST' && url.pathname === '/api/bots/bot-one/stop') {
+    if (mode === 'stop-http-502') {
+      response.writeHead(502, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'TEST_HTTP_502' }))
+      return
+    }
+    stopAccepted = true
+    response.writeHead(202, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ bot_id: 'bot-one', status: 'stop_sent' }))
+    return
   }
   if (request.method === 'PATCH' && url.pathname === '/api/bots/bot-one') {
     const chunks = []; for await (const chunk of request) chunks.push(chunk)
@@ -92,12 +115,14 @@ const server = createServer(async (request, response) => {
     return json(response, { schedules: [] })
   }
   if (url.pathname.endsWith('/messages')) {
+    if (mode === 'conversation-timeout') return
     if (mode === 'conversation-pending') return
     const items = mode === 'post-wait-history' ? [...priorMessages, longMessage] : [mode === 'post-wait-long' ? longMessage : message]
     return json(response, { items: [...items, ...sentMessages], hasMore: false })
   }
-  if (url.pathname.endsWith('/queue') || url.pathname === '/api/queue') return json(response, { items: [] })
-  if (url.pathname === '/api/bots/bot-one') return json(response, { bot: saved })
+  if (url.pathname.endsWith('/queue') || url.pathname === '/api/queue') return json(response, { items: stopScenario && !stopAccepted
+    ? [{ id: 'running-one', botId: 'bot-one', botName: 'ユキ', status: 'running', groupId: null, message: null }] : [] })
+  if (url.pathname === '/api/bots/bot-one') return json(response, { bot: bot() })
   if (url.pathname === '/api/bots') return json(response, { bots: [bot()] })
   if (url.pathname === '/api/rooms') return json(response, { rooms: [] })
   if (url.pathname === '/api/owner') return json(response, { owner })
