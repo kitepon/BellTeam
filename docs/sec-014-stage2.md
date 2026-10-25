@@ -449,3 +449,12 @@ on every later acquisition/stat failure and preserves the original exception,
 aggregating an additional close error when necessary. Regressions exercise
 marker symlinks/hardlinks, an actual-directory-fsync fault preserving source,
 and acquisition/stat failures with zero unclosed handles.
+
+Recovery of an existing target marker now fsyncs the validated marker and all
+its containing directories through the data root before source-marker
+retirement. A failed post-create directory sync is not a committed marker.
+A new actual-filesystem fault regression fails before this repair, preserves
+both markers across two sync failures, then verifies file/ancestor sync before
+old-marker unlink in forward and reverse transfers. Related selection: 31
+passed; testgate selection: 336 passed; explicit full gate: 795 passed, no
+failures/cancellations/skips. These are content-component results only.

@@ -154,3 +154,46 @@ test('後続open拒否やopen後stat失敗でも取得済handleを閉じ、元�
     }
   } finally { fs.promises.open = original; syncBuiltinESMExports() }
 })
+
+test('marker作成後の同期失敗からの再開でも、新markerを永続化してから旧markerを退役する', async t => {
+  for (const direction of ['to-server', 'to-legacy']) {
+    const f = await fixture(t)
+    if (direction === 'to-legacy') await f.transfer('to-server')
+    const from = join(f.root, direction === 'to-server' ? 'bots' : 'state/bots')
+    const to = join(f.root, direction === 'to-server' ? 'state/bots' : 'bots')
+    const targetMarker = join(to, '.initialized'), sourceMarker = join(from, '.initialized')
+    const fs = (await import('node:fs')).default, { syncBuiltinESMExports } = await import('node:module')
+    const originalOpen = fs.promises.open, originalUnlink = fs.promises.unlink
+    const fault = new Error('synthetic post-marker directory sync failure')
+    let fail = true
+    const events = []
+    fs.promises.open = async (...args) => {
+      const file = await originalOpen(...args), sync = file.sync.bind(file)
+      file.sync = async () => {
+        events.push(['sync', args[0]])
+        if (fail && args[0] === to && await lstat(targetMarker).then(() => true, () => false)) throw fault
+        return sync()
+      }
+      return file
+    }
+    fs.promises.unlink = async path => { events.push(['unlink', path]); return originalUnlink(path) }
+    syncBuiltinESMExports()
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await assert.rejects(f.transfer(direction), error => error === fault)
+        assert.ok((await lstat(sourceMarker)).isFile())
+        assert.ok((await lstat(targetMarker)).isFile())
+      }
+      fail = false; events.length = 0
+      assert.equal((await f.transfer(direction)).status, 'already-transferred')
+      const retirement = events.findIndex(([event, path]) => event === 'unlink' && path === sourceMarker)
+      assert.ok(retirement >= 0)
+      for (const path of [targetMarker, to, ...(direction === 'to-server' ? [join(f.root, 'state')] : []), f.root]) {
+        assert.ok(events.findIndex(([event, name]) => event === 'sync' && name === path) < retirement,
+                  `${path} must be synced before source marker retirement`)
+        assert.ok(events.some(([event, name]) => event === 'sync' && name === path))
+      }
+      await f.absent(direction === 'to-server' ? 'bots/.initialized' : 'state/bots/.initialized')
+    } finally { fs.promises.open = originalOpen; fs.promises.unlink = originalUnlink; syncBuiltinESMExports() }
+  }
+})

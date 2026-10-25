@@ -146,7 +146,10 @@ export async function transferServerState({ root, direction }) {
     await useFile(await regular(toMarker), () => {})
     if (await exists(fromMarker)) await useFile(await regular(fromMarker), () => {})
     if (remaining) throw failure('SERVER_STATE_TRANSFER_CONFLICT')
-    // Recovery after the target commit but before retiring the source marker.
+    // A prior attempt may have created the marker but failed its directory
+    // sync. Re-establish durability before retiring the source commit marker.
+    await useFile(await regular(toMarker), file => file.sync())
+    await syncAncestors(to, root)
     if (await exists(fromMarker)) { await unlink(fromMarker); await syncDirectory(from) }
     return { direction, status: 'already-transferred' }
   }
