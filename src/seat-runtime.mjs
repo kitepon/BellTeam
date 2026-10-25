@@ -77,8 +77,8 @@ export class SeatRuntime {
   characterSheets(projectPath) {
     return {
       list: botId => this.call('character-sheet-list', { project: projectPath(botId) }),
-      open: (botId, file) => this.stream(process.execPath,
-        [fileURLToPath(new URL('./run-seat-character-sheet.mjs', import.meta.url))], { project: projectPath(botId), file }),
+      open: (botId, file, options) => this.stream(process.execPath,
+        [fileURLToPath(new URL('./run-seat-character-sheet.mjs', import.meta.url))], { project: projectPath(botId), file }, options),
     }
   }
 }

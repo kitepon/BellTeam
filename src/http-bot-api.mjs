@@ -62,7 +62,18 @@ export function createBotApi({ bots, transport, administration, memory, characte
     if (request.method === 'GET' && sheetFileMatch) {
       const botId = sheetFileMatch[1]
       if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      const sheet = await characterSheets.open(botId, decodeURIComponent(sheetFileMatch[2]))
+      const controller = new AbortController()
+      const cancel = () => controller.abort()
+      response.once('close', cancel)
+      if (response.destroyed) cancel()
+      let sheet
+      try { sheet = await characterSheets.open(botId, decodeURIComponent(sheetFileMatch[2]), { signal: controller.signal }) }
+      catch (error) {
+        response.off('close', cancel)
+        if (controller.signal.aborted) return
+        throw error
+      }
+      if (controller.signal.aborted) { sheet.stream.destroy(); return }
       response.writeHead(200, {
         'content-type': sheet.mime,
         'content-length': sheet.size,

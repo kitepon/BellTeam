@@ -400,3 +400,14 @@ The branch remains NOTDEPLOYABLE: complete stopped-writer migration/inverse
 migration, independent mounts, fresh installation, current-generation backup
 restore, scheduled-command PGID cancellation receipt, four CLI paths, real
 supervisor integration and downtime measurement remain necessary.
+
+The independent bc19 review found two additional HTTP boundary failures.
+Cancellation is now registered before awaiting seat metadata and reaches the
+owned reader through AbortSignal. After metadata, the binary stream keeps its
+last byte until the child has succeeded and the length matches, so a delayed
+reader failure cannot complete a Content-Length response. This also preserves
+zero-byte success only after reader completion. The actual HTTP/SeatRuntime
+adapter regressions cover pre-metadata disconnect, delayed failure at lengths
+four and zero, and successful empty content. Together with the binary stream
+regressions, nine focused tests pass. The final default suite passes 785 tests,
+with no failures, cancellations or skips. No whole-file buffer was introduced.
