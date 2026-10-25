@@ -177,3 +177,31 @@ test('same-binding field changes use the supported field while keeping the objec
   await new Promise(resolve => setImmediate(resolve))
   assert.deepEqual(writes, [{ action: 'edit', binding: current.binding, objective: '保持する目的' }])
 })
+
+test('Claude native goal shows only returned metrics and clear, then distinct cleared history', async () => {
+  const active = { ...snapshot('a', 'A'), capabilities: { inspect: true, clear: true },
+    goal: { kind: 'claude-code', phase: 'active', native: { type: 'goal_status', condition: 'Claude条件', met: false } } }
+  const cleared = { ...active, goal: null, capabilities: { inspect: true }, nativeHistory: {
+    kind: 'claude-code', terminal: 'cleared', native: { type: 'goal_status', condition: 'Claude条件', met: true, sentinel: true },
+  } }
+  let writes = 0
+  const f = fixture(async (_path, options) => {
+    if (!options) return { goals: [active] }
+    writes++; assert.equal(JSON.parse(options.body).action, 'clear'); return { outcome: 'confirmed', snapshot: cleared }
+  })
+  await f.view.open(); assert.equal(f.objective('a'), 'Claude条件')
+  for (const label of ['編集', '一時停止', '再開']) assert.equal(f.button('a', label), undefined)
+  const text = f.row('a').all().map(node => node.textContent).join('\n')
+  assert.match(text, /使用量・作業時間はまだ取得/); assert.doesNotMatch(text, /予算|0秒|一時停止したゴールは再開/)
+  await f.button('a', '取り消す').events.click[0]()
+  const after = f.row('a').all().map(node => node.textContent).join('\n')
+  assert.match(after, /ゴールなし/); assert.match(after, /前のゴール：取消/); assert.doesNotMatch(after, /前のゴール：達成/)
+  assert.equal(writes, 1)
+})
+
+test('Codex native wrapper keeps objective, accounting and paused resume control', async () => {
+  const current = { ...snapshot('a', 'A'), goal: { kind: 'codex-cli', native: { objective: '元のCodex目的', status: 'paused', tokensUsed: 12, tokenBudget: 20, timeUsedSeconds: 3 } } }
+  const f = fixture(async () => ({ goals: [current] }))
+  await f.view.open(); assert.equal(f.objective('a'), '元のCodex目的'); assert.ok(f.button('a', '再開'))
+  assert.match(f.row('a').all().map(node => node.textContent).join('\n'), /使用量 12 \/ 予算 20 · 作業時間 3秒/)
+})

@@ -63,7 +63,7 @@ export class AitermClient {
       const error = new Error(message)
       // tool handlerがエラー結果を返し終えた事と、RPC timeout/通信断で結果が不明な事を区別する。
       error.aitermResponseReturned = true
-      if (name === 'agent_goal' && result.structuredContent?.schema === 'aiterm.agent-goal-result.v1')
+      if (name === 'agent_goal' && ['aiterm.agent-goal-result.v1', 'aiterm.agent-goal-result.v2'].includes(result.structuredContent?.schema))
         error.agentGoalResult = result.structuredContent
       const executionError = returnedExecutionError(result._meta?.[ERROR_META])
       if (executionError) error.executionError = executionError

@@ -119,3 +119,60 @@ test('予算だけの編集を目的文なしで一回渡し、nativeの複合�
   await assert.rejects(denied.service.mutate(bot, { action: 'edit', binding, objective: '目的', tokenBudget: 10 }, { origin: 'user' }), { code: 'GOAL_UNAVAILABLE' })
   assert.equal(denied.calls.length, 1)
 })
+
+const claude = overrides => native({ schema: 'aiterm.agent-goal-result.v2', harness: 'claude-code',
+  capabilities: { inspect: true, create: false, edit: false, pause: false, resume: false, clear: true },
+  field_capabilities: { create: { objective: false, token_budget: false }, edit: { objective: false, token_budget: false } },
+  goal: { kind: 'claude-code', phase: 'active', native: { type: 'goal_status', condition: 'Claudeの元の条件', met: false } }, ...overrides })
+
+test('Claude V2はnative型のまま取り込み、欠測会計・turnsや変更能力を補わない', async () => {
+  const response = claude()
+  const { service } = fixture({ result: response })
+  const current = await service.inspect({ ...bot, harness: 'claude' })
+  assert.equal(current.availability, 'available'); assert.deepEqual(current.goal, response.goal)
+  assert.deepEqual(current.capabilities, response.capabilities)
+  assert.deepEqual(current.fieldCapabilities.edit, { objective: false, tokenBudget: false, combined: false })
+  for (const key of ['tokenBudget', 'tokensUsed', 'timeUsedSeconds', 'reported_turns']) assert.equal(Object.hasOwn(current.goal, key), false)
+})
+
+test('Claude clearは現在nullと元条件cleared履歴を返し、達成やturn停止へ変えない', async () => {
+  const history = { kind: 'claude-code', terminal: 'cleared', native: { type: 'goal_status', condition: '元の条件', met: true, sentinel: true } }
+  const f = fixture({ result: claude({ goal: null, native_history: history, outcome: 'applied', mutation: 'acknowledged' }) })
+  const result = await f.service.mutate({ ...bot, harness: 'claude' }, { action: 'clear', binding }, { origin: 'user' })
+  assert.equal(result.outcome, 'confirmed'); assert.equal(result.snapshot.goal, null)
+  assert.deepEqual(result.snapshot.nativeHistory, history)
+  assert.ok(Object.values(result.snapshot.capabilities).every((value, i) => i === 0 || value === false))
+  assert.equal(f.calls.length, 1); assert.equal(f.calls[0][1].action, 'clear')
+})
+
+test('V2の別native型・壊れた会計・clearを達成とした履歴は取得不能にする', async () => {
+  const active = claude().goal
+  for (const response of [claude({ harness: 'codex-cli' }), claude({ goal: { ...active, native: { ...active.native, tokens: null } } }),
+    claude({ goal: { ...active, reported_turns: -1 } }), claude({ goal: null, native_history: {
+      kind: 'claude-code', terminal: 'achieved', native: { type: 'goal_status', condition: '取消条件', met: true, sentinel: true },
+    } })]) {
+    const f = fixture({ result: response }); assert.equal((await f.service.inspect(bot)).availability, 'unavailable')
+    assert.equal(f.reports.length, 1)
+  }
+})
+
+test('Codex V2のnative wrapperでもthread照合とactive/paused操作maskを維持する', async () => {
+  const result = await fixture({ result: native({ schema: 'aiterm.agent-goal-result.v2', goal: { kind: 'codex-cli', native: { ...goal, status: 'paused' } } }) }).service.inspect(bot)
+  assert.equal(result.availability, 'available'); assert.equal(result.capabilities.pause, false)
+  assert.equal(result.capabilities.resume, true); assert.equal(result.goal.native.objective, goal.objective)
+  const wrong = fixture({ result: native({ schema: 'aiterm.agent-goal-result.v2', goal: { kind: 'codex-cli', native: { ...goal, threadId: 'other' } } }) })
+  assert.equal((await wrong.service.inspect(bot)).availability, 'unavailable')
+})
+
+test('V2 MCP isErrorのunknownを保持し、goal省略をnullや成功にしない', async () => {
+  const data = claude({ outcome: 'outcome_unknown', mutation: 'outcome_unknown', readback: 'failed' }); delete data.goal
+  const client = new AitermClient({ env: {} }); client.connect = async () => {}
+  client.client = { async callTool() { return { isError: true, structuredContent: data, content: [] } } }
+  let error
+  try { await client.call('agent_goal', {}) } catch (failure) { error = failure }
+  assert.deepEqual(error.agentGoalResult, data)
+  const f = fixture({ result: error })
+  const result = await f.service.mutate(bot, { action: 'clear', binding }, { origin: 'user' })
+  assert.equal(result.outcome, 'unconfirmed'); assert.equal(result.snapshot.availability, 'unavailable')
+  assert.equal(Object.hasOwn(result.snapshot, 'goal'), false); assert.equal(f.calls.length, 1)
+})

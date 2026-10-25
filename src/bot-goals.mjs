@@ -14,6 +14,24 @@ const validGoal = (goal, thread) => goal === null || goal && goal.threadId === t
   && (goal.tokenBudget === null || Number.isSafeInteger(goal.tokenBudget) && goal.tokenBudget > 0)
   && Number.isSafeInteger(goal.tokensUsed) && goal.tokensUsed >= 0
   && ['timeUsedSeconds', 'createdAt', 'updatedAt'].every(key => Number.isFinite(goal[key]) && goal[key] >= 0)
+const keysOnly = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(key => keys.includes(key))
+const natural = value => Number.isSafeInteger(value) && value >= 0
+const claudeStatus = native => keysOnly(native, ['type', 'condition', 'met', 'sentinel', 'reason', 'iterations', 'durationMs', 'tokens'])
+  && native.type === 'goal_status' && typeof native.condition === 'string' && native.condition.length > 0 && typeof native.met === 'boolean'
+  && (!Object.hasOwn(native, 'sentinel') || typeof native.sentinel === 'boolean')
+  && (!Object.hasOwn(native, 'reason') || typeof native.reason === 'string')
+  && ['iterations', 'tokens'].every(key => !Object.hasOwn(native, key) || natural(native[key]))
+  && (!Object.hasOwn(native, 'durationMs') || Number.isFinite(native.durationMs) && native.durationMs >= 0)
+const validNativeGoal = (goal, result) => goal === null || (
+  goal?.kind === 'codex-cli' && result.harness === 'codex-cli' && keysOnly(goal, ['kind', 'native'])
+    && keysOnly(goal.native, ['threadId', 'objective', 'status', 'tokenBudget', 'tokensUsed', 'timeUsedSeconds', 'createdAt', 'updatedAt'])
+    && validGoal(goal.native, result.binding?.thread_id)
+    && goal.native !== null
+  || goal?.kind === 'claude-code' && result.harness === 'claude-code' && keysOnly(goal, ['kind', 'phase', 'native', 'reported_turns'])
+    && goal.phase === 'active' && claudeStatus(goal.native) && goal.native.met === false
+    && (!Object.hasOwn(goal, 'reported_turns') || natural(goal.reported_turns))
+)
+const goalStatus = goal => goal?.kind === 'codex-cli' ? goal.native.status : goal?.kind === 'claude-code' ? goal.phase : goal?.status
 
 export class BotGoals {
   constructor({ transport, admitWork = () => () => {}, reportError = async () => {}, now = () => new Date().toISOString() }) {
@@ -42,7 +60,7 @@ export class BotGoals {
       if (!error.agentGoalResult) throw error
       result = error.agentGoalResult
     }
-    if (result?.schema !== 'aiterm.agent-goal-result.v1' || result.session_id !== args.session_id || result.launch_id !== args.launch_id
+    if (!['aiterm.agent-goal-result.v1', 'aiterm.agent-goal-result.v2'].includes(result?.schema) || result.session_id !== args.session_id || result.launch_id !== args.launch_id
       || !['available', 'unsupported', 'unavailable'].includes(result.availability)
       || !['observed', 'applied', 'rejected', 'outcome_unknown', 'unavailable', 'unsupported'].includes(result.outcome)
       || !['not_requested', 'not_issued', 'acknowledged', 'rejected', 'outcome_unknown'].includes(result.mutation)
@@ -58,7 +76,16 @@ export class BotGoals {
     if (binding !== null && (!binding || binding.session_id !== args.session_id || binding.launch_id !== args.launch_id
       || typeof binding.thread_id !== 'string' || !binding.thread_id
       || args.expected_thread_id && binding.thread_id !== args.expected_thread_id)) throw new Error('GOAL_BINDING_INVALID')
-    if (Object.hasOwn(result, 'goal') && !validGoal(result.goal, binding?.thread_id)) throw new Error('GOAL_STATE_INVALID')
+    if (Object.hasOwn(result, 'goal') && !(result.schema === 'aiterm.agent-goal-result.v2'
+      ? validNativeGoal(result.goal, result) : validGoal(result.goal, binding?.thread_id))) throw new Error('GOAL_STATE_INVALID')
+    if (Object.hasOwn(result, 'native_history')) {
+      const history = result.native_history
+      if (result.schema !== 'aiterm.agent-goal-result.v2' || result.harness !== 'claude-code'
+        || !keysOnly(history, ['kind', 'terminal', 'native']) || history.kind !== 'claude-code'
+        || !claudeStatus(history.native) || history.native.met !== true
+        || (history.terminal === 'cleared' ? history.native.sentinel !== true
+          : history.terminal !== 'achieved' || history.native.sentinel === true)) throw new Error('GOAL_HISTORY_INVALID')
+    }
     return result
   }
   snapshot(bot, result) {
@@ -69,12 +96,13 @@ export class BotGoals {
       capabilities.create &&= result.goal === null
       capabilities.edit &&= result.goal !== null
       capabilities.clear &&= result.goal !== null
-      capabilities.pause &&= result.goal?.status === 'active'
-      capabilities.resume &&= result.goal?.status === 'paused'
+      capabilities.pause &&= goalStatus(result.goal) === 'active'
+      capabilities.resume &&= goalStatus(result.goal) === 'paused'
     }
     return { botId: bot.id, availability, capabilities, fieldCapabilities: fieldCapabilities(capabilities, result.field_capabilities),
       binding: result.binding ? { sessionId: result.binding.session_id, launchId: result.binding.launch_id, threadId: result.binding.thread_id } : null,
       ...(Object.hasOwn(result, 'goal') ? { goal: structuredClone(result.goal) } : {}),
+      ...(Object.hasOwn(result, 'native_history') ? { nativeHistory: structuredClone(result.native_history) } : {}),
       observedAt: result.observed_at,
       message: availability === 'available' ? null : availability === 'unsupported'
         ? 'このメンバーではゴール機能をまだ利用できません。' : 'ゴールの状態を取得できません。更新して確認してください。' }

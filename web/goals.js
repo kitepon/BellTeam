@@ -39,14 +39,28 @@ export function goalsView(dialog, api, getBots) {
         card.append(element('p', snapshot.message || (snapshot.availability === 'unsupported' ? 'このメンバーではゴール機能を使えません。' : 'ゴールの状態を取得できません。更新して確認してください。'), 'goal-status'))
         body.append(card); continue
       }
-      const goal = snapshot.goal
+      const original = snapshot.goal
+      const claude = original?.kind === 'claude-code'
+      const goal = original?.kind === 'codex-cli' ? original.native
+        : claude ? { objective: original.native.condition, status: original.phase } : original
       const codexGoal = getBots().find(bot => bot.id === snapshot.botId)?.harness === 'codex'
       card.append(element('p', goal ? statuses[goal.status] ?? '状態を確認できません' : 'ゴールなし', 'goal-status'))
       if (goal) {
         card.append(element('p', goal.objective, 'goal-objective'))
         const budgetText = !Object.hasOwn(goal, 'tokenBudget') ? '—' : goal.tokenBudget === null ? '指定なし' : amount(goal.tokenBudget)
-        const details = element('p', `使用量 ${amount(goal.tokensUsed)} / 予算 ${budgetText} · 作業時間 ${amount(goal.timeUsedSeconds)}秒`, 'goal-meta')
+        const metrics = []
+        if (claude) {
+          for (const [key, label, suffix] of [['tokens', '使用トークン', ''], ['durationMs', '実行時間', 'ミリ秒'], ['iterations', '反復数', '']]) {
+            if (Object.hasOwn(original.native, key)) metrics.push(`${label} ${amount(original.native[key])}${suffix}`)
+          }
+          if (Object.hasOwn(original, 'reported_turns')) metrics.push(`CLI表示ターン数 ${amount(original.reported_turns)}`)
+        }
+        const details = element('p', claude ? metrics.join(' · ') || '使用量・作業時間はまだ取得していません。'
+          : `使用量 ${amount(goal.tokensUsed)} / 予算 ${budgetText} · 作業時間 ${amount(goal.timeUsedSeconds)}秒`, 'goal-meta')
         card.append(details)
+      }
+      if (snapshot.nativeHistory?.kind === 'claude-code') {
+        card.append(element('p', `前のゴール：${snapshot.nativeHistory.terminal === 'cleared' ? '取消' : '達成'} · ${snapshot.nativeHistory.native.condition}`, 'goal-meta'))
       }
       if (snapshot.observedAt) card.append(element('p', `取得 ${new Date(snapshot.observedAt).toLocaleString('ja-JP')}`, 'goal-meta'))
       const actions = element('div', undefined, 'goal-actions')
@@ -112,7 +126,7 @@ export function goalsView(dialog, api, getBots) {
         })
         card.append(form)
       }
-      if (goal) card.append(element('p', '一時停止したゴールは再開できます。取り消すとゴールは消えます。今の処理を中断するには会話の停止ボタンを使ってください。', 'goal-meta'))
+      if (goal) card.append(element('p', `${capabilities.pause || capabilities.resume ? '一時停止したゴールは再開できます。' : ''}${capabilities.clear ? '取り消すとゴールは消えます。' : ''}今の処理を中断するには会話の停止ボタンを使ってください。`, 'goal-meta'))
       body.append(card)
     }
   }
