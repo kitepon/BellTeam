@@ -1,0 +1,85 @@
+{
+  "schema": "bellteam.apple-internal-delivery.v1",
+  "product": "BellTeam",
+  "bundleId": "dev.kitepon.bellbot",
+  "appStoreConnectAppId": "6816295589",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "65",
+  "signedSourceCommit": "0b4cb9359896e0e99bb74cf2f0b5305e4597f7d8",
+  "repairMergeCommit": "0d57d1be2c1178a741ab565434fca92a2bb074b6",
+  "versionMergeCommit": "0b4cb9359896e0e99bb74cf2f0b5305e4597f7d8",
+  "unsignedPreflight": "docs/evidence/2026-10-25-apple-build65-preflight.json",
+  "ownerApproval": {
+    "title": "BellTeam版65を署名してオーナー内部TestFlightへ配布する",
+    "choice": "go",
+    "answeredAt": "2026-10-25T07:28:37.531Z"
+  },
+  "betaGroup": {
+    "id": "58133050-1c39-4915-b6da-aac18b95921b",
+    "name": "BellTeam オーナー",
+    "internal": true
+  },
+  "artifacts": [
+    {
+      "platform": "IOS",
+      "relativePath": "runtime/apple/build65/ios-export/BellTeam.ipa",
+      "sha256": "a61676cd9339e814198db919f50de358617be2c43afe0da3b4807a8cb94a9f3c",
+      "appBundleVersion": "65",
+      "extensionBundleVersion": "65",
+      "archiveSignature": "strict-valid",
+      "exportSignature": "Apple Distribution, strict-valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadDeliveryUuid": "735e13f6-bb17-4b3e-a31d-484f7797ff27",
+      "uploadResult": "no-errors",
+      "appStoreConnectBuildId": "735e13f6-bb17-4b3e-a31d-484f7797ff27",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    },
+    {
+      "platform": "MAC_OS",
+      "relativePath": "runtime/apple/build65/mac-export/BellTeam.pkg",
+      "sha256": "984ba698c700444e03fe8e6c69bce2afa8d54846e4ba6ec069f4fdf36c99bf10",
+      "appBundleVersion": "65",
+      "extensionBundleVersion": "65",
+      "architectures": ["arm64", "x86_64"],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "Apple Distribution, strict-valid",
+      "installerSignature": "valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadDeliveryUuid": "6d12085f-d4f2-4815-b490-6041c2bf1f0f",
+      "uploadResult": "no-errors",
+      "appStoreConnectBuildId": "6d12085f-d4f2-4815-b490-6041c2bf1f0f",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    }
+  ],
+  "macTestFlightSmoke": {
+    "installedPath": "/Applications/BellTeam.app",
+    "preUpdateBundleVersion": "64",
+    "preUpdateProcessGracefullyQuit": true,
+    "appBundleVersion": "65",
+    "extensionBundleVersion": "65",
+    "strictSignature": "valid",
+    "gatekeeperSource": "Testflight",
+    "observedRunningProcessId": 51819,
+    "visibleResult": "member-and-room-list",
+    "realBotMessageSent": false
+  },
+  "ownerMacAcceptance": {
+    "title": "BellTeam版65のMac過去ログ上スクロールを通常使用で確認する",
+    "answeredAt": "2026-10-25T07:55:57.399Z",
+    "choice": "works",
+    "result": "passed"
+  },
+  "remaining": {
+    "ownerOriginalOperationOrder": "unconfirmed",
+    "ownerNormalUseScrollResult": "passed",
+    "appleComposerHeightRepair": "separate-work-in-progress"
+  },
+  "serverContainerRestarted": false,
+  "publicAppStoreReleased": false
+}
