@@ -164,6 +164,127 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         let image = XCTAttachment(screenshot: app.screenshot()); image.name = "画像付き送信失敗後の入力保持"; image.lifetime = .keepAlways; add(image)
     }
 
+    func testHTTP503PostKeepsComposerUntilExplicitRetry() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else {
+            throw XCTSkip("通信報告の隔離サーバーが必要です。")
+        }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset?mode=post-http-503")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-chat", "-bellbot-preview-server", server,
+                               "-bellbot-preview-reporting", "-bellbot-preview-attachment"]
+        app.launch(); defer { app.terminate() }
+        let input = app.textViews["message-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap(); input.typeText("503の後も残す本文")
+        app.buttons["送信"].tap()
+        XCTAssertTrue(app.staticTexts["send-error"].waitForExistence(timeout: 8))
+        XCTAssertEqual(input.value as? String, "503の後も残す本文")
+        XCTAssertTrue(app.buttons["添付画像1を外す"].exists)
+        XCTAssertTrue(app.staticTexts["試験用の会話"].exists)
+        let before = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let sent = (before["requests"] as? [[String: Any]])?.filter {
+            $0["method"] as? String == "POST" && ($0["path"] as? String)?.hasSuffix("/messages") == true
+        } ?? []
+        XCTAssertEqual(sent.count, 1, "失敗後にPOSTを自動再送しない")
+        XCTAssertEqual(sent.first?["imageCount"] as? Int, 1)
+
+        _ = try data(base, "/test/mode?mode=normal")
+        app.buttons["送信"].tap()
+        let cleared = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", ""), object: input)
+        XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 8), .completed)
+        let after = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let posts = (after["requests"] as? [[String: Any]])?.filter {
+            $0["method"] as? String == "POST" && ($0["path"] as? String)?.hasSuffix("/messages") == true
+        } ?? []
+        XCTAssertEqual(posts.count, 2, "二度目のPOSTは利用者が送信ボタンを押した後だけ")
+        let invalidReads = (after["reports"] as? [[String: Any]])?.filter {
+            $0["category"] as? String == "IOS_RESPONSE_INVALID"
+        } ?? []
+        XCTAssertTrue(invalidReads.isEmpty, "明示再試行後の通常読戻しをfixture自身の欠損で壊さない")
+    }
+
+    func testHTTP500PostKeepsDraftUntilExplicitRetry() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else {
+            throw XCTSkip("通信報告の隔離サーバーが必要です。")
+        }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset?mode=post-http-500")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-chat", "-bellbot-preview-server", server,
+                               "-bellbot-preview-reporting"]
+        app.launch(); defer { app.terminate() }
+        let input = app.textViews["message-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap(); input.typeText("500後も残す本文")
+        app.buttons["送信"].tap()
+        XCTAssertTrue(app.staticTexts["send-error"].waitForExistence(timeout: 8))
+        XCTAssertEqual(input.value as? String, "500後も残す本文")
+        XCTAssertTrue(app.staticTexts["試験用の会話"].exists)
+        let before = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let firstPosts = (before["requests"] as? [[String: Any]])?.filter {
+            $0["method"] as? String == "POST" && ($0["path"] as? String)?.hasSuffix("/messages") == true
+        } ?? []
+        XCTAssertEqual(firstPosts.count, 1)
+
+        _ = try data(base, "/test/mode?mode=normal")
+        app.buttons["送信"].tap()
+        let deadline = Date().addingTimeInterval(8)
+        var requests: [[String: Any]] = []
+        while Date() < deadline {
+            let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+            requests = proof["requests"] as? [[String: Any]] ?? []
+            let posts = requests.filter { $0["method"] as? String == "POST" && ($0["path"] as? String)?.hasSuffix("/messages") == true }
+            if posts.count == 2, let second = posts.last?["at"] as? Int,
+               requests.contains(where: { $0["path"] as? String == "/api/bots" && ($0["at"] as? Int ?? 0) > second }) { break }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        let posts = requests.filter { $0["method"] as? String == "POST" && ($0["path"] as? String)?.hasSuffix("/messages") == true }
+        XCTAssertEqual(posts.count, 2)
+        let second = posts.last?["at"] as? Int ?? Int.max
+        XCTAssertTrue(requests.contains { $0["path"] as? String == "/api/bots" && ($0["at"] as? Int ?? 0) > second },
+                      "明示再試行後の一覧GETまで観測する")
+        XCTAssertEqual(input.value as? String, "")
+    }
+
+    func testStopHTTP502ShowsUnknownOutcomeWithoutAutomaticRetry() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else {
+            throw XCTSkip("通信報告の隔離サーバーが必要です。")
+        }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset?mode=stop-http-502")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-chat", "-bellbot-preview-server", server,
+                               "-bellbot-preview-reporting"]
+        app.launch(); defer { app.terminate() }
+        let stop = app.buttons["stop-current-bot"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 6))
+        let input = app.textViews["message-input"]
+        input.tap(); input.typeText("次の依頼")
+        stop.tap()
+        XCTAssertTrue(app.staticTexts["停止操作の結果を確認できませんでした。状況を確認してから操作してください。"].waitForExistence(timeout: 8))
+        XCTAssertEqual(input.value as? String, "次の依頼")
+        XCTAssertTrue(stop.exists, "502後も実際の処理待ちを読んで停止ボタンを残す")
+        let before = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let firstPosts = (before["requests"] as? [[String: Any]])?.filter {
+            $0["method"] as? String == "POST" && ($0["path"] as? String) == "/api/bots/bot-one/stop"
+        } ?? []
+        XCTAssertEqual(firstPosts.count, 1, "結果不明の停止を自動再送しない")
+
+        _ = try data(base, "/test/mode?mode=normal")
+        stop.tap()
+        XCTAssertTrue(app.staticTexts["停止操作を送りました。会話は続けられます。"].waitForExistence(timeout: 8))
+        XCTAssertTrue(stop.waitForNonExistence(timeout: 5))
+        let after = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+        let requests = after["requests"] as? [[String: Any]] ?? []
+        let posts = requests.filter { $0["method"] as? String == "POST" && ($0["path"] as? String) == "/api/bots/bot-one/stop" }
+        XCTAssertEqual(posts.count, 2, "二度目の停止は利用者の明示操作後だけ")
+        let second = posts.last?["at"] as? Int ?? Int.max
+        XCTAssertTrue(requests.contains { $0["path"] as? String == "/api/bots/bot-one/queue" && ($0["at"] as? Int ?? 0) > second },
+                      "明示操作後の処理待ちGETまで観測する")
+        XCTAssertEqual(input.value as? String, "次の依頼")
+    }
+
     func testSentTextAppearsBeforeServerAcknowledgementAndReconciles() throws {
         guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else {
             throw XCTSkip("通信報告の隔離サーバーが必要です。")

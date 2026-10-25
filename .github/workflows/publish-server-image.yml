@@ -20,6 +20,7 @@ on:
       - scripts/server-start.c
       - compose.cursor-update.yaml
       - config/common-agents.md
+      - config/ponytail-LICENSE
       - config/setup-guide.json
       - docs/bot-environment.md
       - docs/onboarding.md
