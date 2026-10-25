@@ -2,7 +2,7 @@ import { openOnboarding, renderFeatureSettings, refreshFeatureSettingsStatus } f
 import { renderHarnessAuth } from './harness-auth.js?v=__ASSET_VERSION__'
 import { renderSecretRequest } from './secret-input.js?v=__ASSET_VERSION__'
 import { renderOwnerQuestion } from './owner-question.js?v=__ASSET_VERSION__'
-import { sendFailureText, claimMessageSend, claimSingleFlight, readApiError, readApiResponse, releaseSingleFlight } from './chat-input.js?v=__ASSET_VERSION__'
+import { sendFailureText, claimMessageSend, claimSingleFlight, readApiError, readApiResponse, releaseSingleFlight, installMessageInputSizing } from './chat-input.js?v=__ASSET_VERSION__'
 import { richTextHtml } from './rich-text.js?v=__ASSET_VERSION__'
 import { hasUnreadConversation, newestByRecent } from './activity-order.js?v=__ASSET_VERSION__'
 import { openImageViewer, renderImageStack } from './image-gallery.js?v=__ASSET_VERSION__'
@@ -46,6 +46,7 @@ const deleteBotButton = document.querySelector('#delete-bot-button')
 const botManagementActions = document.querySelector('#bot-management-actions')
 const composer = document.querySelector('#composer')
 const messageInput = document.querySelector('#message-input')
+const resizeMessageInput = installMessageInputSizing(messageInput)
 const composerError = document.querySelector('#composer-error')
 const sendButton = document.querySelector('#send-button')
 const stopButton = document.querySelector('#stop-button')
@@ -315,8 +316,6 @@ messageImage.addEventListener('change', () => {
   messageImage.value = ''
 })
 messageInput.addEventListener('input', () => {
-  messageInput.style.height = 'auto'
-  messageInput.style.height = `${Math.min(messageInput.scrollHeight, 120)}px`
   updateSendButton()
 })
 messageInput.addEventListener('paste', event => {
@@ -1745,7 +1744,7 @@ async function sendMessage(event) {
   const { message, pendingImages } = draft
   const files = pendingImages.map(item => item.file)
   messageInput.value = ''
-  messageInput.style.height = 'auto'
+  resizeMessageInput()
   clearPendingImages()
   try {
     const images = await Promise.all(files.map(readImage))
@@ -1765,6 +1764,7 @@ async function sendMessage(event) {
   } catch (error) {
     // 拒否を黙って飲まない。本文と画像を入力欄へ戻し、理由を一行で出す（実被弾 2026-09-04: 秘書室で発言が消えた）。
     messageInput.value = message
+    resizeMessageInput()
     addPendingImages(files)
     composerError.textContent = sendFailureText(error.message)
     composerError.hidden = false
