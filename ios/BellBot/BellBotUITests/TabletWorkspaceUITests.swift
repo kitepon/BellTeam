@@ -62,14 +62,14 @@ final class TabletWorkspaceUITests: XCTestCase {
         XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
         let switcher = keyboard.buttons["emoji"]
         for _ in 0..<4 {
-            if keyboard.keys["Q"].exists { break }
+            if keyboard.keys["Q"].exists || keyboard.keys["q"].exists { break }
             XCTAssertTrue(switcher.exists, "英字キーボードへ切り替える")
             let previous = switcher.value as? String ?? ""
             switcher.tap()
             let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", previous), object: switcher)
             _ = XCTWaiter.wait(for: [changed], timeout: 3)
         }
-        XCTAssertTrue(keyboard.keys["Q"].exists, "英字QWERTYで確認する")
+        XCTAssertTrue(keyboard.keys["Q"].exists || keyboard.keys["q"].exists, "英字QWERTYで確認する")
         input.typeText("composer visible")
         let send = app.buttons["送信"]
         XCTAssertTrue(send.isEnabled)

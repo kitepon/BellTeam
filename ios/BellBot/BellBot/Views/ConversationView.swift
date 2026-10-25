@@ -122,6 +122,13 @@ private struct ConversationContent: View {
                     .onPreferenceChange(ScrollMetricsKey.self) { metrics in
                         scrollChanged(metrics, viewportSize: viewport.size, botsByID: botsByID, proxy: proxy)
                     }
+                    // キーボードで見える高さだけが縮む時は、本文の計測値が変わらず上の通知が来ない。
+                    .onChange(of: viewport.size.height) { oldHeight, newHeight in
+                        if oldHeight > 0 && newHeight < oldHeight - 0.5 && isAtBottom {
+                            scroll.followingBottom = true
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    }
                     .onPreferenceChange(ConversationPresentationKey.self) { presenting in
                         rowIsPresenting = presenting
                         if !presenting && scroll.pendingBottomScroll {
