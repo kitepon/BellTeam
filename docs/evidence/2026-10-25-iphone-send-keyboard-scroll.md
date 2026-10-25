@@ -10,7 +10,7 @@ iPhone 16 Pro Max / iOS 26.5 Simulatorで、試験専用HTTPサーバーの長�
 
 ## 修理と確認
 
-`ConversationView.swift`で会話の表示高さの縮小を観測し、直前に末尾を見ていた場合だけ、アニメーションなしで末尾へ追従させた。過去ログを読んでいる場合は移動しない。
+`ConversationView.swift`で会話の表示高さの縮小を観測し、末尾を見ているか明示的な末尾移動中の場合だけ、アニメーションなしで末尾へ追従させた。過去ログを読んでいる場合は移動しない。
 
 - 修理前に失敗した`testAcceptedSendRemainsVisibleAfterKeyboardReopens`は修理後に成功。正本行の下端は`491.7pt`、入力欄上端は`567.7pt`。最終XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-463b47e4d06f/result-bundles/test_sim_2026-10-25T01-27-57-406Z_pid67816_b68f8874.xcresult`。
 - `testKeyboardReopenKeepsOlderReadingPosition`は成功。長い返信の読書位置はキーボード再表示の前後とも`392.3pt`で、末尾へ飛ばなかった。
