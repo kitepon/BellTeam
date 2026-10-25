@@ -1203,6 +1203,7 @@ final class MessageTextView: UITextView {
 
     func invalidateSizeMeasurement() {
         sizeMeasurementIsValid = false
+        invalidateIntrinsicContentSize()
     }
 
     func measuredHeight(forWidth width: CGFloat) -> CGFloat {

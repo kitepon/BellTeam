@@ -105,6 +105,64 @@ final class ConversationAppearanceUITests: XCTestCase {
         app.terminate()
     }
 
+    func testComposerGrowsWithTypedLines() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-chat"]
+        app.launch()
+        defer { app.terminate() }
+        let input = app.textViews["message-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        #if targetEnvironment(macCatalyst)
+        input.click()
+        #else
+        input.tap()
+        #endif
+        input.typeText("A")
+        let oneLineHeight = input.frame.height
+        #if targetEnvironment(macCatalyst)
+        for line in ["B", "C", "D"] {
+            input.typeKey(.return, modifierFlags: .shift)
+            input.typeText(line)
+        }
+        #else
+        input.typeText("\nB\nC\nD")
+        #endif
+        XCTAssertEqual(input.value as? String, "A\nB\nC\nD")
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = "入力4行の高さ"
+        capture.lifetime = .keepAlways
+        add(capture)
+        XCTAssertGreaterThan(input.frame.height, oneLineHeight + 25,
+                             "入力4行の高さが1行のまま: \(oneLineHeight)→\(input.frame.height)")
+    }
+
+    #if !targetEnvironment(macCatalyst)
+    func testComposerGrowsAfterPastingManyLines() {
+        addUIInterruptionMonitor(withDescription: "文字のペースト許可") { alert in
+            let allow = alert.buttons["ペーストを許可"]
+            if allow.exists { allow.tap(); return true }
+            return false
+        }
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-chat"]
+        app.launch()
+        defer { app.terminate() }
+        let input = app.textViews["message-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        let oneLineHeight = input.frame.height
+        let pasted = (1...10).map { "\($0)行目" }.joined(separator: "\n")
+        UIPasteboard.general.string = pasted
+        pasteFromMenu(app, into: input)
+        XCTAssertEqual(input.value as? String, pasted)
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = "10行貼り付け後の入力欄"
+        capture.lifetime = .keepAlways
+        add(capture)
+        XCTAssertGreaterThan(input.frame.height, oneLineHeight + 25)
+        XCTAssertLessThanOrEqual(input.frame.height, oneLineHeight * 5 + 3)
+    }
+    #endif
+
     func testPastedImagesBecomeAttachmentsAndReturnAfterFailedSend() {
         #if !targetEnvironment(macCatalyst)
         addUIInterruptionMonitor(withDescription: "画像のペースト許可") { alert in
