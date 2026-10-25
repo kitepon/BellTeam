@@ -190,6 +190,9 @@ private struct BellTabs: View {
             SchedulesView()
                 .tabItem { Label("予定", systemImage: "calendar") }
                 .tag(1)
+            GoalsView()
+                .tabItem { Label("ゴール", systemImage: "target") }
+                .tag(3)
             SettingsView()
                 .tabItem { Label("設定", systemImage: "person.crop.circle") }
                 .tag(2)
