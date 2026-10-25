@@ -1,0 +1,8 @@
+FROM ghcr.io/dexidp/dex:v2.45.1@sha256:8499afd690c437f52301efd2b05b2455da5bd2dfc20332cd697dc9937f808462
+
+USER root
+# Dexの既存bundleは変更済みの保護対象で、apkは公式更新を.apk-newへ置く。
+RUN apk upgrade --no-cache ca-certificates-bundle \
+  && test -s /etc/ssl/certs/ca-certificates.crt.apk-new \
+  && mv /etc/ssl/certs/ca-certificates.crt.apk-new /etc/ssl/certs/ca-certificates.crt
+USER dex:dex
