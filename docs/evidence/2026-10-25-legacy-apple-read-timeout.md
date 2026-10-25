@@ -1,0 +1,13 @@
+# 旧Apple GET時間切れ群の代表人工試験
+
+旧記録はBot一覧`8343d1f5086fa530990491f14cca5cb3ac70adcba3f5c27293c9d1af0dd61c4a`、予定`03caf6627f0a3fc22f95f329fa63e0259ec25df926c942fa9d15f4936235f713`、会話`52b5ec54030ebaf626d7ef820d36503e8c3dc64e201b871a90be62ee1d9d820c`、処理待ち`44906d2387428e5108c0384c1c742e1cda0d4f6c36fef68ee4df3f8592fdaef4`のGETが`-1001`で時間切れになったことを示す。元の画面と遅延した境界の原因は未確認。各件を成功扱いせず、共通の読取り処理を代表する人工条件を測った。
+
+既存の`NetworkRecoveryTests/testSuccessfulManualGETClearsOnlyItsErrorAndKeepsDraft`を現ソースのiPhone 16 Pro Max / iOS 26.5 Simulatorで実行し、1件成功・失敗0件。`URLProtocol`が最初のBot一覧GETだけ`URLError.timedOut`を返すと、`AppStore`は既知ルームと未送信本文を保持して接続エラーを表示する。次の明示的な`refreshFromView()`が成功するとBot一覧を反映してエラーを消し、Bot一覧GETは計2回で自動再送しない。XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T09-36-50-094Z_pid8412_437a2f5e.xcresult`。
+
+会話画面でも、既存行「試験用の会話」を表示した後に人工HTTPサーバーが次の会話GETを応答保留し、実際のURLSession時間切れを待った。画面は既知の行を保ってエラーを表示した。時間切れ後に新しいGETは増えず、利用者が画面を開き直してサーバーが正常応答へ戻った後に新しいGETが出て、エラー表示が消えた。`NetworkLifecycleProbeUITests/testConversationTimeoutKeepsKnownRowsUntilExplicitReload`は専用iPhone 16 Pro Max / iOS 26.5 Simulatorで1件成功・失敗0件。XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T09-53-52-877Z_pid8412_501bf1b5.xcresult`。[通信記録](2026-10-25-legacy-conversation-timeout-proof.json)のSHA-256は`381719c87fc08ecab91cff0a09463b21121affe7a80634f3b4403b72043b0744`。
+
+会話画面の通信記録は初回GET1本、画面復帰時に同時GET2本、次の明示的な復帰時に同時GET2本だった。時間切れ直後の安定観測では新しいGETは無い。同時2本の発生理由はまだ特定していないので、1回の復帰に対するGET数を正常仕様とは判定しない。最初の人工サーバーは1本だけ保留してもう1本を成功させていたため、時間切れだけの試験にならなかった。両方を保留する条件へ修正し、後者の結果を採用した。
+
+その前に既存・別のSimulator2台と`xcodebuild`直接経路で、テスト実行アプリが`SBMainWorkspace: Application failed preflight checks (Busy)`と拒否され、製品試験に入れなかった。専用の新規Simulatorで起動してから上の画面試験を行った。試験サーバーは停止し、SimulatorはShutdownを確認した。
+
+Bot一覧のStoreと会話画面を代表として測った。予定と処理待ちの時間切れ画面、元の60秒遅延原因、実際のTLSやネットワーク経路は未確認。人工サーバーの成功を旧4件の解消とは扱わない。製品コード変更、実Bot・オーナー通常アプリ・認証・公開サービスへの操作は0。
