@@ -1,3 +1,5 @@
+import { authenticationPreflightCodes } from './agent-launch-error.mjs'
+
 // 既存の診断文脈だけから集約の単位を決める。本文や任意のエラー文字列は使わない。
 const operations = new Map([
   ['message_send', 'メッセージ送信'], ['conversation_read', '会話取得'],
@@ -7,6 +9,7 @@ const operations = new Map([
   ['session_check', 'セッション確認'], ['settings_read', '設定取得'],
 ])
 export const diagnosticCauseCodes = new Set([
+  ...authenticationPreflightCodes,
   'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'EPIPE',
   'ENOENT', 'EACCES', 'ERR_STREAM_PREMATURE_CLOSE',
   'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT',
