@@ -60,6 +60,7 @@
 		67C076EDA84BC9E653993332 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D505AA366C00647C21E6CE8 /* AppStore.swift */; };
 		69E9BC12563E9EB63A76D270 /* ConversationScrollUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3261621AD9FBA22C17AA737C /* ConversationScrollUITests.swift */; };
 		6DFD51FD8407166077C47F9D /* MemberActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4537AD2FAFC47BE3355B1516 /* MemberActivityTests.swift */; };
+		7478597DA434249676C22797 /* AuthTypedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CFCF164610C6974008B7B2 /* AuthTypedUITests.swift */; };
 		771A7ABA1E4AF838428A675F /* MemberDeletionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9154D4ED3669583CD9042D73 /* MemberDeletionUITests.swift */; };
 		7D093A6599CE91BFFD301E70 /* ServerSetupUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6541CB30BEDC47A2F0317DA /* ServerSetupUITests.swift */; };
 		7EDA8878BC6C2253AD736426 /* CommunicationNotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E84D909378D259B30ED5A9AE /* CommunicationNotificationTests.swift */; };
@@ -74,6 +75,7 @@
 		999E7A3BE9E56D258E64224E /* MemberDeletionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F14724DCBA3365032470B8BF /* MemberDeletionTests.swift */; };
 		A0A459458B879425F7033290 /* AvatarImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3AB6A1FD4893701341E2055 /* AvatarImageTests.swift */; };
 		A13B98D604ACC4745C9C02AD /* SecretRequestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A705FBAB6CC825EC30D4D015 /* SecretRequestView.swift */; };
+		A5300355DA897C634FFB0DE8 /* AuthenticationInstructions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18B998FC06A5BE8997CC48B /* AuthenticationInstructions.swift */; };
 		A9A3678F294FEF42E8AD810C /* BotStopTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19964D1F37185563CBBACBFB /* BotStopTests.swift */; };
 		AC8602845898177F1B4ED1B7 /* ConversationFreezeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF588B2C4A45B1C56AF12E3 /* ConversationFreezeUITests.swift */; };
 		B802CD07B6DA6B53B5F8DA19 /* SubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29A5A1F43425BC7EE92C7740 /* SubscriptionView.swift */; };
@@ -81,6 +83,7 @@
 		BA0FCCBDC792435CB3724421 /* FeatureSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24BE5D9C546C511849AC258D /* FeatureSettingsView.swift */; };
 		BC19A6B5DD7F3EEC8B91E04F /* server-installation.md in Resources */ = {isa = PBXBuildFile; fileRef = 0DA5119779328CE482E4FA75 /* server-installation.md */; };
 		BCE2A0CEF26E911C718D1DE7 /* NotificationNavigationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2749F7F59C6FDA73CBD7A823 /* NotificationNavigationUITests.swift */; };
+		C23530D8DE7BBE5CC1EB7275 /* AuthSetupOrderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66A26CF8840BC42D2E270C99 /* AuthSetupOrderingTests.swift */; };
 		C7EDF928F89B111580BAEB5B /* SecretTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BF2159F5902850520F32BCE /* SecretTransportTests.swift */; };
 		C99C73B3266DF4792EB3D17F /* ServerOrigin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549845AE12463CD143CDEEB8 /* ServerOrigin.swift */; };
 		CF86EA52EF3720485D3AB265 /* InstalledConversationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FFC48F6891C1B67D0D7D224 /* InstalledConversationUITests.swift */; };
@@ -175,12 +178,14 @@
 		4E89EE9A9585139D146052FD /* BillingStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingStoreTests.swift; sourceTree = "<group>"; };
 		4EC0870BB12FFC119FCBB8E6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5240F7B27DBDA4893A69C997 /* BellBotUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BellBotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		52CFCF164610C6974008B7B2 /* AuthTypedUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthTypedUITests.swift; sourceTree = "<group>"; };
 		549845AE12463CD143CDEEB8 /* ServerOrigin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerOrigin.swift; sourceTree = "<group>"; };
 		575A653FFBEBCE0085C321A4 /* BellBot.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BellBot.entitlements; sourceTree = "<group>"; };
 		58852297683AC8B45153D2EB /* TabletWorkspaceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabletWorkspaceUITests.swift; sourceTree = "<group>"; };
 		5C4B518FFF8289CDACA0CA29 /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
 		5E2260DBCC86E8B67926D92D /* BellNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellNotifications.swift; sourceTree = "<group>"; };
 		5FFC48F6891C1B67D0D7D224 /* InstalledConversationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstalledConversationUITests.swift; sourceTree = "<group>"; };
+		66A26CF8840BC42D2E270C99 /* AuthSetupOrderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSetupOrderingTests.swift; sourceTree = "<group>"; };
 		6A2F000635CD2024008345A3 /* ServerInstallationGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerInstallationGuide.swift; sourceTree = "<group>"; };
 		6BF2159F5902850520F32BCE /* SecretTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretTransportTests.swift; sourceTree = "<group>"; };
 		6CCAEDB62892A74233BDFCB0 /* BellAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellAPI.swift; sourceTree = "<group>"; };
@@ -225,6 +230,7 @@
 		D91477F755E7B3FFAC049315 /* ConversationAppearanceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationAppearanceUITests.swift; sourceTree = "<group>"; };
 		DB0122377D6B8287375EEC71 /* NetworkRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkRecoveryTests.swift; sourceTree = "<group>"; };
 		DBAD1D13AC6EF3C06BF561FB /* product.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = product.json; sourceTree = "<group>"; };
+		E18B998FC06A5BE8997CC48B /* AuthenticationInstructions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationInstructions.swift; sourceTree = "<group>"; };
 		E5FB291F103F8489EC171FD0 /* PreviewFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewFixtures.swift; sourceTree = "<group>"; };
 		E84D909378D259B30ED5A9AE /* CommunicationNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunicationNotificationTests.swift; sourceTree = "<group>"; };
 		E9D3D74EF4A36F15C49C36CE /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
@@ -276,6 +282,7 @@
 			children = (
 				32531494CC727C6D89D3A94F /* AIControlTests.swift */,
 				CADD413E6E27FE9CD4229A66 /* AuthenticationRecoveryTests.swift */,
+				66A26CF8840BC42D2E270C99 /* AuthSetupOrderingTests.swift */,
 				B3AB6A1FD4893701341E2055 /* AvatarImageTests.swift */,
 				FE1FA71AEBBE1E4EF674E584 /* BackgroundMessageSendTests.swift */,
 				85C81E947834BDF63F27C14D /* BellDiagnosticsTests.swift */,
@@ -360,6 +367,7 @@
 		6E89FA37A88D0443F27DD9EA /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				E18B998FC06A5BE8997CC48B /* AuthenticationInstructions.swift */,
 				B68E48020A5C203154A695A5 /* AvatarCropEditor.swift */,
 				F156208B81C891BA501E7785 /* AvatarImagePicker.swift */,
 				75B87E22433703F49BF8DB76 /* ConversationView.swift */,
@@ -394,6 +402,7 @@
 		A84F0B573DCFC15FB2609D5F /* BellBotUITests */ = {
 			isa = PBXGroup;
 			children = (
+				52CFCF164610C6974008B7B2 /* AuthTypedUITests.swift */,
 				BE3EBBFD751613AF89CA54F1 /* AvatarCropUITests.swift */,
 				C4AF8080EA273CDB10D9D3F3 /* BotStopUITests.swift */,
 				7E430DCA2ADC03919A94C211 /* ConnectionErrorUITests.swift */,
@@ -622,6 +631,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7478597DA434249676C22797 /* AuthTypedUITests.swift in Sources */,
 				8E48958F4556B7FE2DBE0EE9 /* AvatarCropUITests.swift in Sources */,
 				34365A7DB1D5F80135AF03A3 /* BotStopUITests.swift in Sources */,
 				5FFCE06003D2F84E7BCCBBFC /* ConnectionErrorUITests.swift in Sources */,
@@ -659,6 +669,7 @@
 			files = (
 				67C076EDA84BC9E653993332 /* AppStore.swift in Sources */,
 				0EA4B14252327E5F858F1967 /* AppleSubscriptionAccess.swift in Sources */,
+				A5300355DA897C634FFB0DE8 /* AuthenticationInstructions.swift in Sources */,
 				36DD4FD1C3B89B6C657A1BE1 /* AvatarCropEditor.swift in Sources */,
 				43BB09184EEC31FAF35EE52C /* AvatarImage.swift in Sources */,
 				64D7E924A3D4EEF6922D2304 /* AvatarImagePicker.swift in Sources */,
@@ -706,6 +717,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				21865A6DB6A8E3D02E2392D2 /* AIControlTests.swift in Sources */,
+				C23530D8DE7BBE5CC1EB7275 /* AuthSetupOrderingTests.swift in Sources */,
 				054B918C93471D915124D969 /* AuthenticationRecoveryTests.swift in Sources */,
 				A0A459458B879425F7033290 /* AvatarImageTests.swift in Sources */,
 				66B5AD528D7B5A21566CD326 /* BackgroundMessageSendTests.swift in Sources */,

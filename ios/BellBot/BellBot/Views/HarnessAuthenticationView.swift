@@ -70,17 +70,10 @@ private struct HarnessAuthenticationView: View {
                 Text(flow.harness.usageText).foregroundStyle(BellTheme.muted)
                 if let auth = flow.auth {
                     Text(statusText(auth.status)).accessibilityIdentifier("harness-auth-status")
-                    if let message = auth.message, !message.isEmpty { Text(message).font(.subheadline) }
-                    if let address = auth.url, let url = URL(string: address), url.scheme == "https" {
-                        Link("公式サイトで認証する", destination: url)
-                            .accessibilityIdentifier("harness-auth-link")
+                    AuthenticationInstructions(auth: auth, code: $input,
+                                               busy: flow.busy || flow.needsRefresh || errorText != nil) { response, ui in
+                        run { try await flow.respond(response, for: ui) }
                     }
-                    if let code = auth.userCode, !code.isEmpty {
-                        Text("利用者コード").font(.caption)
-                        Text(code).font(.title3.monospaced()).textSelection(.enabled)
-                            .accessibilityIdentifier("harness-auth-code")
-                    }
-                    if auth.inputRequired && flow.started { authenticationInput }
                 } else if errorText == nil {
                     Text("公式の状態を確認しています。")
                 }
@@ -91,11 +84,13 @@ private struct HarnessAuthenticationView: View {
                     if flow.needsStartConfirmation { confirming = true }
                     else { run { try await flow.start() } }
                 }.accessibilityIdentifier("harness-auth-start")
+                    .disabled(flow.needsRefresh || errorText != nil)
                 Button("状態を更新") { run(method: "GET") { try await flow.refresh() } }
                     .accessibilityIdentifier("harness-auth-refresh")
                 if flow.started {
                     Button("やめる") { run { try await flow.cancel() } }
                         .accessibilityIdentifier("harness-auth-cancel")
+                        .disabled(flow.needsRefresh || errorText != nil)
                 }
             }.disabled(flow.busy)
             if flow.busy { ProgressView() }
@@ -122,23 +117,6 @@ private struct HarnessAuthenticationView: View {
         .onChange(of: scenePhase) { _, next in if next != .active { input = "" } }
         .onChange(of: flow.auth) { _, _ in input = "" }
         .onDisappear { input = "" }
-    }
-
-    private var authenticationInput: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SecureField("認証に必要な入力", text: $input)
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
-                .accessibilityIdentifier("harness-auth-input")
-            Button("入力を送る") {
-                let text = input
-                run { try await flow.input(text: text) }
-            }.disabled(input.isEmpty)
-            HStack {
-                ForEach(["Enter", "Up", "Down", "Tab"], id: \.self) { key in
-                    Button(key) { run { try await flow.input(key: key) } }.buttonStyle(.bordered)
-                }
-            }
-        }.disabled(flow.busy)
     }
 
     private func statusText(_ status: OfficialAuthenticationStatus) -> String {

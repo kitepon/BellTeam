@@ -9,9 +9,10 @@ import { Cron } from 'croner'
 import { loadBots } from './bots.mjs'
 import { CHARACTER_SHEET_DIRECTORY } from './character-sheets.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
+import { mutateSchedules, nextScheduleRevision, scheduleRevision } from './schedule-mutations.mjs'
 
 const BOT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u
-const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/u
+const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,199}$/u
 const COLORS = new Set(['rose', 'indigo', 'violet'])
 const HARNESSES = new Set(['claude', 'codex', 'grok', 'cursor'])
 const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'color'])
@@ -200,40 +201,39 @@ export class BotRegistry extends Map {
   async setSchedule(id, input) {
     await this.refresh()
     if (!this.has(id)) throw new Error(`BOT_NOT_FOUND: ${id}`)
-    const document = await this.readScheduleDocument(id)
-    const existing = input.id ? document.schedules.find(item => item.id === input.id) : null
-    if (input.id && !existing) throw new Error(`SCHEDULE_NOT_FOUND: ${input.id}`)
-    const schedule = normalizeSchedule({
-      ...input,
-      id: input.id ?? this.id(),
-      lastRunAt: null,
-    }, this.now())
-    const schedules = existing
-      ? document.schedules.map(item => item.id === schedule.id ? schedule : item)
-      : [...document.schedules, schedule]
-    await this.writeScheduleDocument(id, schedules)
-    return schedule
+    return mutateSchedules(this, id, schedules => {
+      const existing = input.id ? schedules.find(item => item.id === input.id) : null
+      if (input.id && !existing) throw new Error(`SCHEDULE_NOT_FOUND: ${input.id}`)
+      const schedule = normalizeSchedule({
+        ...input,
+        id: input.id ?? this.id(),
+        lastRunAt: null,
+        revision: nextScheduleRevision(existing),
+      }, this.now())
+      return { schedules: existing ? schedules.map(item => item.id === schedule.id ? schedule : item) : [...schedules, schedule], value: schedule }
+    })
   }
 
   async removeSchedule(id, scheduleId) {
-    const schedules = await this.listSchedules(id)
-    if (!schedules.some(item => item.id === scheduleId)) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
-    await this.writeScheduleDocument(id, schedules.filter(item => item.id !== scheduleId))
-    return true
+    return mutateSchedules(this, id, schedules => {
+      if (!schedules.some(item => item.id === scheduleId)) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
+      return { schedules: schedules.filter(item => item.id !== scheduleId), value: true }
+    })
   }
 
-  async markScheduleRun(id, scheduleId, ranAt, { skipped = false } = {}) {
-    const schedules = await this.listSchedules(id)
-    const current = schedules.find(item => item.id === scheduleId)
-    if (!current) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
-    const timestamp = new Date(ranAt).toISOString()
-    const updated = normalizeSchedule({
-      ...current,
-      enabled: current.kind === 'once' ? false : current.enabled,
-      lastRunAt: skipped ? current.lastRunAt : timestamp,
-    }, new Date(timestamp))
-    await this.writeScheduleDocument(id, schedules.map(item => item.id === scheduleId ? updated : item))
-    return updated
+  async markScheduleRun(id, scheduleId, ranAt, { skipped = false, expectedRevision } = {}) {
+    return mutateSchedules(this, id, schedules => {
+      const current = schedules.find(item => item.id === scheduleId)
+      if (expectedRevision !== undefined && (!current || scheduleRevision(current) !== expectedRevision)) return { value: current ?? null }
+      if (!current) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
+      const timestamp = new Date(ranAt).toISOString()
+      const updated = normalizeSchedule({
+        ...current,
+        enabled: current.kind === 'once' ? false : current.enabled,
+        lastRunAt: skipped ? current.lastRunAt : timestamp,
+      }, new Date(timestamp))
+      return { schedules: schedules.map(item => item.id === scheduleId ? updated : item), value: updated }
+    })
   }
 
   async readProfile(id) {
@@ -374,6 +374,7 @@ export function normalizeSchedule(value, now) {
     ...(command ? { command } : { prompt }),
     enabled,
     lastRunAt: value.lastRunAt ?? null,
+    ...(Object.hasOwn(value, 'revision') ? { revision: scheduleRevision(value) } : {}),
   }
   if (value.kind === 'once') {
     const date = new Date(value.at)

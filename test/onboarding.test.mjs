@@ -40,9 +40,10 @@ test('空の環境ではハーネスだけを選び、公式認証を確かめ�
   assert.equal(selected.guideBotId, GUIDE_BOT_ID)
   assert.equal(f.bots.get(GUIDE_BOT_ID).harness, 'codex')
   assert.equal(selected.auth.user_code, 'TEST-CODE')
-  assert.equal('session_id' in selected.auth, false)
-  assert.equal((await f.onboarding.input({ key: 'Enter' })).auth.status, 'waiting')
-  assert.deepEqual(f.calls.at(-2), { name: 'pty_key', args: { session_id: 'auth-session', key: 'Enter' } })
+  assert.equal(selected.auth.session_id, 'auth-session')
+  assert.equal(selected.auth.auth_ui.stage, 'unavailable')
+  await assert.rejects(f.onboarding.input({ key: 'Enter' }), { code: 'AUTH_RESPONSE_INVALID' })
+  assert.equal(f.calls.some(({ name }) => name === 'pty_key' || name === 'pty_send'), false)
   await assert.rejects(f.onboarding.start(), { code: 'SETUP_AUTH_REQUIRED' })
   assert.equal(f.conversations.length, 0)
   f.authenticate()
@@ -133,4 +134,22 @@ test('認証確認中のハーネス変更は前の応答を待ち、新しい�
   const saved = JSON.parse(await readFile(f.onboarding.path, 'utf8'))
   assert.equal(saved.harness, 'grok')
   assert.equal(saved.authSession, 'new-auth-session')
+})
+
+test('初期設定のコードも同じ専用respondへ一回だけ送り、設定ファイルに値を残さない', async t => {
+  const f = await fixture(t)
+  const binding = { session_id: 'auth-session', launch_id: null, metadata_identity: 'dev:ino:birth:mtime',
+    native_id: 'own-native', pane_id: '%1', server_pid: 100, server_started: 'birth-server', pane_pid: 101, pane_started: 'birth-pane' }
+  f.options.client.call = async (name, args) => {
+    f.calls.push({ name, args })
+    assert.equal(name, 'agent_auth')
+    return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', status: args.action === 'respond' ? 'authenticated' : 'waiting', session_id: 'auth-session',
+      auth_ui: { schema: 'aiterm.auth-ui.v1', stage: args.action === 'respond' ? 'complete' : 'paste_code', title: '公式ログイン', message: '公式ページでログインしてください。',
+        binding, prompt_digest: 'a'.repeat(64), url: 'https://claude.com/cai/oauth/authorize?code=true', user_code: null, input: 'authorization_code', choices: [] } } }
+  }
+  await f.onboarding.select('claude')
+  const result = await f.onboarding.input({ binding, prompt_digest: 'a'.repeat(64), response: { kind: 'authorization_code', value: 'synthetic-code-never-store' } })
+  assert.equal(result.auth.status, 'authenticated')
+  assert.equal(f.calls.filter(call => call.args.action === 'respond').length, 1)
+  assert.equal((await readFile(f.onboarding.path, 'utf8')).includes('synthetic-code-never-store'), false)
 })
