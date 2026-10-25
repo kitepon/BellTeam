@@ -60,26 +60,40 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
   })
   const internalServer = createBellTeamServer({ ...serverOptions, internal: true, seatMcp, authorize: async () => true })
   const start = async () => {
-    await features.initialize()
-    await server.startMessageWatch()
-    if (aiControl.paused) void aiControl.enforce()
-    server.listen(Number(environment.BELLTEAM_WEB_PORT ?? 4180), '0.0.0.0')
-    internalServer.listen(internalPort, '127.0.0.1')
-    scheduler.start()
-    selfTurns.start()
-    seatTurns.start()
-    idleSessions.start()
+    try {
+      await features.initialize()
+      await server.startMessageWatch()
+      if (aiControl.paused) void aiControl.enforce()
+      server.listen(Number(environment.BELLTEAM_WEB_PORT ?? 4180), '0.0.0.0')
+      internalServer.listen(internalPort, '127.0.0.1')
+      scheduler.start()
+      selfTurns.start()
+      seatTurns.start()
+      idleSessions.start()
+    } catch (error) {
+      try { await close() }
+      catch (cleanupError) { throw new AggregateError([error, cleanupError], 'APPLICATION_START_FAILED') }
+      throw error
+    }
   }
-  const close = async () => {
-    scheduler.stop()
-    await idleSessions.stop()
-    await selfTurns.stop()
-    await seatTurns.stop()
-    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
-    await new Promise((resolve, reject) => internalServer.close(error => error ? reject(error) : resolve()))
-    await features.close()
-    await transport.close()
-    await notifications.close()
+  const closeServer = server => new Promise((resolve, reject) => server.close(error => {
+    if (error && error.code !== 'ERR_SERVER_NOT_RUNNING') reject(error)
+    else resolve()
+  }))
+  let closing = null
+  const close = () => {
+    closing ??= (async () => {
+      const errors = []
+      for (const stop of [
+        () => scheduler.stop(), () => idleSessions.stop(), () => selfTurns.stop(), () => seatTurns.stop(),
+        () => closeServer(server), () => closeServer(internalServer), () => features.close(),
+        () => transport.close(), () => notifications.close(),
+      ]) {
+        try { await stop() } catch (error) { errors.push(error) }
+      }
+      if (errors.length) throw new AggregateError(errors, 'APPLICATION_CLOSE_FAILED')
+    })()
+    return closing
   }
   return { services, features, server, internalServer, start, close }
 }

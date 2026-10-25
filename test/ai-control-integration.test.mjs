@@ -149,8 +149,11 @@ test('全体ONでcommandを取消し、未確認は未確認とし、新しい�
 test('合成commandのprocess groupを終了させ、終了と消失を確認する', { timeout: 5000 }, async t => {
   const root = await directory(t), abort = new AbortController()
   const script = join(root, 'fixture.cjs'), ready = join(root, 'ready')
-  await writeFile(script, 'require("node:fs").writeFileSync("ready", String(process.pid)); process.on("SIGTERM", () => {}); setInterval(() => {}, 1000)')
+  // Publish a complete PID only after the child has installed its signal handler.
+  // A direct write creates an empty file before writing its bytes.
+  await writeFile(script, 'const fs = require("node:fs"); process.on("SIGTERM", () => {}); fs.writeFileSync("ready.tmp", String(process.pid)); fs.renameSync("ready.tmp", "ready"); setInterval(() => {}, 1000)')
   const operation = runShellCommand({ cwd: root, command: `exec "${process.execPath}" "${script}"`, signal: abort.signal })
+  t.after(async () => { abort.abort(); await operation })
   let pid
   for (let i = 0; i < 100; i++) {
     try { pid = Number(await readFile(ready, 'utf8')); break } catch { await new Promise(r => setTimeout(r, 10)) }

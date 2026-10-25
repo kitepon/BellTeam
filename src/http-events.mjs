@@ -54,23 +54,42 @@ export function createMessageEvents({ store, secretRequests, ownerQuestions, roo
         writeEvent({ at: new Date().toISOString(), all: current.all, topics: [...current.topics], botIds: [...current.botIds], roomIds: [...current.roomIds] })
       }, messageEventWindow)
     }
-    const stops = [await store.watch(notify)]
-    if (secretRequests) stops.push(secretRequests.watch(notify))
-    if (ownerQuestions) stops.push(ownerQuestions.watch(notify))
-    if (rooms?.watch) stops.push(await rooms.watch(notify))
-    if (bots?.watch) stops.push(bots.watch(notify))
-    if (transport?.watchQueue) stops.push(transport.watchQueue(notify))
-    if (aiControl) stops.push(aiControl.watch(() => notifyNow({ type: 'ai-control' })))
-    closeWatch = () => stops.forEach(stop => stop())
+    const stops = []
+    try {
+      stops.push(await store.watch(notify))
+      if (secretRequests) stops.push(secretRequests.watch(notify))
+      if (ownerQuestions) stops.push(ownerQuestions.watch(notify))
+      if (rooms?.watch) stops.push(await rooms.watch(notify))
+      if (bots?.watch) stops.push(bots.watch(notify))
+      if (transport?.watchQueue) stops.push(transport.watchQueue(notify))
+      if (aiControl) stops.push(aiControl.watch(() => notifyNow({ type: 'ai-control' })))
+      closeWatch = () => closeMessageWatches(stops)
+    } catch (error) {
+      clearTimeout(pendingNotify)
+      pendingNotify = null
+      try { closeMessageWatches(stops) }
+      catch (cleanupError) { throw new AggregateError([error, cleanupError], 'MESSAGE_WATCH_START_FAILED') }
+      throw error
+    }
   }
   const stopWatching = () => {
-    closeWatch?.()
-    closeWatch = null
-    clearTimeout(pendingNotify)
-    pendingNotify = null
+    try { closeWatch?.() }
+    finally {
+      closeWatch = null
+      clearTimeout(pendingNotify)
+      pendingNotify = null
+    }
   }
   const endConnections = () => {
     for (const subscriber of subscribers) subscriber.end()
   }
   return { connect, notify: notifyNow, startMessageWatch, stopWatching, endConnections }
+}
+
+function closeMessageWatches(stops) {
+  const errors = []
+  for (const stop of stops) {
+    try { stop() } catch (error) { errors.push(error) }
+  }
+  if (errors.length) throw new AggregateError(errors, 'MESSAGE_WATCH_CLOSE_FAILED')
 }

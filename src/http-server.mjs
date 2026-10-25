@@ -68,7 +68,13 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
 
   server.notify = events.notify
   server.startMessageWatch = events.startMessageWatch
-  server.on('close', events.stopWatching)
+  let messageWatchCloseError = null
+  server.on('close', () => {
+    // EventEmitter exceptions bypass the close callback and its caller's cleanup.
+    // Keep the failure for the HTTP close result instead of throwing here.
+    try { events.stopWatching() }
+    catch (error) { messageWatchCloseError = error }
+  })
   server.keepAliveTimeout = KEEP_ALIVE_TIMEOUT_MS
   // 止める時に処理中だった接続は、応答を返し終えたら閉じる。待機時間の満了まで停止を待たせない。
   // 知らせの流れは自分からは終わらないので、ここで終える。アプリは再接続する。
@@ -78,7 +84,12 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     if (internal) seatMcp?.close()
     const reap = setInterval(() => server.closeIdleConnections(), 50)
     server.once('close', () => clearInterval(reap))
-    return closeServer(callback)
+    return closeServer(error => {
+      const errors = [error, messageWatchCloseError].filter(Boolean)
+      const failure = errors.length > 1 ? new AggregateError(errors, 'HTTP_CLOSE_FAILED') : errors[0]
+      if (callback) callback(failure)
+      else if (messageWatchCloseError) server.emit('error', failure)
+    })
   }
   return server
 }
