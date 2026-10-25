@@ -262,6 +262,87 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         XCTAssertTrue(accepted.waitForExistence(timeout: 5), "送信後も会話をスクロールできる")
     }
 
+    func testAcceptedSendRemainsVisibleAfterKeyboardReopens() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else {
+            throw XCTSkip("通信報告の隔離サーバーが必要です。")
+        }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset?mode=post-wait-history")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-chat", "-bellbot-preview-server", server,
+                               "-bellbot-preview-reporting", "-bellbot-preview-events"]
+        app.launch(); defer { app.terminate() }
+        let input = app.textViews["message-input"]
+        let scroll = app.scrollViews["conversation-messages"]
+        XCTAssertTrue(app.descendants(matching: .any)["message-text-probe-message"].firstMatch.waitForExistence(timeout: 6))
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap(); input.typeText("送信後も見える本文")
+        let dragStart = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+        let dragEnd = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+        dragStart.press(forDuration: 0.1, thenDragTo: dragEnd)
+        input.tap()
+        app.buttons["送信"].tap()
+        let pending = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "message-text-local-pending-"))
+            .firstMatch
+        XCTAssertTrue(pending.waitForExistence(timeout: 3))
+        XCTAssertLessThanOrEqual(pending.frame.maxY, input.frame.minY - 4)
+
+        _ = try data(base, "/test/complete-post")
+        let accepted = app.descendants(matching: .any)["message-text-accepted-message"].firstMatch
+        XCTAssertTrue(accepted.waitForExistence(timeout: 5))
+        let acceptedBefore = accepted.frame
+        XCTAssertLessThanOrEqual(acceptedBefore.maxY, input.frame.minY - 4,
+                                 "受付直後の正本も入力欄の上に見える")
+        app.buttons["詳細"].tap()
+        XCTAssertTrue(app.buttons["閉じる"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.keyboards.firstMatch.exists, "詳細を開いた時にキーボードが閉じる")
+        app.buttons["閉じる"].tap()
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3), "キーボードを開き直す")
+        Thread.sleep(forTimeInterval: 1)
+        let acceptedAfter = accepted.frame
+        let visibleBottom = min(scroll.frame.maxY, input.frame.minY)
+        print("正本とキーボード再表示: before=\(acceptedBefore) after=\(acceptedAfter) scroll=\(scroll.frame) input=\(input.frame) keyboard=\(app.keyboards.firstMatch.frame)")
+        let image = XCTAttachment(screenshot: app.screenshot())
+        image.name = "正本とキーボードの再表示"
+        image.lifetime = .keepAlways; add(image)
+        XCTAssertLessThanOrEqual(acceptedAfter.maxY, visibleBottom - 4,
+                                 "キーボードを開き直した後も送信済み本文が入力欄の上に見える")
+    }
+
+    func testKeyboardReopenKeepsOlderReadingPosition() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else {
+            throw XCTSkip("通信報告の隔離サーバーが必要です。")
+        }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset?mode=post-wait-history")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-chat", "-bellbot-preview-server", server,
+                               "-bellbot-preview-reporting", "-bellbot-preview-events"]
+        app.launch(); defer { app.terminate() }
+        let input = app.textViews["message-input"]
+        let scroll = app.scrollViews["conversation-messages"]
+        let older = app.descendants(matching: .any)["message-text-probe-message"].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        XCTAssertTrue(older.waitForExistence(timeout: 5))
+        input.tap()
+        scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+            .press(forDuration: 0.1, thenDragTo: scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.53)))
+        print("過去ログの読書開始: row=\(older.frame) input=\(input.frame)")
+        XCTAssertLessThan(older.frame.minY, input.frame.minY, "長い返信の一部が見える位置を作る")
+        XCTAssertGreaterThan(older.frame.maxY, input.frame.minY + 80, "長い返信の途中を読んでいる状態を作る")
+        app.buttons["詳細"].tap()
+        XCTAssertTrue(app.buttons["閉じる"].waitForExistence(timeout: 3))
+        app.buttons["閉じる"].tap()
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        let visibleBottom = min(scroll.frame.maxY, input.frame.minY)
+        print("過去ログとキーボード再表示: row=\(older.frame) visibleBottom=\(visibleBottom)")
+        XCTAssertLessThan(older.frame.minY, visibleBottom)
+        XCTAssertGreaterThan(older.frame.maxY, visibleBottom + 80, "読書中は末尾へ飛ばない")
+    }
+
     func testReportingUsesHandledWriteResultAndPreservesDraft() throws {
         guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else { throw XCTSkip("通信報告の隔離サーバーが必要です。") }
         let base = try XCTUnwrap(URL(string: server))
