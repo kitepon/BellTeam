@@ -23,6 +23,7 @@ try {
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
     'distribution/server',
     'compose.cursor-update.yaml', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
+    'scripts/seat-exec.c', 'scripts/server-start.c',
   ], { cwd: root })
   await exec('tar', ['-xf', archive, '-C', output])
   await mkdir(join(output, 'bridge'))

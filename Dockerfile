@@ -53,16 +53,26 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --cache /root/.npm
 COPY . .
 RUN install -o root -g root -m 0755 scripts/cursor-update-entrypoint.sh /usr/local/bin/bellteam-update-cursor
-RUN chown -R bell:bell /app
+RUN /usr/sbin/groupadd -g 1001 bellteam-server \
+  && /usr/sbin/useradd -u 1001 -g 1001 -d /run/bellteam-server -M -s /usr/sbin/nologin bellteam-server \
+  && mkdir -p /usr/local/libexec \
+  && cc -O2 -Wall -Wextra -Werror scripts/seat-exec.c -o /usr/local/libexec/bellteam-seat-exec \
+  && cc -O2 -Wall -Wextra -Werror scripts/server-start.c -o /usr/local/libexec/bellteam-server-start \
+  && chown root:root /usr/local/libexec/bellteam-seat-exec /usr/local/libexec/bellteam-server-start \
+  && chmod 0755 /usr/local/libexec/bellteam-seat-exec /usr/local/libexec/bellteam-server-start \
+  && printf 'bellteam-server ALL=(root) NOPASSWD: /usr/local/libexec/bellteam-seat-exec -- *\n' > /etc/sudoers.d/bellteam-server \
+  && chmod 0440 /etc/sudoers.d/bellteam-server \
+  && chown -R root:root /app
 
-USER bell
-ENV HOME=/home/bell \
+USER bellteam-server
+ENV HOME=/run/bellteam-server \
   BELLTEAM_HOME=/home/bell \
-  PATH=/home/bell/.local/bin:/usr/local/bin:/usr/bin:/bin \
+  PATH=/usr/local/bin:/usr/bin:/bin \
   BELLTEAM_ROOT=/srv/bellteam \
   BELLTEAM_BOTS_CONFIG=/app/config/bots.json \
   RTK_TELEMETRY_DISABLED=1 \
   RTK_SUPPRESS_HOOK_WARNING=1 \
   TERM=xterm-256color
 
-CMD ["/usr/local/bin/node", "src/supervisor.mjs"]
+ENTRYPOINT ["/usr/local/libexec/bellteam-server-start"]
+CMD []

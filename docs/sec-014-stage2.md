@@ -366,3 +366,37 @@ state root/socket instead of the UID1000 CLI hooks. The isolated regression
 compares both registrations and requires the installed seat scope to belong
 to UID1000. Configuration, memory and cleanup requests carry only id/project
 pairs for the registry, avoiding unrelated avatars/profile text on each call.
+
+## Streaming private character sheets and the server image entry (2026-10-25)
+
+The application graph now delegates character-sheet list/open to the seat
+identity. The existing CharacterSheets implementation owns filename checks,
+NOFOLLOW open and metadata. A short-lived reader sends one JSON metadata line
+then streams binary stdout with backpressure. There is no 25 MiB whole-image
+buffer limit. Failed metadata/open is returned before HTTP headers; later read
+failures abort the response. HTTP consumer close destroys the stream and
+terminates the owned reader. Invalid names, missing files and symlinks keep
+their existing error semantics.
+
+The image compiles the fixed seat entry and a dedicated non-privileged server
+entry, keeps /app root-owned, and selects USER bellteam-server (1001). The
+server entry accepts no supplied command, checks UID/GID, clears Node preload
+settings, fixes its HOME/PATH and execs the fixed supervisor module. Both
+Compose entry points provide the server's private /run/bellteam-server tmpfs.
+Public packaging and its build filter include both C sources.
+
+An isolated image with synthetic files exercised the exact compiled entry
+and stream/HTTP path: UID1001 could not read the UID1000 private sheet directly,
+but ordinary list/HTTP streamed 27,262,993 bytes successfully. Disconnect closed
+all recorded reader processes; invalid/missing/symlink reads were rejected.
+The fixture deliberately substituted a small assertion module for the real
+supervisor; this proves the fixed entry boundary, not complete bootstrap or
+fresh-install acceptance. Wrong UID and an extra command argument both exited
+126. The first context upload failed Docker's PAX archive detection; the next
+exposed the inherited PATH omission of /usr/sbin. The build uses USTAR and
+absolute groupadd/useradd paths; both failed logs are preserved.
+
+The branch remains NOTDEPLOYABLE: complete stopped-writer migration/inverse
+migration, independent mounts, fresh installation, current-generation backup
+restore, scheduled-command PGID cancellation receipt, four CLI paths, real
+supervisor integration and downtime measurement remain necessary.

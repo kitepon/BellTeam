@@ -69,6 +69,10 @@ export function createBotApi({ bots, transport, administration, memory, characte
         'cache-control': 'private, no-cache',
         'x-content-type-options': 'nosniff',
       })
+      // The seat reader must stop when its HTTP consumer disconnects; a read
+      // failure after headers aborts this response instead of crashing HTTP.
+      sheet.stream.once('error', error => response.destroy(error))
+      response.once('close', () => sheet.stream.destroy())
       return sheet.stream.pipe(response)
     }
 

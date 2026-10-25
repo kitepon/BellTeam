@@ -16,6 +16,8 @@ on:
       - scripts/package-server.mjs
       - scripts/update-cursor.sh
       - scripts/cursor-update-entrypoint.sh
+      - scripts/seat-exec.c
+      - scripts/server-start.c
       - compose.cursor-update.yaml
       - config/common-agents.md
       - config/setup-guide.json

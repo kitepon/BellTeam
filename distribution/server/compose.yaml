@@ -11,6 +11,7 @@ services:
     tmpfs:
       - /tmp:exec,size=8g
       - /run:size=64m
+      - /run/bellteam-server:uid=1001,gid=1001,mode=0700,size=64m
     environment:
       BELLTEAM_CF_TEAM_DOMAIN: ${BELLTEAM_CF_TEAM_DOMAIN:-}
       BELLTEAM_CF_AUD: ${BELLTEAM_CF_AUD:-}

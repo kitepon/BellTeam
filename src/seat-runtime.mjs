@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { createSeatProcessRunner } from './seat-process.mjs'
 import { readImageBytes } from './message-assets.mjs'
+import { createSeatStreamRunner } from './seat-stream.mjs'
 
 export const SEAT_PROJECT_METHODS = ['ensureRoot', 'claim', 'initialize', 'remove', 'writeInstructions', 'prepareStartupContext', 'appendInstructions']
 export const SEAT_MEMORY_METHODS = ['initialize', 'remember', 'reviseMemory', 'pinMemory', 'consolidateGrowth', 'recallMemory', 'recordKnowledge', 'searchKnowledge', 'rebuildKnowledgeIndex']
@@ -9,10 +10,12 @@ const projects = bots => [...bots.values()].map(({ id, project }) => ({ id, proj
 // Short-lived seat operations. No server environment or configuration document
 // is sent to the child; each request supplies only its operation's inputs.
 export class SeatRuntime {
-  constructor({ root, home, run = createSeatProcessRunner(root, { environment: 'base' }) }) {
+  constructor({ root, home, run = createSeatProcessRunner(root, { environment: 'base' }),
+    stream = createSeatStreamRunner(root, { environment: 'base' }) }) {
     this.root = root
     this.home = home
     this.run = run
+    this.stream = stream
     this.projectFiles = Object.fromEntries(SEAT_PROJECT_METHODS.map(method =>
       [method, (...args) => this.call('project', { method, args })]))
   }
@@ -69,5 +72,13 @@ export class SeatRuntime {
     if (typeof image?.path !== 'string') return readImageBytes(image, maxBytes)
     const value = await this.call('read-image', { image, maxBytes }, { maxBuffer: Math.ceil(maxBytes * 1.5) + 65536 })
     return Buffer.from(value.data, 'base64')
+  }
+
+  characterSheets(projectPath) {
+    return {
+      list: botId => this.call('character-sheet-list', { project: projectPath(botId) }),
+      open: (botId, file) => this.stream(process.execPath,
+        [fileURLToPath(new URL('./run-seat-character-sheet.mjs', import.meta.url))], { project: projectPath(botId), file }),
+    }
   }
 }

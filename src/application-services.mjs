@@ -121,7 +121,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     paused: () => aiControl.paused,
     assertWorkAllowed: () => aiControl.assertEnabled(),
   })
-  const characterSheets = new CharacterSheets({ projectPath: id => bots.projectPath(id) })
+  const characterSheets = seatRuntime ? seatRuntime.characterSheets(id => bots.projectPath(id))
+    : new CharacterSheets({ projectPath: id => bots.projectPath(id) })
   // Bot設定変更・停止・削除の業務判断。公開APIと席MCPが同じ判断を使う。
   const administration = new BotAdministration({ bots, rooms, transport })
   const secretRequests = new SecretRequests({

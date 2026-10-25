@@ -9,6 +9,7 @@ import { writeGlobalInstructions } from './global-instructions.mjs'
 import { removeSeatClaudeCopies } from './bot-environment.mjs'
 import { readImageBytes } from './message-assets.mjs'
 import { aitermExecutionRegistration } from './aiterm-hooks.mjs'
+import { CharacterSheets } from './character-sheets.mjs'
 
 async function operate(request) {
   const bots = new Map((request.profiles ?? []).map(bot => [bot.id, bot]))
@@ -41,6 +42,9 @@ async function operate(request) {
     }
     case 'read-image':
       return { data: (await readImageBytes(request.image, request.maxBytes)).toString('base64') }
+    case 'character-sheet-list':
+      if (!isAbsolute(request.project)) throw new Error('SEAT_RUNTIME_ARGUMENTS')
+      return new CharacterSheets({ projectPath: () => request.project }).list(null)
     default: throw new Error('SEAT_RUNTIME_OPERATION_INVALID')
   }
 }
