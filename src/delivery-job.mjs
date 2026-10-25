@@ -55,7 +55,7 @@ export class DeliveryJob {
   }
 
   assertNotStopped() {
-    if (this.stopRequested) throw stoppedError()
+    if (this.stopped || this.stopRequested) throw stoppedError()
   }
 
   // 送信処理の節目。進行中の停止操作を待ち、停止が確定していれば止め、受理済みで停止未確認なら続ける。
