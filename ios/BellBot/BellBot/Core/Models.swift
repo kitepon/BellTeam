@@ -225,6 +225,126 @@ struct SetupAuthentication: Decodable, Equatable {
     let userCode: String?
     let inputRequired: Bool
     let message: String?
+    let authUi: AuthenticationUI?
+}
+
+struct AuthenticationBinding: Codable, Equatable {
+    let sessionId: String
+    let launchId: String?
+    let metadataIdentity: String
+    let nativeId: String
+    let paneId: String
+    let serverPid: Int
+    let serverStarted: String
+    let panePid: Int
+    let paneStarted: String
+
+    private enum DecodeKeys: String, CodingKey {
+        case sessionId, launchId, metadataIdentity, nativeId, paneId
+        case serverPid, serverStarted, panePid, paneStarted
+    }
+    private enum EncodeKeys: String, CodingKey {
+        case sessionId = "session_id", launchId = "launch_id", metadataIdentity = "metadata_identity"
+        case nativeId = "native_id", paneId = "pane_id", serverPid = "server_pid"
+        case serverStarted = "server_started", panePid = "pane_pid", paneStarted = "pane_started"
+    }
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.container(keyedBy: DecodeKeys.self)
+        sessionId = try value.decode(String.self, forKey: .sessionId)
+        launchId = try value.decodeIfPresent(String.self, forKey: .launchId)
+        metadataIdentity = try value.decode(String.self, forKey: .metadataIdentity)
+        nativeId = try value.decode(String.self, forKey: .nativeId)
+        paneId = try value.decode(String.self, forKey: .paneId)
+        serverPid = try value.decode(Int.self, forKey: .serverPid)
+        serverStarted = try value.decode(String.self, forKey: .serverStarted)
+        panePid = try value.decode(Int.self, forKey: .panePid)
+        paneStarted = try value.decode(String.self, forKey: .paneStarted)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var value = encoder.container(keyedBy: EncodeKeys.self)
+        try value.encode(sessionId, forKey: .sessionId)
+        try value.encode(launchId, forKey: .launchId)
+        try value.encode(metadataIdentity, forKey: .metadataIdentity)
+        try value.encode(nativeId, forKey: .nativeId)
+        try value.encode(paneId, forKey: .paneId)
+        try value.encode(serverPid, forKey: .serverPid)
+        try value.encode(serverStarted, forKey: .serverStarted)
+        try value.encode(panePid, forKey: .panePid)
+        try value.encode(paneStarted, forKey: .paneStarted)
+    }
+}
+
+struct AuthenticationUI: Decodable, Equatable {
+    enum Schema: String, Decodable { case v1 = "aiterm.auth-ui.v1" }
+    enum Stage: String, Decodable {
+        case openUrl = "open_url", deviceCode = "device_code", pasteCode = "paste_code"
+        case select, waiting, complete, failed, unavailable
+    }
+    enum Input: String, Decodable { case authorizationCode = "authorization_code", choice }
+    struct Choice: Decodable, Equatable, Identifiable { let id: String; let label: String }
+
+    let schema: Schema
+    let stage: Stage
+    let title: String
+    let message: String
+    let binding: AuthenticationBinding?
+    let url: String?
+    let userCode: String?
+    let input: Input?
+    let choices: [Choice]
+    let promptDigest: String?
+
+    var officialURL: URL? {
+        guard let url, let value = URL(string: url), value.scheme == "https", value.host != nil,
+              value.user == nil, value.password == nil else { return nil }
+        return value
+    }
+    var canRespond: Bool {
+        guard binding != nil, promptDigest?.isEmpty == false else { return false }
+        return switch (stage, input) {
+        case (.pasteCode, .authorizationCode): officialURL != nil
+        case (.select, .choice): !choices.isEmpty
+        default: false
+        }
+    }
+
+    func reply(_ response: AuthenticationReply.Response) -> AuthenticationReply? {
+        guard canRespond, let binding, let promptDigest else { return nil }
+        switch (input, response) {
+        case (.authorizationCode, .authorizationCode(let value)) where !value.isEmpty:
+            return AuthenticationReply(binding: binding, promptDigest: promptDigest, response: response)
+        case (.choice, .choice(let id)) where choices.contains(where: { $0.id == id }):
+            return AuthenticationReply(binding: binding, promptDigest: promptDigest, response: response)
+        default: return nil
+        }
+    }
+}
+
+struct AuthenticationReply: Encodable {
+    enum Response: Encodable {
+        case authorizationCode(String), choice(String)
+
+        private enum CodingKeys: String, CodingKey { case kind, value, id }
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            switch self {
+            case .authorizationCode(let value):
+                try container.encode("authorization_code", forKey: .kind)
+                try container.encode(value, forKey: .value)
+            case .choice(let id):
+                try container.encode("choice", forKey: .kind)
+                try container.encode(id, forKey: .id)
+            }
+        }
+    }
+
+    let binding: AuthenticationBinding
+    let promptDigest: String
+    let response: Response
+
+    private enum CodingKeys: String, CodingKey { case binding, promptDigest = "prompt_digest", response }
 }
 struct SetupResponse: Decodable {
     let phase: String
@@ -235,7 +355,6 @@ struct SetupResponse: Decodable {
     let auth: SetupAuthentication?
 }
 struct HarnessSelection: Encodable { let harness: String }
-struct AuthInput: Encodable { let text: String?; let key: String? }
 struct SetupEmptyBody: Encodable {}
 struct HarnessAuthenticationOption: Decodable, Identifiable {
     let id: String

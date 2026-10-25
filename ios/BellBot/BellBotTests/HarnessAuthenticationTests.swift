@@ -25,7 +25,7 @@ final class HarnessAuthenticationTests: XCTestCase {
         XCTAssertEqual(log.paths, ["GET /api/harness-auth/codex"])
     }
 
-    func testStartInputAndCompletionUseTheOfficialEndpoints() async throws {
+    func testStartResponseAndCompletionUseTheTypedEndpoints() async throws {
         let log = RequestLog()
         let flow = makeFlow(log) { request, _ in
             let state = request.url!.path.hasSuffix("/input") ? "authenticated" : "waiting"
@@ -35,11 +35,17 @@ final class HarnessAuthenticationTests: XCTestCase {
         XCTAssertTrue(flow.started)
         XCTAssertEqual(flow.auth?.userCode, "TEST-CODE")
         XCTAssertEqual(flow.auth?.inputRequired, true)
-        try await flow.input(text: "試験専用の入力")
+        try await flow.respond(.authorizationCode("TEST-CODE-RESPONSE"), for: XCTUnwrap(flow.auth?.authUi))
         XCTAssertEqual(flow.auth?.status, .authenticated)
         XCTAssertFalse(flow.started)
         XCTAssertEqual(log.paths, ["POST /api/harness-auth/codex/start", "POST /api/harness-auth/codex/input"])
-        XCTAssertEqual(log.bodies.last, #"{"text":"試験専用の入力"}"#)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(XCTUnwrap(log.bodies.last).utf8)) as? [String: Any])
+        XCTAssertEqual(body["prompt_digest"] as? String, String(repeating: "a", count: 64))
+        XCTAssertEqual((body["binding"] as? [String: Any])?["native_id"] as? String, "native")
+        XCTAssertEqual((body["response"] as? [String: String])?["kind"], "authorization_code")
+        XCTAssertEqual((body["response"] as? [String: String])?["value"], "TEST-CODE-RESPONSE")
+        XCTAssertNil(body["text"])
+        XCTAssertNil(body["key"])
     }
 
     func testCancelRechecksTheRealStateInsteadOfAssumingTheOldLoginSurvives() async throws {
@@ -49,12 +55,11 @@ final class HarnessAuthenticationTests: XCTestCase {
             return (200, self.response(request.httpMethod == "POST" ? "waiting" : "blocked"))
         }
         try await flow.start()
-        try await flow.input(key: "Enter")
         try await flow.cancel()
         XCTAssertFalse(flow.started)
         XCTAssertEqual(flow.auth?.status, .blocked)
         XCTAssertEqual(log.paths.suffix(2), ["POST /api/harness-auth/codex/cancel", "GET /api/harness-auth/codex"])
-        XCTAssertTrue(log.bodies.contains(#"{"key":"Enter"}"#))
+        XCTAssertFalse(log.paths.contains("POST /api/harness-auth/codex/input"))
     }
 
     func testFailedStartIsNotRetriedOrReportedAsStarted() async throws {
@@ -96,12 +101,41 @@ final class HarnessAuthenticationTests: XCTestCase {
         XCTAssertTrue(flow.started)
     }
 
+    func testUnknownResponseRequiresExplicitRefreshBeforeAnotherInput() async throws {
+        let log = RequestLog()
+        let flow = makeFlow(log) { request, _ in
+            if request.url!.path.hasSuffix("/input") {
+                return (502, #"{"error":"AUTH_RESPONSE_UNCONFIRMED","message":"認証結果を確認できませんでした。状態を更新してください。"}"#)
+            }
+            return (200, self.response("waiting", input: true))
+        }
+        try await flow.start()
+        let ui = try XCTUnwrap(flow.auth?.authUi)
+        do {
+            try await flow.respond(.authorizationCode("TEST"), for: ui)
+            XCTFail("結果不明を成功扱いしない")
+        } catch BellAPIError.httpStatus(let status, _, _) { XCTAssertEqual(status, 502) }
+        XCTAssertTrue(flow.needsRefresh)
+        let count = log.paths.count
+        try await flow.poll()
+        XCTAssertEqual(log.paths.count, count, "結果不明後に自動GETしない")
+        do {
+            try await flow.respond(.authorizationCode("TEST"), for: ui)
+            XCTFail("明示GETまで二重入力を認めない")
+        } catch BellAPIError.server { }
+        XCTAssertEqual(log.paths.count, count, "POSTを再送しない")
+        try await flow.refresh()
+        XCTAssertFalse(flow.needsRefresh)
+        XCTAssertEqual(log.paths.last, "GET /api/harness-auth/codex")
+    }
+
     private func auth(_ status: OfficialAuthenticationStatus) -> SetupAuthentication {
-        SetupAuthentication(status: status, url: nil, userCode: nil, inputRequired: false, message: nil)
+        SetupAuthentication(status: status, url: nil, userCode: nil, inputRequired: false, message: nil, authUi: nil)
     }
 
     private func response(_ status: String, input: Bool = false) -> String {
-        #"{"harness":"codex","auth":{"status":"\#(status)","url":"https://example.com/auth","user_code":"TEST-CODE","input_required":\#(input),"message":null}}"#
+        let ui = #""auth_ui":{"schema":"aiterm.auth-ui.v1","stage":"paste_code","title":"認証コード","message":"表示されたコードを入力","binding":{"session_id":"session","launch_id":null,"metadata_identity":"metadata","native_id":"native","pane_id":"pane","server_pid":101,"server_started":"2026-10-25T00:00:00Z","pane_pid":102,"pane_started":"2026-10-25T00:00:01Z"},"url":"https://example.com/auth","user_code":null,"input":"authorization_code","prompt_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","choices":[]}"#
+        return #"{"harness":"codex","auth":{"status":"\#(status)","url":"https://example.com/auth","user_code":"TEST-CODE","input_required":\#(input),"message":null\#(input ? "," + ui : "")}}"#
     }
 
     private func makeFlow(_ log: RequestLog, handler: @escaping (URLRequest, String) -> (Int, String)) -> HarnessAuthenticationFlow {

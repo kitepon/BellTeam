@@ -33,41 +33,22 @@ struct OnboardingView: View {
                                 .font(.title2.bold())
                             if let auth = setup.auth {
                                 Text(authenticationText(auth)).foregroundStyle(BellTheme.muted)
-                                if let message = auth.message, !message.isEmpty { Text(message).font(.subheadline) }
-                                if let address = auth.url, let url = URL(string: address), url.scheme == "https" {
-                                    Link("公式サイトで認証する", destination: url)
-                                        .buttonStyle(.borderedProminent)
-                                }
-                                if let code = auth.userCode, !code.isEmpty {
-                                    Text("利用者コード").font(.caption)
-                                    Text(code).font(.title3.monospaced()).textSelection(.enabled)
-                                }
-                                if auth.inputRequired {
-                                    SecureField("認証に必要な入力", text: $input)
-                                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                                        .textContentType(.password)
-                                        .padding(16).bellCard()
-                                    Button("入力を送る") {
-                                        let text = input
-                                        input = ""
-                                        perform { try await store.submitAuthInput(text: text) }
-                                    }.disabled(input.isEmpty || busy)
-                                    HStack {
-                                        ForEach(["Enter", "Up", "Down", "Tab"], id: \.self) { key in
-                                            Button(key) { perform { try await store.submitAuthInput(key: key) } }
-                                                .buttonStyle(.bordered).disabled(busy)
-                                        }
-                                    }
+                                AuthenticationInstructions(auth: auth, code: $input,
+                                                           busy: busy || store.setupAuthNeedsRefresh || errorText != nil) { response, ui in
+                                    input = ""
+                                    perform { try await store.submitAuthResponse(response, for: ui) }
                                 }
                             }
                             Button("認証を確認して始める") { perform { try await store.startGuide() } }
-                                .buttonStyle(.borderedProminent).disabled(busy)
-                            Button("認証の状態を更新") { perform(method: "GET") { try await store.refreshSetup() } }.disabled(busy)
+                                .buttonStyle(.borderedProminent)
+                                .disabled(busy || store.setupAuthNeedsRefresh || errorText != nil
+                                          || setup.auth?.status != .authenticated)
+                            Button("認証の状態を更新") { perform(method: "GET") { try await store.refreshSetup(explicit: true) } }.disabled(busy)
                             Menu("使うAIを変更") {
                                 ForEach(setup.harnesses) { harness in
                                     Button(harness.name) { perform { try await store.chooseHarness(harness.id) } }
                                 }
-                            }.disabled(busy)
+                            }.disabled(busy || store.setupAuthNeedsRefresh || errorText != nil)
                         }
                     }
                     if busy { ProgressView() }
@@ -91,6 +72,7 @@ struct OnboardingView: View {
             }
         }
         .onChange(of: scenePhase) { _, next in if next != .active { input = "" } }
+        .onChange(of: store.setup?.auth) { _, _ in input = "" }
     }
 
     private func authenticationText(_ auth: SetupAuthentication) -> String {
