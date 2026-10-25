@@ -39,7 +39,7 @@ test('初期設定中は旧接続テストで案内会話を終えず、案内�
   assert.equal(restarted, guide.id)
 })
 
-test('初期設定のAPIは公式認証の進行を渡し、開始・完了で設定イベントを出す', async t => {
+test('席のAPIは認証開始と入力を拒否し、案内会話の開始・完了は保持する', async t => {
   const calls = [], events = []
   const onboarding = {
     async status() { return { phase: 'authenticate' } },
@@ -52,10 +52,10 @@ test('初期設定のAPIは公式認証の進行を渡し、開始・完了で�
   server.notify = event => events.push(event)
   for (const [path, body] of [['harness', { harness: 'codex' }], ['auth/input', { text: '利用者の入力' }], ['start', {}], ['complete', { botId: 'bot-guide' }]]) {
     const response = await fetch(`${base}/api/setup/${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
-    assert.equal(response.status, 200)
+    assert.equal(response.status, ['harness', 'auth/input'].includes(path) ? 403 : 200)
   }
-  assert.deepEqual(calls, [['select', 'codex'], ['input', { text: '利用者の入力' }], ['start'], ['complete', 'bot-guide']])
-  assert.equal(events.length, 4)
+  assert.deepEqual(calls, [['start'], ['complete', 'bot-guide']])
+  assert.equal(events.length, 2)
   assert.ok(events.every(event => event.type === 'setup'))
 })
 
@@ -97,4 +97,19 @@ test('直接接続のHTTPはLANとloopbackを使い、外部URLはHTTPSにする
     assert.equal(isSupportedServerURL(url), true, url)
   for (const url of ['http://example.com', 'http://172.32.0.2', 'http://user:pass@192.168.1.2', 'https://example.com/path', 'ftp://192.168.1.2', 'invalid'])
     assert.equal(isSupportedServerURL(url), false, url)
+})
+
+
+test('オーナーの通常HTTPだけが初期認証の選択と同bindingの専用応答を渡す', async t => {
+  const calls = [], binding = { session_id: 'owned', launch_id: null }
+  const input = { binding, prompt_digest: 'a'.repeat(64), response: { kind: 'authorization_code', value: 'synthetic-code' } }
+  const { base } = await listen(t, { authorize: () => true, onboarding: {
+    select: async harness => { calls.push(['select', harness]); return { phase: 'authenticate' } },
+    input: async value => { calls.push(['input', value]); return { phase: 'authenticate' } },
+  } })
+  for (const [path, body] of [['harness', { harness: 'claude' }], ['auth/input', input]]) {
+    const result = await fetch(`${base}/api/setup/${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    assert.equal(result.status, 200)
+  }
+  assert.deepEqual(calls, [['select', 'claude'], ['input', input]])
 })

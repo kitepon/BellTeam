@@ -1,0 +1,1 @@
+{"requests":[{"method":"GET","path":"/api/owner","at":1792923146556,"closed":true},{"method":"GET","path":"/api/bots","at":1792923146557,"closed":true},{"method":"GET","path":"/api/queue","at":1792923146557,"closed":true},{"method":"GET","path":"/api/rooms","at":1792923146557,"closed":true}],"reports":[],"subscribers":0,"eventRequests":2}
