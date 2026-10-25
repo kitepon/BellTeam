@@ -17,6 +17,43 @@ import { UserRules } from '../src/user-rules.mjs'
 
 const appRoot = fileURLToPath(new URL('../', import.meta.url))
 
+test('監視開始に失敗した本体は取得済み監視と機能のsocketを解放し、元の失敗を返す', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-start-failure-'))
+  const home = join(root, 'home'), socketPath = join(root, 'calls.sock')
+  const seedPath = join(root, 'seed.json')
+  await writeFile(seedPath, JSON.stringify({ schema: 'bellteam.bots.v1', bots: [] }))
+  const bots = new BotRegistry({ seedPath, botsRoot: join(root, 'bots') })
+  const settings = new FeatureSettings({ root, environment: {} })
+  const ownerProfile = new OwnerProfile({ root }), userRules = new UserRules({ root })
+  for (const value of [bots, settings, ownerProfile, userRules]) await value.initialize()
+  await settings.update('callBridge', { enabled: true,
+    values: { url: 'http://127.0.0.1:9/mcp', token: 'synthetic-startup-token' } }, { allowSecretValues: true })
+  let clientClosed = 0
+  const runtime = await createApplicationRuntime({ root, appRoot, home,
+    environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0', BELLTEAM_CALL_BRIDGE_SOCKET: socketPath },
+    bootstrap: { bots, settings, ownerProfile, userRules,
+      aiterm: { command: 'synthetic-aiterm', args: ['/synthetic/native.js', '--execution-interrupt'] },
+      refreshGlobalInstructions: async () => {} },
+    client: { async close() { clientClosed++ } },
+  })
+  t.after(async () => { await runtime.close(); await rm(root, { recursive: true, force: true }) })
+  const failure = Object.assign(new Error('synthetic rooms watcher resource failure'), { code: 'EMFILE' })
+  runtime.services.rooms.watch = async () => {
+    assert.equal(runtime.services.store.listeners.size, 1)
+    assert.ok((await stat(socketPath)).isSocket())
+    throw failure
+  }
+  await assert.rejects(runtime.start(), error => error === failure)
+  assert.equal(runtime.services.store.listeners.size, 0)
+  assert.equal(runtime.server.listening, false)
+  assert.equal(runtime.internalServer.listening, false)
+  assert.equal(runtime.services.scheduler.timer, null)
+  await assert.rejects(stat(socketPath), { code: 'ENOENT' })
+  assert.equal(clientClosed, 1)
+  await runtime.close()
+  assert.equal(clientClosed, 1)
+})
+
 test('runtime factoryのimportだけでは本体起動・台帳作成・CLI接続をしない', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'bellteam-runtime-import-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
