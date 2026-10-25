@@ -327,4 +327,31 @@ final class GoalsUITests: XCTestCase {
         XCTAssertEqual(writes[0]["action"] as? String, "clear")
         XCTAssertEqual(writes[0]["botId"] as? String, "bot-one")
     }
+
+    func testGrokUsesCurrentStatusAndKeepsBusyUnavailable() async throws {
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_GOALS_FIXTURE_URL"])
+        let reset = try XCTUnwrap(URL(string: url + "/test/reset"))
+        let (_, response) = try await URLSession.shared.data(from: reset)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", url]
+        app.launch()
+        defer { app.terminate() }
+        app.tabBars.buttons["ゴール"].tap()
+        XCTAssertTrue(app.staticTexts["Grokの資料をまとめる"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["一時停止 · 待機"].exists)
+        XCTAssertTrue(app.staticTexts["使用トークン 4,906 · 経過 14s"].exists)
+        XCTAssertFalse(app.staticTexts["進行中 · 実行中"].exists, "保存されたnative.phaseを現在状態へ使わない")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "19,000")).firstMatch.exists,
+                       "累積high-waterを現在のトークン量へ使わない")
+        for action in ["create", "edit", "pause", "resume", "clear"] {
+            XCTAssertFalse(app.buttons["goal-\(action)-bot-one"].exists)
+        }
+        XCTAssertTrue(app.staticTexts["現在ゴールを取得できません。"].exists)
+        XCTAssertFalse(app.staticTexts["ゴールなし"].exists, "busyを空のゴールに見せない")
+        let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
+        let (data, _) = try await URLSession.shared.data(from: proofURL)
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual((proof["writes"] as? [[String: Any]])?.count, 0)
+    }
 }

@@ -68,6 +68,26 @@ private struct ClaudeGoalStatus: Decodable {
 }
 
 private enum ClaudeGoalPhase: String, Decodable { case active }
+private struct GrokGoalNative: Decodable { let objective: String }
+private struct GrokCurrentStatus: Decodable {
+    enum Source: String, Decodable { case goalStatus = "/goal status" }
+    enum Status: String, Decodable { case active = "Active", userPaused = "UserPaused" }
+    enum Phase: String, Decodable {
+        case idle = "Idle", planning = "Planning", executing = "Executing"
+        var title: String {
+            switch self {
+            case .idle: "待機"
+            case .planning: "計画中"
+            case .executing: "実行中"
+            }
+        }
+    }
+    let source: Source
+    let status: Status
+    let phase: Phase
+    let tokensUsed: Int
+    let elapsedDisplay: String
+}
 private enum GoalHistoryKind: String, Decodable { case claudeCode = "claude-code" }
 private enum GoalTerminal: String, Decodable {
     case cleared, achieved
@@ -77,8 +97,9 @@ private enum GoalTerminal: String, Decodable {
 private enum NativeGoal: Decodable {
     case codex(CodexGoal)
     case claude(phase: ClaudeGoalPhase, native: ClaudeGoalStatus, reportedTurns: Int?)
+    case grok(native: GrokGoalNative, current: GrokCurrentStatus)
 
-    private enum CodingKeys: String, CodingKey { case kind, native, phase, reportedTurns }
+    private enum CodingKeys: String, CodingKey { case kind, native, phase, reportedTurns, currentStatus }
 
     init(from decoder: Decoder) throws {
         let value = try decoder.container(keyedBy: CodingKeys.self)
@@ -92,6 +113,12 @@ private enum NativeGoal: Decodable {
             }
             self = .claude(phase: try value.decode(ClaudeGoalPhase.self, forKey: .phase), native: native,
                            reportedTurns: try value.decodeIfPresent(Int.self, forKey: .reportedTurns))
+        case "grok-cli":
+            let current = try value.decode(GrokCurrentStatus.self, forKey: .currentStatus)
+            guard current.tokensUsed >= 0, !current.elapsedDisplay.isEmpty else {
+                throw DecodingError.dataCorruptedError(forKey: .currentStatus, in: value, debugDescription: "Invalid Grok current status")
+            }
+            self = .grok(native: try value.decode(GrokGoalNative.self, forKey: .native), current: current)
         default: throw DecodingError.dataCorruptedError(forKey: .kind, in: value, debugDescription: "Unknown goal kind")
         }
     }
@@ -100,6 +127,7 @@ private enum NativeGoal: Decodable {
         switch self {
         case .codex(let goal): goal.objective
         case .claude(_, let native, _): native.condition
+        case .grok(let native, _): native.objective
         }
     }
     var tokenBudget: Int? {
@@ -110,16 +138,20 @@ private enum NativeGoal: Decodable {
         switch self {
         case .codex(let goal): goal.status.title
         case .claude: "進行中"
+        case .grok(_, let current):
+            "\(current.status == .userPaused ? "一時停止" : "進行中") · \(current.phase.title)"
         }
     }
     var isActive: Bool {
         switch self {
         case .codex(let goal): goal.status == .active
         case .claude: true
+        case .grok(_, let current): current.status == .active
         }
     }
     var isPaused: Bool {
         if case .codex(let goal) = self { return goal.status == .paused }
+        if case .grok(_, let current) = self { return current.status == .userPaused }
         return false
     }
     var usageText: String {
@@ -133,6 +165,8 @@ private enum NativeGoal: Decodable {
             if let iterations = native.iterations { parts.append("反復数 \(iterations.formatted())") }
             if let reportedTurns { parts.append("CLI表示ターン数 \(reportedTurns.formatted())") }
             return parts.isEmpty ? "使用量・作業時間はまだ取得していません。" : parts.joined(separator: " · ")
+        case .grok(_, let current):
+            return "使用トークン \(current.tokensUsed.formatted()) · 経過 \(current.elapsedDisplay)"
         }
     }
 }

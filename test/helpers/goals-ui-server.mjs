@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 
 const full = process.env.GOALS_FIXTURE_FULL === '1'
 const tagged = process.env.GOALS_FIXTURE_TAGGED === '1'
+const grok = process.env.GOALS_FIXTURE_GROK === '1'
 const binding = id => ({ sessionId: `session-${id}`, launchId: '0123456789abcdef0123456789abcdef', threadId: `thread-${id}` })
 const capabilities = (goal, available = true) => {
   const status = goal?.kind === 'codex-cli' ? goal.native.status : goal?.kind === 'claude-code' ? goal.phase : goal?.status
@@ -24,20 +25,27 @@ const activeGoal = { threadId: 'thread-bot-two', objective: '利用者に今日�
 const claudeGoal = () => ({ kind: 'claude-code', phase: 'active', native: {
   type: 'goal_status', condition: '資料を整理して報告する', met: false, tokens: 1234, durationMs: 5000, iterations: 3,
 }, reported_turns: 2 })
+const grokGoal = () => ({ kind: 'grok-cli', native: {
+  goal_id: 'fixture-goal', objective: 'Grokの資料をまとめる', status: 'active', phase: 'Executing',
+  token_budget: 20000, elapsed_ms: 910000, tokens_used_high_water: 19000,
+}, current_status: { source: '/goal status', status: 'UserPaused', phase: 'Idle',
+  tokens_used: 4906, elapsed_display: '14s' } })
+const inspectOnly = { inspect: true, create: false, edit: false, pause: false, resume: false, clear: false }
 const initialSnapshots = () => {
-  const one = tagged ? claudeGoal() : null
-  const two = tagged ? { kind: 'codex-cli', native: { ...activeGoal } } : { ...activeGoal }
+  const one = grok ? grokGoal() : tagged ? claudeGoal() : null
+  const two = tagged || grok ? { kind: 'codex-cli', native: { ...activeGoal } } : { ...activeGoal }
+  const oneCapabilities = grok ? inspectOnly : capabilities(one)
   return new Map([
   ['bot-one', { botId: 'bot-one', availability: 'available', binding: binding('bot-one'), goal: one,
-    capabilities: capabilities(one), fieldCapabilities: fieldCapabilities(capabilities(one)),
+    capabilities: oneCapabilities, fieldCapabilities: fieldCapabilities(oneCapabilities),
     observedAt: '2026-10-25T00:00:00Z', message: null }],
   ['bot-two', { botId: 'bot-two', availability: 'available', binding: binding('bot-two'), goal: two,
     capabilities: capabilities(two), fieldCapabilities: fieldCapabilities(capabilities(two)),
     observedAt: '2026-10-25T00:00:00Z', message: null }],
-  ['bot-three', { botId: 'bot-three', availability: 'unsupported', binding: null,
+  ['bot-three', { botId: 'bot-three', availability: grok ? 'unavailable' : 'unsupported', binding: null,
     capabilities: capabilities(null, false), fieldCapabilities: fieldCapabilities(capabilities(null, false)),
     observedAt: '2026-10-25T00:00:00Z',
-    message: 'このメンバーではゴール機能をまだ利用できません。' }],
+    message: grok ? '現在ゴールを取得できません。' : 'このメンバーではゴール機能をまだ利用できません。' }],
   ])
 }
 let snapshots = initialSnapshots()
