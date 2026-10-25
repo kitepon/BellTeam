@@ -22,7 +22,7 @@ async function reset(next) {
   intake = createBellTeamServer({ authorize: async () => true, bots: { refresh: async () => {} }, diagnostics })
 }
 await reset('normal')
-const bot = () => ({ id: 'bot-one', ...saved, displayName: saved.name, online: true, recent: null })
+const bot = () => ({ id: 'bot-one', ...saved, displayName: saved.name, fastMode: false, online: true, recent: null })
 const owner = { name: '試験用', profile: '', avatar: '', xUrl: '', githubUrl: '', links: [] }
 const subscription = { productId: 'dev.kitepon.bellbot.monthly', environment: 'Sandbox', accessMode: 'developer', setupComplete: true, entitled: false, state: 'none', checkedAt: null, expiresAt: null, validUntil: null, autoRenewing: false, error: null }
 const setting = { id: 'routing', title: '試験機能', enabled: true, status: 'enabled', error: null, fields: [{ key: 'label', label: '試験の値', secret: false, value: '保持する値', configured: true }] }
@@ -62,6 +62,11 @@ const server = createServer(async (request, response) => {
     const body = JSON.parse(Buffer.concat(chunks).toString())
     record.imageCount = body.images?.length ?? 0
     if (mode === 'post-failure') { request.socket.destroy(); return }
+    if (mode === 'post-http-503') {
+      response.writeHead(503, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'TEST_HTTP_503' }))
+      return
+    }
     if (['post-wait', 'post-wait-long', 'post-wait-history'].includes(mode)) {
       pendingPost = { response }
       sentMessages.push({ id: 'accepted-message', kind: 'message', direction: 'outgoing',
@@ -97,7 +102,7 @@ const server = createServer(async (request, response) => {
     return json(response, { items: [...items, ...sentMessages], hasMore: false })
   }
   if (url.pathname.endsWith('/queue') || url.pathname === '/api/queue') return json(response, { items: [] })
-  if (url.pathname === '/api/bots/bot-one') return json(response, { bot: saved })
+  if (url.pathname === '/api/bots/bot-one') return json(response, { bot: bot() })
   if (url.pathname === '/api/bots') return json(response, { bots: [bot()] })
   if (url.pathname === '/api/rooms') return json(response, { rooms: [] })
   if (url.pathname === '/api/owner') return json(response, { owner })
