@@ -375,4 +375,32 @@ final class GoalsUITests: XCTestCase {
         let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual((proof["writes"] as? [[String: Any]])?.count, 0)
     }
+
+    func testGrokDetailDisplaysRawFieldsAndAllowsNullPhase() async throws {
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_GOALS_FIXTURE_URL"])
+        let reset = try XCTUnwrap(URL(string: url + "/test/reset"))
+        let (_, response) = try await URLSession.shared.data(from: reset)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", url]
+        app.launch()
+        defer { app.terminate() }
+        app.tabBars.buttons["ゴール"].tap()
+        XCTAssertTrue(app.staticTexts["Grokの資料をまとめる"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Active ⸬ · Planning"].exists)
+        XCTAssertTrue(app.staticTexts["Planning · 4.9k / 1 tokens (100%) · 26s"].exists)
+        XCTAssertFalse(app.staticTexts["進行中 · 待機"].exists, "保存native.phaseでdetailのnullを補わない")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "19,000")).firstMatch.exists)
+
+        let change = try XCTUnwrap(URL(string: url + "/test/grok-null-phase"))
+        let (_, changed) = try await URLSession.shared.data(from: change)
+        XCTAssertEqual((changed as? HTTPURLResponse)?.statusCode, 200)
+        app.buttons["ゴールを更新"].tap()
+        XCTAssertTrue(app.staticTexts["4.9k / 1 tokens (100%) · 26s"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Active ⸬ · Planning"].exists)
+        let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
+        let (data, _) = try await URLSession.shared.data(from: proofURL)
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual((proof["writes"] as? [[String: Any]])?.count, 0)
+    }
 }

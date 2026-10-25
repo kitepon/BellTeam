@@ -69,8 +69,12 @@ private struct ClaudeGoalStatus: Decodable {
 
 private enum ClaudeGoalPhase: String, Decodable { case active }
 private struct GrokGoalNative: Decodable { let objective: String }
-private struct GrokCurrentStatus: Decodable {
-    enum Source: String, Decodable { case goalStatus = "/goal status" }
+private enum GrokCurrentStatus: Decodable {
+    case status(StatusSnapshot)
+    case detail(DetailSnapshot)
+
+    private enum Source: String, Decodable { case goalStatus = "/goal status", goalDetail = "goal detail" }
+    private enum CodingKeys: String, CodingKey { case source }
     enum Status: String, Decodable { case active = "Active", userPaused = "UserPaused" }
     enum Phase: String, Decodable {
         case idle = "Idle", planning = "Planning", executing = "Executing"
@@ -82,11 +86,63 @@ private struct GrokCurrentStatus: Decodable {
             }
         }
     }
-    let source: Source
-    let status: Status
-    let phase: Phase
-    let tokensUsed: Int
-    let elapsedDisplay: String
+    struct StatusSnapshot: Decodable {
+        let status: Status
+        let phase: Phase
+        let tokensUsed: Int
+        let elapsedDisplay: String
+    }
+    struct DetailSnapshot: Decodable {
+        enum Status: String, Decodable { case active = "Active", paused = "Paused" }
+        let status: Status
+        let phase: String?
+        let tokensUsed: Int?
+        let statusDisplay: String
+        let phaseDisplay: String?
+        let budgetDisplay: String
+        let elapsedDisplay: String
+    }
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.container(keyedBy: CodingKeys.self)
+        switch try value.decode(Source.self, forKey: .source) {
+        case .goalStatus: self = .status(try StatusSnapshot(from: decoder))
+        case .goalDetail: self = .detail(try DetailSnapshot(from: decoder))
+        }
+    }
+
+    var statusTitle: String {
+        switch self {
+        case .status(let current): "\(current.status == .userPaused ? "一時停止" : "進行中") · \(current.phase.title)"
+        case .detail(let current): current.statusDisplay
+        }
+    }
+    var usageText: String {
+        switch self {
+        case .status(let current): "使用トークン \(current.tokensUsed.formatted()) · 経過 \(current.elapsedDisplay)"
+        case .detail(let current):
+            [current.phaseDisplay, current.budgetDisplay, current.elapsedDisplay]
+                .compactMap { $0 }.joined(separator: " · ")
+        }
+    }
+    var isActive: Bool {
+        switch self {
+        case .status(let current): current.status == .active
+        case .detail(let current): current.status == .active
+        }
+    }
+    var isPaused: Bool {
+        switch self {
+        case .status(let current): current.status == .userPaused
+        case .detail(let current): current.status == .paused
+        }
+    }
+    var elapsedDisplay: String {
+        switch self {
+        case .status(let current): current.elapsedDisplay
+        case .detail(let current): current.elapsedDisplay
+        }
+    }
 }
 private enum GoalHistoryKind: String, Decodable { case claudeCode = "claude-code" }
 private enum GoalTerminal: String, Decodable {
@@ -138,20 +194,19 @@ private enum NativeGoal: Decodable {
         switch self {
         case .codex(let goal): goal.status.title
         case .claude: "進行中"
-        case .grok(_, let current):
-            "\(current.status == .userPaused ? "一時停止" : "進行中") · \(current.phase.title)"
+        case .grok(_, let current): current.statusTitle
         }
     }
     var isActive: Bool {
         switch self {
         case .codex(let goal): goal.status == .active
         case .claude: true
-        case .grok(_, let current): current.status == .active
+        case .grok(_, let current): current.isActive
         }
     }
     var isPaused: Bool {
         if case .codex(let goal) = self { return goal.status == .paused }
-        if case .grok(_, let current) = self { return current.status == .userPaused }
+        if case .grok(_, let current) = self { return current.isPaused }
         return false
     }
     var usageText: String {
@@ -166,7 +221,7 @@ private enum NativeGoal: Decodable {
             if let reportedTurns { parts.append("CLI表示ターン数 \(reportedTurns.formatted())") }
             return parts.isEmpty ? "使用量・作業時間はまだ取得していません。" : parts.joined(separator: " · ")
         case .grok(_, let current):
-            return "使用トークン \(current.tokensUsed.formatted()) · 経過 \(current.elapsedDisplay)"
+            return current.usageText
         }
     }
 }
