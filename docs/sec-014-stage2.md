@@ -411,3 +411,29 @@ adapter regressions cover pre-metadata disconnect, delayed failure at lengths
 four and zero, and successful empty content. Together with the binary stream
 regressions, nine focused tests pass. The final default suite passes 785 tests,
 with no failures, cancellations or skips. No whole-file buffer was introduced.
+
+## Offline state-content transfer (2026-10-25)
+
+The stopped-writer transfer moves Bot profiles, schedules and message assets
+from seat projects to state/bots, plus subscription/onboarding/AI-control and
+call-bridge headers into state. Seat docs/memory/CLI files remain in place.
+It validates remaining profiles/schedules first, rejects symlinks, hardlinks,
+conflicting destinations and pending registry deletion, and copies a regular
+file through a synced temporary destination before retiring its source. Both
+directory sides are synced; no whole-image buffer is used. Existing AI-control
+validation and current-state return semantics are reused.
+
+The destination .initialized marker is created only after all selected data
+is transferred. A stopped failed transfer can resume from source plus already
+transferred identical destination files. Recovery after committing the new
+marker can remove only the leftover old marker; surviving legacy state is a
+conflict. An empty installation is distinct from missing migration metadata.
+Returning to legacy reads the CURRENT split state, including changed schedules,
+AI pause intent and Bot additions/deletions, instead of restoring old copies.
+
+This is the content-transfer component. It is NOT a stopped-writer proof,
+credential backup/restore policy, ownership or mount setup, or an installer.
+The privileged offline caller and installer must still wire those conditions
+and must not start either generation after a transfer error. The branch stays
+Draft and NOTDEPLOYABLE pending that integration and the existing four-CLI/PGID
+and downtime acceptance.
