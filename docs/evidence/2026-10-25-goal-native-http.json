@@ -1,0 +1,56 @@
+{
+  "stage": "ordinary native HTTP read/pause/resume/clear accepted; create/edit and other CLI support incomplete",
+  "bellteamSource": "a4b93a0ce11f74de4de8babf14b3c08d271a1f87",
+  "aitermPrototypeSource": "1edf5b606f9fb4f2cece327f46133bb432b345d8",
+  "aitermPrototypeTarSha256": "7e8b9fc18942831a7fac85809fa2c8a55cc99254a8ba5e5f33b40f6f9a360c2c",
+  "fullNode": {
+    "tests": 763,
+    "pass": 763,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "actualHttpPath": true,
+  "artificialProviderOnly": true,
+  "currentCreationFixtureUsesCliNotHttp": true,
+  "remaining": [
+    "ordinary CLI creation/editing",
+    "other CLI and platform adapters",
+    "independent source review, formal upstream release and candidate distribution",
+    "Apple UI and Owner acceptance"
+  ],
+  "evidence": [
+    {
+      "path": "native-http-probe.mjs",
+      "sha256": "364a5be914ae952828feecee4c812516c528543548e9e53d5b97c839d1aa0907"
+    },
+    {
+      "path": "native-http-result.json",
+      "sha256": "41ac88e72cc442d91a08a7e23437a9e1256b2fd0ea1526e2fefa1893f04a035a"
+    },
+    {
+      "path": "native-http-probe.log",
+      "sha256": "a6dfa8d0697eda06f3ae3d68eafcbd20ea96ff1df9c47bf05fed8988f27ee844"
+    },
+    {
+      "path": "native-http-resume-probe.mjs",
+      "sha256": "3b892571458ba12984d68cb7505e36d07569a21bc59a0bfbb369800091465d24"
+    },
+    {
+      "path": "native-http-resume-result.json",
+      "sha256": "686a914b8b9c7819699e3cedffd3d69456b7600f9b32ab461061eb49f1702a1a"
+    },
+    {
+      "path": "native-http-resume-probe.log",
+      "sha256": "d527be480cfeddca2415c1c0263ff2d3be7907a83bf9fe28c37483ca4517b16e"
+    },
+    {
+      "path": "goal-native-full.log",
+      "sha256": "3a6fc51c395228d3c01b6e35ea85a8d2bce066937e69bd93e498ce79fcf23c4e"
+    },
+    {
+      "path": "elegg-global-stop/binding.json",
+      "sha256": "f991417e1b1317e833f5af40332fbbf87088455385a2c40918a6dfd5a045e72b"
+    }
+  ]
+}
