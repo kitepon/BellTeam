@@ -1,0 +1,15 @@
+# 旧Apple書き込み5xxの人工画面試験
+
+旧記録`b7ba16cde1238790f2c81859a819201e974166b6c8859eeb30bc4d848d111b1c`はメッセージPOSTのHTTP 500、`74e509a86df1b237f0fc23dd76ef048d7151d562c124064cc2de187f7dfa8974`は停止POSTのHTTP 502と結果不明を示す。どちらも元の応答本文・画面・サーバー原因は確認できていない。同じ種類の失敗を人工HTTPで作り、現在のAppleアプリの操作を測った。
+
+## メッセージPOST 500
+
+iPhone 16 Pro Max / iOS 26.5 Simulatorで通常の`AppStore`と`ConversationView`を人工サーバーへ接続し、本文「500後も残す本文」を送信した。HTTP 500後は失敗を表示し、本文と既存会話を保持。最初のPOSTは1回だけで自動再送なし。サーバーを正常応答へ切り替え、利用者が送信ボタンを押した後に2回目のPOSTが出た。2回目より後のメンバー一覧GETまでサーバー記録で待ち、入力欄が空になることを確認した。focused試験`testHTTP500PostKeepsDraftUntilExplicitRetry`は1件成功・失敗0件。
+
+## 停止POST 502
+
+同じiPhoneの人工会話に処理中のBotを表示し、下書き「次の依頼」を入力して停止した。HTTP 502後は「停止操作の結果を確認できませんでした」と表示し、下書きと処理待ちの停止ボタンを保持。停止POSTは1回のみで自動再送なし。失敗後の処理待ちGETも記録した。サーバーを正常応答へ切り替えて利用者がもう一度停止ボタンを押すと2回目のPOSTが出て、停止受付表示と処理待ちGETを確認した。下書きは変わらない。focused試験`testStopHTTP502ShowsUnknownOutcomeWithoutAutomaticRetry`は1件成功・失敗0件。
+
+2件を同じfocused実行で確認したXCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T09-31-12-733Z_pid8412_ff4f54b8.xcresult`。停止502の通信・診断原本は作業treeの`runtime/apple/legacy-errors/stop502-proof.json`、SHA-256は`2209cfa5b623a2538fa1c2979e9711f002ebfcf689159f6775ccd5ee8a15315c`。POSTは2回、処理待ちGETは初期・失敗後・明示再試行後の3回。人工502の診断fingerprintは旧記録と同じで、分類の一致だけを示す。500の通信記録は次の試験で人工サーバーを初期化したため、件数と次GETの判定はXCResultのassertionに残る。
+
+人工サーバーは既存`test/fixtures/bughub-ui-probe.mjs`に明示的な500/502応答と、停止後の処理待ち表示を追加した。製品コードの変更はない。人工試験の成功を旧事象の原因判明や回復とは扱わない。実Bot・オーナーの通常アプリ・認証・公開サービスには触れていない。人工サーバーとSimulatorは終了を確認した。
