@@ -29,3 +29,11 @@ Draft PR42 の途中工程。利用者分離全体はまだ NOTDEPLOYABLE であ
 forwardは6領域移動→既台帳予定画像transfer→新側所有、reverseは最新metadata transfer→6領域を旧側へ移動→旧側所有。異なる同名内容は衝突として両方残し、暗黙上書きや旧backup復元をしない。既moveFile/moveTreeの内容確認・fsync・途中再開契約を共有し、通常のmetadata移動では従来どおり元subdirを退役する。固定root CLI以外からpath/コードを渡す口は作っていない。
 
 この段階は普通の人工filesystemでの内容・順序の受入であり、二つのdata viewと6独立bindの実mount受入ではない。固定prepare/maintenance Compose、writer分母/排他・専用親ACL/祖先alias・通常側への旧view/backup非露出・外側socket重ね順は未実装で、既installerは依然この保守口を実行できない。全体NOTDEPLOYABLEを維持する。
+
+## 空の専用6領域を先に準備する部品
+
+`compose.state-prepare.yaml` は通常serviceとmergeせず、host担当が既にroot:root0700で用意・排他した専用親だけを `/srv/bellteam-state-parent` へRW bindする。HOME/data/backup/資格/port/environment/env_file/Docker socketは渡さず、固定 `/usr/bin/env -i PATH=... node /app/src/server-state-prepare.mjs` だけを起動する。imageの既定entryを使わず、追加引数・実/実効UIDGID0以外は親へ触る前に拒否する。networknone/RO/NNP、CPU1/RAM2GiB=swap/PIDs512、tmpfs64MiB。chmodを元root所有の間に済ませてから1001へchownするため、cap_drop ALLから追加するcapはCHOWNだけとし、実kernel/Compose互換は別受入で確認する。
+
+専用親に未知の内容や記録のない既存leafがあれば取り込まず終了する。空の場合だけstate/rooms/owner/logs/bellteam-settings/apnsの6dirを711・1001:1001へ準備し、同期後に親とleafのdev/inodeをroot専用600の `.prepared.json` へ確定する。既存はこの記録・inode・owner/modeが一致する場合だけ再利用し、inode交代や途中失敗を再帰chownや初期化で隠さない。失敗時は完了印なし・FDを閉じて未完を保持し、通常起動へ進めない。既存stateの内容は読まない。
+
+人工FS確認ではchownとそのowner stat値だけを置換し、mode/inode/link/fsync/FD closeは実filesystemで確認した。CLIのroot拒否も人工identityで確認する。新YAMLはsource静的確認まで、実Compose parse/実UID/capability/mountは未受入。通常installerの接続、二view維持・writer分母・新旧通常非同時起動を含む全構成は未完成で、DraftNOTDEPLOYABLEを維持する。
