@@ -214,3 +214,32 @@ then the necessary fixed-slot/terminal-save seven, then native-birth/entry check
 with final eight are kept as separate logs, not counted as 21 distinct cases.
 Old actor/prepare/control/FULL successes are not repeated. Whole Draft remains
 NOTDEPLOYABLE; real host/root/Docker/key operations and normal startup are zero.
+
+
+## Bounded writer snapshot metadata consumer (source only)
+
+`distribution/internal/sec014-writer-snapshot.mjs` reuses the existing
+`stateWriterPlan`, `stateWriterVolumes`, `stateWriterSources` and
+`assertStateWritersStopped`. It extracts only the mount plan from in-memory
+Compose input; credentials are not copied into the plan or metadata result.
+The fixed list/projection/volume argv has maxima of 128 container IDs, 128
+volumes, 64 mounts per container and 512 canonical paths, at most 130 Docker
+commands. Excess, duplicate/missing IDs, mismatched raw byte counts/SHA,
+nonzero/unknown terminal, arbitrary argv and unredacted volume metadata refuse
+intake. All actual commands remain unissued: this module does not spawn.
+
+The result is explicitly `docker-writer-metadata-only` and produces no phase
+receipt. It cannot prove host writer participation, nonparticipating writer
+stop/respawn suppression, or the two actual normal-container identities from
+Docker mount overlap alone. Canonical path inputs are observations requiring a
+separate trusted host producer, not a host alias/ACL verification by this module.
+The real finite collector, source/Compose/image/transaction bindings, parent-FD
+lock through all observations and host authority/lifecycle for the writer phase
+remain unconnected. The existing prepare-only 57 slots/11-ready contract is
+unchanged and must not be reused for this phase. No CLI/factory/installer change,
+Docker, host observation, actual root/mount/ACL or normal start was added.
+Whole Draft NOTDEPLOYABLE remains in force.
+
+Six new artificial Node cases cover the bounded metadata intake and never execute
+Docker or call old tests. They are ordinary in-memory fixtures; their synthetic
+PID/startTicks fields are not actual child terminal/host authority evidence.
