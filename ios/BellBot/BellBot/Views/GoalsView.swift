@@ -224,6 +224,13 @@ private enum NativeGoal: Decodable {
             return current.usageText
         }
     }
+    var elapsedText: String? {
+        switch self {
+        case .codex(let goal): "\(goal.timeUsedSeconds.formatted())秒"
+        case .claude(_, let native, _): native.durationMs.map { "\($0.formatted())ミリ秒" }
+        case .grok(_, let current): current.elapsedDisplay
+        }
+    }
 }
 
 private struct GoalNativeHistory: Decodable {
@@ -278,94 +285,40 @@ private struct GoalEditorSelection: Identifiable {
     var id: String { snapshot.botId }
 }
 
-struct GoalsView: View {
-    @EnvironmentObject private var store: AppStore
-    @Environment(\.scenePhase) private var scenePhase
-    @State private var snapshots: [GoalSnapshot] = []
-    @State private var loading = false
-    @State private var loaded = false
-    @State private var mutating = false
-    @State private var needsRefresh = false
-    @State private var errorText: String?
-    @State private var editing: GoalEditorSelection?
+@MainActor
+private final class GoalViewModel: ObservableObject {
+    @Published var snapshots: [GoalSnapshot] = []
+    @Published var loading = false
+    @Published var loaded = false
+    @Published var mutating = false
+    @Published var needsRefresh = false
+    @Published var errorText: String?
 
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                BellBackground()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        Text("ゴール")
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                            .foregroundStyle(BellTheme.ink)
-                        Text("メンバーが取り組んでいる目的と、現在の状態。")
-                            .foregroundStyle(BellTheme.muted)
-                        if let errorText {
-                            Text(errorText).font(.footnote).foregroundStyle(.red)
-                                .accessibilityIdentifier("goal-error")
-                        }
-                        if loading && !loaded {
-                            ProgressView().frame(maxWidth: .infinity).padding(.top, 75)
-                        } else if !loaded {
-                            ContentUnavailableView("ゴールを読み込めませんでした", systemImage: "wifi.exclamationmark",
-                                                   description: Text("更新して確認してください。"))
-                                .frame(maxWidth: .infinity)
-                        } else if snapshots.isEmpty {
-                            ContentUnavailableView("メンバーがいません", systemImage: "person.2")
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            ForEach(snapshots) { snapshot in
-                                let bot = store.bots.first { $0.id == snapshot.botId }
-                                GoalCard(snapshot: snapshot, name: bot?.displayName ?? snapshot.botId,
-                                         busy: loading || mutating || needsRefresh,
-                                         onEdit: { action in
-                                             editing = GoalEditorSelection(snapshot: snapshot,
-                                                                           name: bot?.displayName ?? snapshot.botId,
-                                                                           harness: bot?.harness ?? "", action: action)
-                                         }, onAction: { action in
-                                             Task { await run(snapshot, action: action) }
-                                         })
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 22)
-                    .padding(.top, 24)
-                    .padding(.bottom, 30)
-                }
-                .refreshable { await load() }
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") }
-                        .accessibilityLabel("ゴールを更新")
-                        .disabled(loading || mutating)
-                }
-            }
-            .sheet(item: $editing) { selection in
-                GoalEditor(selection: selection, snapshots: $snapshots, refreshing: $loading) { objective, tokenBudget in
-                    try await change(selection.snapshot, action: selection.action,
-                                     objective: objective, tokenBudget: tokenBudget)
-                }
-                .environmentObject(store)
-            }
-            .task(id: store.selectedTab) { if store.selectedTab == 3 { await load() } }
-            .onChange(of: scenePhase) { _, phase in
-                if phase == .active && store.selectedTab == 3 { Task { await load() } }
-            }
-            .onChange(of: store.eventRevision) { _, _ in
-                if store.selectedTab == 3 { Task { await load() } }
-            }
-        }
+    var currentSnapshots: [GoalSnapshot] { needsRefresh ? [] : snapshots }
+    func currentSnapshot(for botId: String) -> GoalSnapshot? {
+        currentSnapshots.first { $0.botId == botId }
     }
 
-    @MainActor private func load() async {
+    func loadList(store: AppStore) async { await load(path: "/api/goals", botId: nil, store: store) }
+    func loadDetail(botId: String, store: AppStore) async {
+        await load(path: "/api/bots/\(botId)/goal", botId: botId, store: store)
+    }
+
+    private func load(path: String, botId: String?, store: AppStore) async {
         guard !loading && !mutating else { return }
         loading = true
         defer { loading = false }
         do {
-            let result: GoalsResponse = try await store.api.get("/api/goals")
-            try Task.checkCancellation()
-            snapshots = result.goals
+            if let botId {
+                let result: GoalDetailResponse = try await store.api.get(path)
+                try Task.checkCancellation()
+                guard result.snapshot.botId == botId else { throw GoalViewError.invalidResponse }
+                snapshots = [result.snapshot]
+            } else {
+                let result: GoalsResponse = try await store.api.get(path)
+                try Task.checkCancellation()
+                snapshots = result.goals
+            }
             loaded = true
             needsRefresh = false
             errorText = nil
@@ -374,12 +327,12 @@ struct GoalsView: View {
         catch {
             needsRefresh = true
             errorText = error.localizedDescription
-            store.api.diagnostics.report(error, path: "/api/goals", method: "GET",
+            store.api.diagnostics.report(error, path: path, method: "GET",
                                          observation: .read(error, retainedData: !snapshots.isEmpty))
         }
     }
 
-    @MainActor private func replace(_ snapshot: GoalSnapshot) {
+    private func replace(_ snapshot: GoalSnapshot) {
         if let index = snapshots.firstIndex(where: { $0.botId == snapshot.botId }) {
             snapshots[index] = snapshot
         } else {
@@ -387,14 +340,14 @@ struct GoalsView: View {
         }
     }
 
-    @MainActor private func run(_ snapshot: GoalSnapshot, action: String) async {
-        do { try await change(snapshot, action: action) }
+    func run(_ snapshot: GoalSnapshot, action: String, store: AppStore) async {
+        do { try await change(snapshot, action: action, store: store) }
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch { errorText = error.localizedDescription }
     }
 
-    @MainActor private func change(_ snapshot: GoalSnapshot, action: String,
-                                    objective: String? = nil, tokenBudget: Int? = nil) async throws {
+    func change(_ snapshot: GoalSnapshot, action: String, store: AppStore,
+                objective: String? = nil, tokenBudget: Int? = nil) async throws {
         guard !loading else { throw GoalViewError.refreshing }
         guard !mutating && !needsRefresh else { throw GoalViewError.outcomeUnconfirmed }
         guard let current = snapshots.first(where: { $0.botId == snapshot.botId }),
@@ -414,9 +367,8 @@ struct GoalsView: View {
         } catch {
             store.api.diagnostics.report(error, path: path, method: "POST", observation: .write)
             let latest: GoalDetailResponse
-            do {
-                latest = try await store.api.get(path)
-            } catch {
+            do { latest = try await store.api.get(path) }
+            catch {
                 needsRefresh = true
                 store.api.diagnostics.report(error, path: path, method: "GET",
                                              observation: .read(error, retainedData: true))
@@ -442,29 +394,283 @@ struct GoalsView: View {
     }
 }
 
+struct GoalsView: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var goals = GoalViewModel()
+    @State private var editing: GoalEditorSelection?
+
+    private var configured: [GoalSnapshot] {
+        goals.currentSnapshots.filter { $0.availability == .available && $0.goal != nil }
+    }
+    private var unavailable: [GoalSnapshot] {
+        goals.currentSnapshots.filter { $0.availability != .available }
+    }
+    private var createCandidates: [GoalSnapshot] {
+        goals.currentSnapshots.filter { $0.availability == .available && $0.goal == nil
+            && $0.capabilities.create && $0.fieldCapabilities.create.objective }
+    }
+
+    private func select(_ snapshot: GoalSnapshot, action: String) {
+        let bot = store.bots.first { $0.id == snapshot.botId }
+        editing = GoalEditorSelection(snapshot: snapshot, name: bot?.displayName ?? snapshot.botId,
+                                      harness: bot?.harness ?? "", action: action)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                BellBackground()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("ゴール")
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
+                            .foregroundStyle(BellTheme.ink)
+                        Text("設定済みのゴールと、現在取得できた状態。")
+                            .foregroundStyle(BellTheme.muted)
+                        if let errorText = goals.errorText {
+                            Text(errorText).font(.footnote).foregroundStyle(.red)
+                                .accessibilityIdentifier("goal-error")
+                        }
+                        if goals.loading && !goals.loaded {
+                            ProgressView().frame(maxWidth: .infinity).padding(.top, 75)
+                        } else if !goals.loaded {
+                            ContentUnavailableView("ゴールを読み込めませんでした", systemImage: "wifi.exclamationmark",
+                                                   description: Text("更新して確認してください。"))
+                                .frame(maxWidth: .infinity)
+                        } else if goals.needsRefresh {
+                            ContentUnavailableView("現在のゴールを確認できません", systemImage: "wifi.exclamationmark",
+                                                   description: Text("状態を更新して確認してください。"))
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            if configured.isEmpty {
+                                ContentUnavailableView("設定済みのゴールはありません", systemImage: "target")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            ForEach(configured) { snapshot in
+                                let bot = store.bots.first { $0.id == snapshot.botId }
+                                GoalCard(snapshot: snapshot, name: bot?.displayName ?? snapshot.botId,
+                                         busy: goals.loading || goals.mutating || goals.needsRefresh,
+                                         onEdit: { select(snapshot, action: $0) }, onAction: { action in
+                                             Task { await goals.run(snapshot, action: action, store: store) }
+                                         })
+                            }
+                            if !unavailable.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("状態を確認できないメンバー").font(.headline)
+                                    ForEach(unavailable) { snapshot in
+                                        let name = store.bots.first { $0.id == snapshot.botId }?.displayName ?? snapshot.botId
+                                        Text("\(name)：\(snapshot.message ?? "ゴールの状態を取得できません。")")
+                                            .font(.footnote).foregroundStyle(BellTheme.muted)
+                                    }
+                                }.padding(18).bellCard()
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.top, 24)
+                    .padding(.bottom, 30)
+                }
+                .refreshable { await goals.loadList(store: store) }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { Task { await goals.loadList(store: store) } } label: { Image(systemName: "arrow.clockwise") }
+                        .accessibilityLabel("ゴールを更新")
+                        .disabled(goals.loading || goals.mutating)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    if createCandidates.count == 1, let snapshot = createCandidates.first {
+                        Button { select(snapshot, action: "create") } label: { Image(systemName: "plus") }
+                            .accessibilityLabel("ゴールを設定")
+                            .accessibilityIdentifier("goal-create-\(snapshot.botId)")
+                            .disabled(goals.loading || goals.mutating || goals.needsRefresh)
+                    } else if createCandidates.count > 1 {
+                        Menu { ForEach(createCandidates) { snapshot in
+                            Button(store.bots.first { $0.id == snapshot.botId }?.displayName ?? snapshot.botId) {
+                                select(snapshot, action: "create")
+                            }
+                            .accessibilityIdentifier("goal-create-\(snapshot.botId)")
+                        } } label: { Image(systemName: "plus") }
+                            .accessibilityLabel("ゴールを設定")
+                            .disabled(goals.loading || goals.mutating || goals.needsRefresh)
+                    }
+                }
+            }
+            .sheet(item: $editing) { selection in
+                GoalEditor(selection: selection, snapshots: $goals.snapshots, refreshing: $goals.loading) { objective, tokenBudget in
+                    try await goals.change(selection.snapshot, action: selection.action, store: store,
+                                           objective: objective, tokenBudget: tokenBudget)
+                }
+                .environmentObject(store)
+            }
+            .task(id: store.selectedTab) { if store.selectedTab == 3 { await goals.loadList(store: store) } }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active && store.selectedTab == 3 { Task { await goals.loadList(store: store) } }
+            }
+            .onChange(of: store.eventRevision) { _, _ in
+                if store.selectedTab == 3 { Task { await goals.loadList(store: store) } }
+            }
+        }
+    }
+
+}
+
+struct ChatGoalBar: View {
+    let botId: String
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var goals = GoalViewModel()
+    @State private var expanded = false
+    @State private var editing: GoalEditorSelection?
+
+    private var snapshot: GoalSnapshot? { goals.currentSnapshot(for: botId) }
+    private var bot: Bot? { store.bots.first { $0.id == botId } }
+    private var pillTitle: String {
+        if goals.needsRefresh { return "ゴールを取得できません" }
+        guard goals.loaded else { return goals.errorText == nil ? "ゴールを確認中" : "ゴールを取得できません" }
+        guard let snapshot else { return "ゴールを取得できません" }
+        switch snapshot.availability {
+        case .unsupported: return "ゴール未対応"
+        case .unavailable: return "ゴールを取得できません"
+        case .available: return snapshot.goal?.statusTitle ?? "ゴール未設定"
+        }
+    }
+    private var elapsed: String? {
+        guard snapshot?.availability == .available, let goal = snapshot?.goal else { return nil }
+        return goal.elapsedText ?? "時間未取得"
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            if expanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let errorText = goals.errorText {
+                        Text(errorText).font(.footnote).foregroundStyle(.red)
+                            .accessibilityIdentifier("chat-goal-error")
+                    }
+                    if let snapshot {
+                        GoalCard(snapshot: snapshot, name: bot?.displayName ?? botId,
+                                 busy: goals.loading || goals.mutating || goals.needsRefresh,
+                                 presentation: .chat, onEdit: { action in
+                                     editing = GoalEditorSelection(snapshot: snapshot, name: bot?.displayName ?? botId,
+                                                                   harness: bot?.harness ?? "", action: action)
+                                 }, onAction: { action in
+                                     Task { await goals.run(snapshot, action: action, store: store) }
+                                 })
+                    } else {
+                        Text(goals.needsRefresh ? "現在のゴールを確認できません。状態を更新してください。"
+                                                : "ゴールの状態を取得できません。")
+                            .font(.footnote).padding(18).bellCard()
+                    }
+                    Button("状態を更新") { Task { await goals.loadDetail(botId: botId, store: store) } }
+                        .font(.footnote).disabled(goals.loading || goals.mutating)
+                }
+                .frame(maxWidth: 520)
+                .padding(.horizontal, 16)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "target")
+                    Text(pillTitle).lineLimit(1)
+                    if let elapsed { Text(elapsed).lineLimit(1) }
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(BellTheme.ink)
+                .padding(.horizontal, 15).padding(.vertical, 8)
+                .background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(BellTheme.line))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("chat-goal-pill")
+        }
+        .frame(maxWidth: .infinity)
+        .zIndex(2)
+        .sheet(item: $editing) { selection in
+            GoalEditor(selection: selection, snapshots: $goals.snapshots, refreshing: $goals.loading) { objective, tokenBudget in
+                try await goals.change(selection.snapshot, action: selection.action, store: store,
+                                       objective: objective, tokenBudget: tokenBudget)
+            }
+            .environmentObject(store)
+        }
+        .task(id: botId) { await goals.loadDetail(botId: botId, store: store) }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await goals.loadDetail(botId: botId, store: store) } }
+        }
+        .onChange(of: store.eventRevision) { _, _ in
+            if scenePhase == .active { Task { await goals.loadDetail(botId: botId, store: store) } }
+        }
+    }
+}
+
+private enum GoalCardPresentation { case page, chat }
+private struct GoalObjectiveHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 private struct GoalCard: View {
     let snapshot: GoalSnapshot
     let name: String
     let busy: Bool
+    var presentation: GoalCardPresentation = .page
     let onEdit: (String) -> Void
     let onAction: (String) -> Void
+    @State private var objectiveHeight: CGFloat = 22
+
+    private var hasAction: Bool {
+        if snapshot.goal == nil { return snapshot.capabilities.create && snapshot.fieldCapabilities.create.objective }
+        return snapshot.capabilities.edit && (snapshot.fieldCapabilities.edit.objective || snapshot.fieldCapabilities.edit.tokenBudget)
+            || snapshot.capabilities.pause && snapshot.goal?.isActive == true
+            || snapshot.capabilities.resume && snapshot.goal?.isPaused == true
+            || snapshot.capabilities.clear
+    }
+    private var unavailableActions: [String] {
+        guard let goal = snapshot.goal else { return [] }
+        var names: [String] = []
+        if !snapshot.capabilities.edit || !(snapshot.fieldCapabilities.edit.objective || snapshot.fieldCapabilities.edit.tokenBudget) {
+            names.append("編集")
+        }
+        if goal.isActive && !snapshot.capabilities.pause { names.append("一時停止") }
+        if goal.isPaused && !snapshot.capabilities.resume { names.append("再開") }
+        if !snapshot.capabilities.clear { names.append("取り消し") }
+        return names
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(name).font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(BellTheme.ink)
+            if presentation == .page {
+                Text(name).font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(BellTheme.ink)
+            }
             if snapshot.availability != .available {
                 Text(snapshot.message ?? (snapshot.availability == .unsupported
                     ? "このメンバーではゴール機能を使えません。" : "ゴールの状態を取得できません。"))
                     .foregroundStyle(BellTheme.muted)
             } else {
-                Text(snapshot.goal?.statusTitle ?? "ゴールなし")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BellTheme.violet)
+                if presentation == .page || snapshot.goal == nil {
+                    Text(snapshot.goal?.statusTitle ?? "ゴール未設定")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(BellTheme.violet)
+                }
                 if let goal = snapshot.goal {
-                    Text(goal.objective).textSelection(.enabled)
-                    Text(goal.usageText)
-                        .font(.footnote).foregroundStyle(BellTheme.muted)
+                    if presentation == .chat {
+                        ScrollView {
+                            Text(goal.objective).frame(maxWidth: .infinity, alignment: .leading)
+                                .background { GeometryReader { size in
+                                    Color.clear.preference(key: GoalObjectiveHeightKey.self, value: size.size.height)
+                                } }
+                        }
+                            .frame(height: min(max(objectiveHeight, 22), 180))
+                            .onPreferenceChange(GoalObjectiveHeightKey.self) { objectiveHeight = $0 }
+                            .textSelection(.enabled)
+                            .accessibilityIdentifier("chat-goal-objective")
+                    } else {
+                        Text(goal.objective).textSelection(.enabled)
+                        Text(goal.usageText)
+                            .font(.footnote).foregroundStyle(BellTheme.muted)
+                    }
                 }
                 if let history = snapshot.nativeHistory {
                     Text("前のゴール：\(history.title) · \(history.native.condition)")
@@ -475,7 +681,15 @@ private struct GoalCard: View {
                         .font(.footnote).foregroundStyle(BellTheme.muted)
                 }
                 actions
-                if snapshot.goal != nil {
+                if snapshot.goal == nil && !hasAction {
+                    Text("このメンバーでは今、ゴールの設定を利用できません。")
+                        .font(.footnote).foregroundStyle(BellTheme.muted)
+                }
+                if !unavailableActions.isEmpty {
+                    Text("今のゴールでは\(unavailableActions.joined(separator: "・"))を操作できません。")
+                        .font(.footnote).foregroundStyle(BellTheme.muted)
+                }
+                if presentation == .page && snapshot.goal != nil {
                     let pause = snapshot.capabilities.pause || snapshot.capabilities.resume
                         ? "一時停止したゴールは再開できます。" : ""
                     let clear = snapshot.capabilities.clear ? "取り消すとゴールは消えます。" : ""
@@ -487,6 +701,8 @@ private struct GoalCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
         .bellCard()
+        .shadow(color: presentation == .chat ? .black.opacity(0.15) : .clear,
+                radius: presentation == .chat ? 14 : 0, y: presentation == .chat ? 7 : 0)
     }
 
     private var actions: some View {

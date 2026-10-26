@@ -7,6 +7,8 @@ const grokSignedTokens = process.env.GOALS_FIXTURE_GROK_SIGNED_TOKENS === '1'
 const grokDetail = process.env.GOALS_FIXTURE_GROK_DETAIL === '1'
 const grokClear = process.env.GOALS_FIXTURE_GROK_CLEAR === '1'
 const grokActiveNoClear = process.env.GOALS_FIXTURE_GROK_ACTIVE_NO_CLEAR === '1'
+const chat = process.env.GOALS_FIXTURE_CHAT === '1'
+const chatLong = process.env.GOALS_FIXTURE_CHAT_LONG === '1'
 const binding = id => ({ sessionId: `session-${id}`, launchId: '0123456789abcdef0123456789abcdef', threadId: `thread-${id}` })
 const capabilities = (goal, available = true) => {
   const status = goal?.kind === 'codex-cli' ? goal.native.status : goal?.kind === 'claude-code' ? goal.phase : goal?.status
@@ -41,7 +43,10 @@ const grokGoal = () => ({ kind: 'grok-cli', native: {
     tokens_used: grokSignedTokens ? -1 : 4906, elapsed_display: '14s' } })
 const inspectOnly = { inspect: true, create: false, edit: false, pause: false, resume: false, clear: false }
 const initialSnapshots = () => {
-  const one = grok ? grokGoal() : tagged ? claudeGoal() : null
+  const one = chat ? { ...activeGoal, threadId: 'thread-bot-one',
+    objective: chatLong ? '長い目的を保ったまま計画と実行を見直す。'.repeat(24) + '最後まで確認する。'
+      : '会話で確認する目的の全文' }
+    : grok ? grokGoal() : tagged ? claudeGoal() : null
   const two = tagged || grok ? { kind: 'codex-cli', native: { ...activeGoal } } : { ...activeGoal }
   const oneCapabilities = grok ? { ...inspectOnly, clear: grokClear && !grokDetail && !grokActiveNoClear } : capabilities(one)
   return new Map([
@@ -61,6 +66,7 @@ let snapshots = initialSnapshots()
 let writes = [], reads = []
 let nextOutcome = null
 let holdNextList = false, heldLists = []
+let failNextGoalGet = null
 const json = (response, body, status = 200) => {
   response.writeHead(status, { 'content-type': 'application/json' })
   response.end(JSON.stringify(body))
@@ -69,11 +75,24 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1')
   if (url.pathname === '/test/reset') {
     for (const held of heldLists) json(held.response, { error: 'FIXTURE_RESET' }, 503)
-    snapshots = initialSnapshots(); writes = []; reads = []; nextOutcome = null
+    snapshots = initialSnapshots(); writes = []; reads = []; nextOutcome = null; failNextGoalGet = null
     holdNextList = false; heldLists = []
     return json(response, { ok: true })
   }
   if (url.pathname === '/test/proof') return json(response, { writes, reads, heldLists: heldLists.length })
+  if (url.pathname === '/test/availability') {
+    const snapshot = snapshots.get(url.searchParams.get('bot'))
+    const mode = url.searchParams.get('mode')
+    if (!snapshot || !['unavailable', 'unsupported'].includes(mode)) return json(response, { error: 'INVALID_TEST_STATE' }, 400)
+    delete snapshot.goal
+    snapshot.availability = mode
+    snapshot.binding = null
+    snapshot.capabilities = capabilities(null, false)
+    snapshot.fieldCapabilities = fieldCapabilities(snapshot.capabilities)
+    snapshot.message = mode === 'unsupported' ? 'このメンバーではゴール機能をまだ利用できません。'
+      : '現在ゴールを取得できません。'
+    return json(response, { ok: true })
+  }
   if (url.pathname === '/test/grok-null-phase') {
     if (!grokDetail) return json(response, { error: 'WRONG_FIXTURE' }, 409)
     snapshots.get('bot-one').goal.current_status.phase_display = null
@@ -89,6 +108,12 @@ const server = createServer(async (request, response) => {
     return json(response, { ok: true })
   }
   if (url.pathname === '/test/hold-list') { holdNextList = true; return json(response, { ok: true }) }
+  if (url.pathname === '/test/fail-next-goal-get') {
+    const mode = url.searchParams.get('mode')
+    if (!['list', 'detail'].includes(mode)) return json(response, { error: 'UNKNOWN_MODE' }, 400)
+    failNextGoalGet = mode
+    return json(response, { ok: true })
+  }
   if (url.pathname === '/test/release-list') {
     const released = heldLists.length
     for (const held of heldLists) json(held.response, { goals: held.goals })
@@ -109,6 +134,10 @@ const server = createServer(async (request, response) => {
     return json(response, { ok: true })
   }
   if (url.pathname === '/api/goals' && request.method === 'GET') {
+    if (failNextGoalGet === 'list') {
+      failNextGoalGet = null
+      return json(response, { error: 'FIXTURE_GET_FAILED' }, 503)
+    }
     if (holdNextList) {
       holdNextList = false
       heldLists.push({ response, goals: structuredClone([...snapshots.values()]) })
@@ -116,11 +145,22 @@ const server = createServer(async (request, response) => {
     }
     return json(response, { goals: [...snapshots.values()] })
   }
+  if (url.pathname === '/api/bots/bot-one/messages' && request.method === 'GET')
+    return json(response, { items: [], has_more: false })
+  if (url.pathname === '/api/bots/bot-one/queue' && request.method === 'GET')
+    return json(response, { items: [] })
   const match = url.pathname.match(/^\/api\/bots\/(bot-[a-z]+)\/goal$/u)
   if (!match) return json(response, { error: 'NOT_FOUND' }, 404)
   const snapshot = snapshots.get(match[1])
   if (!snapshot) return json(response, { error: 'BOT_NOT_FOUND' }, 404)
-  if (request.method === 'GET') { reads.push(snapshot.botId); return json(response, { snapshot }) }
+  if (request.method === 'GET') {
+    reads.push(snapshot.botId)
+    if (failNextGoalGet === 'detail') {
+      failNextGoalGet = null
+      return json(response, { error: 'FIXTURE_GET_FAILED' }, 503)
+    }
+    return json(response, { snapshot })
+  }
   if (request.method !== 'POST') return json(response, { error: 'METHOD_NOT_ALLOWED' }, 405)
   const chunks = []
   for await (const chunk of request) chunks.push(chunk)
