@@ -92,3 +92,7 @@ forward/reverseは同lockを使う。phase印はprepare/writer停止/移行/bind
 証拠SHAは実証拠の参照形式であって、値を受け取るだけで証拠本文の意味やOwner裁定を独立確認したものではない。executorはtrustedな内部製品実装が実artifact/host担当原本/個別許可を検証してからreceiptを生成する責務を持つ。このdeltaは固定順序とreceipt保存のconsumerだけで、その実executor、Docker PID/terminal/CIDunknown照合、host source/許可の検証と全writer参加は未実装。production CLI、public installerへの接続、packager追加は無い。actorモジュール自体を実行しても本番処理を開始しない。
 
 新6人工は普通のFS/current UIDの既_hold注入とfake executorだけ。実kernel flockの全工程保持、順逆direction、未知/不完全proof/出生image不一致、receipt I/O失敗・置換拒否と起動前終了を確認した。実root UID/caps/Compose/mount/host祖先ACL・alias・非参加writer停止/通常非露出/socket/freshinstallPGID4CLI停止時間の実受入に拡張しない。whole Draft NOTDEPLOYABLEを維持する。
+
+### Written receipt identity delta
+
+SEC014-RECEIPT-WRITTEN-IDENTITY-1 showed that equal JSON in a replaced inode passed readback. The caller now holds the original written FD open through fsync/readback, and binds its original dev/inode/owner/mode/nlink/size/mtime/ctime to the held FD, a reopened FD and the linked path before advancing the journal. Equal-content substitution is refused. The original ordinary-FS rename/recreate counter body and assertions are retained; its old-source fail becomes a new-source pass with phases empty/start0/incomplete. A normal forward/reverse focused case also passes. Old six/eight/FULL suites are not repeated. This is a source identity delta, not real root/Docker/proof-meaning or deployment acceptance.

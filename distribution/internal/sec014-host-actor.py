@@ -48,11 +48,27 @@ def _receipt(tx, phase, image, value, required):
         stream.write(raw)
         stream.flush()
         os.fsync(stream.fileno())
-    os.fsync(tx.parent)
-    # A replaced/removed receipt cannot advance the durable phase journal.
-    if control._saved(tx.parent, name, tx.owner) != value:
-        raise control.ControlError('SEC014_ACTOR_RECEIPT_CHANGED')
-    tx.check()
+        written = os.fstat(stream.fileno())
+        control._private(written, tx.owner)
+        os.fsync(tx.parent)
+        if control._saved(tx.parent, name, tx.owner) != value:
+            raise control.ControlError('SEC014_ACTOR_RECEIPT_CHANGED')
+        # Equal JSON in a replacement inode is not the receipt we saved.
+        reopened = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                           dir_fd=tx.parent)
+        try:
+            keys = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink',
+                    'st_size', 'st_mtime_ns', 'st_ctime_ns')
+            expected = tuple(getattr(written, key) for key in keys)
+            observed = (os.fstat(stream.fileno()), os.fstat(reopened),
+                        os.stat(name, dir_fd=tx.parent, follow_symlinks=False))
+            if (written.st_size != len(raw)
+                    or any(tuple(getattr(item, key) for key in keys) != expected
+                           for item in observed)):
+                raise control.ControlError('SEC014_ACTOR_RECEIPT_CHANGED')
+            tx.check()
+        finally:
+            os.close(reopened)
     return hashlib.sha256(raw).hexdigest()
 
 
