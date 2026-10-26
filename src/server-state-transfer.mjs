@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { transferAiControlState } from './ai-control-state-transfer.mjs'
+import { prepareServerStateOwnership } from './server-state-ownership.mjs'
 
 const botId = /^[a-z0-9][a-z0-9-]{0,63}$/u
 const failure = code => Object.assign(new Error(code), { code })
@@ -196,7 +197,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       throw failure('SERVER_STATE_TRANSFER_ARGUMENTS')
     if ([process.getuid?.(), process.geteuid?.(), process.getgid?.(), process.getegid?.()].some(id => id !== 0))
       throw failure('SERVER_STATE_TRANSFER_IDENTITY')
-    console.log(JSON.stringify(await transferServerState({ root: '/srv/bellteam', direction: process.argv[2] })))
+    const options = { root: '/srv/bellteam', direction: process.argv[2] }
+    const result = await transferServerState(options)
+    const ownership = await prepareServerStateOwnership(options)
+    console.log(JSON.stringify({ ...result, ownership }))
   } catch (error) {
     // Maintenance errors must not print paths, parsed documents or headers.
     console.error(/^[A-Z][A-Z_0-9]*$/u.test(error.code ?? '') ? error.code : 'SERVER_STATE_TRANSFER_FAILED')
