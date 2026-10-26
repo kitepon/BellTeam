@@ -43,6 +43,9 @@ class _Prepare:
                 or not 2 < deadline-time.monotonic() <= 120 or not callable(host_check)
                 or not isinstance(window_end,datetime) or window_end.utcoffset() is None):
             raise actor.control.ControlError('SEC014_PREPARE_SCOPE')
+        if not callable(getattr(host_check,'bind_image',None)):
+            raise actor.control.ControlError('SEC014_PREPARE_HOST_IMAGE_BINDING')
+        host_check.bind_image(image,image_id)
         self.tx,self.image,self.image_id = tx,image,image_id
         self.deadline,self.end,self.host_check = deadline,window_end,host_check
         self.held,self.children,self.records = False,[],[]

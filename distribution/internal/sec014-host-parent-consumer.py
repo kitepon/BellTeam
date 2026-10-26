@@ -34,6 +34,7 @@ class _Consumer:
         self.producer = host._Producer(binding_raw, policy_raw)
         self.held, self.issued, self.generation, self.saved = False, None, 0, []
         self.previous = None
+        self.selected_image = None
         self.slots, self.used = {}, set()
         if not callable(observe) or not callable(final_guard):
             raise actor.control.ControlError('SEC014_HOST_COLLECTOR_UNAVAILABLE')
@@ -69,6 +70,13 @@ class _Consumer:
             os.close(fd)
         self.slots.clear()
         self.held = True
+
+    def bind_image(self, image, image_id):
+        if (self.held or self.binding['imageRef']!=image or self.binding['image']!=image_id
+                or self.selected_image is not None and self.selected_image!=(image,image_id)):
+            self.held = True
+            raise actor.control.ControlError('SEC014_HOST_IMAGE_BINDING')
+        self.selected_image = image,image_id
 
     def invalidate(self, reason):
         self.held = True
@@ -145,6 +153,8 @@ class _Consumer:
     def __call__(self, step):
         try:
             self.check()
+            if self.selected_image!=(self.binding['imageRef'],self.binding['image']):
+                raise actor.control.ControlError('SEC014_HOST_IMAGE_BINDING')
             if self.generation>=len(GATES) or step!=GATES[self.generation]:
                 raise actor.control.ControlError('SEC014_HOST_FIXED_GATE_ORDER')
             observation, external, effects = self.observe(step)

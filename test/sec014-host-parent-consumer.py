@@ -53,6 +53,7 @@ class ConsumerTests(unittest.TestCase):
         result=c._Consumer(tx,c.host._raw(self.binding),c.host._raw(self.policy),self.observe,
                            lambda observation,external:None)
         self.addCleanup(result.close)
+        result.bind_image(fixture.IMAGE,fixture.IMAGE_ID)
         return result
 
     def observe(self, step):

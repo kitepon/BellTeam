@@ -74,8 +74,10 @@ class PrepareTests(unittest.TestCase):
         return child
 
     def runner(self,host=None,deadline=None):
+        host = host or (lambda step:'d'*64)
+        host.bind_image = lambda image,image_id:None  # Synthetic authority seam only.
         return p._Prepare(self.tx,IMAGE,IMAGE_ID,deadline or time.monotonic()+110,
-                          datetime.now(timezone.utc)+timedelta(seconds=120),host or (lambda step:'d'*64))
+                          datetime.now(timezone.utc)+timedelta(seconds=120),host)
 
     def journal(self):
         return json.loads((self.f.root/'transaction-to-server.json').read_bytes())
