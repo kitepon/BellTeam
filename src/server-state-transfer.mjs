@@ -83,7 +83,7 @@ async function moveFile(source, destination, root) {
   await unlink(source)
   await syncDirectory(dirname(source))
 }
-async function moveTree(source, destination, root) {
+async function moveTree(source, destination, root, keepRoot = false) {
   const info = await exists(source)
   if (!info) return
   if (!info.isDirectory() || info.isSymbolicLink()) throw failure('SERVER_STATE_DIRECTORY_INVALID')
@@ -95,8 +95,31 @@ async function moveTree(source, destination, root) {
     else if (entry.isFile()) await moveFile(from, to, root)
     else throw failure('SERVER_STATE_FILE_INVALID')
   }
-  await rmdir(source)
-  await syncDirectory(dirname(source))
+  if (!keepRoot) { await rmdir(source); await syncDirectory(dirname(source)) }
+}
+
+// The two maintenance views share seat data, but these six destinations must
+// be distinct, protected mounts. Never remove their mounted root directories.
+export async function relocateServerRoots({ legacyRoot, serverRoot, direction }) {
+  if (![legacyRoot, serverRoot].every(value => typeof value === 'string' && isAbsolute(value))
+    || !['to-server', 'to-legacy'].includes(direction)) throw failure('SERVER_STATE_RELOCATION_OPTIONS')
+  legacyRoot = resolve(legacyRoot); serverRoot = resolve(serverRoot)
+  if (legacyRoot === serverRoot) throw failure('SERVER_STATE_RELOCATION_ALIAS')
+  const names = ['state', 'rooms', 'owner', 'logs', 'shared/tools/bellteam-settings', 'shared/tools/apns']
+  const [from, to] = direction === 'to-server' ? [legacyRoot, serverRoot] : [serverRoot, legacyRoot]
+  await directory(from); await directory(to)
+  // Validate the full fixed mapping before moving the first root's content.
+  for (const name of names) {
+    const source = join(from, name), target = join(to, name)
+    const info = await exists(source)
+    await directory(target)
+    if (!info) continue
+    await directory(source)
+    const destination = await lstat(target)
+    if (info.dev === destination.dev && info.ino === destination.ino) throw failure('SERVER_STATE_RELOCATION_ALIAS')
+  }
+  for (const name of names) await moveTree(join(from, name), join(to, name), to, true)
+  return { direction, status: 'relocated' }
 }
 async function validateJson(path, valid) {
   return useFile(await regular(path), async file => {
@@ -192,17 +215,38 @@ export async function transferServerState({ root, direction }) {
   return { direction, status: 'transferred', bots: ids.size }
 }
 
+export async function migrateServerState({ legacyRoot, serverRoot, backupRoot, direction }) {
+  if (![legacyRoot, serverRoot, backupRoot].every(value => typeof value === 'string' && isAbsolute(value))
+    || !['to-server', 'to-legacy'].includes(direction)) throw failure('SERVER_STATE_TRANSFER_OPTIONS')
+  const options = { root: serverRoot, direction }, roots = { legacyRoot, serverRoot, direction }
+  const parent = await lstat(backupRoot)
+  if (!parent.isDirectory() || parent.uid !== process.geteuid() || parent.gid !== process.getegid() || (parent.mode & 0o777) !== 0o700)
+    throw failure('SERVER_STATE_BACKUP_PARENT')
+  // Preserve both generations before a partial migration can hide current
+  // content in either view. A failed second backup must stop all migration.
+  for (const [view, root] of [['legacy', legacyRoot], ['server', serverRoot]]) {
+    const destination = join(backupRoot, view)
+    try { await mkdir(destination, { mode: 0o700 }) } catch (error) { if (error.code !== 'EEXIST') throw error }
+    await backupServerState({ root, direction, backupRoot: destination })
+  }
+  if (direction === 'to-server') await relocateServerRoots(roots)
+  const result = await transferServerState(options)
+  if (direction === 'to-legacy') await relocateServerRoots(roots)
+  const ownership = await prepareServerStateOwnership({ ...options, root: direction === 'to-server' ? serverRoot : legacyRoot })
+  return { ...result, ownership }
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     if (process.argv.length !== 3 || !['to-server', 'to-legacy'].includes(process.argv[2]))
       throw failure('SERVER_STATE_TRANSFER_ARGUMENTS')
     if ([process.getuid?.(), process.geteuid?.(), process.getgid?.(), process.getegid?.()].some(id => id !== 0))
       throw failure('SERVER_STATE_TRANSFER_IDENTITY')
-    const options = { root: '/srv/bellteam', direction: process.argv[2] }
-    await backupServerState({ ...options, backupRoot: '/srv/bellteam-maintenance-backups' })
-    const result = await transferServerState(options)
-    const ownership = await prepareServerStateOwnership(options)
-    console.log(JSON.stringify({ ...result, ownership }))
+    const [legacy, current] = await Promise.all(['/srv/bellteam-legacy', '/srv/bellteam'].map(path => lstat(path)))
+    if (!legacy.isDirectory() || !current.isDirectory() || legacy.dev !== current.dev || legacy.ino !== current.ino)
+      throw failure('SERVER_STATE_VIEW_IDENTITY')
+    console.log(JSON.stringify(await migrateServerState({ legacyRoot: '/srv/bellteam-legacy', serverRoot: '/srv/bellteam',
+      backupRoot: '/srv/bellteam-maintenance-backups', direction: process.argv[2] })))
   } catch (error) {
     // Maintenance errors must not print paths, parsed documents or headers.
     console.error(/^[A-Z][A-Z_0-9]*$/u.test(error.code ?? '') ? error.code : 'SERVER_STATE_TRANSFER_FAILED')

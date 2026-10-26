@@ -21,3 +21,11 @@ Draft PR42 の途中工程。利用者分離全体はまだ NOTDEPLOYABLE であ
 親0700/実行者UIDGID一致、内部dir0700/file0600、symlink/hardlink/special拒否、容量不足と書込み/sync/元更新は移行前に終了する。全FDを閉じ、コピーと親directoryのsync後にのみprivate complete.jsonを確定する。失敗した控えは消して再作成せず不完全のまま保持し、既存complete/partialの同方向控えも自動上書きしない。再開は残った正本・控えと停止状況を担当が判断する。戻しは常に最新stateのto-legacyであり、この控えの自動restoreではない。控えの秘密本文/長さ/hashは通常結果へ出さない。
 
 現在のinstallerは専用backup bindをまだ持たず、固定入口はその不足を読書き前に拒否する。通常serviceへbackup bindやroot資格を渡す追加はしていない。専用保守Composeとfreshcreate/独立bind/実root受入/容量・保持期間・回収担当の確定が残るので、Draft NOTDEPLOYABLEを維持する。
+
+## 独立6領域への内容移動
+
+固定保守口は旧view /srv/bellteam-legacy と新view /srv/bellteam が同じdata祖先inodeであることを先に確認する。新viewの6targetだけは別の専用host sourceを重ねる。各6leafのsource/targetが同inodeなら拒否し、mounted root自体はrmdirしない。旧新両viewをbackup親のlegacy/server別区画へ控え、両方成功するまで内容を移さない。途中世代に片方だけ残った現在値も隠さず保存するためである。
+
+forwardは6領域移動→既台帳予定画像transfer→新側所有、reverseは最新metadata transfer→6領域を旧側へ移動→旧側所有。異なる同名内容は衝突として両方残し、暗黙上書きや旧backup復元をしない。既moveFile/moveTreeの内容確認・fsync・途中再開契約を共有し、通常のmetadata移動では従来どおり元subdirを退役する。固定root CLI以外からpath/コードを渡す口は作っていない。
+
+この段階は普通の人工filesystemでの内容・順序の受入であり、二つのdata viewと6独立bindの実mount受入ではない。固定prepare/maintenance Compose、writer分母/排他・専用親ACL/祖先alias・通常側への旧view/backup非露出・外側socket重ね順は未実装で、既installerは依然この保守口を実行できない。全体NOTDEPLOYABLEを維持する。
