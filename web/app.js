@@ -13,7 +13,7 @@ import { goalsView } from './goals.js?v=__ASSET_VERSION__'
 const READ_RECEIPTS_KEY = 'bellteam-read-receipts.v1'
 
 const app = document.querySelector('#app')
-const goals = goalsView(document.querySelector('#goals-dialog'), api, () => state.bots)
+const goals = goalsView(document.querySelector('#goals-dialog'), api, () => state.bots, document.querySelector('#chat-goal'))
 document.querySelector('#goals-button').addEventListener('click', () => { void goals.open() })
 const botList = document.querySelector('#bot-list')
 const ownerProfileButton = document.querySelector('#owner-profile-button')
@@ -189,7 +189,11 @@ ownerDialog.addEventListener('close', clearSettingSecrets)
 // 設定を閉じたら、AIの認証の確認を止める。進行中の公式認証そのものは止めない（公式サイトで続けられる）。
 let harnessAuthSection = null
 ownerDialog.addEventListener('close', () => { harnessAuthSection?.stop(); harnessAuthSection = null })
-document.addEventListener('visibilitychange', () => { if (document.hidden) clearSettingSecrets() })
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) clearSettingSecrets()
+  else if (document.querySelector('#goals-dialog').open) void goals.refresh()
+  else void goals.refreshSelected()
+})
 addOwnerLink.addEventListener('click', () => addOwnerLinkRow())
 document.querySelector('#add-button').addEventListener('click', () => actionDialog.showModal())
 document.querySelector('#action-add-bot').addEventListener('click', () => { actionDialog.close(); openBotDialog() })
@@ -525,6 +529,7 @@ function renderBots() {
 async function selectBot(bot) {
   state.selected = bot
   state.selectedType = 'bot'
+  void goals.select(bot.id)
   updateSendButton()
   targetPicker.hidden = true
   toggleTargetMenu(false)
@@ -546,6 +551,7 @@ async function selectBot(bot) {
 }
 
 async function selectRoom(room) {
+  void goals.select(null)
   closeScreen()
   screenButton.hidden = true
   state.selected = room
@@ -607,6 +613,7 @@ async function deleteSelectedBot() {
 }
 
 function clearSelection() {
+  void goals.select(null)
   closeScreen()
   screenButton.hidden = true
   state.selected = null
@@ -1903,6 +1910,8 @@ async function connectEvents() {
           if (ownerDialog.open) refreshFeatureSettingsStatus(document.querySelector('#feature-settings'), state.settings)
         }
         if (payload.type === 'setup') state.setup = await api('/api/setup')
+        if (state.selectedType === 'bot' && (payload.all || payload.botId === state.selected?.id || payload.botIds?.includes(state.selected?.id)))
+          void goals.refreshOnEvent()
         await Promise.all([loadBots(), loadMessages()])
       }
     }
