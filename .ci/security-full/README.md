@@ -15,8 +15,13 @@ VM, while the cross-run one-dispatch check remains the dispatcher's responsibili
 One GitHub-hosted native amd64 Ubuntu 24.04 VM, Node 26 (actual version recorded),
 contents:read only, checkout credentials not persisted, no secrets inputs/caches.
 The test/install environment is rebuilt from an allowlist: separate empty HOME,
-TMPDIR, user/global npmrc and npm cache, public npm registry only, Node heap256MiB
-inherited by Node children. This is a per-process heap limit, not a VM/RSS cap.
+TMPDIR, user/global npmrc and npm cache, public npm registry only. TMPDIR is a
+new empty 0700 `/tmp/btsf-*` outside the repository, avoiding parent type=module
+and leaving room for UNIX socket paths; HOME/npmrc/cache/deny remain isolated as
+before. Node heap256MiB is set on the test runner argv and NODE_OPTIONS for
+children inheriting this environment. Fixtures that explicitly rebuild env can
+omit NODE_OPTIONS; there is no claim of every child heap being observed or
+forced, and no wrapper is added. This is not a VM/RSS cap.
 No main-server resource thresholds or AFK window are changed. Initial CI headroom
 is 2GiB MemAvailable and 4GiB disk. Refuse missing tools, wrong runtime or low space.
 
@@ -49,3 +54,10 @@ dump or credentials. CI success proves only this product source's complete Node
 suite with this lock/runtime; it does not prove a candidate image, global CLI
 internals, host resource behavior, internal mounts/data, quiet/permissions,
 production deployment or rollback. A new candidate image binding remains separate.
+
+The first authorized CI40343610417 remains unaccepted (830pass/13fail). The
+TMP-only source correction has a narrow long-repo-path versus short-external-path
+Node child/socket counterexample; it does not prove all 13 historical causes.
+No Full rerun or new dispatch follows this correction without Root's exact-source
+review and a new one-time instruction. Short temporary contents belong only to
+the disposable CI VM; final VM cleanup is not independently observed.

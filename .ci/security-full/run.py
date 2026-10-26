@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 SOURCE = '3cb6ffe0f3f5ac93bd293428d0f53fdfcb24a1f3'
@@ -24,10 +25,14 @@ def require_identity(env):
         raise ValueError('CI_IDENTITY_REFUSED')
 
 
-def clean_env(node, private):
+def temporary_directory():
+    return Path(tempfile.mkdtemp(prefix='btsf-', dir='/tmp'))
+
+
+def clean_env(node, private, temporary):
     # Fixture scripts may prepend their own fake commands; these names deny real CLIs.
     return {'PATH': f'{private / "deny"}:{Path(node).parent}:/usr/bin:/bin',
-            'HOME': str(private / 'home'), 'TMPDIR': str(private / 'tmp'),
+            'HOME': str(private / 'home'), 'TMPDIR': str(temporary),
             'LANG': 'C.UTF-8', 'CI': 'true', 'NODE_OPTIONS': '--max-old-space-size=256',
             'TESTGATE_FULL': '1', 'NPM_CONFIG_USERCONFIG': str(private / 'user.npmrc'),
             'NPM_CONFIG_GLOBALCONFIG': str(private / 'global.npmrc'), 'NPM_CONFIG_CACHE': str(private / 'npm-cache'),
@@ -79,7 +84,7 @@ def run():
         if not node or not npm:
             raise ValueError('NODE_NPM_MISSING')
         private = OUT / 'private'
-        for name in ['home', 'tmp', 'deny', 'npm-cache']:
+        for name in ['home', 'deny', 'npm-cache']:
             (private / name).mkdir(parents=True)
         for name in ['docker', 'ssh', 'aiterm', 'cursor-agent', 'claude', 'codex', 'grok']:
             path = private / 'deny' / name
@@ -87,7 +92,9 @@ def run():
             path.chmod(0o700)
         for name in ['user.npmrc', 'global.npmrc']:
             (private / name).write_text('')
-        env = clean_env(node, private)
+        temporary = temporary_directory()
+        result['temporaryDirectory'] = str(temporary)
+        env = clean_env(node, private, temporary)
         mem = int(re.search(r'^MemAvailable:\s+(\d+)', Path('/proc/meminfo').read_text(), re.M)[1]) * 1024
         free = shutil.disk_usage(ROOT).free
         result['initialResources'] = {'memAvailableBytes': mem, 'diskFreeBytes': free}
