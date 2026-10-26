@@ -75,7 +75,7 @@ class PrepareTests(unittest.TestCase):
 
     def runner(self,host=None,deadline=None):
         return p._Prepare(self.tx,IMAGE,IMAGE_ID,deadline or time.monotonic()+110,
-                          datetime.now(timezone.utc)+timedelta(seconds=120),host or (lambda:'d'*64))
+                          datetime.now(timezone.utc)+timedelta(seconds=120),host or (lambda step:'d'*64))
 
     def journal(self):
         return json.loads((self.f.root/'transaction-to-server.json').read_bytes())
@@ -161,7 +161,7 @@ class PrepareTests(unittest.TestCase):
         self.assertEqual(self.journal()['phases'],[])
 
     def test_missing_host_original_refuses_before_docker(self):
-        def missing():raise RuntimeError('authority unavailable')
+        def missing(step):raise RuntimeError('authority unavailable')
         with self.f.hold() as self.tx:
             with self.assertRaises(p.actor.control.ControlError):self.runner(host=missing).prepare()
         self.assertEqual(self.commands,[])

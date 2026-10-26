@@ -1,0 +1,23 @@
+# SEC014 host-parent raw consumer（人工source限定）
+
+RootはEmma所有のproducer `885fa01e10660aedd51add1d88b844473c9a2c79b34d1b18edd004fc0c4ab8cf` をinternalへ同bytesで保存し、固定prepareの11gateへprivate consumerを接続した。通常 `_open_host_parent()` は未配置拒否のまま。実collector・管理起動・外部失効・具体数値計画は実装されていない。人工rawをhost権威へ昇格させず、wholeDraftNOTDEPLOYABLEを維持する。
+
+## 保存と最後の確認
+
+既 `_save_json` のO_EXCL保存を最後の観測後に使うとcontrol親の時刻が変わり、保存と再観測が循環する。Emmaの8ac94936契約を採用し、発行前に11gate×5種とissued/terminalの計57空slotをO_EXCL/NOFOLLOW/CLOEXEC・0600・nlink1で準備、FDを保持する。setup一覧/devino/transaction/source/GATESを既保存器で保存・fsyncしてから最初の観測へ入る。空Docker configの作成も最初のentry観測前に済ませる。
+
+entry、run×2、inspect×2、remove×2、absence×2、metadata、phaseだけを許す。各gateの観測/外部管理/effect/issued/status原UTF8とrawSHAを保持済slotへ一回書込み、fsync、held/reopen/linkedのfullmetadataと正確なbytesを照合する。wrapperSHAをrawSHAへ読み替えない。初回fstat失敗・partial write・保存失敗・同bytes別inodeも後続禁止。FDはconsumer.closeで回収し、artifactは削除・再利用しない。
+
+source/同actor出生/同lockを再確認し、private final_guard後にcontrol親のmtime/ctimeが観測Oと一致することを再確認する。その後は新保存/advanceを挟まず、既prepareの残予算判定から固定操作へ進む。directory entry作成/削除は親mtimeを変えるというOS契約は [Linux inode(7)](https://man7.org/linux/man-pages/man7/inode.7.html) を確認した。実host filesystemでの適合は未確認で、違いを許容しない。
+
+発行rawSHAは固定、statusの世代/前statusSHA/stepを別に検査する。前gateまでのcontrol変更には、別途実操作原本に結ぶeffectが必要。slot方式だけで未知mkdirやwriter変更を説明済みにしない。今回の人工observe/final_guardはその実原本や全3親/祖先/namespace/ACL/writer・失効を採取する実装ではない。意味検証済みlive factoryは存在しない。
+
+## 変更範囲と検証
+
+既actor/control/prepared/Composeは同bytes。既prepareはhost_checkへ固定stepを渡し、child/phase例外では対応consumerをunknownへ固定する。既privateテストのhost callbackもstep引数だけ合わせた。public installer/packager/production CLIは変更しない。
+
+新普通FS13caseが最終13pass。正常11gate/rawとwrapperSHA・4専用Python child・artifactまで未confirm、保存失敗/再送拒否、失効、未知親変更、同bytes別inode、出生不一致、観測後の新entry、保存中O_CREAT無し/slot再利用禁止、final_guard拒否、final_guard中のentry変更、unknown client、partial write、初回fstat FD回収を確認。実Dockerは0。旧4/6/8/FULLやEmmaの旧人工8は再走していない。
+
+初回のraw保存版は5pass/1error（異なるimport instanceのControlError期待クラスを試験側で誤指定）を別log保存、当該1caseだけ修正pass。その後57slot版9passを保存。final_guardがentryを変えた後の再照合漏れは追加1counterでgenuine1failを保存し、stamp検査をguard後へ動かして同1pass。新unknown/partial/fstatと必要positive4pass、最後に完成sourceの新13だけを一回実行した。過去logを再構成せずdistinct件数へ重複加算しない。
+
+実root/caps/mount、host原本・Owner条件・全writer、後続のbackup/migrate/bind/normal/health/current-data executorは未受入。今回のartifact/人工successを本体e52/c5や実行GOへ加算しない。

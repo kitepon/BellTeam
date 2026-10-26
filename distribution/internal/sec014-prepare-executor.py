@@ -47,12 +47,13 @@ class _Prepare:
         self.deadline,self.end,self.host_check = deadline,window_end,host_check
         self.held,self.children,self.records = False,[],[]
         self.proof,self.cid,self.env = None,None,None
+        self.step = 'entry'
 
     def ready(self):
         self.tx.check()
         if self.held or time.monotonic() >= self.deadline-1 or datetime.now(timezone.utc) >= self.end:
             raise actor.control.ControlError('SEC014_PREPARE_DEADLINE_OR_HELD')
-        proof = self.host_check()
+        proof = self.host_check(self.step)
         if (type(proof) is not str or not re.fullmatch('[a-f0-9]{64}',proof)
                 or self.proof is not None and proof != self.proof):
             raise actor.control.ControlError('SEC014_PREPARE_HOST_ORIGINAL')
@@ -66,6 +67,9 @@ class _Prepare:
     def call(self, slot):
         child, born = None,None
         try:
+            if slot not in ('run','inspect','remove','absence'):
+                raise actor.control.ControlError('SEC014_PREPARE_FIXED_SLOT')
+            self.step = slot
             self.ready()
             commands={
                 'run':(actor.prepare_argv(self.tx),60),
@@ -121,6 +125,8 @@ class _Prepare:
             return bytes(output),record
         except Exception as failure:
             self.held=True
+            try:self.host_check.invalidate('UNCONFIRMED_CHILD')
+            except Exception:pass
             try: self.save(slot+'.unknown',{'reason':'SEC014_PREPARE_HELD_OR_UNKNOWN',
                 'errorType':type(failure).__name__,'pid':None if child is None else child.pid,
                 'startTicks':born,'daemonCompletion':'unknown'})
@@ -132,13 +138,15 @@ class _Prepare:
             return self._prepare()
         except Exception as failure:
             self.held=True
+            try:self.host_check.invalidate('UNCONFIRMED_CHILD')
+            except Exception:pass
             try: self.save('phase.unknown',{'reason':'SEC014_PREPARE_PHASE_UNCONFIRMED',
                 'errorType':type(failure).__name__,'containerName':actor.prepare_name(self.tx),'knownCid':self.cid})
             except Exception: pass
             raise actor.control.ControlError('SEC014_PREPARE_PHASE_UNCONFIRMED') from None
 
     def _prepare(self):
-        self.ready()
+        self.tx.check()
         if COMPOSE.is_symlink() or hashlib.sha256(COMPOSE.read_bytes()).hexdigest()!=COMPOSE_SHA:
             raise actor.control.ControlError('SEC014_PREPARE_COMPOSE_PIN')
         config=self.tx.path/(self.tx.value['direction']+'-prepare-empty-docker-config')
@@ -147,6 +155,7 @@ class _Prepare:
         self.env={'PATH':'/usr/bin:/bin','HOME':'/nonexistent','LANG':'C.UTF-8',
              'DOCKER_CONFIG':str(config),'BELLTEAM_SERVER_IMAGE':self.image,
              'BELLTEAM_STATE_PARENT':str(PARENT)}
+        self.ready()
         argv=actor.prepare_argv(self.tx)
         _,run=self.call('run')
         name=actor.prepare_name(self.tx)
@@ -184,6 +193,7 @@ class _Prepare:
             raise actor.control.ControlError('SEC014_PREPARE_REMOVAL_UNCONFIRMED')
         absent,_=self.call('absence')
         if absent.strip(): raise actor.control.ControlError('SEC014_PREPARE_REMOVAL_UNCONFIRMED')
+        self.step = 'metadata'
         self.ready()
         terminal=dict(schema='bellteam.sec014.prepare-terminal.v1',direction=self.tx.value['direction'],
             image=self.image,actorPid=self.tx.value['actorPid'],actorStartTicks=self.tx.value['actorStartTicks'],
@@ -191,6 +201,7 @@ class _Prepare:
             argv=argv,status='exited',exitCode=0,unknown=False)
         self.save('chain',{'terminal':terminal,'commands':self.records,'hostParentProof':self.proof})
         receipt=actor.prepared_phase_receipt(self.tx,self.image,terminal,self.proof)
+        self.step = 'phase'
         self.ready()
         return receipt
 
