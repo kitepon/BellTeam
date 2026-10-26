@@ -294,7 +294,10 @@ private final class GoalViewModel: ObservableObject {
     @Published var needsRefresh = false
     @Published var errorText: String?
 
-    func snapshot(for botId: String) -> GoalSnapshot? { snapshots.first { $0.botId == botId } }
+    var currentSnapshots: [GoalSnapshot] { needsRefresh ? [] : snapshots }
+    func currentSnapshot(for botId: String) -> GoalSnapshot? {
+        currentSnapshots.first { $0.botId == botId }
+    }
 
     func loadList(store: AppStore) async { await load(path: "/api/goals", botId: nil, store: store) }
     func loadDetail(botId: String, store: AppStore) async {
@@ -398,13 +401,13 @@ struct GoalsView: View {
     @State private var editing: GoalEditorSelection?
 
     private var configured: [GoalSnapshot] {
-        goals.snapshots.filter { $0.availability == .available && $0.goal != nil }
+        goals.currentSnapshots.filter { $0.availability == .available && $0.goal != nil }
     }
     private var unavailable: [GoalSnapshot] {
-        goals.snapshots.filter { $0.availability != .available }
+        goals.currentSnapshots.filter { $0.availability != .available }
     }
     private var createCandidates: [GoalSnapshot] {
-        goals.snapshots.filter { $0.availability == .available && $0.goal == nil
+        goals.currentSnapshots.filter { $0.availability == .available && $0.goal == nil
             && $0.capabilities.create && $0.fieldCapabilities.create.objective }
     }
 
@@ -434,6 +437,10 @@ struct GoalsView: View {
                         } else if !goals.loaded {
                             ContentUnavailableView("ゴールを読み込めませんでした", systemImage: "wifi.exclamationmark",
                                                    description: Text("更新して確認してください。"))
+                                .frame(maxWidth: .infinity)
+                        } else if goals.needsRefresh {
+                            ContentUnavailableView("現在のゴールを確認できません", systemImage: "wifi.exclamationmark",
+                                                   description: Text("状態を更新して確認してください。"))
                                 .frame(maxWidth: .infinity)
                         } else {
                             if configured.isEmpty {
@@ -517,9 +524,10 @@ struct ChatGoalBar: View {
     @State private var expanded = false
     @State private var editing: GoalEditorSelection?
 
-    private var snapshot: GoalSnapshot? { goals.snapshot(for: botId) }
+    private var snapshot: GoalSnapshot? { goals.currentSnapshot(for: botId) }
     private var bot: Bot? { store.bots.first { $0.id == botId } }
     private var pillTitle: String {
+        if goals.needsRefresh { return "ゴールを取得できません" }
         guard goals.loaded else { return goals.errorText == nil ? "ゴールを確認中" : "ゴールを取得できません" }
         guard let snapshot else { return "ゴールを取得できません" }
         switch snapshot.availability {
@@ -551,7 +559,8 @@ struct ChatGoalBar: View {
                                      Task { await goals.run(snapshot, action: action, store: store) }
                                  })
                     } else {
-                        Text("ゴールの状態を取得できません。")
+                        Text(goals.needsRefresh ? "現在のゴールを確認できません。状態を更新してください。"
+                                                : "ゴールの状態を取得できません。")
                             .font(.footnote).padding(18).bellCard()
                     }
                     Button("状態を更新") { Task { await goals.loadDetail(botId: botId, store: store) } }

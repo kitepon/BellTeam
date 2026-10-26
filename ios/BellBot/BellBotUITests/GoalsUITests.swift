@@ -580,4 +580,75 @@ final class GoalsUITests: XCTestCase {
         XCTAssertEqual(writes[0]["objective"] as? Bool, true)
         XCTAssertEqual(writes[0]["tokenBudget"] as? Bool, false)
     }
+
+    func testGoalPageHidesPreviousStatusAfterFailedRefresh() async throws {
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_GOALS_FIXTURE_URL"])
+        let reset = try XCTUnwrap(URL(string: url + "/test/reset"))
+        let (_, resetResponse) = try await URLSession.shared.data(from: reset)
+        XCTAssertEqual((resetResponse as? HTTPURLResponse)?.statusCode, 200)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", url]
+        app.launch()
+        defer { app.terminate() }
+        app.tabBars.buttons["ゴール"].tap()
+        let objective = app.staticTexts["利用者に今日の進捗を届ける"]
+        XCTAssertTrue(objective.waitForExistence(timeout: 10))
+
+        let fail = try XCTUnwrap(URL(string: url + "/test/fail-next-goal-get?mode=list"))
+        let (_, setFailure) = try await URLSession.shared.data(from: fail)
+        XCTAssertEqual((setFailure as? HTTPURLResponse)?.statusCode, 200)
+        app.buttons["ゴールを更新"].tap()
+        XCTAssertTrue(app.staticTexts["現在のゴールを確認できません"].waitForExistence(timeout: 5))
+        XCTAssertFalse(objective.exists, "以前の成功値を現在のゴールとして表示しない")
+        XCTAssertFalse(app.staticTexts["設定済みのゴールはありません"].exists)
+        XCTAssertFalse(app.buttons["goal-pause-bot-two"].exists)
+
+        app.buttons["ゴールを更新"].tap()
+        XCTAssertTrue(objective.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["現在のゴールを確認できません"].exists)
+        let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
+        let (data, _) = try await URLSession.shared.data(from: proofURL)
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual((proof["writes"] as? [[String: Any]])?.count, 0)
+    }
+
+    func testChatPillHidesPreviousStatusAfterFailedRefresh() async throws {
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_GOALS_FIXTURE_URL"])
+        let reset = try XCTUnwrap(URL(string: url + "/test/reset"))
+        let (_, resetResponse) = try await URLSession.shared.data(from: reset)
+        XCTAssertEqual((resetResponse as? HTTPURLResponse)?.statusCode, 200)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", url, "-bellbot-preview-chat"]
+        app.launch()
+        defer { app.terminate() }
+        let pill = app.buttons["chat-goal-pill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 10))
+        let active = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "進行中"), object: pill)
+        XCTAssertEqual(XCTWaiter.wait(for: [active], timeout: 10), .completed)
+        XCTAssertTrue(pill.label.contains("128秒"))
+        pill.tap()
+        let objective = app.staticTexts["会話で確認する目的の全文"]
+        XCTAssertTrue(objective.waitForExistence(timeout: 5))
+
+        let fail = try XCTUnwrap(URL(string: url + "/test/fail-next-goal-get?mode=detail"))
+        let (_, setFailure) = try await URLSession.shared.data(from: fail)
+        XCTAssertEqual((setFailure as? HTTPURLResponse)?.statusCode, 200)
+        app.buttons["状態を更新"].tap()
+        let unavailable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "ゴールを取得できません"), object: pill)
+        XCTAssertEqual(XCTWaiter.wait(for: [unavailable], timeout: 5), .completed)
+        XCTAssertFalse(pill.label.contains("128秒"), "古い経過時間を現在値として表示しない")
+        XCTAssertTrue(app.staticTexts["現在のゴールを確認できません。状態を更新してください。"].exists)
+        XCTAssertFalse(objective.exists)
+        XCTAssertFalse(app.buttons["goal-pause-bot-one"].exists)
+
+        app.buttons["状態を更新"].tap()
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "進行中"), object: pill)
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
+        XCTAssertTrue(pill.label.contains("128秒"))
+        XCTAssertTrue(objective.exists)
+        let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
+        let (data, _) = try await URLSession.shared.data(from: proofURL)
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual((proof["writes"] as? [[String: Any]])?.count, 0)
+    }
 }

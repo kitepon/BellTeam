@@ -66,6 +66,7 @@ let snapshots = initialSnapshots()
 let writes = [], reads = []
 let nextOutcome = null
 let holdNextList = false, heldLists = []
+let failNextGoalGet = null
 const json = (response, body, status = 200) => {
   response.writeHead(status, { 'content-type': 'application/json' })
   response.end(JSON.stringify(body))
@@ -74,7 +75,7 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1')
   if (url.pathname === '/test/reset') {
     for (const held of heldLists) json(held.response, { error: 'FIXTURE_RESET' }, 503)
-    snapshots = initialSnapshots(); writes = []; reads = []; nextOutcome = null
+    snapshots = initialSnapshots(); writes = []; reads = []; nextOutcome = null; failNextGoalGet = null
     holdNextList = false; heldLists = []
     return json(response, { ok: true })
   }
@@ -107,6 +108,12 @@ const server = createServer(async (request, response) => {
     return json(response, { ok: true })
   }
   if (url.pathname === '/test/hold-list') { holdNextList = true; return json(response, { ok: true }) }
+  if (url.pathname === '/test/fail-next-goal-get') {
+    const mode = url.searchParams.get('mode')
+    if (!['list', 'detail'].includes(mode)) return json(response, { error: 'UNKNOWN_MODE' }, 400)
+    failNextGoalGet = mode
+    return json(response, { ok: true })
+  }
   if (url.pathname === '/test/release-list') {
     const released = heldLists.length
     for (const held of heldLists) json(held.response, { goals: held.goals })
@@ -127,6 +134,10 @@ const server = createServer(async (request, response) => {
     return json(response, { ok: true })
   }
   if (url.pathname === '/api/goals' && request.method === 'GET') {
+    if (failNextGoalGet === 'list') {
+      failNextGoalGet = null
+      return json(response, { error: 'FIXTURE_GET_FAILED' }, 503)
+    }
     if (holdNextList) {
       holdNextList = false
       heldLists.push({ response, goals: structuredClone([...snapshots.values()]) })
@@ -142,7 +153,14 @@ const server = createServer(async (request, response) => {
   if (!match) return json(response, { error: 'NOT_FOUND' }, 404)
   const snapshot = snapshots.get(match[1])
   if (!snapshot) return json(response, { error: 'BOT_NOT_FOUND' }, 404)
-  if (request.method === 'GET') { reads.push(snapshot.botId); return json(response, { snapshot }) }
+  if (request.method === 'GET') {
+    reads.push(snapshot.botId)
+    if (failNextGoalGet === 'detail') {
+      failNextGoalGet = null
+      return json(response, { error: 'FIXTURE_GET_FAILED' }, 503)
+    }
+    return json(response, { snapshot })
+  }
   if (request.method !== 'POST') return json(response, { error: 'METHOD_NOT_ALLOWED' }, 405)
   const chunks = []
   for await (const chunk of request) chunks.push(chunk)
