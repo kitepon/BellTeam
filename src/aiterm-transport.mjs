@@ -542,7 +542,7 @@ export class AitermTransport {
       } catch (cause) {
         const error = await job.failure(cause)
         if (!acknowledged) rejectAcceptance(error)
-        await onStatus?.(job.stopped ? 'stopped' : 'failed')
+        await onStatus?.(job.stopped ? 'stopped' : 'failed', error)
         throw error
       } finally {
         const temporary = delivery?.imageFiles.filter(file => file.temporary) ?? []
