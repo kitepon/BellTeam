@@ -347,7 +347,7 @@ final class GoalsUITests: XCTestCase {
         for action in ["create", "edit", "pause", "resume", "clear"] {
             XCTAssertFalse(app.buttons["goal-\(action)-bot-one"].exists)
         }
-        XCTAssertTrue(app.staticTexts["このメンバーでは今、ゴールの変更操作を利用できません。"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "編集・再開・取り消しを操作できません。")).firstMatch.exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "現在ゴールを取得できません。")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts["ゴールなし"].exists, "busyを空のゴールに見せない")
         let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))

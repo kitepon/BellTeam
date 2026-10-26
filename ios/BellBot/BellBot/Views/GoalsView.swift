@@ -617,6 +617,17 @@ private struct GoalCard: View {
             || snapshot.capabilities.resume && snapshot.goal?.isPaused == true
             || snapshot.capabilities.clear
     }
+    private var unavailableActions: [String] {
+        guard let goal = snapshot.goal else { return [] }
+        var names: [String] = []
+        if !snapshot.capabilities.edit || !(snapshot.fieldCapabilities.edit.objective || snapshot.fieldCapabilities.edit.tokenBudget) {
+            names.append("編集")
+        }
+        if goal.isActive && !snapshot.capabilities.pause { names.append("一時停止") }
+        if goal.isPaused && !snapshot.capabilities.resume { names.append("再開") }
+        if !snapshot.capabilities.clear { names.append("取り消し") }
+        return names
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -661,8 +672,12 @@ private struct GoalCard: View {
                         .font(.footnote).foregroundStyle(BellTheme.muted)
                 }
                 actions
-                if !hasAction {
-                    Text("このメンバーでは今、ゴールの変更操作を利用できません。")
+                if snapshot.goal == nil && !hasAction {
+                    Text("このメンバーでは今、ゴールの設定を利用できません。")
+                        .font(.footnote).foregroundStyle(BellTheme.muted)
+                }
+                if !unavailableActions.isEmpty {
+                    Text("今のゴールでは\(unavailableActions.joined(separator: "・"))を操作できません。")
                         .font(.footnote).foregroundStyle(BellTheme.muted)
                 }
                 if presentation == .page && snapshot.goal != nil {
