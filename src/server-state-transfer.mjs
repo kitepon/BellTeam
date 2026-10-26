@@ -4,6 +4,7 @@ import { constants } from 'node:fs'
 import { lstat, mkdir, readdir, open, copyFile, chmod, rename, unlink, rmdir } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { pathToFileURL } from 'node:url'
 import { transferAiControlState } from './ai-control-state-transfer.mjs'
 
 const botId = /^[a-z0-9][a-z0-9-]{0,63}$/u
@@ -187,4 +188,18 @@ export async function transferServerState({ root, direction }) {
   await unlink(fromMarker)
   await syncDirectory(from)
   return { direction, status: 'transferred', bots: ids.size }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    if (process.argv.length !== 3 || !['to-server', 'to-legacy'].includes(process.argv[2]))
+      throw failure('SERVER_STATE_TRANSFER_ARGUMENTS')
+    if ([process.getuid?.(), process.geteuid?.(), process.getgid?.(), process.getegid?.()].some(id => id !== 0))
+      throw failure('SERVER_STATE_TRANSFER_IDENTITY')
+    console.log(JSON.stringify(await transferServerState({ root: '/srv/bellteam', direction: process.argv[2] })))
+  } catch (error) {
+    // Maintenance errors must not print paths, parsed documents or headers.
+    console.error(/^[A-Z][A-Z_0-9]*$/u.test(error.code ?? '') ? error.code : 'SERVER_STATE_TRANSFER_FAILED')
+    process.exitCode = 1
+  }
 }

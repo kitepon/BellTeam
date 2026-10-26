@@ -4,6 +4,9 @@ import { mkdtemp, mkdir, writeFile, readFile, lstat, rm, symlink, link } from 'n
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { transferServerState } from '../src/server-state-transfer.mjs'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { fileURLToPath } from 'node:url'
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'server-state-transfer-'))
@@ -17,6 +20,21 @@ async function fixture(t) {
   await put('bots/bot-a/bot.json', profile('bot-a')); await put('bots/bot-a/schedule.json', schedule)
   return { root, put, get, absent, profile, schedule, transfer: direction => transferServerState({ root, direction }) }
 }
+
+test('offline入口は固定の移行方向とroot実効UID/GID以外を読書き前に拒否する', async () => {
+  const exec = promisify(execFile), url = new URL('../src/server-state-transfer.mjs', import.meta.url)
+  for (const args of [[], ['unknown'], ['to-server', '/other-root']]) {
+    await assert.rejects(exec(process.execPath, [fileURLToPath(url), ...args]), error =>
+      error.code === 1 && error.stdout === '' && error.stderr === 'SERVER_STATE_TRANSFER_ARGUMENTS\n')
+  }
+  for (const identity of ['getuid', 'geteuid', 'getgid', 'getegid']) {
+    const source = `process.argv = [process.execPath, ${JSON.stringify(fileURLToPath(url))}, 'to-server'];
+      for (const key of ['getuid', 'geteuid', 'getgid', 'getegid']) process[key] = () => key === ${JSON.stringify(identity)} ? 1000 : 0;
+      await import(${JSON.stringify(url.href)});`
+    await assert.rejects(exec(process.execPath, ['--input-type=module', '--eval', source]), error =>
+      error.code === 1 && error.stdout === '' && error.stderr === 'SERVER_STATE_TRANSFER_IDENTITY\n')
+  }
+})
 
 test('全既知stateと画像を移し、最新の予定・停止状態・Bot増減から逆移行する', async t => {
   const f = await fixture(t)

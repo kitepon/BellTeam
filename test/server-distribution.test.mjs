@@ -35,6 +35,7 @@ if [ "$2" = port ]; then printf '%s\\n' "$TEST_ENDPOINT"; fi
 case "$*" in
   'compose stop bellteam') exit "\${TEST_STOP_EXIT:-0}";;
   'compose run --pull never --rm --no-deps --user 0:0 --entrypoint /bin/sh bellteam -c '*) exit "\${TEST_PREPARE_EXIT:-0}";;
+  'compose run --pull never --rm --no-deps --user 0:0 --entrypoint /usr/local/bin/node bellteam /app/src/server-state-transfer.mjs to-server') exit "\${TEST_TRANSFER_EXIT:-0}";;
   'image inspect fixture-server') exit "\${TEST_INSPECT_EXIT:-0}";;
   'image inspect --format {{.Id}} fixture-server') printf 'sha256:%s\\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;;
   *'/app/src/server-state-writers.mjs plan') printf '%s\\n' '{"roots":["/fixture/data","/fixture/home"],"volume":"fixture-cursor"}';;
@@ -66,8 +67,9 @@ esac
     const verified = calls.findIndex(call => call.endsWith('/app/src/server-state-writers.mjs verify'))
     const prepared = calls.findIndex(call => /^compose run --pull never --rm --no-deps --user 0:0 --entrypoint \/bin\/sh bellteam -c /u.test(call))
     const updated = calls.findIndex(call => call.endsWith('--no-deps cursor-update'))
+    const transferred = calls.indexOf('compose run --pull never --rm --no-deps --user 0:0 --entrypoint /usr/local/bin/node bellteam /app/src/server-state-transfer.mjs to-server')
     const started = calls.indexOf('compose up -d --wait --wait-timeout 120 --pull never')
-    assert.ok(stopped >= 0 && verified > stopped && prepared > verified && updated > prepared && started > updated)
+    assert.ok(stopped >= 0 && verified > stopped && prepared > verified && transferred > prepared && updated > transferred && started > updated)
     assert.ok(calls.includes('compose config --format json'))
     assert.ok(calls.includes('ps -aq --no-trunc'))
     assert.equal(calls.at(-1), 'compose port bellteam 4180')
@@ -78,10 +80,10 @@ esac
     env: { ...env, TEST_CURSOR_EXIT: '37' },
   }), error => error.code === 37 && /停止したまま/.test(error.stderr))
   assert.doesNotMatch(await readFile(commands, 'utf8'), /compose up /)
-  for (const extra of [{ TEST_STOP_EXIT: '41' }, { TEST_PREPARE_EXIT: '42' }, { TEST_WRITERS_EXIT: '43' }]) {
+  for (const extra of [{ TEST_STOP_EXIT: '41' }, { TEST_PREPARE_EXIT: '42' }, { TEST_WRITERS_EXIT: '43' }, { TEST_TRANSFER_EXIT: '44' }]) {
     await writeFile(commands, '')
     await assert.rejects(exec('sh', [join(install, 'install.sh')], { env: { ...env, ...extra } }),
-                         error => error.code === Number(extra.TEST_STOP_EXIT ?? extra.TEST_PREPARE_EXIT ?? extra.TEST_WRITERS_EXIT))
+                         error => error.code === Number(extra.TEST_STOP_EXIT ?? extra.TEST_PREPARE_EXIT ?? extra.TEST_WRITERS_EXIT ?? extra.TEST_TRANSFER_EXIT))
     const failedCalls = await readFile(commands, 'utf8')
     assert.doesNotMatch(failedCalls, /--no-deps cursor-update|compose up /)
     if (extra.TEST_STOP_EXIT || extra.TEST_WRITERS_EXIT) assert.doesNotMatch(failedCalls, /compose run /)

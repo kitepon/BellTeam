@@ -31,6 +31,8 @@ sh "$staging/scripts/assert-state-writers-stopped.sh"
 # image-owned shell explicitly and must never run alongside seat writers.
 docker compose run --pull never --rm --no-deps --user 0:0 --entrypoint /bin/sh bellteam -c \
   'mkdir -p /home/bell /srv/bellteam && chown bell:bell /home/bell /srv/bellteam'
+docker compose run --pull never --rm --no-deps --user 0:0 --entrypoint /usr/local/bin/node \
+  bellteam /app/src/server-state-transfer.mjs to-server
 if sh "$staging/scripts/update-cursor.sh"; then
   :
 else
