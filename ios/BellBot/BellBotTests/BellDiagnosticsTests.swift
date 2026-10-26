@@ -95,6 +95,20 @@ final class BellDiagnosticsTests: XCTestCase {
         XCTAssertEqual(BellRequestTrace.route(for: "/api/notifications"), "/api/notifications")
     }
 
+    func testExistingSettingsModelAndSubscriptionModulesStaySettings() {
+        for path in ["/api/settings", "/api/settings/:id", "/api/models", "/api/subscription"] {
+            let route = BellRequestTrace.route(for: path)
+            XCTAssertEqual(route, path)
+            var module = ""
+            let diagnostics = BellDiagnostics { _, value, _, _ in module = value }
+            let trace = BellRequestTrace(route: route, method: "GET", startedAt: Date(), failedAt: Date(),
+                                         appStateAtStart: "active", attempts: 1, metrics: nil)
+            let error = URLError(.timedOut, userInfo: [BellRequestTrace.userInfoKey: trace])
+            diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: true))
+            XCTAssertEqual(module, "settings", path)
+        }
+    }
+
     func testRequestContextSeparatesContractFromObservedFailure() {
         var logs: [String] = []
         let diagnostics = BellDiagnostics { _, _, _, log in logs.append(log) }

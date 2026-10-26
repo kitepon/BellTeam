@@ -374,6 +374,8 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         if path == "/api/setup" || path == "/api/harness-auth" { return "session" }
         if path == "/api/goals" { return "bots" }
         if path == "/api/ai-control" { return "settings" }
+        if path == "/api/settings" || path.hasPrefix("/api/settings/")
+            || path == "/api/models" || path == "/api/subscription" { return "settings" }
         if path == "/api/user-rules" { return "owner" }
         if path == "/api/notifications" { return "notifications" }
         if path.contains("/schedules") { return "schedules" }
