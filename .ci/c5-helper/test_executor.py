@@ -305,6 +305,21 @@ class ExecutorBoundary(unittest.TestCase):
         self.assertTrue(self.runner.unknown)
         self.assertFalse(any(args[0] == 'rm' for args in self.fake.calls))
 
+    def test_compose_create_uses_supported_create_options(self):
+        original = self.fake.answer
+        def create_parser(args):
+            if args[0] == 'compose' and 'create' in args:
+                self.assertNotIn('--no-deps', args, 'real Compose create rejects the run-only --no-deps flag')
+                self.assertEqual(args[args.index('create'):], ['create', '--no-build', '--pull', 'never', '--no-recreate', 'cursor-update'])
+            return original(args)
+        self.fake.answer = create_parser
+        self.runner.phase('volumePrepare')
+        self.runner.prepare_volume()
+        self.runner.phase('cursorCreateAndValidate')
+        helper = self.runner.create_cursor()
+        self.assertEqual(helper['ordinal'], 8)
+        self.assertFalse(any(args[0] == 'start' for args in self.fake.calls))
+
 
 if __name__ == '__main__':
     unittest.main()

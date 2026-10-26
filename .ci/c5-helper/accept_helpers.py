@@ -402,7 +402,7 @@ class Runner:
         self.volume_identity()
         # Compose creates its own unique default network; remember this possible effect before issuing it.
         self.network_expected = True
-        self.command([*self.compose(), 'create', '--no-build', '--pull', 'never', '--no-deps', '--no-recreate', 'cursor-update'], effect='create-8')
+        self.command([*self.compose(), 'create', '--no-build', '--pull', 'never', '--no-recreate', 'cursor-update'], effect='create-8')
         try:
             raw, _ = self.command([*self.compose(), 'ps', '--all', '-q', 'cursor-update'])
             helper = {'id': cid(raw), 'name': self.project + '-cursor-update-1', 'ordinal': 8, 'kind': 'cursor', 'status': 'created'}
