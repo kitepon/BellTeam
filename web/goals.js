@@ -278,13 +278,15 @@ export function goalsView(dialog, api, getBots, chat = null) {
         report('変更結果と現在の状態を確認できませんでした。更新して確認してください。', snapshot.botId)
       }
     } finally {
-      // A list read may have superseded this write before it committed. Do not
-      // apply its old response, but reconcile the still-visible same binding
-      // with a new read started after completion. A different thread stays put.
+      // Invalidate pre-completion reads even when reselecting hid the binding.
+      // Reconcile the same binding after completion; otherwise keep unknown
+      // or the different thread already observed, never the old write result.
       const visible = snapshots.find(item => item.botId === snapshot.botId)
-      if (!stillCurrent() && visible && ['sessionId', 'launchId', 'threadId'].every(key => visible.binding?.[key] === snapshot.binding?.[key])) {
+      if (!stillCurrent()) {
         const read = advance(snapshot.botId)
-        try {
+        if (!visible?.binding) {
+          replaceSnapshot({ botId: snapshot.botId, availability: 'unavailable', message: '変更後の現在の状態を確認できません。更新して確認してください。' })
+        } else if (['sessionId', 'launchId', 'threadId'].every(key => visible.binding[key] === snapshot.binding?.[key])) try {
           const result = await api(`/api/bots/${encodeURIComponent(snapshot.botId)}/goal`)
           if (observed(snapshot.botId) === read) {
             if (result.snapshot?.botId !== snapshot.botId) throw new Error('ゴールを確認できませんでした')

@@ -343,3 +343,28 @@ test('list refresh releases chat update and message events do not pile reads ont
   held.resolve({ snapshot: current }); await reading
   assert.equal(f.chatRefresh.disabled, false)
 })
+
+test('reselecting during a mutation cannot apply a precommit read after confirmed or lost responses', async () => {
+  for (const confirmed of [true, false]) {
+    const post = deferred(), oldRead = deferred(); let reads = 0, writes = 0
+    const active = snapshot('a', 'A'), paused = snapshot('a', 'A', 'paused')
+    const f = fixture(async (_path, options) => {
+      if (options?.method === 'POST') { writes++; return post.promise }
+      reads++
+      return reads === 1 ? { snapshot: active } : reads === 2 ? oldRead.promise : { snapshot: paused }
+    }, ['a'], true)
+    await f.view.select('a')
+    const mutation = f.chatButton('一時停止').events.click[0]()
+    await f.view.select(null)
+    const reselected = f.view.select('a')
+    if (confirmed) post.resolve({ outcome: 'confirmed', snapshot: paused })
+    else post.reject(Error('artificial response lost'))
+    await mutation
+    oldRead.resolve({ snapshot: active }); await reselected
+    assert.equal(f.chatButton('一時停止'), undefined)
+    assert.match(f.summary.textContent, /状態を取得できません/)
+    assert.equal(writes, 1)
+    await f.view.refreshSelected()
+    assert.ok(f.chatButton('再開')); assert.equal(f.chatRefresh.disabled, false)
+  }
+})
