@@ -1,6 +1,7 @@
 import { diagnosticFailureDetails } from './diagnostic-report-context.mjs'
 import { returnedExecutionError } from './execution-bridge.mjs'
 import { authenticationPreflightFailure } from './agent-launch-error.mjs'
+import { returnedMcpError } from './returned-mcp-error.mjs'
 
 // 要求の意味とHTTP処理で観測した失敗。本人の操作や配送結果は推定しない。
 export function diagnosticRequestContext({ method, url }, frames = [], error = null) {
@@ -8,6 +9,7 @@ export function diagnosticRequestContext({ method, url }, frames = [], error = n
   // 既存の集約キーは変えず、古いunknown報告を書き換えない。
   const execution = returnedExecutionError(error?.executionError) ?? returnedExecutionError(error)
   const preflight = authenticationPreflightFailure(error?.agentLaunchError)
+  const mcpError = returnedMcpError(error)
   const requestMethod = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].includes(method) ? method : 'unknown'
   const path = typeof url === 'string' ? url.split(/[?#]/u, 1)[0] : ''
   let operation = 'unknown'
@@ -69,6 +71,7 @@ export function diagnosticRequestContext({ method, url }, frames = [], error = n
     'http_status=500',
     `failure_stage=${stage}`,
     ...Object.entries(diagnosticFailureDetails(error)).map(([key, value]) => `${key}=${value}`),
+    ...(mcpError ? [`mcp_error=${JSON.stringify(mcpError)}`] : []),
     ...(preflight ? [
       `native_launch_phase=${preflight.phase}`,
       `native_launch_effect=${preflight.effect}`,
