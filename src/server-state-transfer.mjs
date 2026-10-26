@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { transferAiControlState } from './ai-control-state-transfer.mjs'
 import { prepareServerStateOwnership } from './server-state-ownership.mjs'
+import { backupServerState } from './server-state-backup.mjs'
 
 const botId = /^[a-z0-9][a-z0-9-]{0,63}$/u
 const failure = code => Object.assign(new Error(code), { code })
@@ -198,6 +199,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if ([process.getuid?.(), process.geteuid?.(), process.getgid?.(), process.getegid?.()].some(id => id !== 0))
       throw failure('SERVER_STATE_TRANSFER_IDENTITY')
     const options = { root: '/srv/bellteam', direction: process.argv[2] }
+    await backupServerState({ ...options, backupRoot: '/srv/bellteam-maintenance-backups' })
     const result = await transferServerState(options)
     const ownership = await prepareServerStateOwnership(options)
     console.log(JSON.stringify({ ...result, ownership }))
