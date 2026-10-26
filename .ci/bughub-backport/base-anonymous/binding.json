@@ -1,0 +1,21 @@
+{
+  "base": "sha256:50e8cf52e23958a1daf62e73e01feacf476f3cf17a0afcb05f1eada75b84f4a4",
+  "ociRevision": "4d2cbe1c1a2b9366191430d4d06736983b0f13a5",
+  "architectures": {
+    "amd64": {
+      "manifest": "sha256:111b4dc4410ea00a0cb864709eb207dcdafe2425fa832c720ec6e9245e30df53",
+      "config": "sha256:fa973fe78b728319f9c4092212ca4fd097152f9564f980d3721c4217265a3eb8",
+      "layers": 21,
+      "diffIds": 21,
+      "user": "bell"
+    },
+    "arm64": {
+      "manifest": "sha256:f87e585376babc079524d604a0749e861326c5fbbb922e4971deea4c3097e176",
+      "config": "sha256:e27458bbc3d495bd4279eb3161ad5be3eef95786fcad7fca2a201306183d8d91",
+      "layers": 21,
+      "diffIds": 21,
+      "user": "bell"
+    }
+  },
+  "scope": "anonymous saved registry base only; not fresh production host"
+}

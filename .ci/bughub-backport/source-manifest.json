@@ -1,0 +1,63 @@
+{
+  "schema": "bellteam.bughub-backport-source.v1",
+  "productSource": "2a888011e289ef1888b42d9f241321a0955d1f64",
+  "base": "ghcr.io/kitepon/bellteam-server@sha256:50e8cf52e23958a1daf62e73e01feacf476f3cf17a0afcb05f1eada75b84f4a4",
+  "references": [
+    {
+      "path": ".github/workflows/publish-server-image.yml",
+      "sha256": "33d9a3d9468b434b562dc92f0703f2e48ad191ec6cea399bba155cb0be225c66"
+    },
+    {
+      "path": ".ci/bughub-backport/base-anonymous/amd64-config.json",
+      "sha256": "fa973fe78b728319f9c4092212ca4fd097152f9564f980d3721c4217265a3eb8"
+    },
+    {
+      "path": ".ci/bughub-backport/base-anonymous/amd64-manifest.json",
+      "sha256": "111b4dc4410ea00a0cb864709eb207dcdafe2425fa832c720ec6e9245e30df53"
+    },
+    {
+      "path": ".ci/bughub-backport/base-anonymous/arm64-config.json",
+      "sha256": "e27458bbc3d495bd4279eb3161ad5be3eef95786fcad7fca2a201306183d8d91"
+    },
+    {
+      "path": ".ci/bughub-backport/base-anonymous/arm64-manifest.json",
+      "sha256": "f87e585376babc079524d604a0749e861326c5fbbb922e4971deea4c3097e176"
+    },
+    {
+      "path": ".ci/bughub-backport/base-anonymous/binding.json",
+      "sha256": "67b8bfc9c1af7bfba8e50d349ecbc4a809c093759013a61a737cde79c614a639"
+    },
+    {
+      "path": ".ci/bughub-backport/base-anonymous/index.json",
+      "sha256": "50e8cf52e23958a1daf62e73e01feacf476f3cf17a0afcb05f1eada75b84f4a4"
+    },
+    {
+      "path": ".ci/bughub-backport/base-module.mjs",
+      "sha256": "90bbc69302d80417219a743b472917abd07752d9ef65521b0c584b3627778864"
+    },
+    {
+      "path": ".ci/bughub-backport/candidate.py",
+      "sha256": "533035ab357f168ec5e5a03ef329c27dc04ed15de308ac2139ab4b8f3fda046d"
+    },
+    {
+      "path": ".ci/bughub-backport/finite.py",
+      "sha256": "97b366c30a4016656b7e3c82494589a7cb7040e7fbf9bcabbdc39734b2b18b52"
+    },
+    {
+      "path": ".ci/bughub-backport/patched-module.mjs",
+      "sha256": "b8968076dd2370c09c269fb982b07b328c598b6faaf596931609ae4dee45b8c9"
+    },
+    {
+      "path": ".ci/bughub-backport/plan.json",
+      "sha256": "e1716b53367300045e31e04c441c4bff7005dec9e60ffa9b5a63004f6106126b"
+    },
+    {
+      "path": ".ci/bughub-backport/probe.mjs",
+      "sha256": "27fc4ec306caa20e5a154048f440301d6434dfaf4698044f208fd0b0a151b431"
+    },
+    {
+      "path": ".ci/bughub-backport/test_backport.py",
+      "sha256": "dca37e75f97c901685da16c8abc6aa5573a0dc71167b3c041e550d35a442845e"
+    }
+  ]
+}
