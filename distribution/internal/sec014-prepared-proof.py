@@ -45,8 +45,10 @@ def _read(parent_path, parent_owner, leaf_owner):
         for name, expected in zip(LEAVES, saved['leaves']):
             fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
                          | os.O_CLOEXEC, dir_fd=parent)
+            # Register before fstat so its failure still closes the opened FD.
+            held.append((name, fd, None))
             info = os.fstat(fd)
-            held.append((name, fd, info))
+            held[-1] = (name, fd, info)
             if (not stat.S_ISDIR(info.st_mode)
                     or (info.st_uid, info.st_gid) != leaf_owner
                     or stat.S_IMODE(info.st_mode) != 0o711

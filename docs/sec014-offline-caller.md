@@ -117,3 +117,13 @@ phase/journal integration, and cannot complete a transaction. The fixed prepare
 command/terminal receipt and the remaining five actual phase executors are still
 unconnected. The four new ordinary-filesystem tests use injected current UID/GID;
 there is no real root/chown/capability/mount acceptance. Whole Draft NOTDEPLOYABLE.
+
+### Initial fstat failure
+
+The leaf FD is now registered for cleanup immediately after a successful open,
+before the first fstat. SEC014-PREPARED-FSTAT-FD-1 injects EIO at that first
+fstat on an ordinary filesystem: the unchanged counter changed from one leaked
+FD to zero, while preserving the original exception. Its body and FD assertions
+are retained in the new regression test, with only the source location adapted.
+The prior four tests/FULL are not rerun. This does not connect the actual host
+executor or establish real root/mount/authority acceptance.
