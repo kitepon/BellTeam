@@ -37,7 +37,7 @@
     },
     {
       "path": ".ci/bughub-backport/candidate.py",
-      "sha256": "533035ab357f168ec5e5a03ef329c27dc04ed15de308ac2139ab4b8f3fda046d"
+      "sha256": "1e4a1586468a66c4adb42139c848a9275eee78117af02643e02dfe0f9836b18b"
     },
     {
       "path": ".ci/bughub-backport/finite.py",

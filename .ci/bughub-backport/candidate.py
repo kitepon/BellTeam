@@ -37,6 +37,8 @@ def labels(original):
 
 
 def config_delta(base, new):
+    if new['rootfs'].get('type') != base['rootfs'].get('type'):
+        raise ValueError('ROOTFS_TYPE_CHANGED')
     if new['rootfs']['diff_ids'][:-1] != base['rootfs']['diff_ids']:
         raise ValueError('BASE_DIFF_IDS_CHANGED')
     if len(new['rootfs']['diff_ids']) != len(base['rootfs']['diff_ids'])+1:
