@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-26T03:38:28.649909+00:00",
+  "source": "a8782a84e1e3da900f9dab6f557dc2e2a6218247",
+  "workflow": 40264136258,
+  "anonymous": true,
+  "index_digest": "sha256:c5a20bd36a8f3ee3fd6e7f23872931125e159a45baf7e01a56185fbb7c5e4c2e",
+  "image": "ghcr.io/kitepon/bellteam-server@sha256:c5a20bd36a8f3ee3fd6e7f23872931125e159a45baf7e01a56185fbb7c5e4c2e",
+  "architectures": {
+    "amd64": {
+      "manifest_digest": "sha256:c2ab39699b9217c4914d48cafe938d2febdbefc1142da2563edc77ddff7cdabf",
+      "config_digest": "sha256:0ac35bbd1babc6841af6c6b2eda6bd8c5d53bb2af2642bc0e2a7d7d7d0a6c354",
+      "source": "a8782a84e1e3da900f9dab6f557dc2e2a6218247",
+      "compressed_bytes": 1536248978
+    },
+    "arm64": {
+      "manifest_digest": "sha256:8bb831510e541d6619f51c265fee395202177be0b00a177106c6a18b73a0c913",
+      "config_digest": "sha256:f84ac41389f52425cd767f9e10d329710fe1236264151b419b7091f05b0fdddf",
+      "source": "a8782a84e1e3da900f9dab6f557dc2e2a6218247",
+      "compressed_bytes": 1499611926
+    }
+  }
+}

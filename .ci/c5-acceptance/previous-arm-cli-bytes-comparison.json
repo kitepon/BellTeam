@@ -1,0 +1,94 @@
+{
+  "architecture": "arm64",
+  "executed_arm_code": false,
+  "aiterm_group_excluded_from_global_tree": false,
+  "images": {
+    "candidate": {
+      "/usr/local/lib/node_modules": {
+        "files": 7483,
+        "sha256": "aabc82d1f0ef83c4a2d41ea83e28ccec57a0aa897dd7a092029663c9ad24db96",
+        "groups": {
+          "@anthropic-ai/claude-code": {
+            "files": 11,
+            "sha256": "4532492fe66c63edb408009cfb6e35b5a889130e780b334b6bf255612c273414"
+          },
+          "@openai/codex": {
+            "files": 48,
+            "sha256": "0052515dd3c77e05fb6ec6863a91ea8ef60caaa30587add1a2179d9a856ed51c"
+          },
+          "aiterm-mcp": {
+            "files": 3885,
+            "sha256": "6811753a74784081264fc92f497f2ad73a7b37fb2c4cbb5df1e7817716fba0d0"
+          },
+          "corepack": {
+            "files": 54,
+            "sha256": "3fe6d17402979736e9412e7bd7f3be09b4a05d5c1b153322b883ec1ed471806d"
+          },
+          "npm": {
+            "files": 1936,
+            "sha256": "48be811cfe29033cd81279a419abb511235fa0fda8f453f7ebbcb9ed21e649d5"
+          },
+          "throughline": {
+            "files": 1549,
+            "sha256": "c0a989a827d348cebc64783313852bf3e776b5a3385ede9322810b8d509b7a26"
+          }
+        }
+      },
+      "/usr/local/bin": {
+        "files": 25,
+        "sha256": "1a1d37761585f49417c363e1e439a6003ba506ec44ec401c6997495abadbb6e2"
+      },
+      "/home/bell/.local": {
+        "files": 447,
+        "sha256": "870af8f928617af066c11f2435fa96782a4ea2f3ac74a897f5a6bcd049aa1ed7"
+      }
+    },
+    "previous": {
+      "/usr/local/lib/node_modules": {
+        "files": 7483,
+        "sha256": "7aebaf1e08ef854db48539f9d45ca095d4ceacad8616b97de0761ac234386b56",
+        "groups": {
+          "@anthropic-ai/claude-code": {
+            "files": 11,
+            "sha256": "4532492fe66c63edb408009cfb6e35b5a889130e780b334b6bf255612c273414"
+          },
+          "@openai/codex": {
+            "files": 48,
+            "sha256": "0052515dd3c77e05fb6ec6863a91ea8ef60caaa30587add1a2179d9a856ed51c"
+          },
+          "aiterm-mcp": {
+            "files": 3885,
+            "sha256": "318087376005ef8390173ba9a7790e254e9f6e4d2a04b4d0adde39392041d4c5"
+          },
+          "corepack": {
+            "files": 54,
+            "sha256": "3fe6d17402979736e9412e7bd7f3be09b4a05d5c1b153322b883ec1ed471806d"
+          },
+          "npm": {
+            "files": 1936,
+            "sha256": "48be811cfe29033cd81279a419abb511235fa0fda8f453f7ebbcb9ed21e649d5"
+          },
+          "throughline": {
+            "files": 1549,
+            "sha256": "c0a989a827d348cebc64783313852bf3e776b5a3385ede9322810b8d509b7a26"
+          }
+        }
+      },
+      "/usr/local/bin": {
+        "files": 25,
+        "sha256": "1a1d37761585f49417c363e1e439a6003ba506ec44ec401c6997495abadbb6e2"
+      },
+      "/home/bell/.local": {
+        "files": 447,
+        "sha256": "870af8f928617af066c11f2435fa96782a4ea2f3ac74a897f5a6bcd049aa1ed7"
+      }
+    }
+  },
+  "all_equal": false,
+  "different_paths": [
+    "/usr/local/lib/node_modules"
+  ],
+  "different_packages": [
+    "aiterm-mcp"
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "amd64": {
+    "candidate": {
+      "appDependencies": {
+        "entries": 3627,
+        "sha256": "c64a74f375e6b715d3f0bfecf54b7f16da1f21333e7cc2ce1da7002218a0a68a"
+      },
+      "extraPublicRootFiles": {
+        ".dockerignore": "ce846730e30359b6829f0dc9353ee38142583743d9ec7e5e379333323ace1d2f",
+        "Dockerfile": "b288edb615035cedbb2a7e4554d60c31cdc7de3a034b74583351687e48bc183f",
+        ".env.example": "a6f8d17c6506eeffb5e2990383b5e3a3e087b11738a3dd7a37a4f4e19a7eda10",
+        "README.md": "c9d09d100b26205786f44825dcaec49b9bff7a822198bceb2ba2e5691560c23d"
+      }
+    },
+    "previous": {
+      "appDependencies": {
+        "entries": 3627,
+        "sha256": "c64a74f375e6b715d3f0bfecf54b7f16da1f21333e7cc2ce1da7002218a0a68a"
+      },
+      "extraPublicRootFiles": {
+        ".dockerignore": "ce846730e30359b6829f0dc9353ee38142583743d9ec7e5e379333323ace1d2f",
+        "Dockerfile": "b288edb615035cedbb2a7e4554d60c31cdc7de3a034b74583351687e48bc183f",
+        ".env.example": "a6f8d17c6506eeffb5e2990383b5e3a3e087b11738a3dd7a37a4f4e19a7eda10",
+        "README.md": "c9d09d100b26205786f44825dcaec49b9bff7a822198bceb2ba2e5691560c23d"
+      }
+    },
+    "allAppDependenciesSameBytes": true
+  },
+  "arm64": {
+    "candidate": {
+      "appDependencies": {
+        "entries": 3627,
+        "sha256": "c64a74f375e6b715d3f0bfecf54b7f16da1f21333e7cc2ce1da7002218a0a68a"
+      },
+      "extraPublicRootFiles": {
+        ".dockerignore": "ce846730e30359b6829f0dc9353ee38142583743d9ec7e5e379333323ace1d2f",
+        "Dockerfile": "b288edb615035cedbb2a7e4554d60c31cdc7de3a034b74583351687e48bc183f",
+        ".env.example": "a6f8d17c6506eeffb5e2990383b5e3a3e087b11738a3dd7a37a4f4e19a7eda10",
+        "README.md": "c9d09d100b26205786f44825dcaec49b9bff7a822198bceb2ba2e5691560c23d"
+      }
+    },
+    "previous": {
+      "appDependencies": {
+        "entries": 3627,
+        "sha256": "c64a74f375e6b715d3f0bfecf54b7f16da1f21333e7cc2ce1da7002218a0a68a"
+      },
+      "extraPublicRootFiles": {
+        ".dockerignore": "ce846730e30359b6829f0dc9353ee38142583743d9ec7e5e379333323ace1d2f",
+        "Dockerfile": "b288edb615035cedbb2a7e4554d60c31cdc7de3a034b74583351687e48bc183f",
+        ".env.example": "a6f8d17c6506eeffb5e2990383b5e3a3e087b11738a3dd7a37a4f4e19a7eda10",
+        "README.md": "c9d09d100b26205786f44825dcaec49b9bff7a822198bceb2ba2e5691560c23d"
+      }
+    },
+    "allAppDependenciesSameBytes": true
+  }
+}

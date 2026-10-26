@@ -1,0 +1,29 @@
+{
+  "run": "ci-c5a20bd3-pending",
+  "image": "sha256:c5a20bd36a8f3ee3fd6e7f23872931125e159a45baf7e01a56185fbb7c5e4c2e",
+  "source": "a8782a84e1e3da900f9dab6f557dc2e2a6218247",
+  "limits": {
+    "memory": 2147483648,
+    "memorySwap": 2147483648,
+    "nanoCpus": 1000000000,
+    "pids": 512,
+    "tmpfs": "/tmp:rw,nosuid,nodev,size=64m"
+  },
+  "phaseSeconds": {
+    "pull-amd64": 300,
+    "pull-arm64": 300,
+    "bytes-amd64": 120,
+    "bytes-arm64": 120,
+    "runtime-amd64": 120,
+    "cleanup": 30
+  },
+  "ci": {
+    "startAvailableGiB": 8,
+    "runningAvailableGiB": 4,
+    "startDiskGiB": 20,
+    "runningDiskGiB": 8,
+    "scriptSeconds": 900,
+    "jobTimeoutMinutes": 20,
+    "note": "Dedicated disposable CI VM only, not a relaxation of main-server14GiB/150GiB; capacity is checked live, never guaranteed by14GB advertised storage"
+  }
+}
