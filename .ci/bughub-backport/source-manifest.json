@@ -37,7 +37,7 @@
     },
     {
       "path": ".ci/bughub-backport/candidate.py",
-      "sha256": "1e4a1586468a66c4adb42139c848a9275eee78117af02643e02dfe0f9836b18b"
+      "sha256": "b28f0eb6ff905a65c973b9c5d6b79abe6409950057b2440f3e4bb5a175fd20e7"
     },
     {
       "path": ".ci/bughub-backport/finite.py",
@@ -53,11 +53,11 @@
     },
     {
       "path": ".ci/bughub-backport/probe.mjs",
-      "sha256": "27fc4ec306caa20e5a154048f440301d6434dfaf4698044f208fd0b0a151b431"
+      "sha256": "2528dfcd1708ad942b213bf6fca313237037396e5c18f1d68aca671dbccbadb7"
     },
     {
       "path": ".ci/bughub-backport/test_backport.py",
-      "sha256": "dca37e75f97c901685da16c8abc6aa5573a0dc71167b3c041e550d35a442845e"
+      "sha256": "6a9f6b0ac2ec0002dbbd86e6121cdf8a23dee58b150761efd276ecd376b3f95b"
     }
   ]
 }

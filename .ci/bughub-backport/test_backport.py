@@ -34,10 +34,12 @@ class BackportBoundaries(unittest.TestCase):
         return target.getvalue()
 
     def test_only_one_file_layer_is_accepted(self):
-        c.one_file_layer(self.layer())
+        metadata={'app':dict(uid=0,gid=0,mode=0o755),'app/src':dict(uid=0,gid=0,mode=0o755),
+                  'app/'+c.MODULE:dict(uid=0,gid=0,mode=0o644)}
+        c.one_file_layer(self.layer(),metadata)
         for extra in ['app/package.json','app/src/another.mjs','app/.wh.src']:
-            with self.subTest(extra=extra),self.assertRaises(ValueError):c.one_file_layer(self.layer(extra))
-        with self.assertRaises(ValueError):c.one_file_layer(self.layer(link=True))
+            with self.subTest(extra=extra),self.assertRaises(ValueError):c.one_file_layer(self.layer(extra),metadata)
+        with self.assertRaises(ValueError):c.one_file_layer(self.layer(link=True),metadata)
 
     def test_only_provenance_and_one_diff_id_can_change(self):
         before,after=self.updated();c.config_delta(before,after)
@@ -70,6 +72,52 @@ class BackportBoundaries(unittest.TestCase):
         with patch.object(c.f,'ROOT',Path('/path-that-does-not-exist')),patch.object(c.f,'command') as call:
             with self.assertRaises(ValueError):c.index('123')
             call.assert_not_called()
+
+
+class MetadataDeltaTests(unittest.TestCase):
+    def metadata(self,uid):
+        return {'app':dict(uid=uid,gid=uid,mode=0o755),'app/src':dict(uid=uid,gid=uid+1,mode=0o750),
+                'app/'+c.MODULE:dict(uid=uid,gid=uid+2,mode=0o640)}
+
+    def layer(self,metadata):
+        result=io.BytesIO()
+        with tarfile.open(fileobj=result,mode='w:gz') as archive:
+            for name,value in metadata.items():
+                member=tarfile.TarInfo(name);member.uid=value['uid'];member.gid=value['gid'];member.mode=value['mode']
+                if name=='app/'+c.MODULE:
+                    raw=(c.BASE/'patched-module.mjs').read_bytes();member.size=len(raw);archive.addfile(member,io.BytesIO(raw))
+                else:member.type=tarfile.DIRTYPE;archive.addfile(member)
+        return result.getvalue()
+
+    def test_observed_root_and_nonroot_values_drive_copy_and_layer(self):
+        for uid in (0,1000):
+            with self.subTest(uid=uid):
+                metadata=self.metadata(uid)
+                self.assertIn('--chown='+str(uid)+':'+str(uid+2)+' --chmod=0640',c.copy_instruction(metadata))
+                c.one_file_layer(self.layer(metadata),metadata)
+
+    def test_module_or_parent_metadata_change_is_rejected(self):
+        original=self.metadata(1000)
+        for name in original:
+            for key in ('uid','gid','mode'):
+                changed=copy.deepcopy(original);changed[name][key]+=1
+                with self.subTest(path=name,field=key),self.assertRaises(ValueError):
+                    c.one_file_layer(self.layer(changed),original)
+
+    def test_binding_hash_arch_run_and_config_are_required(self):
+        row=c.PLAN['baseBinding']['architectures']['amd64']
+        record={'schema':'bellteam.bughub-base-metadata.v1','baseIndex':c.PLAN['base'],
+            'baseManifest':row['manifest'],'baseConfig':row['config'],'arch':'amd64','run':'12',
+            'ciHead':'f'*40,'baseModuleSHA256':c.PLAN['baseModuleSHA256'],
+            'metadata':self.metadata(1000),'probeSHA256':'a'*64}
+        raw=json.dumps(record).encode()
+        with patch.object(c.f,'STATE',{'ciHead':'f'*40}):
+            self.assertEqual(c.validate_binding(raw,c.digest(raw),'amd64','12'),record)
+            for field in ('arch','run','baseConfig'):
+                changed=dict(record);changed[field]='other';body=json.dumps(changed).encode()
+                with self.subTest(field=field),self.assertRaises(ValueError):
+                    c.validate_binding(body,c.digest(body),'amd64','12')
+            with self.assertRaises(ValueError):c.validate_binding(raw+b' ',c.digest(raw),'amd64','12')
 
 
 if __name__=='__main__':unittest.main(defaultTest='BackportBoundaries',verbosity=2)

@@ -55,17 +55,56 @@ def config_delta(base, new):
         raise ValueError('UNRELATED_IMAGE_CONFIG_CHANGED')
 
 
-def one_file_layer(raw):
+def validate_metadata(metadata):
+    if type(metadata) is not dict or set(metadata) != {'app','app/src','app/'+MODULE}:
+        raise ValueError('BASE_METADATA_PATHS')
+    for value in metadata.values():
+        if (type(value) is not dict or set(value) != {'uid','gid','mode'}
+                or any(type(value[k]) is not int or not 0 <= value[k] <= 4294967295 for k in ('uid','gid'))
+                or type(value['mode']) is not int or not 0 <= value['mode'] <= 0o7777):
+            raise ValueError('BASE_METADATA_VALUES')
+    return metadata
+
+
+def validate_binding(raw, expected_sha, arch, run):
+    if digest(raw) != expected_sha:
+        raise ValueError('BASE_METADATA_BYTES_CHANGED')
+    record=json.loads(raw)
+    row=PLAN['baseBinding']['architectures'][arch]
+    expected={'schema':'bellteam.bughub-base-metadata.v1','baseIndex':PLAN['base'],
+        'baseManifest':row['manifest'],'baseConfig':row['config'],'arch':arch,'run':run,
+        'ciHead':f.STATE['ciHead'],'baseModuleSHA256':PLAN['baseModuleSHA256']}
+    if ({k:v for k,v in record.items() if k not in ('metadata','probeSHA256')} != expected
+            or not re.fullmatch('[a-f0-9]{64}',record.get('probeSHA256',''))):
+        raise ValueError('BASE_METADATA_CONTEXT')
+    validate_metadata(record['metadata'])
+    return record
+
+
+def base_metadata(arch,run):
+    raw=(f.OUT/'base-metadata.json').read_bytes()
+    return validate_binding(raw,f.STATE['baseMetadataSHA256'],arch,run)
+
+
+def copy_instruction(metadata):
+    value=validate_metadata(metadata)['app/'+MODULE]
+    return ('COPY --chown='+str(value['uid'])+':'+str(value['gid'])
+        +' --chmod='+format(value['mode'],'04o')+' bughub-security.mjs /app/src/bughub-security.mjs\n')
+
+
+def one_file_layer(raw,metadata):
+    validate_metadata(metadata)
     seen = []
     with tarfile.open(fileobj=io.BytesIO(raw), mode='r:*') as archive:
         for member in archive:
             name = member.name.removeprefix('./').rstrip('/')
             if member.isdir() and name in ('app', 'app/src'):
-                if (member.uid, member.gid, member.mode) != (0, 0, 0o755):
+                value=metadata[name]
+                if (member.uid, member.gid, member.mode) != (value['uid'],value['gid'],value['mode']):
                     raise ValueError('PARENT_METADATA_CHANGED')
                 continue
             if (name != 'app/'+MODULE or not member.isfile()
-                    or (member.uid, member.gid, member.mode) != (0, 0, 0o644)
+                    or (member.uid, member.gid, member.mode) != tuple(metadata['app/'+MODULE][k] for k in ('uid','gid','mode'))
                     or member.size > 65536):
                 raise ValueError('UNRELATED_LAYER_MEMBER')
             if digest(archive.extractfile(member).read()) != PLAN['moduleSHA256']:
@@ -112,7 +151,10 @@ def probe(image, run, arch, patched):
     config = json.loads((f.OUT/('base-'+arch+'-config.json')).read_text())
     (folder/'expected.json').write_text(json.dumps({
         'patched':patched, 'moduleSHA256':PLAN['moduleSHA256'] if patched else PLAN['baseModuleSHA256'],
-        'baseEnv':config['config']['Env']})+'\n')
+        'baseEnv':config['config']['Env'],
+        'metadataBindingRaw':(f.OUT/'base-metadata.json').read_text() if patched else None,
+        'metadataBindingSHA256':f.STATE['baseMetadataSHA256'] if patched else None})+'\n')
+    if patched:base_metadata(arch,run)
     name = 'centi-bughub-'+run+'-'+arch+('-patched' if patched else '-base')
     f.STATE.update(cid=None, removed=False, absenceConfirmed=False, fixtureName=name,
                    image=image, probe=str(folder))
@@ -138,13 +180,26 @@ def probe(image, run, arch, patched):
     if after['state']['ExitCode'] != 0 or after['state']['OOMKilled']:
         raise ValueError('PROBE_TERMINAL')
     result=json.loads(output.read_text())
-    if result != {'stage':'bughub-metadata-only','patched':patched,'moduleSHA256':
+    metadata=validate_metadata(result.get('metadata'))
+    if {k:v for k,v in result.items() if k!='metadata'} != {'stage':'bughub-metadata-only','patched':patched,'moduleSHA256':
             PLAN['moduleSHA256'] if patched else PLAN['baseModuleSHA256'],'serviceCalls':0}:
         raise ValueError('PROBE_RESULT')
+    if patched and metadata != base_metadata(arch,run)['metadata']:
+        raise ValueError('CANDIDATE_METADATA_CHANGED')
     (f.OUT/('patched-probe.json' if patched else 'base-probe.json')).write_text(json.dumps(result)+'\n')
     f.cleanup(run)
     if not f.STATE.get('absenceConfirmed'):
         raise ValueError('OWNED_CLEANUP_REQUIRED')
+    if not patched:
+        row=PLAN['baseBinding']['architectures'][arch]
+        record={'schema':'bellteam.bughub-base-metadata.v1','baseIndex':PLAN['base'],
+            'baseManifest':row['manifest'],'baseConfig':row['config'],'arch':arch,'run':run,
+            'ciHead':f.STATE['ciHead'],'baseModuleSHA256':PLAN['baseModuleSHA256'],
+            'metadata':metadata,'probeSHA256':digest(output.read_bytes())}
+        raw=json.dumps(record,sort_keys=True,separators=(',',':')).encode()
+        with (f.OUT/'base-metadata.json').open('xb') as stream:
+            stream.write(raw);stream.flush();os.fsync(stream.fileno())
+        f.STATE['baseMetadataSHA256']=digest(raw);f.save()
 
 
 def build(arch, run):
@@ -160,7 +215,7 @@ def build(arch, run):
     probe(row['config'],run,arch,False)
     context=f.OUT/'context'; context.mkdir()
     shutil.copyfile(BASE/'patched-module.mjs',context/'bughub-security.mjs')
-    text='FROM '+f.REPO+'@'+row['manifest']+'\nCOPY --chown=0:0 --chmod=0644 bughub-security.mjs /app/src/bughub-security.mjs\n'
+    text='FROM '+f.REPO+'@'+row['manifest']+'\n'+copy_instruction(base_metadata(arch,run)['metadata'])
     text+='LABEL '+ ' '.join(k+'='+json.dumps(v) for k,v in labels({}).items())+'\n'
     (context/'Dockerfile').write_text(text)
     target=tag(run,arch)
@@ -197,8 +252,9 @@ def publish(arch,run):
     raw=f.raw_request('https://ghcr.io/v2/kitepon/bellteam-server/blobs/'+layer,{'Authorization':'Bearer '+token})
     if 'sha256:'+digest(raw) != layer:
         raise ValueError('NEW_LAYER_DIGEST')
-    one_file_layer(raw)
+    one_file_layer(raw,base_metadata(arch,run)['metadata'])
     (f.OUT/'published.json').write_text(json.dumps({'source':SOURCE,'base':PLAN['base'],
+        'baseMetadataSHA256':f.STATE['baseMetadataSHA256'],
         'ciHead':f.STATE['ciHead'],'tag':tag(run,arch),'moduleSHA256':PLAN['moduleSHA256'],'newLayerVerified':True,**bound},indent=2)+'\n')
 
 
@@ -211,6 +267,10 @@ def index(run):
                 or row['ciHead']!=os.environ['GITHUB_SHA']
                 or row['moduleSHA256']!=PLAN['moduleSHA256'] or row['tag']!=tag(run,row['architecture'])):
             raise ValueError('ARCH_BINDING')
+        reports=[p.parent/'base-metadata.json' for p in (f.ROOT/'incoming').rglob('published.json')
+                 if json.loads(p.read_text()).get('architecture')==row['architecture']]
+        if len(reports)!=1:raise ValueError('BASE_METADATA_REPORT_MISSING')
+        validate_binding(reports[0].read_bytes(),row['baseMetadataSHA256'],row['architecture'],run)
         before=registry(row['digest'],'pre-'+row['architecture'],SOURCE,row['architecture'])
         if before['config']!=row['config']:raise ValueError('ARCH_CONFIG')
     f.command(['docker','buildx','imagetools','create','-t',tag(run),*[f.REPO+'@'+r['digest'] for r in rows]],120,auth=True)
