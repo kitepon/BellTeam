@@ -127,3 +127,36 @@ FD to zero, while preserving the original exception. Its body and FD assertions
 are retained in the new regression test, with only the source location adapted.
 The prior four tests/FULL are not rerun. This does not connect the actual host
 executor or establish real root/mount/authority acceptance.
+
+
+## Prepare evidence handoff into the phase caller (source only)
+
+`prepared_phase_receipt` retains the preparation metadata producer's exact UTF-8
+bytes and SHA, together with a typed positive prepare terminal, in a 0600
+O_EXCL artifact under the held transaction parent. Its artifact SHA becomes
+`six_prepared_leaves`; the existing phase consumer saves the phase receipt before
+confirming the journal. Artifact saving shares the existing receipt write-FD,
+fsync and held/reopened/linked fullstat checks. Equal-JSON inode replacement,
+write failure, invalid terminal or changed prepared leaves cannot confirm it.
+The function itself does not advance a phase. A subsequent writer refusal leaves
+the transaction incomplete with only `prepared` confirmed.
+
+The terminal input is a trusted internal executor contract, NOT a terminal
+producer or an external authority receipt. Its schema binds direction, actor
+PID/birth, selected image, positive client PID/birth, exact created container ID,
+fixed uniquely named prepare Compose argv, exited/exit0 and unknown=false.
+The future producer must independently observe those facts, pin the Compose
+source and process environment, and retain the client/daemon originals before
+calling this consumer. The host-parent proof argument still checks SHA syntax
+only: the trusted executor must verify the original host ACL/alias/parent/writer
+conditions before supplying it. No actual child, daemon or host authority was
+verified by this source change. Do not manufacture these inputs from exit0 alone.
+
+Six new ordinary-filesystem tests cover artifact bytes/terminal retention under
+the same kernel lock, bad terminals, changed leaves, artifact fsync failure,
+same-content different-inode replacement, and prepare-to-writer refusal in the
+existing phase caller. They inject current UID/path only into the metadata
+reader and provide synthetic terminal inputs. No Docker/root/host probe, normal
+startup, public installer, packager or production CLI connection. The actual
+fixed prepare executor/terminal producer and host-original verification remain
+the next source work; whole Draft NOTDEPLOYABLE.
