@@ -19,15 +19,19 @@ class Node {
 }
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
 const snapshot = (id, thread, status = 'active') => ({ botId: id, availability: 'available', binding: { sessionId: id, launchId: 'a'.repeat(32), threadId: thread }, capabilities: { edit: true, pause: true, resume: true, clear: true }, goal: { threadId: thread, objective: thread, status } })
-function fixture(api, bots = ['a']) {
+function fixture(api, bots = ['a'], withChat = false) {
   globalThis.document = { createElement: tag => new Node(tag) }; globalThis.CSS = { escape: value => value }
   const dialog = new Node('dialog'), body = new Node('div'), notice = new Node('p'), refresh = new Node('button')
   dialog.parts = { '[data-goals-body]': body, '[data-goals-notice]': notice, '[data-goals-refresh]': refresh }
-  const view = goalsView(dialog, api, () => bots.map(id => ({ id, name: id, harness: 'codex' })))
+  const chat = new Node('details'), chatBody = new Node('div'), chatNotice = new Node('p'), chatRefresh = new Node('button'), summary = new Node('summary')
+  chat.parts = { '[data-goals-body]': chatBody, '[data-goals-notice]': chatNotice, '[data-goals-refresh]': chatRefresh, '[data-goal-summary]': summary }
+  const view = goalsView(dialog, api, () => bots.map(id => ({ id, name: id, harness: 'codex' })), withChat ? chat : null)
   const row = id => body.children.find(node => node.dataset.goalBot === id)
   const button = (id, text) => row(id)?.all().find(node => node.tagName === 'button' && node.textContent === text)
   const objective = id => row(id)?.all().find(node => node.className === 'goal-objective')?.textContent
-  return { view, body, notice, refresh, row, button, objective }
+  const chatRow = () => chatBody.children.find(node => node.dataset.goalBot)
+  const chatButton = text => chatRow()?.all().find(node => node.tagName === 'button' && node.textContent === text)
+  return { view, body, notice, refresh, row, button, objective, chat, chatBody, chatNotice, chatRefresh, summary, chatRow, chatButton }
 }
 
 test('a newer refresh cannot be rolled back by the old mutation response; pending is released', async () => {
@@ -181,23 +185,25 @@ test('same-binding field changes use the supported field while keeping the objec
   assert.deepEqual(writes, [{ action: 'edit', binding: current.binding, objective: '保持する目的' }])
 })
 
-test('Claude native goal shows only returned metrics and clear, then distinct cleared history', async () => {
+test('Claude clear removes the configured list row and preserves distinct history in the chat', async () => {
   const active = { ...snapshot('a', 'A'), capabilities: { inspect: true, clear: true },
     goal: { kind: 'claude-code', phase: 'active', native: { type: 'goal_status', condition: 'Claude条件', met: false } } }
   const cleared = { ...active, goal: null, capabilities: { inspect: true }, nativeHistory: {
     kind: 'claude-code', terminal: 'cleared', native: { type: 'goal_status', condition: 'Claude条件', met: true, sentinel: true },
   } }
-  let writes = 0
+  let writes = 0, current = active
   const f = fixture(async (_path, options) => {
-    if (!options) return { goals: [active] }
-    writes++; assert.equal(JSON.parse(options.body).action, 'clear'); return { outcome: 'confirmed', snapshot: cleared }
-  })
+    if (!options) return _path === '/api/goals' ? { goals: [current] } : { snapshot: current }
+    writes++; assert.equal(JSON.parse(options.body).action, 'clear'); current = cleared; return { outcome: 'confirmed', snapshot: cleared }
+  }, ['a'], true)
+  await f.view.select('a')
   await f.view.open(); assert.equal(f.objective('a'), 'Claude条件')
   for (const label of ['編集', '一時停止', '再開']) assert.equal(f.button('a', label), undefined)
   const text = f.row('a').all().map(node => node.textContent).join('\n')
   assert.match(text, /使用量・作業時間はまだ取得/); assert.doesNotMatch(text, /予算|0秒|一時停止したゴールは再開/)
-  await f.button('a', '取り消す').events.click[0]()
-  const after = f.row('a').all().map(node => node.textContent).join('\n')
+  await f.button('a', '削除').events.click[0]()
+  assert.equal(f.row('a'), undefined)
+  const after = f.chatRow().all().map(node => node.textContent).join('\n')
   assert.match(after, /ゴールなし/); assert.match(after, /前のゴール：取消/); assert.doesNotMatch(after, /前のゴール：達成/)
   assert.equal(writes, 1)
 })
@@ -237,4 +243,103 @@ test('Grok detailは原文表示を使い、null会計を保存数値で埋め�
     assert.doesNotMatch(text,/4,906|99,999|待機|使用量 —|undefined|null/)
     assert.equal(nodes.some(n=>n.tagName==='button'),false)
   }
+})
+
+test('the dedicated list contains only confirmed configured goals and never calls unknown state empty', async () => {
+  const active = snapshot('a', 'A')
+  const f = fixture(async () => ({ goals: [active,
+    { ...snapshot('b', 'B'), goal: null },
+    { ...snapshot('c', 'C'), availability: 'unavailable' },
+    { ...snapshot('d', 'D'), availability: 'unsupported' },
+  ] }), ['a', 'b', 'c', 'd'])
+  await f.view.open()
+  assert.ok(f.row('a'))
+  for (const id of ['b', 'c', 'd']) assert.equal(f.row(id), undefined)
+  const empty = fixture(async () => ({ goals: [{ botId: 'a', availability: 'unavailable' }] }))
+  await empty.view.open()
+  assert.match(empty.body.all().map(node => node.textContent).join('\n'), /状態を取得できない/)
+  assert.doesNotMatch(empty.body.all().map(node => node.textContent).join('\n'), /設定済みのゴールはありません/)
+})
+
+test('chat and list share pause, resume, objective edit and clear results with exactly one request per action', async () => {
+  let current = snapshot('a', 'A'), writes = []
+  current.goal.timeUsedSeconds = 14
+  const f = fixture(async (path, options) => {
+    if (!options) return path === '/api/goals' ? { goals: [current] } : { snapshot: current }
+    const input = JSON.parse(options.body); writes.push(input)
+    if (input.action === 'clear') current = { ...current, goal: null, capabilities: { create: true } }
+    else current = { ...current, goal: { ...current.goal,
+      status: input.action === 'pause' ? 'paused' : input.action === 'resume' ? 'active' : current.goal.status,
+      ...(input.action === 'edit' ? { objective: input.objective } : {}),
+    } }
+    return { outcome: 'confirmed', snapshot: current }
+  }, ['a'], true)
+  await f.view.select('a'); await f.view.open()
+  assert.match(f.summary.textContent, /目標に取り組み中.*14秒/)
+  assert.equal(f.summary.textContent.includes('A'), false)
+  await f.chatButton('一時停止').events.click[0]()
+  assert.match(f.summary.textContent, /一時停止/); assert.ok(f.button('a', '再開'))
+  await f.button('a', '再開').events.click[0]()
+  assert.ok(f.chatButton('一時停止'))
+  f.chatButton('編集').events.click[0]()
+  const input = f.chatRow().all().find(node => node.tagName === 'textarea')
+  input.value = '新しい目的'; input.events.input[0]()
+  f.chatRow().all().find(node => node.tagName === 'form').events.submit[0]({ preventDefault() {} })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(f.objective('a'), '新しい目的'); assert.equal(f.summary.title, '新しい目的')
+  await f.button('a', '削除').events.click[0]()
+  assert.equal(f.row('a'), undefined); assert.equal(f.summary.textContent, '目標未設定')
+  assert.deepEqual(writes.map(input => input.action), ['pause', 'resume', 'edit', 'clear'])
+  assert.ok(writes.every(input => input.binding.threadId === 'A'))
+})
+
+test('a late previous-chat read cannot display that member goal or controls in the current chat', async () => {
+  const held = deferred()
+  const f = fixture(async path => path.includes('/a/') ? held.promise : { snapshot: snapshot('b', 'B', 'paused') }, ['a', 'b'], true)
+  const previous = f.view.select('a')
+  await f.view.select('b')
+  held.resolve({ snapshot: snapshot('a', 'A') }); await previous
+  assert.equal(f.chatRow().dataset.goalBot, 'b'); assert.equal(f.summary.title, 'B')
+  assert.ok(f.chatButton('再開')); assert.equal(f.chatButton('一時停止'), undefined)
+  await f.view.select(null); assert.equal(f.chat.hidden, true)
+})
+
+test('chat read failure and omitted goal remain unknown without stale controls or zero elapsed time', async () => {
+  let result = { snapshot: snapshot('a', 'A') }
+  const f = fixture(async () => { if (result instanceof Error) throw result; return result }, ['a'], true)
+  await f.view.select('a'); assert.ok(f.chatButton('一時停止'))
+  assert.doesNotMatch(f.summary.textContent, /0秒/)
+  result = Error('artificial read failure'); await f.view.refreshSelected()
+  assert.match(f.summary.textContent, /状態を取得できません/)
+  assert.equal(f.chatButton('一時停止'), undefined)
+  result = { snapshot: { botId: 'a', availability: 'available' } }; await f.view.refreshSelected()
+  assert.match(f.summary.textContent, /状態を取得できません/)
+  assert.doesNotMatch(f.chatBody.all().map(node => node.textContent).join('\n'), /ゴールなし/)
+})
+
+test('chat Grok status uses the current observation and explains unavailable mutations', async () => {
+  const original = structuredClone(grokNative.goal)
+  original.native.status = 'active'; original.native.phase = 'Executing'
+  const current = { ...snapshot('a', 'A'), goal: original, capabilities: grokNative.capabilities }
+  const f = fixture(async () => ({ snapshot: current }), ['a'], true)
+  await f.view.select('a')
+  assert.match(f.summary.textContent, /一時停止.*14s/)
+  assert.equal(f.chatButton('再開'), undefined)
+  assert.match(f.chatBody.all().map(node => node.textContent).join('\n'), /編集・再開・削除を操作できません/)
+})
+
+test('list refresh releases chat update and message events do not pile reads onto an in-flight goal read', async () => {
+  const held = deferred(); let reads = 0
+  const current = snapshot('a', 'A')
+  const f = fixture(async path => {
+    if (path === '/api/goals') return { goals: [current] }
+    return ++reads === 1 ? { snapshot: current } : held.promise
+  }, ['a'], true)
+  await f.view.select('a'); await f.view.refresh()
+  assert.equal(f.chatRefresh.disabled, false)
+  const reading = f.view.refreshSelected()
+  f.view.refreshOnEvent(); f.view.refreshOnEvent()
+  assert.equal(reads, 2); assert.equal(f.chatRefresh.disabled, true)
+  held.resolve({ snapshot: current }); await reading
+  assert.equal(f.chatRefresh.disabled, false)
 })

@@ -68,6 +68,14 @@
       </div>
 
       <div class="timeline" id="timeline" aria-live="polite"></div>
+      <details class="chat-goal" id="chat-goal" hidden>
+        <summary data-goal-summary>ゴールの状態を確認しています。</summary>
+        <div class="chat-goal-details">
+          <button class="text-button" type="button" data-goals-refresh>ゴールを更新</button>
+          <p class="form-error" data-goals-notice role="status" hidden></p>
+          <div data-goals-body></div>
+        </div>
+      </details>
       <form class="composer" id="composer">
         <button class="add-button" id="attachment-button" type="button" aria-label="画像を添付">
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
