@@ -37,3 +37,13 @@ forwardは6領域移動→既台帳予定画像transfer→新側所有、reverse
 専用親に未知の内容や記録のない既存leafがあれば取り込まず終了する。空の場合だけstate/rooms/owner/logs/bellteam-settings/apnsの6dirを711・1001:1001へ準備し、同期後に親とleafのdev/inodeをroot専用600の `.prepared.json` へ確定する。既存はこの記録・inode・owner/modeが一致する場合だけ再利用し、inode交代や途中失敗を再帰chownや初期化で隠さない。失敗時は完了印なし・FDを閉じて未完を保持し、通常起動へ進めない。既存stateの内容は読まない。
 
 人工FS確認ではchownとそのowner stat値だけを置換し、mode/inode/link/fsync/FD closeは実filesystemで確認した。CLIのroot拒否も人工identityで確認する。新YAMLはsource静的確認まで、実Compose parse/実UID/capability/mountは未受入。通常installerの接続、二view維持・writer分母・新旧通常非同時起動を含む全構成は未完成で、DraftNOTDEPLOYABLEを維持する。
+
+## 二viewと6bindの固定保守構成
+
+`compose.state-maintenance.json` はComposeが読めるJSON形式で、通常serviceを継承しない別の固定root serviceだけを定義する。旧dataを `/srv/bellteam-legacy` と `/srv/bellteam` の両方へ渡し、新viewの6targetへprepared専用leafを重ね、backup親を保守口へだけ渡す。すべてbindのcreate_host_path=falseで、未知親をDockerに作らせない。HOME/CLI資格/通常env/port/socketは供給しない。entryはenv-i固定Node、既存CLIのto-serverを既定とし、最新逆移行は同入口へto-legacy一引数だけを指定する。通常installerへの接続と通常service側6bindの供給は、まだ行わない。
+
+旧UID1001/0700の内容へのアクセスと内容移動にはDAC_OVERRIDE、既所有処理のchownとchown後chmodにはCHOWN/FOWNERを必要とするため、この保守serviceだけcap_drop ALLから3capを付ける。RO/networknone/NNP、CPU1/RAM2GiB=swap/PIDs512を宣言する。これらはsource上の必要権限であり、実kernel/Compose互換の受入は別工程。通常serviceへrootや追加capを渡さない。
+
+`assert-state-writers-stopped.sh --maintenance` は固定normal Composeとこの保守Composeの正規化metadataを既存parserへ渡す。writer planに旧data/HOME/Cursor・新6sourceとbackupを含め、別名bind/local volume backingも既canonical照合で拒否する。正常serviceの6bindが一つでもあれば全6が必要で、保守側の欠測/RO/余分なmountも拒否する。JSON側はproject名を宣言せず、確認時に既存Cursor volumeのproject名を変えない。planへ環境/資格は出力しない。
+
+これはwriterのDocker分母と保守source宣言まで。host専用親のACL/祖先差替え/別alias、host上の非参加writer、prepareからbackup/移行/通常起動までの同一排他、通常側legacy/backup非露出と外側socket重ね順は別の未完条件である。lockや停止snapshotだけで移行中の排他成立とせず、実UID/rootcontainer/独立bindとfreshinstall等が揃うまでwhole NOTDEPLOYABLEを維持する。

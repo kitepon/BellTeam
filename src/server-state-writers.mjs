@@ -9,6 +9,7 @@ const path = value => {
   return posix.resolve(value)
 }
 const overlaps = (a, b) => a === b || a.startsWith(b === '/' ? '/' : b + '/') || b.startsWith(a === '/' ? '/' : a + '/')
+const stateTargets = ['state', 'rooms', 'owner', 'logs', 'shared/tools/bellteam-settings', 'shared/tools/apns'].map(name => '/srv/bellteam/' + name)
 
 // Only retain mount identities. Compose environment/credentials never leave
 // this parser or become part of the maintenance evidence.
@@ -24,11 +25,28 @@ export function stateWriterPlan(config) {
   if (cursor.length !== 1 || cursor[0].type !== 'volume') invalid()
   const volume = config.volumes?.[cursor[0].source]?.name
   if (typeof volume !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(volume)) invalid()
-  return { roots, volume }
+  const stateMounts = service.volumes.filter(mount => stateTargets.includes(mount.target))
+  if (stateMounts.length) addBinds(service, stateTargets)
+  const maintenance = config.services['state-maintenance']
+  if (maintenance) {
+    const targets = ['/srv/bellteam-legacy', '/srv/bellteam', '/srv/bellteam-maintenance-backups', ...stateTargets]
+    if (maintenance.volumes?.length !== targets.length) invalid()
+    addBinds(maintenance, targets)
+  }
+  return { roots: [...new Set(roots)], volume }
+
+  function addBinds(service, targets) {
+    if (!Array.isArray(service.volumes)) invalid()
+    for (const target of targets) {
+      const matches = service.volumes.filter(mount => mount.target === target)
+      if (matches.length !== 1 || matches[0].type !== 'bind' || matches[0].read_only === true) invalid()
+      roots.push(path(matches[0].source))
+    }
+  }
 }
 
 function validate(plan, containers) {
-  if (!Array.isArray(plan?.roots) || plan.roots.length !== 2 || typeof plan.volume !== 'string'
+  if (!Array.isArray(plan?.roots) || plan.roots.length < 2 || typeof plan.volume !== 'string'
     || !Array.isArray(containers)) invalid()
   plan.roots.forEach(path)
   for (const container of containers) {

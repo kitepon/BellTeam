@@ -2,6 +2,11 @@
 # Run after compose stop, before touching data/HOME/Cursor. No Docker socket
 # is mounted into the reader, and only container state/mounts are inspected.
 set -eu
+case "$#:${1-}" in
+  0:) maintenance=false;;
+  1:--maintenance) maintenance=true;;
+  *) echo SERVER_STATE_WRITER_ARGUMENTS_INVALID >&2; exit 1;;
+esac
 image=$(docker compose config --images)
 case "$image" in ''|*[[:space:]]*) echo SERVER_STATE_IMAGE_INVALID >&2; exit 1;; esac
 image=$(docker image inspect --format '{{.Id}}' "$image")
@@ -12,7 +17,11 @@ command -v realpath >/dev/null || { echo SERVER_STATE_REALPATH_REQUIRED >&2; exi
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-writers.XXXXXX")
 trap 'rm -rf "$staging"' 0
 trap 'exit 1' 1 2 15
-config=$(docker compose config --format json)
+if "$maintenance"; then
+  config=$(docker compose -f compose.yaml -f compose.state-maintenance.json config --format json)
+else
+  config=$(docker compose config --format json)
+fi
 printf '%s' "$config" | docker run --pull never --rm -i --network none --read-only \
   --entrypoint /usr/local/bin/node "$image" /app/src/server-state-writers.mjs plan > "$staging/plan.json"
 unset config

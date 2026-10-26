@@ -125,7 +125,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'web/index.html', 'integrations/bellteam.mjs', 'config/common-agents.md', 'config/models.json',
     'config/setup-guide.json', 'config/ponytail-LICENSE', 'docs/bot-environment.md', 'docs/onboarding.md',
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
-    'compose.cursor-update.yaml', 'compose.state-prepare.yaml', 'src/server-state-prepare.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
+    'compose.cursor-update.yaml', 'compose.state-prepare.yaml', 'compose.state-maintenance.json', 'src/server-state-prepare.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
     'scripts/seat-exec.c', 'scripts/server-start.c',
     'scripts/assert-state-writers-stopped.sh',
     'runtime/home/auth.json', '.env', 'config/bots.json', 'services/subscriptions/keys/private.p8',
@@ -153,7 +153,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   assert.ok(pathsInArchive.includes('docs/onboarding.md'))
   for (const name of bridgeFiles) assert.ok(pathsInArchive.includes(`bridge/${name}`))
   assert.ok(!pathsInArchive.includes('bridge/bridge.env'), '利用者のBridge認証設定は配布しない')
-  for (const path of ['compose.cursor-update.yaml', 'compose.state-prepare.yaml', 'src/server-state-prepare.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh']) assert.ok(pathsInArchive.includes(path))
+  for (const path of ['compose.cursor-update.yaml', 'compose.state-prepare.yaml', 'compose.state-maintenance.json', 'src/server-state-prepare.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh']) assert.ok(pathsInArchive.includes(path))
   for (const path of ['scripts/seat-exec.c', 'scripts/server-start.c']) assert.ok(pathsInArchive.includes(path))
   assert.ok(!pathsInArchive.includes('config/models.json'), 'モデル候補は導入先CLIから取得し古い一覧を同梱しない')
   assert.deepEqual(JSON.parse(await readFile(join(output, 'config/bots.json'), 'utf8')).bots, [])
