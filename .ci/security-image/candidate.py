@@ -53,7 +53,14 @@ def command(argv,seconds,*,auth=False,cleanup=False):
     out=OUT/f'{n:02}.stdout.log';err=OUT/f'{n:02}.stderr.log'
     with out.open('wb') as stdout,err.open('wb') as stderr:
         child=subprocess.Popen(['timeout','--signal=TERM','--kill-after=5s',str(left)+'s',*argv],cwd=ROOT,env=environment(auth),stdout=stdout,stderr=stderr)
-        rec['wrapperPid']=child.pid;save();rec['exitCode']=child.wait();rec['finishedAt']=time.time();save()
+        try:
+            rec['wrapperPid']=child.pid;save();rec['exitCode']=child.wait()
+        except Exception:
+            UNKNOWN=True;STATE['unknown']=True
+            try:save()
+            except Exception:pass
+            raise
+        rec['finishedAt']=time.time();save()
     if rec['exitCode'] in [124,137] or rec['exitCode']<0:UNKNOWN=True;STATE['unknown']=True;save();raise ValueError('CLIENT_TIMEOUT_UNKNOWN')
     if rec['exitCode']:raise ValueError('COMMAND_FAILED_'+str(n))
     return out

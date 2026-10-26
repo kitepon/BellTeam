@@ -54,4 +54,39 @@ class Boundaries(unittest.TestCase):
             with self.assertRaises(ValueError):c.raw_request('https://ghcr.io/')
             network.assert_not_called()
 
+class Counter(unittest.TestCase):
+ def test_unconfirmed_postspawn_must_latch_and_prevent_next_command(self):
+  for boundary in ['wait','save_after_spawn']:
+   with self.subTest(boundary=boundary),tempfile.TemporaryDirectory() as tmp:
+    calls=[]
+    class Child:
+     pid=12345
+     def wait(self):
+      if boundary=='wait' and len(calls)==1: raise OSError('synthetic wait failure')
+      return 0
+    def spawn(*a,**kw):calls.append(a[0]);return Child()
+    state={};original_save=c.save
+    def save():
+     if boundary=='save_after_spawn' and len(calls)==1 and state['commands'][-1].get('wrapperPid') and 'exitCode' not in state['commands'][-1]:raise OSError('synthetic terminal-unknown receipt failure')
+     original_save()
+    with patch.object(c,'OUT',Path(tmp)),patch.object(c,'STATE',state),patch.object(c,'UNKNOWN',False),patch.object(c,'DEADLINE',time.monotonic()+120),patch.object(c,'environment',return_value={}),patch.object(c.subprocess,'Popen',side_effect=spawn),patch.object(c,'save',side_effect=save):
+     try:c.command(['docker','start','-a','owned-fixture'],10)
+     except OSError:pass
+     first_latched=c.UNKNOWN
+     try:c.command(['docker','inspect','owned-fixture'],10)
+     except (ValueError,OSError):pass
+     print(json.dumps({'boundary':boundary,'unknownLatched':first_latched,'subsequentSpawn':len(calls)-1,'realChild':0,'Docker':0}),flush=True)
+     self.assertTrue(first_latched,'unconfirmed spawned client must latch')
+     self.assertEqual(len(calls),1)
+
+class KnownTerminal(unittest.TestCase):
+    def test_nonzero_exit_remains_known(self):
+        with tempfile.TemporaryDirectory() as tmp,patch.object(c,'OUT',Path(tmp)),patch.object(c,'STATE',{}),patch.object(c,'UNKNOWN',False),patch.object(c,'DEADLINE',time.monotonic()+120),patch.object(c,'environment',return_value={}),patch.object(c.subprocess,'Popen') as spawn:
+            spawn.return_value.pid=12345;spawn.return_value.wait.return_value=7
+            with self.assertRaisesRegex(ValueError,'COMMAND_FAILED_0'):
+                c.command(['docker','start','-a','owned-fixture'],10)
+            self.assertFalse(c.UNKNOWN)
+            self.assertEqual(c.STATE['commands'][0]['exitCode'],7)
+            self.assertEqual(spawn.call_count,1)
+
 if __name__=='__main__':unittest.main()

@@ -2,7 +2,7 @@
   "files": [
     {
       "path": ".ci/security-image/candidate.py",
-      "sha256": "58680c5e0eb19b0f827787ad998b2ecebc7ca2f39cde9a1f5e38d4554bcfb5b8"
+      "sha256": "97b366c30a4016656b7e3c82494589a7cb7040e7fbf9bcabbdc39734b2b18b52"
     },
     {
       "path": ".ci/security-image/probe.mjs",
@@ -10,7 +10,7 @@
     },
     {
       "path": ".ci/security-image/test_candidate.py",
-      "sha256": "1c1822ce9fb52fba700a869ab1bf46b529f26583d5776f0a2a0f76d40acfbd28"
+      "sha256": "2962e605aee8285fd1cafc6c745169b9ef672713d9d5bcbc16e45d3efcb69519"
     },
     {
       "path": ".ci/security-image/context-files.json",
