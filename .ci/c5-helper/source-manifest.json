@@ -1,0 +1,13 @@
+{
+  ".gitignore": "7e2f65c80bddb76631f05a448b09378247e7f14af4ade18127925c07a6538dbf",
+  "README.md": "634d0eaf5bb2e794c74171a057f1baf7f997aeac847cd903ee5e02490d1071da",
+  "accept_helpers.py": "276edbeed10d79ed565b130688086a66015f6101fdd76e4268592014bc5a4129",
+  "assets/compose.cursor-update.yaml": "b508bff73a3d49287e7dcd99a6fb2e7463b159da808bf4733f9d4478c8607aec",
+  "assets/scripts/update-cursor.sh": "2641cfc8378506a8105fe32e1fb48980bd613ea974c3180cfbd6b48621c96bb9",
+  "c5_contract.py": "1f2c35c6c23d357ffbdf308143b0c7f7a95e66d455e2eac45b43b69f13857c60",
+  "c5_inspect_contract.py": "a5cb20df63bc59bb5499871a6d86c7f1ba36fe97c8e58e5bda1085305f8bfd94",
+  "contract.json": "80530e6cb6d3b26f5e273674e39a57b240d1cf15e5d8472d1a57c349a8719e15",
+  "cursor-caps.overlay.yaml": "ea52af634727d6d8a1353fb9e283376d81cc910ec425f84476b5dc60d95e37d8",
+  "test_executor.py": "abfb49965f8d95811c14a5ac58dc97d5d86a4e3a054b0793e95258896beafd23",
+  "../../.github/workflows/publish-server-image.yml": "2c4ae545f80fa095fc6b3efa03dffce5fd21ba4949412fe097e3bf6ebad09f66"
+}

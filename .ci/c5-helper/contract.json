@@ -1,0 +1,29 @@
+{
+  "schema": "centi.c5.helper-ci.v1",
+  "image": "ghcr.io/kitepon/bellteam-server@sha256:c5a20bd36a8f3ee3fd6e7f23872931125e159a45baf7e01a56185fbb7c5e4c2e",
+  "source": "a8782a84e1e3da900f9dab6f557dc2e2a6218247",
+  "amd64Manifest": "sha256:c2ab39699b9217c4914d48cafe938d2febdbefc1142da2563edc77ddff7cdabf",
+  "amd64Config": "sha256:0ac35bbd1babc6841af6c6b2eda6bd8c5d53bb2af2642bc0e2a7d7d7d0a6c354",
+  "branch": "ci/centi-c5-helpercaps-20261026",
+  "scriptSeconds": 1200,
+  "cleanupSeconds": 90,
+  "decisionSeconds": 10,
+  "phaseSeconds": {
+    "preflight": 30,
+    "pull": 300,
+    "assetCompose": 60,
+    "assetUpdater": 60,
+    "composeConfig": 30,
+    "volumePrepare": 20,
+    "cursorCreateAndValidate": 60,
+    "cursorStartObserveExit": 300,
+    "cleanup": 90
+  },
+  "pins": {
+    "c5_contract.py": "1f2c35c6c23d357ffbdf308143b0c7f7a95e66d455e2eac45b43b69f13857c60",
+    "c5_inspect_contract.py": "a5cb20df63bc59bb5499871a6d86c7f1ba36fe97c8e58e5bda1085305f8bfd94",
+    "cursor-caps.overlay.yaml": "ea52af634727d6d8a1353fb9e283376d81cc910ec425f84476b5dc60d95e37d8",
+    "assets/compose.cursor-update.yaml": "b508bff73a3d49287e7dcd99a6fb2e7463b159da808bf4733f9d4478c8607aec",
+    "assets/scripts/update-cursor.sh": "2641cfc8378506a8105fe32e1fb48980bd613ea974c3180cfbd6b48621c96bb9"
+  }
+}
