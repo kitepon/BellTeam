@@ -84,3 +84,11 @@ forward/reverseは同lockを使う。phase印はprepare/writer停止/移行/bind
 新人工は普通の一時filesystemと実kernel flock/forkを使うが、metadataの期待UID/GIDだけ試験利用者へ注入する。固定root入口の実UID/chown/capabilityや主機root親を受け入れた意味ではない。FD非継承、双方向排他、順序違い・親/lock inode差替え・link/hardlink/owner/mode拒否、親死亡後のincomplete保持を確認する。
 
 実Docker/installer固定flow・全writer分母/非参加writer停止・通常deploy/復旧/backup回収の参加接続・host祖先ACL/alias・実mount照合は未接続。配布packagerへこの未完成host部品を加えず、public installerも変更しない。whole NOTDEPLOYABLEのまま、次はこの部品を固定host actorの正のphase receiptへつなぐ。
+
+## 正のphase receiptを扱う固定caller（sourceのみ）
+
+内部のsec014-host-actor.pyは既host_controlの親lockFDを全区間保持し、prepare→全writer確認→両viewbackupを含む現在directionの移行→bind確認→許可された片方normal起動→結果確認の6メソッドだけを正順で呼ぶ。各結果は同direction/image/actor PID出生/phaseとverified状態、工程固有の証拠SHA集合がそろった時だけroot専用0600 sidecarへO_EXCLで保存・fsync・metadata再読し、その後でjournalのphaseを進める。拒否/例外/receipt保存失敗では後続を呼ばずincompleteを保持する。最新reverseも同lock/別directionであり、旧backupの自動restoreはしない。
+
+証拠SHAは実証拠の参照形式であって、値を受け取るだけで証拠本文の意味やOwner裁定を独立確認したものではない。executorはtrustedな内部製品実装が実artifact/host担当原本/個別許可を検証してからreceiptを生成する責務を持つ。このdeltaは固定順序とreceipt保存のconsumerだけで、その実executor、Docker PID/terminal/CIDunknown照合、host source/許可の検証と全writer参加は未実装。production CLI、public installerへの接続、packager追加は無い。actorモジュール自体を実行しても本番処理を開始しない。
+
+新6人工は普通のFS/current UIDの既_hold注入とfake executorだけ。実kernel flockの全工程保持、順逆direction、未知/不完全proof/出生image不一致、receipt I/O失敗・置換拒否と起動前終了を確認した。実root UID/caps/Compose/mount/host祖先ACL・alias・非参加writer停止/通常非露出/socket/freshinstallPGID4CLI停止時間の実受入に拡張しない。whole Draft NOTDEPLOYABLEを維持する。
