@@ -72,3 +72,15 @@ authorize applying the normal Compose files or starting either server view.
 新しい人工CLI反例は二つの通常ファイルと区切り `:` / `;` を使い、projectを保持した合成先と、config失敗時に後続を発行しない境界を確認する。Docker実行の代わりに固定metadataだけ返すfakeを使う。実Compose renderや `.env` のみからの別 `COMPOSE_FILE` 選択を受け入れた証拠にはしない。次の固定installer/host actorは通常file列を明示して、この境界へ接続する。
 
 区切りの仕様は [Docker Composeの公式資料](https://docs.docker.com/compose/how-tos/environment-variables/envvars/) を参照した。全writerの実排他・host親の安全性・通常起動までの呼出しは引き続き未完成で、whole NOTDEPLOYABLEを維持する。
+
+## Host排他部品（2026-10-26、まだcaller未接続）
+
+内部専用 `distribution/internal/sec014-host-control.py` はEmma合意の固定root親とsec014.lockを扱う。rootでない通常入口はhost pathへ触る前に拒否する。既準備root0700親、root0600/regular/nlink1の固定lockをNOFOLLOW/CLOEXECで開き、非blocking flockを一回取得し、同inodeのFDをcontext全区間で保持する。lockを削除/replaceして作り直さない。子へexec継承させず、通常public installerは変更しない。
+
+forward/reverseは同lockを使う。phase印はprepare/writer停止/移行/bind確認/起動/結果確認の順だけを許し、全部の正のreceiptをcallerが確認した後だけcompletedへ進める。component自体は各phaseを実行せず、Pythonの正常returnや親死亡によるlock解放を完了にしない。不完全journalがあれば両方向の新処理を拒否し、先行journalや未完daemonを上書きしない。
+
+この一回移行の記録はdirectionごとに保持し、同directionの再発行は完了済みでも拒否する。将来の別移行は、最新state/既journal/世代を照合する復旧計画を完成させてから扱う。自動journal削除や古いbackupの復元は加えていない。
+
+新人工は普通の一時filesystemと実kernel flock/forkを使うが、metadataの期待UID/GIDだけ試験利用者へ注入する。固定root入口の実UID/chown/capabilityや主機root親を受け入れた意味ではない。FD非継承、双方向排他、順序違い・親/lock inode差替え・link/hardlink/owner/mode拒否、親死亡後のincomplete保持を確認する。
+
+実Docker/installer固定flow・全writer分母/非参加writer停止・通常deploy/復旧/backup回収の参加接続・host祖先ACL/alias・実mount照合は未接続。配布packagerへこの未完成host部品を加えず、public installerも変更しない。whole NOTDEPLOYABLEのまま、次はこの部品を固定host actorの正のphase receiptへつなぐ。
