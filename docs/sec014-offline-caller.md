@@ -64,4 +64,3 @@ actual mount ordering and a retired old-state view still require real acceptance
 The old installer is still missing the fixed prepare/maintenance flow and shared
 exclusion. This branch remains Draft NOTDEPLOYABLE. These source changes do not
 authorize applying the normal Compose files or starting either server view.
-
