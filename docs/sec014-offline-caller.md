@@ -96,3 +96,24 @@ forward/reverseは同lockを使う。phase印はprepare/writer停止/移行/bind
 ### Written receipt identity delta
 
 SEC014-RECEIPT-WRITTEN-IDENTITY-1 showed that equal JSON in a replaced inode passed readback. The caller now holds the original written FD open through fsync/readback, and binds its original dev/inode/owner/mode/nlink/size/mtime/ctime to the held FD, a reopened FD and the linked path before advancing the journal. Equal-content substitution is refused. The original ordinary-FS rename/recreate counter body and assertions are retained; its old-source fail becomes a new-source pass with phases empty/start0/incomplete. A normal forward/reverse focused case also passes. Old six/eight/FULL suites are not repeated. This is a source identity delta, not real root/Docker/proof-meaning or deployment acceptance.
+
+## Prepare proof producer (source only)
+
+`distribution/internal/sec014-prepared-proof.py` reads the existing fixed
+state-data `.prepared.json` and all six actual directory identities. The public
+function requires real/effective root UID/GID and the fixed host path; only the
+private filesystem test function injects another path/owner. It compares the
+existing preparation schema, exact leaf names, parent and leaf dev/inodes,
+owner/mode and linked/held metadata while keeping all leaf FDs open. Changed
+receipt bytes/inodes, substituted directories or unknown parent contents refuse
+confirmation. It reads preparation metadata only, without opening leaf contents
+(including APNs files).
+
+The returned canonical metadata bytes are a source for the future executor's
+`six_prepared_leaves` proof. The caller must retain those bytes as an artifact
+before pinning their hash; this module does not substitute a hash for host ACL,
+ancestor aliases, writer exclusion or Owner approval. It has no CLI, Docker or
+phase/journal integration, and cannot complete a transaction. The fixed prepare
+command/terminal receipt and the remaining five actual phase executors are still
+unconnected. The four new ordinary-filesystem tests use injected current UID/GID;
+there is no real root/chown/capability/mount acceptance. Whole Draft NOTDEPLOYABLE.
