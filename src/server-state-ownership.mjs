@@ -34,6 +34,11 @@ export async function prepareServerStateOwnership({ root, direction }) {
     add(path, info, serverUid, mode)
     if (info.isDirectory()) for (const name of await readdir(path)) await collect(join(path, name), false)
   }
+  async function collectFile(path) {
+    const info = await lstat(path)
+    if (!info.isFile()) throw failure('SERVER_STATE_OWNERSHIP_FILE')
+    add(path, info, serverUid, 0o600)
+  }
   for (const name of ['', 'bots', 'shared', 'shared/tools']) {
     const path = join(root, name)
     add(path, await directory(path), 1000, 0o711)
@@ -41,6 +46,31 @@ export async function prepareServerStateOwnership({ root, direction }) {
   for (const name of protectedRoots) {
     const path = join(root, name)
     await directory(path); await collect(path, true)
+  }
+  if (direction === 'to-legacy') {
+    const exists = async path => {
+      try { await lstat(path); return true } catch (error) { if (error.code === 'ENOENT') return false; throw error }
+    }
+    for (const name of ['bots/.initialized', 'shared/subscription.json', 'shared/onboarding.json', 'shared/ai-control.json', 'shared/tools/call-bridge/headers']) {
+      const path = join(root, name)
+      if (!await exists(path)) continue
+      if (name.endsWith('/headers')) add(dirname(path), await directory(dirname(path)), 1000, 0o711)
+      await collectFile(path)
+    }
+    for (const name of await readdir(join(root, 'bots'))) {
+      if (!/^[a-z0-9][a-z0-9-]{0,63}$/u.test(name)) continue
+      const project = join(root, 'bots', name), info = await directory(project)
+      const returned = []
+      for (const path of ['bot.json', 'schedule.json', 'messages/assets']) if (await exists(join(project, path))) returned.push(path)
+      if (!returned.length) continue
+      add(project, info, 1000, 0o700)
+      for (const path of returned) {
+        if (path === 'messages/assets') {
+          add(join(project, 'messages'), await directory(join(project, 'messages')), 1000, 0o700)
+          await directory(join(project, path)); await collect(join(project, path), false)
+        } else await collectFile(join(project, path))
+      }
+    }
   }
   // Reject links and special files across the entire scope before any owner
   // change. Reopen without following a replaced name before changing metadata.

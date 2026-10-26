@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, writeFile, readFile, lstat, rm, symlink, link, rename }
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { prepareServerStateOwnership } from '../src/server-state-ownership.mjs'
+import { transferServerState } from '../src/server-state-transfer.mjs'
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'state-ownership-'))
@@ -58,6 +59,32 @@ test('逆方向は現在の全本体ファイルをUID1000へ戻し、新しい�
   assert.ok(f.handles.every(file => file.closed))
 })
 
+test('実逆移行で戻した台帳・予定・画像・初期化印・共有文書も席UIDへ戻し、project内容は除外する', async t => {
+  const f = await fixture(t)
+  await f.put('bots/.initialized', '')
+  await f.put('bots/bot-a/bot.json', JSON.stringify({ schema: 'bellteam.bot.v8', id: 'bot-a' }))
+  await f.put('bots/bot-a/schedule.json', JSON.stringify({ schema: 'bellteam.schedule.v1', schedules: [] }))
+  await f.put('bots/bot-a/docs/keep.md', 'seat document'); await f.put('bots/bot-a/memory/memory.db', 'seat memory')
+  const ai = { schema: 'bellteam.ai-control.v1', paused: true, updatedAt: '2026-10-26T00:00:00Z', resumedAt: null }
+  await f.put('shared/ai-control.json', JSON.stringify(ai)); await f.put('shared/tools/call-bridge/headers', 'synthetic header')
+  await transferServerState({ root: f.root, direction: 'to-server' }); await f.run('to-server')
+  await rm(join(f.root, 'state/bots/bot-a'), { recursive: true })
+  await f.put('state/bots/bot-b/bot.json', JSON.stringify({ schema: 'bellteam.bot.v8', id: 'bot-b' }))
+  await f.put('state/bots/bot-b/schedule.json', JSON.stringify({ schema: 'bellteam.schedule.v1', schedules: [{ id: 'newest' }] }))
+  await f.put('state/bots/bot-b/messages/assets/image.png', 'newest synthetic image')
+  await f.put('state/ai-control.json', JSON.stringify({ ...ai, paused: false }))
+  await transferServerState({ root: f.root, direction: 'to-legacy' })
+  f.owners.length = 0; await f.run('to-legacy')
+  for (const path of ['bots/.initialized', 'bots/bot-b', 'bots/bot-b/bot.json', 'bots/bot-b/schedule.json', 'bots/bot-b/messages',
+    'bots/bot-b/messages/assets', 'bots/bot-b/messages/assets/image.png', 'shared/ai-control.json', 'shared/tools/call-bridge/headers']) {
+    assert.ok(f.owners.some(record => record.path === join(f.root, path) && record.uid === 1000 && record.gid === 1000), path)
+  }
+  assert.equal(JSON.parse(await readFile(join(f.root, 'bots/bot-b/schedule.json'), 'utf8')).schedules[0].id, 'newest')
+  assert.equal(JSON.parse(await readFile(join(f.root, 'shared/ai-control.json'), 'utf8')).paused, false)
+  assert.equal(f.owners.some(record => /\/bot-a\//u.test(record.path)), false)
+  assert.equal(await readFile(join(f.root, 'bots/bot-a/docs/keep.md'), 'utf8'), 'seat document')
+})
+
 test('symlink祖先と所有範囲内のsymlink/hardlinkは全owner変更の前に拒否する', async t => {
   const f = await fixture(t)
   await f.put('outside/keep', 'synthetic excluded')
@@ -69,6 +96,10 @@ test('symlink祖先と所有範囲内のsymlink/hardlinkは全owner変更の前�
   await rm(join(f.root, 'state/linked')); await link(join(f.root, 'outside/keep'), join(f.root, 'state/linked'))
   await assert.rejects(f.run('to-server'), { code: 'SERVER_STATE_OWNERSHIP_FILE' }); assert.equal(f.owners.length, 0)
   assert.equal(await readFile(join(f.root, 'outside/keep'), 'utf8'), 'synthetic excluded')
+  await rm(join(f.root, 'state/linked')); await mkdir(join(f.root, 'bots/bot-a/bot.json'), { recursive: true })
+  await assert.rejects(f.run('to-legacy'), { code: 'SERVER_STATE_OWNERSHIP_FILE' }); assert.equal(f.owners.length, 0)
+  await mkdir(join(f.root, 'shared/ai-control.json'))
+  await assert.rejects(f.run('to-legacy'), { code: 'SERVER_STATE_OWNERSHIP_FILE' }); assert.equal(f.owners.length, 0)
 })
 
 test('検証後に置換されたfileと権限変更失敗は未完了で返し、取得handleを回収する', async t => {
