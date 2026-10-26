@@ -1,259 +1,36 @@
-name: 一般配布サーバーのDocker候補作成
-
+name: 固定c5 v16下位経路と実形式（単発CI専用）
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - Dockerfile
-      - .dockerignore
-      - package.json
-      - package-lock.json
-      - src/**
-      - web/**
-      - integrations/**
-      - distribution/server/**
-      - scripts/package-server.mjs
-      - scripts/update-cursor.sh
-      - scripts/cursor-update-entrypoint.sh
-      - compose.cursor-update.yaml
-      - config/common-agents.md
-      - config/ponytail-LICENSE
-      - config/setup-guide.json
-      - docs/bot-environment.md
-      - docs/onboarding.md
-      - services/subscriptions/product.json
-      - services/subscriptions/endpoints.json
-      - .github/workflows/publish-server-image.yml
-
-concurrency:
-  group: public-server-image
-  cancel-in-progress: true
-
 permissions:
   contents: read
-  packages: write
-
-env:
-  IMAGE: ghcr.io/kitepon/bellteam-server
-
+concurrency:
+  group: centi-c5-lower-only
+  cancel-in-progress: false
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            runner: ubuntu-24.04
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
-    services:
-      install-registry:
-        image: registry:3
-        ports:
-          - 5000:5000
-        options: >-
-          --health-cmd "wget -q --spider http://127.0.0.1:5000/v2/"
-          --health-interval 1s
-          --health-timeout 3s
-          --health-retries 30
-    env:
-      BELLTEAM_SERVER_IMAGE: ghcr.io/kitepon/bellteam-server:${{ github.sha }}-${{ matrix.arch }}
-      COMPOSE_FILE: ${{ github.workspace }}/runtime/server-install/compose.yaml
-      COMPOSE_PROJECT_NAME: server-smoke
+  lower-compatibility:
+    if: github.ref == 'refs/heads/ci/centi-c5-lower-v16-20261026' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v7
-        with:
-          node-version: node
-      - name: 既定ブランチの祖先確認と配布物作成
-        run: |
-          git merge-base --is-ancestor HEAD origin/main
-          node scripts/package-server.mjs runtime/server-image
-      - name: 公式の現行版からイメージを作成
-        run: |
-          docker build --pull --no-cache --platform "linux/${{ matrix.arch }}" \
-            --label "org.opencontainers.image.source=https://github.com/kitepon/BellTeam" \
-            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
-            --label 'org.opencontainers.image.description=自分のマシンで動かすBellTeamの一般配布版' \
-            -t "$BELLTEAM_SERVER_IMAGE" runtime/server-image
-      - name: 個人設定と開発者免除の除去を確認
-        run: |
-          docker run --rm --entrypoint node "$BELLTEAM_SERVER_IMAGE" --input-type=module -e '
-          import assert from "node:assert/strict";
-          import fs from "node:fs";
-          import {developerAccessAllowed, defaultCallBridgeMcpUrl} from "./src/distribution-profile.mjs";
-          assert.equal(developerAccessAllowed, false);
-          assert.equal(defaultCallBridgeMcpUrl, null);
-          assert.deepEqual(JSON.parse(fs.readFileSync("config/bots.json")).bots, []);
-          assert.equal(JSON.parse(fs.readFileSync("distribution.json")).profile, "public");
-          assert.equal(fs.existsSync("config/setup-guide.json"), true);
-          assert.equal(fs.existsSync("docs/onboarding.md"), true);
-          assert.equal(fs.existsSync("config/models.json"), false);
-          for (const path of [".env", "runtime", "services/subscriptions/keys"]) assert.equal(fs.existsSync(path), false);
-          '
-      - name: 2fileのinstallerで空の永続領域から取得・更新・起動
-        run: |
-          install_image="localhost:5000/bellteam-server:latest"
-          docker tag "$BELLTEAM_SERVER_IMAGE" "$install_image"
-          docker push "$install_image"
-          docker create --name server-install-replacement "$BELLTEAM_SERVER_IMAGE"
-          docker commit --change 'LABEL bellteam.test=remote-tag-moved' server-install-replacement localhost:5000/bellteam-server:replacement
-          docker rm server-install-replacement
-          docker push localhost:5000/bellteam-server:replacement
-          mkdir -p runtime/server-install
-          cp runtime/server-image/compose.yaml runtime/server-image/install.sh runtime/server-install/
-          # 最初のpull直後にregistry側だけlatestを別imageへ動かす。
-          # ローカルcacheを変えず、抽出・準備・更新・起動が元imageを使うことを確認する。
-          export TEST_REAL_DOCKER="$(command -v docker)"
-          export TEST_TAG_MOVED="$GITHUB_WORKSPACE/runtime/tag-moved"
-          mkdir -p runtime/docker-test-bin
-          cat > runtime/docker-test-bin/docker <<'SH'
-          #!/bin/sh
-          set -eu
-          for last do :; done
-          if [ "$1" = run ] && [ "$last" = /app/compose.cursor-update.yaml ] && [ ! -f "$TEST_TAG_MOVED" ]; then
-            curl -fsS -H 'Accept: application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json' \
-              http://127.0.0.1:5000/v2/bellteam-server/manifests/replacement -o "$TEST_TAG_MOVED.manifest"
-            media_type=$(jq -r .mediaType "$TEST_TAG_MOVED.manifest")
-            curl -fsS -X PUT -H "Content-Type: $media_type" --data-binary "@$TEST_TAG_MOVED.manifest" \
-              http://127.0.0.1:5000/v2/bellteam-server/manifests/latest >/dev/null
-            touch "$TEST_TAG_MOVED"
-          fi
-          exec "$TEST_REAL_DOCKER" "$@"
-          SH
-          chmod +x runtime/docker-test-bin/docker
-          PATH="$GITHUB_WORKSPACE/runtime/docker-test-bin:$PATH" BELLTEAM_SERVER_IMAGE="$install_image" sh runtime/server-install/install.sh
-          test -f "$TEST_TAG_MOVED"
-          test "$(docker inspect --format '{{.Image}}' "$(docker compose ps -q bellteam)")" = "$(docker image inspect --format '{{.Id}}' "$BELLTEAM_SERVER_IMAGE")"
-          test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$(docker compose ps -q bellteam)")" = true
-          docker compose exec -T bellteam node --input-type=module -e '
-          import assert from "node:assert/strict";
-          import fs from "node:fs";
-          assert.throws(() => fs.writeFileSync("/app/.distribution-write-test", "probe"), { code: "EROFS" });
-          const base = "http://127.0.0.1:4180";
-          const setup = await (await fetch(base + "/api/setup")).json();
-          assert.equal(setup.phase, "select_harness");
-          const session = await (await fetch(base + "/api/session")).json();
-          assert.equal(session.authMode, "local");
-          const settings = await (await fetch(base + "/api/settings")).json();
-          assert.equal(settings.settings.length, 5);
-          assert.ok(settings.settings.every(setting => setting.enabled === false));
-          const { subscription } = await (await fetch(base + "/api/subscription")).json();
-          assert.equal(subscription.entitled, false);
-          assert.equal(subscription.accessMode, "subscription");
-          assert.equal(subscription.canUseAI, true);
-          assert.equal((await fetch(base)).status, 200);
-          '
-      - name: モデル候補の取得と未認証Cursorの理由表示を確認
-        run: |
-          docker compose exec -T bellteam node --input-type=module -e '
-          import assert from "node:assert/strict";
-          const base = "http://127.0.0.1:4180";
-          const response = await fetch(base + "/api/models");
-          assert.equal(response.status, 200);
-          const { models } = await response.json();
-          assert.deepEqual(Object.keys(models).sort(), ["claude", "codex", "cursor", "grok"]);
-          for (const [harness, entry] of Object.entries(models)) {
-            if (harness === "cursor") {
-              assert.equal(entry.error.code, "MODEL_CATALOG_UNAVAILABLE");
-              assert.match(entry.error.message, /Authentication required/);
-              assert.deepEqual(entry.models, []);
-              continue;
-            }
-            assert.equal(entry.error, undefined, `${harness}: ${JSON.stringify(entry.error)}`);
-            assert.ok(entry.models.length > 0, harness);
-            assert.ok(entry.models.every(model => typeof model.id === "string" && Array.isArray(model.efforts)), harness);
-            assert.equal(typeof entry.source, "string", harness);
-          }
-          console.log("空の保存領域でモデル候補とCursorの認証エラーを確認しました。");
-          '
-      - name: 公式認証の開始と端末消失後の再選択を確認
-        run: |
-          docker compose exec -T bellteam node --input-type=module -e '
-          import assert from "node:assert/strict";
-          import { readFile } from "node:fs/promises";
-          import { AitermClient } from "./src/aiterm-transport.mjs";
-          const base = "http://127.0.0.1:4180";
-          const select = async () => {
-            const response = await fetch(base + "/api/setup/harness", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ harness: "grok" }),
-            });
-            assert.equal(response.status, 200);
-            let setup = await response.json();
-            const deadline = Date.now() + 30000;
-            while (setup.auth.status === "waiting" && !(setup.auth.url && setup.auth.user_code) && Date.now() < deadline) {
-              await new Promise(resolve => setTimeout(resolve, 500));
-              const current = await fetch(base + "/api/setup");
-              assert.equal(current.status, 200);
-              setup = await current.json();
-            }
-            assert.equal(setup.auth.status, "waiting");
-            assert.ok(Boolean(setup.auth.url && setup.auth.user_code));
-          };
-          const state = async () => JSON.parse(await readFile("/srv/bellteam/shared/onboarding.json", "utf8"));
-          const client = new AitermClient();
-          const exists = async session => (await client.call("pty_list")).structuredContent.sessions.some(item => item.session_id === session);
-          try {
-            await select();
-            const first = await state();
-            assert.equal(typeof first.authSession, "string");
-            const closed = await client.call("pty_close", { session_id: first.authSession });
-            assert.equal(closed.structuredContent.outcome, "closed");
-            assert.equal(await exists(first.authSession), false);
-            const setup = await (await fetch(base + "/api/setup")).json();
-            assert.equal(setup.auth.status, "failed");
-            await select();
-            const next = await state();
-            assert.equal(typeof next.authSession, "string");
-            assert.equal(await exists(next.authSession), true);
-            const cancelled = await client.call("agent_auth", { harness: "grok-cli", action: "cancel", session_id: next.authSession });
-            assert.equal(cancelled.structuredContent.status, "blocked");
-            assert.equal(cancelled.structuredContent.session_id, null);
-            assert.equal(await exists(next.authSession), false);
-            console.log("公式認証の開始・消失の表示・再選択・取消を確認しました。");
-          } finally { await client.close(); }
-          '
-      - name: 試験コンテナと保存先を片付ける
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: CI adapterだけの新小人工
+        run: python3 -B -m unittest discover -s .ci/c5-lower -p test_harness.py -v
+      - name: 下位関数と自己fixtureの実形式のみ
+        timeout-minutes: 20
+        env:
+          CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: python3 -B .ci/c5-lower/run.py --contract .ci/c5-lower/contract.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
-        run: |
-          if [ -f "$COMPOSE_FILE" ]; then
-            docker compose logs --no-color || true
-            docker compose down --volumes || true
-          fi
-      - uses: docker/login-action@v4
+        timeout-minutes: 3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: 確認したアーキテクチャのイメージを登録
-        run: docker push "$BELLTEAM_SERVER_IMAGE"
-
-  candidate:
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: 両アーキテクチャの候補を登録
-        run: |
-          docker buildx imagetools create \
-            -t "$IMAGE:$GITHUB_SHA" \
-            "$IMAGE:$GITHUB_SHA-amd64" "$IMAGE:$GITHUB_SHA-arm64"
-          docker buildx imagetools inspect "$IMAGE:$GITHUB_SHA"
-          {
-            echo '## 内部先行利用する候補'
-            echo "source: $GITHUB_SHA"
-            echo '同じdigestで内部受入を終えてから、安定版反映workflowを実行してください。'
-            docker buildx imagetools inspect "$IMAGE:$GITHUB_SHA"
-          } >> "$GITHUB_STEP_SUMMARY"
+          name: c5-lower-compatibility-${{ github.run_id }}
+          path: |
+            .ci/c5-lower/output/*.json
+            .ci/c5-lower/output/*.log
+            .ci/c5-lower/output/*.claim
+          if-no-files-found: error
+          retention-days: 14

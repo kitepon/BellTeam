@@ -1,0 +1,20 @@
+{
+  ".gitignore": "7e2f65c80bddb76631f05a448b09378247e7f14af4ade18127925c07a6538dbf",
+  "README.md": "93aa3dc0507ead6970b97351709c22a4bfda63e83bebb53e2d798cb127b17d94",
+  "assets/compose.cursor-update.yaml": "b508bff73a3d49287e7dcd99a6fb2e7463b159da808bf4733f9d4478c8607aec",
+  "assets/scripts/update-cursor.sh": "2641cfc8378506a8105fe32e1fb48980bd613ea974c3180cfbd6b48621c96bb9",
+  "c5_client_wait.py": "d113e9f1f98b2d5e5c60e46c8b48cafa0a7a6056c4252aac52317884b1d4b3e0",
+  "c5_contract.py": "74bfcd40e10acc332ccba8277f1bd4efa5f21130052bf41d4880cc59c74bbb36",
+  "c5_helper_lab.py": "204cbf90c32bd19b63ba2c0dcfb5e5e16ad94a56d17dbfcfa1f3b8e5386ae3c2",
+  "c5_inspect_contract.py": "f06d1f1153f5015ad312c0a0ae7688b1309eccd3321a4df4275c23f4378f8535",
+  "c5_preserve_data.py": "b1b6060e5079c86344150dd6794626a76ba1d5825c1e9946855dd71839d6e306",
+  "c5_product_hooks.py": "67ce73f6fabe9397db85a1011d657ce17b4e719287650940162c84cb8d0500d1",
+  "c5_runtime.py": "456a1893bf5104d9656c23e8ae275c57e4f1d87b050b4b46d4e16859cab8b369",
+  "c5_state.py": "40a9237a215c6672c2ff89570721b40f99abd535d1b58e94002c376bcd9ddf4f",
+  "contract.json": "9fb4ec6d8b91de565dbd091acff5bf62d66da9069b899dba983af9588ba9cf2e",
+  "cursor-caps.overlay.yaml": "ea52af634727d6d8a1353fb9e283376d81cc910ec425f84476b5dc60d95e37d8",
+  "projection-fixture.json": "fed487da1d767aba284e7b4d63362c2a57f73465cdb948e29d6ac760fdaf79f0",
+  "run.py": "0c1968406243f61acedaf7430a6fd641ddd53de69c36912966e9f8722360b60f",
+  "test_harness.py": "04518b8f1090f9386a07ca614686e8a52b87ac9d5fda1c47dcc4187a02e03123",
+  "../../.github/workflows/publish-server-image.yml": "0ca9664ef48c2c6f376dd8decc49751234e92d64824e4ff3b1a5114777441bec"
+}

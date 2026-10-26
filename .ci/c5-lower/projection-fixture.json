@@ -1,0 +1,45 @@
+{
+  "services": {
+    "bellteam": {
+      "image": "ghcr.io/kitepon/bellteam-server@sha256:c5a20bd36a8f3ee3fd6e7f23872931125e159a45baf7e01a56185fbb7c5e4c2e",
+      "pull_policy": "never",
+      "container_name": "${C5_PROJECTION_NAME:?}",
+      "entrypoint": [
+        "/usr/local/bin/node"
+      ],
+      "command": [
+        "-e",
+        "setTimeout(()=>process.exit(0),5000)"
+      ],
+      "user": "1000:1000",
+      "read_only": true,
+      "network_mode": "none",
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "cpus": 1,
+      "mem_limit": "2g",
+      "memswap_limit": "2g",
+      "pids_limit": 512,
+      "labels": {
+        "c5.run": "${C5_EPOCH:?}",
+        "c5.ordinal": "${C5_ORDINAL:?}"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "/usr/local/bin/node",
+          "-e",
+          "process.exit(0)"
+        ],
+        "interval": "1s",
+        "timeout": "1s",
+        "retries": 1,
+        "start_period": "0s"
+      }
+    }
+  }
+}

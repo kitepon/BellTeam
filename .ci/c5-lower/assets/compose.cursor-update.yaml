@@ -1,0 +1,21 @@
+# 本体のcomposeとmergeしない。environment/env_file/home/dataを継承しない。
+name: bellteam-cursor-update
+services:
+  cursor-update:
+    image: ${BELLTEAM_CURSOR_UPDATE_IMAGE:?build the server image first}
+    pull_policy: never
+    entrypoint: [/usr/local/bin/bellteam-update-cursor]
+    user: "1000:1000"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:exec,size=512m
+      - /home/bell:uid=1000,gid=1000,mode=0700,size=64m
+    volumes:
+      - cursor-cli:/home/bell/.local
+volumes:
+  cursor-cli:
+    external: true
+    name: ${BELLTEAM_CURSOR_VOLUME:?select the Cursor volume explicitly}
