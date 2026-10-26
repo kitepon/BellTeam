@@ -28,9 +28,9 @@ const resolution = {
   },
 }
 const editable = {
-  target: text('対象の構成。'),
-  title: text('題。'),
-  summary: text('外へ出してよい要約。画面と通知へ出る。'),
+  target: text('対象の構成。最大160文字の短い識別。複数対象の一覧は summary に記載する。'),
+  title: text('題。最大500文字。'),
+  summary: text('外へ出してよい要約。最大4000文字。複数対象の一覧はここに記載する。画面と通知へ出る。'),
   severity: { type: 'string', enum: ['fatal', 'high', 'warn', 'info'], description: '重さ（致命・重大・中・軽）。' },
   owners: { type: 'array', items: { type: 'string', pattern: '^bot-[0-9a-f]{8}$' }, description: '直す担当の Bot ID。' },
   source_ref: { type: 'string', description: '正本の置き場（この道具でだけ読める）。' },
