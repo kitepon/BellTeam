@@ -1,0 +1,32 @@
+{
+  "files": [
+    {
+      "path": ".ci/security-image/candidate.py",
+      "sha256": "58680c5e0eb19b0f827787ad998b2ecebc7ca2f39cde9a1f5e38d4554bcfb5b8"
+    },
+    {
+      "path": ".ci/security-image/probe.mjs",
+      "sha256": "4cedd640d6856ffd42f301c2029e521d5ac09932de42eb6292c450554e1394f3"
+    },
+    {
+      "path": ".ci/security-image/test_candidate.py",
+      "sha256": "1c1822ce9fb52fba700a869ab1bf46b529f26583d5776f0a2a0f76d40acfbd28"
+    },
+    {
+      "path": ".ci/security-image/context-files.json",
+      "sha256": "6ebbdc3d79e19f9ebedd691e260eeec92641143376a7a57ac6995b7d0b0694df"
+    },
+    {
+      "path": ".ci/security-image/plan.json",
+      "sha256": "5ba0c46ea65ec7d93cb64e3dee218105f41486dab1702317960b9004f3aaa544"
+    },
+    {
+      "path": ".ci/security-image/README.md",
+      "sha256": "cda3d1716ff174cbebd226cd253d68a6e23f36998a97fba0ca740ab7f74f0874"
+    }
+  ],
+  "workflow": {
+    "path": ".github/workflows/publish-server-image.yml",
+    "sha256": "a4c79c55c64a291aec2379447aafb307246402af9a37f9b872f54d95eb3c150f"
+  }
+}

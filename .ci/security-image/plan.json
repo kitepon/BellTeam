@@ -1,0 +1,54 @@
+{
+  "productSource": "3cb6ffe0f3f5ac93bd293428d0f53fdfcb24a1f3",
+  "branch": "ci/centi-security-image-20261026",
+  "phase": "plan-source only",
+  "futureSourceInput": "Root exact main merge SHA with skip ci; currently unknown",
+  "builds": {
+    "architectures": [
+      "amd64",
+      "arm64"
+    ],
+    "maxParallel": 1,
+    "initialMemAvailableGiB": 4,
+    "initialDockerDiskGiB": 40,
+    "pullLatest": true,
+    "noCache": true,
+    "buildSeconds": 2100,
+    "scriptSeconds": 2700,
+    "jobSeconds": 3300
+  },
+  "probe": {
+    "containersPerArch": 1,
+    "CPU": 1,
+    "RAMBytes": 2147483648,
+    "MemorySwapBytes": 2147483648,
+    "PIDs": 512,
+    "network": "none",
+    "readOnly": true,
+    "guardTests": 3,
+    "fullSuite": 0,
+    "seconds": 420
+  },
+  "publish": {
+    "archTags": "security-<main>-<run>-<arch>",
+    "indexTag": "security-<main>-<run>",
+    "archScriptSeconds": 240,
+    "indexScriptSeconds": 420,
+    "indexJobSeconds": 600,
+    "usesAutomaticRegistryTokenOnly": true,
+    "noStableLatest": true
+  },
+  "cleanup": {
+    "reserveSeconds": 60,
+    "force": false,
+    "unknownNoMoreDocker": true,
+    "knownStoppedSelfOnly": true,
+    "localImagesCache": "fresh VM teardown; not independent cleanup proof"
+  },
+  "overallWorkflowMaxSeconds": 7200,
+  "remotePush": 0,
+  "dispatch": 0,
+  "build": 0,
+  "mainMerge": 0,
+  "production": 0
+}
