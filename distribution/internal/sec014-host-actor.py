@@ -80,12 +80,19 @@ def _save_json(tx, name, value):
     return hashlib.sha256(raw).hexdigest()
 
 
+def prepare_name(tx):
+    return f"sec014-{tx.value['direction']}-{tx.value['actorPid']}-{tx.value['actorStartTicks']}-prepare"
+
+
+def prepare_argv(tx):
+    return ['/usr/bin/docker', 'compose', '--env-file', '/dev/null', '-f',
+            '/home/kite/BellTeam/compose.state-prepare.yaml', 'run', '--no-deps',
+            '--name', prepare_name(tx), '-T', 'state-prepare']
+
+
 def prepared_phase_receipt(tx, image, terminal, host_parent_proof):
     """Trusted executor input only; terminal producer/host authority remain separate."""
-    name = f"sec014-{tx.value['direction']}-{tx.value['actorPid']}-{tx.value['actorStartTicks']}-prepare"
-    argv = ['/usr/bin/docker', 'compose', '--env-file', '/dev/null', '-f',
-            '/home/kite/BellTeam/compose.state-prepare.yaml', 'run', '--no-deps',
-            '--name', name, '-T', 'state-prepare']
+    name, argv = prepare_name(tx), prepare_argv(tx)
     if (type(image) is not str or not re.fullmatch(
             r'ghcr\.io/kitepon/bellteam-server@sha256:[a-f0-9]{64}', image)
             or type(host_parent_proof) is not str

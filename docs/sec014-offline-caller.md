@@ -160,3 +160,57 @@ reader and provide synthetic terminal inputs. No Docker/root/host probe, normal
 startup, public installer, packager or production CLI connection. The actual
 fixed prepare executor/terminal producer and host-original verification remain
 the next source work; whole Draft NOTDEPLOYABLE.
+
+## Fixed prepare child/daemon producer (private source only)
+
+`distribution/internal/sec014-prepare-executor.py` implements the prepare slice
+using the existing actor/control and metadata reader. It accepts no arbitrary
+Docker command/path: its four slots are the shared fixed Compose prepare run,
+selected-field inspect of the unique actor/direction name, no-force rm of that
+verified stopped CID, and exact-CID absence. The original Compose bytes are
+pinned. Client environment is a fresh six-key map with empty private
+DOCKER_CONFIG, /dev/null env-file and the selected image/fixed state parent;
+normal service configuration, HOME/data/credentials/ports/socket are not supplied.
+The selected SEC014 image ID/ref must come from separate accepted inputs: the
+new e52 runtime candidate is not a substitute for a SEC014 image acceptance.
+
+A selected phase is at most 120 seconds. The run client is bounded by 60 seconds,
+the three remaining clients by ten each, all under the absolute monotonic/UTC
+window with a one-second reap reserve. Every slot rechecks its host verifier and
+time before/after its durable O_EXCL claim and immediately before Popen. The
+parent retains the existing lock; close_fds/CLOEXEC keep it out of children.
+stdout/stderr are drained concurrently with 32KiB/4KiB caps; only byte counts and
+hashes are retained for stderr. PID/birth and WNOWAIT terminal originals are saved
+before real wait/reap. Failure/unknown latches this runner and leaves the journal
+incomplete; it neither kills an unknown child nor issues normal cleanup afterward.
+
+CLI exit0 alone cannot produce a prepared phase. The selected daemon observation
+must match image, unique name/CID/project/service, root env-i entry, init and
+exited/PID0/exit0/OOMfalse/restart0, caps/network/RO/resource limits and the sole
+fixed state-parent bind (plus the declared tmpfs). Native Created/Started/Finished
+bytes must place this container within the run-client issue/terminal interval.
+The raw projected observation, terminal SHA chain, rm result and absence are
+retained before the existing six-leaf metadata artifact/phase consumer is used.
+No normal phase is started by this module. Current Docker field representations,
+real capabilities/root/mount behavior have not been accepted by the synthetic
+fixtures, and unexpected real forms must be held rather than silently corrected.
+
+The host-check callable is a PRIVATE ARTIFICIAL/INTERNAL integration seam. It is
+not a host-original authenticator: a SHA returned by a lambda is not authority.
+There is no public prepare function, CLI, installer/packager connection or live
+executor factory. Before such a connection, the trusted issuer/raw bytes/current
+revocation/source/actor/namespace/lock/writer bindings and numerical freshness
+must be accepted from Emma's host-owned source contract (source-only proposal
+4ff5461d, handoff31069a64). Those producer/trust/numerical conditions are not
+implemented or installed; unavailable means child0. Do not build an unagreed
+registry/signature service or issue a Root accepted=true receipt as a fallback.
+
+Eight new focused tests use temporary ordinary filesystems and fake Docker
+protocol responses emitted by dedicated Python clients. They test the fixed
+four-command denominator/minimal env/terminal-before-reap/metadata phase order,
+running/extra-mount/old-container rejection, output limit, terminal save failure,
+claim-I/O expiry with no retry, and missing host-original refusal. Initial six,
+then the necessary fixed-slot/terminal-save seven, then native-birth/entry checks
+with final eight are kept as separate logs, not counted as 21 distinct cases.
+Old actor/prepare/control/FULL successes are not repeated. Whole Draft remains
+NOTDEPLOYABLE; real host/root/Docker/key operations and normal startup are zero.
