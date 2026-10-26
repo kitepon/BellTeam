@@ -1,0 +1,25 @@
+{
+  "source": "3cb6ffe0f3f5ac93bd293428d0f53fdfcb24a1f3",
+  "productFiles": [
+    {
+      "path": "package.json",
+      "sha256": "10b5f46c31806860723ebed55bb10caa3589bf3c06808351259708a146dd87f4"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "5da3527b68d48ac76bc246f75f62fce6c42fd00eb3348a0fbe3ee1ed6dfb4f70"
+    },
+    {
+      "path": "src/seat-mcp.mjs",
+      "sha256": "0900c13781a7cc681e7db7ff1cd57b07f0cf54b926de49b17746137fbdce8010"
+    },
+    {
+      "path": "test/seat-mcp-input-limit.test.mjs",
+      "sha256": "19fc81bd67246158bf115aa9dda7721c2cc189d0d4e7ef67301da017780493da"
+    },
+    {
+      "path": "docs/evidence/2026-10-26-runtime-security-update.md",
+      "sha256": "bf95d3348e086014ad8105632fefbe99af5fae7f14f4a645bb8b74ad2dea42c1"
+    }
+  ]
+}
