@@ -14,6 +14,7 @@ PHASES = ('prepared', 'writers_stopped', 'migrated', 'binds_confirmed',
           'started', 'verified')
 DIRECTIONS = ('to-server', 'to-legacy')
 SCHEMA = 'bellteam.sec014.host-transaction.v1'
+_ABSENT = object()
 
 
 class ControlError(RuntimeError):
@@ -33,13 +34,19 @@ def _private(value, owner, directory=False):
 
 
 def _saved(parent, name, owner):
-    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
-    with os.fdopen(fd, 'rb') as stream:
-        before = os.fstat(stream.fileno())
-        _private(before, owner)
-        raw = stream.read(65537)
-        after = os.fstat(stream.fileno())
-        linked = os.stat(name, dir_fd=parent, follow_symlinks=False)
+    try:
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
+    except FileNotFoundError:
+        return _ABSENT
+    try:
+        with os.fdopen(fd, 'rb') as stream:
+            before = os.fstat(stream.fileno())
+            _private(before, owner)
+            raw = stream.read(65537)
+            after = os.fstat(stream.fileno())
+            linked = os.stat(name, dir_fd=parent, follow_symlinks=False)
+    except FileNotFoundError:
+        raise ControlError('SEC014_CONTROL_JOURNAL_CHANGED') from None
     keys = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink',
             'st_size', 'st_mtime_ns', 'st_ctime_ns')
     if (len(raw) > 65536 or len(raw) != before.st_size
@@ -119,9 +126,8 @@ def _hold(path, direction, owner):
         transaction = _Transaction(Path(path), parent, lock, owner, direction)
         transaction.check()
         for prior in DIRECTIONS:
-            try:
-                item = _saved(parent, 'transaction-' + prior + '.json', owner)
-            except FileNotFoundError:
+            item = _saved(parent, 'transaction-' + prior + '.json', owner)
+            if item is _ABSENT:
                 continue
             if (type(item) is not dict
                     or set(item) != {'schema', 'direction', 'status', 'actorPid',
