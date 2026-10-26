@@ -18,7 +18,9 @@ staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-writers.XXXXXX")
 trap 'rm -rf "$staging"' 0
 trap 'exit 1' 1 2 15
 if "$maintenance"; then
-  config=$(docker compose -f compose.yaml -f compose.state-maintenance.json config --format json)
+  # Keep the caller's actual normal overlays and project when adding maintenance.
+  config=$(COMPOSE_FILE="${COMPOSE_FILE:-compose.yaml}${COMPOSE_PATH_SEPARATOR:-:}compose.state-maintenance.json" \
+    docker compose config --format json)
 else
   config=$(docker compose config --format json)
 fi

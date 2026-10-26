@@ -85,18 +85,44 @@ test('writer CLIは保守flag以外をDocker前に拒否し、保守時は二つ
   t.after(() => rm(root, { recursive: true, force: true }))
   const calls = join(root, 'calls'), fake = join(root, 'docker')
   await writeFile(fake, `#!/bin/sh
-printf '%s\\n' "$*" >> "$TEST_CALLS"
+printf '%s|%s\\n' "$*" "\${COMPOSE_FILE-}" >> "$TEST_CALLS"
 case "$*" in
   'compose config --images') echo fixture;;
   'image inspect --format {{.Id}} fixture') printf 'sha256:%064d\\n' 0;;
-  'compose -f compose.yaml -f compose.state-maintenance.json config --format json') exit 47;;
+  'compose config --format json') exit 47;;
   *) exit 49;;
 esac
 `); await chmod(fake, 0o700)
   const exec = promisify(execFile), script = new URL('../scripts/assert-state-writers-stopped.sh', import.meta.url).pathname
-  const env = { ...process.env, PATH: `${root}:${process.env.PATH}`, TEST_CALLS: calls }
+  const env = { ...process.env, PATH: `${root}:${process.env.PATH}`, TEST_CALLS: calls,
+    COMPOSE_FILE: '', COMPOSE_PATH_SEPARATOR: ':' }
   await assert.rejects(exec('sh', [script, '--unknown'], { env }), error => error.code === 1 && error.stderr === 'SERVER_STATE_WRITER_ARGUMENTS_INVALID\n')
   await assert.rejects(readFile(calls), { code: 'ENOENT' })
   await assert.rejects(exec('sh', [script, '--maintenance'], { env }), error => error.code === 47)
-  assert.match(await readFile(calls, 'utf8'), /compose -f compose.yaml -f compose.state-maintenance.json config --format json/u)
+  assert.match(await readFile(calls, 'utf8'), /compose config --format json\|compose.yaml:compose.state-maintenance.json/u)
+})
+
+test('maintenance composition keeps the callers explicit normal overlay and project', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'maintenance-files-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const calls = join(root, 'calls'), fake = join(root, 'docker')
+  await writeFile(fake, `#!/bin/sh
+printf '%s|%s|%s\\n' "$*" "\${COMPOSE_FILE-}" "\${COMPOSE_PROJECT_NAME-}" >> "$TEST_CALLS"
+case "$*" in
+  'compose config --images') echo fixture;;
+  'image inspect --format {{.Id}} fixture') printf 'sha256:%064d\\n' 0;;
+  *'config --format json') exit 47;;
+  *) exit 49;;
+esac
+`); await chmod(fake, 0o700)
+  const exec = promisify(execFile), script = new URL('../scripts/assert-state-writers-stopped.sh', import.meta.url).pathname
+  for (const separator of [':', ';']) {
+    await writeFile(calls, '')
+    const normal = ['/normal/base.yaml', '/normal/override.yaml'].join(separator)
+    const env = { ...process.env, PATH: `${root}:${process.env.PATH}`, TEST_CALLS: calls,
+      COMPOSE_FILE: normal, COMPOSE_PATH_SEPARATOR: separator, COMPOSE_PROJECT_NAME: 'existing-project' }
+    await assert.rejects(exec('sh', [script, '--maintenance'], { env }), error => error.code === 47)
+    const lines = (await readFile(calls, 'utf8')).trim().split('\n')
+    assert.equal(lines.at(-1), `compose config --format json|${normal}${separator}compose.state-maintenance.json|existing-project`)
+  }
 })

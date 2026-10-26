@@ -64,3 +64,11 @@ actual mount ordering and a retired old-state view still require real acceptance
 The old installer is still missing the fixed prepare/maintenance flow and shared
 exclusion. This branch remains Draft NOTDEPLOYABLE. These source changes do not
 authorize applying the normal Compose files or starting either server view.
+
+## 呼出し元の通常Composeを保つ（2026-10-26）
+
+保守writer検査は、呼出し元が明示した `COMPOSE_FILE` の末尾へ固定 `compose.state-maintenance.json` を追加する。未指定時はこの配布の既定 `compose.yaml` を使い、`COMPOSE_PATH_SEPARATOR` と既存 `COMPOSE_PROJECT_NAME` を保持する。旧実装の固定 `-f compose.yaml` は通常側の明示overlayを落としていたため、実際のsource分母を検査できないことがあった。
+
+新しい人工CLI反例は二つの通常ファイルと区切り `:` / `;` を使い、projectを保持した合成先と、config失敗時に後続を発行しない境界を確認する。Docker実行の代わりに固定metadataだけ返すfakeを使う。実Compose renderや `.env` のみからの別 `COMPOSE_FILE` 選択を受け入れた証拠にはしない。次の固定installer/host actorは通常file列を明示して、この境界へ接続する。
+
+区切りの仕様は [Docker Composeの公式資料](https://docs.docker.com/compose/how-tos/environment-variables/envvars/) を参照した。全writerの実排他・host親の安全性・通常起動までの呼出しは引き続き未完成で、whole NOTDEPLOYABLEを維持する。
