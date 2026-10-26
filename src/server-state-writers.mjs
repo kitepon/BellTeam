@@ -25,23 +25,39 @@ export function stateWriterPlan(config) {
   if (cursor.length !== 1 || cursor[0].type !== 'volume') invalid()
   const volume = config.volumes?.[cursor[0].source]?.name
   if (typeof volume !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(volume)) invalid()
+  if (service.volumes.some(mount => ['/srv/bellteam-legacy', '/srv/bellteam-maintenance-backups']
+    .some(view => mount.target === view || typeof mount.target === 'string' && mount.target.startsWith(view + '/')))) invalid()
   const stateMounts = service.volumes.filter(mount => stateTargets.includes(mount.target))
-  if (stateMounts.length) addBinds(service, stateTargets)
+  const normalSources = stateMounts.length ? addBinds(service, stateTargets) : []
+  separate(normalSources)
   const maintenance = config.services['state-maintenance']
   if (maintenance) {
     const targets = ['/srv/bellteam-legacy', '/srv/bellteam', '/srv/bellteam-maintenance-backups', ...stateTargets]
     if (maintenance.volumes?.length !== targets.length) invalid()
-    addBinds(maintenance, targets)
+    const sources = addBinds(maintenance, targets)
+    if (sources[0] !== roots[0] || sources[1] !== roots[0]) invalid()
+    separate(sources.slice(3))
+    if (normalSources.length && normalSources.some((source, index) => source !== sources[index + 3])) invalid()
+    const backup = sources[2]
+    if (sources.slice(3).some(source => overlaps(source, backup))
+      || service.volumes.some(mount => mount.type === 'bind' && overlaps(path(mount.source), backup))) invalid()
   }
   return { roots: [...new Set(roots)], volume }
 
   function addBinds(service, targets) {
     if (!Array.isArray(service.volumes)) invalid()
+    const sources = []
     for (const target of targets) {
       const matches = service.volumes.filter(mount => mount.target === target)
       if (matches.length !== 1 || matches[0].type !== 'bind' || matches[0].read_only === true) invalid()
-      roots.push(path(matches[0].source))
+      sources.push(path(matches[0].source))
     }
+    roots.push(...sources)
+    return sources
+  }
+  function separate(sources) {
+    if (sources.some((source, index) => roots.slice(0, 2).some(root => overlaps(source, root))
+      || sources.slice(index + 1).some(other => overlaps(source, other)))) invalid()
   }
 }
 

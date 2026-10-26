@@ -47,3 +47,21 @@ forwardは6領域移動→既台帳予定画像transfer→新側所有、reverse
 `assert-state-writers-stopped.sh --maintenance` は固定normal Composeとこの保守Composeの正規化metadataを既存parserへ渡す。writer planに旧data/HOME/Cursor・新6sourceとbackupを含め、別名bind/local volume backingも既canonical照合で拒否する。正常serviceの6bindが一つでもあれば全6が必要で、保守側の欠測/RO/余分なmountも拒否する。JSON側はproject名を宣言せず、確認時に既存Cursor volumeのproject名を変えない。planへ環境/資格は出力しない。
 
 これはwriterのDocker分母と保守source宣言まで。host専用親のACL/祖先差替え/別alias、host上の非参加writer、prepareからbackup/移行/通常起動までの同一排他、通常側legacy/backup非露出と外側socket重ね順は別の未完条件である。lockや停止snapshotだけで移行中の排他成立とせず、実UID/rootcontainer/独立bindとfreshinstall等が揃うまでwhole NOTDEPLOYABLEを維持する。
+# Normal state mounts (2026-10-26 source delta)
+
+The repository and public normal Compose files now bind the same six prepared
+`runtime/server-only/state-data` leaves at the maintenance targets. All six use
+`create_host_path: false`; none expose the legacy or backup view. The existing
+HOME/Cursor/Throughline and optional external Bridge/socket definitions remain
+in place. An unprepared installation must not create these leaves implicitly.
+
+The shared writer-plan parser checks normal/maintenance source correspondence,
+the shared legacy-data backing, separation from old data/HOME and other leaves,
+and backup non-exposure, including a readonly backup bind at another target.
+These are configured paths; host canonical identity, ancestor ACL/alias safety,
+actual mount ordering and a retired old-state view still require real acceptance.
+
+The old installer is still missing the fixed prepare/maintenance flow and shared
+exclusion. This branch remains Draft NOTDEPLOYABLE. These source changes do not
+authorize applying the normal Compose files or starting either server view.
+
