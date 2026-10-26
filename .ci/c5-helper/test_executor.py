@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import accept_helpers as driver
+from c5_contract import ContractError
 
 
 class Child:
@@ -176,13 +177,26 @@ class ExecutorBoundary(unittest.TestCase):
         self.assertFalse(any(args[0] == 'start' for args in self.fake.calls))
         self.assertFalse(self.fake.containers)
 
-    def test_actual_null_cmd_is_preserved_and_rejected_before_cursor_start(self):
-        self.fake.bad_cursor_cmd = True
-        self.assertEqual(self.execute(), 1)
-        self.assertEqual(sum(args[0] == 'start' for args in self.fake.calls), 2)
-        raw = (self.runner.root / 'inspect-8-created.json').read_bytes()
-        self.assertIsNone(json.loads(raw)[0]['Config']['Cmd'])
-        self.assertFalse(self.fake.containers)
+    def test_real_no_argument_cmd_preserves_raw_and_rejects_invalid_arguments(self):
+        path = driver.HERE / 'fixtures/real-inspect-24394.json'
+        raw = path.read_bytes()
+        plan = json.loads((driver.HERE / 'fixtures/real-inspect-24394-plan.json').read_text())
+        case = plan['case']
+        def validate(content):
+            return driver.validate_inspect_json(content, plan, case['id'], case['name'], case['ordinal'],
+                                                case['expected_status'], case['kind'])
+        self.assertIsNone(validate(raw)['Config']['Cmd'])
+        for value in [[], ['unexpected'], '', 'unexpected', {}, False, True, 0, 1]:
+            with self.subTest(command=value):
+                derived = json.loads(raw)
+                derived[0]['Config']['Cmd'] = value
+                if type(value) is list and not value:
+                    self.assertEqual(validate(json.dumps(derived).encode())['Config']['Cmd'], [])
+                else:
+                    with self.assertRaisesRegex(ContractError, 'C5_HELPER_CURSOR_IDENTITY_MISMATCH'):
+                        validate(json.dumps(derived).encode())
+        self.assertEqual(path.read_bytes(), raw)
+        self.assertFalse(self.fake.calls)
 
     def test_timeout_unknown_never_retries_or_cleans_up_unknown_resources(self):
         self.fake.start_timeout = True

@@ -1,0 +1,248 @@
+[
+    {
+        "Id": "16747c94263321341b53605f5084167c874d542a14be07727896de0b55926830",
+        "Created": "2026-10-26T06:32:19.569861586Z",
+        "Path": "/usr/local/bin/bellteam-update-cursor",
+        "Args": [],
+        "State": {
+            "Status": "created",
+            "Running": false,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 0,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "0001-01-01T00:00:00Z",
+            "FinishedAt": "0001-01-01T00:00:00Z"
+        },
+        "Image": "sha256:0ac35bbd1babc6841af6c6b2eda6bd8c5d53bb2af2642bc0e2a7d7d7d0a6c354",
+        "ResolvConfPath": "",
+        "HostnamePath": "",
+        "HostsPath": "",
+        "LogPath": "",
+        "Name": "/centi-c5-helper-40280277618-1-ff67f0cbac2a-cursor-update-1",
+        "RestartCount": 0,
+        "Driver": "overlay2",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": [
+                "centi-c5-helper-40280277618-1-ff67f0cbac2a-cursor:/home/bell/.local:rw"
+            ],
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {}
+            },
+            "NetworkMode": "centi-c5-helper-40280277618-1-ff67f0cbac2a_default",
+            "PortBindings": {},
+            "RestartPolicy": {
+                "Name": "no",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": [
+                "ALL"
+            ],
+            "CgroupnsMode": "private",
+            "Dns": null,
+            "DnsOptions": null,
+            "DnsSearch": null,
+            "ExtraHosts": [],
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": true,
+            "SecurityOpt": [
+                "no-new-privileges:true"
+            ],
+            "Tmpfs": {
+                "/home/bell": "uid=1000,gid=1000,mode=0700,size=64m",
+                "/tmp": "exec,size=512m"
+            },
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 2147483648,
+            "NanoCpus": 1000000000,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": null,
+            "BlkioDeviceReadBps": null,
+            "BlkioDeviceWriteBps": null,
+            "BlkioDeviceReadIOps": null,
+            "BlkioDeviceWriteIOps": null,
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": null,
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": 2147483648,
+            "MemorySwappiness": null,
+            "OomKillDisable": false,
+            "PidsLimit": 512,
+            "Ulimits": null,
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": [
+                "/proc/asound",
+                "/proc/acpi",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/sys/firmware",
+                "/sys/devices/virtual/powercap"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ],
+            "Init": true
+        },
+        "GraphDriver": {
+            "Data": {
+                "ID": "16747c94263321341b53605f5084167c874d542a14be07727896de0b55926830",
+                "LowerDir": "/var/lib/docker/overlay2/3f462b2beb4cb249337a9d2562ee1ee03e930fc9539c38569532be3a86181ec3-init/diff:/var/lib/docker/overlay2/c0056249054e51ef23ebdc5eca7fff10bcfc737f57c42a3f9d06b4ca843fb66c/diff:/var/lib/docker/overlay2/ac510a094a8bc34dc2702e14ad78926e1f0ac529bff1269c23036209016165fd/diff:/var/lib/docker/overlay2/238dd152df21cff81e751355e6611b94eadffa021925ebc40d624b9dc9f3c533/diff:/var/lib/docker/overlay2/ff75fd085de5e5e0b6938d93b195fe118e79f3ce22c6f83e5bd225972c175626/diff:/var/lib/docker/overlay2/71591fa0924a10330980f36a375dab8b6fa873330d3911d57d3a20c00883e4a3/diff:/var/lib/docker/overlay2/fc2694cc017f30238d4eff5fef406af82a8c3d695ca18dc0aae1d04649f316e1/diff:/var/lib/docker/overlay2/094418baa435f879be645a215b160c33d324f0bb7ed0f28657ad02d7d330e378/diff:/var/lib/docker/overlay2/a9cec267f60803ac26788abf60f70350f4c3972bf845fb585d3e4012cefe2f2e/diff:/var/lib/docker/overlay2/c198750cc58220f0992d2ab819e648a99ff561b274d15b8021b45ef34a817f47/diff:/var/lib/docker/overlay2/f92acb63f65948ca8325914291377ec90c607b932ab41d0c95ee39a85f6aebd1/diff:/var/lib/docker/overlay2/45b7c2074f632e1dbdf8bf00df4e8cdf890753c7f0b4ab9a05a8fdaa3bc88294/diff:/var/lib/docker/overlay2/ec753af853cb18d3d94a0fdb5ec37c68649593cbdcffe4b3df370cca71f27393/diff:/var/lib/docker/overlay2/34a16405471530c943a4287c7c59a4ffb23e9d12f9d102c419005ef74d91c8ff/diff:/var/lib/docker/overlay2/eab185fa818d388a490f751133b001ad751b7341113d1968914a72433d9ce746/diff:/var/lib/docker/overlay2/c8eca22fd56fd037413b8d353795d6fb6bb859e790e5a09b9d6e9e7cba57dc93/diff:/var/lib/docker/overlay2/356f19e4f760e093dfc4e7f7d775fbbbb8da78f3ef101672d0de82d2ee321547/diff:/var/lib/docker/overlay2/1f80cd12bd54eb8a23f40cf4d40e9ec6ec8ac53d3f13c1778a110f4814b3499e/diff:/var/lib/docker/overlay2/ce78d9c22963f0376d005e9af3a14136d647c1a5167657f223cf8cb501f05fea/diff:/var/lib/docker/overlay2/06ac79e132f30fc5bd077641ef6dadbd011339b57f2887610e0ec2c38e94cc2c/diff:/var/lib/docker/overlay2/d3e26665e1a43d12d8dcb9f3aea51f15726ec1d1db1a2c70fc96635a9f44eda9/diff:/var/lib/docker/overlay2/bc3ef15267f3f6dd7db7c55151f23fffe3fb29c7928474a1833edeb4476ec746/diff",
+                "MergedDir": "/var/lib/docker/overlay2/3f462b2beb4cb249337a9d2562ee1ee03e930fc9539c38569532be3a86181ec3/merged",
+                "UpperDir": "/var/lib/docker/overlay2/3f462b2beb4cb249337a9d2562ee1ee03e930fc9539c38569532be3a86181ec3/diff",
+                "WorkDir": "/var/lib/docker/overlay2/3f462b2beb4cb249337a9d2562ee1ee03e930fc9539c38569532be3a86181ec3/work"
+            },
+            "Name": "overlay2"
+        },
+        "Mounts": [
+            {
+                "Type": "volume",
+                "Name": "centi-c5-helper-40280277618-1-ff67f0cbac2a-cursor",
+                "Source": "/var/lib/docker/volumes/centi-c5-helper-40280277618-1-ff67f0cbac2a-cursor/_data",
+                "Destination": "/home/bell/.local",
+                "Driver": "local",
+                "Mode": "rw",
+                "RW": true,
+                "Propagation": ""
+            }
+        ],
+        "Config": {
+            "Hostname": "16747c942633",
+            "Domainname": "",
+            "User": "1000:1000",
+            "AttachStdin": false,
+            "AttachStdout": true,
+            "AttachStderr": true,
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "PATH=/home/bell/.local/bin:/usr/local/bin:/usr/bin:/bin",
+                "NODE_VERSION=26.12.1",
+                "HOME=/home/bell",
+                "BELLTEAM_HOME=/home/bell",
+                "BELLTEAM_ROOT=/srv/bellteam",
+                "BELLTEAM_BOTS_CONFIG=/app/config/bots.json",
+                "RTK_TELEMETRY_DISABLED=1",
+                "RTK_SUPPRESS_HOOK_WARNING=1",
+                "TERM=xterm-256color"
+            ],
+            "Cmd": null,
+            "Image": "ghcr.io/kitepon/bellteam-server@sha256:c5a20bd36a8f3ee3fd6e7f23872931125e159a45baf7e01a56185fbb7c5e4c2e",
+            "Volumes": null,
+            "WorkingDir": "/app",
+            "Entrypoint": [
+                "/usr/local/bin/bellteam-update-cursor"
+            ],
+            "OnBuild": null,
+            "Labels": {
+                "c5.ordinal": "8",
+                "c5.run": "centi-c5-helper-40280277618-1-ff67f0cbac2a",
+                "com.docker.compose.config-hash": "57a75fd2384337ad5b9c980e7ce7d576dcaf6140491da9b6c009055e927d3369",
+                "com.docker.compose.container-number": "1",
+                "com.docker.compose.depends_on": "",
+                "com.docker.compose.image": "sha256:0ac35bbd1babc6841af6c6b2eda6bd8c5d53bb2af2642bc0e2a7d7d7d0a6c354",
+                "com.docker.compose.oneoff": "False",
+                "com.docker.compose.project": "centi-c5-helper-40280277618-1-ff67f0cbac2a",
+                "com.docker.compose.project.config_files": "/home/runner/work/BellTeam/BellTeam/.ci/c5-helper/output/assets/compose.cursor-update.yaml,/home/runner/work/BellTeam/BellTeam/.ci/c5-helper/cursor-caps.overlay.yaml",
+                "com.docker.compose.project.working_dir": "/home/runner/work/BellTeam/BellTeam/.ci/c5-helper/output/assets",
+                "com.docker.compose.service": "cursor-update",
+                "com.docker.compose.version": "2.38.2",
+                "org.opencontainers.image.description": "自分のマシンで動かすBellTeamの一般配布版",
+                "org.opencontainers.image.revision": "a8782a84e1e3da900f9dab6f557dc2e2a6218247",
+                "org.opencontainers.image.source": "https://github.com/kitepon/BellTeam"
+            }
+        },
+        "NetworkSettings": {
+            "Bridge": "",
+            "SandboxID": "",
+            "SandboxKey": "",
+            "Ports": {},
+            "HairpinMode": false,
+            "LinkLocalIPv6Address": "",
+            "LinkLocalIPv6PrefixLen": 0,
+            "SecondaryIPAddresses": null,
+            "SecondaryIPv6Addresses": null,
+            "EndpointID": "",
+            "Gateway": "",
+            "GlobalIPv6Address": "",
+            "GlobalIPv6PrefixLen": 0,
+            "IPAddress": "",
+            "IPPrefixLen": 0,
+            "IPv6Gateway": "",
+            "MacAddress": "",
+            "Networks": {
+                "centi-c5-helper-40280277618-1-ff67f0cbac2a_default": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": [
+                        "centi-c5-helper-40280277618-1-ff67f0cbac2a-cursor-update-1",
+                        "cursor-update"
+                    ],
+                    "MacAddress": "",
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "",
+                    "EndpointID": "",
+                    "Gateway": "",
+                    "IPAddress": "",
+                    "IPPrefixLen": 0,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": null
+                }
+            }
+        }
+    }
+]

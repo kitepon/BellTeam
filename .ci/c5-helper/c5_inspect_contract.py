@@ -56,7 +56,8 @@ def validate_helper_inspect(item: dict, plan: dict, cid: str, name: str,
                 }
                 or config["User"] != "1000:1000"
                 or config["Entrypoint"] != ["/usr/local/bin/bellteam-update-cursor"]
-                or config["Cmd"] != []):
+                or (config["Cmd"] is not None
+                    and (type(config["Cmd"]) is not list or config["Cmd"]))):
                 raise ContractError("C5_HELPER_CURSOR_IDENTITY_MISMATCH")
         else:
             raise ContractError("C5_HELPER_KIND_INVALID")

@@ -21,7 +21,7 @@
   },
   "pins": {
     "c5_contract.py": "1f2c35c6c23d357ffbdf308143b0c7f7a95e66d455e2eac45b43b69f13857c60",
-    "c5_inspect_contract.py": "a5cb20df63bc59bb5499871a6d86c7f1ba36fe97c8e58e5bda1085305f8bfd94",
+    "c5_inspect_contract.py": "f06d1f1153f5015ad312c0a0ae7688b1309eccd3321a4df4275c23f4378f8535",
     "cursor-caps.overlay.yaml": "ea52af634727d6d8a1353fb9e283376d81cc910ec425f84476b5dc60d95e37d8",
     "assets/compose.cursor-update.yaml": "b508bff73a3d49287e7dcd99a6fb2e7463b159da808bf4733f9d4478c8607aec",
     "assets/scripts/update-cursor.sh": "2641cfc8378506a8105fe32e1fb48980bd613ea974c3180cfbd6b48621c96bb9"

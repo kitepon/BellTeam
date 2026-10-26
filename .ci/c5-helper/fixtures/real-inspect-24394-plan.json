@@ -1,0 +1,19 @@
+{
+  "image": "ghcr.io/kitepon/bellteam-server@sha256:c5a20bd36a8f3ee3fd6e7f23872931125e159a45baf7e01a56185fbb7c5e4c2e",
+  "run": "centi-c5-helper-40280277618-1-ff67f0cbac2a",
+  "helper_caps": {
+    "nano_cpus": 1000000000,
+    "memory_bytes": 2147483648,
+    "memory_swap_bytes": 2147483648,
+    "pids_limit": 512
+  },
+  "cursor_volume": "centi-c5-helper-40280277618-1-ff67f0cbac2a-cursor",
+  "cursor_network_mode": "centi-c5-helper-40280277618-1-ff67f0cbac2a_default",
+  "case": {
+    "id": "16747c94263321341b53605f5084167c874d542a14be07727896de0b55926830",
+    "name": "centi-c5-helper-40280277618-1-ff67f0cbac2a-cursor-update-1",
+    "ordinal": 8,
+    "expected_status": "created",
+    "kind": "cursor"
+  }
+}

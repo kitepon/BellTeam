@@ -5,9 +5,11 @@
   "assets/compose.cursor-update.yaml": "b508bff73a3d49287e7dcd99a6fb2e7463b159da808bf4733f9d4478c8607aec",
   "assets/scripts/update-cursor.sh": "2641cfc8378506a8105fe32e1fb48980bd613ea974c3180cfbd6b48621c96bb9",
   "c5_contract.py": "1f2c35c6c23d357ffbdf308143b0c7f7a95e66d455e2eac45b43b69f13857c60",
-  "c5_inspect_contract.py": "a5cb20df63bc59bb5499871a6d86c7f1ba36fe97c8e58e5bda1085305f8bfd94",
-  "contract.json": "80530e6cb6d3b26f5e273674e39a57b240d1cf15e5d8472d1a57c349a8719e15",
+  "c5_inspect_contract.py": "f06d1f1153f5015ad312c0a0ae7688b1309eccd3321a4df4275c23f4378f8535",
+  "contract.json": "fee5e7338cd4de82fd983a740e17b08f32a9cc8063a92f8fceb9adb15b1640b3",
   "cursor-caps.overlay.yaml": "ea52af634727d6d8a1353fb9e283376d81cc910ec425f84476b5dc60d95e37d8",
-  "test_executor.py": "4ff077b7a068e73f0676529d1009fafbd5d7b035f2f36ead9bed2820be0a398a",
+  "fixtures/real-inspect-24394-plan.json": "ee21d53ba33b77035ce32b9dd98cd8e7678272af40afb2806e17513988ca1144",
+  "fixtures/real-inspect-24394.json": "27d4d8d7ec78cb30ce6b38ef0829b29f168e10f2103680d7f6665a8c5dfa8861",
+  "test_executor.py": "1b148cdbf3e18822ab9a09fc3ece7e455687dd453933079df0e6ec0a4ca3e0a1",
   "../../.github/workflows/publish-server-image.yml": "2c4ae545f80fa095fc6b3efa03dffce5fd21ba4949412fe097e3bf6ebad09f66"
 }
