@@ -17,6 +17,9 @@ struct BellRequestTrace {
     static func route(for path: String) -> String {
         let parts = path.split(separator: "/").map(String.init)
         guard parts.first == "api", parts.count >= 2 else { return "other" }
+        if parts.count == 2, ["ai-control", "goals", "harness-auth", "notifications", "setup", "user-rules"].contains(parts[1]) {
+            return "/api/" + parts[1]
+        }
         switch parts[1] {
         case "events", "queue", "session", "subscription", "models", "settings", "bots", "rooms", "owner":
             var safe = parts
@@ -368,6 +371,13 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
     private static func module(for path: String) -> String {
         if path == "/api/events" { return "events" }
         if path == "/api/session" { return "session" }
+        if path == "/api/setup" || path == "/api/harness-auth" { return "session" }
+        if path == "/api/goals" { return "bots" }
+        if path == "/api/ai-control" { return "settings" }
+        if path == "/api/settings" || path.hasPrefix("/api/settings/")
+            || path == "/api/models" || path == "/api/subscription" { return "settings" }
+        if path == "/api/user-rules" { return "owner" }
+        if path == "/api/notifications" { return "notifications" }
         if path.contains("/schedules") { return "schedules" }
         if path.contains("/message-images/") { return "image" }
         if path.contains("/messages") || path.contains("/screen") { return "conversation" }
@@ -375,6 +385,6 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         if path.contains("/bots") { return "bots" }
         if path.contains("/rooms") { return "rooms" }
         if path.contains("/owner") { return "owner" }
-        return "settings"
+        return "app"
     }
 }
