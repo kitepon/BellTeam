@@ -11,10 +11,11 @@ export function captureMcpError(tool, message, args) {
     else if (value && typeof value === 'object') for (const [key, entry] of Object.entries(value)) collect(entry, privateValue || privateField.test(key))
   }
   collect(args)
-  for (const input of inputs.sort((a, b) => b.length - a.length)) message = message.replaceAll(input, '[input omitted]')
+  const representations = inputs.flatMap(input => [input, JSON.stringify(input).slice(1, -1)])
+  for (const input of representations.sort((a, b) => b.length - a.length)) message = message.replaceAll(input, '[input omitted]')
   message = message.replace(/\b(Bearer|Basic)\s+[^\s,;]+/giu, '$1 [secret omitted]')
     .replace(/\bsk-[A-Za-z0-9_-]+/gu, '[secret omitted]')
-    .replace(/\b([A-Za-z0-9_-]*(?:token|password|secret|api[_-]?key|authorization))["']?\s*[:=]\s*["']?[^\s,;"'}]+/giu, '$1=[secret omitted]')
+    .replace(/\b([A-Za-z0-9_-]*(?:token|password|secret|api[_-]?key|authorization))["']?\s*[:=]\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;"'}]+)/giu, '$1=[secret omitted]')
     .replace(/\b(https?:\/\/)[^/\s@]+@/giu, '$1[secret omitted]@')
   return { tool, message: message.slice(0, 4096), truncated: message.length > 4096 }
 }

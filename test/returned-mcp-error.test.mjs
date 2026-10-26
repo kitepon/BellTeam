@@ -88,3 +88,28 @@ test('ルームも同じ対象の失敗記録だけに返却済みMCP拒否を�
   assert.equal(failed.target, bot.id)
   assert.equal(failed.message_id, records[0].id)
 })
+
+for (const { name, text, args, markers } of [
+  { name: 'escaped multiline input', text: 'aiterm: invalid ' + JSON.stringify({ text: 'PRIVATE_LINE_A\nPRIVATE_LINE_B' }),
+    args: { text: 'PRIVATE_LINE_A\nPRIVATE_LINE_B' }, markers: ['PRIVATE_LINE_A', 'PRIVATE_LINE_B'] },
+  { name: 'quoted secret with whitespace', text: 'aiterm: password="PRIVATE_FIRST PRIVATE_SECOND"',
+    args: { session_id: 'fixture' }, markers: ['PRIVATE_FIRST', 'PRIVATE_SECOND'] },
+]) test(`${name} is absent from every returned-error persistence boundary`, async t => {
+  const client = new AitermClient()
+  client.client = { async callTool() { return { isError: true, content: [{ type: 'text', text }] } } }
+  const error = await client.call('pty_send', args).catch(error => error)
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-private-error-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const messenger = new BellTeamMessenger({ bots: new Map(), transport: {}, logPath: join(root, 'history.jsonl') })
+  await messenger.appendDeliveryStatus('existing-delivery', 'failed', error)
+  const bots = new Map(); bots.refresh = async () => { throw error }
+  const server = createBellTeamServer({ bots, authorize: () => true })
+  server.listen(0, '127.0.0.1'); await once(server, 'listening')
+  t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve) }))
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/bots`)
+  assert.equal(response.status, 500)
+  const values = [error.message, error.publicMessage, JSON.stringify(error.mcp_error),
+    diagnosticRequestContext({ method: 'GET', url: '/api/bots' }, [], error),
+    await readFile(join(root, 'history.jsonl'), 'utf8'), JSON.stringify(await response.json())]
+  for (const value of values) for (const marker of markers) assert.equal(value.includes(marker), false)
+})
