@@ -56,6 +56,45 @@ final class BellDiagnosticsTests: XCTestCase {
                        "/api/bots/:id/messages")
     }
 
+    func testUnknownRequestRouteDoesNotBecomeSettingsFailure() {
+        let route = BellRequestTrace.route(for: "/api/unlisted/private-value")
+        XCTAssertEqual(route, "/api/other")
+        XCTAssertEqual(BellRequestTrace.route(for: "/api/harness-auth/private-value"), "/api/other")
+        var module = ""
+        var log = ""
+        let diagnostics = BellDiagnostics { _, value, _, message in module = value; log = message }
+        let trace = BellRequestTrace(route: route, method: "GET", startedAt: Date(), failedAt: Date(),
+                                     appStateAtStart: "active", attempts: 1, metrics: nil)
+        let error = URLError(.timedOut, userInfo: [BellRequestTrace.userInfoKey: trace])
+        diagnostics.report(error, path: "/api/settings", method: "GET", observation: .read(error, retainedData: true))
+        XCTAssertEqual(module, "app", "要求自身の未知経路を設定画面と決めつけない")
+        XCTAssertTrue(log.contains("module=app"))
+        XCTAssertTrue(log.contains("request_route=/api/other"))
+        XCTAssertTrue(log.contains("operation=unknown"))
+        XCTAssertFalse(log.contains("private-value"))
+        XCTAssertFalse(log.contains("settings_read"))
+    }
+
+    func testFixedPublicGetRoutesKeepOnlyKnownNames() {
+        let routes = ["/api/setup": "session", "/api/harness-auth": "session", "/api/goals": "bots",
+                      "/api/ai-control": "settings", "/api/user-rules": "owner"]
+        for (path, expectedModule) in routes {
+            let route = BellRequestTrace.route(for: path)
+            XCTAssertEqual(route, path)
+            var module = ""
+            var log = ""
+            let diagnostics = BellDiagnostics { _, value, _, message in module = value; log = message }
+            let trace = BellRequestTrace(route: route, method: "GET", startedAt: Date(), failedAt: Date(),
+                                         appStateAtStart: "active", attempts: 1, metrics: nil)
+            let error = URLError(.timedOut, userInfo: [BellRequestTrace.userInfoKey: trace])
+            diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: false))
+            XCTAssertEqual(module, expectedModule, path)
+            XCTAssertTrue(log.contains("request_route=\(path)"), path)
+            XCTAssertTrue(log.contains("operation=unknown"), path)
+        }
+        XCTAssertEqual(BellRequestTrace.route(for: "/api/notifications"), "/api/notifications")
+    }
+
     func testRequestContextSeparatesContractFromObservedFailure() {
         var logs: [String] = []
         let diagnostics = BellDiagnostics { _, _, _, log in logs.append(log) }
