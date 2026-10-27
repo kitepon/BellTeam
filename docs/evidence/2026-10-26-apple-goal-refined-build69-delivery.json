@@ -1,0 +1,91 @@
+{
+  "schema": "bellteam.apple-internal-delivery.v1",
+  "product": "BellTeam",
+  "purpose": "Goal画面改良のApple内部配布",
+  "bundleId": "dev.kitepon.bellbot",
+  "appStoreConnectAppId": "6816295589",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "69",
+  "signedSourceCommit": "2c5679b2a213f1b7a1c550ef6dd028787053078a",
+  "repairMergeCommit": "ba9d67cf1a807c9888753e33c79a16185b0cefe6",
+  "versionMergeCommit": "40c37ce13e7d42b2a85a82ee48742bbef66c3e2b",
+  "unsignedPreflight": "docs/evidence/2026-10-26-apple-goal-refined-build69-preflight.json",
+  "unsignedPreflightSha256": "90522a73f00efa98c80eb790845551454a6c8c4f925b224b7765a5d94a5a6127",
+  "ownerApproval": {
+    "title": "BellTeam Goal改良版69を署名してオーナー内部TestFlightへ配布する",
+    "choice": "go",
+    "answeredAt": "2026-10-26T05:46:26.419Z"
+  },
+  "goalBackendBeforeDistribution": {
+    "imageSha256": "50e8cf52e23958a1daf62e73e01feacf476f3cf17a0afcb05f1eada75b84f4a4",
+    "nativeVersion": "0.61.20",
+    "newBackendDependency": false,
+    "realOwnerGoalMutationPerformed": false
+  },
+  "betaGroup": {
+    "id": "58133050-1c39-4915-b6da-aac18b95921b",
+    "name": "BellTeam オーナー",
+    "internal": true
+  },
+  "artifacts": [
+    {
+      "platform": "IOS",
+      "relativePath": "runtime/apple/goal-refined-build69/ios-export/BellTeam.ipa",
+      "sha256": "74d4fa787b81530406fc26cdcc1f3b40eb1b3384c352bd5a529597f520fef7ee",
+      "appBundleVersion": "69",
+      "extensionBundleVersion": "69",
+      "architectures": ["arm64"],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadDeliveryUuid": "f415b97a-5329-4881-88ea-e9ed77904d08",
+      "uploadResult": "no-errors",
+      "appStoreConnectBuildId": "f415b97a-5329-4881-88ea-e9ed77904d08",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    },
+    {
+      "platform": "MAC_OS",
+      "relativePath": "runtime/apple/goal-refined-build69/mac-export/BellTeam.pkg",
+      "sha256": "34d9a8a786ddb15cec2ca0a08a59f86ef4584c54f8adb62426ce7e24fe22f2ff",
+      "appBundleVersion": "69",
+      "extensionBundleVersion": "69",
+      "architectures": ["x86_64", "arm64"],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "installerSignature": "3rd Party Mac Developer Installer, valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadDeliveryUuid": "5969daa4-cede-4df0-a928-a7262f1cad44",
+      "uploadResult": "no-errors",
+      "appStoreConnectBuildId": "5969daa4-cede-4df0-a928-a7262f1cad44",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    }
+  ],
+  "macTestFlightSmoke": {
+    "installedPath": "/Applications/BellTeam.app",
+    "preUpdateBundleVersion": "68",
+    "appBundleVersion": "69",
+    "extensionBundleVersion": "69",
+    "strictSignature": "valid",
+    "gatekeeperSource": "Testflight",
+    "observedRunningProcessId": 84297,
+    "visibleResult": "Goal heading loaded; no configured goals; unavailable members section visible; no current-goal loading error",
+    "goalMutationActionsUsed": 0,
+    "realBotMessageSent": false,
+    "smokeProcessGracefullyQuit": true
+  },
+  "remaining": {
+    "realOwnerGoalOperation": "not_performed",
+    "ipadChat": "not_measured",
+    "multipleCreateCandidates": "not_measured",
+    "realIME": "not_measured",
+    "capabilityRestrictedActions": "not_enabled_by_apple"
+  },
+  "serverContainerRestartedByThisDelivery": false,
+  "publicAppStoreReleased": false
+}

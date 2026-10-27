@@ -1,7 +1,7 @@
 import XCTest
 
 final class HarnessAuthenticationUITests: XCTestCase {
-    func testConfirmationInputCancelAndCommunicationError() throws {
+    func testConfirmationUntypedInputIsHiddenCancelAndCommunicationError() throws {
         guard let server = ProcessInfo.processInfo.environment["BELLTEAM_AUTH_SMOKE_URL"] else {
             throw XCTSkip("認証画面の試験サーバーが必要です。")
         }
@@ -31,32 +31,18 @@ final class HarnessAuthenticationUITests: XCTestCase {
         XCTAssertFalse(try paths(base).contains("POST /api/harness-auth/codex/start"))
         app.buttons["harness-auth-start"].tap()
         warning.buttons["今の認証を手放して始める"].tap()
-        let code = app.staticTexts["harness-auth-code"]
-        XCTAssertTrue(code.waitForExistence(timeout: 5))
-        XCTAssertEqual(code.label, "UI-TEST-CODE")
-        XCTAssertTrue(app.links["harness-auth-link"].exists || app.buttons["harness-auth-link"].exists)
+        XCTAssertTrue(app.staticTexts["公式サイトでの認証を待っています。"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["harness-auth-code"].exists)
+        XCTAssertFalse(app.links["harness-auth-link"].exists)
+        XCTAssertFalse(app.secureTextFields["harness-auth-input"].exists,
+                       "input_required=trueだけで認証コード欄を出さない")
+        for key in ["Enter", "Up", "Down", "Tab"] { XCTAssertFalse(app.buttons[key].exists) }
         app.buttons["harness-auth-cancel"].tap()
         XCTAssertTrue(app.staticTexts["認証に必要な操作を確認してください。"].waitForExistence(timeout: 5))
 
         app.buttons["harness-auth-start"].tap()
         XCTAssertFalse(warning.exists, "未認証だと分かっている場合はWebと同じく確認せず始める")
-        let input = app.secureTextFields["harness-auth-input"]
-        XCTAssertTrue(input.waitForExistence(timeout: 5))
-        input.tap()
-        input.typeText("UI-TEST-INPUT")
-        let send = app.buttons["入力を送る"]
-        XCTAssertTrue(send.isEnabled, "入力した値で送信できる")
-        Thread.sleep(forTimeInterval: 3.4)
-        XCTAssertTrue(input.isEnabled, "認証の自動照会中も入力できる")
-        XCTAssertTrue(send.isEnabled, "自動照会で入力中の値を失わない")
-        if !send.isHittable { app.scrollViews.firstMatch.swipeUp() }
-        send.tap()
-        XCTAssertTrue(app.staticTexts["認証済みです。"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["harness-auth-cancel"].exists)
-
-        app.buttons["harness-auth-start"].tap()
-        warning.buttons["今の認証を手放して始める"].tap()
-        XCTAssertTrue(code.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["公式サイトでの認証を待っています。"].waitForExistence(timeout: 5))
         _ = try request(base, "/test/fail-status")
         let error = app.staticTexts["harness-auth-error"]
         XCTAssertTrue(error.waitForExistence(timeout: 6))
@@ -72,6 +58,7 @@ final class HarnessAuthenticationUITests: XCTestCase {
         XCTAssertTrue(error.waitForNonExistence(timeout: 5))
         app.buttons["harness-auth-cancel"].tap()
         XCTAssertTrue(app.staticTexts["認証に必要な操作を確認してください。"].waitForExistence(timeout: 5))
+        XCTAssertFalse(try paths(base).contains("POST /api/harness-auth/codex/input"))
     }
 
     private func paths(_ base: URL) throws -> [String] {

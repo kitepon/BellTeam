@@ -1,0 +1,15 @@
+# 旧Apple予定・処理待ちGET時間切れの人工画面試験
+
+旧記録`03caf6627f0a3fc22f95f329fa63e0259ec25df926c942fa9d15f4936235f713`は予定GET、`44906d2387428e5108c0384c1c742e1cda0d4f6c36fef68ee4df3f8592fdaef4`は処理待ちGETの`-1001`時間切れを示す。元の画面と遅延した境界は未確認。Bot一覧と会話GETの代表試験に続き、この2画面を人工HTTPで測った。
+
+## 予定
+
+通常`AppStore`と`SchedulesView`をiPhone 16 Pro Max / iOS 26.5 Simulatorで開き、人工予定「隔離予定」を先に表示した。次の画面復帰ではBot・ルーム計5ソースの予定GETを応答保留し、実際のURLSession時間切れを待った。画面は既知予定を残して時間切れを表示した。失敗後の安定観測で新しい予定GETは増えず、サーバーを正常応答へ戻して画面を再表示すると新しいGETで表示が回復し、エラーが消えた。[通信記録](2026-10-25-legacy-schedules-timeout-proof.json)は初回5件、時間切れ5件、明示再表示後5件。SHA-256は`56e5fd6a8ce9d6cbe319873f3e97edda713ebae53985f4474478b58bf928e63d`。
+
+## 処理待ち
+
+通常`ConversationView`で既知の会話行「試験用の会話」を先に表示し、次の処理待ちGETを応答保留した。実際の時間切れ後も会話行を保ってエラーを表示。失敗後の安定観測では処理待ちGETを自動再送せず、人工サーバーを正常に戻して画面を再表示した後に新しいGETが出てエラーが消えた。試験サーバーは次の予定試験で初期化したため、処理待ちの時刻付き通信原本は保持していない。件数と終了状態の判定はXCResultのassertionに残る。
+
+focused画面試験`testScheduleTimeoutKeepsKnownEntryUntilExplicitReload`と`testQueueTimeoutKeepsKnownConversationUntilExplicitReload`は2件成功・失敗0。XCResultは`~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf30729c2d6d/result-bundles/test_sim_2026-10-25T10-19-41-907Z_pid8412_5e5829f2.xcresult`。人工サーバーは停止、SimulatorはShutdownを確認した。
+
+製品コード変更0。人工試験の成功から元の2件の60秒遅延原因や当時の画面回復を確定しない。実Bot・オーナー通常アプリ・認証・公開サービス操作0。

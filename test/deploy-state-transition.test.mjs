@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { createHash } from 'node:crypto'
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -43,6 +44,15 @@ if(a[0]==='fixture-cursor'){event('cursor');process.exit(e.TEST_FAIL==='cursor'?
 if(a[0]==='fixture-verify'){
  event('verify');if(e.TEST_FAIL==='verify')process.exit(54);
  fs.writeFileSync(e.TEST_CHANGED,'changed after verification');process.exit(0)
+}
+if(a[0]==='container'){
+ output(a.includes('{{.Id}} {{.Image}}')?'c'.repeat(64)+' sha256:'+'d'.repeat(64):'volume bellteam_cursor-cli');process.exit(0)
+}
+if(a[0]==='image'&&a[1]==='save'){
+ fs.writeFileSync(a[a.indexOf('--output')+1],'synthetic-image');event('archive-image');process.exit(e.TEST_FAIL==='archive-image'?73:0)
+}
+if(a[0]==='exec'&&a.includes('/bin/tar')){
+ process.stdout.write('synthetic-cursor');event('archive-cursor');process.exit(e.TEST_FAIL==='archive-cursor'?74:0)
 }
 if(a[0]==='image'){if(e.TEST_FAIL==='built-image')process.exit(72);output(e.TEST_IMAGE_ID);process.exit(0)}
 if(a[0]==='run'){
@@ -155,8 +165,9 @@ test('build adapter: local build enters the same frozen stopped state transition
   const { stdout } = await f.run({ BELLTEAM_SERVER_IMAGE: '' })
   assert.match(stdout, /deploy-exit=0/)
   const events = await f.events(), calls = events.filter(e => e.kind === 'call')
-  assert.deepEqual(calls[0].args, ['compose', 'build', '--pull', '--no-cache'])
-  assert.equal(calls[0].composeFile, f.root + '/compose.yaml')
+  const build = calls.find(e => e.args.includes('build'))
+  assert.deepEqual(build.args, ['compose', 'build', '--pull', '--no-cache'])
+  assert.equal(build.composeFile, f.root + '/compose.yaml')
   assert.ok(!calls.some(e => e.args[0] === 'compose' && e.args.includes('pull')))
   assert.deepEqual(events.filter(e => ['build', 'quiet1', 'cursor', 'quiet2', 'stop', 'verify', 'prepare', 'transfer', 'up'].includes(e.kind)).map(e => e.kind),
     ['build', 'quiet1', 'cursor', 'quiet2', 'stop', 'verify', 'prepare', 'transfer', 'up'])
@@ -196,5 +207,24 @@ test('recovery model: internal success and failed startup preserve the exact ded
     assert.equal(saved.services['state-maintenance'].image, id)
     assert.doesNotMatch(JSON.stringify(saved), /synthetic-only|\/home\/bell/)
     assert.equal(events.filter(e => e.kind === 'transfer').length, 1)
+  }
+})
+
+
+test('main integration: actual-old-CID archive preservation precedes the stage2 transition and failures block it', async t => {
+  const f = await fixture(t), { stdout } = await f.run(), events = await f.events()
+  const previous = stdout.match(/previous-image=(.+)/)[1]
+  for (const file of ['image.tar', 'cursor.tar']) {
+    const path = join(f.root, previous, file), bytes = await readFile(path)
+    assert.ok((await readFile(path + '.sha256', 'utf8')).startsWith(createHash('sha256').update(bytes).digest('hex') + ' '))
+  }
+  assert.deepEqual(events.filter(e => ['archive-image', 'archive-cursor', 'quiet1', 'stop', 'prepare', 'transfer', 'up'].includes(e.kind)).map(e => e.kind),
+    ['archive-image', 'archive-cursor', 'quiet1', 'stop', 'prepare', 'transfer', 'up'])
+  const cursor = events.find(e => e.args[0] === 'exec' && e.args.includes('/bin/tar'))
+  assert.ok(cursor.args.includes('c'.repeat(64)))
+  for (const [phase, code] of [['archive-image', 73], ['archive-cursor', 74]]) {
+    const broken = await fixture(t)
+    await assert.rejects(broken.run({ TEST_FAIL: phase }), e => e.code === code && e.stdout.includes('deploy-exit=' + code))
+    assert.ok(!(await broken.events()).some(e => ['normal-render', 'quiet1', 'stop', 'prepare', 'transfer', 'up'].includes(e.kind)))
   }
 })

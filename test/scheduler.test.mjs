@@ -159,7 +159,7 @@ test('ルーム予定は指定メンバーへscheduled発言として配達す�
     from: 'scheduler', room: 'room-a', message: '共有して', targets: ['bot-b'],
     kind: 'schedule', schedule: { id: 'rs-1', name: '朝会' },
   }])
-  assert.deepEqual(calls[1], ['mark', 'room-a', 'rs-1', now])
+  assert.deepEqual(calls[1], ['mark', 'room-a', 'rs-1', now, { expectedRevision: 0 }])
 })
 
 test('今すぐ実行は予定の次回時刻と有効状態を動かさずに配達する', async () => {

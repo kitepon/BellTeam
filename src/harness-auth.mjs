@@ -4,6 +4,7 @@
 // 認証の画面の出し方と資格情報は、Aitermと公式CLIが持つ。BellTeamは進行を中継するだけで、資格情報に触れない。
 import { runtimeEnvironment } from './runtime-home.mjs'
 import { HARNESS, HARNESSES } from './onboarding.mjs'
+import { authUi, authResponse, authResponseFailure } from './auth-ui.mjs'
 
 // 認証し直しを始める前に、利用者へ知らせる事。公式CLIの動きで、Aiterm 0.53.1 で確かめた範囲（エレグ、2026-10-06）。
 // Codexの公式ログインは、始めた時点で今の資格情報を消す。ClaudeとCursorは、途中でやめれば残る。Grokは確かめられていない。
@@ -30,6 +31,7 @@ export class HarnessAuth {
     this.client = client
     // 進行中の公式認証（Aitermの端末）。AIの種類ごとに1つ。
     this.sessions = new Map()
+    this.receipts = new Map()
     this.pending = Promise.resolve()
   }
 
@@ -60,15 +62,23 @@ export class HarnessAuth {
     })
   }
 
-  input(harness, { text, key } = {}) {
+  input(harness, input) {
     return this.change(async () => {
       this.require(harness)
       const session = this.sessions.get(harness)
       if (!session) throw new HarnessAuthError('HARNESS_AUTH_NOT_RUNNING', 409, '認証のやり直しを開始してください。')
-      if ((typeof text === 'string') === (typeof key === 'string')) throw new HarnessAuthError('HARNESS_AUTH_INPUT_INVALID', 400, '認証の入力またはキーを指定してください。')
-      if (text !== undefined) await this.client.call('pty_send', { session_id: session, text, enter: true, raw: true })
-      else await this.client.call('pty_key', { session_id: session, key })
-      return this.observe(harness)
+      const options = authResponse(input, session, authUi(this.receipts.get(harness) ?? {}, session))
+      let receipt
+      try { receipt = await this.call(harness, 'respond', options) }
+      catch (cause) {
+        const error = new HarnessAuthError('HARNESS_AUTH_RESPONSE_UNCONFIRMED', 502, '認証結果を確認できませんでした。状態を更新してください。')
+        error.cause = cause
+        error.effect = cause.effect ?? 'unknown'
+        if (cause.code === 'AUTH_RESPONSE_NOT_ISSUED') { error.code = cause.code; error.status = 409; error.message = cause.message }
+        throw error
+      }
+      if (receipt.status === 'authenticated') await this.end(harness)
+      return this.snapshot(harness, receipt)
     })
   }
 
@@ -94,6 +104,7 @@ export class HarnessAuth {
   async end(harness) {
     await this.call(harness, 'cancel')
     this.sessions.delete(harness)
+    this.receipts.delete(harness)
   }
 
   async call(harness, action, options = {}) {
@@ -104,9 +115,12 @@ export class HarnessAuth {
       ...(session ? { session_id: session } : {}),
       ...(cwd ? { cwd } : {}),
     }, this.client.authOptions?.() ?? { env: runtimeEnvironment() })
+    const failure = authResponseFailure(result, session)
+    if (failure) throw failure
     const receipt = result.structuredContent
     if (receipt?.schema !== 'aiterm.agent-auth-result.v1' || !['waiting', 'authenticated', 'blocked', 'failed'].includes(receipt.status))
       throw new HarnessAuthError('HARNESS_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。')
+    this.receipts.set(harness, receipt)
     return receipt
   }
 
@@ -119,6 +133,8 @@ export class HarnessAuth {
     return { harness, auth: {
       status: receipt.status, url: receipt.url ?? null, user_code: receipt.user_code ?? null,
       input_required: receipt.input_required === true, message,
+      session_id: this.sessions.get(harness) ?? null,
+      auth_ui: authUi({ ...receipt, message }, this.sessions.get(harness) ?? receipt.session_id),
     } }
   }
 

@@ -182,6 +182,49 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertEqual(scenario.count("/api/bots"), 2, "GETの時間切れを自動再送しない")
     }
 
+    func testTLSReadFailureStopsUntilExplicitScheduleReload() async throws {
+        let scenario = NetworkScenario(failures: 1, failureCode: .secureConnectionFailed)
+        let api = makeAPI(scenario)
+        let path = "/api/bots/bot-network/schedules"
+        do {
+            let _: SchedulesResponse = try await api.get(path)
+            XCTFail("TLS失敗を成功として返さない")
+        } catch {
+            api.diagnostics.report(error, path: path, method: "GET",
+                                   observation: .read(error, retainedData: true))
+        }
+        XCTAssertEqual(scenario.count(path), 1, "TLS失敗を自動再送しない")
+        XCTAssertEqual(scenario.reports.first?.code, "IOS_NETWORK_FAILURE")
+        XCTAssertTrue(scenario.reports.first?.log.contains("error_code=-1200") == true)
+
+        let result: SchedulesResponse = try await api.get(path)
+        XCTAssertTrue(result.schedules.isEmpty)
+        XCTAssertEqual(scenario.count(path), 2, "明示した次のGETだけを送る")
+    }
+
+    func testPushRegistrationTimeoutDoesNotAutomaticallyRepeatPost() async throws {
+        let scenario = NetworkScenario(failures: 1, failureCode: .timedOut)
+        let api = makeAPI(scenario)
+        let path = "/api/notifications/devices"
+        let body = SyntheticPushDevice(token: "artificial-token", environment: "Sandbox",
+                                       server: "https://network.test.invalid", previousToken: nil,
+                                       signedTransaction: nil)
+        do {
+            let _: SyntheticPushRegistration = try await api.post(path, body: body)
+            XCTFail("通知登録の時間切れを成功にしない")
+        } catch {
+            api.diagnostics.reportPush(error, stage: "register_device")
+        }
+        XCTAssertEqual(scenario.count(path), 1, "登録POSTを自動再送しない")
+        XCTAssertEqual(scenario.reports.first?.code, "IOS_PUSH_FAILED")
+        XCTAssertTrue(scenario.reports.first?.log.contains("stage=register_device") == true)
+        XCTAssertTrue(scenario.reports.first?.log.contains("notification_error_code=-1001") == true)
+
+        let result: SyntheticPushRegistration = try await api.post(path, body: body)
+        XCTAssertTrue(result.registered)
+        XCTAssertEqual(scenario.count(path), 2, "次の明示的な登録要求だけを送る")
+    }
+
     func testSuccessfulGETDoesNotHideSSEReconnectWarning() async {
         let scenario = NetworkScenario(failures: 0, events502ThenReady: true, holdEventsOpen: true, skipAvatarVersion: true)
         let store = AppStore(api: makeAPI(scenario))
@@ -467,6 +510,15 @@ final class NetworkRecoveryTests: XCTestCase {
     }
 }
 
+private struct SyntheticPushDevice: Encodable {
+    let token: String
+    let environment: String
+    let server: String
+    let previousToken: String?
+    let signedTransaction: String?
+}
+private struct SyntheticPushRegistration: Decodable { let registered: Bool }
+
 private final class NetworkScenario {
     private let lock = NSLock()
     private var counts: [String: Int] = [:]
@@ -534,6 +586,8 @@ private final class NetworkScenario {
         case "/api/bots":
             object = ["bots": [["id": "bot-network", "name": "試験", "display_name": "試験", "harness": "codex", "model": "", "reasoning_effort": "", "fast_mode": false, "color": "#000000", "profile_text": "", "personality": "", "speech_style": "", "position": "", "role": "", "avatar": "", "avatarVersion": skipAvatarVersion ? "" : "version-a", "online": false]]]
         case "/api/rooms": object = ["rooms": []]
+        case let path where path.hasSuffix("/schedules"): object = ["schedules": []]
+        case "/api/notifications/devices": object = ["registered": true]
         case "/api/queue": object = ["items": []]
         case "/api/owner": object = ["owner": ["name": "試験", "profile": "", "avatar": "", "avatarVersion": "", "x_url": "", "github_url": "", "links": []]]
         default: object = ["result": "ok"]

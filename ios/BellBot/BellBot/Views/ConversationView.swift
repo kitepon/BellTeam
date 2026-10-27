@@ -450,6 +450,7 @@ private struct ConversationContent: View {
     private var composer: some View {
         VStack(spacing: 8) {
             if let room { targetPicker(room) }
+            if case .bot(let id) = target { ChatGoalBar(botId: id) }
             ConversationInput(draft: store.draft(for: target), sending: sending, hasAttachments: !attachments.isEmpty,
                               onSend: { Task { await send() } },
                               canStop: currentBotCanStop, stopping: stoppingBotID != nil,

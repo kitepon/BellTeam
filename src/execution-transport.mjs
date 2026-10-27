@@ -27,11 +27,11 @@ function stopOperation({ sessionState, activity }, bots, run, { acceptedOnly = f
   return operation
 }
 
-export function sendStopOperations(seat, bots) {
+export function sendStopOperations(seat, bots, options = {}) {
   return stopOperation(seat, bots, ({ rootIds, roots, jobs }) => {
     // Start the actual stop RPC before any relation/status/disk read.
     let sent
-    try { sent = seat.requestStop(roots.map(bot => seat.session(bot))) }
+    try { sent = seat.requestStop(roots.map(bot => seat.session(bot)), options) }
     catch (error) { sent = Promise.reject(error) }
     return Promise.resolve(sent).then(cascade => {
       const sentSessions = new Set(cascade.targets.filter(target => ['sent', 'idle'].includes(target.status)).map(target => target.session_id))

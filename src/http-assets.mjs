@@ -60,10 +60,12 @@ export async function staticFile(response, root, pathname, assetVersion) {
     ['/app.js', 'app.js'],
     ['/onboarding.js', 'onboarding.js'],
     ['/harness-auth.js', 'harness-auth.js'],
+    ['/auth-flow.js', 'auth-flow.js'],
     ['/server-origin.js', 'server-origin.js'],
     ['/chat-input.js', 'chat-input.js'],
     ['/member-stop.js', 'member-stop.js'],
     ['/ai-control.js', 'ai-control.js'],
+    ['/goals.js', 'goals.js'],
     ['/rich-text.js', 'rich-text.js'],
     ['/secret-input.js', 'secret-input.js'],
     ['/owner-question.js', 'owner-question.js'],
@@ -79,7 +81,7 @@ export async function staticFile(response, root, pathname, assetVersion) {
   if (!name) return json(response, 404, { error: 'NOT_FOUND' })
   const file = join(root, name)
   const info = await stat(file)
-  if (['index.html', 'app.js', 'rich-text.js', 'secret-input.js'].includes(name)) {
+  if (['index.html', 'app.js', 'harness-auth.js', 'onboarding.js', 'rich-text.js', 'secret-input.js'].includes(name)) {
     const body = (await readFile(file, 'utf8')).replaceAll('__ASSET_VERSION__', assetVersion)
     response.writeHead(200, {
       'content-type': contentTypes.get(extname(file)),

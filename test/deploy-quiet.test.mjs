@@ -35,6 +35,70 @@ async function statTableFixture(t, count = 65) {
   return proc
 }
 
+test('列挙後に消えたPIDは不完全表を捨て、全列挙からの完全な一表だけ返す', async () => {
+  let lists = 0
+  const read = async path => {
+    if (path === '/synthetic/99/stat') throw Object.assign(new Error('gone'), {code:'ENOENT',path})
+    const pid = Number(path.split('/')[2])
+    return `${pid} (fixture) ${['S','0','1',...Array(16).fill('0'),String(lists * 100 + pid)].join(' ')}`
+  }
+  const table = await readProcTable('/synthetic', { list:async()=>++lists === 1 ? ['1','99'] : ['1','2'], read })
+  assert.equal(lists, 2)
+  assert.deepEqual([...table.keys()], [1,2])
+  assert.equal(table.get(1).start, '201')
+  assert.equal(table.get(2).start, '202')
+})
+
+test('二度目の欠測は返さず、再列挙は最大二回で止まる', async () => {
+  let lists = 0
+  await assert.rejects(readProcTable('/synthetic', {
+    list:async()=>{ lists++; return ['99'] },
+    read:async path=>{throw Object.assign(new Error('gone'), {code:'ENOENT',path})},
+  }), {code:'ENOENT'})
+  assert.equal(lists, 2)
+})
+
+test('権限・不正stat・列挙エラーを消失として取り直さない', async () => {
+  for (const mode of ['permission','malformed','listing']) {
+    let lists = 0
+    await assert.rejects(readProcTable('/synthetic', {
+      list:async()=>{ lists++; if(mode==='listing') throw Object.assign(new Error('listing'), {code:'ENOENT',path:'/synthetic'}); return ['1'] },
+      read:async path=>{ if(mode==='permission') throw Object.assign(new Error('denied'), {code:'EACCES',path}); return 'invalid' },
+    }))
+    assert.equal(lists, 1)
+  }
+})
+
+test('消失と権限・不正statが混在すれば同batch/後続batchとも再列挙しない', async () => {
+  for (const offset of [2, 34]) for (const mode of ['permission','malformed']) {
+    let lists = 0
+    await assert.rejects(readProcTable('/synthetic', {
+      list:async()=>{ lists++; return Array.from({length:offset}, (_,i)=>String(i+1)) },
+      read:async path=>{
+        const pid = Number(path.split('/')[2])
+        if(pid===1) throw Object.assign(new Error('gone'), {code:'ENOENT',path})
+        if(pid===offset) {
+          if(mode==='permission') throw Object.assign(new Error('denied'), {code:'EACCES',path})
+          return 'invalid'
+        }
+        return `${pid} (fixture) ${['S','0','1',...Array(16).fill('0'),'100'].join(' ')}`
+      },
+    }), mode==='permission' ? {code:'EACCES'} : /DEPLOY_PROCESS_UNKNOWN/u)
+    assert.equal(lists,1)
+  }
+})
+
+test('取り直した完全表でも対象root消失はidleとして許さない', async () => {
+  let lists = 0, observed = 0
+  const table = await readProcTable('/synthetic', {
+    list:async()=>++lists === 1 ? ['10'] : [],
+    read:async path=>{throw Object.assign(new Error('gone'), {code:'ENOENT',path})},
+  })
+  assert.equal(await confirmDeployIdle({observe:async()=>{ observed++; return idle }}, peerSeat,
+    {...procFixture(), readTable:async()=>table}), null)
+  assert.equal(observed, 1)
+})
+
 test('process表は複数batchを含む全PIDの親・開始tickを保持する', async t => {
   const proc = await statTableFixture(t)
   const rows = await readProcTable(proc)
@@ -437,3 +501,19 @@ if [ "$2" = config ] && [ "$3" = --format ]; then printf '%s\\n' 'name: fixture'
     }
   }
 })
+
+for (const localNode of ['environment/node_modules/node/bin/node', 'environment/node-v22.23.4/bin/node']) {
+  test(`同じBotの${localNode} wrapperでも唯一の公式Codex子と全子孫を確認する`, () => {
+    const wrapper = { ...root, exe: `/srv/bellteam/bots/bot-peer/${localNode}` }
+    const native = { pid: 11, ppid: 10, pgid: 10, start: '101', state: 'S', argv: null,
+      exe: '/usr/local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex' }
+    const mcp = { pid: 30, ppid: 11, pgid: 10, start: '120', state: 'S', exe: relay, argv: [relay, nodeExe, aiterm] }
+    assert.equal(trustedIdleTree([wrapper,native,mcp],10,'codex-cli','bot-peer'),true)
+    for(const changed of [[],[{...native,exe:'/other/codex'}],[native,{...native,pid:12}],[native,{...mcp,ppid:10}],
+      [native,mcp,{pid:40,ppid:11,pgid:10,start:'130',state:'S',exe:nodeExe,argv:[nodeExe,'/work/task.mjs']}],
+      [{...native,state:'Z'}]]) assert.equal(trustedIdleTree([wrapper,...changed],10,'codex-cli','bot-peer'),false)
+    for(const exe of ['/srv/bellteam/bots/bot-other/environment/node_modules/node/bin/node',
+      '/srv/bellteam/bots/bot-peer/other/node','/srv/bellteam/bots/bot-peer/environment/node-v22.23.4/bin/other'])
+      assert.equal(trustedIdleTree([{...wrapper,exe},native,mcp],10,'codex-cli','bot-peer'),false)
+  })
+}

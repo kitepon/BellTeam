@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { CharacterSheets } from './character-sheets.mjs'
 import { BotAdministration } from './bot-administration.mjs'
+import { BotGoals } from './bot-goals.mjs'
 import { AitermClient, createManagedTransport } from './aiterm-transport.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
 import { completedThroughlineTurns, latestThroughlineHandoffContext } from './throughline-context.mjs'
@@ -62,6 +63,10 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     updateFastMode: (botId, fastMode) => bots.update(botId, { fastMode }),
   })
   const idleSessions = new IdleSessions({ bots, transport })
+  const goals = new BotGoals({ transport, admitWork: () => aiControl.admit(), reportError: async error => {
+    const frames = String(error.stack ?? '').split('\n').slice(1).filter(line => /^\s*at\s/u.test(line)).slice(0, 12)
+    await diagnostics.record({ code: 'GOAL_OPERATION_UNCONFIRMED', module: 'goals', diagnostic_log: `${error.constructor.name}\n${frames.join('\n')}` })
+  } })
   const logPath = join(root, 'logs/direct-messages.jsonl')
   const store = new ConversationStore({ logPath })
   const assets = new MessageAssets({ root, ...(seatRuntime ? {
@@ -142,6 +147,6 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
-    scheduler, diagnostics, idleSessions, selfTurns, seatTurns, administration,
+    scheduler, diagnostics, idleSessions, selfTurns, seatTurns, administration, goals,
   }
 }

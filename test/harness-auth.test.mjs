@@ -5,6 +5,7 @@ import test from 'node:test'
 import { HarnessAuth } from '../src/harness-auth.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 
+const legacy = value => { const { session_id, auth_ui, ...auth } = value.auth; return { ...value, auth } }
 const receipt = value => ({ structuredContent: { schema: 'aiterm.agent-auth-result.v1', session_id: null, url: null, user_code: null, input_required: false, message: null, ...value } })
 
 // Aitermの agent_auth の代わり。relogin を知っている版（true）と、引数を捨てる古い版（false）。
@@ -65,7 +66,7 @@ test('状態を見ただけの時は利用者向けの文を返し、認証が�
   assert.match(await message('claude'), /期限切れを見分けられない事があります/u)
   assert.equal(await message('codex'), null)
   // 進行中は、公式の画面の案内を落とさない。
-  assert.deepEqual((await auth.start('claude')).auth, { status: 'blocked', url: null, user_code: null, input_required: true, message: '公式の画面で入力してください。' })
+  assert.deepEqual(legacy(await auth.start('claude')).auth, { status: 'blocked', url: null, user_code: null, input_required: true, message: '公式の画面で入力してください。' })
   next = { status: 'blocked', session_id: 'auth-1', input_required: true, message: '公式の画面で入力してください。' }
   assert.equal(await message('claude'), '公式の画面で入力してください。')
 })
@@ -74,9 +75,9 @@ test('認証済みに見えるAIでも入り直しを始め、通ったら認証
   const client = aiterm()
   const auth = new HarnessAuth({ bots, client })
 
-  assert.deepEqual(await auth.status('codex'), { harness: 'codex', auth: { status: 'authenticated', url: null, user_code: null, input_required: false, message: null } })
+  assert.deepEqual(legacy(await auth.status('codex')), { harness: 'codex', auth: { status: 'authenticated', url: null, user_code: null, input_required: false, message: null } })
   const started = await auth.start('codex')
-  assert.deepEqual(started, { harness: 'codex', auth: { status: 'waiting', url: 'https://auth.example.com/device', user_code: 'ABCD-1234', input_required: false, message: null } })
+  assert.deepEqual(legacy(started), { harness: 'codex', auth: { status: 'waiting', url: 'https://auth.example.com/device', user_code: 'ABCD-1234', input_required: false, message: null } })
   assert.deepEqual(client.calls.at(-1), ['agent_auth', { harness: 'codex-cli', action: 'start', relogin: true, cwd: '/srv/bellteam/bots/bot-a' }])
 
   // 待っている間の確認は、同じ端末の状態を見る。
@@ -101,16 +102,13 @@ test('認証が切れたAIは、古いAitermでも入り直しを始められる
   assert.equal((await auth.start('grok')).auth.status, 'waiting')
 })
 
-test('認証の入力は進行中の端末へだけ送り、やめる時は端末を閉じる', async () => {
-  const client = aiterm()
-  const auth = new HarnessAuth({ bots, client })
-  await assert.rejects(auth.input('codex', { text: 'x' }), error => error.code === 'HARNESS_AUTH_NOT_RUNNING')
+test('一般の端末キーや本文を認証入力として受け付けず、取消は所有する端末だけを閉じる', async () => {
+  const client = aiterm(), auth = new HarnessAuth({ bots, client })
+  await assert.rejects(auth.input('codex', { text: 'x' }), { code: 'HARNESS_AUTH_NOT_RUNNING' })
   await auth.start('codex')
-  await assert.rejects(auth.input('codex', { text: 'x', key: 'Enter' }), error => error.code === 'HARNESS_AUTH_INPUT_INVALID')
-  await auth.input('codex', { text: 'secret' })
-  assert.deepEqual(client.calls.at(-2), ['pty_send', { session_id: 'auth-1', text: 'secret', enter: true, raw: true }])
-  await auth.input('codex', { key: 'Enter' })
-  assert.deepEqual(client.calls.at(-2), ['pty_key', { session_id: 'auth-1', key: 'Enter' }])
+  for (const input of [{ text: 'secret' }, { key: 'Enter' }, { text: 'x', key: 'Enter' }])
+    await assert.rejects(auth.input('codex', input), { code: 'AUTH_RESPONSE_INVALID' })
+  assert.equal(client.calls.some(([name]) => name === 'pty_send' || name === 'pty_key'), false)
   assert.deepEqual(await auth.cancel('codex'), { harness: 'codex', auth: null })
   assert.equal(client.calls.at(-1)[1].action, 'cancel')
   assert.equal(auth.sessions.has('codex'), false)
@@ -128,7 +126,7 @@ test('やり直しを押し直した時は、前の認証の端末を閉じて�
 
 test('Aitermが値を省いた時も、無い値はnull、入力の要否は真偽で返す', async () => {
   const client = { async call() { return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', status: 'blocked' } } } }
-  assert.deepEqual(await new HarnessAuth({ bots, client }).status('cursor'), {
+  assert.deepEqual(legacy(await new HarnessAuth({ bots, client }).status('cursor')), {
     harness: 'cursor', auth: { status: 'blocked', url: null, user_code: null, input_required: false, message: 'このAIは認証されていないか、認証の期限が切れています。「認証し直す」で公式サイトから入り直せます。' },
   })
 })
@@ -155,7 +153,8 @@ test('認証のやり直しのAPIは、認可の後で進行を渡し、失敗�
   assert.equal(started.status, 200)
   assert.equal((await started.json()).auth.user_code, 'ABCD-1234')
   const input = await fetch(`${base}/codex/input`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: 'Enter' }) })
-  assert.equal(input.status, 200)
+  assert.equal(input.status, 409)
+  assert.equal(client.calls.some(([name]) => name === 'pty_key'), false)
   assert.deepEqual(await (await fetch(`${base}/codex/cancel`, { method: 'POST' })).json(), { harness: 'codex', auth: null })
 
   const invalid = await fetch(`${base}/gpt`)

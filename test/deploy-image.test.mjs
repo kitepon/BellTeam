@@ -27,11 +27,13 @@ const args = process.argv.slice(2)
 fs.appendFileSync(process.env.FIXTURE_LOG, JSON.stringify({args,cwd:process.cwd(),
   compose:process.env.COMPOSE_FILE,project:process.env.COMPOSE_PROJECT_NAME,
   image:process.env.BELLTEAM_SERVER_IMAGE,profile:process.env.BELLTEAM_INTERNAL_PROFILE_FILE})+'\\n')
+if (args[0] === 'container' && args[1] === 'inspect') console.log(args.includes('{{.Id}} {{.Image}}') ? '${'c'.repeat(64)} sha256:${'d'.repeat(64)}' : 'volume bellteam_cursor-cli')
+if (args[0] === 'image' && args[1] === 'save') fs.writeFileSync(args[args.indexOf('--output')+1], 'synthetic-image')
 if (args[0] === 'run') {
   if (process.env.FIXTURE_FAIL === 'extract') process.exit(8)
   process.stdout.write(args.at(-1).endsWith('update-cursor.sh') ? fs.readFileSync(process.env.FIXTURE_UPDATER) : 'services: {}\\n')
 }
-if (args[0] === 'exec') {
+if (args[0] === 'exec' && args.includes('--input-type=module')) {
   const count = Number(fs.readFileSync(process.env.FIXTURE_COUNT))+1
   fs.writeFileSync(process.env.FIXTURE_COUNT, String(count))
   if (process.env.FIXTURE_FAIL === 'quiet'+count) { console.log('fixture quiet refusal'); process.exit(2) }
@@ -117,4 +119,25 @@ if(c.includes('/api/bots'))console.log('{"bots":[]}');else if(c.includes('/healt
   assert.equal(launches.length, 1)
   assert.match(launches[0].command, /BELLTEAM_SERVER_IMAGE= BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-fixture sh scripts\/deploy-image\.sh/)
   assert.doesNotMatch(launches[0].command, /compose build|update-cursor|compose up/)
+})
+
+
+for (const phase of ['queue', 'health']) test('main integration: ' + phase + ' refusal blocks successful completion of shared build dispatch', async t => {
+  const f = await fixture(t)
+  for (const [name, source] of [
+    ['git', "const a=process.argv.slice(2);if(a[0]==='rev-parse')console.log('" + 'b'.repeat(40) + "')"],
+    ['ssh', String.raw`const fs=require('node:fs'),c=process.argv[3];fs.appendFileSync(process.env.FIXTURE_LOG,JSON.stringify({command:c})+'\n');
+if(c.includes('queue-before-deploy')&&process.env.TEST_CONTROL==='queue')process.exit(71);
+if(c.includes('/api/bots'))console.log('{"bots":[]}');else if(c.includes('/healthz'))console.log('{"status":"not-ok","reason":"ok"}');else if(c.includes('tail -3'))console.log('deploy-exit=0')`],
+  ]) {
+    await writeFile(join(f.root, 'bin', name), '#!/usr/bin/env node\n' + source)
+    await chmod(join(f.root, 'bin', name), 0o700)
+  }
+  await writeFile(join(f.root, 'bin/sleep'), '#!/bin/sh\nexit 0\n')
+  await chmod(join(f.root, 'bin/sleep'), 0o700)
+  await assert.rejects(exec('sh', ['scripts/deploy.sh'], { cwd: f.root, env: { ...f.env, BELLTEAM_DEPLOY_IMAGE: '', TEST_CONTROL: phase } }),
+    e => e.code === 1 && e.stderr.includes(phase === 'queue' ? '処理待ち一覧' : 'healthz'))
+  const launches = (await f.calls()).filter(e => e.command?.includes('setsid nohup'))
+  assert.equal(launches.length, phase === 'queue' ? 0 : 1)
+  if (launches.length) assert.match(launches[0].command, /BELLTEAM_SERVER_IMAGE= BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-fixture sh scripts\/deploy-image\.sh/)
 })

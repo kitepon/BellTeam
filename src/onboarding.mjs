@@ -1,6 +1,7 @@
 import { appendFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { runtimeEnvironment } from './runtime-home.mjs'
+import { authUi, authResponse, authResponseFailure } from './auth-ui.mjs'
 import guide from '../config/setup-guide.json' with { type: 'json' }
 
 export const HARNESS = { claude: 'claude-code', codex: 'codex-cli', grok: 'grok-cli', cursor: 'cursor-cli' }
@@ -48,6 +49,8 @@ export class Onboarding {
       complete: this.state.complete, auth: this.auth && {
         status: this.auth.status, url: this.auth.url, user_code: this.auth.user_code,
         input_required: this.auth.input_required, message: this.auth.message,
+        session_id: this.state.authSession,
+        auth_ui: authUi(this.auth, this.state.authSession),
       },
     }
   }
@@ -78,13 +81,18 @@ export class Onboarding {
     })
   }
 
-  input({ text, key }) {
+  input(input) {
     return this.change(async () => {
       if (!this.state.authSession || this.state.started) throw new OnboardingError('SETUP_AUTH_NOT_RUNNING', 409, '公式認証を開始してください。')
-      if ((typeof text === 'string') === (typeof key === 'string')) throw new OnboardingError('SETUP_AUTH_INPUT_INVALID', 400, '認証の入力またはキーを指定してください。')
-      if (text !== undefined) await this.client.call('pty_send', { session_id: this.state.authSession, text, enter: true, raw: true })
-      else await this.client.call('pty_key', { session_id: this.state.authSession, key })
-      await this.callAuth('status')
+      const options = authResponse(input, this.state.authSession, authUi(this.auth ?? {}, this.state.authSession))
+      try { await this.callAuth('respond', options) }
+      catch (cause) {
+        const error = new OnboardingError('SETUP_AUTH_RESPONSE_UNCONFIRMED', 502, '認証結果を確認できませんでした。状態を更新してください。')
+        error.cause = cause
+        error.effect = cause.effect ?? 'unknown'
+        if (cause.code === 'AUTH_RESPONSE_NOT_ISSUED') { error.code = cause.code; error.status = 409; error.message = cause.message }
+        throw error
+      }
       return this.snapshot()
     })
   }
@@ -128,12 +136,15 @@ export class Onboarding {
     })
   }
 
-  async callAuth(action) {
+  async callAuth(action, options = {}) {
     const result = await this.client.call('agent_auth', {
       harness: HARNESS[this.state.harness], action,
+      ...options,
       ...(this.state.authSession ? { session_id: this.state.authSession } : {}),
       ...(this.state.guideBotId ? { cwd: this.bots.get(this.state.guideBotId)?.project } : {}),
     }, this.client.authOptions?.() ?? { env: runtimeEnvironment() })
+    const failure = authResponseFailure(result, this.state.authSession)
+    if (failure) throw failure
     const receipt = result.structuredContent
     if (receipt?.schema !== 'aiterm.agent-auth-result.v1' || !['waiting', 'authenticated', 'blocked', 'failed'].includes(receipt.status))
       throw new OnboardingError('SETUP_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。')

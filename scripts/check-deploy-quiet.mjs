@@ -12,26 +12,42 @@ const approvalRoot = '/home/bell/.approval-box/runtime/0.1.26/'
 const codexExe = '/usr/local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex'
 const codexHelperExe = `${codexExe}-code-mode-host`
 const mcpCommands = [[nodeExe, aitermScript], [nodeExe, `${approvalRoot}cli.mjs`, 'mcp']]
+const caveatCommand = [nodeExe, '--disable-warning=ExperimentalWarning', '/srv/bellteam/shared/tools/caveat/0.21.5/node_modules/caveat-cli/dist/caveat.js', 'mcp-server']
 
 // 全PIDの親と開始tickだけを読む。argv/environ/画面/認証fileは一覧に含めない。
-export async function readProcTable(proc = '/proc') {
-  const rows = new Map()
-  const pids = (await readdir(proc)).filter(pid => /^\d+$/u.test(pid))
-  // 採取の競合時間を短くする。欠測は飛ばさず、同じbatchの読取完了後に保留する。
-  for (let offset = 0; offset < pids.length; offset += 32) {
-    const batch = await Promise.allSettled(pids.slice(offset, offset + 32).map(async pid => {
-      const stat = await readFile(`${proc}/${pid}/stat`, 'utf8')
-      const fields = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/u)
-      if (fields.length < 20 || !/^\d+$/u.test(fields[19])) throw new Error('DEPLOY_PROCESS_UNKNOWN')
-      return { pid: Number(pid), ppid: Number(fields[1]), pgid: Number(fields[2]),
-        start: fields[19], state: fields[0] }
-    }))
-    for (const result of batch) {
-      if (result.status === 'rejected') throw result.reason
-      rows.set(result.value.pid, result.value)
-    }
+export async function readProcTable(proc = '/proc', { list = readdir, read = readFile } = {}) {
+  const isVanishedStat = error => {
+    const relative = typeof error?.path === 'string' && error.path.startsWith(`${proc}/`)
+      ? error.path.slice(proc.length + 1) : ''
+    return ['ENOENT', 'ESRCH'].includes(error?.code) && /^\d+\/stat$/u.test(relative)
   }
-  return rows
+  const snapshot = async () => {
+    const rows = new Map(), errors = []
+    const pids = (await list(proc)).filter(pid => /^\d+$/u.test(pid))
+    // 欠測行を省かず、同じbatchの読取を終えてから不完全な表全体を破棄する。
+    for (let offset = 0; offset < pids.length; offset += 32) {
+      const batch = await Promise.allSettled(pids.slice(offset, offset + 32).map(async pid => {
+        const stat = await read(`${proc}/${pid}/stat`, 'utf8')
+        const fields = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/u)
+        if (fields.length < 20 || !/^\d+$/u.test(fields[19])) throw new Error('DEPLOY_PROCESS_UNKNOWN')
+        return { pid: Number(pid), ppid: Number(fields[1]), pgid: Number(fields[2]),
+          start: fields[19], state: fields[0] }
+      }))
+      for (const result of batch) {
+        if (result.status === 'rejected') errors.push(result.reason)
+        else rows.set(result.value.pid, result.value)
+      }
+    }
+    // 同batchと後続batchの権限・不正値等を、一時消失より先に返す。
+    if (errors.length) throw errors.find(error => !isVanishedStat(error)) ?? errors[0]
+    return rows
+  }
+  try { return await snapshot() } catch (error) {
+    // PID列挙直後の消失だけ、全PIDを列挙し直した完全な表を一度だけ採る。
+    // 対象root/候補の消失・再利用は後段のidentity/全子孫/候補照合で引き続き拒否する。
+    if (!isVanishedStat(error)) throw error
+    return snapshot()
+  }
 }
 
 export function processDescendants(table, pid) {
@@ -63,14 +79,18 @@ const sameArgs = (a, b) => Array.isArray(a) && a.length === b.length && a.every(
 export function trustedIdleTree(rows, pid, harness, botId, project = `/srv/bellteam/bots/${botId}`, nativeRegistration) {
   const byPid = new Map(rows.map(row => [row.pid, row]))
   const root = byPid.get(pid)
+  // Bot環境で選ばれたNode wrapperも、唯一の公式native子を後段で検証する。
+  const projectNode = root?.exe === `${project}/environment/node_modules/node/bin/node`
+    || root?.exe?.startsWith(`${project}/environment/`)
+      && /^node-v\d+\.\d+\.\d+\/bin\/node$/u.test(root.exe.slice(`${project}/environment/`.length))
   const rootExe = harness === 'claude-code' ? '/usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe'
     : harness === 'grok-cli' ? '/usr/local/bin/grok' : harness === 'codex-cli'
-      ? [nodeExe, codexExe].includes(root?.exe) ? root.exe : null : null
+      ? ([nodeExe, codexExe].includes(root?.exe) || projectNode) ? root.exe : null : null
   if (!rootExe || root?.exe !== rootExe || root.cwd !== project) return false
   // 孤立行、重複PID、cycleを許さず、渡された全行がrootの子孫であることを確認する。
   if (byPid.size !== rows.length || byPid.has(root.ppid) || processDescendants(byPid, pid).length !== rows.length) return false
   // 観測identityがnode入口なら唯一のnative子、native直起動ならそのrootがMCPの親になる。
-  const wrapper = harness === 'codex-cli' && root.exe === nodeExe
+  const wrapper = harness === 'codex-cli' && root.exe !== codexExe
   const nativeCli = wrapper ? rows.filter(row => row.ppid === pid && row.exe === codexExe) : []
   if (wrapper && nativeCli.length !== 1) return false
   const cliPid = nativeCli[0]?.pid ?? pid
@@ -88,6 +108,7 @@ export function trustedIdleTree(rows, pid, harness, botId, project = `/srv/bellt
   }
   for (const row of rows) {
     if (row.pid === pid || row.pid === cliPid || relays.has(row.pid)) continue
+    if (row.ppid === cliPid && row.exe === nodeExe && sameArgs(row.argv, caveatCommand)) continue
     // Aiterm既存定義でもCLI本体に含む固定補助。子作業はこの後の全行検査へ残す。
     if (harness === 'codex-cli' && row.ppid === cliPid && row.exe === codexHelperExe && sameArgs(row.argv, [codexHelperExe])) continue
     if (row.exe === nodeExe && relays.has(row.ppid) && sameArgs(row.argv, relays.get(row.ppid))) continue
@@ -309,7 +330,8 @@ export function assessDeployQuiet({ except, items, seats, turns, unknown = 0 }) 
   }
   for (const { botId, session } of seats) {
     if (botId === except) continue
-    const turn = session && turns instanceof Map ? turns.get(session) : null
+    const turn = session && seats.filter(seat => seat.session === session).length === 1
+      && turns instanceof Map ? turns.get(session) : null
     if (turn?.state === 'running') running.add(botId)
     else if (turn?.state !== 'idle') unclassified.add(botId)
   }

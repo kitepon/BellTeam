@@ -641,6 +641,7 @@ test('Webアプリがimportする実ファイルを同じ版で最後まで配�
     }
   }
   assert.ok(visited.has('/onboarding.js'))
+  assert.ok(visited.has('/auth-flow.js'))
   assert.ok(visited.has('/server-origin.js'))
 })
 

@@ -33,7 +33,10 @@ head="$(git rev-parse HEAD)"
 ssh "$host" "cd $dir && git fetch -q origin && if [ -n \"\$(git status --porcelain --untracked-files=no)\" ]; then git status -s --untracked-files=no; echo '本番に未commitの変更がある。GitHubへ取り込んでから反映する。' >&2; exit 1; fi && git merge -q --ff-only origin/main && test \"\$(git rev-parse HEAD)\" = $head && git log --oneline -1"
 
 # 反映で止まるBotを控える（処理待ち一覧も保存する）。再開の声かけは送らない（オーナー裁定 2026-09-03）。
-busy="$(ssh "$host" "cd $dir && mkdir -p runtime/backups && docker exec bellteam curl -fsS http://127.0.0.1:4181/api/queue | tee runtime/backups/queue-before-deploy-\$(date +%Y%m%dT%H%M).json | node -e 'let d=\"\";process.stdin.on(\"data\",c=>d+=c).on(\"end\",()=>console.log([...new Set(JSON.parse(d).items.map(i=>i.botId||i.target))].join(\" \")))'" 2>/dev/null || true)"
+if ! busy="$(ssh "$host" "cd $dir && mkdir -p runtime/backups && queue=runtime/backups/queue-before-deploy-\$(date +%Y%m%dT%H%M).json && docker exec bellteam curl -fsS http://127.0.0.1:4181/api/queue > \"\$queue\" && node -e 'const d=JSON.parse(require(\"fs\").readFileSync(process.argv[1],\"utf8\"));console.log([...new Set(d.items.map(i=>i.botId||i.target))].join(\" \"))' \"\$queue\"" 2>/dev/null)"; then
+  echo '処理待ち一覧を保存・確認できない。反映は開始していない。' >&2
+  exit 1
+fi
 printf '作業中のBot: %s\n' "${busy:-なし}"
 
 # 反映は本番側で切り離して走らせる。指定imageは再buildせず、受け入れた実物を使う。
@@ -49,11 +52,18 @@ if ! ssh "$host" "grep -q '^deploy-exit=0$' $dir/$log"; then
   exit 1
 fi
 
+health=
 for _ in $(seq 1 24); do
-  if ssh "$host" 'docker exec bellteam curl -fsS http://127.0.0.1:4180/healthz' 2>/dev/null | grep -q '"ok"'; then break; fi
+  if health="$(ssh "$host" 'docker exec bellteam curl -fsS http://127.0.0.1:4180/healthz' 2>/dev/null)" &&
+    printf '%s' "$health" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{if(JSON.parse(d).status!=="ok")process.exitCode=1}catch{process.exitCode=1}})'; then break; fi
+  health=
   sleep 5
 done
-printf 'healthz: %s\n' "$(ssh "$host" 'docker exec bellteam curl -fsS http://127.0.0.1:4180/healthz')"
+if [ -z "$health" ]; then
+  echo 'healthzの正常応答を確認できない。反映結果は未確認。' >&2
+  exit 1
+fi
+printf 'healthz: %s\n' "$health"
 ssh "$host" "docker exec bellteam sh -c 'node --version; codex --version; claude --version; grok --version; cursor-agent --version; gh --version | head -1; npm ls -g --depth=0 2>/dev/null | grep -E \"aiterm-mcp|throughline\"'"
 ssh "$host" 'docker exec bellteam curl -fsS http://127.0.0.1:4181/api/bots' \
   | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const b=JSON.parse(d).bots;console.log(`bots ${b.length} online ${b.filter(x=>x.online).length}`)})'

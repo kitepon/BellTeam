@@ -152,19 +152,26 @@ async function relayCallBridge(request, response, { from, callBridge, relays, as
   request.pipe(upstream)
 }
 
-async function readBytes(request, maxBytes = 16 * 1024 * 1024) {
+async function readBytes(request, maxBytes = 4 * 1024 * 1024) {
   const chunks = []
   let bytes = 0
   for await (const chunk of request) {
     bytes += chunk.length
-    if (bytes > maxBytes) throw new Error('REQUEST_TOO_LARGE')
+    if (bytes > maxBytes) throw Object.assign(new Error('REQUEST_TOO_LARGE'), { code: 'REQUEST_TOO_LARGE', status: 413 })
     chunks.push(chunk)
   }
   return Buffer.concat(chunks)
 }
 
 async function readBody(request) {
-  try { return JSON.parse((await readBytes(request)).toString('utf8')) }
+  // This low-level Server does not apply McpServer's maxToolInputElements.
+  let elements = 0
+  try {
+    return JSON.parse((await readBytes(request)).toString('utf8'), (key, value) => {
+      if (++elements > 10_000) throw Object.assign(new Error('REQUEST_TOO_LARGE'), { code: 'REQUEST_TOO_LARGE', status: 413 })
+      return value
+    })
+  }
   catch (error) { throw error.message === 'REQUEST_TOO_LARGE' ? error : new Error('INVALID_JSON') }
 }
 

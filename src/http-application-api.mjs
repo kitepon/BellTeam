@@ -1,5 +1,6 @@
 import { json, readJson } from './http-response.mjs'
 import { listAvatar, sendAvatar } from './http-assets.mjs'
+import { SubscriptionAccessError } from './subscriptions.mjs'
 
 export function createControlApi({ aiControl, onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models }) {
   return async (request, response, url) => {
@@ -16,6 +17,7 @@ export function createControlApi({ aiControl, onboarding, internal, notify, harn
     if (url.pathname === '/api/setup' && request.method === 'GET') return json(response, 200, onboarding ? await onboarding.status() : { phase: 'ready', harness: null, harnesses: [], guideBotId: null, complete: true, auth: null })
     if (url.pathname.startsWith('/api/setup/') && request.method === 'POST') {
       if (!onboarding) return json(response, 404, { error: 'NOT_FOUND' })
+      if (internal && ['/api/setup/harness', '/api/setup/auth/input'].includes(url.pathname)) return json(response, 403, { error: 'HARNESS_AUTH_OWNER_REQUIRED' })
       const body = await readJson(request, 8192)
       const actions = {
         '/api/setup/harness': () => onboarding.select(body.harness),
@@ -33,6 +35,7 @@ export function createControlApi({ aiControl, onboarding, internal, notify, harn
     if (harnessAuthMatch) {
       if (!harnessAuth) return json(response, 404, { error: 'NOT_FOUND' })
       const [, harness, action] = harnessAuthMatch
+      if (internal && request.method !== 'GET') return json(response, 403, { error: 'HARNESS_AUTH_OWNER_REQUIRED' })
       if (request.method === 'GET' && !action) return json(response, 200, harness ? await harnessAuth.status(harness) : harnessAuth.list())
       if (request.method === 'POST' && action === 'input') return json(response, 200, await harnessAuth.input(harness, await readJson(request, 8192)))
       if (request.method === 'POST' && action) return json(response, 200, await harnessAuth[action](harness))

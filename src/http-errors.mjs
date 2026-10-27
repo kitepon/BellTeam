@@ -11,7 +11,7 @@ const FAST_MODE_MESSAGES = {
   BOT_FAST_MODE_ACCOUNT_UNAVAILABLE: 'ファストモードへ切り替えられません。このBotのCLIのアカウントでは、今はファストモードを使えません。保存は変えていません。',
 }
 export async function respondHttpError(request, response, error, diagnostics) {
-  if (typeof error.code === 'string' && Number.isInteger(error.status)) return json(response, error.status, { error: error.code, message: error.publicMessage ?? error.message })
+  if (typeof error.code === 'string' && Number.isInteger(error.status)) return json(response, error.status, { error: error.code, message: error.publicMessage ?? error.message, ...(['AUTH_RESPONSE_NOT_ISSUED', 'AUTH_RESPONSE_UNCONFIRMED', 'HARNESS_AUTH_RESPONSE_UNCONFIRMED', 'SETUP_AUTH_RESPONSE_UNCONFIRMED'].includes(error.code) ? { effect: error.effect ?? 'unknown' } : {}) })
   if (error instanceof SubscriptionAccessError) return json(response, error.status, { error: error.code, message: error.message })
   if (request.url?.startsWith('/api/subscription') && ['INVALID_JSON', 'REQUEST_TOO_LARGE'].includes(error.message))
     return json(response, 400, { error: error.message, message: '購入情報または動作確認のリクエスト形式を確認してください。' })

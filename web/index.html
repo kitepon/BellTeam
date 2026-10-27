@@ -19,6 +19,9 @@
       <header class="roster-header">
         <button class="brand-mark" id="owner-profile-button" type="button" aria-label="設定を開く">O</button>
         <div class="header-actions">
+          <button class="circle-button" id="goals-button" type="button" aria-label="ゴール一覧" title="ゴール一覧">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="m12 12 7-7"/></svg>
+          </button>
           <button class="circle-button" type="button" aria-label="検索" disabled>
             <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
           </button>
@@ -65,6 +68,14 @@
       </div>
 
       <div class="timeline" id="timeline" aria-live="polite"></div>
+      <details class="chat-goal" id="chat-goal" hidden>
+        <summary data-goal-summary>ゴールの状態を確認しています。</summary>
+        <div class="chat-goal-details">
+          <button class="text-button" type="button" data-goals-refresh>ゴールを更新</button>
+          <p class="form-error" data-goals-notice role="status" hidden></p>
+          <div data-goals-body></div>
+        </div>
+      </details>
       <form class="composer" id="composer">
         <button class="add-button" id="attachment-button" type="button" aria-label="画像を添付">
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
@@ -91,6 +102,20 @@
       </form>
     </section>
   </main>
+
+  <dialog class="sheet-dialog" id="goals-dialog">
+    <div class="goals-layout">
+    <header class="sheet-header">
+      <button class="text-button" type="button" data-close-dialog="goals-dialog">閉じる</button>
+      <h2>メンバーのゴール</h2>
+      <button class="text-button" type="button" data-goals-refresh>更新</button>
+    </header>
+    <div class="sheet-body">
+      <p class="form-error" data-goals-notice role="status" hidden></p>
+      <div data-goals-body></div>
+    </div>
+    </div>
+  </dialog>
 
   <dialog class="sheet-dialog" id="owner-dialog">
     <div class="owner-settings-layout">

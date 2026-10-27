@@ -11,7 +11,7 @@ export function stopRegisteredWork({ bots, transport, scheduler }) {
   for (const job of transport.jobs) targets.set(job.bot.id, job.bot)
   if (transport.requestStop || transport.executionBridge) {
     let stopping, commands
-    try { stopping = transport.interruptMany([...targets.values()]) } catch (error) { stopping = Promise.reject(error) }
+    try { stopping = transport.interruptMany([...targets.values()], { pauseGoals: true }) } catch (error) { stopping = Promise.reject(error) }
     try { commands = scheduler.interruptCommands() } catch { commands = false }
     return Promise.all([stopping, Promise.resolve(commands).catch(() => false)])
       .then(([result, commandsConfirmed]) => ({ unconfirmedBotIds: result.unconfirmedBotIds, commandsConfirmed: commandsConfirmed === true }))

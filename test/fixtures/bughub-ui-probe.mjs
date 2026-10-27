@@ -10,7 +10,7 @@ await mkdir(root, { recursive: true })
 let mode = 'normal', sequence = 0, requests = [], diagnostics, intake, settingsReads = 0
 let stopScenario = false, stopAccepted = false
 let pendingPost = null, sentMessages = []
-let subscribers = []
+let subscribers = [], eventRequests = 0
 let saved = { name: 'ユキ', profileText: '', personality: '', speechStyle: '', position: '', role: '相談と実務', avatar: '', color: 'indigo', harness: 'claude', model: 'opus', reasoningEffort: 'high' }
 async function reset(next) {
   if (pendingPost) {
@@ -18,6 +18,7 @@ async function reset(next) {
     pendingPost = null
   }
   mode = next; requests = []; settingsReads = 0; sentMessages = []
+  eventRequests = 0
   stopScenario = next === 'stop-http-502'; stopAccepted = false
   diagnostics = new Diagnostics(`${root}/scenario-${++sequence}.json`)
   await diagnostics.initialize()
@@ -41,7 +42,7 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://localhost')
   if (url.pathname === '/test/reset') { await reset(url.searchParams.get('mode') ?? 'normal'); return json(response, { ok: true }) }
   if (url.pathname === '/test/mode') { mode = url.searchParams.get('mode') ?? 'normal'; return json(response, { ok: true }) }
-  if (url.pathname === '/test/proof') return json(response, { requests, reports: diagnostics.list(), subscribers: subscribers.length })
+  if (url.pathname === '/test/proof') return json(response, { requests, reports: diagnostics.list(), subscribers: subscribers.length, eventRequests })
   if (url.pathname === '/test/complete-post') {
     if (!pendingPost) { response.writeHead(409); response.end(); return }
     const waiting = pendingPost
@@ -51,8 +52,17 @@ const server = createServer(async (request, response) => {
   }
   if (url.pathname === '/api/diagnostics') { intake.emit('request', request, response); return }
   if (url.pathname === '/api/events') {
+    eventRequests++
+    if (mode === 'events-http-502-once' && eventRequests === 1) {
+      response.writeHead(502, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'TEST_HTTP_502' }))
+      return
+    }
     response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
     response.write(': open\n\n')
+    if (mode === 'events-http-502-once') setTimeout(() => {
+      if (!response.destroyed) response.write('event: ready\ndata: {"type":"ready"}\n\n')
+    }, 2000)
     subscribers.push(response)
     request.on('close', () => { subscribers = subscribers.filter(item => item !== response) })
     return
@@ -108,6 +118,7 @@ const server = createServer(async (request, response) => {
     return json(response, { setting })
   }
   if (url.pathname.endsWith('/schedules')) {
+    if (mode === 'schedules-timeout') return
     if (mode === 'schedule-pending') return
     if (mode === 'schedule-known' && url.pathname === '/api/bots/bot-one/schedules') {
       return json(response, { schedules: [{ id: 'fixture-one', name: '隔離予定', kind: 'command', command: 'noop', enabled: true, nextRunAt: '2026-10-16T09:00:00Z' }] })
@@ -115,10 +126,12 @@ const server = createServer(async (request, response) => {
     return json(response, { schedules: [] })
   }
   if (url.pathname.endsWith('/messages')) {
+    if (mode === 'conversation-timeout') return
     if (mode === 'conversation-pending') return
     const items = mode === 'post-wait-history' ? [...priorMessages, longMessage] : [mode === 'post-wait-long' ? longMessage : message]
     return json(response, { items: [...items, ...sentMessages], hasMore: false })
   }
+  if (mode === 'queue-timeout' && url.pathname.endsWith('/queue')) return
   if (url.pathname.endsWith('/queue') || url.pathname === '/api/queue') return json(response, { items: stopScenario && !stopAccepted
     ? [{ id: 'running-one', botId: 'bot-one', botName: 'ユキ', status: 'running', groupId: null, message: null }] : [] })
   if (url.pathname === '/api/bots/bot-one') return json(response, { bot: bot() })

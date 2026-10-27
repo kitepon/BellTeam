@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { runtimeEnvironment } from './runtime-home.mjs'
 import { createSeatProcessRunner } from './seat-process.mjs'
+import { scheduleRevision } from './schedule-mutations.mjs'
 
 import { completedThroughlineTurns, NIGHTLY_RESTART_TURNS } from './aiterm-transport.mjs'
 
@@ -46,7 +47,7 @@ export class BotScheduler {
     try {
       await this.registry.refresh()
       await this.restartLongSessions(now)
-      for (const bot of this.registry.values()) {
+      for (const bot of [...this.registry.values()]) {
         for (const schedule of await this.registry.listSchedules(bot.id)) {
           if (!schedule.enabled || !schedule.nextRunAt || new Date(schedule.nextRunAt) > now) continue
           try { await this.dispatchBotSchedule(bot, schedule) }
@@ -55,12 +56,12 @@ export class BotScheduler {
             // 配送の失敗・結果不明も今回の試行として記録する。同じ本文を次のtickで再送しない。
             reportError(error)
           }
-          await this.registry.markScheduleRun(bot.id, schedule.id, now)
+          await this.registry.markScheduleRun(bot.id, schedule.id, now, { expectedRevision: scheduleRevision(schedule) })
         }
       }
       if (this.rooms && this.roomMessenger) {
         await this.rooms.refresh()
-        for (const room of this.rooms.values()) {
+        for (const room of [...this.rooms.values()]) {
           for (const schedule of await this.rooms.listSchedules(room.id)) {
             if (!schedule.enabled || !schedule.nextRunAt || new Date(schedule.nextRunAt) > now) continue
             try { await this.dispatchRoomSchedule(room, schedule) }
@@ -69,7 +70,7 @@ export class BotScheduler {
               // 一部の参加者へ届いた発言も、予定全体を自動で送り直さない。
               reportError(error)
             }
-            await this.rooms.markScheduleRun(room.id, schedule.id, now)
+            await this.rooms.markScheduleRun(room.id, schedule.id, now, { expectedRevision: scheduleRevision(schedule) })
           }
         }
       }
@@ -86,10 +87,10 @@ export class BotScheduler {
     await this.currentRun
     for (const registry of [this.registry, this.rooms].filter(Boolean)) {
       await registry.refresh()
-      for (const owner of registry.values()) {
+      for (const owner of [...registry.values()]) {
         for (const schedule of await registry.listSchedules(owner.id)) {
           if (schedule.enabled && schedule.nextRunAt && new Date(schedule.nextRunAt) <= at)
-            await registry.markScheduleRun(owner.id, schedule.id, at, { skipped: true })
+            await registry.markScheduleRun(owner.id, schedule.id, at, { skipped: true, expectedRevision: scheduleRevision(schedule) })
         }
       }
     }

@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { memberIdentity } from './member-identity.mjs'
 import { ConversationStore } from './conversation-store.mjs'
 import { deliveryExecutionRef } from './execution-bridge.mjs'
+import { returnedMcpError } from './returned-mcp-error.mjs'
 
 export function directEnvelope(from, message) {
   const identity = typeof from === 'string' ? { id: from, name: from, position: '', role: '' } : from
@@ -67,7 +68,7 @@ export class BellTeamMessenger {
           context: 'direct', contextId: bot.id, groupId: deliveryId,
           from, fromName: memberIdentity(this.bots, from).name, target: bot.id, message,
         },
-        onStatus: status => this.appendDeliveryStatus(deliveryId, status),
+        onStatus: (status, error) => this.appendDeliveryStatus(deliveryId, status, error),
         onInterim: words => this.appendInterimWords(bot.id, deliveryId, words),
         onAnswer: text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }]),
         onTurnEnd: window => this.onTurnEnd({ botId: bot.id, context: 'direct', ...window }),
@@ -100,14 +101,14 @@ export class BellTeamMessenger {
       const result = await this.transport.notify(bot, envelope, {
         queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from, fromName: sourceLabel, target: bot.id, message,
           call: { sessionId, event, seq } },
-        onStatus: status => this.appendDeliveryStatus(deliveryId, status),
+        onStatus: (status, error) => this.appendDeliveryStatus(deliveryId, status, error),
         onInterim: words => this.appendInterimWords(bot.id, deliveryId, words),
         onAnswer: text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }]),
         onTurnEnd: window => this.onTurnEnd({ botId: bot.id, context: 'call', ...window }),
       })
       return { delivery: result.delivery, delivery_id: deliveryId, target }
     } catch (error) {
-      await this.appendDeliveryStatus(deliveryId, ['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) ? 'stopped' : 'failed')
+      await this.appendDeliveryStatus(deliveryId, ['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) ? 'stopped' : 'failed', error)
       throw error
     }
   }
@@ -129,7 +130,7 @@ export class BellTeamMessenger {
       recoveredExecution: execution,
       queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from: record.from,
         fromName: record.from_identity?.name ?? record.from, target: bot.id, message: record.message },
-      onStatus: status => this.appendDeliveryStatus(deliveryId, status),
+      onStatus: (status, error) => this.appendDeliveryStatus(deliveryId, status, error),
       onInterim: words => this.appendInterimWords(bot.id, deliveryId, words),
       onAnswer: text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }]),
       onTurnEnd: window => this.onTurnEnd({ botId: bot.id, context: 'direct', ...window }),
@@ -202,7 +203,7 @@ export class BellTeamMessenger {
         context: 'direct', contextId: target, groupId: deliveryId,
         from: 'user', fromName: 'ユーザー', target, message,
       },
-      onStatus: status => this.appendDeliveryStatus(deliveryId, status),
+      onStatus: (status, error) => this.appendDeliveryStatus(deliveryId, status, error),
       onInterim: words => this.appendInterimWords(target, deliveryId, words),
     })
   }
@@ -265,9 +266,11 @@ export class BellTeamMessenger {
     }
   }
 
-  appendDeliveryStatus(deliveryId, delivery) {
+  appendDeliveryStatus(deliveryId, delivery, error = null) {
+    const detail = returnedMcpError(error)
     return this.append({
       schema: 'bellteam.delivery-status.v1', delivery_id: deliveryId, at: this.now(), delivery,
+      ...(detail ? { mcp_error: detail } : {}),
     })
   }
 }

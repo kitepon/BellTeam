@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { Diagnostics } from '../src/diagnostics.mjs'
 import { diagnosticFailureDetails, diagnosticReportContext } from '../src/diagnostic-report-context.mjs'
 import { diagnosticRequestContext } from '../src/diagnostic-request-context.mjs'
@@ -10,6 +11,30 @@ import { createBellTeamServer } from '../src/http-server.mjs'
 
 const log = (operation, actual = 'network_timeout', extra = '') =>
   `scope=app_request\noperation=${operation}\nactual_result=${actual}${extra}`
+
+test('SDKの要求時間切れ符号をHTTP診断に保持し、未知RPC番号や本文は含めない', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-mcp-timeout-code-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const diagnostics = new Diagnostics(join(root, 'diagnostics.json'))
+  await diagnostics.initialize()
+  const legacy = await diagnostics.record({ code: 'SERVER_HTTP_500', module: 'server', diagnostic_log: 'McpError\nerror_code=unknown' })
+  const original = structuredClone(legacy)
+  const error = new McpError(ErrorCode.RequestTimeout, 'synthetic-private-message')
+  const server = createBellTeamServer({ authorize: () => true, diagnostics, bots: { async refresh() { throw error } } })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => new Promise(resolve => server.close(resolve)))
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/bots`)
+  assert.equal(response.status, 500)
+  assert.deepEqual(await response.json(), { error: 'INTERNAL_ERROR' })
+  const row = diagnostics.list().find(value => value.fingerprint !== legacy.fingerprint)
+  assert.equal(row.report_context.error_code, 'MCP_REQUEST_TIMEOUT')
+  assert.match(row.diagnostic_log, /^error_code=MCP_REQUEST_TIMEOUT$/mu)
+  assert.doesNotMatch(JSON.stringify(row), /synthetic-private-message/u)
+  assert.equal(diagnosticFailureDetails(new Error('wrapper', { cause: error })).cause_code, 'MCP_REQUEST_TIMEOUT')
+  assert.equal(diagnosticFailureDetails(new McpError(-32999, 'private-code')).error_code, 'unknown')
+  assert.equal(diagnosticFailureDetails(Object.assign(new Error(), { code: ErrorCode.RequestTimeout })).error_code, 'unknown')
+  assert.deepEqual(diagnostics.list().find(value => value.fingerprint === legacy.fingerprint), original)
+})
 
 test('会話のGET/POSTとHTTP結果を分け、旧集約と保存原文を変更しない', async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-report-groups-'))
