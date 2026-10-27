@@ -10,6 +10,8 @@ Dex候補のsource label・CA束・push後のimmutable参照を残す通常手�
 
 担当がそれぞれの現在のimage・Compose file順・project・service・設定と最新データの保存・戻し方を確認し、受入済みsource/imageを結ぶ。候補のOS束はG3・AAA無し/G1保持、サーバーのNode同梱根もG3無しを確認する。配布担当の事前受入、審査作業との調整、各対象の既存承認、ホストの開始条件が揃うまでは以下を実行しない。専用host補助の起動・発行・復元は使用しない。
 
+通常製品への更新は起動時に永続データを書き換える場合がある。[設定・最新データと戻しの互換性](data-compatibility.md)で、選定した新旧sourceの読書きと起動処理を確認する。imageだけを替えるCompose差分でも、この確認は必要になる。
+
 反映時には、各projectの既存 `.env` の他の値を保ち、以下の3キーだけを追記または更新する。imageの空欄は受入原本の正確な参照で埋める。設定全体を例で上書きしない。これにより次回の通常 `docker compose up` も同じ追加ファイルとimageを使い、一回だけの `-f` 指定が消えて旧CAへ戻ることを防ぐ。[Composeの `.env` とfile選択](https://docs.docker.com/compose/how-tos/environment-variables/envvars/)を使用する。
 
 `runtime/apple-review/server/.env` の対象キー：
@@ -44,7 +46,7 @@ docker compose up -d --no-deps --no-build --pull never dex
 
 上は保存済みの配置に対応する手順で、現在の配置の再確認を省略しない。必要なimage取得は受入対象の参照へ限定し、更新の前に済ませる。更新時の [`--pull never`](https://docs.docker.com/reference/cli/docker/compose/up/) は確認済みimageが無い場合の自動取得を止める。合成設定での事前確認には `config` を使い、実設定の展開結果や秘密を通常ログへ出さない。`down`、volumeの削除、DBや資格情報のコピーは更新手順に含めない。
 
-失敗・時間切れ・終端不明では、その時点の結果を保存して止める。別imageへの自動代替、同じ更新の再送、作成済みcontainerの自動削除はしない。戻しは確認した元のimage参照と既存の最新設定・データを使い、別途の許可範囲で同じ追加ファイルへ指定する。古いCAへ戻した対象をSEC021対応済みにしない。
+失敗・時間切れ・終端不明では、その時点の結果を保存して止める。別imageへの自動代替、同じ更新の再送、作成済みcontainerの自動削除はしない。戻しは最新設定・データを保持したまま動くことを確認したimage参照だけを、別途の許可範囲で同じ追加ファイルへ指定する。元imageにその互換性が無ければ戻しは未成立とし、古い控えへの置換やschemaの書換えで通さない。古いCAへ戻した対象をSEC021対応済みにしない。
 
 ## 反映後
 
