@@ -409,10 +409,22 @@ operation, which takes both view backups before mutation. Reusing an old archive
 data generation would lose changes made after the forward migration. Success of
 the inverse and actual view identity must be established before starting an old
 normal configuration whose mounts/image correspond to the original runtime.
-Neither saved target model is a capture of that original runtime: the regular
-deploy currently fast-forwards source before capturing target config. Preserving
-and selecting the actual pre-upgrade normal/old image, binding stop/check through
-inverse/restart, and testing latest-data inverse/health are still unfinished.
+The regular internal deploy now captures a separate original runtime/model before
+source fast-forward and binds it to the actual old image archive. The selected
+normal/maintenance generation retains `recovery.json` with the exact original
+Compose path, image archive path and old state layout. This is an input binding,
+not a recovery executor or a runtime acceptance result.
+
+The existing writer planner checks both saved normal models against the same
+maintenance views. Project, HOME and Cursor volume must correspond, the original
+startup image must match its archive, and extra mounts hiding state subpaths are
+rejected. A legacy layout needs the existing latest-data `to-legacy` transition
+before old normal startup. An already-private layout must retain those same six
+state sources and must not run `to-legacy` before restarting a normal that reads
+them. Latest two-view backup/format compatibility for that restart remains an
+unconnected operation. Neither layout is a production recovery acceptance.
+Binding stop/check through inverse/restart, testing latest-data inverse/health,
+actual source identities and preserving current HOME/Cursor data remain unfinished.
 No automatic inverse or startup-on-failure is introduced here.
 
 

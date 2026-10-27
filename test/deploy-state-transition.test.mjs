@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createHash } from 'node:crypto'
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
@@ -46,7 +46,7 @@ if(a[0]==='fixture-verify'){
  fs.writeFileSync(e.TEST_CHANGED,'changed after verification');process.exit(0)
 }
 if(a[0]==='container'){
- output(a.includes('{{.Id}} {{.Image}}')?'c'.repeat(64)+' sha256:'+'d'.repeat(64):'volume bellteam_cursor-cli');process.exit(0)
+ output(a.includes('{{.Id}} {{.Image}}')?'c'.repeat(64)+' sha256:'+'d'.repeat(64):a.includes('{{.State.StartedAt}}')?'2026-10-27T16:03:53Z':'volume bellteam_cursor-cli');process.exit(0)
 }
 if(a[0]==='image'&&a[1]==='save'){
  fs.writeFileSync(a[a.indexOf('--output')+1],'synthetic-image');event('archive-image');process.exit(e.TEST_FAIL==='archive-image'?73:0)
@@ -57,7 +57,7 @@ if(a[0]==='exec'&&a.includes('/bin/tar')){
 if(a[0]==='image'){if(e.TEST_FAIL==='built-image')process.exit(72);output(e.TEST_IMAGE_ID);process.exit(0)}
 if(a[0]==='run'){
  if(a.includes('/bin/cat')){if(e.TEST_FAIL==='extract')process.exit(8);process.stdout.write(fs.readFileSync(e.TEST_ROOT+'/image/'+a.at(-1).slice(5)));process.exit(0)}
- if(a.includes('-e')){const i=a.indexOf('-e'),r=spawnSync(process.execPath,['-e',...a.slice(i+1)],{input:fs.readFileSync(0)});process.stdout.write(r.stdout);process.stderr.write(r.stderr);process.exit(r.status)}
+ if(a.includes('-e')){if(e.TEST_FAIL==='recovery-publish')fs.mkdirSync(a.at(-1)+'/recovery.json.tmp');const i=a.indexOf('-e'),r=spawnSync(process.execPath,['-e',...a.slice(i+1)],{input:fs.readFileSync(0)});process.stdout.write(r.stdout);process.stderr.write(r.stderr);process.exit(r.status)}
 }
 if(a[0]==='compose'){
  if(a.includes('build')){event('build');process.exit(e.TEST_FAIL==='build'?71:0)}
@@ -72,7 +72,7 @@ if(a[0]==='compose'){
    if(!prepare&&e.TEST_FAIL==='mismatch')volumes.find(v=>v.target==='/srv/bellteam/state').source+='/other';
    output({services:{[name]:{image:e.BELLTEAM_SERVER_IMAGE,entrypoint:['/usr/bin/env','-i'],environment:{},volumes}}});process.exit(0)}
   event('normal-render');if(e.TEST_FAIL==='capture')process.exit(57);
-  if(fs.existsSync(e.TEST_CHANGED))throw Error('unexpected original input reread');output(normal());process.exit(0)
+  if(fs.existsSync(e.TEST_CHANGED))throw Error('unexpected original input reread');const n=normal();if(e.TEST_FAIL==='target-nested')n.services.bellteam.volumes.push(bind(e.TEST_ROOT+'/other','/srv/bellteam/state/hidden'));output(n);process.exit(0)
  }
  if(a.includes('stop')){event('stop',{normal:current()});process.exit(0)}
  if(a.includes('up')){event('up',{normal:current()});process.exit(e.TEST_FAIL==='up'?66:0)}
@@ -227,4 +227,83 @@ test('main integration: actual-old-CID archive preservation precedes the stage2 
     await assert.rejects(broken.run({ TEST_FAIL: phase }), e => e.code === code && e.stdout.includes('deploy-exit=' + code))
     assert.ok(!(await broken.events()).some(e => ['normal-render', 'quiet1', 'stop', 'prepare', 'transfer', 'up'].includes(e.kind)))
   }
+})
+
+
+async function originalPair(t, layout = 'legacy', mismatch = '') {
+  const f = await fixture(t), previous = join(f.root, '.bellteam-compose.OLD123')
+  await mkdir(previous, { mode: 0o700 }); await mkdir(join(f.root, 'src'))
+  await copyFile(new URL('../src/server-state-writers.mjs', import.meta.url), join(f.root, 'src/server-state-writers.mjs'))
+  const bind = (source, target) => ({ type: 'bind', source, target })
+  const normal = { name: 'bellteam', services: { bellteam: { image: 'sha256:' + 'd'.repeat(64),
+    environment: { SECRET: 'synthetic-original-secret' }, labels: { 'old.$key': 'literal $VALUE' },
+    volumes: [bind(f.root + '/runtime/data', '/srv/bellteam'), bind(f.root + '/runtime/home', '/home/bell'),
+      { type: 'volume', source: 'cursor-cli', target: '/home/bell/.local' },
+      ...(layout === 'server' ? leaves.map((leaf, i) => bind(f.env.TEST_PARENT + '/' + leaf, '/srv/bellteam/' + targets[i])) : [])] } },
+    volumes: { 'cursor-cli': { name: 'bellteam_cursor-cli' } } }
+  if (mismatch === 'data') normal.services.bellteam.volumes[0].source += '/different'
+  if (mismatch === 'home') normal.services.bellteam.volumes[1].source += '/different'
+  if (mismatch === 'volume') normal.volumes['cursor-cli'].name = 'different_cursor'
+  if (mismatch === 'state') normal.services.bellteam.volumes.at(-1).source += '/different'
+  if (mismatch === 'nested') normal.services.bellteam.volumes.push(bind(f.root + '/other', '/srv/bellteam/state/hidden'))
+  const file = previous + '/previous-normal.json'
+  await writeFile(file, JSON.stringify(normal, (_key, value) => typeof value === 'string' ? value.replaceAll('$', () => '$$') : value), { mode: 0o600 })
+  await writeFile(previous + '/previous-runtime.json', JSON.stringify({ Id: 'c'.repeat(64), Image: normal.services.bellteam.image,
+    State: { StartedAt: '2026-10-27T16:03:53Z' } }), { mode: 0o600 })
+  return { ...f, previous, originalFile: file, run: extra => f.run({ BELLTEAM_PREVIOUS_COMPOSE: file, ...extra }) }
+}
+
+test('recovery pair: legacy original and image archive stay with the selected normal on success and failed startup', async t => {
+  for (const phase of ['', 'up']) {
+    const f = await originalPair(t)
+    const outcome = await f.run({ TEST_FAIL: phase }).catch(e => e)
+    if (phase) assert.equal(outcome.code, 66)
+    const events = await f.events(), up = events.find(e => e.kind === 'up'), saved = dirname(up.composeFile)
+    const recovery = JSON.parse(await readFile(saved + '/recovery.json', 'utf8'))
+    assert.equal(recovery.previousCompose, f.originalFile); assert.equal(recovery.stateLayout, 'legacy')
+    assert.equal(await readFile(recovery.previousImageArchive + '/previous-compose.path', 'utf8'), f.originalFile + '\n')
+    assert.equal(JSON.parse(await readFile(f.originalFile, 'utf8')).services.bellteam.image, 'sha256:' + 'd'.repeat(64))
+    assert.equal(JSON.parse(await readFile(saved + '/compose.state-maintenance.json', 'utf8')).services['state-maintenance'].image, id)
+    assert.equal((await stat(saved + '/recovery.json')).mode & 0o777, 0o600)
+    assert.match(outcome.stdout, new RegExp('saved-compose=' + saved.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+    assert.doesNotMatch(outcome.stdout, /synthetic-original-secret/)
+    assert.ok(!events.some(e => e.args.includes('to-legacy')))
+    if (!phase && process.env.TEST_RECOVERY_RECEIPT_DIR) {
+      const out = process.env.TEST_RECOVERY_RECEIPT_DIR
+      await mkdir(out, { recursive: true })
+      for (const name of ['normal.json','compose.state-maintenance.json','recovery.json']) await copyFile(saved + '/' + name, out + '/' + name)
+      await copyFile(f.originalFile, out + '/previous-normal.json')
+      await writeFile(out + '/effect-calls.json', JSON.stringify(events, null, 2))
+      await writeFile(out + '/result.stdout', outcome.stdout)
+    }
+  }
+})
+
+test('recovery pair: same private state is classified separately without requesting inverse relocation', async t => {
+  const f = await originalPair(t, 'server'); await f.run()
+  const up = (await f.events()).find(e => e.kind === 'up')
+  const recovery = JSON.parse(await readFile(dirname(up.composeFile) + '/recovery.json', 'utf8'))
+  assert.equal(recovery.stateLayout, 'server'); assert.equal(recovery.previousCompose, f.originalFile)
+  assert.ok(!Object.hasOwn(recovery, 'toLegacy'))
+})
+
+test('recovery pair: incompatible views or cursor refuse quiet, Cursor and stop without changing the original', async t => {
+  for (const kind of ['data', 'home', 'volume', 'state', 'nested', 'target-nested']) {
+    const f = await originalPair(t, kind === 'state' ? 'server' : 'legacy', kind)
+    const original = await readFile(f.originalFile)
+    await assert.rejects(f.run({ TEST_FAIL: kind }), e => e.code === 1 && e.stderr.includes('BELLTEAM_RECOVERY_PAIR_UNAVAILABLE'))
+    assert.ok(!(await f.events()).some(e => ['quiet1', 'cursor', 'stop', 'prepare', 'transfer', 'up'].includes(e.kind)))
+    assert.deepEqual(await readFile(f.originalFile), original)
+    assert.deepEqual((await readdir(f.root)).filter(n => n.startsWith('.bellteam-compose.')), ['.bellteam-compose.OLD123'])
+  }
+})
+
+test('recovery pair: failed private publication removes only the new target and leaves original and archive intact', async t => {
+  const f = await originalPair(t), original = await readFile(f.originalFile)
+  await assert.rejects(f.run({ TEST_FAIL: 'recovery-publish' }), e => e.code === 1 && e.stderr.includes('BELLTEAM_RECOVERY_PAIR_UNAVAILABLE'))
+  assert.ok(!(await f.events()).some(e => ['quiet1', 'cursor', 'stop', 'prepare', 'transfer', 'up'].includes(e.kind)))
+  assert.deepEqual(await readFile(f.originalFile), original)
+  assert.deepEqual((await readdir(f.root)).filter(n => n.startsWith('.bellteam-compose.')), ['.bellteam-compose.OLD123'])
+  const backups = await readdir(f.root + '/runtime/backups')
+  assert.equal(await readFile(f.root + '/runtime/backups/' + backups[0] + '/previous-compose.path', 'utf8'), f.originalFile + '\n')
 })

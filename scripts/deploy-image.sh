@@ -133,6 +133,33 @@ mv "$saved/normal.json.tmp" "$saved/normal.json"
 sed -n '3p' "$staging/models.jsonl" > "$staging/compose.state-prepare.yaml"
 sed -n '4p' "$staging/models.jsonl" > "$saved/compose.state-maintenance.json"
 cp "$saved/compose.state-maintenance.json" "$staging/compose.state-maintenance.json"
+if [ -n "${BELLTEAM_PREVIOUS_COMPOSE:-}" ]; then
+  node --input-type=module - "$saved" "$previous" "$BELLTEAM_PREVIOUS_COMPOSE" <<'NODE'
+import fs from 'node:fs'
+import path from 'node:path'
+import { stateWriterPlan } from './src/server-state-writers.mjs'
+try {
+  const [saved,archive,previousCompose]=process.argv.slice(2)
+  const read=file=>JSON.parse(fs.readFileSync(file,'utf8').replaceAll('$$','$'))
+  const normal=read(path.join(saved,'normal.json')), maintenance=read(path.join(saved,'compose.state-maintenance.json'))
+  const original=read(previousCompose), old=original.services.bellteam, current=normal.services.bellteam
+  const combined=model=>({...model,services:{...model.services,...maintenance.services}})
+  const targetPlan=stateWriterPlan(combined(normal)), oldPlan=stateWriterPlan(combined(original))
+  const home=service=>path.resolve(service.volumes.find(v=>v.target==='/home/bell').source)
+  if(original.name!==normal.name||oldPlan.volume!==targetPlan.volume||home(old)!==home(current)
+    ||fs.readFileSync(path.join(archive,'previous-compose.path'),'utf8')!==previousCompose+'\n'
+    ||old.image!==fs.readFileSync(path.join(archive,'container-image.txt'),'utf8').trim().split(' ')[1])throw new Error()
+  const stateTargets=maintenance.services['state-maintenance'].volumes.map(v=>v.target)
+    .filter(target=>!['/srv/bellteam','/srv/bellteam-legacy','/srv/bellteam-maintenance-backups'].includes(target))
+  for(const service of [old,current]) if(service.volumes.some(v=>v.target!==path.posix.resolve(v.target)||v.target!=='/srv/bellteam'&&!stateTargets.includes(v.target)&&stateTargets.some(target=>
+    v.target==='/'||v.target.startsWith(target+'/')||target.startsWith(v.target+'/'))))throw new Error()
+  const stateLayout=old.volumes.some(v=>stateTargets.includes(v.target))?'server':'legacy'
+  fs.writeFileSync(path.join(saved,'recovery.json.tmp'),JSON.stringify({previousCompose,
+    previousImageArchive:path.resolve(archive),stateLayout}),{mode:0o600,flag:'wx'})
+  fs.renameSync(path.join(saved,'recovery.json.tmp'),path.join(saved,'recovery.json'))
+}catch{console.error('BELLTEAM_RECOVERY_PAIR_UNAVAILABLE');process.exitCode=1}
+NODE
+fi
 COMPOSE_FILE="$saved/normal.json"
 COMPOSE_PROJECT_NAME=$project
 export COMPOSE_FILE COMPOSE_PROJECT_NAME
@@ -142,6 +169,7 @@ if [ -n "$quiet_except" ]; then sh scripts/check-deploy-quiet.sh "$quiet_except"
 sh "$staging/scripts/update-cursor.sh"
 if [ -n "$quiet_except" ]; then sh scripts/check-deploy-quiet.sh "$quiet_except"; fi
 keep_saved=true
+printf 'saved-compose=%s\n' "$saved"
 docker compose stop bellteam
 sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
 docker compose --project-directory "$PWD" -f "$staging/compose.state-prepare.yaml" \

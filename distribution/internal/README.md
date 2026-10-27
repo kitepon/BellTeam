@@ -71,3 +71,19 @@ imageを指定しない正規deployも同じadapterを使います。repoの`com
 FF後は同じ控えの絶対pathを既adapterへ内部引数として渡す。adapterは既旧CID/image控えとStartedAtを照合し、private directory/fileの所有者・modeも確認して、`image-before-deploy.XXXXXX/previous-compose.path`へ対応を残す。秘密model本体を共有data側backupへ写さない。不一致なら候補取得・image/Cursor控え・停止へ進まず、元控えを保持する。低水準adapterを直接呼び、この引渡しを省いた場合を完全な旧設定保全とは呼ばない。
 
 これは保存と受渡しのsource契約だけで、実label起点の復旧、最新二view backup後のto-legacy→対応旧normalでの再開/health、全writer停止維持、実親UIDACLaliasmountや正式image実CLI隔離の受入は未完。自動rollback/upは追加していない。whole Draft NOTDEPLOYABLE・未反映を維持する。
+
+
+### 保存した新旧modelの対応（source確認範囲）
+
+停止直前の`keep_saved=true`後に`saved-compose=`で出るprivate世代は、normalと実行maintenanceを保持する。正規deployから旧設定を受けた場合は、同世代の`recovery.json`（0600/rename公開）に`previousCompose`、`previousImageArchive`、`stateLayout`を残す。元設定やimage控えをlatest globから選ばず、このexact対応を使う。通常up失敗でもこの世代を保持し、stop前の公開失敗では新世代だけを除去して元設定と旧archiveを残す。
+
+既存writer plannerに新旧normalと保存maintenanceを渡して、legacy data/六state/backup分離を照合する。project/HOME/Cursor volumeも一致させ、旧通常imageを同archiveと照合する。state targetの祖先や子へ未知のmountが重なる構成は旧/新とも拒否し、Cursor更新・停止へ進まない。字面での対応であり、実alias/mount/inodeや全区間writer排他は別の未受入条件である。
+
+| stateLayout | 旧通常設定の読取り先 | 復旧の条件 |
+| --- | --- | --- |
+| legacy | 保存maintenanceと対応するlegacy root。六private state bindなし | 最新の両viewを控える既`to-legacy`が成功してから、対応する旧normalで通常再開 |
+| server | 保存maintenanceと同じ六private state source | `to-legacy`を実行しない。最新二view backupと旧imageのformat互換を確認して、同じ私有stateを読む旧normalへ戻す工程が未接続 |
+
+legacyの既逆移行口は、保存`compose.state-maintenance.json`を単独指定した`docker compose ... run --pull never --rm --no-deps -T state-maintenance to-legacy`。使うimageはその保存modelの移行用imageであり、旧normal起動imageではない。停止維持・writer検査・実view対応を揃えてから実行し、既処理が最新両view backup後に移す。途中失敗時はupへ進まない。成功後の通常再開は`previousCompose`の旧raw image/profile/bindを使い、新しい.envやcheckoutから再合成しない。過去data/Cursor tarを最新データへ自動復元する処理も追加していない。
+
+ここではrecovery executorや新しい公開引数を追加していない。実stop→検査→逆移行→旧normal再開/healthの製品接続・受入、server layoutの最新backup/restart経路、現在HOME/Cursor保全、全writer lifetimeと実親UIDACLaliasmount、正式image実CLI隔離停止時間は未完。保存recordの存在を本番復旧成功やwhole Draftの配備可へ補完しない。
