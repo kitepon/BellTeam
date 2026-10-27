@@ -246,6 +246,20 @@ Whole Draft NOTDEPLOYABLE remains in force.
 
 ## Installer maintenance mount inputs (source only)
 
+The existing writer `plan` CLI consumes default `docker compose config --format
+json` output, whose serializer doubles every dollar. It restores one such layer
+before the existing JSON parse, so literal dollar-containing host paths match
+Docker inspect paths. Direct `stateWriterPlan(config)` callers still supply the
+actual model; Docker inspect/canonical metadata is never unescaped.
+
+Full normal-model capture remains unconnected. With official Compose 5.6.1,
+reloading either JSON or YAML `config` output changes a label key containing `$`
+because the output escapes keys while input interpolation only handles values.
+An offline `.env`-selected, different-first-file-directory case preserves values,
+mounts and project but changes the effective service hash. `--no-interpolate`
+leaves original variables unresolved. Do not use that round-trip as a normal
+startup model or infer configuration lifetime/writer exclusion from this fix.
+
 The installer extracts `compose.state-maintenance.json` from the selected image
 along with its existing writer-check script. It passes that image selection as
 `BELLTEAM_SERVER_IMAGE` and calls the existing `--maintenance` check after stop.

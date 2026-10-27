@@ -144,7 +144,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     const mode = process.argv[2]
     if (mode === 'plan' && process.argv.length === 3) {
-      console.log(JSON.stringify(stateWriterPlan(JSON.parse(await streamText(process.stdin)))))
+      // Compose config doubles dollars in its JSON output, unlike inspect metadata.
+      console.log(JSON.stringify(stateWriterPlan(JSON.parse((await streamText(process.stdin)).replaceAll('$$', '$')))))
     } else if (['volumes', 'sources', 'verify'].includes(mode) && process.argv.length === 3) {
       const plan = JSON.parse(await readFile('/check/plan.json', 'utf8'))
       const text = await readFile('/check/containers.jsonl', 'utf8')
