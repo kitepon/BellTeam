@@ -80,7 +80,7 @@ test('保守planは構成に含む資格情報を出力しない', () => {
   assert.doesNotMatch(JSON.stringify(stateWriterPlan(c)), /SECRET|synthetic-secret/)
 })
 
-test('writer CLIは保守flag以外をDocker前に拒否し、保守時は二つの固定Composeからplanを読む', async t => {
+test('writer CLIは保守flag以外をDocker前に拒否し、通常modelへ保守Composeを合成する', async t => {
   const root = await mkdtemp(join(tmpdir(), 'maintenance-writer-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const calls = join(root, 'calls'), fake = join(root, 'docker')
@@ -89,7 +89,8 @@ printf '%s|%s\\n' "$*" "\${COMPOSE_FILE-}" >> "$TEST_CALLS"
 case "$*" in
   'compose config --images') echo fixture;;
   'image inspect --format {{.Id}} fixture') printf 'sha256:%064d\\n' 0;;
-  'compose config --format json') exit 47;;
+  'compose config --format json') echo '{}';;
+  'compose -f - -f '*'/compose.state-maintenance.json config --format json') exit 47;;
   *) exit 49;;
 esac
 `); await chmod(fake, 0o700)
@@ -100,7 +101,7 @@ esac
   await assert.rejects(readFile(calls), { code: 'ENOENT' })
   await assert.rejects(exec('sh', [script, '--maintenance'], { env }), error => error.code === 47)
   assert.equal((await readFile(calls, 'utf8')).trim().split('\n').at(-1),
-    `compose config --format json|compose.yaml:${new URL('../compose.state-maintenance.json', import.meta.url).pathname}`)
+    `compose -f - -f ${new URL('../compose.state-maintenance.json', import.meta.url).pathname} config --format json|`)
 })
 
 test('maintenance composition keeps the callers explicit normal overlay and project', async t => {
@@ -112,7 +113,8 @@ printf '%s|%s|%s\\n' "$*" "\${COMPOSE_FILE-}" "\${COMPOSE_PROJECT_NAME-}" >> "$T
 case "$*" in
   'compose config --images') echo fixture;;
   'image inspect --format {{.Id}} fixture') printf 'sha256:%064d\\n' 0;;
-  *'config --format json') exit 47;;
+  'compose config --format json') echo '{}';;
+  'compose -f - -f '*'/compose.state-maintenance.json config --format json') exit 47;;
   *) exit 49;;
 esac
 `); await chmod(fake, 0o700)
@@ -124,6 +126,6 @@ esac
       COMPOSE_FILE: normal, COMPOSE_PATH_SEPARATOR: separator, COMPOSE_PROJECT_NAME: 'existing-project' }
     await assert.rejects(exec('sh', [script, '--maintenance'], { env }), error => error.code === 47)
     const lines = (await readFile(calls, 'utf8')).trim().split('\n')
-    assert.equal(lines.at(-1), `compose config --format json|${normal}${separator}${new URL('../compose.state-maintenance.json', import.meta.url).pathname}|existing-project`)
+    assert.equal(lines.at(-1), `compose -f - -f ${new URL('../compose.state-maintenance.json', import.meta.url).pathname} config --format json|${normal}|existing-project`)
   }
 })

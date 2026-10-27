@@ -17,13 +17,11 @@ command -v realpath >/dev/null || { echo SERVER_STATE_REALPATH_REQUIRED >&2; exi
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-writers.XXXXXX")
 trap 'rm -rf "$staging"' 0
 trap 'exit 1' 1 2 15
+config=$(docker compose config --format json)
 if "$maintenance"; then
-  # Keep the caller's actual normal overlays and project when adding maintenance.
+  # Normalize first so .env-selected files, project and relative paths survive.
   maintenance_compose="$(CDPATH= cd "$(dirname "$0")/.." && pwd)/compose.state-maintenance.json"
-  config=$(COMPOSE_FILE="${COMPOSE_FILE:-compose.yaml}${COMPOSE_PATH_SEPARATOR:-:}$maintenance_compose" \
-    docker compose config --format json)
-else
-  config=$(docker compose config --format json)
+  config=$(printf '%s' "$config" | docker compose -f - -f "$maintenance_compose" config --format json)
 fi
 printf '%s' "$config" | docker run --pull never --rm -i --network none --read-only \
   --entrypoint /usr/local/bin/node "$image" /app/src/server-state-writers.mjs plan > "$staging/plan.json"

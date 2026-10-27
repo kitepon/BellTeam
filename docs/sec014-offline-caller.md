@@ -245,8 +245,10 @@ Whole Draft NOTDEPLOYABLE remains in force.
 The installer extracts `compose.state-maintenance.json` from the selected image
 along with its existing writer-check script. It passes that image selection as
 `BELLTEAM_SERVER_IMAGE` and calls the existing `--maintenance` check after stop.
-The checker appends its image-owned Compose file by absolute path after the
-caller's normal `COMPOSE_FILE`, preserving its separator and project. A two-file
+The checker first normalizes the caller's full configuration in memory, then
+merges its image-owned Compose file by absolute path using standard Compose.
+This preserves `.env`-selected overlays, project and resolved paths as well as
+explicit `COMPOSE_FILE` input, without writing normal environment data. A two-file
 installation therefore does not need a second, independently selected copy.
 
 Compose must receive `BELLTEAM_LEGACY_DATA`, `BELLTEAM_STATE_PARENT` and
