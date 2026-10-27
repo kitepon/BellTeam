@@ -7,7 +7,7 @@ import test from 'node:test'
 
 const source = process.env.REMINDER_MERGE_SOURCE_ROOT || new URL('..', import.meta.url).pathname
 const { createGlobalInstructionsRefresher, taskSettingsReminder, writeGlobalInstructions } =
-  await import(pathToFileURL(join(source, 'src/global-instructions.mjs')))
+  await import(pathToFileURL(process.env.REMINDER_MERGE_GLOBAL_MODULE || join(source, 'src/global-instructions.mjs')))
 
 test('main reminder merge: canonical reminder keeps the seat-owned writer and its default file writer', async t => {
   const root = await mkdtemp(join(tmpdir(), 'main-reminder-merge-'))
