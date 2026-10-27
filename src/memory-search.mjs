@@ -145,7 +145,8 @@ function inOneTransaction(db, work) {
     work()
     db.exec('COMMIT')
   } catch (error) {
-    db.exec('ROLLBACK')
+    try { db.exec('ROLLBACK') }
+    catch (rollbackError) { throw new AggregateError([error, rollbackError], 'MEMORY_INDEX_ROLLBACK_FAILED') }
     throw error
   }
 }
