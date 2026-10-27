@@ -255,6 +255,34 @@ installer, internal adapter and manual recipe pass that CID through the private
 it. This remains a snapshot: later manual starts, external managers and the
 complete maintenance interval still require separate exclusion evidence.
 
+### Remaining lifetime contract at the normal and maintenance entries
+
+The caller-stopped CID handoff ends at the writer snapshot. The following
+current entries have no shared admission or held exclusion spanning that
+snapshot, both backups, transfer/ownership changes and the selected restart:
+
+| Entry | Current behavior and missing connection |
+| --- | --- |
+| `distribution/server/install.sh` and `scripts/deploy-image.sh` | Stop, inspect, prepare, transfer and `compose up` are sequential commands; another installer or normal start does not participate in their interval. |
+| Internal manual recovery recipe | The selected CID is stopped and checked before backup/inverse/restart; another caller can still start the same or another normal generation. |
+| `scripts/server-start.c` and `src/supervisor.mjs` | The fixed UID1001 entry executes Node, whose static bootstrap import runs before runtime construction or `start()`. Neither entry consults a maintenance transaction. |
+| `src/bootstrap.mjs` | Settings, owner/user rules and Bot registry initialization, seat environment/configuration and global instructions run before the HTTP/background-loop lifecycle. A check added only to `runtime.start()` would be too late. |
+| `src/application-services.mjs` and `src/application-runtime.mjs` | Service initialization precedes `AiControl` construction; AI pause admits/stops managed work but does not exclude every state writer or bootstrap initialization. |
+| `backupServerState` and `migrateServerState` | Both require the offline caller to maintain exclusion. File identity checks can reject observed changes but do not hold other writers stopped for the interval. |
+
+The existing `sec014-host-control.py` transaction serializes callers that use
+its fixed root-owned control path. Normal entries and the installer/adapter
+above do not join it, and the public packager does not ship the internal
+controller. Its lock or a phase receipt therefore cannot prove these writers
+are excluded. The remaining product contract must cover all supported start,
+update and recovery paths before their first write and retain ownership until
+the selected normal restart/result is resolved, including interrupted callers.
+Root owns that product connection and writer denominator; Emma retains the
+agreed OS/shared-runtime and known host-manager facts. This source gap does not
+request a new host helper or authorize stopping other jobs. It remains a
+prerequisite for whole-Draft deployment; no actual writer-lifetime acceptance
+has been performed.
+
 ## Installer maintenance mount inputs (source only)
 
 The existing writer `plan` CLI consumes default `docker compose config --format
