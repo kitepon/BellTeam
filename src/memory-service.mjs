@@ -191,13 +191,16 @@ export class BellTeamMemory {
     await writeFile(join(ragRoot, relativePath), markdown, 'utf8')
     await appendIndex(ragRoot, { id, title: title.trim(), relativePath, createdAt, confidence })
     const db = openKnowledgeDb(join(ragRoot, 'index.db'))
+    const errors = []
     try {
       upsertKnowledge(db, {
         id, path: relativePath, title: title.trim(), body: content.trim(), source,
         tags: JSON.stringify(tags), confidence, createdAt,
       })
+    } catch (error) {
+      errors.push(error)
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
     return { id, title: title.trim(), path: relativePath, scope: normalizedScope, createdAt }
   }
