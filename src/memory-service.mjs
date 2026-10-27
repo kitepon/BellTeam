@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
@@ -226,18 +226,26 @@ export class BellTeamMemory {
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     const ragRoot = await this.ensureRag(bot?.id ?? null, normalizedScope)
     const dbPath = join(ragRoot, 'index.db')
-    await rm(dbPath, { force: true })
     const db = openKnowledgeDb(dbPath)
     let count = 0
+    const errors = []
     try {
+      db.exec('BEGIN IMMEDIATE')
+      db.exec('DELETE FROM section_index; DELETE FROM sections; DELETE FROM documents; DELETE FROM index_state;')
       for (const name of await readdir(join(ragRoot, 'notes'))) {
         if (!name.endsWith('.md')) continue
         const parsed = parseKnowledgeMarkdown(await readFile(join(ragRoot, 'notes', name), 'utf8'))
         upsertKnowledge(db, { ...parsed, path: `notes/${name}` })
         count += 1
       }
+      db.exec('COMMIT')
+    } catch (error) {
+      errors.push(error)
+      if (db.isTransaction) {
+        try { db.exec('ROLLBACK') } catch (error) { errors.push(error) }
+      }
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
     return { scope: normalizedScope, count }
   }
