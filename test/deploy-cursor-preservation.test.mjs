@@ -29,6 +29,7 @@ if(a[0]==='exec'&&a.includes('/bin/tar')) {
  const args=a.slice(a.indexOf('/bin/tar')+1).map(x=>x==='/home/bell/.local'?process.env.VOLUME:x)
  const result=cp.spawnSync('/bin/tar',args);process.stdout.write(result.stdout);process.stderr.write(result.stderr);process.exit(result.status)
 }
+if(a[0]==='compose'&&a[1]==='pull')process.exit(97)
 if(a[0]==='run')process.stdout.write(a.at(-1).endsWith('update-cursor.sh')?'#!/bin/sh\\ndocker fixture-cursor\\n':'services: {}\\n')
 `
   const sha = '#!/bin/sh\nif [ "$FAIL" = hash ]; then case "$1" in */cursor.tar) exit 10;; esac; fi\nexec /usr/bin/sha256sum "$@"\n'
@@ -41,7 +42,7 @@ if(a[0]==='run')process.stdout.write(a.at(-1).endsWith('update-cursor.sh')?'#!/b
 }
 test('same original CID archives complete Cursor files, symlink and mode before candidate pull', async t => {
   const f = await fixture(t)
-  assert.equal(f.result.code, undefined)
+  assert.equal(f.result.code, 97) // End this archive fixture at candidate acquisition.
   const bytes = await readFile(join(f.saved, 'cursor.tar'))
   assert.equal((await readFile(join(f.saved, 'cursor.tar.sha256'), 'utf8')).split(' ')[0], createHash('sha256').update(bytes).digest('hex'))
   assert.equal(await readFile(join(f.saved, 'cursor-volume.txt'), 'utf8'), 'volume bellteam_cursor-cli\n')
@@ -56,9 +57,9 @@ test('same original CID archives complete Cursor files, symlink and mode before 
   const pullIndex = f.calls.findIndex(a => a[0] === 'compose' && a[1] === 'pull')
   assert.ok(tarIndex >= 0 && tarIndex < pullIndex)
   assert.deepEqual(f.calls[tarIndex].slice(0, 4), ['exec', '--user', 'bell', cid])
-  assert.equal(f.calls.filter(a => a[0] === 'fixture-quiet').length, 2)
-  assert.equal(f.calls.filter(a => a[0] === 'fixture-cursor').length, 1)
-  assert.equal(f.calls.filter(a => a[0] === 'compose' && a[1] === 'up').length, 1)
+  assert.equal(f.calls.filter(a => a[0] === 'fixture-quiet').length, 0)
+  assert.equal(f.calls.filter(a => a[0] === 'fixture-cursor').length, 0)
+  assert.equal(f.calls.filter(a => a[0] === 'compose' && a[1] === 'up').length, 0)
 })
 for (const [failure, code] of [['mismatch', 1], ['inspect', 8], ['tar', 9], ['hash', 10]]) test(`Cursor ${failure} refusal retains originals and starts no candidate or update`, async t => {
   const f = await fixture(t, failure)

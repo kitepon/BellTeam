@@ -19,6 +19,7 @@ const fs=require('node:fs'),a=process.argv.slice(2),fail=process.env.FAIL
 fs.appendFileSync(process.env.CALLS,JSON.stringify(a)+'\\n')
 if(a[0]==='container'&&a[1]==='inspect') {if(fail==='inspect'){process.stdout.write('partial');process.exit(6)}console.log(a.includes('{{.Id}} {{.Image}}')?'${cid} ${previous}':'volume bellteam_cursor-cli')}
 if(a[0]==='image'&&a[1]==='save'){fs.writeFileSync(a[a.indexOf('--output')+1],fail==='save'?'partial-image':'synthetic-image-bytes');if(fail==='save')process.exit(7)}
+if(a[0]==='compose'&&a[1]==='pull')process.exit(97)
 if(a[0]==='run')process.stdout.write(a.at(-1).endsWith('update-cursor.sh')?'#!/bin/sh\\ndocker fixture-cursor\\n':'services: {}\\n')
 `
   for (const [name, body] of [['docker', docker], ['sha256sum', '#!/bin/sh\n[ "$FAIL" != hash ] || exit 8\nexec /usr/bin/sha256sum "$@"\n']]) {
@@ -30,7 +31,7 @@ if(a[0]==='run')process.stdout.write(a.at(-1).endsWith('update-cursor.sh')?'#!/b
 }
 test('prior image ID archive and digest persist before candidate pull and update', async t => {
   const f = await fixture(t)
-  assert.equal(f.result.code, undefined)
+  assert.equal(f.result.code, 97) // End this archive fixture at candidate acquisition.
   const dirs = await readdir(join(f.root, 'runtime/backups')); assert.equal(dirs.length, 1)
   const saved = join(f.root, 'runtime/backups', dirs[0])
   assert.equal((await stat(saved)).mode & 0o777, 0o700)
@@ -41,9 +42,9 @@ test('prior image ID archive and digest persist before candidate pull and update
   assert.equal((await readFile(join(saved, 'image.tar.sha256'), 'utf8')).split(' ')[0], createHash('sha256').update(image).digest('hex'))
   assert.deepEqual(f.calls.slice(0, 2).map(a => a.slice(0, 2)), [['container', 'inspect'], ['image', 'save']])
   assert.equal(f.calls[1].at(-1), previous)
-  assert.equal(f.calls.filter(a => a[0] === 'fixture-cursor').length, 1)
-  assert.equal(f.calls.filter(a => a[0] === 'fixture-quiet').length, 2)
-  assert.equal(f.calls.filter(a => a[0] === 'compose' && a[1] === 'up').length, 1)
+  assert.equal(f.calls.filter(a => a[0] === 'fixture-cursor').length, 0)
+  assert.equal(f.calls.filter(a => a[0] === 'fixture-quiet').length, 0)
+  assert.equal(f.calls.filter(a => a[0] === 'compose' && a[1] === 'up').length, 0)
   assert.equal(f.calls.some(a => a.includes('stop') || a.includes('rm') && a[0] === 'image' || a.includes('load')), false)
 })
 for (const [failure, code] of [['inspect', 6], ['save', 7], ['hash', 8]]) test(`${failure} failure retains partial originals without candidate pull or updater`, async t => {

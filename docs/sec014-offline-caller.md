@@ -414,3 +414,11 @@ deploy currently fast-forwards source before capturing target config. Preserving
 and selecting the actual pre-upgrade normal/old image, binding stop/check through
 inverse/restart, and testing latest-data inverse/health are still unfinished.
 No automatic inverse or startup-on-failure is introduced here.
+
+
+The seat-side launch error envelope retains the existing fixed error fields plus
+only `authenticationPreflightFailure` and `returnedMcpError` validated projections.
+This preserves the main diagnostic contract without serializing arbitrary Error
+properties or the seat environment. Private-tool MCP bodies remain excluded by
+the existing validator. This is a metadata boundary check, not real UID/SDK/runtime
+launch acceptance.
