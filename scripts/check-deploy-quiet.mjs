@@ -12,6 +12,7 @@ const approvalRoot = '/home/bell/.approval-box/runtime/0.1.26/'
 const codexExe = '/usr/local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex'
 const codexHelperExe = `${codexExe}-code-mode-host`
 const mcpCommands = [[nodeExe, aitermScript], [nodeExe, `${approvalRoot}cli.mjs`, 'mcp']]
+const caveatCommand = [nodeExe, '--disable-warning=ExperimentalWarning', '/srv/bellteam/shared/tools/caveat/0.21.5/node_modules/caveat-cli/dist/caveat.js', 'mcp-server']
 
 // 全PIDの親と開始tickだけを読む。argv/environ/画面/認証fileは一覧に含めない。
 export async function readProcTable(proc = '/proc', { list = readdir, read = readFile } = {}) {
@@ -107,6 +108,7 @@ export function trustedIdleTree(rows, pid, harness, botId, project = `/srv/bellt
   }
   for (const row of rows) {
     if (row.pid === pid || row.pid === cliPid || relays.has(row.pid)) continue
+    if (row.ppid === cliPid && row.exe === nodeExe && sameArgs(row.argv, caveatCommand)) continue
     // Aiterm既存定義でもCLI本体に含む固定補助。子作業はこの後の全行検査へ残す。
     if (harness === 'codex-cli' && row.ppid === cliPid && row.exe === codexHelperExe && sameArgs(row.argv, [codexHelperExe])) continue
     if (row.exe === nodeExe && relays.has(row.ppid) && sameArgs(row.argv, relays.get(row.ppid))) continue
