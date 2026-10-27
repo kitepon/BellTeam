@@ -4,6 +4,8 @@
 
 サーバーは通常のBellTeam配布で受け入れた製品imageを使う。DexのCA修理sourceは [Dockerfile.dex](Dockerfile.dex)。[10月25日の隔離結果](../../../docs/evidence/2026-10-25-sec021-review-ca-preparation.md)は履歴であり、その候補の現在の存在や今回の配備許可を示さない。現物受入で得た参照をそれぞれ `BELLTEAM_REVIEW_SERVER_IMAGE` / `BELLTEAM_REVIEW_DEX_IMAGE` へ指定する。既定のtagや保存済みのlocal image IDへの代替は設けない。
 
+Dex候補のsource label・CA束・push後のimmutable参照を残す通常手順は [Dex候補の受渡し](dex-candidate.md) を使う。登録先の選定と公開は配布担当、製品の受入と審査用への反映はトロニーが持つ。
+
 ## 反映前
 
 担当がそれぞれの現在のimage・Compose file順・project・service・設定と最新データの保存・戻し方を確認し、受入済みsource/imageを結ぶ。候補のOS束はG3・AAA無し/G1保持、サーバーのNode同梱根もG3無しを確認する。配布担当の事前受入、審査作業との調整、各対象の既存承認、ホストの開始条件が揃うまでは以下を実行しない。専用host補助の起動・発行・復元は使用しない。
