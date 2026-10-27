@@ -90,7 +90,7 @@ case "$*" in
   'compose config --images') echo fixture;;
   'image inspect --format {{.Id}} fixture') printf 'sha256:%064d\\n' 0;;
   'compose config --format json') echo '{}';;
-  'compose -f - -f '*'/compose.state-maintenance.json config --format json') exit 47;;
+  'compose --project-directory '*'/compose.state-maintenance.json config --format json --no-path-resolution') exit 47;;
   *) exit 49;;
 esac
 `); await chmod(fake, 0o700)
@@ -101,7 +101,7 @@ esac
   await assert.rejects(readFile(calls), { code: 'ENOENT' })
   await assert.rejects(exec('sh', [script, '--maintenance'], { env }), error => error.code === 47)
   assert.equal((await readFile(calls, 'utf8')).trim().split('\n').at(-1),
-    `compose -f - -f ${new URL('../compose.state-maintenance.json', import.meta.url).pathname} config --format json|`)
+    `compose --project-directory ${process.cwd()} -f - -f ${new URL('../compose.state-maintenance.json', import.meta.url).pathname} config --format json --no-path-resolution|`)
 })
 
 test('maintenance composition keeps the callers explicit normal overlay and project', async t => {
@@ -114,7 +114,7 @@ case "$*" in
   'compose config --images') echo fixture;;
   'image inspect --format {{.Id}} fixture') printf 'sha256:%064d\\n' 0;;
   'compose config --format json') echo '{}';;
-  'compose -f - -f '*'/compose.state-maintenance.json config --format json') exit 47;;
+  'compose --project-directory '*'/compose.state-maintenance.json config --format json --no-path-resolution') exit 47;;
   *) exit 49;;
 esac
 `); await chmod(fake, 0o700)
@@ -126,6 +126,6 @@ esac
       COMPOSE_FILE: normal, COMPOSE_PATH_SEPARATOR: separator, COMPOSE_PROJECT_NAME: 'existing-project' }
     await assert.rejects(exec('sh', [script, '--maintenance'], { env }), error => error.code === 47)
     const lines = (await readFile(calls, 'utf8')).trim().split('\n')
-    assert.equal(lines.at(-1), `compose -f - -f ${new URL('../compose.state-maintenance.json', import.meta.url).pathname} config --format json|${normal}|existing-project`)
+    assert.equal(lines.at(-1), `compose --project-directory ${process.cwd()} -f - -f ${new URL('../compose.state-maintenance.json', import.meta.url).pathname} config --format json --no-path-resolution|${normal}|existing-project`)
   }
 })

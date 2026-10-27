@@ -21,7 +21,7 @@ config=$(docker compose config --format json)
 if "$maintenance"; then
   # Normalize first so .env-selected files, project and relative paths survive.
   maintenance_compose="$(CDPATH= cd "$(dirname "$0")/.." && pwd)/compose.state-maintenance.json"
-  config=$(printf '%s' "$config" | docker compose -f - -f "$maintenance_compose" config --format json)
+  config=$(printf '%s' "$config" | docker compose --project-directory "$PWD" -f - -f "$maintenance_compose" config --format json --no-path-resolution)
 fi
 printf '%s' "$config" | docker run --pull never --rm -i --network none --read-only \
   --entrypoint /usr/local/bin/node "$image" /app/src/server-state-writers.mjs plan > "$staging/plan.json"

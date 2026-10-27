@@ -24,14 +24,14 @@ case "$*" in
  'image inspect --format {{.Id}} fixture-server') printf 'sha256:%064d\\n' 0;;
  'compose config --format json')
    cat "$TEST_NORMAL_MODEL";;
- 'compose -f - -f '*'/compose.state-maintenance.json config --format json')
+ 'compose --project-directory '*'/install -f - -f '*'/compose.state-maintenance.json config --format json --no-path-resolution')
       cat > "$TEST_MODEL_IN"
       printf '%s\\n%s\\n%s\\n' "$COMPOSE_FILE" "\${COMPOSE_PROJECT_NAME-}" "\${BELLTEAM_SERVER_IMAGE-}" > "$TEST_RENDER"
       for path in BELLTEAM_LEGACY_DATA BELLTEAM_STATE_PARENT BELLTEAM_MAINTENANCE_BACKUP_PARENT; do
         eval 'value=\${'"$path"'-}'
         [ -n "$value" ] || { echo synthetic-required-input-missing >&2; exit 42; }
       done
-      file=$5
+      file=$7
       cat "$file" > "$TEST_RENDER_JSON"
       # Stop at rendering; this fixture never claims writer verification.
       exit 47;;
@@ -72,6 +72,7 @@ test('installer merges the image-owned maintenance file into the full normal mod
     assert.deepEqual(JSON.parse(await readFile(f.modelIn, 'utf8')), JSON.parse(await readFile(f.normalModel, 'utf8')))
     assert.deepEqual(await readFile(f.renderedJson), await readFile(join(f.image, 'compose.state-maintenance.json')))
     const calls = await readFile(f.calls, 'utf8')
+    assert.ok(calls.includes(`compose --project-directory ${f.install} -f - -f `))
     assert.match(calls, /compose stop bellteam\n/)
     assert.doesNotMatch(calls, /compose run |cursor-update$|compose up /m)
   }

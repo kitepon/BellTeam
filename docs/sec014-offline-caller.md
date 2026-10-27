@@ -253,7 +253,14 @@ installation therefore does not need a second, independently selected copy.
 
 Compose must receive `BELLTEAM_LEGACY_DATA`, `BELLTEAM_STATE_PARENT` and
 `BELLTEAM_MAINTENANCE_BACKUP_PARENT` from the installation's existing environment
-or `.env`. The planned old/new views and backup enter the existing mount check;
+or the installation directory's `.env`, all as absolute host paths. The second
+render explicitly keeps that directory for `.env` lookup; settings supplied only
+by another directory's `.env` must be explicitly supplied here. Normal mounts are resolved using their
+original first-file base before merging. The second render uses
+`--no-path-resolution` so relative maintenance inputs remain relative and the
+existing writer-plan absolute-path validation rejects them before inspection or
+maintenance runs, rather than silently interpreting them against stdin's cwd.
+The planned old/new views and backup enter the existing mount check;
 missing inputs or an unavailable image-owned file stop this path. No host parent
 is created or adopted by this change. These inputs must match the actual normal
 mounts, and the state parent must already satisfy the prepare contract.
