@@ -4,9 +4,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
+import { taskSettingsReminder } from '../src/global-instructions.mjs'
+
 import { AitermTransport, completedThroughlineTurns, latestThroughlineHandoffContext, cleanScreen } from '../src/aiterm-transport.mjs'
 
 const noMemory = async () => ''
+const reminderSuffix = `\n\n<bellteam_task_settings>\n${await taskSettingsReminder()}\n</bellteam_task_settings>`
 
 test('動いていない席を閉じている途中の送信は、閉じ終えてから一度だけ起き直す', async () => {
   let finishClose, signalClose
@@ -138,7 +141,7 @@ test('記録中のセッションへ不達なら新規起動し、返されたID
   assert.equal(calls.find(call => call[0] === 'agent_launch')[1].session_name, 'bot-a')
   assert.equal(calls.find(call => call[0] === 'agent_launch')[1].trust_project, true)
   assert.equal(calls.find(call => call[0] === 'agent_launch')[1].prompt, undefined)
-  assert.equal(calls.filter(call => call[0] === 'pty_send').at(-1)[1].text, 'こんにちは')
+  assert.equal(calls.filter(call => call[0] === 'pty_send').at(-1)[1].text, 'こんにちは' + reminderSuffix)
   assert.deepEqual(calls.at(-1), ['pty_read', { session_id: 'grok-new', agent_transcript: true }])
 })
 
@@ -198,7 +201,7 @@ test('起動の準備が終わらなかった席は残った端末を閉じ、�
   await transport.turn(bot, 'もう一度')
   assert.equal(calls.filter(call => call[0] === 'agent_launch').length, 2)
   assert.equal(calls.filter(call => call[0] === 'pty_close').length, 1)
-  assert.equal(calls.filter(call => call[0] === 'pty_send').at(-1)[1].text, 'もう一度')
+  assert.equal(calls.filter(call => call[0] === 'pty_send').at(-1)[1].text, 'もう一度' + reminderSuffix)
 })
 
 test('端末を作る前に失敗した起動は、端末を閉じず、理由の文も付けない', async () => {
@@ -521,7 +524,7 @@ test('ユーザーターンはAitermの完了後に確定回答を回収し、�
   assert.equal(answer, '画像には青い鳥がいます。')
   assert.equal(calls[0][0], 'pty_send')
   assert.equal(calls[0][1].session_id, 'bot-a')
-  assert.equal(calls[0][1].text, 'この画像を見て')
+  assert.equal(calls[0][1].text, 'この画像を見て' + reminderSuffix)
   assert.equal(calls[0][1].force, undefined)
   assert.equal(imagePaths.length, 2)
   assert.match(imagePaths[0], /\.png$/u)
@@ -556,7 +559,7 @@ test('処理中のBotへの連絡はBellTeamで待たずAitermの送信口へ渡
     onTurnEnd: window => turnEnds.push(window),
   })
   assert.deepEqual(second, { delivery: 'steered' })
-  assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args.text), ['最初の依頼', '追加の依頼'])
+  assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args.text), ['最初の依頼', '追加の依頼'].map(text => text + reminderSuffix))
   assert.deepEqual(transport.queueItems({ botId: bot.id }).map(item => item.status), ['running', 'running'])
   finish({ outcome: 'done' })
   assert.equal(await first, '了解')
@@ -612,7 +615,7 @@ test('ユーザー追加指示もpty_send一回でAitermへ渡し、差し込み
   await first.accepted
   const followup = transport.turn(bot, '追加', { queue: { context: 'direct' } })
   assert.deepEqual(await followup.accepted, { delivery: 'steered' })
-  assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args.text), ['最初', '追加'])
+  assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args.text), ['最初', '追加'].map(text => text + reminderSuffix))
   finish({ outcome: 'done' })
   assert.equal(await first, 'まとめて回答')
   assert.deepEqual(await followup, { delivery: 'steered' })

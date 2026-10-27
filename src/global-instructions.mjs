@@ -22,3 +22,9 @@ export function createGlobalInstructionsRefresher({ ownerProfile, userRules, hom
     ])
   }
 }
+
+// 起動時の規範と各配送の見直し文を同じ正本から読む。
+export async function taskSettingsReminder() {
+  const commonRules = await readFile(join(appRoot, 'config/common-agents.md'), 'utf8')
+  return commonRules.split('## 作業設定の見直し\n\n')[1]?.split('\n\n')[0] ?? ''
+}

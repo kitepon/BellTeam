@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { loadBotEnvironment } from './bot-environment.mjs'
+import { taskSettingsReminder } from './global-instructions.mjs'
 import { reserveExecution, dispatchExecution, interruptExecutions, sendStopOperations } from './execution-transport.mjs'
 import { sendSessionStop } from './session-interruption.mjs'
 import { AitermClient, textResult } from './aiterm-client.mjs'
@@ -665,6 +666,8 @@ export class AitermTransport {
   }
 
   async dispatch(bot, message, images, { setupTest = false, check = () => {}, executionJob } = {}) {
+    const reminder = setupTest ? '' : await taskSettingsReminder()
+    if (reminder) message += `\n\n<bellteam_task_settings>\n${reminder}\n</bellteam_task_settings>`
     if (this.executionBridge) {
       const delivery = await dispatchExecution(this.seat, executionJob, bot, message, images, { setupTest, check })
       return { ...delivery, steer: delivery.receipt.mode === 'agent_steer' ? steerFollow(delivery.result) : null }

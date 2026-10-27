@@ -1,3 +1,5 @@
+import { taskSettingsReminder } from '../src/global-instructions.mjs'
+const reminderSuffix = `\n\n<bellteam_task_settings>\n${await taskSettingsReminder()}\n</bellteam_task_settings>`
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { once } from 'node:events'
@@ -113,7 +115,7 @@ test('HTTPの明示再開は保存済みの元配送・本文・送信時の名�
   assert.equal(response.status, 200)
   assert.equal((await response.json()).delivery_id, id)
   await f.transport.idle('bot-b')
-  assert.deepEqual(f.bodies, ['「送信時の名前」からあなたへ次のメッセージが届いています。\n\n保存した人工本文'])
+  assert.deepEqual(f.bodies, ['「送信時の名前」からあなたへ次のメッセージが届いています。\n\n保存した人工本文' + reminderSuffix])
   const records = await f.messenger.store.records()
   assert.equal(records.length, 1); assert.equal(records[0].delivery_id, id); assert.equal(records[0].delivery, 'delivered')
   assert.equal(f.transport.uncertainChanges.has('bot-b'), false)
