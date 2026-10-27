@@ -30,3 +30,5 @@ file保全は既quiet①より前に行い、quiet①→Cursor更新→quiet②�
 `scripts/update-cursor.sh`を実行する際も、上記環境とrepoの作業directoryを維持する。同script内の `docker compose config` が同じ2file/project/外部volumeを読む必要がある。選択imageから抽出したupdater用composeは本体composeへmergeせず、既存scriptの `-f` 指定で単独実行する。共有update-cursor.sh自体の変更はこの差分に含めない。
 
 本overlayは事前試験/本体review向け。profile適合以外の初期認証・既存不明席回復、両arch、整合backup/volume復元、既存停止許可と稼働条件を省略するものではない。反映時は対象と試験結果をセンチへ渡し、トロニーが本体互換と反映条件を照合する。
+
+通常quiet判定は、探索した複数Botが同じsessionを指す場合、そのidle結果を共有せず既存のunclassifiedへ分類する。queueが空でも、その状態では更新へ進まない。Bot設定/sessionを自動変更したり停止したりする処理は追加しない。これは当該snapshotの対応付けだけで、全writer排他や後続の再spawn抑止の証明ではない。
