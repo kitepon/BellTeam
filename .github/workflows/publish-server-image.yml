@@ -81,6 +81,23 @@ jobs:
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --label 'org.opencontainers.image.description=自分のマシンで動かすBellTeamの一般配布版' \
             -t "$BELLTEAM_SERVER_IMAGE" runtime/server-image
+      - name: 製品imageのOSとNode CA原本を保存
+        run: |
+          mkdir -p runtime/image-ca
+          docker image inspect "$BELLTEAM_SERVER_IMAGE" > runtime/image-ca/image-built.json
+          image_id=$(node -p 'JSON.parse(require("fs").readFileSync("runtime/image-ca/image-built.json"))[0].Id')
+          docker run --pull never --rm --network none --read-only --cap-drop ALL \
+            --entrypoint node "$image_id" --input-type=module -e '
+          import {readFileSync} from "node:fs";
+          import {rootCertificates, getCACertificates} from "node:tls";
+          console.log(JSON.stringify({
+            distribution: JSON.parse(readFileSync("/app/distribution.json", "utf8")),
+            nodeVersion: process.version,
+            osBundleBase64: readFileSync("/etc/ssl/certs/ca-certificates.crt").toString("base64"),
+            nodeBundledRootsPem: rootCertificates,
+            nodeDefaultRootsPem: getCACertificates("default"),
+          }, null, 2));
+          ' > runtime/image-ca/roots.json
       - name: 個人設定と開発者免除の除去を確認
         run: |
           docker run --rm --entrypoint node "$BELLTEAM_SERVER_IMAGE" --input-type=module -e '
@@ -232,7 +249,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: 確認したアーキテクチャのイメージを登録
-        run: docker push "$BELLTEAM_SERVER_IMAGE"
+        run: |
+          docker push "$BELLTEAM_SERVER_IMAGE"
+          image_id=$(node -p 'JSON.parse(require("fs").readFileSync("runtime/image-ca/image-built.json"))[0].Id')
+          docker image inspect "$image_id" > runtime/image-ca/image-published.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: server-image-ca-${{ matrix.arch }}-${{ github.run_attempt }}
+          path: runtime/image-ca/
 
   candidate:
     needs: build
@@ -251,9 +276,18 @@ jobs:
             -t "$IMAGE:$GITHUB_SHA" \
             "$IMAGE:$GITHUB_SHA-amd64" "$IMAGE:$GITHUB_SHA-arm64"
           docker buildx imagetools inspect "$IMAGE:$GITHUB_SHA"
+          mkdir -p runtime/image-index
+          docker buildx imagetools inspect --raw "$IMAGE:$GITHUB_SHA" > runtime/image-index/index.json
+          printf '%s\n' "$GITHUB_SHA" > runtime/image-index/source.txt
+          printf '%s\n' "$IMAGE:$GITHUB_SHA" > runtime/image-index/ref.txt
           {
             echo '## 内部先行利用する候補'
             echo "source: $GITHUB_SHA"
             echo '同じdigestで内部受入を終えてから、安定版反映workflowを実行してください。'
             docker buildx imagetools inspect "$IMAGE:$GITHUB_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: server-image-index-${{ github.run_attempt }}
+          path: runtime/image-index/
