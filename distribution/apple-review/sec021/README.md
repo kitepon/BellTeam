@@ -32,15 +32,15 @@ BELLTEAM_REVIEW_DEX_IMAGE=
 
 ```sh
 cd /home/kite/BellTeam/runtime/apple-review/server
-docker compose up -d --no-deps --no-build bellteam
+docker compose up -d --no-deps --no-build --pull never bellteam
 ```
 
 ```sh
 cd /home/kite/BellTeam/runtime/apple-review/identity
-docker compose up -d --no-deps --no-build dex
+docker compose up -d --no-deps --no-build --pull never dex
 ```
 
-上は保存済みの配置に対応する手順で、現在の配置の再確認を省略しない。必要なimage取得は受入対象の参照へ限定する。合成設定での事前確認には `config` を使い、実設定の展開結果や秘密を通常ログへ出さない。`down`、volumeの削除、DBや資格情報のコピーは更新手順に含めない。
+上は保存済みの配置に対応する手順で、現在の配置の再確認を省略しない。必要なimage取得は受入対象の参照へ限定し、更新の前に済ませる。更新時の [`--pull never`](https://docs.docker.com/reference/cli/docker/compose/up/) は確認済みimageが無い場合の自動取得を止める。合成設定での事前確認には `config` を使い、実設定の展開結果や秘密を通常ログへ出さない。`down`、volumeの削除、DBや資格情報のコピーは更新手順に含めない。
 
 失敗・時間切れ・終端不明では、その時点の結果を保存して止める。別imageへの自動代替、同じ更新の再送、作成済みcontainerの自動削除はしない。戻しは確認した元のimage参照と既存の最新設定・データを使い、別途の許可範囲で同じ追加ファイルへ指定する。古いCAへ戻した対象をSEC021対応済みにしない。
 
