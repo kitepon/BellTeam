@@ -1,0 +1,3 @@
+services:
+  dex:
+    image: ${BELLTEAM_REVIEW_DEX_IMAGE:?Set the accepted review Dex image reference}
