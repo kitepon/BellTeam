@@ -29,12 +29,13 @@ for path in compose.cursor-update.yaml compose.state-maintenance.json scripts/up
 done
 docker compose stop bellteam
 sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
-# The normal entry only starts UID1001's server. Maintenance selects its
-# image-owned shell explicitly and must never run alongside seat writers.
-docker compose run --pull never --rm --no-deps --user 0:0 --entrypoint /bin/sh bellteam -c \
-  'mkdir -p /home/bell /srv/bellteam && chown bell:bell /home/bell /srv/bellteam'
-docker compose run --pull never --rm --no-deps --user 0:0 --entrypoint /usr/local/bin/node \
-  bellteam /app/src/server-state-transfer.mjs to-server
+# Maintenance must use its fixed views and entry, without normal HOME/env.
+config=$(docker compose config --format yaml)
+project=$(printf '%s' "$config" | awk '/^name: / { print $2; exit }')
+unset config
+case "$project" in ''|*[!a-zA-Z0-9_.-]*) echo '通常Composeのproject名を確認できません。BellTeamは停止したままです。' >&2; exit 1;; esac
+docker compose --project-directory "$PWD" -f "$staging/compose.state-maintenance.json" \
+  -p "$project" run --pull never --rm --no-deps -T state-maintenance to-server
 if sh "$staging/scripts/update-cursor.sh"; then
   :
 else

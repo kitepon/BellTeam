@@ -2,7 +2,7 @@
 
 Draft PR42 の途中工程。利用者分離全体はまだ NOTDEPLOYABLE であり、この変更だけを main や本番へ出さない。
 
-公開 installer は Compose の停止成功、全 writer の停止確認、既存の root ディレクトリ準備の後に、image 内の `/usr/local/bin/node /app/src/server-state-transfer.mjs to-server` を UID/GID 0:0 で呼ぶ。通常の server entry は引数を受け取らず UID1001 で起動するため、保守ではこの固定 Node entry を明示する。
+公開 installer は Compose の停止成功と既存 writer 検査の後に、選択image内の固定 `state-maintenance` serviceへ `to-server` を渡す。通常serviceへのroot/entrypoint指定とHOME/data親の一括chownは行わない。実排他の維持と通常再開の受入は未完であり、検査snapshotだけを実行許可にしない。
 
 移行先は既存 component と同じ `/srv/bellteam`。引数は `to-server` または `to-legacy` 一つだけで、外部 path・code・設定を指定できない。実 UID/GID と実効 UID/GID は root を要求する。エラーは code だけを出し、文書本文・headers・path を出さない。移行が失敗したら installer は終了し、Cursor 更新と新旧本体の起動を行わない。途中ファイルや marker は既存 component の再開契約に従う。
 
@@ -20,7 +20,7 @@ Draft PR42 の途中工程。利用者分離全体はまだ NOTDEPLOYABLE であ
 
 親0700/実行者UIDGID一致、内部dir0700/file0600、symlink/hardlink/special拒否、容量不足と書込み/sync/元更新は移行前に終了する。全FDを閉じ、コピーと親directoryのsync後にのみprivate complete.jsonを確定する。失敗した控えは消して再作成せず不完全のまま保持し、既存complete/partialの同方向控えも自動上書きしない。再開は残った正本・控えと停止状況を担当が判断する。戻しは常に最新stateのto-legacyであり、この控えの自動restoreではない。控えの秘密本文/長さ/hashは通常結果へ出さない。
 
-現在のinstallerは専用backup bindをまだ持たず、固定入口はその不足を読書き前に拒否する。通常serviceへbackup bindやroot資格を渡す追加はしていない。専用保守Composeとfreshcreate/独立bind/実root受入/容量・保持期間・回収担当の確定が残るので、Draft NOTDEPLOYABLEを維持する。
+installerはimage-owned専用保守serviceからbackup bindを供給する。通常serviceへbackup bindやroot資格を渡さない。prepare/実排他、freshcreate/独立bind/実root受入/容量・保持期間・回収担当の確定は残るので、Draft NOTDEPLOYABLEを維持する。
 
 ## 独立6領域への内容移動
 
@@ -61,8 +61,8 @@ and backup non-exposure, including a readonly backup bind at another target.
 These are configured paths; host canonical identity, ancestor ACL/alias safety,
 actual mount ordering and a retired old-state view still require real acceptance.
 
-The old installer is still missing the fixed prepare/maintenance flow and shared
-exclusion. This branch remains Draft NOTDEPLOYABLE. These source changes do not
+The installer still lacks the prepare flow and shared exclusion through normal
+restart. This branch remains Draft NOTDEPLOYABLE. These source changes do not
 authorize applying the normal Compose files or starting either server view.
 
 ## 呼出し元の通常Composeを保つ（2026-10-26）
@@ -265,12 +265,36 @@ missing inputs or an unavailable image-owned file stop this path. No host parent
 is created or adopted by this change. These inputs must match the actual normal
 mounts, and the state parent must already satisfy the prepare contract.
 
-This connects only the writer-check denominator. The installer still uses its
-old normal-service maintenance runs, not the fixed maintenance service or prepare
-entry. Writer exclusion through migration, respawn suppression and the normal
-restart remain unconnected. A passing metadata check is not that exclusion.
+This connects the writer-check denominator and fixed maintenance invocation.
+The prepare entry, writer exclusion through migration, respawn suppression and
+the normal restart remain unconnected. A passing metadata check is not that exclusion.
 The new fake-Docker cases stop at rendering and establish no real Compose
 interpolation, writer stop, prepared parent, migration or normal-start acceptance.
+
+## Installer fixed maintenance invocation (source only)
+
+After the existing writer check, the installer reads the normal Compose project
+name from normalized YAML, using the same selection as the existing updater.
+It runs only the image-owned maintenance file with that explicit project and
+the installation project directory, then invokes
+`compose run --pull never --rm --no-deps -T state-maintenance to-server`.
+Normal Compose services are not merged into the run's maintenance configuration.
+It supplies neither a user nor an entrypoint override: the existing fixed
+service owns root identity, env-i, the two views, six leaves, backup, resource
+limits and capabilities. It does not inherit normal HOME, credentials or env.
+The old root normal-service runs and broad parent chown are removed. Unknown
+HOME/state/backup parents are not created or recursively adopted here.
+
+Project read failure, writer refusal or maintenance failure stops before Cursor
+update and normal up. Existing partial migration data is not cleaned by the
+installer; only extracted scripts are removed by its existing staging trap.
+Four new fake-Docker cases cover invocation/model inputs and those failures.
+They do not execute the migration CLI or establish actual data preservation.
+
+Project and maintenance inputs are read again for the run; no configuration/writer lock is
+held by this change. Prepare, actual unchanged input/mount identity, continuous
+writer/respawn exclusion and safe normal restart remain required work. A fake
+successful invocation does not make this Draft deployable or authorize a real run.
 
 Six new artificial Node cases cover the bounded metadata intake and never execute
 Docker or call old tests. They are ordinary in-memory fixtures; their synthetic
