@@ -13,11 +13,11 @@ const botId = /^[a-z0-9][a-z0-9-]{0,63}$/u
 const failure = code => Object.assign(new Error(code), { code })
 const exists = async path => { try { return await lstat(path) } catch (error) { if (error.code === 'ENOENT') return null; throw error } }
 
-function assertSeparateRoots(a, b) {
+function assertSeparateRoots(a, b, code = 'SERVER_STATE_RELOCATION_ALIAS') {
   for (const [root, target] of [[a, b], [b, a]]) {
     const path = relative(root, target)
     if (!path || (path !== '..' && !path.startsWith('..' + sep) && !isAbsolute(path)))
-      throw failure('SERVER_STATE_RELOCATION_ALIAS')
+      throw failure(code)
   }
 }
 
@@ -228,6 +228,8 @@ export async function migrateServerState({ legacyRoot, serverRoot, backupRoot, d
     || !['to-server', 'to-legacy'].includes(direction)) throw failure('SERVER_STATE_TRANSFER_OPTIONS')
   assertSeparateRoots(legacyRoot, serverRoot)
   const options = { root: serverRoot, direction }, roots = { legacyRoot, serverRoot, direction }
+  for (const view of ['legacy', 'server']) for (const root of [legacyRoot, serverRoot])
+    assertSeparateRoots(root, join(backupRoot, view), 'SERVER_STATE_BACKUP_LOCATION')
   const parent = await lstat(backupRoot)
   if (!parent.isDirectory() || parent.uid !== process.geteuid() || parent.gid !== process.getegid() || (parent.mode & 0o777) !== 0o700)
     throw failure('SERVER_STATE_BACKUP_PARENT')
