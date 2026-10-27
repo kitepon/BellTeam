@@ -1,3 +1,4 @@
+import { frozenComposeCases } from './helpers/installer-frozen-compose.mjs'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -22,11 +23,14 @@ async function fixture(t) {
   await writeFile(modelPath, JSON.stringify(model))
   await writeFile(join(bin, 'docker'), `#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_CALLS"
+${frozenComposeCases}
 case "$*" in
  'compose config --images') echo fixture:accepted;;
  'image inspect --format {{.Id}} fixture:accepted') printf 'sha256:%064d\\n' 0;;
  'image inspect --format {{.Id}} sha256:'*) for image do :; done; echo "$image";;
- 'compose config --format json') cat "$TEST_MODEL";;
+ 'compose config --format json')
+   [ "\${TEST_NORMAL_CONFIG_FAILURE:-0}" = 0 ] || exit 53
+   node -e 'const c=JSON.parse(require("node:fs").readFileSync(process.env.TEST_MODEL));c.name=process.env.COMPOSE_PROJECT_NAME||process.env.TEST_DOTENV_PROJECT||c.name;console.log(JSON.stringify(c))';;
  'compose config --format yaml')
    count=0; if [ -f "$TEST_COUNT" ]; then count=$(cat "$TEST_COUNT"); fi
    count=$((count+1)); echo "$count" > "$TEST_COUNT"
@@ -67,8 +71,12 @@ test('installer invokes the standalone image-owned fixed service with the normal
     assert.ok(transfer > calls.findIndex(call => call.endsWith('/app/src/server-state-writers.mjs verify')))
     assert.ok(calls.findIndex(call => call.endsWith('--no-deps cursor-update')) > transfer)
     assert.doesNotMatch(calls.join('\n'), /compose run .*--user 0:0|--entrypoint \/bin\/sh bellteam|bellteam \/app\/src\/server-state-transfer/)
-    assert.deepEqual((await readFile(f.files['maintenance-env'], 'utf8')).trimEnd().split('\n'), [normal, project, pinnedImage, project || 'dotenv-project'])
-    assert.deepEqual(await readFile(f.files['maintenance-file']), await readFile(join(f.image, 'compose.state-maintenance.json')))
+    const [frozenFile, frozenProject, selectedImage, runProject] = (await readFile(f.files['maintenance-env'], 'utf8')).trimEnd().split('\n')
+    assert.ok(frozenFile.endsWith('/normal.json'))
+    assert.deepEqual([frozenProject, selectedImage, runProject], [project || 'dotenv-project', pinnedImage, project || 'dotenv-project'])
+    const model = JSON.parse(await readFile(f.files['maintenance-file'], 'utf8'))
+    assert.deepEqual(Object.keys(model.services), ['state-maintenance'])
+    assert.equal(model.services['state-maintenance'].image, pinnedImage)
     assert.doesNotMatch(stdout, /synthetic-normal-only/)
   }
 })
@@ -82,7 +90,7 @@ test('maintenance failure propagates once and retains partial state without Curs
   assert.equal(await readFile(f.files.partial, 'utf8'), 'synthetic-partial-held\n')
 })
 
-test('normal project read failure after writer check stops before maintenance or subsequent startup', async t => {
+test('normal capture failure stops before the service is stopped or maintenance starts', async t => {
   const f = await fixture(t)
   await assert.rejects(f.run({ TEST_NORMAL_CONFIG_FAILURE: '1' }), error => error.code === 53)
   assert.doesNotMatch(await readFile(f.files.calls, 'utf8'), /state-maintenance to-server|compose run .*--user 0:0|--no-deps cursor-update|compose up /)

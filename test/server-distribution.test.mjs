@@ -1,3 +1,4 @@
+import { frozenComposeCases } from './helpers/installer-frozen-compose.mjs'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -28,9 +29,10 @@ test('installerはDockerの起動完了後に直接接続URLと公式認証の�
   await mkdir(join(root, 'bin'))
   await writeFile(join(root, 'bin/docker'), `#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_COMMANDS"
+${frozenComposeCases}
 if [ "$2" = config ] && [ "$3" = --images ]; then printf '%s\\n' "\${TEST_IMAGES-fixture-server}"; fi
 if [ "$2" = config ] && [ "$3" = --format ]; then
-  if [ "$4" = json ]; then printf '%s\\n' '{"services":{"bellteam":{"environment":{"SECRET":"synthetic-only"}}}}'
+  if [ "$4" = json ]; then printf '%s\\n' '{"name":"fixture","services":{"bellteam":{"image":"fixture-server","environment":{"SECRET":"synthetic-only"}}}}'
   else printf '%s\\n' 'name: fixture' 'services:' '  bellteam:' '    environment:' '      BELLTEAM_BUGHUB_KEY: synthetic-only' 'volumes:' '  cursor-cli:' '    name: fixture-cursor'; fi
 fi
 if [ "$2" = port ]; then printf '%s\\n' "$TEST_ENDPOINT"; fi
@@ -61,13 +63,12 @@ esac
     assert.match(stdout, /公式サイトで認証/)
     const calls = (await readFile(commands, 'utf8')).trim().split('\n')
     assert.equal(calls[0], 'compose pull')
-    assert.equal(calls[1], 'compose config --images')
-    assert.equal(calls[2], 'image inspect --format {{.Id}} fixture-server')
-    assert.equal(calls[3], `run --pull never --rm --network none --read-only --entrypoint /bin/cat ${pinnedImage} /app/compose.cursor-update.yaml`)
-    assert.equal(calls[4], `run --pull never --rm --network none --read-only --entrypoint /bin/cat ${pinnedImage} /app/compose.state-maintenance.json`)
-    assert.equal(calls[5], `run --pull never --rm --network none --read-only --entrypoint /bin/cat ${pinnedImage} /app/compose.state-prepare.yaml`)
-    assert.equal(calls[6], `run --pull never --rm --network none --read-only --entrypoint /bin/cat ${pinnedImage} /app/scripts/update-cursor.sh`)
-    assert.equal(calls[7], `run --pull never --rm --network none --read-only --entrypoint /bin/cat ${pinnedImage} /app/scripts/assert-state-writers-stopped.sh`)
+    assert.equal(calls[1], 'compose config --format json')
+    assert.ok(calls.some(call => /compose -f .*normal.raw.json config --images/.test(call)))
+    assert.ok(calls.indexOf('image inspect --format {{.Id}} fixture-server') < calls.indexOf('compose stop bellteam'))
+    const extracted = calls.filter(call => call.startsWith('run --pull never --rm --network none --read-only --entrypoint /bin/cat '))
+    assert.deepEqual(extracted, ['compose.cursor-update.yaml', 'compose.state-maintenance.json', 'compose.state-prepare.yaml', 'scripts/update-cursor.sh', 'scripts/assert-state-writers-stopped.sh']
+      .map(path => `run --pull never --rm --network none --read-only --entrypoint /bin/cat ${pinnedImage} /app/${path}`))
     const stopped = calls.indexOf('compose stop bellteam')
     const verified = calls.findIndex(call => call.endsWith('/app/src/server-state-writers.mjs verify'))
     const updated = calls.findIndex(call => call.endsWith('--no-deps cursor-update'))
@@ -105,7 +106,8 @@ esac
     env: { ...env, TEST_ENDPOINT: '127.0.0.1:18891' },
   })
   const localCalls = (await readFile(commands, 'utf8')).trim().split('\n')
-  assert.deepEqual(localCalls.slice(0, 2), ['compose config --images', 'image inspect fixture-server'])
+  assert.equal(localCalls[0], 'compose config --format json')
+  assert.ok(localCalls.includes('image inspect fixture-server'))
   assert.ok(!localCalls.includes('compose pull'))
   assert.ok(localCalls.some(call => call.endsWith('--no-deps cursor-update')))
   assert.ok(localCalls.includes('compose up -d --wait --wait-timeout 120 --pull never'))

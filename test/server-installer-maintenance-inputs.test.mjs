@@ -1,3 +1,4 @@
+import { frozenComposeCases } from './helpers/installer-frozen-compose.mjs'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -19,12 +20,13 @@ async function fixture(t) {
     await copyFile(new URL('../' + path, import.meta.url), join(image, path))
   await writeFile(join(bin, 'docker'), `#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_CALLS"
+${frozenComposeCases}
 case "$*" in
  'compose config --images') echo fixture-server;;
  'image inspect --format {{.Id}} fixture-server') printf 'sha256:%064d\\n' 0;;
  'image inspect --format {{.Id}} sha256:'*) for image do :; done; echo "$image";;
  'compose config --format json')
-   cat "$TEST_NORMAL_MODEL";;
+   node -e 'const c=JSON.parse(require("node:fs").readFileSync(process.env.TEST_NORMAL_MODEL));c.name=process.env.COMPOSE_PROJECT_NAME||c.name;console.log(JSON.stringify(c))';;
  'compose --project-directory '*'/install -f - -f '*'/compose.state-maintenance.json config --format json --no-path-resolution')
       cat > "$TEST_MODEL_IN"
       printf '%s\\n%s\\n%s\\n' "$COMPOSE_FILE" "\${COMPOSE_PROJECT_NAME-}" "\${BELLTEAM_SERVER_IMAGE-}" > "$TEST_RENDER"
@@ -68,10 +70,13 @@ test('installer merges the image-owned maintenance file into the full normal mod
     await writeFile(f.calls, '')
     await assert.rejects(f.run({ COMPOSE_FILE: normal, COMPOSE_PATH_SEPARATOR: separator }), error => error.code === 47)
     const [files, project, image] = (await readFile(f.rendered, 'utf8')).trimEnd().split('\n')
-    assert.equal(files, normal)
+    assert.ok(files.endsWith('/normal.json'))
     assert.equal(project, 'existing-project'); assert.equal(image, pinnedImage)
-    assert.deepEqual(JSON.parse(await readFile(f.modelIn, 'utf8')), JSON.parse(await readFile(f.normalModel, 'utf8')))
-    assert.deepEqual(await readFile(f.renderedJson), await readFile(join(f.image, 'compose.state-maintenance.json')))
+    const expected = JSON.parse(await readFile(f.normalModel, 'utf8')); expected.name = 'existing-project'; expected.services.bellteam.image = pinnedImage
+    assert.deepEqual(JSON.parse(await readFile(f.modelIn, 'utf8')), expected)
+    const model = JSON.parse(await readFile(f.renderedJson, 'utf8'))
+    assert.deepEqual(Object.keys(model.services), ['state-maintenance'])
+    assert.equal(model.services['state-maintenance'].image, pinnedImage)
     const calls = await readFile(f.calls, 'utf8')
     assert.ok(calls.includes(`compose --project-directory ${f.install} -f - -f `))
     assert.match(calls, /compose stop bellteam\n/)

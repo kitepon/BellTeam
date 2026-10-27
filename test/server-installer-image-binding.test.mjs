@@ -1,3 +1,4 @@
+import { frozenComposeCases } from './helpers/installer-frozen-compose.mjs'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -20,6 +21,7 @@ async function fixture(t) {
   const calls = join(root, 'calls'), runs = join(root, 'runs'), inspected = join(root, 'inspected')
   await writeFile(join(bin, 'docker'), `#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_CALLS"
+${frozenComposeCases}
 case "$*" in
  'compose config --images')
    if [ "\${TEST_FIXED_TAG:-0}" = 1 ]; then echo fixture:mutable
@@ -33,7 +35,7 @@ case "$*" in
        else echo "$TEST_OLD_ID"; : > "$TEST_INSPECTED"; fi;;
      "$TEST_OLD_ID"|"$TEST_NEW_ID") echo "$image";;
    esac;;
- 'compose config --format json') echo '{"services":{}}';;
+ 'compose config --format json') echo '{"name":"fixture","services":{"bellteam":{"image":"fixture:mutable"}}}';;
  'compose config --format yaml') printf '%s\\n' 'name: fixture' 'volumes:' '  cursor-cli:' '    name: fixture-cursor';;
  'compose --project-directory '*'/install -f - -f '*'/compose.state-maintenance.json config --format json --no-path-resolution') cat;;
  *'/app/src/server-state-writers.mjs plan') cat >/dev/null; echo '{"roots":[],"volume":"fixture-cursor"}';;
@@ -70,10 +72,11 @@ test('failure to resolve the initial image ID leaves the normal service untouche
   assert.doesNotMatch(await readFile(f.calls, 'utf8'), /compose stop|--entrypoint \/bin\/cat|state-prepare|state-maintenance to-server|--no-deps cursor-update|compose up /)
 })
 
-test('maintenance writer check rejects a reselected different image before reader, prepare or migration', async t => {
+test('a fixed normal image tag is captured before it can be reselected', async t => {
   const f = await fixture(t)
-  await assert.rejects(f.run({ TEST_FIXED_TAG: '1' }), error => error.code === 1 && /SERVER_STATE_IMAGE_CHANGED/.test(error.stderr))
+  await f.run({ TEST_FIXED_TAG: '1' })
   const calls = await readFile(f.calls, 'utf8')
   assert.match(calls, /compose stop bellteam/)
-  assert.doesNotMatch(calls, /\/app\/src\/server-state-writers.mjs|-T state-prepare|state-maintenance to-server|--no-deps cursor-update|compose up /)
+  assert.ok(!calls.includes(newId))
+  assert.deepEqual((await readFile(f.runs, 'utf8')).trimEnd().split('\n'), [oldId, oldId, oldId])
 })

@@ -8,7 +8,12 @@ case "$#:${1-}" in
   *) echo '使い方: sh install.sh [--no-pull]' >&2; exit 2 ;;
 esac
 if "$pull"; then docker compose pull; fi
-image=$(docker compose config --images)
+umask 077
+staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-install.XXXXXX")
+trap 'rm -rf "$staging"' 0
+trap 'exit 1' 1 2 15
+docker compose config --format json > "$staging/normal.raw.json"
+image=$(docker compose -f "$staging/normal.raw.json" config --images)
 case "$image" in ''|*[[:space:]]*) echo 'BellTeamのサーバーイメージを1つ指定してください。' >&2; exit 1;; esac
 if ! "$pull" && ! docker image inspect "$image" >/dev/null; then
   echo '指定したローカルイメージがありません。先にビルドしてください。起動中のBellTeamは変更していません。' >&2
@@ -18,9 +23,6 @@ image=$(docker image inspect --format '{{.Id}}' "$image")
 BELLTEAM_SERVER_IMAGE=$image
 export BELLTEAM_SERVER_IMAGE
 # 2fileだけの設置でも、取得したimageと同じ更新手順を使う。ホストへ依存を入れない。
-staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-install.XXXXXX")
-trap 'rm -rf "$staging"' 0
-trap 'exit 1' 1 2 15
 mkdir "$staging/scripts"
 for path in compose.cursor-update.yaml compose.state-maintenance.json compose.state-prepare.yaml scripts/update-cursor.sh scripts/assert-state-writers-stopped.sh; do
   if ! docker run --pull never --rm --network none --read-only --entrypoint /bin/cat "$image" "/app/$path" > "$staging/$path"; then
@@ -28,13 +30,45 @@ for path in compose.cursor-update.yaml compose.state-maintenance.json compose.st
     exit 1
   fi
 done
+for path in compose.state-prepare.yaml compose.state-maintenance.json; do
+  docker compose --project-directory "$PWD" -f "$staging/$path" \
+    config --format json --no-path-resolution > "$staging/$path.raw"
+done
+# Keep label keys literal; Compose config escapes dollars in keys as well as values.
+{
+  printf '['; cat "$staging/normal.raw.json"
+  printf ','; cat "$staging/compose.state-prepare.yaml.raw"
+  printf ','; cat "$staging/compose.state-maintenance.json.raw"; printf ']'
+} | docker run --pull never --rm -i --network none --read-only \
+  --entrypoint /usr/local/bin/node "$image" -e '
+const fs=require("node:fs"), path=require("node:path");
+try {
+  const models=JSON.parse(fs.readFileSync(0,"utf8").replaceAll("$$","$"));
+  const [normal,prepare,maintenance]=models;
+  if(typeof normal.name!=="string") throw new Error();
+  normal.services.bellteam.image=process.argv[1];
+  const p=prepare.services["state-prepare"], m=maintenance.services["state-maintenance"];
+  const parent=p.volumes.find(v=>v.target==="/srv/bellteam-state-parent").source;
+  const state=m.volumes.find(v=>v.target==="/srv/bellteam/state").source;
+  if(p.image!==process.argv[1]||m.image!==process.argv[1]||!path.isAbsolute(parent)
+    ||path.resolve(state)!==path.join(parent,"state")) throw new Error();
+  console.log(normal.name);
+  for(const model of models) console.log(JSON.stringify(model,(_key,value)=>
+    typeof value==="string"?value.replaceAll("$",()=>"$$"):value));
+} catch { console.error("SERVER_STATE_CONFIG_UNAVAILABLE"); process.exitCode=1; }
+' "$image" > "$staging/models.jsonl"
+project=$(sed -n '1p' "$staging/models.jsonl")
+case "$project" in ''|*[!a-zA-Z0-9_.-]*) echo '通常Composeのproject名を確認できません。起動中のBellTeamは変更していません。' >&2; exit 1;; esac
+sed -n '2p' "$staging/models.jsonl" > "$staging/normal.json"
+sed -n '3p' "$staging/models.jsonl" > "$staging/compose.state-prepare.yaml"
+sed -n '4p' "$staging/models.jsonl" > "$staging/compose.state-maintenance.json"
+COMPOSE_FILE="$staging/normal.json"
+# shortcut: label-based later operations need a persistent model before rollout.
+COMPOSE_PROJECT_NAME=$project
+export COMPOSE_FILE COMPOSE_PROJECT_NAME
 docker compose stop bellteam
 sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
 # Maintenance must use its fixed views and entry, without normal HOME/env.
-config=$(docker compose config --format yaml)
-project=$(printf '%s' "$config" | awk '/^name: / { print $2; exit }')
-unset config
-case "$project" in ''|*[!a-zA-Z0-9_.-]*) echo '通常Composeのproject名を確認できません。BellTeamは停止したままです。' >&2; exit 1;; esac
 docker compose --project-directory "$PWD" -f "$staging/compose.state-prepare.yaml" \
   -p "$project" run --pull never --rm --no-deps -T state-prepare
 docker compose --project-directory "$PWD" -f "$staging/compose.state-maintenance.json" \

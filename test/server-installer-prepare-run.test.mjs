@@ -1,3 +1,4 @@
+import { frozenComposeCases } from './helpers/installer-frozen-compose.mjs'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -19,11 +20,12 @@ async function fixture(t) {
   const calls = join(root, 'calls'), file = join(root, 'prepare-file'), inputs = join(root, 'prepare-inputs'), partial = join(root, 'partial')
   await writeFile(join(bin, 'docker'), `#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_CALLS"
+${frozenComposeCases}
 case "$*" in
  'compose config --images') echo fixture:accepted;;
  'image inspect --format {{.Id}} fixture:accepted') printf 'sha256:%064d\\n' 0;;
  'image inspect --format {{.Id}} sha256:'*) for image do :; done; echo "$image";;
- 'compose config --format json') echo '{"services":{}}';;
+ 'compose config --format json') printf '{"name":"%s","services":{"bellteam":{"image":"fixture:accepted"}}}\\n' "\${COMPOSE_PROJECT_NAME:-dotenv-project}";;
  'compose config --format yaml') printf '%s\\n' "name: \${COMPOSE_PROJECT_NAME:-dotenv-project}" 'volumes:' '  cursor-cli:' '    name: fixture-cursor';;
  'compose --project-directory '*'/install -f - -f '*'/compose.state-maintenance.json config --format json --no-path-resolution') cat;;
  *'/app/src/server-state-writers.mjs plan') cat >/dev/null; echo '{"roots":[],"volume":"fixture-cursor"}';;
@@ -60,7 +62,9 @@ test('installer runs the image-owned prepare alone after writer check and before
     assert.ok(prepare > verify && verify >= 0 && migration > prepare)
     assert.ok(calls.findIndex(call => call.endsWith('--no-deps cursor-update')) > migration)
     assert.ok(calls.indexOf('compose up -d --wait --wait-timeout 120 --pull never') > migration)
-    assert.deepEqual(await readFile(f.file), await readFile(join(f.image, 'compose.state-prepare.yaml')))
+    const model = JSON.parse(await readFile(f.file, 'utf8'))
+    assert.deepEqual(Object.keys(model.services), ['state-prepare'])
+    assert.equal(model.services['state-prepare'].image, pinnedImage)
     assert.deepEqual((await readFile(f.inputs, 'utf8')).trimEnd().split('\n'),
       [project || 'dotenv-project', pinnedImage, '/private/state-parent', '/installation/legacy', '/private/backups'])
     assert.doesNotMatch(calls[prepare], /-f -|state-prepare .+/)

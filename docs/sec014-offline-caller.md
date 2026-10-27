@@ -252,13 +252,32 @@ before the existing JSON parse, so literal dollar-containing host paths match
 Docker inspect paths. Direct `stateWriterPlan(config)` callers still supply the
 actual model; Docker inspect/canonical metadata is never unescaped.
 
-Full normal-model capture remains unconnected. With official Compose 5.6.1,
+Direct config output is not used as the frozen model. With official Compose 5.6.1,
 reloading either JSON or YAML `config` output changes a label key containing `$`
 because the output escapes keys while input interpolation only handles values.
 An offline `.env`-selected, different-first-file-directory case preserves values,
 mounts and project but changes the effective service hash. `--no-interpolate`
 leaves original variables unresolved. Do not use that round-trip as a normal
 startup model or infer configuration lifetime/writer exclusion from this fix.
+
+The installer now captures normal, image-owned prepare and image-owned maintenance
+models before stopping the service, in its existing private temporary directory
+with umask 077. It restores Compose's global dollar escaping, pins the normal
+image to the selected local ID, and serializes only string values with dollar
+escaping. Label keys stay literal. Project selection comes from the same normal
+capture and is exported with its frozen `COMPOSE_FILE` for stop, writer check,
+Cursor update, normal up and port lookup. Prepare/maintenance retain separate
+standalone models, and their parent/state source correspondence is checked before
+stop. A render/parse/correspondence failure does not stop the existing service.
+
+The checker merges the frozen maintenance model with that same frozen normal
+model for its existing mount checks; each actual state service uses its own file.
+Original Compose inputs are not reread after the captures. External files named
+by the model (for example secret/config file contents) and host inode identity
+are not frozen. Temporary model cleanup also means Compose container labels can
+refer to a removed staging configuration; later operations that reconstruct
+configuration from those labels are not accepted by this source change. No writer
+lifetime/respawn exclusion or real migration/startup acceptance is established.
 
 The installer extracts `compose.state-maintenance.json` from the selected image
 along with its existing writer-check script. It passes that image selection as
