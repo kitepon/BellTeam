@@ -17,7 +17,7 @@ async function fixture(t, failure = '') {
   const docker = `#!/usr/bin/env node
 const fs=require('node:fs'),a=process.argv.slice(2),fail=process.env.FAIL
 fs.appendFileSync(process.env.CALLS,JSON.stringify(a)+'\\n')
-if(a[0]==='container'&&a[1]==='inspect') {if(fail==='inspect'){process.stdout.write('partial');process.exit(6)}console.log('${cid} ${previous}')}
+if(a[0]==='container'&&a[1]==='inspect') {if(fail==='inspect'){process.stdout.write('partial');process.exit(6)}console.log(a.includes('{{.Id}} {{.Image}}')?'${cid} ${previous}':'volume bellteam_cursor-cli')}
 if(a[0]==='image'&&a[1]==='save'){fs.writeFileSync(a[a.indexOf('--output')+1],fail==='save'?'partial-image':'synthetic-image-bytes');if(fail==='save')process.exit(7)}
 if(a[0]==='run')process.stdout.write(a.at(-1).endsWith('update-cursor.sh')?'#!/bin/sh\\ndocker fixture-cursor\\n':'services: {}\\n')
 `

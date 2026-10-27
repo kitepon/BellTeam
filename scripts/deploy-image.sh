@@ -29,6 +29,12 @@ docker image save --output "$previous/image.tar" "$previous_image"
 sha256sum "$previous/image.tar" > "$previous/image.tar.sha256"
 printf 'previous-image=%s\n' "$previous"
 
+# 内部overlayと同じvolumeの全fileを、同じ旧CIDから読む。
+docker container inspect --format '{{range .Mounts}}{{if eq .Destination "/home/bell/.local"}}{{.Type}} {{.Name}}{{end}}{{end}}' "$previous_container" > "$previous/cursor-volume.txt"
+[ "$(cat "$previous/cursor-volume.txt")" = 'volume bellteam_cursor-cli' ] || { echo 'Cursor volumeを確認できません。更新は開始していません。' >&2; exit 1; }
+docker exec --user bell "$previous_container" /bin/tar --numeric-owner -C /home/bell/.local -cf - . > "$previous/cursor.tar"
+sha256sum "$previous/cursor.tar" > "$previous/cursor.tar.sha256"
+
 # 取得・資材準備の失敗では、旧本体を止めない。
 docker compose pull bellteam
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-deploy-image.XXXXXX")

@@ -26,13 +26,13 @@ const args = process.argv.slice(2)
 fs.appendFileSync(process.env.FIXTURE_LOG, JSON.stringify({args,cwd:process.cwd(),
   compose:process.env.COMPOSE_FILE,project:process.env.COMPOSE_PROJECT_NAME,
   image:process.env.BELLTEAM_SERVER_IMAGE,profile:process.env.BELLTEAM_INTERNAL_PROFILE_FILE})+'\\n')
-if (args[0] === 'container' && args[1] === 'inspect') console.log('${'c'.repeat(64)} sha256:${'d'.repeat(64)}')
+if (args[0] === 'container' && args[1] === 'inspect') console.log(args.includes('{{.Id}} {{.Image}}') ? '${'c'.repeat(64)} sha256:${'d'.repeat(64)}' : 'volume bellteam_cursor-cli')
 if (args[0] === 'image' && args[1] === 'save') fs.writeFileSync(args[args.indexOf('--output')+1], 'synthetic-image')
 if (args[0] === 'run') {
   if (process.env.FIXTURE_FAIL === 'extract') process.exit(8)
   process.stdout.write(args.at(-1).endsWith('update-cursor.sh') ? fs.readFileSync(process.env.FIXTURE_UPDATER) : 'services: {}\\n')
 }
-if (args[0] === 'exec') {
+if (args[0] === 'exec' && args.includes('--input-type=module')) {
   const count = Number(fs.readFileSync(process.env.FIXTURE_COUNT))+1
   fs.writeFileSync(process.env.FIXTURE_COUNT, String(count))
   if (process.env.FIXTURE_FAIL === 'quiet'+count) { console.log('fixture quiet refusal'); process.exit(2) }
@@ -57,7 +57,7 @@ test('商用imageは同じdigest・構成で取得し、旧本体のquiet2点を
   assert.match(stdout,/deploy-exit=0/u)
   const calls = await f.calls()
   assert.deepEqual(calls.map(row => row.args[0] === 'compose' ? row.args[1] : row.args[0]),
-    ['container','image','pull','run','run','exec','fixture-cursor','exec','up'])
+    ['container','image','container','exec','pull','run','run','exec','fixture-cursor','exec','up'])
   for (const row of calls) {
     assert.equal(row.cwd,f.root)
     assert.equal(row.compose,`${f.root}/distribution/server/compose.yaml:${f.root}/distribution/internal/compose.overlay.yaml`)
@@ -80,7 +80,7 @@ for (const [failure,code,quiet,cursor,up] of [
   const result=await exec('sh',['scripts/deploy-image.sh'],{cwd:f.root,env:{...f.env,FIXTURE_FAIL:failure}}).catch(error=>error)
   assert.equal(result.code,code);assert.match(result.stdout,new RegExp(`deploy-exit=${code}`,'u'))
   const calls=await f.calls()
-  assert.equal(calls.filter(row=>row.args[0]==='exec').length,quiet)
+  assert.equal(calls.filter(row=>row.args[0]==='exec'&&row.args.includes('--input-type=module')).length,quiet)
   assert.equal(calls.filter(row=>row.args[0]==='fixture-cursor').length,cursor)
   assert.equal(calls.filter(row=>row.args[0]==='compose'&&row.args[1]==='up').length,up)
   assert.equal(calls.some(row=>row.args.includes('stop')||row.args.includes('build')),false)
