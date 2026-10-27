@@ -67,6 +67,13 @@ async function equalFiles(a, b) {
     }
   }))
 }
+async function removeUnchangedSource(source, before) {
+  const after = await lstat(source)
+  if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.ctimeMs !== after.ctimeMs
+    || before.mtimeMs !== after.mtimeMs || !after.isFile() || after.nlink !== 1) throw failure('SERVER_STATE_FILE_CHANGED')
+  await unlink(source)
+  await syncDirectory(dirname(source))
+}
 async function moveFile(source, destination, root) {
   const before = await useFile(await regular(source), file => file.stat())
   await directory(dirname(destination))
@@ -85,11 +92,7 @@ async function moveFile(source, destination, root) {
     } finally { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error }) }
   }
   await syncAncestors(dirname(destination), root)
-  const after = await lstat(source)
-  if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.ctimeMs !== after.ctimeMs
-    || before.mtimeMs !== after.mtimeMs || !after.isFile() || after.nlink !== 1) throw failure('SERVER_STATE_FILE_CHANGED')
-  await unlink(source)
-  await syncDirectory(dirname(source))
+  await removeUnchangedSource(source, before)
 }
 async function moveTree(source, destination, root, keepRoot = false) {
   const info = await exists(source)
@@ -210,10 +213,10 @@ export async function transferServerState({ root, direction }) {
     const source = join(root, a), target = join(root, b)
     if (!await exists(source)) continue
     if (a.endsWith('/ai-control.json')) {
+      const before = await useFile(await regular(source), file => file.stat())
       await transferAiControlState({ legacyRoot: root, stateRoot: join(root, 'state'), direction })
       await syncAncestors(dirname(target), root)
-      await unlink(source)
-      await syncDirectory(dirname(source))
+      await removeUnchangedSource(source, before)
     } else await moveFile(source, target, root)
   }
   await syncAncestors(to, root)
