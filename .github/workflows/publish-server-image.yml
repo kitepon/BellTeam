@@ -93,6 +93,7 @@ jobs:
           YAML
           chmod 644 "$evidence/config.yaml"
           docker run --pull never -d --read-only --cap-drop ALL --memory 256m --cpus 1 --pids-limit 128 \
+            --tmpfs /tmp:rw,noexec,nosuid,size=16m,mode=1777 \
             -p 127.0.0.1:5556:5556 \
             --mount "type=bind,source=$PWD/$evidence/config.yaml,target=/etc/dex/config.yaml,readonly" \
             "$id" dex serve /etc/dex/config.yaml > "$evidence/cid.txt"
