@@ -35,7 +35,10 @@ head="$(git rev-parse HEAD)"
 ssh "$host" "cd $dir && git fetch -q origin && if [ -n \"\$(git status --porcelain --untracked-files=no)\" ]; then git status -s --untracked-files=no; echo '本番に未commitの変更がある。GitHubへ取り込んでから反映する。' >&2; exit 1; fi && git merge -q --ff-only origin/main && test \"\$(git rev-parse HEAD)\" = $head && git log --oneline -1"
 
 # 反映で止まるBotを控える（処理待ち一覧も保存する）。再開の声かけは送らない（オーナー裁定 2026-09-03）。
-busy="$(ssh "$host" "cd $dir && mkdir -p runtime/backups && queue=runtime/backups/queue-before-deploy-\$(date +%Y%m%dT%H%M).json && docker exec bellteam curl -fsS http://127.0.0.1:4181/api/queue > \"\$queue\" && node -e 'const d=JSON.parse(require(\"fs\").readFileSync(process.argv[1],\"utf8\"));console.log([...new Set(d.items.map(i=>i.botId||i.target))].join(\" \"))' \"\$queue\"")"
+if ! busy="$(ssh "$host" "cd $dir && mkdir -p runtime/backups && queue=runtime/backups/queue-before-deploy-\$(date +%Y%m%dT%H%M).json && docker exec bellteam curl -fsS http://127.0.0.1:4181/api/queue > \"\$queue\" && node -e 'const d=JSON.parse(require(\"fs\").readFileSync(process.argv[1],\"utf8\"));console.log([...new Set(d.items.map(i=>i.botId||i.target))].join(\" \"))' \"\$queue\"" 2>/dev/null)"; then
+  echo '処理待ち一覧を保存・確認できない。反映は開始していない。' >&2
+  exit 1
+fi
 printf '作業中のBot: %s\n' "${busy:-なし}"
 
 # 反映は本番側で切り離して走らせる。指定imageは再buildせず、受け入れた実物を使う。
