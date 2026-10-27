@@ -10,12 +10,13 @@ esac
 if "$pull"; then docker compose pull; fi
 image=$(docker compose config --images)
 case "$image" in ''|*[[:space:]]*) echo 'BellTeamのサーバーイメージを1つ指定してください。' >&2; exit 1;; esac
-BELLTEAM_SERVER_IMAGE=$image
-export BELLTEAM_SERVER_IMAGE
 if ! "$pull" && ! docker image inspect "$image" >/dev/null; then
   echo '指定したローカルイメージがありません。先にビルドしてください。起動中のBellTeamは変更していません。' >&2
   exit 1
 fi
+image=$(docker image inspect --format '{{.Id}}' "$image")
+BELLTEAM_SERVER_IMAGE=$image
+export BELLTEAM_SERVER_IMAGE
 # 2fileだけの設置でも、取得したimageと同じ更新手順を使う。ホストへ依存を入れない。
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-install.XXXXXX")
 trap 'rm -rf "$staging"' 0

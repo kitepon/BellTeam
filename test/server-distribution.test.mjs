@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import test from 'node:test'
 
-const exec = promisify(execFile)
+const exec = promisify(execFile), pinnedImage = 'sha256:' + 'a'.repeat(64)
 
 // installerのDocker入口を記録し、正常起動後に接続先を返すことを確認する。
 test('installerはDockerの起動完了後に直接接続URLと公式認証の案内を返す', async t => {
@@ -39,10 +39,11 @@ case "$*" in
   'compose --project-directory '*'/install -f '*'/compose.state-maintenance.json -p '*' run --pull never --rm --no-deps -T state-maintenance to-server') exit "\${TEST_TRANSFER_EXIT:-0}";;
   'image inspect fixture-server') exit "\${TEST_INSPECT_EXIT:-0}";;
   'image inspect --format {{.Id}} fixture-server') printf 'sha256:%s\\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;;
+  'image inspect --format {{.Id}} sha256:'*) for image do :; done; echo "$image";;
   *'/app/src/server-state-writers.mjs plan') printf '%s\\n' '{"roots":["/fixture/data","/fixture/home"],"volume":"fixture-cursor"}';;
   *'/app/src/server-state-writers.mjs sources') printf 'planned\\n%s\\n' "$TEST_IMAGE";;
   *'/app/src/server-state-writers.mjs verify') exit "\${TEST_WRITERS_EXIT:-0}";;
-  'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/'*)
+  'run --pull never --rm --network none --read-only --entrypoint /bin/cat '*'/app/'*)
     [ "\${TEST_EXTRACT_EXIT:-0}" = 0 ] || exit "$TEST_EXTRACT_EXIT"
     for path do :; done
     cat "$TEST_IMAGE/\${path#/app/}";;
@@ -61,11 +62,12 @@ esac
     const calls = (await readFile(commands, 'utf8')).trim().split('\n')
     assert.equal(calls[0], 'compose pull')
     assert.equal(calls[1], 'compose config --images')
-    assert.equal(calls[2], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/compose.cursor-update.yaml')
-    assert.equal(calls[3], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/compose.state-maintenance.json')
-    assert.equal(calls[4], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/compose.state-prepare.yaml')
-    assert.equal(calls[5], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/scripts/update-cursor.sh')
-    assert.equal(calls[6], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/scripts/assert-state-writers-stopped.sh')
+    assert.equal(calls[2], 'image inspect --format {{.Id}} fixture-server')
+    assert.equal(calls[3], `run --pull never --rm --network none --read-only --entrypoint /bin/cat ${pinnedImage} /app/compose.cursor-update.yaml`)
+    assert.equal(calls[4], `run --pull never --rm --network none --read-only --entrypoint /bin/cat ${pinnedImage} /app/compose.state-maintenance.json`)
+    assert.equal(calls[5], `run --pull never --rm --network none --read-only --entrypoint /bin/cat ${pinnedImage} /app/compose.state-prepare.yaml`)
+    assert.equal(calls[6], `run --pull never --rm --network none --read-only --entrypoint /bin/cat ${pinnedImage} /app/scripts/update-cursor.sh`)
+    assert.equal(calls[7], `run --pull never --rm --network none --read-only --entrypoint /bin/cat ${pinnedImage} /app/scripts/assert-state-writers-stopped.sh`)
     const stopped = calls.indexOf('compose stop bellteam')
     const verified = calls.findIndex(call => call.endsWith('/app/src/server-state-writers.mjs verify'))
     const updated = calls.findIndex(call => call.endsWith('--no-deps cursor-update'))

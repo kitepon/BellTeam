@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import test from 'node:test'
 
-const exec = promisify(execFile)
+const exec = promisify(execFile), pinnedImage = 'sha256:' + '0'.repeat(64)
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'installer-maintenance-inputs-'))
   t.after(() => rm(root, { recursive: true, force: true }))
@@ -15,13 +15,14 @@ async function fixture(t) {
   const installer = process.env.INSTALLER_UNDER_TEST
     ? resolve(process.env.INSTALLER_UNDER_TEST) : new URL('../distribution/server/install.sh', import.meta.url)
   await copyFile(installer, join(install, 'install.sh'))
-  for (const path of ['scripts/update-cursor.sh', 'scripts/assert-state-writers-stopped.sh', 'compose.cursor-update.yaml', 'compose.state-maintenance.json'])
+  for (const path of ['scripts/update-cursor.sh', 'scripts/assert-state-writers-stopped.sh', 'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'compose.state-prepare.yaml'])
     await copyFile(new URL('../' + path, import.meta.url), join(image, path))
   await writeFile(join(bin, 'docker'), `#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_CALLS"
 case "$*" in
  'compose config --images') echo fixture-server;;
  'image inspect --format {{.Id}} fixture-server') printf 'sha256:%064d\\n' 0;;
+ 'image inspect --format {{.Id}} sha256:'*) for image do :; done; echo "$image";;
  'compose config --format json')
    cat "$TEST_NORMAL_MODEL";;
  'compose --project-directory '*'/install -f - -f '*'/compose.state-maintenance.json config --format json --no-path-resolution')
@@ -38,7 +39,7 @@ case "$*" in
  'compose config --format yaml') printf '%s\\n' 'name: fixture' 'volumes:' '  cursor-cli:' '    name: fixture-cursor';;
  'compose port bellteam 4180') echo 127.0.0.1:18891;;
  *'/app/src/server-state-writers.mjs plan') echo '{"roots":[],"volume":"fixture-cursor"}';;
- 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/'*)
+ 'run --pull never --rm --network none --read-only --entrypoint /bin/cat '*'/app/'*)
    for path do :; done
    if [ "\${TEST_FAIL_MAINTENANCE_EXTRACT:-0}" = 1 ] && [ "$path" = /app/compose.state-maintenance.json ]; then exit 23; fi
    cat "$TEST_IMAGE/\${path#/app/}";;
@@ -68,7 +69,7 @@ test('installer merges the image-owned maintenance file into the full normal mod
     await assert.rejects(f.run({ COMPOSE_FILE: normal, COMPOSE_PATH_SEPARATOR: separator }), error => error.code === 47)
     const [files, project, image] = (await readFile(f.rendered, 'utf8')).trimEnd().split('\n')
     assert.equal(files, normal)
-    assert.equal(project, 'existing-project'); assert.equal(image, 'fixture-server')
+    assert.equal(project, 'existing-project'); assert.equal(image, pinnedImage)
     assert.deepEqual(JSON.parse(await readFile(f.modelIn, 'utf8')), JSON.parse(await readFile(f.normalModel, 'utf8')))
     assert.deepEqual(await readFile(f.renderedJson), await readFile(join(f.image, 'compose.state-maintenance.json')))
     const calls = await readFile(f.calls, 'utf8')

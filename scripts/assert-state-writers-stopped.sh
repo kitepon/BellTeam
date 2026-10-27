@@ -13,6 +13,10 @@ image=$(docker image inspect --format '{{.Id}}' "$image")
 digest=${image#sha256:}
 case "$digest" in *[!a-f0-9]*|'') echo SERVER_STATE_IMAGE_INVALID >&2; exit 1;; esac
 [ "$image" = "sha256:$digest" ] && [ "${#digest}" -eq 64 ] || { echo SERVER_STATE_IMAGE_INVALID >&2; exit 1; }
+if "$maintenance" && [ -n "${BELLTEAM_SERVER_IMAGE:-}" ]; then
+  expected=$(docker image inspect --format '{{.Id}}' "$BELLTEAM_SERVER_IMAGE")
+  [ "$image" = "$expected" ] || { echo SERVER_STATE_IMAGE_CHANGED >&2; exit 1; }
+fi
 command -v realpath >/dev/null || { echo SERVER_STATE_REALPATH_REQUIRED >&2; exit 1; }
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-writers.XXXXXX")
 trap 'rm -rf "$staging"' 0

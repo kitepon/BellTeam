@@ -6,6 +6,8 @@ Draft PR42 の途中工程。利用者分離全体はまだ NOTDEPLOYABLE であ
 
 2026-10-27のprepare接続は、host担当が準備済みの絶対 `BELLTEAM_STATE_PARENT` と既backup/legacy入力を使う。専用親をinstaller/Dockerに自動作成させず、既prepareのroot:root0700/空親又は記録一致の条件を維持する。prepare失敗時の途中leafや印は残して終了し、移行/Cursor/通常起動へ進めない。二つの固定fileは同じ受入imageから抽出する。入力の再読取とwriter lifetime/respawnの共通排他は未接続で、以下の過去工程の記述を全体の実受入へ読み替えない。
 
+installerは選択imageを資材抽出より前に一度ローカルimage IDへ解決し、既 `BELLTEAM_SERVER_IMAGE` として渡す。抽出・固定prepare/maintenanceはこのIDを使い、標準normal Composeもこの値を補間する。保守writer検査は通常設定が選ぶimageの解決IDとcallerの選択IDを照合し、異なればreaderやprepareへ進まない。名前が同じtagを再解決して別imageを使うことを防ぐ限定差分で、配布manifest/sourceの受入やconfig/対象pathのlifetime固定を追加しない。独自overlayが後からimageを上書きする場合や外部設定の変更、writer再起動は別の未成立条件のまま。
+
 移行先は既存 component と同じ `/srv/bellteam`。引数は `to-server` または `to-legacy` 一つだけで、外部 path・code・設定を指定できない。実 UID/GID と実効 UID/GID は root を要求する。エラーは code だけを出し、文書本文・headers・path を出さない。移行が失敗したら installer は終了し、Cursor 更新と新旧本体の起動を行わない。途中ファイルや marker は既存 component の再開契約に従う。
 
 逆方向も現在の正本から移す。昔の backup を戻して予定・AI停止状態・Bot 増減を巻き戻す処理は加えていない。installer の自動逆移行も行わない。

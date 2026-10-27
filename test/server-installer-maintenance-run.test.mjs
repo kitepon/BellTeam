@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import test from 'node:test'
 
-const exec = promisify(execFile)
+const exec = promisify(execFile), pinnedImage = 'sha256:' + '0'.repeat(64)
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'installer-maintenance-run-'))
   t.after(() => rm(root, { recursive: true, force: true }))
@@ -16,7 +16,7 @@ async function fixture(t) {
     : new URL('../distribution/server/install.sh', import.meta.url), join(install, 'install.sh'))
   for (const path of ['scripts/update-cursor.sh', 'scripts/assert-state-writers-stopped.sh', 'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'compose.state-prepare.yaml'])
     await copyFile(new URL('../' + path, import.meta.url), join(image, path))
-  const model = { name: 'selected-project', services: { bellteam: { image: 'fixture:accepted',
+  const model = { name: 'selected-project', services: { bellteam: { image: pinnedImage,
     environment: { SECRET: 'synthetic-normal-only' }, volumes: [] } } }
   const modelPath = join(root, 'normal.json')
   await writeFile(modelPath, JSON.stringify(model))
@@ -25,6 +25,7 @@ printf '%s\\n' "$*" >> "$TEST_CALLS"
 case "$*" in
  'compose config --images') echo fixture:accepted;;
  'image inspect --format {{.Id}} fixture:accepted') printf 'sha256:%064d\\n' 0;;
+ 'image inspect --format {{.Id}} sha256:'*) for image do :; done; echo "$image";;
  'compose config --format json') cat "$TEST_MODEL";;
  'compose config --format yaml')
    count=0; if [ -f "$TEST_COUNT" ]; then count=$(cat "$TEST_COUNT"); fi
@@ -34,7 +35,7 @@ case "$*" in
  'compose --project-directory '*'/install -f - -f '*'/compose.state-maintenance.json config --format json --no-path-resolution') cat;;
  *'/app/src/server-state-writers.mjs plan') cat >/dev/null; echo '{"roots":[],"volume":"fixture-cursor"}';;
  *'/app/src/server-state-writers.mjs verify') exit "\${TEST_WRITER_EXIT:-0}";;
- 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture:accepted /app/'*)
+ 'run --pull never --rm --network none --read-only --entrypoint /bin/cat '*'/app/'*)
    for path do :; done; cat "$TEST_IMAGE/\${path#/app/}";;
  'compose --project-directory '*'/install -f '*'/compose.state-maintenance.json -p '*' run --pull never --rm --no-deps -T state-maintenance to-server')
    printf '%s\\n%s\\n%s\\n%s\\n' "\${COMPOSE_FILE-}" "\${COMPOSE_PROJECT_NAME-}" "$BELLTEAM_SERVER_IMAGE" "$7" > "$TEST_MAINTENANCE_ENV"
@@ -66,7 +67,7 @@ test('installer invokes the standalone image-owned fixed service with the normal
     assert.ok(transfer > calls.findIndex(call => call.endsWith('/app/src/server-state-writers.mjs verify')))
     assert.ok(calls.findIndex(call => call.endsWith('--no-deps cursor-update')) > transfer)
     assert.doesNotMatch(calls.join('\n'), /compose run .*--user 0:0|--entrypoint \/bin\/sh bellteam|bellteam \/app\/src\/server-state-transfer/)
-    assert.deepEqual((await readFile(f.files['maintenance-env'], 'utf8')).trimEnd().split('\n'), [normal, project, 'fixture:accepted', project || 'dotenv-project'])
+    assert.deepEqual((await readFile(f.files['maintenance-env'], 'utf8')).trimEnd().split('\n'), [normal, project, pinnedImage, project || 'dotenv-project'])
     assert.deepEqual(await readFile(f.files['maintenance-file']), await readFile(join(f.image, 'compose.state-maintenance.json')))
     assert.doesNotMatch(stdout, /synthetic-normal-only/)
   }

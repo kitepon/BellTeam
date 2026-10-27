@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import test from 'node:test'
 
-const exec = promisify(execFile)
+const exec = promisify(execFile), pinnedImage = 'sha256:' + '0'.repeat(64)
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'installer-prepare-run-'))
   t.after(() => rm(root, { recursive: true, force: true }))
@@ -22,11 +22,12 @@ printf '%s\\n' "$*" >> "$TEST_CALLS"
 case "$*" in
  'compose config --images') echo fixture:accepted;;
  'image inspect --format {{.Id}} fixture:accepted') printf 'sha256:%064d\\n' 0;;
+ 'image inspect --format {{.Id}} sha256:'*) for image do :; done; echo "$image";;
  'compose config --format json') echo '{"services":{}}';;
  'compose config --format yaml') printf '%s\\n' "name: \${COMPOSE_PROJECT_NAME:-dotenv-project}" 'volumes:' '  cursor-cli:' '    name: fixture-cursor';;
  'compose --project-directory '*'/install -f - -f '*'/compose.state-maintenance.json config --format json --no-path-resolution') cat;;
  *'/app/src/server-state-writers.mjs plan') cat >/dev/null; echo '{"roots":[],"volume":"fixture-cursor"}';;
- 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture:accepted /app/'*)
+ 'run --pull never --rm --network none --read-only --entrypoint /bin/cat '*'/app/'*)
    for path do :; done
    if [ "$path" = /app/compose.state-prepare.yaml ] && [ "\${TEST_EXTRACT_FAIL:-0}" = 1 ]; then exit 62; fi
    cat "$TEST_IMAGE/\${path#/app/}";;
@@ -61,7 +62,7 @@ test('installer runs the image-owned prepare alone after writer check and before
     assert.ok(calls.indexOf('compose up -d --wait --wait-timeout 120 --pull never') > migration)
     assert.deepEqual(await readFile(f.file), await readFile(join(f.image, 'compose.state-prepare.yaml')))
     assert.deepEqual((await readFile(f.inputs, 'utf8')).trimEnd().split('\n'),
-      [project || 'dotenv-project', 'fixture:accepted', '/private/state-parent', '/installation/legacy', '/private/backups'])
+      [project || 'dotenv-project', pinnedImage, '/private/state-parent', '/installation/legacy', '/private/backups'])
     assert.doesNotMatch(calls[prepare], /-f -|state-prepare .+/)
     assert.doesNotMatch(calls.join('\n'), /compose run .*--user 0:0|chown|mkdir -p/)
   }
