@@ -49,41 +49,7 @@ if (args[0] === 'compose' && args[1] === 'up' && process.env.FIXTURE_FAIL === 'u
   return {root,env,async calls(){return (await readFile(env.FIXTURE_LOG,'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse)}}
 }
 
-test('商用imageは同じdigest・構成で取得し、旧本体のquiet2点を挟んで一度だけupする', async t => {
-  const f = await fixture(t)
-  const { stdout } = await exec('sh',['scripts/deploy-image.sh'],{cwd:f.root,env:f.env})
-  assert.match(stdout,/deploy-exit=0/u)
-  const calls = await f.calls()
-  assert.deepEqual(calls.map(row => row.args[0] === 'compose' ? row.args[1] : row.args[0]),
-    ['pull','run','run','exec','fixture-cursor','exec','up'])
-  for (const row of calls) {
-    assert.equal(row.cwd,f.root)
-    assert.equal(row.compose,`${f.root}/distribution/server/compose.yaml:${f.root}/distribution/internal/compose.overlay.yaml`)
-    assert.equal(row.project,'bellteam');assert.equal(row.image,image)
-    assert.equal(row.profile,`${f.root}/src/distribution-profile.mjs`)
-  }
-  for (const row of calls.filter(row=>row.args[0]==='run')) {
-    assert.ok(row.args.includes(image));assert.ok(row.args.includes('--read-only'))
-    assert.deepEqual(row.args.slice(1,5),['--pull','never','--rm','--network'])
-  }
-  assert.deepEqual(calls.at(-1).args,['compose','up','-d','--no-build','--pull','never'])
-  assert.equal(calls.some(row=>row.args.includes('stop')||row.args.includes('build')),false)
-})
-
-for (const [failure,code,quiet,cursor,up] of [
-  ['pull',7,0,0,0],['extract',8,0,0,0],['quiet1',2,1,0,0],
-  ['cursor',9,1,1,0],['quiet2',2,2,1,0],['up',10,2,1,1],
-]) test(`${failure}失敗は記録し、未実行の更新・upや旧本体stopを行わない`,async t=>{
-  const f=await fixture(t)
-  const result=await exec('sh',['scripts/deploy-image.sh'],{cwd:f.root,env:{...f.env,FIXTURE_FAIL:failure}}).catch(error=>error)
-  assert.equal(result.code,code);assert.match(result.stdout,new RegExp(`deploy-exit=${code}`,'u'))
-  const calls=await f.calls()
-  assert.equal(calls.filter(row=>row.args[0]==='exec').length,quiet)
-  assert.equal(calls.filter(row=>row.args[0]==='fixture-cursor').length,cursor)
-  assert.equal(calls.filter(row=>row.args[0]==='compose'&&row.args[1]==='up').length,up)
-  assert.equal(calls.some(row=>row.args.includes('stop')||row.args.includes('build')),false)
-})
-
+// Adapter transition/failure coverage is in deploy-state-transition.test.mjs.
 test('未固定imageやquiet対象欠落はgit/SSHを始める前に拒否する',async t=>{
   const f=await fixture(t)
   for(const bin of ['git','ssh']){

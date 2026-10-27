@@ -373,3 +373,19 @@ fd2855cの通常installerについて、既存のplan/CLIと実行側の接続�
 host担当の責任は既承認範囲の専用親/root:root0700/ACL/alias/mount等の準備・管理。新しい専用host原本発行や旧補助の再導入は依頼しない。配布image/sourceの受入はセンチと接続し、Rootは実両normal identity、二viewbackup/移動、許可内再開と最新data healthまで持つ。現在の入力結合・全writer/respawn抑止が未成立なら、このDraftを通常起動可能な完成品とは扱わない。
 
 今回はsource修理/新試験/実Compose/host操作0、文書だけの境界固定。旧合格や他PRからGOを補完せず、wholeNOTDEPLOYABLE・本番未反映・既開始不可/承認停止を維持する。親死亡・例外・daemonunknownでnormal0/journal保持、Owner直接再開とKikoeru除外の既条件も変えない。
+
+
+### Internal image adapter transition
+
+The internal image adapter now captures the same three model roles and pins the
+selected local image ID before either quiet observation. It preserves the existing
+quiet1/Cursor/quiet2 order while the old normal service is alive, then stops it,
+runs the existing maintenance writer check, dedicated prepare and transfer, and
+starts from the retained normal model. Its six normal state sources are explicitly
+mapped to the same selected private parent as prepare and maintenance. The
+image-unspecified legacy build entry is unchanged and is not accepted for stage2
+migration by this change. Snapshot/caller order is not whole-lifetime exclusion:
+competing deploy/manual-start/recovery paths and actual host identities still
+require product acceptance. Neither entry implements automatic migration rollback.
+The fixed serializer is repeated at the two independent entrypoints so the public
+2-file installer gains no internal runtime dependency or new dispatch interface.

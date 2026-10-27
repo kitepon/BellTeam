@@ -17,7 +17,11 @@ profileは反映対象Git SHAの既存fileを使い、file hashをimage/source/a
 
 HOME/data、追加Throughline bind、既存 `bellteam_cursor-cli`、project/container名と公開composeのport/read-onlyを維持する。既存developer契約はこの内部profileで維持し、public単体のdeveloper拒否やentitledの意味を変えない。一般利用者へこのoverlayを導入条件として案内しない。
 
-内部adapterは、候補image取得/選択image由来の更新資材抽出→既存quiet①→Cursor updater→既存quiet②→同imageのcompose up/recreate、の順を使う。quiet②までは旧本体を止めない。商用installerのstop→Cursor→upをそのまま実行せず、publicの停止順も変更しない。
+内部adapterは、候補image取得→停止前normal/専用prepare/専用maintenance captureとローカルimage ID固定→既存quiet①→Cursor updater→既存quiet②→通常本体stop→既writer検査→専用prepare→専用maintenance to-server→同保存normalでup、の順を使う。quiet②までは旧本体を止めない。公開installerの停止順は変更しない。
+
+段2の私有親`BELLTEAM_STATE_PARENT`と控え親`BELLTEAM_MAINTENANCE_BACKUP_PARENT`は、repoの既`.env`又は呼出環境に絶対pathで明示する。host担当の準備済み親を選び、未知親を作成/adoptしない。内部legacyはrepoの`runtime/data`を渡す。overlayの六つの通常state bindと専用prepare/maintenanceが同じ私有親を使い、既writer plannerがnormal/maintenance対応とbackupの分離を確認する。異なる親や不正入力を成功に補完しない。
+
+通常設定はrepoの実行者所有`.bellteam-compose.XXXXXX/normal.json`（directory0700/file0600）へ保存する。公開installerと同じ標準JSONの値escape/key保持を使い、既存世代を上書きしない。stop試行前の失敗は新世代を除去し、試行後は失敗しても選択設定を残す。秘密を含み得るため別途private backupへ含め、稼働/復旧に使う世代を削除しない。設定上のbind元配下は拒否するが、実alias/mount非露出、外部参照file内容、hostinodeと全writerの停止維持はこのcaptureから保証しない。失敗時に自動でupや逆移行を実行せず、実結果と選択設定を保持して最新dataからの通常復旧を判断する。
 
 `scripts/update-cursor.sh`を実行する際も、上記環境とrepoの作業directoryを維持する。同script内の `docker compose config` が同じ2file/project/外部volumeを読む必要がある。選択imageから抽出したupdater用composeは本体composeへmergeせず、既存scriptの `-f` 指定で単独実行する。共有update-cursor.sh自体の変更はこの差分に含めない。
 
