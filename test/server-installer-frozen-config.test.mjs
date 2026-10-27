@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import test from 'node:test'
 
@@ -12,6 +12,9 @@ async function fixture(t) {
   t.after(() => rm(root, { recursive: true, force: true }))
   const install = join(root, 'install'), image = join(root, 'image'), bin = join(root, 'bin')
   for (const path of [install, join(image, 'scripts'), bin]) await mkdir(path, { recursive: true })
+  const previous = join(install, '.bellteam-compose.existing', 'normal.json')
+  await mkdir(dirname(previous), { mode: 0o700 })
+  await writeFile(previous, 'previous configuration unchanged', { mode: 0o600 })
   await copyFile(process.env.INSTALLER_UNDER_TEST ? resolve(process.env.INSTALLER_UNDER_TEST)
     : new URL('../distribution/server/install.sh', import.meta.url), join(install, 'install.sh'))
   for (const path of ['scripts/update-cursor.sh', 'scripts/assert-state-writers-stopped.sh',
@@ -52,10 +55,11 @@ if(a[0]==='compose'){
     }
     if(!env.COMPOSE_FILE){event('original-render');if(env.TEST_NORMAL_FAILURE){process.exit(57)}}
     const c=current();if(env.TEST_MISSING_PROJECT)delete c.name;
+    if(env.TEST_BIND_ROOT)c.services.bellteam.volumes[0].source=env.TEST_BIND_ROOT;
     out(c);process.exit(0)
   }
   if(a.includes('stop')){event('stop',{normal:current()});process.exit(0)}
-  if(a.includes('up')){event('up',{normal:current(),mode:fs.statSync(env.COMPOSE_FILE||env.TEST_MODEL).mode&511});process.exit(0)}
+  if(a.includes('up')){event('up',{normal:current(),mode:fs.statSync(env.COMPOSE_FILE||env.TEST_MODEL).mode&511});process.exit(Number(env.TEST_UP_FAILURE||0))}
   if(a.includes('port')){out('127.0.0.1:18891');process.exit(0)}
   if(a.includes('run')){
     const file=files[0], raw=file?fs.readFileSync(file,'utf8'):'';
@@ -84,7 +88,8 @@ if(a[0]==='run'){
     TEST_MODEL: modelPath, TEST_IMAGE: image, TEST_IMAGE_ID: imageId, TEST_EVENTS: events,
     BELLTEAM_STATE_PARENT: '/original/private', BELLTEAM_LEGACY_DATA: '/original/legacy',
     BELLTEAM_MAINTENANCE_BACKUP_PARENT: '/original/backups' }
-  return { run: extra => exec('sh', [join(install, 'install.sh')], { env: { ...env, ...extra } }),
+  return { install, bin, previous,
+    run: extra => exec('sh', [join(install, 'install.sh')], { env: { ...env, ...extra } }),
     events: async () => (await readFile(events, 'utf8')).trim().split('\n').map(JSON.parse) }
 }
 
@@ -121,4 +126,50 @@ test('inconsistent parents or missing captured project fail before stop or state
     await assert.rejects(f.run(extra), error =>
       error.code === 1 && error.stderr.includes('SERVER_STATE_CONFIG_UNAVAILABLE'))
   assert.ok(!(await f.events()).some(e => ['stop', 'up', 'state-prepare', 'to-server'].includes(e.kind)))
+})
+
+test('retained model: successful exit preserves a private complete configuration and existing generations', async t => {
+  const f = await fixture(t)
+  await f.run()
+  const selected = (await f.events()).find(e => e.kind === 'up').composeFile
+  assert.equal(dirname(dirname(selected)), f.install)
+  assert.ok(dirname(selected).includes('/.bellteam-compose.'))
+  assert.deepEqual(await readdir(dirname(selected)), ['normal.json'])
+  const directory = await stat(dirname(selected)), file = await stat(selected)
+  assert.equal(directory.mode & 0o777, 0o700)
+  assert.equal(file.mode & 0o777, 0o600)
+  assert.equal(directory.uid, process.getuid())
+  assert.equal(file.uid, process.getuid())
+  assert.equal(JSON.parse(await readFile(selected, 'utf8')).services.bellteam.image, imageId)
+  assert.equal(await readFile(f.previous, 'utf8'), 'previous configuration unchanged')
+})
+
+test('retained model: failed normal startup preserves selected and previous configurations', async t => {
+  const f = await fixture(t)
+  await assert.rejects(f.run({ TEST_UP_FAILURE: '66' }), error => error.code === 66)
+  const selected = (await f.events()).find(e => e.kind === 'up').composeFile
+  assert.equal(JSON.parse(await readFile(selected, 'utf8')).services.bellteam.image, imageId)
+  assert.equal(await readFile(f.previous, 'utf8'), 'previous configuration unchanged')
+})
+
+test('retained model: a directory exposed by the normal bind is refused and its unpublished generation removed', async t => {
+  const f = await fixture(t)
+  await assert.rejects(f.run({ TEST_BIND_ROOT: f.install }), error =>
+    error.code === 1 && error.stderr.includes('SERVER_STATE_CONFIG_UNAVAILABLE'))
+  assert.ok(!(await f.events()).some(e => e.kind === 'stop'))
+  assert.deepEqual((await readdir(f.install)).filter(name => name.startsWith('.bellteam-compose.')),
+    ['.bellteam-compose.existing'])
+  assert.equal(await readFile(f.previous, 'utf8'), 'previous configuration unchanged')
+})
+
+test('retained model: publication failure does not stop the server or replace previous configuration', async t => {
+  const f = await fixture(t)
+  const command = join(f.bin, 'mv')
+  await writeFile(command, '#!/bin/sh\nexit 71\n')
+  await chmod(command, 0o700)
+  await assert.rejects(f.run(), error => error.code === 71)
+  assert.ok(!(await f.events()).some(e => e.kind === 'stop'))
+  assert.deepEqual((await readdir(f.install)).filter(name => name.startsWith('.bellteam-compose.')),
+    ['.bellteam-compose.existing'])
+  assert.equal(await readFile(f.previous, 'utf8'), 'previous configuration unchanged')
 })

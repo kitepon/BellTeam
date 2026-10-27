@@ -9,7 +9,7 @@ case "$*" in
  'run --pull never --rm -i --network none --read-only --entrypoint /usr/local/bin/node '*' -e '*)
    while [ "$1" != -e ]; do shift; done
    shift
-   exec node -e "$1" "$2";;
+   exec node -e "$@";;
  'compose --project-directory '*' -f '*'/compose.state-prepare.yaml config --format json --no-path-resolution'|\
  'compose --project-directory '*' -f '*'/compose.state-maintenance.json config --format json --no-path-resolution')
    exec node -e '

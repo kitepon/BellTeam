@@ -10,7 +10,18 @@ esac
 if "$pull"; then docker compose pull; fi
 umask 077
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-install.XXXXXX")
-trap 'rm -rf "$staging"' 0
+saved=
+keep_saved=false
+cleanup() {
+  install_result=$?
+  trap - 0
+  rm -rf "$staging" || { [ "$install_result" -ne 0 ] || install_result=1; }
+  if [ -n "$saved" ] && ! "$keep_saved"; then
+    rm -rf "$saved" || { [ "$install_result" -ne 0 ] || install_result=1; }
+  fi
+  exit "$install_result"
+}
+trap cleanup 0
 trap 'exit 1' 1 2 15
 docker compose config --format json > "$staging/normal.raw.json"
 image=$(docker compose -f "$staging/normal.raw.json" config --images)
@@ -34,6 +45,7 @@ for path in compose.state-prepare.yaml compose.state-maintenance.json; do
   docker compose --project-directory "$PWD" -f "$staging/$path" \
     config --format json --no-path-resolution > "$staging/$path.raw"
 done
+saved=$(mktemp -d "$PWD/.bellteam-compose.XXXXXX")
 # Keep label keys literal; Compose config escapes dollars in keys as well as values.
 {
   printf '['; cat "$staging/normal.raw.json"
@@ -46,6 +58,12 @@ try {
   const models=JSON.parse(fs.readFileSync(0,"utf8").replaceAll("$$","$"));
   const [normal,prepare,maintenance]=models;
   if(typeof normal.name!=="string") throw new Error();
+  const saved=process.argv[2];
+  if(!path.isAbsolute(saved)||(normal.services.bellteam.volumes??[]).some(v=>{
+    if(v.type!=="bind")return false;
+    const source=path.resolve(v.source);
+    return saved===source||saved.startsWith(source===path.sep?source:source+path.sep);
+  })) throw new Error();
   normal.services.bellteam.image=process.argv[1];
   const p=prepare.services["state-prepare"], m=maintenance.services["state-maintenance"];
   const parent=p.volumes.find(v=>v.target==="/srv/bellteam-state-parent").source;
@@ -56,16 +74,17 @@ try {
   for(const model of models) console.log(JSON.stringify(model,(_key,value)=>
     typeof value==="string"?value.replaceAll("$",()=>"$$"):value));
 } catch { console.error("SERVER_STATE_CONFIG_UNAVAILABLE"); process.exitCode=1; }
-' "$image" > "$staging/models.jsonl"
+' "$image" "$saved" > "$staging/models.jsonl"
 project=$(sed -n '1p' "$staging/models.jsonl")
 case "$project" in ''|*[!a-zA-Z0-9_.-]*) echo '通常Composeのproject名を確認できません。起動中のBellTeamは変更していません。' >&2; exit 1;; esac
-sed -n '2p' "$staging/models.jsonl" > "$staging/normal.json"
+sed -n '2p' "$staging/models.jsonl" > "$saved/normal.json.tmp"
+mv "$saved/normal.json.tmp" "$saved/normal.json"
 sed -n '3p' "$staging/models.jsonl" > "$staging/compose.state-prepare.yaml"
 sed -n '4p' "$staging/models.jsonl" > "$staging/compose.state-maintenance.json"
-COMPOSE_FILE="$staging/normal.json"
-# shortcut: label-based later operations need a persistent model before rollout.
+COMPOSE_FILE="$saved/normal.json"
 COMPOSE_PROJECT_NAME=$project
 export COMPOSE_FILE COMPOSE_PROJECT_NAME
+keep_saved=true
 docker compose stop bellteam
 sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
 # Maintenance must use its fixed views and entry, without normal HOME/env.

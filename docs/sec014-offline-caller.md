@@ -274,10 +274,25 @@ The checker merges the frozen maintenance model with that same frozen normal
 model for its existing mount checks; each actual state service uses its own file.
 Original Compose inputs are not reread after the captures. External files named
 by the model (for example secret/config file contents) and host inode identity
-are not frozen. Temporary model cleanup also means Compose container labels can
-refer to a removed staging configuration; later operations that reconstruct
-configuration from those labels are not accepted by this source change. No writer
-lifetime/respawn exclusion or real migration/startup acceptance is established.
+are not frozen. The normal model is now retained at the caller-owned absolute
+installation path `.bellteam-compose.XXXXXX/normal.json`, in a fresh 0700
+directory with a 0600 file. A same-directory rename publishes the complete model;
+no existing generation is adopted, replaced or removed. Before the first stop
+attempt, a failure removes the unpublished generation. From the stop attempt
+onward, even failure retains the selected model so the container's Compose
+configuration label remains readable after installer cleanup. Temporary assets
+and dedicated models still expire. This proves neither crash durability nor
+reconstruction of external file contents. Private backup must include retained
+models separately; the existing data/home backup does not automatically include
+this installation directory. Active or recovery generations must not be removed.
+
+The formatter refuses a saved directory lexically inside a declared normal
+bellteam bind source before copying the secret-bearing model there. This is not
+a realpath, host mount alias, named-volume backing or inode identity proof. Git
+and Docker build exclusions keep retained generations out of those inputs; they
+are not access controls. Real placement and exposure acceptance remains pending.
+No writer lifetime/respawn exclusion or real migration/startup acceptance is
+established.
 
 The installer extracts `compose.state-maintenance.json` from the selected image
 along with its existing writer-check script. It passes that image selection as

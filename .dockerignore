@@ -2,6 +2,7 @@
 .control-inputs
 node_modules
 runtime
+**/.bellteam-compose.*
 .env
 docs/*
 !docs/bot-environment.md
