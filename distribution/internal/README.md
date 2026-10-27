@@ -32,3 +32,22 @@ file保全は既quiet①より前に行い、quiet①→Cursor更新→quiet②�
 本overlayは事前試験/本体review向け。profile適合以外の初期認証・既存不明席回復、両arch、整合backup/volume復元、既存停止許可と稼働条件を省略するものではない。反映時は対象と試験結果をセンチへ渡し、トロニーが本体互換と反映条件を照合する。
 
 通常quiet判定は、探索した複数Botが同じsessionを指す場合、そのidle結果を共有せず既存のunclassifiedへ分類する。queueが空でも、その状態では更新へ進まない。Bot設定/sessionを自動変更したり停止したりする処理は追加しない。これは当該snapshotの対応付けだけで、全writer排他や後続の再spawn抑止の証明ではない。
+
+### quietの探索前後と不明結果（source確認範囲）
+
+通常のcheckDeployQuietは、前queue→初回席探索→turn読取→最終席探索→後queueの順で判定する。各入力の既処理は次のとおり。これは現sourceの確認で、新しい実観測や追加試験の結果ではない。
+
+| 変化・失敗 | 既処理 |
+| --- | --- |
+| queue取得失敗・前後itemsが配列でない | 例外としてCLIの固定警告/exit2へ進み、更新を続行しない |
+| 席一覧そのものの読取失敗 | 例外として止まる |
+| 各PIDのENOENT/ESRCH以外の読取失敗 | 初回/最終unknownを合算しquiet=false |
+| 既候補Botのprofile欠測・不正 | session=nullの席を残しunclassifiedにする |
+| turn読取の失敗・不明・idle以外 | running又はunclassifiedとしてquiet=false |
+| 初回席の最終消失又はsession/candidates差 | 既turnをnullへ戻して初回席を残し、unclassifiedにする |
+| 最終探索だけに現れたBot | 席を追加してturnをnullとし、unclassifiedにする |
+| 前後queueで別Botを発見 | queuedとしてquiet=false |
+
+候補の照合はsessionとPID/PPID/start tick/executableのmetadataで行う。各PIDが探索中に消えた時のENOENT/ESRCHは、その探索では候補へ加えない。初回に拾えた候補の後の消失は上記の再照合で保留するが、両探索の間だけに存在したprocessや、探索対象外のexe/cwd・writerを捕捉したとは言わない。自席exceptの除外も維持する。
+
+今回のsource照合では、これらの失敗をquiet成功へ扱う追加の修理対象は見つからなかった。queueやidleのsnapshotを実行区間全体のwriter停止/respawn抑止・整合dataCursor復旧点・本人の安全解除へ代用しない。CLIはquiet不成立時もexit2、呼出shellはset-e又は&&でCursor/upへ進めない。新しいobserver/hostlock/runnerや再採取は追加しない。
