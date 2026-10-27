@@ -1,259 +1,179 @@
-name: 一般配布サーバーのDocker候補作成
-
+name: 審査Dex通常候補の作成と配布
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - Dockerfile
-      - .dockerignore
-      - package.json
-      - package-lock.json
-      - src/**
-      - web/**
-      - integrations/**
-      - distribution/server/**
-      - scripts/package-server.mjs
-      - scripts/update-cursor.sh
-      - scripts/cursor-update-entrypoint.sh
-      - compose.cursor-update.yaml
-      - config/common-agents.md
-      - config/ponytail-LICENSE
-      - config/setup-guide.json
-      - docs/bot-environment.md
-      - docs/onboarding.md
-      - services/subscriptions/product.json
-      - services/subscriptions/endpoints.json
-      - .github/workflows/publish-server-image.yml
-
-concurrency:
-  group: public-server-image
-  cancel-in-progress: true
-
 permissions:
   contents: read
   packages: write
-
-env:
-  IMAGE: ghcr.io/kitepon/bellteam-server
-
+concurrency:
+  group: review-dex-candidate
+  cancel-in-progress: false
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            runner: ubuntu-24.04
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
-    services:
-      install-registry:
-        image: registry:3
-        ports:
-          - 5000:5000
-        options: >-
-          --health-cmd "wget -q --spider http://127.0.0.1:5000/v2/"
-          --health-interval 1s
-          --health-timeout 3s
-          --health-retries 30
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     env:
-      BELLTEAM_SERVER_IMAGE: ghcr.io/kitepon/bellteam-server:${{ github.sha }}-${{ matrix.arch }}
-      COMPOSE_FILE: ${{ github.workspace }}/runtime/server-install/compose.yaml
-      COMPOSE_PROJECT_NAME: server-smoke
+      SOURCE: dc237919508102d833683412c6215a505a58bef1
+      BASE: ghcr.io/dexidp/dex:v2.45.1@sha256:8499afd690c437f52301efd2b05b2455da5bd2dfc20332cd697dc9937f808462
+      IMAGE: ghcr.io/kitepon/bellteam-server
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v7
-        with:
-          node-version: node
-      - name: 既定ブランチの祖先確認と配布物作成
+          ref: dc237919508102d833683412c6215a505a58bef1
+          persist-credentials: false
+      - name: 固定sourceから空contextでamd64候補を作成
+        shell: bash
         run: |
-          git merge-base --is-ancestor HEAD origin/main
-          node scripts/package-server.mjs runtime/server-image
-      - name: 公式の現行版からイメージを作成
+          set -euo pipefail
+          mkdir -p runtime/review-dex/context
+          evidence=runtime/review-dex
+          printf '%s\n' "$SOURCE" > "$evidence/source.txt"
+          git show "$SOURCE:distribution/apple-review/sec021/Dockerfile.dex" > "$evidence/Dockerfile.dex"
+          echo 'e993c4541edf5e52e2188dfb13279e2dedb89e08ea040eeade1b361d49aa964f  runtime/review-dex/Dockerfile.dex' | sha256sum -c -
+          tag="$IMAGE:review-dex-dc237919-20261027-$GITHUB_RUN_ID-amd64"
+          printf '%s\n' "$tag" > "$evidence/candidate-tag.txt"
+          docker pull --platform linux/amd64 "$BASE" > "$evidence/base-pull.stdout" 2> "$evidence/base-pull.stderr"
+          docker image inspect "$BASE" > "$evidence/base-image.json"
+          docker build --pull --no-cache --platform linux/amd64 -f "$evidence/Dockerfile.dex" \
+            --label org.opencontainers.image.source=https://github.com/kitepon/BellTeam \
+            --label "org.opencontainers.image.revision=$SOURCE" -t "$tag" "$evidence/context" \
+            > "$evidence/build.stdout" 2> "$evidence/build.stderr"
+          docker image inspect "$tag" > "$evidence/image-built.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          p=Path("runtime/review-dex")
+          base=json.loads((p/"base-image.json").read_text())[0]
+          image=json.loads((p/"image-built.json").read_text())[0]
+          assert image["Os"]=="linux" and image["Architecture"]=="amd64"
+          for key in ("User","Entrypoint","Cmd"):
+              assert image["Config"][key]==base["Config"][key], key
+          assert image["Config"]["User"]=="dex:dex"
+          assert image["Config"]["Labels"]["org.opencontainers.image.revision"]==os.environ["SOURCE"]
+          (p/"image-id.txt").write_text(image["Id"]+"\n")
+          PY
+      - name: 同localIDのOS根と版と通常TLSを受入
+        shell: bash
         run: |
-          docker build --pull --no-cache --platform "linux/${{ matrix.arch }}" \
-            --label "org.opencontainers.image.source=https://github.com/kitepon/BellTeam" \
-            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
-            --label 'org.opencontainers.image.description=自分のマシンで動かすBellTeamの一般配布版' \
-            -t "$BELLTEAM_SERVER_IMAGE" runtime/server-image
-      - name: 個人設定と開発者免除の除去を確認
+          set -euo pipefail
+          evidence=runtime/review-dex
+          id=$(cat "$evidence/image-id.txt")
+          docker run --pull never --rm --network none --read-only --cap-drop ALL \
+            --entrypoint /bin/cat "$id" /etc/ssl/certs/ca-certificates.crt \
+            > "$evidence/ca-certificates.crt" 2> "$evidence/ca.stderr"
+          openssl crl2pkcs7 -nocrl -certfile "$evidence/ca-certificates.crt" \
+            | openssl pkcs7 -print_certs -noout > "$evidence/ca-subjects.txt"
+          ! grep -F 'emSign ECC Root CA - G3' "$evidence/ca-subjects.txt"
+          ! grep -F 'AAA Certificate Services' "$evidence/ca-subjects.txt"
+          grep -F 'emSign Root CA - G1' "$evidence/ca-subjects.txt"
+          docker run --pull never --rm --network none --read-only --cap-drop ALL \
+            --entrypoint /usr/local/bin/dex "$id" version > "$evidence/version.stdout" 2> "$evidence/version.stderr"
+          grep -F v2.45.1 "$evidence/version.stdout"
+          for ref in "$BASE" "$id"; do
+            docker run --pull never --rm --network none --read-only --cap-drop ALL \
+              --entrypoint /bin/sh "$ref" -c 'sha256sum /usr/local/bin/dex /usr/local/bin/docker-entrypoint'
+          done > "$evidence/binary-hashes.txt"
+          test "$(head -2 "$evidence/binary-hashes.txt")" = "$(tail -2 "$evidence/binary-hashes.txt")"
+          docker run --pull never --rm --read-only --cap-drop ALL --memory 256m --pids-limit 128 \
+            --entrypoint /usr/bin/wget "$id" -S -O /dev/null https://www.debian.org/ \
+            > "$evidence/tls.stdout" 2> "$evidence/tls.stderr"
+      - name: 合成memory設定だけでOIDC discoveryを受入
+        shell: bash
         run: |
-          docker run --rm --entrypoint node "$BELLTEAM_SERVER_IMAGE" --input-type=module -e '
-          import assert from "node:assert/strict";
-          import fs from "node:fs";
-          import {developerAccessAllowed, defaultCallBridgeMcpUrl} from "./src/distribution-profile.mjs";
-          assert.equal(developerAccessAllowed, false);
-          assert.equal(defaultCallBridgeMcpUrl, null);
-          assert.deepEqual(JSON.parse(fs.readFileSync("config/bots.json")).bots, []);
-          assert.equal(JSON.parse(fs.readFileSync("distribution.json")).profile, "public");
-          assert.equal(fs.existsSync("config/setup-guide.json"), true);
-          assert.equal(fs.existsSync("docs/onboarding.md"), true);
-          assert.equal(fs.existsSync("config/models.json"), false);
-          for (const path of [".env", "runtime", "services/subscriptions/keys"]) assert.equal(fs.existsSync(path), false);
-          '
-      - name: 2fileのinstallerで空の永続領域から取得・更新・起動
-        run: |
-          install_image="localhost:5000/bellteam-server:latest"
-          docker tag "$BELLTEAM_SERVER_IMAGE" "$install_image"
-          docker push "$install_image"
-          docker create --name server-install-replacement "$BELLTEAM_SERVER_IMAGE"
-          docker commit --change 'LABEL bellteam.test=remote-tag-moved' server-install-replacement localhost:5000/bellteam-server:replacement
-          docker rm server-install-replacement
-          docker push localhost:5000/bellteam-server:replacement
-          mkdir -p runtime/server-install
-          cp runtime/server-image/compose.yaml runtime/server-image/install.sh runtime/server-install/
-          # 最初のpull直後にregistry側だけlatestを別imageへ動かす。
-          # ローカルcacheを変えず、抽出・準備・更新・起動が元imageを使うことを確認する。
-          export TEST_REAL_DOCKER="$(command -v docker)"
-          export TEST_TAG_MOVED="$GITHUB_WORKSPACE/runtime/tag-moved"
-          mkdir -p runtime/docker-test-bin
-          cat > runtime/docker-test-bin/docker <<'SH'
-          #!/bin/sh
-          set -eu
-          for last do :; done
-          if [ "$1" = run ] && [ "$last" = /app/compose.cursor-update.yaml ] && [ ! -f "$TEST_TAG_MOVED" ]; then
-            curl -fsS -H 'Accept: application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json' \
-              http://127.0.0.1:5000/v2/bellteam-server/manifests/replacement -o "$TEST_TAG_MOVED.manifest"
-            media_type=$(jq -r .mediaType "$TEST_TAG_MOVED.manifest")
-            curl -fsS -X PUT -H "Content-Type: $media_type" --data-binary "@$TEST_TAG_MOVED.manifest" \
-              http://127.0.0.1:5000/v2/bellteam-server/manifests/latest >/dev/null
-            touch "$TEST_TAG_MOVED"
-          fi
-          exec "$TEST_REAL_DOCKER" "$@"
-          SH
-          chmod +x runtime/docker-test-bin/docker
-          PATH="$GITHUB_WORKSPACE/runtime/docker-test-bin:$PATH" BELLTEAM_SERVER_IMAGE="$install_image" sh runtime/server-install/install.sh
-          test -f "$TEST_TAG_MOVED"
-          test "$(docker inspect --format '{{.Image}}' "$(docker compose ps -q bellteam)")" = "$(docker image inspect --format '{{.Id}}' "$BELLTEAM_SERVER_IMAGE")"
-          test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$(docker compose ps -q bellteam)")" = true
-          docker compose exec -T bellteam node --input-type=module -e '
-          import assert from "node:assert/strict";
-          import fs from "node:fs";
-          assert.throws(() => fs.writeFileSync("/app/.distribution-write-test", "probe"), { code: "EROFS" });
-          const base = "http://127.0.0.1:4180";
-          const setup = await (await fetch(base + "/api/setup")).json();
-          assert.equal(setup.phase, "select_harness");
-          const session = await (await fetch(base + "/api/session")).json();
-          assert.equal(session.authMode, "local");
-          const settings = await (await fetch(base + "/api/settings")).json();
-          assert.equal(settings.settings.length, 5);
-          assert.ok(settings.settings.every(setting => setting.enabled === false));
-          const { subscription } = await (await fetch(base + "/api/subscription")).json();
-          assert.equal(subscription.entitled, false);
-          assert.equal(subscription.accessMode, "subscription");
-          assert.equal(subscription.canUseAI, true);
-          assert.equal((await fetch(base)).status, 200);
-          '
-      - name: モデル候補の取得と未認証Cursorの理由表示を確認
-        run: |
-          docker compose exec -T bellteam node --input-type=module -e '
-          import assert from "node:assert/strict";
-          const base = "http://127.0.0.1:4180";
-          const response = await fetch(base + "/api/models");
-          assert.equal(response.status, 200);
-          const { models } = await response.json();
-          assert.deepEqual(Object.keys(models).sort(), ["claude", "codex", "cursor", "grok"]);
-          for (const [harness, entry] of Object.entries(models)) {
-            if (harness === "cursor") {
-              assert.equal(entry.error.code, "MODEL_CATALOG_UNAVAILABLE");
-              assert.match(entry.error.message, /Authentication required/);
-              assert.deepEqual(entry.models, []);
-              continue;
-            }
-            assert.equal(entry.error, undefined, `${harness}: ${JSON.stringify(entry.error)}`);
-            assert.ok(entry.models.length > 0, harness);
-            assert.ok(entry.models.every(model => typeof model.id === "string" && Array.isArray(model.efforts)), harness);
-            assert.equal(typeof entry.source, "string", harness);
-          }
-          console.log("空の保存領域でモデル候補とCursorの認証エラーを確認しました。");
-          '
-      - name: 公式認証の開始と端末消失後の再選択を確認
-        run: |
-          docker compose exec -T bellteam node --input-type=module -e '
-          import assert from "node:assert/strict";
-          import { readFile } from "node:fs/promises";
-          import { AitermClient } from "./src/aiterm-transport.mjs";
-          const base = "http://127.0.0.1:4180";
-          const select = async () => {
-            const response = await fetch(base + "/api/setup/harness", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ harness: "grok" }),
-            });
-            assert.equal(response.status, 200);
-            let setup = await response.json();
-            const deadline = Date.now() + 30000;
-            while (setup.auth.status === "waiting" && !(setup.auth.url && setup.auth.user_code) && Date.now() < deadline) {
-              await new Promise(resolve => setTimeout(resolve, 500));
-              const current = await fetch(base + "/api/setup");
-              assert.equal(current.status, 200);
-              setup = await current.json();
-            }
-            assert.equal(setup.auth.status, "waiting");
-            assert.ok(Boolean(setup.auth.url && setup.auth.user_code));
-          };
-          const state = async () => JSON.parse(await readFile("/srv/bellteam/shared/onboarding.json", "utf8"));
-          const client = new AitermClient();
-          const exists = async session => (await client.call("pty_list")).structuredContent.sessions.some(item => item.session_id === session);
-          try {
-            await select();
-            const first = await state();
-            assert.equal(typeof first.authSession, "string");
-            const closed = await client.call("pty_close", { session_id: first.authSession });
-            assert.equal(closed.structuredContent.outcome, "closed");
-            assert.equal(await exists(first.authSession), false);
-            const setup = await (await fetch(base + "/api/setup")).json();
-            assert.equal(setup.auth.status, "failed");
-            await select();
-            const next = await state();
-            assert.equal(typeof next.authSession, "string");
-            assert.equal(await exists(next.authSession), true);
-            const cancelled = await client.call("agent_auth", { harness: "grok-cli", action: "cancel", session_id: next.authSession });
-            assert.equal(cancelled.structuredContent.status, "blocked");
-            assert.equal(cancelled.structuredContent.session_id, null);
-            assert.equal(await exists(next.authSession), false);
-            console.log("公式認証の開始・消失の表示・再選択・取消を確認しました。");
-          } finally { await client.close(); }
-          '
-      - name: 試験コンテナと保存先を片付ける
-        if: always()
-        run: |
-          if [ -f "$COMPOSE_FILE" ]; then
-            docker compose logs --no-color || true
-            docker compose down --volumes || true
-          fi
+          set -euo pipefail
+          evidence=runtime/review-dex
+          id=$(cat "$evidence/image-id.txt")
+          cat > "$evidence/config.yaml" <<'YAML'
+          issuer: http://127.0.0.1:5556
+          storage:
+            type: memory
+          web:
+            http: 0.0.0.0:5556
+          enablePasswordDB: true
+          staticPasswords: []
+          YAML
+          chmod 644 "$evidence/config.yaml"
+          docker run --pull never -d --read-only --cap-drop ALL --memory 256m --cpus 1 --pids-limit 128 \
+            -p 127.0.0.1:5556:5556 \
+            --mount "type=bind,source=$PWD/$evidence/config.yaml,target=/etc/dex/config.yaml,readonly" \
+            "$id" dex serve /etc/dex/config.yaml > "$evidence/cid.txt"
+          for attempt in $(seq 1 30); do
+            if curl --connect-timeout 2 --max-time 3 -fsS http://127.0.0.1:5556/.well-known/openid-configuration \
+              > "$evidence/discovery-$attempt.json" 2> "$evidence/discovery-$attempt.stderr"; then
+              cp "$evidence/discovery-$attempt.json" "$evidence/discovery.json"
+              break
+            fi
+            sleep 2
+          done
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path("runtime/review-dex/discovery.json").read_text())
+          assert d["issuer"]=="http://127.0.0.1:5556"
+          for key in ("authorization_endpoint","token_endpoint","jwks_uri"):
+              assert d[key].startswith("http://127.0.0.1:5556/")
+          PY
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: 確認したアーキテクチャのイメージを登録
-        run: docker push "$BELLTEAM_SERVER_IMAGE"
-
-  candidate:
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
       - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: 両アーキテクチャの候補を登録
+      - name: 受入済み同IDの候補tagだけ公開し原本を保存
+        shell: bash
         run: |
-          docker buildx imagetools create \
-            -t "$IMAGE:$GITHUB_SHA" \
-            "$IMAGE:$GITHUB_SHA-amd64" "$IMAGE:$GITHUB_SHA-arm64"
-          docker buildx imagetools inspect "$IMAGE:$GITHUB_SHA"
-          {
-            echo '## 内部先行利用する候補'
-            echo "source: $GITHUB_SHA"
-            echo '同じdigestで内部受入を終えてから、安定版反映workflowを実行してください。'
-            docker buildx imagetools inspect "$IMAGE:$GITHUB_SHA"
-          } >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          evidence=runtime/review-dex
+          id=$(cat "$evidence/image-id.txt")
+          tag=$(cat "$evidence/candidate-tag.txt")
+          docker image inspect "$tag" > "$evidence/image-before-push.json"
+          test "$(docker image inspect --format '{{.Id}}' "$tag")" = "$id"
+          docker push "$tag" > "$evidence/push.stdout" 2> "$evidence/push.stderr"
+          docker image inspect "$id" > "$evidence/image-published.json"
+          digest=$(sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' "$evidence/push.stdout")
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          ref="$IMAGE@$digest"
+          printf '%s\n' "$ref" > "$evidence/published-ref.txt"
+          docker buildx imagetools inspect "$ref" > "$evidence/manifest-info.stdout"
+          docker buildx imagetools inspect --raw "$ref" > "$evidence/manifest.json"
+          docker buildx imagetools inspect --format '{{json .Image}}' "$ref" > "$evidence/registry-image.json"
+          python3 - <<'PY'
+          import json,os,re
+          from pathlib import Path
+          p=Path("runtime/review-dex")
+          manifest=(p/"manifest.json").read_bytes()
+          ref=(p/"published-ref.txt").read_text().strip()
+          digest=re.search(r"^Digest:\s+(sha256:[0-9a-f]{64})$", (p/"manifest-info.stdout").read_text(), re.M).group(1)
+          assert ref.endswith("@"+digest)
+          d=json.loads(manifest)
+          assert d["config"]["digest"]==(p/"image-id.txt").read_text().strip()
+          image=json.loads((p/"registry-image.json").read_text())
+          assert image["os"]=="linux" and image["architecture"]=="amd64"
+          assert image["config"]["Labels"]["org.opencontainers.image.revision"]==os.environ["SOURCE"]
+          PY
+      - name: 自分の合成コンテナだけ結果保存と片付け
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence=runtime/review-dex
+          if test -s "$evidence/cid.txt"; then
+            cid=$(cat "$evidence/cid.txt")
+            docker logs "$cid" > "$evidence/dex.stdout" 2> "$evidence/dex.stderr"
+            docker stop --time 10 "$cid" > "$evidence/stop.stdout"
+            docker inspect "$cid" > "$evidence/container-ended.json"
+            docker rm "$cid" > "$evidence/rm.stdout"
+          fi
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          p=Path("runtime/review-dex")
+          rows=[{"path":str(f.relative_to(p)),"sha256":hashlib.sha256(f.read_bytes()).hexdigest(),"size":f.stat().st_size} for f in sorted(p.rglob("*")) if f.is_file()]
+          (p/"artifact-index.json").write_text(json.dumps(rows,indent=2)+"\n")
+          PY
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: review-dex-amd64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: runtime/review-dex/
+          if-no-files-found: error
+          retention-days: 14
