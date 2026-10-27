@@ -1,3 +1,5 @@
+import { taskSettingsReminder } from '../src/global-instructions.mjs'
+const reminderSuffix = `\n\n<bellteam_task_settings>\n${await taskSettingsReminder()}\n</bellteam_task_settings>`
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -193,8 +195,8 @@ test('席の登録が消えて打つ前に断られた送信は、席を閉じ�
   assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_list', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
   assert.deepEqual(calls[2][1], { session_id: 'bot-a' })
   assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args), [
-    { session_id: 'bot-a', text: '再現用の本文', require_agent: true },
-    { session_id: 'bot-a', text: '再現用の本文', require_agent: true },
+    { session_id: 'bot-a', text: '再現用の本文' + reminderSuffix, require_agent: true },
+    { session_id: 'bot-a', text: '再現用の本文' + reminderSuffix, require_agent: true },
   ])
 })
 
@@ -295,7 +297,7 @@ test('起こしている途中の席へ次の文が重なっても、前の送�
   finish()
   await transport.idle(bot.id)
   assert.deepEqual(calls.filter(([name]) => name === 'agent_launch').length, 1)
-  assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args.text), ['1通目', '1通目', '2通目'])
+  assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args.text), ['1通目', '1通目', '2通目'].map(text => text + reminderSuffix))
 })
 
 test('前の送信が失敗しても、同じ席への次の送信は止めない', async () => {
