@@ -303,3 +303,25 @@ successful invocation does not make this Draft deployable or authorize a real ru
 Six new artificial Node cases cover the bounded metadata intake and never execute
 Docker or call old tests. They are ordinary in-memory fixtures; their synthetic
 PID/startTicks fields are not actual child terminal/host authority evidence.
+
+## 2026-10-27 検査した設定を後続へ渡す入力の境界
+
+fd2855cの通常installerについて、既存のplan/CLIと実行側の接続をsourceだけで照合した。検査結果をprepare・移行・通常起動へ渡す既存入力は、この呼出経路には無い。ここで新しいplanner/runner/lock/receiptを作らず、接続済みと扱わない。
+
+| 段階 | 既入力・出力 | 後続へ残る不足 |
+| --- | --- | --- |
+| installerのimage選択 | 通常Composeから選び一度local image IDへ解決、既BELLTEAM_SERVER_IMAGEへexport | imageの限定結合であり、設定file内容・mount source・writer排他は固定しない |
+| writer checkerのplan | normal config JSONとimage-owned maintenanceを合成しstateWriterPlanへ渡す。plan.jsonはrootsとvolumeのみ | rootsは正規化/重複除去されたsource集合で、targetとの対応・project・image・設定file/補間入力を保持しない |
+| checkerのverify | container/volume metadataとcanonical pathで検査し、成功時はwriters:0をstdoutへ返す | stagingのplan.json等はtrapで削除し、installerは終了codeだけ使う。後続の設定一致や排他を表す入力は返さない |
+| projectの選択 | installerが検査後にnormal config YAMLを別途読みprojectを取得 | 検査時のconfig/projectとの一致を表す値は受け取らない |
+| 固定prepare | 専用file/同project/installation directory、BELLTEAM_STATE_PARENTを補間 | 親は固定container pathで検査される。checkerのhost sourceとの対応は渡らない |
+| 固定maintenance | 専用fileを再補間しlegacy/state/backupの絶対host入力を9bindへ配置 | CLIは固定container path/2view identityとbackup親を検査するが、checker planを受け取らない |
+| Cursor更新/normal up | updaterはnormal configを再読取、最後もnormal Composeを使用 | 検査時のproject/mount/volume/configと同じであることや、終了までwriterが再開しないことは未結合 |
+
+通常Composeのfile列・順序・project directory・.env/明示環境の補間により、各呼出の入力が決まる。BELLTEAM_LEGACY_DATA、BELLTEAM_STATE_PARENT、BELLTEAM_MAINTENANCE_BACKUP_PARENTが同名であっても、.env又はfileが途中で変われば同じ値を意味しない。現sourceはこの変更を検出したり防いだりするものではない。checkerが読んだ正規化source集合から、後続の役割別mountを再構築してよい契約も無い。
+
+必要な製品入力は、検査したnormalのproject/imageとtarget→source/volume対応、prepare親、maintenance両view/6leaf/backupが、後続に実際に渡る設定へ対応すること。Rootが既Compose入力を保つ方法を実装・互換確認し、製品として渡す責任を持つ。設定の読取成功やsnapshot SHAだけを、外部file/host path/inodeの不変又はwriter lifetime/respawn排他へ代用しない。
+
+host担当の責任は既承認範囲の専用親/root:root0700/ACL/alias/mount等の準備・管理。新しい専用host原本発行や旧補助の再導入は依頼しない。配布image/sourceの受入はセンチと接続し、Rootは実両normal identity、二viewbackup/移動、許可内再開と最新data healthまで持つ。現在の入力結合・全writer/respawn抑止が未成立なら、このDraftを通常起動可能な完成品とは扱わない。
+
+今回はsource修理/新試験/実Compose/host操作0、文書だけの境界固定。旧合格や他PRからGOを補完せず、wholeNOTDEPLOYABLE・本番未反映・既開始不可/承認停止を維持する。親死亡・例外・daemonunknownでnormal0/journal保持、Owner直接再開とKikoeru除外の既条件も変えない。
