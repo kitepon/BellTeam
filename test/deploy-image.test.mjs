@@ -26,6 +26,8 @@ const args = process.argv.slice(2)
 fs.appendFileSync(process.env.FIXTURE_LOG, JSON.stringify({args,cwd:process.cwd(),
   compose:process.env.COMPOSE_FILE,project:process.env.COMPOSE_PROJECT_NAME,
   image:process.env.BELLTEAM_SERVER_IMAGE,profile:process.env.BELLTEAM_INTERNAL_PROFILE_FILE})+'\\n')
+if (args[0] === 'container' && args[1] === 'inspect') console.log('${'c'.repeat(64)} sha256:${'d'.repeat(64)}')
+if (args[0] === 'image' && args[1] === 'save') fs.writeFileSync(args[args.indexOf('--output')+1], 'synthetic-image')
 if (args[0] === 'run') {
   if (process.env.FIXTURE_FAIL === 'extract') process.exit(8)
   process.stdout.write(args.at(-1).endsWith('update-cursor.sh') ? fs.readFileSync(process.env.FIXTURE_UPDATER) : 'services: {}\\n')
@@ -55,7 +57,7 @@ test('商用imageは同じdigest・構成で取得し、旧本体のquiet2点を
   assert.match(stdout,/deploy-exit=0/u)
   const calls = await f.calls()
   assert.deepEqual(calls.map(row => row.args[0] === 'compose' ? row.args[1] : row.args[0]),
-    ['pull','run','run','exec','fixture-cursor','exec','up'])
+    ['container','image','pull','run','run','exec','fixture-cursor','exec','up'])
   for (const row of calls) {
     assert.equal(row.cwd,f.root)
     assert.equal(row.compose,`${f.root}/distribution/server/compose.yaml:${f.root}/distribution/internal/compose.overlay.yaml`)
