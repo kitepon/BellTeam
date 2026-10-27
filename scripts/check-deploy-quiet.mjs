@@ -328,7 +328,8 @@ export function assessDeployQuiet({ except, items, seats, turns, unknown = 0 }) 
   }
   for (const { botId, session } of seats) {
     if (botId === except) continue
-    const turn = session && turns instanceof Map ? turns.get(session) : null
+    const turn = session && seats.filter(seat => seat.session === session).length === 1
+      && turns instanceof Map ? turns.get(session) : null
     if (turn?.state === 'running') running.add(botId)
     else if (turn?.state !== 'idle') unclassified.add(botId)
   }
