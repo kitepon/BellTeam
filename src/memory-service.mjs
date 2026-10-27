@@ -85,12 +85,12 @@ export class BellTeamMemory {
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     if (typeof content !== 'string' || content.trim().length === 0) throw new Error('MEMORY_CONTENT_INVALID')
     const db = await this.openMemory(bot?.id ?? null, normalizedScope)
-    const observedAt = this.now().toISOString()
-    const newId = `memory-${this.id()}`
-    const rawEventId = `raw-${this.id()}`
-    let resolvedKind
+    let observedAt, newId, resolvedKind
     const errors = []
     try {
+      observedAt = this.now().toISOString()
+      newId = `memory-${this.id()}`
+      const rawEventId = `raw-${this.id()}`
       const current = db.prepare(`SELECT * FROM assertions WHERE id = ? AND status = 'active'`).get(id)
       if (!current) throw new Error(`MEMORY_NOT_FOUND: ${id}`)
       const nextKind = kind ?? current.kind
