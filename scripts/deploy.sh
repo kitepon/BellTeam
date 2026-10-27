@@ -55,11 +55,18 @@ if ! ssh "$host" "grep -q '^deploy-exit=0$' $dir/$log"; then
   exit 1
 fi
 
+health=
 for _ in $(seq 1 24); do
-  if ssh "$host" 'docker exec bellteam curl -fsS http://127.0.0.1:4180/healthz' 2>/dev/null | grep -q '"ok"'; then break; fi
+  if health="$(ssh "$host" 'docker exec bellteam curl -fsS http://127.0.0.1:4180/healthz' 2>/dev/null)" &&
+    printf '%s' "$health" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{if(JSON.parse(d).status!=="ok")process.exitCode=1}catch{process.exitCode=1}})'; then break; fi
+  health=
   sleep 5
 done
-printf 'healthz: %s\n' "$(ssh "$host" 'docker exec bellteam curl -fsS http://127.0.0.1:4180/healthz')"
+if [ -z "$health" ]; then
+  echo 'healthzの正常応答を確認できない。反映結果は未確認。' >&2
+  exit 1
+fi
+printf 'healthz: %s\n' "$health"
 ssh "$host" "docker exec bellteam sh -c 'node --version; codex --version; claude --version; grok --version; cursor-agent --version; gh --version | head -1; npm ls -g --depth=0 2>/dev/null | grep -E \"aiterm-mcp|throughline\"'"
 ssh "$host" 'docker exec bellteam curl -fsS http://127.0.0.1:4181/api/bots' \
   | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const b=JSON.parse(d).bots;console.log(`bots ${b.length} online ${b.filter(x=>x.online).length}`)})'
