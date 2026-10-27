@@ -2,7 +2,9 @@
 
 Draft PR42 の途中工程。利用者分離全体はまだ NOTDEPLOYABLE であり、この変更だけを main や本番へ出さない。
 
-公開 installer は Compose の停止成功と既存 writer 検査の後に、選択image内の固定 `state-maintenance` serviceへ `to-server` を渡す。通常serviceへのroot/entrypoint指定とHOME/data親の一括chownは行わない。実排他の維持と通常再開の受入は未完であり、検査snapshotだけを実行許可にしない。
+公開 installer は Compose の停止成功と既存 writer 検査の後に、選択image内の固定 `state-prepare` serviceを引数無しで実行し、成功後だけ固定 `state-maintenance` serviceへ `to-server` を渡す。どちらも通常projectを明示した専用file単独で、通常serviceへのroot/entrypoint指定とHOME/data親の一括chownは行わない。実排他の維持と通常再開の受入は未完であり、検査snapshotだけを実行許可にしない。
+
+2026-10-27のprepare接続は、host担当が準備済みの絶対 `BELLTEAM_STATE_PARENT` と既backup/legacy入力を使う。専用親をinstaller/Dockerに自動作成させず、既prepareのroot:root0700/空親又は記録一致の条件を維持する。prepare失敗時の途中leafや印は残して終了し、移行/Cursor/通常起動へ進めない。二つの固定fileは同じ受入imageから抽出する。入力の再読取とwriter lifetime/respawnの共通排他は未接続で、以下の過去工程の記述を全体の実受入へ読み替えない。
 
 移行先は既存 component と同じ `/srv/bellteam`。引数は `to-server` または `to-legacy` 一つだけで、外部 path・code・設定を指定できない。実 UID/GID と実効 UID/GID は root を要求する。エラーは code だけを出し、文書本文・headers・path を出さない。移行が失敗したら installer は終了し、Cursor 更新と新旧本体の起動を行わない。途中ファイルや marker は既存 component の再開契約に従う。
 

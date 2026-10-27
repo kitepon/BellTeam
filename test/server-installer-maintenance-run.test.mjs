@@ -14,7 +14,7 @@ async function fixture(t) {
   for (const path of [install, join(image, 'scripts'), bin]) await mkdir(path, { recursive: true })
   await copyFile(process.env.INSTALLER_UNDER_TEST ? resolve(process.env.INSTALLER_UNDER_TEST)
     : new URL('../distribution/server/install.sh', import.meta.url), join(install, 'install.sh'))
-  for (const path of ['scripts/update-cursor.sh', 'scripts/assert-state-writers-stopped.sh', 'compose.cursor-update.yaml', 'compose.state-maintenance.json'])
+  for (const path of ['scripts/update-cursor.sh', 'scripts/assert-state-writers-stopped.sh', 'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'compose.state-prepare.yaml'])
     await copyFile(new URL('../' + path, import.meta.url), join(image, path))
   const model = { name: 'selected-project', services: { bellteam: { image: 'fixture:accepted',
     environment: { SECRET: 'synthetic-normal-only' }, volumes: [] } } }

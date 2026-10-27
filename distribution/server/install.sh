@@ -21,7 +21,7 @@ staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-install.XXXXXX")
 trap 'rm -rf "$staging"' 0
 trap 'exit 1' 1 2 15
 mkdir "$staging/scripts"
-for path in compose.cursor-update.yaml compose.state-maintenance.json scripts/update-cursor.sh scripts/assert-state-writers-stopped.sh; do
+for path in compose.cursor-update.yaml compose.state-maintenance.json compose.state-prepare.yaml scripts/update-cursor.sh scripts/assert-state-writers-stopped.sh; do
   if ! docker run --pull never --rm --network none --read-only --entrypoint /bin/cat "$image" "/app/$path" > "$staging/$path"; then
     echo '取得したBellTeamイメージから更新手順を読み出せませんでした。起動は行っていません。' >&2
     exit 1
@@ -34,6 +34,8 @@ config=$(docker compose config --format yaml)
 project=$(printf '%s' "$config" | awk '/^name: / { print $2; exit }')
 unset config
 case "$project" in ''|*[!a-zA-Z0-9_.-]*) echo '通常Composeのproject名を確認できません。BellTeamは停止したままです。' >&2; exit 1;; esac
+docker compose --project-directory "$PWD" -f "$staging/compose.state-prepare.yaml" \
+  -p "$project" run --pull never --rm --no-deps -T state-prepare
 docker compose --project-directory "$PWD" -f "$staging/compose.state-maintenance.json" \
   -p "$project" run --pull never --rm --no-deps -T state-maintenance to-server
 if sh "$staging/scripts/update-cursor.sh"; then
