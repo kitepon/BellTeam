@@ -240,6 +240,29 @@ unchanged and must not be reused for this phase. No CLI/factory/installer change
 Docker, host observation, actual root/mount/ACL or normal start was added.
 Whole Draft NOTDEPLOYABLE remains in force.
 
+## Installer maintenance mount inputs (source only)
+
+The installer extracts `compose.state-maintenance.json` from the selected image
+along with its existing writer-check script. It passes that image selection as
+`BELLTEAM_SERVER_IMAGE` and calls the existing `--maintenance` check after stop.
+The checker appends its image-owned Compose file by absolute path after the
+caller's normal `COMPOSE_FILE`, preserving its separator and project. A two-file
+installation therefore does not need a second, independently selected copy.
+
+Compose must receive `BELLTEAM_LEGACY_DATA`, `BELLTEAM_STATE_PARENT` and
+`BELLTEAM_MAINTENANCE_BACKUP_PARENT` from the installation's existing environment
+or `.env`. The planned old/new views and backup enter the existing mount check;
+missing inputs or an unavailable image-owned file stop this path. No host parent
+is created or adopted by this change. These inputs must match the actual normal
+mounts, and the state parent must already satisfy the prepare contract.
+
+This connects only the writer-check denominator. The installer still uses its
+old normal-service maintenance runs, not the fixed maintenance service or prepare
+entry. Writer exclusion through migration, respawn suppression and the normal
+restart remain unconnected. A passing metadata check is not that exclusion.
+The new fake-Docker cases stop at rendering and establish no real Compose
+interpolation, writer stop, prepared parent, migration or normal-start acceptance.
+
 Six new artificial Node cases cover the bounded metadata intake and never execute
 Docker or call old tests. They are ordinary in-memory fixtures; their synthetic
 PID/startTicks fields are not actual child terminal/host authority evidence.

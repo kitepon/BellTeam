@@ -99,7 +99,8 @@ esac
   await assert.rejects(exec('sh', [script, '--unknown'], { env }), error => error.code === 1 && error.stderr === 'SERVER_STATE_WRITER_ARGUMENTS_INVALID\n')
   await assert.rejects(readFile(calls), { code: 'ENOENT' })
   await assert.rejects(exec('sh', [script, '--maintenance'], { env }), error => error.code === 47)
-  assert.match(await readFile(calls, 'utf8'), /compose config --format json\|compose.yaml:compose.state-maintenance.json/u)
+  assert.equal((await readFile(calls, 'utf8')).trim().split('\n').at(-1),
+    `compose config --format json|compose.yaml:${new URL('../compose.state-maintenance.json', import.meta.url).pathname}`)
 })
 
 test('maintenance composition keeps the callers explicit normal overlay and project', async t => {
@@ -123,6 +124,6 @@ esac
       COMPOSE_FILE: normal, COMPOSE_PATH_SEPARATOR: separator, COMPOSE_PROJECT_NAME: 'existing-project' }
     await assert.rejects(exec('sh', [script, '--maintenance'], { env }), error => error.code === 47)
     const lines = (await readFile(calls, 'utf8')).trim().split('\n')
-    assert.equal(lines.at(-1), `compose config --format json|${normal}${separator}compose.state-maintenance.json|existing-project`)
+    assert.equal(lines.at(-1), `compose config --format json|${normal}${separator}${new URL('../compose.state-maintenance.json', import.meta.url).pathname}|existing-project`)
   }
 })

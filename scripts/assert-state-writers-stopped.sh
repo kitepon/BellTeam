@@ -19,7 +19,8 @@ trap 'rm -rf "$staging"' 0
 trap 'exit 1' 1 2 15
 if "$maintenance"; then
   # Keep the caller's actual normal overlays and project when adding maintenance.
-  config=$(COMPOSE_FILE="${COMPOSE_FILE:-compose.yaml}${COMPOSE_PATH_SEPARATOR:-:}compose.state-maintenance.json" \
+  maintenance_compose="$(CDPATH= cd "$(dirname "$0")/.." && pwd)/compose.state-maintenance.json"
+  config=$(COMPOSE_FILE="${COMPOSE_FILE:-compose.yaml}${COMPOSE_PATH_SEPARATOR:-:}$maintenance_compose" \
     docker compose config --format json)
 else
   config=$(docker compose config --format json)
