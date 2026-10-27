@@ -228,6 +228,8 @@ BellTeamは5分おきにAitermの`pty_observe`で席を観測し、画面が変�
 
 Botのセッション再起動は、現在の処理が終わった後に専用Aitermセッションを閉じ、設定済みのCLI、モデル、エフォート、同じプロジェクトで起動し直し、Aitermが返したセッションIDを保存する。CLI変更とモデル・エフォートを既定へ戻す変更は、稼働中なら配送列の末尾で再起動し、停止中なら次のメッセージで新しい設定を使う。設定、会話ログ、長期記憶、RAGは永続領域へ保持する。ただし起動時に読み込ませるのは前セッションの短期記憶だけで、長期記憶とRAGは必要な時にMCPから検索する。
 
+Codexの作業別モデル選択とファストの見直しは`config/common-agents.md`の「作業設定の見直し」を正本とする。起動時の4CLI共通指示に加え、BellTeamからの各配送・差し込みでも同節の短い本文をAI入力へ添える。既に動いている席にも届き、画面・会話保存の元の発言は変更しない。セットアップ接続テストには配送時の追記をしない。モデル変更は現在のターン後に反映されるため、変更が必要な工程は既存の継続予定で次ターンへつなぐ。Botが選択し、BellTeamが仕事を別のAIで分類したり全Botの設定を一律変更する機構は追加しない。
+
 同じCLIで明示モデルまたはエフォートへ変更する時は、Aitermの`agent_configure`を配送列の末尾で実行し、同じセッションと会話文脈を保つ。モデルIDは変動する各CLIのlive catalogをAitermが検証し、別モデルへのフォールバックは行わない。
 
 ファストモード（各CLIの、応答を速くする設定）はBotごとに`bot.json`の`fastMode`へ保存し、既定は使わない（オーナー裁定 2026-10-12）。切り替えはMCPの`set_fast_mode(enabled, botId?)`と`PATCH /api/bots/<id>`の`fastMode`で行い、モデル・エフォートと同じ経路で保存と稼働中への適用をする。Botが仕事の重なった時に自分で有効にし、落ち着いたら自分で戻す運用で、BellTeamは自動で戻さない。CLIごとの切り替え方（Claude Codeの`/fast`、Codexのservice tier、GrokとCursorのfast版モデル）はAitermが所有し、BellTeamは`agent_launch`へ`fast`を必ず真偽で渡し、`agent_configure`へ`fast`を渡すだけにする。必ず渡すのは、共有の設定に残った値で席がファストのまま起きないようにするため。保存の前に`agent_models`の一覧を読み、どのモデルにも`fast`が無い時（Aitermが未対応）は`BOT_FAST_MODE_UNAVAILABLE`、一覧の`fast_unavailable`に理由がある時（そのCLIのアカウントで使えない。Claudeの別払いが無効など）は`BOT_FAST_MODE_ACCOUNT_UNAVAILABLE`、そのBotのモデルの`fast`がfalseの時は`BOT_FAST_MODE_UNSUPPORTED`で保存しない。断る時は400で、訳の文とAitermの理由を返す。有効のBotのCLIやモデルだけを、切り替えられない物へ替えた時は、Claude Codeの動きと同じく無効へ戻して保存する。一覧に無いモデルIDはAitermの判定に任せる。稼働中への適用が失敗した時は保存を元の値へ戻し、起動の返りの`fast`がfalseの時（利用枠が無くて通常の速度で起きた時など）は保存を無効へ合わせる。記録が有効のまま実際は通常の速度、という食い違いを残さない。
