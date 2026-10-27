@@ -42,6 +42,7 @@ export class BellTeamMemory {
     const evidenceId = `evidence-${this.id()}`
     let duplicate = false
     const db = await this.openMemory(bot?.id ?? null, normalizedScope)
+    const errors = []
     try {
       db.exec('BEGIN')
       db.prepare(`
@@ -69,10 +70,12 @@ export class BellTeamMemory {
       `).run(evidenceId, assertionId, rawEventId, content.trim(), observedAt, bot?.id ?? 'shared', sourceRef)
       db.exec('COMMIT')
     } catch (error) {
-      db.exec('ROLLBACK')
-      throw error
+      errors.push(error)
+      if (db.isTransaction) {
+        try { db.exec('ROLLBACK') } catch (error) { errors.push(error) }
+      }
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
     return { id: assertionId, kind, content: content.trim(), scope: normalizedScope, observedAt, duplicate }
   }
@@ -86,6 +89,7 @@ export class BellTeamMemory {
     const newId = `memory-${this.id()}`
     const rawEventId = `raw-${this.id()}`
     let resolvedKind
+    const errors = []
     try {
       const current = db.prepare(`SELECT * FROM assertions WHERE id = ? AND status = 'active'`).get(id)
       if (!current) throw new Error(`MEMORY_NOT_FOUND: ${id}`)
@@ -109,10 +113,12 @@ export class BellTeamMemory {
       `).run(`evidence-${this.id()}`, newId, rawEventId, content.trim(), observedAt, bot?.id ?? 'shared', id)
       db.exec('COMMIT')
     } catch (error) {
-      if (db.isTransaction) db.exec('ROLLBACK')
-      throw error
+      errors.push(error)
+      if (db.isTransaction) {
+        try { db.exec('ROLLBACK') } catch (error) { errors.push(error) }
+      }
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
     return { id: newId, supersedesId: id, kind: resolvedKind, content: content.trim(), scope: normalizedScope, observedAt }
   }
@@ -121,13 +127,16 @@ export class BellTeamMemory {
     const normalizedScope = normalizeScope(scope)
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     const db = await this.openMemory(bot?.id ?? null, normalizedScope)
+    const errors = []
     try {
       const row = db.prepare(`SELECT metadata_json FROM assertions WHERE id = ? AND status = 'active'`).get(id)
       if (!row) throw new Error(`MEMORY_NOT_FOUND: ${id}`)
       db.prepare(`UPDATE assertions SET metadata_json = ? WHERE id = ?`)
         .run(JSON.stringify({ ...JSON.parse(row.metadata_json), pinned: Boolean(pinned) }), id)
+    } catch (error) {
+      errors.push(error)
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
     return { id, pinned: Boolean(pinned), scope: normalizedScope }
   }
@@ -141,14 +150,17 @@ export class BellTeamMemory {
     const normalizedScope = normalizeScope(scope)
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     const db = await this.openMemory(bot?.id ?? null, normalizedScope)
+    const errors = []
     try {
       for (const id of memoryIds) {
         const row = db.prepare(`SELECT metadata_json FROM assertions WHERE id = ? AND status = 'active'`).get(id)
         if (!row || JSON.parse(row.metadata_json).pinned) continue
         db.prepare(`UPDATE assertions SET status = 'consolidated' WHERE id = ?`).run(id)
       }
+    } catch (error) {
+      errors.push(error)
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
     return { ...growth, sourceMemoryIds: memoryIds }
   }
