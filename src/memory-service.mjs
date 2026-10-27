@@ -9,6 +9,14 @@ const MEMORY_KINDS = new Set([
   'fact', 'preference', 'policy', 'task', 'config', 'incident', 'relationship', 'episode', 'growth',
 ])
 
+function closeDatabases(databases, errors = []) {
+  for (const db of databases) {
+    try { db?.close() } catch (error) { errors.push(error) }
+  }
+  if (errors.length === 1) throw errors[0]
+  if (errors.length) throw new AggregateError(errors, 'MEMORY_DATABASE_CLOSE_FAILED')
+}
+
 export class BellTeamMemory {
   constructor({ registry, root, now = () => new Date(), id = randomUUID }) {
     this.registry = registry
@@ -198,12 +206,15 @@ export class BellTeamMemory {
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     const ragRoot = await this.ensureRag(bot?.id ?? null, normalizedScope)
     const knowledgeDb = openKnowledgeDb(join(ragRoot, 'index.db'))
-    const memoryDb = await this.openMemory(bot?.id ?? null, normalizedScope)
+    let memoryDb
+    const errors = []
     try {
+      memoryDb = await this.openMemory(bot?.id ?? null, normalizedScope)
       return { scope: normalizedScope, items: searchKnowledgeItems(knowledgeDb, memoryDb, query, limit) }
+    } catch (error) {
+      errors.push(error)
     } finally {
-      knowledgeDb.close()
-      memoryDb.close()
+      closeDatabases([memoryDb, knowledgeDb], errors)
     }
   }
 
@@ -231,7 +242,7 @@ export class BellTeamMemory {
   async openMemory(botId, scope) {
     const directory = await this.ensureMemory(botId, scope)
     const db = new DatabaseSync(join(directory, 'memory.db'))
-    db.exec(`
+    try { db.exec(`
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS raw_events (
         id TEXT PRIMARY KEY,
@@ -282,7 +293,7 @@ export class BellTeamMemory {
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
-    `)
+    `) } catch (error) { closeDatabases([db], [error]) }
     return db
   }
 
@@ -319,7 +330,7 @@ export class BellTeamMemory {
 
 function openKnowledgeDb(path) {
   const db = new DatabaseSync(path)
-  db.exec(`
+  try { db.exec(`
     PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS documents (
       rowid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -366,7 +377,7 @@ function openKnowledgeDb(path) {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
-  `)
+  `) } catch (error) { closeDatabases([db], [error]) }
   return db
 }
 
