@@ -87,3 +87,132 @@ FF後は同じ控えの絶対pathを既adapterへ内部引数として渡す。a
 legacyの既逆移行口は、保存`compose.state-maintenance.json`を単独指定した`docker compose ... run --pull never --rm --no-deps -T state-maintenance to-legacy`。使うimageはその保存modelの移行用imageであり、旧normal起動imageではない。停止維持・writer検査・実view対応を揃えてから実行し、既処理が最新両view backup後に移す。途中失敗時はupへ進まない。成功後の通常再開は`previousCompose`の旧raw image/profile/bindを使い、新しい.envやcheckoutから再合成しない。過去data/Cursor tarを最新データへ自動復元する処理も追加していない。
 
 ここではrecovery executorや新しい公開引数を追加していない。実stop→検査→逆移行→旧normal再開/healthの製品接続・受入、server layoutの最新backup/restart経路、現在HOME/Cursor保全、全writer lifetimeと実親UIDACLaliasmount、正式image実CLI隔離停止時間は未完。保存recordの存在を本番復旧成功やwhole Draftの配備可へ補完しない。
+
+
+### 選択した保存世代の手動復旧（source検査用・実機受入前）
+
+この固定手順は、今回の保存世代・実親/両view・全writer停止維持と、移行image/旧imageのformat互換をRootが受け入れ、現在HOME/Cursor/私有modelの別backupを確保した後に使う。過去のimage/Cursor archiveは最新dataや現在のHOME/Cursorの控えではない。現段階ではこれらが未受入なので、本番でこの手順を実行しない。新しい公開CLIや復旧helperを設置する手順ではない。
+
+repoの作業directoryで、当回ログの`saved-compose=`に出た絶対pathを`saved`、既quiet対象を`quiet_except`へ明示する。以下は明示的な手動復旧の一回分であり、deploy失敗から自動では呼ばない。legacyは既CLIが最新二view backup後に逆移行し、serverは同じmaintenance serviceのenv-i/固定Nodeで既backup APIだけを順に呼ぶ。serverのbackup名に使う`to-legacy`は既APIの保存namespaceで、transfer CLIの呼出しではない。既complete/partial backupは上書きせず失敗する。どちらも失敗すれば起動へ進まない。
+
+<!-- sec014-manual-recovery -->
+```sh
+set -eu
+: "${saved:?saved-composeの絶対pathを選ぶ}"
+: "${quiet_except:?quiet対象Botを選ぶ}"
+repo=$(pwd)
+umask 077
+staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-recovery.XXXXXX")
+trap 'rm -rf "$staging"' 0
+trap 'exit 1' 1 2 15
+node --input-type=module - "$saved" > "$staging/selection" <<'NODE'
+import fs from 'node:fs'
+import path from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { stateWriterPlan } from './src/server-state-writers.mjs'
+try {
+  const saved=process.argv[2], repo=process.cwd()
+  const directory=(dir,parent,prefix)=>{
+    if(path.dirname(dir)!==parent||!new RegExp('^'+prefix+'[a-zA-Z0-9]{6}$').test(path.basename(dir)))throw new Error()
+    const st=fs.lstatSync(dir)
+    if(!st.isDirectory()||st.uid!==process.getuid()||(st.mode&0o777)!==0o700)throw new Error()
+  }
+  const read=(file,compose=false)=>{
+    const st=fs.lstatSync(file)
+    if(!st.isFile()||st.uid!==process.getuid()||(st.mode&0o777)!==0o600)throw new Error()
+    const raw=fs.readFileSync(file,'utf8')
+    return JSON.parse(compose?raw.replaceAll('$$','$'):raw)
+  }
+  directory(saved,repo,'\\.bellteam-compose\\.')
+  const record=read(path.join(saved,'recovery.json')), normal=read(path.join(saved,'normal.json'),true)
+  const maintenance=read(path.join(saved,'compose.state-maintenance.json'),true)
+  const originalDir=path.dirname(record.previousCompose), archive=record.previousImageArchive
+  directory(originalDir,repo,'\\.bellteam-compose\\.')
+  directory(archive,path.join(repo,'runtime/backups'),'image-before-deploy\\.')
+  if(path.basename(record.previousCompose)!=='previous-normal.json')throw new Error()
+  const original=read(record.previousCompose,true), runtime=read(path.join(originalDir,'previous-runtime.json'))
+  const target=normal.services.bellteam, old=original.services.bellteam
+  const combined=model=>({...model,services:{...model.services,...maintenance.services}})
+  const a=stateWriterPlan(combined(normal)), b=stateWriterPlan(combined(original))
+  const home=service=>path.resolve(service.volumes.find(v=>v.target==='/home/bell').source)
+  const migrationImage=maintenance.services['state-maintenance'].image
+  if(normal.name!=='bellteam'||original.name!==normal.name||a.volume!==b.volume||home(target)!==home(old)
+    ||target.image!==migrationImage||old.image!==runtime.Image||!/^[a-f0-9]{64}$/.test(runtime.Id))throw new Error()
+  for(const image of [migrationImage,old.image])if(!/^sha256:[a-f0-9]{64}$/.test(image))throw new Error()
+  if(fs.readFileSync(path.join(archive,'previous-compose.path'),'utf8')!==record.previousCompose+'\n'
+    ||fs.readFileSync(path.join(archive,'container-image.txt'),'utf8').trim()!==runtime.Id+' '+runtime.Image
+    ||fs.readFileSync(path.join(archive,'container-started-at.txt'),'utf8').trim()!==runtime.State.StartedAt)throw new Error()
+  const stateTargets=maintenance.services['state-maintenance'].volumes.map(v=>v.target)
+    .filter(t=>!['/srv/bellteam','/srv/bellteam-legacy','/srv/bellteam-maintenance-backups'].includes(t))
+  for(const service of [old,target])if(service.volumes.some(v=>v.target!==path.posix.resolve(v.target)
+    ||v.target!=='/srv/bellteam'&&!stateTargets.includes(v.target)&&stateTargets.some(t=>v.target==='/'||v.target.startsWith(t+'/')||t.startsWith(v.target+'/'))))throw new Error()
+  const layout=old.volumes.some(v=>stateTargets.includes(v.target))?'server':'legacy'
+  if(record.stateLayout!==layout)throw new Error()
+  const docker=args=>execFileSync('docker',args,{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()
+  for(const image of [migrationImage,old.image])if(docker(['image','inspect','--format','{{.Id}}',image])!==image)throw new Error()
+  const current=JSON.parse(docker(['container','inspect','--format','{{json .}}','bellteam']))
+  const labels=current.Config?.Labels??{}
+  if(!/^[a-f0-9]{64}$/.test(current.Id)||!/^sha256:[a-f0-9]{64}$/.test(current.Image)
+    ||typeof current.State?.Running!=='boolean'||typeof current.State.Restarting!=='boolean'
+    ||typeof current.State.StartedAt!=='string'||!current.State.StartedAt||/[\r\n]/.test(current.State.StartedAt))throw new Error()
+  const isTarget=current.Image===target.image&&labels['com.docker.compose.project']===normal.name
+    &&labels['com.docker.compose.service']==='bellteam'
+    &&labels['com.docker.compose.project.config_files']===path.join(saved,'normal.json')
+  const isOriginal=current.Id===runtime.Id&&current.Image===runtime.Image&&current.State.StartedAt===runtime.State.StartedAt
+  if(!isTarget&&!isOriginal)throw new Error()
+  if(isTarget&&docker(['compose','-p',normal.name,'-f',path.join(saved,'normal.json'),'config','--hash','bellteam'])!=='bellteam '+labels['com.docker.compose.config-hash'])throw new Error()
+  console.log([normal.name,record.previousCompose,migrationImage,old.image,layout,current.Id,current.Image,
+    current.State.StartedAt,String(current.State.Running||current.State.Restarting)].join('\n'))
+}catch{console.error('BELLTEAM_RECOVERY_SELECTION_UNAVAILABLE');process.exitCode=1}
+NODE
+project=$(sed -n '1p' "$staging/selection")
+original=$(sed -n '2p' "$staging/selection")
+migration_image=$(sed -n '3p' "$staging/selection")
+old_image=$(sed -n '4p' "$staging/selection")
+layout=$(sed -n '5p' "$staging/selection")
+current_cid=$(sed -n '6p' "$staging/selection")
+current_image=$(sed -n '7p' "$staging/selection")
+current_started=$(sed -n '8p' "$staging/selection")
+running=$(sed -n '9p' "$staging/selection")
+COMPOSE_FILE="$saved/normal.json"
+COMPOSE_PROJECT_NAME=$project
+BELLTEAM_SERVER_IMAGE=$migration_image
+export COMPOSE_FILE COMPOSE_PROJECT_NAME BELLTEAM_SERVER_IMAGE
+if [ "$running" = true ]; then sh scripts/check-deploy-quiet.sh "$quiet_except"; fi
+docker compose stop bellteam
+stopped=$(docker container inspect --format '{{.Id}} {{.Image}} {{.State.Running}} {{.State.Restarting}} {{.State.StartedAt}}' bellteam)
+[ "$stopped" = "$current_cid $current_image false false $current_started" ] || { echo BELLTEAM_RECOVERY_STOP_UNCONFIRMED >&2; exit 1; }
+mkdir "$staging/scripts"
+docker run --pull never --rm --network none --read-only --entrypoint /bin/cat \
+  "$migration_image" /app/scripts/assert-state-writers-stopped.sh > "$staging/scripts/assert-state-writers-stopped.sh"
+cp "$saved/compose.state-maintenance.json" "$staging/compose.state-maintenance.json"
+sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
+if [ "$layout" = legacy ]; then
+  docker compose --project-directory "$repo" -p "$project" -f "$saved/compose.state-maintenance.json" \
+    run --pull never --rm --no-deps -T state-maintenance to-legacy
+else
+  docker compose --project-directory "$repo" -p "$project" -f "$saved/compose.state-maintenance.json" \
+    run --pull never --rm --no-deps -T --entrypoint /usr/bin/env state-maintenance \
+    -i PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/node --input-type=module -e '
+import { lstat, mkdir } from "node:fs/promises";
+import { backupServerState } from "/app/src/server-state-backup.mjs";
+try {
+  if([process.getuid(),process.geteuid(),process.getgid(),process.getegid()].some(id=>id!==0))throw new Error();
+  const [legacy,current,parent]=await Promise.all(["/srv/bellteam-legacy","/srv/bellteam","/srv/bellteam-maintenance-backups"].map(p=>lstat(p)));
+  if(!legacy.isDirectory()||!current.isDirectory()||legacy.dev!==current.dev||legacy.ino!==current.ino
+    ||!parent.isDirectory()||parent.uid!==0||parent.gid!==0||(parent.mode&0o777)!==0o700)throw new Error();
+  for(const [view,root] of [["legacy","/srv/bellteam-legacy"],["server","/srv/bellteam"]]){
+    const backupRoot="/srv/bellteam-maintenance-backups/"+view;
+    try{await mkdir(backupRoot,{mode:0o700})}catch(e){if(e.code!=="EEXIST")throw e}
+    await backupServerState({root,backupRoot,direction:"to-legacy"});
+  }
+}catch(e){console.error(/^[A-Z][A-Z_0-9]*$/.test(e.code??"")?e.code:"SERVER_STATE_BACKUP_FAILED");process.exitCode=1}
+'
+fi
+docker compose -p "$project" -f "$original" up -d --no-build --pull never
+[ "$(docker container inspect --format '{{.Image}}' bellteam)" = "$old_image" ] || { echo BELLTEAM_RECOVERY_IMAGE_UNCONFIRMED >&2; exit 1; }
+health=$(docker exec bellteam curl -fsS http://127.0.0.1:4180/healthz)
+printf '%s' "$health" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{if(JSON.parse(d).status!=="ok")process.exitCode=1}catch{process.exitCode=1}})'
+```
+
+一回のhealth応答は通常再開の全受入ではない。起動直後の未応答も未確認として止まり、upや逆移行を再送しない。実際の旧CID/raw image/選択model、最新dataの通常readbackと各CLIを別に確認する。途中失敗では元/新設定・現在data・部分backupを保持する。staging以外をこの手順のcleanupで削除しない。現時点のsource検査はDocker効果をfakeにした呼出し/拒否の確認であり、実stop/UID/mount/backup/逆移行/health成功と全区間writer排他を証明しない。
