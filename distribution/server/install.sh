@@ -80,7 +80,8 @@ case "$project" in ''|*[!a-zA-Z0-9_.-]*) echo '通常Composeのproject名を確�
 sed -n '2p' "$staging/models.jsonl" > "$saved/normal.json.tmp"
 mv "$saved/normal.json.tmp" "$saved/normal.json"
 sed -n '3p' "$staging/models.jsonl" > "$staging/compose.state-prepare.yaml"
-sed -n '4p' "$staging/models.jsonl" > "$staging/compose.state-maintenance.json"
+sed -n '4p' "$staging/models.jsonl" > "$saved/compose.state-maintenance.json"
+cp "$saved/compose.state-maintenance.json" "$staging/compose.state-maintenance.json"
 COMPOSE_FILE="$saved/normal.json"
 COMPOSE_PROJECT_NAME=$project
 export COMPOSE_FILE COMPOSE_PROJECT_NAME

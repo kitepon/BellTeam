@@ -15,7 +15,8 @@ async function fixture(t) {
   await mkdir(join(root, 'scripts'))
   await mkdir(join(root, 'bin'))
   for (const name of ['deploy.sh','deploy-image.sh','check-deploy-quiet.sh','check-deploy-quiet.mjs'])
-    await copyFile(new URL(`../scripts/${name}`, import.meta.url), join(root,'scripts',name))
+    await copyFile(name === 'deploy.sh' && process.env.DEPLOY_UNDER_TEST ? process.env.DEPLOY_UNDER_TEST
+      : new URL(`../scripts/${name}`, import.meta.url), join(root,'scripts',name))
   const updater = `#!/bin/sh
 docker fixture-cursor "$@"
 `
@@ -97,5 +98,23 @@ else if(command.includes('tail -3'))console.log('deploy-exit=0')
     assert.ok(launch[0].includes(`BELLTEAM_SERVER_IMAGE=${image}`))
     assert.match(launch[0],/BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-fixture sh scripts\/deploy-image\.sh/u)
     assert.doesNotMatch(launch[0],/compose build/u)
-  }else assert.match(launch[0],/docker compose build --pull --no-cache/u)
+  }else assert.match(launch[0],/BELLTEAM_SERVER_IMAGE= BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-fixture sh scripts\/deploy-image\.sh/u)
+})
+
+
+test('build adapter: regular deploy dispatches its empty image and selected quiet to the shared adapter once', async t => {
+  const f = await fixture(t)
+  for (const [name, source] of [
+    ['git', "const a=process.argv.slice(2);if(a[0]==='rev-parse')console.log('" + 'b'.repeat(40) + "')"],
+    ['ssh', String.raw`const fs=require('node:fs'),c=process.argv[3];fs.appendFileSync(process.env.FIXTURE_LOG,JSON.stringify({tool:'ssh',command:c})+'\n');
+if(c.includes('/api/bots'))console.log('{"bots":[]}');else if(c.includes('/healthz'))console.log('{"status":"ok"}');else if(c.includes('tail -3'))console.log('deploy-exit=0')`],
+  ]) {
+    await writeFile(join(f.root, 'bin', name), '#!/usr/bin/env node\n' + source)
+    await chmod(join(f.root, 'bin', name), 0o700)
+  }
+  await exec('sh', ['scripts/deploy.sh'], { cwd: f.root, env: { ...f.env, BELLTEAM_DEPLOY_IMAGE: '' } })
+  const launches = (await f.calls()).filter(e => e.command?.includes('setsid nohup'))
+  assert.equal(launches.length, 1)
+  assert.match(launches[0].command, /BELLTEAM_SERVER_IMAGE= BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-fixture sh scripts\/deploy-image\.sh/)
+  assert.doesNotMatch(launches[0].command, /compose build|update-cursor|compose up/)
 })

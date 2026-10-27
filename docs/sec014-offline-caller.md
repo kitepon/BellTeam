@@ -281,7 +281,8 @@ no existing generation is adopted, replaced or removed. Before the first stop
 attempt, a failure removes the unpublished generation. From the stop attempt
 onward, even failure retains the selected model so the container's Compose
 configuration label remains readable after installer cleanup. Temporary assets
-and dedicated models still expire. This proves neither crash durability nor
+and prepare model still expire; the exact dedicated maintenance model is retained
+beside normal for a later inverse operation. This proves neither crash durability nor
 reconstruction of external file contents. Private backup must include retained
 models separately; the existing data/home backup does not automatically include
 this installation directory. Active or recovery generations must not be removed.
@@ -383,9 +384,33 @@ quiet1/Cursor/quiet2 order while the old normal service is alive, then stops it,
 runs the existing maintenance writer check, dedicated prepare and transfer, and
 starts from the retained normal model. Its six normal state sources are explicitly
 mapped to the same selected private parent as prepare and maintenance. The
-image-unspecified legacy build entry is unchanged and is not accepted for stage2
-migration by this change. Snapshot/caller order is not whole-lifetime exclusion:
+image-unspecified build entry now dispatches through the same adapter: build
+the root Compose source with pull/no-cache, resolve its generated image tag to a
+local ID, then select the internal runtime models without a registry pull.
+Snapshot/caller order is not whole-lifetime exclusion:
 competing deploy/manual-start/recovery paths and actual host identities still
 require product acceptance. Neither entry implements automatic migration rollback.
 The fixed serializer is repeated at the two independent entrypoints so the public
 2-file installer gains no internal runtime dependency or new dispatch interface.
+
+
+### Inverse recovery input boundary
+
+Both public and internal callers retain the exact executed standalone maintenance
+model at `.bellteam-compose.XXXXXX/compose.state-maintenance.json`, mode0600,
+beside the selected normal. Successful exit or failed normal startup does not
+remove the pair. A later inverse must use this saved model and its pinned migration
+image, with the selected normal's actual project, rather than reinterpret a newer
+.env. The maintenance image that knows the state transfer format is distinct from
+the pre-upgrade normal image that should run after inverse migration.
+
+The inverse acts on the latest two views and invokes the existing `to-legacy`
+operation, which takes both view backups before mutation. Reusing an old archived
+data generation would lose changes made after the forward migration. Success of
+the inverse and actual view identity must be established before starting an old
+normal configuration whose mounts/image correspond to the original runtime.
+Neither saved target model is a capture of that original runtime: the regular
+deploy currently fast-forwards source before capturing target config. Preserving
+and selecting the actual pre-upgrade normal/old image, binding stop/check through
+inverse/restart, and testing latest-data inverse/health are still unfinished.
+No automatic inverse or startup-on-failure is introduced here.

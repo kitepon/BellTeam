@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { stateWriterPlan } from '../src/server-state-writers.mjs'
 
@@ -44,16 +44,17 @@ if(a[0]==='fixture-verify'){
  event('verify');if(e.TEST_FAIL==='verify')process.exit(54);
  fs.writeFileSync(e.TEST_CHANGED,'changed after verification');process.exit(0)
 }
-if(a[0]==='image'){output(e.TEST_IMAGE_ID);process.exit(0)}
+if(a[0]==='image'){if(e.TEST_FAIL==='built-image')process.exit(72);output(e.TEST_IMAGE_ID);process.exit(0)}
 if(a[0]==='run'){
  if(a.includes('/bin/cat')){if(e.TEST_FAIL==='extract')process.exit(8);process.stdout.write(fs.readFileSync(e.TEST_ROOT+'/image/'+a.at(-1).slice(5)));process.exit(0)}
  if(a.includes('-e')){const i=a.indexOf('-e'),r=spawnSync(process.execPath,['-e',...a.slice(i+1)],{input:fs.readFileSync(0)});process.stdout.write(r.stdout);process.stderr.write(r.stderr);process.exit(r.status)}
 }
 if(a[0]==='compose'){
+ if(a.includes('build')){event('build');process.exit(e.TEST_FAIL==='build'?71:0)}
  if(a.includes('pull')&&e.TEST_FAIL==='pull')process.exit(7);
  const i=a.indexOf('-f'),file=i<0?'':a[i+1];
  if(a.includes('config')){
-  if(a.includes('--images')){output(file?JSON.parse(fs.readFileSync(file)).services.bellteam.image:current().services.bellteam.image);process.exit(0)}
+  if(a.includes('--images')){output(file?JSON.parse(fs.readFileSync(file)).services.bellteam.image:current().services.bellteam.image||'bellteam-bellteam');process.exit(0)}
   if(file){const prepare=file.endsWith('compose.state-prepare.yaml'),name=prepare?'state-prepare':'state-maintenance';
    const volumes=prepare?[bind(parent,'/srv/bellteam-state-parent')]:[
     bind(legacy,'/srv/bellteam-legacy'),bind(legacy,'/srv/bellteam'),
@@ -146,4 +147,54 @@ test('stage2 internal: failed startup retains selected model and returns its act
   await assert.rejects(f.run({ TEST_FAIL: 'up' }), error => error.code === 66 && error.stdout.includes('deploy-exit=66'))
   const up = (await f.events()).find(e => e.kind === 'up')
   assert.equal(JSON.parse(await readFile(up.composeFile, 'utf8')).services.bellteam.image, id)
+})
+
+
+test('build adapter: local build enters the same frozen stopped state transition without registry pull', async t => {
+  const f = await fixture(t)
+  const { stdout } = await f.run({ BELLTEAM_SERVER_IMAGE: '' })
+  assert.match(stdout, /deploy-exit=0/)
+  const events = await f.events(), calls = events.filter(e => e.kind === 'call')
+  assert.deepEqual(calls[0].args, ['compose', 'build', '--pull', '--no-cache'])
+  assert.equal(calls[0].composeFile, f.root + '/compose.yaml')
+  assert.ok(!calls.some(e => e.args[0] === 'compose' && e.args.includes('pull')))
+  assert.deepEqual(events.filter(e => ['build', 'quiet1', 'cursor', 'quiet2', 'stop', 'verify', 'prepare', 'transfer', 'up'].includes(e.kind)).map(e => e.kind),
+    ['build', 'quiet1', 'cursor', 'quiet2', 'stop', 'verify', 'prepare', 'transfer', 'up'])
+  const up = events.find(e => e.kind === 'up')
+  assert.equal(up.normal.services.bellteam.image, id)
+  assert.deepEqual(up.normal, events.find(e => e.kind === 'stop').normal)
+  assert.equal(JSON.parse(await readFile(up.composeFile, 'utf8')).services.bellteam.image, id)
+})
+
+test('build adapter: build and local image selection failures leave the running service untouched', async t => {
+  for (const [phase, code] of [['build', 71], ['built-image', 72]]) {
+    const f = await fixture(t)
+    await assert.rejects(f.run({ BELLTEAM_SERVER_IMAGE: '', TEST_FAIL: phase }), error =>
+      error.code === code && error.stdout.includes('deploy-exit=' + code))
+    assert.ok(!(await f.events()).some(e => ['quiet1', 'cursor', 'stop', 'prepare', 'transfer', 'up'].includes(e.kind)))
+  }
+})
+
+test('build adapter: legacy optional quiet remains optional while stopped state migration still runs', async t => {
+  const f = await fixture(t)
+  await f.run({ BELLTEAM_SERVER_IMAGE: '', BELLTEAM_DEPLOY_QUIET_EXCEPT: '' })
+  const events = await f.events()
+  assert.ok(!events.some(e => e.kind.startsWith('quiet')))
+  assert.deepEqual(events.filter(e => ['build', 'cursor', 'stop', 'verify', 'prepare', 'transfer', 'up'].includes(e.kind)).map(e => e.kind),
+    ['build', 'cursor', 'stop', 'verify', 'prepare', 'transfer', 'up'])
+})
+
+
+test('recovery model: internal success and failed startup preserve the exact dedicated migration model', async t => {
+  for (const fail of ['', 'up']) {
+    const f = await fixture(t)
+    if (fail) await assert.rejects(f.run({ TEST_FAIL: fail }), e => e.code === 66)
+    else await f.run()
+    const events = await f.events(), up = events.find(e => e.kind === 'up')
+    const saved = JSON.parse(await readFile(join(dirname(up.composeFile), 'compose.state-maintenance.json'), 'utf8'))
+    assert.deepEqual(saved, events.find(e => e.kind === 'transfer').model)
+    assert.equal(saved.services['state-maintenance'].image, id)
+    assert.doesNotMatch(JSON.stringify(saved), /synthetic-only|\/home\/bell/)
+    assert.equal(events.filter(e => e.kind === 'transfer').length, 1)
+  }
 })

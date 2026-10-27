@@ -134,7 +134,7 @@ test('retained model: successful exit preserves a private complete configuration
   const selected = (await f.events()).find(e => e.kind === 'up').composeFile
   assert.equal(dirname(dirname(selected)), f.install)
   assert.ok(dirname(selected).includes('/.bellteam-compose.'))
-  assert.deepEqual(await readdir(dirname(selected)), ['normal.json'])
+  assert.deepEqual((await readdir(dirname(selected))).sort(), ['compose.state-maintenance.json', 'normal.json'])
   const directory = await stat(dirname(selected)), file = await stat(selected)
   assert.equal(directory.mode & 0o777, 0o700)
   assert.equal(file.mode & 0o777, 0o600)
@@ -172,4 +172,20 @@ test('retained model: publication failure does not stop the server or replace pr
   assert.deepEqual((await readdir(f.install)).filter(name => name.startsWith('.bellteam-compose.')),
     ['.bellteam-compose.existing'])
   assert.equal(await readFile(f.previous, 'utf8'), 'previous configuration unchanged')
+})
+
+
+test('recovery model: public installer retains the exact dedicated model without normal secrets', async t => {
+  for (const fail of ['', '66']) {
+    const f = await fixture(t)
+    if (fail) await assert.rejects(f.run({ TEST_UP_FAILURE: fail }), e => e.code === 66)
+    else await f.run()
+    const events = await f.events(), up = events.find(e => e.kind === 'up')
+    const path = join(dirname(up.composeFile), 'compose.state-maintenance.json')
+    const model = JSON.parse(await readFile(path, 'utf8'))
+    assert.deepEqual(model, events.find(e => e.kind === 'to-server').model)
+    assert.equal((await stat(path)).mode & 0o777, 0o600)
+    assert.equal(model.services['state-maintenance'].image, imageId)
+    assert.doesNotMatch(JSON.stringify(model), /synthetic-only|\/home\/bell/)
+  }
 })

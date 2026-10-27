@@ -26,3 +26,8 @@ HOME/data、追加Throughline bind、既存 `bellteam_cursor-cli`、project/cont
 `scripts/update-cursor.sh`を実行する際も、上記環境とrepoの作業directoryを維持する。同script内の `docker compose config` が同じ2file/project/外部volumeを読む必要がある。選択imageから抽出したupdater用composeは本体composeへmergeせず、既存scriptの `-f` 指定で単独実行する。共有update-cursor.sh自体の変更はこの差分に含めない。
 
 本overlayは事前試験/本体review向け。profile適合以外の初期認証・既存不明席回復、両arch、整合backup/volume復元、既存停止許可と稼働条件を省略するものではない。反映時は対象と試験結果をセンチへ渡し、トロニーが本体互換と反映条件を照合する。
+
+
+imageを指定しない正規deployも同じadapterを使います。repoの`compose.yaml`で従来どおり`build --pull --no-cache`し、`config --images`で得たbuild tagをローカルIDへ解決してから、上記内部normal/prepare/maintenanceへ渡します。この場合registryからの再pullは行いません。明示した商用immutable imageの経路は従来どおりpullし、quiet対象必須を維持します。build経路のquiet指定は従来どおり任意ですが、今回の段2本番実行では既承認のquiet条件と具体窓を満たします。
+
+保存世代には実行した専用`compose.state-maintenance.json`も0600で保持します。新しい.envからmaintenanceを再合成せず、同世代の固定image/二view/backup対応を逆移行の入力に使います。これだけで旧本体の起動設定を保存したとは扱いません。移行用imageと切戻し後の通常起動用imageは別に記録し、最新dataを既専用口の`to-legacy`で戻してから、対応が確認できた旧normal/旧imageで再開します。順逆どちらの失敗でも、停止・元data・途中backupと選択設定を保ち、無根拠のupや自動rollbackは行いません。実旧normalの保存と最新世代での逆移行・health受入は未完です。

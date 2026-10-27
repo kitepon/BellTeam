@@ -3,8 +3,10 @@
 set -eu
 cd "$(dirname "$0")/.."
 repo=$(pwd)
-: "${BELLTEAM_SERVER_IMAGE:?受入imageを指定してください}"
-: "${BELLTEAM_DEPLOY_QUIET_EXCEPT:?quiet対象Botを指定してください}"
+if [ -n "${BELLTEAM_SERVER_IMAGE:-}" ]; then
+  : "${BELLTEAM_DEPLOY_QUIET_EXCEPT:?quiet対象Botを指定してください}"
+fi
+quiet_except=${BELLTEAM_DEPLOY_QUIET_EXCEPT:-}
 export COMPOSE_FILE="$repo/distribution/server/compose.yaml:$repo/distribution/internal/compose.overlay.yaml"
 export COMPOSE_PROJECT_NAME=bellteam
 export BELLTEAM_INTERNAL_PROFILE_FILE="$repo/src/distribution-profile.mjs"
@@ -26,7 +28,15 @@ trap finish 0
 trap 'exit 1' 1 2 15
 
 # 取得・資材準備の失敗では、旧本体を止めない。
-docker compose pull bellteam
+if [ -z "${BELLTEAM_SERVER_IMAGE:-}" ]; then
+  COMPOSE_FILE="$repo/compose.yaml" docker compose build --pull --no-cache
+  image=$(COMPOSE_FILE="$repo/compose.yaml" docker compose config --images)
+  case "$image" in ''|*[[:space:]]*) echo SERVER_STATE_IMAGE_INVALID >&2; exit 1;; esac
+  BELLTEAM_SERVER_IMAGE=$(docker image inspect --format '{{.Id}}' "$image")
+  export BELLTEAM_SERVER_IMAGE
+else
+  docker compose pull bellteam
+fi
 umask 077
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-deploy-image.XXXXXX")
 docker compose config --format json > "$staging/normal.raw.json"
@@ -81,15 +91,16 @@ case "$project" in ''|*[!a-zA-Z0-9_.-]*) echo '通常Composeのproject名を確�
 sed -n '2p' "$staging/models.jsonl" > "$saved/normal.json.tmp"
 mv "$saved/normal.json.tmp" "$saved/normal.json"
 sed -n '3p' "$staging/models.jsonl" > "$staging/compose.state-prepare.yaml"
-sed -n '4p' "$staging/models.jsonl" > "$staging/compose.state-maintenance.json"
+sed -n '4p' "$staging/models.jsonl" > "$saved/compose.state-maintenance.json"
+cp "$saved/compose.state-maintenance.json" "$staging/compose.state-maintenance.json"
 COMPOSE_FILE="$saved/normal.json"
 COMPOSE_PROJECT_NAME=$project
 export COMPOSE_FILE COMPOSE_PROJECT_NAME
 
 # 両地点の既存quietを旧本体で観測する。停止してquietを作らない。
-sh scripts/check-deploy-quiet.sh "$BELLTEAM_DEPLOY_QUIET_EXCEPT"
+if [ -n "$quiet_except" ]; then sh scripts/check-deploy-quiet.sh "$quiet_except"; fi
 sh "$staging/scripts/update-cursor.sh"
-sh scripts/check-deploy-quiet.sh "$BELLTEAM_DEPLOY_QUIET_EXCEPT"
+if [ -n "$quiet_except" ]; then sh scripts/check-deploy-quiet.sh "$quiet_except"; fi
 keep_saved=true
 docker compose stop bellteam
 sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
