@@ -157,6 +157,7 @@ export class BellTeamMemory {
     const normalizedScope = normalizeScope(scope)
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     const db = await this.openMemory(bot?.id ?? null, normalizedScope)
+    const errors = []
     try {
       return {
         scope: normalizedScope,
@@ -170,8 +171,10 @@ export class BellTeamMemory {
           ...(row.near ? { match: 'partial' } : {}),
         })),
       }
+    } catch (error) {
+      errors.push(error)
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
   }
 
