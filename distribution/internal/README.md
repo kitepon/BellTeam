@@ -59,3 +59,15 @@ imageを指定しない正規deployも同じadapterを使います。repoの`com
 候補の照合はsessionとPID/PPID/start tick/executableのmetadataで行う。各PIDが探索中に消えた時のENOENT/ESRCHは、その探索では候補へ加えない。初回に拾えた候補の後の消失は上記の再照合で保留するが、両探索の間だけに存在したprocessや、探索対象外のexe/cwd・writerを捕捉したとは言わない。自席exceptの除外も維持する。
 
 今回のsource照合では、これらの失敗をquiet成功へ扱う追加の修理対象は見つからなかった。queueやidleのsnapshotを実行区間全体のwriter停止/respawn抑止・整合dataCursor復旧点・本人の安全解除へ代用しない。CLIはquiet不成立時もexit2、呼出shellはset-e又は&&でCursor/upへ進めない。新しいobserver/hostlock/runnerや再採取は追加しない。
+
+### FF前の旧通常設定の控え（段2・source確認範囲）
+
+正規`deploy.sh`はremote clean/fetch後、FF前に旧CIDのCompose labelから既知のroot compose・公開+内部overlay・既保持normalのいずれかを選ぶ。labelのproject/working-directoryと明示env-fileを使い、旧Config.Image/profile bindの値で一回だけconfigを読む。推測のCompose再構成や、更新先normalを旧設定とする扱いはしない。暗黙.envは標準Composeのworking-directory規則に従い、未記録のshell環境は復元しない。config-hashが一致しなければFFへ進まない。
+
+控えは新しいrepo直下`.bellteam-compose.XXXXXX`（0700）に作り、旧inspect/model/入力由来を0600で残す。標準JSONでdollarを正規化し、保存modelに対する標準Compose hashを旧labelと照合する。hashには除外fieldがあり、実runtime全体・外部file/inode・writer lifetimeの同値証明にはしない。未知の入力由来や不一致では固定警告だけを出して控えを保持する。既存世代は上書きしない。
+
+固定`/app/src/distribution-profile.mjs`のreadonly bindは、同じ旧CIDのbell利用者からmode0644と内容を読み、private世代内にcodeとして保持する。切戻し用modelのこのbindだけを控えへ向け、imageを実inspectのraw Imageへ固定して`previous-normal.json`をrenameで公開する。元Config.Image/元modelは別に保持し、raw imageをOCI configへ補正しない。profile以外の外部file内容や実mount aliasは保存したと扱わない。
+
+FF後は同じ控えの絶対pathを既adapterへ内部引数として渡す。adapterは既旧CID/image控えとStartedAtを照合し、private directory/fileの所有者・modeも確認して、`image-before-deploy.XXXXXX/previous-compose.path`へ対応を残す。秘密model本体を共有data側backupへ写さない。不一致なら候補取得・image/Cursor控え・停止へ進まず、元控えを保持する。低水準adapterを直接呼び、この引渡しを省いた場合を完全な旧設定保全とは呼ばない。
+
+これは保存と受渡しのsource契約だけで、実label起点の復旧、最新二view backup後のto-legacy→対応旧normalでの再開/health、全writer停止維持、実親UIDACLaliasmountや正式image実CLI隔離の受入は未完。自動rollback/upは追加していない。whole Draft NOTDEPLOYABLE・未反映を維持する。

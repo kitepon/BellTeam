@@ -78,7 +78,8 @@ if(args[0]==='rev-parse')console.log('${sha}')
   const ssh=`#!/usr/bin/env node
 const fs=require('node:fs'),args=process.argv.slice(2),command=args[1]
 fs.appendFileSync(process.env.FIXTURE_LOG,JSON.stringify({tool:'ssh',command})+'\\n')
-if(command.includes('/api/bots'))console.log('{"bots":[]}')
+if(command.includes('sh -s'))console.log('/home/kite/BellTeam/.bellteam-compose.ABC123/previous-normal.json')
+else if(command.includes('/api/bots'))console.log('{"bots":[]}')
 else if(command.includes('/healthz'))console.log('{"status":"ok"}')
 else if(command.includes('tail -3'))console.log('deploy-exit=0')
 `
@@ -92,7 +93,8 @@ else if(command.includes('tail -3'))console.log('deploy-exit=0')
   assert.deepEqual(calls.filter(row=>row.tool==='git').map(row=>row.args),
     [['status','--porcelain','--untracked-files=no'],['push','-q','origin','HEAD:main'],['rev-parse','HEAD']])
   const commands=calls.filter(row=>row.tool==='ssh').map(row=>row.command)
-  assert.ok(commands.some(command=>command.includes('git merge -q --ff-only origin/main')&&command.includes(sha)))
+  assert.ok(commands.some(command=>command.includes('sh -s')&&command.includes(sha)))
+  assert.match(await readFile(join(f.root,'scripts/deploy.sh'),'utf8'),/git merge -q --ff-only origin\/main/)
   assert.ok(commands.some(command=>command.includes('queue-before-deploy-')))
   const launch=commands.filter(command=>command.includes('setsid nohup'))
   assert.equal(launch.length,1)
@@ -109,7 +111,7 @@ test('build adapter: regular deploy dispatches its empty image and selected quie
   for (const [name, source] of [
     ['git', "const a=process.argv.slice(2);if(a[0]==='rev-parse')console.log('" + 'b'.repeat(40) + "')"],
     ['ssh', String.raw`const fs=require('node:fs'),c=process.argv[3];fs.appendFileSync(process.env.FIXTURE_LOG,JSON.stringify({tool:'ssh',command:c})+'\n');
-if(c.includes('/api/bots'))console.log('{"bots":[]}');else if(c.includes('/healthz'))console.log('{"status":"ok"}');else if(c.includes('tail -3'))console.log('deploy-exit=0')`],
+if(c.includes('sh -s'))console.log('/home/kite/BellTeam/.bellteam-compose.ABC123/previous-normal.json');else if(c.includes('/api/bots'))console.log('{"bots":[]}');else if(c.includes('/healthz'))console.log('{"status":"ok"}');else if(c.includes('tail -3'))console.log('deploy-exit=0')`],
   ]) {
     await writeFile(join(f.root, 'bin', name), '#!/usr/bin/env node\n' + source)
     await chmod(join(f.root, 'bin', name), 0o700)
@@ -128,7 +130,7 @@ for (const phase of ['queue', 'health']) test('main integration: ' + phase + ' r
     ['git', "const a=process.argv.slice(2);if(a[0]==='rev-parse')console.log('" + 'b'.repeat(40) + "')"],
     ['ssh', String.raw`const fs=require('node:fs'),c=process.argv[3];fs.appendFileSync(process.env.FIXTURE_LOG,JSON.stringify({command:c})+'\n');
 if(c.includes('queue-before-deploy')&&process.env.TEST_CONTROL==='queue')process.exit(71);
-if(c.includes('/api/bots'))console.log('{"bots":[]}');else if(c.includes('/healthz'))console.log('{"status":"not-ok","reason":"ok"}');else if(c.includes('tail -3'))console.log('deploy-exit=0')`],
+if(c.includes('sh -s'))console.log('/home/kite/BellTeam/.bellteam-compose.ABC123/previous-normal.json');else if(c.includes('/api/bots'))console.log('{"bots":[]}');else if(c.includes('/healthz'))console.log('{"status":"not-ok","reason":"ok"}');else if(c.includes('tail -3'))console.log('deploy-exit=0')`],
   ]) {
     await writeFile(join(f.root, 'bin', name), '#!/usr/bin/env node\n' + source)
     await chmod(join(f.root, 'bin', name), 0o700)

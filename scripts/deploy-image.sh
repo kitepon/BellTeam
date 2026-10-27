@@ -33,6 +33,30 @@ mkdir -p runtime/backups
 previous=$(mktemp -d runtime/backups/image-before-deploy.XXXXXX)
 docker container inspect --format '{{.Id}} {{.Image}}' bellteam > "$previous/container-image.txt"
 read -r previous_container previous_image < "$previous/container-image.txt"
+if [ -n "${BELLTEAM_PREVIOUS_COMPOSE:-}" ]; then
+  docker container inspect --format '{{.State.StartedAt}}' "$previous_container" > "$previous/container-started-at.txt"
+  node --input-type=module - "$BELLTEAM_PREVIOUS_COMPOSE" "$previous" <<'NODE'
+import fs from 'node:fs'
+import path from 'node:path'
+try {
+  const [normalFile,archive]=process.argv.slice(2), generation=path.dirname(normalFile)
+  if(path.dirname(generation)!==process.cwd()||!/^\.bellteam-compose\.[a-zA-Z0-9]{6}$/.test(path.basename(generation))
+    ||path.basename(normalFile)!=='previous-normal.json')throw new Error()
+  const dir=fs.lstatSync(generation)
+  if(!dir.isDirectory()||dir.uid!==process.getuid()||(dir.mode&0o777)!==0o700)throw new Error()
+  for(const file of ['previous-normal.json','previous-runtime.json']){
+    const st=fs.lstatSync(path.join(generation,file))
+    if(!st.isFile()||st.uid!==process.getuid()||(st.mode&0o777)!==0o600)throw new Error()
+  }
+  const runtime=JSON.parse(fs.readFileSync(path.join(generation,'previous-runtime.json'),'utf8'))
+  const normal=JSON.parse(fs.readFileSync(normalFile,'utf8').replaceAll('$$','$'))
+  const [cid,image]=fs.readFileSync(path.join(archive,'container-image.txt'),'utf8').trim().split(' ')
+  if(runtime.Id!==cid||runtime.Image!==image||runtime.State.StartedAt!==fs.readFileSync(path.join(archive,'container-started-at.txt'),'utf8').trim()
+    ||normal.services.bellteam.image!==image)throw new Error()
+  fs.writeFileSync(path.join(archive,'previous-compose.path'),normalFile+'\n',{mode:0o600,flag:'wx'})
+}catch{console.error('BELLTEAM_PREVIOUS_CONFIG_CHANGED');process.exitCode=1}
+NODE
+fi
 docker image save --output "$previous/image.tar" "$previous_image"
 sha256sum "$previous/image.tar" > "$previous/image.tar.sha256"
 printf 'previous-image=%s\n' "$previous"

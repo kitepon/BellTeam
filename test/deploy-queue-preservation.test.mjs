@@ -34,6 +34,7 @@ if(command.includes('/api/queue')){
   process.exit(result.status ?? 1)
 }
 if(command.includes('/healthz')) console.log('{"status":"ok"}')
+else if(command.includes('sh -s'))console.log('/home/kite/BellTeam/.bellteam-compose.ABC123/previous-normal.json')
 else if(command.includes('/api/bots')) console.log('{"bots":[]}')
 else if(command.includes('tail -3')) console.log('deploy-exit=0')
 `,
