@@ -2,7 +2,7 @@
 // A failed operation must not be followed by starting either server generation.
 import { constants } from 'node:fs'
 import { lstat, mkdir, readdir, open, copyFile, chmod, rename, unlink, rmdir } from 'node:fs/promises'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { transferAiControlState } from './ai-control-state-transfer.mjs'
@@ -12,6 +12,14 @@ import { backupServerState } from './server-state-backup.mjs'
 const botId = /^[a-z0-9][a-z0-9-]{0,63}$/u
 const failure = code => Object.assign(new Error(code), { code })
 const exists = async path => { try { return await lstat(path) } catch (error) { if (error.code === 'ENOENT') return null; throw error } }
+
+function assertSeparateRoots(a, b) {
+  for (const [root, target] of [[a, b], [b, a]]) {
+    const path = relative(root, target)
+    if (!path || (path !== '..' && !path.startsWith('..' + sep) && !isAbsolute(path)))
+      throw failure('SERVER_STATE_RELOCATION_ALIAS')
+  }
+}
 
 async function directory(path) {
   if (dirname(path) !== path) await directory(dirname(path))
@@ -104,7 +112,7 @@ export async function relocateServerRoots({ legacyRoot, serverRoot, direction })
   if (![legacyRoot, serverRoot].every(value => typeof value === 'string' && isAbsolute(value))
     || !['to-server', 'to-legacy'].includes(direction)) throw failure('SERVER_STATE_RELOCATION_OPTIONS')
   legacyRoot = resolve(legacyRoot); serverRoot = resolve(serverRoot)
-  if (legacyRoot === serverRoot) throw failure('SERVER_STATE_RELOCATION_ALIAS')
+  assertSeparateRoots(legacyRoot, serverRoot)
   const names = ['state', 'rooms', 'owner', 'logs', 'shared/tools/bellteam-settings', 'shared/tools/apns']
   const [from, to] = direction === 'to-server' ? [legacyRoot, serverRoot] : [serverRoot, legacyRoot]
   await directory(from); await directory(to)
@@ -218,6 +226,7 @@ export async function transferServerState({ root, direction }) {
 export async function migrateServerState({ legacyRoot, serverRoot, backupRoot, direction }) {
   if (![legacyRoot, serverRoot, backupRoot].every(value => typeof value === 'string' && isAbsolute(value))
     || !['to-server', 'to-legacy'].includes(direction)) throw failure('SERVER_STATE_TRANSFER_OPTIONS')
+  assertSeparateRoots(legacyRoot, serverRoot)
   const options = { root: serverRoot, direction }, roots = { legacyRoot, serverRoot, direction }
   const parent = await lstat(backupRoot)
   if (!parent.isDirectory() || parent.uid !== process.geteuid() || parent.gid !== process.getegid() || (parent.mode & 0o777) !== 0o700)
