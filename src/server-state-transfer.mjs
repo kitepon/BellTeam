@@ -214,6 +214,8 @@ export async function transferServerState({ root, direction }) {
     if (!await exists(source)) continue
     if (a.endsWith('/ai-control.json')) {
       const before = await useFile(await regular(source), file => file.stat())
+      await directory(dirname(target))
+      if (await exists(target)) await useFile(await regular(target), () => {})
       await transferAiControlState({ legacyRoot: root, stateRoot: join(root, 'state'), direction })
       await syncAncestors(dirname(target), root)
       await removeUnchangedSource(source, before)
