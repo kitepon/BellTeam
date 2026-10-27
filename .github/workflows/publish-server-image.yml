@@ -81,7 +81,7 @@ jobs:
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --label 'org.opencontainers.image.description=自分のマシンで動かすBellTeamの一般配布版' \
             -t "$BELLTEAM_SERVER_IMAGE" runtime/server-image
-      - name: 製品imageのOSとNode同梱CA原本を保存
+      - name: 製品imageのOSとNode CA原本を保存
         run: |
           mkdir -p runtime/image-ca
           docker image inspect "$BELLTEAM_SERVER_IMAGE" > runtime/image-ca/image-built.json
@@ -89,12 +89,13 @@ jobs:
           docker run --pull never --rm --network none --read-only --cap-drop ALL \
             --entrypoint node "$image_id" --input-type=module -e '
           import {readFileSync} from "node:fs";
-          import {rootCertificates} from "node:tls";
+          import {rootCertificates, getCACertificates} from "node:tls";
           console.log(JSON.stringify({
             distribution: JSON.parse(readFileSync("/app/distribution.json", "utf8")),
             nodeVersion: process.version,
             osBundleBase64: readFileSync("/etc/ssl/certs/ca-certificates.crt").toString("base64"),
             nodeBundledRootsPem: rootCertificates,
+            nodeDefaultRootsPem: getCACertificates("default"),
           }, null, 2));
           ' > runtime/image-ca/roots.json
       - name: 個人設定と開発者免除の除去を確認
