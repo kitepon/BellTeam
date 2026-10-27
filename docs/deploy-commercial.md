@@ -13,6 +13,10 @@ BellTeam更新前は、内部本番を含め必ず配布担当センチへ対象
 
 ## 実行経路
 
+通常の候補作成workflowは、各archの `server-image-ca-<arch>-<attempt>` に、CA採取に使用したlocal image IDを含む `image-built.json`、OS bundle原bytesをbase64・Node同梱根をPEM配列として保存した `roots.json`、push後の同image IDとRepoDigestsを含む `image-published.json` を保存する。`server-image-index-<attempt>` は登録したindexのraw JSON・source・参照を保存する。どちらもworkflowのrun/attemptに属する資料で、失敗時の不完全な資料も残る場合がある。
+
+反映担当とセンチは、image ID・arch・source label・roots内のdistribution sourceと、公開index/各manifest/configの対応を照合して同じ製品imageへ結ぶ。OS bundleとNode同梱根の内容を判定し、必要な通常TLSと製品互換を確認してから受け入れる。資料の存在だけではCA合格やreview固有設定への互換・配備許可にならず、過去imageの不足原本を補完しない。Node同梱根のPEM配列は [tls.rootCertificates](https://nodejs.org/api/tls.html#tlsrootcertificates) の取得結果で、稼働環境の追加根や実効TLSの確認とは分ける。
+
 受入済みdigestと観測から除く実行担当Botを環境変数へ指定し、正規入口を呼ぶ。
 
 ```sh
