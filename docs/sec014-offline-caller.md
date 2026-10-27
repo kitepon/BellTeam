@@ -244,6 +244,17 @@ unchanged and must not be reused for this phase. No CLI/factory/installer change
 Docker, host observation, actual root/mount/ACL or normal start was added.
 Whole Draft NOTDEPLOYABLE remains in force.
 
+The container projection now includes actual `HostConfig.RestartPolicy.Name`.
+Stopped `always`, `on-failure` and `unless-stopped` containers remain potential
+writers, with the same canonical bind and volume-backing checks. Missing or
+unknown policy is unavailable, not proof of absence. A successful caller stop
+can exempt only its exact pre-stop Compose CID with `unless-stopped`; the
+installer, internal adapter and manual recipe pass that CID through the private
+`BELLTEAM_STOPPED_CONTAINER_ID` handoff. The shared plan's optional
+`stoppedContainer` is caller context, and the serialized snapshot consumer rejects
+it. This remains a snapshot: later manual starts, external managers and the
+complete maintenance interval still require separate exclusion evidence.
+
 ## Installer maintenance mount inputs (source only)
 
 The existing writer `plan` CLI consumes default `docker compose config --format

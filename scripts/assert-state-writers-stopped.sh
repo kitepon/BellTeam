@@ -1,12 +1,15 @@
 #!/bin/sh
 # Run after compose stop, before touching data/HOME/Cursor. No Docker socket
-# is mounted into the reader, and only container state/mounts are inspected.
+# is mounted into the reader, and only container state/restart policy/mounts are inspected.
 set -eu
 case "$#:${1-}" in
   0:) maintenance=false;;
   1:--maintenance) maintenance=true;;
   *) echo SERVER_STATE_WRITER_ARGUMENTS_INVALID >&2; exit 1;;
 esac
+stopped_container=${BELLTEAM_STOPPED_CONTAINER_ID:-}
+case "$stopped_container" in *[!a-f0-9]*) echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1;; esac
+[ -z "$stopped_container" ] || [ "${#stopped_container}" -eq 64 ] || { echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1; }
 image=$(docker compose config --images)
 case "$image" in ''|*[[:space:]]*) echo SERVER_STATE_IMAGE_INVALID >&2; exit 1;; esac
 image=$(docker image inspect --format '{{.Id}}' "$image")
@@ -21,6 +24,7 @@ command -v realpath >/dev/null || { echo SERVER_STATE_REALPATH_REQUIRED >&2; exi
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-writers.XXXXXX")
 trap 'rm -rf "$staging"' 0
 trap 'exit 1' 1 2 15
+printf '%s\n' "$stopped_container" > "$staging/stopped-container.txt"
 config=$(docker compose config --format json)
 if "$maintenance"; then
   # Normalize first so .env-selected files, project and relative paths survive.
@@ -36,7 +40,7 @@ if [ -n "$ids" ]; then
   # Docker emits hexadecimal IDs, never arbitrary shell input.
   set -- $ids
   for id do case "$id" in *[!a-f0-9]*|'') echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1;; esac; done
-  docker inspect --format '{"id":{{json .Id}},"running":{{json .State.Running}},"restarting":{{json .State.Restarting}},"mounts":{{json .Mounts}}}' \
+  docker inspect --format '{"id":{{json .Id}},"running":{{json .State.Running}},"restarting":{{json .State.Restarting}},"restartPolicy":{{json .HostConfig.RestartPolicy.Name}},"mounts":{{json .Mounts}}}' \
     "$@" > "$staging/containers.jsonl"
 fi
 reader() {

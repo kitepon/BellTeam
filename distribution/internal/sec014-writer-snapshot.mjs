@@ -6,7 +6,7 @@ const id = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value)
 const name = value => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/u.test(value)
 const sha = raw => createHash('sha256').update(raw).digest('hex')
 const MAX_CONTAINERS = 128, MAX_VOLUMES = 128, MAX_PATHS = 512
-const CONTAINER = '{"id":{{json .Id}},"running":{{json .State.Running}},"restarting":{{json .State.Restarting}},"mounts":{{json .Mounts}}}'
+const CONTAINER = '{"id":{{json .Id}},"running":{{json .State.Running}},"restarting":{{json .State.Restarting}},"restartPolicy":{{json .HostConfig.RestartPolicy.Name}},"mounts":{{json .Mounts}}}'
 // Remote driver option values never enter an observation artifact.
 const VOLUME = '{"name":{{json .Name}},"driver":{{json .Driver}},"mountpoint":{{json .Mountpoint}},"optionCount":{{len .Options}},"type":{{if and (eq .Driver "local") (eq (index .Options "type") "none")}}{{json (index .Options "type")}}{{else}}null{{end}},"device":{{if and (eq .Driver "local") (eq (index .Options "type") "none") (or (eq (index .Options "o") "bind") (eq (index .Options "o") "bind,rw") (eq (index .Options "o") "rw,bind") (eq (index .Options "o") "rbind"))}}{{json (index .Options "device")}}{{else}}null{{end}},"options":{{if and (eq .Driver "local") (eq (index .Options "type") "none") (or (eq (index .Options "o") "bind") (eq (index .Options "o") "bind,rw") (eq (index .Options "o") "rw,bind") (eq (index .Options "o") "rbind"))}}{{json (index .Options "o")}}{{else}}null{{end}}}'
 const LIST = ['/usr/bin/docker', 'container', 'ls', '--all', '--quiet', '--no-trunc']
@@ -52,13 +52,14 @@ export function verifyWriterSnapshot(plan, bundle) {
       || typeof plan.imageId !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(plan.imageId)
       || JSON.stringify(plan.limits) !== JSON.stringify({ containers: MAX_CONTAINERS, volumes: MAX_VOLUMES, canonicalPaths: MAX_PATHS })
       || JSON.stringify(plan.listArgv) !== JSON.stringify(LIST) || !bundle) fail()
+  if (Object.keys(plan.mounts ?? {}).sort().join(',') !== 'roots,volume') fail()
   const ids = terminal(bundle.list, LIST, MAX_CONTAINERS * 65).split('\n').filter(Boolean)
   if (ids.length > MAX_CONTAINERS || ids.some(value => !id(value)) || new Set(ids).size !== ids.length) fail()
   ids.sort()
   const containers = ids.length ? rows(terminal(bundle.containers, writerContainerInspectArgv(ids), 1048576)) : []
   if ((!ids.length && bundle.containers !== null) || containers.length !== ids.length
       || containers.some(c => !id(c?.id) || !Array.isArray(c.mounts) || c.mounts.length > 64)
-      || containers.some(c => Object.keys(c).sort().join(',') !== 'id,mounts,restarting,running')
+      || containers.some(c => Object.keys(c).sort().join(',') !== 'id,mounts,restartPolicy,restarting,running')
       || JSON.stringify(containers.map(c => c.id).sort()) !== JSON.stringify(ids)) fail()
   const volumes = stateWriterVolumes(plan.mounts, containers)
   if (volumes.length > MAX_VOLUMES || volumes.some(value => !name(value))

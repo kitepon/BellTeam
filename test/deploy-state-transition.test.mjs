@@ -42,7 +42,7 @@ if(a[0]==='fixture-quiet'){
 }
 if(a[0]==='fixture-cursor'){event('cursor');process.exit(e.TEST_FAIL==='cursor'?9:0)}
 if(a[0]==='fixture-verify'){
- event('verify');if(e.TEST_FAIL==='verify')process.exit(54);
+ event('verify',{stoppedContainer:e.BELLTEAM_STOPPED_CONTAINER_ID});if(e.TEST_FAIL==='verify')process.exit(54);
  fs.writeFileSync(e.TEST_CHANGED,'changed after verification');process.exit(0)
 }
 if(a[0]==='container'){
@@ -60,6 +60,7 @@ if(a[0]==='run'){
  if(a.includes('-e')){if(e.TEST_FAIL==='recovery-publish')fs.mkdirSync(a.at(-1)+'/recovery.json.tmp');const i=a.indexOf('-e'),r=spawnSync(process.execPath,['-e',...a.slice(i+1)],{input:fs.readFileSync(0)});process.stdout.write(r.stdout);process.stderr.write(r.stderr);process.exit(r.status)}
 }
 if(a[0]==='compose'){
+ if(a.includes('ps')){output('c'.repeat(64));process.exit(0)}
  if(a.includes('build')){event('build');process.exit(e.TEST_FAIL==='build'?71:0)}
  if(a.includes('pull')&&e.TEST_FAIL==='pull')process.exit(7);
  const i=a.indexOf('-f'),file=i<0?'':a[i+1];
@@ -306,4 +307,12 @@ test('recovery pair: failed private publication removes only the new target and 
   assert.deepEqual((await readdir(f.root)).filter(n => n.startsWith('.bellteam-compose.')), ['.bellteam-compose.OLD123'])
   const backups = await readdir(f.root + '/runtime/backups')
   assert.equal(await readFile(f.root + '/runtime/backups/' + backups[0] + '/previous-compose.path', 'utf8'), f.originalFile + '\n')
+})
+
+
+test('writer restart: internal adapter hands the exact pre-stop normal CID to the checker', async t => {
+  const f = await fixture(t); await f.run(); const events = await f.events()
+  assert.equal(events.find(e => e.kind === 'verify').stoppedContainer, 'c'.repeat(64))
+  const ps = events.findIndex(e => e.args[0] === 'compose' && e.args.includes('ps'))
+  assert.ok(ps >= 0 && ps < events.findIndex(e => e.kind === 'stop'))
 })

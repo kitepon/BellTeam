@@ -186,7 +186,7 @@ mkdir "$staging/scripts"
 docker run --pull never --rm --network none --read-only --entrypoint /bin/cat \
   "$migration_image" /app/scripts/assert-state-writers-stopped.sh > "$staging/scripts/assert-state-writers-stopped.sh"
 cp "$saved/compose.state-maintenance.json" "$staging/compose.state-maintenance.json"
-sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
+BELLTEAM_STOPPED_CONTAINER_ID=$current_cid sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
 if [ "$layout" = legacy ]; then
   docker compose --project-directory "$repo" -p "$project" -f "$saved/compose.state-maintenance.json" \
     run --pull never --rm --no-deps -T state-maintenance to-legacy

@@ -10,6 +10,9 @@ const path = value => {
 }
 const overlaps = (a, b) => a === b || a.startsWith(b === '/' ? '/' : b + '/') || b.startsWith(a === '/' ? '/' : a + '/')
 const stateTargets = ['state', 'rooms', 'owner', 'logs', 'shared/tools/bellteam-settings', 'shared/tools/apns'].map(name => '/srv/bellteam/' + name)
+// shortcut: a snapshot cannot exclude later manual starts; prove interval-wide exclusion before deployment.
+const participates = (plan, c) => c.running || c.restarting || !['', 'no'].includes(c.restartPolicy)
+  && !(c.id === plan.stoppedContainer && c.restartPolicy === 'unless-stopped')
 
 // Only retain mount identities. Compose environment/credentials never leave
 // this parser or become part of the maintenance evidence.
@@ -67,7 +70,8 @@ function validate(plan, containers) {
   plan.roots.forEach(path)
   for (const container of containers) {
     if (typeof container.id !== 'string' || !container.id || typeof container.running !== 'boolean'
-      || typeof container.restarting !== 'boolean' || !Array.isArray(container.mounts)) invalid()
+      || typeof container.restarting !== 'boolean' || !Array.isArray(container.mounts)
+      || !['', 'no', 'on-failure', 'always', 'unless-stopped'].includes(container.restartPolicy)) invalid()
     for (const mount of container.mounts) {
       if (typeof mount.RW !== 'boolean') invalid()
       if (mount.Type === 'bind') path(mount.Source)
@@ -78,11 +82,16 @@ function validate(plan, containers) {
       else if (mount.Type !== 'tmpfs') invalid()
     }
   }
+  if (plan.stoppedContainer !== undefined) {
+    if (typeof plan.stoppedContainer !== 'string' || !/^[a-f0-9]{64}$/u.test(plan.stoppedContainer)) invalid()
+    const selected = containers.filter(c => c.id === plan.stoppedContainer)
+    if (selected.length !== 1 || selected[0].running || selected[0].restarting) invalid()
+  }
 }
 
 export function stateWriterVolumes(plan, containers) {
   validate(plan, containers)
-  return [...new Set(containers.filter(c => c.running || c.restarting)
+  return [...new Set(containers.filter(c => participates(plan, c))
     .flatMap(c => c.mounts.filter(m => m.RW && m.Type === 'volume').map(m => m.Name)))].sort()
 }
 
@@ -112,7 +121,7 @@ function volumePaths(plan, containers, volumes) {
 
 export function stateWriterSources(plan, containers, volumes = []) {
   const backing = volumePaths(plan, containers, volumes)
-  return [...new Set([...plan.roots, ...containers.filter(c => c.running || c.restarting)
+  return [...new Set([...plan.roots, ...containers.filter(c => participates(plan, c))
     .flatMap(c => c.mounts.filter(m => m.RW && ['bind', 'volume'].includes(m.Type)).map(m => m.Source)),
   ...[...backing.values()].flat()])].sort()
 }
@@ -127,11 +136,11 @@ export function assertStateWritersStopped(plan, containers, canonical, volumes =
     path(entry.source); aliases.set(entry.source, path(entry.canonical))
   }
   if (sources.some(source => !aliases.has(source))) invalid()
-  for (const c of containers.filter(c => c.running || c.restarting)) for (const m of c.mounts.filter(m => m.RW && m.Type === 'volume')) {
+  for (const c of containers.filter(c => participates(plan, c))) for (const m of c.mounts.filter(m => m.RW && m.Type === 'volume')) {
     if (aliases.get(m.Source) !== aliases.get(backing.get(m.Name)[0])) invalid()
   }
   const roots = plan.roots.map(source => aliases.get(source))
-  const writers = containers.filter(c => c.running || c.restarting).filter(c => c.mounts.some(m => m.RW && (
+  const writers = containers.filter(c => participates(plan, c)).filter(c => c.mounts.some(m => m.RW && (
     m.Type === 'volume' && m.Name === plan.volume
     || m.Type === 'volume' && backing.get(m.Name).some(source => roots.some(root => overlaps(root, aliases.get(source))))
     || m.Type === 'bind' && roots.some(root => overlaps(root, aliases.get(m.Source)))
@@ -148,6 +157,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       console.log(JSON.stringify(stateWriterPlan(JSON.parse((await streamText(process.stdin)).replaceAll('$$', '$')))))
     } else if (['volumes', 'sources', 'verify'].includes(mode) && process.argv.length === 3) {
       const plan = JSON.parse(await readFile('/check/plan.json', 'utf8'))
+      const stoppedContainer = (await readFile('/check/stopped-container.txt', 'utf8')).trim()
+      if (stoppedContainer) plan.stoppedContainer = stoppedContainer
       const text = await readFile('/check/containers.jsonl', 'utf8')
       const containers = text.split('\n').filter(Boolean).map(line => JSON.parse(line))
       if (mode === 'volumes') console.log(stateWriterVolumes(plan, containers).join('\n'))
@@ -156,7 +167,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         if (mode === 'sources') {
         const backing = [...volumePaths(plan, containers, records).values()].flat()
         for (const source of stateWriterSources(plan, containers, records)) {
-          const observed = containers.some(c => (c.running || c.restarting)
+          const observed = containers.some(c => participates(plan, c)
             && c.mounts.some(m => m.RW && ['bind', 'volume'].includes(m.Type) && m.Source === source)) || backing.includes(source)
           console.log(`${observed ? 'observed' : 'planned'}\n${source}`)
         }

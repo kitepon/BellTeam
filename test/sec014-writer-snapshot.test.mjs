@@ -52,7 +52,7 @@ test('canonical denominator and source aliases remain required by the existing v
 
 test('bounded nonempty container and volume projection is consumed without arbitrary option values', () => {
   const cid = 'c'.repeat(64), volume = 'disjoint_volume'
-  const container = { id: cid, running: true, restarting: false,
+  const container = { id: cid, running: true, restarting: false, restartPolicy: 'no',
     mounts: [{ Type: 'volume', Name: volume, Source: '/docker/disjoint', RW: true }] }
   const value = blank()
   value.list = terminal(plan.listArgv, cid + '\n')

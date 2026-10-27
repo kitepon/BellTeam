@@ -65,7 +65,7 @@ if(a[0]==='container'){
  process.exit(0)
 }
 if(a[0]==='fixture-quiet'){event('quiet');process.exit(e.TEST_FAIL==='quiet'?52:0)}
-if(a[0]==='fixture-check'){event('check',{maintenance:JSON.parse(fs.readFileSync(a[1]))});process.exit(e.TEST_FAIL==='check'?54:0)}
+if(a[0]==='fixture-check'){event('check',{stoppedContainer:e.BELLTEAM_STOPPED_CONTAINER_ID,maintenance:JSON.parse(fs.readFileSync(a[1]))});process.exit(e.TEST_FAIL==='check'?54:0)}
 if(a[0]==='run'&&a.includes('/bin/cat')){
  event('extract');process.stdout.write('#!/bin/sh\ndocker fixture-check "$(dirname "$0")/../compose.state-maintenance.json"\n');process.exit(0)
 }
@@ -137,4 +137,12 @@ test('manual recovery: unknown current hash mode or layout refuses stop and fail
   assert.equal(events.filter(e=>e.kind==='up').length,1)
   assert.ok((await readdir(f.saved)).includes('recovery.json'))
  }
+})
+
+
+test('writer restart: manual recovery hands the selected old or target CID to the checker', async t => {
+  for (const originalCurrent of [false, true]) {
+    const f = await fixture(t, 'legacy', '', originalCurrent); await f.run()
+    assert.equal((await f.events()).find(e => e.kind === 'check').stoppedContainer, originalCurrent ? oldCID : targetCID)
+  }
 })

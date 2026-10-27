@@ -25,6 +25,7 @@ async function fixture(t) {
 printf '%s\\n' "$*" >> "$TEST_CALLS"
 ${frozenComposeCases}
 case "$*" in
+ 'compose ps --all --quiet --no-trunc bellteam') echo cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc;;
  'compose config --images') echo fixture:accepted;;
  'image inspect --format {{.Id}} fixture:accepted') printf 'sha256:%064d\\n' 0;;
  'image inspect --format {{.Id}} sha256:'*) for image do :; done; echo "$image";;
@@ -38,7 +39,7 @@ case "$*" in
    printf '%s\\n' "name: \${COMPOSE_PROJECT_NAME:-\${TEST_DOTENV_PROJECT:-selected-project}}" 'volumes:' '  cursor-cli:' '    name: fixture-cursor';;
  'compose --project-directory '*'/install -f - -f '*'/compose.state-maintenance.json config --format json --no-path-resolution') cat;;
  *'/app/src/server-state-writers.mjs plan') cat >/dev/null; echo '{"roots":[],"volume":"fixture-cursor"}';;
- *'/app/src/server-state-writers.mjs verify') exit "\${TEST_WRITER_EXIT:-0}";;
+ *'/app/src/server-state-writers.mjs verify') printf '%s' \"\${BELLTEAM_STOPPED_CONTAINER_ID-}\" > \"$TEST_ROOT/selected-cid\"; exit "\${TEST_WRITER_EXIT:-0}";;
  'run --pull never --rm --network none --read-only --entrypoint /bin/cat '*'/app/'*)
    for path do :; done; cat "$TEST_IMAGE/\${path#/app/}";;
  'compose --project-directory '*'/install -f '*'/compose.state-maintenance.json -p '*' run --pull never --rm --no-deps -T state-maintenance to-server')
@@ -52,7 +53,7 @@ esac
   await chmod(join(bin, 'docker'), 0o700)
   const names = ['calls', 'count', 'maintenance-env', 'maintenance-file', 'partial']
   const files = Object.fromEntries(names.map(name => [name, join(root, name)]))
-  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, TEST_MODEL: modelPath, TEST_IMAGE: image,
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, TEST_MODEL: modelPath, TEST_IMAGE: image, TEST_ROOT: root,
     TEST_CALLS: files.calls, TEST_COUNT: files.count,
     TEST_MAINTENANCE_ENV: files['maintenance-env'], TEST_MAINTENANCE_FILE: files['maintenance-file'], TEST_PARTIAL: files.partial }
   return { root, install, image, files,
@@ -100,4 +101,12 @@ test('writer refusal still blocks the fixed maintenance invocation and normal st
   const f = await fixture(t)
   await assert.rejects(f.run({ TEST_WRITER_EXIT: '54' }), error => error.code === 54)
   assert.doesNotMatch(await readFile(f.files.calls, 'utf8'), /state-maintenance to-server|--no-deps cursor-update|compose up /)
+})
+
+
+test('writer restart: installer hands the exact pre-stop normal CID to the checker', async t => {
+  const f = await fixture(t); await f.run()
+  assert.equal(await readFile(f.root + '/selected-cid', 'utf8'), 'c'.repeat(64))
+  const calls = (await readFile(f.files.calls, 'utf8')).split('\n')
+  assert.ok(calls.indexOf('compose ps --all --quiet --no-trunc bellteam') < calls.indexOf('compose stop bellteam'))
 })

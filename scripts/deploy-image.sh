@@ -168,10 +168,13 @@ export COMPOSE_FILE COMPOSE_PROJECT_NAME
 if [ -n "$quiet_except" ]; then sh scripts/check-deploy-quiet.sh "$quiet_except"; fi
 sh "$staging/scripts/update-cursor.sh"
 if [ -n "$quiet_except" ]; then sh scripts/check-deploy-quiet.sh "$quiet_except"; fi
+stopped_container=$(docker compose ps --all --quiet --no-trunc bellteam)
+case "$stopped_container" in *[!a-f0-9]*) echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1;; esac
+[ -z "$stopped_container" ] || [ "${#stopped_container}" -eq 64 ] || { echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1; }
 keep_saved=true
 printf 'saved-compose=%s\n' "$saved"
 docker compose stop bellteam
-sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
+BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
 docker compose --project-directory "$PWD" -f "$staging/compose.state-prepare.yaml" \
   -p "$project" run --pull never --rm --no-deps -T state-prepare
 docker compose --project-directory "$PWD" -f "$staging/compose.state-maintenance.json" \

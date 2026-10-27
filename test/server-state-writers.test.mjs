@@ -9,7 +9,7 @@ const config = { services: { bellteam: { environment: { SECRET: 'synthetic-only'
   { type: 'volume', source: 'cursor-cli', target: '/home/bell/.local' },
 ] } }, volumes: { 'cursor-cli': { name: 'fixture_cursor-cli' } } }
 const plan = stateWriterPlan(config)
-const container = (mounts, extra = {}) => ({ id: 'synthetic-id', running: true, restarting: false, mounts, ...extra })
+const container = (mounts, extra = {}) => ({ id: 'synthetic-id', running: true, restarting: false, restartPolicy: 'no', mounts, ...extra })
 const bind = (Source, RW = true) => ({ Type: 'bind', Source, RW })
 const aliases = (containers, volumes = [], target = plan) => stateWriterSources(target, containers, volumes).map(source => ({ source, canonical: source }))
 const volumeInfo = (name, mountpoint, extra = {}) => ({ name, mountpoint, driver: 'local', optionCount: 0, type: null, device: null, options: null, ...extra })

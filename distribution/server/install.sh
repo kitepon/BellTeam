@@ -85,9 +85,12 @@ cp "$saved/compose.state-maintenance.json" "$staging/compose.state-maintenance.j
 COMPOSE_FILE="$saved/normal.json"
 COMPOSE_PROJECT_NAME=$project
 export COMPOSE_FILE COMPOSE_PROJECT_NAME
+stopped_container=$(docker compose ps --all --quiet --no-trunc bellteam)
+case "$stopped_container" in *[!a-f0-9]*) echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1;; esac
+[ -z "$stopped_container" ] || [ "${#stopped_container}" -eq 64 ] || { echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1; }
 keep_saved=true
 docker compose stop bellteam
-sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
+BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
 # Maintenance must use its fixed views and entry, without normal HOME/env.
 docker compose --project-directory "$PWD" -f "$staging/compose.state-prepare.yaml" \
   -p "$project" run --pull never --rm --no-deps -T state-prepare

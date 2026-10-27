@@ -20,7 +20,7 @@ const normal = { volumes: [
   { type: 'volume', source: 'cursor-cli', target: '/home/bell/.local' },
 ] }
 const config = { services: { bellteam: normal, 'state-maintenance': service }, volumes: { 'cursor-cli': { name: 'fixture_cursor' } } }
-const container = source => ({ id: 'synthetic-writer', running: true, restarting: false,
+const container = source => ({ id: 'synthetic-writer', running: true, restarting: false, restartPolicy: 'no',
   mounts: [{ Type: 'bind', Source: source, RW: true }] })
 const canonical = (plan, containers) => stateWriterSources(plan, containers).map(source => ({ source, canonical: source }))
 

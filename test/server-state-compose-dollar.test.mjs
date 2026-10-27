@@ -31,7 +31,7 @@ test('Compose plan CLI restores literal single and repeated dollars without chan
 
 test('Compose plan identifies a running writer at the actual dollar-containing host path', async () => {
   const plan = await composePlan()
-  const containers = [{ id: 'synthetic-writer', running: true, restarting: false,
+  const containers = [{ id: 'synthetic-writer', running: true, restarting: false, restartPolicy: 'no',
     mounts: [{ Type: 'bind', Source: '/runtime/data$KEEP', RW: true }] }]
   const canonical = stateWriterSources(plan, containers).map(source => ({ source, canonical: source }))
   assert.throws(() => assertStateWritersStopped(plan, containers, canonical),
