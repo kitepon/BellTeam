@@ -91,7 +91,7 @@ forward/reverseは同lockを使う。phase印はprepare/writer停止/移行/bind
 
 ## 正のphase receiptを扱う固定caller（sourceのみ）
 
-内部のsec014-host-actor.pyは既host_controlの親lockFDを全区間保持し、prepare→全writer確認→両viewbackupを含む現在directionの移行→bind確認→許可された片方normal起動→結果確認の6メソッドだけを正順で呼ぶ。各結果は同direction/image/actor PID出生/phaseとverified状態、工程固有の証拠SHA集合がそろった時だけroot専用0600 sidecarへO_EXCLで保存・fsync・metadata再読し、その後でjournalのphaseを進める。拒否/例外/receipt保存失敗では後続を呼ばずincompleteを保持する。最新reverseも同lock/別directionであり、旧backupの自動restoreはしない。
+内部のsec014-host-actor.pyは既host_controlの親lockFDを全区間保持し、全writer確認→prepare→両viewbackupを含む現在directionの移行→bind確認→許可された片方normal起動→結果確認の6メソッドだけを正順で呼ぶ。各結果は同direction/image/actor PID出生/phaseとverified状態、工程固有の証拠SHA集合がそろった時だけroot専用0600 sidecarへO_EXCLで保存・fsync・metadata再読し、その後でjournalのphaseを進める。拒否/例外/receipt保存失敗では後続を呼ばずincompleteを保持する。最新reverseも同lock/別directionであり、旧backupの自動restoreはしない。
 
 証拠SHAは実証拠の参照形式であって、値を受け取るだけで証拠本文の意味やOwner裁定を独立確認したものではない。executorはtrustedな内部製品実装が実artifact/host担当原本/個別許可を検証してからreceiptを生成する責務を持つ。このdeltaは固定順序とreceipt保存のconsumerだけで、その実executor、Docker PID/terminal/CIDunknown照合、host source/許可の検証と全writer参加は未実装。production CLI、public installerへの接続、packager追加は無い。actorモジュール自体を実行しても本番処理を開始しない。
 
@@ -483,3 +483,15 @@ launch acceptance.
 normal読取側がatomic replaceで旧inodeへ留まるfile bindを使わず参照できるよう、既lockの内容に現在のdirectionと改行をEX保持中に保存する。引渡し以後、そのtransaction内でdirectionを変更しない。後続通常入口は同inodeのSH取得後、このselectorが指定するjournalとadmissionをbootstrap前に検査する必要がある。現差分には固定C/supervisor/Compose/実executorへのその接続はまだ無い。実normalがSHを保持して起動した、又は全writer区間が受け入れられたとは扱わない。
 
 現在のcontrolは既direction一回記録のALREADY_RECORDED契約を保持している。日常の再作成/再更新を接続する前に、既保存normal/backup世代と完了journal/receiptの寿命を結ぶ必要がある。同じ起動相関のまま新CIDを許したり、履歴を削除して通したり、新ID/別controller/helperで置換しない。親死亡後の未完拒否は、公開済みの選択normal起動が必ず取消される保証ではない。
+
+## 2026-10-28 完了記録と既保存normal世代の寿命（内部sourceのみ）
+
+既host actorの `run_actor(..., saved_normal=...)` とcontrol入口は、既callerが保持する絶対normal設定を明示的に受ける。対象は既 `.bellteam-compose.XXXXXX/normal.json` 又は `previous-normal.json`。0700親・同ownerの0600単一link通常file・symlink無しを検査し、raw SHA、file/親inodeとownerをjournalのnormal欄へ保持する。normalのbind source配下に世代を保存する構成は拒否する。この対応はpath/設定の保持で、実mount alias/実全writerの受入ではない。
+
+次回は同じ既lockのEXを取ってから、全先行journalがcompleted/全phase済みで、元normalが同一bytes/inode/ownerであることと全6receiptを検査する。記録先は**先行journalが所有するnormal世代**の固定 `sec014-control-history/`。新しい起動IDや別lockは作らず、元journal・6receipt・存在するprepare evidenceを元inodeのまま移し、file内容/owner/modeを変更しない。history親だけroot専用0700、新normal側の親も既normalもchown/chmodしない。未対応の旧journal、同世代再使用、既history、途中journalは自動消去/上書きせず拒否する。
+
+移動の前に、既lock内容をdurableな `archiving` にする。移動中に失敗/親死亡ならその値が残り、新actorは拒否する。完了後に新incomplete journalをdurable保存して初めて通常directionへ戻す。EX→SHと同じく、lock解放だけを完了にしない。将来のnormal読取入口もこの未完selectorを受け入れてはならない。別FSへのrename失敗も自動copy/deleteせず未完として保持し、手動の原本照合が必要になる。archive途中の自動再開CLIは追加しない。
+
+caller対応は、内部 `scripts/deploy-image.sh` と公開 `distribution/server/install.sh` が既に保存するnormal世代、内部manual recoveryのexact previousCompose/previousImageArchive/recovery.jsonとの対応を使う。保存世代はkeep_saved後に残す既仕様を維持する。**この差分は上記shellへPython actorを接続したものではない**。manualで過去世代を再利用する場合も既historyを消して通さず、既保存設定の新しい世代とその実旧CID/image/復旧対応を実callerが成立させる必要がある。公開installerのhost依存無し全区間ownerは依然未解決。旧receiptの存在だけで新writer checkや新backupを省略しない。
+
+新有限6caseは実通常FSで、同方向3回の保存/同lock inode維持、未完拒否、設定変更/再使用/history衝突、rename途中失敗後の全元inode保全と次actor拒否、設定mode/actor入力接続、旧normal親の途中置換への書込み拒否を検査する。試験利用者のUID/GIDとfake executorであり、実root/1001・C/Node/Composeの寿命受入ではない。既旧fixtureは変更した入口の引数だけ追従し、旧成功群を再走しない。whole DraftはNOTDEPLOYABLE、未merge・未反映。

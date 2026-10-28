@@ -158,6 +158,6 @@ def _run(tx, image, executor):
     return results
 
 
-def run_actor(direction, image, executor):
-    with control.host_control(direction) as tx:
+def run_actor(direction, image, executor, *, saved_normal):
+    with control.host_control(direction, saved_normal=saved_normal) as tx:
         return _run(tx, image, executor)

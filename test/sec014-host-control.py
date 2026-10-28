@@ -85,7 +85,7 @@ class HostControlTest(unittest.TestCase):
     @unittest.skipIf(os.getuid() == 0, 'requires an actual non-root caller')
     def test_public_entry_rejects_nonroot_before_host_access(self):
         with self.assertRaisesRegex(c.ControlError, 'ROOT_REQUIRED'):
-            with c.host_control('to-server'): pass
+            with c.host_control('to-server', saved_normal=Path('/unused/normal.json')): pass
 
     def test_parent_death_lock_release_is_not_completion(self):
         read_fd, write_fd = os.pipe()
