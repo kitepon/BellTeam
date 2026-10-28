@@ -182,3 +182,13 @@ test('explicit reapply sends all current requested values through the normal ada
     } }])
   }
 })
+
+test('model-only change sends the saved explicit effort on all harnesses', async () => {
+  for (const harness of ['claude', 'codex', 'grok', 'cursor']) {
+    const calls = []
+    const transport = new AitermTransport({ client: { async call(name, args) { calls.push({ name, args }); return {} } } })
+    const current = { id: 'bot-a', session: 'bot-a', harness, model: 'old-model', reasoningEffort: 'high', fastMode: false }
+    await transport.reconfigure(current, { ...current, model: 'new-model' })
+    assert.deepEqual(calls, [{ name: 'agent_configure', args: { session_id: 'bot-a', model: 'new-model', reasoning_effort: 'high' } }], harness)
+  }
+})
