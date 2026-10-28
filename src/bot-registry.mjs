@@ -15,7 +15,7 @@ const BOT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,199}$/u
 const COLORS = new Set(['rose', 'indigo', 'violet'])
 const HARNESSES = new Set(['claude', 'codex', 'grok', 'cursor'])
-const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'color'])
+const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource', 'avatarCrop', 'avatarLargeCrop', 'color'])
 const exec = promisify(execFile)
 
 export class BotRegistry extends Map {
@@ -103,6 +103,11 @@ export class BotRegistry extends Map {
       position: input.position ?? '',
       role: input.role ?? '',
       avatar: input.avatar ?? '',
+      avatarLarge: input.avatarLarge ?? '',
+      avatarSource: input.avatarSource ?? '',
+      avatarLargeSource: input.avatarLargeSource ?? '',
+      avatarCrop: input.avatarCrop ?? null,
+      avatarLargeCrop: input.avatarLargeCrop ?? null,
       session: id,
       project,
     })
@@ -146,7 +151,16 @@ export class BotRegistry extends Map {
     for (const key of Object.keys(changes)) {
       if (!PROFILE_FIELDS.has(key)) throw new Error(`BOT_UPDATE_FIELD_INVALID: ${key}`)
     }
-    let profile = normalizeProfile({ ...current, ...changes })
+    const images = { ...changes }
+    for (const field of ['avatar', 'avatarLarge']) {
+      const source = `${field}Source`, crop = `${field}Crop`
+      if (Object.hasOwn(changes, source) || Object.hasOwn(changes, crop)) {
+        if (![field, source, crop].every(key => Object.hasOwn(changes, key))) throw new Error('BOT_AVATAR_CROP_INVALID')
+      } else if (Object.hasOwn(changes, field) && changes[field] !== current[field]) {
+        images[source] = ''; images[crop] = null
+      }
+    }
+    let profile = normalizeProfile({ ...current, ...images })
     if (['harness', 'model', 'reasoningEffort'].some(field => profile[field] !== current[field]))
       await this.validateEffort(profile)
     if (profile.fastMode && ['harness', 'model', 'fastMode'].some(field => profile[field] !== current[field])) {
@@ -247,6 +261,8 @@ export class BotRegistry extends Map {
       schema: 'bellteam.bot.v8', id: profile.id, session: profile.session,
       name: profile.name, position: profile.position, role: profile.role,
       profileText: profile.profileText, personality: profile.personality, speechStyle: profile.speechStyle, avatar: profile.avatar, color: profile.color,
+      avatarLarge: profile.avatarLarge, avatarSource: profile.avatarSource, avatarLargeSource: profile.avatarLargeSource,
+      avatarCrop: profile.avatarCrop, avatarLargeCrop: profile.avatarLargeCrop,
       harness: profile.harness, model: profile.model, reasoningEffort: profile.reasoningEffort, fastMode: profile.fastMode,
     }
     await writeAtomic(join(profile.project, 'bot.json'), value)
@@ -325,7 +341,9 @@ function normalizeProfile(value) {
     if (typeof content !== 'string' || content.length > 8_000)
       throw new Error(`BOT_${field.toUpperCase()}_INVALID`)
   }
-  validateAvatar(value.avatar ?? '')
+  for (const field of ['avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource']) validateAvatar(value[field] ?? '')
+  const avatarCrop = normalizeAvatarCrop(value.avatarCrop, value.avatarSource, value.avatar)
+  const avatarLargeCrop = normalizeAvatarCrop(value.avatarLargeCrop, value.avatarLargeSource, value.avatarLarge)
   return {
     id: value.id,
     name,
@@ -341,6 +359,11 @@ function normalizeProfile(value) {
     position,
     role,
     avatar: value.avatar ?? '',
+    avatarLarge: value.avatarLarge ?? '',
+    avatarSource: value.avatarSource ?? '',
+    avatarLargeSource: value.avatarLargeSource ?? '',
+    avatarCrop,
+    avatarLargeCrop,
     session,
     project: value.project,
   }
@@ -441,6 +464,17 @@ function cronNext(expression, timezone, from) {
 
 function validateId(id) {
   if (typeof id !== 'string' || !BOT_ID.test(id)) throw new Error('BOT_ID_INVALID')
+}
+
+function normalizeAvatarCrop(value, source, render) {
+  if (!source && value == null) return null
+  if (!source || !render || !value || typeof value !== 'object' || Array.isArray(value)
+    || Object.keys(value).length !== 4 || !['x', 'y', 'width', 'height'].every(key =>
+      typeof value[key] === 'number' && Number.isFinite(value[key]))
+    || value.x < 0 || value.y < 0 || value.width <= 0 || value.height <= 0
+    || value.x + value.width > 1 + 1e-9 || value.y + value.height > 1 + 1e-9)
+    throw new Error('BOT_AVATAR_CROP_INVALID')
+  return { x: value.x, y: value.y, width: value.width, height: value.height }
 }
 
 export function validateAvatar(value, code = 'BOT_AVATAR_INVALID') {
