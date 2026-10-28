@@ -3,6 +3,17 @@ import MetricKit
 import OSLog
 import UIKit
 
+struct BellRequestAttempt {
+    let startedAt: Date
+    let finishedAt: Date
+    let elapsedMonotonicMs: Int
+    let appStateAtStart: String
+    let appStateAtEnd: String
+    let returnedResponse: Bool
+    let errorCode: Int?
+    let metrics: URLSessionTaskMetrics?
+}
+
 /// 失敗した要求だけに添える計測値。URL、query、本文、識別子は記録しない。
 struct BellRequestTrace {
     static let userInfoKey = "BellTeamRequestTrace"
@@ -13,6 +24,7 @@ struct BellRequestTrace {
     let appStateAtStart: String
     let attempts: Int
     let metrics: URLSessionTaskMetrics?
+    var attemptDetails: [BellRequestAttempt] = []
 
     static func route(for path: String) -> String {
         let parts = path.split(separator: "/").map(String.init)
@@ -50,16 +62,37 @@ struct BellRequestTrace {
         var result = "\nrequest_route=\(route)\nrequest_method=\(method)"
         result += "\nrequest_started_at_ms=\(milliseconds(startedAt))\nrequest_failed_at_ms=\(milliseconds(failedAt))"
         result += "\napp_state_at_request_start=\(appStateAtStart)\nrequest_attempts=\(attempts)"
-        guard let metrics else { return result + "\ntask_metrics_available=false" }
-        result += "\ntask_metrics_available=true\ntransaction_count=\(metrics.transactionMetrics.count)"
+        result += Self.metricsLog(metrics, prefix: "")
+        for (index, attempt) in attemptDetails.enumerated() {
+            let prefix = "attempt_\(index + 1)_"
+            result += "\n\(prefix)started_at_ms=\(milliseconds(attempt.startedAt))"
+            result += "\n\(prefix)finished_at_ms=\(milliseconds(attempt.finishedAt))"
+            result += "\n\(prefix)elapsed_wall_ms=\(milliseconds(attempt.finishedAt) - milliseconds(attempt.startedAt))"
+            result += "\n\(prefix)elapsed_monotonic_ms=\(attempt.elapsedMonotonicMs)"
+            result += "\n\(prefix)app_state_at_start=\(attempt.appStateAtStart)"
+            result += "\n\(prefix)app_state_at_end=\(attempt.appStateAtEnd)"
+            result += "\n\(prefix)transport_result=\(attempt.returnedResponse ? "response_returned" : "error_thrown")"
+            if let code = attempt.errorCode { result += "\n\(prefix)error_code=\(code)" }
+            result += Self.metricsLog(attempt.metrics, prefix: prefix)
+        }
+        return result
+    }
+
+    private static func metricsLog(_ metrics: URLSessionTaskMetrics?, prefix: String) -> String {
+        let milliseconds: (Date) -> Int64 = { Int64($0.timeIntervalSince1970 * 1000) }
+        guard let metrics else { return "\n\(prefix)task_metrics_available=false" }
+        var result = "\n\(prefix)task_metrics_available=true\n\(prefix)transaction_count=\(metrics.transactionMetrics.count)"
+        result += "\n\(prefix)task_start_ms=\(milliseconds(metrics.taskInterval.start))"
+        result += "\n\(prefix)task_end_ms=\(milliseconds(metrics.taskInterval.end))"
         if let transaction = metrics.transactionMetrics.last {
-            if let value = transaction.fetchStartDate { result += "\nmetrics_fetch_start_ms=\(milliseconds(value))" }
-            if let value = transaction.connectStartDate { result += "\nmetrics_connect_start_ms=\(milliseconds(value))" }
-            if let value = transaction.connectEndDate { result += "\nmetrics_connect_end_ms=\(milliseconds(value))" }
-            if let value = transaction.requestStartDate { result += "\nmetrics_request_start_ms=\(milliseconds(value))" }
-            if let value = transaction.requestEndDate { result += "\nmetrics_request_end_ms=\(milliseconds(value))" }
-            if let value = transaction.responseStartDate { result += "\nmetrics_response_start_ms=\(milliseconds(value))" }
-            result += "\nmetrics_reused_connection=\(transaction.isReusedConnection)"
+            if let value = transaction.fetchStartDate { result += "\n\(prefix)metrics_fetch_start_ms=\(milliseconds(value))" }
+            if let value = transaction.connectStartDate { result += "\n\(prefix)metrics_connect_start_ms=\(milliseconds(value))" }
+            if let value = transaction.connectEndDate { result += "\n\(prefix)metrics_connect_end_ms=\(milliseconds(value))" }
+            if let value = transaction.requestStartDate { result += "\n\(prefix)metrics_request_start_ms=\(milliseconds(value))" }
+            if let value = transaction.requestEndDate { result += "\n\(prefix)metrics_request_end_ms=\(milliseconds(value))" }
+            if let value = transaction.responseStartDate { result += "\n\(prefix)metrics_response_start_ms=\(milliseconds(value))" }
+            if let value = transaction.responseEndDate { result += "\n\(prefix)metrics_response_end_ms=\(milliseconds(value))" }
+            result += "\n\(prefix)metrics_reused_connection=\(transaction.isReusedConnection)"
         }
         return result
     }
