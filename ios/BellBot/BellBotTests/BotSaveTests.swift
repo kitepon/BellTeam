@@ -84,6 +84,21 @@ final class BotSaveTests: XCTestCase {
         XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
     }
 
+    func testTextSavePreservesAnAvatarChangedOnAnotherDevice() async throws {
+        var remote = oldSettings
+        remote.avatar = "data:image/jpeg;base64,YQ=="
+        remote.avatarSource = "data:image/jpeg;base64,YWJj"
+        remote.avatarCrop = AvatarCropRect(x: 0.1, y: 0.1, width: 0.8, height: 0.8)
+        let fixture = SaveFixture(saved: remote, applyBeforeFailure: true)
+        let result = try await makeAPI(fixture).saveBotSettings(
+            id: "member", settings: newSettings, originalFastMode: false)
+        guard case .confirmed = result else { return XCTFail("画像を変えない保存は別端末の画像を保持する") }
+        XCTAssertEqual(fixture.saved.avatar, remote.avatar)
+        XCTAssertEqual(fixture.saved.avatarSource, remote.avatarSource)
+        XCTAssertEqual(fixture.saved.avatarCrop, remote.avatarCrop)
+        XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
+    }
+
     func testExplicitConfirmationAfterReconnectDoesNotWriteAgain() async throws {
         let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: true, readError: .notConnectedToInternet)
         let api = makeAPI(fixture)
@@ -130,10 +145,11 @@ final class BotSaveTests: XCTestCase {
         store.authMode = "cloudflare"
         var updates = 0
         let observation = store.objectWillChange.sink { updates += 1 }
-        store.botEditorDrafts["member"] = newSettings
+        store.botEditorDrafts["member"] = BotEditorDraft(settings: newSettings,
+            smallAvatarChanged: false, largeAvatarChanged: false, appearanceLoaded: true)
         XCTAssertEqual(updates, 0)
         store.requireLogin(for: BellAPIError.unauthorized)
-        XCTAssertEqual(store.botEditorDrafts["member"], newSettings)
+        XCTAssertEqual(store.botEditorDrafts["member"]?.settings, newSettings)
         await store.signOut()
         XCTAssertTrue(store.botEditorDrafts.isEmpty)
         withExtendedLifetime(observation) {}

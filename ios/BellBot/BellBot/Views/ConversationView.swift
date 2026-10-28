@@ -2,6 +2,7 @@ import PhotosUI
 import ImageIO
 import UniformTypeIdentifiers
 import SwiftUI
+import UIKit
 
 struct ConversationView: View {
     let target: ChatTarget
@@ -1704,11 +1705,15 @@ struct ConversationDetailView: View {
                 BellBackground()
                 ScrollView {
                     VStack(spacing: 18) {
-                        AvatarView(name: room?.name ?? bot?.name ?? "BellTeam", avatar: room?.avatar ?? bot?.avatar ?? "",
-                                   color: BellTheme.accent(bot?.color ?? "violet"), size: 88, isRoom: target.isRoom)
-                        Text(room?.name ?? bot?.displayName ?? "")
-                            .font(.system(size: 27, weight: .bold, design: .rounded))
-                            .foregroundStyle(BellTheme.ink)
+                        if let bot {
+                            BotProfileHero(bot: bot, smallSize: 176)
+                        } else if let room {
+                            AvatarView(name: room.name, avatar: room.avatar, color: BellTheme.violet,
+                                       size: 88, isRoom: true)
+                            Text(room.name)
+                                .font(.system(size: 27, weight: .bold, design: .rounded))
+                                .foregroundStyle(BellTheme.ink)
+                        }
                         if let room {
                             SelectableText(room.purpose, color: BellTheme.muted)
                             ForEach(room.memberIds, id: \.self) { id in
@@ -1720,17 +1725,8 @@ struct ConversationDetailView: View {
                             Button("ルームを編集") { editingProfile = true }
                                 .buttonStyle(.borderedProminent)
                         } else if let bot {
-                            SelectableText(bot.profileText.isEmpty ? bot.position : bot.profileText, color: BellTheme.muted)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(18)
-                                .bellCard()
-                            LabeledContent("ハーネス", value: bot.harness)
-                            LabeledContent("モデル", value: bot.model.isEmpty ? "既定" : bot.model)
-                            Button("Botの画面を見る") { showingScreen = true }
-                                .buttonStyle(.bordered)
-                            Button("メンバーを編集") { editingProfile = true }
-                                .buttonStyle(.borderedProminent)
-                            Button("会話セッションを再起動") {
+                            BotProfileAISection(bot: bot, errorText: errorText,
+                                                onScreen: { showingScreen = true }, onRestart: {
                                 Task {
                                     do {
                                         try await store.authorizeAIUse(target: target)
@@ -1738,10 +1734,11 @@ struct ConversationDetailView: View {
                                         dismiss()
                                     } catch { errorText = error.localizedDescription }
                                 }
-                            }
-                            .buttonStyle(.bordered)
+                            })
+                            BotProfileDetails(bot: bot)
+                            Button("メンバーを編集") { editingProfile = true }
+                                .buttonStyle(.borderedProminent)
                         }
-                        if let errorText { Text(errorText).foregroundStyle(.red).font(.footnote) }
                     }
                     .padding(25)
                 }
@@ -1771,13 +1768,41 @@ private struct ScreenResponse: Decodable {
     let screen: String
 }
 
-private struct BotScreenText: View, Equatable {
+private struct BotTerminalView: UIViewRepresentable {
     let value: String
 
-    var body: some View {
-        SelectableText(value, font: .monospacedSystemFont(ofSize: 12, weight: .regular))
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .padding(16)
+    func makeUIView(context: Context) -> BotTerminalTextView {
+        let view = BotTerminalTextView()
+        view.backgroundColor = .black
+        view.textColor = .white
+        view.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        view.isEditable = false
+        view.isSelectable = true
+        view.isScrollEnabled = true
+        view.alwaysBounceVertical = true
+        view.textContainerInset = UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+        view.textContainer.lineFragmentPadding = 0
+        view.accessibilityIdentifier = "bot-screen-text"
+        return view
+    }
+
+    func updateUIView(_ view: BotTerminalTextView, context: Context) {
+        view.show(value)
+    }
+}
+
+final class BotTerminalTextView: UITextView {
+    func show(_ value: String) {
+        guard text != value else { return }
+        let oldOffset = contentOffset
+        let followBottom = contentSize.height <= bounds.height
+            || oldOffset.y + bounds.height >= contentSize.height - 28
+        text = value
+        layoutManager.ensureLayout(for: textContainer)
+        layoutIfNeeded()
+        let bottom = max(-adjustedContentInset.top,
+                         contentSize.height - bounds.height + adjustedContentInset.bottom)
+        setContentOffset(CGPoint(x: oldOffset.x, y: followBottom ? bottom : min(oldOffset.y, bottom)), animated: false)
     }
 }
 
@@ -1785,9 +1810,12 @@ struct BotScreenView: View {
     let bot: Bot
     var embedded = false
     @EnvironmentObject private var store: AppStore
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dismiss) private var dismiss
     @State private var screen = ""
     @State private var online = false
     @State private var errorText: String?
+    @State private var visibleBotID: String?
 
     var body: some View {
         Group {
@@ -1798,51 +1826,66 @@ struct BotScreenView: View {
                     screenContent
                         .navigationTitle("\(bot.displayName)の画面")
                         .navigationBarTitleDisplayMode(.inline)
+                        .toolbar { ToolbarItem(placement: .topBarTrailing) {
+                            Button("閉じる") { dismiss() }
+                                .accessibilityIdentifier("close-bot-screen")
+                        } }
                 }
             }
         }
-        .task { await refreshScreen() }
+        .task(id: "\(bot.id):\(scenePhase == .active)") {
+            if visibleBotID != bot.id {
+                visibleBotID = bot.id
+                screen = ""
+                online = false
+                errorText = nil
+            }
+            guard scenePhase == .active else { return }
+            await refreshScreen(botID: bot.id)
+        }
     }
 
     private var screenContent: some View {
         ZStack {
-            BellBackground()
-            ScrollView([.horizontal, .vertical]) {
-                BotScreenText(value: screen.isEmpty ? (online ? "画面は空です" : "次のメッセージで起動します") : screen)
-                    .equatable()
-            }
-            .background(.white.opacity(0.8), in: RoundedRectangle(cornerRadius: 18))
-            .padding(16)
+            Color.black
+            BotTerminalView(value: screen.isEmpty ? (online ? "画面は空です" : "次のメッセージで起動します") : screen)
+            .background(Color.black)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .safeAreaInset(edge: .bottom) {
             HStack(spacing: 7) {
                 Circle().fill(online ? BellTheme.mint : BellTheme.muted).frame(width: 7, height: 7)
-                Text(errorText ?? (online ? "2秒ごとに更新" : "停止中"))
+                Text(errorText ?? (online ? "1秒ごとに更新" : "停止中"))
             }
             .font(.footnote)
-            .foregroundStyle(errorText == nil ? BellTheme.muted : .red)
+            .foregroundStyle(errorText == nil ? .white : .red)
             .frame(maxWidth: .infinity)
             .padding(10)
-            .background(.regularMaterial)
+            .background(Color.black)
         }
     }
 
-    private func refreshScreen() async {
+    private func refreshScreen(botID: String) async {
+        let path = "/api/bots/\(botID)/screen"
         while !Task.isCancelled {
             do {
-                let result: ScreenResponse = try await store.api.get("/api/bots/\(bot.id)/screen")
+                let result: ScreenResponse = try await store.api.get(path + "?history=1")
+                try Task.checkCancellation()
                 if online != result.online { online = result.online }
                 if screen != result.screen { screen = result.screen }
                 if errorText != nil { errorText = nil }
-            } catch let error where BellAPIError.isAuthenticationError(error) {
+            } catch is CancellationError { return }
+            catch let error as URLError where error.code == .cancelled { return }
+            catch let error where BellAPIError.isAuthenticationError(error) {
                 store.requireLogin(for: error)
                 break
             } catch {
                 errorText = error.localizedDescription
-                store.api.diagnostics.report(error, path: "/api/bots/\(bot.id)/screen", method: "GET", observation: .read(error, retainedData: !screen.isEmpty))
+                store.api.diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: !screen.isEmpty))
                 break
             }
-            try? await Task.sleep(for: .seconds(2))
+            do { try await Task.sleep(for: .seconds(1)) }
+            catch { return }
         }
     }
 }

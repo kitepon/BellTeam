@@ -3,17 +3,40 @@ import SwiftUI
 struct AvatarCropSource: Identifiable {
     let id = UUID()
     let image: UIImage
+    var variant: AvatarCropVariant = .small
+    var initialCrop: AvatarCropRect? = nil
 }
 
 struct AvatarCropEditor: View {
     let image: UIImage
-    let onUse: (String) -> Void
+    let variant: AvatarCropVariant
+    private let onUseLegacy: ((String) -> Void)?
+    private let onUseSelection: ((AvatarCropSelection) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @GestureState private var drag = CGSize.zero
     @State private var zoom = 1.0
     @State private var offset = CGSize.zero
     @State private var errorText: String?
+
+    init(image: UIImage, onUse: @escaping (String) -> Void) {
+        self.image = image
+        variant = .small
+        onUseLegacy = onUse
+        onUseSelection = nil
+    }
+
+    init(image: UIImage, variant: AvatarCropVariant, initialCrop: AvatarCropRect?,
+         onUse: @escaping (AvatarCropSelection) -> Void) {
+        self.image = image
+        self.variant = variant
+        onUseLegacy = nil
+        onUseSelection = onUse
+        if let initialCrop, let placement = AvatarImage.placement(of: initialCrop, image: image, canvas: variant.canvas) {
+            _zoom = State(initialValue: placement.zoom)
+            _offset = State(initialValue: placement.offset)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -41,7 +64,7 @@ struct AvatarCropEditor: View {
                         cropPreview(side: min(geometry.size.width, 320))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .frame(height: 320)
+                    .frame(height: variant == .small ? 320 : 170)
 
                     zoomControls.frame(maxWidth: 320)
 
@@ -69,7 +92,7 @@ struct AvatarCropEditor: View {
                 let ratio = CGFloat(next / previous)
                 offset = AvatarImage.clampedOffset(
                     CGSize(width: offset.width * ratio, height: offset.height * ratio),
-                    image: image, zoom: CGFloat(next))
+                    image: image, zoom: CGFloat(next), canvas: variant.canvas)
             }
         }
         #if targetEnvironment(macCatalyst)
@@ -98,9 +121,11 @@ struct AvatarCropEditor: View {
     }
 
     private func cropPreview(side: CGFloat) -> some View {
-        let size = AvatarImage.renderedSize(of: image, zoom: CGFloat(zoom))
+        let canvas = variant.canvas
+        let size = AvatarImage.renderedSize(of: image, zoom: CGFloat(zoom), canvas: canvas)
         let position = currentOffset(side: side)
-        let ratio = side / AvatarImage.side
+        let ratio = side / canvas.width
+        let previewHeight = canvas.height * ratio
 
         return Rectangle()
             .fill(Color(.secondarySystemBackground))
@@ -111,37 +136,48 @@ struct AvatarCropEditor: View {
                     .frame(width: size.width * ratio, height: size.height * ratio)
                     .offset(x: position.width * ratio, y: position.height * ratio)
             }
-            .frame(width: side, height: side)
-            .clipShape(RoundedRectangle(cornerRadius: side * 0.24))
+            .frame(width: side, height: previewHeight)
+            .clipShape(RoundedRectangle(cornerRadius: min(side, previewHeight) * 0.18))
             .contentShape(Rectangle())
             .gesture(
                 DragGesture()
                     .updating($drag) { value, state, _ in state = value.translation }
                     .onEnded { value in
-                        let outputRatio = AvatarImage.side / side
+                        let outputRatio = canvas.width / side
                         offset = AvatarImage.clampedOffset(
                             CGSize(width: offset.width + value.translation.width * outputRatio,
                                    height: offset.height + value.translation.height * outputRatio),
-                            image: image, zoom: CGFloat(zoom))
+                            image: image, zoom: CGFloat(zoom), canvas: canvas)
                     }
             )
             .accessibilityLabel("アバター画像の切り抜き位置")
     }
 
     private func currentOffset(side: CGFloat) -> CGSize {
-        let outputRatio = AvatarImage.side / side
+        let outputRatio = variant.canvas.width / side
         return AvatarImage.clampedOffset(
             CGSize(width: offset.width + drag.width * outputRatio,
                    height: offset.height + drag.height * outputRatio),
-            image: image, zoom: CGFloat(zoom))
+            image: image, zoom: CGFloat(zoom), canvas: variant.canvas)
     }
 
     private func useImage() {
-        guard let dataURL = AvatarImage.dataURL(from: image, zoom: CGFloat(zoom), offset: offset) else {
+        guard let render = AvatarImage.dataURL(from: image, zoom: CGFloat(zoom), offset: offset,
+                                               canvas: variant.canvas) else {
             errorText = "写真を読み込めませんでした。"
             return
         }
-        onUse(dataURL)
+        if let onUseLegacy {
+            onUseLegacy(render)
+        } else {
+            guard let source = AvatarImage.sourceDataURL(from: image),
+                  let crop = AvatarImage.cropRect(from: image, zoom: CGFloat(zoom), offset: offset,
+                                                 canvas: variant.canvas) else {
+                errorText = "元画像を保存できませんでした。別の画像を選んでください。"
+                return
+            }
+            onUseSelection?(AvatarCropSelection(render: render, source: source, crop: crop))
+        }
         dismiss()
     }
 }

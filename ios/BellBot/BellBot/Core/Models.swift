@@ -16,6 +16,7 @@ struct Bot: Decodable, Identifiable, Equatable {
     let role: String
     var avatar: String
     var avatarVersion: String? = nil
+    var avatarLargeVersion: String? = nil
     let online: Bool
     let recent: RecentMessage?
 }

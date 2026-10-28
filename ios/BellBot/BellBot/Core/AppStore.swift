@@ -51,7 +51,7 @@ final class AppStore: ObservableObject {
     @Published var chatPath: [ChatTarget] = []
     private var drafts: [ChatTarget: ConversationDraft] = [:]
     // 編集値は再認証をまたいで保持する。文字入力でアプリ全体へ更新通知を出さない。
-    var botEditorDrafts: [String: BotSettings] = [:]
+    var botEditorDrafts: [String: BotEditorDraft] = [:]
     @Published var notificationSecret: SecretRequest?
     private var pendingNotification: BellNotificationRoute?
 

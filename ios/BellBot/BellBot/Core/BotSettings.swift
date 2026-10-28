@@ -7,12 +7,17 @@ struct BotSettings: Codable, Equatable {
     let speechStyle: String
     let position: String
     let role: String
-    let avatar: String
+    var avatar: String
     let color: String
     let harness: String
     let model: String
     let reasoningEffort: String
     let fastMode: Bool
+    var avatarLarge: String? = nil
+    var avatarSource: String? = nil
+    var avatarCrop: AvatarCropRect? = nil
+    var avatarLargeSource: String? = nil
+    var avatarLargeCrop: AvatarCropRect? = nil
 
     // サーバーのnormalizeProfileが整える4項目を、送る値でも同じ形にする。
     var normalized: Self {
@@ -22,17 +27,45 @@ struct BotSettings: Codable, Equatable {
              role: role, avatar: avatar, color: color, harness: harness,
              model: model.trimmingCharacters(in: .whitespacesAndNewlines),
              reasoningEffort: reasoningEffort.trimmingCharacters(in: .whitespacesAndNewlines),
-             fastMode: fastMode)
+             fastMode: fastMode, avatarLarge: avatarLarge, avatarSource: avatarSource,
+             avatarCrop: avatarCrop, avatarLargeSource: avatarLargeSource,
+             avatarLargeCrop: avatarLargeCrop)
     }
+
+    func withSmallAvatar(from current: Self) -> Self {
+        var value = self
+        value.avatar = current.avatar
+        value.avatarSource = current.avatarSource
+        value.avatarCrop = current.avatarCrop
+        return value
+    }
+
+    func withLargeAvatar(from current: Self) -> Self {
+        var value = self
+        value.avatarLarge = current.avatarLarge
+        value.avatarLargeSource = current.avatarLargeSource
+        value.avatarLargeCrop = current.avatarLargeCrop
+        return value
+    }
+}
+
+struct BotEditorDraft {
+    let settings: BotSettings
+    let smallAvatarChanged: Bool
+    let largeAvatarChanged: Bool
+    let appearanceLoaded: Bool
 }
 
 struct BotSettingsRequest: Encodable {
     let settings: BotSettings
     let originalFastMode: Bool
+    var smallAvatarChanged = false
+    var largeAvatarChanged = false
 
     private enum CodingKeys: String, CodingKey {
         case name, profileText, personality, speechStyle, position, role, avatar, color
         case harness, model, reasoningEffort, fastMode
+        case avatarLarge, avatarSource, avatarCrop, avatarLargeSource, avatarLargeCrop
     }
 
     func encode(to encoder: Encoder) throws {
@@ -44,7 +77,16 @@ struct BotSettingsRequest: Encodable {
         try body.encode(value.speechStyle, forKey: .speechStyle)
         try body.encode(value.position, forKey: .position)
         try body.encode(value.role, forKey: .role)
-        try body.encode(value.avatar, forKey: .avatar)
+        if smallAvatarChanged {
+            try body.encode(value.avatar, forKey: .avatar)
+            try body.encode(value.avatarSource, forKey: .avatarSource)
+            try body.encode(value.avatarCrop, forKey: .avatarCrop)
+        }
+        if largeAvatarChanged {
+            try body.encode(value.avatarLarge, forKey: .avatarLarge)
+            try body.encode(value.avatarLargeSource, forKey: .avatarLargeSource)
+            try body.encode(value.avatarLargeCrop, forKey: .avatarLargeCrop)
+        }
         try body.encode(value.color, forKey: .color)
         try body.encode(value.harness, forKey: .harness)
         try body.encode(value.model, forKey: .model)
@@ -63,13 +105,18 @@ enum BotSaveResult {
 }
 
 extension BellAPI {
-    func saveBotSettings(id: String, settings: BotSettings, originalFastMode: Bool) async throws -> BotSaveResult {
+    func saveBotSettings(id: String, settings: BotSettings, originalFastMode: Bool,
+                         smallAvatarChanged: Bool = false, largeAvatarChanged: Bool = false) async throws -> BotSaveResult {
         do {
-            let request = BotSettingsRequest(settings: settings, originalFastMode: originalFastMode)
+            let request = BotSettingsRequest(settings: settings, originalFastMode: originalFastMode,
+                                             smallAvatarChanged: smallAvatarChanged,
+                                             largeAvatarChanged: largeAvatarChanged)
             let _: APIAcknowledgement = try await patch("/api/bots/\(id)", body: request)
             return .saved
         } catch let error as URLError where error.code == .networkConnectionLost || error.code == .timedOut {
-            let result = try await confirmBotSettings(id: id, settings: settings)
+            let result = try await confirmBotSettings(id: id, settings: settings,
+                                                      smallAvatarChanged: smallAvatarChanged,
+                                                      largeAvatarChanged: largeAvatarChanged)
             let observation: BellDiagnosticObservation
             if case .confirmed = result {
                 observation = .init(impact: .handled, handling: "saved_content_confirmed_by_read", recovery: "recovered", input: "retained")
@@ -79,11 +126,19 @@ extension BellAPI {
         }
     }
 
-    func confirmBotSettings(id: String, settings: BotSettings) async throws -> BotSaveResult {
+    func confirmBotSettings(id: String, settings: BotSettings,
+                            smallAvatarChanged: Bool = false, largeAvatarChanged: Bool = false) async throws -> BotSaveResult {
         struct ProfileResponse: Decodable { let bot: BotSettings }
         do {
             let current: ProfileResponse = try await get("/api/bots/\(id)")
-            return current.bot == settings.normalized ? .confirmed : .different
+            var expected = settings.normalized
+            if !smallAvatarChanged {
+                expected = expected.withSmallAvatar(from: current.bot)
+            }
+            if !largeAvatarChanged {
+                expected = expected.withLargeAvatar(from: current.bot)
+            }
+            return current.bot == expected ? .confirmed : .different
         } catch let error where BellAPIError.isAuthenticationError(error) {
             throw error
         } catch {

@@ -68,6 +68,12 @@ struct HomeView: View {
             TextField("メンバーとルームを探す", text: $search)
                 .font(.system(size: 15))
                 .textInputAutocapitalization(.never)
+            if !search.isEmpty {
+                Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(BellTheme.muted)
+                    .accessibilityLabel("検索を消去")
+            }
         }
         .padding(.horizontal, 17)
         .frame(height: 50)
