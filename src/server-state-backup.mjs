@@ -1,4 +1,5 @@
 import { constants } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { lstat, readdir, mkdir, open, statfs, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
@@ -107,10 +108,13 @@ export async function backupServerState({ root, backupRoot, direction }) {
     if (!same(info, await lstat(join(root, name)))) throw failure('SERVER_STATE_BACKUP_CHANGED')
   }
   const receipt = join(destination, 'complete.json')
+  const raw = JSON.stringify({ schema: 'bellteam.state-backup.v1', direction, status: 'complete' }) + '\n'
+  let written
   try {
     await using(await open(receipt, 'wx', 0o600), async file => {
-      await file.writeFile(JSON.stringify({ schema: 'bellteam.state-backup.v1', direction, status: 'complete' }) + '\n')
+      await file.writeFile(raw)
       await file.sync()
+      written = await file.stat()
     })
     await syncDirectory(destination); await syncDirectory(backupRoot)
   } catch (error) {
@@ -119,5 +123,11 @@ export async function backupServerState({ root, backupRoot, direction }) {
     }
     throw error
   }
-  return { status: 'created' }
+  // A replaced completion file is unknown; retain it and the backup for inspection.
+  const linked = await lstat(receipt)
+  if (!same(written, linked) || !linked.isFile() || linked.nlink !== 1
+    || linked.uid !== process.geteuid() || linked.gid !== process.getegid() || (linked.mode & 0o777) !== 0o600)
+    throw failure('SERVER_STATE_BACKUP_RECEIPT_CHANGED')
+  return { status: 'created', root, destination, receipt: { path: receipt,
+    device: String(written.dev), inode: String(written.ino), sha256: createHash('sha256').update(raw).digest('hex') } }
 }

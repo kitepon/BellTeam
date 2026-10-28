@@ -516,3 +516,20 @@ supervisorはserver UID1001時に、最初のbootstrap/application/lifecycle imp
 新有限6メソッドは旧source0pass6fail（subTestを含む11assert失敗）→修理6pass。実普通FS/実flock/Python/NodeだがUID/GIDは試験利用者を注入し、Docker/Compose/実root1001は使わない。内部shell前段のtoken生成と、実Node freeze codeの希望token不一致拒否も通常processで確認する。旧fixtureは引数位置と必須normal項目だけ追従し旧成功群/Fullを再走しない。
 
 実shellはまだactorを呼ばず、直接stop/prepare/maintenance/upの順である。create/start/inspect/actualCID/healthを持つ既通常executor全体は未接続であり、saved_normalを引数へ渡しただけを実受入にはしない。公開installerの依存無し全区間owner、手動復旧の新保持世代とexact旧CID/image対応、実mount/UID/ACL/全writerは引き続き未成立。内部overlayだけを公開解決として配布しない。whole Draft NOTDEPLOYABLE。
+
+## 実phase出力の対応と移行結果のbackup参照（10/28）
+
+| phase | 既実装から読めるもの | それだけでは確認できないもの |
+| --- | --- | --- |
+| writers_stopped | 既writer CLIのexit、Docker表・volume/canonical metadataの検査。snapshot APIはphaseReceiptProduced:falseを明示する。 | 全host writerの寿命、両normalのexact停止とrespawn排他。CLIのstagingは終了で消える。 |
+| prepared | prepareのstatusと `.prepared.json`、6leafのinode/owner/mode。既prepare executorは実container terminalとmetadataを保存する。 | 未接続host_check、現内部shellの固定root実行との対応。既executorは静的Composeを読み、saved normalと同じrendered prepareを使っていない。 |
+| migrated | `migrateServerState` のdirection/status/ownershipと、今回からlegacy/server双方のbackups参照。 | 実maintenance CID/image/mountとfrozen normalの対応、移行後の全データ比較。 |
+| binds_confirmed | 既plannerのmount宣言と、prepare metadataの固定6leaf。 | 実createのmount source/target、normal非露出とsocket境界。 |
+| started | 現shellのcompose up終了だけ。 | 選択fullCID/raw image/tokenと実startの同一性、別normal不在。 |
+| verified | 現shellにはactorへ渡す実health/data/child検証結果が無い。 | health、最新データ、未知child無し。up成功を代用しない。 |
+
+`backupServerState` は従来の `status:created` に加え、同じ呼出しのroot/destinationと、既 `complete.json` のpath/device/inode/sha256を返す。完了fileのbytesやschemaは変更せず、write/sync後に採取した同inodeがcloseと親directoryのsync後も同じprivate通常fileであることを確認する。同bytesの別inodeを含む変更は `SERVER_STATE_BACKUP_RECEIPT_CHANGED` で拒否し、未知のfileや控えを消さない。既write/sync/close失敗の伝播は維持する。
+
+`migrateServerState` は両backupの実返却を `backups.legacy/server` へ残してから従来どおり移行し、既direction/status/ownershipと一緒に返す。2回目backupの失敗で移行を始めない順序は不変。CLIはこの返却を既JSONへ出す。private設定やバックアップ本文を出力せず、新しいschema/ID/公開CLI/保存fileを作らない。
+
+これは既backup完了fileの参照であり、内容全体のhash/restore成功・host側source inode・actualCID/image・全writer排他の証明ではない。後続executorはfrozen設定と実containerのmount対応を照合してから当該artifactを読む必要がある。任意hashやexit0からphase-receiptのverifiedを合成しない。actor全接続、静的prepareから保存済prepareへの対応、normal create/start/inspect/health、公開installer全区間ownerとmanual復旧は引き続き未完で、whole Draft NOTDEPLOYABLE。

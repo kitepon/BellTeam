@@ -25,7 +25,7 @@ test('限定stateと移行元だけを0600で控え、HOME/席文書/個人記�
   const excluded = ['home/auth.json', 'bots/bot-a/docs/keep.md', 'bots/bot-a/memory/private.db',
     'shared/tools/apns/key.p8', 'shared/tools/bughub/headers']
   for (const name of excluded) await f.put(name, 'synthetic excluded')
-  assert.deepEqual(await f.run(), { status: 'created' })
+  assert.equal((await f.run()).status, 'created')
   const destination = join(f.backupRoot, 'before-to-server')
   for (const name of selected) {
     assert.deepEqual(await readFile(join(destination, name)), await readFile(join(f.root, name)))

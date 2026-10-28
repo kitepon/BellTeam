@@ -240,16 +240,17 @@ export async function migrateServerState({ legacyRoot, serverRoot, backupRoot, d
     throw failure('SERVER_STATE_BACKUP_PARENT')
   // Preserve both generations before a partial migration can hide current
   // content in either view. A failed second backup must stop all migration.
+  const backups = {}
   for (const [view, root] of [['legacy', legacyRoot], ['server', serverRoot]]) {
     const destination = join(backupRoot, view)
     try { await mkdir(destination, { mode: 0o700 }) } catch (error) { if (error.code !== 'EEXIST') throw error }
-    await backupServerState({ root, direction, backupRoot: destination })
+    backups[view] = await backupServerState({ root, direction, backupRoot: destination })
   }
   if (direction === 'to-server') await relocateServerRoots(roots)
   const result = await transferServerState(options)
   if (direction === 'to-legacy') await relocateServerRoots(roots)
   const ownership = await prepareServerStateOwnership({ ...options, root: direction === 'to-server' ? serverRoot : legacyRoot })
-  return { ...result, ownership }
+  return { ...result, ownership, backups }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
