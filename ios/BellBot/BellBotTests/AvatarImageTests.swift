@@ -92,4 +92,22 @@ final class AvatarImageTests: XCTestCase {
         }
         XCTAssertNotNil(AvatarImage.sourceDataURL(from: source), "切り抜き前の全画面を保持する")
     }
+
+    func testFormerWideLargeCropOpensAsSquareAroundTheSameCenter() throws {
+        let source = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 200)).image { context in
+            UIColor.blue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 400, height: 200))
+        }
+        let oldCanvas = CGSize(width: 1024, height: 512)
+        let oldCrop = try XCTUnwrap(AvatarImage.cropRect(from: source, zoom: 1.5,
+                                                        offset: CGSize(width: 100, height: 50), canvas: oldCanvas))
+        let newCanvas = AvatarCropVariant.large.canvas
+        XCTAssertEqual(newCanvas.width, newCanvas.height)
+        let restored = try XCTUnwrap(AvatarImage.placement(of: oldCrop, image: source, canvas: newCanvas))
+        XCTAssertGreaterThanOrEqual(restored.zoom, 1)
+        let newCrop = try XCTUnwrap(AvatarImage.cropRect(from: source, zoom: CGFloat(restored.zoom),
+                                                        offset: restored.offset, canvas: newCanvas))
+        XCTAssertEqual(newCrop.x + newCrop.width / 2, oldCrop.x + oldCrop.width / 2, accuracy: 0.001)
+        XCTAssertEqual(newCrop.y + newCrop.height / 2, oldCrop.y + oldCrop.height / 2, accuracy: 0.001)
+    }
 }

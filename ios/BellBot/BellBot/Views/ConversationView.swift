@@ -1706,7 +1706,7 @@ struct ConversationDetailView: View {
                 ScrollView {
                     VStack(spacing: 18) {
                         if let bot {
-                            BotProfileHero(bot: bot, smallSize: 176)
+                            BotProfileHero(bot: bot, smallSize: UIDevice.current.userInterfaceIdiom == .phone ? 88 : 176)
                         } else if let room {
                             AvatarView(name: room.name, avatar: room.avatar, color: BellTheme.violet,
                                        size: 88, isRoom: true)

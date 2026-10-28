@@ -64,7 +64,7 @@ struct AvatarCropEditor: View {
                         cropPreview(side: min(geometry.size.width, 320))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .frame(height: variant == .small ? 320 : 170)
+                    .frame(height: 320)
 
                     zoomControls.frame(maxWidth: 320)
 

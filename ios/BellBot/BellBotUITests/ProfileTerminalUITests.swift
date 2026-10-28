@@ -152,6 +152,44 @@ final class ProfileTerminalUITests: XCTestCase {
                        "小画像の再調整は独立した大画像を保持する")
     }
 
+    func testPhoneLargeCropUsesSquareFrameAndKeepsSmallImage() async throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの大画像編集を確認する試験です。")
+        continueAfterFailure = false
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"])
+        try await reset(url)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-profile-terminal",
+                               "-bellbot-preview-server", url]
+        app.launch()
+        defer { app.terminate() }
+        let bot = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch
+        XCTAssertTrue(bot.waitForExistence(timeout: 10))
+        bot.tap(); app.buttons["詳細"].tap(); app.buttons["メンバーを編集"].tap()
+        let recrop = app.buttons["大画像を再調整"]
+        XCTAssertTrue(recrop.waitForExistence(timeout: 5))
+        recrop.tap()
+        let slider = app.sliders["アバター画像の拡大・縮小"]
+        XCTAssertTrue(slider.waitForExistence(timeout: 5))
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = "iPhoneの正方形大画像編集"
+        capture.lifetime = .keepAlways
+        add(capture)
+        slider.adjust(toNormalizedSliderPosition: 0.5)
+        app.buttons["使用する"].tap()
+        app.buttons["save-member"].tap()
+        XCTAssertTrue(app.buttons["save-member"].waitForNonExistence(timeout: 5))
+
+        let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
+        let (data, _) = try await URLSession.shared.data(from: proofURL)
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let writes = try XCTUnwrap(proof["writes"] as? [[String: Any]])
+        XCTAssertEqual(writes.count, 1)
+        XCTAssertEqual(writes[0]["large"] as? Bool, true)
+        XCTAssertEqual(writes[0]["small"] as? Bool, false)
+        let crop = try XCTUnwrap(writes[0]["largeCrop"] as? [String: Any])
+        XCTAssertEqual(crop["width"] as? Double ?? 0, crop["height"] as? Double ?? 0, accuracy: 0.001)
+    }
+
     func testTabletKeepsInspectorWithNewProfileContent() async throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "iPadの詳細パネルを確認する試験です。")
         continueAfterFailure = false
