@@ -64,7 +64,7 @@ def _saved(parent, name, owner, normal_group=None):
         raise ControlError('SEC014_CONTROL_JOURNAL_INVALID') from None
 
 
-def _normal(path, *, role='bellteam'):
+def _normal(path, *, role='bellteam', models=None):
     path = Path(path)
     names = {'bellteam': ('normal.json', 'previous-normal.json'),
              'state-prepare': ('compose.state-prepare.yaml',),
@@ -107,6 +107,8 @@ def _normal(path, *, role='bellteam'):
                         or type(service['image']) is not str
                         or not re.fullmatch('sha256:[a-f0-9]{64}', service['image'])):
                     raise ValueError()
+                if models is not None:
+                    models[role] = model
                 return {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(),
                         'device': before.st_dev, 'inode': before.st_ino,
                         'parentDevice': directory.st_dev, 'parentInode': directory.st_ino,
@@ -142,11 +144,13 @@ def _normal(path, *, role='bellteam'):
                 sibling = path.parent / filename
                 if not os.path.lexists(sibling):
                     continue
-                result[kind] = _normal(sibling, role='state-' + kind)
+                result[kind] = _normal(sibling, role='state-' + kind, models=models)
                 if (result[kind]['image'] != result['image']
                         or ((kind == 'prepare' or 'imageRef' in result[kind])
                             and result[kind].get('imageRef') != result.get('imageRef'))):
                     raise ControlError('SEC014_CONTROL_GENERATION')
+        if models is not None:
+            models[role] = model
         return result
     finally:
         os.close(parent)
@@ -240,8 +244,8 @@ class _Transaction:
         if normal is not None:
             self.value['normal'] = normal
 
-    def check(self):
-        if 'normal' in self.value and _normal(self.value['normal']['path']) != self.value['normal']:
+    def check(self, *, models=None):
+        if 'normal' in self.value and _normal(self.value['normal']['path'], models=models) != self.value['normal']:
             raise ControlError('SEC014_CONTROL_GENERATION')
         parent = os.lstat(self.path)
         linked = os.stat('sec014.lock', dir_fd=self.parent, follow_symlinks=False)
@@ -252,6 +256,31 @@ class _Transaction:
                 or _identity(linked) != self.lock_identity
                 or _identity(held) != self.lock_identity):
             raise ControlError('SEC014_CONTROL_IDENTITY_CHANGED')
+
+    def _writer_config(self):
+        models = {}
+        self.check(models=models)
+        try:
+            services = {}
+            for role in ('bellteam', 'state-maintenance'):
+                volumes = models[role]['services'][role]['volumes']
+                if type(volumes) is not list or any(type(v) is not dict for v in volumes):
+                    raise ValueError()
+                projected = [{key: v[key] for key in ('type', 'source', 'target', 'read_only') if key in v}
+                             for v in volumes]
+                if any(type(value) is not (bool if key == 'read_only' else str)
+                       for mount in projected for key, value in mount.items()):
+                    raise ValueError()
+                services[role] = {'volumes': projected}
+            names = {mount['source'] for mount in services['bellteam']['volumes']
+                     if mount.get('type') == 'volume'}
+            volumes = {name: {'name': models['bellteam']['volumes'][name]['name']} for name in names}
+            if any(type(volume['name']) is not str for volume in volumes.values()):
+                raise ValueError()
+        except (ValueError, KeyError, TypeError, AttributeError):
+            raise ControlError('SEC014_CONTROL_WRITER_INPUT') from None
+        self.check()
+        return {'services': services, 'volumes': volumes}
 
     def _save(self):
         self.check()
