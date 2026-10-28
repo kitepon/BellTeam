@@ -62,21 +62,21 @@ test('installer pins the initially selected image ID for extraction, reader and 
   const readers = calls.filter(call => call.includes('/app/src/server-state-writers.mjs'))
   assert.ok(readers.length > 0 && readers.every(call => call.includes(oldId)))
   assert.deepEqual((await readFile(f.runs, 'utf8')).trimEnd().split('\n'), [oldId, oldId, oldId])
-  assert.ok(calls.indexOf('image inspect --format {{.Id}} fixture:mutable') < calls.indexOf('compose stop bellteam'))
+  assert.ok(calls.indexOf('image inspect --format {{.Id}} fixture:mutable') < calls.indexOf('stop cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'))
   assert.ok(!calls.some(call => call.includes(newId)))
 })
 
 test('failure to resolve the initial image ID leaves the normal service untouched', async t => {
   const f = await fixture(t)
   await assert.rejects(f.run({ TEST_INSPECT_FAIL: '1' }), error => error.code === 72)
-  assert.doesNotMatch(await readFile(f.calls, 'utf8'), /compose stop|--entrypoint \/bin\/cat|state-prepare|state-maintenance to-server|--no-deps cursor-update|compose up /)
+  assert.doesNotMatch(await readFile(f.calls, 'utf8'), /stop [a-f0-9]|--entrypoint \/bin\/cat|state-prepare|state-maintenance to-server|--no-deps cursor-update|compose up /)
 })
 
 test('a fixed normal image tag is captured before it can be reselected', async t => {
   const f = await fixture(t)
   await f.run({ TEST_FIXED_TAG: '1' })
   const calls = await readFile(f.calls, 'utf8')
-  assert.match(calls, /compose stop bellteam/)
+  assert.match(calls, /stop cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc/)
   assert.ok(!calls.includes(newId))
   assert.deepEqual((await readFile(f.runs, 'utf8')).trimEnd().split('\n'), [oldId, oldId, oldId])
 })

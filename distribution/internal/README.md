@@ -179,7 +179,7 @@ COMPOSE_PROJECT_NAME=$project
 BELLTEAM_SERVER_IMAGE=$migration_image
 export COMPOSE_FILE COMPOSE_PROJECT_NAME BELLTEAM_SERVER_IMAGE
 if [ "$running" = true ]; then sh scripts/check-deploy-quiet.sh "$quiet_except"; fi
-docker compose stop bellteam
+docker stop "$current_cid"
 stopped=$(docker container inspect --format '{{.Id}} {{.Image}} {{.State.Running}} {{.State.Restarting}} {{.State.StartedAt}}' bellteam)
 [ "$stopped" = "$current_cid $current_image false false $current_started" ] || { echo BELLTEAM_RECOVERY_STOP_UNCONFIRMED >&2; exit 1; }
 mkdir "$staging/scripts"

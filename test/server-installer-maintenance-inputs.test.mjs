@@ -79,7 +79,7 @@ test('installer merges the image-owned maintenance file into the full normal mod
     assert.equal(model.services['state-maintenance'].image, pinnedImage)
     const calls = await readFile(f.calls, 'utf8')
     assert.ok(calls.includes(`compose --project-directory ${f.install} -f - -f `))
-    assert.match(calls, /compose stop bellteam\n/)
+    assert.match(calls, /stop cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n/)
     assert.doesNotMatch(calls, /compose run |cursor-update$|compose up /m)
   }
 })
@@ -96,5 +96,5 @@ test('missing legacy, prepared-state or backup input refuses before maintenance 
 test('failure to extract the accepted image maintenance file leaves the normal service untouched', async t => {
   const f = await fixture(t)
   await assert.rejects(f.run({ TEST_FAIL_MAINTENANCE_EXTRACT: '1' }), error => error.code === 1)
-  assert.doesNotMatch(await readFile(f.calls, 'utf8'), /compose (stop|run|up) /)
+  assert.doesNotMatch(await readFile(f.calls, 'utf8'), /(stop [a-f0-9]|compose (run|up) )/)
 })

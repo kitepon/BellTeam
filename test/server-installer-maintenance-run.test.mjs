@@ -25,7 +25,8 @@ async function fixture(t) {
 printf '%s\\n' "$*" >> "$TEST_CALLS"
 ${frozenComposeCases}
 case "$*" in
- 'compose ps --all --quiet --no-trunc bellteam') echo cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc;;
+ 'compose ps --all --quiet --no-trunc bellteam') printf '%s\\n' "\${TEST_NORMAL_CID-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc}";;
+ 'stop '*) exit "\${TEST_STOP_EXIT:-0}";;
  'compose config --images') echo fixture:accepted;;
  'image inspect --format {{.Id}} fixture:accepted') printf 'sha256:%064d\\n' 0;;
  'image inspect --format {{.Id}} sha256:'*) for image do :; done; echo "$image";;
@@ -108,5 +109,16 @@ test('writer restart: installer hands the exact pre-stop normal CID to the check
   const f = await fixture(t); await f.run()
   assert.equal(await readFile(f.root + '/selected-cid', 'utf8'), 'c'.repeat(64))
   const calls = (await readFile(f.files.calls, 'utf8')).split('\n')
-  assert.ok(calls.indexOf('compose ps --all --quiet --no-trunc bellteam') < calls.indexOf('compose stop bellteam'))
+  assert.ok(calls.indexOf('compose ps --all --quiet --no-trunc bellteam') < calls.indexOf('stop ' + 'c'.repeat(64)))
+})
+
+test('exact stop: installer targets the captured CID, skips absent normal and refuses failed stop', async t => {
+  const f = await fixture(t); await f.run()
+  const calls = (await readFile(f.files.calls, 'utf8')).trim().split('\n')
+  assert.deepEqual(calls.filter(x => /^(stop |compose stop )/.test(x)), ['stop ' + 'c'.repeat(64)])
+  await writeFile(f.files.calls, ''); await f.run({ TEST_NORMAL_CID: '' })
+  assert.doesNotMatch(await readFile(f.files.calls, 'utf8'), /^(stop |compose stop )/m)
+  await writeFile(f.files.calls, '')
+  await assert.rejects(f.run({ TEST_STOP_EXIT: '53' }), e => e.code === 53)
+  assert.doesNotMatch(await readFile(f.files.calls, 'utf8'), /server-state-writers.mjs verify|run .* -T state-prepare|state-maintenance to-server|--no-deps cursor-update|compose up /)
 })

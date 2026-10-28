@@ -37,8 +37,10 @@ const event=(kind,extra={})=>fs.appendFileSync(env.TEST_EVENTS,JSON.stringify({k
   composeFile:env.COMPOSE_FILE||'',project:env.COMPOSE_PROJECT_NAME||'',...extra})+'\n');
 const out=v=>console.log(typeof v==='string'?v:JSON.stringify(v));
 event('call',{args:a});
+if(a[0]==='stop'){event('stop',{normal:current()});process.exit(0)}
 if(a[0]==='image'){out(env.TEST_IMAGE_ID);process.exit(0)}
 if(a[0]==='compose'){
+  if(a.includes('ps')){out('c'.repeat(64));process.exit(0)}
   const files=a.flatMap((v,i)=>v==='-f'?[a[i+1]]:[]);
   if(a.includes('config')){
     if(a.includes('--images')){out(files.length?JSON.parse(fs.readFileSync(files[0])).services.bellteam.image:current().services.bellteam.image);process.exit(0)}

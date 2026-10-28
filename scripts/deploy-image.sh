@@ -173,7 +173,8 @@ case "$stopped_container" in *[!a-f0-9]*) echo SERVER_STATE_CONTAINER_ID_INVALID
 [ -z "$stopped_container" ] || [ "${#stopped_container}" -eq 64 ] || { echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1; }
 keep_saved=true
 printf 'saved-compose=%s\n' "$saved"
-docker compose stop bellteam
+# Stop the captured container even if another caller changes the service alias.
+if [ -n "$stopped_container" ]; then docker stop "$stopped_container"; fi
 BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
 docker compose --project-directory "$PWD" -f "$staging/compose.state-prepare.yaml" \
   -p "$project" run --pull never --rm --no-deps -T state-prepare

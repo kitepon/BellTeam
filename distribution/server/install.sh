@@ -89,7 +89,8 @@ stopped_container=$(docker compose ps --all --quiet --no-trunc bellteam)
 case "$stopped_container" in *[!a-f0-9]*) echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1;; esac
 [ -z "$stopped_container" ] || [ "${#stopped_container}" -eq 64 ] || { echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1; }
 keep_saved=true
-docker compose stop bellteam
+# Stop the captured container even if another caller changes the service alias.
+if [ -n "$stopped_container" ]; then docker stop "$stopped_container"; fi
 BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
 # Maintenance must use its fixed views and entry, without normal HOME/env.
 docker compose --project-directory "$PWD" -f "$staging/compose.state-prepare.yaml" \

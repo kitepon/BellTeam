@@ -36,6 +36,7 @@ const current=()=>e.COMPOSE_FILE&&fs.existsSync(e.COMPOSE_FILE)?JSON.parse(fs.re
 const event=(kind,data={})=>fs.appendFileSync(e.TEST_EVENTS,JSON.stringify({kind,args:a,composeFile:e.COMPOSE_FILE||'',project:e.COMPOSE_PROJECT_NAME||'',image:e.BELLTEAM_SERVER_IMAGE,profile:e.BELLTEAM_INTERNAL_PROFILE_FILE,cwd:process.cwd(),...data})+'\n');
 const output=v=>console.log(typeof v==='string'?v:JSON.stringify(v));
 event('call');
+if(a[0]==='stop'){event('stop',{normal:current()});process.exit(e.TEST_FAIL==='stop'?53:0)}
 if(a[0]==='fixture-quiet'){
  const n=Number(fs.readFileSync(e.TEST_COUNT))+1;fs.writeFileSync(e.TEST_COUNT,String(n));event('quiet'+n);
  if(e.TEST_FAIL==='quiet'+n)process.exit(52);process.exit(0)
@@ -60,7 +61,7 @@ if(a[0]==='run'){
  if(a.includes('-e')){if(e.TEST_FAIL==='recovery-publish')fs.mkdirSync(a.at(-1)+'/recovery.json.tmp');const i=a.indexOf('-e'),r=spawnSync(process.execPath,['-e',...a.slice(i+1)],{input:fs.readFileSync(0)});process.stdout.write(r.stdout);process.stderr.write(r.stderr);process.exit(r.status)}
 }
 if(a[0]==='compose'){
- if(a.includes('ps')){output('c'.repeat(64));process.exit(0)}
+ if(a.includes('ps')){output(e.TEST_NORMAL_CID??'c'.repeat(64));process.exit(0)}
  if(a.includes('build')){event('build');process.exit(e.TEST_FAIL==='build'?71:0)}
  if(a.includes('pull')&&e.TEST_FAIL==='pull')process.exit(7);
  const i=a.indexOf('-f'),file=i<0?'':a[i+1];
@@ -315,4 +316,15 @@ test('writer restart: internal adapter hands the exact pre-stop normal CID to th
   assert.equal(events.find(e => e.kind === 'verify').stoppedContainer, 'c'.repeat(64))
   const ps = events.findIndex(e => e.args[0] === 'compose' && e.args.includes('ps'))
   assert.ok(ps >= 0 && ps < events.findIndex(e => e.kind === 'stop'))
+})
+
+test('exact stop: internal adapter targets the captured CID, skips absent normal and refuses failed stop', async t => {
+  const f = await fixture(t); await f.run()
+  assert.deepEqual((await f.events()).filter(e => e.kind === 'stop').map(e => e.args), [['stop', 'c'.repeat(64)]])
+  await writeFile(f.env.TEST_EVENTS, ''); await writeFile(f.env.TEST_COUNT, '0'); await rm(f.env.TEST_CHANGED)
+  await f.run({ TEST_NORMAL_CID: '' })
+  assert.equal((await f.events()).filter(e => e.kind === 'stop').length, 0)
+  await writeFile(f.env.TEST_EVENTS, ''); await writeFile(f.env.TEST_COUNT, '0'); await rm(f.env.TEST_CHANGED)
+  await assert.rejects(f.run({ TEST_FAIL: 'stop' }), e => e.code === 53)
+  assert.ok(!(await f.events()).some(e => ['verify', 'prepare', 'transfer', 'up'].includes(e.kind)))
 })

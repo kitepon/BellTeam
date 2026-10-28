@@ -57,6 +57,9 @@ const event=(kind,extra={})=>fs.appendFileSync(e.TEST_EVENTS,JSON.stringify({kin
 const output=x=>console.log(typeof x==='string'?x:JSON.stringify(x));
 const current=()=>JSON.parse(fs.readFileSync(r+'/current.json'));
 event('call');
+if(a[0]==='stop'){
+ event('stop');if(e.TEST_FAIL==='stop')process.exit(53);const c=current();c.State.Running=false;c.State.Restarting=false;fs.writeFileSync(r+'/current.json',JSON.stringify(c));process.exit(0)
+}
 if(a[0]==='image'){output(a.at(-1));process.exit(0)}
 if(a[0]==='container'){
  const c=current(),f=a[a.indexOf('--format')+1];
@@ -98,6 +101,14 @@ registerHooks({resolve(s,c,next){if(s==='/app/src/server-state-backup.mjs')retur
     run:()=>exec('sh',['-c',command],{cwd:root,env,timeout:10000}),
     events:async()=>{try{return(await readFile(env.TEST_EVENTS,'utf8')).trim().split('\n').map(JSON.parse)}catch(e){if(e.code==='ENOENT')return[];throw e}}}
 }
+
+test('exact stop: manual recovery stops only its captured current CID and refuses failed stop', async t => {
+ const f=await fixture(t);await f.run()
+ assert.deepEqual((await f.events()).filter(e=>e.kind==='stop').map(e=>e.args),[['stop',targetCID]])
+ const failed=await fixture(t,'legacy','stop')
+ await assert.rejects(failed.run(),e=>e.code===53)
+ assert.ok(!(await failed.events()).some(e=>['check','inverse','up','health'].includes(e.kind)))
+})
 
 test('manual recovery: exact legacy generation orders quiet-stop-check-inverse-old-normal-health',async t=>{
  const f=await fixture(t);const out=await f.run();const events=await f.events()

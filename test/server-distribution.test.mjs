@@ -37,7 +37,7 @@ if [ "$2" = config ] && [ "$3" = --format ]; then
 fi
 if [ "$2" = port ]; then printf '%s\\n' "$TEST_ENDPOINT"; fi
 case "$*" in
-  'compose stop bellteam') exit "\${TEST_STOP_EXIT:-0}";;
+  'stop cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc') exit "\${TEST_STOP_EXIT:-0}";;
   'compose --project-directory '*'/install -f '*'/compose.state-maintenance.json -p '*' run --pull never --rm --no-deps -T state-maintenance to-server') exit "\${TEST_TRANSFER_EXIT:-0}";;
   'image inspect fixture-server') exit "\${TEST_INSPECT_EXIT:-0}";;
   'image inspect --format {{.Id}} fixture-server') printf 'sha256:%s\\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;;
@@ -65,11 +65,11 @@ esac
     assert.equal(calls[0], 'compose pull')
     assert.equal(calls[1], 'compose config --format json')
     assert.ok(calls.some(call => /compose -f .*normal.raw.json config --images/.test(call)))
-    assert.ok(calls.indexOf('image inspect --format {{.Id}} fixture-server') < calls.indexOf('compose stop bellteam'))
+    assert.ok(calls.indexOf('image inspect --format {{.Id}} fixture-server') < calls.indexOf('stop cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'))
     const extracted = calls.filter(call => call.startsWith('run --pull never --rm --network none --read-only --entrypoint /bin/cat '))
     assert.deepEqual(extracted, ['compose.cursor-update.yaml', 'compose.state-maintenance.json', 'compose.state-prepare.yaml', 'scripts/update-cursor.sh', 'scripts/assert-state-writers-stopped.sh']
       .map(path => `run --pull never --rm --network none --read-only --entrypoint /bin/cat ${pinnedImage} /app/${path}`))
-    const stopped = calls.indexOf('compose stop bellteam')
+    const stopped = calls.indexOf('stop cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc')
     const verified = calls.findIndex(call => call.endsWith('/app/src/server-state-writers.mjs verify'))
     const updated = calls.findIndex(call => call.endsWith('--no-deps cursor-update'))
     const transferred = calls.findIndex(call => call.endsWith('run --pull never --rm --no-deps -T state-maintenance to-server'))
@@ -98,7 +98,7 @@ esac
   for (const extra of [{ TEST_EXTRACT_EXIT: '23' }, { TEST_IMAGES: 'first\nsecond' }, { TEST_IMAGES: '' }]) {
     await writeFile(commands, '')
     await assert.rejects(exec('sh', [join(install, 'install.sh')], { env: { ...env, ...extra } }))
-    assert.doesNotMatch(await readFile(commands, 'utf8'), /compose (run|stop|up) /)
+    assert.doesNotMatch(await readFile(commands, 'utf8'), /(stop [a-f0-9]|compose (run|up) )/)
   }
   // ローカルbuildを使うときも、公開版と同じ更新・起動経路で設定を保持する。
   await writeFile(commands, '')
@@ -115,7 +115,7 @@ esac
   await assert.rejects(exec('sh', [join(install, 'install.sh'), '--no-pull'], {
     env: { ...env, TEST_INSPECT_EXIT: '1' },
   }), error => /先にビルド/.test(error.stderr))
-  assert.doesNotMatch(await readFile(commands, 'utf8'), /compose (pull|run|stop|up) /)
+  assert.doesNotMatch(await readFile(commands, 'utf8'), /(stop [a-f0-9]|compose (pull|run|up) )/)
   for (const args of [['--unknown'], ['--no-pull', 'extra']]) {
     await writeFile(commands, '')
     await assert.rejects(exec('sh', [join(install, 'install.sh'), ...args], { env }), error => error.code === 2)

@@ -84,5 +84,5 @@ test('prepare failure is propagated once and its partial result is kept without 
 test('prepare file extraction failure stops before changing the running server', async t => {
   const f = await fixture(t)
   await assert.rejects(f.run({ TEST_EXTRACT_FAIL: '1' }), error => error.code === 1)
-  assert.doesNotMatch(await readFile(f.calls, 'utf8'), /compose stop|run .* -T state-prepare|state-maintenance to-server|--no-deps cursor-update|compose up /)
+  assert.doesNotMatch(await readFile(f.calls, 'utf8'), /stop [a-f0-9]|run .* -T state-prepare|state-maintenance to-server|--no-deps cursor-update|compose up /)
 })

@@ -1,6 +1,7 @@
 // Extra fake-Docker cases for the installer's fixed model capture; no daemon.
 export const frozenComposeCases = `
 case "$*" in
+ 'compose ps --all --quiet --no-trunc bellteam') printf '%s\\n' "\${TEST_NORMAL_CID-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc}"; exit;;
  'compose config --images')
    if [ -n "\${COMPOSE_FILE-}" ] && [ -f "$COMPOSE_FILE" ]; then
      exec node -e 'console.log(JSON.parse(require("node:fs").readFileSync(process.argv[1])).services.bellteam.image)' "$COMPOSE_FILE"
