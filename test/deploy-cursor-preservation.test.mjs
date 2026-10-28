@@ -7,6 +7,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 const exec = promisify(execFile), cid = 'c'.repeat(64), image = 'sha256:' + 'd'.repeat(64)
+const realSha256sum = (await exec('sh', ['-c', 'command -v sha256sum'])).stdout.trim()
+const realTar = (await exec('sh', ['-c', 'command -v tar'])).stdout.trim()
 async function fixture(t, failure = '') {
   const root = await mkdtemp(join(tmpdir(), 'cursor-archive-'))
   t.after(() => rm(root, { recursive: true, force: true }))
@@ -27,27 +29,27 @@ if(a[0]==='image'&&a[1]==='save')fs.writeFileSync(a[a.indexOf('--output')+1],'sy
 if(a[0]==='exec'&&a.includes('/bin/tar')) {
  if(fail==='tar'){process.stdout.write('partial tar');process.exit(9)}
  const args=a.slice(a.indexOf('/bin/tar')+1).map(x=>x==='/home/bell/.local'?process.env.VOLUME:x)
- const result=cp.spawnSync('/bin/tar',args);process.stdout.write(result.stdout);process.stderr.write(result.stderr);process.exit(result.status)
+ const result=cp.spawnSync(process.env.REAL_TAR,args);process.stdout.write(result.stdout);process.stderr.write(result.stderr);process.exit(result.status)
 }
 if(a[0]==='run')process.stdout.write(a.at(-1).endsWith('update-cursor.sh')?'#!/bin/sh\\ndocker fixture-cursor\\n':'services: {}\\n')
 `
-  const sha = '#!/bin/sh\nif [ "$FAIL" = hash ]; then case "$1" in */cursor.tar) exit 10;; esac; fi\nexec /usr/bin/sha256sum "$@"\n'
+  const sha = '#!/bin/sh\nif [ "$FAIL" = hash ]; then case "$1" in */cursor.tar) exit 10;; esac; fi\nexec "$REAL_SHA256SUM" "$@"\n'
   for (const [name, body] of [['docker', docker], ['sha256sum', sha]]) { await writeFile(join(root, 'bin', name), body); await chmod(join(root, 'bin', name), 0o755) }
   const log = join(root, 'calls'); await writeFile(log, '')
-  const result = await exec('sh', ['scripts/deploy-image.sh'], { cwd: root, env: { ...process.env, PATH: join(root, 'bin') + ':' + process.env.PATH, FAIL: failure, CALLS: log, VOLUME: join(root, 'volume'), TMPDIR: root, BELLTEAM_SERVER_IMAGE: 'fixture/server@sha256:' + 'a'.repeat(64), BELLTEAM_DEPLOY_QUIET_EXCEPT: 'bot-fixture' } }).catch(error => error)
+  const result = await exec('sh', ['scripts/deploy-image.sh'], { cwd: root, env: { ...process.env, PATH: join(root, 'bin') + ':' + process.env.PATH, REAL_SHA256SUM: realSha256sum, REAL_TAR: realTar, FAIL: failure, CALLS: log, VOLUME: join(root, 'volume'), TMPDIR: root, BELLTEAM_SERVER_IMAGE: 'fixture/server@sha256:' + 'a'.repeat(64), BELLTEAM_DEPLOY_QUIET_EXCEPT: 'bot-fixture' } }).catch(error => error)
   const calls = (await readFile(log, 'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse)
   const [name] = await readdir(join(root, 'runtime/backups'))
   return { root, result, calls, saved: join(root, 'runtime/backups', name) }
 }
 test('same original CID archives complete Cursor files, symlink and mode before candidate pull', async t => {
   const f = await fixture(t)
-  assert.equal(f.result.code, undefined)
+  assert.equal(f.result.code, undefined, f.result.stderr)
   const bytes = await readFile(join(f.saved, 'cursor.tar'))
   assert.equal((await readFile(join(f.saved, 'cursor.tar.sha256'), 'utf8')).split(' ')[0], createHash('sha256').update(bytes).digest('hex'))
   assert.equal(await readFile(join(f.saved, 'cursor-volume.txt'), 'utf8'), 'volume bellteam_cursor-cli\n')
   assert.equal((await stat(join(f.saved, 'cursor.tar'))).mode & 0o777, 0o600)
   const restore = join(f.root, 'synthetic-extract'); await mkdir(restore)
-  await exec('/bin/tar', ['-xf', join(f.saved, 'cursor.tar'), '-C', restore])
+  await exec(realTar, ['-xf', join(f.saved, 'cursor.tar'), '-C', restore])
   assert.equal(await readFile(join(restore, 'releases/old/cursor-agent'), 'utf8'), 'synthetic old CLI\n')
   assert.equal((await stat(join(restore, 'releases/old/cursor-agent'))).mode & 0o777, 0o755)
   assert.equal(await readlink(join(restore, 'bin/cursor-agent')), '../releases/old/cursor-agent')
