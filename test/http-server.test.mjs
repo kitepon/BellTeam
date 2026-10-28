@@ -486,7 +486,7 @@ test('稼働中Botのファストモード切り替えを適用へ渡し、適�
         applied.push([current.fastMode, next.fastMode])
         // 保存の応答の後に結果が出る（現在の作業の後に並ぶ）形を再現する。
         await new Promise(resolve => { settle = resolve })
-        if (fail) throw new Error('AITERM_FAST_UNAVAILABLE')
+        if (fail) throw Object.assign(new Error('AITERM_FAST_UNAVAILABLE'), { effect: 'not_started' })
         return { mode: 'configure' }
       },
     },

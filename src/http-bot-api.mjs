@@ -12,6 +12,7 @@ export function createBotApi({ bots, transport, administration, memory, characte
       ])
       const list = await Promise.all(all.map(async bot => {
         const last = recentTimeline(await sources('bots', bot.id, views?.get(bot.id)))
+        const application = administration.view?.(bot)?.configurationApplication
         return {
           id: bot.id,
           name: bot.name ?? bot.displayName ?? bot.id,
@@ -29,6 +30,7 @@ export function createBotApi({ bots, transport, administration, memory, characte
           ...listAvatar(bot.avatar, url),
           online: running.has(bot.id),
           recent: last && { id: last.id, kind: last.kind, direction: last.direction, message: last.message, image: last.image, at: last.at },
+          ...(application ? { configurationApplication: application } : {}),
         }
       }))
       return json(response, 200, { bots: list })
@@ -99,7 +101,7 @@ export function createBotApi({ bots, transport, administration, memory, characte
     if (profileMatch) {
       const botId = profileMatch[1]
       if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      if (request.method === 'GET') return json(response, 200, { bot: bots.get(botId) })
+      if (request.method === 'GET') return json(response, 200, { bot: administration.view?.(bots.get(botId)) ?? bots.get(botId) })
       if (request.method === 'PATCH') return json(response, 200, await administration.update(botId, await readJson(request)))
       if (request.method === 'DELETE') {
         administration.remove(botId)

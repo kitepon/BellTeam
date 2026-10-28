@@ -79,6 +79,7 @@ const avatarZoom = document.querySelector('#avatar-zoom')
 const botColor = document.querySelector('#bot-color')
 const botFormError = document.querySelector('#bot-form-error')
 const botModelStatus = document.querySelector('#bot-model-status')
+const botConfigurationStatus = document.querySelector('#bot-configuration-status')
 let modelLoad = null
 const saveBotButton = document.querySelector('#save-bot-button')
 const characterSheetButton = document.querySelector('#character-sheet-button')
@@ -629,12 +630,23 @@ function clearSelection() {
   stopButton.hidden = true
 }
 
+function renderBotConfigurationStatus(bot) {
+  const application = bot?.configurationApplication
+  botConfigurationStatus.textContent = !bot ? ''
+    : application?.state === 'pending' ? '現在の作業が終わった後に設定を反映します。適用はまだ確認できていません。'
+    : application?.state === 'failed' ? application.message
+    : application?.state === 'accepted' ? 'CLIが設定変更を受け付けました。'
+    : bot.online ? '保存した希望設定です。稼働中のCLIへの適用は未確認です。'
+    : '次回の起動に使う希望設定です。'
+}
+
 async function openBotDialog(bot = null) {
   modelLoad?.abort()
   const controller = new AbortController()
   modelLoad = controller
   state.models = {}
   state.editingBot = bot
+  renderBotConfigurationStatus(bot)
   botForm.reset()
   botFormError.textContent = ''
   botDialogTitle.textContent = bot ? 'Botを編集' : 'Botを追加'
@@ -663,6 +675,14 @@ async function openBotDialog(bot = null) {
     if (controller.signal.aborted) return
     state.models = result.models
     renderModelOptions(botHarness.value, bot?.model ?? '', bot?.reasoningEffort ?? '')
+    if (bot) {
+      try {
+        const current = await api(`/api/bots/${bot.id}`, { signal: controller.signal })
+        if (!controller.signal.aborted) renderBotConfigurationStatus({ ...bot, ...current.bot })
+      } catch {
+        if (!controller.signal.aborted) botConfigurationStatus.textContent = '現在の適用状態を取得できません。'
+      }
+    }
   } catch (error) {
     if (controller.signal.aborted) return
     botModelStatus.textContent = `モデル一覧を取得できません（${error.message}）`
