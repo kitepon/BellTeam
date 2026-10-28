@@ -152,7 +152,7 @@ final class ProfileTerminalUITests: XCTestCase {
                        "小画像の再調整は独立した大画像を保持する")
     }
 
-    func testPhoneLargeCropUsesSquareFrameAndKeepsSmallImage() async throws {
+    func testPhoneLargeCropSavesSquareSelectionAndKeepsSmallImage() async throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの大画像編集を確認する試験です。")
         continueAfterFailure = false
         let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"])
