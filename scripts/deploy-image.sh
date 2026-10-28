@@ -144,7 +144,9 @@ sed -n '2p' "$staging/models.jsonl" > "$saved/normal.json.tmp"
 mv "$saved/normal.json.tmp" "$saved/normal.json"
 sed -n '3p' "$staging/models.jsonl" > "$saved/compose.state-prepare.yaml"
 sed -n '4p' "$staging/models.jsonl" > "$saved/compose.state-maintenance.json"
-cp "$saved/compose.state-maintenance.json" "$staging/compose.state-maintenance.json"
+# The existing checker resolves maintenance relative to its own parent.
+mkdir "$saved/scripts"
+mv "$staging/scripts/assert-state-writers-stopped.sh" "$saved/scripts/"
 if [ -n "${BELLTEAM_PREVIOUS_COMPOSE:-}" ]; then
   node --input-type=module - "$saved" "$previous" "$BELLTEAM_PREVIOUS_COMPOSE" <<'NODE'
 import fs from 'node:fs'
@@ -187,9 +189,9 @@ keep_saved=true
 printf 'saved-compose=%s\n' "$saved"
 # Stop the captured container even if another caller changes the service alias.
 if [ -n "$stopped_container" ]; then docker stop "$stopped_container"; fi
-BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
+BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container sh "$saved/scripts/assert-state-writers-stopped.sh" --maintenance
 docker compose --project-directory "$PWD" -f "$saved/compose.state-prepare.yaml" \
   -p "$project" run --pull never --rm --no-deps -T state-prepare
-docker compose --project-directory "$PWD" -f "$staging/compose.state-maintenance.json" \
+docker compose --project-directory "$PWD" -f "$saved/compose.state-maintenance.json" \
   -p "$project" run --pull never --rm --no-deps -T state-maintenance to-server
 docker compose up -d --no-build --pull never

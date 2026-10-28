@@ -80,7 +80,8 @@ if(a[0]==='compose'){
  if(a.includes('stop')){event('stop',{normal:current()});process.exit(0)}
  if(a.includes('up')){event('up',{normal:current()});process.exit(e.TEST_FAIL==='up'?66:0)}
  if(a.includes('run')){
-  const model=JSON.parse(fs.readFileSync(file)),kind=a.at(-1)==='to-server'?'transfer':'prepare';event(kind,{model});
+  const raw=fs.readFileSync(file),model=JSON.parse(raw),kind=a.at(-1)==='to-server'?'transfer':'prepare';
+  event(kind,{model,modelPath:file,modelInode:fs.statSync(file).ino,modelSHA:require('node:crypto').createHash('sha256').update(raw).digest('hex')});
   if(e.TEST_FAIL===kind){fs.writeFileSync(e.TEST_PARTIAL,kind);process.exit(kind==='prepare'?61:62)}process.exit(0)
  }
 }
@@ -94,6 +95,44 @@ if(a[0]==='compose'){
   return { root, env, run: extra => exec('sh', ['scripts/deploy-image.sh'], { cwd: root, env: { ...env, ...extra } }),
     events: async () => (await readFile(env.TEST_EVENTS, 'utf8')).trim().split('\n').map(JSON.parse) }
 }
+
+test('stage2 internal: saved maintenance consumer uses one retained file for check and transfer', async t => {
+  const checker = await readFile(new URL('../scripts/assert-state-writers-stopped.sh', import.meta.url), 'utf8')
+  const resolution = checker.split('\n').find(line => line.trim().startsWith('maintenance_compose='))
+  assert.ok(resolution)
+  for (const failure of ['', 'verify', 'transfer']) await t.test(failure || 'success', async t => {
+    const f = await fixture(t), metadata = join(f.root, 'writer-model.json')
+    // Reuse the real checker's relative-file expression; Docker metadata itself remains synthetic.
+    await writeFile(join(f.root, 'image/scripts/assert-state-writers-stopped.sh'), '#!/bin/sh\nset -eu\n' + resolution + '\n' +
+      'node --input-type=module - "$maintenance_compose" "$TEST_WRITER_MODEL" <<\'NODE\'\n' +
+      `import fs from 'node:fs'; import {createHash} from 'node:crypto';
+const [file,out]=process.argv.slice(2),raw=fs.readFileSync(file),s=fs.statSync(file);
+fs.writeFileSync(out,JSON.stringify({file,inode:s.ino,sha256:createHash('sha256').update(raw).digest('hex')}));
+NODE
+docker fixture-verify
+`)
+    if (failure) await assert.rejects(f.run({ TEST_FAIL: failure, TEST_WRITER_MODEL: metadata }),
+      error => error.code === (failure === 'verify' ? 54 : 62))
+    else await f.run({ TEST_WRITER_MODEL: metadata })
+    const events = await f.events(), stopped = events.find(event => event.kind === 'stop')
+    const saved = dirname(stopped.composeFile), file = join(saved, 'compose.state-maintenance.json')
+    const raw = await readFile(file), identity = await stat(file)
+    const observed = JSON.parse(await readFile(metadata, 'utf8'))
+    assert.deepEqual(observed, { file, inode: identity.ino, sha256: createHash('sha256').update(raw).digest('hex') })
+    assert.equal((await stat(join(saved, 'scripts'))).mode & 0o777, 0o700)
+    assert.equal((await stat(join(saved, 'scripts/assert-state-writers-stopped.sh'))).mode & 0o777, 0o600)
+    const transfer = events.find(event => event.kind === 'transfer')
+    if (failure === 'verify') {
+      assert.ok(!events.some(event => ['prepare', 'transfer', 'up'].includes(event.kind)))
+    } else {
+      assert.equal(transfer.modelPath, file)
+      assert.equal(transfer.modelInode, observed.inode)
+      assert.equal(transfer.modelSHA, observed.sha256)
+      assert.equal(events.filter(event => event.kind === 'transfer').length, 1)
+      if (failure) assert.ok(!events.some(event => event.kind === 'up'))
+    }
+  })
+})
 
 test('stage2 internal: preserves accepted ref beside the raw image in the saved generation', async t => {
   const f = await fixture(t), selected = 'ghcr.io/kitepon/bellteam-server@sha256:' + 'e'.repeat(64)
