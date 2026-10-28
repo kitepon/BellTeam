@@ -16,5 +16,10 @@ BOT画面は黒背景・白の等幅文字とし、表示中の対象だけ`GET 
 - 隔離MacのBOT画面は黒背景・白文字でヘッダー下からペイン下端まで表示した。人工APIの画面GETは表示中に1秒間隔で増え、プロフィールへ戻った後は29→29、対象切替後は39→39と停止した。隔離アプリは通常終了しPID消失を確認した。
 - 人工1万行の本文と過去を読む位置の維持・末尾追従をunitで確認し、iPhone画面は`history=1`の要求と末尾行の実描画を画面添付で確認した。XCUITestでUITextViewの全文AX値を照会する初回試験はタイムアウトしたため、長文UI試験では本文のAX照会を行わない。製品のUITextViewには可視範囲へのAX値上書きを残さず、全文の選択・コピーを保つ。最終focused unit/UI計2件成功・失敗0、XCResult `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-28T14-01-09-296Z_pid49890_0b62535c.xcresult`。VoiceOverで全履歴を読んだ実測はない。これは人工1万行であり、実Aitermからの取得確認ではない。
 - 旧schemaの人工サーバーでは新画像編集を無効にし、通常の文面保存ボタンを有効に保つiPhone focused1件成功・失敗0。XCResult `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-28T13-31-29-641Z_pid49890_b13dde7a.xcresult`。
+- iPhoneの人工小画像再調整は、小render/source/cropだけをPATCH1回で送って大renderを送らず、保存後のGETでも大cropを保持した。focused1件成功・失敗0、XCResult `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-28T14-54-11-142Z_pid49890_37e04346.xcresult`。Macの大画像編集と合わせて独立性を確認した。
+
+## 実本体の読取契約
+
+Rootの画像・履歴API本番反映後、内部認証済HTTPで本文を出さずに読み取った。`GET /api/bots?avatar=omit`は200で75 Bot、画像4本文は空、新しい各版・crop fieldが存在した。1 Botの詳細GETは新しいrender/source/crop全fieldを返し、大画像の版付きGETは200 `image/jpeg`、未保存の小元画像GETは404だった。画面の通常GETと`?history=1`はともに200で`{online,screen}`を返した。観測対象はalternate画面の19行で、25行超の本番実履歴は未観測。画像本文・画面本文・認証情報は出力していない。一時的な読取Nodeは終了を確認した。
 
 実Botの再起動・試験送信、実Owner画像操作、本体反映、Apple署名・TestFlight配布はこの候補で行っていない。Aiterm実scrollbackの保持上限とCLI固有の全過去履歴は未確認。既版69の配布結果は保持する。
