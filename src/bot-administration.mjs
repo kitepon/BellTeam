@@ -8,6 +8,12 @@ export class BotAdministration {
     this.rooms = rooms
     this.transport = transport
     this.writeLog = writeLog
+    this.applications = new Map()
+  }
+
+  view(bot) {
+    const application = this.applications.get(bot.id)
+    return application ? { ...bot, configurationApplication: structuredClone(application) } : bot
   }
 
   // 保存は先に返し、稼働中Botへの適用は現在の作業の後に並ぶ。
@@ -16,18 +22,35 @@ export class BotAdministration {
     const candidate = await this.bots.previewUpdate(botId, changes)
     const harnessChanged = candidate.harness !== current.harness
     const fastModeChanged = candidate.fastMode !== current.fastMode
-    const configurationChanged = harnessChanged || candidate.model !== current.model
+    const differs = harnessChanged || candidate.model !== current.model
       || candidate.reasoningEffort !== current.reasoningEffort || fastModeChanged
+    const previous = this.applications.get(botId)
+    const reapply = !differs && previous?.state === 'failed' && previous.fields.some(key =>
+      Object.hasOwn(changes, key) && candidate[key] === previous.requested[key])
+    const configurationChanged = reapply || differs
     const wasRunning = configurationChanged ? await this.transport.isRunning(current) : false
-    if (wasRunning) this.apply(current, candidate, { fastModeChanged })
     const bot = await this.bots.update(botId, changes)
-    return { bot, harnessChanged, configurationChanged, applying: wasRunning }
+    if (wasRunning) this.apply(current, candidate, { fastModeChanged, reapply })
+    else if (configurationChanged) this.applications.delete(botId)
+    return { bot: this.view(bot), harnessChanged, configurationChanged, applying: wasRunning }
   }
 
-  apply(current, candidate, { fastModeChanged }) {
-    this.transport.reconfigure(current, candidate)
+  apply(current, candidate, { fastModeChanged, reapply }) {
+    const application = { state: 'pending', fields: reapply ? [...this.applications.get(current.id).fields]
+      : ['harness', 'model', 'reasoningEffort', 'fastMode'].filter(key => candidate[key] !== current[key]), requested: {
+      harness: candidate.harness, model: candidate.model ?? '',
+      reasoningEffort: candidate.reasoningEffort ?? '', fastMode: candidate.fastMode === true,
+    } }
+    this.applications.set(current.id, application)
+    this.transport.reconfigure(current, candidate, reapply ? { reapply: true } : undefined)
+      .then(() => {
+        if (this.applications.get(current.id) === application) application.state = 'accepted'
+      })
       .catch(async error => {
-        this.writeLog(`BellTeam reconfigure error: ${error.stack ?? error.message}\n`)
+        this.writeLog(`BellTeam reconfigure error: ${current.id}: ${error.stack ?? error.message}\n`)
+        if (this.applications.get(current.id) !== application) return
+        application.state = 'failed'
+        application.message = '保存した希望設定をCLIへ適用できませんでした。現在の動作設定は未確認です。'
         // ファストモードを当てられなかった時は、保存した値を元へ戻す。記録が「有効」のまま、実際は通常の速度、という食い違いを残さない。
         if (fastModeChanged && this.bots.get(current.id)?.fastMode === candidate.fastMode) await this.bots.update(current.id, { fastMode: current.fastMode })
       })
@@ -49,7 +72,11 @@ export class BotAdministration {
   }
 
   restart(bot) {
-    this.transport.restart(bot).catch(error => this.writeLog(`BellTeam restart error: ${error.stack ?? error.message}\n`))
+    const application = this.applications.get(bot.id)
+    this.transport.restart(bot).then(() => {
+      if (this.applications.get(bot.id) === application) this.applications.delete(bot.id)
+    })
+      .catch(error => this.writeLog(`BellTeam restart error: ${error.stack ?? error.message}\n`))
   }
 
   // 席を閉じ、部屋から外し、台帳から消す。応答は待たせない。
@@ -59,6 +86,7 @@ export class BotAdministration {
       await this.transport.stop(bot)
       await this.rooms.removeBot(botId)
       await this.bots.remove(botId)
+      this.applications.delete(botId)
     })().catch(error => this.writeLog(`BellTeam delete error: ${error.stack ?? error.message}\n`))
   }
 }

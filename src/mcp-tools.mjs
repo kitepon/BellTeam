@@ -431,7 +431,7 @@ export async function callBellTeamTool({ internalUrl = '', ...context }) {
   return shaped
 }
 
-async function runBellTeamTool({ name, arguments: args = {}, from, registry, bugHubSecurity, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, deliverMessage, deliverRoomMessage, listQueued, restart, remove, configure, requestSecret, getSecretRequest, cancelSecretRequest, askOwner, getSettings, updateSettings, completeSetup, getModels }) {
+async function runBellTeamTool({ name, arguments: args = {}, from, registry, botView = bot => bot, bugHubSecurity, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, deliverMessage, deliverRoomMessage, listQueued, restart, remove, configure, requestSecret, getSecretRequest, cancelSecretRequest, askOwner, getSettings, updateSettings, completeSetup, getModels }) {
   const tool = bellTeamTools.find(item => item.name === name)
   if (!tool) throw new Error(`TOOL_NOT_FOUND: ${name}`)
   assertKeys(args, Object.keys(tool.inputSchema.properties))
@@ -476,8 +476,8 @@ async function runBellTeamTool({ name, arguments: args = {}, from, registry, bug
       id: bot.id, name: bot.name, position: bot.position ?? '', cli: bot.harness, fastMode: bot.fastMode === true, profileText: bot.profileText ?? '', personality: bot.personality, speechStyle: bot.speechStyle ?? '', role: bot.role,
     })) }
   }
-  if (name === 'get_bot') return { bot: requireBot(registry, args.botId) }
-  if (name === 'get_self') return { bot: registry.get(from) }
+  if (name === 'get_bot') return { bot: botView(requireBot(registry, args.botId)) }
+  if (name === 'get_self') return { bot: botView(registry.get(from)) }
   if (name === 'get_owner_profile') return { owner: await ownerProfile.get() }
   if (name === 'get_user_rules') return { text: await userRules.get() }
   if (name === 'remember') return withMemoryLengthNotice(await memory.remember({ botId: from, ...args, sourceRef: 'mcp' }), args.content)
