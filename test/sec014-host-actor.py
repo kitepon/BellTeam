@@ -31,7 +31,7 @@ class ActorTests(unittest.TestCase):
 
         class Executor:
             def __getattr__(self, name):
-                names = ('prepare', 'assert_writers_stopped', 'backup_and_migrate',
+                names = ('assert_writers_stopped', 'prepare', 'backup_and_migrate',
                          'assert_binds', 'start_selected_normal', 'verify_result')
                 index = names.index(name)
 
@@ -70,7 +70,7 @@ class ActorTests(unittest.TestCase):
             with self.hold() as tx: a._run(tx, IMAGE, self.executor(refuse))
         self.assertEqual(len(self.calls), 3)
         journal = json.loads((self.root/'transaction-to-server.json').read_text())
-        self.assertEqual(journal['phases'], ['prepared', 'writers_stopped'])
+        self.assertEqual(journal['phases'], ['writers_stopped', 'prepared'])
         self.assertEqual(journal['status'], 'incomplete')
         with self.assertRaisesRegex(a.control.ControlError, 'UNRESOLVED'):
             with self.hold('to-legacy'): pass
@@ -87,7 +87,7 @@ class ActorTests(unittest.TestCase):
                                    actor_start_ticks=tx.value['actorStartTicks'])
                 mutate(value)
                 with self.assertRaisesRegex(a.control.ControlError, 'UNCONFIRMED'):
-                    a._receipt(tx, 'prepared', IMAGE, value, a.PROOFS[0])
+                    a._receipt(tx, 'prepared', IMAGE, value, a.PROOFS[1])
         self.assertEqual(list(self.root.glob('*.receipt.json')), [])
 
     def test_receipt_write_failure_leaves_incomplete_and_no_start(self):

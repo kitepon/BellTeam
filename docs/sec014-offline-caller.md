@@ -473,3 +473,13 @@ This preserves the main diagnostic contract without serializing arbitrary Error
 properties or the seat environment. Private-tool MCP bodies remain excluded by
 the existing validator. This is a metadata boundary check, not real UID/SDK/runtime
 launch acceptance.
+
+## 2026-10-28 既controlのnormal読取roleと引渡し
+
+内部host_controlはroot身元のまま、合意済みcontrol親root:1001/0750、既lockとnormal参照journal0640を検査する。receipt/prepared等の既private検査は0600のまま。既存の不正mode/owner/inodeを自動修正しない。新規lock/journalだけにroleを付け、同じlock inodeを保持する。private _holdのpath/owner/group注入は通常FS試験用で、製品入口はgroup1001固定。
+
+固定actorはwriters_stopped→prepared→migrated→binds_confirmedの順で実receiptを保存する。選択normalのcreate結果（fullCID/raw image ID/起動相関）を既trusted executorから受けた後、同journalへadmissionをdurable保存してEXからSHへ変更し、その選択identityをstart/result両callbackへ渡す。EX→SHの原子性は仮定せず、切替中の別actorも未完journalで拒否する。journal保存に失敗すればSHへ移らない。started/verified確認は引渡し前に進まない。
+
+normal読取側がatomic replaceで旧inodeへ留まるfile bindを使わず参照できるよう、既lockの内容に現在のdirectionと改行をEX保持中に保存する。引渡し以後、そのtransaction内でdirectionを変更しない。後続通常入口は同inodeのSH取得後、このselectorが指定するjournalとadmissionをbootstrap前に検査する必要がある。現差分には固定C/supervisor/Compose/実executorへのその接続はまだ無い。実normalがSHを保持して起動した、又は全writer区間が受け入れられたとは扱わない。
+
+現在のcontrolは既direction一回記録のALREADY_RECORDED契約を保持している。日常の再作成/再更新を接続する前に、既保存normal/backup世代と完了journal/receiptの寿命を結ぶ必要がある。同じ起動相関のまま新CIDを許したり、履歴を削除して通したり、新ID/別controller/helperで置換しない。親死亡後の未完拒否は、公開済みの選択normal起動が必ず取消される保証ではない。

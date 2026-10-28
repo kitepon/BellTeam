@@ -18,8 +18,8 @@ _spec.loader.exec_module(prepared)
 
 # Each proof is produced after checking its real artifacts, never from exit0 alone.
 PROOFS = (
-    ('host_parents', 'six_prepared_leaves'),
     ('participating_writers', 'nonparticipating_writers', 'both_normal_stopped'),
+    ('host_parents', 'six_prepared_leaves'),
     ('legacy_backup', 'server_backup', 'current_direction_migration'),
     ('six_source_target_identity', 'normal_nonexposure', 'socket_boundary'),
     ('owner_operation', 'selected_normal_identity', 'no_other_normal'),
@@ -135,15 +135,23 @@ def _run(tx, image, executor):
             r'ghcr\.io/kitepon/bellteam-server@sha256:[a-f0-9]{64}', image):
         raise control.ControlError('SEC014_ACTOR_IMAGE')
     results = []
-    methods = (executor.prepare, executor.assert_writers_stopped,
+    methods = (executor.assert_writers_stopped, executor.prepare,
                executor.backup_and_migrate, executor.assert_binds,
                executor.start_selected_normal, executor.verify_result)
     for phase, required, method in zip(control.PHASES, PROOFS, methods):
         tx.check()
+        if phase == 'started' and tx.normal_group is not None:
+            selected = executor.prepare_selected_normal(direction=tx.value['direction'], image=image,
+                actor_pid=tx.value['actorPid'], actor_start_ticks=tx.value['actorStartTicks'])
+            if type(selected) is not dict or set(selected) != {'container_id', 'image', 'token'}:
+                raise control.ControlError('SEC014_ACTOR_SELECTION_UNCONFIRMED')
+            tx.admit_normal(**selected)
         # Both aliases remain stopped until both backups, migration and binds pass.
-        receipt = method(direction=tx.value['direction'], image=image,
-                         actor_pid=tx.value['actorPid'],
-                         actor_start_ticks=tx.value['actorStartTicks'])
+        fields = dict(direction=tx.value['direction'], image=image,
+                      actor_pid=tx.value['actorPid'], actor_start_ticks=tx.value['actorStartTicks'])
+        if phase in control.PHASES[4:] and tx.normal_group is not None:
+            fields['selected_normal'] = dict(tx.value['admission'])
+        receipt = method(**fields)
         sha = _receipt(tx, phase, image, receipt, required)
         tx.confirmed(phase)
         results.append({'phase': phase, 'receiptSha256': sha})

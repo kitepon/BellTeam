@@ -55,7 +55,7 @@ class HostControlTest(unittest.TestCase):
             (self.path/'sec014.lock').rename(self.path/'old-lock')
             (self.path/'sec014.lock').touch(mode=0o600)
             with self.assertRaisesRegex(c.ControlError, 'IDENTITY_CHANGED'):
-                tx.confirmed('prepared')
+                tx.confirmed(c.PHASES[0])
 
     def test_parent_substitution_and_phase_order_rejected(self):
         with self.hold() as tx:
@@ -64,7 +64,7 @@ class HostControlTest(unittest.TestCase):
             self.path.rename(self.path.parent/'previous')
             self.path.mkdir(mode=0o700)
             with self.assertRaisesRegex(c.ControlError, 'IDENTITY_CHANGED'):
-                tx.confirmed('prepared')
+                tx.confirmed(c.PHASES[0])
 
     def test_symlink_hardlink_wrong_owner_or_mode_refused(self):
         lock = self.path/'sec014.lock'
