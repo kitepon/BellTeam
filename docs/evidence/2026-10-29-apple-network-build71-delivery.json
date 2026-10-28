@@ -60,18 +60,29 @@
     }
   ],
   "macTestFlightSmoke": {
-    "status": "pending_owner_decision_on_physical_click",
+    "status": "passed",
     "installedPath": "/Applications/BellTeam.app",
     "preUpdateBundleVersion": "70",
-    "preUpdateGatekeeperSource": "Testflight",
-    "updateButtonVisible": true,
+    "appBundleVersion": "71",
+    "extensionBundleVersion": "71",
+    "strictSignature": "valid",
+    "gatekeeperSource": "Testflight",
+    "updateButtonPreviouslyVisible": true,
     "standardGuiToolResult": "jev-desktop abstained because TestFlight.offerButton.update advertises no accessibility action",
     "ownerDecisionTitle": "Mac TestFlightのBellTeam版71更新ボタンを画面クリックで押す",
+    "ownerDecisionChoice": "click",
+    "ownerDecisionAnsweredAt": "2026-10-28T22:55:28.757Z",
+    "installationAlreadyCompleteWhenTestFlightReopened": true,
     "updateButtonPressed": false,
-    "readOnlySmokeCompleted": false
+    "observedRunningProcessId": 42784,
+    "profileReadResult": "Trony profile online, harness codex, desired model gpt-6.1-sol, desired effort high, role shown",
+    "terminalReadResult": "Trony bot screen title, 24 lines of terminal content, one-second update label",
+    "readOnlySmokeCompleted": true,
+    "realBotMessageSent": false,
+    "realBotRestartPerformed": false,
+    "smokeProcessGracefullyQuit": true
   },
   "remaining": {
-    "macTestFlightInstallation": "pending_owner_decision",
     "iphoneAndIpadPhysicalInstallation": "not_measured",
     "realBotTrafficDiagnosis": "separate_final_anchor_acceptance"
   },
