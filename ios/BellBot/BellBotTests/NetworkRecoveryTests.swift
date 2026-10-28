@@ -98,6 +98,10 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertNotNil(store.connectionError)
         XCTAssertEqual(scenario.reports.count, 1)
         let log = try XCTUnwrap(scenario.reports.first?.log)
+        let attemptAttachment = XCTAttachment(data: Data(log.utf8), uniformTypeIdentifier: "public.plain-text")
+        attemptAttachment.name = "人工GET二試行の診断原文"
+        attemptAttachment.lifetime = .keepAlways
+        add(attemptAttachment)
         XCTAssertTrue(log.contains("connection_route=public"))
         XCTAssertTrue(log.contains("app_state=active"))
         XCTAssertTrue(log.contains("severity=warn"))
@@ -166,6 +170,10 @@ final class NetworkRecoveryTests: XCTestCase {
             api.diagnostics.report(error, path: "/api/bots", method: "GET", observation: .read(error, retainedData: true))
         }
         let log = scenario.reports.first?.log ?? ""
+        let timeoutAttachment = XCTAttachment(data: Data(log.utf8), uniformTypeIdentifier: "public.plain-text")
+        timeoutAttachment.name = "人工GET単一timeoutの診断原文"
+        timeoutAttachment.lifetime = .keepAlways
+        add(timeoutAttachment)
         XCTAssertTrue(log.contains("request_route=/api/bots/:id/messages"))
         XCTAssertTrue(log.contains("app_state_at_request_start=active"))
         XCTAssertTrue(log.contains("app_state=background"))
