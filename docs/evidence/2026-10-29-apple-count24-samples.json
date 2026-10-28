@@ -1,0 +1,30 @@
+{
+  "schema": "bellteam.apple-count24-artificial-samples.v1",
+  "sourceCommit": "9df3952228f03ba5d7a32e5e259b9455b86f83d9",
+  "sourceTree": "7da4e3f28bbac355d22b8ca39dde6214efcac8fa",
+  "realOccurrence": {
+    "status": "open",
+    "count": 24,
+    "version": "1.0.3(71)",
+    "sourceSha256": "1b2ed6c53d9cadee0e4e9d64ec45358db264fb591b185cfba4953dd608b9f77b",
+    "diagnosticSha256": "869b9a93380f95713dab457e5ed735eaef4de43dac683ff3eb0b578ce675a116"
+  },
+  "samples": [
+    {
+      "path": "docs/evidence/samples/2026-10-29-apple-clock-timeout-artificial.txt",
+      "bytes": 1727,
+      "sha256": "5a12b057a8a9fa5cb890e785d817edd060911e3e98ca8e7df65051ccc3630a1e",
+      "test": "BellBotTests/NetworkRecoveryTests/testTimedOutGETReportKeepsItsOwnRouteAndStartStateWithoutQuery",
+      "xcresult": "~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-28T23-29-59-277Z_pid49890_44d440c9.xcresult"
+    },
+    {
+      "path": "docs/evidence/samples/2026-10-29-apple-goal-callsite-artificial.txt",
+      "bytes": 842,
+      "sha256": "6cba25dc102997e6e2bc2a3e19bb848b5bbcfdc04901c4e3f0606639ff689a8b",
+      "test": "BellBotTests/BellDiagnosticsTests/testGoalTimeoutCarriesCallsiteWithoutPrivateRoute",
+      "xcresult": "~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-28T23-32-32-574Z_pid49890_a53adabb.xcresult"
+    }
+  ],
+  "realNetworkCauseProven": false,
+  "realBotMutated": false
+}
