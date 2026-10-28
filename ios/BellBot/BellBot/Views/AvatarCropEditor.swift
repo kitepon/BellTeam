@@ -114,7 +114,7 @@ struct AvatarCropEditor: View {
             Text("拡大・縮小")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(BellTheme.ink)
-            Slider(value: $zoom, in: 1...3)
+            Slider(value: $zoom, in: AvatarImage.zoomRange)
                 .tint(BellTheme.violet)
                 .accessibilityLabel("アバター画像の拡大・縮小")
         }

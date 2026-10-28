@@ -110,4 +110,20 @@ final class AvatarImageTests: XCTestCase {
         XCTAssertEqual(newCrop.x + newCrop.width / 2, oldCrop.x + oldCrop.width / 2, accuracy: 0.001)
         XCTAssertEqual(newCrop.y + newCrop.height / 2, oldCrop.y + oldCrop.height / 2, accuracy: 0.001)
     }
+
+    func testFormerWidePortraitCropStaysInsideEditableZoomRange() throws {
+        let source = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 400)).image { context in
+            UIColor.blue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 200, height: 400))
+        }
+        let oldCrop = try XCTUnwrap(AvatarImage.cropRect(from: source, zoom: 3, offset: .zero,
+                                                        canvas: CGSize(width: 1024, height: 512)))
+        let restored = try XCTUnwrap(AvatarImage.placement(of: oldCrop, image: source,
+                                                            canvas: AvatarCropVariant.large.canvas))
+        XCTAssertEqual(restored.zoom, AvatarImage.zoomRange.upperBound)
+        let newCrop = try XCTUnwrap(AvatarImage.cropRect(from: source, zoom: CGFloat(restored.zoom),
+                                                        offset: restored.offset, canvas: AvatarCropVariant.large.canvas))
+        XCTAssertEqual(newCrop.x + newCrop.width / 2, oldCrop.x + oldCrop.width / 2, accuracy: 0.001)
+        XCTAssertEqual(newCrop.y + newCrop.height / 2, oldCrop.y + oldCrop.height / 2, accuracy: 0.001)
+    }
 }
