@@ -4,7 +4,7 @@ Mac・iPhone・iPadのプロフィールに、横幅いっぱいの大画像と�
 
 小画像の既存`avatar`は維持し、大画像`avatarLarge`と、それぞれの未切抜き`avatarSource`・`avatarLargeSource`、画像座標の正規化矩形`avatarCrop`・`avatarLargeCrop`を独立編集する。新しい画像はrender/source/cropを同じPATCHへ入れる。変更していない画像fieldはPATCHに含めず、別端末の更新を上書きしない。既存の元画像が無い場合は切り抜き外側を復元できない旨を表示する。既存サーバーで新fieldが確認できない間は新画像編集を無効にし、通常の文面保存は続ける。画像のHTTP契約はRootの`docs/profile-avatars.md`を正とする。
 
-BOT画面は黒背景・白の等幅文字とし、表示中の対象だけ1秒ごとに取得する。対象切替、画面を閉じる、アプリが非アクティブになる時にtaskを止める。同じsnapshotは追記せず、取得した本文へ置換する。末尾を見ていれば追従し、過去を読んでいればスクロール位置を保つ。[Macの人工BOT画面](images/2026-10-28-apple-terminal-mac-preview.png)。現本体の直近25行snapshotは履歴全体の根拠ではない。Aitermの実scrollbackとlive paneをRootが供給する契約の確認待ちであり、存在しない過去ログは合成しない。
+BOT画面は黒背景・白の等幅文字とし、表示中の対象だけ`GET /api/bots/:id/screen?history=1`を1秒ごとに取得する。対象切替、画面を閉じる、アプリが非アクティブになる時にtaskを止める。同じsnapshotは追記せず、取得した本文へ置換する。末尾を見ていれば追従し、過去を読んでいればスクロール位置を保つ。[Macの人工BOT画面](images/2026-10-28-apple-terminal-mac-preview.png)と[iPhoneの人工1万行](images/2026-10-28-apple-terminal-iphone-10000-preview.png)。Rootは同じJSON形でAitermが実保持するscrollbackとlive paneを最大1万整形行まで返す契約を実装中。現本体のクエリ無し直近25行snapshotは履歴全体の根拠ではなく、存在しない過去ログは合成しない。
 
 ## 人工検証
 
@@ -14,6 +14,7 @@ BOT画面は黒背景・白の等幅文字とし、表示中の対象だけ1秒�
 - iPad Pro 11インチ/iOS 27.0は検索消去後、既存inspectorを開いて大小画像・AI操作・役職を実画面全体とAXで確認した。画面添付には別表示面のinspectorも写す`XCUIScreen.main.screenshot()`を使った。最終focused1件成功・失敗0。XCResult `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-28T13-25-29-210Z_pid49890_3a923776.xcresult`。
 - Mac Catalyst Debugの隔離bundle `dev.kitepon.bellbot.profileprobe`はビルド・起動成功。人工Botプロフィールの幅広い大画像・左上小画像・AIの位置を実画面で確認。大画像cropのsliderを物理操作で0から0.5へ変え、PATCH1回が大render/source/cropだけを含み小renderを送らないこと、再度編集してslider0.5が戻ることを確認した。隔離アプリは通常終了しPID消失を確認した。
 - 隔離MacのBOT画面は黒背景・白文字でヘッダー下からペイン下端まで表示した。人工APIの画面GETは表示中に1秒間隔で増え、プロフィールへ戻った後は29→29、対象切替後は39→39と停止した。隔離アプリは通常終了しPID消失を確認した。
+- 1万行の本文と過去を読む位置の維持・末尾追従はiPhoneのfocused unit1件成功・失敗0、XCResult `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-28T13-53-39-735Z_pid49890_58a1334e.xcresult`。初回のUI試験は1万行全文をアクセシビリティ値へ出して照会がタイムアウトした。本文は全行保持したまま表示中の文字範囲だけをアクセシビリティへ返す修正後、`history=1`の実要求・末尾行の描画・短いアクセシビリティ値のiPhone focused1件成功・失敗0、XCResult `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-28T13-54-19-913Z_pid49890_d2b58208.xcresult`。これは人工1万行であり、実Aitermからの取得確認ではない。
 - 旧schemaの人工サーバーでは新画像編集を無効にし、通常の文面保存ボタンを有効に保つiPhone focused1件成功・失敗0。XCResult `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-28T13-31-29-641Z_pid49890_b13dde7a.xcresult`。
 
 実Botの再起動・試験送信、実Owner画像操作、本体反映、Apple署名・TestFlight配布はこの候補で行っていない。Aiterm実scrollbackの保持上限とCLI固有の全過去履歴は未確認。既版69の配布結果は保持する。

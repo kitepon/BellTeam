@@ -1792,6 +1792,20 @@ private struct BotTerminalView: UIViewRepresentable {
 }
 
 final class BotTerminalTextView: UITextView {
+    override var accessibilityValue: String? {
+        get {
+            let visible = CGRect(x: 0, y: max(0, contentOffset.y),
+                                 width: max(1, bounds.width), height: max(1, bounds.height))
+            let glyphs = layoutManager.glyphRange(forBoundingRect: visible, in: textContainer)
+            let characters = layoutManager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+            let full = text as NSString
+            guard characters.location < full.length else { return "" }
+            return full.substring(with: NSRange(location: characters.location,
+                                                length: min(characters.length, 4_000)))
+        }
+        set { super.accessibilityValue = newValue }
+    }
+
     func show(_ value: String) {
         guard text != value else { return }
         let oldOffset = contentOffset
@@ -1869,7 +1883,7 @@ struct BotScreenView: View {
         let path = "/api/bots/\(botID)/screen"
         while !Task.isCancelled {
             do {
-                let result: ScreenResponse = try await store.api.get(path)
+                let result: ScreenResponse = try await store.api.get(path + "?history=1")
                 try Task.checkCancellation()
                 if online != result.online { online = result.online }
                 if screen != result.screen { screen = result.screen }

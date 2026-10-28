@@ -35,6 +35,10 @@ const server = createServer(async (request, response) => {
     legacyProfile = false
     return json(response, { ok: true })
   }
+  if (url.pathname === '/test/long-history') {
+    screen = Array.from({ length: 10_000 }, (_, index) => `保持行${index + 1}`).join('\n')
+    return json(response, { ok: true })
+  }
   if (url.pathname === '/test/legacy-profile') { legacyProfile = true; return json(response, { ok: true }) }
   if (url.pathname === '/test/proof') return json(response, { reads, writes, screen })
   if (url.pathname === '/test/screen') {
@@ -63,7 +67,7 @@ const server = createServer(async (request, response) => {
   if (url.pathname.endsWith('/messages') || url.pathname.endsWith('/timeline'))
     return json(response, { messages: [], items: [], hasMore: false })
   if (url.pathname === '/api/bots/bot-one/screen') {
-    reads.push({ path: url.pathname, at: Date.now() })
+    reads.push({ path: url.pathname, history: url.searchParams.get('history'), at: Date.now() })
     return json(response, { online: true, screen })
   }
   const imageField = new Map([

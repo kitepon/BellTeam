@@ -47,6 +47,10 @@ final class ProfileTerminalUITests: XCTestCase {
         let content = screen.value as? String ?? ""
         XCTAssertEqual(content.components(separatedBy: "履歴の最初の行").count - 1, 1,
                        "同じ画面snapshotを毎秒重複して蓄積しない")
+        let reads = try await screenReads(url)
+        XCTAssertFalse(reads.isEmpty)
+        XCTAssertTrue(reads.allSatisfy { $0["history"] as? String == "1" },
+                      "表示中の画面だけ実履歴の取得を要求する")
         XCTAssertTrue(app.buttons["close-bot-screen"].exists)
         app.buttons["close-bot-screen"].tap()
         try await Task.sleep(for: .seconds(1.2))
@@ -54,6 +58,36 @@ final class ProfileTerminalUITests: XCTestCase {
         try await Task.sleep(for: .seconds(1.3))
         let settled = try await screenReadCount(url)
         XCTAssertEqual(settled, afterClose, "閉じた画面を更新しない")
+    }
+
+    func testPhoneTenThousandLineHistoryRequestsAndRenders() async throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの長いBOT画面を確認する試験です。")
+        continueAfterFailure = false
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"])
+        try await reset(url)
+        let long = try XCTUnwrap(URL(string: url + "/test/long-history"))
+        let (_, changed) = try await URLSession.shared.data(from: long)
+        XCTAssertEqual((changed as? HTTPURLResponse)?.statusCode, 200)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-profile-terminal",
+                               "-bellbot-preview-server", url, "-bellbot-preview-chat"]
+        app.launch()
+        defer { app.terminate() }
+        app.buttons["詳細"].tap()
+        app.buttons["Botの画面を見る"].tap()
+        try await Task.sleep(for: .seconds(1.5))
+        let reads = try await screenReads(url)
+        XCTAssertFalse(reads.isEmpty)
+        XCTAssertTrue(reads.allSatisfy { $0["history"] as? String == "1" })
+        let capture = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        capture.name = "1万行のBOT画面"
+        capture.lifetime = .keepAlways
+        add(capture)
+        let screen = app.textViews["bot-screen-text"]
+        XCTAssertTrue(screen.waitForExistence(timeout: 10))
+        let visible = screen.value as? String ?? ""
+        XCTAssertTrue(visible.contains("保持行10000"))
+        XCTAssertLessThanOrEqual(visible.utf16.count, 4_000)
     }
 
     func testOldProfileSchemaKeepsTextSaveAndDisablesNewImageEditing() async throws {
@@ -130,10 +164,15 @@ final class ProfileTerminalUITests: XCTestCase {
     }
 
     private func screenReadCount(_ url: String) async throws -> Int {
+        let reads = try await screenReads(url)
+        return reads.count
+    }
+
+    private func screenReads(_ url: String) async throws -> [[String: Any]] {
         let target = try XCTUnwrap(URL(string: url + "/test/proof"))
         let (data, _) = try await URLSession.shared.data(from: target)
         let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let reads = try XCTUnwrap(proof["reads"] as? [[String: Any]])
-        return reads.filter { ($0["path"] as? String)?.hasSuffix("/screen") == true }.count
+        return reads.filter { ($0["path"] as? String)?.hasSuffix("/screen") == true }
     }
 }
