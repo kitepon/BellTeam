@@ -34,13 +34,13 @@ test('設定変更は稼働中の席にだけ適用を並べ、保存の応答�
   assert.deepEqual(saved, [{ model: 'sonnet' }, { model: 'haiku', role: '整備' }, { role: '保守' }])
 })
 
-test('ファストモードを当てられなかった時だけ保存を元へ戻し、利用者がその後に変えた値は戻さない', async () => {
+test('ファストモードが開始前に拒否された時だけ保存を元へ戻し、利用者がその後に変えた値は戻さない', async () => {
   const { bots, saved } = registry({ id: 'bot-a', harness: 'claude', fastMode: false })
   const logs = []
   let failure = null, release
   const transport = { async isRunning() { return true }, reconfigure() { return new Promise((resolve, reject) => { release = () => failure ? reject(failure) : resolve() }) } }
   const admin = new BotAdministration({ bots, rooms: {}, transport, writeLog: line => logs.push(line) })
-  failure = Object.assign(new Error('AITERM_FAST_UNAVAILABLE'), { code: 'AITERM_FAST_UNAVAILABLE' })
+  failure = Object.assign(new Error('AITERM_FAST_UNAVAILABLE'), { code: 'AITERM_FAST_UNAVAILABLE', effect: 'not_started' })
   await admin.update('bot-a', { fastMode: true })
   release(); await tick(); await tick()
   assert.equal(bots.get('bot-a').fastMode, false)

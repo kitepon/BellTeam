@@ -50,16 +50,15 @@ export class BotAdministration {
         this.writeLog(`BellTeam reconfigure error: ${current.id}: ${error.stack ?? error.message}\n`)
         if (this.applications.get(current.id) !== application) return
         application.state = 'failed'
-        application.message = '保存した希望設定をCLIへ適用できませんでした。現在の動作設定は未確認です。'
-        if (Object.hasOwn(error, 'agentConfigureResult')) {
-          application.outcome = error.agentConfigureResult?.outcome ?? 'outcome_unknown'
-          application.effect = error.agentConfigureResult?.effect ?? 'possible'
-          application.message = application.effect === 'not_started'
-            ? '今回の設定変更は開始前に拒否されました。現在の動作設定は未確認です。'
-            : '設定変更の結果を確認できません。一部が反映された可能性があります。'
-        }
-        // 作用があり得る失敗では保存値を動かさず、従来の失敗と無作用拒否は元の希望へ戻す。
-        if (fastModeChanged && application.effect !== 'possible' && this.bots.get(current.id)?.fastMode === candidate.fastMode) await this.bots.update(current.id, { fastMode: current.fastMode })
+        const notStarted = error.effect === 'not_started'
+          || error.agentConfigureResult?.outcome === 'not_applied' && error.agentConfigureResult?.effect === 'not_started'
+        application.outcome = notStarted ? 'not_applied' : 'outcome_unknown'
+        application.effect = notStarted ? 'not_started' : 'possible'
+        application.message = notStarted
+          ? '今回の設定変更は開始前に拒否されました。現在の動作設定は未確認です。'
+          : '設定変更の結果を確認できません。一部が反映された可能性があります。'
+        // RPC失敗は遠隔変更を取り消さない。開始前の拒否を確認できた時だけ元の希望へ戻す。
+        if (fastModeChanged && notStarted && this.bots.get(current.id)?.fastMode === candidate.fastMode) await this.bots.update(current.id, { fastMode: current.fastMode })
       })
       .catch(error => this.writeLog(`BellTeam fast mode restore error: ${error.stack ?? error.message}\n`))
   }

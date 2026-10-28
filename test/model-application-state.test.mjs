@@ -75,6 +75,36 @@ test('typed configure: wrong session or invalid outcome/effect cannot claim not-
   }
 })
 
+test('issued configure without a confirmed result preserves fast preference and reports uncertainty', async () => {
+  for (const harness of ['claude', 'codex', 'grok', 'cursor']) {
+    for (const response of ['lost', 'missing-schema', 'unknown-schema']) {
+      let calls = 0
+      const client = new AitermClient({ env: {} })
+      client.client = { async callTool() {
+        calls++
+        if (response === 'lost') throw new Error('synthetic RPC timeout after configure')
+        return { isError: true, content: [{ type: 'text', text: 'synthetic unconfirmed configure' }],
+          ...(response === 'unknown-schema' ? { structuredContent: {
+            schema: 'unknown', session_id: 'bot-a', outcome: 'not_applied', effect: 'not_started',
+          } } : {}) }
+      } }
+      const native = new AitermTransport({ client })
+      const f = fixture(harness)
+      f.bots.set('bot-a', { ...f.bots.get('bot-a'), session: 'bot-a' })
+      f.transport.reconfigure = (...args) => native.reconfigure(...args)
+      await f.admin.update('bot-a', { fastMode: true })
+      await tick(); await tick()
+      const state = f.admin.view(f.bots.get('bot-a')).configurationApplication
+      assert.equal(state.state, 'failed')
+      assert.equal(state.outcome, 'outcome_unknown', `${harness}/${response}`)
+      assert.equal(state.effect, 'possible')
+      assert.equal(f.bots.get('bot-a').fastMode, true)
+      assert.equal(calls, 1, 'no automatic retry')
+      assert.equal(native.uncertainChanges.has('bot-a'), response === 'lost')
+    }
+  }
+})
+
 async function readApi(f, pathname) {
   let status, raw
   const api = createBotApi({ bots: f.bots, transport: f.transport, administration: f.admin,
