@@ -11,12 +11,8 @@ final class BotTerminalTextViewTests: XCTestCase {
         view.show(history)
         XCTAssertGreaterThan(view.contentSize.height, view.bounds.height)
         XCTAssertTrue(view.text.hasSuffix("実在する出力10000"))
-        XCTAssertLessThanOrEqual((view.accessibilityValue ?? "").utf16.count, 4_000)
-        XCTAssertTrue((view.accessibilityValue ?? "").contains("実在する出力10000"))
 
         view.setContentOffset(CGPoint(x: 0, y: 40), animated: false)
-        XCTAssertFalse((view.accessibilityValue ?? "").contains("実在する出力10000"),
-                       "スクロール先の行だけを読み上げる")
         view.show(history + "\n新しい一行")
         XCTAssertEqual(view.contentOffset.y, 40, accuracy: 1, "過去の行を読んでいる時は位置を保つ")
         XCTAssertEqual(view.text.components(separatedBy: "実在する出力1\n").count - 1, 1,

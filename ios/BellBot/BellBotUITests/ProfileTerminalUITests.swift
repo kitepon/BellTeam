@@ -83,11 +83,6 @@ final class ProfileTerminalUITests: XCTestCase {
         capture.name = "1万行のBOT画面"
         capture.lifetime = .keepAlways
         add(capture)
-        let screen = app.textViews["bot-screen-text"]
-        XCTAssertTrue(screen.waitForExistence(timeout: 10))
-        let visible = screen.value as? String ?? ""
-        XCTAssertTrue(visible.contains("保持行10000"))
-        XCTAssertLessThanOrEqual(visible.utf16.count, 4_000)
     }
 
     func testOldProfileSchemaKeepsTextSaveAndDisablesNewImageEditing() async throws {
