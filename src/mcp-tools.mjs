@@ -415,7 +415,7 @@ function withMemoryLengthNotice(memory, content) {
 // 画像本体（data URL）は1枚で十万文字を超え、CLIの道具の上限を超える。返事では本体を外し、有無と取得先だけを返す。
 function withoutAvatarBody(value, avatarUrl) {
   if (!value || typeof value !== 'object' || !Object.hasOwn(value, 'avatar')) return value
-  const { avatar, ...rest } = value
+  const { avatar, avatarLarge, avatarSource, avatarLargeSource, ...rest } = value
   const hasAvatar = typeof avatar === 'string' && avatar !== ''
   return { ...rest, hasAvatar, ...(hasAvatar && avatarUrl ? { avatarUrl } : {}) }
 }
