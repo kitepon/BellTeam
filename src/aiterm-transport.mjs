@@ -247,7 +247,8 @@ export class AitermTransport {
     }
     const configuration = { session_id: this.session(next) }
     if (reapply || current.model !== next.model) configuration.model = next.model
-    if (reapply || current.reasoningEffort !== next.reasoningEffort) configuration.reasoning_effort = next.reasoningEffort
+    if (reapply || current.reasoningEffort !== next.reasoningEffort
+      || current.model !== next.model && next.reasoningEffort) configuration.reasoning_effort = next.reasoningEffort
     if (reapply || (current.fastMode === true) !== (next.fastMode === true)) configuration.fast = next.fastMode === true
     if (next.harness === 'cursor' && configuration.reasoning_effort && !configuration.model) configuration.model = next.model
     await this.changeSession(current, 'agent_configure', configuration)
