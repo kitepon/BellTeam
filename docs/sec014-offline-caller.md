@@ -545,3 +545,14 @@ supervisorはserver UID1001時に、最初のbootstrap/application/lifecycle imp
 保存normalの兄弟`compose.state-prepare.yaml`がある世代では、既control読取がそのroot-owned private fileのpath/SHA/device/inode/親identity/owner/raw imageをnormal記録へ保持する。prepareはJSONとしてrender済みで、単一state-prepare serviceのraw imageはnormalと一致する必要がある。tx.checkは兄弟fileも再読し、同bytes別inodeやsymlink・raw image不一致を拒否する。兄弟fileのない従来世代のnormal記録は維持する。
 
 これは保存記録の接続であり、prepare executorの実行許可ではない。固定YAMLのCOMPOSE_SHAをrender済み設定の全実行条件の検証へ置き換え、official digest参照とraw imageの対応を実authorityへ結び、actor argv/terminalと同一設定を使う接続は未完。全体はNOTDEPLOYABLEのまま。
+
+
+### 保存prepareと実callerの同入力接続（10/28）
+
+内部adapterはraw imageへ解決する前の指定immutable refを、保存normal/prepareの既Compose拡張`x-bellteam-image-ref`へ保持する。controlはofficial refの形式とnormal/prepare間の同じref/raw pairを検証し、既normal記録にprepareの全serviceを保持する。actor.argv/terminal/chainは同じ保存generationを使い、tx.checkの再読を通す。
+
+executorは既固定YAMLのSHA検証を残した上で、保存render JSONのentrypoint/user/readonly/network/caps/security/tmpfs/唯一の親bind/資源制限を固定条件と照合する。canonical mem-limitの数値/数値文字列とCPU1/1.0のみを同値として扱い、未知条件は実client前に拒否する。実client claimへofficial refとraw IDを併記し、raw指定の実container inspectを照合する。既host_check.bind_imageの実authorityは依然必要で、省略・疑似成功へ変更しない。
+
+新しい保存JSON path反例は旧1fail→新1pass、指定ref保持の実shell+fake Docker反例も旧1fail→新1pass。新executor専用5件は既filesystem/実Python子+fake Docker protocolで成功、実daemon/host0。初回は再利用fixtureの別module例外型の相違で成功case1errorとなり、その原本を保持してfixtureの同一例外型へ直している。旧成功群/Full再走なし。
+
+実Composeが作る保存JSONとの実機照合、writer/host authority全接続、normal create/start/inspect/healthと全区間の実受入はまだ。保存設定接続のsource修理を全phase受入へ広げず、whole Draft NOTDEPLOYABLE/未merge未反映を維持する。

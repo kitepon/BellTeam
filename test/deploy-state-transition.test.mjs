@@ -95,6 +95,19 @@ if(a[0]==='compose'){
     events: async () => (await readFile(env.TEST_EVENTS, 'utf8')).trim().split('\n').map(JSON.parse) }
 }
 
+test('stage2 internal: preserves accepted ref beside the raw image in the saved generation', async t => {
+  const f = await fixture(t), selected = 'ghcr.io/kitepon/bellteam-server@sha256:' + 'e'.repeat(64)
+  await f.run({ BELLTEAM_SERVER_IMAGE: selected })
+  const events = await f.events(), up = events.find(e => e.kind === 'up')
+  const normal = JSON.parse(await readFile(up.composeFile, 'utf8'))
+  const prepare = JSON.parse(await readFile(join(dirname(up.composeFile), 'compose.state-prepare.yaml'), 'utf8'))
+  for (const [model, name] of [[normal, 'bellteam'], [prepare, 'state-prepare']]) {
+    assert.equal(model['x-bellteam-image-ref'], selected)
+    assert.equal(model.services[name].image, id)
+  }
+  assert.equal(events.filter(e => e.kind === 'prepare').length, 1)
+})
+
 test('stage2 internal: same captured normal and dedicated roots span quiet, stopped transition and startup', async t => {
   const f = await fixture(t), { stdout } = await f.run(), events = await f.events()
   assert.match(stdout, /deploy-exit=0/)

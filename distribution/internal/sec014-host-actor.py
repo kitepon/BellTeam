@@ -85,8 +85,13 @@ def prepare_name(tx):
 
 
 def prepare_argv(tx):
+    tx.check()
+    normal = tx.value.get('normal')
+    if normal is not None and 'prepare' not in normal:
+        raise control.ControlError('SEC014_PREPARE_GENERATION_MISSING')
+    compose = normal['prepare']['path'] if normal is not None else '/home/kite/BellTeam/compose.state-prepare.yaml'
     return ['/usr/bin/docker', 'compose', '--env-file', '/dev/null', '-f',
-            '/home/kite/BellTeam/compose.state-prepare.yaml', 'run', '--no-deps',
+            compose, 'run', '--no-deps',
             '--name', prepare_name(tx), '-T', 'state-prepare']
 
 

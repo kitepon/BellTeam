@@ -92,8 +92,13 @@ def _normal(path, *, prepare=False):
         try:
             model = json.loads(raw)
             service = model['services']['state-prepare' if prepare else 'bellteam']
+            image_ref = model.get('x-bellteam-image-ref')
+            if image_ref is not None and (type(image_ref) is not str or not re.fullmatch(
+                    r'ghcr\.io/kitepon/bellteam-server@sha256:[a-f0-9]{64}', image_ref)):
+                raise ValueError()
             if prepare:
                 if (model.get('name') != 'bellteam-state-prepare'
+                        or not set(model) <= {'name','services','x-bellteam-image-ref'}
                         or set(model['services']) != {'state-prepare'}
                         or type(service['image']) is not str
                         or not re.fullmatch('sha256:[a-f0-9]{64}', service['image'])):
@@ -101,7 +106,8 @@ def _normal(path, *, prepare=False):
                 return {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(),
                         'device': before.st_dev, 'inode': before.st_ino,
                         'parentDevice': directory.st_dev, 'parentInode': directory.st_ino,
-                        'owner': list(owner), 'image': service['image']}
+                        'owner': list(owner), 'image': service['image'], 'service': service,
+                        **({'imageRef': image_ref} if image_ref is not None else {})}
             token = service.get('environment', {}).get('BELLTEAM_NORMAL_ADMISSION_TOKEN')
             mounts = [v for v in service.get('volumes', [])
                       if v.get('target') == '/run/bellteam-maintenance']
@@ -124,10 +130,13 @@ def _normal(path, *, prepare=False):
                 'device': before.st_dev, 'inode': before.st_ino,
                 'parentDevice': directory.st_dev, 'parentInode': directory.st_ino,
                 'owner': list(owner), 'image': service['image'], 'token': token}
+        if image_ref is not None:
+            result['imageRef'] = image_ref
         sibling = path.parent / 'compose.state-prepare.yaml'
         if path.name == 'normal.json' and os.path.lexists(sibling):
             result['prepare'] = _normal(sibling, prepare=True)
-            if result['prepare']['image'] != result['image']:
+            if (result['prepare']['image'] != result['image']
+                    or result['prepare'].get('imageRef') != result.get('imageRef')):
                 raise ControlError('SEC014_CONTROL_GENERATION')
         return result
     finally:

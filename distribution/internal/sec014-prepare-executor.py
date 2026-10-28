@@ -84,7 +84,7 @@ class _Prepare:
             argv,seconds=commands[slot]
             env=self.env
             end = min(self.deadline-1,time.monotonic()+seconds)
-            self.save(slot+'.claim',{'argv':argv,'image':self.image,'hostParentProof':self.proof})
+            self.save(slot+'.claim',{'argv':argv,'image':self.image,'imageId':self.image_id,'hostParentProof':self.proof})
             self.ready()
             if time.monotonic() >= end:
                 raise actor.control.ControlError('SEC014_PREPARE_CLIENT_DEADLINE')
@@ -152,11 +152,35 @@ class _Prepare:
         self.tx.check()
         if COMPOSE.is_symlink() or hashlib.sha256(COMPOSE.read_bytes()).hexdigest()!=COMPOSE_SHA:
             raise actor.control.ControlError('SEC014_PREPARE_COMPOSE_PIN')
+        normal = self.tx.value.get('normal')
+        if normal is not None:
+            prepare = normal.get('prepare', {})
+            if (normal.get('imageRef') != self.image or normal.get('image') != self.image_id
+                    or prepare.get('imageRef') != self.image or prepare.get('image') != self.image_id):
+                raise actor.control.ControlError('SEC014_PREPARE_IMAGE_PAIR')
+            expected = dict(image=self.image_id, pull_policy='never', user='0:0',
+                entrypoint=['/usr/bin/env','-i','PATH=/usr/local/bin:/usr/bin:/bin','/usr/local/bin/node','/app/src/server-state-prepare.mjs'],
+                command=[], init=True, read_only=True, network_mode='none',
+                cap_drop=['ALL'], cap_add=['CHOWN'], security_opt=['no-new-privileges:true'],
+                cpus=1, mem_limit=2147483648, memswap_limit=2147483648, pids_limit=512,
+                tmpfs=['/tmp:rw,nosuid,nodev,size=64m'],
+                volumes=[dict(type='bind',source=str(PARENT),target='/srv/bellteam-state-parent',bind=dict(create_host_path=False))])
+            service = dict(prepare.get('service', {}))
+            for key in ('mem_limit','memswap_limit'):
+                if type(service.get(key)) is str and service[key] == '2147483648':
+                    service[key] = 2147483648
+            if type(service.get('cpus')) is float and service['cpus'] == 1:
+                service['cpus'] = 1
+            if (json.dumps(service,sort_keys=True,allow_nan=False) != json.dumps(expected,sort_keys=True)
+                    or type(service.get('cpus')) is not int
+                    or any(type(service.get(k)) is not int for k in ('mem_limit','memswap_limit','pids_limit'))
+                    or any(type(service.get(k)) is not bool for k in ('init','read_only'))):
+                raise actor.control.ControlError('SEC014_PREPARE_RENDERED_CONFIG')
         config=self.tx.path/(self.tx.value['direction']+'-prepare-empty-docker-config')
         config.mkdir(mode=0o700)
         actor.control._private(config.lstat(),self.tx.owner,True)
         self.env={'PATH':'/usr/bin:/bin','HOME':'/nonexistent','LANG':'C.UTF-8',
-             'DOCKER_CONFIG':str(config),'BELLTEAM_SERVER_IMAGE':self.image,
+             'DOCKER_CONFIG':str(config),'BELLTEAM_SERVER_IMAGE':self.image_id if normal is not None else self.image,
              'BELLTEAM_STATE_PARENT':str(PARENT)}
         self.ready()
         argv=actor.prepare_argv(self.tx)
@@ -164,7 +188,7 @@ class _Prepare:
         name=actor.prepare_name(self.tx)
         raw,_=self.call('inspect')
         value=json.loads(raw)
-        wanted=dict(name='/'+name,imageRef=self.image,imageId=self.image_id,
+        wanted=dict(name='/'+name,imageRef=self.image_id if normal is not None else self.image,imageId=self.image_id,
             service='state-prepare',project='bellteam-state-prepare',status='exited',running=False,
             pid=0,exitCode=0,oom=False,user='0:0',ro=True,network='none',restarts=0,init=True,
             entrypoint=['/usr/bin/env','-i','PATH=/usr/local/bin:/usr/bin:/bin','/usr/local/bin/node','/app/src/server-state-prepare.mjs'],

@@ -3,6 +3,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 repo=$(pwd)
+selected_image=${BELLTEAM_SERVER_IMAGE:-}
 if [ -n "${BELLTEAM_SERVER_IMAGE:-}" ]; then
   : "${BELLTEAM_DEPLOY_QUIET_EXCEPT:?quiet対象Botを指定してください}"
 fi
@@ -129,11 +130,14 @@ try {
   const state=m.volumes.find(v=>v.target==="/srv/bellteam/state").source;
   if(p.image!==process.argv[1]||m.image!==process.argv[1]||!path.isAbsolute(parent)
     ||path.resolve(state)!==path.join(parent,"state")) throw new Error();
+  if(process.argv[4].includes("@sha256:")) {
+    for(const model of [normal,prepare]) model["x-bellteam-image-ref"]=process.argv[4];
+  }
   console.log(normal.name);
   for(const model of models) console.log(JSON.stringify(model,(_key,value)=>
     typeof value==="string"?value.replaceAll("$",()=>"$$"):value));
 } catch { console.error("SERVER_STATE_CONFIG_UNAVAILABLE"); process.exitCode=1; }
-' "$image" "$saved" "$BELLTEAM_NORMAL_ADMISSION_TOKEN" > "$staging/models.jsonl"
+' "$image" "$saved" "$BELLTEAM_NORMAL_ADMISSION_TOKEN" "$selected_image" > "$staging/models.jsonl"
 project=$(sed -n '1p' "$staging/models.jsonl")
 case "$project" in ''|*[!a-zA-Z0-9_.-]*) echo '通常Composeのproject名を確認できません。起動中のBellTeamは変更していません。' >&2; exit 1;; esac
 sed -n '2p' "$staging/models.jsonl" > "$saved/normal.json.tmp"
