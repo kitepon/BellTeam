@@ -20,6 +20,7 @@ int main(int argc, char **argv) {
     if (geteuid() != 0) return fail("ROOT_REQUIRED");
     if (argc < 3 || argv[1][0] != '-' || argv[1][1] != '-' || argv[1][2] != '\0')
         return fail("ARGUMENTS");
+    closefrom(3);
 
     /* Never inherit the server's environment into the target. Per-bot env.sh
      * and dynamic input must be applied by the later seat-side adapter.
