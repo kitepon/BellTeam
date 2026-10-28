@@ -15,15 +15,17 @@ const MIME_EXTENSION = new Map([
 const EXTENSION_MIME = new Map([...MIME_EXTENSION].map(([mime, extension]) => [extension, mime]))
 
 export class MessageAssets {
-  constructor({ root, maxBytes = MAX_IMAGE_BYTES }) {
+  constructor({ root, maxBytes = MAX_IMAGE_BYTES, botsAssetsRoot = join(root, 'bots'), readImage = readImageBytes }) {
     this.root = root
     this.maxBytes = maxBytes
+    this.botsAssetsRoot = botsAssetsRoot
+    this.readImage = readImage
   }
 
   async save({ owner, id, image }) {
     validateId(owner)
     validateId(id)
-    const bytes = await imageBytes(image, this.maxBytes)
+    const bytes = await this.readImage(image, this.maxBytes)
     const mime = detectMime(bytes)
     if (!mime) throw new Error('IMAGE_FILE_INVALID')
     const extension = MIME_EXTENSION.get(mime)
@@ -67,11 +69,11 @@ export class MessageAssets {
 
   directory(owner) {
     if (owner === 'user') return join(this.root, 'owner', 'messages', 'assets')
-    return join(this.root, 'bots', owner, 'messages', 'assets')
+    return join(this.botsAssetsRoot, owner, 'messages', 'assets')
   }
 }
 
-async function imageBytes(image, maxBytes) {
+export async function readImageBytes(image, maxBytes = MAX_IMAGE_BYTES) {
   if (typeof image?.path === 'string' && image.path.length > 0) {
     let handle
     try {

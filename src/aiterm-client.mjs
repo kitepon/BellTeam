@@ -1,3 +1,8 @@
+import { fileURLToPath } from 'node:url'
+import { loadBotEnvironment } from './bot-environment.mjs'
+import { requireSeatProject, seatCommandSpec } from './seat-command.mjs'
+import { createSeatProcessRunner } from './seat-process.mjs'
+
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
@@ -6,7 +11,11 @@ import { authenticationPreflightFailure } from './agent-launch-error.mjs'
 import { captureMcpError } from './returned-mcp-error.mjs'
 
 export class AitermClient {
-  constructor({ command = 'aiterm-mcp', args = [], env = runtimeEnvironment() } = {}) {
+  constructor(options = {}) {
+    const { command = 'aiterm-mcp', args = [], env = runtimeEnvironment() } = options
+    const seatProject = Object.hasOwn(options, 'seatProject') ? options.seatProject : null
+    if (seatProject !== null) requireSeatProject(seatProject)
+    this.seatProject = seatProject
     this.command = command
     this.args = [...args]
     this.env = env
@@ -18,8 +27,10 @@ export class AitermClient {
   async connect() {
     if (this.connecting) return this.connecting
     if (this.client) return
+    const spec = this.seatProject !== null ? seatCommandSpec(this.command, this.args, { project: this.seatProject })
+      : { command: this.command, args: this.args, ...(this.env ? { env: this.env } : {}) }
     this.client = new Client({ name: 'bellteam', version: '0.1.0' }, { capabilities: {} })
-    this.transport = new StdioClientTransport({ command: this.command, args: this.args, stderr: 'inherit', ...(this.env ? { env: this.env } : {}) })
+    this.transport = new StdioClientTransport({ ...spec, stderr: 'inherit' })
     const client = this.client
     const transport = this.transport
     client.onclose = () => {
@@ -47,8 +58,36 @@ export class AitermClient {
     }
   }
 
-  async call(name, args = {}, { env, meta } = {}) {
+  async launchOptions(project) {
+    return this.seatProject !== null ? { launchProject: requireSeatProject(project) }
+      : { env: await loadBotEnvironment(project) }
+  }
+
+  authOptions() {
+    return this.seatProject !== null ? {} : { env: runtimeEnvironment() }
+  }
+
+  async call(name, args = {}, options = {}) {
+    const { env, meta, launchProject } = options
+    if (this.seatProject !== null) requireSeatProject(this.seatProject)
+    if (Object.hasOwn(options, 'launchProject')) {
+      requireSeatProject(launchProject)
+      if (this.seatProject === null || name !== 'agent_launch' || args.cwd !== launchProject
+        || Object.hasOwn(options, 'env') || Object.hasOwn(args, 'env_vars'))
+        throw Object.assign(new Error('SEAT_LAUNCH_ARGUMENTS'), { code: 'SEAT_LAUNCH_ARGUMENTS' })
+      const { stdout } = await createSeatProcessRunner(launchProject)(process.execPath,
+        [fileURLToPath(new URL('./run-seat-aiterm-launch.mjs', import.meta.url))], {
+          input: JSON.stringify({ command: this.command, args: this.args, launch: args, meta }),
+        })
+      const response = JSON.parse(stdout)
+      if (response.error) throw Object.assign(new Error(response.error.message), response.error)
+      if (!response.result || !Array.isArray(response.result.content)) throw new Error('SEAT_LAUNCH_RESULT_INVALID')
+      return response.result
+    }
     if (env) {
+      // Per-target launch environment needs the seat-side loading contract too.
+      // Do not silently serialize a server-evaluated environment across this boundary.
+      if (this.seatProject !== null) throw new Error('SEAT_DYNAMIC_ENV_UNWIRED')
       // Aitermは値ではなくMCPプロセスの変数名を受け取る。起動ごとに専用の短命接続を使う。
       const launcher = new AitermClient({ command: this.command, args: this.args, env })
       try {

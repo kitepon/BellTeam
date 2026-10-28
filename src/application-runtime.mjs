@@ -38,15 +38,17 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     refreshGlobalInstructions,
     assets,
     staticRoot: join(appRoot, 'web'),
-    models: new LiveModelCatalog({ cwd: root }),
+    models: bootstrap.models ?? new LiveModelCatalog({ cwd: root }),
     scheduler,
     diagnostics,
     administration,
     goals,
   }
   const internalPort = Number(environment.BELLTEAM_INTERNAL_PORT ?? 4181)
-  const callBridgeHeaders = join(root, 'shared/tools/call-bridge/headers')
-  const features = createApplicationFeatures({ services, aiterm, home, callBridgeHeaders, environment, notify: data => server.notify(data) })
+  const callBridgeHeaders = bootstrap.callBridgeHeaders ?? join(root, 'shared/tools/call-bridge/headers')
+  const features = createApplicationFeatures({ services, aiterm, home, callBridgeHeaders, environment, notify: data => server.notify(data),
+    ...(bootstrap.seatRuntime ? { configureHarnessConfig: (bots, _home, { callBridge }) =>
+      bootstrap.seatRuntime.writeHarnessConfig(bots, aiterm, callBridge) } : {}) })
   const server = createBellTeamServer({ ...serverOptions, authMode: features.authMode, authorize: features.authorize })
   const seatMcp = createSeatMcp({
     bots,

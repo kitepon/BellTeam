@@ -15,6 +15,7 @@ import { DeliveryJob } from './delivery-job.mjs'
 import { SeatActivity, SeatTurnWatch } from './seat-activity.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
+export { runWaitProcess } from './aiterm-wait-process.mjs'
 export { completedThroughlineTurns, latestThroughlineHandoffContext, NIGHTLY_RESTART_TURNS } from './throughline-context.mjs'
 
 const HARNESS = new Map([
@@ -149,7 +150,8 @@ export class AitermTransport {
     if (!harness) throw new Error(`HARNESS_UNSUPPORTED: ${bot.harness}`)
     const shortTermMemory = await this.handoffContext(bot.project)
     await this.prepareStartup(bot, shortTermMemory)
-    const env = await loadBotEnvironment(bot.project)
+    const launchOptions = this.client.launchOptions
+      ? await this.client.launchOptions(bot.project) : { env: await loadBotEnvironment(bot.project) }
     let launch
     try {
       this.requireStopVersion(bot.id, version)
@@ -162,7 +164,7 @@ export class AitermTransport {
         ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}),
         // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。共有の設定に残った値で起きないよう、必ず真偽で渡す。
         fast: bot.fastMode === true,
-      }, { env, ...(execution ? { execution } : {}) })
+      }, { ...launchOptions, ...(execution ? { execution } : {}) })
     } catch (error) {
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
       // 残すと席が「動いている」扱いになり、次の送信から起こし直せず、入力も受け付けない。BellTeamの席には、その画面へ答える人が居ない。

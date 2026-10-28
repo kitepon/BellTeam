@@ -1,0 +1,226 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { mkdtemp, mkdir, writeFile, readFile, lstat, rm, symlink, link } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { transferServerState } from '../src/server-state-transfer.mjs'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { fileURLToPath } from 'node:url'
+
+async function fixture(t) {
+  const root = await mkdtemp(join(tmpdir(), 'server-state-transfer-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const put = async (name, value) => { const path = join(root, name); await mkdir(dirname(path), { recursive: true }); await writeFile(path, typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)) }
+  const get = name => readFile(join(root, name), 'utf8')
+  const absent = async name => { await assert.rejects(lstat(join(root, name)), { code: 'ENOENT' }) }
+  const profile = name => ({ schema: 'bellteam.bot.v8', id: name, name, session: name, fastMode: false })
+  const schedule = { schema: 'bellteam.schedule.v1', schedules: [{ id: 'one', enabled: false, lastRunAt: '2026-10-25T00:00:00Z' }] }
+  await put('bots/.initialized', '')
+  await put('bots/bot-a/bot.json', profile('bot-a')); await put('bots/bot-a/schedule.json', schedule)
+  return { root, put, get, absent, profile, schedule, transfer: direction => transferServerState({ root, direction }) }
+}
+
+test('offline入口は固定の移行方向とroot実効UID/GID以外を読書き前に拒否する', async () => {
+  const exec = promisify(execFile), url = new URL('../src/server-state-transfer.mjs', import.meta.url)
+  for (const args of [[], ['unknown'], ['to-server', '/other-root']]) {
+    await assert.rejects(exec(process.execPath, [fileURLToPath(url), ...args]), error =>
+      error.code === 1 && error.stdout === '' && error.stderr === 'SERVER_STATE_TRANSFER_ARGUMENTS\n')
+  }
+  for (const identity of ['getuid', 'geteuid', 'getgid', 'getegid']) {
+    const source = `process.argv = [process.execPath, ${JSON.stringify(fileURLToPath(url))}, 'to-server'];
+      for (const key of ['getuid', 'geteuid', 'getgid', 'getegid']) process[key] = () => key === ${JSON.stringify(identity)} ? 1000 : 0;
+      await import(${JSON.stringify(url.href)});`
+    await assert.rejects(exec(process.execPath, ['--input-type=module', '--eval', source]), error =>
+      error.code === 1 && error.stdout === '' && error.stderr === 'SERVER_STATE_TRANSFER_IDENTITY\n')
+  }
+  const mismatch = `import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';
+    process.argv = [process.execPath, ${JSON.stringify(fileURLToPath(url))}, 'to-server'];
+    for (const key of ['getuid','geteuid','getgid','getegid']) process[key] = () => 0;
+    fs.promises.lstat = async path => {
+      if (!['/srv/bellteam-legacy','/srv/bellteam'].includes(path)) throw Error('unexpected filesystem read');
+      return { isDirectory: () => true, dev: 1, ino: path === '/srv/bellteam' ? 2 : 3 };
+    }; syncBuiltinESMExports(); await import(${JSON.stringify(url.href)});`
+  await assert.rejects(exec(process.execPath, ['--input-type=module', '--eval', mismatch]), error =>
+    error.code === 1 && error.stdout === '' && error.stderr === 'SERVER_STATE_VIEW_IDENTITY\n')
+})
+
+test('全既知stateと画像を移し、最新の予定・停止状態・Bot増減から逆移行する', async t => {
+  const f = await fixture(t)
+  const ai = { schema: 'bellteam.ai-control.v1', paused: true, updatedAt: '2026-10-25T00:00:00Z', resumedAt: null }
+  await f.put('shared/ai-control.json', ai); await f.put('shared/subscription.json', { current: 'subscription' }); await f.put('shared/onboarding.json', { current: 'onboarding' })
+  await f.put('shared/tools/call-bridge/headers', 'Synthetic-Header: test\n')
+  await f.put('bots/bot-a/messages/assets/image.png', Buffer.alloc(200000, 7)); await f.put('bots/bot-a/docs/keep.md', 'seat-owned-doc')
+  await f.put('state/owner-questions/keep.json', { retained: true })
+  assert.deepEqual(await f.transfer('to-server'), { direction: 'to-server', status: 'transferred', bots: 1 })
+  for (const name of ['bots/.initialized', 'bots/bot-a/bot.json', 'bots/bot-a/schedule.json', 'shared/ai-control.json', 'shared/subscription.json', 'shared/onboarding.json', 'shared/tools/call-bridge/headers']) await f.absent(name)
+  assert.equal(await f.get('bots/bot-a/docs/keep.md'), 'seat-owned-doc')
+  assert.equal((await readFile(join(f.root, 'state/bots/bot-a/messages/assets/image.png'))).length, 200000)
+  assert.equal((await lstat(join(f.root, 'state/bots/bot-a/bot.json'))).mode & 0o777, 0o600)
+  assert.equal((await f.transfer('to-server')).status, 'already-transferred')
+  // A deletion and creation under the new server must survive a return.
+  await rm(join(f.root, 'state/bots/bot-a'), { recursive: true })
+  await f.put('state/bots/bot-b/bot.json', f.profile('bot-b'))
+  await f.put('state/bots/bot-b/schedule.json', { ...f.schedule, schedules: [{ id: 'latest', enabled: true }] })
+  await f.put('state/ai-control.json', { ...ai, paused: false, updatedAt: '2026-10-25T01:00:00Z' })
+  assert.equal((await f.transfer('to-legacy')).bots, 1)
+  await f.absent('bots/bot-a/bot.json'); assert.equal(JSON.parse(await f.get('bots/bot-b/schedule.json')).schedules[0].id, 'latest')
+  assert.equal(JSON.parse(await f.get('shared/ai-control.json')).paused, false)
+  assert.equal(await f.get('shared/tools/call-bridge/headers'), 'Synthetic-Header: test\n')
+  assert.equal(JSON.parse(await f.get('state/owner-questions/keep.json')).retained, true)
+  await f.absent('state/bots/.initialized'); assert.equal((await f.transfer('to-legacy')).status, 'already-transferred')
+})
+
+test('途中失敗では完了印を付けず、残した正本と既に移したstateから再開する', async t => {
+  const f = await fixture(t)
+  await f.put('state/bots/bot-a/schedule.json', { ...f.schedule, schedules: [{ id: 'conflict' }] })
+  await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_TRANSFER_CONFLICT' })
+  await f.absent('state/bots/.initialized'); await f.absent('bots/bot-a/bot.json')
+  assert.equal(JSON.parse(await f.get('state/bots/bot-a/bot.json')).id, 'bot-a')
+  await rm(join(f.root, 'state/bots/bot-a/schedule.json'))
+  assert.equal((await f.transfer('to-server')).status, 'transferred')
+  assert.deepEqual(JSON.parse(await f.get('state/bots/bot-a/schedule.json')), f.schedule)
+})
+
+test('全Bot文書を先に検証し、壊れた予定と未完削除は元を残して拒否する', async t => {
+  const f = await fixture(t)
+  await f.put('bots/bot-z/bot.json', f.profile('bot-z')); await f.put('bots/bot-z/schedule.json', 'broken')
+  await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_DOCUMENT_INVALID' })
+  assert.equal(JSON.parse(await f.get('bots/bot-a/bot.json')).id, 'bot-a'); await f.absent('state/bots/.initialized')
+  await rm(join(f.root, 'bots/bot-z'), { recursive: true }); await f.put('state/bots/.deleting/bot-x.json', '{}')
+  await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_PENDING_REMOVAL' })
+})
+
+test('symlink親・画像symlink・hardlinkを追わず、外側を移動しない', async t => {
+  const f = await fixture(t)
+  await f.put('outside/keep.png', 'must stay')
+  await mkdir(join(f.root, 'bots/bot-a/messages'), { recursive: true })
+  await symlink(join(f.root, 'outside'), join(f.root, 'bots/bot-a/messages/assets'))
+  await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_DIRECTORY_INVALID' })
+  assert.equal(await f.get('outside/keep.png'), 'must stay'); await f.absent('state/bots/.initialized')
+  await rm(join(f.root, 'bots/bot-a/messages/assets')); await mkdir(join(f.root, 'bots/bot-a/messages/assets'))
+  await link(join(f.root, 'outside/keep.png'), join(f.root, 'bots/bot-a/messages/assets/linked.png'))
+  await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_FILE_INVALID' })
+  assert.equal(await f.get('outside/keep.png'), 'must stay')
+})
+
+test('commit直後の旧marker残留だけを回収し、復活した旧stateは黙って採用しない', async t => {
+  const f = await fixture(t)
+  await f.transfer('to-server'); await f.put('bots/.initialized', '')
+  assert.equal((await f.transfer('to-server')).status, 'already-transferred'); await f.absent('bots/.initialized')
+  await f.put('bots/bot-a/bot.json', f.profile('bot-a'))
+  await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_TRANSFER_CONFLICT' })
+})
+
+test('空設置と壊れた既設置を区別し、AI停止文書を有効既定へ置き換えない', async t => {
+  const f = await fixture(t)
+  await f.put('shared/ai-control.json', '{}')
+  await assert.rejects(f.transfer('to-server'), { code: 'AI_CONTROL_TRANSFER_INVALID' }); await f.absent('state/bots/.initialized')
+  assert.equal(await f.get('shared/ai-control.json'), '{}')
+  const empty = await mkdtemp(join(tmpdir(), 'server-state-fresh-')); t.after(() => rm(empty, { recursive: true, force: true }))
+  assert.equal((await transferServerState({ root: empty, direction: 'to-server' })).status, 'fresh')
+  await assert.rejects(transferServerState({ root: 'relative', direction: 'to-server' }), { code: 'SERVER_STATE_TRANSFER_OPTIONS' })
+})
+
+test('不正なtarget markerや旧markerをcommit扱いせず、正しい旧完了印を残す', async t => {
+  const f = await fixture(t)
+  await mkdir(join(f.root, 'state/bots'), { recursive: true })
+  await symlink(join(f.root, 'bots/.initialized'), join(f.root, 'state/bots/.initialized'))
+  await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_FILE_INVALID' })
+  assert.ok((await lstat(join(f.root, 'bots/.initialized'))).isFile())
+  await rm(join(f.root, 'state/bots/.initialized'))
+  await f.transfer('to-server')
+  await link(join(f.root, 'state/bots/.initialized'), join(f.root, 'bots/.initialized'))
+  await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_FILE_INVALID' })
+  assert.ok((await lstat(join(f.root, 'bots/.initialized'))).isFile())
+})
+
+test('target新祖先の同期が失敗したらsourceを退役せず、既存targetから同期を再試行する', async t => {
+  const f = await fixture(t)
+  await mkdir(join(f.root, 'state/bots/bot-a'), { recursive: true })
+  const fs = (await import('node:fs')).default, { syncBuiltinESMExports } = await import('node:module')
+  const original = fs.promises.open, fault = new Error('synthetic ancestor fsync failure')
+  fs.promises.open = async (...args) => {
+    const file = await original(...args)
+    if (args[0] === join(f.root, 'state/bots')) file.sync = async () => { throw fault }
+    return file
+  }
+  syncBuiltinESMExports()
+  try {
+    await assert.rejects(f.transfer('to-server'), error => error === fault)
+    assert.equal(JSON.parse(await f.get('bots/bot-a/bot.json')).id, 'bot-a')
+    await f.absent('state/bots/.initialized')
+  } finally { fs.promises.open = original; syncBuiltinESMExports() }
+  assert.equal((await f.transfer('to-server')).status, 'transferred')
+})
+
+test('後続open拒否やopen後stat失敗でも取得済handleを閉じ、元例外を返す', async t => {
+  const f = await fixture(t)
+  await f.put('state/bots/bot-a/bot.json', f.profile('bot-a'))
+  await link(join(f.root, 'state/bots/bot-a/bot.json'), join(f.root, 'linked-profile'))
+  const fs = (await import('node:fs')).default, { syncBuiltinESMExports } = await import('node:module')
+  const original = fs.promises.open
+  let opened = 0, closed = 0, statCalls = 0, inject = false, failAt = 1
+  const fault = new Error('synthetic handle stat failure')
+  fs.promises.open = async (...args) => {
+    const file = await original(...args), close = file.close.bind(file), stat = file.stat.bind(file)
+    opened++
+    file.close = async () => { try { return await close() } finally { closed++ } }
+    file.stat = async () => { if (inject && args[0] === join(f.root, 'bots/bot-a/bot.json') && ++statCalls === failAt) throw fault; return stat() }
+    return file
+  }
+  syncBuiltinESMExports()
+  try {
+    await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_FILE_INVALID' })
+    assert.equal(opened, closed)
+    await rm(join(f.root, 'linked-profile')); inject = true
+    for (const call of [1, 3]) {
+      failAt = call; statCalls = 0
+      await assert.rejects(f.transfer('to-server'), error => error === fault)
+      assert.equal(opened, closed)
+    }
+  } finally { fs.promises.open = original; syncBuiltinESMExports() }
+})
+
+test('marker作成後の同期失敗からの再開でも、新markerを永続化してから旧markerを退役する', async t => {
+  for (const direction of ['to-server', 'to-legacy']) {
+    const f = await fixture(t)
+    if (direction === 'to-legacy') await f.transfer('to-server')
+    const from = join(f.root, direction === 'to-server' ? 'bots' : 'state/bots')
+    const to = join(f.root, direction === 'to-server' ? 'state/bots' : 'bots')
+    const targetMarker = join(to, '.initialized'), sourceMarker = join(from, '.initialized')
+    const fs = (await import('node:fs')).default, { syncBuiltinESMExports } = await import('node:module')
+    const originalOpen = fs.promises.open, originalUnlink = fs.promises.unlink
+    const fault = new Error('synthetic post-marker directory sync failure')
+    let fail = true
+    const events = []
+    fs.promises.open = async (...args) => {
+      const file = await originalOpen(...args), sync = file.sync.bind(file)
+      file.sync = async () => {
+        events.push(['sync', args[0]])
+        if (fail && args[0] === to && await lstat(targetMarker).then(() => true, () => false)) throw fault
+        return sync()
+      }
+      return file
+    }
+    fs.promises.unlink = async path => { events.push(['unlink', path]); return originalUnlink(path) }
+    syncBuiltinESMExports()
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await assert.rejects(f.transfer(direction), error => error === fault)
+        assert.ok((await lstat(sourceMarker)).isFile())
+        assert.ok((await lstat(targetMarker)).isFile())
+      }
+      fail = false; events.length = 0
+      assert.equal((await f.transfer(direction)).status, 'already-transferred')
+      const retirement = events.findIndex(([event, path]) => event === 'unlink' && path === sourceMarker)
+      assert.ok(retirement >= 0)
+      for (const path of [targetMarker, to, ...(direction === 'to-server' ? [join(f.root, 'state')] : []), f.root]) {
+        assert.ok(events.findIndex(([event, name]) => event === 'sync' && name === path) < retirement,
+                  `${path} must be synced before source marker retirement`)
+        assert.ok(events.some(([event, name]) => event === 'sync' && name === path))
+      }
+      await f.absent(direction === 'to-server' ? 'bots/.initialized' : 'state/bots/.initialized')
+    } finally { fs.promises.open = originalOpen; fs.promises.unlink = originalUnlink; syncBuiltinESMExports() }
+  }
+})

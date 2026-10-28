@@ -7,7 +7,7 @@ import { isLocalHostname } from './server-address.mjs'
 import { writeHarnessConfig } from './harness-config.mjs'
 
 // Feature settings own their listeners/configuration. They do not own Bot delivery state.
-export function createApplicationFeatures({ services, aiterm, home, callBridgeHeaders, environment = process.env, notify }) {
+export function createApplicationFeatures({ services, aiterm, home, callBridgeHeaders, environment = process.env, notify, configureHarnessConfig = writeHarnessConfig }) {
   const { bots, messenger, settings, diagnostics, notifications, transport } = services
   let cloudflareAuthorize = null
   const configureCloudflare = config => {
@@ -37,11 +37,11 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
     await closeCallBridge?.()
     closeCallBridge = null
     if (config.enabled) {
-      await mkdir(dirname(callBridgeHeaders), { recursive: true })
+      await mkdir(dirname(callBridgeHeaders), { recursive: true, mode: 0o711 })
       await writeFile(callBridgeHeaders, `Authorization: Bearer ${config.token}\n`, { mode: 0o600 })
       if (callBridgeSocket) closeCallBridge = await listenCallBridge(createCallBridgeServer({ bots, messenger }), callBridgeSocket)
     }
-    await writeHarnessConfig(bots, home, { aiterm: async () => aiterm, callBridge: config })
+    await configureHarnessConfig(bots, home, { aiterm: async () => aiterm, callBridge: config })
   }
   const initialize = async () => {
     for (const [id, apply] of [['diagnostics', configureDiagnostics], ['callBridge', configureCalls], ['notifications', value => notifications.configure(value)]]) {

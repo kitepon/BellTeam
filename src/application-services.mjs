@@ -3,20 +3,22 @@ import { CharacterSheets } from './character-sheets.mjs'
 import { BotAdministration } from './bot-administration.mjs'
 import { BotGoals } from './bot-goals.mjs'
 import { AitermClient, createManagedTransport } from './aiterm-transport.mjs'
+import { runWaitProcess } from './aiterm-wait-process.mjs'
+import { completedThroughlineTurns, latestThroughlineHandoffContext } from './throughline-context.mjs'
 import { AiControl, stopRegisteredWork } from './ai-control.mjs'
 import { ConversationStore } from './conversation-store.mjs'
 import { Diagnostics } from './diagnostics.mjs'
 import { BellTeamMessenger } from './messenger.mjs'
 import { BellTeamMemory } from './memory-service.mjs'
 import { MessageAssets } from './message-assets.mjs'
-import { BotScheduler } from './scheduler.mjs'
+import { BotScheduler, runShellCommand } from './scheduler.mjs'
 import { RoomMessenger } from './room-messenger.mjs'
 import { SecretRequests, secretCompletionMessage } from './secret-requests.mjs'
 import { OwnerQuestions, ownerAnswerMessage } from './owner-questions.mjs'
 import { RoomRegistry } from './room-registry.mjs'
 import { TurnReports, judgeOwnerReport } from './turn-reports.mjs'
 import { SeatTurns } from './seat-turns.mjs'
-import { SelfTurns } from './self-turns.mjs'
+import { SelfTurns, readObserverTurns } from './self-turns.mjs'
 import { IdleSessions } from './idle-sessions.mjs'
 import { PushNotifications } from './push-notifications.mjs'
 import { Subscriptions } from './subscriptions.mjs'
@@ -25,9 +27,9 @@ import { HarnessAuth } from './harness-auth.mjs'
 import { chooseRoomResponder } from './room-routing.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client }) {
+export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null }) {
   const subscriptions = new Subscriptions({
-    path: join(root, 'shared/subscription.json'),
+    path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'),
     environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production',
     accessMode: environment.BELLTEAM_SUBSCRIPTION_ACCESS_MODE ?? 'subscription',
   })
@@ -38,16 +40,20 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   await diagnostics.initialize()
   const notifications = new PushNotifications({ root, bots, diagnostics })
   await notifications.initialize()
-  const memory = new BellTeamMemory({ registry: bots, root })
+  const memory = seatRuntime ? seatRuntime.memory(bots) : new BellTeamMemory({ registry: bots, root })
   await memory.initialize()
   const aiControl = new AiControl({
-    path: join(root, 'shared/ai-control.json'),
+    path: join(root, seatRuntime ? 'state/ai-control.json' : 'shared/ai-control.json'),
     stopAll: () => stopRegisteredWork({ bots, transport, scheduler }),
     beforeResume: at => scheduler.prepareResume(new Date(at)),
   })
   await aiControl.initialize()
   const transport = createManagedTransport({
-    client: client ?? new AitermClient(aiterm),
+    client: client ?? new AitermClient({ ...aiterm, ...(seatRuntime ? { seatProject: root } : {}) }),
+    ...(seatRuntime ? {
+      handoffContext: project => latestThroughlineHandoffContext(project, { seatCommands: true }),
+      waitProcess: (process, signal) => runWaitProcess(process, signal, { seatProject: root }),
+    } : {}),
     assertWorkAllowed: () => aiControl.assertEnabled(),
     prepareStartup: async (bot, shortTermMemory) => {
       await bots.prepareStartupContext(bot.id, shortTermMemory)
@@ -63,7 +69,10 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   } })
   const logPath = join(root, 'logs/direct-messages.jsonl')
   const store = new ConversationStore({ logPath })
-  const assets = new MessageAssets({ root })
+  const assets = new MessageAssets({ root, ...(seatRuntime ? {
+    botsAssetsRoot: join(root, 'state/bots'),
+    readImage: (image, maxBytes) => seatRuntime.readImage(image, maxBytes),
+  } : {}) })
   const messenger = new BellTeamMessenger({
     bots, transport, logPath, assets,
     admitWork: () => aiControl.admit(),
@@ -73,6 +82,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   })
   const onboarding = new Onboarding({
     root, bots, client: transport.client, subscriptions,
+    ...(seatRuntime ? { path: join(root, 'state/onboarding.json'), projectFiles: seatRuntime.projectFiles } : {}),
     startConversation: (bot, message) => messenger.enqueueUserTurn({ target: bot.id, message, recordUser: false }),
   })
   await onboarding.initialize()
@@ -89,6 +99,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     appendAnswer: (botId, groupId, text) => messenger.appendInterimWords(botId, groupId, [{ text, kind: 'answer' }]),
     afterTurn: turn => turnReports.afterTurn(turn),
     shown: botId => transport.shownInSelfTurn(botId),
+    ...(seatRuntime ? { read: request => readObserverTurns(request, { seatCommands: true }),
+      changed: seatRuntime.throughlineChanged() } : {}),
   })
   await selfTurns.initialize()
   // BellTeamが始めていないターンも、Aitermに席の今のターンを聞いて「処理中」と合間の言葉に出す。
@@ -109,10 +121,13 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     onTurnEnd: turn => turnReports.afterTurn(turn),
   })
   const scheduler = new BotScheduler({ registry: bots, messenger, transport, rooms, roomMessenger,
+    ...(seatRuntime ? { completedTurns: project => completedThroughlineTurns(project, { seatCommands: true }),
+      runCommand: request => runShellCommand(request, { seatProject: request.cwd }) } : {}),
     paused: () => aiControl.paused,
     assertWorkAllowed: () => aiControl.assertEnabled(),
   })
-  const characterSheets = new CharacterSheets({ projectPath: id => bots.projectPath(id) })
+  const characterSheets = seatRuntime ? seatRuntime.characterSheets(id => bots.projectPath(id))
+    : new CharacterSheets({ projectPath: id => bots.projectPath(id) })
   // Bot設定変更・停止・削除の業務判断。公開APIと席MCPが同じ判断を使う。
   const administration = new BotAdministration({ bots, rooms, transport })
   const secretRequests = new SecretRequests({

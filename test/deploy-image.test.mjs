@@ -15,7 +15,8 @@ async function fixture(t) {
   await mkdir(join(root, 'scripts'))
   await mkdir(join(root, 'bin'))
   for (const name of ['deploy.sh','deploy-image.sh','check-deploy-quiet.sh','check-deploy-quiet.mjs'])
-    await copyFile(new URL(`../scripts/${name}`, import.meta.url), join(root,'scripts',name))
+    await copyFile(name === 'deploy.sh' && process.env.DEPLOY_UNDER_TEST ? process.env.DEPLOY_UNDER_TEST
+      : new URL(`../scripts/${name}`, import.meta.url), join(root,'scripts',name))
   const updater = `#!/bin/sh
 docker fixture-cursor "$@"
 `
@@ -51,41 +52,7 @@ if (args[0] === 'compose' && args[1] === 'up' && process.env.FIXTURE_FAIL === 'u
   return {root,env,async calls(){return (await readFile(env.FIXTURE_LOG,'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse)}}
 }
 
-test('商用imageは同じdigest・構成で取得し、旧本体のquiet2点を挟んで一度だけupする', async t => {
-  const f = await fixture(t)
-  const { stdout } = await exec('sh',['scripts/deploy-image.sh'],{cwd:f.root,env:f.env})
-  assert.match(stdout,/deploy-exit=0/u)
-  const calls = await f.calls()
-  assert.deepEqual(calls.map(row => row.args[0] === 'compose' ? row.args[1] : row.args[0]),
-    ['container','image','container','exec','pull','run','run','exec','fixture-cursor','exec','up'])
-  for (const row of calls) {
-    assert.equal(row.cwd,f.root)
-    assert.equal(row.compose,`${f.root}/distribution/server/compose.yaml:${f.root}/distribution/internal/compose.overlay.yaml`)
-    assert.equal(row.project,'bellteam');assert.equal(row.image,image)
-    assert.equal(row.profile,`${f.root}/src/distribution-profile.mjs`)
-  }
-  for (const row of calls.filter(row=>row.args[0]==='run')) {
-    assert.ok(row.args.includes(image));assert.ok(row.args.includes('--read-only'))
-    assert.deepEqual(row.args.slice(1,5),['--pull','never','--rm','--network'])
-  }
-  assert.deepEqual(calls.at(-1).args,['compose','up','-d','--no-build','--pull','never'])
-  assert.equal(calls.some(row=>row.args.includes('stop')||row.args.includes('build')),false)
-})
-
-for (const [failure,code,quiet,cursor,up] of [
-  ['pull',7,0,0,0],['extract',8,0,0,0],['quiet1',2,1,0,0],
-  ['cursor',9,1,1,0],['quiet2',2,2,1,0],['up',10,2,1,1],
-]) test(`${failure}失敗は記録し、未実行の更新・upや旧本体stopを行わない`,async t=>{
-  const f=await fixture(t)
-  const result=await exec('sh',['scripts/deploy-image.sh'],{cwd:f.root,env:{...f.env,FIXTURE_FAIL:failure}}).catch(error=>error)
-  assert.equal(result.code,code);assert.match(result.stdout,new RegExp(`deploy-exit=${code}`,'u'))
-  const calls=await f.calls()
-  assert.equal(calls.filter(row=>row.args[0]==='exec'&&row.args.includes('--input-type=module')).length,quiet)
-  assert.equal(calls.filter(row=>row.args[0]==='fixture-cursor').length,cursor)
-  assert.equal(calls.filter(row=>row.args[0]==='compose'&&row.args[1]==='up').length,up)
-  assert.equal(calls.some(row=>row.args.includes('stop')||row.args.includes('build')),false)
-})
-
+// Adapter transition/failure coverage is in deploy-state-transition.test.mjs.
 test('未固定imageやquiet対象欠落はgit/SSHを始める前に拒否する',async t=>{
   const f=await fixture(t)
   for(const bin of ['git','ssh']){
@@ -111,7 +78,8 @@ if(args[0]==='rev-parse')console.log('${sha}')
   const ssh=`#!/usr/bin/env node
 const fs=require('node:fs'),args=process.argv.slice(2),command=args[1]
 fs.appendFileSync(process.env.FIXTURE_LOG,JSON.stringify({tool:'ssh',command})+'\\n')
-if(command.includes('/api/bots'))console.log('{"bots":[]}')
+if(command.includes('sh -s'))console.log('/home/kite/BellTeam/.bellteam-compose.ABC123/previous-normal.json')
+else if(command.includes('/api/bots'))console.log('{"bots":[]}')
 else if(command.includes('/healthz'))console.log('{"status":"ok"}')
 else if(command.includes('tail -3'))console.log('deploy-exit=0')
 `
@@ -125,7 +93,8 @@ else if(command.includes('tail -3'))console.log('deploy-exit=0')
   assert.deepEqual(calls.filter(row=>row.tool==='git').map(row=>row.args),
     [['status','--porcelain','--untracked-files=no'],['push','-q','origin','HEAD:main'],['rev-parse','HEAD']])
   const commands=calls.filter(row=>row.tool==='ssh').map(row=>row.command)
-  assert.ok(commands.some(command=>command.includes('git merge -q --ff-only origin/main')&&command.includes(sha)))
+  assert.ok(commands.some(command=>command.includes('sh -s')&&command.includes(sha)))
+  assert.match(await readFile(join(f.root,'scripts/deploy.sh'),'utf8'),/git merge -q --ff-only origin\/main/)
   assert.ok(commands.some(command=>command.includes('queue-before-deploy-')))
   const launch=commands.filter(command=>command.includes('setsid nohup'))
   assert.equal(launch.length,1)
@@ -133,5 +102,44 @@ else if(command.includes('tail -3'))console.log('deploy-exit=0')
     assert.ok(launch[0].includes(`BELLTEAM_SERVER_IMAGE=${image}`))
     assert.match(launch[0],/BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-fixture sh scripts\/deploy-image\.sh/u)
     assert.doesNotMatch(launch[0],/compose build/u)
-  }else assert.match(launch[0],/docker compose build --pull --no-cache/u)
+  }else assert.match(launch[0],/BELLTEAM_SERVER_IMAGE= BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-fixture sh scripts\/deploy-image\.sh/u)
+})
+
+
+test('build adapter: regular deploy dispatches its empty image and selected quiet to the shared adapter once', async t => {
+  const f = await fixture(t)
+  for (const [name, source] of [
+    ['git', "const a=process.argv.slice(2);if(a[0]==='rev-parse')console.log('" + 'b'.repeat(40) + "')"],
+    ['ssh', String.raw`const fs=require('node:fs'),c=process.argv[3];fs.appendFileSync(process.env.FIXTURE_LOG,JSON.stringify({tool:'ssh',command:c})+'\n');
+if(c.includes('sh -s'))console.log('/home/kite/BellTeam/.bellteam-compose.ABC123/previous-normal.json');else if(c.includes('/api/bots'))console.log('{"bots":[]}');else if(c.includes('/healthz'))console.log('{"status":"ok"}');else if(c.includes('tail -3'))console.log('deploy-exit=0')`],
+  ]) {
+    await writeFile(join(f.root, 'bin', name), '#!/usr/bin/env node\n' + source)
+    await chmod(join(f.root, 'bin', name), 0o700)
+  }
+  await exec('sh', ['scripts/deploy.sh'], { cwd: f.root, env: { ...f.env, BELLTEAM_DEPLOY_IMAGE: '' } })
+  const launches = (await f.calls()).filter(e => e.command?.includes('setsid nohup'))
+  assert.equal(launches.length, 1)
+  assert.match(launches[0].command, /BELLTEAM_SERVER_IMAGE= BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-fixture sh scripts\/deploy-image\.sh/)
+  assert.doesNotMatch(launches[0].command, /compose build|update-cursor|compose up/)
+})
+
+
+for (const phase of ['queue', 'health']) test('main integration: ' + phase + ' refusal blocks successful completion of shared build dispatch', async t => {
+  const f = await fixture(t)
+  for (const [name, source] of [
+    ['git', "const a=process.argv.slice(2);if(a[0]==='rev-parse')console.log('" + 'b'.repeat(40) + "')"],
+    ['ssh', String.raw`const fs=require('node:fs'),c=process.argv[3];fs.appendFileSync(process.env.FIXTURE_LOG,JSON.stringify({command:c})+'\n');
+if(c.includes('queue-before-deploy')&&process.env.TEST_CONTROL==='queue')process.exit(71);
+if(c.includes('sh -s'))console.log('/home/kite/BellTeam/.bellteam-compose.ABC123/previous-normal.json');else if(c.includes('/api/bots'))console.log('{"bots":[]}');else if(c.includes('/healthz'))console.log('{"status":"not-ok","reason":"ok"}');else if(c.includes('tail -3'))console.log('deploy-exit=0')`],
+  ]) {
+    await writeFile(join(f.root, 'bin', name), '#!/usr/bin/env node\n' + source)
+    await chmod(join(f.root, 'bin', name), 0o700)
+  }
+  await writeFile(join(f.root, 'bin/sleep'), '#!/bin/sh\nexit 0\n')
+  await chmod(join(f.root, 'bin/sleep'), 0o700)
+  await assert.rejects(exec('sh', ['scripts/deploy.sh'], { cwd: f.root, env: { ...f.env, BELLTEAM_DEPLOY_IMAGE: '', TEST_CONTROL: phase } }),
+    e => e.code === 1 && e.stderr.includes(phase === 'queue' ? '処理待ち一覧' : 'healthz'))
+  const launches = (await f.calls()).filter(e => e.command?.includes('setsid nohup'))
+  assert.equal(launches.length, phase === 'queue' ? 0 : 1)
+  if (launches.length) assert.match(launches[0].command, /BELLTEAM_SERVER_IMAGE= BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-fixture sh scripts\/deploy-image\.sh/)
 })

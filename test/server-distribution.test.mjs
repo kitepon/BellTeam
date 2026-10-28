@@ -1,3 +1,4 @@
+import { frozenComposeCases } from './helpers/installer-frozen-compose.mjs'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -6,7 +7,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import test from 'node:test'
 
-const exec = promisify(execFile)
+const exec = promisify(execFile), pinnedImage = 'sha256:' + 'a'.repeat(64)
 
 // installerのDocker入口を記録し、正常起動後に接続先を返すことを確認する。
 test('installerはDockerの起動完了後に直接接続URLと公式認証の案内を返す', async t => {
@@ -20,17 +21,31 @@ test('installerはDockerの起動完了後に直接接続URLと公式認証の�
     await copyFile(new URL(`../distribution/server/${path}`, import.meta.url), join(install, path))
   }
   await copyFile(new URL('../scripts/update-cursor.sh', import.meta.url), join(image, 'scripts/update-cursor.sh'))
+  await copyFile(new URL('../scripts/assert-state-writers-stopped.sh', import.meta.url), join(image, 'scripts/assert-state-writers-stopped.sh'))
   await copyFile(new URL('../compose.cursor-update.yaml', import.meta.url), join(image, 'compose.cursor-update.yaml'))
+  await copyFile(new URL('../compose.state-maintenance.json', import.meta.url), join(image, 'compose.state-maintenance.json'))
+  await copyFile(new URL('../compose.state-prepare.yaml', import.meta.url), join(image, 'compose.state-prepare.yaml'))
   const commands = join(root, 'commands')
   await mkdir(join(root, 'bin'))
   await writeFile(join(root, 'bin/docker'), `#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_COMMANDS"
+${frozenComposeCases}
 if [ "$2" = config ] && [ "$3" = --images ]; then printf '%s\\n' "\${TEST_IMAGES-fixture-server}"; fi
-if [ "$2" = config ] && [ "$3" = --format ]; then printf '%s\\n' 'name: fixture' 'services:' '  bellteam:' '    environment:' '      BELLTEAM_BUGHUB_KEY: synthetic-only' 'volumes:' '  cursor-cli:' '    name: fixture-cursor'; fi
+if [ "$2" = config ] && [ "$3" = --format ]; then
+  if [ "$4" = json ]; then printf '%s\\n' '{"name":"fixture","services":{"bellteam":{"image":"fixture-server","environment":{"SECRET":"synthetic-only"}}}}'
+  else printf '%s\\n' 'name: fixture' 'services:' '  bellteam:' '    environment:' '      BELLTEAM_BUGHUB_KEY: synthetic-only' 'volumes:' '  cursor-cli:' '    name: fixture-cursor'; fi
+fi
 if [ "$2" = port ]; then printf '%s\\n' "$TEST_ENDPOINT"; fi
 case "$*" in
+  'stop cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc') exit "\${TEST_STOP_EXIT:-0}";;
+  'compose --project-directory '*'/install -f '*'/compose.state-maintenance.json -p '*' run --pull never --rm --no-deps -T state-maintenance to-server') exit "\${TEST_TRANSFER_EXIT:-0}";;
   'image inspect fixture-server') exit "\${TEST_INSPECT_EXIT:-0}";;
-  'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/'*)
+  'image inspect --format {{.Id}} fixture-server') printf 'sha256:%s\\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;;
+  'image inspect --format {{.Id}} sha256:'*) for image do :; done; echo "$image";;
+  *'/app/src/server-state-writers.mjs plan') printf '%s\\n' '{"roots":["/fixture/data","/fixture/home"],"volume":"fixture-cursor"}';;
+  *'/app/src/server-state-writers.mjs sources') printf 'planned\\n%s\\n' "$TEST_IMAGE";;
+  *'/app/src/server-state-writers.mjs verify') exit "\${TEST_WRITERS_EXIT:-0}";;
+  'run --pull never --rm --network none --read-only --entrypoint /bin/cat '*'/app/'*)
     [ "\${TEST_EXTRACT_EXIT:-0}" = 0 ] || exit "$TEST_EXTRACT_EXIT"
     for path do :; done
     cat "$TEST_IMAGE/\${path#/app/}";;
@@ -48,17 +63,23 @@ esac
     assert.match(stdout, /公式サイトで認証/)
     const calls = (await readFile(commands, 'utf8')).trim().split('\n')
     assert.equal(calls[0], 'compose pull')
-    assert.equal(calls[1], 'compose config --images')
-    assert.equal(calls[2], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/compose.cursor-update.yaml')
-    assert.equal(calls[3], 'run --pull never --rm --network none --read-only --entrypoint /bin/cat fixture-server /app/scripts/update-cursor.sh')
-    assert.match(calls[4], /^compose run --pull never --rm --no-deps --user root bellteam/)
-    assert.equal(calls[5], 'compose stop bellteam')
-    assert.equal(calls[6], 'compose config --images')
-    assert.equal(calls[7], 'compose config --format yaml')
-    assert.equal(calls[8], 'volume inspect fixture-cursor')
-    assert.match(calls[9], /compose -f .*compose.cursor-update.yaml run --rm --no-deps cursor-update$/)
-    assert.equal(calls[10], 'compose up -d --wait --wait-timeout 120 --pull never')
-    assert.equal(calls[11], 'compose port bellteam 4180')
+    assert.equal(calls[1], 'compose config --format json')
+    assert.ok(calls.some(call => /compose -f .*normal.raw.json config --images/.test(call)))
+    assert.ok(calls.indexOf('image inspect --format {{.Id}} fixture-server') < calls.indexOf('stop cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'))
+    const extracted = calls.filter(call => call.startsWith('run --pull never --rm --network none --read-only --entrypoint /bin/cat '))
+    assert.deepEqual(extracted, ['compose.cursor-update.yaml', 'compose.state-maintenance.json', 'compose.state-prepare.yaml', 'scripts/update-cursor.sh', 'scripts/assert-state-writers-stopped.sh']
+      .map(path => `run --pull never --rm --network none --read-only --entrypoint /bin/cat ${pinnedImage} /app/${path}`))
+    const stopped = calls.indexOf('stop cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc')
+    const verified = calls.findIndex(call => call.endsWith('/app/src/server-state-writers.mjs verify'))
+    const updated = calls.findIndex(call => call.endsWith('--no-deps cursor-update'))
+    const transferred = calls.findIndex(call => call.endsWith('run --pull never --rm --no-deps -T state-maintenance to-server'))
+    const prepared = calls.findIndex(call => call.endsWith('run --pull never --rm --no-deps -T state-prepare'))
+    const started = calls.indexOf('compose up -d --wait --wait-timeout 120 --pull never')
+    assert.ok(stopped >= 0 && verified > stopped && prepared > verified && transferred > prepared && updated > transferred && started > updated)
+    assert.ok(!calls.some(call => call.startsWith('compose run --pull never --rm --no-deps --user 0:0')))
+    assert.ok(calls.includes('compose config --format json'))
+    assert.ok(calls.includes('ps -aq --no-trunc'))
+    assert.equal(calls.at(-1), 'compose port bellteam 4180')
     assert.doesNotMatch(stdout, /synthetic-only/)
   }
   await writeFile(commands, '')
@@ -66,10 +87,18 @@ esac
     env: { ...env, TEST_CURSOR_EXIT: '37' },
   }), error => error.code === 37 && /停止したまま/.test(error.stderr))
   assert.doesNotMatch(await readFile(commands, 'utf8'), /compose up /)
+  for (const extra of [{ TEST_STOP_EXIT: '41' }, { TEST_WRITERS_EXIT: '43' }, { TEST_TRANSFER_EXIT: '44' }]) {
+    await writeFile(commands, '')
+    await assert.rejects(exec('sh', [join(install, 'install.sh')], { env: { ...env, ...extra } }),
+                         error => error.code === Number(extra.TEST_STOP_EXIT ?? extra.TEST_WRITERS_EXIT ?? extra.TEST_TRANSFER_EXIT))
+    const failedCalls = await readFile(commands, 'utf8')
+    assert.doesNotMatch(failedCalls, /--no-deps cursor-update|compose up /)
+    if (extra.TEST_STOP_EXIT || extra.TEST_WRITERS_EXIT) assert.doesNotMatch(failedCalls, /state-maintenance to-server/)
+  }
   for (const extra of [{ TEST_EXTRACT_EXIT: '23' }, { TEST_IMAGES: 'first\nsecond' }, { TEST_IMAGES: '' }]) {
     await writeFile(commands, '')
     await assert.rejects(exec('sh', [join(install, 'install.sh')], { env: { ...env, ...extra } }))
-    assert.doesNotMatch(await readFile(commands, 'utf8'), /compose (run|stop|up) /)
+    assert.doesNotMatch(await readFile(commands, 'utf8'), /(stop [a-f0-9]|compose (run|up) )/)
   }
   // ローカルbuildを使うときも、公開版と同じ更新・起動経路で設定を保持する。
   await writeFile(commands, '')
@@ -77,7 +106,8 @@ esac
     env: { ...env, TEST_ENDPOINT: '127.0.0.1:18891' },
   })
   const localCalls = (await readFile(commands, 'utf8')).trim().split('\n')
-  assert.deepEqual(localCalls.slice(0, 2), ['compose config --images', 'image inspect fixture-server'])
+  assert.equal(localCalls[0], 'compose config --format json')
+  assert.ok(localCalls.includes('image inspect fixture-server'))
   assert.ok(!localCalls.includes('compose pull'))
   assert.ok(localCalls.some(call => call.endsWith('--no-deps cursor-update')))
   assert.ok(localCalls.includes('compose up -d --wait --wait-timeout 120 --pull never'))
@@ -85,7 +115,7 @@ esac
   await assert.rejects(exec('sh', [join(install, 'install.sh'), '--no-pull'], {
     env: { ...env, TEST_INSPECT_EXIT: '1' },
   }), error => /先にビルド/.test(error.stderr))
-  assert.doesNotMatch(await readFile(commands, 'utf8'), /compose (pull|run|stop|up) /)
+  assert.doesNotMatch(await readFile(commands, 'utf8'), /(stop [a-f0-9]|compose (pull|run|up) )/)
   for (const args of [['--unknown'], ['--no-pull', 'extra']]) {
     await writeFile(commands, '')
     await assert.rejects(exec('sh', [join(install, 'install.sh'), ...args], { env }), error => error.code === 2)
@@ -103,7 +133,9 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'web/index.html', 'integrations/bellteam.mjs', 'config/common-agents.md', 'config/models.json',
     'config/setup-guide.json', 'config/ponytail-LICENSE', 'docs/bot-environment.md', 'docs/onboarding.md',
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
-    'compose.cursor-update.yaml', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
+    'compose.cursor-update.yaml', 'compose.state-prepare.yaml', 'compose.state-maintenance.json', 'src/server-state-prepare.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
+    'scripts/seat-exec.c', 'scripts/server-start.c',
+    'scripts/assert-state-writers-stopped.sh',
     'runtime/home/auth.json', '.env', 'config/bots.json', 'services/subscriptions/keys/private.p8',
     'distribution/server/bridge/bridge.env',
   ]
@@ -129,7 +161,8 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   assert.ok(pathsInArchive.includes('docs/onboarding.md'))
   for (const name of bridgeFiles) assert.ok(pathsInArchive.includes(`bridge/${name}`))
   assert.ok(!pathsInArchive.includes('bridge/bridge.env'), '利用者のBridge認証設定は配布しない')
-  for (const path of ['compose.cursor-update.yaml', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh']) assert.ok(pathsInArchive.includes(path))
+  for (const path of ['compose.cursor-update.yaml', 'compose.state-prepare.yaml', 'compose.state-maintenance.json', 'src/server-state-prepare.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh']) assert.ok(pathsInArchive.includes(path))
+  for (const path of ['scripts/seat-exec.c', 'scripts/server-start.c']) assert.ok(pathsInArchive.includes(path))
   assert.ok(!pathsInArchive.includes('config/models.json'), 'モデル候補は導入先CLIから取得し古い一覧を同梱しない')
   assert.deepEqual(JSON.parse(await readFile(join(output, 'config/bots.json'), 'utf8')).bots, [])
   for (const path of ['.env', 'runtime/home/auth.json', 'services/subscriptions/keys/private.p8']) assert.ok(!pathsInArchive.includes(path))

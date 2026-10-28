@@ -1,0 +1,19 @@
+# 控え保存の失敗と移行入口
+
+PR42の途中工程。全体はDraft NOTDEPLOYABLEで、本書や小試験の成功を実writer停止・UID/ACL/mount・通常起動の受入へ使わない。廃止した専用observer/host actor/consumerの本文や束は復元・移植しない。
+
+`migrateServerState` はlegacy、serverの順に両viewの `backupServerState` をawaitし、両方が返った後だけrelocate/transfer/ownershipへ進む。backupの例外を成功へ変換するcatchは無い。CLIは失敗を終了code1と固定error codeへ変え、通常起動は実行しない。
+
+`backupServerState` は元fileを開いて読取り、別の控え先へwrite/syncし、元metadataを再確認してから `complete.json` を作る。fileの処理失敗でもcloseを試み、処理とcloseの両方が失敗した場合はAggregateErrorで失敗を保持する。完了印のwrite/sync/close又は最終directory sync失敗では完了印を除き、元fileや途中の控えを巻き戻さない。既存の完成・途中控え先はEEXISTで止まり、自動消去や再利用はしない。
+
+成功時は既statusにroot/destinationと完了fileのpath/device/inode/sha256を加え、`migrateServerState` が両viewの返却をbackupsへ保持する。完了fileのwrite/sync後とclose・親directory sync後のidentity/private metadataが異なれば、未知fileを削除せずSERVER_STATE_BACKUP_RECEIPT_CHANGEDで拒否し、移行しない。完了fileの形式は従来のままであり、参照hashを全backup内容や実containerの検証へ拡大しない。
+
+今回の読取りでは、この失敗伝播に追加修理が必要な欠陥は見つからなかった。製品実装を変えず、新しい4反例で第2viewのread・出力write・出力sync・完了印closeの失敗を両方向で確認した。元2viewのdata/markerを保持し、第1viewの完了した控えと第2viewの途中出力を残す。第2viewの完了印は無く、relocateで作るrootも現れない。write反例は1byteを書いた後にEIOを返す。close反例は実FDを閉じた後にEIOを返す人工例で、実OSでcloseが失敗した際のFD状態を保証しない。
+
+これは小さな通常tmp FSとfile handleの局所的な故障注入であり、実容量不足、電源断、kernel/daemon異常やdurability全体の合格ではない。元openの失敗、その他のdirectory sync、複数同時失敗を今回新たに実行したとは扱わない。既存の成功群は再実行していない。
+
+## 通常installerへ残る接続
+
+現 `distribution/server/install.sh` は `set -eu` で移行CLIの非0を後続Cursor/upへ進めないが、通常serviceにroot/Nodeを指定する旧保守runを使う。必要な二view・6bind・backupを渡す既存 `compose.state-maintenance.json` と、prepare/同一writer排他を含む全手順はまだ接続されていない。`scripts/package-server.mjs` は既prepare/maintenanceの両Compose fileを配布対象に含めている。
+
+この差を、backup componentの成功やwriter metadata snapshotで埋めない。次の通常caller変更は、既normal Composeのfile列/projectを保ったmaintenance設定の選択と必要入力を明示し、親死亡・例外・unknownではnormalを起動せず未完を保持する必要がある。固定CLIが要求する旧新viewのidentity、全writer停止/respawn抑止、親ACL/alias、準備済みbind、backupの実整合、許可内の片方normalと最新dataのhealth受入は未成立のまま。新private runnerやhost発行の移植では解決しない。

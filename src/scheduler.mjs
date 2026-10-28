@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { runtimeEnvironment } from './runtime-home.mjs'
+import { createSeatProcessRunner } from './seat-process.mjs'
 import { scheduleRevision } from './schedule-mutations.mjs'
 
 import { completedThroughlineTurns, NIGHTLY_RESTART_TURNS } from './aiterm-transport.mjs'
@@ -202,8 +203,13 @@ export function tokyoMaintenanceDate(now) {
   return `${values.year}-${values.month}-${values.day}`
 }
 
-export async function runShellCommand({ command, cwd, signal }) {
+export async function runShellCommand({ command, cwd, signal: commandSignal }, options = {}) {
+  const signal = commandSignal ?? options.signal
   if (signal?.aborted) return { code: null, signal: 'SIGTERM', stdout: '', stderr: '', stopConfirmed: true }
+  if (Object.hasOwn(options, 'seatProject')) {
+    if (options.seatProject !== cwd) throw Object.assign(new Error('SEAT_PROJECT_MISMATCH'), { code: 'SEAT_PROJECT_MISMATCH' })
+    return createSeatProcessRunner(options.seatProject)('sh', ['-c', command], { signal, acceptNonzero: true })
+  }
   return new Promise((resolve, reject) => {
     const grouped = process.platform !== 'win32'
     // Environment loading belongs to the same cancellable process group as the command.

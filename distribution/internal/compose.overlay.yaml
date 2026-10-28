@@ -4,9 +4,16 @@ services:
   bellteam:
     container_name: bellteam
     environment:
+      BELLTEAM_NORMAL_ADMISSION_TOKEN: ${BELLTEAM_NORMAL_ADMISSION_TOKEN:?internal normal admission must be frozen}
       BELLTEAM_DIAGNOSTIC_INVESTIGATIONS: /srv/bellteam/bots/bot-7b140b27/integrations/bughub-event-audit-20261016/registration-investigations.json
       BELLTEAM_SUBSCRIPTION_ACCESS_MODE: ${BELLTEAM_SUBSCRIPTION_ACCESS_MODE:-developer}
     volumes:
+      - type: bind
+        source: /home/kite/BellTeam/runtime/server-only/maintenance-control
+        target: /run/bellteam-maintenance
+        read_only: true
+        bind:
+          create_host_path: false
       - type: bind
         source: /home/kite/BellTeam/runtime/home
         target: /home/bell
@@ -14,6 +21,36 @@ services:
       - type: bind
         source: /home/kite/BellTeam/runtime/data
         target: /srv/bellteam
+      - type: bind
+        source: ${BELLTEAM_STATE_PARENT:?host owner must prepare the private parent}/state
+        target: /srv/bellteam/state
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BELLTEAM_STATE_PARENT:?host owner must prepare the private parent}/rooms
+        target: /srv/bellteam/rooms
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BELLTEAM_STATE_PARENT:?host owner must prepare the private parent}/owner
+        target: /srv/bellteam/owner
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BELLTEAM_STATE_PARENT:?host owner must prepare the private parent}/logs
+        target: /srv/bellteam/logs
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BELLTEAM_STATE_PARENT:?host owner must prepare the private parent}/bellteam-settings
+        target: /srv/bellteam/shared/tools/bellteam-settings
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BELLTEAM_STATE_PARENT:?host owner must prepare the private parent}/apns
+        target: /srv/bellteam/shared/tools/apns
+        bind:
+          create_host_path: false
       - type: bind
         source: /home/kite/BellTeam/runtime/data/shared/throughline
         target: /home/bell/.throughline

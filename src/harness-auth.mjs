@@ -114,7 +114,7 @@ export class HarnessAuth {
       harness: HARNESS[harness], action, ...options,
       ...(session ? { session_id: session } : {}),
       ...(cwd ? { cwd } : {}),
-    }, { env: runtimeEnvironment() })
+    }, this.client.authOptions?.() ?? { env: runtimeEnvironment() })
     const failure = authResponseFailure(result, session)
     if (failure) throw failure
     const receipt = result.structuredContent

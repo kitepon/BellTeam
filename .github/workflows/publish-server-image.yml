@@ -14,8 +14,11 @@ on:
       - integrations/**
       - distribution/server/**
       - scripts/package-server.mjs
+      - scripts/assert-state-writers-stopped.sh
       - scripts/update-cursor.sh
       - scripts/cursor-update-entrypoint.sh
+      - scripts/seat-exec.c
+      - scripts/server-start.c
       - compose.cursor-update.yaml
       - config/common-agents.md
       - config/ponytail-LICENSE

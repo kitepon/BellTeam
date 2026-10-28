@@ -11,6 +11,7 @@ services:
     tmpfs:
       - /tmp:exec,size=8g
       - /run:size=64m
+      - /run/bellteam-server:uid=1001,gid=1001,mode=0700,size=64m
     environment:
       BELLTEAM_CF_TEAM_DOMAIN: ${BELLTEAM_CF_TEAM_DOMAIN:-}
       BELLTEAM_CF_AUD: ${BELLTEAM_CF_AUD:-}
@@ -26,6 +27,36 @@ services:
       - ./runtime/home:/home/bell
       - cursor-cli:/home/bell/.local
       - ./runtime/data:/srv/bellteam
+      - type: bind
+        source: ./runtime/server-only/state-data/state
+        target: /srv/bellteam/state
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./runtime/server-only/state-data/rooms
+        target: /srv/bellteam/rooms
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./runtime/server-only/state-data/owner
+        target: /srv/bellteam/owner
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./runtime/server-only/state-data/logs
+        target: /srv/bellteam/logs
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./runtime/server-only/state-data/bellteam-settings
+        target: /srv/bellteam/shared/tools/bellteam-settings
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./runtime/server-only/state-data/apns
+        target: /srv/bellteam/shared/tools/apns
+        bind:
+          create_host_path: false
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4180/healthz').then(r=>{if(!r.ok)throw Error(r.status)})"]
       interval: 10s

@@ -1,13 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { execFile } from 'node:child_process'
-import { access, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { promisify } from 'node:util'
+import { lstatSync } from 'node:fs'
+import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 
 import { Cron } from 'croner'
 
 import { loadBots } from './bots.mjs'
-import { CHARACTER_SHEET_DIRECTORY } from './character-sheets.mjs'
+import { ProjectFiles } from './project-files.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { mutateSchedules, nextScheduleRevision, scheduleRevision } from './schedule-mutations.mjs'
 
@@ -16,19 +15,31 @@ const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,199}$/u
 const COLORS = new Set(['rose', 'indigo', 'violet'])
 const HARNESSES = new Set(['claude', 'codex', 'grok', 'cursor'])
 const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'color'])
-const exec = promisify(execFile)
 
 export class BotRegistry extends Map {
-  constructor({ seedPath, botsRoot, now = () => new Date(), id = randomUUID, botId = () => `bot-${randomUUID().slice(0, 8)}`, onChange = async () => {}, models = new LiveModelCatalog() }) {
+  constructor(options) {
+    const { seedPath, botsRoot, now = () => new Date(), id = randomUUID, botId = () => `bot-${randomUUID().slice(0, 8)}`, onChange = async () => {}, models = new LiveModelCatalog(), projectFiles = new ProjectFiles() } = options
+    const stateRoot = Object.hasOwn(options, 'stateRoot') ? options.stateRoot : botsRoot
     super()
     this.seedPath = seedPath
     this.botsRoot = botsRoot
+    if (typeof stateRoot !== 'string' || !isAbsolute(stateRoot) || stateRoot.includes('\0'))
+      throw Object.assign(new Error('BOT_STATE_ROOT_INVALID'), { code: 'BOT_STATE_ROOT_INVALID' })
+    this.stateRoot = resolve(stateRoot)
+    this.separateState = this.stateRoot !== resolve(botsRoot)
+    const inside = relative(resolve(botsRoot), this.stateRoot)
+    const enclosing = relative(this.stateRoot, resolve(botsRoot))
+    if (this.separateState && (inside !== '..' && !inside.startsWith('../')
+      || enclosing !== '..' && !enclosing.startsWith('../')))
+      throw Object.assign(new Error('BOT_STATE_ROOT_INVALID'), { code: 'BOT_STATE_ROOT_INVALID' })
     this.now = now
     this.id = id
     this.botId = botId
     this.onChange = onChange
     this.models = models
+    this.projectFiles = projectFiles
     this.watchers = new Set()
+    this.deletionIntents = new Set()
   }
 
   // 一覧と設定の変更を、同じprocessの購読者へ知らせる（アプリが一覧を読み直すための知らせに使う）。
@@ -42,23 +53,33 @@ export class BotRegistry extends Map {
   }
 
   async initialize() {
-    await mkdir(this.botsRoot, { recursive: true })
-    const initialized = join(this.botsRoot, '.initialized')
+    await this.projectFiles.ensureRoot(this.botsRoot)
+    const initialized = join(this.stateRoot, '.initialized')
+    if (this.separateState && !await exists(initialized)) {
+      // Existing seat records must be migrated explicitly, never silently
+      // reseeded from config or adopted while a split migration is incomplete.
+      for (const entry of await readdir(this.botsRoot, { withFileTypes: true })) {
+        const legacy = entry.name === '.initialized' || entry.isDirectory() && BOT_ID.test(entry.name)
+          && await exists(join(this.botsRoot, entry.name, 'bot.json'))
+        if (legacy) throw Object.assign(new Error('BOT_STATE_MIGRATION_REQUIRED'), { code: 'BOT_STATE_MIGRATION_REQUIRED' })
+      }
+    }
+    await mkdir(this.stateRoot, { recursive: true, mode: 0o700 })
     if (!await exists(initialized)) {
       const seeds = await loadBots(this.seedPath)
       for (const seed of seeds.values()) {
         const project = this.projectPath(seed.id)
-        await ensureProjectFolders(project)
-        await ensureGitProject(project)
-        const profilePath = join(project, 'bot.json')
+        await this.projectFiles.initialize(project)
+        const profilePath = join(this.statePath(seed.id), 'bot.json')
         if (!await exists(profilePath)) await this.writeProfile(normalizeProfile({ ...seed, project }))
-        const schedulePath = join(project, 'schedule.json')
+        const schedulePath = join(this.statePath(seed.id), 'schedule.json')
         if (!await exists(schedulePath)) await writeAtomic(schedulePath, scheduleDocument([]))
         const profile = await this.readProfile(seed.id)
         await this.writeInstructions(profile)
       }
-      await writeFile(initialized, '')
+      await writeFile(initialized, '', { mode: 0o600 })
     }
+    if (this.separateState) await this.resumePendingRemovals()
     await this.migrateProfiles()
     await this.refresh()
     await Promise.all([...this.values()].map(profile => this.writeInstructions(profile)))
@@ -67,21 +88,28 @@ export class BotRegistry extends Map {
 
   async refresh() {
     const profiles = []
-    for (const entry of await readdir(this.botsRoot, { withFileTypes: true })) {
+    for (const entry of await readdir(this.stateRoot, { withFileTypes: true })) {
       if (!entry.isDirectory() || !BOT_ID.test(entry.name)) continue
-      const path = join(this.botsRoot, entry.name, 'bot.json')
+      const path = join(this.stateRoot, entry.name, 'bot.json')
       if (!await exists(path)) continue
       profiles.push(await this.readProfile(entry.name))
     }
     profiles.sort((a, b) => a.id.localeCompare(b.id))
     this.clear()
-    for (const profile of profiles) this.set(profile.id, Object.freeze(profile))
+    for (const profile of profiles) {
+      if (!this.deletionIntents.has(profile.id)) this.set(profile.id, Object.freeze(profile))
+    }
     return this
   }
 
   projectPath(id) {
     validateId(id)
     return join(this.botsRoot, id)
+  }
+
+  statePath(id) {
+    validateId(id)
+    return join(this.stateRoot, id)
   }
 
   async create(input, { id = this.botId() } = {}) {
@@ -108,10 +136,16 @@ export class BotRegistry extends Map {
     })
     await this.validateEffort(profile)
     await this.validateFastMode(profile)
-    await ensureProjectFolders(project)
-    await ensureGitProject(project)
+    if (this.separateState) {
+      if (await pathExists(join(this.stateRoot, '.deleting', id))
+        || await pathExists(join(this.stateRoot, '.deleting', `${id}.json`)))
+        throw registryError('BOT_DELETE_PENDING')
+      // Claim a fresh project atomically; never adopt an orphan, file or symlink.
+      await this.projectFiles.claim(project)
+    }
+    await this.projectFiles.initialize(project)
     await this.writeProfile(profile)
-    await writeAtomic(join(project, 'schedule.json'), scheduleDocument([]))
+    await writeAtomic(join(this.statePath(id), 'schedule.json'), scheduleDocument([]))
     await this.writeInstructions(profile)
     await this.refresh()
     await this.onChange(this)
@@ -182,14 +216,125 @@ export class BotRegistry extends Map {
   }
 
   async remove(id) {
+    validateId(id)
     await this.refresh()
     const bot = this.get(id)
-    if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
-    await rm(bot.project, { recursive: true, force: true })
+    if (!this.separateState) {
+      if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
+      await this.projectFiles.remove(bot.project)
+    } else {
+      const pending = join(this.stateRoot, '.deleting', id)
+      const record = join(this.stateRoot, '.deleting', `${id}.json`)
+      const resuming = !bot && (await pathExists(pending) || await pathExists(record))
+      if (bot && await pathExists(pending)) throw registryError('BOT_DELETE_CONFLICT')
+      if (!resuming) {
+        if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
+        await mkdir(join(this.stateRoot, '.deleting'), { recursive: true, mode: 0o700 })
+        // Keep a separate listing receipt until both roots are fully removed.
+        // Its presence alone never permits deleting an active project on recovery.
+        await writeAtomic(record, { schema: 'bellteam.bot-deletion.v1', profile: bot })
+        // Mark synchronously before the first retirement filesystem await.
+        this.deletionIntents.add(id)
+        this.delete(id)
+        try { await rename(this.statePath(id), pending) } catch (error) {
+          this.deletionIntents.delete(id)
+          this.set(id, bot)
+          throw error
+        }
+      }
+      this.deletionIntents.add(id)
+      this.delete(id)
+      await this.refresh()
+      await this.onChange(this)
+      this.changed()
+      await this.finishRemoval(id)
+      await this.onChange(this)
+      this.changed()
+      return { id }
+    }
     await this.refresh()
     await this.onChange(this)
     this.changed(id)
     return { id }
+  }
+
+  isDeleting(id) {
+    return this.deletionIntents.has(id)
+  }
+
+  clientListingState(id) {
+    validateId(id)
+    if (this.isDeleting(id)) return 'pending'
+    if (this.has(id)) return 'active'
+    if (this.separateState) {
+      try {
+        if (lstatSync(join(this.stateRoot, '.deleting', `${id}.json`)).isFile()) return 'pending'
+        throw registryError('BOT_DELETE_RECORD_INVALID')
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error
+      }
+    }
+    return 'absent'
+  }
+
+  async finishRemoval(id) {
+    try {
+      await this.projectFiles.remove(this.projectPath(id))
+      await rm(join(this.stateRoot, '.deleting', id), { recursive: true, force: true })
+      await rm(join(this.stateRoot, '.deleting', `${id}.json`), { force: true })
+      this.deletionIntents.delete(id)
+    } catch {
+      // Retry remove(id), or initialize a new registry to resume the same intent.
+      // No profile needs to survive a partially removed pending directory.
+      throw registryError('BOT_DELETE_PENDING')
+    }
+  }
+
+  async resumePendingRemovals() {
+    const pendingRoot = join(this.stateRoot, '.deleting')
+    if (!await pathExists(pendingRoot)) return
+    const ids = new Set()
+    for (const entry of await readdir(pendingRoot, { withFileTypes: true })) {
+      if (entry.isDirectory() && BOT_ID.test(entry.name)) ids.add(entry.name)
+      if (entry.isFile() && entry.name.endsWith('.json') && BOT_ID.test(entry.name.slice(0, -5)))
+        ids.add(entry.name.slice(0, -5))
+    }
+    for (const id of ids) {
+      if (await pathExists(this.statePath(id))) {
+        if (await pathExists(join(pendingRoot, id))) throw registryError('BOT_DELETE_CONFLICT')
+        // A prepared receipt whose retirement rename never committed.
+        await rm(join(pendingRoot, `${id}.json`), { force: true })
+        continue
+      }
+      await this.finishRemoval(id)
+    }
+  }
+
+  // Active execution uses the Map only. Client listings additionally retain a
+  // pending deletion receipt until BOTH project and state cleanup have succeeded.
+  async listForClient() {
+    const listed = new Map(this)
+    const result = () => [...listed.values()].flatMap(bot => {
+      const state = this.clientListingState(bot.id)
+      return state === 'absent' ? [] : [{ ...bot, ...(state === 'pending' ? { deleting: true } : {}) }]
+    })
+    if (!this.separateState) return result()
+    const pendingRoot = join(this.stateRoot, '.deleting')
+    if (!await pathExists(pendingRoot)) return result()
+    for (const entry of await readdir(pendingRoot, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith('.json')) continue
+      const id = entry.name.slice(0, -5)
+      if (!BOT_ID.test(id) || listed.has(id)) continue
+      let record
+      try { record = JSON.parse(await readFile(join(pendingRoot, entry.name), 'utf8')) } catch (error) {
+        if (error.code === 'ENOENT') continue // Cleanup committed during this read.
+        throw error
+      }
+      if (record?.schema !== 'bellteam.bot-deletion.v1' || record.profile?.id !== id)
+        throw registryError('BOT_DELETE_RECORD_INVALID')
+      listed.set(id, { ...normalizeProfile(record.profile), project: this.projectPath(id), deleting: true })
+    }
+    return result().sort((a, b) => a.id.localeCompare(b.id))
   }
 
   async listSchedules(id) {
@@ -237,7 +382,7 @@ export class BotRegistry extends Map {
   }
 
   async readProfile(id) {
-    const value = JSON.parse(await readFile(join(this.projectPath(id), 'bot.json'), 'utf8'))
+    const value = JSON.parse(await readFile(join(this.statePath(id), 'bot.json'), 'utf8'))
     if (!['bellteam.bot.v1', 'bellteam.bot.v2', 'bellteam.bot.v3', 'bellteam.bot.v4', 'bellteam.bot.v5', 'bellteam.bot.v6', 'bellteam.bot.v7', 'bellteam.bot.v8'].includes(value?.schema)) throw new Error(`BOT_PROFILE_INVALID: ${id}`)
     return normalizeProfile({ ...value, id, project: this.projectPath(id) })
   }
@@ -249,33 +394,25 @@ export class BotRegistry extends Map {
       profileText: profile.profileText, personality: profile.personality, speechStyle: profile.speechStyle, avatar: profile.avatar, color: profile.color,
       harness: profile.harness, model: profile.model, reasoningEffort: profile.reasoningEffort, fastMode: profile.fastMode,
     }
-    await writeAtomic(join(profile.project, 'bot.json'), value)
+    await mkdir(this.statePath(profile.id), { recursive: true, mode: 0o700 })
+    await writeAtomic(join(this.statePath(profile.id), 'bot.json'), value)
   }
 
   async writeInstructions(profile) {
-    const memoryPath = join(profile.project, 'memory', 'previous-session.md')
-    const shortTermMemory = await exists(memoryPath) ? (await readFile(memoryPath, 'utf8')).trim() : ''
-    const body = `# 自分のBot情報\n\nあなたのBellTeam Bot IDは \`${profile.id}\` である。\n\n## 名前\n\n「${profile.name}」\n\n## プロフィール\n\n「${profile.profileText || '指定なし'}」\n\n## 性格（考え方）\n\n「${profile.personality || '指定なし'}」\n\n## 口調\n\n「${profile.speechStyle || '指定なし'}」\n\n## 役職\n\n「${profile.position || '指定なし'}」\n\n## 役割\n\n「${profile.role || '指定なし'}」\n\n# 作業手順\n\n上の役割は、あなた自身が責任を持って進める担当の仕事である。役割欄は担当を短く記し、具体的な作業手順はここへ混ぜない。作業手順の詳細はこのプロジェクトの \`docs/\` に自分で置き、着手前に読む。\n\n# 前セッションの短期記憶\n\n${shortTermMemory || 'なし'}\n`
-    await Promise.all([
-      writeFile(join(profile.project, 'AGENTS.md'), body, { mode: 0o644 }),
-      writeFile(join(profile.project, 'CLAUDE.md'), '@AGENTS.md\n', { mode: 0o644 }),
-    ])
+    await this.projectFiles.writeInstructions(profile)
   }
 
   async prepareStartupContext(id, shortTermMemory) {
     await this.refresh()
     const profile = this.get(id)
     if (!profile) throw new Error(`BOT_NOT_FOUND: ${id}`)
-    const directory = join(profile.project, 'memory')
-    await mkdir(directory, { recursive: true })
-    await writeFile(join(directory, 'previous-session.md'), `${shortTermMemory.trim()}\n`, { mode: 0o600 })
-    await this.writeInstructions(profile)
+    await this.projectFiles.prepareStartupContext(profile, shortTermMemory)
   }
 
   async migrateProfiles() {
-    for (const entry of await readdir(this.botsRoot, { withFileTypes: true })) {
+    for (const entry of await readdir(this.stateRoot, { withFileTypes: true })) {
       if (!entry.isDirectory() || !BOT_ID.test(entry.name)) continue
-      const path = join(this.botsRoot, entry.name, 'bot.json')
+      const path = join(this.stateRoot, entry.name, 'bot.json')
       if (!await exists(path)) continue
       const value = JSON.parse(await readFile(path, 'utf8'))
       if (value?.schema === 'bellteam.bot.v8' && !Object.hasOwn(value, 'title')) continue
@@ -286,7 +423,7 @@ export class BotRegistry extends Map {
   }
 
   async readScheduleDocument(id) {
-    const path = join(this.projectPath(id), 'schedule.json')
+    const path = join(this.statePath(id), 'schedule.json')
     if (!await exists(path)) await writeAtomic(path, scheduleDocument([]))
     const value = JSON.parse(await readFile(path, 'utf8'))
     if (value?.schema !== 'bellteam.schedule.v1' || !Array.isArray(value.schedules))
@@ -295,8 +432,19 @@ export class BotRegistry extends Map {
   }
 
   async writeScheduleDocument(id, schedules) {
-    await writeAtomic(join(this.projectPath(id), 'schedule.json'), scheduleDocument(schedules))
+    await writeAtomic(join(this.statePath(id), 'schedule.json'), scheduleDocument(schedules))
     this.changed(id, 'schedules')
+  }
+}
+
+function registryError(code) {
+  return Object.assign(new Error(code), { code })
+}
+
+async function pathExists(path) {
+  try { await lstat(path); return true } catch (error) {
+    if (error.code === 'ENOENT') return false
+    throw error
   }
 }
 
@@ -346,10 +494,6 @@ function normalizeProfile(value) {
   }
 }
 
-// Botプロジェクトの固定フォルダ: 手順書のdocs/、環境構築のenvironment/、キャラクターシート（設定画）のassets/character-sheet/。
-async function ensureProjectFolders(project) {
-  for (const folder of ['docs', 'environment', CHARACTER_SHEET_DIRECTORY]) await mkdir(join(project, folder), { recursive: true })
-}
 
 function legacyIdentity(displayName) {
   if (typeof displayName !== 'string') return { name: '', role: '' }
@@ -467,14 +611,5 @@ export async function exists(path) {
   } catch (error) {
     if (error.code === 'ENOENT') return false
     throw error
-  }
-}
-
-async function ensureGitProject(project) {
-  try {
-    await access(join(project, '.git'))
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error
-    await exec('git', ['init', '-q'], { cwd: project })
   }
 }
