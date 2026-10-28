@@ -64,10 +64,13 @@ def _saved(parent, name, owner, normal_group=None):
         raise ControlError('SEC014_CONTROL_JOURNAL_INVALID') from None
 
 
-def _normal(path, *, prepare=False):
+def _normal(path, *, role='bellteam'):
     path = Path(path)
+    names = {'bellteam': ('normal.json', 'previous-normal.json'),
+             'state-prepare': ('compose.state-prepare.yaml',),
+             'state-maintenance': ('compose.state-maintenance.json',)}
     if (not path.is_absolute() or path.resolve(strict=True) != path
-            or path.name not in (('compose.state-prepare.yaml',) if prepare else ('normal.json', 'previous-normal.json'))
+            or path.name not in names.get(role, ())
             or not re.fullmatch(r'\.bellteam-compose\.[a-zA-Z0-9]{6}', path.parent.name)):
         raise ControlError('SEC014_CONTROL_GENERATION')
     parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
@@ -91,15 +94,16 @@ def _normal(path, *, prepare=False):
             raise ControlError('SEC014_CONTROL_GENERATION')
         try:
             model = json.loads(raw)
-            service = model['services']['state-prepare' if prepare else 'bellteam']
+            service = model['services'][role]
             image_ref = model.get('x-bellteam-image-ref')
             if image_ref is not None and (type(image_ref) is not str or not re.fullmatch(
                     r'ghcr\.io/kitepon/bellteam-server@sha256:[a-f0-9]{64}', image_ref)):
                 raise ValueError()
-            if prepare:
-                if (model.get('name') != 'bellteam-state-prepare'
-                        or not set(model) <= {'name','services','x-bellteam-image-ref'}
-                        or set(model['services']) != {'state-prepare'}
+            if role != 'bellteam':
+                if ((role == 'state-prepare' and (
+                            model.get('name') != 'bellteam-state-prepare'
+                            or not set(model) <= {'name','services','x-bellteam-image-ref'}))
+                        or set(model['services']) != {role}
                         or type(service['image']) is not str
                         or not re.fullmatch('sha256:[a-f0-9]{64}', service['image'])):
                     raise ValueError()
@@ -132,12 +136,17 @@ def _normal(path, *, prepare=False):
                 'owner': list(owner), 'image': service['image'], 'token': token}
         if image_ref is not None:
             result['imageRef'] = image_ref
-        sibling = path.parent / 'compose.state-prepare.yaml'
-        if path.name == 'normal.json' and os.path.lexists(sibling):
-            result['prepare'] = _normal(sibling, prepare=True)
-            if (result['prepare']['image'] != result['image']
-                    or result['prepare'].get('imageRef') != result.get('imageRef')):
-                raise ControlError('SEC014_CONTROL_GENERATION')
+        if path.name == 'normal.json':
+            for kind, filename in (('prepare', 'compose.state-prepare.yaml'),
+                                   ('maintenance', 'compose.state-maintenance.json')):
+                sibling = path.parent / filename
+                if not os.path.lexists(sibling):
+                    continue
+                result[kind] = _normal(sibling, role='state-' + kind)
+                if (result[kind]['image'] != result['image']
+                        or ((kind == 'prepare' or 'imageRef' in result[kind])
+                            and result[kind].get('imageRef') != result.get('imageRef'))):
+                    raise ControlError('SEC014_CONTROL_GENERATION')
         return result
     finally:
         os.close(parent)
