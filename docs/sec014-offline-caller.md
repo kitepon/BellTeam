@@ -539,3 +539,9 @@ supervisorはserver UID1001時に、最初のbootstrap/application/lifecycle imp
 内部deploy-imageはrenderしたprepare JSONを既saved generationのcompose.state-prepare.yamlへ保存し、同fileをCompose実行に使う。staging cleanup後もnormal/maintenanceとともに、成功・prepare失敗・up失敗のいずれでも実行設定を保持する。file名のyamlは従来の名前で内容はrender済みJSON。umask077の0600を維持し、normalの秘密をprepareへ混ぜない。
 
 新一試験（3終端条件）を同bytesで旧0pass1fail/ENOENT→新1pass0fail。既fake Docker/実shellとNode/普通FSを使い、実daemon/Compose/hostは0。保存はphase verified receiptではなく、既prepare executorのstatic Compose参照・actorのofficial ref/rawimage対応・全phase実container照合は未接続のまま。normalの既control recordだけで兄弟prepare設定までbind済みとは扱わない。次は既actor/prepare関数へこの保存pathと同入力を明示し、任意hashやexit0での代用なしに実executorを接続する。
+
+### 保存prepareの記録
+
+保存normalの兄弟`compose.state-prepare.yaml`がある世代では、既control読取がそのroot-owned private fileのpath/SHA/device/inode/親identity/owner/raw imageをnormal記録へ保持する。prepareはJSONとしてrender済みで、単一state-prepare serviceのraw imageはnormalと一致する必要がある。tx.checkは兄弟fileも再読し、同bytes別inodeやsymlink・raw image不一致を拒否する。兄弟fileのない従来世代のnormal記録は維持する。
+
+これは保存記録の接続であり、prepare executorの実行許可ではない。固定YAMLのCOMPOSE_SHAをrender済み設定の全実行条件の検証へ置き換え、official digest参照とraw imageの対応を実authorityへ結び、actor argv/terminalと同一設定を使う接続は未完。全体はNOTDEPLOYABLEのまま。

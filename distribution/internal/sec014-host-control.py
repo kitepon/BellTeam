@@ -64,10 +64,10 @@ def _saved(parent, name, owner, normal_group=None):
         raise ControlError('SEC014_CONTROL_JOURNAL_INVALID') from None
 
 
-def _normal(path):
+def _normal(path, *, prepare=False):
     path = Path(path)
     if (not path.is_absolute() or path.resolve(strict=True) != path
-            or path.name not in ('normal.json', 'previous-normal.json')
+            or path.name not in (('compose.state-prepare.yaml',) if prepare else ('normal.json', 'previous-normal.json'))
             or not re.fullmatch(r'\.bellteam-compose\.[a-zA-Z0-9]{6}', path.parent.name)):
         raise ControlError('SEC014_CONTROL_GENERATION')
     parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
@@ -91,7 +91,17 @@ def _normal(path):
             raise ControlError('SEC014_CONTROL_GENERATION')
         try:
             model = json.loads(raw)
-            service = model['services']['bellteam']
+            service = model['services']['state-prepare' if prepare else 'bellteam']
+            if prepare:
+                if (model.get('name') != 'bellteam-state-prepare'
+                        or set(model['services']) != {'state-prepare'}
+                        or type(service['image']) is not str
+                        or not re.fullmatch('sha256:[a-f0-9]{64}', service['image'])):
+                    raise ValueError()
+                return {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(),
+                        'device': before.st_dev, 'inode': before.st_ino,
+                        'parentDevice': directory.st_dev, 'parentInode': directory.st_ino,
+                        'owner': list(owner), 'image': service['image']}
             token = service.get('environment', {}).get('BELLTEAM_NORMAL_ADMISSION_TOKEN')
             mounts = [v for v in service.get('volumes', [])
                       if v.get('target') == '/run/bellteam-maintenance']
@@ -110,10 +120,16 @@ def _normal(path):
                     raise ValueError()
         except (ValueError, KeyError, TypeError, AttributeError):
             raise ControlError('SEC014_CONTROL_GENERATION') from None
-        return {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(),
+        result = {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(),
                 'device': before.st_dev, 'inode': before.st_ino,
                 'parentDevice': directory.st_dev, 'parentInode': directory.st_ino,
                 'owner': list(owner), 'image': service['image'], 'token': token}
+        sibling = path.parent / 'compose.state-prepare.yaml'
+        if path.name == 'normal.json' and os.path.lexists(sibling):
+            result['prepare'] = _normal(sibling, prepare=True)
+            if result['prepare']['image'] != result['image']:
+                raise ControlError('SEC014_CONTROL_GENERATION')
+        return result
     finally:
         os.close(parent)
 
