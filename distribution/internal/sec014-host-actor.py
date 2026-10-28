@@ -154,10 +154,9 @@ def _run(tx, image, executor):
             tx.admit_normal(**selected)
         # Both aliases remain stopped until both backups, migration and binds pass.
         fields = dict(direction=tx.value['direction'], image=image,
-                      actor_pid=tx.value['actorPid'], actor_start_ticks=tx.value['actorStartTicks'])
+                      actor_pid=tx.value['actorPid'], actor_start_ticks=tx.value['actorStartTicks'], **frozen)
         if phase in control.PHASES[4:] and tx.normal_group is not None:
             fields['selected_normal'] = dict(tx.value['admission'])
-            fields.update(frozen)
         receipt = method(**fields)
         sha = _receipt(tx, phase, image, receipt, required)
         tx.confirmed(phase)

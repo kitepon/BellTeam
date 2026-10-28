@@ -562,3 +562,9 @@ executorは既固定YAMLのSHA検証を残した上で、保存render JSONのent
 内部`run_actor(direction, image, executor_factory, saved_normal=...)`は既host_controlでtxを保持してから`executor_factory(tx)`を一回呼ぶ。実行器はこのtxをprepareへ渡せる。生成後も同generationを再照合し、生成失敗・同bytes別inodeへの置換ではphaseを進めない。immutable imageが不正ならfactoryを呼ばない。既caller一箇所もfactoryへ合わせ、既`_run`のphase順・receipt先保存・失敗伝播は維持する。
 
 新しい同bytes反例は旧0pass1failから新1passへ移り、新4件と変更caller1件を確認した。保存世代/実kernel lock/実Python子を使い、Docker protocolとwriter/host authorityは人工のまま。prepare後で意図的に止め、後段の実起動や最終完了を合成しない。公式Compose5.6.1の生成JSONとの有限確認は別工程で成立したが、production同版・実hostauthority・通常shellからのactor接続・normal create/start/inspect/healthは未完。whole Draft NOTDEPLOYABLE、未merge未反映を維持する。
+
+## 2026-10-29 Saved generation input for every phase
+
+The existing actor now passes the same held `saved_normal` record to the writer, prepare, migration and bind executors as well as selection/start/result. Selection/admission and phase order are unchanged; the legacy transaction without a saved normal still supplies no such field. This is an internal input binding, not a writer or host-authority producer.
+
+One new focused test reuses the existing generation fixture with a real ordinary filesystem/transaction lock and synthetic phase receipts. The exact test fails at the first writer callback before the fix because the saved record is missing, and passes all six phase callbacks plus selection after the two-line transfer change. No old test groups were rerun. Actual image pairing, fixed parents/ACL/mounts, participating/nonparticipating writer lifetime, daemon phases and the normal shell caller remain unconnected. Whole Draft NOTDEPLOYABLE, unmerged and undeployed; no host operation or retired helper is introduced.
