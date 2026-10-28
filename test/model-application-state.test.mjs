@@ -5,10 +5,19 @@ import { pathToFileURL } from 'node:url'
 const root = process.env.BELLTEAM_MODEL_STATE_SOURCE
   ? pathToFileURL(process.env.BELLTEAM_MODEL_STATE_SOURCE + '/') : new URL('../', import.meta.url)
 const { BotAdministration } = await import(new URL('src/bot-administration.mjs', root))
+const { AitermClient } = await import(new URL('src/aiterm-client.mjs', root))
 const { AitermTransport } = await import(new URL('src/aiterm-transport.mjs', root))
 const { createBotApi } = await import(new URL('src/http-bot-api.mjs', root))
 const { callBellTeamTool } = await import(new URL('src/mcp-tools.mjs', root))
 const tick = () => new Promise(resolve => setImmediate(resolve))
+
+async function configureError(failure) {
+  const client = new AitermClient({ env: {} })
+  client.client = { async callTool() { return { isError: true,
+    content: [{ type: 'text', text: 'synthetic native configure refusal' }], structuredContent: failure } } }
+  return client.call('agent_configure', { session_id: 'bot-a', fast: true })
+    .then(() => assert.fail('native refusal must reject'), error => error)
+}
 
 function fixture(harness) {
   const bots = new Map([['bot-a', { id: 'bot-a', harness, model: 'old-model', reasoningEffort: 'high', fastMode: false }]])
@@ -28,6 +37,43 @@ function fixture(harness) {
   const admin = new BotAdministration({ bots, transport, rooms: {}, writeLog: value => logs.push(value) })
   return { bots, transport, admin, pending, logs }
 }
+
+test('typed configure: all harnesses preserve request effect and only restore fast for not-started refusals', async () => {
+  for (const harness of ['claude', 'codex', 'grok', 'cursor']) {
+    for (const [outcome, effect] of [['not_applied', 'not_started'], ['outcome_unknown', 'possible']]) {
+      const failure = { schema: 'aiterm.agent-configure-error.v1', session_id: 'bot-a', outcome, effect }
+      const error = await configureError(failure)
+      assert.equal(error.message, 'synthetic native configure refusal')
+      assert.deepEqual(error.agentConfigureResult, failure)
+      const f = fixture(harness)
+      await f.admin.update('bot-a', { fastMode: true })
+      f.pending[0].reject(error)
+      await tick(); await tick()
+      const state = f.admin.view(f.bots.get('bot-a')).configurationApplication
+      assert.equal(state.state, 'failed')
+      assert.equal(state.outcome, outcome)
+      assert.equal(state.effect, effect)
+      assert.equal(f.bots.get('bot-a').fastMode, effect === 'possible')
+      assert.equal(f.pending.length, 1, 'uncertain effect never triggers an automatic retry')
+    }
+  }
+})
+
+test('typed configure: wrong session or invalid outcome/effect cannot claim not-started or restore fast', async () => {
+  for (const change of [{ session_id: 'other' }, { effect: 'possible' }, { outcome: 'unexpected' }]) {
+    const error = await configureError({ schema: 'aiterm.agent-configure-error.v1', session_id: 'bot-a',
+      outcome: 'not_applied', effect: 'not_started', ...change })
+    assert.equal(error.agentConfigureResult, null)
+    const f = fixture('codex')
+    await f.admin.update('bot-a', { fastMode: true })
+    f.pending[0].reject(error)
+    await tick(); await tick()
+    const state = f.admin.view(f.bots.get('bot-a')).configurationApplication
+    assert.equal(state.outcome, 'outcome_unknown')
+    assert.equal(state.effect, 'possible')
+    assert.equal(f.bots.get('bot-a').fastMode, true)
+  }
+})
 
 async function readApi(f, pathname) {
   let status, raw
