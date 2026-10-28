@@ -1,6 +1,7 @@
 import SwiftUI
 
 private struct ModelsResponse: Decodable { let models: [String: HarnessModels] }
+private struct BotProfileResponse: Decodable { let bot: BotSettings }
 struct HarnessModels: Decodable {
     let efforts: [String]
     let models: [ModelChoice]
@@ -55,6 +56,17 @@ struct BotEditor: View {
     @State private var fastMode = false
     @State private var color = "violet"
     @State private var avatar = ""
+    @State private var avatarLarge: String?
+    @State private var avatarSource: String?
+    @State private var avatarCrop: AvatarCropRect?
+    @State private var avatarLargeSource: String?
+    @State private var avatarLargeCrop: AvatarCropRect?
+    @State private var smallAvatarChanged = false
+    @State private var largeAvatarChanged = false
+    @State private var appearanceLoaded = false
+    @State private var appearanceLoading = false
+    @State private var appearanceSchemaAvailable = false
+    @State private var appearanceError: String?
     @State private var cropSource: AvatarCropSource?
     @State private var errorText: String?
     @State private var modelErrorText: String?
@@ -77,6 +89,7 @@ struct BotEditor: View {
         _fastMode = State(initialValue: initial?.fastMode ?? false)
         _color = State(initialValue: initial?.color ?? "violet")
         _avatar = State(initialValue: initial?.avatar ?? "")
+        _appearanceLoaded = State(initialValue: initial == nil)
     }
 
     private var modelChoices: [ModelChoice] { catalog[harness]?.models ?? [] }
@@ -99,6 +112,11 @@ struct BotEditor: View {
     private var deletionPending: Bool {
         initial.map { store.pendingBotDeletionIDs.contains($0.id) } ?? false
     }
+    private var largeAvatarPreview: String {
+        if let avatarLarge, !avatarLarge.isEmpty { return avatarLarge }
+        return avatar
+    }
+    private var canEditVariantImages: Bool { appearanceLoaded && appearanceSchemaAvailable }
 
     var body: some View {
         NavigationStack {
@@ -106,14 +124,15 @@ struct BotEditor: View {
                 Section("メンバー") {
                     HStack {
                         Spacer()
-                        AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0) },
+                        AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0, variant: .small) },
                                           onFailure: { errorText = "画像を読み込めませんでした。" }) {
                             VStack(spacing: 8) {
                                 AvatarView(name: name.isEmpty ? "B" : name, avatar: avatar,
                                            color: BellTheme.accent(color), size: 80)
-                                Text("写真を変更").font(.caption)
+                                Text("小画像を変更").font(.caption)
                             }
                         }
+                        .disabled(!canEditVariantImages)
                         Spacer()
                     }
                     TextField("名前", text: $name)
@@ -122,6 +141,50 @@ struct BotEditor: View {
                         Text("紫").tag("violet")
                         Text("ローズ").tag("rose")
                         Text("インディゴ").tag("indigo")
+                    }
+                }
+                .disabled(deletionPending || deletionResultUnconfirmed)
+                Section("画像") {
+                    if appearanceLoading { ProgressView("保存済みの画像を確認しています…") }
+                    if appearanceLoaded && !appearanceSchemaAvailable {
+                        Text("画像の独立編集はサーバー更新後に利用できます。")
+                            .font(.footnote).foregroundStyle(BellTheme.muted)
+                    }
+                    if let appearanceError {
+                        Text(appearanceError).font(.footnote).foregroundStyle(.red)
+                        Button("画像を再読込") { Task { await loadAppearance() } }
+                    }
+                    Button("小画像を再調整") { reopenCrop(.small) }
+                        .disabled(avatar.isEmpty || !canEditVariantImages)
+                    if !(avatarSource?.isEmpty == false), !avatar.isEmpty {
+                        Text("元画像が残っていないため、現在の切り抜きの外側は再調整できません。")
+                            .font(.footnote).foregroundStyle(BellTheme.muted)
+                    }
+                    AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0, variant: .large) },
+                                      onFailure: { errorText = "画像を読み込めませんでした。" }) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let image = AvatarPortraitCache.image(for: largeAvatarPreview) {
+                                Image(uiImage: image).resizable().scaledToFill()
+                                    .frame(maxWidth: .infinity).frame(height: 120).clipped()
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                            }
+                            Text("大画像を変更")
+                        }
+                    }
+                    .disabled(!canEditVariantImages)
+                    Button("大画像を再調整") { reopenCrop(.large) }
+                        .disabled(avatarLarge?.isEmpty != false || !canEditVariantImages)
+                    if avatarLarge?.isEmpty == false {
+                        if !(avatarLargeSource?.isEmpty == false) {
+                            Text("大画像の元画像が残っていないため、現在の切り抜きの外側は再調整できません。")
+                                .font(.footnote).foregroundStyle(BellTheme.muted)
+                        }
+                        Button("大画像を小画像と同じに戻す") {
+                            avatarLarge = ""; avatarLargeSource = ""; avatarLargeCrop = nil
+                            largeAvatarChanged = true
+                            persistDraft()
+                        }
+                        .disabled(!canEditVariantImages)
                     }
                 }
                 .disabled(deletionPending || deletionResultUnconfirmed)
@@ -226,18 +289,33 @@ struct BotEditor: View {
                     Button(hasSavedResult || deletionPending || deletionResultUnconfirmed ? "閉じる" : "キャンセル") { close() }.disabled(saving)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("保存") { Task { await save() } }.fontWeight(.semibold).disabled(saving || deletionPending || deletionResultUnconfirmed)
+                    Button("保存") { Task { await save() } }.fontWeight(.semibold)
+                        .disabled(saving || deletionPending || deletionResultUnconfirmed)
                         .accessibilityIdentifier("save-member")
                 }
             }
             .task { await load() }
-            .onChange(of: settings) { _, next in
-                if let initial { store.botEditorDrafts[initial.id] = next }
+            .onChange(of: settings) { _, _ in
+                persistDraft()
                 saveResult = nil
                 submittedSettings = nil
             }
             .sheet(item: $cropSource) { source in
-                AvatarCropEditor(image: source.image) { avatar = $0 }
+                AvatarCropEditor(image: source.image, variant: source.variant, initialCrop: source.initialCrop) { selected in
+                    switch source.variant {
+                    case .small:
+                        avatar = selected.render
+                        avatarSource = selected.source
+                        avatarCrop = selected.crop
+                        smallAvatarChanged = true
+                    case .large:
+                        avatarLarge = selected.render
+                        avatarLargeSource = selected.source
+                        avatarLargeCrop = selected.crop
+                        largeAvatarChanged = true
+                    }
+                    persistDraft()
+                }
             }
             .alert("「\(initial?.displayName ?? "")」を削除しますか？", isPresented: $confirmingDeletion) {
                 Button("削除", role: .destructive) { Task { await deleteMember() } }
@@ -261,14 +339,22 @@ struct BotEditor: View {
     private func load() async {
         if let initial {
             if let draft = store.botEditorDrafts[initial.id] {
-                name = draft.name; profileText = draft.profileText
-                personality = draft.personality; speechStyle = draft.speechStyle
-                position = draft.position; role = draft.role; avatar = draft.avatar
-                color = draft.color; harness = draft.harness; model = draft.model
-                effort = draft.reasoningEffort
-                fastMode = draft.fastMode
+                let saved = draft.settings
+                name = saved.name; profileText = saved.profileText
+                personality = saved.personality; speechStyle = saved.speechStyle
+                position = saved.position; role = saved.role; avatar = saved.avatar
+                color = saved.color; harness = saved.harness; model = saved.model
+                effort = saved.reasoningEffort; fastMode = saved.fastMode
+                avatarLarge = saved.avatarLarge; avatarSource = saved.avatarSource
+                avatarCrop = saved.avatarCrop; avatarLargeSource = saved.avatarLargeSource
+                avatarLargeCrop = saved.avatarLargeCrop
+                smallAvatarChanged = draft.smallAvatarChanged
+                largeAvatarChanged = draft.largeAvatarChanged
+                appearanceLoaded = draft.appearanceLoaded
             }
-            store.botEditorDrafts[initial.id] = settings
+            await loadAppearance()
+        } else {
+            appearanceSchemaAvailable = store.bots.contains { $0.avatarLargeVersion != nil }
         }
         do {
             let response: ModelsResponse = try await store.api.get("/api/models")
@@ -291,6 +377,57 @@ struct BotEditor: View {
         loadingModels = false
     }
 
+    private func loadAppearance() async {
+        guard let initial, !appearanceLoading else { return }
+        appearanceLoading = true
+        defer { appearanceLoading = false }
+        let path = "/api/bots/\(initial.id)"
+        do {
+            let response: BotProfileResponse = try await store.api.get(path)
+            try Task.checkCancellation()
+            if !smallAvatarChanged {
+                avatar = response.bot.avatar
+                avatarSource = response.bot.avatarSource
+                avatarCrop = response.bot.avatarCrop
+            }
+            if !largeAvatarChanged {
+                avatarLarge = response.bot.avatarLarge
+                avatarLargeSource = response.bot.avatarLargeSource
+                avatarLargeCrop = response.bot.avatarLargeCrop
+            }
+            appearanceLoaded = true
+            appearanceSchemaAvailable = response.bot.avatarLarge != nil
+                && response.bot.avatarSource != nil && response.bot.avatarLargeSource != nil
+            appearanceError = nil
+            persistDraft()
+        } catch is CancellationError { return }
+        catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        catch {
+            appearanceError = error.localizedDescription
+            store.api.diagnostics.report(error, path: path, method: "GET",
+                                         observation: .read(error, retainedData: !avatar.isEmpty))
+        }
+    }
+
+    private func reopenCrop(_ variant: AvatarCropVariant) {
+        let render = variant == .small ? avatar : avatarLarge ?? ""
+        let source = variant == .small ? avatarSource ?? "" : avatarLargeSource ?? ""
+        let crop = variant == .small ? avatarCrop : avatarLargeCrop
+        guard let image = AvatarPortraitCache.image(for: source.isEmpty ? render : source) else {
+            errorText = "画像を読み込めませんでした。"
+            return
+        }
+        cropSource = AvatarCropSource(image: image, variant: variant,
+                                      initialCrop: source.isEmpty ? nil : crop)
+    }
+
+    private func persistDraft() {
+        guard let initial else { return }
+        store.botEditorDrafts[initial.id] = BotEditorDraft(settings: settings,
+            smallAvatarChanged: smallAvatarChanged, largeAvatarChanged: largeAvatarChanged,
+            appearanceLoaded: appearanceLoaded)
+    }
+
     private func save() async {
         guard !deletionPending && !deletionResultUnconfirmed else { return }
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -305,10 +442,14 @@ struct BotEditor: View {
         do {
             if let initial {
                 saveResult = try await store.api.saveBotSettings(id: initial.id, settings: request,
-                                                                 originalFastMode: initial.fastMode)
+                                                                 originalFastMode: initial.fastMode,
+                                                                 smallAvatarChanged: smallAvatarChanged,
+                                                                 largeAvatarChanged: largeAvatarChanged)
                 guard case .saved? = saveResult else { return }
             } else {
-                let body = BotSettingsRequest(settings: request, originalFastMode: false)
+                let body = BotSettingsRequest(settings: request, originalFastMode: false,
+                                              smallAvatarChanged: smallAvatarChanged,
+                                              largeAvatarChanged: largeAvatarChanged)
                 let _: APIAcknowledgement = try await store.api.post("/api/bots", body: body)
                 saveResult = .saved
             }
@@ -360,7 +501,9 @@ struct BotEditor: View {
                     speechStyle: speechStyle, position: position, role: role, avatar: avatar,
                     color: color, harness: harness,
                     model: model == "__custom__" ? customModel : model, reasoningEffort: effort,
-                    fastMode: fastMode)
+                    fastMode: fastMode, avatarLarge: avatarLarge, avatarSource: avatarSource,
+                    avatarCrop: avatarCrop, avatarLargeSource: avatarLargeSource,
+                    avatarLargeCrop: avatarLargeCrop)
     }
 
     private var hasSavedResult: Bool {
@@ -374,7 +517,8 @@ struct BotEditor: View {
         guard let initial, let submittedSettings else { return }
         saving = true
         defer { saving = false }
-        do { saveResult = try await store.api.confirmBotSettings(id: initial.id, settings: submittedSettings) }
+        do { saveResult = try await store.api.confirmBotSettings(id: initial.id, settings: submittedSettings,
+            smallAvatarChanged: smallAvatarChanged, largeAvatarChanged: largeAvatarChanged) }
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch {
             errorText = error.localizedDescription

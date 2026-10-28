@@ -30,6 +30,13 @@ extension AppStore {
         }
         let fixture = try! JSONDecoder().decode(Fixture.self, from: Data(source.utf8))
         bots = fixture.bots
+        if arguments.contains("-bellbot-preview-profile-terminal"),
+           let picture = UIImage(named: "BellPortrait"),
+           let rendered = AvatarImage.dataURL(from: picture, zoom: 1, offset: .zero) {
+            bots[0].avatar = rendered
+            bots[0].avatarVersion = "profile-small-v1"
+            bots[0].avatarLargeVersion = "profile-large-v1"
+        }
         rooms = fixture.rooms
         owner = fixture.owner
         workingBotIDs = ["bot-one"]
