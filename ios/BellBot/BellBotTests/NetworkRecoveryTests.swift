@@ -98,11 +98,28 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertNotNil(store.connectionError)
         XCTAssertEqual(scenario.reports.count, 1)
         let log = try XCTUnwrap(scenario.reports.first?.log)
+        let attemptAttachment = XCTAttachment(data: Data(log.utf8), uniformTypeIdentifier: "public.plain-text")
+        attemptAttachment.name = "人工GET二試行の診断原文"
+        attemptAttachment.lifetime = .keepAlways
+        add(attemptAttachment)
         XCTAssertTrue(log.contains("connection_route=public"))
         XCTAssertTrue(log.contains("app_state=active"))
         XCTAssertTrue(log.contains("severity=warn"))
         XCTAssertTrue(log.contains("app_handling=error_shown_data_retained"))
         XCTAssertTrue(log.contains("app_defect=not_established"))
+        XCTAssertTrue(log.contains("attempt_1_error_code=-1005"))
+        XCTAssertTrue(log.contains("attempt_2_error_code=-1005"))
+        XCTAssertTrue(log.contains("attempt_1_transport_result=error_thrown"))
+        XCTAssertTrue(log.contains("attempt_2_transport_result=error_thrown"))
+        XCTAssertTrue(log.contains("attempt_1_started_at_ms="))
+        XCTAssertTrue(log.contains("attempt_1_finished_at_ms="))
+        XCTAssertTrue(log.contains("attempt_1_elapsed_monotonic_ms="))
+        XCTAssertTrue(log.contains("attempt_2_started_at_ms="))
+        XCTAssertTrue(log.contains("attempt_2_finished_at_ms="))
+        XCTAssertTrue(log.contains("attempt_2_elapsed_monotonic_ms="))
+        XCTAssertTrue(log.contains("attempt_1_task_metrics_available=true"))
+        XCTAssertTrue(log.contains("attempt_2_task_metrics_available=true"))
+        XCTAssertFalse(log.contains("attempt_3_"), "GETは既定の1回再試行だけ")
         XCTAssertFalse(log.contains("network.test.invalid"))
     }
 
@@ -153,6 +170,10 @@ final class NetworkRecoveryTests: XCTestCase {
             api.diagnostics.report(error, path: "/api/bots", method: "GET", observation: .read(error, retainedData: true))
         }
         let log = scenario.reports.first?.log ?? ""
+        let timeoutAttachment = XCTAttachment(data: Data(log.utf8), uniformTypeIdentifier: "public.plain-text")
+        timeoutAttachment.name = "人工GET単一timeoutの診断原文"
+        timeoutAttachment.lifetime = .keepAlways
+        add(timeoutAttachment)
         XCTAssertTrue(log.contains("request_route=/api/bots/:id/messages"))
         XCTAssertTrue(log.contains("app_state_at_request_start=active"))
         XCTAssertTrue(log.contains("app_state=background"))
@@ -162,6 +183,11 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertEqual(scenario.reports.first?.code, "IOS_NETWORK_TIMEOUT")
         XCTAssertTrue(log.contains("request_attempts=1"))
         XCTAssertTrue(log.contains("task_metrics_available=true"))
+        XCTAssertTrue(log.contains("attempt_1_error_code=-1001"))
+        XCTAssertTrue(log.contains("attempt_1_elapsed_monotonic_ms="))
+        XCTAssertTrue(log.contains("attempt_1_app_state_at_start=active"))
+        XCTAssertTrue(log.contains("attempt_1_app_state_at_end=active"), "報告時のbackgroundと要求失敗時を分ける")
+        XCTAssertFalse(log.contains("attempt_2_"))
         XCTAssertFalse(log.contains("private-bot"))
         XCTAssertFalse(log.contains("private-token"))
     }
