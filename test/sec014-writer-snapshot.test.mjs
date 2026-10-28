@@ -4,7 +4,7 @@ import test from 'node:test'
 import { writerSnapshotPlan, verifyWriterSnapshot, writerContainerInspectArgv, writerVolumeInspectArgv } from '../distribution/internal/sec014-writer-snapshot.mjs'
 
 const image = 'ghcr.io/kitepon/bellteam-server@sha256:' + 'a'.repeat(64)
-const config = { services: { bellteam: { environment: { SECRET: 'synthetic-only' }, volumes: [
+const config = { services: { bellteam: { image: 'sha256:' + 'b'.repeat(64), environment: { SECRET: 'synthetic-only' }, volumes: [
   { type: 'bind', source: '/runtime/data', target: '/srv/bellteam' },
   { type: 'bind', source: '/runtime/home', target: '/home/bell' },
   { type: 'volume', source: 'cursor', target: '/home/bell/.local' },

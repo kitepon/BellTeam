@@ -41,6 +41,8 @@ class HeldWriterConfig(g.Generations):
         def factory(tx):
             self.assertTrue(callable(getattr(tx, '_writer_config', None)))
             config = tx._writer_config()
+            for role in ('bellteam', 'state-maintenance'):
+                self.assertEqual(config['services'][role]['image'], g.SELECTED['image'])
             raw = json.dumps(config)
             for secret in ['synthetic-credential', 'SECRET', g.SELECTED['token'], 'environment', 'driver_opts']:
                 self.assertNotIn(secret, raw)

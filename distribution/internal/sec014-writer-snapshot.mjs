@@ -25,6 +25,9 @@ export function writerVolumeInspectArgv(volume) {
 export function writerSnapshotPlan(config, image, imageId) {
   if (typeof image !== 'string' || !/^ghcr\.io\/kitepon\/bellteam-server@sha256:[a-f0-9]{64}$/u.test(image)
       || typeof imageId !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(imageId)) fail()
+  if (config?.services?.bellteam?.image !== imageId
+      || (config?.services?.['state-maintenance'] !== undefined
+        && config.services['state-maintenance']?.image !== imageId)) fail()
   // Compose credentials are discarded by the existing planner, never retained.
   return { image, imageId, mounts: stateWriterPlan(config),
     limits: { containers: MAX_CONTAINERS, volumes: MAX_VOLUMES, canonicalPaths: MAX_PATHS },

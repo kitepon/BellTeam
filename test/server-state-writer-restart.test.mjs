@@ -101,7 +101,7 @@ test('writer restart: serialized snapshot cannot acquire the caller-stopped iden
   const { writerSnapshotPlan, verifyWriterSnapshot } = await import(process.env.WRITER_SNAPSHOT_UNDER_TEST
     || new URL('../distribution/internal/sec014-writer-snapshot.mjs', import.meta.url).href)
   const { createHash } = await import('node:crypto')
-  const c = { services: { bellteam: { volumes: [
+  const c = { services: { bellteam: { image: 'sha256:' + 'b'.repeat(64), volumes: [
     { type: 'bind', source: plan.roots[0], target: '/srv/bellteam' },
     { type: 'bind', source: plan.roots[1], target: '/home/bell' },
     { type: 'volume', source: 'cursor', target: '/home/bell/.local' },

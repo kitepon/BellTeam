@@ -271,7 +271,7 @@ class _Transaction:
                 if any(type(value) is not (bool if key == 'read_only' else str)
                        for mount in projected for key, value in mount.items()):
                     raise ValueError()
-                services[role] = {'volumes': projected}
+                services[role] = {'image': models[role]['services'][role]['image'], 'volumes': projected}
             names = {mount['source'] for mount in services['bellteam']['volumes']
                      if mount.get('type') == 'volume'}
             volumes = {name: {'name': models['bellteam']['volumes'][name]['name']} for name in names}
