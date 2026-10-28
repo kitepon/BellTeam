@@ -33,7 +33,11 @@ class Generations(unittest.TestCase):
         parent.mkdir(mode=0o700)
         path = parent / 'normal.json'
         path.write_text(json.dumps({'name': 'bellteam', 'services': {
-            'bellteam': {'image': IMAGE, 'volumes': []}}}))
+            'bellteam': {'image': SELECTED['image'],
+                'environment': {'BELLTEAM_NORMAL_ADMISSION_TOKEN': SELECTED['token']},
+                'volumes': [{'type': 'bind', 'source': str(c.CONTROL),
+                    'target': '/run/bellteam-maintenance', 'read_only': True,
+                    'bind': {'create_host_path': False}}]}}}))
         path.chmod(0o600)
         return path
 

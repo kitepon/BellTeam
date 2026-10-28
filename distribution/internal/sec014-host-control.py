@@ -92,7 +92,16 @@ def _normal(path):
         try:
             model = json.loads(raw)
             service = model['services']['bellteam']
-            if type(service) is not dict or type(service['image']) is not str:
+            token = service.get('environment', {}).get('BELLTEAM_NORMAL_ADMISSION_TOKEN')
+            mounts = [v for v in service.get('volumes', [])
+                      if v.get('target') == '/run/bellteam-maintenance']
+            if (type(service['image']) is not str
+                    or not re.fullmatch('sha256:[a-f0-9]{64}', service['image'])
+                    or type(token) is not str or not re.fullmatch('[a-f0-9]{64}', token)
+                    or len(mounts) != 1 or mounts[0].get('type') != 'bind'
+                    or mounts[0].get('source') != str(CONTROL)
+                    or mounts[0].get('read_only') is not True
+                    or mounts[0].get('bind', {}).get('create_host_path') is not False):
                 raise ValueError()
             for volume in service.get('volumes', []):
                 if volume.get('type') != 'bind': continue
@@ -104,7 +113,7 @@ def _normal(path):
         return {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(),
                 'device': before.st_dev, 'inode': before.st_ino,
                 'parentDevice': directory.st_dev, 'parentInode': directory.st_ino,
-                'owner': list(owner)}
+                'owner': list(owner), 'image': service['image'], 'token': token}
     finally:
         os.close(parent)
 
@@ -234,6 +243,9 @@ class _Transaction:
         if (type(container_id) is not str or not re.fullmatch('[a-f0-9]{64}', container_id)
                 or type(image) is not str or not re.fullmatch('sha256:[a-f0-9]{64}', image)
                 or type(token) is not str or not re.fullmatch('[a-f0-9]{64}', token)):
+            raise ControlError('SEC014_CONTROL_HANDOFF_SELECTION')
+        if ('normal' in self.value and (image != self.value['normal']['image']
+                or token != self.value['normal']['token'])):
             raise ControlError('SEC014_CONTROL_HANDOFF_SELECTION')
         self.value['admission'] = {'containerId': container_id, 'image': image, 'token': token}
         self._save()

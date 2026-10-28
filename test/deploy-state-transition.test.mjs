@@ -28,9 +28,10 @@ const targets=['state','rooms','owner','logs','shared/tools/bellteam-settings','
 const bind=(source,target)=>({type:'bind',source,target});
 const parent=e.TEST_PARENT,legacy=e.TEST_ROOT+'/runtime/data';
 const normal=()=>({name:'bellteam',services:{bellteam:{image:e.BELLTEAM_SERVER_IMAGE,
- environment:{SECRET:'synthetic-only',VALUE:'literal $$VALUE'},labels:{'fixture.$$key':'literal $$VALUE'},
+ environment:{SECRET:'synthetic-only',VALUE:'literal $$VALUE',BELLTEAM_NORMAL_ADMISSION_TOKEN:e.BELLTEAM_NORMAL_ADMISSION_TOKEN},labels:{'fixture.$$key':'literal $$VALUE'},
  volumes:[bind(legacy,'/srv/bellteam'),bind(e.TEST_ROOT+'/runtime/home','/home/bell'),
  {type:'volume',source:'cursor-cli',target:'/home/bell/.local'},
+ {type:'bind',source:'/home/kite/BellTeam/runtime/server-only/maintenance-control',target:'/run/bellteam-maintenance',read_only:true,bind:{create_host_path:false}},
  ...leaves.map((leaf,i)=>bind(parent+'/'+leaf,'/srv/bellteam/'+targets[i]))]}},volumes:{'cursor-cli':{name:'bellteam_cursor-cli'}}});
 const current=()=>e.COMPOSE_FILE&&fs.existsSync(e.COMPOSE_FILE)?JSON.parse(fs.readFileSync(e.COMPOSE_FILE)):normal();
 const event=(kind,data={})=>fs.appendFileSync(e.TEST_EVENTS,JSON.stringify({kind,args:a,composeFile:e.COMPOSE_FILE||'',project:e.COMPOSE_PROJECT_NAME||'',image:e.BELLTEAM_SERVER_IMAGE,profile:e.BELLTEAM_INTERNAL_PROFILE_FILE,cwd:process.cwd(),...data})+'\n');
@@ -58,7 +59,7 @@ if(a[0]==='exec'&&a.includes('/bin/tar')){
 if(a[0]==='image'){if(e.TEST_FAIL==='built-image')process.exit(72);output(e.TEST_IMAGE_ID);process.exit(0)}
 if(a[0]==='run'){
  if(a.includes('/bin/cat')){if(e.TEST_FAIL==='extract')process.exit(8);process.stdout.write(fs.readFileSync(e.TEST_ROOT+'/image/'+a.at(-1).slice(5)));process.exit(0)}
- if(a.includes('-e')){if(e.TEST_FAIL==='recovery-publish')fs.mkdirSync(a.at(-1)+'/recovery.json.tmp');const i=a.indexOf('-e'),r=spawnSync(process.execPath,['-e',...a.slice(i+1)],{input:fs.readFileSync(0)});process.stdout.write(r.stdout);process.stderr.write(r.stderr);process.exit(r.status)}
+ if(a.includes('-e')){const i=a.indexOf('-e');if(e.TEST_FAIL==='recovery-publish')fs.mkdirSync(a[i+3]+'/recovery.json.tmp');const r=spawnSync(process.execPath,['-e',...a.slice(i+1)],{input:fs.readFileSync(0)});process.stdout.write(r.stdout);process.stderr.write(r.stderr);process.exit(r.status)}
 }
 if(a[0]==='compose'){
  if(a.includes('ps')){output(e.TEST_NORMAL_CID??'c'.repeat(64));process.exit(0)}

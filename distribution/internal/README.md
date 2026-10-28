@@ -216,3 +216,8 @@ printf '%s' "$health" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("e
 ```
 
 一回のhealth応答は通常再開の全受入ではない。起動直後の未応答も未確認として止まり、upや逆移行を再送しない。実際の旧CID/raw image/選択model、最新dataの通常readbackと各CLIを別に確認する。途中失敗では元/新設定・現在data・部分backupを保持する。staging以外をこの手順のcleanupで削除しない。現時点のsource検査はDocker効果をfakeにした呼出し/拒否の確認であり、実stop/UID/mount/backup/逆移行/health成功と全区間writer排他を証明しない。
+
+
+### 固定normal入口へ渡す内部設定（段2・未配備）
+
+内部overlayはreadonly control directoryとBELLTEAM_NORMAL_ADMISSION_TOKENを要求する。tokenはdeploy-image.shが同dispatchの最初のCompose操作より前に生成し、同じ値/mountをfrozen normalへ保存する。actor側が使うraw image/tokenはその元file SHAへ対応し、実選択値が違えばSH公開しない。host parentをDockerへ作らせず、既合意metadataのままとする。詳細と新有限試験・未接続callerはdocs/sec014-offline-caller.md末尾。直接の内部up、公開installerと手動復旧、実create/start/healthまで接続済みとは扱わない。

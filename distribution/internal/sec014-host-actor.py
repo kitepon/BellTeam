@@ -140,9 +140,10 @@ def _run(tx, image, executor):
                executor.start_selected_normal, executor.verify_result)
     for phase, required, method in zip(control.PHASES, PROOFS, methods):
         tx.check()
+        frozen = {'saved_normal': dict(tx.value['normal'])} if 'normal' in tx.value else {}
         if phase == 'started' and tx.normal_group is not None:
             selected = executor.prepare_selected_normal(direction=tx.value['direction'], image=image,
-                actor_pid=tx.value['actorPid'], actor_start_ticks=tx.value['actorStartTicks'])
+                actor_pid=tx.value['actorPid'], actor_start_ticks=tx.value['actorStartTicks'], **frozen)
             if type(selected) is not dict or set(selected) != {'container_id', 'image', 'token'}:
                 raise control.ControlError('SEC014_ACTOR_SELECTION_UNCONFIRMED')
             tx.admit_normal(**selected)
@@ -151,6 +152,7 @@ def _run(tx, image, executor):
                       actor_pid=tx.value['actorPid'], actor_start_ticks=tx.value['actorStartTicks'])
         if phase in control.PHASES[4:] and tx.normal_group is not None:
             fields['selected_normal'] = dict(tx.value['admission'])
+            fields.update(frozen)
         receipt = method(**fields)
         sha = _receipt(tx, phase, image, receipt, required)
         tx.confirmed(phase)

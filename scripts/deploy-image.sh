@@ -10,6 +10,8 @@ quiet_except=${BELLTEAM_DEPLOY_QUIET_EXCEPT:-}
 export COMPOSE_FILE="$repo/distribution/server/compose.yaml:$repo/distribution/internal/compose.overlay.yaml"
 export COMPOSE_PROJECT_NAME=bellteam
 export BELLTEAM_INTERNAL_PROFILE_FILE="$repo/src/distribution-profile.mjs"
+BELLTEAM_NORMAL_ADMISSION_TOKEN=$(node --input-type=module -e 'import { randomBytes } from "node:crypto"; console.log(randomBytes(32).toString("hex"))')
+export BELLTEAM_NORMAL_ADMISSION_TOKEN
 
 staging=
 saved=
@@ -116,6 +118,12 @@ try {
     return saved===source||saved.startsWith(source===path.sep?source:source+path.sep);
   })) throw new Error();
   normal.services.bellteam.image=process.argv[1];
+  const service=normal.services.bellteam, token=process.argv[3];
+  const control=service.volumes.filter(v=>v.target==="/run/bellteam-maintenance");
+  if(!/^[a-f0-9]{64}$/.test(token)||service.environment?.BELLTEAM_NORMAL_ADMISSION_TOKEN!==token
+    ||control.length!==1||control[0].type!=="bind"
+    ||control[0].source!=="/home/kite/BellTeam/runtime/server-only/maintenance-control"
+    ||control[0].read_only!==true||control[0].bind?.create_host_path!==false) throw new Error();
   const p=prepare.services["state-prepare"], m=maintenance.services["state-maintenance"];
   const parent=p.volumes.find(v=>v.target==="/srv/bellteam-state-parent").source;
   const state=m.volumes.find(v=>v.target==="/srv/bellteam/state").source;
@@ -125,7 +133,7 @@ try {
   for(const model of models) console.log(JSON.stringify(model,(_key,value)=>
     typeof value==="string"?value.replaceAll("$",()=>"$$"):value));
 } catch { console.error("SERVER_STATE_CONFIG_UNAVAILABLE"); process.exitCode=1; }
-' "$image" "$saved" > "$staging/models.jsonl"
+' "$image" "$saved" "$BELLTEAM_NORMAL_ADMISSION_TOKEN" > "$staging/models.jsonl"
 project=$(sed -n '1p' "$staging/models.jsonl")
 case "$project" in ''|*[!a-zA-Z0-9_.-]*) echo '通常Composeのproject名を確認できません。起動中のBellTeamは変更していません。' >&2; exit 1;; esac
 sed -n '2p' "$staging/models.jsonl" > "$saved/normal.json.tmp"

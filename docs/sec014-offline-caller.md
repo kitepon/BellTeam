@@ -505,3 +505,14 @@ supervisorはserver UID1001時に、最初のbootstrap/application/lifecycle imp
 このtokenは起動相関であり、normal内部から実fullCID/raw imageを証明する秘密ではない。同Config cloneやroot/sudo管理者・未参加legacy writerを排除する証明へ転用しない。実executorは既frozen normalへtokenを入れる時点（normal SHAをjournalへ保持する前）と、選択create/start/fullCID/raw image/healthを対応させる必要がある。現差分ではCompose control mount/token投入と実deploy/installer/manual executorへの接続は未完。公開installerの依存無しownerも未解決のまま、UID1001でgateがあることだけで公開起動成功とは扱わない。準備/保守の固定root入口をnormalの成功として数えない。
 
 新7人工FS caseは、EX中のbootstrap拒否、archiving/不一致token/phase不足拒否、phase4/5/6各normalのSH寿命とroot解放後の次EX拒否・終了後取得、普通Node stdio3本の子へlockFD非継承、不正mode/symlink拒否、C無しNode拒否、既legacy起動、seat-execのraw継承FD閉鎖を検査する。Cは固定pathとUID/GIDを試験利用者へ置換し、seatの権限syscallもtest linker shimで置換。実privileged1001/container/4CLIの試験ではない。元は7メソッド中legacy1pass/他6fail（subTest含む11assertion failures）、修理後7pass。初期fixtureはbootstrap markerで直ちにSIGTERMを送りshutdown handler前の-15となったため別log保存し、実ready到達を待つ最終同bytesを採用した。旧成功群/Full再走や実host/daemon/container/build/deploy/CLI/他job停止は0。wholeDraft NOTDEPLOYABLE。
+
+
+## 内部frozen normalと選択admissionの対応（10/28）
+
+内部adapterは最初のCompose操作より前に標準cryptoで新しい64桁hex tokenを生成する。継承された値は採用せず、内部overlayの環境へ渡す。同overlayは既control `/home/kite/BellTeam/runtime/server-only/maintenance-control` を `/run/bellteam-maintenance` へreadonly bindし、create_host_path:falseとする。既root:1001/0750・lock/journal0640・receipt0600の分担は変えず、host parentや共有祖先を作成・補正しない。
+
+既frozen model生成は、同じtokenと固定readonly mountを検査してからnormal.jsonへ保存する。既controlのnormal読取は元file/親/全bytes SHAとともに、このraw image.Idとtokenを保持する。選択結果のimage/tokenが保存normalと違う場合はadmissionを書かずEXを維持したまま拒否する。既actorはそのsaved_normal recordを選択のprepare、実start、結果確認へ渡す。tokenは起動の相関であって秘密鍵や実CID/image独立証明ではない。
+
+新有限6メソッドは旧source0pass6fail（subTestを含む11assert失敗）→修理6pass。実普通FS/実flock/Python/NodeだがUID/GIDは試験利用者を注入し、Docker/Compose/実root1001は使わない。内部shell前段のtoken生成と、実Node freeze codeの希望token不一致拒否も通常processで確認する。旧fixtureは引数位置と必須normal項目だけ追従し旧成功群/Fullを再走しない。
+
+実shellはまだactorを呼ばず、直接stop/prepare/maintenance/upの順である。create/start/inspect/actualCID/healthを持つ既通常executor全体は未接続であり、saved_normalを引数へ渡しただけを実受入にはしない。公開installerの依存無し全区間owner、手動復旧の新保持世代とexact旧CID/image対応、実mount/UID/ACL/全writerは引き続き未成立。内部overlayだけを公開解決として配布しない。whole Draft NOTDEPLOYABLE。
