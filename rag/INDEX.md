@@ -17,6 +17,7 @@
 - [URLSessionのflush](apple-networking/raw/urlsession-flush.md): Cookie・認証情報を保存し、以後の要求を新しいTCP接続で行うApple公式仕様。取得日 2026-10-04、一次資料の原文。
 - [URLSessionの接続再利用の計測](apple-networking/raw/reused-connection.md): 要求で持続接続を再利用したかを表すisReusedConnectionのApple公式仕様。取得日 2026-10-04、一次資料の原文。
 - [URLSessionの要求単位の計測](apple-networking/task-metrics.md): 失敗した要求の開始・接続・応答時刻と接続再利用を読むApple公式仕様と、BellTeamで個人情報を含めず記録する際の解釈。取得日 2026-10-15。
+- [DispatchTimeのuptime](apple-networking/raw/dispatch-uptime.md)、[睡眠を含む連続時計](apple-networking/raw/mach-continuous-time.md)、[URLSessionの要求timeout](apple-networking/raw/urlsession-request-timeout.md): 時間切れ診断で異なる時計とidle timeoutを混同しないためのApple公式原文。取得日 2026-10-29。
 - [CFNetwork診断ログ](apple-networking/raw/cfnetwork-diagnostics.md): HTTPS通信の診断、起動時の環境変数、iOSのUSB接続とConsoleでの採取手順。取得日 2026-10-04、Apple公式原文。
 
 - [Mac Catalystの表示倍率](mac-typography/raw/mac-catalyst-source.md): iPad向けUIの77%表示とMac用UIの仕様を示すApple公式JSON原文。取得日 2026-10-03。

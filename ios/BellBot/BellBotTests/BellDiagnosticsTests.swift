@@ -2,6 +2,41 @@ import XCTest
 @testable import BellBot
 
 final class BellDiagnosticsTests: XCTestCase {
+    func testAppStateRevisionChangesOnlyWhenScenePhaseChanges() {
+        let diagnostics = BellDiagnostics { _, _, _, _ in }
+        let initial = diagnostics.requestAppStateSnapshot()
+        diagnostics.updateAppState("active")
+        let active = diagnostics.requestAppStateSnapshot()
+        diagnostics.updateAppState("active")
+        let repeated = diagnostics.requestAppStateSnapshot()
+        diagnostics.updateAppState("background")
+        let background = diagnostics.requestAppStateSnapshot()
+        XCTAssertEqual(active.revision, initial.revision + 1)
+        XCTAssertEqual(repeated.revision, active.revision)
+        XCTAssertEqual(background.revision, active.revision + 1)
+        XCTAssertEqual(background.state, "background")
+    }
+
+    func testGoalTimeoutCarriesCallsiteWithoutPrivateRoute() {
+        var log = ""
+        let diagnostics = BellDiagnostics { _, _, _, value in log = value }
+        let trace = BellRequestTrace(route: "/api/bots/bot-deadbeef/goal", method: "GET",
+                                     startedAt: Date(), failedAt: Date(),
+                                     appStateAtStart: "background", attempts: 1, metrics: nil)
+        let error = URLError(.timedOut, userInfo: [BellRequestTrace.userInfoKey: trace])
+        diagnostics.report(error, path: "/api/bots/private-name/goal?token=secret", method: "GET",
+                           observation: .read(error, retainedData: true),
+                           diagnosticContext: "goal_load_trigger=chat_view_task\ngoal_view_phase_at_call=background")
+        XCTAssertTrue(log.contains("goal_load_trigger=chat_view_task"))
+        XCTAssertTrue(log.contains("goal_view_phase_at_call=background"))
+        XCTAssertFalse(log.contains("private-name"))
+        XCTAssertFalse(log.contains("secret"))
+        let attachment = XCTAttachment(data: Data(log.utf8), uniformTypeIdentifier: "public.plain-text")
+        attachment.name = "人工Goal timeoutの呼出し原文"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testSameOfflineErrorKeepsMajorImpactVisibleWithoutAssigningAppDefect() {
         var logs: [String] = []
         let diagnostics = BellDiagnostics { _, _, _, log in logs.append(log) }
