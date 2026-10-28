@@ -4,7 +4,7 @@ Mac・iPhone・iPadのプロフィールに、横幅いっぱいの大画像と�
 
 小画像の既存`avatar`は維持し、大画像`avatarLarge`と、それぞれの未切抜き`avatarSource`・`avatarLargeSource`、画像座標の正規化矩形`avatarCrop`・`avatarLargeCrop`を独立編集する。新しい画像はrender/source/cropを同じPATCHへ入れる。変更していない画像fieldはPATCHに含めず、別端末の更新を上書きしない。既存の元画像が無い場合は切り抜き外側を復元できない旨を表示する。既存サーバーで新fieldが確認できない間は新画像編集を無効にし、通常の文面保存は続ける。画像のHTTP契約はRootの`docs/profile-avatars.md`を正とする。
 
-BOT画面は黒背景・白の等幅文字とし、表示中の対象だけ`GET /api/bots/:id/screen?history=1`を1秒ごとに取得する。対象切替、画面を閉じる、アプリが非アクティブになる時にtaskを止める。同じsnapshotは追記せず、取得した本文へ置換する。末尾を見ていれば追従し、過去を読んでいればスクロール位置を保つ。[Macの人工BOT画面](images/2026-10-28-apple-terminal-mac-preview.png)と[iPhoneの人工1万行](images/2026-10-28-apple-terminal-iphone-10000-preview.png)。Rootは同じJSON形でAitermが実保持するscrollbackとlive paneを最大1万整形行まで返す契約を実装中。現本体のクエリ無し直近25行snapshotは履歴全体の根拠ではなく、存在しない過去ログは合成しない。
+BOT画面は黒背景・白の等幅文字とし、表示中の対象だけ`GET /api/bots/:id/screen?history=1`を1秒ごとに取得する。対象切替、画面を閉じる、アプリが非アクティブになる時にtaskを止める。同じsnapshotは追記せず、取得した本文へ置換する。末尾を見ていれば追従し、過去を読んでいればスクロール位置を保つ。[Macの人工BOT画面](images/2026-10-28-apple-terminal-mac-preview.png)と[iPhoneの人工1万行](images/2026-10-28-apple-terminal-iphone-10000-preview.png)。Rootは同じJSON形でAitermが実保持するscrollbackとlive paneを最大1万整形行まで返す契約をmainへ統合した。実サーバーへの反映と通常HTTP結合は未確認。クエリ無しの従来25行snapshotは履歴全体の根拠ではなく、存在しない過去ログは合成しない。
 
 ## 人工検証
 
