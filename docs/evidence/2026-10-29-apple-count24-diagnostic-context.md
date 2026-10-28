@@ -24,3 +24,5 @@ Apple公式の[uptime](https://developer.apple.com/documentation/dispatch/dispat
 ## 有限試験
 
 固定ソース`9df3952228f03ba5d7a32e5e259b9455b86f83d9`から、人工URLProtocolの単一timeoutと状態変更のfocused2件は成功・失敗0。XCResult `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-28T23-29-59-277Z_pid49890_44d440c9.xcresult`。人工Goalの呼出し項目と秘密経路の非出力はfocused1件成功・失敗0。XCResult `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-28T23-32-32-574Z_pid49890_a53adabb.xcresult`。両原文は[目録](2026-10-29-apple-count24-samples.json)から辿れる。Mac Catalyst Debugの署名無しbuildも1回成功し、ログはgit管理外の`runtime/apple/network-count24/mac-debug.log`に保持した。実端末の睡眠や本番通信を再現した試験ではない。
+
+完了時の関連`NetworkRecoveryTests`・`BellDiagnosticsTests`は計41件成功・失敗0。XCResult `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-28T23-39-28-558Z_pid49890_fd8e2020.xcresult`。
