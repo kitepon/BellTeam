@@ -556,3 +556,9 @@ executorは既固定YAMLのSHA検証を残した上で、保存render JSONのent
 新しい保存JSON path反例は旧1fail→新1pass、指定ref保持の実shell+fake Docker反例も旧1fail→新1pass。新executor専用5件は既filesystem/実Python子+fake Docker protocolで成功、実daemon/host0。初回は再利用fixtureの別module例外型の相違で成功case1errorとなり、その原本を保持してfixtureの同一例外型へ直している。旧成功群/Full再走なし。
 
 実Composeが作る保存JSONとの実機照合、writer/host authority全接続、normal create/start/inspect/healthと全区間の実受入はまだ。保存設定接続のsource修理を全phase受入へ広げず、whole Draft NOTDEPLOYABLE/未merge未反映を維持する。
+
+### held txへの実行器生成の接続（10/28）
+
+内部`run_actor(direction, image, executor_factory, saved_normal=...)`は既host_controlでtxを保持してから`executor_factory(tx)`を一回呼ぶ。実行器はこのtxをprepareへ渡せる。生成後も同generationを再照合し、生成失敗・同bytes別inodeへの置換ではphaseを進めない。immutable imageが不正ならfactoryを呼ばない。既caller一箇所もfactoryへ合わせ、既`_run`のphase順・receipt先保存・失敗伝播は維持する。
+
+新しい同bytes反例は旧0pass1failから新1passへ移り、新4件と変更caller1件を確認した。保存世代/実kernel lock/実Python子を使い、Docker protocolとwriter/host authorityは人工のまま。prepare後で意図的に止め、後段の実起動や最終完了を合成しない。公式Compose5.6.1の生成JSONとの有限確認は別工程で成立したが、production同版・実hostauthority・通常shellからのactor接続・normal create/start/inspect/healthは未完。whole Draft NOTDEPLOYABLE、未merge未反映を維持する。

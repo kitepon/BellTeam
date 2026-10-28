@@ -148,7 +148,7 @@ class Generations(unittest.TestCase):
             self.assertEqual(saved_normal, first)
             return self.hold(saved_normal)
         with patch.object(c, 'host_control', side_effect=entry):
-            a.run_actor('to-server', IMAGE, self.executor(), saved_normal=first)
+            a.run_actor('to-server', IMAGE, lambda tx: self.executor(), saved_normal=first)
         saved = json.loads((self.control / 'transaction-to-server.json').read_text())
         self.assertEqual(saved['normal']['path'], str(first))
 

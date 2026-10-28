@@ -165,6 +165,12 @@ def _run(tx, image, executor):
     return results
 
 
-def run_actor(direction, image, executor, *, saved_normal):
+def run_actor(direction, image, executor_factory, *, saved_normal):
+    if type(image) is not str or not re.fullmatch(
+            r'ghcr\.io/kitepon/bellteam-server@sha256:[a-f0-9]{64}', image):
+        raise control.ControlError('SEC014_ACTOR_IMAGE')
     with control.host_control(direction, saved_normal=saved_normal) as tx:
+        # Construct the executor only while this exact saved generation is held.
+        executor = executor_factory(tx)
+        tx.check()
         return _run(tx, image, executor)
