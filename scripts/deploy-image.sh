@@ -138,7 +138,7 @@ project=$(sed -n '1p' "$staging/models.jsonl")
 case "$project" in ''|*[!a-zA-Z0-9_.-]*) echo '通常Composeのproject名を確認できません。起動中のBellTeamは変更していません。' >&2; exit 1;; esac
 sed -n '2p' "$staging/models.jsonl" > "$saved/normal.json.tmp"
 mv "$saved/normal.json.tmp" "$saved/normal.json"
-sed -n '3p' "$staging/models.jsonl" > "$staging/compose.state-prepare.yaml"
+sed -n '3p' "$staging/models.jsonl" > "$saved/compose.state-prepare.yaml"
 sed -n '4p' "$staging/models.jsonl" > "$saved/compose.state-maintenance.json"
 cp "$saved/compose.state-maintenance.json" "$staging/compose.state-maintenance.json"
 if [ -n "${BELLTEAM_PREVIOUS_COMPOSE:-}" ]; then
@@ -184,7 +184,7 @@ printf 'saved-compose=%s\n' "$saved"
 # Stop the captured container even if another caller changes the service alias.
 if [ -n "$stopped_container" ]; then docker stop "$stopped_container"; fi
 BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
-docker compose --project-directory "$PWD" -f "$staging/compose.state-prepare.yaml" \
+docker compose --project-directory "$PWD" -f "$saved/compose.state-prepare.yaml" \
   -p "$project" run --pull never --rm --no-deps -T state-prepare
 docker compose --project-directory "$PWD" -f "$staging/compose.state-maintenance.json" \
   -p "$project" run --pull never --rm --no-deps -T state-maintenance to-server

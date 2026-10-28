@@ -533,3 +533,9 @@ supervisorはserver UID1001時に、最初のbootstrap/application/lifecycle imp
 `migrateServerState` は両backupの実返却を `backups.legacy/server` へ残してから従来どおり移行し、既direction/status/ownershipと一緒に返す。2回目backupの失敗で移行を始めない順序は不変。CLIはこの返却を既JSONへ出す。private設定やバックアップ本文を出力せず、新しいschema/ID/公開CLI/保存fileを作らない。
 
 これは既backup完了fileの参照であり、内容全体のhash/restore成功・host側source inode・actualCID/image・全writer排他の証明ではない。後続executorはfrozen設定と実containerのmount対応を照合してから当該artifactを読む必要がある。任意hashやexit0からphase-receiptのverifiedを合成しない。actor全接続、静的prepareから保存済prepareへの対応、normal create/start/inspect/health、公開installer全区間ownerとmanual復旧は引き続き未完で、whole Draft NOTDEPLOYABLE。
+
+### 保存prepare設定の寿命（10/28 07:02UTC）
+
+内部deploy-imageはrenderしたprepare JSONを既saved generationのcompose.state-prepare.yamlへ保存し、同fileをCompose実行に使う。staging cleanup後もnormal/maintenanceとともに、成功・prepare失敗・up失敗のいずれでも実行設定を保持する。file名のyamlは従来の名前で内容はrender済みJSON。umask077の0600を維持し、normalの秘密をprepareへ混ぜない。
+
+新一試験（3終端条件）を同bytesで旧0pass1fail/ENOENT→新1pass0fail。既fake Docker/実shellとNode/普通FSを使い、実daemon/Compose/hostは0。保存はphase verified receiptではなく、既prepare executorのstatic Compose参照・actorのofficial ref/rawimage対応・全phase実container照合は未接続のまま。normalの既control recordだけで兄弟prepare設定までbind済みとは扱わない。次は既actor/prepare関数へこの保存pathと同入力を明示し、任意hashやexit0での代用なしに実executorを接続する。

@@ -329,3 +329,26 @@ test('exact stop: internal adapter targets the captured CID, skips absent normal
   await assert.rejects(f.run({ TEST_FAIL: 'stop' }), e => e.code === 53)
   assert.ok(!(await f.events()).some(e => ['verify', 'prepare', 'transfer', 'up'].includes(e.kind)))
 })
+
+test('retained prepare: executed model survives staging cleanup on success and failed prepare or startup', async t => {
+  for (const phase of ['', 'prepare', 'up']) {
+    const f = await fixture(t)
+    const outcome = await f.run({ TEST_FAIL: phase }).catch(error => error)
+    if (phase) assert.equal(outcome.code, phase === 'prepare' ? 61 : 66)
+    else assert.match(outcome.stdout, /deploy-exit=0/)
+    const events = await f.events(), executed = events.find(event => event.kind === 'prepare')
+    const saved = dirname(events.find(event => event.kind === 'stop').composeFile)
+    const file = join(saved, 'compose.state-prepare.yaml')
+    const bytes = await readFile(file)
+    assert.equal(executed.args[executed.args.indexOf('-f') + 1], file)
+    assert.deepEqual(JSON.parse(bytes), executed.model)
+    assert.equal((await stat(file)).mode & 0o777, 0o600)
+    const prepare = JSON.parse(bytes).services['state-prepare']
+    const maintenance = JSON.parse(await readFile(join(saved, 'compose.state-maintenance.json'), 'utf8')).services['state-maintenance']
+    assert.equal(prepare.image, id)
+    assert.equal(prepare.image, maintenance.image)
+    assert.equal(maintenance.volumes.find(volume => volume.target === '/srv/bellteam/state').source,
+      prepare.volumes.find(volume => volume.target === '/srv/bellteam-state-parent').source + '/state')
+    assert.doesNotMatch(bytes.toString(), /synthetic-only|\/home\/bell/)
+  }
+})
