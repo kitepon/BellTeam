@@ -3,12 +3,19 @@ import MetricKit
 import OSLog
 import UIKit
 
+struct BellAppStateSnapshot: Sendable {
+    let state: String
+    let changedAt: Date
+    let revision: UInt64
+}
+
 struct BellRequestAttempt {
     let startedAt: Date
     let finishedAt: Date
     let elapsedMonotonicMs: Int
-    let appStateAtStart: String
-    let appStateAtEnd: String
+    let elapsedContinuousMs: Int
+    let appStateAtStart: BellAppStateSnapshot
+    let appStateAtEnd: BellAppStateSnapshot
     let returnedResponse: Bool
     let errorCode: Int?
     let metrics: URLSessionTaskMetrics?
@@ -25,6 +32,8 @@ struct BellRequestTrace {
     let attempts: Int
     let metrics: URLSessionTaskMetrics?
     var attemptDetails: [BellRequestAttempt] = []
+    var requestTimeoutMs: Int? = nil
+    var sessionTimeoutMs: Int? = nil
 
     static func route(for path: String) -> String {
         let parts = path.split(separator: "/").map(String.init)
@@ -62,6 +71,8 @@ struct BellRequestTrace {
         var result = "\nrequest_route=\(route)\nrequest_method=\(method)"
         result += "\nrequest_started_at_ms=\(milliseconds(startedAt))\nrequest_failed_at_ms=\(milliseconds(failedAt))"
         result += "\napp_state_at_request_start=\(appStateAtStart)\nrequest_attempts=\(attempts)"
+        if let requestTimeoutMs { result += "\nrequest_timeout_interval_ms=\(requestTimeoutMs)" }
+        if let sessionTimeoutMs { result += "\nsession_timeout_interval_for_request_ms=\(sessionTimeoutMs)" }
         result += Self.metricsLog(metrics, prefix: "")
         for (index, attempt) in attemptDetails.enumerated() {
             let prefix = "attempt_\(index + 1)_"
@@ -69,8 +80,13 @@ struct BellRequestTrace {
             result += "\n\(prefix)finished_at_ms=\(milliseconds(attempt.finishedAt))"
             result += "\n\(prefix)elapsed_wall_ms=\(milliseconds(attempt.finishedAt) - milliseconds(attempt.startedAt))"
             result += "\n\(prefix)elapsed_monotonic_ms=\(attempt.elapsedMonotonicMs)"
-            result += "\n\(prefix)app_state_at_start=\(attempt.appStateAtStart)"
-            result += "\n\(prefix)app_state_at_end=\(attempt.appStateAtEnd)"
+            result += "\n\(prefix)elapsed_continuous_ms=\(attempt.elapsedContinuousMs)"
+            result += "\n\(prefix)app_state_at_start=\(attempt.appStateAtStart.state)"
+            result += "\n\(prefix)app_state_at_end=\(attempt.appStateAtEnd.state)"
+            result += "\n\(prefix)app_state_revision_at_start=\(attempt.appStateAtStart.revision)"
+            result += "\n\(prefix)app_state_revision_at_end=\(attempt.appStateAtEnd.revision)"
+            result += "\n\(prefix)app_state_changed_at_start_ms=\(milliseconds(attempt.appStateAtStart.changedAt))"
+            result += "\n\(prefix)app_state_changed_at_end_ms=\(milliseconds(attempt.appStateAtEnd.changedAt))"
             result += "\n\(prefix)transport_result=\(attempt.returnedResponse ? "response_returned" : "error_thrown")"
             if let code = attempt.errorCode { result += "\n\(prefix)error_code=\(code)" }
             result += Self.metricsLog(attempt.metrics, prefix: prefix)
@@ -162,6 +178,8 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
     private var started = false
     private var deviceType = ""
     private var appState = "inactive"
+    private var appStateChangedAt = Date()
+    private var appStateRevision: UInt64 = 0
     private let onReport: ((String, String, String, String) -> Void)?
 
     init(onReport: ((String, String, String, String) -> Void)? = nil) {
@@ -194,15 +212,26 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
     }
 
     func updateAppState(_ state: String) {
-        lock.lock(); appState = state; lock.unlock()
+        lock.lock()
+        if appState != state {
+            appState = state
+            appStateChangedAt = Date()
+            appStateRevision += 1
+        }
+        lock.unlock()
     }
 
     func requestStartAppState() -> String {
-        lock.lock(); defer { lock.unlock() }
-        return appState
+        requestAppStateSnapshot().state
     }
 
-    func report(_ error: Error, path: String, method: String?, observation: BellDiagnosticObservation, elapsedMilliseconds: Int? = nil) {
+    func requestAppStateSnapshot() -> BellAppStateSnapshot {
+        lock.lock(); defer { lock.unlock() }
+        return BellAppStateSnapshot(state: appState, changedAt: appStateChangedAt, revision: appStateRevision)
+    }
+
+    func report(_ error: Error, path: String, method: String?, observation: BellDiagnosticObservation,
+                elapsedMilliseconds: Int? = nil, diagnosticContext: String? = nil) {
         // 通知APIの失敗はBellNotificationsがstage付きで1回記録する。
         if path == "/api/notifications" || path.hasPrefix("/api/notifications/") { return }
         if Self.isExpectedCancellation(error) { return }
@@ -225,6 +254,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         send(code: code, module: module, version: Self.currentVersion, severity: observation.impact.severity,
              log: Self.errorLog(error, module: module) + (method.map { "\nhttp_method=\($0)" } ?? "")
                 + (trace?.log ?? "")
+                + (diagnosticContext.map { "\n\($0)" } ?? "")
                 + Self.requestContextLog(error: error, route: trace?.route ?? "unknown",
                                          method: trace?.method ?? method ?? "unknown", hasRequestTrace: trace != nil)
                 + observation.log + contextLog(elapsedMilliseconds))

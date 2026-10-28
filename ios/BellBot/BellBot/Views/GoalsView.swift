@@ -300,11 +300,12 @@ private final class GoalViewModel: ObservableObject {
     }
 
     func loadList(store: AppStore) async { await load(path: "/api/goals", botId: nil, store: store) }
-    func loadDetail(botId: String, store: AppStore) async {
-        await load(path: "/api/bots/\(botId)/goal", botId: botId, store: store)
+    func loadDetail(botId: String, store: AppStore, trigger: String, viewScenePhase: ScenePhase) async {
+        await load(path: "/api/bots/\(botId)/goal", botId: botId, store: store,
+                   diagnosticContext: "goal_load_trigger=\(trigger)\ngoal_view_phase_at_call=\(viewScenePhase)")
     }
 
-    private func load(path: String, botId: String?, store: AppStore) async {
+    private func load(path: String, botId: String?, store: AppStore, diagnosticContext: String? = nil) async {
         guard !loading && !mutating else { return }
         loading = true
         defer { loading = false }
@@ -328,7 +329,8 @@ private final class GoalViewModel: ObservableObject {
             needsRefresh = true
             errorText = error.localizedDescription
             store.api.diagnostics.report(error, path: path, method: "GET",
-                                         observation: .read(error, retainedData: !snapshots.isEmpty))
+                                         observation: .read(error, retainedData: !snapshots.isEmpty),
+                                         diagnosticContext: diagnosticContext)
         }
     }
 
@@ -371,7 +373,8 @@ private final class GoalViewModel: ObservableObject {
             catch {
                 needsRefresh = true
                 store.api.diagnostics.report(error, path: path, method: "GET",
-                                             observation: .read(error, retainedData: true))
+                                             observation: .read(error, retainedData: true),
+                                             diagnosticContext: "goal_load_trigger=change_reconcile\ngoal_view_phase_at_call=unknown")
                 throw GoalViewError.unknownOutcome
             }
             guard latest.snapshot.botId == snapshot.botId else {
@@ -563,7 +566,11 @@ struct ChatGoalBar: View {
                                                 : "ゴールの状態を取得できません。")
                             .font(.footnote).padding(18).bellCard()
                     }
-                    Button("状態を更新") { Task { await goals.loadDetail(botId: botId, store: store) } }
+                    Button("状態を更新") {
+                        let phase = scenePhase
+                        Task { await goals.loadDetail(botId: botId, store: store,
+                                                      trigger: "chat_manual", viewScenePhase: phase) }
+                    }
                         .font(.footnote).disabled(goals.loading || goals.mutating)
                 }
                 .frame(maxWidth: 520)
@@ -594,12 +601,22 @@ struct ChatGoalBar: View {
             }
             .environmentObject(store)
         }
-        .task(id: botId) { await goals.loadDetail(botId: botId, store: store) }
+        .task(id: botId) {
+            await goals.loadDetail(botId: botId, store: store,
+                                   trigger: "chat_view_task", viewScenePhase: scenePhase)
+        }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await goals.loadDetail(botId: botId, store: store) } }
+            if phase == .active {
+                Task { await goals.loadDetail(botId: botId, store: store,
+                                              trigger: "chat_foreground", viewScenePhase: phase) }
+            }
         }
         .onChange(of: store.eventRevision) { _, _ in
-            if scenePhase == .active { Task { await goals.loadDetail(botId: botId, store: store) } }
+            if scenePhase == .active {
+                let phase = scenePhase
+                Task { await goals.loadDetail(botId: botId, store: store,
+                                              trigger: "chat_event", viewScenePhase: phase) }
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import CoreFoundation
+import Darwin
 #if DEBUG
 import OSLog
 #endif
@@ -302,22 +303,32 @@ final class BellAPI {
         var attempts = 1
         var metrics = BellTaskMetricsCollector()
         var attemptDetails: [BellRequestAttempt] = []
+        let requestTimeoutMs = Int(request.timeoutInterval * 1_000)
+        let sessionTimeoutMs = Int(session.configuration.timeoutIntervalForRequest * 1_000)
+        func recordedAttempt(startedAt: Date, startedTick: UInt64, startedContinuousTick: UInt64,
+                             startedState: BellAppStateSnapshot, returnedResponse: Bool,
+                             errorCode: Int?, metrics: URLSessionTaskMetrics?) -> BellRequestAttempt {
+            BellRequestAttempt(startedAt: startedAt, finishedAt: Date(),
+                elapsedMonotonicMs: Int((DispatchTime.now().uptimeNanoseconds - startedTick) / 1_000_000),
+                elapsedContinuousMs: Int((clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW) - startedContinuousTick) / 1_000_000),
+                appStateAtStart: startedState, appStateAtEnd: diagnostics.requestAppStateSnapshot(),
+                returnedResponse: returnedResponse, errorCode: errorCode, metrics: metrics)
+        }
         do {
             let (data, response): (Data, URLResponse)
             let firstStartedAt = Date()
             let firstStartedTick = DispatchTime.now().uptimeNanoseconds
-            let firstState = diagnostics.requestStartAppState()
+            let firstStartedContinuousTick = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)
+            let firstState = diagnostics.requestAppStateSnapshot()
             do {
                 (data, response) = try await session.data(for: request, delegate: metrics)
-                attemptDetails.append(BellRequestAttempt(startedAt: firstStartedAt, finishedAt: Date(),
-                    elapsedMonotonicMs: Int((DispatchTime.now().uptimeNanoseconds - firstStartedTick) / 1_000_000),
-                    appStateAtStart: firstState, appStateAtEnd: diagnostics.requestStartAppState(),
+                attemptDetails.append(recordedAttempt(startedAt: firstStartedAt, startedTick: firstStartedTick,
+                    startedContinuousTick: firstStartedContinuousTick, startedState: firstState,
                     returnedResponse: true, errorCode: nil, metrics: metrics.snapshot()))
             }
             catch let error as URLError where request.httpMethod == "GET" && error.code == .networkConnectionLost {
-                attemptDetails.append(BellRequestAttempt(startedAt: firstStartedAt, finishedAt: Date(),
-                    elapsedMonotonicMs: Int((DispatchTime.now().uptimeNanoseconds - firstStartedTick) / 1_000_000),
-                    appStateAtStart: firstState, appStateAtEnd: diagnostics.requestStartAppState(),
+                attemptDetails.append(recordedAttempt(startedAt: firstStartedAt, startedTick: firstStartedTick,
+                    startedContinuousTick: firstStartedContinuousTick, startedState: firstState,
                     returnedResponse: false, errorCode: error.errorCode, metrics: metrics.snapshot()))
                 try Task.checkCancellation()
                 #if DEBUG
@@ -327,35 +338,35 @@ final class BellAPI {
                 metrics = BellTaskMetricsCollector()
                 let retryStartedAt = Date()
                 let retryStartedTick = DispatchTime.now().uptimeNanoseconds
-                let retryState = diagnostics.requestStartAppState()
+                let retryStartedContinuousTick = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)
+                let retryState = diagnostics.requestAppStateSnapshot()
                 do {
                     (data, response) = try await session.data(for: request, delegate: metrics)
-                    attemptDetails.append(BellRequestAttempt(startedAt: retryStartedAt, finishedAt: Date(),
-                        elapsedMonotonicMs: Int((DispatchTime.now().uptimeNanoseconds - retryStartedTick) / 1_000_000),
-                        appStateAtStart: retryState, appStateAtEnd: diagnostics.requestStartAppState(),
+                    attemptDetails.append(recordedAttempt(startedAt: retryStartedAt, startedTick: retryStartedTick,
+                        startedContinuousTick: retryStartedContinuousTick, startedState: retryState,
                         returnedResponse: true, errorCode: nil, metrics: metrics.snapshot()))
                 } catch {
-                    attemptDetails.append(BellRequestAttempt(startedAt: retryStartedAt, finishedAt: Date(),
-                        elapsedMonotonicMs: Int((DispatchTime.now().uptimeNanoseconds - retryStartedTick) / 1_000_000),
-                        appStateAtStart: retryState, appStateAtEnd: diagnostics.requestStartAppState(),
+                    attemptDetails.append(recordedAttempt(startedAt: retryStartedAt, startedTick: retryStartedTick,
+                        startedContinuousTick: retryStartedContinuousTick, startedState: retryState,
                         returnedResponse: false, errorCode: (error as? URLError)?.errorCode, metrics: metrics.snapshot()))
                     throw error
                 }
             } catch {
-                attemptDetails.append(BellRequestAttempt(startedAt: firstStartedAt, finishedAt: Date(),
-                    elapsedMonotonicMs: Int((DispatchTime.now().uptimeNanoseconds - firstStartedTick) / 1_000_000),
-                    appStateAtStart: firstState, appStateAtEnd: diagnostics.requestStartAppState(),
+                attemptDetails.append(recordedAttempt(startedAt: firstStartedAt, startedTick: firstStartedTick,
+                    startedContinuousTick: firstStartedContinuousTick, startedState: firstState,
                     returnedResponse: false, errorCode: (error as? URLError)?.errorCode, metrics: metrics.snapshot()))
                 throw error
             }
             return (data, response, BellRequestTrace(route: route, method: method,
                 startedAt: startedAt, failedAt: Date(), appStateAtStart: startedState,
-                attempts: attempts, metrics: metrics.snapshot(), attemptDetails: attemptDetails))
+                attempts: attempts, metrics: metrics.snapshot(), attemptDetails: attemptDetails,
+                requestTimeoutMs: requestTimeoutMs, sessionTimeoutMs: sessionTimeoutMs))
         } catch {
             try Task.checkCancellation()
             let trace = BellRequestTrace(route: route, method: method, startedAt: startedAt,
                 failedAt: Date(), appStateAtStart: startedState, attempts: attempts,
-                metrics: metrics.snapshot(), attemptDetails: attemptDetails)
+                metrics: metrics.snapshot(), attemptDetails: attemptDetails,
+                requestTimeoutMs: requestTimeoutMs, sessionTimeoutMs: sessionTimeoutMs)
             throw traced(error, with: trace)
         }
     }
