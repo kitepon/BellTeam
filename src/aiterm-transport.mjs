@@ -113,13 +113,13 @@ export class AitermTransport {
     return new Set(bots.filter(bot => sessions.has(this.session(bot))).map(bot => bot.id))
   }
 
-  // Botが動いているか止まっているかを人が見るための、CLI画面の末尾そのまま。
-  async screen(bot) {
+  // 履歴表示もscreen captureを使い、配送の共有読取位置を進めない。
+  async screen(bot, { history = false } = {}) {
     if (!await this.isRunning(bot)) return { online: false, screen: '' }
     const result = await this.client.call('pty_read', {
-      session_id: this.session(bot), screen: true, raw: true, timeout: 0, lines: 40,
+      session_id: this.session(bot), screen: true, raw: true, timeout: 0, lines: history ? 10000 : 40,
     })
-    return { online: true, screen: cleanScreen(textResult(result)) }
+    return { online: true, screen: cleanScreen(textResult(result), history ? 10000 : 25) }
   }
 
   async ensure(bot) {

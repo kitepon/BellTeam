@@ -89,7 +89,7 @@ export function createBotApi({ bots, transport, administration, memory, characte
     if (request.method === 'GET' && screenMatch) {
       const bot = bots.get(screenMatch[1])
       if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      return json(response, 200, await transport.screen(bot))
+      return json(response, 200, await transport.screen(bot, { history: url.searchParams.get('history') === '1' }))
     }
 
     const botAvatarMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/avatar$/u)
