@@ -1,0 +1,95 @@
+{
+  "schema": "bellteam.apple-unsigned-preflight.v1",
+  "purpose": "Goal一覧の5呼出し元を含むApple通信診断版の内部配布候補",
+  "sourceCommit": "0961a70fef8a78e27a0d0c0f50bf1fb053bf5fa2",
+  "sourceTree": "0218c97b541c9767998f0c8088aab0f60155fb95",
+  "appleProductSourceDiffFromBuiltCommit": [],
+  "baseMainCommit": "f14423df306b29e8f882e1a323309d06c653e6ed",
+  "pullRequest": 142,
+  "bundleId": "dev.kitepon.bellbot",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "73",
+  "includedChanges": [
+    "PR136: square profile large image and iPhone 88pt small image with bounded legacy portrait recrop",
+    "PR138: count24 common continuous clock, timeout, and scene transition diagnostics",
+    "PR141: five Goal list caller triggers and their scene phases"
+  ],
+  "xcodegen": {
+    "command": "xcodegen generate --spec ios/BellBot/project.yml",
+    "extraTrackedDiff": false
+  },
+  "logInterpretation": "The log line beginning 'error: the following command failed with exit code 0' is Xcode output. The separately observed xcodebuild process exit was 0 for both builds. codesign --verify --strict exited 1 because CODE_SIGNING_ALLOWED=NO produced apps without signatures.",
+  "builds": [
+    {
+      "platform": "IOS",
+      "destination": "generic/platform=iOS",
+      "configuration": "Release",
+      "jobs": 2,
+      "codeSigningAllowed": false,
+      "command": "xcodebuild -quiet -jobs 2 -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam -configuration Release -destination 'generic/platform=iOS' -derivedDataPath runtime/apple/list-build73/ios-derived CODE_SIGNING_ALLOWED=NO build",
+      "exitCode": 0,
+      "processExitEvidence": {"execSessionId": 61434, "observedExitCode": 0},
+      "logPath": "runtime/apple/list-build73/ios-release.log",
+      "logSha256": "857aa6aa6bbd49f57d04d6fceedd48d1f1d6879f54994f6d6d309d419163df04",
+      "logBytes": 2345,
+      "logDiagnostics": [
+        {"line": 1, "text": "error: the following command failed with exit code 0 but produced no further output"},
+        {"line": 2, "text": "SwiftCompile normal arm64 (in target 'BellTeam' from project 'BellBot')"},
+        {"line": 3, "source": "AppStore.swift:97:125", "text": "warning: call to main actor-isolated class method 'default()' in a synchronous nonisolated context [#ActorIsolatedCall]"},
+        {"line": 19, "source": "BellAPI.swift:186:43", "text": "warning: weak reference will always be nil because the referenced object is deallocated here"}
+      ],
+      "unsignedSignature": {"command": "codesign --verify --strict", "observedExitCode": 1, "reason": "code object is not signed at all", "architecture": "arm64"},
+      "app": {
+        "binaryPath": "runtime/apple/list-build73/ios-derived/Build/Products/Release-iphoneos/BellTeam.app/BellTeam",
+        "binarySha256": "2c0b60216c85392e23d54124f8712c311c33e7290dd0f66d4765446ae6dd4da6",
+        "architectures": ["arm64"],
+        "bundleVersion": "73"
+      },
+      "notificationService": {
+        "binaryPath": "runtime/apple/list-build73/ios-derived/Build/Products/Release-iphoneos/BellTeam.app/PlugIns/NotificationService.appex/NotificationService",
+        "binarySha256": "7590e9f8bbc5899da505e93b9445f2e5b26bf82c3fb138ae0954195d5d70b7a3",
+        "architectures": ["arm64"],
+        "bundleVersion": "73"
+      }
+    },
+    {
+      "platform": "MAC_OS",
+      "destination": "generic/platform=macOS,variant=Mac Catalyst",
+      "configuration": "Release",
+      "jobs": 2,
+      "codeSigningAllowed": false,
+      "command": "xcodebuild -quiet -jobs 2 -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam -configuration Release -destination 'generic/platform=macOS,variant=Mac Catalyst' -derivedDataPath runtime/apple/list-build73/mac-derived CODE_SIGNING_ALLOWED=NO build",
+      "exitCode": 0,
+      "processExitEvidence": {"execSessionId": 43443, "observedExitCode": 0},
+      "logPath": "runtime/apple/list-build73/mac-release.log",
+      "logSha256": "0ac6f91b28dde174051a3ee7cb49b49f15c203e400e9674b0d532418d9ca03a3",
+      "logBytes": 4719,
+      "logDiagnostics": [
+        {"line": 1, "text": "error: the following command failed with exit code 0 but produced no further output"},
+        {"line": 2, "text": "SwiftCompile normal x86_64 (in target 'BellTeam' from project 'BellBot')"},
+        {"line": 3, "source": "AppStore.swift:97:125", "text": "warning: call to main actor-isolated class method 'default()' in a synchronous nonisolated context [#ActorIsolatedCall]"},
+        {"line": 19, "source": "BellAPI.swift:186:43", "text": "warning: weak reference will always be nil because the referenced object is deallocated here"},
+        {"line": 28, "text": "error: the following command failed with exit code 0 but produced no further output"},
+        {"line": 29, "text": "SwiftCompile normal arm64 (in target 'BellTeam' from project 'BellBot')"},
+        {"line": 30, "source": "AppStore.swift:97:125", "text": "warning: call to main actor-isolated class method 'default()' in a synchronous nonisolated context [#ActorIsolatedCall]"},
+        {"line": 46, "source": "BellAPI.swift:186:43", "text": "warning: weak reference will always be nil because the referenced object is deallocated here"}
+      ],
+      "unsignedSignature": {"command": "codesign --verify --strict", "observedExitCode": 1, "reason": "code object is not signed at all"},
+      "app": {
+        "binaryPath": "runtime/apple/list-build73/mac-derived/Build/Products/Release-maccatalyst/BellTeam.app/Contents/MacOS/BellTeam",
+        "binarySha256": "3b2675ad70e274b13a19e7058f8c2dfd6e288ad3ae5dcdb2c3995953faa712f8",
+        "architectures": ["x86_64", "arm64"],
+        "bundleVersion": "73"
+      },
+      "notificationService": {
+        "binaryPath": "runtime/apple/list-build73/mac-derived/Build/Products/Release-maccatalyst/BellTeam.app/Contents/PlugIns/NotificationService.appex/Contents/MacOS/NotificationService",
+        "binarySha256": "8932b05a859d8fd7f06c42e304a2d31424fc64c997234ea82e796ec86de903bc",
+        "architectures": ["x86_64", "arm64"],
+        "bundleVersion": "73"
+      }
+    }
+  ],
+  "signed": false,
+  "uploadedToAppStoreConnect": false,
+  "distributedToTestFlight": false
+}
