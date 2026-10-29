@@ -229,11 +229,14 @@ def _archive(tx, prior, normal):
 
 
 class _Transaction:
+    _docker_socket_path = Path('/var/run/docker.sock')
+
     def __init__(self, path, parent, lock, owner, direction, normal_group=None, normal=None):
         self.path, self.parent, self.lock, self.owner = path, parent, lock, owner
         self.normal_group, self.shared = normal_group, False
         self.parent_identity = _identity(os.fstat(parent))
         self.lock_identity = _identity(os.fstat(lock))
+        self._docker_socket_original = None
         self.name = 'transaction-' + direction + '.json'
         self.value = {'schema': SCHEMA, 'direction': direction, 'status': 'incomplete',
                       'actorPid': os.getpid(), 'actorStartTicks': int(
@@ -259,6 +262,37 @@ class _Transaction:
                 or _identity(linked) != self.lock_identity
                 or _identity(held) != self.lock_identity):
             raise ControlError('SEC014_CONTROL_IDENTITY_CHANGED')
+        if self._docker_socket_original is not None:
+            self._socket_observation()
+
+    def _socket_observation(self):
+        # shortcut: pathname metadata only, require host peer/ACL authority before live connection.
+        path=self._docker_socket_path
+        fd=os.open(path,os.O_PATH|os.O_NOFOLLOW|os.O_CLOEXEC)
+        try:
+            info=os.fstat(fd)
+            linked=os.stat(path,follow_symlinks=False)
+            keys=('st_dev','st_ino','st_uid','st_gid','st_mode','st_nlink','st_ctime_ns')
+            if (not stat.S_ISSOCK(info.st_mode) or info.st_uid!=self.owner[0]
+                    or any(getattr(info,key)!=getattr(linked,key) for key in keys)):
+                raise ControlError('SEC014_CONTROL_DOCKER_SOCKET')
+            namespace=os.stat('/proc/thread-self/ns/mnt')
+            value=dict(path=str(path),dockerHost='unix://'+str(path),device=str(info.st_dev),
+                inode=str(info.st_ino),uid=info.st_uid,gid=info.st_gid,
+                mode=format(stat.S_IMODE(info.st_mode),'04o'),links=info.st_nlink,
+                ctimeNs=str(info.st_ctime_ns),namespaceDevice=str(namespace.st_dev),
+                namespaceInode=str(namespace.st_ino),hostAuthority=False)
+            if self._docker_socket_original is not None and value!=self._docker_socket_original:
+                raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_CHANGED')
+            return value
+        finally:os.close(fd)
+
+    def _docker_endpoint(self):
+        self.check()
+        value=self._socket_observation()
+        if self._docker_socket_original is None:self._docker_socket_original=dict(value)
+        self.check()
+        return value
 
     def _writer_config(self):
         models = {}

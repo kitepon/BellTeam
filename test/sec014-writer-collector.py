@@ -3,6 +3,7 @@ import gc
 import weakref
 import json
 import os
+import socket
 from pathlib import Path
 import subprocess
 import sys
@@ -17,6 +18,15 @@ h = importlib.util.module_from_spec(spec); spec.loader.exec_module(h)
 
 
 class WriterCollector(h.HeldWriterConfig):
+    def setUp(self):
+        super().setUp()
+        self.socket_path=self.root/'docker.sock'
+        self.socket=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
+        self.addCleanup(self.socket.close)
+        self.socket.bind(str(self.socket_path));self.socket_path.chmod(0o660)
+        endpoint=patch.object(h.g.c._Transaction,'_docker_socket_path',self.socket_path,create=True)
+        endpoint.start();self.addCleanup(endpoint.stop)
+
     def run_factory(self, mode):
         normal, _ = self.pair()
         native = ROOT/'distribution/internal/sec014-writer-collector.py'
@@ -25,6 +35,7 @@ class WriterCollector(h.HeldWriterConfig):
         module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
         self.children = []
         self.waited = []
+        self.environments=[]
         self.addCleanup(self.cleanup_children)
         real_popen = subprocess.Popen
         outside = self.root/'outside'; outside.mkdir()
@@ -40,7 +51,10 @@ class WriterCollector(h.HeldWriterConfig):
             if argv[0] != '/usr/bin/docker':
                 return real_popen(argv, **kwargs)
             self.assertNotIn('.Config.Env', ' '.join(argv))
-            self.assertEqual(set(kwargs['env']), {'PATH', 'HOME', 'LANG', 'DOCKER_CONFIG'})
+            self.assertEqual(set(kwargs['env'])-{'DOCKER_HOST'}, {'PATH', 'HOME', 'LANG', 'DOCKER_CONFIG'})
+            self.environments.append(kwargs['env'])
+            if 'DOCKER_HOST' in kwargs['env']:
+                self.assertEqual(kwargs['env']['DOCKER_HOST'],'unix://'+str(self.socket_path))
             self.assertEqual(list(Path(kwargs['env']['DOCKER_CONFIG']).iterdir()), [])
             if argv[1:3] == ['image', 'inspect']:
                 self.assertEqual(argv, ['/usr/bin/docker','image','inspect','--format','{{json .Id}}',h.g.IMAGE])
@@ -79,6 +93,17 @@ class WriterCollector(h.HeldWriterConfig):
         def factory(tx):
             collector = module._Writer(tx,h.g.IMAGE,h.g.SELECTED['image'],time.monotonic()+30,
                 datetime.now(timezone.utc)+timedelta(seconds=40))
+            if mode=='socket_replace':
+                replacement=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
+                self.addCleanup(replacement.close)
+                save=collector.save
+                def changed(slot,value):
+                    result=save(slot,value)
+                    if slot=='image.output':
+                        self.socket_path.rename(self.socket_path.with_name('retained.sock'))
+                        replacement.bind(str(self.socket_path));self.socket_path.chmod(0o660)
+                    return result
+                collector.save=changed
             class Executor:
                 def assert_writers_stopped(inner, **fields):
                     result.append(collector.snapshot())
@@ -123,12 +148,25 @@ class WriterCollector(h.HeldWriterConfig):
 
     def test_factory_native_terminals_consumed_before_reap(self):
         result = self.run_factory('success')[0]
+        self.assertTrue(self.environments)
+        self.assertTrue(all(env.get('DOCKER_HOST')=='unix://'+str(self.socket_path) for env in self.environments))
+        endpoint=json.loads((self.control/'to-server-writer-socket.json').read_bytes())
+        self.assertEqual(endpoint['dockerHost'],'unix://'+str(self.socket_path))
+        self.assertEqual(endpoint['inode'],str(self.socket_path.stat().st_ino))
+        self.assertFalse(endpoint['hostAuthority'])
         self.assertFalse(result['hostWriterAuthorityVerified'])
         self.assertFalse(result['phaseReceiptProduced'])
         self.assertEqual(len(self.children),4)
         self.assertEqual(len(self.waited),4)
         self.assertEqual({x['clientPid'] for x in result['terminalRefs']},{x.pid for x in self.children})
         self.assertTrue(all(not Path(f'/proc/{x.pid}').exists() for x in self.children))
+
+    def test_socket_replacement_after_image_refuses_list(self):
+        self.run_factory('socket_replace')
+        self.assertEqual(len(self.children),1)
+        self.assertEqual(self.waited,[])
+        self.assertIsNotNone(os.waitid(os.P_PID,self.children[0].pid,os.WEXITED|os.WNOWAIT|os.WNOHANG))
+        self.assertFalse((self.control/'to-server-writer-observation.json').exists())
         for path in self.control.glob('to-server-writer-*json'):
             self.assertEqual(path.stat().st_mode & 0o777,0o600)
 

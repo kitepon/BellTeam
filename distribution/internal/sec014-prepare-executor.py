@@ -54,6 +54,7 @@ class _Prepare:
         self.step = 'entry'
         self.parent_fd,self.parent_identity,self.parent_record = None,None,None
         self.parent_mount,self.parent_namespace = None,None
+        self.endpoint,self.endpoint_record = None,None
 
     def ready(self):
         self.tx.check()
@@ -67,6 +68,7 @@ class _Prepare:
         self.proof = proof
         if time.monotonic() >= self.deadline-1 or datetime.now(timezone.utc) >= self.end:
             raise actor.control.ControlError('SEC014_PREPARE_DEADLINE_OR_HELD')
+        self.tx.check()
         self._check_parent()
 
     def _check_parent(self):
@@ -167,6 +169,8 @@ class _Prepare:
     def prepare(self):
         try:
             self.tx.check()
+            self.endpoint=self.tx._docker_endpoint()
+            self.endpoint_record=self.save('socket',self.endpoint)
             self.parent_namespace=actor.control._identity(os.stat('/proc/thread-self/ns/mnt'))
             self.parent_fd=os.open(PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
             info=os.fstat(self.parent_fd)
@@ -223,6 +227,7 @@ class _Prepare:
         config.mkdir(mode=0o700)
         actor.control._private(config.lstat(),self.tx.owner,True)
         self.env={'PATH':'/usr/bin:/bin','HOME':'/nonexistent','LANG':'C.UTF-8',
+             'DOCKER_HOST':self.endpoint['dockerHost'],
              'DOCKER_CONFIG':str(config),'BELLTEAM_SERVER_IMAGE':self.image_id if normal is not None else self.image,
              'BELLTEAM_STATE_PARENT':str(PARENT)}
         self.ready()
@@ -270,7 +275,8 @@ class _Prepare:
             clientPid=run['pid'],clientStartTicks=run['startTicks'],containerId=cid,containerName=name,
             argv=argv,status='exited',exitCode=0,unknown=False)
         self.save('chain',{'terminal':terminal,'commands':self.records,'hostParentProof':self.proof,
-                           'parentObservationSha256':self.parent_record})
+                           'parentObservationSha256':self.parent_record,
+                           'socketObservationSha256':self.endpoint_record})
         receipt=actor.prepared_phase_receipt(self.tx,self.image,terminal,self.proof)
         self.step = 'phase'
         self.ready()

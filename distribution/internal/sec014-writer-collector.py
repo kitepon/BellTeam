@@ -120,12 +120,15 @@ class _Writer:
 
     def snapshot(self):
         try:
+            endpoint=self.tx._docker_endpoint()
+            self.save('socket',endpoint)
             config=self.tx._writer_config()
             plan=self.query('plan',config=config,image=self.image,imageId=self.image_id)
             path=self.tx.path/(self.tx.value['direction']+'-writer-empty-docker-config')
             path.mkdir(mode=0o700)
             actor.control._private(path.lstat(),self.tx.owner,True)
-            self.env={'PATH':'/usr/bin:/bin','HOME':'/nonexistent','LANG':'C.UTF-8','DOCKER_CONFIG':str(path)}
+            self.env={'PATH':'/usr/bin:/bin','HOME':'/nonexistent','LANG':'C.UTF-8',
+                      'DOCKER_CONFIG':str(path),'DOCKER_HOST':endpoint['dockerHost']}
             image=self.client('image',plan['imageArgv'],128)
             if json.loads(image['rawUtf8']) != self.image_id:
                 raise actor.control.ControlError('SEC014_WRITER_IMAGE_RESOLUTION')

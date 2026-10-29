@@ -695,3 +695,48 @@ normal phases remain unfinished; whole Draft remains NOTDEPLOYABLE.
 Kernel interface references: [proc fdinfo](https://docs.kernel.org/filesystems/proc.html#proc-pid-fdinfo-fd-information-about-opened-file),
 [namespace identities](https://man7.org/linux/man-pages/man7/namespaces.7.html),
 [calling-thread proc view](https://man7.org/linux/man-pages/man5/proc_thread-self.5.html).
+
+
+### Same held transaction supplies the fixed Docker endpoint
+
+`_Transaction._docker_endpoint` observes the fixed `/var/run/docker.sock` with
+O_PATH/no-follow/close-on-exec, checks socket type and the held owner's UID,
+and compares fstat with the named entry. It retains pathname/device/inode,
+owner/group/mode/link count/ctime and calling-thread mount namespace as
+metadata-only values. Every later transaction check reobserves that original;
+temporary observation FDs close in finally. This adds no socket connection,
+listener, background watcher or new lock/identity scheme.
+
+Both the existing native Writer and Prepare consume that same private method,
+save its original through the existing durable JSON writer, and set the fixed
+`DOCKER_HOST` in their existing minimal environment. Docker context/TLS/user
+configuration is still absent. Prepare references its socket-original SHA in
+the existing chain and checks the transaction after the host callback as well
+as before it. No journal/phase receipt schema or public entry is changed.
+
+Three focused ordinary-filesystem/AF_UNIX-bound fixtures fail against the old
+product with the final test bytes and pass after the change: replacing the
+socket at the final Prepare run callback, replacing it with a regular file,
+and replacing it after the Writer's image output. Prepare goes from four fake
+clients to zero; Writer goes from four reaped clients/accepted metadata to one
+held native image client and no LIST or verified observation. The latter child
+remains WNOWAIT-visible until explicit fixture teardown. No client connects to
+the fixture socket. Positive Prepare/Writer paths verify actual endpoint
+metadata and the fixed environment; Prepare also verifies chain SHA. The held
+saved factory, namespace-change fixture and native failure-owner case pass.
+The namespace fixture restores its injected state before its final valid-owner
+check, since the transaction now also detects that namespace change. An initial
+wrong GC-test name selector is retained as a harness error with no test run.
+
+Socket permissions/group/ACL policy, daemon peer/process identity and trusted
+host namespace are not established by this observation; an initial insecure
+configuration is not made trusted. Ancestor/mount topology, external writers
+and the interval between checks and daemon connection remain outside its scope.
+After a changed socket, saving an unknown artifact can itself refuse the now
+invalid transaction; original metadata, native child ownership and incomplete
+journal remain, and no success receipt/retry is synthesized. Full hostchecker,
+production factory/invalidation owner/recovery-reap/maintenance and later normal
+phases remain unconnected. All hostAuthority flags stay false, whole Draft
+NOTDEPLOYABLE/unmerged/undeployed; no real host/Docker/NAS/Apple operation.
+
+Endpoint environment semantics follow the [Docker CLI documentation](https://docs.docker.com/reference/cli/docker/).

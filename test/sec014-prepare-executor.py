@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import socket
 import subprocess
 import sys
 import time
@@ -41,6 +42,10 @@ class PrepareTests(unittest.TestCase):
         for x in self.patches:x.start();self.addCleanup(x.stop)
         self.mutate=lambda value:value
         self.output=None;self.birth=None
+        self.socket_path=self.f.state.parent/'docker.sock'
+        self.socket=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
+        self.addCleanup(self.socket.close)
+        self.socket.bind(str(self.socket_path));self.socket_path.chmod(0o660)
 
     def inspector(self):
         name=p.actor.prepare_name(self.tx)
@@ -78,6 +83,8 @@ class PrepareTests(unittest.TestCase):
         return child
 
     def runner(self,host=None,deadline=None):
+        endpoint=patch.object(type(self.tx),'_docker_socket_path',self.socket_path,create=True)
+        endpoint.start();self.addCleanup(endpoint.stop)
         host = host or (lambda step:'d'*64)
         host.bind_image = lambda image,image_id:None  # Synthetic authority seam only.
         return p._Prepare(self.tx,IMAGE,IMAGE_ID,deadline or time.monotonic()+110,
@@ -220,6 +227,7 @@ class PrepareTests(unittest.TestCase):
             self.assertEqual(len(calls),2)
             self.assertTrue(runner.held)
             self.assertIsNone(runner.parent_fd)
+            changed[0]=False
             self.tx.check()
             self.assertEqual(self.journal()['phases'],[])
 
@@ -257,13 +265,20 @@ class PrepareTests(unittest.TestCase):
                              dict(device=str(namespace.st_dev),inode=str(namespace.st_ino)))
             chain=json.loads((self.f.root/'to-server-prepare-chain.json').read_bytes())
             self.assertEqual(chain['parentObservationSha256'],hashlib.sha256(parent_raw).hexdigest())
+            socket_raw=(self.f.root/'to-server-prepare-socket.json').read_bytes()
+            endpoint=json.loads(socket_raw)
+            self.assertEqual(endpoint['dockerHost'],'unix://'+str(self.socket_path))
+            self.assertEqual(endpoint['inode'],str(self.socket_path.stat().st_ino))
+            self.assertFalse(endpoint['hostAuthority'])
+            self.assertEqual(chain['socketObservationSha256'],hashlib.sha256(socket_raw).hexdigest())
             self.assertEqual(len(self.commands),4)
             self.assertEqual(self.commands[0][0],['/usr/bin/docker','compose','--env-file','/dev/null','-f',
                 '/home/kite/BellTeam/compose.state-prepare.yaml','run','--no-deps','--name',p.actor.prepare_name(self.tx),'-T','state-prepare'])
             self.assertEqual(self.commands[2][0],['/usr/bin/docker','rm',CID])
             self.assertNotIn('.Config.Env',self.commands[1][0][5])
             for argv,env in self.commands:
-                self.assertEqual(set(env),{'PATH','HOME','LANG','DOCKER_CONFIG','BELLTEAM_SERVER_IMAGE','BELLTEAM_STATE_PARENT'})
+                self.assertEqual(set(env),{'PATH','HOME','LANG','DOCKER_CONFIG','DOCKER_HOST','BELLTEAM_SERVER_IMAGE','BELLTEAM_STATE_PARENT'})
+                self.assertEqual(env['DOCKER_HOST'],'unix://'+str(self.socket_path))
                 self.assertEqual(list(Path(env['DOCKER_CONFIG']).iterdir()),[])
             self.assertEqual(len(self.reaped),4)
             self.assertEqual(self.journal()['phases'],['writers_stopped'])
@@ -280,6 +295,38 @@ class PrepareTests(unittest.TestCase):
         self.assertEqual(len(self.commands),2)
         self.assertFalse((self.f.root/'to-server-prepare-evidence.json').exists())
         self.assertEqual(self.journal()['phases'],[])
+
+    def test_socket_replacement_at_final_callback_refuses_before_client(self):
+        calls=[]
+        replacement=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
+        self.addCleanup(replacement.close)
+        def host(step):
+            if step=='run':
+                calls.append(step)
+                if len(calls)==2:
+                    self.socket_path.rename(self.socket_path.with_name('retained.sock'))
+                    replacement.bind(str(self.socket_path));self.socket_path.chmod(0o660)
+            return 'd'*64
+        with self.f.hold() as self.tx:
+            runner=self.runner(host=host)
+            try:runner.prepare()
+            except p.actor.control.ControlError:pass
+            self.assertEqual(self.commands,[])
+            self.assertTrue(runner.held)
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_non_socket_endpoint_refuses_before_host_step_or_client(self):
+        self.socket_path.unlink();self.socket_path.write_bytes(b'not a socket')
+        calls=[]
+        def host(step):calls.append(step);return 'd'*64
+        with self.f.hold() as self.tx:
+            runner=self.runner(host=host)
+            try:runner.prepare()
+            except p.actor.control.ControlError:pass
+            self.assertEqual(self.commands,[])
+            self.assertEqual(calls,[])
+            self.assertTrue(runner.held)
+            self.assertEqual(self.journal()['phases'],[])
 
     def test_extra_mount_never_reaches_remove_or_phase(self):
         self.mutate=lambda v:dict(v,mounts=v['mounts']+[dict(Type='bind',Source='/x',Destination='/home/bell',RW=True)])
