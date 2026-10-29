@@ -1,0 +1,117 @@
+{
+  "schema": "bellteam.apple-internal-delivery.v1",
+  "observedAtUTC": "2026-10-29T20:24:51.681558+00:00",
+  "product": "BellTeam",
+  "purpose": "画像編集中の画面復帰保持と通信修理を含む版78を内部配布",
+  "bundleId": "dev.kitepon.bellbot",
+  "appStoreConnectAppId": "6816295589",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "78",
+  "signedSourceCommit": "d53a64cee7dbb928c6e634a91443f949faee6455",
+  "versionMergeCommit": "cb54262120f603adf682d1cd703bc39ff3cb0620",
+  "unsignedPreflight": "docs/evidence/2026-10-30-apple-avatar-edit-build78-preflight.json",
+  "unsignedPreflightSha256": "bc7d3b54e4da46312cc10c357449f7199fdcee16be049630222b2481e2d9210c",
+  "ownerApproval": {
+    "title": "BellTeam Apple画像編集保持・通信修理版78を署名・内部配布し必要時にMac更新を1回押す",
+    "choice": "go_all",
+    "answeredAt": "2026-10-29T19:55:33.232Z",
+    "macPhysicalClickScope": "BellTeam version 78 update button only, at most once if needed"
+  },
+  "betaGroup": {
+    "id": "58133050-1c39-4915-b6da-aac18b95921b",
+    "name": "BellTeam オーナー",
+    "internal": true
+  },
+  "artifacts": [
+    {
+      "platform": "IOS",
+      "relativePath": "runtime/apple/avatar-edit-signed78/ios-export/BellTeam.ipa",
+      "sha256": "b21af233f75e6e6aa2c13b3940a27eb0e42a675b3c4be261587cbda4fea0698b",
+      "bytes": 9144358,
+      "appBundleVersion": "78",
+      "extensionBundleVersion": "78",
+      "architectures": [
+        "arm64"
+      ],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "5d5b8715-22d9-4490-8323-761f6871cb4b",
+      "uploadResult": "no-errors from normal tool response",
+      "appStoreConnectBuildId": "5d5b8715-22d9-4490-8323-761f6871cb4b",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    },
+    {
+      "platform": "MAC_OS",
+      "relativePath": "runtime/apple/avatar-edit-signed78/mac-export/BellTeam.pkg",
+      "sha256": "031c6658f297afe8810da0734a3686d1b3c532c31d3bd27f640b67b187d6718b",
+      "bytes": 10792579,
+      "appBundleVersion": "78",
+      "extensionBundleVersion": "78",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "installerSignature": "3rd Party Mac Developer Installer, valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "2404965f-9972-46a6-857c-f7343e58e8d5",
+      "uploadResult": "no-errors from normal tool response",
+      "appStoreConnectBuildId": "2404965f-9972-46a6-857c-f7343e58e8d5",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    }
+  ],
+  "macTestFlightSmoke": {
+    "status": "pending_navigation_permission_or_auto_update",
+    "installedPath": "/Applications/BellTeam.app",
+    "lastObservedBundleVersion": "77",
+    "lastObservedSignature": "strict-valid",
+    "lastObservedGatekeeperSource": "Testflight",
+    "testFlightTargetVersionVisuallyConfirmed": false,
+    "screenInspectionBlocker": "TestFlight BellTeam sidebar row ID6816295589 exposes only ScrollTo. Jev abstained and headless AX click was POLICY_DENIED/not_delivered. Existing go_all allows headed input for version78 update button only.",
+    "navigationDecisionTitle": "TestFlightでBellTeamの詳細を開くため一覧項目を1回物理クリックする",
+    "navigationDecisionStatusAtObservation": "pending",
+    "headedSidebarClickPerformed": false,
+    "headedUpdateClickPerformed": false,
+    "readOnlySmokeCompleted": false
+  },
+  "remaining": {
+    "macTestFlightInstallation": "pending BellTeam details navigation or TestFlight automatic update",
+    "iphoneAndIpadPhysicalInstallation": "not_measured",
+    "realOwnerAvatarChange": "not_performed",
+    "imageEditRecoveryOnOwnerDevice": "not_observed",
+    "diagnosticCases": [
+      {
+        "fingerprintPrefix": "eb392",
+        "count": 33,
+        "state": "open",
+        "cause": "unknown",
+        "recovery": "unknown",
+        "repairSuccess": false
+      },
+      {
+        "fingerprintPrefix": "eaab",
+        "count": 2,
+        "state": "open",
+        "cause": "unknown",
+        "recovery": "unknown",
+        "repairSuccess": false
+      }
+    ]
+  },
+  "realBotRestartPerformed": false,
+  "realBotMessageSent": false,
+  "ownerAvatarEdited": false,
+  "authenticationChanged": false,
+  "serverContainerRestartedByThisDelivery": false,
+  "publicAppStoreReleased": false
+}
