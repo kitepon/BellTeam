@@ -63,9 +63,7 @@ struct BotEditor: View {
     @State private var smallAvatarChanged = false
     @State private var largeAvatarChanged = false
     @State private var appearanceLoaded = false
-    @State private var appearanceLoading = false
     @State private var appearanceSchemaAvailable = false
-    @State private var appearanceError: String?
     @State private var cropSource: AvatarCropSource?
     @State private var errorText: String?
     @State private var modelErrorText: String?
@@ -147,47 +145,42 @@ struct BotEditor: View {
                 .disabled(deletionPending || deletionResultUnconfirmed)
                 if initial == nil {
                     Section("画像") {
-                    if appearanceLoading { ProgressView("保存済みの画像を確認しています…") }
-                    if appearanceLoaded && !appearanceSchemaAvailable {
-                        Text("画像の独立編集はサーバー更新後に利用できます。")
-                            .font(.footnote).foregroundStyle(BellTheme.muted)
-                    }
-                    if let appearanceError {
-                        Text(appearanceError).font(.footnote).foregroundStyle(.red)
-                        Button("画像を再読込") { Task { await loadAppearance() } }
-                    }
-                    Button("小画像を再調整") { reopenCrop(.small) }
-                        .disabled(avatar.isEmpty || !canEditVariantImages)
-                    if !(avatarSource?.isEmpty == false), !avatar.isEmpty {
-                        Text("元画像が残っていないため、現在の切り抜きの外側は再調整できません。")
-                            .font(.footnote).foregroundStyle(BellTheme.muted)
-                    }
-                    AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0, variant: .large) },
-                                      onFailure: { errorText = "画像を読み込めませんでした。" }) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if let image = AvatarPortraitCache.image(for: largeAvatarPreview) {
-                                Image(uiImage: image).resizable().scaledToFill()
-                                    .frame(width: 160, height: 160).clipped()
-                                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                            }
-                            Text("大画像を変更")
-                        }
-                    }
-                    .disabled(!canEditVariantImages)
-                    Button("大画像を再調整") { reopenCrop(.large) }
-                        .disabled(avatarLarge?.isEmpty != false || !canEditVariantImages)
-                    if avatarLarge?.isEmpty == false {
-                        if !(avatarLargeSource?.isEmpty == false) {
-                            Text("大画像の元画像が残っていないため、現在の切り抜きの外側は再調整できません。")
+                        if appearanceLoaded && !appearanceSchemaAvailable {
+                            Text("画像の独立編集はサーバー更新後に利用できます。")
                                 .font(.footnote).foregroundStyle(BellTheme.muted)
                         }
-                        Button("大画像を小画像と同じに戻す") {
-                            avatarLarge = ""; avatarLargeSource = ""; avatarLargeCrop = nil
-                            largeAvatarChanged = true
-                            persistDraft()
+                        Button("小画像を再調整") { reopenCrop(.small) }
+                            .disabled(avatar.isEmpty || !canEditVariantImages)
+                        if !(avatarSource?.isEmpty == false), !avatar.isEmpty {
+                            Text("元画像が残っていないため、現在の切り抜きの外側は再調整できません。")
+                                .font(.footnote).foregroundStyle(BellTheme.muted)
+                        }
+                        AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0, variant: .large) },
+                                          onFailure: { errorText = "画像を読み込めませんでした。" }) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                if let image = AvatarPortraitCache.image(for: largeAvatarPreview) {
+                                    Image(uiImage: image).resizable().scaledToFill()
+                                        .frame(width: 160, height: 160).clipped()
+                                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                                }
+                                Text("大画像を変更")
+                            }
                         }
                         .disabled(!canEditVariantImages)
-                    }
+                        Button("大画像を再調整") { reopenCrop(.large) }
+                            .disabled(avatarLarge?.isEmpty != false || !canEditVariantImages)
+                        if avatarLarge?.isEmpty == false {
+                            if !(avatarLargeSource?.isEmpty == false) {
+                                Text("大画像の元画像が残っていないため、現在の切り抜きの外側は再調整できません。")
+                                    .font(.footnote).foregroundStyle(BellTheme.muted)
+                            }
+                            Button("大画像を小画像と同じに戻す") {
+                                avatarLarge = ""; avatarLargeSource = ""; avatarLargeCrop = nil
+                                largeAvatarChanged = true
+                                persistDraft()
+                            }
+                            .disabled(!canEditVariantImages)
+                        }
                     }
                     .disabled(deletionPending || deletionResultUnconfirmed)
                 }
@@ -355,7 +348,6 @@ struct BotEditor: View {
                 largeAvatarChanged = draft.largeAvatarChanged
                 appearanceLoaded = draft.appearanceLoaded
             }
-            await loadAppearance()
         } else {
             appearanceSchemaAvailable = store.bots.contains { $0.avatarLargeVersion != nil }
         }
@@ -378,38 +370,6 @@ struct BotEditor: View {
             customModel = configuredModel
         }
         loadingModels = false
-    }
-
-    private func loadAppearance() async {
-        guard let initial, !appearanceLoading else { return }
-        appearanceLoading = true
-        defer { appearanceLoading = false }
-        let path = "/api/bots/\(initial.id)"
-        do {
-            let response: BotProfileResponse = try await store.api.get(path)
-            try Task.checkCancellation()
-            if !smallAvatarChanged {
-                avatar = response.bot.avatar
-                avatarSource = response.bot.avatarSource
-                avatarCrop = response.bot.avatarCrop
-            }
-            if !largeAvatarChanged {
-                avatarLarge = response.bot.avatarLarge
-                avatarLargeSource = response.bot.avatarLargeSource
-                avatarLargeCrop = response.bot.avatarLargeCrop
-            }
-            appearanceLoaded = true
-            appearanceSchemaAvailable = response.bot.avatarLarge != nil
-                && response.bot.avatarSource != nil && response.bot.avatarLargeSource != nil
-            appearanceError = nil
-            persistDraft()
-        } catch is CancellationError { return }
-        catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch {
-            appearanceError = error.localizedDescription
-            store.api.diagnostics.report(error, path: path, method: "GET",
-                                         observation: .read(error, retainedData: !avatar.isEmpty))
-        }
     }
 
     private func reopenCrop(_ variant: AvatarCropVariant) {
