@@ -52,11 +52,13 @@ class _Prepare:
         self.held,self.children,self.records = False,[],[]
         self.proof,self.cid,self.env = None,None,None
         self.step = 'entry'
+        self.parent_fd,self.parent_identity,self.parent_record = None,None,None
 
     def ready(self):
         self.tx.check()
         if self.held or time.monotonic() >= self.deadline-1 or datetime.now(timezone.utc) >= self.end:
             raise actor.control.ControlError('SEC014_PREPARE_DEADLINE_OR_HELD')
+        self._check_parent()
         proof = self.host_check(self.step)
         if (type(proof) is not str or not re.fullmatch('[a-f0-9]{64}',proof)
                 or self.proof is not None and proof != self.proof):
@@ -64,6 +66,16 @@ class _Prepare:
         self.proof = proof
         if time.monotonic() >= self.deadline-1 or datetime.now(timezone.utc) >= self.end:
             raise actor.control.ControlError('SEC014_PREPARE_DEADLINE_OR_HELD')
+        self._check_parent()
+
+    def _check_parent(self):
+        # shortcut: final entry only, require host ancestor/ACL/mount exclusion before live connection.
+        if self.parent_fd is None:
+            raise actor.control.ControlError('SEC014_PREPARE_PARENT_UNBOUND')
+        for info in (os.fstat(self.parent_fd),os.stat(PARENT,follow_symlinks=False)):
+            actor.control._private(info,self.tx.owner,True)
+            if actor.control._identity(info)!=self.parent_identity:
+                raise actor.control.ControlError('SEC014_PREPARE_PARENT_CHANGED')
 
     def save(self, slot, value):
         return actor._save_json(self.tx,self.tx.value['direction']+'-prepare-'+slot+'.json',value)
@@ -139,6 +151,13 @@ class _Prepare:
 
     def prepare(self):
         try:
+            self.tx.check()
+            self.parent_fd=os.open(PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
+            info=os.fstat(self.parent_fd)
+            actor.control._private(info,self.tx.owner,True)
+            self.parent_identity=actor.control._identity(info)
+            self.parent_record=self.save('parent',dict(path=str(PARENT),device=str(info.st_dev),
+                inode=str(info.st_ino),uid=info.st_uid,gid=info.st_gid,mode='0700',hostAuthority=False))
             return self._prepare()
         except Exception as failure:
             self.held=True
@@ -148,6 +167,10 @@ class _Prepare:
                 'errorType':type(failure).__name__,'containerName':actor.prepare_name(self.tx),'knownCid':self.cid})
             except Exception: pass
             raise actor.control.ControlError('SEC014_PREPARE_PHASE_UNCONFIRMED') from None
+        finally:
+            if self.parent_fd is not None:
+                fd,self.parent_fd=self.parent_fd,None
+                os.close(fd)
 
     def _prepare(self):
         self.tx.check()
@@ -227,7 +250,8 @@ class _Prepare:
             image=self.image,actorPid=self.tx.value['actorPid'],actorStartTicks=self.tx.value['actorStartTicks'],
             clientPid=run['pid'],clientStartTicks=run['startTicks'],containerId=cid,containerName=name,
             argv=argv,status='exited',exitCode=0,unknown=False)
-        self.save('chain',{'terminal':terminal,'commands':self.records,'hostParentProof':self.proof})
+        self.save('chain',{'terminal':terminal,'commands':self.records,'hostParentProof':self.proof,
+                           'parentObservationSha256':self.parent_record})
         receipt=actor.prepared_phase_receipt(self.tx,self.image,terminal,self.proof)
         self.step = 'phase'
         self.ready()

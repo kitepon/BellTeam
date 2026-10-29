@@ -630,3 +630,34 @@ metadata, native PID/birth checks, and this callback count establish no host
 authority. Real socket/ancestor ACL/mount/writer facts, invalidation ownership,
 recovery/reap, and later normal phases remain unconnected. No host or Docker
 daemon was accessed; the Draft remains NOTDEPLOYABLE.
+
+
+### Fixed Prepare parent observation before command issue
+
+The existing Prepare phase opens its fixed state-data parent with directory,
+no-follow and close-on-exec flags after the held transaction check. It applies
+the existing owner/0700 check, saves the actual device/inode/owner/mode as
+`prepare-parent.json` with `hostAuthority: false`, and holds the FD until the
+phase returns or fails. Every ready boundary compares that FD and the named
+final entry before and after the host callback. A missing/nonprivate/symlinked
+parent or changed final entry refuses before the next native client; the
+existing failure latch and host invalidation are retained. The existing chain
+references the durable parent observation SHA. The FD closes in `finally`,
+including when parent validation fails.
+
+Three dedicated ordinary-filesystem cases fail against the old product and
+pass against the new one with the same test bytes: a parent replaced during
+the final run callback, mode 0755, and a symlink parent. All three formerly
+issued four fake-protocol clients before later rejection; all now issue none.
+The replacement case checks the saved original identity, invalidation, no
+chain/phase and actual FD closure. The affected success case verifies the
+parent observation SHA in the chain and the released FD. Claim expiry, missing
+host evidence and the held-factory/saved-Prepare case also pass.
+
+This is a final-entry observation, not host authority. It does not validate
+ancestor ACLs, mount topology/aliases, namespace/socket identity, external
+writers or the interval between observations and Docker consuming a path. It
+does not turn a host-check lambda/hash into proof or connect a production
+factory. Those host facts and exclusion/invalidation ownership remain required
+before live use. No new lock/controller/CLI/identity scheme, host Docker, or
+normal phase was added. Whole Draft remains NOTDEPLOYABLE.

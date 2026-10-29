@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import json
 import os
@@ -119,10 +120,70 @@ class PrepareTests(unittest.TestCase):
             self.assertEqual(self.commands,[])
             self.assertEqual(self.journal()['phases'],[])
 
+    def test_parent_replacement_at_host_callback_refuses_before_run(self):
+        original=self.f.state.stat()
+        opened=[];invalidated=[]
+        def host(step):
+            if step=='run':
+                opened.append(getattr(runner,'parent_fd',None))
+                if len(opened)==2:
+                    self.f.state.rename(self.f.state.with_name('retained-state'))
+                    self.f.state.mkdir(mode=0o700)
+            return 'd'*64
+        host.invalidate=invalidated.append
+        with self.f.hold() as self.tx:
+            runner=self.runner(host=host)
+            with self.assertRaisesRegex(p.actor.control.ControlError,'PHASE_UNCONFIRMED'):
+                runner.prepare()
+            self.assertEqual(self.commands,[])
+            self.assertTrue(runner.held)
+            self.assertEqual(set(invalidated),{'UNCONFIRMED_CHILD'})
+            self.assertEqual(len(opened),2)
+            self.assertIsNotNone(opened[0])
+            self.assertEqual(opened[0],opened[1])
+            with self.assertRaises(OSError):os.fstat(opened[0])
+            saved=json.loads((self.f.root/'to-server-prepare-parent.json').read_bytes())
+            self.assertEqual((saved['device'],saved['inode']),(str(original.st_dev),str(original.st_ino)))
+            self.assertFalse(saved['hostAuthority'])
+            self.assertEqual(self.journal()['phases'],[])
+            self.assertFalse((self.f.root/'to-server-prepare-chain.json').exists())
+
+    def test_nonprivate_parent_refuses_before_host_step_or_client(self):
+        self.f.state.chmod(0o755)
+        calls=[]
+        def host(step):calls.append(step);return 'd'*64
+        with self.f.hold() as self.tx:
+            with self.assertRaisesRegex(p.actor.control.ControlError,'PHASE_UNCONFIRMED'):
+                self.runner(host=host).prepare()
+            self.assertEqual(self.commands,[])
+            self.assertEqual(calls,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_symlink_parent_refuses_before_host_step_or_client(self):
+        target=self.f.state.with_name('retained-state')
+        self.f.state.rename(target);self.f.state.symlink_to(target,target_is_directory=True)
+        calls=[]
+        def host(step):calls.append(step);return 'd'*64
+        with self.f.hold() as self.tx:
+            with self.assertRaisesRegex(p.actor.control.ControlError,'PHASE_UNCONFIRMED'):
+                self.runner(host=host).prepare()
+            self.assertEqual(self.commands,[])
+            self.assertEqual(calls,[])
+            self.assertEqual(self.journal()['phases'],[])
+
     def test_four_fixed_commands_env_terminal_before_reap_and_phase_evidence(self):
         with self.f.hold() as self.tx, patch.dict(os.environ,{'BELLTEAM_WEB_TOKEN':'synthetic-secret','DOCKER_HOST':'invalid'}):
             self.tx.confirmed('writers_stopped')
-            receipt=self.runner().prepare()
+            runner=self.runner()
+            receipt=runner.prepare()
+            self.assertIsNone(runner.parent_fd)
+            parent_raw=(self.f.root/'to-server-prepare-parent.json').read_bytes()
+            parent=json.loads(parent_raw)
+            self.assertEqual((parent['device'],parent['inode']),
+                             (str(self.f.state.stat().st_dev),str(self.f.state.stat().st_ino)))
+            self.assertFalse(parent['hostAuthority'])
+            chain=json.loads((self.f.root/'to-server-prepare-chain.json').read_bytes())
+            self.assertEqual(chain['parentObservationSha256'],hashlib.sha256(parent_raw).hexdigest())
             self.assertEqual(len(self.commands),4)
             self.assertEqual(self.commands[0][0],['/usr/bin/docker','compose','--env-file','/dev/null','-f',
                 '/home/kite/BellTeam/compose.state-prepare.yaml','run','--no-deps','--name',p.actor.prepare_name(self.tx),'-T','state-prepare'])
