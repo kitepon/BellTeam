@@ -230,3 +230,7 @@ printf '%s' "$health" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("e
 各native clientのclaim/spawn/terminal/rawを既O_EXCL0600保存で保持し、全clientのpid/startTicksを検査する。既Node verifierの消費とobservationの保存を終えるまでreapせず、成功後に同childだけwaitする。失敗はunknownを保存して後続を止め、Docker再送・kill・cleanupをしない。実canonicalを収集し、observed path欠落を拒否、planned path未作成は既存祖先をresolveしてsuffixを戻し、dangling symlink祖先は拒否する。
 
 新focused試験は普通FS/flockと専用Python子のfake Docker protocolで、同held factoryからphase0へ呼ぶ。実Docker/固定ホスト権限の証明ではない。返却は既metadata-only/all authority falseのまま、phase receiptへ昇格させない。productionの全phase executor factory、bind_imageとhostauthority、固定maintenance/実imagepair/親ACLmount、全writer区間、normal create/start/inspect/healthと後段は未接続。whole Draft NOTDEPLOYABLE・未merge未反映を維持する。
+
+失敗時のnative childはcollectorだけでなく同txが保持し、`run_actor`はfactory/phaseの例外処理後も未回収childを持つtxをprivate failure ownerに残す。これによりfactory-local objectとtracebackの破棄/GCでPopenのdestructorが暗黙reapしない。自動kill/retry/owner解放は行わず、actorプロセスの寿命中に保持する。許可された実recovery/回収callerは未接続で、試験の明示fixture teardownをその実装とは扱わない。新しい試験は別のPopen強参照もwait差替えも持たず、factory失敗→例外処理→GC後も同childがWNOWAIT可視であることを確認する。
+
+このfailure ownerはnative client参照の保全であり、control lockのEX延長ではない。既context終了とincomplete journalによる次actor拒否は変更しない。

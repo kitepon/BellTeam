@@ -16,6 +16,9 @@ _spec = importlib.util.spec_from_file_location(
 prepared = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(prepared)
 
+# A handled failure must not let Popen.__del__ reap an unconfirmed native client.
+_FAILED_WRITER_OWNERS = []
+
 # Each proof is produced after checking its real artifacts, never from exit0 alone.
 PROOFS = (
     ('participating_writers', 'nonparticipating_writers', 'both_normal_stopped'),
@@ -170,6 +173,11 @@ def run_actor(direction, image, executor_factory, *, saved_normal):
         raise control.ControlError('SEC014_ACTOR_IMAGE')
     with control.host_control(direction, saved_normal=saved_normal) as tx:
         # Construct the executor only while this exact saved generation is held.
-        executor = executor_factory(tx)
-        tx.check()
-        return _run(tx, image, executor)
+        try:
+            executor = executor_factory(tx)
+            tx.check()
+            return _run(tx, image, executor)
+        except BaseException:
+            if any(child.returncode is None for child, _ in getattr(tx, '_writer_children', ())):
+                _FAILED_WRITER_OWNERS.append(tx)
+            raise

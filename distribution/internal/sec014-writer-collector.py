@@ -46,7 +46,10 @@ class _Writer:
                 or not isinstance(window_end,datetime) or window_end.utcoffset() is None):
             raise actor.control.ControlError('SEC014_WRITER_SCOPE')
         self.tx,self.image,self.image_id,self.deadline,self.end=tx,image,image_id,deadline,window_end
-        self.children=[]
+        tx.check()
+        if hasattr(tx, '_writer_children'):
+            raise actor.control.ControlError('SEC014_WRITER_ALREADY_OWNED')
+        self.children=tx._writer_children=[]
         self.held=False
         self.env=None
 

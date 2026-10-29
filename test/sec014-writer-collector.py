@@ -1,4 +1,6 @@
 import importlib.util
+import gc
+import weakref
 import json
 import os
 from pathlib import Path
@@ -151,6 +153,51 @@ class WriterCollector(h.HeldWriterConfig):
         self.assertEqual(self.waited,[])
         unknown=json.loads((self.control/'to-server-writer-unknown.json').read_text())
         self.assertEqual(unknown['clients'],[{'pid':self.children[0].pid,'startTicks':None}])
+
+
+    def test_failure_survives_factory_unwind_without_test_child_owner(self):
+        normal, _ = self.pair()
+        spec=importlib.util.spec_from_file_location('unwind_writer',ROOT/'distribution/internal/sec014-writer-collector.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        real_popen=subprocess.Popen
+        issued={}
+        def spawn(argv,**kwargs):
+            if argv[0]!='/usr/bin/docker':return real_popen(argv,**kwargs)
+            child=real_popen([sys.executable,'-c',"import sys;sys.stdout.write('x'*8321)"],
+                stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,close_fds=True)
+            issued.update(pid=child.pid,weak=weakref.ref(child))
+            limit=time.monotonic()+2
+            while os.waitid(os.P_PID,child.pid,os.WEXITED|os.WNOWAIT|os.WNOHANG) is None:
+                if time.monotonic()>=limit:self.fail('fixture child failed to exit')
+                time.sleep(.001)
+            return child
+        def factory(tx):
+            collector=module._Writer(tx,h.g.IMAGE,h.g.SELECTED['image'],time.monotonic()+30,
+                datetime.now(timezone.utc)+timedelta(seconds=40))
+            collector.snapshot()  # Fail inside the factory, before an executor can be returned.
+            self.fail('overflow must stop factory')
+        try:
+            with patch.object(module.subprocess,'Popen',side_effect=spawn),patch.object(h.g.c,'host_control',side_effect=lambda direction,saved_normal:self.hold(saved_normal)):
+                try:h.g.a.run_actor('to-server',h.g.IMAGE,factory,saved_normal=normal)
+                except RuntimeError as error:self.assertIn('SEC014_WRITER_HELD_OR_UNKNOWN',str(error))
+                else:self.fail('unconfirmed client must fail')
+            gc.collect()  # No exception/traceback or test Popen reference survives this point.
+            self.assertIsNotNone(issued['weak'](), 'failure owner lost the native client after factory unwind')
+            self.assertIsNotNone(os.waitid(os.P_PID,issued['pid'],os.WEXITED|os.WNOWAIT|os.WNOHANG))
+            journal=json.loads((self.control/'transaction-to-server.json').read_text())
+            self.assertEqual(journal['phases'],[])
+            self.assertEqual(journal['status'],'incomplete')
+            print('WRITER_UNWIND_OUTPUT '+json.dumps({'pid':issued['pid'],'ownerSurvivesGc':True,
+                'terminalStillWaitable':True,'phaseReceipt':False,'scope':'ordinary dedicated Python child, no Docker'}),flush=True)
+        finally:
+            # Explicit local-fixture teardown, not an automatic production failure path.
+            child=issued.get('weak',lambda:None)()
+            if child is not None:
+                real_popen.wait(child,timeout=2)
+                for stream in (child.stdout,child.stderr):
+                    if stream and not stream.closed:stream.close()
+            owners=getattr(h.g.a,'_FAILED_WRITER_OWNERS',[])
+            owners[:]=[tx for tx in owners if tx.path!=self.control]
 
 
 if __name__ == '__main__':
