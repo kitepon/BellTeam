@@ -123,6 +123,33 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertFalse(log.contains("network.test.invalid"))
     }
 
+    func testGoalListFailureDirectReportIncludesCallerContext() async {
+        let scenario = NetworkScenario(failures: 2)
+        let api = makeAPI(scenario)
+        api.diagnostics.updateAppState("active")
+        do {
+            let _: [String: String] = try await api.get("/api/goals?token=private-token")
+            XCTFail("二試行とも切断したGETを成功として返さない")
+        } catch {
+            api.diagnostics.report(error, path: "/api/goals?token=private-token", method: "GET",
+                                   observation: .read(error, retainedData: false),
+                                   diagnosticContext: "goal_load_trigger=list_view_task\ngoal_view_phase_at_call=active")
+        }
+        XCTAssertEqual(scenario.count("/api/goals"), 2)
+        XCTAssertEqual(scenario.reports.count, 1)
+        let log = scenario.reports.first?.log ?? ""
+        XCTAssertTrue(log.contains("request_route=/api/goals"))
+        XCTAssertTrue(log.contains("attempt_1_error_code=-1005"))
+        XCTAssertTrue(log.contains("attempt_2_error_code=-1005"))
+        XCTAssertTrue(log.contains("goal_load_trigger=list_view_task"))
+        XCTAssertTrue(log.contains("goal_view_phase_at_call=active"))
+        XCTAssertFalse(log.contains("private-token"))
+        let attachment = XCTAttachment(data: Data(log.utf8), uniformTypeIdentifier: "public.plain-text")
+        attachment.name = "人工Goal一覧二試行の直接report原文（UI未再現）"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testPostIsNotReplayed() async throws {
         let scenario = NetworkScenario(failures: 2)
         let api = makeAPI(scenario)

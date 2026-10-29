@@ -299,7 +299,10 @@ private final class GoalViewModel: ObservableObject {
         currentSnapshots.first { $0.botId == botId }
     }
 
-    func loadList(store: AppStore) async { await load(path: "/api/goals", botId: nil, store: store) }
+    func loadList(store: AppStore, trigger: String, viewScenePhase: ScenePhase) async {
+        await load(path: "/api/goals", botId: nil, store: store,
+                   diagnosticContext: "goal_load_trigger=\(trigger)\ngoal_view_phase_at_call=\(viewScenePhase)")
+    }
     func loadDetail(botId: String, store: AppStore, trigger: String, viewScenePhase: ScenePhase) async {
         await load(path: "/api/bots/\(botId)/goal", botId: botId, store: store,
                    diagnosticContext: "goal_load_trigger=\(trigger)\ngoal_view_phase_at_call=\(viewScenePhase)")
@@ -474,11 +477,16 @@ struct GoalsView: View {
                     .padding(.top, 24)
                     .padding(.bottom, 30)
                 }
-                .refreshable { await goals.loadList(store: store) }
+                .refreshable {
+                    await goals.loadList(store: store, trigger: "list_pull_refresh", viewScenePhase: scenePhase)
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { Task { await goals.loadList(store: store) } } label: { Image(systemName: "arrow.clockwise") }
+                    Button {
+                        let phase = scenePhase
+                        Task { await goals.loadList(store: store, trigger: "list_manual", viewScenePhase: phase) }
+                    } label: { Image(systemName: "arrow.clockwise") }
                         .accessibilityLabel("ゴールを更新")
                         .disabled(goals.loading || goals.mutating)
                 }
@@ -507,12 +515,21 @@ struct GoalsView: View {
                 }
                 .environmentObject(store)
             }
-            .task(id: store.selectedTab) { if store.selectedTab == 3 { await goals.loadList(store: store) } }
+            .task(id: store.selectedTab) {
+                if store.selectedTab == 3 {
+                    await goals.loadList(store: store, trigger: "list_view_task", viewScenePhase: scenePhase)
+                }
+            }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active && store.selectedTab == 3 { Task { await goals.loadList(store: store) } }
+                if phase == .active && store.selectedTab == 3 {
+                    Task { await goals.loadList(store: store, trigger: "list_foreground", viewScenePhase: phase) }
+                }
             }
             .onChange(of: store.eventRevision) { _, _ in
-                if store.selectedTab == 3 { Task { await goals.loadList(store: store) } }
+                if store.selectedTab == 3 {
+                    let phase = scenePhase
+                    Task { await goals.loadList(store: store, trigger: "list_event", viewScenePhase: phase) }
+                }
             }
         }
     }
