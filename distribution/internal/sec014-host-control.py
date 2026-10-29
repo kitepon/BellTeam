@@ -1,6 +1,7 @@
 """SEC014 host lock/journal component. No Docker, installer or CLI entry yet."""
 
 from contextlib import contextmanager
+import errno
 import fcntl
 import hashlib
 import json
@@ -271,17 +272,27 @@ class _Transaction:
         fd=os.open(path,os.O_PATH|os.O_NOFOLLOW|os.O_CLOEXEC)
         try:
             info=os.fstat(fd)
-            linked=os.stat(path,follow_symlinks=False)
             keys=('st_dev','st_ino','st_uid','st_gid','st_mode','st_nlink','st_ctime_ns')
-            if (not stat.S_ISSOCK(info.st_mode) or info.st_uid!=self.owner[0]
-                    or any(getattr(info,key)!=getattr(linked,key) for key in keys)):
+            if not stat.S_ISSOCK(info.st_mode) or info.st_uid!=self.owner[0]:
+                raise ControlError('SEC014_CONTROL_DOCKER_SOCKET')
+            acl,acl_errno=None,None
+            try:acl=os.getxattr(path,'system.posix_acl_access',follow_symlinks=False)
+            except OSError as error:
+                if error.errno!=errno.ENODATA:raise
+                acl_errno=error.errno
+            # shortcut: ACL over 4096B is refused, review saved-record cap before increasing.
+            if acl is not None and len(acl)>4096:
+                raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_ACL_LIMIT')
+            linked=os.stat(path,follow_symlinks=False)
+            if any(getattr(info,key)!=getattr(linked,key) for key in keys):
                 raise ControlError('SEC014_CONTROL_DOCKER_SOCKET')
             namespace=os.stat('/proc/thread-self/ns/mnt')
             value=dict(path=str(path),dockerHost='unix://'+str(path),device=str(info.st_dev),
                 inode=str(info.st_ino),uid=info.st_uid,gid=info.st_gid,
                 mode=format(stat.S_IMODE(info.st_mode),'04o'),links=info.st_nlink,
                 ctimeNs=str(info.st_ctime_ns),namespaceDevice=str(namespace.st_dev),
-                namespaceInode=str(namespace.st_ino),hostAuthority=False)
+                namespaceInode=str(namespace.st_ino),accessAcl=dict(
+                    rawHex=None if acl is None else acl.hex(),errno=acl_errno),hostAuthority=False)
             if self._docker_socket_original is not None and value!=self._docker_socket_original:
                 raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_CHANGED')
             return value

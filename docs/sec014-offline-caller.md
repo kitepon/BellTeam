@@ -794,3 +794,43 @@ trusted host namespace, ancestor ACL/mount topology or continuous writer
 exclusion. Full hostfacts verifier/factory, durable invalidation/recovery reap,
 maintenance and normal later phases remain unconnected. Whole Draft
 NOTDEPLOYABLE, unmerged and undeployed; no real host/Docker operation.
+
+
+### Fixed socket access ACL original
+
+The existing transaction socket getter now reads `system.posix_acl_access` with
+no final-symlink following, between opened-inode and named-entry observations.
+It retains the kernel bytes as hex (at most 4096 raw bytes) or the exact ENODATA
+errno in the existing metadata original. ENODATA can mean unavailable access as
+well as absence; `rawHex:null, errno:ENODATA` does not prove an absent or safe ACL.
+Other errors, including EACCES and unsupported/disabled ACLs, refuse before
+image binding. Raw values over 4096 bytes also refuse. The temporary O_PATH FD
+still closes in finally. Subsequent tx checks re-read the same field together
+with existing inode/owner/mode/ctime/namespace facts. Both Writer and Prepare
+save the original through their already connected consumers. No ACL is changed
+by production code, and hostAuthority stays false.
+
+Four final identical tests fail against the parent and pass this change: native
+POSIX ACL bytes on an owned AF_UNIX fixture reach the binding callback's saved
+0600 original and later actual ACL mutation refuses; injected EACCES, injected
+ENOTSUP and a 4097-byte value each prevent binding/client/phase issuance. The
+normal Prepare positive also checks that native ENODATA is retained as errno.
+Native mutation changes ctime too; this test does not isolate ACL comparison
+from the already existing ctime protection. The initial combined error subcases
+were split into independent fixtures after the parent's unexpected successful
+first attempt reserved the original; initial logs are retained separately.
+
+Required affected Prepare positives (2) and held factory (1) passed. The intended
+single Writer positive was invoked through a script whose custom main ignores
+argv; all nine Writer cases unexpectedly ran and passed. This extra group run
+and a subsequent log-selector StopIteration are recorded as harness mistakes;
+the existing successful output was parsed without another test run to confirm
+Writer's same raw ENODATA record. Project FULL was not run.
+
+This adds an actual kernel ACL observation, not a policy accepting particular
+users/groups, effective host access or absence of alternate writers. Initial ACL
+safety, peer/trusted host, ancestor ACL/mount topology, full hostfacts verifier
+and factory, durable invalidation/recovery reap/maintenance/later phases remain
+unproved. Whole Draft NOTDEPLOYABLE, unmerged and undeployed; real host/Docker
+operations remain zero. Linux semantics: https://man7.org/linux/man-pages/man2/getxattr.2.html
+and https://man7.org/linux/man-pages/man7/xattr.7.html .

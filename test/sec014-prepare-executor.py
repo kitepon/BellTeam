@@ -1,4 +1,5 @@
 import hashlib
+import errno
 import importlib.util
 import io
 import json
@@ -7,6 +8,7 @@ from pathlib import Path
 import re
 import socket
 import subprocess
+import struct
 import sys
 import time
 from types import SimpleNamespace
@@ -255,6 +257,73 @@ class PrepareTests(unittest.TestCase):
             self.assertEqual(self.commands,[])
             self.assertEqual(self.journal()['phases'],[])
 
+    def test_native_socket_access_acl_original_reaches_binding(self):
+        entries=[(1,6,0xffffffff),(2,4,os.getuid()+1),(4,0,0xffffffff),
+                 (16,6,0xffffffff),(32,0,0xffffffff)]
+        raw=struct.pack('<I',2)+b''.join(struct.pack('<HHI',*entry) for entry in entries)
+        os.setxattr(self.socket_path,'system.posix_acl_access',raw,follow_symlinks=False)
+        self.assertEqual(os.getxattr(self.socket_path,'system.posix_acl_access',follow_symlinks=False),raw)
+        seen=[];invalidated=[]
+        def host(step):return 'd'*64
+        def bind(image,image_id):
+            saved=json.loads((self.f.root/'to-server-prepare-socket.json').read_bytes())
+            seen.append(saved.get('accessAcl'))
+        host.bind_image,host.invalidate=bind,invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
+            runner=p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                              datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            self.assertEqual(seen,[dict(rawHex=raw.hex(),errno=None)])
+            self.assertEqual(runner.endpoint['accessAcl'],seen[0])
+            self.assertFalse(runner.endpoint['hostAuthority'])
+            self.tx.check()
+            entries[1]=(2,6,os.getuid()+1)
+            changed=struct.pack('<I',2)+b''.join(struct.pack('<HHI',*entry) for entry in entries)
+            os.setxattr(self.socket_path,'system.posix_acl_access',changed,follow_symlinks=False)
+            with self.assertRaisesRegex(RuntimeError,'DOCKER_SOCKET_CHANGED'):self.tx.check()
+            self.assertEqual(json.loads((self.f.root/'to-server-prepare-socket.json').read_bytes())['accessAcl'],seen[0])
+            self.assertEqual(invalidated,[])
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def assert_socket_acl_read_failure(self,code):
+        calls=[];invalidated=[];failure=OSError(code,'synthetic ACL read unavailable')
+        def host(step):return 'd'*64
+        host.bind_image=lambda image,image_id:calls.append((image,image_id))
+        host.invalidate=invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path), \
+                patch.object(os,'getxattr',side_effect=failure):
+            with self.assertRaises(OSError) as caught:
+                p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            self.assertIs(caught.exception,failure)
+            self.assertEqual(calls,[])
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            self.assertFalse((self.f.root/'to-server-prepare-socket.json').exists())
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_socket_acl_read_error_refuses_before_binding(self):
+        self.assert_socket_acl_read_failure(errno.EACCES)
+
+    def test_socket_acl_unsupported_refuses_before_binding(self):
+        self.assert_socket_acl_read_failure(errno.ENOTSUP)
+
+    def test_oversized_socket_acl_refuses_before_binding(self):
+        calls=[];invalidated=[]
+        def host(step):return 'd'*64
+        host.bind_image=lambda image,image_id:calls.append((image,image_id))
+        host.invalidate=invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path), \
+                patch.object(os,'getxattr',return_value=b'x'*4097):
+            with self.assertRaisesRegex(RuntimeError,'DOCKER_SOCKET_ACL_LIMIT'):
+                p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            self.assertEqual(calls,[])
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            self.assertFalse((self.f.root/'to-server-prepare-socket.json').exists())
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
     def test_parent_replacement_at_host_callback_refuses_before_run(self):
         original=self.f.state.stat()
         opened=[];invalidated=[]
@@ -395,6 +464,7 @@ class PrepareTests(unittest.TestCase):
             self.assertEqual(endpoint['dockerHost'],'unix://'+str(self.socket_path))
             self.assertEqual(endpoint['inode'],str(self.socket_path.stat().st_ino))
             self.assertFalse(endpoint['hostAuthority'])
+            self.assertEqual(endpoint['accessAcl'],dict(rawHex=None,errno=errno.ENODATA))
             self.assertEqual(chain['socketObservationSha256'],hashlib.sha256(socket_raw).hexdigest())
             self.assertEqual(len(self.commands),4)
             self.assertEqual(self.commands[0][0],['/usr/bin/docker','compose','--env-file','/dev/null','-f',
