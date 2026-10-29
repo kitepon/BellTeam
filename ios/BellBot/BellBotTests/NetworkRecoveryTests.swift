@@ -226,6 +226,60 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertTrue(scenario.reports.isEmpty, "取消で通信障害warnを作らない")
     }
 
+    func testGoalViewTaskCancellationDoesNotCancelItsReplacement() async {
+        let scenario = NetworkScenario(failures: 0)
+        let api = makeAPI(scenario)
+        let foreground = GoalForegroundLoad()
+        let firstStarted = expectation(description: "画面Taskの旧読取が開始")
+        var resumeFirst: CheckedContinuation<Void, Never>?
+        var firstCancelled = false
+        let firstWrapper = Task {
+            await foreground.runForViewTask {
+                await withCheckedContinuation { continuation in
+                    resumeFirst = continuation
+                    firstStarted.fulfill()
+                }
+                firstCancelled = Task.isCancelled
+            }
+        }
+        await fulfillment(of: [firstStarted], timeout: 3)
+        firstWrapper.cancel()
+        resumeFirst?.resume()
+        await firstWrapper.value
+        XCTAssertTrue(firstCancelled, "SwiftUIの画面Task取消は自身の読取へ伝わる")
+
+        let nextStarted = expectation(description: "切替前の旧読取が開始")
+        var resumeNext: CheckedContinuation<Void, Never>?
+        var oldLoading = false
+        var nextCancelled = false
+        let nextWrapper = Task {
+            await foreground.runForViewTask {
+                oldLoading = true
+                await withCheckedContinuation { continuation in
+                    resumeNext = continuation
+                    nextStarted.fulfill()
+                }
+                nextCancelled = Task.isCancelled
+                oldLoading = false
+            }
+        }
+        await fulfillment(of: [nextStarted], timeout: 3)
+        foreground.cancel()
+        let current = foreground.start {
+            XCTAssertFalse(oldLoading, "再activeの読取は旧loading解除を待つ")
+            let response: [String: String]? = try? await api.get("/api/goals")
+            XCTAssertEqual(response?["result"], "ok")
+        }
+        nextWrapper.cancel()
+        XCTAssertEqual(scenario.count("/api/goals"), 0)
+        resumeNext?.resume()
+        await nextWrapper.value
+        await current.value
+        XCTAssertTrue(nextCancelled)
+        XCTAssertEqual(scenario.count("/api/goals"), 1, "旧wrapperの遅い取消は現読取を止めない")
+        XCTAssertTrue(scenario.reports.isEmpty)
+    }
+
     func testSendFailureReconcileReportsOnlyTheLoadCallBoundary() async {
         let lost = URLError(.networkConnectionLost)
         var loadCalls = 0

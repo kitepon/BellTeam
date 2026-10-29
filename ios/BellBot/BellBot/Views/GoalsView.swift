@@ -42,6 +42,16 @@ final class GoalForegroundLoad {
     }
 
     func cancel() { current?.cancel() }
+
+    func runForViewTask(_ load: @escaping @MainActor () async -> Void) async {
+        guard !Task.isCancelled else { return }
+        let child = start(load)
+        await withTaskCancellationHandler {
+            await child.value
+        } onCancel: {
+            child.cancel()
+        }
+    }
 }
 
 private struct GoalsResponse: Decodable { let goals: [GoalSnapshot] }
@@ -574,7 +584,9 @@ struct GoalsView: View {
                 if store.selectedTab == 3 {
                     let context = GoalLoadCallContext.capture(trigger: "list_view_task",
                         viewPhase: scenePhase, diagnostics: store.api.diagnostics)
-                    await goals.loadList(store: store, context: context)
+                    await foregroundLoad.runForViewTask {
+                        await goals.loadList(store: store, context: context)
+                    }
                 }
             }
             .onChange(of: scenePhase) { _, phase in
@@ -686,7 +698,9 @@ struct ChatGoalBar: View {
         .task(id: botId) {
             let context = GoalLoadCallContext.capture(trigger: "chat_view_task",
                 viewPhase: scenePhase, diagnostics: store.api.diagnostics)
-            await goals.loadDetail(botId: botId, store: store, context: context)
+            await foregroundLoad.runForViewTask {
+                await goals.loadDetail(botId: botId, store: store, context: context)
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
