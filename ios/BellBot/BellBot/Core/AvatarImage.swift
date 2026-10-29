@@ -7,8 +7,10 @@ struct AvatarCropRect: Codable, Equatable {
     let height: Double
 }
 
-enum AvatarCropVariant: Equatable {
+enum AvatarCropVariant: String, Identifiable {
     case small, large
+
+    var id: Self { self }
 
     var canvas: CGSize {
         switch self {

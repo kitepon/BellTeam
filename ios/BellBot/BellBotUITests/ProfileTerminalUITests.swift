@@ -101,9 +101,13 @@ final class ProfileTerminalUITests: XCTestCase {
         let bot = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch
         XCTAssertTrue(bot.waitForExistence(timeout: 10))
         bot.tap(); app.buttons["詳細"].tap()
-        app.buttons["メンバーを編集"].tap()
+        app.buttons["profile-large-avatar"].tap()
         XCTAssertTrue(app.staticTexts["画像の独立編集はサーバー更新後に利用できます。"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["大画像を変更"].isEnabled)
+        XCTAssertFalse(app.buttons["profile-image-change"].exists)
+        app.buttons["profile-image-close"].tap()
+        app.buttons["メンバーを編集"].tap()
+        XCTAssertFalse(app.buttons["大画像を変更"].exists)
+        XCTAssertFalse(app.buttons["小画像を変更"].exists)
         XCTAssertTrue(app.buttons["save-member"].isEnabled, "画像schemaが旧版でも文面は保存できる")
         let count = try await screenReadCount(url)
         XCTAssertEqual(count, 0)
@@ -122,23 +126,22 @@ final class ProfileTerminalUITests: XCTestCase {
         let bot = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch
         XCTAssertTrue(bot.waitForExistence(timeout: 10))
         bot.tap(); app.buttons["詳細"].tap()
-        app.buttons["メンバーを編集"].tap()
-        let recrop = app.buttons["小画像を再調整"]
-        XCTAssertTrue(recrop.waitForExistence(timeout: 5))
-        XCTAssertTrue(recrop.isEnabled)
-        recrop.tap()
+        app.buttons["profile-small-avatar"].tap()
+        XCTAssertTrue(app.staticTexts["小画像"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["profile-image-change"].exists)
+        app.buttons["profile-image-adjust"].tap()
         let slider = app.sliders["アバター画像の拡大・縮小"]
         XCTAssertTrue(slider.waitForExistence(timeout: 5))
         slider.adjust(toNormalizedSliderPosition: 0.5)
         app.buttons["使用する"].tap()
-        app.buttons["save-member"].tap()
-        XCTAssertTrue(app.buttons["save-member"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["画像を保存しました。"].waitForExistence(timeout: 10))
 
         let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
         let (data, _) = try await URLSession.shared.data(from: proofURL)
         let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let writes = try XCTUnwrap(proof["writes"] as? [[String: Any]])
         XCTAssertEqual(writes.count, 1)
+        XCTAssertEqual(writes[0]["keys"] as? [String], ["avatar", "avatarCrop", "avatarSource"])
         XCTAssertEqual(writes[0]["small"] as? Bool, true)
         XCTAssertEqual(writes[0]["large"] as? Bool, false)
         let crop = try XCTUnwrap(writes[0]["smallCrop"] as? [String: Any])
@@ -164,10 +167,11 @@ final class ProfileTerminalUITests: XCTestCase {
         defer { app.terminate() }
         let bot = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch
         XCTAssertTrue(bot.waitForExistence(timeout: 10))
-        bot.tap(); app.buttons["詳細"].tap(); app.buttons["メンバーを編集"].tap()
-        let recrop = app.buttons["大画像を再調整"]
-        XCTAssertTrue(recrop.waitForExistence(timeout: 5))
-        recrop.tap()
+        bot.tap(); app.buttons["詳細"].tap()
+        app.buttons["profile-large-avatar"].tap()
+        XCTAssertTrue(app.staticTexts["大画像"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["profile-image-change"].exists)
+        app.buttons["profile-image-adjust"].tap()
         let slider = app.sliders["アバター画像の拡大・縮小"]
         XCTAssertTrue(slider.waitForExistence(timeout: 5))
         let capture = XCTAttachment(screenshot: app.screenshot())
@@ -176,18 +180,48 @@ final class ProfileTerminalUITests: XCTestCase {
         add(capture)
         slider.adjust(toNormalizedSliderPosition: 0.5)
         app.buttons["使用する"].tap()
-        app.buttons["save-member"].tap()
-        XCTAssertTrue(app.buttons["save-member"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["画像を保存しました。"].waitForExistence(timeout: 10))
 
         let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
         let (data, _) = try await URLSession.shared.data(from: proofURL)
         let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let writes = try XCTUnwrap(proof["writes"] as? [[String: Any]])
         XCTAssertEqual(writes.count, 1)
+        XCTAssertEqual(writes[0]["keys"] as? [String], ["avatarLarge", "avatarLargeCrop", "avatarLargeSource"])
         XCTAssertEqual(writes[0]["large"] as? Bool, true)
         XCTAssertEqual(writes[0]["small"] as? Bool, false)
         let crop = try XCTUnwrap(writes[0]["largeCrop"] as? [String: Any])
         XCTAssertEqual(crop["width"] as? Double ?? 0, crop["height"] as? Double ?? 0, accuracy: 0.001)
+    }
+
+    func testPhoneImageTargetsStaySeparateAndCancelDoesNotSave() async throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの画像入口を確認する試験です。")
+        continueAfterFailure = false
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"])
+        try await reset(url)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-profile-terminal",
+                               "-bellbot-preview-server", url]
+        app.launch()
+        defer { app.terminate() }
+        let bot = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch
+        XCTAssertTrue(bot.waitForExistence(timeout: 10))
+        bot.tap(); app.buttons["詳細"].tap()
+        app.buttons["profile-small-avatar"].tap()
+        XCTAssertTrue(app.staticTexts["小画像"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["profile-image-change"].exists)
+        app.buttons["profile-image-adjust"].tap()
+        XCTAssertTrue(app.sliders["アバター画像の拡大・縮小"].waitForExistence(timeout: 5))
+        app.buttons["キャンセル"].tap()
+        app.buttons["profile-large-avatar"].tap()
+        XCTAssertTrue(app.staticTexts["大画像"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["profile-image-change"].exists)
+        XCTAssertTrue(app.buttons["profile-image-adjust"].exists)
+        app.buttons["profile-image-close"].tap()
+        let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
+        let (data, _) = try await URLSession.shared.data(from: proofURL)
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual((proof["writes"] as? [[String: Any]])?.count, 0)
     }
 
     func testTabletKeepsInspectorWithNewProfileContent() async throws {

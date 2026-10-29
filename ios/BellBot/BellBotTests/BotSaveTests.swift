@@ -4,6 +4,64 @@ import WebKit
 @testable import BellBot
 
 final class BotSaveTests: XCTestCase {
+    func testImageOnlyRequestSendsExactlyTheSelectedTriplet() throws {
+        let selected = AvatarCropSelection(render: "data:image/jpeg;base64,YQ==",
+            source: "data:image/jpeg;base64,YWJj", crop: AvatarCropRect(x: 0, y: 0, width: 1, height: 1))
+        for (variant, expected) in [
+            (AvatarCropVariant.small, Set(["avatar", "avatarSource", "avatarCrop"])),
+            (.large, Set(["avatarLarge", "avatarLargeSource", "avatarLargeCrop"]))
+        ] {
+            let settings = oldSettings.withAvatarSelection(selected, variant: variant)
+            let request = BotSettingsRequest(settings: settings, originalFastMode: false,
+                                             imageOnlyVariant: variant)
+            let body = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any])
+            XCTAssertEqual(Set(body.keys), expected)
+        }
+    }
+
+    func testSmallImageLostResponseConfirmsOnlySmallTriplet() async throws {
+        var current = oldSettings
+        current.avatar = "data:image/jpeg;base64,b2xk"
+        current.avatarLarge = "data:image/jpeg;base64,bGFyZ2U="
+        current.avatarLargeSource = "data:image/jpeg;base64,bGFyZ2Utc291cmNl"
+        current.avatarLargeCrop = AvatarCropRect(x: 0, y: 0, width: 1, height: 1)
+        let fixture = SaveFixture(saved: current, applyBeforeFailure: true)
+        let selected = AvatarCropSelection(render: "data:image/jpeg;base64,bmV3",
+            source: "data:image/jpeg;base64,bmV3LXNvdXJjZQ==",
+            crop: AvatarCropRect(x: 0.1, y: 0.1, width: 0.8, height: 0.8))
+        let result = try await makeAPI(fixture).saveBotAvatarSelection(
+            id: "member", current: current, variant: .small, selection: selected)
+        guard case .confirmed = result else { return XCTFail("応答を失っても小画像の保存内容を確認する") }
+        XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
+        XCTAssertEqual(fixture.saved.avatar, selected.render)
+        XCTAssertEqual(fixture.saved.avatarSource, selected.source)
+        XCTAssertEqual(fixture.saved.avatarCrop, selected.crop)
+        XCTAssertEqual(fixture.saved.avatarLarge, current.avatarLarge)
+        XCTAssertEqual(fixture.saved.avatarLargeSource, current.avatarLargeSource)
+        XCTAssertEqual(fixture.saved.avatarLargeCrop, current.avatarLargeCrop)
+    }
+
+    func testLargeImageLostResponseConfirmsOnlyLargeTriplet() async throws {
+        var current = oldSettings
+        current.avatar = "data:image/jpeg;base64,c21hbGw="
+        current.avatarSource = "data:image/jpeg;base64,c21hbGwtc291cmNl"
+        current.avatarCrop = AvatarCropRect(x: 0, y: 0, width: 1, height: 1)
+        let fixture = SaveFixture(saved: current, applyBeforeFailure: true)
+        let selected = AvatarCropSelection(render: "data:image/jpeg;base64,bGFyZ2U=",
+            source: "data:image/jpeg;base64,bGFyZ2Utc291cmNl",
+            crop: AvatarCropRect(x: 0.2, y: 0.2, width: 0.6, height: 0.6))
+        let result = try await makeAPI(fixture).saveBotAvatarSelection(
+            id: "member", current: current, variant: .large, selection: selected)
+        guard case .confirmed = result else { return XCTFail("応答を失っても大画像の保存内容を確認する") }
+        XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
+        XCTAssertEqual(fixture.saved.avatarLarge, selected.render)
+        XCTAssertEqual(fixture.saved.avatarLargeSource, selected.source)
+        XCTAssertEqual(fixture.saved.avatarLargeCrop, selected.crop)
+        XCTAssertEqual(fixture.saved.avatar, current.avatar)
+        XCTAssertEqual(fixture.saved.avatarSource, current.avatarSource)
+        XCTAssertEqual(fixture.saved.avatarCrop, current.avatarCrop)
+    }
+
     func testLostResponseAfterSavingIsConfirmedWithoutResendingPATCH() async throws {
         let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: true)
         let api = makeAPI(fixture)

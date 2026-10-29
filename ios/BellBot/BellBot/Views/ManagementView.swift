@@ -1,7 +1,6 @@
 import SwiftUI
 
 private struct ModelsResponse: Decodable { let models: [String: HarnessModels] }
-private struct BotProfileResponse: Decodable { let bot: BotSettings }
 struct HarnessModels: Decodable {
     let efforts: [String]
     let models: [ModelChoice]
@@ -122,18 +121,20 @@ struct BotEditor: View {
         NavigationStack {
             Form {
                 Section("メンバー") {
-                    HStack {
-                        Spacer()
-                        AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0, variant: .small) },
-                                          onFailure: { errorText = "画像を読み込めませんでした。" }) {
-                            VStack(spacing: 8) {
-                                AvatarView(name: name.isEmpty ? "B" : name, avatar: avatar,
-                                           color: BellTheme.accent(color), size: 80)
-                                Text("小画像を変更").font(.caption)
+                    if initial == nil {
+                        HStack {
+                            Spacer()
+                            AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0, variant: .small) },
+                                              onFailure: { errorText = "画像を読み込めませんでした。" }) {
+                                VStack(spacing: 8) {
+                                    AvatarView(name: name.isEmpty ? "B" : name, avatar: avatar,
+                                               color: BellTheme.accent(color), size: 80)
+                                    Text("小画像を変更").font(.caption)
+                                }
                             }
+                            .disabled(!canEditVariantImages)
+                            Spacer()
                         }
-                        .disabled(!canEditVariantImages)
-                        Spacer()
                     }
                     TextField("名前", text: $name)
                     TextField("役職", text: $position)
@@ -144,7 +145,8 @@ struct BotEditor: View {
                     }
                 }
                 .disabled(deletionPending || deletionResultUnconfirmed)
-                Section("画像") {
+                if initial == nil {
+                    Section("画像") {
                     if appearanceLoading { ProgressView("保存済みの画像を確認しています…") }
                     if appearanceLoaded && !appearanceSchemaAvailable {
                         Text("画像の独立編集はサーバー更新後に利用できます。")
@@ -186,8 +188,9 @@ struct BotEditor: View {
                         }
                         .disabled(!canEditVariantImages)
                     }
+                    }
+                    .disabled(deletionPending || deletionResultUnconfirmed)
                 }
-                .disabled(deletionPending || deletionResultUnconfirmed)
                 Section("AI") {
                     // Macのポップアップでは、候補が届く前に作った選択欄が保存済みのモデルを「CLIの既定」と表示した。
                     // 候補を読み終えてから選択欄を作る。
