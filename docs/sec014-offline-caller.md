@@ -661,3 +661,37 @@ does not turn a host-check lambda/hash into proof or connect a production
 factory. Those host facts and exclusion/invalidation ownership remain required
 before live use. No new lock/controller/CLI/identity scheme, host Docker, or
 normal phase was added. Whole Draft remains NOTDEPLOYABLE.
+
+
+### Parent mount and calling-thread namespace observations
+
+The same Prepare parent observation now retains the actual bounded fdinfo
+original, its kernel mount ID, and the calling thread's mount-namespace
+device/inode pair. `/proc/thread-self` is intentional: process-leader namespace
+information need not describe another calling thread. Each parent check opens
+the named directory with the existing flags, compares its device/inode/private
+metadata and kernel mount ID with the held parent FD, and closes this temporary
+FD in finally. A changed current mount namespace, unusable/duplicate/oversized
+mount-ID data, or a different named-entry mount ID refuses before the client.
+The held parent observation remains `hostAuthority: false`.
+
+Three focused tests use syscall/proc-data injection to model a differing mount
+ID with unchanged inode, a changed namespace at the last run callback, and
+malformed fdinfo. The final same test bytes fail against the old product
+(old four fake clients per case) and pass with zero clients after this change.
+These are injected kernel projections, not actual bind mounts or setns calls.
+The positive case reads native proc data and checks the saved raw/ID/namespace;
+the prior late-parent replacement and held saved-factory cases also pass.
+Earlier self-path tests are kept separately; the final source/tests consistently
+use thread-self. No Full/old group, host, mount, namespace mutation or Docker
+daemon operation was run.
+
+These point observations do not identify the trusted host namespace, validate
+ancestor ACLs or mount options/topology, exclude external writers, or make the
+interval to Docker path consumption atomic. No host authority receipt or
+production factory is connected. Recovery/invalidation ownership and later
+normal phases remain unfinished; whole Draft remains NOTDEPLOYABLE.
+
+Kernel interface references: [proc fdinfo](https://docs.kernel.org/filesystems/proc.html#proc-pid-fdinfo-fd-information-about-opened-file),
+[namespace identities](https://man7.org/linux/man-pages/man7/namespaces.7.html),
+[calling-thread proc view](https://man7.org/linux/man-pages/man5/proc_thread-self.5.html).

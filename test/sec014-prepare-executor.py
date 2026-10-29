@@ -1,11 +1,14 @@
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 from datetime import datetime,timedelta,timezone
 import unittest
 from unittest.mock import patch
@@ -171,6 +174,71 @@ class PrepareTests(unittest.TestCase):
             self.assertEqual(calls,[])
             self.assertEqual(self.journal()['phases'],[])
 
+    def test_parent_same_inode_different_mount_refuses_before_client(self):
+        real_open=Path.open;injected=[]
+        def fdinfo(path,*args,**kwargs):
+            stream=real_open(path,*args,**kwargs)
+            if str(path).startswith('/proc/thread-self/fdinfo/'):
+                with stream:raw=stream.read()
+                if int(path.name)!=runner.parent_fd:
+                    original=re.search(rb'(?m)^mnt_id:\s*([0-9]+)$',raw)
+                    self.assertIsNotNone(original)
+                    changed=str(int(original.group(1))+1).encode()
+                    raw=raw[:original.start(1)]+changed+raw[original.end(1):]
+                    injected.append(int(path.name))
+                return io.BytesIO(raw)
+            return stream
+        with self.f.hold() as self.tx,patch.object(Path,'open',fdinfo):
+            runner=self.runner()
+            try:runner.prepare()
+            except p.actor.control.ControlError:pass
+            self.assertEqual(self.commands,[])
+            self.assertTrue(injected)
+            for fd in injected:
+                with self.assertRaises(OSError):os.fstat(fd)
+            self.assertTrue(runner.held)
+            self.assertIsNone(runner.parent_fd)
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_parent_namespace_change_at_final_callback_refuses_before_client(self):
+        changed=[False];calls=[];real_stat=os.stat
+        def host(step):
+            if step=='run':
+                calls.append(step)
+                if len(calls)==2:changed[0]=True
+            return 'd'*64
+        def namespace(path,*args,**kwargs):
+            info=real_stat(path,*args,**kwargs)
+            if str(path)=='/proc/thread-self/ns/mnt' and changed[0]:
+                return SimpleNamespace(st_dev=info.st_dev,st_ino=info.st_ino+1)
+            return info
+        with self.f.hold() as self.tx,patch.object(os,'stat',namespace):
+            runner=self.runner(host=host)
+            try:runner.prepare()
+            except p.actor.control.ControlError:pass
+            self.assertEqual(self.commands,[])
+            self.assertEqual(len(calls),2)
+            self.assertTrue(runner.held)
+            self.assertIsNone(runner.parent_fd)
+            self.tx.check()
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_parent_unusable_fdinfo_refuses_before_client(self):
+        real_open=Path.open
+        def fdinfo(path,*args,**kwargs):
+            if str(path).startswith('/proc/thread-self/fdinfo/'):
+                return io.BytesIO(b'pos:\t0\nmnt_id:\tunknown\n')
+            return real_open(path,*args,**kwargs)
+        with self.f.hold() as self.tx,patch.object(Path,'open',fdinfo):
+            runner=self.runner()
+            try:runner.prepare()
+            except p.actor.control.ControlError:pass
+            self.assertEqual(self.commands,[])
+            self.assertTrue(runner.held)
+            self.assertIsNone(runner.parent_fd)
+            self.assertFalse((self.f.root/'to-server-prepare-parent.json').exists())
+            self.assertEqual(self.journal()['phases'],[])
+
     def test_four_fixed_commands_env_terminal_before_reap_and_phase_evidence(self):
         with self.f.hold() as self.tx, patch.dict(os.environ,{'BELLTEAM_WEB_TOKEN':'synthetic-secret','DOCKER_HOST':'invalid'}):
             self.tx.confirmed('writers_stopped')
@@ -182,6 +250,11 @@ class PrepareTests(unittest.TestCase):
             self.assertEqual((parent['device'],parent['inode']),
                              (str(self.f.state.stat().st_dev),str(self.f.state.stat().st_ino)))
             self.assertFalse(parent['hostAuthority'])
+            self.assertIs(type(parent['mountId']),int)
+            self.assertIn('mnt_id:\t'+str(parent['mountId'])+'\n',parent['fdinfoUtf8'])
+            namespace=os.stat('/proc/thread-self/ns/mnt')
+            self.assertEqual(parent['mountNamespace'],
+                             dict(device=str(namespace.st_dev),inode=str(namespace.st_ino)))
             chain=json.loads((self.f.root/'to-server-prepare-chain.json').read_bytes())
             self.assertEqual(chain['parentObservationSha256'],hashlib.sha256(parent_raw).hexdigest())
             self.assertEqual(len(self.commands),4)

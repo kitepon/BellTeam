@@ -53,6 +53,7 @@ class _Prepare:
         self.proof,self.cid,self.env = None,None,None
         self.step = 'entry'
         self.parent_fd,self.parent_identity,self.parent_record = None,None,None
+        self.parent_mount,self.parent_namespace = None,None
 
     def ready(self):
         self.tx.check()
@@ -72,10 +73,24 @@ class _Prepare:
         # shortcut: final entry only, require host ancestor/ACL/mount exclusion before live connection.
         if self.parent_fd is None:
             raise actor.control.ControlError('SEC014_PREPARE_PARENT_UNBOUND')
-        for info in (os.fstat(self.parent_fd),os.stat(PARENT,follow_symlinks=False)):
-            actor.control._private(info,self.tx.owner,True)
-            if actor.control._identity(info)!=self.parent_identity:
-                raise actor.control.ControlError('SEC014_PREPARE_PARENT_CHANGED')
+        if actor.control._identity(os.stat('/proc/thread-self/ns/mnt'))!=self.parent_namespace:
+            raise actor.control.ControlError('SEC014_PREPARE_NAMESPACE_CHANGED')
+        named=os.open(PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
+        try:
+            for info in (os.fstat(self.parent_fd),os.fstat(named),os.stat(PARENT,follow_symlinks=False)):
+                actor.control._private(info,self.tx.owner,True)
+                if actor.control._identity(info)!=self.parent_identity:
+                    raise actor.control.ControlError('SEC014_PREPARE_PARENT_CHANGED')
+            if any(self._mount_info(fd)[0]!=self.parent_mount for fd in (self.parent_fd,named)):
+                raise actor.control.ControlError('SEC014_PREPARE_MOUNT_CHANGED')
+        finally:os.close(named)
+
+    def _mount_info(self, fd):
+        with Path('/proc/thread-self/fdinfo/'+str(fd)).open('rb') as stream:raw=stream.read(4097)
+        ids=re.findall(rb'(?m)^mnt_id:[ \t]*([1-9][0-9]{0,19})$',raw)
+        if len(raw)>4096 or len(ids)!=1 or len(re.findall(rb'(?m)^mnt_id:',raw))!=1:
+            raise actor.control.ControlError('SEC014_PREPARE_MOUNT_UNCONFIRMED')
+        return int(ids[0]),raw.decode('ascii')
 
     def save(self, slot, value):
         return actor._save_json(self.tx,self.tx.value['direction']+'-prepare-'+slot+'.json',value)
@@ -152,12 +167,16 @@ class _Prepare:
     def prepare(self):
         try:
             self.tx.check()
+            self.parent_namespace=actor.control._identity(os.stat('/proc/thread-self/ns/mnt'))
             self.parent_fd=os.open(PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
             info=os.fstat(self.parent_fd)
             actor.control._private(info,self.tx.owner,True)
             self.parent_identity=actor.control._identity(info)
+            self.parent_mount,fdinfo=self._mount_info(self.parent_fd)
             self.parent_record=self.save('parent',dict(path=str(PARENT),device=str(info.st_dev),
-                inode=str(info.st_ino),uid=info.st_uid,gid=info.st_gid,mode='0700',hostAuthority=False))
+                inode=str(info.st_ino),uid=info.st_uid,gid=info.st_gid,mode='0700',hostAuthority=False,
+                mountId=self.parent_mount,fdinfoUtf8=fdinfo,mountNamespace=dict(
+                    device=str(self.parent_namespace[0]),inode=str(self.parent_namespace[1]))))
             return self._prepare()
         except Exception as failure:
             self.held=True
