@@ -1,0 +1,14 @@
+{
+  "schema": "bellteam.apple-goal-list-caller-sample.v1",
+  "sourceCommit": "17850ce05095a4fa0655d5b0e919a47785402927",
+  "sourceTree": "7dc1272dd1fa8530ab619062caf7b0922e8a0a35",
+  "sampleKind": "URLProtocol double connection loss with direct BellDiagnostics.report; UI callers not executed",
+  "samplePath": "docs/evidence/samples/2026-10-29-apple-goal-list-caller-artificial.txt",
+  "sampleBytes": 2488,
+  "sampleSha256": "33ded867936e155539a0afd1f12c21f49884e99c64f63a5cd3872aa9f351b405",
+  "test": "BellBotTests/NetworkRecoveryTests/testGoalListFailureDirectReportIncludesCallerContext",
+  "testStatus": "passed",
+  "xcresult": "~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-29T01-24-48-645Z_pid49890_89805c23.xcresult",
+  "version72ArtifactChanged": false,
+  "realNetworkCauseProven": false
+}
