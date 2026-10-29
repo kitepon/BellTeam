@@ -10,8 +10,9 @@
 
 ## 有限検証
 
-- 人工Bot更新と前面復帰を同じ画像調整中に通すfocused UI試験は1件成功・失敗0。編集画面と変更後の拡大値を保持した。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-29T14-52-14-994Z_pid90630_6eb21f3f.xcresult`。
+- 人工Bot更新と前面復帰を同じ画像調整中に通すfocused UI試験は1件成功・失敗0。編集画面と変更後の拡大値を保持し、明示キャンセル後の開き直しでは未保存の調整値を持ち込まなかった。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-29T15-04-34-984Z_pid90630_c6943bfa.xcresult`。
 - 変更後の既存iPhone大小画像保存UI試験は2件成功・失敗0。小画像の保存は小画像tripletだけ、大画像の保存は大画像tripletだけをPATCHした。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-29T14-53-50-898Z_pid90630_f6401585.xcresult`。
+- 既存の小画像調整取消→大画像操作シートの試験は1件成功・失敗0。取消だけのPATCHは0。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-29T15-03-09-958Z_pid90630_c43d272a.xcresult`。
 - Mac Catalyst Debug buildは実終了0。ログ`runtime/apple/avatar-edit-reset/mac-build.log`のSHA256は`1c7eb1c7cd5709e048748756de280217f62b555179c4226a71a205f5bf804ed3`。Xcodeログ内の`error: ... exit code 0`文と既知のactor隔離警告は、実終了0と区別する。
 
 この人工再現は、オーナーの実iPhoneで発生した全経路や写真選択中のシステムUI、保存後のサーバー状態を証明しない。実画像・実Bot・Host UI・Apple署名と配布は操作していない。Rootが別に隔離したBotRegistryの保存済み画像上書き競合は、保存後の別経路として扱い、このiPhoneシート修理の成功へ含めない。版78の旧署名無し候補はこの修理を含まない。
