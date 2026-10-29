@@ -1,0 +1,98 @@
+{
+  "schema": "bellteam.apple-internal-delivery.v1",
+  "product": "BellTeam",
+  "purpose": "Ownerの大小画像操作シートの現在画像表示と取消寿命修理を含む版75を内部配布",
+  "bundleId": "dev.kitepon.bellbot",
+  "appStoreConnectAppId": "6816295589",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "75",
+  "signedSourceCommit": "7306e57ff81c3a5315aa69b737420100cff491dd",
+  "versionMergeCommit": "3648cdd6b3e8ef6dd43d0b57d1ae690e32c3d8e9",
+  "unsignedPreflight": "docs/evidence/2026-10-29-apple-combined-build75-preflight.json",
+  "unsignedPreflightSha256": "6fa38dc914e78fef4841fa190a7d70caaf360e9436f25080d15daca40451b28f",
+  "ownerApproval": {
+    "title": "BellTeam Apple画像プレビュー版75を署名・内部配布し必要時にMac更新を1回押す",
+    "choice": "go_all",
+    "answeredAt": "2026-10-29T06:19:27.845Z",
+    "macPhysicalClickScope": "BellTeam version 75 update button only, at most once if needed"
+  },
+  "betaGroup": {
+    "id": "58133050-1c39-4915-b6da-aac18b95921b",
+    "name": "BellTeam オーナー",
+    "internal": true
+  },
+  "artifacts": [
+    {
+      "platform": "IOS",
+      "relativePath": "runtime/apple/combined-build75/ios-export/BellTeam.ipa",
+      "sha256": "f4b24e019139e02d5be6c77922d35bc0d9adfc62ba23981cecbc07ec3818fde5",
+      "appBundleVersion": "75",
+      "extensionBundleVersion": "75",
+      "architectures": [
+        "arm64"
+      ],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "ca6e902c-236b-48cc-964c-7997a9ee939f",
+      "uploadResult": "no-errors from normal tool response",
+      "appStoreConnectBuildId": "ca6e902c-236b-48cc-964c-7997a9ee939f",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    },
+    {
+      "platform": "MAC_OS",
+      "relativePath": "runtime/apple/combined-build75/mac-export/BellTeam.pkg",
+      "sha256": "fa2a42cf152a1b581733fb51fc31b09fd23ba8afa8c6fa1d768d0cece6cfd0a5",
+      "appBundleVersion": "75",
+      "extensionBundleVersion": "75",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "installerSignature": "3rd Party Mac Developer Installer, valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "329c0b15-a27e-4eb2-8171-effb4ca8857e",
+      "uploadResult": "no-errors from normal tool response",
+      "appStoreConnectBuildId": "329c0b15-a27e-4eb2-8171-effb4ca8857e",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    }
+  ],
+  "macTestFlightSmoke": {
+    "status": "pending_foreground_ol_keychain_dialog",
+    "installedPath": "/Applications/BellTeam.app",
+    "preUpdateBundleVersion": "71",
+    "preUpdateSignature": "strict-valid",
+    "preUpdateGatekeeperSource": "Testflight",
+    "testFlightTargetVersionVisuallyConfirmed": false,
+    "screenInspectionBlocker": "A live display screenshot showed the unrelated OL-RemoteWindow codesign Keychain authorization dialog in the foreground. No action was taken on or around that dialog.",
+    "headedClickPerformed": false,
+    "readOnlySmokeCompleted": false
+  },
+  "remaining": {
+    "macTestFlightInstallation": "pending until unrelated foreground dialog is resolved and build 75 is visually confirmed",
+    "iphoneAndIpadPhysicalInstallation": "not_measured",
+    "realOwnerAvatarChange": "not_performed",
+    "communicationCauseAndRecovery": "unknown",
+    "diagnosticFingerprints": [
+      "88564-count12",
+      "eb392-count29"
+    ],
+    "diagnosticRepairSuccess": false
+  },
+  "realBotRestartPerformed": false,
+  "realBotMessageSent": false,
+  "ownerAvatarEdited": false,
+  "authenticationChanged": false,
+  "serverContainerRestartedByThisDelivery": false,
+  "publicAppStoreReleased": false
+}
