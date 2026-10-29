@@ -1,6 +1,6 @@
 {
   "schema": "bellteam.apple-internal-delivery.v1",
-  "observedAtUTC": "2026-10-29T20:24:51.681558+00:00",
+  "observedAtUTC": "2026-10-29T23:39:46.954414+00:00",
   "product": "BellTeam",
   "purpose": "画像編集中の画面復帰保持と通信修理を含む版78を内部配布",
   "bundleId": "dev.kitepon.bellbot",
@@ -71,21 +71,58 @@
     }
   ],
   "macTestFlightSmoke": {
-    "status": "pending_navigation_permission_or_auto_update",
+    "status": "complete",
     "installedPath": "/Applications/BellTeam.app",
-    "lastObservedBundleVersion": "77",
-    "lastObservedSignature": "strict-valid",
-    "lastObservedGatekeeperSource": "Testflight",
-    "testFlightTargetVersionVisuallyConfirmed": false,
-    "screenInspectionBlocker": "TestFlight BellTeam sidebar row ID6816295589 exposes only ScrollTo. Jev abstained and headless AX click was POLICY_DENIED/not_delivered. Existing go_all allows headed input for version78 update button only.",
-    "navigationDecisionTitle": "TestFlightでBellTeamの詳細を開くため一覧項目を1回物理クリックする",
-    "navigationDecisionStatusAtObservation": "pending",
-    "headedSidebarClickPerformed": false,
-    "headedUpdateClickPerformed": false,
-    "readOnlySmokeCompleted": false
+    "installedBundleVersions": {
+      "app": "78",
+      "notificationExtension": "78"
+    },
+    "strictSignatureExitCodes": {
+      "app": 0,
+      "notificationExtension": 0
+    },
+    "installedBinarySha256": {
+      "app": "0bf13569472b9f9da8feec63f7546af7ca0eed0de51adcaa1ca1b251a1dd8047",
+      "notificationExtension": "a5565890453d133af1a06bcbc2a62d013e3507356af8070a7bdc7892496dc708"
+    },
+    "gatekeeper": "accepted; source=Testflight",
+    "testFlightTargetVersionVisuallyConfirmed": true,
+    "testFlightOfferAfterInstallation": "open",
+    "bellTeamSidebarPhysicalClickCount": 1,
+    "build78UpdateButtonPhysicalClickCount": 1,
+    "quitPromptPhysicalAttempts": 2,
+    "quitPromptEffectiveContinueClicks": 1,
+    "firstQuitPromptPhysicalAttempt": "wrong external-display coordinate; confirmation and installed77 remained",
+    "secondQuitPromptPhysicalAttempt": "corrected global coordinate; confirmation closed and installed78 verified",
+    "readOnlySmoke": {
+      "bot": "Trony",
+      "profileLargeImageVisible": true,
+      "profileSmallImageVisible": true,
+      "aiInformationVisible": true,
+      "botScreenOpenedWithNonemptyContent": true,
+      "botScreenClosed": true,
+      "smallImageActionSheet": {
+        "currentImageVisible": true,
+        "changeButtonVisible": true,
+        "adjustButtonVisible": true,
+        "closed": true
+      },
+      "largeImageActionSheet": {
+        "currentImageVisible": true,
+        "changeButtonVisible": true,
+        "adjustButtonVisible": true,
+        "closed": true
+      },
+      "imageChanged": false,
+      "messageSent": false,
+      "botRestarted": false
+    },
+    "testFlightWindowRestoredMinimized": true,
+    "privateScreenshotsDeletedAfterHashCapture": true,
+    "readOnlySmokeCompleted": true
   },
   "remaining": {
-    "macTestFlightInstallation": "pending BellTeam details navigation or TestFlight automatic update",
+    "macTestFlightInstallation": "complete",
     "iphoneAndIpadPhysicalInstallation": "not_measured",
     "realOwnerAvatarChange": "not_performed",
     "imageEditRecoveryOnOwnerDevice": "not_observed",
@@ -113,5 +150,7 @@
   "ownerAvatarEdited": false,
   "authenticationChanged": false,
   "serverContainerRestartedByThisDelivery": false,
-  "publicAppStoreReleased": false
+  "publicAppStoreReleased": false,
+  "healthy": null,
+  "coverage": "partial"
 }
