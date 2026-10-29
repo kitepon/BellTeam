@@ -68,7 +68,8 @@ class _Prepare:
             raise
         self.tx,self.image,self.image_id = tx,image,image_id
         self.deadline,self.end,self.host_check = deadline,window_end,host_check
-        self.held,self.children,self.records = False,[],[]
+        self.held,self.records = False,[]
+        self.children = tx._prepare_children = []
         self.proof,self.cid,self.env = None,None,None
         self.step = 'entry'
         self.parent_fd,self.parent_identity,self.parent_record = None,None,None
@@ -141,8 +142,9 @@ class _Prepare:
             issued_at=datetime.now(timezone.utc).isoformat()
             child = subprocess.Popen(argv,cwd='/home/kite/BellTeam',env=env,stdin=subprocess.DEVNULL,
                                      stdout=subprocess.PIPE,stderr=subprocess.PIPE,close_fds=True)
-            self.children.append(child)
+            self.children.append((child,None))
             born = int(Path(f'/proc/{child.pid}/stat').read_text().rsplit(') ',1)[1].split()[19])
+            self.children[-1] = (child,born)
             self.save(slot+'.spawn',{'pid':child.pid,'startTicks':born})
             output,error = bytearray(),bytearray()
             terminal = None

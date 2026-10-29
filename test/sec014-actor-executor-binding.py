@@ -1,9 +1,13 @@
 import importlib.util
+import gc
 import json
 import os
+import subprocess
 from pathlib import Path
 import sys
+import time
 import unittest
+import weakref
 from unittest.mock import patch
 
 sys.dont_write_bytecode = True
@@ -95,6 +99,74 @@ class Binding(saved.SavedPrepare):
         self.assertEqual(self.commands, [])
         with self.assertRaises(OSError):
             os.fstat(held[0].lock)
+
+    def prepare_failure_owner(self,birth_missing):
+        real_popen=self.real_popen;real_read=Path.read_text;real_save=a._save_json;issued={};invalidated=[]
+        def spawn(argv,**kwargs):
+            self.assertEqual(argv[0],'/usr/bin/docker')
+            child=real_popen([sys.executable,'-c',"import sys;sys.stdout.write('ok')"],
+                stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,close_fds=True)
+            born=int(real_read(Path(f'/proc/{child.pid}/stat')).rsplit(') ',1)[1].split()[19])
+            issued.update(pid=child.pid,born=born,weak=weakref.ref(child))
+            end=time.monotonic()+2
+            while os.waitid(os.P_PID,child.pid,os.WEXITED|os.WNOWAIT|os.WNOHANG) is None:
+                if time.monotonic()>=end:self.fail('fixture child did not exit')
+                time.sleep(.001)
+            return child
+        def read(path,*args,**kwargs):
+            if birth_missing and issued and path==Path(f"/proc/{issued['pid']}/stat"):
+                raise FileNotFoundError('synthetic unobservable issued birth')
+            return real_read(path,*args,**kwargs)
+        def save(tx,name,value):
+            if not birth_missing and name.endswith('-prepare-run.terminal.json'):
+                raise OSError('synthetic terminal durability failure')
+            return real_save(tx,name,value)
+        def factory(tx):
+            self.tx=tx
+            def host(step):return 'd'*64
+            host.invalidate=invalidated.append
+            self.runner(host=host).prepare()
+            self.fail('unconfirmed Prepare child returned success')
+        try:
+            with patch.object(saved.p.subprocess,'Popen',side_effect=spawn), \
+                    patch.object(Path,'read_text',new=read), \
+                    patch.object(a,'_save_json',side_effect=save), \
+                    patch.object(a.control,'host_control',side_effect=self.entry):
+                try:a.run_actor('to-server',saved.old.IMAGE,factory,saved_normal=self.normal)
+                except RuntimeError as error:self.assertEqual(str(error),'SEC014_PREPARE_PHASE_UNCONFIRMED')
+                else:self.fail('factory must fail')
+            del self.tx
+            gc.collect()
+            child=issued['weak']()
+            try:waitable=os.waitid(os.P_PID,issued['pid'],os.WEXITED|os.WNOWAIT|os.WNOHANG) is not None
+            except ChildProcessError:waitable=False
+            owned=[tx for tx in a._FAILED_WRITER_OWNERS if tx.path==self.f.root]
+            print('PREPARE_UNWIND_OUTPUT '+json.dumps(dict(birthMissing=birth_missing,
+                ownerSurvivesGc=child is not None,terminalStillWaitable=waitable,
+                failureOwners=len(owned),nativePid=issued['pid'])),flush=True)
+            self.assertIsNotNone(child,'Prepare failure lost native child owner')
+            self.assertTrue(waitable)
+            self.assertEqual(len(owned),1)
+            self.assertIs(owned[0]._prepare_children[0][0],child)
+            self.assertEqual(owned[0]._prepare_children[0][1],None if birth_missing else issued['born'])
+            for fd in (owned[0].parent,owned[0].lock):
+                with self.assertRaises(OSError):os.fstat(fd)
+            self.assertEqual(set(invalidated),{'UNCONFIRMED_CHILD'})
+            self.assertEqual(self.journal()['phases'],[])
+            self.assertEqual(self.journal()['status'],'incomplete')
+        finally:
+            child=issued.get('weak',lambda:None)()
+            if child is not None:
+                real_popen.wait(child,timeout=2)
+                for stream in (child.stdout,child.stderr):
+                    if stream and not stream.closed:stream.close()
+            a._FAILED_WRITER_OWNERS[:]=[tx for tx in a._FAILED_WRITER_OWNERS if tx.path!=self.f.root]
+
+    def test_prepare_terminal_failure_survives_factory_unwind(self):
+        self.prepare_failure_owner(False)
+
+    def test_prepare_unobserved_birth_survives_factory_unwind(self):
+        self.prepare_failure_owner(True)
 
     def test_binding_replaced_generation_after_factory_stops_before_phase(self):
         def factory(tx):

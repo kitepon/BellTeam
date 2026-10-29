@@ -881,3 +881,31 @@ Writer metadata nor its hash proves host writer exclusion, daemon peer trust,
 ancestor ACL/mount authority or real fullfactory/recovery/maintenance/later normal
 phases. Host-check producer remains absent. All authority flags remain false;
 whole Draft NOTDEPLOYABLE, unmerged and undeployed; no real root/host/Docker work.
+
+### Prepare failure ownership across factory unwind
+
+Prepare now attaches its issued native clients to the same held transaction used
+by the existing actor failure owner. Each child is retained immediately after
+Popen with an unknown birth, then updated with the observed birth. Actor unwind
+checks both Writer and Prepare lists and keeps the transaction when any client
+has no confirmed returncode. The existing private failure-owner list name stays
+unchanged. No new wait, kill, retry or success receipt is added.
+
+Two focused cases use the same final test bytes against parent and change:
+old0pass/2assertionfail to new2pass. A dedicated Python child has exited but is
+not waited; either terminal persistence fails or its birth read fails. After
+factory exception, traceback release and GC, the parent loses its Popen owner
+and waitable terminal. The change retains both under the transaction, including
+None for unknown birth. Lock/parent descriptors still close, invalidation is
+attempted, and the journal remains incomplete with no phase. Only fixture teardown
+waits. Normal held Prepare, pre-client factory failure and existing native Writer
+failure ownership each pass (three affected cases). The first test harness
+accidentally captured the fixture's patched Popen and produced two KeyErrors;
+that log is kept separately and is not product evidence. Explicit suites only;
+no old full groups or project FULL.
+
+This is in-memory failure custody, not durable invalidation, successful host
+release or recovery/reap implementation. Real host facts, continuous writer
+exclusion, daemon/peer trust, ancestor ACL/mount authority, full factory and later
+normal phases remain unconnected. All authority flags remain false; whole Draft
+NOTDEPLOYABLE, unmerged and undeployed. No real root/host/Docker/NAS/Apple work.

@@ -178,6 +178,8 @@ def run_actor(direction, image, executor_factory, *, saved_normal):
             tx.check()
             return _run(tx, image, executor)
         except BaseException:
-            if any(child.returncode is None for child, _ in getattr(tx, '_writer_children', ())):
+            if any(child.returncode is None
+                   for children in (getattr(tx, '_writer_children', ()),getattr(tx, '_prepare_children', ()))
+                   for child, _ in children):
                 _FAILED_WRITER_OWNERS.append(tx)
             raise
