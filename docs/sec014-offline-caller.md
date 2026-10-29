@@ -768,3 +768,29 @@ peer/ancestor ACL/mount topology/writer exclusion, full factory or recovery reap
 All authority flags remain false; whole Draft NOTDEPLOYABLE, unmerged and
 undeployed. No real host/Docker operation or new controller, lock, public CLI or
 identity scheme.
+
+
+### Bind the observed endpoint before image binding
+
+`_Prepare` now obtains the existing held transaction's fixed socket observation
+and durably saves the existing prepare-socket original before `bind_image`.
+The existing post-callback transaction check therefore rejects a socket changed
+by binding itself. `prepare()` rechecks the same transaction and consumes that
+original rather than acquiring a new initial endpoint. Chain SHA and minimal
+DOCKER_HOST still refer to the same original. Failure before/during persistence
+prevents binding and follows the existing invalidator notification/error path.
+
+Three new ordinary-FS/AF_UNIX-bind tests cover replacement during binding with
+the prior 0600 original retained, missing socket before binding, and a synthetic
+original-save failure. Final identical tests fail against the parent and pass
+the change; no Docker client or phase is issued. The direct-constructor fixtures
+now pin their synthetic socket too. ValueError and KeyboardInterrupt are tested
+under separate transactions because each constructor attempt durably reserves
+the same original name. Non-socket input is now rejected at construction. The
+initial new tests before that negative-fixture adjustment are retained separately.
+
+This remains pathname metadata with hostAuthority false, not authenticated peer,
+trusted host namespace, ancestor ACL/mount topology or continuous writer
+exclusion. Full hostfacts verifier/factory, durable invalidation/recovery reap,
+maintenance and normal later phases remain unconnected. Whole Draft
+NOTDEPLOYABLE, unmerged and undeployed; no real host/Docker operation.

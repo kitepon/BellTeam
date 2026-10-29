@@ -102,7 +102,7 @@ class PrepareTests(unittest.TestCase):
         def construct():
             return p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
                               datetime.now(timezone.utc)+timedelta(seconds=120),host)
-        with self.f.hold() as self.tx:
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
             read_fd,write_fd=os.pipe()
             pid=os.fork()
             if pid==0:
@@ -133,32 +133,47 @@ class PrepareTests(unittest.TestCase):
             self.assertEqual(self.journal()['phases'],[])
 
     def test_image_binding_failure_invalidates_and_preserves_original_error(self):
-        with self.f.hold() as self.tx:
-            for failure in (ValueError('partial acquisition'),KeyboardInterrupt()):
-                with self.subTest(failure=type(failure).__name__):
-                    calls=[]
-                    def host(step):return 'd'*64
-                    def bind(image,image_id):
-                        calls.append(('bind',image,image_id))
-                        raise failure
-                    def invalidate(reason):
-                        calls.append(('invalidate',reason))
-                        raise RuntimeError('invalidation also failed')
-                    host.bind_image,host.invalidate=bind,invalidate
-                    with self.assertRaises(type(failure)) as caught:
-                        p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
-                                   datetime.now(timezone.utc)+timedelta(seconds=120),host)
-                    self.assertIs(caught.exception,failure)
-                    self.assertEqual(calls,[('bind',IMAGE,IMAGE_ID),('invalidate','UNCONFIRMED_CHILD')])
-                    self.assertEqual(self.commands,[])
-                    self.assertEqual(self.journal()['phases'],[])
+        calls=[];failure=ValueError('partial acquisition')
+        def host(step):return 'd'*64
+        def bind(image,image_id):
+            calls.append(('bind',image,image_id))
+            raise failure
+        def invalidate(reason):
+            calls.append(('invalidate',reason))
+            raise RuntimeError('invalidation also failed')
+        host.bind_image,host.invalidate=bind,invalidate
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
+            with self.assertRaises(ValueError) as caught:
+                p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            self.assertIs(caught.exception,failure)
+            self.assertEqual(calls,[('bind',IMAGE,IMAGE_ID),('invalidate','UNCONFIRMED_CHILD')])
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_image_binding_interrupt_invalidates_and_preserves_original_error(self):
+        invalidated=[];failure=KeyboardInterrupt()
+        def host(step):return 'd'*64
+        def bind(image,image_id):raise failure
+        def invalidate(reason):
+            invalidated.append(reason)
+            raise KeyboardInterrupt('invalidation also interrupted')
+        host.bind_image,host.invalidate=bind,invalidate
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
+            with self.assertRaises(KeyboardInterrupt) as caught:
+                p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            self.assertIs(caught.exception,failure)
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
 
     def test_image_binding_changed_actor_invalidates_before_return(self):
         invalidated=[]
         def host(step):return 'd'*64
         def bind(image,image_id):self.tx.value['actorStartTicks']+=1
         host.bind_image,host.invalidate=bind,invalidated.append
-        with self.f.hold() as self.tx:
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
             born=self.tx.value['actorStartTicks']
             try:
                 with self.assertRaisesRegex(RuntimeError,'ACTOR_IDENTITY'):
@@ -178,6 +193,65 @@ class PrepareTests(unittest.TestCase):
                 p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
                            datetime.now(timezone.utc)+timedelta(seconds=120),host)
             self.assertEqual(calls,[])
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_socket_original_is_saved_before_binding_and_replacement_refuses(self):
+        original=self.socket_path.stat()
+        replacement=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
+        self.addCleanup(replacement.close)
+        seen=[];invalidated=[]
+        def host(step):return 'd'*64
+        def bind(image,image_id):
+            saved=self.f.root/'to-server-prepare-socket.json'
+            seen.append(json.loads(saved.read_bytes()) if saved.exists() else None)
+            self.socket_path.rename(self.socket_path.with_name('retained.sock'))
+            replacement.bind(str(self.socket_path));self.socket_path.chmod(0o660)
+        host.bind_image,host.invalidate=bind,invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
+            with self.assertRaisesRegex(RuntimeError,'DOCKER_SOCKET_CHANGED'):
+                p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            self.assertEqual(len(seen),1)
+            self.assertEqual((seen[0]['device'],seen[0]['inode']),
+                             (str(original.st_dev),str(original.st_ino)))
+            self.assertFalse(seen[0]['hostAuthority'])
+            saved=self.f.root/'to-server-prepare-socket.json'
+            self.assertEqual(json.loads(saved.read_bytes()),seen[0])
+            self.assertEqual(saved.stat().st_mode&0o777,0o600)
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_missing_socket_refuses_before_binding(self):
+        self.socket_path.unlink()
+        calls=[];invalidated=[]
+        def host(step):return 'd'*64
+        host.bind_image=lambda image,image_id:calls.append((image,image_id))
+        host.invalidate=invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
+            with self.assertRaises(FileNotFoundError):
+                p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            self.assertEqual(calls,[])
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            self.assertFalse((self.f.root/'to-server-prepare-socket.json').exists())
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_socket_original_save_failure_refuses_before_binding(self):
+        calls=[];invalidated=[];failure=OSError('synthetic original persistence failure')
+        def host(step):return 'd'*64
+        host.bind_image=lambda image,image_id:calls.append((image,image_id))
+        host.invalidate=invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path), \
+                patch.object(p.actor,'_save_json',side_effect=failure):
+            with self.assertRaises(OSError) as caught:
+                p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            self.assertIs(caught.exception,failure)
+            self.assertEqual(calls,[])
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
             self.assertEqual(self.commands,[])
             self.assertEqual(self.journal()['phases'],[])
 
@@ -371,12 +445,10 @@ class PrepareTests(unittest.TestCase):
         calls=[]
         def host(step):calls.append(step);return 'd'*64
         with self.f.hold() as self.tx:
-            runner=self.runner(host=host)
-            try:runner.prepare()
-            except p.actor.control.ControlError:pass
+            with self.assertRaisesRegex(RuntimeError,'DOCKER_SOCKET'):self.runner(host=host)
             self.assertEqual(self.commands,[])
             self.assertEqual(calls,[])
-            self.assertTrue(runner.held)
+            self.assertFalse((self.f.root/'to-server-prepare-socket.json').exists())
             self.assertEqual(self.journal()['phases'],[])
 
     def test_extra_mount_never_reaches_remove_or_phase(self):

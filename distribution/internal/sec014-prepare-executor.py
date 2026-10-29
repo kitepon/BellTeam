@@ -48,6 +48,8 @@ class _Prepare:
             raise actor.control.ControlError('SEC014_PREPARE_HOST_IMAGE_BINDING')
         tx.check()
         try:
+            endpoint=tx._docker_endpoint()
+            endpoint_record=actor._save_json(tx,tx.value['direction']+'-prepare-socket.json',endpoint)
             host_check.bind_image(image,image_id)
             tx.check()
         except BaseException:
@@ -61,7 +63,7 @@ class _Prepare:
         self.step = 'entry'
         self.parent_fd,self.parent_identity,self.parent_record = None,None,None
         self.parent_mount,self.parent_namespace = None,None
-        self.endpoint,self.endpoint_record = None,None
+        self.endpoint,self.endpoint_record = endpoint,endpoint_record
 
     def ready(self):
         self.tx.check()
@@ -176,8 +178,6 @@ class _Prepare:
     def prepare(self):
         try:
             self.tx.check()
-            self.endpoint=self.tx._docker_endpoint()
-            self.endpoint_record=self.save('socket',self.endpoint)
             self.parent_namespace=actor.control._identity(os.stat('/proc/thread-self/ns/mnt'))
             self.parent_fd=os.open(PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
             info=os.fstat(self.parent_fd)
