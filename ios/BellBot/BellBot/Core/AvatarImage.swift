@@ -26,6 +26,25 @@ struct AvatarCropSelection: Equatable {
     let crop: AvatarCropRect
 }
 
+struct AvatarActionLifetime {
+    private(set) var generation = 0
+    private var active = false
+
+    mutating func activate() {
+        generation += 1
+        active = true
+    }
+
+    mutating func invalidate() {
+        generation += 1
+        active = false
+    }
+
+    func accepts(_ capturedGeneration: Int) -> Bool {
+        active && generation == capturedGeneration
+    }
+}
+
 enum AvatarImage {
     static let side: CGFloat = 512
     static let zoomRange: ClosedRange<Double> = 1...3

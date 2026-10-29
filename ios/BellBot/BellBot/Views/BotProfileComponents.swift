@@ -93,6 +93,7 @@ struct BotProfileHero: View {
                 pendingSelection: pendingSelections.selection(for: variant),
                 previewRender: pendingSelections.previewRender(for: variant, small: bot.avatar,
                     large: loadedLargeAvatar, largeUsesSmall: usesSmallImage),
+                isBusy: savingImage,
                 statusText: imageSaveErrors[variant],
                 onUse: { selection, current in
                     Task { await saveImage(selection, current: current, variant: variant) }
@@ -218,6 +219,7 @@ private struct BotProfileAvatarActions: View {
     let variant: AvatarCropVariant
     let pendingSelection: AvatarCropSelection?
     let previewRender: String
+    let isBusy: Bool
     let statusText: String?
     let onUse: (AvatarCropSelection, BotSettings) -> Void
     let onConfirm: () -> Void
@@ -226,6 +228,8 @@ private struct BotProfileAvatarActions: View {
     @Environment(\.dismiss) private var dismiss
     @State private var settings: BotSettings?
     @State private var loading = false
+    @State private var lifetime = AvatarActionLifetime()
+    @State private var adjustmentTask: Task<Void, Never>?
     @State private var unsupportedSchema = false
     @State private var errorText: String?
     @State private var cropSource: AvatarCropSource?
@@ -244,6 +248,7 @@ private struct BotProfileAvatarActions: View {
                         AvatarImagePicker(onSelect: { image in
                             cropSource = AvatarCropSource(image: image, variant: variant)
                         }, onFailure: { errorText = "画像を読み込めませんでした。" },
+                        inactive: isBusy,
                         prepare: { await loadSettings() }) {
                             Text("画像変更").frame(maxWidth: .infinity)
                         }
@@ -251,8 +256,11 @@ private struct BotProfileAvatarActions: View {
                         .accessibilityIdentifier("profile-image-change")
                         .disabled(loading || unsupportedSchema || pendingSelection != nil)
                         Button("画像調整") {
-                            Task {
-                                guard await loadSettings(), let settings else { return }
+                            let generation = lifetime.generation
+                            adjustmentTask?.cancel()
+                            adjustmentTask = Task {
+                                guard await loadSettings(), !Task.isCancelled,
+                                      lifetime.accepts(generation), let settings else { return }
                                 adjust(settings)
                             }
                         }
@@ -287,12 +295,28 @@ private struct BotProfileAvatarActions: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
-                            Button("閉じる") { dismiss() }.accessibilityIdentifier("profile-image-close")
+                            Button("閉じる") {
+                                cancelOperations()
+                                dismiss()
+                            }
+                            .accessibilityIdentifier("profile-image-close")
                         }
                     }
                 }
             }
         }
+        .onAppear { lifetime.activate() }
+        .onDisappear { cancelOperations() }
+        .onChange(of: isBusy) { _, next in
+            if next { cancelOperations() }
+            else { lifetime.activate() }
+        }
+    }
+
+    private func cancelOperations() {
+        lifetime.invalidate()
+        adjustmentTask?.cancel()
+        loading = false
     }
 
     private var avatarPreview: some View {
@@ -321,14 +345,17 @@ private struct BotProfileAvatarActions: View {
 
     @discardableResult
     private func loadSettings() async -> Bool {
+        let generation = lifetime.generation
+        guard !isBusy, !Task.isCancelled, lifetime.accepts(generation) else { return false }
         if settings != nil { return true }
         guard !loading else { return false }
         loading = true
-        defer { loading = false }
+        defer { if lifetime.accepts(generation) { loading = false } }
         let path = "/api/bots/\(bot.id)"
         do {
             let response: BotProfileResponse = try await store.api.get(path)
             try Task.checkCancellation()
+            guard !isBusy, lifetime.accepts(generation) else { return false }
             guard response.bot.avatarLarge != nil && response.bot.avatarSource != nil
                     && response.bot.avatarLargeSource != nil else {
                 errorText = "画像の独立編集はサーバー更新後に利用できます。"
@@ -341,10 +368,12 @@ private struct BotProfileAvatarActions: View {
             return true
         } catch is CancellationError { return false }
         catch let error where BellAPIError.isAuthenticationError(error) {
+            guard !isBusy, !Task.isCancelled, lifetime.accepts(generation) else { return false }
             store.requireLogin(for: error)
             return false
         }
         catch {
+            guard !isBusy, !Task.isCancelled, lifetime.accepts(generation) else { return false }
             errorText = "画像情報を読み込めませんでした。\n\(error.localizedDescription)"
             store.api.diagnostics.report(error, path: path, method: "GET",
                                          observation: .read(error, retainedData: false))

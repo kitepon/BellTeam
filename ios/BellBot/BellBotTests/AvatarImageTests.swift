@@ -3,6 +3,23 @@ import XCTest
 @testable import BellBot
 
 final class AvatarImageTests: XCTestCase {
+    func testAvatarActionLifetimeRejectsLateSuccessAuthenticationAndFailure() {
+        var lifetime = AvatarActionLifetime()
+        lifetime.activate()
+        let closedOperation = lifetime.generation
+        lifetime.invalidate()
+        for outcome in ["成功", "認証", "失敗"] {
+            XCTAssertFalse(lifetime.accepts(closedOperation), "閉じた後の\(outcome)応答を反映しない")
+        }
+        lifetime.activate()
+        XCTAssertFalse(lifetime.accepts(closedOperation), "再表示しても旧応答を反映しない")
+        let disabledOperation = lifetime.generation
+        lifetime.invalidate()
+        XCTAssertFalse(lifetime.accepts(disabledOperation), "無効化後の応答を反映しない")
+        lifetime.activate()
+        XCTAssertTrue(lifetime.accepts(lifetime.generation), "現行操作の応答だけを反映する")
+    }
+
     func testProfileSheetPreviewUsesCurrentVariantAndPendingSelection() {
         var drafts = AvatarSelectionDrafts()
         XCTAssertEqual(drafts.previewRender(for: .small, small: "small", large: "large",
