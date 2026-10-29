@@ -976,3 +976,37 @@ and later normal phases remain unconnected. Existing child custody, FD close,
 originals and incomplete journal remain; no automatic wait/kill/retry or success
 completion. All authority false, whole Draft NOTDEPLOYABLE, unmerged/undeployed;
 real root/host/Docker/NAS/Apple operations zero.
+
+### Preserve parent original before image binding
+
+The existing parent observation is now acquired and durably saved in the
+constructor before bind_image. The observation uses an ephemeral O_RDONLY
+directory FD, the same private metadata/mount namespace/mount ID/access/default
+ACL facts, a same-name identity check and finally-close. After binding and the
+existing transaction check, the parent is reobserved and must equal the original.
+Only then is constructor state committed. Prepare later opens its execution FD
+and checks against that original; it does not acquire a replacement baseline or
+save the parent a second time. The existing parent chain SHA remains the same.
+The callback signature is unchanged and constructor success keeps no parent FD.
+
+Four new cases with identical final test bytes fail on the parent (four assertion
+failures, no errors) and pass on the change: the callback sees the original0600
+record with temporary FDs already closed; directory replacement or real default
+ACL mutation inside binding refuses constructor return and keeps the original;
+parent original save failure calls no binding, attempts invalidation and preserves
+the original error object. Native client count and confirmed phases remain zero.
+
+Ten necessary affected cases pass: normal chain/held factory, binding ValueError
+and KeyboardInterrupt, nonprivate/symlink parent, ACL error/oversize, and parent
+mount mismatch/malformed fdinfo. Fixtures for the earlier parent refusal now
+expect constructor refusal; mount injections target the later execution check
+and the already-saved original is retained. No old whole groups or project FULL.
+Initial pre-fixture-adjustment new logs remain separate; final old/new comparison
+uses the final whole test-file bytes with product restoration in finally.
+
+This fixes original acquisition order only. The initial dedicated-parent facts
+are not an accepted effective-access policy, ancestor ACL/mount topology, daemon
+peer/trusted host or continuous writer exclusion. Real hostfacts verifier/full
+factory, durable invalidation/release/recovery reap and later phases remain
+unconnected. All authority flags false, whole Draft NOTDEPLOYABLE, unmerged and
+undeployed; no real root/host/Docker/NAS/Apple or automatic wait/kill/retry.

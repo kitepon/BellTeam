@@ -215,6 +215,72 @@ class PrepareTests(unittest.TestCase):
             self.assertEqual(self.commands,[])
             self.assertEqual(self.journal()['phases'],[])
 
+    def parent_binding_case(self,mode):
+        real_open=os.open;real_save=p.actor._save_json;opened=[];seen=[];invalidated=[]
+        original=self.f.state.stat();failure=OSError('synthetic parent original durability failure')
+        entries=[(1,7,0xffffffff),(2,4,os.getuid()+1),(4,0,0xffffffff),(16,0,0xffffffff),(32,0,0xffffffff)]
+        acl=struct.pack('<I',2)+b''.join(struct.pack('<HHI',*entry) for entry in entries)
+        if mode=='acl':os.setxattr(self.f.state,'system.posix_acl_default',acl)
+        def fd_open(path,flags,*args,**kwargs):
+            fd=real_open(path,flags,*args,**kwargs)
+            if path==self.f.state:opened.append(fd)
+            return fd
+        def save(tx,name,value):
+            if mode=='save' and name.endswith('-prepare-parent.json'):raise failure
+            return real_save(tx,name,value)
+        def host(step):return 'd'*64
+        def bind(*args):
+            path=self.f.root/'to-server-prepare-parent.json'
+            seen.append(json.loads(path.read_bytes()) if path.exists() else None)
+            for fd in opened:
+                with self.assertRaises(OSError):os.fstat(fd)
+            if mode=='replace':
+                self.f.state.rename(self.f.state.with_name('old-parent'));self.f.state.mkdir(mode=0o700)
+            elif mode=='acl':
+                entries[1]=(2,6,os.getuid()+1)
+                os.setxattr(self.f.state,'system.posix_acl_default',struct.pack('<I',2)+b''.join(struct.pack('<HHI',*entry) for entry in entries))
+        host.bind_image,host.invalidate=bind,invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path), \
+                patch.object(os,'open',side_effect=fd_open),patch.object(p.actor,'_save_json',side_effect=save):
+            caught=None;runner=None
+            try:runner=p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                                 datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            except BaseException as error:caught=error
+            print('PARENT_BEFORE_BIND '+json.dumps(dict(mode=mode,bindingCalls=len(seen),
+                originalSeen=bool(seen and seen[0]),refused=caught is not None)),flush=True)
+            if mode=='observe':
+                self.assertIsNone(caught)
+                self.assertIsNotNone(seen[0])
+                self.assertEqual(seen[0]['inode'],str(original.st_ino))
+                self.assertIsNone(runner.parent_fd)
+            else:
+                if mode=='save':self.assertIs(caught,failure);self.assertEqual(seen,[])
+                else:self.assertEqual(str(caught),'SEC014_PREPARE_PARENT_CHANGED')
+                self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            for fd in opened:
+                with self.assertRaises(OSError):os.fstat(fd)
+            path=self.f.root/'to-server-prepare-parent.json'
+            if mode=='save':self.assertFalse(path.exists())
+            else:
+                self.assertEqual(json.loads(path.read_bytes()),seen[0])
+                self.assertFalse(seen[0]['hostAuthority'])
+                self.assertEqual(path.stat().st_mode&0o777,0o600)
+                if mode=='acl':self.assertEqual(seen[0]['acls']['default'],dict(rawHex=acl.hex(),errno=None))
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_parent_original_is_saved_before_image_binding(self):
+        self.parent_binding_case('observe')
+
+    def test_parent_replacement_inside_image_binding_refuses_constructor(self):
+        self.parent_binding_case('replace')
+
+    def test_parent_default_acl_change_inside_image_binding_refuses_constructor(self):
+        self.parent_binding_case('acl')
+
+    def test_parent_original_save_failure_refuses_image_binding(self):
+        self.parent_binding_case('save')
+
     def test_socket_original_is_saved_before_binding_and_replacement_refuses(self):
         original=self.socket_path.stat()
         replacement=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
@@ -464,7 +530,7 @@ class PrepareTests(unittest.TestCase):
         calls=[]
         def host(step):calls.append(step);return 'd'*64
         with self.f.hold() as self.tx:
-            with self.assertRaisesRegex(p.actor.control.ControlError,'PHASE_UNCONFIRMED'):
+            with self.assertRaisesRegex(p.actor.control.ControlError,'CONTROL_METADATA'):
                 self.runner(host=host).prepare()
             self.assertEqual(self.commands,[])
             self.assertEqual(calls,[])
@@ -514,9 +580,10 @@ class PrepareTests(unittest.TestCase):
         def host(step):calls.append(step);return 'd'*64
         host.invalidate=invalidated.append
         with self.f.hold() as self.tx,patch.object(os,'getxattr',side_effect=observe):
-            runner=self.runner(host=host)
-            try:runner.prepare()
-            except RuntimeError as error:self.assertEqual(str(error),'SEC014_PREPARE_PHASE_UNCONFIRMED')
+            runner=None
+            try:runner=self.runner(host=host);runner.prepare()
+            except OSError as error:self.assertEqual(error.errno,errno.EACCES)
+            except RuntimeError as error:self.assertEqual(str(error),'SEC014_PREPARE_PARENT_ACL_LIMIT')
             print('PARENT_ACL_READ '+json.dumps(dict(oversize=oversize,hostCalls=len(calls),
                 prepareClients=len(self.commands),fdReads=len(seen))),flush=True)
             self.assertEqual(self.commands,[])
@@ -525,7 +592,7 @@ class PrepareTests(unittest.TestCase):
             for fd,_ in seen:
                 with self.assertRaises(OSError):os.fstat(fd)
             self.assertEqual(set(invalidated),{'UNCONFIRMED_CHILD'})
-            self.assertIsNone(runner.parent_fd)
+            self.assertIsNone(runner)
             self.assertFalse((self.f.root/'to-server-prepare-parent.json').exists())
             self.assertEqual(self.journal()['phases'],[])
 
@@ -541,20 +608,20 @@ class PrepareTests(unittest.TestCase):
         calls=[]
         def host(step):calls.append(step);return 'd'*64
         with self.f.hold() as self.tx:
-            with self.assertRaisesRegex(p.actor.control.ControlError,'PHASE_UNCONFIRMED'):
+            with self.assertRaises(OSError):
                 self.runner(host=host).prepare()
             self.assertEqual(self.commands,[])
             self.assertEqual(calls,[])
             self.assertEqual(self.journal()['phases'],[])
 
     def test_parent_same_inode_different_mount_refuses_before_client(self):
-        real_open=Path.open;injected=[]
+        real_open=Path.open;injected=[];runner=None
         def fdinfo(path,*args,**kwargs):
             stream=real_open(path,*args,**kwargs)
             if (str(path).startswith('/proc/thread-self/fdinfo/')
                     and os.readlink('/proc/thread-self/fd/'+path.name)==str(self.f.state)):
                 with stream:raw=stream.read()
-                if int(path.name)!=runner.parent_fd:
+                if runner is not None and int(path.name)!=runner.parent_fd:
                     original=re.search(rb'(?m)^mnt_id:\s*([0-9]+)$',raw)
                     self.assertIsNotNone(original)
                     changed=str(int(original.group(1))+1).encode()
@@ -599,9 +666,9 @@ class PrepareTests(unittest.TestCase):
             self.assertEqual(self.journal()['phases'],[])
 
     def test_parent_unusable_fdinfo_refuses_before_client(self):
-        real_open=Path.open
+        real_open=Path.open;runner=None
         def fdinfo(path,*args,**kwargs):
-            if (str(path).startswith('/proc/thread-self/fdinfo/')
+            if (runner is not None and str(path).startswith('/proc/thread-self/fdinfo/')
                     and os.readlink('/proc/thread-self/fd/'+path.name)==str(self.f.state)):
                 return io.BytesIO(b'pos:\t0\nmnt_id:\tunknown\n')
             return real_open(path,*args,**kwargs)
@@ -612,7 +679,7 @@ class PrepareTests(unittest.TestCase):
             self.assertEqual(self.commands,[])
             self.assertTrue(runner.held)
             self.assertIsNone(runner.parent_fd)
-            self.assertFalse((self.f.root/'to-server-prepare-parent.json').exists())
+            self.assertTrue((self.f.root/'to-server-prepare-parent.json').exists())
             self.assertEqual(self.journal()['phases'],[])
 
     def socket_mount_refusal(self,mode):

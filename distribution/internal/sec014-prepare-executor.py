@@ -61,8 +61,12 @@ class _Prepare:
                 raise actor.control.ControlError('SEC014_PREPARE_WRITER_IMAGE_ORIGINAL')
             endpoint=tx._docker_endpoint()
             endpoint_record=actor._save_json(tx,tx.value['direction']+'-prepare-socket.json',endpoint)
+            parent=self._parent_observation(tx.owner)
+            parent_record=actor._save_json(tx,tx.value['direction']+'-prepare-parent.json',parent)
             host_check.bind_image(image,image_id,copy.deepcopy(image_original))
             tx.check()
+            if self._parent_observation(tx.owner)!=parent:
+                raise actor.control.ControlError('SEC014_PREPARE_PARENT_CHANGED')
         except BaseException:
             try:host_check.invalidate('UNCONFIRMED_CHILD')
             except BaseException:pass
@@ -73,9 +77,11 @@ class _Prepare:
         self.children = tx._prepare_children = []
         self.proof,self.cid,self.env = None,None,None
         self.step = 'entry'
-        self.parent_fd,self.parent_identity,self.parent_record = None,None,None
-        self.parent_mount,self.parent_namespace = None,None
-        self.parent_acls = None
+        self.parent_fd,self.parent_record = None,parent_record
+        self.parent_identity = (int(parent['device']),int(parent['inode']))
+        self.parent_mount = parent['mountId']
+        self.parent_namespace = (int(parent['mountNamespace']['device']),int(parent['mountNamespace']['inode']))
+        self.parent_acls = parent['acls']
         self.endpoint,self.endpoint_record = endpoint,endpoint_record
         self.image_original=image_original
 
@@ -124,6 +130,25 @@ class _Prepare:
                 raise actor.control.ControlError('SEC014_PREPARE_PARENT_ACL_LIMIT')
             result[kind]=dict(rawHex=None if raw is None else raw.hex(),errno=code)
         return result
+
+    def _parent_observation(self,owner):
+        namespace=actor.control._identity(os.stat('/proc/thread-self/ns/mnt'))
+        fd=os.open(PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
+        try:
+            info=os.fstat(fd)
+            actor.control._private(info,owner,True)
+            mount,fdinfo=self._mount_info(fd)
+            acls=self._parent_acls(fd)
+            linked=os.stat(PARENT,follow_symlinks=False)
+            actor.control._private(linked,owner,True)
+            if (actor.control._identity(linked)!=actor.control._identity(info)
+                    or actor.control._identity(os.stat('/proc/thread-self/ns/mnt'))!=namespace):
+                raise actor.control.ControlError('SEC014_PREPARE_PARENT_CHANGED')
+            return dict(path=str(PARENT),device=str(info.st_dev),inode=str(info.st_ino),
+                uid=info.st_uid,gid=info.st_gid,mode='0700',hostAuthority=False,
+                mountId=mount,fdinfoUtf8=fdinfo,acls=acls,mountNamespace=dict(
+                    device=str(namespace[0]),inode=str(namespace[1])))
+        finally:os.close(fd)
 
     def _mount_info(self, fd):
         with Path('/proc/thread-self/fdinfo/'+str(fd)).open('rb') as stream:raw=stream.read(4097)
@@ -208,17 +233,8 @@ class _Prepare:
     def prepare(self):
         try:
             self.tx.check()
-            self.parent_namespace=actor.control._identity(os.stat('/proc/thread-self/ns/mnt'))
             self.parent_fd=os.open(PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
-            info=os.fstat(self.parent_fd)
-            actor.control._private(info,self.tx.owner,True)
-            self.parent_identity=actor.control._identity(info)
-            self.parent_mount,fdinfo=self._mount_info(self.parent_fd)
-            self.parent_acls=self._parent_acls(self.parent_fd)
-            self.parent_record=self.save('parent',dict(path=str(PARENT),device=str(info.st_dev),
-                inode=str(info.st_ino),uid=info.st_uid,gid=info.st_gid,mode='0700',hostAuthority=False,
-                mountId=self.parent_mount,fdinfoUtf8=fdinfo,acls=self.parent_acls,mountNamespace=dict(
-                    device=str(self.parent_namespace[0]),inode=str(self.parent_namespace[1]))))
+            self._check_parent()
             return self._prepare()
         except Exception as failure:
             self.held=True
