@@ -19,6 +19,8 @@ let reads = []
 let writes = []
 let legacyProfile = false
 let profileDelayMs = 0
+let botListReads = 0
+const eventSubscribers = new Set()
 const json = (response, value, status = 200) => {
   response.writeHead(status, { 'content-type': 'application/json' })
   response.end(JSON.stringify(value))
@@ -33,7 +35,9 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1')
   if (url.pathname === '/test/reset') {
     profile = initialProfile(); screen = '履歴の最初の行\n履歴の次の行'; reads = []; writes = []
-    legacyProfile = false; profileDelayMs = 0
+    legacyProfile = false; profileDelayMs = 0; botListReads = 0
+    for (const subscriber of eventSubscribers) subscriber.end()
+    eventSubscribers.clear()
     return json(response, { ok: true })
   }
   if (url.pathname === '/test/long-history') {
@@ -45,7 +49,12 @@ const server = createServer(async (request, response) => {
     profileDelayMs = Number(url.searchParams.get('ms') || 0)
     return json(response, { ok: true })
   }
-  if (url.pathname === '/test/proof') return json(response, { reads, writes, screen })
+  if (url.pathname === '/test/proof') return json(response, { reads, writes, screen, botListReads, subscribers: eventSubscribers.size })
+  if (url.pathname === '/test/refresh-bot') {
+    profile.position = '更新された設計担当'
+    for (const subscriber of eventSubscribers) subscriber.write('event: bots\ndata: {}\n\n')
+    return json(response, { ok: true, subscribers: eventSubscribers.size })
+  }
   if (url.pathname === '/test/screen') {
     screen = url.searchParams.get('value') ?? screen
     return json(response, { ok: true })
@@ -58,7 +67,15 @@ const server = createServer(async (request, response) => {
     claude: { efforts: ['high'], models: [{ id: 'opus', efforts: ['high'], fast: true }], defaultModel: 'opus' },
     codex: { efforts: ['high'], models: [], defaultModel: null },
   } })
+  if (url.pathname === '/api/events') {
+    response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
+    response.write('event: ready\ndata: {}\n\n')
+    eventSubscribers.add(response)
+    request.on('close', () => eventSubscribers.delete(response))
+    return
+  }
   if (url.pathname === '/api/bots') {
+    botListReads += 1
     const bot = listBot()
     if (legacyProfile) {
       for (const key of ['avatarLarge', 'avatarLargeVersion', 'avatarSource', 'avatarSourceVersion',

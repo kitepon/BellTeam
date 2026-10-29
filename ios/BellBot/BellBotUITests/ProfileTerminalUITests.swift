@@ -175,6 +175,61 @@ final class ProfileTerminalUITests: XCTestCase {
                        "シートを開いて取消すだけではPATCHしない")
     }
 
+    func testPhoneCropEditorKeepsAdjustmentAcrossBotRefresh() async throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの画像調整を確認する試験です。")
+        continueAfterFailure = false
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"])
+        try await reset(url)
+        func proof() async throws -> [String: Any] {
+            let target = try XCTUnwrap(URL(string: url + "/test/proof"))
+            let (data, _) = try await URLSession.shared.data(from: target)
+            return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        }
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-profile-terminal",
+                               "-bellbot-preview-server", url, "-bellbot-preview-events"]
+        app.launch()
+        defer { app.terminate() }
+        var subscribed = false
+        for _ in 0..<30 {
+            let state = try await proof()
+            if state["subscribers"] as? Int == 1 { subscribed = true; break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertTrue(subscribed)
+        let bot = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch
+        XCTAssertTrue(bot.waitForExistence(timeout: 10))
+        bot.tap(); app.buttons["詳細"].tap()
+        app.buttons["profile-small-avatar"].tap()
+        app.buttons["profile-image-adjust"].tap()
+        let slider = app.sliders["アバター画像の拡大・縮小"]
+        XCTAssertTrue(slider.waitForExistence(timeout: 5))
+        let initial = slider.value as? String
+        slider.adjust(toNormalizedSliderPosition: 0.75)
+        let adjusted = slider.value as? String
+        XCTAssertNotEqual(adjusted, initial)
+        let beforeState = try await proof()
+        let before = beforeState["botListReads"] as? Int ?? 0
+        let refresh = try XCTUnwrap(URL(string: url + "/test/refresh-bot"))
+        let (_, response) = try await URLSession.shared.data(from: refresh)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        var afterReads = before
+        for _ in 0..<30 {
+            let state = try await proof()
+            afterReads = state["botListReads"] as? Int ?? 0
+            if afterReads > before { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertGreaterThan(afterReads, before)
+        try await Task.sleep(for: .milliseconds(500))
+        XCTAssertTrue(slider.exists, "Bot更新後も画像調整画面が残る")
+        XCTAssertEqual(slider.value as? String, adjusted, "Bot更新後も調整位置を保つ")
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(slider.waitForExistence(timeout: 5), "前面復帰後も画像調整画面が残る")
+        XCTAssertEqual(slider.value as? String, adjusted, "前面復帰後も調整位置を保つ")
+    }
+
     func testPhoneSmallCropSavesWithoutReplacingLargeImage() async throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの小画像編集を確認する試験です。")
         continueAfterFailure = false
