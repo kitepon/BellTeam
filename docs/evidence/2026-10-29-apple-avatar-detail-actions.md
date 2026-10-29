@@ -12,5 +12,6 @@
 - 人工iPhoneプロフィールから小画像の調整・保存UI試験1件成功。PATCHは小画像のrender/source/cropだけ1回で、大画像は不変。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-29T03-03-18-382Z_pid49890_5822e9f8.xcresult`。
 - 人工iPhoneプロフィールから大画像の調整・保存UI試験1件成功。PATCHは大画像のrender/source/cropだけ1回で、小画像は不変。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-29T03-04-14-262Z_pid49890_89c5a20e.xcresult`。
 - 取消と重なりを合わせたiPhone UI試験は、製品の処理前にSimulatorがXCTest runnerの起動を`SBMainWorkspace Busy (Application failed preflight checks)`で拒否した。元Simulatorで2回、別の同iOS版iPhoneで1回同じ拒否。試験本体は未実行で、取消UIとiPad/Macの実画面は未確認。iOS・Mac Catalyst Debug buildは終了0。人工serverとSimulatorは終了を確認した。
+- 完了時のNode全試験は`TESTGATE_FULL=1 testgate run -- npm test`で1回実行して終了0。SwiftUIの取消UI未実行をこの結果で代用しない。
 
 この差分は版73の署名済みsource・TestFlight配布へ含めていない。実Owner画像、実Bot、認証、本体コンテナは操作していない。
