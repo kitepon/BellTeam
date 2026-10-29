@@ -226,6 +226,59 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertTrue(scenario.reports.isEmpty, "取消で通信障害warnを作らない")
     }
 
+    func testSendFailureReconcileReportsOnlyTheLoadCallBoundary() async {
+        let lost = URLError(.networkConnectionLost)
+        var loadCalls = 0
+        let inactive = await SendFailureReconcileObservation.observe(error: lost, appActive: false) {
+            loadCalls += 1
+            return .startedReaderReturned
+        }
+        let known = await SendFailureReconcileObservation.observe(
+            error: BellAPIError.httpStatus(400, nil), appActive: true) {
+            loadCalls += 1
+            return .startedReaderReturned
+        }
+        XCTAssertEqual(loadCalls, 0)
+        XCTAssertTrue(inactive.log.contains("send_reconcile_decision=skipped_app_inactive"))
+        XCTAssertTrue(known.log.contains("send_reconcile_decision=skipped_known_result"))
+        XCTAssertTrue(inactive.log.contains("send_reconcile_load_calls=0"))
+        let scene = await SendFailureReconcileObservation.observe(error: lost, appActive: true) {
+            loadCalls += 1
+            return .skippedSceneInactive
+        }
+        let awaiting = await SendFailureReconcileObservation.observe(error: lost, appActive: true) {
+            loadCalls += 1
+            return .skippedAwaitingSend
+        }
+        let joined = await SendFailureReconcileObservation.observe(error: lost, appActive: true) {
+            loadCalls += 1
+            return .joinedReaderReturned
+        }
+        let started = await SendFailureReconcileObservation.observe(error: lost, appActive: true) {
+            loadCalls += 1
+            return .startedReaderReturned
+        }
+        XCTAssertEqual(loadCalls, 4)
+        XCTAssertTrue(scene.log.contains("send_reconcile_load_result=skipped_scene_inactive"))
+        XCTAssertTrue(awaiting.log.contains("send_reconcile_load_result=skipped_awaiting_send"))
+        XCTAssertTrue(joined.log.contains("send_reconcile_load_result=joined_reader_returned"))
+        XCTAssertTrue(started.log.contains("send_reconcile_load_result=started_reader_returned"))
+        var reports: [String] = []
+        let diagnostics = BellDiagnostics { _, _, _, log in reports.append(log) }
+        diagnostics.report(lost, path: "/api/bots/bot-deadbeef/messages", method: "POST",
+                           observation: .write, diagnosticContext: scene.log)
+        XCTAssertEqual(reports.count, 1, "同じPOST失敗を一度だけ報告する")
+        XCTAssertTrue(reports[0].contains("send_reconcile_load_result=skipped_scene_inactive"))
+        let raw = ["case=app_inactive\n\(inactive.log)", "case=known_result\n\(known.log)",
+                   "case=scene_inactive\n\(scene.log)", "case=awaiting_send\n\(awaiting.log)",
+                   "case=joined_reader\n\(joined.log)",
+                   "case=started_reader\n\(started.log)"].joined(separator: "\n")
+        let attachment = XCTAttachment(data: Data(raw.utf8), uniformTypeIdentifier: "public.plain-text")
+        attachment.name = "人工POST失敗の読直し分岐原文"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testPostIsNotReplayed() async throws {
         let scenario = NetworkScenario(failures: 2)
         let api = makeAPI(scenario)
