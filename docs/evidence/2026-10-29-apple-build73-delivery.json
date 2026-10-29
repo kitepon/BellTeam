@@ -40,8 +40,10 @@
       "uploadLogPath": "~/Library/Logs/ContentDelivery/com.apple.itunes.altool/com.apple.itunes.altool_2026-10-29_10-55-22-399.txt",
       "uploadLogSha256": "4aecae55493d65434e997c8180d00a958d7821daaa7dfe6f82dae11ebe42e341",
       "uploadLogBytes": 560134,
-      "appStoreConnectBuildState": "not yet visible at latest read",
-      "betaGroupAttachment": "pending"
+      "appStoreConnectBuildId": "7f1aed42-1f8f-4992-b548-3bcea861091c",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
     },
     {
       "platform": "MAC_OS",
