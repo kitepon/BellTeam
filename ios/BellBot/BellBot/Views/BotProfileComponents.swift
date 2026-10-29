@@ -97,6 +97,8 @@ struct BotProfileHero: View {
                 }, onConfirm: { Task { await confirmImageSave(variant) } },
                 onDiscard: { discardImageSelection(variant) })
             .environmentObject(store)
+            .disabled(savingImage)
+            .interactiveDismissDisabled(savingImage)
         }
         .task(id: bot.id) { pendingSelections = store.profileImageDrafts[bot.id] ?? AvatarSelectionDrafts() }
         .task(id: "\(bot.id):\(bot.avatarLargeVersion ?? "")") {
@@ -118,6 +120,7 @@ struct BotProfileHero: View {
     }
 
     private func openImageActions(_ variant: AvatarCropVariant) {
+        guard !savingImage else { return }
         imageSaveMessage = nil
         imageAction = variant
     }
@@ -128,6 +131,7 @@ struct BotProfileHero: View {
     }
 
     private func discardImageSelection(_ variant: AvatarCropVariant) {
+        guard !savingImage else { return }
         pendingSelections.discard(variant)
         persistImageSelections()
         imageSaveErrors[variant] = nil
@@ -136,6 +140,7 @@ struct BotProfileHero: View {
 
     private func saveImage(_ selection: AvatarCropSelection, current: BotSettings,
                            variant: AvatarCropVariant) async {
+        guard !savingImage else { return }
         pendingSelections.select(selection, for: variant)
         persistImageSelections()
         imageSaveErrors[variant] = nil
@@ -145,7 +150,7 @@ struct BotProfileHero: View {
         do {
             let result = try await store.api.saveBotAvatarSelection(id: bot.id, current: current,
                                                                      variant: variant, selection: selection)
-            pendingSelections.finish(result, for: variant)
+            guard pendingSelections.finish(result, for: variant, matching: selection) else { return }
             persistImageSelections()
             switch result {
             case .saved, .confirmed:
@@ -162,24 +167,26 @@ struct BotProfileHero: View {
                 imageSaveErrors[variant] = "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)"
             }
         } catch let error where BellAPIError.isAuthenticationError(error) {
+            guard pendingSelections.selection(for: variant) == selection else { return }
             imageSaveErrors[variant] = "認証が必要です。選択は保持しています。"
             store.requireLogin(for: error)
         }
         catch {
-            pendingSelections.finish(nil, for: variant)
+            guard pendingSelections.finish(nil, for: variant, matching: selection) else { return }
             imageSaveErrors[variant] = BellAPIError.operationFailureMessage(error)
             store.api.diagnostics.report(error, path: path, method: "PATCH", observation: .write)
         }
     }
 
     private func confirmImageSave(_ variant: AvatarCropVariant) async {
+        guard !savingImage else { return }
         guard let selection = pendingSelections.selection(for: variant) else { return }
         savingImage = true
         defer { savingImage = false }
         do {
             let result = try await store.api.confirmBotAvatarSelection(id: bot.id,
                 variant: variant, selection: selection)
-            pendingSelections.finish(result, for: variant)
+            guard pendingSelections.finish(result, for: variant, matching: selection) else { return }
             persistImageSelections()
             switch result {
             case .saved, .confirmed:
@@ -193,10 +200,14 @@ struct BotProfileHero: View {
                 imageSaveErrors[variant] = "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)"
             }
         } catch let error where BellAPIError.isAuthenticationError(error) {
+            guard pendingSelections.selection(for: variant) == selection else { return }
             imageSaveErrors[variant] = "認証が必要です。選択は保持しています。"
             store.requireLogin(for: error)
         }
-        catch { imageSaveErrors[variant] = "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)" }
+        catch {
+            guard pendingSelections.selection(for: variant) == selection else { return }
+            imageSaveErrors[variant] = "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)"
+        }
     }
 }
 

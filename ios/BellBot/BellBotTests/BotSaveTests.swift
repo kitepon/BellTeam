@@ -4,6 +4,22 @@ import WebKit
 @testable import BellBot
 
 final class BotSaveTests: XCTestCase {
+    func testLateImageConfirmationCannotReleaseReplacementSelection() {
+        let first = AvatarCropSelection(render: "first", source: "first-source",
+                                        crop: AvatarCropRect(x: 0, y: 0, width: 1, height: 1))
+        let replacement = AvatarCropSelection(render: "replacement", source: "replacement-source",
+                                              crop: AvatarCropRect(x: 0.1, y: 0.1, width: 0.8, height: 0.8))
+        var drafts = AvatarSelectionDrafts()
+        drafts.select(first, for: .small)
+        drafts.discard(.small)
+        drafts.select(replacement, for: .small)
+        XCTAssertFalse(drafts.finish(.confirmed, for: .small, matching: first),
+                       "遅延した確認GETは新しい選択を解放しない")
+        XCTAssertEqual(drafts.selection(for: .small), replacement)
+        XCTAssertTrue(drafts.finish(.confirmed, for: .small, matching: replacement))
+        XCTAssertNil(drafts.selection(for: .small))
+    }
+
     func testImageSelectionsSurviveFailureAndOtherTargetUntilSuccessOrDiscard() {
         let small = AvatarCropSelection(render: "small", source: "small-source",
                                         crop: AvatarCropRect(x: 0, y: 0, width: 1, height: 1))
@@ -11,18 +27,18 @@ final class BotSaveTests: XCTestCase {
                                         crop: AvatarCropRect(x: 0.1, y: 0.1, width: 0.8, height: 0.8))
         var drafts = AvatarSelectionDrafts()
         drafts.select(small, for: .small)
-        drafts.finish(nil, for: .small)
+        drafts.finish(nil, for: .small, matching: small)
         XCTAssertEqual(drafts.selection(for: .small), small, "通常の保存失敗で選択を残す")
-        drafts.finish(.different, for: .small)
+        drafts.finish(.different, for: .small, matching: small)
         XCTAssertEqual(drafts.selection(for: .small), small, "保存内容が異なる時も選択を残す")
         drafts.select(large, for: .large)
-        drafts.finish(.unconfirmed(URLError(.timedOut)), for: .large)
+        drafts.finish(.unconfirmed(URLError(.timedOut)), for: .large, matching: large)
         XCTAssertEqual(drafts.selection(for: .small), small, "別画像を開いても先の選択を残す")
         XCTAssertEqual(drafts.selection(for: .large), large)
         drafts.discard(.large)
         XCTAssertEqual(drafts.selection(for: .small), small, "別画像の選択破棄は先の選択に触れない")
         drafts.select(large, for: .large)
-        drafts.finish(.confirmed, for: .large)
+        drafts.finish(.confirmed, for: .large, matching: large)
         XCTAssertNil(drafts.selection(for: .large))
         XCTAssertEqual(drafts.selection(for: .small), small)
         drafts.discard(.small)

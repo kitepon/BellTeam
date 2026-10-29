@@ -81,11 +81,15 @@ struct AvatarSelectionDrafts {
     mutating func select(_ selection: AvatarCropSelection, for variant: AvatarCropVariant) {
         selections[variant] = selection
     }
-    mutating func finish(_ result: BotSaveResult?, for variant: AvatarCropVariant) {
+    @discardableResult
+    mutating func finish(_ result: BotSaveResult?, for variant: AvatarCropVariant,
+                         matching selection: AvatarCropSelection) -> Bool {
+        guard selections[variant] == selection else { return false }
         switch result {
         case .saved?, .confirmed?: selections.removeValue(forKey: variant)
         default: break
         }
+        return true
     }
     mutating func discard(_ variant: AvatarCropVariant) { selections.removeValue(forKey: variant) }
 }
