@@ -612,3 +612,21 @@ This only binds configured raw-image inputs to the declared selected raw ID. It 
 One dedicated local fork case fails before the change and passes after it. It also checks a mismatched start tick, restores the original value and confirms that the parent still owns an incomplete transaction with no phases. The child is explicitly reaped by the test. Two affected cases preserve the same lock through forward/reverse phases and construct the saved Prepare inside the held factory. The affected Prepare positive fixture previously used phase-zero proof keys for the prepared phase and omitted the preceding phase; its synthetic setup and expected journal now follow the existing phase order, and that one case passes. The initial wrong unittest module-path invocation and the old fixture failure are recorded separately from the native-identity counterexample.
 
 These checks concern the caller process only. They do not produce host image/socket/ACL/mount authority or a real writer-exclusion interval, and do not implement `bind_image`, the full production factory or recovery reaping. All metadata authority flags remain false. Whole Draft NOTDEPLOYABLE, unmerged and undeployed; no real host/Docker operation, controller, public CLI, lock or new identity scheme.
+
+
+### Prepare image binding checks the held actor before entering the callback
+
+`_Prepare.__init__` now calls the existing transaction check immediately before
+`host_check.bind_image`. The callback may eventually acquire host facts, so an
+inherited or changed actor must be refused before that callback has effects.
+The new ordinary-filesystem/native-fork test observes no binding callback in
+the inherited child, rejects a changed birth tick in the parent, and allows one
+binding after restoration. The fork is explicitly reaped by the test. Existing
+four-command prepare and missing-host refusal cases still pass.
+
+This is entry ordering only. The callback in the test is synthetic; there is
+still no production host-boundary verifier or full phase factory. Image
+metadata, native PID/birth checks, and this callback count establish no host
+authority. Real socket/ancestor ACL/mount/writer facts, invalidation ownership,
+recovery/reap, and later normal phases remain unconnected. No host or Docker
+daemon was accessed; the Draft remains NOTDEPLOYABLE.

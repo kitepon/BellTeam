@@ -82,6 +82,43 @@ class PrepareTests(unittest.TestCase):
     def journal(self):
         return json.loads((self.f.root/'transaction-to-server.json').read_bytes())
 
+    def test_image_binding_rejects_inherited_or_changed_actor_before_callback(self):
+        calls=[]
+        def host(step):return 'd'*64
+        host.bind_image=lambda image,image_id:calls.append((image,image_id))
+        def construct():
+            return p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                              datetime.now(timezone.utc)+timedelta(seconds=120),host)
+        with self.f.hold() as self.tx:
+            read_fd,write_fd=os.pipe()
+            pid=os.fork()
+            if pid==0:
+                os.close(read_fd)
+                try:
+                    construct()
+                    result=dict(error=None,calls=len(calls))
+                except Exception as error:
+                    result=dict(error=str(error),calls=len(calls))
+                try:os.write(write_fd,json.dumps(result).encode())
+                finally:os._exit(0)
+            os.close(write_fd)
+            try:observed=json.loads(os.read(read_fd,1024))
+            finally:
+                os.close(read_fd)
+                _,status=os.waitpid(pid,0)
+            self.assertEqual(status,0)
+            self.assertEqual(observed,dict(error='SEC014_CONTROL_ACTOR_IDENTITY',calls=0))
+            born=self.tx.value['actorStartTicks']
+            self.tx.value['actorStartTicks']=born+1
+            try:
+                with self.assertRaisesRegex(RuntimeError,'ACTOR_IDENTITY'):construct()
+                self.assertEqual(calls,[])
+            finally:self.tx.value['actorStartTicks']=born
+            construct()
+            self.assertEqual(calls,[(IMAGE,IMAGE_ID)])
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
     def test_four_fixed_commands_env_terminal_before_reap_and_phase_evidence(self):
         with self.f.hold() as self.tx, patch.dict(os.environ,{'BELLTEAM_WEB_TOKEN':'synthetic-secret','DOCKER_HOST':'invalid'}):
             self.tx.confirmed('writers_stopped')
