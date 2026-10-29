@@ -1,0 +1,112 @@
+{
+  "schema": "bellteam.apple-internal-delivery.v1",
+  "product": "BellTeam",
+  "purpose": "背景化したGoalのforeground再読込を取り消す版77を内部配布",
+  "bundleId": "dev.kitepon.bellbot",
+  "appStoreConnectAppId": "6816295589",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "77",
+  "signedSourceCommit": "1b5f9e46ed39aac4dc824f2dbdfcfc2b49a9ade8",
+  "versionMergeCommit": "a5922878a69bbd91f6fced7936a272e888bdc2c1",
+  "unsignedPreflight": "docs/evidence/2026-10-29-apple-goal-cancel-build77-preflight.json",
+  "unsignedPreflightSha256": "d8d63a0b96cf59befe5bdeb1f41483b35e523df4b542cc663da4638449077702",
+  "ownerApproval": {
+    "title": "BellTeam Apple Goal背景取得取消版77を署名・内部配布し必要時にMac更新を1回押す",
+    "choice": "go_all",
+    "answeredAt": "2026-10-29T09:01:20.738Z",
+    "macPhysicalClickScope": "BellTeam version 77 update button only, at most once if needed"
+  },
+  "betaGroup": {
+    "id": "58133050-1c39-4915-b6da-aac18b95921b",
+    "name": "BellTeam オーナー",
+    "internal": true
+  },
+  "artifacts": [
+    {
+      "platform": "IOS",
+      "relativePath": "runtime/apple/goal-cancel-build77/ios-export/BellTeam.ipa",
+      "sha256": "9f2e4af9e73d4dcfd4cdcb2d3dadf6a86a92d1533a2deac5f35fafb167e67d50",
+      "appBundleVersion": "77",
+      "extensionBundleVersion": "77",
+      "architectures": [
+        "arm64"
+      ],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "57571a71-9494-48b2-96a8-1001ce35adb3",
+      "uploadResult": "no-errors from normal tool response",
+      "appStoreConnectBuildId": "57571a71-9494-48b2-96a8-1001ce35adb3",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    },
+    {
+      "platform": "MAC_OS",
+      "relativePath": "runtime/apple/goal-cancel-build77/mac-export/BellTeam.pkg",
+      "sha256": "69d1c5b7eeb11313f038d8632f631e8ab286aefb9cc30d09804d224474901c7d",
+      "appBundleVersion": "77",
+      "extensionBundleVersion": "77",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "installerSignature": "3rd Party Mac Developer Installer, valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "8bd71c14-7fb4-4ff8-a0be-4ca1f18d20c5",
+      "uploadResult": "no-errors from normal tool response",
+      "appStoreConnectBuildId": "8bd71c14-7fb4-4ff8-a0be-4ca1f18d20c5",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    }
+  ],
+  "macTestFlightSmoke": {
+    "status": "pending_host_ol_dialog_resolution",
+    "installedPath": "/Applications/BellTeam.app",
+    "lastObservedBundleVersion": "71",
+    "lastObservedSignature": "strict-valid",
+    "lastObservedGatekeeperSource": "Testflight",
+    "observationScope": "pre-approval local bundle and signing readback; no new UI observation while Host/OL condition is unchanged",
+    "testFlightTargetVersionVisuallyConfirmed": false,
+    "screenInspectionBlocker": "Earlier live display observations showed the unrelated OL-RemoteWindow codesign Keychain authorization dialog in the foreground. No action was taken on or around it.",
+    "headedClickPerformed": false,
+    "readOnlySmokeCompleted": false
+  },
+  "remaining": {
+    "macTestFlightInstallation": "pending until Host/OL owner reports dialog resolution and build 77 can be visually confirmed",
+    "iphoneAndIpadPhysicalInstallation": "not_measured",
+    "realOwnerAvatarChange": "not_performed",
+    "diagnosticCases": [
+      {
+        "fingerprintPrefix": "88564",
+        "count": 12,
+        "state": "open",
+        "cause": "unknown",
+        "recovery": "unknown",
+        "repairSuccess": false
+      },
+      {
+        "fingerprintPrefix": "eb392",
+        "count": 31,
+        "state": "open",
+        "cause": "unknown",
+        "recovery": "unknown",
+        "repairSuccess": false
+      }
+    ],
+    "realVersion77CancellationOutcome": "not_observed"
+  },
+  "realBotRestartPerformed": false,
+  "realBotMessageSent": false,
+  "ownerAvatarEdited": false,
+  "authenticationChanged": false,
+  "serverContainerRestartedByThisDelivery": false,
+  "publicAppStoreReleased": false
+}
