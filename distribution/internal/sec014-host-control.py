@@ -38,7 +38,7 @@ def _private(value, owner, directory=False, normal_group=None):
         raise ControlError('SEC014_CONTROL_METADATA')
 
 
-def _saved(parent, name, owner, normal_group=None):
+def _saved(parent, name, owner, normal_group=None, *, facts=None):
     try:
         fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
     except FileNotFoundError:
@@ -60,9 +60,12 @@ def _saved(parent, name, owner, normal_group=None):
                    for value in (after, linked))):
         raise ControlError('SEC014_CONTROL_JOURNAL_CHANGED')
     try:
-        return json.loads(raw)
+        result=json.loads(raw)
     except ValueError:
         raise ControlError('SEC014_CONTROL_JOURNAL_INVALID') from None
+    if facts is not None:
+        facts.update(sha256=hashlib.sha256(raw).hexdigest(),metadata=tuple(getattr(before,key) for key in keys))
+    return result
 
 
 def _normal(path, *, role='bellteam', models=None):
@@ -238,6 +241,7 @@ class _Transaction:
         self.parent_identity = _identity(os.fstat(parent))
         self.lock_identity = _identity(os.fstat(lock))
         self._docker_socket_original = None
+        self._writer_image_original = None
         self.name = 'transaction-' + direction + '.json'
         self.value = {'schema': SCHEMA, 'direction': direction, 'status': 'incomplete',
                       'actorPid': os.getpid(), 'actorStartTicks': int(
@@ -265,6 +269,11 @@ class _Transaction:
             raise ControlError('SEC014_CONTROL_IDENTITY_CHANGED')
         if self._docker_socket_original is not None:
             self._socket_observation()
+        if self._writer_image_original is not None:
+            facts={}
+            saved=_saved(self.parent,self.value['direction']+'-writer-image.output.json',self.owner,facts=facts)
+            if saved!=self._writer_image_original['output'] or facts!=self._writer_image_original['file']:
+                raise ControlError('SEC014_CONTROL_WRITER_IMAGE_CHANGED')
 
     def _socket_observation(self):
         # shortcut: pathname metadata only, require host peer/ACL authority before live connection.

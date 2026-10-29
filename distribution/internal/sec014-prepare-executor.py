@@ -1,5 +1,6 @@
 """Fixed prepare producer. No CLI; host authority verifier and later phases absent."""
 import hashlib
+import copy
 import importlib.util
 import json
 import math
@@ -48,9 +49,18 @@ class _Prepare:
             raise actor.control.ControlError('SEC014_PREPARE_HOST_IMAGE_BINDING')
         tx.check()
         try:
+            image_original=copy.deepcopy(getattr(tx,'_writer_image_original',None))
+            if type(image_original) is not dict or set(image_original)!={'output','sha256','file'}:
+                raise actor.control.ControlError('SEC014_PREPARE_WRITER_IMAGE_ORIGINAL')
+            output=image_original['output']
+            if (output['argv']!=['/usr/bin/docker','image','inspect','--format','{{json .Id}}',image]
+                    or json.loads(output['rawUtf8'])!=image_id
+                    or hashlib.sha256(json.dumps(output,sort_keys=True,allow_nan=False).encode()).hexdigest()
+                    != image_original['sha256'] or image_original['file']['sha256']!=image_original['sha256']):
+                raise actor.control.ControlError('SEC014_PREPARE_WRITER_IMAGE_ORIGINAL')
             endpoint=tx._docker_endpoint()
             endpoint_record=actor._save_json(tx,tx.value['direction']+'-prepare-socket.json',endpoint)
-            host_check.bind_image(image,image_id)
+            host_check.bind_image(image,image_id,copy.deepcopy(image_original))
             tx.check()
         except BaseException:
             try:host_check.invalidate('UNCONFIRMED_CHILD')
@@ -64,6 +74,7 @@ class _Prepare:
         self.parent_fd,self.parent_identity,self.parent_record = None,None,None
         self.parent_mount,self.parent_namespace = None,None
         self.endpoint,self.endpoint_record = endpoint,endpoint_record
+        self.image_original=image_original
 
     def ready(self):
         self.tx.check()
@@ -283,7 +294,8 @@ class _Prepare:
             argv=argv,status='exited',exitCode=0,unknown=False)
         self.save('chain',{'terminal':terminal,'commands':self.records,'hostParentProof':self.proof,
                            'parentObservationSha256':self.parent_record,
-                           'socketObservationSha256':self.endpoint_record})
+                           'socketObservationSha256':self.endpoint_record,
+                           'imageObservationSha256':self.image_original['sha256']})
         receipt=actor.prepared_phase_receipt(self.tx,self.image,terminal,self.proof)
         self.step = 'phase'
         self.ready()

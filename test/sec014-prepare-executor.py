@@ -1,5 +1,6 @@
 import hashlib
 import errno
+from contextlib import contextmanager
 import importlib.util
 import io
 import json
@@ -48,6 +49,22 @@ class PrepareTests(unittest.TestCase):
         self.socket=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
         self.addCleanup(self.socket.close)
         self.socket.bind(str(self.socket_path));self.socket_path.chmod(0o660)
+        hold=self.f.hold
+        self.f.hold=lambda:self.held_image_original(hold())
+
+    @contextmanager
+    def held_image_original(self,held):
+        with held as tx:
+            # Synthetic image input only; the separate Writer integration uses native client evidence.
+            output=dict(argv=['/usr/bin/docker','image','inspect','--format','{{json .Id}}',IMAGE],
+                        rawUtf8=json.dumps(IMAGE_ID))
+            digest=fixture.a._save_json(tx,tx.value['direction']+'-writer-image.output.json',output)
+            info=(tx.path/(tx.value['direction']+'-writer-image.output.json')).stat()
+            keys=('st_dev','st_ino','st_mode','st_uid','st_gid','st_nlink',
+                  'st_size','st_mtime_ns','st_ctime_ns')
+            tx._writer_image_original=dict(output=output,sha256=digest,
+                file=dict(sha256=digest,metadata=tuple(getattr(info,key) for key in keys)))
+            yield tx
 
     def inspector(self):
         name=p.actor.prepare_name(self.tx)
@@ -88,7 +105,7 @@ class PrepareTests(unittest.TestCase):
         endpoint=patch.object(type(self.tx),'_docker_socket_path',self.socket_path,create=True)
         endpoint.start();self.addCleanup(endpoint.stop)
         host = host or (lambda step:'d'*64)
-        host.bind_image = lambda image,image_id:None  # Synthetic authority seam only.
+        host.bind_image = lambda image,image_id,image_original:None  # Synthetic authority seam only.
         if not hasattr(host,'invalidate'):host.invalidate=lambda reason:None
         return p._Prepare(self.tx,IMAGE,IMAGE_ID,deadline or time.monotonic()+110,
                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
@@ -99,7 +116,7 @@ class PrepareTests(unittest.TestCase):
     def test_image_binding_rejects_inherited_or_changed_actor_before_callback(self):
         calls=[]
         def host(step):return 'd'*64
-        host.bind_image=lambda image,image_id:calls.append((image,image_id))
+        host.bind_image=lambda image,image_id,image_original:calls.append((image,image_id))
         host.invalidate=lambda reason:None
         def construct():
             return p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
@@ -137,7 +154,7 @@ class PrepareTests(unittest.TestCase):
     def test_image_binding_failure_invalidates_and_preserves_original_error(self):
         calls=[];failure=ValueError('partial acquisition')
         def host(step):return 'd'*64
-        def bind(image,image_id):
+        def bind(image,image_id,image_original):
             calls.append(('bind',image,image_id))
             raise failure
         def invalidate(reason):
@@ -156,7 +173,7 @@ class PrepareTests(unittest.TestCase):
     def test_image_binding_interrupt_invalidates_and_preserves_original_error(self):
         invalidated=[];failure=KeyboardInterrupt()
         def host(step):return 'd'*64
-        def bind(image,image_id):raise failure
+        def bind(image,image_id,image_original):raise failure
         def invalidate(reason):
             invalidated.append(reason)
             raise KeyboardInterrupt('invalidation also interrupted')
@@ -173,7 +190,7 @@ class PrepareTests(unittest.TestCase):
     def test_image_binding_changed_actor_invalidates_before_return(self):
         invalidated=[]
         def host(step):return 'd'*64
-        def bind(image,image_id):self.tx.value['actorStartTicks']+=1
+        def bind(image,image_id,image_original):self.tx.value['actorStartTicks']+=1
         host.bind_image,host.invalidate=bind,invalidated.append
         with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
             born=self.tx.value['actorStartTicks']
@@ -189,7 +206,7 @@ class PrepareTests(unittest.TestCase):
     def test_image_binding_missing_invalidator_refuses_before_callback(self):
         calls=[]
         def host(step):return 'd'*64
-        host.bind_image=lambda image,image_id:calls.append((image,image_id))
+        host.bind_image=lambda image,image_id,image_original:calls.append((image,image_id))
         with self.f.hold() as self.tx:
             with self.assertRaisesRegex(p.actor.control.ControlError,'HOST_IMAGE_BINDING'):
                 p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
@@ -204,7 +221,7 @@ class PrepareTests(unittest.TestCase):
         self.addCleanup(replacement.close)
         seen=[];invalidated=[]
         def host(step):return 'd'*64
-        def bind(image,image_id):
+        def bind(image,image_id,image_original):
             saved=self.f.root/'to-server-prepare-socket.json'
             seen.append(json.loads(saved.read_bytes()) if saved.exists() else None)
             self.socket_path.rename(self.socket_path.with_name('retained.sock'))
@@ -229,7 +246,7 @@ class PrepareTests(unittest.TestCase):
         self.socket_path.unlink()
         calls=[];invalidated=[]
         def host(step):return 'd'*64
-        host.bind_image=lambda image,image_id:calls.append((image,image_id))
+        host.bind_image=lambda image,image_id,image_original:calls.append((image,image_id))
         host.invalidate=invalidated.append
         with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
             with self.assertRaises(FileNotFoundError):
@@ -244,7 +261,7 @@ class PrepareTests(unittest.TestCase):
     def test_socket_original_save_failure_refuses_before_binding(self):
         calls=[];invalidated=[];failure=OSError('synthetic original persistence failure')
         def host(step):return 'd'*64
-        host.bind_image=lambda image,image_id:calls.append((image,image_id))
+        host.bind_image=lambda image,image_id,image_original:calls.append((image,image_id))
         host.invalidate=invalidated.append
         with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path), \
                 patch.object(p.actor,'_save_json',side_effect=failure):
@@ -265,7 +282,7 @@ class PrepareTests(unittest.TestCase):
         self.assertEqual(os.getxattr(self.socket_path,'system.posix_acl_access',follow_symlinks=False),raw)
         seen=[];invalidated=[]
         def host(step):return 'd'*64
-        def bind(image,image_id):
+        def bind(image,image_id,image_original):
             saved=json.loads((self.f.root/'to-server-prepare-socket.json').read_bytes())
             seen.append(saved.get('accessAcl'))
         host.bind_image,host.invalidate=bind,invalidated.append
@@ -288,7 +305,7 @@ class PrepareTests(unittest.TestCase):
     def assert_socket_acl_read_failure(self,code):
         calls=[];invalidated=[];failure=OSError(code,'synthetic ACL read unavailable')
         def host(step):return 'd'*64
-        host.bind_image=lambda image,image_id:calls.append((image,image_id))
+        host.bind_image=lambda image,image_id,image_original:calls.append((image,image_id))
         host.invalidate=invalidated.append
         with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path), \
                 patch.object(os,'getxattr',side_effect=failure):
@@ -311,7 +328,7 @@ class PrepareTests(unittest.TestCase):
     def test_oversized_socket_acl_refuses_before_binding(self):
         calls=[];invalidated=[]
         def host(step):return 'd'*64
-        host.bind_image=lambda image,image_id:calls.append((image,image_id))
+        host.bind_image=lambda image,image_id,image_original:calls.append((image,image_id))
         host.invalidate=invalidated.append
         with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path), \
                 patch.object(os,'getxattr',return_value=b'x'*4097):
@@ -322,6 +339,96 @@ class PrepareTests(unittest.TestCase):
             self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
             self.assertFalse((self.f.root/'to-server-prepare-socket.json').exists())
             self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_missing_writer_image_original_refuses_before_binding(self):
+        calls=[];invalidated=[]
+        def host(step):return 'd'*64
+        host.bind_image=lambda *values:calls.append(values)
+        host.invalidate=invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
+            self.tx._writer_image_original=None
+            with self.assertRaisesRegex(RuntimeError,'WRITER_IMAGE_ORIGINAL'):
+                p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            self.assertEqual(calls,[])
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_writer_image_pair_mismatch_refuses_before_binding(self):
+        calls=[];invalidated=[]
+        def host(step):return 'd'*64
+        host.bind_image=lambda *values:calls.append(values)
+        host.invalidate=invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
+            with self.assertRaisesRegex(RuntimeError,'WRITER_IMAGE_ORIGINAL'):
+                p._Prepare(self.tx,IMAGE,'sha256:'+'e'*64,time.monotonic()+110,
+                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            self.assertEqual(calls,[])
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_equal_writer_image_original_replacement_refuses_before_binding(self):
+        calls=[];invalidated=[]
+        def host(step):return 'd'*64
+        host.bind_image=lambda *values:calls.append(values)
+        host.invalidate=invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
+            path=self.f.root/'to-server-writer-image.output.json'
+            original=path.read_bytes();inode=path.stat().st_ino
+            replacement=path.with_suffix('.replacement');replacement.write_bytes(original)
+            replacement.chmod(0o600);replacement.replace(path)
+            self.assertEqual(path.read_bytes(),original)
+            self.assertNotEqual(path.stat().st_ino,inode)
+            with self.assertRaisesRegex(RuntimeError,'WRITER_IMAGE_CHANGED'):
+                p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            self.assertEqual(calls,[])
+            self.assertEqual(invalidated,[])
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_binding_writer_image_original_change_refuses_after_callback(self):
+        calls=[];invalidated=[]
+        def host(step):return 'd'*64
+        def bind(*values):
+            calls.append(values[2] if len(values)==3 else None)
+            path=self.f.root/'to-server-writer-image.output.json'
+            record=json.loads(path.read_bytes());record['rawUtf8']=json.dumps('sha256:'+'e'*64)
+            path.write_text(json.dumps(record))
+        host.bind_image,host.invalidate=bind,invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
+            original=self.tx._writer_image_original
+            with self.assertRaisesRegex(RuntimeError,'WRITER_IMAGE_CHANGED'):
+                p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            self.assertEqual(calls,[original])
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_late_writer_image_original_change_refuses_before_prepare_client(self):
+        invalidated=[]
+        def host(step):return 'd'*64
+        host.bind_image=lambda *values:None
+        host.invalidate=invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
+            runner=p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                              datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            original=self.tx._writer_image_original['output']
+            path=self.f.root/'to-server-writer-image.output.json'
+            record=json.loads(path.read_bytes());record['rawUtf8']=json.dumps('sha256:'+'e'*64)
+            path.write_text(json.dumps(record))
+            failure=None
+            try:runner.prepare()
+            except RuntimeError as error:failure=str(error)
+            print('WRITER_IMAGE_LATE '+json.dumps(dict(clients=len(self.commands),failure=failure)),flush=True)
+            self.assertEqual(failure,'SEC014_PREPARE_PHASE_UNCONFIRMED')
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.tx._writer_image_original['output'],original)
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
             self.assertEqual(self.journal()['phases'],[])
 
     def test_parent_replacement_at_host_callback_refuses_before_run(self):
@@ -466,6 +573,8 @@ class PrepareTests(unittest.TestCase):
             self.assertFalse(endpoint['hostAuthority'])
             self.assertEqual(endpoint['accessAcl'],dict(rawHex=None,errno=errno.ENODATA))
             self.assertEqual(chain['socketObservationSha256'],hashlib.sha256(socket_raw).hexdigest())
+            self.assertEqual(chain['imageObservationSha256'],hashlib.sha256(
+                (self.f.root/'to-server-writer-image.output.json').read_bytes()).hexdigest())
             self.assertEqual(len(self.commands),4)
             self.assertEqual(self.commands[0][0],['/usr/bin/docker','compose','--env-file','/dev/null','-f',
                 '/home/kite/BellTeam/compose.state-prepare.yaml','run','--no-deps','--name',p.actor.prepare_name(self.tx),'-T','state-prepare'])

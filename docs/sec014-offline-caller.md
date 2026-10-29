@@ -834,3 +834,50 @@ and factory, durable invalidation/recovery reap/maintenance/later phases remain
 unproved. Whole Draft NOTDEPLOYABLE, unmerged and undeployed; real host/Docker
 operations remain zero. Linux semantics: https://man7.org/linux/man-pages/man2/getxattr.2.html
 and https://man7.org/linux/man-pages/man7/xattr.7.html .
+
+
+### Same-transaction native image original into binding
+
+A successful `_Writer.snapshot()` now retains its image output original only
+after metadata verification, durable observation and successful native reaping.
+The original contains the existing output record (raw ID, fixed argv, native
+PID/birth and terminal), its existing saved SHA and current bounded saved-file
+SHA/fullstat facts. The existing `_saved` reader optionally returns those facts
+from the same validated read; other consumers keep its original JSON result.
+The held transaction re-reads this exact file on every check and rejects changed
+bytes, metadata or equal-content inode replacement. This is the same current
+observation, not a guarantee of uninterrupted absence of external writers.
+
+`_Prepare` requires that private original, verifies the fixed selected reference,
+raw ID and original SHA, and passes a detached copy as the third argument of
+`bind_image(image,image_id,image_original)`. Its retained copy supplies
+`imageObservationSha256` to the existing chain. Missing original or mismatched
+pair refuses before binding; changes during binding or before the prepare client
+refuse under the same transaction checks. Existing invalidation notification,
+original-error preservation and incomplete-journal/native failure ownership remain.
+
+Five new Prepare cases and one actual Writer-to-Prepare metadata integration
+use identical final test bytes against parent and change: old5fail+1fail to
+new5pass+1pass. They cover missing original, wrong raw pair, equal-byte inode
+replacement, mutation during callback and before first Prepare client, plus the
+actual native fake-Docker image record handed to the callback under one held tx.
+Late mutation was accepted with four Prepare clients by the parent and now
+issues zero. The native integration still issues and reaps four Writer clients;
+no real Docker daemon is involved and no phase is confirmed. Synthetic standalone
+Prepare fixtures explicitly seed a two-field image stub under their held tx;
+that stub has no native-terminal authority and is not used by the integration.
+
+Affected normal Prepare chain, binding ValueError/KeyboardInterrupt, held saved
+factory, Writer socket-failure ownership and six-leaf proof passed (six cases).
+An unchanged legacy evidence positive still supplies PROOFS[0] to a prepared
+receipt and skips writers_stopped; it fails ACTOR_PHASE_UNCONFIRMED on both parent
+and change. Those errors are saved separately and are not passed evidence. The
+initial pre-file-facts stage is also retained separately. No old whole groups or
+project FULL were run. All selectors import a specific unittest suite rather than
+passing method argv to custom script main.
+
+This is native image-original custody and current-file binding only. Neither the
+Writer metadata nor its hash proves host writer exclusion, daemon peer trust,
+ancestor ACL/mount authority or real fullfactory/recovery/maintenance/later normal
+phases. Host-check producer remains absent. All authority flags remain false;
+whole Draft NOTDEPLOYABLE, unmerged and undeployed; no real root/host/Docker work.

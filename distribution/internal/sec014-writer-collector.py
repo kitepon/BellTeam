@@ -52,6 +52,7 @@ class _Writer:
         self.children=tx._writer_children=[]
         self.held=False
         self.env=None
+        self.image_original=None
 
     def ready(self):
         self.tx.check()
@@ -113,9 +114,10 @@ class _Writer:
             stderrBytes=len(error),stderrSha256=hashlib.sha256(error).hexdigest())
         self.save(slot+'.terminal',record)
         record['rawUtf8']=output.decode('utf-8',errors='strict')
-        self.save(slot+'.output',record)
+        output_sha=self.save(slot+'.output',record)
         if terminal!={'kind':'exit','code':0}:
             raise actor.control.ControlError('SEC014_WRITER_CLIENT_NONZERO_OR_SIGNAL')
+        if slot=='image':self.image_original=dict(output=record,sha256=output_sha)
         return record
 
     def snapshot(self):
@@ -166,6 +168,12 @@ class _Writer:
                     raise actor.control.ControlError('SEC014_WRITER_CLIENT_IDENTITY')
                 if child.wait(timeout=min(1,self.deadline-time.monotonic()))!=0:
                     raise actor.control.ControlError('SEC014_WRITER_REAP_UNCONFIRMED')
+            facts={}
+            saved=actor.control._saved(self.tx.parent,
+                self.tx.value['direction']+'-writer-image.output.json',self.tx.owner,facts=facts)
+            if saved!=self.image_original['output'] or facts.get('sha256')!=self.image_original['sha256']:
+                raise actor.control.ControlError('SEC014_WRITER_IMAGE_ORIGINAL')
+            self.tx._writer_image_original=dict(self.image_original,file=facts)
             self.tx.check()
             return observation
         except Exception as failure:

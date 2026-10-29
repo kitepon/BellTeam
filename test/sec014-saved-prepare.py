@@ -31,7 +31,7 @@ class SavedPrepare(old.PrepareTests):
                 tmpfs=['/tmp:rw,nosuid,nodev,size=64m'],
                 volumes=[dict(type='bind',source=str(self.f.state),target='/srv/bellteam-state-parent',bind=dict(create_host_path=False))])}}
         self.write_model()
-        self.f.hold=lambda:self.g.hold(self.normal)
+        self.f.hold=lambda:self.held_image_original(self.g.hold(self.normal))
         def raw():
             with self.assertRaisesRegex(generation.c.ControlError,'BUSY'):
                 with self.f.hold():pass

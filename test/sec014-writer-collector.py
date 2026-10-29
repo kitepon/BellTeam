@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import gc
 import weakref
 import json
@@ -107,6 +108,15 @@ class WriterCollector(h.HeldWriterConfig):
             class Executor:
                 def assert_writers_stopped(inner, **fields):
                     result.append(collector.snapshot())
+                    if mode=='prepare_binding':
+                        native=ROOT/'distribution/internal/sec014-prepare-executor.py'
+                        spec=importlib.util.spec_from_file_location('writer_prepare_handoff',native)
+                        prepare=importlib.util.module_from_spec(spec);spec.loader.exec_module(prepare)
+                        def host(step):return 'd'*64
+                        host.bind_image=lambda *values:result.append(values[2] if len(values)==3 else None)
+                        host.invalidate=lambda reason:self.fail('successful binding invalidated')
+                        prepare._Prepare(tx,h.g.IMAGE,h.g.SELECTED['image'],time.monotonic()+30,
+                                         datetime.now(timezone.utc)+timedelta(seconds=40),host)
                     raise RuntimeError('STOP_METADATA_ONLY')
                 def __getattr__(inner, name):
                     self.fail('no later phase may run: '+name)
@@ -115,7 +125,7 @@ class WriterCollector(h.HeldWriterConfig):
             for name in ('prepare','backup_and_migrate','assert_binds','start_selected_normal','verify_result'):
                 setattr(executor,name,lambda **fields: self.fail('later phase executed'))
             return executor
-        expected = 'STOP_METADATA_ONLY' if mode == 'success' else 'SEC014_WRITER_HELD_OR_UNKNOWN'
+        expected = 'STOP_METADATA_ONLY' if mode in ('success','prepare_binding') else 'SEC014_WRITER_HELD_OR_UNKNOWN'
         read_text=Path.read_text
         def read(path,*args,**kwargs):
             if mode=='birth_missing' and self.children and path==Path(f'/proc/{self.children[0].pid}/stat'):
@@ -145,6 +155,20 @@ class WriterCollector(h.HeldWriterConfig):
         self.assertFalse((self.control/'to-server-writer-observation.json').exists())
         raw=json.loads((self.control/'to-server-writer-image.output.json').read_text())['rawUtf8']
         self.assertEqual(json.loads(raw),'sha256:'+'f'*64)
+
+    def test_same_tx_native_image_original_handed_to_prepare_binding(self):
+        observation,original=self.run_factory('prepare_binding')
+        self.assertIsNotNone(original)
+        raw=(self.control/'to-server-writer-image.output.json').read_bytes()
+        self.assertEqual(original['sha256'],hashlib.sha256(raw).hexdigest())
+        self.assertEqual(original['output'],json.loads(raw))
+        self.assertEqual(json.loads(original['output']['rawUtf8']),h.g.SELECTED['image'])
+        self.assertEqual(original['output']['terminal'],dict(kind='exit',code=0))
+        self.assertEqual(original['output']['clientPid'],self.children[0].pid)
+        self.assertEqual(len(self.children),4)
+        self.assertEqual(len(self.waited),4)
+        self.assertFalse(observation['hostWriterAuthorityVerified'])
+        self.assertFalse(observation['phaseReceiptProduced'])
 
     def test_factory_native_terminals_consumed_before_reap(self):
         result = self.run_factory('success')[0]
