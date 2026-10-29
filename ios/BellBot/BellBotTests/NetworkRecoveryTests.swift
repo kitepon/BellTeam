@@ -194,6 +194,38 @@ final class NetworkRecoveryTests: XCTestCase {
         add(attachment)
     }
 
+    func testForegroundGoalReadCancelsStaleGETAndWaitsBeforeNewActiveGET() async {
+        let scenario = NetworkScenario(failures: 0)
+        let api = makeAPI(scenario)
+        let foreground = GoalForegroundLoad()
+        let oldStarted = expectation(description: "旧読取の処理開始")
+        var resumeOld: CheckedContinuation<Void, Never>?
+        var oldLoading = false
+        foreground.start {
+            oldLoading = true
+            await withCheckedContinuation { continuation in
+                resumeOld = continuation
+                oldStarted.fulfill()
+            }
+            oldLoading = false
+        }
+        await fulfillment(of: [oldStarted], timeout: 3)
+        foreground.start {
+            let _: [String: String]? = try? await api.get("/api/goals")
+        }
+        foreground.cancel()
+        let current = foreground.start {
+            XCTAssertFalse(oldLoading, "再activeのGETは旧読取の終了を待つ")
+            let result: [String: String]? = try? await api.get("/api/goals")
+            XCTAssertEqual(result?["result"], "ok")
+        }
+        XCTAssertEqual(scenario.count("/api/goals"), 0, "非activeになった旧TaskはGETを始めない")
+        resumeOld?.resume()
+        await current.value
+        XCTAssertEqual(scenario.count("/api/goals"), 1, "再activeの現TaskだけがGETを行う")
+        XCTAssertTrue(scenario.reports.isEmpty, "取消で通信障害warnを作らない")
+    }
+
     func testPostIsNotReplayed() async throws {
         let scenario = NetworkScenario(failures: 2)
         let api = makeAPI(scenario)

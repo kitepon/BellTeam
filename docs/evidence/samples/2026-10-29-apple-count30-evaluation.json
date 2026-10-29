@@ -1,0 +1,61 @@
+{
+  "case": "eb392 count30",
+  "lastSeen": "2026-10-29T07:56:51.580Z",
+  "appVersion": "1.0.3(76)",
+  "sourceProvenance": {
+    "diagnosticPath": "runtime/apple/network-count30/diagnostic.txt",
+    "diagnosticBytes": 2330,
+    "diagnosticSha256": "b471911882e7761929cfb6ba9885327f8ecc24109daa5291ae770438b6133b2f",
+    "centralCountAndVersionReportedByRoot": true,
+    "centralOriginalBytesLocallyVerified": false
+  },
+  "confirmed": {
+    "route": "/api/bots/bot-9fd3bf30/goal",
+    "errorCode": -1001,
+    "attempts": 1,
+    "goalTrigger": "chat_foreground",
+    "viewPhaseAtCall": "active",
+    "appStateAtCall": "active",
+    "appRevisionAtCall": 3,
+    "callContinuousMs": 4197272476,
+    "backgroundRevisionAtAttempt": 4,
+    "backgroundChangedContinuousMs": 4197272553,
+    "attemptStartedContinuousMs": 4197272728,
+    "attemptEndState": "background",
+    "attemptEndRevision": 4,
+    "callToBackgroundMs": 77,
+    "backgroundToAttemptMs": 175,
+    "callToAttemptMs": 252,
+    "wallElapsedMs": 2190739,
+    "continuousElapsedMs": 2190775,
+    "uptimeElapsedMs": 469601,
+    "continuousMinusWallMs": 36,
+    "continuousMinusUptimeMs": 1721174,
+    "requestEndRecorded": true,
+    "responseStartRecorded": false,
+    "reusedConnection": "true",
+    "deviceType": "iPhone",
+    "reportTimeAppState": "inactive"
+  },
+  "sourceAssessment": {
+    "signedSourceCommit": "c8d1e7f743de8be95e860fa31887383d0d375f7a",
+    "foregroundTaskUnstructuredAndNotOwned": true,
+    "backgroundSceneChangeCancelsAppStoreForegroundTaskButNotChatGoalTask": true,
+    "goalLoadHasNoPhaseOrCancellationCheckBeforeGET": true,
+    "sourcePathAllowsForegroundTriggeredGETToBeginAfterBackground": true,
+    "timeoutRootCauseEstablished": false
+  },
+  "recommendation": "Propose an independent source repair to own and cancel foreground Goal refresh tasks when scenePhase leaves active, and check cancellation immediately before Goal GET. Preserve existing manual/event/retry semantics until independently reviewed. No new ordering fields are required for this sequence.",
+  "unknown": [
+    "why the Task did not begin the GET until 252 ms after call",
+    "whether the server received the GET",
+    "whether device slept or the app was suspended",
+    "actual UI error and recovery",
+    "whether background timing caused the timeout"
+  ],
+  "state": "open",
+  "cause": "unknown",
+  "recovery": "unknown",
+  "repairSuccess": false,
+  "macInstallSmoke": "separate pending work"
+}
