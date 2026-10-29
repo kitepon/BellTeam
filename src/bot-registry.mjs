@@ -19,6 +19,8 @@ const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', '
 const exec = promisify(execFile)
 
 export class BotRegistry extends Map {
+  #profileMutations = new Map()
+
   constructor({ seedPath, botsRoot, now = () => new Date(), id = randomUUID, botId = () => `bot-${randomUUID().slice(0, 8)}`, onChange = async () => {}, models = new LiveModelCatalog() }) {
     super()
     this.seedPath = seedPath
@@ -125,22 +127,40 @@ export class BotRegistry extends Map {
   }
 
   async update(id, changes) {
-    const profile = await this.previewUpdate(id, changes)
-    await this.writeProfile(profile)
-    await this.writeInstructions(profile)
-    await this.refresh()
-    this.changed(id)
-    return this.get(id)
+    return this.#mutateProfile(id, async () => {
+      const profile = await this.previewUpdate(id, changes)
+      await this.writeProfile(profile)
+      await this.writeInstructions(profile)
+      await this.refresh()
+      this.changed(id)
+      return this.get(id)
+    })
   }
 
   async updateSession(id, session) {
-    await this.refresh()
-    const current = this.get(id)
-    if (!current) throw new Error(`BOT_NOT_FOUND: ${id}`)
-    const profile = normalizeProfile({ ...current, session })
-    await this.writeProfile(profile)
-    await this.refresh()
-    return this.get(id)
+    return this.#mutateProfile(id, async () => {
+      await this.refresh()
+      const current = this.get(id)
+      if (!current) throw new Error(`BOT_NOT_FOUND: ${id}`)
+      const profile = normalizeProfile({ ...current, session })
+      await this.writeProfile(profile)
+      await this.refresh()
+      return this.get(id)
+    })
+  }
+
+  async #mutateProfile(id, change) {
+    const previous = this.#profileMutations.get(id)
+    let release
+    const current = new Promise(resolve => { release = resolve })
+    this.#profileMutations.set(id, current)
+    await previous
+    try {
+      return await change()
+    } finally {
+      release()
+      if (this.#profileMutations.get(id) === current) this.#profileMutations.delete(id)
+    }
   }
 
   async previewUpdate(id, changes) {
