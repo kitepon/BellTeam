@@ -909,3 +909,37 @@ release or recovery/reap implementation. Real host facts, continuous writer
 exclusion, daemon/peer trust, ancestor ACL/mount authority, full factory and later
 normal phases remain unconnected. All authority flags remain false; whole Draft
 NOTDEPLOYABLE, unmerged and undeployed. No real root/host/Docker/NAS/Apple work.
+
+### Fixed socket mount identity in the existing getter
+
+The socket getter now reads bounded `/proc/thread-self/fdinfo` for its O_PATH FD
+and a separately reopened same-name O_PATH FD. Both must have one positive
+decimal mnt_id and agree; duplicate/malformed IDs or records over 4096 bytes
+refuse. Both descriptors close in finally. The existing socket original adds
+the observed mount ID and first raw fdinfo record, so all transaction checks,
+Writer/Prepare saved originals and chain consume the same facts. A changed
+mount ID refuses even when inode metadata is unchanged. This is a point
+observation, not mount topology or authenticated host authority.
+
+Four focused cases use identical final test bytes: parent0pass/4assertionfail
+to change4pass. Duplicate ID, oversize record and held/name mount mismatch
+refuse before binding and close both FDs; a changed mount ID after the existing
+callback stops before a Prepare client (parent issued four). Kernel response
+injection preserves real inode metadata; it does not perform bind mounts,
+setns or unshare. The first changed run caught a separately loaded ControlError
+class incorrectly (three harness errors); that log is retained separately, and
+the final identical-byte comparison uses its RuntimeError base with exact error
+text. Existing parent fdinfo fixtures now restrict injection to their parent
+directory FDs so they do not intercept the newly added socket observations.
+
+Normal Prepare chain, both affected parent mount fixtures, held saved factory
+and native fake-Docker Writer each pass (five affected cases). No full groups or
+project FULL. mnt_id semantics were checked against the Linux man-pages:
+https://man7.org/linux/man-pages/man5/proc_pid_fdinfo.5.html .
+
+Ancestor ACL/mount topology, peer/trusted host, continuous writer exclusion,
+actual hostfacts verifier/full factory, durable invalidation/recovery reap,
+maintenance and later normal phases remain unproved and unconnected. Existing
+in-memory failure custody and incomplete journal remain; no automatic retry,
+wait, kill or success completion. All authority flags false, whole Draft
+NOTDEPLOYABLE, unmerged and undeployed; real host/Docker/NAS/Apple work zero.

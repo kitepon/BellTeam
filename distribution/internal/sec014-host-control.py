@@ -276,9 +276,10 @@ class _Transaction:
                 raise ControlError('SEC014_CONTROL_WRITER_IMAGE_CHANGED')
 
     def _socket_observation(self):
-        # shortcut: pathname metadata only, require host peer/ACL authority before live connection.
+        # shortcut: point observations only, require host peer/ancestor authority before live connection.
         path=self._docker_socket_path
         fd=os.open(path,os.O_PATH|os.O_NOFOLLOW|os.O_CLOEXEC)
+        named=None
         try:
             info=os.fstat(fd)
             keys=('st_dev','st_ino','st_uid','st_gid','st_mode','st_nlink','st_ctime_ns')
@@ -292,20 +293,32 @@ class _Transaction:
             # shortcut: ACL over 4096B is refused, review saved-record cap before increasing.
             if acl is not None and len(acl)>4096:
                 raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_ACL_LIMIT')
-            linked=os.stat(path,follow_symlinks=False)
-            if any(getattr(info,key)!=getattr(linked,key) for key in keys):
+            named=os.open(path,os.O_PATH|os.O_NOFOLLOW|os.O_CLOEXEC)
+            if any(getattr(info,key)!=getattr(linked,key)
+                   for linked in (os.fstat(named),os.stat(path,follow_symlinks=False)) for key in keys):
                 raise ControlError('SEC014_CONTROL_DOCKER_SOCKET')
+            mounts=[]
+            for current in (fd,named):
+                with Path('/proc/thread-self/fdinfo/'+str(current)).open('rb') as stream:raw=stream.read(4097)
+                ids=re.findall(rb'(?m)^mnt_id:[ \t]*([1-9][0-9]{0,19})$',raw)
+                if len(raw)>4096 or len(ids)!=1 or len(re.findall(rb'(?m)^mnt_id:',raw))!=1:
+                    raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_MOUNT')
+                mounts.append((int(ids[0]),raw.decode('ascii')))
+            if mounts[0][0]!=mounts[1][0]:
+                raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_MOUNT')
             namespace=os.stat('/proc/thread-self/ns/mnt')
             value=dict(path=str(path),dockerHost='unix://'+str(path),device=str(info.st_dev),
                 inode=str(info.st_ino),uid=info.st_uid,gid=info.st_gid,
                 mode=format(stat.S_IMODE(info.st_mode),'04o'),links=info.st_nlink,
                 ctimeNs=str(info.st_ctime_ns),namespaceDevice=str(namespace.st_dev),
-                namespaceInode=str(namespace.st_ino),accessAcl=dict(
+                namespaceInode=str(namespace.st_ino),mountId=mounts[0][0],fdinfoUtf8=mounts[0][1],accessAcl=dict(
                     rawHex=None if acl is None else acl.hex(),errno=acl_errno),hostAuthority=False)
             if self._docker_socket_original is not None and value!=self._docker_socket_original:
                 raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_CHANGED')
             return value
-        finally:os.close(fd)
+        finally:
+            if named is not None:os.close(named)
+            os.close(fd)
 
     def _docker_endpoint(self):
         self.check()

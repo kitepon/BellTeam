@@ -486,7 +486,8 @@ class PrepareTests(unittest.TestCase):
         real_open=Path.open;injected=[]
         def fdinfo(path,*args,**kwargs):
             stream=real_open(path,*args,**kwargs)
-            if str(path).startswith('/proc/thread-self/fdinfo/'):
+            if (str(path).startswith('/proc/thread-self/fdinfo/')
+                    and os.readlink('/proc/thread-self/fd/'+path.name)==str(self.f.state)):
                 with stream:raw=stream.read()
                 if int(path.name)!=runner.parent_fd:
                     original=re.search(rb'(?m)^mnt_id:\s*([0-9]+)$',raw)
@@ -535,7 +536,8 @@ class PrepareTests(unittest.TestCase):
     def test_parent_unusable_fdinfo_refuses_before_client(self):
         real_open=Path.open
         def fdinfo(path,*args,**kwargs):
-            if str(path).startswith('/proc/thread-self/fdinfo/'):
+            if (str(path).startswith('/proc/thread-self/fdinfo/')
+                    and os.readlink('/proc/thread-self/fd/'+path.name)==str(self.f.state)):
                 return io.BytesIO(b'pos:\t0\nmnt_id:\tunknown\n')
             return real_open(path,*args,**kwargs)
         with self.f.hold() as self.tx,patch.object(Path,'open',fdinfo):
@@ -546,6 +548,86 @@ class PrepareTests(unittest.TestCase):
             self.assertTrue(runner.held)
             self.assertIsNone(runner.parent_fd)
             self.assertFalse((self.f.root/'to-server-prepare-parent.json').exists())
+            self.assertEqual(self.journal()['phases'],[])
+
+    def socket_mount_refusal(self,mode):
+        real_open=Path.open;real_fd_open=os.open;opened=[];observed=[];calls=[]
+        def fd_open(path,flags,*args,**kwargs):
+            fd=real_fd_open(path,flags,*args,**kwargs)
+            if path==self.socket_path and flags&os.O_PATH:opened.append(fd)
+            return fd
+        def fdinfo(path,*args,**kwargs):
+            stream=real_open(path,*args,**kwargs)
+            if (str(path).startswith('/proc/thread-self/fdinfo/')
+                    and os.readlink('/proc/thread-self/fd/'+path.name)==str(self.socket_path)):
+                with stream:raw=stream.read()
+                observed.append(int(path.name))
+                if mode=='oversize':raw=b' '*4097
+                elif mode=='duplicate':raw+=b'mnt_id:\t1\n'
+                elif len(observed)==2:
+                    match=re.search(rb'(?m)^mnt_id:[ \t]*([0-9]+)$',raw)
+                    raw=raw[:match.start(1)]+str(int(match.group(1))+1).encode()+raw[match.end(1):]
+                return io.BytesIO(raw)
+            return stream
+        def host(step):return 'd'*64
+        host.bind_image=lambda *args:calls.append(args)
+        host.invalidate=lambda reason:None
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path), \
+                patch.object(os,'open',side_effect=fd_open),patch.object(Path,'open',fdinfo):
+            try:p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                          datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            except RuntimeError as error:self.assertEqual(str(error),'SEC014_CONTROL_DOCKER_SOCKET_MOUNT')
+            print('SOCKET_MOUNT_REFUSAL '+json.dumps(dict(mode=mode,bindingCalls=len(calls),
+                socketFds=len(opened),fdinfoReads=len(observed))),flush=True)
+            self.assertEqual(calls,[])
+            self.assertTrue(observed)
+            self.assertEqual(len(opened),2)
+            for fd in opened:
+                with self.assertRaises(OSError):os.fstat(fd)
+            self.assertFalse((self.f.root/'to-server-prepare-socket.json').exists())
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_socket_duplicate_mount_id_refuses_before_binding(self):
+        self.socket_mount_refusal('duplicate')
+
+    def test_socket_oversize_fdinfo_refuses_before_binding(self):
+        self.socket_mount_refusal('oversize')
+
+    def test_socket_named_mount_mismatch_refuses_before_binding(self):
+        self.socket_mount_refusal('named')
+
+    def test_socket_mount_change_after_callback_refuses_before_client(self):
+        real_open=Path.open;changed=[False];seen=[]
+        def fdinfo(path,*args,**kwargs):
+            stream=real_open(path,*args,**kwargs)
+            if (str(path).startswith('/proc/thread-self/fdinfo/')
+                    and os.readlink('/proc/thread-self/fd/'+path.name)==str(self.socket_path)):
+                with stream:raw=stream.read()
+                if changed[0]:
+                    match=re.search(rb'(?m)^mnt_id:[ \t]*([0-9]+)$',raw)
+                    raw=raw[:match.start(1)]+str(int(match.group(1))+1).encode()+raw[match.end(1):]
+                    seen.append(int(path.name))
+                return io.BytesIO(raw)
+            return stream
+        def host(step):
+            if step=='run':changed[0]=True
+            return 'd'*64
+        with self.f.hold() as self.tx,patch.object(Path,'open',fdinfo):
+            runner=self.runner(host=host)
+            original=(self.f.root/'to-server-prepare-socket.json').read_bytes()
+            try:runner.prepare()
+            except p.actor.control.ControlError:pass
+            print('SOCKET_MOUNT_CHANGE '+json.dumps(dict(prepareClients=len(self.commands),
+                changedFdReads=len(seen))),flush=True)
+            self.assertEqual(self.commands,[])
+            self.assertTrue(seen)
+            endpoint=json.loads(original)
+            self.assertIn('mnt_id:\t'+str(endpoint['mountId'])+'\n',endpoint['fdinfoUtf8'])
+            self.assertFalse(endpoint['hostAuthority'])
+            self.assertEqual((self.f.root/'to-server-prepare-socket.json').read_bytes(),original)
+            changed[0]=False
+            self.tx.check()
             self.assertEqual(self.journal()['phases'],[])
 
     def test_four_fixed_commands_env_terminal_before_reap_and_phase_evidence(self):
