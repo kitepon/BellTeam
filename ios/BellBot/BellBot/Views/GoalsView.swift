@@ -1,4 +1,28 @@
+import Darwin
 import SwiftUI
+
+struct GoalLoadCallContext {
+    let trigger: String
+    let viewPhase: String
+    let callContinuousTick: UInt64
+    let appState: BellAppStateSnapshot
+
+    static func capture(trigger: String, viewPhase: ScenePhase?, diagnostics: BellDiagnostics) -> Self {
+        // 呼出し元でviewPhaseを先に確定し、ここでは連続時計、診断状態の順に採る。原子的な同時観測ではない。
+        let phase = viewPhase.map { String(describing: $0) } ?? "unknown"
+        let tick = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)
+        let appState = diagnostics.requestAppStateSnapshot()
+        return Self(trigger: trigger, viewPhase: phase, callContinuousTick: tick, appState: appState)
+    }
+
+    var log: String {
+        "goal_load_trigger=\(trigger)\ngoal_view_phase_at_call=\(viewPhase)"
+            + "\ngoal_call_continuous_ms=\(callContinuousTick / 1_000_000)"
+            + "\ngoal_app_state_at_call=\(appState.state)"
+            + "\ngoal_app_state_revision_at_call=\(appState.revision)"
+            + "\ngoal_app_state_changed_continuous_ms_at_call=\(appState.changedContinuousTick / 1_000_000)"
+    }
+}
 
 private struct GoalsResponse: Decodable { let goals: [GoalSnapshot] }
 private struct GoalDetailResponse: Decodable { let snapshot: GoalSnapshot }
@@ -299,13 +323,13 @@ private final class GoalViewModel: ObservableObject {
         currentSnapshots.first { $0.botId == botId }
     }
 
-    func loadList(store: AppStore, trigger: String, viewScenePhase: ScenePhase) async {
+    func loadList(store: AppStore, context: GoalLoadCallContext) async {
         await load(path: "/api/goals", botId: nil, store: store,
-                   diagnosticContext: "goal_load_trigger=\(trigger)\ngoal_view_phase_at_call=\(viewScenePhase)")
+                   diagnosticContext: context.log)
     }
-    func loadDetail(botId: String, store: AppStore, trigger: String, viewScenePhase: ScenePhase) async {
+    func loadDetail(botId: String, store: AppStore, context: GoalLoadCallContext) async {
         await load(path: "/api/bots/\(botId)/goal", botId: botId, store: store,
-                   diagnosticContext: "goal_load_trigger=\(trigger)\ngoal_view_phase_at_call=\(viewScenePhase)")
+                   diagnosticContext: context.log)
     }
 
     private func load(path: String, botId: String?, store: AppStore, diagnosticContext: String? = nil) async {
@@ -372,12 +396,14 @@ private final class GoalViewModel: ObservableObject {
         } catch {
             store.api.diagnostics.report(error, path: path, method: "POST", observation: .write)
             let latest: GoalDetailResponse
+            let reconcileContext = GoalLoadCallContext.capture(trigger: "change_reconcile",
+                viewPhase: nil, diagnostics: store.api.diagnostics)
             do { latest = try await store.api.get(path) }
             catch {
                 needsRefresh = true
                 store.api.diagnostics.report(error, path: path, method: "GET",
                                              observation: .read(error, retainedData: true),
-                                             diagnosticContext: "goal_load_trigger=change_reconcile\ngoal_view_phase_at_call=unknown")
+                                             diagnosticContext: reconcileContext.log)
                 throw GoalViewError.unknownOutcome
             }
             guard latest.snapshot.botId == snapshot.botId else {
@@ -478,14 +504,17 @@ struct GoalsView: View {
                     .padding(.bottom, 30)
                 }
                 .refreshable {
-                    await goals.loadList(store: store, trigger: "list_pull_refresh", viewScenePhase: scenePhase)
+                    let context = GoalLoadCallContext.capture(trigger: "list_pull_refresh",
+                        viewPhase: scenePhase, diagnostics: store.api.diagnostics)
+                    await goals.loadList(store: store, context: context)
                 }
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        let phase = scenePhase
-                        Task { await goals.loadList(store: store, trigger: "list_manual", viewScenePhase: phase) }
+                        let context = GoalLoadCallContext.capture(trigger: "list_manual",
+                            viewPhase: scenePhase, diagnostics: store.api.diagnostics)
+                        Task { await goals.loadList(store: store, context: context) }
                     } label: { Image(systemName: "arrow.clockwise") }
                         .accessibilityLabel("ゴールを更新")
                         .disabled(goals.loading || goals.mutating)
@@ -517,18 +546,23 @@ struct GoalsView: View {
             }
             .task(id: store.selectedTab) {
                 if store.selectedTab == 3 {
-                    await goals.loadList(store: store, trigger: "list_view_task", viewScenePhase: scenePhase)
+                    let context = GoalLoadCallContext.capture(trigger: "list_view_task",
+                        viewPhase: scenePhase, diagnostics: store.api.diagnostics)
+                    await goals.loadList(store: store, context: context)
                 }
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active && store.selectedTab == 3 {
-                    Task { await goals.loadList(store: store, trigger: "list_foreground", viewScenePhase: phase) }
+                    let context = GoalLoadCallContext.capture(trigger: "list_foreground",
+                        viewPhase: phase, diagnostics: store.api.diagnostics)
+                    Task { await goals.loadList(store: store, context: context) }
                 }
             }
             .onChange(of: store.eventRevision) { _, _ in
                 if store.selectedTab == 3 {
-                    let phase = scenePhase
-                    Task { await goals.loadList(store: store, trigger: "list_event", viewScenePhase: phase) }
+                    let context = GoalLoadCallContext.capture(trigger: "list_event",
+                        viewPhase: scenePhase, diagnostics: store.api.diagnostics)
+                    Task { await goals.loadList(store: store, context: context) }
                 }
             }
         }
@@ -584,9 +618,10 @@ struct ChatGoalBar: View {
                             .font(.footnote).padding(18).bellCard()
                     }
                     Button("状態を更新") {
-                        let phase = scenePhase
+                        let context = GoalLoadCallContext.capture(trigger: "chat_manual",
+                            viewPhase: scenePhase, diagnostics: store.api.diagnostics)
                         Task { await goals.loadDetail(botId: botId, store: store,
-                                                      trigger: "chat_manual", viewScenePhase: phase) }
+                                                      context: context) }
                     }
                         .font(.footnote).disabled(goals.loading || goals.mutating)
                 }
@@ -619,20 +654,22 @@ struct ChatGoalBar: View {
             .environmentObject(store)
         }
         .task(id: botId) {
-            await goals.loadDetail(botId: botId, store: store,
-                                   trigger: "chat_view_task", viewScenePhase: scenePhase)
+            let context = GoalLoadCallContext.capture(trigger: "chat_view_task",
+                viewPhase: scenePhase, diagnostics: store.api.diagnostics)
+            await goals.loadDetail(botId: botId, store: store, context: context)
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                Task { await goals.loadDetail(botId: botId, store: store,
-                                              trigger: "chat_foreground", viewScenePhase: phase) }
+                let context = GoalLoadCallContext.capture(trigger: "chat_foreground",
+                    viewPhase: phase, diagnostics: store.api.diagnostics)
+                Task { await goals.loadDetail(botId: botId, store: store, context: context) }
             }
         }
         .onChange(of: store.eventRevision) { _, _ in
             if scenePhase == .active {
-                let phase = scenePhase
-                Task { await goals.loadDetail(botId: botId, store: store,
-                                              trigger: "chat_event", viewScenePhase: phase) }
+                let context = GoalLoadCallContext.capture(trigger: "chat_event",
+                    viewPhase: scenePhase, diagnostics: store.api.diagnostics)
+                Task { await goals.loadDetail(botId: botId, store: store, context: context) }
             }
         }
     }

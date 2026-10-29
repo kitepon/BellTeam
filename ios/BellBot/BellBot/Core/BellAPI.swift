@@ -308,7 +308,8 @@ final class BellAPI {
         func recordedAttempt(startedAt: Date, startedTick: UInt64, startedContinuousTick: UInt64,
                              startedState: BellAppStateSnapshot, returnedResponse: Bool,
                              errorCode: Int?, metrics: URLSessionTaskMetrics?) -> BellRequestAttempt {
-            BellRequestAttempt(startedAt: startedAt, finishedAt: Date(),
+            BellRequestAttempt(startedAt: startedAt, startedContinuousTick: startedContinuousTick,
+                finishedAt: Date(),
                 elapsedMonotonicMs: Int((DispatchTime.now().uptimeNanoseconds - startedTick) / 1_000_000),
                 elapsedContinuousMs: Int((clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW) - startedContinuousTick) / 1_000_000),
                 appStateAtStart: startedState, appStateAtEnd: diagnostics.requestAppStateSnapshot(),
@@ -318,6 +319,7 @@ final class BellAPI {
             let (data, response): (Data, URLResponse)
             let firstStartedAt = Date()
             let firstStartedTick = DispatchTime.now().uptimeNanoseconds
+            // 連続時計の開始tickを採ってから診断状態を読む。両方は原子的な同時観測ではない。
             let firstStartedContinuousTick = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)
             let firstState = diagnostics.requestAppStateSnapshot()
             do {

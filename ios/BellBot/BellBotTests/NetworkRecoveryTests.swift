@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 import UIKit
 import XCTest
 @testable import BellBot
@@ -146,6 +147,49 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertFalse(log.contains("private-token"))
         let attachment = XCTAttachment(data: Data(log.utf8), uniformTypeIdentifier: "public.plain-text")
         attachment.name = "人工Goal一覧二試行の直接report原文（UI未再現）"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testGoalTimeoutOrdersCallPhaseChangeAndRequestOnContinuousClock() async {
+        let scenario = NetworkScenario(failures: 1, failureCode: .timedOut)
+        let api = makeAPI(scenario)
+        api.diagnostics.updateAppState("active")
+        let context = GoalLoadCallContext.capture(trigger: "chat_foreground", viewPhase: .active,
+                                                  diagnostics: api.diagnostics)
+        api.diagnostics.updateAppState("background")
+        do {
+            let _: [String: String] = try await api.get("/api/bots/bot-network/goal")
+            XCTFail("人工の時間切れを成功として返さない")
+        } catch {
+            api.diagnostics.report(error, path: "/api/bots/bot-network/goal", method: "GET",
+                                   observation: .read(error, retainedData: true),
+                                   diagnosticContext: context.log)
+        }
+        XCTAssertEqual(scenario.count("/api/bots/bot-network/goal"), 1)
+        let log = scenario.reports.first?.log ?? ""
+        XCTAssertTrue(log.contains("goal_load_trigger=chat_foreground"))
+        XCTAssertTrue(log.contains("goal_view_phase_at_call=active"))
+        XCTAssertTrue(log.contains("goal_app_state_at_call=active"))
+        XCTAssertTrue(log.contains("goal_app_state_revision_at_call=1"))
+        XCTAssertTrue(log.contains("attempt_1_app_state_at_start=background"))
+        XCTAssertTrue(log.contains("attempt_1_app_state_revision_at_start=2"))
+        func tick(_ key: String) -> UInt64 {
+            let line = log.split(separator: "\n").first { $0.hasPrefix(key + "=") }
+            return UInt64(line?.split(separator: "=").last ?? "") ?? 0
+        }
+        let call = tick("goal_call_continuous_ms")
+        let changed = tick("attempt_1_app_state_changed_continuous_ms_at_start")
+        let started = tick("attempt_1_started_continuous_ms")
+        XCTAssertGreaterThan(call, 0)
+        XCTAssertLessThanOrEqual(tick("goal_app_state_changed_continuous_ms_at_call"), call)
+        XCTAssertLessThanOrEqual(call, changed)
+        XCTAssertLessThanOrEqual(changed, started)
+        XCTAssertTrue(log.contains("attempt_1_elapsed_continuous_ms="))
+        XCTAssertFalse(log.contains("attempt_2_"))
+        XCTAssertFalse(log.contains("bot-network"))
+        let attachment = XCTAttachment(data: Data(log.utf8), uniformTypeIdentifier: "public.plain-text")
+        attachment.name = "人工Goal個別timeoutのcall→状態変更→試行の原文"
         attachment.lifetime = .keepAlways
         add(attachment)
     }
