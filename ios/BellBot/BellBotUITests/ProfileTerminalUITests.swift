@@ -102,8 +102,11 @@ final class ProfileTerminalUITests: XCTestCase {
         XCTAssertTrue(bot.waitForExistence(timeout: 10))
         bot.tap(); app.buttons["詳細"].tap()
         app.buttons["profile-large-avatar"].tap()
+        XCTAssertTrue(app.buttons["profile-image-change"].exists)
+        app.buttons["profile-image-adjust"].tap()
         XCTAssertTrue(app.staticTexts["画像の独立編集はサーバー更新後に利用できます。"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["profile-image-change"].exists)
+        XCTAssertFalse(app.buttons["profile-image-change"].isEnabled)
+        XCTAssertFalse(app.buttons["profile-image-adjust"].isEnabled)
         app.buttons["profile-image-close"].tap()
         app.buttons["メンバーを編集"].tap()
         XCTAssertFalse(app.buttons["大画像を変更"].exists)
@@ -111,6 +114,65 @@ final class ProfileTerminalUITests: XCTestCase {
         XCTAssertTrue(app.buttons["save-member"].isEnabled, "画像schemaが旧版でも文面は保存できる")
         let count = try await screenReadCount(url)
         XCTAssertEqual(count, 0)
+    }
+
+    func testPhoneAvatarSheetShowsCurrentImagesWithoutReloadingOnOpen() async throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの画像操作シートを確認する試験です。")
+        continueAfterFailure = false
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"])
+        try await reset(url)
+        let delay = try XCTUnwrap(URL(string: url + "/test/delay-profile?ms=4500"))
+        let (_, delayed) = try await URLSession.shared.data(from: delay)
+        XCTAssertEqual((delayed as? HTTPURLResponse)?.statusCode, 200)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-profile-terminal",
+                               "-bellbot-preview-server", url]
+        app.launch()
+        defer { app.terminate() }
+        let bot = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch
+        XCTAssertTrue(bot.waitForExistence(timeout: 10))
+        bot.tap(); app.buttons["詳細"].tap()
+        app.buttons["profile-small-avatar"].tap()
+        let smallPreview = app.descendants(matching: .any)
+            .matching(identifier: "profile-image-preview-small").firstMatch
+        XCTAssertTrue(smallPreview.waitForExistence(timeout: 5))
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label == %@", "現在の小画像"), object: smallPreview)], timeout: 5), .completed)
+        let change = app.buttons["profile-image-change"]
+        let adjust = app.buttons["profile-image-adjust"]
+        XCTAssertTrue(change.isEnabled)
+        XCTAssertTrue(adjust.isEnabled)
+        let changeY = change.frame.minY
+        let adjustY = adjust.frame.minY
+        let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
+        let (beforeData, _) = try await URLSession.shared.data(from: proofURL)
+        let before = try XCTUnwrap(JSONSerialization.jsonObject(with: beforeData) as? [String: Any])
+        let beforeReads = try XCTUnwrap(before["reads"] as? [[String: Any]])
+        XCTAssertEqual(beforeReads.filter { $0["path"] as? String == "/api/bots/bot-one" }.count, 0,
+                       "操作シートを開くだけでは完全な画像設定を取得しない")
+
+        adjust.tap()
+        XCTAssertTrue(smallPreview.exists, "編集用GET待ちでも現在画像を残す")
+        XCTAssertEqual(change.frame.minY, changeY, accuracy: 1)
+        XCTAssertEqual(adjust.frame.minY, adjustY, accuracy: 1)
+        XCTAssertTrue(app.sliders["アバター画像の拡大・縮小"].waitForExistence(timeout: 8))
+        app.buttons["キャンセル"].tap()
+        app.buttons["profile-large-avatar"].tap()
+        let largePreview = app.descendants(matching: .any)
+            .matching(identifier: "profile-image-preview-large").firstMatch
+        XCTAssertTrue(largePreview.waitForExistence(timeout: 5))
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label == %@", "現在の大画像"), object: largePreview)], timeout: 5), .completed)
+        XCTAssertTrue(app.buttons["profile-image-change"].exists)
+        XCTAssertTrue(app.buttons["profile-image-adjust"].exists)
+        app.buttons["profile-image-close"].tap()
+        let (afterData, _) = try await URLSession.shared.data(from: proofURL)
+        let after = try XCTUnwrap(JSONSerialization.jsonObject(with: afterData) as? [String: Any])
+        let reads = try XCTUnwrap(after["reads"] as? [[String: Any]])
+        XCTAssertEqual(reads.filter { $0["path"] as? String == "/api/bots/bot-one" }.count, 1,
+                       "調整を選んだ時にだけ完全なsource/cropを読む")
+        XCTAssertEqual((after["writes"] as? [[String: Any]])?.count, 0,
+                       "シートを開いて取消すだけではPATCHしない")
     }
 
     func testPhoneSmallCropSavesWithoutReplacingLargeImage() async throws {

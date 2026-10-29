@@ -3,6 +3,42 @@ import XCTest
 @testable import BellBot
 
 final class AvatarImageTests: XCTestCase {
+    func testAvatarActionLifetimeRejectsLateSuccessAuthenticationAndFailure() {
+        var lifetime = AvatarActionLifetime()
+        lifetime.activate()
+        let closedOperation = lifetime.generation
+        lifetime.invalidate()
+        for outcome in ["成功", "認証", "失敗"] {
+            XCTAssertFalse(lifetime.accepts(closedOperation), "閉じた後の\(outcome)応答を反映しない")
+        }
+        lifetime.activate()
+        XCTAssertFalse(lifetime.accepts(closedOperation), "再表示しても旧応答を反映しない")
+        let disabledOperation = lifetime.generation
+        lifetime.invalidate()
+        XCTAssertFalse(lifetime.accepts(disabledOperation), "無効化後の応答を反映しない")
+        lifetime.activate()
+        XCTAssertTrue(lifetime.accepts(lifetime.generation), "現行操作の応答だけを反映する")
+    }
+
+    func testProfileSheetPreviewUsesCurrentVariantAndPendingSelection() {
+        var drafts = AvatarSelectionDrafts()
+        XCTAssertEqual(drafts.previewRender(for: .small, small: "small", large: "large",
+                                            largeUsesSmall: false), "small")
+        XCTAssertEqual(drafts.previewRender(for: .large, small: "small", large: "large",
+                                            largeUsesSmall: false), "large")
+        XCTAssertEqual(drafts.previewRender(for: .large, small: "small", large: nil,
+                                            largeUsesSmall: true), "small")
+        XCTAssertEqual(drafts.previewRender(for: .large, small: "small", large: nil,
+                                            largeUsesSmall: false), "", "独立した大画像を小画像で偽装しない")
+        let selected = AvatarCropSelection(render: "selected", source: "source",
+                                           crop: AvatarCropRect(x: 0, y: 0, width: 1, height: 1))
+        drafts.select(selected, for: .large)
+        XCTAssertEqual(drafts.previewRender(for: .large, small: "small", large: "large",
+                                            largeUsesSmall: false), "selected")
+        XCTAssertEqual(drafts.previewRender(for: .small, small: "small", large: "large",
+                                            largeUsesSmall: false), "small")
+    }
+
     func testImageFileLoadsForTheSharedCropAndExportPath() throws {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1

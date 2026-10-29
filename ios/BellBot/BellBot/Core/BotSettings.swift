@@ -78,6 +78,11 @@ struct AvatarSelectionDrafts {
 
     var isEmpty: Bool { selections.isEmpty }
     func selection(for variant: AvatarCropVariant) -> AvatarCropSelection? { selections[variant] }
+    func previewRender(for variant: AvatarCropVariant, small: String, large: String?,
+                       largeUsesSmall: Bool) -> String {
+        if let selected = selections[variant] { return selected.render }
+        return variant == .small || largeUsesSmall ? small : large ?? ""
+    }
     mutating func select(_ selection: AvatarCropSelection, for variant: AvatarCropVariant) {
         selections[variant] = selection
     }

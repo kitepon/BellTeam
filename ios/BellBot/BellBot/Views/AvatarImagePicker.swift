@@ -5,28 +5,75 @@ import UniformTypeIdentifiers
 struct AvatarImagePicker<Label: View>: View {
     let onSelect: (UIImage) -> Void
     let onFailure: () -> Void
-    @ViewBuilder let label: () -> Label
+    let inactive: Bool
+    let prepare: (() async -> Bool)?
+    let label: () -> Label
 
-    #if targetEnvironment(macCatalyst)
-    @State private var importing = false
-    #else
+    init(onSelect: @escaping (UIImage) -> Void, onFailure: @escaping () -> Void,
+         inactive: Bool = false, prepare: (() async -> Bool)? = nil,
+         @ViewBuilder label: @escaping () -> Label) {
+        self.onSelect = onSelect
+        self.onFailure = onFailure
+        self.inactive = inactive
+        self.prepare = prepare
+        self.label = label
+    }
+
+    @State private var presenting = false
+    @State private var lifetime = AvatarActionLifetime()
+    @State private var preparationTask: Task<Void, Never>?
+    #if !targetEnvironment(macCatalyst)
     @State private var selectedPhoto: PhotosPickerItem?
     #endif
 
     var body: some View {
-        #if targetEnvironment(macCatalyst)
-        Button { importing = true } label: { label() }
-            .fileImporter(isPresented: $importing, allowedContentTypes: [.image]) { result in
-                do {
-                    onSelect(try AvatarImage.load(from: result.get()))
-                } catch { onFailure() }
+        Group {
+            #if targetEnvironment(macCatalyst)
+            Button(action: requestSelection, label: label)
+                .fileImporter(isPresented: $presenting, allowedContentTypes: [.image]) { result in
+                    do {
+                        onSelect(try AvatarImage.load(from: result.get()))
+                    } catch { onFailure() }
+                }
+            #else
+            Group {
+                if prepare != nil {
+                    Button(action: requestSelection, label: label)
+                        .photosPicker(isPresented: $presenting, selection: $selectedPhoto, matching: .images)
+                } else {
+                    PhotosPicker(selection: $selectedPhoto, matching: .images, label: label)
+                }
             }
-        #else
-        PhotosPicker(selection: $selectedPhoto, matching: .images, label: label)
             .onChange(of: selectedPhoto) { _, item in
                 Task { await loadPhoto(item) }
             }
-        #endif
+            #endif
+        }
+        .onAppear { if !inactive { lifetime.activate() } }
+        .onDisappear { cancelPreparation() }
+        .onChange(of: inactive) { _, next in
+            if next { cancelPreparation() }
+            else { lifetime.activate() }
+        }
+    }
+
+    private func requestSelection() {
+        guard !inactive else { return }
+        if let prepare {
+            let generation = lifetime.generation
+            preparationTask?.cancel()
+            preparationTask = Task {
+                guard await prepare(), !Task.isCancelled, lifetime.accepts(generation) else { return }
+                presenting = true
+            }
+        } else {
+            presenting = true
+        }
+    }
+
+    private func cancelPreparation() {
+        lifetime.invalidate()
+        preparationTask?.cancel()
     }
 
     #if !targetEnvironment(macCatalyst)

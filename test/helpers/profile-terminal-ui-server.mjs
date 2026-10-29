@@ -18,6 +18,7 @@ let screen = '履歴の最初の行\n履歴の次の行'
 let reads = []
 let writes = []
 let legacyProfile = false
+let profileDelayMs = 0
 const json = (response, value, status = 200) => {
   response.writeHead(status, { 'content-type': 'application/json' })
   response.end(JSON.stringify(value))
@@ -32,7 +33,7 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1')
   if (url.pathname === '/test/reset') {
     profile = initialProfile(); screen = '履歴の最初の行\n履歴の次の行'; reads = []; writes = []
-    legacyProfile = false
+    legacyProfile = false; profileDelayMs = 0
     return json(response, { ok: true })
   }
   if (url.pathname === '/test/long-history') {
@@ -40,6 +41,10 @@ const server = createServer(async (request, response) => {
     return json(response, { ok: true })
   }
   if (url.pathname === '/test/legacy-profile') { legacyProfile = true; return json(response, { ok: true }) }
+  if (url.pathname === '/test/delay-profile') {
+    profileDelayMs = Number(url.searchParams.get('ms') || 0)
+    return json(response, { ok: true })
+  }
   if (url.pathname === '/test/proof') return json(response, { reads, writes, screen })
   if (url.pathname === '/test/screen') {
     screen = url.searchParams.get('value') ?? screen
@@ -87,6 +92,7 @@ const server = createServer(async (request, response) => {
   }
   if (url.pathname === '/api/bots/bot-one' && request.method === 'GET') {
     reads.push({ path: url.pathname, at: Date.now() })
+    if (profileDelayMs) await new Promise(resolve => setTimeout(resolve, profileDelayMs))
     const bot = { ...profile }
     if (legacyProfile) {
       for (const key of ['avatarLarge', 'avatarSource', 'avatarCrop', 'avatarLargeSource', 'avatarLargeCrop']) delete bot[key]
