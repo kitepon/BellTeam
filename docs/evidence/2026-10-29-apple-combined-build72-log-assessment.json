@@ -1,0 +1,54 @@
+{
+  "schema": "bellteam.apple-unsigned-log-assessment.v1",
+  "preflightManifest": "docs/evidence/2026-10-29-apple-combined-build72-preflight.json",
+  "preflightManifestSha256": "f3b9db27d20563cd219062aee80b240935000f9a784f90af0e92b9fa19994a10",
+  "sourceCommit": "86c0aa6145224c48e8b24fedb2032ee1664a5af9",
+  "interpretation": "The xcodebuild process exited 0 for each platform. The log text containing 'error: ... exit code 0' is retained verbatim below and is not the process exit status. codesign exit 1 means the unsigned app has no signature, as requested by CODE_SIGNING_ALLOWED=NO.",
+  "platforms": [
+    {
+      "platform": "IOS",
+      "logPath": "runtime/apple/combined-build72/ios-release.log",
+      "logSha256FromPreflight": "857aa6aa6bbd49f57d04d6fceedd48d1f1d6879f54994f6d6d309d419163df04",
+      "logBytes": 2345,
+      "logLines": [
+        {"line": 1, "text": "error: the following command failed with exit code 0 but produced no further output"},
+        {"line": 2, "text": "SwiftCompile normal arm64 (in target 'BellTeam' from project 'BellBot')"},
+        {"line": 3, "source": "AppStore.swift:97:125", "text": "warning: call to main actor-isolated class method 'default()' in a synchronous nonisolated context [#ActorIsolatedCall]"},
+        {"line": 19, "source": "BellAPI.swift:186:43", "text": "warning: weak reference will always be nil because the referenced object is deallocated here"}
+      ],
+      "xcodebuildProcess": {"execSessionId": 99018, "observedExitCode": 0},
+      "codesignVerifyStrict": {
+        "appPath": "runtime/apple/combined-build72/ios-derived/Build/Products/Release-iphoneos/BellTeam.app",
+        "observedExitCode": 1,
+        "stderr": "code object is not signed at all; In architecture: arm64"
+      }
+    },
+    {
+      "platform": "MAC_OS",
+      "logPath": "runtime/apple/combined-build72/mac-release.log",
+      "logSha256FromPreflight": "0ac6f91b28dde174051a3ee7cb49b49f15c203e400e9674b0d532418d9ca03a3",
+      "logBytes": 4719,
+      "logLines": [
+        {"line": 1, "text": "error: the following command failed with exit code 0 but produced no further output"},
+        {"line": 2, "text": "SwiftCompile normal x86_64 (in target 'BellTeam' from project 'BellBot')"},
+        {"line": 3, "source": "AppStore.swift:97:125", "text": "warning: call to main actor-isolated class method 'default()' in a synchronous nonisolated context [#ActorIsolatedCall]"},
+        {"line": 19, "source": "BellAPI.swift:186:43", "text": "warning: weak reference will always be nil because the referenced object is deallocated here"},
+        {"line": 28, "text": "error: the following command failed with exit code 0 but produced no further output"},
+        {"line": 29, "text": "SwiftCompile normal arm64 (in target 'BellTeam' from project 'BellBot')"},
+        {"line": 30, "source": "AppStore.swift:97:125", "text": "warning: call to main actor-isolated class method 'default()' in a synchronous nonisolated context [#ActorIsolatedCall]"},
+        {"line": 46, "source": "BellAPI.swift:186:43", "text": "warning: weak reference will always be nil because the referenced object is deallocated here"}
+      ],
+      "xcodebuildProcess": {"execSessionId": 34938, "observedExitCode": 0},
+      "codesignVerifyStrict": {
+        "appPath": "runtime/apple/combined-build72/mac-derived/Build/Products/Release-maccatalyst/BellTeam.app",
+        "observedExitCode": 1,
+        "stderr": "code object is not signed at all"
+      }
+    }
+  ],
+  "additionalBuildPerformed": false,
+  "additionalTestPerformed": false,
+  "artifactHashRecomputedForThisAssessment": false,
+  "codesignReadOnlyRecheckPerformed": true,
+  "appleUploadPerformed": false
+}
