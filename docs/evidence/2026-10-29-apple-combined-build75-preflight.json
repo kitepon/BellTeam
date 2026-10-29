@@ -4,7 +4,7 @@
   "sourceCommit": "7306e57ff81c3a5315aa69b737420100cff491dd",
   "sourceTree": "0f66aca6e7b74f1527ebf76dc8f8e6094263c630",
   "baseMainCommit": "26406ed656ff62a87d7c50e6e8436bd2e9afc11f",
-  "pullRequest": null,
+  "pullRequest": 148,
   "bundleId": "dev.kitepon.bellbot",
   "marketingVersion": "1.0.3",
   "buildNumber": "75",
