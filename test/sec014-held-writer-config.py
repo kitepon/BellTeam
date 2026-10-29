@@ -55,7 +55,9 @@ const chunks=[];for await(const c of process.stdin)chunks.push(c);
 const config=JSON.parse(Buffer.concat(chunks)),plan=writerSnapshotPlan(config,IMAGE,IMAGE_ID);
 const rawUtf8='',list={argv:plan.listArgv,clientPid:123,clientStartTicks:456,unknown:false,
  terminal:{kind:'exit',code:0},rawUtf8,stdoutBytes:0,stdoutSha256:createHash('sha256').update(rawUtf8).digest('hex')};
-const observation=verifyWriterSnapshot(plan,{list,containers:null,volumes:[],
+const imageRaw=JSON.stringify(plan.imageId),image={...list,argv:plan.imageArgv,rawUtf8:imageRaw,
+ stdoutBytes:Buffer.byteLength(imageRaw),stdoutSha256:createHash('sha256').update(imageRaw).digest('hex')};
+const observation=verifyWriterSnapshot(plan,{image,list,containers:null,volumes:[],
  canonical:plan.mounts.roots.map(source=>({source,canonical:source}))});
 console.log(JSON.stringify({plan,observation}));
 '''.replace('MODULE', json.dumps(module)).replace('IMAGE_ID', json.dumps(g.SELECTED['image'])).replace('IMAGE,', json.dumps(g.IMAGE) + ',')

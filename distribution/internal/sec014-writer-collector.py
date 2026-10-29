@@ -126,6 +126,9 @@ class _Writer:
             path.mkdir(mode=0o700)
             actor.control._private(path.lstat(),self.tx.owner,True)
             self.env={'PATH':'/usr/bin:/bin','HOME':'/nonexistent','LANG':'C.UTF-8','DOCKER_CONFIG':str(path)}
+            image=self.client('image',plan['imageArgv'],128)
+            if json.loads(image['rawUtf8']) != self.image_id:
+                raise actor.control.ControlError('SEC014_WRITER_IMAGE_RESOLUTION')
             listed=self.client('list',LIST,8320)
             ids=listed['rawUtf8'].splitlines()
             if (len(ids)>128 or len(set(ids))!=len(ids)
@@ -150,7 +153,7 @@ class _Writer:
                         raise actor.control.ControlError('SEC014_WRITER_PATH_INVALID')
                     suffix.insert(0,current.name);current=current.parent
                 canonical.append(dict(source=source,canonical=str(current.resolve(strict=True).joinpath(*suffix))))
-            bundle=dict(list=listed,containers=inspected,volumes=volumes,canonical=canonical)
+            bundle=dict(image=image,list=listed,containers=inspected,volumes=volumes,canonical=canonical)
             observation=self.query('verify',plan=plan,bundle=bundle)
             self.save('observation',observation)
             self.ready()

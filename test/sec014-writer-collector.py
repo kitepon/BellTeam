@@ -42,7 +42,10 @@ class WriterCollector(h.HeldWriterConfig):
             self.assertNotIn('.Config.Env', ' '.join(argv))
             self.assertEqual(set(kwargs['env']), {'PATH', 'HOME', 'LANG', 'DOCKER_CONFIG'})
             self.assertEqual(list(Path(kwargs['env']['DOCKER_CONFIG']).iterdir()), [])
-            if argv[1:3] == ['container', 'ls']:
+            if argv[1:3] == ['image', 'inspect']:
+                self.assertEqual(argv, ['/usr/bin/docker','image','inspect','--format','{{json .Id}}',h.g.IMAGE])
+                raw = json.dumps('sha256:'+'f'*64 if mode=='image_mismatch' else h.g.SELECTED['image']).encode()
+            elif argv[1:3] == ['container', 'ls']:
                 self.assertEqual(argv, ['/usr/bin/docker','container','ls','--all','--quiet','--no-trunc'])
                 raw = (cid+'\n').encode() if mode != 'overflow' else b'x'*8321
             elif argv[1] == 'inspect':
@@ -110,12 +113,20 @@ class WriterCollector(h.HeldWriterConfig):
             for stream in (child.stdout,child.stderr):
                 if stream and not stream.closed: stream.close()
 
+    def test_fixed_ref_resolved_to_other_raw_id_stops_before_list(self):
+        self.run_factory('image_mismatch')
+        self.assertEqual(len(self.children),1)
+        self.assertEqual(self.waited,[])
+        self.assertFalse((self.control/'to-server-writer-observation.json').exists())
+        raw=json.loads((self.control/'to-server-writer-image.output.json').read_text())['rawUtf8']
+        self.assertEqual(json.loads(raw),'sha256:'+'f'*64)
+
     def test_factory_native_terminals_consumed_before_reap(self):
         result = self.run_factory('success')[0]
         self.assertFalse(result['hostWriterAuthorityVerified'])
         self.assertFalse(result['phaseReceiptProduced'])
-        self.assertEqual(len(self.children),3)
-        self.assertEqual(len(self.waited),3)
+        self.assertEqual(len(self.children),4)
+        self.assertEqual(len(self.waited),4)
         self.assertEqual({x['clientPid'] for x in result['terminalRefs']},{x.pid for x in self.children})
         self.assertTrue(all(not Path(f'/proc/{x.pid}').exists() for x in self.children))
         for path in self.control.glob('to-server-writer-*json'):
@@ -123,14 +134,14 @@ class WriterCollector(h.HeldWriterConfig):
 
     def test_running_real_alias_stops_before_receipt_or_reap(self):
         self.run_factory('writer')
-        self.assertEqual(len(self.children),2)
+        self.assertEqual(len(self.children),3)
         self.assertEqual(self.waited,[])
         self.assertFalse((self.control/'to-server-writer-observation.json').exists())
         self.assertTrue((self.control/'to-server-writer-unknown.json').exists())
 
     def test_list_cap_stops_before_inspection(self):
         self.run_factory('overflow')
-        self.assertEqual(len(self.children),1)
+        self.assertEqual(len(self.children),2)
         self.assertEqual(self.waited,[])
         self.assertFalse((self.control/'to-server-writer-observation.json').exists())
 
@@ -138,12 +149,12 @@ class WriterCollector(h.HeldWriterConfig):
         self.run_factory('nonzero')
         self.assertEqual(len(self.children),1)
         self.assertEqual(self.waited,[])
-        record=json.loads((self.control/'to-server-writer-list.terminal.json').read_text())
+        record=json.loads((self.control/'to-server-writer-image.terminal.json').read_text())
         self.assertEqual(record['terminal'],{'kind':'exit','code':7})
 
     def test_missing_observed_path_is_not_treated_as_planned(self):
         self.run_factory('missing')
-        self.assertEqual(len(self.children),2)
+        self.assertEqual(len(self.children),3)
         self.assertEqual(self.waited,[])
         self.assertFalse((self.control/'to-server-writer-observation.json').exists())
 

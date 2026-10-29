@@ -110,6 +110,9 @@ test('writer restart: serialized snapshot cannot acquire the caller-stopped iden
   const bundle = { list: { argv: p.listArgv, rawUtf8: '', clientPid: 123, clientStartTicks: 456,
     unknown: false, terminal: { kind: 'exit', code: 0 }, stdoutBytes: 0, stdoutSha256: createHash('sha256').update('').digest('hex') },
     containers: null, volumes: [], canonical: plan.roots.map(source => ({ source, canonical: source })) }
+  const imageRaw = JSON.stringify(p.imageId)
+  bundle.image = { ...bundle.list, argv: p.imageArgv, rawUtf8: imageRaw, stdoutBytes: Buffer.byteLength(imageRaw),
+    stdoutSha256: createHash('sha256').update(imageRaw).digest('hex') }
   assert.equal(verifyWriterSnapshot(p, bundle).phaseReceiptProduced, false)
   assert.throws(() => verifyWriterSnapshot({ ...p, mounts: { ...p.mounts, stoppedContainer: cid } }, bundle), /SNAPSHOT_UNAVAILABLE/)
 })

@@ -13,7 +13,8 @@ const plan = writerSnapshotPlan(config, image, 'sha256:' + 'b'.repeat(64))
 const terminal = (argv, rawUtf8) => ({ argv, rawUtf8, clientPid: 123, clientStartTicks: 456,
   unknown: false, terminal: { kind: 'exit', code: 0 }, stdoutBytes: Buffer.byteLength(rawUtf8),
   stdoutSha256: createHash('sha256').update(rawUtf8).digest('hex') })
-const blank = () => ({ list: terminal(plan.listArgv, ''), containers: null, volumes: [],
+const imageArgv = ['/usr/bin/docker', 'image', 'inspect', '--format', '{{json .Id}}', image]
+const blank = () => ({ image: terminal(imageArgv, JSON.stringify(plan.imageId)), list: terminal(plan.listArgv, ''), containers: null, volumes: [],
   canonical: plan.mounts.roots.map(source => ({ source, canonical: source })) })
 
 test('finite projected snapshot preserves metadata-only boundary and never copies Compose credentials', () => {
@@ -23,7 +24,7 @@ test('finite projected snapshot preserves metadata-only boundary and never copie
   assert.equal(result.participatingWritersVerified, false)
   assert.equal(result.nonparticipatingWritersVerified, false)
   assert.equal(result.bothNormalIdentitiesVerified, false)
-  assert.equal(plan.maxDockerCommands, 130)
+  assert.equal(plan.maxDockerCommands, 131)
 })
 
 test('terminal nonzero, unknown, changed raw and arbitrary argv are rejected', () => {
@@ -62,14 +63,25 @@ test('bounded nonempty container and volume projection is consumed without arbit
   value.canonical.push({ source: '/docker/disjoint', canonical: '/docker/disjoint' })
   const result = verifyWriterSnapshot(plan, value)
   assert.deepEqual(result.containerIds, [cid]); assert.deepEqual(result.volumeNames, [volume])
-  assert.equal(result.terminalRefs.length, 3)
+  assert.equal(result.terminalRefs.length, 4)
   assert.throws(() => writerVolumeInspectArgv('bad;value'))
   value.canonical[0].SECRET = 'synthetic-only'
   assert.throws(() => verifyWriterSnapshot(plan, value))
 })
 
 test('serialized snapshot input cannot enlarge command budget or replace immutable image binding', () => {
-  for (const change of [{ maxDockerCommands: 131 }, { image: 'latest' }, { imageId: 'short-id' }]) {
+  for (const change of [{ maxDockerCommands: 132 }, { image: 'latest' }, { imageId: 'short-id' }]) {
     assert.throws(() => verifyWriterSnapshot({ ...plan, ...change }, blank()))
   }
+})
+
+test('resolved fixed image ref must match selected raw ID before writer verification', () => {
+  for (const raw of [JSON.stringify('sha256:' + 'c'.repeat(64)), '{}', 'null', 'bad json', 'x'.repeat(129)]) {
+    const value = blank(); value.image = terminal(imageArgv, raw)
+    assert.throws(() => verifyWriterSnapshot(plan, value))
+  }
+  const missing = blank(); delete missing.image
+  assert.throws(() => verifyWriterSnapshot(plan, missing))
+  const changed = blank(); changed.image.argv = [...imageArgv.slice(0,-1), 'latest']
+  assert.throws(() => verifyWriterSnapshot(plan, changed))
 })

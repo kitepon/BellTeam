@@ -31,7 +31,8 @@ export function writerSnapshotPlan(config, image, imageId) {
   // Compose credentials are discarded by the existing planner, never retained.
   return { image, imageId, mounts: stateWriterPlan(config),
     limits: { containers: MAX_CONTAINERS, volumes: MAX_VOLUMES, canonicalPaths: MAX_PATHS },
-    listArgv: [...LIST], maxDockerCommands: 2 + MAX_VOLUMES,
+    imageArgv: ['/usr/bin/docker', 'image', 'inspect', '--format', '{{json .Id}}', image],
+    listArgv: [...LIST], maxDockerCommands: 3 + MAX_VOLUMES,
     stage: 'docker-writer-metadata-only', phaseReceiptProduced: false }
 }
 
@@ -50,11 +51,14 @@ const rows = text => text.split('\n').filter(Boolean).map(line => JSON.parse(lin
 
 export function verifyWriterSnapshot(plan, bundle) {
   if (plan?.stage !== 'docker-writer-metadata-only' || plan.phaseReceiptProduced !== false
-      || plan.maxDockerCommands !== 2 + MAX_VOLUMES
+      || plan.maxDockerCommands !== 3 + MAX_VOLUMES
       || typeof plan.image !== 'string' || !/^ghcr\.io\/kitepon\/bellteam-server@sha256:[a-f0-9]{64}$/u.test(plan.image)
       || typeof plan.imageId !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(plan.imageId)
       || JSON.stringify(plan.limits) !== JSON.stringify({ containers: MAX_CONTAINERS, volumes: MAX_VOLUMES, canonicalPaths: MAX_PATHS })
       || JSON.stringify(plan.listArgv) !== JSON.stringify(LIST) || !bundle) fail()
+  const imageArgv = ['/usr/bin/docker', 'image', 'inspect', '--format', '{{json .Id}}', plan.image]
+  if (JSON.stringify(plan.imageArgv) !== JSON.stringify(imageArgv)
+      || JSON.parse(terminal(bundle.image, imageArgv, 128)) !== plan.imageId) fail()
   if (Object.keys(plan.mounts ?? {}).sort().join(',') !== 'roots,volume') fail()
   const ids = terminal(bundle.list, LIST, MAX_CONTAINERS * 65).split('\n').filter(Boolean)
   if (ids.length > MAX_CONTAINERS || ids.some(value => !id(value)) || new Set(ids).size !== ids.length) fail()
@@ -82,7 +86,7 @@ export function verifyWriterSnapshot(plan, bundle) {
   assertStateWritersStopped(plan.mounts, containers, bundle.canonical, backing)
   return { stage: 'docker-writer-metadata-only', image: plan.image, imageId: plan.imageId,
     containerIds: ids, volumeNames: volumes, canonical: bundle.canonical,
-    terminalRefs: [bundle.list, ...(ids.length ? [bundle.containers] : []), ...bundle.volumes]
+    terminalRefs: [bundle.image, bundle.list, ...(ids.length ? [bundle.containers] : []), ...bundle.volumes]
       .map(x => ({ argv: x.argv, clientPid: x.clientPid, clientStartTicks: x.clientStartTicks,
         stdoutBytes: x.stdoutBytes, stdoutSha256: x.stdoutSha256 })),
     phaseReceiptProduced: false, hostWriterAuthorityVerified: false,
