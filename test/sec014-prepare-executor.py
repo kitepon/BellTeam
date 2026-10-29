@@ -87,6 +87,7 @@ class PrepareTests(unittest.TestCase):
         endpoint.start();self.addCleanup(endpoint.stop)
         host = host or (lambda step:'d'*64)
         host.bind_image = lambda image,image_id:None  # Synthetic authority seam only.
+        if not hasattr(host,'invalidate'):host.invalidate=lambda reason:None
         return p._Prepare(self.tx,IMAGE,IMAGE_ID,deadline or time.monotonic()+110,
                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
 
@@ -97,6 +98,7 @@ class PrepareTests(unittest.TestCase):
         calls=[]
         def host(step):return 'd'*64
         host.bind_image=lambda image,image_id:calls.append((image,image_id))
+        host.invalidate=lambda reason:None
         def construct():
             return p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
                               datetime.now(timezone.utc)+timedelta(seconds=120),host)
@@ -127,6 +129,55 @@ class PrepareTests(unittest.TestCase):
             finally:self.tx.value['actorStartTicks']=born
             construct()
             self.assertEqual(calls,[(IMAGE,IMAGE_ID)])
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_image_binding_failure_invalidates_and_preserves_original_error(self):
+        with self.f.hold() as self.tx:
+            for failure in (ValueError('partial acquisition'),KeyboardInterrupt()):
+                with self.subTest(failure=type(failure).__name__):
+                    calls=[]
+                    def host(step):return 'd'*64
+                    def bind(image,image_id):
+                        calls.append(('bind',image,image_id))
+                        raise failure
+                    def invalidate(reason):
+                        calls.append(('invalidate',reason))
+                        raise RuntimeError('invalidation also failed')
+                    host.bind_image,host.invalidate=bind,invalidate
+                    with self.assertRaises(type(failure)) as caught:
+                        p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                                   datetime.now(timezone.utc)+timedelta(seconds=120),host)
+                    self.assertIs(caught.exception,failure)
+                    self.assertEqual(calls,[('bind',IMAGE,IMAGE_ID),('invalidate','UNCONFIRMED_CHILD')])
+                    self.assertEqual(self.commands,[])
+                    self.assertEqual(self.journal()['phases'],[])
+
+    def test_image_binding_changed_actor_invalidates_before_return(self):
+        invalidated=[]
+        def host(step):return 'd'*64
+        def bind(image,image_id):self.tx.value['actorStartTicks']+=1
+        host.bind_image,host.invalidate=bind,invalidated.append
+        with self.f.hold() as self.tx:
+            born=self.tx.value['actorStartTicks']
+            try:
+                with self.assertRaisesRegex(RuntimeError,'ACTOR_IDENTITY'):
+                    p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                               datetime.now(timezone.utc)+timedelta(seconds=120),host)
+                self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+                self.assertEqual(self.commands,[])
+                self.assertEqual(self.journal()['phases'],[])
+            finally:self.tx.value['actorStartTicks']=born
+
+    def test_image_binding_missing_invalidator_refuses_before_callback(self):
+        calls=[]
+        def host(step):return 'd'*64
+        host.bind_image=lambda image,image_id:calls.append((image,image_id))
+        with self.f.hold() as self.tx:
+            with self.assertRaisesRegex(p.actor.control.ControlError,'HOST_IMAGE_BINDING'):
+                p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            self.assertEqual(calls,[])
             self.assertEqual(self.commands,[])
             self.assertEqual(self.journal()['phases'],[])
 

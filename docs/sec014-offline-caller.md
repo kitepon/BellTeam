@@ -740,3 +740,31 @@ phases remain unconnected. All hostAuthority flags stay false, whole Draft
 NOTDEPLOYABLE/unmerged/undeployed; no real host/Docker/NAS/Apple operation.
 
 Endpoint environment semantics follow the [Docker CLI documentation](https://docs.docker.com/reference/cli/docker/).
+
+
+### Prepare image-binding failure ownership
+
+The private `_Prepare` constructor requires both `bind_image` and `invalidate`
+before entering the host callback. It checks the held transaction before and
+immediately after `bind_image`. If binding or the following check unwinds,
+including a `BaseException`, it calls the existing invalidator once with
+`UNCONFIRMED_CHILD` and rethrows the original exception. An invalidator failure
+cannot replace the acquisition error or turn it into success. A pre-callback
+transaction failure still prevents acquisition and needs no invalidation.
+
+Three new focused tests use a synthetic callback and an ordinary held
+transaction: partial acquisition exceptions (ValueError and KeyboardInterrupt)
+with a failing invalidator retain the exact original exception; changed actor
+birth after binding refuses before constructor return and invalidates; missing
+invalidation refuses before binding. They issue no Docker clients and confirm no
+phase advancement. The default synthetic test seam now supplies its required
+invalidator. Initial fixture runs that reentered an unresolved transaction or
+expected a separately loaded ControlError class are retained as harness history;
+the final same test bytes fail against the prior product and pass the repair.
+
+This connects failure notification only. It does not implement actual host facts,
+a successful invalidation/release, durable host invalidation, authenticated daemon
+peer/ancestor ACL/mount topology/writer exclusion, full factory or recovery reap.
+All authority flags remain false; whole Draft NOTDEPLOYABLE, unmerged and
+undeployed. No real host/Docker operation or new controller, lock, public CLI or
+identity scheme.
