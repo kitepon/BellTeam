@@ -5,28 +5,51 @@ import UniformTypeIdentifiers
 struct AvatarImagePicker<Label: View>: View {
     let onSelect: (UIImage) -> Void
     let onFailure: () -> Void
-    @ViewBuilder let label: () -> Label
+    let prepare: (() async -> Bool)?
+    let label: () -> Label
 
-    #if targetEnvironment(macCatalyst)
-    @State private var importing = false
-    #else
+    init(onSelect: @escaping (UIImage) -> Void, onFailure: @escaping () -> Void,
+         prepare: (() async -> Bool)? = nil, @ViewBuilder label: @escaping () -> Label) {
+        self.onSelect = onSelect
+        self.onFailure = onFailure
+        self.prepare = prepare
+        self.label = label
+    }
+
+    @State private var presenting = false
+    #if !targetEnvironment(macCatalyst)
     @State private var selectedPhoto: PhotosPickerItem?
     #endif
 
     var body: some View {
         #if targetEnvironment(macCatalyst)
-        Button { importing = true } label: { label() }
-            .fileImporter(isPresented: $importing, allowedContentTypes: [.image]) { result in
+        Button(action: requestSelection, label: label)
+            .fileImporter(isPresented: $presenting, allowedContentTypes: [.image]) { result in
                 do {
                     onSelect(try AvatarImage.load(from: result.get()))
                 } catch { onFailure() }
             }
         #else
-        PhotosPicker(selection: $selectedPhoto, matching: .images, label: label)
-            .onChange(of: selectedPhoto) { _, item in
-                Task { await loadPhoto(item) }
+        Group {
+            if prepare != nil {
+                Button(action: requestSelection, label: label)
+                    .photosPicker(isPresented: $presenting, selection: $selectedPhoto, matching: .images)
+            } else {
+                PhotosPicker(selection: $selectedPhoto, matching: .images, label: label)
             }
+        }
+        .onChange(of: selectedPhoto) { _, item in
+            Task { await loadPhoto(item) }
+        }
         #endif
+    }
+
+    private func requestSelection() {
+        if let prepare {
+            Task { if await prepare() { presenting = true } }
+        } else {
+            presenting = true
+        }
     }
 
     #if !targetEnvironment(macCatalyst)

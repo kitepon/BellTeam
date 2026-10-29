@@ -91,6 +91,8 @@ struct BotProfileHero: View {
         .sheet(item: $imageAction) { variant in
             BotProfileAvatarActions(bot: bot, variant: variant,
                 pendingSelection: pendingSelections.selection(for: variant),
+                previewRender: pendingSelections.previewRender(for: variant, small: bot.avatar,
+                    large: loadedLargeAvatar, largeUsesSmall: usesSmallImage),
                 statusText: imageSaveErrors[variant],
                 onUse: { selection, current in
                     Task { await saveImage(selection, current: current, variant: variant) }
@@ -215,6 +217,7 @@ private struct BotProfileAvatarActions: View {
     let bot: Bot
     let variant: AvatarCropVariant
     let pendingSelection: AvatarCropSelection?
+    let previewRender: String
     let statusText: String?
     let onUse: (AvatarCropSelection, BotSettings) -> Void
     let onConfirm: () -> Void
@@ -223,6 +226,7 @@ private struct BotProfileAvatarActions: View {
     @Environment(\.dismiss) private var dismiss
     @State private var settings: BotSettings?
     @State private var loading = false
+    @State private var unsupportedSchema = false
     @State private var errorText: String?
     @State private var cropSource: AvatarCropSource?
 
@@ -236,6 +240,26 @@ private struct BotProfileAvatarActions: View {
             } else {
                 NavigationStack {
                     VStack(spacing: 20) {
+                        avatarPreview
+                        AvatarImagePicker(onSelect: { image in
+                            cropSource = AvatarCropSource(image: image, variant: variant)
+                        }, onFailure: { errorText = "画像を読み込めませんでした。" },
+                        prepare: { await loadSettings() }) {
+                            Text("画像変更").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("profile-image-change")
+                        .disabled(loading || unsupportedSchema || pendingSelection != nil)
+                        Button("画像調整") {
+                            Task {
+                                guard await loadSettings(), let settings else { return }
+                                adjust(settings)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("profile-image-adjust")
+                        .disabled(loading || unsupportedSchema)
                         if loading { ProgressView("画像情報を確認しています…") }
                         if let statusText { Text(statusText).font(.footnote).foregroundStyle(.red) }
                         if pendingSelection != nil {
@@ -243,35 +267,21 @@ private struct BotProfileAvatarActions: View {
                                 .font(.footnote).foregroundStyle(BellTheme.muted)
                             Button("保存結果を確認", action: onConfirm)
                             Button("選択を破棄", role: .destructive, action: onDiscard)
+                            Text("別の画像に変更するには、保持中の選択を破棄してください。")
+                                .font(.footnote).foregroundStyle(BellTheme.muted)
                         }
-                        if let settings {
-                            AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0, variant: variant) },
-                                              onFailure: { errorText = "画像を読み込めませんでした。" }) {
-                                Text("画像変更").frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .accessibilityIdentifier("profile-image-change")
-                            .disabled(pendingSelection != nil)
-                            if pendingSelection != nil {
-                                Text("別の画像に変更するには、保持中の選択を破棄してください。")
-                                    .font(.footnote).foregroundStyle(BellTheme.muted)
-                            }
-                            Button("画像調整") { adjust(settings) }
-                                .buttonStyle(.bordered)
-                                .frame(maxWidth: .infinity)
-                                .accessibilityIdentifier("profile-image-adjust")
-                            if pendingSelection == nil && adjustmentImage(settings).source.isEmpty {
-                                Text("元画像が残っていない場合、現在の切り抜きの外側は復元できません。")
-                                    .font(.footnote).foregroundStyle(BellTheme.muted)
-                            }
-                        } else if !loading {
-                            Button("画像情報を再読込") { Task { await loadSettings() } }
+                        if let settings, pendingSelection == nil && adjustmentImage(settings).source.isEmpty {
+                            Text("元画像が残っていない場合、現在の切り抜きの外側は復元できません。")
+                                .font(.footnote).foregroundStyle(BellTheme.muted)
+                        }
+                        if settings == nil && errorText != nil {
+                            Button("画像情報を再読込") { Task { _ = await loadSettings() } }
                         }
                         if let errorText { Text(errorText).font(.footnote).foregroundStyle(.red) }
                     }
                     .frame(maxWidth: 340)
                     .padding(24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .background(BellBackground())
                     .navigationTitle(variant == .small ? "小画像" : "大画像")
                     .navigationBarTitleDisplayMode(.inline)
@@ -283,11 +293,36 @@ private struct BotProfileAvatarActions: View {
                 }
             }
         }
-        .task(id: bot.id) { await loadSettings() }
     }
 
-    private func loadSettings() async {
-        guard !loading else { return }
+    private var avatarPreview: some View {
+        let image = cropSource?.image ?? AvatarPortraitCache.image(for: previewRender)
+        let side: CGFloat = 220
+        let corner = variant == .small ? side * 0.31 : 20
+        return ZStack {
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .fill(LinearGradient(colors: [BellTheme.accent(bot.color).opacity(0.75),
+                                              BellTheme.accent(bot.color)],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+            if let image {
+                Image(uiImage: image).resizable().scaledToFill()
+                    .frame(width: side, height: side).clipped()
+            } else if !previewRender.isEmpty {
+                Text(String(bot.name.prefix(1))).font(.system(size: 72, weight: .bold)).foregroundStyle(.white)
+            }
+        }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(image == nil ? "画像の表示待ち" : cropSource != nil ? "選択した画像" :
+                            variant == .small ? "現在の小画像" : "現在の大画像")
+        .accessibilityIdentifier("profile-image-preview-\(variant.rawValue)")
+    }
+
+    @discardableResult
+    private func loadSettings() async -> Bool {
+        if settings != nil { return true }
+        guard !loading else { return false }
         loading = true
         defer { loading = false }
         let path = "/api/bots/\(bot.id)"
@@ -297,16 +332,23 @@ private struct BotProfileAvatarActions: View {
             guard response.bot.avatarLarge != nil && response.bot.avatarSource != nil
                     && response.bot.avatarLargeSource != nil else {
                 errorText = "画像の独立編集はサーバー更新後に利用できます。"
-                return
+                unsupportedSchema = true
+                return false
             }
             settings = response.bot
+            unsupportedSchema = false
             errorText = nil
-        } catch is CancellationError { return }
-        catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+            return true
+        } catch is CancellationError { return false }
+        catch let error where BellAPIError.isAuthenticationError(error) {
+            store.requireLogin(for: error)
+            return false
+        }
         catch {
             errorText = "画像情報を読み込めませんでした。\n\(error.localizedDescription)"
             store.api.diagnostics.report(error, path: path, method: "GET",
                                          observation: .read(error, retainedData: false))
+            return false
         }
     }
 
