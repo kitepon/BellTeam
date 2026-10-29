@@ -1,0 +1,97 @@
+{
+  "schema": "bellteam.apple-internal-delivery.v1",
+  "product": "BellTeam",
+  "purpose": "Appleプロフィール正方形画像とcount24追加通信診断を内部配布",
+  "bundleId": "dev.kitepon.bellbot",
+  "appStoreConnectAppId": "6816295589",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "72",
+  "signedSourceCommit": "86c0aa6145224c48e8b24fedb2032ee1664a5af9",
+  "versionMergeCommit": "edec9fc096824d16a09ee278e43b2198e6c8e739",
+  "unsignedPreflight": "docs/evidence/2026-10-29-apple-combined-build72-preflight.json",
+  "unsignedPreflightSha256": "f3b9db27d20563cd219062aee80b240935000f9a784f90af0e92b9fa19994a10",
+  "unsignedLogAssessment": "docs/evidence/2026-10-29-apple-combined-build72-log-assessment.json",
+  "unsignedLogAssessmentSha256": "ae8d62e767e3de4f9ea5dad6aa847fba3663059ac9437239384c681a93494f8c",
+  "ownerApproval": {
+    "title": "BellTeam Apple画像・通信診断版72を署名してオーナー内部TestFlightへ配布する",
+    "choice": "go",
+    "answeredAt": "2026-10-29T00:45:49.158Z"
+  },
+  "betaGroup": {
+    "id": "58133050-1c39-4915-b6da-aac18b95921b",
+    "name": "BellTeam オーナー",
+    "internal": true
+  },
+  "artifacts": [
+    {
+      "platform": "IOS",
+      "relativePath": "runtime/apple/combined-build72/ios-export/BellTeam.ipa",
+      "sha256": "47d33979693c69e001bdb7cfb33778cefbd1eb202363b2faf9a5d47913199ab0",
+      "appBundleVersion": "72",
+      "extensionBundleVersion": "72",
+      "architectures": ["arm64"],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadDeliveryUuid": "597fbe3e-a391-42ed-923e-8b06bd32b0b3",
+      "uploadResult": "no-errors",
+      "appStoreConnectBuildId": "597fbe3e-a391-42ed-923e-8b06bd32b0b3",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    },
+    {
+      "platform": "MAC_OS",
+      "relativePath": "runtime/apple/combined-build72/mac-export/BellTeam.pkg",
+      "sha256": "d0fab14bbf68adcdab982059f43a0791878e04e21fff185050644216d9cbc8ff",
+      "appBundleVersion": "72",
+      "extensionBundleVersion": "72",
+      "architectures": ["x86_64", "arm64"],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "installerSignature": "3rd Party Mac Developer Installer, valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadDeliveryUuid": "aa65c510-c279-4f94-8d12-642eb2f71595",
+      "uploadResult": "no-errors",
+      "appStoreConnectBuildId": "aa65c510-c279-4f94-8d12-642eb2f71595",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    }
+  ],
+  "macTestFlightSmoke": {
+    "status": "not_performed_superseded_by_version73",
+    "installedPath": "/Applications/BellTeam.app",
+    "preUpdateBundleVersion": "71",
+    "preUpdateSignature": "strict-valid",
+    "preUpdateGatekeeperSource": "Testflight",
+    "version72UpdateButtonVisible": true,
+    "standardGuiToolResult": "jev-desktop abstained before any update action",
+    "physicalClickPerformed": false,
+    "version72ClickDecision": {
+      "title": "Mac TestFlightのBellTeam版72更新ボタンを画面クリックで押す",
+      "status": "cancelled",
+      "reason": "The fixed version 73 candidate supersedes the Mac installation and the same profile and terminal read-only smoke will be performed there."
+    },
+    "version72InstalledByThisTask": false,
+    "observedEffectiveMacVersionAtSupersession": "71",
+    "readOnlySmokeCompleted": false
+  },
+  "remaining": {
+    "macTestFlightInstallation": "not_performed; version73 candidate will be assessed under its own approval",
+    "iphoneAndIpadPhysicalInstallation": "not_measured",
+    "version72ActualNewFieldOutput": "not_observed",
+    "currentOpenDiagnostics": [
+      {"fingerprintPrefix": "88564", "occurrenceCount": 12, "lastObservedAppVersion": "1.0.3(71)", "causeAndRecovery": "unknown"},
+      {"fingerprintPrefix": "eb392", "occurrenceCount": 27, "lastObservedAppVersion": "1.0.3(71)", "causeAndRecovery": "unknown"}
+    ]
+  },
+  "realBotRestartPerformed": false,
+  "realBotMessageSent": false,
+  "ownerAvatarEdited": false,
+  "authenticationChanged": false,
+  "serverContainerRestartedByThisDelivery": false,
+  "publicAppStoreReleased": false
+}
