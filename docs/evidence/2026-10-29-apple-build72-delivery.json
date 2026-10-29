@@ -62,18 +62,25 @@
     }
   ],
   "macTestFlightSmoke": {
-    "status": "pending_installation",
+    "status": "not_performed_superseded_by_version73",
     "installedPath": "/Applications/BellTeam.app",
     "preUpdateBundleVersion": "71",
     "preUpdateSignature": "strict-valid",
     "preUpdateGatekeeperSource": "Testflight",
     "version72UpdateButtonVisible": true,
     "standardGuiToolResult": "jev-desktop abstained before any update action",
-    "version72Installed": false,
+    "physicalClickPerformed": false,
+    "version72ClickDecision": {
+      "title": "Mac TestFlightのBellTeam版72更新ボタンを画面クリックで押す",
+      "status": "cancelled",
+      "reason": "The fixed version 73 candidate supersedes the Mac installation and the same profile and terminal read-only smoke will be performed there."
+    },
+    "version72InstalledByThisTask": false,
+    "observedEffectiveMacVersionAtSupersession": "71",
     "readOnlySmokeCompleted": false
   },
   "remaining": {
-    "macTestFlightInstallation": "pending",
+    "macTestFlightInstallation": "not_performed; version73 candidate will be assessed under its own approval",
     "iphoneAndIpadPhysicalInstallation": "not_measured",
     "version72ActualNewFieldOutput": "not_observed",
     "currentOpenDiagnostics": [
