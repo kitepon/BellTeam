@@ -228,6 +228,13 @@ final class ProfileTerminalUITests: XCTestCase {
         app.activate()
         XCTAssertTrue(slider.waitForExistence(timeout: 5), "前面復帰後も画像調整画面が残る")
         XCTAssertEqual(slider.value as? String, adjusted, "前面復帰後も調整位置を保つ")
+        app.buttons["キャンセル"].tap()
+        app.buttons["profile-small-avatar"].tap()
+        app.buttons["profile-image-adjust"].tap()
+        let reopenedSlider = app.sliders["アバター画像の拡大・縮小"]
+        XCTAssertTrue(reopenedSlider.waitForExistence(timeout: 5))
+        XCTAssertEqual(reopenedSlider.value as? String, initial,
+                       "明示キャンセル後の新しい編集には前回の未保存調整を持ち込まない")
     }
 
     func testPhoneSmallCropSavesWithoutReplacingLargeImage() async throws {
