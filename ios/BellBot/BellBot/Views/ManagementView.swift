@@ -165,7 +165,7 @@ struct BotEditor: View {
                         VStack(alignment: .leading, spacing: 8) {
                             if let image = AvatarPortraitCache.image(for: largeAvatarPreview) {
                                 Image(uiImage: image).resizable().scaledToFill()
-                                    .frame(maxWidth: .infinity).frame(height: 120).clipped()
+                                    .frame(width: 160, height: 160).clipped()
                                     .clipShape(RoundedRectangle(cornerRadius: 14))
                             }
                             Text("大画像を変更")

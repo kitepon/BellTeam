@@ -36,7 +36,7 @@ struct BotProfileHero: View {
                 .frame(width: area.size.width, height: area.size.height)
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
-            .frame(height: 220)
+            .aspectRatio(1, contentMode: .fit)
             if largeAvatarError {
                 Text("大画像を読み込めませんでした。")
                     .font(.footnote).foregroundStyle(.red)

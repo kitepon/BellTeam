@@ -13,7 +13,7 @@ enum AvatarCropVariant: Equatable {
     var canvas: CGSize {
         switch self {
         case .small: CGSize(width: 512, height: 512)
-        case .large: CGSize(width: 1024, height: 512)
+        case .large: CGSize(width: 1024, height: 1024)
         }
     }
 }
@@ -26,6 +26,7 @@ struct AvatarCropSelection {
 
 enum AvatarImage {
     static let side: CGFloat = 512
+    static let zoomRange: ClosedRange<Double> = 1...3
 
     static func decode(_ data: Data) throws -> UIImage {
         guard let image = UIImage(data: data) else { throw BellAPIError.invalidResponse }
@@ -93,12 +94,14 @@ enum AvatarImage {
         guard image.size.width > 0, image.size.height > 0, crop.width > 0, crop.height > 0,
               crop.x >= 0, crop.y >= 0, crop.x + crop.width <= 1.000001,
               crop.y + crop.height <= 1.000001 else { return nil }
-        let scale = canvas.width / (CGFloat(crop.width) * image.size.width)
         let base = max(canvas.width / image.size.width, canvas.height / image.size.height)
-        let zoom = Double(scale / base)
-        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let offset = CGSize(width: (size.width - canvas.width) / 2 - CGFloat(crop.x) * size.width,
-                            height: (size.height - canvas.height) / 2 - CGFloat(crop.y) * size.height)
+        let scale = max(base,
+                        canvas.width / (CGFloat(crop.width) * image.size.width),
+                        canvas.height / (CGFloat(crop.height) * image.size.height))
+        let zoom = min(zoomRange.upperBound, max(zoomRange.lowerBound, Double(scale / base)))
+        let size = renderedSize(of: image, zoom: CGFloat(zoom), canvas: canvas)
+        let offset = CGSize(width: (0.5 - CGFloat(crop.x + crop.width / 2)) * size.width,
+                            height: (0.5 - CGFloat(crop.y + crop.height / 2)) * size.height)
         return (zoom, clampedOffset(offset, image: image, zoom: CGFloat(zoom), canvas: canvas))
     }
 

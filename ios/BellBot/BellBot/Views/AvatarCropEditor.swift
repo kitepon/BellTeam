@@ -64,7 +64,7 @@ struct AvatarCropEditor: View {
                         cropPreview(side: min(geometry.size.width, 320))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .frame(height: variant == .small ? 320 : 170)
+                    .frame(height: 320)
 
                     zoomControls.frame(maxWidth: 320)
 
@@ -114,7 +114,7 @@ struct AvatarCropEditor: View {
             Text("拡大・縮小")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(BellTheme.ink)
-            Slider(value: $zoom, in: 1...3)
+            Slider(value: $zoom, in: AvatarImage.zoomRange)
                 .tint(BellTheme.violet)
                 .accessibilityLabel("アバター画像の拡大・縮小")
         }
