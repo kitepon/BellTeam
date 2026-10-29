@@ -223,7 +223,7 @@ class PrepareTests(unittest.TestCase):
         if mode=='acl':os.setxattr(self.f.state,'system.posix_acl_default',acl)
         def fd_open(path,flags,*args,**kwargs):
             fd=real_open(path,flags,*args,**kwargs)
-            if path==self.f.state:opened.append(fd)
+            if flags&os.O_DIRECTORY:opened.append(fd)
             return fd
         def save(tx,name,value):
             if mode=='save' and name.endswith('-prepare-parent.json'):raise failure
@@ -280,6 +280,95 @@ class PrepareTests(unittest.TestCase):
 
     def test_parent_original_save_failure_refuses_image_binding(self):
         self.parent_binding_case('save')
+
+    def ancestor_change(self,acl):
+        ancestor=self.f.state.parent;original=ancestor.stat();changed=[False]
+        entries=[(1,7,0xffffffff),(2,4,os.getuid()+1),(4,0,0xffffffff),(16,0,0xffffffff),(32,0,0xffffffff)]
+        raw=struct.pack('<I',2)+b''.join(struct.pack('<HHI',*entry) for entry in entries)
+        def host(step):
+            if step=='run' and not changed[0]:
+                if acl:os.setxattr(ancestor,'system.posix_acl_default',raw)
+                else:ancestor.chmod(0o750)
+                changed[0]=True
+            return 'd'*64
+        with self.f.hold() as self.tx:
+            runner=self.runner(host=host)
+            original_parent=(self.f.root/'to-server-prepare-parent.json').read_bytes()
+            try:runner.prepare()
+            except RuntimeError as error:self.assertEqual(str(error),'SEC014_PREPARE_PHASE_UNCONFIRMED')
+            print('ANCESTOR_CHANGE '+json.dumps(dict(acl=acl,clients=len(self.commands))),flush=True)
+            self.assertEqual(self.commands,[])
+            self.assertTrue(changed[0])
+            record=json.loads(original_parent)
+            self.assertEqual([item['path'] for item in record['ancestors']],
+                             [str(path) for path in reversed(self.f.state.parents)])
+            saved=next(item for item in record['ancestors'] if item['path']==str(ancestor))
+            self.assertEqual((saved['device'],saved['inode']),(str(original.st_dev),str(original.st_ino)))
+            self.assertEqual(saved['mode'],'0700')
+            self.assertEqual(saved['acls']['default'],dict(rawHex=None,errno=errno.ENODATA))
+            self.assertFalse(saved['hostAuthority'])
+            self.assertEqual((self.f.root/'to-server-prepare-parent.json').read_bytes(),original_parent)
+            self.assertIsNone(runner.parent_fd)
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_ancestor_mode_change_refuses_before_client(self):
+        self.ancestor_change(False)
+
+    def test_ancestor_default_acl_change_refuses_before_client(self):
+        self.ancestor_change(True)
+
+    def test_ancestor_symlink_in_binding_is_not_followed(self):
+        ancestor=self.f.state.parent;retained=ancestor.with_name(ancestor.name+'-retained');invalidated=[]
+        real_open=os.open;opened=[];bound=[]
+        def fd_open(path,flags,*args,**kwargs):
+            fd=real_open(path,flags,*args,**kwargs)
+            if flags&os.O_DIRECTORY:opened.append(fd)
+            return fd
+        def host(step):return 'd'*64
+        def bind(*args):
+            bound.append(args);ancestor.rename(retained);ancestor.symlink_to(retained,target_is_directory=True)
+        host.bind_image,host.invalidate=bind,invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path),patch.object(os,'open',side_effect=fd_open):
+            caught=None
+            try:
+                try:p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,datetime.now(timezone.utc)+timedelta(seconds=120),host)
+                except BaseException as error:caught=error
+            finally:
+                if ancestor.is_symlink():ancestor.unlink();retained.rename(ancestor)
+            print('ANCESTOR_SYMLINK '+json.dumps(dict(refused=caught is not None,opened=len(opened),bindingCalls=len(bound))),flush=True)
+            self.assertEqual(len(bound),1)
+            self.assertIsInstance(caught,OSError)
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            for fd in opened:
+                with self.assertRaises(OSError):os.fstat(fd)
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_ancestor_acl_total_budget_refuses_before_binding(self):
+        real_get=os.getxattr;real_open=os.open;opened=[];calls=[];invalidated=[]
+        def fd_open(path,flags,*args,**kwargs):
+            fd=real_open(path,flags,*args,**kwargs)
+            if flags&os.O_DIRECTORY:opened.append(fd)
+            return fd
+        def get(path,name,*args,**kwargs):
+            if type(path) is int:return b'x'*4096
+            return real_get(path,name,*args,**kwargs)
+        def host(step):return 'd'*64
+        host.bind_image=lambda *args:calls.append(args)
+        host.invalidate=invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path),patch.object(os,'getxattr',side_effect=get),patch.object(os,'open',side_effect=fd_open):
+            caught=None
+            try:p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            except RuntimeError as error:caught=str(error)
+            print('ANCESTOR_BUDGET '+json.dumps(dict(error=caught,bindingCalls=len(calls))),flush=True)
+            self.assertEqual(caught,'SEC014_PREPARE_PARENT_OBSERVATION_LIMIT')
+            self.assertEqual(calls,[])
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            for fd in opened:
+                with self.assertRaises(OSError):os.fstat(fd)
+            self.assertFalse((self.f.root/'to-server-prepare-parent.json').exists())
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
 
     def test_socket_original_is_saved_before_binding_and_replacement_refuses(self):
         original=self.socket_path.stat()

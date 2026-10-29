@@ -1010,3 +1010,44 @@ peer/trusted host or continuous writer exclusion. Real hostfacts verifier/full
 factory, durable invalidation/release/recovery reap and later phases remain
 unconnected. All authority flags false, whole Draft NOTDEPLOYABLE, unmerged and
 undeployed; no real root/host/Docker/NAS/Apple or automatic wait/kill/retry.
+
+### Ancestor component observations in the existing parent original
+
+The existing parent observer now opens the fixed absolute path from root, one
+component at a time relative to the currently held directory FD, using
+O_RDONLY/O_DIRECTORY/O_NOFOLLOW/O_CLOEXEC. Each previous walk FD closes before
+advancing further and the final one closes in finally. Root and each ancestor
+contribute their actual devino/uid/gid/mode, FD mount ID/raw fdinfo and both ACL
+observations to the same saved parent original. Initial values are observations,
+not an accepted ownership/effective-access policy. The final parent still uses
+its existing strict private check. Directory ctime/nlink are not frozen because
+ordinary child creation changes them. The complete JSON must fit the existing
+65536-byte saved-record budget before binding; per-ACL caps remain unchanged.
+
+The post-binding parent observation compares the complete record. Existing
+before/after host-step parent checks also walk and compare the same ancestors,
+alongside their existing held/name final-parent checks. The original chain SHA
+and authorityfalse remain; no alternate helper, controller, lock or CLI is added.
+O_NOFOLLOW on a full path alone protects only its final component; component
+opens use dir_fd to apply that check at each step (Linux open(2):
+https://man7.org/linux/man-pages/man2/open.2.html ).
+
+Final identical-byte four cases go from old0pass/4assertionfail/errors0 to
+new4pass: real ancestor mode/default ACL changes stop before a client (old four
+each); an ancestor symlink installed inside binding refuses constructor return
+and closes walk FDs; combined ACL observations over the JSON budget refuse
+before binding, with no parent success record/client/phase. The successful
+trigger and full ancestor path list are asserted. Normal chain, prebinding FD
+lifetime, namespace/mount guards, held factory and native failure custody pass
+(six affected cases). A previous FD-lifetime fixture now tracks component
+directory opens rather than the removed full-path open. After these checks,
+only new-case trigger assertions were strengthened; affected methods and product
+bytes were unchanged. Initial focused logs remain separate; the final old/new
+comparison uses the exact head whole test-file bytes. No old full groups or FULL.
+
+This is component traversal and point observations. It does not establish safe
+initial ACL/owner policy, mount topology/options, daemon peer/trusted host,
+continuous writer exclusion or an unchanged interval between observations.
+Real hostfacts verifier/full factory, durable invalidation/release/recovery reap,
+maintenance and later phases remain unconnected. All authorityfalse, whole Draft
+NOTDEPLOYABLE, unmerged/undeployed; no real host/Docker/NAS/Apple operations.

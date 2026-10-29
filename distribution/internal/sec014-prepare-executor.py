@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import selectors
+import stat
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -82,6 +83,7 @@ class _Prepare:
         self.parent_mount = parent['mountId']
         self.parent_namespace = (int(parent['mountNamespace']['device']),int(parent['mountNamespace']['inode']))
         self.parent_acls = parent['acls']
+        self.parent_ancestors = parent['ancestors']
         self.endpoint,self.endpoint_record = endpoint,endpoint_record
         self.image_original=image_original
 
@@ -101,11 +103,13 @@ class _Prepare:
         self._check_parent()
 
     def _check_parent(self):
-        # shortcut: final entry only, require host ancestor/ACL/mount exclusion before live connection.
+        # shortcut: point observations only, require host ancestor/writer authority before live connection.
         if self.parent_fd is None:
             raise actor.control.ControlError('SEC014_PREPARE_PARENT_UNBOUND')
         if actor.control._identity(os.stat('/proc/thread-self/ns/mnt'))!=self.parent_namespace:
             raise actor.control.ControlError('SEC014_PREPARE_NAMESPACE_CHANGED')
+        if self._parent_observation(self.tx.owner)['ancestors']!=self.parent_ancestors:
+            raise actor.control.ControlError('SEC014_PREPARE_ANCESTOR_CHANGED')
         named=os.open(PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
         try:
             for info in (os.fstat(self.parent_fd),os.fstat(named),os.stat(PARENT,follow_symlinks=False)):
@@ -132,22 +136,35 @@ class _Prepare:
         return result
 
     def _parent_observation(self,owner):
+        if not PARENT.is_absolute() or '..' in PARENT.parts:
+            raise actor.control.ControlError('SEC014_PREPARE_PARENT_PATH')
         namespace=actor.control._identity(os.stat('/proc/thread-self/ns/mnt'))
-        fd=os.open(PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
+        flags=os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC
+        fd=os.open(PARENT.anchor,flags)
         try:
-            info=os.fstat(fd)
+            records=[];path=Path(PARENT.anchor)
+            for index,component in enumerate(PARENT.parts):
+                if index:
+                    following=os.open(component,flags,dir_fd=fd)
+                    previous,fd=fd,following
+                    os.close(previous)
+                    path/=component
+                info=os.fstat(fd)
+                mount,fdinfo=self._mount_info(fd)
+                records.append(dict(path=str(path),device=str(info.st_dev),inode=str(info.st_ino),
+                    uid=info.st_uid,gid=info.st_gid,mode=format(stat.S_IMODE(info.st_mode),'04o'),
+                    hostAuthority=False,mountId=mount,fdinfoUtf8=fdinfo,acls=self._parent_acls(fd)))
             actor.control._private(info,owner,True)
-            mount,fdinfo=self._mount_info(fd)
-            acls=self._parent_acls(fd)
             linked=os.stat(PARENT,follow_symlinks=False)
             actor.control._private(linked,owner,True)
             if (actor.control._identity(linked)!=actor.control._identity(info)
                     or actor.control._identity(os.stat('/proc/thread-self/ns/mnt'))!=namespace):
                 raise actor.control.ControlError('SEC014_PREPARE_PARENT_CHANGED')
-            return dict(path=str(PARENT),device=str(info.st_dev),inode=str(info.st_ino),
-                uid=info.st_uid,gid=info.st_gid,mode='0700',hostAuthority=False,
-                mountId=mount,fdinfoUtf8=fdinfo,acls=acls,mountNamespace=dict(
-                    device=str(namespace[0]),inode=str(namespace[1])))
+            value=records.pop()
+            value.update(ancestors=records,mountNamespace=dict(device=str(namespace[0]),inode=str(namespace[1])))
+            if len(json.dumps(value,sort_keys=True,allow_nan=False).encode())>65536:
+                raise actor.control.ControlError('SEC014_PREPARE_PARENT_OBSERVATION_LIMIT')
+            return value
         finally:os.close(fd)
 
     def _mount_info(self, fd):
