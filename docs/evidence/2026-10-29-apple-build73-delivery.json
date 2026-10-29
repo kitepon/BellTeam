@@ -75,7 +75,7 @@
     "testFlightUpdateButtonVisibleInAccessibility": true,
     "displayedTargetVersionConfirmed": false,
     "standardGuiToolResult": "jev-desktop abstained; TestFlight update button advertises no accessibility action",
-    "screenInspectionBlocker": "An unrelated OL-RemoteWindow codesign Keychain authorization dialog was in the foreground; agent-desktop window focus, move and window screenshot timed out. No action was taken on that dialog.",
+    "screenInspectionBlocker": "After the unrelated OL-RemoteWindow codesign process exited, a live display screenshot still showed its Keychain authorization dialog in the foreground with TestFlight behind it. agent-desktop window focus, move and window screenshot timed out. No action was taken on that dialog.",
     "testFlightTemporaryProcessGracefullyQuit": true,
     "headedClickPerformed": false,
     "readOnlySmokeCompleted": false
