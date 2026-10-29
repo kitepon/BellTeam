@@ -1,0 +1,92 @@
+{
+  "schema": "bellteam.apple-internal-delivery.v1",
+  "product": "BellTeam",
+  "purpose": "Goal一覧の呼出し契機を含むApple通信診断を内部配布",
+  "bundleId": "dev.kitepon.bellbot",
+  "appStoreConnectAppId": "6816295589",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "73",
+  "signedSourceCommit": "0961a70fef8a78e27a0d0c0f50bf1fb053bf5fa2",
+  "versionMergeCommit": "f70bff3f55510c6391a054812f15381034a866d4",
+  "unsignedPreflight": "docs/evidence/2026-10-29-apple-list-build73-preflight.json",
+  "unsignedPreflightSha256": "da48fac707868e0fcd6ce4d7a0920cd21fa5757652e270ffff773ca27edb836f",
+  "ownerApproval": {
+    "title": "BellTeam Apple一覧診断版73を署名・内部配布し必要時にMac更新を1回押す",
+    "choice": "go_all",
+    "answeredAt": "2026-10-29T01:50:04.664Z",
+    "macPhysicalClickScope": "BellTeam version 73 update button only, at most once if needed"
+  },
+  "betaGroup": {
+    "id": "58133050-1c39-4915-b6da-aac18b95921b",
+    "name": "BellTeam オーナー",
+    "internal": true
+  },
+  "artifacts": [
+    {
+      "platform": "IOS",
+      "relativePath": "runtime/apple/list-build73/ios-export/BellTeam.ipa",
+      "sha256": "45e4c864534c9ffad8a82f097896e84fa2b8cc9f216545828ae4061dc613000d",
+      "appBundleVersion": "73",
+      "extensionBundleVersion": "73",
+      "architectures": ["arm64"],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "7f1aed42-1f8f-4992-b548-3bcea861091c",
+      "uploadResult": "altool log says upload succeeded with no errors; MCP call timed out before returning",
+      "uploadLogSuccessAt": "2026-10-29T02:05:06.230Z",
+      "uploadLogPath": "~/Library/Logs/ContentDelivery/com.apple.itunes.altool/com.apple.itunes.altool_2026-10-29_10-55-22-399.txt",
+      "uploadLogSha256": "4aecae55493d65434e997c8180d00a958d7821daaa7dfe6f82dae11ebe42e341",
+      "uploadLogBytes": 560134,
+      "appStoreConnectBuildState": "not yet visible at latest read",
+      "betaGroupAttachment": "pending"
+    },
+    {
+      "platform": "MAC_OS",
+      "relativePath": "runtime/apple/list-build73/mac-export/BellTeam.pkg",
+      "sha256": "930533e34f367b7bdb8e1f0ab89d12eaccedf11b53d5d4d86584e81a2b85e3e9",
+      "appBundleVersion": "73",
+      "extensionBundleVersion": "73",
+      "architectures": ["x86_64", "arm64"],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "installerSignature": "3rd Party Mac Developer Installer, valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "9e0af497-dc28-4e06-a75d-53653f700bfc",
+      "uploadResult": "no-errors from normal tool response",
+      "appStoreConnectBuildId": "9e0af497-dc28-4e06-a75d-53653f700bfc",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    }
+  ],
+  "macTestFlightSmoke": {
+    "status": "pending_testflight_screen_confirmation",
+    "installedPath": "/Applications/BellTeam.app",
+    "preUpdateBundleVersion": "71",
+    "preUpdateSignature": "strict-valid",
+    "preUpdateGatekeeperSource": "Testflight",
+    "version73UpdateButtonVisibleInAccessibility": true,
+    "standardGuiToolResult": "jev-desktop abstained; TestFlight update button advertises no accessibility action",
+    "headedClickPerformed": false,
+    "readOnlySmokeCompleted": false
+  },
+  "remaining": {
+    "iphoneAndIpadPhysicalInstallation": "not_measured",
+    "version73ActualNewFieldOutput": "not_observed",
+    "currentOpenDiagnostics": [
+      {"fingerprintPrefix": "88564", "occurrenceCount": 12, "lastObservedAppVersion": "1.0.3(71)", "causeAndRecovery": "unknown"},
+      {"fingerprintPrefix": "eb392", "occurrenceCount": 27, "lastObservedAppVersion": "1.0.3(71)", "causeAndRecovery": "unknown"}
+    ]
+  },
+  "realBotRestartPerformed": false,
+  "realBotMessageSent": false,
+  "ownerAvatarEdited": false,
+  "authenticationChanged": false,
+  "serverContainerRestartedByThisDelivery": false,
+  "publicAppStoreReleased": false
+}
