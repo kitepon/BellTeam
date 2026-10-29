@@ -7,6 +7,8 @@ struct BotProfileHero: View {
     @State private var loadedLargeAvatar: String?
     @State private var largeAvatarError = false
     @State private var imageAction: AvatarCropVariant?
+    @State private var cropSource: AvatarCropSource?
+    @State private var cropSettings: BotSettings?
     @State private var savingImage = false
     @State private var imageSaveErrors: [AvatarCropVariant: String] = [:]
     @State private var imageSaveMessage: String?
@@ -98,7 +100,8 @@ struct BotProfileHero: View {
                 onUse: { selection, current in
                     Task { await saveImage(selection, current: current, variant: variant) }
                 }, onConfirm: { Task { await confirmImageSave(variant) } },
-                onDiscard: { discardImageSelection(variant) })
+                onDiscard: { discardImageSelection(variant) },
+                settings: $cropSettings, cropSource: $cropSource)
             .environmentObject(store)
             .disabled(savingImage)
             .interactiveDismissDisabled(savingImage)
@@ -124,6 +127,8 @@ struct BotProfileHero: View {
 
     private func openImageActions(_ variant: AvatarCropVariant) {
         guard !savingImage else { return }
+        cropSource = nil
+        cropSettings = nil
         imageSaveMessage = nil
         imageAction = variant
     }
@@ -226,19 +231,24 @@ private struct BotProfileAvatarActions: View {
     let onDiscard: () -> Void
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
-    @State private var settings: BotSettings?
+    @Binding var settings: BotSettings?
     @State private var loading = false
     @State private var lifetime = AvatarActionLifetime()
     @State private var adjustmentTask: Task<Void, Never>?
     @State private var unsupportedSchema = false
     @State private var errorText: String?
-    @State private var cropSource: AvatarCropSource?
+    @Binding var cropSource: AvatarCropSource?
 
     var body: some View {
         Group {
             if let cropSource, let settings {
                 AvatarCropEditor(image: cropSource.image, variant: variant,
-                                 initialCrop: cropSource.initialCrop) { selection in
+                                 initialCrop: cropSource.initialCrop,
+                                 onDraftChange: { crop in
+                    var draft = cropSource
+                    draft.initialCrop = crop
+                    self.cropSource = draft
+                }) { selection in
                     onUse(selection, settings)
                 }
             } else {

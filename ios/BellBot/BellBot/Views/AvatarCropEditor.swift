@@ -12,6 +12,7 @@ struct AvatarCropEditor: View {
     let variant: AvatarCropVariant
     private let onUseLegacy: ((String) -> Void)?
     private let onUseSelection: ((AvatarCropSelection) -> Void)?
+    private let onDraftChange: ((AvatarCropRect) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @GestureState private var drag = CGSize.zero
@@ -24,14 +25,17 @@ struct AvatarCropEditor: View {
         variant = .small
         onUseLegacy = onUse
         onUseSelection = nil
+        onDraftChange = nil
     }
 
     init(image: UIImage, variant: AvatarCropVariant, initialCrop: AvatarCropRect?,
+         onDraftChange: ((AvatarCropRect) -> Void)? = nil,
          onUse: @escaping (AvatarCropSelection) -> Void) {
         self.image = image
         self.variant = variant
         onUseLegacy = nil
         onUseSelection = onUse
+        self.onDraftChange = onDraftChange
         if let initialCrop, let placement = AvatarImage.placement(of: initialCrop, image: image, canvas: variant.canvas) {
             _zoom = State(initialValue: placement.zoom)
             _offset = State(initialValue: placement.offset)
@@ -93,6 +97,7 @@ struct AvatarCropEditor: View {
                 offset = AvatarImage.clampedOffset(
                     CGSize(width: offset.width * ratio, height: offset.height * ratio),
                     image: image, zoom: CGFloat(next), canvas: variant.canvas)
+                recordDraft()
             }
         }
         #if targetEnvironment(macCatalyst)
@@ -148,6 +153,7 @@ struct AvatarCropEditor: View {
                             CGSize(width: offset.width + value.translation.width * outputRatio,
                                    height: offset.height + value.translation.height * outputRatio),
                             image: image, zoom: CGFloat(zoom), canvas: canvas)
+                        recordDraft()
                     }
             )
             .accessibilityLabel("アバター画像の切り抜き位置")
@@ -159,6 +165,12 @@ struct AvatarCropEditor: View {
             CGSize(width: offset.width + drag.width * outputRatio,
                    height: offset.height + drag.height * outputRatio),
             image: image, zoom: CGFloat(zoom), canvas: variant.canvas)
+    }
+
+    private func recordDraft() {
+        guard let crop = AvatarImage.cropRect(from: image, zoom: CGFloat(zoom), offset: offset,
+                                             canvas: variant.canvas) else { return }
+        onDraftChange?(crop)
     }
 
     private func useImage() {
