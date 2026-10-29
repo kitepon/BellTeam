@@ -1051,3 +1051,30 @@ continuous writer exclusion or an unchanged interval between observations.
 Real hostfacts verifier/full factory, durable invalidation/release/recovery reap,
 maintenance and later phases remain unconnected. All authorityfalse, whole Draft
 NOTDEPLOYABLE, unmerged/undeployed; no real host/Docker/NAS/Apple operations.
+
+### 2026-10-30: bind parent mountinfo entries to the existing observations
+
+The existing parent FD getter now reads the calling thread's mountinfo with a
+65536-byte cap. It requires one entry for the FD's mount ID, the documented
+separator/field layout and the same major:minor device as fstat. It retains that
+entry verbatim, including root, mount point, per-mount options, propagation
+fields and superblock options, in each existing parent/ancestor record. Unknown
+optional tags are preserved. The existing whole-parent JSON cap still applies.
+The constructor saves this original before image binding; postbind observation
+and each ready check compare the entries again. Held/named final parent FDs also
+match the original entry. The existing parent SHA chain covers these bytes.
+
+Five focused cases use injected proc responses, without mount/remount/setns or
+unshare. Changed options with the same mount ID/device/inode are refused before
+the first client (previously four fake clients); duplicate entries, device
+mismatch, missing separator and an oversized table refuse before binding.
+The same test bytes fail five assertions on the parent and pass on the change.
+Normal chain, parent FD lifetime, namespace/mount guards, ancestor guard, held
+factory and native failure custody pass (seven affected cases). No full groups.
+
+This adds mount-entry point observations, not safe mount-option policy, full
+mount topology validation, trusted peer/host or uninterrupted writer exclusion.
+A large mount table or unavailable/unmatched entry now fails closed. Real
+hostfacts verifier/full factory, durable invalidation/release/recovery reap,
+maintenance and later phases remain unconnected. All authorityfalse, whole
+NOTDEPLOYABLE, unmerged/undeployed; no real host/Docker/NAS/Apple operations.

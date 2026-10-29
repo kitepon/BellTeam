@@ -81,6 +81,7 @@ class _Prepare:
         self.parent_fd,self.parent_record = None,parent_record
         self.parent_identity = (int(parent['device']),int(parent['inode']))
         self.parent_mount = parent['mountId']
+        self.parent_mountinfo = parent['mountInfoUtf8']
         self.parent_namespace = (int(parent['mountNamespace']['device']),int(parent['mountNamespace']['inode']))
         self.parent_acls = parent['acls']
         self.parent_ancestors = parent['ancestors']
@@ -116,7 +117,8 @@ class _Prepare:
                 actor.control._private(info,self.tx.owner,True)
                 if actor.control._identity(info)!=self.parent_identity:
                     raise actor.control.ControlError('SEC014_PREPARE_PARENT_CHANGED')
-            if any(self._mount_info(fd)[0]!=self.parent_mount for fd in (self.parent_fd,named)):
+            mounts=[self._mount_info(fd) for fd in (self.parent_fd,named)]
+            if any(value[0]!=self.parent_mount or value[2]!=self.parent_mountinfo for value in mounts):
                 raise actor.control.ControlError('SEC014_PREPARE_MOUNT_CHANGED')
             if any(self._parent_acls(fd)!=self.parent_acls for fd in (self.parent_fd,named)):
                 raise actor.control.ControlError('SEC014_PREPARE_PARENT_ACL_CHANGED')
@@ -150,10 +152,11 @@ class _Prepare:
                     os.close(previous)
                     path/=component
                 info=os.fstat(fd)
-                mount,fdinfo=self._mount_info(fd)
+                mount,fdinfo,mountinfo=self._mount_info(fd)
                 records.append(dict(path=str(path),device=str(info.st_dev),inode=str(info.st_ino),
                     uid=info.st_uid,gid=info.st_gid,mode=format(stat.S_IMODE(info.st_mode),'04o'),
-                    hostAuthority=False,mountId=mount,fdinfoUtf8=fdinfo,acls=self._parent_acls(fd)))
+                    hostAuthority=False,mountId=mount,fdinfoUtf8=fdinfo,
+                    mountInfoUtf8=mountinfo,acls=self._parent_acls(fd)))
             actor.control._private(info,owner,True)
             linked=os.stat(PARENT,follow_symlinks=False)
             actor.control._private(linked,owner,True)
@@ -172,7 +175,19 @@ class _Prepare:
         ids=re.findall(rb'(?m)^mnt_id:[ \t]*([1-9][0-9]{0,19})$',raw)
         if len(raw)>4096 or len(ids)!=1 or len(re.findall(rb'(?m)^mnt_id:',raw))!=1:
             raise actor.control.ControlError('SEC014_PREPARE_MOUNT_UNCONFIRMED')
-        return int(ids[0]),raw.decode('ascii')
+        # shortcut: mount tables over 65536B are refused, review the observation budget before increasing.
+        with Path('/proc/thread-self/mountinfo').open('rb') as stream:table=stream.read(65537)
+        entries=[line for line in table.splitlines() if line.startswith(ids[0]+b' ')]
+        if len(table)>65536 or len(entries)!=1:
+            raise actor.control.ControlError('SEC014_PREPARE_MOUNTINFO_UNCONFIRMED')
+        sections=entries[0].split(b' - ')
+        fields=sections[0].split()
+        device=os.fstat(fd).st_dev
+        if (len(sections)!=2 or len(fields)<6 or len(sections[1].split())!=3
+                or not re.fullmatch(rb'[1-9][0-9]{0,19}',fields[1])
+                or fields[2]!=str(os.major(device)).encode()+b':'+str(os.minor(device)).encode()):
+            raise actor.control.ControlError('SEC014_PREPARE_MOUNTINFO_UNCONFIRMED')
+        return int(ids[0]),raw.decode('ascii'),entries[0].decode('utf-8')
 
     def save(self, slot, value):
         return actor._save_json(self.tx,self.tx.value['direction']+'-prepare-'+slot+'.json',value)

@@ -933,6 +933,80 @@ class PrepareTests(unittest.TestCase):
             self.assertFalse((self.f.root/'to-server-prepare-socket.json').exists())
             self.assertEqual(self.journal()['phases'],[])
 
+    def mount_table_case(self,mode):
+        real_open=Path.open;real_fdopen=os.open;opened=[];changed=[False];seen=[];invalidated=[]
+        fd=os.open(self.f.state,os.O_RDONLY|os.O_DIRECTORY)
+        try:
+            mount=int(re.search(r'(?m)^mnt_id:\s*([0-9]+)$',Path('/proc/thread-self/fdinfo/'+str(fd)).read_text())[1])
+        finally:os.close(fd)
+        table=Path('/proc/thread-self/mountinfo').read_bytes()
+        line=next(row for row in table.splitlines() if row.startswith(str(mount).encode()+b' '))
+        fields=line.split();self.assertNotEqual(fields[2],b'0:0')
+        options=fields[5].split(b',')
+        fields[5]=b','.join([x for x in options if x!=b'noexec'] if b'noexec' in options else options+[b'noexec'])
+        altered=b' '.join(fields)
+        def read(path,*args,**kwargs):
+            if str(path)=='/proc/thread-self/mountinfo':
+                raw=table
+                if mode=='change' and changed[0]:raw=table.replace(line,altered)
+                elif mode=='duplicate':raw=table+line+b'\n'
+                elif mode=='device':
+                    wrong=line.split();wrong[2]=b'0:0';raw=table.replace(line,b' '.join(wrong))
+                elif mode=='separator':raw=table.replace(line,line.replace(b' - ',b' ! '))
+                elif mode=='oversize':raw=b'x'*65537
+                return io.BytesIO(raw)
+            return real_open(path,*args,**kwargs)
+        def fdopen(path,flags,*args,**kwargs):
+            value=real_fdopen(path,flags,*args,**kwargs)
+            if flags&os.O_DIRECTORY:opened.append(value)
+            return value
+        def host(step):
+            if step=='run':changed[0]=True
+            return 'd'*64
+        def bind(*args):seen.append(json.loads((self.f.root/'to-server-prepare-parent.json').read_bytes()))
+        host.bind_image,host.invalidate=bind,invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path), \
+                patch.object(Path,'open',read),patch.object(os,'open',side_effect=fdopen):
+            caught=None
+            try:
+                runner=p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                                  datetime.now(timezone.utc)+timedelta(seconds=120),host)
+                if mode=='change':runner.prepare()
+            except BaseException as error:caught=error
+            print('PARENT_MOUNTINFO '+json.dumps(dict(mode=mode,changed=changed[0],
+                bindings=len(seen),clients=len(self.commands),error=None if caught is None else str(caught))),flush=True)
+            self.assertIsNotNone(caught)
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+            if mode=='change':
+                self.assertTrue(changed[0]);self.assertEqual(len(seen),1)
+                self.assertEqual(seen[0]['mountInfoUtf8'],line.decode())
+                self.assertEqual(json.loads((self.f.root/'to-server-prepare-parent.json').read_bytes()),seen[0])
+                self.assertFalse(seen[0]['hostAuthority'])
+                self.assertIsNone(runner.parent_fd)
+            else:
+                self.assertEqual(str(caught),'SEC014_PREPARE_MOUNTINFO_UNCONFIRMED')
+                self.assertEqual(seen,[])
+                self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+                self.assertFalse((self.f.root/'to-server-prepare-parent.json').exists())
+            for value in opened:
+                with self.assertRaises(OSError):os.fstat(value)
+
+    def test_parent_mount_options_change_refuses_before_client(self):
+        self.mount_table_case('change')
+
+    def test_parent_mountinfo_duplicate_refuses_before_binding(self):
+        self.mount_table_case('duplicate')
+
+    def test_parent_mountinfo_device_mismatch_refuses_before_binding(self):
+        self.mount_table_case('device')
+
+    def test_parent_mountinfo_separator_missing_refuses_before_binding(self):
+        self.mount_table_case('separator')
+
+    def test_parent_mountinfo_oversize_refuses_before_binding(self):
+        self.mount_table_case('oversize')
+
     def test_extra_mount_never_reaches_remove_or_phase(self):
         self.mutate=lambda v:dict(v,mounts=v['mounts']+[dict(Type='bind',Source='/x',Destination='/home/bell',RW=True)])
         with self.f.hold() as self.tx:
