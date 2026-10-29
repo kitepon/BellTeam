@@ -75,8 +75,11 @@
   "remaining": {
     "macTestFlightInstallation": "pending",
     "iphoneAndIpadPhysicalInstallation": "not_measured",
-    "count25ActualNewFieldOutput": "not_observed",
-    "count25CauseAndRecovery": "unknown"
+    "version72ActualNewFieldOutput": "not_observed",
+    "currentOpenDiagnostics": [
+      {"fingerprintPrefix": "88564", "occurrenceCount": 12, "lastObservedAppVersion": "1.0.3(71)", "causeAndRecovery": "unknown"},
+      {"fingerprintPrefix": "eb392", "occurrenceCount": 27, "lastObservedAppVersion": "1.0.3(71)", "causeAndRecovery": "unknown"}
+    ]
   },
   "realBotRestartPerformed": false,
   "realBotMessageSent": false,
