@@ -43,6 +43,42 @@ class HostControlTest(unittest.TestCase):
         with self.assertRaisesRegex(c.ControlError, 'UNRESOLVED'):
             with self.hold('to-legacy'): pass
 
+    def test_inherited_transaction_rejects_another_native_actor(self):
+        with self.hold() as tx:
+            read_fd, write_fd = os.pipe()
+            pid = os.fork()
+            if pid == 0:
+                os.close(read_fd)
+                try:
+                    tx.check()
+                    result = b'accepted'
+                except c.ControlError as error:
+                    result = str(error).encode()
+                except BaseException:
+                    result = b'unexpected failure'
+                try:
+                    os.write(write_fd, result)
+                finally:
+                    os._exit(0)
+            os.close(write_fd)
+            try:
+                observed = os.read(read_fd, 128)
+            finally:
+                os.close(read_fd)
+                _, status = os.waitpid(pid, 0)
+            self.assertEqual(status, 0)
+            self.assertEqual(observed, b'SEC014_CONTROL_ACTOR_IDENTITY')
+            tx.check()
+            born = tx.value['actorStartTicks']
+            tx.value['actorStartTicks'] = born + 1
+            try:
+                with self.assertRaisesRegex(c.ControlError, 'ACTOR_IDENTITY'):
+                    tx.check()
+            finally:
+                tx.value['actorStartTicks'] = born
+            tx.check()
+            self.assertEqual(json.loads((self.path/'transaction-to-server.json').read_text())['phases'], [])
+
     def test_completed_looking_partial_journal_is_not_a_receipt(self):
         p = self.path/'transaction-to-server.json'
         p.write_text(json.dumps({'direction': 'to-server', 'status': 'completed', 'phases': list(c.PHASES)}))

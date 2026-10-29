@@ -84,6 +84,7 @@ class PrepareTests(unittest.TestCase):
 
     def test_four_fixed_commands_env_terminal_before_reap_and_phase_evidence(self):
         with self.f.hold() as self.tx, patch.dict(os.environ,{'BELLTEAM_WEB_TOKEN':'synthetic-secret','DOCKER_HOST':'invalid'}):
+            self.tx.confirmed('writers_stopped')
             receipt=self.runner().prepare()
             self.assertEqual(len(self.commands),4)
             self.assertEqual(self.commands[0][0],['/usr/bin/docker','compose','--env-file','/dev/null','-f',
@@ -94,9 +95,9 @@ class PrepareTests(unittest.TestCase):
                 self.assertEqual(set(env),{'PATH','HOME','LANG','DOCKER_CONFIG','BELLTEAM_SERVER_IMAGE','BELLTEAM_STATE_PARENT'})
                 self.assertEqual(list(Path(env['DOCKER_CONFIG']).iterdir()),[])
             self.assertEqual(len(self.reaped),4)
-            self.assertEqual(self.journal()['phases'],[])
-            p.actor._receipt(self.tx,'prepared',IMAGE,receipt,p.actor.PROOFS[0]);self.tx.confirmed('prepared')
-        self.assertEqual(self.journal()['phases'],['prepared'])
+            self.assertEqual(self.journal()['phases'],['writers_stopped'])
+            p.actor._receipt(self.tx,'prepared',IMAGE,receipt,p.actor.PROOFS[1]);self.tx.confirmed('prepared')
+        self.assertEqual(self.journal()['phases'],['writers_stopped','prepared'])
         self.assertEqual(self.journal()['status'],'incomplete')
 
     def test_running_container_never_reaches_remove_or_phase(self):

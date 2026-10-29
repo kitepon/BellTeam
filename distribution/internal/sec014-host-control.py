@@ -245,6 +245,9 @@ class _Transaction:
             self.value['normal'] = normal
 
     def check(self, *, models=None):
+        if (os.getpid() != self.value['actorPid'] or int(
+                Path('/proc/self/stat').read_text().rsplit(') ', 1)[1].split()[19]) != self.value['actorStartTicks']):
+            raise ControlError('SEC014_CONTROL_ACTOR_IDENTITY')
         if 'normal' in self.value and _normal(self.value['normal']['path'], models=models) != self.value['normal']:
             raise ControlError('SEC014_CONTROL_GENERATION')
         parent = os.lstat(self.path)
