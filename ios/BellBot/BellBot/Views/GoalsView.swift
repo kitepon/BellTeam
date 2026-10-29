@@ -24,6 +24,26 @@ struct GoalLoadCallContext {
     }
 }
 
+@MainActor
+final class GoalForegroundLoad {
+    private var current: Task<Void, Never>?
+
+    @discardableResult
+    func start(_ load: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
+        let previous = current
+        previous?.cancel()
+        let next = Task {
+            await previous?.value
+            guard !Task.isCancelled else { return }
+            await load()
+        }
+        current = next
+        return next
+    }
+
+    func cancel() { current?.cancel() }
+}
+
 private struct GoalsResponse: Decodable { let goals: [GoalSnapshot] }
 private struct GoalDetailResponse: Decodable { let snapshot: GoalSnapshot }
 private struct GoalChangeResponse: Decodable {
@@ -337,6 +357,7 @@ private final class GoalViewModel: ObservableObject {
         loading = true
         defer { loading = false }
         do {
+            try Task.checkCancellation()
             if let botId {
                 let result: GoalDetailResponse = try await store.api.get(path)
                 try Task.checkCancellation()
@@ -351,8 +372,12 @@ private final class GoalViewModel: ObservableObject {
             needsRefresh = false
             errorText = nil
         } catch is CancellationError { return }
-        catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        catch let error where BellAPIError.isAuthenticationError(error) {
+            guard !Task.isCancelled else { return }
+            store.requireLogin(for: error)
+        }
         catch {
+            guard !Task.isCancelled else { return }
             needsRefresh = true
             errorText = error.localizedDescription
             store.api.diagnostics.report(error, path: path, method: "GET",
@@ -430,6 +455,7 @@ struct GoalsView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var goals = GoalViewModel()
+    @State private var foregroundLoad = GoalForegroundLoad()
     @State private var editing: GoalEditorSelection?
 
     private var configured: [GoalSnapshot] {
@@ -555,7 +581,9 @@ struct GoalsView: View {
                 if phase == .active && store.selectedTab == 3 {
                     let context = GoalLoadCallContext.capture(trigger: "list_foreground",
                         viewPhase: phase, diagnostics: store.api.diagnostics)
-                    Task { await goals.loadList(store: store, context: context) }
+                    foregroundLoad.start { await goals.loadList(store: store, context: context) }
+                } else {
+                    foregroundLoad.cancel()
                 }
             }
             .onChange(of: store.eventRevision) { _, _ in
@@ -565,6 +593,7 @@ struct GoalsView: View {
                     Task { await goals.loadList(store: store, context: context) }
                 }
             }
+            .onDisappear { foregroundLoad.cancel() }
         }
     }
 
@@ -575,6 +604,7 @@ struct ChatGoalBar: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var goals = GoalViewModel()
+    @State private var foregroundLoad = GoalForegroundLoad()
     @State private var expanded = false
     @State private var editing: GoalEditorSelection?
 
@@ -662,7 +692,9 @@ struct ChatGoalBar: View {
             if phase == .active {
                 let context = GoalLoadCallContext.capture(trigger: "chat_foreground",
                     viewPhase: phase, diagnostics: store.api.diagnostics)
-                Task { await goals.loadDetail(botId: botId, store: store, context: context) }
+                foregroundLoad.start { await goals.loadDetail(botId: botId, store: store, context: context) }
+            } else {
+                foregroundLoad.cancel()
             }
         }
         .onChange(of: store.eventRevision) { _, _ in
@@ -672,6 +704,7 @@ struct ChatGoalBar: View {
                 Task { await goals.loadDetail(botId: botId, store: store, context: context) }
             }
         }
+        .onDisappear { foregroundLoad.cancel() }
     }
 }
 
