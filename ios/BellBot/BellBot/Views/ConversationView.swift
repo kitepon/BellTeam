@@ -4,6 +4,41 @@ import UniformTypeIdentifiers
 import SwiftUI
 import UIKit
 
+// 読直しメソッドの分岐だけを表す。HTTP GETの実試行・成功は示さない。
+enum ConversationLoadCallResult: String {
+    case skippedSceneInactive = "skipped_scene_inactive"
+    case skippedAwaitingSend = "skipped_awaiting_send"
+    case joinedReaderReturned = "joined_reader_returned"
+    case startedReaderReturned = "started_reader_returned"
+}
+
+struct SendFailureReconcileObservation {
+    enum Decision: String {
+        case skippedAppInactive = "skipped_app_inactive"
+        case skippedKnownResult = "skipped_known_result"
+        case calledLoad = "called_load"
+    }
+
+    let decision: Decision
+    let loadResult: ConversationLoadCallResult?
+
+    var log: String {
+        "send_reconcile_decision=\(decision.rawValue)"
+            + "\nsend_reconcile_load_calls=\(loadResult == nil ? 0 : 1)"
+            + "\nsend_reconcile_load_result=\(loadResult?.rawValue ?? "not_called")"
+    }
+
+    @MainActor
+    static func observe(error: Error, appActive: Bool,
+                        load: () async -> ConversationLoadCallResult) async -> Self {
+        guard appActive else { return Self(decision: .skippedAppInactive, loadResult: nil) }
+        guard BellAPIError.operationResultUnconfirmed(error) else {
+            return Self(decision: .skippedKnownResult, loadResult: nil)
+        }
+        return Self(decision: .calledLoad, loadResult: await load())
+    }
+}
+
 struct ConversationView: View {
     let target: ChatTarget
 
@@ -573,13 +608,14 @@ private struct ConversationContent: View {
 
     private var canSend: Bool { !sending && (store.draft(for: target).hasText || !attachments.isEmpty) }
 
-    private func load() async {
-        guard scenePhase == .active else { return }
-        guard !awaitingSendResponse else { return }
+    @discardableResult
+    private func load() async -> ConversationLoadCallResult {
+        guard scenePhase == .active else { return .skippedSceneInactive }
+        guard !awaitingSendResponse else { return .skippedAwaitingSend }
         if let task = reader.task {
             reader.again = true
             await task.value
-            return
+            return .joinedReaderReturned
         }
         reader.generation += 1
         let generation = reader.generation
@@ -592,6 +628,7 @@ private struct ConversationContent: View {
         }
         reader.task = task
         await task.value
+        return .startedReaderReturned
     }
 
     private func loadInitial() async {
@@ -932,10 +969,12 @@ private struct ConversationContent: View {
         } catch {
             awaitingSendResponse = false
             restoreUnconfirmedSend(id: pendingID, message: message, images: sent)
-            if appIsActive && BellAPIError.operationResultUnconfirmed(error) { await load() }
+            let reconcile = await SendFailureReconcileObservation.observe(error: error,
+                appActive: appIsActive) { await load() }
             if BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
             else { errorText = BellAPIError.operationFailureMessage(error) }
-            store.api.diagnostics.report(error, path: target.path + "/messages", method: "POST", observation: .write)
+            store.api.diagnostics.report(error, path: target.path + "/messages", method: "POST",
+                                         observation: .write, diagnosticContext: reconcile.log)
         }
     }
 

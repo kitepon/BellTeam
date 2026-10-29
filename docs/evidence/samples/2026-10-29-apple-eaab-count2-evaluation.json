@@ -1,0 +1,62 @@
+{
+  "case": "eaab32ef count2",
+  "lastSeen": "2026-10-29T11:28:47.426Z",
+  "appVersion": "1.0.3(76)",
+  "provenance": {
+    "diagnosticPath": "runtime/apple/network-eaab-count2/diagnostic.txt",
+    "diagnosticBytes": 2100,
+    "diagnosticSha256": "a640ad2e5246af1361cd058277fe6b115df38874869e9ce0d94bc1046abbc4f9",
+    "centralCountAndVersionReportedByRoot": true,
+    "centralOriginalBytesLocallyVerified": false
+  },
+  "observed": {
+    "method": "POST",
+    "route": "/api/bots/bot-156aa415/messages",
+    "errorDomain": "NSURLErrorDomain",
+    "errorCode": -1005,
+    "attempts": 1,
+    "wallElapsedMs": 6145,
+    "continuousElapsedMs": 6145,
+    "uptimeElapsedMs": 6145,
+    "appStateAtStart": "active",
+    "appStateAtEnd": "background",
+    "appRevisionAtStart": 5,
+    "appRevisionAtEnd": 7,
+    "lastBackgroundChangeAfterStartMs": 2640,
+    "requestEndRecorded": true,
+    "responseStartRecorded": false,
+    "reusedConnection": "true",
+    "reportTimeAppState": "background",
+    "deviceType": "iPhone",
+    "connectionRoute": "public"
+  },
+  "source76And77": {
+    "postAutoRetry": false,
+    "onlyGETLostConnectionRetry": true,
+    "backgroundSendTimeRequested": true,
+    "responseReceiptUnknown": true,
+    "onFailurePendingRowRemovedAndDraftAttachmentsRestoredByCode": true,
+    "newInputContinuationPreservedByCode": true,
+    "immediateReadbackConditionalOnUIApplicationActiveAndResultUnconfirmed": true,
+    "laterSceneActiveReadbackPathExists": true,
+    "actualReadbackAttemptObserved": false,
+    "actualDraftOrScreenObserved": false,
+    "version77ChangesThisPOSTPath": false,
+    "messageBodyHasIdempotencyKey": false
+  },
+  "assessment": [
+    "The POST failed with one -1005 attempt after 6145 ms. The active-to-background revision change occurred during the request, but its cause and effect on the transport are not established.",
+    "Metrics include requestEnd on a reused connection but no responseStart, which does not prove server receipt or rejection.",
+    "The diagnostic handling and input-state fields are code classification, not direct observation of the screen or retained draft. The source restores the attempted text and images, preserves text typed during sending, and warns to check current state before retry.",
+    "The immediate reconciliation GET is gated by UIApplication active state and the view load also requires active ScenePhase. The current diagnostic does not record whether that readback ran or succeeded.",
+    "No transport or retry code fix is justified by this single sample. No extra client timing log can establish server acceptance. To establish actual delivery and screen recovery requires a matching server record and UI observation; neither is present."
+  ],
+  "additionalClientLogNeededForCurrentClassification": false,
+  "possibleNarrowFutureObservation": "If the owner specifically needs to know whether the app attempted immediate reconciliation, record a content-free reconciliation attempted/skipped reason and result at the send failure boundary; this still cannot establish server acceptance and is not justified as a source fix by the current sample alone.",
+  "state": "open",
+  "cause": "unknown",
+  "recovery": "unknown",
+  "repairSuccess": false,
+  "oldCount1ClosureInherited": false,
+  "goalGetCount31ConclusionInherited": false
+}
