@@ -234,7 +234,7 @@ final class NetworkRecoveryTests: XCTestCase {
         var resumeFirst: CheckedContinuation<Void, Never>?
         var firstCancelled = false
         let firstWrapper = Task {
-            await foreground.runForViewTask {
+            await foreground.runForViewTask(whenActive: true) {
                 await withCheckedContinuation { continuation in
                     resumeFirst = continuation
                     firstStarted.fulfill()
@@ -253,7 +253,7 @@ final class NetworkRecoveryTests: XCTestCase {
         var oldLoading = false
         var nextCancelled = false
         let nextWrapper = Task {
-            await foreground.runForViewTask {
+            await foreground.runForViewTask(whenActive: true) {
                 oldLoading = true
                 await withCheckedContinuation { continuation in
                     resumeNext = continuation
@@ -278,6 +278,29 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertTrue(nextCancelled)
         XCTAssertEqual(scenario.count("/api/goals"), 1, "旧wrapperの遅い取消は現読取を止めない")
         XCTAssertTrue(scenario.reports.isEmpty)
+    }
+
+    func testInactiveGoalViewTaskDoesNotStartOrCancelCurrentRead() async {
+        let foreground = GoalForegroundLoad()
+        let currentStarted = expectation(description: "稼働中の読取が開始")
+        var resumeCurrent: CheckedContinuation<Void, Never>?
+        var currentCancelled = false
+        var inactiveLoadCalls = 0
+        let current = foreground.start {
+            await withCheckedContinuation { continuation in
+                resumeCurrent = continuation
+                currentStarted.fulfill()
+            }
+            currentCancelled = Task.isCancelled
+        }
+        await fulfillment(of: [currentStarted], timeout: 3)
+        await foreground.runForViewTask(whenActive: false) {
+            inactiveLoadCalls += 1
+        }
+        XCTAssertEqual(inactiveLoadCalls, 0, "非activeの初回表示はGETを開始しない")
+        resumeCurrent?.resume()
+        await current.value
+        XCTAssertFalse(currentCancelled, "非activeの入口は稼働中のTaskを取り消さない")
     }
 
     func testSendFailureReconcileReportsOnlyTheLoadCallBoundary() async {

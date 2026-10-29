@@ -43,8 +43,8 @@ final class GoalForegroundLoad {
 
     func cancel() { current?.cancel() }
 
-    func runForViewTask(_ load: @escaping @MainActor () async -> Void) async {
-        guard !Task.isCancelled else { return }
+    func runForViewTask(whenActive: Bool, _ load: @escaping @MainActor () async -> Void) async {
+        guard whenActive && !Task.isCancelled else { return }
         let child = start(load)
         await withTaskCancellationHandler {
             await child.value
@@ -582,9 +582,10 @@ struct GoalsView: View {
             }
             .task(id: store.selectedTab) {
                 if store.selectedTab == 3 {
+                    let phase = scenePhase
                     let context = GoalLoadCallContext.capture(trigger: "list_view_task",
-                        viewPhase: scenePhase, diagnostics: store.api.diagnostics)
-                    await foregroundLoad.runForViewTask {
+                        viewPhase: phase, diagnostics: store.api.diagnostics)
+                    await foregroundLoad.runForViewTask(whenActive: phase == .active) {
                         await goals.loadList(store: store, context: context)
                     }
                 }
@@ -696,9 +697,10 @@ struct ChatGoalBar: View {
             .environmentObject(store)
         }
         .task(id: botId) {
+            let phase = scenePhase
             let context = GoalLoadCallContext.capture(trigger: "chat_view_task",
-                viewPhase: scenePhase, diagnostics: store.api.diagnostics)
-            await foregroundLoad.runForViewTask {
+                viewPhase: phase, diagnostics: store.api.diagnostics)
+            await foregroundLoad.runForViewTask(whenActive: phase == .active) {
                 await goals.loadDetail(botId: botId, store: store, context: context)
             }
         }
