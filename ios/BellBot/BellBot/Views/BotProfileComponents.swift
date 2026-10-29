@@ -8,14 +8,9 @@ struct BotProfileHero: View {
     @State private var largeAvatarError = false
     @State private var imageAction: AvatarCropVariant?
     @State private var savingImage = false
-    @State private var imageSaveError: String?
+    @State private var imageSaveErrors: [AvatarCropVariant: String] = [:]
     @State private var imageSaveMessage: String?
-    @State private var pendingImage: PendingAvatarSave?
-
-    private struct PendingAvatarSave {
-        let variant: AvatarCropVariant
-        let selection: AvatarCropSelection
-    }
+    @State private var pendingSelections = AvatarSelectionDrafts()
 
     private var usesSmallImage: Bool {
         bot.avatarLargeVersion == nil || bot.avatarLargeVersion == bot.avatarVersion || bot.avatarLargeVersion == ""
@@ -68,10 +63,22 @@ struct BotProfileHero: View {
             }
             if savingImage { ProgressView("画像を保存しています…") }
             if let imageSaveMessage { Text(imageSaveMessage).font(.footnote).foregroundStyle(BellTheme.mint) }
-            if let imageSaveError { Text(imageSaveError).font(.footnote).foregroundStyle(.red) }
-            if pendingImage != nil {
-                Button("保存結果を確認") { Task { await confirmImageSave() } }
+            ForEach([AvatarCropVariant.small, .large], id: \.self) { variant in
+                if let error = imageSaveErrors[variant] {
+                    Text("\(variant == .small ? "小画像" : "大画像")：\(error)")
+                        .font(.footnote).foregroundStyle(.red)
+                }
+                if pendingSelections.selection(for: variant) != nil {
+                    HStack {
+                        Button("\(variant == .small ? "小画像" : "大画像")の保存結果を確認") {
+                            Task { await confirmImageSave(variant) }
+                        }
+                        Button("\(variant == .small ? "小画像" : "大画像")の選択を破棄", role: .destructive) {
+                            discardImageSelection(variant)
+                        }
+                    }
                     .disabled(savingImage)
+                }
             }
             Text(bot.displayName)
                 .font(BellTheme.profileTitleFont.bold())
@@ -82,11 +89,16 @@ struct BotProfileHero: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(item: $imageAction) { variant in
-            BotProfileAvatarActions(bot: bot, variant: variant) { selection, current in
-                Task { await saveImage(selection, current: current, variant: variant) }
-            }
+            BotProfileAvatarActions(bot: bot, variant: variant,
+                pendingSelection: pendingSelections.selection(for: variant),
+                statusText: imageSaveErrors[variant],
+                onUse: { selection, current in
+                    Task { await saveImage(selection, current: current, variant: variant) }
+                }, onConfirm: { Task { await confirmImageSave(variant) } },
+                onDiscard: { discardImageSelection(variant) })
             .environmentObject(store)
         }
+        .task(id: bot.id) { pendingSelections = store.profileImageDrafts[bot.id] ?? AvatarSelectionDrafts() }
         .task(id: "\(bot.id):\(bot.avatarLargeVersion ?? "")") {
             loadedLargeAvatar = nil
             largeAvatarError = false
@@ -106,71 +118,96 @@ struct BotProfileHero: View {
     }
 
     private func openImageActions(_ variant: AvatarCropVariant) {
-        imageSaveError = nil
         imageSaveMessage = nil
-        pendingImage = nil
         imageAction = variant
+    }
+
+    private func persistImageSelections() {
+        if pendingSelections.isEmpty { store.profileImageDrafts.removeValue(forKey: bot.id) }
+        else { store.profileImageDrafts[bot.id] = pendingSelections }
+    }
+
+    private func discardImageSelection(_ variant: AvatarCropVariant) {
+        pendingSelections.discard(variant)
+        persistImageSelections()
+        imageSaveErrors[variant] = nil
+        imageSaveMessage = "選択を破棄しました。"
     }
 
     private func saveImage(_ selection: AvatarCropSelection, current: BotSettings,
                            variant: AvatarCropVariant) async {
+        pendingSelections.select(selection, for: variant)
+        persistImageSelections()
+        imageSaveErrors[variant] = nil
         savingImage = true
         defer { savingImage = false }
         let path = "/api/bots/\(bot.id)"
         do {
             let result = try await store.api.saveBotAvatarSelection(id: bot.id, current: current,
                                                                      variant: variant, selection: selection)
+            pendingSelections.finish(result, for: variant)
+            persistImageSelections()
             switch result {
             case .saved, .confirmed:
-                pendingImage = nil
-                imageSaveError = nil
+                imageSaveErrors[variant] = nil
                 do {
                     try await store.refresh()
                     imageSaveMessage = "画像を保存しました。"
                 } catch {
-                    imageSaveError = "画像を保存しましたが、表示を更新できませんでした。\n\(error.localizedDescription)"
+                    imageSaveErrors[variant] = "画像を保存しましたが、表示を更新できませんでした。\n\(error.localizedDescription)"
                 }
             case .different:
-                imageSaveError = "サーバーの画像は選んだ内容と一致しません。もう一度画像を確認してください。"
+                imageSaveErrors[variant] = "サーバーの画像は選んだ内容と一致しません。選択は保持しています。"
             case .unconfirmed(let error):
-                pendingImage = PendingAvatarSave(variant: variant, selection: selection)
-                imageSaveError = "保存結果を確認できませんでした。入力は保持しています。\n\(error.localizedDescription)"
+                imageSaveErrors[variant] = "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)"
             }
-        } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        } catch let error where BellAPIError.isAuthenticationError(error) {
+            imageSaveErrors[variant] = "認証が必要です。選択は保持しています。"
+            store.requireLogin(for: error)
+        }
         catch {
-            imageSaveError = BellAPIError.operationFailureMessage(error)
+            pendingSelections.finish(nil, for: variant)
+            imageSaveErrors[variant] = BellAPIError.operationFailureMessage(error)
             store.api.diagnostics.report(error, path: path, method: "PATCH", observation: .write)
         }
     }
 
-    private func confirmImageSave() async {
-        guard let pendingImage else { return }
+    private func confirmImageSave(_ variant: AvatarCropVariant) async {
+        guard let selection = pendingSelections.selection(for: variant) else { return }
         savingImage = true
         defer { savingImage = false }
         do {
             let result = try await store.api.confirmBotAvatarSelection(id: bot.id,
-                variant: pendingImage.variant, selection: pendingImage.selection)
+                variant: variant, selection: selection)
+            pendingSelections.finish(result, for: variant)
+            persistImageSelections()
             switch result {
             case .saved, .confirmed:
-                self.pendingImage = nil
-                imageSaveError = nil
+                imageSaveErrors[variant] = nil
                 try await store.refresh()
                 imageSaveMessage = "画像の保存を確認しました。"
+                imageAction = nil
             case .different:
-                self.pendingImage = nil
-                imageSaveError = "サーバーの画像は選んだ内容と一致しません。もう一度画像を確認してください。"
+                imageSaveErrors[variant] = "サーバーの画像は選んだ内容と一致しません。選択は保持しています。"
             case .unconfirmed(let error):
-                imageSaveError = "保存結果を確認できませんでした。入力は保持しています。\n\(error.localizedDescription)"
+                imageSaveErrors[variant] = "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)"
             }
-        } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { imageSaveError = "保存結果を確認できませんでした。\n\(error.localizedDescription)" }
+        } catch let error where BellAPIError.isAuthenticationError(error) {
+            imageSaveErrors[variant] = "認証が必要です。選択は保持しています。"
+            store.requireLogin(for: error)
+        }
+        catch { imageSaveErrors[variant] = "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)" }
     }
 }
 
 private struct BotProfileAvatarActions: View {
     let bot: Bot
     let variant: AvatarCropVariant
+    let pendingSelection: AvatarCropSelection?
+    let statusText: String?
     let onUse: (AvatarCropSelection, BotSettings) -> Void
+    let onConfirm: () -> Void
+    let onDiscard: () -> Void
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
     @State private var settings: BotSettings?
@@ -189,6 +226,13 @@ private struct BotProfileAvatarActions: View {
                 NavigationStack {
                     VStack(spacing: 20) {
                         if loading { ProgressView("画像情報を確認しています…") }
+                        if let statusText { Text(statusText).font(.footnote).foregroundStyle(.red) }
+                        if pendingSelection != nil {
+                            Text("保存結果を確認できていない画像の選択を保持しています。")
+                                .font(.footnote).foregroundStyle(BellTheme.muted)
+                            Button("保存結果を確認", action: onConfirm)
+                            Button("選択を破棄", role: .destructive, action: onDiscard)
+                        }
                         if let settings {
                             AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0, variant: variant) },
                                               onFailure: { errorText = "画像を読み込めませんでした。" }) {
@@ -196,11 +240,16 @@ private struct BotProfileAvatarActions: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .accessibilityIdentifier("profile-image-change")
+                            .disabled(pendingSelection != nil)
+                            if pendingSelection != nil {
+                                Text("別の画像に変更するには、保持中の選択を破棄してください。")
+                                    .font(.footnote).foregroundStyle(BellTheme.muted)
+                            }
                             Button("画像調整") { adjust(settings) }
                                 .buttonStyle(.bordered)
                                 .frame(maxWidth: .infinity)
                                 .accessibilityIdentifier("profile-image-adjust")
-                            if adjustmentImage(settings).source.isEmpty {
+                            if pendingSelection == nil && adjustmentImage(settings).source.isEmpty {
                                 Text("元画像が残っていない場合、現在の切り抜きの外側は復元できません。")
                                     .font(.footnote).foregroundStyle(BellTheme.muted)
                             }
@@ -251,6 +300,14 @@ private struct BotProfileAvatarActions: View {
     }
 
     private func adjust(_ settings: BotSettings) {
+        if let pendingSelection {
+            guard let image = AvatarPortraitCache.image(for: pendingSelection.source) else {
+                errorText = "保持中の画像を読み込めませんでした。"
+                return
+            }
+            cropSource = AvatarCropSource(image: image, variant: variant, initialCrop: pendingSelection.crop)
+            return
+        }
         let current = adjustmentImage(settings)
         guard let image = AvatarPortraitCache.image(for: current.source.isEmpty ? current.render : current.source) else {
             errorText = "画像を読み込めませんでした。"

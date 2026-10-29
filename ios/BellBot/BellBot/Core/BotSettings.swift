@@ -73,6 +73,23 @@ struct BotEditorDraft {
     let appearanceLoaded: Bool
 }
 
+struct AvatarSelectionDrafts {
+    private var selections: [AvatarCropVariant: AvatarCropSelection] = [:]
+
+    var isEmpty: Bool { selections.isEmpty }
+    func selection(for variant: AvatarCropVariant) -> AvatarCropSelection? { selections[variant] }
+    mutating func select(_ selection: AvatarCropSelection, for variant: AvatarCropVariant) {
+        selections[variant] = selection
+    }
+    mutating func finish(_ result: BotSaveResult?, for variant: AvatarCropVariant) {
+        switch result {
+        case .saved?, .confirmed?: selections.removeValue(forKey: variant)
+        default: break
+        }
+    }
+    mutating func discard(_ variant: AvatarCropVariant) { selections.removeValue(forKey: variant) }
+}
+
 struct BotSettingsRequest: Encodable {
     let settings: BotSettings
     let originalFastMode: Bool

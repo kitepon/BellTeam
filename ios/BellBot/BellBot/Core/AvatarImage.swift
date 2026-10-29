@@ -7,7 +7,7 @@ struct AvatarCropRect: Codable, Equatable {
     let height: Double
 }
 
-enum AvatarCropVariant: String, Identifiable {
+enum AvatarCropVariant: String, Identifiable, Hashable {
     case small, large
 
     var id: Self { self }
@@ -20,7 +20,7 @@ enum AvatarCropVariant: String, Identifiable {
     }
 }
 
-struct AvatarCropSelection {
+struct AvatarCropSelection: Equatable {
     let render: String
     let source: String
     let crop: AvatarCropRect
