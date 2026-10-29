@@ -221,3 +221,12 @@ printf '%s' "$health" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("e
 ### 固定normal入口へ渡す内部設定（段2・未配備）
 
 内部overlayはreadonly control directoryとBELLTEAM_NORMAL_ADMISSION_TOKENを要求する。tokenはdeploy-image.shが同dispatchの最初のCompose操作より前に生成し、同じ値/mountをfrozen normalへ保存する。actor側が使うraw image/tokenはその元file SHAへ対応し、実選択値が違えばSH公開しない。host parentをDockerへ作らせず、既合意metadataのままとする。詳細と新有限試験・未接続callerはdocs/sec014-offline-caller.md末尾。直接の内部up、公開installerと手動復旧、実create/start/healthまで接続済みとは扱わない。
+
+
+### 保持世代からのprivate writer metadata収集（未配備）
+
+`sec014-writer-collector.py`の`_Writer`は、同`run_actor`の`executor_factory(tx)`で保持したtxを受け、既`_writer_config`から既Node planner/verifierへ渡す。固定Docker LIST/inspect/volume inspectのみで、それぞれ8320B/1MiB/16KiB、stderr4096B、各10秒と全体期限の小さい方を使う。prepareの4slotやcapは変えない。Nodeは固定システム検索パスで解決し、固定プログラムへ有限metadataだけを渡す。
+
+各native clientのclaim/spawn/terminal/rawを既O_EXCL0600保存で保持し、全clientのpid/startTicksを検査する。既Node verifierの消費とobservationの保存を終えるまでreapせず、成功後に同childだけwaitする。失敗はunknownを保存して後続を止め、Docker再送・kill・cleanupをしない。実canonicalを収集し、observed path欠落を拒否、planned path未作成は既存祖先をresolveしてsuffixを戻し、dangling symlink祖先は拒否する。
+
+新focused試験は普通FS/flockと専用Python子のfake Docker protocolで、同held factoryからphase0へ呼ぶ。実Docker/固定ホスト権限の証明ではない。返却は既metadata-only/all authority falseのまま、phase receiptへ昇格させない。productionの全phase executor factory、bind_imageとhostauthority、固定maintenance/実imagepair/親ACLmount、全writer区間、normal create/start/inspect/healthと後段は未接続。whole Draft NOTDEPLOYABLE・未merge未反映を維持する。
