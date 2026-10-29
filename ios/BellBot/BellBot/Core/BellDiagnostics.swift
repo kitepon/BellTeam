@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import MetricKit
 import OSLog
 import UIKit
@@ -6,11 +7,13 @@ import UIKit
 struct BellAppStateSnapshot: Sendable {
     let state: String
     let changedAt: Date
+    let changedContinuousTick: UInt64
     let revision: UInt64
 }
 
 struct BellRequestAttempt {
     let startedAt: Date
+    let startedContinuousTick: UInt64
     let finishedAt: Date
     let elapsedMonotonicMs: Int
     let elapsedContinuousMs: Int
@@ -77,6 +80,7 @@ struct BellRequestTrace {
         for (index, attempt) in attemptDetails.enumerated() {
             let prefix = "attempt_\(index + 1)_"
             result += "\n\(prefix)started_at_ms=\(milliseconds(attempt.startedAt))"
+            result += "\n\(prefix)started_continuous_ms=\(attempt.startedContinuousTick / 1_000_000)"
             result += "\n\(prefix)finished_at_ms=\(milliseconds(attempt.finishedAt))"
             result += "\n\(prefix)elapsed_wall_ms=\(milliseconds(attempt.finishedAt) - milliseconds(attempt.startedAt))"
             result += "\n\(prefix)elapsed_monotonic_ms=\(attempt.elapsedMonotonicMs)"
@@ -87,6 +91,8 @@ struct BellRequestTrace {
             result += "\n\(prefix)app_state_revision_at_end=\(attempt.appStateAtEnd.revision)"
             result += "\n\(prefix)app_state_changed_at_start_ms=\(milliseconds(attempt.appStateAtStart.changedAt))"
             result += "\n\(prefix)app_state_changed_at_end_ms=\(milliseconds(attempt.appStateAtEnd.changedAt))"
+            result += "\n\(prefix)app_state_changed_continuous_ms_at_start=\(attempt.appStateAtStart.changedContinuousTick / 1_000_000)"
+            result += "\n\(prefix)app_state_changed_continuous_ms_at_end=\(attempt.appStateAtEnd.changedContinuousTick / 1_000_000)"
             result += "\n\(prefix)transport_result=\(attempt.returnedResponse ? "response_returned" : "error_thrown")"
             if let code = attempt.errorCode { result += "\n\(prefix)error_code=\(code)" }
             result += Self.metricsLog(attempt.metrics, prefix: prefix)
@@ -179,6 +185,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
     private var deviceType = ""
     private var appState = "inactive"
     private var appStateChangedAt = Date()
+    private var appStateChangedContinuousTick = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)
     private var appStateRevision: UInt64 = 0
     private let onReport: ((String, String, String, String) -> Void)?
 
@@ -216,6 +223,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         if appState != state {
             appState = state
             appStateChangedAt = Date()
+            appStateChangedContinuousTick = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)
             appStateRevision += 1
         }
         lock.unlock()
@@ -227,7 +235,9 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
 
     func requestAppStateSnapshot() -> BellAppStateSnapshot {
         lock.lock(); defer { lock.unlock() }
-        return BellAppStateSnapshot(state: appState, changedAt: appStateChangedAt, revision: appStateRevision)
+        return BellAppStateSnapshot(state: appState, changedAt: appStateChangedAt,
+                                    changedContinuousTick: appStateChangedContinuousTick,
+                                    revision: appStateRevision)
     }
 
     func report(_ error: Error, path: String, method: String?, observation: BellDiagnosticObservation,
