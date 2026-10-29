@@ -1,0 +1,96 @@
+{
+  "schema": "bellteam.apple-internal-delivery.v1",
+  "product": "BellTeam",
+  "purpose": "Ownerの大小プロフィール画像詳細操作とGoal一覧通信診断を結合した版74を内部配布",
+  "bundleId": "dev.kitepon.bellbot",
+  "appStoreConnectAppId": "6816295589",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "74",
+  "signedSourceCommit": "05cee9c91d055db644ccd0f32c01965ea3d0d31d",
+  "versionMergeCommit": "bed23e320792dc7f9420ee259280fa5c821b4d5b",
+  "unsignedPreflight": "docs/evidence/2026-10-29-apple-combined-build74-preflight.json",
+  "unsignedPreflightSha256": "0be2862ba662036f6dc22a6755a7dd89d064b15e94d76fdfb8187281049d61f8",
+  "ownerApproval": {
+    "title": "BellTeam Apple画像編集・一覧診断版74を署名・内部配布し必要時にMac更新を1回押す",
+    "choice": "go_all",
+    "answeredAt": "2026-10-29T04:15:35.603Z",
+    "macPhysicalClickScope": "BellTeam version 74 update button only, at most once if needed"
+  },
+  "betaGroup": {
+    "id": "58133050-1c39-4915-b6da-aac18b95921b",
+    "name": "BellTeam オーナー",
+    "internal": true
+  },
+  "artifacts": [
+    {
+      "platform": "IOS",
+      "relativePath": "runtime/apple/combined-build74/ios-export/BellTeam.ipa",
+      "sha256": "2d7140e497d264fc6e572dcebe91a070b08a83e11ceedebb5be82826db768cd7",
+      "appBundleVersion": "74",
+      "extensionBundleVersion": "74",
+      "architectures": [
+        "arm64"
+      ],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "860cb1d2-6684-497f-8586-3a3b5e6f9c2a",
+      "uploadResult": "no-errors from normal tool response",
+      "appStoreConnectBuildId": "860cb1d2-6684-497f-8586-3a3b5e6f9c2a",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    },
+    {
+      "platform": "MAC_OS",
+      "relativePath": "runtime/apple/combined-build74/mac-export/BellTeam.pkg",
+      "sha256": "3e5d22b0777864a00259beb55556b68d125028cdb095bc69400a9b51632f2c13",
+      "appBundleVersion": "74",
+      "extensionBundleVersion": "74",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "installerSignature": "3rd Party Mac Developer Installer, valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "bbb983a3-d159-425a-9635-5b196b888f43",
+      "uploadResult": "no-errors from normal tool response",
+      "appStoreConnectBuildId": "bbb983a3-d159-425a-9635-5b196b888f43",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    }
+  ],
+  "macTestFlightSmoke": {
+    "status": "pending_foreground_ol_keychain_dialog",
+    "installedPath": "/Applications/BellTeam.app",
+    "preUpdateBundleVersion": "71",
+    "preUpdateSignature": "strict-valid",
+    "preUpdateGatekeeperSource": "Testflight",
+    "testFlightTargetVersionInAccessibility": "74",
+    "targetVersionVisibleOnDisplay": false,
+    "standardGuiToolResult": "jev-desktop abstained; update button advertises no accessibility action",
+    "screenInspectionBlocker": "A live display screenshot shows an unrelated OL-RemoteWindow codesign Keychain authorization dialog in the foreground. No action was taken on that dialog. TestFlight window screenshots timed out.",
+    "headedClickPerformed": false,
+    "readOnlySmokeCompleted": false
+  },
+  "remaining": {
+    "macTestFlightInstallation": "pending until the unrelated foreground dialog is resolved and build 74 is visually confirmed",
+    "iphoneAndIpadPhysicalInstallation": "not_measured",
+    "realOwnerAvatarChange": "not_performed",
+    "actualNewCommunicationDiagnosticOutput": "not_observed",
+    "communicationCauseAndRecovery": "unknown"
+  },
+  "realBotRestartPerformed": false,
+  "realBotMessageSent": false,
+  "ownerAvatarEdited": false,
+  "authenticationChanged": false,
+  "serverContainerRestartedByThisDelivery": false,
+  "publicAppStoreReleased": false
+}
