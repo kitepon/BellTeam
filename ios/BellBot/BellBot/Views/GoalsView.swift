@@ -42,6 +42,16 @@ final class GoalForegroundLoad {
     }
 
     func cancel() { current?.cancel() }
+
+    func runForViewTask(whenActive: Bool, _ load: @escaping @MainActor () async -> Void) async {
+        guard whenActive && !Task.isCancelled else { return }
+        let child = start(load)
+        await withTaskCancellationHandler {
+            await child.value
+        } onCancel: {
+            child.cancel()
+        }
+    }
 }
 
 private struct GoalsResponse: Decodable { let goals: [GoalSnapshot] }
@@ -572,9 +582,12 @@ struct GoalsView: View {
             }
             .task(id: store.selectedTab) {
                 if store.selectedTab == 3 {
+                    let phase = scenePhase
                     let context = GoalLoadCallContext.capture(trigger: "list_view_task",
-                        viewPhase: scenePhase, diagnostics: store.api.diagnostics)
-                    await goals.loadList(store: store, context: context)
+                        viewPhase: phase, diagnostics: store.api.diagnostics)
+                    await foregroundLoad.runForViewTask(whenActive: phase == .active) {
+                        await goals.loadList(store: store, context: context)
+                    }
                 }
             }
             .onChange(of: scenePhase) { _, phase in
@@ -684,9 +697,12 @@ struct ChatGoalBar: View {
             .environmentObject(store)
         }
         .task(id: botId) {
+            let phase = scenePhase
             let context = GoalLoadCallContext.capture(trigger: "chat_view_task",
-                viewPhase: scenePhase, diagnostics: store.api.diagnostics)
-            await goals.loadDetail(botId: botId, store: store, context: context)
+                viewPhase: phase, diagnostics: store.api.diagnostics)
+            await foregroundLoad.runForViewTask(whenActive: phase == .active) {
+                await goals.loadDetail(botId: botId, store: store, context: context)
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
