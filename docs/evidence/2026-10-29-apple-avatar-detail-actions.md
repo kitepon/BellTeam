@@ -1,6 +1,6 @@
 # Appleプロフィール詳細からの画像変更・調整
 
-保存待ち状態の修理を含む製品sourceは`85e8935cacfd816a1d3ae6c103de85701be57503`。版73の署名済みsourceとは別の候補である。
+遅延応答の修理を含む製品sourceは`dd8ea0c46c178d8c33c93ae5345ce281a767110f`。版73の署名済みsourceとは別の候補である。
 
 オーナーは、既存メンバーの大画像・小画像を各表示領域のタップ/クリックから変更し、両方で同じ「画像変更」「画像調整」を選ぶよう指定した。新規メンバーは詳細画面がまだ無いため、作成フォームの画像入口を残す。既存メンバーの編集フォームから画像入口を外した。
 
@@ -10,6 +10,8 @@
 
 レビューで、保存結果が異なる場合や通常の失敗、別画像の入口を開いて取り消す場合に選択内容が失われることが判明した。大小を別々の保存待ち状態に保ち、確認済み成功か利用者の「選択を破棄」でだけ対象分を外す。保持中の画像は同じ切り抜きeditorで再調整でき、別画像への変更は明示破棄まで抑える。認証画面をまたぐ時も選択をAppStoreに保持し、サインアウト時は消す。自動PATCH再送は加えない。
 
+追加レビューで、手動確認GETの待機中にシート内で旧選択を破棄して新選択を作ると、旧応答が新選択を解放できることが判明した。保存・確認中はシート操作を止め、応答の反映時にも開始時の選択と現在の選択が一致する場合だけ保存待ち状態と表示を更新する。旧応答によるシートの終了も抑える。
+
 ## 実測と未確認
 
 - iOS Simulator Debug buildは終了0。`BotSaveTests`の関連15件は成功・失敗0。大小のimage-only encoder、各対象の応答喪失後GET確認、反対画像を保持する試験を含む。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-29T03-02-04-298Z_pid49890_56f98333.xcresult`。
@@ -18,5 +20,6 @@
 - 取消と重なりを合わせたiPhone UI試験は、製品の処理前にSimulatorがXCTest runnerの起動を`SBMainWorkspace Busy (Application failed preflight checks)`で拒否した。元Simulatorで2回、別の同iOS版iPhoneで1回同じ拒否。試験本体は未実行で、取消UIとiPad/Macの実画面は未確認。iOS・Mac Catalyst Debug buildは終了0。人工serverとSimulatorは終了を確認した。
 - 完了時のNode全試験は`TESTGATE_FULL=1 testgate run -- npm test`で1回実行して終了0。SwiftUIの取消UI未実行をこの結果で代用しない。
 - 保存待ち状態と再認証のfocused2件は成功・失敗0。通常失敗・差異・別対象の選択/破棄で先の選択を保持し、成功/明示破棄の解放と再認証を確認した。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-29T03-27-18-443Z_pid49890_09e09e59.xcresult`。この状態試験は取消ボタンの実画面を代用しない。Mac Catalyst Debug buildも追加差分で終了0。
+- 遅延確認GET後の選択保持を確認する新しいfocused状態試験1件は成功・失敗0。旧選択を破棄して新選択を作った後、旧応答の`confirmed`では新選択が解放されず、現選択の確認だけで解放される。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-29T03-48-00-490Z_pid49890_eeb5582d.xcresult`。既存2状態・Save15・iPhone UI2・Node全試験は再実行していない。
 
 この差分は版73の署名済みsource・TestFlight配布へ含めていない。実Owner画像、実Bot、認証、本体コンテナは操作していない。
