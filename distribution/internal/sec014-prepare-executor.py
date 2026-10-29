@@ -1,6 +1,7 @@
 """Fixed prepare producer. No CLI; host authority verifier and later phases absent."""
 import hashlib
 import copy
+import errno
 import importlib.util
 import json
 import math
@@ -74,6 +75,7 @@ class _Prepare:
         self.step = 'entry'
         self.parent_fd,self.parent_identity,self.parent_record = None,None,None
         self.parent_mount,self.parent_namespace = None,None
+        self.parent_acls = None
         self.endpoint,self.endpoint_record = endpoint,endpoint_record
         self.image_original=image_original
 
@@ -106,7 +108,22 @@ class _Prepare:
                     raise actor.control.ControlError('SEC014_PREPARE_PARENT_CHANGED')
             if any(self._mount_info(fd)[0]!=self.parent_mount for fd in (self.parent_fd,named)):
                 raise actor.control.ControlError('SEC014_PREPARE_MOUNT_CHANGED')
+            if any(self._parent_acls(fd)!=self.parent_acls for fd in (self.parent_fd,named)):
+                raise actor.control.ControlError('SEC014_PREPARE_PARENT_ACL_CHANGED')
         finally:os.close(named)
+
+    def _parent_acls(self,fd):
+        result={}
+        for kind in ('access','default'):
+            raw,code=None,None
+            try:raw=os.getxattr(fd,'system.posix_acl_'+kind)
+            except OSError as error:
+                if error.errno!=errno.ENODATA:raise
+                code=error.errno
+            if raw is not None and len(raw)>4096:
+                raise actor.control.ControlError('SEC014_PREPARE_PARENT_ACL_LIMIT')
+            result[kind]=dict(rawHex=None if raw is None else raw.hex(),errno=code)
+        return result
 
     def _mount_info(self, fd):
         with Path('/proc/thread-self/fdinfo/'+str(fd)).open('rb') as stream:raw=stream.read(4097)
@@ -197,9 +214,10 @@ class _Prepare:
             actor.control._private(info,self.tx.owner,True)
             self.parent_identity=actor.control._identity(info)
             self.parent_mount,fdinfo=self._mount_info(self.parent_fd)
+            self.parent_acls=self._parent_acls(self.parent_fd)
             self.parent_record=self.save('parent',dict(path=str(PARENT),device=str(info.st_dev),
                 inode=str(info.st_ino),uid=info.st_uid,gid=info.st_gid,mode='0700',hostAuthority=False,
-                mountId=self.parent_mount,fdinfoUtf8=fdinfo,mountNamespace=dict(
+                mountId=self.parent_mount,fdinfoUtf8=fdinfo,acls=self.parent_acls,mountNamespace=dict(
                     device=str(self.parent_namespace[0]),inode=str(self.parent_namespace[1]))))
             return self._prepare()
         except Exception as failure:

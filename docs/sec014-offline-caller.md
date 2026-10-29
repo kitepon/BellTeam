@@ -943,3 +943,36 @@ maintenance and later normal phases remain unproved and unconnected. Existing
 in-memory failure custody and incomplete journal remain; no automatic retry,
 wait, kill or success completion. All authority flags false, whole Draft
 NOTDEPLOYABLE, unmerged and undeployed; real host/Docker/NAS/Apple work zero.
+
+### Parent access/default ACL originals through held directory FDs
+
+Before its existing parent observation is saved, Prepare reads both access and
+default POSIX ACLs through the held O_RDONLY directory FD. Each is retained as
+raw hex (at most 4096 bytes) or the actual ENODATA errno; other read errors and
+oversize values refuse before the first host step or client. ENODATA remains an
+observation, not proof of safe ACL absence. Existing before/after callback parent
+checks read both ACLs again on the held and same-name reopened directory FDs and
+require the same originals. The parent record and its existing chain SHA carry
+the new facts. Expected directory-content changes do not rely on ctime equality.
+
+Four focused cases use identical final test bytes: parent0pass/4assertionfail to
+change4pass. Real access/default ACL changes on the owned fixture keep its inode
+and mode0700 but stop before a client (parent issued four each); the saved parent
+record still contains both original 44-byte ACLs. EACCES and a 4097-byte default
+ACL refuse before a host step/client, close the parent FD and leave no parent
+success record or phase. Error/oversize cases are injected; ACL changes are real
+setxattr on ordinary fixture directories. No effective-access policy is inferred.
+Normal Prepare chain, held saved factory and parent namespace guard each pass
+(three affected cases), with no old whole groups or project FULL.
+
+Python's os.getxattr supports a file descriptor as its path argument:
+https://docs.python.org/3/library/os.html#os.getxattr . Error semantics remain as
+recorded in https://man7.org/linux/man-pages/man2/getxattr.2.html .
+
+These are dedicated-parent ACL point observations, not ancestor ACL/mount
+topology, peer/trusted host or continuous writer exclusion. The actual hostfacts
+verifier/full factory, durable invalidation/release, recovery reap, maintenance
+and later normal phases remain unconnected. Existing child custody, FD close,
+originals and incomplete journal remain; no automatic wait/kill/retry or success
+completion. All authority false, whole Draft NOTDEPLOYABLE, unmerged/undeployed;
+real root/host/Docker/NAS/Apple operations zero.

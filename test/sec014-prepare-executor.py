@@ -470,6 +470,71 @@ class PrepareTests(unittest.TestCase):
             self.assertEqual(calls,[])
             self.assertEqual(self.journal()['phases'],[])
 
+    def parent_acl_change(self,kind):
+        entries=[(1,7,0xffffffff),(2,4,os.getuid()+1),(4,0,0xffffffff),
+                 (16,0,0xffffffff),(32,0,0xffffffff)]
+        raw=struct.pack('<I',2)+b''.join(struct.pack('<HHI',*entry) for entry in entries)
+        for name in ('access','default'):os.setxattr(self.f.state,'system.posix_acl_'+name,raw)
+        original=self.f.state.stat();changed=[False]
+        def host(step):
+            if step=='run' and not changed[0]:
+                entries[1]=(2,6,os.getuid()+1)
+                altered=struct.pack('<I',2)+b''.join(struct.pack('<HHI',*entry) for entry in entries)
+                os.setxattr(self.f.state,'system.posix_acl_'+kind,altered);changed[0]=True
+            return 'd'*64
+        with self.f.hold() as self.tx:
+            runner=self.runner(host=host)
+            try:runner.prepare()
+            except RuntimeError as error:self.assertEqual(str(error),'SEC014_PREPARE_PHASE_UNCONFIRMED')
+            print('PARENT_ACL_CHANGE '+json.dumps(dict(kind=kind,prepareClients=len(self.commands),
+                mode=format(self.f.state.stat().st_mode&0o777,'04o'))),flush=True)
+            self.assertEqual(self.commands,[])
+            self.assertTrue(changed[0])
+            record=json.loads((self.f.root/'to-server-prepare-parent.json').read_bytes())
+            self.assertEqual(record['acls'],{name:dict(rawHex=raw.hex(),errno=None) for name in ('access','default')})
+            self.assertEqual((self.f.state.stat().st_ino,self.f.state.stat().st_mode),(original.st_ino,original.st_mode))
+            self.assertFalse(record['hostAuthority'])
+            self.assertIsNone(runner.parent_fd)
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_parent_access_acl_change_refuses_before_client(self):
+        self.parent_acl_change('access')
+
+    def test_parent_default_acl_change_refuses_before_client(self):
+        self.parent_acl_change('default')
+
+    def parent_acl_read_failure(self,oversize):
+        get=os.getxattr;calls=[];seen=[];invalidated=[]
+        def observe(path,name,*args,**kwargs):
+            if (type(path) is int and os.readlink('/proc/thread-self/fd/'+str(path))==str(self.f.state)):
+                seen.append((path,name))
+                if oversize and name=='system.posix_acl_default':return b'x'*4097
+                if not oversize:raise OSError(errno.EACCES,'synthetic parent ACL unreadable')
+            return get(path,name,*args,**kwargs)
+        def host(step):calls.append(step);return 'd'*64
+        host.invalidate=invalidated.append
+        with self.f.hold() as self.tx,patch.object(os,'getxattr',side_effect=observe):
+            runner=self.runner(host=host)
+            try:runner.prepare()
+            except RuntimeError as error:self.assertEqual(str(error),'SEC014_PREPARE_PHASE_UNCONFIRMED')
+            print('PARENT_ACL_READ '+json.dumps(dict(oversize=oversize,hostCalls=len(calls),
+                prepareClients=len(self.commands),fdReads=len(seen))),flush=True)
+            self.assertEqual(self.commands,[])
+            self.assertEqual(calls,[])
+            self.assertTrue(seen)
+            for fd,_ in seen:
+                with self.assertRaises(OSError):os.fstat(fd)
+            self.assertEqual(set(invalidated),{'UNCONFIRMED_CHILD'})
+            self.assertIsNone(runner.parent_fd)
+            self.assertFalse((self.f.root/'to-server-prepare-parent.json').exists())
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_parent_acl_error_refuses_before_host_step(self):
+        self.parent_acl_read_failure(False)
+
+    def test_parent_default_acl_oversize_refuses_before_host_step(self):
+        self.parent_acl_read_failure(True)
+
     def test_symlink_parent_refuses_before_host_step_or_client(self):
         target=self.f.state.with_name('retained-state')
         self.f.state.rename(target);self.f.state.symlink_to(target,target_is_directory=True)
