@@ -1078,3 +1078,24 @@ A large mount table or unavailable/unmatched entry now fails closed. Real
 hostfacts verifier/full factory, durable invalidation/release/recovery reap,
 maintenance and later phases remain unconnected. All authorityfalse, whole
 NOTDEPLOYABLE, unmerged/undeployed; no real host/Docker/NAS/Apple operations.
+
+### 2026-10-30: recheck binding time budgets after facts acquisition
+
+The constructor previously checked the monotonic budget only at entry. Parent
+observation/persistence or the image-binding callback could consume the remaining
+budget or agreement window and still return a confirmed constructor. It now uses
+the existing ready threshold (deadline minus one second) and wall-clock window
+immediately before binding and after postbind transaction/parent rechecks.
+Expiry follows the existing single best-effort invalidator path and leaves
+constructor state unconfirmed. Saved socket/parent/image originals remain;
+there is no retry, wait, kill or success completion.
+
+Four same-byte counterexamples advance injected clocks after parent persistence
+or inside binding. Each previously returned a constructor with binding1 and
+invalidation0. Now prebind expiry gives binding0; postbind expiry gives binding1;
+all invalidate once, retain the saved parent, close observation FDs and create no
+client or phase. Normal chain/parent lifetime, original ValueError and interrupt,
+claim deadline, held factory and native failure custody pass (seven affected
+cases). No full groups or real host/Docker operations. This does not prove actual
+host invalidation/release, a timely callback return or continuous authority;
+the real hostfacts verifier/full factory and later phases remain unconnected.

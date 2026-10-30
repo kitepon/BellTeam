@@ -187,6 +187,64 @@ class PrepareTests(unittest.TestCase):
             self.assertEqual(self.commands,[])
             self.assertEqual(self.journal()['phases'],[])
 
+    def binding_expiry_case(self,mode):
+        mono=[1000.0];real_save=p.actor._save_json;seen=[];invalidated=[];saved=[];opened=[];real_open=os.open
+        class Clock(datetime):
+            @classmethod
+            def now(cls,tz=None):return wall[0]
+        wall=[Clock(2026,10,30,tzinfo=timezone.utc)];end=wall[0]+timedelta(seconds=120)
+        def expire():
+            if mode.startswith('mono'):mono[0]=1109.0
+            else:wall[0]=end
+        def save(tx,name,value):
+            result=real_save(tx,name,value)
+            if name.endswith('-prepare-parent.json'):
+                saved.append(json.loads((self.f.root/name).read_bytes()))
+                if mode.endswith('before'):expire()
+            return result
+        def fdopen(path,flags,*args,**kwargs):
+            value=real_open(path,flags,*args,**kwargs)
+            if flags&os.O_DIRECTORY:opened.append(value)
+            return value
+        def host(step):self.fail('constructor must not run a prepare host step')
+        def bind(*args):
+            seen.append(args)
+            if mode.endswith('after'):expire()
+        host.bind_image,host.invalidate=bind,invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path), \
+                patch.object(p.time,'monotonic',side_effect=lambda:mono[0]),patch.object(p,'datetime',Clock), \
+                patch.object(p.actor,'_save_json',side_effect=save),patch.object(os,'open',side_effect=fdopen):
+            caught=None;runner=None
+            try:runner=p._Prepare(self.tx,IMAGE,IMAGE_ID,1110.0,end,host)
+            except BaseException as error:caught=error
+            print('BINDING_EXPIRY '+json.dumps(dict(mode=mode,bindings=len(seen),
+                invalidations=len(invalidated),error=None if caught is None else str(caught))),flush=True)
+            self.assertIsNotNone(caught)
+            self.assertEqual(str(caught),'SEC014_PREPARE_DEADLINE_OR_HELD')
+            self.assertIsNone(runner)
+            self.assertEqual(len(seen),0 if mode.endswith('before') else 1)
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            self.assertEqual(len(saved),1)
+            path=self.f.root/'to-server-prepare-parent.json'
+            self.assertEqual(json.loads(path.read_bytes()),saved[0])
+            self.assertEqual(path.stat().st_mode&0o777,0o600)
+            for value in opened:
+                with self.assertRaises(OSError):os.fstat(value)
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_binding_monotonic_expiry_after_observation_refuses_callback(self):
+        self.binding_expiry_case('mono-before')
+
+    def test_binding_window_expiry_after_observation_refuses_callback(self):
+        self.binding_expiry_case('window-before')
+
+    def test_binding_monotonic_expiry_inside_callback_invalidates_constructor(self):
+        self.binding_expiry_case('mono-after')
+
+    def test_binding_window_expiry_inside_callback_invalidates_constructor(self):
+        self.binding_expiry_case('window-after')
+
     def test_image_binding_changed_actor_invalidates_before_return(self):
         invalidated=[]
         def host(step):return 'd'*64

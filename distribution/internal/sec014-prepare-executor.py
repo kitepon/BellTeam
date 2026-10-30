@@ -64,10 +64,14 @@ class _Prepare:
             endpoint_record=actor._save_json(tx,tx.value['direction']+'-prepare-socket.json',endpoint)
             parent=self._parent_observation(tx.owner)
             parent_record=actor._save_json(tx,tx.value['direction']+'-prepare-parent.json',parent)
+            if time.monotonic()>=deadline-1 or datetime.now(timezone.utc)>=window_end:
+                raise actor.control.ControlError('SEC014_PREPARE_DEADLINE_OR_HELD')
             host_check.bind_image(image,image_id,copy.deepcopy(image_original))
             tx.check()
             if self._parent_observation(tx.owner)!=parent:
                 raise actor.control.ControlError('SEC014_PREPARE_PARENT_CHANGED')
+            if time.monotonic()>=deadline-1 or datetime.now(timezone.utc)>=window_end:
+                raise actor.control.ControlError('SEC014_PREPARE_DEADLINE_OR_HELD')
         except BaseException:
             try:host_check.invalidate('UNCONFIRMED_CHILD')
             except BaseException:pass
