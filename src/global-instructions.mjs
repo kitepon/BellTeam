@@ -19,6 +19,8 @@ export function createGlobalInstructionsRefresher({ ownerProfile, userRules, hom
       writeFile(join(home, '.codex/AGENTS.md'), instructions, { mode: 0o600 }),
       writeFile(join(home, '.grok/AGENTS.md'), instructions, { mode: 0o600 }),
       writeFile(join(home, '.cursor/AGENTS.md'), instructions, { mode: 0o600 }),
+      // shortcut: Antigravity truncates above 24,000 bytes; split managed rules if this text outgrows that limit.
+      writeFile(join(home, '.gemini/AGENTS.md'), instructions, { mode: 0o600 }),
     ])
   }
 }

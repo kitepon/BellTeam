@@ -226,7 +226,7 @@ test('端末を作る前に失敗した起動は、端末を閉じず、理由�
   assert.deepEqual(calls.map(call => call[0]), ['pty_send', 'pty_list', 'agent_launch'])
 })
 
-test('BotのCLI名を四つのAiterm harnessへ変換する', async () => {
+test('BotのCLI名を五つのAiterm harnessへ変換する', async () => {
   const launches = []
   const client = {
     async call(name, args) {
@@ -238,7 +238,7 @@ test('BotのCLI名を四つのAiterm harnessへ変換する', async () => {
   const transport = new AitermTransport({ client, handoffContext: noMemory })
   const root = await mkdtemp(join(tmpdir(), 'bellteam-harnesses-'))
   for (const [harness, expected] of [
-    ['claude', 'claude-code'], ['codex', 'codex-cli'], ['grok', 'grok-cli'], ['cursor', 'cursor-cli'],
+    ['claude', 'claude-code'], ['codex', 'codex-cli'], ['grok', 'grok-cli'], ['cursor', 'cursor-cli'], ['antigravity', 'antigravity-cli'],
   ]) {
     await transport.ensure({ id: harness, session: harness, harness, project: join(root, harness) })
     assert.equal(launches.at(-1).harness, expected)

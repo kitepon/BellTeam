@@ -6,7 +6,7 @@ import test from 'node:test'
 
 import { configureHarnesses, writeHarnessConfig } from '../src/harness-config.mjs'
 
-test('四つのCLIと親hookへ同一native登録を渡し旧lazy wakeを起こさない', async () => {
+test('五つのCLIと親hookへ同一native登録を渡し旧lazy wakeを起こさない', async () => {
   const home = await mkdtemp(join(tmpdir(), 'bellteam-native-registration-'))
   const registration = { command: '/candidate/node', args: ['/candidate/dist/execution-native-server.js',
     '--execution-interrupt', '--state-root', '/isolated/state', '--socket', '/isolated/tmux.sock', '--steer-provider', '/candidate/steer/index.js'] }
@@ -19,6 +19,7 @@ test('四つのCLIと親hookへ同一native登録を渡し旧lazy wakeを起こ�
   })
   assert.deepEqual(hookRegistration, registration)
   assert.deepEqual(JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).mcpServers.aiterm, registration)
+  assert.deepEqual(JSON.parse(await readFile(join(home, '.gemini/config/mcp_config.json'), 'utf8')).mcpServers.aiterm, registration)
   const cursor = JSON.parse(await readFile(join(home, '.cursor/mcp.json'), 'utf8')).mcpServers.aiterm
   assert.deepEqual(cursor.args.slice(1), [registration.command, ...registration.args])
   for (const file of ['.codex/config.toml', '.grok/config.toml']) {
@@ -51,7 +52,7 @@ test('native入口も既存relayを使い、scope引数を保持して旧cache�
   }
 })
 
-test('通話OFFでは四つのCLIから管理登録を外し、他のMCPを保持する', async () => {
+test('通話OFFでは五つのCLIから管理登録を外し、他のMCPを保持する', async () => {
   const home = await mkdtemp(join(tmpdir(), 'bellteam-call-disabled-'))
   const bots = new Map()
   await writeHarnessConfig(bots, home, { callBridge: { enabled: true, url: 'http://localhost:18910/mcp' } })
@@ -60,9 +61,37 @@ test('通話OFFでは四つのCLIから管理登録を外し、他のMCPを保�
   claude.mcpServers.other = { command: 'other' }
   await writeFile(claudePath, JSON.stringify(claude))
   await writeHarnessConfig(bots, home, { callBridge: { enabled: false } })
-  for (const path of ['.codex/config.toml', '.grok/config.toml', '.claude.json', '.cursor/mcp.json'])
+  for (const path of ['.codex/config.toml', '.grok/config.toml', '.claude.json', '.cursor/mcp.json', '.gemini/config/mcp_config.json'])
     assert.doesNotMatch(await readFile(join(home, path), 'utf8'), /call-bridge/u)
   assert.equal(JSON.parse(await readFile(claudePath, 'utf8')).mcpServers.other.command, 'other')
+})
+
+test('Antigravityは共有stdio設定に席literalを保存せず既存項目とmodelを保持する', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'bellteam-antigravity-config-'))
+  const file = join(home, '.gemini/config/mcp_config.json')
+  await mkdir(join(home, '.gemini/config'), { recursive: true })
+  await writeFile(file, JSON.stringify({ model: 'keep-default', custom: { keep: true },
+    mcpServers: { custom: { command: 'keep' }, bellteam: { command: 'old' } } }))
+  const registration = { command: '/candidate/node', args: ['/candidate/dist/execution-native-server.js', '--execution-interrupt'] }
+  await writeHarnessConfig(new Map(), home, { internalPort: 12345, callBridge: { enabled: true }, aiterm: async () => registration, relay: async () => '/candidate/mcp-lazy' })
+  const value = JSON.parse(await readFile(file, 'utf8'))
+  assert.equal(value.model, 'keep-default')
+  assert.deepEqual(value.custom, { keep: true })
+  assert.deepEqual(value.mcpServers.custom, { command: 'keep' })
+  for (const [name, path] of [['bellteam', '/mcp'], ['call-bridge', '/mcp/call-bridge']]) {
+    const server = value.mcpServers[name]
+    assert.equal(server.command, process.execPath)
+    assert.match(server.args[0], /\/src\/run-seat-mcp\.mjs$/u)
+    assert.equal(server.args[1], `http://127.0.0.1:12345${path}`)
+    assert.equal(server.env, undefined)
+  }
+  assert.equal(value.mcpServers.aiterm.env.MCP_LAZY_CACHE_DIR, join(home, '.cache/mcp-lazy/aiterm-native-antigravity'))
+  assert.equal(value.mcpServers.aiterm.env.MCP_LAZY_WAKE_COMMAND, undefined)
+  assert.doesNotMatch(JSON.stringify(value), /AITERM_SESSION_ID|AITERM_AGENT_LAUNCH_ID|Bearer/u)
+  await writeHarnessConfig(new Map(), home, { callBridge: { enabled: false }, aiterm: async () => registration, relay: async () => null })
+  const disabled = JSON.parse(await readFile(file, 'utf8'))
+  assert.equal(disabled.mcpServers['call-bridge'], undefined)
+  assert.deepEqual(disabled.mcpServers.custom, { command: 'keep' })
 })
 
 test('四つのハーネスへBellTeam設定を反映する', async () => {

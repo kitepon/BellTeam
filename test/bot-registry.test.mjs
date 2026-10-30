@@ -254,6 +254,11 @@ test('ClaudeとCursorをBotのハーネスに選べる', async () => {
   await registry.remove('bot-b')
   await registry.create({ name: 'Cursor Bot', harness: 'cursor' })
   assert.equal(registry.get('bot-b').harness, 'cursor')
+  await registry.remove('bot-b')
+  await registry.create({ name: 'Antigravity Bot', harness: 'antigravity' })
+  assert.equal(registry.get('bot-b').harness, 'antigravity')
+  await registry.refresh()
+  assert.equal(registry.get('bot-b').harness, 'antigravity')
 })
 
 test('エフォートはCLIごとの候補で検証する', async () => {

@@ -17,7 +17,7 @@ const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const home = runtimeHome()
 const root = process.env.BELLTEAM_ROOT ?? '/srv/bellteam'
 const configPath = process.env.BELLTEAM_BOTS_CONFIG ?? join(appRoot, 'config/bots.json')
-// Supervisorと4CLIは同じnative入口を使う。通常18ツールの入口では停止を提供できない。
+// Supervisorと5CLIは同じnative入口を使う。通常18ツールの入口では停止を提供できない。
 // 登録の読取失敗を通常入口へのfallbackで隠さず、起動時に返す。
 export const aiterm = await aitermExecutionRegistration()
 export const settings = new FeatureSettings({ root, environment: {

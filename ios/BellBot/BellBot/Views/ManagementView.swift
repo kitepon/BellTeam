@@ -199,6 +199,7 @@ struct BotEditor: View {
                             Text("Claude").tag("claude")
                             Text("Grok").tag("grok")
                             Text("Cursor").tag("cursor")
+                            Text("Antigravity").tag("antigravity")
                         }
                         Picker("モデル", selection: Binding(get: { model }, set: { next in
                             model = next

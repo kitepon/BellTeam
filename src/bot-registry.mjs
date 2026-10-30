@@ -14,7 +14,7 @@ import { mutateSchedules, nextScheduleRevision, scheduleRevision } from './sched
 const BOT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,199}$/u
 const COLORS = new Set(['rose', 'indigo', 'violet'])
-const HARNESSES = new Set(['claude', 'codex', 'grok', 'cursor'])
+const HARNESSES = new Set(['claude', 'codex', 'grok', 'cursor', 'antigravity'])
 const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource', 'avatarCrop', 'avatarLargeCrop', 'color'])
 const exec = promisify(execFile)
 

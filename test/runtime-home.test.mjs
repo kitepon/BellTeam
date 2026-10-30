@@ -51,7 +51,7 @@ test('起動ユーザーのHOMEにあるsymlinkを触らず専用homeへ規範�
   const host = join(temp, 'host'), runtime = join(temp, 'runtime')
   const sentinel = join(temp, 'factory-instructions.md')
   await writeFile(sentinel, '工場の正本\n')
-  for (const name of ['.claude', '.codex', '.grok', '.cursor']) {
+  for (const name of ['.claude', '.codex', '.grok', '.cursor', '.gemini']) {
     await mkdir(join(host, name), { recursive: true })
     await symlink(sentinel, join(host, name, 'AGENTS.md'))
   }
