@@ -540,6 +540,8 @@ supervisorはserver UID1001時に、最初のbootstrap/application/lifecycle imp
 
 新一試験（3終端条件）を同bytesで旧0pass1fail/ENOENT→新1pass0fail。既fake Docker/実shellとNode/普通FSを使い、実daemon/Compose/hostは0。保存はphase verified receiptではなく、既prepare executorのstatic Compose参照・actorのofficial ref/rawimage対応・全phase実container照合は未接続のまま。normalの既control recordだけで兄弟prepare設定までbind済みとは扱わない。次は既actor/prepare関数へこの保存pathと同入力を明示し、任意hashやexit0での代用なしに実executorを接続する。
 
+公開installerも、実行するrender済みprepareを既saved generationのnormal/maintenanceと同じ場所へ保存する。従来はstagingだけに保存していたため、成功・prepare失敗・normal起動失敗のいずれもcleanupで実行設定が消えた。同じ実shell/fake Dockerの3反例は旧3件ENOENT失敗→新3件成功、直接影響の呼出順・失敗伝播・抽出拒否3件も成功。元の終了値、umask077とkeep_saved、後続工程へ進まない条件を維持する。新しいhelper、lock、factory、信頼入力は追加しない。これは設定原本の保持だけで、公開installerの全区間ownerやhost/peer authority、実Docker/Hostでの受入は未接続のまま。
+
 ### 保存prepareの記録
 
 保存normalの兄弟`compose.state-prepare.yaml`がある世代では、既control読取がそのroot-owned private fileのpath/SHA/device/inode/親identity/owner/raw imageをnormal記録へ保持する。prepareはJSONとしてrender済みで、単一state-prepare serviceのraw imageはnormalと一致する必要がある。tx.checkは兄弟fileも再読し、同bytes別inodeやsymlink・raw image不一致を拒否する。兄弟fileのない従来世代のnormal記録は維持する。

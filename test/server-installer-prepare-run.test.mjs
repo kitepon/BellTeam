@@ -1,8 +1,8 @@
 import { frozenComposeCases } from './helpers/installer-frozen-compose.mjs'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import test from 'node:test'
@@ -35,8 +35,10 @@ case "$*" in
    cat "$TEST_IMAGE/\${path#/app/}";;
  'compose --project-directory '*'/install -f '*'/compose.state-prepare.yaml -p '*' run --pull never --rm --no-deps -T state-prepare')
    cat "$5" > "$TEST_FILE"
+   printf '%s\\n' "$5" > "$TEST_FILE.path"
    printf '%s\\n%s\\n%s\\n%s\\n%s\\n' "$7" "$BELLTEAM_SERVER_IMAGE" "$BELLTEAM_STATE_PARENT" "$BELLTEAM_LEGACY_DATA" "$BELLTEAM_MAINTENANCE_BACKUP_PARENT" > "$TEST_INPUTS"
    if [ "\${TEST_PREPARE_FAIL:-0}" = 1 ]; then echo synthetic-unfinished-leaves > "$TEST_PARTIAL"; exit 61; fi;;
+ 'compose up -d --wait --wait-timeout 120 --pull never') exit "\${TEST_UP_FAIL:-0}";;
  'compose port bellteam 4180') echo 127.0.0.1:18891;;
 esac
 `)
@@ -86,3 +88,24 @@ test('prepare file extraction failure stops before changing the running server',
   await assert.rejects(f.run({ TEST_EXTRACT_FAIL: '1' }), error => error.code === 1)
   assert.doesNotMatch(await readFile(f.calls, 'utf8'), /stop [a-f0-9]|run .* -T state-prepare|state-maintenance to-server|--no-deps cursor-update|compose up /)
 })
+
+for (const [outcome, flags, code] of [
+  ['success', {}, 0],
+  ['prepare failure', { TEST_PREPARE_FAIL: '1' }, 61],
+  ['normal start failure', { TEST_UP_FAIL: '63' }, 63],
+]) {
+  test('installer retains executed prepare after ' + outcome, async t => {
+    const f = await fixture(t)
+    if (code) await assert.rejects(f.run(flags), error => error.code === code)
+    else await f.run(flags)
+    const executed = (await readFile(f.file + '.path', 'utf8')).trimEnd()
+    assert.deepEqual(await readFile(executed), await readFile(f.file))
+    assert.equal(dirname(dirname(executed)), f.install)
+    assert.equal((await stat(executed)).mode & 0o777, 0o600)
+    assert.equal((await stat(dirname(executed))).mode & 0o777, 0o700)
+    for (const [name, service] of [['normal.json', 'bellteam'], ['compose.state-maintenance.json', 'state-maintenance']]) {
+      const model = JSON.parse(await readFile(join(dirname(executed), name), 'utf8'))
+      assert.equal(model.services[service].image, pinnedImage)
+    }
+  })
+}
