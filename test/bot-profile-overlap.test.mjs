@@ -73,3 +73,43 @@ test('failed profile write releases the next mutation and preserves its error', 
   assert.equal(saved.avatar, 'data:image/png;base64,bmV3')
   assert.equal(saved.session, 'old-session')
 })
+
+test('overlapping refreshes read in order and a later read sees an external change', async t => {
+  const { registry, profilePath } = await fixture(t)
+  const read = registry.readProfile.bind(registry)
+  let entered, release, calls = 0
+  const started = new Promise(resolve => { entered = resolve })
+  const held = new Promise(resolve => { release = resolve })
+  registry.readProfile = async id => {
+    const profile = await read(id)
+    if (++calls === 1) { entered(); await held }
+    return profile
+  }
+  const first = registry.refresh()
+  await started
+  const saved = JSON.parse(await readFile(profilePath, 'utf8'))
+  saved.name = 'Updated'
+  await writeFile(profilePath, JSON.stringify(saved))
+  const second = registry.refresh()
+  await new Promise(resolve => setTimeout(resolve, 30))
+  assert.equal(calls, 1)
+  release()
+  await Promise.all([first, second])
+  assert.equal(calls, 2)
+  assert.equal(registry.get('member').name, 'Updated')
+})
+
+test('failed refresh does not block a later refresh', async t => {
+  const { registry } = await fixture(t)
+  const read = registry.readProfile.bind(registry)
+  const failure = new Error('failed read')
+  let first = true
+  registry.readProfile = async id => {
+    if (first) { first = false; throw failure }
+    return read(id)
+  }
+  const failed = assert.rejects(registry.refresh(), error => error === failure)
+  const next = registry.refresh()
+  await Promise.all([failed, next])
+  assert.equal(registry.get('member').name, 'Fixture')
+})
