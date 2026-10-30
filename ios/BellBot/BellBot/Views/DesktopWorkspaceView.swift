@@ -262,6 +262,7 @@ private struct DesktopInspector: View {
     #endif
     @State private var editing = false
     @State private var errorText: String?
+    @StateObject private var images = BotProfileImageState()
     private var bot: Bot? { store.bots.first { $0.id == target.id } }
     private var room: Room? { store.rooms.first { $0.id == target.id } }
 
@@ -282,13 +283,14 @@ private struct DesktopInspector: View {
                 profile
             }
         }
+        .botProfileImageActions(bot: bot, images: images)
     }
 
     private var profile: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 if let bot {
-                    BotProfileHero(bot: bot, smallSize: 152)
+                    BotProfileHero(bot: bot, smallSize: 152, images: images)
                 } else if let room {
                     VStack(spacing: 13) {
                         AvatarView(name: room.name, avatar: room.avatar, color: BellTheme.violet,

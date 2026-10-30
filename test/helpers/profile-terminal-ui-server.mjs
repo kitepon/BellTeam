@@ -19,6 +19,10 @@ let reads = []
 let writes = []
 let legacyProfile = false
 let profileDelayMs = 0
+let userRulesDelayMs = 0
+let userRulesCompletions = 0
+let modelsDelayMs = 0
+let modelsCompletions = 0
 let botListReads = 0
 const eventSubscribers = new Set()
 const json = (response, value, status = 200) => {
@@ -35,7 +39,8 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1')
   if (url.pathname === '/test/reset') {
     profile = initialProfile(); screen = '履歴の最初の行\n履歴の次の行'; reads = []; writes = []
-    legacyProfile = false; profileDelayMs = 0; botListReads = 0
+    legacyProfile = false; profileDelayMs = 0; userRulesDelayMs = 0; userRulesCompletions = 0
+    modelsDelayMs = 0; modelsCompletions = 0; botListReads = 0
     for (const subscriber of eventSubscribers) subscriber.end()
     eventSubscribers.clear()
     return json(response, { ok: true })
@@ -49,7 +54,15 @@ const server = createServer(async (request, response) => {
     profileDelayMs = Number(url.searchParams.get('ms') || 0)
     return json(response, { ok: true })
   }
-  if (url.pathname === '/test/proof') return json(response, { reads, writes, screen, botListReads, subscribers: eventSubscribers.size })
+  if (url.pathname === '/test/delay-user-rules') {
+    userRulesDelayMs = Number(url.searchParams.get('ms') || 0)
+    return json(response, { ok: true })
+  }
+  if (url.pathname === '/test/delay-models') {
+    modelsDelayMs = Number(url.searchParams.get('ms') || 0)
+    return json(response, { ok: true })
+  }
+  if (url.pathname === '/test/proof') return json(response, { reads, writes, screen, botListReads, userRulesCompletions, modelsCompletions, subscribers: eventSubscribers.size })
   if (url.pathname === '/test/refresh-bot') {
     profile.position = '更新された設計担当'
     for (const subscriber of eventSubscribers) subscriber.write('event: bots\ndata: {}\n\n')
@@ -63,10 +76,14 @@ const server = createServer(async (request, response) => {
     screen += '\n追加された一行'
     return json(response, { ok: true })
   }
-  if (url.pathname === '/api/models') return json(response, { models: {
+  if (url.pathname === '/api/models') {
+    if (modelsDelayMs) await new Promise(resolve => setTimeout(resolve, modelsDelayMs))
+    modelsCompletions += 1
+    return json(response, { models: {
     claude: { efforts: ['high'], models: [{ id: 'opus', efforts: ['high'], fast: true }], defaultModel: 'opus' },
     codex: { efforts: ['high'], models: [], defaultModel: null },
-  } })
+    } })
+  }
   if (url.pathname === '/api/events') {
     response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
     response.write('event: ready\ndata: {}\n\n')
@@ -85,6 +102,11 @@ const server = createServer(async (request, response) => {
   }
   if (url.pathname === '/api/rooms') return json(response, { rooms: preview.rooms })
   if (url.pathname === '/api/owner') return json(response, { owner: preview.owner })
+  if (url.pathname === '/api/user-rules') {
+    if (userRulesDelayMs) await new Promise(resolve => setTimeout(resolve, userRulesDelayMs))
+    userRulesCompletions += 1
+    return json(response, { text: '人工ユーザー規範' })
+  }
   if (url.pathname === '/api/queue' || url.pathname.endsWith('/queue')) return json(response, { items: [] })
   if (url.pathname.endsWith('/messages') || url.pathname.endsWith('/timeline'))
     return json(response, { messages: [], items: [], hasMore: false })

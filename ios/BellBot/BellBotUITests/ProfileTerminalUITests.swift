@@ -13,7 +13,6 @@ final class ProfileTerminalUITests: XCTestCase {
                                "-bellbot-preview-server", url]
         app.launch()
         defer { app.terminate() }
-
         let search = app.textFields["メンバーとルームを探す"]
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap(); search.typeText("zzz")
@@ -235,6 +234,186 @@ final class ProfileTerminalUITests: XCTestCase {
         XCTAssertTrue(reopenedSlider.waitForExistence(timeout: 5))
         XCTAssertEqual(reopenedSlider.value as? String, initial,
                        "明示キャンセル後の新しい編集には前回の未保存調整を持ち込まない")
+    }
+
+    func testPhoneChosenPhotoSurvivesBotRefreshBeforeUse() async throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの写真選択を確認する試験です。")
+        continueAfterFailure = false
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"])
+        try await reset(url)
+        let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
+        func proof() async throws -> [String: Any] {
+            let (data, _) = try await URLSession.shared.data(from: proofURL)
+            return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        }
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-profile-terminal",
+                               "-bellbot-preview-server", url, "-bellbot-preview-events"]
+        app.launch()
+        defer { app.terminate() }
+        var subscribed = false
+        for _ in 0..<30 {
+            if try await proof()["subscribers"] as? Int == 1 { subscribed = true; break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertTrue(subscribed)
+        let bot = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch
+        XCTAssertTrue(bot.waitForExistence(timeout: 10))
+        bot.tap(); app.buttons["詳細"].tap()
+        app.buttons["profile-small-avatar"].tap()
+        app.buttons["profile-image-change"].tap()
+        let firstPhoto = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
+        XCTAssertTrue(firstPhoto.waitForExistence(timeout: 5), app.debugDescription)
+        let beforePickerRefresh = try await proof()["botListReads"] as? Int ?? 0
+        let pickerRefresh = try XCTUnwrap(URL(string: url + "/test/refresh-bot"))
+        let (_, pickerResponse) = try await URLSession.shared.data(from: pickerRefresh)
+        XCTAssertEqual((pickerResponse as? HTTPURLResponse)?.statusCode, 200)
+        var afterPickerRefresh = beforePickerRefresh
+        for _ in 0..<30 {
+            afterPickerRefresh = try await proof()["botListReads"] as? Int ?? 0
+            if afterPickerRefresh > beforePickerRefresh { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertGreaterThan(afterPickerRefresh, beforePickerRefresh)
+        try await Task.sleep(for: .seconds(5))
+        XCTAssertTrue(firstPhoto.exists, "Bot更新中も写真選択画面を残す")
+        firstPhoto.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let slider = app.sliders["アバター画像の拡大・縮小"]
+        XCTAssertTrue(slider.waitForExistence(timeout: 5), app.debugDescription)
+        slider.adjust(toNormalizedSliderPosition: 0.75)
+        let selectedZoom = slider.value as? String
+
+        let before = try await proof()["botListReads"] as? Int ?? 0
+        let refresh = try XCTUnwrap(URL(string: url + "/test/refresh-bot"))
+        let (_, response) = try await URLSession.shared.data(from: refresh)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        var after = before
+        for _ in 0..<30 {
+            after = try await proof()["botListReads"] as? Int ?? 0
+            if after > before { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertGreaterThan(after, before)
+        try await Task.sleep(for: .seconds(5))
+        XCTAssertTrue(slider.exists, "Bot更新後も選択した画像の調整画面を残す")
+        XCTAssertEqual(slider.value as? String, selectedZoom, "Bot更新後も未保存の調整を残す")
+        app.buttons["キャンセル"].tap()
+    }
+
+    func testPhoneImageChangePreparationSurvivesBotRefreshAndForegroundReturn() async throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの画像変更準備を確認する試験です。")
+        continueAfterFailure = false
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"])
+        try await reset(url)
+        let delay = try XCTUnwrap(URL(string: url + "/test/delay-profile?ms=4500"))
+        let (_, delayed) = try await URLSession.shared.data(from: delay)
+        XCTAssertEqual((delayed as? HTTPURLResponse)?.statusCode, 200)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-profile-terminal",
+                               "-bellbot-preview-server", url, "-bellbot-preview-events"]
+        app.launch()
+        defer { app.terminate() }
+        let bot = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch
+        XCTAssertTrue(bot.waitForExistence(timeout: 10))
+        bot.tap(); app.buttons["詳細"].tap()
+        app.buttons["profile-small-avatar"].tap()
+        app.buttons["profile-image-change"].tap()
+        XCTAssertTrue(app.staticTexts["画像情報を確認しています…"].waitForExistence(timeout: 3))
+        let refresh = try XCTUnwrap(URL(string: url + "/test/refresh-bot"))
+        let (_, response) = try await URLSession.shared.data(from: refresh)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        let firstPhoto = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
+        XCTAssertTrue(firstPhoto.waitForExistence(timeout: 8), "準備中の復帰後も写真一覧を開く")
+        firstPhoto.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.sliders["アバター画像の拡大・縮小"].waitForExistence(timeout: 5),
+                      "選択した画像の調整へ進む")
+    }
+
+    func testPhoneOwnerPhotoSurvivesInitialRulesReply() async throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneのオーナー写真を確認する試験です。")
+        continueAfterFailure = false
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"])
+        try await reset(url)
+        let delay = try XCTUnwrap(URL(string: url + "/test/delay-user-rules?ms=20000"))
+        let (_, delayed) = try await URLSession.shared.data(from: delay)
+        XCTAssertEqual((delayed as? HTTPURLResponse)?.statusCode, 200)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-profile-terminal",
+                               "-bellbot-preview-server", url]
+        app.launch()
+        defer { app.terminate() }
+        app.tabBars.buttons["設定"].tap()
+        app.buttons["プロフィールと規範を編集"].tap()
+        let change = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "写真を変更")).firstMatch
+        XCTAssertTrue(change.waitForExistence(timeout: 5))
+        XCTAssertEqual(change.images.count, 0)
+        change.tap()
+        let firstPhoto = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
+        XCTAssertTrue(firstPhoto.waitForExistence(timeout: 5), app.debugDescription)
+        firstPhoto.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["使用する"].waitForExistence(timeout: 5))
+        app.buttons["使用する"].tap()
+        XCTAssertEqual(change.images.count, 1, "未保存の写真を編集画面へ反映する")
+        let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
+        let (pendingData, _) = try await URLSession.shared.data(from: proofURL)
+        let pendingProof = try XCTUnwrap(JSONSerialization.jsonObject(with: pendingData) as? [String: Any])
+        XCTAssertEqual(pendingProof["userRulesCompletions"] as? Int ?? 0, 0,
+                       "写真選択を初回応答より先に完了させる")
+        var completions = 0
+        for _ in 0..<120 {
+            let (data, _) = try await URLSession.shared.data(from: proofURL)
+            let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            completions = proof["userRulesCompletions"] as? Int ?? 0
+            if completions > 0 { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertGreaterThan(completions, 0)
+        XCTAssertEqual(change.images.count, 1, "初回のユーザー規範取得後も未保存の写真を保持する")
+    }
+
+    func testPhoneNewMemberPhotoSurvivesInitialModelsReply() async throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの新規メンバー写真を確認する試験です。")
+        continueAfterFailure = false
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"])
+        try await reset(url)
+        let delay = try XCTUnwrap(URL(string: url + "/test/delay-models?ms=20000"))
+        let (_, delayed) = try await URLSession.shared.data(from: delay)
+        XCTAssertEqual((delayed as? HTTPURLResponse)?.statusCode, 200)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-profile-terminal",
+                               "-bellbot-preview-server", url]
+        app.launch()
+        defer { app.terminate() }
+        app.buttons["メンバーまたはルームを追加"].tap()
+        app.buttons["メンバーを追加"].tap()
+        let change = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "小画像を変更")).firstMatch
+        XCTAssertTrue(change.waitForExistence(timeout: 5))
+        XCTAssertTrue(change.isEnabled)
+        XCTAssertEqual(change.images.count, 0)
+        change.tap()
+        let firstPhoto = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
+        XCTAssertTrue(firstPhoto.waitForExistence(timeout: 5), app.debugDescription)
+        firstPhoto.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["使用する"].waitForExistence(timeout: 5))
+        app.buttons["使用する"].tap()
+        XCTAssertEqual(change.images.count, 1, "未保存の写真をメンバー編集画面へ反映する")
+        let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
+        let (pendingData, _) = try await URLSession.shared.data(from: proofURL)
+        let pendingProof = try XCTUnwrap(JSONSerialization.jsonObject(with: pendingData) as? [String: Any])
+        XCTAssertEqual(pendingProof["modelsCompletions"] as? Int ?? 0, 0,
+                       "写真選択を初回応答より先に完了させる")
+        var completions = 0
+        for _ in 0..<120 {
+            let (data, _) = try await URLSession.shared.data(from: proofURL)
+            let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            completions = proof["modelsCompletions"] as? Int ?? 0
+            if completions > 0 { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertGreaterThan(completions, 0)
+        XCTAssertEqual(change.images.count, 1, "初回のモデル候補取得後も未保存の写真を保持する")
     }
 
     func testPhoneSmallCropSavesWithoutReplacingLargeImage() async throws {

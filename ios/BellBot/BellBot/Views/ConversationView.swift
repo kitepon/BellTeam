@@ -1734,6 +1734,7 @@ struct ConversationDetailView: View {
     @State private var errorText: String?
     @State private var editingProfile = false
     @State private var showingScreen = false
+    @StateObject private var images = BotProfileImageState()
 
     private var bot: Bot? { store.bots.first { $0.id == target.id } }
     private var room: Room? { store.rooms.first { $0.id == target.id } }
@@ -1745,7 +1746,8 @@ struct ConversationDetailView: View {
                 ScrollView {
                     VStack(spacing: 18) {
                         if let bot {
-                            BotProfileHero(bot: bot, smallSize: UIDevice.current.userInterfaceIdiom == .phone ? 88 : 176)
+                            BotProfileHero(bot: bot, smallSize: UIDevice.current.userInterfaceIdiom == .phone ? 88 : 176,
+                                           images: images)
                         } else if let room {
                             AvatarView(name: room.name, avatar: room.avatar, color: BellTheme.violet,
                                        size: 88, isRoom: true)
@@ -1792,6 +1794,7 @@ struct ConversationDetailView: View {
             .sheet(isPresented: $showingScreen) {
                 if let bot { BotScreenView(bot: bot).environmentObject(store) }
             }
+            .botProfileImageActions(bot: bot, images: images)
             .onChange(of: room?.id) { _, id in
                 if target.isRoom && id == nil { dismiss() }
             }
