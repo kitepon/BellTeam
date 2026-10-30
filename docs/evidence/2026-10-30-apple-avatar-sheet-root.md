@@ -27,10 +27,10 @@ Codex側ベルが人工iPhoneで作った反例をそのまま使った。Bot小
 
 ## 有限検証
 
-- 修理後、同じ反例試験を2回走らせた。1回目は写真一覧（PhotosPicker）が開いたうえで一覧の読込（「読み込み中…」）が8秒に間に合わず失敗した（再インストール直後のPhotosUI初回起動。録画のSHA256 `0c8fdd5c9dcbe4637939d665f5eb4b675671851a216729f2a4a96156f929b530`）。準備は取り消されず、製品の失敗ではない。2回目は成功し、記録では`Actions onAppear`1回、準備完了後に一覧が開き、切り抜きへ進んだ。
+- 修理後、同じ反例試験を2回走らせた。1回目は写真一覧（PhotosPicker）が開いたうえで一覧の読込（「読み込み中…」）が8秒に間に合わず失敗した（再インストール直後のPhotosUI初回起動。録画のSHA256 `0c8fdd5c9dcbe4637939d665f5eb4b675671851a216729f2a4a96156f929b530`）。一覧読込遅れという製作者の判定で、失敗結果はそのまま保持する。2回目は成功し、記録では`Actions onAppear`1回、準備完了後に一覧が開き、切り抜きへ進んだ。
 - 関連試験の結果は下の表。
 
-XCResultと録画は`~/Library/Developer/BellTeam-evidence/2026-10-30-apple-avatar-sheet-root/`に置いた（修理前の失敗3回は`prep-repro-1〜3.xcresult`、修理後の反例試験は`fix-prep-1.xcresult`（一覧読込遅れの失敗、録画`fix-prep-1-recording.mp4`）と`fix-prep-2.xcresult`（成功）、関連試験は`fix-related-1.xcresult`）。試験はiPhone 17 Pro Simulator（iOS 27.0）、人工server`test/helpers/profile-terminal-ui-server.mjs`、Xcode 27.1。
+XCResultと録画は`~/Library/Developer/BellTeam-evidence/2026-10-30-apple-avatar-sheet-root/`に置いた（修理前の失敗3回は`prep-repro-1〜3.xcresult`、修理後の反例試験は`fix-prep-1.xcresult`（一覧読込遅れの失敗、録画`fix-prep-1-recording.mp4`）と`fix-prep-2.xcresult`（成功）、関連試験は`fix-related-1.xcresult`）。試験はiPhone 17 Pro Simulator（iOS 26.5、OS build `23F77`）、人工server`test/helpers/profile-terminal-ui-server.mjs`。6件のXCResult summaryの`devicesAndConfigurations[].device`を照合した。初報のiOS 27.0は環境表記の誤りとして訂正する。Xcode 27.1（27A9275）は製作者の初報であり、保持原本による独立照合はしていない。
 
 | 試験（`ProfileTerminalUITests`） | 結果 |
 | --- | --- |
@@ -48,5 +48,9 @@ XCResultと録画は`~/Library/Developer/BellTeam-evidence/2026-10-30-apple-avat
 ## 未確認
 
 - 実機iPhoneでの回復は未確認。実機では版78にこの修理は入っていない。
-- iPad/Macの画面は同じ構造へ揃えたが、UI試験は走らせていない。iOS Simulator Debug buildは終了0。
+- 製作者はiPad/MacのUI試験を走らせていない。別途センチが同じ製品source `bf8e5b2` のiPad Simulator 26.5/23F77で画像調整のfocused試験1件成功（切り抜き保持と小画像3項目のみの一回保存）、Mac Catalyst arm64/x86_64の署名無しbuild終了0を確認した。iPad写真importとMacの実UI操作は未確認。
 - 実オーナー画像・実Bot・署名・配布・本番の操作はしていない。
+
+## 環境表記の訂正と原本の扱い
+
+2026-10-30、保存済み6XCResult summaryを根拠に環境表記を訂正した。元commit `bf8e5b2851fe27369475b76324fd7f7be4b927e3` の文書と、製作者の元`manifest.json`（7880B、SHA256 `db8abd79a98f9fbc685a2871447ca17367b776d2469c7be704dd4724a10b7227`）は履歴として保持し、過去の試験結果は改変しない。修理前3件と`fix-prep-2`は診断ログ注入あり、`fix-prep-1`と関連8件は製品sourceと同内容・診断注入なし。診断sourceの完全復元とxcodebuild全文logは残っていない。訂正に伴う製品sourceの変更、既試験の再走は行っていない。
