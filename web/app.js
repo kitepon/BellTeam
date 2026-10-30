@@ -395,8 +395,8 @@ async function refreshFeatureSettingsForm() {
 }
 
 async function loadBots() {
-  const [botResult, roomResult, ownerResult] = await Promise.all([api('/api/bots'), api('/api/rooms'), api('/api/owner')])
-  state.bots = botResult.bots
+  const [botResult, roomResult, ownerResult] = await Promise.all([api('/api/bots?avatar=omit'), api('/api/rooms'), api('/api/owner')])
+  state.bots = botResult.bots.map(bot => ({ ...bot, avatar: bot.avatarVersion ? `/api/bots/${encodeURIComponent(bot.id)}/avatar?v=${encodeURIComponent(bot.avatarVersion)}` : '' }))
   state.rooms = roomResult.rooms
   state.owner = ownerResult.owner
   if (state.selected) {
@@ -759,7 +759,7 @@ async function saveBot(event) {
       speechStyle: botSpeechStyle.value,
       position: botPosition.value.trim(),
       role: botRole.value,
-      avatar: botAvatarEditor.value(),
+      ...(!state.editingBot || botAvatarEditor.changed() ? { avatar: botAvatarEditor.value() } : {}),
       color: botColor.value,
       harness: botHarness.value,
       model: selectedModel(),
@@ -1168,6 +1168,7 @@ function scheduleDescription(schedule) {
 function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoom, nameInput, colorInput = null, fallback, error, previewClass = 'avatar owner-avatar' }) {
   const context = canvas.getContext('2d')
   let avatarData = ''
+  let changed = false
   let crop = null
   let drag = null
 
@@ -1183,7 +1184,8 @@ function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoom, name
 
   return {
     reset(value = '') {
-      avatarData = value?.startsWith('data:image/') ? value : ''
+      avatarData = value?.startsWith('data:image/') || value?.startsWith('/api/bots/') ? value : ''
+      changed = false
       crop = null
       drag = null
       fileInput.value = ''
@@ -1191,6 +1193,7 @@ function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoom, name
       updatePreview()
     },
     value() { return avatarData },
+    changed() { return changed },
   }
 
   async function readFile() {
@@ -1273,6 +1276,7 @@ function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoom, name
     if (!crop) return avatarData
     draw()
     avatarData = canvas.toDataURL('image/jpeg', .9)
+    changed = true
     updatePreview()
     return avatarData
   }
