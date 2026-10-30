@@ -15,6 +15,17 @@ final class HarnessAuthenticationTests: XCTestCase {
         XCTAssertFalse(claude.needsStartConfirmation(auth(.authenticated)))
     }
 
+    func testUnsupportedReloginCapabilityAndOldServerDecode() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let current = try decoder.decode(HarnessAuthenticationOption.self, from: Data(#"{"id":"antigravity","name":"Antigravity","members":1,"start_warning":"公式CLIで認証してください。","relogin_supported":false}"#.utf8))
+        XCTAssertEqual(current.reloginSupported, false)
+        XCTAssertFalse(current.needsStartConfirmation(auth(.authenticated)))
+        let old = try decoder.decode(HarnessAuthenticationOption.self, from: Data(#"{"id":"codex","name":"Codex","members":1,"start_warning":"今の認証が消えます。"}"#.utf8))
+        XCTAssertNil(old.reloginSupported)
+        XCTAssertTrue(old.needsStartConfirmation(auth(.authenticated)), "旧サーバーの表示を維持する")
+    }
+
     func testViewingTheStateDoesNotStartOrCancelAuthentication() async throws {
         let log = RequestLog()
         let flow = makeFlow(log) { _, _ in (200, self.response("authenticated")) }

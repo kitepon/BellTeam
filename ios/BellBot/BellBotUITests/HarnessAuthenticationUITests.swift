@@ -1,6 +1,33 @@
 import XCTest
 
 final class HarnessAuthenticationUITests: XCTestCase {
+    func testAntigravityShowsOfficialCliWithoutUnsupportedStart() throws {
+        let server = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_AUTH_SMOKE_URL"])
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try request(base, "/test/reset")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server]
+        app.launch()
+        defer { app.terminate() }
+        let settings = app.buttons["設定"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 8))
+        settings.tap()
+        let entry = app.buttons["harness-auth-antigravity"]
+        for _ in 0..<6 where !entry.isHittable { app.scrollViews.firstMatch.swipeUp() }
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        entry.tap()
+        XCTAssertTrue(app.staticTexts["harness-auth-status"].waitForExistence(timeout: 5))
+        let warning = app.staticTexts["harness-auth-unavailable"]
+        XCTAssertTrue(warning.exists)
+        XCTAssertTrue(warning.label.contains("公式CLIで認証してください"))
+        XCTAssertFalse(app.buttons["harness-auth-start"].exists)
+        XCTAssertFalse(app.buttons["harness-auth-cancel"].exists)
+        XCTAssertFalse(app.secureTextFields["harness-auth-input"].exists)
+        app.buttons["harness-auth-refresh"].tap()
+        XCTAssertTrue(app.staticTexts["harness-auth-status"].waitForExistence(timeout: 5))
+        XCTAssertEqual(try paths(base), ["GET /api/harness-auth/antigravity", "GET /api/harness-auth/antigravity"])
+    }
+
     func testConfirmationUntypedInputIsHiddenCancelAndCommunicationError() throws {
         guard let server = ProcessInfo.processInfo.environment["BELLTEAM_AUTH_SMOKE_URL"] else {
             throw XCTSkip("認証画面の試験サーバーが必要です。")

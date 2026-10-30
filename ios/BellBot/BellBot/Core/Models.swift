@@ -362,10 +362,19 @@ struct HarnessAuthenticationOption: Decodable, Identifiable {
     let name: String
     let members: Int
     let startWarning: String?
+    let reloginSupported: Bool?
+
+    init(id: String, name: String, members: Int, startWarning: String?, reloginSupported: Bool? = nil) {
+        self.id = id
+        self.name = name
+        self.members = members
+        self.startWarning = startWarning
+        self.reloginSupported = reloginSupported
+    }
 
     var usageText: String { members > 0 ? "\(members)人が使用" : "使用していません" }
     func needsStartConfirmation(_ auth: SetupAuthentication?) -> Bool {
-        startWarning?.isEmpty == false && auth?.status != .blocked
+        reloginSupported != false && startWarning?.isEmpty == false && auth?.status != .blocked
     }
 }
 struct HarnessAuthenticationsResponse: Decodable { let harnesses: [HarnessAuthenticationOption] }
