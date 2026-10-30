@@ -108,6 +108,7 @@ function harnessAuthItem(harness, { api }) {
     })
     password = flow.password
     nodes.push(...flow.elements)
+    if (harness.reloginSupported === false && harness.startWarning) nodes.push(Object.assign(document.createElement('p'), { textContent: harness.startWarning }))
     const start = () => perform(async () => { confirming = false; const next = await post('start'); started = next.auth?.status !== 'authenticated'; return next })
     const actions = document.createElement('div')
     actions.className = 'secret-actions'
@@ -117,7 +118,7 @@ function harnessAuthItem(harness, { api }) {
       nodes.push(warning)
       actions.append(button('今の認証を手放して始める', start), button('始めない', () => { confirming = false; render() }))
     } else {
-      if (!(auth?.session_id || view.binding) || view.stage === 'complete') actions.append(button('ログインする', () => {
+      if (harness.reloginSupported !== false && (!(auth?.session_id || view.binding) || view.stage === 'complete')) actions.append(button('ログインする', () => {
         if (needsStartConfirmation(harness, auth)) { confirming = true; render() } else return start()
       }))
       actions.append(button('状態を更新', () => perform(async () => { const next = await api(path); if (next.auth?.status === 'authenticated') started = false; return next })))

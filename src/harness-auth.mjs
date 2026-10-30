@@ -38,7 +38,7 @@ export class HarnessAuth {
 
   list() {
     const members = id => [...this.bots.values()].filter(bot => bot.harness === id).length
-    return { harnesses: HARNESSES.map(({ id, name }) => ({ id, name, members: members(id), startWarning: START_WARNING[id] ?? null })) }
+    return { harnesses: HARNESSES.map(({ id, name }) => ({ id, name, members: members(id), startWarning: START_WARNING[id] ?? null, reloginSupported: id !== 'antigravity' })) }
   }
 
   status(harness) {

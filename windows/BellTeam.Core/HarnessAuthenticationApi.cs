@@ -1,6 +1,6 @@
 namespace BellTeam.Core;
 
-public sealed record HarnessAuthenticationOption(string Id, string Name, int Members, string? StartWarning)
+public sealed record HarnessAuthenticationOption(string Id, string Name, int Members, string? StartWarning, bool? ReloginSupported = null)
 {
     public string UsageText => Members > 0 ? $"{Members}人が使用" : "使用していません";
     public bool NeedsStartConfirmation(AuthenticationState? auth) => !string.IsNullOrEmpty(StartWarning) && auth?.Status != "blocked";
