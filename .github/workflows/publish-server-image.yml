@@ -166,7 +166,7 @@ jobs:
           assert.equal(subscription.canUseAI, true);
           assert.equal((await fetch(base)).status, 200);
           '
-      - name: モデル候補の取得と未認証Cursorの理由表示を確認
+      - name: モデル候補の取得と未認証CLIの理由表示を確認
         run: |
           docker compose exec -T bellteam node --input-type=module -e '
           import assert from "node:assert/strict";
@@ -174,11 +174,11 @@ jobs:
           const response = await fetch(base + "/api/models");
           assert.equal(response.status, 200);
           const { models } = await response.json();
-          assert.deepEqual(Object.keys(models).sort(), ["claude", "codex", "cursor", "grok"]);
+          assert.deepEqual(Object.keys(models).sort(), ["antigravity", "claude", "codex", "cursor", "grok"]);
           for (const [harness, entry] of Object.entries(models)) {
-            if (harness === "cursor") {
+            if (harness === "cursor" || harness === "antigravity") {
               assert.equal(entry.error.code, "MODEL_CATALOG_UNAVAILABLE");
-              assert.match(entry.error.message, /Authentication required/);
+              assert.match(entry.error.message, harness === "cursor" ? /Authentication required/ : /Please sign in to view available models/);
               assert.deepEqual(entry.models, []);
               continue;
             }
@@ -187,7 +187,7 @@ jobs:
             assert.ok(entry.models.every(model => typeof model.id === "string" && Array.isArray(model.efforts)), harness);
             assert.equal(typeof entry.source, "string", harness);
           }
-          console.log("空の保存領域でモデル候補とCursorの認証エラーを確認しました。");
+          console.log("空の保存領域でモデル候補とCursor・Antigravityの認証エラーを確認しました。");
           '
       - name: 公式認証の開始と端末消失後の再選択を確認
         run: |
