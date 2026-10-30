@@ -56,7 +56,8 @@ if(a[0]==='compose'){
           target:prepare?'/srv/bellteam-state-parent':'/srv/bellteam/state'}]}}});process.exit(0)
     }
     if(!env.COMPOSE_FILE){event('original-render');if(env.TEST_NORMAL_FAILURE){process.exit(57)}}
-    const c=current();if(env.TEST_MISSING_PROJECT)delete c.name;
+    const c=current();if(!env.COMPOSE_FILE&&env.TEST_SELECTED_IMAGE)c.services.bellteam.image=env.TEST_SELECTED_IMAGE;
+    if(env.TEST_MISSING_PROJECT)delete c.name;
     if(env.TEST_BIND_ROOT)c.services.bellteam.volumes[0].source=env.TEST_BIND_ROOT;
     out(c);process.exit(0)
   }
@@ -116,6 +117,19 @@ test('installer uses one private frozen normal model and dedicated models after 
   assert.doesNotMatch(stdout, /synthetic-only/)
 })
 
+test('installer preserves selected immutable ref beside raw IDs without treating mutable or raw input as a ref', async t => {
+  for (const selected of ['ghcr.io/kitepon/bellteam-server@sha256:' + 'b'.repeat(64), 'fixture:mutable', imageId]) {
+    const f = await fixture(t)
+    await f.run({ TEST_SELECTED_IMAGE: selected })
+    const normalFile = (await f.events()).find(e => e.kind === 'up').composeFile
+    for (const [file, service] of [[normalFile, 'bellteam'], [join(dirname(normalFile), 'compose.state-prepare.yaml'), 'state-prepare']]) {
+      const model = JSON.parse(await readFile(file, 'utf8'))
+      assert.equal(model.services[service].image, imageId)
+      assert.equal(model['x-bellteam-image-ref'], selected.includes('@sha256:') ? selected : undefined)
+    }
+  }
+})
+
 test('normal capture failure occurs before stopping the server', async t => {
   const f = await fixture(t)
   await assert.rejects(f.run({ TEST_NORMAL_FAILURE: '1' }), error => error.code === 57)
@@ -136,7 +150,7 @@ test('retained model: successful exit preserves a private complete configuration
   const selected = (await f.events()).find(e => e.kind === 'up').composeFile
   assert.equal(dirname(dirname(selected)), f.install)
   assert.ok(dirname(selected).includes('/.bellteam-compose.'))
-  assert.deepEqual((await readdir(dirname(selected))).sort(), ['compose.state-maintenance.json', 'normal.json'])
+  assert.deepEqual((await readdir(dirname(selected))).sort(), ['compose.state-maintenance.json', 'compose.state-prepare.yaml', 'normal.json'])
   const directory = await stat(dirname(selected)), file = await stat(selected)
   assert.equal(directory.mode & 0o777, 0o700)
   assert.equal(file.mode & 0o777, 0o600)

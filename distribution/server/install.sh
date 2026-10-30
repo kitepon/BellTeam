@@ -26,6 +26,7 @@ trap 'exit 1' 1 2 15
 docker compose config --format json > "$staging/normal.raw.json"
 image=$(docker compose -f "$staging/normal.raw.json" config --images)
 case "$image" in ''|*[[:space:]]*) echo 'BellTeamのサーバーイメージを1つ指定してください。' >&2; exit 1;; esac
+selected_image=$image
 if ! "$pull" && ! docker image inspect "$image" >/dev/null; then
   echo '指定したローカルイメージがありません。先にビルドしてください。起動中のBellTeamは変更していません。' >&2
   exit 1
@@ -70,11 +71,14 @@ try {
   const state=m.volumes.find(v=>v.target==="/srv/bellteam/state").source;
   if(p.image!==process.argv[1]||m.image!==process.argv[1]||!path.isAbsolute(parent)
     ||path.resolve(state)!==path.join(parent,"state")) throw new Error();
+  if(process.argv[3].includes("@sha256:")) {
+    for(const model of [normal,prepare]) model["x-bellteam-image-ref"]=process.argv[3];
+  }
   console.log(normal.name);
   for(const model of models) console.log(JSON.stringify(model,(_key,value)=>
     typeof value==="string"?value.replaceAll("$",()=>"$$"):value));
 } catch { console.error("SERVER_STATE_CONFIG_UNAVAILABLE"); process.exitCode=1; }
-' "$image" "$saved" > "$staging/models.jsonl"
+' "$image" "$saved" "$selected_image" > "$staging/models.jsonl"
 project=$(sed -n '1p' "$staging/models.jsonl")
 case "$project" in ''|*[!a-zA-Z0-9_.-]*) echo '通常Composeのproject名を確認できません。起動中のBellTeamは変更していません。' >&2; exit 1;; esac
 sed -n '2p' "$staging/models.jsonl" > "$saved/normal.json.tmp"

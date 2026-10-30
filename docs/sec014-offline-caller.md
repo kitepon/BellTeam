@@ -542,6 +542,10 @@ supervisorはserver UID1001時に、最初のbootstrap/application/lifecycle imp
 
 公開installerも、実行するrender済みprepareを既saved generationのnormal/maintenanceと同じ場所へ保存する。従来はstagingだけに保存していたため、成功・prepare失敗・normal起動失敗のいずれもcleanupで実行設定が消えた。同じ実shell/fake Dockerの3反例は旧3件ENOENT失敗→新3件成功、直接影響の呼出順・失敗伝播・抽出拒否3件も成功。元の終了値、umask077とkeep_saved、後続工程へ進まない条件を維持する。新しいhelper、lock、factory、信頼入力は追加しない。これは設定原本の保持だけで、公開installerの全区間ownerやhost/peer authority、実Docker/Hostでの受入は未接続のまま。
 
+既存frozen-config試験に残っていた保存先2fileの期待を、prepareを含む3fileへ訂正した。保存修理直後はこの期待更新が漏れており、当該1件を実行して旧期待のassert失敗→訂正後成功を確認した。製品installerは変更せず、他の既成功群は再走していない。
+
+公開installerは元のComposeで選ばれたimage参照をraw ID解決前に保持し、digest指定の場合だけ既内部adapterと同じ`x-bellteam-image-ref`を保存normal/prepareへ併記する。実行imageは従来どおり初回解決のraw IDで固定し、可変tag/raw IDを新たなimmutable参照として記録しない。既shell/普通FSとfake Dockerによる反例は元参照の欠落を確認し、同じ最終test bytesで旧1pass/1fail→新2pass（3file期待を含む）。初回image解決失敗の直接影響1件も成功。これは入力の記録であり、digest参照と実imageのHost authority、public normalのcontrol/token入力、同区間排他やproduction factoryを供給する変更ではない。
+
 ### 保存prepareの記録
 
 保存normalの兄弟`compose.state-prepare.yaml`がある世代では、既control読取がそのroot-owned private fileのpath/SHA/device/inode/親identity/owner/raw imageをnormal記録へ保持する。prepareはJSONとしてrender済みで、単一state-prepare serviceのraw imageはnormalと一致する必要がある。tx.checkは兄弟fileも再読し、同bytes別inodeやsymlink・raw image不一致を拒否する。兄弟fileのない従来世代のnormal記録は維持する。
