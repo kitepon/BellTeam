@@ -20,6 +20,7 @@ const exec = promisify(execFile)
 
 export class BotRegistry extends Map {
   #profileMutations = new Map()
+  #refreshQueue = Promise.resolve()
 
   constructor({ seedPath, botsRoot, now = () => new Date(), id = randomUUID, botId = () => `bot-${randomUUID().slice(0, 8)}`, onChange = async () => {}, models = new LiveModelCatalog() }) {
     super()
@@ -67,7 +68,13 @@ export class BotRegistry extends Map {
     return this.refresh()
   }
 
-  async refresh() {
+  refresh() {
+    const result = this.#refreshQueue.then(() => this.#readProfiles())
+    this.#refreshQueue = result.catch(() => {})
+    return result
+  }
+
+  async #readProfiles() {
     const profiles = []
     for (const entry of await readdir(this.botsRoot, { withFileTypes: true })) {
       if (!entry.isDirectory() || !BOT_ID.test(entry.name)) continue
