@@ -50,7 +50,7 @@ struct HomeView: View {
                     .padding(.top, 18)
                     .padding(.bottom, 24)
                 }
-                .refreshable { await store.refreshFromView() }
+                .refreshable { await store.refreshFromView(origin: .homePull) }
             }
             .navigationDestination(for: ChatTarget.self) { target in
                 ConversationView(target: target)

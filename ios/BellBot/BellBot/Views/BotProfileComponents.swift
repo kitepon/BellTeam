@@ -164,7 +164,7 @@ struct BotProfileHero: View {
             case .saved, .confirmed:
                 imageSaveErrors[variant] = nil
                 do {
-                    try await store.refresh()
+                    try await store.refresh(origin: .avatarSave)
                     imageSaveMessage = "画像を保存しました。"
                 } catch {
                     imageSaveErrors[variant] = "画像を保存しましたが、表示を更新できませんでした。\n\(error.localizedDescription)"
@@ -199,7 +199,7 @@ struct BotProfileHero: View {
             switch result {
             case .saved, .confirmed:
                 imageSaveErrors[variant] = nil
-                try await store.refresh()
+                try await store.refresh(origin: .avatarConfirmation)
                 imageSaveMessage = "画像の保存を確認しました。"
                 imageAction = nil
             case .different:

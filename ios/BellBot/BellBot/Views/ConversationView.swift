@@ -449,7 +449,7 @@ private struct ConversationContent: View {
             let outcome = try await store.api.stopBot(id)
             stopNotice = outcome == .sent ? .sent : .confirmed(name)
             await load()
-            await store.refreshFromView()
+            await store.refreshFromView(origin: .conversationStop)
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
         } catch {
@@ -964,7 +964,7 @@ private struct ConversationContent: View {
             awaitingSendResponse = false
             if appIsActive {
                 await load()
-                if appIsActive { await store.refreshFromView() }
+                if appIsActive { await store.refreshFromView(origin: .conversationSend) }
             }
         } catch {
             awaitingSendResponse = false

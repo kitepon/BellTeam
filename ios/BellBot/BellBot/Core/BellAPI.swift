@@ -172,8 +172,9 @@ final class BellAPI {
         return URLSession(configuration: configuration, delegate: SecretRedirectDelegate(), delegateQueue: nil)
     }
 
-    func get<T: Decodable>(_ path: String) async throws -> T {
-        try decode(T.self, from: try await data(path: path, method: "GET"), path: path, method: "GET")
+    func get<T: Decodable>(_ path: String, callerContext: String? = nil) async throws -> T {
+        try decode(T.self, from: try await data(path: path, method: "GET", callerContext: callerContext),
+                   path: path, method: "GET")
     }
 
     func post<Body: Encodable, T: Decodable>(_ path: String, body: Body) async throws -> T {
@@ -269,18 +270,20 @@ final class BellAPI {
         }
     }
 
-    private func data(path: String, method: String, body: Data? = nil) async throws -> Data {
-        try await dataWithStatus(path: path, method: method, body: body).0
+    private func data(path: String, method: String, body: Data? = nil,
+                      callerContext: String? = nil) async throws -> Data {
+        try await dataWithStatus(path: path, method: method, body: body, callerContext: callerContext).0
     }
 
-    private func dataWithStatus(path: String, method: String, body: Data? = nil) async throws -> (Data, Int) {
+    private func dataWithStatus(path: String, method: String, body: Data? = nil,
+                                callerContext: String? = nil) async throws -> (Data, Int) {
         do {
             var request = try request(path: path, method: method)
             if let body {
                 request.httpBody = body
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             }
-            let (data, response, trace) = try await load(request)
+            let (data, response, trace) = try await load(request, callerContext: callerContext)
             do { try validate(response, data: data) }
             catch { throw traced(error, with: trace) }
             guard let http = response as? HTTPURLResponse else { throw BellAPIError.invalidResponse }
@@ -295,7 +298,7 @@ final class BellAPI {
         }
     }
 
-    private func load(_ request: URLRequest) async throws -> (Data, URLResponse, BellRequestTrace) {
+    private func load(_ request: URLRequest, callerContext: String? = nil) async throws -> (Data, URLResponse, BellRequestTrace) {
         let startedAt = Date()
         let startedState = diagnostics.requestStartAppState()
         let route = BellRequestTrace.route(for: request.url!.path)
@@ -362,13 +365,15 @@ final class BellAPI {
             return (data, response, BellRequestTrace(route: route, method: method,
                 startedAt: startedAt, failedAt: Date(), appStateAtStart: startedState,
                 attempts: attempts, metrics: metrics.snapshot(), attemptDetails: attemptDetails,
-                requestTimeoutMs: requestTimeoutMs, sessionTimeoutMs: sessionTimeoutMs))
+                requestTimeoutMs: requestTimeoutMs, sessionTimeoutMs: sessionTimeoutMs,
+                callerContext: callerContext))
         } catch {
             try Task.checkCancellation()
             let trace = BellRequestTrace(route: route, method: method, startedAt: startedAt,
                 failedAt: Date(), appStateAtStart: startedState, attempts: attempts,
                 metrics: metrics.snapshot(), attemptDetails: attemptDetails,
-                requestTimeoutMs: requestTimeoutMs, sessionTimeoutMs: sessionTimeoutMs)
+                requestTimeoutMs: requestTimeoutMs, sessionTimeoutMs: sessionTimeoutMs,
+                callerContext: callerContext)
             throw traced(error, with: trace)
         }
     }

@@ -3,9 +3,38 @@ import WebKit
 import OSLog
 import SwiftUI
 import Combine
+import Darwin
 
 private enum EventResource: Hashable {
     case all, bots, rooms, owner, queue
+}
+
+enum MemberListReadOrigin: String {
+    case bootstrap, webLogin, guideCompletion, sceneForeground, sseAll, sseResources, homePull
+    case conversationStop, conversationSend, ownerQuestionAnswer
+    case ownerSave, avatarSave, avatarConfirmation, memberSave, deletionConfirmation
+    case unspecified
+}
+
+private struct MemberListReadCallContext {
+    let origin: MemberListReadOrigin
+    let callContinuousTick: UInt64
+    let appState: BellAppStateSnapshot
+
+    static func capture(_ origin: MemberListReadOrigin, diagnostics: BellDiagnostics) -> Self {
+        // 連続時計と状態snapshotは順に採る。境界で変われば原子的な同時状態ではない。
+        let tick = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)
+        let state = diagnostics.requestAppStateSnapshot()
+        return Self(origin: origin, callContinuousTick: tick, appState: state)
+    }
+
+    var log: String {
+        "member_list_origin=\(origin.rawValue)"
+            + "\nmember_list_call_continuous_ms=\(callContinuousTick / 1_000_000)"
+            + "\nmember_list_app_state_at_call=\(appState.state)"
+            + "\nmember_list_app_state_revision_at_call=\(appState.revision)"
+            + "\nmember_list_app_state_changed_continuous_ms_at_call=\(appState.changedContinuousTick / 1_000_000)"
+    }
 }
 
 @MainActor
@@ -167,7 +196,7 @@ final class AppStore: ObservableObject {
             let session: SessionResponse = try await api.get("/api/session")
             authMode = session.authMode
             guard session.authenticated else { throw BellAPIError.unauthorized }
-            try await loadInitialState()
+            try await loadInitialState(origin: .bootstrap)
         } catch let error where BellAPIError.isAuthenticationError(error) {
             requireLogin(for: error)
         } catch {
@@ -187,7 +216,7 @@ final class AppStore: ObservableObject {
             let session: SessionResponse = try await api.get("/api/session")
             guard session.authenticated else { return }
             authMode = session.authMode
-            try await loadInitialState()
+            try await loadInitialState(origin: .webLogin)
         } catch let error where BellAPIError.isAuthenticationError(error) {
             return
         } catch {
@@ -196,11 +225,11 @@ final class AppStore: ObservableObject {
         }
     }
 
-    private func loadInitialState() async throws {
+    private func loadInitialState(origin: MemberListReadOrigin) async throws {
         try await refreshSettings()
         setup = try await api.get("/api/setup")
         guard setup?.phase == "ready" else { phase = .onboarding; return }
-        try await enterConversations(openGuide: setup?.complete == false)
+        try await enterConversations(openGuide: setup?.complete == false, origin: origin)
     }
 
     func refreshSettings() async throws {
@@ -333,11 +362,11 @@ final class AppStore: ObservableObject {
         defer { setupAuthUpdating = false; setupAuthRevision += 1 }
         setup = try await api.post("/api/setup/start", body: SetupEmptyBody())
         guard setup?.phase == "ready" else { throw BellAPIError.server("公式認証を完了してから、もう一度確認してください。") }
-        try await enterConversations(openGuide: true)
+        try await enterConversations(openGuide: true, origin: .guideCompletion)
     }
 
-    private func enterConversations(openGuide: Bool) async throws {
-        try await refresh()
+    private func enterConversations(openGuide: Bool, origin: MemberListReadOrigin) async throws {
+        try await refresh(origin: origin)
         phase = .ready
         if openGuide, let guide = setup?.guideBotId { selectedTab = 0; chatPath = [.bot(guide)] }
         startEvents()
@@ -359,8 +388,9 @@ final class AppStore: ObservableObject {
         await BellNotifications.shared.activate(api: api, signedTransaction: billing.notificationSignedTransaction)
     }
 
-    func refresh() async throws {
-        async let botResult: BotsResponse = api.get("/api/bots?avatar=omit")
+    func refresh(origin: MemberListReadOrigin = .unspecified) async throws {
+        let call = MemberListReadCallContext.capture(origin, diagnostics: api.diagnostics)
+        async let botResult: BotsResponse = api.get("/api/bots?avatar=omit", callerContext: call.log)
         async let roomResult: RoomsResponse = api.get("/api/rooms?avatar=omit")
         async let ownerResult: OwnerResponse = api.get("/api/owner?avatar=omit")
         async let queueResult: QueueResponse = api.get("/api/queue")
@@ -481,7 +511,7 @@ final class AppStore: ObservableObject {
             while !eventRefreshResources.isEmpty && !Task.isCancelled {
                 let resources = eventRefreshResources
                 eventRefreshResources.removeAll()
-                if resources.contains(.all) { await refreshFromView(refreshSubscription: false) }
+                if resources.contains(.all) { await refreshFromView(origin: .sseAll, refreshSubscription: false) }
                 else { await refreshResourcesFromEvent(resources) }
             }
         }
@@ -502,7 +532,7 @@ final class AppStore: ObservableObject {
     }
 
     func confirmBotDeletion(_ id: String) async throws -> Bool {
-        try await refresh()
+        try await refresh(origin: .deletionConfirmation)
         refreshError = nil
         updateConnectionError()
         return !bots.contains(where: { $0.id == id })
@@ -535,9 +565,10 @@ final class AppStore: ObservableObject {
         removeDraft(for: .room(id))
     }
 
-    func refreshFromView(refreshSubscription: Bool = true) async {
+    func refreshFromView(origin: MemberListReadOrigin = .unspecified,
+                         refreshSubscription: Bool = true) async {
         do {
-            try await refresh()
+            try await refresh(origin: origin)
             refreshError = nil
             updateConnectionError()
             if refreshSubscription { await billing.refreshFromServer() }
@@ -552,14 +583,17 @@ final class AppStore: ObservableObject {
         }
     }
 
-    private func getForEvent<T: Decodable>(_ needed: Bool, path: String) async throws -> T? {
+    private func getForEvent<T: Decodable>(_ needed: Bool, path: String,
+                                           callerContext: String? = nil) async throws -> T? {
         guard needed else { return nil }
-        return try await api.get(path)
+        return try await api.get(path, callerContext: callerContext)
     }
 
     private func refreshResourcesFromEvent(_ resources: Set<EventResource>) async {
         do {
-            async let bots: BotsResponse? = getForEvent(resources.contains(.bots), path: "/api/bots?avatar=omit")
+            let call = MemberListReadCallContext.capture(.sseResources, diagnostics: api.diagnostics)
+            async let bots: BotsResponse? = getForEvent(resources.contains(.bots), path: "/api/bots?avatar=omit",
+                                                         callerContext: call.log)
             async let rooms: RoomsResponse? = getForEvent(resources.contains(.rooms), path: "/api/rooms?avatar=omit")
             async let owner: OwnerResponse? = getForEvent(resources.contains(.owner), path: "/api/owner?avatar=omit")
             async let queue: QueueResponse? = getForEvent(resources.contains(.queue), path: "/api/queue")
@@ -607,7 +641,7 @@ final class AppStore: ObservableObject {
                 guard let self else { return }
                 await api.resetConnections()
                 if Task.isCancelled { return }
-                await refreshFromView()
+                await refreshFromView(origin: .sceneForeground)
                 if Task.isCancelled { return }
                 await refreshAIControl()
                 if Task.isCancelled { return }

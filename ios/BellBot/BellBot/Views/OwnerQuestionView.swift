@@ -62,7 +62,7 @@ struct OwnerQuestionCard: View {
             let response: OwnerQuestionResponse = try await store.api.post("/api/owner-questions/\(question.id)/answer", body: body)
             state.result = response.question
             state.errorText = nil
-            await store.refreshFromView()
+            await store.refreshFromView(origin: .ownerQuestionAnswer)
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch {
             state.errorText = BellAPIError.operationFailureMessage(error)
