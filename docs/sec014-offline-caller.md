@@ -1153,3 +1153,28 @@ are point observations, not a safe-options policy, complete mount topology,
 trusted peer/host proof or exclusion of changes between observations. Real
 hostfacts/full factory, durable invalidation/recovery and later phases remain
 unconnected. All authorityfalse, whole NOTDEPLOYABLE, unmerged/undeployed.
+
+### 2026-10-30: bracket socket facts with the thread mount namespace
+
+The shared socket getter previously observed the thread mount namespace only
+after opening the socket and collecting its FD/mount facts. A namespace change
+during collection could therefore join earlier FD facts to a later namespace.
+It now captures the namespace before opening either socket FD and requires the
+same namespace identity after collection. The existing original/recheck path,
+both Writer/Prepare callers and all FD-finally handling remain unchanged.
+
+Two same-test-byte Prepare cases inject a namespace change at socket open or
+FD-info acquisition: the old constructor bound once; the new one rejects before
+binding, saving no successful socket/parent original, with one invalidation
+attempt and both socket FDs closed. One native Writer case previously issued and
+reaped four Python fake-protocol clients; it now saves unknown, closes both FDs
+and issues/reaps none. Normal Prepare chain, socket options guard, parent
+namespace guard, held factory/native failure custody and native Writer positive
+pass (six affected cases). AST3/diff checks pass; no full groups.
+
+The namespace identity change is a kernel-response fixture, not real setns or
+unshare. Matching endpoint observations cannot exclude an intervening change
+and restoration, prove a trusted initial namespace/daemon, or maintain writer
+exclusion. Real hostfacts/full factory, safe policy, durable invalidation/recovery
+and later phases remain unconnected. All authorityfalse, whole NOTDEPLOYABLE,
+unmerged/undeployed; no real host/Docker/NAS/Apple or mount operations.

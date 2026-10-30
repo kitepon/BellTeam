@@ -278,6 +278,7 @@ class _Transaction:
     def _socket_observation(self):
         # shortcut: point observations only, require host peer/ancestor authority before live connection.
         path=self._docker_socket_path
+        namespace=os.stat('/proc/thread-self/ns/mnt')
         fd=os.open(path,os.O_PATH|os.O_NOFOLLOW|os.O_CLOEXEC)
         named=None
         try:
@@ -317,7 +318,8 @@ class _Transaction:
                     or not re.fullmatch(rb'[1-9][0-9]{0,19}',fields[1])
                     or fields[2]!=str(os.major(info.st_dev)).encode()+b':'+str(os.minor(info.st_dev)).encode()):
                 raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_MOUNTINFO')
-            namespace=os.stat('/proc/thread-self/ns/mnt')
+            if _identity(os.stat('/proc/thread-self/ns/mnt'))!=_identity(namespace):
+                raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_NAMESPACE')
             value=dict(path=str(path),dockerHost='unix://'+str(path),device=str(info.st_dev),
                 inode=str(info.st_ino),uid=info.st_uid,gid=info.st_gid,
                 mode=format(stat.S_IMODE(info.st_mode),'04o'),links=info.st_nlink,

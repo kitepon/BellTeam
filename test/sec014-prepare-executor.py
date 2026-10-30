@@ -903,6 +903,61 @@ class PrepareTests(unittest.TestCase):
     def test_socket_mountinfo_table_oversize_refuses_before_binding(self):self.socket_mountinfo_case('oversize')
     def test_socket_mountinfo_record_budget_refuses_before_binding(self):self.socket_mountinfo_case('record')
 
+    def socket_namespace_bracket_case(self,mode):
+        real_stat=os.stat;real_open=os.open;real_path_open=Path.open
+        switched=False;opened=[];calls=[];invalidated=[];triggers=[]
+        namespace=real_stat('/proc/thread-self/ns/mnt')
+        def changed(path,*args,**kwargs):
+            value=real_stat(path,*args,**kwargs)
+            if str(path)=='/proc/thread-self/ns/mnt' and switched:
+                fields=list(value);fields[1]=namespace.st_ino+1
+                return os.stat_result(fields)
+            return value
+        def fd_open(path,flags,*args,**kwargs):
+            nonlocal switched
+            fd=real_open(path,flags,*args,**kwargs)
+            if path==self.socket_path and flags&os.O_PATH:
+                opened.append(fd)
+                if mode=='open' and not switched:switched=True;triggers.append('socket-open')
+            return fd
+        def path_open(path,*args,**kwargs):
+            nonlocal switched
+            stream=real_path_open(path,*args,**kwargs)
+            if (mode=='fdinfo' and not switched and str(path).startswith('/proc/thread-self/fdinfo/')
+                    and os.readlink('/proc/thread-self/fd/'+path.name)==str(self.socket_path)):
+                switched=True;triggers.append('socket-fdinfo')
+            return stream
+        def host(step):return 'd'*64
+        host.bind_image=lambda *args:calls.append(args)
+        host.invalidate=invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path), \
+                patch.object(os,'stat',side_effect=changed),patch.object(os,'open',side_effect=fd_open), \
+                patch.object(Path,'open',path_open):
+            caught=None
+            try:p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                           datetime.now(timezone.utc)+timedelta(seconds=120),host)
+            except RuntimeError as error:caught=error
+            print('SOCKET_NAMESPACE_BRACKET '+json.dumps(dict(mode=mode,triggers=triggers,
+                bindingCalls=len(calls),socketFds=len(opened),refused=None if caught is None else str(caught))),flush=True)
+            self.assertEqual(len(triggers),1)
+            self.assertEqual(calls,[])
+            self.assertIsNotNone(caught)
+            self.assertEqual(str(caught),'SEC014_CONTROL_DOCKER_SOCKET_NAMESPACE')
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            self.assertEqual(len(opened),2)
+            for fd in opened:
+                with self.assertRaises(OSError):os.fstat(fd)
+            self.assertFalse((self.f.root/'to-server-prepare-socket.json').exists())
+            self.assertFalse((self.f.root/'to-server-prepare-parent.json').exists())
+            self.assertEqual(self.commands,[])
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_socket_namespace_change_during_open_refuses_binding(self):
+        self.socket_namespace_bracket_case('open')
+
+    def test_socket_namespace_change_during_fdinfo_refuses_binding(self):
+        self.socket_namespace_bracket_case('fdinfo')
+
     def socket_mount_refusal(self,mode):
         real_open=Path.open;real_fd_open=os.open;opened=[];observed=[];calls=[]
         def fd_open(path,flags,*args,**kwargs):

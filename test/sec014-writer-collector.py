@@ -185,6 +185,36 @@ class WriterCollector(h.HeldWriterConfig):
         self.assertEqual({x['clientPid'] for x in result['terminalRefs']},{x.pid for x in self.children})
         self.assertTrue(all(not Path(f'/proc/{x.pid}').exists() for x in self.children))
 
+    def test_socket_namespace_change_during_open_refuses_before_image(self):
+        real_stat=os.stat;real_open=os.open;opened=[];triggers=[];switched=False
+        namespace=real_stat('/proc/thread-self/ns/mnt')
+        def changed(path,*args,**kwargs):
+            value=real_stat(path,*args,**kwargs)
+            if str(path)=='/proc/thread-self/ns/mnt' and switched:
+                fields=list(value);fields[1]=namespace.st_ino+1
+                return os.stat_result(fields)
+            return value
+        def fd_open(path,flags,*args,**kwargs):
+            nonlocal switched
+            fd=real_open(path,flags,*args,**kwargs)
+            if path==self.socket_path and flags&os.O_PATH:
+                opened.append(fd)
+                if not switched:switched=True;triggers.append('socket-open')
+            return fd
+        with patch.object(os,'stat',side_effect=changed),patch.object(os,'open',side_effect=fd_open):
+            try:self.run_factory('socket_namespace')
+            finally:print('WRITER_SOCKET_NAMESPACE '+json.dumps(dict(triggers=triggers,
+                nativePids=[child.pid for child in self.children],reapedPids=self.waited,
+                socketFds=len(opened))),flush=True)
+            self.assertEqual(len(triggers),1)
+            self.assertEqual(self.children,[])
+            self.assertEqual(self.waited,[])
+            self.assertEqual(len(opened),2)
+            for fd in opened:
+                with self.assertRaises(OSError):os.fstat(fd)
+            self.assertFalse((self.control/'to-server-writer-socket.json').exists())
+            self.assertTrue((self.control/'to-server-writer-unknown.json').exists())
+
     def test_socket_replacement_after_image_refuses_list(self):
         self.run_factory('socket_replace')
         self.assertEqual(len(self.children),1)
