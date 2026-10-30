@@ -178,6 +178,8 @@ test('Antigravityの強制再認証は共有資格へ触れる前に未対応と
   const auth = new HarnessAuth({ bots, client })
   await assert.rejects(auth.start('antigravity'), { code: 'HARNESS_AUTH_RELOGIN_UNSUPPORTED', status: 409 })
   assert.deepEqual(client.calls, [])
+  assert.equal(auth.list().harnesses.find(x => x.id === 'antigravity').reloginSupported, false)
+  assert.ok(auth.list().harnesses.filter(x => x.id !== 'antigravity').every(x => x.reloginSupported === true))
   assert.match(auth.list().harnesses.find(x => x.id === 'antigravity').startWarning, /公式CLI/u)
   const blocked = new HarnessAuth({ bots, client: aiterm({ official: 'blocked' }) })
   assert.match((await blocked.status('antigravity')).auth.message, /対応していません/u)

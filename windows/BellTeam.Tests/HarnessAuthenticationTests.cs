@@ -32,6 +32,23 @@ public sealed class HarnessAuthenticationTests
         Assert.True((await auth.StatusAsync("codex")).Auth!.InputRequired); await auth.StartAsync("codex"); await auth.InputAsync("codex", Secret, null); await auth.InputAsync("codex", null, "Enter"); Assert.Null((await auth.CancelAsync("codex")).Auth); Assert.Empty(paths);
     }
     [Theory]
+    [InlineData(true)] [InlineData(false)]
+    public void UnsupportedReloginRemovesStartAndSendsNothing(bool supported)
+    {
+        Sta(() =>
+        {
+            var posts = 0;
+            using var workspace = CreateWorkspace((request, _) => { if (request.Method == HttpMethod.Post) posts++; return Task.FromResult(StubHandler.Json(Authenticated)); });
+            var option = Option with { ReloginSupported = supported };
+            var window = new HarnessAuthenticationWindow(workspace, option, _ => true);
+            Await(window.InitializeAsync());
+            Assert.Equal(supported, Find<Button>(window).Any(button => button.Content as string == "認証し直す"));
+            Await(window.StartAsync()); Assert.Equal(supported ? 1 : 0, posts);
+            Assert.Contains(Find<Button>(window), button => button.Content as string == "状態を更新");
+            window.Close();
+        });
+    }
+    [Theory]
     [InlineData(400)] [InlineData(307)] [InlineData(0)]
     public async Task InputFailureDoesNotIncludeValueOrInnerException(int status)
     {

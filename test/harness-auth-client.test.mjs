@@ -114,6 +114,28 @@ test('一覧では公式の状態を見に行かず、行を開いた時に見�
   }
 })
 
+test('サーバーが再認証非対応と返す種類には開始を案内せず、公式案内と状態更新を残す', async () => {
+  const previous = globalThis.document
+  globalThis.document = { hidden: false, createElement: tag => new Element(tag), addEventListener() {}, removeEventListener() {} }
+  const calls = [], message = '公式CLIで認証してください。'
+  const api = async (path, options = {}) => {
+    calls.push(`${options.method ?? 'GET'} ${path}`)
+    if (path === '/api/harness-auth') return { harnesses: [{ id: 'fixture', name: 'Fixture', members: 0, reloginSupported: false, startWarning: message }] }
+    if (path === '/api/harness-auth/fixture') return { auth: { status: 'authenticated' } }
+    throw Error(`unexpected ${path}`)
+  }
+  let section
+  try {
+    const container = new Element('div'); section = await renderHarnessAuth(container, { api })
+    const row = container.children[0]
+    row.open = true; row.fire('toggle'); await settle()
+    assert.ok(texts(row).includes(message))
+    assert.equal(descendants(row).some(item => item.tag === 'button' && item.textContent === 'ログインする'), false)
+    descendants(row).find(item => item.tag === 'button' && item.textContent === '状態を更新').fire('click'); await settle()
+    assert.deepEqual(calls, ['GET /api/harness-auth', 'GET /api/harness-auth/fixture', 'GET /api/harness-auth/fixture'])
+  } finally { section?.stop(); globalThis.document = previous }
+})
+
 test('変更完了後の古いstatus応答を捨て、不明な入力は明示更新まで再入力させない', async t => {
   const previous = globalThis.document
   globalThis.document = { hidden: false, createElement: tag => new Element(tag), addEventListener() {}, removeEventListener() {} }

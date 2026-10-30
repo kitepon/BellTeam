@@ -55,13 +55,14 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
             else input.Clear();
         }
         var actions = new WrapPanel { Margin = new Thickness(0, 20, 0, 0) }; Body.Children.Add(actions);
-        var start = new Button { Content = "認証し直す" }; actions.Children.Add(start); start.Click += async (_, _) => await StartAsync();
+        if (harness.ReloginSupported != false) { var start = new Button { Content = "認証し直す" }; actions.Children.Add(start); start.Click += async (_, _) => await StartAsync(); }
+        else if (!string.IsNullOrEmpty(harness.StartWarning)) details.Children.Add(SecretCard.CardBody(harness.StartWarning));
         var refresh = new Button { Content = "状態を更新" }; actions.Children.Add(refresh); refresh.Click += async (_, _) => await InitializeAsync();
         if (Started) { var cancel = new Button { Content = "やめる" }; actions.Children.Add(cancel); cancel.Click += async (_, _) => await PerformAsync(async () => { await api.CancelAsync(harness.Id, Token); Started = false; return await api.StatusAsync(harness.Id, Token); }); }
     }
     public async Task StartAsync()
     {
-        if (Busy) return;
+        if (Busy || harness.ReloginSupported == false) return;
         input.Clear();
         if (harness.NeedsStartConfirmation(Authentication) && !confirm(harness.StartWarning!)) return;
         await PerformAsync(async () => { var next = await api.StartAsync(harness.Id, Token); Started = next.Auth?.Status != "authenticated"; return next; });
