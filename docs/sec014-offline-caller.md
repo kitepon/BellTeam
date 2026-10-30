@@ -1099,3 +1099,29 @@ claim deadline, held factory and native failure custody pass (seven affected
 cases). No full groups or real host/Docker operations. This does not prove actual
 host invalidation/release, a timely callback return or continuous authority;
 the real hostfacts verifier/full factory and later phases remain unconnected.
+
+### 2026-10-30: retain initiated host bindings across factory failure
+
+An image-binding callback can acquire partial state and then raise. If its
+best-effort invalidator also fails, or a later factory operation fails before any
+native client exists, the old failure-owner path retained no checker object.
+The existing held transaction now owns each checker before invoking bind_image.
+The existing actor failure-owner list retains that transaction when a binding was
+initiated, in addition to the unchanged native-child condition. An invalidator
+return or exception does not prove release and does not discard the owner.
+
+Three same-byte cases clear the original exception traceback/context and collect
+garbage after factory unwind. ValueError, KeyboardInterrupt plus a failing
+invalidator, and a successful binding followed by factory failure previously lost
+the checker; all now retain the same object with one failed transaction owner.
+Original exception objects, incomplete journal, no client/phase and closed
+control/observation FDs are preserved. Related held factory, prebinding failure,
+generation rejection, native terminal/birth custody, normal Prepare and binding
+deadline cases pass (eight affected tests). No full groups.
+
+This is process-local custody, not durable recovery or host-authority proof. The
+control context still closes its FDs and releases its lock. There is no automatic
+release, reaping, retry or eviction; unknown owners can remain in memory until a
+future trusted recovery handoff. Real hostfacts/full factory, actual invalidation
+and release, continuous writer exclusion and later phases remain unconnected.
+All authorityfalse, whole NOTDEPLOYABLE, unmerged/undeployed; no live host/Docker.

@@ -168,6 +168,59 @@ class Binding(saved.SavedPrepare):
     def test_prepare_unobserved_birth_survives_factory_unwind(self):
         self.prepare_failure_owner(True)
 
+    def host_binding_failure_owner(self,mode):
+        issued={};bindings=[];invalidated=[]
+        failure=KeyboardInterrupt('synthetic image acquisition interrupted') if mode=='interrupt' else ValueError('synthetic factory failure')
+        class Checker:
+            def __call__(checker,step):raise AssertionError('host step must not run')
+            def bind_image(checker,*args):
+                bindings.append(True)
+                if mode!='later':raise failure
+            def invalidate(checker,reason):
+                invalidated.append(reason)
+                raise KeyboardInterrupt('synthetic invalidation failed')
+        def factory(tx):
+            checker=Checker();issued['weak']=weakref.ref(checker)
+            with patch.object(type(tx),'_docker_socket_path',self.socket_path):
+                saved.p._Prepare(tx,saved.old.IMAGE,saved.old.IMAGE_ID,time.monotonic()+110,
+                    saved.old.datetime.now(saved.old.timezone.utc)+saved.old.timedelta(seconds=120),checker)
+            raise failure
+        try:
+            with patch.object(a.control,'host_control',side_effect=self.entry):
+                try:a.run_actor('to-server',saved.old.IMAGE,factory,saved_normal=self.normal)
+                except BaseException as error:
+                    self.assertIs(error,failure)
+                    error.__traceback__=error.__context__=error.__cause__=None
+                else:self.fail('factory must fail')
+            gc.collect()
+            checker=issued['weak']()
+            owned=[tx for tx in a._FAILED_WRITER_OWNERS if tx.path==self.f.root]
+            print('HOST_BINDING_UNWIND '+json.dumps(dict(mode=mode,bindings=len(bindings),
+                invalidations=len(invalidated),checkerSurvivesGc=checker is not None,failureOwners=len(owned))),flush=True)
+            self.assertIsNotNone(checker,'factory failure lost the unconfirmed host checker')
+            self.assertEqual(len(owned),1)
+            self.assertEqual(owned[0]._prepare_host_checks,[checker])
+            self.assertEqual(bindings,[True])
+            self.assertEqual(invalidated,[] if mode=='later' else ['UNCONFIRMED_CHILD'])
+            self.assertEqual(self.commands,[])
+            self.assertEqual(getattr(owned[0],'_prepare_children',[]),[])
+            self.assertEqual(self.journal()['phases'],[])
+            self.assertEqual(self.journal()['status'],'incomplete')
+            for fd in (owned[0].parent,owned[0].lock):
+                with self.assertRaises(OSError):os.fstat(fd)
+        finally:
+            failure.__traceback__=failure.__context__=failure.__cause__=None
+            a._FAILED_WRITER_OWNERS[:]=[tx for tx in a._FAILED_WRITER_OWNERS if tx.path!=self.f.root]
+
+    def test_binding_error_retains_host_checker_after_factory_gc(self):
+        self.host_binding_failure_owner('error')
+
+    def test_binding_interrupt_retains_host_checker_after_factory_gc(self):
+        self.host_binding_failure_owner('interrupt')
+
+    def test_binding_later_factory_failure_retains_host_checker_after_gc(self):
+        self.host_binding_failure_owner('later')
+
     def test_binding_replaced_generation_after_factory_stops_before_phase(self):
         def factory(tx):
             tx.check()

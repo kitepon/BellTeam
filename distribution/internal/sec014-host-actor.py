@@ -16,7 +16,7 @@ _spec = importlib.util.spec_from_file_location(
 prepared = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(prepared)
 
-# A handled failure must not let Popen.__del__ reap an unconfirmed native client.
+# A handled failure retains binding owners and prevents implicit native reaping.
 _FAILED_WRITER_OWNERS = []
 
 # Each proof is produced after checking its real artifacts, never from exit0 alone.
@@ -178,7 +178,7 @@ def run_actor(direction, image, executor_factory, *, saved_normal):
             tx.check()
             return _run(tx, image, executor)
         except BaseException:
-            if any(child.returncode is None
+            if getattr(tx,'_prepare_host_checks',()) or any(child.returncode is None
                    for children in (getattr(tx, '_writer_children', ()),getattr(tx, '_prepare_children', ()))
                    for child, _ in children):
                 _FAILED_WRITER_OWNERS.append(tx)

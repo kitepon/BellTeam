@@ -66,6 +66,8 @@ class _Prepare:
             parent_record=actor._save_json(tx,tx.value['direction']+'-prepare-parent.json',parent)
             if time.monotonic()>=deadline-1 or datetime.now(timezone.utc)>=window_end:
                 raise actor.control.ControlError('SEC014_PREPARE_DEADLINE_OR_HELD')
+            if not hasattr(tx,'_prepare_host_checks'):tx._prepare_host_checks=[]
+            tx._prepare_host_checks.append(host_check)
             host_check.bind_image(image,image_id,copy.deepcopy(image_original))
             tx.check()
             if self._parent_observation(tx.owner)!=parent:
