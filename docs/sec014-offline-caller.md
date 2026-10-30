@@ -1209,3 +1209,26 @@ It does not prove trusted host/peer authority, continuous writer exclusion, actu
 invalidation/release, durable recovery, a complete factory or later phases.
 All authorityfalse, whole NOTDEPLOYABLE, unmerged/undeployed; no real host/Docker,
 mount, NAS or Apple operations and no full project test groups.
+
+### 2026-10-30: retain the checker before saving Prepare originals
+
+After the existing actor transaction check, Prepare now registers its supplied
+checker on the same transaction before checking the saved image or saving socket
+and parent originals. A save failure can happen before bind_image. If the
+existing invalidation attempt also fails, run_actor must still retain the
+checker after factory unwind; registering only immediately before bind_image
+lost that owner. The callback, its original failure, FD closure and incomplete
+journal remain unchanged. Initial argument and transaction validation still
+precede checker registration; no new factory, verifier, parameter or authority
+is introduced.
+
+Two same-test-byte socket/parent save failures reproduced checker loss after GC
+with no image binding or native client. Moving the existing registration makes
+both retain the checker while preserving the original OSError, one failed
+invalidation, closed transaction FDs and incomplete journal. The normal held
+factory and binding error/interrupt/later-failure cases also pass (four affected
+cases). The initial affected-test invocation had one misspelled method name and
+ran no cases; it is preserved separately from the corrected result. No full
+groups or real Host/Docker operations were run. Pre-image Writer authority,
+production factory and continuous exclusion remain unconnected;
+all authorityfalse and whole NOTDEPLOYABLE remain.

@@ -50,6 +50,8 @@ class _Prepare:
                 or not callable(getattr(host_check,'invalidate',None))):
             raise actor.control.ControlError('SEC014_PREPARE_HOST_IMAGE_BINDING')
         tx.check()
+        if not hasattr(tx,'_prepare_host_checks'):tx._prepare_host_checks=[]
+        tx._prepare_host_checks.append(host_check)
         try:
             image_original=copy.deepcopy(getattr(tx,'_writer_image_original',None))
             if type(image_original) is not dict or set(image_original)!={'output','sha256','file'}:
@@ -70,8 +72,6 @@ class _Prepare:
             tx._prepare_originals.append(dict(name=parent_name,value=copy.deepcopy(parent),file=parent_file))
             if time.monotonic()>=deadline-1 or datetime.now(timezone.utc)>=window_end:
                 raise actor.control.ControlError('SEC014_PREPARE_DEADLINE_OR_HELD')
-            if not hasattr(tx,'_prepare_host_checks'):tx._prepare_host_checks=[]
-            tx._prepare_host_checks.append(host_check)
             host_check.bind_image(image,image_id,copy.deepcopy(image_original))
             tx.check()
             if self._parent_observation(tx.owner)!=parent:

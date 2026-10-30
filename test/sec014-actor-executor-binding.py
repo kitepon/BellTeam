@@ -221,6 +221,59 @@ class Binding(saved.SavedPrepare):
     def test_binding_later_factory_failure_retains_host_checker_after_gc(self):
         self.host_binding_failure_owner('later')
 
+    def before_binding_failure_owner(self, stage):
+        issued={};bindings=[];invalidated=[];real_save=a._save_json
+        failure=OSError('synthetic '+stage+' original durability failure')
+        class Checker:
+            def __call__(checker,step):raise AssertionError('host step must not run')
+            def bind_image(checker,*args):bindings.append(args)
+            def invalidate(checker,reason):
+                invalidated.append(reason)
+                raise RuntimeError('synthetic invalidation failed')
+        def save(tx,name,value,**kwargs):
+            if name.endswith('-prepare-'+stage+'.json'):raise failure
+            return real_save(tx,name,value,**kwargs)
+        def factory(tx):
+            checker=Checker();issued['weak']=weakref.ref(checker)
+            with patch.object(type(tx),'_docker_socket_path',self.socket_path):
+                saved.p._Prepare(tx,saved.old.IMAGE,saved.old.IMAGE_ID,time.monotonic()+110,
+                    saved.old.datetime.now(saved.old.timezone.utc)+saved.old.timedelta(seconds=120),checker)
+            self.fail('original persistence failure returned success')
+        try:
+            with patch.object(a,'_save_json',side_effect=save), \
+                    patch.object(a.control,'host_control',side_effect=self.entry):
+                try:a.run_actor('to-server',saved.old.IMAGE,factory,saved_normal=self.normal)
+                except OSError as error:
+                    self.assertIs(error,failure)
+                    error.__traceback__=error.__context__=error.__cause__=None
+                else:self.fail('factory must fail before image binding')
+            gc.collect()
+            checker=issued['weak']()
+            owned=[tx for tx in a._FAILED_WRITER_OWNERS if tx.path==self.f.root]
+            print('PREBIND_CHECKER_OWNER '+json.dumps(dict(stage=stage,
+                bindings=len(bindings),invalidations=len(invalidated),
+                checkerSurvivesGc=checker is not None,failureOwners=len(owned))),flush=True)
+            self.assertIsNotNone(checker,'pre-binding failure lost the unconfirmed host checker')
+            self.assertEqual(len(owned),1)
+            self.assertEqual(owned[0]._prepare_host_checks,[checker])
+            self.assertEqual(bindings,[])
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            self.assertEqual(self.commands,[])
+            self.assertEqual(getattr(owned[0],'_prepare_children',[]),[])
+            self.assertEqual(self.journal()['phases'],[])
+            self.assertEqual(self.journal()['status'],'incomplete')
+            for fd in (owned[0].parent,owned[0].lock):
+                with self.assertRaises(OSError):os.fstat(fd)
+        finally:
+            failure.__traceback__=failure.__context__=failure.__cause__=None
+            a._FAILED_WRITER_OWNERS[:]=[tx for tx in a._FAILED_WRITER_OWNERS if tx.path!=self.f.root]
+
+    def test_binding_socket_save_failure_retains_prebind_checker(self):
+        self.before_binding_failure_owner('socket')
+
+    def test_binding_parent_save_failure_retains_prebind_checker(self):
+        self.before_binding_failure_owner('parent')
+
     def test_binding_replaced_generation_after_factory_stops_before_phase(self):
         def factory(tx):
             tx.check()
