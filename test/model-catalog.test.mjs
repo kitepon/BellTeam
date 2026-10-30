@@ -7,7 +7,7 @@ const response = (harness, id) => ({ structuredContent: {
   default_model: id, efforts: ['new-effort'], models: [{ id, efforts: ['new-effort'] }],
 } })
 
-test('4ハーネスを正規APIで取得し、次の取得では新モデルとエフォートが反映される', async () => {
+test('5ハーネスを正規APIで取得し、次の取得では新モデルとエフォートが反映される', async () => {
   const calls = []
   let closed = 0
   let generation = 1
@@ -18,12 +18,12 @@ test('4ハーネスを正規APIで取得し、次の取得では新モデルと�
   const first = await catalog.list()
   assert.equal(first.codex.models[0].id, 'model-1')
   assert.deepEqual(first.claude.efforts, ['new-effort'])
-  assert.deepEqual(calls.map(call => call.harness).sort(), ['claude-code', 'codex-cli', 'cursor-cli', 'grok-cli'])
+  assert.deepEqual(calls.map(call => call.harness).sort(), ['antigravity-cli', 'claude-code', 'codex-cli', 'cursor-cli', 'grok-cli'])
   assert.ok(calls.every(call => call.name === 'agent_models' && call.cwd === '/run/bellteam'))
   generation = 2
   assert.equal((await catalog.list('codex')).codex.models[0].id, 'model-2')
-  assert.equal(calls.length, 5)
-  assert.equal(closed, 5)
+  assert.equal(calls.length, 6)
+  assert.equal(closed, 6)
 })
 
 test('ファストモードの可否は、Aitermが返したモデルごとの項目とアカウントの理由をそのまま渡す', async () => {
@@ -64,4 +64,19 @@ test('不正なMCP応答と未知のハーネスを明示し、接続を閉じ�
   assert.equal(closed, 1)
   await assert.rejects(catalog.list('toString'), error => error.code === 'MODEL_HARNESS_INVALID')
   assert.equal(closed, 1)
+})
+
+test('Antigravityのeffortを含む不透明なmodel IDとfast非対応をそのまま返す', async () => {
+  const id = 'fixture-model/effort-high'
+  const catalog = new LiveModelCatalog({ client: () => ({
+    call: async (_, args) => {
+      assert.equal(args.harness, 'antigravity-cli')
+      return { structuredContent: { ...response(args.harness, id).structuredContent,
+        efforts: [], models: [{ id, efforts: [], fast: false }] } }
+    }, close: async () => {},
+  }) })
+  const result = await catalog.forHarness('antigravity')
+  assert.equal(result.models[0].id, id)
+  assert.equal(result.models[0].fast, false)
+  assert.deepEqual(result.models[0].efforts, [])
 })

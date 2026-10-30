@@ -38,7 +38,7 @@ test('AIの種類と、それを使うメンバーの数を返す。公式の状
   const { harnesses } = new HarnessAuth({ bots, client }).list()
   assert.deepEqual(harnesses.map(({ id, name, members }) => ({ id, name, members })), [
     { id: 'claude', name: 'Claude', members: 1 }, { id: 'codex', name: 'Codex', members: 2 },
-    { id: 'grok', name: 'Grok', members: 0 }, { id: 'cursor', name: 'Cursor', members: 0 },
+    { id: 'grok', name: 'Grok', members: 0 }, { id: 'cursor', name: 'Cursor', members: 0 }, { id: 'antigravity', name: 'Antigravity', members: 0 },
   ])
   // 始めた時点で今の認証が消えるAI（Codex）と、残るかを確かめられていないAI（Grok）には、始める前の知らせを付ける。
   assert.match(harnesses.find(item => item.id === 'codex').startWarning, /始めた時点で今の認証が消えます。途中でやめても元に戻りません。/u)
@@ -170,4 +170,15 @@ test('認証のやり直しを持たないサーバーでは、その道は無�
   await once(server, 'listening')
   t.after(() => server.close())
   assert.equal((await fetch(`http://127.0.0.1:${server.address().port}/api/harness-auth`)).status, 404)
+})
+
+
+test('Antigravityの強制再認証は共有資格へ触れる前に未対応と返す', async () => {
+  const client = aiterm()
+  const auth = new HarnessAuth({ bots, client })
+  await assert.rejects(auth.start('antigravity'), { code: 'HARNESS_AUTH_RELOGIN_UNSUPPORTED', status: 409 })
+  assert.deepEqual(client.calls, [])
+  assert.match(auth.list().harnesses.find(x => x.id === 'antigravity').startWarning, /公式CLI/u)
+  const blocked = new HarnessAuth({ bots, client: aiterm({ official: 'blocked' }) })
+  assert.match((await blocked.status('antigravity')).auth.message, /対応していません/u)
 })

@@ -22,6 +22,7 @@ const HARNESS = new Map([
   ['codex', 'codex-cli'],
   ['grok', 'grok-cli'],
   ['cursor', 'cursor-cli'],
+  ['antigravity', 'antigravity-cli'],
 ])
 // 合間の言葉を取りに行く間隔。Aitermのpty_observeは画面本文を読まない軽い呼び出し。
 const INTERIM_INTERVAL_MS = 3000

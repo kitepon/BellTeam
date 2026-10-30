@@ -62,10 +62,11 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
     mkdir(join(home, '.codex'), { recursive: true }),
     mkdir(join(home, '.grok'), { recursive: true }),
     mkdir(join(home, '.cursor'), { recursive: true }),
+    mkdir(join(home, '.gemini/config'), { recursive: true }),
   ])
 
-  // bellteamと通話MCPは、supervisorの内部入口へHTTPで直結する（席ごとのnodeを起こさない）。
-  // 席の名札は、席のCLIが持つ環境変数を各CLIの書き方でヘッダへ写す。CLIごとの書き方の差はここだけに置く。
+  // bellteamと通話MCPはsupervisorの内部入口を使う。HTTPの環境展開が無いAntigravityだけstdio経由。
+  // 席の名札は各CLIの環境からヘッダへ写す。CLIごとの書き方の差はここだけに置く。
   const callBridgeEnabled = callBridge === undefined ? Boolean(process.env.BELLTEAM_CALL_BRIDGE_MCP_URL || defaultCallBridgeMcpUrl) : Boolean(callBridge.enabled)
   const seatUrl = path => `http://127.0.0.1:${internalPort}${path}`
   const seatServers = [['bellteam', BELLTEAM_MCP_PATH], ...(callBridgeEnabled ? [['call-bridge', CALL_BRIDGE_MCP_PATH]] : [])]
@@ -99,6 +100,10 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
     args: [join(appRoot, 'src/run-aiterm-mcp.mjs'), cursorAiterm.command, ...(cursorAiterm.args ?? [])],
     env: { ...cursorAitermEnv, ...cursorAiterm.env },
   } }
+  const antigravityMcp = {
+    ...jsonSeat(url => ({ command: process.execPath, args: [join(appRoot, 'src/run-seat-mcp.mjs'), url] })),
+    aiterm: aitermFor('antigravity'),
+  }
   // Codexのアカウントに入っているプラグインは、席ごとにMCPを起こす。
   // build-ios-apps の `npx xcodebuildmcp` はXcodeの無い環境では使えない。
   // openai-developers の `openai-api-key-local-confirmation` はAPIキー設定の確認フォームで、人のいない席では答えられない。
@@ -111,6 +116,7 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
     writeGrokConfig(join(home, '.grok/config.toml'), `[ui]\npermission_mode = "always-approve"\n\n${grokMcp}`),
     mergeMcpConfig(join(home, '.claude.json'), claudeMcp, [...bots.values()].map(bot => bot.project)),
     mergeMcpConfig(join(home, '.cursor/mcp.json'), cursorMcp),
+    mergeMcpConfig(join(home, '.gemini/config/mcp_config.json'), antigravityMcp),
   ])
 }
 

@@ -88,7 +88,13 @@ Webとサーバーは無料で、会話・Bot間の配送・予定実行に購�
 
 UI、MCP、メッセージ、Bot管理が扱う操作とデータ形式は、すべてのCLIで共通にする。
 
-CLIごとの起動引数、入力方法、ターン完了の検出、確定回答の取得などの差はハーネスアダプタだけが扱う。共通処理はBot一覧などから得た`harness`をアダプタ選択へ渡すだけとし、CLI固有の操作を持たない。現行の選択肢はClaude、Codex、Grok、Cursorである。新しいCLIへの対応も、共通側へ条件分岐を足さず、ハーネスアダプタを追加して行う。
+CLIごとの起動引数、入力方法、ターン完了の検出、確定回答の取得などの差はハーネスアダプタだけが扱う。共通処理はBot一覧などから得た`harness`をアダプタ選択へ渡すだけとし、CLI固有の操作を持たない。現行の選択肢はClaude、Codex、Grok、Cursor、Antigravityである。新しいCLIへの対応も、共通側へ条件分岐を足さず、ハーネスアダプタを追加して行う。
+
+AntigravityはAitermの`antigravity-cli`を使う。HTTPヘッダの環境変数を展開しないため、BellTeam・通話MCPだけは共通stdio入口から既存の内部HTTP入口へ接続し、起動環境の席とlaunchを渡す。共有設定へ席の値は保存しない。ファスト・強制再認証・native goal adapter・親への自動wakeは未対応であり、完了を補完しない。親は既存のwait_processとtranscriptの契約で回答を回収する。
+
+Antigravityの共通規範は`~/.gemini/AGENTS.md`へ既存4種と同じ本文を書き、プロジェクト規範は既存の`AGENTS.md`を使う。Aitermは起動時に公式SessionStart/Stop hookを登録するが、規範本文の生成は代行しない。ThroughlineのAntigravity会話captureとtestgateのAntigravity hookは未対応である。既存プロジェクトのThroughline記録を読めることを、新しいAntigravity会話の保存成功とは扱わない。RTKの上流pluginをtestgateの代わりに直接登録しない。
+
+Antigravityの規範は公式の1ファイル24,000バイト・globalとalways_on合計20,000tokenの制限を受ける。大きなユーザー規範や短期記憶を含む場合の無制限ロードは保証しない。現共通本文と人工プロフィールでのfile出力を検証し、実CLIでの全path・hook注入との優先順は未検証として扱う。
 
 ハーネス固有処理はAitermへ委ねる。BellTeamはAitermの継続セッションへターンを渡し、Aitermが返す完了と確定回答だけを共通形式で扱う。BellTeam独自のtmux操作と`src/harnesses.mjs`はAiterm移行までの既存実装であり、CLI固有処理を追加する場所にはしない。
 

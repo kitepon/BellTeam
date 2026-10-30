@@ -9,7 +9,7 @@ export async function loadBots(path) {
   for (const bot of parsed.bots) {
     if (!bot || typeof bot.id !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(bot.id))
       throw new Error('BOT_ID_INVALID')
-    if (!['claude', 'codex', 'grok', 'cursor'].includes(bot.harness))
+    if (!['claude', 'codex', 'grok', 'cursor', 'antigravity'].includes(bot.harness))
       throw new Error(`BOT_HARNESS_INVALID: ${bot.id}`)
     if (typeof bot.session !== 'string' || typeof bot.project !== 'string')
       throw new Error(`BOT_DEFINITION_INVALID: ${bot.id}`)

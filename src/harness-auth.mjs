@@ -11,6 +11,7 @@ import { authUi, authResponse, authResponseFailure } from './auth-ui.mjs'
 const START_WARNING = {
   codex: 'Codexは、認証し直しを始めた時点で今の認証が消えます。途中でやめても元に戻りません。認証が済むまで、Codexを使うメンバーは起動できません。',
   grok: 'Grokは、認証し直しを途中でやめた時に今の認証が残るかを確かめられていません。認証が済むまで、Grokを使うメンバーが起動できなくなる事があります。',
+  antigravity: 'この版のAntigravityは、既存の認証を消さずに認証し直す操作に対応していません。公式CLIで認証してください。',
 }
 
 // 公式の状態を見ただけの時に、利用者へ出す文。Aitermの文は道具を呼ぶ側（AI）へ向けた物なので、設定の画面にはこちらを出す。
@@ -50,6 +51,7 @@ export class HarnessAuth {
   start(harness) {
     return this.change(async () => {
       this.require(harness)
+      if (harness === 'antigravity') throw new HarnessAuthError('HARNESS_AUTH_RELOGIN_UNSUPPORTED', 409, START_WARNING.antigravity)
       if (this.sessions.has(harness)) await this.end(harness)
       // 公式の状態が認証済みでも、公式のログイン画面を起こす（Aitermの relogin）。
       // 認証が切れたのに認証済みと見える時と、別のアカウントで入り直す時のため。
@@ -129,7 +131,8 @@ export class HarnessAuth {
   snapshot(harness, receipt) {
     const message = this.sessions.has(harness) ? receipt.message ?? null
       : receipt.status === 'authenticated' ? (harness === 'claude' ? CLAUDE_AUTHENTICATED_MESSAGE : null)
-        : STATUS_MESSAGE[receipt.status] ?? receipt.message ?? null
+        : harness === 'antigravity' ? START_WARNING.antigravity
+          : STATUS_MESSAGE[receipt.status] ?? receipt.message ?? null
     return { harness, auth: {
       status: receipt.status, url: receipt.url ?? null, user_code: receipt.user_code ?? null,
       input_required: receipt.input_required === true, message,
