@@ -124,6 +124,37 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertFalse(log.contains("network.test.invalid"))
     }
 
+    func testBackgroundMemberListTimeoutRecordsItsCaller() async throws {
+        let scenario = NetworkScenario(failures: 1, failureCode: .timedOut, failurePath: "/api/bots")
+        let api = makeAPI(scenario)
+        api.diagnostics.updateAppState("background")
+        let store = AppStore(api: api)
+        store.phase = .ready
+        await store.refreshFromView(origin: .homePull, refreshSubscription: false)
+        XCTAssertEqual(scenario.count("/api/bots"), 1)
+        XCTAssertEqual(scenario.reports.count, 1)
+        let log = try XCTUnwrap(scenario.reports.first?.log)
+        XCTAssertTrue(log.contains("operation=member_list_read"))
+        XCTAssertTrue(log.contains("request_route=/api/bots"))
+        XCTAssertTrue(log.contains("attempt_1_app_state_at_start=background"))
+        XCTAssertTrue(log.contains("member_list_origin=homePull"))
+        XCTAssertTrue(log.contains("member_list_call_continuous_ms="))
+        XCTAssertTrue(log.contains("member_list_app_state_at_call=background"))
+        XCTAssertTrue(log.contains("member_list_app_state_revision_at_call=1"))
+        XCTAssertTrue(log.contains("member_list_app_state_changed_continuous_ms_at_call="))
+        func tick(_ key: String) -> UInt64 {
+            let line = log.split(separator: "\n").first { $0.hasPrefix(key + "=") }
+            return UInt64(line?.split(separator: "=").last ?? "") ?? 0
+        }
+        let changed = tick("member_list_app_state_changed_continuous_ms_at_call")
+        let called = tick("member_list_call_continuous_ms")
+        let started = tick("attempt_1_started_continuous_ms")
+        XCTAssertGreaterThan(changed, 0)
+        XCTAssertLessThanOrEqual(changed, called)
+        XCTAssertLessThanOrEqual(called, started)
+        XCTAssertFalse(log.contains("network.test.invalid"))
+    }
+
     func testGoalListFailureDirectReportIncludesCallerContext() async {
         let scenario = NetworkScenario(failures: 2)
         let api = makeAPI(scenario)
@@ -792,6 +823,7 @@ private final class NetworkScenario {
     private var storedQueries: [(String, String?)] = []
     let failures: Int
     let failureCode: URLError.Code
+    let failurePath: String?
     let avatars: Bool
     let accessExpired: Bool
     let httpStatus: Int
@@ -804,12 +836,14 @@ private final class NetworkScenario {
 
     @MainActor
     init(failures: Int, failureCode: URLError.Code = .networkConnectionLost,
+         failurePath: String? = nil,
          avatars: Bool = false, accessExpired: Bool = false, httpStatus: Int = 200,
          events502ThenReady: Bool = false, holdEventsOpen: Bool = false,
          skipAvatarVersion: Bool = false, readyOnlyAfterReconnect: Bool = false,
          eventStream: String? = nil) {
         self.failures = failures
         self.failureCode = failureCode
+        self.failurePath = failurePath
         self.avatars = avatars
         self.accessExpired = accessExpired
         self.httpStatus = httpStatus
@@ -835,7 +869,7 @@ private final class NetworkScenario {
         let count = counts[path]!
         storedQueries.append((path, request.url!.query))
         lock.unlock()
-        if count <= failures { throw URLError(failureCode) }
+        if count <= failures && (failurePath == nil || path == failurePath) { throw URLError(failureCode) }
         if path == "/api/events", let eventStream {
             return (Data(eventStream.utf8), "text/event-stream")
         }

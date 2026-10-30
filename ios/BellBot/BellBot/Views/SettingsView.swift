@@ -270,7 +270,7 @@ private struct ProfileEditor: View {
                                     links: links.map { OwnerLinkRequest(label: $0.label, url: $0.url) })
             let _: OwnerResponse = try await store.api.patch("/api/owner", body: body)
             let _: UserRulesResponse = try await store.api.put("/api/user-rules", body: UserRulesRequest(text: rules))
-            try await store.refresh()
+            try await store.refresh(origin: .ownerSave)
             dismiss()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch {

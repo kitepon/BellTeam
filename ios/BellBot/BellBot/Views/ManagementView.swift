@@ -416,7 +416,7 @@ struct BotEditor: View {
                 let _: APIAcknowledgement = try await store.api.post("/api/bots", body: body)
                 saveResult = .saved
             }
-            try await store.refresh()
+            try await store.refresh(origin: .memberSave)
             close()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch {

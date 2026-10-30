@@ -37,6 +37,7 @@ struct BellRequestTrace {
     var attemptDetails: [BellRequestAttempt] = []
     var requestTimeoutMs: Int? = nil
     var sessionTimeoutMs: Int? = nil
+    var callerContext: String? = nil
 
     static func route(for path: String) -> String {
         let parts = path.split(separator: "/").map(String.init)
@@ -97,6 +98,7 @@ struct BellRequestTrace {
             if let code = attempt.errorCode { result += "\n\(prefix)error_code=\(code)" }
             result += Self.metricsLog(attempt.metrics, prefix: prefix)
         }
+        if let callerContext { result += "\n\(callerContext)" }
         return result
     }
 
