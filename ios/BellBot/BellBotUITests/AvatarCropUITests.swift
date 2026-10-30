@@ -1,6 +1,28 @@
 import XCTest
 
 final class AvatarCropUITests: XCTestCase {
+    func testSelectedOwnerPhotoRemainsAfterForegroundReturn() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview"]
+        app.launch()
+        defer { app.terminate() }
+        app.tabBars.buttons["設定"].tap()
+        app.buttons["プロフィールと規範を編集"].tap()
+        let change = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "写真を変更")).firstMatch
+        XCTAssertTrue(change.waitForExistence(timeout: 5))
+        XCTAssertEqual(change.images.count, 0)
+        change.tap()
+        let firstPhoto = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
+        XCTAssertTrue(firstPhoto.waitForExistence(timeout: 5), app.debugDescription)
+        firstPhoto.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["使用する"].waitForExistence(timeout: 5))
+        app.buttons["使用する"].tap()
+        XCTAssertEqual(change.images.count, 1, "未保存の写真を編集画面へ反映する")
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertEqual(change.images.count, 1, "前面復帰後も未保存の写真を保持する")
+    }
+
     func testSelectedPhotoCanBeAdjustedBeforeProfileSave() {
         let app = XCUIApplication()
         app.launchArguments = ["-bellbot-preview"]

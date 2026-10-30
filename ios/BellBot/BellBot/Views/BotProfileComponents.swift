@@ -1,131 +1,29 @@
 import SwiftUI
 
-struct BotProfileHero: View {
-    let bot: Bot
-    let smallSize: CGFloat
-    @EnvironmentObject private var store: AppStore
-    @State private var loadedLargeAvatar: String?
-    @State private var largeAvatarError = false
-    @State private var imageAction: AvatarCropVariant?
-    @State private var cropSource: AvatarCropSource?
-    @State private var cropSettings: BotSettings?
-    @State private var savingImage = false
-    @State private var imageSaveErrors: [AvatarCropVariant: String] = [:]
-    @State private var imageSaveMessage: String?
-    @State private var pendingSelections = AvatarSelectionDrafts()
+/// Bot画像の選択・保存の状態。画面の根（`botProfileImageActions`）とHeroが同じ物を見る。
+/// 操作シートをHeroの中に付けると、前面復帰や詳細シートの再配置で中身が作り直され、
+/// 写真選択と切り抜きの途中状態が消える。シートは画面の根に付け、状態はここに置く。
+@MainActor
+final class BotProfileImageState: ObservableObject {
+    @Published var imageAction: AvatarCropVariant?
+    @Published var cropSource: AvatarCropSource?
+    @Published var cropSettings: BotSettings?
+    @Published var loadedLargeAvatar: String?
+    @Published var largeAvatarError = false
+    @Published fileprivate(set) var savingImage = false
+    @Published fileprivate(set) var imageSaveErrors: [AvatarCropVariant: String] = [:]
+    @Published fileprivate(set) var imageSaveMessage: String?
+    @Published fileprivate(set) var pendingSelections = AvatarSelectionDrafts()
 
-    private var usesSmallImage: Bool {
+    static func usesSmallImage(_ bot: Bot) -> Bool {
         bot.avatarLargeVersion == nil || bot.avatarLargeVersion == bot.avatarVersion || bot.avatarLargeVersion == ""
     }
-    private var backgroundImage: UIImage? {
-        AvatarPortraitCache.image(for: usesSmallImage ? bot.avatar : loadedLargeAvatar ?? "")
+
+    func loadDrafts(for bot: Bot, store: AppStore) {
+        pendingSelections = store.profileImageDrafts[bot.id] ?? AvatarSelectionDrafts()
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            GeometryReader { area in
-                ZStack(alignment: .topLeading) {
-                    Button { openImageActions(.large) } label: {
-                        Group {
-                            if let backgroundImage {
-                                Image(uiImage: backgroundImage).resizable().scaledToFill()
-                            } else {
-                                LinearGradient(colors: [BellTheme.accent(bot.color).opacity(0.75), BellTheme.accent(bot.color)],
-                                               startPoint: .topLeading, endPoint: .bottomTrailing)
-                            }
-                        }
-                        .frame(width: area.size.width, height: area.size.height)
-                        .clipped()
-                    }
-                    .buttonStyle(.plain)
-                    .contentShape(Rectangle())
-                    .accessibilityLabel("大画像の操作")
-                    .accessibilityIdentifier("profile-large-avatar")
-                    .disabled(savingImage)
-                    Button { openImageActions(.small) } label: {
-                        AvatarView(name: bot.name, avatar: bot.avatar,
-                                   color: BellTheme.accent(bot.color), size: smallSize)
-                        .overlay(RoundedRectangle(cornerRadius: smallSize * 0.31)
-                            .strokeBorder(.white, lineWidth: 2))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(16)
-                    .zIndex(1)
-                    .accessibilityLabel("小画像の操作")
-                    .accessibilityIdentifier("profile-small-avatar")
-                    .disabled(savingImage)
-                }
-                .frame(width: area.size.width, height: area.size.height)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            }
-            .aspectRatio(1, contentMode: .fit)
-            if largeAvatarError {
-                Text("大画像を読み込めませんでした。")
-                    .font(.footnote).foregroundStyle(.red)
-            }
-            if savingImage { ProgressView("画像を保存しています…") }
-            if let imageSaveMessage { Text(imageSaveMessage).font(.footnote).foregroundStyle(BellTheme.mint) }
-            ForEach([AvatarCropVariant.small, .large], id: \.self) { variant in
-                if let error = imageSaveErrors[variant] {
-                    Text("\(variant == .small ? "小画像" : "大画像")：\(error)")
-                        .font(.footnote).foregroundStyle(.red)
-                }
-                if pendingSelections.selection(for: variant) != nil {
-                    HStack {
-                        Button("\(variant == .small ? "小画像" : "大画像")の保存結果を確認") {
-                            Task { await confirmImageSave(variant) }
-                        }
-                        Button("\(variant == .small ? "小画像" : "大画像")の選択を破棄", role: .destructive) {
-                            discardImageSelection(variant)
-                        }
-                    }
-                    .disabled(savingImage)
-                }
-            }
-            Text(bot.displayName)
-                .font(BellTheme.profileTitleFont.bold())
-                .foregroundStyle(BellTheme.ink)
-            Label(bot.online ? "オンライン" : "オフライン", systemImage: "circle.fill")
-                .font(BellTheme.secondaryFont)
-                .foregroundStyle(bot.online ? BellTheme.mint : BellTheme.muted)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .sheet(item: $imageAction) { variant in
-            BotProfileAvatarActions(bot: bot, variant: variant,
-                pendingSelection: pendingSelections.selection(for: variant),
-                previewRender: pendingSelections.previewRender(for: variant, small: bot.avatar,
-                    large: loadedLargeAvatar, largeUsesSmall: usesSmallImage),
-                isBusy: savingImage,
-                statusText: imageSaveErrors[variant],
-                onUse: { selection, current in
-                    Task { await saveImage(selection, current: current, variant: variant) }
-                }, onConfirm: { Task { await confirmImageSave(variant) } },
-                onDiscard: { discardImageSelection(variant) },
-                settings: $cropSettings, cropSource: $cropSource)
-            .environmentObject(store)
-            .disabled(savingImage)
-            .interactiveDismissDisabled(savingImage)
-        }
-        .task(id: bot.id) { pendingSelections = store.profileImageDrafts[bot.id] ?? AvatarSelectionDrafts() }
-        .task(id: "\(bot.id):\(bot.avatarLargeVersion ?? "")") {
-            loadedLargeAvatar = nil
-            largeAvatarError = false
-            guard !usesSmallImage, let version = bot.avatarLargeVersion else { return }
-            let path = "/api/bots/\(bot.id)/avatar-large"
-            do {
-                let image = try await store.api.avatar(path + "?v=" + version)
-                try Task.checkCancellation()
-                loadedLargeAvatar = image
-            } catch is CancellationError { return }
-            catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-            catch {
-                largeAvatarError = true
-                store.api.diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: false))
-            }
-        }
-    }
-
-    private func openImageActions(_ variant: AvatarCropVariant) {
+    func openImageActions(_ variant: AvatarCropVariant) {
         guard !savingImage else { return }
         cropSource = nil
         cropSettings = nil
@@ -133,24 +31,24 @@ struct BotProfileHero: View {
         imageAction = variant
     }
 
-    private func persistImageSelections() {
+    private func persistImageSelections(for bot: Bot, store: AppStore) {
         if pendingSelections.isEmpty { store.profileImageDrafts.removeValue(forKey: bot.id) }
         else { store.profileImageDrafts[bot.id] = pendingSelections }
     }
 
-    private func discardImageSelection(_ variant: AvatarCropVariant) {
+    func discardImageSelection(_ variant: AvatarCropVariant, bot: Bot, store: AppStore) {
         guard !savingImage else { return }
         pendingSelections.discard(variant)
-        persistImageSelections()
+        persistImageSelections(for: bot, store: store)
         imageSaveErrors[variant] = nil
         imageSaveMessage = "選択を破棄しました。"
     }
 
-    private func saveImage(_ selection: AvatarCropSelection, current: BotSettings,
-                           variant: AvatarCropVariant) async {
+    func saveImage(_ selection: AvatarCropSelection, current: BotSettings,
+                   variant: AvatarCropVariant, bot: Bot, store: AppStore) async {
         guard !savingImage else { return }
         pendingSelections.select(selection, for: variant)
-        persistImageSelections()
+        persistImageSelections(for: bot, store: store)
         imageSaveErrors[variant] = nil
         savingImage = true
         defer { savingImage = false }
@@ -159,7 +57,7 @@ struct BotProfileHero: View {
             let result = try await store.api.saveBotAvatarSelection(id: bot.id, current: current,
                                                                      variant: variant, selection: selection)
             guard pendingSelections.finish(result, for: variant, matching: selection) else { return }
-            persistImageSelections()
+            persistImageSelections(for: bot, store: store)
             switch result {
             case .saved, .confirmed:
                 imageSaveErrors[variant] = nil
@@ -186,7 +84,7 @@ struct BotProfileHero: View {
         }
     }
 
-    private func confirmImageSave(_ variant: AvatarCropVariant) async {
+    func confirmImageSave(_ variant: AvatarCropVariant, bot: Bot, store: AppStore) async {
         guard !savingImage else { return }
         guard let selection = pendingSelections.selection(for: variant) else { return }
         savingImage = true
@@ -195,7 +93,7 @@ struct BotProfileHero: View {
             let result = try await store.api.confirmBotAvatarSelection(id: bot.id,
                 variant: variant, selection: selection)
             guard pendingSelections.finish(result, for: variant, matching: selection) else { return }
-            persistImageSelections()
+            persistImageSelections(for: bot, store: store)
             switch result {
             case .saved, .confirmed:
                 imageSaveErrors[variant] = nil
@@ -215,6 +113,140 @@ struct BotProfileHero: View {
         catch {
             guard pendingSelections.selection(for: variant) == selection else { return }
             imageSaveErrors[variant] = "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)"
+        }
+    }
+}
+
+extension View {
+    /// Bot画像の操作シートを画面の根に付ける。`BotProfileHero`と同じ`images`を渡す。
+    func botProfileImageActions(bot: Bot?, images: BotProfileImageState) -> some View {
+        modifier(BotProfileImageActionsModifier(bot: bot, images: images))
+    }
+}
+
+private struct BotProfileImageActionsModifier: ViewModifier {
+    let bot: Bot?
+    @ObservedObject var images: BotProfileImageState
+    @EnvironmentObject private var store: AppStore
+
+    func body(content: Content) -> some View {
+        content.sheet(item: $images.imageAction) { variant in
+            if let bot {
+                BotProfileAvatarActions(bot: bot, variant: variant,
+                    pendingSelection: images.pendingSelections.selection(for: variant),
+                    previewRender: images.pendingSelections.previewRender(for: variant, small: bot.avatar,
+                        large: images.loadedLargeAvatar, largeUsesSmall: BotProfileImageState.usesSmallImage(bot)),
+                    isBusy: images.savingImage,
+                    statusText: images.imageSaveErrors[variant],
+                    onUse: { selection, current in
+                        Task { await images.saveImage(selection, current: current, variant: variant, bot: bot, store: store) }
+                    }, onConfirm: { Task { await images.confirmImageSave(variant, bot: bot, store: store) } },
+                    onDiscard: { images.discardImageSelection(variant, bot: bot, store: store) },
+                    settings: $images.cropSettings, cropSource: $images.cropSource)
+                .environmentObject(store)
+                .disabled(images.savingImage)
+                .interactiveDismissDisabled(images.savingImage)
+            }
+        }
+    }
+}
+
+struct BotProfileHero: View {
+    let bot: Bot
+    let smallSize: CGFloat
+    @ObservedObject var images: BotProfileImageState
+    @EnvironmentObject private var store: AppStore
+
+    private var usesSmallImage: Bool { BotProfileImageState.usesSmallImage(bot) }
+    private var backgroundImage: UIImage? {
+        AvatarPortraitCache.image(for: usesSmallImage ? bot.avatar : images.loadedLargeAvatar ?? "")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            GeometryReader { area in
+                ZStack(alignment: .topLeading) {
+                    Button { images.openImageActions(.large) } label: {
+                        Group {
+                            if let backgroundImage {
+                                Image(uiImage: backgroundImage).resizable().scaledToFill()
+                            } else {
+                                LinearGradient(colors: [BellTheme.accent(bot.color).opacity(0.75), BellTheme.accent(bot.color)],
+                                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                            }
+                        }
+                        .frame(width: area.size.width, height: area.size.height)
+                        .clipped()
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .accessibilityLabel("大画像の操作")
+                    .accessibilityIdentifier("profile-large-avatar")
+                    .disabled(images.savingImage)
+                    Button { images.openImageActions(.small) } label: {
+                        AvatarView(name: bot.name, avatar: bot.avatar,
+                                   color: BellTheme.accent(bot.color), size: smallSize)
+                        .overlay(RoundedRectangle(cornerRadius: smallSize * 0.31)
+                            .strokeBorder(.white, lineWidth: 2))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(16)
+                    .zIndex(1)
+                    .accessibilityLabel("小画像の操作")
+                    .accessibilityIdentifier("profile-small-avatar")
+                    .disabled(images.savingImage)
+                }
+                .frame(width: area.size.width, height: area.size.height)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            .aspectRatio(1, contentMode: .fit)
+            if images.largeAvatarError {
+                Text("大画像を読み込めませんでした。")
+                    .font(.footnote).foregroundStyle(.red)
+            }
+            if images.savingImage { ProgressView("画像を保存しています…") }
+            if let imageSaveMessage = images.imageSaveMessage { Text(imageSaveMessage).font(.footnote).foregroundStyle(BellTheme.mint) }
+            ForEach([AvatarCropVariant.small, .large], id: \.self) { variant in
+                if let error = images.imageSaveErrors[variant] {
+                    Text("\(variant == .small ? "小画像" : "大画像")：\(error)")
+                        .font(.footnote).foregroundStyle(.red)
+                }
+                if images.pendingSelections.selection(for: variant) != nil {
+                    HStack {
+                        Button("\(variant == .small ? "小画像" : "大画像")の保存結果を確認") {
+                            Task { await images.confirmImageSave(variant, bot: bot, store: store) }
+                        }
+                        Button("\(variant == .small ? "小画像" : "大画像")の選択を破棄", role: .destructive) {
+                            images.discardImageSelection(variant, bot: bot, store: store)
+                        }
+                    }
+                    .disabled(images.savingImage)
+                }
+            }
+            Text(bot.displayName)
+                .font(BellTheme.profileTitleFont.bold())
+                .foregroundStyle(BellTheme.ink)
+            Label(bot.online ? "オンライン" : "オフライン", systemImage: "circle.fill")
+                .font(BellTheme.secondaryFont)
+                .foregroundStyle(bot.online ? BellTheme.mint : BellTheme.muted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: bot.id) { images.loadDrafts(for: bot, store: store) }
+        .task(id: "\(bot.id):\(bot.avatarLargeVersion ?? "")") {
+            images.loadedLargeAvatar = nil
+            images.largeAvatarError = false
+            guard !usesSmallImage, let version = bot.avatarLargeVersion else { return }
+            let path = "/api/bots/\(bot.id)/avatar-large"
+            do {
+                let image = try await store.api.avatar(path + "?v=" + version)
+                try Task.checkCancellation()
+                images.loadedLargeAvatar = image
+            } catch is CancellationError { return }
+            catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+            catch {
+                images.largeAvatarError = true
+                store.api.diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: false))
+            }
         }
     }
 }
