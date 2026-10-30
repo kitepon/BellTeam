@@ -61,9 +61,13 @@ class _Prepare:
                     != image_original['sha256'] or image_original['file']['sha256']!=image_original['sha256']):
                 raise actor.control.ControlError('SEC014_PREPARE_WRITER_IMAGE_ORIGINAL')
             endpoint=tx._docker_endpoint()
-            endpoint_record=actor._save_json(tx,tx.value['direction']+'-prepare-socket.json',endpoint)
+            endpoint_name=tx.value['direction']+'-prepare-socket.json';endpoint_file={}
+            endpoint_record=actor._save_json(tx,endpoint_name,endpoint,facts=endpoint_file)
+            tx._prepare_originals.append(dict(name=endpoint_name,value=copy.deepcopy(endpoint),file=endpoint_file))
             parent=self._parent_observation(tx.owner)
-            parent_record=actor._save_json(tx,tx.value['direction']+'-prepare-parent.json',parent)
+            parent_name=tx.value['direction']+'-prepare-parent.json';parent_file={}
+            parent_record=actor._save_json(tx,parent_name,parent,facts=parent_file)
+            tx._prepare_originals.append(dict(name=parent_name,value=copy.deepcopy(parent),file=parent_file))
             if time.monotonic()>=deadline-1 or datetime.now(timezone.utc)>=window_end:
                 raise actor.control.ControlError('SEC014_PREPARE_DEADLINE_OR_HELD')
             if not hasattr(tx,'_prepare_host_checks'):tx._prepare_host_checks=[]

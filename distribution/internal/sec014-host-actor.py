@@ -50,7 +50,7 @@ def _receipt(tx, phase, image, value, required):
     return _save_json(tx, name, value)
 
 
-def _save_json(tx, name, value):
+def _save_json(tx, name, value, *, facts=None):
     raw = json.dumps(value, sort_keys=True, allow_nan=False).encode()
     tx.check()
     fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
@@ -78,6 +78,8 @@ def _save_json(tx, name, value):
                            for item in observed)):
                 raise control.ControlError('SEC014_ACTOR_RECEIPT_CHANGED')
             tx.check()
+            if facts is not None:
+                facts.update(sha256=hashlib.sha256(raw).hexdigest(),metadata=expected)
         finally:
             os.close(reopened)
     return hashlib.sha256(raw).hexdigest()

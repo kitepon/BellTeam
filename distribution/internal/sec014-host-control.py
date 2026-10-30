@@ -242,6 +242,7 @@ class _Transaction:
         self.lock_identity = _identity(os.fstat(lock))
         self._docker_socket_original = None
         self._writer_image_original = None
+        self._prepare_originals = []
         self.name = 'transaction-' + direction + '.json'
         self.value = {'schema': SCHEMA, 'direction': direction, 'status': 'incomplete',
                       'actorPid': os.getpid(), 'actorStartTicks': int(
@@ -274,6 +275,11 @@ class _Transaction:
             saved=_saved(self.parent,self.value['direction']+'-writer-image.output.json',self.owner,facts=facts)
             if saved!=self._writer_image_original['output'] or facts!=self._writer_image_original['file']:
                 raise ControlError('SEC014_CONTROL_WRITER_IMAGE_CHANGED')
+        for original in self._prepare_originals:
+            facts={}
+            saved=_saved(self.parent,original['name'],self.owner,facts=facts)
+            if saved!=original['value'] or facts!=original['file']:
+                raise ControlError('SEC014_CONTROL_PREPARE_ORIGINAL_CHANGED')
 
     def _socket_observation(self):
         # shortcut: point observations only, require host peer/ancestor authority before live connection.

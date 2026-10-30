@@ -1178,3 +1178,34 @@ and restoration, prove a trusted initial namespace/daemon, or maintain writer
 exclusion. Real hostfacts/full factory, safe policy, durable invalidation/recovery
 and later phases remain unconnected. All authorityfalse, whole NOTDEPLOYABLE,
 unmerged/undeployed; no real host/Docker/NAS/Apple or mount operations.
+
+### 2026-10-30: retain exact saved Prepare socket/parent originals
+
+Saving the Prepare socket/parent records verified them only during the write.
+Later transaction checks observed the live socket/parent but did not reread the
+saved record files. A binding callback or later actor could replace a record,
+including with identical bytes at a different inode, without invalidating the
+chain's retained digest. The existing durable JSON writer now optionally returns
+its verified written-file SHA and full metadata while keeping its digest return
+and all legacy callers unchanged. Prepare immediately retains each socket/parent
+value and file facts in the same transaction; every existing transaction check
+uses the bounded saved-file reader to compare both value and full file facts.
+No second save or new original baseline is created.
+
+Six same-test-byte cases previously accepted changed socket/parent bodies or
+same-byte replacement in binding, or issued four clients after a later
+replacement. All now refuse with no client/phase, one invalidation attempt,
+incomplete journal and original in-memory values/file facts retained. Renamed
+original files remain untouched; changed files are not rewritten or repaired.
+Related Prepare positives/save failures/budgets/native failure (six), held factory
+and native-child custody (two), and actual native Writer-to-Prepare handoff (one)
+pass. The handoff fixture now supplies its owned private parent before collecting
+Writer metadata; its initial missing fixed-host-parent error is a separate
+fixture history, not a product failure. Save-injection wrappers forward the
+optional facts keyword. Native clients use Python fake Docker protocol only.
+
+This protects current saved-file custody and byte/metadata consistency only.
+It does not prove trusted host/peer authority, continuous writer exclusion, actual
+invalidation/release, durable recovery, a complete factory or later phases.
+All authorityfalse, whole NOTDEPLOYABLE, unmerged/undeployed; no real host/Docker,
+mount, NAS or Apple operations and no full project test groups.

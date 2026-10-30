@@ -117,10 +117,10 @@ class Binding(saved.SavedPrepare):
             if birth_missing and issued and path==Path(f"/proc/{issued['pid']}/stat"):
                 raise FileNotFoundError('synthetic unobservable issued birth')
             return real_read(path,*args,**kwargs)
-        def save(tx,name,value):
+        def save(tx,name,value,**kwargs):
             if not birth_missing and name.endswith('-prepare-run.terminal.json'):
                 raise OSError('synthetic terminal durability failure')
-            return real_save(tx,name,value)
+            return real_save(tx,name,value,**kwargs)
         def factory(tx):
             self.tx=tx
             def host(step):return 'd'*64

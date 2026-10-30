@@ -196,8 +196,8 @@ class PrepareTests(unittest.TestCase):
         def expire():
             if mode.startswith('mono'):mono[0]=1109.0
             else:wall[0]=end
-        def save(tx,name,value):
-            result=real_save(tx,name,value)
+        def save(tx,name,value,**kwargs):
+            result=real_save(tx,name,value,**kwargs)
             if name.endswith('-prepare-parent.json'):
                 saved.append(json.loads((self.f.root/name).read_bytes()))
                 if mode.endswith('before'):expire()
@@ -283,9 +283,9 @@ class PrepareTests(unittest.TestCase):
             fd=real_open(path,flags,*args,**kwargs)
             if flags&os.O_DIRECTORY:opened.append(fd)
             return fd
-        def save(tx,name,value):
+        def save(tx,name,value,**kwargs):
             if mode=='save' and name.endswith('-prepare-parent.json'):raise failure
-            return real_save(tx,name,value)
+            return real_save(tx,name,value,**kwargs)
         def host(step):return 'd'*64
         def bind(*args):
             path=self.f.root/'to-server-prepare-parent.json'
@@ -903,6 +903,57 @@ class PrepareTests(unittest.TestCase):
     def test_socket_mountinfo_table_oversize_refuses_before_binding(self):self.socket_mountinfo_case('oversize')
     def test_socket_mountinfo_record_budget_refuses_before_binding(self):self.socket_mountinfo_case('record')
 
+    def prepare_original_file_case(self,slot,mode):
+        calls=[];invalidated=[];original=[];runner=None
+        def change():
+            path=self.f.root/('to-server-prepare-'+slot+'.json')
+            raw=path.read_bytes();original.append((raw,path.stat().st_ino))
+            if mode=='body':
+                value=json.loads(raw);value['hostAuthority']=True
+                path.write_text(json.dumps(value,sort_keys=True))
+            else:
+                path.rename(path.with_name(path.name+'.retained'))
+                path.write_bytes(raw);path.chmod(0o600)
+                self.assertNotEqual(path.stat().st_ino,original[-1][1])
+        def host(step):return 'd'*64
+        def bind(*args):
+            calls.append(args)
+            if mode!='late':change()
+        host.bind_image,host.invalidate=bind,invalidated.append
+        with self.f.hold() as self.tx,patch.object(type(self.tx),'_docker_socket_path',self.socket_path):
+            caught=None
+            try:
+                runner=p._Prepare(self.tx,IMAGE,IMAGE_ID,time.monotonic()+110,
+                                  datetime.now(timezone.utc)+timedelta(seconds=120),host)
+                if mode=='late':change();runner.prepare()
+            except RuntimeError as error:caught=error
+            print('PREPARE_ORIGINAL_FILE '+json.dumps(dict(slot=slot,mode=mode,bindingCalls=len(calls),
+                clients=len(self.commands),refused=None if caught is None else str(caught))),flush=True)
+            self.assertEqual(calls and len(calls),1)
+            self.assertTrue(original)
+            self.assertEqual(self.commands,[])
+            self.assertIsNotNone(caught)
+            self.assertEqual(str(caught),'SEC014_PREPARE_PHASE_UNCONFIRMED' if mode=='late'
+                             else 'SEC014_CONTROL_PREPARE_ORIGINAL_CHANGED')
+            self.assertEqual(invalidated,['UNCONFIRMED_CHILD'])
+            retained=next(v for v in self.tx._prepare_originals if v['name']=='to-server-prepare-'+slot+'.json')
+            self.assertEqual(retained['value'],json.loads(original[0][0]))
+            self.assertEqual(retained['file']['sha256'],hashlib.sha256(original[0][0]).hexdigest())
+            self.assertEqual(retained['file']['metadata'][1],original[0][1])
+            if mode!='body':
+                path=self.f.root/('to-server-prepare-'+slot+'.json.retained')
+                self.assertEqual(path.read_bytes(),original[0][0])
+            if runner is not None:self.assertIsNone(runner.parent_fd)
+            self.assertEqual(self.journal()['status'],'incomplete')
+            self.assertEqual(self.journal()['phases'],[])
+
+    def test_socket_original_body_change_in_binding_refuses(self):self.prepare_original_file_case('socket','body')
+    def test_parent_original_body_change_in_binding_refuses(self):self.prepare_original_file_case('parent','body')
+    def test_socket_samebytes_original_replacement_in_binding_refuses(self):self.prepare_original_file_case('socket','inode')
+    def test_parent_samebytes_original_replacement_in_binding_refuses(self):self.prepare_original_file_case('parent','inode')
+    def test_socket_original_replacement_after_constructor_refuses_client(self):self.prepare_original_file_case('socket','late')
+    def test_parent_original_replacement_after_constructor_refuses_client(self):self.prepare_original_file_case('parent','late')
+
     def socket_namespace_bracket_case(self,mode):
         real_stat=os.stat;real_open=os.open;real_path_open=Path.open
         switched=False;opened=[];calls=[];invalidated=[];triggers=[]
@@ -1226,8 +1277,8 @@ class PrepareTests(unittest.TestCase):
 
     def test_claim_io_expiry_refuses_before_first_child_and_no_retry(self):
         mono=[1000.0];save=p.actor._save_json
-        def expire(tx,name,value):
-            result=save(tx,name,value)
+        def expire(tx,name,value,**kwargs):
+            result=save(tx,name,value,**kwargs)
             if name.endswith('run.claim.json'):mono[0]=1111
             return result
         with self.f.hold() as self.tx,patch.object(p.time,'monotonic',side_effect=lambda:mono[0]):
@@ -1240,9 +1291,9 @@ class PrepareTests(unittest.TestCase):
 
     def test_terminal_persistence_failure_never_reaps_or_inspects(self):
         save=p.actor._save_json
-        def fail(tx,name,value):
+        def fail(tx,name,value,**kwargs):
             if name.endswith('run.terminal.json'):raise OSError('synthetic terminal persistence')
-            return save(tx,name,value)
+            return save(tx,name,value,**kwargs)
         with self.f.hold() as self.tx,patch.object(p.actor,'_save_json',side_effect=fail):
             with self.assertRaises(p.actor.control.ControlError):self.runner().prepare()
         self.assertEqual(len(self.commands),1)

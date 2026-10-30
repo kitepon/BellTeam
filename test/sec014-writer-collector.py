@@ -37,6 +37,7 @@ class WriterCollector(h.HeldWriterConfig):
         self.children = []
         self.waited = []
         self.environments=[]
+        if mode=='prepare_binding':(self.root/'private').mkdir(mode=0o700)
         self.addCleanup(self.cleanup_children)
         real_popen = subprocess.Popen
         outside = self.root/'outside'; outside.mkdir()
@@ -115,8 +116,10 @@ class WriterCollector(h.HeldWriterConfig):
                         def host(step):return 'd'*64
                         host.bind_image=lambda *values:result.append(values[2] if len(values)==3 else None)
                         host.invalidate=lambda reason:self.fail('successful binding invalidated')
-                        prepare._Prepare(tx,h.g.IMAGE,h.g.SELECTED['image'],time.monotonic()+30,
-                                         datetime.now(timezone.utc)+timedelta(seconds=40),host)
+                        self.handoff_tx=tx
+                        with patch.object(prepare,'PARENT',self.root/'private'):
+                            prepare._Prepare(tx,h.g.IMAGE,h.g.SELECTED['image'],time.monotonic()+30,
+                                             datetime.now(timezone.utc)+timedelta(seconds=40),host)
                     raise RuntimeError('STOP_METADATA_ONLY')
                 def __getattr__(inner, name):
                     self.fail('no later phase may run: '+name)
@@ -169,6 +172,13 @@ class WriterCollector(h.HeldWriterConfig):
         self.assertEqual(len(self.waited),4)
         self.assertFalse(observation['hostWriterAuthorityVerified'])
         self.assertFalse(observation['phaseReceiptProduced'])
+        self.assertEqual([v['name'] for v in self.handoff_tx._prepare_originals],
+                         ['to-server-prepare-socket.json','to-server-prepare-parent.json'])
+        for value in self.handoff_tx._prepare_originals:
+            path=self.control/value['name'];raw=path.read_bytes()
+            self.assertEqual(value['value'],json.loads(raw))
+            self.assertEqual(value['file']['sha256'],hashlib.sha256(raw).hexdigest())
+            self.assertEqual(value['file']['metadata'][1],path.stat().st_ino)
 
     def test_factory_native_terminals_consumed_before_reap(self):
         result = self.run_factory('success')[0]
