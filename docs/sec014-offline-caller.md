@@ -1125,3 +1125,31 @@ release, reaping, retry or eviction; unknown owners can remain in memory until a
 future trusted recovery handoff. Real hostfacts/full factory, actual invalidation
 and release, continuous writer exclusion and later phases remain unconnected.
 All authorityfalse, whole NOTDEPLOYABLE, unmerged/undeployed; no live host/Docker.
+
+### 2026-10-30: bind shared socket observations to their mount entry
+
+The shared transaction socket getter now reads the current thread mount table,
+bounded to 65536 bytes, and requires one entry for the already matched held/named
+FD mount ID. It checks the separator/field layout and fstat major:minor, retaining
+the exact entry including unknown optional tags. The combined socket JSON also
+has a 65536-byte cap. Existing Writer/Prepare durable originals, all transaction
+rechecks, fixed DOCKER_HOST and chain consumers use that same observed entry.
+Both socket FDs still close on every path; custody/incomplete handling is unchanged.
+
+Six identical-test-byte counterexamples failed against the previous product and
+pass now. A same-ID/device/inode mount-option change stops before any client;
+duplicate entries, device mismatch, missing separator, an oversized table and a
+valid but oversized combined ACL/entry record stop before binding. Saved originals
+are retained on change. Kernel text responses are injected around the socket
+getter only. Existing parent mount-table fixtures now inject around their own
+getter, so parent-specific cases continue to test that boundary independently.
+Normal Prepare and parent/socket guards (five), held factory/native failure
+custody (two) and one native Writer case pass. The Writer case saves the actual
+socket entry and verifies four dedicated Python fake-protocol children before
+reaping all four. No real Docker connection or mount operation; no full groups.
+
+Large/unavailable/malformed tables and aggregate records now fail closed. These
+are point observations, not a safe-options policy, complete mount topology,
+trusted peer/host proof or exclusion of changes between observations. Real
+hostfacts/full factory, durable invalidation/recovery and later phases remain
+unconnected. All authorityfalse, whole NOTDEPLOYABLE, unmerged/undeployed.

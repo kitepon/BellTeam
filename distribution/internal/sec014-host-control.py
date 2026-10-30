@@ -306,13 +306,27 @@ class _Transaction:
                 mounts.append((int(ids[0]),raw.decode('ascii')))
             if mounts[0][0]!=mounts[1][0]:
                 raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_MOUNT')
+            # shortcut: mount tables over 65536B are refused, review the observation budget before increasing.
+            with Path('/proc/thread-self/mountinfo').open('rb') as stream:table=stream.read(65537)
+            entries=[line for line in table.splitlines() if line.startswith(str(mounts[0][0]).encode()+b' ')]
+            if len(table)>65536 or len(entries)!=1:
+                raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_MOUNTINFO')
+            sections=entries[0].split(b' - ')
+            fields=sections[0].split()
+            if (len(sections)!=2 or len(fields)<6 or len(sections[1].split())!=3
+                    or not re.fullmatch(rb'[1-9][0-9]{0,19}',fields[1])
+                    or fields[2]!=str(os.major(info.st_dev)).encode()+b':'+str(os.minor(info.st_dev)).encode()):
+                raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_MOUNTINFO')
             namespace=os.stat('/proc/thread-self/ns/mnt')
             value=dict(path=str(path),dockerHost='unix://'+str(path),device=str(info.st_dev),
                 inode=str(info.st_ino),uid=info.st_uid,gid=info.st_gid,
                 mode=format(stat.S_IMODE(info.st_mode),'04o'),links=info.st_nlink,
                 ctimeNs=str(info.st_ctime_ns),namespaceDevice=str(namespace.st_dev),
-                namespaceInode=str(namespace.st_ino),mountId=mounts[0][0],fdinfoUtf8=mounts[0][1],accessAcl=dict(
+                namespaceInode=str(namespace.st_ino),mountId=mounts[0][0],fdinfoUtf8=mounts[0][1],
+                mountInfoUtf8=entries[0].decode('utf-8'),accessAcl=dict(
                     rawHex=None if acl is None else acl.hex(),errno=acl_errno),hostAuthority=False)
+            if len(json.dumps(value,sort_keys=True,allow_nan=False).encode())>65536:
+                raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_OBSERVATION_LIMIT')
             if self._docker_socket_original is not None and value!=self._docker_socket_original:
                 raise ControlError('SEC014_CONTROL_DOCKER_SOCKET_CHANGED')
             return value
