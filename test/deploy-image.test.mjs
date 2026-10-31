@@ -43,6 +43,8 @@ if (args[0] === 'compose' && args[1] === 'up' && process.env.FIXTURE_FAIL === 'u
 `
   await writeFile(join(root,'bin','docker'), docker)
   await chmod(join(root,'bin','docker'), 0o755)
+  await writeFile(join(root,'bin','python3'), '#!/bin/sh\ndocker fixture-backup\nprintf "/fixture/qnap/restore-point\\n"\n')
+  await chmod(join(root,'bin','python3'),0o755)
   const env = { PATH:`${join(root,'bin')}:${process.env.PATH}`, FIXTURE_LOG:join(root,'calls'),
     FIXTURE_COUNT:join(root,'count'),FIXTURE_UPDATER:join(root,'fixture-updater'),
     BELLTEAM_SERVER_IMAGE:image,BELLTEAM_DEPLOY_QUIET_EXCEPT:'bot-fixture',TMPDIR:root }
@@ -57,7 +59,7 @@ test('商用imageは同じdigest・構成で取得し、旧本体のquiet2点を
   assert.match(stdout,/deploy-exit=0/u)
   const calls = await f.calls()
   assert.deepEqual(calls.map(row => row.args[0] === 'compose' ? row.args[1] : row.args[0]),
-    ['container','image','container','exec','pull','run','run','exec','fixture-cursor','exec','up'])
+    ['fixture-backup','pull','run','run','exec','fixture-cursor','exec','up'])
   for (const row of calls) {
     assert.equal(row.cwd,f.root)
     assert.equal(row.compose,`${f.root}/distribution/server/compose.yaml:${f.root}/distribution/internal/compose.overlay.yaml`)

@@ -481,6 +481,8 @@ if [ "$2" = config ] && [ "$3" = --images ]; then echo fixture-server; fi
 if [ "$2" = config ] && [ "$3" = --format ]; then printf '%s\\n' 'name: fixture' 'volumes:' '  cursor-cli:' '    name: fixture-cursor'; fi
 `)
   await chmod(join(root, 'bin/docker'), 0o755)
+  await writeFile(join(root,'bin/python3'), '#!/bin/sh\nprintf "/fixture/qnap/restore-point\\n"\n')
+  await chmod(join(root,'bin/python3'),0o755)
   const commands = join(root, 'commands'), counter = join(root, 'count')
   for (const blockAt of ['1', '2', '0']) {
     await writeFile(commands, '')

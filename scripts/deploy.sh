@@ -46,7 +46,7 @@ log="runtime/backups/deploy-$(date +%Y%m%dT%H%M%S).log"
 if [ -n "$image" ]; then
   ssh "$host" "cd $dir && setsid nohup env BELLTEAM_SERVER_IMAGE=$image BELLTEAM_DEPLOY_QUIET_EXCEPT=$quiet_except sh scripts/deploy-image.sh > $log 2>&1 < /dev/null &"
 else
-  ssh "$host" "cd $dir && setsid nohup sh -c 'docker compose build --pull --no-cache && $quiet_check && sh scripts/update-cursor.sh && $quiet_check && docker compose up -d --no-build; echo deploy-exit=\$?' > $log 2>&1 < /dev/null &"
+  ssh "$host" "cd $dir && setsid nohup sh -c 'docker compose build --pull --no-cache && python3 scripts/save-deploy-restore-point.py && $quiet_check && sh scripts/update-cursor.sh && $quiet_check && docker compose up -d --no-build; echo deploy-exit=\$?' > $log 2>&1 < /dev/null &"
 fi
 for _ in $(seq 1 360); do
   if ssh "$host" "grep -q '^deploy-exit=' $dir/$log" 2>/dev/null; then break; fi
@@ -73,3 +73,6 @@ printf 'healthz: %s\n' "$health"
 ssh "$host" "docker exec bellteam sh -c 'node --version; codex --version; claude --version; grok --version; cursor-agent --version; gh --version | head -1; npm ls -g --depth=0 2>/dev/null | grep -E \"aiterm-mcp|throughline\"'"
 ssh "$host" 'docker exec bellteam curl -fsS http://127.0.0.1:4181/api/bots' \
   | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const b=JSON.parse(d).bots;console.log(`bots ${b.length} online ${b.filter(x=>x.online).length}`)})'
+
+# 正常稼働を読めた後だけ、全container参照と戻し1世代を保護して製品imageを整理する。
+ssh "$host" "cd $dir && python3 scripts/cleanup-deploy-images.py"
