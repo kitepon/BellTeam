@@ -394,8 +394,7 @@ final class BellAPI {
                                       status: Int? = nil) throws -> T {
         do { return try decoder.decode(type, from: data) }
         catch let error as DecodingError {
-            let requestPath = String(path.prefix { $0 != "?" })
-            throw error.located(route: BellRequestTrace.route(for: requestPath), status: status)
+            throw error.located(route: BellRequestTrace.decodingRoute(for: path), status: status)
         }
     }
 

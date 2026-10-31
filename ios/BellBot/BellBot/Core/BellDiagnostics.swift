@@ -51,7 +51,7 @@ extension DecodingError {
     /// 型で定義した項目名と配列の位置だけを残す。辞書の動的なキーとdebugDescriptionは本文を含み得る。
     private static func safeName(_ key: CodingKey) -> String {
         if let index = key.intValue { return "[\(index)]" }
-        return String(describing: type(of: key)).hasSuffix("Keys") ? key.stringValue : "*"
+        return String(describing: type(of: key)) == "CodingKeys" ? key.stringValue : "*"
     }
 
     var diagnosticLog: String {
@@ -87,6 +87,12 @@ struct BellRequestTrace {
     var requestTimeoutMs: Int? = nil
     var sessionTimeoutMs: Int? = nil
     var callerContext: String? = nil
+
+    /// 読み取り失敗の記録には、問合せと生成IDを含めない。
+    static func decodingRoute(for path: String) -> String {
+        route(for: String(path.prefix { $0 != "?" }))
+            .replacingOccurrences(of: "(bot|room)-[0-9a-f]{8}", with: ":id", options: .regularExpression)
+    }
 
     static func route(for path: String) -> String {
         let parts = path.split(separator: "/").map(String.init)

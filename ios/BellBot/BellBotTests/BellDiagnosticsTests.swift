@@ -185,6 +185,40 @@ final class BellDiagnosticsTests: XCTestCase {
         XCTAssertTrue(log.contains("screen_observation=not_observed"))
         XCTAssertTrue(log.contains("request_route=/api/bots/bot-deadbeef/schedules"))
     }
+
+    func testDecodingLogKeepsStaticFieldsAndHidesDynamicKeysAndValues() throws {
+        struct Inner: Decodable { let required: String }
+        struct Outer: Decodable { let items: [Inner]; let byName: [String: Inner] }
+        let cases = [
+            (#"{"items":[{"required":"secret-value"},{}],"byName":{}}"#, "items.[1]"),
+            (#"{"items":[],"byName":{"private-bot-name":{}}}"#, "byName.*"),
+        ]
+        for (json, path) in cases {
+            do {
+                _ = try JSONDecoder().decode(Outer.self, from: Data(json.utf8))
+                XCTFail("読み取れない本文")
+            } catch let error as DecodingError {
+                let located = error.located(route: "/api/session", status: 200)
+                let log = BellDiagnostics.errorLog(located, module: "session")
+                XCTAssertTrue(log.contains("error_type=DecodingError.keyNotFound"), log)
+                XCTAssertTrue(log.contains("decoding_key=required"), log)
+                XCTAssertTrue(log.contains("decoding_path=\(path)"), log)
+                XCTAssertTrue(log.contains("decoding_route=/api/session"), log)
+                XCTAssertTrue(log.contains("decoding_http_status=200"), log)
+                XCTAssertFalse(log.contains("secret-value") || log.contains("private-bot-name"), log)
+            }
+        }
+    }
+
+    func testDecodingRouteRemovesQueryAndGeneratedIDs() {
+        XCTAssertEqual(BellRequestTrace.decodingRoute(for: "/api/session"), "/api/session")
+        XCTAssertEqual(BellRequestTrace.decodingRoute(for: "/api/bots?avatar=omit"), "/api/bots")
+        XCTAssertEqual(BellRequestTrace.decodingRoute(for: "/api/bots/bot-12345678/messages?limit=20"),
+                       "/api/bots/:id/messages")
+        XCTAssertEqual(BellRequestTrace.decodingRoute(for: "/api/rooms/room-abcdef01/messages"),
+                       "/api/rooms/:id/messages")
+        XCTAssertEqual(BellRequestTrace.decodingRoute(for: "/api/bots/private-name"), "/api/bots/:id")
+    }
 }
 
 final class EventStreamTests: XCTestCase {
@@ -258,29 +292,5 @@ final class ConnectionResetTests: XCTestCase {
         defer { HTTPCookieStorage.shared.deleteCookie(cookie) }
         await BellAPI(baseURL: url).resetConnections()
         XCTAssertEqual(HTTPCookieStorage.shared.cookies(for: url)?.map(\.name), ["CF_Authorization"])
-    }
-
-    func testDecodingLogKeepsStaticFieldsAndHidesDynamicKeysAndValues() throws {
-        struct Inner: Decodable { let required: String }
-        struct Outer: Decodable { let items: [Inner]; let byName: [String: Inner] }
-        let cases = [
-            (#"{"items":[{"required":"secret-value"},{}],"byName":{}}"#, "items.[1]"),
-            (#"{"items":[],"byName":{"private-bot-name":{}}}"#, "byName.*"),
-        ]
-        for (json, path) in cases {
-            do {
-                _ = try JSONDecoder().decode(Outer.self, from: Data(json.utf8))
-                XCTFail("読み取れない本文")
-            } catch let error as DecodingError {
-                let located = error.located(route: "/api/session", status: 200)
-                let log = BellDiagnostics.errorLog(located, module: "session")
-                XCTAssertTrue(log.contains("error_type=DecodingError.keyNotFound"), log)
-                XCTAssertTrue(log.contains("decoding_key=required"), log)
-                XCTAssertTrue(log.contains("decoding_path=\(path)"), log)
-                XCTAssertTrue(log.contains("decoding_route=/api/session"), log)
-                XCTAssertTrue(log.contains("decoding_http_status=200"), log)
-                XCTAssertFalse(log.contains("secret-value") || log.contains("private-bot-name"), log)
-            }
-        }
     }
 }
