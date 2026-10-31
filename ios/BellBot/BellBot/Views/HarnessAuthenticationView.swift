@@ -151,14 +151,9 @@ private struct HarnessAuthenticationView: View {
                     }.accessibilityIdentifier("harness-auth-start")
                         .disabled(flow.needsRefresh || errorText != nil)
                 } else if flow.auth?.status == .authenticated {
-                    if let warning = flow.harness.startWarning, !warning.isEmpty {
-                        Text(warning).foregroundStyle(BellTheme.muted)
-                            .accessibilityIdentifier("harness-auth-unavailable")
-                    } else {
-                        Text("認証の方法を確認できませんでした。状態を更新してください。")
-                            .foregroundStyle(.red)
-                            .accessibilityIdentifier("harness-auth-unavailable")
-                    }
+                    Text(flow.harness.startWarning.flatMap { $0.isEmpty ? nil : $0 } ?? "このAIは認証済みの間は入り直せません。")
+                        .foregroundStyle(BellTheme.muted)
+                        .accessibilityIdentifier("harness-auth-unavailable")
                 }
                 Button("状態を更新") { run(method: "GET") { try await flow.refresh() } }
                     .accessibilityIdentifier("harness-auth-refresh")

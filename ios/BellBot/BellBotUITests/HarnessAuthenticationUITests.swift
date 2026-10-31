@@ -19,7 +19,7 @@ final class HarnessAuthenticationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["harness-auth-status"].waitForExistence(timeout: 5))
         let warning = app.staticTexts["harness-auth-unavailable"]
         XCTAssertTrue(warning.exists)
-        XCTAssertTrue(warning.label.contains("公式CLIで認証してください"))
+        XCTAssertTrue(warning.label.contains("認証済みの間は入り直せません"))
         XCTAssertFalse(app.buttons["harness-auth-start"].exists)
         XCTAssertFalse(app.buttons["harness-auth-cancel"].exists)
         XCTAssertFalse(app.secureTextFields["harness-auth-input"].exists)
