@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
@@ -8,6 +8,14 @@ import { searchKnowledgeItems, searchMemories } from './memory-search.mjs'
 const MEMORY_KINDS = new Set([
   'fact', 'preference', 'policy', 'task', 'config', 'incident', 'relationship', 'episode', 'growth',
 ])
+
+function closeDatabases(databases, errors = []) {
+  for (const db of databases) {
+    try { db?.close() } catch (error) { errors.push(error) }
+  }
+  if (errors.length === 1) throw errors[0]
+  if (errors.length) throw new AggregateError(errors, 'MEMORY_DATABASE_CLOSE_FAILED')
+}
 
 export class BellTeamMemory {
   constructor({ registry, root, now = () => new Date(), id = randomUUID }) {
@@ -34,6 +42,7 @@ export class BellTeamMemory {
     const evidenceId = `evidence-${this.id()}`
     let duplicate = false
     const db = await this.openMemory(bot?.id ?? null, normalizedScope)
+    const errors = []
     try {
       db.exec('BEGIN')
       db.prepare(`
@@ -61,10 +70,12 @@ export class BellTeamMemory {
       `).run(evidenceId, assertionId, rawEventId, content.trim(), observedAt, bot?.id ?? 'shared', sourceRef)
       db.exec('COMMIT')
     } catch (error) {
-      db.exec('ROLLBACK')
-      throw error
+      errors.push(error)
+      if (db.isTransaction) {
+        try { db.exec('ROLLBACK') } catch (error) { errors.push(error) }
+      }
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
     return { id: assertionId, kind, content: content.trim(), scope: normalizedScope, observedAt, duplicate }
   }
@@ -74,11 +85,12 @@ export class BellTeamMemory {
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     if (typeof content !== 'string' || content.trim().length === 0) throw new Error('MEMORY_CONTENT_INVALID')
     const db = await this.openMemory(bot?.id ?? null, normalizedScope)
-    const observedAt = this.now().toISOString()
-    const newId = `memory-${this.id()}`
-    const rawEventId = `raw-${this.id()}`
-    let resolvedKind
+    let observedAt, newId, resolvedKind
+    const errors = []
     try {
+      observedAt = this.now().toISOString()
+      newId = `memory-${this.id()}`
+      const rawEventId = `raw-${this.id()}`
       const current = db.prepare(`SELECT * FROM assertions WHERE id = ? AND status = 'active'`).get(id)
       if (!current) throw new Error(`MEMORY_NOT_FOUND: ${id}`)
       const nextKind = kind ?? current.kind
@@ -101,10 +113,12 @@ export class BellTeamMemory {
       `).run(`evidence-${this.id()}`, newId, rawEventId, content.trim(), observedAt, bot?.id ?? 'shared', id)
       db.exec('COMMIT')
     } catch (error) {
-      if (db.isTransaction) db.exec('ROLLBACK')
-      throw error
+      errors.push(error)
+      if (db.isTransaction) {
+        try { db.exec('ROLLBACK') } catch (error) { errors.push(error) }
+      }
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
     return { id: newId, supersedesId: id, kind: resolvedKind, content: content.trim(), scope: normalizedScope, observedAt }
   }
@@ -113,13 +127,16 @@ export class BellTeamMemory {
     const normalizedScope = normalizeScope(scope)
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     const db = await this.openMemory(bot?.id ?? null, normalizedScope)
+    const errors = []
     try {
       const row = db.prepare(`SELECT metadata_json FROM assertions WHERE id = ? AND status = 'active'`).get(id)
       if (!row) throw new Error(`MEMORY_NOT_FOUND: ${id}`)
       db.prepare(`UPDATE assertions SET metadata_json = ? WHERE id = ?`)
         .run(JSON.stringify({ ...JSON.parse(row.metadata_json), pinned: Boolean(pinned) }), id)
+    } catch (error) {
+      errors.push(error)
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
     return { id, pinned: Boolean(pinned), scope: normalizedScope }
   }
@@ -133,14 +150,17 @@ export class BellTeamMemory {
     const normalizedScope = normalizeScope(scope)
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     const db = await this.openMemory(bot?.id ?? null, normalizedScope)
+    const errors = []
     try {
       for (const id of memoryIds) {
         const row = db.prepare(`SELECT metadata_json FROM assertions WHERE id = ? AND status = 'active'`).get(id)
         if (!row || JSON.parse(row.metadata_json).pinned) continue
         db.prepare(`UPDATE assertions SET status = 'consolidated' WHERE id = ?`).run(id)
       }
+    } catch (error) {
+      errors.push(error)
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
     return { ...growth, sourceMemoryIds: memoryIds }
   }
@@ -149,6 +169,7 @@ export class BellTeamMemory {
     const normalizedScope = normalizeScope(scope)
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     const db = await this.openMemory(bot?.id ?? null, normalizedScope)
+    const errors = []
     try {
       return {
         scope: normalizedScope,
@@ -162,8 +183,10 @@ export class BellTeamMemory {
           ...(row.near ? { match: 'partial' } : {}),
         })),
       }
+    } catch (error) {
+      errors.push(error)
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
   }
 
@@ -180,13 +203,16 @@ export class BellTeamMemory {
     await writeFile(join(ragRoot, relativePath), markdown, 'utf8')
     await appendIndex(ragRoot, { id, title: title.trim(), relativePath, createdAt, confidence })
     const db = openKnowledgeDb(join(ragRoot, 'index.db'))
+    const errors = []
     try {
       upsertKnowledge(db, {
         id, path: relativePath, title: title.trim(), body: content.trim(), source,
         tags: JSON.stringify(tags), confidence, createdAt,
       })
+    } catch (error) {
+      errors.push(error)
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
     return { id, title: title.trim(), path: relativePath, scope: normalizedScope, createdAt }
   }
@@ -198,12 +224,15 @@ export class BellTeamMemory {
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     const ragRoot = await this.ensureRag(bot?.id ?? null, normalizedScope)
     const knowledgeDb = openKnowledgeDb(join(ragRoot, 'index.db'))
-    const memoryDb = await this.openMemory(bot?.id ?? null, normalizedScope)
+    let memoryDb
+    const errors = []
     try {
+      memoryDb = await this.openMemory(bot?.id ?? null, normalizedScope)
       return { scope: normalizedScope, items: searchKnowledgeItems(knowledgeDb, memoryDb, query, limit) }
+    } catch (error) {
+      errors.push(error)
     } finally {
-      knowledgeDb.close()
-      memoryDb.close()
+      closeDatabases([memoryDb, knowledgeDb], errors)
     }
   }
 
@@ -212,18 +241,26 @@ export class BellTeamMemory {
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
     const ragRoot = await this.ensureRag(bot?.id ?? null, normalizedScope)
     const dbPath = join(ragRoot, 'index.db')
-    await rm(dbPath, { force: true })
     const db = openKnowledgeDb(dbPath)
     let count = 0
+    const errors = []
     try {
+      db.exec('BEGIN IMMEDIATE')
+      db.exec('DELETE FROM section_index; DELETE FROM sections; DELETE FROM documents; DELETE FROM index_state;')
       for (const name of await readdir(join(ragRoot, 'notes'))) {
         if (!name.endsWith('.md')) continue
         const parsed = parseKnowledgeMarkdown(await readFile(join(ragRoot, 'notes', name), 'utf8'))
         upsertKnowledge(db, { ...parsed, path: `notes/${name}` })
         count += 1
       }
+      db.exec('COMMIT')
+    } catch (error) {
+      errors.push(error)
+      if (db.isTransaction) {
+        try { db.exec('ROLLBACK') } catch (error) { errors.push(error) }
+      }
     } finally {
-      db.close()
+      closeDatabases([db], errors)
     }
     return { scope: normalizedScope, count }
   }
@@ -231,7 +268,7 @@ export class BellTeamMemory {
   async openMemory(botId, scope) {
     const directory = await this.ensureMemory(botId, scope)
     const db = new DatabaseSync(join(directory, 'memory.db'))
-    db.exec(`
+    try { db.exec(`
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS raw_events (
         id TEXT PRIMARY KEY,
@@ -282,7 +319,7 @@ export class BellTeamMemory {
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
-    `)
+    `) } catch (error) { closeDatabases([db], [error]) }
     return db
   }
 
@@ -319,7 +356,7 @@ export class BellTeamMemory {
 
 function openKnowledgeDb(path) {
   const db = new DatabaseSync(path)
-  db.exec(`
+  try { db.exec(`
     PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS documents (
       rowid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -366,7 +403,7 @@ function openKnowledgeDb(path) {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
-  `)
+  `) } catch (error) { closeDatabases([db], [error]) }
   return db
 }
 
