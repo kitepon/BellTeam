@@ -158,7 +158,16 @@ private struct ConversationContent: View {
                     }
                     .coordinateSpace(name: "conversation-scroll")
                     .onPreferenceChange(ScrollMetricsKey.self) { metrics in
-                        scrollChanged(metrics, viewportSize: viewport.size, botsByID: botsByID, proxy: proxy)
+                        // 計測の中で配置を変えると同じフレームで計測が再発火するので、次の周へ送り1回にまとめる。
+                        scroll.pendingMetrics = metrics
+                        guard !scroll.metricsScheduled else { return }
+                        scroll.metricsScheduled = true
+                        DispatchQueue.main.async {
+                            scroll.metricsScheduled = false
+                            guard let pending = scroll.pendingMetrics else { return }
+                            scroll.pendingMetrics = nil
+                            scrollChanged(pending, viewportSize: viewport.size, botsByID: botsByID, proxy: proxy)
+                        }
                     }
                     // キーボードで見える高さだけが縮む時は、本文の計測値が変わらず上の通知が来ない。
                     .onChange(of: viewport.size.height) { oldHeight, newHeight in
@@ -756,8 +765,9 @@ private struct ConversationContent: View {
     private func scrollChanged(_ metrics: ScrollMetrics, viewportSize: CGSize, botsByID: [String: Bot], proxy: ScrollViewProxy) {
         guard let top = metrics.top, let height = metrics.height, let bottom = metrics.bottom,
               let width = metrics.width else { return }
-        if measuredContentWidth != width { measuredContentWidth = width }
         let viewportHeight = viewportSize.height
+        guard viewportHeight > 0, viewportHeight.isFinite else { return }
+        if measuredContentWidth != width { measuredContentWidth = width }
         let resized = abs(width - scroll.contentWidth) > 0.5
         let heightChanged = abs(height - scroll.height) > 0.5
         // 同じ更新で利用者が動かした分。行の位置を戻す時にこの分を打ち消さない。
@@ -774,7 +784,10 @@ private struct ConversationContent: View {
         // 明示的に末尾へ移る間は、古い読書位置への補正でその移動を打ち消さない。
         if (heightChanged || resized), !isAtBottom, !scroll.followingBottom, scroll.pin == nil,
            let anchor = scroll.visibleAnchor, metrics.rows[anchor.id] != nil {
-            scrollRow(anchor.id, to: anchor.y + moved, viewportHeight: viewportHeight, proxy: proxy)
+            let target = anchor.y + moved
+            if abs((metrics.rows[anchor.id]?.frame.minY ?? target) - target) > 0.5 {
+                scrollRow(anchor.id, to: target, viewportHeight: viewportHeight, proxy: proxy)
+            }
         } else if let message = messages.first(where: { message in
             guard let frame = metrics.rows[message.id]?.frame else { return false }
             return frame.maxY > 0 && frame.minY < viewportHeight
@@ -811,10 +824,12 @@ private struct ConversationContent: View {
                     if outside { return }
                 case .correcting:
                     // 高さが変わらないのに外へ出たのは利用者の操作なので、戻さず固定を解く。
-                    if outside && scrolled {
+                    // 戻しても位置が変わらない時も、端で丸められているので再発行しない。
+                    if outside && (scrolled || abs(top - scroll.correctedTop) < 0.5) {
                         scroll.pin = nil
-                        measuredRow = nil
+                        if measuredRow != nil { measuredRow = nil }
                     } else if outside {
+                        scroll.correctedTop = top
                         scrollRow(row, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
                         return
                     } else {
@@ -906,7 +921,8 @@ private struct ConversationContent: View {
     private func updateUnloadedRowHeight() {
         let heights = messages.compactMap { scroll.rowSizes[$0.id]?.frame.height }
         guard !heights.isEmpty else { return }
-        unloadedRowHeight = heights.reduce(0, +) / CGFloat(heights.count) + 17
+        let height = heights.reduce(0, +) / CGFloat(heights.count) + 17
+        if abs(height - (unloadedRowHeight ?? 0)) > 0.5 { unloadedRowHeight = height }
     }
 
     /// バーの全長に含める未読込の過去の長さ。全履歴ではなく、近い分だけを持つ。
@@ -991,6 +1007,7 @@ private struct ConversationContent: View {
                 // 足した行のMarkdownは後から高さが伸びる。伸びるたびに同じ位置へ戻すため、行と位置を覚えておく。
                 scroll.pin = oldest
                 scroll.pinPhase = .awaitingGrowth
+                scroll.correctedTop = .infinity
                 scrollRow(oldest, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
             } else {
                 measuredRow = nil
@@ -1402,6 +1419,9 @@ private final class ScrollTracker {
     var pin: String?
     var pinPhase = PinPhase.awaitingGrowth
     var pinnedY: CGFloat = 0
+    var correctedTop = CGFloat.infinity
+    var pendingMetrics: ScrollMetrics?
+    var metricsScheduled = false
     var canLoadOlder = true
     var wheelStall = ConversationWheelStallDetector()
 
