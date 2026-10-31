@@ -121,7 +121,7 @@ test('サーバーが再認証非対応と返す種類には開始を案内せ�
   const api = async (path, options = {}) => {
     calls.push(`${options.method ?? 'GET'} ${path}`)
     if (path === '/api/harness-auth') return { harnesses: [{ id: 'fixture', name: 'Fixture', members: 0, reloginSupported: false, startWarning: message }] }
-    if (path === '/api/harness-auth/fixture') return { auth: { status: 'authenticated' } }
+    if (path === '/api/harness-auth/fixture') return { auth: { status: 'blocked', session_id: null } }
     throw Error(`unexpected ${path}`)
   }
   let section
@@ -130,6 +130,7 @@ test('サーバーが再認証非対応と返す種類には開始を案内せ�
     const row = container.children[0]
     await settle()
     assert.ok(texts(row).includes(message))
+    assert.equal(texts(row).some(text => text.includes('認証ボタンを押すと')), false)
     assert.equal(descendants(row).some(item => item.tag === 'button' && ['認証する', '認証し直す'].includes(item.textContent)), false)
     descendants(row).find(item => item.tag === 'button' && item.textContent === '状態を更新').fire('click'); await settle()
     assert.deepEqual(calls, ['GET /api/harness-auth', 'GET /api/harness-auth/fixture', 'GET /api/harness-auth/fixture'])
