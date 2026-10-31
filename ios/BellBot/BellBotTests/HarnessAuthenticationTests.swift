@@ -26,6 +26,18 @@ final class HarnessAuthenticationTests: XCTestCase {
         XCTAssertTrue(old.needsStartConfirmation(auth(.authenticated)), "旧サーバーの表示を維持する")
     }
 
+    func testUnsupportedReloginStillAllowsFirstAuthentication() {
+        let antigravity = HarnessAuthenticationOption(id: "antigravity", name: "Antigravity", members: 1,
+                                                      startWarning: "公式CLIで認証してください。", reloginSupported: false)
+        XCTAssertFalse(antigravity.canStart(nil), "状態を読めない間は始めない")
+        XCTAssertFalse(antigravity.canStart(auth(.authenticated)))
+        XCTAssertTrue(antigravity.canStart(auth(.blocked)))
+        XCTAssertTrue(antigravity.canStart(auth(.failed)))
+        let codex = HarnessAuthenticationOption(id: "codex", name: "Codex", members: 1, startWarning: nil)
+        XCTAssertTrue(codex.canStart(nil))
+        XCTAssertTrue(codex.canStart(auth(.authenticated)))
+    }
+
     func testViewingTheStateDoesNotStartOrCancelAuthentication() async throws {
         let log = RequestLog()
         let flow = makeFlow(log) { _, _ in (200, self.response("authenticated")) }

@@ -43,11 +43,9 @@ const server = createServer(async (request, response) => {
       response.statusCode = 500
       return json({ error: 'AUTH_STATUS_FAILED', message: '試験の通信エラーです。状態を更新してください。' })
     }
-    if (path.endsWith('/start') && path.includes('/antigravity/')) {
-      response.statusCode = 409
-      return json({ error: 'HARNESS_AUTH_RELOGIN_UNSUPPORTED', message: '公式CLIで認証してください。' })
-    }
-    if (path.endsWith('/start')) status = 'waiting'
+    // Antigravityは認証済みなら何も変えず、未認証なら公式の認証を始める。
+    if (path.endsWith('/start') && path.includes('/antigravity/') && harness !== blocked) return json({ harness, auth: auth(harness) })
+    if (path.endsWith('/start')) { status = 'waiting'; blocked = null }
     if (path.endsWith('/input') && body?.text) status = 'authenticated'
     if (path.endsWith('/cancel')) { status = 'blocked'; return json({ harness: 'codex', auth: null }) }
     return json({ harness, auth: auth(harness) })
