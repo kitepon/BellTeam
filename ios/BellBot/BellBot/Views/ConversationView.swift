@@ -739,7 +739,7 @@ private struct ConversationContent: View {
             // 列の幅が変わった直後は、以前の幅の最小高を使った計測を保存しない。
             if abs(row.frame.width - row.layoutWidth) < 0.5 { scroll.rowSizes[id] = row }
         }
-        if unloadedRowHeight == nil, remainingBefore > 0, !messages.isEmpty,
+        if isAtBottom, remainingBefore > 0, !messages.isEmpty,
            messages.allSatisfy({ scroll.rowSizes[$0.id] != nil }) {
             updateUnloadedRowHeight()
         }
@@ -874,7 +874,7 @@ private struct ConversationContent: View {
         measuredHeight(message, width: width, botsByID: botsByID) ?? unloadedRowHeight.map { $0 - 17 } ?? 180
     }
 
-    /// 見積りが動くとバーも動くので、平均の更新は最初の頁と読み足しの時だけにする。
+    /// 見積りが動くとバーも動くので、平均は最新の行にいる間だけ更新し、読み進める間は固定する。
     private func updateUnloadedRowHeight() {
         let heights = messages.compactMap { scroll.rowSizes[$0.id]?.frame.height }
         guard !heights.isEmpty else { return }
@@ -937,7 +937,6 @@ private struct ConversationContent: View {
     private func loadOlder(before oldest: String, proxy: ScrollViewProxy, viewportHeight: CGFloat) async {
         // 余白を確保している時は足しても全長がほぼ変わらないので、行を固定せず見えている行の補正に任せる。
         let reserved = unloadedHeight > 0
-        if reserved { updateUnloadedRowHeight() }
         let distance = scroll.top + unloadedHeight
         measuredRow = reserved ? nil : oldest
         loadingOlder = true
