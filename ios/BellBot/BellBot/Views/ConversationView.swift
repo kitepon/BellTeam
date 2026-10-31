@@ -57,6 +57,7 @@ private struct ConversationContent: View {
     @State private var queue: [QueueItem] = []
     @State private var hasMore = false
     @State private var remainingBefore = 0
+    @State private var scrollBarReady = false
     @State private var unloadedRowHeight: CGFloat?
     @State private var loading = true
     @State private var loadingOlder = false
@@ -200,6 +201,7 @@ private struct ConversationContent: View {
                     }
                     #endif
                     .scrollDismissesKeyboard(.interactively)
+                    .scrollIndicators(scrollBarReady ? .automatic : .hidden)
                     .accessibilityIdentifier("conversation-messages")
                     .defaultScrollAnchor(.bottom)
                     .refreshable { await load() }
@@ -762,6 +764,11 @@ private struct ConversationContent: View {
         }
         if let boundary = metrics.boundary, scroll.pin == nil { scroll.pinnedY = boundary }
         fillViewportWithOlderMessages(viewportHeight: viewportHeight, proxy: proxy)
+        // 開いた直後は配置の途中でバーが動くので、最新の行に着いてから出す。
+        if !scrollBarReady, !loading, !loadingOlder, !messages.isEmpty, isAtBottom,
+           !needsOlderRows(viewportHeight: viewportHeight) {
+            scrollBarReady = true
+        }
         if heightChanged {
             // 初期位置と末尾への追従は.defaultScrollAnchor(.bottom)に任せる。推定した余白とMarkdownの実高の差を、増減の両方で補正する。
             if let row = scroll.pin {
@@ -811,15 +818,19 @@ private struct ConversationContent: View {
     /// 未読込の余白が画面に見える間は過去を足す。バーを掴んで飛んだ先も、ここで埋まる。
     /// Macのホイールは動かせる長さが無いと位置が変わらず、上端の取得が始まらないので、旧本体でも表示域が埋まるまで足す。
     private func fillViewportWithOlderMessages(viewportHeight: CGFloat, proxy: ScrollViewProxy) {
+        guard needsOlderRows(viewportHeight: viewportHeight), scenePhase == .active, scroll.height > 0, !loadingOlder,
+              scroll.canLoadOlder, let oldest = messages.first?.id else { return }
+        scroll.canLoadOlder = false
+        olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
+    }
+
+    private func needsOlderRows(viewportHeight: CGFloat) -> Bool {
         let spacer = unloadedHeight
         var needsRows = spacer > 0 && scroll.top + spacer > 0
         #if targetEnvironment(macCatalyst)
         needsRows = needsRows || scroll.height <= viewportHeight
         #endif
-        guard needsRows, scenePhase == .active, scroll.height > 0, hasMore, !loadingOlder,
-              scroll.canLoadOlder, let oldest = messages.first?.id else { return }
-        scroll.canLoadOlder = false
-        olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
+        return needsRows && hasMore
     }
 
     #if targetEnvironment(macCatalyst)
