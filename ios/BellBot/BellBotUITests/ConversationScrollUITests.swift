@@ -82,6 +82,7 @@ final class ConversationScrollUITests: XCTestCase {
         for _ in 0..<3 { scroll.swipeDown() }
         Thread.sleep(forTimeInterval: 3)
         let before = oldest.frame.minY
+        XCTAssertTrue(app.buttons["最新へ ↓"].exists, "過去を読んでいる間は新着が無くても最新へ戻れる")
         let refreshesBeforeAppend = try requests().filter { $0.contains("after=m030") }.count
         _ = try data("/test/append")
         // 引き下げ更新の操作が取りこぼされることがあるため、更新の要求が出るまで引き直す（操作の再試行で、アプリの再試行ではない）。

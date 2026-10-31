@@ -178,8 +178,9 @@ private struct ConversationContent: View {
                         if loadingOlder { ProgressView().padding(.top, 12) }
                     }
                     .overlay(alignment: .bottom) {
-                        if hasUnreadMessages {
-                            Button("新着メッセージ ↓") {
+                        // 過去を読んでいる間は、新着が無くても最新へ戻れるようにする。
+                        if hasUnreadMessages || (!isAtBottom && !loading) {
+                            Button(hasUnreadMessages ? "新着メッセージ ↓" : "最新へ ↓") {
                                 hasUnreadMessages = false
                                 renderedRows = nil
                                 scrollToBottomRevision += 1
@@ -187,6 +188,7 @@ private struct ConversationContent: View {
                             .font(BellTheme.messageHelperFont.weight(.semibold))
                             .buttonStyle(.borderedProminent)
                             .padding(.bottom, 12)
+                            .accessibilityIdentifier("scroll-to-latest")
                         }
                     }
                     .onChange(of: [hasMore, loadingOlder, scenePhase == .active]) { _, _ in
