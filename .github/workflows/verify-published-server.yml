@@ -46,9 +46,13 @@ jobs:
           sh install.sh 2>&1 | tee first.log
           docker image inspect ghcr.io/kitepon/bellteam-server:latest --format '{{json .RepoDigests}}' > latest-digests.json
           docker compose ps -q bellteam > first-cid.txt
-          docker compose exec -T bellteam node --input-type=module - <<'JS' > first.json
+          test "$(docker inspect --format '{{.Image}}' "$(cat first-cid.txt)")" = "$(docker image inspect --format '{{.Id}}' ghcr.io/kitepon/bellteam-server:latest)"
+          test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$(cat first-cid.txt)")" = true
+          docker compose exec -T -e EXPECTED_SOURCE bellteam node --input-type=module - <<'JS' > first.json
           import assert from 'node:assert/strict';
-          import { writeFile } from 'node:fs/promises';
+          import { readFile, writeFile } from 'node:fs/promises';
+          const distribution = JSON.parse(await readFile('/app/distribution.json', 'utf8'));
+          assert.equal(distribution.sourceCommit, process.env.EXPECTED_SOURCE);
           const get = async path => { const r = await fetch('http://127.0.0.1:4181' + path); assert.equal(r.status, 200); return r.json() };
           assert.equal((await get('/api/bots?avatar=omit')).bots.length, 1);
           assert.equal((await get('/api/setup')).complete, false);
@@ -64,6 +68,7 @@ jobs:
           BELLTEAM_SERVER_IMAGE=ghcr.io/kitepon/bellteam-server:preview sh install.sh 2>&1 | tee update.log
           docker image inspect ghcr.io/kitepon/bellteam-server:preview --format '{{json .RepoDigests}}' > preview-digests.json
           test "$(cat first-cid.txt)" != "$(docker compose ps -q bellteam)"
+          test "$(docker inspect --format '{{.Image}}' "$(docker compose ps -q bellteam)")" = "$(docker image inspect --format '{{.Id}}' ghcr.io/kitepon/bellteam-server:preview)"
           docker compose exec -T -e EXPECTED_SOURCE bellteam node --input-type=module - <<'JS' > updated.json
           import assert from 'node:assert/strict';
           import { readFile } from 'node:fs/promises';
