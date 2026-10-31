@@ -49,13 +49,14 @@ const shortMessages = Array.from({ length: 35 }, (_, index) => {
 let messages = history.slice()
 let subscribers = []
 let failBefore = false
+let shortPage = false
 let requests = []
 let diagnosticReports = []
 const server = createServer((request, response) => {
   const url = new URL(request.url, 'http://localhost')
   const path = url.pathname
   const json = (value, status = 200) => { response.statusCode = status; response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(value)) }
-  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; requests = []; diagnosticReports = []; messages = history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
+  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; shortPage = url.searchParams.get('shortPage') === '1'; requests = []; diagnosticReports = []; messages = history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
   if (path === '/test/append') {
     const id = `m${String(messages.length + 1).padStart(3, '0')}`
     messages.push({ id, kind: 'message', direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at: new Date().toISOString(), message: `${id} 新着です。`, delivery: 'delivered' })
@@ -101,6 +102,9 @@ const server = createServer((request, response) => {
   }
   if (path === '/api/bots/bot-two/messages' && request.method === 'GET') {
     requests.push({ query: url.search, bot: 'bot-two' })
+    if (failBefore && url.searchParams.has('before')) return json({ error: 'FIXTURE_FAILURE', message: '試験用の取得失敗' }, 500)
+    // 表示域に収まる初回の頁。本番では短い連絡の行が続く時に起きる。
+    if (shortPage && !url.searchParams.has('before')) url.searchParams.set('limit', '3')
     return json(pageItems(shortMessages, url))
   }
   if (path.endsWith('/messages') || path.endsWith('/timeline')) return json({ items: [], has_more: false })
