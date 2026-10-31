@@ -94,7 +94,6 @@ private struct ConversationContent: View {
     @State private var measuredRow: String?
     @State private var scroll = ScrollTracker()
     @State private var renderedRows: (first: String, last: String)?
-    @State private var rowIsPresenting = false
     @State private var measuredContentWidth: CGFloat?
 
     private var messages: [TimelineMessage] { timeline.visibleMessages }
@@ -177,8 +176,9 @@ private struct ConversationContent: View {
                         }
                     }
                     .onPreferenceChange(ConversationPresentationKey.self) { presenting in
+                        // 先に予約済みの更新が表示中の行を窓から外さないよう、判定用の値だけ同期で記録する。
+                        scroll.presenting = presenting
                         DispatchQueue.main.async {
-                            rowIsPresenting = presenting
                             if !presenting && scroll.pendingBottomScroll {
                                 scroll.pendingBottomScroll = false
                                 scrollToBottomRevision += 1
@@ -217,7 +217,7 @@ private struct ConversationContent: View {
                     .defaultScrollAnchor(.bottom)
                     .refreshable { await load() }
                     .onChange(of: scrollToBottomRevision) { _, _ in
-                        if rowIsPresenting { scroll.pendingBottomScroll = true; return }
+                        if scroll.presenting { scroll.pendingBottomScroll = true; return }
                         scroll.followingBottom = true
                         scroll.pin = nil
                         measuredRow = nil
@@ -887,7 +887,7 @@ private struct ConversationContent: View {
             pinned=\(scroll.pin != nil)
             pin_phase=\(scroll.pinPhase)
             following_bottom=\(scroll.followingBottom)
-            row_presenting=\(rowIsPresenting)
+            row_presenting=\(scroll.presenting)
             message_count=\(messages.count)
             window_rows=\(window.range.count)
             window_before=\(Int(window.before))
@@ -940,7 +940,7 @@ private struct ConversationContent: View {
 
     private func updateWindow(_ metrics: ScrollMetrics, viewportHeight: CGFloat, width: CGFloat, botsByID: [String: Bot]) {
         // 末尾への移動中は中間地点の行へ表示範囲を切り替えず、到着後に更新する。
-        guard !rowIsPresenting, !scroll.followingBottom, !messages.isEmpty, let top = metrics.top else { return }
+        guard !scroll.presenting, !scroll.followingBottom, !messages.isEmpty, let top = metrics.top else { return }
         // 描画済みの行を飛び越えても、スクロール位置と保持した行高から範囲を求める。
         let anchor = messages.first(where: { message in
             guard let frame = metrics.rows[message.id]?.frame else { return false }
@@ -1412,6 +1412,7 @@ private final class ScrollTracker {
     private var secretStates: [String: SecretRequestCardState] = [:]
     private var questionStates: [String: OwnerQuestionCardState] = [:]
     var pendingBottomScroll = false
+    var presenting = false
     var followingBottom = false
     var rowSizes: [String: ConversationRowMetric] = [:]
     var visibleAnchor: (id: String, y: CGFloat)?
