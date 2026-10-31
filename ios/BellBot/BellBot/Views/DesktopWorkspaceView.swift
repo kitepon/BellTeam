@@ -286,11 +286,19 @@ private struct DesktopInspector: View {
         .botProfileImageActions(bot: bot, images: images)
     }
 
+    private var profileSmallImageSize: CGFloat {
+        #if targetEnvironment(macCatalyst)
+        152
+        #else
+        76
+        #endif
+    }
+
     private var profile: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 if let bot {
-                    BotProfileHero(bot: bot, smallSize: 152, images: images)
+                    BotProfileHero(bot: bot, smallSize: profileSmallImageSize, images: images)
                 } else if let room {
                     VStack(spacing: 13) {
                         AvatarView(name: room.name, avatar: room.avatar, color: BellTheme.violet,
