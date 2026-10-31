@@ -23,6 +23,9 @@ jobs:
   install:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
     env:
       EXPECTED_DIGEST: ${{ inputs.digest }}
       EXPECTED_SOURCE: ${{ inputs.source }}
