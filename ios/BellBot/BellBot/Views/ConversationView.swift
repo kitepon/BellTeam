@@ -704,7 +704,9 @@ private struct ConversationContent: View {
         }
         #endif
         // 前に開いた会話は、取得を待たず前回の頁を出す。
+        // サインアウトや接続先の変更の後に届いた応答は、成功も失敗も反映しない。
         let generation = store.conversationGeneration
+        let stale = { store.conversationGeneration != generation }
         if let page = store.conversationPages[target] {
             timeline.replaceReceived(page.items)
             hasMore = page.hasMore
@@ -715,7 +717,7 @@ private struct ConversationContent: View {
             async let waiting: QueueResponse = store.api.get(target.path + "/queue")
             let result: ListResponse<TimelineMessage> = try await store.api.get(target.path + "/messages?limit=10")
             try Task.checkCancellation()
-            guard !awaitingSendResponse else { loading = false; return }
+            guard !stale(), !awaitingSendResponse else { loading = false; return }
             timeline.replaceReceived(result.items)
             hasMore = result.hasMore
             remainingBefore = result.remainingBefore ?? 0
@@ -727,18 +729,22 @@ private struct ConversationContent: View {
             do {
                 let queued = try await waiting
                 try Task.checkCancellation()
+                guard !stale() else { return }
                 queue = queued.items
             } catch is CancellationError { return }
-            catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+            catch let error where BellAPIError.isAuthenticationError(error) {
+                if !stale() { store.requireLogin(for: error) }
+            }
             catch {
+                guard !stale() else { return }
                 errorText = error.localizedDescription
                 store.api.diagnostics.report(error, path: target.path + "/queue", method: "GET", observation: .read(error, retainedData: true))
             }
         } catch let error where BellAPIError.isAuthenticationError(error) {
-            store.requireLogin(for: error)
+            if !stale() { store.requireLogin(for: error) }
         } catch is CancellationError { return }
         catch {
-            if awaitingSendResponse { loading = false; return }
+            if stale() || awaitingSendResponse { loading = false; return }
             errorText = error.localizedDescription
             initialLoadFailed = true
             store.api.diagnostics.report(error, path: target.path + "/messages", method: "GET", observation: .read(error, retainedData: !messages.isEmpty))
