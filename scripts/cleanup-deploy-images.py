@@ -30,6 +30,40 @@ def references():
     return {row['Image'] for row in json.loads(subprocess.check_output(['docker', 'container', 'inspect', *ids]))} if ids else set()
 
 
+def inspected(image_id):
+    result = subprocess.run(['docker', 'image', 'inspect', image_id], text=True, capture_output=True)
+    if result.returncode == 1 and result.stderr.strip() == f'Error response from daemon: No such image: {image_id}':
+        return None
+    result.check_returncode()
+    rows = json.loads(result.stdout)
+    if len(rows) != 1 or rows[0]['Id'] != image_id:
+        raise RuntimeError('image inspect identity mismatch')
+    return rows[0]
+
+
+def remove_image(image):
+    original, attempted = set(image['RepoTags']), set()
+    while True:
+        current = inspected(image['Id'])
+        if current is None:
+            if not attempted:
+                raise RuntimeError('image disappeared before cleanup')
+            return {'image': image['Id'], 'tags': image['RepoTags'], 'commands': len(attempted)}
+        if image['Id'] in references():
+            raise RuntimeError('new container reference')
+        tags = set(current.get('RepoTags') or [])
+        if not tags <= original or family(current) != family(image):
+            raise RuntimeError('image tags changed before cleanup')
+        remaining = tags - attempted
+        if not remaining:
+            raise RuntimeError('image removal made no progress')
+        ref = sorted(remaining, key=lambda value: ('@' not in value, value))[0]
+        result = subprocess.run(['docker', 'image', 'rm', '--no-prune', ref], text=True, capture_output=True)
+        print(json.dumps({'image': image['Id'], 'reference': ref, 'exit': result.returncode, 'stdout': result.stdout, 'stderr': result.stderr}), flush=True)
+        result.check_returncode()
+        attempted.add(ref)
+
+
 def main():
     spec = importlib.util.spec_from_file_location('restore', Path(__file__).with_name('save-deploy-restore-point.py'))
     restore = importlib.util.module_from_spec(spec)
@@ -53,12 +87,7 @@ def main():
             # Docker refuses a new container reference too; never force removal.
             if image['Id'] in references():
                 continue
-            current = json.loads(subprocess.check_output(['docker', 'image', 'inspect', image['Id']]))[0]
-            if current.get('RepoTags') != image.get('RepoTags') or family(current) != family(image):
-                raise RuntimeError('image tags changed before cleanup')
-            refs = sorted(image['RepoTags'], key=lambda ref: ('@' not in ref, ref))
-            subprocess.run(['docker', 'image', 'rm', '--no-prune', *refs], check=True)
-            removed.append({'image': image['Id'], 'tags': image['RepoTags']})
+            removed.append(remove_image(image))
         print(json.dumps({'rollback': rollback, 'protectedContainerImages': sorted(before), 'removed': removed}))
 
 

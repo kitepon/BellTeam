@@ -84,4 +84,31 @@ class Checks(unittest.TestCase):
   p=self.p/'empty.tar'
   with self.assertRaises(RuntimeError):m.archive(p,[sys.executable,'-c','pass'],rate=0)
   self.assertFalse(p.exists());self.assertFalse(p.with_suffix('.tar.partial').exists())
+ def test_image_removal_checks_identity_between_references(self):
+  import subprocess,json
+  spec=importlib.util.spec_from_file_location('image_cleanup',pathlib.Path(__file__).resolve().parents[1]/'scripts/cleanup-deploy-images.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+  image={'Id':'sha256:'+'a'*64,'RepoTags':['ghcr.io/kitepon/bellteam-server:old','ghcr.io/kitepon/bellteam-server@sha256:'+'a'*64],'Created':'old'}
+  for remove_all,expected in [(True,1),(False,2)]:
+   tags=image['RepoTags'][:];calls=[]
+   def run(args,**kwargs):
+    if args[2]=='inspect':
+     if not tags:return subprocess.CompletedProcess(args,1,'[]','Error response from daemon: No such image: '+image['Id']+'\n')
+     return subprocess.CompletedProcess(args,0,json.dumps([{**image,'RepoTags':tags[:]}]),'')
+    self.assertEqual(args[:4],['docker','image','rm','--no-prune']);calls.append(args[-1])
+    if remove_all:tags.clear()
+    else:tags.remove(args[-1])
+    return subprocess.CompletedProcess(args,0,'removed','')
+   with unittest.mock.patch.object(c.subprocess,'run',side_effect=run),unittest.mock.patch.object(c,'references',return_value=set()),unittest.mock.patch('builtins.print'):
+    result=c.remove_image(image)
+   self.assertEqual(result['commands'],expected);self.assertEqual(len(calls),len(set(calls)));self.assertIn('@',calls[0])
+ def test_unknown_image_inspect_and_new_reference_fail_before_remove(self):
+  import subprocess,json
+  spec=importlib.util.spec_from_file_location('image_cleanup',pathlib.Path(__file__).resolve().parents[1]/'scripts/cleanup-deploy-images.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+  image={'Id':'sha256:'+'a'*64,'RepoTags':['bellteam-server:old']}
+  with unittest.mock.patch.object(c.subprocess,'run',return_value=subprocess.CompletedProcess([],1,'','daemon unavailable')) as run:
+   with self.assertRaises(subprocess.CalledProcessError):c.remove_image(image)
+   self.assertEqual(run.call_count,1)
+  with unittest.mock.patch.object(c.subprocess,'run',return_value=subprocess.CompletedProcess([],0,json.dumps([image]),'')) as run,unittest.mock.patch.object(c,'references',return_value={image['Id']}):
+   with self.assertRaises(RuntimeError):c.remove_image(image)
+   self.assertEqual(run.call_count,1)
 if __name__=='__main__':unittest.main()
