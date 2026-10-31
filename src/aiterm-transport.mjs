@@ -321,6 +321,22 @@ export class AitermTransport {
     return result.structuredContent
   }
 
+  // Goal一覧の対象だけをまとめて読む。Goal本体と変更権限は、このsnapshotから作らない。
+  async goalTargets(bots) {
+    const result = (await this.client.call('pty_list')).structuredContent
+    if (result?.schema !== 'aiterm.pty-list-result.v1' || !Array.isArray(result.sessions)
+      || !Number.isFinite(Date.parse(result.observed_at))) throw new Error('GOAL_TARGETS_INVALID')
+    const sessions = new Map()
+    for (const row of result.sessions) {
+      if (typeof row?.session_id !== 'string' || !row.session_id || sessions.has(row.session_id)) throw new Error('GOAL_TARGETS_INVALID')
+      sessions.set(row.session_id, row)
+    }
+    return new Map(bots.flatMap(bot => {
+      const session = this.session(bot), row = sessions.get(session)
+      return row ? [[bot.id, { session_id: session, ...(Object.hasOwn(row, 'launch_id') ? { launch_id: row.launch_id } : {}) }]] : []
+    }))
+  }
+
   // 動いていない席を閉じる。配送中・配送待ちがあれば閉じない。閉じた後の配送は不達になり、通常の経路で起動し直す。
   closeIdle(bot) {
     if (!this.isIdle(bot.id) || this.activity.configurationChanges.has(bot.id)) return Promise.resolve(false)

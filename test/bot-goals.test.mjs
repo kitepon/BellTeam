@@ -13,10 +13,14 @@ const native = (overrides = {}) => ({ schema: 'aiterm.agent-goal-result.v1', ses
   outcome: 'observed', mutation: 'not_requested', readback: 'confirmed', goal,
   reason: 'native_goal_observed', observed_at: '2026-10-25T06:00:00Z', ...overrides })
 
-function fixture({ result = native(), observe, admitWork, runningBots } = {}) {
+function fixture({ result = native(), observe, admitWork, runningBots, goalTargets } = {}) {
   const calls = [], reports = []
   const transport = { session: bot => bot.session,
     runningBots: runningBots ?? (async bots => new Set(bots.map(bot => bot.id))),
+    goalTargets: goalTargets ?? (async bots => {
+      const running = runningBots ? await runningBots(bots) : new Set(bots.map(bot => bot.id))
+      return new Map(bots.filter(bot => running.has(bot.id)).map(bot => [bot.id, { session_id: bot.session }]))
+    }),
     observe: observe ?? (async () => ({ schema: 'aiterm.pty-observe-result.v1', session_id: 'owned-seat', exists: true, launch_id: launch })),
     client: { async call(...args) { calls.push(args); if (result instanceof Error) throw result; return { structuredContent: result } } },
   }
@@ -49,6 +53,35 @@ test('session一覧の取得失敗を空Goalや変更可能なsnapshotにしな�
   assert.ok(Object.values(result[0].capabilities).every(value => value === false))
   assert.deepEqual(calls, [])
   assert.equal(reports.length, 1)
+})
+
+test('一覧のlaunch snapshotでnative inspectへ進み、null/不正/stale値は観測fallbackで昇格しない', async () => {
+  for (const listed of [launch, null, 'invalid', 'f'.repeat(32)]) {
+    let observations = 0
+    const { service, calls } = fixture({
+      goalTargets: async () => new Map([[bot.id, { session_id: bot.session, launch_id: listed }]]),
+      observe: async () => { observations++; throw Error('must not observe') },
+    })
+    const [value] = await service.list([bot])
+    assert.equal(value.availability, listed === launch ? 'available' : 'unavailable')
+    assert.equal(observations, 0)
+    assert.equal(calls.length, typeof listed === 'string' && listed.length === 32 ? 1 : 0)
+    if (calls.length) assert.equal(calls[0][1].action, 'inspect')
+  }
+})
+
+test('一覧snapshotの後にBotのsession対応が変われば古いGoalを確定表示しない', async () => {
+  let session = bot.session, started, release
+  const entered = new Promise(resolve => { started = resolve }), held = new Promise(resolve => { release = resolve })
+  const { service, calls } = fixture({ goalTargets: async () => new Map([[bot.id, { session_id: bot.session, launch_id: launch }]]) })
+  service.transport.session = () => session
+  service.transport.client.call = async (...args) => { calls.push(args); started(); await held; return { structuredContent: native() } }
+  const reading = service.list([bot])
+  await entered; session = 'different-session'; release()
+  assert.equal((await reading)[0].availability, 'unavailable')
+  assert.equal(calls.length, 1)
+  assert.equal((await service.list([bot]))[0].availability, 'unavailable')
+  assert.equal(calls.length, 1, 'new session mismatch must be rejected before the native read')
 })
 
 test('既存Bot.sessionのlaunchを観測し、同scopeのagent_goalからnative値を取得する', async () => {
