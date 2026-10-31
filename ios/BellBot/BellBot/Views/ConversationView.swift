@@ -188,6 +188,9 @@ private struct ConversationContent: View {
                         }
                     }
                     #if targetEnvironment(macCatalyst)
+                    .onChange(of: [hasMore, loadingOlder, scenePhase == .active]) { _, _ in
+                        fillViewportWithOlderMessages(viewportHeight: viewport.size.height, proxy: proxy)
+                    }
                     .background {
                         ConversationWheelObserver { target in
                             wheelMovedUp(target, viewportHeight: viewport.size.height, window: window)
@@ -748,6 +751,10 @@ private struct ConversationContent: View {
             hasUnreadMessages = false
             scroll.followingBottom = false
         }
+        #if targetEnvironment(macCatalyst)
+        if let boundary = metrics.boundary, scroll.pin == nil { scroll.pinnedY = boundary }
+        fillViewportWithOlderMessages(viewportHeight: viewportHeight, proxy: proxy)
+        #endif
         if heightChanged {
             // 初期位置と末尾への追従は.defaultScrollAnchor(.bottom)に任せる。推定した余白とMarkdownの実高の差を、増減の両方で補正する。
             if let row = scroll.pin {
@@ -787,6 +794,14 @@ private struct ConversationContent: View {
     }
 
     #if targetEnvironment(macCatalyst)
+    /// Macのホイールは動かせる長さが無いと位置が変わらず、上端の取得が始まらない。表示域が埋まるまで過去を足す。
+    private func fillViewportWithOlderMessages(viewportHeight: CGFloat, proxy: ScrollViewProxy) {
+        guard scenePhase == .active, scroll.height > 0, scroll.height <= viewportHeight, hasMore, !loadingOlder,
+              scroll.canLoadOlder, let oldest = messages.first?.id else { return }
+        scroll.canLoadOlder = false
+        olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
+    }
+
     private func wheelMovedUp(_ target: ConversationWheelTarget, viewportHeight: CGFloat,
                               window: (range: Range<Int>, before: CGFloat, after: CGFloat)) {
         let idle = !loadingOlder && (hasMore || scroll.top < 19.5)
@@ -882,6 +897,9 @@ private struct ConversationContent: View {
             hasMore = result.hasMore
             let older = timeline.prependReceived(result.items)
             if !older.isEmpty {
+                #if targetEnvironment(macCatalyst)
+                scroll.canLoadOlder = true
+                #endif
                 // 足した行のMarkdownは後から高さが伸びる。伸びるたびに同じ位置へ戻すため、行と位置を覚えておく。
                 scroll.pin = oldest
                 scroll.pinPhase = .awaitingGrowth

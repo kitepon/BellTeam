@@ -64,8 +64,57 @@ final class DesktopWorkspaceUITests: XCTestCase {
             scroll.scroll(byDeltaX: 0, deltaY: 400)
             Thread.sleep(forTimeInterval: 0.3)
         }
-        XCTAssertTrue(oldest.exists, "最古の行まで読める")
+        let reached = try proof()["requests"] as? [[String: String]]
+        XCTAssertTrue(oldest.exists, "最古の行まで読める。取得=\(reached?.compactMap { $0["query"] } ?? [])")
         XCTAssertEqual(try proof()["diagnosticReports"] as? [String], [], "通常の読み進めでは報告しない")
+    }
+
+    /// 最新の数件が表示域に収まる会話は、ホイールが動かないので開くだけで過去を足す。
+    func testMacShortPageLoadsOlderWithoutScrolling() throws {
+        continueAfterFailure = false
+        let server = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_SCROLL_FIXTURE_URL"], "会話スクロール用のHTTP fixtureが必要です。")
+        let base = try XCTUnwrap(URL(string: server))
+        func read(_ path: String) throws -> Data {
+            let done = expectation(description: path)
+            var result: Result<Data, Error>?
+            URLSession.shared.dataTask(with: URL(string: path, relativeTo: base)!) { data, _, error in
+                result = error.map { .failure($0) } ?? .success(data!)
+                done.fulfill()
+            }.resume()
+            wait(for: [done], timeout: 5)
+            return try XCTUnwrap(result).get()
+        }
+        func older() throws -> [String] {
+            let value = try XCTUnwrap(JSONSerialization.jsonObject(with: read("/test/proof")) as? [String: Any])
+            return (value["requests"] as? [[String: String]] ?? []).compactMap { $0["query"] }.filter { $0.contains("before=") }
+        }
+        func open(reset: String) throws -> XCUIApplication {
+            _ = try read("/test/reset?shortPage=1&\(reset)")
+            let app = XCUIApplication()
+            app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", base.absoluteString]
+            app.launch()
+            let member = app.buttons["conversation-bot-two"]
+            XCTAssertTrue(member.waitForExistence(timeout: 10))
+            member.click()
+            XCTAssertTrue(app.descendants(matching: .any)["message-text-s35"].firstMatch.waitForExistence(timeout: 10))
+            return app
+        }
+
+        let filled = try open(reset: "failBefore=0")
+        Thread.sleep(forTimeInterval: 4)
+        XCTAssertEqual(try older(), ["?limit=20&before=s33"], "表示域が埋まれば止まる")
+        filled.terminate()
+
+        let complete = try open(reset: "failBefore=0&shortTotal=3")
+        Thread.sleep(forTimeInterval: 3)
+        XCTAssertEqual(try older(), [], "残りが無ければ取得しない")
+        complete.terminate()
+
+        let failing = try open(reset: "failBefore=1")
+        defer { failing.terminate() }
+        XCTAssertTrue(failing.staticTexts["send-error"].waitForExistence(timeout: 5), "取得失敗を表示する")
+        Thread.sleep(forTimeInterval: 3)
+        XCTAssertEqual(try older(), ["?limit=20&before=s33"], "失敗しても繰り返さない")
     }
 
     func testMacHasOneInspectorButtonAndNoProfilePopup() {
