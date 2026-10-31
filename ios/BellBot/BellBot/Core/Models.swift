@@ -172,6 +172,13 @@ enum ChatTarget: Hashable, Sendable {
     var path: String { "/api/\(isRoom ? "rooms" : "bots")/\(id)" }
 }
 
+/// 会話を開き直す時にすぐ出す前回の先頭の頁。端末には保存しない。
+struct ConversationPage {
+    let items: [TimelineMessage]
+    let hasMore: Bool
+    let remainingBefore: Int
+}
+
 struct ListResponse<T: Decodable>: Decodable {
     let items: [T]
     let hasMore: Bool
@@ -216,6 +223,33 @@ struct AIControl: Decodable, Equatable {
     let error: String?
 }
 struct SchedulesResponse: Decodable { let schedules: [Schedule] }
+struct AllSchedulesResponse: Decodable {
+    struct Source: Decodable {
+        let kind: String
+        let id: String
+        let schedules: [Schedule]
+        var target: ChatTarget? {
+            switch kind {
+            case "bot": .bot(id)
+            case "room": .room(id)
+            default: nil
+            }
+        }
+    }
+    let sources: [Source]
+
+    /// 表示中の全員が1回ずつ揃っている時だけ返す。欠けた応答で前回の予定を成功に見せない。
+    func schedules(expected: Set<ChatTarget>) throws -> [ChatTarget: [Schedule]] {
+        var pages: [ChatTarget: [Schedule]] = [:]
+        for source in sources {
+            guard let target = source.target, pages.updateValue(source.schedules, forKey: target) == nil else {
+                throw BellAPIError.invalidResponse
+            }
+        }
+        guard expected.isSubset(of: pages.keys) else { throw BellAPIError.invalidResponse }
+        return pages
+    }
+}
 struct ScheduleResponse: Decodable { let schedule: Schedule }
 struct SessionResponse: Decodable { let authenticated: Bool; let authMode: String }
 struct HarnessOption: Decodable, Identifiable { let id: String; let name: String }

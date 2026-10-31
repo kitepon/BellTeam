@@ -471,9 +471,6 @@ struct GoalsView: View {
     private var configured: [GoalSnapshot] {
         goals.currentSnapshots.filter { $0.availability == .available && $0.goal != nil }
     }
-    private var unavailable: [GoalSnapshot] {
-        goals.currentSnapshots.filter { $0.availability != .available }
-    }
     private var createCandidates: [GoalSnapshot] {
         goals.currentSnapshots.filter { $0.availability == .available && $0.goal == nil
             && $0.capabilities.create && $0.fieldCapabilities.create.objective }
@@ -522,16 +519,6 @@ struct GoalsView: View {
                                          onEdit: { select(snapshot, action: $0) }, onAction: { action in
                                              Task { await goals.run(snapshot, action: action, store: store) }
                                          })
-                            }
-                            if !unavailable.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("状態を確認できないメンバー").font(.headline)
-                                    ForEach(unavailable) { snapshot in
-                                        let name = store.bots.first { $0.id == snapshot.botId }?.displayName ?? snapshot.botId
-                                        Text("\(name)：\(snapshot.message ?? "ゴールの状態を取得できません。")")
-                                            .font(.footnote).foregroundStyle(BellTheme.muted)
-                                    }
-                                }.padding(18).bellCard()
                             }
                         }
                     }

@@ -158,7 +158,16 @@ private struct ConversationContent: View {
                     }
                     .coordinateSpace(name: "conversation-scroll")
                     .onPreferenceChange(ScrollMetricsKey.self) { metrics in
-                        scrollChanged(metrics, viewportSize: viewport.size, botsByID: botsByID, proxy: proxy)
+                        // 計測の中で配置を変えると同じフレームで計測が再発火するので、次の周へ送り1回にまとめる。
+                        scroll.pendingMetrics = metrics
+                        guard !scroll.metricsScheduled else { return }
+                        scroll.metricsScheduled = true
+                        DispatchQueue.main.async {
+                            scroll.metricsScheduled = false
+                            guard let pending = scroll.pendingMetrics else { return }
+                            scroll.pendingMetrics = nil
+                            scrollChanged(pending, viewportSize: viewport.size, botsByID: botsByID, proxy: proxy)
+                        }
                     }
                     // キーボードで見える高さだけが縮む時は、本文の計測値が変わらず上の通知が来ない。
                     .onChange(of: viewport.size.height) { oldHeight, newHeight in
@@ -191,7 +200,7 @@ private struct ConversationContent: View {
                             .accessibilityIdentifier("scroll-to-latest")
                         }
                     }
-                    .onChange(of: [hasMore, loadingOlder, scenePhase == .active]) { _, _ in
+                    .onChange(of: [hasMore, loading, loadingOlder, scenePhase == .active]) { _, _ in
                         fillViewportWithOlderMessages(viewportHeight: viewport.size.height, proxy: proxy)
                     }
                     #if targetEnvironment(macCatalyst)
@@ -703,23 +712,48 @@ private struct ConversationContent: View {
             return
         }
         #endif
+        // 前に開いた会話は、取得を待たず前回の頁を出す。
+        // サインアウトや接続先の変更の後に届いた応答は、成功も失敗も反映しない。
+        let generation = store.conversationGeneration
+        let stale = { store.conversationGeneration != generation }
+        if let page = store.conversationPages[target] {
+            timeline.replaceReceived(page.items)
+            hasMore = page.hasMore
+            remainingBefore = page.remainingBefore
+        }
         do {
-            async let page: ListResponse<TimelineMessage> = store.api.get(target.path + "/messages?limit=10")
+            // 処理待ち一覧の応答を待たず、本文を届いた時点で出す。
             async let waiting: QueueResponse = store.api.get(target.path + "/queue")
-            let (result, queued) = try await (page, waiting)
+            let result: ListResponse<TimelineMessage> = try await store.api.get(target.path + "/messages?limit=10")
             try Task.checkCancellation()
-            guard !awaitingSendResponse else { loading = false; return }
+            guard !stale(), !awaitingSendResponse else { loading = false; return }
             timeline.replaceReceived(result.items)
-            queue = queued.items
             hasMore = result.hasMore
             remainingBefore = result.remainingBefore ?? 0
+            store.remember(ConversationPage(items: result.items, hasMore: result.hasMore, remainingBefore: remainingBefore),
+                           for: target, generation: generation)
+            loading = false
             errorText = nil
             initialLoadFailed = false
+            do {
+                let queued = try await waiting
+                try Task.checkCancellation()
+                guard !stale() else { return }
+                queue = queued.items
+            } catch is CancellationError { return }
+            catch let error where BellAPIError.isAuthenticationError(error) {
+                if !stale() { store.requireLogin(for: error) }
+            }
+            catch {
+                guard !stale() else { return }
+                errorText = error.localizedDescription
+                store.api.diagnostics.report(error, path: target.path + "/queue", method: "GET", observation: .read(error, retainedData: true))
+            }
         } catch let error where BellAPIError.isAuthenticationError(error) {
-            store.requireLogin(for: error)
+            if !stale() { store.requireLogin(for: error) }
         } catch is CancellationError { return }
         catch {
-            if awaitingSendResponse { loading = false; return }
+            if stale() || awaitingSendResponse { loading = false; return }
             errorText = error.localizedDescription
             initialLoadFailed = true
             store.api.diagnostics.report(error, path: target.path + "/messages", method: "GET", observation: .read(error, retainedData: !messages.isEmpty))
@@ -731,8 +765,9 @@ private struct ConversationContent: View {
     private func scrollChanged(_ metrics: ScrollMetrics, viewportSize: CGSize, botsByID: [String: Bot], proxy: ScrollViewProxy) {
         guard let top = metrics.top, let height = metrics.height, let bottom = metrics.bottom,
               let width = metrics.width else { return }
-        if measuredContentWidth != width { measuredContentWidth = width }
         let viewportHeight = viewportSize.height
+        guard viewportHeight > 0, viewportHeight.isFinite else { return }
+        if measuredContentWidth != width { measuredContentWidth = width }
         let resized = abs(width - scroll.contentWidth) > 0.5
         let heightChanged = abs(height - scroll.height) > 0.5
         // 同じ更新で利用者が動かした分。行の位置を戻す時にこの分を打ち消さない。
@@ -749,7 +784,10 @@ private struct ConversationContent: View {
         // 明示的に末尾へ移る間は、古い読書位置への補正でその移動を打ち消さない。
         if (heightChanged || resized), !isAtBottom, !scroll.followingBottom, scroll.pin == nil,
            let anchor = scroll.visibleAnchor, metrics.rows[anchor.id] != nil {
-            scrollRow(anchor.id, to: anchor.y + moved, viewportHeight: viewportHeight, proxy: proxy)
+            let target = anchor.y + moved
+            if abs((metrics.rows[anchor.id]?.frame.minY ?? target) - target) > 0.5 {
+                scrollRow(anchor.id, to: target, viewportHeight: viewportHeight, proxy: proxy)
+            }
         } else if let message = messages.first(where: { message in
             guard let frame = metrics.rows[message.id]?.frame else { return false }
             return frame.maxY > 0 && frame.minY < viewportHeight
@@ -786,10 +824,12 @@ private struct ConversationContent: View {
                     if outside { return }
                 case .correcting:
                     // 高さが変わらないのに外へ出たのは利用者の操作なので、戻さず固定を解く。
-                    if outside && scrolled {
+                    // 戻しても位置が変わらない時も、端で丸められているので再発行しない。
+                    if outside && (scrolled || abs(top - scroll.correctedTop) < 0.5) {
                         scroll.pin = nil
-                        measuredRow = nil
+                        if measuredRow != nil { measuredRow = nil }
                     } else if outside {
+                        scroll.correctedTop = top
                         scrollRow(row, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
                         return
                     } else {
@@ -807,7 +847,7 @@ private struct ConversationContent: View {
         let spacer = unloadedHeight
         let atTop = spacer > 0 ? olderStockIsLow || top + spacer >= -viewportHeight : top >= 19.5
         if !atTop { scroll.canLoadOlder = true }
-        if scenePhase == .active && atTop && scroll.canLoadOlder && scroll.pin == nil && hasMore && !loadingOlder,
+        if scenePhase == .active && atTop && scroll.canLoadOlder && scroll.pin == nil && hasMore && !loading && !loadingOlder,
            let oldest = messages.first?.id, metrics.boundary != nil || spacer > 0 {
             scroll.canLoadOlder = false
             olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
@@ -822,7 +862,8 @@ private struct ConversationContent: View {
         #if targetEnvironment(macCatalyst)
         needsRows = needsRows || scroll.height <= viewportHeight
         #endif
-        guard needsRows, scenePhase == .active, scroll.height > 0, hasMore, !loadingOlder,
+        // 前回の頁を出している間は、新しい頁が届くまで読み足さない。順序が入れ替わると行が欠ける。
+        guard needsRows, scenePhase == .active, scroll.height > 0, hasMore, !loading, !loadingOlder,
               scroll.canLoadOlder, let oldest = messages.first?.id else { return }
         scroll.canLoadOlder = false
         olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
@@ -880,7 +921,8 @@ private struct ConversationContent: View {
     private func updateUnloadedRowHeight() {
         let heights = messages.compactMap { scroll.rowSizes[$0.id]?.frame.height }
         guard !heights.isEmpty else { return }
-        unloadedRowHeight = heights.reduce(0, +) / CGFloat(heights.count) + 17
+        let height = heights.reduce(0, +) / CGFloat(heights.count) + 17
+        if abs(height - (unloadedRowHeight ?? 0)) > 0.5 { unloadedRowHeight = height }
     }
 
     /// バーの全長に含める未読込の過去の長さ。全履歴ではなく、近い分だけを持つ。
@@ -965,6 +1007,7 @@ private struct ConversationContent: View {
                 // 足した行のMarkdownは後から高さが伸びる。伸びるたびに同じ位置へ戻すため、行と位置を覚えておく。
                 scroll.pin = oldest
                 scroll.pinPhase = .awaitingGrowth
+                scroll.correctedTop = .infinity
                 scrollRow(oldest, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
             } else {
                 measuredRow = nil
@@ -1376,6 +1419,9 @@ private final class ScrollTracker {
     var pin: String?
     var pinPhase = PinPhase.awaitingGrowth
     var pinnedY: CGFloat = 0
+    var correctedTop = CGFloat.infinity
+    var pendingMetrics: ScrollMetrics?
+    var metricsScheduled = false
     var canLoadOlder = true
     var wheelStall = ConversationWheelStallDetector()
 
