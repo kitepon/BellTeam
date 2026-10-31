@@ -69,6 +69,34 @@ public sealed class PlanningTests
             Assert.Equal(new[] { ("GET", prefix), ("POST", prefix), ("PUT", prefix + "/schedule-a"), ("POST", prefix + "/schedule-a/run"), ("DELETE", prefix + "/schedule-a") }, seen.TakeLast(5));
         }
     }
+    [Theory]
+    [InlineData(200, 1)]
+    [InlineData(404, 3)]
+    [InlineData(401, 1)]
+    [InlineData(500, 1)]
+    public async Task AllSchedulesOnlyFallsBackForOlderServers(int status, int requests)
+    {
+        var seen = new List<string>();
+        using var api = new BellApi(new("http://localhost/"), new StubHandler((request, _) =>
+        {
+            seen.Add(request.RequestUri!.AbsolutePath);
+            return Task.FromResult(request.RequestUri.AbsolutePath != "/api/schedules" ? StubHandler.Json("{\"schedules\":[" + ScheduleJson + "]}")
+                : status == 200 ? StubHandler.Json("{\"sources\":[{\"kind\":\"bot\",\"id\":\"bot-a\",\"name\":\"担当\",\"schedules\":[" + ScheduleJson + "]},{\"kind\":\"room\",\"id\":\"room-a\",\"name\":\"相談\",\"schedules\":[]}]}")
+                : new HttpResponseMessage((HttpStatusCode)status));
+        }));
+        var planning = new PlanningApi(api);
+        var owners = new[] { (new ChatTarget("bot-a", false), "担当"), (new ChatTarget("room-a", true), "相談") };
+        if (status is 200 or 404)
+        {
+            var sources = await planning.AllSchedulesAsync(owners);
+            Assert.Equal(2, sources.Length);
+            Assert.False(sources[0].Target.IsRoom); Assert.True(sources[1].Target.IsRoom);
+            Assert.Single(sources[0].Schedules);
+        }
+        else await Assert.ThrowsAsync<BellApiException>(() => planning.AllSchedulesAsync(owners));
+        Assert.Equal(requests, seen.Count);
+        Assert.Equal("/api/schedules", seen[0]);
+    }
     [Fact]
     public async Task OwnerAndRulesOnlySendChangedTextWithLf()
     {

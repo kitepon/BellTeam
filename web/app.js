@@ -144,6 +144,8 @@ const state = {
   avatarColors: new Map(),
   timelineMap: new Map(),
   timelineQueue: [],
+  timelineQueueRequest: 0,
+  timelineQueueError: '',
   timelineHasMore: false,
   timelineOldestId: null,
   timelineLoadingOlder: false,
@@ -1451,9 +1453,12 @@ async function openTimeline() {
   state.timelineLoadingOlder = false
   state.stickToBottom = true
   latestButton.hidden = true
-  const [result, queueResult] = await Promise.all([api(`${messagesPath()}?limit=${TIMELINE_FIRST_PAGE}`), api(queuePath())])
+  state.timelineQueue = []
+  state.timelineQueueError = ''
+  timelineTail.replaceChildren()
+  void refreshTimelineQueue(token)
+  const result = await api(`${messagesPath()}?limit=${TIMELINE_FIRST_PAGE}`)
   if (token !== state.timelineToken) return
-  state.timelineQueue = queueResult.items
   const items = normalizeItems(result.items)
   rememberItems(items)
   state.timelineHasMore = result.has_more
@@ -1464,17 +1469,31 @@ async function openTimeline() {
   loadStoredMessageImages(items, item => rerenderItem(item.id, token))
 }
 
+async function refreshTimelineQueue(token) {
+  const request = ++state.timelineQueueRequest
+  try {
+    const result = await api(queuePath())
+    if (token !== state.timelineToken || request !== state.timelineQueueRequest) return
+    state.timelineQueue = result.items
+    state.timelineQueueError = ''
+    for (const id of state.timelineMap.keys()) rerenderItem(id, token)
+  } catch {
+    if (token !== state.timelineToken || request !== state.timelineQueueRequest) return
+    state.timelineQueueError = '送信待ちの状態を取得できませんでした。更新して確認してください。'
+  }
+  renderTail([...state.timelineMap.values()])
+}
+
 async function refreshTimeline() {
   const token = state.timelineToken
   const ids = [...state.timelineMap.keys()]
   const lastId = ids.at(-1) ?? null
-  const [latest, after, queueResult] = await Promise.all([
+  void refreshTimelineQueue(token)
+  const [latest, after] = await Promise.all([
     api(`${messagesPath()}?limit=${TIMELINE_FIRST_PAGE}`),
     lastId ? api(`${messagesPath()}?after=${encodeURIComponent(lastId)}`) : Promise.resolve({ items: [] }),
-    api(queuePath()),
   ])
   if (token !== state.timelineToken) return
-  state.timelineQueue = queueResult.items
   const latestItems = normalizeItems(latest.items)
   const newItems = normalizeItems(after.items).filter(item => !state.timelineMap.has(item.id))
   // 既に出ている直近の項目は、配送状態などが変わっていれば差し替える
@@ -1531,6 +1550,12 @@ function renderTail(items) {
   const tail = state.timelineQueue.filter(entry => !renderedIds.has(entry.groupId)).map(renderQueuedItem)
   if (state.selectedType === 'bot' && state.timelineQueue.some(entry => entry.status === 'running')) tail.push(renderThinking(state.selected.id))
   timelineTail.replaceChildren(...tail)
+  if (state.timelineQueueError) {
+    const note = document.createElement('p')
+    note.className = 'form-error'
+    note.textContent = state.timelineQueueError
+    timelineTail.append(note)
+  }
   updateSendButton()
 }
 

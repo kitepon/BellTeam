@@ -76,6 +76,8 @@ test('failed profile write releases the next mutation and preserves its error', 
 
 test('overlapping refreshes read in order and a later read sees an external change', async t => {
   const { registry, profilePath } = await fixture(t)
+  // Force a payload read; an unchanged profile correctly uses only metadata.
+  await writeFile(profilePath, (await readFile(profilePath, 'utf8')) + '\n')
   const read = registry.readProfile.bind(registry)
   let entered, release, calls = 0
   const started = new Promise(resolve => { entered = resolve })
@@ -100,7 +102,8 @@ test('overlapping refreshes read in order and a later read sees an external chan
 })
 
 test('failed refresh does not block a later refresh', async t => {
-  const { registry } = await fixture(t)
+  const { registry, profilePath } = await fixture(t)
+  await writeFile(profilePath, (await readFile(profilePath, 'utf8')) + '\n')
   const read = registry.readProfile.bind(registry)
   const failure = new Error('failed read')
   let first = true

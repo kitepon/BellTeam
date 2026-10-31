@@ -13,14 +13,43 @@ const native = (overrides = {}) => ({ schema: 'aiterm.agent-goal-result.v1', ses
   outcome: 'observed', mutation: 'not_requested', readback: 'confirmed', goal,
   reason: 'native_goal_observed', observed_at: '2026-10-25T06:00:00Z', ...overrides })
 
-function fixture({ result = native(), observe, admitWork } = {}) {
+function fixture({ result = native(), observe, admitWork, runningBots } = {}) {
   const calls = [], reports = []
   const transport = { session: bot => bot.session,
+    runningBots: runningBots ?? (async bots => new Set(bots.map(bot => bot.id))),
     observe: observe ?? (async () => ({ schema: 'aiterm.pty-observe-result.v1', session_id: 'owned-seat', exists: true, launch_id: launch })),
     client: { async call(...args) { calls.push(args); if (result instanceof Error) throw result; return { structuredContent: result } } },
   }
   return { calls, reports, service: new BotGoals({ transport, admitWork, reportError: async error => reports.push(error) }) }
 }
+
+test('全Goalは一度の現session一覧から閉席を除き、現存席は従来のlaunch検証を通す', async () => {
+  const observed = [], listed = []
+  const { service, calls } = fixture({
+    runningBots: async bots => { listed.push(bots.map(bot => bot.id)); return new Set([bot.id]) },
+    observe: async target => { observed.push(target.id); return { schema: 'aiterm.pty-observe-result.v1', session_id: target.session, exists: true, launch_id: launch } },
+  })
+  const closed = { ...bot, id: 'closed', session: 'closed-seat' }
+  const result = await service.list([bot, closed])
+  assert.equal(listed.length, 1)
+  assert.deepEqual(observed, [bot.id])
+  assert.equal(calls.length, 1)
+  assert.equal(result[0].availability, 'available')
+  assert.equal(result[1].availability, 'unavailable')
+  assert.equal(result[1].binding, null)
+  assert.equal(Object.hasOwn(result[1], 'goal'), false)
+})
+
+test('session一覧の取得失敗を空Goalや変更可能なsnapshotにしない', async () => {
+  const { service, calls, reports } = fixture({ runningBots: async () => { throw Error('list unavailable') } })
+  const result = await service.list([bot])
+  assert.equal(result[0].availability, 'unavailable')
+  assert.equal(result[0].binding, null)
+  assert.equal(Object.hasOwn(result[0], 'goal'), false)
+  assert.ok(Object.values(result[0].capabilities).every(value => value === false))
+  assert.deepEqual(calls, [])
+  assert.equal(reports.length, 1)
+})
 
 test('既存Bot.sessionのlaunchを観測し、同scopeのagent_goalからnative値を取得する', async () => {
   const { service, calls } = fixture()

@@ -74,7 +74,12 @@ export class BotGoals {
     const capabilities = noCapabilities()
     return { botId: bot.id, availability: 'unavailable', capabilities, fieldCapabilities: fieldCapabilities(capabilities), binding: null, observedAt: this.now(), message }
   }
-  async list(bots) { return Promise.all(bots.map(bot => this.inspect(bot))) }
+  async list(bots) {
+    let running
+    try { running = await this.transport.runningBots(bots) }
+    catch (error) { await this.reportError(error); return bots.map(bot => this.unavailable(bot)) }
+    return Promise.all(bots.map(bot => running.has(bot.id) ? this.inspect(bot) : this.unavailable(bot)))
+  }
 
   async generation(bot) {
     const session = this.transport.session(bot)

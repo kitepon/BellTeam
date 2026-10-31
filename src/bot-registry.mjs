@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
-import { access, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, readdir, rename, rm, writeFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
@@ -21,6 +21,7 @@ const exec = promisify(execFile)
 export class BotRegistry extends Map {
   #profileMutations = new Map()
   #refreshQueue = Promise.resolve()
+  #profileCache = new Map()
 
   constructor({ seedPath, botsRoot, now = () => new Date(), id = randomUUID, botId = () => `bot-${randomUUID().slice(0, 8)}`, onChange = async () => {}, models = new LiveModelCatalog() }) {
     super()
@@ -76,12 +77,24 @@ export class BotRegistry extends Map {
 
   async #readProfiles() {
     const profiles = []
-    for (const entry of await readdir(this.botsRoot, { withFileTypes: true })) {
-      if (!entry.isDirectory() || !BOT_ID.test(entry.name)) continue
+    const entries = (await readdir(this.botsRoot, { withFileTypes: true })).filter(entry => entry.isDirectory() && BOT_ID.test(entry.name))
+    const identity = value => [value.dev, value.ino, value.size, value.mtimeNs, value.ctimeNs].join(':')
+    const observed = await Promise.all(entries.map(async entry => {
       const path = join(this.botsRoot, entry.name, 'bot.json')
-      if (!await exists(path)) continue
-      profiles.push(await this.readProfile(entry.name))
+      try { return { id: entry.name, path, key: identity(await stat(path, { bigint: true })) } }
+      catch (error) { if (error.code === 'ENOENT') return null; throw error }
+    }))
+    // Large avatars stay in one parsed profile; only file metadata is read in parallel.
+    for (const item of observed.filter(Boolean)) {
+      const cached = this.#profileCache.get(item.id)
+      if (cached?.key === item.key) { profiles.push(cached.profile); continue }
+      const profile = await this.readProfile(item.id)
+      if (identity(await stat(item.path, { bigint: true })) === item.key) this.#profileCache.set(item.id, { key: item.key, profile })
+      else this.#profileCache.delete(item.id)
+      profiles.push(profile)
     }
+    const present = new Set(profiles.map(profile => profile.id))
+    for (const id of this.#profileCache.keys()) if (!present.has(id)) this.#profileCache.delete(id)
     profiles.sort((a, b) => a.id.localeCompare(b.id))
     this.clear()
     for (const profile of profiles) this.set(profile.id, Object.freeze(profile))

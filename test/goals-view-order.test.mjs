@@ -255,9 +255,10 @@ test('the dedicated list contains only confirmed configured goals and never call
   await f.view.open()
   assert.ok(f.row('a'))
   for (const id of ['b', 'c', 'd']) assert.equal(f.row(id), undefined)
+  assert.doesNotMatch(f.body.all().map(node => node.textContent).join('\n'), /状態を取得できないメンバー/)
   const empty = fixture(async () => ({ goals: [{ botId: 'a', availability: 'unavailable' }] }))
   await empty.view.open()
-  assert.match(empty.body.all().map(node => node.textContent).join('\n'), /状態を取得できない/)
+  assert.match(empty.body.all().map(node => node.textContent).join('\n'), /表示できるゴールはありません/)
   assert.doesNotMatch(empty.body.all().map(node => node.textContent).join('\n'), /設定済みのゴールはありません/)
 })
 
