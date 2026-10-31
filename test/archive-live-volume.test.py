@@ -323,6 +323,83 @@ sqlite3.connect=connect
         self.assertFalse(output.exists())
         self.assertEqual(sentinel.read_text(),'unchanged')
 
+    def test_read_only_backup_of_closed_wal_database_can_create_sidecars(self):
+        db=self.volume/'closed.db'
+        with sqlite3.connect(db) as conn:
+            conn.execute('pragma journal_mode=wal')
+            conn.execute('create table t(v)')
+            conn.execute('insert into t values (1)')
+        conn.close()
+        self.assertEqual(sorted(p.name for p in self.volume.iterdir()),['closed.db'])
+        result=self.archive()
+        self.assertEqual(result.returncode,0,result.stderr.decode())
+        with tarfile.open(fileobj=io.BytesIO(result.stdout)) as archive:
+            manifest=json.load(archive.extractfile('manifest.json'))
+            self.assertEqual(set(manifest['sidecar_changes']),{'closed.db-wal','closed.db-shm'})
+            self.assertNotIn('raw/closed.db-wal',archive.getnames())
+        restored,output=self.restore(result.stdout)
+        self.assertEqual(restored.returncode,0,restored.stderr.decode())
+        with sqlite3.connect(output/'closed.db') as reader:
+            self.assertEqual(reader.execute('select * from t').fetchall(),[(1,)])
+
+    def test_writer_close_removes_only_known_sidecars_after_snapshot(self):
+        result=self.hook('''
+writer=sqlite3.connect(root/'rotating.db')
+writer.execute('pragma journal_mode=wal')
+writer.execute('create table t(v)'); writer.execute('insert into t values (1)'); writer.commit()
+original=tarfile.TarFile.addfile
+def close_writer(self,tarinfo,fileobj=None):
+    result=original(self,tarinfo,fileobj)
+    if tarinfo.name == 'sqlite/rotating.db':writer.close()
+    return result
+tarfile.TarFile.addfile=close_writer
+''')
+        self.assertEqual(result.returncode,0,result.stderr.decode())
+        with tarfile.open(fileobj=io.BytesIO(result.stdout)) as archive:
+            changes=json.load(archive.extractfile('manifest.json'))['sidecar_changes']
+            self.assertEqual(set(changes),{'rotating.db-wal','rotating.db-shm'})
+            self.assertTrue(all(value['before'] and value['after'] is None for value in changes.values()))
+        restored,output=self.restore(result.stdout)
+        self.assertEqual(restored.returncode,0,restored.stderr.decode())
+        with sqlite3.connect(output/'rotating.db') as reader:
+            self.assertEqual(reader.execute('select * from t').fetchall(),[(1,)])
+
+    def test_new_sidecar_link_fifo_alias_and_orphan_are_rejected(self):
+        self.database()
+        for kind in ('link','fifo','alias','orphan'):
+            with self.subTest(kind=kind):
+                code='''
+original=tarfile.TarFile.addfile
+def bad_sidecar(self,tarinfo,fileobj=None):
+    result=original(self,tarinfo,fileobj)
+    if tarinfo.name == 'sqlite/history.db':
+        target=root/'history.db-journal'
+        if KIND == 'link': target.symlink_to('history.db')
+        elif KIND == 'fifo': os.mkfifo(target)
+        elif KIND == 'alias': os.link(root/'history.db',target)
+        else: (root/'orphan-wal').write_bytes(b'not a registered SQLite family')
+    return result
+tarfile.TarFile.addfile=bad_sidecar
+'''.replace('KIND',repr(kind))
+                result=self.hook(code,timeout=3)
+                self.assertNotEqual(result.returncode,0)
+                for name in ('history.db-journal','orphan-wal'):
+                    (self.volume/name).unlink(missing_ok=True)
+
+    def test_initial_sidecar_alias_is_not_hidden_by_later_removal(self):
+        self.database()
+        (self.volume/'a-marker').write_bytes(b'')
+        os.link(self.volume/'a-marker',self.volume/'history.db-journal')
+        result=self.hook('''
+original=tarfile.TarFile.addfile
+def hide_alias(self,tarinfo,fileobj=None):
+    result=original(self,tarinfo,fileobj)
+    if tarinfo.name == 'sqlite/history.db': (root/'history.db-journal').unlink()
+    return result
+tarfile.TarFile.addfile=hide_alias
+''')
+        self.assertNotEqual(result.returncode,0)
+
 
 if __name__ == '__main__':
     unittest.main()

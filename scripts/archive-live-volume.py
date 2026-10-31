@@ -44,13 +44,15 @@ def create(root):
                         raise RuntimeError('hard-linked SQLite database cannot be safely archived: ' + str(path))
                     databases.add(path)
     mutable = databases | {Path(str(path) + suffix) for path in databases for suffix in SIDECARS}
-    if any(path in identities and not stat.S_ISREG(identities[path].st_mode) for path in mutable):
-        raise RuntimeError('SQLite database family must contain regular files')
+    if any(path in identities and (not stat.S_ISREG(identities[path].st_mode) or identities[path].st_nlink != 1) for path in mutable):
+        raise RuntimeError('SQLite database family must contain single regular files')
     observations = {}
     with tarfile.open(fileobj=sys.stdout.buffer, mode='w|', format=tarfile.PAX_FORMAT) as archive:
         for path in entries:
             name = 'raw' if path == root else 'raw/' + str(path.relative_to(root))
             recorded = path.lstat()
+            if path in mutable and recorded.st_nlink != 1:
+                raise RuntimeError('SQLite database family must remain single regular files')
             initial = identities[path]
             if (initial.st_dev, initial.st_ino, stat.S_IFMT(initial.st_mode)) != (recorded.st_dev, recorded.st_ino, stat.S_IFMT(recorded.st_mode)):
                 raise RuntimeError('volume entry replaced before archive: ' + name)
@@ -58,7 +60,7 @@ def create(root):
             if info.isreg():
                 with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
                     before = os.fstat(stream.fileno())
-                    fields = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid') if path in mutable else FIELDS
+                    fields = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink') if path in mutable else FIELDS
                     if not stat.S_ISREG(before.st_mode) or any(getattr(before, field) != getattr(recorded, field) for field in fields):
                         raise RuntimeError('volume file changed before archive: ' + name)
                     # Physical SQLite copies retain observed bytes only; restore uses the online snapshots below.
@@ -84,7 +86,7 @@ def create(root):
                             raise RuntimeError('volume file changed before archive: ' + name)
                         archive.addfile(info, stream)
                     after, now = os.fstat(stream.fileno()), path.lstat()
-                    fields = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid') if path in mutable else FIELDS
+                    fields = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink') if path in mutable else FIELDS
                     if any(getattr(before, field) != getattr(after, field) or getattr(after, field) != getattr(now, field) for field in fields):
                         raise RuntimeError('volume file changed during archive: ' + name)
             else:
@@ -116,15 +118,32 @@ def create(root):
                 with snapshot.open('rb') as stream:
                     archive.addfile(info, stream)
         final_entries = inventory(root)
-        if set(final_entries) != set(entries):
-            raise RuntimeError('volume namespace changed during archive')
+        sidecars = mutable - databases
+        added = set(final_entries) - set(entries) - sidecars
+        removed = set(entries) - set(final_entries) - sidecars
+        if added or removed:
+            changes = {'added': [str(path.relative_to(root)) for path in sorted(added)[:10]],
+                       'removed': [str(path.relative_to(root)) for path in sorted(removed)[:10]],
+                       'added_count': len(added), 'removed_count': len(removed)}
+            raise RuntimeError('volume namespace changed during archive: ' + json.dumps(changes))
+        final_stats = {path: path.lstat() for path in final_entries}
         for path in final_entries:
-            before, after = identities[path], path.lstat()
+            after = final_stats[path]
+            if path in sidecars:
+                if not stat.S_ISREG(after.st_mode) or after.st_nlink != 1:
+                    raise RuntimeError('SQLite sidecar must remain a single regular file')
+                continue
+            before = identities[path]
             if (before.st_dev, before.st_ino, stat.S_IFMT(before.st_mode)) != (after.st_dev, after.st_ino, stat.S_IFMT(after.st_mode)):
                 raise RuntimeError('volume entry replaced during archive')
+        def file_identity(item):
+            return [item.st_dev, item.st_ino] if item else None
+        sidecar_changes = {str(path.relative_to(root)): {'before': file_identity(identities.get(path)),
+                                                       'after': file_identity(final_stats.get(path))}
+                           for path in sorted(sidecars) if file_identity(identities.get(path)) != file_identity(final_stats.get(path))}
         manifest = json.dumps({'format': 1, 'databases': [str(path.relative_to(root)) for path in sorted(databases)],
                                'identities': {str(path.relative_to(root)): [identities[path].st_dev, identities[path].st_ino] for path in sorted(databases)},
-                               'observations': observations}).encode()
+                               'observations': observations, 'sidecar_changes': sidecar_changes}).encode()
         info = tarfile.TarInfo('manifest.json')
         info.mode, info.size = 0o600, len(manifest)
         archive.addfile(info, io.BytesIO(manifest))
