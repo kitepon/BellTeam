@@ -13,6 +13,19 @@ from pathlib import Path, PurePosixPath
 
 FIELDS = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_size', 'st_mtime_ns', 'st_ctime_ns')
 SIDECARS = ('-wal', '-shm', '-journal')
+# Throughline keeps each state file as one JSON document and replaces it by rename
+# (dot-prefixed .tmp, then rename), so an archived copy is always one complete document.
+ATOMIC_STORE_DIRS = {PurePosixPath('state/throughline'), PurePosixPath('state/throughline/completed-turn-receipts')}
+
+
+def atomic_store(root, path):
+    relative = PurePosixPath(path.relative_to(root))
+    return relative.parent in ATOMIC_STORE_DIRS and relative.suffix == '.json'
+
+
+def transient(root, path):
+    relative = PurePosixPath(path.relative_to(root))
+    return relative.parent in ATOMIC_STORE_DIRS and relative.name.startswith('.') and relative.suffix == '.tmp'
 
 
 def inventory(root):
@@ -22,7 +35,7 @@ def inventory(root):
         result.append(current)
         for name in sorted(dirs + files):
             path = current / name
-            if not path.is_dir() or path.is_symlink():
+            if (not path.is_dir() or path.is_symlink()) and not transient(root, path):
                 result.append(path)
     return result
 
@@ -32,15 +45,26 @@ def create(root):
         raise ValueError('expected a directory')
     entries = inventory(root)
     identities = {path: path.lstat() for path in entries}
+    replaced = {}
+
+    def replacement(path, after):
+        if not (atomic_store(root, path) and stat.S_ISREG(after.st_mode) and after.st_nlink == 1):
+            return False
+        relative = str(path.relative_to(root))
+        before = replaced[relative]['before'] if relative in replaced else [identities[path].st_dev, identities[path].st_ino]
+        replaced[relative] = {'before': before, 'after': [after.st_dev, after.st_ino]}
+        identities[path] = after
+        return True
     databases = set()
     for path, before in identities.items():
         if stat.S_ISREG(before.st_mode):
             with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
                 opened = os.fstat(stream.fileno())
                 if not stat.S_ISREG(opened.st_mode) or (before.st_dev, before.st_ino, before.st_mode) != (opened.st_dev, opened.st_ino, opened.st_mode):
-                    raise RuntimeError('file replaced during classification: ' + str(path))
+                    if not replacement(path, opened):
+                        raise RuntimeError('file replaced during classification: ' + str(path))
                 if stream.read(16) == b'SQLite format 3\x00':
-                    if before.st_nlink != 1:
+                    if opened.st_nlink != 1:
                         raise RuntimeError('hard-linked SQLite database cannot be safely archived: ' + str(path))
                     databases.add(path)
     mutable = databases | {Path(str(path) + suffix) for path in databases for suffix in SIDECARS}
@@ -55,7 +79,9 @@ def create(root):
                 raise RuntimeError('SQLite database family must remain single regular files')
             initial = identities[path]
             if (initial.st_dev, initial.st_ino, stat.S_IFMT(initial.st_mode)) != (recorded.st_dev, recorded.st_ino, stat.S_IFMT(recorded.st_mode)):
-                raise RuntimeError('volume entry replaced before archive: ' + name)
+                # shortcut: a store replaced between this lstat and the open below still fails closed, retry here if that ever happens
+                if not replacement(path, recorded):
+                    raise RuntimeError('volume entry replaced before archive: ' + name)
             info = archive.gettarinfo(str(path), arcname=name)
             if info.isreg():
                 with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
@@ -135,7 +161,8 @@ def create(root):
                 continue
             before = identities[path]
             if (before.st_dev, before.st_ino, stat.S_IFMT(before.st_mode)) != (after.st_dev, after.st_ino, stat.S_IFMT(after.st_mode)):
-                raise RuntimeError('volume entry replaced during archive: ' + str(path.relative_to(root)))
+                if not replacement(path, after):
+                    raise RuntimeError('volume entry replaced during archive: ' + str(path.relative_to(root)))
         def file_identity(item):
             return [item.st_dev, item.st_ino] if item else None
         sidecar_changes = {str(path.relative_to(root)): {'before': file_identity(identities.get(path)),
@@ -143,7 +170,7 @@ def create(root):
                            for path in sorted(sidecars) if file_identity(identities.get(path)) != file_identity(final_stats.get(path))}
         manifest = json.dumps({'format': 1, 'databases': [str(path.relative_to(root)) for path in sorted(databases)],
                                'identities': {str(path.relative_to(root)): [identities[path].st_dev, identities[path].st_ino] for path in sorted(databases)},
-                               'observations': observations, 'sidecar_changes': sidecar_changes}).encode()
+                               'observations': observations, 'sidecar_changes': sidecar_changes, 'replaced': replaced}).encode()
         info = tarfile.TarInfo('manifest.json')
         info.mode, info.size = 0o600, len(manifest)
         archive.addfile(info, io.BytesIO(manifest))
