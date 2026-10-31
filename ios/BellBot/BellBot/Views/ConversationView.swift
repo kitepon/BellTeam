@@ -735,12 +735,9 @@ private struct ConversationContent: View {
             // 列の幅が変わった直後は、以前の幅の最小高を使った計測を保存しない。
             if abs(row.frame.width - row.layoutWidth) < 0.5 { scroll.rowSizes[id] = row }
         }
-        // 全長の見積りが動くとバーも動くので、最初の頁の平均で固定する。
-        if unloadedRowHeight == nil, remainingBefore > 0, !messages.isEmpty {
-            let heights = messages.compactMap { scroll.rowSizes[$0.id]?.frame.height }
-            if heights.count == messages.count {
-                unloadedRowHeight = heights.reduce(0, +) / CGFloat(heights.count) + 17
-            }
+        if unloadedRowHeight == nil, remainingBefore > 0, !messages.isEmpty,
+           messages.allSatisfy({ scroll.rowSizes[$0.id] != nil }) {
+            updateUnloadedRowHeight()
         }
         // 新しく表示したMarkdownの高さが確定した時と幅変更時は、直前に見えていた行を保つ。
         // 明示的に末尾へ移る間は、古い読書位置への補正でその移動を打ち消さない。
@@ -873,6 +870,13 @@ private struct ConversationContent: View {
         measuredHeight(message, width: width, botsByID: botsByID) ?? unloadedRowHeight.map { $0 - 17 } ?? 180
     }
 
+    /// 見積りが動くとバーも動くので、平均の更新は最初の頁と読み足しの時だけにする。
+    private func updateUnloadedRowHeight() {
+        let heights = messages.compactMap { scroll.rowSizes[$0.id]?.frame.height }
+        guard !heights.isEmpty else { return }
+        unloadedRowHeight = heights.reduce(0, +) / CGFloat(heights.count) + 17
+    }
+
     /// 未読込の過去が占める長さ。読み足しの前後で全長を保ち、バーを飛ばさない。
     private var unloadedHeight: CGFloat {
         hasMore ? CGFloat(remainingBefore) * (unloadedRowHeight ?? 197) : 0
@@ -918,6 +922,7 @@ private struct ConversationContent: View {
     private func loadOlder(before oldest: String, proxy: ScrollViewProxy, viewportHeight: CGFloat) async {
         // 余白を確保している時は足しても全長がほぼ変わらないので、行を固定せず見えている行の補正に任せる。
         let reserved = unloadedHeight > 0
+        if reserved { updateUnloadedRowHeight() }
         let distance = scroll.top + unloadedHeight
         measuredRow = reserved ? nil : oldest
         loadingOlder = true
