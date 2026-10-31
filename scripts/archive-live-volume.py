@@ -116,15 +116,32 @@ def create(root):
                 with snapshot.open('rb') as stream:
                     archive.addfile(info, stream)
         final_entries = inventory(root)
-        if set(final_entries) != set(entries):
-            raise RuntimeError('volume namespace changed during archive')
+        sidecars = mutable - databases
+        added = set(final_entries) - set(entries) - sidecars
+        removed = set(entries) - set(final_entries) - sidecars
+        if added or removed:
+            changes = {'added': [str(path.relative_to(root)) for path in sorted(added)[:10]],
+                       'removed': [str(path.relative_to(root)) for path in sorted(removed)[:10]],
+                       'added_count': len(added), 'removed_count': len(removed)}
+            raise RuntimeError('volume namespace changed during archive: ' + json.dumps(changes))
+        final_stats = {path: path.lstat() for path in final_entries}
         for path in final_entries:
-            before, after = identities[path], path.lstat()
+            after = final_stats[path]
+            if path in sidecars:
+                if not stat.S_ISREG(after.st_mode) or after.st_nlink != 1:
+                    raise RuntimeError('SQLite sidecar must remain a single regular file')
+                continue
+            before = identities[path]
             if (before.st_dev, before.st_ino, stat.S_IFMT(before.st_mode)) != (after.st_dev, after.st_ino, stat.S_IFMT(after.st_mode)):
                 raise RuntimeError('volume entry replaced during archive')
+        def file_identity(item):
+            return [item.st_dev, item.st_ino] if item else None
+        sidecar_changes = {str(path.relative_to(root)): {'before': file_identity(identities.get(path)),
+                                                       'after': file_identity(final_stats.get(path))}
+                           for path in sorted(sidecars) if file_identity(identities.get(path)) != file_identity(final_stats.get(path))}
         manifest = json.dumps({'format': 1, 'databases': [str(path.relative_to(root)) for path in sorted(databases)],
                                'identities': {str(path.relative_to(root)): [identities[path].st_dev, identities[path].st_ino] for path in sorted(databases)},
-                               'observations': observations}).encode()
+                               'observations': observations, 'sidecar_changes': sidecar_changes}).encode()
         info = tarfile.TarInfo('manifest.json')
         info.mode, info.size = 0o600, len(manifest)
         archive.addfile(info, io.BytesIO(manifest))
