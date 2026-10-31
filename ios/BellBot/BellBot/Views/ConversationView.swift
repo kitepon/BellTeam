@@ -187,6 +187,13 @@ private struct ConversationContent: View {
                             .padding(.bottom, 12)
                         }
                     }
+                    #if targetEnvironment(macCatalyst)
+                    .background {
+                        ConversationWheelObserver { target in
+                            wheelMovedUp(target, viewportHeight: viewport.size.height, window: window)
+                        }
+                    }
+                    #endif
                     .scrollDismissesKeyboard(.interactively)
                     .accessibilityIdentifier("conversation-messages")
                     .defaultScrollAnchor(.bottom)
@@ -779,6 +786,33 @@ private struct ConversationContent: View {
         }
     }
 
+    #if targetEnvironment(macCatalyst)
+    private func wheelMovedUp(_ target: ConversationWheelTarget, viewportHeight: CGFloat,
+                              window: (range: Range<Int>, before: CGFloat, after: CGFloat)) {
+        let idle = !loadingOlder && (hasMore || scroll.top < 19.5)
+        guard scroll.wheelStall.wheelUp(top: scroll.top, idle: idle, now: Date()) else { return }
+        store.api.diagnostics.reportConversationScrollStall("""
+            content_top=\(Int(scroll.top))
+            content_height=\(Int(scroll.height))
+            viewport_height=\(Int(viewportHeight))
+            at_bottom=\(isAtBottom)
+            has_more=\(hasMore)
+            loading_older=\(loadingOlder)
+            can_load_older=\(scroll.canLoadOlder)
+            pinned=\(scroll.pin != nil)
+            pin_phase=\(scroll.pinPhase)
+            following_bottom=\(scroll.followingBottom)
+            row_presenting=\(rowIsPresenting)
+            message_count=\(messages.count)
+            window_rows=\(window.range.count)
+            window_before=\(Int(window.before))
+            window_after=\(Int(window.after))
+            view_phase=\(scenePhase)
+            \(target.log)
+            """)
+    }
+    #endif
+
     private func conversationWindow(width: CGFloat, botsByID: [String: Bot]) -> (range: Range<Int>, before: CGFloat, after: CGFloat) {
         let lower = renderedRows.flatMap { bounds in messages.firstIndex { $0.id == bounds.first } }
             ?? max(0, messages.count - 10)
@@ -1124,6 +1158,116 @@ private final class ReadCoordinator {
 }
 
 // 行の実測と、再配置しても残す操作状態。毎フレームの計測で親を再描画しないよう参照型に置く。
+/// 上方向の入力が続いても会話が動かない状態を、会話ごとに1回だけ見つける。
+struct ConversationWheelStallDetector {
+    private var startedAt: Date?
+    private var startTop: CGFloat = 0
+    private var inputs = 0
+    private var reported = false
+
+    mutating func wheelUp(top: CGFloat, idle: Bool, now: Date) -> Bool {
+        guard idle, !reported else { startedAt = nil; return false }
+        if let startedAt, now.timeIntervalSince(startedAt) <= 2, abs(top - startTop) <= 0.5 {
+            inputs += 1
+        } else {
+            startedAt = now
+            startTop = top
+            inputs = 1
+        }
+        // 同じ描画周期の入力は位置の更新前に届くので、時間が空くまで判定しない。
+        guard inputs >= 3, let startedAt, now.timeIntervalSince(startedAt) >= 0.5 else { return false }
+        reported = true
+        return true
+    }
+}
+
+#if targetEnvironment(macCatalyst)
+/// ポインタ下の部品だけを記録する。本文やIDは持たない。
+private struct ConversationWheelTarget {
+    let hitClass: String
+    let nestedScrollEnabled: Bool
+    let scrollView: UIScrollView?
+    let keyWindow: Bool
+
+    var log: String {
+        var result = "hit_class=\(hitClass.prefix(80))\nnested_scroll_enabled=\(nestedScrollEnabled)\nkey_window=\(keyWindow)"
+        if let scrollView {
+            result += "\nscroll_enabled=\(scrollView.isScrollEnabled)"
+                + "\nscroll_content_height=\(Int(scrollView.contentSize.height))"
+                + "\nscroll_bounds_height=\(Int(scrollView.bounds.height))"
+                + "\nscroll_offset_y=\(Int(scrollView.contentOffset.y))"
+        }
+        return result
+    }
+}
+
+/// ホイールは奪わず、会話の上で上方向に回された事実だけを受け取る。
+private struct ConversationWheelObserver: UIViewRepresentable {
+    let onWheelUp: (ConversationWheelTarget) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> Probe {
+        let view = Probe()
+        view.isUserInteractionEnabled = false
+        view.coordinator = context.coordinator
+        return view
+    }
+
+    func updateUIView(_ view: Probe, context: Context) { context.coordinator.onWheelUp = onWheelUp }
+
+    final class Probe: UIView {
+        weak var coordinator: Coordinator?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            coordinator?.attach(to: self)
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onWheelUp: ((ConversationWheelTarget) -> Void)?
+        private weak var probe: UIView?
+        private lazy var recognizer: UIPanGestureRecognizer = {
+            let pan = UIPanGestureRecognizer(target: self, action: #selector(wheel))
+            pan.allowedScrollTypesMask = .all
+            pan.allowedTouchTypes = []
+            pan.cancelsTouchesInView = false
+            pan.delegate = self
+            return pan
+        }()
+
+        func attach(to view: UIView) {
+            probe = view
+            recognizer.view?.removeGestureRecognizer(recognizer)
+            view.window?.addGestureRecognizer(recognizer)
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+
+        @objc private func wheel(_ pan: UIPanGestureRecognizer) {
+            guard pan.state == .changed, let window = pan.view as? UIWindow, let probe else { return }
+            let deltaY = pan.translation(in: window).y
+            pan.setTranslation(.zero, in: window)
+            let location = pan.location(in: window)
+            guard deltaY > 0, probe.convert(probe.bounds, to: window).contains(location) else { return }
+            let hit = window.hitTest(location, with: nil)
+            var scrollViews: [UIScrollView] = []
+            var current = hit
+            while let view = current {
+                if let scrollView = view as? UIScrollView { scrollViews.append(scrollView) }
+                current = view.superview
+            }
+            onWheelUp?(ConversationWheelTarget(
+                hitClass: hit.map { String(describing: type(of: $0)) } ?? "none",
+                nestedScrollEnabled: scrollViews.dropLast().contains { $0.isScrollEnabled },
+                scrollView: scrollViews.last, keyWindow: window.isKeyWindow))
+        }
+    }
+}
+#endif
+
 private final class ScrollTracker {
     // 追加した過去行の配置中は、元の先頭行が一度画面に戻るまで固定を解除しない。
     enum PinPhase { case awaitingGrowth, correcting, aligned }
@@ -1141,6 +1285,7 @@ private final class ScrollTracker {
     var pinPhase = PinPhase.awaitingGrowth
     var pinnedY: CGFloat = 0
     var canLoadOlder = true
+    var wheelStall = ConversationWheelStallDetector()
 
     func secretState(for id: String) -> SecretRequestCardState {
         if let state = secretStates[id] { return state }

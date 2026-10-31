@@ -50,11 +50,12 @@ let messages = history.slice()
 let subscribers = []
 let failBefore = false
 let requests = []
+let diagnosticReports = []
 const server = createServer((request, response) => {
   const url = new URL(request.url, 'http://localhost')
   const path = url.pathname
   const json = (value, status = 200) => { response.statusCode = status; response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(value)) }
-  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; requests = []; messages = history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
+  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; requests = []; diagnosticReports = []; messages = history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
   if (path === '/test/append') {
     const id = `m${String(messages.length + 1).padStart(3, '0')}`
     messages.push({ id, kind: 'message', direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at: new Date().toISOString(), message: `${id} 新着です。`, delivery: 'delivered' })
@@ -79,7 +80,13 @@ const server = createServer((request, response) => {
     request.on('close', () => { subscribers = subscribers.filter(item => item !== response) })
     return
   }
-  if (path === '/test/proof') return json({ failBefore, requests, subscribers: subscribers.length })
+  if (path === '/api/diagnostics' && request.method === 'POST') {
+    let body = ''
+    request.on('data', chunk => { body += chunk })
+    request.on('end', () => { diagnosticReports.push(JSON.parse(body).code); json({ ok: true }) })
+    return
+  }
+  if (path === '/test/proof') return json({ failBefore, requests, diagnosticReports, subscribers: subscribers.length })
   if (path === '/api/subscription') return json({ subscription: { productId: 'dev.kitepon.bellbot.monthly', environment: 'Production', accessMode: 'developer', setupComplete: true, entitled: false, state: 'none', autoRenewing: false } })
   if (path === '/api/settings') return json({ settings: [] })
   if (path === '/api/harness-auth') return json({ harnesses: [] })
