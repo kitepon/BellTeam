@@ -160,6 +160,10 @@ def restore(archive_path, destination):
         members = archive.getmembers()
         if len({member.name for member in members}) != len(members):
             raise ValueError('duplicate archive member')
+        if any(PurePosixPath(member.name).is_absolute() or '..' in PurePosixPath(member.name).parts
+               or str(PurePosixPath(member.name)) != member.name
+               or not (member.isreg() or member.isdir() or member.issym() or member.islnk()) for member in members):
+            raise ValueError('invalid archive member path or type')
         expected = {'sqlite/' + name for name in names}
         if {member.name for member in members if member.name.startswith('sqlite/')} != expected:
             raise ValueError('SQLite snapshot manifest does not match archive')
@@ -168,16 +172,26 @@ def restore(archive_path, destination):
         families = {name + suffix for name in names for suffix in ('', *SIDECARS)}
         if any(not archive.getmember('sqlite/' + name).isreg() or not archive.getmember('raw/' + name).isreg() for name in names):
             raise ValueError('SQLite snapshot or physical observation is not regular')
+        by_name = {member.name: member for member in members}
+        if not by_name['manifest.json'].isreg() or not by_name['raw'].isdir():
+            raise ValueError('manifest and physical archive root have invalid types')
+        symlinks = {member.name for member in members if member.issym()}
+        placements = [member.name for member in members] + ['raw/' + name for name in names]
+        if any(str(parent) in symlinks for name in placements for parent in PurePosixPath(name).parents):
+            raise ValueError('archive placement has a symlink ancestor')
+        for member in members:
+            if member.islnk() and (not member.linkname.startswith('raw/') or member.linkname[4:] in families
+                                   or member.linkname not in by_name or not by_name[member.linkname].isreg()):
+                raise ValueError('hardlink target must be a restored internal regular file')
+        selected = [member for member in members if not member.name.startswith('raw/') or member.name[4:] not in families]
+        links = [member for member in selected if member.issym()]
         def restore_filter(member, directory):
             checked = tarfile.data_filter(member, directory)
-            return checked.replace(mode=member.mode & 0o777)
-        archive.extractall(temp, members=[member for member in members if not member.name.startswith('raw/') or member.name[4:] not in families], filter=restore_filter)
+            return checked.replace(mode=0o700 if member.isdir() else member.mode & 0o777)
+        archive.extractall(temp, members=[member for member in selected if not member.issym()], filter=restore_filter)
         raw = Path(temp) / 'raw'
         if raw.is_symlink() or not raw.is_dir():
             raise ValueError('physical archive root must be a directory')
-        for path in inventory(raw):
-            if path.is_symlink() and not path.resolve().is_relative_to(raw.resolve()):
-                raise ValueError('link escapes the final restored directory')
         for name in names:
             snapshot, original = Path(temp) / 'sqlite' / name, raw / name
             if not snapshot.is_file() or snapshot.is_symlink():
@@ -189,6 +203,14 @@ def restore(archive_path, destination):
             finally:
                 conn.close()
             os.replace(snapshot, original)
+        for member in links:
+            (Path(temp) / member.name).parent.mkdir(parents=True, exist_ok=True)
+        for member in links:
+            os.symlink(member.linkname, Path(temp) / member.name)
+        # Every directory was checked to have no symlink ancestor before any link was created.
+        for member in reversed(selected):
+            if member.isdir():
+                os.chmod(Path(temp) / member.name, member.mode & 0o777, follow_symlinks=False)
         os.rename(raw, destination)
 
 

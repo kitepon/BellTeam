@@ -291,7 +291,7 @@ sqlite3.connect=connect
             self.assertEqual(conn.execute('select v from t').fetchall(),[('in-wal',)])
         writer.rollback()
 
-    def test_restore_rejects_missing_snapshot_and_parent_symlink(self):
+    def test_restore_rejects_missing_snapshot_and_preserves_external_leaf_link(self):
         self.database()
         result=self.archive()
         self.assertEqual(result.returncode,0,result.stderr.decode())
@@ -308,20 +308,57 @@ sqlite3.connect=connect
         result=self.archive()
         self.assertEqual(result.returncode,0,result.stderr.decode())
         restored,output=self.restore(result.stdout)
-        self.assertNotEqual(restored.returncode,0)
-        self.assertFalse(output.exists())
+        self.assertEqual(restored.returncode,0,restored.stderr.decode())
+        self.assertEqual((output/'escape').readlink(),outside)
         self.assertEqual(list(outside.iterdir()),[])
 
-    def test_relative_link_cannot_escape_the_final_restored_directory(self):
+    def test_relative_external_reference_is_preserved_without_external_writes(self):
         outside=self.root/'outside'; outside.mkdir()
         sentinel=outside/'sentinel'; sentinel.write_text('unchanged')
         (self.volume/'escape').symlink_to('../outside',target_is_directory=True)
         result=self.archive()
         self.assertEqual(result.returncode,0,result.stderr.decode())
         restored,output=self.restore(result.stdout)
-        self.assertNotEqual(restored.returncode,0)
-        self.assertFalse(output.exists())
+        self.assertEqual(restored.returncode,0,restored.stderr.decode())
+        self.assertEqual((output/'escape').readlink(),Path('../outside'))
         self.assertEqual(sentinel.read_text(),'unchanged')
+
+    def test_absolute_links_hardlinks_and_readonly_directory_keep_metadata(self):
+        (self.volume/'releases').mkdir(); (self.volume/'bin').mkdir()
+        binary=self.volume/'releases/cli'; binary.write_bytes(b'cli'); binary.chmod(0o771)
+        os.link(binary,self.volume/'hard-cli')
+        links={'bin/agent':'/home/bell/.local/releases/cli','bin/python3':'/usr/bin/python3',
+               'project':'../../srv/bellteam/bots/example','bin/local':'../releases/cli'}
+        for name,target in links.items(): (self.volume/name).symlink_to(target)
+        (self.volume/'bin').chmod(0o555)
+        self.database()
+        result=self.archive(); self.assertEqual(result.returncode,0,result.stderr.decode())
+        restored,output=self.restore(result.stdout); self.assertEqual(restored.returncode,0,restored.stderr.decode())
+        for name,target in links.items():self.assertEqual(str((output/name).readlink()),target)
+        self.assertEqual((output/'releases/cli').stat().st_ino,(output/'hard-cli').stat().st_ino)
+        self.assertEqual((output/'releases/cli').stat().st_mode&0o777,0o771)
+        self.assertEqual((output/'bin').stat().st_mode&0o777,0o555)
+
+    def test_symlink_ancestor_and_external_hardlink_placements_are_rejected(self):
+        (self.volume/'safe').write_bytes(b'safe')
+        outside=self.root/'outside';outside.mkdir();sentinel=outside/'sentinel';sentinel.write_bytes(b'unchanged')
+        (self.volume/'escape').symlink_to(outside,target_is_directory=True)
+        result=self.archive();self.assertEqual(result.returncode,0,result.stderr.decode())
+        for kind in ('file','link','hard-child','hard-outside','hard-link-target'):
+            with self.subTest(kind=kind):
+                buffer=io.BytesIO()
+                with tarfile.open(fileobj=io.BytesIO(result.stdout)) as source,tarfile.open(fileobj=buffer,mode='w') as target:
+                    for member in source:target.addfile(member,source.extractfile(member) if member.isfile() else None)
+                    member=tarfile.TarInfo('raw/escape/sentinel' if kind=='file' else 'raw/escape/child' if kind in ('link','hard-child') else 'raw/hard')
+                    if kind=='file':member.size=7;target.addfile(member,io.BytesIO(b'changed'))
+                    else:
+                        member.type=tarfile.SYMTYPE if kind=='link' else tarfile.LNKTYPE
+                        member.linkname='raw/safe' if kind=='hard-child' else str(sentinel) if kind=='hard-outside' else 'raw/escape'
+                        target.addfile(member)
+                restored,output=self.restore(buffer.getvalue())
+                self.assertNotEqual(restored.returncode,0)
+                self.assertFalse(output.exists())
+                self.assertEqual(sentinel.read_bytes(),b'unchanged')
 
     def test_read_only_backup_of_closed_wal_database_can_create_sidecars(self):
         db=self.volume/'closed.db'
