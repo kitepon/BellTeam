@@ -44,7 +44,7 @@
         </StackPanel></Grid>
       </ScrollViewer>
       <StackPanel x:Name="Welcome" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="450" Margin="30"><TextBlock Text="&#xE8F2;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="48" Foreground="{StaticResource Violet}" HorizontalAlignment="Center" Margin="0,0,0,22"/><TextBlock x:Name="WelcomeTitle" FontSize="26" FontWeight="Bold" TextAlignment="Center" TextWrapping="Wrap"/><TextBlock x:Name="WelcomeNote" FontSize="16" Foreground="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,14,0,0"/></StackPanel>
-      <Button x:Name="NewMessagesButton" Grid.Row="1" Content="新着メッセージ ↓" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,12" Visibility="Collapsed" Style="{StaticResource PrimaryButton}" Click="NewMessages_Click"/>
+      <Button x:Name="NewMessagesButton" Grid.Row="1" Content="最新へ ↓" AutomationProperties.AutomationId="scroll-to-latest" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,12" Visibility="Collapsed" Style="{StaticResource PrimaryButton}" Click="NewMessages_Click"/>
       <StackPanel Grid.Row="2" Margin="16,10,16,16">
         <Expander Header="返信するメンバーを選択" Visibility="{Binding IsRoom, Converter={StaticResource Visible}}"><ScrollViewer MaxHeight="120" VerticalScrollBarVisibility="Auto"><ItemsControl ItemsSource="{Binding ReplyMembers}"><ItemsControl.ItemTemplate><DataTemplate><CheckBox Content="{Binding Name}" IsChecked="{Binding Selected}" Margin="3"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer></Expander>
         <TextBlock Text="{Binding SendError}" Foreground="#AF384D" TextWrapping="Wrap" Margin="0,5" AutomationProperties.Name="送信の失敗"/>

@@ -36,6 +36,7 @@ const ownerFormError = document.querySelector('#owner-form-error')
 const userRulesInput = document.querySelector('#user-rules')
 const chat = document.querySelector('#chat')
 const timeline = document.querySelector('#timeline')
+const latestButton = document.querySelector('#scroll-to-latest')
 const chatName = document.querySelector('#chat-name')
 const chatStatus = document.querySelector('#chat-status')
 const screenButton = document.querySelector('#screen-button')
@@ -1426,6 +1427,11 @@ function queuedFor(item) {
 function scrollToBottom() {
   timeline.scrollTo({ top: timeline.scrollHeight, behavior: 'instant' })
 }
+latestButton.addEventListener('click', () => {
+  state.stickToBottom = true
+  scrollToBottom()
+  latestButton.hidden = true
+})
 function rememberItems(items) {
   for (const item of items) state.timelineMap.set(item.id, item)
 }
@@ -1444,6 +1450,7 @@ async function openTimeline() {
   state.timelineOldestId = null
   state.timelineLoadingOlder = false
   state.stickToBottom = true
+  latestButton.hidden = true
   const [result, queueResult] = await Promise.all([api(`${messagesPath()}?limit=${TIMELINE_FIRST_PAGE}`), api(queuePath())])
   if (token !== state.timelineToken) return
   state.timelineQueue = queueResult.items
@@ -1529,6 +1536,7 @@ function renderTail(items) {
 
 timeline.addEventListener('scroll', () => {
   state.stickToBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 40
+  latestButton.hidden = !state.selected || state.stickToBottom
   if (timeline.scrollTop < 240) loadOlderMessages()
 })
 new ResizeObserver(() => { if (state.stickToBottom) scrollToBottom() }).observe(timelineItems)

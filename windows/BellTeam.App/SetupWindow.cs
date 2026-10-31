@@ -26,7 +26,7 @@ public sealed class SetupWindow : EditorWindow
     }
     private void Render()
     {
-        if (State.Auth?.InputRequired != true) input.Clear();
+        if (State.Auth?.AuthUi is { } currentUi ? currentUi.Stage != "paste_code" : State.Auth?.InputRequired != true) input.Clear();
         Body.Children.Clear(); Body.Children.Add(new TextBlock { Text = "BellTeamを始める", FontSize = 32, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 6, 0, 16) });
         Body.Children.Add(new TextBlock { Text = "最初に使うAIを選んで公式サイトで認証します。設定は、そのあと案内役と会話しながら進められます。", TextWrapping = TextWrapping.Wrap, Foreground = System.Windows.Media.Brushes.SlateGray, Margin = new Thickness(0, 0, 0, 22) });
         if (State.Phase == "ready") { Status.Text = "案内役との会話を開始しました。"; return; }
@@ -46,9 +46,23 @@ public sealed class SetupWindow : EditorWindow
                 var description = auth.Status switch { "authenticated" => "認証済みです。確認して案内役との会話を始めてください。", "blocked" => "認証に必要な操作を確認してください。", "failed" => "認証に失敗しました。表示された理由を確認してください。", "waiting" => "公式認証の完了を待っています。", _ => throw new BellApiException("認証の状態を読み取れませんでした。") };
                 Body.Children.Add(SecretCard.CardBody(description));
                 if (!string.IsNullOrEmpty(auth.Message)) Body.Children.Add(SecretCard.CardBody(auth.Message));
-                if (Uri.TryCreate(auth.Url, UriKind.Absolute, out var address) && address.Scheme == "https") ActionButton("公式サイトで認証する", () => { try { Process.Start(new ProcessStartInfo(address.AbsoluteUri) { UseShellExecute = true }); } catch (Exception error) { Status.Text = "公式サイトを開けませんでした。" + error.Message; } });
+                if (Uri.TryCreate(auth.AuthUi?.Url ?? auth.Url, UriKind.Absolute, out var address) && address.Scheme == "https") ActionButton("公式サイトで認証する", () => { try { Process.Start(new ProcessStartInfo(address.AbsoluteUri) { UseShellExecute = true }); } catch (Exception error) { Status.Text = "公式サイトを開けませんでした。" + error.Message; } });
                 if (!string.IsNullOrEmpty(auth.UserCode)) { Heading("利用者コード"); Body.Children.Add(SecretCard.CardBody(auth.UserCode)); }
-                if (auth.InputRequired)
+                if (auth.AuthUi is { } ui)
+                {
+                    if (!string.IsNullOrEmpty(ui.Title)) Body.Children.Add(SecretCard.CardBody(ui.Title));
+                    if (!string.IsNullOrEmpty(ui.Message)) Body.Children.Add(SecretCard.CardBody(ui.Message));
+                    if (!pollingFailed && ui.CanRespond && ui.Stage == "select")
+                        foreach (var choice in ui.Choices ?? [])
+                            ActionButton(choice.Label, () => _ = PerformAsync(() => api.RespondAsync(ui, new { kind = "choice", id = choice.Id }, Token)));
+                    if (!pollingFailed && ui.CanRespond && ui.Stage == "paste_code" && ui.Input == "authorization_code")
+                    {
+                        Body.Children.Add(SecretCard.CardBody("公式ページに表示された認証コード")); Body.Children.Add(input);
+                        ActionButton("認証を完了する", () => { if (input.Password.Length == 0) return; var value = input.Password; input.Clear(); _ = PerformAsync(() => api.RespondAsync(ui, new { kind = "authorization_code", value }, Token)); });
+                    }
+                    else input.Clear();
+                }
+                else if (auth.InputRequired)
                 {
                     Body.Children.Add(new TextBlock { Text = "認証に必要な入力", Margin = new Thickness(0, 8, 0, 8) }); Body.Children.Add(input);
                     ActionButton("入力を送る", () =>
@@ -77,7 +91,7 @@ public sealed class SetupWindow : EditorWindow
             var changed = next.Phase != State.Phase || next.Harness != State.Harness || next.GuideBotId != State.GuideBotId || next.Complete != State.Complete || next.Auth != State.Auth || !next.Harnesses.SequenceEqual(State.Harnesses);
             State = next; if (changed) Render(); completed = true; return State.Phase == "ready";
         });
-        pollingFailed = !completed;
+        pollingFailed = !completed; if (!Token.IsCancellationRequested) Render();
         if (!Token.IsCancellationRequested) UpdatePolling();
     }
     private void StopReading() { poll.Stop(); reading?.Cancel(); }
@@ -91,7 +105,7 @@ public sealed class SetupWindow : EditorWindow
             if (!Busy && (next.Phase != State.Phase || next.Auth != State.Auth || next.Harness != State.Harness)) { input.Clear(); State = next; Render(); if (next.Phase == "ready") Close(); }
         }
         catch (OperationCanceledException) when (current.IsCancellationRequested) { }
-        catch (Exception error) { pollingFailed = true; poll.Stop(); Status.Text = error.Message; }
+        catch (Exception error) { pollingFailed = true; poll.Stop(); Status.Text = error.Message; Render(); }
         finally { reading = null; }
     }
 }

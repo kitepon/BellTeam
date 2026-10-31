@@ -114,14 +114,14 @@ test('一覧を開くと各AIの認証状態と操作を表示し、認証し直
   }
 })
 
-test('サーバーが再認証非対応と返す種類には開始を案内せず、公式案内と状態更新を残す', async () => {
+test('認証済みで再認証非対応の種類は開始を案内せず、状態更新を残す', async () => {
   const previous = globalThis.document
   globalThis.document = { hidden: false, createElement: tag => new Element(tag), addEventListener() {}, removeEventListener() {} }
-  const calls = [], message = '公式CLIで認証してください。'
+  const calls = [], message = '認証済みのアカウントは切り替えません。'
   const api = async (path, options = {}) => {
     calls.push(`${options.method ?? 'GET'} ${path}`)
     if (path === '/api/harness-auth') return { harnesses: [{ id: 'fixture', name: 'Fixture', members: 0, reloginSupported: false, startWarning: message }] }
-    if (path === '/api/harness-auth/fixture') return { auth: { status: 'blocked', session_id: null } }
+    if (path === '/api/harness-auth/fixture') return { auth: { status: 'authenticated', session_id: null } }
     throw Error(`unexpected ${path}`)
   }
   let section
@@ -134,6 +134,52 @@ test('サーバーが再認証非対応と返す種類には開始を案内せ�
     assert.equal(descendants(row).some(item => item.tag === 'button' && ['認証する', '認証し直す'].includes(item.textContent)), false)
     descendants(row).find(item => item.tag === 'button' && item.textContent === '状態を更新').fire('click'); await settle()
     assert.deepEqual(calls, ['GET /api/harness-auth', 'GET /api/harness-auth/fixture', 'GET /api/harness-auth/fixture'])
+  } finally { section?.stop(); globalThis.document = previous }
+})
+
+test('再認証非対応でも初回認証はGoogleの選択とコード入力から完了できる', async () => {
+  const previous = globalThis.document
+  globalThis.document = { hidden: false, createElement: tag => new Element(tag), addEventListener() {}, removeEventListener() {} }
+  const binding = { session_id: 'agy-auth', launch_id: 'a'.repeat(32) }, digest = 'b'.repeat(64)
+  const calls = []
+  let current = { status: 'blocked', session_id: null }
+  const api = async (path, options = {}) => {
+    calls.push({ path, method: options.method ?? 'GET', body: options.body && JSON.parse(options.body) })
+    if (path === '/api/harness-auth') return { harnesses: [{ id: 'antigravity', name: 'Antigravity', members: 0, reloginSupported: false }] }
+    if (path.endsWith('/start')) current = { status: 'waiting', session_id: binding.session_id, auth_ui: {
+      schema: 'aiterm.auth-ui.v1', stage: 'select', title: 'ログイン方法', binding, prompt_digest: digest, choices: [{ id: 'google', label: 'Googleでログイン' }],
+    } }
+    if (path.endsWith('/input')) {
+      const body = JSON.parse(options.body)
+      assert.deepEqual(body.binding, binding)
+      assert.equal(body.prompt_digest, digest)
+      if (body.response.kind === 'choice') {
+        assert.equal(body.response.id, 'google')
+        current = { status: 'waiting', session_id: binding.session_id, auth_ui: { schema: 'aiterm.auth-ui.v1', stage: 'paste_code',
+          title: '公式ページでログイン', binding, prompt_digest: digest, url: 'https://accounts.google.com/o/oauth2/auth', input: 'authorization_code' } }
+      } else {
+        assert.deepEqual(body.response, { kind: 'authorization_code', value: 'SYNTHETIC-CODE' })
+        current = { status: 'authenticated', session_id: null, auth_ui: { stage: 'complete', title: '認証完了', binding: null } }
+      }
+    }
+    return { auth: current }
+  }
+  let section
+  try {
+    const container = new Element('div'); section = await renderHarnessAuth(container, { api }); await settle()
+    const row = container.children[0]
+    const press = text => descendants(row).find(x => x.tag === 'button' && x.textContent === text).fire('click')
+    assert.equal(calls.some(x => x.method === 'POST'), false)
+    press('認証する'); await settle()
+    press('Googleでログイン'); await settle()
+    assert.equal(descendants(row).find(x => x.tag === 'a').href, 'https://accounts.google.com/o/oauth2/auth')
+    const input = descendants(row).find(x => x.tag === 'input')
+    assert.equal(input.type, 'password'); input.value = 'SYNTHETIC-CODE'; input.fire('input')
+    press('認証を完了する'); await settle()
+    assert.equal(input.value, '')
+    assert.ok(texts(row).includes('認証済み'))
+    assert.equal(texts(row).includes('認証し直す'), false)
+    assert.deepEqual(calls.filter(x => x.method === 'POST').map(x => x.path.split('/').at(-1)), ['start', 'input', 'input'])
   } finally { section?.stop(); globalThis.document = previous }
 })
 

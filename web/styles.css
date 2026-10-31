@@ -63,7 +63,9 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .chat-goal .goal-card { padding: 0; border: 0; }
 .chat-goal .goal-card h3 { display: none; }
 .chat-goal .goal-actions { justify-content: flex-end; }
-.timeline { grid-row: 2; min-height: 0; }
+.timeline { grid-row: 2; grid-column: 1; min-height: 0; }
+.scroll-latest { grid-row: 2; grid-column: 1; align-self: end; justify-self: center; z-index: 4; min-height: 44px; margin-bottom: 12px; padding: 10px 18px; border-radius: 999px; background: var(--ink); color: #fff; }
+.scroll-latest[hidden] { display: none; }
 .composer { grid-row: 4; }
 .empty-state { grid-row: 2 / 4; }
 .screen-panel { position: absolute; top: 86px; left: 0; right: 0; z-index: 6; display: flex; flex-direction: column; max-height: 55vh; background: #0d0d10; color: #d6d6dc; box-shadow: 0 12px 24px rgba(0,0,0,.25); }
