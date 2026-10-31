@@ -14,6 +14,13 @@ test('existing exact Caveat direct MCP is an idle child', () => {
   assert.equal(trusted([root, server]), true)
 })
 
+test('accepted shared Caveat 0.21.8 keeps its exact idle MCP command', () => {
+  const current = {...server,argv:server.argv.map(value=>value===caveat?caveat.replace('0.21.5','0.21.8'):value)}
+  assert.equal(trusted([root,current]),true)
+  const work={pid:30,ppid:20,pgid:10,start:'120',state:'S',exe:'/usr/bin/python3',argv:null}
+  assert.equal(trusted([root,current,work]),false)
+})
+
 test('Caveat argv, parent and version changes remain untrusted', () => {
   for (const argv of [server.argv.slice(0,-1), [...server.argv,'sync'],
     server.argv.map(v=>v==='mcp-server'?'sync':v),
