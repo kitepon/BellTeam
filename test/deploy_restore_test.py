@@ -59,6 +59,11 @@ class Checks(unittest.TestCase):
   def image(id,tag,created='2026-10-01T00:00:00Z'):return {'Id':id,'RepoTags':[tag],'Created':created}
   images=[image('live','ghcr.io/kitepon/bellteam-server:latest'),image('stopped','bellteam-server:old'),image('rollback','bellteam-rollback:previous'),image('obsolete','ghcr.io/kitepon/bellteam-server:retired'),image('other','relay:latest'),image('cloud1','bellteam/cloudflared:old'),image('cloud2','bellteam/cloudflared:recent','2026-10-02T00:00:00Z')]
   self.assertEqual({x['Id'] for x in cleanup.select(images,{'live','stopped'},'rollback')},{'obsolete','cloud1'})
+  digest_image=image('digest','ghcr.io/kitepon/bellteam-server@sha256:'+'d'*64)
+  self.assertEqual(cleanup.family(digest_image),'server')
+  digest_image['RepoTags'].append('other/product@sha256:'+'e'*64)
+  self.assertIsNone(cleanup.family(digest_image))
+  self.assertEqual(cleanup.family(image('old-compose','bellteam-bellteam:latest')),'server')
   images[3]['RepoTags'].append('other-product:shared')
   self.assertEqual({x['Id'] for x in cleanup.select(images,{'live','stopped'},'rollback')},{'cloud1'})
  def test_bad_retained_image_preserves_older_complete_point_and_blob(self):

@@ -5,13 +5,13 @@ import json
 from pathlib import Path
 import subprocess
 
-SERVER = {'ghcr.io/kitepon/bellteam-server', 'bellteam-server', 'bellteam-rollback'}
+SERVER = {'ghcr.io/kitepon/bellteam-server', 'bellteam-server', 'bellteam-bellteam', 'bellteam-rollback'}
 REPOS = SERVER | {'bellteam/cloudflared'}
 
 
 def family(image):
     tags = image.get('RepoTags') or []
-    repos = {tag.rsplit(':', 1)[0] for tag in tags}
+    repos = {tag.split('@', 1)[0].rsplit(':', 1)[0] for tag in tags}
     if not tags or not repos <= REPOS:
         return None
     return 'server' if repos <= SERVER else 'cloudflared' if repos == {'bellteam/cloudflared'} else None
@@ -56,7 +56,8 @@ def main():
             current = json.loads(subprocess.check_output(['docker', 'image', 'inspect', image['Id']]))[0]
             if current.get('RepoTags') != image.get('RepoTags') or family(current) != family(image):
                 raise RuntimeError('image tags changed before cleanup')
-            subprocess.run(['docker', 'image', 'rm', '--no-prune', *image['RepoTags']], check=True)
+            refs = sorted(image['RepoTags'], key=lambda ref: ('@' not in ref, ref))
+            subprocess.run(['docker', 'image', 'rm', '--no-prune', *refs], check=True)
             removed.append({'image': image['Id'], 'tags': image['RepoTags']})
         print(json.dumps({'rollback': rollback, 'protectedContainerImages': sorted(before), 'removed': removed}))
 
