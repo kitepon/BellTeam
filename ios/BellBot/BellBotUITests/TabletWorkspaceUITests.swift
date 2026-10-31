@@ -12,6 +12,24 @@ final class TabletWorkspaceUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
     }
 
+    func testRightProfileSmallImageIsHalfOnIPad() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview"]
+        app.launch()
+        defer { app.terminate() }
+        let first = app.buttons["conversation-bot-one"]
+        XCTAssertTrue(first.waitForExistence(timeout: 10))
+        first.tap()
+        let small = app.buttons["profile-small-avatar"]
+        if !small.waitForExistence(timeout: 3) { app.buttons["詳細パネル"].tap() }
+        XCTAssertTrue(small.waitForExistence(timeout: 5))
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "iPad右画面の小画像"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        XCTAssertEqual(small.frame.width, 76, accuracy: 0.5, "iPadの右画面の小画像は76pt")
+    }
+
     func testLandscapeColumnsRotationAndConversationDrafts() {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
