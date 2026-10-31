@@ -14,7 +14,7 @@ async function fixture(t) {
   t.after(() => rm(root, { recursive: true, force: true }))
   await mkdir(join(root, 'scripts'))
   await mkdir(join(root, 'bin'))
-  for (const name of ['deploy.sh','deploy-image.sh','check-deploy-quiet.sh','check-deploy-quiet.mjs'])
+  for (const name of ['deploy.sh','deploy-image.sh','archive-live-volume.py','check-deploy-quiet.sh','check-deploy-quiet.mjs'])
     await copyFile(new URL(`../scripts/${name}`, import.meta.url), join(root,'scripts',name))
   const updater = `#!/bin/sh
 docker fixture-cursor "$@"

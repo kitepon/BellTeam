@@ -13,7 +13,8 @@ async function fixture(t, failure = '') {
   const root = await mkdtemp(join(tmpdir(), 'deploy-image-preserve-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   for (const name of ['scripts', 'bin']) await mkdir(join(root, name))
-  await copyFile(new URL('../scripts/deploy-image.sh', import.meta.url), join(root, 'scripts/deploy-image.sh'))
+  for (const name of ['deploy-image.sh', 'archive-live-volume.py'])
+    await copyFile(new URL('../scripts/' + name, import.meta.url), join(root, 'scripts', name))
   await writeFile(join(root, 'scripts/check-deploy-quiet.sh'), '#!/bin/sh\ndocker fixture-quiet\n')
   const docker = `#!/usr/bin/env node
 const fs=require('node:fs'),a=process.argv.slice(2),fail=process.env.FAIL
