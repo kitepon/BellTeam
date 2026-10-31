@@ -19,21 +19,27 @@ finish() {
 trap finish 0
 trap 'exit 1' 1 2 15
 
+# 保存と同時にhashを計算し、生成・書込み・hashのいずれの失敗も伝える。
+save_archive() {
+  archive_target=$1
+  shift
+  archive_hash=$(bash -o pipefail -c 'target=$1; shift; "$@" | tee "$target" | sha256sum' archive "$archive_target" "$@")
+  printf '%s  %s\n' "${archive_hash%% *}" "$archive_target" > "$archive_target.sha256"
+}
+
 # 旧本体の実imageを控える。失敗・途中保存では更新を始めず、原本を残す。
 umask 077
 mkdir -p runtime/backups
 previous=$(mktemp -d runtime/backups/image-before-deploy.XXXXXX)
 docker container inspect --format '{{.Id}} {{.Image}}' bellteam > "$previous/container-image.txt"
 read -r previous_container previous_image < "$previous/container-image.txt"
-docker image save --output "$previous/image.tar" "$previous_image"
-sha256sum "$previous/image.tar" > "$previous/image.tar.sha256"
+save_archive "$previous/image.tar" docker image save "$previous_image"
 printf 'previous-image=%s\n' "$previous"
 
 # 内部overlayと同じvolumeの全fileを、同じ旧CIDから読む。
 docker container inspect --format '{{range .Mounts}}{{if eq .Destination "/home/bell/.local"}}{{.Type}} {{.Name}}{{end}}{{end}}' "$previous_container" > "$previous/cursor-volume.txt"
 [ "$(cat "$previous/cursor-volume.txt")" = 'volume bellteam_cursor-cli' ] || { echo 'Cursor volumeを確認できません。更新は開始していません。' >&2; exit 1; }
-docker exec -i --user bell "$previous_container" /usr/bin/python3 - create /home/bell/.local < scripts/archive-live-volume.py > "$previous/cursor.tar"
-sha256sum "$previous/cursor.tar" > "$previous/cursor.tar.sha256"
+save_archive "$previous/cursor.tar" docker exec -i --user bell "$previous_container" /usr/bin/python3 - create /home/bell/.local < scripts/archive-live-volume.py
 
 # 取得・資材準備の失敗では、旧本体を止めない。
 docker compose pull bellteam
