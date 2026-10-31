@@ -111,7 +111,7 @@ function harnessAuthItem(harness, { api }) {
       respond: input => perform(async () => { try { return await post('input', input) } catch (error) { inputBlocked = true; throw error } }),
     })
     password = flow.password
-    if (loaded && !errorText) nodes.push(...flow.elements)
+    if (loaded && !errorText && harness.reloginSupported !== false) nodes.push(...flow.elements)
     if (harness.reloginSupported === false && harness.startWarning) nodes.push(Object.assign(document.createElement('p'), { textContent: harness.startWarning }))
     const start = () => perform(async () => { confirming = false; const next = await post('start'); started = next.auth?.status !== 'authenticated'; return next })
     const actions = document.createElement('div')
