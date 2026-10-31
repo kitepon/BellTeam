@@ -154,6 +154,11 @@ def restore(archive_path, destination):
             return checked.replace(mode=member.mode & 0o777)
         archive.extractall(temp, members=[member for member in members if not member.name.startswith('raw/') or member.name[4:] not in families], filter=restore_filter)
         raw = Path(temp) / 'raw'
+        if raw.is_symlink() or not raw.is_dir():
+            raise ValueError('physical archive root must be a directory')
+        for path in inventory(raw):
+            if path.is_symlink() and not path.resolve().is_relative_to(raw):
+                raise ValueError('link escapes the final restored directory')
         for name in names:
             snapshot, original = Path(temp) / 'sqlite' / name, raw / name
             if not snapshot.is_file() or snapshot.is_symlink():

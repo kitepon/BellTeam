@@ -312,6 +312,17 @@ sqlite3.connect=connect
         self.assertFalse(output.exists())
         self.assertEqual(list(outside.iterdir()),[])
 
+    def test_relative_link_cannot_escape_the_final_restored_directory(self):
+        outside=self.root/'outside'; outside.mkdir()
+        sentinel=outside/'sentinel'; sentinel.write_text('unchanged')
+        (self.volume/'escape').symlink_to('../outside',target_is_directory=True)
+        result=self.archive()
+        self.assertEqual(result.returncode,0,result.stderr.decode())
+        restored,output=self.restore(result.stdout)
+        self.assertNotEqual(restored.returncode,0)
+        self.assertFalse(output.exists())
+        self.assertEqual(sentinel.read_text(),'unchanged')
+
 
 if __name__ == '__main__':
     unittest.main()
