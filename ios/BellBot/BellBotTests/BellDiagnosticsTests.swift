@@ -192,6 +192,7 @@ final class BellDiagnosticsTests: XCTestCase {
         let cases = [
             (#"{"items":[{"required":"secret-value"},{}],"byName":{}}"#, "items.[1]"),
             (#"{"items":[],"byName":{"private-bot-name":{}}}"#, "byName.*"),
+            (#"{"items":[],"byName":{"12345678":{}}}"#, "byName.*"),
         ]
         for (json, path) in cases {
             do {
@@ -205,7 +206,7 @@ final class BellDiagnosticsTests: XCTestCase {
                 XCTAssertTrue(log.contains("decoding_path=\(path)"), log)
                 XCTAssertTrue(log.contains("decoding_route=/api/session"), log)
                 XCTAssertTrue(log.contains("decoding_http_status=200"), log)
-                XCTAssertFalse(log.contains("secret-value") || log.contains("private-bot-name"), log)
+                XCTAssertFalse(log.contains("secret-value") || log.contains("private-bot-name") || log.contains("12345678"), log)
             }
         }
     }

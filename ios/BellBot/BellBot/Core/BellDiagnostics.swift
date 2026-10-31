@@ -50,8 +50,10 @@ extension DecodingError {
 
     /// 型で定義した項目名と配列の位置だけを残す。辞書の動的なキーとdebugDescriptionは本文を含み得る。
     private static func safeName(_ key: CodingKey) -> String {
-        if let index = key.intValue { return "[\(index)]" }
-        return String(describing: type(of: key)) == "CodingKeys" ? key.stringValue : "*"
+        if String(describing: type(of: key)) == "CodingKeys" { return key.stringValue }
+        // 数字だけの辞書キーもintValueを持つ。配列の位置だけが "Index N" の名前になる。
+        if let index = key.intValue, key.stringValue == "Index \(index)" { return "[\(index)]" }
+        return "*"
     }
 
     var diagnosticLog: String {
