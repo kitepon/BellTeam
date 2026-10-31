@@ -739,7 +739,7 @@ private struct ConversationContent: View {
             // 列の幅が変わった直後は、以前の幅の最小高を使った計測を保存しない。
             if abs(row.frame.width - row.layoutWidth) < 0.5 { scroll.rowSizes[id] = row }
         }
-        if isAtBottom, remainingBefore > 0, !messages.isEmpty,
+        if bottom <= viewportHeight + 48, remainingBefore > 0, !messages.isEmpty,
            messages.allSatisfy({ scroll.rowSizes[$0.id] != nil }) {
             updateUnloadedRowHeight()
         }
