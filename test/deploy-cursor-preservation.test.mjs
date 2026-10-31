@@ -26,14 +26,19 @@ if(a[0]==='container'&&a[1]==='inspect') {
  if(a.includes('{{.Id}} {{.Image}}'))console.log('${cid} ${image}')
  else {if(fail==='inspect'){process.stdout.write('partial metadata');process.exit(8)}console.log(fail==='mismatch'?'volume other-volume':'volume bellteam_cursor-cli')}
 }
-if(a[0]==='image'&&a[1]==='save')fs.writeFileSync(a[a.indexOf('--output')+1],'synthetic prior image')
+if(a[0]==='image'&&a[1]==='save'){if(a.includes('--output'))fs.writeFileSync(a[a.indexOf('--output')+1],'synthetic prior image');else process.stdout.write('synthetic prior image')}
 if(a[0]==='exec'&&a.includes('/usr/bin/python3')) {
  if(fail==='tar'){process.stdout.write('partial tar');process.exit(9)}
  const result=cp.spawnSync('/usr/bin/python3',['-','create',process.env.VOLUME],{input:fs.readFileSync(0),maxBuffer:16*1024*1024});process.stdout.write(result.stdout);process.stderr.write(result.stderr);process.exit(result.status)
 }
 if(a[0]==='run')process.stdout.write(a.at(-1).endsWith('update-cursor.sh')?'#!/bin/sh\\ndocker fixture-cursor\\n':'services: {}\\n')
 `
-  const sha = '#!/bin/sh\nif [ "$FAIL" = hash ]; then case "$1" in */cursor.tar) exit 10;; esac; fi\nexec "$REAL_SHA256SUM" "$@"\n'
+  const sha = `#!/usr/bin/env node
+const fs=require('node:fs'),cp=require('node:child_process'),input=fs.readFileSync(0),args=process.argv.slice(2)
+const calls=fs.readFileSync(process.env.CALLS,'utf8').trim().split('\\n').filter(Boolean).map(JSON.parse)
+if(process.env.FAIL==='hash'&&(args[0]?.endsWith('/cursor.tar')||calls.some(a=>a[0]==='exec'&&a.includes('/usr/bin/python3'))))process.exit(10)
+const r=cp.spawnSync(process.env.REAL_SHA256SUM,args,{input});process.stdout.write(r.stdout);process.stderr.write(r.stderr);process.exit(r.status)
+`
   for (const [name, body] of [['docker', docker], ['sha256sum', sha]]) { await writeFile(join(root, 'bin', name), body); await chmod(join(root, 'bin', name), 0o755) }
   const log = join(root, 'calls'); await writeFile(log, '')
   const result = await exec('sh', ['scripts/deploy-image.sh'], { cwd: root, env: { ...process.env, PATH: join(root, 'bin') + ':' + process.env.PATH, REAL_SHA256SUM: realSha256sum, REAL_TAR: realTar, FAIL: failure, CALLS: log, VOLUME: join(root, 'volume'), TMPDIR: root, BELLTEAM_SERVER_IMAGE: 'fixture/server@sha256:' + 'a'.repeat(64), BELLTEAM_DEPLOY_QUIET_EXCEPT: 'bot-fixture' } }).catch(error => error)
