@@ -2,7 +2,7 @@ const node = (tag, text) => Object.assign(document.createElement(tag), text === 
 
 export function authFlowView(auth) {
   if (auth?.status === 'blocked' && auth.session_id === null && !auth.auth_ui?.binding) return {
-    stage: 'not_started', binding: null, title: 'ログインが必要です', message: 'ログインするを押すと、公式ログインの案内が表示されます。',
+    stage: 'not_started', binding: null, title: 'ログインが必要です', message: '認証ボタンを押すと、公式ログインの案内が表示されます。',
   }
   const ui = auth?.auth_ui
   if (!ui) return { stage: auth?.status === 'authenticated' ? 'complete' : 'unavailable', title: auth?.status === 'authenticated' ? '認証が完了しました' : 'ログインの案内を取得できません',

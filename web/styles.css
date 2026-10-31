@@ -381,3 +381,9 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 
 .onboarding-body > * { flex-shrink: 0; }
 .setup-action, .feature-setting button { min-height: 44px; padding: 10px 16px; border: 0; border-radius: 12px; background: #f3f0fb; cursor: pointer; }
+
+.harness-auth h4 { margin: 0 0 8px; }
+.harness-auth-status { display: inline-block; margin: 0 0 12px; padding: 4px 10px; border-radius: 8px; background: #eee; color: #444; font-weight: 600; }
+.harness-auth-status.authenticated { background: #e0f4e9; color: #17633b; }
+.harness-auth-status.blocked, .harness-auth-status.failed { background: #fff0e0; color: #82450d; }
+.harness-auth .secret-actions button:first-child { background: #6851c4; color: #fff; }
