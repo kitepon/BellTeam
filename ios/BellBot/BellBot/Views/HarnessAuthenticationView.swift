@@ -52,11 +52,10 @@ private struct HarnessAuthenticationRow: View {
         var title: String {
             switch self {
             case .checking: "確認中"
-            case .unavailable: "確認できません"
+            case .unavailable, .known(.failed): "確認できません"
             case .known(.authenticated): "認証済み"
             case .known(.blocked): "未認証"
             case .known(.waiting): "認証中"
-            case .known(.failed): "認証できませんでした"
             }
         }
 
@@ -74,8 +73,8 @@ private struct HarnessAuthenticationRow: View {
         switch state {
         case .known(.authenticated): return "認証し直す"
         case .known(.waiting): return "続ける"
-        case .known(.blocked), .known(.failed): return "認証する"
-        case .checking, .unavailable: return "確認する"
+        case .known(.blocked): return "認証する"
+        case .checking, .unavailable, .known(.failed): return "確認する"
         }
     }
 
