@@ -803,9 +803,9 @@ private struct ConversationContent: View {
         }
         guard scrolled else { return }
         // 上端の外へ出ると、次に上端へ着いた時の取得を許可する。取得の失敗では許可しないので、失敗が繰り返し再試行されない。
-        // 全長が分かる時は、未読込の余白が見える前に足す。
+        // 全長が分かる時は、在庫が減った時点で足し、未読込の余白を見せない。
         let spacer = unloadedHeight
-        let atTop = spacer > 0 ? top + spacer >= -viewportHeight : top >= 19.5
+        let atTop = spacer > 0 ? olderStockIsLow || top + spacer >= -viewportHeight : top >= 19.5
         if !atTop { scroll.canLoadOlder = true }
         if scenePhase == .active && atTop && scroll.canLoadOlder && scroll.pin == nil && hasMore && !loadingOlder,
            let oldest = messages.first?.id, metrics.boundary != nil || spacer > 0 {
@@ -883,9 +883,15 @@ private struct ConversationContent: View {
         unloadedRowHeight = heights.reduce(0, +) / CGFloat(heights.count) + 17
     }
 
-    /// 未読込の過去が占める長さ。読み足しの前後で全長を保ち、バーを飛ばさない。
+    /// バーの全長に含める未読込の過去の長さ。全履歴ではなく、近い分だけを持つ。
     private var unloadedHeight: CGFloat {
-        hasMore ? CGFloat(remainingBefore) * (unloadedRowHeight ?? 197) : 0
+        hasMore ? CGFloat(min(remainingBefore, ConversationHistoryPage.reservedRows)) * (unloadedRowHeight ?? 197) : 0
+    }
+
+    /// 見えている行より上の読込済みの在庫が少ない時に、次の頁を足す。
+    private var olderStockIsLow: Bool {
+        guard let id = scroll.visibleAnchor?.id, let index = messages.firstIndex(where: { $0.id == id }) else { return true }
+        return index <= ConversationHistoryPage.lowStockRows
     }
 
     private func updateWindow(_ metrics: ScrollMetrics, viewportHeight: CGFloat, width: CGFloat, botsByID: [String: Bot]) {
@@ -937,7 +943,7 @@ private struct ConversationContent: View {
     }
 
     private func loadOlder(before oldest: String, proxy: ScrollViewProxy, viewportHeight: CGFloat) async {
-        // 余白を確保している時は足しても全長がほぼ変わらないので、行を固定せず見えている行の補正に任せる。
+        // 余白を確保している時は上の在庫を足すだけなので、行を固定せず見えている行の補正に任せる。
         let reserved = unloadedHeight > 0
         let distance = scroll.top + unloadedHeight
         measuredRow = reserved ? nil : oldest
@@ -1345,9 +1351,12 @@ private struct ConversationWheelObserver: UIViewRepresentable {
 #endif
 
 enum ConversationHistoryPage {
-    /// 通常は20件。余白の奥へ飛んだ時は、その距離の分まで本体の上限200件の範囲で読む。
+    /// 開いた時の10件と合わせて、バーの全長を50発話分にする。
+    static let reservedRows = 40
+    static let lowStockRows = 25
+    /// 通常は25件。余白の奥へ飛んだ時は、その距離の分まで本体の上限200件の範囲で読む。
     static func limit(distance: CGFloat, rowHeight: CGFloat) -> Int {
-        min(200, 20 + Int(max(0, distance) / rowHeight))
+        min(200, 25 + Int(max(0, distance) / rowHeight))
     }
 }
 

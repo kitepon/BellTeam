@@ -208,8 +208,8 @@ final class ConversationAppearanceTests: XCTestCase {
     }
 
     func testOlderPageReadsToTheJumpedPositionWithinTheServerLimit() {
-        XCTAssertEqual(ConversationHistoryPage.limit(distance: 0, rowHeight: 80), 20)
-        XCTAssertEqual(ConversationHistoryPage.limit(distance: 800, rowHeight: 80), 30)
+        XCTAssertEqual(ConversationHistoryPage.limit(distance: 0, rowHeight: 80), 25)
+        XCTAssertEqual(ConversationHistoryPage.limit(distance: 800, rowHeight: 80), 35)
         XCTAssertEqual(ConversationHistoryPage.limit(distance: 100_000, rowHeight: 80), 200)
     }
 }
