@@ -128,6 +128,26 @@ tarfile.TarFile.gettarinfo = changed
 ''')
         self.assertNotEqual(result.returncode, 0)
 
+    def test_final_replacement_refusal_identifies_the_relative_path(self):
+        (self.volume / 'file').write_bytes(b'ABC')
+        result = self.hook('''
+original = os.walk
+calls = 0
+def replace(*args, **kwargs):
+    global calls
+    calls += 1
+    if calls == 2:
+        (root/'replacement').write_bytes(b'DEF')
+        os.replace(root/'replacement', root/'file')
+    return original(*args, **kwargs)
+os.walk = replace
+''')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'volume entry replaced during archive: file', result.stderr)
+        restored, output = self.restore(result.stdout)
+        self.assertNotEqual(restored.returncode, 0)
+        self.assertFalse(output.exists())
+
     def test_classification_and_raw_fifo_swap_do_not_block(self):
         for phase in ('classification', 'raw'):
             with self.subTest(phase=phase):
