@@ -457,6 +457,83 @@ tarfile.TarFile.addfile=hide_alias
 ''')
         self.assertNotEqual(result.returncode,0)
 
+    def throughline_store(self, name, value):
+        path = self.volume / 'state/throughline' / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(value))
+        return path
+
+    def test_throughline_store_replacement_is_archived_as_one_complete_document(self):
+        receipts = 'completed-turn-receipts/' + 'a' * 64 + '.json'
+        self.throughline_store(receipts, {'next_sequence': 1})
+        self.throughline_store('runtime-errors.json', {'v': 'old'})
+        self.throughline_store('runtime-errors.report.state.json', {'v': 'old'})
+        self.throughline_store('completed-turn-receipts/.completed-turn-receipts.1.abc.tmp', {})
+        (self.volume / 'file').write_bytes(b'ABC')
+        result = self.hook('''
+import json
+state = root / 'state/throughline'
+def replace(path, value):
+    temporary = path.with_name('.' + path.stem + '.9.def.tmp')
+    temporary.write_text(json.dumps(value))
+    os.replace(temporary, path)
+original_open = os.open
+opened = 0
+def open_replacing(path, flags, *args, **kwargs):
+    global opened
+    if pathlib.Path(path) == state / 'runtime-errors.report.state.json':
+        opened += 1
+        if opened == 1: replace(pathlib.Path(path), {'v': 'classification'})
+    return original_open(path, flags, *args, **kwargs)
+os.open = open_replacing
+original_info = tarfile.TarFile.gettarinfo
+def info_replacing(self, name=None, arcname=None, fileobj=None):
+    if pathlib.Path(name) == root:
+        replace(state / 'runtime-errors.json', {'v': 'new'})
+        (state / 'completed-turn-receipts/.completed-turn-receipts.1.abc.tmp').unlink()
+    return original_info(self, name, arcname, fileobj)
+tarfile.TarFile.gettarinfo = info_replacing
+original_walk = os.walk
+walks = 0
+def walk_replacing(*args, **kwargs):
+    global walks
+    walks += 1
+    if walks == 2: replace(state / 'RECEIPTS', {'next_sequence': 2})
+    return original_walk(*args, **kwargs)
+os.walk = walk_replacing
+'''.replace('RECEIPTS', receipts))
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        with tarfile.open(fileobj=io.BytesIO(result.stdout)) as archive:
+            names = archive.getnames()
+            self.assertNotIn('raw/state/throughline/completed-turn-receipts/.completed-turn-receipts.1.abc.tmp', names)
+            replaced = json.load(archive.extractfile('manifest.json'))['replaced']
+        self.assertEqual(set(replaced), {'state/throughline/' + receipts, 'state/throughline/runtime-errors.json', 'state/throughline/runtime-errors.report.state.json'})
+        self.assertTrue(all(value['before'] != value['after'] for value in replaced.values()))
+        restored, output = self.restore(result.stdout)
+        self.assertEqual(restored.returncode, 0, restored.stderr.decode())
+        self.assertEqual(json.loads((output / 'state/throughline' / receipts).read_text()), {'next_sequence': 1})
+        self.assertEqual(json.loads((output / 'state/throughline/runtime-errors.json').read_text()), {'v': 'new'})
+        self.assertEqual(json.loads((output / 'state/throughline/runtime-errors.report.state.json').read_text()), {'v': 'classification'})
+        self.assertEqual((output / 'file').read_bytes(), b'ABC')
+
+    def test_json_replacement_outside_throughline_state_still_refuses(self):
+        (self.volume / 'state').mkdir()
+        (self.volume / 'state/other.json').write_text('{}')
+        result = self.hook('''
+original = os.walk
+calls = 0
+def replace(*args, **kwargs):
+    global calls
+    calls += 1
+    if calls == 2:
+        (root / 'state/.other.tmp').write_text('{"v":1}')
+        os.replace(root / 'state/.other.tmp', root / 'state/other.json')
+    return original(*args, **kwargs)
+os.walk = replace
+''')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'volume entry replaced during archive: state/other.json', result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()
