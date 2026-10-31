@@ -259,4 +259,28 @@ final class ConnectionResetTests: XCTestCase {
         await BellAPI(baseURL: url).resetConnections()
         XCTAssertEqual(HTTPCookieStorage.shared.cookies(for: url)?.map(\.name), ["CF_Authorization"])
     }
+
+    func testDecodingLogKeepsStaticFieldsAndHidesDynamicKeysAndValues() throws {
+        struct Inner: Decodable { let required: String }
+        struct Outer: Decodable { let items: [Inner]; let byName: [String: Inner] }
+        let cases = [
+            (#"{"items":[{"required":"secret-value"},{}],"byName":{}}"#, "items.[1]"),
+            (#"{"items":[],"byName":{"private-bot-name":{}}}"#, "byName.*"),
+        ]
+        for (json, path) in cases {
+            do {
+                _ = try JSONDecoder().decode(Outer.self, from: Data(json.utf8))
+                XCTFail("読み取れない本文")
+            } catch let error as DecodingError {
+                let located = error.located(route: "/api/session", status: 200)
+                let log = BellDiagnostics.errorLog(located, module: "session")
+                XCTAssertTrue(log.contains("error_type=DecodingError.keyNotFound"), log)
+                XCTAssertTrue(log.contains("decoding_key=required"), log)
+                XCTAssertTrue(log.contains("decoding_path=\(path)"), log)
+                XCTAssertTrue(log.contains("decoding_route=/api/session"), log)
+                XCTAssertTrue(log.contains("decoding_http_status=200"), log)
+                XCTAssertFalse(log.contains("secret-value") || log.contains("private-bot-name"), log)
+            }
+        }
+    }
 }

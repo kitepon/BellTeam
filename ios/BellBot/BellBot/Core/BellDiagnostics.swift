@@ -25,6 +25,55 @@ struct BellRequestAttempt {
 }
 
 /// 失敗した要求だけに添える計測値。URL、query、本文、識別子は記録しない。
+/// 読み取りに失敗した要求。DecodingErrorの種類は変えず、Contextへ載せて運ぶ。
+struct BellDecodingSite: Error {
+    let route: String
+    let status: Int?
+    let underlying: Error?
+}
+
+extension DecodingError {
+    func located(route: String, status: Int?) -> DecodingError {
+        func located(_ context: Context) -> Context {
+            Context(codingPath: context.codingPath, debugDescription: context.debugDescription,
+                    underlyingError: BellDecodingSite(route: route, status: status,
+                                                      underlying: context.underlyingError))
+        }
+        switch self {
+        case .typeMismatch(let type, let context): return .typeMismatch(type, located(context))
+        case .valueNotFound(let type, let context): return .valueNotFound(type, located(context))
+        case .keyNotFound(let key, let context): return .keyNotFound(key, located(context))
+        case .dataCorrupted(let context): return .dataCorrupted(located(context))
+        @unknown default: return self
+        }
+    }
+
+    /// 型で定義した項目名と配列の位置だけを残す。辞書の動的なキーとdebugDescriptionは本文を含み得る。
+    private static func safeName(_ key: CodingKey) -> String {
+        if let index = key.intValue { return "[\(index)]" }
+        return String(describing: type(of: key)).hasSuffix("Keys") ? key.stringValue : "*"
+    }
+
+    var diagnosticLog: String {
+        let context: Context?
+        var result = ""
+        switch self {
+        case .typeMismatch(_, let value), .valueNotFound(_, let value), .dataCorrupted(let value): context = value
+        case .keyNotFound(let key, let value):
+            context = value
+            result += "\ndecoding_key=\(Self.safeName(key))"
+        @unknown default: context = nil
+        }
+        guard let context else { return result }
+        result += "\ndecoding_path=\(context.codingPath.map(Self.safeName).joined(separator: "."))"
+        if let site = context.underlyingError as? BellDecodingSite {
+            result += "\ndecoding_route=\(site.route)"
+            if let status = site.status { result += "\ndecoding_http_status=\(status)" }
+        }
+        return result
+    }
+}
+
 struct BellRequestTrace {
     static let userInfoKey = "BellTeamRequestTrace"
     let route: String
@@ -379,7 +428,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
             case .dataCorrupted: kind = "dataCorrupted"
             @unknown default: kind = "unknown"
             }
-            return "module=\(module)\nerror_type=DecodingError.\(kind)"
+            return "module=\(module)\nerror_type=DecodingError.\(kind)" + decoding.diagnosticLog
         }
         return "module=\(module)\nerror_type=InvalidResponse"
     }

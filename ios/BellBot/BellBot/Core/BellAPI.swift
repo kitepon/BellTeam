@@ -173,8 +173,8 @@ final class BellAPI {
     }
 
     func get<T: Decodable>(_ path: String, callerContext: String? = nil) async throws -> T {
-        try decode(T.self, from: try await data(path: path, method: "GET", callerContext: callerContext),
-                   path: path, method: "GET")
+        let (body, status) = try await dataWithStatus(path: path, method: "GET", callerContext: callerContext)
+        return try decode(T.self, from: body, path: path, method: "GET", status: status)
     }
 
     func post<Body: Encodable, T: Decodable>(_ path: String, body: Body) async throws -> T {
@@ -390,8 +390,13 @@ final class BellAPI {
         return error
     }
 
-    private func decode<T: Decodable>(_ type: T.Type, from data: Data, path: String, method: String) throws -> T {
-        try decoder.decode(type, from: data)
+    private func decode<T: Decodable>(_ type: T.Type, from data: Data, path: String, method: String,
+                                      status: Int? = nil) throws -> T {
+        do { return try decoder.decode(type, from: data) }
+        catch let error as DecodingError {
+            let requestPath = String(path.prefix { $0 != "?" })
+            throw error.located(route: BellRequestTrace.route(for: requestPath), status: status)
+        }
     }
 
     private func request(path: String, method: String) throws -> URLRequest {
