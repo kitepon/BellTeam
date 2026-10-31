@@ -108,7 +108,7 @@ export function trustedIdleTree(rows, pid, harness, botId, project = `/srv/bellt
   }
   for (const row of rows) {
     if (row.pid === pid || row.pid === cliPid || relays.has(row.pid)) continue
-    if (row.ppid === cliPid && row.exe === nodeExe && caveatCommands.some(command => sameArgs(row.argv, command))) continue
+    if (row.ppid === cliPid && row.exe === nodeExe && [...mcpCommands, ...caveatCommands].some(command => sameArgs(row.argv, command))) continue
     // Aiterm既存定義でもCLI本体に含む固定補助。子作業はこの後の全行検査へ残す。
     if (harness === 'codex-cli' && row.ppid === cliPid && row.exe === codexHelperExe && sameArgs(row.argv, [codexHelperExe])) continue
     if (row.exe === nodeExe && relays.has(row.ppid) && sameArgs(row.argv, relays.get(row.ppid))) continue

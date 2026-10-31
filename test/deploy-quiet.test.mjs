@@ -522,6 +522,8 @@ test('通常更新のApproval Box 0.1.27も固定入口だけを受け入れる'
   const newer = {...hook, argv: [nodeExe, approval.replace('0.1.26', '0.1.27')+'approval-box-claude-hook.mjs']}
   assert.equal(trustedIdleTree([root,newer],10,'claude-code','bot-peer'),true)
   const server = {...newer, argv:[nodeExe,approval.replace('0.1.26','0.1.27')+'cli.mjs','mcp']}
+  assert.equal(trustedIdleTree([root,server],10,'claude-code','bot-peer'),true)
+  assert.equal(trustedIdleTree([root,{...server,argv:[...server.argv,'--extra']}],10,'claude-code','bot-peer'),false)
   const relayed = {...server,pid:30,exe:relay,argv:[relay,...server.argv]}
   assert.equal(trustedIdleTree([root,relayed,{...server,pid:40,ppid:30}],10,'claude-code','bot-peer'),true)
 })
