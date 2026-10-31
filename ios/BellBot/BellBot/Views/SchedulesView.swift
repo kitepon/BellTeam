@@ -188,10 +188,10 @@ struct SchedulesView: View {
     private func fetchAllSchedules(names: [ChatTarget: String]) async throws -> [ChatTarget: [ScheduledEntry]]? {
         do {
             let response: AllSchedulesResponse = try await store.api.get("/api/schedules")
+            let schedules = try response.schedules(expected: Set(names.keys))
             var pages: [ChatTarget: [ScheduledEntry]] = [:]
-            for source in response.sources {
-                guard let target = source.target, let name = names[target] else { continue }
-                pages[target] = source.schedules.map { ScheduledEntry(target: target, ownerName: name, schedule: $0) }
+            for (target, name) in names {
+                pages[target] = schedules[target]?.map { ScheduledEntry(target: target, ownerName: name, schedule: $0) }
             }
             return pages
         } catch BellAPIError.httpStatus(404, _, _) {

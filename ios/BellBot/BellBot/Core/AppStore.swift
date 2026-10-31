@@ -82,6 +82,7 @@ final class AppStore: ObservableObject {
     // 編集値は再認証をまたいで保持する。文字入力でアプリ全体へ更新通知を出さない。
     var botEditorDrafts: [String: BotEditorDraft] = [:]
     var conversationPages: [ChatTarget: ConversationPage] = [:]
+    private(set) var conversationGeneration = 0
     var profileImageDrafts: [String: AvatarSelectionDrafts] = [:]
     @Published var notificationSecret: SecretRequest?
     private var pendingNotification: BellNotificationRoute?
@@ -153,11 +154,22 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// 消した後に届いた古い応答を保存しないよう、取得を始めた時の世代と比べる。
+    func remember(_ page: ConversationPage, for target: ChatTarget, generation: Int) {
+        guard generation == conversationGeneration else { return }
+        conversationPages[target] = page
+    }
+
+    func clearConversationPages() {
+        conversationGeneration += 1
+        conversationPages.removeAll()
+    }
+
     func setServerAddress(_ address: String) async throws {
         guard let url = ServerOrigin.url(address) else { throw BellAPIError.server("HTTPS、またはlocalhost・LANのHTTP接続先URLを入力してください。") }
         if serverURL != url {
             botEditorDrafts.removeAll()
-            conversationPages.removeAll()
+            clearConversationPages()
             profileImageDrafts.removeAll()
             pendingBotDeletionIDs.removeAll()
             resetAIControl()
@@ -795,7 +807,7 @@ final class AppStore: ObservableObject {
         for draft in drafts.values { draft.clear() }
         drafts.removeAll()
         botEditorDrafts.removeAll()
-        conversationPages.removeAll()
+        clearConversationPages()
         profileImageDrafts.removeAll()
         pendingBotDeletionIDs.removeAll()
         resetAIControl()

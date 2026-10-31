@@ -237,6 +237,18 @@ struct AllSchedulesResponse: Decodable {
         }
     }
     let sources: [Source]
+
+    /// 表示中の全員が1回ずつ揃っている時だけ返す。欠けた応答で前回の予定を成功に見せない。
+    func schedules(expected: Set<ChatTarget>) throws -> [ChatTarget: [Schedule]] {
+        var pages: [ChatTarget: [Schedule]] = [:]
+        for source in sources {
+            guard let target = source.target, pages.updateValue(source.schedules, forKey: target) == nil else {
+                throw BellAPIError.invalidResponse
+            }
+        }
+        guard expected.isSubset(of: pages.keys) else { throw BellAPIError.invalidResponse }
+        return pages
+    }
 }
 struct ScheduleResponse: Decodable { let schedule: Schedule }
 struct SessionResponse: Decodable { let authenticated: Bool; let authMode: String }

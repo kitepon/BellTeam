@@ -191,7 +191,7 @@ private struct ConversationContent: View {
                             .accessibilityIdentifier("scroll-to-latest")
                         }
                     }
-                    .onChange(of: [hasMore, loadingOlder, scenePhase == .active]) { _, _ in
+                    .onChange(of: [hasMore, loading, loadingOlder, scenePhase == .active]) { _, _ in
                         fillViewportWithOlderMessages(viewportHeight: viewport.size.height, proxy: proxy)
                     }
                     #if targetEnvironment(macCatalyst)
@@ -704,6 +704,7 @@ private struct ConversationContent: View {
         }
         #endif
         // 前に開いた会話は、取得を待たず前回の頁を出す。
+        let generation = store.conversationGeneration
         if let page = store.conversationPages[target] {
             timeline.replaceReceived(page.items)
             hasMore = page.hasMore
@@ -718,13 +719,21 @@ private struct ConversationContent: View {
             timeline.replaceReceived(result.items)
             hasMore = result.hasMore
             remainingBefore = result.remainingBefore ?? 0
-            store.conversationPages[target] = ConversationPage(items: result.items, hasMore: result.hasMore,
-                                                               remainingBefore: remainingBefore)
-            let queued = try await waiting
-            try Task.checkCancellation()
-            queue = queued.items
+            store.remember(ConversationPage(items: result.items, hasMore: result.hasMore, remainingBefore: remainingBefore),
+                           for: target, generation: generation)
+            loading = false
             errorText = nil
             initialLoadFailed = false
+            do {
+                let queued = try await waiting
+                try Task.checkCancellation()
+                queue = queued.items
+            } catch is CancellationError { return }
+            catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+            catch {
+                errorText = error.localizedDescription
+                store.api.diagnostics.report(error, path: target.path + "/queue", method: "GET", observation: .read(error, retainedData: true))
+            }
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
         } catch is CancellationError { return }
@@ -817,7 +826,7 @@ private struct ConversationContent: View {
         let spacer = unloadedHeight
         let atTop = spacer > 0 ? olderStockIsLow || top + spacer >= -viewportHeight : top >= 19.5
         if !atTop { scroll.canLoadOlder = true }
-        if scenePhase == .active && atTop && scroll.canLoadOlder && scroll.pin == nil && hasMore && !loadingOlder,
+        if scenePhase == .active && atTop && scroll.canLoadOlder && scroll.pin == nil && hasMore && !loading && !loadingOlder,
            let oldest = messages.first?.id, metrics.boundary != nil || spacer > 0 {
             scroll.canLoadOlder = false
             olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
@@ -832,7 +841,8 @@ private struct ConversationContent: View {
         #if targetEnvironment(macCatalyst)
         needsRows = needsRows || scroll.height <= viewportHeight
         #endif
-        guard needsRows, scenePhase == .active, scroll.height > 0, hasMore, !loadingOlder,
+        // 前回の頁を出している間は、新しい頁が届くまで読み足さない。順序が入れ替わると行が欠ける。
+        guard needsRows, scenePhase == .active, scroll.height > 0, hasMore, !loading, !loadingOlder,
               scroll.canLoadOlder, let oldest = messages.first?.id else { return }
         scroll.canLoadOlder = false
         olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
