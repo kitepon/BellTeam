@@ -8,10 +8,10 @@ const exec = promisify(execFile)
 const nodeExe = '/usr/local/bin/node'
 const relayExe = '/usr/local/bin/mcp-lazy'
 const aitermScript = '/usr/local/lib/node_modules/aiterm-mcp/dist/index.js'
-const approvalRoot = '/home/bell/.approval-box/runtime/0.1.26/'
+const approvalRoots = ['0.1.26', '0.1.27'].map(version => `/home/bell/.approval-box/runtime/${version}/`)
 const codexExe = '/usr/local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex'
 const codexHelperExe = `${codexExe}-code-mode-host`
-const mcpCommands = [[nodeExe, aitermScript], [nodeExe, `${approvalRoot}cli.mjs`, 'mcp']]
+const mcpCommands = [[nodeExe, aitermScript], ...approvalRoots.map(root => [nodeExe, `${root}cli.mjs`, 'mcp'])]
 const caveatCommands = ['0.21.5', '0.21.8'].map(version => [nodeExe, '--disable-warning=ExperimentalWarning', `/srv/bellteam/shared/tools/caveat/${version}/node_modules/caveat-cli/dist/caveat.js`, 'mcp-server'])
 
 // 全PIDの親と開始tickだけを読む。argv/environ/画面/認証fileは一覧に含めない。
@@ -113,7 +113,7 @@ export function trustedIdleTree(rows, pid, harness, botId, project = `/srv/bellt
     if (harness === 'codex-cli' && row.ppid === cliPid && row.exe === codexHelperExe && sameArgs(row.argv, [codexHelperExe])) continue
     if (row.exe === nodeExe && relays.has(row.ppid) && sameArgs(row.argv, relays.get(row.ppid))) continue
     if (harness === 'claude-code' && row.ppid === pid && row.exe === nodeExe
-      && sameArgs(row.argv, [nodeExe, `${approvalRoot}approval-box-claude-hook.mjs`])) continue
+      && approvalRoots.some(root => sameArgs(row.argv, [nodeExe, `${root}approval-box-claude-hook.mjs`]))) continue
     return false
   }
   return true
@@ -177,7 +177,7 @@ function emitDeployTrace(emit, event) {
 }
 const identity = treeIdentity
 const hooks = (rows, pid) => rows.filter(row => row.ppid === pid && row.exe === nodeExe
-  && sameArgs(row.argv, [nodeExe, `${approvalRoot}approval-box-claude-hook.mjs`]))
+  && approvalRoots.some(root => sameArgs(row.argv, [nodeExe, `${root}approval-box-claude-hook.mjs`])))
 const hookKey = (rows, pid) => JSON.stringify(hooks(rows, pid).map(row => [row.pid, row.start]).sort())
 const idle = idleObservation
 const validNative = o => Number.isSafeInteger(o?.harness_process?.pid) && o.harness_process.pid > 0
