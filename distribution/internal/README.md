@@ -23,7 +23,11 @@ HOME/data、追加Throughline bind、既存 `bellteam_cursor-cli`、project/cont
 
 これはimageの保全だけで、整合したdata/HOME/Cursor volumeの復旧点ではない。queue控えやquiet①②も全writerの排他・DBとfile全体の同時点を証明しない。更新前に今回の整合復旧点と最新dataの確認方法を別に確定する。設置固有の夜間backupはDBごとのonline backupとfile走査であり、Cursor volumeの `state/` の控えを更新前CLI全体の保存へ代用しない。復元用imageの読込み・実際の戻しは本adapterに追加せず、最新dataとの互換性と実行許可を別に確認する。保存容量の既条件やホスト開始不可は緩和しない。
 
-同じ控え先には、元のfull container IDを使った `/home/bell/.local` のmount type/nameを `cursor-volume.txt` に保存する。内部overlayの固定volume `bellteam_cursor-cli` と一致する場合だけ、その同じCIDでbell利用者として全内容を `cursor.tar` へ読み出し、`cursor.tar.sha256` を残す。CLI本体・symlink・modeとstateを含むfile保全で、夜間のstateのみの控えとは異なる。mount確認・tar・hashが失敗すれば途中原本を残し、候補pull/Cursor更新/upへ進まない。候補715から抽出する更新scriptを変更しなくても、この保全はhost checkoutのadapterが先に行う。
+同じ控え先には、元のfull container IDを使った `/home/bell/.local` のmount type/nameを `cursor-volume.txt` に保存する。内部overlayの固定volume `bellteam_cursor-cli` と一致する場合だけ、その同じCIDでbell利用者として `scripts/archive-live-volume.py create /home/bell/.local` を実行し、`cursor.tar` と `cursor.tar.sha256` を残す。`raw/` はCLI本体・symlink・mode・stateを含む走査対象の物理コピー、`sqlite/` はSQLite online backup、最後の `manifest.json` はDB相対path/inode/deviceと可変物理コピーの上限/実収録bytesを記録する。通常fileは読取り前後の変更を拒否する。regular fileのSQLite headerとidentityで特定したDBと正確な同pathのWAL/SHM/journalだけ、取得開始時FDサイズまでの有限観測を一時fileへ収録し、その実bytesをtarへ入れる。truncateによるshort readは観測長として記録する。可変物理コピーはDB整合復元用でも、元fileの全時点・完全bytesでもない。整合DBは別のonline backupで保存する。
+
+DB/sidecarのlinkやSQLite hardlink、DB identity変更、走査前後のnamespace変更、通常file変更、SQLite backup/quick_check/120秒期限・一時領域・tar・hash失敗では途中原本を残し、候補pull/Cursor更新/upへ進まない。openはnonblockingとFD regular型確認を併用し、FIFO化で待ち続けない。WAL生成/削除やDB置換も拒否するため、全writer/全状況での前進保証はない。複数DBと通常fileは同時点のsnapshotではない。writer停止や再試行の反復で条件を作らない。
+
+隔離復元の確認には、archive SHAを照合した上で `python3 scripts/archive-live-volume.py restore /absolute/path/cursor.tar /absolute/path/new-staging` を使う。復元先は存在しない通常directory名とし、既存volume/実DBへ試験目的で戻さない。manifestに対応したraw DB/sidecarは復元namespaceへ最初から入れず、通常file/CLI/link/modeと論理DBだけを新stagingへ構築する。重複member/不正path/親symlinkによる外部参照・欠けたDB・壊れたsnapshotは拒否する。raw全体へsnapshotを重ねる復元は禁止する（古WALでデータが後退し得る）。元raw証拠はarchive内に残る。復元fileの所有者は実行者になり、実際のvolumeへ戻す時のbell UID/GIDへの対応は、停止・戻しの既手順と併せて確認する。新archive形式を旧tar展開blockへ渡さない。自動のvolume差替えや実DB復旧は行わない。
 
 file保全は既quiet①より前に行い、quiet①→Cursor更新→quiet②→upの間へ長いarchive処理を挿入しない。tarは稼働volumeの読取りで、同時書込みの排除や一貫したsnapshotを作る処理ではない。今回dataの復旧点には既backupの世代・manifest（対象data/home、DB/fileと除外/失敗）と、上記の元CID/image・Cursor控えがどの停止・排他区間に対応するかを結ぶ必要がある。各DBの整合やarchive SHAだけで全体の同時点を補完せず、対応を確認できなければ整合復旧点は未成立のままとする。旧控えの自動復元・volumeの自動作成や書換えは追加しない。
 

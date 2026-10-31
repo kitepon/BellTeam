@@ -17,6 +17,7 @@ async function fixture(t, failure = '') {
   await symlink('../releases/old/cursor-agent', join(root, 'volume/bin/cursor-agent'))
   await writeFile(join(root, 'volume/state/keep.json'), '{"latest":"retained"}\n')
   await copyFile(new URL('../scripts/deploy-image.sh', import.meta.url), join(root, 'scripts/deploy-image.sh'))
+  await copyFile(new URL('../scripts/archive-live-volume.py', import.meta.url), join(root, 'scripts/archive-live-volume.py'))
   await writeFile(join(root, 'scripts/check-deploy-quiet.sh'), '#!/bin/sh\ndocker fixture-quiet\n')
   const docker = `#!/usr/bin/env node
 const fs=require('node:fs'),cp=require('node:child_process'),a=process.argv.slice(2),fail=process.env.FAIL
@@ -26,10 +27,9 @@ if(a[0]==='container'&&a[1]==='inspect') {
  else {if(fail==='inspect'){process.stdout.write('partial metadata');process.exit(8)}console.log(fail==='mismatch'?'volume other-volume':'volume bellteam_cursor-cli')}
 }
 if(a[0]==='image'&&a[1]==='save')fs.writeFileSync(a[a.indexOf('--output')+1],'synthetic prior image')
-if(a[0]==='exec'&&a.includes('/bin/tar')) {
+if(a[0]==='exec'&&a.includes('/usr/bin/python3')) {
  if(fail==='tar'){process.stdout.write('partial tar');process.exit(9)}
- const args=a.slice(a.indexOf('/bin/tar')+1).map(x=>x==='/home/bell/.local'?process.env.VOLUME:x)
- const result=cp.spawnSync(process.env.REAL_TAR,args);process.stdout.write(result.stdout);process.stderr.write(result.stderr);process.exit(result.status)
+ const result=cp.spawnSync('/usr/bin/python3',['-','create',process.env.VOLUME],{input:fs.readFileSync(0),maxBuffer:16*1024*1024});process.stdout.write(result.stdout);process.stderr.write(result.stderr);process.exit(result.status)
 }
 if(a[0]==='run')process.stdout.write(a.at(-1).endsWith('update-cursor.sh')?'#!/bin/sh\\ndocker fixture-cursor\\n':'services: {}\\n')
 `
@@ -49,15 +49,15 @@ test('same original CID archives complete Cursor files, symlink and mode before 
   assert.equal(await readFile(join(f.saved, 'cursor-volume.txt'), 'utf8'), 'volume bellteam_cursor-cli\n')
   assert.equal((await stat(join(f.saved, 'cursor.tar'))).mode & 0o777, 0o600)
   const restore = join(f.root, 'synthetic-extract'); await mkdir(restore)
-  await exec(realTar, ['-xf', join(f.saved, 'cursor.tar'), '-C', restore])
+  await rm(restore, { recursive: true }); await exec('/usr/bin/python3', [join(f.root, 'scripts/archive-live-volume.py'), 'restore', join(f.saved, 'cursor.tar'), restore])
   assert.equal(await readFile(join(restore, 'releases/old/cursor-agent'), 'utf8'), 'synthetic old CLI\n')
   assert.equal((await stat(join(restore, 'releases/old/cursor-agent'))).mode & 0o777, 0o755)
   assert.equal(await readlink(join(restore, 'bin/cursor-agent')), '../releases/old/cursor-agent')
   assert.equal(await readFile(join(restore, 'state/keep.json'), 'utf8'), '{"latest":"retained"}\n')
-  const tarIndex = f.calls.findIndex(a => a[0] === 'exec' && a.includes('/bin/tar'))
+  const tarIndex = f.calls.findIndex(a => a[0] === 'exec' && a.includes('/usr/bin/python3'))
   const pullIndex = f.calls.findIndex(a => a[0] === 'compose' && a[1] === 'pull')
   assert.ok(tarIndex >= 0 && tarIndex < pullIndex)
-  assert.deepEqual(f.calls[tarIndex].slice(0, 4), ['exec', '--user', 'bell', cid])
+  assert.deepEqual(f.calls[tarIndex].slice(0, 5), ['exec', '-i', '--user', 'bell', cid])
   assert.equal(f.calls.filter(a => a[0] === 'fixture-quiet').length, 2)
   assert.equal(f.calls.filter(a => a[0] === 'fixture-cursor').length, 1)
   assert.equal(f.calls.filter(a => a[0] === 'compose' && a[1] === 'up').length, 1)
