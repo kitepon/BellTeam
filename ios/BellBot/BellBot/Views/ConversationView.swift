@@ -710,17 +710,19 @@ private struct ConversationContent: View {
             remainingBefore = page.remainingBefore
         }
         do {
-            async let page: ListResponse<TimelineMessage> = store.api.get(target.path + "/messages?limit=10")
+            // 処理待ち一覧の応答を待たず、本文を届いた時点で出す。
             async let waiting: QueueResponse = store.api.get(target.path + "/queue")
-            let (result, queued) = try await (page, waiting)
+            let result: ListResponse<TimelineMessage> = try await store.api.get(target.path + "/messages?limit=10")
             try Task.checkCancellation()
             guard !awaitingSendResponse else { loading = false; return }
             timeline.replaceReceived(result.items)
-            queue = queued.items
             hasMore = result.hasMore
             remainingBefore = result.remainingBefore ?? 0
             store.conversationPages[target] = ConversationPage(items: result.items, hasMore: result.hasMore,
                                                                remainingBefore: remainingBefore)
+            let queued = try await waiting
+            try Task.checkCancellation()
+            queue = queued.items
             errorText = nil
             initialLoadFailed = false
         } catch let error where BellAPIError.isAuthenticationError(error) {
