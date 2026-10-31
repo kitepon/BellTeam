@@ -173,14 +173,16 @@ private struct ConversationContent: View {
                     .onChange(of: viewport.size.height) { oldHeight, newHeight in
                         if oldHeight > 0 && newHeight < oldHeight - 0.5 && isAtBottom {
                             scroll.followingBottom = true
-                            proxy.scrollTo("bottom", anchor: .bottom)
+                            DispatchQueue.main.async { proxy.scrollTo("bottom", anchor: .bottom) }
                         }
                     }
                     .onPreferenceChange(ConversationPresentationKey.self) { presenting in
-                        rowIsPresenting = presenting
-                        if !presenting && scroll.pendingBottomScroll {
-                            scroll.pendingBottomScroll = false
-                            scrollToBottomRevision += 1
+                        DispatchQueue.main.async {
+                            rowIsPresenting = presenting
+                            if !presenting && scroll.pendingBottomScroll {
+                                scroll.pendingBottomScroll = false
+                                scrollToBottomRevision += 1
+                            }
                         }
                     }
                     .overlay(alignment: .top) {
