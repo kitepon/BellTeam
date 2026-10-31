@@ -185,4 +185,25 @@ final class ConversationAppearanceTests: XCTestCase {
         XCTAssertLessThan(blueHue, 0.75)
         XCTAssertNil(AvatarTone.representativeColor(portrait(.white)))
     }
+
+    func testWheelStallReportsOnceAfterRepeatedInputWithoutMovement() {
+        var detector = ConversationWheelStallDetector()
+        let start = Date(timeIntervalSince1970: 0)
+        XCTAssertFalse(detector.wheelUp(top: -500, idle: true, now: start))
+        XCTAssertFalse(detector.wheelUp(top: -500, idle: true, now: start.addingTimeInterval(0.1)))
+        XCTAssertFalse(detector.wheelUp(top: -500, idle: true, now: start.addingTimeInterval(0.2)), "同じ瞬間の入力は判定しない")
+        XCTAssertTrue(detector.wheelUp(top: -500, idle: true, now: start.addingTimeInterval(0.6)))
+        XCTAssertFalse(detector.wheelUp(top: -500, idle: true, now: start.addingTimeInterval(0.9)), "会話ごとに1回だけ")
+    }
+
+    func testWheelStallIgnoresMovementLoadingAndOldInputs() {
+        var detector = ConversationWheelStallDetector()
+        let start = Date(timeIntervalSince1970: 0)
+        for (index, top) in [-500, -400, -300, -200].enumerated() {
+            XCTAssertFalse(detector.wheelUp(top: CGFloat(top), idle: true, now: start.addingTimeInterval(Double(index))))
+        }
+        XCTAssertFalse(detector.wheelUp(top: -200, idle: false, now: start.addingTimeInterval(4)))
+        XCTAssertFalse(detector.wheelUp(top: -200, idle: true, now: start.addingTimeInterval(4.1)))
+        XCTAssertFalse(detector.wheelUp(top: -200, idle: true, now: start.addingTimeInterval(7)), "2秒より古い入力は数えない")
+    }
 }
