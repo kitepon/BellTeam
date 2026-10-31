@@ -1,5 +1,6 @@
 """Keep all container references and one rollback per BellTeam image family."""
 import importlib.util
+import fcntl
 import json
 from pathlib import Path
 import subprocess
@@ -34,28 +35,31 @@ def main():
     restore = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(restore)
     restore.mount_guard(restore.BASE)
-    points = sorted(point for point in restore.BASE.iterdir() if (point / 'restore.json').is_file())
-    if not points:
-        raise RuntimeError('no accepted rollback point')
-    saved = json.loads((points[-1] / 'restore.json').read_text())
-    rollback = saved['image']['image']
-    ids = set()
-    for repo in sorted(REPOS):
-        ids.update(subprocess.check_output(['docker', 'image', 'ls', '--no-trunc', '--quiet', repo], text=True).split())
-    images = json.loads(subprocess.check_output(['docker', 'image', 'inspect', *sorted(ids)])) if ids else []
-    before = references()
-    plan = select(images, before, rollback)
-    removed = []
-    for image in plan:
-        # Docker refuses a new container reference too; never force removal.
-        if image['Id'] in references():
-            continue
-        current = json.loads(subprocess.check_output(['docker', 'image', 'inspect', image['Id']]))[0]
-        if current.get('RepoTags') != image.get('RepoTags') or family(current) != family(image):
-            raise RuntimeError('image tags changed before cleanup')
-        subprocess.run(['docker', 'image', 'rm', '--no-prune', *image['RepoTags']], check=True)
-        removed.append({'image': image['Id'], 'tags': image['RepoTags']})
-    print(json.dumps({'rollback': rollback, 'protectedContainerImages': sorted(before), 'removed': removed}))
+    with (restore.BASE / '.lock').open('r+b') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        points = restore.validated_points(restore.BASE)
+        if not points:
+            raise RuntimeError('no accepted rollback point')
+        saved = points[-1][1]
+        rollback = saved['image']['image']
+        ids = set()
+        for repo in sorted(REPOS):
+            ids.update(subprocess.check_output(['docker', 'image', 'ls', '--no-trunc', '--quiet', repo], text=True).split())
+        images = json.loads(subprocess.check_output(['docker', 'image', 'inspect', *sorted(ids)])) if ids else []
+        before = references()
+        plan = select(images, before, rollback)
+        removed = []
+        for image in plan:
+            # Docker refuses a new container reference too; never force removal.
+            if image['Id'] in references():
+                continue
+            current = json.loads(subprocess.check_output(['docker', 'image', 'inspect', image['Id']]))[0]
+            if current.get('RepoTags') != image.get('RepoTags') or family(current) != family(image):
+                raise RuntimeError('image tags changed before cleanup')
+            subprocess.run(['docker', 'image', 'rm', '--no-prune', *image['RepoTags']], check=True)
+            removed.append({'image': image['Id'], 'tags': image['RepoTags']})
+        print(json.dumps({'rollback': rollback, 'protectedContainerImages': sorted(before), 'removed': removed}))
+
 
 
 if __name__ == '__main__':

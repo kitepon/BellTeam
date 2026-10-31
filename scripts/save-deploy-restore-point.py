@@ -72,6 +72,8 @@ def archive(path, command, script=None, rate=RATE):
                         result = copy_hash(process.stdout, target, rate)
                     if process.wait() != 0:
                         raise RuntimeError('archive producer failed')
+                    if result['bytes'] == 0:
+                        raise RuntimeError('archive producer returned no bytes')
                     target.flush()
                     os.fsync(target.fileno())
                 except BaseException:
@@ -100,28 +102,54 @@ def image_blob(images, image, run=archive):
     path = images / (image.replace(':', '-') + '.tar')
     receipt = path.with_suffix('.json')
     if path.exists() or receipt.exists():
-        saved = json.loads(receipt.read_text())
-        if saved.get('image') != image or saved.get('identity') != identity(path) or not re.fullmatch(r'[0-9a-f]{64}', saved.get('sha256', '')) or saved.get('bytes') != path.stat().st_size:
-            raise RuntimeError('stored image blob changed; inspect before reuse')
-        return {**saved, 'path': str(path), 'reused': True}
+        return checked_image_blob(images, image)
     saved = {'image': image, **run(path, ['docker', 'image', 'save', image])}
     json_save(receipt, saved)
     return {**saved, 'path': str(path), 'reused': False}
 
 
-def prune_points(base):
+def read_metadata(path):
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError('metadata is not a regular file')
+    with path.open('rb') as stream:
+        data = stream.read(65537)
+    if len(data) > 65536:
+        raise RuntimeError('metadata too large')
+    return json.loads(data)
+
+
+def checked_image_blob(images, image):
+    if images.is_symlink() or images.resolve(strict=True) != images:
+        raise RuntimeError('image directory redirected')
+    if not re.fullmatch(r'sha256:[0-9a-f]{64}', image):
+        raise RuntimeError('invalid image identity')
+    path = images / (image.replace(':', '-') + '.tar')
+    saved = read_metadata(path.with_suffix('.json'))
+    if saved.get('image') != image or saved.get('identity') != identity(path) or not re.fullmatch(r'[0-9a-f]{64}', saved.get('sha256', '')) or saved.get('bytes') != path.stat().st_size or saved['bytes'] <= 0:
+        raise RuntimeError('stored image blob changed; inspect before reuse')
+    return {**saved, 'path': str(path), 'reused': True}
+
+
+def validated_points(base):
     points = []
     for point in sorted(base.iterdir()):
         if not re.fullmatch(r'\d{8}T\d{6}\.\d{6}Z', point.name) or not (point / 'restore.json').exists():
             continue
         if point.is_symlink() or {p.name for p in point.iterdir()} != {'restore.json', 'cursor.tar'}:
             raise RuntimeError('restore point scope changed')
-        if (point / 'restore.json').is_symlink() or (point / 'restore.json').stat().st_size > 65536:
-            raise RuntimeError('restore metadata invalid')
-        saved = json.loads((point / 'restore.json').read_text())
-        if identity(point / 'cursor.tar') != saved['cursor']['identity']:
+        saved = read_metadata(point / 'restore.json')
+        cursor = saved['cursor']
+        if identity(point / 'cursor.tar') != cursor['identity'] or cursor.get('path') != str(point / 'cursor.tar') or cursor.get('bytes') != cursor['identity']['st_size'] or not re.fullmatch(r'[0-9a-f]{64}', cursor.get('sha256', '')):
             raise RuntimeError('restore payload changed')
+        blob = checked_image_blob(base / 'images', saved['image']['image'])
+        if any(saved['image'].get(key) != blob[key] for key in ['image', 'path', 'identity', 'sha256', 'bytes']):
+            raise RuntimeError('restore image reference mismatch')
         points.append((point, saved))
+    return points
+
+
+def prune_points(base):
+    points = validated_points(base)
     retained = {saved['image']['image'] for _, saved in points[-2:]}
     expired = points[:-2]
     if expired:

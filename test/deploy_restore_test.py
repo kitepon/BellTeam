@@ -44,13 +44,13 @@ class Checks(unittest.TestCase):
   def run(p,cmd):return m.archive(p,[sys.executable,'-c','print("shared-image")'],rate=0)
   blob=m.image_blob(images,image,run)
   for i in range(3):
-   p=self.p/f'20261031T12300{i}.000000Z';p.mkdir();cursor=p/'cursor.tar';v=m.archive(cursor,[sys.executable,'-c',f'print("cursor-{i}")'],rate=0);m.json_save(p/'restore.json',{'image':blob,'cursor':v})
+   p=self.p/f'20261031T12300{i}.000000Z';p.mkdir();cursor=p/'cursor.tar';v=m.archive(cursor,[sys.executable,'-c',f'print("cursor-{i}")'],rate=0);m.json_save(p/'restore.json',{'image':blob,'cursor':{**v,'path':str(cursor)}})
   m.prune_points(self.p)
   self.assertFalse((self.p/'20261031T123000.000000Z').exists());self.assertTrue((self.p/'20261031T123001.000000Z'/'cursor.tar').exists());self.assertTrue((self.p/'20261031T123002.000000Z'/'cursor.tar').exists());self.assertTrue(pathlib.Path(blob['path']).exists())
  def test_changed_old_point_prevents_retirement(self):
   (self.p/'images').mkdir()
   for i in range(3):
-   p=self.p/f'20261031T12300{i}.000000Z';p.mkdir();cursor=p/'cursor.tar';v=m.archive(cursor,[sys.executable,'-c','print("cursor")'],rate=0);m.json_save(p/'restore.json',{'image':{'image':'sha256:'+'b'*64},'cursor':v})
+   p=self.p/f'20261031T12300{i}.000000Z';p.mkdir();cursor=p/'cursor.tar';v=m.archive(cursor,[sys.executable,'-c','print("cursor")'],rate=0);m.json_save(p/'restore.json',{'image':{'image':'sha256:'+'b'*64},'cursor':{**v,'path':str(cursor)}})
   (self.p/'20261031T123000.000000Z'/'cursor.tar').write_bytes(b'replaced')
   with self.assertRaises(RuntimeError):m.prune_points(self.p)
   self.assertTrue((self.p/'20261031T123000.000000Z'/'cursor.tar').exists())
@@ -61,4 +61,22 @@ class Checks(unittest.TestCase):
   self.assertEqual({x['Id'] for x in cleanup.select(images,{'live','stopped'},'rollback')},{'obsolete','cloud1'})
   images[3]['RepoTags'].append('other-product:shared')
   self.assertEqual({x['Id'] for x in cleanup.select(images,{'live','stopped'},'rollback')},{'cloud1'})
+ def test_bad_retained_image_preserves_older_complete_point_and_blob(self):
+  images=self.p/'images';images.mkdir();blobs=[]
+  for i in range(3):
+   image='sha256:'+str(i+1)*64
+   def run(p,cmd):return m.archive(p,[sys.executable,'-c',f'print("image-{i}")'],rate=0)
+   blob=m.image_blob(images,image,run);blobs.append(blob)
+   p=self.p/f'20261031T12300{i}.000000Z';p.mkdir();cursor=p/'cursor.tar';v=m.archive(cursor,[sys.executable,'-c',f'print("cursor-{i}")'],rate=0);m.json_save(p/'restore.json',{'image':blob,'cursor':{**v,'path':str(cursor)}})
+  second=pathlib.Path(blobs[1]['path']);original=second.read_bytes();second.write_bytes(b'corrupt-previous')
+  with self.assertRaises(RuntimeError):m.prune_points(self.p)
+  self.assertTrue(pathlib.Path(blobs[0]['path']).exists());self.assertTrue((self.p/'20261031T123000.000000Z'/'cursor.tar').exists())
+  with self.assertRaises(RuntimeError):m.validated_points(self.p)
+  second.unlink()
+  with self.assertRaises((RuntimeError,FileNotFoundError)):m.prune_points(self.p)
+  self.assertTrue(pathlib.Path(blobs[0]['path']).exists())
+ def test_empty_successful_producer_is_not_a_restore_point(self):
+  p=self.p/'empty.tar'
+  with self.assertRaises(RuntimeError):m.archive(p,[sys.executable,'-c','pass'],rate=0)
+  self.assertFalse(p.exists());self.assertFalse(p.with_suffix('.tar.partial').exists())
 if __name__=='__main__':unittest.main()
