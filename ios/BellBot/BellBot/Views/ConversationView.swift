@@ -509,8 +509,12 @@ private struct ConversationContent: View {
                               onPasteFailure: { errorText = $0 }) {
                 #if targetEnvironment(macCatalyst)
                 Button { choosingFile = true } label: {
-                    Image(systemName: "paperclip").font(.system(size: 20)).frame(width: 40, height: 40)
+                    Image(systemName: "paperclip").font(.system(size: 20))
+                        .foregroundStyle(BellTheme.violet)
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("画像を添付")
                 .help("画像ファイルを添付。ここへドロップ、入力欄へ貼り付けもできます")
                 #else
@@ -1137,6 +1141,7 @@ private struct ConversationInput<AttachmentButton: View>: View {
                         .frame(width: 38, height: 38)
                         .background(.red, in: Circle())
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("今の動作を止める")
                 .accessibilityIdentifier("stop-current-bot")
                 .disabled(stopping)
@@ -1149,6 +1154,7 @@ private struct ConversationInput<AttachmentButton: View>: View {
                     .frame(width: 38, height: 38)
                     .background(canSend ? BellTheme.violet : BellTheme.line, in: Circle())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("送信")
             #if targetEnvironment(macCatalyst)
             .help("送信（Return）")
