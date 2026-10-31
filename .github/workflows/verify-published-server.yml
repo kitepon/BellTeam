@@ -57,13 +57,16 @@ jobs:
           const distribution = JSON.parse(await readFile('/app/distribution.json', 'utf8'));
           assert.equal(distribution.sourceCommit, process.env.EXPECTED_SOURCE);
           const get = async path => { const r = await fetch('http://127.0.0.1:4181' + path); assert.equal(r.status, 200); return r.json() };
-          assert.equal((await get('/api/bots?avatar=omit')).bots.length, 1);
-          assert.equal((await get('/api/setup')).complete, false);
+          assert.equal((await get('/api/bots?avatar=omit')).bots.length, 0);
+          const setup = await get('/api/setup');
+          assert.equal(setup.phase, 'select_harness');
+          assert.equal(setup.guideBotId, null);
+          assert.equal(setup.complete, false);
           const response = await fetch('http://127.0.0.1:4181/api/owner', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Published installer smoke' }) });
           assert.equal(response.status, 200);
           await writeFile('/home/bell/installer-smoke.txt', 'home-retained');
           await writeFile('/srv/bellteam/installer-smoke.txt', 'data-retained');
-          console.log(JSON.stringify({ emptyInstall: true, bots: 1, ownerWritten: true }));
+          console.log(JSON.stringify({ emptyInstall: true, bots: 0, phase: setup.phase, guideBotId: setup.guideBotId, ownerWritten: true }));
           JS
       - name: previewの同一実物へ更新して設定保持を確認
         working-directory: runtime/published-server
