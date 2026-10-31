@@ -885,7 +885,7 @@ private struct ConversationContent: View {
 
     /// バーの全長に含める未読込の過去の長さ。全履歴ではなく、近い分だけを持つ。
     private var unloadedHeight: CGFloat {
-        hasMore ? CGFloat(min(remainingBefore, ConversationHistoryPage.reservedRows)) * (unloadedRowHeight ?? 197) : 0
+        hasMore ? CGFloat(min(remainingBefore, ConversationHistoryPage.reservedRows(loaded: messages.count))) * (unloadedRowHeight ?? 197) : 0
     }
 
     /// 見えている行より上の読込済みの在庫が少ない時に、次の頁を足す。
@@ -1351,9 +1351,9 @@ private struct ConversationWheelObserver: UIViewRepresentable {
 #endif
 
 enum ConversationHistoryPage {
-    /// 開いた時の10件と合わせて、バーの全長を50発話分にする。
-    static let reservedRows = 40
     static let lowStockRows = 25
+    /// 全長は読込済みと合わせて50発話分から始める。読込10件なら40件、35件なら15件で全長を保ち、その先は25件ずつ増える。
+    static func reservedRows(loaded: Int) -> Int { max(15, 50 - loaded) }
     /// 通常は25件。余白の奥へ飛んだ時は、その距離の分まで本体の上限200件の範囲で読む。
     static func limit(distance: CGFloat, rowHeight: CGFloat) -> Int {
         min(200, 25 + Int(max(0, distance) / rowHeight))
