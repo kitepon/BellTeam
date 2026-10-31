@@ -70,24 +70,37 @@ private struct HarnessAuthenticationView: View {
                 Text(flow.harness.usageText).foregroundStyle(BellTheme.muted)
                 if let auth = flow.auth {
                     Text(statusText(auth.status)).accessibilityIdentifier("harness-auth-status")
-                    AuthenticationInstructions(auth: auth, code: $input,
-                                               busy: flow.busy || flow.needsRefresh || errorText != nil) { response, ui in
-                        run { try await flow.respond(response, for: ui) }
+                    if flow.harness.reloginSupported != false {
+                        AuthenticationInstructions(auth: auth, code: $input,
+                                                   busy: flow.busy || flow.needsRefresh || errorText != nil) { response, ui in
+                            run { try await flow.respond(response, for: ui) }
+                        }
                     }
                 } else if errorText == nil {
                     Text("公式の状態を確認しています。")
                 }
             }
             Section {
-                Button("認証し直す") {
-                    input = ""
-                    if flow.needsStartConfirmation { confirming = true }
-                    else { run { try await flow.start() } }
-                }.accessibilityIdentifier("harness-auth-start")
-                    .disabled(flow.needsRefresh || errorText != nil)
+                if flow.harness.reloginSupported == false {
+                    if let warning = flow.harness.startWarning, !warning.isEmpty {
+                        Text(warning).foregroundStyle(BellTheme.muted)
+                            .accessibilityIdentifier("harness-auth-unavailable")
+                    } else {
+                        Text("認証の方法を確認できませんでした。状態を更新してください。")
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("harness-auth-unavailable")
+                    }
+                } else {
+                    Button("認証し直す") {
+                        input = ""
+                        if flow.needsStartConfirmation { confirming = true }
+                        else { run { try await flow.start() } }
+                    }.accessibilityIdentifier("harness-auth-start")
+                        .disabled(flow.needsRefresh || errorText != nil)
+                }
                 Button("状態を更新") { run(method: "GET") { try await flow.refresh() } }
                     .accessibilityIdentifier("harness-auth-refresh")
-                if flow.started {
+                if flow.started && flow.harness.reloginSupported != false {
                     Button("やめる") { run { try await flow.cancel() } }
                         .accessibilityIdentifier("harness-auth-cancel")
                         .disabled(flow.needsRefresh || errorText != nil)

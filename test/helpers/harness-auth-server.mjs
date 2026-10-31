@@ -6,6 +6,7 @@ const harnesses = [
   { id: 'codex', name: 'Codex', members: 19, startWarning: 'Codexは、認証し直しを始めた時点で今の認証が消えます。途中でやめても元に戻りません。認証が済むまで、Codexを使うメンバーは起動できません。' },
   { id: 'grok', name: 'Grok', members: 3, startWarning: 'Grokは、認証し直しを途中でやめた時に今の認証が残るかを確かめられていません。' },
   { id: 'cursor', name: 'Cursor', members: 1, startWarning: null },
+  { id: 'antigravity', name: 'Antigravity', members: 1, startWarning: 'この版のAntigravityは、公式CLIで認証してください。', reloginSupported: false },
 ]
 let status = 'authenticated'
 let failStatus = false
@@ -29,6 +30,10 @@ const server = createServer(async (request, response) => {
       failStatus = false
       response.statusCode = 500
       return json({ error: 'AUTH_STATUS_FAILED', message: '試験の通信エラーです。状態を更新してください。' })
+    }
+    if (path.endsWith('/start') && path.includes('/antigravity/')) {
+      response.statusCode = 409
+      return json({ error: 'HARNESS_AUTH_RELOGIN_UNSUPPORTED', message: '公式CLIで認証してください。' })
     }
     if (path.endsWith('/start')) status = 'waiting'
     if (path.endsWith('/input') && body?.text) status = 'authenticated'

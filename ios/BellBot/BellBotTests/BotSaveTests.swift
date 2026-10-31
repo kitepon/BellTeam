@@ -112,6 +112,21 @@ final class BotSaveTests: XCTestCase {
         XCTAssertEqual(fixture.saved, newSettings.normalized)
     }
 
+    func testAntigravityModelAndEffortSurviveSaveReadback() async throws {
+        let opaqueModel = "fixture-model/effort-high"
+        let selected = BotSettings(name: "試験メンバー", profileText: "", personality: "", speechStyle: "",
+                                   position: "", role: "", avatar: "", color: "violet", harness: "antigravity",
+                                   model: opaqueModel, reasoningEffort: "fixture-effort", fastMode: false)
+        let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: true)
+        let result = try await makeAPI(fixture).saveBotSettings(id: "member", settings: selected,
+                                                                originalFastMode: false)
+        guard case .confirmed = result else { return XCTFail("保存後の読直しで設定を確認する") }
+        XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
+        XCTAssertEqual(fixture.saved.harness, "antigravity")
+        XCTAssertEqual(fixture.saved.model, opaqueModel)
+        XCTAssertEqual(fixture.saved.reasoningEffort, "fixture-effort")
+    }
+
     func testFailureBeforeSavingReportsDifferentWithoutResendingPATCH() async throws {
         let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: false)
         let api = makeAPI(fixture)
