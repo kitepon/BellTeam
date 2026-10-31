@@ -386,6 +386,20 @@ tarfile.TarFile.addfile=bad_sidecar
                 for name in ('history.db-journal','orphan-wal'):
                     (self.volume/name).unlink(missing_ok=True)
 
+    def test_initial_sidecar_alias_is_not_hidden_by_later_removal(self):
+        self.database()
+        (self.volume/'a-marker').write_bytes(b'')
+        os.link(self.volume/'a-marker',self.volume/'history.db-journal')
+        result=self.hook('''
+original=tarfile.TarFile.addfile
+def hide_alias(self,tarinfo,fileobj=None):
+    result=original(self,tarinfo,fileobj)
+    if tarinfo.name == 'sqlite/history.db': (root/'history.db-journal').unlink()
+    return result
+tarfile.TarFile.addfile=hide_alias
+''')
+        self.assertNotEqual(result.returncode,0)
+
 
 if __name__ == '__main__':
     unittest.main()
