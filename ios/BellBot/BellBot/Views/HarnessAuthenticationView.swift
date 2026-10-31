@@ -12,16 +12,7 @@ struct HarnessAuthenticationList: View {
             Text("AIの認証が切れたときや、別のアカウントで入り直すときに使います。")
                 .font(.caption).foregroundStyle(BellTheme.muted)
             ForEach(harnesses) { harness in
-                NavigationLink {
-                    HarnessAuthenticationView(harness: harness, api: store.api)
-                } label: {
-                    HStack {
-                        Text(harness.name)
-                        Spacer()
-                        Text(harness.usageText).foregroundStyle(BellTheme.muted)
-                    }.padding(.vertical, 6)
-                }
-                .accessibilityIdentifier("harness-auth-\(harness.id)")
+                HarnessAuthenticationRow(harness: harness)
             }
             if loading { ProgressView("AIの種類を確認しています。") }
             if let errorText {
@@ -45,6 +36,80 @@ struct HarnessAuthenticationList: View {
         catch {
             errorText = error.localizedDescription
             store.api.diagnostics.report(error, path: "/api/harness-auth", method: "GET", observation: .read(error, retainedData: !harnesses.isEmpty))
+        }
+    }
+}
+
+/// 一覧を開いた時に公式の状態を一度読み、状態と次の操作を並べる。読めない時は未認証と書かない。
+private struct HarnessAuthenticationRow: View {
+    @EnvironmentObject private var store: AppStore
+    let harness: HarnessAuthenticationOption
+    @State private var state = RowState.checking
+
+    private enum RowState: Equatable {
+        case checking, unavailable, known(OfficialAuthenticationStatus)
+
+        var title: String {
+            switch self {
+            case .checking: "確認中"
+            case .unavailable, .known(.failed): "確認できません"
+            case .known(.authenticated): "認証済み"
+            case .known(.blocked): "未認証"
+            case .known(.waiting): "認証中"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .known(.authenticated): .green
+            case .known(.blocked), .known(.failed), .unavailable: .orange
+            case .checking, .known(.waiting): BellTheme.muted
+            }
+        }
+    }
+
+    private var actionTitle: String {
+        guard harness.reloginSupported != false else { return "詳しく見る" }
+        switch state {
+        case .known(.authenticated): return "認証し直す"
+        case .known(.waiting): return "続ける"
+        case .known(.blocked): return "認証する"
+        case .checking, .unavailable, .known(.failed): return "確認する"
+        }
+    }
+
+    var body: some View {
+        NavigationLink {
+            HarnessAuthenticationView(harness: harness, api: store.api)
+        } label: {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(harness.name).foregroundStyle(BellTheme.ink)
+                    Text(harness.usageText).font(.caption).foregroundStyle(BellTheme.muted)
+                }
+                Spacer()
+                Text(state.title).font(.caption.weight(.semibold)).foregroundStyle(state.tint)
+                    .accessibilityIdentifier("harness-auth-state-\(harness.id)")
+                Text(actionTitle).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(BellTheme.violet, in: Capsule())
+            }.padding(.vertical, 6)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("harness-auth-\(harness.id)")
+        .task { await load() }
+    }
+
+    private func load() async {
+        let path = "/api/harness-auth/\(harness.id)"
+        do {
+            let response: HarnessAuthenticationResponse = try await store.api.get(path)
+            state = response.auth.map { .known($0.status) } ?? .unavailable
+        } catch is CancellationError { }
+        catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        catch {
+            state = .unavailable
+            store.api.diagnostics.report(error, path: "/api/harness-auth", method: "GET", observation: .read(error, retainedData: false))
         }
     }
 }
@@ -91,7 +156,7 @@ private struct HarnessAuthenticationView: View {
                             .accessibilityIdentifier("harness-auth-unavailable")
                     }
                 } else {
-                    Button("認証し直す") {
+                    Button(flow.auth?.status == .authenticated ? "認証し直す" : "認証する") {
                         input = ""
                         if flow.needsStartConfirmation { confirming = true }
                         else { run { try await flow.start() } }

@@ -33,7 +33,7 @@ function pageItems(items, url) {
     if (index >= 0) end = index
   }
   const start = Math.max(0, end - limit)
-  return { items: items.slice(start, end), has_more: start > 0 }
+  return { items: items.slice(start, end), has_more: start > 0, ...(legacyServer ? {} : { remaining_before: start }) }
 }
 
 // 初回10件が画面に収まる短文の履歴（ハル）。過去は残っている。
@@ -50,6 +50,7 @@ let messages = history.slice()
 let subscribers = []
 let failBefore = false
 let shortPage = false
+let legacyServer = false
 let shortTotal = shortMessages.length
 let requests = []
 let diagnosticReports = []
@@ -57,7 +58,7 @@ const server = createServer((request, response) => {
   const url = new URL(request.url, 'http://localhost')
   const path = url.pathname
   const json = (value, status = 200) => { response.statusCode = status; response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(value)) }
-  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; shortPage = url.searchParams.get('shortPage') === '1'; shortTotal = Number(url.searchParams.get('shortTotal') ?? shortMessages.length); requests = []; diagnosticReports = []; messages = history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
+  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; legacyServer = url.searchParams.get('legacyServer') === '1'; shortPage = url.searchParams.get('shortPage') === '1'; shortTotal = Number(url.searchParams.get('shortTotal') ?? shortMessages.length); requests = []; diagnosticReports = []; messages = history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
   if (path === '/test/append') {
     const id = `m${String(messages.length + 1).padStart(3, '0')}`
     messages.push({ id, kind: 'message', direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at: new Date().toISOString(), message: `${id} 新着です。`, delivery: 'delivered' })

@@ -23,9 +23,40 @@ final class HarnessAuthenticationUITests: XCTestCase {
         XCTAssertFalse(app.buttons["harness-auth-start"].exists)
         XCTAssertFalse(app.buttons["harness-auth-cancel"].exists)
         XCTAssertFalse(app.secureTextFields["harness-auth-input"].exists)
+        let reads = try paths(base).filter { $0 == "GET /api/harness-auth/antigravity" }.count
         app.buttons["harness-auth-refresh"].tap()
         XCTAssertTrue(app.staticTexts["harness-auth-status"].waitForExistence(timeout: 5))
-        XCTAssertEqual(try paths(base), ["GET /api/harness-auth/antigravity", "GET /api/harness-auth/antigravity"])
+        Thread.sleep(forTimeInterval: 0.5)
+        XCTAssertEqual(try paths(base).filter { $0 == "GET /api/harness-auth/antigravity" }.count, reads + 1)
+        XCTAssertFalse(try paths(base).contains { $0.hasPrefix("POST") })
+    }
+
+    /// 一覧は各AIの状態と次の操作を初めから見せ、読めないAIを未認証と書かない。読むだけで認証を始めない。
+    func testListShowsEachStateAndActionWithoutStarting() throws {
+        let server = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_AUTH_SMOKE_URL"])
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try request(base, "/test/reset?blocked=cursor&unreadable=grok")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server]
+        app.launch()
+        defer { app.terminate() }
+        let settings = app.buttons["設定"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 8))
+        settings.tap()
+        let expected = [
+            ("codex", "認証済み", "認証し直す"),
+            ("cursor", "未認証", "認証する"),
+            ("grok", "確認できません", "確認する"),
+            ("antigravity", "認証済み", "詳しく見る"),
+        ]
+        for (id, state, action) in expected {
+            let row = app.buttons["harness-auth-\(id)"]
+            for _ in 0..<6 where !row.isHittable { app.scrollViews.firstMatch.swipeUp() }
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            let shown = NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", state, action)
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: shown, object: row)], timeout: 5), .completed, id)
+        }
+        XCTAssertFalse(try paths(base).contains { $0.hasPrefix("POST") })
     }
 
     func testConfirmationUntypedInputIsHiddenCancelAndCommunicationError() throws {
@@ -48,7 +79,8 @@ final class HarnessAuthenticationUITests: XCTestCase {
         let state = app.staticTexts["harness-auth-status"]
         XCTAssertTrue(state.waitForExistence(timeout: 5))
         XCTAssertEqual(state.label, "認証済みです。")
-        XCTAssertEqual(try paths(base), ["GET /api/harness-auth/codex"])
+        XCTAssertTrue(try paths(base).contains("GET /api/harness-auth/codex"))
+        XCTAssertFalse(try paths(base).contains { $0.hasPrefix("POST") })
 
         app.buttons["harness-auth-start"].tap()
         let warning = app.alerts["AIの認証をやり直しますか？"]

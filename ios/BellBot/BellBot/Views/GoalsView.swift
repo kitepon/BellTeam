@@ -725,11 +725,6 @@ struct ChatGoalBar: View {
 }
 
 private enum GoalCardPresentation { case page, chat }
-private struct GoalObjectiveHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
 private struct GoalCard: View {
     let snapshot: GoalSnapshot
     let name: String
@@ -737,7 +732,6 @@ private struct GoalCard: View {
     var presentation: GoalCardPresentation = .page
     let onEdit: (String) -> Void
     let onAction: (String) -> Void
-    @State private var objectiveHeight: CGFloat = 22
 
     private var hasAction: Bool {
         if snapshot.goal == nil { return snapshot.capabilities.create && snapshot.fieldCapabilities.create.objective }
@@ -778,12 +772,11 @@ private struct GoalCard: View {
                     if presentation == .chat {
                         ScrollView {
                             Text(goal.objective).frame(maxWidth: .infinity, alignment: .leading)
-                                .background { GeometryReader { size in
-                                    Color.clear.preference(key: GoalObjectiveHeightKey.self, value: size.size.height)
-                                } }
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                            .frame(height: min(max(objectiveHeight, 22), 180))
-                            .onPreferenceChange(GoalObjectiveHeightKey.self) { objectiveHeight = $0 }
+                            .scrollBounceBehavior(.basedOnSize)
+                            .frame(minHeight: 22, maxHeight: 180)
+                            .fixedSize(horizontal: false, vertical: true)
                             .textSelection(.enabled)
                             .accessibilityIdentifier("chat-goal-objective")
                     } else {
