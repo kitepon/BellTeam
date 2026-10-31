@@ -13,6 +13,7 @@ const severities = new Set(['fatal', 'high', 'warn', 'info'])
 const reports = {
   IOS_HANG: ['high', 'Appleアプリが応答しなくなった'],
   IOS_CRASH: ['fatal', 'Appleアプリが異常終了した'],
+  IOS_SCROLL_STALL: ['warn', 'Appleアプリの会話でスクロール入力後も表示位置が変わらなかった'],
   IOS_NETWORK_TIMEOUT: ['high', 'Appleアプリの通信が時間切れになった', true],
   IOS_NETWORK_FAILURE: ['warn', 'Appleアプリの通信に失敗した', true],
   IOS_HTTP_5XX: ['high', 'Appleアプリがサーバーエラーを受け取った', true],
