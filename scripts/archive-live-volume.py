@@ -135,7 +135,7 @@ def create(root):
                 continue
             before = identities[path]
             if (before.st_dev, before.st_ino, stat.S_IFMT(before.st_mode)) != (after.st_dev, after.st_ino, stat.S_IFMT(after.st_mode)):
-                raise RuntimeError('volume entry replaced during archive')
+                raise RuntimeError('volume entry replaced during archive: ' + str(path.relative_to(root)))
         def file_identity(item):
             return [item.st_dev, item.st_ino] if item else None
         sidecar_changes = {str(path.relative_to(root)): {'before': file_identity(identities.get(path)),
