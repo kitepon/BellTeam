@@ -19,7 +19,7 @@ final class HarnessAuthenticationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["harness-auth-status"].waitForExistence(timeout: 5))
         let warning = app.staticTexts["harness-auth-unavailable"]
         XCTAssertTrue(warning.exists)
-        XCTAssertTrue(warning.label.contains("公式CLIで認証してください"))
+        XCTAssertTrue(warning.label.contains("認証済みの間は入り直せません"))
         XCTAssertFalse(app.buttons["harness-auth-start"].exists)
         XCTAssertFalse(app.buttons["harness-auth-cancel"].exists)
         XCTAssertFalse(app.secureTextFields["harness-auth-input"].exists)
@@ -29,6 +29,32 @@ final class HarnessAuthenticationUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 0.5)
         XCTAssertEqual(try paths(base).filter { $0 == "GET /api/harness-auth/antigravity" }.count, reads + 1)
         XCTAssertFalse(try paths(base).contains { $0.hasPrefix("POST") })
+    }
+
+    /// Antigravityも未認証なら初回の認証を始められる。止めるのは認証済みからの入り直しだけ。
+    func testAntigravityCanStartFirstAuthentication() throws {
+        let server = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_AUTH_SMOKE_URL"])
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try request(base, "/test/reset?blocked=antigravity")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server]
+        app.launch()
+        defer { app.terminate() }
+        let settings = app.buttons["設定"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 8))
+        settings.tap()
+        let entry = app.buttons["harness-auth-antigravity"]
+        for _ in 0..<6 where !entry.isHittable { app.scrollViews.firstMatch.swipeUp() }
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        entry.tap()
+        let start = app.buttons["harness-auth-start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        XCTAssertEqual(start.label, "認証する")
+        XCTAssertFalse(app.staticTexts["harness-auth-unavailable"].exists)
+        start.tap()
+        XCTAssertTrue(app.staticTexts["公式サイトでの認証を待っています。"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["harness-auth-cancel"].exists)
+        XCTAssertEqual(try paths(base).filter { $0 == "POST /api/harness-auth/antigravity/start" }.count, 1)
     }
 
     /// 一覧は各AIの状態と次の操作を初めから見せ、読めないAIを未認証と書かない。読むだけで認証を始めない。

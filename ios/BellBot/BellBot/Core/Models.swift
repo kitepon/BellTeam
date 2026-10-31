@@ -375,6 +375,11 @@ struct HarnessAuthenticationOption: Decodable, Identifiable {
     }
 
     var usageText: String { members > 0 ? "\(members)人が使用" : "使用していません" }
+    /// reloginSupported=falseは認証済みからの入り直しだけを断る。未認証なら初回の認証は始められる。
+    func canStart(_ auth: SetupAuthentication?) -> Bool {
+        guard reloginSupported == false else { return true }
+        return auth != nil && auth?.status != .authenticated
+    }
     func needsStartConfirmation(_ auth: SetupAuthentication?) -> Bool {
         reloginSupported != false && startWarning?.isEmpty == false && auth?.status != .blocked
     }

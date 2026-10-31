@@ -207,9 +207,16 @@ final class ConversationAppearanceTests: XCTestCase {
         XCTAssertFalse(detector.wheelUp(top: -200, idle: true, now: start.addingTimeInterval(7)), "2秒より古い入力は数えない")
     }
 
+    func testScrollBarLengthStartsAtFiftyAndGrowsByOnePage() {
+        XCTAssertEqual(10 + ConversationHistoryPage.reservedRows(loaded: 10), 50)
+        XCTAssertEqual(35 + ConversationHistoryPage.reservedRows(loaded: 35), 50)
+        XCTAssertEqual(60 + ConversationHistoryPage.reservedRows(loaded: 60), 75)
+        XCTAssertEqual(85 + ConversationHistoryPage.reservedRows(loaded: 85), 100)
+    }
+
     func testOlderPageReadsToTheJumpedPositionWithinTheServerLimit() {
-        XCTAssertEqual(ConversationHistoryPage.limit(distance: 0, rowHeight: 80), 20)
-        XCTAssertEqual(ConversationHistoryPage.limit(distance: 800, rowHeight: 80), 30)
+        XCTAssertEqual(ConversationHistoryPage.limit(distance: 0, rowHeight: 80), 25)
+        XCTAssertEqual(ConversationHistoryPage.limit(distance: 800, rowHeight: 80), 35)
         XCTAssertEqual(ConversationHistoryPage.limit(distance: 100_000, rowHeight: 80), 200)
     }
 }
