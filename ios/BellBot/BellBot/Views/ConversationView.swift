@@ -897,25 +897,36 @@ private struct ConversationContent: View {
         var offset = top + unloadedHeight
         var lower = messages.count - 1
         var upper = 0
+        var neededLower = messages.count - 1
+        var neededUpper = 0
         for (index, message) in messages.enumerated() {
             let rowHeight = rowHeight(message, width: width, botsByID: botsByID)
             if offset + rowHeight >= -viewportHeight * 2 && offset <= viewportHeight * 3 {
                 lower = min(lower, index)
                 upper = max(upper, index + 1)
             }
+            if offset + rowHeight >= -viewportHeight && offset <= viewportHeight * 2 {
+                neededLower = min(neededLower, index)
+                neededUpper = max(neededUpper, index + 1)
+            }
             offset += rowHeight + 17
         }
         if let anchor, let index = messages.firstIndex(where: { $0.id == anchor.id }) {
             lower = min(lower, index)
             upper = max(upper, index + 1)
+            neededLower = min(neededLower, index)
+            neededUpper = max(neededUpper, index + 1)
         }
         if let pin = scroll.pin, let index = messages.firstIndex(where: { $0.id == pin }) {
             lower = min(lower, index)
             upper = max(upper, index + 1)
+            neededLower = min(neededLower, index)
+            neededUpper = max(neededUpper, index + 1)
         }
         guard upper > lower else { return }
         let current = conversationWindow(width: width, botsByID: botsByID).range
-        guard lower != current.lowerBound || upper != current.upperBound else { return }
+        // 範囲の更新は会話全体の描き直しになるので、1行ごとに動かさず、余裕が尽きた時にまとめて動かす。
+        guard neededLower < current.lowerBound || neededUpper > current.upperBound else { return }
         renderedRows = (messages[lower].id, messages[upper - 1].id)
     }
 
