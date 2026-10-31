@@ -175,6 +175,8 @@ enum ChatTarget: Hashable, Sendable {
 struct ListResponse<T: Decodable>: Decodable {
     let items: [T]
     let hasMore: Bool
+    /// 返した先頭より古い件数。この項目が無い旧本体の間は、読み足すまで全長が分からない。
+    var remainingBefore: Int?
 }
 
 struct BotsResponse: Decodable { var bots: [Bot] }

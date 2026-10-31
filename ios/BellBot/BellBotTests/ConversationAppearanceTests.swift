@@ -206,4 +206,10 @@ final class ConversationAppearanceTests: XCTestCase {
         XCTAssertFalse(detector.wheelUp(top: -200, idle: true, now: start.addingTimeInterval(4.1)))
         XCTAssertFalse(detector.wheelUp(top: -200, idle: true, now: start.addingTimeInterval(7)), "2秒より古い入力は数えない")
     }
+
+    func testOlderPageReadsToTheJumpedPositionWithinTheServerLimit() {
+        XCTAssertEqual(ConversationHistoryPage.limit(distance: 0, rowHeight: 80), 20)
+        XCTAssertEqual(ConversationHistoryPage.limit(distance: 800, rowHeight: 80), 30)
+        XCTAssertEqual(ConversationHistoryPage.limit(distance: 100_000, rowHeight: 80), 200)
+    }
 }

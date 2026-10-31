@@ -56,6 +56,8 @@ private struct ConversationContent: View {
     @State private var awaitingSendResponse = false
     @State private var queue: [QueueItem] = []
     @State private var hasMore = false
+    @State private var remainingBefore = 0
+    @State private var unloadedRowHeight: CGFloat?
     @State private var loading = true
     @State private var loadingOlder = false
     @State private var reader = ReadCoordinator()
@@ -187,10 +189,10 @@ private struct ConversationContent: View {
                             .padding(.bottom, 12)
                         }
                     }
-                    #if targetEnvironment(macCatalyst)
                     .onChange(of: [hasMore, loadingOlder, scenePhase == .active]) { _, _ in
                         fillViewportWithOlderMessages(viewportHeight: viewport.size.height, proxy: proxy)
                     }
+                    #if targetEnvironment(macCatalyst)
                     .background {
                         ConversationWheelObserver { target in
                             wheelMovedUp(target, viewportHeight: viewport.size.height, window: window)
@@ -704,6 +706,7 @@ private struct ConversationContent: View {
             timeline.replaceReceived(result.items)
             queue = queued.items
             hasMore = result.hasMore
+            remainingBefore = result.remainingBefore ?? 0
             errorText = nil
             initialLoadFailed = false
         } catch let error where BellAPIError.isAuthenticationError(error) {
@@ -726,15 +729,24 @@ private struct ConversationContent: View {
         let viewportHeight = viewportSize.height
         let resized = abs(width - scroll.contentWidth) > 0.5
         let heightChanged = abs(height - scroll.height) > 0.5
+        // 同じ更新で利用者が動かした分。行の位置を戻す時にこの分を打ち消さない。
+        let moved = top - scroll.top
         for (id, row) in metrics.rows {
             // 列の幅が変わった直後は、以前の幅の最小高を使った計測を保存しない。
             if abs(row.frame.width - row.layoutWidth) < 0.5 { scroll.rowSizes[id] = row }
+        }
+        // 全長の見積りが動くとバーも動くので、最初の頁の平均で固定する。
+        if unloadedRowHeight == nil, remainingBefore > 0, !messages.isEmpty {
+            let heights = messages.compactMap { scroll.rowSizes[$0.id]?.frame.height }
+            if heights.count == messages.count {
+                unloadedRowHeight = heights.reduce(0, +) / CGFloat(heights.count) + 17
+            }
         }
         // 新しく表示したMarkdownの高さが確定した時と幅変更時は、直前に見えていた行を保つ。
         // 明示的に末尾へ移る間は、古い読書位置への補正でその移動を打ち消さない。
         if (heightChanged || resized), !isAtBottom, !scroll.followingBottom, scroll.pin == nil,
            let anchor = scroll.visibleAnchor, metrics.rows[anchor.id] != nil {
-            scrollRow(anchor.id, to: anchor.y, viewportHeight: viewportHeight, proxy: proxy)
+            scrollRow(anchor.id, to: anchor.y + moved, viewportHeight: viewportHeight, proxy: proxy)
         } else if let message = messages.first(where: { message in
             guard let frame = metrics.rows[message.id]?.frame else { return false }
             return frame.maxY > 0 && frame.minY < viewportHeight
@@ -751,14 +763,13 @@ private struct ConversationContent: View {
             hasUnreadMessages = false
             scroll.followingBottom = false
         }
-        #if targetEnvironment(macCatalyst)
         if let boundary = metrics.boundary, scroll.pin == nil { scroll.pinnedY = boundary }
         fillViewportWithOlderMessages(viewportHeight: viewportHeight, proxy: proxy)
-        #endif
         if heightChanged {
             // 初期位置と末尾への追従は.defaultScrollAnchor(.bottom)に任せる。推定した余白とMarkdownの実高の差を、増減の両方で補正する。
             if let row = scroll.pin {
                 scroll.pinPhase = .correcting
+                scroll.pinnedY += moved
                 scrollRow(row, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
             }
             return
@@ -771,11 +782,16 @@ private struct ConversationContent: View {
                 case .awaitingGrowth:
                     if outside { return }
                 case .correcting:
-                    if outside {
+                    // 高さが変わらないのに外へ出たのは利用者の操作なので、戻さず固定を解く。
+                    if outside && scrolled {
+                        scroll.pin = nil
+                        measuredRow = nil
+                    } else if outside {
                         scrollRow(row, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
                         return
+                    } else {
+                        scroll.pinPhase = .aligned
                     }
-                    scroll.pinPhase = .aligned
                 case .aligned:
                     if outside { scroll.pin = nil; measuredRow = nil }
                 }
@@ -784,24 +800,32 @@ private struct ConversationContent: View {
         }
         guard scrolled else { return }
         // 上端の外へ出ると、次に上端へ着いた時の取得を許可する。取得の失敗では許可しないので、失敗が繰り返し再試行されない。
-        let atTop = top >= 19.5
+        // 全長が分かる時は、未読込の余白が見える前に足す。
+        let spacer = unloadedHeight
+        let atTop = spacer > 0 ? top + spacer >= -viewportHeight : top >= 19.5
         if !atTop { scroll.canLoadOlder = true }
         if scenePhase == .active && atTop && scroll.canLoadOlder && scroll.pin == nil && hasMore && !loadingOlder,
-           let oldest = messages.first?.id, metrics.boundary != nil {
+           let oldest = messages.first?.id, metrics.boundary != nil || spacer > 0 {
             scroll.canLoadOlder = false
             olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
         }
     }
 
-    #if targetEnvironment(macCatalyst)
-    /// Macのホイールは動かせる長さが無いと位置が変わらず、上端の取得が始まらない。表示域が埋まるまで過去を足す。
+    /// 未読込の余白が画面に見える間は過去を足す。バーを掴んで飛んだ先も、ここで埋まる。
+    /// Macのホイールは動かせる長さが無いと位置が変わらず、上端の取得が始まらないので、旧本体でも表示域が埋まるまで足す。
     private func fillViewportWithOlderMessages(viewportHeight: CGFloat, proxy: ScrollViewProxy) {
-        guard scenePhase == .active, scroll.height > 0, scroll.height <= viewportHeight, hasMore, !loadingOlder,
+        let spacer = unloadedHeight
+        var needsRows = spacer > 0 && scroll.top + spacer > 0
+        #if targetEnvironment(macCatalyst)
+        needsRows = needsRows || scroll.height <= viewportHeight
+        #endif
+        guard needsRows, scenePhase == .active, scroll.height > 0, hasMore, !loadingOlder,
               scroll.canLoadOlder, let oldest = messages.first?.id else { return }
         scroll.canLoadOlder = false
         olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
     }
 
+    #if targetEnvironment(macCatalyst)
     private func wheelMovedUp(_ target: ConversationWheelTarget, viewportHeight: CGFloat,
                               window: (range: Range<Int>, before: CGFloat, after: CGFloat)) {
         let idle = !loadingOlder && (hasMore || scroll.top < 19.5)
@@ -834,7 +858,7 @@ private struct ConversationContent: View {
         let upper = renderedRows.flatMap { bounds in messages.firstIndex { $0.id == bounds.last } }.map { $0 + 1 }
             ?? messages.count
         let range = lower..<max(lower, upper)
-        return (range, messages[..<lower].reduce(0) { $0 + rowHeight($1, width: width, botsByID: botsByID) + 17 },
+        return (range, unloadedHeight + messages[..<lower].reduce(0) { $0 + rowHeight($1, width: width, botsByID: botsByID) + 17 },
                 messages[range.upperBound...].reduce(0) { $0 + rowHeight($1, width: width, botsByID: botsByID) + 17 })
     }
 
@@ -846,7 +870,12 @@ private struct ConversationContent: View {
     }
 
     private func rowHeight(_ message: TimelineMessage, width: CGFloat, botsByID: [String: Bot]) -> CGFloat {
-        measuredHeight(message, width: width, botsByID: botsByID) ?? 180
+        measuredHeight(message, width: width, botsByID: botsByID) ?? unloadedRowHeight.map { $0 - 17 } ?? 180
+    }
+
+    /// 未読込の過去が占める長さ。読み足しの前後で全長を保ち、バーを飛ばさない。
+    private var unloadedHeight: CGFloat {
+        hasMore ? CGFloat(remainingBefore) * (unloadedRowHeight ?? 197) : 0
     }
 
     private func updateWindow(_ metrics: ScrollMetrics, viewportHeight: CGFloat, width: CGFloat, botsByID: [String: Bot]) {
@@ -857,7 +886,7 @@ private struct ConversationContent: View {
             guard let frame = metrics.rows[message.id]?.frame else { return false }
             return frame.maxY > 0 && frame.minY < viewportHeight
         })
-        var offset = top
+        var offset = top + unloadedHeight
         var lower = messages.count - 1
         var upper = 0
         for (index, message) in messages.enumerated() {
@@ -887,19 +916,25 @@ private struct ConversationContent: View {
     }
 
     private func loadOlder(before oldest: String, proxy: ScrollViewProxy, viewportHeight: CGFloat) async {
-        measuredRow = oldest
+        // 余白を確保している時は足しても全長がほぼ変わらないので、行を固定せず見えている行の補正に任せる。
+        let reserved = unloadedHeight > 0
+        let distance = scroll.top + unloadedHeight
+        measuredRow = reserved ? nil : oldest
         loadingOlder = true
         defer { loadingOlder = false }
         do {
-            let path = target.path + "/messages?limit=20&before=\(oldest.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? oldest)"
+            // バーで余白の奥へ飛んだ時は、飛んだ先まで読み足す。
+            let limit = ConversationHistoryPage.limit(distance: reserved && distance > viewportHeight ? distance : 0,
+                                                      rowHeight: unloadedRowHeight ?? 197)
+            let path = target.path + "/messages?limit=\(limit)&before=\(oldest.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? oldest)"
             let result: ListResponse<TimelineMessage> = try await store.api.get(path)
             try Task.checkCancellation()
             hasMore = result.hasMore
+            remainingBefore = result.remainingBefore ?? 0
             let older = timeline.prependReceived(result.items)
             if !older.isEmpty {
-                #if targetEnvironment(macCatalyst)
                 scroll.canLoadOlder = true
-                #endif
+                guard !reserved else { return }
                 // 足した行のMarkdownは後から高さが伸びる。伸びるたびに同じ位置へ戻すため、行と位置を覚えておく。
                 scroll.pin = oldest
                 scroll.pinPhase = .awaitingGrowth
@@ -1285,6 +1320,13 @@ private struct ConversationWheelObserver: UIViewRepresentable {
     }
 }
 #endif
+
+enum ConversationHistoryPage {
+    /// 通常は20件。余白の奥へ飛んだ時は、その距離の分まで本体の上限200件の範囲で読む。
+    static func limit(distance: CGFloat, rowHeight: CGFloat) -> Int {
+        min(200, 20 + Int(max(0, distance) / rowHeight))
+    }
+}
 
 private final class ScrollTracker {
     // 追加した過去行の配置中は、元の先頭行が一度画面に戻るまで固定を解除しない。
