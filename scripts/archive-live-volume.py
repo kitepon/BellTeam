@@ -157,7 +157,7 @@ def restore(archive_path, destination):
         if raw.is_symlink() or not raw.is_dir():
             raise ValueError('physical archive root must be a directory')
         for path in inventory(raw):
-            if path.is_symlink() and not path.resolve().is_relative_to(raw):
+            if path.is_symlink() and not path.resolve().is_relative_to(raw.resolve()):
                 raise ValueError('link escapes the final restored directory')
         for name in names:
             snapshot, original = Path(temp) / 'sqlite' / name, raw / name
