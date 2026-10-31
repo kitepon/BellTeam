@@ -37,7 +37,7 @@ test('今の認証が消えうるAIは、認証が無い・切れていると分
   assert.equal(needsStartConfirmation({ id: 'claude', startWarning: null }, { status: 'authenticated' }), false)
 })
 
-test('一覧では公式の状態を見に行かず、行を開いた時に見て、認証し直すと公式サイトとコードを出す', async () => {
+test('一覧を開くと各AIの認証状態と操作を表示し、認証し直すと公式サイトとコードを出す', async () => {
   const previous = globalThis.document
   const documentListeners = []
   globalThis.document = {
@@ -60,31 +60,33 @@ test('一覧では公式の状態を見に行かず、行を開いた時に見�
   try {
     const container = new Element('div')
     section = await renderHarnessAuth(container, { api })
+    await settle()
     assert.deepEqual(container.children.map(item => item.children[0].textContent), ['Claude · 10人が使用', 'Codex · 19人が使用'])
-    assert.deepEqual(calls, ['GET /api/harness-auth'])
+    assert.ok(container.children.every(item => item.tag !== 'details'))
+    assert.deepEqual(calls, ['GET /api/harness-auth', 'GET /api/harness-auth/claude', 'GET /api/harness-auth/codex'])
+    assert.ok(texts(container.children[0]).includes('確認できません'))
+    assert.ok(texts(container.children[1]).includes('認証済み'))
     assert.equal(documentListeners.length, 2)
 
     const codex = container.children[1]
     const press = label => descendants(codex).find(item => item.tag === 'button' && item.textContent === label).fire('click')
-    codex.open = true
-    codex.fire('toggle')
     await settle()
-    assert.deepEqual(calls.slice(1), ['GET /api/harness-auth/codex'])
+    assert.deepEqual(calls.slice(1), ['GET /api/harness-auth/claude', 'GET /api/harness-auth/codex'])
     assert.ok(texts(codex).includes('認証が完了しました'))
     assert.equal(descendants(codex).some(item => item.textContent === '認証を中止する'), false)
 
     // 認証済みに見えるCodexは、始めた時点で今の認証が消える。1回目は知らせるだけで、何も始めない。
-    press('ログインする')
+    press('認証し直す')
     await settle()
-    assert.deepEqual(calls.slice(1), ['GET /api/harness-auth/codex'])
+    assert.deepEqual(calls.slice(1), ['GET /api/harness-auth/claude', 'GET /api/harness-auth/codex'])
     assert.ok(texts(codex).includes('Codexは、認証し直しを始めた時点で今の認証が消えます。'))
     press('始めない')
     await settle()
     assert.equal(texts(codex).includes('Codexは、認証し直しを始めた時点で今の認証が消えます。'), false)
-    assert.deepEqual(calls.slice(1), ['GET /api/harness-auth/codex'])
+    assert.deepEqual(calls.slice(1), ['GET /api/harness-auth/claude', 'GET /api/harness-auth/codex'])
 
     // 知らせを読んで、もう一度押した時に始める。
-    press('ログインする')
+    press('認証し直す')
     press('今の認証を手放して始める')
     await settle()
     assert.equal(calls.at(-1), 'POST /api/harness-auth/codex/start')
@@ -101,8 +103,6 @@ test('一覧では公式の状態を見に行かず、行を開いた時に見�
 
     // 見に行けなかった時は、理由を出して止まる。
     const claude = container.children[0]
-    claude.open = true
-    claude.fire('toggle')
     await settle()
     const failure = descendants(claude).find(item => item.className === 'form-error')
     assert.equal(failure.textContent, 'Aitermの公式認証の応答を読み取れません。')
@@ -121,16 +121,17 @@ test('サーバーが再認証非対応と返す種類には開始を案内せ�
   const api = async (path, options = {}) => {
     calls.push(`${options.method ?? 'GET'} ${path}`)
     if (path === '/api/harness-auth') return { harnesses: [{ id: 'fixture', name: 'Fixture', members: 0, reloginSupported: false, startWarning: message }] }
-    if (path === '/api/harness-auth/fixture') return { auth: { status: 'authenticated' } }
+    if (path === '/api/harness-auth/fixture') return { auth: { status: 'blocked', session_id: null } }
     throw Error(`unexpected ${path}`)
   }
   let section
   try {
     const container = new Element('div'); section = await renderHarnessAuth(container, { api })
     const row = container.children[0]
-    row.open = true; row.fire('toggle'); await settle()
+    await settle()
     assert.ok(texts(row).includes(message))
-    assert.equal(descendants(row).some(item => item.tag === 'button' && item.textContent === 'ログインする'), false)
+    assert.equal(texts(row).some(text => text.includes('認証ボタンを押すと')), false)
+    assert.equal(descendants(row).some(item => item.tag === 'button' && ['認証する', '認証し直す'].includes(item.textContent)), false)
     descendants(row).find(item => item.tag === 'button' && item.textContent === '状態を更新').fire('click'); await settle()
     assert.deepEqual(calls, ['GET /api/harness-auth', 'GET /api/harness-auth/fixture', 'GET /api/harness-auth/fixture'])
   } finally { section?.stop(); globalThis.document = previous }
@@ -156,19 +157,46 @@ test('変更完了後の古いstatus応答を捨て、不明な入力は明示�
   try {
     const container = new Element('div'); section = await renderHarnessAuth(container, { api })
     const row = container.children[0], button = label => descendants(row).find(item => item.tag === 'button' && item.textContent === label)
-    row.open = true; row.fire('toggle'); await settle()
-    button('ログインする').fire('click'); await settle()
+    await settle()
+    button('認証し直す').fire('click'); await settle()
     pending = new Promise(resolve => { finish = resolve })
     t.mock.timers.tick(3000); await settle()
     let input = descendants(row).find(item => item.tag === 'input'); input.value = 'synthetic'; input.fire('input'); button('認証を完了する').fire('click'); await settle()
     assert.ok(texts(row).includes('認証完了'))
     finish({ auth: code }); pending = null; await settle()
     assert.ok(texts(row).includes('認証完了')); assert.equal(descendants(row).some(item => item.tag === 'input'), false)
-    button('ログインする').fire('click'); await settle(); rejectInput = true
+    button('認証し直す').fire('click'); await settle(); rejectInput = true
     input = descendants(row).find(item => item.tag === 'input'); input.value = 'synthetic'; input.fire('input'); button('認証を完了する').fire('click'); await settle()
     assert.equal(posts, 2); assert.equal(descendants(row).some(item => item.tag === 'input'), false)
     t.mock.timers.tick(9000); await settle(); assert.equal(posts, 2)
     button('状態を更新').fire('click'); await settle()
     assert.equal(descendants(row).some(item => item.tag === 'input'), true)
   } finally { section?.stop(); globalThis.document = previous; t.mock.timers.reset() }
+})
+
+test('利用人数にかかわらず認証状態を読み、確認中・未認証・失敗を認証済みと区別する', async () => {
+  const previous = globalThis.document
+  globalThis.document = { hidden: false, createElement: tag => new Element(tag), addEventListener() {}, removeEventListener() {} }
+  let finish, posts = 0
+  const api = async (path, options = {}) => {
+    if (options.method === 'POST') posts++
+    if (path === '/api/harness-auth') return { harnesses: ['ready', 'missing', 'failed', 'waiting'].map(id => ({ id, name: id, members: 0 })) }
+    if (path.endsWith('/ready')) return new Promise(resolve => { finish = resolve })
+    if (path.endsWith('/missing')) return { auth: { status: 'blocked', session_id: null } }
+    if (path.endsWith('/waiting')) return { auth: { status: 'waiting', session_id: 'existing', auth_ui: { stage: 'waiting', title: '認証を待っています' } } }
+    return { auth: { status: 'failed' } }
+  }
+  let section
+  try {
+    const container = new Element('div'); section = await renderHarnessAuth(container, { api }); await settle()
+    const [ready, missing, failed, waiting] = container.children
+    assert.ok(texts(ready).includes('確認中'))
+    assert.equal(descendants(ready).find(item => item.tag === 'button' && item.textContent === '認証する').disabled, true)
+    assert.ok(texts(missing).includes('未認証')); assert.ok(texts(missing).includes('認証する'))
+    assert.ok(texts(failed).includes('確認できません')); assert.equal(texts(failed).includes('未認証'), false)
+    assert.ok(texts(waiting).includes('認証中'))
+    finish({ auth: { status: 'authenticated' } }); await settle()
+    assert.ok(texts(ready).includes('認証済み')); assert.ok(texts(ready).includes('認証し直す'))
+    assert.equal(posts, 0)
+  } finally { section?.stop(); globalThis.document = previous }
 })

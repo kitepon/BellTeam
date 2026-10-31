@@ -19,7 +19,7 @@ HOME/data、追加Throughline bind、既存 `bellteam_cursor-cli`、project/cont
 
 内部adapterは、候補image取得/選択image由来の更新資材抽出→既存quiet①→Cursor updater→既存quiet②→同imageのcompose up/recreate、の順を使う。quiet②までは旧本体を止めない。商用installerのstop→Cursor→upをそのまま実行せず、publicの停止順も変更しない。
 
-候補取得より前に、旧本体のcontainer IDと実image IDを `runtime/backups/image-before-deploy.XXXXXX/container-image.txt` へ記録し、そのimage IDを `image.tar` へ保存する。`image.tar.sha256` は保存bytesの照合用で、標準の `sha256sum -c` はrepoの作業directoryから使う。控え先は毎回別の0700 directory、fileは0600で、ログへ `previous-image=` と保存先を出す。inspect/save/hashに失敗すれば候補取得・Cursor更新・本体再作成へ進まず、途中の控えも削除しない。
+候補取得より前に、旧本体のcontainer IDと実image IDを `runtime/backups/image-before-deploy.XXXXXX/container-image.txt` へ記録し、そのimage IDを `image.tar` へ保存する。imageとCursorのarchiveは生成streamを保存しながらSHA256を計算し、生成・書込み・hashの全成功後だけ通常形式のchecksumを残す。保存後の全量再読は行わない。`image.tar.sha256` は保存bytesの照合用で、標準の `sha256sum -c` はrepoの作業directoryから使う。控え先は毎回別の0700 directory、fileは0600で、ログへ `previous-image=` と保存先を出す。inspect/save/hashに失敗すれば候補取得・Cursor更新・本体再作成へ進まず、途中の控えも削除しない。
 
 これはimageの保全だけで、整合したdata/HOME/Cursor volumeの復旧点ではない。queue控えやquiet①②も全writerの排他・DBとfile全体の同時点を証明しない。更新前に今回の整合復旧点と最新dataの確認方法を別に確定する。設置固有の夜間backupはDBごとのonline backupとfile走査であり、Cursor volumeの `state/` の控えを更新前CLI全体の保存へ代用しない。復元用imageの読込み・実際の戻しは本adapterに追加せず、最新dataとの互換性と実行許可を別に確認する。保存容量の既条件やホスト開始不可は緩和しない。
 

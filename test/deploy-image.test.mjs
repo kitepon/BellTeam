@@ -27,7 +27,7 @@ fs.appendFileSync(process.env.FIXTURE_LOG, JSON.stringify({args,cwd:process.cwd(
   compose:process.env.COMPOSE_FILE,project:process.env.COMPOSE_PROJECT_NAME,
   image:process.env.BELLTEAM_SERVER_IMAGE,profile:process.env.BELLTEAM_INTERNAL_PROFILE_FILE})+'\\n')
 if (args[0] === 'container' && args[1] === 'inspect') console.log(args.includes('{{.Id}} {{.Image}}') ? '${'c'.repeat(64)} sha256:${'d'.repeat(64)}' : 'volume bellteam_cursor-cli')
-if (args[0] === 'image' && args[1] === 'save') fs.writeFileSync(args[args.indexOf('--output')+1], 'synthetic-image')
+if (args[0] === 'image' && args[1] === 'save') { if (args.includes('--output')) fs.writeFileSync(args[args.indexOf('--output')+1], 'synthetic-image'); else process.stdout.write('synthetic-image') }
 if (args[0] === 'run') {
   if (process.env.FIXTURE_FAIL === 'extract') process.exit(8)
   process.stdout.write(args.at(-1).endsWith('update-cursor.sh') ? fs.readFileSync(process.env.FIXTURE_UPDATER) : 'services: {}\\n')

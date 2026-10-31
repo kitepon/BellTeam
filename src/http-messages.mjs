@@ -33,7 +33,7 @@ export function pageItems(items, url) {
     if (index >= 0) end = index
   }
   const start = Math.max(0, end - limit)
-  return { items: items.slice(start, end), has_more: start > 0 }
+  return { items: items.slice(start, end), has_more: start > 0, remaining_before: Math.trunc(start) }
 }
 
 // 画像の保存先は記録に残し、画面へは取得用のURLだけを渡す。`image_url` は1枚しか読まない古いアプリ向けに1枚目を入れる。

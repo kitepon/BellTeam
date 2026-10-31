@@ -44,7 +44,7 @@ for (const kind of ['settings', 'onboarding']) for (const late of ['success', 'e
           if (++reads === 1) return { auth: waiting }
           return hold(auth => ({ auth }))
         } })
-        row = container.children[0]; row.open = true; row.fire('toggle'); await settle()
+        row = container.children[0]; await settle()
       } else {
         openOnboarding(setup(waiting), { api: async (_path, options = {}) => {
           if (options.method === 'POST') posts++
