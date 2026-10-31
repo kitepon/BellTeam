@@ -182,6 +182,7 @@ test('ページ外の画像を整形せず、before/afterとカード変更の�
   }
   const page = await get('bots/bot-a', 'limit=10')
   assert.equal(page.items.length, 10); assert.equal(page.has_more, true)
+  assert.equal(page.remaining_before, 251, 'the owner question is a displayed timeline row')
   assert.equal(page.items.at(-1).id, 'card')
   assert.equal(page.items[0].image_url, '/api/message-images/bot-a/m251.png')
   // webMessage reads the selected asset and object spread also reads it once.
@@ -189,8 +190,15 @@ test('ページ外の画像を整形せず、before/afterとカード変更の�
   card = { ...card, owner_question: { status: 'answered' } }
   assert.equal((await get('bots/bot-a', 'limit=1')).items[0].owner_question.status, 'answered')
   assert.equal((await get('bots/bot-a', 'before=m10&limit=20')).items.length, 10)
+  assert.equal((await get('bots/bot-a', 'before=m10&limit=20')).remaining_before, 0)
+  assert.equal((await get('bots/bot-a', 'before=m200&limit=20')).remaining_before, 180)
   const after = await get('bots/bot-a', 'after=m0&limit=1')
   assert.equal(after.items.length, 260, 'legacy after returns every subsequent row')
   assert.equal(after.has_more, false)
+  assert.equal(Object.hasOwn(after, 'remaining_before'), false)
   assert.equal((await get('rooms/room-a', 'limit=10')).items.length, 10)
+  assert.equal((await get('rooms/room-a', 'limit=10')).remaining_before, 250)
+  assert.equal((await get('rooms/room-a', 'before=m15&limit=5')).remaining_before, 10)
+  assert.equal((await get('rooms/room-a', 'before=m0')).remaining_before, 0)
+  assert.equal((await get('rooms/room-a', 'before=missing')).remaining_before, 250)
 })
