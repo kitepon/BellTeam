@@ -36,7 +36,7 @@ public partial class MainWindow : Window
         MessageScroll.ScrollChanged += async (_, args) =>
         {
             if (!ReferenceEquals(args.OriginalSource, MessageScroll)) return;
-            if (MessageScroll.ScrollableHeight - MessageScroll.VerticalOffset < 80) NewMessagesButton.Visibility = Visibility.Collapsed;
+            NewMessagesButton.Visibility = MessageScroll.ScrollableHeight - MessageScroll.VerticalOffset < 80 ? Visibility.Collapsed : Visibility.Visible;
             var previousBottomDistance = args.ExtentHeight - args.ExtentHeightChange - args.ViewportHeight - args.VerticalOffset;
             if (!loadingOlder && args.ExtentHeightChange > 0 && previousBottomDistance < 80) _ = Dispatcher.BeginInvoke(() => MessageScroll.ScrollToEnd());
             if (!loadingOlder && args.VerticalChange < 0 && args.VerticalOffset < 48 && model.HasMore && !model.Loading) await LoadOlderPreservingPositionAsync();

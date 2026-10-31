@@ -38,13 +38,31 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         if (Authentication is { } auth)
         {
             if (!string.IsNullOrEmpty(auth.Message)) details.Children.Add(SecretCard.CardBody(auth.Message));
-            if (Uri.TryCreate(auth.Url, UriKind.Absolute, out var address) && address.Scheme == "https")
+            if (Uri.TryCreate(auth.AuthUi?.Url ?? auth.Url, UriKind.Absolute, out var address) && address.Scheme == "https")
             {
                 var link = new Button { Content = "公式サイトで認証する", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 14, 0, 10) }; link.SetResourceReference(StyleProperty, "PrimaryButton");
                 link.Click += (_, _) => { try { Process.Start(new ProcessStartInfo(address.AbsoluteUri) { UseShellExecute = true }); } catch (Exception error) { Status.Text = "公式サイトを開けませんでした。" + error.Message; } }; details.Children.Add(link);
             }
             if (!string.IsNullOrEmpty(auth.UserCode)) { details.Children.Add(new TextBlock { Text = "利用者コード", FontSize = 14, Margin = new Thickness(0, 10, 0, 4) }); details.Children.Add(SecretCard.CardBody(auth.UserCode)); }
-            if (auth.InputRequired && Started)
+            if (auth.AuthUi is { } ui)
+            {
+                if (!string.IsNullOrEmpty(ui.Title)) details.Children.Add(SecretCard.CardBody(ui.Title));
+                if (!string.IsNullOrEmpty(ui.Message)) details.Children.Add(SecretCard.CardBody(ui.Message));
+                if (!pollingFailed && ui.CanRespond && ui.Stage == "select")
+                    foreach (var choice in ui.Choices ?? [])
+                    {
+                        var choose = new Button { Content = choice.Label, IsEnabled = !Busy }; details.Children.Add(choose);
+                        choose.Click += (_, _) => _ = PerformAsync(() => api.RespondAsync(harness.Id, ui, new { kind = "choice", id = choice.Id }, Token));
+                    }
+                if (!pollingFailed && ui.CanRespond && ui.Stage == "paste_code" && ui.Input == "authorization_code")
+                {
+                    details.Children.Add(SecretCard.CardBody("公式ページに表示された認証コード")); details.Children.Add(input);
+                    var send = new Button { Content = "認証を完了する", IsEnabled = !Busy }; details.Children.Add(send);
+                    send.Click += (_, _) => { if (input.Password.Length == 0) return; var value = input.Password; input.Clear(); _ = PerformAsync(() => api.RespondAsync(harness.Id, ui, new { kind = "authorization_code", value }, Token)); };
+                }
+                else input.Clear();
+            }
+            else if (auth.InputRequired && Started)
             {
                 var fields = Section("認証に必要な入力"); System.Windows.Automation.AutomationProperties.SetName(input, "認証に必要な入力"); fields.Children.Add(input);
                 var send = new Button { Content = "入力を送る", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 8) }; fields.Children.Add(send);
@@ -55,14 +73,14 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
             else input.Clear();
         }
         var actions = new WrapPanel { Margin = new Thickness(0, 20, 0, 0) }; Body.Children.Add(actions);
-        if (harness.ReloginSupported != false) { var start = new Button { Content = "認証し直す" }; actions.Children.Add(start); start.Click += async (_, _) => await StartAsync(); }
-        else if (!string.IsNullOrEmpty(harness.StartWarning)) details.Children.Add(SecretCard.CardBody(harness.StartWarning));
+        if ((harness.ReloginSupported != false || Authentication is { Status: not "authenticated" }) && Authentication?.AuthUi is not { Binding: not null, Stage: not "complete" }) { var start = new Button { Content = Authentication?.Status == "authenticated" ? "認証し直す" : "認証する" }; actions.Children.Add(start); start.Click += async (_, _) => await StartAsync(); }
+        else if (Authentication?.Status == "authenticated" && !string.IsNullOrEmpty(harness.StartWarning)) details.Children.Add(SecretCard.CardBody(harness.StartWarning));
         var refresh = new Button { Content = "状態を更新" }; actions.Children.Add(refresh); refresh.Click += async (_, _) => await InitializeAsync();
-        if (Started) { var cancel = new Button { Content = "やめる" }; actions.Children.Add(cancel); cancel.Click += async (_, _) => await PerformAsync(async () => { await api.CancelAsync(harness.Id, Token); Started = false; return await api.StatusAsync(harness.Id, Token); }); }
+        if (Started || Authentication?.AuthUi is { Binding: not null, Stage: not "complete" }) { var cancel = new Button { Content = "やめる" }; actions.Children.Add(cancel); cancel.Click += async (_, _) => await PerformAsync(async () => { await api.CancelAsync(harness.Id, Token); Started = false; return await api.StatusAsync(harness.Id, Token); }); }
     }
     public async Task StartAsync()
     {
-        if (Busy || harness.ReloginSupported == false) return;
+        if (Busy || harness.ReloginSupported == false && Authentication is not { Status: not "authenticated" }) return;
         input.Clear();
         if (harness.NeedsStartConfirmation(Authentication) && !confirm(harness.StartWarning!)) return;
         await PerformAsync(async () => { var next = await api.StartAsync(harness.Id, Token); Started = next.Auth?.Status != "authenticated"; return next; });
@@ -72,7 +90,7 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         if (Busy) return;
         StopReading(); if (clearInput) input.Clear(); var completed = false;
         await RunAsync(async () => { var next = await action(); Token.ThrowIfCancellationRequested(); Apply(next); completed = true; return false; });
-        pollingFailed = !completed; UpdatePolling();
+        pollingFailed = !completed; if (!Token.IsCancellationRequested) Render(); UpdatePolling();
     }
     private void Apply(HarnessAuthenticationResponse next)
     {
@@ -90,7 +108,7 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         using var current = CancellationTokenSource.CreateLinkedTokenSource(Token); reading = current;
         try { var next = await api.StatusAsync(harness.Id, current.Token); current.Token.ThrowIfCancellationRequested(); if (!Busy && Authentication != next.Auth) Apply(next); }
         catch (OperationCanceledException) when (current.IsCancellationRequested) { }
-        catch (Exception error) { pollingFailed = true; timer.Stop(); Status.Text = error.Message; }
+        catch (Exception error) { pollingFailed = true; timer.Stop(); Status.Text = error.Message; Render(); }
         finally { reading = null; }
     }
 }

@@ -14,7 +14,7 @@ export function harnessAuthView(auth) {
 
 // 始める前の知らせが要るか。今の認証が消えうるAIで、認証が無い・切れているとは分かっていない時。
 export function needsStartConfirmation(harness, auth) {
-  return Boolean(harness.startWarning) && auth?.status !== 'blocked'
+  return harness.reloginSupported !== false && Boolean(harness.startWarning) && auth?.status !== 'blocked'
 }
 
 // AIの種類ごとの行を描く。返す stop は、設定を閉じる時に呼ぶ（見に行くのを止め、入力欄を空にする）。
@@ -111,8 +111,8 @@ function harnessAuthItem(harness, { api }) {
       respond: input => perform(async () => { try { return await post('input', input) } catch (error) { inputBlocked = true; throw error } }),
     })
     password = flow.password
-    if (loaded && !errorText && harness.reloginSupported !== false) nodes.push(...flow.elements)
-    if (harness.reloginSupported === false && harness.startWarning) nodes.push(Object.assign(document.createElement('p'), { textContent: harness.startWarning }))
+    if (loaded && !errorText) nodes.push(...flow.elements)
+    if (harness.reloginSupported === false && auth?.status === 'authenticated' && harness.startWarning) nodes.push(Object.assign(document.createElement('p'), { textContent: harness.startWarning }))
     const start = () => perform(async () => { confirming = false; const next = await post('start'); started = next.auth?.status !== 'authenticated'; return next })
     const actions = document.createElement('div')
     actions.className = 'secret-actions'
@@ -122,7 +122,7 @@ function harnessAuthItem(harness, { api }) {
       nodes.push(warning)
       actions.append(button('今の認証を手放して始める', start), button('始めない', () => { confirming = false; render() }))
     } else {
-      if (harness.reloginSupported !== false && (!(auth?.session_id || view.binding) || view.stage === 'complete')) actions.append(button(auth?.status === 'authenticated' ? '認証し直す' : '認証する', () => {
+      if ((harness.reloginSupported !== false || auth && auth.status !== 'authenticated') && (!(auth?.session_id || view.binding) || view.stage === 'complete')) actions.append(button(auth?.status === 'authenticated' ? '認証し直す' : '認証する', () => {
         if (needsStartConfirmation(harness, auth)) { confirming = true; render() } else return start()
       }))
       actions.append(button('状態を更新', () => perform(async () => { const next = await api(path); if (next.auth?.status === 'authenticated') started = false; return next })))

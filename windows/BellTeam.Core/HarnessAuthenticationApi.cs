@@ -3,7 +3,7 @@ namespace BellTeam.Core;
 public sealed record HarnessAuthenticationOption(string Id, string Name, int Members, string? StartWarning, bool? ReloginSupported = null)
 {
     public string UsageText => Members > 0 ? $"{Members}人が使用" : "使用していません";
-    public bool NeedsStartConfirmation(AuthenticationState? auth) => !string.IsNullOrEmpty(StartWarning) && auth?.Status != "blocked";
+    public bool NeedsStartConfirmation(AuthenticationState? auth) => ReloginSupported != false && !string.IsNullOrEmpty(StartWarning) && auth?.Status != "blocked";
 }
 public sealed record HarnessAuthenticationsResponse { public required HarnessAuthenticationOption[] Harnesses { get; init; } }
 public sealed record HarnessAuthenticationResponse { public required string Harness { get; init; } public AuthenticationState? Auth { get; init; } }
@@ -15,6 +15,8 @@ public sealed class HarnessAuthenticationApi(BellApi api)
     public Task<HarnessAuthenticationResponse> CancelAsync(string harness, CancellationToken token = default) => WriteAsync(harness, "cancel", new { }, token);
     public Task<HarnessAuthenticationResponse> InputAsync(string harness, string? text, string? key, CancellationToken token = default)
         => WriteAsync(harness, "input", text is null ? new Dictionary<string, string> { ["key"] = key! } : new Dictionary<string, string> { ["text"] = text }, token);
+    public Task<HarnessAuthenticationResponse> RespondAsync(string harness, AuthenticationUi ui, object response, CancellationToken token = default)
+        => WriteAsync(harness, "input", new { binding = ui.Binding, prompt_digest = ui.PromptDigest, response }, token);
     private static string Path(string harness) => "/api/harness-auth/" + Uri.EscapeDataString(harness);
     private async Task<HarnessAuthenticationResponse> WriteAsync(string harness, string action, object body, CancellationToken token)
     {
