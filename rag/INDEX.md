@@ -1,5 +1,7 @@
 # RAG目録
 
+- [SEC021 Debian CA](sec021/raw/debian-ca-20261025.md)、[Alpine CAとapk](sec021/raw/alpine-ca-20261025.md)、[Node同梱CA](sec021/raw/node-ca-20261025.md): 審査用本体・Dexの隔離CA更新に使う公式版と保護ファイルの扱い。取得日2026-10-25。実測は[検証記録](../docs/evidence/2026-10-25-sec021-review-ca-preparation.md)。
+
 - [Windowsのネイティブ会話クライアント](windows-native/wpf-client.md): WPFのMarkdown表示、Windows Runtimeによる画像デコード、窓を表示しない配置確認、API・SSEと新着更新中の入力保持。取得日2026-10-13、公式資料とFOX実測。
 
 - [App Reviewへの返信](app-review/raw/apple-reply-to-review-excerpt.md)と[4.3・4.2.6の抜粋](app-review/raw/apple-guidelines-43-426-excerpts.md): 拒絶への説明と補足資料を審査メッセージで届けるApple公式手順・規定。取得日2026-10-07。Mac版への送信・保存の実測は[検証記録](../docs/evidence/2026-10-07-mac-app-review-follow-up.md)に記載。
