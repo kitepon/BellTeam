@@ -207,6 +207,13 @@ final class ConversationAppearanceTests: XCTestCase {
         XCTAssertFalse(detector.wheelUp(top: -200, idle: true, now: start.addingTimeInterval(7)), "2秒より古い入力は数えない")
     }
 
+    func testAllSchedulesResponseMapsSourcesToTargets() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(AllSchedulesResponse.self, from: Data(#"{"sources":[{"kind":"bot","id":"bot-a","name":"A","schedules":[]},{"kind":"room","id":"room-b","name":"B","schedules":[]},{"kind":"other","id":"x","name":"X","schedules":[]}]}"#.utf8))
+        XCTAssertEqual(response.sources.map(\.target), [.bot("bot-a"), .room("room-b"), nil])
+    }
+
     func testScrollBarLengthStartsAtFiftyAndGrowsByOnePage() {
         XCTAssertEqual(10 + ConversationHistoryPage.reservedRows(loaded: 10), 50)
         XCTAssertEqual(35 + ConversationHistoryPage.reservedRows(loaded: 35), 50)

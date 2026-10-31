@@ -223,6 +223,21 @@ struct AIControl: Decodable, Equatable {
     let error: String?
 }
 struct SchedulesResponse: Decodable { let schedules: [Schedule] }
+struct AllSchedulesResponse: Decodable {
+    struct Source: Decodable {
+        let kind: String
+        let id: String
+        let schedules: [Schedule]
+        var target: ChatTarget? {
+            switch kind {
+            case "bot": .bot(id)
+            case "room": .room(id)
+            default: nil
+            }
+        }
+    }
+    let sources: [Source]
+}
 struct ScheduleResponse: Decodable { let schedule: Schedule }
 struct SessionResponse: Decodable { let authenticated: Bool; let authMode: String }
 struct HarnessOption: Decodable, Identifiable { let id: String; let name: String }
