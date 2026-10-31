@@ -172,6 +172,13 @@ enum ChatTarget: Hashable, Sendable {
     var path: String { "/api/\(isRoom ? "rooms" : "bots")/\(id)" }
 }
 
+/// 会話を開き直す時にすぐ出す前回の先頭の頁。端末には保存しない。
+struct ConversationPage {
+    let items: [TimelineMessage]
+    let hasMore: Bool
+    let remainingBefore: Int
+}
+
 struct ListResponse<T: Decodable>: Decodable {
     let items: [T]
     let hasMore: Bool

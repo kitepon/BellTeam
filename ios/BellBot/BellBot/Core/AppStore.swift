@@ -81,6 +81,7 @@ final class AppStore: ObservableObject {
     private var drafts: [ChatTarget: ConversationDraft] = [:]
     // 編集値は再認証をまたいで保持する。文字入力でアプリ全体へ更新通知を出さない。
     var botEditorDrafts: [String: BotEditorDraft] = [:]
+    var conversationPages: [ChatTarget: ConversationPage] = [:]
     var profileImageDrafts: [String: AvatarSelectionDrafts] = [:]
     @Published var notificationSecret: SecretRequest?
     private var pendingNotification: BellNotificationRoute?
@@ -156,6 +157,7 @@ final class AppStore: ObservableObject {
         guard let url = ServerOrigin.url(address) else { throw BellAPIError.server("HTTPS、またはlocalhost・LANのHTTP接続先URLを入力してください。") }
         if serverURL != url {
             botEditorDrafts.removeAll()
+            conversationPages.removeAll()
             profileImageDrafts.removeAll()
             pendingBotDeletionIDs.removeAll()
             resetAIControl()
@@ -793,6 +795,7 @@ final class AppStore: ObservableObject {
         for draft in drafts.values { draft.clear() }
         drafts.removeAll()
         botEditorDrafts.removeAll()
+        conversationPages.removeAll()
         profileImageDrafts.removeAll()
         pendingBotDeletionIDs.removeAll()
         resetAIControl()

@@ -703,6 +703,12 @@ private struct ConversationContent: View {
             return
         }
         #endif
+        // 前に開いた会話は、取得を待たず前回の頁を出す。
+        if let page = store.conversationPages[target] {
+            timeline.replaceReceived(page.items)
+            hasMore = page.hasMore
+            remainingBefore = page.remainingBefore
+        }
         do {
             async let page: ListResponse<TimelineMessage> = store.api.get(target.path + "/messages?limit=10")
             async let waiting: QueueResponse = store.api.get(target.path + "/queue")
@@ -713,6 +719,8 @@ private struct ConversationContent: View {
             queue = queued.items
             hasMore = result.hasMore
             remainingBefore = result.remainingBefore ?? 0
+            store.conversationPages[target] = ConversationPage(items: result.items, hasMore: result.hasMore,
+                                                               remainingBefore: remainingBefore)
             errorText = nil
             initialLoadFailed = false
         } catch let error where BellAPIError.isAuthenticationError(error) {
