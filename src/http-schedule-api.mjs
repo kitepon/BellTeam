@@ -1,7 +1,19 @@
 import { json, readJson } from './http-response.mjs'
 
-export function createScheduleApi({ bots, scheduler }) {
+export function createScheduleApi({ bots, rooms, scheduler }) {
   return async (request, response, url) => {
+    if (request.method === 'GET' && url.pathname === '/api/schedules') {
+      await rooms.refresh?.()
+      const owners = [
+        ...[...bots.values()].map(profile => ({ kind: 'bot', profile, registry: bots })),
+        ...[...rooms.values()].map(profile => ({ kind: 'room', profile, registry: rooms })),
+      ]
+      const sources = await Promise.all(owners.map(async ({ kind, profile, registry }) => ({
+        kind, id: profile.id, name: profile.displayName ?? profile.name ?? profile.id,
+        schedules: await registry.listSchedules(profile.id),
+      })))
+      return json(response, 200, { sources })
+    }
     const scheduleRunMatch = url.pathname.match(/^\/api\/(bots|rooms)\/([a-z0-9-]+)\/schedules\/([^/]+)\/run$/u)
     if (request.method === 'POST' && scheduleRunMatch) {
       if (!scheduler) return json(response, 503, { error: 'SCHEDULER_UNAVAILABLE' })

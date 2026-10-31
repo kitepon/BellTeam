@@ -6,6 +6,20 @@ namespace BellTeam.Core;
 public sealed class PlanningApi(BellApi api)
 {
     public Task<SchedulesResponse> SchedulesAsync(ChatTarget target, CancellationToken token = default) => api.GetAsync<SchedulesResponse>(target.Path + "/schedules", token);
+    public async Task<ScheduleSource[]> AllSchedulesAsync(IEnumerable<(ChatTarget Target, string Name)> owners, CancellationToken token = default)
+    {
+        try
+        {
+            var response = await api.GetAsync<AllSchedulesResponse>("/api/schedules", token);
+            if (response.Sources is null || response.Sources.Any(source => source is null || source.Kind is not ("bot" or "room") || string.IsNullOrEmpty(source.Id) || source.Name is null || source.Schedules is null))
+                throw new BellApiException("予定の一覧を読み取れませんでした。");
+            return response.Sources;
+        }
+        catch (BellApiException error) when (error.Status == System.Net.HttpStatusCode.NotFound)
+        {
+            return await Task.WhenAll(owners.Select(async owner => new ScheduleSource { Kind = owner.Target.IsRoom ? "room" : "bot", Id = owner.Target.Id, Name = owner.Name, Schedules = (await SchedulesAsync(owner.Target, token)).Schedules }));
+        }
+    }
     public Task<ScheduleResponse> SaveScheduleAsync(ChatTarget target, string? id, Dictionary<string, object?> body, CancellationToken token = default)
         => api.WriteAsync<ScheduleResponse>(id is null ? HttpMethod.Post : HttpMethod.Put, target.Path + "/schedules" + (id is null ? "" : "/" + Uri.EscapeDataString(id)), body, token);
     public Task DeleteScheduleAsync(ScheduledEntry entry, CancellationToken token = default) => api.DeleteAsync(entry.Path, token);

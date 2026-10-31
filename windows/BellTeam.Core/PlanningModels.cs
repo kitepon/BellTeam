@@ -27,6 +27,15 @@ public sealed record Schedule
     [JsonIgnore] public string Title => Name.Length == 0 ? Prompt ?? Command ?? "予定" : Name;
 }
 public sealed record SchedulesResponse { public required Schedule[] Schedules { get; init; } }
+public sealed record AllSchedulesResponse { public required ScheduleSource[] Sources { get; init; } }
+public sealed record ScheduleSource
+{
+    public required string Kind { get; init; }
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public required Schedule[] Schedules { get; init; }
+    public ChatTarget Target => Kind switch { "bot" => new(Id, false), "room" => new(Id, true), _ => throw new BellApiException("予定の所有者を読み取れませんでした。") };
+}
 public sealed record ScheduleResponse { public required Schedule Schedule { get; init; } }
 public sealed record ScheduledEntry(ChatTarget Target, string OwnerName, Schedule Schedule)
 {

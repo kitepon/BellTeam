@@ -18,8 +18,12 @@ public sealed class SchedulesWindow : EditorWindow
     public Task InitializeAsync() => RunAsync(async () =>
     {
         var entries = new List<ScheduledEntry>();
-        foreach (var target in workspace.Conversations)
-            entries.AddRange((await workspace.Planning.SchedulesAsync(target.Target, Token)).Schedules.Select(schedule => new ScheduledEntry(target.Target, target.Name, schedule)));
+        var sources = await workspace.Planning.AllSchedulesAsync(workspace.Conversations.Select(owner => (owner.Target, owner.Name)), Token);
+        foreach (var source in sources)
+        {
+            var owner = workspace.Conversations.FirstOrDefault(entry => entry.Target == source.Target);
+            if (owner is not null) entries.AddRange(source.Schedules.Select(schedule => new ScheduledEntry(owner.Target, owner.Name, schedule)));
+        }
         Token.ThrowIfCancellationRequested(); Body.Children.Clear();
         var heading = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
         var add = new Button { Content = "予定を追加", Tag = "\uE710", VerticalAlignment = VerticalAlignment.Top }; add.SetResourceReference(StyleProperty, "PrimaryButton"); add.Click += (_, _) => Edit(null); DockPanel.SetDock(add, Dock.Right); heading.Children.Add(add);

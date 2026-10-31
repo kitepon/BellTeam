@@ -236,7 +236,7 @@ test('観測identityが固定Codex native直起動なら、そのrootと既知�
 test('hookの別root/版/余分引数/別exe/別親/非Claudeと似た名前を拒否する', () => {
   const bad = [
     { ...hook, argv: [nodeExe, '/other/approval-box-claude-hook.mjs'] },
-    { ...hook, argv: [nodeExe, `${approval.replace('0.1.26', '0.1.27')}approval-box-claude-hook.mjs`] },
+    { ...hook, argv: [nodeExe, `${approval.replace('0.1.26', '0.1.28')}approval-box-claude-hook.mjs`] },
     { ...hook, argv: [...hook.argv, '--extra'] },
     { ...hook, argv: [nodeExe, `${approval}approval-box-claude-hook.mjs.extra`] },
     { ...hook, exe: '/other/node' }, { ...hook, ppid: 999 },
@@ -481,6 +481,8 @@ if [ "$2" = config ] && [ "$3" = --images ]; then echo fixture-server; fi
 if [ "$2" = config ] && [ "$3" = --format ]; then printf '%s\\n' 'name: fixture' 'volumes:' '  cursor-cli:' '    name: fixture-cursor'; fi
 `)
   await chmod(join(root, 'bin/docker'), 0o755)
+  await writeFile(join(root,'bin/python3'), '#!/bin/sh\nprintf "/fixture/qnap/restore-point\\n"\n')
+  await chmod(join(root,'bin/python3'),0o755)
   const commands = join(root, 'commands'), counter = join(root, 'count')
   for (const blockAt of ['1', '2', '0']) {
     await writeFile(commands, '')
@@ -517,3 +519,13 @@ for (const localNode of ['environment/node_modules/node/bin/node', 'environment/
       assert.equal(trustedIdleTree([{...wrapper,exe},native,mcp],10,'codex-cli','bot-peer'),false)
   })
 }
+
+test('通常更新のApproval Box 0.1.27も固定入口だけを受け入れる', () => {
+  const newer = {...hook, argv: [nodeExe, approval.replace('0.1.26', '0.1.27')+'approval-box-claude-hook.mjs']}
+  assert.equal(trustedIdleTree([root,newer],10,'claude-code','bot-peer'),true)
+  const server = {...newer, argv:[nodeExe,approval.replace('0.1.26','0.1.27')+'cli.mjs','mcp']}
+  assert.equal(trustedIdleTree([root,server],10,'claude-code','bot-peer'),true)
+  assert.equal(trustedIdleTree([root,{...server,argv:[...server.argv,'--extra']}],10,'claude-code','bot-peer'),false)
+  const relayed = {...server,pid:30,exe:relay,argv:[relay,...server.argv]}
+  assert.equal(trustedIdleTree([root,relayed,{...server,pid:40,ppid:30}],10,'claude-code','bot-peer'),true)
+})

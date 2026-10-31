@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { access, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, readFile, writeFile, stat, utimes } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -31,6 +31,25 @@ async function fixture() {
   await registry.initialize()
   return { root, seedPath, registry }
 }
+
+test('未変更profileの再parseを省き、同size・mtimeの外部更新も次のrefreshで読む', async () => {
+  const { root, registry } = await fixture()
+  const read = registry.readProfile.bind(registry)
+  let reads = 0
+  registry.readProfile = async id => { reads++; return read(id) }
+  await registry.refresh()
+  await registry.refresh()
+  assert.equal(reads, 0, 'unchanged profile payload must not be reread')
+  const path = join(root, 'bots/bot-a/bot.json'), previous = await stat(path)
+  const raw = await readFile(path, 'utf8'), value = JSON.parse(raw)
+  const name = value.name === '調査担当' ? '更新担当' : '調査担当'
+  await writeFile(path, raw.replace(JSON.stringify(value.name), JSON.stringify(name)))
+  assert.equal((await stat(path)).size, previous.size)
+  await utimes(path, previous.atime, previous.mtime)
+  await registry.refresh()
+  assert.equal(registry.get('bot-a').name, name)
+  assert.equal(reads, 1)
+})
 
 test('seedからBot別プロジェクトを作り、プロフィール変更を永続化する', async () => {
   const { root, registry } = await fixture()
