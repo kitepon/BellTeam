@@ -1,0 +1,106 @@
+name: 公開サーバーの匿名導入と更新を確認
+
+on:
+  workflow_dispatch:
+    inputs:
+      digest:
+        description: 確認する公開済みindex digest
+        required: true
+        type: string
+      source:
+        description: imageに記録された40文字のsource commit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-server-install-verification
+  cancel-in-progress: false
+
+jobs:
+  install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    env:
+      EXPECTED_DIGEST: ${{ inputs.digest }}
+      EXPECTED_SOURCE: ${{ inputs.source }}
+      COMPOSE_PROJECT_NAME: published-server-smoke
+    steps:
+      - uses: actions/checkout@v7
+      - name: 入力と空のDocker資格設定
+        run: |
+          node --input-type=module -e 'import assert from "node:assert/strict"; assert.match(process.env.EXPECTED_DIGEST, /^sha256:[a-f0-9]{64}$/); assert.match(process.env.EXPECTED_SOURCE, /^[a-f0-9]{40}$/)'
+          mkdir -p "$RUNNER_TEMP/anonymous-docker" runtime/published-server
+          echo "DOCKER_CONFIG=$RUNNER_TEMP/anonymous-docker" >> "$GITHUB_ENV"
+      - name: 公開設置ファイルを匿名取得
+        run: |
+          for file in compose.yaml install.sh; do
+            curl -fsS "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/distribution/server/$file" -o "runtime/published-server/$file"
+            cmp "distribution/server/$file" "runtime/published-server/$file"
+          done
+      - name: latestから空の永続領域へ導入
+        working-directory: runtime/published-server
+        run: |
+          sh install.sh 2>&1 | tee first.log
+          docker image inspect ghcr.io/kitepon/bellteam-server:latest --format '{{json .RepoDigests}}' > latest-digests.json
+          docker compose ps -q bellteam > first-cid.txt
+          test "$(docker inspect --format '{{.Image}}' "$(cat first-cid.txt)")" = "$(docker image inspect --format '{{.Id}}' ghcr.io/kitepon/bellteam-server:latest)"
+          test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$(cat first-cid.txt)")" = true
+          docker compose exec -T -e EXPECTED_SOURCE bellteam node --input-type=module - <<'JS' > first.json
+          import assert from 'node:assert/strict';
+          import { readFile, writeFile } from 'node:fs/promises';
+          const distribution = JSON.parse(await readFile('/app/distribution.json', 'utf8'));
+          assert.equal(distribution.sourceCommit, process.env.EXPECTED_SOURCE);
+          const get = async path => { const r = await fetch('http://127.0.0.1:4181' + path); assert.equal(r.status, 200); return r.json() };
+          assert.equal((await get('/api/bots?avatar=omit')).bots.length, 1);
+          assert.equal((await get('/api/setup')).complete, false);
+          const response = await fetch('http://127.0.0.1:4181/api/owner', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Published installer smoke' }) });
+          assert.equal(response.status, 200);
+          await writeFile('/home/bell/installer-smoke.txt', 'home-retained');
+          await writeFile('/srv/bellteam/installer-smoke.txt', 'data-retained');
+          console.log(JSON.stringify({ emptyInstall: true, bots: 1, ownerWritten: true }));
+          JS
+      - name: previewの同一実物へ更新して設定保持を確認
+        working-directory: runtime/published-server
+        run: |
+          BELLTEAM_SERVER_IMAGE=ghcr.io/kitepon/bellteam-server:preview sh install.sh 2>&1 | tee update.log
+          docker image inspect ghcr.io/kitepon/bellteam-server:preview --format '{{json .RepoDigests}}' > preview-digests.json
+          test "$(cat first-cid.txt)" != "$(docker compose ps -q bellteam)"
+          test "$(docker inspect --format '{{.Image}}' "$(docker compose ps -q bellteam)")" = "$(docker image inspect --format '{{.Id}}' ghcr.io/kitepon/bellteam-server:preview)"
+          docker compose exec -T -e EXPECTED_SOURCE bellteam node --input-type=module - <<'JS' > updated.json
+          import assert from 'node:assert/strict';
+          import { readFile } from 'node:fs/promises';
+          const distribution = JSON.parse(await readFile('/app/distribution.json', 'utf8'));
+          assert.equal(distribution.sourceCommit, process.env.EXPECTED_SOURCE);
+          const response = await fetch('http://127.0.0.1:4181/api/owner');
+          assert.equal(response.status, 200);
+          assert.equal((await response.json()).owner.name, 'Published installer smoke');
+          assert.equal(await readFile('/home/bell/installer-smoke.txt', 'utf8'), 'home-retained');
+          assert.equal(await readFile('/srv/bellteam/installer-smoke.txt', 'utf8'), 'data-retained');
+          const health = await fetch('http://127.0.0.1:4180/healthz');
+          assert.equal(health.status, 200);
+          console.log(JSON.stringify({ source: distribution.sourceCommit, health: health.status, ownerPreserved: true, homePreserved: true, dataPreserved: true, scope: 'latest fresh install and same-digest preview replacement; not a prior-version migration' }));
+          JS
+          node --input-type=module - <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          for (const tag of ['latest', 'preview']) assert.ok(JSON.parse(readFileSync(tag + '-digests.json')).includes('ghcr.io/kitepon/bellteam-server@' + process.env.EXPECTED_DIGEST));
+          JS
+      - name: 専用projectを片付ける
+        if: always()
+        working-directory: runtime/published-server
+        run: |
+          if test -f compose.yaml; then docker compose down --volumes --remove-orphans; fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: published-server-install-result
+          path: |
+            runtime/published-server/*.json
+            runtime/published-server/*.log
+            runtime/published-server/first-cid.txt
