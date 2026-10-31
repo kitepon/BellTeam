@@ -105,6 +105,11 @@ final class DesktopWorkspaceUITests: XCTestCase {
         XCTAssertEqual(try older(), ["?limit=20&before=s33"], "表示域が埋まれば止まる")
         filled.terminate()
 
+        let complete = try open(reset: "failBefore=0&shortTotal=3")
+        Thread.sleep(forTimeInterval: 3)
+        XCTAssertEqual(try older(), [], "残りが無ければ取得しない")
+        complete.terminate()
+
         let failing = try open(reset: "failBefore=1")
         defer { failing.terminate() }
         XCTAssertTrue(failing.staticTexts["send-error"].waitForExistence(timeout: 5), "取得失敗を表示する")

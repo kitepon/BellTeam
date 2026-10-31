@@ -188,7 +188,7 @@ private struct ConversationContent: View {
                         }
                     }
                     #if targetEnvironment(macCatalyst)
-                    .onChange(of: [hasMore, loadingOlder]) { _, _ in
+                    .onChange(of: [hasMore, loadingOlder, scenePhase == .active]) { _, _ in
                         fillViewportWithOlderMessages(viewportHeight: viewport.size.height, proxy: proxy)
                     }
                     .background {
@@ -796,8 +796,8 @@ private struct ConversationContent: View {
     #if targetEnvironment(macCatalyst)
     /// Macのホイールは動かせる長さが無いと位置が変わらず、上端の取得が始まらない。表示域が埋まるまで過去を足す。
     private func fillViewportWithOlderMessages(viewportHeight: CGFloat, proxy: ScrollViewProxy) {
-        guard scroll.height > 0, scroll.height <= viewportHeight, hasMore, !loadingOlder, scroll.canLoadOlder,
-              let oldest = messages.first?.id else { return }
+        guard scenePhase == .active, scroll.height > 0, scroll.height <= viewportHeight, hasMore, !loadingOlder,
+              scroll.canLoadOlder, let oldest = messages.first?.id else { return }
         scroll.canLoadOlder = false
         olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
     }
