@@ -75,6 +75,7 @@ try {
   if(profile)env.BELLTEAM_INTERNAL_PROFILE_FILE=profile.Source
   const args=['compose','--project-directory',working,'-p',project,...files.flatMap(file=>['-f',file])]
   if(envFile)args.push('--env-file',envFile)
+  else if(initial&&fs.existsSync(path.join(repo,'.env')))args.push('--env-file',path.join(repo,'.env'))
   const raw=docker([...args,'config','--format','json'],{env})
   const normal=JSON.parse(raw.replaceAll('$$','$'))
   if(normal.name!==project||Object.keys(normal.services).join(',')!=='bellteam')throw new Error()
