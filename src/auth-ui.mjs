@@ -74,3 +74,12 @@ export function authResponseFailure(result, session) {
     status: valid && value.effect === 'not_issued' ? 409 : 502, effect: valid ? value.effect : 'unknown',
   })
 }
+
+export function authReceipt(result, session, invalid) {
+  const failure = authResponseFailure(result, session)
+  if (failure) throw failure
+  const receipt = result.structuredContent
+  if (receipt?.schema !== 'aiterm.agent-auth-result.v1' || !['waiting', 'authenticated', 'blocked', 'failed'].includes(receipt.status))
+    throw invalid()
+  return receipt
+}

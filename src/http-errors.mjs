@@ -1,7 +1,7 @@
 import { SubscriptionAccessError } from './subscriptions.mjs'
 import { ModelCatalogError } from './model-catalog.mjs'
 import { diagnosticRequestContext } from './diagnostic-request-context.mjs'
-import { returnedExecutionError } from './execution-bridge.mjs'
+import { returnedExecutionError } from './execution-error.mjs'
 import { json } from './http-response.mjs'
 
 // ファストモードを保存しなかった理由。切り替えたBot（MCPの set_fast_mode）と設定画面が、符号だけでなく訳を読めるようにする。

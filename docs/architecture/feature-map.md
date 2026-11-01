@@ -1,6 +1,6 @@
 # BellTeamの機能とデータの流れ
 
-対象は `5974fb7e401d995bb1ddd954508179344ce33cf1` を基底とする本体。2026-11-01にコードから起こし、同日の接続整理を反映した現状図である。全体の接続、会話・制御・記憶の主要分岐を確認した。Apple画面内部、各独立製品の内部、installer/backupの全分岐を精査した図ではない。改善予定と実装状況は[接続の整理計画](refactor-plan.md)へ分ける。
+BellTeam本体/API/Webの機能図。調査起点は `546f232180515a2a8cd9098b943673170c49e3d4`、本branchの製品head `b91aec8d20bc7237cf70cd02643205cf832e7ed8` までを照合した。各現状図は変更後の窓口を説明し、過去の計画はその旨を明示する。最終照合で見つけた一覧・規範読取・任意機能の結果所有も修理した。図と計画実装は揃い、全体試験1088件が成功し、**独立採否・通常候補が残る**。[確認範囲](detail-status.md)と[追加修理](web-final-gaps.md)へ続く。Apple画面内部と独立製品内部は、それぞれの公開窓口までを扱う。
 
 ## アプリ全体で何が起きるか
 
@@ -67,15 +67,33 @@ HTTP200は操作ごとの受付結果である。AIの回答完了、外部の�
 | 会話から作る引継ぎ情報 | Throughline | 起動時の文脈と保存済みターン |
 | 長期記憶・知識と検索 | BellTeamMemory | 指定scope内の記憶/検索結果 |
 | 秘密入力・質問・認証状態 | 各専用サービス | 公開状態、カード、値を含めない通知 |
-| Webの選択・入力・描画中の状態 | Webクライアント | HTTP操作。サーバーの元データを所有しない |
+| Webの一覧・選択・既読 | app | 対象snapshotと各機能への呼出し。サーバー正本の表示用cache |
+| 会話の下書き・送信中入力・回収欄 | conversation-composer | 操作時の宛先/本文/画像/返信先。受付と表示更新を分ける |
+| Web履歴・queue・読取順 | conversation-timeline | 対象会話の行と処理中表示、停止依頼。内部Mapは公開しない |
+| 各編集/読取画面 | 各editor/view | 開いた対象、未保存入力、保存/読取結果と局所資源 |
 
 同じ「状態」という名前でも、全体の停止意図、配送の停止結論、nativeの実行状態、画面の表示状態を一つの値へ潰さない。
 
 ## 詳細図から実関数へ
 
+- [HTTP・MCP・自動処理の入口索引](entrypoints.md)
+- [メンバー・部屋台帳・予定・指示生成の詳細](registry-details.md)
+- [秘密入力・質問・認証・任意機能・通知・購読・診断の詳細](support-details.md)
+- [Webの状態所有・会話選択・送信・履歴・SSEの詳細](web-details.md)
+- [Webの編集・画像・Goalの詳細](web-management-details.md)
+- [配送job・受付・完了・差し込み・画像・部屋の詳細](delivery-details.md)
+- [停止世代・設定適用・Goal契約の詳細](control-details.md)
+- [自主ターン・報告・idle観測の詳細](observation-details.md)
+- [記憶・知識の保存と検索の詳細](memory-details.md)
+- [起動・席の短命処理・CLI登録の詳細](runtime-details.md)
 - [会話・配送・履歴・画面更新](conversation-flow.md)
 - [予定・設定・停止・Goal](control-and-state.md)
 - [記憶・認証・入力支援・起動・配布・保全](support-and-runtime.md)
-- [現状の接続をどう整理するか](refactor-plan.md)
+- [供給・installer・状態移行・backup/restoreの詳細](distribution-details.md)
+- [外部窓口と共通処理の依存整理](boundary-details.md)
+- [第一段で整理した接続](refactor-plan.md)
+- [詳細化の確認範囲と次の整理案](detail-status.md)
 
 各詳細図の表に実装と既存試験を対応させる。試験の列は確認対象の案内であり、今回その全試験を実行したという意味ではない。製品の契約は[現在の設計](../current-design.md)と併せて読む。古い説明と現コードの差は実装変更と混ぜず訂正する。
+
+D4/D5の設計経緯と確認条件は[入力と表示の所有設計](web-ownership-plan.md)。その計画実装と最終照合の[追加修理](web-final-gaps.md)も実装した。全体試験1088件は成功し、独立採否が残る。

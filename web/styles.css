@@ -389,3 +389,8 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .harness-auth-status.authenticated { background: #e0f4e9; color: #17633b; }
 .harness-auth-status.blocked, .harness-auth-status.failed { background: #fff0e0; color: #82450d; }
 .harness-auth .secret-actions button:first-child { background: #6851c4; color: #fff; }
+
+.retained-inputs { padding: 12px; overflow: auto; max-height: 40vh; }
+.retained-inputs section { display: grid; gap: 8px; margin-top: 12px; }
+.retained-inputs textarea { width: 100%; min-height: 4em; box-sizing: border-box; }
+.retained-inputs img { max-width: 100%; max-height: 160px; object-fit: contain; }

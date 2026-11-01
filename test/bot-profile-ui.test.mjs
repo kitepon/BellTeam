@@ -20,7 +20,7 @@ test('Bot設定は人格の3欄と、その後に一行の役職・役割を持�
 
 test('Bot設定は作成後もモデルとエフォートを選べる', async () => {
   const html = await readFile(new URL('../web/index.html', import.meta.url), 'utf8')
-  const app = await readFile(new URL('../web/app.js', import.meta.url), 'utf8')
+  const app = await readFile(new URL('../web/bot-editor.js', import.meta.url), 'utf8')
 
   assert.match(html, /<select id="bot-model"/u)
   assert.match(html, /id="bot-model-custom"/u)

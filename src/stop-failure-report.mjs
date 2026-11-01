@@ -1,4 +1,4 @@
-import { returnedExecutionError } from './execution-bridge.mjs'
+import { returnedExecutionError } from './execution-error.mjs'
 
 const status = value => ['sent', 'idle', 'failed', 'partial'].includes(value) ? value : 'unknown'
 const code = value => returnedExecutionError({ schema: 'aiterm.execution-error.v1', code: value,

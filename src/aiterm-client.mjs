@@ -6,7 +6,7 @@ import { createSeatProcessRunner } from './seat-process.mjs'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
-import { returnedExecutionError, ERROR_META } from './execution-bridge.mjs'
+import { returnedExecutionError, ERROR_META } from './execution-error.mjs'
 import { authenticationPreflightFailure, unpromptedLaunchActionRequired } from './agent-launch-error.mjs'
 import { captureMcpError } from './returned-mcp-error.mjs'
 

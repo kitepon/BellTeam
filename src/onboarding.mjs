@@ -1,7 +1,7 @@
 import { appendFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { runtimeEnvironment } from './runtime-home.mjs'
-import { authUi, authResponse, authResponseFailure } from './auth-ui.mjs'
+import { authUi, authResponse, authReceipt } from './auth-ui.mjs'
 import guide from '../config/setup-guide.json' with { type: 'json' }
 
 export const HARNESS = { claude: 'claude-code', codex: 'codex-cli', grok: 'grok-cli', cursor: 'cursor-cli', antigravity: 'antigravity-cli' }
@@ -143,11 +143,7 @@ export class Onboarding {
       ...(this.state.authSession ? { session_id: this.state.authSession } : {}),
       ...(this.state.guideBotId ? { cwd: this.bots.get(this.state.guideBotId)?.project } : {}),
     }, this.client.authOptions?.() ?? { env: runtimeEnvironment() })
-    const failure = authResponseFailure(result, this.state.authSession)
-    if (failure) throw failure
-    const receipt = result.structuredContent
-    if (receipt?.schema !== 'aiterm.agent-auth-result.v1' || !['waiting', 'authenticated', 'blocked', 'failed'].includes(receipt.status))
-      throw new OnboardingError('SETUP_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。')
+    const receipt = authReceipt(result, this.state.authSession, () => new OnboardingError('SETUP_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。'))
     this.auth = receipt
   }
 

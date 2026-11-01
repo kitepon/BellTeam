@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { exists } from './bot-registry.mjs'
+import { exists } from './json-file.mjs'
 
 async function writeText(path, text) {
   const temporary = `${path}.${randomUUID()}.tmp`

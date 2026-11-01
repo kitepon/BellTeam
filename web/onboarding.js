@@ -123,6 +123,11 @@ export function refreshFeatureSettingsStatus(container, settings) {
     const details = [...container.children].find(item => item.dataset.featureId === setting.id)
     if (!details) continue
     details.children[0].textContent = featureSettingTitle(setting)
+    for (const field of setting.fields ?? []) {
+      if (!field.secret) continue
+      const input = [...details.querySelectorAll('input')].find(input => input.dataset.fieldKey === field.key)
+      if (input) input.placeholder = field.configured ? '登録済み・変更するときだけ入力' : '未設定'
+    }
     let failure = details.querySelector('.feature-application-error')
     if (setting.error) {
       if (!failure) {
@@ -159,6 +164,7 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
       label.append(Object.assign(document.createElement('span'), { textContent: field.label }))
       const input = document.createElement('input')
       input.type = field.secret ? 'password' : 'text'
+      input.dataset.fieldKey = field.key
       input.value = field.secret ? '' : field.value
       input.autocomplete = 'off'
       input.autocapitalize = 'none'
@@ -182,21 +188,24 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
       error.textContent = ''
       const values = Object.fromEntries(inputs.filter(({ field, input }) => !field.secret || input.value).map(({ field, input }) => [field.key, input.value]))
       for (const { field, input } of inputs) if (field.secret) input.value = ''
+      const submittedEnabled = enabled.checked
+      let saved = false
       try {
         await api(`/api/settings/${encodeURIComponent(setting.id)}`, {
-          method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: enabled.checked, values }),
+          method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: submittedEnabled, values }),
           redirect: 'error', cache: 'no-store', credentials: 'same-origin',
         })
+        saved = true
         await onChange()
       } catch (cause) {
-        if (setting.id === 'cloudflare' && enabled.checked && (cause.status === 401 || cause.status === 403 || cause instanceof TypeError)) {
+        if (setting.id === 'cloudflare' && submittedEnabled && (cause.status === 401 || cause.status === 403 || cause instanceof TypeError)) {
           error.textContent = '外部接続の保存後に認証が必要になった可能性があります。再読み込みしてログインしてください。'
           const login = document.createElement('button')
           login.type = 'button'
           login.textContent = '再読み込みしてログイン'
           login.addEventListener('click', () => location.reload())
           error.append(login)
-        } else error.textContent = cause.message
+        } else error.textContent = saved ? `保存しました。表示を更新できませんでした（${cause.message}）` : cause.message
       } finally { save.disabled = false }
     })
     details.append(summary)

@@ -1,5 +1,5 @@
 import { diagnosticFailureDetails } from './diagnostic-report-context.mjs'
-import { returnedExecutionError } from './execution-bridge.mjs'
+import { returnedExecutionError } from './execution-error.mjs'
 import { authenticationPreflightFailure, launchFailureDetails } from './agent-launch-error.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
 

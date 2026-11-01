@@ -92,7 +92,7 @@ flowchart LR
   Direct["直接会話JSONL"] --> Store["ConversationStore<br/>snapshotと索引"]
   Room["部屋の記録"] --> Views["表示用の履歴を組む"]
   Store --> Views
-  Cards["秘密入力・質問・認証等のカード"] --> Views
+  Cards["秘密入力・質問のカード"] --> Views
   Views --> HTTP["GET 履歴・ページ・queue"]
   HTTP --> Web["Webの選択中timeline"]
   Changes["会話/queue/カード等の変更"] --> SSE["SSE<br/>topicとBot/roomのID"]
@@ -100,7 +100,7 @@ flowchart LR
   Refresh --> HTTP
 ```
 
-SSEは本文全体ではなく変更通知。サーバーはtopicと対象IDをまとめて通知する。`web/app.js` は選択のtokenで古い取得結果を捨て、ページ・queue・スクロール位置を維持する。
+SSEは本文全体ではなく変更通知。サーバーはtopicと対象IDをまとめて通知する。appは選択と取得理由をtimelineへ渡す。`conversation-timeline.js` が対象/token/読取順で古い結果を捨て、ページ・queue・スクロール位置を維持する。一覧cacheの順序は別で、[残る接続](web-final-gaps.md)に分ける。
 
 基底では選択中の会話と関係しないSSEでも `loadMessages` を呼んでいた。現在はeventAffectsTimelineで対象を選び、refreshFromEventが必要な再取得を接続する。ただし一覧の最新活動は他の会話の変更でも更新が必要で、`loadBots` まで一緒に止める根拠にはならない。ready/all/未知形式には全体更新のfallbackを残す。
 
@@ -116,6 +116,6 @@ SSEは本文全体ではなく変更通知。サーバーはtopicと対象IDを�
 | 部屋の投稿/返信 | room-messenger.mjs / mcp-tools.mjsのrespond_to_room | room-messenger, room-routing, mcp-tools |
 | 自主ターンの観測 | seat-turns.mjs / self-turns.mjs / turn-reports.mjs | seat-turns, self-turns, turn-reports |
 | 保存記録の読取り | conversation-store.mjs / timeline-index.mjs / http-messages.mjs | conversation-store, server-history-performance |
-| 変更通知/画面更新 | http-events.mjs / application-runtime.mjs / web/app.js | http-events, application-runtime, timeline-open-queue, chat-input |
+| 変更通知/画面更新 | http-events.mjs / application-runtime.mjs / web/app.js・conversation-timeline.js・conversation-composer.js | http-events, application-runtime, timeline-open-queue, chat-input |
 
 実装のパスは指定がなければ `src/`、試験は `test/<名前>.test.mjs`。
