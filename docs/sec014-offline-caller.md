@@ -1306,3 +1306,16 @@ performed.
 
 References: [unix(7)](https://man7.org/linux/man-pages/man7/unix.7.html) and
 [proc_pid_exe(5)](https://man7.org/linux/man-pages/man5/proc_pid_exe.5.html).
+
+
+### Peer record JSON persistence correction
+
+Centi's independent real-endpoint-to-existing-save case found tuple values in
+peer credentials, namespaces and executable metadata. JSON decoded those as
+lists, so the existing durable writer correctly refused the changed record.
+The producer now returns JSON-native lists for those three saved fields. No
+comparison, inode or trust check is weakened. The regression uses the real
+kernel endpoint, the existing actor._save_json, saved JSON equality and tx.check;
+it fails against0855a47 with SEC014_ACTOR_RECEIPT_CHANGED and passes after the
+three-line representation fix. Fake-peer protocol fixtures cannot establish
+this result and remain a separate test scope.

@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 from pathlib import Path
 import socket
@@ -12,9 +13,10 @@ from unittest.mock import patch
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('native_peer_control', ROOT/'distribution/internal/sec014-host-control.py')
-c = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(c)
+spec = importlib.util.spec_from_file_location('native_peer_actor', ROOT/'distribution/internal/sec014-host-actor.py')
+actor = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(actor)
+c = actor.control
 
 
 class NativePeer(unittest.TestCase):
@@ -50,6 +52,18 @@ class NativePeer(unittest.TestCase):
             self.assertEqual(value['peer']['process']['executable']['path'], os.path.realpath(sys.executable))
             self.assertGreater(value['peer']['process']['startTicks'], 0)
             self.assertFalse(value['hostAuthority'])
+            tx.check()
+            self.assertEqual(tx._docker_endpoint(), value)
+
+    def test_real_endpoint_survives_existing_durable_save(self):
+        p = self.listener()
+        with c._hold(self.control, 'to-server', (os.getuid(), os.getgid())) as tx, \
+                patch.object(type(tx), '_docker_socket_path', self.path):
+            value = tx._docker_endpoint()
+            self.assertEqual(value['peer']['pid'], p.pid)
+            digest = actor._save_json(tx, 'to-server-prepare-socket.json', value)
+            self.assertEqual(len(digest), 64)
+            self.assertEqual(json.loads((self.control/'to-server-prepare-socket.json').read_text()), value)
             tx.check()
             self.assertEqual(tx._docker_endpoint(), value)
 

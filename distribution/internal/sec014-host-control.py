@@ -367,13 +367,13 @@ class _Transaction:
                 row = re.search(r'^'+label+r':\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)$', status, re.M)
                 if row is None or any(int(value) != expected for value in row.groups()):
                     raise ControlError('SEC014_CONTROL_DOCKER_PEER_IDENTITY')
-                credentials[label] = tuple(map(int, row.groups()))
+                credentials[label] = list(map(int, row.groups()))
             namespaces = {}
             for kind in ('mnt', 'pid', 'user'):
                 observed = _identity(os.stat(proc/'ns'/kind))
                 if observed != _identity(os.stat('/proc/thread-self/ns/'+kind)):
                     raise ControlError('SEC014_CONTROL_DOCKER_PEER_NAMESPACE')
-                namespaces[kind] = observed
+                namespaces[kind] = list(observed)
             after = int((proc/'stat').read_text().rsplit(') ', 1)[1].split()[19])
             if (before != after or os.readlink(proc/'exe') != executable
                     or tuple(getattr(os.stat(proc/'exe'), key) for key in fields) != tuple(getattr(info, key) for key in fields)
@@ -381,7 +381,7 @@ class _Transaction:
                     or (proc/'status').read_text().split('Gid:',1)[1].splitlines()[0] != status.split('Gid:',1)[1].splitlines()[0]):
                 raise ControlError('SEC014_CONTROL_DOCKER_PEER_CHANGED')
             return dict(startTicks=before, executable=dict(path=executable,
-                metadata=tuple(getattr(info, key) for key in fields)), credentials=credentials, namespaces=namespaces)
+                metadata=[getattr(info, key) for key in fields]), credentials=credentials, namespaces=namespaces)
         except (OSError, ValueError, IndexError) as error:
             raise ControlError('SEC014_CONTROL_DOCKER_PEER_UNCONFIRMED') from error
 
