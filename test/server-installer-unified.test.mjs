@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { mkdtemp, mkdir, writeFile, readFile, chmod, rm, readdir, stat } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, chmod, rm, readdir, stat, copyFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -95,6 +95,10 @@ else if(a[0]==='run'){
  }else if(a.includes('port'))emit(e.TEST_ENDPOINT??'127.0.0.1:18891');
  else if(a.includes('ps')){if(state())emit(state().Id);}
  else if(a.includes('run')){
+  if(a.includes('state-maintenance')){
+   const bind=select().services['state-maintenance'].volumes.find(v=>v.target==='/srv/bellteam-runtime');
+   try{if(!fs.statSync(bind.source).isDirectory())process.exit(77);}catch{process.exit(77);}
+  }
   const phase=a.at(-1);if(phase===e.TEST_FAIL_PHASE)process.exit(55);
  }else if(a.includes('up')){
   if(e.TEST_UP_FAIL)process.exit(58);
@@ -144,6 +148,17 @@ test('公開installerはprivate変数なしで単一runtime serviceを固定しp
  assert.equal(calls.some(c=>c.args[0]==='compose'&&c.args[1]==='run'),false)
  assert.deepEqual(calls.find(c=>c.args.includes('up')).args.slice(0,3),['compose','--project-directory',f.install])
  assert.doesNotMatch(stdout,/private-value/)
+})
+
+test('公開2fileのみの初回はruntime bind元を作ってからprepare→to-server→upへ進む',async t=>{
+ const f=await fixture(t);
+ for(const name of ['install.sh','compose.yaml'])await copyFile(repo+'/distribution/server/'+name,f.install+'/'+name)
+ assert.deepEqual((await readdir(f.install)).sort(),['compose.yaml','install.sh'])
+ await assert.rejects(stat(f.install+'/runtime'),{code:'ENOENT'})
+ await f.run();assert.ok((await stat(f.install+'/runtime')).isDirectory())
+ const calls=await f.calls(),prepare=calls.findIndex(c=>c.args.at(-1)==='prepare'),transfer=calls.findIndex(c=>c.args.at(-1)==='to-server'),up=calls.findIndex(c=>c.args.includes('up'));
+ assert.ok(prepare>=0&&transfer>prepare&&up>transfer)
+ assert.equal(calls.some(c=>c.args[0]==='stop'),false)
 })
 
 test('legacy原本をhash確認後raw imageへ固定し、明示復旧は同CID削除→逆移行→旧設定upを行う',async t=>{

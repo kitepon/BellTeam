@@ -5,7 +5,7 @@ import { syncBuiltinESMExports } from 'node:module'
 import { mkdtemp, mkdir, writeFile, readFile, lstat, rename, link, rm } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { transferServerState, migrateServerState, relocateServerRoots } from '../src/server-state-transfer.mjs'
+import { transferServerState, migrateServerState, relocateServerRoots, prepareServerStateRuntime } from '../src/server-state-transfer.mjs'
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'sealed-resume-'))
@@ -38,6 +38,19 @@ function ownerFixture(t) {
   t.after(() => { Object.assign(fs.promises, original); syncBuiltinESMExports() })
   return original
 }
+
+test('fresh prepare creates writable seat HOME, while existing HOME identity and bytes remain intact', async t => {
+  const f = await fixture(t); ownerFixture(t)
+  await f.absent('home')
+  await prepareServerStateRuntime({ root: f.root })
+  const before = await lstat(join(f.root, 'home'))
+  assert.equal(before.uid, 1000); assert.equal(before.gid, 1000); assert.equal(before.mode & 0o777, 0o700)
+  await f.put('home/auth', 'retained credentials')
+  await prepareServerStateRuntime({ root: f.root })
+  const after = await lstat(join(f.root, 'home'))
+  assert.equal(after.ino, before.ino); assert.equal(after.uid, before.uid); assert.equal(after.mode, before.mode)
+  assert.equal(await f.get('home/auth'), 'retained credentials')
+})
 
 test('link後unlink前の同inode profileは初期validateを通り、正本1linkへ収束する', async t => {
   const f = await fixture(t)

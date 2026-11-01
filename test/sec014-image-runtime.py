@@ -79,18 +79,19 @@ def main():
         path.write_text(json.dumps(value, indent=2) + '\n')
         path.chmod(0o600)
 
-    def install_directory(name, selected_image):
+    def install_directory(name, selected_image, *, existing_runtime=False):
         root = base / name
         root.mkdir(mode=0o700)
         for file in ['compose.yaml', 'install.sh']:
             data = docker('run', '--rm', '--network', 'none', '--read-only', '--entrypoint',
                           '/bin/cat', selected_image, '/app/' + file).stdout
             (root / file).write_text(data)
-        for directory in ['home', 'data']:
-            path = root / 'runtime' / directory
-            path.mkdir(parents=True)
-            os.chown(path, 1000, 1000)
-            path.chmod(0o700)
+        if existing_runtime:
+            for directory in ['home', 'data']:
+                path = root / 'runtime' / directory
+                path.mkdir(parents=True)
+                os.chown(path, 1000, 1000)
+                path.chmod(0o700)
         project = 'sec014-' + base.name.rsplit('-', 1)[-1] + '-' + name
         projects.append(project)
         return root, dict(env, COMPOSE_FILE=str(root / 'compose.yaml'), COMPOSE_PROJECT_NAME=project,
@@ -255,6 +256,8 @@ await migrateServerState({root,direction:point==='seal'?'to-server':'to-legacy'}
                                      legacyReference=LEGACY_IMAGE, legacySource=LEGACY_SOURCE))
 
         root, normal_env = install_directory('fresh', image_id)
+        assert {path.name for path in root.iterdir()} == {'compose.yaml', 'install.sh'}
+        assert not (root / 'runtime').exists()
         first = saved_generation(root, installer(root, normal_env, '--no-pull'))
         cid = current(root, normal_env)
         value = health(cid)
@@ -264,10 +267,17 @@ await migrateServerState({root,direction:point==='seal'?'to-server':'to-legacy'}
                 volumes.add(mount['Name'])
         private = root / 'runtime/server-only/state-data'
         data = root / 'runtime/data'
+        home = root / 'runtime/home'
+        assert (home.stat().st_uid, home.stat().st_gid, stat.S_IMODE(home.stat().st_mode)) == (1000, 1000, 0o700)
+        home_check = "const fs=require('fs'),assert=require('assert/strict'),p='/home/bell/.harness-write-check';assert.equal(process.getuid(),1000);assert.equal(process.getgid(),1000);fs.writeFileSync(p,'UID1000 home writable',{flag:'wx'});assert.equal(fs.readFileSync(p,'utf8'),'UID1000 home writable');fs.unlinkSync(p);console.log(JSON.stringify({uid:process.getuid(),gid:process.getgid(),homeWritable:true}))"
+        home_result = json.loads(docker('exec', '--user', '1000:1000', cid,
+                                        '/usr/local/bin/node', '-e', home_check).stdout)
+        assert home_result == dict(uid=1000, gid=1000, homeWritable=True)
+        document('fresh-home.json', home_result)
         assert (private.stat().st_uid, private.stat().st_gid, stat.S_IMODE(private.stat().st_mode)) == (0, 1001, 0o750)
         assert (data.stat().st_uid, data.stat().st_gid, stat.S_IMODE(data.stat().st_mode)) == (1000, 1000, 0o711)
         assert not (private / '.transaction.json').exists()
-        checks.append('public two-file fresh install and real UID/modes/health')
+        checks.append('public two-file fresh install from absent runtime; empty boot and real UID1000 HOME write/modes/health')
 
         # The supervisor itself must own both actual directory inodes and kernel locks.
         top = docker('top', cid, '-eo', 'pid,args').stdout.splitlines()[1:]
@@ -331,7 +341,7 @@ os.execv('/usr/local/libexec/bellteam-seat-exec',['/usr/local/libexec/bellteam-s
         remove_project(root, normal_env)
 
         # Start the published old generation with its own exact public compose, then overwrite only the two installer files.
-        root, legacy_env = install_directory('migration', LEGACY_IMAGE)
+        root, legacy_env = install_directory('migration', LEGACY_IMAGE, existing_runtime=True)
         data = root / 'runtime/data'
         for bot in ['bot-a', 'bot-b']:
             project = data / 'bots' / bot

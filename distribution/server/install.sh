@@ -210,6 +210,13 @@ if [ -n "$stopped_container" ]; then
   fi
 fi
 BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
+runtime=$(docker run --pull never --rm -i --network none --read-only --entrypoint /usr/local/bin/node "$image" -e '
+const fs=require("node:fs"),path=require("node:path");
+const d=JSON.parse(fs.readFileSync(0,"utf8").replaceAll("$$","$")),v=d.services["state-maintenance"].volumes;
+if(v.length!==1||v[0].type!=="bind"||v[0].target!=="/srv/bellteam-runtime"||!path.isAbsolute(v[0].source))process.exit(1);
+console.log(v[0].source);
+' < "$saved/compose.state-maintenance.json")
+mkdir -p "$runtime"
 maintenance() {
   docker compose --project-directory "$PWD" -f "$saved/compose.state-maintenance.json" \
     -p "$project" run --pull never --rm --no-deps -T state-maintenance "$1"

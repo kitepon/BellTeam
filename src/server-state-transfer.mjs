@@ -270,6 +270,9 @@ async function writeRecord(path, value) {
 export async function prepareServerStateRuntime({ root }) {
   if (typeof root !== 'string' || !isAbsolute(root)) throw failure('SERVER_STATE_PREPARE_OPTIONS')
   root = resolve(root)
+  const home = join(root, 'home'), existingHome = await exists(home)
+  await directory(home)
+  if (!existingHome) await setDirectoryOwner(home, 1000, 1000, 0o700)
   const privateRoot = join(root, 'server-only/state-data')
   await directory(privateRoot)
   await setDirectoryOwner(privateRoot, 0, 1001, 0o750)
