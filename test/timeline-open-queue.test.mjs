@@ -23,8 +23,8 @@ class Element {
     })
   }
 }
+const saved = { document: globalThis.document, ResizeObserver: globalThis.ResizeObserver, CSS: globalThis.CSS }
 function fixture(t, history) {
-  const saved = { document: globalThis.document, ResizeObserver: globalThis.ResizeObserver, CSS: globalThis.CSS }
   globalThis.document = { createElement: () => new Element() }
   globalThis.ResizeObserver = class { observe() {} }
   globalThis.CSS = { escape: value => value }
