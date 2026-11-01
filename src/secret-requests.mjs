@@ -128,7 +128,7 @@ export class SecretRequests {
 export function secretCompletionMessage(item) {
   const destination = item.roomId ? `ルーム ${item.roomId} で依頼した` : 'あなたが依頼した'
   const result = item.status === 'submitted'
-    ? `登録されました。保存先: ${item.path}\n利用するプログラムからこのファイルを読み込み、標準入力や認証APIへ渡してください。値を表示したり、会話・ツール出力・ログ・Gitへ書いたりしないでください。`
+    ? `登録されました。保存先: ${item.path}\n利用するプログラムからこのファイルを読み込み、標準入力や認証APIへ渡してください。本体と席のユーザーが異なる場合は、承認済みの管理経路で利用するプログラムへ直接渡してください。値を表示したり、会話・ツール出力・ログ・Gitへ書いたりしないでください。`
     : '入力は取り消されました。'
   return `${destination}「${item.label}」の秘密情報入力（${item.id}）について、${result}`
 }

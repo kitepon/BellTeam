@@ -4,7 +4,7 @@ import { readImageBytes } from './message-assets.mjs'
 import { createSeatStreamRunner } from './seat-stream.mjs'
 
 export const SEAT_PROJECT_METHODS = ['ensureRoot', 'claim', 'initialize', 'remove', 'writeInstructions', 'prepareStartupContext', 'appendInstructions']
-export const SEAT_MEMORY_METHODS = ['initialize', 'remember', 'reviseMemory', 'pinMemory', 'consolidateGrowth', 'recallMemory', 'recordKnowledge', 'searchKnowledge', 'rebuildKnowledgeIndex']
+export const SEAT_MEMORY_METHODS = ['initialize', 'ensureScope', 'remember', 'reviseMemory', 'pinMemory', 'consolidateGrowth', 'recallMemory', 'recordKnowledge', 'searchKnowledge', 'rebuildKnowledgeIndex']
 const projects = bots => [...bots.values()].map(({ id, project }) => ({ id, project }))
 
 // Short-lived seat operations. No server environment or configuration document
@@ -64,8 +64,8 @@ export class SeatRuntime {
   }
 
   memory(registry) {
-    return Object.fromEntries(SEAT_MEMORY_METHODS.map(method => [method, args =>
-      this.call('memory', { method, args, profiles: projects(registry) })]))
+    return Object.fromEntries(SEAT_MEMORY_METHODS.map(method => [method, (...args) =>
+      this.call('memory', { method, args: method === 'ensureScope' ? args : args[0], profiles: projects(registry) })]))
   }
 
   async readImage(image, maxBytes) {
