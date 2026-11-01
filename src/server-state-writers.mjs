@@ -61,7 +61,7 @@ export function stateWriterPlan(config) {
       || typeof name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(name)
       || name === volume || config.volumes[privateMount.source].external !== true || stateVolume && name !== stateVolume) invalid()
     stateVolume = name
-    roots.push(runtime)
+    roots.push(posix.join(runtime, 'server-only'))
   }
   return { roots: [...new Set(roots)], volume, ...(stateVolume ? { stateVolume } : {}) }
 }
@@ -145,11 +145,21 @@ export function assertStateWritersStopped(plan, containers, canonical, volumes =
     const root = aliases.get(backing.get(m.Name)[0]), source = aliases.get(m.Source)
     if (source !== root && !source.startsWith(root + '/')) invalid()
   }
-  const roots = [...plan.roots, ...(backing.get(plan.stateVolume) ?? [])].map(source => aliases.get(source))
+  const data = aliases.get(plan.roots[0])
+  const legacyFiles = ['bots/.initialized', 'shared/subscription.json', 'shared/onboarding.json', 'shared/ai-control.json',
+    'shared/tools/call-bridge/headers', 'shared/tools/bughub/headers', 'shared/tools/bughub/endpoint']
+  const roots = [...plan.roots.slice(1), ...(backing.get(plan.stateVolume) ?? [])].map(source => aliases.get(source))
+  roots.push(...[...stateTargets.map(target => target.slice('/srv/bellteam/'.length)), ...legacyFiles].map(name => posix.join(data, name)))
+  const touchesState = source => {
+    if (roots.some(root => overlaps(root, source))) return true
+    const [group, id] = posix.relative(data, source).split('/')
+    if (group !== 'bots' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(id ?? '')) return false
+    return ['bot.json', 'schedule.json', 'messages/assets'].some(name => overlaps(posix.join(data, 'bots', id, name), source))
+  }
   const writers = containers.filter(c => participates(plan, c)).filter(c => c.mounts.some(m => m.RW && (
     m.Type === 'volume' && [plan.volume, plan.stateVolume].includes(m.Name)
-    || m.Type === 'volume' && backing.get(m.Name).some(source => roots.some(root => overlaps(root, aliases.get(source))))
-    || m.Type === 'bind' && roots.some(root => overlaps(root, aliases.get(m.Source)))
+    || m.Type === 'volume' && backing.get(m.Name).some(source => touchesState(aliases.get(source)))
+    || m.Type === 'bind' && touchesState(aliases.get(m.Source))
   ))).map(c => c.id)
   if (writers.length) throw Object.assign(new Error('SERVER_STATE_WRITERS_RUNNING'), { writers })
   return { writers: 0 }

@@ -22,6 +22,45 @@ const container = source => ({ id: 'synthetic-writer', running: true, restarting
 const privateVolume={name:'fixture_state',driver:'local',mountpoint:'/docker/fixture_state/_data',optionCount:0,type:null,device:null,options:null}
 const canonical = (plan, containers) => stateWriterSources(plan, containers,[privateVolume]).map(source => ({ source, canonical: source }))
 
+test('審査用runtimeの兄弟とBot専用データを移行writerにしない', () => {
+  const plan = stateWriterPlan(config)
+  assert.deepEqual(plan.roots, ['/runtime/data', '/runtime/home', '/runtime/server-only'])
+  const others = ['/runtime/apple-review/server/runtime/data', '/runtime/apple-review/server/runtime/home',
+    '/runtime/apple-review/identity/data', '/runtime/data/bots/bot-a/data', '/runtime/data/bots/bot-a/memory',
+    '/runtime/data/bots/bot-a/docs', '/runtime/data/shared/throughline'].map(container)
+  assert.deepEqual(assertStateWritersStopped(plan, others, canonical(plan, others), [privateVolume]), { writers: 0 })
+})
+
+test('変更する6領域・小file・Bot文書予定assetsとその祖先や別名writerを拒否する', () => {
+  const plan = stateWriterPlan(config)
+  for (const source of ['/runtime', '/runtime/data', '/runtime/home', '/runtime/server-only',
+    ...['state', 'rooms', 'owner', 'logs', 'shared/tools/bellteam-settings', 'shared/tools/apns',
+      'shared/subscription.json', 'shared/onboarding.json', 'shared/ai-control.json',
+      'shared/tools/call-bridge', 'shared/tools/bughub/headers', 'shared/tools/bughub/endpoint',
+      'bots', 'bots/.initialized', 'bots/bot-a', 'bots/bot-a/bot.json', 'bots/bot-a/schedule.json',
+      'bots/bot-a/messages', 'bots/bot-a/messages/assets', 'bots/bot-a/messages/assets/payload'].map(p => '/runtime/data/' + p)]) {
+    const active = [container(source)]
+    assert.throws(() => assertStateWritersStopped(plan, active, canonical(plan, active), [privateVolume]), /WRITERS_RUNNING/, source)
+    active[0].running = false; active[0].restartPolicy = 'unless-stopped'
+    assert.throws(() => assertStateWritersStopped(plan, active, canonical(plan, active), [privateVolume]), /WRITERS_RUNNING/, source)
+  }
+  const active = [container('/runtime/data/bots/bot-a/data')]
+  const aliases = canonical(plan, active).map(row => row.source === active[0].mounts[0].Source
+    ? { ...row, canonical: '/runtime/data/bots/bot-a/messages/assets' } : row)
+  assert.throws(() => assertStateWritersStopped(plan, active, aliases, [privateVolume]), /WRITERS_RUNNING/)
+})
+
+test('別名volumeでも無関係なBotデータと変更するassetsを区別する', () => {
+  const plan = stateWriterPlan(config)
+  const active = [{ ...container('/unused'), mounts: [{ Type: 'volume', Name: 'other', Source: '/docker/other/_data', RW: true }] }]
+  const other = { name: 'other', driver: 'local', mountpoint: '/docker/other/_data', optionCount: 3,
+    type: 'none', device: '/runtime/data/bots/bot-a/data', options: 'bind' }
+  const aliases = () => stateWriterSources(plan, active, [privateVolume, other]).map(source => ({ source, canonical: source }))
+  assert.deepEqual(assertStateWritersStopped(plan, active, aliases(), [privateVolume, other]), { writers: 0 })
+  other.device = '/runtime/data/bots/bot-a/messages/assets'
+  assert.throws(() => assertStateWritersStopped(plan, active, aliases(), [privateVolume, other]), /WRITERS_RUNNING/)
+})
+
 test('単一runtimeの祖先とprivate state writerも停止確認し、ROと停止済みは許す', () => {
   const plan = stateWriterPlan(config)
   for (const source of ['/', '/runtime', '/runtime/server-only/state-data', '/runtime/server-only/state-data/rooms']) {
