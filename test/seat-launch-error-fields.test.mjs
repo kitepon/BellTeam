@@ -4,10 +4,11 @@ import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { diagnosticRequestContext } from '../src/diagnostic-request-context.mjs'
 import { captureMcpError } from '../src/returned-mcp-error.mjs'
+import { launchFailureDetails } from '../src/agent-launch-error.mjs'
 
 const secret = 'synthetic-private-value'
 const launch = { cwd: '/synthetic-seat', prompt: secret }
-async function crossBoundary(error) {
+async function crossBoundary(error, inputLaunch = launch) {
   const bootstrap = String.raw`
 import { registerHooks } from 'node:module';
 Object.assign(process,{getuid:()=>1000,geteuid:()=>1000,getgid:()=>1000,cwd:()=>'/synthetic-seat'});
@@ -21,7 +22,7 @@ await import(process.env.TEST_ENTRY);
   const entry = process.env.SEAT_LAUNCH_UNDER_TEST ? pathToFileURL(process.env.SEAT_LAUNCH_UNDER_TEST)
     : new URL('../src/run-seat-aiterm-launch.mjs', import.meta.url)
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', bootstrap], {
-    input: JSON.stringify({ command: 'fixture-only', args: [], launch }), encoding: 'utf8',
+    input: JSON.stringify({ command: 'fixture-only', args: [], launch: inputLaunch }), encoding: 'utf8',
     env: { ...process.env, PRIVATE_VALUE: secret, FIXTURE_ERROR: JSON.stringify(error), TEST_ENTRY: entry.href },
   })
   assert.equal(result.status, 0, result.stderr)
@@ -32,6 +33,20 @@ await import(process.env.TEST_ENTRY);
 
 const preflight = { schema: 'aiterm.agent-launch-error.v1', harness: 'claude-code',
   code: 'CLAUDE_AUTH_NOT_AUTHENTICATED', phase: 'authentication_preflight', effect: 'not_issued', session_created: false }
+
+test('seat launch fields: action-required refusal keeps409 and safe native diagnostics across the fixed boundary', async () => {
+  const native = { schema: 'aiterm.agent-launch-result.v1', harness: 'antigravity-cli', session_id: 'fixture-seat',
+    startup: { status: 'blocked', reason: 'vendor_action_required' },
+    initial_prompt: { status: 'not_requested', reason: 'not_requested', turn_started: false },
+    event_cursor: null, submit_residue: null }
+  const error = { code: 'BOT_INPUT_NOT_READY', status: 409, launchActionRequired: true, launch: native }
+  const value = await crossBoundary(error, { cwd: '/synthetic-seat' })
+  assert.equal(value.code, error.code); assert.equal(value.status, 409)
+  assert.deepEqual(launchFailureDetails(value), { harness: 'antigravity-cli', session_created: true,
+    startup: native.startup, initial_prompt: native.initial_prompt })
+  assert.ok(diagnosticRequestContext({ method: 'POST', url: '/api/bots/fixture-seat/messages' }, [], value)
+    .includes('native_launch='))
+})
 
 test('seat launch fields: validated native preflight survives the fixed boundary into parent diagnostics', async () => {
   const value = await crossBoundary(Object.assign(new Error('synthetic refusal'), {

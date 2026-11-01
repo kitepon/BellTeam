@@ -23,7 +23,7 @@ try {
     const agentLaunchError = authenticationPreflightFailure(error.agentLaunchError)
     const mcp_error = returnedMcpError(error)
     response = { error: { ...Object.fromEntries(['message', 'code', 'status', 'publicMessage',
-      'aitermResponseReturned', 'executionError', 'launch'].filter(key => error[key] !== undefined).map(key => [key, error[key]])),
+      'aitermResponseReturned', 'executionError', 'launch', 'launchActionRequired'].filter(key => error[key] !== undefined).map(key => [key, error[key]])),
     ...(agentLaunchError ? { agentLaunchError } : {}), ...(mcp_error ? { mcp_error } : {}) } }
   }
   await client.close()
