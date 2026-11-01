@@ -358,12 +358,6 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
                 + observation.log + contextLog(elapsedMilliseconds))
     }
 
-    /// 上方向の入力で会話が動かない時の状態。本文と識別子は含めない。
-    func reportConversationScrollStall(_ log: String) {
-        send(code: "IOS_SCROLL_STALL", module: "conversation", version: Self.currentVersion, severity: "warn",
-             log: log + contextLog(nil))
-    }
-
     static func elapsedMilliseconds(since started: UInt64) -> Int {
         Int((DispatchTime.now().uptimeNanoseconds - started) / 1_000_000)
     }

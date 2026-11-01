@@ -13,7 +13,7 @@ final class ConversationFreezeUITests: XCTestCase {
         member.tap()
         let field = app.textViews["message-input"]
         XCTAssertTrue(field.waitForExistence(timeout: 10))
-        let scroll = app.scrollViews["conversation-messages"]
+        let scroll = app.tables["conversation-messages"]
         let panel = app.buttons["詳細パネル"]
         if panel.exists && app.scrollViews["workspace-inspector"].exists { panel.tap() }
         let rows = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "message-text-updating-"))
@@ -44,7 +44,7 @@ final class ConversationFreezeUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
         field.typeText("カードの下書き")
-        let scroll = app.scrollViews["conversation-messages"]
+        let scroll = app.tables["conversation-messages"]
         for _ in 0..<10 where field.exists { scroll.swipeDown() }
         XCTAssertFalse(field.exists, "質問カードが配置範囲の外へ出る")
         for _ in 0..<15 where !field.exists { scroll.swipeUp() }

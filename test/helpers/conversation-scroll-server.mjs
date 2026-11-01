@@ -112,4 +112,6 @@ const server = createServer((request, response) => {
   if (path.endsWith('/messages') || path.endsWith('/timeline')) return json({ items: [], has_more: false })
   json({ error: 'NOT_FOUND' }, 404)
 })
-server.listen(Number(process.env.SCROLL_FIXTURE_PORT ?? 0), '127.0.0.1', () => console.log(JSON.stringify({ url: `http://127.0.0.1:${server.address().port}` })))
+// 実機から届くよう、SCROLL_FIXTURE_HOSTにMacのLANアドレスを渡せる。既定はこのMacの中だけ。
+const host = process.env.SCROLL_FIXTURE_HOST || '127.0.0.1'
+server.listen(Number(process.env.SCROLL_FIXTURE_PORT ?? 0), host, () => console.log(JSON.stringify({ url: `http://${host}:${server.address().port}` })))

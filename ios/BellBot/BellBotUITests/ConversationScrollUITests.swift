@@ -187,7 +187,7 @@ final class ConversationScrollUITests: XCTestCase {
 
     private func text(_ id: String) -> XCUIElement { app.descendants(matching: .any)["message-text-\(id)"].firstMatch }
 
-    private func conversationScroll() -> XCUIElement { app.scrollViews["conversation-messages"] }
+    private func conversationScroll() -> XCUIElement { app.tables["conversation-messages"] }
 
     private func requests() throws -> [String] {
         let value = try XCTUnwrap(JSONSerialization.jsonObject(with: data("/test/proof")) as? [String: Any])

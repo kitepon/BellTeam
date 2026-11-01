@@ -17,7 +17,7 @@ final class DesktopWorkspaceUITests: XCTestCase {
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(rows.count, 0)
         XCTAssertLessThan(rows.count, 100, "Macも画面外の全行を配置しない")
-        let scroll = app.scrollViews["conversation-messages"]
+        let scroll = app.tables["conversation-messages"]
         scroll.scroll(byDeltaX: 0, deltaY: -500)
         scroll.scroll(byDeltaX: 0, deltaY: 500)
         input.click()
@@ -56,7 +56,7 @@ final class DesktopWorkspaceUITests: XCTestCase {
         XCTAssertTrue(member.waitForExistence(timeout: 10))
         member.click()
         XCTAssertTrue(app.descendants(matching: .any)["message-text-m060"].firstMatch.waitForExistence(timeout: 10))
-        let scroll = app.scrollViews["conversation-messages"]
+        let scroll = app.tables["conversation-messages"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 5))
         let oldest = app.descendants(matching: .any)["message-text-m001"].firstMatch
         for _ in 0..<70 where !oldest.exists {
@@ -83,7 +83,7 @@ final class DesktopWorkspaceUITests: XCTestCase {
         XCTAssertTrue(member.waitForExistence(timeout: 10))
         member.click()
         XCTAssertTrue(app.descendants(matching: .any)["message-text-m060"].firstMatch.waitForExistence(timeout: 10))
-        let scroll = app.scrollViews["conversation-messages"]
+        let scroll = app.tables["conversation-messages"]
         let oldest = app.descendants(matching: .any)["message-text-m001"].firstMatch
         for _ in 0..<12 where !oldest.exists {
             scroll.scroll(byDeltaX: 0, deltaY: 3000)

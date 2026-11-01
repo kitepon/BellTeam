@@ -56,8 +56,6 @@ private struct ConversationContent: View {
     @State private var awaitingSendResponse = false
     @State private var queue: [QueueItem] = []
     @State private var hasMore = false
-    @State private var remainingBefore = 0
-    @State private var unloadedRowHeight: CGFloat?
     @State private var loading = true
     @State private var loadingOlder = false
     @State private var reader = ReadCoordinator()
@@ -91,10 +89,9 @@ private struct ConversationContent: View {
     @State private var isAtBottom = true
     @State private var hasUnreadMessages = false
     @State private var scrollToBottomRevision = 0
-    @State private var measuredRow: String?
-    @State private var scroll = ScrollTracker()
-    @State private var renderedRows: (first: String, last: String)?
-    @State private var measuredContentWidth: CGFloat?
+    @State private var cards = ConversationCardStates()
+    @State private var presentedSheet: ConversationSheet?
+    @State private var presentedGallery: ConversationGallery?
 
     private var messages: [TimelineMessage] { timeline.visibleMessages }
 
@@ -109,129 +106,72 @@ private struct ConversationContent: View {
         let botsByID: [String: Bot] = target.isRoom
             ? Dictionary(store.bots.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             : [:]
+        let messagesByID = Dictionary(messages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let selectedBot = bot
         return ZStack {
-            ScrollViewReader { proxy in
-                GeometryReader { viewport in
-                    let rowWidth = measuredContentWidth ?? (viewport.size.width - 36)
-                    let window = conversationWindow(width: rowWidth, botsByID: botsByID)
-                    ScrollView {
-                        // 画面の周囲だけを配置し、画面外は行の高さを持つ余白にする。
-                        VStack(spacing: 17) {
-                            if loading && messages.isEmpty {
-                                ProgressView().padding(.top, 90)
-                            } else if messages.isEmpty {
-                                if initialLoadFailed { failedConversation }
-                                else { emptyConversation }
+            if loading && messages.isEmpty {
+                ProgressView().padding(.top, 90)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            } else if messages.isEmpty && queue.isEmpty {
+                Group { if initialLoadFailed { failedConversation } else { emptyConversation } }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            } else {
+                ConversationList(messages: messages, queue: queue, hasMore: hasMore, loadingOlder: loadingOlder,
+                                 bottomInset: 18 + (attachments.isEmpty ? 0 : attachmentStripHeight),
+                                 scrollToBottomRevision: scrollToBottomRevision,
+                                 onLoadOlder: { olderTask = Task { await loadOlder() } },
+                                 onRefresh: { await load() },
+                                 onAtBottomChange: { atBottom in
+                                     isAtBottom = atBottom
+                                     if atBottom { hasUnreadMessages = false }
+                                 }) { row in
+                    Group {
+                        switch row {
+                        case .message(let id):
+                            if let message = messagesByID[id] {
+                                timelineRow(message, selectedBot: selectedBot, botsByID: botsByID)
                             }
-                            if !messages.isEmpty {
-                                VStack(spacing: 0) {
-                                    Color.clear.frame(height: window.before)
-                                    VStack(spacing: 17) {
-                                        ForEach(messages[window.range]) { message in
-                                            timelineRow(message, selectedBot: selectedBot, botsByID: botsByID, width: rowWidth)
-                                        }
-                                    }
-                                    Color.clear.frame(height: window.after)
-                                }
-                            }
-                            if !queue.isEmpty { queueStrip }
-                            Color.clear.frame(height: 2).id("bottom")
-                                .background {
-                                    GeometryReader { bottom in
-                                        Color.clear.preference(key: ScrollMetricsKey.self,
-                                            value: ScrollMetrics(bottom: bottom.frame(in: .named("conversation-scroll")).maxY))
-                                    }
-                                }
-                        }
-                        .background {
-                            GeometryReader { content in
-                                let frame = content.frame(in: .named("conversation-scroll"))
-                                Color.clear.preference(key: ScrollMetricsKey.self,
-                                    value: ScrollMetrics(top: frame.minY, height: frame.height, width: content.size.width))
-                            }
-                        }
-                        .padding(.horizontal, 18)
-                        .padding(.top, 20)
-                        .padding(.bottom, 18 + (attachments.isEmpty ? 0 : attachmentStripHeight))
-                    }
-                    .coordinateSpace(name: "conversation-scroll")
-                    .onPreferenceChange(ScrollMetricsKey.self) { metrics in
-                        // 計測の中で配置を変えると同じフレームで計測が再発火するので、次の周へ送り1回にまとめる。
-                        scroll.pendingMetrics = metrics
-                        guard !scroll.metricsScheduled else { return }
-                        scroll.metricsScheduled = true
-                        DispatchQueue.main.async {
-                            scroll.metricsScheduled = false
-                            guard let pending = scroll.pendingMetrics else { return }
-                            scroll.pendingMetrics = nil
-                            scrollChanged(pending, viewportSize: viewport.size, botsByID: botsByID, proxy: proxy)
+                        case .queue:
+                            queueStrip
                         }
                     }
-                    // キーボードで見える高さだけが縮む時は、本文の計測値が変わらず上の通知が来ない。
-                    .onChange(of: viewport.size.height) { oldHeight, newHeight in
-                        if oldHeight > 0 && newHeight < oldHeight - 0.5 && isAtBottom {
-                            scroll.followingBottom = true
-                            DispatchQueue.main.async { proxy.scrollTo("bottom", anchor: .bottom) }
-                        }
-                    }
-                    .onPreferenceChange(ConversationPresentationKey.self) { presenting in
-                        // 先に予約済みの更新が表示中の行を窓から外さないよう、判定用の値だけ同期で記録する。
-                        scroll.presenting = presenting
-                        DispatchQueue.main.async {
-                            if !presenting && scroll.pendingBottomScroll {
-                                scroll.pendingBottomScroll = false
-                                scrollToBottomRevision += 1
-                            }
-                        }
-                    }
-                    .overlay(alignment: .top) {
-                        if loadingOlder { ProgressView().padding(.top, 12) }
-                    }
-                    .overlay(alignment: .bottom) {
-                        // 過去を読んでいる間は、新着が無くても最新へ戻れるようにする。
-                        if hasUnreadMessages || (!isAtBottom && !loading) {
-                            Button(hasUnreadMessages ? "新着メッセージ ↓" : "最新へ ↓") {
-                                hasUnreadMessages = false
-                                renderedRows = nil
-                                scrollToBottomRevision += 1
-                            }
-                            .font(BellTheme.messageHelperFont.weight(.semibold))
-                            .buttonStyle(.borderedProminent)
-                            .padding(.bottom, 12)
-                            .accessibilityIdentifier("scroll-to-latest")
-                        }
-                    }
-                    .onChange(of: [hasMore, loading, loadingOlder, scenePhase == .active]) { _, _ in
-                        fillViewportWithOlderMessages(viewportHeight: viewport.size.height, proxy: proxy)
-                    }
-                    #if targetEnvironment(macCatalyst)
-                    .background {
-                        ConversationWheelObserver { target in
-                            wheelMovedUp(target, viewportHeight: viewport.size.height, window: window)
-                        }
-                    }
-                    #endif
-                    .scrollDismissesKeyboard(.interactively)
-                    .accessibilityIdentifier("conversation-messages")
-                    .defaultScrollAnchor(.bottom)
-                    .refreshable { await load() }
-                    .onChange(of: scrollToBottomRevision) { _, _ in
-                        if scroll.presenting { scroll.pendingBottomScroll = true; return }
-                        scroll.followingBottom = true
-                        scroll.pin = nil
-                        measuredRow = nil
-                        renderedRows = nil
-                        withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
-                    }
-                    .onChange(of: store.eventRevision) { _, _ in
-                        if appIsActive { Task { await load() } }
-                    }
-                    .onReceive(store.conversationChanges) { changedTarget in
-                        if changedTarget == target && appIsActive { Task { await load() } }
-                    }
+                    .environmentObject(store)
                 }
             }
+        }
+        .overlay(alignment: .top) {
+            if loadingOlder { ProgressView().padding(.top, 12) }
+        }
+        .overlay(alignment: .bottom) {
+            // 過去を読んでいる間は、新着が無くても最新へ戻れるようにする。
+            if hasUnreadMessages || (!isAtBottom && !loading) {
+                Button(hasUnreadMessages ? "新着メッセージ ↓" : "最新へ ↓") {
+                    hasUnreadMessages = false
+                    scrollToBottomRevision += 1
+                }
+                .font(BellTheme.messageHelperFont.weight(.semibold))
+                .buttonStyle(.borderedProminent)
+                .padding(.bottom, 12)
+                .accessibilityIdentifier("scroll-to-latest")
+            }
+        }
+        .onChange(of: store.eventRevision) { _, _ in
+            if appIsActive { Task { await load() } }
+        }
+        .onReceive(store.conversationChanges) { changedTarget in
+            if changedTarget == target && appIsActive { Task { await load() } }
+        }
+        .sheet(item: $presentedSheet) { sheet in
+            switch sheet {
+            case .peer(let message):
+                PeerMessageSheet(message: message, api: store.api)
+            case .secret(let request, let state):
+                SecretInputSheet(request: request) { state.result = $0 }
+                    .environmentObject(store)
+            }
+        }
+        .fullScreenCover(item: $presentedGallery) { gallery in
+            MessageImageGallery(paths: gallery.paths, api: store.api)
         }
         // 背景をZStackの子にすると、iPad横画面では入力欄もキーボードの安全領域へ広がる。
         .background { BellBackground() }
@@ -322,47 +262,23 @@ private struct ConversationContent: View {
         }
     }
 
-    private func timelineRow(_ message: TimelineMessage, selectedBot: Bot?, botsByID: [String: Bot], width: CGFloat) -> some View {
+    private func timelineRow(_ message: TimelineMessage, selectedBot: Bot?, botsByID: [String: Bot]) -> some View {
         let senderBot = (message.sender?.id).flatMap { botsByID[$0] }
         let label = replyLabel(for: message, botsByID: botsByID)
-        let keepsMarkdownHeight = message.secretRequest == nil && message.ownerQuestion == nil
-            && message.displayedImageURLs.isEmpty && message.image != true
-        let minimumHeight: CGFloat? = keepsMarkdownHeight
-            ? measuredHeight(message, width: width, botsByID: botsByID) : nil
         return Group {
             if let request = message.secretRequest {
-                SecretRequestCard(request: request, state: scroll.secretState(for: message.id))
+                let state = cards.secretState(for: message.id)
+                SecretRequestCard(request: request, state: state) { presentedSheet = .secret(request, state) }
             } else if let question = message.ownerQuestion {
-                OwnerQuestionCard(question: question, state: scroll.questionState(for: message.id))
+                OwnerQuestionCard(question: question, state: cards.questionState(for: message.id))
             } else {
                 MessageRow(message: message, isRoom: target.isRoom, bot: selectedBot,
-                           senderBot: senderBot, replyLabel: label, api: store.api)
+                           senderBot: senderBot, replyLabel: label, api: store.api,
+                           onOpenPeer: { presentedSheet = .peer(message) },
+                           onOpenImages: { presentedGallery = ConversationGallery(paths: $0) })
                     .equatable()
             }
         }
-        // 同じ本文と幅では、Markdown再描画中も測定済みの高さを保つ。
-        .frame(minHeight: minimumHeight, alignment: .top)
-        .id(message.id)
-        .background(alignment: .top) { rowTopMarker(for: message.id) }
-        .background {
-            GeometryReader { row in
-                let metric = ConversationRowMetric(message: message, layoutWidth: width,
-                                                   replyLabel: label, frame: row.frame(in: .named("conversation-scroll")))
-                Color.clear.preference(key: ScrollMetricsKey.self, value: ScrollMetrics(rows: [message.id: metric]))
-            }
-        }
-    }
-
-    private func rowTopMarker(for messageID: String) -> some View {
-        Color.clear.frame(height: 0).id(ScrollTracker.rowTopID(messageID))
-            .background {
-                if messageID == (measuredRow ?? messages.first?.id) {
-                    GeometryReader { row in
-                        Color.clear.preference(key: ScrollMetricsKey.self,
-                            value: ScrollMetrics(boundary: row.frame(in: .named("conversation-scroll")).minY))
-                    }
-                }
-            }
     }
 
     private func replyLabel(for message: TimelineMessage, botsByID: [String: Bot]) -> String? {
@@ -721,7 +637,6 @@ private struct ConversationContent: View {
         if let page = store.conversationPages[target] {
             timeline.replaceReceived(page.items)
             hasMore = page.hasMore
-            remainingBefore = page.remainingBefore
         }
         do {
             // 処理待ち一覧の応答を待たず、本文を届いた時点で出す。
@@ -731,8 +646,7 @@ private struct ConversationContent: View {
             guard !stale(), !awaitingSendResponse else { loading = false; return }
             timeline.replaceReceived(result.items)
             hasMore = result.hasMore
-            remainingBefore = result.remainingBefore ?? 0
-            store.remember(ConversationPage(items: result.items, hasMore: result.hasMore, remainingBefore: remainingBefore),
+            store.remember(ConversationPage(items: result.items, hasMore: result.hasMore, remainingBefore: result.remainingBefore ?? 0),
                            for: target, generation: generation)
             loading = false
             errorText = nil
@@ -763,263 +677,20 @@ private struct ConversationContent: View {
         loading = false
     }
 
-    // 上端へスクロールしたら過去を自動で取得し、取得後は先頭だった行を元の画面位置へ戻し続ける。
-    private func scrollChanged(_ metrics: ScrollMetrics, viewportSize: CGSize, botsByID: [String: Bot], proxy: ScrollViewProxy) {
-        guard let top = metrics.top, let height = metrics.height, let bottom = metrics.bottom,
-              let width = metrics.width else { return }
-        let viewportHeight = viewportSize.height
-        guard viewportHeight > 0, viewportHeight.isFinite else { return }
-        if measuredContentWidth != width { measuredContentWidth = width }
-        let resized = abs(width - scroll.contentWidth) > 0.5
-        let heightChanged = abs(height - scroll.height) > 0.5
-        // 同じ更新で利用者が動かした分。行の位置を戻す時にこの分を打ち消さない。
-        let moved = top - scroll.top
-        for (id, row) in metrics.rows {
-            // 列の幅が変わった直後は、以前の幅の最小高を使った計測を保存しない。
-            if abs(row.frame.width - row.layoutWidth) < 0.5 { scroll.rowSizes[id] = row }
-        }
-        if bottom <= viewportHeight + 48, remainingBefore > 0, !messages.isEmpty,
-           messages.allSatisfy({ scroll.rowSizes[$0.id] != nil }) {
-            updateUnloadedRowHeight()
-        }
-        // 新しく表示したMarkdownの高さが確定した時と幅変更時は、直前に見えていた行を保つ。
-        // 明示的に末尾へ移る間は、古い読書位置への補正でその移動を打ち消さない。
-        if (heightChanged || resized), !isAtBottom, !scroll.followingBottom, scroll.pin == nil,
-           let anchor = scroll.visibleAnchor, metrics.rows[anchor.id] != nil {
-            let target = anchor.y + moved
-            if abs((metrics.rows[anchor.id]?.frame.minY ?? target) - target) > 0.5 {
-                scrollRow(anchor.id, to: target, viewportHeight: viewportHeight, proxy: proxy)
-            }
-        } else if let message = messages.first(where: { message in
-            guard let frame = metrics.rows[message.id]?.frame else { return false }
-            return frame.maxY > 0 && frame.minY < viewportHeight
-        }), let frame = metrics.rows[message.id]?.frame {
-            scroll.visibleAnchor = (message.id, frame.minY)
-        }
-        scroll.contentWidth = width
-        updateWindow(metrics, viewportHeight: viewportHeight, width: width, botsByID: botsByID)
-        let scrolled = abs(height - scroll.height) <= 0.5 && abs(top - scroll.top) > 0.01
-        scroll.height = height
-        scroll.top = top
-        isAtBottom = bottom <= viewportHeight + 48
-        if isAtBottom {
-            hasUnreadMessages = false
-            scroll.followingBottom = false
-        }
-        if let boundary = metrics.boundary, scroll.pin == nil { scroll.pinnedY = boundary }
-        fillViewportWithOlderMessages(viewportHeight: viewportHeight, proxy: proxy)
-        if heightChanged {
-            // 初期位置と末尾への追従は.defaultScrollAnchor(.bottom)に任せる。推定した余白とMarkdownの実高の差を、増減の両方で補正する。
-            if let row = scroll.pin {
-                scroll.pinPhase = .correcting
-                scroll.pinnedY += moved
-                scrollRow(row, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
-            }
-            return
-        }
-        // 固定した行の位置は、利用者のスクロールに合わせて毎回更新する。伸びた分だけを打ち消すので、慣性スクロール中でも保たれる。
-        if let boundary = metrics.boundary {
-            if let row = scroll.pin {
-                let outside = boundary < 0 || boundary > viewportHeight
-                switch scroll.pinPhase {
-                case .awaitingGrowth:
-                    if outside { return }
-                case .correcting:
-                    // 高さが変わらないのに外へ出たのは利用者の操作なので、戻さず固定を解く。
-                    // 戻しても位置が変わらない時も、端で丸められているので再発行しない。
-                    if outside && (scrolled || abs(top - scroll.correctedTop) < 0.5) {
-                        scroll.pin = nil
-                        if measuredRow != nil { measuredRow = nil }
-                    } else if outside {
-                        scroll.correctedTop = top
-                        scrollRow(row, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
-                        return
-                    } else {
-                        scroll.pinPhase = .aligned
-                    }
-                case .aligned:
-                    if outside { scroll.pin = nil; measuredRow = nil }
-                }
-            }
-            scroll.pinnedY = boundary
-        }
-        guard scrolled else { return }
-        // 上端の外へ出ると、次に上端へ着いた時の取得を許可する。取得の失敗では許可しないので、失敗が繰り返し再試行されない。
-        // 全長が分かる時は、在庫が減った時点で足し、未読込の余白を見せない。
-        let spacer = unloadedHeight
-        let atTop = spacer > 0 ? olderStockIsLow || top + spacer >= -viewportHeight : top >= 19.5
-        if !atTop { scroll.canLoadOlder = true }
-        if scenePhase == .active && atTop && scroll.canLoadOlder && scroll.pin == nil && hasMore && !loading && !loadingOlder,
-           let oldest = messages.first?.id, metrics.boundary != nil || spacer > 0 {
-            scroll.canLoadOlder = false
-            olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
-        }
-    }
-
-    /// 未読込の余白が画面に見える間は過去を足す。バーを掴んで飛んだ先も、ここで埋まる。
-    /// Macのホイールは動かせる長さが無いと位置が変わらず、上端の取得が始まらないので、旧本体でも表示域が埋まるまで足す。
-    private func fillViewportWithOlderMessages(viewportHeight: CGFloat, proxy: ScrollViewProxy) {
-        let spacer = unloadedHeight
-        var needsRows = spacer > 0 && scroll.top + spacer > 0
-        #if targetEnvironment(macCatalyst)
-        needsRows = needsRows || scroll.height <= viewportHeight
-        #endif
-        // 前回の頁を出している間は、新しい頁が届くまで読み足さない。順序が入れ替わると行が欠ける。
-        guard needsRows, scenePhase == .active, scroll.height > 0, hasMore, !loading, !loadingOlder,
-              scroll.canLoadOlder, let oldest = messages.first?.id else { return }
-        scroll.canLoadOlder = false
-        olderTask = Task { await loadOlder(before: oldest, proxy: proxy, viewportHeight: viewportHeight) }
-    }
-
-    #if targetEnvironment(macCatalyst)
-    private func wheelMovedUp(_ target: ConversationWheelTarget, viewportHeight: CGFloat,
-                              window: (range: Range<Int>, before: CGFloat, after: CGFloat)) {
-        let idle = !loadingOlder && (hasMore || scroll.top < 19.5)
-        guard scroll.wheelStall.wheelUp(top: scroll.top, idle: idle, now: Date()) else { return }
-        store.api.diagnostics.reportConversationScrollStall("""
-            content_top=\(Int(scroll.top))
-            content_height=\(Int(scroll.height))
-            viewport_height=\(Int(viewportHeight))
-            at_bottom=\(isAtBottom)
-            has_more=\(hasMore)
-            loading_older=\(loadingOlder)
-            can_load_older=\(scroll.canLoadOlder)
-            pinned=\(scroll.pin != nil)
-            pin_phase=\(scroll.pinPhase)
-            following_bottom=\(scroll.followingBottom)
-            row_presenting=\(scroll.presenting)
-            message_count=\(messages.count)
-            window_rows=\(window.range.count)
-            window_before=\(Int(window.before))
-            window_after=\(Int(window.after))
-            view_phase=\(scenePhase)
-            \(target.log)
-            """)
-    }
-    #endif
-
-    private func conversationWindow(width: CGFloat, botsByID: [String: Bot]) -> (range: Range<Int>, before: CGFloat, after: CGFloat) {
-        let lower = renderedRows.flatMap { bounds in messages.firstIndex { $0.id == bounds.first } }
-            ?? max(0, messages.count - 10)
-        let upper = renderedRows.flatMap { bounds in messages.firstIndex { $0.id == bounds.last } }.map { $0 + 1 }
-            ?? messages.count
-        let range = lower..<max(lower, upper)
-        return (range, unloadedHeight + messages[..<lower].reduce(0) { $0 + rowHeight($1, width: width, botsByID: botsByID) + 17 },
-                messages[range.upperBound...].reduce(0) { $0 + rowHeight($1, width: width, botsByID: botsByID) + 17 })
-    }
-
-    private func measuredHeight(_ message: TimelineMessage, width: CGFloat, botsByID: [String: Bot]) -> CGFloat? {
-        guard let row = scroll.rowSizes[message.id], row.message == message,
-              row.replyLabel == replyLabel(for: message, botsByID: botsByID),
-              abs(row.frame.width - width) < 0.5 else { return nil }
-        return row.frame.height
-    }
-
-    private func rowHeight(_ message: TimelineMessage, width: CGFloat, botsByID: [String: Bot]) -> CGFloat {
-        measuredHeight(message, width: width, botsByID: botsByID) ?? unloadedRowHeight.map { $0 - 17 } ?? 180
-    }
-
-    /// 見積りが動くとバーも動くので、平均は最新の行にいる間だけ更新し、読み進める間は固定する。
-    private func updateUnloadedRowHeight() {
-        let heights = messages.compactMap { scroll.rowSizes[$0.id]?.frame.height }
-        guard !heights.isEmpty else { return }
-        let height = heights.reduce(0, +) / CGFloat(heights.count) + 17
-        if abs(height - (unloadedRowHeight ?? 0)) > 0.5 { unloadedRowHeight = height }
-    }
-
-    /// バーの全長に含める未読込の過去の長さ。全履歴ではなく、近い分だけを持つ。
-    private var unloadedHeight: CGFloat {
-        hasMore ? CGFloat(min(remainingBefore, ConversationHistoryPage.reservedRows(loaded: messages.count))) * (unloadedRowHeight ?? 197) : 0
-    }
-
-    /// 見えている行より上の読込済みの在庫が少ない時に、次の頁を足す。
-    private var olderStockIsLow: Bool {
-        guard let id = scroll.visibleAnchor?.id, let index = messages.firstIndex(where: { $0.id == id }) else { return true }
-        return index <= ConversationHistoryPage.lowStockRows
-    }
-
-    private func updateWindow(_ metrics: ScrollMetrics, viewportHeight: CGFloat, width: CGFloat, botsByID: [String: Bot]) {
-        // 末尾への移動中は中間地点の行へ表示範囲を切り替えず、到着後に更新する。
-        guard !scroll.presenting, !scroll.followingBottom, !messages.isEmpty, let top = metrics.top else { return }
-        // 描画済みの行を飛び越えても、スクロール位置と保持した行高から範囲を求める。
-        let anchor = messages.first(where: { message in
-            guard let frame = metrics.rows[message.id]?.frame else { return false }
-            return frame.maxY > 0 && frame.minY < viewportHeight
-        })
-        var offset = top + unloadedHeight
-        var lower = messages.count - 1
-        var upper = 0
-        var neededLower = messages.count - 1
-        var neededUpper = 0
-        for (index, message) in messages.enumerated() {
-            let rowHeight = rowHeight(message, width: width, botsByID: botsByID)
-            if offset + rowHeight >= -viewportHeight * 2 && offset <= viewportHeight * 3 {
-                lower = min(lower, index)
-                upper = max(upper, index + 1)
-            }
-            if offset + rowHeight >= -viewportHeight && offset <= viewportHeight * 2 {
-                neededLower = min(neededLower, index)
-                neededUpper = max(neededUpper, index + 1)
-            }
-            offset += rowHeight + 17
-        }
-        if let anchor, let index = messages.firstIndex(where: { $0.id == anchor.id }) {
-            lower = min(lower, index)
-            upper = max(upper, index + 1)
-            neededLower = min(neededLower, index)
-            neededUpper = max(neededUpper, index + 1)
-        }
-        if let pin = scroll.pin, let index = messages.firstIndex(where: { $0.id == pin }) {
-            lower = min(lower, index)
-            upper = max(upper, index + 1)
-            neededLower = min(neededLower, index)
-            neededUpper = max(neededUpper, index + 1)
-        }
-        guard upper > lower else { return }
-        let current = conversationWindow(width: width, botsByID: botsByID).range
-        // 範囲の更新は会話全体の描き直しになるので、1行ごとに動かさず、余裕が尽きた時にまとめて動かす。
-        guard neededLower < current.lowerBound || neededUpper > current.upperBound else { return }
-        renderedRows = (messages[lower].id, messages[upper - 1].id)
-    }
-
-    private func scrollRow(_ id: String, to y: CGFloat, viewportHeight: CGFloat, proxy: ScrollViewProxy) {
-        proxy.scrollTo(ScrollTracker.rowTopID(id), anchor: UnitPoint(x: 0, y: y / viewportHeight))
-    }
-
-    private func loadOlder(before oldest: String, proxy: ScrollViewProxy, viewportHeight: CGFloat) async {
-        // 余白を確保している時は上の在庫を足すだけなので、行を固定せず見えている行の補正に任せる。
-        let reserved = unloadedHeight > 0
-        let distance = scroll.top + unloadedHeight
-        measuredRow = reserved ? nil : oldest
+    private func loadOlder() async {
+        guard scenePhase == .active, hasMore, !loading, !loadingOlder, let oldest = messages.first?.id else { return }
         loadingOlder = true
         defer { loadingOlder = false }
         do {
-            // バーで余白の奥へ飛んだ時は、飛んだ先まで読み足す。
-            let limit = ConversationHistoryPage.limit(distance: reserved && distance > viewportHeight ? distance : 0,
-                                                      rowHeight: unloadedRowHeight ?? 197)
-            let path = target.path + "/messages?limit=\(limit)&before=\(oldest.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? oldest)"
+            let path = target.path + "/messages?limit=\(ConversationHistoryPage.pageSize)&before=\(oldest.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? oldest)"
             let result: ListResponse<TimelineMessage> = try await store.api.get(path)
             try Task.checkCancellation()
             hasMore = result.hasMore
-            remainingBefore = result.remainingBefore ?? 0
-            let older = timeline.prependReceived(result.items)
-            if !older.isEmpty {
-                scroll.canLoadOlder = true
-                guard !reserved else { return }
-                // 足した行のMarkdownは後から高さが伸びる。伸びるたびに同じ位置へ戻すため、行と位置を覚えておく。
-                scroll.pin = oldest
-                scroll.pinPhase = .awaitingGrowth
-                scroll.correctedTop = .infinity
-                scrollRow(oldest, to: scroll.pinnedY, viewportHeight: viewportHeight, proxy: proxy)
-            } else {
-                measuredRow = nil
-            }
+            _ = timeline.prependReceived(result.items)
         } catch is CancellationError { }
         catch let error where BellAPIError.isAuthenticationError(error) {
-            measuredRow = nil
             store.requireLogin(for: error)
         } catch {
-            measuredRow = nil
             errorText = error.localizedDescription
             store.api.diagnostics.report(error, path: target.path + "/messages", method: "GET", observation: .read(error, retainedData: !messages.isEmpty))
         }
@@ -1037,13 +708,9 @@ private struct ConversationContent: View {
                 let (page, additions, queued) = try await (latest, after, waiting)
                 try Task.checkCancellation()
                 guard !awaitingSendResponse else { return }
-                let wasAtBottom = isAtBottom
                 let newMessageCount = timeline.mergeRefresh(latest: page.items, after: additions.items)
                 if queue != queued.items { queue = queued.items }
-                if newMessageCount > 0 {
-                    if wasAtBottom { scrollToBottomRevision += 1 }
-                    else { hasUnreadMessages = true }
-                }
+                if newMessageCount > 0 && !isAtBottom { hasUnreadMessages = true }
             } else {
                 let page: ListResponse<TimelineMessage> = try await store.api.get(latestPath)
                 let queued = try await waiting
@@ -1089,9 +756,6 @@ private struct ConversationContent: View {
         draft = ""
         attachments = []
         errorText = nil
-        scroll.followingBottom = true
-        scroll.pin = nil
-        measuredRow = nil
         awaitingSendResponse = true
         timeline.beginSend(id: pendingID, body: message, imageCount: sent.count, at: Date().ISO8601Format())
         hasUnreadMessages = false
@@ -1241,41 +905,21 @@ struct PendingImage: Identifiable {
     }
 }
 
-// 開いた画面の元の行は、画面を閉じるまで保持する。
-struct ConversationPresentationKey: PreferenceKey {
-    static var defaultValue = false
-    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = nextValue() || value }
-}
+enum ConversationSheet: Identifiable {
+    case peer(TimelineMessage)
+    case secret(SecretRequest, SecretRequestCardState)
 
-// 会話のスクロール位置の計測値。各計測点が自分の値だけを入れ、reduceで一つにまとめる。
-private struct ConversationRowMetric: Equatable {
-    let message: TimelineMessage
-    let layoutWidth: CGFloat
-    let replyLabel: String?
-    let frame: CGRect
-}
-
-private struct ScrollMetrics: Equatable {
-    var top: CGFloat?
-    var height: CGFloat?
-    var bottom: CGFloat?
-    var boundary: CGFloat?
-    var width: CGFloat?
-    var rows: [String: ConversationRowMetric] = [:]
-}
-
-private struct ScrollMetricsKey: PreferenceKey {
-    static var defaultValue = ScrollMetrics()
-
-    static func reduce(value: inout ScrollMetrics, nextValue: () -> ScrollMetrics) {
-        let next = nextValue()
-        value.top = next.top ?? value.top
-        value.height = next.height ?? value.height
-        value.bottom = next.bottom ?? value.bottom
-        value.boundary = next.boundary ?? value.boundary
-        value.width = next.width ?? value.width
-        value.rows.merge(next.rows) { _, next in next }
+    var id: String {
+        switch self {
+        case .peer(let message): "peer-\(message.id)"
+        case .secret(let request, _): "secret-\(request.id)"
+        }
     }
+}
+
+struct ConversationGallery: Identifiable {
+    let paths: [String]
+    var id: String { paths.joined(separator: "\n") }
 }
 
 private final class ReadCoordinator {
@@ -1284,149 +928,16 @@ private final class ReadCoordinator {
     var generation = 0
 }
 
-// 行の実測と、再配置しても残す操作状態。毎フレームの計測で親を再描画しないよう参照型に置く。
-/// 上方向の入力が続いても会話が動かない状態を、会話ごとに1回だけ見つける。
-struct ConversationWheelStallDetector {
-    private var startedAt: Date?
-    private var startTop: CGFloat = 0
-    private var inputs = 0
-    private var reported = false
-
-    mutating func wheelUp(top: CGFloat, idle: Bool, now: Date) -> Bool {
-        guard idle, !reported else { startedAt = nil; return false }
-        if let startedAt, now.timeIntervalSince(startedAt) <= 2, abs(top - startTop) <= 0.5 {
-            inputs += 1
-        } else {
-            startedAt = now
-            startTop = top
-            inputs = 1
-        }
-        // 同じ描画周期の入力は位置の更新前に届くので、時間が空くまで判定しない。
-        guard inputs >= 3, let startedAt, now.timeIntervalSince(startedAt) >= 0.5 else { return false }
-        reported = true
-        return true
-    }
-}
-
-#if targetEnvironment(macCatalyst)
-/// ポインタ下の部品だけを記録する。本文やIDは持たない。
-private struct ConversationWheelTarget {
-    let hitClass: String
-    let nestedScrollEnabled: Bool
-    let scrollView: UIScrollView?
-    let keyWindow: Bool
-
-    var log: String {
-        var result = "hit_class=\(hitClass.prefix(80))\nnested_scroll_enabled=\(nestedScrollEnabled)\nkey_window=\(keyWindow)"
-        if let scrollView {
-            result += "\nscroll_enabled=\(scrollView.isScrollEnabled)"
-                + "\nscroll_content_height=\(Int(scrollView.contentSize.height))"
-                + "\nscroll_bounds_height=\(Int(scrollView.bounds.height))"
-                + "\nscroll_offset_y=\(Int(scrollView.contentOffset.y))"
-        }
-        return result
-    }
-}
-
-/// ホイールは奪わず、会話の上で上方向に回された事実だけを受け取る。
-private struct ConversationWheelObserver: UIViewRepresentable {
-    let onWheelUp: (ConversationWheelTarget) -> Void
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    func makeUIView(context: Context) -> Probe {
-        let view = Probe()
-        view.isUserInteractionEnabled = false
-        view.coordinator = context.coordinator
-        return view
-    }
-
-    func updateUIView(_ view: Probe, context: Context) { context.coordinator.onWheelUp = onWheelUp }
-
-    final class Probe: UIView {
-        weak var coordinator: Coordinator?
-
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            coordinator?.attach(to: self)
-        }
-    }
-
-    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        var onWheelUp: ((ConversationWheelTarget) -> Void)?
-        private weak var probe: UIView?
-        private lazy var recognizer: UIPanGestureRecognizer = {
-            let pan = UIPanGestureRecognizer(target: self, action: #selector(wheel))
-            pan.allowedScrollTypesMask = .all
-            pan.allowedTouchTypes = []
-            pan.cancelsTouchesInView = false
-            pan.delegate = self
-            return pan
-        }()
-
-        func attach(to view: UIView) {
-            probe = view
-            recognizer.view?.removeGestureRecognizer(recognizer)
-            view.window?.addGestureRecognizer(recognizer)
-        }
-
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
-                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
-
-        @objc private func wheel(_ pan: UIPanGestureRecognizer) {
-            guard pan.state == .changed, let window = pan.view as? UIWindow, let probe else { return }
-            let deltaY = pan.translation(in: window).y
-            pan.setTranslation(.zero, in: window)
-            let location = pan.location(in: window)
-            guard deltaY > 0, probe.convert(probe.bounds, to: window).contains(location) else { return }
-            let hit = window.hitTest(location, with: nil)
-            var scrollViews: [UIScrollView] = []
-            var current = hit
-            while let view = current {
-                if let scrollView = view as? UIScrollView { scrollViews.append(scrollView) }
-                current = view.superview
-            }
-            onWheelUp?(ConversationWheelTarget(
-                hitClass: hit.map { String(describing: type(of: $0)) } ?? "none",
-                nestedScrollEnabled: scrollViews.dropLast().contains { $0.isScrollEnabled },
-                scrollView: scrollViews.last, keyWindow: window.isKeyWindow))
-        }
-    }
-}
-#endif
-
 enum ConversationHistoryPage {
+    /// 見えている行より上の読込済みが25行以下になったら、次の25行を足す。
     static let lowStockRows = 25
-    /// 全長は読込済みと合わせて50発話分から始める。読込10件なら40件、35件なら15件で全長を保ち、その先は25件ずつ増える。
-    static func reservedRows(loaded: Int) -> Int { max(15, 50 - loaded) }
-    /// 通常は25件。余白の奥へ飛んだ時は、その距離の分まで本体の上限200件の範囲で読む。
-    static func limit(distance: CGFloat, rowHeight: CGFloat) -> Int {
-        min(200, 25 + Int(max(0, distance) / rowHeight))
-    }
+    static let pageSize = 25
 }
 
-private final class ScrollTracker {
-    // 追加した過去行の配置中は、元の先頭行が一度画面に戻るまで固定を解除しない。
-    enum PinPhase { case awaitingGrowth, correcting, aligned }
-    static func rowTopID(_ id: String) -> String { "top-\(id)" }
+/// 行を配置から外しても会話が持ち続けるカードの状態。
+private final class ConversationCardStates {
     private var secretStates: [String: SecretRequestCardState] = [:]
     private var questionStates: [String: OwnerQuestionCardState] = [:]
-    var pendingBottomScroll = false
-    var presenting = false
-    var followingBottom = false
-    var rowSizes: [String: ConversationRowMetric] = [:]
-    var visibleAnchor: (id: String, y: CGFloat)?
-    var contentWidth: CGFloat = 0
-    var height: CGFloat = 0
-    var top: CGFloat = 0
-    var pin: String?
-    var pinPhase = PinPhase.awaitingGrowth
-    var pinnedY: CGFloat = 0
-    var correctedTop = CGFloat.infinity
-    var pendingMetrics: ScrollMetrics?
-    var metricsScheduled = false
-    var canLoadOlder = true
-    var wheelStall = ConversationWheelStallDetector()
 
     func secretState(for id: String) -> SecretRequestCardState {
         if let state = secretStates[id] { return state }
@@ -1618,7 +1129,8 @@ private struct MessageRow: View, Equatable {
     let senderBot: Bot?
     let replyLabel: String?
     let api: BellAPI
-    @State private var showingPeer = false
+    let onOpenPeer: () -> Void
+    let onOpenImages: ([String]) -> Void
 
     static func == (lhs: MessageRow, rhs: MessageRow) -> Bool {
         lhs.message == rhs.message && lhs.isRoom == rhs.isRoom
@@ -1642,7 +1154,7 @@ private struct MessageRow: View, Equatable {
 
     var body: some View {
         if message.isPeer {
-            Button { showingPeer = true } label: {
+            Button(action: onOpenPeer) {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.left.arrow.right")
                     Text("\(message.peerName ?? "メンバー")との連絡")
@@ -1656,33 +1168,6 @@ private struct MessageRow: View, Equatable {
             }
             .buttonStyle(.plain)
             .frame(maxWidth: .infinity)
-            .sheet(isPresented: $showingPeer) {
-                NavigationStack {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 15) {
-                            Text(message.peerName ?? "メンバー")
-                                .font(.title2.bold())
-                            Text(BellDate.long(message.at)).font(BellTheme.messageHelperFont).foregroundStyle(BellTheme.muted)
-                            if let text = message.message {
-                                MessageText(source: text, fontSize: BellTheme.peerMessageFontSize, lineSpacing: 0,
-                                            accessibilityIdentifier: "message-text-\(message.id)")
-                                    .equatable()
-                            }
-                            if !message.displayedImageURLs.isEmpty {
-                                MessageImages(paths: message.displayedImageURLs, messageID: message.id,
-                                              outgoing: message.isOutgoing, api: api)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(22)
-                    }
-                    .background(BellBackground())
-                    .navigationTitle("メンバー間の連絡")
-                    .navigationBarTitleDisplayMode(.inline)
-                }
-                .presentationDetents([.medium, .large])
-            }
-            .preference(key: ConversationPresentationKey.self, value: showingPeer)
         } else {
             HStack(alignment: .bottom, spacing: 8) {
                 if message.isOutgoing { Spacer(minLength: 45) }
@@ -1697,7 +1182,7 @@ private struct MessageRow: View, Equatable {
                                 .foregroundStyle(bubbleAccent)
                         }
                         MessageImages(paths: message.displayedImageURLs, messageID: message.id,
-                                      outgoing: message.isOutgoing, api: api)
+                                      outgoing: message.isOutgoing, api: api, onOpen: onOpenImages)
                             .padding(.bottom, 8)
                     }
                     if hasBubbleContent {
@@ -1709,7 +1194,7 @@ private struct MessageRow: View, Equatable {
                             }
                             if !hasImageStack && !message.displayedImageURLs.isEmpty {
                                 MessageImages(paths: message.displayedImageURLs, messageID: message.id,
-                                              outgoing: message.isOutgoing, api: api)
+                                              outgoing: message.isOutgoing, api: api, onOpen: onOpenImages)
                             } else if message.displayedImageURLs.isEmpty && message.image == true {
                                 Label((message.imageCount ?? 1) > 1 ? "画像\(message.imageCount!)枚" : "画像", systemImage: "photo")
                                     .font(.subheadline)
@@ -1757,18 +1242,53 @@ private struct MessageRow: View, Equatable {
     }
 }
 
+/// メンバー間の連絡の全文。会話の根のシートとして開く。
+private struct PeerMessageSheet: View {
+    let message: TimelineMessage
+    let api: BellAPI
+    @State private var gallery: ConversationGallery?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 15) {
+                    Text(message.peerName ?? "メンバー")
+                        .font(.title2.bold())
+                    Text(BellDate.long(message.at)).font(BellTheme.messageHelperFont).foregroundStyle(BellTheme.muted)
+                    if let text = message.message {
+                        MessageText(source: text, fontSize: BellTheme.peerMessageFontSize, lineSpacing: 0,
+                                    accessibilityIdentifier: "message-text-\(message.id)")
+                            .equatable()
+                    }
+                    if !message.displayedImageURLs.isEmpty {
+                        MessageImages(paths: message.displayedImageURLs, messageID: message.id,
+                                      outgoing: message.isOutgoing, api: api) { gallery = ConversationGallery(paths: $0) }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(22)
+            }
+            .background(BellBackground())
+            .navigationTitle("メンバー間の連絡")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium, .large])
+        .fullScreenCover(item: $gallery) { MessageImageGallery(paths: $0.paths, api: api) }
+    }
+}
+
 /// 会話内のカード束と全画面表示は、iPhone・iPad・Macで同じ画像一覧を使う。
 private struct MessageImages: View {
     let paths: [String]
     let messageID: String
     let outgoing: Bool
     let api: BellAPI
-    @State private var showingGallery = false
+    let onOpen: ([String]) -> Void
     @Environment(\.horizontalSizeClass) private var sizeClass
     private var cardWidth: CGFloat { sizeClass == .compact ? 180 : 230 }
 
     var body: some View {
-        Button { showingGallery = true } label: {
+        Button { onOpen(paths) } label: {
             VStack(alignment: outgoing ? .trailing : .leading, spacing: 10) {
                 if paths.count == 1 {
                     AuthenticatedImage(path: paths[0], api: api, maxPixelSize: nil)
@@ -1803,10 +1323,6 @@ private struct MessageImages: View {
         .buttonStyle(.plain)
         .accessibilityLabel(paths.count > 1 ? "画像\(paths.count)枚を開く" : "画像を開く")
         .accessibilityIdentifier("message-images-\(messageID)")
-        .fullScreenCover(isPresented: $showingGallery) {
-            MessageImageGallery(paths: paths, api: api)
-        }
-        .preference(key: ConversationPresentationKey.self, value: showingGallery)
     }
 }
 

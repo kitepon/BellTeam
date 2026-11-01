@@ -508,7 +508,7 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
                                "-bellbot-preview-reporting", "-bellbot-preview-events"]
         app.launch(); defer { app.terminate() }
         let input = app.textViews["message-input"]
-        let scroll = app.scrollViews["conversation-messages"]
+        let scroll = app.tables["conversation-messages"]
         XCTAssertTrue(app.descendants(matching: .any)["message-text-probe-message"].firstMatch.waitForExistence(timeout: 6))
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         input.tap(); input.typeText("アークって何？")
@@ -562,7 +562,7 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
                                "-bellbot-preview-reporting", "-bellbot-preview-events"]
         app.launch(); defer { app.terminate() }
         let input = app.textViews["message-input"]
-        let scroll = app.scrollViews["conversation-messages"]
+        let scroll = app.tables["conversation-messages"]
         XCTAssertTrue(app.descendants(matching: .any)["message-text-probe-message"].firstMatch.waitForExistence(timeout: 6))
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         input.tap(); input.typeText("送信後も見える本文")
@@ -611,7 +611,7 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
                                "-bellbot-preview-reporting", "-bellbot-preview-events"]
         app.launch(); defer { app.terminate() }
         let input = app.textViews["message-input"]
-        let scroll = app.scrollViews["conversation-messages"]
+        let scroll = app.tables["conversation-messages"]
         let older = app.descendants(matching: .any)["message-text-probe-message"].firstMatch
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         XCTAssertTrue(older.waitForExistence(timeout: 5))
