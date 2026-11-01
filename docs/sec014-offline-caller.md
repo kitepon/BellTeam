@@ -1238,3 +1238,38 @@ ran no cases; it is preserved separately from the corrected result. No full
 groups or real Host/Docker operations were run. Pre-image Writer authority,
 production factory and continuous exclusion remain unconnected;
 all authorityfalse and whole NOTDEPLOYABLE remain.
+
+
+### 2026-11-01: failure custody keeps the existing kernel lock
+
+Previously run_actor retained a transaction with unconfirmed Writer/Prepare
+children or a registered host checker, but the enclosing control context closed
+its parent and lock descriptors. Another process could then acquire the kernel
+EX lock while the retained owner still existed. The incomplete journal refused
+a normal second actor, but did not preserve the participant lock interval.
+
+When the existing failure-owner branch retains the transaction, it now transfers
+custody of those same descriptors to that owner. The context closes them on all
+other exits. No new lock, helper, actor authority or recovery entry is added;
+CLOEXEC and the current EX/SH mode remain intact. The original exception and
+incomplete journal are preserved. An owner process exit still closes the kernel
+lock, with the incomplete journal remaining for explicit recovery. Production
+recovery/reaping and the production factory are still unconnected; this change
+does not make the whole draft deployable.
+
+The final regression bytes exercise seven existing failure variants through the
+real Python actor/control contexts on an ordinary filesystem: both Prepare child
+custody failures, binding error/interrupt/later failure, and both prebinding save
+failures. A separate real Python process can acquire EX against the old product
+in all seven, and is refused after the fix. The held parent/lock retain their
+original inodes; explicit fixture cleanup waits for its own native child before
+closing custody, and another process can acquire EX afterwards. Factory failure
+without any retained resource still releases its descriptors. These are local
+fixture assertions, not Host/peer authority or production recovery evidence.
+
+The normal Node suite also exposed a stale public installer fixture: it stopped
+at an obsolete merged Compose render that the retained-model installer no longer
+calls. The fixture now observes the real dedicated maintenance invocation and
+reads the captured normal file; dotenv separators, normal settings, selected
+raw image, dedicated-only services and missing-input refusals stay asserted.
+The installer product bytes are unchanged by this fixture correction.

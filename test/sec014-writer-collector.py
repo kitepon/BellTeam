@@ -310,6 +310,10 @@ class WriterCollector(h.HeldWriterConfig):
                 for stream in (child.stdout,child.stderr):
                     if stream and not stream.closed:stream.close()
             owners=getattr(h.g.a,'_FAILED_WRITER_OWNERS',[])
+            for tx in owners:
+                if tx.path == self.control and getattr(tx, '_retain_control', False):
+                    os.close(tx.lock)
+                    os.close(tx.parent)
             owners[:]=[tx for tx in owners if tx.path!=self.control]
 
 

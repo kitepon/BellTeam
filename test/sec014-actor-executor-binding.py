@@ -23,7 +23,34 @@ class AfterPrepare(Exception):
 
 
 class Binding(saved.SavedPrepare):
+    def assert_retained_control(self, tx):
+        probe = self.real_popen([sys.executable, '-c',
+            "import fcntl,os,sys; f=os.open(sys.argv[1],os.O_RDWR); "
+            "fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)", str(tx.path/'sec014.lock')],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
+        _, error = probe.communicate(timeout=2)
+        self.assertNotEqual(probe.returncode, 0, 'failure owner released the kernel lock')
+        self.assertIn(b'BlockingIOError', error)
+        self.assertEqual(os.fstat(tx.parent).st_ino, os.stat(tx.path).st_ino)
+        self.assertEqual(os.fstat(tx.lock).st_ino, os.stat(tx.path/'sec014.lock').st_ino)
+        print('FAILED_OWNER_LOCK '+json.dumps(dict(kernelExBlocked=True,
+            sameInode=True, parentOpen=True)), flush=True)
+
+    def release_failed_control(self):
+        for tx in a._FAILED_WRITER_OWNERS:
+            if tx.path == self.f.root and getattr(tx, '_retain_control', False):
+                os.close(tx.lock)
+                os.close(tx.parent)
+                probe = self.real_popen([sys.executable, '-c',
+                    "import fcntl,os,sys; f=os.open(sys.argv[1],os.O_RDWR); "
+                    "fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)", str(tx.path/'sec014.lock')],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
+                _, error = probe.communicate(timeout=2)
+                self.assertEqual(probe.returncode, 0, error)
+        a._FAILED_WRITER_OWNERS[:] = [tx for tx in a._FAILED_WRITER_OWNERS if tx.path != self.f.root]
+
     def entry(self, direction, *, saved_normal):
+        self.addCleanup(self.release_failed_control)
         self.assertEqual(direction, 'to-server')
         self.assertEqual(saved_normal, self.normal)
         return self.f.hold()
@@ -82,8 +109,7 @@ class Binding(saved.SavedPrepare):
         self.assertEqual(journal['status'], 'incomplete')
         self.assertEqual(journal['normal'], bound[0].value['normal'])
         self.assertFalse((self.f.root/'to-server-started.receipt.json').exists())
-        with self.assertRaises(OSError):
-            os.fstat(bound[0].lock)
+        self.assert_retained_control(bound[0])
 
     def test_binding_factory_failure_releases_lock_without_advancing(self):
         held = []
@@ -149,8 +175,7 @@ class Binding(saved.SavedPrepare):
             self.assertEqual(len(owned),1)
             self.assertIs(owned[0]._prepare_children[0][0],child)
             self.assertEqual(owned[0]._prepare_children[0][1],None if birth_missing else issued['born'])
-            for fd in (owned[0].parent,owned[0].lock):
-                with self.assertRaises(OSError):os.fstat(fd)
+            self.assert_retained_control(owned[0])
             self.assertEqual(set(invalidated),{'UNCONFIRMED_CHILD'})
             self.assertEqual(self.journal()['phases'],[])
             self.assertEqual(self.journal()['status'],'incomplete')
@@ -160,7 +185,7 @@ class Binding(saved.SavedPrepare):
                 real_popen.wait(child,timeout=2)
                 for stream in (child.stdout,child.stderr):
                     if stream and not stream.closed:stream.close()
-            a._FAILED_WRITER_OWNERS[:]=[tx for tx in a._FAILED_WRITER_OWNERS if tx.path!=self.f.root]
+            self.release_failed_control()
 
     def test_prepare_terminal_failure_survives_factory_unwind(self):
         self.prepare_failure_owner(False)
@@ -206,11 +231,10 @@ class Binding(saved.SavedPrepare):
             self.assertEqual(getattr(owned[0],'_prepare_children',[]),[])
             self.assertEqual(self.journal()['phases'],[])
             self.assertEqual(self.journal()['status'],'incomplete')
-            for fd in (owned[0].parent,owned[0].lock):
-                with self.assertRaises(OSError):os.fstat(fd)
+            self.assert_retained_control(owned[0])
         finally:
             failure.__traceback__=failure.__context__=failure.__cause__=None
-            a._FAILED_WRITER_OWNERS[:]=[tx for tx in a._FAILED_WRITER_OWNERS if tx.path!=self.f.root]
+            self.release_failed_control()
 
     def test_binding_error_retains_host_checker_after_factory_gc(self):
         self.host_binding_failure_owner('error')
@@ -262,11 +286,10 @@ class Binding(saved.SavedPrepare):
             self.assertEqual(getattr(owned[0],'_prepare_children',[]),[])
             self.assertEqual(self.journal()['phases'],[])
             self.assertEqual(self.journal()['status'],'incomplete')
-            for fd in (owned[0].parent,owned[0].lock):
-                with self.assertRaises(OSError):os.fstat(fd)
+            self.assert_retained_control(owned[0])
         finally:
             failure.__traceback__=failure.__context__=failure.__cause__=None
-            a._FAILED_WRITER_OWNERS[:]=[tx for tx in a._FAILED_WRITER_OWNERS if tx.path!=self.f.root]
+            self.release_failed_control()
 
     def test_binding_socket_save_failure_retains_prebind_checker(self):
         self.before_binding_failure_owner('socket')

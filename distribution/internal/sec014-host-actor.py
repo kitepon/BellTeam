@@ -183,5 +183,6 @@ def run_actor(direction, image, executor_factory, *, saved_normal):
             if getattr(tx,'_prepare_host_checks',()) or any(child.returncode is None
                    for children in (getattr(tx, '_writer_children', ()),getattr(tx, '_prepare_children', ()))
                    for child, _ in children):
+                tx._retain_control = True
                 _FAILED_WRITER_OWNERS.append(tx)
             raise

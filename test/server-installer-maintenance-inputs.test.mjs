@@ -27,16 +27,16 @@ case "$*" in
  'image inspect --format {{.Id}} sha256:'*) for image do :; done; echo "$image";;
  'compose config --format json')
    node -e 'const c=JSON.parse(require("node:fs").readFileSync(process.env.TEST_NORMAL_MODEL));c.name=process.env.COMPOSE_PROJECT_NAME||c.name;console.log(JSON.stringify(c))';;
- 'compose --project-directory '*'/install -f - -f '*'/compose.state-maintenance.json config --format json --no-path-resolution')
-      cat > "$TEST_MODEL_IN"
+ 'compose --project-directory '*'/install -f '*'/compose.state-maintenance.json -p '*' run --pull never --rm --no-deps -T state-maintenance to-server')
+      cat "$COMPOSE_FILE" > "$TEST_MODEL_IN"
       printf '%s\\n%s\\n%s\\n' "$COMPOSE_FILE" "\${COMPOSE_PROJECT_NAME-}" "\${BELLTEAM_SERVER_IMAGE-}" > "$TEST_RENDER"
       for path in BELLTEAM_LEGACY_DATA BELLTEAM_STATE_PARENT BELLTEAM_MAINTENANCE_BACKUP_PARENT; do
         eval 'value=\${'"$path"'-}'
         [ -n "$value" ] || { echo synthetic-required-input-missing >&2; exit 42; }
       done
-      file=$7
+      file=$5
       cat "$file" > "$TEST_RENDER_JSON"
-      # Stop at rendering; this fixture never claims writer verification.
+      # Stop before maintenance; this fixture never claims writer verification.
       exit 47;;
  'compose config --format yaml') printf '%s\\n' 'name: fixture' 'volumes:' '  cursor-cli:' '    name: fixture-cursor';;
  'compose port bellteam 4180') echo 127.0.0.1:18891;;
@@ -62,7 +62,7 @@ esac
     run: extra => exec('sh', [join(install, 'install.sh')], { env: { ...env, ...extra } }) }
 }
 
-test('installer merges the image-owned maintenance file into the full normal model, including dotenv-selected inputs', async t => {
+test('installer retains the normal and dedicated maintenance models, including dotenv-selected inputs', async t => {
   const f = await fixture(t)
   for (const mode of [':', ';', 'dotenv-only']) {
     const separator = mode === 'dotenv-only' ? ':' : mode
@@ -78,7 +78,7 @@ test('installer merges the image-owned maintenance file into the full normal mod
     assert.deepEqual(Object.keys(model.services), ['state-maintenance'])
     assert.equal(model.services['state-maintenance'].image, pinnedImage)
     const calls = await readFile(f.calls, 'utf8')
-    assert.ok(calls.includes(`compose --project-directory ${f.install} -f - -f `))
+    assert.match(calls, /compose --project-directory .* -f .*\/compose.state-maintenance.json -p existing-project run /)
     assert.match(calls, /stop cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n/)
     assert.doesNotMatch(calls, /compose run |cursor-update$|compose up /m)
   }

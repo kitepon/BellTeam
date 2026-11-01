@@ -428,7 +428,7 @@ def _hold(path, direction, owner, normal_group=None, saved_normal=None):
     if direction not in DIRECTIONS:
         raise ControlError('SEC014_CONTROL_DIRECTION')
     parent = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
-    lock = None
+    lock = transaction = None
     try:
         _private(os.fstat(parent), owner, True, normal_group)
         try:
@@ -497,9 +497,11 @@ def _hold(path, direction, owner, normal_group=None, saved_normal=None):
         yield transaction
         # A normal Python return does not prove completion of daemon work.
     finally:
-        if lock is not None:
-            os.close(lock)
-        os.close(parent)
+        # Failed actor owners keep the same kernel lock until explicit recovery.
+        if transaction is None or not getattr(transaction, '_retain_control', False):
+            if lock is not None:
+                os.close(lock)
+            os.close(parent)
 
 
 @contextmanager
