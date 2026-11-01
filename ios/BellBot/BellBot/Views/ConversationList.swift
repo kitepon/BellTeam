@@ -12,6 +12,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
     let messages: [TimelineMessage]
     let queue: [QueueItem]
     let hasMore: Bool
+    let loading: Bool
     let loadingOlder: Bool
     let bottomInset: CGFloat
     let scrollToBottomRevision: Int
@@ -52,9 +53,13 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         coordinator.onRefresh = onRefresh
         coordinator.onAtBottomChange = onAtBottomChange
         coordinator.hasMore = hasMore
+        // 初回取得か読み足しが終わったら、表示域を埋める判定をやり直してよい。
+        if (coordinator.loading && !loading) || (coordinator.loadingOlder && !loadingOlder) { coordinator.fillRequested = false }
+        coordinator.loading = loading
         coordinator.loadingOlder = loadingOlder
         if table.contentInset.bottom != bottomInset { table.contentInset.bottom = bottomInset }
         coordinator.apply(rows: rows, messages: messages, queue: queue)
+        coordinator.fillIfShort()
         if coordinator.scrollToBottomRevision != scrollToBottomRevision {
             coordinator.scrollToBottomRevision = scrollToBottomRevision
             coordinator.scrollToBottom(animated: true)
@@ -67,7 +72,9 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         var onRefresh: (() async -> Void)?
         var onAtBottomChange: ((Bool) -> Void)?
         var hasMore = false
+        var loading = false
         var loadingOlder = false
+        var fillRequested = false
         var scrollToBottomRevision = 0
         private weak var table: ConversationTableView?
         private var dataSource: UITableViewDiffableDataSource<Int, ConversationRow>?
@@ -90,7 +97,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 self?.configure(cell, row: row, first: indexPath.row == 0)
                 return cell
             }
-            table.onLayout = { [weak self] in self?.layoutChanged() }
+            table.onLayout = { [weak self] in self?.fillIfShort() }
             #if targetEnvironment(macCatalyst)
             wheel = WheelScrollSmoother(scrollView: table, onStart: { [weak self] in self?.beginUserScroll() },
                                         onStop: { [weak self] in self?.settle() })
@@ -137,8 +144,11 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             if prepended { armed = true }
             if previous.isEmpty && !rows.isEmpty {
                 table.followsBottom = true
-                table.layoutIfNeeded()
-                table.pinToBottom()
+                table.settling = true
+                UIView.performWithoutAnimation {
+                    table.layoutIfNeeded()
+                    table.pinToBottom()
+                }
             }
         }
 
@@ -177,11 +187,13 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             DispatchQueue.main.async { [onAtBottomChange] in onAtBottomChange?(now) }
         }
 
-        private func layoutChanged() {
+        func fillIfShort() {
             #if targetEnvironment(macCatalyst)
             // Macのホイールは動かせる長さが無いと位置が変わらないので、表示域が埋まるまで過去を足す。
-            if let table, table.contentSize.height <= table.bounds.height, hasMore, !loadingOlder, armed {
-                armed = false
+            // 親が取得中の間は頼まず、取得が終わった後の判定で頼む。
+            if let table, table.bounds.height > 0, table.contentSize.height <= table.bounds.height,
+               hasMore, !loading, !loadingOlder, !fillRequested {
+                fillRequested = true
                 // 親の更新中の配置から呼ばれ得るので、親の状態は次の周で変える。
                 DispatchQueue.main.async { [onLoadOlder] in onLoadOlder?() }
             }
@@ -244,6 +256,8 @@ final class ConversationCell: UITableViewCell {
 /// 末尾追従と幅変更時の読書位置だけを持つ表。
 final class ConversationTableView: UITableView {
     var followsBottom = true
+    /// 最初の行が入ってから、末尾で位置が落ち着くまで。この間は行の高さの確定を描かない。
+    var settling = false
     var onLayout: (() -> Void)?
     private var layoutWidth: CGFloat = 0
 
@@ -276,12 +290,27 @@ final class ConversationTableView: UITableView {
             }
             layoutWidth = bounds.width
         }
-        super.layoutSubviews()
+        if settling {
+            UIView.performWithoutAnimation { layoutFollowingBottom() }
+        } else {
+            layoutFollowingBottom()
+        }
         if let (path, offset) = anchor, path.row < numberOfRows(inSection: 0) {
             contentOffset.y = rectForRow(at: path).minY - offset
         }
-        if followsBottom { pinToBottom() }
         onLayout?()
+    }
+
+    /// 末尾へ寄せると見える行が変わり、その行の実高で末尾がまた動く。同じフレームの中で落ち着くまで繰り返す。
+    private func layoutFollowingBottom() {
+        super.layoutSubviews()
+        guard followsBottom else { return }
+        for _ in 0..<3 {
+            let before = contentOffset.y
+            pinToBottom()
+            if abs(contentOffset.y - before) <= 0.5 { settling = false; return }
+            super.layoutSubviews()
+        }
     }
 }
 

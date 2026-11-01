@@ -116,7 +116,7 @@ private struct ConversationContent: View {
                 Group { if initialLoadFailed { failedConversation } else { emptyConversation } }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
-                ConversationList(messages: messages, queue: queue, hasMore: hasMore, loadingOlder: loadingOlder,
+                ConversationList(messages: messages, queue: queue, hasMore: hasMore, loading: loading, loadingOlder: loadingOlder,
                                  bottomInset: 18 + (attachments.isEmpty ? 0 : attachmentStripHeight),
                                  scrollToBottomRevision: scrollToBottomRevision,
                                  onLoadOlder: { olderTask = Task { await loadOlder() } },
