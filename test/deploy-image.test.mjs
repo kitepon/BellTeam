@@ -47,19 +47,19 @@ if (args[0] === 'compose' && args[1] === 'up' && process.env.FIXTURE_FAIL === 'u
   await chmod(join(root,'bin','python3'),0o755)
   const env = { PATH:`${join(root,'bin')}:${process.env.PATH}`, FIXTURE_LOG:join(root,'calls'),
     FIXTURE_COUNT:join(root,'count'),FIXTURE_UPDATER:join(root,'fixture-updater'),
-    BELLTEAM_SERVER_IMAGE:image,BELLTEAM_DEPLOY_QUIET_EXCEPT:'bot-fixture',TMPDIR:root }
+    BELLTEAM_SERVER_IMAGE:image,TMPDIR:root }
   await writeFile(env.FIXTURE_LOG,'')
   await writeFile(env.FIXTURE_COUNT,'0')
   return {root,env,async calls(){return (await readFile(env.FIXTURE_LOG,'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse)}}
 }
 
-test('商用imageは同じdigest・構成で取得し、旧本体のquiet2点を挟んで一度だけupする', async t => {
+test('商用imageは同じdigest・構成で取得し、cursor更新のあと一度だけupする', async t => {
   const f = await fixture(t)
   const { stdout } = await exec('sh',['scripts/deploy-image.sh'],{cwd:f.root,env:f.env})
   assert.match(stdout,/deploy-exit=0/u)
   const calls = await f.calls()
   assert.deepEqual(calls.map(row => row.args[0] === 'compose' ? row.args[1] : row.args[0]),
-    ['fixture-backup','pull','run','run','exec','fixture-cursor','exec','up'])
+    ['pull','run','run','fixture-cursor','up'])
   for (const row of calls) {
     assert.equal(row.cwd,f.root)
     assert.equal(row.compose,`${f.root}/distribution/server/compose.yaml:${f.root}/distribution/internal/compose.overlay.yaml`)
@@ -74,27 +74,17 @@ test('商用imageは同じdigest・構成で取得し、旧本体のquiet2点を
   assert.equal(calls.some(row=>row.args.includes('stop')||row.args.includes('build')),false)
 })
 
-for (const [failure,code,quiet,cursor,up] of [
-  ['pull',7,0,0,0],['extract',8,0,0,0],['quiet1',2,1,0,0],
-  ['cursor',9,1,1,0],['quiet2',2,2,1,0],['up',10,2,1,1],
+for (const [failure,code,cursor,up] of [
+  ['pull',7,0,0],['extract',8,0,0],['cursor',9,1,0],['up',10,1,1],
 ]) test(`${failure}失敗は記録し、未実行の更新・upや旧本体stopを行わない`,async t=>{
   const f=await fixture(t)
   const result=await exec('sh',['scripts/deploy-image.sh'],{cwd:f.root,env:{...f.env,FIXTURE_FAIL:failure}}).catch(error=>error)
   assert.equal(result.code,code);assert.match(result.stdout,new RegExp(`deploy-exit=${code}`,'u'))
   const calls=await f.calls()
-  assert.equal(calls.filter(row=>row.args[0]==='exec'&&row.args.includes('--input-type=module')).length,quiet)
+  assert.equal(calls.some(row=>row.args[0]==='exec'||row.args[0]==='fixture-backup'),false)
   assert.equal(calls.filter(row=>row.args[0]==='fixture-cursor').length,cursor)
   assert.equal(calls.filter(row=>row.args[0]==='compose'&&row.args[1]==='up').length,up)
   assert.equal(calls.some(row=>row.args.includes('stop')||row.args.includes('build')),false)
-})
-
-test('quiet対象が空なら復旧点・取得・cursor更新・upをquiet判定なしで行う', async t => {
-  const f = await fixture(t)
-  const { stdout } = await exec('sh',['scripts/deploy-image.sh'],{cwd:f.root,env:{...f.env,BELLTEAM_DEPLOY_QUIET_EXCEPT:''}})
-  assert.match(stdout,/deploy-exit=0/u)
-  const calls = await f.calls()
-  assert.deepEqual(calls.map(row => row.args[0] === 'compose' ? row.args[1] : row.args[0]),
-    ['fixture-backup','pull','run','run','fixture-cursor','up'])
 })
 
 test('未固定imageはgit/SSHを始める前に拒否する',async t=>{
@@ -103,15 +93,14 @@ test('未固定imageはgit/SSHを始める前に拒否する',async t=>{
     await writeFile(join(f.root,'bin',bin),'#!/bin/sh\necho unexpected >> "$FIXTURE_LOG"\nexit 98\n')
     await chmod(join(f.root,'bin',bin),0o755)
   }
-  for(const [value,except] of [['fixture:latest','bot-fixture'],['fixture:latest',''],['x@sha256:abc','bot-fixture']]){
-    const result=await exec('sh',['scripts/deploy.sh'],{cwd:f.root,env:{...f.env,
-      BELLTEAM_DEPLOY_IMAGE:value,BELLTEAM_DEPLOY_QUIET_EXCEPT:except}}).catch(error=>error)
+  for(const value of ['fixture:latest','x@sha256:abc']){
+    const result=await exec('sh',['scripts/deploy.sh'],{cwd:f.root,env:{...f.env,BELLTEAM_DEPLOY_IMAGE:value}}).catch(error=>error)
     assert.equal(result.code,2)
   }
   assert.deepEqual(await f.calls(),[])
 })
 
-for (const [selected,except] of [['','bot-fixture'],[image,'bot-fixture'],[image,'']]) test(`正規入口は履歴/控え/結果確認を維持して${selected ? '受入image' : '従来build'}（quiet対象${except ? 'あり' : '空'}）へ接続する`,async t=>{
+for (const selected of ['',image]) test(`正規入口は履歴/処理待ち控え/結果確認を維持して${selected ? '受入image' : '従来build'}へ接続する`,async t=>{
   const f=await fixture(t)
   const sha='b'.repeat(40)
   const git=`#!/usr/bin/env node
@@ -130,7 +119,7 @@ else if(command.includes('tail -3'))console.log('deploy-exit=0')
     await writeFile(join(f.root,'bin',name),body)
     await chmod(join(f.root,'bin',name),0o755)
   }
-  const result=await exec('sh',['scripts/deploy.sh'],{cwd:f.root,env:{...f.env,BELLTEAM_DEPLOY_IMAGE:selected,BELLTEAM_DEPLOY_QUIET_EXCEPT:except}})
+  const result=await exec('sh',['scripts/deploy.sh'],{cwd:f.root,env:{...f.env,BELLTEAM_DEPLOY_IMAGE:selected}})
   assert.match(result.stdout,/bots 0 online 0/u)
   const calls=await f.calls()
   assert.deepEqual(calls.filter(row=>row.tool==='git').map(row=>row.args),
@@ -142,7 +131,11 @@ else if(command.includes('tail -3'))console.log('deploy-exit=0')
   assert.equal(launch.length,1)
   if(selected){
     assert.ok(launch[0].includes(`BELLTEAM_SERVER_IMAGE=${image}`))
-    assert.match(launch[0],new RegExp(`BELLTEAM_DEPLOY_QUIET_EXCEPT=${except} sh scripts/deploy-image\\.sh`,'u'))
+    assert.match(launch[0],/BELLTEAM_SERVER_IMAGE=\S+ sh scripts\/deploy-image\.sh/u)
+    assert.doesNotMatch(launch[0],/QUIET|restore-point/u)
     assert.doesNotMatch(launch[0],/compose build/u)
-  }else assert.match(launch[0],/docker compose build --pull --no-cache/u)
+  }else{
+    assert.match(launch[0],/docker compose build --pull --no-cache && sh scripts\/update-cursor\.sh && docker compose up -d --no-build/u)
+    assert.doesNotMatch(launch[0],/quiet|restore-point/u)
+  }
 })

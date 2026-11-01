@@ -4,7 +4,6 @@ set -eu
 cd "$(dirname "$0")/.."
 repo=$(pwd)
 : "${BELLTEAM_SERVER_IMAGE:?受入imageを指定してください}"
-quiet_except=${BELLTEAM_DEPLOY_QUIET_EXCEPT:-}
 export COMPOSE_FILE="$repo/distribution/server/compose.yaml:$repo/distribution/internal/compose.overlay.yaml"
 export COMPOSE_PROJECT_NAME=bellteam
 export BELLTEAM_INTERNAL_PROFILE_FILE="$repo/src/distribution-profile.mjs"
@@ -19,11 +18,6 @@ finish() {
 trap finish 0
 trap 'exit 1' 1 2 15
 
-# 復旧点はQNAPへ直書きし、同じimageのarchiveを再生成しない。失敗では更新を始めない。
-umask 077
-previous=$(python3 scripts/save-deploy-restore-point.py)
-printf 'previous-image=%s\n' "$previous"
-
 # 取得・資材準備の失敗では、旧本体を止めない。
 docker compose pull bellteam
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-deploy-image.XXXXXX")
@@ -33,10 +27,6 @@ for path in compose.cursor-update.yaml scripts/update-cursor.sh; do
     "$BELLTEAM_SERVER_IMAGE" "/app/$path" > "$staging/$path"
 done
 
-# 両地点の既存quietを旧本体で観測する。停止してquietを作らない。quiet対象が空なら判定なし。
-quiet_check=:
-if [ -n "$quiet_except" ]; then quiet_check="sh scripts/check-deploy-quiet.sh $quiet_except"; fi
-$quiet_check
+# 静けさ待ちと復旧点は作らない（オーナー 2026-11-01「以前はぽんぽん再起動してた」）。旧imageは残るので戻せる。
 sh "$staging/scripts/update-cursor.sh"
-$quiet_check
 docker compose up -d --no-build --pull never

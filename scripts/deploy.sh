@@ -1,14 +1,12 @@
 #!/bin/sh
 # 本番反映の正規入口。GitHubのmainを取り込み、受入imageまたは新規buildを反映する。
 # usage: scripts/deploy.sh
-# 商用image: BELLTEAM_DEPLOY_IMAGE=repo@sha256:digest BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-id sh scripts/deploy.sh
-# quiet対象Botを空にすると、従来buildと同じくquiet判定なしで入れる（オーナー裁定 2026-11-01）。
+# 商用image: BELLTEAM_DEPLOY_IMAGE=repo@sha256:digest sh scripts/deploy.sh
+# 静けさ待ちと復旧点は作らない（オーナー 2026-11-01）。切れた席には反映後に続きを頼む。
 set -eu
 cd "$(dirname "$0")/.."
 host=main-server
 dir=/home/kite/BellTeam
-quiet_except=${BELLTEAM_DEPLOY_QUIET_EXCEPT:-}
-case "$quiet_except" in *[!a-zA-Z0-9_-]*) echo 'invalid quiet Bot ID' >&2; exit 2;; esac
 image=${BELLTEAM_DEPLOY_IMAGE:-}
 if [ -n "$image" ]; then
   case "$image" in *@sha256:*) ;; *) echo '受入imageをrepo@sha256:digestで指定してください。' >&2; exit 2;; esac
@@ -21,9 +19,6 @@ if [ -n "$image" ]; then
     exit 2
   fi
 fi
-quiet_check=:
-if [ -n "$quiet_except" ]; then quiet_check="sh scripts/check-deploy-quiet.sh $quiet_except"; fi
-
 # 反映するのはcommit済みの内容だけ。本番でcommitを作らないので、履歴はGitHubのmainと常に一致する。
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   echo '未commitの変更がある。commitしてから反映する。' >&2
@@ -45,9 +40,9 @@ printf '作業中のBot: %s\n' "${busy:-なし}"
 # 反映は本番側で切り離して走らせる。指定imageは再buildせず、受け入れた実物を使う。
 log="runtime/backups/deploy-$(date +%Y%m%dT%H%M%S).log"
 if [ -n "$image" ]; then
-  ssh "$host" "cd $dir && setsid nohup env BELLTEAM_SERVER_IMAGE=$image BELLTEAM_DEPLOY_QUIET_EXCEPT=$quiet_except sh scripts/deploy-image.sh > $log 2>&1 < /dev/null &"
+  ssh "$host" "cd $dir && setsid nohup env BELLTEAM_SERVER_IMAGE=$image sh scripts/deploy-image.sh > $log 2>&1 < /dev/null &"
 else
-  ssh "$host" "cd $dir && setsid nohup sh -c 'docker compose build --pull --no-cache && python3 scripts/save-deploy-restore-point.py && $quiet_check && sh scripts/update-cursor.sh && $quiet_check && docker compose up -d --no-build; echo deploy-exit=\$?' > $log 2>&1 < /dev/null &"
+  ssh "$host" "cd $dir && setsid nohup sh -c 'docker compose build --pull --no-cache && sh scripts/update-cursor.sh && docker compose up -d --no-build; echo deploy-exit=\$?' > $log 2>&1 < /dev/null &"
 fi
 for _ in $(seq 1 360); do
   if ssh "$host" "grep -q '^deploy-exit=' $dir/$log" 2>/dev/null; then break; fi
