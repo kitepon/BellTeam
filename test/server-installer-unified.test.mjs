@@ -98,7 +98,12 @@ else if(a[0]==='run'){
   const phase=a.at(-1);if(phase===e.TEST_FAIL_PHASE)process.exit(55);
  }else if(a.includes('up')){
   if(e.TEST_UP_FAIL)process.exit(58);
-  const model=select(),s={Id:'d'.repeat(64),Image:model.services.bellteam.image,State:{Running:true,Restarting:false,StartedAt:'after'},Config:{Image:model.services.bellteam.image,Labels:{'com.docker.compose.project':model.name,'com.docker.compose.service':'bellteam','com.docker.compose.project.config_files':e.COMPOSE_FILE}},Mounts:[]};fs.writeFileSync(root+'/runtime.json',JSON.stringify(s));
+  const model=select(),previous=state(),counter=fs.existsSync(root+'/starts')?Number(fs.readFileSync(root+'/starts'))+1:1;
+  fs.writeFileSync(root+'/starts',String(counter));
+  // Compose restarts an unchanged container and retains its immutable labels.
+  const s=e.TEST_REUSE_CID&&previous?.Image===model.services.bellteam.image?previous:
+   {Id:'d'.repeat(64),Image:model.services.bellteam.image,Config:{Image:model.services.bellteam.image,Labels:{'com.docker.compose.project':model.name,'com.docker.compose.service':'bellteam','com.docker.compose.project.config_files':e.COMPOSE_FILE,'com.docker.compose.project.working_dir':a[a.indexOf('--project-directory')+1],'com.docker.compose.config-hash':'old-hash'}},Mounts:[]};
+  s.State={Running:true,Restarting:false,StartedAt:'after-'+counter};fs.writeFileSync(root+'/runtime.json',JSON.stringify(s));
  }else if(!a.includes('pull')&&!a.includes('build'))process.exit(93);
 }else process.exit(92);
 function pathToFileURL(p){return new URL('file://'+p);}
@@ -337,6 +342,26 @@ test('旧公開保存世代のworking_dirからno-op更新してもraw image・�
   assert.ok(render);assert.equal(render.args[render.args.indexOf('--project-directory')+1],previous)
   assert.deepEqual(calls.find(c=>c.args.includes('up')).args.slice(0,3),['compose','--project-directory',f.install])
  }
+})
+
+test('Composeが同一CIDと旧config_filesを保持して再起動した後もserver世代へ復旧できる',async t=>{
+ const f=await fixture(t),extra={TEST_REUSE_CID:'1'};
+ await f.run([],extra);const first=JSON.parse(await readFile(f.root+'/runtime.json'));
+ const updated=await f.run([],extra),saved=updated.stdout.match(/^saved-compose=(.*)$/m)[1];
+ const second=JSON.parse(await readFile(f.root+'/runtime.json'));
+ assert.equal(second.Id,first.Id);assert.equal(second.Image,first.Image)
+ assert.deepEqual(second.Config,first.Config);assert.notEqual(second.State.StartedAt,first.State.StartedAt)
+ assert.notEqual(second.Config.Labels['com.docker.compose.project.config_files'],saved+'/normal.json')
+ const original=JSON.parse(await readFile(saved+'/previous-runtime.json'));
+ assert.deepEqual(original,[first]);const before=(await f.calls()).length;
+ await f.run(['--recover',saved],extra);const restored=JSON.parse(await readFile(f.root+'/runtime.json'));
+ assert.equal(restored.Id,first.Id);assert.equal(restored.Image,first.Image);assert.deepEqual(restored.Config,first.Config)
+ assert.notEqual(restored.State.StartedAt,second.State.StartedAt)
+ assert.deepEqual(JSON.parse(await readFile(saved+'/previous-runtime.json')),original)
+ const calls=(await f.calls()).slice(before);
+ assert.equal(calls.filter(c=>c.args.at(-1)==='to-server').length,1)
+ assert.equal(calls.some(c=>c.args.at(-1)==='to-legacy'||c.args[0]==='rm'||c.args.at(-1)==='cursor-update'),false)
+ assert.equal(calls.find(c=>c.args.includes('up')).compose,saved+'/previous-normal.json')
 })
 
 test('内部handoff後にcurrent CIDが変わった場合は、元raw原本を保持してstop前に拒否する',async t=>{

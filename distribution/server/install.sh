@@ -188,8 +188,8 @@ try{
   if(x?.type!=="bind"||y?.type!=="bind"||x.source!==y.source)throw Error();}
  const cursor=(m,s)=>{const x=bind(s,"/home/bell/.local");if(x?.type!=="volume")throw Error();return m.volumes[x.source].name};
  if(cursor(normal,a)!==cursor(old,b)||old.name!==normal.name||b.image!==original.Image)throw Error();
- const labels=current.Config.Labels??{},sameOriginal=current.Id===original.Id&&current.Image===original.Image
-   &&current.State.StartedAt===original.State.StartedAt;
+ // Compose restarts an unchanged container without replacing its ID or original config-file label.
+ const labels=current.Config.Labels??{},sameOriginal=current.Id===original.Id&&current.Image===original.Image;
  if(labels["com.docker.compose.project"]!==normal.name||labels["com.docker.compose.service"]!=="bellteam"
    ||!sameOriginal&&!(current.Image===a.image&&labels["com.docker.compose.project.config_files"]===saved+"/normal.json"))throw Error();
 }catch{console.error("SERVER_STATE_GENERATION_CHANGED");process.exitCode=1}
