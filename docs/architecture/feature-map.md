@@ -1,92 +1,81 @@
 # BellTeamの機能とデータの流れ
 
-現状図の初稿。対象sourceは `5974fb7e401d995bb1ddd954508179344ce33cf1`（2026-11-01）。起動時の組立てと直接会話・予定の入口を実コードで確認した。記憶・設定・認証などの内部と全callerはまだ調査中で、この初稿を完成した全機能図や採用済みの新設計とは扱わない。
+対象は `5974fb7e401d995bb1ddd954508179344ce33cf1` の本体。2026-11-01にコードから起こした現状図である。全体の接続、会話・制御・記憶の主要分岐を確認した。Apple画面内部、各独立製品の内部、installer/backupの全分岐を精査した図ではない。改善予定と実装状況は[接続の整理計画](refactor-plan.md)へ分ける。
 
-## 何をするアプリか
+## アプリ全体で何が起きるか
 
-利用者とBotからの操作を受け、メンバー・会話・予定を管理する。AIの起動と会話継続はAitermへ依頼し、返ってきた途中経過と結果を会話画面へ反映する。記憶、設定、通知はその操作を支える別の機能として組み立てられている。
+人やBotの操作を受け、会話とメンバーを管理し、必要なAIの実行をAitermへ依頼する。途中経過と結果を記録し、その記録から画面を更新する。予定・記憶・設定・認証は、それぞれ別のデータと判断を持つ。
 
-矢印のラベルは、呼出し側が依頼する操作・渡すデータを表す。矢印先が元データを所有するとは限らない。所有者は後の表で分ける。
-
-```mermaid
-flowchart LR
-  User["人が操作する\nWeb・Appleアプリ"] -->|"HTTPの操作要求"| API["操作の受付（HTTP・MCP）\n認証・入力・応答"]
-  Bot["Botが操作する\n席のMCP"] -->|"MCPの操作要求"| API
-  API -->|"メンバーの作成・設定・停止・削除"| Admin["メンバー管理"]
-  API -->|"本文・宛先・画像"| Talk["会話の受付・記録"]
-  API -->|"予定の登録・変更"| Schedule["予定の管理・実行"]
-  Schedule -->|"期限になったメッセージ"| Talk
-  Talk -->|"Bot・本文・進行通知の受取先"| Run["Botの実行・配送"]
-  Admin -->|"設定反映・停止の依頼"| Run
-  Run -->|"公開CLI/MCPで起動・送信・待機"| Aiterm["Aiterm\n独立プロダクト"]
-  Run -->|"途中経過・回答・配送状態"| Talk
-  Talk -->|"会話記録を追記"| History["会話の保存データ"]
-  History -->|"履歴・変更の読取り"| View["会話表示・更新通知"]
-  View -->|"HTTP応答・SSE"| User
-```
-
-これは会話・予定・メンバー操作を中心にした全体像であり、認証・記憶・秘密入力・購読・配布・保全の詳細図は後続調査で加える。Web/Appleの画面内部もこの図の調査済み範囲には含めない。
-
-## 人がBotへメッセージを送る時
+矢印は依頼またはデータの受渡し。保存データの所有者は後の表で定める。箱は機能であり、一つのファイルやプロセスとは限らない。
 
 ```mermaid
-sequenceDiagram
-  actor Person as 利用者
-  participant API as HTTPの会話受付
-  participant Message as 会話サービス
-  participant Run as 実行・配送
-  participant Native as Aiterm
-  participant Log as 会話記録
-  participant View as 履歴の読取り・SSE
-  Person->>API: Bot宛ての本文と画像
-  API->>Message: enqueueUserTurn
-  Message->>Log: 利用者の発言を記録
-  Message->>Run: turn（Bot・本文・途中経過の通知先）
-  Run->>Native: 起動または既存の席へ送信
-  Native-->>Run: 受付結果と待機の情報
-  Run-->>Message: completion.accepted（受付結果）
-  Message-->>API: 配送状態・発言ID
-  API-->>Person: HTTP200（回答の完了は待たない）
-  Note over Run,Log: この後の完了追跡はHTTP応答と独立して続く
-  Run-->>Message: 途中経過のcallback
-  Message->>Log: 途中経過を追記
-  Run->>Native: 返却された待機手順で完了を待つ
-  Native-->>Run: 完了と回答
-  Run-->>Message: ターンの結果
-  Message->>Log: 回答を記録
-  Log-->>View: ファイルの変更を観測
-  View-->>Person: 会話の変更通知（SSE）
+flowchart TB
+  Human["人が操作する<br/>Web・Apple"] -->|"HTTP要求"| Entry["操作の受付<br/>認証・入力・応答"]
+  Bot["BotのMCP"] -->|"ツール要求"| Entry
+  Entry -->|"本文・宛先・画像"| Talk["会話<br/>直接・Bot間・部屋"]
+  Entry -->|"メンバー・設定・停止"| Admin["メンバー管理と全体制御"]
+  Entry -->|"時刻と実行内容"| Schedule["予定"]
+  Entry -->|"記憶・知識の操作"| Memory["記憶・知識"]
+  Entry -->|"認証・入力・通知設定"| Support["利用を支える機能"]
+  Entry -->|"Goal操作"| Goal["Goalの公開契約を検証"]
+  Schedule -->|"期限になった発言"| Talk
+  Schedule -->|"command"| Command["短命のコマンド実行"]
+  Support -->|"回答・秘密ファイルの場所"| Talk
+  Talk -->|"実行と進行通知の受取先"| Run["Botの実行・配送"]
+  Admin -->|"設定反映・停止"| Run
+  Run -->|"起動・送信・観測・停止"| Aiterm["Aiterm<br/>独立製品"]
+  Goal -->|"対象の対応付け・agent_goal"| Aiterm
+  Run -->|"起動時の文脈を読む"| Throughline["Throughline<br/>独立製品"]
+  Throughline -->|"自主ターンの回答を読む"| Observe["自主ターンの観測"]
+  Aiterm -->|"途中経過・受付・完了"| Run
+  Run -->|"進行・結果"| Talk
+  Observe -->|"回答"| Talk
+  Talk -->|"発言・状態を追記"| History["会話記録"]
+  History -->|"履歴と変更"| View["履歴の組立て・SSE"]
+  Support -->|"入力要求などのカード"| View
+  View -->|"履歴応答・変更通知"| Human
+  Talk -->|"本文を含めない通知"| Push["端末への通知"]
 ```
 
-HTTP200の受付とAIの回答完了は別である。画面による履歴再取得の詳細はクライアント調査で補う。MCPの一部操作は同じサービスを直接呼び、一部は内部HTTPへ接続するため、詳細図で入口ごとに分ける。
+HTTP200は操作ごとの受付結果である。AIの回答完了、外部の副作用の成功、画面への表示をまとめて意味しない。
 
-失敗・停止・差し込み・結果不明には別の分岐がある。この正常系だけでそれらの扱いを説明したとはしない。詳細図で各分岐の判断者と返却内容を照合する。
+## 症状からどこを辿るか
 
-## どこが何を持っているか（確認済みの入口）
+| 症状 | 切り分ける順序 | 詳細 |
+| --- | --- | --- |
+| 送ったのに返事がない | 発言保存 → Aiterm受付 → 完了追跡 → 回答記録 → 履歴取得/表示 | [会話](conversation-flow.md) |
+| 部屋で返事が来ない | 参加者snapshot → 返信者指定/選定 → 個別配送 → reply/silentの権限 | [部屋の会話](conversation-flow.md#部屋の会話) |
+| 設定を変えても動作が変わらない | 保存値 → 反映待ち → CLIの受付結果 → 実際の動作観測 | [設定反映](control-and-state.md#設定を保存することと席へ反映すること) |
+| 止めたのに処理が残る | 新規受付の抑止 → 停止要求 → native結果 → 配送job/commandの結論 | [停止](control-and-state.md#止める機能と状態の所有) |
+| 記憶が見つからない | 最終botId/scope → 保存先 → DB/知識index → 検索 | [記憶](support-and-runtime.md#記憶と知識) |
+| 入力要求に答えたが進まない | 入力状態の保存 → 通知結果 → Botの次の処理。秘密値を通常診断へ出さない | [入力支援](support-and-runtime.md#認証秘密入力質問通知) |
 
-| 機能 | 現在の実装・入口 | 所有するデータ・判断 | 接続する相手 |
-| --- | --- | --- | --- |
-| アプリを組み立て、開始・終了する | `supervisor.mjs` → `application-runtime.mjs` → `application-services.mjs` | サービスの寿命と組立て順 | HTTP、MCP、各サービス、任意機能 |
-| メンバーと部屋の台帳 | `BotRegistry`、`RoomRegistry` | メンバー設定・部屋・予定の保存と読取り | 会話、予定、管理API |
-| メンバー操作の業務判断 | `BotAdministration` | 設定変更・停止・削除の実行順 | 台帳、部屋、実行・配送 |
-| 直接会話の受付と記録 | `BellTeamMessenger` | 発言・配送状態・回答の追記 | 台帳、実行・配送、通知 |
-| 部屋の会話 | `RoomMessenger` | 部屋の発言・返信者選択・各参加者の配送状態 | 部屋台帳、実行・配送、会話通知 |
-| 予定の実行 | `BotScheduler` | 実行時刻・実行中command job・予定実行の進行 | 台帳、会話、Throughline、command実行 |
-| Botの実行・配送 | `AitermTransport` | 配送進行、外部実行との対応付け | Aiterm、起動準備、Throughline |
-| 席の変更状態 | `BotSessionState` | session対応・設定変更待ち・停止世代・結果不明 | transportから渡す操作窓口 |
-| 席の活動 | `SeatActivity` | 配送job・処理中・自主ターン見張り・各Botの進行中操作 | transportと停止処理 |
-| 履歴を読んで会話へ並べる | `ConversationStore`、`TimelineIndex`、HTTPのmessage view/event | 保存記録の読取り・索引・変更通知 | 会話の保存ファイル、HTTP/SSE |
-| 記憶の保存と検索 | `BellTeamMemory`、`memory-search.mjs` | 記憶の記録・改訂・検索 | Bot台帳、SQLite、Markdown。内部の全経路は次に調査 |
+## 元データと判断の持ち主
 
-ファイルはすべて `src/` 配下。これは現状の対応表であり、新しい責任分担の決定ではない。
+| 機能・状態 | 所有者 | 他の機能へ渡すもの |
+| --- | --- | --- |
+| メンバー・設定・予定の台帳 | BotRegistry | 読取結果、更新/予定実行の操作窓口 |
+| 部屋・参加者・部屋の履歴 | RoomRegistry / RoomMessenger | 部屋のsnapshot、発言、各参加者の配送状態 |
+| 直接会話 | BellTeamMessenger | 保存した発言・配送状態・回答。保存直後の通知 |
+| 直接会話の読取cacheと索引 | ConversationStore / TimelineIndex | 履歴のprojection、変更通知。writerではない |
+| 一回の配送の受付・失敗・停止結論 | DeliveryJob | 受付結果と配送の状態 |
+| 席の進行中操作とjob集合 | SeatActivity | 処理中/queue/停止対象の観測 |
+| session対応・反映待ち・停止世代 | BotSessionState | transportを通じた操作と観測 |
+| 保存設定を実行へ反映する順序 | BotAdministration + transport | pending/accepted/failedなどの反映結果 |
+| AI全体の停止意図と受付抑止 | AiControl | enabled/stopping/stopped/unconfirmed |
+| native session・実行・Goal | Aiterm | 公開APIのreceipt、観測、操作結果 |
+| 会話から作る引継ぎ情報 | Throughline | 起動時の文脈と保存済みターン |
+| 長期記憶・知識と検索 | BellTeamMemory | 指定scope内の記憶/検索結果 |
+| 秘密入力・質問・認証状態 | 各専用サービス | 公開状態、カード、値を含めない通知 |
+| Webの選択・入力・描画中の状態 | Webクライアント | HTTP操作。サーバーの元データを所有しない |
 
-## 整理を検討する接続（未確定）
+同じ「状態」という名前でも、全体の停止意図、配送の停止結論、nativeの実行状態、画面の表示状態を一つの値へ潰さない。
 
-1. `scheduler.mjs` がThroughlineの関数を `aiterm-transport.mjs` の再export経由で取得している。一方、組立て側は `throughline-context.mjs` から直接取得する。機能の所有者と依存先が読み手に同じ形で見えるようにできるか調べる。
-2. 直接会話・通話受信・再開・部屋会話には、配送metadata、途中経過、回答、最終報告を接続する似た処理がある。同じ意味の重複と、動作が違うため分ける処理を、分岐図と既存試験から区別する。
-3. transportは `BotSessionState` と `SeatActivity` を持ちつつ、内部Mapを別名のpropertyでも公開する。外部callerがそのMapへ直接触る範囲を列挙し、操作の窓口へ置き換える必要があるか判断する。
-4. 同じ会話ファイルについて、組立て側と会話サービス内部に別の `ConversationStore` がある。別の読取りcacheとして必要か、参照と通知を不要に重複させていないか、callerを確認する。現在の重複を直ちに保存不良とは判断しない。
+## 詳細図から実関数へ
 
-## 次の詳細図
+- [会話・配送・履歴・画面更新](conversation-flow.md)
+- [予定・設定・停止・Goal](control-and-state.md)
+- [記憶・認証・入力支援・起動・配布・保全](support-and-runtime.md)
+- [現状の接続をどう整理するか](refactor-plan.md)
 
-直接会話／Bot間配送／部屋会話／予定／停止と設定反映／履歴と画面更新／記憶・知識／認証・秘密入力・購読／起動・配布・バックアップを順に追う。各図に機能の入口、処理段階、共通関数、データの持ち主、失敗の返却先を付ける。実装の分割は、この現状図と改善する接続の根拠を揃えてから行う。
+各詳細図の表に実装と既存試験を対応させる。試験の列は確認対象の案内であり、今回その全試験を実行したという意味ではない。製品の契約は[現在の設計](../current-design.md)と併せて読む。古い説明と現コードの差は実装変更と混ぜず訂正する。
