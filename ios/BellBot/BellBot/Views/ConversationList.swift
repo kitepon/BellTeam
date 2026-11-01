@@ -48,7 +48,6 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         table.accessibilityIdentifier = "conversation-messages"
         // 最初の配置が終わるまで見せない。見せる時に選んだ開き方で必ず入る。
         table.alpha = 0
-        UIView.setAnimationsEnabled(false)
         let refresh = UIRefreshControl()
         refresh.addTarget(context.coordinator, action: #selector(Coordinator.refresh(_:)), for: .valueChanged)
         table.refreshControl = refresh
@@ -173,7 +172,6 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         /// 最初の配置の直後に、選んだ開き方で表を見せる。1回だけ。
         private func reveal() {
             guard let table else { return }
-            UIView.setAnimationsEnabled(true)
             switch opening {
             case .fade:
                 UIView.animate(withDuration: 0.25) { table.alpha = 1 }
@@ -327,11 +325,6 @@ final class ConversationTableView: UITableView {
     var onReveal: (() -> Void)?
     private var layoutWidth: CGFloat = 0
 
-    deinit {
-        // 見せる前に会話を閉じても、アプリ全体のアニメーションを止めたままにしない。
-        if !revealed { UIView.setAnimationsEnabled(true) }
-    }
-
     /// 大きさが付いて行が見えた最初の配置の直後に、1回だけ見せる。
     private func scheduleReveal() {
         guard !revealScheduled, bounds.height > 0, indexPathsForVisibleRows?.isEmpty == false else { return }
@@ -372,12 +365,10 @@ final class ConversationTableView: UITableView {
             }
             layoutWidth = bounds.width
         }
-        if revealed {
-            layoutFollowingBottom()
-        } else {
-            UIView.performWithoutAnimation { layoutFollowingBottom() }
-            scheduleReveal()
-        }
+        // 表自身の配置は動かさない。行の高さが推定から実高へ直る時のUIKit既定の動きが、
+        // 開いた時の効果の直後に重なって「上から展開」に見えるため。
+        UIView.performWithoutAnimation { layoutFollowingBottom() }
+        if !revealed { scheduleReveal() }
         if let (path, offset) = anchor, path.row < numberOfRows(inSection: 0) {
             contentOffset.y = rectForRow(at: path).minY - offset
         }
