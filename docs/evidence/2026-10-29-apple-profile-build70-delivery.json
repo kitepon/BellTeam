@@ -1,0 +1,93 @@
+{
+  "schema": "bellteam.apple-internal-delivery.v1",
+  "product": "BellTeam",
+  "purpose": "AppleプロフィールとBOT画面の改善を内部配布",
+  "bundleId": "dev.kitepon.bellbot",
+  "appStoreConnectAppId": "6816295589",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "70",
+  "signedSourceCommit": "e2975dd341cc4592a49d9cf5eee5bdf5980bab90",
+  "repairMergeCommit": "15fdef185d17da8c370426eca20aaaf8927b36da",
+  "versionMergeCommit": "84f11bed7f6b564fbee44287020865abd8c27b80",
+  "unsignedPreflight": "docs/evidence/2026-10-29-apple-profile-build70-preflight.json",
+  "unsignedPreflightSha256": "797d5ad139e51d92a26d31609493350f2c14b33ef6302d38219cdb4cc3cd2aac",
+  "ownerApproval": {
+    "title": "BellTeam Appleプロフィール版70を署名してオーナー内部TestFlightへ配布する",
+    "choice": "go",
+    "answeredAt": "2026-10-28T16:31:38.318Z"
+  },
+  "backendBeforeDistribution": {
+    "sourceCommit": "35088f660b34469e4a3dbe7d548e36079d09e615",
+    "imageDigestPrefix": "72ab97e7",
+    "nativeVersion": "0.61.24",
+    "readOnlyApiResult": "new avatar fields, detail, image and screen shapes confirmed; live alternate screen had fewer than 25 lines",
+    "realBotMutationPerformed": false
+  },
+  "betaGroup": {
+    "id": "58133050-1c39-4915-b6da-aac18b95921b",
+    "name": "BellTeam オーナー",
+    "internal": true
+  },
+  "artifacts": [
+    {
+      "platform": "IOS",
+      "relativePath": "runtime/apple/profile-build70/ios-export/BellTeam.ipa",
+      "sha256": "c41a7909b12259e44b1ec8ceca98198d91bb0f14b137863dfcc6bfc7a7d22158",
+      "appBundleVersion": "70",
+      "extensionBundleVersion": "70",
+      "architectures": ["arm64"],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadDeliveryUuid": "524434fd-a5c2-45fc-ab48-ae6d98d4bb75",
+      "uploadResult": "no-errors",
+      "appStoreConnectBuildId": "524434fd-a5c2-45fc-ab48-ae6d98d4bb75",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    },
+    {
+      "platform": "MAC_OS",
+      "relativePath": "runtime/apple/profile-build70/mac-export/BellTeam.pkg",
+      "sha256": "91642d4316cb4dabb61774b9534fa0237a53ce1480b83128f32830dc32bf3345",
+      "appBundleVersion": "70",
+      "extensionBundleVersion": "70",
+      "architectures": ["x86_64", "arm64"],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "installerSignature": "3rd Party Mac Developer Installer, valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadDeliveryUuid": "865b4bf9-e958-49b6-b940-3416970b8762",
+      "uploadResult": "no-errors",
+      "appStoreConnectBuildId": "865b4bf9-e958-49b6-b940-3416970b8762",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    }
+  ],
+  "macTestFlightSmoke": {
+    "installedPath": "/Applications/BellTeam.app",
+    "preUpdateBundleVersion": "69",
+    "appBundleVersion": "70",
+    "extensionBundleVersion": "70",
+    "strictSignature": "valid",
+    "gatekeeperSource": "Testflight",
+    "observedRunningProcessId": 80860,
+    "visibleResult": "profile AI group and configured harness, model, effort and role; BOT screen online, 24 lines, one-second update label; returned to profile",
+    "realBotRestartPerformed": false,
+    "realBotMessageSent": false,
+    "ownerAvatarEdited": false,
+    "smokeProcessGracefullyQuit": true
+  },
+  "remaining": {
+    "iphoneAndIpadPhysicalInstallation": "not_measured",
+    "realAvatarEdit": "not_performed",
+    "liveHistoryOver25Lines": "not_observed",
+    "voiceOverFullHistory": "not_measured",
+    "separateNetworkDiagnosticsPR": 132
+  },
+  "serverContainerRestartedByThisDelivery": false,
+  "publicAppStoreReleased": false
+}

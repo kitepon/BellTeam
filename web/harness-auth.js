@@ -14,7 +14,7 @@ export function harnessAuthView(auth) {
 
 // 始める前の知らせが要るか。今の認証が消えうるAIで、認証が無い・切れているとは分かっていない時。
 export function needsStartConfirmation(harness, auth) {
-  return Boolean(harness.startWarning) && auth?.status !== 'blocked'
+  return harness.reloginSupported !== false && Boolean(harness.startWarning) && auth?.status !== 'blocked'
 }
 
 // AIの種類ごとの行を描く。返す stop は、設定を閉じる時に呼ぶ（見に行くのを止め、入力欄を空にする）。
@@ -31,14 +31,16 @@ export async function renderHarnessAuth(container, { api }) {
 }
 
 function harnessAuthItem(harness, { api }) {
-  const details = document.createElement('details')
-  details.className = 'feature-setting harness-auth'
-  details.dataset.harnessId = harness.id
-  const summary = document.createElement('summary')
-  summary.textContent = harnessAuthTitle(harness)
+  const row = document.createElement('section')
+  row.className = 'feature-setting harness-auth'
+  row.dataset.harnessId = harness.id
+  const heading = document.createElement('h4')
+  heading.textContent = harnessAuthTitle(harness)
   const body = document.createElement('div')
   body.className = 'harness-auth-body'
-  details.append(summary, body)
+  const status = document.createElement('p')
+  status.setAttribute('role', 'status')
+  row.append(heading, status, body)
   const path = `/api/harness-auth/${encodeURIComponent(harness.id)}`
   let auth = null
   let loaded = false
@@ -59,7 +61,7 @@ function harnessAuthItem(harness, { api }) {
   })
   function schedule() {
     clearTimeout(timer)
-    if (stopped || !details.open || document.hidden || errorText || !harnessAuthView(auth).poll) return
+    if (stopped || document.hidden || errorText || !harnessAuthView(auth).poll) return
     timer = setTimeout(async () => {
       if (busy) { schedule(); return }
       const observedRevision = ++revision
@@ -101,13 +103,16 @@ function harnessAuthItem(harness, { api }) {
     clear()
     password = undefined
     const view = harnessAuthView(auth)
+    const state = busy && !loaded ? 'checking' : errorText ? 'failed' : auth?.status ?? 'unknown'
+    status.className = `harness-auth-status ${state}`
+    status.textContent = ({ checking: '確認中', authenticated: '認証済み', blocked: '未認証', waiting: '認証中', failed: '確認できません' })[state] ?? '未確認'
     const nodes = []
-    if (!loaded && !errorText) nodes.push(Object.assign(document.createElement('p'), { textContent: '公式の状態を確認しています。' }))
     const flow = renderAuthFlow(inputBlocked ? { auth_ui: { stage: 'unavailable', title: '認証結果を確認してください', message: '同じ入力を繰り返さず、状態を更新してください。', binding: null } } : auth, { name: harness.name, busy,
       respond: input => perform(async () => { try { return await post('input', input) } catch (error) { inputBlocked = true; throw error } }),
     })
     password = flow.password
-    nodes.push(...flow.elements)
+    if (loaded && !errorText) nodes.push(...flow.elements)
+    if (harness.reloginSupported === false && auth?.status === 'authenticated' && harness.startWarning) nodes.push(Object.assign(document.createElement('p'), { textContent: harness.startWarning }))
     const start = () => perform(async () => { confirming = false; const next = await post('start'); started = next.auth?.status !== 'authenticated'; return next })
     const actions = document.createElement('div')
     actions.className = 'secret-actions'
@@ -117,7 +122,7 @@ function harnessAuthItem(harness, { api }) {
       nodes.push(warning)
       actions.append(button('今の認証を手放して始める', start), button('始めない', () => { confirming = false; render() }))
     } else {
-      if (!(auth?.session_id || view.binding) || view.stage === 'complete') actions.append(button('ログインする', () => {
+      if ((harness.reloginSupported !== false || auth && auth.status !== 'authenticated') && (!(auth?.session_id || view.binding) || view.stage === 'complete')) actions.append(button(auth?.status === 'authenticated' ? '認証し直す' : '認証する', () => {
         if (needsStartConfirmation(harness, auth)) { confirming = true; render() } else return start()
       }))
       actions.append(button('状態を更新', () => perform(async () => { const next = await api(path); if (next.auth?.status === 'authenticated') started = false; return next })))
@@ -131,16 +136,11 @@ function harnessAuthItem(harness, { api }) {
     }
     body.replaceChildren(...nodes)
   }
-  // 公式の状態は、行を開いた時に初めて見に行く（開くたびにAIの公式コマンドが動くので、一覧では見に行かない）。
-  details.addEventListener('toggle', () => {
-    if (!details.open) { clearTimeout(timer); clear(); return }
-    if (!loaded && !busy) void perform(() => api(path))
-    else schedule()
-  })
+  // 利用人数にかかわらず、設定を開いた時に一度だけ公式の状態を確認する。
   const visibility = () => { if (document.hidden) { clearTimeout(timer); clear() } else schedule() }
   document.addEventListener('visibilitychange', visibility)
-  render()
-  return { element: details, stop() {
+  void perform(() => api(path))
+  return { element: row, stop() {
     stopped = true
     clearTimeout(timer)
     clear()

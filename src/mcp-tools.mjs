@@ -17,7 +17,7 @@ export const bellTeamTools = Object.freeze([
   {
     name: 'list_models',
     description: 'BellTeam内蔵のCLIが今返すモデルとエフォートをAitermから取得する。harness省略時は4種すべて。取得に失敗したCLIはerrorに理由を返す。AIのターンは起こさない。',
-    inputSchema: objectSchema({ harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor'] } }),
+    inputSchema: objectSchema({ harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor', 'antigravity'] } }),
   },
   {
     name: 'get_settings',
@@ -211,7 +211,7 @@ export const bellTeamTools = Object.freeze([
       role: { type: 'string', maxLength: 8000 },
       avatar: { type: 'string', maxLength: 3000000 },
       color: { type: 'string', enum: ['rose', 'indigo', 'violet'] },
-      harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor'], description: 'CLI種別' },
+      harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor', 'antigravity'], description: 'CLI種別' },
       model: { type: 'string', maxLength: 200, description: 'モデルID。空文字でそのCLIの既定へ戻す。' },
       reasoningEffort: { type: 'string', description: 'エフォート。空文字でそのCLIの既定へ戻す。最新の候補はlist_modelsで取得する。保存時もCLIの現在の一覧で確認する。' },
     }),
@@ -229,7 +229,7 @@ export const bellTeamTools = Object.freeze([
       role: { type: 'string', maxLength: 8000 },
       avatar: { type: 'string', maxLength: 3000000, description: '画像のdata URL。画像URLは指定しない。' },
       color: { type: 'string', enum: ['rose', 'indigo', 'violet'] },
-      harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor'], description: 'CLI種別' },
+      harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor', 'antigravity'], description: 'CLI種別' },
       model: { type: 'string', maxLength: 200, description: 'モデルID。空文字でそのCLIの既定へ戻す。' },
       reasoningEffort: { type: 'string', description: 'エフォート。空文字でそのCLIの既定へ戻す。最新の候補はlist_modelsで取得する。保存時もCLIの現在の一覧で確認する。' },
     }, ['botId']),
@@ -247,7 +247,7 @@ export const bellTeamTools = Object.freeze([
     description: 'BellTeamへ新しいBotを追加し、専用プロジェクトフォルダを作る。',
     inputSchema: objectSchema({
       name: { type: 'string', minLength: 1, maxLength: 100 },
-      harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor'] },
+      harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor', 'antigravity'] },
       profileText: { type: 'string', maxLength: 8000, description: 'プロフィール。背景・見た目・関係性。表現の見本にはしない。' },
       personality: { type: 'string', maxLength: 8000, description: '性格（考え方）。気持ち・判断・接し方に反映し、表現の見本にはしない。' },
       speechStyle: { type: 'string', maxLength: 8000, description: '口調。一人称・語尾・話し方。表現の見本にするのはこの欄だけ。' },
@@ -415,7 +415,7 @@ function withMemoryLengthNotice(memory, content) {
 // 画像本体（data URL）は1枚で十万文字を超え、CLIの道具の上限を超える。返事では本体を外し、有無と取得先だけを返す。
 function withoutAvatarBody(value, avatarUrl) {
   if (!value || typeof value !== 'object' || !Object.hasOwn(value, 'avatar')) return value
-  const { avatar, ...rest } = value
+  const { avatar, avatarLarge, avatarSource, avatarLargeSource, ...rest } = value
   const hasAvatar = typeof avatar === 'string' && avatar !== ''
   return { ...rest, hasAvatar, ...(hasAvatar && avatarUrl ? { avatarUrl } : {}) }
 }
@@ -431,7 +431,7 @@ export async function callBellTeamTool({ internalUrl = '', ...context }) {
   return shaped
 }
 
-async function runBellTeamTool({ name, arguments: args = {}, from, registry, bugHubSecurity, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, deliverMessage, deliverRoomMessage, listQueued, restart, remove, configure, requestSecret, getSecretRequest, cancelSecretRequest, askOwner, getSettings, updateSettings, completeSetup, getModels }) {
+async function runBellTeamTool({ name, arguments: args = {}, from, registry, botView = bot => bot, bugHubSecurity, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, deliverMessage, deliverRoomMessage, listQueued, restart, remove, configure, requestSecret, getSecretRequest, cancelSecretRequest, askOwner, getSettings, updateSettings, completeSetup, getModels }) {
   const tool = bellTeamTools.find(item => item.name === name)
   if (!tool) throw new Error(`TOOL_NOT_FOUND: ${name}`)
   assertKeys(args, Object.keys(tool.inputSchema.properties))
@@ -476,8 +476,8 @@ async function runBellTeamTool({ name, arguments: args = {}, from, registry, bug
       id: bot.id, name: bot.name, position: bot.position ?? '', cli: bot.harness, fastMode: bot.fastMode === true, profileText: bot.profileText ?? '', personality: bot.personality, speechStyle: bot.speechStyle ?? '', role: bot.role,
     })) }
   }
-  if (name === 'get_bot') return { bot: requireBot(registry, args.botId) }
-  if (name === 'get_self') return { bot: registry.get(from) }
+  if (name === 'get_bot') return { bot: botView(requireBot(registry, args.botId)) }
+  if (name === 'get_self') return { bot: botView(registry.get(from)) }
   if (name === 'get_owner_profile') return { owner: await ownerProfile.get() }
   if (name === 'get_user_rules') return { text: await userRules.get() }
   if (name === 'remember') return withMemoryLengthNotice(await memory.remember({ botId: from, ...args, sourceRef: 'mcp' }), args.content)

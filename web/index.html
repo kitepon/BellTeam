@@ -68,6 +68,7 @@
       </div>
 
       <div class="timeline" id="timeline" aria-live="polite"></div>
+      <button class="scroll-latest" id="scroll-to-latest" type="button" hidden>最新へ ↓</button>
       <details class="chat-goal" id="chat-goal" hidden>
         <summary data-goal-summary>ゴールの状態を確認しています。</summary>
         <div class="chat-goal-details">
@@ -186,11 +187,12 @@
           <p>画像をドラッグして、使いたい部分を枠に合わせてね。</p>
         </div>
         <label class="field"><span>名前</span><input id="bot-name" name="name" required maxlength="100" placeholder="あかり"></label>
-        <label class="field"><span>CLI</span><select id="bot-harness" name="harness"><option value="grok">Grok</option><option value="codex">Codex</option><option value="claude">Claude</option><option value="cursor">Cursor</option></select></label>
-        <label class="field"><span>モデル</span><select id="bot-model" name="model"></select></label>
+        <label class="field"><span>CLI</span><select id="bot-harness" name="harness"><option value="grok">Grok</option><option value="codex">Codex</option><option value="claude">Claude</option><option value="cursor">Cursor</option><option value="antigravity">Antigravity</option></select></label>
+        <label class="field"><span>モデル（希望設定）</span><select id="bot-model" name="model"></select></label>
         <label class="field" id="bot-model-custom-field" hidden><span>モデルID</span><input id="bot-model-custom" name="modelCustom" maxlength="200" placeholder="一覧に無いモデルIDを入力"></label>
         <label class="field"><span>エフォート</span><select id="bot-reasoning-effort" name="reasoningEffort"></select></label>
         <p class="form-error" id="bot-model-status" role="status"></p>
+        <p class="form-error" id="bot-configuration-status" role="status"></p>
         <label class="field"><span>プロフィール</span><textarea id="bot-profile-text" name="profileText" rows="3" maxlength="8000" placeholder="背景・見た目・関係性"></textarea></label>
         <label class="field"><span>性格（考え方）</span><textarea id="bot-personality" name="personality" rows="4" maxlength="8000" placeholder="性格・価値観・好み・判断の傾向"></textarea></label>
         <label class="field"><span>口調</span><textarea id="bot-speech-style" name="speechStyle" rows="3" maxlength="8000" placeholder="一人称・語尾・話し方。表現の見本として使うのはこの欄だけ"></textarea></label>

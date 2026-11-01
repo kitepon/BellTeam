@@ -3,6 +3,42 @@ import XCTest
 @testable import BellBot
 
 final class AvatarImageTests: XCTestCase {
+    func testAvatarActionLifetimeRejectsLateSuccessAuthenticationAndFailure() {
+        var lifetime = AvatarActionLifetime()
+        lifetime.activate()
+        let closedOperation = lifetime.generation
+        lifetime.invalidate()
+        for outcome in ["成功", "認証", "失敗"] {
+            XCTAssertFalse(lifetime.accepts(closedOperation), "閉じた後の\(outcome)応答を反映しない")
+        }
+        lifetime.activate()
+        XCTAssertFalse(lifetime.accepts(closedOperation), "再表示しても旧応答を反映しない")
+        let disabledOperation = lifetime.generation
+        lifetime.invalidate()
+        XCTAssertFalse(lifetime.accepts(disabledOperation), "無効化後の応答を反映しない")
+        lifetime.activate()
+        XCTAssertTrue(lifetime.accepts(lifetime.generation), "現行操作の応答だけを反映する")
+    }
+
+    func testProfileSheetPreviewUsesCurrentVariantAndPendingSelection() {
+        var drafts = AvatarSelectionDrafts()
+        XCTAssertEqual(drafts.previewRender(for: .small, small: "small", large: "large",
+                                            largeUsesSmall: false), "small")
+        XCTAssertEqual(drafts.previewRender(for: .large, small: "small", large: "large",
+                                            largeUsesSmall: false), "large")
+        XCTAssertEqual(drafts.previewRender(for: .large, small: "small", large: nil,
+                                            largeUsesSmall: true), "small")
+        XCTAssertEqual(drafts.previewRender(for: .large, small: "small", large: nil,
+                                            largeUsesSmall: false), "", "独立した大画像を小画像で偽装しない")
+        let selected = AvatarCropSelection(render: "selected", source: "source",
+                                           crop: AvatarCropRect(x: 0, y: 0, width: 1, height: 1))
+        drafts.select(selected, for: .large)
+        XCTAssertEqual(drafts.previewRender(for: .large, small: "small", large: "large",
+                                            largeUsesSmall: false), "selected")
+        XCTAssertEqual(drafts.previewRender(for: .small, small: "small", large: "large",
+                                            largeUsesSmall: false), "small")
+    }
+
     func testImageFileLoadsForTheSharedCropAndExportPath() throws {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
@@ -63,5 +99,67 @@ final class AvatarImageTests: XCTestCase {
         context.draw(center, in: CGRect(x: 0, y: 0, width: 1, height: 1))
         XCTAssertGreaterThan(pixel[0], 200)
         XCTAssertLessThan(pixel[2], 50)
+    }
+
+    func testSmallAndLargeCropRectsRestoreTheirOwnImagePositions() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let source = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 100), format: format).image { context in
+            UIColor.blue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 200, height: 100))
+        }
+        for variant in [AvatarCropVariant.small, .large] {
+            let canvas = variant.canvas
+            let offset = AvatarImage.clampedOffset(CGSize(width: 70, height: -35), image: source,
+                                                   zoom: 1.5, canvas: canvas)
+            let crop = try XCTUnwrap(AvatarImage.cropRect(from: source, zoom: 1.5, offset: offset,
+                                                          canvas: canvas))
+            let restored = try XCTUnwrap(AvatarImage.placement(of: crop, image: source, canvas: canvas))
+            XCTAssertEqual(restored.zoom, 1.5, accuracy: 0.0001)
+            XCTAssertEqual(restored.offset.width, offset.width, accuracy: 0.001)
+            XCTAssertEqual(restored.offset.height, offset.height, accuracy: 0.001)
+            XCTAssertGreaterThanOrEqual(crop.x, 0)
+            XCTAssertLessThanOrEqual(crop.x + crop.width, 1.000001)
+            let output = try XCTUnwrap(AvatarImage.dataURL(from: source, zoom: 1.5, offset: offset,
+                                                           canvas: canvas))
+            let data = try XCTUnwrap(Data(base64Encoded: String(output.dropFirst("data:image/jpeg;base64,".count))))
+            let image = try XCTUnwrap(UIImage(data: data))
+            XCTAssertEqual(image.size, canvas)
+        }
+        XCTAssertNotNil(AvatarImage.sourceDataURL(from: source), "切り抜き前の全画面を保持する")
+    }
+
+    func testFormerWideLargeCropOpensAsSquareAroundTheSameCenter() throws {
+        let source = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 200)).image { context in
+            UIColor.blue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 400, height: 200))
+        }
+        let oldCanvas = CGSize(width: 1024, height: 512)
+        let oldCrop = try XCTUnwrap(AvatarImage.cropRect(from: source, zoom: 1.5,
+                                                        offset: CGSize(width: 100, height: 50), canvas: oldCanvas))
+        let newCanvas = AvatarCropVariant.large.canvas
+        XCTAssertEqual(newCanvas.width, newCanvas.height)
+        let restored = try XCTUnwrap(AvatarImage.placement(of: oldCrop, image: source, canvas: newCanvas))
+        XCTAssertGreaterThanOrEqual(restored.zoom, 1)
+        let newCrop = try XCTUnwrap(AvatarImage.cropRect(from: source, zoom: CGFloat(restored.zoom),
+                                                        offset: restored.offset, canvas: newCanvas))
+        XCTAssertEqual(newCrop.x + newCrop.width / 2, oldCrop.x + oldCrop.width / 2, accuracy: 0.001)
+        XCTAssertEqual(newCrop.y + newCrop.height / 2, oldCrop.y + oldCrop.height / 2, accuracy: 0.001)
+    }
+
+    func testFormerWidePortraitCropStaysInsideEditableZoomRange() throws {
+        let source = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 400)).image { context in
+            UIColor.blue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 200, height: 400))
+        }
+        let oldCrop = try XCTUnwrap(AvatarImage.cropRect(from: source, zoom: 3, offset: .zero,
+                                                        canvas: CGSize(width: 1024, height: 512)))
+        let restored = try XCTUnwrap(AvatarImage.placement(of: oldCrop, image: source,
+                                                            canvas: AvatarCropVariant.large.canvas))
+        XCTAssertEqual(restored.zoom, AvatarImage.zoomRange.upperBound)
+        let newCrop = try XCTUnwrap(AvatarImage.cropRect(from: source, zoom: CGFloat(restored.zoom),
+                                                        offset: restored.offset, canvas: AvatarCropVariant.large.canvas))
+        XCTAssertEqual(newCrop.x + newCrop.width / 2, oldCrop.x + oldCrop.width / 2, accuracy: 0.001)
+        XCTAssertEqual(newCrop.y + newCrop.height / 2, oldCrop.y + oldCrop.height / 2, accuracy: 0.001)
     }
 }

@@ -1,0 +1,14 @@
+# Goalのforeground再読込を背景化時に取り消す
+
+製品sourceは`59b10486c6dfe33f9508b4eee8c634d5ef9d17cb`。版75・76の固定署名sourceとTestFlight成果物には含めていない。
+
+eb392 count30の[本人評価原本](samples/2026-10-29-apple-count30-evaluation.json)（SHA256 `97d50b75f5bcf4b917928d65b67ee89c246d5c63d4754c2aedede4839a15875c`）は、診断原文2,330BのSHA256 `b471911882e7761929cfb6ba9885327f8ecc24109daa5291ae770438b6133b2f`を照合した範囲の評価である。画面callbackのactive/revision3から77ms後にbackground/revision4へ変わり、さらに175ms後に個別Goal GETの試行が始まった。これはforeground契機のGETがbackground後に開始した順序を示す。Task自体がいつ走り始めたか、背景化が時間切れの原因か、サーバーへの到達と実画面回復は未確認。count30はwarn/open、原因・回復unknown、repair_success=falseのまま。
+
+共有の`GoalForegroundLoad`が`chat_foreground`と`list_foreground`のTaskを各Viewで所有する。新たなforeground要求は前のTaskを取り消し、その終了を待ってからGETへ進む。sceneが非activeになる時とView離脱時にも取消す。Goal読取はGETの直前と応答後に取消を確認し、取消後の認証・通常失敗はアプリ全体のログイン要求、診断warn、エラー表示へ進めない。これにより急なactive→background→activeでも旧Taskの`loading`解除後に現Taskが進む。manual・event・初回viewTask・change_reconcileの起動条件と既存通信再試行は変更しない。新しいID・永続キュー・自動GET/PATCH再送は追加しない。
+
+## 有限検証
+
+- 新focused試験`NetworkRecoveryTests/testForegroundGoalReadCancelsStaleGETAndWaitsBeforeNewActiveGET`は1件成功・失敗0。非active時に取り消された旧TaskのGETは0回、再activeの現Taskは旧Taskの終了後に1回成功し、診断warnは0件。XCResult: `~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-29T08-29-55-313Z_pid49890_848289a7.xcresult`。
+- 同試験によるiOS SimulatorビルドとMac Catalyst Debug buildは終了0。Macログ`runtime/apple/goal-foreground-cancel/mac-build.log`のSHA256は`2219bea313736ae8525a0b2f45565845eed1ae06c91f5417c326d1e9f85a65b6`。既知のAppStore actor隔離警告以外の新しい警告は確認していない。
+
+この人工試験は実端末の長い時間切れ、OS睡眠、サーバー到達、実画面回復を再現しない。旧Save・UI・Node・Goal順序ログの成功群は再実行していない。実端末・実Owner画像・実Bot・本体コンテナは操作していない。版76のApple内部配布記録とMac導入待ちは別のまま保つ。

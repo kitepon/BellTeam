@@ -23,6 +23,7 @@ const HARNESS = new Map([
   ['codex', 'codex-cli'],
   ['grok', 'grok-cli'],
   ['cursor', 'cursor-cli'],
+  ['antigravity', 'antigravity-cli'],
 ])
 // 合間の言葉を取りに行く間隔。Aitermのpty_observeは画面本文を読まない軽い呼び出し。
 const INTERIM_INTERVAL_MS = 3000
@@ -114,13 +115,13 @@ export class AitermTransport {
     return new Set(bots.filter(bot => sessions.has(this.session(bot))).map(bot => bot.id))
   }
 
-  // Botが動いているか止まっているかを人が見るための、CLI画面の末尾そのまま。
-  async screen(bot) {
+  // 履歴表示もscreen captureを使い、配送の共有読取位置を進めない。
+  async screen(bot, { history = false } = {}) {
     if (!await this.isRunning(bot)) return { online: false, screen: '' }
     const result = await this.client.call('pty_read', {
-      session_id: this.session(bot), screen: true, raw: true, timeout: 0, lines: 40,
+      session_id: this.session(bot), screen: true, raw: true, timeout: 0, lines: history ? 10000 : 40,
     })
-    return { online: true, screen: cleanScreen(textResult(result)) }
+    return { online: true, screen: cleanScreen(textResult(result), history ? 10000 : 25) }
   }
 
   async ensure(bot) {
@@ -229,7 +230,7 @@ export class AitermTransport {
     return this.activity.configurationChanges.track(bot.id, pending, { clearOnFailure: false })
   }
 
-  async reconfigure(current, next) {
+  async reconfigure(current, next, { reapply = false } = {}) {
     this.assertWorkAllowed()
     this.requireSessionKnown(current.id)
     const version = this.captureStopVersion(current)
@@ -242,14 +243,16 @@ export class AitermTransport {
     const requiresRestart = current.harness !== next.harness
       || (current.model && !next.model)
       || (current.reasoningEffort && !next.reasoningEffort)
+      || (reapply && (!next.model || !next.reasoningEffort))
     if (requiresRestart) {
       const session = await this.restartNow(next, version)
       return { botId: next.id, session, mode: 'restart' }
     }
     const configuration = { session_id: this.session(next) }
-    if (current.model !== next.model) configuration.model = next.model
-    if (current.reasoningEffort !== next.reasoningEffort) configuration.reasoning_effort = next.reasoningEffort
-    if ((current.fastMode === true) !== (next.fastMode === true)) configuration.fast = next.fastMode === true
+    if (reapply || current.model !== next.model) configuration.model = next.model
+    if (reapply || current.reasoningEffort !== next.reasoningEffort
+      || current.model !== next.model && next.reasoningEffort) configuration.reasoning_effort = next.reasoningEffort
+    if (reapply || (current.fastMode === true) !== (next.fastMode === true)) configuration.fast = next.fastMode === true
     if (next.harness === 'cursor' && configuration.reasoning_effort && !configuration.model) configuration.model = next.model
     await this.changeSession(current, 'agent_configure', configuration)
     return { botId: next.id, session: this.session(next), mode: 'configure' }
@@ -318,6 +321,22 @@ export class AitermTransport {
   async observe(bot, cursor) {
     const result = await this.client.call('pty_observe', { session_id: this.session(bot), ...(cursor ? { cursor } : {}) })
     return result.structuredContent
+  }
+
+  // Goal一覧の対象だけをまとめて読む。Goal本体と変更権限は、このsnapshotから作らない。
+  async goalTargets(bots) {
+    const result = (await this.client.call('pty_list')).structuredContent
+    if (result?.schema !== 'aiterm.pty-list-result.v1' || !Array.isArray(result.sessions)
+      || !Number.isFinite(Date.parse(result.observed_at))) throw new Error('GOAL_TARGETS_INVALID')
+    const sessions = new Map()
+    for (const row of result.sessions) {
+      if (typeof row?.session_id !== 'string' || !row.session_id || sessions.has(row.session_id)) throw new Error('GOAL_TARGETS_INVALID')
+      sessions.set(row.session_id, row)
+    }
+    return new Map(bots.flatMap(bot => {
+      const session = this.session(bot), row = sessions.get(session)
+      return row ? [[bot.id, { session_id: session, ...(Object.hasOwn(row, 'launch_id') ? { launch_id: row.launch_id } : {}) }]] : []
+    }))
   }
 
   // 動いていない席を閉じる。配送中・配送待ちがあれば閉じない。閉じた後の配送は不達になり、通常の経路で起動し直す。
@@ -684,6 +703,8 @@ export class AitermTransport {
         result = await this.sendToSession(session, message, imageFiles)
       } catch (error) {
         check()
+        // 入力後の不明な結果は、席が消えていても起こし直して再送しない。
+        if (error.code === 'BOT_SEND_OUTCOME_UNKNOWN') throw error
         const running = await this.isRunning(bot)
         check()
         if (running && error.code !== 'AGENT_SESSION_REQUIRED') throw error

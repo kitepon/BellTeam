@@ -18,19 +18,20 @@ const clientFor = (calls,mode='agent_dispatch') => ({async call(name,args){
  throw Error('unexpected '+name)
 }})
 
-test('task settings: one canonical rule reaches all four CLI globals with owner and user rules intact',async t=>{
+test('task settings: one canonical rule reaches all five CLI globals with owner and user rules intact',async t=>{
  const home=await mkdtemp(join(tmpdir(),'model-policy-home-'));t.after(()=>rm(home,{recursive:true,force:true}))
- for(const cli of ['claude','codex','grok','cursor'])await mkdir(join(home,'.'+cli))
+ for(const cli of ['claude','codex','grok','cursor','gemini'])await mkdir(join(home,'.'+cli))
  await globalInstructions.createGlobalInstructionsRefresher({home,ownerProfile:{get:async()=>({name:'Synthetic owner',links:[]})},userRules:{get:async()=>'Synthetic user rule'}})()
  const rule=await globalInstructions.taskSettingsReminder()
- for(const text of ['Terra最新版のHigh','Sol最新版のHigh','LunaのHigh','get_self','list_models','update_self','set_fast_mode(enabled=false)','次ターン','独立した工程'])assert.ok(rule.includes(text),text)
- for(const cli of ['claude','codex','grok','cursor']){
+ for(const text of ['Sol最新版のHighを基本','Terra最新版のxhigh','極めて単純な作業を行う担当に限り','get_self','list_models','update_self','set_fast_mode(enabled=false)','次ターン','独立した工程'])assert.ok(rule.includes(text),text)
+ for(const cli of ['claude','codex','grok','cursor','gemini']){
   const text=await readFile(join(home,'.'+cli,'AGENTS.md'),'utf8')
   assert.ok(text.includes(rule));assert.ok(text.includes('Synthetic owner'));assert.ok(text.includes('Synthetic user rule'))
  }
  const common=await readFile(join(root,'config/common-agents.md'),'utf8')
  assert.match(common,/現在の設定が適切なら書き戻さない/)
- assert.match(common,/Lunaで想定外の結果が出たら調査へ入る前にSol/)
+ assert.match(common,/Terra xhighで想定外の結果が出たら、調査へ入る前にSol High/)
+ assert.doesNotMatch(common,/LunaのHigh|平常時はTerra|平常の仕事へ戻る時はTerra/)
  assert.match(common,/AIが不要な実行は従来どおりcommand予定/)
 })
 

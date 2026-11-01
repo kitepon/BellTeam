@@ -99,7 +99,7 @@ test('MCPから自分のプロフィールと予定を変更できる', async ()
   assert.equal('id' in bellTeamTools.find(tool => tool.name === 'create_bot').inputSchema.properties, false)
   assert.deepEqual(
     bellTeamTools.find(tool => tool.name === 'create_bot').inputSchema.properties.harness.enum,
-    ['claude', 'codex', 'grok', 'cursor'],
+    ['claude', 'codex', 'grok', 'cursor', 'antigravity'],
   )
   assert.equal(bellTeamTools.find(tool => tool.name === 'create_bot').inputSchema.properties.position.maxLength, 100)
   assert.equal('title' in bellTeamTools.find(tool => tool.name === 'create_bot').inputSchema.properties, false)
@@ -340,7 +340,7 @@ test('update_botのCLI・モデル・エフォート変更は設定画面と同�
     ['update', 'bot-b', { role: '設計' }],
   ])
   const schema = bellTeamTools.find(tool => tool.name === 'update_bot').inputSchema.properties
-  assert.deepEqual(schema.harness.enum, ['claude', 'codex', 'grok', 'cursor'])
+  assert.deepEqual(schema.harness.enum, ['claude', 'codex', 'grok', 'cursor', 'antigravity'])
   assert.equal(schema.reasoningEffort.type, 'string')
   assert.equal(schema.reasoningEffort.enum, undefined, '動的な候補をMCP起動時のenumに固定しない')
 })
@@ -354,15 +354,15 @@ test('update_selfのCLI・モデル・エフォート変更は自分の席を設
   const context = { from: 'bot-a', registry, configure }
 
   await callBellTeamTool({ ...context, name: 'update_self', arguments: { reasoningEffort: 'xhigh' } })
-  await callBellTeamTool({ ...context, name: 'update_self', arguments: { harness: 'codex', model: '' } })
+  await callBellTeamTool({ ...context, name: 'update_self', arguments: { harness: 'antigravity', model: 'fixture-model-high' } })
   await callBellTeamTool({ ...context, name: 'update_self', arguments: { role: '整備' } })
   assert.deepEqual(calls, [
     ['configure', 'bot-a', { reasoningEffort: 'xhigh' }],
-    ['configure', 'bot-a', { harness: 'codex', model: '' }],
+    ['configure', 'bot-a', { harness: 'antigravity', model: 'fixture-model-high' }],
     ['update', 'bot-a', { role: '整備' }],
   ])
   const schema = bellTeamTools.find(tool => tool.name === 'update_self').inputSchema.properties
-  assert.deepEqual(schema.harness.enum, ['claude', 'codex', 'grok', 'cursor'])
+  assert.deepEqual(schema.harness.enum, ['claude', 'codex', 'grok', 'cursor', 'antigravity'])
   assert.equal(schema.reasoningEffort.enum, undefined, '動的な候補をMCP起動時のenumに固定しない')
   assert.equal(Object.hasOwn(schema, 'botId'), false)
 })

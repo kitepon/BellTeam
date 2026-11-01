@@ -107,6 +107,14 @@ export class AitermClient {
       if (detail) { error.mcp_error = detail; error.publicMessage = detail.message }
       // tool handlerがエラー結果を返し終えた事と、RPC timeout/通信断で結果が不明な事を区別する。
       error.aitermResponseReturned = true
+      if (name === 'agent_configure' && result.structuredContent?.schema === 'aiterm.agent-configure-error.v1') {
+        const failure = result.structuredContent
+        const valid = Object.keys(failure).sort().join(',') === 'effect,outcome,schema,session_id'
+          && failure.session_id === args.session_id
+          && (failure.outcome === 'not_applied' && failure.effect === 'not_started'
+            || failure.outcome === 'outcome_unknown' && failure.effect === 'possible')
+        error.agentConfigureResult = valid ? structuredClone(failure) : null
+      }
       if (name === 'agent_goal' && ['aiterm.agent-goal-result.v1', 'aiterm.agent-goal-result.v2'].includes(result.structuredContent?.schema))
         error.agentGoalResult = result.structuredContent
       if (['agent_launch', 'claude_agent'].includes(name)) {
@@ -121,6 +129,11 @@ export class AitermClient {
       // 起動の準備が終わらなかった時、Aitermは作った端末の名前と止まった理由を構造で返す（aiterm.agent-launch-result.v1）。
       if (name === 'agent_launch' && result.structuredContent?.schema === 'aiterm.agent-launch-result.v1')
         error.launch = result.structuredContent
+      if (name === 'pty_send' && ['STEER_NOT_QUEUED', 'STEER_STILL_QUEUED'].some(code =>
+        message.startsWith(`aiterm: ${code} vendor=`))) {
+        error.code = 'BOT_SEND_OUTCOME_UNKNOWN'
+        error.publicMessage = 'メッセージを受け付けたか確認できません。重複送信を避けるため、会話を確認してから再送してください。'
+      }
       // Aitermが未送信を明示した入力受付の拒否は、その席の状態との衝突。
       // その他の送信失敗や受付後の不明な結果まで成功・未送信と決めない。
       if (name === 'pty_send'

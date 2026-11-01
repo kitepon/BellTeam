@@ -56,7 +56,7 @@ final class ForegroundRefreshTests: XCTestCase {
         let fixture = DelayedForegroundGETs(started: started, cancelled: cancelled, secondStarted: secondStarted)
         let billingRead = expectation(description: "新しい復帰から購読照会へ進む")
         let (store, billingReads) = makeStore(fixture, billingRead: billingRead)
-        defer { fixture.finishAll(); store.stopEvents() }
+        defer { store.sceneChanged(to: .background); fixture.finishAll(); store.stopEvents() }
 
         store.sceneChanged(to: .active)
         await fulfillment(of: [started], timeout: 3)

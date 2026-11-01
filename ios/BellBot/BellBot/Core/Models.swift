@@ -16,6 +16,7 @@ struct Bot: Decodable, Identifiable, Equatable {
     let role: String
     var avatar: String
     var avatarVersion: String? = nil
+    var avatarLargeVersion: String? = nil
     let online: Bool
     let recent: RecentMessage?
 }
@@ -171,9 +172,18 @@ enum ChatTarget: Hashable, Sendable {
     var path: String { "/api/\(isRoom ? "rooms" : "bots")/\(id)" }
 }
 
+/// 会話を開き直す時にすぐ出す前回の先頭の頁。端末には保存しない。
+struct ConversationPage {
+    let items: [TimelineMessage]
+    let hasMore: Bool
+    let remainingBefore: Int
+}
+
 struct ListResponse<T: Decodable>: Decodable {
     let items: [T]
     let hasMore: Bool
+    /// 返した先頭より古い件数。この項目が無い旧本体の間は、読み足すまで全長が分からない。
+    var remainingBefore: Int?
 }
 
 struct BotsResponse: Decodable { var bots: [Bot] }
@@ -213,6 +223,33 @@ struct AIControl: Decodable, Equatable {
     let error: String?
 }
 struct SchedulesResponse: Decodable { let schedules: [Schedule] }
+struct AllSchedulesResponse: Decodable {
+    struct Source: Decodable {
+        let kind: String
+        let id: String
+        let schedules: [Schedule]
+        var target: ChatTarget? {
+            switch kind {
+            case "bot": .bot(id)
+            case "room": .room(id)
+            default: nil
+            }
+        }
+    }
+    let sources: [Source]
+
+    /// 表示中の全員が1回ずつ揃っている時だけ返す。欠けた応答で前回の予定を成功に見せない。
+    func schedules(expected: Set<ChatTarget>) throws -> [ChatTarget: [Schedule]] {
+        var pages: [ChatTarget: [Schedule]] = [:]
+        for source in sources {
+            guard let target = source.target, pages.updateValue(source.schedules, forKey: target) == nil else {
+                throw BellAPIError.invalidResponse
+            }
+        }
+        guard expected.isSubset(of: pages.keys) else { throw BellAPIError.invalidResponse }
+        return pages
+    }
+}
 struct ScheduleResponse: Decodable { let schedule: Schedule }
 struct SessionResponse: Decodable { let authenticated: Bool; let authMode: String }
 struct HarnessOption: Decodable, Identifiable { let id: String; let name: String }
@@ -361,10 +398,24 @@ struct HarnessAuthenticationOption: Decodable, Identifiable {
     let name: String
     let members: Int
     let startWarning: String?
+    let reloginSupported: Bool?
+
+    init(id: String, name: String, members: Int, startWarning: String?, reloginSupported: Bool? = nil) {
+        self.id = id
+        self.name = name
+        self.members = members
+        self.startWarning = startWarning
+        self.reloginSupported = reloginSupported
+    }
 
     var usageText: String { members > 0 ? "\(members)人が使用" : "使用していません" }
+    /// reloginSupported=falseは認証済みからの入り直しだけを断る。未認証なら初回の認証は始められる。
+    func canStart(_ auth: SetupAuthentication?) -> Bool {
+        guard reloginSupported == false else { return true }
+        return auth != nil && auth?.status != .authenticated
+    }
     func needsStartConfirmation(_ auth: SetupAuthentication?) -> Bool {
-        startWarning?.isEmpty == false && auth?.status != .blocked
+        reloginSupported != false && startWarning?.isEmpty == false && auth?.status != .blocked
     }
 }
 struct HarnessAuthenticationsResponse: Decodable { let harnesses: [HarnessAuthenticationOption] }

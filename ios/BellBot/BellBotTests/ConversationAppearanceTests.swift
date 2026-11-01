@@ -185,4 +185,68 @@ final class ConversationAppearanceTests: XCTestCase {
         XCTAssertLessThan(blueHue, 0.75)
         XCTAssertNil(AvatarTone.representativeColor(portrait(.white)))
     }
+
+    func testWheelStallReportsOnceAfterRepeatedInputWithoutMovement() {
+        var detector = ConversationWheelStallDetector()
+        let start = Date(timeIntervalSince1970: 0)
+        XCTAssertFalse(detector.wheelUp(top: -500, idle: true, now: start))
+        XCTAssertFalse(detector.wheelUp(top: -500, idle: true, now: start.addingTimeInterval(0.1)))
+        XCTAssertFalse(detector.wheelUp(top: -500, idle: true, now: start.addingTimeInterval(0.2)), "同じ瞬間の入力は判定しない")
+        XCTAssertTrue(detector.wheelUp(top: -500, idle: true, now: start.addingTimeInterval(0.6)))
+        XCTAssertFalse(detector.wheelUp(top: -500, idle: true, now: start.addingTimeInterval(0.9)), "会話ごとに1回だけ")
+    }
+
+    func testWheelStallIgnoresMovementLoadingAndOldInputs() {
+        var detector = ConversationWheelStallDetector()
+        let start = Date(timeIntervalSince1970: 0)
+        for (index, top) in [-500, -400, -300, -200].enumerated() {
+            XCTAssertFalse(detector.wheelUp(top: CGFloat(top), idle: true, now: start.addingTimeInterval(Double(index))))
+        }
+        XCTAssertFalse(detector.wheelUp(top: -200, idle: false, now: start.addingTimeInterval(4)))
+        XCTAssertFalse(detector.wheelUp(top: -200, idle: true, now: start.addingTimeInterval(4.1)))
+        XCTAssertFalse(detector.wheelUp(top: -200, idle: true, now: start.addingTimeInterval(7)), "2秒より古い入力は数えない")
+    }
+
+    func testAllSchedulesResponseMapsSourcesToTargets() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(AllSchedulesResponse.self, from: Data(#"{"sources":[{"kind":"bot","id":"bot-a","name":"A","schedules":[]},{"kind":"room","id":"room-b","name":"B","schedules":[]},{"kind":"other","id":"x","name":"X","schedules":[]}]}"#.utf8))
+        XCTAssertEqual(response.sources.map(\.target), [.bot("bot-a"), .room("room-b"), nil])
+        XCTAssertThrowsError(try response.schedules(expected: []), "未知の種類")
+
+        func decode(_ text: String) throws -> AllSchedulesResponse {
+            try decoder.decode(AllSchedulesResponse.self, from: Data(text.utf8))
+        }
+        let bot = #"{"kind":"bot","id":"bot-a","name":"A","schedules":[]}"#
+        let room = #"{"kind":"room","id":"room-b","name":"B","schedules":[]}"#
+        let expected: Set<ChatTarget> = [.bot("bot-a"), .room("room-b")]
+        XCTAssertEqual(try decode(#"{"sources":[\#(bot),\#(room)]}"#).schedules(expected: expected).count, 2)
+        XCTAssertThrowsError(try decode(#"{"sources":[\#(bot)]}"#).schedules(expected: expected), "欠けた持ち主")
+        XCTAssertThrowsError(try decode(#"{"sources":[\#(bot),\#(bot),\#(room)]}"#).schedules(expected: expected), "重複")
+    }
+
+    @MainActor
+    func testClearedConversationPagesRejectLateResponses() {
+        let store = AppStore()
+        let page = ConversationPage(items: [], hasMore: false, remainingBefore: 0)
+        let generation = store.conversationGeneration
+        store.clearConversationPages()
+        store.remember(page, for: .bot("bot-a"), generation: generation)
+        XCTAssertNil(store.conversationPages[.bot("bot-a")])
+        store.remember(page, for: .bot("bot-a"), generation: store.conversationGeneration)
+        XCTAssertNotNil(store.conversationPages[.bot("bot-a")])
+    }
+
+    func testScrollBarLengthStartsAtFiftyAndGrowsByOnePage() {
+        XCTAssertEqual(10 + ConversationHistoryPage.reservedRows(loaded: 10), 50)
+        XCTAssertEqual(35 + ConversationHistoryPage.reservedRows(loaded: 35), 50)
+        XCTAssertEqual(60 + ConversationHistoryPage.reservedRows(loaded: 60), 75)
+        XCTAssertEqual(85 + ConversationHistoryPage.reservedRows(loaded: 85), 100)
+    }
+
+    func testOlderPageReadsToTheJumpedPositionWithinTheServerLimit() {
+        XCTAssertEqual(ConversationHistoryPage.limit(distance: 0, rowHeight: 80), 25)
+        XCTAssertEqual(ConversationHistoryPage.limit(distance: 800, rowHeight: 80), 35)
+        XCTAssertEqual(ConversationHistoryPage.limit(distance: 100_000, rowHeight: 80), 200)
+    }
 }

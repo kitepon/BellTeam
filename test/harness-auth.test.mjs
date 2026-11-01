@@ -38,12 +38,12 @@ test('AIの種類と、それを使うメンバーの数を返す。公式の状
   const { harnesses } = new HarnessAuth({ bots, client }).list()
   assert.deepEqual(harnesses.map(({ id, name, members }) => ({ id, name, members })), [
     { id: 'claude', name: 'Claude', members: 1 }, { id: 'codex', name: 'Codex', members: 2 },
-    { id: 'grok', name: 'Grok', members: 0 }, { id: 'cursor', name: 'Cursor', members: 0 },
+    { id: 'grok', name: 'Grok', members: 0 }, { id: 'cursor', name: 'Cursor', members: 0 }, { id: 'antigravity', name: 'Antigravity', members: 0 },
   ])
   // 始めた時点で今の認証が消えるAI（Codex）と、残るかを確かめられていないAI（Grok）には、始める前の知らせを付ける。
   assert.match(harnesses.find(item => item.id === 'codex').startWarning, /始めた時点で今の認証が消えます。途中でやめても元に戻りません。/u)
   assert.match(harnesses.find(item => item.id === 'grok').startWarning, /確かめられていません/u)
-  assert.deepEqual(harnesses.filter(item => item.startWarning === null).map(item => item.id), ['claude', 'cursor'])
+  assert.deepEqual(harnesses.filter(item => item.startWarning === null).map(item => item.id), ['claude', 'cursor', 'antigravity'])
   assert.deepEqual(client.calls, [])
 })
 
@@ -56,7 +56,7 @@ test('状態を見ただけの時は利用者向けの文を返し、認証が�
   } }
   const auth = new HarnessAuth({ bots, client })
   const message = async harness => (await auth.status(harness)).auth.message
-  assert.match(await message('codex'), /認証されていないか、認証の期限が切れています。「認証し直す」で公式サイトから入り直せます。/u)
+  assert.match(await message('codex'), /認証されていないか、認証の期限が切れています。「認証する」から公式サイトで認証してください。/u)
   assert.equal((await message('codex')).includes('agent_auth'), false)
   next = { status: 'failed', message: 'Cursorのログインを確認できません…relogin:true…' }
   assert.match(await message('cursor'), /認証の状態を確かめられませんでした/u)
@@ -127,7 +127,7 @@ test('やり直しを押し直した時は、前の認証の端末を閉じて�
 test('Aitermが値を省いた時も、無い値はnull、入力の要否は真偽で返す', async () => {
   const client = { async call() { return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', status: 'blocked' } } } }
   assert.deepEqual(legacy(await new HarnessAuth({ bots, client }).status('cursor')), {
-    harness: 'cursor', auth: { status: 'blocked', url: null, user_code: null, input_required: false, message: 'このAIは認証されていないか、認証の期限が切れています。「認証し直す」で公式サイトから入り直せます。' },
+    harness: 'cursor', auth: { status: 'blocked', url: null, user_code: null, input_required: false, message: 'このAIは認証されていないか、認証の期限が切れています。「認証する」から公式サイトで認証してください。' },
   })
 })
 
@@ -170,4 +170,27 @@ test('認証のやり直しを持たないサーバーでは、その道は無�
   await once(server, 'listening')
   t.after(() => server.close())
   assert.equal((await fetch(`http://127.0.0.1:${server.address().port}/api/harness-auth`)).status, 404)
+})
+
+
+test('Antigravityは未認証なら初回認証を始め、強制再認証を要求しない', async () => {
+  const client = aiterm({ official: 'blocked' })
+  const auth = new HarnessAuth({ bots, client })
+  assert.equal((await auth.start('antigravity')).auth.status, 'waiting')
+  assert.deepEqual(client.calls.at(-1), ['agent_auth', { harness: 'antigravity-cli', action: 'start', relogin: false }])
+  assert.equal(auth.list().harnesses.find(x => x.id === 'antigravity').reloginSupported, false)
+  assert.ok(auth.list().harnesses.filter(x => x.id !== 'antigravity').every(x => x.reloginSupported === true))
+  await auth.cancel('antigravity')
+  assert.equal(auth.sessions.has('antigravity'), false)
+  const blocked = new HarnessAuth({ bots, client: aiterm({ official: 'blocked' }) })
+  assert.match((await blocked.status('antigravity')).auth.message, /認証する/u)
+  assert.doesNotMatch((await blocked.status('antigravity')).auth.message, /公式CLI/u)
+})
+
+test('Antigravityが既に認証済みなら資格を変えず、その状態を返す', async () => {
+  const client = aiterm()
+  const auth = new HarnessAuth({ bots, client })
+  assert.equal((await auth.start('antigravity')).auth.status, 'authenticated')
+  assert.equal(auth.sessions.size, 0)
+  assert.equal(client.calls.at(-1)[1].relogin, false)
 })

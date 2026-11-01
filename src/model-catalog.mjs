@@ -2,7 +2,7 @@
 // BellTeamは編集時と設定変更時に実行環境の一覧を取得し、永続化・再試行はしない。
 import { AitermClient } from './aiterm-transport.mjs'
 
-const HARNESSES = { claude: 'claude-code', codex: 'codex-cli', grok: 'grok-cli', cursor: 'cursor-cli' }
+const HARNESSES = { claude: 'claude-code', codex: 'codex-cli', grok: 'grok-cli', cursor: 'cursor-cli', antigravity: 'antigravity-cli' }
 
 export class ModelCatalogError extends Error {
   constructor(code, harness, detail) {

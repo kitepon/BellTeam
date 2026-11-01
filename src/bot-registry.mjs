@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { lstatSync } from 'node:fs'
-import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, readdir, rename, rm, writeFile, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 
 import { Cron } from 'croner'
@@ -13,10 +13,14 @@ import { mutateSchedules, nextScheduleRevision, scheduleRevision } from './sched
 const BOT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,199}$/u
 const COLORS = new Set(['rose', 'indigo', 'violet'])
-const HARNESSES = new Set(['claude', 'codex', 'grok', 'cursor'])
-const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'color'])
+const HARNESSES = new Set(['claude', 'codex', 'grok', 'cursor', 'antigravity'])
+const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource', 'avatarCrop', 'avatarLargeCrop', 'color'])
 
 export class BotRegistry extends Map {
+  #profileMutations = new Map()
+  #refreshQueue = Promise.resolve()
+  #profileCache = new Map()
+
   constructor(options) {
     const { seedPath, botsRoot, now = () => new Date(), id = randomUUID, botId = () => `bot-${randomUUID().slice(0, 8)}`, onChange = async () => {}, models = new LiveModelCatalog(), projectFiles = new ProjectFiles() } = options
     const stateRoot = Object.hasOwn(options, 'stateRoot') ? options.stateRoot : botsRoot
@@ -86,14 +90,32 @@ export class BotRegistry extends Map {
     return this.refresh()
   }
 
-  async refresh() {
+  refresh() {
+    const result = this.#refreshQueue.then(() => this.#readProfiles())
+    this.#refreshQueue = result.catch(() => {})
+    return result
+  }
+
+  async #readProfiles() {
     const profiles = []
-    for (const entry of await readdir(this.stateRoot, { withFileTypes: true })) {
-      if (!entry.isDirectory() || !BOT_ID.test(entry.name)) continue
+    const entries = (await readdir(this.stateRoot, { withFileTypes: true })).filter(entry => entry.isDirectory() && BOT_ID.test(entry.name))
+    const identity = value => [value.dev, value.ino, value.size, value.mtimeNs, value.ctimeNs].join(':')
+    const observed = await Promise.all(entries.map(async entry => {
       const path = join(this.stateRoot, entry.name, 'bot.json')
-      if (!await exists(path)) continue
-      profiles.push(await this.readProfile(entry.name))
+      try { return { id: entry.name, path, key: identity(await stat(path, { bigint: true })) } }
+      catch (error) { if (error.code === 'ENOENT') return null; throw error }
+    }))
+    // Large avatars stay in one parsed profile; only file metadata is read in parallel.
+    for (const item of observed.filter(Boolean)) {
+      const cached = this.#profileCache.get(item.id)
+      if (cached?.key === item.key) { profiles.push(cached.profile); continue }
+      const profile = await this.readProfile(item.id)
+      if (identity(await stat(item.path, { bigint: true })) === item.key) this.#profileCache.set(item.id, { key: item.key, profile })
+      else this.#profileCache.delete(item.id)
+      profiles.push(profile)
     }
+    const present = new Set(profiles.map(profile => profile.id))
+    for (const id of this.#profileCache.keys()) if (!present.has(id)) this.#profileCache.delete(id)
     profiles.sort((a, b) => a.id.localeCompare(b.id))
     this.clear()
     for (const profile of profiles) {
@@ -131,6 +153,11 @@ export class BotRegistry extends Map {
       position: input.position ?? '',
       role: input.role ?? '',
       avatar: input.avatar ?? '',
+      avatarLarge: input.avatarLarge ?? '',
+      avatarSource: input.avatarSource ?? '',
+      avatarLargeSource: input.avatarLargeSource ?? '',
+      avatarCrop: input.avatarCrop ?? null,
+      avatarLargeCrop: input.avatarLargeCrop ?? null,
       session: id,
       project,
     })
@@ -154,22 +181,40 @@ export class BotRegistry extends Map {
   }
 
   async update(id, changes) {
-    const profile = await this.previewUpdate(id, changes)
-    await this.writeProfile(profile)
-    await this.writeInstructions(profile)
-    await this.refresh()
-    this.changed(id)
-    return this.get(id)
+    return this.#mutateProfile(id, async () => {
+      const profile = await this.previewUpdate(id, changes)
+      await this.writeProfile(profile)
+      await this.writeInstructions(profile)
+      await this.refresh()
+      this.changed(id)
+      return this.get(id)
+    })
   }
 
   async updateSession(id, session) {
-    await this.refresh()
-    const current = this.get(id)
-    if (!current) throw new Error(`BOT_NOT_FOUND: ${id}`)
-    const profile = normalizeProfile({ ...current, session })
-    await this.writeProfile(profile)
-    await this.refresh()
-    return this.get(id)
+    return this.#mutateProfile(id, async () => {
+      await this.refresh()
+      const current = this.get(id)
+      if (!current) throw new Error(`BOT_NOT_FOUND: ${id}`)
+      const profile = normalizeProfile({ ...current, session })
+      await this.writeProfile(profile)
+      await this.refresh()
+      return this.get(id)
+    })
+  }
+
+  async #mutateProfile(id, change) {
+    const previous = this.#profileMutations.get(id)
+    let release
+    const current = new Promise(resolve => { release = resolve })
+    this.#profileMutations.set(id, current)
+    await previous
+    try {
+      return await change()
+    } finally {
+      release()
+      if (this.#profileMutations.get(id) === current) this.#profileMutations.delete(id)
+    }
   }
 
   async previewUpdate(id, changes) {
@@ -180,7 +225,16 @@ export class BotRegistry extends Map {
     for (const key of Object.keys(changes)) {
       if (!PROFILE_FIELDS.has(key)) throw new Error(`BOT_UPDATE_FIELD_INVALID: ${key}`)
     }
-    let profile = normalizeProfile({ ...current, ...changes })
+    const images = { ...changes }
+    for (const field of ['avatar', 'avatarLarge']) {
+      const source = `${field}Source`, crop = `${field}Crop`
+      if (Object.hasOwn(changes, source) || Object.hasOwn(changes, crop)) {
+        if (![field, source, crop].every(key => Object.hasOwn(changes, key))) throw new Error('BOT_AVATAR_CROP_INVALID')
+      } else if (Object.hasOwn(changes, field) && changes[field] !== current[field]) {
+        images[source] = ''; images[crop] = null
+      }
+    }
+    let profile = normalizeProfile({ ...current, ...images })
     if (['harness', 'model', 'reasoningEffort'].some(field => profile[field] !== current[field]))
       await this.validateEffort(profile)
     if (profile.fastMode && ['harness', 'model', 'fastMode'].some(field => profile[field] !== current[field])) {
@@ -392,6 +446,8 @@ export class BotRegistry extends Map {
       schema: 'bellteam.bot.v8', id: profile.id, session: profile.session,
       name: profile.name, position: profile.position, role: profile.role,
       profileText: profile.profileText, personality: profile.personality, speechStyle: profile.speechStyle, avatar: profile.avatar, color: profile.color,
+      avatarLarge: profile.avatarLarge, avatarSource: profile.avatarSource, avatarLargeSource: profile.avatarLargeSource,
+      avatarCrop: profile.avatarCrop, avatarLargeCrop: profile.avatarLargeCrop,
       harness: profile.harness, model: profile.model, reasoningEffort: profile.reasoningEffort, fastMode: profile.fastMode,
     }
     await mkdir(this.statePath(profile.id), { recursive: true, mode: 0o700 })
@@ -473,7 +529,9 @@ function normalizeProfile(value) {
     if (typeof content !== 'string' || content.length > 8_000)
       throw new Error(`BOT_${field.toUpperCase()}_INVALID`)
   }
-  validateAvatar(value.avatar ?? '')
+  for (const field of ['avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource']) validateAvatar(value[field] ?? '')
+  const avatarCrop = normalizeAvatarCrop(value.avatarCrop, value.avatarSource, value.avatar)
+  const avatarLargeCrop = normalizeAvatarCrop(value.avatarLargeCrop, value.avatarLargeSource, value.avatarLarge)
   return {
     id: value.id,
     name,
@@ -489,6 +547,11 @@ function normalizeProfile(value) {
     position,
     role,
     avatar: value.avatar ?? '',
+    avatarLarge: value.avatarLarge ?? '',
+    avatarSource: value.avatarSource ?? '',
+    avatarLargeSource: value.avatarLargeSource ?? '',
+    avatarCrop,
+    avatarLargeCrop,
     session,
     project: value.project,
   }
@@ -585,6 +648,17 @@ function cronNext(expression, timezone, from) {
 
 function validateId(id) {
   if (typeof id !== 'string' || !BOT_ID.test(id)) throw new Error('BOT_ID_INVALID')
+}
+
+function normalizeAvatarCrop(value, source, render) {
+  if (!source && value == null) return null
+  if (!source || !render || !value || typeof value !== 'object' || Array.isArray(value)
+    || Object.keys(value).length !== 4 || !['x', 'y', 'width', 'height'].every(key =>
+      typeof value[key] === 'number' && Number.isFinite(value[key]))
+    || value.x < 0 || value.y < 0 || value.width <= 0 || value.height <= 0
+    || value.x + value.width > 1 + 1e-9 || value.y + value.height > 1 + 1e-9)
+    throw new Error('BOT_AVATAR_CROP_INVALID')
+  return { x: value.x, y: value.y, width: value.width, height: value.height }
 }
 
 export function validateAvatar(value, code = 'BOT_AVATAR_INVALID') {

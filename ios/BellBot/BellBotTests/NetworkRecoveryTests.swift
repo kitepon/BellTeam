@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 import UIKit
 import XCTest
 @testable import BellBot
@@ -98,12 +99,292 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertNotNil(store.connectionError)
         XCTAssertEqual(scenario.reports.count, 1)
         let log = try XCTUnwrap(scenario.reports.first?.log)
+        let attemptAttachment = XCTAttachment(data: Data(log.utf8), uniformTypeIdentifier: "public.plain-text")
+        attemptAttachment.name = "人工GET二試行の診断原文"
+        attemptAttachment.lifetime = .keepAlways
+        add(attemptAttachment)
         XCTAssertTrue(log.contains("connection_route=public"))
         XCTAssertTrue(log.contains("app_state=active"))
         XCTAssertTrue(log.contains("severity=warn"))
         XCTAssertTrue(log.contains("app_handling=error_shown_data_retained"))
         XCTAssertTrue(log.contains("app_defect=not_established"))
+        XCTAssertTrue(log.contains("attempt_1_error_code=-1005"))
+        XCTAssertTrue(log.contains("attempt_2_error_code=-1005"))
+        XCTAssertTrue(log.contains("attempt_1_transport_result=error_thrown"))
+        XCTAssertTrue(log.contains("attempt_2_transport_result=error_thrown"))
+        XCTAssertTrue(log.contains("attempt_1_started_at_ms="))
+        XCTAssertTrue(log.contains("attempt_1_finished_at_ms="))
+        XCTAssertTrue(log.contains("attempt_1_elapsed_monotonic_ms="))
+        XCTAssertTrue(log.contains("attempt_2_started_at_ms="))
+        XCTAssertTrue(log.contains("attempt_2_finished_at_ms="))
+        XCTAssertTrue(log.contains("attempt_2_elapsed_monotonic_ms="))
+        XCTAssertTrue(log.contains("attempt_1_task_metrics_available=true"))
+        XCTAssertTrue(log.contains("attempt_2_task_metrics_available=true"))
+        XCTAssertFalse(log.contains("attempt_3_"), "GETは既定の1回再試行だけ")
         XCTAssertFalse(log.contains("network.test.invalid"))
+    }
+
+    func testBackgroundMemberListTimeoutRecordsItsCaller() async throws {
+        let scenario = NetworkScenario(failures: 1, failureCode: .timedOut, failurePath: "/api/bots")
+        let api = makeAPI(scenario)
+        api.diagnostics.updateAppState("background")
+        let store = AppStore(api: api)
+        store.phase = .ready
+        await store.refreshFromView(origin: .homePull, refreshSubscription: false)
+        XCTAssertEqual(scenario.count("/api/bots"), 1)
+        XCTAssertEqual(scenario.reports.count, 1)
+        let log = try XCTUnwrap(scenario.reports.first?.log)
+        XCTAssertTrue(log.contains("operation=member_list_read"))
+        XCTAssertTrue(log.contains("request_route=/api/bots"))
+        XCTAssertTrue(log.contains("attempt_1_app_state_at_start=background"))
+        XCTAssertTrue(log.contains("member_list_origin=homePull"))
+        XCTAssertTrue(log.contains("member_list_call_continuous_ms="))
+        XCTAssertTrue(log.contains("member_list_app_state_at_call=background"))
+        XCTAssertTrue(log.contains("member_list_app_state_revision_at_call=1"))
+        XCTAssertTrue(log.contains("member_list_app_state_changed_continuous_ms_at_call="))
+        func tick(_ key: String) -> UInt64 {
+            let line = log.split(separator: "\n").first { $0.hasPrefix(key + "=") }
+            return UInt64(line?.split(separator: "=").last ?? "") ?? 0
+        }
+        let changed = tick("member_list_app_state_changed_continuous_ms_at_call")
+        let called = tick("member_list_call_continuous_ms")
+        let started = tick("attempt_1_started_continuous_ms")
+        XCTAssertGreaterThan(changed, 0)
+        XCTAssertLessThanOrEqual(changed, called)
+        XCTAssertLessThanOrEqual(called, started)
+        XCTAssertFalse(log.contains("network.test.invalid"))
+    }
+
+    func testGoalListFailureDirectReportIncludesCallerContext() async {
+        let scenario = NetworkScenario(failures: 2)
+        let api = makeAPI(scenario)
+        api.diagnostics.updateAppState("active")
+        do {
+            let _: [String: String] = try await api.get("/api/goals?token=private-token")
+            XCTFail("二試行とも切断したGETを成功として返さない")
+        } catch {
+            api.diagnostics.report(error, path: "/api/goals?token=private-token", method: "GET",
+                                   observation: .read(error, retainedData: false),
+                                   diagnosticContext: "goal_load_trigger=list_view_task\ngoal_view_phase_at_call=active")
+        }
+        XCTAssertEqual(scenario.count("/api/goals"), 2)
+        XCTAssertEqual(scenario.reports.count, 1)
+        let log = scenario.reports.first?.log ?? ""
+        XCTAssertTrue(log.contains("request_route=/api/goals"))
+        XCTAssertTrue(log.contains("attempt_1_error_code=-1005"))
+        XCTAssertTrue(log.contains("attempt_2_error_code=-1005"))
+        XCTAssertTrue(log.contains("goal_load_trigger=list_view_task"))
+        XCTAssertTrue(log.contains("goal_view_phase_at_call=active"))
+        XCTAssertFalse(log.contains("private-token"))
+        let attachment = XCTAttachment(data: Data(log.utf8), uniformTypeIdentifier: "public.plain-text")
+        attachment.name = "人工Goal一覧二試行の直接report原文（UI未再現）"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testGoalTimeoutOrdersCallPhaseChangeAndRequestOnContinuousClock() async {
+        let scenario = NetworkScenario(failures: 1, failureCode: .timedOut)
+        let api = makeAPI(scenario)
+        api.diagnostics.updateAppState("active")
+        let context = GoalLoadCallContext.capture(trigger: "chat_foreground", viewPhase: .active,
+                                                  diagnostics: api.diagnostics)
+        api.diagnostics.updateAppState("background")
+        do {
+            let _: [String: String] = try await api.get("/api/bots/bot-network/goal")
+            XCTFail("人工の時間切れを成功として返さない")
+        } catch {
+            api.diagnostics.report(error, path: "/api/bots/bot-network/goal", method: "GET",
+                                   observation: .read(error, retainedData: true),
+                                   diagnosticContext: context.log)
+        }
+        XCTAssertEqual(scenario.count("/api/bots/bot-network/goal"), 1)
+        let log = scenario.reports.first?.log ?? ""
+        XCTAssertTrue(log.contains("goal_load_trigger=chat_foreground"))
+        XCTAssertTrue(log.contains("goal_view_phase_at_call=active"))
+        XCTAssertTrue(log.contains("goal_app_state_at_call=active"))
+        XCTAssertTrue(log.contains("goal_app_state_revision_at_call=1"))
+        XCTAssertTrue(log.contains("attempt_1_app_state_at_start=background"))
+        XCTAssertTrue(log.contains("attempt_1_app_state_revision_at_start=2"))
+        func tick(_ key: String) -> UInt64 {
+            let line = log.split(separator: "\n").first { $0.hasPrefix(key + "=") }
+            return UInt64(line?.split(separator: "=").last ?? "") ?? 0
+        }
+        let call = tick("goal_call_continuous_ms")
+        let changed = tick("attempt_1_app_state_changed_continuous_ms_at_start")
+        let started = tick("attempt_1_started_continuous_ms")
+        XCTAssertGreaterThan(call, 0)
+        XCTAssertLessThanOrEqual(tick("goal_app_state_changed_continuous_ms_at_call"), call)
+        XCTAssertLessThanOrEqual(call, changed)
+        XCTAssertLessThanOrEqual(changed, started)
+        XCTAssertTrue(log.contains("attempt_1_elapsed_continuous_ms="))
+        XCTAssertFalse(log.contains("attempt_2_"))
+        XCTAssertFalse(log.contains("bot-network"))
+        let attachment = XCTAttachment(data: Data(log.utf8), uniformTypeIdentifier: "public.plain-text")
+        attachment.name = "人工Goal個別timeoutのcall→状態変更→試行の原文"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testForegroundGoalReadCancelsStaleGETAndWaitsBeforeNewActiveGET() async {
+        let scenario = NetworkScenario(failures: 0)
+        let api = makeAPI(scenario)
+        let foreground = GoalForegroundLoad()
+        let oldStarted = expectation(description: "旧読取の処理開始")
+        var resumeOld: CheckedContinuation<Void, Never>?
+        var oldLoading = false
+        foreground.start {
+            oldLoading = true
+            await withCheckedContinuation { continuation in
+                resumeOld = continuation
+                oldStarted.fulfill()
+            }
+            oldLoading = false
+        }
+        await fulfillment(of: [oldStarted], timeout: 3)
+        foreground.start {
+            let _: [String: String]? = try? await api.get("/api/goals")
+        }
+        foreground.cancel()
+        let current = foreground.start {
+            XCTAssertFalse(oldLoading, "再activeのGETは旧読取の終了を待つ")
+            let result: [String: String]? = try? await api.get("/api/goals")
+            XCTAssertEqual(result?["result"], "ok")
+        }
+        XCTAssertEqual(scenario.count("/api/goals"), 0, "非activeになった旧TaskはGETを始めない")
+        resumeOld?.resume()
+        await current.value
+        XCTAssertEqual(scenario.count("/api/goals"), 1, "再activeの現TaskだけがGETを行う")
+        XCTAssertTrue(scenario.reports.isEmpty, "取消で通信障害warnを作らない")
+    }
+
+    func testGoalViewTaskCancellationDoesNotCancelItsReplacement() async {
+        let scenario = NetworkScenario(failures: 0)
+        let api = makeAPI(scenario)
+        let foreground = GoalForegroundLoad()
+        let firstStarted = expectation(description: "画面Taskの旧読取が開始")
+        var resumeFirst: CheckedContinuation<Void, Never>?
+        var firstCancelled = false
+        let firstWrapper = Task {
+            await foreground.runForViewTask(whenActive: true) {
+                await withCheckedContinuation { continuation in
+                    resumeFirst = continuation
+                    firstStarted.fulfill()
+                }
+                firstCancelled = Task.isCancelled
+            }
+        }
+        await fulfillment(of: [firstStarted], timeout: 3)
+        firstWrapper.cancel()
+        resumeFirst?.resume()
+        await firstWrapper.value
+        XCTAssertTrue(firstCancelled, "SwiftUIの画面Task取消は自身の読取へ伝わる")
+
+        let nextStarted = expectation(description: "切替前の旧読取が開始")
+        var resumeNext: CheckedContinuation<Void, Never>?
+        var oldLoading = false
+        var nextCancelled = false
+        let nextWrapper = Task {
+            await foreground.runForViewTask(whenActive: true) {
+                oldLoading = true
+                await withCheckedContinuation { continuation in
+                    resumeNext = continuation
+                    nextStarted.fulfill()
+                }
+                nextCancelled = Task.isCancelled
+                oldLoading = false
+            }
+        }
+        await fulfillment(of: [nextStarted], timeout: 3)
+        foreground.cancel()
+        let current = foreground.start {
+            XCTAssertFalse(oldLoading, "再activeの読取は旧loading解除を待つ")
+            let response: [String: String]? = try? await api.get("/api/goals")
+            XCTAssertEqual(response?["result"], "ok")
+        }
+        nextWrapper.cancel()
+        XCTAssertEqual(scenario.count("/api/goals"), 0)
+        resumeNext?.resume()
+        await nextWrapper.value
+        await current.value
+        XCTAssertTrue(nextCancelled)
+        XCTAssertEqual(scenario.count("/api/goals"), 1, "旧wrapperの遅い取消は現読取を止めない")
+        XCTAssertTrue(scenario.reports.isEmpty)
+    }
+
+    func testInactiveGoalViewTaskDoesNotStartOrCancelCurrentRead() async {
+        let foreground = GoalForegroundLoad()
+        let currentStarted = expectation(description: "稼働中の読取が開始")
+        var resumeCurrent: CheckedContinuation<Void, Never>?
+        var currentCancelled = false
+        var inactiveLoadCalls = 0
+        let current = foreground.start {
+            await withCheckedContinuation { continuation in
+                resumeCurrent = continuation
+                currentStarted.fulfill()
+            }
+            currentCancelled = Task.isCancelled
+        }
+        await fulfillment(of: [currentStarted], timeout: 3)
+        await foreground.runForViewTask(whenActive: false) {
+            inactiveLoadCalls += 1
+        }
+        XCTAssertEqual(inactiveLoadCalls, 0, "非activeの初回表示はGETを開始しない")
+        resumeCurrent?.resume()
+        await current.value
+        XCTAssertFalse(currentCancelled, "非activeの入口は稼働中のTaskを取り消さない")
+    }
+
+    func testSendFailureReconcileReportsOnlyTheLoadCallBoundary() async {
+        let lost = URLError(.networkConnectionLost)
+        var loadCalls = 0
+        let inactive = await SendFailureReconcileObservation.observe(error: lost, appActive: false) {
+            loadCalls += 1
+            return .startedReaderReturned
+        }
+        let known = await SendFailureReconcileObservation.observe(
+            error: BellAPIError.httpStatus(400, nil), appActive: true) {
+            loadCalls += 1
+            return .startedReaderReturned
+        }
+        XCTAssertEqual(loadCalls, 0)
+        XCTAssertTrue(inactive.log.contains("send_reconcile_decision=skipped_app_inactive"))
+        XCTAssertTrue(known.log.contains("send_reconcile_decision=skipped_known_result"))
+        XCTAssertTrue(inactive.log.contains("send_reconcile_load_calls=0"))
+        let scene = await SendFailureReconcileObservation.observe(error: lost, appActive: true) {
+            loadCalls += 1
+            return .skippedSceneInactive
+        }
+        let awaiting = await SendFailureReconcileObservation.observe(error: lost, appActive: true) {
+            loadCalls += 1
+            return .skippedAwaitingSend
+        }
+        let joined = await SendFailureReconcileObservation.observe(error: lost, appActive: true) {
+            loadCalls += 1
+            return .joinedReaderReturned
+        }
+        let started = await SendFailureReconcileObservation.observe(error: lost, appActive: true) {
+            loadCalls += 1
+            return .startedReaderReturned
+        }
+        XCTAssertEqual(loadCalls, 4)
+        XCTAssertTrue(scene.log.contains("send_reconcile_load_result=skipped_scene_inactive"))
+        XCTAssertTrue(awaiting.log.contains("send_reconcile_load_result=skipped_awaiting_send"))
+        XCTAssertTrue(joined.log.contains("send_reconcile_load_result=joined_reader_returned"))
+        XCTAssertTrue(started.log.contains("send_reconcile_load_result=started_reader_returned"))
+        var reports: [String] = []
+        let diagnostics = BellDiagnostics { _, _, _, log in reports.append(log) }
+        diagnostics.report(lost, path: "/api/bots/bot-deadbeef/messages", method: "POST",
+                           observation: .write, diagnosticContext: scene.log)
+        XCTAssertEqual(reports.count, 1, "同じPOST失敗を一度だけ報告する")
+        XCTAssertTrue(reports[0].contains("send_reconcile_load_result=skipped_scene_inactive"))
+        let raw = ["case=app_inactive\n\(inactive.log)", "case=known_result\n\(known.log)",
+                   "case=scene_inactive\n\(scene.log)", "case=awaiting_send\n\(awaiting.log)",
+                   "case=joined_reader\n\(joined.log)",
+                   "case=started_reader\n\(started.log)"].joined(separator: "\n")
+        let attachment = XCTAttachment(data: Data(raw.utf8), uniformTypeIdentifier: "public.plain-text")
+        attachment.name = "人工POST失敗の読直し分岐原文"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testPostIsNotReplayed() async throws {
@@ -153,6 +434,10 @@ final class NetworkRecoveryTests: XCTestCase {
             api.diagnostics.report(error, path: "/api/bots", method: "GET", observation: .read(error, retainedData: true))
         }
         let log = scenario.reports.first?.log ?? ""
+        let timeoutAttachment = XCTAttachment(data: Data(log.utf8), uniformTypeIdentifier: "public.plain-text")
+        timeoutAttachment.name = "人工GET単一timeoutの診断原文"
+        timeoutAttachment.lifetime = .keepAlways
+        add(timeoutAttachment)
         XCTAssertTrue(log.contains("request_route=/api/bots/:id/messages"))
         XCTAssertTrue(log.contains("app_state_at_request_start=active"))
         XCTAssertTrue(log.contains("app_state=background"))
@@ -161,7 +446,19 @@ final class NetworkRecoveryTests: XCTestCase {
         XCTAssertEqual(scenario.count("/api/bots/private-bot/messages"), 1)
         XCTAssertEqual(scenario.reports.first?.code, "IOS_NETWORK_TIMEOUT")
         XCTAssertTrue(log.contains("request_attempts=1"))
+        XCTAssertTrue(log.contains("request_timeout_interval_ms=60000"))
+        XCTAssertTrue(log.contains("session_timeout_interval_for_request_ms=60000"))
         XCTAssertTrue(log.contains("task_metrics_available=true"))
+        XCTAssertTrue(log.contains("attempt_1_error_code=-1001"))
+        XCTAssertTrue(log.contains("attempt_1_elapsed_monotonic_ms="))
+        XCTAssertTrue(log.contains("attempt_1_elapsed_continuous_ms="))
+        XCTAssertTrue(log.contains("attempt_1_app_state_at_start=active"))
+        XCTAssertTrue(log.contains("attempt_1_app_state_at_end=active"), "報告時のbackgroundと要求失敗時を分ける")
+        XCTAssertTrue(log.contains("attempt_1_app_state_revision_at_start=1"))
+        XCTAssertTrue(log.contains("attempt_1_app_state_revision_at_end=1"))
+        XCTAssertTrue(log.contains("attempt_1_app_state_changed_at_start_ms="))
+        XCTAssertTrue(log.contains("attempt_1_app_state_changed_at_end_ms="))
+        XCTAssertFalse(log.contains("attempt_2_"))
         XCTAssertFalse(log.contains("private-bot"))
         XCTAssertFalse(log.contains("private-token"))
     }
@@ -526,6 +823,7 @@ private final class NetworkScenario {
     private var storedQueries: [(String, String?)] = []
     let failures: Int
     let failureCode: URLError.Code
+    let failurePath: String?
     let avatars: Bool
     let accessExpired: Bool
     let httpStatus: Int
@@ -538,12 +836,14 @@ private final class NetworkScenario {
 
     @MainActor
     init(failures: Int, failureCode: URLError.Code = .networkConnectionLost,
+         failurePath: String? = nil,
          avatars: Bool = false, accessExpired: Bool = false, httpStatus: Int = 200,
          events502ThenReady: Bool = false, holdEventsOpen: Bool = false,
          skipAvatarVersion: Bool = false, readyOnlyAfterReconnect: Bool = false,
          eventStream: String? = nil) {
         self.failures = failures
         self.failureCode = failureCode
+        self.failurePath = failurePath
         self.avatars = avatars
         self.accessExpired = accessExpired
         self.httpStatus = httpStatus
@@ -569,7 +869,7 @@ private final class NetworkScenario {
         let count = counts[path]!
         storedQueries.append((path, request.url!.query))
         lock.unlock()
-        if count <= failures { throw URLError(failureCode) }
+        if count <= failures && (failurePath == nil || path == failurePath) { throw URLError(failureCode) }
         if path == "/api/events", let eventStream {
             return (Data(eventStream.utf8), "text/event-stream")
         }

@@ -1,6 +1,6 @@
 import { json, readJson } from './http-response.mjs'
 import { recentTimeline } from './timeline-index.mjs'
-import { listAvatar, sendAvatar } from './http-assets.mjs'
+import { avatarVersion, listAvatar, sendAvatar } from './http-assets.mjs'
 import { messageImages, MESSAGE_MAX_BYTES } from './http-messages.mjs'
 
 export function createBotApi({ bots, transport, administration, memory, characterSheets, aiControl, notify, sources, store, messagePage, messenger }) {
@@ -16,6 +16,12 @@ export function createBotApi({ bots, transport, administration, memory, characte
       ])
       const list = await Promise.all(all.map(async bot => {
         const last = recentTimeline(await sources('bots', bot.id, views?.get(bot.id)))
+        const application = administration.view?.(bot)?.configurationApplication
+        const avatars = {}
+        for (const field of ['avatarLarge', 'avatarSource', 'avatarLargeSource']) {
+          avatars[field] = url.searchParams.get('avatar') === 'omit' ? '' : bot[field] ?? ''
+          avatars[`${field}Version`] = avatarVersion(field === 'avatarLarge' ? bot[field] || bot.avatar : bot[field])
+        }
         return {
           id: bot.id,
           name: bot.name ?? bot.displayName ?? bot.id,
@@ -31,9 +37,13 @@ export function createBotApi({ bots, transport, administration, memory, characte
           position: bot.position ?? '',
           role: bot.role ?? '',
           ...listAvatar(bot.avatar, url),
+          ...avatars,
+          avatarCrop: bot.avatarCrop ?? null,
+          avatarLargeCrop: bot.avatarLargeCrop ?? null,
           online: !deleting(bot) && running.has(bot.id),
           ...(deleting(bot) ? { deleting: true } : {}),
           recent: last && { id: last.id, kind: last.kind, direction: last.direction, message: last.message, image: last.image, at: last.at },
+          ...(application ? { configurationApplication: application } : {}),
         }
       }))
       // Serialize only the current listing state after all asynchronous timeline reads.
@@ -115,19 +125,21 @@ export function createBotApi({ bots, transport, administration, memory, characte
     if (request.method === 'GET' && screenMatch) {
       const bot = bots.get(screenMatch[1])
       if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      return json(response, 200, await transport.screen(bot))
+      return json(response, 200, await transport.screen(bot, { history: url.searchParams.get('history') === '1' }))
     }
 
-    const botAvatarMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/avatar$/u)
+    const botAvatarMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/(avatar(?:-large)?(?:-source)?)$/u)
     if (request.method === 'GET' && botAvatarMatch) {
       if (!bots.has(botAvatarMatch[1])) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      return sendAvatar(request, response, bots.get(botAvatarMatch[1]).avatar, url)
+      const bot = bots.get(botAvatarMatch[1])
+      const field = { avatar: 'avatar', 'avatar-large': 'avatarLarge', 'avatar-source': 'avatarSource', 'avatar-large-source': 'avatarLargeSource' }[botAvatarMatch[2]]
+      return sendAvatar(request, response, field === 'avatarLarge' ? bot[field] || bot.avatar : bot[field], url)
     }
     const profileMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)$/u)
     if (profileMatch) {
       const botId = profileMatch[1]
       if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      if (request.method === 'GET') return json(response, 200, { bot: bots.get(botId) })
+      if (request.method === 'GET') return json(response, 200, { bot: administration.view?.(bots.get(botId)) ?? bots.get(botId) })
       if (request.method === 'PATCH') return json(response, 200, await administration.update(botId, await readJson(request)))
       if (request.method === 'DELETE') {
         administration.remove(botId)

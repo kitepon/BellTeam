@@ -1,0 +1,111 @@
+{
+  "schema": "bellteam.apple-internal-delivery.v1",
+  "product": "BellTeam",
+  "purpose": "Goal読取の呼出し・状態変更・通信試行を同一連続時計で結ぶ版76を内部配布",
+  "bundleId": "dev.kitepon.bellbot",
+  "appStoreConnectAppId": "6816295589",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "76",
+  "signedSourceCommit": "c8d1e7f743de8be95e860fa31887383d0d375f7a",
+  "versionMergeCommit": "89e47b336e69895b2e5036eda70658caac85ae8f",
+  "unsignedPreflight": "docs/evidence/2026-10-29-apple-goal-order-build76-preflight.json",
+  "unsignedPreflightSha256": "5d186125f06b648f12d39a0d053fe11c493d251d582e482e306664de79780fe6",
+  "ownerApproval": {
+    "title": "BellTeam Apple通信診断版76を署名・内部配布し必要時にMac更新を1回押す",
+    "choice": "go_all",
+    "answeredAt": "2026-10-29T07:04:28.738Z",
+    "macPhysicalClickScope": "BellTeam version 76 update button only, at most once if needed"
+  },
+  "betaGroup": {
+    "id": "58133050-1c39-4915-b6da-aac18b95921b",
+    "name": "BellTeam オーナー",
+    "internal": true
+  },
+  "artifacts": [
+    {
+      "platform": "IOS",
+      "relativePath": "runtime/apple/goal-order-build76/ios-export/BellTeam.ipa",
+      "sha256": "889692d865816cc58ab8fd7d56f676e5ed1cabe4df8760f4e89b4b297c1633a8",
+      "appBundleVersion": "76",
+      "extensionBundleVersion": "76",
+      "architectures": [
+        "arm64"
+      ],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "3b0f05db-9692-435b-af1a-b3b238c59797",
+      "uploadResult": "no-errors from normal tool response",
+      "appStoreConnectBuildId": "3b0f05db-9692-435b-af1a-b3b238c59797",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    },
+    {
+      "platform": "MAC_OS",
+      "relativePath": "runtime/apple/goal-order-build76/mac-export/BellTeam.pkg",
+      "sha256": "71934c409cb86a91812414038349fb34fc9edddb8f7cb244deda4f7f9a1a2547",
+      "appBundleVersion": "76",
+      "extensionBundleVersion": "76",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "installerSignature": "3rd Party Mac Developer Installer, valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "e503edc1-9bce-4e50-8ce9-d2666ba6eb8a",
+      "uploadResult": "no-errors from normal tool response",
+      "appStoreConnectBuildId": "e503edc1-9bce-4e50-8ce9-d2666ba6eb8a",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    }
+  ],
+  "macTestFlightSmoke": {
+    "status": "pending_foreground_ol_keychain_dialog",
+    "installedPath": "/Applications/BellTeam.app",
+    "preUpdateBundleVersion": "71",
+    "preUpdateSignature": "strict-valid",
+    "preUpdateGatekeeperSource": "Testflight",
+    "testFlightTargetVersionVisuallyConfirmed": false,
+    "screenInspectionBlocker": "A live display screenshot showed the unrelated OL-RemoteWindow codesign Keychain authorization dialog in the foreground. No action was taken on or around that dialog.",
+    "headedClickPerformed": false,
+    "readOnlySmokeCompleted": false
+  },
+  "remaining": {
+    "macTestFlightInstallation": "pending until unrelated foreground dialog is resolved and build 76 is visually confirmed",
+    "iphoneAndIpadPhysicalInstallation": "not_measured",
+    "realOwnerAvatarChange": "not_performed",
+    "diagnosticCases": [
+      {
+        "fingerprintPrefix": "88564",
+        "count": 12,
+        "state": "open",
+        "cause": "unknown",
+        "recovery": "unknown",
+        "repairSuccess": false
+      },
+      {
+        "fingerprintPrefix": "eb392",
+        "count": 29,
+        "state": "open",
+        "cause": "unknown",
+        "recovery": "unknown",
+        "repairSuccess": false
+      }
+    ],
+    "realVersion76OrderingOutput": "not_observed"
+  },
+  "realBotRestartPerformed": false,
+  "realBotMessageSent": false,
+  "ownerAvatarEdited": false,
+  "authenticationChanged": false,
+  "serverContainerRestartedByThisDelivery": false,
+  "publicAppStoreReleased": false
+}

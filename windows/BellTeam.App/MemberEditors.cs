@@ -21,7 +21,7 @@ public sealed class ModelPicker : StackPanel
     {
         selection = new(initial.Harness, initial.Model, initial.ReasoningEffort);
         System.Windows.Automation.AutomationProperties.SetName(custom, "モデルID");
-        var harnesses = new List<FormOption> { new("codex", "Codex"), new("claude", "Claude"), new("grok", "Grok"), new("cursor", "Cursor") };
+        var harnesses = new List<FormOption> { new("codex", "Codex"), new("claude", "Claude"), new("grok", "Grok"), new("cursor", "Cursor"), new("antigravity", "Antigravity") };
         if (!harnesses.Any(option => option.Id == initial.Harness)) harnesses.Add(new(initial.Harness, initial.Harness + "（現在の設定）"));
         harness.ItemsSource = harnesses;
         Add("CLI", harness); Add("モデル", model); Children.Add(customLabel); Children.Add(custom); Add("エフォート", effort); Children.Add(error);

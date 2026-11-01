@@ -1,9 +1,81 @@
 import Foundation
+import Darwin
 import MetricKit
 import OSLog
 import UIKit
 
+struct BellAppStateSnapshot: Sendable {
+    let state: String
+    let changedAt: Date
+    let changedContinuousTick: UInt64
+    let revision: UInt64
+}
+
+struct BellRequestAttempt {
+    let startedAt: Date
+    let startedContinuousTick: UInt64
+    let finishedAt: Date
+    let elapsedMonotonicMs: Int
+    let elapsedContinuousMs: Int
+    let appStateAtStart: BellAppStateSnapshot
+    let appStateAtEnd: BellAppStateSnapshot
+    let returnedResponse: Bool
+    let errorCode: Int?
+    let metrics: URLSessionTaskMetrics?
+}
+
 /// 失敗した要求だけに添える計測値。URL、query、本文、識別子は記録しない。
+/// 読み取りに失敗した要求。DecodingErrorの種類は変えず、Contextへ載せて運ぶ。
+struct BellDecodingSite: Error {
+    let route: String
+    let status: Int?
+    let underlying: Error?
+}
+
+extension DecodingError {
+    func located(route: String, status: Int?) -> DecodingError {
+        func located(_ context: Context) -> Context {
+            Context(codingPath: context.codingPath, debugDescription: context.debugDescription,
+                    underlyingError: BellDecodingSite(route: route, status: status,
+                                                      underlying: context.underlyingError))
+        }
+        switch self {
+        case .typeMismatch(let type, let context): return .typeMismatch(type, located(context))
+        case .valueNotFound(let type, let context): return .valueNotFound(type, located(context))
+        case .keyNotFound(let key, let context): return .keyNotFound(key, located(context))
+        case .dataCorrupted(let context): return .dataCorrupted(located(context))
+        @unknown default: return self
+        }
+    }
+
+    /// 型で定義した項目名と配列の位置だけを残す。辞書の動的なキーとdebugDescriptionは本文を含み得る。
+    private static func safeName(_ key: CodingKey) -> String {
+        if String(describing: type(of: key)) == "CodingKeys" { return key.stringValue }
+        // 数字だけの辞書キーもintValueを持つ。配列の位置だけが "Index N" の名前になる。
+        if let index = key.intValue, key.stringValue == "Index \(index)" { return "[\(index)]" }
+        return "*"
+    }
+
+    var diagnosticLog: String {
+        let context: Context?
+        var result = ""
+        switch self {
+        case .typeMismatch(_, let value), .valueNotFound(_, let value), .dataCorrupted(let value): context = value
+        case .keyNotFound(let key, let value):
+            context = value
+            result += "\ndecoding_key=\(Self.safeName(key))"
+        @unknown default: context = nil
+        }
+        guard let context else { return result }
+        result += "\ndecoding_path=\(context.codingPath.map(Self.safeName).joined(separator: "."))"
+        if let site = context.underlyingError as? BellDecodingSite {
+            result += "\ndecoding_route=\(site.route)"
+            if let status = site.status { result += "\ndecoding_http_status=\(status)" }
+        }
+        return result
+    }
+}
+
 struct BellRequestTrace {
     static let userInfoKey = "BellTeamRequestTrace"
     let route: String
@@ -13,6 +85,35 @@ struct BellRequestTrace {
     let appStateAtStart: String
     let attempts: Int
     let metrics: URLSessionTaskMetrics?
+    var attemptDetails: [BellRequestAttempt] = []
+    var requestTimeoutMs: Int? = nil
+    var sessionTimeoutMs: Int? = nil
+    var callerContext: String? = nil
+    var serverDiagnostic: String? = nil
+
+    /// 500応答が返した保存済み診断の参照を、この応答の値だけから作る。欠落・形式不正はunknownにする。
+    static func serverDiagnostic(from response: URLResponse) -> String? {
+        guard let http = response as? HTTPURLResponse, http.statusCode == 500 else { return nil }
+        func header(_ name: String, valid: (String) -> Bool) -> String {
+            http.value(forHTTPHeaderField: name).flatMap { valid($0) ? $0 : nil } ?? "unknown"
+        }
+        let timestamp = ISO8601DateFormatter()
+        timestamp.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let fingerprint = header("X-BellTeam-Diagnostic-Fingerprint") {
+            $0.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil
+        }
+        let count = header("X-BellTeam-Diagnostic-Occurrence-Count") { text in
+            Int(text).map { $0 > 0 && String($0) == text } ?? false
+        }
+        let receivedAt = header("X-BellTeam-Diagnostic-Received-At") { timestamp.date(from: $0) != nil }
+        return "server_diagnostic_fingerprint=\(fingerprint)\nserver_diagnostic_occurrence_count=\(count)\nserver_diagnostic_received_at=\(receivedAt)"
+    }
+
+    /// 読み取り失敗の記録には、問合せと生成IDを含めない。
+    static func decodingRoute(for path: String) -> String {
+        route(for: String(path.prefix { $0 != "?" }))
+            .replacingOccurrences(of: "(bot|room)-[0-9a-f]{8}", with: ":id", options: .regularExpression)
+    }
 
     static func route(for path: String) -> String {
         let parts = path.split(separator: "/").map(String.init)
@@ -50,16 +151,49 @@ struct BellRequestTrace {
         var result = "\nrequest_route=\(route)\nrequest_method=\(method)"
         result += "\nrequest_started_at_ms=\(milliseconds(startedAt))\nrequest_failed_at_ms=\(milliseconds(failedAt))"
         result += "\napp_state_at_request_start=\(appStateAtStart)\nrequest_attempts=\(attempts)"
-        guard let metrics else { return result + "\ntask_metrics_available=false" }
-        result += "\ntask_metrics_available=true\ntransaction_count=\(metrics.transactionMetrics.count)"
+        if let serverDiagnostic { result += "\n\(serverDiagnostic)" }
+        if let requestTimeoutMs { result += "\nrequest_timeout_interval_ms=\(requestTimeoutMs)" }
+        if let sessionTimeoutMs { result += "\nsession_timeout_interval_for_request_ms=\(sessionTimeoutMs)" }
+        result += Self.metricsLog(metrics, prefix: "")
+        for (index, attempt) in attemptDetails.enumerated() {
+            let prefix = "attempt_\(index + 1)_"
+            result += "\n\(prefix)started_at_ms=\(milliseconds(attempt.startedAt))"
+            result += "\n\(prefix)started_continuous_ms=\(attempt.startedContinuousTick / 1_000_000)"
+            result += "\n\(prefix)finished_at_ms=\(milliseconds(attempt.finishedAt))"
+            result += "\n\(prefix)elapsed_wall_ms=\(milliseconds(attempt.finishedAt) - milliseconds(attempt.startedAt))"
+            result += "\n\(prefix)elapsed_monotonic_ms=\(attempt.elapsedMonotonicMs)"
+            result += "\n\(prefix)elapsed_continuous_ms=\(attempt.elapsedContinuousMs)"
+            result += "\n\(prefix)app_state_at_start=\(attempt.appStateAtStart.state)"
+            result += "\n\(prefix)app_state_at_end=\(attempt.appStateAtEnd.state)"
+            result += "\n\(prefix)app_state_revision_at_start=\(attempt.appStateAtStart.revision)"
+            result += "\n\(prefix)app_state_revision_at_end=\(attempt.appStateAtEnd.revision)"
+            result += "\n\(prefix)app_state_changed_at_start_ms=\(milliseconds(attempt.appStateAtStart.changedAt))"
+            result += "\n\(prefix)app_state_changed_at_end_ms=\(milliseconds(attempt.appStateAtEnd.changedAt))"
+            result += "\n\(prefix)app_state_changed_continuous_ms_at_start=\(attempt.appStateAtStart.changedContinuousTick / 1_000_000)"
+            result += "\n\(prefix)app_state_changed_continuous_ms_at_end=\(attempt.appStateAtEnd.changedContinuousTick / 1_000_000)"
+            result += "\n\(prefix)transport_result=\(attempt.returnedResponse ? "response_returned" : "error_thrown")"
+            if let code = attempt.errorCode { result += "\n\(prefix)error_code=\(code)" }
+            result += Self.metricsLog(attempt.metrics, prefix: prefix)
+        }
+        if let callerContext { result += "\n\(callerContext)" }
+        return result
+    }
+
+    private static func metricsLog(_ metrics: URLSessionTaskMetrics?, prefix: String) -> String {
+        let milliseconds: (Date) -> Int64 = { Int64($0.timeIntervalSince1970 * 1000) }
+        guard let metrics else { return "\n\(prefix)task_metrics_available=false" }
+        var result = "\n\(prefix)task_metrics_available=true\n\(prefix)transaction_count=\(metrics.transactionMetrics.count)"
+        result += "\n\(prefix)task_start_ms=\(milliseconds(metrics.taskInterval.start))"
+        result += "\n\(prefix)task_end_ms=\(milliseconds(metrics.taskInterval.end))"
         if let transaction = metrics.transactionMetrics.last {
-            if let value = transaction.fetchStartDate { result += "\nmetrics_fetch_start_ms=\(milliseconds(value))" }
-            if let value = transaction.connectStartDate { result += "\nmetrics_connect_start_ms=\(milliseconds(value))" }
-            if let value = transaction.connectEndDate { result += "\nmetrics_connect_end_ms=\(milliseconds(value))" }
-            if let value = transaction.requestStartDate { result += "\nmetrics_request_start_ms=\(milliseconds(value))" }
-            if let value = transaction.requestEndDate { result += "\nmetrics_request_end_ms=\(milliseconds(value))" }
-            if let value = transaction.responseStartDate { result += "\nmetrics_response_start_ms=\(milliseconds(value))" }
-            result += "\nmetrics_reused_connection=\(transaction.isReusedConnection)"
+            if let value = transaction.fetchStartDate { result += "\n\(prefix)metrics_fetch_start_ms=\(milliseconds(value))" }
+            if let value = transaction.connectStartDate { result += "\n\(prefix)metrics_connect_start_ms=\(milliseconds(value))" }
+            if let value = transaction.connectEndDate { result += "\n\(prefix)metrics_connect_end_ms=\(milliseconds(value))" }
+            if let value = transaction.requestStartDate { result += "\n\(prefix)metrics_request_start_ms=\(milliseconds(value))" }
+            if let value = transaction.requestEndDate { result += "\n\(prefix)metrics_request_end_ms=\(milliseconds(value))" }
+            if let value = transaction.responseStartDate { result += "\n\(prefix)metrics_response_start_ms=\(milliseconds(value))" }
+            if let value = transaction.responseEndDate { result += "\n\(prefix)metrics_response_end_ms=\(milliseconds(value))" }
+            result += "\n\(prefix)metrics_reused_connection=\(transaction.isReusedConnection)"
         }
         return result
     }
@@ -129,6 +263,9 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
     private var started = false
     private var deviceType = ""
     private var appState = "inactive"
+    private var appStateChangedAt = Date()
+    private var appStateChangedContinuousTick = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)
+    private var appStateRevision: UInt64 = 0
     private let onReport: ((String, String, String, String) -> Void)?
 
     init(onReport: ((String, String, String, String) -> Void)? = nil) {
@@ -161,15 +298,29 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
     }
 
     func updateAppState(_ state: String) {
-        lock.lock(); appState = state; lock.unlock()
+        lock.lock()
+        if appState != state {
+            appState = state
+            appStateChangedAt = Date()
+            appStateChangedContinuousTick = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)
+            appStateRevision += 1
+        }
+        lock.unlock()
     }
 
     func requestStartAppState() -> String {
-        lock.lock(); defer { lock.unlock() }
-        return appState
+        requestAppStateSnapshot().state
     }
 
-    func report(_ error: Error, path: String, method: String?, observation: BellDiagnosticObservation, elapsedMilliseconds: Int? = nil) {
+    func requestAppStateSnapshot() -> BellAppStateSnapshot {
+        lock.lock(); defer { lock.unlock() }
+        return BellAppStateSnapshot(state: appState, changedAt: appStateChangedAt,
+                                    changedContinuousTick: appStateChangedContinuousTick,
+                                    revision: appStateRevision)
+    }
+
+    func report(_ error: Error, path: String, method: String?, observation: BellDiagnosticObservation,
+                elapsedMilliseconds: Int? = nil, diagnosticContext: String? = nil) {
         // 通知APIの失敗はBellNotificationsがstage付きで1回記録する。
         if path == "/api/notifications" || path.hasPrefix("/api/notifications/") { return }
         if Self.isExpectedCancellation(error) { return }
@@ -192,6 +343,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         send(code: code, module: module, version: Self.currentVersion, severity: observation.impact.severity,
              log: Self.errorLog(error, module: module) + (method.map { "\nhttp_method=\($0)" } ?? "")
                 + (trace?.log ?? "")
+                + (diagnosticContext.map { "\n\($0)" } ?? "")
                 + Self.requestContextLog(error: error, route: trace?.route ?? "unknown",
                                          method: trace?.method ?? method ?? "unknown", hasRequestTrace: trace != nil)
                 + observation.log + contextLog(elapsedMilliseconds))
@@ -204,6 +356,12 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         send(code: "IOS_PUSH_FAILED", module: "notifications", version: Self.currentVersion, severity: observation.impact.severity,
              log: "stage=\(stage)\nnotification_error_domain=\(nsError.domain)\nnotification_error_code=\(nsError.code)"
                 + observation.log + contextLog(elapsedMilliseconds))
+    }
+
+    /// 上方向の入力で会話が動かない時の状態。本文と識別子は含めない。
+    func reportConversationScrollStall(_ log: String) {
+        send(code: "IOS_SCROLL_STALL", module: "conversation", version: Self.currentVersion, severity: "warn",
+             log: log + contextLog(nil))
     }
 
     static func elapsedMilliseconds(since started: UInt64) -> Int {
@@ -298,7 +456,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
             case .dataCorrupted: kind = "dataCorrupted"
             @unknown default: kind = "unknown"
             }
-            return "module=\(module)\nerror_type=DecodingError.\(kind)"
+            return "module=\(module)\nerror_type=DecodingError.\(kind)" + decoding.diagnosticLog
         }
         return "module=\(module)\nerror_type=InvalidResponse"
     }

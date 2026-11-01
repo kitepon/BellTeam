@@ -15,6 +15,29 @@ final class HarnessAuthenticationTests: XCTestCase {
         XCTAssertFalse(claude.needsStartConfirmation(auth(.authenticated)))
     }
 
+    func testUnsupportedReloginCapabilityAndOldServerDecode() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let current = try decoder.decode(HarnessAuthenticationOption.self, from: Data(#"{"id":"antigravity","name":"Antigravity","members":1,"start_warning":"公式CLIで認証してください。","relogin_supported":false}"#.utf8))
+        XCTAssertEqual(current.reloginSupported, false)
+        XCTAssertFalse(current.needsStartConfirmation(auth(.authenticated)))
+        let old = try decoder.decode(HarnessAuthenticationOption.self, from: Data(#"{"id":"codex","name":"Codex","members":1,"start_warning":"今の認証が消えます。"}"#.utf8))
+        XCTAssertNil(old.reloginSupported)
+        XCTAssertTrue(old.needsStartConfirmation(auth(.authenticated)), "旧サーバーの表示を維持する")
+    }
+
+    func testUnsupportedReloginStillAllowsFirstAuthentication() {
+        let antigravity = HarnessAuthenticationOption(id: "antigravity", name: "Antigravity", members: 1,
+                                                      startWarning: "公式CLIで認証してください。", reloginSupported: false)
+        XCTAssertFalse(antigravity.canStart(nil), "状態を読めない間は始めない")
+        XCTAssertFalse(antigravity.canStart(auth(.authenticated)))
+        XCTAssertTrue(antigravity.canStart(auth(.blocked)))
+        XCTAssertTrue(antigravity.canStart(auth(.failed)))
+        let codex = HarnessAuthenticationOption(id: "codex", name: "Codex", members: 1, startWarning: nil)
+        XCTAssertTrue(codex.canStart(nil))
+        XCTAssertTrue(codex.canStart(auth(.authenticated)))
+    }
+
     func testViewingTheStateDoesNotStartOrCancelAuthentication() async throws {
         let log = RequestLog()
         let flow = makeFlow(log) { _, _ in (200, self.response("authenticated")) }

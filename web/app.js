@@ -36,6 +36,7 @@ const ownerFormError = document.querySelector('#owner-form-error')
 const userRulesInput = document.querySelector('#user-rules')
 const chat = document.querySelector('#chat')
 const timeline = document.querySelector('#timeline')
+const latestButton = document.querySelector('#scroll-to-latest')
 const chatName = document.querySelector('#chat-name')
 const chatStatus = document.querySelector('#chat-status')
 const screenButton = document.querySelector('#screen-button')
@@ -79,6 +80,7 @@ const avatarZoom = document.querySelector('#avatar-zoom')
 const botColor = document.querySelector('#bot-color')
 const botFormError = document.querySelector('#bot-form-error')
 const botModelStatus = document.querySelector('#bot-model-status')
+const botConfigurationStatus = document.querySelector('#bot-configuration-status')
 let modelLoad = null
 const saveBotButton = document.querySelector('#save-bot-button')
 const characterSheetButton = document.querySelector('#character-sheet-button')
@@ -142,6 +144,8 @@ const state = {
   avatarColors: new Map(),
   timelineMap: new Map(),
   timelineQueue: [],
+  timelineQueueRequest: 0,
+  timelineQueueError: '',
   timelineHasMore: false,
   timelineOldestId: null,
   timelineLoadingOlder: false,
@@ -394,8 +398,8 @@ async function refreshFeatureSettingsForm() {
 }
 
 async function loadBots() {
-  const [botResult, roomResult, ownerResult] = await Promise.all([api('/api/bots'), api('/api/rooms'), api('/api/owner')])
-  state.bots = botResult.bots
+  const [botResult, roomResult, ownerResult] = await Promise.all([api('/api/bots?avatar=omit'), api('/api/rooms'), api('/api/owner')])
+  state.bots = botResult.bots.map(bot => ({ ...bot, avatar: bot.avatarVersion ? `/api/bots/${encodeURIComponent(bot.id)}/avatar?v=${encodeURIComponent(bot.avatarVersion)}` : '' }))
   state.rooms = roomResult.rooms
   state.owner = ownerResult.owner
   if (state.selected) {
@@ -629,12 +633,23 @@ function clearSelection() {
   stopButton.hidden = true
 }
 
+function renderBotConfigurationStatus(bot) {
+  const application = bot?.configurationApplication
+  botConfigurationStatus.textContent = !bot ? ''
+    : application?.state === 'pending' ? '現在の作業が終わった後に設定を反映します。適用はまだ確認できていません。'
+    : application?.state === 'failed' ? application.message
+    : application?.state === 'accepted' ? 'CLIが設定変更を受け付けました。'
+    : bot.online ? '保存した希望設定です。稼働中のCLIへの適用は未確認です。'
+    : '次回の起動に使う希望設定です。'
+}
+
 async function openBotDialog(bot = null) {
   modelLoad?.abort()
   const controller = new AbortController()
   modelLoad = controller
   state.models = {}
   state.editingBot = bot
+  renderBotConfigurationStatus(bot)
   botForm.reset()
   botFormError.textContent = ''
   botDialogTitle.textContent = bot ? 'Botを編集' : 'Botを追加'
@@ -663,6 +678,14 @@ async function openBotDialog(bot = null) {
     if (controller.signal.aborted) return
     state.models = result.models
     renderModelOptions(botHarness.value, bot?.model ?? '', bot?.reasoningEffort ?? '')
+    if (bot) {
+      try {
+        const current = await api(`/api/bots/${bot.id}`, { signal: controller.signal })
+        if (!controller.signal.aborted) renderBotConfigurationStatus({ ...bot, ...current.bot })
+      } catch {
+        if (!controller.signal.aborted) botConfigurationStatus.textContent = '現在の適用状態を取得できません。'
+      }
+    }
   } catch (error) {
     if (controller.signal.aborted) return
     botModelStatus.textContent = `モデル一覧を取得できません（${error.message}）`
@@ -739,7 +762,7 @@ async function saveBot(event) {
       speechStyle: botSpeechStyle.value,
       position: botPosition.value.trim(),
       role: botRole.value,
-      avatar: botAvatarEditor.value(),
+      ...(!state.editingBot || botAvatarEditor.changed() ? { avatar: botAvatarEditor.value() } : {}),
       color: botColor.value,
       harness: botHarness.value,
       model: selectedModel(),
@@ -1148,6 +1171,7 @@ function scheduleDescription(schedule) {
 function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoom, nameInput, colorInput = null, fallback, error, previewClass = 'avatar owner-avatar' }) {
   const context = canvas.getContext('2d')
   let avatarData = ''
+  let changed = false
   let crop = null
   let drag = null
 
@@ -1163,7 +1187,8 @@ function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoom, name
 
   return {
     reset(value = '') {
-      avatarData = value?.startsWith('data:image/') ? value : ''
+      avatarData = value?.startsWith('data:image/') || value?.startsWith('/api/bots/') ? value : ''
+      changed = false
       crop = null
       drag = null
       fileInput.value = ''
@@ -1171,6 +1196,7 @@ function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoom, name
       updatePreview()
     },
     value() { return avatarData },
+    changed() { return changed },
   }
 
   async function readFile() {
@@ -1253,6 +1279,7 @@ function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoom, name
     if (!crop) return avatarData
     draw()
     avatarData = canvas.toDataURL('image/jpeg', .9)
+    changed = true
     updatePreview()
     return avatarData
   }
@@ -1402,6 +1429,11 @@ function queuedFor(item) {
 function scrollToBottom() {
   timeline.scrollTo({ top: timeline.scrollHeight, behavior: 'instant' })
 }
+latestButton.addEventListener('click', () => {
+  state.stickToBottom = true
+  scrollToBottom()
+  latestButton.hidden = true
+})
 function rememberItems(items) {
   for (const item of items) state.timelineMap.set(item.id, item)
 }
@@ -1420,9 +1452,13 @@ async function openTimeline() {
   state.timelineOldestId = null
   state.timelineLoadingOlder = false
   state.stickToBottom = true
-  const [result, queueResult] = await Promise.all([api(`${messagesPath()}?limit=${TIMELINE_FIRST_PAGE}`), api(queuePath())])
+  latestButton.hidden = true
+  state.timelineQueue = []
+  state.timelineQueueError = ''
+  timelineTail.replaceChildren()
+  void refreshTimelineQueue(token)
+  const result = await api(`${messagesPath()}?limit=${TIMELINE_FIRST_PAGE}`)
   if (token !== state.timelineToken) return
-  state.timelineQueue = queueResult.items
   const items = normalizeItems(result.items)
   rememberItems(items)
   state.timelineHasMore = result.has_more
@@ -1433,17 +1469,31 @@ async function openTimeline() {
   loadStoredMessageImages(items, item => rerenderItem(item.id, token))
 }
 
+async function refreshTimelineQueue(token) {
+  const request = ++state.timelineQueueRequest
+  try {
+    const result = await api(queuePath())
+    if (token !== state.timelineToken || request !== state.timelineQueueRequest) return
+    state.timelineQueue = result.items
+    state.timelineQueueError = ''
+    for (const id of state.timelineMap.keys()) rerenderItem(id, token)
+  } catch {
+    if (token !== state.timelineToken || request !== state.timelineQueueRequest) return
+    state.timelineQueueError = '送信待ちの状態を取得できませんでした。更新して確認してください。'
+  }
+  renderTail([...state.timelineMap.values()])
+}
+
 async function refreshTimeline() {
   const token = state.timelineToken
   const ids = [...state.timelineMap.keys()]
   const lastId = ids.at(-1) ?? null
-  const [latest, after, queueResult] = await Promise.all([
+  void refreshTimelineQueue(token)
+  const [latest, after] = await Promise.all([
     api(`${messagesPath()}?limit=${TIMELINE_FIRST_PAGE}`),
     lastId ? api(`${messagesPath()}?after=${encodeURIComponent(lastId)}`) : Promise.resolve({ items: [] }),
-    api(queuePath()),
   ])
   if (token !== state.timelineToken) return
-  state.timelineQueue = queueResult.items
   const latestItems = normalizeItems(latest.items)
   const newItems = normalizeItems(after.items).filter(item => !state.timelineMap.has(item.id))
   // 既に出ている直近の項目は、配送状態などが変わっていれば差し替える
@@ -1500,11 +1550,18 @@ function renderTail(items) {
   const tail = state.timelineQueue.filter(entry => !renderedIds.has(entry.groupId)).map(renderQueuedItem)
   if (state.selectedType === 'bot' && state.timelineQueue.some(entry => entry.status === 'running')) tail.push(renderThinking(state.selected.id))
   timelineTail.replaceChildren(...tail)
+  if (state.timelineQueueError) {
+    const note = document.createElement('p')
+    note.className = 'form-error'
+    note.textContent = state.timelineQueueError
+    timelineTail.append(note)
+  }
   updateSendButton()
 }
 
 timeline.addEventListener('scroll', () => {
   state.stickToBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 40
+  latestButton.hidden = !state.selected || state.stickToBottom
   if (timeline.scrollTop < 240) loadOlderMessages()
 })
 new ResizeObserver(() => { if (state.stickToBottom) scrollToBottom() }).observe(timelineItems)

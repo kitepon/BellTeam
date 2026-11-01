@@ -1,10 +1,15 @@
 # RAG目録
 
+- [SEC021 Debian CA](sec021/raw/debian-ca-20261025.md)、[Alpine CAとapk](sec021/raw/alpine-ca-20261025.md)、[Node同梱CA](sec021/raw/node-ca-20261025.md): 審査用本体・Dexの隔離CA更新に使う公式版と保護ファイルの扱い。取得日2026-10-25。実測は[検証記録](../docs/evidence/2026-10-25-sec021-review-ca-preparation.md)。
+
 - [Windowsのネイティブ会話クライアント](windows-native/wpf-client.md): WPFのMarkdown表示、Windows Runtimeによる画像デコード、窓を表示しない配置確認、API・SSEと新着更新中の入力保持。取得日2026-10-13、公式資料とFOX実測。
 
 - [App Reviewへの返信](app-review/raw/apple-reply-to-review-excerpt.md)と[4.3・4.2.6の抜粋](app-review/raw/apple-guidelines-43-426-excerpts.md): 拒絶への説明と補足資料を審査メッセージで届けるApple公式手順・規定。取得日2026-10-07。Mac版への送信・保存の実測は[検証記録](../docs/evidence/2026-10-07-mac-app-review-follow-up.md)に記載。
 
 - [送信の短い背景実行時間](ios-background-send/raw/apple-background-execution.md): 送信開始前のUIKitへの実行時間要求と、処理完了時の終了。Apple公式原文、取得日2026-10-07。
+
+- [SwiftUIの写真選択の表示制御](avatar-picker/raw/swiftui-photos-picker-presentation.md): `isPresented`と選択結果のBindingで、編集準備の完了後に写真選択を開くApple公式API。取得日2026-10-29。
+- [SwiftUIのStateとViewの寿命](swiftui-state/raw/state-lifetime.md): Viewのidentity・寿命とState保存の関係を示すApple公式説明。取得日2026-10-29。
 
 - [アプリから自分のサーバーへ接続するまで](docker-server-setup/app-first-entry.md)、[Docker公式の導入入口](docker-server-setup/raw/official-guide-links.md)、[Appleの試験環境の指定](docker-server-setup/raw/apple-test-runner-env.md): 接続前のアプリ内ガイド、Docker・Compose・WSL、同一マシンとLANのURLと実接続のUI試験。取得日 2026-10-05。
 
@@ -17,6 +22,7 @@
 - [URLSessionのflush](apple-networking/raw/urlsession-flush.md): Cookie・認証情報を保存し、以後の要求を新しいTCP接続で行うApple公式仕様。取得日 2026-10-04、一次資料の原文。
 - [URLSessionの接続再利用の計測](apple-networking/raw/reused-connection.md): 要求で持続接続を再利用したかを表すisReusedConnectionのApple公式仕様。取得日 2026-10-04、一次資料の原文。
 - [URLSessionの要求単位の計測](apple-networking/task-metrics.md): 失敗した要求の開始・接続・応答時刻と接続再利用を読むApple公式仕様と、BellTeamで個人情報を含めず記録する際の解釈。取得日 2026-10-15。
+- [DispatchTimeのuptime](apple-networking/raw/dispatch-uptime.md)、[睡眠を含む連続時計](apple-networking/raw/mach-continuous-time.md)、[URLSessionの要求timeout](apple-networking/raw/urlsession-request-timeout.md): 時間切れ診断で異なる時計とidle timeoutを混同しないためのApple公式原文。取得日 2026-10-29。
 - [CFNetwork診断ログ](apple-networking/raw/cfnetwork-diagnostics.md): HTTPS通信の診断、起動時の環境変数、iOSのUSB接続とConsoleでの採取手順。取得日 2026-10-04、Apple公式原文。
 
 - [Mac Catalystの表示倍率](mac-typography/raw/mac-catalyst-source.md): iPad向けUIの77%表示とMac用UIの仕様を示すApple公式JSON原文。取得日 2026-10-03。

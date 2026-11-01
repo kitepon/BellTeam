@@ -1,0 +1,22 @@
+{
+  "schema": "bellteam.apple-network-attempt-samples.v1",
+  "sourceProductCommit": "5b87c260f10cf4d8cd20bb5447aefc1bdddd9cdc",
+  "fixture": "NetworkRecoveryTests / URLProtocol",
+  "testResult": "~/Library/Developer/XcodeBuildMCP/workspaces/BellTeam-bf5fe1dd20e1/result-bundles/test_sim_2026-10-28T17-06-12-071Z_pid49890_b8834259.xcresult",
+  "testResultStatus": "2 passed, 0 failed",
+  "samples": [
+    {
+      "case": "GET -1005 first attempt and one retry -1005",
+      "path": "docs/evidence/samples/2026-10-29-apple-get-two-attempts.txt",
+      "sizeBytes": 1942,
+      "sha256": "440f9ce19bcdd177c564cef30ed643e218311d4f766634d0b0c2a8ca2d687e5f"
+    },
+    {
+      "case": "GET -1001 single attempt",
+      "path": "docs/evidence/samples/2026-10-29-apple-get-timeout.txt",
+      "sizeBytes": 1429,
+      "sha256": "4e5e5cd736c2b18254f03ec9360ab81766713e88ceb36bddba5daa5204f83ad9"
+    }
+  ],
+  "limits": "These are synthetic URLProtocol logs. Metrics availability, attempt boundaries and URL error codes are observed; actual radio, proxy, server receipt, suspension duration and user-screen recovery are not measured."
+}

@@ -46,11 +46,7 @@ export function goalsView(dialog, api, getBots, chat = null) {
 
   function render() {
     const configured = snapshots.filter(snapshot => isKnown(snapshot) && snapshot.goal !== null)
-    const unreadable = snapshots.some(snapshot => !isKnown(snapshot))
-    renderCards(body, configured, unreadable ? '表示できるゴールはありません。未対応、または状態を取得できないメンバーがいます。' : '設定済みのゴールはありません。')
-    if (unreadable && configured.length) {
-      body.append(element('p', '状態を取得できないメンバーのゴールは表示していません。', 'goal-meta'))
-    }
+    renderCards(body, configured, '表示できるゴールはありません。')
     if (chat) {
       chat.hidden = selectedBotId === null
       if (selectedBotId !== null) {

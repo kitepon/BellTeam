@@ -33,7 +33,7 @@ function pageItems(items, url) {
     if (index >= 0) end = index
   }
   const start = Math.max(0, end - limit)
-  return { items: items.slice(start, end), has_more: start > 0 }
+  return { items: items.slice(start, end), has_more: start > 0, ...(legacyServer ? {} : { remaining_before: start }) }
 }
 
 // 初回10件が画面に収まる短文の履歴（ハル）。過去は残っている。
@@ -49,12 +49,16 @@ const shortMessages = Array.from({ length: 35 }, (_, index) => {
 let messages = history.slice()
 let subscribers = []
 let failBefore = false
+let shortPage = false
+let legacyServer = false
+let shortTotal = shortMessages.length
 let requests = []
+let diagnosticReports = []
 const server = createServer((request, response) => {
   const url = new URL(request.url, 'http://localhost')
   const path = url.pathname
   const json = (value, status = 200) => { response.statusCode = status; response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(value)) }
-  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; requests = []; messages = history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
+  if (path === '/test/reset') { failBefore = url.searchParams.get('failBefore') === '1'; legacyServer = url.searchParams.get('legacyServer') === '1'; shortPage = url.searchParams.get('shortPage') === '1'; shortTotal = Number(url.searchParams.get('shortTotal') ?? shortMessages.length); requests = []; diagnosticReports = []; messages = history.slice(0, Number(url.searchParams.get('total') ?? 60)); return json({ ok: true }) }
   if (path === '/test/append') {
     const id = `m${String(messages.length + 1).padStart(3, '0')}`
     messages.push({ id, kind: 'message', direction: 'incoming', sender: { id: 'bot-one', name: 'ユキ' }, at: new Date().toISOString(), message: `${id} 新着です。`, delivery: 'delivered' })
@@ -79,7 +83,13 @@ const server = createServer((request, response) => {
     request.on('close', () => { subscribers = subscribers.filter(item => item !== response) })
     return
   }
-  if (path === '/test/proof') return json({ failBefore, requests, subscribers: subscribers.length })
+  if (path === '/api/diagnostics' && request.method === 'POST') {
+    let body = ''
+    request.on('data', chunk => { body += chunk })
+    request.on('end', () => { diagnosticReports.push(JSON.parse(body).code); json({ ok: true }) })
+    return
+  }
+  if (path === '/test/proof') return json({ failBefore, requests, diagnosticReports, subscribers: subscribers.length })
   if (path === '/api/subscription') return json({ subscription: { productId: 'dev.kitepon.bellbot.monthly', environment: 'Production', accessMode: 'developer', setupComplete: true, entitled: false, state: 'none', autoRenewing: false } })
   if (path === '/api/settings') return json({ settings: [] })
   if (path === '/api/harness-auth') return json({ harnesses: [] })
@@ -94,7 +104,10 @@ const server = createServer((request, response) => {
   }
   if (path === '/api/bots/bot-two/messages' && request.method === 'GET') {
     requests.push({ query: url.search, bot: 'bot-two' })
-    return json(pageItems(shortMessages, url))
+    if (failBefore && url.searchParams.has('before')) return json({ error: 'FIXTURE_FAILURE', message: '試験用の取得失敗' }, 500)
+    // 表示域に収まる初回の頁。本番では短い連絡の行が続く時に起きる。
+    if (shortPage && !url.searchParams.has('before')) url.searchParams.set('limit', '3')
+    return json(pageItems(shortMessages.slice(-shortTotal), url))
   }
   if (path.endsWith('/messages') || path.endsWith('/timeline')) return json({ items: [], has_more: false })
   json({ error: 'NOT_FOUND' }, 404)

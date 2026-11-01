@@ -1,4 +1,58 @@
+import Darwin
 import SwiftUI
+
+struct GoalLoadCallContext {
+    let trigger: String
+    let viewPhase: String
+    let callContinuousTick: UInt64
+    let appState: BellAppStateSnapshot
+
+    static func capture(trigger: String, viewPhase: ScenePhase?, diagnostics: BellDiagnostics) -> Self {
+        // 呼出し元でviewPhaseを先に確定し、ここでは連続時計、診断状態の順に採る。原子的な同時観測ではない。
+        let phase = viewPhase.map { String(describing: $0) } ?? "unknown"
+        let tick = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)
+        let appState = diagnostics.requestAppStateSnapshot()
+        return Self(trigger: trigger, viewPhase: phase, callContinuousTick: tick, appState: appState)
+    }
+
+    var log: String {
+        "goal_load_trigger=\(trigger)\ngoal_view_phase_at_call=\(viewPhase)"
+            + "\ngoal_call_continuous_ms=\(callContinuousTick / 1_000_000)"
+            + "\ngoal_app_state_at_call=\(appState.state)"
+            + "\ngoal_app_state_revision_at_call=\(appState.revision)"
+            + "\ngoal_app_state_changed_continuous_ms_at_call=\(appState.changedContinuousTick / 1_000_000)"
+    }
+}
+
+@MainActor
+final class GoalForegroundLoad {
+    private var current: Task<Void, Never>?
+
+    @discardableResult
+    func start(_ load: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
+        let previous = current
+        previous?.cancel()
+        let next = Task {
+            await previous?.value
+            guard !Task.isCancelled else { return }
+            await load()
+        }
+        current = next
+        return next
+    }
+
+    func cancel() { current?.cancel() }
+
+    func runForViewTask(whenActive: Bool, _ load: @escaping @MainActor () async -> Void) async {
+        guard whenActive && !Task.isCancelled else { return }
+        let child = start(load)
+        await withTaskCancellationHandler {
+            await child.value
+        } onCancel: {
+            child.cancel()
+        }
+    }
+}
 
 private struct GoalsResponse: Decodable { let goals: [GoalSnapshot] }
 private struct GoalDetailResponse: Decodable { let snapshot: GoalSnapshot }
@@ -299,16 +353,21 @@ private final class GoalViewModel: ObservableObject {
         currentSnapshots.first { $0.botId == botId }
     }
 
-    func loadList(store: AppStore) async { await load(path: "/api/goals", botId: nil, store: store) }
-    func loadDetail(botId: String, store: AppStore) async {
-        await load(path: "/api/bots/\(botId)/goal", botId: botId, store: store)
+    func loadList(store: AppStore, context: GoalLoadCallContext) async {
+        await load(path: "/api/goals", botId: nil, store: store,
+                   diagnosticContext: context.log)
+    }
+    func loadDetail(botId: String, store: AppStore, context: GoalLoadCallContext) async {
+        await load(path: "/api/bots/\(botId)/goal", botId: botId, store: store,
+                   diagnosticContext: context.log)
     }
 
-    private func load(path: String, botId: String?, store: AppStore) async {
+    private func load(path: String, botId: String?, store: AppStore, diagnosticContext: String? = nil) async {
         guard !loading && !mutating else { return }
         loading = true
         defer { loading = false }
         do {
+            try Task.checkCancellation()
             if let botId {
                 let result: GoalDetailResponse = try await store.api.get(path)
                 try Task.checkCancellation()
@@ -323,12 +382,17 @@ private final class GoalViewModel: ObservableObject {
             needsRefresh = false
             errorText = nil
         } catch is CancellationError { return }
-        catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        catch let error where BellAPIError.isAuthenticationError(error) {
+            guard !Task.isCancelled else { return }
+            store.requireLogin(for: error)
+        }
         catch {
+            guard !Task.isCancelled else { return }
             needsRefresh = true
             errorText = error.localizedDescription
             store.api.diagnostics.report(error, path: path, method: "GET",
-                                         observation: .read(error, retainedData: !snapshots.isEmpty))
+                                         observation: .read(error, retainedData: !snapshots.isEmpty),
+                                         diagnosticContext: diagnosticContext)
         }
     }
 
@@ -367,11 +431,14 @@ private final class GoalViewModel: ObservableObject {
         } catch {
             store.api.diagnostics.report(error, path: path, method: "POST", observation: .write)
             let latest: GoalDetailResponse
+            let reconcileContext = GoalLoadCallContext.capture(trigger: "change_reconcile",
+                viewPhase: nil, diagnostics: store.api.diagnostics)
             do { latest = try await store.api.get(path) }
             catch {
                 needsRefresh = true
                 store.api.diagnostics.report(error, path: path, method: "GET",
-                                             observation: .read(error, retainedData: true))
+                                             observation: .read(error, retainedData: true),
+                                             diagnosticContext: reconcileContext.log)
                 throw GoalViewError.unknownOutcome
             }
             guard latest.snapshot.botId == snapshot.botId else {
@@ -398,13 +465,11 @@ struct GoalsView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var goals = GoalViewModel()
+    @State private var foregroundLoad = GoalForegroundLoad()
     @State private var editing: GoalEditorSelection?
 
     private var configured: [GoalSnapshot] {
         goals.currentSnapshots.filter { $0.availability == .available && $0.goal != nil }
-    }
-    private var unavailable: [GoalSnapshot] {
-        goals.currentSnapshots.filter { $0.availability != .available }
     }
     private var createCandidates: [GoalSnapshot] {
         goals.currentSnapshots.filter { $0.availability == .available && $0.goal == nil
@@ -455,27 +520,25 @@ struct GoalsView: View {
                                              Task { await goals.run(snapshot, action: action, store: store) }
                                          })
                             }
-                            if !unavailable.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("状態を確認できないメンバー").font(.headline)
-                                    ForEach(unavailable) { snapshot in
-                                        let name = store.bots.first { $0.id == snapshot.botId }?.displayName ?? snapshot.botId
-                                        Text("\(name)：\(snapshot.message ?? "ゴールの状態を取得できません。")")
-                                            .font(.footnote).foregroundStyle(BellTheme.muted)
-                                    }
-                                }.padding(18).bellCard()
-                            }
                         }
                     }
                     .padding(.horizontal, 22)
                     .padding(.top, 24)
                     .padding(.bottom, 30)
                 }
-                .refreshable { await goals.loadList(store: store) }
+                .refreshable {
+                    let context = GoalLoadCallContext.capture(trigger: "list_pull_refresh",
+                        viewPhase: scenePhase, diagnostics: store.api.diagnostics)
+                    await goals.loadList(store: store, context: context)
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { Task { await goals.loadList(store: store) } } label: { Image(systemName: "arrow.clockwise") }
+                    Button {
+                        let context = GoalLoadCallContext.capture(trigger: "list_manual",
+                            viewPhase: scenePhase, diagnostics: store.api.diagnostics)
+                        Task { await goals.loadList(store: store, context: context) }
+                    } label: { Image(systemName: "arrow.clockwise") }
                         .accessibilityLabel("ゴールを更新")
                         .disabled(goals.loading || goals.mutating)
                 }
@@ -504,13 +567,33 @@ struct GoalsView: View {
                 }
                 .environmentObject(store)
             }
-            .task(id: store.selectedTab) { if store.selectedTab == 3 { await goals.loadList(store: store) } }
+            .task(id: store.selectedTab) {
+                if store.selectedTab == 3 {
+                    let phase = scenePhase
+                    let context = GoalLoadCallContext.capture(trigger: "list_view_task",
+                        viewPhase: phase, diagnostics: store.api.diagnostics)
+                    await foregroundLoad.runForViewTask(whenActive: phase == .active) {
+                        await goals.loadList(store: store, context: context)
+                    }
+                }
+            }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active && store.selectedTab == 3 { Task { await goals.loadList(store: store) } }
+                if phase == .active && store.selectedTab == 3 {
+                    let context = GoalLoadCallContext.capture(trigger: "list_foreground",
+                        viewPhase: phase, diagnostics: store.api.diagnostics)
+                    foregroundLoad.start { await goals.loadList(store: store, context: context) }
+                } else {
+                    foregroundLoad.cancel()
+                }
             }
             .onChange(of: store.eventRevision) { _, _ in
-                if store.selectedTab == 3 { Task { await goals.loadList(store: store) } }
+                if store.selectedTab == 3 {
+                    let context = GoalLoadCallContext.capture(trigger: "list_event",
+                        viewPhase: scenePhase, diagnostics: store.api.diagnostics)
+                    Task { await goals.loadList(store: store, context: context) }
+                }
             }
+            .onDisappear { foregroundLoad.cancel() }
         }
     }
 
@@ -521,6 +604,7 @@ struct ChatGoalBar: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var goals = GoalViewModel()
+    @State private var foregroundLoad = GoalForegroundLoad()
     @State private var expanded = false
     @State private var editing: GoalEditorSelection?
 
@@ -563,7 +647,12 @@ struct ChatGoalBar: View {
                                                 : "ゴールの状態を取得できません。")
                             .font(.footnote).padding(18).bellCard()
                     }
-                    Button("状態を更新") { Task { await goals.loadDetail(botId: botId, store: store) } }
+                    Button("状態を更新") {
+                        let context = GoalLoadCallContext.capture(trigger: "chat_manual",
+                            viewPhase: scenePhase, diagnostics: store.api.diagnostics)
+                        Task { await goals.loadDetail(botId: botId, store: store,
+                                                      context: context) }
+                    }
                         .font(.footnote).disabled(goals.loading || goals.mutating)
                 }
                 .frame(maxWidth: 520)
@@ -594,22 +683,35 @@ struct ChatGoalBar: View {
             }
             .environmentObject(store)
         }
-        .task(id: botId) { await goals.loadDetail(botId: botId, store: store) }
+        .task(id: botId) {
+            let phase = scenePhase
+            let context = GoalLoadCallContext.capture(trigger: "chat_view_task",
+                viewPhase: phase, diagnostics: store.api.diagnostics)
+            await foregroundLoad.runForViewTask(whenActive: phase == .active) {
+                await goals.loadDetail(botId: botId, store: store, context: context)
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await goals.loadDetail(botId: botId, store: store) } }
+            if phase == .active {
+                let context = GoalLoadCallContext.capture(trigger: "chat_foreground",
+                    viewPhase: phase, diagnostics: store.api.diagnostics)
+                foregroundLoad.start { await goals.loadDetail(botId: botId, store: store, context: context) }
+            } else {
+                foregroundLoad.cancel()
+            }
         }
         .onChange(of: store.eventRevision) { _, _ in
-            if scenePhase == .active { Task { await goals.loadDetail(botId: botId, store: store) } }
+            if scenePhase == .active {
+                let context = GoalLoadCallContext.capture(trigger: "chat_event",
+                    viewPhase: scenePhase, diagnostics: store.api.diagnostics)
+                Task { await goals.loadDetail(botId: botId, store: store, context: context) }
+            }
         }
+        .onDisappear { foregroundLoad.cancel() }
     }
 }
 
 private enum GoalCardPresentation { case page, chat }
-private struct GoalObjectiveHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
 private struct GoalCard: View {
     let snapshot: GoalSnapshot
     let name: String
@@ -617,7 +719,6 @@ private struct GoalCard: View {
     var presentation: GoalCardPresentation = .page
     let onEdit: (String) -> Void
     let onAction: (String) -> Void
-    @State private var objectiveHeight: CGFloat = 22
 
     private var hasAction: Bool {
         if snapshot.goal == nil { return snapshot.capabilities.create && snapshot.fieldCapabilities.create.objective }
@@ -658,12 +759,11 @@ private struct GoalCard: View {
                     if presentation == .chat {
                         ScrollView {
                             Text(goal.objective).frame(maxWidth: .infinity, alignment: .leading)
-                                .background { GeometryReader { size in
-                                    Color.clear.preference(key: GoalObjectiveHeightKey.self, value: size.size.height)
-                                } }
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                            .frame(height: min(max(objectiveHeight, 22), 180))
-                            .onPreferenceChange(GoalObjectiveHeightKey.self) { objectiveHeight = $0 }
+                            .scrollBounceBehavior(.basedOnSize)
+                            .frame(minHeight: 22, maxHeight: 180)
+                            .fixedSize(horizontal: false, vertical: true)
                             .textSelection(.enabled)
                             .accessibilityIdentifier("chat-goal-objective")
                     } else {

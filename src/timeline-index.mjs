@@ -98,7 +98,7 @@ export function timelinePage(sources, url) {
   const count = allAfter ? total : Math.min(pageLimit, total)
   const items = mergeItems(sources, starts, ends, allAfter, count)
   // 従来のafterは、未知のカーソルの場合も前ページの有無をfalseで返す。
-  return { items, has_more: after ? false : total > count }
+  return { items, has_more: after ? false : total > count, ...(after ? {} : { remaining_before: total - items.length }) }
 }
 
 export function recentTimeline(sources) {

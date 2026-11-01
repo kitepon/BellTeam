@@ -43,7 +43,7 @@ final class ConversationScrollUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 3)
         let settled = oldest.frame.minY
         print("取得直後のm051 minY=\(first) 3秒後=\(settled) 表示領域=\(conversationScroll().frame)")
-        XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=20&before=m051"])
+        XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=25&before=m051"])
         XCTAssertFalse(app.buttons["以前のメッセージを読む"].exists)
         XCTAssertLessThan(settled, conversationScroll().frame.maxY, "先頭行が画面内に残る")
         XCTAssertGreaterThan(oldest.frame.maxY, 0)
@@ -68,7 +68,7 @@ final class ConversationScrollUITests: XCTestCase {
         let scroll = conversationScroll()
         for _ in 0..<4 where try !requests().contains(where: { $0.contains("before=") }) { scroll.swipeDown() }
         Thread.sleep(forTimeInterval: 2)
-        XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=20&before=s26"])
+        XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=25&before=s26"])
     }
 
     /// 古い内容を見ている間に新着を取得しても、末尾へ飛ばず新着ボタンを出す。30件の履歴で最古まで読み、上端の引き下げ更新で新着を取る。
@@ -82,6 +82,7 @@ final class ConversationScrollUITests: XCTestCase {
         for _ in 0..<3 { scroll.swipeDown() }
         Thread.sleep(forTimeInterval: 3)
         let before = oldest.frame.minY
+        XCTAssertTrue(app.buttons["最新へ ↓"].exists, "過去を読んでいる間は新着が無くても最新へ戻れる")
         let refreshesBeforeAppend = try requests().filter { $0.contains("after=m030") }.count
         _ = try data("/test/append")
         // 引き下げ更新の操作が取りこぼされることがあるため、更新の要求が出るまで引き直す（操作の再試行で、アプリの再試行ではない）。
@@ -131,7 +132,7 @@ final class ConversationScrollUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 3)
         XCTAssertEqual(text("m001").frame.minY, before, accuracy: 2)
         XCTAssertEqual(try requests().filter { $0.contains("before=") },
-                       ["?limit=20&before=m051", "?limit=20&before=m031", "?limit=20&before=m011"])
+                       ["?limit=25&before=m051", "?limit=25&before=m026"])
         XCTAssertFalse(text("m060").exists, "最古を読んでいる間は最新の本文を描画しない")
     }
 

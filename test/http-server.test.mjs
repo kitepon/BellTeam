@@ -98,6 +98,8 @@ test('Web APIはCloudflare Access認証を必須にし、一覧・会話取得�
   assert.deepEqual(await botsResponse.json(), { bots: [{
     id: bot.id, displayName: bot.displayName, harness: 'grok', color: 'rose', online: true,
     name: bot.name, model: '', reasoningEffort: '', fastMode: false, profileText: '', personality: '', speechStyle: '', position: bot.position, role: '', avatar: '', avatarVersion: '',
+    avatarLarge: '', avatarLargeVersion: '', avatarSource: '', avatarSourceVersion: '',
+    avatarLargeSource: '', avatarLargeSourceVersion: '', avatarCrop: null, avatarLargeCrop: null,
     recent: { id: '1', kind: 'message', direction: 'incoming', message: 'こんにちは', at: '2026-09-02T01:02:03.000Z' },
   }] })
 
@@ -486,7 +488,7 @@ test('稼働中Botのファストモード切り替えを適用へ渡し、適�
         applied.push([current.fastMode, next.fastMode])
         // 保存の応答の後に結果が出る（現在の作業の後に並ぶ）形を再現する。
         await new Promise(resolve => { settle = resolve })
-        if (fail) throw new Error('AITERM_FAST_UNAVAILABLE')
+        if (fail) throw Object.assign(new Error('AITERM_FAST_UNAVAILABLE'), { effect: 'not_started' })
         return { mode: 'configure' }
       },
     },

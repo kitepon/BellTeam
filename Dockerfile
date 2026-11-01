@@ -28,6 +28,8 @@ RUN npm install --global corepack@latest @openai/codex@latest @anthropic-ai/clau
 RUN curl -fsSL https://x.ai/cli/install.sh | bash \
   && install -m 0755 /root/.grok/bin/grok /usr/local/bin/grok \
   && grok --version
+RUN curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- --dir /usr/local/bin \
+  && agy --version
 # RTK（担当ドリリー）。本家のinstall.shがsha256を照合する。~/.localはcursor-cliのvolumeで隠れるため/usr/local/binへ置く。
 RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | RTK_INSTALL_DIR=/usr/local/bin sh \
   && rtk --version

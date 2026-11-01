@@ -2,6 +2,87 @@ import XCTest
 @testable import BellBot
 
 final class BellDiagnosticsTests: XCTestCase {
+    func testAppStateRevisionChangesOnlyWhenScenePhaseChanges() {
+        let diagnostics = BellDiagnostics { _, _, _, _ in }
+        let initial = diagnostics.requestAppStateSnapshot()
+        diagnostics.updateAppState("active")
+        let active = diagnostics.requestAppStateSnapshot()
+        diagnostics.updateAppState("active")
+        let repeated = diagnostics.requestAppStateSnapshot()
+        diagnostics.updateAppState("background")
+        let background = diagnostics.requestAppStateSnapshot()
+        XCTAssertEqual(active.revision, initial.revision + 1)
+        XCTAssertEqual(repeated.revision, active.revision)
+        XCTAssertEqual(background.revision, active.revision + 1)
+        XCTAssertEqual(background.state, "background")
+    }
+
+    func testGoalTimeoutCarriesCallsiteWithoutPrivateRoute() {
+        var log = ""
+        let diagnostics = BellDiagnostics { _, _, _, value in log = value }
+        let trace = BellRequestTrace(route: "/api/bots/bot-deadbeef/goal", method: "GET",
+                                     startedAt: Date(), failedAt: Date(),
+                                     appStateAtStart: "background", attempts: 1, metrics: nil)
+        let error = URLError(.timedOut, userInfo: [BellRequestTrace.userInfoKey: trace])
+        diagnostics.report(error, path: "/api/bots/private-name/goal?token=secret", method: "GET",
+                           observation: .read(error, retainedData: true),
+                           diagnosticContext: "goal_load_trigger=chat_view_task\ngoal_view_phase_at_call=background")
+        XCTAssertTrue(log.contains("goal_load_trigger=chat_view_task"))
+        XCTAssertTrue(log.contains("goal_view_phase_at_call=background"))
+        XCTAssertFalse(log.contains("private-name"))
+        XCTAssertFalse(log.contains("secret"))
+        let attachment = XCTAttachment(data: Data(log.utf8), uniformTypeIdentifier: "public.plain-text")
+        attachment.name = "人工Goal timeoutの呼出し原文"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testServerErrorStoresOnlyThisResponsesDiagnosticReference() async throws {
+        let fingerprint = String(repeating: "a", count: 64)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ServerErrorProtocol.self]
+        let api = BellAPI(baseURL: URL(string: "https://server-error.test.invalid")!,
+                          session: URLSession(configuration: configuration),
+                          diagnostics: BellDiagnostics(onReport: { _, _, _, _ in }))
+        func log(_ path: String) async throws -> String {
+            do {
+                try await api.delete(path)
+                XCTFail("500を成功にしない")
+                return ""
+            } catch {
+                return try XCTUnwrap(BellRequestTrace.from(error)).log
+            }
+        }
+        ServerErrorProtocol.headers = [
+            "X-BellTeam-Diagnostic-Fingerprint": fingerprint,
+            "X-BellTeam-Diagnostic-Occurrence-Count": "7",
+            "X-BellTeam-Diagnostic-Received-At": "2026-11-01T01:21:10.123Z",
+        ]
+        let saved = try await log("/api/bots/first")
+        XCTAssertTrue(saved.contains("server_diagnostic_fingerprint=\(fingerprint)\n"))
+        XCTAssertTrue(saved.contains("server_diagnostic_occurrence_count=7\n"))
+        XCTAssertTrue(saved.contains("server_diagnostic_received_at=2026-11-01T01:21:10.123Z\n"))
+
+        ServerErrorProtocol.headers = [:]
+        let missing = try await log("/api/bots/second")
+        XCTAssertFalse(missing.contains(fingerprint))
+        XCTAssertTrue(missing.contains("server_diagnostic_fingerprint=unknown\nserver_diagnostic_occurrence_count=unknown\nserver_diagnostic_received_at=unknown"))
+
+        ServerErrorProtocol.headers = [
+            "X-BellTeam-Diagnostic-Fingerprint": "secret-value",
+            "X-BellTeam-Diagnostic-Occurrence-Count": "0",
+            "X-BellTeam-Diagnostic-Received-At": "2026-11-01 01:21",
+        ]
+        let invalid = try await log("/api/bots/third")
+        XCTAssertFalse(invalid.contains("secret-value"))
+        XCTAssertTrue(invalid.contains("server_diagnostic_fingerprint=unknown\nserver_diagnostic_occurrence_count=unknown\nserver_diagnostic_received_at=unknown"))
+
+        ServerErrorProtocol.status = 502
+        let other = try await log("/api/bots/fourth")
+        ServerErrorProtocol.status = 500
+        XCTAssertFalse(other.contains("server_diagnostic_"))
+    }
+
     func testSameOfflineErrorKeepsMajorImpactVisibleWithoutAssigningAppDefect() {
         var logs: [String] = []
         let diagnostics = BellDiagnostics { _, _, _, log in logs.append(log) }
@@ -150,6 +231,41 @@ final class BellDiagnosticsTests: XCTestCase {
         XCTAssertTrue(log.contains("screen_observation=not_observed"))
         XCTAssertTrue(log.contains("request_route=/api/bots/bot-deadbeef/schedules"))
     }
+
+    func testDecodingLogKeepsStaticFieldsAndHidesDynamicKeysAndValues() throws {
+        struct Inner: Decodable { let required: String }
+        struct Outer: Decodable { let items: [Inner]; let byName: [String: Inner] }
+        let cases = [
+            (#"{"items":[{"required":"secret-value"},{}],"byName":{}}"#, "items.[1]"),
+            (#"{"items":[],"byName":{"private-bot-name":{}}}"#, "byName.*"),
+            (#"{"items":[],"byName":{"12345678":{}}}"#, "byName.*"),
+        ]
+        for (json, path) in cases {
+            do {
+                _ = try JSONDecoder().decode(Outer.self, from: Data(json.utf8))
+                XCTFail("読み取れない本文")
+            } catch let error as DecodingError {
+                let located = error.located(route: "/api/session", status: 200)
+                let log = BellDiagnostics.errorLog(located, module: "session")
+                XCTAssertTrue(log.contains("error_type=DecodingError.keyNotFound"), log)
+                XCTAssertTrue(log.contains("decoding_key=required"), log)
+                XCTAssertTrue(log.contains("decoding_path=\(path)"), log)
+                XCTAssertTrue(log.contains("decoding_route=/api/session"), log)
+                XCTAssertTrue(log.contains("decoding_http_status=200"), log)
+                XCTAssertFalse(log.contains("secret-value") || log.contains("private-bot-name") || log.contains("12345678"), log)
+            }
+        }
+    }
+
+    func testDecodingRouteRemovesQueryAndGeneratedIDs() {
+        XCTAssertEqual(BellRequestTrace.decodingRoute(for: "/api/session"), "/api/session")
+        XCTAssertEqual(BellRequestTrace.decodingRoute(for: "/api/bots?avatar=omit"), "/api/bots")
+        XCTAssertEqual(BellRequestTrace.decodingRoute(for: "/api/bots/bot-12345678/messages?limit=20"),
+                       "/api/bots/:id/messages")
+        XCTAssertEqual(BellRequestTrace.decodingRoute(for: "/api/rooms/room-abcdef01/messages"),
+                       "/api/rooms/:id/messages")
+        XCTAssertEqual(BellRequestTrace.decodingRoute(for: "/api/bots/private-name"), "/api/bots/:id")
+    }
 }
 
 final class EventStreamTests: XCTestCase {
@@ -224,4 +340,25 @@ final class ConnectionResetTests: XCTestCase {
         await BellAPI(baseURL: url).resetConnections()
         XCTAssertEqual(HTTPCookieStorage.shared.cookies(for: url)?.map(\.name), ["CF_Authorization"])
     }
+}
+
+private final class ServerErrorProtocol: URLProtocol {
+    static var status = 500
+    static var headers: [String: String] = [:]
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "server-error.test.invalid"
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let response = HTTPURLResponse(url: request.url!, statusCode: Self.status, httpVersion: "HTTP/1.1",
+                                       headerFields: Self.headers.merging(["Content-Type": "application/json"]) { $1 })!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"error":"INTERNAL_ERROR"}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }

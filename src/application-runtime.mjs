@@ -55,7 +55,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     toolsForSource: executionSource => internalApi(internalPort, fetch, { executionSource }),
     admitWork: () => aiControl.admit(),
     assertWorkAllowed: () => aiControl.assertEnabled(),
-    tools: { registry: bots, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },
+    tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },
     callBridge: () => {
       const config = settings.configuration('callBridge')
       return config.enabled ? { url: config.url, headersFile: callBridgeHeaders } : null

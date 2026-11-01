@@ -70,6 +70,18 @@ test('再起動後も公式認証の相関を使い、ハーネス変更では�
   assert.equal(f.bots.size, 1)
 })
 
+test('Antigravityの初回認証は公式harnessへ渡し強制reloginを要求しない', async t => {
+  const f = await fixture(t)
+  const selected = await f.onboarding.select('antigravity')
+  assert.equal(selected.harness, 'antigravity')
+  assert.equal(f.bots.get(GUIDE_BOT_ID).harness, 'antigravity')
+  assert.equal(f.calls.at(-1).args.harness, 'antigravity-cli')
+  assert.equal(f.calls.at(-1).args.relogin, undefined)
+  f.authenticate()
+  await f.onboarding.start()
+  assert.equal(f.conversations[0].bot.harness, 'antigravity')
+})
+
 test('案内役は購入前に初期設定を完了でき、Web無料とApple購読を案内する', async t => {
   const f = await fixture(t)
   await f.onboarding.select('claude')

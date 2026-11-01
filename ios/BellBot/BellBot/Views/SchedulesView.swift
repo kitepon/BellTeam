@@ -140,7 +140,11 @@ struct SchedulesView: View {
                 + store.rooms.map { (target: ChatTarget.room($0.id), name: $0.name) }
             let request = refreshState.hasLoadedAll ? requested : .all
             let api = store.api
-            let fetched = try await withThrowingTaskGroup(of: (ChatTarget, [ScheduledEntry]).self) { group in
+            var bulk: [ChatTarget: [ScheduledEntry]]?
+            if case .all = request {
+                bulk = try await fetchAllSchedules(names: Dictionary(uniqueKeysWithValues: sources.map { ($0.target, $0.name) }))
+            }
+            let fetched = if let bulk { bulk } else { try await withThrowingTaskGroup(of: (ChatTarget, [ScheduledEntry]).self) { group in
                 for source in sources where request.includes(source.target) {
                     group.addTask {
                         let response: SchedulesResponse = try await api.get(source.target.path + "/schedules")
@@ -153,7 +157,7 @@ struct SchedulesView: View {
                 var pages: [ChatTarget: [ScheduledEntry]] = [:]
                 for try await (target, page) in group { pages[target] = page }
                 return pages
-            }
+            } }
             try Task.checkCancellation()
             let existing = Dictionary(grouping: entries, by: \.target)
             let result = sources.flatMap { source in
@@ -178,6 +182,21 @@ struct SchedulesView: View {
             store.api.diagnostics.report(error, path: "/api/schedules", method: "GET", observation: .read(error, retainedData: !entries.isEmpty))
         }
         loading = false
+    }
+
+    /// 全員分を1回で読む。旧本体だけ404を返すので、その時はnilを返して個別の取得へ戻す。
+    private func fetchAllSchedules(names: [ChatTarget: String]) async throws -> [ChatTarget: [ScheduledEntry]]? {
+        do {
+            let response: AllSchedulesResponse = try await store.api.get("/api/schedules")
+            let schedules = try response.schedules(expected: Set(names.keys))
+            var pages: [ChatTarget: [ScheduledEntry]] = [:]
+            for (target, name) in names {
+                pages[target] = schedules[target]?.map { ScheduledEntry(target: target, ownerName: name, schedule: $0) }
+            }
+            return pages
+        } catch BellAPIError.httpStatus(404, _, _) {
+            return nil
+        }
     }
 
     private func run(_ entry: ScheduledEntry) async {

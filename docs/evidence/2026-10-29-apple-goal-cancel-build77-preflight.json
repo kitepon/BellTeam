@@ -1,0 +1,158 @@
+{
+  "schema": "bellteam.apple-unsigned-preflight.v1",
+  "purpose": "背景化したGoalのforeground再読込を取り消す内部配布候補",
+  "sourceCommit": "1b5f9e46ed39aac4dc824f2dbdfcfc2b49a9ade8",
+  "sourceTree": "e602752e1773eb10b79eec644081c0e8122a6e03",
+  "baseMainCommit": "7a2e9c1d00193da7621fc7f0624cd493fe356416",
+  "pullRequest": 154,
+  "bundleId": "dev.kitepon.bellbot",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "77",
+  "includedChanges": [
+    "PR153: cancel chat/list foreground Goal reads on nonactive and prevent stale response effects",
+    "Previous main: Goal call/phase/request ordering diagnostics"
+  ],
+  "xcodegen": {
+    "command": "xcodegen generate --spec ios/BellBot/project.yml",
+    "extraTrackedDiff": false
+  },
+  "appleProductSourceDiffFromBuiltCommit": [],
+  "logInterpretation": "Xcode log lines beginning 'error: the following command failed with exit code 0' are output text. The separately observed xcodebuild process exits were both 0. codesign --verify --strict exited 1 because CODE_SIGNING_ALLOWED=NO produced unsigned apps.",
+  "builds": [
+    {
+      "platform": "IOS",
+      "destination": "generic/platform=iOS",
+      "configuration": "Release",
+      "jobs": 2,
+      "codeSigningAllowed": false,
+      "command": "xcodebuild -quiet -jobs 2 -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam -configuration Release -destination 'generic/platform=iOS' -derivedDataPath runtime/apple/goal-cancel-build77/ios-derived CODE_SIGNING_ALLOWED=NO build",
+      "processExitEvidence": {
+        "execSessionId": 71254,
+        "observedExitCode": 0
+      },
+      "logPath": "runtime/apple/goal-cancel-build77/ios-release.log",
+      "logSha256": "47d16631db830ce2e09d85e3022a69d2745793355eac1367372ebd30f4907677",
+      "logBytes": 2345,
+      "logDiagnostics": [
+        {
+          "line": 1,
+          "text": "error: the following command failed with exit code 0 but produced no further output"
+        },
+        {
+          "line": 3,
+          "text": "/Users/kite/.codex/worktrees/apple-goals-refinement/BellTeam/ios/BellBot/BellBot/Core/AppStore.swift:98:125: warning: call to main actor-isolated class method 'default()' in a synchronous nonisolated context [#ActorIsolatedCall]"
+        },
+        {
+          "line": 19,
+          "text": "/Users/kite/.codex/worktrees/apple-goals-refinement/BellTeam/ios/BellBot/BellBot/Core/BellAPI.swift:186:43: warning: weak reference will always be nil because the referenced object is deallocated here"
+        }
+      ],
+      "app": {
+        "bundleId": "dev.kitepon.bellbot",
+        "binaryPath": "runtime/apple/goal-cancel-build77/ios-derived/Build/Products/Release-iphoneos/BellTeam.app/BellTeam",
+        "binarySha256": "d6941761415985b5258f0bf297f741ed478152ed37868ae51080b927d2e66ec8",
+        "architectures": [
+          "arm64"
+        ],
+        "bundleVersion": "77",
+        "marketingVersion": "1.0.3",
+        "unsignedSignature": {
+          "command": "codesign --verify --strict",
+          "observedExitCode": 1,
+          "reason": "code object is not signed at all"
+        }
+      },
+      "notificationService": {
+        "bundleId": "dev.kitepon.bellbot.NotificationService",
+        "binaryPath": "runtime/apple/goal-cancel-build77/ios-derived/Build/Products/Release-iphoneos/BellTeam.app/PlugIns/NotificationService.appex/NotificationService",
+        "binarySha256": "127ef4828844c0dcbe68ddf9a7926a435e1f11283893dac9069150cff2eb4def",
+        "architectures": [
+          "arm64"
+        ],
+        "bundleVersion": "77",
+        "marketingVersion": "1.0.3",
+        "unsignedSignature": {
+          "command": "codesign --verify --strict",
+          "observedExitCode": 1,
+          "reason": "code object is not signed at all"
+        }
+      }
+    },
+    {
+      "platform": "MAC_OS",
+      "destination": "generic/platform=macOS,variant=Mac Catalyst",
+      "configuration": "Release",
+      "jobs": 2,
+      "codeSigningAllowed": false,
+      "command": "xcodebuild -quiet -jobs 2 -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam -configuration Release -destination 'generic/platform=macOS,variant=Mac Catalyst' -derivedDataPath runtime/apple/goal-cancel-build77/mac-derived CODE_SIGNING_ALLOWED=NO build",
+      "processExitEvidence": {
+        "execSessionId": 47953,
+        "observedExitCode": 0
+      },
+      "logPath": "runtime/apple/goal-cancel-build77/mac-release.log",
+      "logSha256": "996f55f76638297841656a153b7fb4d8fc94e7f1ce5568bacd4eaea3d78bd3b5",
+      "logBytes": 4719,
+      "logDiagnostics": [
+        {
+          "line": 1,
+          "text": "error: the following command failed with exit code 0 but produced no further output"
+        },
+        {
+          "line": 3,
+          "text": "/Users/kite/.codex/worktrees/apple-goals-refinement/BellTeam/ios/BellBot/BellBot/Core/AppStore.swift:98:125: warning: call to main actor-isolated class method 'default()' in a synchronous nonisolated context [#ActorIsolatedCall]"
+        },
+        {
+          "line": 19,
+          "text": "/Users/kite/.codex/worktrees/apple-goals-refinement/BellTeam/ios/BellBot/BellBot/Core/BellAPI.swift:186:43: warning: weak reference will always be nil because the referenced object is deallocated here"
+        },
+        {
+          "line": 28,
+          "text": "error: the following command failed with exit code 0 but produced no further output"
+        },
+        {
+          "line": 30,
+          "text": "/Users/kite/.codex/worktrees/apple-goals-refinement/BellTeam/ios/BellBot/BellBot/Core/AppStore.swift:98:125: warning: call to main actor-isolated class method 'default()' in a synchronous nonisolated context [#ActorIsolatedCall]"
+        },
+        {
+          "line": 46,
+          "text": "/Users/kite/.codex/worktrees/apple-goals-refinement/BellTeam/ios/BellBot/BellBot/Core/BellAPI.swift:186:43: warning: weak reference will always be nil because the referenced object is deallocated here"
+        }
+      ],
+      "app": {
+        "bundleId": "dev.kitepon.bellbot",
+        "binaryPath": "runtime/apple/goal-cancel-build77/mac-derived/Build/Products/Release-maccatalyst/BellTeam.app/Contents/MacOS/BellTeam",
+        "binarySha256": "1a4bc0f14dd6b0b400a73bcc707d5663a99b6b6fd358bafb6a4ee3d959e2990c",
+        "architectures": [
+          "x86_64",
+          "arm64"
+        ],
+        "bundleVersion": "77",
+        "marketingVersion": "1.0.3",
+        "unsignedSignature": {
+          "command": "codesign --verify --strict",
+          "observedExitCode": 1,
+          "reason": "code object is not signed at all"
+        }
+      },
+      "notificationService": {
+        "bundleId": "dev.kitepon.bellbot.NotificationService",
+        "binaryPath": "runtime/apple/goal-cancel-build77/mac-derived/Build/Products/Release-maccatalyst/BellTeam.app/Contents/PlugIns/NotificationService.appex/Contents/MacOS/NotificationService",
+        "binarySha256": "ef7cdb3282cfdbfb33202781ccccace3427f0552761dfbaa4ffc5817637e9b6a",
+        "architectures": [
+          "x86_64",
+          "arm64"
+        ],
+        "bundleVersion": "77",
+        "marketingVersion": "1.0.3",
+        "unsignedSignature": {
+          "command": "codesign --verify --strict",
+          "observedExitCode": 1,
+          "reason": "code object is not signed at all"
+        }
+      }
+    }
+  ],
+  "signed": false,
+  "uploadedToAppStoreConnect": false,
+  "distributedToTestFlight": false
+}

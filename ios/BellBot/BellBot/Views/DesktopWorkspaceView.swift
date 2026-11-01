@@ -127,11 +127,19 @@ struct DesktopWorkspaceView: View {
             }
             .padding(20)
             HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(BellTheme.muted)
-                TextField("メンバー・ルームを検索", text: $search).focused($searching)
-                Button { searching = true } label: { Text("⌘K").font(BellTheme.secondaryFont) }
+                Button { searching = true } label: { Image(systemName: "magnifyingglass") }
                     .buttonStyle(.plain).foregroundStyle(BellTheme.muted)
                     .keyboardShortcut("k", modifiers: .command).accessibilityLabel("検索")
+                TextField("メンバー・ルームを検索", text: $search).focused($searching)
+                if search.isEmpty {
+                    Text("⌘K").font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+                } else {
+                    Button { search = ""; searching = true } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain).foregroundStyle(BellTheme.muted)
+                    .accessibilityLabel("検索を消去")
+                }
             }
             .font(BellTheme.controlsFont)
             .padding(10).background(.white.opacity(0.8), in: RoundedRectangle(cornerRadius: 10))
@@ -254,6 +262,7 @@ private struct DesktopInspector: View {
     #endif
     @State private var editing = false
     @State private var errorText: String?
+    @StateObject private var images = BotProfileImageState()
     private var bot: Bot? { store.bots.first { $0.id == target.id } }
     private var room: Room? { store.rooms.first { $0.id == target.id } }
 
@@ -274,18 +283,30 @@ private struct DesktopInspector: View {
                 profile
             }
         }
+        .botProfileImageActions(bot: bot, images: images)
+    }
+
+    private var profileSmallImageSize: CGFloat {
+        #if targetEnvironment(macCatalyst)
+        152
+        #else
+        76
+        #endif
     }
 
     private var profile: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                VStack(spacing: 13) {
-                    AvatarView(name: room?.name ?? bot?.name ?? "", avatar: room?.avatar ?? bot?.avatar ?? "",
-                               color: BellTheme.accent(bot?.color ?? "violet"), size: 76, isRoom: target.isRoom)
-                    Text(room?.name ?? bot?.displayName ?? "").font(BellTheme.profileTitleFont.bold()).multilineTextAlignment(.center)
-                    if let bot { Label(bot.online ? "オンライン" : "オフライン", systemImage: "circle.fill").font(BellTheme.secondaryFont).foregroundStyle(bot.online ? BellTheme.mint : BellTheme.muted) }
+                if let bot {
+                    BotProfileHero(bot: bot, smallSize: profileSmallImageSize, images: images)
+                } else if let room {
+                    VStack(spacing: 13) {
+                        AvatarView(name: room.name, avatar: room.avatar, color: BellTheme.violet,
+                                   size: 76, isRoom: true)
+                        Text(room.name).font(BellTheme.profileTitleFont.bold())
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 12)
                 }
-                .frame(maxWidth: .infinity).padding(.vertical, 12)
                 Divider()
                 if let room {
                     heading("この部屋で共有する仕事")
@@ -299,18 +320,8 @@ private struct DesktopInspector: View {
                         }
                     }
                 } else if let bot {
-                    heading("プロフィール")
-                    detail("役職", value: bot.position)
-                    detail("背景・見た目・関係性", value: bot.profileText)
-                    detail("性格・考え方", value: bot.personality)
-                    detail("口調", value: bot.speechStyle)
-                    detail("担当する仕事", value: bot.role)
-                    heading("AI")
-                    LabeledContent("ハーネス", value: bot.harness).font(BellTheme.secondaryFont)
-                    LabeledContent("モデル", value: bot.model.isEmpty ? "既定" : bot.model).font(BellTheme.secondaryFont)
-                    Button("Botの画面を見る", systemImage: "terminal") { showingScreen = true }.buttonStyle(.bordered)
-                    #if targetEnvironment(macCatalyst)
-                    Button("会話セッションを再起動") {
+                    BotProfileAISection(bot: bot, errorText: errorText,
+                                        onScreen: { showingScreen = true }, onRestart: {
                         Task {
                             do {
                                 try await store.authorizeAIUse(target: target)
@@ -321,8 +332,9 @@ private struct DesktopInspector: View {
                                 store.api.diagnostics.report(error, path: target.path + "/restart", method: "POST", observation: .write)
                             }
                         }
-                    }.buttonStyle(.bordered)
-                    #endif
+                    })
+                    heading("プロフィール")
+                    BotProfileDetails(bot: bot)
                 }
                 Button(target.isRoom ? "ルームを編集" : "メンバーを編集", systemImage: "slider.horizontal.3") {
                     #if targetEnvironment(macCatalyst)
@@ -333,9 +345,6 @@ private struct DesktopInspector: View {
                     #endif
                 }
                     .buttonStyle(.borderedProminent)
-                #if targetEnvironment(macCatalyst)
-                if let errorText { Text(errorText).font(.footnote).foregroundStyle(.red) }
-                #endif
             }
             .padding(23)
         }
@@ -348,11 +357,4 @@ private struct DesktopInspector: View {
         }
     }
     private func heading(_ title: String) -> some View { Text(title).font(BellTheme.secondaryFont.weight(.bold)).foregroundStyle(BellTheme.muted) }
-    private func detail(_ title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            heading(title)
-            SelectableText(value.isEmpty ? "未設定" : value, font: BellTheme.profileBodyFont,
-                           color: value.isEmpty ? BellTheme.muted : BellTheme.ink)
-        }
-    }
 }

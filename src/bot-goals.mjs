@@ -74,7 +74,18 @@ export class BotGoals {
     const capabilities = noCapabilities()
     return { botId: bot.id, availability: 'unavailable', capabilities, fieldCapabilities: fieldCapabilities(capabilities), binding: null, observedAt: this.now(), message }
   }
-  async list(bots) { return Promise.all(bots.map(bot => this.inspect(bot))) }
+  async list(bots) {
+    if (!bots.length) return []
+    let targets
+    try { targets = await this.transport.goalTargets(bots) }
+    catch (error) { await this.reportError(error); return bots.map(bot => this.unavailable(bot)) }
+    return Promise.all(bots.map(bot => {
+      const target = targets.get(bot.id)
+      if (!target) return this.unavailable(bot)
+      if (!Object.hasOwn(target, 'launch_id')) return this.inspect(bot)
+      return validLaunch(target.launch_id) ? this.inspect(bot, target) : this.unavailable(bot)
+    }))
+  }
 
   async generation(bot) {
     const session = this.transport.session(bot)
@@ -140,8 +151,12 @@ export class BotGoals {
       message: availability === 'available' ? null : availability === 'unsupported'
         ? 'このメンバーではゴール機能をまだ利用できません。' : 'ゴールの状態を取得できません。更新して確認してください。' }
   }
-  async inspect(bot) {
-    try { return this.snapshot(bot, await this.call({ ...await this.generation(bot), action: 'inspect' })) }
+  async inspect(bot, target = null) {
+    try {
+      if (target && this.transport.session(bot) !== target.session_id) return this.unavailable(bot)
+      const result = await this.call({ ...(target ?? await this.generation(bot)), action: 'inspect' })
+      return target && this.transport.session(bot) !== target.session_id ? this.unavailable(bot) : this.snapshot(bot, result)
+    }
     catch (error) {
       if (error.code !== 'GOAL_UNAVAILABLE') await this.reportError(error)
       return this.unavailable(bot)

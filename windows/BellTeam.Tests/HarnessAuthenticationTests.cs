@@ -32,6 +32,85 @@ public sealed class HarnessAuthenticationTests
         Assert.True((await auth.StatusAsync("codex")).Auth!.InputRequired); await auth.StartAsync("codex"); await auth.InputAsync("codex", Secret, null); await auth.InputAsync("codex", null, "Enter"); Assert.Null((await auth.CancelAsync("codex")).Auth); Assert.Empty(paths);
     }
     [Theory]
+    [InlineData(true)] [InlineData(false)]
+    public void UnsupportedReloginRemovesStartAndSendsNothing(bool supported)
+    {
+        Sta(() =>
+        {
+            var posts = 0;
+            using var workspace = CreateWorkspace((request, _) => { if (request.Method == HttpMethod.Post) posts++; return Task.FromResult(StubHandler.Json(Authenticated)); });
+            var option = Option with { ReloginSupported = supported };
+            var window = new HarnessAuthenticationWindow(workspace, option, _ => true);
+            Await(window.InitializeAsync());
+            Assert.Equal(supported, Find<Button>(window).Any(button => button.Content as string == "認証し直す"));
+            Await(window.StartAsync()); Assert.Equal(supported ? 1 : 0, posts);
+            Assert.Contains(Find<Button>(window), button => button.Content as string == "状態を更新");
+            window.Close();
+        });
+    }
+    [Fact]
+    public async Task TypedAuthenticationResponsesKeepBindingAndPromptForSettingsAndSetup()
+    {
+        const string wire = """{"schema":"aiterm.auth-ui.v1","stage":"select","binding":{"session_id":"owned","launch_id":null},"prompt_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","choices":[{"id":"google","label":"Googleでログイン"}]}""";
+        var ui = JsonSerializer.Deserialize<AuthenticationUi>(wire, BellApi.Json)!;
+        Assert.Equal(ui, JsonSerializer.Deserialize<AuthenticationUi>(wire, BellApi.Json));
+        using var api = new BellApi(new("http://localhost/"), new StubHandler(async (request, token) =>
+        {
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
+            Assert.Equal("owned", body.RootElement.GetProperty("binding").GetProperty("session_id").GetString());
+            Assert.Equal(new string('a', 64), body.RootElement.GetProperty("prompt_digest").GetString());
+            Assert.Equal(3, body.RootElement.EnumerateObject().Count());
+            return StubHandler.Json(request.RequestUri!.AbsolutePath.StartsWith("/api/setup")
+                ? """{"phase":"authenticate","harnesses":[],"complete":false,"auth":{"status":"authenticated"}}""" : Authenticated);
+        }));
+        await new HarnessAuthenticationApi(api).RespondAsync("codex", ui, new { kind = "choice", id = "google" });
+        await new SetupApi(api).RespondAsync(ui, new { kind = "authorization_code", value = Secret });
+    }
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void UnsupportedReloginAllowsTypedFirstAuthenticationAndBlocksUnknownInput(bool failInput)
+    {
+        Sta(() =>
+        {
+            var stage = "blocked"; var posts = 0;
+            var ui = new AuthenticationUi { Schema = "aiterm.auth-ui.v1", Stage = "select", Title = "ログイン方法", Binding = new("owned", null), PromptDigest = new string('a', 64), Choices = [new("google", "Googleでログイン")] };
+            string Current() => JsonSerializer.Serialize(new { harness = "antigravity", auth = new AuthenticationState { Status = stage is "blocked" or "authenticated" ? stage : "waiting", AuthUi = stage is "select" or "paste_code" ? ui with { Stage = stage, Input = stage == "paste_code" ? "authorization_code" : null } : null } }, BellApi.Json);
+            using var workspace = CreateWorkspace(async (request, token) =>
+            {
+                if (request.Method == HttpMethod.Post)
+                {
+                    posts++;
+                    if (request.RequestUri!.AbsolutePath.EndsWith("/start")) stage = "select";
+                    else
+                    {
+                        using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
+                        Assert.Equal("owned", body.RootElement.GetProperty("binding").GetProperty("session_id").GetString());
+                        Assert.Equal(new string('a', 64), body.RootElement.GetProperty("prompt_digest").GetString());
+                        var response = body.RootElement.GetProperty("response");
+                        if (response.GetProperty("kind").GetString() == "choice") { Assert.Equal("google", response.GetProperty("id").GetString()); stage = "paste_code"; }
+                        else { Assert.Equal(Secret, response.GetProperty("value").GetString()); if (failInput) return StubHandler.Json(JsonSerializer.Serialize(new { message = Secret }), HttpStatusCode.BadGateway); stage = "authenticated"; }
+                    }
+                }
+                return StubHandler.Json(Current());
+            });
+            var option = Option with { Id = "antigravity", Name = "Antigravity", ReloginSupported = false };
+            var window = new HarnessAuthenticationWindow(workspace, option, _ => throw new InvalidOperationException("初回認証で資格の破棄を確認しない"));
+            Await(window.InitializeAsync()); Assert.Equal(0, posts);
+            Assert.Contains(Find<Button>(window), button => button.Content as string == "認証する");
+            Await(window.StartAsync());
+            Find<Button>(window).Single(button => button.Content as string == "Googleでログイン").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+            var input = Find<PasswordBox>(window).Single(); input.Password = Secret;
+            var poll = typeof(HarnessAuthenticationWindow).GetMethod("PollAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            Await((Task)poll.Invoke(window, null)!); Assert.Equal(Secret, input.Password);
+            Find<Button>(window).Single(button => button.Content as string == "認証を完了する").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+            Assert.Equal(3, posts); Assert.Empty(input.Password); Assert.Empty(Find<PasswordBox>(window));
+            Assert.All(Find<TextBlock>(window), text => Assert.DoesNotContain(Secret, text.Text));
+            if (failInput) { Await(window.InitializeAsync()); Assert.Single(Find<PasswordBox>(window)); }
+            else { Assert.Equal("authenticated", window.Authentication!.Status); Assert.DoesNotContain(Find<Button>(window), button => button.Content as string is "認証する" or "認証し直す"); }
+            window.Close();
+        });
+    }
+    [Theory]
     [InlineData(400)] [InlineData(307)] [InlineData(0)]
     public async Task InputFailureDoesNotIncludeValueOrInnerException(int status)
     {

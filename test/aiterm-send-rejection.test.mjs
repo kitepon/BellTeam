@@ -321,3 +321,26 @@ test('前の送信が失敗しても、同じ席への次の送信は止めな�
   await transport.idle(bot.id)
   assert.equal(transport.dispatches.size, 0)
 })
+
+for (const code of ['STEER_NOT_QUEUED', 'STEER_STILL_QUEUED']) {
+  test(`${code}の後に席が消えても本文を再送・新規起動しない`, async t => {
+    const root = await mkdtemp(join(tmpdir(), 'bellteam-uncertain-steer-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const calls = []
+    const client = new AitermClient()
+    client.client = { async callTool({ name }) {
+      calls.push(name)
+      if (name === 'pty_send') return { isError: true, content: [{ type: 'text', text: `aiterm: ${code} vendor=grok session=bot-a\n入力後の確認失敗` }] }
+      if (name === 'pty_list') return { content: [{ type: 'text', text: '(セッション無し)' }] }
+      throw new Error(`unexpected tool: ${name}`)
+    } }
+    const transport = new AitermTransport({ client })
+    const bot = { id: 'bot-a', session: 'bot-a', harness: 'grok', project: root }
+    await assert.rejects(transport.dispatch(bot, '本文を再送しない', []), error => {
+      assert.equal(error.code, 'BOT_SEND_OUTCOME_UNKNOWN')
+      assert.match(error.publicMessage, /受け付けたか確認できません/u)
+      return true
+    })
+    assert.deepEqual(calls, ['pty_send'])
+  })
+}

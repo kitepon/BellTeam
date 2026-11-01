@@ -15,7 +15,7 @@ const START_WARNING = {
 
 // 公式の状態を見ただけの時に、利用者へ出す文。Aitermの文は道具を呼ぶ側（AI）へ向けた物なので、設定の画面にはこちらを出す。
 const STATUS_MESSAGE = {
-  blocked: 'このAIは認証されていないか、認証の期限が切れています。「認証し直す」で公式サイトから入り直せます。',
+  blocked: 'このAIは認証されていないか、認証の期限が切れています。「認証する」から公式サイトで認証してください。',
   failed: '認証の状態を確かめられませんでした（通信できないか、認証の期限が切れています）。「認証し直す」で入り直せます。',
 }
 // Claudeの公式CLIは、期限が切れた後も認証済みと答える（Aiterm 0.53.1 でも見分けられない）。
@@ -37,7 +37,7 @@ export class HarnessAuth {
 
   list() {
     const members = id => [...this.bots.values()].filter(bot => bot.harness === id).length
-    return { harnesses: HARNESSES.map(({ id, name }) => ({ id, name, members: members(id), startWarning: START_WARNING[id] ?? null })) }
+    return { harnesses: HARNESSES.map(({ id, name }) => ({ id, name, members: members(id), startWarning: START_WARNING[id] ?? null, reloginSupported: id !== 'antigravity' })) }
   }
 
   status(harness) {
@@ -51,11 +51,10 @@ export class HarnessAuth {
     return this.change(async () => {
       this.require(harness)
       if (this.sessions.has(harness)) await this.end(harness)
-      // 公式の状態が認証済みでも、公式のログイン画面を起こす（Aitermの relogin）。
-      // 認証が切れたのに認証済みと見える時と、別のアカウントで入り直す時のため。
-      const receipt = await this.call(harness, 'start', { relogin: true })
+      // Antigravityは初回認証だけ。他のAIは、認証済みに見える時も公式ログインを始める。
+      const receipt = await this.call(harness, 'start', { relogin: harness !== 'antigravity' })
       // relogin を知らないAitermは引数を捨て、認証済みなら何も始めずに返す。始まっていない事を、認証済みと取り違えない。
-      if (receipt.status === 'authenticated' && !receipt.session_id)
+      if (harness !== 'antigravity' && receipt.status === 'authenticated' && !receipt.session_id)
         throw new HarnessAuthError('HARNESS_AUTH_RELOGIN_UNSUPPORTED', 409, 'このサーバーのAitermは、認証済みのAIの認証のやり直しに対応していません。BellTeamを更新してください。')
       if (receipt.session_id) this.sessions.set(harness, receipt.session_id)
       return this.snapshot(harness, receipt)

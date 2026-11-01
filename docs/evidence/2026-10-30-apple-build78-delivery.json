@@ -1,0 +1,156 @@
+{
+  "schema": "bellteam.apple-internal-delivery.v1",
+  "observedAtUTC": "2026-10-29T23:39:46.954414+00:00",
+  "product": "BellTeam",
+  "purpose": "画像編集中の画面復帰保持と通信修理を含む版78を内部配布",
+  "bundleId": "dev.kitepon.bellbot",
+  "appStoreConnectAppId": "6816295589",
+  "marketingVersion": "1.0.3",
+  "buildNumber": "78",
+  "signedSourceCommit": "d53a64cee7dbb928c6e634a91443f949faee6455",
+  "versionMergeCommit": "cb54262120f603adf682d1cd703bc39ff3cb0620",
+  "unsignedPreflight": "docs/evidence/2026-10-30-apple-avatar-edit-build78-preflight.json",
+  "unsignedPreflightSha256": "bc7d3b54e4da46312cc10c357449f7199fdcee16be049630222b2481e2d9210c",
+  "ownerApproval": {
+    "title": "BellTeam Apple画像編集保持・通信修理版78を署名・内部配布し必要時にMac更新を1回押す",
+    "choice": "go_all",
+    "answeredAt": "2026-10-29T19:55:33.232Z",
+    "macPhysicalClickScope": "BellTeam version 78 update button only, at most once if needed"
+  },
+  "betaGroup": {
+    "id": "58133050-1c39-4915-b6da-aac18b95921b",
+    "name": "BellTeam オーナー",
+    "internal": true
+  },
+  "artifacts": [
+    {
+      "platform": "IOS",
+      "relativePath": "runtime/apple/avatar-edit-signed78/ios-export/BellTeam.ipa",
+      "sha256": "b21af233f75e6e6aa2c13b3940a27eb0e42a675b3c4be261587cbda4fea0698b",
+      "bytes": 9144358,
+      "appBundleVersion": "78",
+      "extensionBundleVersion": "78",
+      "architectures": [
+        "arm64"
+      ],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "5d5b8715-22d9-4490-8323-761f6871cb4b",
+      "uploadResult": "no-errors from normal tool response",
+      "appStoreConnectBuildId": "5d5b8715-22d9-4490-8323-761f6871cb4b",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    },
+    {
+      "platform": "MAC_OS",
+      "relativePath": "runtime/apple/avatar-edit-signed78/mac-export/BellTeam.pkg",
+      "sha256": "031c6658f297afe8810da0734a3686d1b3c532c31d3bd27f640b67b187d6718b",
+      "bytes": 10792579,
+      "appBundleVersion": "78",
+      "extensionBundleVersion": "78",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "archiveSignature": "strict-valid",
+      "exportSignature": "strict-valid",
+      "installerSignature": "3rd Party Mac Developer Installer, valid",
+      "appleValidation": "no-errors",
+      "uploadMethod": "altool",
+      "uploadAttempts": 1,
+      "uploadDeliveryUuid": "2404965f-9972-46a6-857c-f7343e58e8d5",
+      "uploadResult": "no-errors from normal tool response",
+      "appStoreConnectBuildId": "2404965f-9972-46a6-857c-f7343e58e8d5",
+      "processingState": "VALID",
+      "internalBuildState": "IN_BETA_TESTING",
+      "betaGroupAttachment": "succeeded"
+    }
+  ],
+  "macTestFlightSmoke": {
+    "status": "complete",
+    "installedPath": "/Applications/BellTeam.app",
+    "installedBundleVersions": {
+      "app": "78",
+      "notificationExtension": "78"
+    },
+    "strictSignatureExitCodes": {
+      "app": 0,
+      "notificationExtension": 0
+    },
+    "installedBinarySha256": {
+      "app": "0bf13569472b9f9da8feec63f7546af7ca0eed0de51adcaa1ca1b251a1dd8047",
+      "notificationExtension": "a5565890453d133af1a06bcbc2a62d013e3507356af8070a7bdc7892496dc708"
+    },
+    "gatekeeper": "accepted; source=Testflight",
+    "testFlightTargetVersionVisuallyConfirmed": true,
+    "testFlightOfferAfterInstallation": "open",
+    "bellTeamSidebarPhysicalClickCount": 1,
+    "build78UpdateButtonPhysicalClickCount": 1,
+    "quitPromptPhysicalAttempts": 2,
+    "quitPromptEffectiveContinueClicks": 1,
+    "firstQuitPromptPhysicalAttempt": "wrong external-display coordinate; confirmation and installed77 remained",
+    "secondQuitPromptPhysicalAttempt": "corrected global coordinate; confirmation closed and installed78 verified",
+    "readOnlySmoke": {
+      "bot": "Trony",
+      "profileLargeImageVisible": true,
+      "profileSmallImageVisible": true,
+      "aiInformationVisible": true,
+      "botScreenOpenedWithNonemptyContent": true,
+      "botScreenClosed": true,
+      "smallImageActionSheet": {
+        "currentImageVisible": true,
+        "changeButtonVisible": true,
+        "adjustButtonVisible": true,
+        "closed": true
+      },
+      "largeImageActionSheet": {
+        "currentImageVisible": true,
+        "changeButtonVisible": true,
+        "adjustButtonVisible": true,
+        "closed": true
+      },
+      "imageChanged": false,
+      "messageSent": false,
+      "botRestarted": false
+    },
+    "testFlightWindowRestoredMinimized": true,
+    "privateScreenshotsDeletedAfterHashCapture": true,
+    "readOnlySmokeCompleted": true
+  },
+  "remaining": {
+    "macTestFlightInstallation": "complete",
+    "iphoneAndIpadPhysicalInstallation": "not_measured",
+    "realOwnerAvatarChange": "not_performed",
+    "imageEditRecoveryOnOwnerDevice": "not_observed",
+    "diagnosticCases": [
+      {
+        "fingerprintPrefix": "eb392",
+        "count": 33,
+        "state": "open",
+        "cause": "unknown",
+        "recovery": "unknown",
+        "repairSuccess": false
+      },
+      {
+        "fingerprintPrefix": "eaab",
+        "count": 2,
+        "state": "open",
+        "cause": "unknown",
+        "recovery": "unknown",
+        "repairSuccess": false
+      }
+    ]
+  },
+  "realBotRestartPerformed": false,
+  "realBotMessageSent": false,
+  "ownerAvatarEdited": false,
+  "authenticationChanged": false,
+  "serverContainerRestartedByThisDelivery": false,
+  "publicAppStoreReleased": false,
+  "healthy": null,
+  "coverage": "partial"
+}

@@ -2,6 +2,12 @@
 
 サーバーHTTP500の既存diagnostic_logには、operation、trigger、expected_result、actual_resultと根拠区分を添える。scope=server_requestはHTTP処理内の観測、アプリのscope=app_requestは端末側の要求観測。期待はexpectation_basis=code_contract、扱いはhandling_basis=code_classificationであり、画面観測ではない。trigger=unknown、screen_observation=not_observedを明示する。
 
+AppleのGoal読取失敗は、各画面callerでTask開始前にtrigger・viewのscenePhaseを確定し、連続時計、診断状態と既存revisionの順に採る。診断状態の更新時刻と通信試行開始時刻も同じ連続時計で記録する。これらは順次採った値で、原子的な同時状態ではない。`change_reconcile`には画面phaseを推測して補わず`unknown`を残す。時刻とrevisionは呼出し・画面状態変更・通信試行の順序を調べる材料であり、端末睡眠・回線・サーバー・画面回復の原因判定そのものではない。
+
+`chat_foreground`と`list_foreground`の読取Taskは各Viewが保持し、sceneが非activeになる時とViewを離れる時に取り消す。再active時は旧Taskの終了で`loading`が戻ってから新しい読取を始め、GET直前にも取消を確認する。取り消された読取の遅延結果から診断warn・認証要求・エラー表示を作らない。手動・イベント・初回View・変更後の照合読取と既存の通信再試行契約は維持する。
+
+会話POSTの結果を確認できない失敗は、既存の1件の診断へ`send_reconcile_decision`、`send_reconcile_load_calls`、`send_reconcile_load_result`を添える。前者はUIKitのactive判定と結果未確認の分類による`load()`呼出し可否、後者は`load()`内のScenePhase・送信待ちguardまたは読取Taskとの合流・戻りだけを表す。`load()`を呼んだことやTaskから戻ったことをHTTP GETの実試行・成功、サーバー受付、配送、実画面の入力保持へ読み替えない。本文・画像・認証値は診断へ加えず、POST自動再送も加えない。
+
 サーバーは500応答を選んだcatchで記録する。actual_result=http_500_response_selectedはクライアントへの到着確認ではなく、response_deliveryとdelivery_outcomeはunknown。code/module/重大度/再送・取消条件は変えない。要求traceのある今後の報告の集約は[bughub-report-context.md](bughub-report-context.md)に従い操作・結果・例外符号を区別する。旧指紋は移行しない。診断へ出すrouteは固定の型だけで、query・本文・認証値・対象IDや任意名を追加しない。従来の運用stderrとBugHubへ渡す診断本文の範囲は分ける。
 
 | HTTPの目的 | 共通operation | サーバーの期待（応答） | アプリの期待（受取/読込） |
