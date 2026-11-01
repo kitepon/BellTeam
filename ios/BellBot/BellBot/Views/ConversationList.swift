@@ -93,6 +93,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         private var lastOffset: CGFloat = 0
         private var armed = true
         private var atBottom = true
+        private var shown: Set<ConversationRow> = []
         #if targetEnvironment(macCatalyst)
         private var wheel: WheelScrollSmoother?
         #endif
@@ -187,6 +188,23 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                     }
                 }
             }
+            for cell in table.visibleCells.compactMap({ ($0 as? ConversationCell)?.row }) { shown.insert(cell) }
+        }
+
+        /// 後から画面に入る行（読み足した過去・新着）にも、開いた時と同じ動きを付ける。
+        private func enter(_ cell: UITableViewCell) {
+            switch opening {
+            case .fade:
+                cell.alpha = 0
+                UIView.animate(withDuration: 0.22) { cell.alpha = 1 }
+            case .rise:
+                cell.alpha = 0
+                cell.transform = CGAffineTransform(translationX: 0, y: 16)
+                UIView.animate(withDuration: 0.22, delay: 0, options: .curveEaseOut) {
+                    cell.alpha = 1
+                    cell.transform = .identity
+                }
+            }
         }
 
         @objc func refresh(_ control: UIRefreshControl) {
@@ -237,6 +255,12 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             return tableView.estimatedRowHeight
         }
 
+        func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+            guard let table, !table.settling, let row = (cell as? ConversationCell)?.row, !shown.contains(row) else { return }
+            shown.insert(row)
+            enter(cell)
+        }
+
         func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
             guard let cell = cell as? ConversationCell, case .message(let id)? = cell.row else { return }
             heights[id] = cell.bounds.height
@@ -281,6 +305,13 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
 
 final class ConversationCell: UITableViewCell {
     var row: ConversationRow?
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        layer.removeAllAnimations()
+        alpha = 1
+        transform = .identity
+    }
 }
 
 /// 末尾追従と幅変更時の読書位置だけを持つ表。
@@ -305,10 +336,17 @@ final class ConversationTableView: UITableView {
         settleChecks = 0
         alpha = 0
         UIView.setAnimationsEnabled(false)
+    }
+
+    /// 大きさが付いて行が見えた最初の配置から、落ち着きの判定と上限を始める。それまでは隠したまま待つ。
+    private func startSettleChecks() {
+        guard settleDeadline == nil, bounds.height > 0, numberOfRows(inSection: 0) > 0,
+              indexPathsForVisibleRows?.isEmpty == false else { return }
         // 画像の読み込みなどで高さが変わり続けても、ここで必ず見せる。
         let deadline = DispatchWorkItem { [weak self] in self?.finishSettling() }
         settleDeadline = deadline
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: deadline)
+        scheduleSettleCheck()
     }
 
     private func finishSettling() {
@@ -365,7 +403,7 @@ final class ConversationTableView: UITableView {
         }
         if settling {
             UIView.performWithoutAnimation { layoutFollowingBottom() }
-            if settleDeadline != nil && settleChecks == 0 { scheduleSettleCheck() }
+            startSettleChecks()
         } else {
             layoutFollowingBottom()
         }
