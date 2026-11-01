@@ -1,4 +1,5 @@
 """Isolated Linux image tests for the public installer, state recovery and UID boundary."""
+import ast
 import fcntl
 import hashlib
 import json
@@ -31,6 +32,16 @@ def snapshot(root):
 
 
 def self_check():
+    # Parse embedded programs too; outer Python compilation cannot catch their indentation.
+    for node in ast.walk(ast.parse(Path(__file__).read_text())):
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Constant) or not isinstance(node.value.value, str):
+            continue
+        names = {target.id for target in node.targets if isinstance(target, ast.Name)}
+        if 'proof_program' in names:
+            compile(node.value.value, '<embedded proof_program>', 'exec')
+        elif names & {'program', 'child_program', 'seat_bughub', 'bughub_program', 'home_check'}:
+            subprocess.run([shutil.which('node'), '--input-type=module', '--check'],
+                           input=node.value.value, text=True, check=True, capture_output=True)
     assert lock_info('lock: 1: FLOCK  ADVISORY  READ  123 00:01:2 0 EOF\n', 123, 'READ')
     assert not lock_info('lock: 1: FLOCK  ADVISORY  WRITE  123 00:01:2 0 EOF\n', 123, 'READ')
     assert not lock_info('lock: 1: FLOCK  ADVISORY  READ  1234 00:01:2 0 EOF\n', 123, 'READ')
@@ -459,6 +470,26 @@ console.log(JSON.stringify({interrupted,code:'EINTR'}));
             homeGid=home_info.st_gid, homeMode=oct(stat.S_IMODE(home_info.st_mode)), stagingAbsent=True))
         checks.append('R3 real staged-HOME chown EINTR leaves HOME absent; official prepare resumes to UID1000/0700')
 
+        # Unsupported exchange must refuse before publishing a transaction or changing legacy data.
+        (r3runtime / 'data/state').mkdir(parents=True)
+        (r3runtime / 'data/state/current.txt').write_text('unchanged legacy bytes')
+        before_exchange = snapshot(r3runtime / 'data')
+        program = r"""import cp from 'node:child_process';
+import {syncBuiltinESMExports} from 'node:module';
+cp.execFile=(...args)=>args.at(-1)(Object.assign(Error('unsupported exchange'),{code:'ENOTSUP'}));
+syncBuiltinESMExports();
+const {migrateServerState}=await import('/app/src/server-state-transfer.mjs');
+try {await migrateServerState({root:'/srv/bellteam-runtime',privateRoot:'/srv/bellteam-private',direction:'to-server'});throw Error('accepted unsupported exchange')}
+catch(error){if(error.code!=='SERVER_STATE_EXCHANGE_UNSUPPORTED')throw error;console.log(JSON.stringify({code:error.code,dataUnchanged:true}))}
+"""
+        exchange_refusal = json.loads(docker(*r3args, '--input-type=module', '-e', program).stdout)
+        assert snapshot(r3runtime / 'data') == before_exchange
+        assert docker('run', '--rm', '--network', 'none', '--read-only', '--mount',
+                      'type=volume,source=' + r3volume + ',target=/v,readonly', '--entrypoint',
+                      '/usr/bin/test', image_id, '!', '-e', '/v/.transaction.json').returncode == 0
+        document('exchange-unsupported.json', exchange_refusal)
+        checks.append('unsupported atomic exchange refuses before data mutation or transaction publication')
+
         docker('pull', LEGACY_IMAGE, timeout=300)
         legacy_id = docker('image', 'inspect', '--format', '{{.Id}}', LEGACY_IMAGE).stdout.strip()
         assert docker('run', '--rm', '--network', 'none', '--read-only', '--entrypoint',
@@ -494,6 +525,8 @@ console.log(JSON.stringify({interrupted,code:'EINTR'}));
             assert (data.stat().st_uid, data.stat().st_gid, stat.S_IMODE(data.stat().st_mode)) == (1000, 1000, 0o711)
             assert not (private / '.transaction.json').exists()
             checks.append('public two-file fresh install from absent runtime; empty boot and real UID1000 HOME write/modes/health')
+            sce_supply(root, normal_env, first, private)
+            checks.append('fixed SCE headers/endpoint first supply coexists with normal SH; server reads and seat denied')
 
             # The supervisor itself must own both actual directory inodes and kernel locks.
             top = docker('top', cid, '-eo', 'pid,args').stdout.splitlines()[1:]
@@ -520,19 +553,27 @@ console.log(JSON.stringify({interrupted,code:'EINTR'}));
 
             # Prove both FDs really survive a direct exec without the seat boundary, then close both there.
             stopped(root, normal_env)
+            sce_busy_before_stdin(root, normal_env, first, private)
+            record = private / '.transaction.json'
+            record.write_text('{}')
+            before_record = snapshot(private)
+            assert rejected_boot(first / 'normal.json', image_id, 126) == 126
+            assert snapshot(private) == before_record
+            record.unlink()
+            checks.append('C entry refuses independent transaction record despite complete normal subpaths; SCE EX refuses before stdin')
             child_program = "const fs=require('fs'),wanted=JSON.parse(process.argv[1]);console.log(JSON.stringify({uid:process.getuid(),gid:process.getgid(),groups:process.getgroups(),inherited:wanted.map((v,i)=>{try{const a=fs.fstatSync(i+3);return a.dev===v.dev&&a.ino===v.ino}catch{return false}})}))"
             proof_program = r"""import fcntl,json,os,subprocess,sys
-    for number,path,kind in [(3,'/run/bellteam-maintenance',fcntl.LOCK_SH),(4,'/srv/bellteam/state',fcntl.LOCK_EX)]:
-     fd=os.open(path,os.O_RDONLY|os.O_DIRECTORY)
-     if fd!=number:os.dup2(fd,number);os.close(fd)
-     os.set_inheritable(number,True);fcntl.flock(number,kind|fcntl.LOCK_NB)
-     before=os.fstat(number);wanted=os.stat(path)
-     assert (before.st_dev,before.st_ino)==(wanted.st_dev,wanted.st_ino)
-    control=json.loads(subprocess.check_output(['/usr/local/bin/node','-e',sys.argv[1],sys.argv[2]],pass_fds=(3,4),text=True))
-    assert control['inherited']==[True,True],control
-    print(json.dumps({'withoutEntry':control}),flush=True)
-    os.execv('/usr/local/libexec/bellteam-seat-exec',['/usr/local/libexec/bellteam-seat-exec','--','/usr/local/bin/node','-e',sys.argv[1],sys.argv[2]])
-    """
+for number,path,kind in [(3,'/run/bellteam-maintenance',fcntl.LOCK_SH),(4,'/srv/bellteam/state',fcntl.LOCK_EX)]:
+ fd=os.open(path,os.O_RDONLY|os.O_DIRECTORY)
+ if fd!=number:os.dup2(fd,number);os.close(fd)
+ os.set_inheritable(number,True);fcntl.flock(number,kind|fcntl.LOCK_NB)
+ before=os.fstat(number);wanted=os.stat(path)
+ assert (before.st_dev,before.st_ino)==(wanted.st_dev,wanted.st_ino)
+control=json.loads(subprocess.check_output(['/usr/local/bin/node','-e',sys.argv[1],sys.argv[2]],pass_fds=(3,4),text=True))
+assert control['inherited']==[True,True],control
+print(json.dumps({'withoutEntry':control}),flush=True)
+os.execv('/usr/local/libexec/bellteam-seat-exec',['/usr/local/libexec/bellteam-seat-exec','--','/usr/local/bin/node','-e',sys.argv[1],sys.argv[2]])
+"""
             wanted = [dict(dev=path.stat().st_dev, ino=path.stat().st_ino) for path in [private, private / 'state']]
             proof = docker('compose', '-f', first / 'normal.json', 'run', '--rm', '--no-deps', '-T',
                            '--user', '0:0', '--entrypoint', '/usr/bin/python3', 'bellteam',
@@ -552,6 +593,7 @@ console.log(JSON.stringify({interrupted,code:'EINTR'}));
             assert json.loads((second / 'previous-normal.json').read_text())['services']['bellteam']['image'] == image_id
             installer(root, normal_env, '--recover', second)
             health(current(root, normal_env))
+            assert state_storage(root, normal_env) == private
             assert (root / 'runtime/home/retained.txt').read_text() == 'HOME retained'
             checks.append('public no-op update and explicit server-layout recovery preserve HOME')
             remove_project(root, normal_env)
@@ -571,12 +613,14 @@ console.log(JSON.stringify({interrupted,code:'EINTR'}));
             (data / 'bots/.initialized').write_text('')
             for directory in ['rooms/room-fixture', 'owner', 'state', 'logs', 'shared/tools/bellteam-settings', 'shared/tools/apns', 'shared/tools/bughub', 'shared/tools/call-bridge']:
                 (data / directory).mkdir(parents=True, exist_ok=True)
+            for name in LEAVES:
+                (data / name / 'harness-retained.txt').write_text('retained ' + name)
             (data / 'rooms/room-fixture/retained.txt').write_text('latest room')
             (data / 'owner/profile.json').write_text(json.dumps(dict(schema='bellteam.owner-profile.v1', name='CI retained owner', links=[])))
             bughub_initial = dict(endpoint='http://bughub.invalid/api/security/v1\n',
                 headers='x-bughub-security-token: ci-dummy-initial\nx-bughub-actor: bot-forged\n')
             bughub_latest = dict(endpoint='http://bughub-hotload.invalid/api/security/v1\n',
-                headers='x-bughub-security-token: ci-dummy-latest\nx-bughub-actor: bot-forged-latest\n')
+                headers='x-bughub-security-token: ci-dummy-latest\n')
             for name, text in bughub_initial.items():
                 (data / 'shared/tools/bughub' / name).write_text(text)
             (data / 'shared/tools/call-bridge/headers').write_text('Authorization: Bearer ci-dummy-bridge-token\n')
@@ -598,7 +642,15 @@ console.log(JSON.stringify({interrupted,code:'EINTR'}));
                 (root / file).write_text(docker('run', '--rm', '--network', 'none', '--read-only', '--entrypoint',
                                                '/bin/cat', image_id, '/app/' + file).stdout)
             normal_env = dict(legacy_env, BELLTEAM_SERVER_IMAGE=image_id)
+            # Both implementations start migration with the same empty destination leaf.
+            if variant == 'bind':
+                empty_backing = root / 'runtime/server-only/state-data'
+                empty_backing.mkdir(parents=True)
+            else:
+                empty_backing = Path(json.loads(docker('volume', 'inspect', normal_env['BELLTEAM_SERVER_STATE_VOLUME']).stdout)[0]['Mountpoint'])
+            (empty_backing / 'rooms').mkdir()
             migrated = saved_generation(root, installer(root, normal_env, '--no-pull'))
+            assert docker('inspect', old_cid, check=False).returncode != 0
             cid = current(root, normal_env)
             health(cid)
             assert {bot['id'] for bot in api(cid, '/api/bots?avatar=omit')['bots']} == {'bot-a', 'bot-b'}
@@ -610,6 +662,11 @@ console.log(JSON.stringify({interrupted,code:'EINTR'}));
             assert json.loads((private / 'bellteam-settings/settings.json').read_text())['callBridge']['enabled'] is True
             bridge_result['migrated'] = read_call_directory(private / 'state/call-bridge-socket', 1001, protected=True)
             assert (private / 'rooms/room-fixture/retained.txt').read_text() == 'latest room'
+            for name in LEAVES:
+                leaf = name.split('/')[-1]
+                assert (private / leaf / 'harness-retained.txt').read_text() == 'retained ' + name
+                retired = list((root / 'runtime/server-only/retired').glob('*/' + leaf + '/harness-retained.txt'))
+                assert len(retired) == 1 and retired[0].read_text() == 'retained ' + name
             for bot in ['bot-a', 'bot-b']:
                 assert json.loads((private / 'state/bots' / bot / 'schedule.json').read_text())['schedules'][0]['id'] == 'retained-' + bot
                 assert not (data / 'bots' / bot / 'bot.json').exists()
@@ -638,25 +695,29 @@ console.log(JSON.stringify({interrupted,code:'EINTR'}));
                                             '/usr/local/bin/node', '-e', seat_bughub).stdout)
             assert seat_result == dict(metadataReadable=True, headerReadDenied=True, endpointWriteDenied=True)
             bughub_program = r"""import assert from 'node:assert/strict';
-    import {writeFile} from 'node:fs/promises';
-    import {createBugHubSecurity} from '/app/src/bughub-security.mjs';
-    assert.equal(process.getuid(),1001);assert.equal(process.getgid(),1001);
-    globalThis.fetch=()=>{throw Error('unexpected network request')};
-    let calls=0;
-    const call=createBugHubSecurity({root:'/srv/bellteam',request:async (url,options)=>{
-     const updated=calls++===1;
-     assert.equal(url,(updated?'http://bughub-hotload.invalid':'http://bughub.invalid')+'/api/security/v1/findings');
-     assert.equal(options.headers['x-bughub-security-token'],updated?'ci-dummy-latest':'ci-dummy-initial');
-     assert.equal(options.headers['x-bughub-actor'],updated?'bot-0000000b':'bot-0000000a');
-     return new Response(JSON.stringify({findings:[]}),{status:200});
-    }});
-    await call({name:'bughub_list_security_findings',args:{},from:'bot-0000000a'});
-    await writeFile('/srv/bellteam/state/bughub/endpoint','http://bughub-hotload.invalid/api/security/v1\n');
-    await writeFile('/srv/bellteam/state/bughub/headers','x-bughub-security-token: ci-dummy-latest\nx-bughub-actor: bot-forged-latest\n');
-    await call({name:'bughub_list_security_findings',args:{},from:'bot-0000000b'});
-    assert.equal(calls,2);
-    console.log(JSON.stringify({newPathRead:true,oldPathIgnored:true,hotload:true,actorFixed:true,requestStubOnly:true}));
-    """
+import {createServer} from 'node:net';
+import {createBugHubSecurity} from '/app/src/bughub-security.mjs';
+assert.equal(process.getuid(),1001);assert.equal(process.getgid(),1001);
+globalThis.fetch=()=>{throw Error('unexpected network request')};
+let calls=0;
+const call=createBugHubSecurity({root:'/srv/bellteam',request:async (url,options)=>{
+ const updated=calls++===1;
+ assert.equal(url,(updated?'http://bughub-hotload.invalid':'http://bughub.invalid')+'/api/security/v1/findings');
+ assert.equal(options.headers['x-bughub-security-token'],updated?'ci-dummy-latest':'ci-dummy-initial');
+ assert.equal(options.headers['x-bughub-actor'],updated?'bot-0000000b':'bot-0000000a');
+ return new Response(JSON.stringify({findings:[]}),{status:200});
+}});
+await call({name:'bughub_list_security_findings',args:{},from:'bot-0000000a'});
+const server=createServer(socket=>socket.end());
+await new Promise(resolve=>server.listen('/srv/bellteam/state/harness-hotload.sock',resolve));
+console.log('ready-for-rotation');
+await new Promise((resolve,reject)=>server.on('connection',()=>{
+ void call({name:'bughub_list_security_findings',args:{},from:'bot-0000000b'}).then(resolve,reject);
+}));
+await new Promise(resolve=>server.close(resolve));
+assert.equal(calls,2);
+console.log(JSON.stringify({newPathRead:true,oldPathIgnored:true,hotload:true,actorFixed:true,requestStubOnly:true}));
+"""
             stale_bughub = data / 'shared/tools/bughub'
             stale_pair = dict(endpoint='http://stale-bughub.invalid/api/security/v1\n',
                               headers='x-bughub-security-token: ci-dummy-stale\n')
@@ -665,12 +726,26 @@ console.log(JSON.stringify({interrupted,code:'EINTR'}));
                     with (stale_bughub / name).open('x') as file:
                         file.write(text)
                     (stale_bughub / name).chmod(0o644)
-                bughub_result = json.loads(docker('run', '--pull', 'never', '--rm', '--network', 'none',
+                consumer_name = 'sec014-consumer-' + base.name + '-' + variant
+                consumer = docker('run', '--detach', '--pull', 'never', '--network', 'none',
+                    '--name', consumer_name,
                     '--read-only', '--user', '1001:1001', '--cap-drop', 'ALL',
                     '--security-opt', 'no-new-privileges:true', '--mount',
                     'type=bind,source=' + str(data) + ',target=/srv/bellteam,readonly', '--mount',
-                    'type=bind,source=' + str(private / 'state') + ',target=/srv/bellteam/state',
-                    '--entrypoint', '/usr/local/bin/node', image_id, '--input-type=module', '-e', bughub_program).stdout)
+                    'type=volume,source=' + state_volume + ',target=/srv/bellteam/state,volume-subpath=state',
+                    '--entrypoint', '/usr/local/bin/node', image_id, '--input-type=module', '-e', bughub_program).stdout.strip()
+                extra_containers.append(consumer)
+                deadline = time.monotonic() + 30
+                while 'ready-for-rotation' not in docker('logs', consumer).stdout:
+                    assert inspect(consumer)['State']['Running'] and time.monotonic() < deadline
+                    time.sleep(.1)
+                for mode, value in bughub_latest.items():
+                    maintenance(root, normal_env, migrated, 'install-sce-' + mode, input=value)
+                docker('exec', consumer, '/usr/local/bin/node', '-e',
+                       "require('net').connect('/srv/bellteam/state/harness-hotload.sock').on('error',e=>{throw e})")
+                assert docker('wait', consumer).stdout.strip() == '0'
+                bughub_result = json.loads(docker('logs', consumer).stdout.splitlines()[-1])
+                docker('rm', consumer)
             finally:
                 for name, text in stale_pair.items():
                     path = stale_bughub / name
@@ -717,12 +792,14 @@ console.log(JSON.stringify({interrupted,code:'EINTR'}));
             conflicting.write_text('http://conflicting-bughub.invalid/api/security/v1\n')
             failed = installer(root, normal_env, '--recover', forward, check=False)
             assert failed.returncode != 0 and 'SERVER_STATE_TRANSFER_CONFLICT' in failed.stderr + failed.stdout
-            assert (data.stat().st_uid, data.stat().st_gid, stat.S_IMODE(data.stat().st_mode)) == (0, 0, 0o700)
+            assert data.is_file() and (root / 'runtime/server-only/data').is_dir()
             assert (private / '.transaction.json').exists()
-            before = snapshot(data), snapshot(private)
+            hidden = root / 'runtime/server-only/data'
+            conflicting = hidden / 'shared/tools/bughub/endpoint'
+            before = snapshot(data), snapshot(private), snapshot(hidden)
             rejected_boot(forward / 'normal.json', image_id)
             rejected_boot(forward / 'previous-normal.json', legacy_id)
-            assert (snapshot(data), snapshot(private)) == before
+            assert (snapshot(data), snapshot(private), snapshot(hidden)) == before
             assert conflicting.read_text() == 'http://conflicting-bughub.invalid/api/security/v1\n'
             # Resolve the deliberate fixture conflict; the product never chooses a winner.
             conflicting.unlink()
@@ -732,47 +809,37 @@ console.log(JSON.stringify({interrupted,code:'EINTR'}));
                 assert (data / 'shared/tools/bughub' / name).read_text() == text
             checks.append('partial inverse conflict retains both bytes; seal rejects old/new boot; explicit recovery resumes')
 
-            # A disconnected Docker CLI cannot free the still-running maintenance container's EX.
-            stopped(root, normal_env)
-            interrupt_maintenance(root, normal_env, forward, 'seal')
-            assert (data.stat().st_uid, stat.S_IMODE(data.stat().st_mode)) == (0, 0o700)
-            assert (private / '.transaction.json').exists()
-            resumed = saved_generation(root, installer(root, normal_env, '--no-pull'))
-            health(current(root, normal_env))
-            assert {bot['id'] for bot in api(current(root, normal_env), '/api/bots?avatar=omit')['bots']} == {'bot-a', 'bot-b'}
-            for name, text in bughub_latest.items():
-                assert (private / 'state/bughub' / name).read_text() == text
-            checks.append('killed Docker CLI leaves maintenance EX alive; second maintenance refuses75; restart converges')
-
-            stopped(root, normal_env)
-            for name in LEAVES:
-                retained = private / name.split('/')[-1] / 'harness-retained.txt'
-                retained.write_text('retained ' + name)
-                os.chown(retained, 1001, 1001)
-                retained.chmod(0o600)
-            interrupt_maintenance(root, normal_env, resumed, 'three-roots')
-            assert (data.stat().st_uid, stat.S_IMODE(data.stat().st_mode)) == (0, 0o700)
-            assert (private / '.transaction.json').exists()
-            for name in LEAVES:
-                a = data / name / 'harness-retained.txt'
-                b = private / name.split('/')[-1] / 'harness-retained.txt'
-                assert a.exists() != b.exists(), name
-                assert (a if a.exists() else b).read_text() == 'retained ' + name
-            assert (data / 'rooms/room-fixture/retained.txt').read_text() == 'newest after migration'
-            installer(root, normal_env, '--recover', resumed)
-            health(current(root, normal_env))
-            assert inspect(current(root, normal_env))['Image'] == legacy_id
-            assert (data / 'rooms/room-fixture/retained.txt').read_text() == 'newest after migration'
-            assert not (private / '.transaction.json').exists()
-            for name, text in bughub_latest.items():
-                path = data / 'shared/tools/bughub' / name
-                info = path.stat()
-                assert path.read_text() == text
-                assert (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (1000, 1000, 0o600)
+            # Every interruption starts from current legacy bytes, then resumes via the public installer.
+            for point in ['record', 'seal', 'copy', 'unseal']:
+                stopped(root, normal_env)
+                for name in LEAVES:
+                    retained = data / name / 'harness-retained.txt'
+                    assert retained.read_text() == 'retained ' + name
+                interrupt_maintenance(root, normal_env, forward, private, point)
+                resumed = saved_generation(root, installer(root, normal_env, '--no-pull'))
+                health(current(root, normal_env))
+                assert {bot['id'] for bot in api(current(root, normal_env), '/api/bots?avatar=omit')['bots']} == {'bot-a', 'bot-b'}
+                assert not list(private.glob('.incoming-*'))
+                assert not (private / '.transaction.json').exists()
+                assert not (root / 'runtime/server-only/data').exists()
+                for name in LEAVES:
+                    assert (private / name.split('/')[-1] / 'harness-retained.txt').read_text() == 'retained ' + name
+                for name, text in bughub_latest.items():
+                    assert (private / 'state/bughub' / name).read_text() == text
+                installer(root, normal_env, '--recover', resumed)
+                health(current(root, normal_env))
+                assert inspect(current(root, normal_env))['Image'] == legacy_id
+                assert (data / 'rooms/room-fixture/retained.txt').read_text() == 'newest after migration'
+                assert not (private / '.transaction.json').exists()
+                for name, text in bughub_latest.items():
+                    path = data / 'shared/tools/bughub' / name
+                    info = path.stat()
+                    assert path.read_text() == text
+                    assert (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (1000, 1000, 0o600)
             bughub_result.update(latestLegacyBytesRetained=True, legacyUidModeRetained=True,
                                  forwardAndInterruptedRecoveryRetained=True)
             document(variant + '-bughub-boundary.json', bughub_result)
-            checks.append('SIGKILL after three real leaf renames retains each unit and explicit inverse recovery converges')
+            checks.append('record/seal/copy/unseal SIGKILL resumes current bytes; CLI death keeps EX; atomic exchange never removes data path')
 
             # Killed listeners leave a real Unix socket; the installer and new listener must accept that restart.
             saved_generation(root, installer(root, normal_env, '--no-pull'))
