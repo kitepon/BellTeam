@@ -24,7 +24,8 @@ async function fixture(t, failure = '') {
     labels: { 'fixture.$key': 'literal $$KEEP' }, volumes: [bind(root + '/runtime/data', '/srv/bellteam'), bind(root + '/runtime/home', '/home/bell'),
       { type: 'volume', source: 'cursor-cli', target: '/home/bell/.local' }] } }, volumes: { 'cursor-cli': { external: true, name: 'bellteam_cursor-cli' } } }))
   await writeFile(files[1], JSON.stringify({ services: { bellteam: { volumes: [{ ...bind(root + '/src/distribution-profile.mjs', '/app/src/distribution-profile.mjs'), read_only: true }] } } }))
-  await writeFile(join(root, '.env'), 'OLD_SECRET=irrelevant-root-env\n')
+  // The normal installer now keeps its environment in the installation root.
+  await writeFile(join(root, '.env'), 'OLD_SECRET=synthetic-original-secret\n')
   await writeFile(join(root, 'distribution/server/.env'), 'OLD_SECRET=synthetic-original-secret\n')
   const env = { ...process.env, PATH: root + '/bin:' + process.env.PATH, TEST_ROOT: root, TEST_COMPOSE: compose,
     TEST_EVENTS: root + '/events.jsonl', TEST_FAILURE: failure, BELLTEAM_DEPLOY_IMAGE: nextRef,
@@ -100,6 +101,15 @@ test('original normal: actual old model/image/profile survive FF and reach the u
   assert.ok(launch.command.includes('BELLTEAM_PREVIOUS_COMPOSE=' + saved.replace(f.root, '/home/kite/BellTeam') + '/previous-normal.json'))
   assert.equal(await readFile(f.root + '/.bellteam-compose.existing/sentinel', 'utf8'), 'keep')
 
+})
+
+test('original normal: changed installation environment refuses FF rather than guessing the old implicit input', async t => {
+  const f = await fixture(t)
+  await writeFile(join(f.root, '.env'), 'OLD_SECRET=changed-installation-env\n')
+  await assert.rejects(f.run(), error => error.code !== 0 && error.stderr.includes('BELLTEAM_ORIGINAL_CONFIG_UNAVAILABLE'))
+  const calls = await f.events()
+  assert.ok(!calls.some(call => call.tool === 'git' && call.args[0] === 'merge' || call.command?.includes('setsid nohup')))
+  assert.equal(await readFile(f.root + '/src/distribution-profile.mjs', 'utf8'), 'export const profile = "old-profile"\n')
 })
 
 test('original normal: hash, input provenance or unreadable profile refuse FF and keep private evidence', async t => {
