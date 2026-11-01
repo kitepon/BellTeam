@@ -58,6 +58,12 @@ jobs:
             RUNNER_TEMP="$RUNNER_TEMP" /usr/bin/python3 -B \
             "$GITHUB_WORKSPACE/harness/test/sec014-image-runtime.py" \
             "bellteam-sec014-test:$SOURCE" "$SOURCE"
+      - name: 専用結果をartifact取得者へ渡す
+        if: always()
+        run: |
+          if test -d "$RUNNER_TEMP/sec014-image-result"; then
+            sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/sec014-image-result"
+          fi
       - uses: actions/upload-artifact@v7
         if: always()
         with:
