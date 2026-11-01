@@ -1362,3 +1362,9 @@ Prepareは既実行器を使う。maintenanceは固定capture済みserviceのsha
 旧shellの直接checker→prepare→maintenance→upは除き、停止したexact old CIDと保存normalを既run_actor/_InternalForwardへ一回渡す。根拠のないphase receiptを作る別経路はない。失敗は既exit/保存方針へ戻り、up/本文/旧gateの自動再送を行わない。private bootstrapは公開installerに含めず、公開二file/host依存無しの完了に転用しない。
 
 Dockerfileの実`USER bellteam-server`は数値文字列`1001:1001`と異なるため、同入力の新fixtureは旧SELECTED_CONFIG拒否を再現。固定二表現を許可し、起動後は実/proc PID出生と全4UID/GIDをserver UIDへ照合する。正常12caseで実Node/専用child/保存/lockを通したが、Docker/root policyはfixtureのまま。canonicalのarchive/quiet/queue/health51passはactor handoffとroot policyを明示fixtureで分離し、11→12caseの実actor試験とは合算してproduction受入へ広げない。frozen6pass、通常npmは関所選択73pass。最初のfrozen2fail（新root境界と既fixtureの選択引数不足）は保存し、fixtureを追従した。whole NOTDEPLOYABLE/未merge未反映/Hostdaemon0。reverse/server-layout回復・最新HOME/Cursor/private構成・正式image実全区間/停止実測・初期Host/公開基盤は残る。
+
+### SEC014-QUIET-PREFLIGHT-1
+
+Centiは6f10e57の新callerに必須P2を再現。root shellが二回使う`check-deploy-quiet.sh`と、そのstdin source `check-deploy-quiet.mjs`がbootstrapのroot保護一覧に無かった。repo親のroot保護だけでは既存fileのowner/modeを保証できない。両fileを同一覧へ加える最小修理を行った。管理HOME例外・trust拒否・実行順は変えない。
+
+同test bytesで親6f10e57の四つの不正metadata入力はactor loaderまで進んでしまい4error、修理後は非root owner/可書modeをimport/quiet/Cursor/stop前に拒否して3testpass（helper2×不正2の4subcase＋正常control）。metadataは明示fixtureであり実root攻撃ではない。実ordinary-user bootstrap拒否を含むhandoff2pass、通常npm Full1062pass。先行73は当時の関所選択であり、今回のFullと区別する。root初期構成/正式image実全区間/復旧/公開基盤の未完とwhole NOTDEPLOYABLEは維持する。

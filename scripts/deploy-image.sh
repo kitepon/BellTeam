@@ -41,7 +41,8 @@ from pathlib import Path
 if any(value != 0 for value in (os.getuid(),os.geteuid(),os.getgid(),os.getegid())):
     raise RuntimeError('SEC014_INTERNAL_ROOT_REQUIRED')
 root,normal,stopped,step=Path(sys.argv[1]),Path(sys.argv[2]),sys.argv[3],sys.argv[4]
-files=['scripts/deploy-image.sh','distribution/internal/sec014-host-actor.py',
+files=['scripts/deploy-image.sh','scripts/check-deploy-quiet.sh','scripts/check-deploy-quiet.mjs',
+       'distribution/internal/sec014-host-actor.py',
        'distribution/internal/sec014-host-control.py','distribution/internal/sec014-prepared-proof.py',
        'distribution/internal/sec014-prepare-executor.py','distribution/internal/sec014-writer-collector.py',
        'distribution/internal/sec014-writer-snapshot.mjs','src/server-state-writers.mjs',
