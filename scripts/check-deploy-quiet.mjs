@@ -121,6 +121,11 @@ export function trustedIdleTree(rows, pid, harness, botId, project = `/srv/bellt
 
 const idleObservation = value => value?.exists === true && value.state === 'idle'
   && value.reason === 'composer_ready' && value.pending_child_deliveries === 0
+const hibernatedObservation = value => value?.exists === true && value.state === 'hibernated'
+  && value.reason === 'idle_timeout' && typeof value.launch_id === 'string' && !!value.launch_id
+  && value.pane_alive === false && value.harness_alive === false
+  && value.pane_process === null && value.harness_process === null
+  && value.pending_child_deliveries === 0 && value.activity?.post_startup_process_count === 0
 const observationIdentity = value => JSON.stringify([value.launch_id, value.harness, value.harness_process])
 // stateは単なるS/R遷移で変わるため同一性から除く。停止/ZはtrustedIdleTreeで止める。
 const treeIdentity = rows => JSON.stringify(rows.map(({ state, ...row }) => row))
@@ -143,6 +148,13 @@ export async function confirmDeployIdle(transport, seat, { signal, readTable = r
   check()
   const observed = await transport.observe({ session: seat.session })
   if (observed?.exists === true && observed.state === 'busy') return { state: 'running' }
+  if (hibernatedObservation(observed) && Array.isArray(seat.candidates) && seat.candidates.length === 0) {
+    check()
+    const after = await transport.observe({ session: seat.session })
+    if (after?.exists === true && after.state === 'busy') return { state: 'running' }
+    return hibernatedObservation(after) && observationIdentity(observed) === observationIdentity(after)
+      ? { state: 'idle' } : null
+  }
   if (!idleObservation(observed)) return null
   const native = observed.harness_process
   if (!Number.isSafeInteger(native?.pid) || native.pid < 1 || typeof native.started_identity !== 'string'
