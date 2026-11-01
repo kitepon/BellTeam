@@ -124,7 +124,7 @@ class FrozenNormal(unittest.TestCase):
         maintenance = {'services': {'state-maintenance': {'image': RAW, 'volumes': [{'source': '/private/state', 'target': '/srv/bellteam/state'}]}}}
         for token, ok in [(TOKEN, True), ('e'*64, False)]:
             with self.subTest(token=token):
-                result = subprocess.run(['node', '-e', code, RAW, '/retained/.bellteam-compose.123456', token],
+                result = subprocess.run(['node', '-e', code, RAW, '/retained/.bellteam-compose.123456', token, ''],
                     input=json.dumps([self.model(), prepare, maintenance]), text=True, capture_output=True)
                 self.assertEqual(result.returncode == 0, ok, result.stderr)
                 if ok:
@@ -134,6 +134,7 @@ class FrozenNormal(unittest.TestCase):
     def test_internal_dispatch_generates_fresh_token_before_any_compose_effect(self):
         script = (root/'scripts/deploy-image.sh').read_text()
         prefix = script.split('# 旧本体の実imageを控える。', 1)[0]
+        prefix = '\n'.join(line for line in prefix.splitlines() if not line.endswith('# sec014-root-entry'))  # Explicit ordinary-user token fixture.
         prefix = prefix.replace('cd "$(dirname "$0")/.."', 'cd "$FIXTURE_ROOT"')
         result = subprocess.run(['sh', '-c', prefix + '\nnode -e "console.log(process.env.BELLTEAM_NORMAL_ADMISSION_TOKEN || \'\')"\n'],
             text=True, capture_output=True, env={**os.environ, 'FIXTURE_ROOT': str(self.root),

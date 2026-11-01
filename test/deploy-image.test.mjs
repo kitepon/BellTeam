@@ -1,3 +1,4 @@
+import { copyInternalAdapter } from './fixtures/sec014-adapter.mjs'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -15,7 +16,7 @@ async function fixture(t) {
   await mkdir(join(root, 'scripts'))
   await mkdir(join(root, 'bin'))
   for (const name of ['deploy.sh','deploy-image.sh','check-deploy-quiet.sh','check-deploy-quiet.mjs'])
-    await copyFile(name === 'deploy.sh' && process.env.DEPLOY_UNDER_TEST ? process.env.DEPLOY_UNDER_TEST
+    await (name === 'deploy-image.sh' ? copyInternalAdapter : copyFile)(name === 'deploy.sh' && process.env.DEPLOY_UNDER_TEST ? process.env.DEPLOY_UNDER_TEST
       : new URL(`../scripts/${name}`, import.meta.url), join(root,'scripts',name))
   const updater = `#!/bin/sh
 docker fixture-cursor "$@"

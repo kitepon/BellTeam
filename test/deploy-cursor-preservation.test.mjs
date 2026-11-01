@@ -1,3 +1,4 @@
+import { copyInternalAdapter } from './fixtures/sec014-adapter.mjs'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -14,7 +15,7 @@ async function fixture(t, failure = '') {
   await writeFile(join(root, 'volume/releases/old/cursor-agent'), 'synthetic old CLI\n'); await chmod(join(root, 'volume/releases/old/cursor-agent'), 0o755)
   await symlink('../releases/old/cursor-agent', join(root, 'volume/bin/cursor-agent'))
   await writeFile(join(root, 'volume/state/keep.json'), '{"latest":"retained"}\n')
-  await copyFile(new URL('../scripts/deploy-image.sh', import.meta.url), join(root, 'scripts/deploy-image.sh'))
+  await copyInternalAdapter(new URL('../scripts/deploy-image.sh', import.meta.url), join(root, 'scripts/deploy-image.sh'))
   await writeFile(join(root, 'scripts/check-deploy-quiet.sh'), '#!/bin/sh\ndocker fixture-quiet\n')
   const docker = `#!/usr/bin/env node
 const fs=require('node:fs'),cp=require('node:child_process'),a=process.argv.slice(2),fail=process.env.FAIL

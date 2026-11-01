@@ -1,3 +1,4 @@
+import { copyInternalAdapter } from './fixtures/sec014-adapter.mjs'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -15,7 +16,7 @@ async function fixture(t, failure = '') {
   for (const dir of ['scripts', 'bin', 'src', 'distribution/server', 'distribution/internal', 'runtime/home', 'runtime/data'])
     await mkdir(join(root, dir), { recursive: true })
   for (const [name, key] of [['deploy.sh', 'DEPLOY_UNDER_TEST'], ['deploy-image.sh', 'DEPLOY_IMAGE_UNDER_TEST']])
-    await copyFile(process.env[key] || new URL('../scripts/' + name, import.meta.url), join(root, 'scripts', name))
+    await (name === 'deploy-image.sh' ? copyInternalAdapter : copyFile)(process.env[key] || new URL('../scripts/' + name, import.meta.url), join(root, 'scripts', name))
   await writeFile(join(root, 'src/distribution-profile.mjs'), 'export const profile = "old-profile"\n')
   const files = [join(root, 'distribution/server/compose.yaml'), join(root, 'distribution/internal/compose.overlay.yaml')]
   const bind = (source, target) => ({ type: 'bind', source, target })

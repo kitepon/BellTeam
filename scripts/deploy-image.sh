@@ -3,6 +3,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 repo=$(pwd)
+[ "$(/usr/bin/id -u):$(/usr/bin/id -g)" = 0:0 ] || { echo SEC014_INTERNAL_ROOT_REQUIRED >&2; exit 1; } # sec014-root-entry
 selected_image=${BELLTEAM_SERVER_IMAGE:-}
 if [ -n "${BELLTEAM_SERVER_IMAGE:-}" ]; then
   : "${BELLTEAM_DEPLOY_QUIET_EXCEPT:?quiet対象Botを指定してください}"
@@ -17,8 +18,10 @@ export BELLTEAM_NORMAL_ADMISSION_TOKEN
 staging=
 saved=
 keep_saved=false
+docker_config=
 finish() {
   result=$?
+  if [ -n "$docker_config" ]; then rm -rf "$docker_config" || { [ "$result" -ne 0 ] || result=1; }; fi
   trap - 0
   if [ -n "$staging" ]; then rm -rf "$staging" || { [ "$result" -ne 0 ] || result=1; }; fi
   if [ -n "$saved" ] && ! "$keep_saved"; then
@@ -30,8 +33,57 @@ finish() {
 trap finish 0
 trap 'exit 1' 1 2 15
 
+# sec014-actor-bootstrap-start
+sec014_actor() {
+  /usr/bin/python3 -I -B - "$repo" "$saved/normal.json" "${stopped_container-}" "$1" <<'PYACTOR'
+import importlib.util,json,os,shutil,stat,sys
+from pathlib import Path
+if any(value != 0 for value in (os.getuid(),os.geteuid(),os.getgid(),os.getegid())):
+    raise RuntimeError('SEC014_INTERNAL_ROOT_REQUIRED')
+root,normal,stopped,step=Path(sys.argv[1]),Path(sys.argv[2]),sys.argv[3],sys.argv[4]
+files=['scripts/deploy-image.sh','distribution/internal/sec014-host-actor.py',
+       'distribution/internal/sec014-host-control.py','distribution/internal/sec014-prepared-proof.py',
+       'distribution/internal/sec014-prepare-executor.py','distribution/internal/sec014-writer-collector.py',
+       'distribution/internal/sec014-writer-snapshot.mjs','src/server-state-writers.mjs',
+       'compose.state-prepare.yaml','compose.state-maintenance.json']
+node=shutil.which('node',path='/usr/local/bin:/usr/bin:/bin')
+plugins=[Path(directory)/'docker-compose' for directory in ('/usr/local/lib/docker/cli-plugins','/usr/local/libexec/docker/cli-plugins','/usr/lib/docker/cli-plugins','/usr/libexec/docker/cli-plugins') if (Path(directory)/'docker-compose').exists()]
+if not node or not plugins:
+    raise RuntimeError('SEC014_INTERNAL_TRUST_NOT_INSTALLED')
+paths=[*(root/name for name in files),normal,normal.parent/'compose.state-prepare.yaml',normal.parent/'compose.state-maintenance.json',
+       Path('/usr/bin/docker').resolve(),Path(sys.executable).resolve(),Path(node).resolve(),*(path.resolve() for path in plugins)]
+for path in paths:
+    if path.resolve(strict=True) != path:
+        raise RuntimeError('SEC014_INTERNAL_TRUST_NOT_INSTALLED')
+    if not stat.S_ISREG(path.stat().st_mode):
+        raise RuntimeError('SEC014_INTERNAL_TRUST_NOT_INSTALLED')
+    for current in (path,*path.parents):
+        info=current.stat()
+        # The fixed management HOME is outside ordinary seat mounts (staged_a).
+        management_parent=current == root.parent and current == Path('/home/kite') and info.st_uid == 1000
+        if (info.st_uid != 0 and not management_parent) or info.st_mode & 0o022:
+            raise RuntimeError('SEC014_INTERNAL_TRUST_NOT_INSTALLED')
+spec=importlib.util.spec_from_file_location('sec014_internal_actor',root/'distribution/internal/sec014-host-actor.py')
+a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
+selected=a.control._normal(normal)
+if selected['owner'] != [0,0]:
+    raise RuntimeError('SEC014_INTERNAL_TRUST_NOT_INSTALLED')
+if step=='run':
+    image=selected.get('imageRef',selected['image'])
+    result=a.run_actor('to-server',image,lambda tx:a._InternalForward(tx,stopped),saved_normal=normal)
+    print(json.dumps(result))
+elif step!='preflight':
+    raise RuntimeError('SEC014_INTERNAL_STEP')
+PYACTOR
+}
+# sec014-actor-bootstrap-end
+
 # 旧本体の実imageを控える。失敗・途中保存では更新を始めず、原本を残す。
 umask 077
+docker_config=$(mktemp -d "$PWD/.bellteam-docker.XXXXXX")
+DOCKER_HOST=unix:///var/run/docker.sock
+DOCKER_CONFIG=$docker_config
+export DOCKER_HOST DOCKER_CONFIG
 mkdir -p runtime/backups
 previous=$(mktemp -d runtime/backups/image-before-deploy.XXXXXX)
 docker container inspect --format '{{.Id}} {{.Image}}' bellteam > "$previous/container-image.txt"
@@ -178,6 +230,9 @@ COMPOSE_FILE="$saved/normal.json"
 COMPOSE_PROJECT_NAME=$project
 export COMPOSE_FILE COMPOSE_PROJECT_NAME
 
+# Validate the root entry and frozen generation before Cursor or the old normal changes.
+sec014_actor preflight
+
 # 両地点の既存quietを旧本体で観測する。停止してquietを作らない。
 if [ -n "$quiet_except" ]; then sh scripts/check-deploy-quiet.sh "$quiet_except"; fi
 sh "$staging/scripts/update-cursor.sh"
@@ -189,9 +244,4 @@ keep_saved=true
 printf 'saved-compose=%s\n' "$saved"
 # Stop the captured container even if another caller changes the service alias.
 if [ -n "$stopped_container" ]; then docker stop "$stopped_container"; fi
-BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container sh "$saved/scripts/assert-state-writers-stopped.sh" --maintenance
-docker compose --project-directory "$PWD" -f "$saved/compose.state-prepare.yaml" \
-  -p "$project" run --pull never --rm --no-deps -T state-prepare
-docker compose --project-directory "$PWD" -f "$saved/compose.state-maintenance.json" \
-  -p "$project" run --pull never --rm --no-deps -T state-maintenance to-server
-docker compose up -d --no-build --pull never
+sec014_actor run

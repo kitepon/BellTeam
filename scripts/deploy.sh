@@ -30,8 +30,14 @@ git push -q origin HEAD:main
 head="$(git rev-parse HEAD)"
 
 # 本番の作業ツリーに手直しがあれば取り込まずに止める（本番のBot台帳config/bots.jsonを含む）。
-previous=$(ssh "$host" "cd $dir && sh -s $head" <<'REMOTE'
+previous=$(ssh "$host" "cd $dir && sudo -n /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8 /bin/sh -s $head" <<'REMOTE'
 set -eu
+umask 077
+docker_config=$(mktemp -d "$PWD/.bellteam-docker.XXXXXX")
+trap 'rm -rf "$docker_config"' 0
+DOCKER_HOST=unix:///var/run/docker.sock
+DOCKER_CONFIG=$docker_config
+export DOCKER_HOST DOCKER_CONFIG
 git fetch -q origin
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   git status -s --untracked-files=no >&2
@@ -115,7 +121,7 @@ printf '作業中のBot: %s\n' "${busy:-なし}"
 
 # 反映は本番側で切り離して走らせる。指定imageは再buildせず、受け入れた実物を使う。
 log="runtime/backups/deploy-$(date +%Y%m%dT%H%M%S).log"
-ssh "$host" "cd $dir && setsid nohup env BELLTEAM_PREVIOUS_COMPOSE=$previous BELLTEAM_SERVER_IMAGE=$image BELLTEAM_DEPLOY_QUIET_EXCEPT=$quiet_except sh scripts/deploy-image.sh > $log 2>&1 < /dev/null &"
+ssh "$host" "cd $dir && setsid nohup sudo -n /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8 BELLTEAM_PREVIOUS_COMPOSE=$previous BELLTEAM_SERVER_IMAGE=$image BELLTEAM_DEPLOY_QUIET_EXCEPT=$quiet_except sh scripts/deploy-image.sh > $log 2>&1 < /dev/null &"
 for _ in $(seq 1 360); do
   if ssh "$host" "grep -q '^deploy-exit=' $dir/$log" 2>/dev/null; then break; fi
   sleep 5

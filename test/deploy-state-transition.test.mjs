@@ -1,3 +1,4 @@
+import { copyInternalAdapter } from './fixtures/sec014-adapter.mjs'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -15,7 +16,7 @@ async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'internal-state-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   for (const dir of ['scripts', 'bin', 'image/scripts']) await mkdir(join(root, dir), { recursive: true })
-  await copyFile(process.env.DEPLOY_IMAGE_UNDER_TEST || new URL('../scripts/deploy-image.sh', import.meta.url), join(root, 'scripts/deploy-image.sh'))
+  await copyInternalAdapter(process.env.DEPLOY_IMAGE_UNDER_TEST || new URL('../scripts/deploy-image.sh', import.meta.url), join(root, 'scripts/deploy-image.sh'))
   for (const file of ['compose.cursor-update.yaml', 'compose.state-prepare.yaml', 'compose.state-maintenance.json'])
     await copyFile(new URL('../' + file, import.meta.url), join(root, 'image', file))
   await writeFile(join(root, 'scripts/check-deploy-quiet.sh'), '#!/bin/sh\ndocker fixture-quiet\n')

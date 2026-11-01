@@ -301,7 +301,9 @@ class _InternalForward:
                 raise control.ControlError('SEC014_INTERNAL_CLI_IDENTITY')
             for parent in set(cli.absolute().parents) | set(cli.resolve().parents):
                 value = parent.stat()
-                if value.st_uid != 0 or value.st_mode & 0o022:
+                # Intentional Host management under this HOME stays outside staged_a.
+                management_parent = parent == self.ROOT.parent and parent == Path('/home/kite') and value.st_uid == 1000
+                if (value.st_uid != 0 and not management_parent) or value.st_mode & 0o022:
                     raise control.ControlError('SEC014_INTERNAL_CLI_ANCESTOR')
             executables[name] = {'path': str(cli.resolve()), 'metadata': [getattr(info, key) for key in fields]}
         socket_mode = int(endpoint['mode'], 8)
@@ -660,7 +662,7 @@ class _InternalForward:
             raise control.ControlError('SEC014_INTERNAL_SELECTED_ID')
         value, _ = self.inspect(raw, 'selected-normal-inspect-'+str(self.serial))
         if (value['image'] != self.image_id or value['configImage'] != self.image_id or value['state']['Running']
-                or value['user'] != str(self.SERVER_UID)+':'+str(self.SERVER_UID) or value['readonly'] is not True):
+                or value['user'] not in ('bellteam-server', str(self.SERVER_UID)+':'+str(self.SERVER_UID)) or value['readonly'] is not True):
             raise control.ControlError('SEC014_INTERNAL_SELECTED_CONFIG')
         service = self.models['bellteam']['services']['bellteam']
         self.mounts(service, value['mounts'], value.get('tmpfs'))
@@ -693,12 +695,25 @@ class _InternalForward:
             time.sleep(min(.2, max(0, self.deadline-time.monotonic())))
         else:
             raise control.ControlError('SEC014_INTERNAL_HEALTH_UNKNOWN')
+        pid = value['state'].get('Pid')
+        if type(pid) is not int or pid <= 0 or pid == self.tx.value['actorPid']:
+            raise control.ControlError('SEC014_INTERNAL_NORMAL_PROCESS')
+        process = Path('/proc')/str(pid)
+        before = process.joinpath('stat').read_text().rsplit(') ',1)[1].split()[19]
+        status = process.joinpath('status').read_text()
+        uid = re.findall(r'(?m)^Uid:\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)$', status)
+        gid = re.findall(r'(?m)^Gid:\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)$', status)
+        expected = [(str(self.SERVER_UID),)*4]
+        if (uid != expected or gid != expected
+                or process.joinpath('stat').read_text().rsplit(') ',1)[1].split()[19] != before):
+            raise control.ControlError('SEC014_INTERNAL_NORMAL_PROCESS')
+        identity = {'pid':pid,'startTicks':int(before),'uid':list(uid[0]),'gid':list(gid[0])}
         node = "fetch('http://127.0.0.1:4180/healthz').then(async r=>{if(r.status!==200)throw Error('health');console.log(JSON.stringify({status:r.status}))}).catch(()=>process.exitCode=1)"
         response = self.call('http-health', ['/usr/bin/docker', 'exec', '--user', '1001:1001', self.cid,
                                             '/usr/local/bin/node', '-e', node])
         if json.loads(response['rawUtf8']) != {'status': 200} or self.transfer is None or self.data_proof is None:
             raise control.ControlError('SEC014_INTERNAL_RESULT_UNCONFIRMED')
-        health_proof = _save_json(self.tx, 'to-server-health.verified.json', {'container': self.cid, 'runtime': runtime, 'http': 200})
+        health_proof = _save_json(self.tx, 'to-server-health.verified.json', {'container': self.cid, 'runtime': runtime, 'http': 200, 'process':identity})
         self.mounts(self.models['bellteam']['services']['bellteam'], value['mounts'], value.get('tmpfs'))
         data_proof = _save_json(self.tx, 'to-server-current-data.verified.json',
                                {'offlineProof': self.data_proof, 'selectedContainer': self.cid, 'runtimeProof': runtime})

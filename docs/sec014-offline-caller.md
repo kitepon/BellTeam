@@ -1354,3 +1354,11 @@ Prepareは既実行器を使う。maintenanceは固定capture済みserviceのsha
 `test/sec014-internal-forward.py`は普通利用者の専用childと実Node/実fd保存/実kernel lockで既factory→全六phaseを実行。Docker応答およびroot host policyだけは明示fixtureであり、実Host/daemon/正式imageではない。11case: 正常全phase、大JSON、unknown中の別process EX拒否、非root拒否、normalのprivate parent露出、追加maintenance権限、別writer、maintenance別image、backup symlink、最新data不一致、selected mount不一致。通常npmは関所選択19passであり、d21のFull1057へ補完しない。ほかbinding14/prepare72/writer11/control9/actor6/native6/generation7/raw3pass。初pipelineは保存JSONkey順の接続不良で4失敗、次はfixture status名complete/completedの誤り1失敗、後のordinary-user fixture不足も保持し、最終同sourceの成功と区別する。
 
 依然として実正規shellへの接続、root保護caller/CLI/祖先と初期Host構成の受入、正式imageでの全writer lifetime、reverse/server-layoutの明示回復caller、現在HOME/Cursor/private構成の実保持、public二file/追加host依存無しの基盤、実停止時間・監査は未成立。内部root callerのsourceがあるだけでpublic完成とはしない。`_InternalForward`のroot policyは未整備構成を拒否する。管理sudo/SSH除外を維持し、CLI内部FD直接観測を新gateにしない。whole Draft NOTDEPLOYABLE、未merge未反映、Host/daemon操作0。
+
+### 2026-11-01 正規内部shellから同actorへ（source候補）
+
+`scripts/deploy.sh`の内部snapshot/adapterは既管理経路からrootで実行し、固定PATH/local Docker socket/空private Docker configを使う。`deploy-image.sh`はroot以外をnative効果前に拒否する。元normal/raw image/profile/Cursor原本を控え、同じtarget generationを保存した後、Cursor更新・旧CID停止の前に固定bootstrapがcaller/CLI/Compose plugin/保存fileと祖先のroot保護を検査する。固定管理HOME `/home/kite`のuid1000は、既staged_aの管理経路除外であり、source/CLI/file自体やordinary席への保護を免除しない。実Hostでこの構成が成立したとの受入はない。
+
+旧shellの直接checker→prepare→maintenance→upは除き、停止したexact old CIDと保存normalを既run_actor/_InternalForwardへ一回渡す。根拠のないphase receiptを作る別経路はない。失敗は既exit/保存方針へ戻り、up/本文/旧gateの自動再送を行わない。private bootstrapは公開installerに含めず、公開二file/host依存無しの完了に転用しない。
+
+Dockerfileの実`USER bellteam-server`は数値文字列`1001:1001`と異なるため、同入力の新fixtureは旧SELECTED_CONFIG拒否を再現。固定二表現を許可し、起動後は実/proc PID出生と全4UID/GIDをserver UIDへ照合する。正常12caseで実Node/専用child/保存/lockを通したが、Docker/root policyはfixtureのまま。canonicalのarchive/quiet/queue/health51passはactor handoffとroot policyを明示fixtureで分離し、11→12caseの実actor試験とは合算してproduction受入へ広げない。frozen6pass、通常npmは関所選択73pass。最初のfrozen2fail（新root境界と既fixtureの選択引数不足）は保存し、fixtureを追従した。whole NOTDEPLOYABLE/未merge未反映/Hostdaemon0。reverse/server-layout回復・最新HOME/Cursor/private構成・正式image実全区間/停止実測・初期Host/公開基盤は残る。

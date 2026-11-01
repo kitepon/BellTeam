@@ -129,8 +129,8 @@ class Pipeline(saved.SavedPrepare):
             if self.mutation == 'selected-mount' and cid == self.selected_id:
                 mounts[1]['RW'] = False
             raw = json.dumps(dict(id=cid,image=saved.old.IMAGE_ID,configImage=saved.old.IMAGE_ID,
-                state={'Running':cid==self.selected_id and self.started,'Restarting':False,'Health':{'Status':'healthy'}},
-                user=str(os.getuid())+':'+str(os.getgid()),readonly=True,tmpfs={'/tmp':'rw,nosuid,nodev,size=64m'},
+                state={'Running':cid==self.selected_id and self.started,'Restarting':False,'Pid':self.normal_native.pid if cid==self.selected_id and self.started else 0,'Health':{'Status':'healthy'}},
+                user='bellteam-server' if self.mutation=='named-user' else str(os.getuid())+':'+str(os.getgid()),readonly=True,tmpfs={'/tmp':'rw,nosuid,nodev,size=64m'},
                 service='bellteam',project='bellteam',mounts=mounts))
         elif argv[1] == 'compose' and argv[-1] == 'state-prepare':
             self.birth = datetime.now(timezone.utc).isoformat()
@@ -164,6 +164,10 @@ class Pipeline(saved.SavedPrepare):
         elif argv[1]=='compose' and 'ps' in argv:
             raw=self.selected_id+'\n'
         elif argv[1]=='start':
+            self.normal_native=self.real_popen([sys.executable,'-c','import time;time.sleep(30)'])
+            def close_normal():
+                self.normal_native.terminate();self.normal_native.wait(timeout=2)
+            self.addCleanup(close_normal)
             self.started=True;raw=self.selected_id+'\n'
         elif argv[1]=='exec':
             raw='{"status":200}\n'
@@ -245,6 +249,10 @@ class Pipeline(saved.SavedPrepare):
         for name in ('initial-writers','started-writers'):
             observation=json.loads((self.g.control/('to-server-'+name+'.verified.json')).read_bytes())
             self.assertFalse(observation['hostWriterAuthorityVerified'])
+
+    def test_named_official_server_user_reaches_all_six_phases(self):
+        self.mutation='named-user'
+        self.assertEqual(len(self.execute()),6)
 
     def test_large_native_json_roundtrip_has_bounded_saved_readback(self):
         self.mutation='large-json'
