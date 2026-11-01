@@ -4,6 +4,7 @@ struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @State private var editingProfile = false
     @ObservedObject private var notifications = BellNotifications.shared
+    @AppStorage(ConversationOpening.storageKey) private var opening = ConversationOpening.rise
 
     var body: some View {
         NavigationStack {
@@ -45,6 +46,21 @@ struct SettingsView: View {
                         .padding(20)
                         .bellCard()
                         AIControlCard()
+                        // 比較のための一時的な切替。決まったら消す。
+                        VStack(alignment: .leading, spacing: 13) {
+                            Label("会話の開き方", systemImage: "rectangle.stack")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(BellTheme.ink)
+                            Picker("開き方", selection: $opening) {
+                                Text("下から順に浮き上がる").tag(ConversationOpening.rise)
+                                Text("フェードインだけ").tag(ConversationOpening.fade)
+                            }
+                            .pickerStyle(.segmented)
+                            Text("会話を開き直すと反映します。").font(.caption).foregroundStyle(BellTheme.muted)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(20)
+                        .bellCard()
                         HarnessAuthenticationList()
                         FeatureSettingsList()
                         SubscriptionCard()

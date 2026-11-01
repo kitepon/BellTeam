@@ -92,6 +92,7 @@ private struct ConversationContent: View {
     @State private var cards = ConversationCardStates()
     @State private var presentedSheet: ConversationSheet?
     @State private var presentedGallery: ConversationGallery?
+    @AppStorage(ConversationOpening.storageKey) private var opening = ConversationOpening.rise
 
     private var messages: [TimelineMessage] { timeline.visibleMessages }
 
@@ -118,7 +119,7 @@ private struct ConversationContent: View {
             } else {
                 ConversationList(messages: messages, queue: queue, hasMore: hasMore, loading: loading, loadingOlder: loadingOlder,
                                  bottomInset: 18 + (attachments.isEmpty ? 0 : attachmentStripHeight),
-                                 scrollToBottomRevision: scrollToBottomRevision,
+                                 opening: opening, scrollToBottomRevision: scrollToBottomRevision,
                                  onLoadOlder: { olderTask = Task { await loadOlder() } },
                                  onRefresh: { await load() },
                                  onAtBottomChange: { atBottom in
