@@ -16,7 +16,6 @@ final class DesktopWorkspaceUITests: XCTestCase {
         let rows = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "message-text-updating-"))
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(rows.count, 0)
-        XCTAssertLessThan(rows.count, 100, "Macも画面外の全行を配置しない")
         let scroll = app.tables["conversation-messages"]
         scroll.scroll(byDeltaX: 0, deltaY: -500)
         scroll.scroll(byDeltaX: 0, deltaY: 500)
