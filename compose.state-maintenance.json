@@ -1,15 +1,17 @@
 {
   "services": {
     "state-maintenance": {
-      "image": "${BELLTEAM_SERVER_IMAGE:?select the accepted server image}",
+      "image": "${BELLTEAM_SERVER_IMAGE:-ghcr.io/kitepon/bellteam-server:latest}",
       "pull_policy": "never",
       "user": "0:0",
       "entrypoint": [
         "/usr/bin/env",
         "-i",
         "PATH=/usr/local/bin:/usr/bin:/bin",
-        "/usr/local/bin/node",
-        "/app/src/server-state-transfer.mjs"
+        "/bin/sh",
+        "-ec",
+        "root=/srv/bellteam-runtime/server-only/state-data; if [ \"$1\" = prepare ] && [ ! -e \"$root\" ]; then exec /usr/local/bin/node /app/src/server-state-transfer.mjs \"$@\"; fi; exec /usr/bin/flock -x -n -E 75 \"$root\" /usr/local/bin/node /app/src/server-state-transfer.mjs \"$@\"",
+        "state-maintenance"
       ],
       "command": [
         "to-server"
@@ -38,72 +40,8 @@
       "volumes": [
         {
           "type": "bind",
-          "source": "${BELLTEAM_LEGACY_DATA:?select the stopped legacy data source}",
-          "target": "/srv/bellteam-legacy",
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "${BELLTEAM_LEGACY_DATA:?select the stopped legacy data source}",
-          "target": "/srv/bellteam",
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "${BELLTEAM_STATE_PARENT:?select the prepared private state parent}/state",
-          "target": "/srv/bellteam/state",
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "${BELLTEAM_STATE_PARENT:?select the prepared private state parent}/rooms",
-          "target": "/srv/bellteam/rooms",
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "${BELLTEAM_STATE_PARENT:?select the prepared private state parent}/owner",
-          "target": "/srv/bellteam/owner",
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "${BELLTEAM_STATE_PARENT:?select the prepared private state parent}/logs",
-          "target": "/srv/bellteam/logs",
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "${BELLTEAM_STATE_PARENT:?select the prepared private state parent}/bellteam-settings",
-          "target": "/srv/bellteam/shared/tools/bellteam-settings",
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "${BELLTEAM_STATE_PARENT:?select the prepared private state parent}/apns",
-          "target": "/srv/bellteam/shared/tools/apns",
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "${BELLTEAM_MAINTENANCE_BACKUP_PARENT:?select the private backup parent}",
-          "target": "/srv/bellteam-maintenance-backups",
+          "source": "./runtime",
+          "target": "/srv/bellteam-runtime",
           "bind": {
             "create_host_path": false
           }

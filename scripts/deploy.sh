@@ -1,13 +1,11 @@
 #!/bin/sh
 # 本番反映の正規入口。GitHubのmainを取り込み、受入imageまたは新規buildを反映する。
 # usage: scripts/deploy.sh
-# 商用image: BELLTEAM_DEPLOY_IMAGE=repo@sha256:digest BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-id sh scripts/deploy.sh
+# 商用image: BELLTEAM_DEPLOY_IMAGE=repo@sha256:digest sh scripts/deploy.sh
 set -eu
 cd "$(dirname "$0")/.."
 host=main-server
 dir=/home/kite/BellTeam
-quiet_except=${BELLTEAM_DEPLOY_QUIET_EXCEPT:-}
-case "$quiet_except" in *[!a-zA-Z0-9_-]*) echo 'invalid quiet Bot ID' >&2; exit 2;; esac
 image=${BELLTEAM_DEPLOY_IMAGE:-}
 if [ -n "$image" ]; then
   case "$image" in *@sha256:*) ;; *) echo '受入imageをrepo@sha256:digestで指定してください。' >&2; exit 2;; esac
@@ -15,8 +13,8 @@ if [ -n "$image" ]; then
   repository=${image%@sha256:*}
   case "$image" in *[!a-zA-Z0-9._:/@-]*) echo '受入imageの指定が不正です。' >&2; exit 2;; esac
   case "$digest" in ''|*[!a-f0-9]*) echo 'image digestが不正です。' >&2; exit 2;; esac
-  if [ ${#digest} -ne 64 ] || [ -z "$repository" ] || [ -z "$quiet_except" ]; then
-    echo '受入imageの完全なdigestとquiet対象Botを指定してください。' >&2
+  if [ ${#digest} -ne 64 ] || [ -z "$repository" ]; then
+    echo '受入imageの完全なdigestを指定してください。' >&2
     exit 2
   fi
 fi
@@ -123,7 +121,7 @@ printf '作業中のBot: %s\n' "${busy:-なし}"
 
 # 反映は本番側で切り離して走らせる。指定imageは再buildせず、受け入れた実物を使う。
 log="runtime/backups/deploy-$(date +%Y%m%dT%H%M%S).log"
-ssh "$host" "cd $dir && setsid nohup sudo -n /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8 BELLTEAM_PREVIOUS_COMPOSE=$previous BELLTEAM_SERVER_IMAGE=$image BELLTEAM_DEPLOY_QUIET_EXCEPT=$quiet_except sh scripts/deploy-image.sh > $log 2>&1 < /dev/null &"
+ssh "$host" "cd $dir && setsid nohup sudo -n /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8 BELLTEAM_PREVIOUS_COMPOSE=$previous BELLTEAM_SERVER_IMAGE=$image sh scripts/deploy-image.sh > $log 2>&1 < /dev/null &"
 for _ in $(seq 1 360); do
   if ssh "$host" "grep -q '^deploy-exit=' $dir/$log" 2>/dev/null; then break; fi
   sleep 5

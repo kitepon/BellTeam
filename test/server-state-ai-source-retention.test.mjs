@@ -31,7 +31,7 @@ function afterCopy(f, mutate) {
   syncBuiltinESMExports()
   return ()=>{fs.promises.open=original;syncBuiltinESMExports()}
 }
-for(const mutation of ['updated','replaced'])test(`AI control source ${mutation} after copy remains with its source marker`,async t=>{
+for(const mutation of ['updated','replaced'])test(`AI control source ${mutation} after link remains with its source marker`,async t=>{
   for(const direction of ['to-server','to-legacy']){
     const f=await fixture(t,direction), value=mutation==='updated'?intent(true):intent(false)
     const restore=afterCopy(f,async()=>{
@@ -42,7 +42,7 @@ for(const mutation of ['updated','replaced'])test(`AI control source ${mutation}
     try{outcome=await transferServerState({root:f.root,direction}).catch(e=>e)}finally{restore()}
     assert.equal(await readFile(f.source,'utf8').catch(e=>{if(e.code==='ENOENT')return null;throw e}),value)
     assert.equal(outcome.code,'SERVER_STATE_FILE_CHANGED')
-    assert.equal(await readFile(f.target,'utf8'),intent(false))
+    assert.equal(await readFile(f.target,'utf8'),mutation==='updated'?value:intent(false))
     await lstat(f.fromMarker)
     await assert.rejects(lstat(f.toMarker),{code:'ENOENT'})
   }

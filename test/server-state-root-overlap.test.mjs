@@ -5,9 +5,9 @@ import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {tmpdir} from 'node:os'
 import test from 'node:test'
-import {migrateServerState, relocateServerRoots} from '../src/server-state-transfer.mjs'
+import {relocateServerRoots} from '../src/server-state-transfer.mjs'
 
-test('nested root rejection precedes all backup and relocation filesystem operations', async t => {
+test('nested relocation roots are rejected before all filesystem operations', async t => {
   const original = fs.promises.lstat
   let reads = 0
   fs.promises.lstat = async () => {
@@ -23,7 +23,7 @@ test('nested root rejection precedes all backup and relocation filesystem operat
     ['/', '/synthetic/root'],
   ]) for (const direction of ['to-server', 'to-legacy']) {
     const options = {legacyRoot, serverRoot, backupRoot:'/synthetic/backup', direction}
-    for (const run of [relocateServerRoots, migrateServerState]) {
+    for (const run of [relocateServerRoots]) {
       await assert.rejects(run(options), {code:'SERVER_STATE_RELOCATION_ALIAS'})
     }
   }

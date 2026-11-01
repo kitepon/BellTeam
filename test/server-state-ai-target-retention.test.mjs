@@ -47,13 +47,11 @@ test('AI control symbolic destination uses the existing regular-file rejection',
     assert.equal(await readFile(held, 'utf8'), intent(false))
   }
 })
-test('explicit rollback replaces an obsolete regular destination with current paused intent', async t => {
+test('explicit rollback preserves conflicting regular values rather than overwriting either', async t => {
   const f = await fixture(t, 'to-legacy')
   await writeFile(f.target, intent(false))
-  assert.equal((await transferServerState({ root: f.root, direction: 'to-legacy' })).status, 'transferred')
-  assert.equal(await readFile(f.target, 'utf8'), intent(true))
-  assert.equal((await lstat(f.target)).nlink, 1)
-  await lstat(f.toMarker)
-  await assert.rejects(lstat(f.fromMarker), { code: 'ENOENT' })
-  await assert.rejects(lstat(f.source), { code: 'ENOENT' })
+  await assert.rejects(transferServerState({ root: f.root, direction: 'to-legacy' }),
+    { code: 'SERVER_STATE_TRANSFER_CONFLICT' })
+  assert.equal(await readFile(f.target, 'utf8'), intent(false))
+  await retained(f)
 })

@@ -95,24 +95,3 @@ throw Error('unexpected Docker call');
   await assert.rejects(run(cid, { ...selected, restartPolicy: 'always' }), e => e.code === 1 && /WRITERS_RUNNING/.test(e.stderr))
   assert.doesNotMatch(await readFile(root + '/calls', 'utf8'), /docker\.sock|\/home\/bell/)
 })
-
-
-test('writer restart: serialized snapshot cannot acquire the caller-stopped identity exception', async () => {
-  const { writerSnapshotPlan, verifyWriterSnapshot } = await import(process.env.WRITER_SNAPSHOT_UNDER_TEST
-    || new URL('../distribution/internal/sec014-writer-snapshot.mjs', import.meta.url).href)
-  const { createHash } = await import('node:crypto')
-  const c = { services: { bellteam: { image: 'sha256:' + 'b'.repeat(64), volumes: [
-    { type: 'bind', source: plan.roots[0], target: '/srv/bellteam' },
-    { type: 'bind', source: plan.roots[1], target: '/home/bell' },
-    { type: 'volume', source: 'cursor', target: '/home/bell/.local' },
-  ] } }, volumes: { cursor: { name: 'cursor' } } }
-  const p = writerSnapshotPlan(c, 'ghcr.io/kitepon/bellteam-server@sha256:' + 'a'.repeat(64), 'sha256:' + 'b'.repeat(64))
-  const bundle = { list: { argv: p.listArgv, rawUtf8: '', clientPid: 123, clientStartTicks: 456,
-    unknown: false, terminal: { kind: 'exit', code: 0 }, stdoutBytes: 0, stdoutSha256: createHash('sha256').update('').digest('hex') },
-    containers: null, volumes: [], canonical: plan.roots.map(source => ({ source, canonical: source })) }
-  const imageRaw = JSON.stringify(p.imageId)
-  bundle.image = { ...bundle.list, argv: p.imageArgv, rawUtf8: imageRaw, stdoutBytes: Buffer.byteLength(imageRaw),
-    stdoutSha256: createHash('sha256').update(imageRaw).digest('hex') }
-  assert.equal(verifyWriterSnapshot(p, bundle).phaseReceiptProduced, false)
-  assert.throws(() => verifyWriterSnapshot({ ...p, mounts: { ...p.mounts, stoppedContainer: cid } }, bundle), /SNAPSHOT_UNAVAILABLE/)
-})

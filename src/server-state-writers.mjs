@@ -10,7 +10,7 @@ const path = value => {
 }
 const overlaps = (a, b) => a === b || a.startsWith(b === '/' ? '/' : b + '/') || b.startsWith(a === '/' ? '/' : a + '/')
 const stateTargets = ['state', 'rooms', 'owner', 'logs', 'shared/tools/bellteam-settings', 'shared/tools/apns'].map(name => '/srv/bellteam/' + name)
-// shortcut: a snapshot cannot exclude later manual starts; prove interval-wide exclusion before deployment.
+// A snapshot finds existing writers; maintenance locks and the sealed data root cover the mutation interval.
 const participates = (plan, c) => c.running || c.restarting || !['', 'no'].includes(c.restartPolicy)
   && !(c.id === plan.stoppedContainer && c.restartPolicy === 'unless-stopped')
 
@@ -35,15 +35,13 @@ export function stateWriterPlan(config) {
   separate(normalSources)
   const maintenance = config.services['state-maintenance']
   if (maintenance) {
-    const targets = ['/srv/bellteam-legacy', '/srv/bellteam', '/srv/bellteam-maintenance-backups', ...stateTargets]
-    if (maintenance.volumes?.length !== targets.length) invalid()
-    const sources = addBinds(maintenance, targets)
-    if (sources[0] !== roots[0] || sources[1] !== roots[0]) invalid()
-    separate(sources.slice(3))
-    if (normalSources.length && normalSources.some((source, index) => source !== sources[index + 3])) invalid()
-    const backup = sources[2]
-    if (sources.slice(3).some(source => overlaps(source, backup))
-      || service.volumes.some(mount => mount.type === 'bind' && overlaps(path(mount.source), backup))) invalid()
+    const mounts = maintenance.volumes
+    if (mounts?.length !== 1 || mounts[0].type !== 'bind' || mounts[0].read_only === true
+      || mounts[0].target !== '/srv/bellteam-runtime') invalid()
+    const runtime = path(mounts[0].source)
+    if (roots[0] !== posix.join(runtime, 'data') || roots[1] !== posix.join(runtime, 'home')) invalid()
+    if (normalSources.some((source, index) => source !== posix.join(runtime, 'server-only/state-data', stateTargets[index].split('/').at(-1)))) invalid()
+    roots.push(runtime)
   }
   return { roots: [...new Set(roots)], volume }
 

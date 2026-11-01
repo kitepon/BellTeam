@@ -11,7 +11,7 @@ export function runtimeHome(environment = process.env) {
 }
 
 // 本体だけが使う合鍵。本体が起こす道具と席へは渡さない（診断の管理口の鍵。読むのは feature-settings.mjs）。
-const SERVER_ONLY_KEYS = ['BELLTEAM_BUGHUB_KEY', 'BELLTEAM_NORMAL_ADMISSION_TOKEN']
+const SERVER_ONLY_KEYS = ['BELLTEAM_BUGHUB_KEY']
 
 export function runtimeEnvironment(inherited = process.env, home = runtimeHome(inherited)) {
   const environment = {

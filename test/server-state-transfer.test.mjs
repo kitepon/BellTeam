@@ -34,15 +34,14 @@ test('offline入口は固定の移行方向とroot実効UID/GID以外を読書�
     await assert.rejects(exec(process.execPath, ['--input-type=module', '--eval', source]), error =>
       error.code === 1 && error.stdout === '' && error.stderr === 'SERVER_STATE_TRANSFER_IDENTITY\n')
   }
-  const mismatch = `import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';
+  const invalidRoot = `import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';
     process.argv = [process.execPath, ${JSON.stringify(fileURLToPath(url))}, 'to-server'];
     for (const key of ['getuid','geteuid','getgid','getegid']) process[key] = () => 0;
-    fs.promises.lstat = async path => {
-      if (!['/srv/bellteam-legacy','/srv/bellteam'].includes(path)) throw Error('unexpected filesystem read');
-      return { isDirectory: () => true, dev: 1, ino: path === '/srv/bellteam' ? 2 : 3 };
-    }; syncBuiltinESMExports(); await import(${JSON.stringify(url.href)});`
-  await assert.rejects(exec(process.execPath, ['--input-type=module', '--eval', mismatch]), error =>
-    error.code === 1 && error.stdout === '' && error.stderr === 'SERVER_STATE_VIEW_IDENTITY\n')
+    fs.promises.lstat = async path => ({ isDirectory: () => path !== '/srv/bellteam-runtime',
+      isSymbolicLink: () => path === '/srv/bellteam-runtime' });
+    syncBuiltinESMExports(); await import(${JSON.stringify(url.href)});`
+  await assert.rejects(exec(process.execPath, ['--input-type=module', '--eval', invalidRoot]), error =>
+    error.code === 1 && error.stdout === '' && error.stderr === 'SERVER_STATE_DIRECTORY_INVALID\n')
 })
 
 test('全既知stateと画像を移し、最新の予定・停止状態・Bot増減から逆移行する', async t => {

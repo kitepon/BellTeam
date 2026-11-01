@@ -9,11 +9,8 @@ import { stateWriterPlan, stateWriterSources, assertStateWritersStopped } from '
 
 const declared = JSON.parse(await readFile(new URL('../compose.state-maintenance.json', import.meta.url), 'utf8'))
 const service = structuredClone(declared.services['state-maintenance'])
-// Artificial normalized Compose input; this does not run the Docker renderer.
-for (const mount of service.volumes) for (const [variable, source] of [
-  ['BELLTEAM_LEGACY_DATA', '/runtime/data'], ['BELLTEAM_STATE_PARENT', '/private/state-data'],
-  ['BELLTEAM_MAINTENANCE_BACKUP_PARENT', '/private/backups'],
-]) mount.source = mount.source.replace(new RegExp('^\\$\\{' + variable + ':[^}]+\\}'), source)
+// Artificial normalized Compose input; no daemon is used.
+service.volumes[0].source = '/runtime'
 const normal = { volumes: [
   { type: 'bind', source: '/runtime/data', target: '/srv/bellteam' },
   { type: 'bind', source: '/runtime/home', target: '/home/bell' },
@@ -24,9 +21,9 @@ const container = source => ({ id: 'synthetic-writer', running: true, restarting
   mounts: [{ Type: 'bind', Source: source, RW: true }] })
 const canonical = (plan, containers) => stateWriterSources(plan, containers).map(source => ({ source, canonical: source }))
 
-test('新6領域とbackupのwriterも停止確認の分母に入り、ROと停止済みは許す', () => {
+test('単一runtimeの祖先とprivate state writerも停止確認し、ROと停止済みは許す', () => {
   const plan = stateWriterPlan(config)
-  for (const source of ['/private/state-data', ...service.volumes.slice(2).map(mount => mount.source)]) {
+  for (const source of ['/', '/runtime', '/runtime/server-only/state-data', '/runtime/server-only/state-data/rooms']) {
     const active = [container(source)]
     assert.throws(() => assertStateWritersStopped(plan, active, canonical(plan, active)), /WRITERS_RUNNING/)
     active[0].mounts[0].RW = false
@@ -36,38 +33,40 @@ test('新6領域とbackupのwriterも停止確認の分母に入り、ROと停�
   }
 })
 
-test('通常serviceの新6bindも保護し、backup経由の別名writerをcanonical照合で拒否する', () => {
+test('通常serviceの新6bindも保護し、別名writerをcanonical照合で拒否する', () => {
   const c = structuredClone(config)
-  c.services.bellteam.volumes.push(...structuredClone(service.volumes.slice(2, 8)))
+  c.services.bellteam.volumes.push(...['state','rooms','owner','logs','shared/tools/bellteam-settings','shared/tools/apns'].map(name => ({type:'bind',source:'/runtime/server-only/state-data/'+name.split('/').at(-1),target:'/srv/bellteam/'+name})))
   delete c.services['state-maintenance']
   const plan = stateWriterPlan(c), active = [container('/alias')]
-  const aliases = canonical(plan, active).map(row => row.source === '/alias' ? { ...row, canonical: '/private/state-data/owner' } : row)
+  const aliases = canonical(plan, active).map(row => row.source === '/alias' ? { ...row, canonical: '/runtime/server-only/state-data/owner' } : row)
   assert.throws(() => assertStateWritersStopped(plan, active, aliases), /WRITERS_RUNNING/)
 })
 
 test('部分6bind・maintenanceの欠測や余分なmount・ROを停止済みへ丸めない', () => {
   for (const mutate of [
-    c => c.services.bellteam.volumes.push(service.volumes[2]),
+    c => c.services.bellteam.volumes.push({type:'bind',source:'/runtime/server-only/state-data/state',target:'/srv/bellteam/state'}),
     c => c.services['state-maintenance'].volumes.pop(),
     c => c.services['state-maintenance'].volumes.push({ type: 'bind', source: '/x', target: '/home/bell' }),
-    c => c.services['state-maintenance'].volumes[2].read_only = true,
-    c => c.services['state-maintenance'].volumes[2].source = 'relative',
-    c => c.services['state-maintenance'].volumes[2].target = '/unexpected',
+    c => c.services['state-maintenance'].volumes[0].read_only = true,
+    c => c.services['state-maintenance'].volumes[0].source = 'relative',
+    c => c.services['state-maintenance'].volumes[0].target = '/unexpected',
   ]) {
     const broken = structuredClone(config); mutate(broken)
     assert.throws(() => stateWriterPlan(broken), /WRITER_METADATA_INVALID/)
   }
 })
 
-test('固定保守Composeは秘密の通常env/HOME/socketを継承せず、旧新二viewと6bindだけを宣言する', () => {
+test('固定保守Composeは秘密の通常envを継承せず、単一runtime bindとdirectory flockだけを宣言する', () => {
   const s = declared.services['state-maintenance']
   assert.equal(declared.name, undefined, 'writer確認でnormal Composeと読む時、既存Cursor volumeのproject名を変えない')
   assert.deepEqual(Object.keys(declared.services), ['state-maintenance'])
-  assert.deepEqual(s.entrypoint, ['/usr/bin/env', '-i', 'PATH=/usr/local/bin:/usr/bin:/bin', '/usr/local/bin/node', '/app/src/server-state-transfer.mjs'])
+  assert.deepEqual(s.entrypoint.slice(0,6), ['/usr/bin/env', '-i', 'PATH=/usr/local/bin:/usr/bin:/bin', '/bin/sh', '-ec', s.entrypoint[5]])
+  assert.match(s.entrypoint[5], /flock -x -n -E 75/)
+  assert.match(s.entrypoint[5], /server-state-transfer.mjs/)
   assert.deepEqual(s.command, ['to-server'])
   for (const key of ['environment', 'env_file', 'secrets', 'configs', 'ports', 'extends', 'build']) assert.equal(s[key], undefined)
-  assert.equal(s.volumes.length, 9)
-  assert.equal(s.volumes[0].source, s.volumes[1].source)
+  assert.equal(s.volumes.length, 1)
+  assert.equal(s.volumes[0].source, './runtime')
   assert.ok(s.volumes.every(mount => mount.type === 'bind' && mount.bind.create_host_path === false))
   assert.ok(s.volumes.every(mount => !/home|docker.sock/u.test(mount.target)))
   assert.deepEqual(s.cap_drop, ['ALL']); assert.deepEqual(s.cap_add, ['CHOWN', 'DAC_OVERRIDE', 'FOWNER'])

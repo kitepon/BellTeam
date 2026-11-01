@@ -7,10 +7,10 @@ const failure = code => Object.assign(new Error(code), { code })
 
 // Offline maintenance only. Seat projects, HOME, CLI credentials and memory
 // are outside these paths; BugHub's read-only host mount has a separate owner.
-export async function prepareServerStateOwnership({ root, direction }) {
-  if (typeof root !== 'string' || !isAbsolute(root) || !['to-server', 'to-legacy'].includes(direction))
+export async function prepareServerStateOwnership({ root, privateRoot = root, direction, sealed = false }) {
+  if (typeof root !== 'string' || !isAbsolute(root) || typeof privateRoot !== 'string' || !isAbsolute(privateRoot) || !['to-server', 'to-legacy'].includes(direction))
     throw failure('SERVER_STATE_OWNERSHIP_OPTIONS')
-  root = resolve(root)
+  root = resolve(root); privateRoot = resolve(privateRoot)
   const serverUid = direction === 'to-server' ? 1001 : 1000
   const nodes = []
   async function directory(path) {
@@ -29,7 +29,7 @@ export async function prepareServerStateOwnership({ root, direction }) {
   }
   async function collect(path, top) {
     const info = await lstat(path)
-    const searchable = top || path === join(root, 'state/call-bridge') || path === join(root, 'state/call-bridge-socket')
+    const searchable = top || path === join(privateRoot, 'state/call-bridge') || path === join(privateRoot, 'state/call-bridge-socket')
     const mode = info.isDirectory() ? (searchable ? 0o711 : 0o700) : 0o600
     add(path, info, serverUid, mode)
     if (info.isDirectory()) for (const name of await readdir(path)) await collect(join(path, name), false)
@@ -39,12 +39,12 @@ export async function prepareServerStateOwnership({ root, direction }) {
     if (!info.isFile()) throw failure('SERVER_STATE_OWNERSHIP_FILE')
     add(path, info, serverUid, 0o600)
   }
-  for (const name of ['', 'bots', 'shared', 'shared/tools']) {
+  for (const name of ['bots', 'shared', 'shared/tools']) {
     const path = join(root, name)
-    add(path, await directory(path), 1000, 0o711)
+    add(path, await directory(path), 1000, name === 'bots' ? 0o755 : 0o711)
   }
   for (const name of protectedRoots) {
-    const path = join(root, name)
+    const path = privateRoot === root ? join(root, name) : join(privateRoot, name.split('/').at(-1))
     await directory(path); await collect(path, true)
   }
   if (direction === 'to-legacy') {
@@ -72,6 +72,7 @@ export async function prepareServerStateOwnership({ root, direction }) {
       }
     }
   }
+  if (!sealed) add(root, await directory(root), 1000, 0o711)
   // Reject links and special files across the entire scope before any owner
   // change. Reopen without following a replaced name before changing metadata.
   for (const node of nodes) {

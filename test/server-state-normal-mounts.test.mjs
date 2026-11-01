@@ -4,12 +4,7 @@ import test from 'node:test'
 import { stateWriterPlan } from '../src/server-state-writers.mjs'
 
 const maintenance = JSON.parse(await readFile(new URL('../compose.state-maintenance.json', import.meta.url))).services['state-maintenance']
-const bindings = {
-  BELLTEAM_LEGACY_DATA: '/runtime/data', BELLTEAM_STATE_PARENT: '/private/state-data',
-  BELLTEAM_MAINTENANCE_BACKUP_PARENT: '/private/backups',
-}
-for (const mount of maintenance.volumes) for (const [variable, value] of Object.entries(bindings))
-  mount.source = mount.source.replace(new RegExp('^\\$\\{' + variable + ':[^}]+\\}'), value)
+maintenance.volumes[0].source = '/runtime'
 
 function fixture() {
   return { services: {
@@ -17,7 +12,7 @@ function fixture() {
       { type: 'bind', source: '/runtime/data', target: '/srv/bellteam' },
       { type: 'bind', source: '/runtime/home', target: '/home/bell' },
       { type: 'volume', source: 'cursor-cli', target: '/home/bell/.local' },
-      ...structuredClone(maintenance.volumes.slice(2, 8)),
+      ...['state','rooms','owner','logs','shared/tools/bellteam-settings','shared/tools/apns'].map(name=>({type:'bind',source:'/runtime/server-only/state-data/'+name.split('/').at(-1),target:'/srv/bellteam/'+name})),
     ] },
     'state-maintenance': structuredClone(maintenance),
   }, volumes: { 'cursor-cli': { name: 'fixture_cursor' } } }
@@ -28,7 +23,7 @@ test('normalとmaintenanceは同じ六sourceへ結合し、別sourceの内容を
   for (const mutate of [
     c => { c.services.bellteam.volumes[3].source = '/other/state' },
     c => { c.services['state-maintenance'].volumes[0].source = '/other/legacy' },
-    c => { c.services['state-maintenance'].volumes[1].source = '/other/base' },
+    c => { c.services['state-maintenance'].volumes[0].source = '/other/base' },
   ]) {
     const c = fixture(); mutate(c)
     assert.throws(() => stateWriterPlan(c), /WRITER_METADATA_INVALID/)
@@ -36,19 +31,17 @@ test('normalとmaintenanceは同じ六sourceへ結合し、別sourceの内容を
 })
 
 test('新stateとbackupを旧data/HOMEや相互の親子sourceへ重ねない', () => {
-  for (const source of ['/runtime/data/state', '/runtime/home/state', '/private/backups/state', '/private/state-data/rooms']) {
+  for (const source of ['/runtime/data/state', '/runtime/home/state', '/runtime/server-only/state-data/rooms']) {
     const c = fixture()
     c.services.bellteam.volumes[3].source = source
-    c.services['state-maintenance'].volumes[2].source = source
     assert.throws(() => stateWriterPlan(c), /WRITER_METADATA_INVALID/)
   }
 })
 
-test('normalはlegacy/backup viewや別target経由のbackupを露出しない', () => {
+test('normalは旧二view/backup用targetを露出しない', () => {
   for (const mount of [
     { type: 'bind', source: '/elsewhere', target: '/srv/bellteam-legacy' },
     { type: 'bind', source: '/elsewhere', target: '/srv/bellteam-maintenance-backups/one' },
-    { type: 'bind', source: '/private/backups', target: '/unexpected', read_only: true },
   ]) {
     const c = fixture(); c.services.bellteam.volumes.push(mount)
     assert.throws(() => stateWriterPlan(c), /WRITER_METADATA_INVALID/)

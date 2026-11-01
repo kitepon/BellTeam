@@ -1,13 +1,12 @@
 // Offline operation: both generations and seat writers must already be stopped.
 // A failed operation must not be followed by starting either server generation.
 import { constants } from 'node:fs'
-import { lstat, mkdir, readdir, open, copyFile, chmod, rename, unlink, rmdir } from 'node:fs/promises'
+import { lstat, mkdir, readdir, open, link, chmod, rename, unlink, rmdir } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
-import { transferAiControlState } from './ai-control-state-transfer.mjs'
+import { validateAiControlState } from './ai-control-state-transfer.mjs'
 import { prepareServerStateOwnership } from './server-state-ownership.mjs'
-import { backupServerState } from './server-state-backup.mjs'
 
 const botId = /^[a-z0-9][a-z0-9-]{0,63}$/u
 const failure = code => Object.assign(new Error(code), { code })
@@ -46,10 +45,12 @@ async function syncAncestors(path, root) {
     path = dirname(path)
   }
 }
-async function regular(path) {
+async function regular(path, peer) {
   await directory(dirname(path))
   const info = await lstat(path)
-  if (!info.isFile() || info.nlink !== 1) throw failure('SERVER_STATE_FILE_INVALID')
+  const paired = peer && await exists(peer)
+  if (!info.isFile() || info.nlink !== 1 && !(info.nlink === 2 && paired?.isFile()
+    && paired.dev === info.dev && paired.ino === info.ino)) throw failure('SERVER_STATE_FILE_INVALID')
   const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
   try {
     const opened = await file.stat()
@@ -58,7 +59,7 @@ async function regular(path) {
   } catch (error) { return useFile(file, () => { throw error }) }
 }
 async function equalFiles(a, b) {
-  return useFile(await regular(a), async left => useFile(await regular(b), async right => {
+  return useFile(await regular(a, b), async left => useFile(await regular(b, a), async right => {
     const x = Buffer.alloc(65536), y = Buffer.alloc(65536)
     while (true) {
       const [l, r] = await Promise.all([left.read(x), right.read(y)])
@@ -67,38 +68,41 @@ async function equalFiles(a, b) {
     }
   }))
 }
-async function removeUnchangedSource(source, before) {
-  const after = await lstat(source)
-  if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.ctimeMs !== after.ctimeMs
-    || before.mtimeMs !== after.mtimeMs || !after.isFile() || after.nlink !== 1) throw failure('SERVER_STATE_FILE_CHANGED')
+async function removeUnchangedSource(source, destination, before) {
+  const after = await lstat(source), target = await lstat(destination)
+  const paired = after.dev === target.dev && after.ino === target.ino
+  if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size
+    || before.mtimeMs !== after.mtimeMs || !after.isFile() || after.nlink !== (paired ? 2 : 1))
+    throw failure('SERVER_STATE_FILE_CHANGED')
   await unlink(source)
   await syncDirectory(dirname(source))
 }
 async function moveFile(source, destination, root) {
-  const before = await useFile(await regular(source), file => file.stat())
+  const before = await useFile(await regular(source, destination), file => file.stat())
   await directory(dirname(destination))
   if (await exists(destination)) {
     if (!await equalFiles(source, destination)) throw failure('SERVER_STATE_TRANSFER_CONFLICT')
   } else {
-    const temporary = destination + '.' + randomUUID() + '.tmp'
-    try {
-      await copyFile(source, temporary, constants.COPYFILE_EXCL)
-      await chmod(temporary, 0o600)
-      await useFile(await open(temporary, 'r+'), file => file.sync())
-      // No stopped writer may have changed the source or created a target.
-      if (await exists(destination)) throw failure('SERVER_STATE_TRANSFER_CONFLICT')
-      await rename(temporary, destination)
-      await syncDirectory(dirname(destination))
-    } finally { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error }) }
+    // link is no-clobber and keeps the source until the destination is durable.
+    await link(source, destination)
   }
+  await useFile(await regular(destination, source), file => file.sync())
   await syncAncestors(dirname(destination), root)
-  await removeUnchangedSource(source, before)
+  await removeUnchangedSource(source, destination, before)
+  await chmod(destination, 0o600)
 }
-async function moveTree(source, destination, root, keepRoot = false) {
+async function moveTree(source, destination, root) {
   const info = await exists(source)
   if (!info) return
-  if (!info.isDirectory() || info.isSymbolicLink()) throw failure('SERVER_STATE_DIRECTORY_INVALID')
   await directory(source)
+  await directory(dirname(destination))
+  if (!await exists(destination)) {
+    await validateTree(source)
+    await rename(source, destination)
+    await syncAncestors(dirname(destination), root)
+    await syncDirectory(dirname(source))
+    return
+  }
   await directory(destination)
   for (const entry of await readdir(source, { withFileTypes: true })) {
     const from = join(source, entry.name), to = join(destination, entry.name)
@@ -106,34 +110,49 @@ async function moveTree(source, destination, root, keepRoot = false) {
     else if (entry.isFile()) await moveFile(from, to, root)
     else throw failure('SERVER_STATE_FILE_INVALID')
   }
-  if (!keepRoot) { await rmdir(source); await syncDirectory(dirname(source)) }
+  await rmdir(source); await syncDirectory(dirname(source))
+}
+async function validateTree(path) {
+  const info = await lstat(path)
+  if (info.isDirectory()) {
+    await directory(path)
+    for (const name of await readdir(path)) await validateTree(join(path, name))
+  } else await useFile(await regular(path), () => {})
 }
 
-// The two maintenance views share seat data, but these six destinations must
-// be distinct, protected mounts. Never remove their mounted root directories.
+const protectedRoots = ['state', 'rooms', 'owner', 'logs', 'shared/tools/bellteam-settings', 'shared/tools/apns']
+
+// All roots share one filesystem; rename preserves each complete directory.
 export async function relocateServerRoots({ legacyRoot, serverRoot, direction }) {
   if (![legacyRoot, serverRoot].every(value => typeof value === 'string' && isAbsolute(value))
     || !['to-server', 'to-legacy'].includes(direction)) throw failure('SERVER_STATE_RELOCATION_OPTIONS')
   legacyRoot = resolve(legacyRoot); serverRoot = resolve(serverRoot)
   assertSeparateRoots(legacyRoot, serverRoot)
-  const names = ['state', 'rooms', 'owner', 'logs', 'shared/tools/bellteam-settings', 'shared/tools/apns']
-  const [from, to] = direction === 'to-server' ? [legacyRoot, serverRoot] : [serverRoot, legacyRoot]
-  await directory(from); await directory(to)
-  // Validate the full fixed mapping before moving the first root's content.
-  for (const name of names) {
-    const source = join(from, name), target = join(to, name)
+  await directory(legacyRoot); await directory(serverRoot)
+  for (const name of protectedRoots) {
+    const legacy = join(legacyRoot, name), current = join(serverRoot, name.split('/').at(-1))
+    const [source, target] = direction === 'to-server' ? [legacy, current] : [current, legacy]
     const info = await exists(source)
-    await directory(target)
-    if (!info) continue
+    await directory(dirname(target))
+    if (!info) { await directory(target); continue }
     await directory(source)
-    const destination = await lstat(target)
-    if (info.dev === destination.dev && info.ino === destination.ino) throw failure('SERVER_STATE_RELOCATION_ALIAS')
+    if (await exists(target)) {
+      await directory(target)
+      const destination = await lstat(target)
+      if (info.dev === destination.dev && info.ino === destination.ino) throw failure('SERVER_STATE_RELOCATION_ALIAS')
+      if ((await readdir(target)).length) {
+        // Empty mount points left by normal startup contain no data to move.
+        if (!(await readdir(source)).length) continue
+        throw failure('SERVER_STATE_TRANSFER_CONFLICT')
+      }
+    }
+    await rename(source, target)
+    await syncDirectory(dirname(target)); await syncDirectory(dirname(source))
   }
-  for (const name of names) await moveTree(join(from, name), join(to, name), to, true)
   return { direction, status: 'relocated' }
 }
-async function validateJson(path, valid) {
-  return useFile(await regular(path), async file => {
+async function validateJson(path, valid, peer) {
+  return useFile(await regular(path, peer), async file => {
     try { if (!valid(JSON.parse(await file.readFile('utf8')))) throw failure('SERVER_STATE_DOCUMENT_INVALID') }
     catch (error) { if (error instanceof SyntaxError) throw failure('SERVER_STATE_DOCUMENT_INVALID'); throw error }
   })
@@ -146,13 +165,16 @@ async function marker(path) {
 
 // Paths stay under the same data root. Ownership and independent mount setup
 // belong to the privileged offline installer, not this content transfer.
-export async function transferServerState({ root, direction }) {
-  if (!['to-server', 'to-legacy'].includes(direction) || typeof root !== 'string' || !isAbsolute(root))
+export async function transferServerState({ root, stateRoot = join(root, 'state'), direction, recovering = false }) {
+  if (!['to-server', 'to-legacy'].includes(direction) || typeof root !== 'string' || !isAbsolute(root)
+    || typeof stateRoot !== 'string' || !isAbsolute(stateRoot))
     throw failure('SERVER_STATE_TRANSFER_OPTIONS')
-  root = resolve(root)
-  const legacy = join(root, 'bots'), server = join(root, 'state/bots')
+  root = resolve(root); stateRoot = resolve(stateRoot)
+  let syncRoot = root
+  while (relative(syncRoot, stateRoot).startsWith('..')) syncRoot = dirname(syncRoot)
+  const legacy = join(root, 'bots'), server = join(stateRoot, 'bots')
   await directory(root)
-  for (const path of [legacy, server, join(root, 'shared'), join(root, 'state')]) await directory(path)
+  for (const path of [legacy, server, join(root, 'shared'), stateRoot]) await directory(path)
   const [from, to] = direction === 'to-server' ? [legacy, server] : [server, legacy]
   const fromMarker = join(from, '.initialized'), toMarker = join(to, '.initialized')
   // An in-progress deletion needs the new registry's recovery, not a partial
@@ -163,10 +185,10 @@ export async function transferServerState({ root, direction }) {
     if ((await readdir(deleting)).length) throw failure('SERVER_STATE_PENDING_REMOVAL')
   }
   const pairs = [
-    ['shared/subscription.json', 'state/subscription.json'],
-    ['shared/onboarding.json', 'state/onboarding.json'],
-    ['shared/ai-control.json', 'state/ai-control.json'],
-    ['shared/tools/call-bridge/headers', 'state/call-bridge/headers'],
+    [join(root, 'shared/subscription.json'), join(stateRoot, 'subscription.json')],
+    [join(root, 'shared/onboarding.json'), join(stateRoot, 'onboarding.json')],
+    [join(root, 'shared/ai-control.json'), join(stateRoot, 'ai-control.json')],
+    [join(root, 'shared/tools/call-bridge/headers'), join(stateRoot, 'call-bridge/headers')],
   ]
   const ids = new Set()
   for (const base of [from, to]) for (const entry of await readdir(base, { withFileTypes: true })) {
@@ -176,94 +198,151 @@ export async function transferServerState({ root, direction }) {
   }
   const fromFiles = [
     ...[...ids].flatMap(id => ['bot.json', 'schedule.json', 'messages/assets'].map(name => join(from, id, name))),
-    ...pairs.map(([a, b]) => join(root, direction === 'to-server' ? a : b)),
+    ...pairs.map(([a, b]) => direction === 'to-server' ? a : b),
   ]
   const remaining = (await Promise.all(fromFiles.map(exists))).some(Boolean)
-  if (await exists(toMarker)) {
+  if (await exists(toMarker) && !(recovering && remaining)) {
     await useFile(await regular(toMarker), () => {})
     if (await exists(fromMarker)) await useFile(await regular(fromMarker), () => {})
     if (remaining) throw failure('SERVER_STATE_TRANSFER_CONFLICT')
     // A prior attempt may have created the marker but failed its directory
     // sync. Re-establish durability before retiring the source commit marker.
     await useFile(await regular(toMarker), file => file.sync())
-    await syncAncestors(to, root)
+    await syncAncestors(to, syncRoot)
     if (await exists(fromMarker)) { await unlink(fromMarker); await syncDirectory(from) }
     return { direction, status: 'already-transferred' }
   }
-  if (!await exists(fromMarker)) {
+  if (!await exists(fromMarker) && !(recovering && await exists(toMarker))) {
     if (!ids.size && !remaining) return { direction, status: 'fresh' }
     throw failure('SERVER_STATE_MIGRATION_MARKER_MISSING')
   }
-  await useFile(await regular(fromMarker), () => {})
+  if (await exists(fromMarker)) await useFile(await regular(fromMarker), () => {})
   // Validate every remaining profile/schedule before removing any source file.
   for (const id of ids) {
     for (const name of ['bot.json', 'schedule.json']) {
       const path = await exists(join(from, id, name)) ? join(from, id, name) : join(to, id, name)
       await validateJson(path, value => name === 'bot.json'
         ? /^bellteam\.bot\.v[1-8]$/u.test(value?.schema) && (!value.id || value.id === id)
-        : value?.schema === 'bellteam.schedule.v1' && Array.isArray(value.schedules))
+        : value?.schema === 'bellteam.schedule.v1' && Array.isArray(value.schedules),
+        path === join(from, id, name) ? join(to, id, name) : join(from, id, name))
     }
   }
   for (const id of ids) {
-    for (const name of ['bot.json', 'schedule.json']) if (await exists(join(from, id, name))) await moveFile(join(from, id, name), join(to, id, name), root)
-    await moveTree(join(from, id, 'messages/assets'), join(to, id, 'messages/assets'), root)
+    for (const name of ['bot.json', 'schedule.json']) if (await exists(join(from, id, name))) await moveFile(join(from, id, name), join(to, id, name), syncRoot)
+    await moveTree(join(from, id, 'messages/assets'), join(to, id, 'messages/assets'), syncRoot)
   }
   for (const pair of pairs) {
     const [a, b] = direction === 'to-server' ? pair : [...pair].reverse()
-    const source = join(root, a), target = join(root, b)
+    const source = a, target = b
     if (!await exists(source)) continue
-    if (a.endsWith('/ai-control.json')) {
-      const before = await useFile(await regular(source), file => file.stat())
-      await directory(dirname(target))
-      if (await exists(target)) await useFile(await regular(target), () => {})
-      await transferAiControlState({ legacyRoot: root, stateRoot: join(root, 'state'), direction })
-      await syncAncestors(dirname(target), root)
-      await removeUnchangedSource(source, before)
-    } else await moveFile(source, target, root)
+    if (a.endsWith('/ai-control.json'))
+      await useFile(await regular(source, target), async file => validateAiControlState(await file.readFile()))
+    await moveFile(source, target, syncRoot)
   }
-  await syncAncestors(to, root)
-  await marker(toMarker) // Complete all state before making the new registry bootable.
-  await unlink(fromMarker)
+  await syncAncestors(to, syncRoot)
+  if (!await exists(toMarker)) await marker(toMarker)
+  await useFile(await regular(toMarker), file => file.sync())
+  await syncAncestors(to, syncRoot)
+  if (await exists(fromMarker)) await unlink(fromMarker)
   await syncDirectory(from)
   return { direction, status: 'transferred', bots: ids.size }
 }
 
-export async function migrateServerState({ legacyRoot, serverRoot, backupRoot, direction }) {
-  if (![legacyRoot, serverRoot, backupRoot].every(value => typeof value === 'string' && isAbsolute(value))
-    || !['to-server', 'to-legacy'].includes(direction)) throw failure('SERVER_STATE_TRANSFER_OPTIONS')
-  assertSeparateRoots(legacyRoot, serverRoot)
-  const options = { root: serverRoot, direction }, roots = { legacyRoot, serverRoot, direction }
-  for (const view of ['legacy', 'server']) for (const root of [legacyRoot, serverRoot])
-    assertSeparateRoots(root, join(backupRoot, view), 'SERVER_STATE_BACKUP_LOCATION')
-  const parent = await lstat(backupRoot)
-  if (!parent.isDirectory() || parent.uid !== process.geteuid() || parent.gid !== process.getegid() || (parent.mode & 0o777) !== 0o700)
-    throw failure('SERVER_STATE_BACKUP_PARENT')
-  // Preserve both generations before a partial migration can hide current
-  // content in either view. A failed second backup must stop all migration.
-  const backups = {}
-  for (const [view, root] of [['legacy', legacyRoot], ['server', serverRoot]]) {
-    const destination = join(backupRoot, view)
-    try { await mkdir(destination, { mode: 0o700 }) } catch (error) { if (error.code !== 'EEXIST') throw error }
-    backups[view] = await backupServerState({ root, direction, backupRoot: destination })
+async function setDirectoryOwner(path, uid, gid, mode) {
+  await useFile(await open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW), async file => {
+    await file.chown(uid, gid); await file.chmod(mode); await file.sync()
+    const info = await file.stat(), linked = await lstat(path)
+    if (info.dev !== linked.dev || info.ino !== linked.ino || info.uid !== uid || info.gid !== gid
+      || (info.mode & 0o7777) !== mode) throw failure('SERVER_STATE_SEAL_UNSUPPORTED')
+  })
+}
+
+async function writeRecord(path, value) {
+  const temporary = path + '.' + randomUUID() + '.tmp'
+  try {
+    await useFile(await open(temporary, 'wx', 0o600), async file => {
+      await file.writeFile(JSON.stringify(value) + '\n'); await file.sync()
+    })
+    await rename(temporary, path); await syncDirectory(dirname(path))
+  } finally { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error }) }
+}
+
+export async function prepareServerStateRuntime({ root }) {
+  if (typeof root !== 'string' || !isAbsolute(root)) throw failure('SERVER_STATE_PREPARE_OPTIONS')
+  root = resolve(root)
+  const privateRoot = join(root, 'server-only/state-data')
+  await directory(privateRoot)
+  await setDirectoryOwner(privateRoot, 0, 1001, 0o750)
+  const info = await lstat(privateRoot), receipt = join(privateRoot, '.prepared.json')
+  const expected = { schema: 'bellteam.state-directory.v2', device: String(info.dev), inode: String(info.ino) }
+  if (await exists(receipt)) {
+    const saved = await useFile(await regular(receipt), async file => JSON.parse(await file.readFile('utf8')))
+    if (JSON.stringify(saved) !== JSON.stringify(expected)) throw failure('SERVER_STATE_PREPARE_CHANGED')
+    return { status: 'already-prepared' }
   }
+  await writeRecord(receipt, expected)
+  return { status: 'prepared' }
+}
+
+export async function migrateServerState({ root, direction }) {
+  if (typeof root !== 'string' || !isAbsolute(root) || !['to-server', 'to-legacy'].includes(direction))
+    throw failure('SERVER_STATE_TRANSFER_OPTIONS')
+  root = resolve(root)
+  const data = join(root, 'data'), privateRoot = join(root, 'server-only/state-data')
+  await directory(data)
+  await prepareServerStateRuntime({ root })
+  const record = join(privateRoot, '.transaction.json')
+  let transaction
+  if (await exists(record)) {
+    transaction = await useFile(await regular(record), async file => JSON.parse(await file.readFile('utf8')))
+    if (transaction.schema !== 'bellteam.state-transaction.v1' || typeof transaction.id !== 'string'
+      || !['to-server', 'to-legacy'].includes(transaction.direction) || !Number.isFinite(Date.parse(transaction.startedAt)))
+      throw failure('SERVER_STATE_TRANSACTION_INVALID')
+  }
+  if (!transaction && direction === 'to-server') {
+    const info = await lstat(data)
+    let settled = info.uid === 1000 && info.gid === 1000 && (info.mode & 0o7777) === 0o711
+      && !!await exists(join(privateRoot, 'state/bots/.initialized'))
+    for (const name of protectedRoots) {
+      const source = join(data, name), target = await exists(join(privateRoot, name.split('/').at(-1)))
+      if (!target?.isDirectory() || target.uid !== 1001 || target.gid !== 1001 || (target.mode & 0o7777) !== 0o711
+        || await exists(source) && (await readdir(source)).length) settled = false
+    }
+    if (settled) {
+      // Reuse content validation; any newly appearing legacy state is a conflict.
+      const result = await transferServerState({ root: data, stateRoot: join(privateRoot, 'state'), direction })
+      return { ...result, ownership: 'unchanged' }
+    }
+  }
+  // Effective kernel permissions, not a marker alone, exclude both old/new boot.
+  await setDirectoryOwner(data, 0, 0, 0o700)
+  if (!transaction) {
+    transaction = { schema: 'bellteam.state-transaction.v1', id: randomUUID(), direction, startedAt: new Date().toISOString() }
+    await writeRecord(record, transaction)
+  }
+  const roots = { legacyRoot: data, serverRoot: privateRoot, direction }
   if (direction === 'to-server') await relocateServerRoots(roots)
-  const result = await transferServerState(options)
+  // An interrupted inverse may already have renamed the state directory back.
+  const stateRoot = await exists(join(privateRoot, 'state')) ? join(privateRoot, 'state') : join(data, 'state')
+  const result = await transferServerState({ root: data, stateRoot, direction, recovering: true })
   if (direction === 'to-legacy') await relocateServerRoots(roots)
-  const ownership = await prepareServerStateOwnership({ ...options, root: direction === 'to-server' ? serverRoot : legacyRoot })
-  return { ...result, ownership, backups }
+  const ownership = await prepareServerStateOwnership({ root: data, privateRoot: direction === 'to-server' ? privateRoot : data,
+    direction, sealed: true })
+  await unlink(record); await syncDirectory(privateRoot)
+  await setDirectoryOwner(data, 1000, 1000, 0o711)
+  await syncDirectory(root)
+  return { ...result, ownership, transaction: transaction.id }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    if (process.argv.length !== 3 || !['to-server', 'to-legacy'].includes(process.argv[2]))
+    if (process.argv.length !== 3 || !['prepare', 'to-server', 'to-legacy'].includes(process.argv[2]))
       throw failure('SERVER_STATE_TRANSFER_ARGUMENTS')
     if ([process.getuid?.(), process.geteuid?.(), process.getgid?.(), process.getegid?.()].some(id => id !== 0))
       throw failure('SERVER_STATE_TRANSFER_IDENTITY')
-    const [legacy, current] = await Promise.all(['/srv/bellteam-legacy', '/srv/bellteam'].map(path => lstat(path)))
-    if (!legacy.isDirectory() || !current.isDirectory() || legacy.dev !== current.dev || legacy.ino !== current.ino)
-      throw failure('SERVER_STATE_VIEW_IDENTITY')
-    console.log(JSON.stringify(await migrateServerState({ legacyRoot: '/srv/bellteam-legacy', serverRoot: '/srv/bellteam',
-      backupRoot: '/srv/bellteam-maintenance-backups', direction: process.argv[2] })))
+    const root = '/srv/bellteam-runtime'
+    console.log(JSON.stringify(await (process.argv[2] === 'prepare' ? prepareServerStateRuntime({ root })
+      : migrateServerState({ root, direction: process.argv[2] }))))
   } catch (error) {
     // Maintenance errors must not print paths, parsed documents or headers.
     console.error(/^[A-Z][A-Z_0-9]*$/u.test(error.code ?? '') ? error.code : 'SERVER_STATE_TRANSFER_FAILED')

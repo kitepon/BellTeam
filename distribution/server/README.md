@@ -73,3 +73,19 @@ BELLTEAM_SERVER_IMAGE=bellteam-server:local sh install.sh --no-pull
 `--no-pull`は指定したローカルイメージを使い、通常のinstallerと同じ手順で保存先の準備・Cursor更新・起動を行います。イメージが無ければ、既存のBellTeamを停止する前にエラーになります。これは完全なオフライン導入ではなく、ビルドとCursorの公式更新には通信が必要です。
 
 ソース版を更新するときは、リポジトリで`git pull --ff-only`したあと、`mkdir -p runtime`からの手順をもう一度実行します。設置先の`bellteam-server/runtime`とDocker volumeは残してください。別の設置フォルダを使っている場合は、コピー先と移動先をそのフォルダへ合わせます。ローカル版を使い続ける場合は、更新時も`BELLTEAM_SERVER_IMAGE=bellteam-server:local sh install.sh --no-pull`を指定してください。
+
+## 移行と復旧
+
+本体専用の設定・会話・予定は`runtime/server-only/state-data/`に保存します。`runtime/home/`とメンバーの作業フォルダは保持します。更新前の控えを取る場合は`runtime/`全体と参照中の`.bellteam-compose.*`を非公開の保存先へ残してください。旧imageと保存世代は復旧が不要になるまで保持し、`docker image prune`で削除しないでください。
+
+移行途中はdataフォルダを本体から開けない権限へ変更し、不完全な状態で旧版・新版が起動することを防ぎます。途中で止まった場合はエラーの原因を解消し、同じ`install.sh`を再実行してください。手動で権限を戻すと不完全な状態で起動し得るため、chmodで解除しないでください。内容の異なる同名ファイルは上書きせず停止します。両方を保持して残す内容を確認してから、不要側だけを整理して再開します。
+
+前の版へ戻す場合は、更新時に表示された保存世代を指定します。
+
+```sh
+sh install.sh --recover .bellteam-compose.対象世代
+```
+
+現在の会話・予定を含むdataを戻し、保存した旧imageと設定で起動します。古いbackupへ巻き戻す操作ではありません。旧設定を証明できなかった世代では復旧を拒否し、保存したcontainer原本を案内します。旧profileの実fileを別世代から参照している場合、その世代も保持してください。
+
+WindowsではWSLのLinux filesystem内へ設置してください。権限変更とdirectory lockが利用できないfilesystemでは、移行前に停止します。MacのDocker Desktop上の検証状況は対応するリリース記録を確認してください。

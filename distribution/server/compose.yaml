@@ -28,6 +28,12 @@ services:
       - cursor-cli:/home/bell/.local
       - ./runtime/data:/srv/bellteam
       - type: bind
+        source: ./runtime/server-only/state-data
+        target: /run/bellteam-maintenance
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
         source: ./runtime/server-only/state-data/state
         target: /srv/bellteam/state
         bind:
