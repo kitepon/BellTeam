@@ -14,14 +14,16 @@ const start = async env => {
 const stop = async child => { child.kill(); await once(child, 'exit') }
 const lanAddress = Object.values(networkInterfaces()).flat().find(item => item.family === 'IPv4' && !item.internal)?.address
 
-test('既定はローカルだけで待ち受ける', async () => {
-  const { child, url } = await start({ AUTH_UI_FIXTURE_HOST: undefined })
-  try {
-    assert.match(url, /^http:\/\/127\.0\.0\.1:\d+$/u)
-    assert.equal((await fetch(`${url}/test/reset`)).status, 200)
-    if (lanAddress) await assert.rejects(fetch(url.replace('127.0.0.1', lanAddress) + '/test/reset'))
-  } finally { await stop(child) }
-})
+for (const [name, value] of [['未指定', undefined], ['空文字', '']]) {
+  test(`${name}はローカルだけで待ち受ける`, async () => {
+    const { child, url } = await start({ AUTH_UI_FIXTURE_HOST: value })
+    try {
+      assert.match(url, /^http:\/\/127\.0\.0\.1:\d+$/u)
+      assert.equal((await fetch(`${url}/test/reset`)).status, 200)
+      if (lanAddress) await assert.rejects(fetch(url.replace('127.0.0.1', lanAddress) + '/test/reset'))
+    } finally { await stop(child) }
+  })
+}
 
 test('指定したLANアドレスで待ち受け、同じ値をURLに返す', { skip: lanAddress ? false : 'LANアドレスが無い' }, async () => {
   const { child, url } = await start({ AUTH_UI_FIXTURE_HOST: lanAddress })

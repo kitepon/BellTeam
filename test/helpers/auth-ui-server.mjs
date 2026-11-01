@@ -141,5 +141,5 @@ const server = createServer(async (request, response) => {
   return json({ harness: id, auth: auth(id) })
 })
 // 実機から届くよう、AUTH_UI_FIXTURE_HOSTにMacのLANアドレスを渡せる。既定はこのMacの中だけ。
-const host = process.env.AUTH_UI_FIXTURE_HOST ?? '127.0.0.1'
+const host = process.env.AUTH_UI_FIXTURE_HOST || '127.0.0.1'
 server.listen(0, host, () => console.log(JSON.stringify({ url: `http://${host}:${server.address().port}` })))
