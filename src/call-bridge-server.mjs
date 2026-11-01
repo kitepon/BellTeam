@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { lstat, mkdir, unlink } from 'node:fs/promises'
+import { lstat, mkdir, unlink, chmod } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 const MAX_BODY = 65536
@@ -63,7 +63,8 @@ export function createCallBridgeServer({ bots, messenger }) {
 }
 
 export async function listenCallBridge(server, socketPath) {
-  await mkdir(dirname(socketPath), { recursive: true })
+  const parent = dirname(socketPath)
+  if (await mkdir(parent, { recursive: true, mode: 0o711 })) await chmod(parent, 0o711)
   try {
     const entry = await lstat(socketPath)
     if (!entry.isSocket()) throw new Error('CALL_BRIDGE_SOCKET_PATH_OCCUPIED')
@@ -75,6 +76,15 @@ export async function listenCallBridge(server, socketPath) {
     server.once('error', reject)
     server.listen(socketPath, () => { server.off('error', reject); resolve() })
   })
+  try { await chmod(socketPath, 0o666) }
+  catch (error) {
+    const cleanupErrors = []
+    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+      .catch(error => cleanupErrors.push(error))
+    await unlink(socketPath).catch(error => { if (error.code !== 'ENOENT') cleanupErrors.push(error) })
+    if (cleanupErrors.length) throw new AggregateError([error, ...cleanupErrors], 'CALL_BRIDGE_SOCKET_SETUP_FAILED')
+    throw error
+  }
   return async () => {
     await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
     await unlink(socketPath).catch(error => { if (error.code !== 'ENOENT') throw error })

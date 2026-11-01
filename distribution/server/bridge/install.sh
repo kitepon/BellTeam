@@ -41,7 +41,7 @@ if [ ! -d runtime/call-bridge/data ]; then new_data=true; fi
 mkdir -p runtime/call-bridge/data runtime/call-bridge/auth
 if "$combined"; then
   # Prepare only the dedicated socket directory, using BellTeam's existing runtime user.
-  compose run --pull never --rm --no-deps --entrypoint sh bellteam -c 'mkdir -p /srv/bellteam/shared/sockets/call-bridge'
+  compose run --pull never --rm --no-deps --entrypoint sh bellteam -c 'mkdir -p /srv/bellteam/state/call-bridge-socket'
 fi
 if "$new_data"; then
   identity=$(compose run --pull never --rm --no-deps --entrypoint sh call-bridge -c 'printf "%s:%s" "$(id -u)" "$(id -g)"')

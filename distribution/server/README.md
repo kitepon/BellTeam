@@ -1,6 +1,6 @@
 # BellTeam サーバー
 
-Docker EngineとDocker Composeを使い、自分のマシンとAIの契約で動かすBellTeamです。Dockerイメージと設置用ファイルを配布します。個人のメンバー設定や資格情報は含まれず、初回の案内役から始まります。
+Docker Engine 26以降とvolume subpathに対応したDocker Composeを使い、自分のマシンとAIの契約で動かすBellTeamです。Dockerイメージと設置用ファイルを配布します。個人のメンバー設定や資格情報は含まれず、初回の案内役から始まります。
 
 ## 設置
 
@@ -35,13 +35,15 @@ iPhone・Macアプリからの通常の会話と予定操作は共通の月額�
 
 一般配布版は開発者免除を受け付けません。`BELLTEAM_SUBSCRIPTION_ACCESS_MODE=developer`を指定すると`SUBSCRIPTION_DEVELOPER_ACCESS_UNAVAILABLE`で起動を停止します。
 
-購読が終了しても、Webからの会話と設定済みの予定は動き続けます。Appleアプリでも保存済みの会話の閲覧とJSON書き出しは利用できます。会話・設定・AIの認証情報は自分の`runtime/`へ保存されます。更新時にもこのフォルダとDocker volumeを保持します。
+購読が終了しても、Webからの会話と設定済みの予定は動き続けます。Appleアプリでも保存済みの会話の閲覧とJSON書き出しは利用できます。会話・設定は本体専用の`server-state` volume、メンバーの作業とAIの認証情報は自分の`runtime/`へ保存されます。更新時にも両方を保持します。
 
 ## 版の確認と更新
 
 イメージ内の`/app/distribution.json`にソースのGit commitを記録しています。`docker compose exec bellteam cat /app/distribution.json`で確認できます。既定の公開タグは`latest`です。以前の`preview`も同じ検査済みイメージを指します。更新は`./install.sh`で行います。再作成すると実行中のメンバーが停止するため、実行中の作業を確認してから行ってください。
 
 設置には`compose.yaml`と`install.sh`だけを同じフォルダへ保存してください。installerは取得したイメージに入っている更新手順を使うため、別のスクリプトを手で配置する必要はありません。更新時は本体を止めてからCursorを更新し、成功後に起動します。更新に失敗した場合は停止したままエラーを表示します。コンテナ本体は読み取り専用で動作し、利用者の会話・設定・追加ツールは割り当てた永続領域へ保存します。
+
+installerは設置フォルダに新しい`.bellteam-compose.XXXXXX/normal.json`と同世代の`compose.state-maintenance.json`を作り、停止から起動まで同じ通常設定を使います。フォルダは実行者所有の0700、設定は0600で、既存の世代を上書きしません。停止を試みた後は、失敗時も選択した設定を残し、コンテナの管理情報から参照できるようにします。設定には秘密情報を含むことがあるため公開せず、`runtime/`と併せて非公開のバックアップに含めてください。稼働中または復旧中のコンテナが参照する世代は削除しないでください。逆移行には同世代の専用maintenance設定を使い、後から変更した.envで保存先を選び直さないでください。設置先は実行者が書き込める場所を使ってください。通常サービスの設定でbind元になっているフォルダの配下は拒否します。別名パスや追加mountでもコンテナから見えない設置先を選んでください。
 
 2026年10月17日以前の設置ファイルでは、更新用スクリプトが無いというエラーで止まることがあります。その場合は[導入ガイド](https://github.com/kitepon/BellTeam/blob/main/docs/server-installation.md)の取得コマンドを同じ設置フォルダで実行し、`compose.yaml`と`install.sh`を取り直してください。`runtime`内の会話・設定は消さずに更新できます。
 
@@ -71,3 +73,23 @@ BELLTEAM_SERVER_IMAGE=bellteam-server:local sh install.sh --no-pull
 `--no-pull`は指定したローカルイメージを使い、通常のinstallerと同じ手順で保存先の準備・Cursor更新・起動を行います。イメージが無ければ、既存のBellTeamを停止する前にエラーになります。これは完全なオフライン導入ではなく、ビルドとCursorの公式更新には通信が必要です。
 
 ソース版を更新するときは、リポジトリで`git pull --ff-only`したあと、`mkdir -p runtime`からの手順をもう一度実行します。設置先の`bellteam-server/runtime`とDocker volumeは残してください。別の設置フォルダを使っている場合は、コピー先と移動先をそのフォルダへ合わせます。ローカル版を使い続ける場合は、更新時も`BELLTEAM_SERVER_IMAGE=bellteam-server:local sh install.sh --no-pull`を指定してください。
+
+## 移行と復旧
+
+本体専用の設定・会話・予定は、外部volume `bellteam-server-state` に保存します。初回に実際の権限拒否を検査し、Linuxなどでは`runtime/server-only/state-data/`をvolumeの実体にします。Mac Docker Desktopなど共有フォルダの権限が効かない環境では、Docker Engine内のvolumeを使います。`runtime/home/`とメンバーの作業フォルダは保持します。別名volumeを使う場合は`BELLTEAM_SERVER_STATE_VOLUME`を初回から指定し、保存した設定と同じものを使ってください。
+
+`docker compose down -v`でもこの外部volumeは残ります。`docker volume rm`で削除すると本体の状態が失われるため、削除しないでください。控えを取る場合は`runtime/`全体と参照中の`.bellteam-compose.*`に加え、volumeも非公開の保存先へ残します。volumeの控えは、利用中のimageからvolumeを読み取り専用でmountし、`tar`で保存できます。旧imageと保存世代は復旧が不要になるまで保持してください。
+
+移行は異なるfilesystem間でもcopyし、公開先の全bytesを確認してから元を`retired/<操作ID>/`へ退避します。退避した原本は移行時点の控えで、移行後の新しい会話を含むbackupではありません。正常移行と必要な控えの確認後にだけ整理してください。
+
+移行中はdataフォルダと記録fileを原子的に交換し、旧版・新版が不完全な状態で起動することを防ぎます。交換に対応しないfilesystemでは、dataを動かす前に停止します。途中で止まった場合は原因を解消し、同じ`install.sh`を再実行してください。記録fileの手動削除やdataの型変更で解除しないでください。内容の異なる同名fileは上書きせず両方を保持するので、残す内容を確認してから不要側だけを整理して再開します。
+
+前の版へ戻す場合は、更新時に表示された保存世代を指定します。
+
+```sh
+sh install.sh --recover .bellteam-compose.対象世代
+```
+
+現在の会話・予定を含むdataを戻し、保存した旧imageと設定で起動します。古いbackupへ巻き戻す操作ではありません。旧設定を証明できなかった世代では復旧を拒否し、保存したcontainer原本を案内します。旧profileの実fileを別世代から参照している場合、その世代も保持してください。
+
+WindowsではWSLのLinux filesystem内へ設置してください。Mac Docker Desktopでは本体専用データをEngine内volumeへ分離します。環境ごとの実移行・復旧の受入状況は対応するリリース記録を確認してください。

@@ -1,0 +1,66 @@
+{
+  "services": {
+    "state-maintenance": {
+      "image": "${BELLTEAM_SERVER_IMAGE:-ghcr.io/kitepon/bellteam-server:latest}",
+      "pull_policy": "never",
+      "user": "0:0",
+      "entrypoint": [
+        "/usr/bin/env",
+        "-i",
+        "PATH=/usr/local/bin:/usr/bin:/bin",
+        "/bin/sh",
+        "-ec",
+        "case \"$$#:$$1\" in 1:install-sce-headers) exec /usr/bin/python3 -I /app/scripts/install-sce-headers.py headers;; 1:install-sce-endpoint) exec /usr/bin/python3 -I /app/scripts/install-sce-headers.py endpoint;; esac; exec /usr/bin/flock -x -n -E 75 /srv/bellteam-private /usr/local/bin/node /app/src/server-state-transfer.mjs \"$$@\"",
+        "state-maintenance"
+      ],
+      "command": [
+        "to-server"
+      ],
+      "init": true,
+      "read_only": true,
+      "network_mode": "none",
+      "cap_drop": [
+        "ALL"
+      ],
+      "cap_add": [
+        "CHOWN",
+        "DAC_OVERRIDE",
+        "FOWNER"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "cpus": 1,
+      "mem_limit": "2g",
+      "memswap_limit": "2g",
+      "pids_limit": 512,
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,size=64m"
+      ],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "./runtime",
+          "target": "/srv/bellteam-runtime",
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "volume",
+          "source": "server-state",
+          "target": "/srv/bellteam-private",
+          "volume": {
+            "nocopy": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "server-state": {
+      "external": true,
+      "name": "${BELLTEAM_SERVER_STATE_VOLUME:-bellteam-server-state}"
+    }
+  }
+}

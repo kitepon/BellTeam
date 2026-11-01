@@ -29,7 +29,8 @@ if(command.includes('/healthz')){
   process.stdout.write(process.env.FIXTURE_HEALTH)
   process.exit(Number(process.env.FIXTURE_HEALTH_EXIT))
 }
-if(command.includes('/api/bots')) console.log('{"bots":[]}')
+if(command.includes('sh -s'))console.log('/home/kite/BellTeam/.bellteam-compose.ABC123/previous-normal.json')
+else if(command.includes('/api/bots')) console.log('{"bots":[]}')
 else if(command.includes('tail -3')) console.log('deploy-exit=0')
 `,
   }

@@ -30,6 +30,7 @@ jobs:
       EXPECTED_DIGEST: ${{ inputs.digest }}
       EXPECTED_SOURCE: ${{ inputs.source }}
       COMPOSE_PROJECT_NAME: published-server-smoke
+      BELLTEAM_SERVER_STATE_VOLUME: published-server-smoke-state
     steps:
       - uses: actions/checkout@v7
       - name: 入力と空のDocker資格設定
@@ -99,6 +100,9 @@ jobs:
         working-directory: runtime/published-server
         run: |
           if test -f compose.yaml; then docker compose down --volumes --remove-orphans; fi
+          if docker volume inspect "$BELLTEAM_SERVER_STATE_VOLUME" >/dev/null 2>&1; then
+            docker volume rm "$BELLTEAM_SERVER_STATE_VOLUME"
+          fi
       - uses: actions/upload-artifact@v7
         if: always()
         with:

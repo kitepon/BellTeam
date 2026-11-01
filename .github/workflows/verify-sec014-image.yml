@@ -1,4 +1,4 @@
-name: SEC014の隔離image起動とlockを確認
+name: SEC014の公開installer・移行復旧と実lockを隔離確認
 
 on:
   workflow_dispatch:
@@ -20,10 +20,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v7
-        with:
-          path: harness
-          persist-credentials: false
       - name: 入力の形式を確認
         env:
           SOURCE: ${{ inputs.source }}
@@ -50,13 +46,15 @@ jobs:
           docker build --pull --platform linux/amd64 \
             --label "org.opencontainers.image.revision=$SOURCE" \
             -t "bellteam-sec014-test:$SOURCE" "$RUNNER_TEMP/sec014-image-context"
-      - name: 実UID・起動前拒否・同inodeのSH寿命と席FD非継承を確認
+      - name: 試験harnessの自己検証
+        run: python3 -B candidate/test/sec014-image-runtime.py --self-check
+      - name: 公開二fileの導入・移行と両復旧・実UIDとFD3/FD4を確認
         env:
           SOURCE: ${{ inputs.source }}
         run: |
           sudo -n /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin \
-            RUNNER_TEMP="$RUNNER_TEMP" /usr/bin/python3 -B \
-            "$GITHUB_WORKSPACE/harness/test/sec014-image-runtime.py" \
+            RUNNER_TEMP="$RUNNER_TEMP" SEC014_ISOLATED_CI=1 /usr/bin/python3 -B \
+            "$GITHUB_WORKSPACE/candidate/test/sec014-image-runtime.py" \
             "bellteam-sec014-test:$SOURCE" "$SOURCE"
       - name: 専用結果をartifact取得者へ渡す
         if: always()

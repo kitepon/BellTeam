@@ -6,9 +6,13 @@ import { messageImages, MESSAGE_MAX_BYTES } from './http-messages.mjs'
 export function createBotApi({ bots, transport, administration, memory, characterSheets, aiControl, notify, sources, store, messagePage, messenger }) {
   return async (request, response, url) => {
     if (request.method === 'GET' && url.pathname === '/api/bots') {
-      const all = [...bots.values()]
+      const all = bots.listForClient ? await bots.listForClient() : [...bots.values()]
+      const listingState = id => bots.clientListingState?.(id)
+        ?? (bots.isDeleting?.(id) ? 'pending' : bots.has(id) ? 'active' : 'absent')
+      const deleting = bot => bot.deleting || listingState(bot.id) === 'pending'
       const [running, views] = await Promise.all([
-        transport.runningBots(all), store.timelineViews?.(all.map(bot => bot.id)),
+        transport.runningBots(all.filter(bot => !deleting(bot) && listingState(bot.id) === 'active')),
+        store.timelineViews?.(all.map(bot => bot.id)),
       ])
       const list = await Promise.all(all.map(async bot => {
         const last = recentTimeline(await sources('bots', bot.id, views?.get(bot.id)))
@@ -36,12 +40,21 @@ export function createBotApi({ bots, transport, administration, memory, characte
           ...avatars,
           avatarCrop: bot.avatarCrop ?? null,
           avatarLargeCrop: bot.avatarLargeCrop ?? null,
-          online: running.has(bot.id),
+          online: !deleting(bot) && running.has(bot.id),
+          ...(deleting(bot) ? { deleting: true } : {}),
           recent: last && { id: last.id, kind: last.kind, direction: last.direction, message: last.message, image: last.image, at: last.at },
           ...(application ? { configurationApplication: application } : {}),
         }
       }))
-      return json(response, 200, { bots: list })
+      // Serialize only the current listing state after all asynchronous timeline reads.
+      const current = []
+      for (const item of list) {
+        const state = listingState(item.id)
+        if (state === 'absent') continue
+        if (state === 'pending') { item.deleting = true; item.online = false }
+        current.push(item)
+      }
+      return json(response, 200, { bots: current })
     }
     if (request.method === 'POST' && url.pathname === '/api/bots') {
       const bot = await bots.create(await readJson(request))
@@ -59,13 +72,28 @@ export function createBotApi({ bots, transport, administration, memory, characte
     if (request.method === 'GET' && sheetFileMatch) {
       const botId = sheetFileMatch[1]
       if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      const sheet = await characterSheets.open(botId, decodeURIComponent(sheetFileMatch[2]))
+      const controller = new AbortController()
+      const cancel = () => controller.abort()
+      response.once('close', cancel)
+      if (response.destroyed) cancel()
+      let sheet
+      try { sheet = await characterSheets.open(botId, decodeURIComponent(sheetFileMatch[2]), { signal: controller.signal }) }
+      catch (error) {
+        response.off('close', cancel)
+        if (controller.signal.aborted) return
+        throw error
+      }
+      if (controller.signal.aborted) { sheet.stream.destroy(); return }
       response.writeHead(200, {
         'content-type': sheet.mime,
         'content-length': sheet.size,
         'cache-control': 'private, no-cache',
         'x-content-type-options': 'nosniff',
       })
+      // The seat reader must stop when its HTTP consumer disconnects; a read
+      // failure after headers aborts this response instead of crashing HTTP.
+      sheet.stream.once('error', error => response.destroy(error))
+      response.once('close', () => sheet.stream.destroy())
       return sheet.stream.pipe(response)
     }
 

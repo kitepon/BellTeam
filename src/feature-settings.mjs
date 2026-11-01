@@ -62,9 +62,10 @@ function validateValues(feature, values) {
 }
 
 export class FeatureSettings {
-  constructor({ root, environment = process.env, onChange = async () => {} }) {
+  constructor({ root, bridgeHeadersPath = join(root, 'shared/tools/call-bridge/headers'), environment = process.env, onChange = async () => {} }) {
     this.root = root
     this.path = join(root, 'shared/tools/bellteam-settings/settings.json')
+    this.bridgeHeadersPath = bridgeHeadersPath
     this.environment = environment
     this.onChange = onChange
     this.legacyAPNsConfigured = false
@@ -109,7 +110,7 @@ export class FeatureSettings {
     ]
     for (const [id, key, name] of assignments) this.settings[id][key] = this.environment[name] ?? ''
     let header
-    try { header = await readFile(join(this.root, 'shared/tools/call-bridge/headers'), 'utf8') }
+    try { header = await readFile(this.bridgeHeadersPath, 'utf8') }
     catch (error) { if (error.code !== 'ENOENT') throw error }
     if (header !== undefined) {
       const token = header.match(/^Authorization:\s*Bearer ([^\r\n]+)\r?\n?$/iu)?.[1]
