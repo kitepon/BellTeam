@@ -4,7 +4,7 @@ import { runtimeEnvironment } from './runtime-home.mjs'
 import { createSeatProcessRunner } from './seat-process.mjs'
 import { scheduleRevision } from './schedule-mutations.mjs'
 
-import { completedThroughlineTurns, NIGHTLY_RESTART_TURNS } from './aiterm-transport.mjs'
+import { completedThroughlineTurns, NIGHTLY_RESTART_TURNS } from './throughline-context.mjs'
 
 const MAINTENANCE_HOUR = 3
 const TOKYO_TIME_ZONE = 'Asia/Tokyo'

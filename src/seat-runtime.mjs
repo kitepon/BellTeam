@@ -65,7 +65,7 @@ export class SeatRuntime {
 
   memory(registry) {
     return Object.fromEntries(SEAT_MEMORY_METHODS.map(method => [method, (...args) =>
-      this.call('memory', { method, args: method === 'ensureScope' ? args : args[0], profiles: projects(registry) })]))
+      this.call('memory', { method, args: method === 'ensureScope' ? args : args[0], profiles: memoryProfiles(registry, method, args) })]))
   }
 
   async readImage(image, maxBytes) {
@@ -81,4 +81,12 @@ export class SeatRuntime {
         [fileURLToPath(new URL('./run-seat-character-sheet.mjs', import.meta.url))], { project: projectPath(botId), file }, options),
     }
   }
+}
+
+function memoryProfiles(registry, method, args) {
+  if (method === 'initialize') return projects(registry)
+  const { botId, scope } = method === 'ensureScope' ? { botId: args[0], scope: args[1] } : args[0] ?? {}
+  if (scope === 'shared') return []
+  const bot = registry.get(botId)
+  return bot ? [{ id: bot.id, project: bot.project }] : []
 }

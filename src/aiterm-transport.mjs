@@ -513,19 +513,7 @@ export class AitermTransport {
           await onStatus?.('delivered')
           return { delivery: 'steered' }
         }
-        const interim = onInterim && job.follows
-          ? this.followInterim(delivery.session, delivery.receipt, onInterim, { from: delivery.steer?.interimFrom }) : null
-        let completion
-        try {
-          completion = await this.waitUntilDone(delivery.receipt, job.controller.signal)
-        } catch (error) {
-          const seen = await interim?.stop()
-          // 記録にエラーの知らせが無い時（Grok・Cursor、記録に残らない利用上限）は、Aitermが返した理由を代わりに出す。
-          if (interim && !seen.error && String(error.message).startsWith('AITERM_TURN_'))
-            await onInterim([{ text: error.message, kind: 'error' }])
-          throw error
-        }
-        await interim?.stop()
+        const completion = await this.waitForTurnCompletion(job, delivery, onInterim)
         await job.checkpoint()
         await job.finishExecution('completion')
         if (completion.turn_id) this.activity.followedTurns.set(bot.id, completion.turn_id)
@@ -578,6 +566,23 @@ export class AitermTransport {
     })()
     job.completion = completion
     completion.accepted = accepted
+    return completion
+  }
+
+  async waitForTurnCompletion(job, delivery, onInterim) {
+    const interim = onInterim && job.follows
+      ? this.followInterim(delivery.session, delivery.receipt, onInterim, { from: delivery.steer?.interimFrom }) : null
+    let completion
+    try {
+      completion = await this.waitUntilDone(delivery.receipt, job.controller.signal)
+    } catch (error) {
+      const seen = await interim?.stop()
+      // 記録にエラーの知らせが無い時（Grok・Cursor、記録に残らない利用上限）は、Aitermが返した理由を代わりに出す。
+      if (interim && !seen.error && String(error.message).startsWith('AITERM_TURN_'))
+        await onInterim([{ text: error.message, kind: 'error' }])
+      throw error
+    }
+    await interim?.stop()
     return completion
   }
 
@@ -662,6 +667,10 @@ export class AitermTransport {
   restartIfIdle(bot) {
     if (!this.isIdle(bot.id)) return Promise.resolve({ restarted: false, reason: 'busy' })
     return this.restart(bot).then(result => ({ restarted: true, ...result }))
+  }
+
+  deliveryBots() {
+    return this.activity.stopTargets().map(job => job.bot)
   }
 
   queueItems(filter) {

@@ -23,7 +23,7 @@ flowchart LR
 
 席実行を使わない構成では同じBellTeamMemoryを直接組み立てる。DB/知識ファイルを本体の別機能から直接読む経路は増やさない。
 
-現状のSeatRuntimeは全操作で全Botの `{id, project}` を渡す。通常の操作で必要なのは対象scopeだけ。変更後の受渡しは次の形にするが、まだ未実装である。
+基底のSeatRuntimeは全操作で全Botの `{id, project}` を渡していた。通常の操作で必要なのは対象scopeだけなので、現在はmemoryProfilesで次の範囲へ絞る。
 
 | 操作 | 子へ渡すBot台帳 | 検証・保存の所有者 |
 | --- | --- | --- |

@@ -65,7 +65,7 @@ flowchart TD
 | resumeDelivery | 復旧可能な保存配送か確認し、明示操作を受付 | notify、recoveredExecutionなどのmetadata |
 | closeDeliveryLaunch | 同じ適用対象の検証後、未解決の起動を閉じる | 本文の再送とは別の明示操作 |
 
-直接通知の `onStatus/onInterim/onAnswer/onTurnEnd` の接続は同じ意味の重複である。これは共通関数へ集められる。一方、利用者の回答保存には差し込み時の回答所有と重複抑止がある。部屋には参加者別の保存形式と返信者の検証がある。見た目が似ているだけで全経路を同じ処理へまとめない。
+直接通知の `onStatus/onInterim/onAnswer/onTurnEnd` の接続は同じ意味の重複である。notificationCallbacksで共通化した。一方、利用者の回答保存には差し込み時の回答所有と重複抑止がある。部屋には参加者別の保存形式と返信者の検証がある。見た目が似ているだけで全経路を同じ処理へまとめない。
 
 ## 部屋の会話
 
@@ -102,9 +102,9 @@ flowchart LR
 
 SSEは本文全体ではなく変更通知。サーバーはtopicと対象IDをまとめて通知する。`web/app.js` は選択のtokenで古い取得結果を捨て、ページ・queue・スクロール位置を維持する。
 
-現状では選択中の会話と関係しないSSEでも `loadMessages` を呼び、queue・最新ページ・差分を読み直す。対象IDから必要な再取得を決める処理を分離する。ただし一覧の最新活動は他の会話の変更でも更新が必要で、`loadBots` まで一緒に止める根拠にはならない。ready/all/未知形式には全体更新のfallbackを残す。
+基底では選択中の会話と関係しないSSEでも `loadMessages` を呼んでいた。現在はeventAffectsTimelineで対象を選び、refreshFromEventが必要な再取得を接続する。ただし一覧の最新活動は他の会話の変更でも更新が必要で、`loadBots` まで一緒に止める根拠にはならない。ready/all/未知形式には全体更新のfallbackを残す。
 
-組立て側とMessenger内は同じJSONLへ別のConversationStoreを作っている。重複しているのは読取cache/索引であり、二重writerや保存破損を観測したわけではない。同じstoreを注入して読取りの持ち主を明確にできる。
+基底で重複していたConversationStoreの読取cache/索引は、組立て側のstoreをMessengerへ注入して共有した。二重writerや保存破損を修理したという意味ではない。
 
 ## 関数と確認先
 

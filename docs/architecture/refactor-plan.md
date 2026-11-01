@@ -1,6 +1,6 @@
 # 機能図に基づく接続の整理計画
 
-状態：設計段階。製品コードはまだ変更していない。対象sourceは[全体図](feature-map.md)に記す。現状図と変更予定を混ぜない。
+状態：下の接続1〜5を作業branchで実装した。全体試験・独立採否・統合/配布は未完。対象sourceは[全体図](feature-map.md)に記す。現状図と変更予定を混ぜない。
 
 狙いは、症状が出た時に「入力・判断・副作用・結果の観測」のどこで食い違ったか追えること。機能図の箱、関数の責務、実際の呼出しが対応するようにする。関数を短くするために巨大なcontextを渡す、無意味な一行wrapperを増やす、保存状態を二重化する変更はしない。
 
@@ -68,7 +68,7 @@ SeatRuntime側に `memoryProfiles(registry, method, args)` 相当の選択関数
 
 停止側の現在の内部参照は `stopRegisteredWork → transport.jobs`。SeatActivityには既に `stopTargets()` がある。既存窓口を使うか、Botのsnapshotだけを返す窓口にするかを実装時にcaller/fake adapterも含めて確定する。削除済みBotの進行中jobを落とさず、全対象の停止障壁を同期的に作る。未使用だと未確認のままMap別名を一括削除しない。
 
-この段階はまだ分割の最終形が未確定。該当sourceと反例を見て設計を更新してから編集する。全停止・実行を別設計へ置換する許可ではない。
+具体化：完了待ちはwaitForTurnCompletionへ切り出し、receipt確定/follower指定と停止checkpointはsubmitに残す。待機の最終readと失敗補足を保ち、戻った直後に既存checkpointを実行する。回答読取は既存readAnswerという関数が既に一つであるため増やさない。停止対象はtransport.deliveryBots()が既存SeatActivity.stopTargets()からBotだけを返す。AiControlはこの窓口を使い、内部jobを受け取らない。互換Map別名の一括削除はしない。これは全停止・実行を別設計へ置換するものではない。
 
 ## 今回、別物として保つ機能
 
@@ -88,3 +88,25 @@ SeatRuntime側に `memoryProfiles(registry, method, args)` 相当の選択関数
 5. 実装完了時に全体試験一回とセンチの独立採否。通常統合/候補へ進める。既本番停止の承認条件は変更しない。
 
 モデルはこの設計をAstra xhighで行い、具体化した1〜3の実装からSol Highへ戻す。4〜5で新しい境界判断が必要なら記録して設計を補う。各関数の変更だけで頻繁に往復しない。
+
+## 実装の照合（2026-11-01）
+
+- 1：schedulerはThroughlineへ直接接続。組立てからMessengerへ同じstoreを渡し、既存runtime試験で実体一致も確認する。
+- 2：notificationCallbacksと同期のresumableDeliveryを使用。後者にawaitを追加せず、既存のrefresh/履歴取得/権限/明示発行順を維持する。
+- 3：memoryProfilesは呼出し時の最終引数で選ぶ。転送JSONの10公開メソッド/全件1件0件、新Botと実子のscope/未知Bot/保存先分離を確認する。
+- 4：eventAffectsTimelineとrefreshFromEventを使用。一覧の取得は維持し、選択中の履歴だけ対象を絞る。既存tokenで古いqueueを捨てる処理は維持する。
+- 5：waitForTurnCompletionが完了待ちを持つ。submitはreceipt/停止/回答所有を接続する。deliveryBotsがSeatActivityの停止対象からBotを返し、AiControlは内部jobsを直接読まない。
+
+Webの通知producerと判断は次の対応である。new event形式の追加時は、この表とeventAffectsTimelineを併せて更新する。
+
+| producer | topic / 対象 | 選択中履歴の取得 |
+| --- | --- | --- |
+| ConversationStore | timeline / 直接会話の参加Bot。元配送がなければall | 該当Bot、またはall |
+| SeatActivity | queue / Bot、room配送にはroom IDも付く | 該当Bot/部屋 |
+| SecretRequests / OwnerQuestions | requests/questions / Botと任意room | 該当Bot/部屋 |
+| RoomRegistry | rooms/schedules/timeline / room。置換等はall | 該当部屋、またはall |
+| BotRegistry | schedulesのみ対象Bot、それ以外はall | 該当Bot、またはall |
+| HTTP notify / settings / ai-control | typeとall=true | 全体 |
+| ready / 不足・未知形式 | 空payload等 | 安全側に全体 |
+
+これは全107moduleの全関数を変更したという意味ではない。既存の機能分離を保ち、実コードで確認した責務の重複と迂回接続を整理した。独立製品やbackup内部を変更する理由は現時点で生じていない。

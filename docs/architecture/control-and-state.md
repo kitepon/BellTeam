@@ -20,7 +20,7 @@ flowchart LR
 
 予定の起動とcommandの終了は別の時点。予定処理は失敗・結果不明でもその発行を消して自動再送しない。停止中は新しく発行せず、再開時には停止中に期限を過ぎた予定を `prepareResume` で区切る。古いrevisionの完了で編集後の予定を上書きしない。
 
-夜間の再起動判定に使う完了ターン数はThroughlineの責任である。現状はschedulerだけtransportの再exportを経由しているため、直接 `throughline-context.mjs` を参照する形へ揃える。Throughline自体の機能変更は不要。
+夜間の再起動判定に使う完了ターン数はThroughlineの責任である。基底でschedulerだけtransportの再exportを経由していたため、直接 `throughline-context.mjs` を参照する形へ揃えた。Throughline自体の機能変更は不要。
 
 ## 設定を保存することと席へ反映すること
 
@@ -67,7 +67,7 @@ flowchart TB
 
 AiControlは永続化を待つ前に新規受付を抑止する。永続化や停止確認が失敗しても、黙ってAIを再開しない。個別停止は通常nativeの `agent_stop` に接続し、`stop_sent` やsession保持を返す。停止要求を送ったことを、sessionの削除や外部副作用の取消へ読み替えない。
 
-`stopRegisteredWork` は登録Botだけでなく、transportのjobに残る対象も拾う。このため現在の `transport.jobs` 直接参照を削る時は、削除済みBotの進行中jobまで含む観測窓口が必要になる。全内部Mapを一括で隠す変更はまだ決めない。legacy adapterの停止fallbackと同期的な受付障壁も維持する。
+`stopRegisteredWork` は登録Botだけでなく、transportのjobに残る対象も拾う。現在は `transport.deliveryBots()` がSeatActivityの停止対象からBotを返し、AiControlが内部jobsを読む接続を置き換えた。削除済みBotの進行中jobを含む。全内部Mapを一括で隠す変更はしていない。legacy adapterの停止fallbackと同期的な受付障壁も維持する。
 
 基底の `docs/current-design.md` のiPhone節には「個別停止=close/exists=false/200 stopped」という古い説明が残っていた。今回の文書で通常経路の202 stop_sent/互換経路の200 interruptedへ訂正した。製品の停止処理やApple画面を変更したものではない。
 
