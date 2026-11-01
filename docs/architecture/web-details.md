@@ -1,75 +1,77 @@
 # Webの会話選択・送信・表示更新
 
-固定source `546f232180515a2a8cd9098b943673170c49e3d4` の現状。[会話全体図](conversation-flow.md)の画面側を展開する。APIは[入口索引](entrypoints.md)、追加整理は[detail-status](detail-status.md)。Webの確認からAppleの画面回復を推定しない。
+[全体図](feature-map.md)の画面側を、本branchの実装から説明する。APIは[入口索引](entrypoints.md)、編集・画像・Goalは[管理詳細](web-management-details.md)。基底の巨大なapp stateは既に分割した。残る一覧取得の競合は[最終照合で見つけた修理](web-final-gaps.md)へ分け、解決済みとして描かない。
 
-## 一つの画面で別々に持っている状態
+## 選択と各機能の状態を分ける
 
-| 所有する処理 | 現在の値・関数 | 他の処理へ渡すもの |
+appは組立て・一覧・会話選択・機能間の接続を持つ。各機能へ必要な対象やcallbackだけを渡す。画面の状態を持つことは、サーバーの記録やnativeの実行状態を所有することではない。
+
+| 所有者 | 状態 / 実際の窓口 | callerと受渡し |
 | --- | --- | --- |
-| 接続・導入 | `setup/authMode/settings`、`boot/startConversations` | 初期設定終了後の会話開始。認証不能なら画面案内 |
-| 一覧・Owner | `bots/rooms/owner`、`loadBots/renderBots/renderOwner` | 選択候補と最近の活動。サーバー正本の複製cache |
-| 選択 | `selected/selectedType`、`selectBot/selectRoom/clearSelection` | 会話種別とID、ヘッダ、Goal/screen対象 |
-| 履歴 | `timelineMap/token/oldestId/hasMore/loadingOlder` | 現在選択の行、前後ページ、古い応答を破棄する世代 |
-| queue | `timelineQueue/request/error`、`refreshTimelineQueue` | 同じ会話の処理中行と停止button。履歴GETとは別の失敗 |
-| 入力 | input DOM、`pendingImages/sending`、`claimMessageSend/sendMessage` | 送る時の本文と画像、対象ごとの一回の送信 |
-| 表示補助 | `imagePreviews/imageFailures/stickToBottom` | 画像後読・末尾追従。nativeや配送状態の正本ではない |
-| 既読 | `readReceipts`、localStorage | 会話ごとの最近ID。一覧の未読表示にだけ使う |
-| 編集dialog | `editingBot/editingRoom/editingSchedule/models` | 送信対象の選択とは別の編集中情報 |
+| [app.js](../../web/app.js) | setup/authMode/settings、bots/rooms/owner、selected/type、SSE接続、既読、部屋別返信先 | `boot/startConversations/loadBots/selectBot/selectRoom/clearSelection`。一覧から明示的なtargetを各viewへ |
+| [conversation-composer.js](../../web/conversation-composer.js) | 会話別drafts、送信中snapshot、sending、回収欄retained | app→`select/clear/addImages/send/update/showError`。`onAccepted/onSelect`をappへ返す |
+| [conversation-timeline.js](../../web/conversation-timeline.js) | 対象、履歴Mapと前後ページ、queue、取得世代と読取順、scroll、色cache | app→`open/refresh/close/updateTarget/isBusy/updateStops`。`onQueueChange/onStop`だけappへ返す |
+| [message-images.js](../../web/message-images.js) | 発言ID別preview、取得中Promise、失敗集合、所有URL | app→`remember/close`、timeline→`load/get/failed`。可変Mapをappへ公開しない |
+| 各編集・補助view | 開いた対象、未保存入力、読取/保存中、局所URL/timer | app→各`open(target)`。一覧の変更通知と選択はappへ返す。[管理詳細](web-management-details.md) |
+| [goals.js](../../web/goals.js) | Bot別snapshot、draft、binding、観測revision | app→`open/select/refresh/refreshSelected/refreshOnEvent`。Goalの正本はnative |
+| appの既読 | `loadReadReceipts/markConversationRead`、localStorage | 最近IDから一覧の未読を描く。サーバーへ読了記録を送らない |
 
-現在はこれらを`web/app.js`の同じstate objectから読み書きする。表は新しいstoreを実装したという意味ではなく、分割時に越えてはいけないデータ所有の整理である。
+`loadBots`はBot/room/Ownerの三要求を並行して受け、その一式を一覧へ反映する。保存正本ではなく表示用cacheである。現実装には一覧同士の返却順の識別がまだなく、古い一覧で新しい選択が消える反例がある。timelineのtokenでは、この上流の競合を防げない。
 
 ## 開いた会話の結果だけを描く
 
 ```mermaid
 flowchart TD
-  Select["Bot / 部屋を選ぶ"] --> Target["選択とヘッダを更新"]
-  Target --> Open["openTimeline<br/>token更新・履歴状態を初期化"]
+  Select["Bot / 部屋を選ぶ<br/>appが対象を決める"] --> Input["composerへ対象を渡す<br/>その会話の下書きを表示"]
+  Select --> Open["timelineへ対象を渡す<br/>取得世代と履歴を初期化"]
   Open --> Page["最新10件を取得"]
-  Open --> Queue["queueを別取得"]
-  Page --> Valid["返却tokenが現在と同じか"]
-  Queue --> QValid["tokenとqueue requestが同じか"]
-  Valid --> Rows["履歴行・ページ境界を描画"]
-  QValid --> Tail["既存行と末尾の作業状態を更新"]
-  Rows --> Images["画像を背景取得<br/>同じtokenの行だけ差し替え"]
-  Rows --> Older["上へ読むとbeforeページを追加<br/>見ている位置を保持"]
+  Open --> Queue["queueを独立取得"]
+  Page --> Valid{"同じ対象・世代で<br/>最新の履歴読取か"}
+  Queue --> QValid{"同じ世代で<br/>最新のqueue読取か"}
+  Valid -->|"はい"| Rows["行・ページ境界を描く"]
+  QValid -->|"はい"| Tail["作業状態と停止buttonを描く"]
+  Rows --> Images["画像を後から読み<br/>同じ世代の行へ適用"]
+  Rows --> Older["上読はbefore20件<br/>重複除去と視点保持"]
+  Change["別会話 / close"] --> Invalidate["旧世代を失効<br/>旧finallyも新しい読取を解除しない"]
 ```
 
-| 段階 | 実関数 | 入出力と失敗の行先 |
+| 段階 | caller → 実関数 | 結果・失敗の行先 |
 | --- | --- | --- |
-| 選択 | `selectBot/selectRoom` | BotはGoal/screen、部屋は返信者pickerを設定。`loadMessages(false)`後に入力focus |
-| 新しい会話 | `openTimeline` | tokenを増やしqueueを空にする。queueは待たず、履歴を先に描く。返却tokenが違えば捨てる |
-| queue更新 | `refreshTimelineQueue` | token＋request番号で最新だけ適用。失敗はtimelineQueueErrorとして末尾に表示、履歴取得の失敗へ変換しない |
-| 新しい履歴 | `refreshTimeline` | latest＋afterを並行GET。既存直近行を更新し、新IDだけ末尾へ追加。末尾追従中だけscroll |
-| 過去ページ | `loadOlderMessages` | before＋20件、重複を除き前に追加。scrollHeight差で視点保持。finallyでloading解除 |
-| 行 | `renderItem/renderItemElement` | 秘密カード、質問、本文/画像/配送/queueを描く。状態の変更要求は専用APIへ |
-| 部屋の投影 | `roomTimelineItem` | routingと参加者別deliveryを表示用の一行へ。serverの部屋記録を直接書き換えない |
-| 末尾 | `renderTail/renderQueueStatus/renderThinking` | 履歴にまだ無いqueue、Botのthinking、失敗表示、停止buttonを組む |
-| 保存画像 | `loadStoredMessageImages/rerenderItem` | Blob URLをcache。取得失敗はimageFailures、token違いは描画しない |
-| 既読 | `markConversationRead/loadReadReceipts` | 最新IDをlocalStorage。サーバーへ読了記録を送らない |
+| 選択 | app `selectBot/selectRoom → loadMessages(false)` | ヘッダ・composer・Goal/screen/返信先を接続。timelineのMapを触らない |
+| 新しい会話 | `open → readHistory(openTimeline)` | 対象をcopyしtokenとhistoryRequestを進める。queueを待たず本文を描く |
+| queue | `openTimeline/refreshTimeline → refreshTimelineQueue` | tokenとqueueRequest一致だけ適用。失敗は末尾に表示、本文読取とは独立 |
+| 新しい履歴 | `refresh → readHistory(refreshTimeline)` | latest/afterを並行取得。同対象でも古い返却を適用しない。後着画像も同token |
+| 過去ページ | scroll listener → `loadOlderMessages` | before20件を重複除去して先頭へ。scrollHeight差を足す。finallyは同tokenだけ解除 |
+| 行とカード | `renderItem/renderItemElement/roomTimelineItem` | 秘密・質問の既部品を使う。完了callbackも元token一致時だけ該当行を描き直す |
+| 末尾 | `renderTail/renderQueueStatus/renderThinking` | queue/処理中/error/停止button。停止実行はappの`stopMember`へ |
+| 読取失敗 | `readHistory` | 同じ世代/読取のエラーを履歴末尾へ表示しfalseを返す。SSEの切断へ変換しない |
+| 画像 | `loadStoredMessageImages → messageImages.load → rerenderItem` | cacheが取得とURLを所有し、timelineが描画先の世代を所有する |
 
-サーバーは`createMessageViews.sources`で直接/部屋の履歴にカード索引を合成し、`timelinePage/webMessage`でページと画像URLを返す。部屋には秘密カード、直接会話には秘密と質問カードがある。`TimelineIndex`は表示順/ページ検索、`ConversationStore/RoomHistory`は記録の読取であり、Webのstateはそれらの保存を代行しない。
+サーバーは`createMessageViews.sources → timelinePage/webMessage`で保存履歴とカード索引を合成する。部屋には秘密、直接会話には秘密と質問カードがある。`TimelineIndex`はページ検索、`ConversationStore/RoomHistory`は保存記録の読取であり、WebがJSONLを書き換える経路ではない。
 
-## 送信は三つの段階を持つ
+## 送信受付と表示更新を別の段階にする
 
 ```mermaid
 flowchart TD
-  Draft["対象・本文・画像を取得"] --> Claim["同じ宛先への二重操作を抑止<br/>入力を空にする"]
+  Draft["宛先・返信先・本文・画像を固定"] --> Claim["同宛先の送信を一件に<br/>元の下書きを送信中へ移す"]
   Claim --> Encode["画像を変換"]
-  Encode --> POST["POSTで会話を受付"]
-  POST --> Preview["受付IDへ画像previewを結ぶ"]
-  Preview --> Refresh["一覧・選択中履歴を読み直す"]
-  Encode -->|"失敗"| Catch["現catch<br/>旧本文と画像を入力へ戻す"]
-  POST -->|"失敗"| Catch
-  Refresh -->|"失敗も同じcatch"| Catch
-  Refresh --> Finally["sendingを解除・button更新"]
-  Catch --> Finally
+  Encode --> POST["POSTを一回"]
+  POST -->|"成功応答"| Accepted["受付済み<br/>入力用URLを解放"]
+  Accepted --> Preview["発言IDへdata画像を結ぶ"]
+  Preview --> Refresh["一覧・対象履歴を独立して更新"]
+  Refresh -->|"失敗"| Display["受付済みと表示<br/>旧入力は戻さない"]
+  Encode -->|"失敗 / POST未発行"| Retain["元の入力を保持"]
+  POST -->|"拒否 / 応答不明"| Retain
+  Retain --> Empty{"元会話の下書きが空で<br/>対象がまだ存在するか"}
+  Empty -->|"はい"| Restore["元会話へ戻す"]
+  Empty -->|"いいえ"| Recover["新入力は保持<br/>旧入力は回収欄へ"]
 ```
 
-これは現状図。送信受付と表示更新の失敗が同じcatchへ集まっていることが整理対象である。
+appの`sendMessage`は返信者必須条件を確認し、composerの`send`を呼ぶ。composerは`capture → claimMessageSend`で対象・本文・File/URL・返信先を**画像変換前**に固定する。送信中も新しい下書きを書けるが、同宛先POSTは受付まで一件。finallyでsendingを解除し、受付後の`onAccepted`失敗では元本文を戻さない。
 
-`sendMessage`はtargetType/targetId/sendKeyを最初に取る。`claimMessageSend`は空本文＋画像なし、または同じ宛先が送信中なら受付しない。その後inputを空にして画像を変換し、会話POSTを一回呼ぶ。成功後に一覧を更新し、同じ選択なら履歴を開き直す。POST応答が読めたこととAIの回答完了は別である。
+`onAccepted`はappへ渡したcallback。画像previewをcacheへ渡し、一覧と現在表示中の対象履歴をallSettledで更新する。どちらかが失敗しても二回目POSTはしない。API成功はAI回答完了ではない。POST応答不明では未配送と断定せず、再送前に会話を確認するよう表示する。
 
-現catchは画像変換・POST・後続GETの失敗を区別せず入力を戻す。また失敗の間に会話が切り替わった場合や新しい入力がある場合でもinput DOMへ旧本文を直接書く。`stopMember`は同じ会話か確認して表示するが、sendMessageのcatchには同じ所有の確認がない。これらを[整理案D4](detail-status.md#d4-webの送信結果と表示更新結果を分ける)で切り分ける。実際の発生履歴や配送結果を、このsourceだけから補完しない。
+`renderRecovery`は「保持した入力」に元本文、画像、宛先、理由を出す。新しい入力を連結・上書きしない。「入力欄に戻す」は空の元下書きへ移して会話を選ぶだけで、送信は利用者の明示操作。削除済み対象は復元不可だが、本文と画像は読める。「破棄」と添付削除はそのURLを解放する。これはページ内の状態であり、再読込後まで保管するstoreではない。
 
 ## 変更通知は履歴そのものではない
 
@@ -77,35 +79,24 @@ flowchart TD
 flowchart TD
   Producers["履歴・queue・台帳・カードの変更"] --> Merge["HTTP Events<br/>50msでtopic / IDを併合"]
   Merge --> SSE["SSE ready / messages<br/>25秒keepalive"]
-  SSE --> Parse["Web connectEvents<br/>dataを順にparse"]
-  Parse --> Special["設定・setup・Goal等の必要更新"]
-  Parse --> Lists["一覧を読み直す"]
-  Parse --> Affects{"選択中会話に関係するか"}
-  Affects -->|"対象一致 / all / 未知"| History["loadMessages"]
-  Affects -->|"対象外が確定"| Keep["選択履歴は保持"]
+  SSE --> Parse["connectEvents<br/>通知を順に読む"]
+  Parse --> Refresh["refreshFromEvent<br/>設定・Goal等の必要更新"]
+  Refresh --> Lists["一覧を更新"]
+  Refresh --> Affects{"選択会話に関係するか"}
+  Affects -->|"対象一致 / all / 未知"| History["timelineを更新"]
+  Affects -->|"対象外が確定"| Keep["その履歴は保持"]
+  Refresh -->|"表示取得の失敗"| ViewError["画面の失敗として表示"]
+  SSE -->|"通信自身の失敗"| Connection["既存の接続失敗処理"]
 ```
 
-`createMessageEvents.startMessageWatch`は各watchを登録し、既知topicと対象を併合する。未知/欠落、履歴の置換、対象不明はallへ戻す。起動途中のwatch失敗でも既登録分を閉じる。`server.close`はSSEを終え、watch終了エラーをclose結果へ返す。
+`createMessageEvents.startMessageWatch`はwatchを登録してtopicと対象を併合する。未知/欠落、履歴置換、対象不明はall。開始失敗でも既登録watchを閉じ、server終了時もwatch終了エラーを保持する。全producer表は[第一段の表](refactor-plan.md)を参照する。
 
-Webの`refreshFromEvent`はsettings/setup/Goalの特定処理の後、loadBotsと必要なloadMessagesを接続する。`eventAffectsTimeline`は第一段で追加した対象判定。ready `{}`・all・未知topic/ID不足は全体更新する。一覧は他の会話の活動にも関係するので毎回取得する。
+appの`refreshFromEvent`はsettings/setup/Goal処理と一覧・必要履歴を接続する。`eventAffectsTimeline`はready/all/未知topic/不足IDを全更新へ戻す。一覧には他会話の活動も必要なので毎回読む。表示GETの失敗はcatchして表示へ返し、SSEの再接続理由にしない。
 
-現`connectEvents`はstream読取と各GET更新を同じtryでawaitする。TypeError/429/5xxは1.5秒後に再接続し、Abortは終了、その他は画面へ停止を表示する。正常EOFはloopを抜けて戻る。これは現在の分岐を示したもので、正常EOF後の自動再接続があるとは書かない。履歴GETの失敗とSSE自体の失敗の分離も、今後の設計確認対象である。
+`connectEvents`の通信側はTypeError/429/5xxで既存の1.5秒再接続、Abortは終了、その他は接続停止を表示する。正常EOFは戻る分岐で、自動再接続があるとは扱わない。ここを今回のリファクタで通信基盤ごと作り直していない。
 
-## 編集と補助機能への接続
+## 操作の接続と確認範囲
 
-| 操作 | 主な関数群 | 現在読むもの / 処理先 |
-| --- | --- | --- |
-| Owner・規範・任意設定・認証 | `openOwnerDialog/saveOwner/refreshFeatureSettingsForm`、各view部品 | Owner正本、規範、settings、HarnessAuth、AiControl。profile保存とrules保存は別要求 |
-| Bot作成/編集 | `openBotDialog/renderModelOptions/renderEffortOptions/saveBot` | editingBotとmodel catalog、Bot API。進行中の設定反映表示はconfigurationApplication |
-| Bot停止 | `stopMember/requestMemberStop` | botIdごとのsingle flight、別会話へ結果を表示しない。停止後GET失敗と停止失敗は既に別catch |
-| Bot再起動/削除 | `restartSelectedSession/deleteSelectedBot` | editingBotのID、202後に一覧再取得。完了を202だけで確定しない |
-| 記憶/知識 | `openMemoryDialog/remember/recallMemory/recordKnowledge/searchKnowledge` | 選択Bot、scope、各memory/knowledge API |
-| 部屋編集/削除 | `openRoomDialog/renderRoomRepresentativeOptions/saveRoom/deleteSelectedRoom` | editingRoom、現在のBot一覧、Room API |
-| 予定 | `openScheduleDialog/editSchedule/scheduleRequest/saveSchedule/loadSchedules` | 選択owner、editingSchedule、各予定API。手動run/削除は一覧内のbutton |
-| アバター | `createAvatarEditor/avatarColor/rgbToHsl/applyAvatar` | 各編集のimage/cropと表示cache。共通editorは既存 |
-| 会話画像 | `addPendingImages/readImage/renderPendingImages`、image-gallery | 入力添付と保存済み画像viewerを区別 |
-| terminal画面 | `openScreen/refreshScreen/closeScreen` | 選択Botのscreen API、表示中のtimer |
-| Goal | `goalsView` | 選択Bot/一覧、native binding付き操作。独自Goal正本は持たない |
-| 書出し・設定画 | export button / `openCharacterSheetDialog` | 保存履歴export / character-sheet一覧とfile |
+`stopMember`は対象Bot別single-flightで`requestMemberStop`を一回呼ぶ。停止応答と後続一覧/履歴GETを分け、表示は開始時の会話が同じ場合だけ。書出しはクリック時のtype/idを固定してexportをGETし、一時Blobをdownload後revokeする。エラー表示と一覧の競合の残課題は[追加修理](web-final-gaps.md)に記録する。
 
-編集dialog・画像・Goalの内部関数と次の分割案は[Web管理詳細](web-management-details.md)に続く。新しいGUI操作や通信失敗試験は行っていない。
+確認先：`conversation-composer`、`timeline-open-queue`、`message-images`、`web-event-refresh`、`chat-input`、`http-server`の局所試験。実Web＋人工APIで入力の回収とPOST回数も確認した。実配送やApple画面の成功の証明ではない。全体試験・独立採否は別の未完工程である。

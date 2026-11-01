@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart LR
-  Set["予定の登録・変更"] --> Registry["BotRegistryの予定"]
+  Set["予定の登録・変更"] --> Registry["Bot / RoomRegistryの予定"]
   Registry --> Due["runDue<br/>停止/時刻/重複実行を確認"]
   Due --> Prompt["prompt予定"]
   Due --> Cmd["command予定"]

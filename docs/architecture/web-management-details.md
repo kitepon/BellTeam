@@ -1,69 +1,91 @@
 # Webの編集・画像・Goal
 
-固定source `546f232180515a2a8cd9098b943673170c49e3d4`。[会話Web](web-details.md)に加え、画面で編集する対象と非同期結果の持ち主を示す。Apple単独UIの設計ではない。
+[会話Web](web-details.md)に加え、各画面が開いた対象と非同期結果をどう持つかを示す。本branchの実装を説明し、最終照合で見つかった不足は[追加修理](web-final-gaps.md)へ分ける。Apple単独UIの設計ではない。
 
-## 編集している対象を、会話選択から分ける
+## 編集対象は各画面が持つ
 
 ```mermaid
 flowchart TD
-  Open["編集画面を開く"] --> Target["Bot / room / Ownerの対象を決める"]
-  Target --> Form["保存値をフォームへ写す"]
-  Form --> Local["未保存の入力と画像を編集"]
-  Local --> Submit["必要fieldsを組みAPIへ保存"]
-  Submit --> Saved["保存応答を受ける"]
-  Saved --> Close["dialogを閉じる / フォームを初期化"]
-  Close --> Reload["一覧や予定を読み直す"]
-  Reload --> Selection["保存対象の選択と表示"]
-  Submit -->|"保存応答なし"| Error["入力側へエラー"]
-  Reload -->|"現状では同じcatch"| Error
+  Open["編集画面を開く"] --> Target["その画面が対象を保持<br/>フォームとavatarを初期化"]
+  Target --> Edit["未保存の入力を編集"]
+  Edit --> Submit["保存対象とbody<br/>その時の入力版を固定"]
+  Submit --> API["機能固有のAPIへ一回保存"]
+  API -->|"成功応答"| Saved["受付を記録<br/>新規作成なら返却IDを保持"]
+  Saved --> Refresh["appへ一覧更新を依頼"]
+  Refresh --> Current{"同じ画面かつ<br/>入力が変わっていないか"}
+  Current -->|"はい"| Show["対象を選択 / 編集画面を閉じる"]
+  Current -->|"いいえ"| Keep["新しい画面と入力を保持"]
+  Refresh -->|"失敗"| ViewError["保存済みと表示<br/>新しい作成を自動発行しない"]
+  API -->|"失敗"| Error["元の画面へエラー"]
 ```
 
-| 機能/入口 | 主な関数 | 所有する状態・返却後の振舞い |
+| 機能 / app側caller | 実装と主な関数 | 所有・保存後の結果 |
 | --- | --- | --- |
-| Owner設定 | `openOwnerDialog/saveOwner/renderOwnerLinkRows/addOwnerLinkRow` | ownerとrulesは別API。任意機能/認証部品は既存別module。閉じる/非表示でpassword入力を空にし、認証pollだけ止める |
-| Bot編集 | `openBotDialog/renderModelOptions/selectableEfforts/renderEffortOptions/saveBot` | editingBot・modelLoad・models・avatar editor。dialog closeでモデル読取をabort。候補外の保存effortを黙って変更しない。保存APIはPOST/PATCH、一件のsingle flight |
-| Bot設定表示 | `renderBotConfigurationStatus` | pending/failed/acceptedと保存値を区別。GET失敗を「適用済み」にしない |
-| 部屋編集 | `openRoomDialog/renderRoomRepresentativeOptions/saveRoom` | editingRoomと参加者チェック、代表は選択参加者内。保存後一覧GET/選択まで現状同じtry。Bot保存と同じsingle-flight実装は持たない |
-| 削除・restart | `deleteSelectedBot/deleteSelectedRoom/restartSelectedSession` | 確認と操作中ボタン。サーバー側背景受付と削除完了を混ぜない。部屋削除は履歴/予定も対象と表示 |
-| 記憶・知識 | `openMemoryDialog/remember/recallMemory/recordKnowledge/searchKnowledge` | 現状はeditingBotを対象として再利用。scopeを明示してAPIへ渡す。読取結果はtextContent。保存成功で入力を空にする |
-| 予定フォーム | `openScheduleDialog/editSchedule/scheduleFormValues/scheduleRequest` | editingScheduleとフォーム値。ただしAPIの対象は`schedulePath`が現在のselected/typeから毎回作る。編集対象の独立snapshotはまだない |
-| 予定操作 | `saveSchedule/loadSchedules`内run/remove listener | 保存→フォームreset→再読。完了したonceを表示から除外。runは一度POSTしボタン表示を変える。timerはボタンを戻すだけで再送しない |
-| 時刻変換 | `localDateTimeValue/scheduleFormValues/scheduleRequest` | onceはローカル入力↔ISO、定型cronはフォームへ戻し、複雑なcronは式を維持。既timezone優先、未指定はブラウザtimezone |
-| 部屋の返信担当 | `selectedTargets/renderTargetPicker/renderTargetButton` | roomTargetsはroom別の画面内Set。退会者を除き未選択はnull。自動選定の有効状態と、全員へ配送する仕様を別に表示 |
+| Bot作成・編集 / `openBotDialog` | [bot-editor.js](../../web/bot-editor.js) `createBotEditor/open/saveBot` | owner.bot、saving、editRevision、avatar。保存時target/bodyを固定。成功後の一覧GET失敗でも返却Bot IDを保持し次の手動保存はPATCH |
+| Botモデル・適用表示 / editor.open | 同上 `renderModelOptions/selectableEfforts/renderEffortOptions/renderBotConfigurationStatus` | models/AbortController。close/reopenで旧読取をabort。保存済み候補外effortは表示に残す。configurationApplicationと希望設定を区別 |
+| Bot再起動・削除 / editorのbutton | 同上 `restart/remove` → appの`onRestarted/onDeleted/onStatus` | 操作時Botを固定。再起動202と削除202は背景受付。appが一覧・選択を更新する。削除失敗文の受付/完了表現は追加修理対象 |
+| 部屋編集・削除 / `openRoomDialog` | [room-editor.js](../../web/room-editor.js) `open/saveRoom/remove/renderRoomRepresentativeOptions` | owner.room、参加者、代表、avatar。代表は選んだ参加者内。保存対象/bodyと再open後の結果所有を保持 |
+| Ownerプロフィール・規範 / `openOwnerDialog` | [owner-editor.js](../../web/owner-editor.js) `open/save/renderOwnerLinkRows/addOwnerLinkRow` | 開いたprofile、入力版、saving、avatar。profile PATCH→rules PUTは別要求。部分成功を表示し自動再発行しない |
+| 任意機能・公式認証 / Owner.open | 同上 `refreshFeatures` → 既`renderFeatureSettings/renderHarnessAuth` | openごとの子DOM。closeでpassword欄を空にしauth pollを停止。閉じても公式認証状態そのものを取消さない。設定保存後callbackの所有には追加修理が必要 |
+| 記憶・知識 / Bot editor→`onMemory` | [memory-view.js](../../web/memory-view.js) `open/write/search/renderResults` | 対象Bot、form別pending、resource別最新read。bodyとscopeを固定。保存後も新入力を消さず検索は同じ画面の最新結果だけ描く |
+| 予定 / `openScheduleDialog` | [schedule-editor.js](../../web/schedule-editor.js) `open/loadSchedules/saveSchedule/editSchedule/resetScheduleForm` | type/id/name/memberIds、editingSchedule、read/edit版。保存後GETと受付を分離。run/removeはrow作成時対象、2.5秒timerは表示だけ |
+| 予定の値変換 / editorの読取・保存 | 同上 `scheduleFormValues/scheduleRequest/localDateTimeValue/scheduleDescription` | once/cron/interval/timezoneを維持。roomではcommandを作らず、targetsは開いたmemberIdsから選ぶ |
+| 部屋返信者 / appの選択 | app `selectedTargets/renderTargetPicker/renderTargetButton` | room別Setはページ内。退会者を除き、未選択nullと自動選定の可否を区別。投稿は全員へ配送 |
+| native画面 / `openScreen/closeScreen` | [bot-read-views.js](../../web/bot-read-views.js) `createScreenView/open/refresh/close/fit` | 対象・最新読取・2秒timer。初回GET待ち中closeからtimerを復活させず、80桁表示を維持 |
+| 設定画 / Bot editor→`onSheets` | 同上 `createCharacterSheetView/open/release` | 開いたBotとURL集合。close/reopen後の画像は適用せず、途中失敗で作成済みURLを解放 |
 
-保存API成功後の一覧GET失敗を「保存失敗」とするcatchはBot/room/予定にも存在する。会話POSTの[D4](detail-status.md)とは別のcaller群である。整理する場合、対象・保存結果・後続表示結果を分け、元操作を勝手に再発行しない。フォーム間で検証や削除の副作用が違うため、汎用CRUD画面は導入しない。
+機能ごとにAPI・検証・保存順・完了時点が違うので、汎用CRUDやtransactionにまとめない。共通avatar/表示関数を使い、appから全stateを渡す接続も作らない。
 
-## 画像には三つの所有単位がある
+## Ownerは二つの保存結果を区別する
 
 ```mermaid
 flowchart TD
-  File["利用者が選んだ画像"] --> Avatar["アバターeditor<br/>decode・crop・JPEG化"]
-  Avatar --> Profile["profile保存API"]
-  File --> Draft["送信下書き<br/>pendingImagesと一時URL"]
-  Draft --> Send["送信時にbase64へ変換"]
-  Send --> History["発言IDに結んだpreview"]
-  Stored["履歴の画像ID"] --> Fetch["認証付きの画像取得"]
-  Sheet["Bot正本の設定画file"] --> SheetFetch["設定画dialogが画像を取得"]
-  SheetFetch --> View
-  Fetch --> History
-  History --> View["単画像・画像束・viewer"]
-  Text["保存された本文"] --> Rich["escape後に対応Markdownを描画"]
+  Input["プロフィールと規範の入力"] --> Snapshot["操作時の両方のbodyを固定"]
+  Snapshot --> Profile["プロフィールPATCH"]
+  Profile -->|"成功"| Header["appへ保存したプロフィールを返す"]
+  Header --> Rules["規範PUT"]
+  Rules -->|"成功"| Current{"同じ画面・同じ入力版か"}
+  Current -->|"はい"| Close["閉じる"]
+  Current -->|"いいえ"| Keep["新入力を残す"]
+  Rules -->|"失敗"| Partial["プロフィールは保存済み<br/>規範の失敗を表示"]
+  Profile -->|"失敗"| Failure["保存結果を確認できない<br/>再発行しない"]
 ```
 
-| 部品 | 所有と片付け |
+`onOwner`はプロフィール保存応答を一覧ヘッダへ返す。後段の規範失敗をプロフィール未保存へ戻さない。HTTP応答が失われた場合は、サーバーに何も保存されていないとは断定しない。
+
+**現時点の不足**：open時の規範GETを待たずsaveが可能なため、未読の空欄をPUTできる。また任意機能の保存後に全フォームを描き直し、別機能や開き直した画面の新入力を消す。図は二段階保存の実装済み部分を示し、読取完了条件と任意機能の結果所有は[追加設計](web-final-gaps.md)で修理する。
+
+## 画像の所有者がURLを片付ける
+
+```mermaid
+flowchart TD
+  File["選んだ画像"] --> Avatar["各avatar editor<br/>decode世代・crop・JPEG"]
+  Avatar --> Profile["profile APIへ値を渡す"]
+  File --> Draft["composerの下書きURL"]
+  Draft --> Flight["送信中snapshot"]
+  Flight -->|"失敗"| Recover["元下書き / 回収欄へ所有を移す"]
+  Flight -->|"受付"| Release["入力URLを解放<br/>data画像を履歴cacheへ"]
+  Stored["履歴の画像URL"] --> Cache["messageImages<br/>同ID取得を共有・所有URLを保持"]
+  Sheets["設定画の一覧"] --> SheetView["設定画viewがURLを所有"]
+  Cache --> Viewer["viewerは表示だけ<br/>借りたURLを解放しない"]
+  SheetView --> Viewer
+  Cache --> Exit["ページ終了で解放<br/>BFCache時は保持"]
+  SheetView --> End["close・reopen・失敗で解放"]
+```
+
+| 部品 | 実関数と責任 |
 | --- | --- |
-| `createAvatarEditor` | Bot/Owner/roomの3instanceが別のavatarData/crop/drag/changedを持つ。decode用blob URLはfinallyでrevoke。name/color/DOMだけを注入し、既に共通化されている |
-| `readFile/zoomImage/startDrag/moveImage/endDrag/clamp/draw/syncPreview` | canvasの範囲へcropを制限し、確定時にJPEGデータをpreviewへ反映。未保存editorから台帳を直接変更しない |
-| `addPendingImages/renderPendingImages/removePendingImage/clearPendingImages/readImage` | 下書きFileとobject URL、送信前変換を担当。履歴の画像cacheと別。D4で旧送信と新入力の所有を分ける必要がある |
-| `loadStoredMessageImages/rerenderItem/renderItem` | timelineTokenと会話項目IDを使う。秘密/質問cardもtoken一致時だけ該当項目を置換。preview未取得/取得失敗を表示で区別 |
-| `openCharacterSheetDialog` | editingBotの正本一覧→各認証付きblobを表示。現状はclose時のURL回収・非同期結果の世代検証を持たない。単なるfetch成功を長期資源管理まで成立としない |
-| `renderImageStack/openImageViewer/stepIndex` | viewerはURL配列・現在index・altを自身で所有。前後/矢印/swipe、dialog closeは表示srcを除く。渡されたURLの生成者ではないので独断でrevokeしない |
-| `avatarColor/rgbToHsl` | Bot IDごとの色Promise cache。decode失敗は空色、会話/台帳の事実には影響しない |
-| `richTextHtml/renderBlocks/renderList/renderTable/inlineHtml` | 文字列をescapeし対応MarkdownだけHTML化、URLは既`linkifyHtml`。新ライブラリや別parserを増やさない |
+| [avatar-editor.js](../../web/avatar-editor.js) | `createAvatarEditor/reset/value/changed/cancelRead`。各3editorの別instance。`readFile`はdecodeの世代を確認しURLをfinallyで解放。`zoomImage/startDrag/moveImage/endDrag/clamp/draw/syncPreview`はcropだけを更新 |
+| composer | `addImages/paint/send/renderRecovery`。FileとURLは下書き→送信→回収へ移す。受付・破棄・添付削除で解放。失敗した旧画像と新入力の画像を混ぜない |
+| messageImages | `remember/read/load/close`。同IDのfetchを共有し、複数画像の途中失敗も全完了を集めて不要URLを解放。旧fetchは新data previewを上書きしない |
+| timeline | `loadStoredMessageImages/rerenderItem`。cacheを読むだけ、同tokenのDOMだけ更新。`avatarColor/rgbToHsl`は局所の色cacheで、台帳を更新しない |
+| [image-gallery.js](../../web/image-gallery.js) | `renderImageStack/openImageViewer/stepIndex`。URL配列と現在index、矢印/swipe/alt。closeでsrcを外すがURLの生成者ではない |
+| [rich-text.js](../../web/rich-text.js) | `richTextHtml/renderBlocks/renderList/renderTable/inlineHtml`。本文をescapeし対応Markdownと既linkifyだけをHTML化 |
+| [view-format.js](../../web/view-format.js) | `applyAvatar/dayLabel/initials/memberDisplay/formatTime/formatDateTime/escapeClass/escapeHtml`。表示値の変換を共通化。台帳・選択・APIを読まない |
 
-画面取得`openScreen/refreshScreen/closeScreen`は開いている間の2秒pollと80桁表示を所有する。会話本文を取得するAPIとは別。現状refreshScreenは送信前のBotを捕まえるが返却時の選択token確認はない。D5の非同期表示所有を検証する具体的なcallerとして扱う。
+cacheの差替え前URLはviewerが使い得るためページ終了まで保持する。pagehideのpersisted=trueではBFCache復帰を妨げない。これは永続画像保存や全端末のcache管理ではない。
 
-## Goal画面は既に別の観測状態を持つ
+## Goal画面はnativeの観測を表示する
 
 ```mermaid
 flowchart TD
@@ -79,14 +101,8 @@ flowchart TD
   Observe --> Render
 ```
 
-`goalsView`はappの巨大stateへGoalを保存せず、snapshots/pending/drafts/observationsを閉包内に持つ。`refresh`の一覧revisionとBot別revisionは違う用途で、他Botの新しい変更結果を古い一覧で消さない。`refreshSelected/select/refreshOnEvent`は現在の選択を窓口にする。
+[goals.js](../../web/goals.js)の`goalsView`がsnapshots/pending/drafts/observationsを閉包に持つ。一覧revisionとBot別revisionは違う用途で、他Botの新しい変更結果を古い一覧で消さない。`refreshSelected/select/refreshOnEvent`がappの窓口。
 
-`mutate`は対象Bot IDと画面のbindingを固定する。応答失敗では一回GETするだけでPOSTを繰り返さない。処理中に別の観測が進んだ場合、finallyは同じbindingの時だけ現在値を照合し、違うthreadやunknownを古い変更返却で置換しない。field capabilityがcombined=falseなら目的と予算を別々に編集し、予算空欄を消去命令へ変えない。
+`mutate`はBotとbindingを固定し、失敗時は一回GETだけ。finallyも同bindingの場合だけ照合し、別thread/unknownを古い結果で置換しない。combined=falseなら目的と予算を別々に編集し、空予算を消去へ変換しない。Goal・秘密・質問・認証は既存専用部品をそのまま使う。
 
-## 次の分割案
-
-`createAvatarEditor`は局所状態を既に閉じているので、3callerの引数を保って`avatar-editor.js`へ置ける。予定は`{type,id,memberIds}`を開いた時に固定するeditorがフォームとAPI pathを所有し、一覧再読完了を会話選択変更へ直結させない。timelineは[Web詳細](web-details.md)の読取・適用・描画を一つの窓口で持ち、appは選択と機能間接続を担う。Goal/秘密/質問/認証の既存部品は再包装しない。
-
-これらは設計案。まだ製品変更もブラウザ操作も行っていない。選択変更中の保存/GET、decode中のdialog再開、URL寿命について局所反例を作ってから、必要な範囲を整理する。
-
-実装：[app.js](../../web/app.js)、[goals.js](../../web/goals.js)、[image-gallery.js](../../web/image-gallery.js)、[rich-text.js](../../web/rich-text.js)。API接続先は[入口索引](entrypoints.md)、[台帳](registry-details.md)、[記憶](memory-details.md)、[制御](control-details.md)。
+確認先：editor-ownership、web-bot-avatar-list、bot-profile-ui、schedule-list/intervals、memory-view、bot-read-views、goals各試験。実dialog DOM＋人工APIで保存中の再open/部分成功も確認した。一方、一覧・未読規範・任意機能の追加反例は未修理。局所の成功を全体の完成へ広げない。

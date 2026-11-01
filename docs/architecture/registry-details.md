@@ -1,6 +1,6 @@
 # メンバー・部屋・予定と正本の関係
 
-固定source `546f232180515a2a8cd9098b943673170c49e3d4` の現状。外部入口は[入口索引](entrypoints.md)、native停止/反映の主要図は[制御](control-and-state.md)。ここでは、台帳を変えたことと実行中の席を変えたことを分ける。
+本branchの実装を説明する。調査起点と確認範囲は[全体図](feature-map.md)を参照。外部入口は[入口索引](entrypoints.md)、native停止/反映の主要図は[制御](control-and-state.md)。ここでは、台帳を変えたことと実行中の席を変えたことを分ける。
 
 ## メンバーのデータは三つに分かれる
 
@@ -105,6 +105,6 @@ flowchart TD
 
 `OwnerProfile.get/update`が`owner/profile.json`、`UserRules.get/update`が`owner/user-rules.md`を所有する。HTTPの更新と別owner MCPは、保存後に`refreshGlobalInstructions`を呼ぶ。`createGlobalInstructionsRefresher`はOwner情報→ユーザー規範→製品規範の順に生成して、`writeGlobalInstructions`または席proxyに渡す。Bot個別のAGENTS生成とは別責任である。
 
-Webの`saveOwner`はprofile PATCH→rules PUTの順であり、一括transactionではない。後段に失敗した時にも前段の保存は残り得る。指示生成失敗も、正本保存の失敗と同じ意味にはしない。[owner-profile.mjs](../../src/owner-profile.mjs)、[user-rules.mjs](../../src/user-rules.mjs)、[global-instructions.mjs](../../src/global-instructions.mjs)を参照。
+Webの`createOwnerEditor.save`はprofile PATCH→rules PUTの順であり、一括transactionではない。後段に失敗した時にも前段の保存は残り得る。指示生成失敗も、正本保存の失敗と同じ意味にはしない。[owner-profile.mjs](../../src/owner-profile.mjs)、[user-rules.mjs](../../src/user-rules.mjs)、[global-instructions.mjs](../../src/global-instructions.mjs)を参照。
 
 ここまでの確認はsource読取。削除・予定発行・席再起動・実データの更新は行っていない。実装時の確認先はBot/RoomRegistry、profile mutation、deletion listing、schedule-generation、scheduler-failure、bot-administration、model-application-stateの既存試験である。

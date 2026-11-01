@@ -112,7 +112,7 @@ flowchart LR
 
 deploy.shのfetchは親umask077と分けた022のsubshellで行い、private生成物のmodeを変更しない。指定imageは再buildせず、必要な通常経路に渡す。installerの所有するcompose/保守状態/volume処置を別のdeploy実装へ複製しない。
 
-復元点は元CID/imageとの対応を確認して保存する。稼働中volumeのSQLiteなどには専用のarchive処理がある。この図は通常入口と呼出し関係までの確認であり、installer全体・全backup/restore分岐の再監査や復元試験の代用ではない。ここを変更する段階では、所有するデータと失敗時の戻り先を追加で詳細化する。
+復元点は元CID/imageとの対応を確認して保存する。稼働中volumeのSQLiteなどには専用のarchive処理がある。この図は概要であり、保存範囲・世代・失敗後の戻り先は[供給詳細](distribution-details.md)へ展開した。移行/復元を新たに実行した結果や、全stateの同時snapshotを証明するものではない。
 
 ## 関数と確認先
 

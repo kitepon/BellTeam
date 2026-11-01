@@ -1,6 +1,6 @@
 # 外部窓口と共通処理の依存
 
-固定source `546f232180515a2a8cd9098b943673170c49e3d4`。機能の内部と、その機能が使う汎用処理を分ける。別製品の内部を本体へ取り込む案ではない。
+対象sourceと確認範囲は[全体図](feature-map.md)に従う。機能の内部と、その機能が使う汎用処理を分ける。別製品の内部を本体へ取り込む案ではない。
 
 ## モデル一覧は保存台帳ではなく、その時の実行環境への問い合わせ
 
@@ -37,16 +37,16 @@
 
 ## 基底で確認した依存と実装した接続
 
-| 現在の依存 | そのcallerが必要とするもの | 次の整理と保持する窓口 |
+| 基底の依存 | そのcallerが必要とするもの | 実装した整理と保持した窓口 |
 | --- | --- | --- |
 | Diagnostics/OwnerProfile/RoomRegistry/UserRules → BotRegistry | `writeAtomic/exists` | 専用fileへそのまま移し直接import。BotRegistry側exportは互換のため残す。固定tmpへ変更しない |
 | RoomRegistry → BotRegistry | `normalizeSchedule/scheduleDocument/validateAvatar` | 予定定義とアバター値検証をそれぞれ所有する小moduleへ。room targetsの検証はRoomRegistryのまま |
 | ModelCatalog/ApplicationServices → AitermTransport | `AitermClient`だけ（Servicesはtransport生成も必要） | clientは既存`aiterm-client.mjs`から直接import。transportの既互換exportは保持。全callerの新経路移行を強制しない |
 | AitermClient/HTTP診断/停止診断 → ExecutionBridge | `returnedExecutionError/ERROR_META` | 純粋なreceipt検証をadapterから分離。ExecutionBridgeの既exportとcodesの厳密性は維持。通常構成へ旧registerを復活させない |
 | Onboarding/HarnessAuth | auth失敗→schema/status判定の重複 | 既存auth-uiへ小関数。保存/Map/CLI寿命/公開エラーはそれぞれのserviceに残す |
-| Webの各画面 → 巨大app state | 選択・編集中対象・取得世代が混在 | timeline、avatar、予定編集の所有単位を分ける。全stateを引数で渡すだけの分割にはしない |
+| Webの各画面 → 巨大app state | 選択・編集中対象・取得世代が混在していた | composer/timeline/schedule/memory/readviews/Bot・room・Owner editorへ状態を分離済み。残る一覧・規範読取・任意機能入力の順序は[G1〜G3](web-final-gaps.md)で修理する |
 
-これは現srcのimportと使用箇所を読んだ結論。削除可能な全exportの証明や、全call graphを自動解析したという主張ではない。実装前には変更する窓口に限定してtest/fixture/exportも検索する。
+これは基底のimportを読んで実装した接続の対応。削除可能な全exportの証明や、全call graphを自動解析したという主張ではない。変更窓口のtest/fixture/exportは各実装時に確認した。追加変更も同じ範囲確認を行う。
 
 実装：[model-catalog.mjs](../../src/model-catalog.mjs)、[call-bridge-server.mjs](../../src/call-bridge-server.mjs)、[bughub-security.mjs](../../src/bughub-security.mjs)、[http-errors.mjs](../../src/http-errors.mjs)、[diagnostic-request-context.mjs](../../src/diagnostic-request-context.mjs)、[diagnostic-report-context.mjs](../../src/diagnostic-report-context.mjs)。実際の通話・SEC操作・モデル取得・診断POSTは行っていない。
 
@@ -61,3 +61,11 @@
 | 実行返却の型とcode | [execution-error.mjs](../../src/execution-error.mjs) `returnedExecutionError/isExecutionErrorCode/ERROR_META` | client/HTTP/診断/停止/旧bridge。code集合はmodule内、旧export互換あり |
 
 D3はDiagnosticsへ既Goal callerのcode/moduleを登録して接続した。ローカル組立て試験で元のunavailable/unconfirmedと本文非露出を確認。独立製品内部の変更はない。
+
+## 小さい表示・入口補助の扱い
+
+`memberIdentity/memberLabel`はMessenger/RoomMessengerへ台帳の必要な公開fieldだけを返す。`bots.loadBots`は未初期化台帳のseed読取、`identity.resolveBotId`は旧project照合で、通常の席HTTP名札判定とは別。現src/web/scriptsからcallerのない互換補助を、通常経路の説明へ混ぜたり無根拠に削除したりしない。
+
+`returned-mcp-error.captureMcpError/returnedMcpError`は非private toolの返却だけを上限付きで保持し、入力由来値と既知秘密表現を除く。auth/launchはこの本文経路を使わず、専用typed結果へ接続する。全ての例外文字列を保存してよいという許可ではない。
+
+`http-assets.staticFile`は明示asset mapとimport版置換を持つ。Web moduleを移した時は両方を更新し、`http-server`の配信import graph試験で確認する。`readApiError/readApiResponse`はWeb HTTPの失敗/204/JSONを扱い、各機能の受付と後続表示の意味はcallerに残す。`server-address`は購読/通知へ渡すserver URLの検証、`web/server-origin`は既Web側のtransport判定であり、共通化のために認証条件を置換しない。

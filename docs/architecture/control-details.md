@@ -1,6 +1,6 @@
 # 停止・設定適用・Goalの責任
 
-固定source `546f232180515a2a8cd9098b943673170c49e3d4`。[制御の全体像](control-and-state.md)に対する関数と状態の対応。処理を止めること、席を閉じること、希望設定を保存することは別の操作である。
+対象sourceと確認範囲は[全体図](feature-map.md)に従う。[制御の全体像](control-and-state.md)に対する関数と状態の対応。処理を止めること、席を閉じること、希望設定を保存することは別の操作である。
 
 ## 全体停止は保存より先に受付を閉じる
 
@@ -83,7 +83,7 @@ flowchart TD
   Validate --> Snapshot["表示snapshotへ変換"]
   Validate --> Outcome["変更受付とreadbackから<br/>confirmed / unconfirmed"]
   Call -->|"異常"| Report["安全な診断を記録"]
-  Report --> Unavailable["unavailable / unconfirmedを返す意図"]
+  Report --> Unavailable["unavailable / unconfirmedを返す"]
 ```
 
 | 関数 | 正本と保持条件 |
@@ -94,6 +94,6 @@ flowchart TD
 | `call` | v1/v2返却、mutation/readback、field capability、Codex/Claude/Grok別native形を検証。typedエラー結果も同じ検証に通す |
 | `snapshot` | availableでもbinding/goalなしはunavailable。create/edit/pause/resumeの表示可否は現在Goalと公開capabilityの両方から制限 |
 | confirmed | `applied && acknowledged && confirmed`のみ。rejectedは409、unsupported/unavailableは503。unknownを成功へ変えない |
-| 診断接続 | `reportError`はawaitされる。現在の組立てが渡すcode/moduleをDiagnosticsが拒否するsource不一致がある。[D3](detail-status.md)で局所修理を設計中。上図の意図どおり返るとまだ主張しない |
+| 診断接続 | `reportError`はawaitされる。既callerのGOAL_OPERATION_UNCONFIRMED / goalsをDiagnosticsへ登録し、組立て反例を修理した。安全な診断の後にunavailable/unconfirmedを返す。保存自体の失敗時に伝播する既例外は変更していない |
 
-実装：[ai-control.mjs](../../src/ai-control.mjs)、[execution-transport.mjs](../../src/execution-transport.mjs)、[session-interruption.mjs](../../src/session-interruption.mjs)、[bot-administration.mjs](../../src/bot-administration.mjs)、[bot-session-state.mjs](../../src/bot-session-state.mjs)、[bot-goals.mjs](../../src/bot-goals.mjs)。確認先はai-control/integration、member-stop、session-interruption、model-application-state、bot-session-state、goal-targets/global-stop、bot-goals。今回再実行していない。
+実装：[ai-control.mjs](../../src/ai-control.mjs)、[execution-transport.mjs](../../src/execution-transport.mjs)、[session-interruption.mjs](../../src/session-interruption.mjs)、[bot-administration.mjs](../../src/bot-administration.mjs)、[bot-session-state.mjs](../../src/bot-session-state.mjs)、[bot-goals.mjs](../../src/bot-goals.mjs)。確認先はai-control/integration、member-stop、session-interruption、model-application-state、bot-session-state、goal-targets/global-stop、bot-goals。今回の局所実行範囲は[確認範囲](detail-status.md)を参照。全停止やnative操作を再実行した意味ではない。
