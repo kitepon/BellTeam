@@ -57,10 +57,15 @@ export async function respondHttpError(request, response, error, diagnostics) {
       const frames = String(error.stack ?? '').split('\n').slice(1)
         .filter(line => /^\s*at\s/u.test(line)).slice(0, 20)
         .map(line => line.replaceAll(process.cwd(), '<app>'))
-      await diagnostics.record({
+      const report = await diagnostics.record({
         code: 'SERVER_HTTP_500', module: 'server',
         diagnostic_log: `${error.constructor.name}\n${frames.join('\n')}\n${diagnosticRequestContext(request, frames, error)}`,
       })
+      if (report) {
+        response.setHeader('X-BellTeam-Diagnostic-Fingerprint', report.fingerprint)
+        response.setHeader('X-BellTeam-Diagnostic-Occurrence-Count', String(report.occurrence_count))
+        response.setHeader('X-BellTeam-Diagnostic-Received-At', report.diagnostic_log_received_at)
+      }
     }
     catch (reportError) { process.stderr.write(`BellTeam diagnostics error: ${reportError.stack ?? reportError.message}\n`) }
   }
