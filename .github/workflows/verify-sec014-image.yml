@@ -1,0 +1,65 @@
+name: SEC014の隔離image起動とlockを確認
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 未公開候補の40文字source commit（このworkflowは公開・昇格しない）
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sec014-isolated-image-runtime
+  cancel-in-progress: false
+
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: harness
+          persist-credentials: false
+      - name: 入力の形式を確認
+        env:
+          SOURCE: ${{ inputs.source }}
+        run: |
+          python3 - <<'PY'
+          import os,re
+          assert re.fullmatch('[a-f0-9]{40}',os.environ['SOURCE'])
+          PY
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: node
+      - name: 固定sourceから既packagerと正式Dockerfileでimageを作る
+        working-directory: candidate
+        env:
+          SOURCE: ${{ inputs.source }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE"
+          node scripts/package-server.mjs "$RUNNER_TEMP/sec014-image-context"
+          docker build --pull --platform linux/amd64 \
+            --label "org.opencontainers.image.revision=$SOURCE" \
+            -t "bellteam-sec014-test:$SOURCE" "$RUNNER_TEMP/sec014-image-context"
+      - name: 実UID・起動前拒否・同inodeのSH寿命と席FD非継承を確認
+        env:
+          SOURCE: ${{ inputs.source }}
+        run: |
+          sudo -n /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin \
+            RUNNER_TEMP="$RUNNER_TEMP" /usr/bin/python3 -B \
+            "$GITHUB_WORKSPACE/harness/test/sec014-image-runtime.py" \
+            "bellteam-sec014-test:$SOURCE" "$SOURCE"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sec014-image-runtime-result
+          path: ${{ runner.temp }}/sec014-image-result/
