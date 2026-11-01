@@ -343,6 +343,35 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         XCTAssertTrue(invalidReads.isEmpty, "明示再試行後の通常読戻しをfixture自身の欠損で壊さない")
     }
 
+    func testHTTP500ReportStoresServerDiagnosticReference() throws {
+        guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else {
+            throw XCTSkip("通信報告の隔離サーバーが必要です。")
+        }
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try data(base, "/test/reset?mode=post-http-500")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-chat", "-bellbot-preview-server", server,
+                               "-bellbot-preview-reporting"]
+        app.launch(); defer { app.terminate() }
+        let input = app.textViews["message-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap(); input.typeText("診断の参照を確かめる本文")
+        app.buttons["送信"].tap()
+        XCTAssertTrue(app.staticTexts["send-error"].waitForExistence(timeout: 8))
+        let deadline = Date().addingTimeInterval(8)
+        var log = ""
+        while log.isEmpty && Date() < deadline {
+            let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data(base, "/test/proof")) as? [String: Any])
+            let row = (proof["reports"] as? [[String: Any]])?.first { $0["category"] as? String == "IOS_HTTP_5XX" }
+            log = row?["diagnostic_log"] as? String ?? ""
+            if log.isEmpty { Thread.sleep(forTimeInterval: 0.1) }
+        }
+        XCTAssertTrue(log.contains("server_diagnostic_fingerprint=\(String(repeating: "a", count: 64))\n"))
+        XCTAssertTrue(log.contains("server_diagnostic_occurrence_count=7\n"))
+        XCTAssertTrue(log.contains("server_diagnostic_received_at=2026-11-01T02:03:04.567Z\n"))
+        let saved = XCTAttachment(string: log); saved.name = "保存された診断"; saved.lifetime = .keepAlways; add(saved)
+    }
+
     func testHTTP500PostKeepsDraftUntilExplicitRetry() throws {
         guard let server = ProcessInfo.processInfo.environment["BELLTEAM_REPORTING_PROBE_URL"] else {
             throw XCTSkip("通信報告の隔離サーバーが必要です。")
