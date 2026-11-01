@@ -4,8 +4,9 @@ import { richTextHtml } from './rich-text.js?v=__ASSET_VERSION__'
 import { openImageViewer, renderImageStack } from './image-gallery.js?v=__ASSET_VERSION__'
 import { applyAvatar, dayLabel, initials, memberDisplay, formatTime, formatDateTime, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
 
-export function createConversationTimeline({ timeline, latestButton, api, messageImages, getBot, avatarColor, isStopping, onStop, onQueueChange }) {
+export function createConversationTimeline({ timeline, latestButton, api, messageImages, getBot, isStopping, onStop, onQueueChange }) {
   let target = null
+  const avatarColors = new Map()
   const state = { timelineMap: new Map(), timelineQueue: [], timelineQueueRequest: 0,
     timelineQueueError: '', timelineHasMore: false, timelineOldestId: null,
     timelineLoadingOlder: false, timelineToken: 0, historyRequest: 0, historyError: '', stickToBottom: true }
@@ -407,6 +408,58 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   function imageLabel(item) {
     return item.image_count > 1 ? `画像${item.image_count}枚` : '画像'
   }
+  // アバター画像から代表色を導く。白・黒・透明に近い画素を除き、彩度の高い画素を重く見た平均色を、
+  // 枠線として見える明るさと彩度へ寄せる。Botごとに一度だけ計算する。
+  function avatarColor(bot) {
+    if (!bot.avatar) return Promise.resolve('')
+    if (!avatarColors.has(bot.id)) {
+      avatarColors.set(bot.id, new Promise(resolve => {
+        const image = new Image()
+        image.onload = () => {
+          try {
+            const size = 24
+            const canvas = document.createElement('canvas')
+            canvas.width = size
+            canvas.height = size
+            const context = canvas.getContext('2d')
+            context.drawImage(image, 0, 0, size, size)
+            const { data } = context.getImageData(0, 0, size, size)
+            let r = 0, g = 0, b = 0, weight = 0
+            for (let i = 0; i < data.length; i += 4) {
+              const [pr, pg, pb, pa] = [data[i], data[i + 1], data[i + 2], data[i + 3]]
+              if (pa < 128) continue
+              const max = Math.max(pr, pg, pb), min = Math.min(pr, pg, pb)
+              if (max > 235 && min > 200) continue
+              if (max < 40) continue
+              const saturation = max === 0 ? 0 : (max - min) / max
+              const w = 0.15 + saturation
+              r += pr * w; g += pg * w; b += pb * w; weight += w
+            }
+            if (weight === 0) return resolve('')
+            const [h, s, l] = rgbToHsl(r / weight, g / weight, b / weight)
+            resolve(`hsl(${Math.round(h)} ${Math.round(Math.max(45, Math.min(85, s * 100)))}% ${Math.round(Math.max(48, Math.min(62, l * 100)))}%)`)
+          } catch {
+            resolve('')
+          }
+        }
+        image.onerror = () => resolve('')
+        image.src = bot.avatar
+      }))
+    }
+    return avatarColors.get(bot.id)
+  }
+
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255
+    const max = Math.max(r, g, b), min = Math.min(r, g, b)
+    const l = (max + min) / 2
+    if (max === min) return [0, 0, l]
+    const d = max - min
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    let h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+    return [h * 60, s, l]
+  }
+
   return { open(value) { target = { ...value }; return readHistory(openTimeline) },
     refresh() { return target ? readHistory(refreshTimeline) : Promise.resolve(true) }, close,
     updateTarget(value) { if (target?.type === value.type && target.id === value.id) target = { ...value } },

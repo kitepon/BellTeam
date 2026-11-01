@@ -71,6 +71,9 @@ export async function staticFile(response, root, pathname, assetVersion) {
     ['/schedule-editor.js', 'schedule-editor.js'],
     ['/bot-read-views.js', 'bot-read-views.js'],
     ['/memory-view.js', 'memory-view.js'],
+    ['/room-editor.js', 'room-editor.js'],
+    ['/bot-editor.js', 'bot-editor.js'],
+    ['/owner-editor.js', 'owner-editor.js'],
     ['/member-stop.js', 'member-stop.js'],
     ['/ai-control.js', 'ai-control.js'],
     ['/goals.js', 'goals.js'],
@@ -89,7 +92,7 @@ export async function staticFile(response, root, pathname, assetVersion) {
   if (!name) return json(response, 404, { error: 'NOT_FOUND' })
   const file = join(root, name)
   const info = await stat(file)
-  if (['index.html', 'app.js', 'schedule-editor.js', 'conversation-timeline.js', 'conversation-composer.js', 'harness-auth.js', 'onboarding.js', 'rich-text.js', 'secret-input.js'].includes(name)) {
+  if (['index.html', 'app.js', 'owner-editor.js', 'bot-editor.js', 'room-editor.js', 'schedule-editor.js', 'conversation-timeline.js', 'conversation-composer.js', 'harness-auth.js', 'onboarding.js', 'rich-text.js', 'secret-input.js'].includes(name)) {
     const body = (await readFile(file, 'utf8')).replaceAll('__ASSET_VERSION__', assetVersion)
     response.writeHead(200, {
       'content-type': contentTypes.get(extname(file)),

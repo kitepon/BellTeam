@@ -9,7 +9,7 @@ function fixture(type = 'bot', id = 'bot-a') {
   const requests = [], refreshed = []
   const state = { selectedType: type, selected: id ? { id } : null }
   const context = vm.createContext({ state, ownerDialog: { open: true },
-    aiControl: { refresh: () => refreshed.push('ai-control') }, goals: { refreshOnEvent: () => refreshed.push('goals') },
+    ownerEditor: { refreshAI: () => refreshed.push('ai-control'), refreshFeatureStatus() {} }, goals: { refreshOnEvent: () => refreshed.push('goals') },
     loadBots: async () => requests.push('/api/bots', '/api/rooms', '/api/owner'),
     loadMessages: async () => requests.push(type === 'room' ? `/api/rooms/${id}/messages` : `/api/bots/${id}/messages`),
     loadFeatureSettings: async () => refreshed.push('settings'), refreshFeatureSettingsStatus() {},

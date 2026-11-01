@@ -2,7 +2,7 @@
 
 設計時の製品sourceは`56e46a5`（Webは基底546fと同bytes）。この文書は**次の実装設計**であり、現在の挙動は[会話Web](web-details.md)と[管理Web](web-management-details.md)。実装後に関数名と実窓口へ同期する。
 
-本branchではcomposer、avatar editor、会話画像cache、timeline、予定editor、記憶と読取補助を実装した。`conversation-composer.js:createConversationComposer`が`select/clear/addImages/send/update/showError`で会話別入力・添付・送信・回収欄を所有する。appは選択対象と受付後の一覧/履歴更新を渡す。`avatar-editor.js:createAvatarEditor`は既`reset/value/changed`と新`cancelRead`を公開し、画像読取世代を所有する。`message-images.js:createMessageImageCache`は`remember/load/get/failed/close`で項目別取得・URL・失敗を所有する。`conversation-timeline.js:createConversationTimeline`は`open/refresh/close/updateTarget/isBusy/updateStops`を公開し、ページ・queue・取得世代と行callbackを所有する。`schedule-editor.js:createScheduleEditor`の`open(target)`が予定の対象・編集・読取世代を所有し、`scheduleRequest/scheduleFormValues/scheduleDescription`が形式変換を担う。`memory-view.js:createMemoryView`は開いたBotと各フォーム/読取を所有し、`bot-read-views.js:createScreenView/createCharacterSheetView`は開いた対象とtimer/URLを所有する。残るBot/room/Ownerフォームは下記の設計に沿った実装が残る。図全体を現実装済みとはしない。
+本branchではcomposer、avatar editor、会話画像cache、timeline、予定editor、記憶と読取補助、Bot/room/Ownerフォームを実装した。`conversation-composer.js:createConversationComposer`が`select/clear/addImages/send/update/showError`で会話別入力・添付・送信・回収欄を所有する。appは選択対象と受付後の一覧/履歴更新を渡す。`avatar-editor.js:createAvatarEditor`は既`reset/value/changed`と新`cancelRead`を公開し、画像読取世代を所有する。`message-images.js:createMessageImageCache`は`remember/load/get/failed/close`で項目別取得・URL・失敗を所有する。`conversation-timeline.js:createConversationTimeline`は`open/refresh/close/updateTarget/isBusy/updateStops`を公開し、ページ・queue・取得世代と行callbackを所有する。`schedule-editor.js:createScheduleEditor`の`open(target)`が予定の対象・編集・読取世代を所有し、`scheduleRequest/scheduleFormValues/scheduleDescription`が形式変換を担う。`memory-view.js:createMemoryView`は開いたBotと各フォーム/読取を所有し、`bot-read-views.js:createScreenView/createCharacterSheetView`は開いた対象とtimer/URLを所有する。`bot-editor.js/room-editor.js/owner-editor.js`は各`create*Editor(...).open`でフォーム・対象・操作中と補助部品を所有する。計画した所有整理の実装は揃ったが、Astraで現状図/関数表との最終整合と必要な不足修理を確認する。図全体を現実装済みとはしない。
 
 ## 画面で説明できる責任
 
@@ -185,3 +185,5 @@ timelineはappから可変Mapを外し、取得対象とページ/queue/世代�
 予定editorは対象snapshot、一覧の読取世代、保存中の入力変更と編集切替、保存受付後のGET失敗を分けた。row操作は描画時の対象を保持。旧一覧表示と間隔設定の文字列抜出し試験を公開moduleへ移し、既検証を維持。関連run44pass、別schedule局所7pass（重複あり）。実dialog DOMの人工API確認で、A保存後B再open/新入力保全、保存済み＋GET失敗、room targets/command除外を確認した。
 
 記憶・知識は開いたBotを保持し、保存のbodyと対象を固定、新入力は同じ値の場合だけ初期化する。読取は対象と同resourceの最新結果だけ表示する。screenは初回GET待ち中closeからtimerを復活させず、新しい対象だけ表示する。設定画はclose/reopenと途中失敗でURLを回収し、古い画像を適用しない。関連HTTP/既avatarと合わせたrun42pass（重複あり）。全Web＋人工APIの起動・入力回収も再確認。残るフォームの整理と全体確認は未完。
+
+Bot/room/Ownerフォームも独立closureへ移した。Botのmodels/AbortController/Avatar、room member/representative、Ownerの規範/認証/任意機能の各固有窓口を維持する。保存時target/body、再open/新入力、API受付と一覧GETを区別し、新規作成の受付後に表示だけ失敗した場合は返却IDを保持する。Ownerはprofile/rulesを操作時に固定し、profile成功後rules失敗を部分成功として表示する。auth/featuresはopenごとの子DOMへ描画し古い非同期結果を新しい画面へ戻さない。関連最終54pass、実3フォームDOM＋人工APIと実Web起動/入力回収例が成功。全体試験と最終図整合・独立採否は未完。

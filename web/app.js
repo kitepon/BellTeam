@@ -1,18 +1,17 @@
+import { createOwnerEditor } from './owner-editor.js?v=__ASSET_VERSION__'
+import { createBotEditor } from './bot-editor.js?v=__ASSET_VERSION__'
+import { createRoomEditor } from './room-editor.js?v=__ASSET_VERSION__'
 import { createMemoryView } from './memory-view.js?v=__ASSET_VERSION__'
 import { createScreenView, createCharacterSheetView } from './bot-read-views.js?v=__ASSET_VERSION__'
 import { createScheduleEditor } from './schedule-editor.js?v=__ASSET_VERSION__'
 import { createConversationTimeline } from './conversation-timeline.js?v=__ASSET_VERSION__'
-import { applyAvatar, initials, memberDisplay, formatTime, formatDateTime, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
-import { openOnboarding, renderFeatureSettings, refreshFeatureSettingsStatus } from './onboarding.js?v=__ASSET_VERSION__'
-import { renderHarnessAuth } from './harness-auth.js?v=__ASSET_VERSION__'
+import { applyAvatar, initials, memberDisplay, formatTime, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
+import { openOnboarding } from './onboarding.js?v=__ASSET_VERSION__'
 import { claimSingleFlight, readApiError, readApiResponse, releaseSingleFlight } from './chat-input.js?v=__ASSET_VERSION__'
 import { createMessageImageCache } from './message-images.js?v=__ASSET_VERSION__'
-import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
 import { createConversationComposer } from './conversation-composer.js?v=__ASSET_VERSION__'
 import { hasUnreadConversation, newestByRecent } from './activity-order.js?v=__ASSET_VERSION__'
-import { openImageViewer } from './image-gallery.js?v=__ASSET_VERSION__'
 import { requestMemberStop } from './member-stop.js?v=__ASSET_VERSION__'
-import { aiControlView } from './ai-control.js?v=__ASSET_VERSION__'
 import { goalsView } from './goals.js?v=__ASSET_VERSION__'
 
 const READ_RECEIPTS_KEY = 'bellteam-read-receipts.v1'
@@ -23,22 +22,6 @@ document.querySelector('#goals-button').addEventListener('click', () => { void g
 const botList = document.querySelector('#bot-list')
 const ownerProfileButton = document.querySelector('#owner-profile-button')
 const ownerDialog = document.querySelector('#owner-dialog')
-const aiControl = aiControlView(document.querySelector('#ai-control'), api)
-document.addEventListener('visibilitychange', () => { if (!document.hidden && ownerDialog.open) void aiControl.refresh() })
-const ownerForm = document.querySelector('#owner-form')
-const ownerName = document.querySelector('#owner-name')
-const ownerDescription = document.querySelector('#owner-description')
-const ownerXUrl = document.querySelector('#owner-x-url')
-const ownerGithubUrl = document.querySelector('#owner-github-url')
-const ownerAvatarFile = document.querySelector('#owner-avatar-file')
-const ownerAvatarPreview = document.querySelector('#owner-avatar-preview')
-const ownerCropEditor = document.querySelector('#owner-crop-editor')
-const ownerAvatarCrop = document.querySelector('#owner-avatar-crop')
-const ownerAvatarZoom = document.querySelector('#owner-avatar-zoom')
-const ownerLinks = document.querySelector('#owner-links')
-const addOwnerLink = document.querySelector('#add-owner-link')
-const ownerFormError = document.querySelector('#owner-form-error')
-const userRulesInput = document.querySelector('#user-rules')
 const chat = document.querySelector('#chat')
 const timeline = document.querySelector('#timeline')
 const latestButton = document.querySelector('#scroll-to-latest')
@@ -50,9 +33,6 @@ const screenStatus = document.querySelector('#screen-status')
 const screenText = document.querySelector('#screen-text')
 const headerAvatar = document.querySelector('#header-avatar')
 const editBotButton = document.querySelector('#edit-bot-button')
-const restartSessionButton = document.querySelector('#restart-session-button')
-const deleteBotButton = document.querySelector('#delete-bot-button')
-const botManagementActions = document.querySelector('#bot-management-actions')
 const composer = document.querySelector('#composer')
 const messageInput = document.querySelector('#message-input')
 const composerError = document.querySelector('#composer-error')
@@ -63,55 +43,15 @@ const attachmentButton = document.querySelector('#attachment-button')
 const messageImage = document.querySelector('#message-image')
 const attachmentPreview = document.querySelector('#attachment-preview')
 const botDialog = document.querySelector('#bot-dialog')
-const botForm = document.querySelector('#bot-form')
-const botDialogTitle = document.querySelector('#bot-dialog-title')
-const botName = document.querySelector('#bot-name')
-const botHarness = document.querySelector('#bot-harness')
-const botModel = document.querySelector('#bot-model')
-const botModelCustom = document.querySelector('#bot-model-custom')
-const botModelCustomField = document.querySelector('#bot-model-custom-field')
-const botReasoningEffort = document.querySelector('#bot-reasoning-effort')
-const botProfileText = document.querySelector('#bot-profile-text')
-const botPersonality = document.querySelector('#bot-personality')
-const botSpeechStyle = document.querySelector('#bot-speech-style')
-const botPosition = document.querySelector('#bot-position')
-const botRole = document.querySelector('#bot-role')
-const botAvatarFile = document.querySelector('#bot-avatar-file')
-const botAvatarPreview = document.querySelector('#bot-avatar-preview')
-const cropEditor = document.querySelector('#crop-editor')
-const avatarCrop = document.querySelector('#avatar-crop')
-const avatarZoom = document.querySelector('#avatar-zoom')
-const botColor = document.querySelector('#bot-color')
-const botFormError = document.querySelector('#bot-form-error')
-const botModelStatus = document.querySelector('#bot-model-status')
-const botConfigurationStatus = document.querySelector('#bot-configuration-status')
-let modelLoad = null
-const saveBotButton = document.querySelector('#save-bot-button')
-const characterSheetButton = document.querySelector('#character-sheet-button')
 const characterSheetDialog = document.querySelector('#character-sheet-dialog')
 const characterSheetList = document.querySelector('#character-sheet-list')
-const memoryButton = document.querySelector('#memory-button')
 const memoryDialog = document.querySelector('#memory-dialog')
 const scheduleDialog = document.querySelector('#schedule-dialog')
 const actionDialog = document.querySelector('#action-dialog')
 const roomDialog = document.querySelector('#room-dialog')
-const roomForm = document.querySelector('#room-form')
-const roomDialogTitle = document.querySelector('#room-dialog-title')
-const roomName = document.querySelector('#room-name')
-const roomPurpose = document.querySelector('#room-purpose')
-const roomMembers = document.querySelector('#room-members')
-const roomRepresentative = document.querySelector('#room-representative')
-const roomFormError = document.querySelector('#room-form-error')
-const roomAvatarFile = document.querySelector('#room-avatar-file')
-const roomAvatarPreview = document.querySelector('#room-avatar-preview')
-const roomCropEditor = document.querySelector('#room-crop-editor')
-const roomAvatarCrop = document.querySelector('#room-avatar-crop')
-const roomAvatarZoom = document.querySelector('#room-avatar-zoom')
 const targetPicker = document.querySelector('#target-picker')
 const targetButton = document.querySelector('#target-button')
 const targetMenu = document.querySelector('#target-menu')
-const deleteRoomButton = document.querySelector('#delete-room-button')
-const roomManagementActions = document.querySelector('#room-management-actions')
 
 const state = {
   setup: null,
@@ -120,14 +60,9 @@ const state = {
   authMode: null,
   bots: [],
   rooms: [],
-  models: {},
-  avatarColors: new Map(),
   selected: null,
   selectedType: null,
   streamAbort: null,
-  editingBot: null,
-  editingRoom: null,
-  inFlight: new Set(),
   readReceipts: loadReadReceipts(),
 }
 
@@ -163,25 +98,52 @@ const screenView = createScreenView({ panel: screenPanel, status: screenStatus, 
 
 const scheduleEditor = createScheduleEditor(scheduleDialog, { api, getBot: id => state.bots.find(bot => bot.id === id) })
 
-const botAvatarEditor = createAvatarEditor({
-  applyAvatar, initials, escapeClass,
-  fileInput: botAvatarFile, preview: botAvatarPreview, cropEditor, canvas: avatarCrop, zoom: avatarZoom,
-  nameInput: botName, colorInput: botColor, fallback: 'B', error: botFormError,
+const roomEditor = createRoomEditor(roomDialog, { api, getBots: () => state.bots,
+  onSaved: async (room, current) => {
+    await loadBots()
+    const saved = state.rooms.find(item => item.id === room.id)
+    if (current() && saved) await selectRoom(saved)
+  },
+  onDeleted: async room => {
+    state.rooms = state.rooms.filter(item => item.id !== room.id)
+    if (state.selectedType === 'room' && state.selected?.id === room.id) clearSelection()
+    renderBots()
+    await loadBots()
+  },
 })
-const ownerAvatarEditor = createAvatarEditor({
-  applyAvatar, initials, escapeClass,
-  fileInput: ownerAvatarFile, preview: ownerAvatarPreview, cropEditor: ownerCropEditor,
-  canvas: ownerAvatarCrop, zoom: ownerAvatarZoom, nameInput: ownerName, fallback: 'O', error: ownerFormError,
+
+const botEditor = createBotEditor(botDialog, { api,
+  onSaved: async (bot, current) => {
+    await loadBots()
+    const saved = state.bots.find(item => item.id === bot.id)
+    if (current() && saved) await selectBot(saved)
+  },
+  onDeleted: async bot => {
+    state.bots = state.bots.filter(item => item.id !== bot.id)
+    if (state.selectedType === 'bot' && state.selected?.id === bot.id) clearSelection()
+    renderBots()
+    setTimeout(() => { void loadBots().catch(() => conversationComposer.showError('一覧を更新できませんでした。')) }, 500)
+  },
+  onRestarted: bot => setTimeout(async () => {
+    try {
+      await loadBots()
+      if (state.selectedType !== 'bot' || state.selected?.id !== bot.id) return
+      const current = state.bots.find(item => item.id === bot.id)
+      if (current) await selectBot(current)
+    } catch { if (state.selected?.id === bot.id) conversationComposer.showError('再起動操作後の表示を更新できませんでした。') }
+  }, 1000),
+  onStatus: (bot, message) => { if (state.selectedType === 'bot' && state.selected?.id === bot.id) chatStatus.textContent = message },
+  onMemory: bot => memoryView.open(bot), onSheets: bot => characterSheets.open(bot),
 })
-const roomAvatarEditor = createAvatarEditor({
-  applyAvatar, initials, escapeClass,
-  fileInput: roomAvatarFile, preview: roomAvatarPreview, cropEditor: roomCropEditor,
-  canvas: roomAvatarCrop, zoom: roomAvatarZoom, nameInput: roomName, fallback: 'R', error: roomFormError,
-  previewClass: 'avatar room-avatar',
+
+const ownerEditor = createOwnerEditor(ownerDialog, { api,
+  onOwner: owner => { state.owner = owner; renderOwner() },
+  onSettings: (settings, authMode) => {
+    state.settings = settings
+    state.authMode = authMode
+    if (state.selectedType === 'room') renderTargetPicker(state.selected)
+  },
 })
-for (const [dialog, editor] of [[botDialog, botAvatarEditor], [ownerDialog, ownerAvatarEditor], [roomDialog, roomAvatarEditor]]) {
-  dialog.addEventListener('close', () => editor.cancelRead())
-}
 
 targetButton.addEventListener('click', () => toggleTargetMenu())
 document.addEventListener('click', event => {
@@ -190,20 +152,10 @@ document.addEventListener('click', event => {
 
 document.querySelector('#back-button').addEventListener('click', () => app.classList.remove('chat-open'))
 ownerProfileButton.addEventListener('click', openOwnerDialog)
-ownerForm.addEventListener('submit', saveOwner)
-function clearSettingSecrets() {
-  for (const input of ownerDialog.querySelectorAll('#feature-settings input[type="password"]')) input.value = ''
-}
-ownerDialog.addEventListener('close', clearSettingSecrets)
-// 設定を閉じたら、AIの認証の確認を止める。進行中の公式認証そのものは止めない（公式サイトで続けられる）。
-let harnessAuthSection = null
-ownerDialog.addEventListener('close', () => { harnessAuthSection?.stop(); harnessAuthSection = null })
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) clearSettingSecrets()
-  else if (document.querySelector('#goals-dialog').open) void goals.refresh()
-  else void goals.refreshSelected()
+  if (!document.hidden && document.querySelector('#goals-dialog').open) void goals.refresh()
+  else if (!document.hidden) void goals.refreshSelected()
 })
-addOwnerLink.addEventListener('click', () => addOwnerLinkRow())
 document.querySelector('#add-button').addEventListener('click', () => actionDialog.showModal())
 document.querySelector('#action-add-bot').addEventListener('click', () => { actionDialog.close(); openBotDialog() })
 document.querySelector('#action-add-room').addEventListener('click', () => { actionDialog.close(); openRoomDialog() })
@@ -229,20 +181,8 @@ document.querySelector('#export-button').addEventListener('click', async event =
   } catch (error) { conversationComposer.showError(`書き出せませんでした（${error.message}）`) }
   finally { button.disabled = false }
 })
-characterSheetButton.addEventListener('click', openCharacterSheetDialog)
 
-function openCharacterSheetDialog() {
-  if (state.editingBot) return characterSheets.open(state.editingBot)
-}
-
-restartSessionButton.addEventListener('click', restartSelectedSession)
-deleteBotButton.addEventListener('click', deleteSelectedBot)
-deleteRoomButton.addEventListener('click', deleteSelectedRoom)
-memoryButton.addEventListener('click', openMemoryDialog)
 document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => document.querySelector(`#${button.dataset.closeDialog}`).close()))
-botForm.addEventListener('submit', saveBot)
-roomForm.addEventListener('submit', saveRoom)
-roomMembers.addEventListener('change', () => renderRoomRepresentativeOptions())
 screenButton.addEventListener('click', () => (screenPanel.hidden ? openScreen() : closeScreen()))
 document.querySelector('#screen-close').addEventListener('click', closeScreen)
 
@@ -316,14 +256,6 @@ async function loadFeatureSettings() {
   if (state.selectedType === 'room') renderTargetPicker(state.selected)
 }
 
-async function refreshFeatureSettingsForm() {
-  await loadFeatureSettings()
-  const session = await api('/api/session')
-  state.authMode = session.authMode
-  document.querySelector('#connection-mode').textContent = session.authMode === 'cloudflare' ? 'Cloudflare Accessで認証済み' : 'ローカル接続'
-  renderFeatureSettings(document.querySelector('#feature-settings'), state.settings, { api, onChange: refreshFeatureSettingsForm })
-}
-
 async function loadBots() {
   const [botResult, roomResult, ownerResult] = await Promise.all([api('/api/bots?avatar=omit'), api('/api/rooms'), api('/api/owner')])
   state.bots = botResult.bots.map(bot => ({ ...bot, avatar: bot.avatarVersion ? `/api/bots/${encodeURIComponent(bot.id)}/avatar?v=${encodeURIComponent(bot.avatarVersion)}` : '' }))
@@ -349,74 +281,7 @@ function renderOwner() {
   applyAvatar(ownerProfileButton, owner ?? { avatar: '' })
 }
 
-async function openOwnerDialog() {
-  if (!state.owner) return
-  void aiControl.refresh()
-  ownerForm.reset()
-  ownerFormError.textContent = ''
-  try {
-    userRulesInput.value = (await api('/api/user-rules')).text
-  } catch (error) {
-    ownerFormError.textContent = `ユーザー規範を読めませんでした（${error.message}）`
-  }
-  ownerName.value = state.owner.name
-  ownerDescription.value = state.owner.profile ?? ''
-  ownerXUrl.value = state.owner.xUrl ?? ''
-  ownerGithubUrl.value = state.owner.githubUrl ?? ''
-  renderOwnerLinkRows(state.owner.links ?? [])
-  ownerAvatarEditor.reset(state.owner.avatar)
-  try {
-    document.querySelector('#feature-settings-error').textContent = ''
-    await refreshFeatureSettingsForm()
-  } catch (error) { document.querySelector('#feature-settings-error').textContent = error.message }
-  harnessAuthSection?.stop()
-  harnessAuthSection = null
-  try {
-    document.querySelector('#harness-auth-error').textContent = ''
-    harnessAuthSection = await renderHarnessAuth(document.querySelector('#harness-auth'), { api })
-  } catch (error) { document.querySelector('#harness-auth-error').textContent = error.message }
-  ownerDialog.showModal()
-}
-
-async function saveOwner(event) {
-  event.preventDefault()
-  ownerFormError.textContent = ''
-  const links = [...ownerLinks.querySelectorAll('.owner-link-row')].map(row => ({
-    label: row.querySelector('[data-owner-link-label]').value.trim(),
-    url: row.querySelector('[data-owner-link-url]').value.trim(),
-  }))
-  try {
-    const result = await api('/api/owner', {
-      method: 'PATCH', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        name: ownerName.value.trim(), profile: ownerDescription.value, avatar: ownerAvatarEditor.value(),
-        xUrl: ownerXUrl.value.trim(), githubUrl: ownerGithubUrl.value.trim(), links,
-      }),
-    })
-    state.owner = result.owner
-    await api('/api/user-rules', {
-      method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: userRulesInput.value }),
-    })
-    renderOwner()
-    ownerDialog.close()
-  } catch (error) {
-    ownerFormError.textContent = `保存できませんでした（${error.message}）`
-  }
-}
-
-function renderOwnerLinkRows(links) {
-  ownerLinks.replaceChildren()
-  links.forEach(link => addOwnerLinkRow(link, false))
-}
-
-function addOwnerLinkRow(link = { label: '', url: '' }, focus = true) {
-  const row = document.createElement('div')
-  row.className = 'owner-link-row'
-  row.innerHTML = `<input data-owner-link-label required maxlength="100" aria-label="情報源の名前" placeholder="ブログ" value="${escapeHtml(link.label)}"><input data-owner-link-url required type="url" maxlength="2048" inputmode="url" aria-label="情報源のURL" placeholder="https://example.com" value="${escapeHtml(link.url)}"><button type="button" aria-label="情報源を削除">×</button>`
-  row.querySelector('button').addEventListener('click', () => row.remove())
-  ownerLinks.append(row)
-  if (focus) row.querySelector('input').focus()
-}
+function openOwnerDialog() { return ownerEditor.open(state.owner) }
 
 function renderBots() {
   const botRows = newestByRecent(state.bots).map(bot => {
@@ -507,45 +372,6 @@ async function selectRoom(room) {
   messageInput.focus()
 }
 
-async function restartSelectedSession() {
-  if (!state.editingBot) return
-  const id = state.editingBot.id
-  restartSessionButton.disabled = true
-  chatStatus.textContent = '再起動中'
-  try {
-    await api(`/api/bots/${id}/restart`, { method: 'POST' })
-    botDialog.close()
-    setTimeout(async () => {
-      await loadBots()
-      if (state.selectedType !== 'bot' || state.selected.id !== id) return
-      const bot = state.bots.find(item => item.id === id)
-      if (bot) await selectBot(bot)
-    }, 1000)
-  } catch {
-    chatStatus.textContent = '再起動できませんでした'
-  } finally {
-    restartSessionButton.disabled = false
-  }
-}
-
-async function deleteSelectedBot() {
-  const bot = state.editingBot
-  if (!bot || !window.confirm(`${bot.displayName}を削除しますか？`)) return
-  deleteBotButton.disabled = true
-  try {
-    await api(`/api/bots/${bot.id}`, { method: 'DELETE' })
-    botDialog.close()
-    state.bots = state.bots.filter(item => item.id !== bot.id)
-    clearSelection()
-    renderBots()
-    setTimeout(loadBots, 500)
-  } catch {
-    botFormError.textContent = '削除できませんでした。'
-  } finally {
-    deleteBotButton.disabled = false
-  }
-}
-
 function clearSelection() {
   conversationComposer.clear()
   conversationTimeline.close()
@@ -565,295 +391,13 @@ function clearSelection() {
   stopButton.hidden = true
 }
 
-function renderBotConfigurationStatus(bot) {
-  const application = bot?.configurationApplication
-  botConfigurationStatus.textContent = !bot ? ''
-    : application?.state === 'pending' ? '現在の作業が終わった後に設定を反映します。適用はまだ確認できていません。'
-    : application?.state === 'failed' ? application.message
-    : application?.state === 'accepted' ? 'CLIが設定変更を受け付けました。'
-    : bot.online ? '保存した希望設定です。稼働中のCLIへの適用は未確認です。'
-    : '次回の起動に使う希望設定です。'
-}
+function openBotDialog(bot = null) { return botEditor.open(bot) }
 
-async function openBotDialog(bot = null) {
-  modelLoad?.abort()
-  const controller = new AbortController()
-  modelLoad = controller
-  state.models = {}
-  state.editingBot = bot
-  renderBotConfigurationStatus(bot)
-  botForm.reset()
-  botFormError.textContent = ''
-  botDialogTitle.textContent = bot ? 'Botを編集' : 'Botを追加'
-  botHarness.disabled = true
-  botModel.disabled = true
-  botReasoningEffort.disabled = true
-  saveBotButton.disabled = true
-  botManagementActions.hidden = !bot
-  characterSheetButton.hidden = !bot
-  if (bot) {
-    botName.value = bot.name
-    botHarness.value = bot.harness
-    botProfileText.value = bot.profileText ?? ''
-    botPersonality.value = bot.personality ?? ''
-    botSpeechStyle.value = bot.speechStyle ?? ''
-    botPosition.value = bot.position ?? ''
-    botRole.value = bot.role ?? ''
-    botColor.value = bot.color ?? 'violet'
-  }
-  renderModelOptions(botHarness.value, bot?.model ?? '', bot?.reasoningEffort ?? '')
-  botModelStatus.textContent = 'モデル一覧を読み込んでいます…'
-  botAvatarEditor.reset(bot?.avatar)
-  botDialog.showModal()
-  try {
-    const result = await api('/api/models', { signal: controller.signal })
-    if (controller.signal.aborted) return
-    state.models = result.models
-    renderModelOptions(botHarness.value, bot?.model ?? '', bot?.reasoningEffort ?? '')
-    if (bot) {
-      try {
-        const current = await api(`/api/bots/${bot.id}`, { signal: controller.signal })
-        if (!controller.signal.aborted) renderBotConfigurationStatus({ ...bot, ...current.bot })
-      } catch {
-        if (!controller.signal.aborted) botConfigurationStatus.textContent = '現在の適用状態を取得できません。'
-      }
-    }
-  } catch (error) {
-    if (controller.signal.aborted) return
-    botModelStatus.textContent = `モデル一覧を取得できません（${error.message}）`
-  } finally {
-    if (!controller.signal.aborted) {
-      botHarness.disabled = false
-      saveBotButton.disabled = false
-    }
-  }
-}
-botDialog.addEventListener('close', () => { if (!botDialog.open) modelLoad?.abort() })
-
-const CUSTOM_MODEL = '__custom__'
-function selectOptions(select, options) {
-  select.replaceChildren(...options.map(([value, label]) => {
-    const option = document.createElement('option')
-    option.value = value
-    option.textContent = label
-    return option
-  }))
-}
-function renderModelOptions(harness, current, effort) {
-  const entry = state.models[harness]
-  botModel.disabled = !entry || Boolean(entry.error)
-  botReasoningEffort.disabled = botModel.disabled
-  botModelStatus.textContent = entry?.error?.message ?? ''
-  const candidates = (state.models[harness]?.models ?? []).map(model => model.id)
-  selectOptions(botModel, [['', 'CLIの既定'], ...candidates.map(model => [model, model]), [CUSTOM_MODEL, 'その他（手入力）']])
-  const listed = current === '' || candidates.includes(current)
-  botModel.value = listed ? current : CUSTOM_MODEL
-  botModelCustom.value = listed ? '' : current
-  botModelCustomField.hidden = botModel.value !== CUSTOM_MODEL
-  renderEffortOptions(effort)
-}
-// 一覧のモデルはそのモデルが受け付けるエフォート、既定と手入力はCLI全体の範囲を出す。
-// CursorはモデルIDとエフォートを連結して起動するので、モデル未指定ではエフォートを選べない。
-function selectableEfforts() {
-  const catalog = state.models[botHarness.value]
-  if (!catalog) return []
-  const listed = catalog.models.find(model => model.id === botModel.value)
-  if (listed) return listed.efforts
-  if (botHarness.value === 'cursor' && botModel.value === '') return []
-  return catalog.efforts
-}
-function renderEffortOptions(current) {
-  const efforts = selectableEfforts()
-  const options = [['', 'CLIの既定'], ...efforts.map(effort => [effort, effort])]
-  // 保存済みの値が候補から外れても黙って変えない。選び直すまで残す。
-  if (current && !efforts.includes(current)) options.push([current, `${current}（このモデルでは未対応）`])
-  selectOptions(botReasoningEffort, options)
-  botReasoningEffort.value = current
-}
-function selectedModel() {
-  return botModel.value === CUSTOM_MODEL ? botModelCustom.value.trim() : botModel.value
-}
-botHarness.addEventListener('change', () => renderModelOptions(botHarness.value, '', ''))
-botModel.addEventListener('change', () => {
-  botModelCustomField.hidden = botModel.value !== CUSTOM_MODEL
-  // 選び直したモデルが今のエフォートを受け付けなければ、CLIの既定へ戻す。
-  renderEffortOptions(selectableEfforts().includes(botReasoningEffort.value) ? botReasoningEffort.value : '')
-})
-
-async function saveBot(event) {
-  event.preventDefault()
-  if (!claimSingleFlight(state.inFlight, 'bot-save')) return
-  botFormError.textContent = ''
-  saveBotButton.disabled = true
-  saveBotButton.textContent = state.editingBot ? '保存中…' : '作成中…'
-  try {
-    const profile = {
-      name: botName.value.trim(),
-      profileText: botProfileText.value,
-      personality: botPersonality.value,
-      speechStyle: botSpeechStyle.value,
-      position: botPosition.value.trim(),
-      role: botRole.value,
-      ...(!state.editingBot || botAvatarEditor.changed() ? { avatar: botAvatarEditor.value() } : {}),
-      color: botColor.value,
-      harness: botHarness.value,
-      model: selectedModel(),
-      reasoningEffort: botReasoningEffort.value,
-    }
-    let result
-    if (state.editingBot) {
-      result = await api(`/api/bots/${state.editingBot.id}`, {
-        method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(profile),
-      })
-    } else {
-      result = await api('/api/bots', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(profile),
-      })
-    }
-    botDialog.close()
-    await loadBots()
-    const saved = state.bots.find(bot => bot.id === result.bot.id)
-    if (saved) await selectBot(saved)
-  } catch (error) {
-    botFormError.textContent = `保存できませんでした（${error.message}）`
-  } finally {
-    releaseSingleFlight(state.inFlight, 'bot-save')
-    saveBotButton.disabled = false
-    saveBotButton.textContent = '保存'
-  }
-}
-
-function openMemoryDialog() {
-  const bot = state.editingBot
-  if (!bot) return
-  botDialog.close()
-  memoryView.open(bot)
-}
-
-function openRoomDialog(room = null) {
-  state.editingRoom = room
-  roomForm.reset()
-  roomFormError.textContent = ''
-  roomDialogTitle.textContent = room ? 'ルームを編集' : 'ルームを作る'
-  roomManagementActions.hidden = !room
-  roomName.value = room?.name ?? ''
-  roomPurpose.value = room?.purpose ?? ''
-  roomAvatarEditor.reset(room?.avatar ?? '')
-  roomMembers.replaceChildren(...state.bots.map(bot => {
-    const label = document.createElement('label')
-    label.innerHTML = `<input type="checkbox" value="${escapeHtml(bot.id)}" ${room?.memberIds.includes(bot.id) ? 'checked' : ''}><span>${escapeHtml(bot.displayName)}</span>`
-    return label
-  }))
-  renderRoomRepresentativeOptions(room?.representativeId ?? '')
-  roomDialog.showModal()
-}
-
-function renderRoomRepresentativeOptions(preferred = roomRepresentative.value) {
-  const selectedIds = [...roomMembers.querySelectorAll('input:checked')].map(input => input.value)
-  roomRepresentative.replaceChildren(new Option('代表なし', ''), ...selectedIds.map(id => {
-    const bot = state.bots.find(item => item.id === id)
-    return new Option(bot?.displayName ?? id, id)
-  }))
-  roomRepresentative.value = selectedIds.includes(preferred) ? preferred : ''
-}
-
-async function saveRoom(event) {
-  event.preventDefault()
-  roomFormError.textContent = ''
-  const body = {
-    name: roomName.value.trim(),
-    purpose: roomPurpose.value,
-    memberIds: [...roomMembers.querySelectorAll('input:checked')].map(input => input.value),
-    representativeId: roomRepresentative.value || null,
-    avatar: roomAvatarEditor.value(),
-  }
-  try {
-    const result = state.editingRoom
-      ? await api(`/api/rooms/${state.editingRoom.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
-      : await api('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
-    roomDialog.close()
-    await loadBots()
-    const saved = state.rooms.find(room => room.id === result.room.id)
-    if (saved) await selectRoom(saved)
-  } catch {
-    roomFormError.textContent = '保存できませんでした。名前とメンバーを確認してね。'
-  }
-}
-
-async function deleteSelectedRoom() {
-  const room = state.editingRoom
-  if (!room || !window.confirm(`${room.name}を削除しますか？\n会話履歴と予定も削除されます。`)) return
-  deleteRoomButton.disabled = true
-  try {
-    await api(`/api/rooms/${room.id}`, { method: 'DELETE' })
-    roomDialog.close()
-    state.rooms = state.rooms.filter(item => item.id !== room.id)
-    clearSelection()
-    renderBots()
-    await loadBots()
-  } catch {
-    roomFormError.textContent = '削除できませんでした。'
-  } finally {
-    deleteRoomButton.disabled = false
-  }
-}
+function openRoomDialog(room = null) { roomEditor.open(room) }
 
 function openScheduleDialog() {
   if (!state.selected) return
   return scheduleEditor.open({ ...state.selected, type: state.selectedType })
-}
-
-// アバター画像から代表色を導く。白・黒・透明に近い画素を除き、彩度の高い画素を重く見た平均色を、
-// 枠線として見える明るさと彩度へ寄せる。Botごとに一度だけ計算する。
-function avatarColor(bot) {
-  if (!bot.avatar) return Promise.resolve('')
-  if (!state.avatarColors.has(bot.id)) {
-    state.avatarColors.set(bot.id, new Promise(resolve => {
-      const image = new Image()
-      image.onload = () => {
-        try {
-          const size = 24
-          const canvas = document.createElement('canvas')
-          canvas.width = size
-          canvas.height = size
-          const context = canvas.getContext('2d')
-          context.drawImage(image, 0, 0, size, size)
-          const { data } = context.getImageData(0, 0, size, size)
-          let r = 0, g = 0, b = 0, weight = 0
-          for (let i = 0; i < data.length; i += 4) {
-            const [pr, pg, pb, pa] = [data[i], data[i + 1], data[i + 2], data[i + 3]]
-            if (pa < 128) continue
-            const max = Math.max(pr, pg, pb), min = Math.min(pr, pg, pb)
-            if (max > 235 && min > 200) continue
-            if (max < 40) continue
-            const saturation = max === 0 ? 0 : (max - min) / max
-            const w = 0.15 + saturation
-            r += pr * w; g += pg * w; b += pb * w; weight += w
-          }
-          if (weight === 0) return resolve('')
-          const [h, s, l] = rgbToHsl(r / weight, g / weight, b / weight)
-          resolve(`hsl(${Math.round(h)} ${Math.round(Math.max(45, Math.min(85, s * 100)))}% ${Math.round(Math.max(48, Math.min(62, l * 100)))}%)`)
-        } catch {
-          resolve('')
-        }
-      }
-      image.onerror = () => resolve('')
-      image.src = bot.avatar
-    }))
-  }
-  return state.avatarColors.get(bot.id)
-}
-
-function rgbToHsl(r, g, b) {
-  r /= 255; g /= 255; b /= 255
-  const max = Math.max(r, g, b), min = Math.min(r, g, b)
-  const l = (max + min) / 2
-  if (max === min) return [0, 0, l]
-  const d = max - min
-  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-  let h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4
-  return [h * 60, s, l]
 }
 
 function routingEnabled() { return state.settings.some(setting => setting.id === 'routing' && setting.status === 'enabled') }
@@ -921,7 +465,7 @@ function toggleTargetMenu(open = targetMenu.hidden) {
 }
 
 const conversationTimeline = createConversationTimeline({ timeline, latestButton, api, messageImages,
-  getBot: id => state.bots.find(bot => bot.id === id), avatarColor,
+  getBot: id => state.bots.find(bot => bot.id === id),
   isStopping: id => stoppingMembers.has(id), onStop: stopMember, onQueueChange: updateSendButton,
 })
 
@@ -1009,10 +553,10 @@ function eventAffectsTimeline(payload, type, id) {
 
 async function refreshFromEvent(payload) {
   try {
-    if (payload.type === 'ai-control' && ownerDialog.open) void aiControl.refresh()
+    if (payload.type === 'ai-control' && ownerDialog.open) void ownerEditor.refreshAI()
     if (payload.type === 'settings') {
       await loadFeatureSettings()
-      if (ownerDialog.open) refreshFeatureSettingsStatus(document.querySelector('#feature-settings'), state.settings)
+      if (ownerDialog.open) ownerEditor.refreshFeatureStatus(state.settings)
     }
     if (payload.type === 'setup') state.setup = await api('/api/setup')
     if (state.selectedType === 'bot' && (payload.all || payload.botId === state.selected?.id || payload.botIds?.includes(state.selected?.id)))

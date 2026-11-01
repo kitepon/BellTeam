@@ -1,6 +1,6 @@
 # 機能図の詳細化と次の整理
 
-基準sourceは `546f232180515a2a8cd9098b943673170c49e3d4`。第一段PR245は主要14図と接続整理として統合済みだが、Ownerが求めた全体の機能分解は継続中。ここでは調査済みの接続と残る調査を区別する。D1/D2/D6とD3は本branchで実装・局所検証済み。D7も局所検証済み。D4/D5は[Web所有設計](web-ownership-plan.md)に沿いcomposer/avatar editor/会話画像cache/timeline/予定editor/記憶/読取補助まで実装・局所確認済み。Bot/room/Ownerの残るフォームの実装が残る。
+基準sourceは `546f232180515a2a8cd9098b943673170c49e3d4`。第一段PR245は主要14図と接続整理として統合済みだが、Ownerが求めた全体の機能分解は継続中。ここでは調査済みの接続と残る調査を区別する。D1/D2/D6とD3は本branchで実装・局所検証済み。D7も局所検証済み。D4/D5は[Web所有設計](web-ownership-plan.md)に沿いcomposer/avatar editor/会話画像cache/timeline/予定editor/記憶/読取補助まで実装・局所確認済み。Bot/room/Ownerフォームも実装・局所確認済み。計画した変更を全体完成とせず、Astraで図/関数表と実装の最終照合、必要な不足修理、全体試験・独立採否を進める。
 
 ## 図の完成をどう判断するか
 
