@@ -186,25 +186,20 @@ final class ConversationAppearanceTests: XCTestCase {
         XCTAssertNil(AvatarTone.representativeColor(portrait(.white)))
     }
 
-    func testWheelStallReportsOnceAfterRepeatedInputWithoutMovement() {
-        var detector = ConversationWheelStallDetector()
-        let start = Date(timeIntervalSince1970: 0)
-        XCTAssertFalse(detector.wheelUp(top: -500, idle: true, now: start))
-        XCTAssertFalse(detector.wheelUp(top: -500, idle: true, now: start.addingTimeInterval(0.1)))
-        XCTAssertFalse(detector.wheelUp(top: -500, idle: true, now: start.addingTimeInterval(0.2)), "同じ瞬間の入力は判定しない")
-        XCTAssertTrue(detector.wheelUp(top: -500, idle: true, now: start.addingTimeInterval(0.6)))
-        XCTAssertFalse(detector.wheelUp(top: -500, idle: true, now: start.addingTimeInterval(0.9)), "会話ごとに1回だけ")
-    }
-
-    func testWheelStallIgnoresMovementLoadingAndOldInputs() {
-        var detector = ConversationWheelStallDetector()
-        let start = Date(timeIntervalSince1970: 0)
-        for (index, top) in [-500, -400, -300, -200].enumerated() {
-            XCTAssertFalse(detector.wheelUp(top: CGFloat(top), idle: true, now: start.addingTimeInterval(Double(index))))
+    func testWheelNotchesAddUpAndStopWithinFiniteDistance() {
+        // 同じ向きのノッチは速度へ積み、逆向きは止める。減速は有限距離で止まる。
+        let one = WheelScrollSmoother.velocity(adding: 30, to: 0)
+        XCTAssertGreaterThan(one, 0)
+        XCTAssertGreaterThan(WheelScrollSmoother.velocity(adding: 30, to: one), one)
+        XCTAssertEqual(WheelScrollSmoother.velocity(adding: -30, to: one), -one)
+        var velocity = one, distance: CGFloat = 0, frames = 0
+        while abs(velocity) >= 20 {
+            distance += velocity / 60
+            velocity *= WheelScrollSmoother.decayPerFrame
+            frames += 1
+            XCTAssertLessThan(frames, 600)
         }
-        XCTAssertFalse(detector.wheelUp(top: -200, idle: false, now: start.addingTimeInterval(4)))
-        XCTAssertFalse(detector.wheelUp(top: -200, idle: true, now: start.addingTimeInterval(4.1)))
-        XCTAssertFalse(detector.wheelUp(top: -200, idle: true, now: start.addingTimeInterval(7)), "2秒より古い入力は数えない")
+        XCTAssertEqual(distance, 30 * WheelScrollSmoother.travelPerNotch, accuracy: 30 * WheelScrollSmoother.travelPerNotch * 0.15)
     }
 
     func testAllSchedulesResponseMapsSourcesToTargets() throws {
@@ -235,18 +230,5 @@ final class ConversationAppearanceTests: XCTestCase {
         XCTAssertNil(store.conversationPages[.bot("bot-a")])
         store.remember(page, for: .bot("bot-a"), generation: store.conversationGeneration)
         XCTAssertNotNil(store.conversationPages[.bot("bot-a")])
-    }
-
-    func testScrollBarLengthStartsAtFiftyAndGrowsByOnePage() {
-        XCTAssertEqual(10 + ConversationHistoryPage.reservedRows(loaded: 10), 50)
-        XCTAssertEqual(35 + ConversationHistoryPage.reservedRows(loaded: 35), 50)
-        XCTAssertEqual(60 + ConversationHistoryPage.reservedRows(loaded: 60), 75)
-        XCTAssertEqual(85 + ConversationHistoryPage.reservedRows(loaded: 85), 100)
-    }
-
-    func testOlderPageReadsToTheJumpedPositionWithinTheServerLimit() {
-        XCTAssertEqual(ConversationHistoryPage.limit(distance: 0, rowHeight: 80), 25)
-        XCTAssertEqual(ConversationHistoryPage.limit(distance: 800, rowHeight: 80), 35)
-        XCTAssertEqual(ConversationHistoryPage.limit(distance: 100_000, rowHeight: 80), 200)
     }
 }

@@ -33,6 +33,7 @@
 		21C4821CBBDC41B35155B78F /* SelectableText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B1EA5240E89312F64F9402 /* SelectableText.swift */; };
 		231B9DCFD395DC309055D2C8 /* MessageText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85DB5E741758089D810A8E49 /* MessageText.swift */; };
 		29BBEC95063DB1095C1879E5 /* SchedulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA28AC7BFD35A51CF55B3E60 /* SchedulesView.swift */; };
+		304A7DC6BEF79E723AA6A0B9 /* ConversationList.swift in Sources */ = {isa = PBXBuildFile; fileRef = C891FA7AF2CB7B9EA62A7815 /* ConversationList.swift */; };
 		34365A7DB1D5F80135AF03A3 /* BotStopUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4AF8080EA273CDB10D9D3F3 /* BotStopUITests.swift */; };
 		34DACDAFD584A2A5DA4A83C5 /* SecretInputUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E03B5FA12F194911158CB0A /* SecretInputUITests.swift */; };
 		35B76B910CE10F6396331A23 /* BotAvatarCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1545E2FC5173C245DC923ED0 /* BotAvatarCache.swift */; };
@@ -229,6 +230,7 @@
 		C226A72E68B9F9BEE6500258 /* BellBot-Mac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "BellBot-Mac.entitlements"; sourceTree = "<group>"; };
 		C4AF8080EA273CDB10D9D3F3 /* BotStopUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotStopUITests.swift; sourceTree = "<group>"; };
 		C6541CB30BEDC47A2F0317DA /* ServerSetupUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSetupUITests.swift; sourceTree = "<group>"; };
+		C891FA7AF2CB7B9EA62A7815 /* ConversationList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationList.swift; sourceTree = "<group>"; };
 		C89DE09C565167FBCD28C4A5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C9E67A016DC4094A638EB362 /* BackgroundMessageSend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundMessageSend.swift; sourceTree = "<group>"; };
 		CADD413E6E27FE9CD4229A66 /* AuthenticationRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationRecoveryTests.swift; sourceTree = "<group>"; };
@@ -378,6 +380,7 @@
 				B68E48020A5C203154A695A5 /* AvatarCropEditor.swift */,
 				F156208B81C891BA501E7785 /* AvatarImagePicker.swift */,
 				249245C6E0484FEEB193F0E2 /* BotProfileComponents.swift */,
+				C891FA7AF2CB7B9EA62A7815 /* ConversationList.swift */,
 				75B87E22433703F49BF8DB76 /* ConversationView.swift */,
 				F1DC256029DCCFC2D3382D4E /* DesktopWorkspaceView.swift */,
 				24BE5D9C546C511849AC258D /* FeatureSettingsView.swift */,
@@ -698,6 +701,7 @@
 				3CA85150E6BD8BE8189F7AB0 /* CommunicationNotification.swift in Sources */,
 				D9E1CCD5CB66B80DC67DF166 /* ConversationDocument.swift in Sources */,
 				80CF3C9F6A0C641FEE20B560 /* ConversationDraft.swift in Sources */,
+				304A7DC6BEF79E723AA6A0B9 /* ConversationList.swift in Sources */,
 				E64F670E80420BA038094CCF /* ConversationTimelineState.swift in Sources */,
 				6573A20C94F32027FD985FA7 /* ConversationView.swift in Sources */,
 				608D1EDDD04B6A1A0C0F7DCE /* DesktopWorkspaceView.swift in Sources */,

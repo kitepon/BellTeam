@@ -7,8 +7,8 @@ final class SecretRequestCardState: ObservableObject {
 struct SecretRequestCard: View {
     let request: SecretRequest
     @EnvironmentObject private var store: AppStore
-    @State private var showingInput = false
     @ObservedObject var state: SecretRequestCardState
+    let onOpenInput: () -> Void
 
     private var current: SecretRequest { state.result ?? request }
     private var name: String { store.bots.first { $0.id == request.botId }?.name ?? request.botId }
@@ -22,7 +22,7 @@ struct SecretRequestCard: View {
             Text("\(request.label) / \(request.toolId)")
                 .font(.footnote).foregroundStyle(BellTheme.muted)
             if current.status == "pending" {
-                Button("安全な入力欄を開く") { showingInput = true }
+                Button("安全な入力欄を開く", action: onOpenInput)
                     .buttonStyle(.borderedProminent)
             } else {
                 Label(current.status == "submitted" ? "登録済み" : "入力を取り消しました",
@@ -39,11 +39,6 @@ struct SecretRequestCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 20))
         .overlay(RoundedRectangle(cornerRadius: 20).stroke(BellTheme.violet.opacity(0.2)))
-        .sheet(isPresented: $showingInput) {
-            SecretInputSheet(request: request) { state.result = $0 }
-                .environmentObject(store)
-        }
-        .preference(key: ConversationPresentationKey.self, value: showingInput)
     }
 }
 
