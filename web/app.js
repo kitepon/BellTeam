@@ -3,6 +3,7 @@ import { renderHarnessAuth } from './harness-auth.js?v=__ASSET_VERSION__'
 import { renderSecretRequest } from './secret-input.js?v=__ASSET_VERSION__'
 import { renderOwnerQuestion } from './owner-question.js?v=__ASSET_VERSION__'
 import { claimSingleFlight, readApiError, readApiResponse, releaseSingleFlight } from './chat-input.js?v=__ASSET_VERSION__'
+import { createMessageImageCache } from './message-images.js?v=__ASSET_VERSION__'
 import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
 import { createConversationComposer } from './conversation-composer.js?v=__ASSET_VERSION__'
 import { richTextHtml } from './rich-text.js?v=__ASSET_VERSION__'
@@ -157,12 +158,12 @@ const state = {
   streamAbort: null,
   editingBot: null,
   editingRoom: null,
-  // 会話の項目IDごとの画像URLの並び。
-  imagePreviews: new Map(),
-  imageFailures: new Set(),
   inFlight: new Set(),
   readReceipts: loadReadReceipts(),
 }
+
+const messageImages = createMessageImageCache()
+window.addEventListener('pagehide', event => { if (!event.persisted) messageImages.close() })
 
 const conversationComposer = createConversationComposer({
   input: messageInput, attachments: attachmentPreview, error: composerError, sendButton,
@@ -180,7 +181,7 @@ const conversationComposer = createConversationComposer({
     if (item) return target.type === 'room' ? selectRoom(item) : selectBot(item)
   },
   onAccepted: async (target, result, previews) => {
-    if (previews.length) state.imagePreviews.set(result.delivery_id ?? result.id, previews)
+    if (previews.length) messageImages.remember(result.delivery_id ?? result.id, previews)
     const results = await Promise.allSettled([loadBots(),
       state.selectedType === target.type && state.selected?.id === target.id ? loadMessages(false) : Promise.resolve()])
     if (results.some(result => result.status === 'rejected')) throw new Error('DISPLAY_REFRESH_FAILED')
@@ -1559,7 +1560,7 @@ function renderItemElement(item, queued = []) {
   // 2枚以上の束は吹き出しの外に置き、枠に囲まずに見せる。
   let imageStack = null
   if (item.image) {
-    const previews = state.imagePreviews.get(item.id)
+    const previews = messageImages.get(item.id)
     if (previews) {
       const alt = item.direction === 'incoming' ? 'Botが提示した画像' : '送信した画像'
       const open = index => openImageViewer(previews, index, alt)
@@ -1582,7 +1583,7 @@ function renderItemElement(item, queued = []) {
     } else {
       const label = document.createElement('span')
       label.className = 'message-image-label'
-      label.textContent = state.imageFailures.has(item.id) ? '画像を読み込めませんでした' : imageLabel(item)
+      label.textContent = messageImages.failed(item.id) ? '画像を読み込めませんでした' : imageLabel(item)
       bubble.append(label)
     }
   }
@@ -1671,25 +1672,9 @@ function deliveryLabel(delivery) {
   ]).get(delivery) ?? ''
 }
 
-// 画像は描画を止めずに後から取り、取れた項目だけ差し替える。
-async function loadStoredMessageImages(items, onLoaded = () => {}) {
-  const missing = items.filter(item => item.image_url && !state.imagePreviews.has(item.id) && !state.imageFailures.has(item.id))
-  await Promise.all(missing.map(async item => {
-    try {
-      const urls = item.image_urls?.length ? item.image_urls : [item.image_url]
-      const previews = await Promise.all(urls.map(async url => {
-        const response = await fetch(url)
-        if (!response.ok) { const error = new Error(`HTTP_${response.status}`); error.status = response.status; throw error }
-        const blob = await response.blob()
-        if (!blob.type.startsWith('image/')) throw new Error('IMAGE_RESPONSE_INVALID')
-        return URL.createObjectURL(blob)
-      }))
-      state.imagePreviews.set(item.id, previews)
-    } catch {
-      state.imageFailures.add(item.id)
-    }
-    onLoaded(item)
-  }))
+// 画像の取得とURLはcacheが所有し、履歴へ完了した項目だけ返す。
+function loadStoredMessageImages(items, onLoaded) {
+  return messageImages.load(items, onLoaded)
 }
 
 function renderThinking(botId) {

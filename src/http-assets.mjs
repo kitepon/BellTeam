@@ -65,6 +65,7 @@ export async function staticFile(response, root, pathname, assetVersion) {
     ['/chat-input.js', 'chat-input.js'],
     ['/conversation-composer.js', 'conversation-composer.js'],
     ['/avatar-editor.js', 'avatar-editor.js'],
+    ['/message-images.js', 'message-images.js'],
     ['/member-stop.js', 'member-stop.js'],
     ['/ai-control.js', 'ai-control.js'],
     ['/goals.js', 'goals.js'],
