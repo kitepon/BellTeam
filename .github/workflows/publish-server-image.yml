@@ -220,7 +220,7 @@ jobs:
             assert.ok(Boolean(setup.auth.url && setup.auth.user_code));
           };
           const state = async () => JSON.parse(await readFile("/srv/bellteam/state/onboarding.json", "utf8"));
-          const client = new AitermClient();
+          const client = new AitermClient({ seatProject: "/srv/bellteam" });
           const exists = async session => (await client.call("pty_list")).structuredContent.sessions.some(item => item.session_id === session);
           try {
             await select();
