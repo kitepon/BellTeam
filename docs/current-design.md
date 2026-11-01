@@ -2,6 +2,8 @@
 
 本書をBellTeamの現行設計の正本とする。本書は成立させる製品契約を記録し、未実装の項目は実装済みとして扱わない。
 
+機能の関係とデータ所有、処理段階から実関数へ辿る入口は[機能図](architecture/feature-map.md)。現状図と未実装の接続整理案を分けて記録する。
+
 ## 製品とHTTPの責務
 
 プロセス入口`src/supervisor.mjs`は設置のbootstrapを読み、runtimeの構築・開始・signal待ち・終了を接続する。`application-services.mjs`はBot/会話/予定/記憶などのサービス実体と相互callbackを既存順で構築する。`application-features.mjs`は任意機能の設定反映と診断server/Bridge socket/CLI登録を所有し、設定保存の応答と現在ターン後の反映を区別する。`application-runtime.mjs`はこれらと公開/内部HTTP・MCPを接続し、startで機能反映・通信口と監視を開始、closeで予定・監視・HTTP・任意機能・transport・通知を順に閉じる。factoryのimportや構築だけで通信口や背景監視を開始せず、既存の本番root/HOME/portと、プロセス入口からの初期化・反映・終了順を保つ。
@@ -30,9 +32,9 @@ APIの通信診断では、POST・PUT・PATCH・DELETEの既存の `BellTeam wri
 
 ## iPhoneアプリ
 
-全体停止の正本・受付抑止・予定制御は本体が持ち、WebとAppleアプリの設定画面は`GET/PATCH /api/ai-control`でON/OFFを操作する。停止処理中・確認済み・一部未確認を分け、通信断では変更を再送せず正本を読み直す。詳細は[全体停止](ai-control.md)。Aitermが所有する連鎖停止は別工程で、この全体制御部品にはまだ接続していない。
+全体停止の正本・受付抑止・予定制御は本体が持ち、WebとAppleアプリの設定画面は`GET/PATCH /api/ai-control`でON/OFFを操作する。停止処理中・確認済み・一部未確認を分け、通信断では変更を再送せず正本を読み直す。通常の全体停止はAitermの`agent_stop`へ接続し、`pause_goals=true`とOwner由来のmetadataを渡す。Goalの停止結果が不足する場合は未確認を保持する。詳細は[全体停止](ai-control.md)と[制御の機能図](architecture/control-and-state.md)。
 
-メンバーが処理中の個別会話には入力欄の横に■の停止ボタンを表示し、確認ダイアログ無しで`POST /api/bots/:id/stop`を呼ぶ。ルームでは処理中のメンバー行から個別に止める。停止は対象の現在のAI席と要求時点の当該配送を中断し、メンバー・会話・予定と入力中の下書きは残す。後の新しいメッセージや予定は通常どおり起動できる。サーバーは古い送信/起動の返却と順序を合わせて対象の席を閉じ、正規観測で同じ席が消失した時だけ200 `{botId,status:"stopped",online:false}`を返す。closeの返却やqueue消失だけでは停止完了とせず、失敗や観測不能は502 `BOT_STOP_UNCONFIRMED`。端末の通信断・不正応答も結果未確認としてPOSTを自動再送しない。中断した配送は`stopped`として記録し、配達失敗や正常完了と区別する。停止は対象AI席の閉鎖までで、既に行った外部操作の取消、切り離されたprocessや他席・remote作業の停止を保証するものではない。
+メンバーが処理中の個別会話には入力欄の横に■の停止ボタンを表示し、確認ダイアログ無しで`POST /api/bots/:id/stop`を呼ぶ。ルームでは処理中のメンバー行から個別に止める。本体の通常経路は`BotAdministration.stop → transport.interrupt → agent_stop`で現在処理の中断を依頼し、202 `{botId,status:"stop_sent"}`を返す。これは停止操作の送信受付であり、native処理の終了や席の消失の証明ではない。互換adapterで中断とsession保持を確認した結果は200 `{botId,status:"interrupted",sessionPreserved:true}`となる。失敗や不正な結果は502 `BOT_STOP_UNCONFIRMED`、端末の通信断も未確認としてPOSTを自動再送しない。メンバー・会話・予定と下書きは残す。配送の停止結論はDeliveryJobが受理済み事実と停止結果を照合して決め、受付と正常完了を一律に失敗へ変えない。既に行った外部操作の取消を保証するものではない。
 
 停止未確認でも、受理済みの送信/完了結果は保持し、通常の観測を続ける。発行済み変更のRPCが通信断で結果不明になった場合は、単にPromiseがrejectした事や席が今は消えた事で旧変更の作用確定とせず、そのサーバープロセスの間は当該の同名席の自動再利用を止め、後続の送信へも未確認を返す。正常なtool応答として返却済みの拒否とは区別する。
 

@@ -48,6 +48,7 @@ test('監視開始に失敗した本体は取得済み監視と機能のsocket�
   assert.equal(runtime.server.listening, false)
   assert.equal(runtime.internalServer.listening, false)
   assert.equal(runtime.services.scheduler.timer, null)
+  assert.equal(runtime.services.messenger.store, runtime.services.store)
   await assert.rejects(stat(socketPath), { code: 'ENOENT' })
   assert.equal(clientClosed, 1)
   await runtime.close()

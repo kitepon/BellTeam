@@ -20,7 +20,7 @@ export function userEnvelope(from, message) {
 
 export class BellTeamMessenger {
   // onTurnEndは、Botのターンが終わった時にオーナーへの報告漏れを確かめる処理（turn-reports.mjs）を呼ぶ。
-  constructor({ bots, transport, logPath, assets = null, onMessage = () => {}, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, now = () => new Date().toISOString(), deliveryId = randomUUID }) {
+  constructor({ bots, transport, logPath, store = new ConversationStore({ logPath }), assets = null, onMessage = () => {}, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, now = () => new Date().toISOString(), deliveryId = randomUUID }) {
     this.bots = bots
     this.transport = transport
     this.logPath = logPath
@@ -31,7 +31,7 @@ export class BellTeamMessenger {
     this.admitWork = admitWork
     this.now = now
     this.deliveryId = deliveryId
-    this.store = new ConversationStore({ logPath })
+    this.store = store
     this.claimedReplyIds = new Set()
   }
 
@@ -69,10 +69,7 @@ export class BellTeamMessenger {
           context: 'direct', contextId: bot.id, groupId: deliveryId,
           from, fromName: memberIdentity(this.bots, from).name, target: bot.id, message,
         },
-        onStatus: (status, error) => this.appendDeliveryStatus(deliveryId, status, error),
-        onInterim: words => this.appendInterimWords(bot.id, deliveryId, words),
-        onAnswer: text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }]),
-        onTurnEnd: window => this.onTurnEnd({ botId: bot.id, context: 'direct', ...window }),
+        ...this.notificationCallbacks(bot.id, deliveryId, 'direct'),
       })
     }
     return { delivery: delivery?.delivery ?? 'delivered', delivery_id: deliveryId, from, target }
@@ -102,10 +99,7 @@ export class BellTeamMessenger {
       const result = await this.transport.notify(bot, envelope, {
         queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from, fromName: sourceLabel, target: bot.id, message,
           call: { sessionId, event, seq } },
-        onStatus: (status, error) => this.appendDeliveryStatus(deliveryId, status, error),
-        onInterim: words => this.appendInterimWords(bot.id, deliveryId, words),
-        onAnswer: text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }]),
-        onTurnEnd: window => this.onTurnEnd({ botId: bot.id, context: 'call', ...window }),
+        ...this.notificationCallbacks(bot.id, deliveryId, 'call'),
       })
       return { delivery: result.delivery, delivery_id: deliveryId, target }
     } catch (error) {
@@ -117,11 +111,7 @@ export class BellTeamMessenger {
   async resumeDelivery(deliveryId, target) {
     const check = this.admitWork()
     await this.bots.refresh?.()
-    const record = (await this.store.records()).find(row => row.delivery_id === deliveryId)
-    if (!record) throw Object.assign(new Error('DELIVERY_NOT_FOUND'), { code: 'DELIVERY_NOT_FOUND', status: 404 })
-    // 今回の回復対象は本文だけのBot間直接配送。通話や添付を新しい配送へ複製しない。
-    if (record.delivery !== 'failed' || record.image || record.session_id || !this.bots.has(record.from) || !this.bots.has(record.target))
-      throw Object.assign(new Error('DELIVERY_NOT_RESUMABLE'), { code: 'DELIVERY_NOT_RESUMABLE', status: 409 })
+    const record = this.resumableDelivery(deliveryId, await this.store.records())
     const bot = this.bots.get(record.target)
     await this.requireAccess({ from: record.from, target: bot.id })
     check()
@@ -131,10 +121,7 @@ export class BellTeamMessenger {
       recoveredExecution: execution,
       queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from: record.from,
         fromName: record.from_identity?.name ?? record.from, target: bot.id, message: record.message },
-      onStatus: (status, error) => this.appendDeliveryStatus(deliveryId, status, error),
-      onInterim: words => this.appendInterimWords(bot.id, deliveryId, words),
-      onAnswer: text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }]),
-      onTurnEnd: window => this.onTurnEnd({ botId: bot.id, context: 'direct', ...window }),
+      ...this.notificationCallbacks(bot.id, deliveryId, 'direct'),
     })
     return { delivery: result.delivery, delivery_id: deliveryId, from: record.from, target: bot.id }
   }
@@ -142,10 +129,7 @@ export class BellTeamMessenger {
   async closeDeliveryLaunch(deliveryId, target) {
     const check = this.admitWork()
     await this.bots.refresh?.()
-    const record = (await this.store.records()).find(row => row.delivery_id === deliveryId)
-    if (!record) throw Object.assign(new Error('DELIVERY_NOT_FOUND'), { code: 'DELIVERY_NOT_FOUND', status: 404 })
-    if (record.delivery !== 'failed' || record.image || record.session_id || !this.bots.has(record.from) || !this.bots.has(record.target))
-      throw Object.assign(new Error('DELIVERY_NOT_RESUMABLE'), { code: 'DELIVERY_NOT_RESUMABLE', status: 409 })
+    const record = this.resumableDelivery(deliveryId, await this.store.records())
     const bot = this.bots.get(record.target)
     await this.requireAccess({ from: record.from, target: bot.id })
     check()
@@ -153,6 +137,24 @@ export class BellTeamMessenger {
     // Keep the original failed history and unknown execution. A new delivery
     // is an explicit separate action by the original sender.
     return { delivery_id: deliveryId, from: record.from, target: bot.id, closed }
+  }
+
+  resumableDelivery(deliveryId, records) {
+    const record = records.find(row => row.delivery_id === deliveryId)
+    if (!record) throw Object.assign(new Error('DELIVERY_NOT_FOUND'), { code: 'DELIVERY_NOT_FOUND', status: 404 })
+    // 今回の回復対象は本文だけのBot間直接配送。通話や添付を新しい配送へ複製しない。
+    if (record.delivery !== 'failed' || record.image || record.session_id || !this.bots.has(record.from) || !this.bots.has(record.target))
+      throw Object.assign(new Error('DELIVERY_NOT_RESUMABLE'), { code: 'DELIVERY_NOT_RESUMABLE', status: 409 })
+    return record
+  }
+
+  notificationCallbacks(botId, deliveryId, context) {
+    return {
+      onStatus: (status, error) => this.appendDeliveryStatus(deliveryId, status, error),
+      onInterim: words => this.appendInterimWords(botId, deliveryId, words),
+      onAnswer: text => this.appendInterimWords(botId, deliveryId, [{ text, kind: 'answer' }]),
+      onTurnEnd: window => this.onTurnEnd({ botId, context, ...window }),
+    }
   }
 
   async enqueueUserTurn(input) {

@@ -1938,6 +1938,29 @@ function readImage(file) {
   })
 }
 
+function eventAffectsTimeline(payload, type, id) {
+  if (!id) return false
+  if (payload.all !== false || !Array.isArray(payload.topics) || !payload.topics.length
+    || !Array.isArray(payload.botIds) || !Array.isArray(payload.roomIds)) return true
+  const topics = ['timeline', 'queue', 'bots', 'rooms', 'owner', 'settings', 'requests', 'questions', 'ai-control', 'setup', 'schedules']
+  if (payload.topics.some(topic => !topics.includes(topic))
+    || [...payload.botIds, ...payload.roomIds].some(value => typeof value !== 'string' || !value)
+    || !payload.botIds.length && !payload.roomIds.length) return true
+  return (type === 'room' ? payload.roomIds : payload.botIds).includes(id)
+}
+
+async function refreshFromEvent(payload) {
+  if (payload.type === 'ai-control' && ownerDialog.open) void aiControl.refresh()
+  if (payload.type === 'settings') {
+    await loadFeatureSettings()
+    if (ownerDialog.open) refreshFeatureSettingsStatus(document.querySelector('#feature-settings'), state.settings)
+  }
+  if (payload.type === 'setup') state.setup = await api('/api/setup')
+  if (state.selectedType === 'bot' && (payload.all || payload.botId === state.selected?.id || payload.botIds?.includes(state.selected?.id)))
+    void goals.refreshOnEvent()
+  await Promise.all([loadBots(), ...(eventAffectsTimeline(payload, state.selectedType, state.selected?.id) ? [loadMessages()] : [])])
+}
+
 async function connectEvents() {
   state.streamAbort?.abort()
   const abort = new AbortController()
@@ -1961,15 +1984,7 @@ async function connectEvents() {
         const data = block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5)).join('\n')
         if (!data) continue
         const payload = JSON.parse(data)
-        if (payload.type === 'ai-control' && ownerDialog.open) void aiControl.refresh()
-        if (payload.type === 'settings') {
-          await loadFeatureSettings()
-          if (ownerDialog.open) refreshFeatureSettingsStatus(document.querySelector('#feature-settings'), state.settings)
-        }
-        if (payload.type === 'setup') state.setup = await api('/api/setup')
-        if (state.selectedType === 'bot' && (payload.all || payload.botId === state.selected?.id || payload.botIds?.includes(state.selected?.id)))
-          void goals.refreshOnEvent()
-        await Promise.all([loadBots(), loadMessages()])
+        await refreshFromEvent(payload)
       }
     }
   } catch (error) {

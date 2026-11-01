@@ -31,13 +31,16 @@ async function serve(t, options) {
 
 test('全体停止は全登録席と台帳から消えた進行jobを止め、一部失敗でも残りとcommandを処理する', async () => {
   const waiting = deferred(), called = []
+  const transport = new AitermTransport()
+  for (const id of ['deleted', 'a']) transport.activity.register({ bot: { id } })
+  transport.interrupt = bot => {
+    called.push(bot.id)
+    if (bot.id === 'b') throw Error('fixture reject')
+    return waiting.promise.then(() => ({ botId: bot.id, status: 'interrupted', sessionPreserved: true }))
+  }
   const operation = stopRegisteredWork({
     bots: new Map(['a', 'b'].map(id => [id, { id }])),
-    transport: { jobs: [{ bot: { id: 'deleted' } }, { bot: { id: 'a' } }], interrupt(bot) {
-      called.push(bot.id)
-      if (bot.id === 'b') throw Error('fixture reject')
-      return waiting.promise.then(() => ({ botId: bot.id, status: 'interrupted', sessionPreserved: true }))
-    } },
+    transport,
     scheduler: { interruptCommands() { called.push('command'); return true } },
   })
   assert.deepEqual(called, ['a', 'b', 'deleted', 'command'])

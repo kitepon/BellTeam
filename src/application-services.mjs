@@ -74,7 +74,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     readImage: (image, maxBytes) => seatRuntime.readImage(image, maxBytes),
   } : {}) })
   const messenger = new BellTeamMessenger({
-    bots, transport, logPath, assets,
+    bots, transport, logPath, store, assets,
     admitWork: () => aiControl.admit(),
     requireAccess: () => aiControl.assertEnabled(),
     onMessage: record => notifications.direct(record),
