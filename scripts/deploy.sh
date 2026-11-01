@@ -36,7 +36,7 @@ trap 'rm -rf "$docker_config"' 0
 DOCKER_HOST=unix:///var/run/docker.sock
 DOCKER_CONFIG=$docker_config
 export DOCKER_HOST DOCKER_CONFIG
-git fetch -q origin
+(umask 022; git fetch -q origin)
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   git status -s --untracked-files=no >&2
   echo '本番に未commitの変更がある。GitHubへ取り込んでから反映する。' >&2
