@@ -8,7 +8,7 @@ import { join } from 'node:path'
 export class SecretRequests {
   constructor({ root, bots, rooms, notify, onRequest = () => {} }) {
     this.directory = join(root, 'state/secret-requests')
-    this.toolsDirectory = join(root, 'shared/tools')
+    this.toolsDirectory = join(root, 'state/secret-values')
     this.bots = bots
     this.rooms = rooms
     this.notify = notify
