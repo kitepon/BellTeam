@@ -182,7 +182,8 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             // Macのホイールは動かせる長さが無いと位置が変わらないので、表示域が埋まるまで過去を足す。
             if let table, table.contentSize.height <= table.bounds.height, hasMore, !loadingOlder, armed {
                 armed = false
-                onLoadOlder?()
+                // 親の更新中の配置から呼ばれ得るので、親の状態は次の周で変える。
+                DispatchQueue.main.async { [onLoadOlder] in onLoadOlder?() }
             }
             #endif
         }
