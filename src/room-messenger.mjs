@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { memberIdentity } from './member-identity.mjs'
 import { chooseRoomResponder, roomTurnsFromThroughline } from './room-routing.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
+import { launchFailureDetails } from './agent-launch-error.mjs'
 
 export class RoomMessenger {
   constructor({ rooms, bots, transport, assets = null, onMessage = () => {}, onInterimWords = null, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, automaticRouting = () => true, now = () => new Date().toISOString(), messageId = randomUUID, roomTurns = roomTurnsFromThroughline, chooseResponder = chooseRoomResponder }) {
@@ -119,6 +120,7 @@ export class RoomMessenger {
           schema: 'bellteam.room-delivery-status.v1', message_id: record.id,
           target: id, at: this.now(), delivery,
           ...(returnedMcpError(error) ? { mcp_error: returnedMcpError(error) } : {}),
+          ...(launchFailureDetails(error) ? { native_launch: launchFailureDetails(error) } : {}),
         }),
         // 合間の言葉と最後の回答は、そのBotの会話画面に出すだけ。ルームにも他のBotにも届けない。
         ...(this.onInterimWords ? {
