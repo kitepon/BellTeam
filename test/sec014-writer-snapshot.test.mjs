@@ -93,3 +93,49 @@ test('raw selected image survives actual snapshot consumption and cannot change 
   assert.equal(verifyWriterSnapshot(rawPlan, bundle).phaseReceiptProduced, false)
   assert.throws(() => verifyWriterSnapshot({ ...rawPlan, image: 'sha256:' + 'c'.repeat(64) }, bundle))
 })
+
+
+const writerBundle = containers => {
+  const bundle = blank(), ids = containers.map(c => c.id).sort()
+  bundle.list = terminal(plan.listArgv, ids.join('\n')+'\n')
+  bundle.containers = terminal(writerContainerInspectArgv(ids), containers.map(c => JSON.stringify(c)).join('\n')+'\n')
+  return bundle
+}
+const writer = (id, running, restartPolicy = 'unless-stopped') => ({ id, running, restarting: false, restartPolicy,
+  mounts: [{ Type: 'bind', Source: '/runtime/data', RW: true }] })
+
+test('execution context admits only the captured stopped container and intended running normal', () => {
+  const old = 'c'.repeat(64), selected = 'd'.repeat(64)
+  const stopped = writerBundle([writer(old, false)])
+  assert.throws(() => verifyWriterSnapshot(plan, stopped), /WRITERS_RUNNING/u)
+  assert.equal(verifyWriterSnapshot(plan, stopped, { stoppedContainer: old }).phaseReceiptProduced, false)
+  const active = writerBundle([writer(old, false), writer(selected, true)])
+  assert.throws(() => verifyWriterSnapshot(plan, active, { stoppedContainer: old }), /WRITERS_RUNNING/u)
+  const result = verifyWriterSnapshot(plan, active, { stoppedContainer: old, activeContainer: selected })
+  assert.deepEqual(result.containerIds, [old, selected])
+  assert.equal(result.hostWriterAuthorityVerified, false)
+  assert.throws(() => verifyWriterSnapshot(plan, writerBundle([writer(old, true)]), { stoppedContainer: old }))
+  assert.throws(() => verifyWriterSnapshot(plan, writerBundle([writer(old, false, 'always')]), { stoppedContainer: old }), /WRITERS_RUNNING/u)
+  assert.throws(() => verifyWriterSnapshot(plan, writerBundle([writer(old, false), writer(selected, true), writer('e'.repeat(64), true)]),
+    { stoppedContainer: old, activeContainer: selected }), /WRITERS_RUNNING/u)
+})
+
+test('serialized plan cannot supply trusted execution exceptions; malformed context is refused', () => {
+  const old = 'c'.repeat(64), selected = 'd'.repeat(64), bundle = writerBundle([writer(old, false), writer(selected, true)])
+  for (const context of [null, [], { stoppedContainer: 'short' }, { activeContainer: 'e'.repeat(64) },
+    { stoppedContainer: old, activeContainer: old }, { unrelated: old }]) {
+    assert.throws(() => verifyWriterSnapshot(plan, bundle, context))
+  }
+  for (const exception of [{ stoppedContainer: old }, { activeContainer: selected }]) {
+    assert.throws(() => verifyWriterSnapshot({ ...plan, mounts: { ...plan.mounts, ...exception } }, bundle))
+  }
+})
+
+test('saved JSON object key order does not alter the fixed numeric limits', () => {
+  const saved = JSON.parse(JSON.stringify(plan, (key, value) => value && !Array.isArray(value) && typeof value === 'object'
+    ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value))
+  assert.equal(verifyWriterSnapshot(saved, blank()).phaseReceiptProduced, false)
+  for (const limits of [{ ...saved.limits, containers: '128' }, { ...saved.limits, extra: 0 }, { ...saved.limits, volumes: 129 }]) {
+    assert.throws(() => verifyWriterSnapshot({ ...saved, limits }, blank()))
+  }
+})

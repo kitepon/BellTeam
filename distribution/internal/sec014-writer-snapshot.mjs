@@ -50,13 +50,14 @@ function terminal(record, argv, limit) {
 
 const rows = text => text.split('\n').filter(Boolean).map(line => JSON.parse(line))
 
-export function verifyWriterSnapshot(plan, bundle) {
+export function verifyWriterSnapshot(plan, bundle, context = {}) {
   if (plan?.stage !== 'docker-writer-metadata-only' || plan.phaseReceiptProduced !== false
       || plan.maxDockerCommands !== 3 + MAX_VOLUMES
       || typeof plan.image !== 'string' || !/^(?:ghcr\.io\/kitepon\/bellteam-server@)?sha256:[a-f0-9]{64}$/u.test(plan.image)
       || typeof plan.imageId !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(plan.imageId)
       || plan.image.startsWith('sha256:') && plan.image !== plan.imageId
-      || JSON.stringify(plan.limits) !== JSON.stringify({ containers: MAX_CONTAINERS, volumes: MAX_VOLUMES, canonicalPaths: MAX_PATHS })
+      || Object.keys(plan.limits ?? {}).sort().join(',') !== 'canonicalPaths,containers,volumes'
+      || plan.limits.containers !== MAX_CONTAINERS || plan.limits.volumes !== MAX_VOLUMES || plan.limits.canonicalPaths !== MAX_PATHS
       || JSON.stringify(plan.listArgv) !== JSON.stringify(LIST) || !bundle) fail()
   const imageArgv = ['/usr/bin/docker', 'image', 'inspect', '--format', '{{json .Id}}', plan.image]
   if (JSON.stringify(plan.imageArgv) !== JSON.stringify(imageArgv)
@@ -85,7 +86,12 @@ export function verifyWriterSnapshot(plan, bundle) {
         || typeof x.source !== 'string' || typeof x.canonical !== 'string'
         || x.source.length > 4096 || x.canonical.length > 4096)
       || JSON.stringify(bundle.canonical.map(x => x?.source).sort()) !== JSON.stringify(sources)) fail()
-  assertStateWritersStopped(plan.mounts, containers, bundle.canonical, backing)
+  if (!context || typeof context !== 'object' || Array.isArray(context) || Object.keys(context).some(key => !['stoppedContainer', 'activeContainer'].includes(key))
+      || Object.values(context).some(value => !id(value))
+      || context.stoppedContainer && !ids.includes(context.stoppedContainer)
+      || context.activeContainer && (!ids.includes(context.activeContainer) || context.activeContainer === context.stoppedContainer)) fail()
+  const checked = context.stoppedContainer ? { ...plan.mounts, stoppedContainer: context.stoppedContainer } : plan.mounts
+  assertStateWritersStopped(checked, containers.filter(c => c.id !== context.activeContainer), bundle.canonical, backing)
   return { stage: 'docker-writer-metadata-only', image: plan.image, imageId: plan.imageId,
     containerIds: ids, volumeNames: volumes, canonical: bundle.canonical,
     terminalRefs: [bundle.image, bundle.list, ...(ids.length ? [bundle.containers] : []), ...bundle.volumes]

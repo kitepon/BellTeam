@@ -32,7 +32,7 @@ else if(x.stage==='sources') {
  const observed=new Set([...participating.flatMap(c=>c.mounts.filter(m=>m.RW&&['bind','volume'].includes(m.Type)).map(m=>m.Source)),
    ...x.volumes.flatMap(v=>[v.mountpoint,...(v.device===null?[]:[v.device])])]);
  result=paths.map(source=>({source,observed:observed.has(source)}));
-} else if(x.stage==='verify') result=verifyWriterSnapshot(x.plan,x.bundle);
+} else if(x.stage==='verify') result=verifyWriterSnapshot(x.plan,x.bundle,x.context);
 else throw new Error('stage');
 console.log(JSON.stringify(result));
 '''.replace('MODULE', json.dumps(Path(__file__).with_name('sec014-writer-snapshot.mjs').as_uri())).replace(

@@ -40,7 +40,9 @@ def _private(value, owner, directory=False, normal_group=None):
         raise ControlError('SEC014_CONTROL_METADATA')
 
 
-def _saved(parent, name, owner, normal_group=None, *, facts=None):
+def _saved(parent, name, owner, normal_group=None, *, facts=None, limit=65536):
+    if type(limit) is not int or not 1 <= limit <= 4194304:
+        raise ControlError('SEC014_CONTROL_SAVE_LIMIT')
     try:
         fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
     except FileNotFoundError:
@@ -49,14 +51,14 @@ def _saved(parent, name, owner, normal_group=None, *, facts=None):
         with os.fdopen(fd, 'rb') as stream:
             before = os.fstat(stream.fileno())
             _private(before, owner, normal_group=normal_group)
-            raw = stream.read(65537)
+            raw = stream.read(limit+1)
             after = os.fstat(stream.fileno())
             linked = os.stat(name, dir_fd=parent, follow_symlinks=False)
     except FileNotFoundError:
         raise ControlError('SEC014_CONTROL_JOURNAL_CHANGED') from None
     keys = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink',
             'st_size', 'st_mtime_ns', 'st_ctime_ns')
-    if (len(raw) > 65536 or len(raw) != before.st_size
+    if (len(raw) > limit or len(raw) != before.st_size
             or any(tuple(getattr(value, key) for key in keys)
                    != tuple(getattr(before, key) for key in keys)
                    for value in (after, linked))):
@@ -195,6 +197,15 @@ def _archive(tx, prior, normal):
         evidence = direction + '-prepare-evidence.json'
         if _saved(tx.parent, evidence, tx.owner) is not _ABSENT:
             names.append(evidence)
+        # Preserve every private native original/config alongside its generation.
+        for name in sorted(os.listdir(tx.parent)):
+            if name in names or not name.startswith(direction+'-'):
+                continue
+            if not re.fullmatch('[a-z0-9.-]{1,255}', name):
+                raise ControlError('SEC014_CONTROL_UNRESOLVED')
+            info = os.stat(name, dir_fd=tx.parent, follow_symlinks=False)
+            _private(info, tx.owner, stat.S_ISDIR(info.st_mode))
+            names.append(name)
         if any(destination == value[0] for value in history):
             raise ControlError('SEC014_CONTROL_GENERATION')
         history.append((destination, names, previous))

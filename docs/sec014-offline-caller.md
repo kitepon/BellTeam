@@ -1342,3 +1342,15 @@ covers actual planner plus snapshot consumption, preserving metadata-only flags
 and refusing changed IDs and mutable tags. This fixes caller compatibility;
 production composite/caller, continuous writer ownership, public execution
 substrate and recovery still require completion. Whole NOTDEPLOYABLE remains.
+
+## 2026-11-01 private forward composite（source候補、live未接続）
+
+`sec014-host-actor.py`の`_InternalForward`は、既`run_actor`の六phaseを実行する内部実行器。保存normal/同raw imageを使い、別Python/Node childの出生・WNOWAIT終端・保存原本を既txへ保持する。writerの一覧/inspect/volume/canonicalを実行し、旧exactCIDの停止例外と選択normalの起動例外は内部contextだけから渡す。serialized planの例外fieldは禁止、metadataのwriter/host authority flagsはfalseのまま。
+
+Prepareは既実行器を使う。maintenanceは固定capture済みserviceのshapeを実行前に比較し、専用named containerの実inspect/image/entrypoint/caps/mount/期間内の終了、removeと消失を照合する。両viewの最新backup markerはNOFOLLOW+fd/inode/metadata/JSON/SHAで保存し、起動前にbackupの全fileを通常六bindの移行先へ対応付けて内容hashを比較する。bind phaseで先に選択normalをcreate/inspectして実source/targetを検証し、その後に既admit_normalで同FDをSHへ渡す。startはexactCID一回、health/実HTTP/再writer照合/既native全child終端の根拠を残す。unknownは後続を実行せず、同tx/lock/parent FDを既failure ownerへ残す。自動kill/retry/rollbackなし。全工程のdeadlineは40秒上限で、fixtureの時間を実本番停止時間へ代用しない。
+
+接続試験で保存JSONのkey並びにより固定limits比較が拒否される反例を再現し、key集合と数値の厳密比較へ修理した（旧1fail→新1pass）。保存の通常上限64KB/比較/inode/trust拒否は維持し、大きい内部native input/outputだけ明示4MB上限で同保存照合を使う。完了世代のnative原本とprivate Docker設定も既historyへ同inodeで移し、次世代の同名保存が衝突しないようにした。
+
+`test/sec014-internal-forward.py`は普通利用者の専用childと実Node/実fd保存/実kernel lockで既factory→全六phaseを実行。Docker応答およびroot host policyだけは明示fixtureであり、実Host/daemon/正式imageではない。11case: 正常全phase、大JSON、unknown中の別process EX拒否、非root拒否、normalのprivate parent露出、追加maintenance権限、別writer、maintenance別image、backup symlink、最新data不一致、selected mount不一致。通常npmは関所選択19passであり、d21のFull1057へ補完しない。ほかbinding14/prepare72/writer11/control9/actor6/native6/generation7/raw3pass。初pipelineは保存JSONkey順の接続不良で4失敗、次はfixture status名complete/completedの誤り1失敗、後のordinary-user fixture不足も保持し、最終同sourceの成功と区別する。
+
+依然として実正規shellへの接続、root保護caller/CLI/祖先と初期Host構成の受入、正式imageでの全writer lifetime、reverse/server-layoutの明示回復caller、現在HOME/Cursor/private構成の実保持、public二file/追加host依存無しの基盤、実停止時間・監査は未成立。内部root callerのsourceがあるだけでpublic完成とはしない。`_InternalForward`のroot policyは未整備構成を拒否する。管理sudo/SSH除外を維持し、CLI内部FD直接観測を新gateにしない。whole Draft NOTDEPLOYABLE、未merge未反映、Host/daemon操作0。

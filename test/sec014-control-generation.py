@@ -86,6 +86,21 @@ class Generations(unittest.TestCase):
         self.assertEqual((self.control / 'sec014.lock').stat().st_ino, lock_inode)
         self.assertEqual((self.control / 'sec014.lock').read_text(), 'to-server\n')
 
+    def test_native_originals_and_private_config_move_with_completed_generation(self):
+        first,second=self.normal('aaaaaa'),self.normal('bbbbbb')
+        self.complete(first)
+        original=self.control/'to-server-native-output.json'
+        original.write_bytes(b'{"native":"original"}');original.chmod(0o600)
+        config=self.control/'to-server-empty-docker-config';config.mkdir(mode=0o700)
+        (config/'retained').write_bytes(b'private fixture')
+        identities=original.stat().st_ino,config.stat().st_ino
+        self.complete(second)
+        history=first.parent/'sec014-control-history'
+        self.assertEqual((history/original.name).read_bytes(),b'{"native":"original"}')
+        self.assertEqual((history/config.name/'retained').read_bytes(),b'private fixture')
+        self.assertEqual(((history/original.name).stat().st_ino,(history/config.name).stat().st_ino),identities)
+        self.assertFalse(original.exists());self.assertFalse(config.exists())
+
     def test_incomplete_generation_is_never_archived_or_overwritten(self):
         first, second = self.normal('aaaaaa'), self.normal('bbbbbb')
         with self.hold(first) as tx:
