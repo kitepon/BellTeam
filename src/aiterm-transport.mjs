@@ -178,7 +178,7 @@ export class AitermTransport {
           process.stderr.write(`BellTeam Aiterm: 起動に失敗した席を閉じられませんでした: ${bot.id}: ${closeError.message}\n`)
         }
         const reason = error.launch.startup?.reason
-        error.publicMessage = reason === 'startup_dialog'
+        error.publicMessage ??= reason === 'startup_dialog'
           ? 'このBotを起動できず、メッセージは送信されませんでした。AIが起動時の画面で止まりました。AIの認証が切れている可能性があります。'
           : `このBotを起動できず、メッセージは送信されませんでした（${reason ?? '理由不明'}）。`
       }

@@ -6,6 +6,7 @@ import { memberIdentity } from './member-identity.mjs'
 import { ConversationStore } from './conversation-store.mjs'
 import { deliveryExecutionRef } from './execution-bridge.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
+import { launchFailureDetails } from './agent-launch-error.mjs'
 
 export function directEnvelope(from, message) {
   const identity = typeof from === 'string' ? { id: from, name: from, position: '', role: '' } : from
@@ -268,9 +269,11 @@ export class BellTeamMessenger {
 
   appendDeliveryStatus(deliveryId, delivery, error = null) {
     const detail = returnedMcpError(error)
+    const launch = launchFailureDetails(error)
     return this.append({
       schema: 'bellteam.delivery-status.v1', delivery_id: deliveryId, at: this.now(), delivery,
       ...(detail ? { mcp_error: detail } : {}),
+      ...(launch ? { native_launch: launch } : {}),
     })
   }
 }

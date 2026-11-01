@@ -80,7 +80,10 @@ const server = createServer(async (request, response) => {
       return
     }
     if (mode === 'post-http-500') {
-      response.writeHead(500, { 'content-type': 'application/json' })
+      response.writeHead(500, { 'content-type': 'application/json',
+        'x-bellteam-diagnostic-fingerprint': 'a'.repeat(64),
+        'x-bellteam-diagnostic-occurrence-count': '7',
+        'x-bellteam-diagnostic-received-at': '2026-11-01T02:03:04.567Z' })
       response.end(JSON.stringify({ error: 'TEST_HTTP_500' }))
       return
     }
@@ -152,5 +155,7 @@ const server = createServer(async (request, response) => {
   if (url.pathname === '/api/session') return json(response, { authenticated: true, authMode: 'local' })
   response.writeHead(404); response.end()
 })
-server.listen(18896, '127.0.0.1', () => console.log('報告試験サーバー http://127.0.0.1:18896'))
+// 実機から届くよう、BELLTEAM_PROBE_HOSTにMacのLANアドレスを渡せる。既定はこのMacの中だけ。
+const host = process.env.BELLTEAM_PROBE_HOST || '127.0.0.1'
+server.listen(18896, host, () => console.log(`報告試験サーバー http://${host}:18896`))
 process.on('SIGTERM', () => { server.closeAllConnections(); server.close(() => process.exit(0)) })

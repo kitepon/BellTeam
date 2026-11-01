@@ -46,3 +46,26 @@ test('診断の保存失敗時は存在しない参照を返さず、元の500�
   for (const name of ['Fingerprint', 'Occurrence-Count', 'Received-At'])
     assert.equal(response.headers.get(`X-BellTeam-Diagnostic-${name}`), null)
 })
+
+test('Appleが受けた500の参照はPOST後の診断に原文のまま残る', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-error-reference-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const file = join(root, 'diagnostics.json'), diagnostics = new Diagnostics(file)
+  await diagnostics.initialize()
+  const base = await server(t, diagnostics)
+  const failed = await fetch(base + '/api/bots')
+  const [fingerprint, count, receivedAt] = ['Fingerprint', 'Occurrence-Count', 'Received-At']
+    .map(name => failed.headers.get(`X-BellTeam-Diagnostic-${name}`))
+  // Swiftの`testServerErrorReportPostsDiagnosticReference`がPOSTする本文と同じ項目。
+  const reference = `server_diagnostic_fingerprint=${fingerprint}\nserver_diagnostic_occurrence_count=${count}\nserver_diagnostic_received_at=${receivedAt}`
+  const posted = await fetch(base + '/api/diagnostics', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: 'IOS_HTTP_5XX', module: 'bots', app_version: '1.0.3 (90)', severity: 'warn',
+      diagnostic_log: `module=bots\nerror_domain=BellAPIError\nhttp_status=500\nhttp_method=GET\nrequest_route=/api/bots\nrequest_method=GET\nrequest_attempts=1\n${reference}\nseverity=warn` }) })
+  assert.equal(posted.status, 202)
+  const rows = JSON.parse(await readFile(file, 'utf8'))
+  const server500 = rows.find(row => row.category === 'SERVER_HTTP_500'), apple = rows.find(row => row.category === 'IOS_HTTP_5XX')
+  assert.equal(server500.fingerprint, fingerprint)
+  assert.equal(String(server500.occurrence_count), count)
+  assert.equal(server500.diagnostic_log_received_at, receivedAt)
+  assert.ok(apple.diagnostic_log.includes(reference))
+})
