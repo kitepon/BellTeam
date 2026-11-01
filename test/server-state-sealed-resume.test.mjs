@@ -52,6 +52,31 @@ test('fresh prepare creates writable seat HOME, while existing HOME identity and
   assert.equal(await f.get('home/auth'), 'retained credentials')
 })
 
+test('interruption between fresh HOME mkdir and chown leaves it unpublished and retry completes the same inode', async t => {
+  const f = await fixture(t); ownerFixture(t)
+  const staged = join(f.root, 'server-only/state-data/.new-home')
+  await mkdir(staged, { recursive: true, mode: 0o700 })
+  const created = await fs.promises.open(staged, 'r')
+  await created.chown(0, 0); await created.close()
+  const inode = (await lstat(staged)).ino, open = fs.promises.open
+  const fault = Object.assign(new Error('interrupted HOME ownership'), { code: 'EINTR' })
+  fs.promises.open = async (...args) => {
+    const file = await open(...args)
+    if (args[0] === staged) file.chown = async () => { throw fault }
+    return file
+  }
+  syncBuiltinESMExports()
+  await assert.rejects(prepareServerStateRuntime({ root: f.root }), error => error === fault)
+  await f.absent('home')
+  assert.equal((await lstat(staged)).uid, 0)
+  fs.promises.open = open; syncBuiltinESMExports()
+  await prepareServerStateRuntime({ root: f.root })
+  const home = await lstat(join(f.root, 'home'))
+  assert.equal(home.ino, inode); assert.equal(home.uid, 1000); assert.equal(home.gid, 1000)
+  assert.equal(home.mode & 0o777, 0o700)
+  await f.absent('server-only/state-data/.new-home')
+})
+
 test('link後unlink前の同inode profileは初期validateを通り、正本1linkへ収束する', async t => {
   const f = await fixture(t)
   await f.put('bots/.initialized', ''); await f.put('bots/bot-a/bot.json', f.profile)

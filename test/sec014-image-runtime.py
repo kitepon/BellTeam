@@ -247,6 +247,47 @@ await migrateServerState({root,direction:point==='seal'?'to-server':'to-legacy'}
                                '/usr/local/bin/node', image_id, '-p',
                                'JSON.parse(require("fs").readFileSync("/app/distribution.json")).sourceCommit').stdout.strip()
         assert actual_source == source
+
+        # R3: an interrupted fresh-HOME chown must leave only unpublished staging.
+        r3runtime = base / 'r3runtime'
+        r3runtime.mkdir(mode=0o700)
+        r3args = ['run', '--pull', 'never', '--rm', '--network', 'none', '--read-only',
+                  '--user', '0:0', '--cap-drop', 'ALL', '--cap-add', 'CHOWN',
+                  '--cap-add', 'DAC_OVERRIDE', '--cap-add', 'FOWNER',
+                  '--security-opt', 'no-new-privileges:true', '--mount',
+                  'type=bind,source=' + str(r3runtime) + ',target=/srv/bellteam-runtime',
+                  '--entrypoint', '/usr/local/bin/node', image_id]
+        program = r"""import fs from 'node:fs';
+import {syncBuiltinESMExports} from 'node:module';
+const root='/srv/bellteam-runtime',original=fs.promises.open;
+fs.promises.open=async (...args)=>{
+ const file=await original(...args);
+ if(args[0]===root+'/server-only/state-data/.new-home')
+  file.chown=async ()=>{throw Object.assign(new Error('injected staged HOME interruption'),{code:'EINTR'})};
+ return file;
+};
+syncBuiltinESMExports();
+const {prepareServerStateRuntime}=await import('/app/src/server-state-transfer.mjs');
+let interrupted=false;
+try{await prepareServerStateRuntime({root})}catch(error){if(error.code!=='EINTR')throw error;interrupted=true}
+if(!interrupted)throw Error('staged HOME chown was not exercised');
+console.log(JSON.stringify({interrupted,code:'EINTR'}));
+"""
+        interrupted = json.loads(docker(*r3args, '--input-type=module', '-e', program).stdout)
+        assert interrupted == dict(interrupted=True, code='EINTR')
+        staged = r3runtime / 'server-only/state-data/.new-home'
+        assert not (r3runtime / 'home').exists()
+        assert (staged.stat().st_uid, stat.S_IMODE(staged.stat().st_mode)) == (0, 0o700)
+        resumed_home = json.loads(docker(*r3args, '/app/src/server-state-transfer.mjs', 'prepare').stdout)
+        assert resumed_home['status'] == 'prepared'
+        home_info = (r3runtime / 'home').stat()
+        assert (home_info.st_uid, home_info.st_gid, stat.S_IMODE(home_info.st_mode)) == (1000, 1000, 0o700)
+        assert not staged.exists()
+        document('r3-home-interruption.json', dict(injected=interrupted, homeUnpublishedAfterInterruption=True,
+            stagedUidAfterInterruption=0, resumed=resumed_home, homeUid=home_info.st_uid,
+            homeGid=home_info.st_gid, homeMode=oct(stat.S_IMODE(home_info.st_mode)), stagingAbsent=True))
+        checks.append('R3 real staged-HOME chown EINTR leaves HOME absent; official prepare resumes to UID1000/0700')
+
         docker('pull', LEGACY_IMAGE, timeout=300)
         legacy_id = docker('image', 'inspect', '--format', '{{.Id}}', LEGACY_IMAGE).stdout.strip()
         assert docker('run', '--rm', '--network', 'none', '--read-only', '--entrypoint',
