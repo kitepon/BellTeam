@@ -1,7 +1,7 @@
 import { mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { exists, writeAtomic } from './bot-registry.mjs'
+import { exists, writeAtomic } from './json-file.mjs'
 
 const FIELDS = new Set(['name', 'profile', 'avatar', 'xUrl', 'githubUrl', 'links'])
 const DEFAULT_PROFILE = Object.freeze({

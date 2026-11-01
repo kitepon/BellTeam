@@ -3,7 +3,7 @@ import { chmod, mkdir, readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { dirname } from 'node:path'
 import { diagnosticReportContext } from './diagnostic-report-context.mjs'
-import { writeAtomic } from './bot-registry.mjs'
+import { writeAtomic } from './json-file.mjs'
 
 // 通信の失敗は、エラーの種類や回数だけでは重大度も責任のある箇所も決まらない（ServerManagerの bughub/NETWORK_REPORTING.md）。
 // 3つ目がtrueの報告は、送信元（アプリ）が実害と復帰の可否から付けた `severity` を使い、重大度ごとに別の行にする。
@@ -21,6 +21,7 @@ const reports = {
   IOS_RESPONSE_INVALID: ['high', 'Appleアプリが応答を読み取れなかった', true],
   SERVER_SECRET_FAILED: ['high', '秘密情報の登録処理に失敗した'],
   SERVER_HTTP_500: ['high', 'BellTeamのAPI処理に失敗した'],
+  GOAL_OPERATION_UNCONFIRMED: ['warn', 'ゴール操作の結果を確認できなかった'],
   // 送信の失敗と設定の反映の失敗を分ける前の記録。保存済みの行のために残し、新しくは記録しない。
   SERVER_PUSH_FAILED: ['high', '端末への通知送信に失敗した'],
   SERVER_PUSH_SEND_FAILED: ['warn', '端末へ通知を届けられなかった（その通知だけ。原因は未確定）'],
@@ -31,7 +32,7 @@ const reports = {
 }
 const assessments = { info: '適切に処理した参考記録', warn: '影響あり', high: '影響あり', fatal: '影響あり' }
 const referenceGrounds = [/^user_impact=none$/mu, /^app_handling=\S/mu]
-const modules = new Set(['app', 'session', 'conversation', 'events', 'image', 'bots', 'rooms', 'owner', 'schedules', 'settings', 'queue', 'server', 'secrets', 'notifications'])
+const modules = new Set(['app', 'session', 'conversation', 'events', 'image', 'bots', 'rooms', 'owner', 'schedules', 'settings', 'queue', 'server', 'secrets', 'notifications', 'goals'])
 
 // BugHubが既に受け取る調査注記の形式。不正な注記で原本の取得まで失敗させない。
 function validInvestigation(value) {

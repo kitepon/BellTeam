@@ -92,7 +92,7 @@ flowchart TD
 | 認証一覧と状態 | `HarnessAuth.list/status/observe` ← harness-auth GET | membersは台帳から数える。`sessions/receipts`はメモリ。認証情報本体は公式CLIが持つ |
 | 認証開始・取消 | `start/end/cancel` → `call` | relogin対応、session有無、旧資格情報を失う警告を保持。end成功後にMapから削除 |
 | 入力 | 両サービス`input` → `authResponse` → `call/callAuth(respond)` | 最新公開UIとbinding/session/prompt digestが一致する入力だけを送る。typed失敗のnot_issued/unknownを区別 |
-| native応答 | `call/callAuth` → `authResponseFailure` → schema/status判定 | Aiterm結果を検証してからauth/receiptsへ保存。このschema/status判定は現在両方に重複 |
+| native応答 | `call/callAuth` → `authReceipt` → typed失敗/schema/status判定 | Aiterm結果を検証してからauth/receiptsへ保存。schema/statusの同順判定はauth-uiが所有し、各serviceは状態を保存する |
 | 画面 | `openOnboarding` / `harnessAuthItem` → `renderAuthFlow` | UI部品は既に共通。pollは3秒、非表示・終了・errorで止め、revisionで古い取得結果を捨てる。入力エラー後は同入力を自動再送しない |
 
 コードは[onboarding.mjs](../../src/onboarding.mjs)、[harness-auth.mjs](../../src/harness-auth.mjs)、[auth-ui.mjs](../../src/auth-ui.mjs)、[Web認証部品](../../web/auth-flow.js)。GETの状態取得でも、認証完了した旧認証端末を閉じる副作用がある。単なるDB読取りとして扱わない。
@@ -183,7 +183,7 @@ flowchart TD
 
 一般500は安全なframes/要求種別を記録し、保存成功時のみfingerprint/count/receivedのheaderを付ける。秘密経路は固定診断だけ、既知typedエラーは先に返す。[http-errors.mjs](../../src/http-errors.mjs)の順序が責任境界であり、共通catch一つへ潰さない。
 
-接続確認で見つかった不足：`application-services`のGoal用callbackは`GOAL_OPERATION_UNCONFIRMED` / module `goals`を渡すが、現`Diagnostics.record`の許可集合に両方とも無い。`BotGoals.list/inspect/mutate`はそのcallbackをawaitするため、診断を受け付ける本体の組立てでは、本来のunavailable/unconfirmed返却を`DIAGNOSTIC_INVALID`が遮り得る。これは固定コード同士の不一致として[整理案](detail-status.md)に記録した。実障害の再現・修理・本番反映はまだ行っていない。
+接続確認で見つかったGoal診断の不一致（基底ではcode/moduleが未登録）は、現branchでDiagnosticsへ既callerの定義を登録して修理した。本物の組立てを使う局所試験で、inspectのunavailableとmutationのunconfirmedを返し、安全なstackを保存する。元の実障害との相関と本番反映を示すものではない。詳細は[整理と実装状況](detail-status.md)を参照。
 
 ## この文書の確認範囲
 

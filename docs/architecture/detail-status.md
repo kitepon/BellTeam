@@ -1,6 +1,6 @@
 # 機能図の詳細化と次の整理
 
-基準sourceは `546f232180515a2a8cd9098b943673170c49e3d4`。第一段PR245は主要14図と接続整理として統合済みだが、Ownerが求めた全体の機能分解は継続中。ここでは調査済みの接続と残る調査を区別する。以下の案は未実装である。
+基準sourceは `546f232180515a2a8cd9098b943673170c49e3d4`。第一段PR245は主要14図と接続整理として統合済みだが、Ownerが求めた全体の機能分解は継続中。ここでは調査済みの接続と残る調査を区別する。D1/D2/D6とD3は本branchで実装・局所検証済み。D7も局所検証済み。D4/D5は残工程である。
 
 ## 図の完成をどう判断するか
 
@@ -29,6 +29,10 @@
 
 ### D1 認証応答の同じ判定を一つにする
 
+実装：`authReceipt`を既存auth-uiへ置き、両callerのtyped失敗→schema/status判定を共通化した。エラー生成はcallerに残し、session/保存/Mapの更新順を保持。既存認証試験で確認済み。
+
+以下は固定基底での調査と保持した設計。
+
 `Onboarding.callAuth`と`HarnessAuth.call`は、`authResponseFailure`→`structuredContent.schema`→status集合の確認を同じ順で行う。その後の保存先、sessionの寿命、初回/再認証の判断、公開エラーcodeは別である。
 
 設計：既存`auth-ui.mjs`に応答取出しの小関数を置き、result・session・呼出し側の不正応答エラーを受ける。typed失敗を先に返し、正しいreceiptだけを返す。call側のnative引数・save/Map更新・not_issued/unknownの包装は各serviceに残す。共通の認証managerや状態storeは追加しない。
@@ -36,6 +40,10 @@
 確認：両callerの正常waiting/authenticated/blocked/failed、不正schema/status、typed not_issued/unknownを既存試験で確認。送信回数・session/binding・各エラーcode/効果を維持する。Webの既存`renderAuthFlow`も再発明しない。
 
 ### D2 機能の所有者を経由している共通処理を分離する
+
+実装：`json-file.mjs`、`schedule-definition.mjs`、`avatar-value.mjs`へ既存定義を移し、各callerを直接接続した。BotRegistryの既exportは維持。`markScheduleRun`のBot/room固有の時刻評価・targetsとwriter順序はそのまま残した。
+
+以下は固定基底での調査と保持した設計。
 
 現状ではDiagnostics/OwnerProfileが、JSON保存と存在確認のためだけにBotRegistryをimportする。RoomRegistryは予定の正規化とアバター検証もBotRegistryから読む。予定やファイル保存はBotだけの責任ではない。
 
@@ -45,11 +53,15 @@ Bot/roomの`markScheduleRun`には同じrevision照合と次回更新がある�
 
 ### D3 Goal失敗の診断接続を正す
 
+実装：本物のcreateApplicationServicesでinspect異常がDIAGNOSTIC_INVALIDへ置換される反例を保存。Diagnosticsへ既callerのcodeとmoduleを登録し、inspectはunavailable、mutationはunconfirmedを返す局所試験が通った。安全なstackのみを保存し、本文非露出・agent_goal各一回を確認。保存自体の失敗時の伝播は変更していない。
+
+以下は固定基底での調査と保持した設計。
+
 固定sourceの`application-services.mjs`はGoalからの報告を `Diagnostics.record({code:'GOAL_OPERATION_UNCONFIRMED', module:'goals', ...})` に渡す。現`diagnostics.mjs`のreports/modulesにどちらもなく、その組合せは`DIAGNOSTIC_INVALID`になる。`BotGoals`のエラー経路はreportErrorをawaitしてからunavailable/unconfirmedを返すので、組立てた時だけ代替エラーが伝わる。
 
 設計：この診断を本体が受け付ける契約を一箇所で定義し、種類とmoduleを一致させる。Goalの未知結果を成功へ変えず、本文/認証値をlogへ加えない。既存ログschemaを広く許す変更ではない。保存自体の失敗をどう返すかは既存の本体方針と区別して確認する。
 
-確認：本物のDiagnosticsを組み合わせた局所試験で、Goal read/mutationの異常が安全な診断へ届き、元のunavailable/unconfirmedが返ることを示す。実席や元配送の再送は不要。現時点はsourceの不一致確認までで、実行反例・修理済みとは言わない。
+確認：本物のDiagnosticsを組み合わせた局所試験で、Goal read/mutationの異常が安全な診断へ届き、元のunavailable/unconfirmedが返ることを示す。実席や元配送の再送は不要。この反例と修理は上記の局所試験で確認済み。元事故との相関と本番反映は未確認。
 
 ### D4 Webの送信結果と表示更新結果を分ける
 
@@ -73,11 +85,19 @@ Bot/roomの`markScheduleRun`には同じrevision照合と次回更新がある�
 
 ### D6 純粋な返却判定を実行adapterから分ける
 
+実装：`execution-error.mjs`がcode集合と厳密receipt判定を所有する。旧bridgeの既exportを残し、client/HTTP/診断/停止報告を直接接続。ModelCatalog/組立てはAitermClientを直接importする。
+
+以下は固定基底での調査と保持した設計。
+
 `returnedExecutionError/ERROR_META`を使うAitermClient・HTTP・診断・停止報告が、旧実行登録adapter全体をimportしている。純粋な返却型と定数を小moduleへ移し、既ExecutionBridgeのexportは互換を保つ。codes/effect/follow_upの厳密な判定を緩めず、native入力の再試行条件を変更しない。ModelCatalog/組立てのAitermClientは既存client moduleへ直接接続する。
 
 変更対象は[境界詳細](boundary-details.md)に列挙した。client、execution bridge/error、HTTP/診断/stopの既存試験と互換importを確認する。旧bridgeを通常構成へ復活させたり、未使用parserを根拠なく削除したりしない。
 
 ### D7 配送の一つの関数にある段階を名前で追えるようにする
+
+実装：`followAcceptedDelivery`は追跡担当とjob.followsを同期決定、`readTurnAnswer`は同じpty_read/turn照合、`retainUntrackedImages`は保持判定とMap更新だけを同期で所有する。submitがaccepted/completion、全checkpointとonTurnEnd、削除のawait、activity.releaseを保持。配送関連123件が通った。
+
+以下は固定基底から保持した設計。
 
 現`submit`はjob登録・入場・dispatch・receipt照合・follower・accepted・完了・回答・finallyを所有する。第一段では待機だけを`waitForTurnCompletion`へ抽出した。残りは[配送詳細](delivery-details.md)の表を正とし、受付後の同期follower決定、回答を出す担当の判定、回答取得、画像片付けを小関数にする。
 
@@ -90,7 +110,7 @@ jobとaccepted/completionの二本のPromiseはsubmitが所有する。checkpoin
 3. **画面と配送の所有**：D4/D5の残設計とD7の局所反例を確定した上で実装。前二項だけで全体リファクタ完了にしない。
 4. **図の最終整合**：実装後にAstraで現状図/関数表/残設計を揃え、描画・人への説明・必要全体試験一回・独立採否・通常候補へ。停止を伴う本番操作は別の既条件に従う。
 
-現状機能の各詳細は揃ってきたが、全callerの機械解析・全分岐実行を済ませた意味ではない。D4/D5/D7の設計と今回実装が残るため、全体完成とはしない。
+現状機能の各詳細は揃ってきたが、全callerの機械解析・全分岐実行を済ませた意味ではない。D4/D5の設計・実装と全体の整合が残るため、全体完成とはしない。
 
 ## 保持するもの
 

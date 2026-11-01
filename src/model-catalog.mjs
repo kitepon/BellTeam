@@ -1,6 +1,6 @@
 // ハーネス固有の取得・モデルID・エフォートの変換はAitermが所有する。
 // BellTeamは編集時と設定変更時に実行環境の一覧を取得し、永続化・再試行はしない。
-import { AitermClient } from './aiterm-transport.mjs'
+import { AitermClient } from './aiterm-client.mjs'
 
 const HARNESSES = { claude: 'claude-code', codex: 'codex-cli', grok: 'grok-cli', cursor: 'cursor-cli', antigravity: 'antigravity-cli' }
 

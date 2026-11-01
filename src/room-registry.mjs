@@ -3,7 +3,9 @@ import { watch } from 'node:fs'
 import { appendFile, chmod, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
-import { exists, normalizeSchedule, scheduleDocument, validateAvatar, writeAtomic } from './bot-registry.mjs'
+import { exists, writeAtomic } from './json-file.mjs'
+import { normalizeSchedule, scheduleDocument } from './schedule-definition.mjs'
+import { validateAvatar } from './avatar-value.mjs'
 import { RoomHistory } from './room-history.mjs'
 import { mutateSchedules, nextScheduleRevision, scheduleRevision } from './schedule-mutations.mjs'
 

@@ -2,13 +2,13 @@
 // Aiterm owns relations; the stop button uses sendSessionStop directly.
 import { isDeepStrictEqual as same } from 'node:util'
 import { requestSessionInterruption } from './session-interruption.mjs'
+import { returnedExecutionError, ERROR_META, isExecutionErrorCode } from './execution-error.mjs'
 
 export const EXECUTION_META = 'aiterm/execution'
 export const BINDING_META = 'aiterm/execution_binding'
-export const ERROR_META = 'aiterm/execution_error'
+export { returnedExecutionError, ERROR_META } from './execution-error.mjs'
 export const SOURCE_META = 'aiterm/execution_source'
 export const CLOSED_LAUNCH_META = 'aiterm/closed_launch'
-const codes = new Set(['INVALID', 'NOT_FOUND', 'CONFLICT', 'STOPPING', 'STALE_GENERATION', 'UNCONFIRMED', 'BUSY', 'STATE_UNAVAILABLE', 'UNSUPPORTED'].map(value => `EXECUTION_${value}`))
 const session = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/u.test(value)
 const launch = value => value && session(value.session_id) && typeof value.launch_id === 'string' && /^[0-9a-f]{32}$/u.test(value.launch_id)
 const boundary = value => value && Number.isInteger(value.event_cursor) && value.event_cursor >= 0
@@ -21,11 +21,6 @@ const sourceResult = value => value && ['verified', 'unknown', 'stale'].includes
   && ['matched', 'missing', 'mismatch'].includes(value.boundary_status) && (value.point === null || point(value.point))
   && (value.status !== 'verified' || point(value.point))
 
-export function returnedExecutionError(value) {
-  return value?.schema === 'aiterm.execution-error.v1' && codes.has(value.code)
-    && ['not_started', 'possible'].includes(value.effect) && ['none', 'status_only'].includes(value.follow_up)
-    ? { schema: value.schema, code: value.code, effect: value.effect, follow_up: value.follow_up } : null
-}
 const failure = (code = 'EXECUTION_UNCONFIRMED', effect = 'possible', cause) =>
   Object.assign(new Error(code, { cause }), { code, effect, follow_up: 'status_only' })
 
@@ -47,7 +42,7 @@ async function call(client, name, args, options) {
   } catch (cause) {
     const receipt = returnedExecutionError(cause.executionError)
     if (receipt) throw Object.assign(failure(receipt.code, receipt.effect, cause), receipt)
-    if (codes.has(cause.code) && ['not_started', 'possible'].includes(cause.effect)) throw cause
+    if (isExecutionErrorCode(cause.code) && ['not_started', 'possible'].includes(cause.effect)) throw cause
     throw failure('EXECUTION_UNCONFIRMED', 'possible', cause)
   }
 }

@@ -4,7 +4,7 @@
 // 認証の画面の出し方と資格情報は、Aitermと公式CLIが持つ。BellTeamは進行を中継するだけで、資格情報に触れない。
 import { runtimeEnvironment } from './runtime-home.mjs'
 import { HARNESS, HARNESSES } from './onboarding.mjs'
-import { authUi, authResponse, authResponseFailure } from './auth-ui.mjs'
+import { authUi, authResponse, authReceipt } from './auth-ui.mjs'
 
 // 認証し直しを始める前に、利用者へ知らせる事。公式CLIの動きで、Aiterm 0.53.1 で確かめた範囲（エレグ、2026-10-06）。
 // Codexの公式ログインは、始めた時点で今の資格情報を消す。ClaudeとCursorは、途中でやめれば残る。Grokは確かめられていない。
@@ -114,11 +114,7 @@ export class HarnessAuth {
       ...(session ? { session_id: session } : {}),
       ...(cwd ? { cwd } : {}),
     }, this.client.authOptions?.() ?? { env: runtimeEnvironment() })
-    const failure = authResponseFailure(result, session)
-    if (failure) throw failure
-    const receipt = result.structuredContent
-    if (receipt?.schema !== 'aiterm.agent-auth-result.v1' || !['waiting', 'authenticated', 'blocked', 'failed'].includes(receipt.status))
-      throw new HarnessAuthError('HARNESS_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。')
+    const receipt = authReceipt(result, session, () => new HarnessAuthError('HARNESS_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。'))
     this.receipts.set(harness, receipt)
     return receipt
   }

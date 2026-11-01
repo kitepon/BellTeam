@@ -35,7 +35,7 @@
 
 これらは「エラー処理」一個にまとめる対象ではない。共有すべきなのは狭い型判定や保存手段であり、公開エラーの選択と機能別の意味は各入口に残す。
 
-## 依存の向きを直す具体的な箇所
+## 基底で確認した依存と実装した接続
 
 | 現在の依存 | そのcallerが必要とするもの | 次の整理と保持する窓口 |
 | --- | --- | --- |
@@ -49,3 +49,15 @@
 これは現srcのimportと使用箇所を読んだ結論。削除可能な全exportの証明や、全call graphを自動解析したという主張ではない。実装前には変更する窓口に限定してtest/fixture/exportも検索する。
 
 実装：[model-catalog.mjs](../../src/model-catalog.mjs)、[call-bridge-server.mjs](../../src/call-bridge-server.mjs)、[bughub-security.mjs](../../src/bughub-security.mjs)、[http-errors.mjs](../../src/http-errors.mjs)、[diagnostic-request-context.mjs](../../src/diagnostic-request-context.mjs)、[diagnostic-report-context.mjs](../../src/diagnostic-report-context.mjs)。実際の通話・SEC操作・モデル取得・診断POSTは行っていない。
+
+## 現branchでの共通窓口
+
+| 責任 | 現在の窓口 | 呼出し元と保持するもの |
+| --- | --- | --- |
+| JSON保存・存在確認 | [json-file.mjs](../../src/json-file.mjs) `writeAtomic/exists` | Bot/room、Diagnostics、OwnerProfile、UserRules。UUIDtmp/0600/readFile/例外。BotRegistry既exportも同じ関数 |
+| 予定定義・次回計算 | [schedule-definition.mjs](../../src/schedule-definition.mjs) `normalizeSchedule/scheduleDocument` | Bot/room。writer/revision照合とroom targetsは各registry |
+| avatar値の形式検証 | [avatar-value.mjs](../../src/avatar-value.mjs) `validateAvatar` | Bot/room。cropと画像編集は別責任 |
+| 公式認証応答 | [auth-ui.mjs](../../src/auth-ui.mjs) `authReceipt` | Onboarding/HarnessAuth。typed失敗を先に判定し、各公開エラーと状態保存はcaller |
+| 実行返却の型とcode | [execution-error.mjs](../../src/execution-error.mjs) `returnedExecutionError/isExecutionErrorCode/ERROR_META` | client/HTTP/診断/停止/旧bridge。code集合はmodule内、旧export互換あり |
+
+D3はDiagnosticsへ既Goal callerのcode/moduleを登録して接続した。ローカル組立て試験で元のunavailable/unconfirmedと本文非露出を確認。独立製品内部の変更はない。

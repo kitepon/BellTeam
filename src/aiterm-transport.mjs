@@ -496,12 +496,9 @@ export class AitermTransport {
         job.receipt = delivery.receipt
         await job.applyStopResult(job.executionStopResult)
         await job.checkpoint()
-        const steered = delivery.receipt.mode === 'agent_steer'
-        followed = !steered || delivery.steer !== null
-        // 同じ席のターンをもう追っているjobが在れば、合間の言葉はそちらが出す（同じ言葉を2回出さない）。
-        const follower = steered ? this.activity.follower(bot.id) : null
-        // 次の送信はこの印を見て決めるので、返りを受け取ってからここまでawaitを挟まない。
-        job.follows = followed && !follower
+        const tracking = this.followAcceptedDelivery(job, delivery)
+        const { steered, follower } = tracking
+        followed = tracking.followed
         await onStatus?.('running')
         await job.checkpoint()
         acknowledged = true
@@ -527,17 +524,12 @@ export class AitermTransport {
           return { delivery: 'steered' }
         }
         // ここから先は、この文が始めたターン（前のターンが終わった後で新しいターンになった差し込みも含む）。
-        const readAnswer = async () => transcriptText(await this.client.call('pty_read', {
-          session_id: delivery.session,
-          agent_transcript: true,
-          ...(completion.operation_id ? { operation_id: completion.operation_id } : {}),
-        }), completion)
-        const answer = transcript ? await readAnswer() : undefined
+        const answer = transcript ? await this.readTurnAnswer(delivery, completion) : undefined
         await job.checkpoint()
         // 画面に出すだけの回答なので、読めなくても配送は完了として扱う。
         if (!transcript && onAnswer) {
           try {
-            const text = await readAnswer()
+            const text = await this.readTurnAnswer(delivery, completion)
             await job.checkpoint()
             if (typeof text === 'string' && text.trim()) await onAnswer(text)
           } catch (error) {
@@ -555,18 +547,40 @@ export class AitermTransport {
         await onStatus?.(job.stopped ? 'stopped' : 'failed', error)
         throw error
       } finally {
-        const temporary = delivery?.imageFiles.filter(file => file.temporary) ?? []
-        if (!job.stopped && delivery?.receipt.mode === 'agent_steer' && !followed && !parent && temporary.length) {
-          const retained = this.retainedImages.get(bot.id) ?? []
-          retained.push(...temporary)
-          this.retainedImages.set(bot.id, retained)
-        } else await this.removeTemporaryImages(delivery?.imageFiles)
+        if (!this.retainUntrackedImages(job, delivery, followed, parent))
+          await this.removeTemporaryImages(delivery?.imageFiles)
         this.activity.release(job)
       }
     })()
     job.completion = completion
     completion.accepted = accepted
     return completion
+  }
+
+  followAcceptedDelivery(job, delivery) {
+    const steered = delivery.receipt.mode === 'agent_steer'
+    const followed = !steered || delivery.steer !== null
+    // 次の送信もこの印を使うため、追跡担当の選択と設定は同期で行う。
+    const follower = steered ? this.activity.follower(job.bot.id) : null
+    job.follows = followed && !follower
+    return { steered, followed, follower }
+  }
+
+  async readTurnAnswer(delivery, completion) {
+    return transcriptText(await this.client.call('pty_read', {
+      session_id: delivery.session,
+      agent_transcript: true,
+      ...(completion.operation_id ? { operation_id: completion.operation_id } : {}),
+    }), completion)
+  }
+
+  retainUntrackedImages(job, delivery, followed, parent) {
+    const temporary = delivery?.imageFiles.filter(file => file.temporary) ?? []
+    if (job.stopped || delivery?.receipt.mode !== 'agent_steer' || followed || parent || !temporary.length) return false
+    const retained = this.retainedImages.get(job.bot.id) ?? []
+    retained.push(...temporary)
+    this.retainedImages.set(job.bot.id, retained)
+    return true
   }
 
   async waitForTurnCompletion(job, delivery, onInterim) {
