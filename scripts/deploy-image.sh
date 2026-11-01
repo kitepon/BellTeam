@@ -3,6 +3,15 @@
 set -eu
 cd "$(dirname "$0")/.."
 repo=$(pwd)
+recovery=false
+recovery_saved=
+if [ "$#" -ne 0 ]; then
+  [ "$#" -eq 3 ] && [ "$1" = --recover ] || { echo SEC014_INTERNAL_ARGUMENTS >&2; exit 2; }
+  recovery=true
+  recovery_saved=$2
+  BELLTEAM_DEPLOY_QUIET_EXCEPT=$3
+  case "$BELLTEAM_DEPLOY_QUIET_EXCEPT" in ''|*[!a-zA-Z0-9_-]*) echo SEC014_INTERNAL_QUIET_TARGET >&2; exit 2;; esac
+fi
 [ "$(/usr/bin/id -u):$(/usr/bin/id -g)" = 0:0 ] || { echo SEC014_INTERNAL_ROOT_REQUIRED >&2; exit 1; } # sec014-root-entry
 selected_image=${BELLTEAM_SERVER_IMAGE:-}
 if [ -n "${BELLTEAM_SERVER_IMAGE:-}" ]; then
@@ -12,8 +21,10 @@ quiet_except=${BELLTEAM_DEPLOY_QUIET_EXCEPT:-}
 export COMPOSE_FILE="$repo/distribution/server/compose.yaml:$repo/distribution/internal/compose.overlay.yaml"
 export COMPOSE_PROJECT_NAME=bellteam
 export BELLTEAM_INTERNAL_PROFILE_FILE="$repo/src/distribution-profile.mjs"
+if ! "$recovery"; then
 BELLTEAM_NORMAL_ADMISSION_TOKEN=$(node --input-type=module -e 'import { randomBytes } from "node:crypto"; console.log(randomBytes(32).toString("hex"))')
 export BELLTEAM_NORMAL_ADMISSION_TOKEN
+fi
 
 staging=
 saved=
@@ -27,7 +38,7 @@ finish() {
   if [ -n "$saved" ] && ! "$keep_saved"; then
     rm -rf "$saved" || { [ "$result" -ne 0 ] || result=1; }
   fi
-  printf 'deploy-exit=%s\n' "$result"
+  if "$recovery"; then printf 'recovery-exit=%s\n' "$result"; else printf 'deploy-exit=%s\n' "$result"; fi
   exit "$result"
 }
 trap finish 0
@@ -41,6 +52,8 @@ from pathlib import Path
 if any(value != 0 for value in (os.getuid(),os.geteuid(),os.getgid(),os.getegid())):
     raise RuntimeError('SEC014_INTERNAL_ROOT_REQUIRED')
 root,normal,stopped,step=Path(sys.argv[1]),Path(sys.argv[2]),sys.argv[3],sys.argv[4]
+if normal.parent.parent!=root:
+    raise RuntimeError('SEC014_INTERNAL_GENERATION_ROOT')
 files=['scripts/deploy-image.sh','scripts/check-deploy-quiet.sh','scripts/check-deploy-quiet.mjs',
        'distribution/internal/sec014-host-actor.py',
        'distribution/internal/sec014-host-control.py','distribution/internal/sec014-prepared-proof.py',
@@ -73,11 +86,107 @@ if step=='run':
     image=selected.get('imageRef',selected['image'])
     result=a.run_actor('to-server',image,lambda tx:a._InternalForward(tx,stopped),saved_normal=normal)
     print(json.dumps(result))
+elif step=='recover':
+    print(json.dumps(a.run_recovery(saved_normal=normal,stopped_container=stopped)))
+elif step=='recovery-preflight':
+    if any(os.path.lexists(a.control.CONTROL/name) for name in ('recovery-to-legacy.json','transaction-to-legacy.json')):
+        raise RuntimeError('SEC014_RECOVERY_ALREADY_RECORDED')
 elif step!='preflight':
     raise RuntimeError('SEC014_INTERNAL_STEP')
 PYACTOR
 }
 # sec014-actor-bootstrap-end
+
+
+# Explicit recovery is never called automatically after a failed deployment.
+if "$recovery"; then
+  saved=$recovery_saved
+  keep_saved=true
+  sec014_actor recovery-preflight
+  umask 077
+  staging=$(mktemp -d "$repo/.bellteam-recovery.XXXXXX")
+  docker_config=$(mktemp -d "$repo/.bellteam-docker.XXXXXX")
+  DOCKER_HOST=unix:///var/run/docker.sock
+  DOCKER_CONFIG=$docker_config
+  export DOCKER_HOST DOCKER_CONFIG
+node --input-type=module - "$saved" > "$staging/selection" <<'NODE'
+import fs from 'node:fs'
+import path from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { stateWriterPlan } from './src/server-state-writers.mjs'
+try {
+  const saved=process.argv[2], repo=process.cwd()
+  const directory=(dir,parent,prefix)=>{
+    if(path.dirname(dir)!==parent||!new RegExp('^'+prefix+'[a-zA-Z0-9]{6}$').test(path.basename(dir)))throw new Error()
+    const st=fs.lstatSync(dir)
+    if(!st.isDirectory()||st.uid!==process.getuid()||(st.mode&0o777)!==0o700)throw new Error()
+  }
+  const read=(file,compose=false)=>{
+    const st=fs.lstatSync(file)
+    if(!st.isFile()||st.uid!==process.getuid()||(st.mode&0o777)!==0o600)throw new Error()
+    const raw=fs.readFileSync(file,'utf8')
+    return JSON.parse(compose?raw.replaceAll('$$','$'):raw)
+  }
+  directory(saved,repo,'\\.bellteam-compose\\.')
+  const record=read(path.join(saved,'recovery.json')), normal=read(path.join(saved,'normal.json'),true)
+  const maintenance=read(path.join(saved,'compose.state-maintenance.json'),true)
+  const originalDir=path.dirname(record.previousCompose), archive=record.previousImageArchive
+  directory(originalDir,repo,'\\.bellteam-compose\\.')
+  directory(archive,path.join(repo,'runtime/backups'),'image-before-deploy\\.')
+  if(path.basename(record.previousCompose)!=='previous-normal.json')throw new Error()
+  const original=read(record.previousCompose,true), runtime=read(path.join(originalDir,'previous-runtime.json'))
+  const target=normal.services.bellteam, old=original.services.bellteam
+  const combined=model=>({...model,services:{...model.services,...maintenance.services}})
+  const a=stateWriterPlan(combined(normal)), b=stateWriterPlan(combined(original))
+  const home=service=>path.resolve(service.volumes.find(v=>v.target==='/home/bell').source)
+  const migrationImage=maintenance.services['state-maintenance'].image
+  if(normal.name!=='bellteam'||original.name!==normal.name||a.volume!==b.volume||home(target)!==home(old)
+    ||target.image!==migrationImage||old.image!==runtime.Image||!/^[a-f0-9]{64}$/.test(runtime.Id))throw new Error()
+  for(const image of [migrationImage,old.image])if(!/^sha256:[a-f0-9]{64}$/.test(image))throw new Error()
+  if(fs.readFileSync(path.join(archive,'previous-compose.path'),'utf8')!==record.previousCompose+'\n'
+    ||fs.readFileSync(path.join(archive,'container-image.txt'),'utf8').trim()!==runtime.Id+' '+runtime.Image
+    ||fs.readFileSync(path.join(archive,'container-started-at.txt'),'utf8').trim()!==runtime.State.StartedAt)throw new Error()
+  const stateTargets=maintenance.services['state-maintenance'].volumes.map(v=>v.target)
+    .filter(t=>!['/srv/bellteam','/srv/bellteam-legacy','/srv/bellteam-maintenance-backups'].includes(t))
+  for(const service of [old,target])if(service.volumes.some(v=>v.target!==path.posix.resolve(v.target)
+    ||v.target!=='/srv/bellteam'&&!stateTargets.includes(v.target)&&stateTargets.some(t=>v.target==='/'||v.target.startsWith(t+'/')||t.startsWith(v.target+'/'))))throw new Error()
+  const layout=old.volumes.some(v=>stateTargets.includes(v.target))?'server':'legacy'
+  if(record.stateLayout!==layout)throw new Error()
+  const docker=args=>execFileSync('docker',args,{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()
+  for(const image of [migrationImage,old.image])if(docker(['image','inspect','--format','{{.Id}}',image])!==image)throw new Error()
+  const current=JSON.parse(docker(['container','inspect','--format','{{json .}}','bellteam']))
+  const labels=current.Config?.Labels??{}
+  if(!/^[a-f0-9]{64}$/.test(current.Id)||!/^sha256:[a-f0-9]{64}$/.test(current.Image)
+    ||typeof current.State?.Running!=='boolean'||typeof current.State.Restarting!=='boolean'
+    ||typeof current.State.StartedAt!=='string'||!current.State.StartedAt||/[\r\n]/.test(current.State.StartedAt))throw new Error()
+  const isTarget=current.Image===target.image&&labels['com.docker.compose.project']===normal.name
+    &&labels['com.docker.compose.service']==='bellteam'
+    &&labels['com.docker.compose.project.config_files']===path.join(saved,'normal.json')
+  const isOriginal=current.Id===runtime.Id&&current.Image===runtime.Image&&current.State.StartedAt===runtime.State.StartedAt
+  if(!isTarget&&!isOriginal)throw new Error()
+  if(isTarget&&docker(['compose','-p',normal.name,'-f',path.join(saved,'normal.json'),'config','--hash','bellteam'])!=='bellteam '+labels['com.docker.compose.config-hash'])throw new Error()
+  console.log([normal.name,record.previousCompose,migrationImage,old.image,layout,current.Id,current.Image,
+    current.State.StartedAt,String(current.State.Running||current.State.Restarting)].join('\n'))
+}catch{console.error('BELLTEAM_RECOVERY_SELECTION_UNAVAILABLE');process.exitCode=1}
+NODE
+  project=$(sed -n '1p' "$staging/selection")
+  current_cid=$(sed -n '6p' "$staging/selection")
+  current_image=$(sed -n '7p' "$staging/selection")
+  current_started=$(sed -n '8p' "$staging/selection")
+  running=$(sed -n '9p' "$staging/selection")
+  COMPOSE_FILE="$saved/normal.json"
+  COMPOSE_PROJECT_NAME=$project
+  export COMPOSE_FILE COMPOSE_PROJECT_NAME
+  if [ "$running" = true ]; then
+    sh scripts/check-deploy-quiet.sh "$quiet_except"
+    docker stop "$current_cid"
+  fi
+  stopped=$(docker container inspect --format '{{.Id}} {{.Image}} {{.State.Running}} {{.State.Restarting}} {{.State.StartedAt}}' "$current_cid")
+  [ "$stopped" = "$current_cid $current_image false false $current_started" ] || { echo BELLTEAM_RECOVERY_STOP_UNCONFIRMED >&2; exit 1; }
+  stopped_container=$current_cid
+  sec014_actor recover
+  exit 0
+fi
 
 # 旧本体の実imageを控える。失敗・途中保存では更新を始めず、原本を残す。
 umask 077

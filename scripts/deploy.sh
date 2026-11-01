@@ -66,10 +66,12 @@ try {
   const initial=JSON.stringify(files)===JSON.stringify([path.join(repo,'compose.yaml')])
     ||JSON.stringify(files)===JSON.stringify([path.join(repo,'distribution/server/compose.yaml'),path.join(repo,'distribution/internal/compose.overlay.yaml')])
   const retained=files.length===1&&path.dirname(path.dirname(files[0]))===repo
-    &&/^\.bellteam-compose\.[a-zA-Z0-9]{6}$/.test(path.basename(path.dirname(files[0])))&&path.basename(files[0])==='normal.json'
+    &&/^\.bellteam-compose\.[a-zA-Z0-9]{6}$/.test(path.basename(path.dirname(files[0])))
+    &&['normal.json','previous-normal.json'].includes(path.basename(files[0]))
   const envFile=labels['com.docker.compose.project.environment_file']
-  if(project!=='bellteam'||(!initial&&!retained)||working!==path.dirname(files[0])
-    ||(envFile&&envFile!==path.join(repo,'.env')))throw new Error()
+  const actor=retained&&working===repo
+  if(project!=='bellteam'||(!initial&&!retained)||(!actor&&working!==path.dirname(files[0]))
+    ||(envFile&&envFile!==path.join(repo,'.env')&&!(actor&&envFile==='/dev/null')))throw new Error()
   const env={...process.env,BELLTEAM_SERVER_IMAGE:runtime.Config.Image}
   const profile=runtime.Mounts.find(v=>v.Destination==='/app/src/distribution-profile.mjs')
   if(profile)env.BELLTEAM_INTERNAL_PROFILE_FILE=profile.Source

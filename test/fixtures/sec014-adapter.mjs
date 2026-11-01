@@ -8,6 +8,7 @@ export async function copyInternalAdapter(source, target) {
   const start = text.indexOf('# sec014-actor-bootstrap-start'), end = text.indexOf('# sec014-actor-bootstrap-end')
   if (start < 0 || end < 0) return copyFile(source, target)
   const fixture = `sec014_actor() {
+  if [ "$1" = recover ]; then docker fixture-recover "$saved/normal.json" "$stopped_container"; return $?; fi
   [ "$1" = run ] || return 0
   BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container sh "$saved/scripts/assert-state-writers-stopped.sh" --maintenance || return $?
   docker compose --project-directory "$PWD" -f "$saved/compose.state-prepare.yaml" -p "$project" run --pull never --rm --no-deps -T state-prepare || return $?

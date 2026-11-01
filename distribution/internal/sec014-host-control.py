@@ -72,13 +72,11 @@ def _saved(parent, name, owner, normal_group=None, *, facts=None, limit=65536):
     return result
 
 
-def _normal(path, *, role='bellteam', models=None):
+@contextmanager
+def _generation_file(path, names):
     path = Path(path)
-    names = {'bellteam': ('normal.json', 'previous-normal.json'),
-             'state-prepare': ('compose.state-prepare.yaml',),
-             'state-maintenance': ('compose.state-maintenance.json',)}
     if (not path.is_absolute() or path.resolve(strict=True) != path
-            or path.name not in names.get(role, ())
+            or path.name not in names
             or not re.fullmatch(r'\.bellteam-compose\.[a-zA-Z0-9]{6}', path.parent.name)):
         raise ControlError('SEC014_CONTROL_GENERATION')
     parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
@@ -102,6 +100,23 @@ def _normal(path, *, role='bellteam', models=None):
             raise ControlError('SEC014_CONTROL_GENERATION')
         try:
             model = json.loads(raw)
+        except (ValueError, TypeError):
+            raise ControlError('SEC014_CONTROL_GENERATION') from None
+        yield model, {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(),
+                      'device': before.st_dev, 'inode': before.st_ino,
+                      'parentDevice': directory.st_dev, 'parentInode': directory.st_ino,
+                      'owner': list(owner)}
+    finally:
+        os.close(parent)
+
+
+def _normal(path, *, role='bellteam', models=None):
+    path = Path(path)
+    names = {'bellteam': ('normal.json', 'previous-normal.json'),
+             'state-prepare': ('compose.state-prepare.yaml',),
+             'state-maintenance': ('compose.state-maintenance.json',)}
+    with _generation_file(path, names.get(role, ())) as (model, reference):
+        try:
             service = model['services'][role]
             image_ref = model.get('x-bellteam-image-ref')
             if image_ref is not None and (type(image_ref) is not str or not re.fullmatch(
@@ -117,11 +132,8 @@ def _normal(path, *, role='bellteam', models=None):
                     raise ValueError()
                 if models is not None:
                     models[role] = model
-                return {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(),
-                        'device': before.st_dev, 'inode': before.st_ino,
-                        'parentDevice': directory.st_dev, 'parentInode': directory.st_ino,
-                        'owner': list(owner), 'image': service['image'], 'service': service,
-                        **({'imageRef': image_ref} if image_ref is not None else {})}
+                return dict(reference, image=service['image'], service=service,
+                            **({'imageRef': image_ref} if image_ref is not None else {}))
             token = service.get('environment', {}).get('BELLTEAM_NORMAL_ADMISSION_TOKEN')
             mounts = [v for v in service.get('volumes', [])
                       if v.get('target') == '/run/bellteam-maintenance']
@@ -140,10 +152,7 @@ def _normal(path, *, role='bellteam', models=None):
                     raise ValueError()
         except (ValueError, KeyError, TypeError, AttributeError):
             raise ControlError('SEC014_CONTROL_GENERATION') from None
-        result = {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(),
-                'device': before.st_dev, 'inode': before.st_ino,
-                'parentDevice': directory.st_dev, 'parentInode': directory.st_ino,
-                'owner': list(owner), 'image': service['image'], 'token': token}
+        result = dict(reference, image=service['image'], token=token)
         if image_ref is not None:
             result['imageRef'] = image_ref
         if path.name == 'normal.json':
@@ -160,8 +169,6 @@ def _normal(path, *, role='bellteam', models=None):
         if models is not None:
             models[role] = model
         return result
-    finally:
-        os.close(parent)
 
 
 def _selector(lock, direction):
@@ -245,6 +252,88 @@ def _archive(tx, prior, normal):
             os.close(parent)
 
 
+def _archive_recovery(tx, recovery, normal):
+    """A completed explicit recovery settles, but never rewrites, the old attempt."""
+    failed = lambda: ControlError('SEC014_CONTROL_RECOVERY_UNRESOLVED')
+    keys={'schema','direction','status','actorPid','actorStartTicks','phases','admission','normal',
+          'layout','controlled','previousNormal','priorSettlement','selection','receipts','priorJournal'}
+    if (normal is None or type(recovery) is not dict or set(recovery)!=keys
+            or recovery['schema']!='bellteam.sec014.host-recovery.v1' or recovery['direction']!='to-legacy'
+            or recovery['status']!='completed' or recovery['phases']!=list(PHASES)
+            or recovery['layout'] not in ('legacy','server') or type(recovery['controlled']) is not bool
+            or any(type(recovery[key]) is not int or recovery[key]<=0 for key in ('actorPid','actorStartTicks'))
+            or type(recovery['normal']) is not dict or _normal(recovery['normal']['path'])!=recovery['normal']
+            or Path(recovery['normal']['path']).parent==Path(normal['path']).parent
+            or type(recovery['receipts']) is not list or len(recovery['receipts'])!=len(PHASES)):
+        raise failed()
+    prior_file={}
+    prior=_saved(tx.parent,'transaction-to-server.json',tx.owner,tx.normal_group,facts=prior_file)
+    if recovery['priorJournal'] is None:
+        if prior is not _ABSENT:raise failed()
+    elif (type(prior) is not dict or prior.get('normal')!=recovery['normal']
+          or recovery['priorJournal']!=dict(sha256=prior_file['sha256'],metadata=list(prior_file['metadata']))):raise failed()
+    settlement=None
+    for name,key in [('to-legacy-prior-settlement.json','priorSettlement'),('to-legacy-selection.json','selection')]:
+        facts={};value=_saved(tx.parent,name,tx.owner,facts=facts)
+        if value is _ABSENT or facts['sha256']!=recovery[key]:raise failed()
+        if key=='priorSettlement':settlement=value
+        elif (value.get('migrationNormal')!=recovery['normal'] or value.get('previousNormal')!=recovery['previousNormal']
+              or value.get('layout')!=recovery['layout'] or value.get('controlled')!=recovery['controlled']):raise failed()
+    if prior is _ABSENT:
+        if settlement.get('actor')!='not-issued' or settlement.get('clients')!=[]:raise failed()
+    elif (settlement.get('actorPid')!=prior.get('actorPid') or settlement.get('actorStartTicks')!=prior.get('actorStartTicks')):raise failed()
+    for phase,reference in zip(PHASES,recovery['receipts']):
+        facts={};receipt=_saved(tx.parent,'to-legacy-'+phase+'.receipt.json',tx.owner,facts=facts)
+        if (type(reference) is not dict or set(reference)!={'phase','receiptSha256'} or reference['phase']!=phase
+                or facts.get('sha256')!=reference['receiptSha256'] or type(receipt) is not dict
+                or receipt.get('direction')!='to-legacy' or receipt.get('phase')!=phase
+                or receipt.get('status')!='verified' or receipt.get('actorPid')!=recovery['actorPid']
+                or receipt.get('actorStartTicks')!=recovery['actorStartTicks']):raise failed()
+    selected=recovery['previousNormal']
+    handoff=_saved(tx.parent,'transaction-to-legacy.json',tx.owner,tx.normal_group)
+    if recovery['controlled']:
+        if type(selected) is not dict or _normal(selected['path'])!=selected:raise failed()
+        expected={key:recovery[key] for key in ('direction','status','actorPid','actorStartTicks','phases','admission')}
+        expected.update(schema=SCHEMA,normal=selected)
+        if (handoff!=expected or type(recovery['admission']) is not dict
+                or recovery['admission'].get('image')!=selected['image']
+                or recovery['admission'].get('token')!=selected['token']):raise failed()
+    else:
+        if handoff is not _ABSENT or recovery['admission'] is not None:raise failed()
+        with _generation_file(selected['path'],('previous-normal.json',)) as (model,reference):
+            if dict(reference,image=model['services']['bellteam']['image'])!=selected:raise failed()
+    destination=Path(recovery['normal']['path']).parent/'sec014-control-history'
+    if os.path.lexists(destination):raise failed()
+    names=['recovery-to-legacy.json']
+    if prior is not _ABSENT:names.append('transaction-to-server.json')
+    if handoff is not _ABSENT:names.append('transaction-to-legacy.json')
+    names+=sorted(name for name in os.listdir(tx.parent) if name.startswith(('to-server-','to-legacy-')))
+    identities={}
+    for name in names:
+        if not re.fullmatch('[a-z0-9._-]{1,255}',name):raise failed()
+        info=os.stat(name,dir_fd=tx.parent,follow_symlinks=False)
+        _private(info,tx.owner,stat.S_ISDIR(info.st_mode),tx.normal_group if name in
+                 ('recovery-to-legacy.json','transaction-to-server.json','transaction-to-legacy.json') else None)
+        identities[name]=_identity(info)
+    _selector(tx.lock,'archiving')
+    with _generation_file(recovery['normal']['path'],('normal.json',)) as (_,reference):
+        parent=os.open(destination.parent,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
+        try:
+            if _identity(os.fstat(parent))!=(reference['parentDevice'],reference['parentInode']):raise failed()
+            os.mkdir(destination.name,mode=0o700,dir_fd=parent)
+            archive=os.open(destination.name,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC,dir_fd=parent)
+            try:
+                os.fsync(parent)
+                for name in names:
+                    tx.check()
+                    if (_identity(os.stat(destination.name,dir_fd=parent,follow_symlinks=False))!=_identity(os.fstat(archive))
+                            or _identity(os.stat(name,dir_fd=tx.parent,follow_symlinks=False))!=identities[name]):raise failed()
+                    os.rename(name,name,src_dir_fd=tx.parent,dst_dir_fd=archive)
+                    os.fsync(archive);os.fsync(tx.parent)
+            finally:os.close(archive)
+        finally:os.close(parent)
+
+
 class _Transaction:
     _docker_socket_path = Path('/var/run/docker.sock')
 
@@ -282,6 +371,8 @@ class _Transaction:
                 or _identity(linked) != self.lock_identity
                 or _identity(held) != self.lock_identity):
             raise ControlError('SEC014_CONTROL_IDENTITY_CHANGED')
+        if getattr(self, '_recovery_inputs', None) is not None:
+            self._recovery_inputs._check_files()
         if self._docker_socket_original is not None:
             self._socket_observation()
         if self._docker_peer_original is not None:
@@ -521,7 +612,13 @@ def _hold(path, direction, owner, normal_group=None, saved_normal=None):
             raise ControlError('SEC014_CONTROL_GENERATION')
         transaction = _Transaction(Path(path), parent, lock, owner, direction, normal_group, normal)
         transaction.check()
-        selector = os.pread(lock, 32, 0)
+        recovery = _saved(parent, 'recovery-to-legacy.json', owner, normal_group)
+        if recovery is not _ABSENT:
+            if normal is None:raise ControlError('SEC014_CONTROL_RECOVERY_UNRESOLVED')
+            _archive_recovery(transaction,recovery,normal)
+            selector = b''
+        else:
+            selector = os.pread(lock, 32, 0)
         if selector not in (b'', b'to-server\n', b'to-legacy\n'):
             raise ControlError('SEC014_CONTROL_UNRESOLVED')
         previous = {}

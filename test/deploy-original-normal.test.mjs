@@ -36,20 +36,21 @@ async function fixture(t, failure = '') {
   const originalArgs = ['-p', 'bellteam', ...files.flatMap(f => ['-f', f]), ...explicitEnv]
   const { stdout: hash } = await exec(compose, [...originalArgs, 'config', '--hash', 'bellteam'], { cwd: root, env })
   let labelFiles = files, working = dirname(files[0])
-  if (failure === 'retained') {
+  if (['retained','actor-normal','recovered-normal'].includes(failure)) {
     const retained = root + '/.bellteam-compose.LEGACY'
     await mkdir(retained, { mode: 0o700 })
     const { stdout } = await exec(compose, [...originalArgs, 'config', '--format', 'json'], { cwd: root, env })
     const model = JSON.parse(stdout.replaceAll('$$', '$'))
-    await writeFile(retained + '/normal.json', JSON.stringify(model, (_key, value) => typeof value === 'string' ? value.replaceAll('$', () => '$$') : value), { mode: 0o600 })
-    labelFiles = [retained + '/normal.json']; working = retained
+    const retainedName=failure==='recovered-normal'?'previous-normal.json':'normal.json'
+    await writeFile(retained + '/'+retainedName, JSON.stringify(model, (_key, value) => typeof value === 'string' ? value.replaceAll('$', () => '$$') : value), { mode: 0o600 })
+    labelFiles = [retained + '/'+retainedName]; working = failure==='retained'?retained:root
   }
   const originalInputs = { args: originalArgs, hash: hash.trim(), files: await Promise.all(files.map(async path => ({ path, text: await readFile(path, 'utf8') }))), implicitEnv: await readFile(root + '/distribution/server/.env', 'utf8') }
   const runtime = { Id: cid, Image: oldImage, State: { Running: true, Restarting: false, StartedAt: '2026-10-27T16:03:53Z' },
     Config: { Image: oldRef, Labels: { 'com.docker.compose.project': 'bellteam',
       'com.docker.compose.project.config_files': failure === 'provenance' ? '/unknown/compose.yaml' : labelFiles.join(','),
       'com.docker.compose.project.working_dir': working,
-      ...(failure === 'explicit-env' ? { 'com.docker.compose.project.environment_file': root + '/.env' } : {}),
+      ...(failure === 'explicit-env' ? { 'com.docker.compose.project.environment_file': root + '/.env' } : ['actor-normal','recovered-normal'].includes(failure)?{'com.docker.compose.project.environment_file':'/dev/null'}:{}),
       'com.docker.compose.config-hash': failure === 'hash' ? 'f'.repeat(64) : hash.trim().split(' ')[1] } },
     Mounts: [{ Type: 'bind', Source: root + '/runtime/data', Destination: '/srv/bellteam', RW: true },
       { Type: 'bind', Source: root + '/runtime/home', Destination: '/home/bell', RW: true },
@@ -153,4 +154,19 @@ test('original normal: retained labels and explicit env-file retain their origin
       assert.equal(JSON.parse(await readFile(inputs.files[0], 'utf8')).services.bellteam.image, oldRef)
     }
   }
+})
+
+
+test('original normal: fixed root actor and recovered previous normal remain capturable',async t=>{
+ for(const kind of ['actor-normal','recovered-normal']){
+  const f=await fixture(t,kind)
+  await f.run();const saved=await f.captured()
+  const inputs=JSON.parse(await readFile(saved+'/previous-inputs.json','utf8'))
+  assert.equal(inputs.working,f.root)
+  assert.equal(inputs.envFile,'/dev/null')
+  assert.equal(inputs.files[0],f.root+'/.bellteam-compose.LEGACY/'+(kind==='recovered-normal'?'previous-normal.json':'normal.json'))
+  const model=JSON.parse(await readFile(saved+'/previous-normal.json','utf8'))
+  assert.equal(model.services.bellteam.image,oldImage)
+  assert.equal(model.services.bellteam.environment.SECRET,'synthetic-original-secret')
+ }
 })
