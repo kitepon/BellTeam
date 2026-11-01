@@ -741,7 +741,10 @@ console.log(JSON.stringify({newPathRead:true,oldPathIgnored:true,hotload:true,ac
                     time.sleep(.1)
                 for mode, value in bughub_latest.items():
                     maintenance(root, normal_env, migrated, 'install-sce-' + mode, input=value)
-                docker('exec', consumer, '/usr/local/bin/node', '-e',
+                # Keep the trigger outside the consumer PID namespace: consumer exit must not kill it.
+                docker('run', '--rm', '--network', 'none', '--read-only', '--user', '1001:1001',
+                       '--mount', 'type=volume,source=' + state_volume + ',target=/srv/bellteam/state,volume-subpath=state,readonly',
+                       '--entrypoint', '/usr/local/bin/node', image_id, '-e',
                        "require('net').connect('/srv/bellteam/state/harness-hotload.sock').on('error',e=>{throw e})")
                 assert docker('wait', consumer).stdout.strip() == '0'
                 bughub_result = json.loads(docker('logs', consumer).stdout.splitlines()[-1])
