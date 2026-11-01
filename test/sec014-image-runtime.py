@@ -114,12 +114,31 @@ def main():
         reply=docker('exec','--user','1001:1001',cid,'sudo','-n','/usr/local/libexec/bellteam-seat-exec','--','/usr/local/bin/node','-e',child_program,json.dumps(dict(dev=held.st_dev,ino=held.st_ino)))
         # Node includes the effective GID after the C entry clears supplementary groups.
         child=json.loads(reply.stdout);assert child==dict(uid=1000,gid=1000,groups=[1000],inherited=False,token=False),child
-        assert_ex_busy();checks+=['actual server UID/GID and same-inode FD3 SH','normal keeps SH after root releases it','actual fixed seat entry changes UID and closes lock/clears token']
+        # Docker exec does not inherit the supervisor's FD; give the installed entry a proved SH FD directly.
+        inherited_entry_program='''import fcntl,json,os,subprocess,sys
+p='/run/bellteam-maintenance/sec014.lock'
+fd=os.open(p,os.O_RDONLY)
+if fd!=3:os.dup2(fd,3);os.close(fd)
+os.set_inheritable(3,True);fcntl.flock(3,fcntl.LOCK_SH|fcntl.LOCK_NB)
+st=os.fstat(3);wanted=json.loads(sys.argv[2])
+assert (st.st_dev,st.st_ino)==(wanted['dev'],wanted['ino'])
+info=open('/proc/self/fdinfo/3').read();assert 'FLOCK  ADVISORY  READ' in info,info
+os.environ['BELLTEAM_NORMAL_ADMISSION_TOKEN']='test-only-inherited-token'
+control=json.loads(subprocess.check_output(['/usr/local/bin/node','-e',sys.argv[1],sys.argv[2]],pass_fds=(3,),text=True))
+assert control['inherited'] is True and control['token'] is True,control
+print(json.dumps({'precondition':{'device':st.st_dev,'inode':st.st_ino,'inheritable':os.get_inheritable(3),'fdinfo':info,'withoutEntry':control}}),flush=True)
+os.execv('/usr/local/libexec/bellteam-seat-exec',['/usr/local/libexec/bellteam-seat-exec','--','/usr/local/bin/node','-e',sys.argv[1],sys.argv[2]])
+'''
+        proof=docker('exec','--user','0:0',cid,'/usr/bin/python3','-c',inherited_entry_program,child_program,json.dumps(dict(dev=held.st_dev,ino=held.st_ino)))
+        rows=[json.loads(row) for row in proof.stdout.splitlines()];assert len(rows)==2,rows
+        assert rows[0]['precondition']['inheritable'] and rows[0]['precondition']['withoutEntry']['inherited']
+        assert rows[1]==child,rows
+        assert_ex_busy();checks+=['actual server UID/GID and same-inode FD3 SH','normal keeps SH after root releases it','actual fixed seat entry changes UID and closes proved inherited SH FD/clears token']
         stopped=time.monotonic();docker('stop',cid);state=wait_exit(cid);elapsed=time.monotonic()-stopped
         assert state['ExitCode']==0,state['ExitCode']
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);fcntl.flock(lock,fcntl.LOCK_UN)
         checks.append('normal exit releases SH; EX reacquired')
-        document('result.json',dict(source=source,image=image_id,checks=checks,normalPid=pid,normalStartTicks=int(born),lock=dict(device=held.st_dev,inode=held.st_ino),child=child,health=health,normalStopSeconds=elapsed,scope='dedicated Linux CI image/UID/kernel lock/seat entry; not production migration, whole-writer authority, public installer or hardware stop-window acceptance'))
+        document('result.json',dict(source=source,image=image_id,checks=checks,normalPid=pid,normalStartTicks=int(born),lock=dict(device=held.st_dev,inode=held.st_ino),child=child,seatEntryPrecondition=rows[0]['precondition'],health=health,normalStopSeconds=elapsed,scope='dedicated Linux CI image/UID/kernel lock/seat entry; not production migration, whole-writer authority, public installer or hardware stop-window acceptance'))
     finally:
         errors=[]
         for cid in containers:
