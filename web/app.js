@@ -1,3 +1,4 @@
+import { createScheduleEditor } from './schedule-editor.js?v=__ASSET_VERSION__'
 import { createConversationTimeline } from './conversation-timeline.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, memberDisplay, formatTime, formatDateTime, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
 import { openOnboarding, renderFeatureSettings, refreshFeatureSettingsStatus } from './onboarding.js?v=__ASSET_VERSION__'
@@ -98,15 +99,6 @@ const memoryResults = document.querySelector('#memory-results')
 const knowledgeResults = document.querySelector('#knowledge-results')
 const memoryFormError = document.querySelector('#memory-form-error')
 const scheduleDialog = document.querySelector('#schedule-dialog')
-const scheduleList = document.querySelector('#schedule-list')
-const scheduleForm = document.querySelector('#schedule-form')
-const scheduleKind = document.querySelector('#schedule-kind')
-const scheduleFields = document.querySelector('#schedule-fields')
-const scheduleFormError = document.querySelector('#schedule-form-error')
-const scheduleAction = document.querySelector('#schedule-action')
-const scheduleActionField = document.querySelector('#schedule-action-field')
-const schedulePromptField = document.querySelector('#schedule-prompt-field')
-const scheduleCommandField = document.querySelector('#schedule-command-field')
 const actionDialog = document.querySelector('#action-dialog')
 const roomDialog = document.querySelector('#room-dialog')
 const roomForm = document.querySelector('#room-form')
@@ -126,11 +118,6 @@ const targetButton = document.querySelector('#target-button')
 const targetMenu = document.querySelector('#target-menu')
 const deleteRoomButton = document.querySelector('#delete-room-button')
 const roomManagementActions = document.querySelector('#room-management-actions')
-const scheduleTargetsField = document.querySelector('#schedule-targets-field')
-const scheduleTargets = document.querySelector('#schedule-targets')
-const scheduleFormTitle = document.querySelector('#schedule-form-title')
-const scheduleSubmit = document.querySelector('#schedule-submit')
-const scheduleCancel = document.querySelector('#schedule-cancel')
 
 const state = {
   setup: null,
@@ -140,7 +127,6 @@ const state = {
   bots: [],
   rooms: [],
   models: {},
-  editingSchedule: null,
   screenTimer: null,
   avatarColors: new Map(),
   selected: null,
@@ -177,6 +163,8 @@ const conversationComposer = createConversationComposer({
     if (results.some(result => result.status === 'rejected' || result.value === false)) throw new Error('DISPLAY_REFRESH_FAILED')
   },
 })
+
+const scheduleEditor = createScheduleEditor(scheduleDialog, { api, getBot: id => state.bots.find(bot => bot.id === id) })
 
 const botAvatarEditor = createAvatarEditor({
   applyAvatar, initials, escapeClass,
@@ -292,10 +280,6 @@ knowledgeForm.addEventListener('submit', recordKnowledge)
 knowledgeSearchForm.addEventListener('submit', searchKnowledge)
 roomForm.addEventListener('submit', saveRoom)
 roomMembers.addEventListener('change', () => renderRoomRepresentativeOptions())
-scheduleKind.addEventListener('change', renderScheduleFields)
-scheduleAction.addEventListener('change', renderScheduleAction)
-scheduleForm.addEventListener('submit', saveSchedule)
-scheduleCancel.addEventListener('click', resetScheduleForm)
 screenButton.addEventListener('click', () => (screenPanel.hidden ? openScreen() : closeScreen()))
 document.querySelector('#screen-close').addEventListener('click', closeScreen)
 
@@ -973,221 +957,9 @@ async function deleteSelectedRoom() {
   }
 }
 
-async function openScheduleDialog() {
+function openScheduleDialog() {
   if (!state.selected) return
-  resetScheduleForm()
-  await loadSchedules()
-  scheduleDialog.showModal()
-}
-
-function resetScheduleForm() {
-  state.editingSchedule = null
-  scheduleForm.reset()
-  scheduleFormError.textContent = ''
-  scheduleFormTitle.textContent = '予定を追加'
-  scheduleSubmit.textContent = '予定を追加'
-  scheduleCancel.hidden = true
-  renderScheduleFields()
-  renderScheduleAction()
-  renderScheduleTargets()
-}
-
-// コマンド予定はBot専用。ルームではAIへの指示だけ。
-function renderScheduleAction() {
-  const command = state.selectedType !== 'room' && scheduleAction.value === 'command'
-  scheduleActionField.hidden = state.selectedType === 'room'
-  schedulePromptField.hidden = command
-  scheduleCommandField.hidden = !command
-  document.querySelector('#schedule-prompt').required = !command
-  document.querySelector('#schedule-command').required = command
-}
-
-function editSchedule(schedule) {
-  resetScheduleForm()
-  state.editingSchedule = schedule
-  scheduleFormTitle.textContent = '予定を編集'
-  scheduleSubmit.textContent = '予定を更新'
-  scheduleCancel.hidden = false
-  document.querySelector('#schedule-name').value = schedule.name ?? ''
-  document.querySelector('#schedule-prompt').value = schedule.prompt ?? ''
-  document.querySelector('#schedule-command').value = schedule.command ?? ''
-  scheduleAction.value = schedule.command ? 'command' : 'prompt'
-  renderScheduleAction()
-  const form = scheduleFormValues(schedule)
-  scheduleKind.value = form.type
-  renderScheduleFields()
-  if (form.type === 'once') document.querySelector('#schedule-once').value = form.at
-  if (form.type === 'hourly') document.querySelector('#schedule-minute').value = form.minute
-  if (form.type === 'daily' || form.type === 'weekly') document.querySelector('#schedule-time').value = form.time
-  if (form.type === 'interval_days') {
-    document.querySelector('#schedule-interval-days').value = form.intervalDays
-    document.querySelector('#schedule-start-date').value = form.startDate
-    document.querySelector('#schedule-time').value = form.time
-  }
-  if (form.type === 'interval_hours') {
-    document.querySelector('#schedule-interval-hours').value = form.intervalHours
-    document.querySelector('#schedule-start-hour').value = form.startHour
-    document.querySelector('#schedule-end-hour').value = form.endHour
-    document.querySelector('#schedule-minute').value = form.minute
-  }
-  if (form.type === 'weekly') {
-    for (const input of document.querySelectorAll('input[name="weekday"]')) input.checked = form.weekdays.includes(input.value)
-  }
-  if (form.type === 'cron') document.querySelector('#schedule-cron').value = schedule.expression
-  if (state.selectedType === 'room' && Array.isArray(schedule.targets)) {
-    for (const input of scheduleTargets.querySelectorAll('input')) input.checked = schedule.targets.includes(input.value)
-  }
-  scheduleForm.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
-
-// 保存済みの予定を入力欄の形へ戻す。cron式が毎時・毎日・曜日指定の形なら同じ選択肢で開き、それ以外はcron式のまま開く。
-function scheduleFormValues(schedule) {
-  if (schedule.kind === 'once') return { type: 'once', at: localDateTimeValue(schedule.at) }
-  if (schedule.kind === 'interval_days' || schedule.kind === 'interval_hours') return { ...schedule, type: schedule.kind }
-  const [minute, hour, dayOfMonth, month, weekday] = String(schedule.expression ?? '').trim().split(/\s+/)
-  const pad = value => String(value).padStart(2, '0')
-  const plainTime = /^\d+$/.test(minute) && /^\d+$/.test(hour)
-  if (dayOfMonth === '*' && month === '*' && weekday === '*') {
-    if (hour === '*' && /^\d+$/.test(minute)) return { type: 'hourly', minute }
-    if (plainTime) return { type: 'daily', time: `${pad(hour)}:${pad(minute)}` }
-  }
-  if (dayOfMonth === '*' && month === '*' && plainTime && /^[0-6](,[0-6])*$/.test(weekday ?? '')) {
-    return { type: 'weekly', time: `${pad(hour)}:${pad(minute)}`, weekdays: weekday.split(',') }
-  }
-  return { type: 'cron' }
-}
-
-function localDateTimeValue(iso) {
-  const date = new Date(iso)
-  const pad = value => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
-async function loadSchedules() {
-  const result = await api(schedulePath())
-  const schedules = result.schedules.filter(schedule =>
-    !(schedule.kind === 'once' && schedule.lastRunAt && !schedule.enabled && !schedule.nextRunAt))
-  if (schedules.length === 0) {
-    scheduleList.innerHTML = '<p class="empty-schedules">予定はありません。</p>'
-    return
-  }
-  scheduleList.replaceChildren(...schedules.map(schedule => {
-    const row = document.createElement('div')
-    row.className = 'schedule-row'
-    const action = schedule.command ? `コマンド（AIを起こさない）: ${schedule.command}` : schedule.prompt
-    row.innerHTML = `<div><strong>${escapeHtml(schedule.name || schedule.command || schedule.prompt)}</strong><span>${escapeHtml(scheduleDescription(schedule))}</span><span class="prompt">${escapeHtml(action)}</span><small>次回 ${escapeHtml(formatDateTime(schedule.nextRunAt))}</small></div><div class="schedule-actions"><button class="run" type="button" aria-label="今すぐ実行">今すぐ実行</button><button class="edit" type="button" aria-label="予定を編集">編集</button><button class="remove" type="button" aria-label="予定を削除">削除</button></div>`
-    const runButton = row.querySelector('button.run')
-    runButton.addEventListener('click', async () => {
-      runButton.disabled = true
-      try {
-        await api(`${schedulePath()}/${encodeURIComponent(schedule.id)}/run`, { method: 'POST' })
-        runButton.textContent = '送信した'
-      } catch {
-        runButton.textContent = '失敗'
-      }
-      setTimeout(() => { runButton.textContent = '今すぐ実行'; runButton.disabled = false }, 2500)
-    })
-    row.querySelector('button.edit').addEventListener('click', () => editSchedule(schedule))
-    row.querySelector('button.remove').addEventListener('click', async () => {
-      await api(`${schedulePath()}/${encodeURIComponent(schedule.id)}`, { method: 'DELETE' })
-      if (state.editingSchedule?.id === schedule.id) resetScheduleForm()
-      await loadSchedules()
-    })
-    return row
-  }))
-}
-
-function renderScheduleTargets() {
-  scheduleTargetsField.hidden = state.selectedType !== 'room'
-  if (state.selectedType !== 'room') return scheduleTargets.replaceChildren()
-  scheduleTargets.replaceChildren(...state.selected.memberIds.map(id => {
-    const bot = state.bots.find(item => item.id === id)
-    const label = document.createElement('label')
-    label.innerHTML = `<input type="checkbox" value="${escapeHtml(id)}"><span>${escapeHtml(bot?.displayName ?? id)}</span>`
-    return label
-  }))
-}
-
-function schedulePath() {
-  return state.selectedType === 'room'
-    ? `/api/rooms/${state.selected.id}/schedules`
-    : `/api/bots/${state.selected.id}/schedules`
-}
-
-function renderScheduleFields() {
-  const type = scheduleKind.value
-  if (type === 'once') scheduleFields.innerHTML = '<label class="field"><span>実行日時</span><input id="schedule-once" type="datetime-local" required></label>'
-  if (type === 'hourly') scheduleFields.innerHTML = '<label class="field"><span>毎時の何分</span><input id="schedule-minute" type="number" min="0" max="59" value="0" required></label>'
-  if (type === 'daily') scheduleFields.innerHTML = '<label class="field"><span>時刻</span><input id="schedule-time" type="time" value="09:00" required></label>'
-  if (type === 'interval_days') scheduleFields.innerHTML = `<label class="field"><span>何日おき</span><input id="schedule-interval-days" type="number" min="1" step="1" value="2" required></label><label class="field"><span>開始日</span><input id="schedule-start-date" type="date" value="${localDateTimeValue(new Date()).slice(0, 10)}" required></label><label class="field"><span>時刻</span><input id="schedule-time" type="time" value="09:00" required></label><small>開始日から数えます。2日おきなら、開始日・2日後・4日後に実行します。</small>`
-  if (type === 'interval_hours') scheduleFields.innerHTML = '<label class="field"><span>何時間おき</span><input id="schedule-interval-hours" type="number" min="1" max="24" step="1" value="3" required></label><div class="field-row"><label class="field"><span>開始（時）</span><input id="schedule-start-hour" type="number" min="0" max="23" step="1" value="9" required></label><label class="field"><span>終了（時）</span><input id="schedule-end-hour" type="number" min="0" max="23" step="1" value="18" required></label></div><label class="field"><span>実行する分</span><input id="schedule-minute" type="number" min="0" max="59" step="1" value="0" required></label><small>9時〜18時・3時間おきなら9・12・15・18時に実行します。終了が開始より早ければ翌日まで、同じならその時刻に一回実行します。</small>'
-  if (type === 'weekly') scheduleFields.innerHTML = '<label class="field"><span>曜日</span><span class="weekday-picker">日 月 火 水 木 金 土</span><span class="weekday-checks">' + ['日','月','火','水','木','金','土'].map((day, index) => `<label><input type="checkbox" name="weekday" value="${index}" ${index === 1 ? 'checked' : ''}><b>${day}</b></label>`).join('') + '</span></label><label class="field"><span>時刻</span><input id="schedule-time" type="time" value="09:00" required></label>'
-  if (type === 'cron') scheduleFields.innerHTML = '<label class="field"><span>cron式</span><input id="schedule-cron" value="0 9 * * 1-5" required placeholder="0 9 * * 1-5"></label>'
-}
-
-async function saveSchedule(event) {
-  event.preventDefault()
-  scheduleFormError.textContent = ''
-  try {
-    const body = scheduleRequest()
-    const editing = state.editingSchedule
-    await api(editing ? `${schedulePath()}/${encodeURIComponent(editing.id)}` : schedulePath(), {
-      method: editing ? 'PUT' : 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
-    })
-    resetScheduleForm()
-    await loadSchedules()
-  } catch {
-    scheduleFormError.textContent = '予定を保存できませんでした。日時と実行内容を確認してね。'
-  }
-}
-
-function scheduleRequest() {
-  const type = scheduleKind.value
-  const command = state.selectedType !== 'room' && scheduleAction.value === 'command'
-  const base = {
-    name: document.querySelector('#schedule-name').value.trim(),
-    ...(command
-      ? { command: document.querySelector('#schedule-command').value.trim() }
-      : { prompt: document.querySelector('#schedule-prompt').value.trim() }),
-    enabled: true,
-  }
-  if (state.selectedType === 'room') {
-    const targets = [...scheduleTargets.querySelectorAll('input:checked')].map(input => input.value)
-    base.targets = targets.length ? targets : null
-  }
-  if (type === 'once') return { ...base, kind: 'once', at: new Date(document.querySelector('#schedule-once').value).toISOString() }
-  const timezone = state.editingSchedule?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'Asia/Tokyo'
-  if (type === 'interval_days') return {
-    ...base, kind: type, timezone,
-    intervalDays: Number(document.querySelector('#schedule-interval-days').value),
-    startDate: document.querySelector('#schedule-start-date').value,
-    time: document.querySelector('#schedule-time').value,
-  }
-  if (type === 'interval_hours') return {
-    ...base, kind: type, timezone,
-    intervalHours: Number(document.querySelector('#schedule-interval-hours').value),
-    startHour: Number(document.querySelector('#schedule-start-hour').value),
-    endHour: Number(document.querySelector('#schedule-end-hour').value),
-    minute: Number(document.querySelector('#schedule-minute').value),
-  }
-  const [hour, minute] = (document.querySelector('#schedule-time')?.value ?? '0:0').split(':').map(Number)
-  let expression
-  if (type === 'hourly') expression = `${Number(document.querySelector('#schedule-minute').value)} * * * *`
-  if (type === 'daily') expression = `${minute} ${hour} * * *`
-  if (type === 'weekly') {
-    const weekdays = [...document.querySelectorAll('input[name="weekday"]:checked')].map(input => input.value)
-    if (weekdays.length === 0) throw new Error('WEEKDAY_REQUIRED')
-    expression = `${minute} ${hour} * * ${weekdays.join(',')}`
-  }
-  if (type === 'cron') expression = document.querySelector('#schedule-cron').value.trim()
-  return { ...base, kind: 'cron', expression, timezone }
-}
-
-function scheduleDescription(schedule) {
-  if (schedule.kind === 'once') return formatDateTime(schedule.at)
-  if (schedule.kind === 'interval_days') return `${schedule.intervalDays}日おき · ${schedule.startDate}から ${schedule.time} · ${schedule.timezone}`
-  if (schedule.kind === 'interval_hours') return `${schedule.intervalHours}時間おき · ${schedule.startHour}時〜${schedule.endHour < schedule.startHour ? '翌' : ''}${schedule.endHour}時（${schedule.minute}分） · ${schedule.timezone}`
-  return `${schedule.expression} · ${schedule.timezone}`
+  return scheduleEditor.open({ ...state.selected, type: state.selectedType })
 }
 
 // アバター画像から代表色を導く。白・黒・透明に近い画素を除き、彩度の高い画素を重く見た平均色を、

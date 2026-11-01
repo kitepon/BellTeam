@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import vm from 'node:vm'
+import { scheduleFormValues, scheduleRequest, scheduleDescription } from '../web/schedule-editor.js'
 import { BotRegistry, normalizeSchedule } from '../src/bot-registry.mjs'
 import { BotScheduler } from '../src/scheduler.mjs'
 import { bellTeamTools } from '../src/mcp-tools.mjs'
@@ -80,18 +80,14 @@ test('保存・読み直し・実行・編集で日おきの基準と時間帯�
 })
 
 test('画面の編集・保存は両方の間隔設定と元のタイムゾーンを保持する', async () => {
-  const source = await readFile(new URL('../web/app.js', import.meta.url), 'utf8')
-  const functions = ['scheduleFormValues', 'scheduleRequest', 'scheduleDescription'].map(name => source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0]).join('\n')
   for (const schedule of [days, hours]) {
-    const values = { 'schedule-name': '', 'schedule-prompt': schedule.prompt, 'schedule-interval-days': schedule.intervalDays, 'schedule-start-date': schedule.startDate, 'schedule-time': schedule.time, 'schedule-interval-hours': schedule.intervalHours, 'schedule-start-hour': schedule.startHour, 'schedule-end-hour': schedule.endHour, 'schedule-minute': schedule.minute }
-    const context = vm.createContext({ schedule, state: { selectedType: 'bot', editingSchedule: schedule }, scheduleKind: { value: schedule.kind }, scheduleAction: { value: 'prompt' }, document: { querySelector: id => ({ value: values[id.slice(1)] }) } })
-    vm.runInContext(functions, context)
-    const form = vm.runInContext('scheduleFormValues(schedule)', context)
+    const values = { kind: schedule.kind, action: 'prompt', name: '', prompt: schedule.prompt, 'interval-days': schedule.intervalDays, 'start-date': schedule.startDate, time: schedule.time, 'interval-hours': schedule.intervalHours, 'start-hour': schedule.startHour, 'end-hour': schedule.endHour, minute: schedule.minute }
+    const form = scheduleFormValues(schedule)
     assert.equal(form.type, schedule.kind)
-    const request = JSON.parse(JSON.stringify(vm.runInContext('scheduleRequest()', context)))
+    const request = scheduleRequest(values, 'bot', schedule.timezone)
     const { id, ...input } = schedule
     assert.deepEqual(request, { ...input, name: '', enabled: true })
-    assert.match(vm.runInContext('scheduleDescription(schedule)', context), /おき/)
+    assert.match(scheduleDescription(schedule), /おき/)
   }
   for (const name of ['set_schedule', 'set_room_schedule']) {
     const schema = bellTeamTools.find(tool => tool.name === name).inputSchema

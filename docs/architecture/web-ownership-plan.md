@@ -2,7 +2,7 @@
 
 設計時の製品sourceは`56e46a5`（Webは基底546fと同bytes）。この文書は**次の実装設計**であり、現在の挙動は[会話Web](web-details.md)と[管理Web](web-management-details.md)。実装後に関数名と実窓口へ同期する。
 
-本branchではcomposer、avatar editor、会話画像cache、timelineを実装した。`conversation-composer.js:createConversationComposer`が`select/clear/addImages/send/update/showError`で会話別入力・添付・送信・回収欄を所有する。appは選択対象と受付後の一覧/履歴更新を渡す。`avatar-editor.js:createAvatarEditor`は既`reset/value/changed`と新`cancelRead`を公開し、画像読取世代を所有する。`message-images.js:createMessageImageCache`は`remember/load/get/failed/close`で項目別取得・URL・失敗を所有する。`conversation-timeline.js:createConversationTimeline`は`open/refresh/close/updateTarget/isBusy/updateStops`を公開し、ページ・queue・取得世代と行callbackを所有する。予定/補助表示と残るフォームは下記の設計に沿った実装が残る。図全体を現実装済みとはしない。
+本branchではcomposer、avatar editor、会話画像cache、timeline、予定editorを実装した。`conversation-composer.js:createConversationComposer`が`select/clear/addImages/send/update/showError`で会話別入力・添付・送信・回収欄を所有する。appは選択対象と受付後の一覧/履歴更新を渡す。`avatar-editor.js:createAvatarEditor`は既`reset/value/changed`と新`cancelRead`を公開し、画像読取世代を所有する。`message-images.js:createMessageImageCache`は`remember/load/get/failed/close`で項目別取得・URL・失敗を所有する。`conversation-timeline.js:createConversationTimeline`は`open/refresh/close/updateTarget/isBusy/updateStops`を公開し、ページ・queue・取得世代と行callbackを所有する。`schedule-editor.js:createScheduleEditor`の`open(target)`が予定の対象・編集・読取世代を所有し、`scheduleRequest/scheduleFormValues/scheduleDescription`が形式変換を担う。補助表示と残るフォームは下記の設計に沿った実装が残る。図全体を現実装済みとはしない。
 
 ## 画面で説明できる責任
 
@@ -29,7 +29,7 @@ flowchart TD
 | timeline（実装済み） | `createConversationTimeline` → `open/refresh/close/updateTarget/isBusy/updateStops` | open/refresh/older/queue/rerender/renderTail、Map/page/token/queue/stick、scroll/resize | queueの現在snapshotと読取結果。appに可変Mapを公開しない |
 | 会話行 | timeline module内の`renderItem/roomTimelineItem/renderQueueStatus` | 意味の違う秘密/質問/peer/message/queue表示 | Bot名等は`getBot(id)`、停止は`stopMember(id)`、avatar/formatは共通純粋処理 |
 | 会話画像（実装済み） | `createMessageImageCache` → `remember/load/get/failed/close` | imagePreviews/imageFailures、loadStoredMessageImages | 項目IDのURLと読取完了。会話選択や入力欄を操作しない |
-| 予定editor | `createScheduleEditor` → `open(target)` | 全schedule関数、editingSchedule、対象snapshot、一覧の読取世代 | 保存/実行/削除の結果。現在の会話選択を内部から読まない |
+| 予定editor（実装済み） | `createScheduleEditor` → `open(target)` | 全schedule関数、editingSchedule、対象snapshot、一覧の読取世代 | 保存/実行/削除の結果。現在の会話選択を内部から読まない |
 | avatar editor | `createAvatarEditor`の既窓口＋`cancelRead` | 既3instanceのclosureを`avatar-editor.js`へ。reset/value/changedを保持 | 確定avatar値だけ。台帳・会話を読まない |
 | 記憶表示 | `createMemoryView` → `open(bot)` | openMemoryDialog/remember/recall/knowledge/renderMemoryResults | 明示targetとscopeでAPIを呼ぶ。Bot編集のeditingBotを参照しない |
 | 読取補助 | screenとcharacter-sheetの各小closure | 開いたBot、timer/読取世代、URL集合 | closeで資源解放。台帳の更新やnative起動はしない |
@@ -181,3 +181,5 @@ composerの局所6試験は受付後表示失敗、別target、新入力/旧入�
 会話画像cacheは同ID取得の共有、後着保存画像から新送信previewの上書き防止、複数画像の部分失敗、closeと途中完了のURL一回解放を局所確認した。cache関連/HTTPのrun35pass、close競合追加後のcache4pass。差替え前の画像はviewerが使っている可能性があるためpage exitまでcacheがURLを所有する。pagehideのpersisted時はBFCache復帰に備えて解放しない。
 
 timelineはappから可変Mapを外し、取得対象とページ/queue/世代をclosureへ移した。初期本文をqueueより先に表示、古いqueue/履歴/質問callbackと同対象の古いrefreshを無視、過去ページの旧finallyから新取得を解除しないことを実module局所試験で確認。before重複除去とscroll差を保持。共通表示関数8個はview-format.jsへ既定義を移した。履歴GET失敗をviewへ表示し、SSE上の表示更新失敗も接続失敗へ伝播しない。最終timeline/SSE10pass、HTTP/既avatar等38passは別runで重複あり。実全Web＋人工APIの入力/回収例も再確認した。
+
+予定editorは対象snapshot、一覧の読取世代、保存中の入力変更と編集切替、保存受付後のGET失敗を分けた。row操作は描画時の対象を保持。旧一覧表示と間隔設定の文字列抜出し試験を公開moduleへ移し、既検証を維持。関連run44pass、別schedule局所7pass（重複あり）。実dialog DOMの人工API確認で、A保存後B再open/新入力保全、保存済み＋GET失敗、room targets/command除外を確認した。
