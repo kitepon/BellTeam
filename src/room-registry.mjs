@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { watch } from 'node:fs'
-import { appendFile, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises'
+import { appendFile, chmod, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
 import { exists, normalizeSchedule, scheduleDocument, validateAvatar, writeAtomic } from './bot-registry.mjs'
@@ -23,7 +23,10 @@ export class RoomRegistry extends Map {
   }
 
   async initialize() {
-    await mkdir(this.roomsRoot, { recursive: true })
+    await mkdir(this.roomsRoot, { recursive: true, mode: 0o700 })
+    for (const entry of await readdir(this.roomsRoot, { withFileTypes: true })) {
+      if (entry.isDirectory() && ROOM_ID.test(entry.name)) await chmod(this.roomPath(entry.name), 0o700)
+    }
     return this.refresh()
   }
 
@@ -55,7 +58,7 @@ export class RoomRegistry extends Map {
     validateId(id)
     const room = normalizeRoom({ ...input, id }, this.bots)
     const root = this.roomPath(id)
-    await mkdir(root, { recursive: true })
+    await mkdir(root, { recursive: true, mode: 0o700 })
     await writeAtomic(join(root, 'room.json'), { schema: 'bellteam.room.v1', ...room })
     await writeAtomic(join(root, 'schedule.json'), scheduleDocument([]))
     await this.refresh()

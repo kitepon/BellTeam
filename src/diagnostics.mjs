@@ -1,8 +1,9 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { dirname } from 'node:path'
 import { diagnosticReportContext } from './diagnostic-report-context.mjs'
+import { writeAtomic } from './bot-registry.mjs'
 
 // 通信の失敗は、エラーの種類や回数だけでは重大度も責任のある箇所も決まらない（ServerManagerの bughub/NETWORK_REPORTING.md）。
 // 3つ目がtrueの報告は、送信元（アプリ）が実害と復帰の可否から付けた `severity` を使い、重大度ごとに別の行にする。
@@ -53,6 +54,7 @@ export class Diagnostics {
 
   async initialize() {
     try {
+      await chmod(this.file, 0o600)
       for (const row of JSON.parse(await readFile(this.file, 'utf8'))) this.rows.set(row.fingerprint, row)
     } catch (error) {
       if (error.code !== 'ENOENT') throw error
@@ -167,9 +169,7 @@ export class Diagnostics {
 
   async save() {
     await mkdir(dirname(this.file), { recursive: true })
-    const temporary = `${this.file}.tmp`
-    await writeFile(temporary, JSON.stringify([...this.rows.values()]))
-    await rename(temporary, this.file)
+    await writeAtomic(this.file, [...this.rows.values()])
   }
 }
 
