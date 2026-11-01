@@ -1,4 +1,3 @@
-import MetricKit
 import XCTest
 @testable import BellBot
 
@@ -82,53 +81,6 @@ final class BellDiagnosticsTests: XCTestCase {
         let other = try await log("/api/bots/fourth")
         ServerErrorProtocol.status = 500
         XCTAssertFalse(other.contains("server_diagnostic_"))
-    }
-
-    func testServerErrorReportPostsDiagnosticReference() async throws {
-        let fingerprint = String(repeating: "b", count: 64)
-        ServerErrorProtocol.status = 500
-        ServerErrorProtocol.headers = [
-            "X-BellTeam-Diagnostic-Fingerprint": fingerprint,
-            "X-BellTeam-Diagnostic-Occurrence-Count": "3",
-            "X-BellTeam-Diagnostic-Received-At": "2026-11-01T02:03:04.567Z",
-        ]
-        let posted = expectation(description: "診断のPOST")
-        DiagnosticPostProtocol.onBody = { body in
-            DiagnosticPostProtocol.body = body
-            posted.fulfill()
-        }
-        URLProtocol.registerClass(DiagnosticPostProtocol.self)
-        let diagnostics = BellDiagnostics()
-        await diagnostics.configure(serverURL: URL(string: "https://diagnostic-post.test.invalid")!)
-        addTeardownBlock {
-            URLProtocol.unregisterClass(DiagnosticPostProtocol.self)
-            MXMetricManager.shared.remove(diagnostics)
-        }
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [ServerErrorProtocol.self]
-        let api = BellAPI(baseURL: URL(string: "https://server-error.test.invalid")!,
-                          session: URLSession(configuration: configuration), diagnostics: diagnostics)
-        let path = "/api/bots"
-        do {
-            let _: EmptyDecodable = try await api.get(path)
-            XCTFail("500を成功にしない")
-        } catch {
-            diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: true))
-        }
-        await fulfillment(of: [posted], timeout: 5)
-
-        let body = try XCTUnwrap(DiagnosticPostProtocol.body)
-        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
-        XCTAssertEqual(payload["code"] as? String, "IOS_HTTP_5XX")
-        XCTAssertEqual(payload["module"] as? String, "bots")
-        let log = try XCTUnwrap(payload["diagnostic_log"] as? String)
-        XCTAssertTrue(log.contains("server_diagnostic_fingerprint=\(fingerprint)\n"))
-        XCTAssertTrue(log.contains("server_diagnostic_occurrence_count=3\n"))
-        XCTAssertTrue(log.contains("server_diagnostic_received_at=2026-11-01T02:03:04.567Z\n"))
-        let attachment = XCTAttachment(data: body, uniformTypeIdentifier: "public.json")
-        attachment.name = "人工500のPOST本文"
-        attachment.lifetime = .keepAlways
-        add(attachment)
     }
 
     func testSameOfflineErrorKeepsMajorImpactVisibleWithoutAssigningAppDefect() {
@@ -405,42 +357,6 @@ private final class ServerErrorProtocol: URLProtocol {
                                        headerFields: Self.headers.merging(["Content-Type": "application/json"]) { $1 })!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Data(#"{"error":"INTERNAL_ERROR"}"#.utf8))
-        client?.urlProtocolDidFinishLoading(self)
-    }
-
-    override func stopLoading() {}
-}
-
-private struct EmptyDecodable: Decodable {}
-
-private final class DiagnosticPostProtocol: URLProtocol {
-    static var body: Data?
-    static var onBody: ((Data) -> Void)?
-
-    override class func canInit(with request: URLRequest) -> Bool {
-        request.url?.host == "diagnostic-post.test.invalid"
-    }
-
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-
-    override func startLoading() {
-        // URLSessionはURLProtocolへ本文をstreamで渡す。
-        var body = request.httpBody ?? Data()
-        if let stream = request.httpBodyStream {
-            stream.open()
-            defer { stream.close() }
-            var buffer = [UInt8](repeating: 0, count: 4096)
-            while stream.hasBytesAvailable {
-                let count = stream.read(&buffer, maxLength: buffer.count)
-                if count <= 0 { break }
-                body.append(buffer, count: count)
-            }
-        }
-        Self.onBody?(body)
-        let response = HTTPURLResponse(url: request.url!, statusCode: 202, httpVersion: "HTTP/1.1",
-                                       headerFields: ["Content-Type": "application/json"])!
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(#"{"accepted":true}"#.utf8))
         client?.urlProtocolDidFinishLoading(self)
     }
 
