@@ -90,6 +90,11 @@ export class AitermClient {
       // 起動の準備が終わらなかった時、Aitermは作った端末の名前と止まった理由を構造で返す（aiterm.agent-launch-result.v1）。
       if (name === 'agent_launch' && result.structuredContent?.schema === 'aiterm.agent-launch-result.v1')
         error.launch = result.structuredContent
+      if (name === 'pty_send' && ['STEER_NOT_QUEUED', 'STEER_STILL_QUEUED'].some(code =>
+        message.startsWith(`aiterm: ${code} vendor=`))) {
+        error.code = 'BOT_SEND_OUTCOME_UNKNOWN'
+        error.publicMessage = 'メッセージを受け付けたか確認できません。重複送信を避けるため、会話を確認してから再送してください。'
+      }
       // Aitermが未送信を明示した入力受付の拒否は、その席の状態との衝突。
       // その他の送信失敗や受付後の不明な結果まで成功・未送信と決めない。
       if (name === 'pty_send'

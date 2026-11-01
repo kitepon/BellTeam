@@ -701,6 +701,8 @@ export class AitermTransport {
         result = await this.sendToSession(session, message, imageFiles)
       } catch (error) {
         check()
+        // 入力後の不明な結果は、席が消えていても起こし直して再送しない。
+        if (error.code === 'BOT_SEND_OUTCOME_UNKNOWN') throw error
         const running = await this.isRunning(bot)
         check()
         if (running && error.code !== 'AGENT_SESSION_REQUIRED') throw error
