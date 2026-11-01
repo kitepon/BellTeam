@@ -1273,3 +1273,36 @@ calls. The fixture now observes the real dedicated maintenance invocation and
 reads the captured normal file; dotenv separators, normal settings, selected
 raw image, dedicated-only services and missing-input refusals stay asserted.
 The installer product bytes are unchanged by this fixture correction.
+
+
+### 2026-11-01: observe the real UNIX listener before native clients
+
+The existing transaction endpoint now makes a bounded AF_UNIX connection and
+reads SO_PEERCRED before returning the endpoint to Writer/Prepare. No Docker
+application request is sent. The listener PID/UID/GID must match the existing
+transaction owner; the root-only production context therefore requires root.
+The listener's /proc birth, all four UID/GID values, executed inode/path and
+mount/PID/user namespace identities are recorded and rechecked by the existing
+transaction check. The executable must be root owned and not group/world
+writable. A dead or changed executable/identity refuses later work. Missing or
+non-listening sockets cannot reach the existing native-client dispatch.
+
+This records the kernel listener of the probe connection; it does not attest
+the Docker protocol, prove the native CLI's separate connection or establish
+the initial Host/ancestor/mount and whole-writer authority. Socket activation
+may identify the listening service manager, not dockerd. Existing hostAuthority
+flags remain false and no phase is marked verified by this observation. The
+production factory, its six complete phase producers and durable recovery are
+still missing; the whole PR remains NOTDEPLOYABLE and is not deployed.
+
+Five ordinary-user fixtures use real AF_UNIX listeners and kernel/proc data:
+a root-owned Python executable, a bound non-listening pathname, a seat-owned
+executable, peer exit and same-PID exec to sleep. The final same test bytes fail
+against the previous product and pass after this change. Existing fake-Docker
+fixtures explicitly stub only this new probe with no peer claim; their old
+protocol evidence is not promoted to kernel-peer evidence. No real Host,
+Docker daemon, namespace change, credential change or production operation is
+performed.
+
+References: [unix(7)](https://man7.org/linux/man-pages/man7/unix.7.html) and
+[proc_pid_exe(5)](https://man7.org/linux/man-pages/man5/proc_pid_exe.5.html).

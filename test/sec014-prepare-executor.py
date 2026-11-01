@@ -64,7 +64,8 @@ class PrepareTests(unittest.TestCase):
                   'st_size','st_mtime_ns','st_ctime_ns')
             tx._writer_image_original=dict(output=output,sha256=digest,
                 file=dict(sha256=digest,metadata=tuple(getattr(info,key) for key in keys)))
-            yield tx
+            with patch.object(type(tx),'_docker_peer',return_value=None):
+                yield tx
 
     def inspector(self):
         name=p.actor.prepare_name(self.tx)

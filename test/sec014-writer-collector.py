@@ -21,6 +21,8 @@ h = importlib.util.module_from_spec(spec); spec.loader.exec_module(h)
 class WriterCollector(h.HeldWriterConfig):
     def setUp(self):
         super().setUp()
+        peer=patch.object(h.g.c._Transaction,'_docker_peer',return_value=None)
+        peer.start();self.addCleanup(peer.stop)
         self.socket_path=self.root/'docker.sock'
         self.socket=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
         self.addCleanup(self.socket.close)

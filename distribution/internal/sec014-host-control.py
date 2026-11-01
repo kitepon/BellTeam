@@ -1,4 +1,4 @@
-"""SEC014 host lock/journal component. No Docker, installer or CLI entry yet."""
+"""SEC014 host lock/journal and kernel peer observation. No installer/CLI entry."""
 
 from contextlib import contextmanager
 import errno
@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 import re
 import stat
+import socket
+import struct
 import tempfile
 
 
@@ -241,6 +243,7 @@ class _Transaction:
         self.parent_identity = _identity(os.fstat(parent))
         self.lock_identity = _identity(os.fstat(lock))
         self._docker_socket_original = None
+        self._docker_peer_original = None
         self._writer_image_original = None
         self._prepare_originals = []
         self.name = 'transaction-' + direction + '.json'
@@ -270,6 +273,10 @@ class _Transaction:
             raise ControlError('SEC014_CONTROL_IDENTITY_CHANGED')
         if self._docker_socket_original is not None:
             self._socket_observation()
+        if self._docker_peer_original is not None:
+            peer = self._docker_peer_original
+            if self._docker_peer_process(peer['pid']) != peer['process']:
+                raise ControlError('SEC014_CONTROL_DOCKER_PEER_CHANGED')
         if self._writer_image_original is not None:
             facts={}
             saved=_saved(self.parent,self.value['direction']+'-writer-image.output.json',self.owner,facts=facts)
@@ -342,12 +349,64 @@ class _Transaction:
             if named is not None:os.close(named)
             os.close(fd)
 
+    def _docker_peer_process(self, pid):
+        try:
+            proc = Path('/proc')/str(pid)
+            before = int((proc/'stat').read_text().rsplit(') ', 1)[1].split()[19])
+            executable = os.readlink(proc/'exe')
+            info = os.stat(proc/'exe')
+            linked = os.stat(executable)
+            fields = ('st_dev', 'st_ino', 'st_uid', 'st_gid', 'st_mode', 'st_nlink', 'st_size', 'st_mtime_ns', 'st_ctime_ns')
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0
+                    or info.st_mode & 0o022 or info.st_nlink < 1
+                    or tuple(getattr(info, key) for key in fields) != tuple(getattr(linked, key) for key in fields)):
+                raise ControlError('SEC014_CONTROL_DOCKER_PEER_EXECUTABLE')
+            status = (proc/'status').read_text()
+            credentials = {}
+            for label, expected in (('Uid', self.owner[0]), ('Gid', self.owner[1])):
+                row = re.search(r'^'+label+r':\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)$', status, re.M)
+                if row is None or any(int(value) != expected for value in row.groups()):
+                    raise ControlError('SEC014_CONTROL_DOCKER_PEER_IDENTITY')
+                credentials[label] = tuple(map(int, row.groups()))
+            namespaces = {}
+            for kind in ('mnt', 'pid', 'user'):
+                observed = _identity(os.stat(proc/'ns'/kind))
+                if observed != _identity(os.stat('/proc/thread-self/ns/'+kind)):
+                    raise ControlError('SEC014_CONTROL_DOCKER_PEER_NAMESPACE')
+                namespaces[kind] = observed
+            after = int((proc/'stat').read_text().rsplit(') ', 1)[1].split()[19])
+            if (before != after or os.readlink(proc/'exe') != executable
+                    or tuple(getattr(os.stat(proc/'exe'), key) for key in fields) != tuple(getattr(info, key) for key in fields)
+                    or (proc/'status').read_text().split('Uid:',1)[1].splitlines()[0] != status.split('Uid:',1)[1].splitlines()[0]
+                    or (proc/'status').read_text().split('Gid:',1)[1].splitlines()[0] != status.split('Gid:',1)[1].splitlines()[0]):
+                raise ControlError('SEC014_CONTROL_DOCKER_PEER_CHANGED')
+            return dict(startTicks=before, executable=dict(path=executable,
+                metadata=tuple(getattr(info, key) for key in fields)), credentials=credentials, namespaces=namespaces)
+        except (OSError, ValueError, IndexError) as error:
+            raise ControlError('SEC014_CONTROL_DOCKER_PEER_UNCONFIRMED') from error
+
+    def _docker_peer(self):
+        # Probe listener credentials; the native CLI uses a separate connection.
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+            connection.settimeout(1)
+            connection.connect(str(self._docker_socket_path))
+            pid, uid, gid = struct.unpack('3i', connection.getsockopt(socket.SOL_SOCKET,
+                socket.SO_PEERCRED, struct.calcsize('3i')))
+            if pid <= 0 or (uid, gid) != self.owner:
+                raise ControlError('SEC014_CONTROL_DOCKER_PEER_IDENTITY')
+            process = self._docker_peer_process(pid)
+        return dict(pid=pid, uid=uid, gid=gid, process=process)
+
     def _docker_endpoint(self):
         self.check()
         value=self._socket_observation()
+        peer=self._docker_peer()
         if self._docker_socket_original is None:self._docker_socket_original=dict(value)
+        if self._docker_peer_original is None:self._docker_peer_original=peer
+        if peer != self._docker_peer_original:
+            raise ControlError('SEC014_CONTROL_DOCKER_PEER_CHANGED')
         self.check()
-        return value
+        return dict(value, peer=peer)
 
     def _writer_config(self):
         models = {}
