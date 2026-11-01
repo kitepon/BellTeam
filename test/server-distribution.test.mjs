@@ -21,6 +21,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
     'scripts/seat-exec.c', 'scripts/server-start.c',
     'scripts/assert-state-writers-stopped.sh',
+    'scripts/install-sce-headers.py',
     'runtime/home/auth.json', '.env', 'config/bots.json', 'services/subscriptions/keys/private.p8',
     'distribution/server/bridge/bridge.env',
   ]
@@ -48,6 +49,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   assert.ok(!pathsInArchive.includes('bridge/bridge.env'), '利用者のBridge認証設定は配布しない')
   for (const path of ['compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh']) assert.ok(pathsInArchive.includes(path))
   for (const path of ['scripts/seat-exec.c', 'scripts/server-start.c']) assert.ok(pathsInArchive.includes(path))
+  assert.ok(pathsInArchive.includes('scripts/install-sce-headers.py'))
   assert.ok(!pathsInArchive.includes('config/models.json'), 'モデル候補は導入先CLIから取得し古い一覧を同梱しない')
   assert.deepEqual(JSON.parse(await readFile(join(output, 'config/bots.json'), 'utf8')).bots, [])
   for (const path of ['.env', 'runtime/home/auth.json', 'services/subscriptions/keys/private.p8']) assert.ok(!pathsInArchive.includes(path))
