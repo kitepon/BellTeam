@@ -32,6 +32,7 @@ test('秘密の値は保護されたファイルだけに保存され、状態�
   const value = '  dummy-secret-\n日本語のパスワード  '
   const result = await service.submit(request.id, value)
   assert.equal(result.status, 'submitted')
+  assert.equal(result.path, join(root, 'state/secret-values/example/secrets', request.id))
   assert.equal(result.notification, 'sent')
   assert.equal(await readFile(result.path, 'utf8'), value)
   assert.equal((await stat(result.path)).mode & 0o777, 0o600)
@@ -93,7 +94,7 @@ test('依頼したBotは未入力の自分の依頼を取り下げられ、本�
   assert.ok(events.length > before)
   // 画面のカードは、オーナーの取消と同じ「取消」になる。秘密のファイルは作らない。
   assert.equal(service.timeline({ botId: 'bot-a' })[0].secret_request.status, 'cancelled')
-  await assert.rejects(readdir(join(root, 'shared/tools/example/secrets')), /ENOENT/u)
+  await assert.rejects(readdir(join(root, 'state/secret-values/example/secrets')), /ENOENT/u)
   // 取り下げた後と、入力済みの依頼は、取り下げも入力もできない。
   await assert.rejects(service.withdraw(request.id, 'bot-a'), /SECRET_REQUEST_CLOSED/u)
   await assert.rejects(service.submit(request.id, 'late'), /SECRET_REQUEST_CLOSED/u)
@@ -212,4 +213,23 @@ test('HTTP認証・HTTPS・専用入力経路・SSE・一覧・診断に秘密�
   assert.ok(!JSON.stringify(reports).includes(value))
   assert.ok(!(await readFile(join(root, 'diagnostics.json'), 'utf8')).includes(value))
   service.submit = submit
+})
+
+// SEC014では共有ツールの親は本体の書込み対象ではない。
+test('共有ツールの親が利用不能でも秘密入力を保存し、旧保存先は保持する', async t => {
+  const { service, root, bots, rooms } = await fixture(t)
+  const legacyPath = join(root, 'shared/tools')
+  const { writeFile, mkdir } = await import('node:fs/promises')
+  await mkdir(join(root, 'shared'))
+  await writeFile(legacyPath, 'legacy-sentinel')
+  const request = await service.create(input)
+  const result = await service.submit(request.id, 'dummy-private')
+  assert.equal(await readFile(legacyPath, 'utf8'), 'legacy-sentinel')
+  assert.equal(await readFile(result.path, 'utf8'), 'dummy-private')
+  assert.equal((await stat(join(root, 'state/secret-values/example/secrets'))).mode & 0o777, 0o700)
+  const old = { ...result, path: '/legacy/unchanged', id: 'old-submitted' }
+  await service.save(old)
+  const restored = new SecretRequests({ root, bots, rooms, notify: () => {} })
+  await restored.initialize()
+  assert.equal(restored.get(old.id).path, old.path)
 })
