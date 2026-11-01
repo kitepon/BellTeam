@@ -39,3 +39,14 @@ test('writer input: matching current and maintenance remain metadata only; norma
   delete c.services['state-maintenance']
   assert.equal(writerSnapshotPlan(c, image, imageId).phaseReceiptProduced, false)
 })
+
+
+test('writer input: local build uses its captured raw ID without inventing a registry ref', () => {
+  const plan = writerSnapshotPlan(config(), imageId, imageId)
+  assert.equal(plan.image, imageId)
+  assert.deepEqual(plan.imageArgv, ['/usr/bin/docker', 'image', 'inspect', '--format', '{{json .Id}}', imageId])
+  assert.equal(plan.phaseReceiptProduced, false)
+  assert.throws(() => writerSnapshotPlan(config(), 'sha256:' + 'c'.repeat(64), imageId))
+  for (const tag of ['latest', 'ghcr.io/kitepon/bellteam-server:latest', 'sha256:bad'])
+    assert.throws(() => writerSnapshotPlan(config(), tag, imageId))
+})

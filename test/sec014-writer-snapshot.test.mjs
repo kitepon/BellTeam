@@ -85,3 +85,11 @@ test('resolved fixed image ref must match selected raw ID before writer verifica
   const changed = blank(); changed.image.argv = [...imageArgv.slice(0,-1), 'latest']
   assert.throws(() => verifyWriterSnapshot(plan, changed))
 })
+
+
+test('raw selected image survives actual snapshot consumption and cannot change identity', () => {
+  const rawPlan = writerSnapshotPlan(config, plan.imageId, plan.imageId), bundle = blank()
+  bundle.image = terminal(rawPlan.imageArgv, JSON.stringify(rawPlan.imageId))
+  assert.equal(verifyWriterSnapshot(rawPlan, bundle).phaseReceiptProduced, false)
+  assert.throws(() => verifyWriterSnapshot({ ...rawPlan, image: 'sha256:' + 'c'.repeat(64) }, bundle))
+})

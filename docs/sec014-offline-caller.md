@@ -1319,3 +1319,26 @@ kernel endpoint, the existing actor._save_json, saved JSON equality and tx.check
 it fails against0855a47 with SEC014_ACTOR_RECEIPT_CHANGED and passes after the
 three-line representation fix. Fake-peer protocol fixtures cannot establish
 this result and remain a separate test scope.
+
+
+### Local-build image identity reaches the existing private executors
+
+The internal ordinary build path captures a raw Docker image ID, and saved
+normal/prepare models deliberately do not invent an immutable registry ref for
+it. Actor, Writer and Prepare previously required only the registry-ref form,
+so that supported caller input could not reach them. These existing consumers
+now also accept sha256 plus exactly64 lowercase hex characters. A raw selection
+must equal the captured raw image ID; mutable tags and other registries remain
+refused. Saved raw models use their existing image field, while selected
+immutable refs keep their existing exact-pair comparison and are not converted.
+
+The new saved-generation fixture runs through the existing Prepare's four
+native client slots and its receipt with the raw selection unchanged. A second
+case exercises the actual run_actor factory and all six phase inputs with the
+existing synthetic receipts, asserting the same raw ID throughout. The latter
+is only private API/lock/receipt routing, not actual six-phase production or Host
+authority evidence. A raw pair mismatch refuses before a native command. Node
+covers actual planner plus snapshot consumption, preserving metadata-only flags
+and refusing changed IDs and mutable tags. This fixes caller compatibility;
+production composite/caller, continuous writer ownership, public execution
+substrate and recovery still require completion. Whole NOTDEPLOYABLE remains.

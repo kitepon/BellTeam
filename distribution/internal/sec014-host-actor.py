@@ -104,7 +104,7 @@ def prepared_phase_receipt(tx, image, terminal, host_parent_proof):
     """Trusted executor input only; terminal producer/host authority remain separate."""
     name, argv = prepare_name(tx), prepare_argv(tx)
     if (type(image) is not str or not re.fullmatch(
-            r'ghcr\.io/kitepon/bellteam-server@sha256:[a-f0-9]{64}', image)
+            r'(?:ghcr\.io/kitepon/bellteam-server@)?sha256:[a-f0-9]{64}', image)
             or type(host_parent_proof) is not str
             or not re.fullmatch('[a-f0-9]{64}', host_parent_proof)
             or type(terminal) is not dict
@@ -142,7 +142,7 @@ def prepared_phase_receipt(tx, image, terminal, host_parent_proof):
 def _run(tx, image, executor):
     """Internal executor owns real verification; no arbitrary command/argv input."""
     if type(image) is not str or not re.fullmatch(
-            r'ghcr\.io/kitepon/bellteam-server@sha256:[a-f0-9]{64}', image):
+            r'(?:ghcr\.io/kitepon/bellteam-server@)?sha256:[a-f0-9]{64}', image):
         raise control.ControlError('SEC014_ACTOR_IMAGE')
     results = []
     methods = (executor.assert_writers_stopped, executor.prepare,
@@ -171,7 +171,7 @@ def _run(tx, image, executor):
 
 def run_actor(direction, image, executor_factory, *, saved_normal):
     if type(image) is not str or not re.fullmatch(
-            r'ghcr\.io/kitepon/bellteam-server@sha256:[a-f0-9]{64}', image):
+            r'(?:ghcr\.io/kitepon/bellteam-server@)?sha256:[a-f0-9]{64}', image):
         raise control.ControlError('SEC014_ACTOR_IMAGE')
     with control.host_control(direction, saved_normal=saved_normal) as tx:
         # Construct the executor only while this exact saved generation is held.

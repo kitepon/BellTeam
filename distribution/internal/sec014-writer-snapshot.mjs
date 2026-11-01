@@ -23,8 +23,9 @@ export function writerVolumeInspectArgv(volume) {
 }
 
 export function writerSnapshotPlan(config, image, imageId) {
-  if (typeof image !== 'string' || !/^ghcr\.io\/kitepon\/bellteam-server@sha256:[a-f0-9]{64}$/u.test(image)
-      || typeof imageId !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(imageId)) fail()
+  if (typeof image !== 'string' || !/^(?:ghcr\.io\/kitepon\/bellteam-server@)?sha256:[a-f0-9]{64}$/u.test(image)
+      || typeof imageId !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(imageId)
+      || image.startsWith('sha256:') && image !== imageId) fail()
   if (config?.services?.bellteam?.image !== imageId
       || (config?.services?.['state-maintenance'] !== undefined
         && config.services['state-maintenance']?.image !== imageId)) fail()
@@ -52,8 +53,9 @@ const rows = text => text.split('\n').filter(Boolean).map(line => JSON.parse(lin
 export function verifyWriterSnapshot(plan, bundle) {
   if (plan?.stage !== 'docker-writer-metadata-only' || plan.phaseReceiptProduced !== false
       || plan.maxDockerCommands !== 3 + MAX_VOLUMES
-      || typeof plan.image !== 'string' || !/^ghcr\.io\/kitepon\/bellteam-server@sha256:[a-f0-9]{64}$/u.test(plan.image)
+      || typeof plan.image !== 'string' || !/^(?:ghcr\.io\/kitepon\/bellteam-server@)?sha256:[a-f0-9]{64}$/u.test(plan.image)
       || typeof plan.imageId !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(plan.imageId)
+      || plan.image.startsWith('sha256:') && plan.image !== plan.imageId
       || JSON.stringify(plan.limits) !== JSON.stringify({ containers: MAX_CONTAINERS, volumes: MAX_VOLUMES, canonicalPaths: MAX_PATHS })
       || JSON.stringify(plan.listArgv) !== JSON.stringify(LIST) || !bundle) fail()
   const imageArgv = ['/usr/bin/docker', 'image', 'inspect', '--format', '{{json .Id}}', plan.image]

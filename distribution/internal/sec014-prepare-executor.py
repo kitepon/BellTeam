@@ -40,8 +40,9 @@ TEMPLATE = '{'+','.join('"'+k+'":{{json '+v+'}}' for k,v in FIELDS.items())+'}'
 class _Prepare:
     """Private current-owner tests inject paths/Popen; production has fixed paths."""
     def __init__(self, tx, image, image_id, deadline, window_end, host_check):
-        if (not isinstance(image,str) or not re.fullmatch(r'ghcr\.io/kitepon/bellteam-server@sha256:[a-f0-9]{64}',image)
+        if (not isinstance(image,str) or not re.fullmatch(r'(?:ghcr\.io/kitepon/bellteam-server@)?sha256:[a-f0-9]{64}',image)
                 or not isinstance(image_id,str) or not re.fullmatch('sha256:[a-f0-9]{64}',image_id)
+                or image.startswith('sha256:') and image != image_id
                 or type(deadline) not in (int,float) or not math.isfinite(deadline)
                 or not 2 < deadline-time.monotonic() <= 120 or not callable(host_check)
                 or not isinstance(window_end,datetime) or window_end.utcoffset() is None):
@@ -298,8 +299,8 @@ class _Prepare:
         normal = self.tx.value.get('normal')
         if normal is not None:
             prepare = normal.get('prepare', {})
-            if (normal.get('imageRef') != self.image or normal.get('image') != self.image_id
-                    or prepare.get('imageRef') != self.image or prepare.get('image') != self.image_id):
+            if (normal.get('imageRef', normal.get('image')) != self.image or normal.get('image') != self.image_id
+                    or prepare.get('imageRef', prepare.get('image')) != self.image or prepare.get('image') != self.image_id):
                 raise actor.control.ControlError('SEC014_PREPARE_IMAGE_PAIR')
             expected = dict(image=self.image_id, pull_policy='never', user='0:0',
                 entrypoint=['/usr/bin/env','-i','PATH=/usr/local/bin:/usr/bin:/bin','/usr/local/bin/node','/app/src/server-state-prepare.mjs'],
