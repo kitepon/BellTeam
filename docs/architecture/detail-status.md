@@ -14,13 +14,14 @@
 | 秘密入力・質問 | [利用支援](support-details.md)。作成/提出/取消/取下げ/回答/保存/通知/失敗とWebを接続 | 新しい実入力や故障注入はしていない。既存の状態差を保持 |
 | 初期設定・公式認証 | 同上。select/start/input/completeとrelogin/cancel、typed結果、Web入力とpoll | Aiterm内部/公式CLI内部は公開契約境界の外 |
 | 任意機能・push・購読・診断 | 同上。設定保存→適用→背景反映、端末別通知、外部検証、診断集約と処置 | 外部検証/通知サービス内部は展開しない。Goal診断の接続不一致は下記D3 |
-| メンバー/部屋台帳・予定 | [台帳詳細](registry-details.md)。正本/指示生成/稼働設定/削除/予定発行を確認 | 設定のnative反映と停止競合の全分岐は実行詳細へ接続が必要 |
-| Web会話 | [Web詳細](web-details.md)。選択/送信/履歴/queue/SSE/入力を接続 | Bot/room/予定/画像編集/Goal dialogの内部関数は継続確認 |
-| 直接/部屋配送・実行 | 既[会話図](conversation-flow.md)は再利用可能 | job/receipt/checkpoint/follower/画像finally/各復旧の全接続を詳細化 |
+| メンバー/部屋台帳・予定 | [台帳詳細](registry-details.md)。正本/指示生成/稼働設定/削除/予定発行を確認 | nativeへの反映と停止競合は[制御詳細](control-details.md)へ接続。D2の移動先と互換callerを実装前に確定 |
+| Web会話・管理 | [Web詳細](web-details.md)と[管理詳細](web-management-details.md)。選択/送信/履歴/queue/SSE/入力、Bot/room/予定/画像/Goalを接続 | D4/D5の新入力・旧失敗・編集対象の所有とUIでの回収方法は設計を詰める。現在の分岐と改善案を混ぜない |
+| 直接/部屋配送・実行 | [配送詳細](delivery-details.md)。job/receipt/checkpoint/follower/回答担当/画像finally/通常復旧と旧adapterを接続 | D7の小関数化の単位と既試験の対応を確定。通常構成のexecutionBridge=nullを保持 |
 | 記憶・知識 | [記憶詳細](memory-details.md)。台帳選択、scope、DB改訂/pin/成長、知識file/索引、検索/終了失敗を確認 | DB/保存形式の変更なし。検索時の索引更新を単なる読取と呼ばない |
-| 自主ターン/稼働/全停止/Goal | 主要図のみ | 監視の重複抑止・停止世代・履歴所有と公開receipt検証を対応付ける |
-| 起動/席実行/CLI登録 | [runtime詳細](runtime-details.md)。開始/終了、UID/short child、project/画像、CLI登録を確認 | 各hook adapterとnative長命実行の詳細は実行機能図へ接続が必要 |
-| 通常供給・backup/restore | 第一段の入口図 | installer/state transfer/volume保存・復元の分岐、失敗後に残るものを詳細化 |
+| 自主ターン/稼働/全停止/Goal | [観測詳細](observation-details.md)と[制御詳細](control-details.md)。cursor/重複抑止/停止世代/履歴/Goal receiptを対応付けた | sourceで区別した未知を試験済みにしない。D3は実行反例から局所修理へ |
+| 起動/席実行/CLI登録 | [runtime詳細](runtime-details.md)。開始/終了、UID/short child、project/画像、CLI/hook登録を確認 | native長命実行は配送詳細へ。独立製品の内部hook変更は不要 |
+| 通常供給・backup/restore | [供給詳細](distribution-details.md)。installer/state transfer/volume保存・復元、失敗後の保存世代を説明 | 本体全stateのbackupとimage/Cursor復元点を区別。今回再実行せず旧停止申請も復活させない |
+| 共通処理と外部窓口 | [境界詳細](boundary-details.md)。モデル一覧・通話・BugHub・HTTP診断と実importを接続 | D1/D2/D6の変更対象ごとにtest/fixture/互換exportを確認。索引だけで全call graphの証明にしない |
 
 調査の結果、現在分かっている範囲では内蔵独立製品の変更は必要ない。必要性が判明した場合だけ、その所有者と望む窓口・互換・移行を合わせる。本体の不備を外部へ押し出さない。
 
@@ -62,7 +63,34 @@ Bot/roomの`markScheduleRun`には同じrevision照合と次回更新がある�
 
 現`app.js`の一つのstateにはsetup/台帳/設定、編集中フォーム、会話選択、timeline索引/queue/page/token、画像preview/入力、既読が混在している。図では読取元と更新元を分けた。まずtimelineの取得・適用・表示を所有するまとまりを作り、選択のsnapshotと結果を渡す窓口を明確にする。
 
-分けるために全stateを別fileへ渡すだけの整理はしない。既存timelineToken/queueRequest、ページ順、スクロール保持、画像後読、入力保持は各責務に残す。Bot/room編集・予定編集・アバター編集の全callerを調べ、最小の関数群と依存を決めてから実装する。この段階では最終モジュール分割を決めていない。
+分けるために全stateを別fileへ渡すだけの整理はしない。既存timelineToken/queueRequest、ページ順、スクロール保持、画像後読、入力保持は各責務に残す。Bot/room編集・予定編集・アバター編集の関数は[管理詳細](web-management-details.md)へ対応付けた。次の単位は具体化している。
+
+- avatar editor：現3instanceの閉包と`reset/value/changed`を保つ。DOM/name/color等だけを受ける。decode中のreset/再選択の結果所有とURL解放を確認する。
+- schedule editor：開いた対象のtype/id/memberIdsとフォーム/一覧を所有する。会話の選択が変わってもAPI pathを変えない。run/deleteはその一覧の対象、timezoneとroom targetsは元契約を保持。
+- timeline：開いた会話とtoken、ページ/queue/画像の取得と適用を所有する。appは選択変更とSSEの意味を渡す。Goal/秘密/質問の既部品は再実装しない。
+
+送信中に別会話へ移った後の失敗した本文と、新しく書かれた本文を両方保持する具体的な回収方法は残設計。単に「上書きしない」だけで旧本文を消す修理にはしない。永続draft store・自動再送queueは追加しない。実装前に局所UI例で所有を確定する。
+
+### D6 純粋な返却判定を実行adapterから分ける
+
+`returnedExecutionError/ERROR_META`を使うAitermClient・HTTP・診断・停止報告が、旧実行登録adapter全体をimportしている。純粋な返却型と定数を小moduleへ移し、既ExecutionBridgeのexportは互換を保つ。codes/effect/follow_upの厳密な判定を緩めず、native入力の再試行条件を変更しない。ModelCatalog/組立てのAitermClientは既存client moduleへ直接接続する。
+
+変更対象は[境界詳細](boundary-details.md)に列挙した。client、execution bridge/error、HTTP/診断/stopの既存試験と互換importを確認する。旧bridgeを通常構成へ復活させたり、未使用parserを根拠なく削除したりしない。
+
+### D7 配送の一つの関数にある段階を名前で追えるようにする
+
+現`submit`はjob登録・入場・dispatch・receipt照合・follower・accepted・完了・回答・finallyを所有する。第一段では待機だけを`waitForTurnCompletion`へ抽出した。残りは[配送詳細](delivery-details.md)の表を正とし、受付後の同期follower決定、回答を出す担当の判定、回答取得、画像片付けを小関数にする。
+
+jobとaccepted/completionの二本のPromiseはsubmitが所有する。checkpoint/停止適用/running callbackの位置を動かさない。follower判定とjob.followsの間は同期処理、callback重複なし、借用画像削除なし。関数化でawaitを増やす必要がある案は採らない。旧adapterあり/なし、steerの追跡可否/配置、親job有無、読取失敗と片付け失敗の既反例を確認してから変更する。
+
+## 次の実装順と完了範囲
+
+1. **具体化済みの本体共通処理**：D1/D2/D6を、既契約を変えない直接接続と小関数へ。caller・test・fixture・exportを変更単位で照合し、関連試験だけ実行する。第一段の試験成績を今回の結果にしない。
+2. **実際の接続不一致**：D3を本物のDiagnosticsとの反例で確認して修理。以前の事故原因と結び付けず、Goalの未知結果は未知のまま返す。
+3. **画面と配送の所有**：D4/D5の残設計とD7の局所反例を確定した上で実装。前二項だけで全体リファクタ完了にしない。
+4. **図の最終整合**：実装後にAstraで現状図/関数表/残設計を揃え、描画・人への説明・必要全体試験一回・独立採否・通常候補へ。停止を伴う本番操作は別の既条件に従う。
+
+現状機能の各詳細は揃ってきたが、全callerの機械解析・全分岐実行を済ませた意味ではない。D4/D5/D7の設計と今回実装が残るため、全体完成とはしない。
 
 ## 保持するもの
 

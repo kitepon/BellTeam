@@ -86,4 +86,20 @@ flowchart TD
 
 全体指示はOwner/profile/rulesと製品規範、個別指示はBotのプロフィールと短期記憶という別の元データを持つ。CLI設定文書が変わったことと、既に起きているCLIが読み直したことを分ける。任意機能からの再設定は[利用支援](support-details.md)の背景反映へ接続する。
 
-実装：[application-runtime.mjs](../../src/application-runtime.mjs)、[bootstrap.mjs](../../src/bootstrap.mjs)、[seat-runtime.mjs](../../src/seat-runtime.mjs)、[harness-config.mjs](../../src/harness-config.mjs)。参照する確認先はapplication-runtime、seat-command/process/stream/stdio/memory、character-sheets、harness-config、bot-environment、runtime-home。各hook adapterとnative長命実行の詳細、通常installer/backupは別の残調査であり、この図だけで全体完了としない。
+## hookは所有する登録項目だけを更新する
+
+```mermaid
+flowchart TD
+  Config["configureHarnesses"] --> Throughline["Throughline公開install"]
+  Throughline --> RTK["RTK / testgateの管理項目を選ぶ"]
+  RTK --> Merge["既存hookの同じ位置へ登録<br/>他の項目を保持"]
+  Merge --> Trust["Codexだけ公式App Serverで<br/>対象handlerのhashを信頼"]
+  Throughline --> Aiterm["Aiterm同梱の公開登録関数"]
+  Aiterm --> Scope["同じnative scopeとprovider<br/>親配送hookへ結ぶ"]
+```
+
+`configureRtk → setGroupHook/addCursorHook/ownedCommands`は、自分のdirect/gated commandだけを同じ位置で置換する。二重の自分の登録はどちらかを勝手に削除せずエラー。`writeGrokHook/grokHookConfig`は既存Grok専用入口、`trustCodexHook`はhooks/listのsourcePath/key/currentHashに一致したhandlerだけをconfig/batchWriteし読戻す。`codexAppServer`は設定用stdio接続をfinallyで終了し、thread/turnを作らない。
+
+`aitermExecutionRegistration`はAitermの`localParentWorkerRuntime.scope`からstate root/socketを受け、BellTeam側で規則を複製しない。`configureAitermHooks`はnative登録ならその公開setup/argument parser、旧登録ならmergeClaudeParentHooks/mergeCursorParentHooks/ensureCodexParentSteerへ渡す。旧Codex登録の確認が一時的なCLI起動を含むことと、通常のBot起動を区別する。ここではいずれも実行していない。
+
+実装：[application-runtime.mjs](../../src/application-runtime.mjs)、[bootstrap.mjs](../../src/bootstrap.mjs)、[seat-runtime.mjs](../../src/seat-runtime.mjs)、[harness-config.mjs](../../src/harness-config.mjs)、[rtk-hooks.mjs](../../src/rtk-hooks.mjs)、[aiterm-hooks.mjs](../../src/aiterm-hooks.mjs)。参照する確認先はapplication-runtime、seat-command/process/stream/stdio/memory、character-sheets、harness-config、bot-environment、runtime-home、rtk-hooks、aiterm-hooks。native長命実行は[配送詳細](delivery-details.md)、通常installer/backupは[供給詳細](distribution-details.md)へ接続する。

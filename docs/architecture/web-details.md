@@ -108,4 +108,4 @@ Webの`refreshFromEvent`はsettings/setup/Goalの特定処理の後、loadBots�
 | Goal | `goalsView` | 選択Bot/一覧、native binding付き操作。独自Goal正本は持たない |
 | 書出し・設定画 | export button / `openCharacterSheetDialog` | 保存履歴export / character-sheet一覧とfile |
 
-この最後の表は接続の索引であり、全dialog内部の関数分割はまだ確定していない。会話周りのsource順序は確認したが、新しいGUI操作や通信失敗試験は行っていない。
+編集dialog・画像・Goalの内部関数と次の分割案は[Web管理詳細](web-management-details.md)に続く。新しいGUI操作や通信失敗試験は行っていない。

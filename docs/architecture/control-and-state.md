@@ -36,9 +36,9 @@ sequenceDiagram
   Admin->>Transport: configure / 必要な切替を依頼
   Transport-->>Admin: pending または反映結果
   Admin-->>Caller: 保存値とconfigurationApplication
-  Note over Registry,Transport: 進行中のターンがあれば、その後の反映となる
+  Note over Registry,Transport: 進行中ならターン終了後に反映
   Transport->>Transport: 必要な停止・設定適用・対応付け
-  Transport-->>Registry: accepted / failed 等を保存
+  Transport-->>Admin: 同じ適用要求のaccepted / failedを更新
 ```
 
 acceptedはCLI側の設定受付の根拠であり、モデルの内部動作を実測した意味ではない。設定だけを保存して反映済みとは扱わない。fastModeの既知未開始時の巻戻しと、失敗した同じ設定値を明示して再試行できる分岐を維持する。
