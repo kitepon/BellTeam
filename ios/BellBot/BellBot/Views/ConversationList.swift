@@ -6,6 +6,12 @@ enum ConversationRow: Hashable {
     case queue
 }
 
+/// 会話を開いた時の見せ方。比較のための切替で、決まったら片方だけ残す。
+enum ConversationOpening: String, CaseIterable {
+    case rise, fade
+    static let storageKey = "conversationOpening"
+}
+
 /// 会話の行をOS標準の表に載せる。行の高さは表が実測し、制御は「末尾にいる間は追従する」と
 /// 「過去を上へ足した分だけ位置をずらす」の2つだけに限る。
 struct ConversationList<RowContent: View>: UIViewRepresentable {
@@ -15,6 +21,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
     let loading: Bool
     let loadingOlder: Bool
     let bottomInset: CGFloat
+    let opening: ConversationOpening
     let scrollToBottomRevision: Int
     let onLoadOlder: () -> Void
     let onRefresh: () async -> Void
@@ -52,6 +59,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         coordinator.onLoadOlder = onLoadOlder
         coordinator.onRefresh = onRefresh
         coordinator.onAtBottomChange = onAtBottomChange
+        coordinator.opening = opening
         coordinator.hasMore = hasMore
         // 初回取得か読み足しが終わったら、表示域を埋める判定をやり直してよい。
         if (coordinator.loading && !loading) || (coordinator.loadingOlder && !loadingOlder) { coordinator.fillRequested = false }
@@ -71,6 +79,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         var onLoadOlder: (() -> Void)?
         var onRefresh: (() async -> Void)?
         var onAtBottomChange: ((Bool) -> Void)?
+        var opening = ConversationOpening.rise
         var hasMore = false
         var loading = false
         var loadingOlder = false
@@ -98,6 +107,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 return cell
             }
             table.onLayout = { [weak self] in self?.fillIfShort() }
+            table.onSettled = { [weak self] in self?.reveal() }
             #if targetEnvironment(macCatalyst)
             wheel = WheelScrollSmoother(scrollView: table, onStart: { [weak self] in self?.beginUserScroll() },
                                         onStop: { [weak self] in self?.settle() })
@@ -144,11 +154,9 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             if prepended { armed = true }
             if previous.isEmpty && !rows.isEmpty {
                 table.followsBottom = true
-                table.settling = true
-                UIView.performWithoutAnimation {
-                    table.layoutIfNeeded()
-                    table.pinToBottom()
-                }
+                table.beginSettling()
+                table.layoutIfNeeded()
+                table.pinToBottom()
             }
         }
 
@@ -157,6 +165,28 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             table.followsBottom = true
             table.setContentOffset(CGPoint(x: 0, y: table.bottomOffset), animated: animated)
             if !animated { settle() }
+        }
+
+        /// 最初の配置が落ち着いた後に、選んだ開き方で表を見せる。
+        private func reveal() {
+            guard let table else { return }
+            switch opening {
+            case .fade:
+                UIView.animate(withDuration: 0.25) { table.alpha = 1 }
+            case .rise:
+                let cells = (table.indexPathsForVisibleRows ?? []).sorted { $0.row > $1.row }.compactMap { table.cellForRow(at: $0) }
+                for cell in cells {
+                    cell.alpha = 0
+                    cell.transform = CGAffineTransform(translationX: 0, y: 24)
+                }
+                table.alpha = 1
+                for (order, cell) in cells.enumerated() {
+                    UIView.animate(withDuration: 0.28, delay: 0.035 * Double(order), options: .curveEaseOut) {
+                        cell.alpha = 1
+                        cell.transform = .identity
+                    }
+                }
+            }
         }
 
         @objc func refresh(_ control: UIRefreshControl) {
@@ -256,10 +286,53 @@ final class ConversationCell: UITableViewCell {
 /// 末尾追従と幅変更時の読書位置だけを持つ表。
 final class ConversationTableView: UITableView {
     var followsBottom = true
-    /// 最初の行が入ってから、末尾で位置が落ち着くまで。この間は行の高さの確定を描かない。
-    var settling = false
+    /// 最初の行が入ってから、末尾で位置が落ち着くまで。この間は表を見せず、行の高さの確定も描かない。
+    private(set) var settling = false
     var onLayout: (() -> Void)?
+    var onSettled: (() -> Void)?
     private var layoutWidth: CGFloat = 0
+    private var settleChecks = 0
+    private var settleDeadline: DispatchWorkItem?
+
+    deinit {
+        // 落ち着く前に会話を閉じても、アプリ全体のアニメーションを止めたままにしない。
+        if settling { UIView.setAnimationsEnabled(true) }
+    }
+
+    func beginSettling() {
+        guard !settling else { return }
+        settling = true
+        settleChecks = 0
+        alpha = 0
+        UIView.setAnimationsEnabled(false)
+        // 画像の読み込みなどで高さが変わり続けても、ここで必ず見せる。
+        let deadline = DispatchWorkItem { [weak self] in self?.finishSettling() }
+        settleDeadline = deadline
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: deadline)
+    }
+
+    private func finishSettling() {
+        guard settling else { return }
+        settling = false
+        settleDeadline?.cancel()
+        settleDeadline = nil
+        UIView.setAnimationsEnabled(true)
+        onSettled?()
+    }
+
+    /// 次の実行ループまで位置と高さが変わらなければ落ち着いたと見る。
+    private func scheduleSettleCheck() {
+        let offset = contentOffset.y, height = contentSize.height
+        settleChecks += 1
+        DispatchQueue.main.async { [weak self] in
+            guard let self, settling else { return }
+            if (abs(contentOffset.y - offset) <= 0.5 && abs(contentSize.height - height) <= 0.5) || settleChecks >= 5 {
+                finishSettling()
+            } else {
+                scheduleSettleCheck()
+            }
+        }
+    }
 
     var bottomOffset: CGFloat {
         max(-adjustedContentInset.top, contentSize.height + adjustedContentInset.bottom - bounds.height)
@@ -292,6 +365,7 @@ final class ConversationTableView: UITableView {
         }
         if settling {
             UIView.performWithoutAnimation { layoutFollowingBottom() }
+            if settleDeadline != nil && settleChecks == 0 { scheduleSettleCheck() }
         } else {
             layoutFollowingBottom()
         }
@@ -308,7 +382,7 @@ final class ConversationTableView: UITableView {
         for _ in 0..<3 {
             let before = contentOffset.y
             pinToBottom()
-            if abs(contentOffset.y - before) <= 0.5 { settling = false; return }
+            if abs(contentOffset.y - before) <= 0.5 { return }
             super.layoutSubviews()
         }
     }
