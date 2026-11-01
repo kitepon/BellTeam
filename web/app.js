@@ -1,3 +1,5 @@
+import { createMemoryView } from './memory-view.js?v=__ASSET_VERSION__'
+import { createScreenView, createCharacterSheetView } from './bot-read-views.js?v=__ASSET_VERSION__'
 import { createScheduleEditor } from './schedule-editor.js?v=__ASSET_VERSION__'
 import { createConversationTimeline } from './conversation-timeline.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, memberDisplay, formatTime, formatDateTime, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
@@ -90,14 +92,6 @@ const characterSheetDialog = document.querySelector('#character-sheet-dialog')
 const characterSheetList = document.querySelector('#character-sheet-list')
 const memoryButton = document.querySelector('#memory-button')
 const memoryDialog = document.querySelector('#memory-dialog')
-const memoryDialogTitle = document.querySelector('#memory-dialog-title')
-const rememberForm = document.querySelector('#remember-form')
-const recallForm = document.querySelector('#recall-form')
-const knowledgeForm = document.querySelector('#knowledge-form')
-const knowledgeSearchForm = document.querySelector('#knowledge-search-form')
-const memoryResults = document.querySelector('#memory-results')
-const knowledgeResults = document.querySelector('#knowledge-results')
-const memoryFormError = document.querySelector('#memory-form-error')
 const scheduleDialog = document.querySelector('#schedule-dialog')
 const actionDialog = document.querySelector('#action-dialog')
 const roomDialog = document.querySelector('#room-dialog')
@@ -127,7 +121,6 @@ const state = {
   bots: [],
   rooms: [],
   models: {},
-  screenTimer: null,
   avatarColors: new Map(),
   selected: null,
   selectedType: null,
@@ -163,6 +156,10 @@ const conversationComposer = createConversationComposer({
     if (results.some(result => result.status === 'rejected' || result.value === false)) throw new Error('DISPLAY_REFRESH_FAILED')
   },
 })
+
+const memoryView = createMemoryView(memoryDialog, { api })
+const characterSheets = createCharacterSheetView(characterSheetDialog, characterSheetList, { api })
+const screenView = createScreenView({ panel: screenPanel, status: screenStatus, text: screenText, header: document.querySelector('.chat-header'), api })
 
 const scheduleEditor = createScheduleEditor(scheduleDialog, { api, getBot: id => state.bots.find(bot => bot.id === id) })
 
@@ -234,38 +231,8 @@ document.querySelector('#export-button').addEventListener('click', async event =
 })
 characterSheetButton.addEventListener('click', openCharacterSheetDialog)
 
-// キャラクターシートは編集中のBotのプロジェクトから読む。画像は認証付きで取ってblob URLで表示する。
-async function openCharacterSheetDialog() {
-  const bot = state.editingBot
-  if (!bot) return
-  characterSheetList.replaceChildren()
-  characterSheetDialog.showModal()
-  try {
-    const { sheets } = await api(`/api/bots/${bot.id}/character-sheet`)
-    if (sheets.length === 0) {
-      const empty = document.createElement('p')
-      empty.className = 'character-sheet-note'
-      empty.textContent = 'まだ置かれていない。'
-      return characterSheetList.replaceChildren(empty)
-    }
-    for (const sheet of sheets) {
-      const figure = document.createElement('figure')
-      const image = document.createElement('img')
-      image.alt = sheet.file
-      const caption = document.createElement('figcaption')
-      caption.textContent = `${sheet.file}（${new Date(sheet.updatedAt).toLocaleString('ja-JP')}）`
-      figure.append(image, caption)
-      characterSheetList.append(figure)
-      const response = await fetch(sheet.url)
-      if (!response.ok) { const error = new Error(`HTTP_${response.status}`); error.status = response.status; throw error }
-      image.src = URL.createObjectURL(await response.blob())
-    }
-  } catch (error) {
-    const failed = document.createElement('p')
-    failed.className = 'form-error'
-    failed.textContent = `キャラクターシートを読めませんでした（${error.message}）`
-    characterSheetList.append(failed)
-  }
+function openCharacterSheetDialog() {
+  if (state.editingBot) return characterSheets.open(state.editingBot)
 }
 
 restartSessionButton.addEventListener('click', restartSelectedSession)
@@ -274,57 +241,16 @@ deleteRoomButton.addEventListener('click', deleteSelectedRoom)
 memoryButton.addEventListener('click', openMemoryDialog)
 document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => document.querySelector(`#${button.dataset.closeDialog}`).close()))
 botForm.addEventListener('submit', saveBot)
-rememberForm.addEventListener('submit', remember)
-recallForm.addEventListener('submit', recallMemory)
-knowledgeForm.addEventListener('submit', recordKnowledge)
-knowledgeSearchForm.addEventListener('submit', searchKnowledge)
 roomForm.addEventListener('submit', saveRoom)
 roomMembers.addEventListener('change', () => renderRoomRepresentativeOptions())
 screenButton.addEventListener('click', () => (screenPanel.hidden ? openScreen() : closeScreen()))
 document.querySelector('#screen-close').addEventListener('click', closeScreen)
 
-// Botの画面をそのまま見せる。動いているか止まっているかを人が判断するための面で、開いている間だけ2秒ごとに読む。
-async function openScreen() {
-  if (state.selectedType !== 'bot' || !state.selected) return
-  screenPanel.style.top = `${document.querySelector('.chat-header').offsetHeight}px`
-  screenPanel.hidden = false
-  await refreshScreen()
-  state.screenTimer = setInterval(refreshScreen, 2000)
+function openScreen() {
+  if (state.selectedType === 'bot' && state.selected) return screenView.open(state.selected)
 }
-// 端末は80桁固定なので、80桁がパネル幅に収まる文字サイズへ縮める（折り返さない）。
-const SCREEN_COLUMNS = 80
-function fitScreenFont(screen) {
-  const columns = Math.min(SCREEN_COLUMNS, Math.max(40, ...screen.split('\n').map(line => [...line].reduce((n, c) => n + (/[\u3000-\u9fff\uff00-\uffef]/u.test(c) ? 2 : 1), 0))))
-  const probe = document.createElement('span')
-  probe.textContent = '0'.repeat(columns)
-  probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;font:12px/1 ui-monospace,SFMono-Regular,Menlo,monospace'
-  document.body.append(probe)
-  const probeWidth = probe.getBoundingClientRect().width
-  probe.remove()
-  const available = screenText.clientWidth - 28
-  if (probeWidth > 0 && available > 0) screenText.style.fontSize = `${Math.min(12, 12 * available / probeWidth).toFixed(2)}px`
-}
-window.addEventListener('resize', () => { if (!screenPanel.hidden) fitScreenFont(screenText.textContent) })
+function closeScreen() { screenView.close() }
 
-function closeScreen() {
-  clearInterval(state.screenTimer)
-  state.screenTimer = null
-  screenPanel.hidden = true
-}
-async function refreshScreen() {
-  const bot = state.selected
-  if (!bot || state.selectedType !== 'bot') return closeScreen()
-  try {
-    const result = await api(`/api/bots/${bot.id}/screen`)
-    screenStatus.textContent = result.online ? `${bot.displayName} の画面 · 2秒ごとに更新` : `${bot.displayName} は停止中（次のメッセージで起動）`
-    const stick = screenText.scrollHeight - screenText.scrollTop - screenText.clientHeight < 24
-    screenText.textContent = result.screen.replace(/\s+$/u, '')
-    fitScreenFont(result.screen)
-    if (stick) screenText.scrollTop = screenText.scrollHeight
-  } catch {
-    screenStatus.textContent = '画面を読めませんでした'
-  }
-}
 attachmentButton.addEventListener('click', () => messageImage.click())
 messageImage.addEventListener('change', () => {
   conversationComposer.addImages([...messageImage.files])
@@ -549,7 +475,7 @@ async function selectBot(bot) {
   applyAvatar(headerAvatar, bot)
   editBotButton.disabled = false
   screenButton.hidden = false
-  if (!screenPanel.hidden) refreshScreen()
+  if (!screenPanel.hidden) void screenView.open(bot)
   markConversationRead('bot', bot)
   renderBots()
   await loadMessages(false)
@@ -802,91 +728,7 @@ function openMemoryDialog() {
   const bot = state.editingBot
   if (!bot) return
   botDialog.close()
-  rememberForm.reset()
-  recallForm.reset()
-  knowledgeForm.reset()
-  knowledgeSearchForm.reset()
-  memoryResults.replaceChildren()
-  knowledgeResults.replaceChildren()
-  memoryFormError.textContent = ''
-  memoryDialogTitle.textContent = `${bot.displayName}の記憶と知識`
-  memoryDialog.showModal()
-}
-
-async function remember(event) {
-  event.preventDefault()
-  memoryFormError.textContent = ''
-  try {
-    await api(`/api/bots/${state.editingBot.id}/memory`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        kind: document.querySelector('#remember-kind').value,
-        scope: document.querySelector('#remember-scope').value,
-        content: document.querySelector('#remember-content').value,
-      }),
-    })
-    document.querySelector('#remember-content').value = ''
-    memoryResults.textContent = '記憶しました。'
-  } catch (error) {
-    memoryFormError.textContent = `記憶できませんでした（${error.message}）`
-  }
-}
-
-async function recallMemory(event) {
-  event.preventDefault()
-  memoryFormError.textContent = ''
-  try {
-    const query = document.querySelector('#recall-query').value
-    const scope = document.querySelector('#recall-scope').value
-    const result = await api(`/api/bots/${state.editingBot.id}/memory?query=${encodeURIComponent(query)}&scope=${scope}`)
-    renderMemoryResults(memoryResults, result.items, item => `[${item.kind}] ${item.content}`)
-  } catch (error) {
-    memoryFormError.textContent = `検索できませんでした（${error.message}）`
-  }
-}
-
-async function recordKnowledge(event) {
-  event.preventDefault()
-  memoryFormError.textContent = ''
-  try {
-    await api(`/api/bots/${state.editingBot.id}/knowledge`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        scope: document.querySelector('#knowledge-scope').value,
-        title: document.querySelector('#knowledge-title').value,
-        content: document.querySelector('#knowledge-content').value,
-      }),
-    })
-    knowledgeForm.reset()
-    knowledgeResults.textContent = '知識を保存しました。'
-  } catch (error) {
-    memoryFormError.textContent = `保存できませんでした（${error.message}）`
-  }
-}
-
-async function searchKnowledge(event) {
-  event.preventDefault()
-  memoryFormError.textContent = ''
-  try {
-    const query = document.querySelector('#knowledge-query').value
-    const scope = document.querySelector('#knowledge-search-scope').value
-    const result = await api(`/api/bots/${state.editingBot.id}/knowledge?query=${encodeURIComponent(query)}&scope=${scope}`)
-    renderMemoryResults(knowledgeResults, result.items, item => `${item.title}\n${item.excerpt}`)
-  } catch (error) {
-    memoryFormError.textContent = `検索できませんでした（${error.message}）`
-  }
-}
-
-function renderMemoryResults(container, items, format) {
-  if (items.length === 0) {
-    container.textContent = '見つかりませんでした。'
-    return
-  }
-  container.replaceChildren(...items.map(item => {
-    const row = document.createElement('article')
-    row.textContent = format(item)
-    return row
-  }))
+  memoryView.open(bot)
 }
 
 function openRoomDialog(room = null) {

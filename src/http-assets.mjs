@@ -69,6 +69,8 @@ export async function staticFile(response, root, pathname, assetVersion) {
     ['/conversation-timeline.js', 'conversation-timeline.js'],
     ['/view-format.js', 'view-format.js'],
     ['/schedule-editor.js', 'schedule-editor.js'],
+    ['/bot-read-views.js', 'bot-read-views.js'],
+    ['/memory-view.js', 'memory-view.js'],
     ['/member-stop.js', 'member-stop.js'],
     ['/ai-control.js', 'ai-control.js'],
     ['/goals.js', 'goals.js'],
