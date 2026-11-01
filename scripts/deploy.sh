@@ -104,7 +104,7 @@ try {
 }catch{console.error('BELLTEAM_ORIGINAL_CONFIG_UNAVAILABLE',saved??'');process.exitCode=1}
 NODE
 )
-git merge -q --ff-only origin/main >&2
+(umask 022; git merge -q --ff-only origin/main >&2)
 test "$(git rev-parse HEAD)" = "$1"
 git log --oneline -1 >&2
 printf '%s\n' "$previous"
