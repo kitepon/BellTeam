@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")/.."
 repo=$(pwd)
 : "${BELLTEAM_SERVER_IMAGE:?受入imageを指定してください}"
-: "${BELLTEAM_DEPLOY_QUIET_EXCEPT:?quiet対象Botを指定してください}"
+quiet_except=${BELLTEAM_DEPLOY_QUIET_EXCEPT:-}
 export COMPOSE_FILE="$repo/distribution/server/compose.yaml:$repo/distribution/internal/compose.overlay.yaml"
 export COMPOSE_PROJECT_NAME=bellteam
 export BELLTEAM_INTERNAL_PROFILE_FILE="$repo/src/distribution-profile.mjs"
@@ -33,8 +33,10 @@ for path in compose.cursor-update.yaml scripts/update-cursor.sh; do
     "$BELLTEAM_SERVER_IMAGE" "/app/$path" > "$staging/$path"
 done
 
-# 両地点の既存quietを旧本体で観測する。停止してquietを作らない。
-sh scripts/check-deploy-quiet.sh "$BELLTEAM_DEPLOY_QUIET_EXCEPT"
+# 両地点の既存quietを旧本体で観測する。停止してquietを作らない。quiet対象が空なら判定なし。
+quiet_check=:
+if [ -n "$quiet_except" ]; then quiet_check="sh scripts/check-deploy-quiet.sh $quiet_except"; fi
+$quiet_check
 sh "$staging/scripts/update-cursor.sh"
-sh scripts/check-deploy-quiet.sh "$BELLTEAM_DEPLOY_QUIET_EXCEPT"
+$quiet_check
 docker compose up -d --no-build --pull never
