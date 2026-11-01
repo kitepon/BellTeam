@@ -28,7 +28,7 @@ git push -q origin HEAD:main
 head="$(git rev-parse HEAD)"
 
 # 本番の作業ツリーに手直しがあれば取り込まずに止める（本番のBot台帳config/bots.jsonを含む）。
-previous=$(ssh "$host" "cd $dir && sudo -n /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8 /bin/sh -s $head" <<'REMOTE'
+previous=$(ssh "$host" "cd $dir && sudo -n /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=$dir /bin/sh -s $head" <<'REMOTE'
 set -eu
 umask 077
 docker_config=$(mktemp -d "$PWD/.bellteam-docker.XXXXXX")
