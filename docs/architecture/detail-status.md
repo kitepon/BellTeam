@@ -1,6 +1,6 @@
 # 機能図の詳細化と次の整理
 
-基準sourceは `546f232180515a2a8cd9098b943673170c49e3d4`。第一段PR245は主要14図と接続整理として統合済みだが、Ownerが求めた全体の機能分解は継続中。ここでは調査済みの接続と残る調査を区別する。D1/D2/D6とD3は本branchで実装・局所検証済み。D7も局所検証済み。D4/D5は残工程である。
+基準sourceは `546f232180515a2a8cd9098b943673170c49e3d4`。第一段PR245は主要14図と接続整理として統合済みだが、Ownerが求めた全体の機能分解は継続中。ここでは調査済みの接続と残る調査を区別する。D1/D2/D6とD3は本branchで実装・局所検証済み。D7も局所検証済み。D4/D5は[Web所有設計](web-ownership-plan.md)へ具体化済みで、実装が残る。
 
 ## 図の完成をどう判断するか
 
@@ -14,14 +14,14 @@
 | 秘密入力・質問 | [利用支援](support-details.md)。作成/提出/取消/取下げ/回答/保存/通知/失敗とWebを接続 | 新しい実入力や故障注入はしていない。既存の状態差を保持 |
 | 初期設定・公式認証 | 同上。select/start/input/completeとrelogin/cancel、typed結果、Web入力とpoll | Aiterm内部/公式CLI内部は公開契約境界の外 |
 | 任意機能・push・購読・診断 | 同上。設定保存→適用→背景反映、端末別通知、外部検証、診断集約と処置 | 外部検証/通知サービス内部は展開しない。Goal診断の接続不一致は下記D3 |
-| メンバー/部屋台帳・予定 | [台帳詳細](registry-details.md)。正本/指示生成/稼働設定/削除/予定発行を確認 | nativeへの反映と停止競合は[制御詳細](control-details.md)へ接続。D2の移動先と互換callerを実装前に確定 |
-| Web会話・管理 | [Web詳細](web-details.md)と[管理詳細](web-management-details.md)。選択/送信/履歴/queue/SSE/入力、Bot/room/予定/画像/Goalを接続 | D4/D5の新入力・旧失敗・編集対象の所有とUIでの回収方法は設計を詰める。現在の分岐と改善案を混ぜない |
-| 直接/部屋配送・実行 | [配送詳細](delivery-details.md)。job/receipt/checkpoint/follower/回答担当/画像finally/通常復旧と旧adapterを接続 | D7の小関数化の単位と既試験の対応を確定。通常構成のexecutionBridge=nullを保持 |
+| メンバー/部屋台帳・予定 | [台帳詳細](registry-details.md)。正本/指示生成/稼働設定/削除/予定発行を確認 | nativeへの反映と停止競合は[制御詳細](control-details.md)へ接続。D2は実装・互換caller確認済み |
+| Web会話・管理 | [Web詳細](web-details.md)と[管理詳細](web-management-details.md)。選択/送信/履歴/queue/SSE/入力、Bot/room/予定/画像/Goalを接続 | D4/D5の所有と回収UIは[Web所有設計](web-ownership-plan.md)に具体化。実装とブラウザ上の確認が残る |
+| 直接/部屋配送・実行 | [配送詳細](delivery-details.md)。job/receipt/checkpoint/follower/回答担当/画像finally/通常復旧と旧adapterを接続 | D7の小関数化は実装済み、配送関連123件成功。通常構成のexecutionBridge=nullを保持 |
 | 記憶・知識 | [記憶詳細](memory-details.md)。台帳選択、scope、DB改訂/pin/成長、知識file/索引、検索/終了失敗を確認 | DB/保存形式の変更なし。検索時の索引更新を単なる読取と呼ばない |
-| 自主ターン/稼働/全停止/Goal | [観測詳細](observation-details.md)と[制御詳細](control-details.md)。cursor/重複抑止/停止世代/履歴/Goal receiptを対応付けた | sourceで区別した未知を試験済みにしない。D3は実行反例から局所修理へ |
+| 自主ターン/稼働/全停止/Goal | [観測詳細](observation-details.md)と[制御詳細](control-details.md)。cursor/重複抑止/停止世代/履歴/Goal receiptを対応付けた | sourceで区別した未知を試験済みにしない。D3は本物組立て反例から修理・局所確認済み |
 | 起動/席実行/CLI登録 | [runtime詳細](runtime-details.md)。開始/終了、UID/short child、project/画像、CLI/hook登録を確認 | native長命実行は配送詳細へ。独立製品の内部hook変更は不要 |
 | 通常供給・backup/restore | [供給詳細](distribution-details.md)。installer/state transfer/volume保存・復元、失敗後の保存世代を説明 | 本体全stateのbackupとimage/Cursor復元点を区別。今回再実行せず旧停止申請も復活させない |
-| 共通処理と外部窓口 | [境界詳細](boundary-details.md)。モデル一覧・通話・BugHub・HTTP診断と実importを接続 | D1/D2/D6の変更対象ごとにtest/fixture/互換exportを確認。索引だけで全call graphの証明にしない |
+| 共通処理と外部窓口 | [境界詳細](boundary-details.md)。モデル一覧・通話・BugHub・HTTP診断と実importを接続 | D1/D2/D6のtest/fixture/互換exportは確認済み。索引だけで全call graphの証明にしない |
 
 調査の結果、現在分かっている範囲では内蔵独立製品の変更は必要ない。必要性が判明した場合だけ、その所有者と望む窓口・互換・移行を合わせる。本体の不備を外部へ押し出さない。
 
@@ -81,7 +81,7 @@ Bot/roomの`markScheduleRun`には同じrevision照合と次回更新がある�
 - schedule editor：開いた対象のtype/id/memberIdsとフォーム/一覧を所有する。会話の選択が変わってもAPI pathを変えない。run/deleteはその一覧の対象、timezoneとroom targetsは元契約を保持。
 - timeline：開いた会話とtoken、ページ/queue/画像の取得と適用を所有する。appは選択変更とSSEの意味を渡す。Goal/秘密/質問の既部品は再実装しない。
 
-送信中に別会話へ移った後の失敗した本文と、新しく書かれた本文を両方保持する具体的な回収方法は残設計。単に「上書きしない」だけで旧本文を消す修理にはしない。永続draft store・自動再送queueは追加しない。実装前に局所UI例で所有を確定する。
+失敗した旧入力と新しい入力は、会話別の下書きと「保持した入力」の回収欄で両方保持する設計にした。元targetが削除されても本文と画像を回収でき、復元は空の元下書きへだけ行う。具体的な操作・URLの寿命・局所確認条件は[Web所有設計](web-ownership-plan.md)へ記載。永続draft store・自動再送queueは追加しない。ブラウザ上の成立は実装後に確認する。
 
 ### D6 純粋な返却判定を実行adapterから分ける
 
@@ -105,12 +105,12 @@ jobとaccepted/completionの二本のPromiseはsubmitが所有する。checkpoin
 
 ## 次の実装順と完了範囲
 
-1. **具体化済みの本体共通処理**：D1/D2/D6を、既契約を変えない直接接続と小関数へ。caller・test・fixture・exportを変更単位で照合し、関連試験だけ実行する。第一段の試験成績を今回の結果にしない。
-2. **実際の接続不一致**：D3を本物のDiagnosticsとの反例で確認して修理。以前の事故原因と結び付けず、Goalの未知結果は未知のまま返す。
-3. **画面と配送の所有**：D4/D5の残設計とD7の局所反例を確定した上で実装。前二項だけで全体リファクタ完了にしない。
+1. **本体共通処理（実装済み）**：D1/D2/D6を直接接続と小関数へ整理し、caller・test・fixture・exportを照合、関連試験成功。第一段の試験成績と区別して保存した。
+2. **接続不一致と配送（実装済み）**：D3は本物のDiagnosticsとの反例から修理し、D7は同期追跡・回答取得・画像保持を分離した。Goalの未知結果と全checkpoint順を保持。
+3. **画面の所有（次の実装）**：[Web所有設計](web-ownership-plan.md)に従いD4/D5を実装し、旧入力と新入力の保全、非同期結果の対象、回収UIを局所確認する。前二項だけで全体リファクタ完了にしない。
 4. **図の最終整合**：実装後にAstraで現状図/関数表/残設計を揃え、描画・人への説明・必要全体試験一回・独立採否・通常候補へ。停止を伴う本番操作は別の既条件に従う。
 
-現状機能の各詳細は揃ってきたが、全callerの機械解析・全分岐実行を済ませた意味ではない。D4/D5の設計・実装と全体の整合が残るため、全体完成とはしない。
+現状機能の各詳細とD4/D5の実装設計は揃ってきたが、全callerの機械解析・全分岐実行を済ませた意味ではない。D4/D5の実装・確認と全体の整合が残るため、全体完成とはしない。
 
 ## 保持するもの
 
@@ -118,3 +118,7 @@ jobとaccepted/completionの二本のPromiseはsubmitが所有する。checkpoin
 - service作成とlistener/監視の開始、保存設定とnative受付、送信受付と回答/描画の結果を分ける。
 - 第一段のsource/image採用、元full1045pass1failとfixture是正5passを保存する。今回の設計の試験結果にはしない。
 - 本番停止申請K-QSYMSEは取り下げ済み。詳細設計と必要実装が揃う前に本番反映へ進めない。
+
+## Web残工程の具体化
+
+Astraで[Web所有設計](web-ownership-plan.md)へD4/D5をまとめた。composerの会話別入力と送信snapshot/回収欄、timelineの対象と世代、予定editor/画像decode/補助表示の寿命を決めた。実関数のVM反例3件とschedulePath観測1件を保存し、既製品codeは変更していない。回収欄は画面内の入力保全であり永続store/自動配送queueではない。次は同文書の実装順と確認表に従う。
