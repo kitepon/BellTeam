@@ -1,6 +1,7 @@
 """Synthetic-only tests: never open a production header or endpoint."""
 
 import errno
+import fcntl
 import importlib.util
 import io
 import os
@@ -8,7 +9,9 @@ from pathlib import Path
 import stat
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
 
@@ -25,13 +28,14 @@ class InstallerTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix='sce-synthetic-')
         self.addCleanup(self.temporary.cleanup)
-        self.folder = Path(self.temporary.name) / 'bughub'
-        self.folder.mkdir(mode=0o711)
+        self.folder = Path(self.temporary.name) / 'state/bughub'
+        self.folder.mkdir(parents=True, mode=0o711)
         self.header = self.folder / 'headers'
         self.header.write_bytes(FIRST)
         self.header.chmod(0o600)
         self.endpoint = self.folder / 'endpoint'
         self.endpoint.write_text('http://synthetic.invalid/api/security/v1\n')
+        self.endpoint.chmod(0o600)
 
     def install(self, value=SECOND):
         installer.install(io.BytesIO(value), str(self.folder), server_uid=os.getuid(),
@@ -136,21 +140,120 @@ class InstallerTests(unittest.TestCase):
                               server_gid=os.getgid(), directory_uid=os.getuid())
         self.preserved()
 
-    def test_writable_parent_or_non_private_current_is_rejected(self):
-        self.folder.chmod(0o777)
-        with self.assertRaises(installer.InstallError):
-            self.install()
+    def test_non_searchable_or_readable_parent_and_non_private_current_are_rejected(self):
+        for mode in [0o700, 0o755, 0o777]:
+            self.folder.chmod(mode)
+            with self.assertRaises(installer.InstallError):
+                self.install()
+            self.preserved()
         self.folder.chmod(0o711)
         self.header.chmod(0o644)
         with self.assertRaises(installer.InstallError):
             self.install()
         self.preserved()
 
+    def test_wrong_parent_group_is_rejected_before_creating_a_candidate(self):
+        wrong_group = SimpleNamespace(st_uid=os.getuid(), st_gid=os.getgid() + 1,
+                                      st_mode=self.folder.stat().st_mode)
+        with patch.object(installer.os, 'fstat', return_value=wrong_group):
+            with self.assertRaisesRegex(installer.InstallError, 'SCE_INSTALL_DIRECTORY_INVALID'):
+                self.install()
+        self.preserved()
+
+    def test_main_rejects_invalid_control_metadata_before_reading_stdin(self):
+        class UnreadInput:
+            def read(self, _):
+                raise AssertionError('stdin read before control validation')
+        output, errors = io.StringIO(), io.StringIO()
+        with patch.object(installer, 'DIRECTORY', str(self.folder)), \
+                patch.object(installer.os, 'geteuid', return_value=0), \
+                patch.object(installer.sys, 'argv', ['install-sce-headers']), \
+                patch.object(installer.sys, 'stdin', SimpleNamespace(buffer=UnreadInput())), \
+                redirect_stdout(output), redirect_stderr(errors):
+            result = installer.main()
+        self.assertEqual(result, 1)
+        self.assertEqual(output.getvalue(), '')
+        self.assertEqual(errors.getvalue(), 'SCE_INSTALL_DIRECTORY_INVALID\n')
+        self.preserved()
+
+    def test_main_rejects_replaced_control_inode_before_reading_stdin(self):
+        info = Path(self.temporary.name).stat()
+        held = SimpleNamespace(st_uid=0, st_gid=1001, st_mode=stat.S_IFDIR | 0o750,
+                               st_dev=info.st_dev, st_ino=info.st_ino)
+        linked = SimpleNamespace(**{**vars(held), 'st_ino': info.st_ino + 1})
+        output, errors = io.StringIO(), io.StringIO()
+        with patch.object(installer, 'DIRECTORY', str(self.folder)), \
+                patch.object(installer.os, 'geteuid', return_value=0), \
+                patch.object(installer.os, 'fstat', return_value=held), \
+                patch.object(installer.os, 'stat', return_value=linked), \
+                patch.object(installer.sys, 'argv', ['install-sce-headers']), \
+                patch.object(installer.sys, 'stdin', SimpleNamespace(buffer=object())), \
+                redirect_stdout(output), redirect_stderr(errors):
+            result = installer.main()
+        self.assertEqual(result, 1)
+        self.assertEqual(output.getvalue(), '')
+        self.assertEqual(errors.getvalue(), 'SCE_INSTALL_DIRECTORY_INVALID\n')
+        self.preserved()
+
+    @unittest.skipUnless(os.geteuid() == 0, 'root-only synthetic control lock')
+    def test_root_main_holds_shared_control_lock_and_refuses_maintenance_before_stdin(self):
+        control = Path(self.temporary.name)
+        os.chown(control, 0, 1001)
+        control.chmod(0o750)
+        for path in [self.folder, self.header, self.endpoint]:
+            os.chown(path, 1001, 1001)
+        descriptor = os.open(control, os.O_RDONLY | os.O_DIRECTORY)
+        self.addCleanup(os.close, descriptor)
+        class UnreadInput:
+            def read(self, _):
+                raise AssertionError('stdin read while maintenance holds EX')
+        output, errors = io.StringIO(), io.StringIO()
+        with patch.object(installer, 'DIRECTORY', str(self.folder)), \
+                patch.object(installer.sys, 'argv', ['install-sce-headers']), \
+                redirect_stdout(output), redirect_stderr(errors):
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with patch.object(installer.sys, 'stdin', SimpleNamespace(buffer=UnreadInput())):
+                self.assertEqual(installer.main(), 75)
+            self.assertEqual(output.getvalue(), '')
+            self.assertEqual(errors.getvalue(), 'SCE_INSTALL_BUSY\n')
+            self.preserved()
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            errors.seek(0); errors.truncate(0)
+            checked = []
+            class LockCheckingInput:
+                def read(_self, _):
+                    probe = os.open(control, os.O_RDONLY | os.O_DIRECTORY)
+                    try:
+                        with self.assertRaises(BlockingIOError):
+                            fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        checked.append(True)
+                    finally:
+                        os.close(probe)
+                    return SECOND
+            with patch.object(installer.sys, 'stdin', SimpleNamespace(buffer=LockCheckingInput())):
+                self.assertEqual(installer.main(), 0)
+            self.assertEqual(checked, [True])
+            # An unrelated normal SH is compatible with the CLI's writer SH.
+            fcntl.flock(descriptor, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            with patch.object(installer.sys, 'stdin', SimpleNamespace(buffer=io.BytesIO(SECOND))):
+                self.assertEqual(installer.main(), 0)
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        self.assertEqual(output.getvalue(), '')
+        self.assertEqual(errors.getvalue(), '')
+        self.assertEqual(self.header.read_bytes(), SECOND)
+        info = self.header.stat()
+        self.assertEqual((info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)), (1001, 1001, 0o600))
+        self.assertEqual(self.endpoint.read_text(), 'http://synthetic.invalid/api/security/v1\n')
+
     @unittest.skipUnless(os.geteuid() == 0, 'root-only synthetic UID separation')
     def test_root_owner_install_and_real_uid_read_boundaries(self):
         # Numeric identities only: no user creation or OS configuration changes.
         Path(self.temporary.name).chmod(0o711)
+        os.chown(self.folder, 1001, 1001)
         os.chown(self.header, 1001, 1001)
+        os.chown(self.endpoint, 1001, 1001)
         installer.install(io.BytesIO(SECOND), str(self.folder))
         for uid, expected in [(1000, 'denied'), (1001, 'allowed')]:
             read_fd, write_fd = os.pipe()
@@ -161,12 +264,22 @@ class InstallerTests(unittest.TestCase):
                     os.setgroups([])
                     os.setgid(uid)
                     os.setuid(uid)
+                    # Both identities can distinguish a present file from absence.
                     try:
-                        with self.header.open('rb') as file:
-                            valid = file.read() == SECOND
-                        outcome = 'allowed' if valid else 'wrong_generation'
+                        metadata = [path.stat() for path in [self.header, self.endpoint]]
                     except PermissionError:
-                        outcome = 'denied'
+                        outcome = 'stat_denied'
+                    else:
+                        if any((item.st_uid, item.st_gid, stat.S_IMODE(item.st_mode))
+                               != (1001, 1001, 0o600) for item in metadata):
+                            outcome = 'wrong_metadata'
+                        else:
+                            try:
+                                with self.header.open('rb') as file:
+                                    valid = file.read() == SECOND
+                                outcome = 'allowed' if valid else 'wrong_generation'
+                            except PermissionError:
+                                outcome = 'denied'
                     os.write(write_fd, outcome.encode())
                 finally:
                     os._exit(0)

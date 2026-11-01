@@ -189,6 +189,8 @@ export async function transferServerState({ root, stateRoot = join(root, 'state'
     [join(root, 'shared/onboarding.json'), join(stateRoot, 'onboarding.json')],
     [join(root, 'shared/ai-control.json'), join(stateRoot, 'ai-control.json')],
     [join(root, 'shared/tools/call-bridge/headers'), join(stateRoot, 'call-bridge/headers')],
+    [join(root, 'shared/tools/bughub/endpoint'), join(stateRoot, 'bughub/endpoint')],
+    [join(root, 'shared/tools/bughub/headers'), join(stateRoot, 'bughub/headers')],
   ]
   const ids = new Set()
   for (const base of [from, to]) for (const entry of await readdir(base, { withFileTypes: true })) {

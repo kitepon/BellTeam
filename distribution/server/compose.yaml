@@ -18,7 +18,7 @@ services:
       BELLTEAM_BUGHUB_KEY: ${BELLTEAM_BUGHUB_KEY:-}
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
       BELLTEAM_SUBSCRIPTION_ENVIRONMENT: ${BELLTEAM_SUBSCRIPTION_ENVIRONMENT:-Production}
-      BELLTEAM_CALL_BRIDGE_SOCKET: /srv/bellteam/shared/tools/call-bridge/bellteam.sock
+      BELLTEAM_CALL_BRIDGE_SOCKET: /srv/bellteam/state/call-bridge-socket/bellteam.sock
       BELLTEAM_CALL_BRIDGE_MCP_URL: ${BELLTEAM_CALL_BRIDGE_MCP_URL:-}
     ports:
       - "${BELLTEAM_BIND_IP:-0.0.0.0}:18891:4180"

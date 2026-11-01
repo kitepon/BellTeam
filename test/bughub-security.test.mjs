@@ -12,9 +12,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{1
 
 async function configured(endpoint = 'http://bughub.test/api/security/v1/') {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-bughub-'))
-  await mkdir(join(root, 'shared/tools/bughub'), { recursive: true })
-  await writeFile(join(root, 'shared/tools/bughub/endpoint'), `${endpoint}\n`)
-  await writeFile(join(root, 'shared/tools/bughub/headers'), `x-bughub-security-token: ${KEY}\n`)
+  await mkdir(join(root, 'state/bughub'), { recursive: true, mode: 0o711 })
+  await writeFile(join(root, 'state/bughub/endpoint'), `${endpoint}\n`, { mode: 0o600 })
+  await writeFile(join(root, 'state/bughub/headers'), `x-bughub-security-token: ${KEY}\n`, { mode: 0o600 })
   return root
 }
 

@@ -6,7 +6,7 @@ const protectedRoots = ['state', 'rooms', 'owner', 'logs', 'shared/tools/belltea
 const failure = code => Object.assign(new Error(code), { code })
 
 // Offline maintenance only. Seat projects, HOME, CLI credentials and memory
-// are outside these paths; BugHub's read-only host mount has a separate owner.
+// are outside these paths. BugHub credentials and endpoint live in private state.
 export async function prepareServerStateOwnership({ root, privateRoot = root, direction, sealed = false }) {
   if (typeof root !== 'string' || !isAbsolute(root) || typeof privateRoot !== 'string' || !isAbsolute(privateRoot) || !['to-server', 'to-legacy'].includes(direction))
     throw failure('SERVER_STATE_OWNERSHIP_OPTIONS')
@@ -29,7 +29,10 @@ export async function prepareServerStateOwnership({ root, privateRoot = root, di
   }
   async function collect(path, top) {
     const info = await lstat(path)
+    // The fixed listener replaces its stale socket after restart; never open it as a regular file.
+    if (path === join(privateRoot, 'state/call-bridge-socket/bellteam.sock') && info.isSocket()) return
     const searchable = top || path === join(privateRoot, 'state/call-bridge') || path === join(privateRoot, 'state/call-bridge-socket')
+      || path === join(privateRoot, 'state/bughub')
     const mode = info.isDirectory() ? (searchable ? 0o711 : 0o700) : 0o600
     add(path, info, serverUid, mode)
     if (info.isDirectory()) for (const name of await readdir(path)) await collect(join(path, name), false)
@@ -45,16 +48,18 @@ export async function prepareServerStateOwnership({ root, privateRoot = root, di
   }
   for (const name of protectedRoots) {
     const path = privateRoot === root ? join(root, name) : join(privateRoot, name.split('/').at(-1))
-    await directory(path); await collect(path, true)
+    await directory(path)
+    if (direction === 'to-server' && name === 'state') await directory(join(path, 'call-bridge-socket'))
+    await collect(path, true)
   }
   if (direction === 'to-legacy') {
     const exists = async path => {
       try { await lstat(path); return true } catch (error) { if (error.code === 'ENOENT') return false; throw error }
     }
-    for (const name of ['bots/.initialized', 'shared/subscription.json', 'shared/onboarding.json', 'shared/ai-control.json', 'shared/tools/call-bridge/headers']) {
+    for (const name of ['bots/.initialized', 'shared/subscription.json', 'shared/onboarding.json', 'shared/ai-control.json', 'shared/tools/call-bridge/headers', 'shared/tools/bughub/endpoint', 'shared/tools/bughub/headers']) {
       const path = join(root, name)
       if (!await exists(path)) continue
-      if (name.endsWith('/headers')) add(dirname(path), await directory(dirname(path)), 1000, 0o711)
+      if (name.startsWith('shared/tools/')) add(dirname(path), await directory(dirname(path)), 1000, 0o711)
       await collectFile(path)
     }
     for (const name of await readdir(join(root, 'bots'))) {

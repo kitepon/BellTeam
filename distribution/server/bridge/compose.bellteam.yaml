@@ -4,10 +4,10 @@ services:
   bellteam:
     environment:
       BELLTEAM_CALL_BRIDGE_MCP_URL: http://call-bridge:18910/mcp
-      BELLTEAM_CALL_BRIDGE_SOCKET: /srv/bellteam/shared/sockets/call-bridge/bellteam.sock
+      BELLTEAM_CALL_BRIDGE_SOCKET: /srv/bellteam/state/call-bridge-socket/bellteam.sock
   call-bridge:
     environment:
       CALL_BRIDGE_ALLOWED_HOSTS: "${CALL_BRIDGE_ALLOWED_HOSTS:-127.0.0.1:*,localhost:*},call-bridge:18910"
       CALL_BRIDGE_BELLTEAM_UNIX: /run/bellteam/bellteam.sock
     volumes:
-      - ./runtime/data/shared/sockets/call-bridge:/run/bellteam:ro
+      - ./runtime/server-only/state-data/state/call-bridge-socket:/run/bellteam:ro

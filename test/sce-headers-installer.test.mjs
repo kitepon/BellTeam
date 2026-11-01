@@ -18,9 +18,9 @@ test('SCE fixed-stdin installer preserves the live generation on failed syntheti
 test('the next BugHub call reads the newly installed synthetic generation and fixes the actor', async t => {
   const root = await mkdtemp(join(tmpdir(), 'sce-call-synthetic-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  const directory = join(root, 'shared/tools/bughub')
+  const directory = join(root, 'state/bughub')
   await mkdir(directory, { recursive: true, mode: 0o711 })
-  await writeFile(join(directory, 'endpoint'), 'http://synthetic.invalid/api/security/v1\n')
+  await writeFile(join(directory, 'endpoint'), 'http://synthetic.invalid/api/security/v1\n', { mode: 0o600 })
   await writeFile(join(directory, 'headers'), 'x-bughub-security-token: synthetic-first\n', { mode: 0o600 })
   const seen = []
   const call = createBugHubSecurity({ root, request: async (_url, options) => {

@@ -3,9 +3,10 @@
 
 Install a root-owned copy at the agreed server-only/bin path. Only the CLI
 below is the maintenance interface: no paths or credentials in arguments.
-The directory mount, migration and deployment are separate stage-2 steps.
+Private-state migration and deployment are separate stage-2 steps.
 """
 
+import fcntl
 import os
 import re
 import secrets
@@ -13,7 +14,7 @@ import stat
 import sys
 
 
-DIRECTORY = '/home/kite/BellTeam/runtime/server-only/bughub'
+DIRECTORY = '/home/kite/BellTeam/runtime/server-only/state-data/state/bughub'
 SERVER_UID = 1001
 SERVER_GID = 1001
 MAX_INPUT = 8192
@@ -55,7 +56,7 @@ def open_directory(path):
 
 
 def install(stream, directory=DIRECTORY, *, server_uid=SERVER_UID,
-            server_gid=SERVER_GID, directory_uid=0):
+            server_gid=SERVER_GID, directory_uid=SERVER_UID):
     """Replace only headers, with no secret output or reads of the old file.
 
     Keyword parameters support synthetic filesystem tests. The privileged CLI
@@ -70,7 +71,8 @@ def install(stream, directory=DIRECTORY, *, server_uid=SERVER_UID,
     output = None
     try:
         parent = os.fstat(descriptor)
-        if parent.st_uid != directory_uid or stat.S_IMODE(parent.st_mode) != 0o711:
+        if (parent.st_uid != directory_uid or parent.st_gid != server_gid
+                or stat.S_IMODE(parent.st_mode) != 0o711):
             raise InstallError('SCE_INSTALL_DIRECTORY_INVALID')
         current = os.stat('headers', dir_fd=descriptor, follow_symlinks=False)
         if (not stat.S_ISREG(current.st_mode) or current.st_nlink != 1
@@ -114,7 +116,25 @@ def main():
         sys.stderr.write('SCE_INSTALL_ROOT_REQUIRED\n')
         return 2
     try:
-        install(sys.stdin.buffer)
+        control = os.path.dirname(os.path.dirname(DIRECTORY))
+        descriptor = open_directory(control)
+        try:
+            info = os.fstat(descriptor)
+            if (info.st_uid != 0 or info.st_gid != SERVER_GID
+                    or stat.S_IMODE(info.st_mode) != 0o750):
+                raise InstallError('SCE_INSTALL_DIRECTORY_INVALID')
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                sys.stderr.write('SCE_INSTALL_BUSY\n')
+                return 75
+            linked = os.stat(control, follow_symlinks=False)
+            if ((linked.st_dev, linked.st_ino, linked.st_uid, linked.st_gid, linked.st_mode)
+                    != (info.st_dev, info.st_ino, info.st_uid, info.st_gid, info.st_mode)):
+                raise InstallError('SCE_INSTALL_DIRECTORY_INVALID')
+            install(sys.stdin.buffer, directory=DIRECTORY)
+        finally:
+            os.close(descriptor)
     except InstallError as error:
         sys.stderr.write(str(error) + '\n')
         return 1

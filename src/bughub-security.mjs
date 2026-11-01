@@ -8,7 +8,7 @@ import { join } from 'node:path'
 
 // 鍵と行き先は BugHub の担当が置く。呼ばれるたびに読むので、起こし直しなしで替えられる。
 // headers は「名前: 値」の行（x-bughub-security-token）。endpoint はコンテナの中から届く URL を /api/security/v1 まで。
-const FOLDER = 'shared/tools/bughub'
+const FOLDER = 'state/bughub'
 const ACTOR_HEADER = 'x-bughub-actor'
 const TIMEOUT_MS = 30_000
 

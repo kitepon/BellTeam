@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { request as httpRequest } from 'node:http'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import fs from 'node:fs'
+import { syncBuiltinESMExports } from 'node:module'
+import { mkdtemp, readFile, rm, lstat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -18,6 +20,40 @@ function call(socketPath, method, path, body) {
     request.end(body === undefined ? undefined : JSON.stringify(body))
   })
 }
+
+test('新しいsocket親は0711・socketは0666となり、閉じるとsocketだけ除去する', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-socket-mode-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const parent = join(root, 'state/call-bridge-socket'), socketPath = join(parent, 'bellteam.sock')
+  const mask = process.umask(0o077)
+  let close
+  try { close = await listenCallBridge(createCallBridgeServer({ bots: new Map(), messenger: {} }), socketPath) }
+  finally { process.umask(mask) }
+  try {
+    assert.equal((await lstat(parent)).mode & 0o777, 0o711)
+    const socket = await lstat(socketPath)
+    assert.equal(socket.isSocket(), true); assert.equal(socket.mode & 0o777, 0o666)
+    assert.equal((await call(socketPath, 'GET', '/v0/directory')).status, 200)
+  } finally { await close() }
+  await assert.rejects(lstat(socketPath), { code: 'ENOENT' })
+  assert.equal((await lstat(parent)).mode & 0o777, 0o711)
+})
+
+test('socketのchmod失敗は待受とsocketを片付け、元の例外を返す', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-socket-failed-mode-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const socketPath = join(root, 'bellteam.sock'), server = createCallBridgeServer({ bots: new Map(), messenger: {} })
+  const original = fs.promises.chmod, fault = Object.assign(new Error('synthetic chmod failure'), { code: 'EIO' })
+  fs.promises.chmod = async (path, mode) => {
+    if (path === socketPath) throw fault
+    return original(path, mode)
+  }
+  syncBuiltinESMExports()
+  try { await assert.rejects(listenCallBridge(server, socketPath), error => error === fault) }
+  finally { fs.promises.chmod = original; syncBuiltinESMExports() }
+  assert.equal(server.listening, false)
+  await assert.rejects(lstat(socketPath), { code: 'ENOENT' })
+})
 
 test('通話電話帳をUNIXソケットで提供し、外部発信者を本人として偽装せずBotへ配送する', async () => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-call-'))

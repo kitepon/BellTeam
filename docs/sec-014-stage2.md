@@ -32,12 +32,23 @@ It must be installed as a root-owned copy, with protected parents, before use.
 Executing the developer checkout is not the deployment method.
 
 The CLI takes no arguments. Its fixed destination is
-`/home/kite/BellTeam/runtime/server-only/bughub/headers`. The parent must be
-root-owned 0711; the existing file must be a single-link regular 0600 file owned
-by UID/GID1001. The script opens path components without following symlinks,
+`/home/kite/BellTeam/runtime/server-only/state-data/state/bughub/headers`.
+The parent must be UID/GID1001-owned 0711; the existing file must be a
+single-link regular 0600 file owned by UID/GID1001. The application reads both
+`headers` and `endpoint` from `/srv/bellteam/state/bughub`, inside the private
+state bind. A seat can stat a present file through the searchable parent,
+while 0600 denies opening its contents and the parent denies seat writes.
+The script opens path components without following symlinks,
 then uses directory-relative operations. The deployment will also need to
 establish that the ordinary container seat cannot replace any parent or mount.
 This component alone does not verify host mount topology or user allocation.
+
+Before reading stdin, the fixed CLI opens the enclosing `state-data` directory
+without following symlinks, checks root:1001/0750 and the linked inode, and
+holds its existing directory SH lock throughout installation. It can coexist
+with normal server SH locks. A maintenance EX lock returns `SCE_INSTALL_BUSY`
+with exit 75 before reading or changing a credential. Missing or invalid
+control paths fail with the existing fixed safe errors. There is no retry loop.
 
 The input contract is one complete `x-bughub-security-token: VALUE` line ending
 with LF or CRLF, at most 8192 bytes. Empty, incomplete, extra-header, whitespace
@@ -206,13 +217,15 @@ Neither the passing installer tests nor stage-1 acceptance closes SEC-014.
 - `sudo -n /usr/bin/python3 -I test/sce-headers-installer.py`: synthetic-only
   real UID1000 read rejection and UID1001 read success, atomic replacement,
   interrupted/invalid input, partial/failed writes, failed ownership/sync/rename,
-  symlink rejection, temporary-file collision and cleanup.
+  symlink rejection, temporary-file collision and cleanup. The root-only CLI
+  test also checks maintenance EX refusal before stdin, SH lifetime and
+  coexistence, successful replacement, and non-disclosure.
 
 The root test creates only disposable synthetic directories and numeric child
 identities. It creates no OS users and reads no production credentials.
 The ordinary test run skips the root-only UID case; it is separately executed
 for the actual UID boundary. The next-GET test uses a stub endpoint, not BugHub
-production. Directory read-only mount protection and actual root-installed CLI
+production. Private-state migration and actual root-installed CLI
 acceptance are still separate integration checks.
 
 

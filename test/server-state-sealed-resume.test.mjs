@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, writeFile, readFile, lstat, rename, link, rm } from 'no
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { transferServerState, migrateServerState, relocateServerRoots, prepareServerStateRuntime } from '../src/server-state-transfer.mjs'
+import { createBugHubSecurity } from '../src/bughub-security.mjs'
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'sealed-resume-'))
@@ -205,4 +206,34 @@ test('新本体の増分会話・予定・追加Botを両方向で保ち、settl
   await migrateServerState({ root: f.root, direction: 'to-server' })
   assert.equal(await f.get('server-only/state-data/rooms/room-a/messages.jsonl'), 'before\nafter\n')
   assert.equal((await lstat(join(f.root, 'server-only/state-data/state/bots/bot-b/bot.json'))).ino, profileInode)
+})
+
+test('BugHub endpoint and credential move together into private state and return current values on recovery', async t => {
+  const f = await fixture(t); ownerFixture(t)
+  await f.put('data/bots/.initialized', '')
+  await f.put('data/shared/tools/bughub/endpoint', 'http://synthetic.invalid/api/security/v1\n')
+  await f.put('data/shared/tools/bughub/headers', 'x-bughub-security-token: synthetic-first\n')
+  const headerInode = (await lstat(join(f.root, 'data/shared/tools/bughub/headers'))).ino
+  await migrateServerState({ root: f.root, direction: 'to-server' })
+  const state = 'server-only/state-data/state/bughub/'
+  for (const name of ['endpoint', 'headers']) {
+    await f.absent('data/shared/tools/bughub/' + name)
+    const info = await lstat(join(f.root, state + name))
+    assert.equal(info.uid, 1001); assert.equal(info.gid, 1001); assert.equal(info.mode & 0o777, 0o600)
+  }
+  assert.equal((await lstat(join(f.root, state))).mode & 0o777, 0o711)
+  assert.equal((await lstat(join(f.root, state + 'headers'))).ino, headerInode)
+  const seen = []
+  const call = createBugHubSecurity({ root: join(f.root, 'server-only/state-data'), request: async (url, options) => {
+    seen.push({ url, actor: options.headers['x-bughub-actor'], token: options.headers['x-bughub-security-token'] })
+    return Response.json({ findings: [] })
+  } })
+  await call({ name: 'bughub_list_security_findings', args: {}, from: 'bot-a' })
+  assert.deepEqual(seen, [{ url: 'http://synthetic.invalid/api/security/v1/findings', actor: 'bot-a', token: 'synthetic-first' }])
+  await f.put(state + 'headers', 'x-bughub-security-token: synthetic-latest\n')
+  await migrateServerState({ root: f.root, direction: 'to-legacy' })
+  assert.equal(await f.get('data/shared/tools/bughub/headers'), 'x-bughub-security-token: synthetic-latest\n')
+  assert.equal((await lstat(join(f.root, 'data/shared/tools/bughub/headers'))).uid, 1000)
+  assert.equal((await lstat(join(f.root, 'data/shared/tools/bughub/endpoint'))).mode & 0o777, 0o600)
+  await f.absent(state + 'headers'); await f.absent(state + 'endpoint')
 })

@@ -5,6 +5,8 @@ import { syncBuiltinESMExports } from 'node:module'
 import { mkdtemp, mkdir, writeFile, readFile, lstat, rm, symlink, link, rename } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createServer } from 'node:net'
+import { once } from 'node:events'
 import { prepareServerStateOwnership } from '../src/server-state-ownership.mjs'
 import { transferServerState } from '../src/server-state-transfer.mjs'
 
@@ -57,6 +59,26 @@ test('逆方向は現在の全本体ファイルをUID1000へ戻し、新しい�
   assert.equal(await readFile(join(f.root, 'state/ai-control.json'), 'utf8'), '{"paused":false}')
   assert.equal(await readFile(join(f.root, 'rooms/new/messages.jsonl'), 'utf8'), 'newest conversation')
   assert.ok(f.handles.every(file => file.closed))
+})
+
+test('the fixed call-bridge socket is excluded from regular-file ownership, while unknown sockets refuse', async t => {
+  const f = await fixture(t)
+  await f.run('to-server')
+  assert.equal(await f.mode('state/call-bridge-socket'), 0o711)
+  const path = join(f.root, 'state/call-bridge-socket/bellteam.sock')
+  const listener = createServer()
+  listener.listen(path); await once(listener, 'listening')
+  t.after(() => new Promise(resolve => listener.close(resolve)))
+  f.owners.length = 0
+  await f.run('to-server')
+  assert.equal(f.owners.some(owner => owner.path === path), false)
+  assert.ok((await lstat(path)).isSocket())
+  const other = createServer(), unknown = join(f.root, 'state/unknown.sock')
+  other.listen(unknown); await once(other, 'listening')
+  t.after(() => new Promise(resolve => other.close(resolve)))
+  f.owners.length = 0
+  await assert.rejects(f.run('to-server'), { code: 'SERVER_STATE_OWNERSHIP_FILE' })
+  assert.equal(f.owners.length, 0)
 })
 
 test('実逆移行で戻した台帳・予定・画像・初期化印・共有文書も席UIDへ戻し、project内容は除外する', async t => {
