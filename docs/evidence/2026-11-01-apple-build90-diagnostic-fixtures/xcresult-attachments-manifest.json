@@ -1,0 +1,92 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008103-000914A60AE8801E",
+        "deviceName" : "kiteのiPad",
+        "exportedFileName" : "E1FB558D-762A-4188-B854-86E663D5C1B9.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "人工Goal timeoutの呼出し原文_0_493175B6-7AC0-40D1-8B59-B8AB4F57DAF6.txt",
+        "timestamp" : 1793519090.855
+      }
+    ],
+    "testIdentifier" : "BellDiagnosticsTests/testGoalTimeoutCarriesCallsiteWithoutPrivateRoute()",
+    "testIdentifierURL" : "test://com.apple.xcode/BellBot/BellBotTests/BellDiagnosticsTests/testGoalTimeoutCarriesCallsiteWithoutPrivateRoute"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008103-000914A60AE8801E",
+        "deviceName" : "kiteのiPad",
+        "exportedFileName" : "D7FB35EB-CFB6-4761-B7B9-BD6AA7BA070F.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "人工Goal一覧二試行の直接report原文（UI未再現）_0_D2BC1C60-093D-4665-B2D6-E6527EEB4DA3.txt",
+        "timestamp" : 1793519093.231
+      }
+    ],
+    "testIdentifier" : "NetworkRecoveryTests/testGoalListFailureDirectReportIncludesCallerContext()",
+    "testIdentifierURL" : "test://com.apple.xcode/BellBot/BellBotTests/NetworkRecoveryTests/testGoalListFailureDirectReportIncludesCallerContext"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008103-000914A60AE8801E",
+        "deviceName" : "kiteのiPad",
+        "exportedFileName" : "0EDDF262-4D42-47E5-8AFF-3177278A012D.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "人工Goal個別timeoutのcall→状態変更→試行の原文_0_33770C62-9A81-4A3E-807C-A9243BE928D0.txt",
+        "timestamp" : 1793519093.239
+      }
+    ],
+    "testIdentifier" : "NetworkRecoveryTests/testGoalTimeoutOrdersCallPhaseChangeAndRequestOnContinuousClock()",
+    "testIdentifierURL" : "test://com.apple.xcode/BellBot/BellBotTests/NetworkRecoveryTests/testGoalTimeoutOrdersCallPhaseChangeAndRequestOnContinuousClock"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008103-000914A60AE8801E",
+        "deviceName" : "kiteのiPad",
+        "exportedFileName" : "346E061D-98EA-4FC5-8B32-E763AD1923C8.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "人工GET二試行の診断原文_0_1E5A8C1A-C76F-4286-A9AE-39FCDA3082C7.txt",
+        "timestamp" : 1793519094.537
+      }
+    ],
+    "testIdentifier" : "NetworkRecoveryTests/testRepeatedLostGETReportsOnceAndIncludesAnonymousContext()",
+    "testIdentifierURL" : "test://com.apple.xcode/BellBot/BellBotTests/NetworkRecoveryTests/testRepeatedLostGETReportsOnceAndIncludesAnonymousContext"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008103-000914A60AE8801E",
+        "deviceName" : "kiteのiPad",
+        "exportedFileName" : "DAF6659A-85BF-46DB-928E-07D5FF0C7133.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "人工POST失敗の読直し分岐原文_0_F43DDAAA-B2DB-4784-97EB-C0016ADC00C0.txt",
+        "timestamp" : 1793519094.547
+      }
+    ],
+    "testIdentifier" : "NetworkRecoveryTests/testSendFailureReconcileReportsOnlyTheLoadCallBoundary()",
+    "testIdentifierURL" : "test://com.apple.xcode/BellBot/BellBotTests/NetworkRecoveryTests/testSendFailureReconcileReportsOnlyTheLoadCallBoundary"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008103-000914A60AE8801E",
+        "deviceName" : "kiteのiPad",
+        "exportedFileName" : "CBB53639-4366-431B-8152-7775A41A7C1B.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "人工GET単一timeoutの診断原文_0_77D3D0D8-FFF5-49FA-B740-920E6BD72429.txt",
+        "timestamp" : 1793519095.677
+      }
+    ],
+    "testIdentifier" : "NetworkRecoveryTests/testTimedOutGETReportKeepsItsOwnRouteAndStartStateWithoutQuery()",
+    "testIdentifierURL" : "test://com.apple.xcode/BellBot/BellBotTests/NetworkRecoveryTests/testTimedOutGETReportKeepsItsOwnRouteAndStartStateWithoutQuery"
+  }
+]
