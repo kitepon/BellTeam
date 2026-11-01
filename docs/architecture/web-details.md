@@ -1,6 +1,6 @@
 # Webの会話選択・送信・表示更新
 
-[全体図](feature-map.md)の画面側を、本branchの実装から説明する。APIは[入口索引](entrypoints.md)、編集・画像・Goalは[管理詳細](web-management-details.md)。基底の巨大なapp stateは既に分割した。残る一覧取得の競合は[最終照合で見つけた修理](web-final-gaps.md)へ分け、解決済みとして描かない。
+[全体図](feature-map.md)の画面側を、本branchの実装から説明する。APIは[入口索引](entrypoints.md)、編集・画像・Goalは[管理詳細](web-management-details.md)。基底の巨大なapp stateは既に分割した。一覧取得の競合も[最終照合で見つけた修理](web-final-gaps.md)で整理した。
 
 ## 選択と各機能の状態を分ける
 
@@ -16,7 +16,9 @@ appは組立て・一覧・会話選択・機能間の接続を持つ。各機�
 | [goals.js](../../web/goals.js) | Bot別snapshot、draft、binding、観測revision | app→`open/select/refresh/refreshSelected/refreshOnEvent`。Goalの正本はnative |
 | appの既読 | `loadReadReceipts/markConversationRead`、localStorage | 最近IDから一覧の未読を描く。サーバーへ読了記録を送らない |
 
-`loadBots`はBot/room/Ownerの三要求を並行して受け、その一式を一覧へ反映する。保存正本ではなく表示用cacheである。現実装には一覧同士の返却順の識別がまだなく、古い一覧で新しい選択が消える反例がある。timelineのtokenでは、この上流の競合を防げない。
+`loadBots`はBot/room/Ownerの三要求を並行して受け、その一式を一覧へ反映する。保存正本ではなく表示用cacheである。`catalogueRead`で一覧の読取順を持ち、最新の結果だけ適用する。Ownerプロフィール保存応答とBot/room削除受付は、先行読取を失効させて受理した値を表示する。timelineのtokenは履歴を守り、上流の一覧にはこの別の所有が必要になる。
+
+`loadBots`は適用したらtrue、旧読取なら成功/失敗を表示へ反映せずnull、最新読取の失敗はthrowする。Bot/room保存と再起動後の自動選択はtrueの時だけ。composerの受付後更新はnullを表示失敗にせず、実GET失敗と履歴のfalseだけを扱う。起動・SSE・停止後にも同じ窓口を使い、古い結果を避けるための再GETは増やさない。
 
 ## 開いた会話の結果だけを描く
 
@@ -97,6 +99,6 @@ appの`refreshFromEvent`はsettings/setup/Goal処理と一覧・必要履歴を�
 
 ## 操作の接続と確認範囲
 
-`stopMember`は対象Bot別single-flightで`requestMemberStop`を一回呼ぶ。停止応答と後続一覧/履歴GETを分け、表示は開始時の会話が同じ場合だけ。書出しはクリック時のtype/idを固定してexportをGETし、一時Blobをdownload後revokeする。エラー表示と一覧の競合の残課題は[追加修理](web-final-gaps.md)に記録する。
+`stopMember`は対象Bot別single-flightで`requestMemberStop`を一回呼ぶ。停止応答と後続一覧/履歴GETを分け、表示は開始時の会話が同じ場合だけ。書出しはクリック時のtype/idを固定してexportをGETし、一時Blobをdownload後revokeする。一覧の競合と失敗の修理経緯は[追加修理](web-final-gaps.md)に記録する。
 
-確認先：`conversation-composer`、`timeline-open-queue`、`message-images`、`web-event-refresh`、`chat-input`、`http-server`の局所試験。実Web＋人工APIで入力の回収とPOST回数も確認した。実配送やApple画面の成功の証明ではない。全体試験・独立採否は別の未完工程である。
+確認先：`conversation-composer`、`timeline-open-queue`、`message-images`、`web-event-refresh`、`chat-input`、`http-server`の局所試験。実Web＋人工APIで入力の回収とPOST回数も確認した。実配送やApple画面の成功の証明ではない。全体試験1088件は成功。独立採否は別の未完工程である。

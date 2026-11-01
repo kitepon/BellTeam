@@ -44,7 +44,7 @@
 | ModelCatalog/ApplicationServices → AitermTransport | `AitermClient`だけ（Servicesはtransport生成も必要） | clientは既存`aiterm-client.mjs`から直接import。transportの既互換exportは保持。全callerの新経路移行を強制しない |
 | AitermClient/HTTP診断/停止診断 → ExecutionBridge | `returnedExecutionError/ERROR_META` | 純粋なreceipt検証をadapterから分離。ExecutionBridgeの既exportとcodesの厳密性は維持。通常構成へ旧registerを復活させない |
 | Onboarding/HarnessAuth | auth失敗→schema/status判定の重複 | 既存auth-uiへ小関数。保存/Map/CLI寿命/公開エラーはそれぞれのserviceに残す |
-| Webの各画面 → 巨大app state | 選択・編集中対象・取得世代が混在していた | composer/timeline/schedule/memory/readviews/Bot・room・Owner editorへ状態を分離済み。残る一覧・規範読取・任意機能入力の順序は[G1〜G3](web-final-gaps.md)で修理する |
+| Webの各画面 → 巨大app state | 選択・編集中対象・取得世代が混在していた | composer/timeline/schedule/memory/readviews/Bot・room・Owner editorへ状態を分離済み。一覧・規範読取・任意機能入力の順序も[G1〜G3](web-final-gaps.md)で修理済み |
 
 これは基底のimportを読んで実装した接続の対応。削除可能な全exportの証明や、全call graphを自動解析したという主張ではない。変更窓口のtest/fixture/exportは各実装時に確認した。追加変更も同じ範囲確認を行う。
 
