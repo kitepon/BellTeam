@@ -1,141 +1,45 @@
 import assert from 'node:assert/strict'
+import test from 'node:test'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { mkdtemp, mkdir, copyFile, writeFile, readFile, chmod, rm, realpath } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { mkdtemp, mkdir, copyFile, writeFile, readFile, chmod, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import test from 'node:test'
-
-const exec = promisify(execFile)
-const image = `ghcr.io/fixture/server@sha256:${'a'.repeat(64)}`
-
-async function fixture(t) {
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'bellteam-image deploy-')))
-  t.after(() => rm(root, { recursive: true, force: true }))
-  await mkdir(join(root, 'scripts'))
-  await mkdir(join(root, 'bin'))
-  for (const name of ['deploy.sh','deploy-image.sh','archive-live-volume.py','check-deploy-quiet.sh','check-deploy-quiet.mjs'])
-    await copyFile(new URL(`../scripts/${name}`, import.meta.url), join(root,'scripts',name))
-  const updater = `#!/bin/sh
-docker fixture-cursor "$@"
-`
-  await writeFile(join(root,'fixture-updater'), updater)
-  const docker = `#!/usr/bin/env node
-const fs = require('node:fs')
-const args = process.argv.slice(2)
-fs.appendFileSync(process.env.FIXTURE_LOG, JSON.stringify({args,cwd:process.cwd(),
-  compose:process.env.COMPOSE_FILE,project:process.env.COMPOSE_PROJECT_NAME,
-  image:process.env.BELLTEAM_SERVER_IMAGE,profile:process.env.BELLTEAM_INTERNAL_PROFILE_FILE})+'\\n')
-if (args[0] === 'container' && args[1] === 'inspect') console.log(args.includes('{{.Id}} {{.Image}}') ? '${'c'.repeat(64)} sha256:${'d'.repeat(64)}' : 'volume bellteam_cursor-cli')
-if (args[0] === 'image' && args[1] === 'save') { if (args.includes('--output')) fs.writeFileSync(args[args.indexOf('--output')+1], 'synthetic-image'); else process.stdout.write('synthetic-image') }
-if (args[0] === 'run') {
-  if (process.env.FIXTURE_FAIL === 'extract') process.exit(8)
-  process.stdout.write(args.at(-1).endsWith('update-cursor.sh') ? fs.readFileSync(process.env.FIXTURE_UPDATER) : 'services: {}\\n')
+import { tmpdir } from 'node:os'
+const exec=promisify(execFile),image='ghcr.io/fixture/server@sha256:'+'a'.repeat(64)
+async function fixture(t){
+ const root=await mkdtemp(join(tmpdir(),'internal-installer-'));t.after(()=>rm(root,{recursive:true,force:true}))
+ for(const dir of ['scripts','bin','distribution/server'])await mkdir(join(root,dir),{recursive:true})
+ await copyFile(new URL('../scripts/deploy-image.sh',import.meta.url),root+'/scripts/deploy-image.sh')
+ await writeFile(root+'/distribution/server/install.sh',`#!/bin/sh
+node -e 'require("fs").writeFileSync(process.env.TEST_ROOT+"/installer.json",JSON.stringify({args:process.argv.slice(1),cwd:process.cwd(),compose:process.env.COMPOSE_FILE,project:process.env.COMPOSE_PROJECT_NAME,profile:process.env.BELLTEAM_INTERNAL_PROFILE_FILE,root:process.env.BELLTEAM_INSTALL_DIR,image:process.env.BELLTEAM_SERVER_IMAGE}))' -- "$@"
+exit "\${TEST_INSTALL_EXIT:-0}"
+`)
+ await writeFile(root+'/bin/docker',`#!/bin/sh
+printf '%s\\n' "$*" >> "$TEST_ROOT/docker-calls"
+case "$*" in
+ 'compose pull bellteam') exit "\${TEST_PULL_EXIT:-0}";;
+ 'compose config --images') echo fixture:local;;
+ 'image inspect --format {{.Id}} fixture:local') printf 'sha256:%064d\\n' 0;;
+esac
+`);await chmod(root+'/bin/docker',0o700)
+ return {root,run:(args=[],extra={})=>exec('sh',['scripts/deploy-image.sh',...args],{cwd:root,env:{...process.env,PATH:root+'/bin:'+process.env.PATH,TEST_ROOT:root,BELLTEAM_SERVER_IMAGE:image,...extra}})}
 }
-if (args[0] === 'exec' && args.includes('--input-type=module')) {
-  const count = Number(fs.readFileSync(process.env.FIXTURE_COUNT))+1
-  fs.writeFileSync(process.env.FIXTURE_COUNT, String(count))
-  if (process.env.FIXTURE_FAIL === 'quiet'+count) { console.log('fixture quiet refusal'); process.exit(2) }
-}
-if (args[0] === 'fixture-cursor' && process.env.FIXTURE_FAIL === 'cursor') process.exit(9)
-if (args[0] === 'compose' && args[1] === 'pull' && process.env.FIXTURE_FAIL === 'pull') process.exit(7)
-if (args[0] === 'compose' && args[1] === 'up' && process.env.FIXTURE_FAIL === 'up') process.exit(10)
-`
-  await writeFile(join(root,'bin','docker'), docker)
-  await chmod(join(root,'bin','docker'), 0o755)
-  await writeFile(join(root,'bin','python3'), '#!/bin/sh\ndocker fixture-backup\nprintf "/fixture/qnap/restore-point\\n"\n')
-  await chmod(join(root,'bin','python3'),0o755)
-  const env = { PATH:`${join(root,'bin')}:${process.env.PATH}`, FIXTURE_LOG:join(root,'calls'),
-    FIXTURE_COUNT:join(root,'count'),FIXTURE_UPDATER:join(root,'fixture-updater'),
-    BELLTEAM_SERVER_IMAGE:image,TMPDIR:root }
-  await writeFile(env.FIXTURE_LOG,'')
-  await writeFile(env.FIXTURE_COUNT,'0')
-  return {root,env,async calls(){return (await readFile(env.FIXTURE_LOG,'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse)}}
-}
-
-test('商用imageは同じdigest・構成で取得し、cursor更新のあと一度だけupする', async t => {
-  const f = await fixture(t)
-  const { stdout } = await exec('sh',['scripts/deploy-image.sh'],{cwd:f.root,env:f.env})
-  assert.match(stdout,/deploy-exit=0/u)
-  const calls = await f.calls()
-  assert.deepEqual(calls.map(row => row.args[0] === 'compose' ? row.args[1] : row.args[0]),
-    ['pull','run','run','fixture-cursor','up'])
-  for (const row of calls) {
-    assert.equal(row.cwd,f.root)
-    assert.equal(row.compose,`${f.root}/distribution/server/compose.yaml:${f.root}/distribution/internal/compose.overlay.yaml`)
-    assert.equal(row.project,'bellteam');assert.equal(row.image,image)
-    assert.equal(row.profile,`${f.root}/src/distribution-profile.mjs`)
-  }
-  for (const row of calls.filter(row=>row.args[0]==='run')) {
-    assert.ok(row.args.includes(image));assert.ok(row.args.includes('--read-only'))
-    assert.deepEqual(row.args.slice(1,5),['--pull','never','--rm','--network'])
-  }
-  assert.deepEqual(calls.at(-1).args,['compose','up','-d','--no-build','--pull','never'])
-  assert.equal(calls.some(row=>row.args.includes('stop')||row.args.includes('build')),false)
+for(const mode of ['image','build','recover'])test(`internal ${mode} uses the same public installer with frozen overlay/profile/working root`,async t=>{
+ const f=await fixture(t),recover=mode==='recover',args=recover?['--recover',f.root+'/.bellteam-compose.previous']:[]
+ const result=await f.run(args,mode==='build'?{BELLTEAM_SERVER_IMAGE:''}:{})
+ assert.match(result.stdout,recover?/recovery-exit=0/:/deploy-exit=0/)
+ const call=JSON.parse(await readFile(f.root+'/installer.json'))
+ assert.deepEqual(call.args,recover?args:['--no-pull'])
+ assert.equal(call.root,f.root);assert.equal(call.cwd,f.root);assert.equal(call.project,'bellteam')
+ assert.equal(call.compose,f.root+'/distribution/server/compose.yaml:'+f.root+'/distribution/internal/compose.overlay.yaml')
+ assert.equal(call.profile,f.root+'/src/distribution-profile.mjs')
+ assert.equal(call.image,mode==='build'?'sha256:'+'0'.repeat(64):image)
+ if(!recover){const calls=await readFile(f.root+'/docker-calls','utf8');assert.doesNotMatch(calls,/image save|tar|quiet|fixture-backup/)}
 })
-
-for (const [failure,code,cursor,up] of [
-  ['pull',7,0,0],['extract',8,0,0],['cursor',9,1,0],['up',10,1,1],
-]) test(`${failure}失敗は記録し、未実行の更新・upや旧本体stopを行わない`,async t=>{
-  const f=await fixture(t)
-  const result=await exec('sh',['scripts/deploy-image.sh'],{cwd:f.root,env:{...f.env,FIXTURE_FAIL:failure}}).catch(error=>error)
-  assert.equal(result.code,code);assert.match(result.stdout,new RegExp(`deploy-exit=${code}`,'u'))
-  const calls=await f.calls()
-  assert.equal(calls.some(row=>row.args[0]==='exec'||row.args[0]==='fixture-backup'),false)
-  assert.equal(calls.filter(row=>row.args[0]==='fixture-cursor').length,cursor)
-  assert.equal(calls.filter(row=>row.args[0]==='compose'&&row.args[1]==='up').length,up)
-  assert.equal(calls.some(row=>row.args.includes('stop')||row.args.includes('build')),false)
-})
-
-test('未固定imageはgit/SSHを始める前に拒否する',async t=>{
-  const f=await fixture(t)
-  for(const bin of ['git','ssh']){
-    await writeFile(join(f.root,'bin',bin),'#!/bin/sh\necho unexpected >> "$FIXTURE_LOG"\nexit 98\n')
-    await chmod(join(f.root,'bin',bin),0o755)
-  }
-  for(const value of ['fixture:latest','x@sha256:abc']){
-    const result=await exec('sh',['scripts/deploy.sh'],{cwd:f.root,env:{...f.env,BELLTEAM_DEPLOY_IMAGE:value}}).catch(error=>error)
-    assert.equal(result.code,2)
-  }
-  assert.deepEqual(await f.calls(),[])
-})
-
-for (const selected of ['',image]) test(`正規入口は履歴/処理待ち控え/結果確認を維持して${selected ? '受入image' : '従来build'}へ接続する`,async t=>{
-  const f=await fixture(t)
-  const sha='b'.repeat(40)
-  const git=`#!/usr/bin/env node
-const fs=require('node:fs'),args=process.argv.slice(2)
-fs.appendFileSync(process.env.FIXTURE_LOG,JSON.stringify({tool:'git',args})+'\\n')
-if(args[0]==='rev-parse')console.log('${sha}')
-`
-  const ssh=`#!/usr/bin/env node
-const fs=require('node:fs'),args=process.argv.slice(2),command=args[1]
-fs.appendFileSync(process.env.FIXTURE_LOG,JSON.stringify({tool:'ssh',command})+'\\n')
-if(command.includes('/api/bots'))console.log('{"bots":[]}')
-else if(command.includes('/healthz'))console.log('{"status":"ok"}')
-else if(command.includes('tail -3'))console.log('deploy-exit=0')
-`
-  for(const [name,body] of [['git',git],['ssh',ssh]]){
-    await writeFile(join(f.root,'bin',name),body)
-    await chmod(join(f.root,'bin',name),0o755)
-  }
-  const result=await exec('sh',['scripts/deploy.sh'],{cwd:f.root,env:{...f.env,BELLTEAM_DEPLOY_IMAGE:selected}})
-  assert.match(result.stdout,/bots 0 online 0/u)
-  const calls=await f.calls()
-  assert.deepEqual(calls.filter(row=>row.tool==='git').map(row=>row.args),
-    [['status','--porcelain','--untracked-files=no'],['push','-q','origin','HEAD:main'],['rev-parse','HEAD']])
-  const commands=calls.filter(row=>row.tool==='ssh').map(row=>row.command)
-  assert.ok(commands.some(command=>command.includes('git merge -q --ff-only origin/main')&&command.includes(sha)))
-  assert.ok(commands.some(command=>command.includes('queue-before-deploy-')))
-  const launch=commands.filter(command=>command.includes('setsid nohup'))
-  assert.equal(launch.length,1)
-  if(selected){
-    assert.ok(launch[0].includes(`BELLTEAM_SERVER_IMAGE=${image}`))
-    assert.match(launch[0],/BELLTEAM_SERVER_IMAGE=\S+ sh scripts\/deploy-image\.sh/u)
-    assert.doesNotMatch(launch[0],/QUIET|restore-point/u)
-    assert.doesNotMatch(launch[0],/compose build/u)
-  }else{
-    assert.match(launch[0],/docker compose build --pull --no-cache && sh scripts\/update-cursor\.sh && docker compose up -d --no-build/u)
-    assert.doesNotMatch(launch[0],/quiet|restore-point/u)
-  }
+test('installer failure propagates once; image acquisition failure never invokes installer',async t=>{
+ const f=await fixture(t)
+ await assert.rejects(f.run([],{TEST_INSTALL_EXIT:'57'}),e=>e.code===57&&e.stdout.includes('deploy-exit=57'))
+ const g=await fixture(t)
+ await assert.rejects(g.run([],{TEST_PULL_EXIT:'58'}),e=>e.code===58&&e.stdout.includes('deploy-exit=58'))
+ await assert.rejects(readFile(g.root+'/installer.json'),{code:'ENOENT'})
 })

@@ -1,4 +1,3 @@
-import { copyInternalAdapter } from './fixtures/sec014-adapter.mjs'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -16,7 +15,7 @@ async function fixture(t, failure = '') {
   for (const dir of ['scripts', 'bin', 'src', 'distribution/server', 'distribution/internal', 'runtime/home', 'runtime/data'])
     await mkdir(join(root, dir), { recursive: true })
   for (const [name, key] of [['deploy.sh', 'DEPLOY_UNDER_TEST'], ['deploy-image.sh', 'DEPLOY_IMAGE_UNDER_TEST']])
-    await (name === 'deploy-image.sh' ? copyInternalAdapter : copyFile)(process.env[key] || new URL('../scripts/' + name, import.meta.url), join(root, 'scripts', name))
+    await copyFile(process.env[key] || new URL('../scripts/' + name, import.meta.url), join(root, 'scripts', name))
   await writeFile(join(root, 'src/distribution-profile.mjs'), 'export const profile = "old-profile"\n')
   const files = [join(root, 'distribution/server/compose.yaml'), join(root, 'distribution/internal/compose.overlay.yaml')]
   const bind = (source, target) => ({ type: 'bind', source, target })
@@ -83,7 +82,7 @@ if(c.includes('/api/queue'))console.log('');else if(c.includes('/healthz'))conso
     captured: async () => { const dirs = (await readdir(root)).filter(f => f.startsWith('.bellteam-compose.') && !['.bellteam-compose.existing','.bellteam-compose.LEGACY'].includes(f)); assert.equal(dirs.length, 1); return join(root, dirs[0]) } }
 }
 
-test('original normal: actual old model/image/profile survive FF and are handed to the same archived CID', async t => {
+test('original normal: actual old model/image/profile survive FF and reach the unified installer', async t => {
   const f = await fixture(t), { stdout } = await f.run(), saved = await f.captured()
   assert.doesNotMatch(stdout, /synthetic-original-secret/)
   const normal = JSON.parse(await readFile(saved + '/previous-normal.json', 'utf8'))
@@ -100,19 +99,7 @@ test('original normal: actual old model/image/profile survive FF and are handed 
   const calls = await f.events(), launch = calls.find(c => c.command?.includes('setsid nohup'))
   assert.ok(launch.command.includes('BELLTEAM_PREVIOUS_COMPOSE=' + saved.replace(f.root, '/home/kite/BellTeam') + '/previous-normal.json'))
   assert.equal(await readFile(f.root + '/.bellteam-compose.existing/sentinel', 'utf8'), 'keep')
-  await assert.rejects(f.adapter({ BELLTEAM_PREVIOUS_COMPOSE: saved + '/previous-normal.json' }), e => e.code === 97)
-  const archives = await readdir(f.root + '/runtime/backups')
-  const archive = archives.find(n => n.startsWith('image-before-deploy.'))
-  assert.equal(await readFile(f.root + '/runtime/backups/' + archive + '/previous-compose.path', 'utf8'), saved + '/previous-normal.json\n')
-  if (process.env.TEST_ORIGINAL_RECEIPT_DIR) {
-    const out = process.env.TEST_ORIGINAL_RECEIPT_DIR
-    await mkdir(out, { recursive: true })
-    for (const file of ['previous-runtime.json','previous-model.json','previous-inputs.json','previous-normal.json','previous-profile.mjs'])
-      await copyFile(saved + '/' + file, out + '/' + file)
-    await writeFile(out + '/original-inputs.json', JSON.stringify(f.originalInputs, null, 2))
-    await writeFile(out + '/effect-calls.json', JSON.stringify(await f.events(), null, 2))
-    await writeFile(out + '/adapter-pointer.txt', await readFile(f.root + '/runtime/backups/' + archive + '/previous-compose.path'))
-  }
+
 })
 
 test('original normal: hash, input provenance or unreadable profile refuse FF and keep private evidence', async t => {
@@ -128,14 +115,7 @@ test('original normal: hash, input provenance or unreadable profile refuse FF an
   }
 })
 
-test('original normal: changed old CID at adapter handoff refuses candidate work without erasing the original', async t => {
-  const f = await fixture(t); await f.run(); const saved = await f.captured()
-  await assert.rejects(f.adapter({ BELLTEAM_PREVIOUS_COMPOSE: saved + '/previous-normal.json', TEST_CHANGED_CID: '1' }),
-    e => e.code === 1 && e.stderr.includes('BELLTEAM_PREVIOUS_CONFIG_CHANGED'))
-  const calls = await f.events()
-  assert.ok(!calls.some(c => c.tool === 'docker' && (c.args[0] === 'image' && c.args[1] === 'save' || c.args.includes('pull') || c.args.includes('stop'))))
-  assert.equal(JSON.parse(await readFile(saved + '/previous-runtime.json', 'utf8')).Id, cid)
-})
+
 
 
 test('original normal: retained labels and explicit env-file retain their original input provenance', async t => {

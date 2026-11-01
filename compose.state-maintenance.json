@@ -10,7 +10,7 @@
         "PATH=/usr/local/bin:/usr/bin:/bin",
         "/bin/sh",
         "-ec",
-        "root=/srv/bellteam-runtime/server-only/state-data; if [ \"$1\" = prepare ] && [ ! -e \"$root\" ]; then exec /usr/local/bin/node /app/src/server-state-transfer.mjs \"$@\"; fi; exec /usr/bin/flock -x -n -E 75 \"$root\" /usr/local/bin/node /app/src/server-state-transfer.mjs \"$@\"",
+        "root=/srv/bellteam-runtime/server-only/state-data; if [ \"$$1\" = prepare ] && [ ! -e \"$$root\" ]; then exec /usr/local/bin/node /app/src/server-state-transfer.mjs \"$$@\"; fi; exec /usr/bin/flock -x -n -E 75 \"$$root\" /usr/local/bin/node /app/src/server-state-transfer.mjs \"$$@\"",
         "state-maintenance"
       ],
       "command": [

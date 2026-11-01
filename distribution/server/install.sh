@@ -111,12 +111,15 @@ capture_previous() {
   old_project=$(docker container inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$stopped_container") || return 1
   old_hash=$(docker container inspect --format '{{index .Config.Labels "com.docker.compose.config-hash"}}' "$stopped_container") || return 1
   old_env=$(docker container inspect --format '{{index .Config.Labels "com.docker.compose.project.environment_file"}}' "$stopped_container") || return 1
-  [ "$old_working" = "$PWD" ] && [ "$old_project" = "$project" ] || return 1
+  [ "$old_project" = "$project" ] || return 1
   case "$old_files" in
     "$PWD/compose.yaml")
+      [ "$old_working" = "$PWD" ] || return 1
       docker run --pull never --rm --network none --read-only --entrypoint /bin/cat "$old_image" /app/compose.yaml > "$saved/previous-compose.yaml" || return 1
       old_files="$saved/previous-compose.yaml";;
-    "$PWD"/.bellteam-compose.*/normal.json|"$PWD"/.bellteam-compose.*/previous-normal.json) [ -f "$old_files" ] || return 1;;
+    "$PWD"/.bellteam-compose.*/normal.json|"$PWD"/.bellteam-compose.*/previous-normal.json)
+      [ -f "$old_files" ] && [ "$(dirname "$(dirname "$old_files")")" = "$PWD" ] || return 1
+      [ "$old_working" = "$PWD" ] || [ "$old_working" = "$(dirname "$old_files")" ] || return 1;;
     *) return 1;;
   esac
   case "$old_env" in ''|'<no value>') old_env="$PWD/.env"; [ -f "$old_env" ] || old_env=/dev/null;; esac
@@ -223,7 +226,7 @@ else
     exit "$result"
   fi
 fi
-docker compose up -d --wait --wait-timeout 120 --pull never
+docker compose --project-directory "$PWD" up -d --wait --wait-timeout 120 --pull never
 endpoint=$(docker compose port bellteam 4180)
 case "$endpoint" in
   0.0.0.0:*|\[::\]:*) url="http://localhost:18891" ;;

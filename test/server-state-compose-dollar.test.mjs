@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
+import { spawn, execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import test from 'node:test'
 import { assertStateWritersStopped, stateWriterPlan, stateWriterSources } from '../src/server-state-writers.mjs'
 
@@ -36,4 +39,18 @@ test('Compose plan identifies a running writer at the actual dollar-containing h
   const canonical = stateWriterSources(plan, containers).map(source => ({ source, canonical: source }))
   assert.throws(() => assertStateWritersStopped(plan, containers, canonical),
     error => error.message === 'SERVER_STATE_WRITERS_RUNNING' && error.writers[0] === 'synthetic-writer')
+})
+
+test('real Compose preserves maintenance shell variables instead of interpolating host values', async () => {
+  const file = new URL('../compose.state-maintenance.json', import.meta.url).pathname
+  const compose = resolve(process.env.TEST_COMPOSE ?? '../../integrations/docker-compose/bin/docker-compose')
+  const declared = JSON.parse(await readFile(file, 'utf8')).services['state-maintenance'].entrypoint
+  const { stdout, stderr } = await promisify(execFile)(compose, ['-f', file, 'config', '--format', 'json'], {
+    env: { ...process.env, root: 'host-value-must-not-be-used', BELLTEAM_SERVER_IMAGE: 'fixture:current' },
+  })
+  assert.equal(stderr, '')
+  const effective = JSON.parse(stdout.replaceAll('$$', '$')).services['state-maintenance'].entrypoint
+  assert.deepEqual(effective, declared.map(value => value.replaceAll('$$', '$')))
+  assert.match(effective[5], /flock -x -n -E 75 "\$root"/)
+  assert.doesNotMatch(effective[5], /host-value-must-not-be-used/)
 })
