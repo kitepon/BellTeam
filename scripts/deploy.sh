@@ -2,6 +2,7 @@
 # 本番反映の正規入口。GitHubのmainを取り込み、受入imageまたは新規buildを反映する。
 # usage: scripts/deploy.sh
 # 商用image: BELLTEAM_DEPLOY_IMAGE=repo@sha256:digest BELLTEAM_DEPLOY_QUIET_EXCEPT=bot-id sh scripts/deploy.sh
+# quiet対象Botを空にすると、従来buildと同じくquiet判定なしで入れる（オーナー裁定 2026-11-01）。
 set -eu
 cd "$(dirname "$0")/.."
 host=main-server
@@ -15,8 +16,8 @@ if [ -n "$image" ]; then
   repository=${image%@sha256:*}
   case "$image" in *[!a-zA-Z0-9._:/@-]*) echo '受入imageの指定が不正です。' >&2; exit 2;; esac
   case "$digest" in ''|*[!a-f0-9]*) echo 'image digestが不正です。' >&2; exit 2;; esac
-  if [ ${#digest} -ne 64 ] || [ -z "$repository" ] || [ -z "$quiet_except" ]; then
-    echo '受入imageの完全なdigestとquiet対象Botを指定してください。' >&2
+  if [ ${#digest} -ne 64 ] || [ -z "$repository" ]; then
+    echo '受入imageの完全なdigestを指定してください。' >&2
     exit 2
   fi
 fi
