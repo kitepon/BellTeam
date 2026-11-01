@@ -52,3 +52,15 @@ test('ready・全体・未知・対象不足では履歴を再照合し、設定
   assert.ok(f.refreshed.includes('ai-control'))
   assert.ok(f.requests.includes('/api/setup'))
 })
+
+test('表示取得の失敗をSSE接続の失敗として伝播しない', async () => {
+  const notices = []
+  const context = vm.createContext({ state: { selectedType: 'bot', selected: { id: 'a' } }, ownerDialog: { open: false },
+    goals: { refreshOnEvent() {} }, loadBots: async () => { throw new TypeError('GET failed') }, loadMessages: async () => {},
+    conversationComposer: { showError: message => notices.push(message) },
+  })
+  vm.runInContext(functions, context)
+  await context.refreshFromEvent({ all: true })
+  assert.equal(notices.length, 1)
+  assert.match(notices[0], /表示を更新できません/)
+})
