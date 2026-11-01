@@ -23,6 +23,25 @@ const idle = { exists: true, state: 'idle', reason: 'composer_ready', pending_ch
 const procFixture = (rows = [root, hook]) => ({ readTable: async () => new Map(rows.map(row => [row.pid, row])),
   readTree: async () => structuredClone(rows), readStart: async () => 'synthetic-start' })
 
+test('休止席は同じ世代の停止を二度確認し、実プロセス候補が無い場合に静かと判定する', async () => {
+  const dormant = { exists: true, state: 'hibernated', reason: 'idle_timeout', launch_id: 'saved-launch',
+    harness: 'codex-cli', pane_alive: false, harness_alive: false, pane_process: null, harness_process: null,
+    pending_child_deliveries: 0, activity: { post_startup_process_count: 0 } }
+  const seat = { ...peerSeat, candidates: [] }
+  let reads = 0
+  assert.deepEqual(await confirmDeployIdle({ observe: async () => { reads++; return dormant } }, seat, procFixture([])), { state: 'idle' })
+  assert.equal(reads, 2)
+  for (const changed of [{ launch_id: 'replacement' }, { state: 'stopping' }, { pane_alive: true },
+    { harness_alive: true }, { pane_process: {} }, { harness_process: {} }, { exists: false },
+    { pending_child_deliveries: 1 }, { pending_child_deliveries: null }, { activity: {} }]) {
+    let calls = 0
+    assert.equal(await confirmDeployIdle({ observe: async () => ++calls === 1 ? dormant : { ...dormant, ...changed } }, seat, procFixture([])), null)
+  }
+  assert.equal(await confirmDeployIdle({ observe: async () => dormant }, peerSeat, procFixture()), null)
+  let calls = 0
+  assert.deepEqual(await confirmDeployIdle({ observe: async () => ++calls === 1 ? dormant : { ...dormant, state: 'busy' } }, seat, procFixture([])), { state: 'running' })
+})
+
 async function statTableFixture(t, count = 65) {
   const proc = await mkdtemp(join(tmpdir(), 'bellteam-proc-table-'))
   t.after(() => rm(proc, {recursive:true, force:true}))
