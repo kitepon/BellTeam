@@ -83,6 +83,34 @@ final class BellDiagnosticsTests: XCTestCase {
         XCTAssertFalse(other.contains("server_diagnostic_"))
     }
 
+    func testProtectedRequestFailureStoresDiagnosticReferenceWithoutSecretOrID() async throws {
+        let fingerprint = String(repeating: "c", count: 64)
+        ServerErrorProtocol.status = 500
+        ServerErrorProtocol.headers = [
+            "X-BellTeam-Diagnostic-Fingerprint": fingerprint,
+            "X-BellTeam-Diagnostic-Occurrence-Count": "5",
+            "X-BellTeam-Diagnostic-Received-At": "2026-11-01T11:07:30.419Z",
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ServerErrorProtocol.self]
+        let api = BellAPI(baseURL: URL(string: "https://server-error.test.invalid")!,
+                          session: URLSession(configuration: configuration),
+                          diagnostics: BellDiagnostics(onReport: { _, _, _, _ in }))
+        do {
+            _ = try await api.finishSecretRequest(id: "request-private-id", value: "secret-value")
+            XCTFail("500を成功にしない")
+        } catch {
+            let log = try XCTUnwrap(BellRequestTrace.from(error)).log
+            XCTAssertTrue(log.contains("request_route=/api/other\n"))
+            XCTAssertTrue(log.contains("request_method=POST\n"))
+            XCTAssertTrue(log.contains("server_diagnostic_fingerprint=\(fingerprint)\n"))
+            XCTAssertTrue(log.contains("server_diagnostic_occurrence_count=5\n"))
+            XCTAssertTrue(log.contains("server_diagnostic_received_at=2026-11-01T11:07:30.419Z\n"))
+            XCTAssertFalse(log.contains("request-private-id"))
+            XCTAssertFalse(log.contains("secret-value"))
+        }
+    }
+
     func testSameOfflineErrorKeepsMajorImpactVisibleWithoutAssigningAppDefect() {
         var logs: [String] = []
         let diagnostics = BellDiagnostics { _, _, _, log in logs.append(log) }

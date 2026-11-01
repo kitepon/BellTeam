@@ -128,9 +128,12 @@ final class BellAPI {
         let session = makeProtectedSession()
         defer { session.invalidateAndCancel() }
         let responseData: Data
+        let startedAt = Date(), startedState = diagnostics.requestStartAppState()
         do {
             let (data, response) = try await session.data(for: request)
-            try validate(response, data: data)
+            do { try validate(response, data: data) }
+            catch { throw traced(error, with: protectedTrace(path: path, method: "POST", startedAt: startedAt,
+                                                             appState: startedState, response: response)) }
             responseData = data
         } catch { try Task.checkCancellation(); throw error }
         return try decode(SecretRequestResponse.self, from: responseData, path: path, method: "POST")
@@ -157,12 +160,23 @@ final class BellAPI {
         let session = makeProtectedSession()
         defer { session.invalidateAndCancel() }
         let responseData: Data
+        let startedAt = Date(), startedState = diagnostics.requestStartAppState()
         do {
             let (data, response) = try await session.data(for: request)
-            try validate(response, data: data)
+            do { try validate(response, data: data) }
+            catch { throw traced(error, with: protectedTrace(path: path, method: method, startedAt: startedAt,
+                                                             appState: startedState, response: response)) }
             responseData = data
         } catch { try Task.checkCancellation(); throw error }
         return try decode(Response.self, from: responseData, path: path, method: method)
+    }
+
+    /// 保護セッションの失敗に添える最小の記録。計測値は持たず、応答の診断参照だけを読む。
+    private func protectedTrace(path: String, method: String, startedAt: Date, appState: String,
+                                response: URLResponse) -> BellRequestTrace {
+        BellRequestTrace(route: BellRequestTrace.route(for: path), method: method, startedAt: startedAt,
+                         failedAt: Date(), appStateAtStart: appState, attempts: 1, metrics: nil,
+                         serverDiagnostic: BellRequestTrace.serverDiagnostic(from: response))
     }
 
     private func makeProtectedSession() -> URLSession {
