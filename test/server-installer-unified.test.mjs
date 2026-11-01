@@ -21,7 +21,8 @@ const select=()=>{
  if(file&&fs.existsSync(file)&&file.endsWith('.json'))return JSON.parse(fs.readFileSync(file));
  return load('normal.json');
 };
-if(a[0]==='image'&&a[1]==='inspect'){
+if(a[0]==='version')emit(e.TEST_ENGINE_API??'1.45');
+else if(a[0]==='image'&&a[1]==='inspect'){
  if(e.TEST_INSPECT_FAIL)process.exit(57);
  const image=a.at(-1);let resolved=image.startsWith('sha256:')?image:'sha256:'+'a'.repeat(64);
  if(e.TEST_TAG_MOVES&&image==='fixture:new'){
@@ -48,7 +49,16 @@ else if(a[0]==='rm'){fs.rmSync(root+'/runtime.json',{force:true});emit(a.at(-1))
 else if(a[0]==='ps'){if(state())emit(state().Id);}
 else if(a[0]==='inspect'){
  const s=state();emit({id:s.Id,running:s.State.Running,restarting:false,restartPolicy:'unless-stopped',mounts:[]});
-}else if(a[0]==='volume'&&a[1]==='inspect')emit([]);
+}else if(a[0]==='volume'){
+ const filename=root+'/volume.json',existing=()=>fs.existsSync(filename)?JSON.parse(fs.readFileSync(filename)):
+  e.TEST_EXISTING_VOLUME?{Name:'fixture_state',Driver:'local',Labels:{'com.docker.compose.project':e.TEST_VOLUME_FOREIGN?'foreign':'selected-project'},Options:{}}:null;
+ if(a[1]==='ls'){if(existing())emit(existing().Name);}
+ else if(a[1]==='inspect'){const v=existing();if(!v)process.exit(1);emit(a.includes('--format')?{name:v.Name,driver:v.Driver,mountpoint:'/vm/'+v.Name+'/_data',optionCount:Object.keys(v.Options).length,type:v.Options.type??null,device:v.Options.device??null,options:v.Options.o??null}:[v]);}
+ else if(a[1]==='create'){
+  const opts={};for(let i=0;i<a.length;i++)if(a[i]==='--opt'){const [k,...v]=a[++i].split('=');opts[k]=v.join('=');}
+  fs.writeFileSync(filename,JSON.stringify({Name:a.at(-1),Driver:'local',Labels:{'com.docker.compose.project':a[a.indexOf('--label')+1].split('=')[1]},Options:opts}));emit(a.at(-1));
+ }else process.exit(91);
+}
 else if(a[0]==='run'){
  const entry=a[a.indexOf('--entrypoint')+1];
  if(entry==='/bin/cat'){
@@ -56,6 +66,7 @@ else if(a[0]==='run'){
   if(e.TEST_EXTRACT_FAIL===name)process.exit(54);
   process.stdout.write(name==='compose.yaml'?'synthetic old compose\n':fs.readFileSync(path.join(repo,name)));
  }else if(entry==='/usr/local/bin/node'){
+  if(a.some(v=>v.endsWith('target=/probe'))){if(a.includes('1000:1000'))process.exit(Number(e.TEST_PROBE_RESULT??75));process.exit(0);}
   let j=a.indexOf('-e');
   if(j>=0){const r=spawnSync(process.execPath,a.slice(j),{stdio:'inherit'});process.exit(r.status??98);}
   const script=a.find(x=>x==='/app/src/server-state-writers.mjs'),phase=a.at(-1);
@@ -69,7 +80,7 @@ else if(a[0]==='run'){
    const rows=n=>fs.readFileSync(check+'/'+n,'utf8').split('\n').filter(Boolean).map(x=>JSON.parse(x));
    const c=rows('containers.jsonl'),v=phase==='volumes'?[]:rows('volumes.jsonl');
    if(phase==='volumes')for(const name of m.stateWriterVolumes(p,c))emit(name);
-   else if(phase==='sources')for(const source of m.stateWriterSources(p,c,v)){emit(p.roots.includes(source)?'planned':'observed');emit(source);}
+   else if(phase==='sources')for(const source of m.stateWriterSources(p,c,v)){emit(p.roots.includes(source)?'planned':source.startsWith('/vm/')?'volume':'observed');emit(source);}
    else if(phase==='verify'){
     if(e.TEST_WRITER_FAIL)process.exit(56);
     const lines=fs.readFileSync(check+'/canonical.txt','utf8').trimEnd().split('\n'),canonical=[];
@@ -119,8 +130,8 @@ async function fixture(t,{legacy=false,server=false}={}) {
  {type:'bind',source:join(install,'runtime/data'),target:'/srv/bellteam'},
  {type:'volume',source:'cursor-cli',target:'/home/bell/.local'}]
  const normal={name:'selected-project',services:{bellteam:{image:'fixture:new',environment:{SECRET:'private-value',VALUE:'literal $$KEEP'},labels:{'fixture.$$key':'literal $$KEEP'},volumes:[...base,
- ...['state','rooms','owner','logs','shared/tools/bellteam-settings','shared/tools/apns'].map(n=>({type:'bind',source:join(install,'runtime/server-only/state-data',n.split('/').at(-1)),target:'/srv/bellteam/'+n,bind:{create_host_path:false}})),
- {type:'bind',source:join(install,'runtime/server-only/state-data'),target:'/run/bellteam-maintenance',read_only:true,bind:{create_host_path:false}}]}},volumes:{'cursor-cli':{name:'fixture_cursor'}}}
+ ...['state','rooms','owner','logs','shared/tools/bellteam-settings','shared/tools/apns'].map(n=>({type:'volume',source:'server-state',target:'/srv/bellteam/'+n,volume:{nocopy:true,subpath:n.split('/').at(-1)}})),
+ {type:'volume',source:'server-state',target:'/run/bellteam-maintenance',read_only:true,volume:{nocopy:true}}]}},volumes:{'cursor-cli':{name:'fixture_cursor'},'server-state':{name:'fixture_state',external:true}}}
  const old=structuredClone(normal);old.services.bellteam.image='fixture:old';old.services.bellteam.environment.SECRET='old-private';
  if(!server)old.services.bellteam.volumes=base;
  await writeFile(root+'/normal.json',JSON.stringify(normal));await writeFile(root+'/old.json',JSON.stringify(old))
@@ -137,7 +148,7 @@ test('公開installerはprivate変数なしで単一runtime serviceを固定しp
  const f=await fixture(t),{stdout}=await f.run();const calls=await f.calls();
  const saved=await f.saved(),maintenance=JSON.parse(await readFile(saved+'/compose.state-maintenance.json'));
  assert.equal(maintenance.services['state-maintenance'].image,currentImage)
- assert.deepEqual(maintenance.services['state-maintenance'].volumes,[{type:'bind',source:f.install+'/runtime',target:'/srv/bellteam-runtime',bind:{create_host_path:false}}])
+ assert.deepEqual(maintenance.services['state-maintenance'].volumes,[{type:'bind',source:f.install+'/runtime',target:'/srv/bellteam-runtime',bind:{create_host_path:false}},{type:'volume',source:'server-state',target:'/srv/bellteam-private',volume:{nocopy:true}}]);assert.deepEqual(maintenance.volumes,{'server-state':{name:'fixture_state',external:true}})
  const index=tail=>calls.findIndex(c=>c.args.slice(-tail.length).join('|')===tail.join('|'))
  assert.ok(index(['state-maintenance','prepare'])<index(['state-maintenance','to-server']))
  assert.ok(index(['state-maintenance','to-server'])<index(['--no-deps','cursor-update']))
@@ -278,6 +289,7 @@ test('共通親・project・6対応・control RO・世代のbind露出が不正�
   f=>f.normal.services.bellteam.volumes.splice(f.normal.services.bellteam.volumes.findIndex(v=>v.target==='/srv/bellteam/owner'),1),
   f=>f.normal.services.bellteam.volumes.find(v=>v.target==='/srv/bellteam/state').source=f.install+'/different/state',
   f=>f.normal.services.bellteam.volumes.find(v=>v.target==='/run/bellteam-maintenance').read_only=false,
+  f=>f.normal.volumes['server-state'].name='fixture_cursor',
   f=>f.normal.services.bellteam.volumes.push({type:'bind',source:f.install,target:'/exposed'}),
  ];
  for(const change of changes){
@@ -359,24 +371,21 @@ test('旧公開保存世代のworking_dirからno-op更新してもraw image・�
  }
 })
 
-test('Composeが同一CIDと旧config_filesを保持して再起動した後もserver世代へ復旧できる',async t=>{
+test('forwardは原本保存後に旧container objectを除去し、server世代への復旧は保持する',async t=>{
  const f=await fixture(t),extra={TEST_REUSE_CID:'1'};
  await f.run([],extra);const first=JSON.parse(await readFile(f.root+'/runtime.json'));
- const updated=await f.run([],extra),saved=updated.stdout.match(/^saved-compose=(.*)$/m)[1];
- const second=JSON.parse(await readFile(f.root+'/runtime.json'));
- assert.equal(second.Id,first.Id);assert.equal(second.Image,first.Image)
- assert.deepEqual(second.Config,first.Config);assert.notEqual(second.State.StartedAt,first.State.StartedAt)
- assert.notEqual(second.Config.Labels['com.docker.compose.project.config_files'],saved+'/normal.json')
- const original=JSON.parse(await readFile(saved+'/previous-runtime.json'));
- assert.deepEqual(original,[first]);const before=(await f.calls()).length;
- await f.run(['--recover',saved],extra);const restored=JSON.parse(await readFile(f.root+'/runtime.json'));
- assert.equal(restored.Id,first.Id);assert.equal(restored.Image,first.Image);assert.deepEqual(restored.Config,first.Config)
- assert.notEqual(restored.State.StartedAt,second.State.StartedAt)
+ const before=(await f.calls()).length,updated=await f.run([],extra),saved=updated.stdout.match(/^saved-compose=(.*)$/m)[1];
+ const second=JSON.parse(await readFile(f.root+'/runtime.json')),calls=(await f.calls()).slice(before);
+ const stop=calls.findIndex(c=>c.args[0]==='stop'),disable=calls.findIndex(c=>c.args[0]==='update'),remove=calls.findIndex(c=>c.args[0]==='rm');
+ assert.ok(stop>=0&&disable>stop&&remove>disable)
+ assert.equal(calls.find(c=>c.args[0]==='update').args[2],'no')
+ assert.equal(second.Config.Labels['com.docker.compose.project.config_files'],saved+'/normal.json')
+ const original=JSON.parse(await readFile(saved+'/previous-runtime.json'));assert.deepEqual(original,[first]);
+ const offset=(await f.calls()).length;await f.run(['--recover',saved],extra);
+ const recover=(await f.calls()).slice(offset);
+ assert.equal(recover.some(c=>c.args[0]==='rm'),false)
+ assert.equal(recover.filter(c=>c.args.at(-1)==='to-server').length,1)
  assert.deepEqual(JSON.parse(await readFile(saved+'/previous-runtime.json')),original)
- const calls=(await f.calls()).slice(before);
- assert.equal(calls.filter(c=>c.args.at(-1)==='to-server').length,1)
- assert.equal(calls.some(c=>c.args.at(-1)==='to-legacy'||c.args[0]==='rm'||c.args.at(-1)==='cursor-update'),false)
- assert.equal(calls.find(c=>c.args.includes('up')).compose,saved+'/previous-normal.json')
 })
 
 test('内部handoff後にcurrent CIDが変わった場合は、元raw原本を保持してstop前に拒否する',async t=>{
@@ -397,4 +406,52 @@ test('接続案内は公開bindとLAN endpointを区別し、認証案内に秘�
   const f=await fixture(t),result=await f.run([],{TEST_ENDPOINT:endpoint});
   assert.ok(result.stdout.includes(url));assert.match(result.stdout,/公式サイトで認証/);assert.doesNotMatch(result.stdout,/private-value/)
  }
+})
+
+
+test('API1.45未満・欠測・foreign volumeは旧本体停止と保守より前に拒否する',async t=>{
+ for(const extra of [{TEST_ENGINE_API:'1.44'},{TEST_ENGINE_API:'unknown'},{TEST_EXISTING_VOLUME:'1',TEST_VOLUME_FOREIGN:'1'}]){
+  const f=await fixture(t,{legacy:true});
+  await assert.rejects(f.run([],extra),e=>e.code===1&&/SERVER_STATE_(ENGINE_API_UNSUPPORTED|VOLUME_FOREIGN)/.test(e.stderr))
+  const calls=await f.calls();assert.equal(calls.some(c=>c.args[0]==='stop'||c.args.includes('state-maintenance')||c.args.includes('up')),false)
+  assert.equal(JSON.parse(await readFile(f.root+'/runtime.json')).State.Running,true)
+ }
+})
+
+test('初回behavior probeの実拒否だけでbind/nativeを選び、更新は同volumeをprobeせず保持する',async t=>{
+ for(const [result,bound] of [['75',true],['0',false]]){
+  const f=await fixture(t);await f.run([],{TEST_PROBE_RESULT:result});const calls=await f.calls();
+  const create=calls.filter(c=>c.args[0]==='volume'&&c.args[1]==='create');assert.equal(create.length,1)
+  assert.equal(create[0].args.includes('device='+f.install+'/runtime/server-only/state-data'),bound)
+  const probes=calls.filter(c=>c.args.some(a=>a.endsWith('target=/probe')))
+  assert.equal(probes.length,3);assert.ok(probes.some(c=>c.args.includes('1000:1000')))
+  assert.equal((await readdir(f.install+'/runtime/server-only')).some(n=>n.startsWith('.probe-')),false)
+  const before=calls.length;await f.run([],{TEST_PROBE_RESULT:bound?'0':'75'});
+  const after=(await f.calls()).slice(before)
+  assert.equal(after.some(c=>c.args.some(a=>a.endsWith('target=/probe'))||c.args[0]==='volume'&&c.args[1]==='create'),false)
+ }
+})
+
+test('probeの不明エラーを非強制Macへ補完せず、stop前に終了してprobeを除去する',async t=>{
+ const f=await fixture(t,{legacy:true});
+ await assert.rejects(f.run([],{TEST_PROBE_RESULT:'1'}),e=>e.code===1&&/PERMISSION_PROBE_FAILED/.test(e.stderr))
+ assert.equal((await f.calls()).some(c=>c.args[0]==='stop'||c.args[0]==='volume'&&c.args[1]==='create'),false)
+ assert.equal((await readdir(f.install+'/runtime/server-only')).some(n=>n.startsWith('.probe-')),false)
+})
+
+
+test('既存volumeのdriver/options/device欠測や別実体を停止前に拒否する',async t=>{
+ const original={Name:'fixture_state',Driver:'local',Labels:{'com.docker.compose.project':'selected-project'},Options:{}}
+ for(const patch of [{Driver:'remote'},{Options:{type:'none',o:'bind',device:'/different/state-data'}},{Options:{type:'none',o:'bind'}},{Labels:{}},{Options:undefined},{Options:[]}]){
+  const f=await fixture(t,{legacy:true});await writeFile(f.root+'/volume.json',JSON.stringify({...original,...patch}))
+  await assert.rejects(f.run(),e=>e.code===1&&/SERVER_STATE_VOLUME_FOREIGN/.test(e.stderr))
+  assert.equal((await f.calls()).some(c=>c.args[0]==='stop'||c.args.some(a=>a.endsWith('target=/probe'))),false)
+ }
+})
+
+test('recoverは世代固定volumeが失われたら空volumeを再作成せずstop前に拒否する',async t=>{
+ const f=await fixture(t,{legacy:true});await f.run();const saved=await f.saved(),before=(await f.calls()).length
+ await rm(f.root+'/volume.json')
+ await assert.rejects(f.run(['--recover',saved]),e=>e.code===1&&/SERVER_STATE_VOLUME_MISSING/.test(e.stderr))
+ assert.equal((await f.calls()).slice(before).some(c=>c.args[0]==='stop'||c.args[0]==='volume'&&c.args[1]==='create'),false)
 })

@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include <fcntl.h>
+#include <errno.h>
 #include <grp.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +34,9 @@ int main(int argc, char **argv) {
         || flock(parent, LOCK_SH | LOCK_NB) != 0
         || lstat("/run/bellteam-maintenance", &linked) != 0
         || linked.st_dev != directory.st_dev || linked.st_ino != directory.st_ino) return admission_failed();
+    struct stat transaction;
+    if (fstatat(parent, ".transaction.json", &transaction, AT_SYMLINK_NOFOLLOW) == 0
+        || errno != ENOENT) return admission_failed();
     if (parent != 3) {
         if (dup2(parent, 3) < 0) return admission_failed();
         close(parent);

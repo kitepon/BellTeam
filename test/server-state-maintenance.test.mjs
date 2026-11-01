@@ -16,30 +16,32 @@ const normal = { volumes: [
   { type: 'bind', source: '/runtime/home', target: '/home/bell' },
   { type: 'volume', source: 'cursor-cli', target: '/home/bell/.local' },
 ] }
-const config = { services: { bellteam: normal, 'state-maintenance': service }, volumes: { 'cursor-cli': { name: 'fixture_cursor' } } }
+const config = { services: { bellteam: normal, 'state-maintenance': service }, volumes: { 'cursor-cli': { name: 'fixture_cursor' }, 'server-state': {name:'fixture_state',external:true} } }
 const container = source => ({ id: 'synthetic-writer', running: true, restarting: false, restartPolicy: 'no',
   mounts: [{ Type: 'bind', Source: source, RW: true }] })
-const canonical = (plan, containers) => stateWriterSources(plan, containers).map(source => ({ source, canonical: source }))
+const privateVolume={name:'fixture_state',driver:'local',mountpoint:'/docker/fixture_state/_data',optionCount:0,type:null,device:null,options:null}
+const canonical = (plan, containers) => stateWriterSources(plan, containers,[privateVolume]).map(source => ({ source, canonical: source }))
 
 test('単一runtimeの祖先とprivate state writerも停止確認し、ROと停止済みは許す', () => {
   const plan = stateWriterPlan(config)
   for (const source of ['/', '/runtime', '/runtime/server-only/state-data', '/runtime/server-only/state-data/rooms']) {
     const active = [container(source)]
-    assert.throws(() => assertStateWritersStopped(plan, active, canonical(plan, active)), /WRITERS_RUNNING/)
+    assert.throws(() => assertStateWritersStopped(plan, active, canonical(plan, active),[privateVolume]), /WRITERS_RUNNING/)
     active[0].mounts[0].RW = false
-    assert.deepEqual(assertStateWritersStopped(plan, active, canonical(plan, active)), { writers: 0 })
+    assert.deepEqual(assertStateWritersStopped(plan, active, canonical(plan, active),[privateVolume]), { writers: 0 })
     active[0].mounts[0].RW = true; active[0].running = false
-    assert.deepEqual(assertStateWritersStopped(plan, active, canonical(plan, active)), { writers: 0 })
+    assert.deepEqual(assertStateWritersStopped(plan, active, canonical(plan, active),[privateVolume]), { writers: 0 })
   }
 })
 
-test('通常serviceの新6bindも保護し、別名writerをcanonical照合で拒否する', () => {
-  const c = structuredClone(config)
-  c.services.bellteam.volumes.push(...['state','rooms','owner','logs','shared/tools/bellteam-settings','shared/tools/apns'].map(name => ({type:'bind',source:'/runtime/server-only/state-data/'+name.split('/').at(-1),target:'/srv/bellteam/'+name})))
-  delete c.services['state-maintenance']
-  const plan = stateWriterPlan(c), active = [container('/alias')]
-  const aliases = canonical(plan, active).map(row => row.source === '/alias' ? { ...row, canonical: '/runtime/server-only/state-data/owner' } : row)
-  assert.throws(() => assertStateWritersStopped(plan, active, aliases), /WRITERS_RUNNING/)
+test('native server-state volumeのRW writerはsubpathでも拒否し、ROは許す', () => {
+  const plan = stateWriterPlan(config)
+  const active = [{id:'native',running:true,restarting:false,restartPolicy:'no',mounts:[{Type:'volume',Name:'fixture_state',Source:'/docker/fixture_state/_data/state',RW:true}]}]
+  const volumes = [{name:'fixture_state',driver:'local',mountpoint:'/docker/fixture_state/_data',optionCount:0,type:null,device:null,options:null}]
+  const aliases=stateWriterSources(plan,active,volumes).map(source=>({source,canonical:source}))
+  assert.throws(()=>assertStateWritersStopped(plan,active,aliases,volumes),/WRITERS_RUNNING/)
+  active[0].mounts[0].RW=false
+  assert.deepEqual(assertStateWritersStopped(plan,active,canonical(plan,active),[privateVolume]),{writers:0})
 })
 
 test('部分6bind・maintenanceの欠測や余分なmount・ROを停止済みへ丸めない', () => {
@@ -56,7 +58,7 @@ test('部分6bind・maintenanceの欠測や余分なmount・ROを停止済みへ
   }
 })
 
-test('固定保守Composeは秘密の通常envを継承せず、単一runtime bindとdirectory flockだけを宣言する', () => {
+test('固定保守Composeは秘密の通常envを継承せず、runtime bindと単一volumeおよびdirectory flockを宣言する', () => {
   const s = declared.services['state-maintenance']
   assert.equal(declared.name, undefined, 'writer確認でnormal Composeと読む時、既存Cursor volumeのproject名を変えない')
   assert.deepEqual(Object.keys(declared.services), ['state-maintenance'])
@@ -65,9 +67,13 @@ test('固定保守Composeは秘密の通常envを継承せず、単一runtime bi
   assert.match(s.entrypoint[5], /server-state-transfer.mjs/)
   assert.deepEqual(s.command, ['to-server'])
   for (const key of ['environment', 'env_file', 'secrets', 'configs', 'ports', 'extends', 'build']) assert.equal(s[key], undefined)
-  assert.equal(s.volumes.length, 1)
+  assert.equal(s.volumes.length, 2)
   assert.equal(s.volumes[0].source, './runtime')
-  assert.ok(s.volumes.every(mount => mount.type === 'bind' && mount.bind.create_host_path === false))
+  assert.equal(s.volumes[0].bind.create_host_path, false)
+  assert.deepEqual(s.volumes[1],{type:'volume',source:'server-state',target:'/srv/bellteam-private',volume:{nocopy:true}})
+  assert.deepEqual(declared.volumes['server-state'],{external:true,name:'${BELLTEAM_SERVER_STATE_VOLUME:-bellteam-server-state}'})
+  assert.match(s.entrypoint[5],/install-sce-headers\.py headers/)
+  assert.match(s.entrypoint[5],/install-sce-headers\.py endpoint/)
   assert.ok(s.volumes.every(mount => !/home|docker.sock/u.test(mount.target)))
   assert.deepEqual(s.cap_drop, ['ALL']); assert.deepEqual(s.cap_add, ['CHOWN', 'DAC_OVERRIDE', 'FOWNER'])
   assert.equal(s.network_mode, 'none'); assert.equal(s.read_only, true)

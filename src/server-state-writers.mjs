@@ -31,40 +31,45 @@ export function stateWriterPlan(config) {
   if (service.volumes.some(mount => ['/srv/bellteam-legacy', '/srv/bellteam-maintenance-backups']
     .some(view => mount.target === view || typeof mount.target === 'string' && mount.target.startsWith(view + '/')))) invalid()
   const stateMounts = service.volumes.filter(mount => stateTargets.includes(mount.target))
-  const normalSources = stateMounts.length ? addBinds(service, stateTargets) : []
-  separate(normalSources)
+  let stateVolume
+  if (stateMounts.length) {
+    if (stateMounts.length !== stateTargets.length) invalid()
+    const source = stateMounts[0].source
+    stateVolume = config.volumes?.[source]?.name
+    if (typeof stateVolume !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(stateVolume)
+      || stateVolume === volume || config.volumes[source].external !== true) invalid()
+    for (const target of stateTargets) {
+      const matches = stateMounts.filter(mount => mount.target === target)
+      if (matches.length !== 1 || matches[0].type !== 'volume' || matches[0].source !== source
+        || matches[0].read_only === true || matches[0].volume?.nocopy !== true
+        || matches[0].volume?.subpath !== target.split('/').at(-1)) invalid()
+    }
+    const control = service.volumes.filter(mount => mount.target === '/run/bellteam-maintenance')
+    if (control.length !== 1 || control[0].type !== 'volume' || control[0].source !== source
+      || control[0].read_only !== true || control[0].volume?.nocopy !== true || control[0].volume?.subpath) invalid()
+  }
   const maintenance = config.services['state-maintenance']
   if (maintenance) {
     const mounts = maintenance.volumes
-    if (mounts?.length !== 1 || mounts[0].type !== 'bind' || mounts[0].read_only === true
-      || mounts[0].target !== '/srv/bellteam-runtime') invalid()
-    const runtime = path(mounts[0].source)
-    if (roots[0] !== posix.join(runtime, 'data') || roots[1] !== posix.join(runtime, 'home')) invalid()
-    if (normalSources.some((source, index) => source !== posix.join(runtime, 'server-only/state-data', stateTargets[index].split('/').at(-1)))) invalid()
+    if (mounts?.length !== 2) invalid()
+    const bind = mounts.find(mount => mount.target === '/srv/bellteam-runtime')
+    const privateMount = mounts.find(mount => mount.target === '/srv/bellteam-private')
+    if (bind?.type !== 'bind' || bind.read_only === true || privateMount?.type !== 'volume'
+      || privateMount.read_only === true || privateMount.volume?.nocopy !== true || privateMount.volume?.subpath) invalid()
+    const runtime = path(bind.source), name = config.volumes?.[privateMount.source]?.name
+    if (roots[0] !== posix.join(runtime, 'data') || roots[1] !== posix.join(runtime, 'home')
+      || typeof name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(name)
+      || name === volume || config.volumes[privateMount.source].external !== true || stateVolume && name !== stateVolume) invalid()
+    stateVolume = name
     roots.push(runtime)
   }
-  return { roots: [...new Set(roots)], volume }
-
-  function addBinds(service, targets) {
-    if (!Array.isArray(service.volumes)) invalid()
-    const sources = []
-    for (const target of targets) {
-      const matches = service.volumes.filter(mount => mount.target === target)
-      if (matches.length !== 1 || matches[0].type !== 'bind' || matches[0].read_only === true) invalid()
-      sources.push(path(matches[0].source))
-    }
-    roots.push(...sources)
-    return sources
-  }
-  function separate(sources) {
-    if (sources.some((source, index) => roots.slice(0, 2).some(root => overlaps(source, root))
-      || sources.slice(index + 1).some(other => overlaps(source, other)))) invalid()
-  }
+  return { roots: [...new Set(roots)], volume, ...(stateVolume ? { stateVolume } : {}) }
 }
 
 function validate(plan, containers) {
   if (!Array.isArray(plan?.roots) || plan.roots.length < 2 || typeof plan.volume !== 'string'
-    || !Array.isArray(containers)) invalid()
+    || !Array.isArray(containers) || plan.stateVolume !== undefined
+      && (typeof plan.stateVolume !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(plan.stateVolume))) invalid()
   plan.roots.forEach(path)
   for (const container of containers) {
     if (typeof container.id !== 'string' || !container.id || typeof container.running !== 'boolean'
@@ -89,8 +94,8 @@ function validate(plan, containers) {
 
 export function stateWriterVolumes(plan, containers) {
   validate(plan, containers)
-  return [...new Set(containers.filter(c => participates(plan, c))
-    .flatMap(c => c.mounts.filter(m => m.RW && m.Type === 'volume').map(m => m.Name)))].sort()
+  return [...new Set([...(plan.stateVolume ? [plan.stateVolume] : []), ...containers.filter(c => participates(plan, c))
+    .flatMap(c => c.mounts.filter(m => m.RW && m.Type === 'volume').map(m => m.Name))])].sort()
 }
 
 function volumePaths(plan, containers, volumes) {
@@ -110,7 +115,9 @@ function volumePaths(plan, containers, volumes) {
     } else {
       if (record.optionCount !== 3 || record.type !== 'none'
         || !['bind', 'bind,rw', 'rw,bind', 'rbind'].includes(record.options)) invalid()
-      paths.push(path(record.device))
+      const device = path(record.device)
+      if (name === plan.stateVolume && device !== posix.join(posix.dirname(plan.roots[0]), 'server-only/state-data')) invalid()
+      paths.push(device)
     }
     result.set(name, paths)
   }
@@ -135,11 +142,12 @@ export function assertStateWritersStopped(plan, containers, canonical, volumes =
   }
   if (sources.some(source => !aliases.has(source))) invalid()
   for (const c of containers.filter(c => participates(plan, c))) for (const m of c.mounts.filter(m => m.RW && m.Type === 'volume')) {
-    if (aliases.get(m.Source) !== aliases.get(backing.get(m.Name)[0])) invalid()
+    const root = aliases.get(backing.get(m.Name)[0]), source = aliases.get(m.Source)
+    if (source !== root && !source.startsWith(root + '/')) invalid()
   }
-  const roots = plan.roots.map(source => aliases.get(source))
+  const roots = [...plan.roots, ...(backing.get(plan.stateVolume) ?? [])].map(source => aliases.get(source))
   const writers = containers.filter(c => participates(plan, c)).filter(c => c.mounts.some(m => m.RW && (
-    m.Type === 'volume' && m.Name === plan.volume
+    m.Type === 'volume' && [plan.volume, plan.stateVolume].includes(m.Name)
     || m.Type === 'volume' && backing.get(m.Name).some(source => roots.some(root => overlaps(root, aliases.get(source))))
     || m.Type === 'bind' && roots.some(root => overlaps(root, aliases.get(m.Source)))
   ))).map(c => c.id)
@@ -163,11 +171,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       else {
         const records = (await readFile('/check/volumes.jsonl', 'utf8')).split('\n').filter(Boolean).map(line => JSON.parse(line))
         if (mode === 'sources') {
-        const backing = [...volumePaths(plan, containers, records).values()].flat()
+        const backing = volumePaths(plan, containers, records)
+        const active = containers.filter(c => participates(plan, c))
+        const host = [...active.flatMap(c => c.mounts.filter(m => m.RW && m.Type === 'bind').map(m => m.Source)),
+          ...[...backing.values()].flatMap(paths => paths.slice(1))]
+        const virtual = [...active.flatMap(c => c.mounts.filter(m => m.RW && m.Type === 'volume').map(m => m.Source)),
+          ...[...backing.values()].map(paths => paths[0])]
         for (const source of stateWriterSources(plan, containers, records)) {
-          const observed = containers.some(c => participates(plan, c)
-            && c.mounts.some(m => m.RW && ['bind', 'volume'].includes(m.Type) && m.Source === source)) || backing.includes(source)
-          console.log(`${observed ? 'observed' : 'planned'}\n${source}`)
+          const kind = host.includes(source) ? 'observed' : virtual.includes(source) ? 'volume' : 'planned'
+          console.log(`${kind}\n${source}`)
         }
         }
         else {

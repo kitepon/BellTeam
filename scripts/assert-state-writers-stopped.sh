@@ -65,6 +65,10 @@ while IFS= read -r kind && IFS= read -r source; do
   case "$kind" in
     observed) [ -e "$source" ] || { echo SERVER_STATE_HOST_PATH_UNAVAILABLE >&2; exit 1; };;
     planned) ;;
+    volume)
+      # Native volume paths belong to the Docker VM, not the host filesystem.
+      printf '%s\n%s\n' "$source" "$source" >> "$staging/canonical.txt"
+      continue;;
     *) echo SERVER_STATE_PATH_INVALID >&2; exit 1;;
   esac
   current=$source

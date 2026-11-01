@@ -13,9 +13,16 @@ esac
 umask 077
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-install.XXXXXX")
 keep_saved=false
+probe=
 cleanup() {
   install_result=$?
   trap - 0
+  if [ -n "$probe" ]; then
+    docker run --pull never --rm --network none --read-only --user 0:0 \
+      --mount "type=bind,source=$probe,target=/probe" --entrypoint /usr/local/bin/node "$image" \
+      -e 'require("fs").rmSync("/probe/closed",{recursive:true,force:true})' >/dev/null 2>&1 || :
+    rmdir "$probe" 2>/dev/null || :
+  fi
   rm -rf "$staging" || { [ "$install_result" -ne 0 ] || install_result=1; }
   if [ -n "$saved" ] && ! "$keep_saved"; then
     rm -rf "$saved" || { [ "$install_result" -ne 0 ] || install_result=1; }
@@ -46,6 +53,10 @@ image=$(docker image inspect --format '{{.Id}}' "$image")
 case "$image" in sha256:*) ;; *) echo SERVER_STATE_IMAGE_INVALID >&2; exit 1;; esac
 BELLTEAM_SERVER_IMAGE=$image
 export BELLTEAM_SERVER_IMAGE
+docker version --format '{{.Server.APIVersion}}' | docker run --pull never --rm -i --network none --read-only \
+  --entrypoint /usr/local/bin/node "$image" -e '
+const v=require("fs").readFileSync(0,"utf8").trim().match(/^(\d+)\.(\d+)$/);
+if(!v||Number(v[1])<1||Number(v[1])===1&&Number(v[2])<45){console.error("SERVER_STATE_ENGINE_API_UNSUPPORTED");process.exit(1)}'
 mkdir "$staging/scripts"
 for path in compose.cursor-update.yaml compose.state-maintenance.json scripts/update-cursor.sh scripts/assert-state-writers-stopped.sh; do
   docker run --pull never --rm --network none --read-only --entrypoint /bin/cat "$image" "/app/$path" > "$staging/$path"
@@ -62,19 +73,28 @@ try {
   const [normal,maintenance]=JSON.parse(fs.readFileSync(0,"utf8").replaceAll("$$","$"));
   const [image,saved,selected]=process.argv.slice(1),service=normal.services.bellteam;
   if(typeof normal.name!=="string"||!path.isAbsolute(saved))throw Error();
-  const bind=target=>{const m=service.volumes.filter(v=>v.target===target);if(m.length!==1||m[0].type!=="bind"||m[0].read_only)throw Error();return path.resolve(m[0].source)};
+  const bind=target=>{const m=service.volumes.filter(v=>v.target===target);if(m.length!==1||m[0].type!=="bind"||m[0].read_only||typeof m[0].source!=="string"||/[\0\r\n]/.test(m[0].source))throw Error();return path.resolve(m[0].source)};
   const data=bind("/srv/bellteam"),home=bind("/home/bell"),runtime=path.dirname(data);
   if(data!==path.join(runtime,"data")||home!==path.join(runtime,"home")||service.volumes.some(v=>
     v.type==="bind"&&(saved===path.resolve(v.source)||saved.startsWith(path.resolve(v.source)+path.sep))))throw Error();
-  const privateRoot=path.join(runtime,"server-only/state-data");
-  for(const name of ["state","rooms","owner","logs","shared/tools/bellteam-settings","shared/tools/apns"])
-    if(bind("/srv/bellteam/"+name)!==path.join(privateRoot,name.split("/").at(-1)))throw Error();
+  const stateMount=service.volumes.find(v=>v.target==="/srv/bellteam/state"),source=stateMount?.source;
+  const definition=normal.volumes?.[source],volume=definition?.name;
+  if(definition?.external!==true||typeof volume!=="string"||!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(volume))throw Error();
+  const cursor=service.volumes.filter(v=>v.target==="/home/bell/.local");
+  if(cursor.length!==1||cursor[0].type!=="volume"||normal.volumes?.[cursor[0].source]?.name===volume)throw Error();
+  for(const name of ["state","rooms","owner","logs","shared/tools/bellteam-settings","shared/tools/apns"]){
+    const mounts=service.volumes.filter(v=>v.target==="/srv/bellteam/"+name),v=mounts[0];
+    if(mounts.length!==1||v.type!=="volume"||v.source!==source||v.read_only||v.volume?.nocopy!==true||v.volume?.subpath!==name.split("/").at(-1))throw Error();
+  }
   const control=service.volumes.filter(v=>v.target==="/run/bellteam-maintenance");
-  if(control.length!==1||control[0].type!=="bind"||!control[0].read_only||control[0].source!==privateRoot)throw Error();
+  if(control.length!==1||control[0].type!=="volume"||!control[0].read_only||control[0].source!==source
+    ||control[0].volume?.nocopy!==true||control[0].volume?.subpath)throw Error();
   service.image=image;
-  const m=maintenance.services["state-maintenance"];
-  if(m.volumes.length!==1||m.volumes[0].target!=="/srv/bellteam-runtime")throw Error();
-  m.image=image;m.volumes[0].source=runtime;
+  const m=maintenance.services["state-maintenance"],runtimeBind=m.volumes.find(v=>v.target==="/srv/bellteam-runtime"),privateMount=m.volumes.find(v=>v.target==="/srv/bellteam-private");
+  if(m.volumes.length!==2||runtimeBind?.type!=="bind"||runtimeBind.read_only||privateMount?.type!=="volume"||privateMount.read_only
+    ||privateMount.volume?.nocopy!==true||privateMount.volume?.subpath)throw Error();
+  m.image=image;runtimeBind.source=runtime;
+  maintenance.volumes={[privateMount.source]:{external:true,name:volume}};
   if(selected.includes("@sha256:"))normal["x-bellteam-image-ref"]=selected;
   console.log(normal.name);
   for(const model of [normal,maintenance])console.log(JSON.stringify(model,(_k,v)=>typeof v==="string"?v.replaceAll("$",()=>"$$"):v));
@@ -91,6 +111,56 @@ project=$(docker compose config --format json | docker run --pull never --rm -i 
 case "$project" in ''|*[!a-zA-Z0-9_.-]*) echo SERVER_STATE_PROJECT_INVALID >&2; exit 1;; esac
 COMPOSE_PROJECT_NAME=$project
 export COMPOSE_PROJECT_NAME
+# The frozen maintenance model carries the selected volume across updates and recovery.
+docker run --pull never --rm -i --network none --read-only --entrypoint /usr/local/bin/node "$image" -e '
+const fs=require("node:fs"),path=require("node:path");
+try{const d=JSON.parse(fs.readFileSync(0,"utf8").replaceAll("$$","$")),v=d.services["state-maintenance"].volumes;
+ const bind=v.find(m=>m.target==="/srv/bellteam-runtime"),privateMount=v.find(m=>m.target==="/srv/bellteam-private"),volume=d.volumes?.[privateMount?.source];
+ if(v.length!==2||bind?.type!=="bind"||!path.isAbsolute(bind.source)||/[\r\n]/.test(bind.source)||volume?.external!==true
+   ||typeof volume.name!=="string"||! /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(volume.name))throw Error();
+ console.log(bind.source);console.log(volume.name);
+}catch{console.error("SERVER_STATE_CONFIG_UNAVAILABLE");process.exitCode=1}
+' < "$saved/compose.state-maintenance.json" > "$staging/storage.txt"
+runtime=$(sed -n '1p' "$staging/storage.txt")
+state_volume=$(sed -n '2p' "$staging/storage.txt")
+mkdir -p "$runtime/server-only"
+docker volume ls --format '{{.Name}}' > "$staging/volume-names.txt"
+if grep -Fx "$state_volume" "$staging/volume-names.txt" >/dev/null; then
+  docker volume inspect "$state_volume" > "$staging/volume.json"
+else
+  if "$recovery"; then echo SERVER_STATE_VOLUME_MISSING >&2; exit 1; fi
+  # Test enforcement, not the ownership metadata emulated by Desktop bind mounts.
+  probe=$(mktemp -d "$runtime/server-only/.probe-XXXXXX")
+  docker run --pull never --rm --network none --read-only --user 0:0 \
+    --mount "type=bind,source=$probe,target=/probe" --entrypoint /usr/local/bin/node "$image" -e '
+const fs=require("fs");fs.mkdirSync("/probe/closed",{mode:0o700});fs.writeFileSync("/probe/closed/secret","probe",{mode:0o600});'
+  probe_result=0
+  docker run --pull never --rm --network none --read-only --user 1000:1000 \
+    --mount "type=bind,source=$probe,target=/probe" --entrypoint /usr/local/bin/node "$image" -e '
+const fs=require("fs");let denied=0;for(const f of [()=>fs.readdirSync("/probe/closed"),()=>fs.readFileSync("/probe/closed/secret")]){
+ try{f()}catch(e){if(e.code!=="EACCES")process.exit(1);denied++}}
+process.exit(denied===2?75:0);' || probe_result=$?
+  docker run --pull never --rm --network none --read-only --user 0:0 \
+    --mount "type=bind,source=$probe,target=/probe" --entrypoint /usr/local/bin/node "$image" -e 'require("fs").rmSync("/probe/closed",{recursive:true,force:true})'
+  rmdir "$probe"
+  probe=
+  case "$probe_result" in
+    75)
+      mkdir -p "$runtime/server-only/state-data"
+      docker volume create --driver local --label "com.docker.compose.project=$project" \
+        --opt type=none --opt o=bind --opt "device=$runtime/server-only/state-data" "$state_volume" >/dev/null;;
+    0) docker volume create --driver local --label "com.docker.compose.project=$project" "$state_volume" >/dev/null;;
+    *) echo SERVER_STATE_PERMISSION_PROBE_FAILED >&2; exit 1;;
+  esac
+  docker volume inspect "$state_volume" > "$staging/volume.json"
+fi
+cat "$staging/volume.json" | docker run --pull never --rm -i --network none --read-only --entrypoint /usr/local/bin/node "$image" -e '
+try{const a=JSON.parse(require("fs").readFileSync(0,"utf8")),[name,project,runtime]=process.argv.slice(1),v=a[0],rawOptions=v?.Options,o=rawOptions??{};
+ if(a.length!==1||v.Name!==name||v.Driver!=="local"||v.Labels?.["com.docker.compose.project"]!==project
+   ||!(rawOptions===null||typeof rawOptions==="object"&&!Array.isArray(rawOptions)))throw Error();
+ if(Object.keys(o).length&&!(Object.keys(o).length===3&&o.type==="none"&&o.o==="bind"&&o.device===runtime+"/server-only/state-data"))throw Error();
+}catch{console.error("SERVER_STATE_VOLUME_FOREIGN");process.exitCode=1}
+' "$state_volume" "$project" "$runtime"
 stopped_container=$(docker compose ps --all --quiet --no-trunc bellteam)
 case "$stopped_container" in *[!a-f0-9]*) echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1;; esac
 [ -z "$stopped_container" ] || [ "${#stopped_container}" -eq 64 ] || { echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1; }
@@ -203,20 +273,14 @@ if [ -n "$stopped_container" ]; then
   docker stop "$stopped_container"
   state=$(docker container inspect --format '{{.State.Running}} {{.State.Restarting}}' "$stopped_container")
   [ "$state" = 'false false' ] || { echo SERVER_STATE_STOP_UNCONFIRMED >&2; exit 1; }
-  if "$recovery" && [ "$direction" = to-legacy ]; then
+  if ! "$recovery" || [ "$direction" = to-legacy ]; then
     docker update --restart no "$stopped_container"
     docker rm "$stopped_container"
     stopped_container=
   fi
 fi
 BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
-runtime=$(docker run --pull never --rm -i --network none --read-only --entrypoint /usr/local/bin/node "$image" -e '
-const fs=require("node:fs"),path=require("node:path");
-const d=JSON.parse(fs.readFileSync(0,"utf8").replaceAll("$$","$")),v=d.services["state-maintenance"].volumes;
-if(v.length!==1||v[0].type!=="bind"||v[0].target!=="/srv/bellteam-runtime"||!path.isAbsolute(v[0].source))process.exit(1);
-console.log(v[0].source);
-' < "$saved/compose.state-maintenance.json")
-mkdir -p "$runtime"
+
 maintenance() {
   docker compose --project-directory "$PWD" -f "$saved/compose.state-maintenance.json" \
     -p "$project" run --pull never --rm --no-deps -T state-maintenance "$1"

@@ -10,4 +10,14 @@ services:
       CALL_BRIDGE_ALLOWED_HOSTS: "${CALL_BRIDGE_ALLOWED_HOSTS:-127.0.0.1:*,localhost:*},call-bridge:18910"
       CALL_BRIDGE_BELLTEAM_UNIX: /run/bellteam/bellteam.sock
     volumes:
-      - ./runtime/server-only/state-data/state/call-bridge-socket:/run/bellteam:ro
+      - type: volume
+        source: server-state
+        target: /run/bellteam
+        read_only: true
+        volume:
+          nocopy: true
+          subpath: state/call-bridge-socket
+volumes:
+  server-state:
+    external: true
+    name: ${BELLTEAM_SERVER_STATE_VOLUME:-bellteam-server-state}

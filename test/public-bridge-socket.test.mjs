@@ -29,10 +29,12 @@ test('公開Composeは同じprivate state socketだけをBridgeへRO共有する
   assert.equal(normal.environment.BELLTEAM_CALL_BRIDGE_SOCKET, '/srv/bellteam/state/call-bridge-socket/bellteam.sock')
   assert.equal(bridge.environment.CALL_BRIDGE_BELLTEAM_UNIX, '/run/bellteam/bellteam.sock')
   const socket = bridge.volumes.find(mount => mount.target === '/run/bellteam')
-  assert.deepEqual(socket, { type: 'bind', source: root + '/runtime/server-only/state-data/state/call-bridge-socket',
-    target: '/run/bellteam', read_only: true, bind: {} })
+  assert.deepEqual(socket, { type: 'volume', source: 'server-state', target: '/run/bellteam', read_only:true,
+    volume:{nocopy:true,subpath:'state/call-bridge-socket'} })
   const state = normal.volumes.find(mount => mount.target === '/srv/bellteam/state')
-  assert.equal(socket.source, state.source + '/call-bridge-socket')
+  assert.equal(socket.source, state.source)
+  assert.equal(config.volumes['server-state'].external,true)
+  assert.equal(config.volumes['server-state'].name,'bellteam-server-state')
   assert.equal(bridge.volumes.length, 3)
   assert.equal(normal.depends_on, undefined); assert.equal(bridge.depends_on, undefined)
 })

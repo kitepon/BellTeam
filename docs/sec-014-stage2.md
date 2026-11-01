@@ -26,55 +26,64 @@ measurement remain unaccepted.
 
 ## First component: fixed SCE maintenance entry
 
-`scripts/install-sce-headers.py` is source for the agreed root-owned host entry
-`/home/kite/BellTeam/runtime/server-only/bin/install-sce-headers`.
-It must be installed as a root-owned copy, with protected parents, before use.
-Executing the developer checkout is not the deployment method.
+`scripts/install-sce-headers.py` is the image-owned, read-only maintenance entry
+for the external server-state volume. No root-owned Host copy is installed.
+Invoke a fixed subcommand of the saved generation's maintenance model:
 
-The CLI takes no arguments. Its fixed destination is
-`/home/kite/BellTeam/runtime/server-only/state-data/state/bughub/headers`.
-The parent must be UID/GID1001-owned 0711; the existing file must be a
-single-link regular 0600 file owned by UID/GID1001. The application reads both
-`headers` and `endpoint` from `/srv/bellteam/state/bughub`, inside the private
-state bind. A seat can stat a present file through the searchable parent,
-while 0600 denies opening its contents and the parent denies seat writes.
-The script opens path components without following symlinks,
-then uses directory-relative operations. The deployment will also need to
-establish that the ordinary container seat cannot replace any parent or mount.
-This component alone does not verify host mount topology or user allocation.
+```sh
+<approved-supplier> | docker compose -p <project> \
+  -f .bellteam-compose.<generation>/compose.state-maintenance.json \
+  run --rm --no-deps -T state-maintenance install-sce-headers
+```
 
-Before reading stdin, the fixed CLI opens the enclosing `state-data` directory
-without following symlinks, checks root:1001/0750 and the linked inode, and
-holds its existing directory SH lock throughout installation. It can coexist
-with normal server SH locks. A maintenance EX lock returns `SCE_INSTALL_BUSY`
-with exit 75 before reading or changing a credential. Missing or invalid
-control paths fail with the existing fixed safe errors. There is no retry loop.
+`install-sce-endpoint` selects the other fixed leaf. The container wrapper invokes
+`/usr/bin/python3 -I /app/scripts/install-sce-headers.py headers|endpoint`.
+Only that mode word is accepted by the Python CLI; paths, values and extra arguments
+are rejected before input. Both destinations are fixed under
+`/srv/bellteam-private/state/bughub`, with control `/srv/bellteam-private`.
+The normal application reads the same volume through `/srv/bellteam/state/bughub`
+and opens both files afresh on each call, so rotation needs no server restart.
 
-The input contract is one complete `x-bughub-security-token: VALUE` line ending
-with LF or CRLF, at most 8192 bytes. Empty, incomplete, extra-header, whitespace
-token, and invalid inputs are rejected before opening the destination. The
-content/update decision and approved supply path belong to Fragile; this entry
-does not fetch, issue, authenticate, log, or hash a credential.
+Before stdin, the CLI opens control without following symlinks, checks
+root:1001/0750 and the linked inode, and takes a nonblocking SH lock for its entire
+lifetime. It coexists with normal server SH locks. Maintenance EX returns
+`SCE_INSTALL_BUSY` / exit 75 before input or writes. Missing or invalid control
+paths fail with fixed safe errors; there is no retry loop. This entry assumes the
+prepared volume's `state` directory exists. A missing `bughub` leaf is created as
+1001:1001/0711; a missing selected file is installed as 1001:1001/0600. Existing
+parent metadata is never repaired, and existing symlink, hardlink, non-regular,
+wrong-owner or wrong-mode files are rejected.
 
-The supplier must close stdin after the complete line. A newline alone does
-not complete `read(MAX_INPUT + 1)`; the entry waits for EOF. The future supply
-adapter must explicitly end the input stream and await the exit result. It must
-not leave a pipe open while waiting for the installer to finish.
+Headers input remains exactly one `x-bughub-security-token: VALUE` line ending in
+LF or CRLF, at most 8192 bytes. Empty, incomplete, extra-header, whitespace-token and
+invalid input is rejected. Endpoint input is exactly one ASCII `http://` or
+`https://` URL line, with a valid host/port and the exact `/api/security/v1` path;
+credentials, query, fragment, whitespace, alternate paths and a trailing slash
+are rejected. The consumer has no reusable URL validator; the installer uses
+Python's standard URL parser with this API contract.
 
-The entry writes a newly created private temporary file, sets ownership, syncs
-the new file, then atomically renames it within the same directory. Input,
-write, ownership, and sync failures before the rename preserve the live file.
-A temporary filename is eligible for cleanup only after this invocation has
-created it. The rename is the commit point. This is not a guarantee against
-power loss, SIGKILL, or a lost acknowledgement after commit. Backup, recovery,
-and preserving the latest credential generation on rollback are not implemented
-by this component. Do not restore an older credential generation to compensate
-for an unknown acknowledgement.
+The supplier closes stdin after the complete line. A newline alone does not
+complete `read(MAX_INPUT + 1)`; the entry waits for EOF. Content and rotation
+judgment belong to Fragile; vault ownership belongs to Sakura. Root supplies the
+approved value through the existing deployment execution path and this command's
+stdin. The entry never fetches, issues, authenticates, logs or hashes a value.
+Normal readback is an authenticated BugHub MCP read as server 1001, never file
+content readback. These internal SCE supply steps are not public installer steps.
 
-No credential or content hash is emitted. Python is invoked with `-I` so user
-site packages, the script directory, and `PYTHON*` variables do not supply
-modules to the privileged entry. The interpreter and installed source still
-need to be root-owned and protected in the deployment.
+The entry opens path components with no symlinks, writes an exclusively created
+private temporary file, sets ownership, fsyncs it and atomically renames it within
+the same directory. Input, write, ownership and sync failures before rename retain
+the live file. Cleanup only removes a temporary filename this invocation actually
+created. Rename is the commit point; power-loss durability, SIGKILL and a lost
+acknowledgement after commit remain separate unknowns. Do not restore an older
+credential generation to compensate for an unknown acknowledgement.
+
+Python runs with `-I`; the interpreter and `/app` source are fixed in the image.
+Local tests use synthetic inputs only. Metadata-modelled flock checks do not
+prove UID 0/1001 isolation. The real-image CI runs the Python suite as actual root
+without skips, including first supply, both-file ownership, SH/EX admission and
+UID 1000 denial / UID 1001 read boundaries. No production value is part of these
+tests.
 
 ## Current execution inventory
 

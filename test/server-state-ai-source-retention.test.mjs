@@ -31,7 +31,7 @@ function afterCopy(f, mutate) {
   syncBuiltinESMExports()
   return ()=>{fs.promises.open=original;syncBuiltinESMExports()}
 }
-for(const mutation of ['updated','replaced'])test(`AI control source ${mutation} after link remains with its source marker`,async t=>{
+for(const mutation of ['updated','replaced'])test(`AI control source ${mutation} after copy publication remains with its source marker`,async t=>{
   for(const direction of ['to-server','to-legacy']){
     const f=await fixture(t,direction), value=mutation==='updated'?intent(true):intent(false)
     const restore=afterCopy(f,async()=>{
@@ -42,9 +42,21 @@ for(const mutation of ['updated','replaced'])test(`AI control source ${mutation}
     try{outcome=await transferServerState({root:f.root,direction}).catch(e=>e)}finally{restore()}
     assert.equal(await readFile(f.source,'utf8').catch(e=>{if(e.code==='ENOENT')return null;throw e}),value)
     assert.equal(outcome.code,'SERVER_STATE_FILE_CHANGED')
-    assert.equal(await readFile(f.target,'utf8'),mutation==='updated'?value:intent(false))
+    assert.equal(await readFile(f.target,'utf8'),intent(false))
     await lstat(f.fromMarker)
     await assert.rejects(lstat(f.toMarker),{code:'ENOENT'})
+  }
+})
+test('AI control changed immediately after copy is rejected before publication and keeps the current source',async t=>{
+  for(const direction of ['to-server','to-legacy']){
+    const f=await fixture(t,direction),copy=fs.promises.copyFile
+    fs.promises.copyFile=async(...args)=>{await copy(...args);if(args[0]===f.source)await writeFile(f.source,intent(true))}
+    syncBuiltinESMExports()
+    try{await assert.rejects(transferServerState({root:f.root,direction}),{code:'SERVER_STATE_FILE_CHANGED'})}
+    finally{fs.promises.copyFile=copy;syncBuiltinESMExports()}
+    assert.equal(await readFile(f.source,'utf8'),intent(true));await lstat(f.fromMarker)
+    await assert.rejects(lstat(f.target),{code:'ENOENT'});await assert.rejects(lstat(f.toMarker),{code:'ENOENT'})
+    assert.equal((await fs.promises.readdir(dirname(f.target))).some(name=>name.startsWith('.incoming-')),false)
   }
 })
 test('AI control hardlink source is rejected without retiring source or creating destination',async t=>{

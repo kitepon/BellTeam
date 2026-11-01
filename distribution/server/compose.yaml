@@ -26,43 +26,53 @@ services:
     volumes:
       - ./runtime/home:/home/bell
       - cursor-cli:/home/bell/.local
-      - ./runtime/data:/srv/bellteam
       - type: bind
-        source: ./runtime/server-only/state-data
+        source: ./runtime/data
+        target: /srv/bellteam
+        bind:
+          create_host_path: false
+      - type: volume
+        source: server-state
         target: /run/bellteam-maintenance
         read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ./runtime/server-only/state-data/state
+        volume:
+          nocopy: true
+      - type: volume
+        source: server-state
         target: /srv/bellteam/state
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ./runtime/server-only/state-data/rooms
+        volume:
+          nocopy: true
+          subpath: state
+      - type: volume
+        source: server-state
         target: /srv/bellteam/rooms
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ./runtime/server-only/state-data/owner
+        volume:
+          nocopy: true
+          subpath: rooms
+      - type: volume
+        source: server-state
         target: /srv/bellteam/owner
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ./runtime/server-only/state-data/logs
+        volume:
+          nocopy: true
+          subpath: owner
+      - type: volume
+        source: server-state
         target: /srv/bellteam/logs
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ./runtime/server-only/state-data/bellteam-settings
+        volume:
+          nocopy: true
+          subpath: logs
+      - type: volume
+        source: server-state
         target: /srv/bellteam/shared/tools/bellteam-settings
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ./runtime/server-only/state-data/apns
+        volume:
+          nocopy: true
+          subpath: bellteam-settings
+      - type: volume
+        source: server-state
         target: /srv/bellteam/shared/tools/apns
-        bind:
-          create_host_path: false
+        volume:
+          nocopy: true
+          subpath: apns
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4180/healthz').then(r=>{if(!r.ok)throw Error(r.status)})"]
       interval: 10s
@@ -71,3 +81,6 @@ services:
 
 volumes:
   cursor-cli:
+  server-state:
+    external: true
+    name: ${BELLTEAM_SERVER_STATE_VOLUME:-bellteam-server-state}

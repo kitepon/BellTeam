@@ -7,7 +7,7 @@ const failure = code => Object.assign(new Error(code), { code })
 
 // Offline maintenance only. Seat projects, HOME, CLI credentials and memory
 // are outside these paths. BugHub credentials and endpoint live in private state.
-export async function prepareServerStateOwnership({ root, privateRoot = root, direction, sealed = false }) {
+export async function prepareServerStateOwnership({ root, privateRoot = root, direction }) {
   if (typeof root !== 'string' || !isAbsolute(root) || typeof privateRoot !== 'string' || !isAbsolute(privateRoot) || !['to-server', 'to-legacy'].includes(direction))
     throw failure('SERVER_STATE_OWNERSHIP_OPTIONS')
   root = resolve(root); privateRoot = resolve(privateRoot)
@@ -77,7 +77,7 @@ export async function prepareServerStateOwnership({ root, privateRoot = root, di
       }
     }
   }
-  if (!sealed) add(root, await directory(root), 1000, 0o711)
+  add(root, await directory(root), 1000, 0o711)
   // Reject links and special files across the entire scope before any owner
   // change. Reopen without following a replaced name before changing metadata.
   for (const node of nodes) {

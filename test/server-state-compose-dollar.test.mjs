@@ -51,6 +51,6 @@ test('real Compose preserves maintenance shell variables instead of interpolatin
   assert.equal(stderr, '')
   const effective = JSON.parse(stdout.replaceAll('$$', '$')).services['state-maintenance'].entrypoint
   assert.deepEqual(effective, declared.map(value => value.replaceAll('$$', '$')))
-  assert.match(effective[5], /flock -x -n -E 75 "\$root"/)
+  assert.match(effective[5], /flock -x -n -E 75 \/srv\/bellteam-private/)
   assert.doesNotMatch(effective[5], /host-value-must-not-be-used/)
 })
