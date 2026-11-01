@@ -46,6 +46,9 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         table.contentInset.top = 20
         table.alwaysBounceVertical = true
         table.accessibilityIdentifier = "conversation-messages"
+        // 最初の配置が終わるまで見せない。見せる時に選んだ開き方で必ず入る。
+        table.alpha = 0
+        UIView.setAnimationsEnabled(false)
         let refresh = UIRefreshControl()
         refresh.addTarget(context.coordinator, action: #selector(Coordinator.refresh(_:)), for: .valueChanged)
         table.refreshControl = refresh
@@ -108,7 +111,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 return cell
             }
             table.onLayout = { [weak self] in self?.fillIfShort() }
-            table.onSettled = { [weak self] in self?.reveal() }
+            table.onReveal = { [weak self] in self?.reveal() }
             #if targetEnvironment(macCatalyst)
             wheel = WheelScrollSmoother(scrollView: table, onStart: { [weak self] in self?.beginUserScroll() },
                                         onStop: { [weak self] in self?.settle() })
@@ -155,7 +158,6 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             if prepended { armed = true }
             if previous.isEmpty && !rows.isEmpty {
                 table.followsBottom = true
-                table.beginSettling()
                 table.layoutIfNeeded()
                 table.pinToBottom()
             }
@@ -168,9 +170,10 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             if !animated { settle() }
         }
 
-        /// 最初の配置が落ち着いた後に、選んだ開き方で表を見せる。
+        /// 最初の配置の直後に、選んだ開き方で表を見せる。1回だけ。
         private func reveal() {
             guard let table else { return }
+            UIView.setAnimationsEnabled(true)
             switch opening {
             case .fade:
                 UIView.animate(withDuration: 0.25) { table.alpha = 1 }
@@ -256,7 +259,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         }
 
         func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-            guard let table, !table.settling, let row = (cell as? ConversationCell)?.row, !shown.contains(row) else { return }
+            guard let table, table.revealed, let row = (cell as? ConversationCell)?.row, !shown.contains(row) else { return }
             shown.insert(row)
             enter(cell)
         }
@@ -317,58 +320,26 @@ final class ConversationCell: UITableViewCell {
 /// 末尾追従と幅変更時の読書位置だけを持つ表。
 final class ConversationTableView: UITableView {
     var followsBottom = true
-    /// 最初の行が入ってから、末尾で位置が落ち着くまで。この間は表を見せず、行の高さの確定も描かない。
-    private(set) var settling = false
+    /// 最初の配置を終えて見せた後か。見せるまでは行の高さの確定も描かない。
+    private(set) var revealed = false
+    private var revealScheduled = false
     var onLayout: (() -> Void)?
-    var onSettled: (() -> Void)?
+    var onReveal: (() -> Void)?
     private var layoutWidth: CGFloat = 0
-    private var settleChecks = 0
-    private var settleDeadline: DispatchWorkItem?
 
     deinit {
-        // 落ち着く前に会話を閉じても、アプリ全体のアニメーションを止めたままにしない。
-        if settling { UIView.setAnimationsEnabled(true) }
+        // 見せる前に会話を閉じても、アプリ全体のアニメーションを止めたままにしない。
+        if !revealed { UIView.setAnimationsEnabled(true) }
     }
 
-    func beginSettling() {
-        guard !settling else { return }
-        settling = true
-        settleChecks = 0
-        alpha = 0
-        UIView.setAnimationsEnabled(false)
-    }
-
-    /// 大きさが付いて行が見えた最初の配置から、落ち着きの判定と上限を始める。それまでは隠したまま待つ。
-    private func startSettleChecks() {
-        guard settleDeadline == nil, bounds.height > 0, numberOfRows(inSection: 0) > 0,
-              indexPathsForVisibleRows?.isEmpty == false else { return }
-        // 画像の読み込みなどで高さが変わり続けても、ここで必ず見せる。
-        let deadline = DispatchWorkItem { [weak self] in self?.finishSettling() }
-        settleDeadline = deadline
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: deadline)
-        scheduleSettleCheck()
-    }
-
-    private func finishSettling() {
-        guard settling else { return }
-        settling = false
-        settleDeadline?.cancel()
-        settleDeadline = nil
-        UIView.setAnimationsEnabled(true)
-        onSettled?()
-    }
-
-    /// 次の実行ループまで位置と高さが変わらなければ落ち着いたと見る。
-    private func scheduleSettleCheck() {
-        let offset = contentOffset.y, height = contentSize.height
-        settleChecks += 1
+    /// 大きさが付いて行が見えた最初の配置の直後に、1回だけ見せる。
+    private func scheduleReveal() {
+        guard !revealScheduled, bounds.height > 0, indexPathsForVisibleRows?.isEmpty == false else { return }
+        revealScheduled = true
         DispatchQueue.main.async { [weak self] in
-            guard let self, settling else { return }
-            if (abs(contentOffset.y - offset) <= 0.5 && abs(contentSize.height - height) <= 0.5) || settleChecks >= 5 {
-                finishSettling()
-            } else {
-                scheduleSettleCheck()
-            }
+            guard let self, !revealed else { return }
+            revealed = true
+            onReveal?()
         }
     }
 
@@ -401,11 +372,11 @@ final class ConversationTableView: UITableView {
             }
             layoutWidth = bounds.width
         }
-        if settling {
-            UIView.performWithoutAnimation { layoutFollowingBottom() }
-            startSettleChecks()
-        } else {
+        if revealed {
             layoutFollowingBottom()
+        } else {
+            UIView.performWithoutAnimation { layoutFollowingBottom() }
+            scheduleReveal()
         }
         if let (path, offset) = anchor, path.row < numberOfRows(inSection: 0) {
             contentOffset.y = rectForRow(at: path).minY - offset
