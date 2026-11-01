@@ -37,6 +37,52 @@ final class BellDiagnosticsTests: XCTestCase {
         add(attachment)
     }
 
+    func testServerErrorStoresOnlyThisResponsesDiagnosticReference() async throws {
+        let fingerprint = String(repeating: "a", count: 64)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ServerErrorProtocol.self]
+        let api = BellAPI(baseURL: URL(string: "https://server-error.test.invalid")!,
+                          session: URLSession(configuration: configuration),
+                          diagnostics: BellDiagnostics(onReport: { _, _, _, _ in }))
+        func log(_ path: String) async throws -> String {
+            do {
+                try await api.delete(path)
+                XCTFail("500を成功にしない")
+                return ""
+            } catch {
+                return try XCTUnwrap(BellRequestTrace.from(error)).log
+            }
+        }
+        ServerErrorProtocol.headers = [
+            "X-BellTeam-Diagnostic-Fingerprint": fingerprint,
+            "X-BellTeam-Diagnostic-Occurrence-Count": "7",
+            "X-BellTeam-Diagnostic-Received-At": "2026-11-01T01:21:10.123Z",
+        ]
+        let saved = try await log("/api/bots/first")
+        XCTAssertTrue(saved.contains("server_diagnostic_fingerprint=\(fingerprint)\n"))
+        XCTAssertTrue(saved.contains("server_diagnostic_occurrence_count=7\n"))
+        XCTAssertTrue(saved.contains("server_diagnostic_received_at=2026-11-01T01:21:10.123Z\n"))
+
+        ServerErrorProtocol.headers = [:]
+        let missing = try await log("/api/bots/second")
+        XCTAssertFalse(missing.contains(fingerprint))
+        XCTAssertTrue(missing.contains("server_diagnostic_fingerprint=unknown\nserver_diagnostic_occurrence_count=unknown\nserver_diagnostic_received_at=unknown"))
+
+        ServerErrorProtocol.headers = [
+            "X-BellTeam-Diagnostic-Fingerprint": "secret-value",
+            "X-BellTeam-Diagnostic-Occurrence-Count": "0",
+            "X-BellTeam-Diagnostic-Received-At": "2026-11-01 01:21",
+        ]
+        let invalid = try await log("/api/bots/third")
+        XCTAssertFalse(invalid.contains("secret-value"))
+        XCTAssertTrue(invalid.contains("server_diagnostic_fingerprint=unknown\nserver_diagnostic_occurrence_count=unknown\nserver_diagnostic_received_at=unknown"))
+
+        ServerErrorProtocol.status = 502
+        let other = try await log("/api/bots/fourth")
+        ServerErrorProtocol.status = 500
+        XCTAssertFalse(other.contains("server_diagnostic_"))
+    }
+
     func testSameOfflineErrorKeepsMajorImpactVisibleWithoutAssigningAppDefect() {
         var logs: [String] = []
         let diagnostics = BellDiagnostics { _, _, _, log in logs.append(log) }
@@ -294,4 +340,25 @@ final class ConnectionResetTests: XCTestCase {
         await BellAPI(baseURL: url).resetConnections()
         XCTAssertEqual(HTTPCookieStorage.shared.cookies(for: url)?.map(\.name), ["CF_Authorization"])
     }
+}
+
+private final class ServerErrorProtocol: URLProtocol {
+    static var status = 500
+    static var headers: [String: String] = [:]
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "server-error.test.invalid"
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let response = HTTPURLResponse(url: request.url!, statusCode: Self.status, httpVersion: "HTTP/1.1",
+                                       headerFields: Self.headers.merging(["Content-Type": "application/json"]) { $1 })!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"error":"INTERNAL_ERROR"}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }

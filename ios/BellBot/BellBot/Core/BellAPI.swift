@@ -366,7 +366,8 @@ final class BellAPI {
                 startedAt: startedAt, failedAt: Date(), appStateAtStart: startedState,
                 attempts: attempts, metrics: metrics.snapshot(), attemptDetails: attemptDetails,
                 requestTimeoutMs: requestTimeoutMs, sessionTimeoutMs: sessionTimeoutMs,
-                callerContext: callerContext))
+                callerContext: callerContext,
+                serverDiagnostic: BellRequestTrace.serverDiagnostic(from: response)))
         } catch {
             try Task.checkCancellation()
             let trace = BellRequestTrace(route: route, method: method, startedAt: startedAt,

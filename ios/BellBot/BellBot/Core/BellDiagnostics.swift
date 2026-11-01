@@ -89,6 +89,25 @@ struct BellRequestTrace {
     var requestTimeoutMs: Int? = nil
     var sessionTimeoutMs: Int? = nil
     var callerContext: String? = nil
+    var serverDiagnostic: String? = nil
+
+    /// 500応答が返した保存済み診断の参照を、この応答の値だけから作る。欠落・形式不正はunknownにする。
+    static func serverDiagnostic(from response: URLResponse) -> String? {
+        guard let http = response as? HTTPURLResponse, http.statusCode == 500 else { return nil }
+        func header(_ name: String, valid: (String) -> Bool) -> String {
+            http.value(forHTTPHeaderField: name).flatMap { valid($0) ? $0 : nil } ?? "unknown"
+        }
+        let timestamp = ISO8601DateFormatter()
+        timestamp.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let fingerprint = header("X-BellTeam-Diagnostic-Fingerprint") {
+            $0.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil
+        }
+        let count = header("X-BellTeam-Diagnostic-Occurrence-Count") { text in
+            Int(text).map { $0 > 0 && String($0) == text } ?? false
+        }
+        let receivedAt = header("X-BellTeam-Diagnostic-Received-At") { timestamp.date(from: $0) != nil }
+        return "server_diagnostic_fingerprint=\(fingerprint)\nserver_diagnostic_occurrence_count=\(count)\nserver_diagnostic_received_at=\(receivedAt)"
+    }
 
     /// 読み取り失敗の記録には、問合せと生成IDを含めない。
     static func decodingRoute(for path: String) -> String {
@@ -132,6 +151,7 @@ struct BellRequestTrace {
         var result = "\nrequest_route=\(route)\nrequest_method=\(method)"
         result += "\nrequest_started_at_ms=\(milliseconds(startedAt))\nrequest_failed_at_ms=\(milliseconds(failedAt))"
         result += "\napp_state_at_request_start=\(appStateAtStart)\nrequest_attempts=\(attempts)"
+        if let serverDiagnostic { result += "\n\(serverDiagnostic)" }
         if let requestTimeoutMs { result += "\nrequest_timeout_interval_ms=\(requestTimeoutMs)" }
         if let sessionTimeoutMs { result += "\nsession_timeout_interval_for_request_ms=\(sessionTimeoutMs)" }
         result += Self.metricsLog(metrics, prefix: "")
