@@ -212,7 +212,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
       accepted = true
       await onDeleted(bot)
       if (owner === opened) dialog.close()
-    } catch { if (owner === opened) botFormError.textContent = accepted ? '削除しました。表示を更新できませんでした。' : '削除できませんでした。' }
+    } catch { if (owner === opened) botFormError.textContent = accepted ? '削除操作を受け付けました。表示を更新できませんでした。' : '削除できませんでした。' }
     finally { if (owner === opened) deleteBotButton.disabled = false }
   }
 

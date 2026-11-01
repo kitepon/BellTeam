@@ -5,9 +5,11 @@ import { renderFeatureSettings, refreshFeatureSettingsStatus } from '../web/onbo
 class Element {
   constructor(tag) { this.tag = tag; this.children = []; this.attributes = {}; this.textContent = ''; this.value = ''; this.dataset = {} }
   append(...children) { this.children.push(...children) }
+  remove() {}
   replaceChildren(...children) { this.children = children }
   setAttribute(key, value) { this.attributes[key] = value }
   addEventListener() {}
+  querySelectorAll(selector) { return this.children.flatMap(child => [child, ...child.querySelectorAll(selector)]).filter(child => child.tag === selector) }
   querySelector(selector) { return this.children.find(child => child.className?.split(' ').includes(selector.slice(1))) }
 }
 
@@ -37,10 +39,13 @@ test('有効な機能でも反映エラーを表示し、秘密の値を表示�
     input.value = '編集中の新しい合言葉'
     refreshFeatureSettingsStatus(container, [{
       id: 'notifications', title: '通知', enabled: true, status: 'enabled',
+      fields: [{ key: 'token', secret: true, configured: false }],
       error: { code: 'RELAY_RESPONSE_FAILED', message: '送信サービスの応答が不正です。' },
     }])
     assert.equal(failed.children[0].textContent, '通知 · 反映エラー')
     assert.equal(failed.children[1].textContent, 'RELAY_RESPONSE_FAILED: 送信サービスの応答が不正です。')
     assert.equal(input.value, '編集中の新しい合言葉')
+    assert.equal(input.placeholder, '未設定')
+    refreshFeatureSettingsStatus(container, [{ id: 'notifications', title: '通知', status: 'enabled' }])
   } finally { globalThis.document = previous }
 })

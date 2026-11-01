@@ -34,17 +34,29 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
     else if (dialog.open) void aiControl.refresh()
   })
   async function refreshFeatures(opened = owner) {
-    const settings = (await api('/api/settings')).settings
-    if (opened !== owner) return
-    const session = await api('/api/session')
-    if (opened !== owner) return
+    if (!opened || opened !== owner) return
+    const read = ++opened.featureRead
+    let settings, session
+    try {
+      settings = (await api('/api/settings')).settings
+      if (opened !== owner || read !== opened.featureRead) return
+      session = await api('/api/session')
+    } catch (failure) {
+      if (opened !== owner || read !== opened.featureRead) return
+      throw failure
+    }
+    if (opened !== owner || read !== opened.featureRead) return
     onSettings(settings, session.authMode)
     find('connection-mode').textContent = session.authMode === 'cloudflare' ? 'Cloudflare Accessで認証済み' : 'ローカル接続'
-    renderFeatureSettings(opened.features, settings, { api, onChange: () => refreshFeatures() })
+    if (opened.featuresRendered) refreshFeatureSettingsStatus(opened.features, settings)
+    else {
+      renderFeatureSettings(opened.features, settings, { api, onChange: () => refreshFeatures(opened) })
+      opened.featuresRendered = true
+    }
   }
   async function open(profile) {
     if (!profile) return
-    owner = { profile }
+    owner = { profile, rulesLoaded: false, featureRead: 0 }
     const opened = owner
     opened.features = document.createElement('div')
     opened.auth = document.createElement('div')
@@ -54,7 +66,8 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
     harnessAuthSection = null
     void aiControl.refresh()
     form.reset()
-    saveButton.disabled = false
+    saveButton.disabled = true
+    rulesInput.disabled = true
     error.textContent = ''
     name.value = profile.name
     description.value = profile.profile ?? ''
@@ -68,6 +81,9 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
       const result = await api('/api/user-rules')
       if (opened !== owner) return
       if (rulesInput.value === initialRules) rulesInput.value = result.text
+      opened.rulesLoaded = true
+      rulesInput.disabled = false
+      saveButton.disabled = false
     } catch (failure) { if (opened === owner) error.textContent = `ユーザー規範を読めませんでした（${failure.message}）` }
     if (opened !== owner) return
     try {
@@ -84,7 +100,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
   }
   async function save(event) {
     event.preventDefault()
-    if (!owner || saving === owner) return
+    if (!owner || !owner.rulesLoaded || saving === owner) return
     const opened = owner, revision = editRevision
     const profile = {
       name: name.value.trim(), profile: description.value, avatar: avatar.value(), xUrl: xUrl.value.trim(), githubUrl: githubUrl.value.trim(),

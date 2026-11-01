@@ -1,6 +1,6 @@
 # 最終照合で見つけたWebの残る接続
 
-Astraが製品head `4704446416ffa56ac8f3c6ab8e78bac57234056e` を図と照合して確認した追加設計。**この文書の処置は未実装**。旧事故の根因や実端末での発生を示すものではない。既存の状態・API・保存形式で修理し、永続queue/新ID/自動再送は足さない。
+Astraが製品head `4704446416ffa56ac8f3c6ab8e78bac57234056e` を図と照合して確認した追加設計。**G1〜G4はSolで実装し局所確認済み。Astraの図/code再照合と全体試験は未完**。旧事故の根因や実端末での発生を示すものではない。既存の状態・API・保存形式で修理し、永続queue/新ID/自動再送は足さない。
 
 Root原本は `integrations/feature-map-refactor-20261101/final-map-probes/`。`ownership.json`は現loadBots実関数のVM実行＋現Owner editorの人工DOM/応答、`feature-browser/result.json`は現HTML/実module＋人工APIのブラウザ観測。3＋2の反例であり、局所の旧成功を否定せず未検証だった順序を追加する。
 
@@ -67,3 +67,7 @@ callbackは描いた時の`opened`を捕まえ、開始前とawait後に現owner
 上のまとまりをSol Highで実装する。先に全caller/test/fixture/asset mapを確認し、観測した順序の小さい試験を残す。既部品を移動しただけとして完了せず、元の保存API・認可・秘密方針を変えない。
 
 その後Astraでこの計画と現状図を同期し、全利用機能の説明に新しい穴がないか確認する。必要全体試験一回とセンチ独立採否はその後。未修理を図だけで解決済みにせず、試験/本番/元事故回復はそれぞれ分ける。
+
+## Sol実装の確認
+
+一覧read順と受理済み変更の失効、規範rulesLoaded、初回描画と状態更新の分離/開いた対象とread順、背景削除の受付文言を実装した。関連20passと追加6passは重複があり合算しない。実HTML/実module＋人工APIで規範未読時write0、同open/再openの新入力保持、設定GET逆転、保存済みGET失敗を確認。実規範/実秘密/本番を操作した証明ではない。旧5反例は別原本を保持し、今回全体試験はまだ実行していない。

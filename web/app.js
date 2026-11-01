@@ -53,6 +53,7 @@ const targetPicker = document.querySelector('#target-picker')
 const targetButton = document.querySelector('#target-button')
 const targetMenu = document.querySelector('#target-menu')
 
+let catalogueRead = 0
 const state = {
   setup: null,
   owner: null,
@@ -100,11 +101,12 @@ const scheduleEditor = createScheduleEditor(scheduleDialog, { api, getBot: id =>
 
 const roomEditor = createRoomEditor(roomDialog, { api, getBots: () => state.bots,
   onSaved: async (room, current) => {
-    await loadBots()
+    if (await loadBots() !== true) return
     const saved = state.rooms.find(item => item.id === room.id)
     if (current() && saved) await selectRoom(saved)
   },
   onDeleted: async room => {
+    catalogueRead++
     state.rooms = state.rooms.filter(item => item.id !== room.id)
     if (state.selectedType === 'room' && state.selected?.id === room.id) clearSelection()
     renderBots()
@@ -114,11 +116,12 @@ const roomEditor = createRoomEditor(roomDialog, { api, getBots: () => state.bots
 
 const botEditor = createBotEditor(botDialog, { api,
   onSaved: async (bot, current) => {
-    await loadBots()
+    if (await loadBots() !== true) return
     const saved = state.bots.find(item => item.id === bot.id)
     if (current() && saved) await selectBot(saved)
   },
   onDeleted: async bot => {
+    catalogueRead++
     state.bots = state.bots.filter(item => item.id !== bot.id)
     if (state.selectedType === 'bot' && state.selected?.id === bot.id) clearSelection()
     renderBots()
@@ -126,7 +129,7 @@ const botEditor = createBotEditor(botDialog, { api,
   },
   onRestarted: bot => setTimeout(async () => {
     try {
-      await loadBots()
+      if (await loadBots() !== true) return
       if (state.selectedType !== 'bot' || state.selected?.id !== bot.id) return
       const current = state.bots.find(item => item.id === bot.id)
       if (current) await selectBot(current)
@@ -137,7 +140,7 @@ const botEditor = createBotEditor(botDialog, { api,
 })
 
 const ownerEditor = createOwnerEditor(ownerDialog, { api,
-  onOwner: owner => { state.owner = owner; renderOwner() },
+  onOwner: owner => { catalogueRead++; state.owner = owner; renderOwner() },
   onSettings: (settings, authMode) => {
     state.settings = settings
     state.authMode = authMode
@@ -257,7 +260,15 @@ async function loadFeatureSettings() {
 }
 
 async function loadBots() {
-  const [botResult, roomResult, ownerResult] = await Promise.all([api('/api/bots?avatar=omit'), api('/api/rooms'), api('/api/owner')])
+  const read = ++catalogueRead
+  let botResult, roomResult, ownerResult
+  try {
+    [botResult, roomResult, ownerResult] = await Promise.all([api('/api/bots?avatar=omit'), api('/api/rooms'), api('/api/owner')])
+  } catch (error) {
+    if (read !== catalogueRead) return null
+    throw error
+  }
+  if (read !== catalogueRead) return null
   state.bots = botResult.bots.map(bot => ({ ...bot, avatar: bot.avatarVersion ? `/api/bots/${encodeURIComponent(bot.id)}/avatar?v=${encodeURIComponent(bot.avatarVersion)}` : '' }))
   state.rooms = roomResult.rooms
   state.owner = ownerResult.owner
@@ -273,6 +284,7 @@ async function loadBots() {
   }
   renderOwner()
   renderBots()
+  return true
 }
 
 function renderOwner() {
