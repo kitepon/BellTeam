@@ -57,7 +57,8 @@ def main():
         directory(base/'control',0,1001,0o750)
         directory(base/'home',1000,1000,0o755)
         directory(base/'data',1000,1000,0o755)
-        for name in ['bots','shared','shared/tools']:directory(base/'data'/name,1000,1000,0o711)
+        directory(base/'data/bots',1000,1000,0o755)
+        for name in ['shared','shared/tools']:directory(base/'data'/name,1000,1000,0o711)
         targets={'state':'state','rooms':'rooms','owner':'owner','logs':'logs','bellteam-settings':'shared/tools/bellteam-settings','apns':'shared/tools/apns'}
         for name in targets:directory(base/'state'/name,1001,1001,0o711)
         path=base/'control/sec014.lock';path.touch(mode=0o640);os.chown(path,0,1001);path.chmod(0o640)
