@@ -823,7 +823,7 @@ class _InternalForward:
                 or not datetime.fromisoformat(record['issuedAt']) <= dates[0] <= dates[1] <= dates[2] <= datetime.fromisoformat(record['endedAt'])):
             raise control.ControlError('SEC014_INTERNAL_MAINTENANCE_BIRTH')
         service = self.models['state-maintenance']['services']['state-maintenance']
-        self.mounts(service, instance['mounts'], instance['tmpfs'])
+        self.mounts(self.models['state-maintenance'], service, instance['mounts'], instance['tmpfs'])
         maintenance_id = instance['id']
         removed = self.call('maintenance-remove', ['/usr/bin/docker', 'rm', maintenance_id])
         absent = self.call('maintenance-absence', ['/usr/bin/docker', 'container', 'ls', '--all', '--quiet', '--no-trunc',
@@ -886,7 +886,7 @@ class _InternalForward:
         return self.receipt('binds_confirmed', six_source_target_identity=proof,
                             normal_nonexposure=proof, socket_boundary=self.host_proof)
 
-    def mounts(self, service, mounts, observed_tmpfs):
+    def mounts(self, model, service, mounts, observed_tmpfs):
         expected = {v['target']: v for v in service['volumes']}
         tmpfs = {entry.split(':', 1)[0] for entry in service.get('tmpfs', [])}
         if set(observed_tmpfs or {}) != tmpfs:
@@ -903,7 +903,7 @@ class _InternalForward:
                 if control._identity(os.stat(mount['Source'])) != control._identity(os.stat(planned['source'])):
                     raise control.ControlError('SEC014_INTERNAL_SELECTED_MOUNTS')
             elif planned['type'] == 'volume':
-                if mount.get('Name') != self.models['bellteam']['volumes'][planned['source']]['name']:
+                if mount.get('Name') != model['volumes'][planned['source']]['name']:
                     raise control.ControlError('SEC014_INTERNAL_SELECTED_MOUNTS')
             else:
                 raise control.ControlError('SEC014_INTERNAL_SELECTED_MOUNTS')
@@ -989,7 +989,7 @@ class _InternalForward:
                 or value['user'] not in ('bellteam-server', str(self.SERVER_UID)+':'+str(self.SERVER_UID)) or value['readonly'] is not True):
             raise control.ControlError('SEC014_INTERNAL_SELECTED_CONFIG')
         service = self.models['bellteam']['services']['bellteam']
-        self.mounts(service, value['mounts'], value.get('tmpfs'))
+        self.mounts(self.models['bellteam'], service, value['mounts'], value.get('tmpfs'))
         self.cid = raw
         return {'container_id': raw, 'image': self.image_id, 'token': self.normal['token']}
 
@@ -1038,7 +1038,7 @@ class _InternalForward:
         if json.loads(response['rawUtf8']) != {'status': 200} or self.transfer is None or self.data_proof is None:
             raise control.ControlError('SEC014_INTERNAL_RESULT_UNCONFIRMED')
         health_proof = _save_json(self.tx, 'to-server-health.verified.json', {'container': self.cid, 'runtime': runtime, 'http': 200, 'process':identity})
-        self.mounts(self.models['bellteam']['services']['bellteam'], value['mounts'], value.get('tmpfs'))
+        self.mounts(self.models['bellteam'], self.models['bellteam']['services']['bellteam'], value['mounts'], value.get('tmpfs'))
         data_proof = _save_json(self.tx, 'to-server-current-data.verified.json',
                                {'offlineProof': self.data_proof, 'selectedContainer': self.cid, 'runtimeProof': runtime})
         self.reap()
@@ -1126,7 +1126,7 @@ class _InternalRecovery(_InternalForward):
                 or value['user']!=self.selection.previous_user
                 or value.get('configFiles')!=str(self.selection.previous_path)):
             raise control.ControlError('SEC014_RECOVERY_SELECTED_CONFIG')
-        self.mounts(self.selection.original,value['mounts'],value.get('tmpfs'))
+        self.mounts(self.selection.original_model,self.selection.original,value['mounts'],value.get('tmpfs'))
         self.cid=raw
         selected=dict(container_id=raw,image=self.selection.image)
         if self.selection.controlled:selected['token']=self.selection.selected_normal['token']
@@ -1186,7 +1186,7 @@ class _InternalRecovery(_InternalForward):
         reply=self.call('recovered-http-health',['/usr/bin/docker','exec',self.cid,'/usr/local/bin/node','-e',HEALTH_PROGRAM])
         if json.loads(reply['rawUtf8'])!={'status':200} or self.data_proof is None or self.transfer is None:
             raise control.ControlError('SEC014_RECOVERY_RESULT_UNCONFIRMED')
-        self.mounts(self.selection.original,value['mounts'],value.get('tmpfs'))
+        self.mounts(self.selection.original_model,self.selection.original,value['mounts'],value.get('tmpfs'))
         writers=self.writers('recovered-final-writers',active=self.cid)
         health=_save_json(self.tx,'to-legacy-health.verified.json',
             dict(containerId=self.cid,image=self.selection.image,runtime=runtime,http=200,
