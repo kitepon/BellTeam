@@ -2,7 +2,9 @@ import { openOnboarding, renderFeatureSettings, refreshFeatureSettingsStatus } f
 import { renderHarnessAuth } from './harness-auth.js?v=__ASSET_VERSION__'
 import { renderSecretRequest } from './secret-input.js?v=__ASSET_VERSION__'
 import { renderOwnerQuestion } from './owner-question.js?v=__ASSET_VERSION__'
-import { sendFailureText, claimMessageSend, claimSingleFlight, readApiError, readApiResponse, releaseSingleFlight, installMessageInputSizing } from './chat-input.js?v=__ASSET_VERSION__'
+import { claimSingleFlight, readApiError, readApiResponse, releaseSingleFlight } from './chat-input.js?v=__ASSET_VERSION__'
+import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
+import { createConversationComposer } from './conversation-composer.js?v=__ASSET_VERSION__'
 import { richTextHtml } from './rich-text.js?v=__ASSET_VERSION__'
 import { hasUnreadConversation, newestByRecent } from './activity-order.js?v=__ASSET_VERSION__'
 import { openImageViewer, renderImageStack } from './image-gallery.js?v=__ASSET_VERSION__'
@@ -50,7 +52,6 @@ const deleteBotButton = document.querySelector('#delete-bot-button')
 const botManagementActions = document.querySelector('#bot-management-actions')
 const composer = document.querySelector('#composer')
 const messageInput = document.querySelector('#message-input')
-const resizeMessageInput = installMessageInputSizing(messageInput)
 const composerError = document.querySelector('#composer-error')
 const sendButton = document.querySelector('#send-button')
 const stopButton = document.querySelector('#stop-button')
@@ -156,28 +157,56 @@ const state = {
   streamAbort: null,
   editingBot: null,
   editingRoom: null,
-  pendingImages: [],
   // 会話の項目IDごとの画像URLの並び。
   imagePreviews: new Map(),
   imageFailures: new Set(),
-  sending: new Set(),
   inFlight: new Set(),
   readReceipts: loadReadReceipts(),
 }
 
+const conversationComposer = createConversationComposer({
+  input: messageInput, attachments: attachmentPreview, error: composerError, sendButton,
+  recovery: document.querySelector('#retained-inputs'), api, readImage,
+  getTargets: target => target.type === 'room' ? selectedTargets(target.id) : null,
+  setTargets: (target, targets) => {
+    if (target.type !== 'room' || !targets) return
+    state.roomTargets ??= new Map()
+    state.roomTargets.set(target.id, new Set(targets))
+    if (state.selectedType === 'room' && state.selected?.id === target.id) renderTargetPicker(state.selected)
+  },
+  findTarget: target => (target.type === 'room' ? state.rooms : state.bots).find(item => item.id === target.id),
+  onSelect: target => {
+    const item = (target.type === 'room' ? state.rooms : state.bots).find(item => item.id === target.id)
+    if (item) return target.type === 'room' ? selectRoom(item) : selectBot(item)
+  },
+  onAccepted: async (target, result, previews) => {
+    if (previews.length) state.imagePreviews.set(result.delivery_id ?? result.id, previews)
+    const results = await Promise.allSettled([loadBots(),
+      state.selectedType === target.type && state.selected?.id === target.id ? loadMessages(false) : Promise.resolve()])
+    if (results.some(result => result.status === 'rejected')) throw new Error('DISPLAY_REFRESH_FAILED')
+  },
+})
+
 const botAvatarEditor = createAvatarEditor({
+  applyAvatar, initials, escapeClass,
   fileInput: botAvatarFile, preview: botAvatarPreview, cropEditor, canvas: avatarCrop, zoom: avatarZoom,
   nameInput: botName, colorInput: botColor, fallback: 'B', error: botFormError,
 })
 const ownerAvatarEditor = createAvatarEditor({
+  applyAvatar, initials, escapeClass,
   fileInput: ownerAvatarFile, preview: ownerAvatarPreview, cropEditor: ownerCropEditor,
   canvas: ownerAvatarCrop, zoom: ownerAvatarZoom, nameInput: ownerName, fallback: 'O', error: ownerFormError,
 })
 const roomAvatarEditor = createAvatarEditor({
+  applyAvatar, initials, escapeClass,
   fileInput: roomAvatarFile, preview: roomAvatarPreview, cropEditor: roomCropEditor,
   canvas: roomAvatarCrop, zoom: roomAvatarZoom, nameInput: roomName, fallback: 'R', error: roomFormError,
   previewClass: 'avatar room-avatar',
 })
+for (const [dialog, editor] of [[botDialog, botAvatarEditor], [ownerDialog, ownerAvatarEditor], [roomDialog, roomAvatarEditor]]) {
+  dialog.addEventListener('close', () => editor.cancelRead())
+}
+
 targetButton.addEventListener('click', () => toggleTargetMenu())
 document.addEventListener('click', event => {
   if (!targetMenu.hidden && !targetPicker.contains(event.target)) toggleTargetMenu(false)
@@ -221,7 +250,7 @@ document.querySelector('#export-button').addEventListener('click', async event =
     link.download = `BellTeam-${id}.json`
     link.click()
     URL.revokeObjectURL(url)
-  } catch (error) { composerError.textContent = `書き出せませんでした（${error.message}）` }
+  } catch (error) { conversationComposer.showError(`書き出せませんでした（${error.message}）`) }
   finally { button.disabled = false }
 })
 characterSheetButton.addEventListener('click', openCharacterSheetDialog)
@@ -323,17 +352,14 @@ async function refreshScreen() {
 }
 attachmentButton.addEventListener('click', () => messageImage.click())
 messageImage.addEventListener('change', () => {
-  addPendingImages([...messageImage.files])
+  conversationComposer.addImages([...messageImage.files])
   messageImage.value = ''
-})
-messageInput.addEventListener('input', () => {
-  updateSendButton()
 })
 messageInput.addEventListener('paste', event => {
   const images = [...event.clipboardData.files].filter(file => file.type.startsWith('image/'))
   if (!images.length) return
   event.preventDefault()
-  addPendingImages(images)
+  conversationComposer.addImages(images)
 })
 composer.addEventListener('submit', sendMessage)
 stopButton.addEventListener('click', () => { if (state.selectedType === 'bot' && state.selected) void stopMember(state.selected.id) })
@@ -533,6 +559,7 @@ function renderBots() {
 async function selectBot(bot) {
   state.selected = bot
   state.selectedType = 'bot'
+  conversationComposer.select({ type: 'bot', id: bot.id, name: bot.displayName })
   void goals.select(bot.id)
   updateSendButton()
   targetPicker.hidden = true
@@ -560,6 +587,7 @@ async function selectRoom(room) {
   screenButton.hidden = true
   state.selected = room
   state.selectedType = 'room'
+  conversationComposer.select({ type: 'room', id: room.id, name: room.name })
   updateSendButton()
   chat.classList.remove('empty')
   app.classList.add('chat-open')
@@ -617,6 +645,7 @@ async function deleteSelectedBot() {
 }
 
 function clearSelection() {
+  conversationComposer.clear()
   void goals.select(null)
   closeScreen()
   screenButton.hidden = true
@@ -1168,123 +1197,6 @@ function scheduleDescription(schedule) {
   return `${schedule.expression} · ${schedule.timezone}`
 }
 
-function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoom, nameInput, colorInput = null, fallback, error, previewClass = 'avatar owner-avatar' }) {
-  const context = canvas.getContext('2d')
-  let avatarData = ''
-  let changed = false
-  let crop = null
-  let drag = null
-
-  fileInput.addEventListener('change', readFile)
-  zoom.addEventListener('input', zoomImage)
-  zoom.addEventListener('change', syncPreview)
-  canvas.addEventListener('pointerdown', startDrag)
-  canvas.addEventListener('pointermove', moveImage)
-  canvas.addEventListener('pointerup', endDrag)
-  canvas.addEventListener('pointercancel', endDrag)
-  nameInput.addEventListener('input', updatePreview)
-  colorInput?.addEventListener('change', updatePreview)
-
-  return {
-    reset(value = '') {
-      avatarData = value?.startsWith('data:image/') || value?.startsWith('/api/bots/') ? value : ''
-      changed = false
-      crop = null
-      drag = null
-      fileInput.value = ''
-      cropEditor.hidden = true
-      updatePreview()
-    },
-    value() { return avatarData },
-    changed() { return changed },
-  }
-
-  async function readFile() {
-    const [file] = fileInput.files
-    if (!file) return
-    const source = URL.createObjectURL(file)
-    const image = new Image()
-    image.src = source
-    try {
-      await image.decode()
-      const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight)
-      crop = {
-        image,
-        minimumScale: scale,
-        scale,
-        x: (canvas.width - image.naturalWidth * scale) / 2,
-        y: (canvas.height - image.naturalHeight * scale) / 2,
-      }
-      zoom.value = '1'
-      cropEditor.hidden = false
-      draw()
-      syncPreview()
-    } catch {
-      error.textContent = 'この画像は読み込めませんでした。'
-    } finally {
-      URL.revokeObjectURL(source)
-    }
-  }
-
-  function updatePreview() {
-    preview.className = colorInput ? `avatar ${escapeClass(colorInput.value)}` : previewClass
-    preview.textContent = initials(nameInput.value || fallback)
-    applyAvatar(preview, { avatar: avatarData })
-  }
-
-  function zoomImage() {
-    if (!crop) return
-    const nextScale = crop.minimumScale * Number(zoom.value)
-    const ratio = nextScale / crop.scale
-    crop.x = canvas.width / 2 - (canvas.width / 2 - crop.x) * ratio
-    crop.y = canvas.height / 2 - (canvas.height / 2 - crop.y) * ratio
-    crop.scale = nextScale
-    clamp()
-    draw()
-  }
-
-  function startDrag(event) {
-    if (!crop) return
-    canvas.setPointerCapture(event.pointerId)
-    drag = { x: event.clientX, y: event.clientY }
-  }
-
-  function moveImage(event) {
-    if (!crop || !drag) return
-    const ratio = canvas.width / canvas.getBoundingClientRect().width
-    crop.x += (event.clientX - drag.x) * ratio
-    crop.y += (event.clientY - drag.y) * ratio
-    drag = { x: event.clientX, y: event.clientY }
-    clamp()
-    draw()
-  }
-
-  function endDrag() {
-    if (!drag) return
-    drag = null
-    syncPreview()
-  }
-
-  function clamp() {
-    crop.x = Math.min(0, Math.max(canvas.width - crop.image.naturalWidth * crop.scale, crop.x))
-    crop.y = Math.min(0, Math.max(canvas.height - crop.image.naturalHeight * crop.scale, crop.y))
-  }
-
-  function draw() {
-    context.clearRect(0, 0, canvas.width, canvas.height)
-    context.drawImage(crop.image, crop.x, crop.y, crop.image.naturalWidth * crop.scale, crop.image.naturalHeight * crop.scale)
-  }
-
-  function syncPreview() {
-    if (!crop) return avatarData
-    draw()
-    avatarData = canvas.toDataURL('image/jpeg', .9)
-    changed = true
-    updatePreview()
-    return avatarData
-  }
-}
-
 // アバター画像から代表色を導く。白・黒・透明に近い画素を除き、彩度の高い画素を重く見た平均色を、
 // 枠線として見える明るさと彩度へ寄せる。Botごとに一度だけ計算する。
 function avatarColor(bot) {
@@ -1797,85 +1709,12 @@ async function sendMessage(event) {
   event.preventDefault()
   if (!state.selected) return
   if (state.selectedType === 'room' && !routingEnabled() && !selectedTargets(state.selected.id)) {
-    composerError.textContent = '返信者の自動選択は未設定です。返信するメンバーを選んでください。'
-    composerError.hidden = false
+    conversationComposer.showError('返信者の自動選択は未設定です。返信するメンバーを選んでください。')
     toggleTargetMenu(true)
     targetButton.focus()
     return
   }
-  const targetType = state.selectedType
-  const targetId = state.selected.id
-  const sendKey = `${targetType}:${targetId}`
-  const draft = claimMessageSend(state, sendKey, messageInput.value, state.pendingImages)
-  if (!draft) return
-  const { message, pendingImages } = draft
-  const files = pendingImages.map(item => item.file)
-  messageInput.value = ''
-  resizeMessageInput()
-  clearPendingImages()
-  try {
-    const images = await Promise.all(files.map(readImage))
-    const path = targetType === 'room'
-      ? `/api/rooms/${targetId}/messages`
-      : `/api/bots/${targetId}/messages`
-    const targets = targetType === 'room' ? selectedTargets(targetId) : null
-    const result = await api(path, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message, images, ...(targets ? { targets } : {}) }),
-    })
-    if (images.length) state.imagePreviews.set(result.delivery_id ?? result.id, images.map(image => `data:${image.mime};base64,${image.data}`))
-    composerError.hidden = true
-    await loadBots()
-    if (state.selectedType === targetType && state.selected?.id === targetId) await loadMessages(false)
-  } catch (error) {
-    // 拒否を黙って飲まない。本文と画像を入力欄へ戻し、理由を一行で出す（実被弾 2026-09-04: 秘書室で発言が消えた）。
-    messageInput.value = message
-    resizeMessageInput()
-    addPendingImages(files)
-    composerError.textContent = sendFailureText(error.message)
-    composerError.hidden = false
-  } finally {
-    state.sending.delete(sendKey)
-    updateSendButton()
-  }
-}
-
-function addPendingImages(files) {
-  const images = files.filter(file => ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type))
-  state.pendingImages.push(...images.map(file => ({ file, url: URL.createObjectURL(file) })))
-  renderPendingImages()
-}
-
-function removePendingImage(target) {
-  URL.revokeObjectURL(target.url)
-  state.pendingImages = state.pendingImages.filter(item => item !== target)
-  renderPendingImages()
-}
-
-function clearPendingImages() {
-  for (const item of state.pendingImages) URL.revokeObjectURL(item.url)
-  state.pendingImages = []
-  renderPendingImages()
-}
-
-function renderPendingImages() {
-  attachmentPreview.replaceChildren(...state.pendingImages.map((item, index) => {
-    const preview = document.createElement('div')
-    preview.className = 'attachment-preview'
-    const image = document.createElement('img')
-    image.src = item.url
-    image.alt = `添付画像${index + 1}`
-    const remove = document.createElement('button')
-    remove.type = 'button'
-    remove.textContent = '×'
-    remove.setAttribute('aria-label', `添付画像${index + 1}を外す`)
-    remove.addEventListener('click', () => removePendingImage(item))
-    preview.append(image, remove)
-    return preview
-  }))
-  attachmentPreview.hidden = state.pendingImages.length === 0
-  updateSendButton()
+  await conversationComposer.send()
 }
 
 function imageLabel(item) {
@@ -1883,8 +1722,7 @@ function imageLabel(item) {
 }
 
 function updateSendButton() {
-  const key = state.selected ? `${state.selectedType}:${state.selected.id}` : ''
-  sendButton.disabled = state.sending.has(key) || (messageInput.value.trim().length === 0 && !state.pendingImages.length)
+  conversationComposer.update()
   const stopping = state.selectedType === 'bot' && state.selected && stoppingMembers.has(state.selected.id)
   const busy = state.selectedType === 'bot' && state.selected && state.timelineQueue.some(item => item.botId === state.selected.id)
   stopButton.hidden = !busy && !stopping
@@ -1902,7 +1740,7 @@ async function stopMember(botId) {
   try {
     await requestMemberStop(botId, api)
     if (sameConversation()) {
-      composerError.hidden = true
+      conversationComposer.showError('')
       if (selectedType === 'bot') chatStatus.textContent = '停止操作を送りました。会話は続けられます'
     }
     try {
@@ -1910,14 +1748,12 @@ async function stopMember(botId) {
       if (sameConversation()) await loadMessages()
     } catch {
       if (sameConversation()) {
-        composerError.textContent = '停止操作を送りました。表示を更新できなかったので、会話を開き直してください。'
-        composerError.hidden = false
+        conversationComposer.showError('停止操作を送りました。表示を更新できなかったので、会話を開き直してください。')
       }
     }
   } catch {
     if (sameConversation()) {
-      composerError.textContent = '停止結果を確認できませんでした。メンバーの状態を確認してください。'
-      composerError.hidden = false
+      conversationComposer.showError('停止結果を確認できませんでした。メンバーの状態を確認してください。')
     }
   } finally {
     releaseSingleFlight(stoppingMembers, botId)
@@ -1990,8 +1826,7 @@ async function connectEvents() {
   } catch (error) {
     if (error.name === 'AbortError') return
     if (error instanceof TypeError || error.status === 429 || error.status >= 500) { setTimeout(connectEvents, 1500); return }
-    composerError.textContent = `更新の接続が止まりました: ${error.message}。ページを再読み込みして確認してください。`
-    composerError.hidden = false
+    conversationComposer.showError(`更新の接続が止まりました: ${error.message}。ページを再読み込みして確認してください。`)
   }
 }
 

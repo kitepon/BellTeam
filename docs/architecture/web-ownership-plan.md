@@ -2,6 +2,8 @@
 
 設計時の製品sourceは`56e46a5`（Webは基底546fと同bytes）。この文書は**次の実装設計**であり、現在の挙動は[会話Web](web-details.md)と[管理Web](web-management-details.md)。実装後に関数名と実窓口へ同期する。
 
+本branchではcomposerとavatar editorを実装した。`conversation-composer.js:createConversationComposer`が`select/clear/addImages/send/update/showError`で会話別入力・添付・送信・回収欄を所有する。appは選択対象と受付後の一覧/履歴更新を渡す。`avatar-editor.js:createAvatarEditor`は既`reset/value/changed`と新`cancelRead`を公開し、画像読取世代を所有する。timeline/予定/補助表示と残るフォームは下記の設計に沿った実装が残る。図全体を現実装済みとはしない。
+
 ## 画面で説明できる責任
 
 一覧で会話を選ぶのはapp。選ばれた会話に何を入力しているかはcomposer、何を表示しているかはtimelineが持つ。予定やBotを編集する画面は、開いた対象を最後まで自分で持つ。画像URLは生成した部品が片付ける。
@@ -23,7 +25,7 @@ flowchart TD
 
 | 所有単位 | 作る/使う窓口（実装時に確定する名前） | 移す現関数と状態 | 外へ渡すもの |
 | --- | --- | --- | --- |
-| composer | `createConversationComposer` → `select/clear/setBusy` | sendMessage、添付追加/削除/描画/readImage、messageInput sizing、sending、画面内draft | `onAccepted(target, result, previews)`。一覧やtimeline stateを直接変更しない |
+| composer（実装済み） | `createConversationComposer` → `select/clear/addImages/send/update/showError` | 入力・添付追加/削除/描画、messageInput sizing、sending、画面内draft、回収欄。画像変換は既readImageを受ける | `onAccepted(target, result, previews)`。一覧やtimeline stateを直接変更しない。busy表示はtimeline分離まで既appが保持 |
 | timeline | `createConversationTimeline` → `open/refresh/close/updateTarget` | open/refresh/older/queue/rerender/renderTail、Map/page/token/queue/stick、scroll/resize | queueの現在snapshotと読取結果。appに可変Mapを公開しない |
 | 会話行 | timeline module内の`renderItem/roomTimelineItem/renderQueueStatus` | 意味の違う秘密/質問/peer/message/queue表示 | Bot名等は`getBot(id)`、停止は`stopMember(id)`、avatar/formatは共通純粋処理 |
 | 会話画像 | `createMessageImageCache` → `remember/load/get/failed/close` | imagePreviews/imageFailures、loadStoredMessageImages | 項目IDのURLと読取完了。会話選択や入力欄を操作しない |
@@ -173,3 +175,5 @@ Bot/room/Owner編集は既フォーム固有の保存処理を残せる。target
 5. 実装した境界と各反例が揃ってからAstraで図/codeを整合、必要全体一回、Centi独立採否、通常候補へ。別製品内部や本番停止へ権限を広げない。
 
 この設計を決めたことと、製品を直し終えたことは別である。最終的な使い勝手・回収UI・ブラウザ挙動は実装後に確認する。
+
+composerの局所6試験は受付後表示失敗、別target、新入力/旧入力・画像、回収/削除target、targets snapshot/single flight、変換失敗/明示拒否を確認した。既chat-input/HTTP関連と合わせたrunは45pass、timeline/SSEを含む別runは11pass（重複あり）。実Web全画面＋人工APIでも受付後GET失敗、A→Bの旧失敗、新旧本文の回収ボタンとPOST数を確認した。avatar既保存試験を公開module利用へ移し、decode逆転/reset/closeとURL回収の反例を加え、関連run38pass。これらは本番・実配送の確認ではなく、残るWeb所有整理や全体試験の完了でもない。
