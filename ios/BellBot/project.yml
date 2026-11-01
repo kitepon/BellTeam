@@ -19,7 +19,7 @@ settings:
 packages:
   EnrichedMarkdown:
     url: https://github.com/quolu/enriched-markdown-ios.git
-    revision: ae28d48c07788b16244e95d4925ea389d554e62e
+    revision: d07cd2dd508a3ad4fdbd6aa6a3752360c97ddf00
 targets:
   BellTeam:
     type: application
@@ -37,7 +37,7 @@ targets:
         CFBundleDisplayName: BellTeam
         CFBundleName: BellTeam
         CFBundleShortVersionString: '1.0.3'
-        CFBundleVersion: '96'
+        CFBundleVersion: '97'
         UIUserInterfaceStyle: Light
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.productivity
@@ -120,7 +120,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.3'
-        CFBundleVersion: '96'
+        CFBundleVersion: '97'
         BellTeamAppGroupIdentifier: group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service

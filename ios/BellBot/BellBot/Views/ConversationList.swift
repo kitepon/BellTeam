@@ -63,12 +63,12 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         coordinator.onAtBottomChange = onAtBottomChange
         coordinator.opening = opening
         coordinator.hasMore = hasMore
-        // 初回取得か読み足しが終わったら、表示域を埋める判定をやり直してよい。
-        if (coordinator.loading && !loading) || (coordinator.loadingOlder && !loadingOlder) { coordinator.fillRequested = false }
+        // 初回取得が終わったら、表示域を埋める判定をやり直してよい。読み足しは行が入った時にやり直す。失敗では繰り返さない。
+        if coordinator.loading && !loading { coordinator.fillRequested = false }
         coordinator.loading = loading
         coordinator.loadingOlder = loadingOlder
         if table.contentInset.bottom != bottomInset { table.contentInset.bottom = bottomInset }
-        coordinator.apply(rows: rows, messages: messages, queue: queue)
+        coordinator.present(rows: rows, messages: messages, queue: queue, environment: context.environment)
         coordinator.fillIfShort()
         if coordinator.scrollToBottomRevision != scrollToBottomRevision {
             coordinator.scrollToBottomRevision = scrollToBottomRevision
@@ -96,6 +96,9 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         private var armed = true
         private var atBottom = true
         private var shown: Set<ConversationRow> = []
+        private var prepared: Set<String> = []
+        private var preparing = false
+        private var latest: (rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem])?
         #if targetEnvironment(macCatalyst)
         private var wheel: WheelScrollSmoother?
         #endif
@@ -126,7 +129,26 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             cell.backgroundConfiguration = .clear()
         }
 
-        func apply(rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem]) {
+        /// 本文の素材が揃ってから行を表へ入れる。組み立て中に届いた更新は、最新の状態だけを次に渡す。
+        func present(rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem], environment: EnvironmentValues) {
+            latest = (rows, messages, queue)
+            guard !preparing else { return }
+            let sources = Array(Set(messages.compactMap(\.message)).subtracting(prepared))
+            if sources.isEmpty {
+                apply(rows: rows, messages: messages, queue: queue)
+                return
+            }
+            preparing = true
+            Task { @MainActor [weak self] in
+                await MessageText.prerender(sources, environment: environment)
+                guard let self else { return }
+                preparing = false
+                prepared.formUnion(sources)
+                if let latest { present(rows: latest.rows, messages: latest.messages, queue: latest.queue, environment: environment) }
+            }
+        }
+
+        private func apply(rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem]) {
             guard let table, let dataSource else { return }
             let previous = dataSource.snapshot().itemIdentifiers
             var snapshot = NSDiffableDataSourceSnapshot<Int, ConversationRow>()
@@ -154,7 +176,12 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             } else {
                 UIView.performWithoutAnimation { dataSource.apply(snapshot, animatingDifferences: false) }
             }
-            if prepended { armed = true }
+            if prepended {
+                armed = true
+                // 足した行の高さが表へ反映されてから、まだ足りないかを判定する。
+                table.layoutIfNeeded()
+                fillRequested = false
+            }
             if previous.isEmpty && !rows.isEmpty {
                 table.followsBottom = true
                 table.layoutIfNeeded()
@@ -239,9 +266,9 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         func fillIfShort() {
             #if targetEnvironment(macCatalyst)
             // Macのホイールは動かせる長さが無いと位置が変わらないので、表示域が埋まるまで過去を足す。
-            // 親が取得中の間は頼まず、取得が終わった後の判定で頼む。
+            // 親が取得中の間と、届いた行を組み立てている間は頼まず、表へ入った後の判定で頼む。
             if let table, table.bounds.height > 0, table.contentSize.height <= table.bounds.height,
-               hasMore, !loading, !loadingOlder, !fillRequested {
+               hasMore, !loading, !loadingOlder, !preparing, !fillRequested {
                 fillRequested = true
                 // 親の更新中の配置から呼ばれ得るので、親の状態は次の周で変える。
                 DispatchQueue.main.async { [onLoadOlder] in onLoadOlder?() }
