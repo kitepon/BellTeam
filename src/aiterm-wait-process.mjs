@@ -4,7 +4,7 @@ import { createSeatProcessRunner } from './seat-process.mjs'
 
 export function runWaitProcess(waitProcess, signal = null, options = {}) {
   const seatProject = Object.hasOwn(options, 'seatProject') ? options.seatProject : null
-  if (seatProject !== null) return createSeatProcessRunner(seatProject)(waitProcess.executable, waitProcess.args, { signal }).then(({ stdout }) => {
+  if (seatProject !== null) return createSeatProcessRunner(seatProject)(waitProcess.executable, waitProcess.args, { signal, acceptNonzero: true }).then(({ stdout }) => {
     try { return JSON.parse(stdout.trim()) } catch { throw new Error('AITERM_WAIT_INVALID') }
   })
   return new Promise((resolve, reject) => {
