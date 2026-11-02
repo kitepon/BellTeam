@@ -59,7 +59,7 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | POST `/deliveries/{direct,room}` | `Messenger/RoomMessenger` | Bot/scheduler等の配送入口。Owner会話POSTとは異なる |
 | POST `/deliveries/direct/:id/{resume,close-launch}` | `Messenger` | 保存済み配送を検証する明示操作。自動再送ではない |
 | GET `/queue` | `transport.queueItems` | 全進行中配送の投影 |
-| GET `/schedules`、GET/POST `/{bots,rooms}/:id/schedules`、PUT/DELETE `/:schedule` | 各Registry / `schedule-mutations` | 予定正本の一覧・変更・削除 |
+| GET `/schedules`、GET/POST `/{bots,rooms}/:id/schedules`、PUT/DELETE `/:schedule` | `members/schedules-http` → 各Registry | [予定正本](modules/members/schedules.md)の一覧・変更・削除。既http-schedule-api exportを保持 |
 | POST `/{bots,rooms}/:id/schedules/:schedule/run` | `BotScheduler.runBotSchedule/runRoomSchedule` | 手動発行。次回時刻・enabledは変えない |
 | GET `/{bots,rooms}/:id/export` | `createConversationApi` → `timeline/webMessage` | 履歴projectionを書き出す。実行・原本変更なし |
 | GET `/goals`、GET/POST `/bots/:bot/goal` | `BotGoals` → Aiterm | nativeが正本。内部HTTPからmutationを許さない |
@@ -78,9 +78,9 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | `create_bot/update_bot/update_self/delete_bot/restart_session/set_fast_mode/set_avatar` | registryまたは`internalApi.configure/remove/restart` | model/harness/effortはHTTPの稼働設定経路。プロフィールだけはregistry直通。set_avatarはファイルを読んで更新 |
 | `get_owner_profile/get_user_rules` | 各正本service | 読取り。更新toolは通常MCPにない |
 | `remember/recall_memory/revise_memory/pin_memory/consolidate_growth/record_knowledge/search_knowledge` | memory serviceまたは席proxy | 最終argsのscope/botIdを子へ渡す。検証は記憶側 |
-| `set_schedule/list_schedules/remove_schedule` | BotRegistry | 省略botIdはfrom |
+| `set_schedule/list_schedules/remove_schedule` | `members/schedules-mcp` → BotRegistry | 省略botIdはfrom |
 | `create_room/list_rooms/get_room/update_room/delete_room/invite_to_room/leave_room` | RoomRegistry + MCP権限関数 | 作成者を参加者/代表へ。一覧は参加部屋。更新/削除は代表資格。invite/leaveをその判定と一括化しない |
-| `set_room_schedule/list_room_schedules/remove_room_schedule` | RoomRegistry + MCP権限関数 | 更新/削除は代表、一覧は参加者 |
+| `set_room_schedule/list_room_schedules/remove_room_schedule` | `members/schedules-mcp` → room-access + RoomRegistry | 更新/削除は代表、一覧は参加者 |
 | `list_messages/list_room_messages/list_queued_messages` | store / rooms / internalApi.queue | MCP直接履歴はHTTPのカード合成と同じではない |
 | `bughub_*` | `createBugHubSecurity` | 既存BugHub APIへactor/credentialを付けて中継。SEC所見の正本は外部 |
 | 別MCP `update_user_rules` | `callOwnerTool` → `UserRules` → 全体指示更新 | このowner MCPを登録した席だけの窓口。通常toolへ統合しない |

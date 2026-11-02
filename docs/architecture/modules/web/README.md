@@ -12,7 +12,7 @@ flowchart LR
   Application --> Views["各view<br/>編集 / 下書き / 履歴 / 画像"]
   Application --> Client["client.createWebClient<br/>JSON / 画像 / SSE"]
   Views -->|"api / fetchImage"| Client
-  Client -->|"既公開HTTPだけ"| Integration["integration.HTTP/MCP"]
+  Client -->|"既公開HTTPだけ"| Integration["integration.HTTP/SSE"]
   Integration -->|"通知と応答"| Client
   Client -->|"通知callback"| Application
   Assets["assets.mjs<br/>配信可能な名前と版置換対象"] -->|"公開登録"| Static["integration.staticFile<br/>認証後のファイル配信"]
@@ -26,7 +26,7 @@ flowchart LR
 
 通信の全callerはapplicationから各viewへ渡すapi、messageImagesとcharacterSheetsのfetchImage、SSEのwatchEvents。Viewは他moduleの内部サービスや保存データをimportしない。SSEは既存のTypeError/429/5xxだけ1.5秒後に再接続し、認証/JSON形式異常で停止表示する。正常EOFで再接続しない既存契約も維持する。表示GETの失敗はapplicationが表示へ返し、通信障害として再接続しない。
 
-画面に表示するアバター等のURLをブラウザーが読む通常の画像表示も公開HTTPを使う。台帳、配送、予定、記憶、認証、Goalの正本と業務判断はサーバーに残す。
+WebはHTTPとSSEだけを利用し、MCPを呼ばない。画面に表示するアバター等のURLをブラウザーが読む通常の画像表示も公開HTTPを使う。台帳、配送、予定、記憶、認証、Goalの正本と業務判断はサーバーに残す。
 
 ## Webが所有するデータ
 

@@ -35,24 +35,6 @@ export function createRoomApi({ rooms, transport, sources, messagePage, roomMess
       }
     }
 
-    const roomScheduleMatch = url.pathname.match(/^\/api\/rooms\/([a-z0-9-]+)\/schedules(?:\/([^/]+))?$/u)
-    if (roomScheduleMatch) {
-      await rooms.refresh()
-      const roomId = roomScheduleMatch[1]
-      const scheduleId = roomScheduleMatch[2]
-      if (!rooms.has(roomId)) return json(response, 404, { error: 'ROOM_NOT_FOUND' })
-      if (request.method === 'GET' && !scheduleId) return json(response, 200, { schedules: await rooms.listSchedules(roomId) })
-      if (request.method === 'POST' && !scheduleId)
-        return json(response, 201, { schedule: await rooms.setSchedule(roomId, await readJson(request)) })
-      if (request.method === 'PUT' && scheduleId)
-        return json(response, 200, { schedule: await rooms.setSchedule(roomId, { ...await readJson(request), id: decodeURIComponent(scheduleId) }) })
-      if (request.method === 'DELETE' && scheduleId) {
-        await rooms.removeSchedule(roomId, decodeURIComponent(scheduleId))
-        response.writeHead(204)
-        return response.end()
-      }
-    }
-
     const roomMessagesMatch = url.pathname.match(/^\/api\/rooms\/([a-z0-9-]+)\/messages$/u)
     if (roomMessagesMatch) {
       await rooms.refresh()
