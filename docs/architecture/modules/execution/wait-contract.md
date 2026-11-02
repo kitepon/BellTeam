@@ -40,6 +40,22 @@ flowchart TD
 
 直接callerはapplication-servicesのseatProject付き注入、AitermTransportの既定値、waitForTurnCompletionとwatchTurn。`aiterm-transport.mjs`からの既存再exportを保持する。会話callbackと既例外messageは維持する。
 
+## 受付後の追跡失敗を会話へ渡す
+
+```mermaid
+flowchart LR
+  Receipt["dispatch受付receiptをjobへ保存"] --> Wait["waitUntilDone"]
+  Wait -->|"追跡例外"| Fact["job.waitFailureへ元例外を保持"]
+  Fact --> Status["onStatus failed / 元error / 第3引数<br/>accepted・completion unknown"]
+  Status --> Conversation["conversationがdelivery_trackingへ保存・投影"]
+  Wait -->|"native既知終了error / rate_limited"| Legacy["既failed / 元errorのみ"]
+  Fact -->|"停止確定・後段保存の別例外"| Legacy
+```
+
+`onStatus(status, error, tracking?)`の第3引数は、receiptのあるjobのwaitUntilDoneが例外終了し、その同一例外がjob.failureを通って返る場合だけ、`{schema:'bellteam.delivery-tracking.v1', admission:'accepted', completion:'unknown'}`を渡す。元failed/stopped・元例外の同一性と伝播は保持する。native既知終了error/rate_limited、停止確定、受付前拒否、runningや途中経過・回答の保存失敗には付けない。timeout/runningは既待機継続のまま。本文・生receipt・process出力を第3引数へ含めない。
+
+第3引数は入力受付の根拠と最終完了不明を表し、完了成功や再送許可ではない。直接user/Bot/通話/復旧・部屋のcallback転送、許可field保存・履歴投影はconversationが所有し、保存/public field名は`delivery_tracking`。既存履歴へ後付けしない。2引数callerは互換で、会話側の接続差分は同担当と統合する。関連fixtureは`test/delivery-tracking-status.test.mjs`。watch/設定適用/診断の既契約を変更せず、新timerや再送は作らない。
+
 ## 設定適用失敗と待機故障の診断
 
 ```mermaid
