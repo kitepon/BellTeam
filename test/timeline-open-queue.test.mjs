@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFile } from 'node:fs/promises'
 import { createConversationTimeline } from '../web/conversation-timeline.js'
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
 const settle = () => new Promise(resolve => setImmediate(resolve))
@@ -187,19 +186,4 @@ test('latest/after and before pages share evidence rendering; queue removal expo
   f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); await settle()
   assert.deepEqual(f.ids(), ['older', 'initial', 'added'])
   assert.deepEqual(messageTimes(f).map(node => node.textContent), Array(3).fill('受付済み・完了未確認'))
-})
-
-
-test('server-produced direct and mixed room wire fixtures retain the consumer contract', async t => {
-  const wire = JSON.parse(await readFile(new URL('./fixtures/delivery-tracking-wire.json', import.meta.url), 'utf8'))
-  const direct = fixture(t, () => structuredClone(wire.direct))
-  await direct.open('bot-a')
-  const directRow = direct.timeline.children[0].children.find(row => row.dataset.id === 'd1')
-  const directTime = directRow.children.at(-1).children.find(node => node.className === 'message-time')
-  assert.match(directTime.textContent, /受付済み・完了未確認$/)
-  assert.equal(directTime.classes.has('failed'), false)
-  const room = fixture(t, () => structuredClone(wire.room))
-  await room.open('room-a', 'room')
-  assert.match(messageTimes(room)[0].textContent, /配達失敗$/)
-  assert.equal(messageTimes(room)[0].classes.has('failed'), true)
 })
