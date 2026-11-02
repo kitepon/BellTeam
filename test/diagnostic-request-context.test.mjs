@@ -7,6 +7,7 @@ import test from 'node:test'
 import { Diagnostics, createDiagnosticsAdminServer } from '../src/diagnostics.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 import { diagnosticRequestContext } from '../src/diagnostic-request-context.mjs'
+import { AitermClient } from '../src/aiterm-client.mjs'
 
 test('messages POST失敗をHTTPから管理診断へ渡し、診断原本に本文・query・認証・対象名を含めない', async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-http-context-'))
@@ -152,12 +153,15 @@ test('MCP request evidence reaches persisted diagnostics without changing groupi
   const file = join(root, 'diagnostics.json'), diagnostics = new Diagnostics(file)
   await diagnostics.initialize()
   const request = { method: 'POST', url: '/api/deliveries/direct?secret=PRIVATE_QUERY' }
-  const error = Object.assign(new Error('PRIVATE_MESSAGE'), { code: 'MCP_REQUEST_TIMEOUT' })
+  const error = Object.freeze(Object.assign(new Error('PRIVATE_MESSAGE'), { code: 'MCP_REQUEST_TIMEOUT' }))
   const originalStack = error.stack
   const before = diagnosticRequestContext(request, [], error)
   const old = await diagnostics.record({ code: 'SERVER_HTTP_500', module: 'server', diagnostic_log: before })
   for (const context of [{ phase: 'connect', tool: 'pty_send' }, { phase: 'call', tool: 'pty_send', outcome: 'unknown' }]) {
-    error.mcp_request = context
+    const client = new AitermClient()
+    client.connect = async () => { if (context.phase === 'connect') throw error }
+    client.client = { async callTool() { throw error } }
+    await assert.rejects(client.call('pty_send', { session_id: 'PRIVATE_SESSION', text: 'PRIVATE_BODY' }), value => value === error)
     const log = diagnosticRequestContext(request, [], error)
     assert.deepEqual(log.split('\n').filter(line => !line.startsWith('mcp_request=')), before.split('\n'))
     assert.deepEqual(JSON.parse(log.split('\n').find(line => line.startsWith('mcp_request=')).slice(12)), context)
