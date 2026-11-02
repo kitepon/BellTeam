@@ -2,6 +2,8 @@
 
 責任者：トロニー。
 
+Rabbit認証の一件管理caller候補は[固定契機と許可原本の接続](olrw-auth-caller.md)。実行readyや本番反映を示さない。
+
 共通HTTP/MCP入口、サービス組立て、共通エラーと診断、全体接続、統合・本番反映。
 
 接続の正本は[module.json](module.json)。全体の[機能図](../../feature-map.md)と[担当・変更手順](../../module-ownership.md)から、呼出元と依存先を辿る。

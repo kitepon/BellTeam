@@ -18,9 +18,10 @@ import { PushNotifications } from './push-notifications.mjs'
 import { Subscriptions } from './subscriptions.mjs'
 import { Onboarding } from './onboarding.mjs'
 import { HarnessAuth } from './harness-auth.mjs'
+import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null }) {
+export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = null }) {
   const subscriptions = new Subscriptions({
     path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'),
     environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production',
@@ -96,11 +97,17 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     notify: item => messenger.enqueueUserTurn({ target: item.botId, message: ownerAnswerMessage(item) }),
   })
   await ownerQuestions.initialize()
+  const olrwAuthCaller = olrwManagement ? attachOlrwOwnerQuestion({
+    plan: olrwManagement.plan, ownerQuestions, aiControl, assertAuthorized: olrwManagement.assertAuthorized,
+    createConsumer: ({ assertAuthorized }) => olrwManagement.createConsumer({ secretRequests,
+      runDirectory: join(root, 'state/olrw-auth'), context: olrwManagement.context, assertAuthorized, auth: olrwManagement.auth }),
+    reportFailure: code => diagnostics.record({ code, module: 'integration' }),
+  }) : null
   return {
     aiControl, subscriptions, settings, onboarding, harnessAuth,
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
-    scheduler, diagnostics, idleSessions, selfTurns, seatTurns, administration, goals,
+    scheduler, diagnostics, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
   }
 }

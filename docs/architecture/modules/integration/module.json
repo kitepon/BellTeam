@@ -37,6 +37,14 @@
     {
       "module": "web",
       "port": "assets"
+    },
+    {
+      "module": "usage",
+      "port": "auth"
+    },
+    {
+      "module": "approval-box",
+      "port": "public"
     }
   ],
   "source": [
@@ -49,6 +57,7 @@
     "src/diagnostics.mjs",
     "src/http-gateway.mjs",
     "src/http-gateway-entry.mjs",
-    "src/http-gateway-process.mjs"
+    "src/http-gateway-process.mjs",
+    "src/olrw-management-caller.mjs"
   ]
 }
