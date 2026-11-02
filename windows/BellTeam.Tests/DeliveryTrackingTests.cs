@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.IO;
 using System.Windows.Controls;
 using BellTeam.App;
 using BellTeam.Core;
@@ -9,6 +10,21 @@ public sealed class DeliveryTrackingTests
 {
     private const string Tracking = """{"schema":"bellteam.delivery-tracking.v1","admission":"accepted","completion":"unknown"}""";
     private static TimelineMessage Read(string fields) => JsonSerializer.Deserialize<TimelineMessage>($$"""{"id":"m1","at":"2026-10-13T01:00:00Z","direction":"outgoing",{{fields}}}""", BellApi.Json)!;
+
+    [Fact]
+    public void ReadsTheActualWriterHttpFixture()
+    {
+        using var fixture = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "delivery-tracking-wire.json")));
+        var direct = fixture.RootElement.GetProperty("direct").Deserialize<MessagePage>(BellApi.Json)!;
+        Assert.Equal("d1", direct.Items[0].Id);
+        Assert.Equal("受付済み・完了未確認", Timeline.DeliveryLabel(direct.Items[0], false));
+        Assert.Equal("d2", direct.Items[1].Id);
+        Assert.Equal("received", direct.Items[1].Direction);
+        Assert.Equal("", Timeline.DeliveryLabel(direct.Items[1], false));
+        var room = fixture.RootElement.GetProperty("room").Deserialize<MessagePage>(BellApi.Json)!;
+        Assert.Equal("room-message", room.Items[0].Id);
+        Assert.Equal("配達失敗", Timeline.DeliveryLabel(room.Items[0], true));
+    }
 
     [Theory]
     [InlineData("null")]
