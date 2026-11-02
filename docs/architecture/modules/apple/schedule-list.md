@@ -2,6 +2,8 @@
 
 [担当の正本](README.md)。本体の予定は[members](../members/schedules.md)、削除待ちの一覧は[削除](../members/deletion.md)。Apple全体の図ではなく、修理の範囲だけを示す。
 
+対応版：PR #258の候補（base `e15795b`）。配布済みの1.0.4 (98)以前には、`deleting`の除外と`ScheduleListIncomplete`は無い。
+
 ## 流れ
 
 ```mermaid
@@ -20,7 +22,13 @@ flowchart TD
   Check -->|"対象の不足"| Incomplete["ScheduleListIncomplete<br/>件数だけを持つ"]
   Invalid --> Failed["errorTextを表示<br/>読めた一覧は残す"]
   Incomplete --> Failed
-  Failed --> Report["BellDiagnostics.report<br/>IOS_RESPONSE_INVALID / module schedules"]
+  Bulk -->|"通信・復号の失敗"| Failed
+  Each -->|"通信・復号の失敗"| Failed
+  Failed --> Report["BellDiagnostics.report<br/>失敗の種類ごとのコード / module schedules"]
+  Bulk -->|"取消"| Cancelled["CancellationError<br/>表示も報告もしない"]
+  Each -->|"取消"| Cancelled
+  Bulk -->|"認証切れ"| Login["store.requireLogin"]
+  Each -->|"認証切れ"| Login
 ```
 
 ## 責任と受渡し
@@ -44,6 +52,7 @@ flowchart TD
 | 取得の取消 | `CancellationError`は表示も報告もしない |
 | 認証切れ | `requireLogin`へ渡す |
 | 全件取得の失敗 | `hasLoadedAll`は立たず、次回も全件取得する |
+| 全件・個別取得の通信や復号の失敗 | `errorText`を表示して報告する。検査の失敗と同じ`catch`を通る |
 
 ## 確認済みと未確認
 
