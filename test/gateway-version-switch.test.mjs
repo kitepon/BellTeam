@@ -86,6 +86,34 @@ test('親closeはprepare待ちを止めて旧子を回収し、遅いprepare完�
   assert.equal(gateway.pid, null)
 })
 
+test('不正portのreadyを拒否して新子を回収し、元の公開portで旧版へ戻す', { timeout: 5000 }, async t => {
+  const { root, socketPath, releases } = await fixture(t)
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot,
+    prepareRelease: async id => releases.get(id) })
+  t.after(() => gateway.close())
+  await gateway.start()
+  const port = gateway.address.port, base = `http://127.0.0.1:${port}`
+  const pidPath = join(root, 'rejected-child.pid')
+  for (const readyPort of [0, -1, 65536, port === 65535 ? port - 1 : port + 1]) {
+    await writeFile(join(releases.get(ids.broken).appRoot, 'src/http-gateway-entry.mjs'), `
+      import { writeFileSync } from 'node:fs'
+      writeFileSync(${JSON.stringify(pidPath)}, String(process.pid))
+      process.send({ type: 'ready', protocolVersion: 1, assetVersion: process.argv[4], address: { port: ${readyPort} } })
+      setInterval(() => {}, 1000)
+    `)
+    await assert.rejects(gateway.replace(ids.broken), error => error.message === 'GATEWAY_REPLACE_ROLLED_BACK'
+      && error.cause.message === 'GATEWAY_START_FAILED')
+    const rejectedPid = Number(await readFile(pidPath, 'utf8'))
+    assert.throws(() => process.kill(rejectedPid, 0), { code: 'ESRCH' })
+    assert.equal(gateway.address.port, port)
+    assert.equal(gateway.versionId, null)
+    assert.match(await (await fetch(base)).text(), /<h1>one<\/h1>/)
+  }
+  await gateway.replace(ids.two)
+  assert.equal(gateway.address.port, port)
+  assert.match(await (await fetch(base)).text(), /<h1>two<\/h1>/)
+})
+
 test('readyを返さない新子を期限で回収して旧版へ戻す', { timeout: 20000 }, async t => {
   const { socketPath, releases } = await fixture(t)
   const blocked = releases.get(ids.broken)

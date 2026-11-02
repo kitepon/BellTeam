@@ -49,7 +49,8 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
   }
   const startAt = async (root, versionId = null) => {
     if (child) throw new Error('GATEWAY_ALREADY_STARTED')
-    const next = spawn(process.execPath, [join(root, 'src/http-gateway-entry.mjs'), socketPath, String(boundPort), versionId ?? '', assetCatalog()], {
+    const requestedPort = boundPort
+    const next = spawn(process.execPath, [join(root, 'src/http-gateway-entry.mjs'), socketPath, String(requestedPort), versionId ?? '', assetCatalog()], {
       env: {}, stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
     })
     child = next
@@ -70,7 +71,9 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
         next.once('close', earlyExit)
         next.once('error', failed)
         next.once('message', message => {
-          if (message?.type !== 'ready' || message.protocolVersion !== 1 || !Number.isInteger(message.address?.port)
+          const readyPort = message?.address?.port
+          if (message?.type !== 'ready' || message.protocolVersion !== 1 || !Number.isInteger(readyPort)
+            || readyPort < 1 || readyPort > 65535 || requestedPort !== 0 && readyPort !== requestedPort
             || typeof message.assetVersion !== 'string' || !message.assetVersion
             || versionId !== null && message.assetVersion !== versionId)
             return reject(new Error('GATEWAY_START_FAILED'))
