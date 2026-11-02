@@ -1,0 +1,45 @@
+{
+  "title": "メンバー・予定",
+  "owner": "ベロータ",
+  "botId": "bot-78d95a79",
+  "scope": "作成・プロフィール・削除完了、規範/起動指示、Bot/部屋の予定定義と発行。部屋台帳本体はN102",
+  "external": false,
+  "provides": [
+    "registry",
+    "schedules",
+    "instructions"
+  ],
+  "uses": [
+    {
+      "module": "execution",
+      "port": "stop"
+    },
+    {
+      "module": "runtime",
+      "port": "project-files"
+    },
+    {
+      "module": "conversation",
+      "port": "membership-cleanup"
+    },
+    {
+      "module": "conversation",
+      "port": "messages"
+    },
+    {
+      "module": "memory",
+      "port": "memory"
+    }
+  ],
+  "source": [
+    "src/bot-registry.mjs",
+    "src/project-files.mjs",
+    "src/owner-profile.mjs",
+    "src/user-rules.mjs",
+    "src/global-instructions.mjs",
+    "src/scheduler.mjs",
+    "src/schedule-definition.mjs",
+    "src/schedule-mutations.mjs",
+    "src/character-sheets.mjs"
+  ]
+}

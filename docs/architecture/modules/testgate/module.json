@@ -1,0 +1,12 @@
+{
+  "title": "testgate",
+  "owner": "シラツル",
+  "botId": "bot-38094207",
+  "scope": "試験選択とhook公開仕様",
+  "external": true,
+  "provides": [
+    "hook"
+  ],
+  "uses": [],
+  "source": []
+}

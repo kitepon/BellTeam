@@ -1,6 +1,7 @@
 node_modules/
 .env
 runtime/
+!docs/architecture/modules/runtime/
 .bellteam-compose.*/
 *.log
 .control-inputs/

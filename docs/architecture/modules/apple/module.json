@@ -1,0 +1,17 @@
+{
+  "title": "Appleアプリ",
+  "owner": "ベル",
+  "botId": null,
+  "scope": "Apple各画面と配布",
+  "external": true,
+  "provides": [
+    "public"
+  ],
+  "uses": [
+    {
+      "module": "integration",
+      "port": "HTTP/MCP"
+    }
+  ],
+  "source": []
+}

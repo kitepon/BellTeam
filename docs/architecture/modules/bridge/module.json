@@ -1,0 +1,17 @@
+{
+  "title": "call-bridge/grokbot-bridge",
+  "owner": "リター",
+  "botId": "bot-df96182b",
+  "scope": "通話製品と公開接続",
+  "external": true,
+  "provides": [
+    "public"
+  ],
+  "uses": [
+    {
+      "module": "conversation",
+      "port": "messages"
+    }
+  ],
+  "source": []
+}

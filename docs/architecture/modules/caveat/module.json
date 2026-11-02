@@ -1,0 +1,12 @@
+{
+  "title": "Caveat",
+  "owner": "ノア",
+  "botId": "bot-2094dc6d",
+  "scope": "導入済みMCPの公開接点（本体直接呼出の有無は担当照合）",
+  "external": true,
+  "provides": [
+    "public"
+  ],
+  "uses": [],
+  "source": []
+}

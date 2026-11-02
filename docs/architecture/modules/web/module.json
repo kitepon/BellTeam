@@ -1,0 +1,19 @@
+{
+  "title": "Webアプリ",
+  "owner": "アドミ",
+  "botId": "bot-1f622329",
+  "scope": "Web一覧・編集・会話・下書き・表示・接続・更新通知。サーバー正本は機能担当、Appleはベル",
+  "external": false,
+  "provides": [
+    "ui"
+  ],
+  "uses": [
+    {
+      "module": "integration",
+      "port": "HTTP/MCP"
+    }
+  ],
+  "source": [
+    "web/"
+  ]
+}

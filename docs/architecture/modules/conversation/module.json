@@ -1,0 +1,43 @@
+{
+  "title": "会話・履歴",
+  "owner": "N102",
+  "botId": "bot-c4a34a0b",
+  "scope": "直接・Bot間・部屋・通話の受付、発言/回答/保存画像、履歴・SSE内容と報告。native実行はキロ",
+  "external": false,
+  "provides": [
+    "messages",
+    "history",
+    "membership-cleanup"
+  ],
+  "uses": [
+    {
+      "module": "execution",
+      "port": "turn"
+    },
+    {
+      "module": "members",
+      "port": "registry"
+    },
+    {
+      "module": "usage",
+      "port": "notify"
+    },
+    {
+      "module": "throughline",
+      "port": "context"
+    }
+  ],
+  "source": [
+    "src/messenger.mjs",
+    "src/room-messenger.mjs",
+    "src/room-registry.mjs",
+    "src/conversation-store.mjs",
+    "src/room-history.mjs",
+    "src/message-assets.mjs",
+    "src/timeline-index.mjs",
+    "src/self-turns.mjs",
+    "src/turn-reports.mjs",
+    "src/call-bridge-server.mjs",
+    "src/http-events.mjs"
+  ]
+}

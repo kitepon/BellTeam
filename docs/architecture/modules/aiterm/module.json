@@ -1,0 +1,12 @@
+{
+  "title": "Aiterm/Steer",
+  "owner": "エレグ",
+  "botId": "bot-c2adbe04",
+  "scope": "native起動・設定・実行・観測・認証",
+  "external": true,
+  "provides": [
+    "native"
+  ],
+  "uses": [],
+  "source": []
+}

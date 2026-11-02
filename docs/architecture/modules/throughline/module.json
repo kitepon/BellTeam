@@ -1,0 +1,12 @@
+{
+  "title": "Throughline",
+  "owner": "リヴァリン",
+  "botId": "bot-220e0f1b",
+  "scope": "会話記録・引継ぎの公開契約",
+  "external": true,
+  "provides": [
+    "context"
+  ],
+  "uses": [],
+  "source": []
+}

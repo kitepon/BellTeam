@@ -1,0 +1,46 @@
+{
+  "title": "全体設計・統合",
+  "owner": "トロニー",
+  "botId": "bot-7b140b27",
+  "scope": "共通HTTP/MCP入口、サービス組立て、共通エラーと診断、全体接続、統合・本番反映",
+  "external": false,
+  "provides": [
+    "HTTP/MCP",
+    "diagnostics"
+  ],
+  "uses": [
+    {
+      "module": "execution",
+      "port": "turn"
+    },
+    {
+      "module": "conversation",
+      "port": "messages"
+    },
+    {
+      "module": "members",
+      "port": "registry"
+    },
+    {
+      "module": "usage",
+      "port": "settings"
+    },
+    {
+      "module": "memory",
+      "port": "memory"
+    },
+    {
+      "module": "runtime",
+      "port": "lifecycle"
+    }
+  ],
+  "source": [
+    "src/application-services.mjs",
+    "src/application-runtime.mjs",
+    "src/http-server.mjs",
+    "src/mcp-tools.mjs",
+    "src/seat-mcp.mjs",
+    "src/http-errors.mjs",
+    "src/diagnostics.mjs"
+  ]
+}
