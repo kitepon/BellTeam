@@ -69,7 +69,12 @@ export class AitermClient {
   }
 
   async call(name, args = {}, options = {}) {
-    const { env, meta, launchProject } = options
+    const { env, meta, launchProject, expectedAuthConnection, expectedAuthServerVersion } = options
+    const boundAuth = Object.hasOwn(options, 'expectedAuthConnection') || Object.hasOwn(options, 'expectedAuthServerVersion')
+    if (boundAuth && (name !== 'agent_auth' || !expectedAuthConnection
+      || typeof expectedAuthServerVersion !== 'string' || !expectedAuthServerVersion.trim()
+      || Object.hasOwn(options, 'env') || Object.hasOwn(options, 'launchProject')))
+      throw Object.assign(new Error('AITERM_AUTH_CONNECTION_ARGUMENTS'), { code: 'AITERM_AUTH_CONNECTION_ARGUMENTS', effect: 'not_issued' })
     if (this.seatProject !== null) requireSeatProject(this.seatProject)
     if (Object.hasOwn(options, 'launchProject')) {
       requireSeatProject(launchProject)
@@ -98,12 +103,24 @@ export class AitermClient {
         await launcher.close()
       }
     }
-    try { await this.connect() } catch (error) {
-      captureMcpRequest(error, 'connect', name)
-      throw error
+    if (!boundAuth) {
+      try { await this.connect() } catch (error) {
+        captureMcpRequest(error, 'connect', name)
+        throw error
+      }
+    }
+    const callClient = this.client
+    if (boundAuth) {
+      if (callClient !== expectedAuthConnection || !this.transport || this.connecting
+        || !Number.isSafeInteger(this.transport.pid) || this.transport.pid <= 0
+        || callClient.transport !== this.transport)
+        throw Object.assign(new Error('AITERM_AUTH_CONNECTION_UNCONFIRMED'), { code: 'AITERM_AUTH_CONNECTION_UNCONFIRMED', effect: 'not_issued' })
+      const server = callClient.getServerVersion()
+      if (server?.name !== 'aiterm' || server.version !== expectedAuthServerVersion)
+        throw Object.assign(new Error('AITERM_AUTH_SERVER_VERSION_UNCONFIRMED'), { code: 'AITERM_AUTH_SERVER_VERSION_UNCONFIRMED', effect: 'not_issued' })
     }
     let result
-    try { result = await this.client.callTool({ name, arguments: args, ...(meta ? { _meta: meta } : {}) }) }
+    try { result = await callClient.callTool({ name, arguments: args, ...(meta ? { _meta: meta } : {}) }) }
     catch (error) {
       captureMcpRequest(error, 'call', name)
       throw error

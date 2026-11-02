@@ -83,9 +83,16 @@ reportErrorは任意constructor引数。設定失敗は`SERVER_MODEL_CONFIGURATI
 
 ```mermaid
 flowchart TD
-  Request["AitermClient.call / 正規tool"] --> Connect["connect"]
+  Request["AitermClient.call / 正規tool"] --> Options["認証optionの組・併用を検査"]
+  Options -->|"不正な組/別tool/env/launchProject"| NoRpc["固定not_issued / connect0・RPC0"]
+  Options -->|"指定なし / legacy"| Connect["connect"]
+  Options -->|"同一SDK参照と期待版を指定"| Bound["既SDK/同transport/接続完了を確認 / connectなし"]
+  Bound -->|"切断/参照不一致"| NoRpc
+  Bound --> Version["同じSDKのinitialize name/版を厳密照合"]
+  Version -->|"不一致/欠測"| NoRpc
+  Version -->|"一致"| Call["捕捉した同じSDKへcallTool一回"]
   Connect -->|"reject / call未発行"| Context["mcpRequestContext 元例外から安全射影"]
-  Connect --> Call["callTool"]
+  Connect --> Call
   Call -->|"RPC reject / 応答不明"| Unknown["phase call / outcome unknown"]
   Unknown --> Context
   Unknown --> Preserve["dispatchで元例外を返す / wake・再送なし"]
@@ -107,3 +114,11 @@ flowchart TD
 Rootの固定Rabbit adapterとusage consumerは、許可schemaの厳密key・要求action・harness・session_id・code/effectの対応を検証する。response-errorにはaction fieldが無いためrespond要求にだけ対応付ける。operation-errorはstatus/cancelと要求actionの一致を必須にする。全named status/cancelへ保存済みexpected_bindingを必ず渡す。単なるschema名一致で入力や再試行を許さず、不正な形や別対象は拒否/unknown停止として扱う。このClient差分自体はconsumerの厳密検証やnative修理の配布を完了させない。
 
 既Onboarding/HarnessAuthのauthReceiptは新operation-errorを正常receiptへ採用しない。両callerを新管理consumerへ置換せず、元の認証入力検証・ログ非露出・一般失敗を保持する。保存データ・設定・export・module接続は不変。直接fixtureは`test/aiterm-auth-errors.test.mjs`、既response consumerの回帰は`test/auth-flow.test.mjs`を使う。
+
+## 認証専用の同一接続とinitialize版
+
+Root固定adapterは初回だけ`connect()`を完了させ、実SDK参照を保存する。以後の`call('agent_auth', args, { expectedAuthConnection: sdk, expectedAuthServerVersion: version })`は二つのoptionを組で必須とし、`connect()`を呼ばない。`this.client === sdk`、接続処理が完了済み、`this.transport`が存在してstdioの公開pidが正の安全整数であり`SDK.transport`と同一、`sdk.getServerVersion()`の`name === 'aiterm'`と`version`の文字列完全一致を確認する。検査からcallTool呼出しまでawaitを挟まず、その捕捉SDKへ一回だけ送る。切断後や別SDKでは再接続しない。
+
+片指定・空/不正な期待版・別tool・env/launchProject併用は`AITERM_AUTH_CONNECTION_ARGUMENTS`、接続不成立は`AITERM_AUTH_CONNECTION_UNCONFIRMED`、initialize情報の不一致/欠測は`AITERM_AUTH_SERVER_VERSION_UNCONFIRMED`の固定例外で拒否する。これらはローカル検査でeffect=not_issued、connect0/RPC0であり、nativeの型付き失敗ではない。期待版や観測値を例外本文へ混ぜない。option未指定の既callerは従来どおり接続する。auth専用optionを短命env clientへ落としたり別toolへ一般化しない。
+
+SDKの公開initialize情報と同一transportを確認する契約であり、SSH接続先・bin実体・Owner認可を証明するものではない。それらはRootの固定adapterが所有する。guard後の切断は捕捉SDKの元RPC例外とunknownを返し、再接続/再送しない。実通信なしの直接境界は`test/aiterm-auth-connection.test.mjs`で確認する。
