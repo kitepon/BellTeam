@@ -31,7 +31,7 @@ test('公開受付の終了・kill・起動失敗から業務実行を止めず�
     bootstrap: { bots, settings, ownerProfile, userRules, aiterm: { command: 'synthetic', args: ['/synthetic/native.js', '--execution-interrupt'] }, refreshGlobalInstructions: async () => {} },
     client: { async call() { return { content: [{ type: 'text', text: '(セッション無し)' }] } }, async close() { clientClosed++ } },
   })
-  t.after(async () => { await runtime.close(); await rm(root, { recursive: true, force: true }) })
+  t.after(async () => { await runtime.close().catch(() => {}); await rm(root, { recursive: true, force: true }) })
   const answer = Promise.withResolvers(), saved = Promise.withResolvers()
   runtime.services.transport.turn = (_bot, _message, options) => {
     turns++
@@ -84,9 +84,17 @@ test('公開受付の終了・kill・起動失敗から業務実行を止めず�
   await runtime.gateway.start()
   const finalPid = runtime.gateway.pid
   if (process.platform === 'linux') assert.equal((await readFile(`/proc/${finalPid}/environ`)).includes(Buffer.from('BELLTEAM_ROOT=')), false)
+  const stalled = Promise.withResolvers(), release = Promise.withResolvers()
+  const owner = await ownerProfile.get()
+  ownerProfile.get = () => { stalled.resolve(); return release.promise }
+  const unanswered = assert.rejects(fetch(base() + '/api/owner'), TypeError)
+  await stalled.promise
   const closed = runtime.close()
   assert.equal(runtime.close(), closed)
-  await closed
+  await assert.rejects(closed, error => error.message === 'APPLICATION_CLOSE_FAILED'
+    && error.errors.some(value => value.message === 'GATEWAY_DRAIN_TIMEOUT'))
+  release.resolve(owner)
+  await unanswered
   assert.equal(clientClosed, 1)
   assert.equal(runtime.gateway.pid, null)
   await assert.rejects(stat(socket), { code: 'ENOENT' })

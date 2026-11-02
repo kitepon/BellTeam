@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 
+export const GATEWAY_DRAIN_TIMEOUT_MS = 5000
+
 export function createHttpGatewayProcess({ socketPath, port, appRoot }) {
   let child = null, address = null, ending = null
   const start = async () => {
@@ -40,10 +42,14 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot }) {
     if (!closing) {
       const next = child, ended = ending
       closing = (async () => {
+        let timedOut = false
+        // The gateway owns connections, never the business work behind them.
+        const deadline = setTimeout(() => { timedOut = true; next.kill('SIGKILL') }, GATEWAY_DRAIN_TIMEOUT_MS)
         try {
           if (next.connected) await new Promise((resolve, reject) => next.send({ type: 'close' }, error => error ? reject(error) : resolve()))
           else next.kill('SIGTERM')
-        } finally { await ended }
+        } finally { await ended; clearTimeout(deadline) }
+        if (timedOut) throw new Error('GATEWAY_DRAIN_TIMEOUT')
       })().finally(() => { closing = null })
     }
     return closing
