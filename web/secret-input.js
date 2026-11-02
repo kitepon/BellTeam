@@ -1,6 +1,30 @@
 import { supportsServerTransport } from './server-origin.js?v=__ASSET_VERSION__'
 
+const ownerGuideOrigins = new Set(['https://claude.ai', 'https://console.anthropic.com', 'https://platform.claude.com'])
+
+function renderOwnerGuide(request) {
+  const guide = document.createElement('p')
+  guide.className = 'secret-owner-guide'
+  guide.hidden = true
+  if (request.status !== 'pending' || typeof request.ownerGuide?.url !== 'string') return guide
+  let url
+  try { url = new URL(request.ownerGuide.url) } catch { return guide }
+  if (url.protocol !== 'https:' || url.username || url.password || !ownerGuideOrigins.has(url.origin)) return guide
+  const link = document.createElement('a')
+  link.href = url.href
+  link.textContent = '公式認証ページを開く'
+  link.target = '_blank'
+  link.rel = 'noopener noreferrer'
+  link.referrerPolicy = 'no-referrer'
+  guide.append(link)
+  guide.hidden = false
+  return guide
+}
+
 export function renderSecretRequest(request, { api, sender, onComplete }) {
+  for (const dialog of document.querySelectorAll('.secret-dialog')) {
+    if (dialog.dataset.requestId === request.id) dialog.querySelector('.secret-owner-guide').replaceWith(renderOwnerGuide(request))
+  }
   const card = document.createElement('section')
   card.className = 'secret-request'
   const heading = document.createElement('strong')
@@ -18,6 +42,7 @@ export function renderSecretRequest(request, { api, sender, onComplete }) {
     card.append(status)
     return card
   }
+  card.append(renderOwnerGuide(request))
   const button = document.createElement('button')
   button.type = 'button'
   button.textContent = '安全な入力欄を開く'
@@ -29,6 +54,7 @@ export function renderSecretRequest(request, { api, sender, onComplete }) {
 function openSecretInput(request, api, onComplete) {
   const dialog = document.createElement('dialog')
   dialog.className = 'secret-dialog'
+  dialog.dataset.requestId = request.id
   const form = document.createElement('form')
   const title = document.createElement('h2')
   title.textContent = request.label
@@ -59,7 +85,7 @@ function openSecretInput(request, api, onComplete) {
   const actions = document.createElement('div')
   actions.className = 'secret-actions'
   actions.append(submit, decline, close)
-  form.append(title, message, note, input, error, actions)
+  form.append(title, message, renderOwnerGuide(request), note, input, error, actions)
   dialog.append(form)
   document.body.append(dialog)
   const clearWhenHidden = () => { if (document.hidden) input.value = '' }

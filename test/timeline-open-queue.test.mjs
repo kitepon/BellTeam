@@ -27,7 +27,7 @@ class Element {
 }
 const saved = { document: globalThis.document, ResizeObserver: globalThis.ResizeObserver, CSS: globalThis.CSS }
 function fixture(t, history) {
-  globalThis.document = { createElement: () => new Element() }
+  globalThis.document = { createElement: () => new Element(), querySelectorAll: () => [] }
   globalThis.ResizeObserver = class { observe() {} }
   globalThis.CSS = { escape: value => value }
   t.after(() => Object.assign(globalThis, saved))
@@ -44,6 +44,34 @@ function fixture(t, history) {
   const texts = node => [node.textContent ?? '', ...node.children.map(texts)].join(' ')
   return { view, open, queues, requests, timeline, ids, text: () => texts(timeline) }
 }
+for (const type of ['bot', 'room']) test(`${type} secret guide uses shared page rendering and is removed by an updated projection`, async t => {
+  const request = { id: 'guide-current', botId: 'a', toolId: 'olrw-auth', label: '認証コード', message: '公式ページで認証してください。', status: 'pending',
+    ownerGuide: { url: 'https://claude.ai/oauth/authorize?state=synthetic-only' } }
+  const row = id => ({ id, at: '2026-11-03T00:00:00Z', secret_request: { ...request, id } })
+  const current = row('guide-current'), older = row('guide-older'), added = row('guide-added')
+  const before = JSON.stringify([current, older, added])
+  let updated = false
+  const f = fixture(t, path => {
+    if (path.includes('before=')) return { items: [older], has_more: false }
+    if (path.includes('after=')) return { items: [added], has_more: false }
+    return { items: [updated ? { ...current, secret_request: { ...request, ownerGuide: undefined } } : current], has_more: true }
+  })
+  const links = node => [...(node.href ? [node] : []), ...node.children.flatMap(links)]
+  await f.open('a', type)
+  assert.equal(links(f.timeline).length, 1)
+  assert.equal(links(f.timeline)[0].textContent, '公式認証ページを開く')
+  f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); await settle()
+  assert.deepEqual(f.ids(), ['guide-older', 'guide-current'])
+  assert.equal(links(f.timeline).length, 2)
+  updated = true; await f.view.refresh()
+  assert.deepEqual(f.ids(), ['guide-older', 'guide-current', 'guide-added'])
+  const currentCard = f.timeline.children[0].children.find(child => child.dataset.id === 'guide-current')
+  assert.equal(links(currentCard).length, 0)
+  assert.equal(links(f.timeline).length, 2)
+  assert.equal(JSON.stringify([current, older, added]), before)
+  assert.ok(f.requests.every(path => new RegExp(`^/api/${type === 'room' ? 'rooms' : 'bots'}/a/(messages|queue)(?:[?]|$)`).test(path)))
+})
+
 test('new history appears without queue; late queue from old target cannot replace current queue', async t => {
   const f = fixture(t)
   await f.open('a'); assert.deepEqual(f.ids(), ['a-message'])
