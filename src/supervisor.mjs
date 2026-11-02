@@ -33,6 +33,8 @@ if (process.getuid?.() === 1001) {
   } finally { if (parent !== undefined) closeSync(parent) }
 }
 
+const { adoptRuntimeResume } = await import('./runtime-resume.mjs')
+await adoptRuntimeResume()
 const bootstrap = await import('./bootstrap.mjs')
 const { createApplicationRuntime } = await import('./application-runtime.mjs')
 const { waitForShutdown } = await import('./lifecycle.mjs')

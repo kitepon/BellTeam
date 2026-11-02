@@ -2,6 +2,8 @@
 
 責任者：エピネル。公開窓口は[runtime](README.md)の`update`。配布構成・採用imageと公開は[distribution](../distribution/README.md)、本番実行はトロニー、OSは各Host担当。ここで示すのは現行実装で、[商用更新の設計案](commercial-update-design.md)の新機能を実装済みとしない。
 
+H1対応の保存要求では、旧CID停止/再起動防止・writer検査・private準備後にoffline checkpointを行い、通常bootstrap前に復元を採用する。[H1接続候補](resume.md)を参照。保持非対応の旧/tmp初回と通常リセット更新を区別し、正式版へ供給済みとはしない。
+
 ## installerは停止前の準備と、停止後の保守を分ける
 
 ```mermaid

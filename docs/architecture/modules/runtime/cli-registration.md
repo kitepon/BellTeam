@@ -2,6 +2,8 @@
 
 責任者：エピネル。公開窓口は[runtime](README.md)の`cli-registration`。
 
+[H1接続候補](resume.md)の対象では固定state baseを管理MCPへ登録し、relayで失わず、Codex/Cursorの任意env継承から分ける。通常launch/commandのBot env読込後も固定値を検証する。hookの公開setup/既scopeを使い、設定Promiseの成功を現在の全hook実適用へ補完しない。H1非対象の既存動的設定と管理外項目は保持する。
+
 ## writerの所有と完了
 
 ```mermaid

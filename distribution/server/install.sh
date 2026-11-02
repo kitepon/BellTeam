@@ -14,9 +14,18 @@ umask 077
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-install.XXXXXX")
 keep_saved=false
 probe=
+resume_volume=
+resume_source=
+resume_count=0
+resume_receiver_pid=
+resume_producer_pid=
+resume_receipt_pid=
 cleanup() {
   install_result=$?
   trap - 0
+  for child in "$resume_producer_pid" "$resume_receiver_pid" "$resume_receipt_pid";do
+    [ -z "$child" ] || { kill "$child" 2>/dev/null || :;wait "$child" 2>/dev/null || :; }
+  done
   if [ -n "$probe" ]; then
     docker run --pull never --rm --network none --read-only --user 0:0 \
       --mount "type=bind,source=$probe,target=/probe" --entrypoint /usr/local/bin/node "$image" \
@@ -267,6 +276,18 @@ try{
   fi
 fi
 
+if ! "$recovery"; then
+  resume_volume=$(cat "$saved/normal.json" | docker run --pull never --rm -i --network none --read-only \
+    --entrypoint /usr/local/bin/node "$image" -e 'const p=JSON.parse(require("fs").readFileSync(0,"utf8").replaceAll("$$","$"));console.log(p.services.bellteam.environment?.AITERM_STATE_BASE==="/srv/bellteam-aiterm"?"enabled":"")')
+  if [ -n "$resume_volume" ]; then
+    docker run --pull never --rm --network none --read-only --entrypoint /bin/cat "$image" \
+      /app/install-resume-state.sh > "$staging/install-resume-state.sh"
+    . "$staging/install-resume-state.sh"
+    resume_prepare
+  elif [ -n "${BELLTEAM_RESUME_TARGETS_FILE:-}" ]; then
+    echo RESUME_STATE_UNAVAILABLE >&2;exit 1
+  fi
+fi
 keep_saved=true
 printf 'saved-compose=%s\n' "$saved"
 if [ -n "$stopped_container" ]; then
@@ -275,17 +296,21 @@ if [ -n "$stopped_container" ]; then
   [ "$state" = 'false false' ] || { echo SERVER_STATE_STOP_UNCONFIRMED >&2; exit 1; }
   if ! "$recovery" || [ "$direction" = to-legacy ]; then
     docker update --restart no "$stopped_container"
+    if [ -n "$resume_volume" ]; then resume_stopped;fi
     docker rm "$stopped_container"
     stopped_container=
   fi
 fi
-BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
+BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container BELLTEAM_RESUME_SOURCE_VOLUME=$resume_source \
+  sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
 
 maintenance() {
   docker compose --project-directory "$PWD" -f "$saved/compose.state-maintenance.json" \
     -p "$project" run --pull never --rm --no-deps -T state-maintenance "$1"
 }
+if [ -n "$resume_volume" ]; then resume_initialize;fi
 maintenance prepare
+if [ -n "$resume_volume" ]; then resume_capture;fi
 maintenance "$direction"
 if "$recovery"; then
   COMPOSE_FILE="$saved/previous-normal.json"

@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process'
 import { isAbsolute } from 'node:path'
 import { baseBotEnvironment, loadBotEnvironment } from './bot-environment.mjs'
+import { RESUME_STATE_BASE } from './resume-policy.mjs'
 
 let active, stopping = false, stopSignal
 function signalGroup(signal, child) {
@@ -56,11 +57,14 @@ try {
   const [project, ...parameters] = process.argv.slice(2)
   const baseOnly = parameters[0] === '--base-environment'
   if (baseOnly) parameters.shift()
+  const resume = parameters[0] === '--resume-state-base'
+  if (resume) parameters.shift()
   const [separator, command, ...args] = parameters
   if (process.getuid() !== 1000 || process.geteuid() !== 1000 || process.getgid() !== 1000
     || !isAbsolute(project ?? '') || separator !== '--' || !command) throw Error('IDENTITY_OR_ARGUMENTS')
   // setup must run before env.sh is usable. Both modes stay in the seat UID.
-  const env = baseOnly ? baseBotEnvironment(project, process.env) : await loadBotEnvironment(project, process.env, {
+  const inherited = { ...process.env, ...(resume ? { AITERM_STATE_BASE: RESUME_STATE_BASE } : {}) }
+  const env = baseOnly ? baseBotEnvironment(project, inherited) : await loadBotEnvironment(project, inherited, {
     run: (command, args, options) => run(command, args, options, true),
   })
   if (stopping) throw Error('STOPPED')

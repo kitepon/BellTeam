@@ -68,6 +68,14 @@
     "scripts/seat-exec.c",
     "scripts/server-start.c",
     "scripts/update-cursor.sh",
-    "scripts/cursor-update-entrypoint.sh"
+    "scripts/cursor-update-entrypoint.sh",
+    "src/resume-policy.mjs",
+    "src/resume-pipe.mjs",
+    "src/resume-storage.mjs",
+    "src/resume-boot.mjs",
+    "src/resume-install-plan.mjs",
+    "src/run-resume-store.mjs",
+    "src/runtime-resume.mjs",
+    "distribution/server/install-resume-state.sh"
   ]
 }

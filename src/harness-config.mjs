@@ -10,6 +10,7 @@ import { configureRtk } from './rtk-hooks.mjs'
 import { aitermRegistration, aitermRelay, configureAitermHooks } from './aiterm-hooks.mjs'
 import { configureCursorInstructions } from './cursor-instructions.mjs'
 import { writeAtomic } from './json-file.mjs'
+import { fixedResumeBase } from './resume-policy.mjs'
 
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const execFileAsync = promisify(execFile)
@@ -78,19 +79,24 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
   // 中継（mcp-lazy）がある環境では、その本体を中継ごしに登録する。本体は席がAitermの道具を呼ぶまで起きない。
   const bundledAiterm = await aiterm().catch(() => null)
   const relayPath = bundledAiterm ? await relay() : null
-  const aitermFor = harness => relayPath ? relayedAiterm(relayPath, bundledAiterm, harness, home) : bundledAiterm ?? { command: 'aiterm-mcp', args: [] }
+  const resumeBase = fixedResumeBase(environment)
+  const runtimeNames = AITERM_RUNTIME_ENV_VARS.filter(name => !resumeBase || name !== 'AITERM_STATE_BASE')
+  const aitermFor = harness => {
+    const server = relayPath ? relayedAiterm(relayPath, bundledAiterm, harness, home) : bundledAiterm ?? { command: 'aiterm-mcp', args: [] }
+    return resumeBase ? { ...server, env: { ...server.env, AITERM_STATE_BASE: resumeBase } } : server
+  }
   const aitermToml = harness => {
     const server = aitermFor(harness)
     const env = server.env ? `env = { ${Object.entries(server.env).map(([name, value]) => `${name} = ${JSON.stringify(value)}`).join(', ')} }\n` : ''
     return `[mcp_servers.aiterm]\ncommand = ${JSON.stringify(server.command)}\nargs = ${JSON.stringify(server.args)}\n${env}startup_timeout_sec = 30\ntool_timeout_sec = 120\n`
   }
   // Codexは、挙げた名前が席の環境に無ければ渡さないだけなので、全部挙げる。
-  const codexMcp = `${tomlSeat(`env_http_headers = { "${SEAT_HEADER}" = "${SEAT_VARIABLE}", "${LAUNCH_HEADER}" = "${LAUNCH_VARIABLE}" }`)}\n${aitermToml('codex')}env_vars = ${JSON.stringify([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS, ...AITERM_RUNTIME_ENV_VARS, ...AITERM_TEMP_ENV_VARS])}\n`
+  const codexMcp = `${tomlSeat(`env_http_headers = { "${SEAT_HEADER}" = "${SEAT_VARIABLE}", "${LAUNCH_HEADER}" = "${LAUNCH_VARIABLE}" }`)}\n${aitermToml('codex')}env_vars = ${JSON.stringify([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS, ...runtimeNames, ...AITERM_TEMP_ENV_VARS])}\n`
   // Cursorは \${env:名前} を席の環境の値へ置き換える。環境に無い名前は置き換えず、その文字列のまま渡してしまう。
   // 受け継ぐだけの変数は、本体の環境にある時だけ挙げる。
   // runtimeと一時領域はCLI固有の値もあるため、本体の有無で除外しない。
   // 未定義の参照はrun-aiterm-mcpがAiterm/中継へ渡す前に取り除く。
-  const cursorAitermEnv = Object.fromEntries([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS.filter(name => environment[name]), ...AITERM_RUNTIME_ENV_VARS, ...AITERM_TEMP_ENV_VARS]
+  const cursorAitermEnv = Object.fromEntries([...AITERM_SEAT_ENV_VARS, ...AITERM_INHERITED_ENV_VARS.filter(name => environment[name]), ...runtimeNames, ...AITERM_TEMP_ENV_VARS]
     .map(name => [name, `\${env:${name}}`]))
   const grokMcp = `${tomlSeat(`headers = { "${SEAT_HEADER}" = "\${${SEAT_VARIABLE}}", "${LAUNCH_HEADER}" = "\${${LAUNCH_VARIABLE}}" }`, 'enabled = true\n')}\n${aitermToml('grok')}enabled = true\n`
   const claudeMcp = { ...jsonSeat(url => ({ type: 'http', url, headers: { [SEAT_HEADER]: `\${${SEAT_VARIABLE}}`, [LAUNCH_HEADER]: `\${${LAUNCH_VARIABLE}}` } })), aiterm: aitermFor('claude') }

@@ -8,6 +8,8 @@ case "$#:${1-}" in
   *) echo SERVER_STATE_WRITER_ARGUMENTS_INVALID >&2; exit 1;;
 esac
 stopped_container=${BELLTEAM_STOPPED_CONTAINER_ID:-}
+resume_source=${BELLTEAM_RESUME_SOURCE_VOLUME:-}
+case "$resume_source" in *[!a-zA-Z0-9_.-]*) echo SERVER_STATE_WRITER_METADATA_INVALID >&2; exit 1;; esac
 case "$stopped_container" in *[!a-f0-9]*) echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1;; esac
 [ -z "$stopped_container" ] || [ "${#stopped_container}" -eq 64 ] || { echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1; }
 image=$(docker compose config --images)
@@ -25,6 +27,7 @@ staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-writers.XXXXXX")
 trap 'rm -rf "$staging"' 0
 trap 'exit 1' 1 2 15
 printf '%s\n' "$stopped_container" > "$staging/stopped-container.txt"
+printf '%s\n' "$resume_source" > "$staging/resume-source-volume.txt"
 config=$(docker compose config --format json)
 if "$maintenance"; then
   # Normalize first so .env-selected files, project and relative paths survive.

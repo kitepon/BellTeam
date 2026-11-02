@@ -63,7 +63,18 @@ export function stateWriterPlan(config) {
     stateVolume = name
     roots.push(posix.join(runtime, 'server-only'))
   }
-  return { roots: [...new Set(roots)], volume, ...(stateVolume ? { stateVolume } : {}) }
+  const resumeMounts = service.volumes.filter(mount => mount.target === '/srv/bellteam-aiterm')
+  let resumeVolumes
+  if (resumeMounts.length) {
+    const mount = resumeMounts[0], definition = config.volumes?.[mount.source]
+    if (resumeMounts.length !== 1 || mount.type !== 'volume' || mount.read_only === true
+      || mount.volume?.nocopy !== true || mount.volume?.subpath || definition?.external !== true
+      || typeof definition.name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(definition.name)
+      || [volume, stateVolume].includes(definition.name)
+      || service.environment?.AITERM_STATE_BASE !== '/srv/bellteam-aiterm') invalid()
+    resumeVolumes = [definition.name]
+  }
+  return { roots: [...new Set(roots)], volume, ...(stateVolume ? { stateVolume } : {}), ...(resumeVolumes ? { resumeVolumes } : {}) }
 }
 
 function validate(plan, containers) {
@@ -71,6 +82,10 @@ function validate(plan, containers) {
     || !Array.isArray(containers) || plan.stateVolume !== undefined
       && (typeof plan.stateVolume !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(plan.stateVolume))) invalid()
   plan.roots.forEach(path)
+  if (plan.resumeVolumes !== undefined && (!Array.isArray(plan.resumeVolumes) || !plan.resumeVolumes.length
+    || new Set(plan.resumeVolumes).size !== plan.resumeVolumes.length
+    || plan.resumeVolumes.some(name => typeof name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(name)
+      || [plan.volume, plan.stateVolume].includes(name)))) invalid()
   for (const container of containers) {
     if (typeof container.id !== 'string' || !container.id || typeof container.running !== 'boolean'
       || typeof container.restarting !== 'boolean' || !Array.isArray(container.mounts)
@@ -94,7 +109,7 @@ function validate(plan, containers) {
 
 export function stateWriterVolumes(plan, containers) {
   validate(plan, containers)
-  return [...new Set([...(plan.stateVolume ? [plan.stateVolume] : []), ...containers.filter(c => participates(plan, c))
+  return [...new Set([...(plan.stateVolume ? [plan.stateVolume] : []), ...(plan.resumeVolumes ?? []), ...containers.filter(c => participates(plan, c))
     .flatMap(c => c.mounts.filter(m => m.RW && m.Type === 'volume').map(m => m.Name))])].sort()
 }
 
@@ -141,6 +156,10 @@ export function assertStateWritersStopped(plan, containers, canonical, volumes =
     path(entry.source); aliases.set(entry.source, path(entry.canonical))
   }
   if (sources.some(source => !aliases.has(source))) invalid()
+  const resume = plan.resumeVolumes ?? []
+  for (let i = 0; i < resume.length; i++) for (let j = i + 1; j < resume.length; j++) {
+    if (backing.get(resume[i]).some(a => backing.get(resume[j]).some(b => overlaps(aliases.get(a), aliases.get(b))))) invalid()
+  }
   for (const c of containers.filter(c => participates(plan, c))) for (const m of c.mounts.filter(m => m.RW && m.Type === 'volume')) {
     const root = aliases.get(backing.get(m.Name)[0]), source = aliases.get(m.Source)
     if (source !== root && !source.startsWith(root + '/')) invalid()
@@ -148,7 +167,8 @@ export function assertStateWritersStopped(plan, containers, canonical, volumes =
   const data = aliases.get(plan.roots[0])
   const legacyFiles = ['bots/.initialized', 'shared/subscription.json', 'shared/onboarding.json', 'shared/ai-control.json',
     'shared/tools/call-bridge/headers', 'shared/tools/bughub/headers', 'shared/tools/bughub/endpoint']
-  const roots = [...plan.roots.slice(1), ...(backing.get(plan.stateVolume) ?? [])].map(source => aliases.get(source))
+  const roots = [...plan.roots.slice(1), ...(backing.get(plan.stateVolume) ?? []),
+    ...(plan.resumeVolumes ?? []).flatMap(name => backing.get(name) ?? [])].map(source => aliases.get(source))
   roots.push(...[...stateTargets.map(target => target.slice('/srv/bellteam/'.length)), ...legacyFiles].map(name => posix.join(data, name)))
   const touchesState = source => {
     if (roots.some(root => overlaps(root, source))) return true
@@ -157,7 +177,7 @@ export function assertStateWritersStopped(plan, containers, canonical, volumes =
     return ['bot.json', 'schedule.json', 'messages/assets'].some(name => overlaps(posix.join(data, 'bots', id, name), source))
   }
   const writers = containers.filter(c => participates(plan, c)).filter(c => c.mounts.some(m => m.RW && (
-    m.Type === 'volume' && [plan.volume, plan.stateVolume].includes(m.Name)
+    m.Type === 'volume' && [plan.volume, plan.stateVolume, ...(plan.resumeVolumes ?? [])].includes(m.Name)
     || m.Type === 'volume' && backing.get(m.Name).some(source => touchesState(aliases.get(source)))
     || m.Type === 'bind' && touchesState(aliases.get(m.Source))
   ))).map(c => c.id)
@@ -173,6 +193,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       console.log(JSON.stringify(stateWriterPlan(JSON.parse((await streamText(process.stdin)).replaceAll('$$', '$')))))
     } else if (['volumes', 'sources', 'verify'].includes(mode) && process.argv.length === 3) {
       const plan = JSON.parse(await readFile('/check/plan.json', 'utf8'))
+      const resumeSource = (await readFile('/check/resume-source-volume.txt', 'utf8').catch(error => {
+        if (error.code !== 'ENOENT') throw error
+        return ''
+      })).trim()
+      if (resumeSource) {
+        if (!plan.resumeVolumes || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(resumeSource)) invalid()
+        plan.resumeVolumes = [...new Set([...plan.resumeVolumes, resumeSource])]
+      }
       const stoppedContainer = (await readFile('/check/stopped-container.txt', 'utf8')).trim()
       if (stoppedContainer) plan.stoppedContainer = stoppedContainer
       const text = await readFile('/check/containers.jsonl', 'utf8')

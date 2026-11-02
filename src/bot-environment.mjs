@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { runtimeEnvironment } from './runtime-home.mjs'
 import { createSeatProcessRunner } from './seat-process.mjs'
+import { checkResumeEnvironment } from './resume-policy.mjs'
 
 const exec = promisify(execFile)
 const root = process.env.BELLTEAM_ROOT ?? '/srv/bellteam'
@@ -62,7 +63,7 @@ export async function loadBotEnvironment(project, inherited = process.env, { run
     'set -ae\n. "$1" >&2\nexec "$2" -e \'process.stdout.write(JSON.stringify(process.env))\'',
     'bellteam-environment', path, process.execPath,
   ], { cwd: project, env })
-  return runtimeEnvironment(JSON.parse(stdout), env.BELLTEAM_HOME)
+  return checkResumeEnvironment(runtimeEnvironment(JSON.parse(stdout), env.BELLTEAM_HOME), inherited)
 }
 
 // コンテナ起動ごとに一度、順番に復元する。aptなどの共有インストーラを並走させない。
