@@ -1,0 +1,85 @@
+{
+  "name": "固定候補H1の実UID・pipe・mount・prebootstrapを隔離確認",
+  "on": {
+    "workflow_dispatch": {
+      "inputs": {
+        "digest": {
+          "description": "検査する既作成candidate index SHA256 digest",
+          "required": true,
+          "type": "string"
+        },
+        "source": {
+          "description": "candidate imageに記録した40文字source SHA",
+          "required": true,
+          "type": "string"
+        }
+      }
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "h1-immutable-runtime",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "runtime": {
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {
+          "include": [
+            {
+              "arch": "amd64",
+              "runner": "ubuntu-24.04"
+            },
+            {
+              "arch": "arm64",
+              "runner": "ubuntu-24.04-arm"
+            }
+          ]
+        }
+      },
+      "runs-on": "${{ matrix.runner }}",
+      "timeout-minutes": 20,
+      "env": {
+        "IMAGE": "ghcr.io/kitepon/bellteam-server@${{ inputs.digest }}",
+        "EXPECTED_DIGEST": "${{ inputs.digest }}",
+        "EXPECTED_SOURCE": "${{ inputs.source }}",
+        "ARCH": "${{ matrix.arch }}",
+        "RESULT_DIR": "runtime/h1-runtime-${{ matrix.arch }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v7",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "入力を検証して同じimmutable候補だけ取得",
+          "run": "python3 - <<'PY'\nimport os,re\nassert re.fullmatch(r'sha256:[a-f0-9]{64}',os.environ['EXPECTED_DIGEST'])\nassert re.fullmatch(r'[a-f0-9]{40}',os.environ['EXPECTED_SOURCE'])\nassert os.environ['ARCH'] in ['amd64','arm64']\nPY\ndocker pull --platform \"linux/$ARCH\" \"$IMAGE\"\npython3 - <<'PY'\nimport json,os,subprocess\nimage=json.loads(subprocess.check_output(['docker','image','inspect',os.environ['IMAGE']]))[0]\nassert image['Os']=='linux' and image['Architecture']==os.environ['ARCH']\nassert image['Config']['Labels']['org.opencontainers.image.revision']==os.environ['EXPECTED_SOURCE']\nassert 'ghcr.io/kitepon/bellteam-server@'+os.environ['EXPECTED_DIGEST'] in image['RepoDigests']\nPY"
+        },
+        {
+          "name": "実UID・private pipe・readonly mount・signal・起動前restore",
+          "timeout-minutes": 10,
+          "run": "python3 scripts/verify-resume-runtime.py \"$IMAGE\" \"$RESULT_DIR\""
+        },
+        {
+          "name": "取消・失敗時も当fixtureの資材だけを清掃",
+          "if": "always()",
+          "run": "python3 - <<'PY'\nimport json, os, re, subprocess\nfrom pathlib import Path\noutput = Path(os.environ['RESULT_DIR'])\nallocation = output / 'allocation.json'\nif not allocation.exists():\n    raise SystemExit(0)\na = json.loads(allocation.read_text())\nprefix = a['prefix']\nassert re.fullmatch(r'h1-runtime-[a-f0-9]{12}', prefix)\nassert a['containerLabel'] == 'bellteam.h1-fixture=' + prefix\nassert a['composeProject'] == prefix\nexpected = [prefix + '-' + suffix for suffix in ['old', 'new', 'private']]\nassert a['volumes'] == expected\n\ndef docker(*args):\n    return subprocess.check_output(['docker', *args], text=True, timeout=30).split()\n\ncontainers = set()\nfor label in [a['containerLabel'], 'com.docker.compose.project=' + prefix]:\n    containers.update(docker('ps', '-aq', '--filter', 'label=' + label))\nfor cid in sorted(containers):\n    assert re.fullmatch(r'[a-f0-9]{12,64}', cid)\n    docker('rm', '-f', cid)\nvolumes = docker('volume', 'ls', '-q', '--filter', 'label=' + a['containerLabel'])\nassert set(volumes) <= set(expected)\nfor volume in volumes:\n    docker('volume', 'rm', volume)\nassert not docker('ps', '-aq', '--filter', 'label=' + a['containerLabel'])\nassert not docker('ps', '-aq', '--filter', 'label=com.docker.compose.project=' + prefix)\nassert not docker('volume', 'ls', '-q', '--filter', 'label=' + a['containerLabel'])\n(output / 'workflow-cleanup.json').write_text(json.dumps({'prefix': prefix, 'containersRemoved': sorted(containers), 'volumesRemoved': volumes, 'remaining': []}) + '\\n')\nPY"
+        },
+        {
+          "uses": "actions/upload-artifact@v7",
+          "if": "always()",
+          "with": {
+            "name": "h1-runtime-${{ matrix.arch }}-${{ github.run_attempt }}",
+            "path": "runtime/h1-runtime-${{ matrix.arch }}/",
+            "if-no-files-found": "error"
+          }
+        }
+      ]
+    }
+  }
+}

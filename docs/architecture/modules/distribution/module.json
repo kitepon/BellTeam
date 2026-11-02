@@ -20,6 +20,7 @@
     ".github/workflows/publish-server-image.yml",
     "compose.yaml",
     "distribution/server/compose.aiterm-checkpoint.yaml",
-    "Dockerfile"
+    "Dockerfile",
+    ".github/workflows/verify-h1-runtime-image.yml"
   ]
 }
