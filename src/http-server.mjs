@@ -30,7 +30,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
   const { sources, timeline, messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions })
 
   const controlApi = createControlApi({ aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models })
-  administration ??= new BotAdministration({ bots, rooms, transport, writeLog })
+  administration ??= new BotAdministration({ bots, rooms, transport, writeLog,
+    reportError: report => diagnostics?.record(report) })
   const featureApis = [
     createApplicationApi({ ownerProfile, refreshGlobalInstructions, userRules, events, assets }),
     createMemberDeletionApi({ administration }),
