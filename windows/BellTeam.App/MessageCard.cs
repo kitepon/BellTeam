@@ -84,7 +84,7 @@ public sealed class MessageCard : ContentControl
             if (question is null) { question = new QuestionCard(Workspace, Author); stack!.Children.Add(question); }
             question.Update(ownerQuestion, message.Sender?.Title ?? Author);
         }
-        var state = message.IsOutgoing ? message.Delivery switch { "failed" => "配達失敗", "queued" => "送信待ち", "running" => "処理中", "delivered" => "配達済み", _ => "" } : "";
+        var state = Timeline.DeliveryLabel(message, Workspace.IsRoom);
         delivery.Text = message.At.ToLocalTime().ToString("M/d HH:mm") + (state.Length == 0 ? "" : " · " + state);
         delivery.HorizontalAlignment = message.IsOutgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         delivery.Visibility = delivery.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
