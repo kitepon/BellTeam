@@ -9,6 +9,7 @@ import { BELLTEAM_MCP_PATH, CALL_BRIDGE_MCP_PATH, SEAT_HEADER, SEAT_VARIABLE, LA
 import { configureRtk } from './rtk-hooks.mjs'
 import { aitermRegistration, aitermRelay, configureAitermHooks } from './aiterm-hooks.mjs'
 import { configureCursorInstructions } from './cursor-instructions.mjs'
+import { writeAtomic } from './json-file.mjs'
 
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const execFileAsync = promisify(execFile)
@@ -223,9 +224,9 @@ async function mergeMcpConfig(path, servers, trustedProjects = []) {
   }
   const projects = { ...(current.projects ?? {}) }
   for (const project of trustedProjects) projects[project] = { ...(projects[project] ?? {}), hasTrustDialogAccepted: true }
-  await writeFile(path, `${JSON.stringify({
+  await writeAtomic(path, {
     ...current,
     mcpServers: { ...Object.fromEntries(Object.entries(current.mcpServers ?? {}).filter(([id]) => !['bellteam', 'aiterm', 'call-bridge'].includes(id))), ...servers },
     ...(trustedProjects.length ? { projects } : {}),
-  }, null, 2)}\n`, { mode: 0o600 })
+  })
 }
