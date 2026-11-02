@@ -64,6 +64,12 @@ export class SecretRequests {
     return () => this.events.off('change', listener)
   }
 
+  // The run guide becomes readable after create's first card invalidation.
+  notifyOwnerGuide(id) {
+    const item = this.get(id)
+    this.events.emit('change', { all: false, topics: ['requests'], botIds: [item.botId], roomIds: item.roomId ? [item.roomId] : [] })
+  }
+
   async submit(id, value) {
     if (typeof value !== 'string' || value.length === 0 || Buffer.byteLength(value) > 16384 || value.includes('\0')) {
       throw new Error('SECRET_VALUE_INVALID')

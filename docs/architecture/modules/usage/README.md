@@ -6,6 +6,8 @@
 
 接続の正本は[module.json](module.json)。全体の[機能図](../../feature-map.md)と[担当・変更手順](../../module-ownership.md)から、呼出元と依存先を辿る。
 
+Rabbit認証consumerの未配布候補は[認証runとOwner案内の契約](olrw-auth.md)。Rootからの固定参照注入専用で、通常HTTP/MCPの認証権限は拡張しない。
+
 ## 機能内の正本
 
 [処理と保存順序](flows.md)に秘密入力・質問・認証・設定適用・通知/購読の図と実関数を置く。旧support-detailsの所有章は参照リンクへ置換した。共通診断writerは[統合の詳細](../../support-details.md#診断観測集約調査注記を分ける)を参照する。

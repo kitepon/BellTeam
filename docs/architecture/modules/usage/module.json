@@ -51,6 +51,7 @@
     "src/cloudflare-access.mjs",
     "src/usage/http-api.mjs",
     "src/usage/application-features.mjs",
-    "src/usage/mcp-tools.mjs"
+    "src/usage/mcp-tools.mjs",
+    "src/usage/olrw-auth-consumer.mjs"
   ]
 }
