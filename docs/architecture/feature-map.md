@@ -27,6 +27,7 @@ flowchart LR
   m_conversation -->|"settings"| m_usage
   m_conversation -->|"observation"| m_execution
   m_distribution -->|"update"| m_runtime
+  m_execution -->|"diagnostics"| m_integration
   m_execution -->|"registry"| m_members
   m_execution -->|"seat-process"| m_runtime
   m_integration -->|"turn"| m_execution

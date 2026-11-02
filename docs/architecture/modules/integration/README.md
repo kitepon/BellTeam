@@ -41,3 +41,18 @@ flowchart TD
 登録順、同じAdministration/service実体、会話と秘密・質問の保存後の部分失敗、MCP公開schemaを統合境界で確認する。削除の既pending受付とCLI同期失敗の独立はmembersの意図した契約変更。モデル適用の業務処理・残るメンバー/予定MCPの抽出は各担当の継続範囲で、全入口の分離完了とは扱わない。
 
 内部の実装・図は各moduleだけに置き、この図は接続に限る。商用更新通知は各担当の設計案で、新しい更新API/UI/Host実行は実装していない。本番と一般配布はOwner保留中。
+
+## 実行失敗の診断接続
+
+```mermaid
+flowchart LR
+  Execution["execution: 設定適用 / ターン追跡の失敗"] -->|"reportError: code/module/diagnostic_log"| Assembly["application-services: 共通診断へ接続"]
+  Assembly --> Diagnostics["Diagnostics.record: 固定codeとmoduleを検証"]
+  Diagnostics --> Store["logs/diagnostics.json: 原子的保存"]
+  Store --> Admin["認証済みGET /api/admin/logs"]
+  Admin --> BugHub["BugHub: 通常取込"]
+```
+
+executionは`SERVER_MODEL_CONFIGURATION_FAILED`（bots）と`SERVER_TURN_TRACKING_FAILED`（queue）を報告する。固定fieldの`bellteam.execution-failure.v1` JSONに対象・工程・許可した元code・存在する終了値・wait結果・適用outcome/effectを含め、本文・stack・stdout/stderr・環境値を渡さない。正常timeout/runningは報告しない。発生判定と診断失敗で元操作を変えない責任はexecution、code登録・保存・管理GETと同じサービス実体への接続（HTTP既定Administrationも含む）はintegration。executionの接続情報へ既存のintegration.diagnostics窓口を登録し、新しい公開APIや保存先は追加しない。
+
+この接続の本番反映と中央への実取込は未実施。隔離された保存・管理GETの確認を、本番BugHub登録済みの証明にしない。
