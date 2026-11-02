@@ -1,6 +1,6 @@
 // Executed by the fixed seat entry, after all UID/GID slots have changed.
-import { isAbsolute, join } from 'node:path'
-import { stat } from 'node:fs/promises'
+import { basename, dirname, isAbsolute, join } from 'node:path'
+import { mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { ProjectFiles } from './project-files.mjs'
 import { SEAT_PROJECT_METHODS, SEAT_MEMORY_METHODS } from './seat-runtime.mjs'
 import { BellTeamMemory } from './memory-service.mjs'
@@ -10,6 +10,13 @@ import { removeSeatClaudeCopies } from './bot-environment.mjs'
 import { readImageBytes } from './message-assets.mjs'
 import { aitermExecutionRegistration } from './aiterm-hooks.mjs'
 import { CharacterSheets } from './character-sheets.mjs'
+
+function temporaryImagePath(path) {
+  if (typeof path !== 'string' || !isAbsolute(path)
+    || !/^bellteam-image-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|webp|gif)$/u.test(basename(path)))
+    throw new Error('SEAT_IMAGE_PATH_INVALID')
+  return path
+}
 
 async function operate(request) {
   const bots = new Map((request.profiles ?? []).map(bot => [bot.id, bot]))
@@ -43,6 +50,16 @@ async function operate(request) {
     }
     case 'read-image':
       return { data: (await readImageBytes(request.image, request.maxBytes)).toString('base64') }
+    case 'write-image': {
+      const path = temporaryImagePath(request.path)
+      const bytes = await readImageBytes({ data: request.data })
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, bytes, { flag: 'wx', mode: 0o600 })
+      return null
+    }
+    case 'remove-image':
+      await rm(temporaryImagePath(request.path), { force: true })
+      return null
     case 'character-sheet-list':
       if (!isAbsolute(request.project)) throw new Error('SEAT_RUNTIME_ARGUMENTS')
       return new CharacterSheets({ projectPath: () => request.project }).list(null)

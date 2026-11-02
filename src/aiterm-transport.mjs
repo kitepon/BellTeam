@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { taskSettingsReminder } from './global-instructions.mjs'
@@ -30,6 +30,11 @@ const INTERIM_INTERVAL_MS = 3000
 // Aitermは、要求の_metaにこの印がある時だけ、BellTeamのための手がかりを結果へ足す（Aiterm ADR 0071・0122）。
 const CALLER_META = { 'aiterm/caller': 'BellTeam' }
 
+async function writeLocalImage(path, bytes) {
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, bytes, { flag: 'wx', mode: 0o600 })
+}
+
 // Ordinary delivery uses Aiterm directly. Execution tracking never gates input.
 // Stop forwarding uses the direct agent_stop control.
 export function createManagedTransport({ client = new AitermClient(), ...options } = {}) {
@@ -39,12 +44,14 @@ export function createManagedTransport({ client = new AitermClient(), ...options
 // BellTeamとAitermの間。席の状態（BotSessionState）と席の活動（SeatActivity）を持ち、一回の配送（DeliveryJob）を進める。
 // Aitermのnativeな実行判断はAitermに在り、ここは返却を事実として受け取る。
 export class AitermTransport {
-  constructor({ client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS } = {}) {
+  constructor({ client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS } = {}) {
     this.client = client
     this.executionBridge = executionBridge
     this.requestStop = requestStop
     this.interimInterval = interimInterval
     this.tempRoot = tempRoot
+    this.writeTemporaryImage = writeTemporaryImage
+    this.removeTemporaryImage = removeTemporaryImage
     this.waitProcess = waitProcess
     this.handoffContext = handoffContext
     this.prepareStartup = prepareStartup
@@ -786,9 +793,8 @@ export class AitermTransport {
   async imageFile(image) {
     if (typeof image.path === 'string') return { path: image.path, temporary: false }
     if (typeof image.data !== 'string') throw new Error('IMAGE_INVALID')
-    await mkdir(this.tempRoot, { recursive: true })
     const path = join(this.tempRoot, `bellteam-image-${randomUUID()}.${imageExtension(image.mime)}`)
-    await writeFile(path, Buffer.from(image.data, 'base64'), { mode: 0o600 })
+    await this.writeTemporaryImage(path, Buffer.from(image.data, 'base64'))
     return { path, temporary: true }
   }
 
@@ -808,7 +814,7 @@ export class AitermTransport {
   }
 
   async removeTemporaryImages(imageFiles = []) {
-    await Promise.all(imageFiles.filter(file => file.temporary).map(file => rm(file.path, { force: true })))
+    await Promise.all(imageFiles.filter(file => file.temporary).map(file => this.removeTemporaryImage(file.path)))
   }
 
   async removeRetainedImages(botId) {

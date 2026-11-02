@@ -74,6 +74,14 @@ export class SeatRuntime {
     return Buffer.from(value.data, 'base64')
   }
 
+  writeTemporaryImage(path, bytes) {
+    return this.call('write-image', { path, data: bytes.toString('base64') })
+  }
+
+  removeTemporaryImage(path) {
+    return this.call('remove-image', { path })
+  }
+
   characterSheets(projectPath) {
     return {
       list: botId => this.call('character-sheet-list', { project: projectPath(botId) }),
