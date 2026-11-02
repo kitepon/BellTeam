@@ -89,8 +89,8 @@ try {
   if(profile){
     const volume=normal.services.bellteam.volumes?.find(v=>v.target===profile.Destination)
     if(profile.Type!=='bind'||profile.RW!==false||volume?.type!=='bind'||!volume.read_only||volume.source!==profile.Source
-      ||docker(['exec','--user','bell',runtime.Id,'/usr/bin/stat','--format','%a',profile.Destination]).trim()!=='644')throw new Error()
-    write('previous-profile.mjs',docker(['exec','--user','bell',runtime.Id,'/bin/cat',profile.Destination]))
+      ||docker(['exec','--user','1001:1001',runtime.Id,'/usr/bin/stat','--format','%a',profile.Destination]).trim()!=='644')throw new Error()
+    write('previous-profile.mjs',docker(['exec','--user','1001:1001',runtime.Id,'/bin/cat',profile.Destination]))
     fs.chmodSync(path.join(saved,'previous-profile.mjs'),0o644)
     volume.source=path.join(saved,'previous-profile.mjs')
   }

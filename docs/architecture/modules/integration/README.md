@@ -62,6 +62,18 @@ executionは`SERVER_MODEL_CONFIGURATION_FAILED`（bots）と`SERVER_TURN_TRACKIN
 
 この接続の本番反映と中央への実取込は未実施。隔離された保存・管理GETの確認を、本番BugHub登録済みの証明にしない。
 
+## 本番更新入口の旧profile保存
+
+```mermaid
+flowchart LR
+  Deploy["integration: scripts/deploy.sh"] --> Inspect["実旧CID・Compose・readonly profileを照合"]
+  Inspect --> Read["既server UID1001:GID1001でstat/cat"]
+  Read --> Saved["旧normal/profileをprivate保存世代へ固定"]
+  Saved --> Installer["runtime: 既installerへ旧normalを引渡し"]
+```
+
+更新前の旧profileはmode644の同じ公開fileだけを読む。Docker execが継承する本体の鍵環境を席UID1000のprocessへ渡さないため、既本体serverのUID/GIDを明示する。旧CID・開始時刻・Compose hash・profile mount/保存modeの照合は維持し、保存後にmainを取り込む。runtime内部の移行・復旧・停止条件は変更しない。範囲はこの非定期deploy入口の2読取で、Host全体の監査や過去の漏出有無を断定しない。
+
 ## 応答不明のMCP要求文脈
 
 ```mermaid

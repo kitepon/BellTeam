@@ -98,6 +98,10 @@ test('original normal: actual old model/image/profile survive FF and reach the u
   const runtime = JSON.parse(await readFile(saved + '/previous-runtime.json', 'utf8'))
   assert.equal(runtime.Id, cid); assert.equal(runtime.Image, oldImage); assert.equal(runtime.Config.Image, oldRef)
   const calls = await f.events(), launch = calls.find(c => c.command?.includes('setsid nohup'))
+  const profileReads = calls.filter(c => c.tool === 'docker' && c.args[0] === 'exec'
+    && (c.args.includes('/usr/bin/stat') || c.args.includes('/bin/cat')))
+  assert.equal(profileReads.length, 2)
+  assert.ok(profileReads.every(c => c.args[1] === '--user' && c.args[2] === '1001:1001'))
   assert.ok(launch.command.includes('BELLTEAM_PREVIOUS_COMPOSE=' + saved.replace(f.root, '/home/kite/BellTeam') + '/previous-normal.json'))
   assert.equal(await readFile(f.root + '/.bellteam-compose.existing/sentinel', 'utf8'), 'keep')
 
