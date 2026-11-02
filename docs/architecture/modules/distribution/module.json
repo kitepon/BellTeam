@@ -17,6 +17,8 @@
     "scripts/package-server.mjs",
     "scripts/promote-server-image.mjs",
     "distribution/server/compose.yaml",
-    ".github/workflows/publish-server-image.yml"
+    ".github/workflows/publish-server-image.yml",
+    "compose.yaml",
+    "distribution/server/compose.aiterm-checkpoint.yaml"
   ]
 }

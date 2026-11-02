@@ -33,6 +33,7 @@ try {
     ['distribution-profile.mjs', 'src/distribution-profile.mjs'],
     ['bots.json', 'config/bots.json'],
     ['compose.yaml', 'compose.yaml'],
+    ['compose.aiterm-checkpoint.yaml', 'compose.aiterm-checkpoint.yaml'],
     ['.env.example', '.env.example'],
     ['README.md', 'README.md'],
     ['install.sh', 'install.sh'],

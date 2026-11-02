@@ -13,6 +13,7 @@ services:
       - /run:size=64m
       - /run/bellteam-server:uid=1001,gid=1001,mode=0700,size=64m
     environment:
+      AITERM_STATE_BASE: /srv/bellteam-aiterm
       BELLTEAM_CF_TEAM_DOMAIN: ${BELLTEAM_CF_TEAM_DOMAIN:-}
       BELLTEAM_CF_AUD: ${BELLTEAM_CF_AUD:-}
       BELLTEAM_BUGHUB_KEY: ${BELLTEAM_BUGHUB_KEY:-}
@@ -24,6 +25,11 @@ services:
       - "${BELLTEAM_BIND_IP:-0.0.0.0}:18891:4180"
       - "${BELLTEAM_BIND_IP:-0.0.0.0}:18892:4182"
     volumes:
+      - type: volume
+        source: aiterm-state
+        target: /srv/bellteam-aiterm
+        volume:
+          nocopy: true
       - ./runtime/home:/home/bell
       - cursor-cli:/home/bell/.local
       - type: bind
@@ -81,6 +87,9 @@ services:
       start_period: 120s
 
 volumes:
+  aiterm-state:
+    external: true
+    name: ${BELLTEAM_AITERM_STATE_VOLUME:-bellteam-aiterm-state}
   cursor-cli:
   server-state:
     external: true

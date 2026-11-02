@@ -30,7 +30,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     await writeFile(join(root, path), path === 'config/bots.json' ? '{"bots":[{"id":"owner-private"}]}' : `${path}\n`)
   }
   await mkdir(join(root, 'distribution/server'), { recursive: true })
-  for (const path of ['distribution-profile.mjs', 'bots.json', 'compose.yaml', '.env.example', 'README.md', 'install.sh']) {
+  for (const path of ['distribution-profile.mjs', 'bots.json', 'compose.yaml', 'compose.aiterm-checkpoint.yaml', '.env.example', 'README.md', 'install.sh']) {
     await copyFile(new URL(`../distribution/server/${path}`, import.meta.url), join(root, 'distribution/server', path))
   }
   const bridgeFiles = ['compose.yaml', 'compose.bellteam.yaml', 'bridge.env.example', 'README.md', 'install.sh']
@@ -42,6 +42,8 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   const output = join(root, 'output')
   const result = JSON.parse((await exec(process.execPath, [join(root, 'scripts/package-server.mjs'), output])).stdout)
   const pathsInArchive = (await exec('tar', ['-tzf', result.archive])).stdout.trim().split('\n').map(path => path.replace(/^\.\//, ''))
+  assert.equal(await readFile(join(output, 'compose.aiterm-checkpoint.yaml'), 'utf8'),
+    await readFile(new URL('../distribution/server/compose.aiterm-checkpoint.yaml', import.meta.url), 'utf8'))
   assert.ok(pathsInArchive.includes('config/setup-guide.json'))
   assert.ok(pathsInArchive.includes('config/ponytail-LICENSE'))
   assert.ok(pathsInArchive.includes('docs/onboarding.md'))

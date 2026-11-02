@@ -1,0 +1,58 @@
+{
+  "services": {
+    "aiterm-checkpoint": {
+      "image": "${BELLTEAM_SERVER_IMAGE:?固定したcheckpoint imageが必要です}",
+      "user": "1000:1000",
+      "entrypoint": [
+        "/usr/local/bin/node",
+        "/usr/local/lib/node_modules/aiterm-mcp/dist/resume-state-cli.js"
+      ],
+      "command": [],
+      "init": true,
+      "read_only": true,
+      "network_mode": "none",
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "environment": {
+        "HOME": "/home/bell",
+        "CODEX_HOME": "/home/bell/.codex",
+        "AITERM_STATE_BASE": "/srv/bellteam-aiterm",
+        "TMPDIR": "/tmp",
+        "PATH": "/usr/local/bin:/usr/bin:/bin"
+      },
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,noexec,size=64m"
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "aiterm-state",
+          "target": "/srv/bellteam-aiterm",
+          "read_only": true,
+          "volume": {
+            "nocopy": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${BELLTEAM_AITERM_CHECKPOINT_HOME:?旧normalのHOME bind sourceが必要です}",
+          "target": "/home/bell",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "aiterm-state": {
+      "external": true,
+      "name": "${BELLTEAM_AITERM_STATE_VOLUME:?旧normalのstate volumeが必要です}"
+    }
+  }
+}
