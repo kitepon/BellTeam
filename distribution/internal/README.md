@@ -2,6 +2,8 @@
 
 商用imageと同じdigestへ、内部profile、既存HOME/data、Throughline bind、Cursorの外部volumeを追加する。秘密・runtime・内部profileを公開imageへ含めない。`scripts/deploy-image.sh`はimageの取得/build後に、公開`distribution/server/install.sh`をこのoverlayと組み合わせて呼ぶ。公開と内部で移行・復旧の実装は共通。
 
+`config/common-agents.md`も商用packageへ含まれる製品共通規範である。特定の内部メンバー名や、そのメンバーの在籍を前提とする手順は書かない。組織固有の担当者指定は、製品共通規範とは別のOwnerデータ`owner/user-rules.md`を正規のOwner設定経路で管理する。未設定のユーザー規範と空のメンバー構成で共通指示を生成できる構成を保つ。
+
 ```sh
 repo=/home/kite/BellTeam
 cd "$repo"
