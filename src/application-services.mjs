@@ -52,6 +52,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   const transport = createManagedTransport({
     client: client ?? new AitermClient({ ...aiterm, ...(seatRuntime ? { seatProject: root } : {}) }),
     ...(seatRuntime ? {
+      writeTemporaryImage: (path, bytes) => seatRuntime.writeTemporaryImage(path, bytes),
+      removeTemporaryImage: path => seatRuntime.removeTemporaryImage(path),
       handoffContext: project => latestThroughlineHandoffContext(project, { seatCommands: true }),
       waitProcess: (process, signal) => runWaitProcess(process, signal, { seatProject: root }),
     } : {}),

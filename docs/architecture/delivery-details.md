@@ -65,7 +65,7 @@ flowchart TD
 | `waitForTurnCompletion/followInterim` | nativeのwait processとevent cursorから待つ。途中経過は既存followerがあれば重ねて出さない。最後にも一度読む。途中経過の読取失敗はそのpollだけを止めstderrへ |
 | `waitUntilDone` | timeout/runningは同じwaitを継続。error/rate_limited/stopped等は終了異常。これは本文の再送ではない |
 | `readTurnAnswer → transcriptText` | typed transcriptはturn_idを照合。不一致を別ターンの回答として保存しない。通知の表示読取失敗はstderrに残し配送完了を維持、利用者のtranscript取得失敗はcompletion失敗 |
-| `imageFiles/imageFile` | 既存pathは借用し削除しない。data画像だけ0600の一時file。作成途中/dispatch途中の失敗も作成済み分を削除 |
+| `imageFiles/imageFile` | 既存pathは借用し削除しない。data画像だけ0600/wxの一時file。席分離構成の作成と削除はSeatRuntimeのUID1000へ渡す。作成途中/dispatch途中の失敗も作成済み分を削除 |
 | `submit`のfinally → `retainUntrackedImages` / `retainedImages` | 未停止・追跡情報なしのsteer・開始時の親jobなしの場合だけ一時画像を保持。他は削除。保持分は後の新規dispatch、明示close/restart、idle closeで除く。finallyの片付け失敗もPromiseの失敗になり得る |
 
 `DeliveryJob.checkpoint/failure`は停止結論の所有者。受理済みreceiptがある時と、まだ入力を発行していない時を区別する。`finishExecution`の追跡記録失敗は`executionFinishUnconfirmed`に保持し、native受付済みの文を再送しない。
@@ -77,6 +77,7 @@ flowchart TD
   Send["通常の送信"] --> Reply{"送信結果"}
   Reply -->|"受付あり"| Accepted["そのreceiptを追う"]
   Reply -->|"typed unknown"| Unknown["不明を返す<br/>起こし直しも再送もしない"]
+  Reply -->|"型付き復帰拒否"| Resume["今回本文の未送信を返す<br/>席確認を求め・再送しない"]
   Reply -->|"その他の失敗"| Running["席の存在を確認"]
   Running -->|"存在し登録もある"| Fail["元の失敗を返す"]
   Running -->|"不存在 / 登録欠落"| Launch["必要時だけ旧席close<br/>promptなし起動"]
@@ -87,6 +88,8 @@ flowchart TD
   Adapter -->|"通常構成は未接続"| Refuse["BOT_SESSION_UNCONFIRMED"]
   Adapter -->|"接続された構成のみ"| Reconcile["元登録の照合 または世代指定close"]
 ```
+
+型付き復帰拒否は`pty_send`の`aiterm.agent-resume-error.v1`を同session・固定enum・ID型・未送信/席確認の契約で検証する。本文や旧版の文言から推測せず、相反するexecution errorを優先する。この分岐は新契約を返すAitermの正式供給が必要であり、席のlive世代や復旧成功の証明にはしない。
 
 通常構成は`createApplicationServices → createManagedTransport`で**executionBridge=null**、直接`pty_send/agent_stop`を使う。`ExecutionBridge`の実装が存在することを、通常運転で全配送が登録されている意味にしない。`resumeDelivery/closeDeliveryLaunch`のHTTP入口は残るが、通常構成では`BotSessionState`のadapter条件で拒否される。
 

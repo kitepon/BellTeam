@@ -126,6 +126,18 @@ export class AitermClient {
       }
       const executionError = returnedExecutionError(result._meta?.[ERROR_META])
       if (executionError) error.executionError = executionError
+      const resume = result.structuredContent
+      if (name === 'pty_send' && !executionError && resume?.schema === 'aiterm.agent-resume-error.v1'
+        && Object.keys(resume).sort().join(',') === 'code,input,launch_id,recovery,schema,session_id'
+        && ['AGENT_RESUME_UNCONFIRMED', 'AGENT_RESUME_FAILED'].includes(resume.code)
+        && /^[A-Za-z0-9_-]{1,64}$/u.test(resume.session_id ?? '') && resume.session_id === args.session_id
+        && typeof resume.launch_id === 'string' && /^[a-f0-9]{32}$/u.test(resume.launch_id)
+        && resume.input === 'not_sent' && resume.recovery === 'inspect_session') {
+        error.agentResumeResult = structuredClone(resume)
+        error.code = 'BOT_INPUT_NOT_READY'
+        error.status = 409
+        error.publicMessage = 'このBotの復帰状態を確認できないため、今回のメッセージは送信されませんでした。再送せず、席の状態を確認してください。'
+      }
       // 起動の準備が終わらなかった時、Aitermは作った端末の名前と止まった理由を構造で返す（aiterm.agent-launch-result.v1）。
       if (name === 'agent_launch' && result.structuredContent?.schema === 'aiterm.agent-launch-result.v1') {
         error.launch = result.structuredContent
