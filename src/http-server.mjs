@@ -1,6 +1,7 @@
 import { createControlApi, createApplicationApi } from './http-application-api.mjs'
 import { createBotApi } from './http-bot-api.mjs'
 import { BotAdministration } from './bot-administration.mjs'
+import { createMemberDeletionApi } from './members/deletion.mjs'
 import { createRoomApi } from './http-room-api.mjs'
 import { createDeliveryApi } from './http-delivery-api.mjs'
 import { createScheduleApi } from './http-schedule-api.mjs'
@@ -29,10 +30,13 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
   const { sources, timeline, messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions })
 
   const controlApi = createControlApi({ aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models })
+  administration ??= new BotAdministration({ bots, rooms, transport, writeLog,
+    reportError: report => diagnostics?.record(report) })
   const featureApis = [
     createApplicationApi({ ownerProfile, refreshGlobalInstructions, userRules, events, assets }),
+    createMemberDeletionApi({ administration }),
     createBotApi({ bots, transport, memory, characterSheets, aiControl, notify: event => server.notify(event), sources, store, messagePage, messenger,
-      administration: administration ?? new BotAdministration({ bots, rooms, transport, writeLog }) }),
+      administration }),
     createRoomApi({ rooms, transport, sources, messagePage, roomMessenger }),
     createDeliveryApi({ messenger, roomMessenger, transport }),
     createScheduleApi({ bots, rooms, scheduler }),

@@ -44,14 +44,30 @@
   "source": [
     "src/bootstrap.mjs",
     "src/seat-runtime.mjs",
+    "src/run-seat-runtime.mjs",
     "src/seat-process.mjs",
     "src/seat-command.mjs",
     "src/harness-config.mjs",
+    "src/rtk-hooks.mjs",
+    "src/aiterm-hooks.mjs",
+    "src/cursor-instructions.mjs",
     "src/server-state-transfer.mjs",
     "src/server-state-ownership.mjs",
     "src/server-state-writers.mjs",
     "distribution/server/install.sh",
     "scripts/archive-live-volume.py",
-    "scripts/save-deploy-restore-point.py"
+    "scripts/save-deploy-restore-point.py",
+    "src/supervisor.mjs",
+    "src/lifecycle.mjs",
+    "src/runtime-home.mjs",
+    "src/bot-environment.mjs",
+    "src/run-seat-command.mjs",
+    "src/run-seat-setup.mjs",
+    "src/seat-stream.mjs",
+    "src/run-seat-character-sheet.mjs",
+    "scripts/seat-exec.c",
+    "scripts/server-start.c",
+    "scripts/update-cursor.sh",
+    "scripts/cursor-update-entrypoint.sh"
   ]
 }

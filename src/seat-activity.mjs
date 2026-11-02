@@ -56,7 +56,7 @@ export class SeatActivity {
   }
 
   endWatch(watch) {
-    this.watches.delete(watch.bot.id)
+    if (this.watches.get(watch.bot.id) === watch) this.watches.delete(watch.bot.id)
     this.active.delete(watch.id)
     this.emit(watch)
   }

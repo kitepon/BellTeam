@@ -1,12 +1,9 @@
-import { appendFile, mkdir } from 'node:fs/promises'
-import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
 import { memberIdentity } from './member-identity.mjs'
 import { ConversationStore } from './conversation-store.mjs'
 import { deliveryExecutionRef } from './execution-bridge.mjs'
-import { returnedMcpError } from './returned-mcp-error.mjs'
-import { launchFailureDetails } from './agent-launch-error.mjs'
+import { ConversationWriter } from './conversation-writer.mjs'
 
 export function directEnvelope(from, message) {
   const identity = typeof from === 'string' ? { id: from, name: from, position: '', role: '' } : from
@@ -18,19 +15,16 @@ export function userEnvelope(from, message) {
   return directEnvelope(from, message)
 }
 
-export class BellTeamMessenger {
+export class BellTeamMessenger extends ConversationWriter {
   // onTurnEndは、Botのターンが終わった時にオーナーへの報告漏れを確かめる処理（turn-reports.mjs）を呼ぶ。
   constructor({ bots, transport, logPath, store = new ConversationStore({ logPath }), assets = null, onMessage = () => {}, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, now = () => new Date().toISOString(), deliveryId = randomUUID }) {
+    super({ logPath, now, id: deliveryId, onMessage })
     this.bots = bots
     this.transport = transport
-    this.logPath = logPath
     this.assets = assets
-    this.onMessage = onMessage
     this.onTurnEnd = onTurnEnd
     this.requireAccess = requireAccess
     this.admitWork = admitWork
-    this.now = now
-    this.deliveryId = deliveryId
     this.store = store
     this.claimedReplyIds = new Set()
   }
@@ -150,7 +144,7 @@ export class BellTeamMessenger {
 
   notificationCallbacks(botId, deliveryId, context) {
     return {
-      onStatus: (status, error) => this.appendDeliveryStatus(deliveryId, status, error),
+      onStatus: (status, error, tracking) => this.appendDeliveryStatus(deliveryId, status, error, tracking),
       onInterim: words => this.appendInterimWords(botId, deliveryId, words),
       onAnswer: text => this.appendInterimWords(botId, deliveryId, [{ text, kind: 'answer' }]),
       onTurnEnd: window => this.onTurnEnd({ botId, context, ...window }),
@@ -206,7 +200,7 @@ export class BellTeamMessenger {
         context: 'direct', contextId: target, groupId: deliveryId,
         from: 'user', fromName: 'ユーザー', target, message,
       },
-      onStatus: (status, error) => this.appendDeliveryStatus(deliveryId, status, error),
+      onStatus: (status, error, tracking) => this.appendDeliveryStatus(deliveryId, status, error, tracking),
       onInterim: words => this.appendInterimWords(target, deliveryId, words),
     })
   }
@@ -250,34 +244,6 @@ export class BellTeamMessenger {
     }
   }
 
-  async append(record) {
-    await mkdir(dirname(this.logPath), { recursive: true })
-    await appendFile(this.logPath, `${JSON.stringify(record)}\n`, { mode: 0o600 })
-    this.onMessage(record)
-  }
-
-  // 合間の言葉は、そのBotと指揮官の会話画面に出すだけの記録。誰にも配送せず、返信の候補にも通知にもならない。
-  // Bot同士の連絡や通話で始まったターンの最後の回答（kind: 'answer'）も、同じ記録として画面にだけ出す。
-  async appendInterimWords(botId, groupId, words) {
-    for (const word of words) {
-      await this.append({
-        schema: 'bellteam.interim-word.v1', id: this.deliveryId(), at: this.now(),
-        bot: botId, group_id: groupId, text: word.text,
-        ...(word.kind === 'error' || word.kind === 'answer' ? { kind: word.kind } : {}),
-        ...(word.at ? { written_at: word.at } : {}),
-      })
-    }
-  }
-
-  appendDeliveryStatus(deliveryId, delivery, error = null) {
-    const detail = returnedMcpError(error)
-    const launch = launchFailureDetails(error)
-    return this.append({
-      schema: 'bellteam.delivery-status.v1', delivery_id: deliveryId, at: this.now(), delivery,
-      ...(detail ? { mcp_error: detail } : {}),
-      ...(launch ? { native_launch: launch } : {}),
-    })
-  }
 }
 
 function validateImage(image) {

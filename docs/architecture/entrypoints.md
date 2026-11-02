@@ -38,12 +38,13 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | POST `/owner-questions`、GET `/:id`、POST `/:id/answer` | `OwnerQuestions` | 作成はinternal、回答はpublic |
 | POST `/diagnostics` | `Diagnostics.record` | IOS_診断を受付。観測の保存であり故障の回復ではない |
 | GET `/models` | `LiveModelCatalog.list` | Aitermの現モデル一覧を取得。席は起動しない |
-| GET/PATCH `/owner`、GET `/owner/avatar` | `OwnerProfile` → `refreshGlobalInstructions` | プロフィール正本とCLI向け指示の更新 |
-| GET/PUT `/user-rules` | `UserRules` → `refreshGlobalInstructions` | 全文正本の更新 |
+| GET/PATCH `/owner`、GET `/owner/avatar` | `members.createOwnerApi` → OwnerProfile | [個別規範の正本](modules/members/instructions.md)。保存後に指示生成 |
+| GET/PUT `/user-rules` | `members.createOwnerApi` → UserRules | 全文正本の更新と指示生成の失敗を分ける |
 | GET `/events` | `createMessageEvents.connect` | SSEで変更箇所を通知。履歴本文は別GET |
 | GET `/message-images/:owner/:file` | `MessageAssets.open` | 保存画像のstream。通常会話のファイルパスを外へ返さない |
 | GET/POST `/bots` | `BotRegistry` / 一覧projection / `memory.ensureScope` | 作成時は台帳→personal記憶準備。一覧は稼働・履歴・設定反映を合成 |
-| GET/PATCH/DELETE `/bots/:bot` | `BotAdministration` / `BotRegistry` | 設定保存、稼働反映、背景削除。DELETE202は削除完了ではない |
+| GET/PATCH `/bots/:bot` | `members.createMemberProfileApi` → Administration/view | [プロフィール正本](modules/members/profiles.md)。設定保存と稼働反映を分ける |
+| DELETE `/bots/:bot` | `members.createMemberDeletionApi` → `BotAdministration.remove`委譲 | [削除契約](modules/members/deletion.md)。既pendingも同じ入口で再開、202は受付 |
 | POST `/bots/:bot/{stop,restart}` | `BotAdministration` → transport | 停止結果は確認して返す。restart202は背景開始 |
 | GET `/bots/:bot/screen` | `transport.screen` | 既存席の観測。本文履歴と別 |
 | GET `/bots/:bot/{avatar,avatar-large,avatar-source,avatar-large-source}` | `sendAvatar` | 保存画像・版とcache応答 |
@@ -58,7 +59,7 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | POST `/deliveries/{direct,room}` | `Messenger/RoomMessenger` | Bot/scheduler等の配送入口。Owner会話POSTとは異なる |
 | POST `/deliveries/direct/:id/{resume,close-launch}` | `Messenger` | 保存済み配送を検証する明示操作。自動再送ではない |
 | GET `/queue` | `transport.queueItems` | 全進行中配送の投影 |
-| GET `/schedules`、GET/POST `/{bots,rooms}/:id/schedules`、PUT/DELETE `/:schedule` | 各Registry / `schedule-mutations` | 予定正本の一覧・変更・削除 |
+| GET `/schedules`、GET/POST `/{bots,rooms}/:id/schedules`、PUT/DELETE `/:schedule` | `members/schedules-http` → 各Registry | [予定正本](modules/members/schedules.md)の一覧・変更・削除。既http-schedule-api exportを保持 |
 | POST `/{bots,rooms}/:id/schedules/:schedule/run` | `BotScheduler.runBotSchedule/runRoomSchedule` | 手動発行。次回時刻・enabledは変えない |
 | GET `/{bots,rooms}/:id/export` | `createConversationApi` → `timeline/webMessage` | 履歴projectionを書き出す。実行・原本変更なし |
 | GET `/goals`、GET/POST `/bots/:bot/goal` | `BotGoals` → Aiterm | nativeが正本。内部HTTPからmutationを許さない |
@@ -73,13 +74,15 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | `request_secret/get_secret_request/cancel_secret_request/ask_owner` | `internalApi` → 専用service | 依頼の所有を保持。取得時も元依頼Botを確認 |
 | `sendmessage/send_user_message/sendroommessage` | 宛先名解決・画像path解決→`deliverMessage/deliverRoomMessage` | `send_user_message`はuser由来。実行sourceはHTTP ingressで付与。登録名を新IDへ置換しない |
 | `respond_to_room` | queue/保存投稿から元発言特定→参加/返信資格→room配送 | silentは配送を作らない。assignedがsilentすること、非assignedのreplyを拒否 |
-| `list_bots/get_bot/get_self` | registry / `administration.view` | MCP公開応答はアバター本体を除く |
-| `create_bot/update_bot/update_self/delete_bot/restart_session/set_fast_mode/set_avatar` | registryまたは`internalApi.configure/remove/restart` | model/harness/effortはHTTPの稼働設定経路。プロフィールだけはregistry直通。set_avatarはファイルを読んで更新 |
-| `get_owner_profile/get_user_rules` | 各正本service | 読取り。更新toolは通常MCPにない |
+| `list_bots/get_bot/get_self` | `members.callMemberTool` → registry / botView | MCP共通整形はアバター本体を除く |
+| `create_bot/update_bot/update_self/set_avatar` | `members.callMemberTool` → registry/configure | model/harness/effortは既configure、プロフィールだけはregistry直通。set_avatarは既画像pathを検証して更新 |
+| `delete_bot` | `members.runDeleteBotTool` → internalApi.remove | [削除の公開契約](modules/members/deletion.md) |
+| `restart_session/set_fast_mode` | executionの既restart/configure | 実行設定と停止・再起動の責任はexecution |
+| `get_owner_profile/get_user_rules` | `members.callMemberTool` → 各正本service | 読取り。更新toolは通常MCPにない |
 | `remember/recall_memory/revise_memory/pin_memory/consolidate_growth/record_knowledge/search_knowledge` | memory serviceまたは席proxy | 最終argsのscope/botIdを子へ渡す。検証は記憶側 |
-| `set_schedule/list_schedules/remove_schedule` | BotRegistry | 省略botIdはfrom |
+| `set_schedule/list_schedules/remove_schedule` | `members/schedules-mcp` → BotRegistry | 省略botIdはfrom |
 | `create_room/list_rooms/get_room/update_room/delete_room/invite_to_room/leave_room` | RoomRegistry + MCP権限関数 | 作成者を参加者/代表へ。一覧は参加部屋。更新/削除は代表資格。invite/leaveをその判定と一括化しない |
-| `set_room_schedule/list_room_schedules/remove_room_schedule` | RoomRegistry + MCP権限関数 | 更新/削除は代表、一覧は参加者 |
+| `set_room_schedule/list_room_schedules/remove_room_schedule` | `members/schedules-mcp` → room-access + RoomRegistry | 更新/削除は代表、一覧は参加者 |
 | `list_messages/list_room_messages/list_queued_messages` | store / rooms / internalApi.queue | MCP直接履歴はHTTPのカード合成と同じではない |
 | `bughub_*` | `createBugHubSecurity` | 既存BugHub APIへactor/credentialを付けて中継。SEC所見の正本は外部 |
 | 別MCP `update_user_rules` | `callOwnerTool` → `UserRules` → 全体指示更新 | このowner MCPを登録した席だけの窓口。通常toolへ統合しない |

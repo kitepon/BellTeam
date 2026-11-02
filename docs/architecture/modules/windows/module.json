@@ -10,7 +10,7 @@
   "uses": [
     {
       "module": "integration",
-      "port": "HTTP/MCP"
+      "port": "HTTP/SSE"
     }
   ],
   "source": []

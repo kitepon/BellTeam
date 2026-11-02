@@ -6,7 +6,7 @@ import { createBotEditor } from '../web/bot-editor.js'
 import { editorDOM, bot, models } from './helpers/editor-dom.mjs'
 import { createAvatarEditor } from '../web/avatar-editor.js'
 
-const source = await readFile(new URL('../web/app.js', import.meta.url), 'utf8')
+const source = await readFile(new URL('../web/application.js', import.meta.url), 'utf8')
 const extract = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)))
 const element = (value = '') => ({ value, files: [], handlers: {}, addEventListener(type, fn) { this.handlers[type] = fn } })
 
@@ -15,7 +15,7 @@ test('light bot list uses versioned images without embedding image data', async 
   const state = { selected: null }
   const api = async path => { calls.push(path); return path.startsWith('/api/bots') ? { bots: [{ id: 'bot-a', avatarVersion: '123', avatar: '' }, { id: 'bot-b', avatarVersion: '' }] } : path === '/api/rooms' ? { rooms: [] } : { owner: {} } }
   const ctx = { catalogueRead: 0, state, api, renderOwner() {}, renderBots() {} }
-  vm.runInNewContext(extract('async function loadBots()', '\nfunction renderOwner()'), ctx)
+  vm.runInNewContext(extract('async function loadBots()', '\n  function renderOwner()'), ctx)
   await ctx.loadBots()
   assert(calls.includes('/api/bots?avatar=omit'))
   assert.equal(state.bots[0].avatar, '/api/bots/bot-a/avatar?v=123')

@@ -1,13 +1,16 @@
 import { stopFailureReport } from './stop-failure-report.mjs'
+import { startMemberRemoval } from './members/deletion.mjs'
+import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
 
 // Botの設定変更・停止・削除の業務判断。HTTP APIと、HTTP経由で届く席MCPのupdate_self/update_bot/delete_botが
 // 同じ判断を使う。応答の形と状態コードはHTTPが持ち、ここは保存と稼働中の席への反映の順序を決める。
 export class BotAdministration {
-  constructor({ bots, rooms, transport, writeLog = line => process.stderr.write(line) }) {
+  constructor({ bots, rooms, transport, writeLog = line => process.stderr.write(line), reportError = () => {} }) {
     this.bots = bots
     this.rooms = rooms
     this.transport = transport
     this.writeLog = writeLog
+    this.reportError = reportError
     this.applications = new Map()
   }
 
@@ -47,7 +50,9 @@ export class BotAdministration {
         if (this.applications.get(current.id) === application) application.state = 'accepted'
       })
       .catch(async error => {
-        this.writeLog(`BellTeam reconfigure error: ${current.id}: ${error.stack ?? error.message}\n`)
+        void reportExecutionFailure(this.reportError, current.id, 'configuration', error)
+        try { this.writeLog(`BellTeam reconfigure error: ${JSON.stringify(executionFailureReport(current.id, 'configuration', error))}\n`) }
+        catch { /* Logging must not change the application result. */ }
         if (this.applications.get(current.id) !== application) return
         application.state = 'failed'
         const notStarted = error.effect === 'not_started'
@@ -85,14 +90,8 @@ export class BotAdministration {
       .catch(error => this.writeLog(`BellTeam restart error: ${error.stack ?? error.message}\n`))
   }
 
-  // 席を閉じ、部屋から外し、台帳から消す。応答は待たせない。
   remove(botId) {
-    const bot = this.bots.get(botId)
-    void (async () => {
-      await this.transport.stop(bot)
-      await this.rooms.removeBot(botId)
-      await this.bots.remove(botId)
-      this.applications.delete(botId)
-    })().catch(error => this.writeLog(`BellTeam delete error: ${error.stack ?? error.message}\n`))
+    return startMemberRemoval(botId, { bots: this.bots, rooms: this.rooms, transport: this.transport,
+      writeLog: this.writeLog, onRemoved: id => this.applications.delete(id) })
   }
 }

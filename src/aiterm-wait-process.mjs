@@ -4,8 +4,8 @@ import { createSeatProcessRunner } from './seat-process.mjs'
 
 export function runWaitProcess(waitProcess, signal = null, options = {}) {
   const seatProject = Object.hasOwn(options, 'seatProject') ? options.seatProject : null
-  if (seatProject !== null) return createSeatProcessRunner(seatProject)(waitProcess.executable, waitProcess.args, { signal }).then(({ stdout }) => {
-    try { return JSON.parse(stdout.trim()) } catch { throw new Error('AITERM_WAIT_INVALID') }
+  if (seatProject !== null) return createSeatProcessRunner(seatProject)(waitProcess.executable, waitProcess.args, { signal, acceptNonzero: true }).then(({ stdout, code: exitCode, signal: exitSignal }) => {
+    try { return JSON.parse(stdout.trim()) } catch { throw Object.assign(new Error('AITERM_WAIT_INVALID'), { code: 'AITERM_WAIT_INVALID', exitCode, signal: exitSignal }) }
   })
   return new Promise((resolve, reject) => {
     const child = spawn(waitProcess.executable, waitProcess.args, {
@@ -16,11 +16,11 @@ export function runWaitProcess(waitProcess, signal = null, options = {}) {
     child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk })
     child.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk })
     child.once('error', reject)
-    child.once('close', () => {
+    child.once('close', (exitCode, exitSignal) => {
       try {
         resolve(JSON.parse(stdout.trim()))
       } catch {
-        reject(new Error(`AITERM_WAIT_INVALID: ${stderr.trim()}`))
+        reject(Object.assign(new Error(`AITERM_WAIT_INVALID: ${stderr.trim()}`), { code: 'AITERM_WAIT_INVALID', exitCode, signal: exitSignal }))
       }
     })
   })

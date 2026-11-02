@@ -10,6 +10,8 @@ const projects = bots => [...bots.values()].map(({ id, project }) => ({ id, proj
 // Short-lived seat operations. No server environment or configuration document
 // is sent to the child; each request supplies only its operation's inputs.
 export class SeatRuntime {
+  #harnessConfiguration = Promise.resolve()
+
   constructor({ root, home, run = createSeatProcessRunner(root, { environment: 'base' }),
     stream = createSeatStreamRunner(root, { environment: 'base' }) }) {
     this.root = root
@@ -32,8 +34,7 @@ export class SeatRuntime {
   }
 
   configureHarnesses(bots, aiterm, callBridge) {
-    return this.call('configure-harnesses', { profiles: projects(bots), aiterm,
-      callBridge: { enabled: callBridge.enabled } })
+    return this.#configureHarnesses('configure-harnesses', bots, aiterm, callBridge)
   }
 
   aitermRegistration() {
@@ -41,8 +42,16 @@ export class SeatRuntime {
   }
 
   writeHarnessConfig(bots, aiterm, callBridge) {
-    return this.call('write-harness-config', { profiles: projects(bots), aiterm,
-      callBridge: { enabled: callBridge.enabled } })
+    return this.#configureHarnesses('write-harness-config', bots, aiterm, callBridge)
+  }
+
+  #configureHarnesses(action, bots, aiterm, callBridge) {
+    // Bootstrap and feature changes share this owner, including all child hook writers.
+    const pending = this.#harnessConfiguration.then(() => this.call(action, {
+      profiles: projects(bots), aiterm, callBridge: { enabled: callBridge.enabled },
+    }))
+    this.#harnessConfiguration = pending.catch(() => {})
+    return pending
   }
 
   writeInstructions(home, instructions) {

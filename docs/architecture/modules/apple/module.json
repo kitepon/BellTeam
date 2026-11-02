@@ -4,14 +4,14 @@
   "botId": null,
   "scope": "Apple各画面と配布",
   "external": true,
-  "provides": [
-    "public"
-  ],
+  "provides": [],
   "uses": [
     {
       "module": "integration",
-      "port": "HTTP/MCP"
+      "port": "HTTP/SSE"
     }
   ],
-  "source": []
+  "source": [
+    "ios/BellBot"
+  ]
 }

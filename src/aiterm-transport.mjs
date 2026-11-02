@@ -13,6 +13,7 @@ import { runWaitProcess } from './aiterm-wait-process.mjs'
 import { BotSessionState } from './bot-session-state.mjs'
 import { DeliveryJob } from './delivery-job.mjs'
 import { SeatActivity, SeatTurnWatch } from './seat-activity.mjs'
+import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
 export { runWaitProcess } from './aiterm-wait-process.mjs'
@@ -44,7 +45,7 @@ export function createManagedTransport({ client = new AitermClient(), ...options
 // BellTeamとAitermの間。席の状態（BotSessionState）と席の活動（SeatActivity）を持ち、一回の配送（DeliveryJob）を進める。
 // Aitermのnativeな実行判断はAitermに在り、ここは返却を事実として受け取る。
 export class AitermTransport {
-  constructor({ client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS } = {}) {
+  constructor({ client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
     this.client = client
     this.executionBridge = executionBridge
     this.requestStop = requestStop
@@ -53,6 +54,7 @@ export class AitermTransport {
     this.writeTemporaryImage = writeTemporaryImage
     this.removeTemporaryImage = removeTemporaryImage
     this.waitProcess = waitProcess
+    this.reportError = reportError
     this.handoffContext = handoffContext
     this.prepareStartup = prepareStartup
     this.updateSession = updateSession
@@ -551,7 +553,10 @@ export class AitermTransport {
       } catch (cause) {
         const error = await job.failure(cause)
         if (!acknowledged) rejectAcceptance(error)
-        await onStatus?.(job.stopped ? 'stopped' : 'failed', error)
+        // Accepted input remains accepted when only its completion tracking fails.
+        const tracking = job.waitFailure === error && job.receipt && !job.stopped && !error.turnCompleted
+          ? [{ schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' }] : []
+        await onStatus?.(job.stopped ? 'stopped' : 'failed', error, ...tracking)
         throw error
       } finally {
         if (!this.retainUntrackedImages(job, delivery, followed, parent))
@@ -597,6 +602,8 @@ export class AitermTransport {
     try {
       completion = await this.waitUntilDone(delivery.receipt, job.controller.signal)
     } catch (error) {
+      void reportExecutionFailure(this.reportError, job.bot.id, 'delivery_wait', error)
+      job.waitFailure = error
       const seen = await interim?.stop()
       // 記録にエラーの知らせが無い時（Grok・Cursor、記録に残らない利用上限）は、Aitermが返した理由を代わりに出す。
       if (interim && !seen.error && String(error.message).startsWith('AITERM_TURN_'))
@@ -636,7 +643,12 @@ export class AitermTransport {
       const watch = this.activity.watches.get(bot.id)
       // 追っているターンがもう動いていない。止められたターンでは、Aitermの待ちは返らない（完了の印だけを待つ）。
       // nullは「分からない」なので、追い続ける。
-      if (watch && turn !== null && (turn?.state !== 'running' || turn.turn_id !== watch.turnId)) watch.end()
+      if (watch && turn?.state === 'running' && turn.turn_id !== watch.turnId) {
+        this.watchTurn(bot, session, turn, { onInterim, groupId })
+        watch.end()
+        continue
+      }
+      if (watch && (turn === undefined || turn?.state === 'idle')) watch.end()
       if (turn?.state === 'running' && this.isIdle(bot.id) && this.activity.followedTurns.get(bot.id) !== turn.turn_id)
         this.watchTurn(bot, session, turn, { onInterim, groupId })
     }
@@ -654,18 +666,28 @@ export class AitermTransport {
         watch.shown.words.push(...words.filter(word => word.kind !== 'error').map(word => word.text.trim()).filter(Boolean))
       } : null
       const interim = say ? this.followInterim(session, turn, say, { from: turn.interim_from, turnId: turn.turn_id }) : null
+      let turnCompleted = false
       try {
         let failure = null
-        await Promise.race([watch.ended, this.waitUntilDone(turn, watch.stop.signal).catch(error => { failure = error })])
+        await Promise.race([watch.ended, this.waitUntilDone(turn, watch.stop.signal)
+          .then(() => { turnCompleted = true }, error => { failure = error; turnCompleted = error.turnCompleted === true })])
         const seen = await interim?.stop()
         if (!failure || watch.stop.signal.aborted) return
+        void reportExecutionFailure(this.reportError, bot.id, 'seat_watch', failure)
         // エラーや利用上限で終わったターンは、配送したターンと同じく、記録に知らせが無い時だけAitermが返した理由を出す。
         if (interim && !seen.error && /^AITERM_TURN_(ERROR|RATE_LIMITED)/u.test(failure.message))
           await say([{ text: failure.message, kind: 'error' }])
-        else process.stderr.write(`BellTeam seat turn: ${bot.id} のターンを終わりまで追えませんでした（${failure.message}）\n`)
+        else {
+          try { process.stderr.write(`BellTeam seat turn: ${turnCompleted ? failure.message : JSON.stringify(executionFailureReport(bot.id, 'seat_watch', failure))}\n`) }
+          catch { /* Logging must not end a running native turn. */ }
+        }
       } catch (error) {
-        process.stderr.write(`BellTeam seat turn error: ${error.stack ?? error.message}\n`)
+        void reportExecutionFailure(this.reportError, bot.id, 'seat_watch', error)
+        try { process.stderr.write(`BellTeam seat turn error: ${JSON.stringify(executionFailureReport(bot.id, 'seat_watch', error))}\n`) }
+        catch { /* Logging must not end a running native turn. */ }
       } finally {
+        // A failed waiter does not prove native completion; the existing seat observer ends this watch.
+        if (!turnCompleted && !watch.stop.signal.aborted) await watch.ended
         watch.shown.endedAt = Date.parse(this.now())
         this.activity.endWatch(watch)
       }
@@ -805,10 +827,10 @@ export class AitermTransport {
       if (result.outcome === 'done') return result
       if (result.outcome === 'timeout' || result.outcome === 'running') continue
       // error: harnessの記録でturnがAPIエラー等で打ち切られた（Aiterm 0.31.0）。本文を残して配送失敗にする。
-      if (result.outcome === 'error') throw new Error(`AITERM_TURN_ERROR: ${result.error ?? 'unknown'}`)
+      if (result.outcome === 'error') throw Object.assign(new Error(`AITERM_TURN_ERROR: ${result.error ?? 'unknown'}`), { waitOutcome: result.outcome, turnCompleted: true })
       // rate_limited: harnessの利用上限。Aitermが画面や記録から拾った上限の知らせを理由に残す。
-      if (result.outcome === 'rate_limited' && result.rate_limit) throw new Error(`AITERM_TURN_RATE_LIMITED: ${result.rate_limit}`)
-      throw new Error(`AITERM_TURN_${String(result.outcome).toUpperCase()}`)
+      if (result.outcome === 'rate_limited' && result.rate_limit) throw Object.assign(new Error(`AITERM_TURN_RATE_LIMITED: ${result.rate_limit}`), { waitOutcome: result.outcome, turnCompleted: true })
+      throw Object.assign(new Error(`AITERM_TURN_${String(result.outcome).toUpperCase()}`), { waitOutcome: result.outcome })
     }
     throw new Error('AITERM_WAIT_STOPPED')
   }
