@@ -36,6 +36,7 @@
     "src/aiterm-transport.mjs",
     "src/aiterm-client.mjs",
     "src/aiterm-wait-process.mjs",
+    "src/execution-failure-report.mjs",
     "src/seat-activity.mjs",
     "src/bot-session-state.mjs",
     "src/delivery-job.mjs",

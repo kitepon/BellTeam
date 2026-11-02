@@ -26,8 +26,8 @@ function syntheticEntry(t) {
 
 test('wait JSON keeps done and nonzero outcomes on both seat and legacy paths', async t => {
   syntheticEntry(t)
-  for (const [name, code] of [['done', 0], ['timeout', 3], ['running', 3], ['closed', 1],
-    ['error', 1], ['rate_limited', 2], ['not_taken', 4]]) {
+  for (const [name, code] of [['done', 0], ['timeout', 3], ['running', 5], ['closed', 4],
+    ['error', 7], ['rate_limited', 6], ['not_taken', 8]]) {
     const value = { outcome: name, turn_id: 'synthetic-turn', detail: { retained: true } }
     for (const project of [null, seatProject])
       assert.deepEqual(await runWaitProcess(outcome(value, code), null, { seatProject: project }), value)
@@ -40,7 +40,8 @@ test('wait JSON does not relax runner defaults, malformed output, start, abort o
   const nonzero = outcome({ outcome: 'timeout' }, 3)
   await assert.rejects(run(nonzero.executable, nonzero.args), { code: 'SEAT_PROCESS_FAILED', exitCode: 3 })
   for (const project of [null, seatProject])
-    await assert.rejects(runWaitProcess(program("process.stdout.write('invalid')"), null, { seatProject: project }), /AITERM_WAIT_INVALID/u)
+    await assert.rejects(runWaitProcess(program("process.stdout.write('invalid');process.exitCode=1"), null, { seatProject: project }),
+      { code: 'AITERM_WAIT_INVALID', exitCode: 1, signal: null })
   await assert.rejects(runWaitProcess({ executable: '/synthetic-missing-wait', args: [] }, null, { seatProject }),
     { code: 'SEAT_PROCESS_START_FAILED' })
   const stopped = new AbortController()
@@ -56,13 +57,14 @@ test('wait JSON does not relax runner defaults, malformed output, start, abort o
 
 test('seat timeout and running keep the watch busy until done before configure', { timeout: 10_000 }, async t => {
   syntheticEntry(t)
-  const calls = [], results = [], gates = [deferred(), deferred()]
+  const calls = [], results = [], reports = [], gates = [deferred(), deferred()]
   const seen = [deferred(), deferred()]
   t.after(() => gates.forEach(gate => gate.resolve()))
   const descriptor = outcome({ outcome: 'done' }, 0)
   const turn = { state: 'running', turn_id: 'synthetic-turn', wait_process: descriptor }
   let waits = 0
   const transport = new AitermTransport({
+    reportError: report => reports.push(report),
     client: { async call(name, args) {
       calls.push([name, args])
       if (name === 'pty_list') return { _meta: { 'aiterm/seat_turns': {
@@ -75,7 +77,7 @@ test('seat timeout and running keep the watch busy until done before configure',
       assert.equal(spec, descriptor)
       const index = waits++
       assert.ok(index < 3, 'only timeout, running, then done')
-      const result = await runWaitProcess(outcome({ outcome: ['timeout', 'running', 'done'][index] }, index < 2 ? 3 : 0),
+      const result = await runWaitProcess(outcome({ outcome: ['timeout', 'running', 'done'][index] }, [3, 5, 0][index]),
         signal, { seatProject })
       results.push(result.outcome)
       if (index < 2) { seen[index].resolve(); await gates[index].promise }
@@ -96,6 +98,7 @@ test('seat timeout and running keep the watch busy until done before configure',
   }
   await configured
   assert.deepEqual(results, ['timeout', 'running', 'done'])
+  assert.deepEqual(reports, [])
   assert.equal(transport.isIdle(bot.id), true)
   assert.deepEqual(calls.filter(([name]) => name === 'agent_configure'), [
     ['agent_configure', { session_id: 'bot-a', model: 'new-model', reasoning_effort: 'high' }],
