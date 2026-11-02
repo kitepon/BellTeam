@@ -136,7 +136,7 @@ export const bellTeamTools = Object.freeze([
   deleteBotTool,
   {
     name: 'update_self',
-    description: '自分の名前、プロフィール、性格（考え方）、口調、役職、役割、アバター、CLI、モデル、エフォートを変更する。CLI、モデル、エフォートは設定画面と同じ経路で保存し、今の作業の後に適用する。同じCLIの中でモデルやエフォートを変える時は会話を続けたまま切り替え、CLIを変える時だけセッションを起こし直す。',
+    description: '自分の名前、プロフィール、性格（考え方）、口調、役職、役割、アバター、CLI、モデル、エフォートを変更する。モデル・エフォートを速やかに反映する標準手順：list_modelsで候補を確認→update_selfを一回呼ぶ→pendingを受けたら既存の継続予定を具体日時の次ターンに設定し、通常のfinalで現在のターンを終える→次ターン冒頭のget_selfでconfigurationApplication.state=acceptedを確認して作業を再開する。継続予定がなければset_scheduleで一回予定を作る。pendingは保存受付であり現在のターンのモデルは変わらない。同じターンで反映待ちの確認や同値の再送を続けない。failedや結果不明なら成功扱いにせず理由を確認する。CLI、モデル、エフォートは設定画面と同じ経路で保存し、現在の作業終了後に適用する。同じCLIのモデル・エフォート変更では会話を維持し、CLI変更時だけセッションを起こし直す。',
     inputSchema: objectSchema({
       name: { type: 'string', minLength: 1, maxLength: 100 },
       profileText: { type: 'string', maxLength: 8000, description: 'プロフィール。背景・見た目・関係性。表現の見本にはしない。' },
@@ -153,7 +153,7 @@ export const bellTeamTools = Object.freeze([
   },
   {
     name: 'update_bot',
-    description: '指定したBellTeam Botの名前、プロフィール、性格（考え方）、口調、役職、役割、アバター、テーマ色、CLI、モデル、エフォートを変更する。CLI、モデル、エフォートは設定画面と同じ経路で保存し、稼働中なら現在の作業の後に適用する。CLI変更はそのBotのセッションを再起動する。元へ戻す時も同じツールで元の値を渡す。',
+    description: '指定したBellTeam Botの名前、プロフィール、性格（考え方）、口調、役職、役割、アバター、テーマ色、CLI、モデル、エフォートを変更する。CLI、モデル、エフォートは設定画面と同じ経路で保存し、稼働中なら対象Botの現在の作業終了後に適用する。pendingは保存受付であり実適用ではない。対象Botに速やかな反映が必要なら、対象Botが通常のfinalで現在のターンを終え、既存の継続予定等で次ターンを開始してget_selfのconfigurationApplication.state=acceptedを確認する手順を調整する。呼出元がターンを終えるだけでは対象Botの作業は終了しない。同値の再送や保存されたmodelだけを適用確認に使わず、failedや結果不明なら理由を確認する。CLI変更はそのBotのセッションを再起動する。元へ戻す時も同じツールで元の値を渡す。',
     inputSchema: objectSchema({
       botId: { type: 'string', minLength: 1 },
       name: { type: 'string', minLength: 1, maxLength: 100 },
