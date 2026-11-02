@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFile } from 'node:fs/promises'
 import { createConversationTimeline } from '../web/conversation-timeline.js'
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
 const settle = () => new Promise(resolve => setImmediate(resolve))
@@ -123,7 +124,7 @@ test('late question answer callback cannot replace a same-ID card in a new conve
 
 
 const tracking = { schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' }
-const messageTimes = f => f.timeline.children[0].children.filter(row => row.dataset.id)
+const messageTimes = f => f.timeline.children[0].children.filter(row => row.dataset.id && row.className?.startsWith('message '))
   .map(row => row.children.at(-1).children.find(node => node.className === 'message-time'))
 
 test('accepted tracking failure is neutral; old, incomplete and unknown tuples retain delivery failure', async t => {
@@ -186,4 +187,25 @@ test('latest/after and before pages share evidence rendering; queue removal expo
   f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); await settle()
   assert.deepEqual(f.ids(), ['older', 'initial', 'added'])
   assert.deepEqual(messageTimes(f).map(node => node.textContent), Array(3).fill('受付済み・完了未確認'))
+})
+
+
+test('writer-to-HTTP wire fixture renders accepted direct, existing peer details and mixed room failure', async t => {
+  const wire = JSON.parse(await readFile(new URL('./fixtures/delivery-tracking-wire.json', import.meta.url), 'utf8'))
+  const before = JSON.stringify(wire)
+  const direct = fixture(t, () => wire.direct)
+  await direct.open('a')
+  assert.equal(messageTimes(direct).length, 1)
+  assert.match(messageTimes(direct)[0].textContent, /受付済み・完了未確認$/u)
+  assert.equal(messageTimes(direct)[0].classes.has('failed'), false)
+  const peer = direct.timeline.children[0].querySelector('[data-id="d2"]')
+  assert.equal(peer.className, 'peer-event')
+  assert.match(peer.innerHTML, /Bからメッセージを受け取りました/u)
+  assert.doesNotMatch(peer.innerHTML, /配達失敗|再送/u)
+  const room = fixture(t, () => wire.room)
+  await room.open('room-a', 'room')
+  assert.match(messageTimes(room)[0].textContent, /配達失敗$/u)
+  assert.equal(messageTimes(room)[0].classes.has('failed'), true)
+  assert.doesNotMatch(room.text(), /完了未確認の宛先あり|受付済み/u)
+  assert.equal(JSON.stringify(wire), before, 'the consumer must preserve original failed values and evidence')
 })
