@@ -1,3 +1,4 @@
+import { webAssetFiles, versionedWebAssets } from '../web/assets.mjs'
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
@@ -53,46 +54,11 @@ export function sendAvatar(request, response, avatar, url) {
 
 export async function staticFile(response, root, pathname, assetVersion) {
   if (!root) return json(response, 404, { error: 'NOT_FOUND' })
-  const files = new Map([
-    ['/', 'index.html'],
-    ['/index.html', 'index.html'],
-    ['/styles.css', 'styles.css'],
-    ['/app.js', 'app.js'],
-    ['/onboarding.js', 'onboarding.js'],
-    ['/harness-auth.js', 'harness-auth.js'],
-    ['/auth-flow.js', 'auth-flow.js'],
-    ['/server-origin.js', 'server-origin.js'],
-    ['/chat-input.js', 'chat-input.js'],
-    ['/conversation-composer.js', 'conversation-composer.js'],
-    ['/avatar-editor.js', 'avatar-editor.js'],
-    ['/message-images.js', 'message-images.js'],
-    ['/conversation-timeline.js', 'conversation-timeline.js'],
-    ['/view-format.js', 'view-format.js'],
-    ['/schedule-editor.js', 'schedule-editor.js'],
-    ['/bot-read-views.js', 'bot-read-views.js'],
-    ['/memory-view.js', 'memory-view.js'],
-    ['/room-editor.js', 'room-editor.js'],
-    ['/bot-editor.js', 'bot-editor.js'],
-    ['/owner-editor.js', 'owner-editor.js'],
-    ['/member-stop.js', 'member-stop.js'],
-    ['/ai-control.js', 'ai-control.js'],
-    ['/goals.js', 'goals.js'],
-    ['/rich-text.js', 'rich-text.js'],
-    ['/secret-input.js', 'secret-input.js'],
-    ['/owner-question.js', 'owner-question.js'],
-    ['/activity-order.js', 'activity-order.js'],
-    ['/image-gallery.js', 'image-gallery.js'],
-    ['/manifest.webmanifest', 'manifest.webmanifest'],
-    ['/icons/apple-touch-icon.png', 'icons/apple-touch-icon.png'],
-    ['/apple-touch-icon.png', 'icons/apple-touch-icon.png'],
-    ['/icons/icon-192.png', 'icons/icon-192.png'],
-    ['/icons/icon-512.png', 'icons/icon-512.png'],
-  ])
-  const name = files.get(pathname)
+  const name = webAssetFiles.get(pathname)
   if (!name) return json(response, 404, { error: 'NOT_FOUND' })
   const file = join(root, name)
   const info = await stat(file)
-  if (['index.html', 'app.js', 'owner-editor.js', 'bot-editor.js', 'room-editor.js', 'schedule-editor.js', 'conversation-timeline.js', 'conversation-composer.js', 'harness-auth.js', 'onboarding.js', 'rich-text.js', 'secret-input.js'].includes(name)) {
+  if (versionedWebAssets.has(name)) {
     const body = (await readFile(file, 'utf8')).replaceAll('__ASSET_VERSION__', assetVersion)
     response.writeHead(200, {
       'content-type': contentTypes.get(extname(file)),

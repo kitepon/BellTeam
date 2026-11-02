@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { createConversationServices } from './conversation-services.mjs'
 import { CharacterSheets } from './character-sheets.mjs'
 import { BotAdministration } from './bot-administration.mjs'
 import { BotGoals } from './bot-goals.mjs'
@@ -7,25 +8,16 @@ import { createManagedTransport } from './aiterm-transport.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
 import { completedThroughlineTurns, latestThroughlineHandoffContext } from './throughline-context.mjs'
 import { AiControl, stopRegisteredWork } from './ai-control.mjs'
-import { ConversationStore } from './conversation-store.mjs'
 import { Diagnostics } from './diagnostics.mjs'
-import { BellTeamMessenger } from './messenger.mjs'
 import { BellTeamMemory } from './memory-service.mjs'
-import { MessageAssets } from './message-assets.mjs'
 import { BotScheduler, runShellCommand } from './scheduler.mjs'
-import { RoomMessenger } from './room-messenger.mjs'
 import { SecretRequests, secretCompletionMessage } from './secret-requests.mjs'
 import { OwnerQuestions, ownerAnswerMessage } from './owner-questions.mjs'
-import { RoomRegistry } from './room-registry.mjs'
-import { TurnReports, judgeOwnerReport } from './turn-reports.mjs'
-import { SeatTurns } from './seat-turns.mjs'
-import { SelfTurns, readObserverTurns } from './self-turns.mjs'
 import { IdleSessions } from './idle-sessions.mjs'
 import { PushNotifications } from './push-notifications.mjs'
 import { Subscriptions } from './subscriptions.mjs'
 import { Onboarding } from './onboarding.mjs'
 import { HarnessAuth } from './harness-auth.mjs'
-import { chooseRoomResponder } from './room-routing.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
 export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null }) {
@@ -70,19 +62,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     const frames = String(error.stack ?? '').split('\n').slice(1).filter(line => /^\s*at\s/u.test(line)).slice(0, 12)
     await diagnostics.record({ code: 'GOAL_OPERATION_UNCONFIRMED', module: 'goals', diagnostic_log: `${error.constructor.name}\n${frames.join('\n')}` })
   } })
-  const logPath = join(root, 'logs/direct-messages.jsonl')
-  const store = new ConversationStore({ logPath })
-  const assets = new MessageAssets({ root, ...(seatRuntime ? {
-    botsAssetsRoot: join(root, 'state/bots'),
-    readImage: (image, maxBytes) => seatRuntime.readImage(image, maxBytes),
-  } : {}) })
-  const messenger = new BellTeamMessenger({
-    bots, transport, logPath, store, assets,
-    admitWork: () => aiControl.admit(),
-    requireAccess: () => aiControl.assertEnabled(),
-    onMessage: record => notifications.direct(record),
-    onTurnEnd: turn => turnReports.afterTurn(turn),
-  })
+  const conversation = createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime })
+  const { store, assets, messenger } = conversation
   const onboarding = new Onboarding({
     root, bots, client: transport.client, subscriptions,
     ...(seatRuntime ? { path: join(root, 'state/onboarding.json'), projectFiles: seatRuntime.projectFiles } : {}),
@@ -90,39 +71,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   })
   await onboarding.initialize()
   const harnessAuth = new HarnessAuth({ bots, client: transport.client })
-  const turnReports = new TurnReports({
-    bots, store, transport,
-    enabled: () => !aiControl.paused && settings.configuration('routing').enabled,
-    judge: value => judgeOwnerReport({ ...value, apiKey: settings.configuration('routing').apiKey }),
-    appendInterimWords: (botId, groupId, words) => messenger.appendInterimWords(botId, groupId, words),
-  })
-  // ハーネスが自分から始めたターンは配送を通らないので、Throughlineの記録から拾って会話画面へ出す。
-  const selfTurns = new SelfTurns({
-    bots, statePath: join(root, 'logs/self-turns.json'),
-    appendAnswer: (botId, groupId, text) => messenger.appendInterimWords(botId, groupId, [{ text, kind: 'answer' }]),
-    afterTurn: turn => turnReports.afterTurn(turn),
-    shown: botId => transport.shownInSelfTurn(botId),
-    ...(seatRuntime ? { read: request => readObserverTurns(request, { seatCommands: true }),
-      changed: seatRuntime.throughlineChanged() } : {}),
-  })
-  await selfTurns.initialize()
-  // BellTeamが始めていないターンも、Aitermに席の今のターンを聞いて「処理中」と合間の言葉に出す。
-  const seatTurns = new SeatTurns({
-    bots, transport,
-    appendInterimWords: (botId, groupId, words) => messenger.appendInterimWords(botId, groupId, words),
-  })
-  const rooms = new RoomRegistry({ roomsRoot: join(root, 'rooms'), bots })
-  await rooms.initialize()
-  const roomMessenger = new RoomMessenger({
-    rooms, bots, transport, assets,
-    admitWork: () => aiControl.admit(),
-    requireAccess: () => aiControl.assertEnabled(),
-    automaticRouting: () => settings.configuration('routing').enabled,
-    chooseResponder: value => chooseRoomResponder({ ...value, apiKey: settings.configuration('routing').apiKey }),
-    onMessage: record => notifications.room(record),
-    onInterimWords: (botId, groupId, words) => messenger.appendInterimWords(botId, groupId, words),
-    onTurnEnd: turn => turnReports.afterTurn(turn),
-  })
+  const { selfTurns, seatTurns, rooms, roomMessenger } = await conversation.initialize()
   const scheduler = new BotScheduler({ registry: bots, messenger, transport, rooms, roomMessenger,
     ...(seatRuntime ? { completedTurns: project => completedThroughlineTurns(project, { seatCommands: true }),
       runCommand: request => runShellCommand(request, { seatProject: request.cwd }) } : {}),

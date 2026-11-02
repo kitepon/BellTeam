@@ -133,7 +133,9 @@ test('正本退役後のstate掃除失敗も記録を保持し、同じremoveで
   const pendingRoot = join(f.stateRoot, '.deleting'), pending = join(pendingRoot, 'bot-b')
   await mkdir(pendingRoot)
   let changes = 0
-  f.registry.onChange = async () => { changes++; await chmod(pendingRoot, 0o500) }
+  const removeProject = f.registry.projectFiles.remove.bind(f.registry.projectFiles)
+  f.registry.projectFiles.remove = async project => { await removeProject(project); await chmod(pendingRoot, 0o500) }
+  f.registry.onChange = async () => { changes++ }
   t.after(() => chmod(pendingRoot, 0o700).catch(error => { if (error.code !== 'ENOENT') throw error }))
   await assert.rejects(f.registry.remove('bot-b'), { code: 'BOT_DELETE_PENDING' })
   assert.equal(changes, 1); assert.equal(f.registry.has('bot-b'), false)
@@ -142,6 +144,7 @@ test('正本退役後のstate掃除失敗も記録を保持し、同じremoveで
   assert.equal((await f.registry.listForClient()).find(bot => bot.id === 'bot-b').deleting, true)
   await assert.rejects(f.registry.create({ name: 'Replacement' }), { code: 'BOT_DELETE_PENDING' })
   await chmod(pendingRoot, 0o700); f.registry.onChange = async () => {}
+  f.registry.projectFiles.remove = removeProject
   assert.deepEqual(await f.registry.remove('bot-b'), { id: 'bot-b' })
   await assert.rejects(stat(pending), { code: 'ENOENT' })
   await f.registry.create({ name: 'Fresh replacement' })

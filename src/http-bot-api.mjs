@@ -1,9 +1,10 @@
 import { json, readJson } from './http-response.mjs'
 import { recentTimeline } from './timeline-index.mjs'
 import { avatarVersion, listAvatar, sendAvatar } from './http-assets.mjs'
-import { messageImages, MESSAGE_MAX_BYTES } from './http-messages.mjs'
+import { createBotConversationApi } from './http-conversation-api.mjs'
 
 export function createBotApi({ bots, transport, administration, memory, characterSheets, aiControl, notify, sources, store, messagePage, messenger }) {
+  const conversation = createBotConversationApi({ bots, transport, messagePage, messenger })
   return async (request, response, url) => {
     if (request.method === 'GET' && url.pathname === '/api/bots') {
       const all = bots.listForClient ? await bots.listForClient() : [...bots.values()]
@@ -141,10 +142,6 @@ export function createBotApi({ bots, transport, administration, memory, characte
       if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
       if (request.method === 'GET') return json(response, 200, { bot: administration.view?.(bots.get(botId)) ?? bots.get(botId) })
       if (request.method === 'PATCH') return json(response, 200, await administration.update(botId, await readJson(request)))
-      if (request.method === 'DELETE') {
-        administration.remove(botId)
-        return json(response, 202, { deleting: botId })
-      }
     }
 
     const memoryPinMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/memory\/([^/]+)\/pin$/u)
@@ -192,27 +189,6 @@ export function createBotApi({ bots, transport, administration, memory, characte
       }))
     }
 
-    const botQueueMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/queue$/u)
-    if (request.method === 'GET' && botQueueMatch) {
-      if (!bots.has(botQueueMatch[1])) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      return json(response, 200, { items: transport.queueItems({ botId: botQueueMatch[1] }) })
-    }
-
-    const match = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/messages$/u)
-    if (match) {
-      const botId = match[1]
-      if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      if (request.method === 'GET') return json(response, 200, await messagePage('bots', botId, url))
-      if (request.method === 'POST') {
-        const body = await readJson(request, MESSAGE_MAX_BYTES)
-        const message = typeof body.message === 'string' ? body.message.trim() : ''
-        const images = messageImages(body)
-        if (!message && !images.length)
-          return json(response, 400, { error: 'MESSAGE_REQUIRED' })
-        const result = await messenger.enqueueUserTurn({ target: botId, message, images })
-        return json(response, 200, result)
-      }
-    }
-    return false
+    return conversation(request, response, url)
   }
 }

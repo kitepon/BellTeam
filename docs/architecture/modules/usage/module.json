@@ -25,6 +25,18 @@
     {
       "module": "aiterm",
       "port": "native"
+    },
+    {
+      "module": "integration",
+      "port": "diagnostics"
+    },
+    {
+      "module": "execution",
+      "port": "configuration"
+    },
+    {
+      "module": "execution",
+      "port": "turn"
     }
   ],
   "source": [
@@ -32,11 +44,13 @@
     "src/harness-auth.mjs",
     "src/auth-ui.mjs",
     "src/feature-settings.mjs",
-    "src/application-features.mjs",
     "src/owner-questions.mjs",
     "src/secret-requests.mjs",
     "src/push-notifications.mjs",
     "src/subscriptions.mjs",
-    "src/cloudflare-access.mjs"
+    "src/cloudflare-access.mjs",
+    "src/usage/http-api.mjs",
+    "src/usage/application-features.mjs",
+    "src/usage/mcp-tools.mjs"
   ]
 }

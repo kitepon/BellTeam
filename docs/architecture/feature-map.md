@@ -22,6 +22,10 @@ flowchart LR
   m_conversation -->|"turn"| m_execution
   m_conversation -->|"registry"| m_members
   m_conversation -->|"notify"| m_usage
+  m_conversation -->|"schedules"| m_members
+  m_conversation -->|"seat-process"| m_runtime
+  m_conversation -->|"settings"| m_usage
+  m_conversation -->|"observation"| m_execution
   m_distribution -->|"update"| m_runtime
   m_execution -->|"registry"| m_members
   m_execution -->|"seat-process"| m_runtime
@@ -31,8 +35,10 @@ flowchart LR
   m_integration -->|"settings"| m_usage
   m_integration -->|"memory"| m_memory
   m_integration -->|"lifecycle"| m_runtime
+  m_integration -->|"assets"| m_web
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
+  m_members -->|"cli-registration"| m_runtime
   m_members -->|"membership-cleanup"| m_conversation
   m_members -->|"messages"| m_conversation
   m_members -->|"memory"| m_memory
@@ -42,6 +48,9 @@ flowchart LR
   m_usage -->|"registry"| m_members
   m_usage -->|"messages"| m_conversation
   m_usage -->|"cli-registration"| m_runtime
+  m_usage -->|"diagnostics"| m_integration
+  m_usage -->|"configuration"| m_execution
+  m_usage -->|"turn"| m_execution
   m_web -->|"HTTP/MCP"| m_integration
 ```
 
@@ -65,7 +74,7 @@ flowchart LR
   m_throughline["Throughline / リヴァリン"]
   m_usage["利用設定・通知 / ミカ"]
   m_windows["Windowsアプリ / ベル（Windows）"]
-  m_apple -->|"HTTP/MCP"| m_integration
+  m_apple -->|"HTTP/SSE"| m_integration
   m_approval_box -->|"native"| m_aiterm
   m_bridge -->|"messages"| m_conversation
   m_bughub -->|"diagnostics"| m_integration
@@ -79,7 +88,7 @@ flowchart LR
   m_runtime -->|"hook"| m_rtk
   m_runtime -->|"hook"| m_testgate
   m_usage -->|"native"| m_aiterm
-  m_windows -->|"HTTP/MCP"| m_integration
+  m_windows -->|"HTTP/SSE"| m_integration
 ```
 
 ## 担当図と公開窓口
@@ -87,15 +96,15 @@ flowchart LR
 | 機能の正本 | 担当 | 公開窓口 |
 | --- | --- | --- |
 | [Aiterm/Steer](modules/aiterm/README.md) | エレグ | native |
-| [Appleアプリ](modules/apple/README.md) | ベル | public |
+| [Appleアプリ](modules/apple/README.md) | ベル |  |
 | [Approval Box](modules/approval-box/README.md) | ナユタ | public |
 | [call-bridge/grokbot-bridge](modules/bridge/README.md) | リター | public |
 | [BugHub](modules/bughub/README.md) | フラジャイル | public |
 | [Caveat](modules/caveat/README.md) | ノア | public |
-| [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup |
+| [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access |
 | [商用配布](modules/distribution/README.md) | センチ | image |
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation |
-| [全体設計・統合](modules/integration/README.md) | トロニー | HTTP/MCP / diagnostics |
+| [全体設計・統合](modules/integration/README.md) | トロニー | HTTP/MCP / HTTP/SSE / diagnostics |
 | [mcp-lazy](modules/mcp-lazy/README.md) | レオナ | relay |
 | [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions |
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |
@@ -104,7 +113,7 @@ flowchart LR
 | [testgate](modules/testgate/README.md) | シラツル | hook |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context |
 | [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth |
-| [Webアプリ](modules/web/README.md) | アドミ | ui |
+| [Webアプリ](modules/web/README.md) | アドミ | ui / assets |
 | [Windowsアプリ](modules/windows/README.md) | ベル（Windows） | public |
 
 変更前に担当図と接続先の図を読み、図の変更要否と作業範囲を確認する。個別図・接続の変更後は `node scripts/render-feature-map.mjs` で再生成する。

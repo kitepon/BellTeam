@@ -44,9 +44,13 @@
   "source": [
     "src/bootstrap.mjs",
     "src/seat-runtime.mjs",
+    "src/run-seat-runtime.mjs",
     "src/seat-process.mjs",
     "src/seat-command.mjs",
     "src/harness-config.mjs",
+    "src/rtk-hooks.mjs",
+    "src/aiterm-hooks.mjs",
+    "src/cursor-instructions.mjs",
     "src/server-state-transfer.mjs",
     "src/server-state-ownership.mjs",
     "src/server-state-writers.mjs",

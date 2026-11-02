@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import vm from 'node:vm'
 import test from 'node:test'
 
-const source = await readFile(new URL('../web/app.js', import.meta.url), 'utf8')
+const source = await readFile(new URL('../web/application.js', import.meta.url), 'utf8')
 const functions = source.slice(source.indexOf('function eventAffectsTimeline('), source.indexOf('async function connectEvents()'))
 function fixture(type = 'bot', id = 'bot-a') {
   const requests = [], refreshed = []

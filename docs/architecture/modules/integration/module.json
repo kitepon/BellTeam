@@ -6,6 +6,7 @@
   "external": false,
   "provides": [
     "HTTP/MCP",
+    "HTTP/SSE",
     "diagnostics"
   ],
   "uses": [
@@ -32,6 +33,10 @@
     {
       "module": "runtime",
       "port": "lifecycle"
+    },
+    {
+      "module": "web",
+      "port": "assets"
     }
   ],
   "source": [

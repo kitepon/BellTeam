@@ -19,6 +19,10 @@
       "port": "project-files"
     },
     {
+      "module": "runtime",
+      "port": "cli-registration"
+    },
+    {
       "module": "conversation",
       "port": "membership-cleanup"
     },
@@ -32,6 +36,7 @@
     }
   ],
   "source": [
+    "src/members/deletion.mjs",
     "src/bot-registry.mjs",
     "src/project-files.mjs",
     "src/owner-profile.mjs",
