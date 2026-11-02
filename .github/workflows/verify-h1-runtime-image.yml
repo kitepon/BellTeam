@@ -1,5 +1,5 @@
 {
-  "name": "固定候補H1の実UID・pipe・mount・prebootstrapを隔離確認",
+  "name": "固定H1候補の席切替stderrをrun tmpfs二条件で診断",
   "on": {
     "workflow_dispatch": {
       "inputs": {
@@ -20,7 +20,7 @@
     "contents": "read"
   },
   "concurrency": {
-    "group": "h1-immutable-runtime",
+    "group": "h1-seat-stderr-diagnostic",
     "cancel-in-progress": false
   },
   "jobs": {
@@ -61,14 +61,9 @@
           "run": "python3 - <<'PY'\nimport os,re\nassert re.fullmatch(r'sha256:[a-f0-9]{64}',os.environ['EXPECTED_DIGEST'])\nassert re.fullmatch(r'[a-f0-9]{40}',os.environ['EXPECTED_SOURCE'])\nassert os.environ['ARCH'] in ['amd64','arm64']\nPY\ndocker pull --platform \"linux/$ARCH\" \"$IMAGE\"\npython3 - <<'PY'\nimport json,os,subprocess\nimage=json.loads(subprocess.check_output(['docker','image','inspect',os.environ['IMAGE']]))[0]\nassert image['Os']=='linux' and image['Architecture']==os.environ['ARCH']\nassert image['Config']['Labels']['org.opencontainers.image.revision']==os.environ['EXPECTED_SOURCE']\nassert 'ghcr.io/kitepon/bellteam-server@'+os.environ['EXPECTED_DIGEST'] in image['RepoDigests']\nPY"
         },
         {
-          "name": "実UID・private pipe・readonly mount・signal・起動前restore",
-          "timeout-minutes": 10,
-          "run": "python3 scripts/verify-resume-runtime.py \"$IMAGE\" \"$RESULT_DIR\""
-        },
-        {
-          "name": "取消・失敗時も当fixtureの資材だけを清掃",
-          "if": "always()",
-          "run": "python3 - <<'PY'\nimport json, os, re, subprocess\nfrom pathlib import Path\noutput = Path(os.environ['RESULT_DIR'])\nallocation = output / 'allocation.json'\nif not allocation.exists():\n    raise SystemExit(0)\na = json.loads(allocation.read_text())\nprefix = a['prefix']\nassert re.fullmatch(r'h1-runtime-[a-f0-9]{12}', prefix)\nassert a['containerLabel'] == 'bellteam.h1-fixture=' + prefix\nassert a['composeProject'] == prefix\nexpected = [prefix + '-' + suffix for suffix in ['old', 'new', 'private']]\nassert a['volumes'] == expected\n\ndef docker(*args):\n    return subprocess.check_output(['docker', *args], text=True, timeout=30).split()\n\ncontainers = set()\nfor label in [a['containerLabel'], 'com.docker.compose.project=' + prefix]:\n    containers.update(docker('ps', '-aq', '--filter', 'label=' + label))\nfor cid in sorted(containers):\n    assert re.fullmatch(r'[a-f0-9]{12,64}', cid)\n    docker('rm', '-f', cid)\nvolumes = docker('volume', 'ls', '-q', '--filter', 'label=' + a['containerLabel'])\nassert set(volumes) <= set(expected)\nfor volume in volumes:\n    docker('volume', 'rm', volume)\nassert not docker('ps', '-aq', '--filter', 'label=' + a['containerLabel'])\nassert not docker('ps', '-aq', '--filter', 'label=com.docker.compose.project=' + prefix)\nassert not docker('volume', 'ls', '-q', '--filter', 'label=' + a['containerLabel'])\n(output / 'workflow-cleanup.json').write_text(json.dumps({'prefix': prefix, 'containersRemoved': sorted(containers), 'volumesRemoved': volumes, 'remaining': []}) + '\\n')\nPY"
+          "name": "席切替のstdout・stderr・exitを二条件で保存",
+          "timeout-minutes": 3,
+          "run": "python3 - <<'PYTHON'\nimport json, os, subprocess\nfrom pathlib import Path\nout = Path(os.environ['RESULT_DIR'])\nout.mkdir(parents=True, exist_ok=True)\nnode = r\"\"\"const {spawnSync}=require('node:child_process');\nconst r=spawnSync('sudo',['-n','--','/usr/local/libexec/bellteam-seat-exec','--','/usr/local/bin/node','/app/src/run-seat-command.mjs','/tmp','--base-environment','--resume-state-base','--','/usr/local/bin/node','-e','process.stdout.write(\"SEAT_DIAGNOSTIC_OK\\\\n\")'],{encoding:'utf8',timeout:15000,maxBuffer:65536});\nprocess.stdout.write(JSON.stringify({status:r.status,signal:r.signal,stdout:r.stdout,stderr:r.stderr,error:r.error?.code??null})+'\\n');\n\"\"\"\nfor with_run in [False, True]:\n    case = 'with-run' if with_run else 'without-run'\n    name = 'h1-seat-stderr-' + os.environ['GITHUB_RUN_ID'] + '-' + case\n    args = ['docker','run','--rm','--name',name,'--network','none','--read-only','--user','1001:1001','--tmpfs','/tmp:size=64m']\n    if with_run:\n        args += ['--tmpfs','/run:size=64m']\n    args += ['--tmpfs','/run/bellteam-server:uid=1001,gid=1001,mode=0700','--entrypoint','/usr/local/bin/node',os.environ['IMAGE'],'-e',node]\n    result = {'case':case,'image':os.environ['IMAGE'],'source':os.environ['EXPECTED_SOURCE'],'arch':os.environ['ARCH']}\n    try:\n        r = subprocess.run(args, capture_output=True, text=True, timeout=30)\n        result.update(dockerExit=r.returncode,dockerStdout=r.stdout,dockerStderr=r.stderr)\n        if r.returncode == 0:\n            result['seat'] = json.loads(r.stdout)\n    finally:\n        c = subprocess.run(['docker','rm','-f',name], capture_output=True, text=True, timeout=20)\n        result['cleanupExit'] = c.returncode\n        result['cleanupStderr'] = c.stderr\n        (out / (case + '.json')).write_text(json.dumps(result,indent=2)+'\\n')\n    assert r.returncode == 0\nPYTHON"
         },
         {
           "uses": "actions/upload-artifact@v7",
