@@ -52,7 +52,7 @@ flowchart LR
   m_usage -->|"diagnostics"| m_integration
   m_usage -->|"configuration"| m_execution
   m_usage -->|"turn"| m_execution
-  m_web -->|"HTTP/MCP"| m_integration
+  m_web -->|"HTTP/SSE"| m_integration
 ```
 
 ## アプリ・独立製品との接続
