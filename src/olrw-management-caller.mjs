@@ -48,9 +48,11 @@ export function createOlrwAuthorization({ plan, readBearer, fetchImpl = fetch, n
 export function attachOlrwOwnerQuestion({ plan, ownerQuestions, aiControl, assertAuthorized, createConsumer, reportFailure }) {
   plan = structuredClone(plan)
   const question = ownerQuestions.get(plan.questionId)
-  if (question.status !== 'open' || question.botId !== plan.requesterBotId
+  if (question.botId !== plan.requesterBotId
     || question.question !== plan.question || JSON.stringify(question.options) !== JSON.stringify(plan.options)
     || question.allowOther !== false || !plan.options.includes(plan.answer)) throw denied()
+  if (question.status === 'answered') return { status: 'already_answered', result: null, async close() {} }
+  if (question.status !== 'open') throw denied()
   const controller = new AbortController()
   let invoked = false, pending = null, admission = null
   const consumer = createConsumer({ assertAuthorized: async action => {
@@ -75,5 +77,5 @@ export function attachOlrwOwnerQuestion({ plan, ownerQuestions, aiControl, asser
       return consumer.execute({ signal: controller.signal })
     })().catch(async () => { try { await reportFailure('OLRW_MANAGEMENT_EXECUTION_UNCONFIRMED') } catch {} })
   })
-  return { get result() { return pending }, async close() { controller.abort(); unwatch(); await consumer.close() } }
+  return { status: 'watching', get result() { return pending }, async close() { controller.abort(); unwatch(); await consumer.close() } }
 }

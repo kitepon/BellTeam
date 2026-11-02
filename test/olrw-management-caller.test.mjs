@@ -55,7 +55,10 @@ test('既カードの回答で一回だけconsumerを呼び、既回答起動/�
   item.status = 'answered'; item.answer = 'yes'; item.other = false
   listener(); listener(); await caller.result
   assert.equal(executions, 1)
-  assert.throws(() => attachOlrwOwnerQuestion(options), /OLRW_AUTHORIZATION_UNAVAILABLE/)
+  const dormant = attachOlrwOwnerQuestion({ ...options, createConsumer: () => assert.fail('answered card cannot construct consumer') })
+  assert.equal(dormant.status, 'already_answered')
+  assert.equal(dormant.result, null)
+  await dormant.close()
   await caller.close()
   await assert.rejects(check('start'), { name: 'AbortError' })
   assert.equal(closes, 1)

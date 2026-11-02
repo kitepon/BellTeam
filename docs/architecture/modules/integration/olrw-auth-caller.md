@@ -13,7 +13,7 @@ flowchart LR
   Gate --> Box
 ```
 
-callerは固定planからquestionId/依頼者/質問文/選択肢/許可回答を束縛し、起動時に既回答なら再開しない。Rootのprocess内重複抑止は補助であり、usageのstate/olrw-authの永続run/消費/全操作intentを代替しない。consumerのcloseは入場停止だけでcancelを発行しない。
+callerは固定planからquestionId/依頼者/質問文/選択肢/許可回答を束縛する。実順序は通常カード作成/通知→管理planへID固定→製品反映→親の正本読取/watch接続→その後の公開回答。反映より前に回答済みならそのrunはalready_answeredとして無操作にし、本体起動を妨げない。consumer生成/原本GET/native呼出しも0で、既回答からの自動実行・カードの再作成はしない。再開するなら新しい具体plan/カードを作り、再びOwner判断を受ける。Rootのprocess内重複抑止は補助であり、usageのstate/olrw-authの永続run/消費/全操作intentを代替しない。consumerのcloseは入場停止だけでcancelを発行しない。
 
 原本は同じ許可済み既接続Bearerを使うhttps://approval-box.kitepon.dev/connector/v1/connectionと/decisions/{固定ID}の直接GET。MCP取得はfetched/versionを更新するため使わない。管理planの期待connection/Owner user、回答済みversion、option、context/options SHA、requester対応、実行期限を照合する。requesterは自己申告で本人証明にならず、対応を管理側で固定する。answeredの取消API/実行との原子連結は無いので、既AiControlの停止epochと期限も各操作直前に検査する。
 
