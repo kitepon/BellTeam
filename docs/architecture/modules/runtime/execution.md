@@ -11,10 +11,11 @@ flowchart TD
   Setup --> Services["各機能とcallbackを組む"]
   Services --> Runtime["HTTPと内部MCPを組む"]
   Runtime --> Features["任意機能を初期化<br/>履歴watchを登録"]
-  Features --> Listen["HTTP listenを開始"]
-  Listen --> Loops["予定・観測のloop開始"]
+  Features --> Listen["private Unix業務HTTP・内部MCP listenを確認"]
+  Listen --> Gateway["公開Web受付子を起動・readyを確認"]
+  Gateway --> Loops["予定・観測のloop開始"]
   Loops --> Shutdown["終了signalを待つ"]
-  Shutdown --> Close["loop・通信口・処理の<br/>順に閉じる"]
+  Shutdown --> Close["公開受付子を停止・回収後<br/>loop・通信口・処理を閉じる"]
   Close --> Result["終了失敗を集めて返す"]
 ```
 
@@ -24,10 +25,10 @@ flowchart TD
 | H1起動採用 | `adoptRuntimeResume/adoptResumeGeneration` | [H1接続候補](resume.md)。既lock後・bootstrap import前にprivate入力を1000 CLIへpipe。失敗/不明はbootstrapへ進まず、採用済みbundleは再投入しない |
 | 組立て前 | `bootstrap.mjs` | top-levelで実処理を行う。席側でnative Aiterm登録を解決→settings/Owner/rules/Bot台帳→directory→旧CLI写し整理→setup→CLI登録→指示生成 |
 | service生成 | `createApplicationServices` | 台帳/会話/制御/記憶等の同じ実体を組む。詳細は各機能図へ。HTTPごとに別writerを作らない |
-| 入口の生成 | `createApplicationRuntime` | 同じserverOptionsで公開HTTPとloopback内部HTTPを構築。内部MCPは同じserviceと内部API中継を使う |
-| 開始 | `start` | features.initialize→公開serverのwatch→既停止意図のenforce→両listen→各loop.start。同期/awaitで捕えた失敗はcloseも試し、両方の例外を保持 |
+| 入口の生成 | `createApplicationRuntime` | 同じserverOptionsで非公開Unixの公開API handlerとloopback内部HTTPを構築。公開Web受付子との境界は[integrationの正本](../integration/README.md#公開web受付の二プロセス化初回差分)。内部MCPは同じserviceと内部API中継を使う |
+| 開始 | `start` | features.initialize→公開serverのwatch→既停止意図のenforce→private0700一時directory/socket→両listenの準備完了→最小環境/stdio ignore,inherit,inherit,ipcの受付子ready→各loop.start。同期/awaitで捕えた失敗はcloseも試し、両方の例外を保持 |
 | 終了待ち | `waitForShutdown` | SIGINT/SIGTERMを待ち、keepaliveをfinallyで除く |
-| 終了 | `close` | 一つのclosing Promiseに集約。各終了を順に試し、失敗しても次を閉じる。最後にAggregateError |
+| 終了 | `close` | 一つのclosing Promiseに集約。受付子の停止/stdio回収→既終了群→private socket directory削除。各終了を順に試し、失敗しても次を閉じる。最後にAggregateError。受付子の単独終了からここへは到達しない |
 
 `createApplicationRuntime`のfactoryをimportしただけではportは開かないが、`bootstrap`のimportは設置や設定更新を行う。二つを同じ「読取り」と扱わない。`server.listen`の呼出しと、OSのlistener準備完了を確認することも同義ではない。この図では新しい起動・停止を実行していない。
 

@@ -46,6 +46,9 @@
     "src/mcp-tools.mjs",
     "src/seat-mcp.mjs",
     "src/http-errors.mjs",
-    "src/diagnostics.mjs"
+    "src/diagnostics.mjs",
+    "src/http-gateway.mjs",
+    "src/http-gateway-entry.mjs",
+    "src/http-gateway-process.mjs"
   ]
 }

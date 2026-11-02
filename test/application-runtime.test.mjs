@@ -154,7 +154,7 @@ test('隔離した本体を組み立て、公開/内部API・設定通知・終�
   await runtime.start()
   if (!runtime.server.listening) await once(runtime.server, 'listening')
   if (!runtime.internalServer.listening) await once(runtime.internalServer, 'listening')
-  const base = `http://127.0.0.1:${runtime.server.address().port}`
+  const base = `http://127.0.0.1:${runtime.gateway.address.port}`
   const internal = `http://127.0.0.1:${runtime.internalServer.address().port}`
   assert.deepEqual(await (await fetch(base + '/healthz')).json(), { status: 'ok' })
   assert.deepEqual(await (await fetch(internal + '/healthz')).json(), { status: 'ok' })
@@ -180,7 +180,7 @@ test('隔離した本体を組み立て、公開/内部API・設定通知・終�
   }
   await runtime.close(); stopped = true
   assert.deepEqual(closed, ['scheduler', 'idle', 'self', 'seat', 'web', 'internal', 'features', 'client', 'notifications'])
-  assert.equal((await reader.read()).done, true)
+  await assert.rejects(reader.read(), TypeError)
   assert.equal(runtime.services.scheduler.timer, null)
   assert.equal(runtime.services.idleSessions.timer, null)
   await assert.rejects(stat(socketPath), { code: 'ENOENT' })

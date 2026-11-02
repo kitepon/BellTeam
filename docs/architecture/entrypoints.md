@@ -6,7 +6,8 @@
 
 ```mermaid
 flowchart TB
-  Web["Web / Apple"] --> Public["公開HTTP<br/>認証→要求の受付"]
+  Web["Web / Apple"] --> Gateway["別processの公開TCP受付・Web資材"]
+  Gateway -->|"private Unix socket"| Public["既業務HTTP<br/>認証→要求の受付"]
   CLI["BotのMCP"] --> Seat["内部MCP<br/>席の名札とtool引数"]
   Seat --> Direct["台帳・部屋・記憶など<br/>共有serviceへ直接"]
   Seat --> Loop["配送・稼働設定など<br/>内部HTTPへ中継"]
@@ -17,7 +18,7 @@ flowchart TB
   Service --> Result["結果・状態・例外<br/>通った窓口から呼出元へ返す"]
 ```
 
-組立ては`createApplicationRuntime`。公開・内部HTTPは同じ`serverOptions`内のサービス実体を使う。公開認証は`createApplicationFeatures.authMode/authorize`、内部HTTPはloopbackで開く。内部MCPは`seatBotId`で既存Botを選び、`seatExecutionSource`はヘッダ由来の主張を記録する。これはnative実行本人性を検証済みとする値ではない。
+組立ては`createApplicationRuntime`。公開受付のprocess境界は[integrationの正本](modules/integration/README.md#公開web受付の二プロセス化初回差分)に従う。非公開の公開API handlerと内部HTTPは同じ`serverOptions`内のサービス実体を使う。公開認証は`createApplicationFeatures.authMode/authorize`、内部HTTPはloopbackで開く。内部MCPは`seatBotId`で既存Botを選び、`seatExecutionSource`はヘッダ由来の主張を記録する。これはnative実行本人性を検証済みとする値ではない。
 
 HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。その他は認証後、control API→台帳refresh→各feature API→404の順。staticも認証後に配信する。tool側は`runBellTeamTool`がtool名・引数のキー・callerの存在・台帳を確認する。HTTPとMCPが同じ制限を全く同じ場所で検証するわけではないため、入口を一括置換しない。
 

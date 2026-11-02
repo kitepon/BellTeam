@@ -86,3 +86,31 @@ mcp_request補助JSONのみ追加"]
 ```
 
 `src/mcp-request-context.mjs:mcpRequestContext(error)`から返る安全な新objectだけを保存する。phaseはconnect/call、toolは実行担当が列挙した正規名、call失敗だけoutcome=unknown。本文・args・meta・自由message・IDは含めず、不正/未知metadataはnullとして省略する。既failure_stageの判定、HTTP返却、診断集約キーは変えない。Client/Transportの再送判断やWeakMap保持はexecutionが所有し、共通writerは例外propertyを直接読まない。元の過去診断の欠測を後付けせず、補助情報から本文未送信や成功を推測しない。
+
+## 公開Web受付の二プロセス化（初回差分）
+
+```mermaid
+flowchart LR
+  Browser[Web / Apple / Windows] --> Gateway[別Node process: 公開TCP受付・Web資材]
+  Gateway -->|HTTP bytes / 非公開Unix socket| HTTP[業務process: 既HTTP認証・機能handler]
+  Gateway -->|資材取得前のsession認証| HTTP
+  Seat[Bot MCP / 内部API :4181] --> Internal[業務process: 既内部HTTP/MCP]
+  HTTP --> Services[同じservice・writer・実行job]
+  Internal --> Services
+  Services --> Native[Aiterm stdio / native AI]
+  Assembly[application-runtime: 組立て・明示start/close] --> Gateway
+  Assembly --> HTTP
+  Gateway -. 終了・異常終了は受付接続だけ .-> Disconnected[公開接続断 / 自動再送なし]
+```
+
+初回は公開Web/APIのnetwork受付と静的資材を別processへ移す。機能handlerと認証判断、内部MCP/HTTP、SSEのwatch、全writer/実行job/Aiterm接続は既業務processへ残す。全API業務の独立更新や内部MCP受付の分離を完了したとは扱わない。
+
+`application-runtime`はprivate0700の一時directoryでUnix socketを作り、同じUIDの受付子を起動する。子へ渡すのはsocket/port/固定appRootに由来する引数だけで、親の環境・FD3/4・IPC以外の参照を渡さない。UID1000の席はsocketへ直接接続できない。初回は同UID1001内の寿命分離で、業務間の権限分離ではない。supervisor/server-start/installerの変更はこの差分に含めない。
+
+公開method/path/query/body、Host/認証header、status/業務headerとJSON bytesを既handlerへ渡す。接続固有headerだけ除く。Web資材は既web.assets公開登録とstaticFileを再利用し、既session認証成功後だけ子の固定資材から配信する。新しい公開API/ID/queue/再試行を追加しない。
+
+SSEは業務側からstreamで中継。受付停止時はSSE接続を切断し、正常EOFへ変換しない。更新後は既Webの再接続・履歴GETへ戻る。受付済み操作は接続断で再発行せず、返却前断線は結果不明のまま。非stream要求は通常終了でdrainし、強制終了でも業務側の実行jobを取消さない。子の異常終了は自動で業務closeへ接続しない。
+
+全体closeだけが受付子→既loop/HTTP/features/transportの終了を持つ。受付子のclose/startは業務graphの再生成を伴わない。同じ受付二重起動をせず、終了を確認して次を起動する。子起動失敗・port競合は元例外を返し、実行中業務を停止しない。独立配布物の署名/配置/版切替と実席保持は後続工程で、このsource分離の成功へ補完しない。
+
+影響範囲：application-runtimeと新HTTP gateway/entry/process、application-runtime直接試験とgateway process直接試験。HTTP handler、MCP schema、service、writer、各担当内部と保存形式は変更しない。packagerはsrc/web全体を収録するため新fileの個別追加不要。app factoryの既server戻り値は非公開listenerとなり、公開addressはgatewayが返すため、その唯一の直接callerである試験を合わせる。現行公開HTTP/MCPの利用者にはaddress形式を露出しない。

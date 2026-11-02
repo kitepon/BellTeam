@@ -1,4 +1,7 @@
 import { join } from 'node:path'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { createHttpGatewayProcess } from './http-gateway-process.mjs'
 import { createApplicationServices } from './application-services.mjs'
 import { createApplicationFeatures } from './application-features.mjs'
 import { createBellTeamServer } from './http-server.mjs'
@@ -62,13 +65,23 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     },
   })
   const internalServer = createBellTeamServer({ ...serverOptions, internal: true, seatMcp, authorize: async () => true })
+  let socketDirectory = null, gateway = null
+  const listen = (server, ...args) => new Promise((resolve, reject) => {
+    const failed = error => reject(error)
+    server.once('error', failed)
+    server.listen(...args, () => { server.removeListener('error', failed); resolve() })
+  })
   const start = async () => {
     try {
       await features.initialize()
       await server.startMessageWatch()
       if (aiControl.paused) void aiControl.enforce()
-      server.listen(Number(environment.BELLTEAM_WEB_PORT ?? 4180), '0.0.0.0')
-      internalServer.listen(internalPort, '127.0.0.1')
+      socketDirectory = await mkdtemp(join(tmpdir(), 'bellteam-http-'))
+      const socketPath = join(socketDirectory, 'public.sock')
+      await listen(server, socketPath)
+      await listen(internalServer, internalPort, '127.0.0.1')
+      gateway = createHttpGatewayProcess({ socketPath, port: Number(environment.BELLTEAM_WEB_PORT ?? 4180), appRoot })
+      await gateway.start()
       scheduler.start()
       selfTurns.start()
       seatTurns.start()
@@ -88,9 +101,11 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     closing ??= (async () => {
       const errors = []
       for (const stop of [
+        () => gateway?.close(),
         () => scheduler.stop(), () => idleSessions.stop(), () => selfTurns.stop(), () => seatTurns.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => features.close(),
         () => transport.close(), () => notifications.close(),
+        () => socketDirectory && rm(socketDirectory, { recursive: true, force: true }),
       ]) {
         try { await stop() } catch (error) { errors.push(error) }
       }
@@ -98,5 +113,5 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     })()
     return closing
   }
-  return { services, features, server, internalServer, start, close }
+  return { services, features, server, internalServer, get gateway() { return gateway }, start, close }
 }
