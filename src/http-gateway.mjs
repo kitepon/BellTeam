@@ -11,7 +11,7 @@ function endToEndHeaders(headers) {
 }
 
 // Only the business process authenticates requests and owns accepted work.
-export function createHttpGateway({ socketPath, staticRoot, assetVersion = Date.now().toString(36) }) {
+export function createHttpGateway({ socketPath, staticRoot, assetVersion = Date.now().toString(36), assetVersions = new Map() }) {
   const streams = new Set()
   let closing = null, stopping = false
   const server = createServer(async (request, response) => {
@@ -21,9 +21,10 @@ export function createHttpGateway({ socketPath, staticRoot, assetVersion = Date.
       if (response.headersSent) return response.destroy()
       json(response, connected ? 502 : 503, { error: connected ? 'GATEWAY_RESPONSE_UNKNOWN' : 'GATEWAY_UPSTREAM_UNAVAILABLE' })
     }
-    let pathname
-    try { pathname = new URL(request.url, 'http://bellteam.local').pathname }
+    let url
+    try { url = new URL(request.url, 'http://bellteam.local') }
     catch (error) { return respondHttpError(request, response, error) }
+    const { pathname } = url
     const staticRequest = pathname !== '/healthz' && !pathname.startsWith('/api/')
     const upstream = httpRequest({ socketPath, method: staticRequest ? 'GET' : request.method,
       path: staticRequest ? '/api/session' : request.url,
@@ -38,7 +39,10 @@ export function createHttpGateway({ socketPath, staticRoot, assetVersion = Date.
           if (incoming.statusCode !== 200 || typeof session.authenticated !== 'boolean') return unavailable()
           if (!session.authenticated) return json(response, 401, { error: 'UNAUTHORIZED' })
           if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
-          await staticFile(response, staticRoot, pathname, assetVersion)
+          const requestedVersion = url.searchParams.get('v') ?? assetVersion
+          const previous = assetVersions.get(requestedVersion)
+          if (requestedVersion !== assetVersion && !previous) return json(response, 404, { error: 'NOT_FOUND' })
+          await staticFile(response, previous?.root ?? staticRoot, pathname, requestedVersion, previous)
         } catch { unavailable() }
         return
       }

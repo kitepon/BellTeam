@@ -37,6 +37,10 @@
     {
       "module": "web",
       "port": "assets"
+    },
+    {
+      "module": "runtime",
+      "port": "update"
     }
   ],
   "source": [
@@ -49,6 +53,7 @@
     "src/diagnostics.mjs",
     "src/http-gateway.mjs",
     "src/http-gateway-entry.mjs",
-    "src/http-gateway-process.mjs"
+    "src/http-gateway-process.mjs",
+    "src/http-assets.mjs"
   ]
 }

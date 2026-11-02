@@ -114,3 +114,31 @@ SSEは業務側からstreamで中継。受付停止時はSSE接続を切断し�
 全体closeだけが受付子→既loop/HTTP/features/transportの終了を持つ。受付子のclose/startは業務graphの再生成を伴わない。同じ受付二重起動をせず、終了を確認して次を起動する。子起動失敗・port競合は元例外を返し、実行中業務を停止しない。独立配布物の署名/配置/版切替と実席保持は後続工程で、このsource分離の成功へ補完しない。
 
 影響範囲：application-runtimeと新HTTP gateway/entry/process、application-runtime直接試験とgateway process直接試験。HTTP handler、MCP schema、service、writer、各担当内部と保存形式は変更しない。packagerはsrc/web全体を収録するため新fileの個別追加不要。app factoryの既server戻り値は非公開listenerとなり、公開addressはgatewayが返すため、その唯一の直接callerである試験を合わせる。現行公開HTTP/MCPの利用者にはaddress形式を露出しない。
+
+## Web受付の固定版切替（実装中の接続）
+
+```mermaid
+flowchart TD
+  Version[版IDだけを選択] --> Prepare[runtime/配布の公開窓口: 認証・互換・固定配置の確認]
+  Prepare -->|確認済descriptor| Swap[integration: 公開受付の版切替]
+  Prepare -->|拒否| Keep[旧受付を継続]
+  Swap --> Drain[現在受付を停止・回収]
+  Drain --> New[新版の受付子を起動・ready確認]
+  New -->|成功| Adopt[runtimeの採用版記録へ返す]
+  New -->|失敗| Previous[前の固定版の受付子を起動]
+  Previous --> Failure[元失敗と旧版復帰結果を返す]
+  Close[親の全体終了] --> Cancel[版切替の次起動を抑止・受付子回収]
+  Swap -. writer/job/transportに操作なし .-> Business[同じ業務processが継続]
+```
+
+Rootの交換入口は版IDを受け、runtimeの公開窓口`prepareGatewayRelease(version)`が返す確認済descriptorを使う。descriptorの最終field/供給方式はruntime/商用との合意前で、現時点の実供給APIではない。任意のHTTP bodyからpath/UID/commandを受けて起動しない。配布元の認証・manifest互換・固定digest・所有/modeを確認する処理、配置と採用版の永続記録は各所有者へ置く。
+
+確認は旧版を動かしたまま行い、拒否時は旧版へ作用しない。交換中の二重交換は拒否し、旧子回収後だけ新子を起動する。固定portを保ち、protocolVersion=1の新子ready後に成功を返す。新子が15秒以内にreadyを返さないとその子を回収し、起動失敗として扱う。失敗では元の固定版へ戻し、戻しも失敗なら両方の例外を保持する。親終了が重なったら新起動/旧版戻しを続けず、回収して親の既終了を進める。本文再送/業務state再構築をしない。
+
+初回のプロセス分離と違い、ここでは別rootの固定版entryを起動する。writerやnativeは移さない。以前のWeb版の資材参照と新しい画面/SSE再接続は公開Web契約として別途合わせる。配布/配置の契約未成立を、process交換の人工fixtureで成功扱いしない。
+
+この段階の影響範囲はhttp-gateway-process/entryとapplication-runtimeのcallback注入、直接gateway版切替fixture、既HTTP gateway/runtimeの対象試験。bootstrap側のruntime providerは未供給で、現行本番経路に仮providerを差し込まない。配布/配置との合意後に公開窓口を接続する。
+
+旧Web資材は受付processの交換を越えて保持する。親はこの稼働中に採用したassetVersion→固定appRootを保持し、新子へ確認済一覧だけを渡す。新子は各固定版のweb.assets登録を読み、既?v=に対応した版の資材/置換を配信する。任意queryからfile pathを組み立てず、未知の版は404。履歴一覧が64KiBを超える交換は旧子停止前に拒否し、黙って古い版を捨てない。親再起動後の保持一覧はruntimeの採用/保持契約との接続が残り、このメモリ一覧を耐久記録の代用にしない。
+
+採用版はruntime正本のadoption schemaと既writeAtomicへ接続する。親の初回startだけで1001/0600正本を読み、record無しなら内蔵版、record有りならcurrent/previousをprepareで再確認する。未知/破損/信頼失敗は内蔵版へfallbackしない。新子ready後のrecord保存を成功条件に含め、保存失敗は新子回収→旧descriptor再確認→旧子起動、旧record保持。親close重複時は取消し、次起動と戻しを抑止する。current/previousをstartupで再確認して前版資材を読めるようにし、それ以前の全資材の親再起動後保持はこの差分の対象外。

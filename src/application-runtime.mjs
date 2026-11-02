@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { createHttpGatewayProcess } from './http-gateway-process.mjs'
+import { prepareGatewayRelease } from './web-gateway-release.mjs'
 import { createApplicationServices } from './application-services.mjs'
 import { createApplicationFeatures } from './application-features.mjs'
 import { createBellTeamServer } from './http-server.mjs'
@@ -80,7 +81,9 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       const socketPath = join(socketDirectory, 'public.sock')
       await listen(server, socketPath)
       await listen(internalServer, internalPort, '127.0.0.1')
-      gateway = createHttpGatewayProcess({ socketPath, port: Number(environment.BELLTEAM_WEB_PORT ?? 4180), appRoot })
+      gateway = createHttpGatewayProcess({ socketPath, port: Number(environment.BELLTEAM_WEB_PORT ?? 4180), appRoot,
+        prepareRelease: bootstrap.prepareGatewayRelease ?? prepareGatewayRelease,
+        adoptionPath: join(root, 'state/web-gateway-release.json') })
       await gateway.start()
       scheduler.start()
       selfTurns.start()

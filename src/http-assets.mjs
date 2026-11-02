@@ -52,13 +52,13 @@ export function sendAvatar(request, response, avatar, url) {
   response.end(body)
 }
 
-export async function staticFile(response, root, pathname, assetVersion) {
+export async function staticFile(response, root, pathname, assetVersion, { files = webAssetFiles, versioned = versionedWebAssets } = {}) {
   if (!root) return json(response, 404, { error: 'NOT_FOUND' })
-  const name = webAssetFiles.get(pathname)
+  const name = files.get(pathname)
   if (!name) return json(response, 404, { error: 'NOT_FOUND' })
   const file = join(root, name)
   const info = await stat(file)
-  if (versionedWebAssets.has(name)) {
+  if (versioned.has(name)) {
     const body = (await readFile(file, 'utf8')).replaceAll('__ASSET_VERSION__', assetVersion)
     response.writeHead(200, {
       'content-type': contentTypes.get(extname(file)),
