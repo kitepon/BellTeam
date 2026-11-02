@@ -12,6 +12,8 @@ flowchart TD
   Build --> Check["CIで各imageを確認<br/>sourceと実版を保存"]
   Check --> Index["両archをsource tagへ結合"]
   Index --> Accept["候補の採否と必要な内部反映"]
+  Index --> Runtime["同じimmutable digestをpull<br/>両native runnerでruntime fixture"]
+  Runtime --> Accept
   Accept --> Promote["採用digestをlatest / previewへ"]
   Promote --> Verify["匿名の新規導入と<br/>同digest置換を確認"]
 ```
@@ -21,6 +23,7 @@ flowchart TD
 | context作成 | `scripts/package-server.mjs` | HEADの明示pathだけgit archive。未commit・個人台帳・.envを含めず、public profileと空台帳へ置換。sourceCommitをdistribution.jsonへ記録 |
 | 候補 | `publish-server-image.yml` | 対象pathのmain push/手動で両arch build。各arch検証後push→index job。latestを書き換える工程ではない |
 | 実物照合 | `verifyCandidate` | 匿名registryのindex/manifest/config hash、両arch/source labelを検証。受入記録文字列を要求するが、人の採否をscript自体が代行するわけではない |
+| H1実runtime | `verify-h1-runtime-image.yml` → runtime所有 `scripts/verify-resume-runtime.py` | build無し。同digest/sourceを検証しnative amd64/arm64の固有fixtureだけ実行。alwaysでallocationの自己label/project/3volumeを清掃・原本保存。通常アプリ全体/vendor起動・本番・promotionは含まない |
 | promotion | `promoteCandidate` | 再buildせず同digestを二つのtagへ。raw tagのhashを再確認。sourceはorigin/mainの祖先確認 |
 | 公開確認 | `verify-published-server.yml` | 空資格で設置file取得→latest導入→preview同digestでCID置換、Owner/HOME/data保持とhealth。旧版移行・全archの実導入の証明へ広げない |
 | 内部通常入口 | `scripts/deploy.sh` | tracked変更拒否→main push→Host fetchとclean確認→旧runtime/model/profile保存→ff-only→queue保存→切離しdeploy起動→終端log/health/版読戻し |
