@@ -36,6 +36,9 @@ export function planResumeInstall(normal, previous, runtime, targets, saved) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const [normal, old, runtime, targets] = JSON.parse((await text(process.stdin)).replaceAll('$$', '$'))
+    const mount = normal.services.bellteam.volumes.find(item => item.target === RESUME_STATE_BASE)
+    // A new install generation gets new backing even when Compose keeps its default name.
+    normal.volumes[mount.source].name = `${stateWriterPlan(normal).resumeVolumes[0]}-${basename(process.argv[2]).slice(1)}`
     const result = planResumeInstall(normal, old, runtime, targets, process.argv[2])
     console.log(JSON.stringify(result.plan))
     console.log(JSON.stringify(result.normal, (_key, value) => typeof value === 'string' ? value.replaceAll('$', () => '$$') : value))

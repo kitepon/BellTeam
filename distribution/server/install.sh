@@ -301,6 +301,10 @@ if [ -n "$stopped_container" ]; then
     stopped_container=
   fi
 fi
+if "$recovery"; then
+  resume_source=$(cat "$saved/previous-normal.json" | docker run --pull never --rm -i --network none --read-only \
+    --entrypoint /usr/local/bin/node "$image" -e 'const p=JSON.parse(require("fs").readFileSync(0,"utf8").replaceAll("$$","$")),v=p.services.bellteam.volumes.find(m=>m.target==="/srv/bellteam-aiterm");console.log(v?p.volumes[v.source].name:"")')
+fi
 BELLTEAM_STOPPED_CONTAINER_ID=$stopped_container BELLTEAM_RESUME_SOURCE_VOLUME=$resume_source \
   sh "$staging/scripts/assert-state-writers-stopped.sh" --maintenance
 

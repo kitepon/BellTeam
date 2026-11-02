@@ -46,7 +46,7 @@ if(a[0]==='container'&&a[1]==='inspect'){console.log(e.TEST_STOP_PROOF);process.
 if(e.TEST_PREPARE){
  if(a[0]==='volume'){
   if(a[1]==='create')process.exit(0);
-  if(a.includes('--format'))console.log(e.TEST_VOLUME_METADATA||'new local 0 synthetic aiterm-state');
+  if(a.includes('--format'))console.log(e.TEST_VOLUME_METADATA||a.at(-1)+' local 0 synthetic aiterm-state');
   process.exit(0);
  }
  if(a.includes('/app/src/resume-install-plan.mjs')){
@@ -142,7 +142,7 @@ test('preparation binds the real helper model and refuses missing CLI or volume 
   for (const failure of [null, 'new', 'old', 'volume']) {
     const work = join(root, failure ?? 'success'), saved = join(work, '.bellteam-compose.fixed'), staging = join(work, 'staging')
     await mkdir(saved, { recursive: true });await mkdir(staging);await mkdir(join(work, 'volume'))
-    for (const [name, value] of Object.entries({ normal: model('new'), 'previous-normal': model('old'), 'previous-runtime': runtime }))
+    for (const [name, value] of Object.entries({ normal: model('new'), 'previous-normal': model('new'), 'previous-runtime': runtime }))
       await writeFile(join(saved, name + '.json'), JSON.stringify(value))
     const targets = join(work, 'targets.json');await writeFile(targets, JSON.stringify([target]))
     const env = { PATH: join(root, 'bin') + ':' + dirname(process.execPath) + ':/usr/bin:/bin', TEST_ROOT: work, TEST_REPO: repo,
@@ -155,10 +155,11 @@ test('preparation binds the real helper model and refuses missing CLI or volume 
       const helper = JSON.parse(await readFile(join(saved, 'checkpoint.json')))
       assert.equal(helper.services['aiterm-checkpoint'].image, 'synthetic-image')
       assert.equal(helper.services['aiterm-checkpoint'].volumes[1].source, '/runtime/home')
-      assert.equal(helper.volumes['aiterm-state'].name, 'old')
+      assert.equal(helper.volumes['aiterm-state'].name, 'new')
+      assert.deepEqual(JSON.parse(await readFile(join(saved, 'previous-normal.json'))), model('new'))
       assert.equal(helper.services['aiterm-checkpoint'].volumes.every(m => m.read_only), true)
       const normal = JSON.parse(await readFile(join(saved, 'normal.json')))
-      assert.equal(normal.services.bellteam.environment.BELLTEAM_AITERM_STATE_VOLUME, 'new')
+      assert.equal(normal.services.bellteam.environment.BELLTEAM_AITERM_STATE_VOLUME, 'new-bellteam-compose.fixed')
       const calls = (await readFile(join(work, 'calls'), 'utf8')).trim().split('\n').map(JSON.parse)
       assert.equal(calls.some(a => a.includes('--cap-add')), false, 'no destination mutation before writer inspection')
       assert.equal(calls.some(a => a[0] === 'stop' || a[0] === 'rm' || a[0] === 'update'), false)

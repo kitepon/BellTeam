@@ -17,6 +17,7 @@ const state=()=>fs.existsSync(root+'/runtime.json')?load('runtime.json'):null;
 const emit=v=>console.log(typeof v==='string'?v:JSON.stringify(v));
 const select=()=>{
  const i=a.indexOf('-f'),file=i>=0?a[i+1]:e.COMPOSE_FILE;
+ if(file==='-')return JSON.parse(fs.readFileSync(0));
  if(file?.endsWith('previous-compose.yaml'))return load('old.json');
  if(file&&fs.existsSync(file)&&file.endsWith('.json'))return JSON.parse(fs.readFileSync(file));
  return load('normal.json');
@@ -50,6 +51,15 @@ else if(a[0]==='ps'){if(state())emit(state().Id);}
 else if(a[0]==='inspect'){
  const s=state();emit({id:s.Id,running:s.State.Running,restarting:false,restartPolicy:'unless-stopped',mounts:[]});
 }else if(a[0]==='volume'){
+ const resume=a.at(-1).startsWith('bellteam-aiterm-state'),resumeFile=root+'/resume-volumes.json',resumes=()=>fs.existsSync(resumeFile)?load('resume-volumes.json'):{};
+ if(e.TEST_H1&&resume){
+  const name=a.at(-1),all=resumes();
+  if(a[1]==='inspect'){const v=all[name];if(!v)process.exit(1);
+   const f=a[a.indexOf('--format')+1];
+   emit(!a.includes('--format')?[v]:f.startsWith('{{.Name}}')?name+' local 0 selected-project aiterm-state':{name,driver:'local',mountpoint:'/vm/'+name+'/_data',optionCount:0,type:null,device:null,options:null});
+  }else if(a[1]==='create'){all[name]={Name:name,Driver:'local',Labels:{'com.docker.compose.project':'selected-project','bellteam.role':'aiterm-state'},Options:{}};fs.writeFileSync(resumeFile,JSON.stringify(all));fs.mkdirSync(root+'/'+name);emit(name);}
+  else process.exit(90);process.exit(0);
+ }
  const filename=root+'/volume.json',existing=()=>fs.existsSync(filename)?JSON.parse(fs.readFileSync(filename)):
   e.TEST_EXISTING_VOLUME?{Name:'fixture_state',Driver:'local',Labels:{'com.docker.compose.project':e.TEST_VOLUME_FOREIGN?'foreign':'selected-project'},Options:{}}:null;
  if(a[1]==='ls'){if(existing())emit(existing().Name);}
@@ -64,10 +74,18 @@ else if(a[0]==='run'){
  if(entry==='/bin/cat'){
   const name=a.at(-1).replace('/app/','');
   if(e.TEST_EXTRACT_FAIL===name)process.exit(54);
-  process.stdout.write(name==='compose.yaml'?'synthetic old compose\n':fs.readFileSync(path.join(repo,name)));
+  const source=['install-resume-state.sh','compose.aiterm-checkpoint.yaml'].includes(name)?'distribution/server/'+name:name;
+  process.stdout.write(name==='compose.yaml'?'synthetic old compose\n':fs.readFileSync(path.join(repo,source)));
  }else if(entry==='/usr/local/bin/node'){
   if(a.some(v=>v.endsWith('target=/probe'))){if(a.includes('1000:1000'))process.exit(Number(e.TEST_PROBE_RESULT??75));process.exit(0);}
+  if(e.TEST_H1&&a.includes('/app/src/resume-install-plan.mjs')){const r=spawnSync(process.execPath,[repo+'/src/resume-install-plan.mjs',a.at(-1)],{stdio:'inherit'});process.exit(r.status??98);}
   let j=a.indexOf('-e');
+  if(e.TEST_H1&&j>=0&&a[j+1].includes('resume-state-cli.js'))process.exit(0);
+  if(e.TEST_H1&&j>=0&&a[j+1].includes('fs.chownSync')){
+   const name=a[a.indexOf('--mount')+1].match(/source=([^,]+)/)[1];
+   const code=a[j+1].replace('p="/resume-state"','p='+JSON.stringify(root+'/'+name));
+   const r=spawnSync(process.execPath,['-e','require("fs").chownSync=(p,u,g)=>{if(u!==1000||g!==1000)process.exit(89)};'+code],{stdio:'inherit'});process.exit(r.status??98);
+  }
   if(j>=0){const r=spawnSync(process.execPath,a.slice(j),{stdio:'inherit'});process.exit(r.status??98);}
   const script=a.find(x=>x==='/app/src/server-state-writers.mjs'),phase=a.at(-1);
   if(script&&phase==='plan'){
@@ -76,7 +94,9 @@ else if(a[0]==='run'){
   const mount=a[a.indexOf('--mount')+1],check=mount?.match(/^type=bind,source=(.*),target=\/check,readonly$/)?.[1];
   if(script&&check){
    const m=await import(pathToFileURL(repo+'/src/server-state-writers.mjs').href);
-   const p=JSON.parse(fs.readFileSync(check+'/plan.json'));const stopped=fs.readFileSync(check+'/stopped-container.txt','utf8').trim();if(stopped)p.stoppedContainer=stopped;
+   const p=JSON.parse(fs.readFileSync(check+'/plan.json'));
+   const resume=fs.readFileSync(check+'/resume-source-volume.txt','utf8').trim();if(resume)p.resumeVolumes=[...new Set([...(p.resumeVolumes??[]),resume])];
+   const stopped=fs.readFileSync(check+'/stopped-container.txt','utf8').trim();if(stopped)p.stoppedContainer=stopped;
    const rows=n=>fs.readFileSync(check+'/'+n,'utf8').split('\n').filter(Boolean).map(x=>JSON.parse(x));
    const c=rows('containers.jsonl'),v=phase==='volumes'?[]:rows('volumes.jsonl');
    if(phase==='volumes')for(const name of m.stateWriterVolumes(p,c))emit(name);
@@ -123,7 +143,7 @@ else if(a[0]==='run'){
 }else process.exit(92);
 function pathToFileURL(p){return new URL('file://'+p);}
 `
-async function fixture(t,{legacy=false,server=false}={}) {
+async function fixture(t,{legacy=false,server=false,h1=false}={}) {
  const root=await mkdtemp(join(tmpdir(),'unified-installer-'));t.after(()=>rm(root,{recursive:true,force:true}))
  const install=join(root,'install'),bin=join(root,'bin');await mkdir(install);await mkdir(bin)
  const base=[{type:'bind',source:join(install,'runtime/home'),target:'/home/bell'},
@@ -132,14 +152,15 @@ async function fixture(t,{legacy=false,server=false}={}) {
  const normal={name:'selected-project',services:{bellteam:{image:'fixture:new',environment:{SECRET:'private-value',VALUE:'literal $$KEEP'},labels:{'fixture.$$key':'literal $$KEEP'},volumes:[...base,
  ...['state','rooms','owner','logs','shared/tools/bellteam-settings','shared/tools/apns'].map(n=>({type:'volume',source:'server-state',target:'/srv/bellteam/'+n,volume:{nocopy:true,subpath:n.split('/').at(-1)}})),
  {type:'volume',source:'server-state',target:'/run/bellteam-maintenance',read_only:true,volume:{nocopy:true}}]}},volumes:{'cursor-cli':{name:'fixture_cursor'},'server-state':{name:'fixture_state',external:true}}}
+ if(h1){normal.services.bellteam.environment.AITERM_STATE_BASE='/srv/bellteam-aiterm';normal.services.bellteam.volumes.push({type:'volume',source:'aiterm-state',target:'/srv/bellteam-aiterm',volume:{nocopy:true}});normal.volumes['aiterm-state']={name:'bellteam-aiterm-state',external:true};}
  const old=structuredClone(normal);old.services.bellteam.image='fixture:old';old.services.bellteam.environment.SECRET='old-private';
  if(!server)old.services.bellteam.volumes=base;
  await writeFile(root+'/normal.json',JSON.stringify(normal));await writeFile(root+'/old.json',JSON.stringify(old))
  await writeFile(bin+'/docker',fakeDocker);await chmod(bin+'/docker',0o700)
  if(legacy||server)await writeFile(root+'/runtime.json',JSON.stringify({Id:cid,Image:oldImage,State:{Running:true,Restarting:false,StartedAt:'before'},Config:{Image:'fixture:old',Labels:{'com.docker.compose.project':'selected-project','com.docker.compose.service':'bellteam','com.docker.compose.project.config_files':install+'/compose.yaml','com.docker.compose.project.working_dir':install,'com.docker.compose.config-hash':'old-hash'}},Mounts:[]}))
- const env={...process.env,PATH:bin+':'+process.env.PATH,BELLTEAM_INSTALL_DIR:install,TEST_ROOT:root,TEST_REPO:repo}
+ const env={...process.env,PATH:bin+':'+process.env.PATH,BELLTEAM_INSTALL_DIR:install,TEST_ROOT:root,TEST_REPO:repo,...(h1?{TEST_H1:'1'}:{})}
  delete env.COMPOSE_FILE;delete env.COMPOSE_PROJECT_NAME
- return {root,install,normal,writeModel:()=>writeFile(root+'/normal.json',JSON.stringify(normal)),run:(args=[],extra={})=>exec('sh',[...(extra.TEST_TRACE?['-x']:[]),repo+'/distribution/server/install.sh',...args],{env:{...env,...extra}}),
+ return {root,install,normal,writeModel:()=>writeFile(root+'/normal.json',JSON.stringify(normal)),run:(args=[],extra={})=>exec('sh',[...(extra.TEST_TRACE?['-x']:[]),(h1?install+'/install.sh':repo+'/distribution/server/install.sh'),...args],{env:{...env,...extra}}),
  calls:async()=> (await readFile(root+'/calls','utf8')).trim().split('\n').map(JSON.parse),
  saved:async()=>join(install,(await readdir(install)).find(n=>n.startsWith('.bellteam-compose.')&&n!=='.bellteam-compose.existing'))}
 }
@@ -454,4 +475,38 @@ test('recoverは世代固定volumeが失われたら空volumeを再作成せずs
  await rm(f.root+'/volume.json')
  await assert.rejects(f.run(['--recover',saved]),e=>e.code===1&&/SERVER_STATE_VOLUME_MISSING/.test(e.stderr))
  assert.equal((await f.calls()).slice(before).some(c=>c.args[0]==='stop'||c.args[0]==='volume'&&c.args[1]==='create'),false)
+})
+
+
+test('H1公開2fileの通常reset導入をvolume未指定で繰り返し、保存世代ごとの別backingを固定する',async t=>{
+ const f=await fixture(t,{h1:true});
+ for(const name of ['install.sh','compose.yaml'])await copyFile(repo+'/distribution/server/'+name,f.install+'/'+name)
+ assert.deepEqual((await readdir(f.install)).sort(),['compose.yaml','install.sh'])
+ const volumes=[],generations=[];
+ for(let i=0;i<3;i++){
+  const {stdout,stderr}=await f.run();assert.doesNotMatch(stderr,/旧設定を証明できません/)
+  const saved=stdout.match(/^saved-compose=(.*)$/m)[1],normal=JSON.parse(await readFile(saved+'/normal.json'));
+  const plan=JSON.parse(await readFile(saved+'/resume-plan.json')),name=normal.volumes['aiterm-state'].name;
+  assert.equal(normal.services.bellteam.environment.BELLTEAM_AITERM_STATE_VOLUME,name)
+  assert.equal(normal.services.bellteam.environment.BELLTEAM_RESUME_GENERATION,undefined)
+  assert.deepEqual(plan.targets,[]);assert.equal(plan.state_volume,name)
+  assert.equal(JSON.parse(await readFile(f.root+'/normal.json')).volumes['aiterm-state'].name,'bellteam-aiterm-state')
+  if(i){
+   assert.equal(plan.source_volume,volumes[i-1]);assert.notEqual(name,plan.source_volume)
+   const old=JSON.parse(await readFile(saved+'/previous-normal.json'));assert.equal(old.volumes['aiterm-state'].name,volumes[i-1])
+   assert.equal(await readFile(f.root+'/'+volumes[i-1]+'/retained','utf8'),'old-state-'+(i-1))
+   assert.deepEqual(JSON.parse(await readFile(generations[i-1]+'/normal.json')),JSON.parse(await readFile(saved+'/previous-normal.json')))
+  }
+  await writeFile(f.root+'/'+name+'/retained','old-state-'+i);volumes.push(name);generations.push(saved)
+ }
+ assert.equal(new Set(volumes).size,3)
+ volumes.forEach((name,i)=>assert.ok(name.endsWith(generations[i].split('/').at(-1).slice(1))))
+ assert.equal(await readFile(f.root+'/starts','utf8'),'3')
+ const before=(await f.calls()).length;await f.run(['--recover',generations[2]])
+ const recovery=(await f.calls()).slice(before)
+ assert.ok(recovery.some(c=>c.args[0]==='volume'&&c.args[1]==='inspect'&&c.args.at(-1)===volumes[1]),'rollback destination is also in the writer inventory')
+ assert.equal(recovery.some(c=>c.args[0]==='volume'&&c.args[1]==='create'),false)
+ assert.equal(recovery.find(c=>c.args.includes('up')).compose,generations[2]+'/previous-normal.json')
+ assert.equal(await readFile(f.root+'/'+volumes[1]+'/retained','utf8'),'old-state-1')
+ const calls=await f.calls();assert.equal(calls.some(c=>c.args.includes('aiterm-checkpoint')),false)
 })

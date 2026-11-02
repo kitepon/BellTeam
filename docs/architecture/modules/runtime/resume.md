@@ -1,18 +1,19 @@
 # Aiterm H1 offline保存と起動前復元
 
-runtime接続候補。製品6658c67の未公開CLI/stream契約を使用する。正式0.63.2や現961の能力ではなく、製品最終Astra・実Docker/UID/mount・本番の受入は未成立。製品内部は[Aiterm正本](../aiterm/README.md)、mount/bin/contextは[配布の正本](../distribution/h1-offline.md)へ辿る。
+runtime接続候補。製品6658c67の未公開CLI/stream契約を使用する。正式0.63.2や現961の能力ではない。製品最新f3f30feは最終レビュー通過とRootから返却され、H1三moduleは試験対象6658と同bytes。これは製品全体の実供給やruntimeの実Docker/UID/mount・本番の受入を示さない。製品内部は[Aiterm正本](../aiterm/README.md)、mount/bin/contextは[配布の正本](../distribution/h1-offline.md)へ辿る。
 
 ## 初回と保存更新を分ける
 
 H1対応imageの初回は、固定base `/srv/bellteam-aiterm` に専用external local volumeを配置し、空・local/optionsなし・project/role labelを確認して1000:1000/0700へ準備する。旧/tmpや未提供CLIの初回から保持できるとはしない。通常の既許可リセット更新は保存要求無しで行え、保持必須ならH1未対応を停止前に拒否する。
 
-通常normalのvolume名は`BELLTEAM_AITERM_STATE_VOLUME`から固定する。同名/同backingの旧sourceと新destinationへ保存更新しない。rootのdev/inode/prefixは製品が永続Codex rolloutについて検証し、runtimeがbundleを加工して通さない。
+通常installerは`BELLTEAM_AITERM_STATE_VOLUME`の解決済み名をprefixとし、既保存世代を末尾へ付けて毎回新しいvolume名を生成し、固定normalへ保存する。未指定の通常reset更新も同じ入口を通り、利用者の手動volume指定や保持要求は不要。旧normalは書き換えずsource名を保持する。`--recover`も旧normalの復帰先volumeをwriter検査に含め、保存済み名へ戻し、新volumeの作成/初期化を行わない。同名/同backingの旧sourceと新destinationへ保存更新しない。rootのdev/inode/prefixは製品が永続Codex rolloutについて検証し、runtimeがbundleを加工して通さない。
 
 ## 停止・保存・採用の順序
 
 ```mermaid
 flowchart TD
-  Model[固定normal/旧normal・image・対象集合] --> New[新volumeの本人性を確認]
+  Model[normal/旧normal・image・対象集合] --> Select[既保存世代から新volume名を生成<br/>新normalだけへ固定]
+  Select --> New[新volumeの本人性を確認]
   New --> Stop[exact旧CIDをstop・restart no<br/>PID0 / false false / imageを再確認]
   Stop --> Proof[停止CID/image/sourceを保存<br/>rm後も証跡を保持]
   Proof --> Writers[旧新state/HOMEのwriter検査<br/>再起動可能writer・aliasも対象]
@@ -55,4 +56,4 @@ supervisorは既起動lockを保持したままrestoreをawaitする。H1中のs
 
 実装は`resume-policy/pipe/storage/boot/install-plan/runtime-resume/run-resume-store`、既seat-command/run-seat-command/bot-environment/harness-config、writer-planとinstaller。追加の私有Aiterm metadata writer、online seal、keeperはない。
 
-直接fixtureは`resume-runtime`、`resume-install`、固定製品distを渡す`resume-cli-integration`。境界は既server-state-writers/installer-unified、seat/環境/登録、application-runtime、配布archive/context。新製品6658c67との隔離CLI接続と製品crash/strict反例を確認するが、旧c688の有限成功を新安全性へ流用しない。最終Astra・実vendor・実Docker/1001動的受入・本番/公開は未確認/保留。
+直接fixtureは`resume-runtime`、`resume-install`、固定製品distを渡す`resume-cli-integration`。境界は既server-state-writers/installer-unified、seat/環境/登録、application-runtime、配布archive/context。新製品6658c67との隔離CLI接続と製品crash/strict反例を確認するが、旧c688の有限成功を新安全性へ流用しない。製品最終レビュー通過はRootの原本へ帰属し、このfixtureの範囲へ加算しない。実vendor・実Docker/1001動的受入・本番/公開は未確認/保留。
