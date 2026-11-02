@@ -136,8 +136,7 @@ struct SchedulesView: View {
     private func fetchEntries(_ requested: ScheduleRefreshRequest) async {
         loading = entries.isEmpty
         do {
-            let sources = store.bots.map { (target: ChatTarget.bot($0.id), name: $0.displayName) }
-                + store.rooms.map { (target: ChatTarget.room($0.id), name: $0.name) }
+            let sources = ScheduleSource.listed(bots: store.bots, rooms: store.rooms)
             let request = refreshState.hasLoadedAll ? requested : .all
             let api = store.api
             var bulk: [ChatTarget: [ScheduledEntry]]?
@@ -179,7 +178,8 @@ struct SchedulesView: View {
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch {
             errorText = error.localizedDescription
-            store.api.diagnostics.report(error, path: "/api/schedules", method: "GET", observation: .read(error, retainedData: !entries.isEmpty))
+            store.api.diagnostics.report(error, path: "/api/schedules", method: "GET", observation: .read(error, retainedData: !entries.isEmpty),
+                                         diagnosticContext: (error as? ScheduleListIncomplete)?.diagnosticContext)
         }
         loading = false
     }

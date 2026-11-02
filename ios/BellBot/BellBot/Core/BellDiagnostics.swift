@@ -431,7 +431,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
 
     private static func isInvalidResponse(_ error: Error) -> Bool {
         if case BellAPIError.invalidResponse = error { return true }
-        return false
+        return error is ScheduleListIncomplete
     }
 
     static func errorLog(_ error: Error, module: String) -> String {

@@ -294,6 +294,54 @@ final class BellDiagnosticsTests: XCTestCase {
                        "/api/rooms/:id/messages")
         XCTAssertEqual(BellRequestTrace.decodingRoute(for: "/api/bots/private-name"), "/api/bots/:id")
     }
+
+    private func decodedBot(id: String, deleting: Bool?) throws -> Bot {
+        let flag = deleting.map { ",\"deleting\":\($0)" } ?? ""
+        return try JSONDecoder().decode(Bot.self, from: Data("""
+        {"id":"\(id)","name":"n","displayName":"\(id)","harness":"h","model":"m","reasoningEffort":"e","fastMode":false,
+         "color":"c","profileText":"","personality":"","speechStyle":"","position":"","role":"","avatar":"","online":false\(flag)}
+        """.utf8))
+    }
+
+    private func scheduleResponse(_ sources: [(kind: String, id: String)]) throws -> AllSchedulesResponse {
+        let body = sources.map { "{\"kind\":\"\($0.kind)\",\"id\":\"\($0.id)\",\"schedules\":[]}" }.joined(separator: ",")
+        return try JSONDecoder().decode(AllSchedulesResponse.self, from: Data("{\"sources\":[\(body)]}".utf8))
+    }
+
+    func testDeletingBotIsNotExpectedFromTheAllSchedulesResponse() throws {
+        let bots = [try decodedBot(id: "bot-kept", deleting: nil), try decodedBot(id: "bot-gone", deleting: true),
+                    try decodedBot(id: "bot-false", deleting: false)]
+        let sources = ScheduleSource.listed(bots: bots, rooms: [])
+        XCTAssertEqual(sources.map(\.target), [.bot("bot-kept"), .bot("bot-false")])
+        let pages = try scheduleResponse([("bot", "bot-kept"), ("bot", "bot-false")])
+            .schedules(expected: Set(sources.map(\.target)))
+        XCTAssertEqual(Set(pages.keys), [.bot("bot-kept"), .bot("bot-false")])
+    }
+
+    func testMissingScheduleTargetFailsAndReportsCountsWithoutIDs() throws {
+        let expected: Set<ChatTarget> = [.bot("bot-kept"), .bot("bot-private"), .room("room-private")]
+        XCTAssertThrowsError(try scheduleResponse([("bot", "bot-kept")]).schedules(expected: expected)) { error in
+            guard let incomplete = error as? ScheduleListIncomplete else { return XCTFail("\(error)") }
+            XCTAssertEqual(incomplete.errorDescription, BellAPIError.invalidResponse.errorDescription)
+            var code = ""
+            var log = ""
+            let diagnostics = BellDiagnostics { value, _, _, text in code = value; log = text }
+            diagnostics.report(error, path: "/api/schedules", method: "GET",
+                observation: .read(error, retainedData: false), diagnosticContext: incomplete.diagnosticContext)
+            XCTAssertEqual(code, "IOS_RESPONSE_INVALID")
+            XCTAssertTrue(log.contains("schedule_expected=3\nschedule_received=1"), log)
+            XCTAssertTrue(log.contains("schedule_missing_bots=1\nschedule_missing_rooms=1"), log)
+            XCTAssertTrue(log.contains("error_type=InvalidResponse"), log)
+            XCTAssertFalse(log.contains("private"), log)
+        }
+    }
+
+    func testDuplicateScheduleSourceStaysAnInvalidResponse() throws {
+        XCTAssertThrowsError(try scheduleResponse([("bot", "bot-one"), ("bot", "bot-one")])
+            .schedules(expected: [.bot("bot-one")])) { error in
+            guard case BellAPIError.invalidResponse = error else { return XCTFail("\(error)") }
+        }
+    }
 }
 
 final class EventStreamTests: XCTestCase {
