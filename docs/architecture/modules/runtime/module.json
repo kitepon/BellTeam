@@ -1,0 +1,57 @@
+{
+  "title": "実行環境・更新復旧",
+  "owner": "エピネル",
+  "botId": "bot-0b867848",
+  "scope": "bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設置と更新実行。OSはエマ、公開はセンチ、本番実行はトロニー",
+  "external": false,
+  "provides": [
+    "lifecycle",
+    "seat-process",
+    "project-files",
+    "cli-registration",
+    "update"
+  ],
+  "uses": [
+    {
+      "module": "members",
+      "port": "registry"
+    },
+    {
+      "module": "distribution",
+      "port": "image"
+    },
+    {
+      "module": "aiterm",
+      "port": "native"
+    },
+    {
+      "module": "throughline",
+      "port": "context"
+    },
+    {
+      "module": "mcp-lazy",
+      "port": "relay"
+    },
+    {
+      "module": "rtk",
+      "port": "hook"
+    },
+    {
+      "module": "testgate",
+      "port": "hook"
+    }
+  ],
+  "source": [
+    "src/bootstrap.mjs",
+    "src/seat-runtime.mjs",
+    "src/seat-process.mjs",
+    "src/seat-command.mjs",
+    "src/harness-config.mjs",
+    "src/server-state-transfer.mjs",
+    "src/server-state-ownership.mjs",
+    "src/server-state-writers.mjs",
+    "distribution/server/install.sh",
+    "scripts/archive-live-volume.py",
+    "scripts/save-deploy-restore-point.py"
+  ]
+}
