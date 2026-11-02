@@ -42,6 +42,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   })
   await aiControl.initialize()
   const transport = createManagedTransport({
+    reportError: report => diagnostics.record(report),
     client: client ?? new AitermClient({ ...aiterm, ...(seatRuntime ? { seatProject: root } : {}) }),
     ...(seatRuntime ? {
       writeTemporaryImage: (path, bytes) => seatRuntime.writeTemporaryImage(path, bytes),
@@ -81,7 +82,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   const characterSheets = seatRuntime ? seatRuntime.characterSheets(id => bots.projectPath(id))
     : new CharacterSheets({ projectPath: id => bots.projectPath(id) })
   // Bot設定変更・停止・削除の業務判断。公開APIと席MCPが同じ判断を使う。
-  const administration = new BotAdministration({ bots, rooms, transport })
+  const administration = new BotAdministration({ bots, rooms, transport,
+    reportError: report => diagnostics.record(report) })
   const secretRequests = new SecretRequests({
     root, bots, rooms,
     onRequest: item => notifications.secret(item),

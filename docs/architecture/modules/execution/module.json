@@ -12,6 +12,10 @@
   ],
   "uses": [
     {
+      "module": "integration",
+      "port": "diagnostics"
+    },
+    {
       "module": "members",
       "port": "registry"
     },
