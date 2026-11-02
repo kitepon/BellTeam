@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { Diagnostics, createDiagnosticsAdminServer } from '../src/diagnostics.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
+import { diagnosticRequestContext } from '../src/diagnostic-request-context.mjs'
 
 test('messages POST失敗をHTTPから管理診断へ渡し、診断原本に本文・query・認証・対象名を含めない', async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-http-context-'))
@@ -141,5 +142,44 @@ test('会話と個別予定のGET失敗はアプリと同じoperationで記録�
     assert.equal(diagnostics.list().find(row => row.report_context.operation === 'conversation_read').occurrence_count, 1)
   } finally {
     await new Promise(resolve => server.close(resolve))
+  }
+})
+
+
+test('MCP request evidence reaches persisted diagnostics without changing grouping or the original error', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-mcp-context-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const file = join(root, 'diagnostics.json'), diagnostics = new Diagnostics(file)
+  await diagnostics.initialize()
+  const request = { method: 'POST', url: '/api/deliveries/direct?secret=PRIVATE_QUERY' }
+  const error = Object.assign(new Error('PRIVATE_MESSAGE'), { code: 'MCP_REQUEST_TIMEOUT' })
+  const originalStack = error.stack
+  const before = diagnosticRequestContext(request, [], error)
+  const old = await diagnostics.record({ code: 'SERVER_HTTP_500', module: 'server', diagnostic_log: before })
+  for (const context of [{ phase: 'connect', tool: 'pty_send' }, { phase: 'call', tool: 'pty_send', outcome: 'unknown' }]) {
+    error.mcp_request = context
+    const log = diagnosticRequestContext(request, [], error)
+    assert.deepEqual(log.split('\n').filter(line => !line.startsWith('mcp_request=')), before.split('\n'))
+    assert.deepEqual(JSON.parse(log.split('\n').find(line => line.startsWith('mcp_request=')).slice(12)), context)
+    const row = await diagnostics.record({ code: 'SERVER_HTTP_500', module: 'server', diagnostic_log: log })
+    assert.equal(row.fingerprint, old.fingerprint)
+    assert.equal(error.code, 'MCP_REQUEST_TIMEOUT')
+    assert.equal(error.stack, originalStack)
+  }
+  const saved = JSON.parse(await readFile(file, 'utf8'))
+  assert.equal(saved.length, 1)
+  assert.equal(saved[0].occurrence_count, 3)
+  assert.match(saved[0].diagnostic_log, /^mcp_request=/m)
+  assert.doesNotMatch(JSON.stringify(saved), /PRIVATE_|args|meta/)
+})
+
+test('unknown or malformed MCP request evidence does not enter the HTTP diagnostic', () => {
+  for (const mcp_request of [null, 'PRIVATE_CONTEXT', [], { phase: 'future', tool: 'pty_send' },
+    { phase: 'call', tool: 'PRIVATE_TOOL', outcome: 'unknown' },
+    { phase: 'call', tool: 'pty_send', outcome: 'delivered' },
+    { phase: 'connect', tool: 'pty_send', outcome: 'unknown' }]) {
+    const error = Object.assign(new Error('PRIVATE_ERROR'), { mcp_request })
+    const log = diagnosticRequestContext({ method: 'POST', url: '/api/deliveries/direct' }, [], error)
+    assert.doesNotMatch(log, /mcp_request=|PRIVATE_/)
   }
 })
