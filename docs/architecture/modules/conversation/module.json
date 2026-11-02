@@ -40,6 +40,10 @@
       "port": "settings"
     },
     {
+      "module": "usage",
+      "port": "auth"
+    },
+    {
       "module": "execution",
       "port": "observation"
     }

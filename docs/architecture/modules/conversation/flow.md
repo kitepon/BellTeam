@@ -70,12 +70,19 @@ flowchart LR
   Room["部屋の記録"] --> Views["表示用の履歴を組む"]
   Store --> Views
   Cards["秘密入力・質問のカード"] --> Views
-  Views --> HTTP["GET 履歴・ページ・queue"]
+  Views --> Page["timelinePage → webMessage<br/>既ID・順序・ページmetadataを確定"]
+  Page --> Guide["messagePageのみ任意ownerSecretGuide照会<br/>対象row / secret_requestを複製"]
+  Usage["usage: 認証run正本<br/>許可・停止・期限と公式URLを検証"] --> Guide
+  Root["Root: publicへ同じgetter参照を注入<br/>internalはnull"] --> Guide
+  Guide --> HTTP["GET Bot/room messages<br/>任意ownerGuide.url / 取得失敗は既カード"]
+  Views --> Other["sources / timeline / recent / export<br/>案内URLなし"]
   HTTP --> Web["Webの選択中timeline"]
   Changes["会話/queue/カード等の変更"] --> SSE["SSE<br/>topicとBot/roomのID"]
   SSE --> Refresh["クライアントが必要な情報を再取得"]
   Refresh --> HTTP
 ```
+
+`createMessageViews`の任意`ownerSecretGuide({requestId,botId,roomId})`は`Promise<null|{url:string}>`。Rootは認証済みOwner向けHTTPだけにusageの同じ読取関数を注入し、内部HTTPにはnullを渡す。会話はページ選択後のsecret_request行だけを複製し、`secret_request.ownerGuide = {url}`を付ける。未注入/null/取得失敗は既カードを維持する。URLのrun束縛・pending・許可/停止/期限と公式originの検証はusage、リンクの固定文言と再検証はWebが持つ。本文/保存item/索引/共通webMessage/receipt/通知/SSE payloadには追加しない。全体図は既historyとusage:auth接続を参照する。
 
 SSEは本文全体ではなく変更通知。サーバーはtopicと対象IDをまとめて通知する。appは選択と取得理由をtimelineへ渡す。`conversation-timeline.js` が対象/token/読取順で古い結果を捨て、ページ・queue・スクロール位置を維持する。一覧cacheの順序は別で、[残る接続](../../web-final-gaps.md)に分ける。
 

@@ -1,6 +1,6 @@
 import { TimelineIndex, timelinePage, fullTimeline } from './timeline-index.mjs'
 
-export function createMessageViews({ rooms, store, secretRequests, ownerQuestions }) {
+export function createMessageViews({ rooms, store, secretRequests, ownerQuestions, ownerSecretGuide = null }) {
   const sources = async (kind, id, prepared = null) => {
     const base = prepared ?? (kind === 'rooms'
       ? rooms.messageView ? await rooms.messageView(id) : new TimelineIndex(await rooms.messages(id))
@@ -12,7 +12,19 @@ export function createMessageViews({ rooms, store, secretRequests, ownerQuestion
   const timeline = async (kind, id) => fullTimeline(await sources(kind, id))
   const messagePage = async (kind, id, url) => {
     const page = timelinePage(await sources(kind, id), url)
-    return { ...page, items: page.items.map(webMessage) }
+    const items = await Promise.all(page.items.map(async entry => {
+      const item = webMessage(entry)
+      if (!ownerSecretGuide || item.kind !== 'secret_request' || !item.secret_request) return item
+      try {
+        const request = item.secret_request
+        const guide = await ownerSecretGuide({ requestId: request.id, botId: request.botId, roomId: request.roomId ?? null })
+        if (typeof guide?.url === 'string') return { ...item, secret_request: { ...request, ownerGuide: { url: guide.url } } }
+      } catch {
+        // 案内の取得失敗で秘密入力カードを失わない。
+      }
+      return item
+    }))
+    return { ...page, items }
   }
 
   return { sources, timeline, messagePage }
