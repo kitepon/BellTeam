@@ -42,7 +42,10 @@ async function fixture(t) {
     if (name === 'error') { response.writeHead(503).end('fixture unavailable'); return }
     response.writeHead(200, { 'content-type': 'text/event-stream' })
     const event = value => response.write(`data: ${JSON.stringify({ jsonrpc: '2.0', ...value })}\n\n`)
+    // SDK notification handlers are asynchronous; observe progress before its response removes the handler.
+    const progressReceived = name === 'echo' && seat === 'bot-a' ? once(events, 'progress-received') : null
     event({ method: 'notifications/progress', params: { progressToken: message.params._meta?.progressToken ?? 'unused', progress: 1 } })
+    if (progressReceived) await progressReceived
     if (name === 'wait') { pending.set(seat, response); return }
     event({ id: message.id, result: { content: [{ type: 'text', text: seat }] } })
     response.end()
@@ -80,7 +83,10 @@ test('stdio中継は二席のlaunchを分離し初期化・通知・SSE応答・
   assert.equal(a.getInstructions(), 'keep instructions')
   assert.deepEqual((await a.listTools()).tools, [tool])
   const progress = []
-  assert.equal((await a.callTool({ name: 'echo', arguments: {} }, undefined, { onprogress: value => progress.push(value.progress) })).content[0].text, 'bot-a')
+  assert.equal((await a.callTool({ name: 'echo', arguments: {} }, undefined, { onprogress: value => {
+    progress.push(value.progress)
+    f.events.dispatchEvent(new Event('progress-received'))
+  } })).content[0].text, 'bot-a')
   assert.deepEqual(progress, [1])
   const started = once(f.events, 'tools/call')
   const controller = new AbortController()

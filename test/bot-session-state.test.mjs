@@ -53,7 +53,7 @@ test('返却済みclose拒否と通信不明を分け、ログ障害で結果や
   assert.equal(calls, 3)
 })
 
-test('不正な返却の値や未発行操作をログ上の正常receiptへ補わない', async () => {
+test('不正な返却の値をログ上の正常receiptへ補わず、設定変更の本文を記録しない', async () => {
   const lines = []
   const state = fixture({ call: async () => ({ structuredContent: { schema: 'private-schema', session_id: 'private value',
     launch_id: 'private-launch', outcome: 'private-outcome', startup: { status: 'private-status' } } }), writeLog: line => lines.push(line) })
@@ -90,8 +90,9 @@ test('席変更は配送実体なしでpending/返却済み拒否/通信不明�
 
 test('既存停止の対象になった準備を発行前に終え、結果不明として次の席へ混ぜない', async () => {
   let calls = 0
+  const lines = []
   const stop = deferred()
-  const state = fixture({ bridge: {}, call: async () => { calls++; return {} } })
+  const state = fixture({ bridge: {}, call: async () => { calls++; return {} }, writeLog: line => lines.push(line) })
   state.stopVersions.set(bot.id, 0)
   stop.promise.rootIds = new Set([bot.id])
   state.stopping = stop.promise
@@ -101,6 +102,7 @@ test('既存停止の対象になった準備を発行前に終え、結果不�
   stop.resolve({ cascade: { targets: [] } })
   await assert.rejects(pending, { code: 'BOT_STOPPED', effect: 'not_started' })
   assert.equal(calls, 0)
+  assert.deepEqual(lines, [])
   assert.equal(state.uncertainChanges.size, 0)
   assert.equal(state.sessionChanges.size, 0)
   state.stopping = null
