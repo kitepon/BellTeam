@@ -144,7 +144,7 @@ export class BellTeamMessenger extends ConversationWriter {
 
   notificationCallbacks(botId, deliveryId, context) {
     return {
-      onStatus: (status, error) => this.appendDeliveryStatus(deliveryId, status, error),
+      onStatus: (status, error, tracking) => this.appendDeliveryStatus(deliveryId, status, error, tracking),
       onInterim: words => this.appendInterimWords(botId, deliveryId, words),
       onAnswer: text => this.appendInterimWords(botId, deliveryId, [{ text, kind: 'answer' }]),
       onTurnEnd: window => this.onTurnEnd({ botId, context, ...window }),
@@ -200,7 +200,7 @@ export class BellTeamMessenger extends ConversationWriter {
         context: 'direct', contextId: target, groupId: deliveryId,
         from: 'user', fromName: 'ユーザー', target, message,
       },
-      onStatus: (status, error) => this.appendDeliveryStatus(deliveryId, status, error),
+      onStatus: (status, error, tracking) => this.appendDeliveryStatus(deliveryId, status, error, tracking),
       onInterim: words => this.appendInterimWords(target, deliveryId, words),
     })
   }

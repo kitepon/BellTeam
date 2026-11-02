@@ -1,6 +1,7 @@
 import { appendFile, mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { returnedMcpError } from './returned-mcp-error.mjs'
+import { deliveryTracking } from './delivery-tracking.mjs'
 import { launchFailureDetails } from './agent-launch-error.mjs'
 
 // 直接会話と部屋で同じ返却を同じ保存fieldへ写す。配送の結論はtransportが持つ。
@@ -40,10 +41,12 @@ export class ConversationWriter {
     }
   }
 
-  appendDeliveryStatus(deliveryId, delivery, error = null) {
+  appendDeliveryStatus(deliveryId, delivery, error = null, tracking = null) {
+    const detail = deliveryTracking(delivery, tracking)
     return this.append({
       schema: 'bellteam.delivery-status.v1', delivery_id: deliveryId, at: this.now(), delivery,
       ...deliveryFailureFields(error),
+      ...(detail ? { delivery_tracking: detail } : {}),
     })
   }
 }

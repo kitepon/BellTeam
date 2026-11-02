@@ -65,6 +65,7 @@
     "src/http-conversation-api.mjs",
     "src/http-messages.mjs",
     "src/conversation-services.mjs",
-    "src/http-delivery-api.mjs"
+    "src/http-delivery-api.mjs",
+    "src/delivery-tracking.mjs"
   ]
 }

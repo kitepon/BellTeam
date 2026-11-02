@@ -1,3 +1,4 @@
+import { deliveryTracking } from './delivery-tracking.mjs'
 import { randomUUID } from 'node:crypto'
 
 import { memberIdentity } from './member-identity.mjs'
@@ -115,10 +116,11 @@ export class RoomMessenger {
           context: 'room', contextId: room.id, groupId: record.id,
           from, fromName: sender.name, target: id, message,
         },
-        onStatus: (delivery, error) => this.rooms.appendMessage(room.id, {
+        onStatus: (delivery, error, tracking) => this.rooms.appendMessage(room.id, {
           schema: 'bellteam.room-delivery-status.v1', message_id: record.id,
           target: id, at: this.now(), delivery,
           ...deliveryFailureFields(error),
+          ...(deliveryTracking(delivery, tracking) ? { delivery_tracking: deliveryTracking(delivery, tracking) } : {}),
         }),
         // 合間の言葉と最後の回答は、そのBotの会話画面に出すだけ。ルームにも他のBotにも届けない。
         ...(this.onInterimWords ? {

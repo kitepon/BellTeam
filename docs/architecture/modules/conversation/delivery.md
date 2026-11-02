@@ -16,6 +16,8 @@ flowchart TD
   Owner --> Status["runningを記録<br/>停止条件を再確認"]
   Status --> Accepted["受付Promiseを返す"]
   Accepted --> Wait["背景でターン終了を追う"]
+  Wait -->|"実追跡故障・受付根拠あり"| Tracking["failedと受付済み/完了不明を別々に保存"]
+  Tracking --> Projection["直接item / 部屋の宛先別deliveryTracking"]
   Wait --> Result["担当する回答と配送結果を記録"]
   Result --> Cleanup["一時画像とjobを片付ける"]
 ```
@@ -61,3 +63,13 @@ flowchart TD
 | 選定 | `chooseRoomResponder` | Jevへの入力は現発言・前会話・参加者。確率/所属を検証し0.6以上で一人。manual targetsが優先 |
 | 通知 | `roomEnvelope` / `Promise.allSettled` | 配送対象と返信者のsnapshotを分ける。全員の受付結果を回収。各onStatusで部屋recordを更新、途中経過/最終回答は各BotのOwner会話へ |
 | 返信 | `mcp-conversation-tools.mjs`の`respond_to_room` | 元発言/宛先/返信者に対応付ける。silentは制御応答、replyだけ新規部屋投稿。新投稿は新しい返信担当判定を持つ |
+
+## 受付済みの追跡中断
+
+executionの[待機契約](../execution/wait-contract.md)が既onStatus(status,error)の第3引数へ渡す既知3値を、直接user/Bot/通話/復旧と部屋で同じ意味のまま転送する。delivery-tracking.mjsはfailedかつschema=bellteam.delivery-tracking.v1/admission=accepted/completion=unknownだけを固定3値へ作り直す。余分なfieldと任意error本文は保存しない。
+
+保存JSONLの任意delivery_trackingは、直接ではConversationWriter、部屋では宛先別room-delivery-statusが持つ。ConversationStore/RoomHistoryは同配送の最新statusと根拠を一緒に選び、後続statusで古い根拠を残さない。公開HTTPページ/MCP履歴の直接item.deliveryTracking、部屋deliveries[]の要素.deliveryTrackingへ返す。部屋トップレベルには付けない。入力schema・URL/status・SSEのtopic/対象ID・既failed/stopped値は変えない。過去のfield無しfailedへ根拠を後付けしない。
+
+表示は直接『受付済み・完了未確認』。部屋のrouting失敗/根拠なしfailedを優先し、それ以外に根拠付きfailedがある場合『完了未確認の宛先あり』とし、混在する他宛先の受付/成功を補完しない。Web/Apple/Windows各担当が表示する。未知/不正tupleでは従来の表示を保つ。
+
+検証はconversation-tracking.test.mjs。実executionの人工wait故障→Messenger→JSONL→Store、user/通知/部屋callback、HTTPページとMCP投影、後続状態/不正任意fieldを確認する。test/fixtures/delivery-tracking-wire.jsonは保存経路から得た直接/混在部屋の公開ページと一致を固定する。native/実席・実DB・本番の受入を代用しない。

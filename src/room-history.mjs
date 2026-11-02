@@ -1,3 +1,4 @@
+import { deliveryTracking } from './delivery-tracking.mjs'
 import { open } from 'node:fs/promises'
 import { TimelineIndex } from './timeline-index.mjs'
 
@@ -59,8 +60,12 @@ function emptyRead() {
 }
 function project(message, state) {
   return { ...message,
-    ...(Array.isArray(message.deliveries) ? { deliveries: message.deliveries.map(item => ({ ...item,
-      delivery: state.statuses.get(`${message.id}\0${item.target}`) ?? item.delivery })) } : {}),
+    ...(Array.isArray(message.deliveries) ? { deliveries: message.deliveries.map(item => {
+      const status = state.statuses.get(`${message.id}\0${item.target}`) ?? item
+      const { delivery_tracking: _raw, deliveryTracking: _public, ...original } = item
+      const tracking = deliveryTracking(status.delivery, status.delivery_tracking)
+      return { ...original, delivery: status.delivery, ...(tracking ? { deliveryTracking: tracking } : {}) }
+    }) } : {}),
     routing: state.routing.get(message.id) ?? message.routing }
 }
 function validate(record) {
@@ -72,7 +77,7 @@ function apply(records, state) {
   for (const record of records) {
     let changed
     if (record?.schema === 'bellteam.room-delivery-status.v1') {
-      state.statuses.set(`${record.message_id}\0${record.target}`, record.delivery)
+      state.statuses.set(`${record.message_id}\0${record.target}`, record)
       changed = state.byId.get(record.message_id) ?? []
     } else if (record?.schema === 'bellteam.room-routing-status.v1') {
       state.routing.set(record.message_id, record.routing)

@@ -1,0 +1,109 @@
+{
+  "direct": {
+    "items": [
+      {
+        "id": "d1",
+        "kind": "message",
+        "direction": "outgoing",
+        "at": "2026-11-02T00:00:00Z",
+        "message": "fixture",
+        "image": false,
+        "delivery": "failed",
+        "deliveryTracking": {
+          "schema": "bellteam.delivery-tracking.v1",
+          "admission": "accepted",
+          "completion": "unknown"
+        }
+      },
+      {
+        "id": "d2",
+        "kind": "peer",
+        "direction": "received",
+        "at": "2026-11-02T00:00:00Z",
+        "peer": "bot-b",
+        "peerName": "B",
+        "peerPosition": "",
+        "peerRole": "",
+        "message": "fixture",
+        "image": false,
+        "delivery": "failed",
+        "deliveryTracking": {
+          "schema": "bellteam.delivery-tracking.v1",
+          "admission": "accepted",
+          "completion": "unknown"
+        }
+      }
+    ],
+    "has_more": false,
+    "remaining_before": 0
+  },
+  "room": {
+    "items": [
+      {
+        "schema": "bellteam.room-message.v1",
+        "id": "room-message",
+        "at": "2026-11-02T00:00:00Z",
+        "kind": "message",
+        "sender": {
+          "id": "user",
+          "name": "ユーザー",
+          "position": "",
+          "role": "オーナー"
+        },
+        "room": {
+          "id": "room-a",
+          "name": "fixture",
+          "representative": null,
+          "members": [
+            {
+              "id": "bot-a",
+              "name": "A",
+              "position": "",
+              "role": ""
+            },
+            {
+              "id": "bot-b",
+              "name": "B",
+              "position": "",
+              "role": ""
+            }
+          ]
+        },
+        "targets": [
+          {
+            "id": "bot-a",
+            "name": "A",
+            "position": "",
+            "role": ""
+          }
+        ],
+        "message": "fixture",
+        "image": false,
+        "schedule": null,
+        "routing": {
+          "status": "ready",
+          "responders": [
+            "bot-a"
+          ]
+        },
+        "deliveries": [
+          {
+            "target": "bot-a",
+            "delivery": "failed",
+            "deliveryTracking": {
+              "schema": "bellteam.delivery-tracking.v1",
+              "admission": "accepted",
+              "completion": "unknown"
+            }
+          },
+          {
+            "target": "bot-b",
+            "delivery": "failed"
+          }
+        ]
+      }
+    ],
+    "has_more": false,
+    "remaining_before": 0
+  }
+}
