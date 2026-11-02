@@ -23,4 +23,8 @@ callerは固定planからquestionId/依頼者/質問文/選択肢/許可回答�
 
 native status/cancelの世代検証と正規交代、管理clientのSSH identity/remote MCP・shell HOME/config到達証拠は未成立。固定adapterはこの不足をboolや元席PID観測で補わない。ミカのconsumer公開I/F/Owner専用公式URL表示/有界入力待ちを合意後に組立てる。candidate試験は合成値だけで、資格/実認証/新PTY/Host/本番操作0。
 
+固定adapterはRoot所有AitermClientを既正規SSH/stdinの公開MCPへ接続する。host=rabbit/user=kite、承認済みNode絶対pathと正式npm公開entry絶対pathを固定引数とし、共有PATH切替/OS wrapper/remote転送引数を使わない。initializeのname=aiterm/version=固定Vをauth前に照合し、そのSDK実参照と版をClientのguarded callへ毎回渡す。初回connectの結果を保持し、切断/unknown/typed拒否後に新接続や他env launcherへ進まない。clientInfoは既固定bellteam、parent _metaは渡さない。
+
+initializeは無作用とは扱わない。opt-in error reporterや依存初期化の既動作、同SSHの実Node/UID/HOME/config/cwd/state/socket/artifact実体は別に計画・承認・非秘密実測が必要。Node/entryの絶対pathとinitialize版だけをそれらの証明へ代用しない。実target受入前に管理planを有効配置しない。
+
 source: src/olrw-management-caller.mjs、test/olrw-management-caller.test.mjs。application-servicesは管理bootstrapのolrwManagement参照がある場合だけ同じSecretRequests実体とstate/olrw-authをconsumer factoryへ注入する。application-runtime全体closeはcaller停止→既資源closeを行う。通常bootstrapにはまだこの参照producerがなく、無反映で有効化できない。root配置loader/usage/nativeを結合するまで本番で有効化しない。既公開契約の変更はない。

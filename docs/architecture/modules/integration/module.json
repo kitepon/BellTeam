@@ -58,6 +58,7 @@
     "src/http-gateway.mjs",
     "src/http-gateway-entry.mjs",
     "src/http-gateway-process.mjs",
-    "src/olrw-management-caller.mjs"
+    "src/olrw-management-caller.mjs",
+    "src/olrw-rabbit-auth.mjs"
   ]
 }
