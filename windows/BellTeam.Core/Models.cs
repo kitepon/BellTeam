@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Text.Json;
 
 namespace BellTeam.Core;
 
@@ -64,6 +65,9 @@ public sealed record TimelineMessage
     public Member? Sender { get; init; }
     public string? PeerName { get; init; }
     public string? Delivery { get; init; }
+    public JsonElement DeliveryTracking { get; init; }
+    public JsonElement Deliveries { get; init; }
+    public JsonElement Routing { get; init; }
     public bool? Image { get; init; }
     [JsonPropertyName("image_count")] public int? ImageCount { get; init; }
     [JsonPropertyName("image_url")] public string? ImageUrl { get; init; }
