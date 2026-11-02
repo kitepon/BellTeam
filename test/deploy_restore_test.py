@@ -31,6 +31,37 @@ class Checks(unittest.TestCase):
   with unittest.mock.patch.object(m,'BASE',self.p/'missing'/'backup'),unittest.mock.patch.object(m,'mount_guard',side_effect=RuntimeError('NAS unavailable')):
    with self.assertRaises(RuntimeError):m.main()
   self.assertEqual(list(self.p.iterdir()),[])
+ def test_cursor_reader_uses_server_then_fixed_seat_entry_and_keeps_failure_unpublished(self):
+  container={'Id':'c'*64,'Image':'sha256:'+'a'*64,'Mounts':[{'Destination':'/home/bell/.local','Type':'volume','Name':'bellteam_cursor-cli'}]}
+  archive=m.archive
+  for fail in (False,True):
+   with self.subTest(fail=fail):
+    base=self.p/str(fail);pruned=[]
+    def reader(path,command,script):
+     self.assertEqual(command,['docker','exec','-i','--user','1001:1001',container['Id'],
+       '/usr/bin/sudo','-n','--','/usr/local/libexec/bellteam-seat-exec','--',
+       '/usr/bin/python3','-','create','/home/bell/.local'])
+     self.assertEqual(script,pathlib.Path('scripts/archive-live-volume.py'))
+     # Simulate only the boundary's argv/exit contract; never call Docker/sudo.
+     code='import sys;assert sys.stdin.buffer.read();sys.stdout.write("partial" if '+repr(fail)+' else "complete");sys.exit('+('126' if fail else '0')+')'
+     return archive(path,[sys.executable,'-c',code],script=script,rate=0)
+    with unittest.mock.patch.object(m,'BASE',base),unittest.mock.patch.object(m,'mount_guard'), \
+      unittest.mock.patch.object(m.subprocess,'check_output',return_value=json.dumps([container]).encode()) as inspect, \
+      unittest.mock.patch.object(m,'image_blob',return_value={'image':container['Image']}), \
+      unittest.mock.patch.object(m,'archive',side_effect=reader),unittest.mock.patch.object(m,'prune_points',side_effect=pruned.append), \
+      unittest.mock.patch('builtins.print'):
+     if fail:
+      with self.assertRaisesRegex(RuntimeError,'archive producer failed'):m.main()
+     else:m.main()
+    point=next(p for p in base.iterdir() if p.is_dir() and p.name!='images')
+    self.assertEqual(inspect.call_count,1 if fail else 2)
+    self.assertFalse((point/'cursor.tar.partial').exists())
+    if fail:
+     self.assertEqual({p.name for p in point.iterdir()},{'failed.json'})
+     self.assertEqual(json.loads((point/'failed.json').read_text())['errorType'],'RuntimeError');self.assertEqual(pruned,[])
+    else:
+     self.assertEqual((point/'cursor.tar').read_bytes(),b'complete')
+     self.assertEqual(json.loads((point/'restore.json').read_text())['container'],container['Id']);self.assertEqual(pruned,[base])
  def test_redirect_rejected(self):
   (self.p/'real').mkdir();(self.p/'link').symlink_to(self.p/'real',target_is_directory=True)
   with self.assertRaises(RuntimeError):m.mount_guard(self.p/'link')
