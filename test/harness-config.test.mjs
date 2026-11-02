@@ -2,9 +2,17 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import test from 'node:test'
+import test, { before, after } from 'node:test'
 
 import { configureHarnesses, writeHarnessConfig } from '../src/harness-config.mjs'
+
+// These fixtures exercise legacy registration; resume-runtime tests the explicit fixed H1 base.
+const inheritedStateBase = process.env.AITERM_STATE_BASE
+before(() => { delete process.env.AITERM_STATE_BASE })
+after(() => {
+  if (inheritedStateBase === undefined) delete process.env.AITERM_STATE_BASE
+  else process.env.AITERM_STATE_BASE = inheritedStateBase
+})
 
 test('五つのCLIと親hookへ同一native登録を渡し旧lazy wakeを起こさない', async () => {
   const home = await mkdtemp(join(tmpdir(), 'bellteam-native-registration-'))
