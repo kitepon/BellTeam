@@ -22,6 +22,8 @@ HTTPの公開入口は`src/http-server.mjs`の`createBellTeamServer`であり、
 
 一回の配送の事実と停止の結論は`delivery-job.mjs`の`DeliveryJob`だけが決める。停止経路は停止要求・Aitermの停止結果・操作の終了を伝え、送信処理は節目（checkpoint）で続けてよいかを聞き、失敗時の最終エラーもjobが停止の結論から決める。受理済みの送信を停止で成功へ丸めず、未送信の実行登録だけをnot_sentで閉じる。席で今起きていることの正本は`seat-activity.mjs`の`SeatActivity`で、受付前も含む配送job、「処理中」として見せる活動（受付済みの配送と席が自分で始めたターンの見張り`SeatTurnWatch`）、追い終えたターン、席ごとの進行中操作（設定変更・送信の順番・起動）を一つで持ち、空いているか・誰がターンを追っているか・停止の対象を答える。停止の二経路（停止ボタンの一括停止と実行登録ごとの中断）は`execution-transport.mjs`の共通の骨格（根の停止世代を進める→配送jobへ停止要求→進行中の停止として公開→終了時に止まらなかったjobを解放）を使い、停止世代の更新は`BotSessionState`だけが行う。`execution-transport.mjs`はtransport全体ではなく、席の窓口（session/observe/wake/画像/実行橋/席状態/活動）だけを受け取る。
 
+席の通常起動・終了は、発行済みの`agent_launch`と`pty_close`の返却後に`BellTeam session result:`を既存stderrへ記録する。Bot/session/launchのID、返却の有無、isError、既知のschema・終了結果・起動状態・本文投入状態だけを残す。本文・認証情報・env値・任意のエラー文は記録しない。不正または欠測の項目はnullで、成功へ補わない。通信断は返却済み拒否と区別する。このログは観測であり、席状態の正本・配送の許可・再試行条件にはしない。ログ保存の失敗も通常操作の結果を変更しない。
+
 ## 公開認証
 
 APIの通信診断では、POST・PUT・PATCH・DELETEの既存の `BellTeam write:` ログを保ち、GET・HEADには `BellTeam read:` を残す。読み取りは受付時の `started` と、接続終了時のHTTP状態または `aborted`・所要時間を記録する。両行の時刻は同じ受付時刻で、追加の要求IDは作らない。本文・問い合わせ文字列・Cookie・認証ヘッダーは記録しない。`/healthz`、静的ファイル、MCPは対象外。SSEは接続の受付と閉鎖だけを記録する。正常終了はNodeが応答をOSへ渡した事を示し、端末が受け取った証明にはしない。同じ時刻・経路の要求が重なる場合、ログだけで一意に対応付けたとは扱わない。

@@ -1,6 +1,25 @@
 import { isDeepStrictEqual as same } from 'node:util'
 import { stoppedError } from './bot-execution-errors.mjs'
 
+// Only typed status fields cross into logs; launch text can contain credentials.
+function changeReport(bot, name, args, result, error) {
+  const value = result?.structuredContent ?? error?.launch
+  const select = (value, pattern) => typeof value === 'string' && pattern.test(value) ? value : null
+  return {
+    at: new Date().toISOString(), botId: select(bot.id, /^[A-Za-z0-9_-]{1,64}$/u), tool: name,
+    session: select(args.session_id ?? args.session_name, /^[A-Za-z0-9_-]{1,64}$/u),
+    returned: error === undefined || error?.aitermResponseReturned === true,
+    isError: error === undefined ? result?.isError === true : error?.aitermResponseReturned === true ? true : null,
+    schema: select(value?.schema, /^aiterm\.(?:pty-close|agent-launch)-result\.v1$/u),
+    session_id: select(value?.session_id, /^[A-Za-z0-9_-]{1,64}$/u),
+    launch_id: select(value?.launch_id, /^[a-f0-9]{32}$/u),
+    outcome: select(value?.outcome, /^(?:closed|already_closed)$/u),
+    startup: select(value?.startup?.status, /^(?:ready|not_checked|blocked)$/u),
+    initial_prompt: select(value?.initial_prompt?.status, /^(?:not_requested|not_sent|submitted_unconfirmed|started)$/u),
+    error: select(error?.code, /^[A-Z][A-Z0-9_]{0,63}$/u),
+  }
+}
+
 // Keep the public cause strings while distinguishing a later uncertainty with
 // the same cause. These identities are local to this transport, never wire IDs.
 class UncertainSessionChanges extends Map {
@@ -23,12 +42,13 @@ class UncertainSessionChanges extends Map {
 // BellTeam owns session-slot changes, their pending operations and uncertainty.
 // Delivery/job state is supplied as observations; native execution stays in Aiterm.
 export class BotSessionState {
-  constructor({ assertWorkAllowed, executionBridge, call, invalidateRunning, activity }) {
+  constructor({ assertWorkAllowed, executionBridge, call, invalidateRunning, activity, writeLog = line => process.stderr.write(line) }) {
     this.assertWorkAllowed = assertWorkAllowed
     this.bridge = executionBridge
     this.call = call
     this.invalidateRunning = invalidateRunning
     this.activity = activity
+    this.writeLog = writeLog
     this.sessions = new Map()
     this.stopVersions = new Map()
     this.stopSessions = new Map()
@@ -108,7 +128,13 @@ export class BotSessionState {
       changes.delete(pending)
       if (!changes.size && this.sessionChanges.get(bot.id) === changes) this.sessionChanges.delete(bot.id)
     }
-    pending.then(clear, error => {
+    const report = (result, error) => {
+      if (!['pty_close', 'agent_launch'].includes(name) || !issued) return
+      // Logging is observational and must not change the operation's outcome.
+      try { this.writeLog(`BellTeam session result: ${JSON.stringify(changeReport(bot, name, args, result, error))}\n`) } catch {}
+    }
+    pending.then(result => { report(result); clear() }, error => {
+      report(undefined, error)
       // RPCのrejectは遠隔の変更を取り消さない。後から旧closeが届き得る同名の席を自動で再利用しない。
       if (issued && ((error?.effect !== 'not_started' && error?.aitermResponseReturned !== true && error?.launch?.schema !== 'aiterm.agent-launch-result.v1')
         || error?.executionError?.effect === 'possible'))
