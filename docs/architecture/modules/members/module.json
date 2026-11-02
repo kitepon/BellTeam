@@ -37,10 +37,26 @@
     {
       "module": "conversation",
       "port": "room-access"
+    },
+    {
+      "module": "execution",
+      "port": "configuration"
+    },
+    {
+      "module": "execution",
+      "port": "observation"
+    },
+    {
+      "module": "conversation",
+      "port": "history"
     }
   ],
   "source": [
     "src/members/deletion.mjs",
+    "src/members/profiles-mcp.mjs",
+    "src/members/profiles-http.mjs",
+    "src/members/owner-http.mjs",
+    "src/mcp-owner-tools.mjs",
     "src/members/schedules-mcp.mjs",
     "src/members/schedules-http.mjs",
     "src/http-schedule-api.mjs",
