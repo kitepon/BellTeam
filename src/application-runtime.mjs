@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { createHttpGatewayProcess } from './http-gateway-process.mjs'
 import { prepareGatewayRelease } from './web-gateway-release.mjs'
+import { createWebGatewayControl } from './web-gateway-control.mjs'
 import { createApplicationServices } from './application-services.mjs'
 import { createApplicationFeatures } from './application-features.mjs'
 import { createBellTeamServer } from './http-server.mjs'
@@ -22,7 +23,10 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     idleSessions, selfTurns, seatTurns, administration, goals,
   } = services
   const { aiterm } = bootstrap
+  let socketDirectory = null, gateway = null
+  const webGatewayControl = createWebGatewayControl({ gateway: () => gateway })
   const serverOptions = {
+    webGatewayControl,
     aiControl,
     subscriptions,
     settings,
@@ -66,7 +70,6 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     },
   })
   const internalServer = createBellTeamServer({ ...serverOptions, internal: true, seatMcp, authorize: async () => true })
-  let socketDirectory = null, gateway = null
   const listen = (server, ...args) => new Promise((resolve, reject) => {
     const failed = error => reject(error)
     server.once('error', failed)
@@ -104,6 +107,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     closing ??= (async () => {
       const errors = []
       for (const stop of [
+        () => webGatewayControl.close(),
         () => gateway?.close(),
         () => scheduler.stop(), () => idleSessions.stop(), () => selfTurns.stop(), () => seatTurns.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => features.close(),

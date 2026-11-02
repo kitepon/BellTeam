@@ -117,6 +117,10 @@ SSEは業務側からstreamで中継。受付停止時はSSE接続を切断し�
 
 ## Web受付の固定版切替（実装中の接続）
 
+Owner向け既認証のGET/POST `/api/web-gateway-release`でWeb受付一対象を操作する。内部HTTP/MCPは403。POST本文はversionIdの64hexだけ、同時要求は409。受付202は交換成功ではなく、応答finish後だけ既gateway.replaceを実行する。finish前の切断はnot_started、親closeは未開始要求を止める。要求自身の非SSEdrain待ちで交換を止めない。GETは現在版と一件の直近交換結果を返す。状態は親内だけで、新queue/ID/永続台帳を増やさず、採用版の正本は既adoption recordを保つ。親再起動で直近の受付結果は失われるので、その場合は現在版を確認し自動再送しない。
+
+旧版への戻しも同じPOSTへ旧固定versionIdを指定する。任意path/command/UIDは受け付けない。失敗は固定GATEWAY符号と実際の現在版をGETへ返す。業務handler/writer/job/nativeは停止しない。初回image導入と本番停止はこの窓口の実装承認に含めない。
+
 ```mermaid
 flowchart TD
   Version[版IDだけを選択] --> Prepare[runtime/配布の公開窓口: 認証・互換・固定配置の確認]

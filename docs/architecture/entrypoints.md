@@ -103,3 +103,5 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | install/deploy/backup/restore | scriptsとdistribution/server | 本体停止を含む別操作。許可と既存保全手順を維持 |
 
 読み方の注意：API名が似ているから同じ権限や完了時点とは限らない。新しい共通関数を作る際は、この表のcallerを全て確認してから置き換える。
+
+Web受付の固定版選択はOwner向け既認証のGET/POST `/api/web-gateway-release`だけ。POSTは`{versionId:<64hex>}`を202で受け、応答終了後に子だけを交換する。GETで現在版と直近結果を読む。内部HTTP/MCPは403、同時要求409。初回image導入/本番停止や任意path/commandの実行窓口にはしない。詳細と失敗時の意味は[integration正本](modules/integration/README.md#web受付の固定版切替実装中の接続)。

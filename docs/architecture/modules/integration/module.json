@@ -54,6 +54,7 @@
     "src/http-gateway.mjs",
     "src/http-gateway-entry.mjs",
     "src/http-gateway-process.mjs",
-    "src/http-assets.mjs"
+    "src/http-assets.mjs",
+    "src/web-gateway-control.mjs"
   ]
 }
