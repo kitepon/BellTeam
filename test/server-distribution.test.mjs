@@ -22,6 +22,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'scripts/seat-exec.c', 'scripts/server-start.c',
     'scripts/assert-state-writers-stopped.sh',
     'scripts/install-sce-headers.py',
+    'distribution/server/install-resume-state.sh',
     'runtime/home/auth.json', '.env', 'config/bots.json', 'services/subscriptions/keys/private.p8',
     'distribution/server/bridge/bridge.env',
   ]
@@ -44,6 +45,12 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   const pathsInArchive = (await exec('tar', ['-tzf', result.archive])).stdout.trim().split('\n').map(path => path.replace(/^\.\//, ''))
   assert.equal(await readFile(join(output, 'compose.aiterm-checkpoint.yaml'), 'utf8'),
     await readFile(new URL('../distribution/server/compose.aiterm-checkpoint.yaml', import.meta.url), 'utf8'))
+  for (const name of ['install-resume-state.sh', 'compose.aiterm-checkpoint.yaml']) {
+    assert.ok(pathsInArchive.includes(name))
+    assert.ok(pathsInArchive.includes('distribution/server/' + name))
+    assert.equal(await readFile(join(output, name), 'utf8'),
+      await readFile(join(output, 'distribution/server', name), 'utf8'))
+  }
   assert.ok(pathsInArchive.includes('config/setup-guide.json'))
   assert.ok(pathsInArchive.includes('config/ponytail-LICENSE'))
   assert.ok(pathsInArchive.includes('docs/onboarding.md'))

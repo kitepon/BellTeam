@@ -22,7 +22,7 @@ flowchart TD
 | `distribution/server/compose.aiterm-checkpoint.yaml` | UID1000:1000、networkなし、read-only、cap_drop ALL/NNP。runtimeが旧normalから束縛したvolumeを同pathへreadonly、HOME bindも元の`/home/bell`へreadonly。helperは1001 privateとDocker socketをmountしない |
 | helper image/HOME入力 | `BELLTEAM_SERVER_IMAGE`と`BELLTEAM_AITERM_CHECKPOINT_HOME`は必須。imageは固定採用物、HOMEは旧normalの正規化済み絶対bind source。Config.Envの本体鍵や無関係なmountを複写しない |
 | helper公開entry | `/usr/local/bin/node /usr/local/lib/node_modules/aiterm-mcp/dist/resume-state-cli.js`。`aiterm-resume-state` binの実mappingと一致させる。runtimeが検証した`checkpoint --session ... --launch ...`だけを渡す。引数なしは製品CLIが拒否 |
-| `scripts/package-server.mjs` / installer | public context/archiveへhelperを収録。installerはruntimeが選択・正規化・固定・呼出しを所有する。既maintenanceのmount2本/caps/NNPを緩めない |
+| `Dockerfile` / `scripts/package-server.mjs` / installer | internal/public共通のsource `distribution/server/{install-resume-state.sh,compose.aiterm-checkpoint.yaml}` から `/app` 直下の同名2fileを作る。public context/archiveもsource用2fileと直下2fileを同bytesで保持する。installerはruntimeが選択・正規化・固定・呼出しを所有する。既maintenanceのmount2本/caps/NNPを緩めない |
 | 関連試験 | `test/server-aiterm-checkpoint-compose.test.mjs`で非公開mount/環境/UIDの境界、`test/server-distribution.test.mjs`でarchive同梱を確認。実container/volume/pipe/起動順はruntimeと実imageの必要受入で別に結ぶ |
 
 新旧volumeのUID/GID1000・0700初期準備と別backing、初回からの全writer同base、private0700/0600・LF込みraw SHA・16MiB bundleと別receipt<=512B・個別exit・同digest再開/boot採用はruntimeの公開接点へ依存する。Compose変数を設定しただけで成立とはしない。

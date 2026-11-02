@@ -54,6 +54,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --cache /root/.npm
 COPY . .
+COPY distribution/server/install-resume-state.sh distribution/server/compose.aiterm-checkpoint.yaml ./
 RUN install -o root -g root -m 0755 scripts/cursor-update-entrypoint.sh /usr/local/bin/bellteam-update-cursor
 RUN /usr/sbin/groupadd -g 1001 bellteam-server \
   && /usr/sbin/useradd -u 1001 -g 1001 -d /run/bellteam-server -M -s /usr/sbin/nologin bellteam-server \

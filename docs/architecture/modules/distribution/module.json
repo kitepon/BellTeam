@@ -19,6 +19,7 @@
     "distribution/server/compose.yaml",
     ".github/workflows/publish-server-image.yml",
     "compose.yaml",
-    "distribution/server/compose.aiterm-checkpoint.yaml"
+    "distribution/server/compose.aiterm-checkpoint.yaml",
+    "Dockerfile"
   ]
 }

@@ -34,6 +34,7 @@ try {
     ['bots.json', 'config/bots.json'],
     ['compose.yaml', 'compose.yaml'],
     ['compose.aiterm-checkpoint.yaml', 'compose.aiterm-checkpoint.yaml'],
+    ['install-resume-state.sh', 'install-resume-state.sh'],
     ['.env.example', '.env.example'],
     ['README.md', 'README.md'],
     ['install.sh', 'install.sh'],
@@ -42,6 +43,10 @@ try {
   await chmod(join(output, 'install.sh'), 0o755)
   await chmod(join(output, 'bridge/install.sh'), 0o755)
   await rm(join(output, 'distribution'), { recursive: true })
+  await mkdir(join(output, 'distribution/server'), { recursive: true })
+  // Dockerfile uses the same two source paths in repository and public contexts.
+  for (const name of ['install-resume-state.sh', 'compose.aiterm-checkpoint.yaml'])
+    await copyFile(join(output, name), join(output, 'distribution/server', name))
   await writeFile(join(output, 'distribution.json'), JSON.stringify({
     schema: 'bellteam.server.distribution.v1', sourceCommit, profile: 'public',
   }, null, 2) + '\n')

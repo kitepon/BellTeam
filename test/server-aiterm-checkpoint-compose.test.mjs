@@ -43,3 +43,9 @@ test('public/internal normalは同じbaseと外部volumeを使いruntimeの世�
     assert.match(normal, /aiterm-state:\n\s+external: true\n\s+name: \$\{BELLTEAM_AITERM_STATE_VOLUME:-bellteam-aiterm-state\}/u)
   }
 })
+
+
+test('Dockerfileはinternal/public双方の同じsourceからruntimeの固定pathへ同梱する', async () => {
+  const dockerfile = await readFile(new URL('../Dockerfile', import.meta.url), 'utf8')
+  assert.match(dockerfile, /WORKDIR \/app[\s\S]*COPY \. \.\nCOPY distribution\/server\/install-resume-state\.sh distribution\/server\/compose\.aiterm-checkpoint\.yaml \.\//u)
+})
