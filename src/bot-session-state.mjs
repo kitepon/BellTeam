@@ -16,7 +16,6 @@ function changeReport(bot, name, args, result, error) {
     outcome: select(value?.outcome, /^(?:closed|already_closed)$/u),
     startup: select(value?.startup?.status, /^(?:ready|not_checked|blocked)$/u),
     initial_prompt: select(value?.initial_prompt?.status, /^(?:not_requested|not_sent|submitted_unconfirmed|started)$/u),
-    error: select(error?.code, /^[A-Z][A-Z0-9_]{0,63}$/u),
   }
 }
 

@@ -37,15 +37,16 @@ test('席のclose/新launchは返却後に状態だけ記録し本文やenvを�
 
 test('返却済みclose拒否と通信不明を分け、ログ障害で結果や再送回数を変えない', async () => {
   const lines = []; let calls = 0
-  const refusal = Object.assign(new Error('private-failure-text'), { aitermResponseReturned: true, code: 'CLOSE_REFUSED' })
+  const refusal = Object.assign(new Error('private-failure-text'), { aitermResponseReturned: true, code: 'PRIVATE_TOKEN_ABC123' })
   const state = fixture({ call: async () => { calls++; throw refusal }, writeLog: line => lines.push(line) })
   await assert.rejects(state.changeSession(bot, 'pty_close', { session_id: bot.session }), error => error === refusal)
   assert.equal(state.uncertainChanges.has(bot.id), false)
   state.call = async () => { calls++; throw new Error('private-disconnected') }
   await assert.rejects(state.changeSession(bot, 'pty_close', { session_id: bot.session }))
   assert.equal(state.uncertainChanges.get(bot.id), 'pty_close')
-  assert.deepEqual(lines.map(line => { const r = JSON.parse(line.slice('BellTeam session result: '.length)); return [r.returned, r.isError, r.error] }),
-    [[true, true, 'CLOSE_REFUSED'], [false, null, null]])
+  assert.deepEqual(lines.map(line => { const r = JSON.parse(line.slice('BellTeam session result: '.length)); assert.equal(Object.hasOwn(r, 'error'), false); return [r.returned, r.isError] }),
+    [[true, true], [false, null]])
+  assert.equal(lines.join('').includes('PRIVATE_TOKEN_ABC123'), false)
   assert.equal(lines.join('').includes('private-'), false)
   const other = fixture({ call: async () => { calls++; return {} }, writeLog() { throw new Error('logger failed') } })
   assert.deepEqual(await other.changeSession(bot, 'pty_close', { session_id: bot.session }), {})
