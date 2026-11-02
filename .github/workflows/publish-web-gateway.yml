@@ -1,0 +1,87 @@
+{
+  "name": "Web受付専用archiveとOIDC provenanceを作る",
+  "on": {
+    "workflow_dispatch": {}
+  },
+  "permissions": {
+    "contents": "read",
+    "id-token": "write",
+    "attestations": "write"
+  },
+  "concurrency": {
+    "group": "web-gateway-artifact",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "package": {
+      "if": "github.repository == 'kitepon/BellTeam' && github.ref == 'refs/heads/main'",
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {
+          "include": [
+            {
+              "arch": "amd64",
+              "runner": "ubuntu-24.04"
+            },
+            {
+              "arch": "arm64",
+              "runner": "ubuntu-24.04-arm"
+            }
+          ]
+        }
+      },
+      "runs-on": "${{ matrix.runner }}",
+      "timeout-minutes": 15,
+      "env": {
+        "ARCH": "${{ matrix.arch }}",
+        "SOURCE": "${{ github.sha }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v7",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "uses": "actions/setup-node@v7",
+          "with": {
+            "node-version": "node"
+          }
+        },
+        {
+          "name": "固定main sourceからclean production依存とarchiveを作る",
+          "run": "python3 test/web-gateway-artifact.test.py\npython3 - <<'PYTHON'\nimport os,platform,re,subprocess\nassert re.fullmatch('[a-f0-9]{40}',os.environ['SOURCE'])\nassert {'x86_64':'amd64','aarch64':'arm64'}[platform.machine()] == os.environ['ARCH']\nassert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip() == os.environ['SOURCE']\nPYTHON\nmkdir -p runtime/web-gateway\npython3 scripts/package-web-gateway.py \"runtime/web-gateway/web-gateway-$SOURCE-linux-$ARCH.tar.gz\" --source \"$SOURCE\" --arch \"$ARCH\" > runtime/web-gateway/package-result.json\n"
+        },
+        {
+          "name": "実archiveの固定版ready・旧資材catalog・自己完結entryを確認",
+          "run": "python3 - <<'PYTHON'\nimport os,subprocess,sys,tarfile,tempfile\nfrom pathlib import Path\nsys.path.insert(0,'scripts')\nfrom web_gateway_artifact import check_archive\narchive=Path('runtime/web-gateway')/('web-gateway-'+os.environ['SOURCE']+'-linux-'+os.environ['ARCH']+'.tar.gz')\nwith archive.open('rb') as stream: check_archive(stream,os.environ['SOURCE'],os.environ['ARCH'])\nwith tempfile.TemporaryDirectory() as stage:\n    with tarfile.open(archive,'r:gz') as tar: tar.extractall(stage,filter='data')\n    subprocess.run(['node','test/helpers/web-gateway-artifact-probe.mjs',str(Path(stage)/'payload')],check=True,timeout=20)\nPYTHON"
+        },
+        {
+          "name": "archiveの公式OIDC attestationを生成",
+          "id": "attest",
+          "uses": "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6",
+          "with": {
+            "subject-path": "runtime/web-gateway/*.tar.gz",
+            "create-storage-record": false
+          }
+        },
+        {
+          "name": "公式verifierでidentityとsourceを確認してbundleを保存",
+          "env": {
+            "BUNDLE": "${{ steps.attest.outputs.bundle-path }}"
+          },
+          "run": "archive=\"runtime/web-gateway/web-gateway-$SOURCE-linux-$ARCH.tar.gz\"\ngh attestation verify \"$archive\" --repo kitepon/BellTeam --signer-workflow kitepon/BellTeam/.github/workflows/publish-web-gateway.yml --source-ref refs/heads/main --source-digest \"$SOURCE\" --signer-digest \"$SOURCE\" --deny-self-hosted-runners --bundle \"$BUNDLE\" --custom-trusted-root config/web-gateway-trusted-root.jsonl --format json > runtime/web-gateway/verified.json\njq -e 'length > 0 and all(.[]; .verificationResult.signature.certificate.sourceRepositoryIdentifier == \"1404510084\")' runtime/web-gateway/verified.json\ncp \"$BUNDLE\" \"$archive.sigstore.json\"\n"
+        },
+        {
+          "uses": "actions/upload-artifact@v7",
+          "with": {
+            "name": "web-gateway-${{ matrix.arch }}-${{ github.run_attempt }}",
+            "path": "runtime/web-gateway/",
+            "if-no-files-found": "error"
+          }
+        }
+      ]
+    }
+  }
+}

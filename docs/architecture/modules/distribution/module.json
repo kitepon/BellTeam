@@ -5,7 +5,8 @@
   "scope": "配布構成・候補build・image/source受入・公開版発行とpromotion。設置/移行の実装はエピネル、本番実行はトロニー",
   "external": false,
   "provides": [
-    "image"
+    "image",
+    "web-gateway-artifact"
   ],
   "uses": [
     {
@@ -21,6 +22,12 @@
     "compose.yaml",
     "distribution/server/compose.aiterm-checkpoint.yaml",
     "Dockerfile",
-    ".github/workflows/verify-h1-runtime-image.yml"
+    ".github/workflows/verify-h1-runtime-image.yml",
+    "scripts/package-web-gateway.py",
+    "scripts/verify-web-gateway.py",
+    "scripts/web_gateway_artifact.py",
+    "config/web-gateway-verification.json",
+    "config/web-gateway-trusted-root.jsonl",
+    ".github/workflows/publish-web-gateway.yml"
   ]
 }

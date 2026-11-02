@@ -108,7 +108,7 @@ flowchart LR
 | [BugHub](modules/bughub/README.md) | フラジャイル | public |
 | [Caveat](modules/caveat/README.md) | ノア | public |
 | [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access |
-| [商用配布](modules/distribution/README.md) | センチ | image |
+| [商用配布](modules/distribution/README.md) | センチ | image / web-gateway-artifact |
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation |
 | [全体設計・統合](modules/integration/README.md) | トロニー | HTTP/MCP / HTTP/SSE / diagnostics |
 | [mcp-lazy](modules/mcp-lazy/README.md) | レオナ | relay |

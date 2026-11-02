@@ -17,6 +17,9 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'Dockerfile', '.dockerignore', 'package.json', 'package-lock.json', 'src/supervisor.mjs',
     'web/index.html', 'integrations/bellteam.mjs', 'config/common-agents.md', 'config/models.json',
     'config/setup-guide.json', 'config/ponytail-LICENSE', 'docs/bot-environment.md', 'docs/onboarding.md',
+    'config/web-gateway-verification.json', 'config/web-gateway-trusted-root.jsonl',
+    'scripts/verify-web-gateway.py', 'scripts/web_gateway_artifact.py',
+    'scripts/install-web-gateway-release.py',
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
     'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
     'scripts/seat-exec.c', 'scripts/server-start.c',
@@ -59,6 +62,9 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   for (const path of ['compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh']) assert.ok(pathsInArchive.includes(path))
   for (const path of ['scripts/seat-exec.c', 'scripts/server-start.c']) assert.ok(pathsInArchive.includes(path))
   assert.ok(pathsInArchive.includes('scripts/install-sce-headers.py'))
+  for (const path of ['config/web-gateway-verification.json', 'config/web-gateway-trusted-root.jsonl',
+    'scripts/verify-web-gateway.py', 'scripts/web_gateway_artifact.py',
+    'scripts/install-web-gateway-release.py']) assert.ok(pathsInArchive.includes(path))
   assert.ok(!pathsInArchive.includes('config/models.json'), 'モデル候補は導入先CLIから取得し古い一覧を同梱しない')
   assert.deepEqual(JSON.parse(await readFile(join(output, 'config/bots.json'), 'utf8')).bots, [])
   for (const path of ['.env', 'runtime/home/auth.json', 'services/subscriptions/keys/private.p8']) assert.ok(!pathsInArchive.includes(path))

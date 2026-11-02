@@ -19,6 +19,7 @@ try {
   await exec('git', ['archive', '--format=tar', '-o', archive, sourceCommit,
     'Dockerfile', '.dockerignore', 'package.json', 'package-lock.json', 'src', 'web', 'integrations',
     'config/common-agents.md', 'config/setup-guide.json', 'config/ponytail-LICENSE',
+    'config/web-gateway-verification.json', 'config/web-gateway-trusted-root.jsonl',
     'docs/bot-environment.md', 'docs/onboarding.md',
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
     'distribution/server',
@@ -26,6 +27,8 @@ try {
     'scripts/seat-exec.c', 'scripts/server-start.c',
     'scripts/assert-state-writers-stopped.sh',
     'scripts/install-sce-headers.py',
+    'scripts/verify-web-gateway.py', 'scripts/web_gateway_artifact.py',
+    'scripts/install-web-gateway-release.py',
   ], { cwd: root })
   await exec('tar', ['-xf', archive, '-C', output])
   await mkdir(join(output, 'bridge'))

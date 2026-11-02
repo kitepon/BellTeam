@@ -1,0 +1,8 @@
+{
+  "schema": "bellteam.web-gateway.verification-policy.v1",
+  "repository": "kitepon/BellTeam",
+  "repositoryId": "1404510084",
+  "signerWorkflow": "kitepon/BellTeam/.github/workflows/publish-web-gateway.yml",
+  "sourceRef": "refs/heads/main",
+  "predicateType": "https://slsa.dev/provenance/v1"
+}

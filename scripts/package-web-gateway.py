@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""Create one unsigned, immutable web-gateway archive from clean Git and npm inputs."""
+import argparse
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import platform
+import shutil
+import subprocess
+import tarfile
+import tempfile
+from web_gateway_artifact import check_archive, require, safe_path, write_archive
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('output', type=Path)
+    parser.add_argument('--source', required=True)
+    parser.add_argument('--arch', required=True, choices=['amd64', 'arm64'])
+    args = parser.parse_args()
+    args.output = args.output.resolve()
+    require(platform.system() == 'Linux', 'GATEWAY_LINUX_RUNNER_REQUIRED')
+    repo = Path(__file__).resolve().parents[1]
+    source = subprocess.check_output(['git', 'rev-parse', '--verify', args.source + '^{commit}'], cwd=repo, text=True).strip()
+    require(source == args.source, 'GATEWAY_SOURCE_MUST_BE_FULL_COMMIT')
+    require(subprocess.check_output(['node', '-p', 'process.versions.node.split(".")[0]'], text=True).strip() == '26')
+    require(not args.output.exists(), 'GATEWAY_OUTPUT_EXISTS')
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='web-gateway-', dir=args.output.parent) as work:
+        root = Path(work); payload = root / 'payload'; payload.mkdir()
+        raw = subprocess.check_output(['git', 'archive', source, 'src', 'web', 'package.json', 'package-lock.json',
+            'services/subscriptions/product.json', 'services/subscriptions/endpoints.json'], cwd=repo)
+        with tarfile.open(fileobj=io.BytesIO(raw)) as tar:
+            for item in tar:
+                safe_path(item.name)
+                require(item.isdir() or item.isfile(), 'GATEWAY_SOURCE_LINK_INVALID')
+                target = payload / item.name
+                if item.isdir(): target.mkdir(parents=True, exist_ok=True)
+                else:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(tar.extractfile(item).read())
+        (payload / 'src/distribution-profile.mjs').write_bytes(subprocess.check_output(
+            ['git', 'show', source + ':distribution/server/distribution-profile.mjs'], cwd=repo))
+        lock = json.loads((payload / 'package-lock.json').read_text())
+        cross = args.arch != {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
+        if cross:
+            # Cross-arch source inputs are safe only for this lock's platform-independent JS.
+            require(all(not (p.get('hasInstallScript') or p.get('cpu') or p.get('os'))
+                        for name, p in lock['packages'].items() if name and not p.get('dev')), 'GATEWAY_NATIVE_RUNNER_REQUIRED')
+        user_config = root / 'user.npmrc'; user_config.write_text('')
+        global_config = root / 'global.npmrc'; global_config.write_text('')
+        npm = shutil.which('npm'); require(npm is not None)
+        subprocess.run([npm, 'ci', '--omit=dev', '--cache', str(root / 'npm-cache'),
+                        '--userconfig', str(user_config), '--globalconfig', str(global_config)], cwd=payload,
+                       env={'PATH': os.environ['PATH'], 'CI': 'true', 'npm_config_audit': 'false',
+                            'npm_config_fund': 'false', 'npm_config_update_notifier': 'false'},
+                       stdout=subprocess.PIPE, check=True, timeout=180)
+        if cross:
+            for path in (payload / 'node_modules').rglob('*'):
+                if path.is_file():
+                    with path.open('rb') as file: magic = file.read(4)
+                    require(path.suffix != '.node' and magic not in [b'\x7fELF', b'\x00asm']
+                            and not magic.startswith(b'MZ'), 'GATEWAY_NATIVE_RUNNER_REQUIRED')
+        staged = root / 'artifact.tar.gz'
+        write_archive(payload, staged, source, args.arch)
+        with staged.open('rb') as file: manifest, manifest_sha = check_archive(file, source, args.arch)
+        os.link(staged, args.output)
+    with args.output.open('rb') as file: digest = hashlib.file_digest(file, 'sha256').hexdigest()
+    print(json.dumps(dict(archive=str(args.output.resolve()), archiveSha256=digest,
+        manifestSha256=manifest_sha, sourceCommit=source, arch=args.arch, files=len(manifest['files']),
+        signed=False, nativeRunner=not cross)))
+
+
+if __name__ == '__main__':
+    main()
