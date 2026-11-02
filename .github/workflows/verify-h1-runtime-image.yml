@@ -1,5 +1,5 @@
 {
-  "name": "固定候補H1の実UID・pipe・mount・prebootstrapを隔離確認",
+  "name": "固定H1候補の修理後restore境界だけを確認",
   "on": {
     "workflow_dispatch": {
       "inputs": {
@@ -20,7 +20,7 @@
     "contents": "read"
   },
   "concurrency": {
-    "group": "h1-immutable-runtime",
+    "group": "h1-immutable-restore-only",
     "cancel-in-progress": false
   },
   "jobs": {
@@ -47,7 +47,7 @@
         "EXPECTED_DIGEST": "${{ inputs.digest }}",
         "EXPECTED_SOURCE": "${{ inputs.source }}",
         "ARCH": "${{ matrix.arch }}",
-        "RESULT_DIR": "runtime/h1-runtime-${{ matrix.arch }}"
+        "RESULT_DIR": "runtime/h1-restore-${{ matrix.arch }}"
       },
       "steps": [
         {
@@ -61,9 +61,9 @@
           "run": "python3 - <<'PY'\nimport os,re\nassert re.fullmatch(r'sha256:[a-f0-9]{64}',os.environ['EXPECTED_DIGEST'])\nassert re.fullmatch(r'[a-f0-9]{40}',os.environ['EXPECTED_SOURCE'])\nassert os.environ['ARCH'] in ['amd64','arm64']\nPY\ndocker pull --platform \"linux/$ARCH\" \"$IMAGE\"\npython3 - <<'PY'\nimport json,os,subprocess\nimage=json.loads(subprocess.check_output(['docker','image','inspect',os.environ['IMAGE']]))[0]\nassert image['Os']=='linux' and image['Architecture']==os.environ['ARCH']\nassert image['Config']['Labels']['org.opencontainers.image.revision']==os.environ['EXPECTED_SOURCE']\nassert 'ghcr.io/kitepon/bellteam-server@'+os.environ['EXPECTED_DIGEST'] in image['RepoDigests']\nPY"
         },
         {
-          "name": "実UID・private pipe・readonly mount・signal・起動前restore",
+          "name": "新合成入力でrestore・採用・非再投入・不正入力拒否だけを確認",
           "timeout-minutes": 10,
-          "run": "python3 scripts/verify-resume-runtime.py \"$IMAGE\" \"$RESULT_DIR\""
+          "run": "python3 scripts/verify-resume-runtime.py \"$IMAGE\" \"$RESULT_DIR\" --restore-only"
         },
         {
           "name": "取消・失敗時も当fixtureの資材だけを清掃",
@@ -74,8 +74,8 @@
           "uses": "actions/upload-artifact@v7",
           "if": "always()",
           "with": {
-            "name": "h1-runtime-${{ matrix.arch }}-${{ github.run_attempt }}",
-            "path": "runtime/h1-runtime-${{ matrix.arch }}/",
+            "name": "h1-restore-${{ matrix.arch }}-${{ github.run_attempt }}",
+            "path": "runtime/h1-restore-${{ matrix.arch }}/",
             "if-no-files-found": "error"
           }
         }
