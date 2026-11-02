@@ -1,0 +1,42 @@
+{
+  "title": "利用設定・通知",
+  "owner": "ミカ",
+  "botId": "bot-203444ca",
+  "scope": "初期設定、認証案内、任意機能設定、質問/秘密入力、端末通知、購読。本体の案内と設定を持つ",
+  "external": false,
+  "provides": [
+    "settings",
+    "notify",
+    "auth"
+  ],
+  "uses": [
+    {
+      "module": "members",
+      "port": "registry"
+    },
+    {
+      "module": "conversation",
+      "port": "messages"
+    },
+    {
+      "module": "runtime",
+      "port": "cli-registration"
+    },
+    {
+      "module": "aiterm",
+      "port": "native"
+    }
+  ],
+  "source": [
+    "src/onboarding.mjs",
+    "src/harness-auth.mjs",
+    "src/auth-ui.mjs",
+    "src/feature-settings.mjs",
+    "src/application-features.mjs",
+    "src/owner-questions.mjs",
+    "src/secret-requests.mjs",
+    "src/push-notifications.mjs",
+    "src/subscriptions.mjs",
+    "src/cloudflare-access.mjs"
+  ]
+}

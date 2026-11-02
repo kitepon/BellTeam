@@ -1,0 +1,17 @@
+{
+  "title": "Windowsアプリ",
+  "owner": "ベル（Windows）",
+  "botId": null,
+  "scope": "Windowsクライアント",
+  "external": true,
+  "provides": [
+    "public"
+  ],
+  "uses": [
+    {
+      "module": "integration",
+      "port": "HTTP/MCP"
+    }
+  ],
+  "source": []
+}

@@ -1,0 +1,22 @@
+{
+  "title": "商用配布",
+  "owner": "センチ",
+  "botId": "bot-8bc1fb5d",
+  "scope": "配布構成・候補build・image/source受入・公開版発行とpromotion。設置/移行の実装はエピネル、本番実行はトロニー",
+  "external": false,
+  "provides": [
+    "image"
+  ],
+  "uses": [
+    {
+      "module": "runtime",
+      "port": "update"
+    }
+  ],
+  "source": [
+    "scripts/package-server.mjs",
+    "scripts/promote-server-image.mjs",
+    "distribution/server/compose.yaml",
+    ".github/workflows/publish-server-image.yml"
+  ]
+}

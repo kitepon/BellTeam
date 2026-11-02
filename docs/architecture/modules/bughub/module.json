@@ -1,0 +1,17 @@
+{
+  "title": "BugHub",
+  "owner": "フラジャイル",
+  "botId": "bot-a855525f",
+  "scope": "診断取込・正規ケース管理",
+  "external": true,
+  "provides": [
+    "public"
+  ],
+  "uses": [
+    {
+      "module": "integration",
+      "port": "diagnostics"
+    }
+  ],
+  "source": []
+}

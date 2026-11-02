@@ -1,0 +1,12 @@
+{
+  "title": "mcp-lazy",
+  "owner": "レオナ",
+  "botId": "bot-25046b21",
+  "scope": "遅延起動中継",
+  "external": true,
+  "provides": [
+    "relay"
+  ],
+  "uses": [],
+  "source": []
+}

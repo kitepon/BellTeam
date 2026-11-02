@@ -1,0 +1,43 @@
+{
+  "title": "AI実行制御",
+  "owner": "キロ",
+  "botId": "bot-09e6225c",
+  "scope": "起動・配送実行・完了観測、モデル適用と再開、停止・session・Goal。Aiterm内部は担当外",
+  "external": false,
+  "provides": [
+    "turn",
+    "configuration",
+    "stop",
+    "observation"
+  ],
+  "uses": [
+    {
+      "module": "members",
+      "port": "registry"
+    },
+    {
+      "module": "runtime",
+      "port": "seat-process"
+    },
+    {
+      "module": "aiterm",
+      "port": "native"
+    },
+    {
+      "module": "throughline",
+      "port": "context"
+    }
+  ],
+  "source": [
+    "src/aiterm-transport.mjs",
+    "src/aiterm-client.mjs",
+    "src/aiterm-wait-process.mjs",
+    "src/seat-activity.mjs",
+    "src/bot-session-state.mjs",
+    "src/delivery-job.mjs",
+    "src/ai-control.mjs",
+    "src/bot-goals.mjs",
+    "src/seat-turns.mjs",
+    "src/idle-sessions.mjs"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "title": "RTK",
+  "owner": "ドリリー",
+  "botId": "bot-7fdb0410",
+  "scope": "RTK製品とhook公開仕様",
+  "external": true,
+  "provides": [
+    "hook"
+  ],
+  "uses": [],
+  "source": []
+}

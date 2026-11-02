@@ -1,0 +1,17 @@
+{
+  "title": "Approval Box",
+  "owner": "ナユタ",
+  "botId": "bot-4366a50b",
+  "scope": "承認と回答配送の公開接点",
+  "external": true,
+  "provides": [
+    "public"
+  ],
+  "uses": [
+    {
+      "module": "aiterm",
+      "port": "native"
+    }
+  ],
+  "source": []
+}

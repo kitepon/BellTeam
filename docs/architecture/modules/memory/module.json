@@ -1,0 +1,24 @@
+{
+  "title": "記憶・知識",
+  "owner": "ビスケット",
+  "botId": "bot-da7c1cb5",
+  "scope": "短期/長期記憶・知識の内容、保存形式、検索と索引。proxy実行とbackupはエピネル",
+  "external": false,
+  "provides": [
+    "memory"
+  ],
+  "uses": [
+    {
+      "module": "runtime",
+      "port": "seat-process"
+    },
+    {
+      "module": "throughline",
+      "port": "context"
+    }
+  ],
+  "source": [
+    "src/memory-service.mjs",
+    "src/memory-search.mjs"
+  ]
+}
