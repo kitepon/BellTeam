@@ -65,7 +65,10 @@ export function createOlrwAuthConsumer({ secretRequests, runDirectory, context, 
       const expected = action === 'respond' ? 'aiterm.auth-response-error.v1' : 'aiterm.auth-operation-error.v1'
       if (r?.schema === expected && r.harness === 'claude-code' && r.session_id === plan.sessionId
         && (action === 'respond' || r.action === (action === 'cleanup' ? 'cancel' : action))
-        && typeof r.code === 'string' && r.code && ['not_issued', 'unknown'].includes(r.effect))
+        && typeof r.code === 'string' && r.code && ['not_issued', 'unknown'].includes(r.effect)
+        && (action === 'respond' || ['status', 'cleanup'].includes(action)
+          && Object.keys(r).sort().join(',') === 'action,code,effect,harness,schema,session_id'
+          && r.code === (r.effect === 'not_issued' ? 'AGENT_AUTH_OPERATION_NOT_ISSUED' : 'AGENT_AUTH_OPERATION_UNKNOWN')))
         throw stop('native_' + r.effect, r.effect)
       throw stop('invalid_receipt', 'unknown')
     }

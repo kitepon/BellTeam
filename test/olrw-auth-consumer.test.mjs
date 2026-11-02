@@ -71,7 +71,8 @@ for (const [action, schema, effect] of [
   ['status', 'aiterm.auth-operation-error.v1', 'not_issued'], ['cleanup', 'aiterm.auth-operation-error.v1', 'unknown'],
 ]) test(`${action} preserves ${effect} and stops all continuation/restart`, async t => {
   const f = await fixture(t, { native: { [action]: () => ({ isError: true, structuredContent: {
-    schema, harness: 'claude-code', session_id: binding.session_id, action: action === 'cleanup' ? 'cancel' : action, code: 'SYNTHETIC_FAILURE', effect } }) } })
+    schema, harness: 'claude-code', session_id: binding.session_id, action: action === 'cleanup' ? 'cancel' : action,
+    code: action === 'respond' ? 'SYNTHETIC_FAILURE' : effect === 'not_issued' ? 'AGENT_AUTH_OPERATION_NOT_ISSUED' : 'AGENT_AUTH_OPERATION_UNKNOWN', effect } }) } })
   const item = await f.request(); await f.guide(item); await f.secrets.submit(item.id, 'SYNTHETIC-CODE')
   const r = await f.pending
   assert.equal(r.outcome, effect)
@@ -246,3 +247,37 @@ test('transition cannot replace native/server identity', async t => {
   assert.equal((await f.pending).outcome, 'unknown')
   assert.equal(f.calls.some(x => x.action === 'respond' || x.action === 'cleanup'), false)
 })
+
+const operationFaults = {
+  unknown_not_issued: r => { r.code = 'AGENT_AUTH_OPERATION_UNKNOWN' },
+  not_issued_unknown: r => { r.effect = 'unknown' },
+  unknown_code: r => { r.code = 'SYNTHETIC_UNKNOWN_CODE' },
+  extra_field: r => { r.extra = 'SYNTHETIC' },
+  missing_field: r => { delete r.action },
+  wrong_action: r => { r.action = 'start' },
+  wrong_harness: r => { r.harness = 'codex-cli' },
+  wrong_session: r => { r.session_id = 'other-session' },
+}
+for (const action of ['status', 'cleanup']) {
+  for (const [name, mutate] of Object.entries(operationFaults)) test(`operation-error strict ${action}: ${name}`, async t => {
+    const r = { schema: 'aiterm.auth-operation-error.v1', harness: 'claude-code', session_id: binding.session_id,
+      action: action === 'cleanup' ? 'cancel' : 'status', code: 'AGENT_AUTH_OPERATION_NOT_ISSUED', effect: 'not_issued' }
+    mutate(r)
+    const f = await fixture(t, { native: { [action]: () => ({ isError: true, structuredContent: r }) } })
+    const item = await f.request(); await f.guide(item); await f.secrets.submit(item.id, 'SYNTHETIC-CODE')
+    assert.deepEqual(await f.pending, { runId: f.context.runId, outcome: 'unknown', reason: 'invalid_receipt' })
+    assert.equal(f.calls.at(-1).action, action)
+    const count = f.calls.length
+    assert.equal((await f.make().execute()).outcome, 'not_issued')
+    assert.equal(f.calls.length, count)
+  })
+  for (const effect of ['not_issued', 'unknown']) test(`operation-error strict ${action}: valid ${effect}`, async t => {
+    const code = effect === 'not_issued' ? 'AGENT_AUTH_OPERATION_NOT_ISSUED' : 'AGENT_AUTH_OPERATION_UNKNOWN'
+    const f = await fixture(t, { native: { [action]: () => ({ isError: true, structuredContent: {
+      schema: 'aiterm.auth-operation-error.v1', harness: 'claude-code', session_id: binding.session_id,
+      action: action === 'cleanup' ? 'cancel' : 'status', code, effect } }) } })
+    const item = await f.request(); await f.guide(item); await f.secrets.submit(item.id, 'SYNTHETIC-CODE')
+    assert.equal((await f.pending).outcome, effect)
+    assert.equal(f.calls.at(-1).action, action)
+  })
+}
