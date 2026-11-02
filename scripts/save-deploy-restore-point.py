@@ -199,7 +199,10 @@ def main():
         sync_dir(BASE)
         try:
             blob = image_blob(images, image)
-            cursor = archive(point / 'cursor.tar', ['docker', 'exec', '-i', '--user', 'bell', cid, '/usr/bin/python3', '-', 'create', '/home/bell/.local'], Path('scripts/archive-live-volume.py'))
+            # Clear the server environment before the fixed entry drops to the volume's seat UID.
+            cursor = archive(point / 'cursor.tar', ['docker', 'exec', '-i', '--user', '1001:1001', cid,
+                             '/usr/bin/sudo', '-n', '--', '/usr/local/libexec/bellteam-seat-exec', '--',
+                             '/usr/bin/python3', '-', 'create', '/home/bell/.local'], Path('scripts/archive-live-volume.py'))
             current = json.loads(subprocess.check_output(['docker', 'container', 'inspect', 'bellteam']))[0]
             if current['Id'] != cid or current['Image'] != image:
                 raise RuntimeError('source container changed during backup')

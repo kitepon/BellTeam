@@ -66,7 +66,9 @@ flowchart TD
 flowchart TD
   Running["現在CID / image / Cursor volume"] --> Guard["NAS mountと排他lockを確認"]
   Guard --> Image["不変imageを一つのblobへ保存 / 再利用"]
-  Guard --> Archive["稼働fileの同一性を確認しarchive"]
+  Guard --> Server["現在CIDでUID/GID1001としてexec<br/>固定seat-exec入口だけをsudo"]
+  Server --> Seat["seat-exec: 環境を消去<br/>UID/GID1000へ移し固定環境を設定"]
+  Seat --> Archive["stdinのscriptをEOFまで受け<br/>稼働fileの同一性を確認しarchive"]
   Archive --> SQLite["SQLiteは別のonline backup<br/>quick_check付きsnapshot"]
   Image --> Point["NAS再読・hashと元CIDを照合<br/>復元点metadataを確定"]
   SQLite --> Point
@@ -77,6 +79,8 @@ flowchart TD
 ```
 
 `save-deploy-restore-point.py`の控えは**imageとCursor volume**。本体全state/HOMEの完全backupと呼ばない。`mount_guard`は所定NASがなければlocalへfallbackしない。`archive`はpartialへ帯域制限付き保存→再読hash→rename、producer異常ならpartial削除。`image_blob/checked_image_blob`は既保存のimage本人性を確認して再利用。`validated_points/prune_points`は控えの構成と参照を検証してから古い二世代外を除く。失敗世代はfailed.jsonを残す。
+
+Cursorのreaderは本体の環境を継承する`docker exec`をUID/GID1001で開始し、既存の固定`bellteam-seat-exec`が環境を消してからUID/GID1000へ移す。本体環境を持った席UIDのPythonや`env -i`を先に起動しない。producerにはstdinのarchive scriptと固定引数だけを渡し、同じCIDのCursor volumeを従来の席権限で読む。固定入口/sudo規則のない旧imageでは保存を失敗させ、直接席execへ戻らない。これは本体UID1001から席UID1000への既存境界であり、席の既存sudo権限全体を閉じる変更ではない。通常deploy-image.shはこの保存scriptを呼ばず、本番入口やHost内部nightlyの修理とは別経路である。
 
 `archive-live-volume.py.create`は一般fileの変化を拒否し、SQLiteのrawは観測bytesとしてだけ保存、復元用DBはread-only接続のbackup APIから作る。DBごとに120秒とquick_checkを持つ。Throughlineの既知atomic JSONだけrename交替を許し記録する。全volumeが同一瞬間のsnapshotという意味ではない。
 
