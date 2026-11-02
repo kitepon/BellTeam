@@ -76,6 +76,7 @@
     "src/resume-install-plan.mjs",
     "src/run-resume-store.mjs",
     "src/runtime-resume.mjs",
-    "distribution/server/install-resume-state.sh"
+    "distribution/server/install-resume-state.sh",
+    "src/web-gateway-release.mjs"
   ]
 }
