@@ -7,7 +7,8 @@
   "provides": [
     "messages",
     "history",
-    "membership-cleanup"
+    "membership-cleanup",
+    "room-access"
   ],
   "uses": [
     {
@@ -25,6 +26,22 @@
     {
       "module": "throughline",
       "port": "context"
+    },
+    {
+      "module": "members",
+      "port": "schedules"
+    },
+    {
+      "module": "runtime",
+      "port": "seat-process"
+    },
+    {
+      "module": "usage",
+      "port": "settings"
+    },
+    {
+      "module": "execution",
+      "port": "observation"
     }
   ],
   "source": [
@@ -38,6 +55,16 @@
     "src/self-turns.mjs",
     "src/turn-reports.mjs",
     "src/call-bridge-server.mjs",
-    "src/http-events.mjs"
+    "src/http-events.mjs",
+    "src/conversation-writer.mjs",
+    "src/mcp-conversation-tools.mjs",
+    "src/bot-image-path.mjs",
+    "src/room-access.mjs",
+    "src/room-routing.mjs",
+    "src/http-room-api.mjs",
+    "src/http-conversation-api.mjs",
+    "src/http-messages.mjs",
+    "src/conversation-services.mjs",
+    "src/http-delivery-api.mjs"
   ]
 }

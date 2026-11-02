@@ -22,6 +22,10 @@ flowchart LR
   m_conversation -->|"turn"| m_execution
   m_conversation -->|"registry"| m_members
   m_conversation -->|"notify"| m_usage
+  m_conversation -->|"schedules"| m_members
+  m_conversation -->|"seat-process"| m_runtime
+  m_conversation -->|"settings"| m_usage
+  m_conversation -->|"observation"| m_execution
   m_distribution -->|"update"| m_runtime
   m_execution -->|"registry"| m_members
   m_execution -->|"seat-process"| m_runtime
@@ -92,7 +96,7 @@ flowchart LR
 | [call-bridge/grokbot-bridge](modules/bridge/README.md) | リター | public |
 | [BugHub](modules/bughub/README.md) | フラジャイル | public |
 | [Caveat](modules/caveat/README.md) | ノア | public |
-| [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup |
+| [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access |
 | [商用配布](modules/distribution/README.md) | センチ | image |
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation |
 | [全体設計・統合](modules/integration/README.md) | トロニー | HTTP/MCP / diagnostics |

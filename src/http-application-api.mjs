@@ -1,3 +1,4 @@
+import { createConversationAssetsApi } from './http-conversation-api.mjs'
 import { json, readJson } from './http-response.mjs'
 import { listAvatar, sendAvatar } from './http-assets.mjs'
 import { SubscriptionAccessError } from './subscriptions.mjs'
@@ -132,6 +133,7 @@ export function createControlApi({ aiControl, onboarding, internal, notify, harn
 }
 
 export function createApplicationApi({ ownerProfile, refreshGlobalInstructions, userRules, events, assets }) {
+  const conversation = createConversationAssetsApi({ events, assets })
   return async (request, response, url) => {
     if (request.method === 'GET' && url.pathname === '/api/owner') {
       const owner = await ownerProfile.get()
@@ -149,21 +151,6 @@ export function createApplicationApi({ ownerProfile, refreshGlobalInstructions, 
       await refreshGlobalInstructions()
       return json(response, 200, { text })
     }
-    if (request.method === 'GET' && url.pathname === '/api/events') {
-      return events.connect(request, response)
-    }
-    const imageAssetMatch = url.pathname.match(/^\/api\/message-images\/([a-z0-9-]+)\/([a-z0-9-]+\.(?:png|jpg|webp|gif))$/u)
-    if (request.method === 'GET' && imageAssetMatch) {
-      if (!assets) return json(response, 404, { error: 'IMAGE_ASSET_NOT_FOUND' })
-      const asset = await assets.open(imageAssetMatch[1], imageAssetMatch[2])
-      response.writeHead(200, {
-        'content-type': asset.mime,
-        'content-length': asset.size,
-        'cache-control': 'private, max-age=31536000, immutable',
-        'x-content-type-options': 'nosniff',
-      })
-      return asset.stream.pipe(response)
-    }
-    return false
+    return conversation(request, response, url)
   }
 }

@@ -6,7 +6,7 @@
 
 ## 製品とHTTPの責務
 
-プロセス入口`src/supervisor.mjs`は設置のbootstrapを読み、runtimeの構築・開始・signal待ち・終了を接続する。`application-services.mjs`はBot/会話/予定/記憶などのサービス実体と相互callbackを既存順で構築する。`application-features.mjs`は任意機能の設定反映と診断server/Bridge socket/CLI登録を所有し、設定保存の応答と現在ターン後の反映を区別する。`application-runtime.mjs`はこれらと公開/内部HTTP・MCPを接続し、startで機能反映・通信口と監視を開始、closeで予定・監視・HTTP・任意機能・transport・通知を順に閉じる。factoryのimportや構築だけで通信口や背景監視を開始せず、既存の本番root/HOME/portと、プロセス入口からの初期化・反映・終了順を保つ。
+プロセス入口`src/supervisor.mjs`は設置のbootstrapを読み、runtimeの構築・開始・signal待ち・終了を接続する。`application-services.mjs`はBot/会話/予定/記憶などの公開factoryを既存順で接続する。会話固有のwriter・回答表示callback・部屋/自主回答の組立ては`conversation-services.mjs`に置き、直接会話の構築と初期案内後の観測初期化を分ける。`application-features.mjs`は任意機能の設定反映と診断server/Bridge socket/CLI登録を所有し、設定保存の応答と現在ターン後の反映を区別する。`application-runtime.mjs`はこれらと公開/内部HTTP・MCPを接続し、startで機能反映・通信口と監視を開始、closeで予定・監視・HTTP・任意機能・transport・通知を順に閉じる。factoryのimportや構築だけで通信口や背景監視を開始せず、既存の本番root/HOME/portと、プロセス入口からの初期化・反映・終了順を保つ。
 
 BellTeamは各OSSの公開CLI/MCP/APIを使うアプリケーションであり、Aiterm・Steer・Throughline・mcp-lazy・RTK・call-bridgeの実行判断や製品状態を所有しない。Bot・配送・ルームとの対応付けはBellTeamの接続処理に置く。各OSSはBellTeamの台帳や内部パスがない環境でも単独で導入・起動・操作・更新できることを保つ。商用コンテナへの同梱は配布構成であり、製品本体へBellTeam固有の依存を追加する理由にしない。
 

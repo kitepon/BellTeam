@@ -12,11 +12,10 @@
 
 ## 通話とBugHubは同じ中継ではない
 
+通話受付・socketの正本は[会話・履歴の通話接点](modules/conversation/calls.md)。
+
 | 窓口 | caller → 実関数 | 本体が所有すること | 外部が所有すること・失敗 |
 | --- | --- | --- | --- |
-| 通話directory | 通話bridge → `createCallBridgeServer` GET | 台帳refresh、公開するid/name/title/role | 通話sessionの正本はbridge。Bot一覧を会話の宛先権限に読み替えない |
-| 通話配達 | bridge → POST → `receiveCallBridge` | 64KiB上限、schema/event/送信元/宛先/本文型の検証。通常会話へ受付して記録 | 全停止423、宛先不在404、配送例外502。bridgeへの応答をBotの最終回答にしない |
-| 通話socket | `listenCallBridge` → runtime.close | 親dir/socket型、listen/mode、setup失敗時close/unlink。所有するsocketを片付ける | 他の通信口を新設しない。setup cleanupの失敗もAggregateErrorへ保持 |
 | SEC所見 | MCP `runBellTeamTool` → `createBugHubSecurity` | 席identityからactorを付ける。設定を呼出時に読む。writeのrequest_idを返す | 項目の意味・version・履歴・解決判断はBugHub。30秒の一回fetchのみ。unknownはrequest_id付きで返す |
 | BugHub返却 | `callBugHubSecurity` | HTTP失敗と不正JSON/objectを区別。鍵を引数/返却へ出さない | 再送を自動化しない。同じrequest_idの重複処理は外部契約であり本体の配送queueを作らない |
 
