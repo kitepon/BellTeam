@@ -6,13 +6,13 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 
 接続の正本は[module.json](module.json)。全体の[機能図](../../feature-map.md)と[担当・変更手順](../../module-ownership.md)から、呼出元と依存先を辿る。
 
-## 現行図と移管工程
+## 現行図の正本
 
-- [CLI登録・共有設定の所有と完了](cli-registration.md) — このmoduleへ移管済み。
-- [runtime-details.md](../../runtime-details.md)
-- [distribution-details.md](../../distribution-details.md)
+- [起動と席の実行機構](execution.md)
+- [CLI登録・共有設定の所有と完了](cli-registration.md)
+- [installer・状態移行・backup/restore](recovery.md)
 
-上の既存詳細図は現行実装の読取資料。複数担当が含まれる章は最初の分離で当moduleへ移し、元の章を参照リンクへ置換する。内容を二つの現行図へ複製しない。図とコードの分離完了はまだ宣言していない。
+runtime-detailsとdistribution-detailsのruntime所有章はここへ移管し、旧箇所はリンクにした。配布物作成・build・promotionの図はdistributionに残す。サービス組立て、メンバー構造、記憶形式、native内部、各アプリの図は各所有者の正本へ辿る。
 
 ## 公開入出力と責任
 
@@ -28,4 +28,4 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 
 所有するのは管理CLI節・trust・hook登録、席の一時画像、移行/復旧の実行状態。台帳・ProjectFiles内部・記憶形式・native state・配布版対応表は各所有者の窓口を使う。`run-seat-runtime`は操作dispatchだけを持ち、ProjectFilesと記憶の処理は各機能へ渡す。登録修理はruntime所有の既存ファイル内で完結し、members/usage内部の編集を要しない。
 
-CLI登録図は今回のwriter所有と完成JSON公開を含むため更新する。moduleの公開窓口/接続先は変わらず、全体図の生成結果は不変。起動/移行の残る混在図の移管と、Throughline DB/WALのmtimeへ依存する席実行部の分離は未完了。機能全体のsource分離や本番反映を完了扱いにしない。
+CLI登録図はwriter所有と完成JSON公開を含む。起動/席実行/移行/復旧図は実装の意味を変えず、正本の場所と責任を明示した。公開窓口/接続先は変わらず、全体図の生成結果は不変。Throughline DB/WALのmtimeへ依存する席実行部の分離はN102のconsumer切替と合わせる残件。機能全体のsource分離や本番反映を完了扱いにしない。
