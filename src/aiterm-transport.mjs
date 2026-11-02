@@ -7,6 +7,7 @@ import { loadBotEnvironment } from './bot-environment.mjs'
 import { taskSettingsReminder } from './global-instructions.mjs'
 import { reserveExecution, dispatchExecution, interruptExecutions, sendStopOperations } from './execution-transport.mjs'
 import { sendSessionStop } from './session-interruption.mjs'
+import { mcpRequestContext } from './mcp-request-context.mjs'
 import { AitermClient, textResult } from './aiterm-client.mjs'
 import { latestThroughlineHandoffContext } from './throughline-context.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
@@ -756,7 +757,8 @@ export class AitermTransport {
       } catch (error) {
         check()
         // 入力後の不明や復帰確認の要求は、席が消えて見えても起こし直して再送しない。
-        if (error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || error.agentResumeResult) throw error
+        if (error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || error.agentResumeResult
+          || mcpRequestContext(error)?.outcome === 'unknown') throw error
         const running = await this.isRunning(bot)
         check()
         if (running && error.code !== 'AGENT_SESSION_REQUIRED') throw error

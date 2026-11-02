@@ -2,6 +2,7 @@
 // as UID1000. Only the MCP result crosses back; environment values stay here.
 import { AitermClient } from './aiterm-client.mjs'
 import { authenticationPreflightFailure } from './agent-launch-error.mjs'
+import { mcpRequestContext } from './mcp-request-context.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
 
 let client
@@ -22,9 +23,10 @@ try {
   } catch (error) {
     const agentLaunchError = authenticationPreflightFailure(error.agentLaunchError)
     const mcp_error = returnedMcpError(error)
+    const mcp_request = mcpRequestContext(error)
     response = { error: { ...Object.fromEntries(['message', 'code', 'status', 'publicMessage',
       'aitermResponseReturned', 'executionError', 'launch', 'launchActionRequired'].filter(key => error[key] !== undefined).map(key => [key, error[key]])),
-    ...(agentLaunchError ? { agentLaunchError } : {}), ...(mcp_error ? { mcp_error } : {}) } }
+    ...(mcp_request ? { mcp_request } : {}), ...(agentLaunchError ? { agentLaunchError } : {}), ...(mcp_error ? { mcp_error } : {}) } }
   }
   await client.close()
   client = null
