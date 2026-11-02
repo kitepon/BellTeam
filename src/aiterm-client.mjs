@@ -109,7 +109,8 @@ export class AitermClient {
       throw error
     }
     if (result.isError) {
-      if (name === 'agent_auth' && result.structuredContent?.schema === 'aiterm.auth-response-error.v1') return result
+      if (name === 'agent_auth'
+        && ['aiterm.auth-response-error.v1', 'aiterm.auth-operation-error.v1'].includes(result.structuredContent?.schema)) return result
       const message = textResult(result) || `AITERM_TOOL_FAILED: ${name}`
       const detail = captureMcpError(name, message, args)
       const error = new Error(detail?.message ?? message)

@@ -89,11 +89,21 @@ flowchart TD
   Call -->|"RPC reject / 応答不明"| Unknown["phase call / outcome unknown"]
   Unknown --> Context
   Unknown --> Preserve["dispatchで元例外を返す / wake・再送なし"]
-  Call -->|"isError応答あり"| Returned["既aitermResponseReturnedと拒否分類"]
+  Call -->|"agent_auth / 許可した型付きisError"| Auth["元isError/structuredContentをconsumerへ保持"]
+  Auth --> Strict["consumerが要求とschemaを厳密照合 / 自動再送なし"]
+  Call -->|"その他のisError応答あり"| Returned["既aitermResponseReturnedと拒否分類"]
   Returned -->|"明示未送信・既復旧条件"| Recovery["従来の復旧経路"]
   Context --> Diagnostics["Rootの共通診断writerへ補助JSON"]
 ```
 
-`src/mcp-request-context.mjs`の`mcpRequestContext(error)`は固定tool列挙と厳密key検証を持ち、`{phase:'connect',tool}`または`{phase:'call',tool,outcome:'unknown'}`の新object、無効ならnullを返す。call rejectでは元Error/code/stackと同一性を維持し、補助`error.mcp_request`だけを付ける。frozen例外やsetter失敗でもWeakMapの文脈で再送を抑止し、診断field付与の失敗で元例外を置換しない。返却済isErrorには付けず、`aitermResponseReturned`を保持する。短命`run-seat-aiterm-launch`のプロセス境界も同じ安全射影だけ転送する（プロセスを越えた例外object同一性は主張しない）。
+`src/mcp-request-context.mjs`の`mcpRequestContext(error)`は固定tool列挙と厳密key検証を持ち、`{phase:'connect',tool}`または`{phase:'call',tool,outcome:'unknown'}`の新object、無効ならnullを返す。call rejectでは元Error/code/stackと同一性を維持し、補助`error.mcp_request`だけを付ける。frozen例外やsetter失敗でもWeakMapの文脈で再送を抑止し、診断field付与の失敗で元例外を置換しない。返却済isErrorには付けず、下記auth例外を除く一般例外では`aitermResponseReturned`を保持する。短命`run-seat-aiterm-launch`のプロセス境界も同じ安全射影だけ転送する（プロセスを越えた例外object同一性は主張しない）。
 
 本文・args/meta・自由message・IDは文脈に含めない。Rootは同じexportをimportし、既diagnosticRequestContextへ検証済JSONのみ追加する。既failure_stage/HTTP status/集約キーをこの補助fieldで変えない。module接続構造は既execution→integration.diagnostics/Aiterm.native/runtime.seat-process内で不変なので全体図の接続追加は不要。直接fixtureは`test/mcp-request-context.test.mjs`。元27bbのcall名/受付欠測、775e29の未保存ready理由は補完しない。
+
+## 認証の型付き失敗保持
+
+`AitermClient.call('agent_auth', ...)`は`aiterm.auth-response-error.v1`と`aiterm.auth-operation-error.v1`のisError結果だけを元objectのまま返す。前者はrespondの既契約、後者はstatus/cancelを追加した未公開native候補50588a973236ec85923c40fe1d107224a500fa1fの接点。Clientは値を成功へ変換せず、未知schema/別tool/一般拒否の既例外経路を維持する。RPC拒否は元例外とunknown文脈を維持し、再試行しない。
+
+Rootの固定Rabbit adapterとusage consumerは、許可schemaの厳密key・要求action・harness・session_id・code/effectの対応を検証する。response-errorにはaction fieldが無いためrespond要求にだけ対応付ける。operation-errorはstatus/cancelと要求actionの一致を必須にする。全named status/cancelへ保存済みexpected_bindingを必ず渡す。単なるschema名一致で入力や再試行を許さず、不正な形や別対象は拒否/unknown停止として扱う。このClient差分自体はconsumerの厳密検証やnative修理の配布を完了させない。
+
+既Onboarding/HarnessAuthのauthReceiptは新operation-errorを正常receiptへ採用しない。両callerを新管理consumerへ置換せず、元の認証入力検証・ログ非露出・一般失敗を保持する。保存データ・設定・export・module接続は不変。直接fixtureは`test/aiterm-auth-errors.test.mjs`、既response consumerの回帰は`test/auth-flow.test.mjs`を使う。
