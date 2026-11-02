@@ -229,13 +229,6 @@ export async function transferServerState({ root, stateRoot = join(root, 'state'
   for (const path of [legacy, server, join(root, 'shared'), stateRoot]) await directory(path)
   const [from, to] = direction === 'to-server' ? [legacy, server] : [server, legacy]
   const fromMarker = join(from, '.initialized'), toMarker = join(to, '.initialized')
-  // An in-progress deletion needs the new registry's recovery, not a partial
-  // legacy reconstruction that could resurrect a removed member.
-  const deleting = join(server, '.deleting')
-  if (await exists(deleting)) {
-    await directory(deleting)
-    if ((await readdir(deleting)).length) throw failure('SERVER_STATE_PENDING_REMOVAL')
-  }
   const pairs = [
     [join(root, 'shared/subscription.json'), join(stateRoot, 'subscription.json')],
     [join(root, 'shared/onboarding.json'), join(stateRoot, 'onboarding.json')],
@@ -255,6 +248,14 @@ export async function transferServerState({ root, stateRoot = join(root, 'state'
     ...pairs.map(([a, b]) => direction === 'to-server' ? a : b),
   ]
   const remaining = (await Promise.all(fromFiles.map(exists))).some(Boolean)
+  // An unchanged server layout leaves pending deletions to registry startup;
+  // actual transfers must refuse them to avoid resurrecting removed members.
+  const deleting = join(server, '.deleting')
+  if (await exists(deleting)) {
+    await directory(deleting)
+    if ((await readdir(deleting)).length && (direction !== 'to-server' || !await exists(toMarker) || remaining))
+      throw failure('SERVER_STATE_PENDING_REMOVAL')
+  }
   if (await exists(toMarker) && !(recovering && remaining)) {
     await useFile(await regular(toMarker), () => {})
     if (await exists(fromMarker)) await useFile(await regular(fromMarker), () => {})

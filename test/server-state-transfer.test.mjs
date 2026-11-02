@@ -90,6 +90,24 @@ test('全Bot文書を先に検証し、壊れた予定と未完削除は元を�
   await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_PENDING_REMOVAL' })
 })
 
+test('移行済み更新は未完削除を保持し、実移行と逆移行は拒否する', async t => {
+  const f = await fixture(t)
+  await f.transfer('to-server')
+  await f.put('state/bots/.deleting/bot-x.json', '{"pending":true}')
+  await f.put('state/bots/.deleting/bot-x/partial', 'retired state')
+  const path = join(f.root, 'state/bots/.deleting/bot-x.json'), before = await lstat(path)
+  assert.deepEqual(await f.transfer('to-server'), { direction: 'to-server', status: 'already-transferred' })
+  assert.equal(await f.get('state/bots/.deleting/bot-x.json'), '{"pending":true}')
+  assert.equal((await lstat(path)).ino, before.ino)
+  assert.equal(await f.get('state/bots/.deleting/bot-x/partial'), 'retired state')
+  await assert.rejects(f.transfer('to-legacy'), { code: 'SERVER_STATE_PENDING_REMOVAL' })
+  await f.absent('bots/bot-a/bot.json')
+  await f.put('bots/bot-z/bot.json', f.profile('bot-z'))
+  await assert.rejects(f.transfer('to-server'), { code: 'SERVER_STATE_PENDING_REMOVAL' })
+  assert.equal(JSON.parse(await f.get('bots/bot-z/bot.json')).id, 'bot-z')
+  await f.absent('state/bots/bot-z/bot.json')
+})
+
 test('symlink親・画像symlink・hardlinkを追わず、外側を移動しない', async t => {
   const f = await fixture(t)
   await f.put('outside/keep.png', 'must stay')
