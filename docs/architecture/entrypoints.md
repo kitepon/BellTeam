@@ -43,7 +43,8 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | GET `/events` | `createMessageEvents.connect` | SSEで変更箇所を通知。履歴本文は別GET |
 | GET `/message-images/:owner/:file` | `MessageAssets.open` | 保存画像のstream。通常会話のファイルパスを外へ返さない |
 | GET/POST `/bots` | `BotRegistry` / 一覧projection / `memory.ensureScope` | 作成時は台帳→personal記憶準備。一覧は稼働・履歴・設定反映を合成 |
-| GET/PATCH/DELETE `/bots/:bot` | `BotAdministration` / `BotRegistry` | 設定保存、稼働反映、背景削除。DELETE202は削除完了ではない |
+| GET/PATCH `/bots/:bot` | `BotAdministration` / `BotRegistry` | 設定保存、稼働反映 |
+| DELETE `/bots/:bot` | `members.createMemberDeletionApi` → `BotAdministration.remove`委譲 | [削除契約](modules/members/deletion.md)。既pendingも同じ入口で再開、202は受付 |
 | POST `/bots/:bot/{stop,restart}` | `BotAdministration` → transport | 停止結果は確認して返す。restart202は背景開始 |
 | GET `/bots/:bot/screen` | `transport.screen` | 既存席の観測。本文履歴と別 |
 | GET `/bots/:bot/{avatar,avatar-large,avatar-source,avatar-large-source}` | `sendAvatar` | 保存画像・版とcache応答 |

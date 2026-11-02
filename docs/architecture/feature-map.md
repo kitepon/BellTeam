@@ -38,6 +38,7 @@ flowchart LR
   m_integration -->|"assets"| m_web
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
+  m_members -->|"cli-registration"| m_runtime
   m_members -->|"membership-cleanup"| m_conversation
   m_members -->|"messages"| m_conversation
   m_members -->|"memory"| m_memory

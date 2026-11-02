@@ -8,6 +8,7 @@ import { requireRoomMember, requireRepresentative } from './room-access.mjs'
 import { resolveBotImagePath } from './bot-image-path.mjs'
 
 export { resolveBotImagePath } from './bot-image-path.mjs'
+import { deleteBotTool, runDeleteBotTool } from './members/deletion.mjs'
 
 const intervalScheduleProperties = {
   intervalDays: { type: 'integer', minimum: 1, description: 'interval_days用。開始日から何日おきに実行するか。2なら開始日・2日後・4日後。' },
@@ -132,11 +133,7 @@ export const bellTeamTools = Object.freeze([
       botId: { type: 'string', minLength: 1 },
     }, ['enabled']),
   },
-  {
-    name: 'delete_bot',
-    description: 'BotのAIセッションを終了し、プロジェクトフォルダと登録を削除する。botId省略時は自分。',
-    inputSchema: objectSchema({ botId: { type: 'string', minLength: 1 } }),
-  },
+  deleteBotTool,
   {
     name: 'update_self',
     description: '自分の名前、プロフィール、性格（考え方）、口調、役職、役割、アバター、CLI、モデル、エフォートを変更する。CLI、モデル、エフォートは設定画面と同じ経路で保存し、今の作業の後に適用する。同じCLIの中でモデルやエフォートを変える時は会話を続けたまま切り替え、CLIを変える時だけセッションを起こし直す。',
@@ -328,11 +325,7 @@ async function runBellTeamTool(context) {
     // 稼働中セッションへの適用が要るので、モデル・エフォートと同じく設定画面と同じ経路（supervisor）で保存と適用を行う。
     return configure(botId, { fastMode: args.enabled })
   }
-  if (name === 'delete_bot') {
-    const botId = args.botId ?? from
-    requireBot(registry, botId)
-    return remove(botId)
-  }
+  if (name === 'delete_bot') return runDeleteBotTool({ registry, from, arguments: args, remove })
   if (name === 'update_self' || name === 'update_bot') {
     const { botId, ...changes } = name === 'update_self' ? { ...args, botId: from } : args
     // CLI・モデル・エフォートは稼働中セッションへの適用が要るので、設定画面と同じ経路（supervisor）で保存と適用を行う。

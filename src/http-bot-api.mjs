@@ -142,10 +142,6 @@ export function createBotApi({ bots, transport, administration, memory, characte
       if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
       if (request.method === 'GET') return json(response, 200, { bot: administration.view?.(bots.get(botId)) ?? bots.get(botId) })
       if (request.method === 'PATCH') return json(response, 200, await administration.update(botId, await readJson(request)))
-      if (request.method === 'DELETE') {
-        administration.remove(botId)
-        return json(response, 202, { deleting: botId })
-      }
     }
 
     const memoryPinMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/memory\/([^/]+)\/pin$/u)

@@ -276,8 +276,19 @@ export class BotRegistry extends Map {
 
   async remove(id) {
     validateId(id)
+    return this.#mutateProfile(id, () => this.#remove(id))
+  }
+
+  async hasPendingRemoval(id) {
+    validateId(id)
+    return this.separateState && (await pathExists(join(this.stateRoot, '.deleting', id))
+      || await pathExists(join(this.stateRoot, '.deleting', `${id}.json`)))
+  }
+
+  async #remove(id) {
     await this.refresh()
     const bot = this.get(id)
+    let cleanupError
     if (!this.separateState) {
       if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
       await this.projectFiles.remove(bot.project)
@@ -304,17 +315,18 @@ export class BotRegistry extends Map {
       this.deletionIntents.add(id)
       this.delete(id)
       await this.refresh()
-      await this.onChange(this)
       this.changed()
-      await this.finishRemoval(id)
-      await this.onChange(this)
-      this.changed()
-      return { id }
+      try { await this.finishRemoval(id) } catch (error) { cleanupError = error }
     }
     await this.refresh()
-    await this.onChange(this)
+    let configurationSync
+    try { await this.onChange(this) } catch (error) {
+      configurationSync = { state: 'failed', name: error.name, message: error.message,
+        ...(error.code ? { code: error.code } : {}), ...(error.status ? { status: error.status } : {}) }
+    }
     this.changed(id)
-    return { id }
+    if (cleanupError) throw Object.assign(cleanupError, configurationSync ? { configurationSync } : {})
+    return { id, ...(configurationSync ? { configurationSync } : {}) }
   }
 
   isDeleting(id) {
