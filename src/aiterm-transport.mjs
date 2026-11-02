@@ -553,7 +553,10 @@ export class AitermTransport {
       } catch (cause) {
         const error = await job.failure(cause)
         if (!acknowledged) rejectAcceptance(error)
-        await onStatus?.(job.stopped ? 'stopped' : 'failed', error)
+        // Accepted input remains accepted when only its completion tracking fails.
+        const tracking = job.waitFailure === error && job.receipt && !job.stopped && !error.turnCompleted
+          ? [{ schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' }] : []
+        await onStatus?.(job.stopped ? 'stopped' : 'failed', error, ...tracking)
         throw error
       } finally {
         if (!this.retainUntrackedImages(job, delivery, followed, parent))
@@ -600,6 +603,7 @@ export class AitermTransport {
       completion = await this.waitUntilDone(delivery.receipt, job.controller.signal)
     } catch (error) {
       void reportExecutionFailure(this.reportError, job.bot.id, 'delivery_wait', error)
+      job.waitFailure = error
       const seen = await interim?.stop()
       // 記録にエラーの知らせが無い時（Grok・Cursor、記録に残らない利用上限）は、Aitermが返した理由を代わりに出す。
       if (interim && !seen.error && String(error.message).startsWith('AITERM_TURN_'))

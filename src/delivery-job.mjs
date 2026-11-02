@@ -17,6 +17,7 @@ export class DeliveryJob {
     this.execution = null
     this.executionWasPresent = false
     this.receipt = null
+    this.waitFailure = null
     this.follows = false
     this.completion = null
     this.stopRequested = false

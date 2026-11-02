@@ -51,6 +51,27 @@ flowchart TD
 
 サーバーは`createMessageViews.sources → timelinePage/webMessage`で保存履歴とカード索引を合成する。部屋には秘密、直接会話には秘密と質問カードがある。`TimelineIndex`はページ検索、`ConversationStore/RoomHistory`は保存記録の読取であり、WebがJSONLを書き換える経路ではない。
 
+## 受付後の追跡故障を未達へ読み替えない
+
+会話/実行担当が公開する任意の`deliveryTracking`を表示根拠にする。`delivery === 'failed'`で、`schema === 'bellteam.delivery-tracking.v1'`・`admission === 'accepted'`・`completion === 'unknown'`の全値が一致する場合だけ、直接会話は「受付済み・完了未確認」、部屋は「完了未確認の宛先あり」と中立表示する。fieldなしの旧failedと欠落/未知/不正tupleは従来の「配達失敗」を維持する。running/delivered/stopped等をこのtupleだけで変更しない。
+
+```mermaid
+flowchart TD
+  Read["履歴GET / latest / after / before"] --> Kind{"直接 / 部屋"}
+  Kind -->|"直接"| Evidence["公開deliveryと追跡根拠を読む"]
+  Kind -->|"部屋"| Room["participantの配送を集約"]
+  Room --> All{"routing失敗がなく<br/>全failed participantが正規tupleか"}
+  All -->|"はい"| Evidence
+  All -->|"いいえ"| Prior["既存の集約結果・失敗表示"]
+  Evidence --> Check{"failedかつ<br/>schema / admission / completion一致"}
+  Check -->|"一致"| Unknown["受付済み・完了未確認<br/>失敗の赤表示を付けない"]
+  Check -->|"不一致"| Prior
+```
+
+部屋で根拠のないfailedが混在する場合とrouting失敗は、全員受付済みと集約しない。公開wireは直接item.deliveryTrackingと部屋deliveries[]各要素.deliveryTrackingだけ。部屋トップレベルの根拠や保存用delivery_trackingを読まない。全failed participantの根拠が揃う場合だけ表示用projectionへ同じ根拠を渡す。部屋内のrunning/queued/stopped等を全体成功へ補完しない。保存されたdeliveryや過去履歴は変更しない。queueがある時の作業表示を維持し、queue解除後も同じ履歴根拠を表示する。本文/画像/自由error/native receipt内部は新しい根拠に使わず、自動再送や再送推奨を追加しない。
+
+全callerは`normalizeItems → roomTimelineItem`と`renderItemElement → deliveryLabel`。直接/部屋の初回・最新・追加・過去ページは共通描画を使い、世代/読取順の契約は維持する。確認は`timeline-open-queue`の正規/旧/不正tuple、部屋の混在・routing失敗、ページ更新とqueue解除の人工fixture。公開窓口の接続は既HTTP履歴のままなのでmodule.json/生成全体図に接続変更はない。N102のcallback→JSONL→store→HTTPで生成した`test/fixtures/delivery-tracking-wire.json`を同じtimeline試験へ接続し、直接の中立表示・既peer詳細の配送失敗表示なし・根拠なしfailed混在部屋の失敗優先を確認する。peer詳細へ新しい配送状態欄は追加しない。
+
 ## 送信受付と表示更新を別の段階にする
 
 ```mermaid

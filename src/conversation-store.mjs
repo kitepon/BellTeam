@@ -1,3 +1,4 @@
+import { deliveryTracking } from './delivery-tracking.mjs'
 import { watch } from 'node:fs'
 import { mkdir, open } from 'node:fs/promises'
 import { dirname, basename } from 'node:path'
@@ -16,7 +17,7 @@ export class ConversationStore {
   async entries() {
     const state = await this.snapshot()
     return state.resolved ??= state.entries.map(record => record.schema === 'bellteam.direct-message.v1' && state.statuses.has(record.delivery_id)
-      ? { ...record, delivery: state.statuses.get(record.delivery_id) } : record)
+      ? resolveStatus(record, state.statuses) : record)
   }
   snapshot() {
     const run = this.queue.then(() => this.readAppended())
@@ -115,6 +116,7 @@ function messageItem(record, direction) {
     imageAsset: record.image_asset ?? null,
     imageAssets: record.image_assets ?? [],
     delivery: record.delivery ?? 'delivered',
+    ...(deliveryTracking(record.delivery, record.delivery_tracking) ? { deliveryTracking: deliveryTracking(record.delivery, record.delivery_tracking) } : {}),
   }
 }
 
@@ -149,6 +151,7 @@ function peerItem(record, direction, peer) {
     imageAsset: record.image_asset ?? null,
     imageAssets: record.image_assets ?? [],
     delivery: record.delivery ?? 'delivered',
+    ...(deliveryTracking(record.delivery, record.delivery_tracking) ? { deliveryTracking: deliveryTracking(record.delivery, record.delivery_tracking) } : {}),
   }
 }
 
@@ -159,9 +162,15 @@ function participants(record) {
   return record.schema === 'bellteam.interim-word.v1' ? [record.bot]
     : [...new Set([record.from, record.target].filter(id => id !== 'user'))]
 }
+function resolveStatus(record, statuses) {
+  const status = statuses.get(record.delivery_id) ?? record
+  const { delivery_tracking: _tracking, ...original } = record
+  const tracking = deliveryTracking(status.delivery, status.delivery_tracking)
+  return { ...original, delivery: status.delivery, ...(tracking ? { delivery_tracking: tracking } : {}) }
+}
 function display(record, bot, statuses) {
   if (record.schema === 'bellteam.interim-word.v1') return interimItem(record)
-  const value = statuses.has(record.delivery_id) ? { ...record, delivery: statuses.get(record.delivery_id) } : record
+  const value = resolveStatus(record, statuses)
   if (record.from === 'user' && record.target === bot) return messageItem(value, 'outgoing')
   if (record.from === bot && record.target === 'user') return messageItem(value, 'incoming')
   if (record.from === bot && record.target !== 'user') return peerItem(value, 'sent', record.target)
@@ -193,7 +202,7 @@ function applyRecords(records, state) {
   for (const record of records) {
     state.lines++
     if (record.schema === 'bellteam.delivery-status.v1') {
-      state.statuses.set(record.delivery_id, record.delivery)
+      state.statuses.set(record.delivery_id, record)
       for (const original of state.byDelivery.get(record.delivery_id) ?? []) {
         for (const bot of participants(original)) {
           const view = state.views.get(bot)
