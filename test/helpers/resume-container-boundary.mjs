@@ -69,9 +69,11 @@ if (mode === 'initialize') {
     console.log('UID_BOUNDARY_OK')`
   const spec = seatCommandSpec(process.execPath, ['-e', code], { project: '/srv/bellteam', environment: 'base' })
   const child = spawn(spec.command, spec.args, { env: spec.env, stdio: ['ignore', 'pipe', 'pipe'] })
-  let output = ''; child.stdout.on('data', b => { output += b })
+  let output = '', errors = ''
+  child.stdout.on('data', b => { output += b }); child.stderr.on('data', b => { errors += b })
   assert.equal(await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', resolve) }), 0)
   assert.equal(output.trim(), 'UID_BOUNDARY_OK')
+  assert.equal(errors, '', 'seat transport must preserve an empty stderr for restore')
   const pidfile = '/srv/bellteam/signal-pids.json'
   const stubborn = `const {spawn}=require('node:child_process');process.on('SIGTERM',()=>{});
     const c=spawn(process.execPath,['-e',"process.on('SIGTERM',()=>{});setInterval(()=>{},1000)"],{stdio:'ignore'});

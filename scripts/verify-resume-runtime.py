@@ -16,6 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('image', help='repository@sha256:digest or local sha256:imageID')
     parser.add_argument('output', type=Path, help='new artifact directory')
+    parser.add_argument('--restore-only', action='store_true', help='prepare fresh inputs and check only the previously failed restore boundary')
     args = parser.parse_args()
     if not re.fullmatch(r'(?:[a-zA-Z0-9./:_-]+@)?sha256:[a-f0-9]{64}', args.image):
         parser.error('immutable image digest required')
@@ -33,6 +34,7 @@ def main():
     (work / 'bootstrap.mjs').write_text("throw Error('H1_FIXTURE_BOOTSTRAP_REACHED')\n")
     volumes = [prefix + '-' + suffix for suffix in ['old', 'new', 'private']]
     report = {'image': args.image, 'prefix': prefix, 'checks': [], 'accepted': False,
+              'scope': 'restore-only' if args.restore_only else 'full-runtime',
               'fixtureBoundary': 'real image runtime; bootstrap import replaced by stop sentinel; no native vendor launch'}
     (args.output / 'allocation.json').write_text(json.dumps({'prefix': prefix, 'volumes': volumes,
         'containerLabel': 'bellteam.h1-fixture=' + prefix, 'composeProject': prefix}) + '\n')
@@ -62,7 +64,9 @@ def main():
         if command[0] in ['run', 'create']:
             command = (command[0], '--label', 'bellteam.h1-fixture=' + prefix, *command[1:])
         if command[0] == 'run':
-            command = (command[0], '--pull', 'never', *command[1:])
+            # Network-none containers need a local hostname entry for sudo's byte-clean stderr.
+            command = (command[0], '--pull', 'never', '--hostname', prefix,
+                       '--add-host', prefix + ':127.0.0.1', *command[1:])
         return run(['docker', *command], **kwargs)
 
     def mounts(state, private=True, readonly=False):
@@ -134,10 +138,11 @@ const st=f.statSync(path);a.equal(st.uid,1000);a.equal(st.mode&511,448);
 a.throws(()=>f.writeFileSync(path+'/h1-readonly-probe','x'),{code:'EROFS'});}
 a.equal(f.existsSync('/srv/bellteam-private'),false);
 a.equal(process.getuid(),1000);console.log(JSON.stringify({readonlyState:true,readonlyHome:true,uid:1000}))'''
-        readonly = docker('compose', '-f', str(saved / 'checkpoint.json'), '-p', prefix, 'run', '--pull', 'never',
-                         '--rm', '--no-deps', '-T', '--entrypoint', '/usr/local/bin/node',
-                         'aiterm-checkpoint', '-e', probe)
-        report['checks'].append({'stage': stage, 'result': json.loads(readonly.stdout)})
+        if not args.restore_only:
+            readonly = docker('compose', '-f', str(saved / 'checkpoint.json'), '-p', prefix, 'run', '--pull', 'never',
+                             '--rm', '--no-deps', '-T', '--entrypoint', '/usr/local/bin/node',
+                             'aiterm-checkpoint', '-e', probe)
+            report['checks'].append({'stage': stage, 'result': json.loads(readonly.stdout)})
         target = {'session_id': 'offline', 'launch_id': 'a' * 32}
         plan = dict(schema='bellteam.resume-generation.v1', generation='fixture', source_container=source_id,
                     source_image=image['Id'], state_volume=volumes[1], source_volume=volumes[0], home=str(runtime / 'home'), targets=[target])
@@ -158,9 +163,10 @@ trap 'exit 143' HUP INT TERM
 resume_capture
 '''
         run(['sh', '-c', shell, 'h1-fixture', args.image, str(saved), str(staging), prefix], timeout=90)
-        guest_run('private-check')
-        stage = 'readonly-source-unchanged'; guest_run('verify', '1000:1000', volumes[0])
-        stage = 'uid-private-signal'; guest_run('identity-signal')
+        if not args.restore_only:
+            guest_run('private-check')
+            stage = 'readonly-source-unchanged'; guest_run('verify', '1000:1000', volumes[0])
+            stage = 'uid-private-signal'; guest_run('identity-signal')
         stage = 'prebootstrap'
         assert boot(prefix + '-boot'), 'real supervisor did not reach bootstrap sentinel'
         guest_run('adopted'); guest_run('verify', '1000:1000')
