@@ -55,6 +55,26 @@ flowchart TD
 
 初回共有差分はmcp-toolsの登録/委譲、http-schedule-apiの互換export、http-room-apiの予定分岐除去。次の予定内部/schema/説明/HTTP修理はmembers内で更新できる。RoomRegistry、公開資格helper、schedulerの内部挙動、保存形式、既config/exportを変更しない。
 
+## 名簿と予定の対象集合
+
+```mermaid
+flowchart LR
+  Active["BotRegistryのactive Map"] --> List["GET /api/bots<br/>利用者向け名簿"]
+  Pending["削除未完のreceipt"] -->|"deleting=true"| List
+  Active --> Schedules["GET /api/schedules<br/>active Botと現在の部屋のsources"]
+  Rooms["現在のRoomRegistry"] --> Schedules
+  List -->|"既deletingを任意で読む"| Apple["Appleの期待対象<br/>deleting!=trueのBotと現在の部屋"]
+  Rooms --> Apple
+  Apple --> Check["sourcesとactive期待集合を照合<br/>既検査を維持"]
+  Schedules --> Check
+```
+
+利用者向け名簿は削除途中のBotを表示に残す。一方、予定の実行対象と全予定のBot所有者集合はactive台帳だけを使い、pending receiptを再採用しない。部屋は現在のRoomRegistryから取得する。予定0件のactive Botもsourcesの所有者として含める。
+
+[Apple利用側](../apple/README.md)はGET /api/botsの既`deleting`を任意fieldとして読み、trueのBotを期待する予定所有者から除く。fieldが無い従来のBotはactiveとして扱う。active所有者の欠落を含む既検査は維持する。Appleのdecode/表示/照合の内部はApple担当の正本で管理し、ここへ複製しない。
+
+削除未完の修理はmembersの[削除契約](deletion.md)、Appleの期待集合の解釈はApple担当が持つ。名簿件数とsources件数の差だけでHTTP不正や削除完了を判定しない。HTTP200、payloadの意味の検証、実削除の完了は別に扱う。この参照追加は既契約の明記であり、新field/ルート/実削除操作を追加しない。
+
 ## 確認範囲
 
 `test/member-schedules.test.mjs`が専用handlerと共通登録、Bot対象省略/指定、Registry例外の同一性、部屋資格拒否時の無書込み、targets検証、command拒否、HTTP CRUD/refresh/手動runと互換exportを確認する。関連MCP/席API、予定の定義・世代、HTTP、RoomRegistry、conversation公開helperの試験を実行する。予定発行の実データやnative、本番へ操作しない。

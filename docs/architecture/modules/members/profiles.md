@@ -17,6 +17,7 @@ flowchart TD
   Create --> Memory["memory.ensureScope<br/>保存後の部分失敗を保持"]
   Profile --> Sheet["CharacterSheets<br/>runtimeの画像stream"]
   Profile --> Listing["active/pending一覧<br/>履歴・稼働観測・適用表示"]
+  Listing -->|"既HTTPのdeleting"| Apple["Apple利用側<br/>予定対象から削除中を外す"]
 ```
 
 ## 公開契約
@@ -30,6 +31,7 @@ flowchart TD
 | `profiles-http.mjs` | createMemberProfileApiがBot一覧/作成、GET/PATCH profile、avatar、character-sheet一覧/streamを所有。既createBotApiはこのhandlerへ委譲し、execution/memory/conversationの残る経路を保持 |
 | HTTP更新/表示 | PATCHは既Administration.updateへ、GETと一覧の適用観測は既viewへ。返却/statusは既契約。モデルの稼働適用/Map/停止・再開はexecutionが持つ |
 | 一覧 | HTTPは既pending receiptをdeleting=true/online=falseで保持し、awaitを跨いだ後も現在の在席状態を再確認。履歴/稼働/適用の公開観測を使い、私有状態の保存形式を参照しない |
+| Appleの一覧利用 | [Apple利用側](../apple/README.md)は既HTTPのdeletingを任意fieldとして読み、trueのBotを予定の期待集合へ含めない。[予定集合の契約](schedules.md#名簿と予定の対象集合)を参照。fieldなしは従来のactiveとして扱う |
 | 作成 | registry.create後にmemory.ensureScope。記憶領域や後段生成が失敗しても、保存済みBotを勝手に消さず元の例外を伝える。偽の会話を発行しない |
 | character-sheet | 正本直下の画像だけを扱う既CharacterSheets契約を維持。runtime公開streamへAbortSignalを渡し、HTTP切断で取消、metadata前/headers後の失敗を元どおり扱う。draftを正本へ昇格しない |
 
