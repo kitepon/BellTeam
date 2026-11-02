@@ -56,6 +56,10 @@ supervisorは既起動lockを保持したままrestoreをawaitする。H1中のs
 
 正式供給後の実物境界は `scripts/verify-resume-runtime.py IMAGE OUTPUT` で検査する。配布担当の既native両arch CIが、build済みimmutable imageを渡す。固有prefixの合成HOME・旧新state・private volumeだけを作り、実helper/1001受取/1000 CLI/本体C入口とsupervisorを通す。bootstrapの先頭だけを読取専用の停止標識へ差し替え、復元・採用より後のimport到達を観測する。実vendorや資格を使わず、製品runtimeは差し替えない。終了時は今回のcontainer/volumeだけを除去し、safe結果を保存する。既fixture成功数や本番受入へ加算しない。
 
+検査の`network none`実行には固有hostnameと127.0.0.1のhosts対応を渡す。外部通信を許可せずsudoの自己hostname解決を満たし、席UID検査でstderr空を確認する。初回41529449686のrestore失敗は未受入のまま保持する。診断41530989746は両archでsudoのhostname解決警告を再現し、`/run` tmpfs有無による差は無かった。byte protocolのstderr拒否は変更しない。これは既検査構成の修理で、機能・公開窓口・データ所有・全体図の接続は変わらない。
+
+失敗箇所の再確認は`--restore-only`で、新しい合成source/checkpointを準備して起動前restore・採用・再起動時非再投入・不正入力拒否だけを判定する。前回成功したreadonly・UID・signal・privateの観測は再走しない。結果のscopeをrestore-onlyとし、このacceptedだけを全runtime合格に数えない。
+
 実装は`resume-policy/pipe/storage/boot/install-plan/runtime-resume/run-resume-store`、既seat-command/run-seat-command/bot-environment/harness-config、writer-planとinstaller。追加の私有Aiterm metadata writer、online seal、keeperはない。
 
 直接fixtureは`resume-runtime`、`resume-install`、固定製品distを渡す`resume-cli-integration`。境界は既server-state-writers/installer-unified、seat/環境/登録、application-runtime、配布archive/context。新製品6658c67との隔離CLI接続と製品crash/strict反例を確認するが、旧c688の有限成功を新安全性へ流用しない。製品最終レビュー通過はRootの原本へ帰属し、このfixtureの範囲へ加算しない。実vendor・実Docker/1001動的受入・本番/公開は未確認/保留。
