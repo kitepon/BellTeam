@@ -32,7 +32,7 @@ flowchart TD
 
 新しいshared/tools可書込領域やHOST mountは増やさず、既root:1001/0750のprivate rootとreadonly mountを使う。資材は`state`の兄弟へ置き、既prepareServerStateOwnershipの再帰chown対象に入れない。公開/内部とも既normalのreadonly control mountから参照できる。配布候補の専用bind案をこの既mountへ縮める差異をセンチと確認する。
 
-通常installerの専用modeは保存normal・実CIDのimage/mount本人性を検証し、既固定imageからWeb配置専用helperを起動する。停止・pull・image変更・任意command/pathをしない。helperは未信頼incomingをreadonly、既private volumeだけをRWに持ち、空env/固定Python codeでid/source/signerの64/40/40hexだけを受ける。archive/bundleの入力pathは固定incoming root/id内。承認済みsource/signer値をrootoperatorが明示して渡し、manifest/bundleから期待値を作らない。
+通常installerの専用modeは既install.sh内に収め、第三shellの手動取得を前提にしない。保存normal・実CIDのimage/mount本人性を検証し、既固定imageからWeb配置専用helperを起動する。停止・pull・image変更・任意command/pathをしない。helperは未信頼incomingをreadonly、既private volumeだけをRWに持ち、空env/固定Python codeでid/source/signerの64/40/40hexだけを受ける。archive/bundleの入力pathは固定incoming root/id内。承認済みsource/signer値をrootoperatorが明示して渡し、manifest/bundleから期待値を作らない。
 
 root helperはprivate rootをSHで取り、.transaction.jsonが無いことを確認してWeb専用.install.lockをEXで保持する。従来の全体EXを取らず、通常本体の旧SHを維持し、全体保守EXを拒否する。Web storeは同専用lock内でだけ変更し、state/採用recordを操作しない。専用入口は通常installerの実装が固定modelから呼び、normal側にroot sudoやDocker socketは増やさない。
 

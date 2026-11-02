@@ -74,7 +74,7 @@ elif a[0]=='compose' and 'run' in a:
 else:sys.exit(91)
 `,{mode:0o755})
   // The dedicated helper invocation is observed; no root process or signature success is simulated.
-  for (const name of ['install.sh','install-web-gateway.sh']) await writeFile(join(root,name),await readFile(new URL('../distribution/server/'+name,import.meta.url)))
+  await writeFile(join(root,'install.sh'),await readFile(new URL('../distribution/server/install.sh',import.meta.url)))
   const script=join(root,'install.sh')
   const env={...process.env,PATH:bin+':'+process.env.PATH,FIXTURE_LOG:log,FIXTURE_CURRENT:join(root,'current.json'),FIXTURE_NORMAL:join(saved,'normal.json'),FIXTURE_NODE:process.execPath,FIXTURE_PLAN:plan}
   await execute('sh',[script,'--install-web-gateway',saved,'c'.repeat(64),'d'.repeat(40),'e'.repeat(40)],{cwd:root,env})
