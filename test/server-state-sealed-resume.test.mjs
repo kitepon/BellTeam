@@ -276,6 +276,26 @@ test('増分会話・予定・追加Botを両方向で保ち、settled更新で�
   assert.deepEqual(JSON.parse(await f.get('server-only/state-data/state/bots/bot-b/bot.json')), { ...f.profile, id: 'bot-b' })
 })
 
+test('移行済みinstaller入口は削除待ちを変えずに正常起動へ進める', async t => {
+  const f = await fixture(t); ownerFixture(t)
+  await f.put('data/bots/.initialized', '')
+  await f.put('data/bots/bot-a/bot.json', f.profile)
+  await f.put('data/bots/bot-a/schedule.json', f.schedule)
+  await migrateServerState({ root: f.root, direction: 'to-server' })
+  const pending = 'server-only/state-data/state/bots/.deleting/bot-a'
+  await mkdir(dirname(join(f.root, pending)), { recursive: true })
+  await rename(join(f.root, 'server-only/state-data/state/bots/bot-a'), join(f.root, pending))
+  await f.put(pending + '.json', { schema: 'bellteam.bot-deletion.v1', profile: f.profile })
+  const before = await lstat(join(f.root, pending + '.json'))
+  const result = await migrateServerState({ root: f.root, direction: 'to-server' })
+  assert.deepEqual(result, { direction: 'to-server', status: 'already-transferred', ownership: 'unchanged' })
+  assert.equal((await lstat(join(f.root, pending + '.json'))).ino, before.ino)
+  assert.deepEqual(JSON.parse(await f.get(pending + '/bot.json')), f.profile)
+  await f.absent('server-only/state-data/state/bots/bot-a')
+  await f.absent('data/bots/bot-a/bot.json')
+  await f.absent('server-only/state-data/.transaction.json')
+})
+
 test('BugHub endpoint and credential move together into private state and return current values on recovery', async t => {
   const f = await fixture(t); ownerFixture(t)
   await f.put('data/bots/.initialized', '')
