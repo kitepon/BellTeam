@@ -99,12 +99,22 @@ class GatewayArtifactTest(unittest.TestCase):
         expected = dict(archiveSha256=sha256(self.archive.read_bytes()), sourceCommit=SOURCE, signerCommit=SOURCE)
         proof = [{'verificationResult': {'signature': {'certificate': {'sourceRepositoryIdentifier': '1404510084'}}}}]
         with self.archive.open('rb') as a, bundle.open('rb') as b, trusted.open('rb') as t:
-            with patch('subprocess.check_output', return_value='26\n'), patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0, json.dumps(proof).encode(), b'')) as run:
+            aliases = []
+            def official_shape(command, **options):
+                alias = Path(command[command.index('--bundle') + 1]); aliases.append(alias)
+                self.assertEqual(alias.suffix, '.json')
+                self.assertTrue(alias.is_symlink())
+                self.assertEqual(alias.parent.stat().st_mode & 0o777, 0o700)
+                self.assertEqual(alias.stat().st_ino, bundle.stat().st_ino)
+                self.assertEqual(alias.read_bytes(), bundle.read_bytes())
+                return subprocess.CompletedProcess([], 0, json.dumps(proof).encode(), b'')
+            with patch('subprocess.check_output', return_value='26\n'), patch('subprocess.run', side_effect=official_shape) as run:
                 result = verify.authenticate(a, b, t, policy, expected)
                 self.assertEqual(result['manifest'], self.manifest)
                 self.assertEqual(run.call_args.kwargs['pass_fds'], (a.fileno(), b.fileno(), t.fileno()))
                 self.assertNotIn('GH_TOKEN', run.call_args.kwargs['env'])
                 self.assertIn('--signer-digest', run.call_args.args[0])
+            self.assertTrue(aliases and all(not alias.parent.exists() for alias in aliases))
             with patch('subprocess.check_output', return_value='26\n'), patch('subprocess.run') as run:
                 with self.assertRaisesRegex(ValueError, 'GATEWAY_ARCHIVE_DIGEST_MISMATCH'):
                     verify.authenticate(a, b, t, policy, {**expected, 'archiveSha256': '0' * 64})
@@ -113,8 +123,12 @@ class GatewayArtifactTest(unittest.TestCase):
             with patch('subprocess.check_output', return_value='26\n'), patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0, json.dumps(proof).encode(), b'')):
                 with self.assertRaisesRegex(ValueError, 'GATEWAY_REPOSITORY_ID_MISMATCH'):
                     verify.authenticate(a, b, t, policy, expected)
-            with patch('subprocess.check_output', return_value='26\n'), patch('subprocess.run', side_effect=subprocess.CalledProcessError(1, 'gh')):
+            def rejected_official(command, **options):
+                official_shape(command, **options)
+                raise subprocess.CalledProcessError(1, 'gh')
+            with patch('subprocess.check_output', return_value='26\n'), patch('subprocess.run', side_effect=rejected_official):
                 with self.assertRaises(subprocess.CalledProcessError): verify.authenticate(a, b, t, policy, expected)
+            self.assertTrue(all(not alias.parent.exists() for alias in aliases))
 
     def test_existing_output_and_unsigned_cli_never_claim_success(self):
         with self.assertRaises(FileExistsError): write_archive(self.payload, self.archive, SOURCE, ARCH)

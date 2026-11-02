@@ -1,13 +1,13 @@
 # Web受付専用の固定artifact・公式verifier・OIDC発行
 
-商用配布の正本。runtimeの[配置/reader](../runtime/web-gateway-release.md)とintegrationの[子切替](../integration/README.md)へ接続する。設計source・内容fixtureの工程で、実attestation供給/署名成功/Host/本番は未成立。online配置はruntimeの専用EXと既全体SHを使い、こちらから全体lockや採用stateを変更しない。
+商用配布の正本。runtimeの[配置/reader](../runtime/web-gateway-release.md)とintegrationの[子切替](../integration/README.md)へ接続する。正式供給run41545179742/source9573では両native archive/ABI/OIDC/公式検証が成功。root配置/Host/本番は未成立。online配置はruntimeの専用EXと既全体SHを使い、こちらから全体lockや採用stateを変更しない。
 
 ```mermaid
 flowchart LR
   Git[固定Git source/src/web/lock] --> Pack[package-web-gateway.py: clean npm ci prod]
   Pack --> Tar[manifest+payload deterministic tar.gz]
   Tar --> OIDC[publish-web-gateway.yml: 公式attest]
-  Root[image内policy/trust roots+root承認expectation] --> Verify[verify-web-gateway.py: 公式gh+file集合]
+  Root[image内policy/trust roots+root承認expectation] --> Verify[verify-web-gateway.py: 同FD/json名/公式gh/file集合]
   Tar --> Verify
   OIDC --> Verify
   Verify --> Receipt[exit0 verified manifest/expectation]
@@ -30,7 +30,7 @@ root expectationのwriterは通常installerのprivileged operatorから64/40/40h
 
 公開packagerの--archはamd64/arm64。native workflowは対応runner自身を必須とし、ローカルのcross-arch入力はlockにinstall script/CPU/OS制約がなく、インストール出力にnative binaryがないJS依存だけを許す。native依存が増えたら対応runnerで作成する。署名していないローカル入力はnative両arch受入へ代用しない。
 
-検証fixtureはtest/web-gateway-artifact.test.py、既収録境界はtest/server-distribution.test.mjs。正の署名処理はmock wiringの検査で、実認証成功0を維持する。実OIDC workflowはsource採否後に一回だけ接続する。
+検証fixtureはtest/web-gateway-artifact.test.py、既収録境界はtest/server-distribution.test.mjs。正の単体試験はmock wiringの検査で、crypto成功へ加算しない。実OIDC workflowはsource採否後の固定run原本で別に記録する。
 
 実archiveの子起動確認で、http-assets→http-server→subscriptionsがservices/subscriptions/{product,endpoints}.jsonをstatic importすることを確認。公開JSON2fileも固定収録し、完全自己完結を親/app fallbackで代用しない。
 
@@ -39,3 +39,5 @@ root expectationのwriterは通常installerのprivileged operatorから64/40/40h
 Epiのonline installerは第三shell案をやめ、既install.sh早期modeへ直接収める。公開2file導入の接点を保ち、固定modelから現在CID/exact imageとroothelperを使う。収録3pathはdistribution/server/install.sh（既copy）、src/web-gateway-install-plan.mjs（既src全体archive）、scripts/install-web-gateway-release.py（明示追加）。第三COPYやCompose変更は不要。このruntime sourceはEpi固定commitを別に取り込み、配布側からroot実装を改変しない。
 
 正式供給初回41544433881ではsetup-nodeのnode指定が27.0.0-alpha.0.0.0を選び、両archともNode26契約でpackagerが拒否した。専用workflowは承認済みruntime.nodeMajor26に合わせ26系の現行版を使う。packager/readerの互換拒否は維持し、全体imageや他CLIの公式現行版方針は変更しない。実署名工程には未到達、元run失敗を保持し同runを無変更再走しない。
+
+正式供給run41545179742の実bundleを固定verifierへ渡すと、公式ghはbundleの拡張子を要求し/proc/self/fd/Nを拒否した。root専用0700一時dir内のbundle.jsonを同じ継承FDへのsymlinkにし、公式CLIの形式判定と同FD snapshot契約を両立する。通常入力pathの再openや検証前copyへ戻さず、gh終了・失敗時ともaliasを削除する。CLI3引数/公開schema/runtime writerへの契約は変わらない。

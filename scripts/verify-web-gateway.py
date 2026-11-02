@@ -10,6 +10,7 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 from web_gateway_artifact import MAX_ARCHIVE, MAX_BUNDLE, check_archive, require
 
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -42,13 +43,18 @@ def authenticate(archive, bundle, trusted, policy, expectation):
         'sourceRef': 'refs/heads/main', 'predicateType': 'https://slsa.dev/provenance/v1'})
     descriptors = (archive.fileno(), bundle.fileno(), trusted.fileno())
     artifact, proof, roots = ['/proc/self/fd/' + str(fd) for fd in descriptors]
-    result = subprocess.run(['/usr/bin/gh', 'attestation', 'verify', artifact,
-        '--repo', policy['repository'], '--signer-workflow', policy['signerWorkflow'],
-        '--source-ref', policy['sourceRef'], '--source-digest', expectation['sourceCommit'],
-        '--signer-digest', expectation['signerCommit'], '--deny-self-hosted-runners',
-        '--predicate-type', policy['predicateType'], '--bundle', proof, '--custom-trusted-root', roots, '--format', 'json'],
-        pass_fds=descriptors, capture_output=True, timeout=60, check=True,
-        env={'PATH': '/usr/bin:/bin', 'GH_CONFIG_DIR': '/nonexistent', 'GH_HOST': 'github.com', 'GH_PROMPT_DISABLED': '1'})
+    with tempfile.TemporaryDirectory(prefix='bellteam-gateway-proof-', dir='/tmp') as stage:
+        # gh selects the bundle parser by extension; the link keeps the inherited snapshot FD.
+        alias = Path(stage) / 'bundle.json'
+        alias.symlink_to(proof)
+        proof = str(alias)
+        result = subprocess.run(['/usr/bin/gh', 'attestation', 'verify', artifact,
+            '--repo', policy['repository'], '--signer-workflow', policy['signerWorkflow'],
+            '--source-ref', policy['sourceRef'], '--source-digest', expectation['sourceCommit'],
+            '--signer-digest', expectation['signerCommit'], '--deny-self-hosted-runners',
+            '--predicate-type', policy['predicateType'], '--bundle', proof, '--custom-trusted-root', roots, '--format', 'json'],
+            pass_fds=descriptors, capture_output=True, timeout=60, check=True,
+            env={'PATH': '/usr/bin:/bin', 'GH_CONFIG_DIR': '/nonexistent', 'GH_HOST': 'github.com', 'GH_PROMPT_DISABLED': '1'})
     verified = json.loads(result.stdout)
     require(type(verified) is list and verified, 'GATEWAY_ATTESTATION_MISSING')
     for proof in verified:
