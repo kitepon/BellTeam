@@ -6,13 +6,13 @@ import { createBotEditor } from '../web/bot-editor.js'
 import { bot, models } from './helpers/editor-dom.mjs'
 import { createOwnerEditor } from '../web/owner-editor.js'
 import { editorDOM, deferred } from './helpers/editor-dom.mjs'
-const source=await readFile(new URL('../web/app.js',import.meta.url),'utf8')
+const source=await readFile(new URL('../web/application.js',import.meta.url),'utf8')
 function catalogue(){
  const reads=[],state={selected:null,selectedType:'bot'},ctx={catalogueRead:0,state,api:path=>{
   if(path.startsWith('/api/bots')){const pending=deferred();reads.push(pending);return pending.promise}
   return Promise.resolve(path==='/api/rooms'?{rooms:[]}:{owner:{name:'old'}})
  },renderOwner(){},renderBots(){},clearSelection(){state.selected=null},conversationTimeline:{updateTarget(){}},app:{classList:{contains:()=>false}}}
- vm.runInNewContext(source.slice(source.indexOf('async function loadBots()'),source.indexOf('\nfunction renderOwner()')),ctx)
+ vm.runInNewContext(source.slice(source.indexOf('async function loadBots()'),source.indexOf('\n  function renderOwner()')),ctx)
  return {ctx,state,reads}
 }
 test('catalogue latest response keeps selection; stale success and failure are superseded, latest failure rejects',async()=>{
@@ -47,7 +47,7 @@ for(const fail of [false,true])test(`unread rules cannot write profile or rules,
 test('accepted Bot deletion invalidates older catalogue; ignored response cannot resurrect it',async()=>{
  const {ctx,state,reads}=catalogue();state.bots=[{id:'gone'}]
  const old=ctx.loadBots();ctx.setTimeout=()=>{}
- const start=source.indexOf('onDeleted: async bot => ')+11,end=source.indexOf('\n  onRestarted:',start)
+ const start=source.indexOf('onDeleted: async bot => ')+11,end=source.indexOf('\n    onRestarted:',start)
  const callback=source.slice(start,end).trim().replace(/,$/u,'')
  await vm.runInNewContext('('+callback+')({id:"gone"})',ctx)
  reads[0].resolve({bots:[{id:'gone'}]});assert.equal(await old,null);assert.equal(state.bots.length,0)

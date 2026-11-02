@@ -3,6 +3,8 @@ export const webAssetFiles = new Map([
   ['/index.html', 'index.html'],
   ['/styles.css', 'styles.css'],
   ['/app.js', 'app.js'],
+  ['/application.js', 'application.js'],
+  ['/client.js', 'client.js'],
   ['/onboarding.js', 'onboarding.js'],
   ['/harness-auth.js', 'harness-auth.js'],
   ['/auth-flow.js', 'auth-flow.js'],
@@ -34,4 +36,4 @@ export const webAssetFiles = new Map([
   ['/icons/icon-512.png', 'icons/icon-512.png'],
 ])
 
-export const versionedWebAssets = new Set(['index.html', 'app.js', 'owner-editor.js', 'bot-editor.js', 'room-editor.js', 'schedule-editor.js', 'conversation-timeline.js', 'conversation-composer.js', 'harness-auth.js', 'onboarding.js', 'rich-text.js', 'secret-input.js'])
+export const versionedWebAssets = new Set(['index.html', 'app.js', 'application.js', 'client.js', 'owner-editor.js', 'bot-editor.js', 'room-editor.js', 'schedule-editor.js', 'conversation-timeline.js', 'conversation-composer.js', 'harness-auth.js', 'onboarding.js', 'rich-text.js', 'secret-input.js'])

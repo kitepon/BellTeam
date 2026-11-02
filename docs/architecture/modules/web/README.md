@@ -1,29 +1,64 @@
 # Webアプリ
 
-責任者：アドミ。
+責任者：アドミ。Webの一覧・選択・編集・会話/下書き・履歴・接続・各操作結果を持つ。サーバー正本は各機能担当、Appleはベル。
 
-Web一覧・編集・会話・下書き・表示・接続・更新通知。サーバー正本は機能担当、Appleはベル。
+[接続情報](module.json)から[全体図](../../feature-map.md)を生成する。[担当・変更手順](../../module-ownership.md)に従い、使用先の[integration](../integration/README.md)と[公開HTTP入口](../../entrypoints.md)を読む。現行の内部図はこのmoduleの[会話・履歴・SSE](conversation.md)と[編集・画像・Goal](management.md)だけで管理する。
 
-接続の正本は[module.json](module.json)。全体の[機能図](../../feature-map.md)と[担当・変更手順](../../module-ownership.md)から、呼出元と依存先を辿る。
-
-## 現行図と移管工程
-
-- [web-details.md](../../web-details.md)
-- [web-management-details.md](../../web-management-details.md)
-
-上の既存詳細図は現行実装の読取資料。複数担当が含まれる章は最初の分離で当moduleへ移し、元の章を参照リンクへ置換する。内容を二つの現行図へ複製しない。図とコードの分離完了はまだ宣言していない。
-
-## 最初の成果
-
-公開入出力、所有データ、実装・全caller・関連試験、他担当との接点を図で確定する。自分の内部変更が他担当の内部コードや保存データの直接変更を要求しない形へ分離する。共有入口は登録/呼出だけにして、業務処理を自分のmoduleへ移す。変更した図とコード・限定検証結果を一つの差分にする。
-
-## 静的資材の公開登録
-
-Webは`web/assets.mjs`から`webAssetFiles`（公開pathとファイル）と`versionedWebAssets`（版置換対象）を提供する。integrationの`staticFile`はこの登録をimportし、従来の認証・header・版置換・streamだけを持つ。新しいWeb資材の追加はWeb所有の登録で完結する。
+## 起動・通信・公開登録
 
 ```mermaid
 flowchart LR
-  Web["web.assets / アドミ"] -->|"公開ファイルと版置換対象"| HTTP["integration.staticFile / トロニー"]
+  Browser["index.html / app.js<br/>画面の起動だけ"] --> Application["application.createWebApp<br/>一覧・選択・viewの接続"]
+  Application --> Views["各view<br/>編集 / 下書き / 履歴 / 画像"]
+  Application --> Client["client.createWebClient<br/>JSON / 画像 / SSE"]
+  Views -->|"api / fetchImage"| Client
+  Client -->|"既公開HTTPだけ"| Integration["integration.HTTP/MCP"]
+  Integration -->|"通知と応答"| Client
+  Client -->|"通知callback"| Application
+  Assets["assets.mjs<br/>配信可能な名前と版置換対象"] -->|"公開登録"| Static["integration.staticFile<br/>認証後のファイル配信"]
 ```
 
-これは登録の所有を移す初回共有差分。既存routeと応答は不変。HTTP入口の2つの静的配信試験で直接境界を確認する。
+| 公開窓口 | 入力 | 出力・所有 |
+| --- | --- | --- |
+| `ui` / `createWebApp({client})` | ブラウザーDOMとclientの`api/fetchImage/watchEvents` | `start()`。構築/importでは通信を始めず、startでsession→設定→setup→一覧→SSE。app.jsが一度呼ぶ |
+| `createWebClient({fetch,setTimeout,clearTimeout})` | 標準fetchとtimer（省略時はブラウザー） | `api(path,options)`はJSON/204とstatus付きError、`fetchImage`はResponse、`watchEvents(onEvent,onError)`は解除関数。人工fetchへ丸ごと差替可能 |
+| `assets` / `assets.mjs` | integrationからのimport | `webAssetFiles`（公開path→Web内ファイル）、`versionedWebAssets`（版置換対象）。HTTP認証/stream/headerはintegrationが持つ |
+
+通信の全callerはapplicationから各viewへ渡すapi、messageImagesとcharacterSheetsのfetchImage、SSEのwatchEvents。Viewは他moduleの内部サービスや保存データをimportしない。SSEは既存のTypeError/429/5xxだけ1.5秒後に再接続し、認証/JSON形式異常で停止表示する。正常EOFで再接続しない既存契約も維持する。表示GETの失敗はapplicationが表示へ返し、通信障害として再接続しない。
+
+画面に表示するアバター等のURLをブラウザーが読む通常の画像表示も公開HTTPを使う。台帳、配送、予定、記憶、認証、Goalの正本と業務判断はサーバーに残す。
+
+## Webが所有するデータ
+
+- application：setup/authMode/settingsとBot/部屋/Ownerの表示cache、選択、部屋ごとの返信者、読取順、SSE解除関数。
+- composer：会話別の未送信入力、添付URL、送信中の固定値、失敗時の回収欄。ページ内に保持する。
+- timeline：開いた対象の履歴Map、前後ページ、queue、読取世代、スクロール。SSEは本文の代わりにしない。
+- 各editor/Goal/補助view：開いた対象、入力、進行中の要求、最新観測、timerと局所URL。受付/保存と後続GET失敗を区別する。
+- 画像cache：取得Promiseと所有URL。破棄は生成者が行う。
+- localStorage：`bellteam-read-receipts.v1`の端末内既読だけ。サーバーの読了記録を作らない。
+
+APIの拒否や応答不明を未保存・未配送と断定しない。202は受付、Goal/nativeの実適用とAI回答完了は各サーバーの返す状態に従う。
+
+## 実装と変更範囲
+
+[web/](../../../../web/)全体、Webだけをimportする局所試験と`test/helpers/{editor-dom,web-dom}.mjs`を持つ。app.jsは起動、application.jsは画面組立て、client.jsは通信、assets.mjsは公開資材登録。各viewの内部状態と既callbackは[詳細図](conversation.md)へ辿る。
+
+初回の共有差分は`src/http-assets.mjs`がWeb公開登録をimportする切替だけ。トロニーが統合する。その後のWeb内部変更と資材追加はWebの正本・登録・局所試験で完結する。公開HTTPの契約を変える時はサーバー所有者と調整し、全体の接続はトロニーが整合する。
+
+今回の図変更は、共通文書にあったWeb内部図の移管と、起動/通信/資材登録の所有の明示。integrationから`assets`利用を追加する。既公開HTTP JSON、status、永続保存形式、画面操作の完了条件は変更しない。
+
+## 単独試験
+
+Node 24以上の標準機能だけで実行でき、サーバー・native・他機能の内部実装・実データは起動しない。
+
+```sh
+node --test test/web-client.test.mjs test/web-module.test.mjs test/web-event-refresh.test.mjs test/web-final-ownership.test.mjs test/web-bot-avatar-list.test.mjs test/bot-profile-ui.test.mjs test/editor-ownership.test.mjs test/conversation-composer.test.mjs test/timeline-open-queue.test.mjs test/message-images.test.mjs test/bot-read-views.test.mjs test/goals-view-order.test.mjs test/chat-input.test.mjs test/schedule-list.test.mjs test/memory-view.test.mjs
+```
+
+`web-module`は実際のapplication/各viewを人工HTTP/SSEと小さいDOMで接続し、起動前の無通信、会話別下書き、既読、対象外通知、受付後の表示失敗とPOST一回、pagehideを確認する。`web-client`はJSON/204/error、分割UTF-8、通知順、EOF、既存の再接続分類と解除を確認する。実ブラウザーのレイアウト・native実配送・本番反映を証明する試験ではない。
+
+共有配信の直接境界は既存`http-server`の「HTMLへ起動単位」「Webアプリがimport」の2試験で確認する。全体試験を定型再走しない。
+
+## 設計中の更新通知
+
+[商用コンテナ更新UI案](update-notice-design.md)は6機能に従う設計資料。APIや画面の実装・配布・本番反映は未着手で、本番/一般配布保留を維持する。
