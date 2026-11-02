@@ -42,6 +42,7 @@ flowchart LR
   m_members -->|"membership-cleanup"| m_conversation
   m_members -->|"messages"| m_conversation
   m_members -->|"memory"| m_memory
+  m_members -->|"room-access"| m_conversation
   m_memory -->|"seat-process"| m_runtime
   m_runtime -->|"registry"| m_members
   m_runtime -->|"image"| m_distribution

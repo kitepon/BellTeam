@@ -4,21 +4,11 @@ import { usageTools, usageToolHandlers } from './usage/mcp-tools.mjs'
 import { bugHubSecurityTools } from './bughub-security.mjs'
 import { objectSchema, assertKeys } from './mcp-schema.mjs'
 import { conversationTools, callConversationTool } from './mcp-conversation-tools.mjs'
-import { requireRoomMember, requireRepresentative } from './room-access.mjs'
+import { botScheduleTools, roomScheduleTools, scheduleToolHandlers } from './members/schedules-mcp.mjs'
 import { resolveBotImagePath } from './bot-image-path.mjs'
 
 export { resolveBotImagePath } from './bot-image-path.mjs'
 import { deleteBotTool, runDeleteBotTool } from './members/deletion.mjs'
-
-const intervalScheduleProperties = {
-  intervalDays: { type: 'integer', minimum: 1, description: 'interval_days用。開始日から何日おきに実行するか。2なら開始日・2日後・4日後。' },
-  startDate: { type: 'string', description: 'interval_days用。開始日（YYYY-MM-DD、指定timezoneの暦日）。' },
-  time: { type: 'string', description: 'interval_days用。実行時刻（HH:mm）。' },
-  intervalHours: { type: 'integer', minimum: 1, maximum: 24, description: 'interval_hours用。毎日の開始時刻から何時間おきに実行するか。' },
-  startHour: { type: 'integer', minimum: 0, maximum: 23, description: 'interval_hours用。開始時（含む）。' },
-  endHour: { type: 'integer', minimum: 0, maximum: 23, description: 'interval_hours用。終了時（含む）。開始より小さければ翌日、同じなら一回。' },
-  minute: { type: 'integer', minimum: 0, maximum: 59, description: 'interval_hours用。実行する分。既定は0。' },
-}
 
 export const bellTeamTools = Object.freeze([
   {
@@ -192,60 +182,9 @@ export const bellTeamTools = Object.freeze([
       color: { type: 'string', enum: ['rose', 'indigo', 'violet'] },
     }, ['name', 'harness']),
   },
-  {
-    name: 'set_schedule',
-    description: 'Botの自動実行予定を追加または更新する。一回はkind=onceとat、cron式はkind=cronとexpression、日おきはkind=interval_daysとintervalDays・startDate・time、時間帯内の時間おきはkind=interval_hoursとintervalHours・startHour・endHourを使う。実行内容はpromptかcommandのどちらか一方。AIを起こす必要のない作業（スクリプト実行など）はpromptでなくcommandにする。botId省略時は自分。',
-    inputSchema: objectSchema({
-      id: { type: 'string', description: '更新する予定ID。新規追加では省略する。' },
-      name: { type: 'string', maxLength: 100 },
-      kind: { type: 'string', enum: ['once', 'cron', 'interval_days', 'interval_hours'] },
-      ...intervalScheduleProperties,
-      at: { type: 'string', description: '一回実行のISO日時' },
-      expression: { type: 'string', description: '反復実行のcron式' },
-      timezone: { type: 'string', description: 'IANA timezone。既定はAsia/Tokyo' },
-      prompt: { type: 'string', minLength: 1, maxLength: 8000, description: 'AIへの指示。commandと同時には指定しない。' },
-      command: { type: 'string', minLength: 1, maxLength: 8000, description: 'AIを起こさずBotのプロジェクトフォルダでsh -cとして実行するコマンド。失敗した時だけユーザーへ知らせる。' },
-      enabled: { type: 'boolean' },
-      botId: { type: 'string', minLength: 1, description: '対象Bot ID。省略時は自分。' },
-    }, ['kind']),
-  },
-  {
-    name: 'list_schedules',
-    description: 'Botの自動実行予定を一覧する。botId省略時は自分。',
-    inputSchema: objectSchema({ botId: { type: 'string', minLength: 1, description: '対象Bot ID。省略時は自分。' } }),
-  },
-  {
-    name: 'remove_schedule',
-    description: 'Botの自動実行予定を削除する。botId省略時は自分。',
-    inputSchema: objectSchema({
-      id: { type: 'string', minLength: 1 },
-      botId: { type: 'string', minLength: 1, description: '対象Bot ID。省略時は自分。' },
-    }, ['id']),
-  },
+  ...botScheduleTools,
   ...conversationTools,
-  {
-    name: 'set_room_schedule',
-    description: '代表としてルームの自動実行予定を追加または更新する。',
-    inputSchema: objectSchema({
-      roomId: { type: 'string', minLength: 1 },
-      id: { type: 'string' }, name: { type: 'string', maxLength: 100 },
-      kind: { type: 'string', enum: ['once', 'cron', 'interval_days', 'interval_hours'] }, at: { type: 'string' },
-      ...intervalScheduleProperties,
-      expression: { type: 'string' }, timezone: { type: 'string' },
-      prompt: { type: 'string', minLength: 1, maxLength: 8000 }, enabled: { type: 'boolean' },
-      targets: { type: 'array', items: { type: 'string', minLength: 1 } },
-    }, ['roomId', 'kind', 'prompt']),
-  },
-  {
-    name: 'list_room_schedules',
-    description: '所属ルームの自動実行予定を一覧する。',
-    inputSchema: objectSchema({ roomId: { type: 'string', minLength: 1 } }, ['roomId']),
-  },
-  {
-    name: 'remove_room_schedule',
-    description: '代表としてルームの自動実行予定を削除する。',
-    inputSchema: objectSchema({ roomId: { type: 'string', minLength: 1 }, id: { type: 'string', minLength: 1 } }, ['roomId', 'id']),
-  },
+  ...roomScheduleTools,
   ...bugHubSecurityTools,
 ])
 
@@ -294,6 +233,7 @@ async function runBellTeamTool(context) {
     return bugHubSecurity({ name, args, from })
   }
   if (name === 'list_models') return getModels(args.harness)
+  if (Object.hasOwn(scheduleToolHandlers, name)) return scheduleToolHandlers[name]({ registry, rooms, from, args })
   if (Object.hasOwn(usageToolHandlers, name)) return usageToolHandlers[name]({ ...context, args })
   if (conversationTools.some(tool => tool.name === name))
     return callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverRoomMessage, listQueued })
@@ -343,29 +283,6 @@ async function runBellTeamTool(context) {
     const bot = await registry.create(args)
     await memory?.ensureScope(bot.id, 'personal')
     return { bot }
-  }
-  if (name === 'set_schedule') {
-    const { botId = from, ...schedule } = args
-    return { schedule: await registry.setSchedule(botId, schedule) }
-  }
-  if (name === 'list_schedules') return { schedules: await registry.listSchedules(args.botId ?? from) }
-  if (name === 'remove_schedule') {
-    await registry.removeSchedule(args.botId ?? from, args.id)
-    return { removed: args.id }
-  }
-  if (name === 'set_room_schedule') {
-    const { roomId, ...schedule } = args
-    requireRepresentative(rooms, roomId, from)
-    return { schedule: await rooms.setSchedule(roomId, schedule) }
-  }
-  if (name === 'list_room_schedules') {
-    requireRoomMember(rooms, args.roomId, from)
-    return { schedules: await rooms.listSchedules(args.roomId) }
-  }
-  if (name === 'remove_room_schedule') {
-    requireRepresentative(rooms, args.roomId, from)
-    await rooms.removeSchedule(args.roomId, args.id)
-    return { removed: args.id }
   }
   throw new Error(`TOOL_NOT_FOUND: ${name}`)
 }
