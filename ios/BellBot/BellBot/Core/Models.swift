@@ -17,6 +17,7 @@ struct Bot: Decodable, Identifiable, Equatable {
     var avatar: String
     var avatarVersion: String? = nil
     var avatarLargeVersion: String? = nil
+    var deleting: Bool? = nil
     let online: Bool
     let recent: RecentMessage?
 }
@@ -246,8 +247,35 @@ struct AllSchedulesResponse: Decodable {
                 throw BellAPIError.invalidResponse
             }
         }
-        guard expected.isSubset(of: pages.keys) else { throw BellAPIError.invalidResponse }
+        let missing = expected.subtracting(pages.keys)
+        guard missing.isEmpty else {
+            let rooms = missing.filter(\.isRoom).count
+            throw ScheduleListIncomplete(expected: expected.count, received: pages.count,
+                                         missingBots: missing.count - rooms, missingRooms: rooms)
+        }
         return pages
+    }
+}
+/// 応答に取得対象が欠けた時の失敗。診断へIDを渡さないよう件数だけを持つ。
+struct ScheduleListIncomplete: LocalizedError {
+    let expected: Int
+    let received: Int
+    let missingBots: Int
+    let missingRooms: Int
+    var errorDescription: String? { BellAPIError.invalidResponse.errorDescription }
+    var diagnosticContext: String {
+        "schedule_expected=\(expected)\nschedule_received=\(received)"
+            + "\nschedule_missing_bots=\(missingBots)\nschedule_missing_rooms=\(missingRooms)"
+    }
+}
+struct ScheduleSource: Equatable, Sendable {
+    let target: ChatTarget
+    let name: String
+
+    /// 削除待ちのBotは一覧に残るが、本体の全件取得には含まれない。
+    static func listed(bots: [Bot], rooms: [Room]) -> [Self] {
+        bots.filter { $0.deleting != true }.map { Self(target: .bot($0.id), name: $0.displayName) }
+            + rooms.map { Self(target: .room($0.id), name: $0.name) }
     }
 }
 struct ScheduleResponse: Decodable { let schedule: Schedule }
