@@ -16,3 +16,14 @@ Web一覧・編集・会話・下書き・表示・接続・更新通知。サ�
 ## 最初の成果
 
 公開入出力、所有データ、実装・全caller・関連試験、他担当との接点を図で確定する。自分の内部変更が他担当の内部コードや保存データの直接変更を要求しない形へ分離する。共有入口は登録/呼出だけにして、業務処理を自分のmoduleへ移す。変更した図とコード・限定検証結果を一つの差分にする。
+
+## 静的資材の公開登録
+
+Webは`web/assets.mjs`から`webAssetFiles`（公開pathとファイル）と`versionedWebAssets`（版置換対象）を提供する。integrationの`staticFile`はこの登録をimportし、従来の認証・header・版置換・streamだけを持つ。新しいWeb資材の追加はWeb所有の登録で完結する。
+
+```mermaid
+flowchart LR
+  Web["web.assets / アドミ"] -->|"公開ファイルと版置換対象"| HTTP["integration.staticFile / トロニー"]
+```
+
+これは登録の所有を移す初回共有差分。既存routeと応答は不変。HTTP入口の2つの静的配信試験で直接境界を確認する。

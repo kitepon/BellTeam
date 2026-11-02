@@ -32,6 +32,10 @@
     {
       "module": "runtime",
       "port": "lifecycle"
+    },
+    {
+      "module": "web",
+      "port": "assets"
     }
   ],
   "source": [

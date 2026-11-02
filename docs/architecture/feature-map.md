@@ -35,6 +35,7 @@ flowchart LR
   m_integration -->|"settings"| m_usage
   m_integration -->|"memory"| m_memory
   m_integration -->|"lifecycle"| m_runtime
+  m_integration -->|"assets"| m_web
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
   m_members -->|"membership-cleanup"| m_conversation
@@ -108,7 +109,7 @@ flowchart LR
 | [testgate](modules/testgate/README.md) | シラツル | hook |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context |
 | [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth |
-| [Webアプリ](modules/web/README.md) | アドミ | ui |
+| [Webアプリ](modules/web/README.md) | アドミ | ui / assets |
 | [Windowsアプリ](modules/windows/README.md) | ベル（Windows） | public |
 
 変更前に担当図と接続先の図を読み、図の変更要否と作業範囲を確認する。個別図・接続の変更後は `node scripts/render-feature-map.mjs` で再生成する。
