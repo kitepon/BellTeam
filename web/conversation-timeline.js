@@ -309,9 +309,9 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     }
     const time = document.createElement('div')
     time.className = 'message-time'
-    const delivery = !queued.length && item.direction === 'outgoing' ? deliveryLabel(item.delivery) : ''
+    const delivery = !queued.length && item.direction === 'outgoing' ? deliveryLabel(item) : ''
     time.textContent = [formatTime(item.at), delivery].filter(Boolean).join(' · ')
-    if (item.delivery === 'failed') time.classList.add('failed')
+    if (item.delivery === 'failed' && !trackingCompletionUnknown(item)) time.classList.add('failed')
     if (imageStack) column.append(imageStack)
     if (!imageStack || bubble.childElementCount) column.append(bubble)
     column.append(time)
@@ -360,6 +360,9 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       : deliveries.some(item => item.delivery === 'running') ? 'running'
         : deliveries.some(item => item.delivery === 'queued') ? 'queued'
           : deliveries.some(item => item.delivery === 'stopped') ? 'stopped' : 'delivered'
+    const failures = deliveries.filter(item => item.delivery === 'failed')
+    const tracking = routing?.status !== 'failed' && failures.length && failures.every(trackingCompletionUnknown)
+      ? failures[0].deliveryTracking : undefined
     return {
       id: record.id,
       kind: 'message',
@@ -377,13 +380,20 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       image_url: record.image_url,
       image_urls: record.image_urls,
       delivery,
+      deliveryTracking: tracking,
     }
   }
 
-  function deliveryLabel(delivery) {
+  function trackingCompletionUnknown(item) {
+    return item.delivery === 'failed' && item.deliveryTracking?.schema === 'bellteam.delivery-tracking.v1'
+      && item.deliveryTracking.admission === 'accepted' && item.deliveryTracking.completion === 'unknown'
+  }
+
+  function deliveryLabel(item) {
+    if (trackingCompletionUnknown(item)) return target?.type === 'room' ? '完了未確認の宛先あり' : '受付済み・完了未確認'
     return new Map([
       ['queued', '送信待ち'], ['running', '処理中'], ['delivered', '配達済み'], ['failed', '配達失敗'], ['stopped', '停止'],
-    ]).get(delivery) ?? ''
+    ]).get(item.delivery) ?? ''
   }
 
   // 画像の取得とURLはcacheが所有し、履歴へ完了した項目だけ返す。

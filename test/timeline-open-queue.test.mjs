@@ -5,7 +5,8 @@ const deferred = () => { let resolve, reject; const promise = new Promise((a, b)
 const settle = () => new Promise(resolve => setImmediate(resolve))
 class Element {
   children = []; dataset = {}; style = {}; listeners = {}; scrollTop = 0; clientHeight = 100
-  classList = { add() {}, toggle() {} }
+  classes = new Set()
+  classList = { add: name => this.classes.add(name), toggle() {} }
   get scrollHeight() { return this.children.reduce((sum, child) => sum + 100 + child.scrollHeight, 0) }
   get firstChild() { return this.children[0] }
   addEventListener(name, listener) { this.listeners[name] = listener }
@@ -37,7 +38,7 @@ function fixture(t, history) {
       return history ? history(path, options) : { items: [{ id: path.split('/')[3] + '-message', message: 'hello', direction: 'incoming' }], has_more: false }
     }, messageImages: { load() {}, get() {}, failed() {} }, getBot() {}, avatarColor: async () => '', isStopping: () => false, onStop() {}, onQueueChange() {},
   })
-  const open = id => view.open({ type: 'bot', id, name: id })
+  const open = (id, type = 'bot') => view.open({ type, id, name: id })
   const ids = () => timeline.children[0].children.map(row => row.dataset.id).filter(Boolean)
   const texts = node => [node.textContent ?? '', ...node.children.map(texts)].join(' ')
   return { view, open, queues, requests, timeline, ids, text: () => texts(timeline) }
@@ -118,4 +119,71 @@ test('late question answer callback cannot replace a same-ID card in a new conve
   answer.resolve({ question: { id: 'q-a', question: 'old answered', status: 'answered', answer: 'yes' } }); await settle()
   assert.match(f.text(), /question-b/)
   assert.doesNotMatch(f.text(), /old answered|回答: yes/)
+})
+
+
+const tracking = { schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' }
+const messageTimes = f => f.timeline.children[0].children.filter(row => row.dataset.id)
+  .map(row => row.children.at(-1).children.find(node => node.className === 'message-time'))
+
+test('accepted tracking failure is neutral; old, incomplete and unknown tuples retain delivery failure', async t => {
+  const variants = [undefined, null, {}, true, 'accepted', { ...tracking, schema: 'future' },
+    { ...tracking, admission: 'unknown' }, { ...tracking, completion: 'complete' },
+    { schema: tracking.schema, admission: tracking.admission }, tracking]
+  const f = fixture(t, () => ({ items: variants.map((value, i) => ({ id: `m${i}`, direction: 'outgoing',
+    delivery: 'failed', deliveryTracking: value, delivery_tracking: tracking })), has_more: false }))
+  await f.open('a')
+  const times = messageTimes(f)
+  assert.equal(times.length, variants.length)
+  for (const time of times.slice(0, -1)) {
+    assert.equal(time.textContent, '配達失敗'); assert.equal(time.classes.has('failed'), true)
+  }
+  assert.equal(times.at(-1).textContent, '受付済み・完了未確認')
+  assert.equal(times.at(-1).classes.has('failed'), false)
+})
+
+test('tracking metadata cannot replace a known nonfailed status', async t => {
+  const statuses = ['queued', 'running', 'delivered', 'stopped']
+  const f = fixture(t, () => ({ items: statuses.map(delivery => ({ id: delivery, direction: 'outgoing',
+    delivery, deliveryTracking: tracking })), has_more: false }))
+  await f.open('a')
+  assert.deepEqual(messageTimes(f).map(node => node.textContent), ['送信待ち', '処理中', '配達済み', '停止'])
+})
+
+const roomRecord = (id, deliveries, routing = { status: 'ready', responders: [] }) => ({
+  id, sender: { id: 'user', name: 'Owner' }, message: 'room', room: { members: [] }, routing, deliveries,
+})
+test('room projection requires tracking evidence on every failed participant and keeps routing failures', async t => {
+  const accepted = { delivery: 'failed', deliveryTracking: tracking }
+  const f = fixture(t, () => ({ items: [
+    roomRecord('all', [accepted, { ...accepted }]),
+    roomRecord('partial', [accepted, { delivery: 'delivered' }]),
+    roomRecord('running', [accepted, { delivery: 'running' }]),
+    roomRecord('queued', [accepted, { delivery: 'queued' }]),
+    roomRecord('stopped', [accepted, { delivery: 'stopped' }]),
+    roomRecord('mixed', [accepted, { delivery: 'failed' }]),
+    roomRecord('unknown', [accepted, { delivery: 'failed', deliveryTracking: { ...tracking, schema: 'future' } }]),
+    roomRecord('routing', [accepted], { status: 'failed' }),
+    { ...roomRecord('wrong-location', [{ delivery: 'failed' }]), deliveryTracking: tracking },
+  ], has_more: false }))
+  await f.open('r', 'room')
+  assert.deepEqual(messageTimes(f).map(node => node.textContent),
+    [...Array(5).fill('完了未確認の宛先あり'), ...Array(4).fill('配達失敗')])
+  assert.deepEqual(messageTimes(f).map(node => node.classes.has('failed')), [false, false, false, false, false, true, true, true, true])
+})
+
+test('latest/after and before pages share evidence rendering; queue removal exposes the accepted unknown result', async t => {
+  let latest = 0
+  const item = id => ({ id, direction: 'outgoing', delivery: 'failed', deliveryTracking: tracking })
+  const f = fixture(t, path => path.includes('before=') ? { items: [item('older')], has_more: false }
+    : path.includes('after=') ? { items: [item('added')], has_more: false }
+    : { items: [latest++ ? item('initial') : { ...item('initial'), delivery: 'running' }], has_more: true })
+  await f.open('a')
+  f.queues[0].resolve({ items: [{ botId: 'a', groupId: 'initial', status: 'running' }] }); await settle()
+  assert.equal(messageTimes(f)[0].textContent, '')
+  await f.view.refresh()
+  f.queues[1].resolve({ items: [] }); await settle()
+  f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); await settle()
+  assert.deepEqual(f.ids(), ['older', 'initial', 'added'])
+  assert.deepEqual(messageTimes(f).map(node => node.textContent), Array(3).fill('受付済み・完了未確認'))
 })
