@@ -25,20 +25,25 @@ HTTPは共通認証・エラー変換の後で各機能の公開handlerへ渡す
 flowchart TD
   HTTP["http-server / 共通認証・失敗応答"] --> App["http-application-api"]
   App --> Usage["usage.createUsageApi"]
+  App --> Owner["members.createOwnerApi"]
   HTTP --> Delete["members.createMemberDeletionApi"]
   HTTP --> Bot["http-bot-api"]
+  Bot --> Profiles["members.createMemberProfileApi"]
   Bot --> Conversation["http-conversation-api"]
+  HTTP --> Schedules["members.createScheduleApi"]
   HTTP --> Assets["http-assets"]
   Assets --> Web["web.assets"]
   MCP["mcp-tools / 本人・引数確認"] --> TalkTools["mcp-conversation-tools"]
   MCP --> UsageTools["usageTools / usageToolHandlers"]
   MCP --> DeleteTool["members.deleteBotTool / runDeleteBotTool"]
+  MCP --> ProfileTools["members.memberReadTools/memberWriteTools/callMemberTool"]
+  MCP --> ScheduleTools["members.botScheduleTools/roomScheduleTools/scheduleToolHandlers"]
   Assembly["application-services / 同じservice実体を接続"] --> TalkFactory["conversation-services"]
   Assembly --> Runtime["同じSeatRuntimeのCLI登録"]
   Features["application-features / 互換export"] --> Apply["usage.createApplicationFeatures"]
 ```
 
-登録順、同じAdministration/service実体、会話と秘密・質問の保存後の部分失敗、MCP公開schemaを統合境界で確認する。削除の既pending受付とCLI同期失敗の独立はmembersの意図した契約変更。モデル適用の業務処理・残るメンバー/予定MCPの抽出は各担当の継続範囲で、全入口の分離完了とは扱わない。
+登録順、同じAdministration/service実体、会話と秘密・質問の保存後の部分失敗、MCP公開schemaを統合境界で確認する。membersの削除/予定/プロフィール/画像/Owner個別受付は各公開窓口へ渡し、共通整形・認証・エラー変換と登録をここが持つ。削除の既pending受付とCLI同期失敗の独立はmembersの意図した契約変更。モデル適用等の残る業務分離は各担当の継続範囲で、全機能の分離完了とは扱わない。
 
 内部の実装・図は各moduleだけに置き、この図は接続に限る。商用更新通知は各担当の設計案で、新しい更新API/UI/Host実行は実装していない。本番と一般配布はOwner保留中。
 

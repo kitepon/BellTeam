@@ -1,6 +1,6 @@
 import { createConversationAssetsApi } from './http-conversation-api.mjs'
 import { json, readJson } from './http-response.mjs'
-import { listAvatar, sendAvatar } from './http-assets.mjs'
+import { createOwnerApi } from './members/owner-http.mjs'
 import { createUsageApi } from './usage/http-api.mjs'
 
 export function createControlApi(options) {
@@ -33,23 +33,10 @@ export function createControlApi(options) {
 
 export function createApplicationApi({ ownerProfile, refreshGlobalInstructions, userRules, events, assets }) {
   const conversation = createConversationAssetsApi({ events, assets })
+  const owner = createOwnerApi({ ownerProfile, refreshGlobalInstructions, userRules })
   return async (request, response, url) => {
-    if (request.method === 'GET' && url.pathname === '/api/owner') {
-      const owner = await ownerProfile.get()
-      return json(response, 200, { owner: { ...owner, ...listAvatar(owner.avatar, url) } })
-    }
-    if (request.method === 'GET' && url.pathname === '/api/owner/avatar') return sendAvatar(request, response, (await ownerProfile.get()).avatar, url)
-    if (request.method === 'PATCH' && url.pathname === '/api/owner') {
-      const owner = await ownerProfile.update(await readJson(request))
-      await refreshGlobalInstructions()
-      return json(response, 200, { owner })
-    }
-    if (request.method === 'GET' && url.pathname === '/api/user-rules') return json(response, 200, { text: await userRules.get() })
-    if (request.method === 'PUT' && url.pathname === '/api/user-rules') {
-      const text = await userRules.update((await readJson(request)).text)
-      await refreshGlobalInstructions()
-      return json(response, 200, { text })
-    }
+    const handled = await owner(request, response, url)
+    if (handled !== false) return handled
     return conversation(request, response, url)
   }
 }
