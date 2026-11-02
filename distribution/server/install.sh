@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 cd "${BELLTEAM_INSTALL_DIR:-$(dirname "$0")}"
+if [ "${1-}" = --install-web-gateway ]; then
+  shift
+  exec sh ./install-web-gateway.sh "$@"
+fi
 pull=true
 recovery=false
 saved=
@@ -8,7 +12,7 @@ case "$#:${1-}" in
   0:) ;;
   1:--no-pull) pull=false ;;
   2:--recover) recovery=true; pull=false; saved=$(CDPATH= cd "$2" && pwd) ;;
-  *) echo '使い方: sh install.sh [--no-pull] | --recover <保存世代>' >&2; exit 2 ;;
+  *) echo '使い方: sh install.sh [--no-pull] | --recover <保存世代> | --install-web-gateway <保存世代> <archiveSHA> <sourceSHA> <signerSHA>' >&2; exit 2 ;;
 esac
 umask 077
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-install.XXXXXX")

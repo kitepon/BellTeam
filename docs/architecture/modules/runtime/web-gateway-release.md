@@ -1,12 +1,14 @@
 # Web受付だけの固定資材配置と起動descriptor
 
-runtime正本。HTTP交換制御は[integration](../integration/README.md)、資材/発行元認証と完全file集合の供給は[distribution](../distribution/README.md)。この段階はsource・図・fixtureの契約で、正式attestation・root配置・実Host/本番の成立ではない。
+runtime正本。HTTP交換制御は[integration](../integration/README.md)、資材/発行元認証と完全file集合の供給は[distribution](../distribution/README.md)。この段階はsource・図・隔離fixtureの契約で、正式attestation・実root配置・実Host/本番の成立ではない。
 
 ```mermaid
 flowchart TD
   Untrusted[未信頼archive/bundle] --> Snapshot[root installer: root stagingへ同bytesを確保]
   Policy[image/既root管理の期待identity/digest/互換] --> Verify[distribution公開verifier<br/>公式gh署名検証＋repoID/完全file集合]
   Snapshot --> Verify
+  Shared[private root SH: 通常本体と共存・全体EX保守と排他] --> Snapshot
+  Component[web-gateway専用EX: 配置writer一つ] --> Snapshot
   Verify -->|成功だけ| Place[runtime root writer<br/>専用配置lock・immutable新digest dir]
   Place --> Store[既private root/web-gateway/releases/digest<br/>normalにはreadonlyで見える]
   Store --> Prepare[runtime prepareGatewayRelease<br/>root受入記録・manifest・file実bytesを再確認]
@@ -30,7 +32,11 @@ flowchart TD
 
 新しいshared/tools可書込領域やHOST mountは増やさず、既root:1001/0750のprivate rootとreadonly mountを使う。資材は`state`の兄弟へ置き、既prepareServerStateOwnershipの再帰chown対象に入れない。公開/内部とも既normalのreadonly control mountから参照できる。配布候補の専用bind案をこの既mountへ縮める差異をセンチと確認する。
 
-通常installerでの初回配置は既root maintenanceの固定codeから行える。今回の独立交換はroot事前配置済み版間に限定する。以後の稼働中資材追加を実装する場合はweb-gateway専用配置lockを使い、既private root全体の排他flockを取らない。通常本体がprivate rootのshared lockを保持するため、既maintenanceの全体lockを単純流用しない。固定helper入口の配布接続はセンチ所有、root処理は資材staging/verify/publishだけで任意command/root scriptを実行しない。今回はその実Host入口や権限を導入しない。
+通常installerの専用modeは保存normal・実CIDのimage/mount本人性を検証し、既固定imageからWeb配置専用helperを起動する。停止・pull・image変更・任意command/pathをしない。helperは未信頼incomingをreadonly、既private volumeだけをRWに持ち、空env/固定Python codeでid/source/signerの64/40/40hexだけを受ける。archive/bundleの入力pathは固定incoming root/id内。承認済みsource/signer値をrootoperatorが明示して渡し、manifest/bundleから期待値を作らない。
+
+root helperはprivate rootをSHで取り、.transaction.jsonが無いことを確認してWeb専用.install.lockをEXで保持する。従来の全体EXを取らず、通常本体の旧SHを維持し、全体保守EXを拒否する。Web storeは同専用lock内でだけ変更し、state/採用recordを操作しない。専用入口は通常installerの実装が固定modelから呼び、normal側にroot sudoやDocker socketは増やさない。
+
+incoming archive/bundleを開いたFDからroot stagingへsnapshotしてfsync、承認済みexpectationをroot-owned通常fileとして生成。固定公式verifierのexit0/receipt整合後にだけ新しい非公開版dirへ安全な通常fileを書き、全bytes/hashを再照合してdir0555/file0444へ固定する。installation.jsonを最後に書き、renameat2 NOREPLACEで完成版を一度だけ公開し親dirをsyncする。既版は空でも上書きしない。失敗時は当操作stagingだけを除去し、既版/採用stateは保持。強制killの残stagingは次の専用EX取得後に本人性を確認して整理する。署名供給や実root配置の成立をこのsourceから推定しない。
 
 ## 公開窓口
 
@@ -48,4 +54,16 @@ prepareが欠測/信頼/互換/bytesで拒否したら旧子を止めない。�
 
 ready後の採用記録書込が失敗したら成功返却しない。新子を回収して旧版を再起動し、旧採用記録は保持する。回収/旧版再起動も失敗なら実状態を返し、成功を推測しない。交換中の親crashではcurrentの採用記録を再検証して一つだけ起動する。schema/state writerの移行はWeb受付に無く、履歴snapshotを巻き戻さない。
 
-実装readerは`src/web-gateway-release.mjs`、直接fixtureは`test/web-gateway-release.test.mjs`。新しいroot配置helper/公式gh署名供給/Rootの採用記録接続はこのsource契約の次の具体工程。fixtureはmanifest互換/越境/欠測・拒否だけを示し、署名成功や実root配置の受入へ拡張しない。
+実装readerは`src/web-gateway-release.mjs`、直接fixtureは`test/web-gateway-release.test.mjs`。root配置helper/installer sourceは今回実装し、公式ghの実署名供給/実root配置/Root採用記録接続の成立は各具体結果で確認する。fixtureはmanifest互換/越境/欠測・拒否だけを示し、署名成功や実root配置の受入へ拡張しない。
+
+## installerの固定呼出し
+
+`sh install.sh --install-web-gateway <同設置の保存世代> <archiveSHA64> <承認済sourceSHA40> <承認済signerSHA40>`。同設置直下の`.bellteam-compose.*`/normal.jsonを使う。実CIDがrunning/非restarting/read-onlyで、同image/projectとdata/HOME/private各mount本人性が一致することを固定imageのplanで検証する。失敗はhelper起動前に拒否し、normal stop/update/rm/up/pullを発行しない。
+
+operatorは承認済み配布情報からsource/signerを指定し、`runtime/web-gateway-incoming/<archiveSHA64>/{archive.tar.gz,bundle.json}`へ受取を置く。この場所は未信頼。incomingの期待JSON/任意path/任意commandはroothelper入力にしない。検証済固定コードは`src/web-gateway-install-plan.mjs`、`scripts/install-web-gateway-release.py`と配布固定verifierのみ。helper modelはincomingだけRO、privateだけRW、user0/cap_drop ALL/既CHOWN,DAC_OVERRIDE,FOWNER/NNP/network none/read-only/tmpfsを固定する。
+
+helper entryは空envの固定`python3 -I /app/scripts/install-web-gateway-release.py`、引数は64/40/40hexだけ。公式verifierは固定`/usr/bin/python3 /app/scripts/verify-web-gateway.py ARCHIVE BUNDLE EXPECTATION`へroot staging pathのみ渡す。期待値はrootwriterが明示引数からroot-owned400の通常fileへ作る。archive512MiB/bundle16MiB/manifest8MiB、展開総量512MiB/file20000を上限とする。専用helperを含むimageの初回導入後は、将来の新資材配置ごとに箱を止め直す必要を作らない。実Hostでの権限/配置/同時lock受入は別結果。
+
+rootwriter隔離fixtureはcurrent UIDへ所有者検査を差替え、verifier成功receiptを契約mockとして渡す。rootのDAC_OVERRIDEもこのfixture内だけで模擬し、NOREPLACE syscall/lock/filebytes/mode/cleanupは実一時fileで確認する。これは実root/署名成功の採用ではない。別fixtureで通常installer入口から停止を発行しない固定helper選択・CID/image/mount不一致拒否を確認する。
+
+Docker観測ではMounts.Sourceはvolume rootで、subpathはHostConfig.Mounts.VolumeOptions.Subpathにある。installer planは両観測のvolume名/RO/NoCopy/明示subpathと既normalを合わせ、Sourceへsubpathを足した推測をしない。実装根拠は[Moby mount Path](https://github.com/moby/moby/blob/master/daemon/volume/mounts/mounts.go)とcontainer GetMountPoints（取得blob c48f0be08227600b31cc28459ef566fef7f26b2d）を参照。

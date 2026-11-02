@@ -1,0 +1,278 @@
+#!/usr/bin/env python3
+"""Fixed root helper: publish one authenticated gateway release without adopting it."""
+import contextlib
+import ctypes
+import errno
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import signal
+import stat
+import subprocess
+import tarfile
+import tempfile
+
+ROOT_UID = 0
+SERVER_GID = 1001
+PRIVATE_ROOT = Path('/srv/bellteam-private')
+INCOMING_ROOT = Path('/srv/bellteam-web-gateway-incoming')
+ARCHIVE_LIMIT = 512 * 1024 * 1024
+BUNDLE_LIMIT = 16 * 1024 * 1024
+
+
+def fail(code):
+    raise ValueError(code)
+
+
+def expectation(version_id, source, signer):
+    if not re.fullmatch('[a-f0-9]{64}', version_id) or not all(re.fullmatch('[a-f0-9]{40}', s) for s in [source, signer]):
+        fail('GATEWAY_INSTALL_ARGUMENTS')
+    return dict(archiveSha256=version_id, sourceCommit=source, signerCommit=signer)
+
+
+def directory(path, create=False):
+    if create:
+        try:
+            path.mkdir(mode=0o755)
+            path.chmod(0o755)
+        except FileExistsError:
+            pass
+    info = path.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != ROOT_UID or info.st_mode & 0o7022:
+        fail('GATEWAY_INSTALL_DIRECTORY')
+    return info
+
+
+def sync_directory(path):
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def write_file(path, data, mode=0o444):
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(fd, 'wb', closefd=False) as out:
+            out.write(data)
+            out.flush()
+        os.fchmod(fd, mode)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def snapshot(source_dir, name, target, limit):
+    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=source_dir)
+    try:
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > limit:
+            fail('GATEWAY_INSTALL_INPUT')
+        with os.fdopen(fd, 'rb', closefd=False) as incoming, target.open('xb') as out:
+            size = 0
+            while block := incoming.read(1024 * 1024):
+                size += len(block)
+                if size > limit:
+                    fail('GATEWAY_INSTALL_INPUT')
+                out.write(block)
+            out.flush()
+            os.fchmod(out.fileno(), 0o400)
+            os.fsync(out.fileno())
+        after = os.fstat(fd)
+        if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
+                after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns) or size != before.st_size:
+            fail('GATEWAY_INSTALL_INPUT_CHANGED')
+    finally:
+        os.close(fd)
+
+
+def verify(archive, bundle, expected):
+    child = subprocess.Popen(['/usr/bin/python3', '/app/scripts/verify-web-gateway.py', str(archive), str(bundle), str(expected)],
+                             env={'PATH': '/usr/local/bin:/usr/bin:/bin'}, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, close_fds=True)
+    try:
+        output, _ = child.communicate(timeout=120)
+    except BaseException:
+        try:
+            os.killpg(child.pid, signal.SIGTERM)
+            child.communicate(timeout=3)
+        except subprocess.TimeoutExpired:
+            os.killpg(child.pid, signal.SIGKILL)
+            child.communicate()
+        except ProcessLookupError:
+            child.communicate()
+        raise
+    if child.returncode:
+        fail('GATEWAY_INSTALL_VERIFICATION_FAILED')
+    return json.loads(output)
+
+
+def remove_stage(path):
+    directory(path)
+    for root, names, _ in os.walk(path, followlinks=False):
+        for name in names:
+            directory(Path(root) / name)
+        os.chmod(root, 0o700)
+    shutil.rmtree(path)
+
+
+def publish(source, target):
+    # Linux NOREPLACE is required; never emulate it with overwrite-capable rename.
+    libc = ctypes.CDLL(None, use_errno=True)
+    if not hasattr(libc, 'renameat2'):
+        fail('GATEWAY_INSTALL_NOREPLACE_UNSUPPORTED')
+    if libc.renameat2(-100, os.fsencode(source), -100, os.fsencode(target), 1):
+        error = ctypes.get_errno()
+        if error == errno.EEXIST:
+            fail('GATEWAY_RELEASE_EXISTS')
+        raise OSError(error, os.strerror(error))
+
+
+def extract(archive, receipt, expected, destination):
+    if set(receipt) != {'schema', 'archiveSha256', 'manifestSha256', 'manifest', 'verification'} or (
+        receipt['schema'] != 'bellteam.web-gateway.verification.v1'
+        or receipt['archiveSha256'] != expected['archiveSha256']
+        or receipt['verification'] != {'method': 'github-oidc-attestation', 'repositoryId': '1404510084'}):
+        fail('GATEWAY_INSTALL_RECEIPT')
+    manifest = receipt['manifest']
+    if manifest.get('sourceCommit') != expected['sourceCommit'] or manifest.get('component') != 'web-gateway':
+        fail('GATEWAY_INSTALL_RECEIPT')
+    files = {}
+    if not isinstance(manifest.get('files'), list) or not 0 < len(manifest['files']) <= 20000:
+        fail('GATEWAY_INSTALL_MEMBER')
+    total = 0
+    for item in manifest['files']:
+        name = item['path']
+        parts = name.split('/')
+        if not name.startswith('payload/') or any(p in ['', '.', '..'] for p in parts) or '\\' in name or any(ord(c) < 32 or ord(c) == 127 for c in name) or name in files:
+            fail('GATEWAY_INSTALL_MEMBER')
+        if type(item.get('bytes')) is not int or item['bytes'] < 0:
+            fail('GATEWAY_INSTALL_MEMBER')
+        total += item['bytes']
+        if total > ARCHIVE_LIMIT:
+            fail('GATEWAY_INSTALL_MEMBER')
+        files[name] = item
+    found, seen = set(), set()
+    with tarfile.open(archive, 'r:gz') as bundle:
+        for member in bundle:
+            name = member.name
+            if name in seen or name.startswith('/') or any(p in ['', '.', '..'] for p in name.split('/')) or '\\' in name:
+                fail('GATEWAY_INSTALL_MEMBER')
+            seen.add(name)
+            if member.isdir():
+                if name != 'payload' and not name.startswith('payload/'):
+                    fail('GATEWAY_INSTALL_MEMBER')
+                continue
+            if not member.isfile() or name != 'manifest.json' and name not in files:
+                fail('GATEWAY_INSTALL_MEMBER')
+            content = bundle.extractfile(member)
+            if name == 'manifest.json':
+                raw = content.read(8 * 1024 * 1024 + 1)
+                if len(raw) > 8 * 1024 * 1024 or hashlib.sha256(raw).hexdigest() != receipt['manifestSha256'] or json.loads(raw) != manifest:
+                    fail('GATEWAY_INSTALL_MANIFEST_CHANGED')
+                write_file(destination / name, raw)
+                continue
+            item = files[name]
+            if member.size != item['bytes']:
+                fail('GATEWAY_INSTALL_CONTENT_CHANGED')
+            path = destination / name
+            path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            digest, size = hashlib.sha256(), 0
+            with path.open('xb') as out:
+                while block := content.read(1024 * 1024):
+                    digest.update(block); size += len(block); out.write(block)
+                if size != item['bytes'] or digest.hexdigest() != item['sha256']:
+                    fail('GATEWAY_INSTALL_CONTENT_CHANGED')
+                out.flush(); os.fchmod(out.fileno(), 0o444); os.fsync(out.fileno())
+            found.add(name)
+    if found != set(files) or 'manifest.json' not in seen:
+        fail('GATEWAY_INSTALL_MEMBER')
+    installation = dict(schema='bellteam.web-gateway.installation.v1', component='web-gateway',
+                        archiveSha256=expected['archiveSha256'], manifestSha256=receipt['manifestSha256'],
+                        sourceCommit=expected['sourceCommit'], verification=receipt['verification'])
+    write_file(destination / 'installation.json', (json.dumps(installation) + '\n').encode())
+    for root, _, _ in os.walk(destination, topdown=False):
+        os.chmod(root, 0o555)
+        sync_directory(root)
+
+
+def install(private_root, incoming_root, expected):
+    info = directory(private_root)
+    if info.st_gid != SERVER_GID or stat.S_IMODE(info.st_mode) != 0o750:
+        fail('GATEWAY_INSTALL_PRIVATE_ROOT')
+    with contextlib.ExitStack() as resources:
+        private = os.open(private_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        resources.callback(os.close, private)
+        fcntl.flock(private, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        opened, linked = os.fstat(private), private_root.lstat()
+        if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino) or (linked.st_dev, linked.st_ino) != (info.st_dev, info.st_ino):
+            fail('GATEWAY_INSTALL_PRIVATE_CHANGED')
+        if os.path.lexists(private_root / '.transaction.json'):
+            fail('GATEWAY_INSTALL_MAINTENANCE_ACTIVE')
+        component = private_root / 'web-gateway'
+        directory(component, create=True)
+        lock = os.open(component / '.install.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+        with os.fdopen(lock, 'rb') as held:
+            st = os.fstat(held.fileno())
+            if not stat.S_ISREG(st.st_mode) or st.st_uid != ROOT_UID or st.st_nlink != 1 or stat.S_IMODE(st.st_mode) != 0o600:
+                fail('GATEWAY_INSTALL_LOCK')
+            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            releases = component / 'releases'; directory(releases, create=True)
+            for path in component.iterdir():
+                if re.fullmatch(r'\.staging-[a-zA-Z0-9_-]+', path.name):
+                    remove_stage(path)
+            target = releases / expected['archiveSha256']
+            if os.path.lexists(target):
+                fail('GATEWAY_RELEASE_EXISTS')
+            stage = Path(tempfile.mkdtemp(prefix='.staging-', dir=component))
+            try:
+                root_fd = os.open(incoming_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                try:
+                    source_fd = os.open(expected['archiveSha256'], os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=root_fd)
+                    try:
+                        for name, limit in [('archive.tar.gz', ARCHIVE_LIMIT), ('bundle.json', BUNDLE_LIMIT)]:
+                            snapshot(source_fd, name, stage / name, limit)
+                    finally:
+                        os.close(source_fd)
+                finally:
+                    os.close(root_fd)
+                expectation_path = stage / 'expectation.json'
+                write_file(expectation_path, (json.dumps(expected) + '\n').encode(), 0o400)
+                receipt = verify(stage / 'archive.tar.gz', stage / 'bundle.json', expectation_path)
+                output = stage / 'release'; output.mkdir(mode=0o700)
+                extract(stage / 'archive.tar.gz', receipt, expected, output)
+                publish(output, target)
+                sync_directory(releases)
+                return {'versionId': expected['archiveSha256'], 'installed': True}
+            finally:
+                remove_stage(stage)
+
+
+def main():
+    import sys
+    if len(sys.argv) != 4:
+        fail('GATEWAY_INSTALL_ARGUMENTS')
+    expected = expectation(*sys.argv[1:])
+    if any(value != 0 for value in [os.getuid(), os.geteuid(), os.getgid(), os.getegid()]):
+        fail('GATEWAY_INSTALL_ROOT_REQUIRED')
+    os.umask(0o077)
+    print(json.dumps(install(PRIVATE_ROOT, INCOMING_ROOT, expected)))
+
+
+if __name__ == '__main__':
+    def interrupted(_signum, _frame):
+        raise KeyboardInterrupt()
+    signal.signal(signal.SIGTERM, interrupted)
+    signal.signal(signal.SIGINT, interrupted)
+    try:
+        main()
+    except BaseException as error:
+        import sys
+        code = str(error) if isinstance(error, ValueError) and re.fullmatch('[A-Z][A-Z_0-9]*', str(error)) else 'GATEWAY_INSTALL_FAILED'
+        print(code, file=sys.stderr)
+        sys.exit(1)
