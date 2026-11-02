@@ -35,6 +35,7 @@
   "source": [
     "src/aiterm-transport.mjs",
     "src/aiterm-client.mjs",
+    "src/mcp-request-context.mjs",
     "src/aiterm-wait-process.mjs",
     "src/execution-failure-report.mjs",
     "src/seat-activity.mjs",

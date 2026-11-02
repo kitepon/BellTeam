@@ -78,3 +78,22 @@ reportErrorは任意constructor引数。設定失敗は`SERVER_MODEL_CONFIGURATI
 元の各設定拒否ではwaiterのexitCodeが保存されていない。この不良との一意相関、Cinderella08:40とエレグ08:51の利用復旧を、このsource修理の成功から補完しない。実故障後に現在状態がnullのままなら未完了として保持する。明示watch終了・close/restartの既取消経路は保持し、完了を推測して待機を解放しない。配送jobそのものの失敗結果は従来どおり失敗として返し、同じ本文を再送しない。
 
 現在ターンを自動で区切り、同会話に適用して続きを一回起こす機能は別途設計する。必要な接点はMCP応答完了後の対象ターン限定終了、native完了の観測、通常配送による一回再開と全体停止・並行入力との整合。今回の修理は自動終了・自動再送・再開の仕組みを追加しない。
+
+## MCP要求の応答欠測と再送抑止
+
+```mermaid
+flowchart TD
+  Request["AitermClient.call / 正規tool"] --> Connect["connect"]
+  Connect -->|"reject / call未発行"| Context["mcpRequestContext 元例外から安全射影"]
+  Connect --> Call["callTool"]
+  Call -->|"RPC reject / 応答不明"| Unknown["phase call / outcome unknown"]
+  Unknown --> Context
+  Unknown --> Preserve["dispatchで元例外を返す / wake・再送なし"]
+  Call -->|"isError応答あり"| Returned["既aitermResponseReturnedと拒否分類"]
+  Returned -->|"明示未送信・既復旧条件"| Recovery["従来の復旧経路"]
+  Context --> Diagnostics["Rootの共通診断writerへ補助JSON"]
+```
+
+`src/mcp-request-context.mjs`の`mcpRequestContext(error)`は固定tool列挙と厳密key検証を持ち、`{phase:'connect',tool}`または`{phase:'call',tool,outcome:'unknown'}`の新object、無効ならnullを返す。call rejectでは元Error/code/stackと同一性を維持し、補助`error.mcp_request`だけを付ける。frozen例外やsetter失敗でもWeakMapの文脈で再送を抑止し、診断field付与の失敗で元例外を置換しない。返却済isErrorには付けず、`aitermResponseReturned`を保持する。短命`run-seat-aiterm-launch`のプロセス境界も同じ安全射影だけ転送する（プロセスを越えた例外object同一性は主張しない）。
+
+本文・args/meta・自由message・IDは文脈に含めない。Rootは同じexportをimportし、既diagnosticRequestContextへ検証済JSONのみ追加する。既failure_stage/HTTP status/集約キーをこの補助fieldで変えない。module接続構造は既execution→integration.diagnostics/Aiterm.native/runtime.seat-process内で不変なので全体図の接続追加は不要。直接fixtureは`test/mcp-request-context.test.mjs`。元27bbのcall名/受付欠測、775e29の未保存ready理由は補完しない。

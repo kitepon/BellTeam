@@ -1,3 +1,4 @@
+import { mcpRequestContext } from './mcp-request-context.mjs'
 import { diagnosticFailureDetails } from './diagnostic-report-context.mjs'
 import { returnedExecutionError } from './execution-error.mjs'
 import { authenticationPreflightFailure, launchFailureDetails } from './agent-launch-error.mjs'
@@ -11,6 +12,7 @@ export function diagnosticRequestContext({ method, url }, frames = [], error = n
   const preflight = authenticationPreflightFailure(error?.agentLaunchError)
   const launch = launchFailureDetails(error)
   const mcpError = returnedMcpError(error)
+  const mcpRequest = mcpRequestContext(error)
   const requestMethod = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].includes(method) ? method : 'unknown'
   const path = typeof url === 'string' ? url.split(/[?#]/u, 1)[0] : ''
   let operation = 'unknown'
@@ -73,6 +75,7 @@ export function diagnosticRequestContext({ method, url }, frames = [], error = n
     `failure_stage=${stage}`,
     ...Object.entries(diagnosticFailureDetails(error)).map(([key, value]) => `${key}=${value}`),
     ...(mcpError ? [`mcp_error=${JSON.stringify(mcpError)}`] : []),
+    ...(mcpRequest ? [`mcp_request=${JSON.stringify(mcpRequest)}`] : []),
     ...(launch ? [`native_launch=${JSON.stringify(launch)}`] : []),
     ...(preflight ? [
       `native_launch_phase=${preflight.phase}`,

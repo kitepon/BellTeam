@@ -8,6 +8,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
 import { returnedExecutionError, ERROR_META } from './execution-error.mjs'
 import { authenticationPreflightFailure, unpromptedLaunchActionRequired } from './agent-launch-error.mjs'
+import { captureMcpRequest } from './mcp-request-context.mjs'
 import { captureMcpError } from './returned-mcp-error.mjs'
 
 export class AitermClient {
@@ -97,8 +98,16 @@ export class AitermClient {
         await launcher.close()
       }
     }
-    await this.connect()
-    const result = await this.client.callTool({ name, arguments: args, ...(meta ? { _meta: meta } : {}) })
+    try { await this.connect() } catch (error) {
+      captureMcpRequest(error, 'connect', name)
+      throw error
+    }
+    let result
+    try { result = await this.client.callTool({ name, arguments: args, ...(meta ? { _meta: meta } : {}) }) }
+    catch (error) {
+      captureMcpRequest(error, 'call', name)
+      throw error
+    }
     if (result.isError) {
       if (name === 'agent_auth' && result.structuredContent?.schema === 'aiterm.auth-response-error.v1') return result
       const message = textResult(result) || `AITERM_TOOL_FAILED: ${name}`
