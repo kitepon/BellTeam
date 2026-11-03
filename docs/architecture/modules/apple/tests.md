@@ -444,18 +444,21 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 
 ### ConversationAppearanceUITests.swift
 
-対象：会話・画像・入力・質問。補助型も同じファイルを読んだ。
+対象：会話・画像・入力・質問。画像fixtureとPR3のMac操作は[PR3の起動手順](#pr3のmac確認の補助試験)を参照。
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
-| [testSentImagesLoadInDirectAndRoomConversations](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L5) | DM3枚/room2枚の束→gallery、thumbnail/swipe/閉じるで選択と画像表示 |
-| [testLegacyImageLoadsAndUnsavedImagesKeepTheirLabel](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L58) | 旧単一画像galleryとURL無し2枚label、単一thumbnail無し |
-| [testPartOfMessageCopiesIntoComposer](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L80) | 部分コピーをcomposerへ貼り、元本文の部分だけであることを照合 |
-| [testComposerGrowsWithTypedLines](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L108) | 4行入力で本文保持と入力高さ増加 |
-| [testComposerGrowsAfterPastingManyLines](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L140) | 10行貼付けで本文保持と最大5行高さ |
-| [testPastedImagesBecomeAttachmentsAndReturnAfterFailedSend](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L166) | 2画像貼付け→送信失敗で本文/2枚復元、1枚削除 |
-| [testOwnerQuestionCardShowsOptionsAndReportsSendFailure](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L206) | 質問選択肢を表示し利用許可失敗後カードと操作を保持 |
-| [testMessageLinkOpensInBrowser](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L226) | メッセージのLinkからSafariを前面へ |
+| [testSentImagesLoadInDirectAndRoomConversations](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L6) | DM3枚/room2枚の束→gallery、thumbnail・iOSのswipe・Macの前ボタン・閉じるで選択と画像表示。proofでPNG/JPEGのGET成功とpath集合を照合。Macはサイドバーから開き、クリックで操作する（全画面のgalleryはsheetとして公開されない） |
+| [testLegacyImageLoadsAndUnsavedImagesKeepTheirLabel](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L82) | 旧imageUrlの単画像galleryとURL無し2枚label、単一thumbnail無し。Macはハルのサイドバーボタンからクリックで操作し、proofでJPEG一種だけのGET成功を照合 |
+| [testPartOfMessageCopiesIntoComposer](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L304) | 部分コピーをcomposerへ貼り、元本文の部分だけであることを照合 |
+| [testComposerGrowsWithTypedLines](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L332) | 4行入力で本文保持と入力高さ増加 |
+| [testComposerGrowsAfterPastingManyLines](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L364) | 10行貼付けで本文保持と最大5行高さ |
+| [testPastedImagesBecomeAttachmentsAndReturnAfterFailedSend](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L390) | 2画像貼付け→送信失敗で本文/2枚復元、1枚削除 |
+| [testOwnerQuestionCardShowsOptionsAndReportsSendFailure](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L430) | 質問選択肢を表示し利用許可失敗後カードと操作を保持 |
+| [testMessageLinkOpensInBrowser](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L450) | メッセージのLinkからSafariを前面へ |
+| [testMacImageGetFailureAppearsInMessageAndGallery](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L120) | Mac専用。画像GETを503にし、単画像カードとgalleryの「画像を読み込めません」、1 / 1、画像未表示、閉じた後のカードとURL無し枚数ラベルを確認。proofで対象JPEGのGET失敗と送信ゼロを照合 |
+| [testMacImageFilePickerAddsAttachmentAndRemovalClearsDraft](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L153) | Mac専用。「画像を添付」→ファイル選択シート→⌘⇧Gで一時PNGを指定→開く。1枚の添付と本文無しの送信可能状態、除去後の送信無効と会話切替後のdraft除去、POSTゼロを確認 |
+| [testMacPastedImagesRestoreAfterPostFailureAndCanBeRemoved](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L201) | Mac専用。画像を⌘Vで2回貼り付け、本文と送信。人工購読でPOSTまで進め、保留中の本文・添付clear、503後の本文・2枚復元と除去を確認。proofでPOST一回・本文・復号可能なJPEG2枚を照合 |
 
 ### ConversationFreezeUITests.swift
 
@@ -501,6 +504,67 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | [testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L311) | 人工購読の利用許可を使い、inspectorの再起動POSTが503の時は結果未確認の全文と診断一回・POST一回を照合。明示再操作の200成功で失敗文言を消し、inspector・window数・sheet無しを保持。二操作で空JSONのPOST計二回、診断は計一回 |
 | [testMacInspectorScreenPollsOnlyWhileVisible](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L379) | Macのinspectorで端末本文と追加行の反映を待ち、screen要求の増加と全要求のhistory=1を照合。⌘⇧Iで端末を非表示にし、会話を前面に残したまま2.4秒間screen要求が増えないことを照合 |
 | [testMacSmallCropSaveShowsResultAndWritesOnce](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L429) | Macのinspectorから既存の小画像を選びcrop調整して保存。成功文言とinspector、PATCH一回・小画像3keyだけ・crop幅・source・大画像crop保持を照合。写真ライブラリは使わない |
+
+### PR3のMac確認の補助試験
+
+固定source `refactor/apple-feature-map-20261103` / `5b55b9c836ff5980c301c57330ca7046f8dd3235` に対する試験準備。対象は `ConversationAppearanceUITests.swift` と新規 `test/helpers/conversation-images-server.mjs`。製品コード、Shared、NotificationService、Xcode設定は変更しない。既存の入力・画像・HTTP契約を試験から操作するため、機能図と接続線の変更は不要。
+
+画像の契約は `BellAPI.imageResponse/request/sendMessage`、`Models.TimelineMessage.displayedImageURLs/ListResponse/SendMessageBody`、`ConversationView`の取得・添付・復元、`ConversationImages`のcard/gallery/cache、`ConversationList`の行配置と `MessageRow` のURL無しラベルから合わせる。`imageUrls`がある時は束、旧`imageUrl`だけなら単画像、URLが無ければ`image/imageCount`のラベルを返す。画像URLはModelsが返す相対pathをBellAPIがそのままGETする。画像は48×32のPNG/JPEGをhelper内へ埋め込み、実行時の外部画像取得や画像変換は不要。
+
+#### helperのrouteと応答
+
+method未記載の制御routeはGET。JSONには`Content-Type: application/json`を付ける。
+
+| route | 応答・記録 |
+| --- | --- |
+| `GET /api/bots/bot-one/messages` | `{items:[sent-many],has_more:false,remaining_before:0}`。`image:true,imageCount:3,imageUrls:[PNG,JPEG,PNG]`の送信済み1行 |
+| `GET /api/rooms/planning/messages` | 同じpage型。`sent-many`は`imageCount:2,imageUrls:[PNG,JPEG]` |
+| `GET /api/bots/bot-two/messages` | 同じpage型。`legacy-one`は`imageUrl`だけのJPEG、`unsaved-two`は`image:true,imageCount:2`でURLキー無し。画像以外はid/kind/direction/sender/at/deliveryの有限値 |
+| 上記3routeのquery | 全履歴は初回limit=10以内。既知IDの`before/after`はその前後の行だけを返す。`mode=attachments`では空page。GETのpath/queryを`reads`へ記録 |
+| `GET /api/images/pr3-one.png`、`/api/images/pr3-three.png` | 生のPNG、`Content-Type: image/png`、`Content-Length`、`Cache-Control: no-store` |
+| `GET /api/images/pr3-two.jpg` | 生のJPEG、`Content-Type: image/jpeg`。同じ長さ/cache header。全画像GETのmethod/path/status/contentTypeを`reads`へ記録 |
+| 画像GET失敗設定中の上記3route | HTTP 503 `{error:"IMAGE_GET_FIXTURE_FAILED"}`。画像MIMEとして成功させない |
+| 上記3会話の`POST .../messages` | method/path/bodyを`sends`へ記録し、HTTP 503 `{error:"IMAGE_SEND_FIXTURE_FAILED"}`。成功ackや実配送は作らない。`holdSend=1`時は明示releaseまで応答を保留 |
+| `POST /api/diagnostics` | method/path/bodyを`diagnostics`へ記録、HTTP 202 `{ok:true}` |
+| `GET /api/bots`、`/api/rooms`、`/api/owner` | 既存`PreviewFixtures.swift`の人工名簿を各キーへ格納。`avatar=omit`queryも同じ応答 |
+| `GET /api/subscription` | `{subscription:{productId:"dev.kitepon.bellbot.monthly",environment:"Production",accessMode:"developer",setupComplete:true,entitled:false,state:"none",autoRenewing:false}}`。実購読を使わずPOSTへ進める |
+| `GET /api/queue`、`/api/bots/:id/queue`、`/api/rooms/:id/queue` | `{items:[]}` |
+| `GET /api/settings`、`/api/harness-auth`、`/api/goals` | それぞれ`{settings:[]}`、`{harnesses:[]}`、`{goals:[]}` |
+| `GET /api/events` | SSE `ready`を一回送り接続を維持。変化のないイベントを反復送信しない |
+| `/test/reset` | `{ok:true}`。履歴modeを`images`、画像GETを成功、送信を即時503へ戻し、reads/sends/diagnosticsを空にする。保留送信は503で終了、SSEも閉じる。`mode=attachments`、`failImages=1`、`holdSend=1`で各試験の条件を設定可能 |
+| `/test/release-send` | 保留送信へ503を返し、以降は即時503。`{released:件数}` |
+| `/test/proof` | `{mode,failImages,reads,sends,diagnostics,heldSends}`。配列長は要求数、heldSendsは応答待ち数。sends.bodyは元の`message/images/targets`を保持 |
+| 未定義route / 未対応method / 不正JSON / 未定義mode | 順に404 `NOT_FOUND` / 405 `METHOD_NOT_ALLOWED` / 400 `INVALID_JSON` / 400 `UNKNOWN_MODE` |
+
+#### 親の起動手順
+
+1. repo直下の専用terminalで `node test/helpers/conversation-images-server.mjs` を起動する。`listen(0, '127.0.0.1')` が選んだURLをJSON一行 `{"url":"http://127.0.0.1:PORT"}` で出す。標準出力のURLを使い、固定portは仮定しない。
+2. XcodeのTest環境変数に `BELLTEAM_IMAGE_SMOKE_URL` を設定し、Mac Catalyst / Debugを選ぶ。コマンドでは次のようにtest runnerへ渡す。親の署名・DerivedData・xcresultの指定があれば併用する。
+
+```sh
+TEST_RUNNER_BELLTEAM_IMAGE_SMOKE_URL='http://127.0.0.1:実際のPORT' \
+xcodebuild -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam \
+  -configuration Debug -destination 'platform=macOS,variant=Mac Catalyst' \
+  -parallel-testing-enabled NO \
+  -only-testing:BellBotUITests/ConversationAppearanceUITests/testSentImagesLoadInDirectAndRoomConversations \
+  -only-testing:BellBotUITests/ConversationAppearanceUITests/testLegacyImageLoadsAndUnsavedImagesKeepTheirLabel \
+  -only-testing:BellBotUITests/ConversationAppearanceUITests/testMacImageGetFailureAppearsInMessageAndGallery \
+  -only-testing:BellBotUITests/ConversationAppearanceUITests/testMacImageFilePickerAddsAttachmentAndRemovalClearsDraft \
+  -only-testing:BellBotUITests/ConversationAppearanceUITests/testMacPastedImagesRestoreAfterPostFailureAndCanBeRemoved \
+  test
+```
+
+3. 全5件が最初にresetするため、同じhelperを直列で使う。Macは実際のサイドバーから会話を開く。ファイル選択のボタンは`app.sheets`の中から探す。galleryは全画面表示でsheetとして公開されないため`app`から探す。MacではSwiftUIのボタンへ`tap()`が届かないため`click()`で押す。Macのgalleryはthumbnailと「前の画像」で切替を確認し、iOSの既存swipeのassertは保持する。画像POST失敗試験だけ`-bellbot-preview-reporting`を足し、`billing.connect()`で人工developer応答を読み込む。指定URL以外の本番サーバー・Botへ接続しない。
+4. ファイル選択試験はhelperのPNGをrunnerの一時ディレクトリへ保存し、「画像を添付」→⌘⇧G→絶対path→「開く」で製品のfileImporterを通す。OSのパネルの公開位置・日本語「開く」・パス欄の検出と、runnerからの画像貼付けがMac上で使えるかは、親の初回実行でUI階層とxcresultを確認する。検出に失敗した時にskipやassert緩和で合格させない。試験中は共有clipboardの画像を差し替えるため、他のコピー操作をしない。
+5. 画像束・gallery、GET失敗、ファイル添付、POST失敗の復元のスクリーンショットをxcresultへ保持する。試験はアプリを終了し、clipboardを元へ戻し、一時画像を削除する。完了後はhelperをCtrl-Cで止める。
+
+自動試験へ追加していないのはFinderでコピーした画像ファイルURLの貼付け。runnerが合成したfile URLでは、Finderがclipboardへ渡すファイルの読取許可まで再現できると確かめられていないため、同等の確認とは扱わない。ファイル選択試験はfileImporter経由の添付を扱い、画像clipboard試験は画像内容の貼付けを扱う。
+
+OSのファイル選択やclipboardがrunnerから操作できない場合は、そのUI階層・止まった操作を親が記録し、製品コードを変えずに同じhelperへDebugアプリを接続して次を手で確かめる。
+
+- `/test/reset?mode=attachments`の後、`curl "$URL/api/images/pr3-one.png" -o /tmp/bellteam-pr3-attach.png`でPNGを用意する。Debugアプリを`-bellbot-preview -bellbot-preview-reporting -bellbot-preview-server "$URL"`で起動し、ユキの会話で「画像を添付」からPNGを選ぶ。1枚表示、本文無しで送信可能、×で除去後に送信無効、会話を切り替えても除去済みを確認する。
+- FinderでそのPNGをコピーして入力欄に⌘V、続けてプレビュー.appで画像内容をコピーして⌘Vし、ファイルと画像の両経路で計2枚になることを確認する。本文を入力し送信するとhelperは503を返す。失敗文言・本文・2枚の復元、除去を画面で確認し、`/test/proof.sends`の一回のPOSTとJPEG2枚を照合する。送信中clearも見る時は最初のresetに`&holdSend=1`を足し、clear後に`/test/release-send`を呼ぶ。
+- 画面とproofを組み合わせて確認し、ファイルURLの貼付け・drop・iPhone/iPadの写真pickerは、このMacの画像clipboard試験の合格だけでは確認済みにしない。
 
 ### PR1・PR4のMac確認の補助試験
 
