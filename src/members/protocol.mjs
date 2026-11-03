@@ -1,7 +1,8 @@
 import { validateAvatar } from '../avatar-value.mjs'
 import { normalizeSchedule } from '../schedule-definition.mjs'
+import { normalizeMembersError } from './errors.mjs'
 
-const fail = () => { throw Object.assign(new Error('MEMBERS_INPUT_INVALID'), { code: 'MEMBERS_INPUT_INVALID', outcome: 'not_accepted' }) }
+const fail = () => { throw Object.assign(new Error('MEMBERS_INPUT_INVALID'), { code: 'MEMBERS_INPUT_INVALID', outcome: 'not_accepted', status: 400 }) }
 const string = (value, max = 16 * 1024 * 1024) => { if (typeof value !== 'string' || value.length > max || value.includes('\0')) fail() }
 const id = value => { string(value, 64); if (!/^[a-z0-9][a-z0-9-]{0,63}$/u.test(value)) fail() }
 const bool = value => { if (typeof value !== 'boolean') fail() }
@@ -49,7 +50,7 @@ export function validateMembersContext(context, { initialize = false } = {}) {
 }
 
 const requests = {
-  'profiles.read': value => empty(value), 'profile.read': value => object(value, { botId: id }),
+  'profiles.read': value => empty(value), 'profile.read': value => object(value, { botId: id, includeDeleting: value => { if (value !== true) fail() } }, ['botId']),
   'profile.create': value => object(value, { input: create, id: value => { if (value !== 'bot-guide') fail() } }, ['input']),
   'profile.preview': value => object(value, { botId: id, changes }),
   'profile.update': value => object(value, { botId: id, changes }),
@@ -76,8 +77,12 @@ function validate(table, method, params, context) {
   table[method](params)
   if (['owner.update', 'rules.update'].includes(method) && context.ownerWrite !== true) fail()
 }
-export const validateMembersRequest = (method, params, context) => validate(requests, method, params, context)
-export const validateMembersCallback = (method, params, context) => validate(callbacks, method, params, context)
+export const validateMembersRequest = (method, params, context) => {
+  try { validate(requests, method, params, context) } catch (error) { throw normalizeMembersError(error) }
+}
+export const validateMembersCallback = (method, params, context) => {
+  try { validate(callbacks, method, params, context) } catch (error) { throw normalizeMembersError(error) }
+}
 
 const projectId = { botId: id }
 const roomId = { roomId: id }
@@ -103,7 +108,9 @@ const effects = {
   'room.schedules.claimDue': value => object(value, roomClaim), 'room.schedules.skipDue': value => object(value, roomClaim),
 }
 export const MEMBERS_EFFECT_METHODS = Object.freeze(Object.keys(effects))
-export function validateMembersEffect(method, params, context) { validate(effects, method, params, context) }
+export function validateMembersEffect(method, params, context) {
+  try { validate(effects, method, params, context) } catch (error) { throw normalizeMembersError(error) }
+}
 export function validateMembersControl(method, params) {
   if (method === 'initialize') object(params, { generation: value => { string(value, 200); if (!value) fail() } })
   else if (['resume', 'quiesce', 'exit'].includes(method)) empty(params)

@@ -7,6 +7,7 @@ import { OwnerProfile } from '../owner-profile.mjs'
 import { UserRules } from '../user-rules.mjs'
 import { renderBotInstructions, renderGlobalInstructions } from './instructions.mjs'
 import { MEMBERS_STATE_COMPATIBILITY } from './state-compatibility.mjs'
+import { normalizeMembersError } from './errors.mjs'
 import { validateMembersRequest, validateMembersCallback, validateMembersControl, validateMembersContext,
   validateMembersResult, validateMembersEffect, validateMembersEffectResult, validateMembersProjection } from './protocol.mjs'
 
@@ -109,7 +110,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
       case 'profiles.read': await bots.refresh(); return { profiles: (await bots.listForClient()).map(withoutImages) }
       case 'profile.read': {
         await bots.refresh()
-        const bot = bots.get(params.botId)
+        const bot = bots.get(params.botId) ?? (params.includeDeleting ? (await bots.listForClient()).find(bot => bot.id === params.botId) : undefined)
         if (!bot) throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND', status: 404 })
         return { bot }
       }
@@ -159,10 +160,16 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
     ;(callback ? validateMembersCallback : validateMembersRequest)(method, params, context)
     assertContext(context)
     return track(() => contexts.run(context, async () => {
-      const result = await execute(method, params)
-      validateMembersResult(method, result)
-      if (!['profiles.cli', 'profiles.read', 'profile.read', 'profile.preview', 'removals.read', 'owner.read', 'rules.read', 'schedules.list'].includes(method)) await snapshot(context)
-      return result
+      const changesProjection = !['profiles.cli', 'profiles.read', 'profile.read', 'profile.preview', 'removals.read', 'owner.read', 'rules.read', 'schedules.list'].includes(method)
+      try {
+        const result = await execute(method, params)
+        validateMembersResult(method, result)
+        if (changesProjection) await snapshot(context)
+        return result
+      } catch (error) {
+        if (changesProjection) { try { await snapshot(context) } catch { /* Preserve the original partial failure. */ } }
+        throw normalizeMembersError(error)
+      }
     }))
   }
   const drain = async () => { do { await Promise.allSettled([...active]); await projecting.catch(() => {}) } while (active.size) }
@@ -198,5 +205,6 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
   }
   const disconnect = async () => { accepting = false; exiting = true; epoch++; await drain() }
   return { validateRequest, dispatch: (method, params, context) => run(false, method, params, context),
-    validateCallback, dispatchCallback: (method, params, context) => run(true, method, params, context), control, disconnect }
+    validateCallback, dispatchCallback: (method, params, context) => run(true, method, params, context),
+    control: async (...args) => { try { return await control(...args) } catch (error) { throw normalizeMembersError(error) } }, disconnect }
 }

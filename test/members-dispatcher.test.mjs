@@ -8,6 +8,7 @@ import { OwnerProfile } from '../src/owner-profile.mjs'
 import { UserRules } from '../src/user-rules.mjs'
 import { createMembersDispatcher } from '../src/members/dispatcher.mjs'
 import { GUIDE_BOT_ID } from '../src/onboarding.mjs'
+import { normalizeMembersError } from '../src/members/errors.mjs'
 import { validateMembersRequest, validateMembersEffect, validateMembersEffectResult } from '../src/members/protocol.mjs'
 const context = Object.freeze({ generation: 'test', leaseId: 'lease', rootId: 'root', ownerWrite: false, continuation: false })
 const initial = Object.freeze({ ...context, leaseId: null })
@@ -188,4 +189,33 @@ test('internal onboarding create preserves only the existing literal guide ID', 
   const ordinary = await f.request('profile.create', { input })
   assert.notEqual(ordinary.bot.id, GUIDE_BOT_ID)
   assert.match(ordinary.bot.id, /^bot-/u)
+})
+
+test('display read can retain pending avatar bytes while active authorization stays 404', async t => {
+  const avatar = 'data:image/png;base64,AAAA'
+  const f = await fixture(t, async method => {
+    if (method === 'project.readPreviousSession') return ''
+    if (method === 'assets.prepareBotAssetRemoval') return 'gate'
+    if (method === 'project.remove') throw new Error('synthetic cleanup failure')
+  })
+  await f.request('profile.update', { botId: 'bot-a', changes: { avatar } })
+  await assert.rejects(f.request('profile.remove', { botId: 'bot-a' }), { code: 'BOT_DELETE_PENDING' })
+  await assert.rejects(f.request('profile.read', { botId: 'bot-a' }), { code: 'BOT_NOT_FOUND', status: 404 })
+  const display = await f.request('profile.read', { botId: 'bot-a', includeDeleting: true })
+  assert.equal(display.bot.deleting, true); assert.equal(display.bot.avatar, avatar)
+  const metadata = await f.request('profiles.read', {})
+  assert.equal(Object.hasOwn(metadata.profiles[0], 'avatar'), false)
+  assert.equal(metadata.profiles[0].hasAvatar, true)
+})
+
+test('fixed semantic errors preserve HTTP status while the wire can omit private messages', async t => {
+  const f = await fixture(t)
+  await assert.rejects(f.request('profile.preview', { botId: 'bot-absent', changes: {} }), { code: 'BOT_NOT_FOUND', status: 404 })
+  await assert.rejects(f.request('profile.preview', { botId: 'bot-a', changes: { avatar: 'data:image/png;base64,AAAA', avatarSource: '', avatarCrop: { x: 0, y: 0, width: 1, height: 1 } } }), { code: 'BOT_AVATAR_CROP_INVALID', status: 400 })
+  const error = Object.assign(new Error('BOT_NOT_FOUND: private-id'), { outcome: 'unknown' })
+  const normalized = normalizeMembersError(error)
+  assert.deepEqual({ code: normalized.code, status: normalized.status, outcome: normalized.outcome }, { code: 'BOT_NOT_FOUND', status: 404, outcome: 'unknown' })
+  const unknown = new Error('private free text')
+  assert.equal(normalizeMembersError(unknown), unknown)
+  assert.equal(Object.hasOwn(unknown, 'code'), false)
 })

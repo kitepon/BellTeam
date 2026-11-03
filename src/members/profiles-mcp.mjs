@@ -99,8 +99,8 @@ export async function callMemberTool({ name, args = {}, from, registry, botView 
       id: bot.id, name: bot.name, position: bot.position ?? '', cli: bot.harness, fastMode: bot.fastMode === true, profileText: bot.profileText ?? '', personality: bot.personality, speechStyle: bot.speechStyle ?? '', role: bot.role,
     })) }
   }
-  if (name === 'get_bot') return { bot: botView(requireBot(registry, args.botId)) }
-  if (name === 'get_self') return { bot: botView(registry.get(from)) }
+  if (name === 'get_bot') return { bot: botView(registry.readMember ? await registry.readMember(args.botId) : requireBot(registry, args.botId)) }
+  if (name === 'get_self') return { bot: botView(registry.readMember ? await registry.readMember(from) : registry.get(from)) }
   if (name === 'get_owner_profile') return { owner: await ownerProfile.get() }
   if (name === 'get_user_rules') return { text: await userRules.get() }
   if (name === 'update_self' || name === 'update_bot') {

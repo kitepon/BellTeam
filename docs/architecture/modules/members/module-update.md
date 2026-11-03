@@ -76,6 +76,12 @@ contextを固定5field `{generation,leaseId,rootId,ownerWrite,continuation}`へ�
 
 profile.createは`{input,id?:'bot-guide'}`へ更新。idは親Onboarding.ensureGuideの既GUIDE_BOT_IDからだけ渡す内部optionで、通常HTTP/MCP入力の中へidを追加しない。他の任意ID・input.idは拒否し、省略時は既BotRegistryのID生成を使う。childは検証済みliteralだけ既createの第2引数へ渡し、親Onboarding/facadeをimportしない。案内ID自体や新権限の追加ではない。
 
+### 単一profileの画像wire・固定error ABI（第九差分）
+
+profile.readは`{botId,includeDeleting?:true}`へ。省略時はactiveのみ、trueは既listForClientのpendingも読む表示専用口。結果は既`{bot}`、画像4fieldを省かない。MCP get_bot/get_selfとHTTP profile/avatar/設定画の対象確認はreadMemberがあればfresh口へ、従来Registryは既getで互換。共通facadeの一覧だけが同leaseでmetadata→単一profileを順次復元する。外部schema・件数上限を変更しない。
+
+src/members/errors.mjsのnormalizeMembersError(error)は有限の既domain code又は固定message prefixを認識してcode/statusを付ける。公開request/callback/effect validator、dispatch/controlで適用。Epi wireは従来の{code,outcome,status}だけを送り、未知の自由文はgenericにする。外部Room effect側でも親共通adapterが同normalizerを使ってからwireへ返す。unknown outcomeをnot_acceptedへ変更しない。保存後effect失敗では可能な限り最新snapshotを送ってから元失敗を返す。
+
 ## 現状と初回の分離
 
 ```mermaid
