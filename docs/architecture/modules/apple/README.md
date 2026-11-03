@@ -22,6 +22,12 @@ Apple内部の機能図は未作成（担当ベルの2026-11-02回答）。現�
 - [設定・Ownerプロフィール・メンバー画像](settings-and-profile.md)：Owner/規範、追加機能、AI停止カード、画像選択・確認・取消。
 - [ファイル・型・関数と試験の索引](function-index.md)：実装への行リンク、試験の対応、全文読了と本文未読の目録。
 - [予定一覧の取得](schedule-list.md)：既存範囲図をそのまま再利用する。
+- [会話](conversation.md)：履歴の取得、下書き、添付、送信と配送表示、ルーム宛先、画像、停止と再起動、端末画面、書き出し。
+- [質問・秘密入力・接続認証](requests-and-auth.md)：質問と選択回答、秘密入力、ログイン、初回利用、AI再認証。
+- [goal](goals.md)：goal一覧、会話内goal、操作。
+- [背景復帰・通知・購読・platform配置](lifecycle-and-platform.md)：SSE再接続と背景復帰、push拡張、購読と復元、端末保存とlogout、iPhone・iPad・Macの差。
+- [試験の対応表](tests.md)：XCTestと独立チェックの本文から、各試験が確かめる契約。
+- [責務整理の設計](refactor-design.md)：整理候補の採否、比較、全caller・試験、PRの順番。
 
 ## 整理候補
 
