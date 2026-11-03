@@ -13,6 +13,7 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 - [installer・状態移行・backup/restore](recovery.md)
 - [Aiterm H1のoffline保存・起動前採用の接続候補](resume.md)
 - [Web受付固定資材の配置とdescriptor](web-gateway-release.md)
+- [通知の固定資材・起動・writer排他の提案](notifications-release.md)（Root裁定前、未実装）
 
 runtime-detailsとdistribution-detailsのruntime所有章はここへ移管し、旧箇所はリンクにした。配布物作成・build・promotionの図はdistributionに残す。サービス組立て、メンバー構造、記憶形式、native内部、各アプリの図は各所有者の正本へ辿る。
 
