@@ -66,3 +66,27 @@ Mollyはapplication-services/runtimeの親組立を所有したまま、旧外�
 Mollyの明示handoffで`src/execution-assembly.mjs:createExecutionAssembly({ports,loadFactory,onAdopt,currentVersionId,previousVersionId,requestStop,watchQueue,exchangeMutex,onState})`をexecution所有とする。親が既private選択を読んだ2scalarと同liveportsを渡し、返却はfrozen `{controller,transport,administration,goals}`。helper自身は保存path/schema/HTTP/catalog/ledgerを持たず、初期化やnativeを発行しない。controller.startまでengine生成/observer起動0、start後はengineがSeatTurns/IdleSessionsを一つずつ所有する。別の外側producerやno-op producer adapterを返さない。
 
 親bootstrapの遅い依存（rooms/メッセンジャー/onboarding/認証）はportsの固定公開method closureへ束縛し、全依存準備後にcontroller.startを呼ぶ。初期current/previousの読取とonAdoptの実保存は親が持つため、このhelperに第二のreader/writerを足さない。同期投影/argument opaque/実Promise completion/共有client・members gate・requestStop・watchQueueのidentityを既facadeのまま保つ。親application-services/runtimeの旧SeatTurns/IdleSessions生成/start/stopを削除し、親updateCenter/controller closeと一実体へ結び、会話SelfTurnsは維持する。
+
+## PR304/main48の実交換検査guest
+
+`test/helpers/execution-native-business.mjs:createExecutionNativeFixture({root})`は、センチの外側fixtureから使う同期constructor。rootはセンチが作る人工dataの絶対正規pathで、stateは同UID/GID・0700、初期のexecution-release.jsonは存在しないことを要求する。外側のroot権限、署名releaseの設置、実UID1001/両arch/imageの起動・driver・cleanupはセンチが所有する。guestは権限変更、署名の生成、installerの代替、既選択の上書きをしない。
+
+```mermaid
+flowchart LR
+  Outer["Centi: 同48 image / 署名release / 空の人工root"] --> Guest["同期createExecutionNativeFixture"]
+  Guest --> Assembly["実Assembly / generation / 安定facade"]
+  Assembly --> Loader["既定loadExecutionFactory / 固定app・release entry"]
+  Assembly --> Store["実adoption store.save / file・dir fsync完了ACK"]
+  Assembly --> Native["人工SDK・waitProcessだけ / 実席操作0"]
+  Native --> Hold["observe実Promiseを保持 / 旧drain中の新受付拒否"]
+  Hold --> Exchange["署名版へ交換 / builtinへ復元"]
+  Exchange --> Check["同port・session / 同期投影 / 旧guard失効 / close0"]
+```
+
+返却する公開I/Oは`controller`、`start()`、`replace(target)`、`verify()`、`snapshot()`、`close()`。controllerは実Assemblyの同instanceで、外側が交換の同一性を確認できる。startは実loaderでbuiltinを読み、sourceCommitが`48e508bab1c1cad2f8c3220f062715b27bcd3376`と一致してから人工wakeを一回だけ行う。loadFactory/import/installed reader/identityの差替えportはguestに持たせない。
+
+replaceは64桁SHA又はbuiltinだけを受け、同版要求は拒否する。各回に人工notify一件を実dispatcherで配送してassetのtask reminderを確認し、旧世代で捕捉したadmission guardを保存する。その後の実observe Promiseを保留したままcontroller.replaceを呼び、quiescing中は同期queue投影がEXECUTION_NOT_ACCEPTING、交換Promiseは未終端であることを確認する。observe解放後だけ退役・新世代へ進み、同guardがEXECUTION_GENERATION_RETIREDで失効することを確認する。onAdoptの実store.save/readとACK完了前後にも新受付が閉じていることを検査する。native/PTY close要求は即失敗し、SDKclose/PTYclose件数も0を要求する。
+
+verifyは署名SHA→builtinの順の二回成功、三世代、保存0600と現選択、同親port/method/session、人工launch一回/send二回/設定reminder二回、保存ACK二回、失効guard二回を要求する。snapshotと各操作の返却はbool/整数だけで、本文・session・path・署名descriptorは含めない。closeは同controllerを閉じ、外側dataの削除はしない。読込/交換失敗はrejectし、保留observeはfinallyで解放する。既loader/store/readerの製品契約内で検査guestを追加し、runtimeコードは変更しない。
+
+`test/execution-native-business.test.mjs`の新4件は同期休止、既選択拒否、実builtin不在時の代替無し失敗、人工loaderでのguest制御検査。最後の1件だけ隔離子processのmodule mockから同source実factoryを返し、制御のassertを検査する。これは実loader/署名release/UID1001/両arch/image交換の成功ではない。実交換の成立範囲はセンチの外側原本から結合する。476/38aの会話sourceはこの48署名への入力に加えない。
