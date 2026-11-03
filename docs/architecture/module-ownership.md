@@ -22,17 +22,18 @@ Owner 2026-11-02指示による本体分担。機能を分離し、担当が自�
 | エピネル | 実行環境・更新復旧 | bootstrap/supervisor/lifecycle、SeatRuntime/短命runner、CLI/hook登録、状態移行、installer、backup/restore、更新実行の製品コード |
 | ビスケット | 記憶・知識 | MemoryService/Search、記憶形式と検索索引、短期記憶の方針。DB実行proxyはエピネル |
 | センチ | 商用配布 | Docker/Compose/profile、package、候補CI、image/source受入、公式版発行・promotion。installerの動作実装はエピネルと接続 |
-| トロニー | 統合 | 共通HTTP/MCP dispatch、application組立て、共通エラー/診断、共通規範、全体図生成・契約整合、通常統合・本番反映 |
+| モリー | 共通入口・結合実装 | 共通HTTP/MCP dispatch、application組立て、共通エラー/診断、機能間接続と必要な結合試験 |
+| トロニー | 全体設計・統合裁定 | 全体設計・公開契約/診断方針裁定、共通規範、全体図整合、採否/main/本番反映 |
 
 Apple/Windowsクライアントは各ベル、Aitermはエレグ、Throughlineはリヴァリン、Bridgeはリター、mcp-lazyはレオナ、RTKはドリリー、testgateはシラツル、BugHubはフラジャイル、Approval Boxはナユタ、Caveatはノア。各正本と公開接点は modules の索引へ接続する。OS・ホストはエマ等の既担当。
 
 ## 混在箇所の分離と単独更新
 
-`bot-administration.mjs` は設定・停止のキロと削除のベロータが混在する。両者は自機能の実装を独立moduleへ抽出し、共通入口の切替はトロニーが統合する。`room-registry.mjs` の部屋正本はN102、予定の共通処理はベロータ。部屋特有の参加者検証はN102の公開窓口で行う。
+`bot-administration.mjs` は設定・停止のキロと削除のベロータが混在する。両者は自機能の実装を独立moduleへ抽出し、共通入口の切替はモリーが実装し、トロニーが採否を決める。`room-registry.mjs` の部屋正本はN102、予定の共通処理はベロータ。部屋特有の参加者検証はN102の公開窓口で行う。
 
 `seat-runtime.mjs` と `run-seat-runtime.mjs` はエピネルが機構を持ち、ProjectFilesや記憶の業務処理は各所有者へ委譲する。共有CLI JSONの書込・完了はエピネル、メンバー削除の完了はベロータ。削除から共有設定更新へ渡す情報と失敗の扱いを契約にする。
 
-`mcp-tools.mjs`、共通HTTP handler、`application-services/runtime`、`application-features` 等の混在入口は、各機能の公開handler/説明/schema/登録情報へ分ける。機能担当が自分の入出力・説明・関連試験を同じ変更で更新でき、統合側は登録と接続を持つ。初回抽出で同じ共通ファイルを別々の担当が同時に全面編集しない。個別checkoutと範囲を明示し、必要な統合差分を渡す。恒久的に全機能の内部変更をトロニーへ依頼する構造にはしない。
+`mcp-tools.mjs`、共通HTTP handler、`application-services/runtime`、`application-features` 等の混在入口は、各機能の公開handler/説明/schema/登録情報へ分ける。機能担当が自分の入出力・説明・関連試験を同じ変更で更新でき、共通入口担当モリーは登録と接続を持つ。初回抽出で同じ共通ファイルを別々の担当が同時に全面編集しない。個別checkoutと範囲を明示し、必要な統合差分を渡す。恒久的に全機能の内部変更をトロニーへ依頼する構造にはしない。
 
 単独更新の成立は、機能内部の修理に他担当の内部コード・私有データの編集が不要で、公開窓口を使う関連試験を自分で実行できること。公開契約を変える場合は利用先との調整を含む。単独更新を別プロセス化・別リポジトリ化・別リリース化の要件にはしない。
 
@@ -56,3 +57,7 @@ Apple/Windowsクライアントは各ベル、Aitermはエレグ、Throughline�
 - エピネル：実行基盤/共有CLI JSON更新/移行を分離。削除競合修理を担当し、商用更新6機能の実行側をセンチ・アドミ・ベルと設計する。
 
 各担当は「図の正本、公開契約、所有範囲、分離したコードと残る共有箇所、必要な試験結果」を返す。担当移管・source分離・本番反映の成立をそれぞれ明記する。本番/一般配布のOwner保留は継続し、新担当の任命だけで解除しない。
+
+## 11/3 共通実装の正式移管
+
+Ownerの正式割当によりintegration moduleの実装ownerをモリーへ移す。Rootは設計/公開契約・診断方針裁定/採否/main/本番を持つ。runtime移管19fad7fの子起動停止・版交換/adoption/戻しと固定root記録writer/有限watch/取消/OS observerはエピネル、機能内部は各担当、配布はセンチ。共通callerは公開接点だけを使い、内部sourceの変更は所有者が持つ。既成功群の再走を新gateにせず、変更した直接境界を検証する。移管は本番・資格利用・OS権限の承認を追加しない。

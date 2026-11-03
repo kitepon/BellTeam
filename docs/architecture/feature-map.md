@@ -13,7 +13,7 @@ flowchart LR
   m_conversation["会話・履歴 / N102"]
   m_distribution["商用配布 / センチ"]
   m_execution["AI実行制御 / キロ"]
-  m_integration["全体設計・統合 / トロニー"]
+  m_integration["共通入口・結合実装 / モリー"]
   m_members["メンバー・予定 / ベロータ"]
   m_memory["記憶・知識 / ビスケット"]
   m_runtime["実行環境・更新復旧 / エピネル"]
@@ -73,7 +73,7 @@ flowchart LR
   m_bughub["BugHub / フラジャイル"]
   m_conversation["会話・履歴 / N102"]
   m_execution["AI実行制御 / キロ"]
-  m_integration["全体設計・統合 / トロニー"]
+  m_integration["共通入口・結合実装 / モリー"]
   m_mcp_lazy["mcp-lazy / レオナ"]
   m_memory["記憶・知識 / ビスケット"]
   m_rtk["RTK / ドリリー"]
@@ -113,7 +113,7 @@ flowchart LR
 | [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access |
 | [商用配布](modules/distribution/README.md) | センチ | image / web-gateway-artifact |
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation |
-| [全体設計・統合](modules/integration/README.md) | トロニー | HTTP/MCP / HTTP/SSE / diagnostics |
+| [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics |
 | [mcp-lazy](modules/mcp-lazy/README.md) | レオナ | relay |
 | [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions |
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |

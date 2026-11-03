@@ -1,8 +1,8 @@
 {
-  "title": "全体設計・統合",
-  "owner": "トロニー",
-  "botId": "bot-7b140b27",
-  "scope": "共通HTTP/MCP入口、サービス組立て、共通エラーと診断、全体接続、統合・本番反映",
+  "title": "共通入口・結合実装",
+  "owner": "モリー",
+  "botId": "bot-39be7047",
+  "scope": "共通HTTP/MCP入口・サービス組立て・共通診断・機能間接続と結合試験。設計/公開契約裁定/統合採否/main/本番はトロニー、機能内部と配布は各担当",
   "external": false,
   "provides": [
     "HTTP/MCP",
@@ -61,11 +61,11 @@
     "src/diagnostics.mjs",
     "src/http-gateway.mjs",
     "src/http-gateway-entry.mjs",
-    "src/http-gateway-process.mjs",
     "src/http-assets.mjs",
     "src/web-gateway-control.mjs",
     "src/olrw-management-caller.mjs",
     "src/olrw-rabbit-auth.mjs",
-    "src/olrw-management-loader.mjs"
+    "src/olrw-management-loader.mjs",
+    "scripts/deploy.sh"
   ]
 }

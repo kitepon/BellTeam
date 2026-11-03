@@ -1,6 +1,6 @@
 # Rabbit認証の固定管理caller候補
 
-Root所有。既OwnerQuestionsカードの公開answer→同管理parentのwatch→usage consumer.executeを唯一の契機とする。新HTTP/RPC/daemon/認証画面は追加しない。内部answer拒否/内部harness-auth POST403を維持する。これはsource候補であり実行readyではない。
+共通caller実装はモリー、公開契約・認可方針の裁定はRootが所有する。固定root記録writer/有限watch/取消/OS observer機構はruntime（エピネル）。既OwnerQuestionsカードの公開answer→同管理parentのwatch→usage consumer.executeを唯一の契機とする。新HTTP/RPC/daemon/認証画面は追加しない。内部answer拒否/内部harness-auth POST403を維持する。これはsource候補であり実行readyではない。
 
 ```mermaid
 flowchart LR

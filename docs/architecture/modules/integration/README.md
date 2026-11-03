@@ -1,10 +1,10 @@
-# 全体設計・統合
+# 共通入口・結合実装
 
-責任者：トロニー。
+実装責任者：モリー。全体設計・公開契約裁定・統合採否・main・本番はトロニー。機能内部と配布は各担当。
 
 Rabbit認証の一件管理caller候補は[固定契機と許可原本の接続](olrw-auth-caller.md)。実行readyや本番反映を示さない。
 
-共通HTTP/MCP入口、サービス組立て、共通エラーと診断、全体接続、統合・本番反映。
+共通HTTP/MCP入口、サービス組立て、共通エラーと診断、機能間接続と必要な結合試験を持つ。内部成功群の重複再走を採用の追加条件にしない。
 
 接続の正本は[module.json](module.json)。全体の[機能図](../../feature-map.md)と[担当・変更手順](../../module-ownership.md)から、呼出元と依存先を辿る。
 
@@ -126,9 +126,9 @@ Owner向け既認証のGET/POST `/api/web-gateway-release`でWeb受付一対象�
 ```mermaid
 flowchart TD
   Version[版IDだけを選択] --> Prepare[runtime/配布の公開窓口: 認証・互換・固定配置の確認]
-  Prepare -->|確認済descriptor| Swap[integration: 公開受付の版切替]
+  Prepare -->|確認済descriptor| Swap[runtime: 公開受付の版切替]
   Prepare -->|拒否| Keep[旧受付を継続]
-  Swap --> Drain[現在受付を停止・回収]
+  Swap --> Drain[runtime: 現在受付を停止・回収]
   Drain --> New[新版の受付子を起動・ready確認]
   New -->|成功| Adopt[runtimeの採用版記録へ返す]
   New -->|失敗| Previous[前の固定版の受付子を起動]
@@ -148,3 +148,7 @@ Rootの交換入口は版IDを受け、runtimeの公開窓口`prepareGatewayRele
 旧Web資材は受付processの交換を越えて保持する。親はこの稼働中に採用したassetVersion→固定appRootを保持し、新子へ確認済一覧だけを渡す。新子は各固定版のweb.assets登録を読み、既?v=に対応した版の資材/置換を配信する。任意queryからfile pathを組み立てず、未知の版は404。履歴一覧が64KiBを超える交換は旧子停止前に拒否し、黙って古い版を捨てない。親再起動後の保持一覧はruntimeの採用/保持契約との接続が残り、このメモリ一覧を耐久記録の代用にしない。
 
 採用版はruntime正本のadoption schemaと既writeAtomicへ接続する。親の初回startだけで1001/0600正本を読み、record無しなら内蔵版、record有りならcurrent/previousをprepareで再確認する。未知/破損/信頼失敗は内蔵版へfallbackしない。新子ready後のrecord保存を成功条件に含め、保存失敗は新子回収→旧descriptor再確認→旧子起動、旧record保持。親close重複時は取消し、次起動と戻しを抑止する。current/previousをstartupで再確認して前版資材を読めるようにし、それ以前の全資材の親再起動後保持はこの差分の対象外。
+
+## 実装所有の境界（2026-11-03）
+
+共通入口の認可・承認原本/profileと観測の接続・assemblyはモリーが実装する。公開契約の用途制限と裁定、設計整合・採否・本番はRootが持つ。`src/http-gateway-process.mjs`の子起動停止/ready/同port交換/adoption/戻し、OLRW固定root記録writer/有限watch/取消/OS observerはruntime（エピネル）の実装所有。Root候補1775fa5とruntime所有移管19fad7fの既成功証跡を引き継ぎ、未採用候補のsourceや実供給・実権限はこの移管から成立しない。
