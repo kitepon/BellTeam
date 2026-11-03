@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 import { runtimeEnvironment, runtimeHome } from './runtime-home.mjs'
 import { createSeatProcessRunner } from './seat-process.mjs'
+import { readSelfTurnsState } from './conversation/restore.mjs'
 
 const execFileAsync = promisify(execFile)
 // 記録の変化を見に行く間隔。変化が無ければThroughlineを呼ばない。
@@ -69,6 +70,11 @@ export class SelfTurns {
       if (error.code !== 'ENOENT') this.report(`BellTeam self turns: 読んだ位置を読めませんでした（${error.message}）`)
       this.state = {}
     }
+    return this
+  }
+
+  async restore() {
+    this.state = await readSelfTurnsState(this.statePath)
     return this
   }
 

@@ -32,6 +32,15 @@ export class RoomRegistry extends Map {
     return this.refresh()
   }
 
+  async restore() {
+    await this.refresh()
+    for (const room of this.values()) {
+      const document = await this.#readScheduleDocument(room.id, false)
+      for (const schedule of document.schedules) normalizeSchedule(schedule, new Date(0))
+    }
+    return this
+  }
+
   async refresh() {
     const rooms = [], definitions = new Map()
     for (const entry of await readdir(this.roomsRoot, { withFileTypes: true })) {
@@ -281,8 +290,12 @@ export class RoomRegistry extends Map {
   }
 
   async readScheduleDocument(id) {
+    return this.#readScheduleDocument(id, true)
+  }
+
+  async #readScheduleDocument(id, createMissing) {
     const path = join(this.roomPath(id), 'schedule.json')
-    if (!await exists(path)) await writeAtomic(path, scheduleDocument([]))
+    if (createMissing && !await exists(path)) await writeAtomic(path, scheduleDocument([]))
     const value = JSON.parse(await readFile(path, 'utf8'))
     if (value?.schema !== 'bellteam.schedule.v1' || !Array.isArray(value.schedules)) throw new Error(`SCHEDULE_FILE_INVALID: ${id}`)
     return value
