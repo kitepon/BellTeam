@@ -2,14 +2,15 @@
   "title": "実行環境・更新復旧",
   "owner": "エピネル",
   "botId": "bot-0b867848",
-  "scope": "bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設置と更新実行。OSはエマ、公開はセンチ、本番実行はトロニー",
+  "scope": "bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設置と更新実行。OSはエマ、公開はセンチ、本番実行はトロニー。全module共通の交換runner/controller・世代/close-drain/排他と実子終端を担当、親ledger/業務内部は担当外",
   "external": false,
   "provides": [
     "lifecycle",
     "seat-process",
     "project-files",
     "cli-registration",
-    "update"
+    "update",
+    "module-runner"
   ],
   "uses": [
     {
