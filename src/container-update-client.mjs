@@ -40,8 +40,17 @@ export function createContainerUpdateClient() {
   return {
     capabilities: async () => { try { return await call('capabilities', {}) }
       catch { return { supported: false, reason: 'HOST_UPDATE_UNAVAILABLE', currentRequestId: null, previousRequestId: null } } },
+    moduleInstallCapabilities: async () => {
+      try {
+        const value = await call('capabilities', {})
+        return value?.supported === true && value.moduleInstallProtocol === 1 ? { supported: true, reason: null }
+          : { supported: false, reason: /^[A-Z_0-9]{1,100}$/.test(value?.reason ?? '') ? value.reason : 'HOST_MODULE_INSTALL_UNAVAILABLE' }
+      } catch { return { supported: false, reason: 'HOST_MODULE_INSTALL_UNAVAILABLE' } }
+    },
     catalog: componentId => call('catalog', { componentId }),
     plan: params => call('plan', params),
+    planModuleInstall: params => call('plan', params),
+    startModuleInstall: ({ requestId, planId }) => call('start', { requestId, planId, confirmContainerRestart: false }),
     start: params => call('start', params),
     operation: requestId => call('get', { requestId }),
   }

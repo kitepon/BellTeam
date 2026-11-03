@@ -60,6 +60,14 @@ test('online model uses only fixed code, read-only incoming and the same private
   assert.deepEqual(model.volumes,{'server-state':{external:true,name:'fixture_state'}})
   assert.doesNotMatch(JSON.stringify(model),/SECRET|never-copy|docker.sock|\/home\/bell|flock -x/)
 })
+test('conversation and execution select only their fixed installer in the existing image and state volume',()=>{
+ for(const component of ['conversation','execution']){
+  const {normal,current}=fixture(),model=webGatewayInstallPlan(normal,current,component),service=model.services[component+'-install']
+  assert.equal(service.entrypoint.at(-1),'/app/scripts/install-'+component+'-release.py')
+  assert.equal(service.image,current.image);assert.equal(service.network_mode,'none')
+  assert.deepEqual(model.volumes,{'server-state':{external:true,name:'fixture_state'}})
+ }
+})
 
 test('foreign CID/image/project/mount or a mutable normal root cannot select a helper',()=>{
   for(const change of [x=>x.current.id='bad',x=>x.current.image='sha256:'+'f'.repeat(64),x=>x.current.project='foreign',

@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import selectors
+import shutil
 import socket
 import socketserver
 import stat
@@ -25,6 +26,7 @@ PREFIX = Path('/srv/bellteam/shared/tools/bellteam-container-update-host')
 LIMIT = 64 * 1024
 CATALOG_LIMIT = 1024 * 1024
 TERMINAL = {'completed', 'failed'}
+MODULES = {'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'conversation', 'execution'}
 
 class Failure(Exception):
     def __init__(self, code, status=503, outcome='not_accepted'):
@@ -254,30 +256,70 @@ class HostUpdater:
               and value['compatibility'].get('containerUpdate') == 1, 'HOST_UPDATE_TARGET_INCOMPATIBLE')
         return value
 
+    def module_target(self, catalog_id, component, version):
+        check(type(component) is str and component in MODULES)
+        digest(version)
+        found = [row for row in self.catalog(catalog_id)['releases'] if row.get('componentId') == component
+                 and row.get('versionId') == version and row.get('platform') == self.config['platform']]
+        check(len(found) == 1, 'HOST_MODULE_TARGET_UNAVAILABLE')
+        value = found[0]
+        check(exact(value, 'componentId,sourceCommit,versionId,platform,artifact,compatibility,changes')
+              and type(value['sourceCommit']) is str and re.fullmatch('[a-f0-9]{40}', value['sourceCommit']), 'HOST_MODULE_TARGET_INVALID')
+        artifact = value['artifact']
+        check(exact(artifact, 'kind,archive,bundle,signerCommit') and artifact['kind'] == 'archive'
+              and type(artifact['signerCommit']) is str and re.fullmatch('[a-f0-9]{40}', artifact['signerCommit']), 'HOST_MODULE_TARGET_INVALID')
+        for name, limit in [('archive', 512 * 1024**2), ('bundle', 16 * 1024**2)]:
+            item = artifact[name]
+            check(exact(item, 'url,sha256,bytes') and type(item['bytes']) is int and 0 < item['bytes'] <= limit
+                  and type(item['sha256']) is str and re.fullmatch('[a-f0-9]{64}', item['sha256']), 'HOST_MODULE_TARGET_INVALID')
+        url = r'https://github\.com/kitepon/BellTeam/releases/download/updates-\d{8}T\d{6}Z/' + component + '-' + value['sourceCommit'] + '-linux-' + self.config['platform']['arch'] + r'\.tar\.gz'
+        check(type(artifact['archive']['url']) is str and re.fullmatch(url, artifact['archive']['url'])
+              and artifact['archive']['sha256'] == version and artifact['bundle']['url'] == artifact['archive']['url'] + '.sigstore.json', 'HOST_MODULE_TARGET_INVALID')
+        compatibility = value['compatibility']
+        compound = component not in {'web-gateway', 'notifications'}
+        check(exact(compatibility, 'nodeMajor,parentProtocol,stateSchema,containerUpdate' + (',stateCompatibility' if compound else ''))
+              and type(compatibility['nodeMajor']) is int and compatibility['nodeMajor'] == 26
+              and type(compatibility['parentProtocol']) is int and compatibility['parentProtocol'] == (2 if component == 'notifications' else 1)
+              and compatibility['containerUpdate'] is None
+              and (compound or type(compatibility['stateSchema']) is int)
+              and compatibility['stateSchema'] == (None if compound else 2 if component == 'notifications' else 1), 'HOST_MODULE_TARGET_INCOMPATIBLE')
+        return value
+
+    def planned_target(self, plan):
+        target = plan['target']
+        return (self.target(plan['catalogSha256'], target['versionId']) if target['componentId'] == 'container'
+                else self.module_target(plan['catalogSha256'], target['componentId'], target['versionId']))
+
     def plan(self, params):
-        check(exact(params, 'planId,catalogSha256,versionId'))
+        check(exact(params, 'planId,catalogSha256,versionId') or exact(params, 'planId,catalogSha256,componentId,versionId'))
+        component = params.get('componentId', 'container')
+        check(type(component) is str and component in MODULES | {'container'})
         identifier = request_id(params['planId']); catalog_id = digest(params['catalogSha256'])
         with locked(self.state / 'ledger.lock'):
             path = self.state / 'plans' / (identifier + '.json')
             if path.exists():
                 value = read_json(path, self.uid)
-                check(value['catalogSha256'] == catalog_id and value['target']['versionId'] == params['versionId'], 'HOST_UPDATE_PLAN_CONFLICT', 409)
+                check(value['catalogSha256'] == catalog_id and value['target']['versionId'] == params['versionId']
+                      and value['target']['componentId'] == component, 'HOST_UPDATE_PLAN_CONFLICT', 409)
                 return value
             referenced = set()
-            pointer_path = self.state / 'current.json'
-            if pointer_path.exists():
-                for operation in read_json(pointer_path, self.uid).values():
-                    if operation: referenced.add(self.read_operation(operation)['planId'])
+            for name in ['current.json', 'module-current.json']:
+                pointer_path = self.state / name
+                if pointer_path.exists():
+                    for operation in read_json(pointer_path, self.uid).values():
+                        if operation: referenced.add(self.read_operation(operation)['planId'])
             for candidate in (self.state / 'plans').glob('*.json'):
                 value = read_json(candidate, self.uid)
                 if value['planId'] not in referenced and parse_time(value['expiresAt']) <= time.time(): candidate.unlink()
             check(len(list((self.state / 'plans').glob('*.json'))) < 64, 'HOST_UPDATE_PLAN_CAPACITY', 409)
-            target = self.target(catalog_id, params['versionId'])
+            target = (self.target(catalog_id, params['versionId']) if component == 'container'
+                      else self.module_target(catalog_id, component, params['versionId']))
             current = self.inspect()
-            check(target['artifact']['reference'] != current.get('imageRef'), 'HOST_UPDATE_ALREADY_CURRENT', 409)
+            if component == 'container':
+                check(target['artifact']['reference'] != current.get('imageRef'), 'HOST_UPDATE_ALREADY_CURRENT', 409)
             value = {'schema': 'bellteam.host-update.plan.v1', 'planId': identifier, 'catalogSha256': catalog_id,
                      'target': target, 'expected': current, 'expiresAt': dt.datetime.fromtimestamp(time.time() + 300, dt.timezone.utc).isoformat(),
-                     'impact': {'containerRestart': True}}
+                     'impact': {'containerRestart': component == 'container'}}
             atomic(path, value)
             return value
 
@@ -316,16 +358,18 @@ class HostUpdater:
                 if existing['admission'] != 'accepted':
                     raise Failure('HOST_UPDATE_HANDOFF_UNKNOWN', 503, 'unknown')
                 return self.view(existing)
-            check(params['confirmContainerRestart'], 'HOST_UPDATE_RESTART_CONFIRMATION_REQUIRED', 409)
             plan = read_json(self.state / 'plans' / (plan_id + '.json'), self.uid)
+            check(params['confirmContainerRestart'] == plan['impact']['containerRestart'], 'HOST_UPDATE_RESTART_CONFIRMATION_REQUIRED', 409)
             check(parse_time(plan['expiresAt']) > time.time(), 'HOST_UPDATE_PLAN_EXPIRED', 409)
-            check(self.target(plan['catalogSha256'], plan['target']['versionId']) == plan['target'], 'HOST_UPDATE_PLAN_CHANGED', 409)
+            check(self.planned_target(plan) == plan['target'], 'HOST_UPDATE_PLAN_CHANGED', 409)
             check(self.inspect() == plan['expected'], 'HOST_UPDATE_CURRENT_CHANGED', 409)
-            pointer_path = self.state / 'current.json'
+            pointer_path = self.state / ('current.json' if plan['target']['componentId'] == 'container' else 'module-current.json')
             pointer = read_json(pointer_path, self.uid) if pointer_path.exists() else {'current': None, 'previous': None}
-            if pointer['current']:
-                previous = self.read_operation(pointer['current'])
-                check(previous['phase'] in TERMINAL, 'HOST_UPDATE_IN_PROGRESS', 409)
+            for name in ['current.json', 'module-current.json']:
+                path = self.state / name
+                active = read_json(path, self.uid) if path.exists() else {'current': None}
+                if active['current']:
+                    check(self.read_operation(active['current'])['phase'] in TERMINAL, 'HOST_UPDATE_IN_PROGRESS', 409)
             # shortcut: retain 4096 operation tombstones; add a durable archive before raising this limit.
             check(len(list((self.state / 'operations').iterdir())) < 4096, 'HOST_UPDATE_LEDGER_CAPACITY')
             directory.mkdir(mode=0o700)
@@ -384,11 +428,13 @@ class HostUpdater:
                 check(value['admission'] == 'unknown' and value['worker'] is None, 'HOST_UPDATE_WORKER_DUPLICATE')
                 try:
                     plan = read_json(self.state / 'plans' / (value['planId'] + '.json'), self.uid)
-                    check(self.target(plan['catalogSha256'], plan['target']['versionId']) == plan['target'], 'HOST_UPDATE_PLAN_CHANGED')
+                    check(self.planned_target(plan) == plan['target'], 'HOST_UPDATE_PLAN_CHANGED')
                     check(parse_time(plan['expiresAt']) > time.time(), 'HOST_UPDATE_PLAN_EXPIRED')
                     observed = self.inspect()
                     check(observed == plan['expected'], 'HOST_UPDATE_CURRENT_CHANGED')
                     self.assert_model_binding(observed)
+                    if plan['target']['componentId'] != 'container':
+                        atomic(directory / 'module-volume.json', self.module_volume(observed, directory))
                     check(birth(os.getpid()) is not None, 'HOST_UPDATE_WORKER_IDENTITY')
                 except Failure as error:
                     value.update(admission='rejected', phase='failed', execution='failed', verification='unknown', error=error.code, updatedAt=stamp())
@@ -411,7 +457,7 @@ class HostUpdater:
     def capabilities(self):
         references = read_json(self.state / 'current.json', self.uid) if (self.state / 'current.json').exists() else {'current': None, 'previous': None}
         result = {'supported': False, 'reason': 'HOST_UPDATE_CATALOG_UNAVAILABLE',
-                  'currentRequestId': references['current'], 'previousRequestId': references['previous']}
+                  'currentRequestId': references['current'], 'previousRequestId': references['previous'], 'moduleInstallProtocol': 1}
         try:
             pointer = read_json(self.prefix / 'catalog/state.json', self.uid, CATALOG_LIMIT)
             self.catalog(pointer['catalogSha256'])
@@ -429,7 +475,7 @@ class HostUpdater:
             check(params == {}); return self.capabilities()
         if action == 'catalog':
             check(exact(params, 'componentId') and type(params['componentId']) is str
-                  and params['componentId'] in {'container','web-gateway','notifications','members'})
+                  and params['componentId'] in MODULES | {'container'})
             pointer = read_json(self.prefix / 'catalog/state.json', self.uid, CATALOG_LIMIT)
             catalog = self.catalog(pointer['catalogSha256'])
             selected = [row for row in catalog['releases'] if row['componentId'] == params['componentId'] and row['platform'] == self.config['platform']]
@@ -444,7 +490,142 @@ class HostUpdater:
         raise Failure('HOST_UPDATE_ARGUMENTS', 400)
 
     def install(self, plan, directory):
-        return execute_installer(self, plan, directory)
+        return (execute_installer(self, plan, directory) if plan['target']['componentId'] == 'container'
+                else execute_module_installer(self, plan, directory))
+
+    def module_volume(self, current, directory):
+        normal = read_json(self.prefix / 'installation/normal.json', self.uid)
+        service = normal['services']['bellteam']
+        # The validation helper receives mount metadata, never the normal server environment.
+        model = {'name': self.config['projectName'], 'services': {'bellteam': {
+            'image': current['imageId'], 'volumes': service['volumes'],
+            'environment': {key: value for key, value in service.get('environment', {}).items() if key == 'AITERM_STATE_BASE'}}},
+            'volumes': {key: {field: value for field, value in definition.items() if field in {'name', 'external'}}
+                        for key, definition in normal.get('volumes', {}).items()}}
+        if 'state-maintenance' in normal['services']:
+            model['services']['state-maintenance'] = {'volumes': normal['services']['state-maintenance']['volumes']}
+        runtime = decode(self.command([self.config['docker'], 'container', 'inspect', '--format',
+            '{"id":{{json .Id}},"image":{{json .Image}},"running":{{json .State.Running}},"restarting":{{json .State.Restarting}},"readOnly":{{json .HostConfig.ReadonlyRootfs}},"project":{{json (index .Config.Labels "com.docker.compose.project")}}}', current['containerId']]))
+        storage = self.storage_metadata(current['containerId'])
+        runtime.update(mounts=storage['mounts'], specMounts=storage['specs'])
+        check(runtime['id'] == current['containerId'] and runtime['image'] == current['imageId'], 'HOST_UPDATE_CURRENT_CHANGED')
+        target = read_json(directory / 'operation.json', self.uid)['target']
+        program = """import {webGatewayInstallPlan} from '/app/src/web-gateway-install-plan.mjs';import {text} from 'node:stream/consumers';import {lstat} from 'node:fs/promises';
+const [normal,current,target]=JSON.parse(await text(process.stdin)),id=target.componentId;
+if(Number(process.versions.node.split('.')[0])!==26||target.platform.os!==process.platform||target.platform.arch!==({x64:'amd64',arm64:'arm64'})[process.arch])throw Error('platform');
+if(!(await lstat('/app/scripts/install-'+id+'-release.py')).isFile())throw Error('installer');
+const validators={members:['/app/src/members/state-compatibility.mjs','assertMembersStateCompatibility'],memory:['/app/src/memory/state-compatibility.mjs','assertMemoryStateCompatibility'],conversation:['/app/src/conversation/state-compatibility.mjs','assertConversationStateCompatibility'],usage:['/app/src/usage/state-compatibility.mjs','assertUsageStateCompatibility'],diagnostics:['/app/src/diagnostics-protocol.mjs','assertDiagnosticsStateCompatibility']};
+if(Object.hasOwn(validators,id)){const [path,name]=validators[id];(await import(path))[name](target.compatibility.stateCompatibility)}
+if(id==='execution'&&(await import('/app/src/execution-dispatcher.mjs')).EXECUTION_STATE_COMPATIBILITY!==target.compatibility.stateCompatibility)throw Error('compatibility');
+const plan=webGatewayInstallPlan(normal,current,id);console.log(JSON.stringify({privateVolume:plan.volumes['server-state'].name}));"""
+        try:
+            output = self.command([self.config['docker'], 'run', '--rm', '--network', 'none', '--read-only', '--user', '1001:1001',
+                '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '--pids-limit', '64', '--memory', '256m',
+                '--memory-swap', '256m', '--entrypoint', '/usr/local/bin/node', current['imageId'], '--input-type=module', '-e', program],
+                input=json.dumps([model, runtime, target]).encode())
+        except (OSError, subprocess.SubprocessError):
+            raise Failure('HOST_MODULE_INSTALL_UNAVAILABLE')
+        result = decode(output)
+        controls = [mount for mount in storage['mounts'] if mount.get('Destination') == '/run/bellteam-maintenance']
+        check(exact(result, 'privateVolume') and type(result['privateVolume']) is str
+              and re.fullmatch('[a-zA-Z0-9][a-zA-Z0-9_.-]*', result['privateVolume'])
+              and len(controls) == 1 and controls[0].get('Type') == 'volume' and controls[0].get('RW') is False
+              and controls[0].get('Name') == result['privateVolume'], 'HOST_MODULE_STORAGE_BINDING')
+        return result
+
+
+def publication_opener():
+    import urllib.request
+    from urllib.parse import urlsplit
+    class Redirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, request, fp, code, message, headers, url):
+            parsed = urlsplit(url)
+            check(parsed.scheme == 'https' and parsed.hostname in {'github.com', 'api.github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'}
+                  and parsed.port in {None, 443} and parsed.username is None, 'HOST_UPDATE_PUBLICATION_REDIRECT')
+            return super().redirect_request(request, fp, code, message, headers, url)
+    return urllib.request.build_opener(Redirect())
+
+
+def module_inputs(updater, target):
+    import urllib.request
+    base = updater.state / 'module-incoming'
+    base.mkdir(mode=0o700, exist_ok=True); trusted(base, updater.uid, directory=True)
+    base = base / target['componentId']
+    base.mkdir(mode=0o700, exist_ok=True); trusted(base, updater.uid, directory=True)
+    directory = base / target['versionId']
+    def matches(path, expected):
+        info = trusted(path, updater.uid)
+        check(info.st_size == expected['bytes'], 'HOST_MODULE_INPUT_CHANGED')
+        digest_value = hashlib.sha256()
+        with path.open('rb') as stream:
+            while block := stream.read(1024 * 1024): digest_value.update(block)
+        check(digest_value.hexdigest() == expected['sha256'], 'HOST_MODULE_INPUT_CHANGED')
+    if directory.exists():
+        trusted(directory, updater.uid, directory=True)
+        check({path.name for path in directory.iterdir()} == {'archive.tar.gz', 'bundle.json'}, 'HOST_MODULE_INPUT_CHANGED')
+        for name, key in [('archive.tar.gz', 'archive'), ('bundle.json', 'bundle')]: matches(directory / name, target['artifact'][key])
+        return directory
+    # shortcut: retain at most four failed input sets per module; resolve their operations before adding more.
+    check(len(list(base.iterdir())) < 4, 'HOST_MODULE_INPUT_CAPACITY', 409)
+    with tempfile.TemporaryDirectory(prefix='.download-', dir=base) as staging:
+        staging = Path(staging)
+        opener, deadline = publication_opener(), time.monotonic() + 300
+        for name, key in [('archive.tar.gz', 'archive'), ('bundle.json', 'bundle')]:
+            expected = target['artifact'][key]
+            with opener.open(urllib.request.Request(expected['url'], headers={'User-Agent': 'BellTeam-Updater'}), timeout=15) as response:
+                check(response.status == 200, 'HOST_MODULE_INPUT_UNAVAILABLE')
+                fd = os.open(staging / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o400)
+                with os.fdopen(fd, 'wb') as output:
+                    total = 0
+                    while block := response.read(1024 * 1024):
+                        total += len(block)
+                        check(total <= expected['bytes'] and time.monotonic() < deadline, 'HOST_MODULE_INPUT_LIMIT')
+                        output.write(block)
+                    output.flush(); os.fsync(output.fileno())
+            matches(staging / name, expected)
+        fd = os.open(staging, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try: os.fsync(fd)
+        finally: os.close(fd)
+        publish_directory(staging, directory)
+        fd = os.open(base, os.O_RDONLY | os.O_DIRECTORY)
+        try: os.fsync(fd)
+        finally: os.close(fd)
+    return directory
+
+
+def execute_module_installer(updater, plan, directory):
+    target, current = plan['target'], plan['expected']
+    try:
+        incoming = module_inputs(updater, target)
+        check(updater.planned_target(plan) == target, 'HOST_UPDATE_PLAN_CHANGED')
+        check(updater.inspect() == current, 'HOST_UPDATE_CURRENT_CHANGED')
+    except Exception:
+        return {'execution': 'failed', 'verification': 'unknown', 'cleanup': 'not_needed', 'rollback': 'not_needed',
+                'observed': None, 'error': 'HOST_MODULE_PREPARE_FAILED'}
+    volume = read_json(directory / 'module-volume.json', updater.uid)['privateVolume']
+    check(type(volume) is str and re.fullmatch('[a-zA-Z0-9][a-zA-Z0-9_.-]*', volume), 'HOST_MODULE_STORAGE_BINDING')
+    component = target['componentId']
+    check(component in MODULES, 'HOST_MODULE_TARGET_INVALID')
+    # Construct privileges and mounts here; never execute a model supplied by the application or image helper.
+    output = updater.command([updater.config['docker'], 'run', '--rm', '--init', '--network', 'none', '--read-only', '--user', '0:0',
+        '--cap-drop', 'ALL', '--cap-add', 'CHOWN', '--cap-add', 'DAC_OVERRIDE', '--cap-add', 'FOWNER',
+        '--security-opt', 'no-new-privileges:true', '--cpus', '1', '--memory', '2g', '--memory-swap', '2g', '--pids-limit', '512',
+        '--tmpfs', '/tmp:rw,nosuid,nodev,size=64m',
+        '--mount', f'type=bind,source={incoming.parent},target=/srv/bellteam-{component}-incoming,readonly',
+        '--mount', f'type=volume,source={volume},target=/srv/bellteam-private,volume-nocopy',
+        '--entrypoint', '/usr/bin/env', current['imageId'], '-i', 'PATH=/usr/local/bin:/usr/bin:/bin',
+        '/usr/bin/python3', '-I', f'/app/scripts/install-{component}-release.py',
+        target['versionId'], target['sourceCommit'], target['artifact']['signerCommit']], timeout=300)
+    result = decode(output)
+    check(exact(result, 'versionId,installed') and result['versionId'] == target['versionId'] and result['installed'] is True,
+          'HOST_MODULE_INSTALL_UNKNOWN')
+    observed = updater.inspect()
+    check(observed == current, 'HOST_UPDATE_CURRENT_CHANGED')
+    cleanup, error = 'succeeded', None
+    try: shutil.rmtree(incoming)
+    except OSError: cleanup, error = 'failed', 'HOST_MODULE_CLEANUP_FAILED'
+    return {'execution': 'succeeded', 'verification': 'succeeded', 'cleanup': cleanup, 'rollback': 'not_needed',
+            'observed': observed, 'error': error}
 
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):
@@ -785,14 +966,7 @@ def verify_and_install_catalog(updater, catalog_path, bundle_path, expectation=N
 
 def _refresh_catalog(updater):
     import urllib.request
-    from urllib.parse import urlsplit
-    class Redirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, request, fp, code, message, headers, url):
-            parsed = urlsplit(url)
-            check(parsed.scheme == 'https' and parsed.hostname in {'github.com','api.github.com','release-assets.githubusercontent.com','objects.githubusercontent.com'}
-                  and parsed.port in {None,443} and parsed.username is None, 'HOST_UPDATE_PUBLICATION_REDIRECT')
-            return super().redirect_request(request, fp, code, message, headers, url)
-    opener = urllib.request.build_opener(Redirect())
+    opener = publication_opener()
     def fetch(url, limit):
         with opener.open(urllib.request.Request(url, headers={'User-Agent':'BellTeam-Updater','Accept':'application/vnd.github+json'}), timeout=15) as response:
             check(response.status == 200, 'HOST_UPDATE_PUBLICATION_UNAVAILABLE')

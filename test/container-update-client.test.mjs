@@ -40,3 +40,20 @@ test('finite frames, closed error fields and unavailable capability',async t=>{
  await assert.rejects(client.start({value:'x'.repeat(65536)}),{code:'HOST_UPDATE_MESSAGE_LIMIT',outcome:'not_accepted'})
  assert.equal(frames.length,2)
 })
+test('module installation uses the same UUID lookup and explicitly requests no container restart',async t=>{
+ const {client,frames}=await fixture(t,(socket,frame)=>socket.end(JSON.stringify({ok:true,value:frame.params})+'\n'))
+ const plan={planId:'b0dd350b-abda-4d12-b08b-3172105e2a71',catalogSha256:'a'.repeat(64),componentId:'diagnostics',versionId:'b'.repeat(64)}
+ assert.deepEqual(await client.planModuleInstall(plan),plan)
+ const requestId='a0dd350b-abda-4d12-b08b-3172105e2a71'
+ assert.equal((await client.startModuleInstall({requestId,planId:plan.planId})).confirmContainerRestart,false)
+ await client.operation(requestId)
+ assert.deepEqual(frames.map(frame=>frame.operation),['plan','start','get'])
+ assert.equal(frames[2].params.requestId,requestId)
+})
+test('module installation remains unsupported on an old Host without the explicit protocol',async t=>{
+ let protocol
+ const {client}=await fixture(t,socket=>socket.end(JSON.stringify({ok:true,value:{supported:true,...(protocol===undefined?{}:{moduleInstallProtocol:protocol})}})+'\n'))
+ assert.equal((await client.moduleInstallCapabilities()).supported,false)
+ protocol=1;assert.deepEqual(await client.moduleInstallCapabilities(),{supported:true,reason:null})
+ protocol=2;assert.equal((await client.moduleInstallCapabilities()).supported,false)
+})
