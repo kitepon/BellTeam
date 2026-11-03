@@ -23,7 +23,7 @@ import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined }) {
+export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess }) {
   const subscriptions = new Subscriptions({
     path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'),
     environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production',
@@ -35,8 +35,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   })
   await diagnostics.initialize()
   const notifications = createNotifications({ root, bots, diagnostics,
-    configuration: () => settings.configuration('notifications'), createProcess: createNotificationsProcess,
-    onState: state => settings.setError('notifications', state.applyError),
+    configuration: () => settings.configuration('notifications'), createProcess,
+    onState: state => { if (state.applyError) settings.setError('notifications', { code: state.applyError }) },
   })
   await notifications.initialize()
   const memory = seatRuntime ? seatRuntime.memory(bots) : new BellTeamMemory({ registry: bots, root })
