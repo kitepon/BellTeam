@@ -71,6 +71,7 @@ def run_fixture(image, output, supply):
     shutil.copyfile(guest, work / 'guest.mjs'); (work / 'guest.mjs').chmod(0o644)
     business_guest = REPO / 'test/helpers/usage-native-business.mjs'
     shutil.copyfile(business_guest, work / 'business.mjs'); (work / 'business.mjs').chmod(0o644)
+    save(output / 'fixture-source-binding.json', dict(source=execute(['git', 'rev-parse', 'HEAD'], cwd=REPO).stdout.decode().strip(), files={str(path.relative_to(REPO)): dict(bytes=path.stat().st_size, sha256=sha(path.read_bytes())) for path in [guest, business_guest]}))
     save(work / 'fixture-input.json', dict(b=inputs['b']['versionId'], source=source)); (work / 'fixture-input.json').chmod(0o644)
     volumes = [prefix + '-private', prefix + '-cursor']
     report = dict(accepted=False, image=image, imageSource=source, inputs=inputs, stages=[],
@@ -87,7 +88,7 @@ def run_fixture(image, output, supply):
         assert im['Config']['Entrypoint'] == ['/usr/local/libexec/bellteam-server-start']
         image_id = im['Id']; report['imageId'] = image_id
         save(output / 'allocation.json', dict(prefix=prefix, work=str(work), volumes=volumes, imageId=image_id))
-        paths = ['src/usage-process.mjs', 'src/usage/facade.mjs', 'src/module-process.mjs',
+        paths = ['src/usage-assembly.mjs', 'src/usage-process.mjs', 'src/usage/facade.mjs', 'src/module-process.mjs',
                  'src/module-release.mjs', 'src/usage-entry.mjs', 'src/usage/channel-dispatcher.mjs',
                  'src/usage/services.mjs', 'src/usage/authority.mjs', 'src/usage/projection.mjs', 'src/usage/channel.mjs', 'src/usage-install-plan.mjs', 'scripts/install-usage-release.py']
         binding = {}
