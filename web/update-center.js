@@ -5,21 +5,30 @@ const reasons = { MODULE_NOT_INDEPENDENT: 'この機能は、まだ個別更新�
 const explanation = reason => reasons[reason] ?? reason
 const text = value => typeof value === 'string' && value.length > 0
 const nullableText = value => value === null || text(value)
+const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value)
+const date = value => text(value) && Number.isFinite(Date.parse(value))
 const capability = value => value && typeof value.supported === 'boolean' && (value.supported ? value.reason === null : text(value.reason))
 const version = value => value === null || value && text(value.version)
   && (value.sourceCommit === null || /^[a-f0-9]{40}$/.test(value.sourceCommit))
   && (value.digest === null || /^sha256:[a-f0-9]{64}$/.test(value.digest))
   && ['container', 'builtin', 'release', 'published'].includes(value.origin)
-const plan = value => value && text(value.planId) && ['all', 'component'].includes(value.scope) && nullableText(value.componentId)
-  && Number.isFinite(Date.parse(value.expiresAt)) && Array.isArray(value.targets)
+const plan = value => value && uuid(value.planId) && ['all', 'component'].includes(value.scope) && nullableText(value.componentId)
+  && date(value.expiresAt) && Array.isArray(value.targets)
   && value.targets.every(target => target && text(target.componentId) && version(target.current) && target.published !== null && version(target.published))
   && value.compatibility && typeof value.compatibility.compatible === 'boolean' && nullableText(value.compatibility.reason)
   && value.impact && typeof value.impact.containerRestart === 'boolean' && text(value.impact.description) && capability(value.capability)
-const operation = value => value === null || value && text(value.requestId) && plan(value.plan)
+const operation = value => value === null || value && uuid(value.requestId) && plan(value.plan)
   && ['accepted', 'rejected', 'unknown'].includes(value.admission) && Object.hasOwn(phases, value.phase)
   && Object.hasOwn(outcomes, value.execution) && Object.hasOwn(outcomes, value.verification)
   && (value.error === null || value.error && text(value.error.code) && text(value.error.message)) && nullableText(value.reference)
   && (value.phase !== 'completed' || value.admission === 'accepted' && value.execution === 'succeeded' && value.verification === 'succeeded')
+const publication = value => value === null || value && value.catalog && /^[a-f0-9]{64}$/.test(value.catalog.sha256)
+  && date(value.catalog.publishedAt) && date(value.catalog.expiresAt) && value.check
+  && ['verified', 'failed', 'unconfirmed'].includes(value.check.status)
+  && (value.check.checkedAt === null || date(value.check.checkedAt)) && nullableText(value.check.error)
+const terminal = value => value && (value.admission === 'rejected' || value.phase === 'completed' || value.phase === 'failed' && value.execution === 'failed')
+const comparisonLabel = item => item.comparison.state === 'up_to_date' && item.publication?.check.status !== 'verified'
+  ? '受入済み版と一致 · 公開情報の取得確認が必要です' : comparisons[item.comparison.state]
 
 // Check consumed display values; the complete public schema remains in src/update-center-contract.mjs.
 export function validUpdateInventory(value) {
@@ -29,19 +38,33 @@ export function validUpdateInventory(value) {
     && Array.isArray(value.components) && new Set(value.components.map(item => item?.id)).size === value.components.length
     && value.components.every(item => item && text(item.id) && text(item.name) && text(item.description) && version(item.current) && version(item.published)
       && item.comparison && Object.hasOwn(comparisons, item.comparison.state) && nullableText(item.comparison.reason)
-      && Array.isArray(item.changes) && item.changes.every(text) && capability(item.capability) && item.availability
+      && publication(item.publication) && Array.isArray(item.changes) && item.changes.every(text) && capability(item.capability) && item.availability
       && [true, false, null].includes(item.availability.available) && nullableText(item.availability.reason))
     && Array.isArray(value.plans) && value.plans.every(plan) && operation(value.operation) && operation(value.previousOperation))
 }
 
-const versionLabel = value => value === null ? '稼働版を確認できません' : `${value.origin === 'builtin' ? '内蔵版 · ' : ''}${/^[a-f0-9]{40,64}$/.test(value.version) ? value.version.slice(0, 12) : value.version}`
+const versionLabel = value => value === null ? '稼働版を確認できません' : `${value.origin === 'builtin' ? '内蔵版 · ' : ''}${/^(?:sha256:)?[a-f0-9]{40,64}$/.test(value.version) ? value.version.replace(/^sha256:/, '').slice(0, 12) : value.version}`
+const formatDate = value => new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) + ' JST'
 
-export function createUpdateCenter({ root, api, buttons }) {
+export function createUpdateCenter({ root, api, buttons, storage }) {
   const get = selector => root.querySelector(selector)
   const list = get('[data-update-components]'), detail = get('[data-update-detail]')
   const notice = get('[data-update-notice]'), refreshButton = get('[data-update-refresh]')
   let selected = 'all', generation = 0, opened = false, disposed = false, loading = false
   let opener = null, inventory = null, failure = ''
+  const requestKey = 'bellteam-update-request.v1'
+  let planned = null, planning = false, submitting = false, confirmed = false, planGeneration = 0
+  let pending = null, ownResult = null, operationMessage = '', storageFailure = '', requestStorage = storage
+  let resultUnconfirmed = false
+  try {
+    requestStorage ??= globalThis.sessionStorage
+    const saved = requestStorage?.getItem(requestKey)
+    if (saved) {
+      const value = JSON.parse(saved)
+      if (!uuid(value?.requestId) || !uuid(value?.planId)) throw Error('INVALID_SAVED_REQUEST')
+      pending = { requestId: value.requestId, planId: value.planId }
+    }
+  } catch { storageFailure = '保存された更新要求を確認できません。新しい更新は開始できません。' }
   const element = (tag, className, value) => {
     const node = document.createElement(tag)
     node.className = className
@@ -51,14 +74,21 @@ export function createUpdateCenter({ root, api, buttons }) {
   function render() {
     refreshButton.disabled = loading
     root.setAttribute('aria-busy', String(loading))
-    notice.textContent = loading ? '接続先の更新情報を確認しています。' : failure || inventory?.notice.message || '更新センターを開くと、接続先の情報を確認します。'
+    notice.textContent = operationMessage || storageFailure || (loading ? '接続先の更新情報を確認しています。' : failure || inventory?.notice.message || '更新センターを開くと、接続先の情報を確認します。')
+    const active = pending ? ownResult : inventory?.operation
+    const publicationUnknown = inventory?.components.some(item => item.published && item.publication?.check.status !== 'verified')
+    let suffix = inventory && !failure ? { ready: inventory.components.some(item => item.comparison.state === 'update_available') ? ' · 更新あり' : '', unavailable: ' · 利用不能', updating: ' · 更新中', attention: ' · 要確認' }[inventory.notice.state] : ''
+    if (publicationUnknown) suffix = ' · 要確認'
+    if (active?.admission === 'accepted' && !terminal(active)) suffix = ' · 更新中'
+    if (pending && (!active || resultUnconfirmed) || active && (active.admission === 'unknown' || ['failed', 'unknown'].includes(active.phase) || active.verification === 'failed')) suffix = ' · 要確認'
     for (const button of buttons) {
-      button.textContent = `Update${inventory && !failure ? ({ ready: inventory.components.some(item => item.comparison.state === 'update_available') ? ' · 更新あり' : '', unavailable: ' · 利用不能', updating: ' · 更新中', attention: ' · 要確認' })[inventory.notice.state] : ''}`
+      button.textContent = `Update${suffix}`
       button.setAttribute('aria-label', button.textContent + ' 更新センターを開く')
     }
     get('[data-update-observed]').textContent = inventory ? `取得 ${new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(inventory.observedAt))} JST` : '情報を確認できていません'
     const focused = document.activeElement?.dataset?.component
-    if (selected !== 'all' && !inventory?.components.some(item => item.id === selected)) selected = 'all'
+    const focusedControl = document.activeElement?.dataset?.updateControl
+    if (selected !== 'all' && !inventory?.components.some(item => item.id === selected)) { selected = 'all'; planned = null; confirmed = false; planGeneration++; planning = false }
     list.replaceChildren()
     const choices = [{ id: 'all', name: '全体アップデート', description: '互換性を確認した計画で、必要な機能をまとめて更新。' }, ...(inventory?.components ?? [])]
     for (const component of choices) {
@@ -73,12 +103,12 @@ export function createUpdateCenter({ root, api, buttons }) {
       if (component.current) current.title = component.current.version
       copy.append(current)
       if (component.id !== 'all') {
-        copy.append(element('span', 'update-component-status', comparisons[component.comparison.state]))
+        copy.append(element('span', 'update-component-status', comparisonLabel(component)))
         if (!component.capability.supported) copy.append(element('span', 'update-component-reason', explanation(component.capability.reason)))
       }
       button.append(mark, copy, element('span', 'update-component-arrow', '›'))
       button.addEventListener('click', () => {
-        selected = component.id; renderDetail()
+        selected = component.id; planned = null; confirmed = false; planGeneration++; planning = false; renderDetail()
         for (const row of list.children) {
           row.classList.toggle('is-selected', row.dataset.component === selected)
           row.setAttribute('aria-pressed', String(row.dataset.component === selected))
@@ -89,10 +119,24 @@ export function createUpdateCenter({ root, api, buttons }) {
       if (component.id === focused) button.focus()
     }
     renderDetail()
+    if (focusedControl) root.querySelector(`[data-update-control="${focusedControl}"]`)?.focus()
+  }
+  function canPlan() {
+    return selected === 'container' && !loading && !planning && !submitting && !pending && !storageFailure && !failure
+      && inventory?.components.find(item => item.id === 'container')?.capability.supported
+      && (!inventory.operation || terminal(inventory.operation))
+  }
+  function canExecute() {
+    return canPlan() && planned && planned.capability.supported && planned.compatibility.compatible
+      && Date.parse(planned.expiresAt) > Date.now() && (!planned.impact.containerRestart || confirmed)
   }
   function renderDetail() {
     const component = inventory?.components.find(item => item.id === selected)
-    const selectedPlan = inventory?.plans.find(item => selected === 'all' ? item.scope === 'all' : item.scope === 'component' && item.componentId === selected)
+    const selectedPlan = selected === 'container' ? planned : null
+    const affects = item => item && (selected === 'all' || item.plan.targets.some(target => target.componentId === selected))
+    const current = inventory?.operation, previous = inventory?.previousOperation
+    const result = affects(ownResult) ? ownResult : affects(current) ? current : affects(previous) ? previous : null
+    const displayPlan = selectedPlan ?? result?.plan ?? inventory?.plans.find(item => selected === 'all' ? item.scope === 'all' : item.scope === 'component' && item.componentId === selected)
     detail.replaceChildren()
     const back = element('button', 'update-back-to-components', '対象一覧へ ↑')
     back.type = 'button'; back.addEventListener('click', () => {
@@ -104,7 +148,7 @@ export function createUpdateCenter({ root, api, buttons }) {
     detail.append(element('h3', 'update-detail-title', component?.name ?? '製品全体のアップデート'))
     detail.append(element('p', 'update-detail-description', component?.description ?? '各機能の状態を確認し、互換性のある更新計画を選びます。'))
     const versions = element('div', 'update-versions')
-    for (const [label, value] of [['現在稼働', component ? versionLabel(component.current) : '一覧で各機能を確認'], ['正式公開版', component?.published ? versionLabel(component.published) : '情報を取得できません']]) {
+    for (const [label, value] of [[selectedPlan ? '計画時の稼働版' : '現在稼働', selectedPlan ? versionLabel(selectedPlan.targets[0].current) : component ? versionLabel(component.current) : '一覧で各機能を確認'], [selectedPlan ? '固定した更新先' : '正式公開版', selectedPlan ? versionLabel(selectedPlan.targets[0].published) : component?.published ? versionLabel(component.published) : '情報を取得できません']]) {
       const column = element('div', '')
       column.append(element('span', 'update-field-label', label), element('strong', '', value))
       versions.append(column)
@@ -115,9 +159,19 @@ export function createUpdateCenter({ root, api, buttons }) {
       const section = element('section', 'update-detail-section')
       section.append(element('h4', '', '機能の利用状態'), element('p', '', available.available === true ? '利用可能' : available.available === false ? '利用できません' : '確認不能'))
       if (available.reason) section.append(element('p', '', explanation(available.reason)))
-      section.append(element('p', '', comparisons[component.comparison.state]))
+      section.append(element('p', '', comparisonLabel(component)))
       if (component.comparison.reason) section.append(element('p', '', explanation(component.comparison.reason)))
       detail.append(section)
+      const published = element('section', 'update-detail-section update-publication')
+      published.append(element('h4', '', '公開情報の確認'))
+      if (component.publication) {
+        const { catalog, check } = component.publication
+        published.append(element('p', check.status === 'verified' ? '' : 'update-failure', { verified: '配布情報の取得を確認しました。', failed: '配布情報の取得確認に失敗しました。最新版とは確認できていません。', unconfirmed: '配布情報の取得確認は未確定です。最新版とは確認できていません。' }[check.status]))
+        published.append(element('p', '', `受入済み情報の公開日時: ${formatDate(catalog.publishedAt)} / 有効期限: ${formatDate(catalog.expiresAt)}`))
+        if (check.checkedAt) published.append(element('p', '', `取得の確認日時: ${formatDate(check.checkedAt)}`))
+        if (check.error) published.append(element('p', 'update-failure', explanation(check.error)))
+      } else published.append(element('p', '', '公開情報の受入・取得確認は未確認です。'))
+      detail.append(published)
     }
     const changes = element('section', 'update-detail-section')
     changes.append(element('h4', '', 'この更新で変わること'))
@@ -125,51 +179,155 @@ export function createUpdateCenter({ root, api, buttons }) {
     else changes.append(element('p', '', '正式版の変更内容を取得できていません。'))
     detail.append(changes)
     const impact = element('section', 'update-impact')
-    impact.append(element('h4', '', '対象と影響'), element('p', '', selectedPlan?.impact.description ?? '更新計画が未提供のため、実際の更新対象と影響は確認できません。'))
-    if (selectedPlan?.impact.containerRestart) impact.append(element('p', 'update-failure', 'コンテナの再起動が必要です。実行前に中断の影響を確認してください。'))
+    impact.append(element('h4', '', '対象と影響'), element('p', '', displayPlan?.impact.description ?? '更新計画が未提供のため、実際の更新対象と影響は確認できません。'))
+    if (displayPlan?.impact.containerRestart) impact.append(element('p', 'update-failure', 'コンテナの再起動が必要です。実行前に中断の影響を確認してください。'))
+    if (selectedPlan) {
+      const target = selectedPlan.targets[0]
+      impact.append(element('p', 'update-fixed-target', `固定した更新先: ${target.published.version}`))
+      impact.append(element('p', '', `計画の有効期限: ${formatDate(selectedPlan.expiresAt)}`))
+    }
     detail.append(impact)
     const progress = element('section', 'update-detail-section update-result')
     progress.append(element('h4', '', '進行と実際の結果'))
-    const current = inventory?.operation
-    const previous = inventory?.previousOperation
-    const affects = item => item && (selected === 'all' || item.plan.targets.some(target => target.componentId === selected))
-    const result = affects(current) ? current : affects(previous) ? previous : null
     if (result) {
       if (result === previous) progress.append(element('p', '', '前回の更新'))
-      progress.append(element('p', 'update-result-state', phases[result.phase]))
+      progress.append(element('p', 'update-result-state', result === ownResult && resultUnconfirmed ? `結果確認不能 / 最終確認: ${phases[result.phase]}` : phases[result.phase]))
       progress.append(element('p', '', `受付: ${{ accepted: '受付済み', rejected: '未受付', unknown: '確認不能' }[result.admission]} / 実行: ${outcomes[result.execution]} / 稼働確認: ${outcomes[result.verification]}`))
       if (result.error) progress.append(element('p', 'update-failure', result.error.message))
     } else progress.append(element('p', 'update-result-state', inventory ? '更新の記録はありません' : '更新の結果を確認できません'))
     detail.append(progress)
-    const action = element('button', 'update-execute', '更新を実行できません')
-    action.type = 'button'; action.disabled = true
-    const reason = element('p', 'update-action-reason', component && !component.capability.supported ? explanation(component.capability.reason) : selectedPlan && !selectedPlan.capability.supported ? explanation(selectedPlan.capability.reason) : '更新計画と実行機構の接続後に操作できます。')
+    if (pending || operationMessage) {
+      const message = element('p', 'update-operation-message', operationMessage || '同じ要求の進行と結果を確認しています。')
+      message.setAttribute('role', 'status'); detail.append(message)
+    }
+    const action = element('button', 'update-execute', submitting ? '受付を確認しています…' : planning ? '計画を取得しています…' : selectedPlan ? 'この計画で本体を更新' : canPlan() ? '本体の更新計画を確認' : '更新を実行できません')
+    action.type = 'button'; action.dataset.updateControl = 'execute'
+    if (selectedPlan?.impact.containerRestart) {
+      const label = element('label', 'update-restart-confirm')
+      const checkbox = element('input', '')
+      checkbox.type = 'checkbox'; checkbox.checked = confirmed; checkbox.disabled = submitting
+      checkbox.dataset.updateControl = 'restart-confirm'
+      checkbox.addEventListener('change', () => { confirmed = checkbox.checked; action.disabled = !canExecute() })
+      label.append(checkbox, element('span', '', '全Botの会話と処理が一時中断することを確認しました。'))
+      detail.append(label)
+    }
+    action.disabled = selectedPlan ? !canExecute() : !canPlan()
+    action.addEventListener('click', () => { if (selectedPlan) void execute(); else void requestPlan() })
+    let reasonText = selected === 'container' ? '対象版と影響を確認してから、明示的に更新します。' : 'この対象の更新実行は、まだ接続されていません。'
+    if (component && !component.capability.supported) reasonText = explanation(component.capability.reason)
+    if (selectedPlan && !selectedPlan.compatibility.compatible) reasonText = explanation(selectedPlan.compatibility.reason) || '計画の互換性を確認できません。'
+    if (selectedPlan && !selectedPlan.capability.supported) reasonText = explanation(selectedPlan.capability.reason)
+    if (selectedPlan && Date.parse(selectedPlan.expiresAt) <= Date.now()) reasonText = '計画の有効期限が切れました。計画を再取得してください。'
+    if (pending) reasonText = '結果が確認できるまで、新しい更新を開始しません。'
+    const reason = element('p', 'update-action-reason', storageFailure || reasonText)
     reason.id = 'update-action-reason'; action.setAttribute('aria-describedby', reason.id)
     detail.append(action, reason)
+    if (selectedPlan && !pending && !submitting) {
+      const replan = element('button', 'update-replan', '計画を再取得')
+      replan.type = 'button'; replan.disabled = planning; replan.dataset.updateControl = 'replan'
+      replan.addEventListener('click', () => { void requestPlan() }); detail.append(replan)
+    }
+  }
+  async function requestPlan() {
+    if (!canPlan()) return
+    const read = ++planGeneration
+    planning = true; planned = null; confirmed = false; operationMessage = ''; renderDetail()
+    try {
+      const value = await api('/api/updates/plans', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scope: 'component', componentId: 'container' }) })
+      if (read !== planGeneration || disposed) return
+      const next = value?.plan
+      if (!plan(next) || next.scope !== 'component' || next.componentId !== 'container'
+        || next.targets.length !== 1 || next.targets[0].componentId !== 'container' || Date.parse(next.expiresAt) <= Date.now()) throw Error('INVALID_PLAN')
+      planned = next
+    } catch {
+      if (read === planGeneration && !disposed) operationMessage = '更新計画を確認できませんでした。状態を確認して、計画を再取得してください。'
+    } finally {
+      if (read === planGeneration && !disposed) { planning = false; render() }
+    }
+  }
+  function clearPending() {
+    pending = null
+    try { requestStorage?.removeItem(requestKey) } catch { /* A confirmed terminal can be read again after reload. */ }
+  }
+  function applyOperation(value, request) {
+    if (!value || !operation(value) || value.requestId !== request.requestId || value.plan.planId !== request.planId
+      || value.plan.scope !== 'component' || value.plan.componentId !== 'container' || value.plan.targets.length !== 1 || value.plan.targets[0].componentId !== 'container') throw Error('INVALID_OPERATION')
+    if (ownResult?.requestId === value.requestId && terminal(ownResult) && !terminal(value)) return
+    ownResult = value; operationMessage = ''
+    resultUnconfirmed = value.phase === 'unknown' || value.admission === 'unknown'
+    if (resultUnconfirmed) operationMessage = '結果を確認できません。同じ要求の状態を再取得してください。'
+    if (terminal(value)) { clearPending(); planned = null; confirmed = false }
+  }
+  async function execute() {
+    if (!canExecute()) {
+      if (planned && Date.parse(planned.expiresAt) <= Date.now()) { operationMessage = '計画の有効期限が切れました。計画を再取得してください。'; render() }
+      return
+    }
+    const target = planned
+    let request
+    try {
+      let requestId = globalThis.crypto.randomUUID?.()
+      if (!requestId) {
+        // randomUUID is unavailable on non-local HTTP; getRandomValues still provides platform randomness.
+        const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16))
+        bytes[6] = bytes[6] & 15 | 64; bytes[8] = bytes[8] & 63 | 128
+        const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+        requestId = [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join('-')
+      }
+      request = { requestId, planId: target.planId }
+      if (!uuid(request.requestId) || !requestStorage) throw Error('STORAGE_UNAVAILABLE')
+      const saved = JSON.stringify(request)
+      requestStorage.setItem(requestKey, saved)
+      if (requestStorage.getItem(requestKey) !== saved) throw Error('STORAGE_UNAVAILABLE')
+    } catch { operationMessage = '照会用の要求IDを保存できません。更新は開始していません。'; render(); return }
+    pending = request; ownResult = null; resultUnconfirmed = true; submitting = true; generation++
+    operationMessage = '更新の受付を確認しています。'; render()
+    try {
+      const value = await api('/api/updates/operations', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ planId: target.planId, requestId: request.requestId, confirmContainerRestart: target.impact.containerRestart && confirmed }) })
+      if (disposed) return
+      if (value?.operation?.admission !== 'accepted') throw Error('ADMISSION_UNKNOWN')
+      applyOperation(value.operation, request)
+    } catch (error) {
+      if (disposed) return
+      if (ownResult?.requestId !== request.requestId || ownResult.admission !== 'accepted') {
+        if ([400, 401, 403, 404, 409].includes(error?.status)) {
+          clearPending(); planned = null; confirmed = false
+          operationMessage = '更新は受け付けられませんでした。状態を確認し、新しい計画を取得してください。'
+        } else { resultUnconfirmed = true; operationMessage = '受付を確認できません。同じ要求の結果を確認します。更新は送り直しません。' }
+      }
+    } finally {
+      submitting = false
+      if (!disposed) { render(); await refresh() }
+    }
   }
   async function refresh() {
     if (!opened || disposed) return
     const read = ++generation
     loading = true; render()
-    let next = null, message = ''
-    try {
-      next = await api('/api/updates')
-      if (!validUpdateInventory(next)) { next = null; message = '更新情報の応答形式を確認できません。' }
-    } catch (error) {
-      message = error?.status === 404 ? 'レビュー用画面 · この接続先では共通更新情報が未提供です。' : error?.status === 401 || error?.status === 403 ? '更新情報を読む権限がありません。' : '接続先の更新情報を確認できません。再接続後に状態を再取得してください。'
-    }
+    const request = pending
+    const results = await Promise.allSettled([api('/api/updates'), ...(request ? [api(`/api/updates/operations/${request.requestId}`)] : [])])
     if (read !== generation || disposed) return
-    inventory = next; failure = message; loading = false; render()
+    const result = results[0]
+    inventory = result.status === 'fulfilled' && validUpdateInventory(result.value) ? result.value : null
+    failure = inventory ? '' : result.status === 'fulfilled' ? '更新情報の応答形式を確認できません。' : result.reason?.status === 404 ? 'レビュー用画面 · この接続先では共通更新情報が未提供です。' : [401, 403].includes(result.reason?.status) ? '更新情報を読む権限がありません。' : '接続先の更新情報を確認できません。再接続後に状態を再取得してください。'
+    if (request && pending?.requestId === request.requestId) {
+      try {
+        if (results[1].status !== 'fulfilled') throw Error('RESULT_UNAVAILABLE')
+        applyOperation(results[1].value?.operation, request)
+      } catch { resultUnconfirmed = true; operationMessage = '同じ要求の結果を確認できません。再接続後に状態を再取得してください。更新は送り直しません。' }
+    }
+    loading = false; render()
   }
   for (const button of buttons) button.addEventListener('click', () => {
     if (disposed) return
-    opener = button; opened = true
+    opener = button; opened = true; confirmed = false
     if (!root.open) root.showModal()
     void refresh()
   })
   refreshButton.addEventListener('click', () => { if (!loading) void refresh() })
   get('[data-update-close]').addEventListener('click', () => root.close())
-  root.addEventListener('close', () => opener?.focus())
+  root.addEventListener('close', () => { confirmed = false; opener?.focus() })
   render()
-  return { start() { opened = true; return refresh() }, refresh, close() { disposed = true; generation++ } }
+  return { start() { opened = true; return refresh() }, refresh, close() { disposed = true; generation++; planGeneration++ } }
 }

@@ -1,6 +1,6 @@
 # Update通知の表示・操作設計
 
-状態：2026-11-03にWeb担当が継続を引受、レビュー画面と既GETの実測表示を実装。共通計画/実行は未接続。既Ownerの実装許可を維持し、APIの供給範囲から継続する。入力はトロニーの[6機能定義](/srv/bellteam/bots/bot-7b140b27/docs/commercial-container-update-functions-20261102.md)、[継続工程](/srv/bellteam/bots/bot-7b140b27/docs/module-expansion-20261103.md)、[通知module契約](/srv/bellteam/bots/bot-7b140b27/docs/notification-update-contract-20261103.md)、[確定共通API](/srv/bellteam/bots/bot-7b140b27/docs/update-center-api-20261103.md)。Webの[現行図](README.md)、[runtime](../runtime/README.md)、[distribution](../distribution/README.md)、[Apple](../apple/README.md)へ接続する。公開版・比較・実行結果は本体が所有する。[runtime設計](../runtime/commercial-update-design.md)の状態分離を維持する。横断契約はRoot、共通組立て/APIはMolly、機構はEpi、正式公開版はCentiが持つ。
+状態：2026-11-03にWeb担当が継続を引受。共通inventoryの通常main採用に続き、PR274のcontainer個別plan/確認/start/同ID照会とpublication表示を接続。all/独立moduleの共通耐久操作、正式catalog/実Host設置は未供給。既Ownerの実装許可を維持し、APIの供給範囲から継続する。入力はトロニーの[6機能定義](/srv/bellteam/bots/bot-7b140b27/docs/commercial-container-update-functions-20261102.md)、[継続工程](/srv/bellteam/bots/bot-7b140b27/docs/module-expansion-20261103.md)、[通知module契約](/srv/bellteam/bots/bot-7b140b27/docs/notification-update-contract-20261103.md)、[確定共通API](/srv/bellteam/bots/bot-7b140b27/docs/update-center-api-20261103.md)。Webの[現行図](README.md)、[runtime](../runtime/README.md)、[distribution](../distribution/README.md)、[Apple](../apple/README.md)へ接続する。公開版・比較・実行結果は本体が所有する。[runtime設計](../runtime/commercial-update-design.md)の状態分離を維持する。横断契約はRoot、共通組立て/APIはMolly、機構はEpi、正式公開版はCentiが持つ。
 
 ## 6機能との対応
 
@@ -60,7 +60,32 @@ Updateは共通状態の更新あり/進行/失敗/確認不能を文字で区�
 
 ### Web内部の実装図
 
-11/3共通APIの採用sourceは`cc49ddbf8117035886ee6c8fa0c7095c8031846b`。公開JSONの一正本は`src/update-center-contract.mjs`、接続先図は[integrationの共通Update状態](../integration/README.md#共通update状態と受付段階接続)。Webは旧module別GETと固定3項目を廃止し、GET `/api/updates`の裸snapshotから実在componentsの名称/説明/current/published/comparison/capability/availabilityを表示する。schemaの独自field/nullは追加せず、表示に使う形と閉じた状態語を検証して不正時は確認不能にする。正式版/実行機構未供給のcapabilityfalse/plans[]を実行可能へ変えない。計画/操作POSTは今回のinventory接続段階では発行しない。
+#### container個別の計画・実行接続
+
+公開契約の固定sourceはPR274/main`058f601d11ce9439b6a43e57dbbe2611e52d5389`。component.publicationを必須nullableとして追加し、受入catalogの日時/期限とfeed取得確認（verified/failed/unconfirmed）を分離する。取得失敗/未確認のcomparisonを最新版確認済みと表示しない。受入済みcatalogに更新先が残る場合の実行可否は本体capability/固定planに従い、Webがcatalogの採否を変えない。
+
+```mermaid
+flowchart TD
+  Inventory["共通GET: containerの実行可否とpublication"] -->|"明示操作・container個別だけ"| Plan["POST plans / 固定target・版・期限・影響"]
+  Plan --> Inspect["固定計画を表示 / 再起動が必要ならcheckbox確認"]
+  Inspect -->|"明示実行一回"| Save["canonical UUIDv4とplanIdをsessionStorageへ保存"]
+  Save -->|"保存成功だけ"| Start["POST operations / 同じplanId・requestId・確認値"]
+  Start -->|"Host永続受領済みの応答"| Result["同IDの実行・稼働検証を表示"]
+  Start -->|"切断 / 5xx / 不正応答"| Unknown["受付不明を保持 / 自動再POSTなし"]
+  Unknown --> Read["GET operations/requestId"]
+  Reload["再読込 / ready / updates / 表示復帰 / 手動再取得"] --> Read
+  Read --> Result
+  Inventory -.->|"取得不能でも結果GETは独立"| Read
+  Result -->|"確認済み終端だけ"| Clear["照会用IDを削除 / 次の明示計画へ"]
+```
+
+Webはcontainer以外のplan/startを今回有効にしない。all/独立moduleは未供給理由付き無効。plan responseはcontainer単独/固定版/互換/期限/権限を検証し、選択変更や新計画で再起動確認を解除する。明示実行はcheckbox確認と保存成功を必要とし、二重クリック/旧plan応答/期限切れ/Host409で別targetへ自動変更しない。
+
+同origin・同tabで再読込を跨ぐ照会用の`bellteam-update-request.v1`をsessionStorageへ置く。保存するのはcanonical requestIdとplanIdだけで、版・結果・受付の正本ではない。保存/復元ができない場合は新規実行を止めて理由を示す。POST応答が不明ならIDを残し同ID GETだけで復帰。GET結果のUUID/planIdが違う、形式不正、404/5xxも未受付や完了へ変えない。400/401/403/404/409の明確な受付拒否だけは新計画を要求する。実行/稼働確認の両成功、又は明確な拒否/実行失敗の終端以外では照会IDを破棄しない。
+
+更新結果GETはinventoryと独立に行い、catalog/feed障害で照会を塞がない。取得中の古いinventory/plan/operation応答を新操作へ適用しない。本番/実Hostは担当の既条件で、Webの人工例や隔離HTTPの成功を実配備へ加算しない。
+
+11/3共通APIの採用sourceは`cc49ddbf8117035886ee6c8fa0c7095c8031846b`。公開JSONの一正本は`src/update-center-contract.mjs`、接続先図は[integrationの共通Update状態](../integration/README.md#共通update状態と受付段階接続)。Webは旧module別GETと固定3項目を廃止し、GET `/api/updates`の裸snapshotから実在componentsの名称/説明/current/published/comparison/capability/availabilityを表示する。schemaの独自field/nullは追加せず、表示に使う形と閉じた状態語を検証して不正時は確認不能にする。正式版/実行機構未供給のcapabilityfalse/plans[]を実行可能へ変えない。当時のinventory接続段階は読取だけ。現在のcontainer個別操作は上記PR274の接続契約に従う。
 
 操作と前回結果は正本にある場合だけphase/execution/verificationを分けて描画し、completedは実行/実稼働検証の両成功を必要とする。availabilityは版採用と別欄で表示。未独立の項目も一覧から隠さず、公開理由を表示して実行を無効にする。常設Updateの状態語はnotice、最新版はcomparisonのAPI確認時だけ。起動/ready/updates/表示復帰で既GETへ再同期し、新SSE/poll/ローカル保存の版は作らない。
 
@@ -107,13 +132,13 @@ flowchart TD
   Confirm -->|"未確認 / 不一致 / 確認不能"| Keep["その状態を表示"]
 ```
 
-公開本体からHost installerへ明示操作を渡す経路は現状未提供。既存installerが停止を跨げることだけで実行可能にしない。起動経路・配置・writer/権限・受付の相関をruntime/配布/統合と合わせるまで、設計上も実行可能として扱わない。Hostの設定をWeb担当が変更しない。
+公開本体から限定Host受付・本体外workerへ渡すsourceはPR274で実装済み。実設置/正式catalogが未供給の環境ではcapabilityを無効にする。Hostの設定や実設置をWeb担当が変更せず、sourceの成立だけで実行可能と扱わない。
 
 受付保存は本体、実行の進行/結果は本体外の一回実行が別の結果文書を所有するruntime案へ接続する。Webは複数writerの私有ファイルを直接読まず、本体の共通状態だけを表示する。受付保存済みでも、実行への引渡し未確認・開始失敗・開始したか不明を「更新中」へまとめない。結果が確認できないまま無期限に処理中の表示を続けず、確認不能として示す。
 
-Root共通APIは応答前に固定対象を永続化し、利用者の一回の実行操作にrequestId UUIDを一つ割り当てる。応答喪失/再接続後は同じrequestIdのGETで照会し、自動再POSTしない。共通snapshotの現在/直前結果も各アプリから読む。同じ版だけで自分の要求に結び付けず、照会不能は確認不能のままにする。requestIdの保存範囲/更新後の再読取はMolly/Epiの実装に合わせる。
+Root共通APIは応答前に固定対象を永続化し、利用者の一回の実行操作にrequestId UUIDを一つ割り当てる。応答喪失/再接続後は同じrequestIdのGETで照会し、自動再POSTしない。共通snapshotの現在/直前結果も各アプリから読む。同じ版だけで自分の要求に結び付けず、照会不能は確認不能のままにする。Webは同origin/tabのsessionStorageへ照会ID/planIdを保存し、再読込後に同IDのGETへ戻す。受付/結果の正本はMolly/Epiが持つ。
 
-この図は設計中の表示・実行条件を明記するもので、現行のmodule.jsonへ未実装接続を追加しない。全体の現行図は変更不要。
+この図は表示・実行の条件を示す。今回のcontainer接続は既HTTP/SSE内なのでmodule.jsonの接続変更はなく、全体図の再生成結果も不変。all/独立moduleの未実装操作を実装済みとして追加しない。
 
 ## Appleとの互換・復帰契約
 
@@ -143,11 +168,11 @@ Appleの現在資料は[iOS README](../../../../ios/BellBot/README.md)と[iPad�
 | 項目 | 判断・実行の担当 | 次に揃える情報 / 完了条件 |
 | --- | --- | --- |
 | 会話中の通知位置 | Webはアドミ、Appleはベル | Webは狭幅chat headerのロゴ右を実装/確認済み。Appleの配置変更をWebで裁定しない |
-| 公開状態の形式 | 共通契約Root、実装Molly、Web/Appleは利用側 | Root API契約でschema/state/URL/SSEを固定。Mollyの厳密schema/finite JSON/null例/採用SHAの供給から実接続 |
-| 停止を跨ぐ実行経路 | エピネル、配布構成はセンチ、契約接続はトロニー | 本体外の既存一回実行への引渡しと起動の可否を確定。提供可能と確認されるまで実行不可 |
-| 受付保存と結果の相関 | エピネル、契約接続はトロニー | 永続する保存世代、writer/権限、要求との相関、再接続後の共通結果読取を確定。結び付け不能をWebで補完しない |
-| 正式版と配布物、審査環境の区分 | センチ | 正式公開版・不変の配布物・変更内容の元情報、審査環境の商用/非商用区分と更新提供範囲。現時点で合意未成立 |
+| 公開状態の形式 | 共通契約Root、実装Molly、Web/Appleは利用側 | PR274の厳密schema/9有限例/publication nullable/URL/SSEを供給済み。同sourceからWebを接続 |
+| 停止を跨ぐ実行経路 | Epi、配布Centi、共通接続Molly、契約/実設置Root | Host限定受付/別workerのsourceを供給済み。実設置は未供給、環境のcapability falseをWebで変更しない |
+| 受付保存と結果の相関 | Epi/Molly、契約Root | canonical UUIDv4と固定plan、Host永続受領後202、同ID GETの公開sourceを供給済み。WebはsessionStorageのIDで照会を復元 |
+| 正式版と配布物、審査環境の区分 | Centi/Root | 署名catalog/発行・検証sourceは既工程。実正式catalogの供給/Host設置は未成立。publicationと実行可否をそのまま表示 |
 
-今回のWeb画面は担当checkoutの差分で、通常main採用/本番反映は未成立。過去の分離mainや既配備を今回の実更新完了へ読み替えない。Rootの最新本番裁定を使う。
+inventory読取のWebはmain9e83c192へ採用済み。今回のcontainer操作接続は担当checkoutの差分で、通常main採用/本番反映は未成立。過去の分離mainや既配備を今回の実更新完了へ読み替えない。Rootの最新本番裁定を使う。
 
-この表は担当へ既に渡した設計案の残りを示す。回答を重複依頼しない。センチへの配送未達はトロニーと実行担当の正規復帰確認を受けて扱い、無条件再送しない。Appleとの連絡はトロニーの既通話中継を使い、Web担当が他者の通話を操作しない。未合意の配置や権限をWeb側で補完しない。
+現在の供給範囲と未成立の実設置を分けた表である。同じ回答や採否を重複依頼しない。Apple内部やHost配置/権限をWeb担当が無断変更せず、各担当の公開窓口を使う。
