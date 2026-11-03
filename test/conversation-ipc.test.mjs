@@ -12,6 +12,7 @@ import { ConversationLifetimes } from '../src/conversation-lifetimes.mjs'
 import { createConversationObserverParentEffects } from '../src/conversation/observer-parent.mjs'
 import { createConversationPeer } from '../src/conversation-channel.mjs'
 import { createConversationParentEffects } from '../src/conversation-parent-effects.mjs'
+import { createConversationFacade } from '../src/conversation-facade.mjs'
 
 function pair() {
   const endpoints = [new EventEmitter(), new EventEmitter()]
@@ -110,6 +111,67 @@ test('parent save effect receives the same RPC actualCompletion before begin and
   assert(calls.every(call => call.context === calls[0].context && call.context.actualCompletion === request.completion))
   notification.resolve(); await request; await request.completion
   assert.equal(resultDone, true); gateDone.resolve()
+})
+
+test('parent display callback saves through the child writer without a delivery and waits for its event', { timeout: 4000 }, async t => {
+  const h = await setup(t), actor = { kind: 'observer' }
+  const capturedAuthority = {}, rootAuthority = {}, rootsDone = Promise.withResolvers()
+  // This independent parent only accepts its captured system token for the fixed display callback.
+  const endpoints = pair(), admission = new ConversationLifetimes('generation-display')
+  let child, dispatch
+  const saved = Promise.withResolvers(), releaseEvent = Promise.withResolvers()
+  const parent = createConversationParentChannel(endpoints[0], { generation: 'generation-display', admission,
+    authorizeActor: (method, value) => method === 'display.words' && value === capturedAuthority ? actor
+      : method === 'rooms.list' && value === rootAuthority ? { kind: 'owner' } : false,
+    onEffect: method => { assert.equal(method, 'members.profiles.read'); return { bots: h.fixture.bots } },
+    onEvent: async () => { saved.resolve(); await releaseEvent.promise } })
+  dispatch = createConversationDispatcher({ root: h.root, effect: (...args) => child.effect(...args), event: (...args) => child.event(...args), trackBackground: (...args) => child.trackBackground(...args) })
+  child = createConversationChildChannel({ dispatcher: { ...dispatch, dispatch: (method, ...args) => method === 'rooms.list'
+    ? rootsDone.promise.then(() => dispatch.dispatch(method, ...args)) : dispatch.dispatch(method, ...args) }, endpoint: endpoints[1], versionId: null })
+  t.after(async () => { releaseEvent.resolve(); if (endpoints[0].connected) endpoints[0].disconnect(); await parent.drainIncoming(); await parent.reaped() })
+  await parent.control('initialize', { generation: 'generation-display', mode: 'restore', bots: h.fixture.bots }); await parent.ready; await parent.control('resume')
+  const lease = admission.enter(), options = { conversationLease: lease, capturedAuthority, operationContext: {} }
+  const roots = Array.from({ length: 8 }, () => parent.request('rooms.list', {}, { ...options, capturedAuthority: rootAuthority }))
+  await settle(); assert.equal(parent.snapshot().root, 8)
+  const params = { botId: h.fixture.bots[0].id, groupId: 'native-display-a', words: [{ text: 'hello', kind: 'answer' }] }
+  await assert.rejects(parent.request('display.words', params, options))
+  await assert.rejects(parent.callback('display.words', params, { ...options, capturedAuthority: {} }))
+  let finished = false
+  const attempt = parent.callback('display.words', params, options); attempt.completion.then(() => { finished = true })
+  await saved.promise; assert.equal(finished, false); assert.equal(parent.snapshot().deliveries, 0)
+  const rows = (await readFile(join(h.root, 'logs/direct-messages.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse)
+  assert.equal(rows.at(-1).group_id, params.groupId); assert.equal(rows.at(-1).text, 'hello')
+  releaseEvent.resolve(); assert.deepEqual(await attempt, { applied: true }); await attempt.completion
+  assert.equal(finished, true)
+  rootsDone.resolve(); await Promise.all(roots)
+})
+
+test('onboarding recordUser false reaches the real child turn without writing a user record', { timeout: 4000 }, async t => {
+  const h = await setup(t), target = h.fixture.bots[0].id
+  await assert.rejects(h.request('user.post', { target, message: 'guide', images: [], recordUser: false }))
+  assert.equal(h.native.length, 0)
+  const attempt = h.request('user.turn', { target, message: 'guide', images: [], recordUser: false }, { kind: 'onboarding', botId: target })
+  await attempt.accepted
+  await assert.rejects(readFile(join(h.root, 'logs/direct-messages.jsonl')), { code: 'ENOENT' })
+  assert.equal(h.native.length, 1)
+  const delivery = h.native[0].delivery
+  await h.admission.invoke(delivery, 'user.complete', { reply: { delivery: 'steered' } })
+  h.admission.finish(delivery)
+  assert.equal((await attempt).delivery, 'steered')
+  await h.parent.control('quiesce')
+})
+
+test('facade reaches real child Room projection, writer and complete history stream', { timeout: 4000 }, async t => {
+  const h = await setup(t), options = { operationContext: h.operationContext }
+  const facade = createConversationFacade({ getController: () => ({ request: (method, params, captured) => h.request(method, params, { kind: 'owner' }, captured) }),
+    context: (method, value) => { assert.equal(value, options); return { operationContext: value.operationContext } } })
+  await facade.rooms.refresh(options)
+  assert.equal(facade.rooms.get('room-conversation-probe').id, 'room-conversation-probe')
+  await facade.messenger.sendmessage({ from: h.fixture.bots[0].id, target: 'user', message: 'facade-history' }, options)
+  const rows = await facade.store.timeline(h.fixture.bots[0].id, options)
+  assert.equal(rows.at(-1).message, 'facade-history')
+  assert.deepEqual(await facade.rooms.messages('room-conversation-probe', options), [])
+  await h.parent.control('quiesce')
 })
 
 test('real channel envelopes keep parallel per-call authority and same opaque operation identities', { timeout: 4000 }, async t => {

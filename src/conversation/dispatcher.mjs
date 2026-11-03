@@ -129,6 +129,7 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
     if (!accepting && !context.continuation) throw failure('CONVERSATION_UNAVAILABLE')
   }
   function validateCallback(method, params, context) {
+    if (method === 'display.words') { validateConversationRequest(method, params, context); assertContext(context); return }
     validateConversationCallback(method, params)
     validateConversationCallbackContext(method, context)
     assertContext(context)
@@ -218,6 +219,9 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
       case 'delivery.closeLaunch': return messenger.closeDeliveryLaunch(params.deliveryId, params.target).then(({ closed, ...result }) => ({ ...result, closureId: closed.closureId }))
       case 'call.receive': return messenger.receiveCallBridge(params)
       case 'observation.poll': return selfTurns.poll().then(() => ({ applied: true }))
+      case 'display.words':
+        if (!bots.has(params.botId)) throw new Error(`BOT_NOT_FOUND: ${params.botId}`)
+        return messenger.appendInterimWords(params.botId, params.groupId, params.words).then(() => ({ applied: true }))
       default: throw failure('CONVERSATION_INPUT_INVALID')
     }
   }
@@ -277,7 +281,8 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
     return value
   }
   return { validateRequest, dispatch, validateCallback,
-    dispatchCallback: (method, params, context) => { validateCallback(method, params, context); return track(native.dispatchCallback(method, params, context)) },
+    dispatchCallback: (method, params, context) => { validateCallback(method, params, context); return method === 'display.words'
+      ? dispatch(method, params, context) : track(native.dispatchCallback(method, params, context)) },
     releaseDelivery: binding => native.releaseDelivery(binding), control,
     disconnect: async () => { accepting = false; exiting = true; epoch++; native.disconnect(failure('CONVERSATION_DISCONNECTED')); await drain() },
   }

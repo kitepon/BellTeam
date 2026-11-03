@@ -167,3 +167,30 @@ channelのattachは送信試行前に受け取った実`completion`をrecord.act
 画像wire handleは同enriched context identityへ束縛し、その時点のgate/runtimeを保持する。clone/別RPC/別generationはlookup後の実gate assert前にも拒否する。readの実Promiseも実read開始前にgateへ登録する。endSaveの実終端PromiseはACKでawaitせず、成功終端後にhandleを破棄する。子がendSaveを送れなかった場合も同RPC実completionのsettleだけを契機に終了要請し、切断や期限から成功resolveを作らない。gateの実pending/削除drain/OS終端契約は変更しない。
 
 直接試験は`test/conversation-parent-effects.test.mjs`と`test/conversation-ipc.test.mjs`の親保存接点。fresh射影・閉委譲・同context・元Promise identity・begin ACK前追跡・end requested中の未終端保持・別source handle拒否を確認する。親全assembly/HTTP/MCP/実C/native/署名/本番の成立は別工程である。
+
+## 既callerの親facadeと表示callback
+
+モリー11/4 01:15頃の正式移管により、`createConversationFacade({getController,context})`はN102所有。rooms/assets/messenger/roomMessenger/store/selfTurnsの既callerを固定methodへ正規化する。getControllerは各RPCで取得し、元optionsを同identityでcontext(method,options)へ渡す。返る親captured optionsはRPCごとのmutable objectで、履歴だけonChunkを付け、その同objectをcontrollerへ渡す。親lease/operationContext/authorityや元accepted/completionをcloneしない。結果の射影が不要な送信は元Promiseをそのまま返し、射影時もaccepted/completionを元実体へ結ぶ。
+
+```mermaid
+flowchart LR
+  Caller[既HTTP/MCP/予定/初期案内caller] --> Facade[固定public facade]
+  Facade --> Context[親context / 同options・opaque]
+  Context --> Controller[毎回getController / 実request-callback]
+  Controller --> Child[子dispatcher / 唯一writer]
+  Child --> Fresh[rooms.list/readの実ACK]
+  Fresh --> Projection[親readonly Room投影 / get-has-valuesは同期]
+  Child --> History[同snapshot全件history stream]
+  History --> Index[親一回読取 / 既TimelineIndex / usage cardsは親合成]
+  Native[親実observer / captured system口] --> Display[専用callback lane display.words]
+  Display --> Child
+```
+
+Roomのget/has/values/keys/entries/require/sizeは同期の表示投影だけ。refresh/readの成功後に更新し、部屋定義とmemberIds配列はreadonlyとする。新規認可には使わず、HTTP/MCP/予定は同親contextでfreshを待ち、子も既資格を検査する。削除成功後は当該投影を除き、members removeBot後は全投影を失効させ次freshへ。履歴list2をonChunkで一回集成し既JSON reader/TimelineIndexへ渡し、件数/本文の新上限や二回目のJSON生成を足さない。複数BotのtimelineViewsは各既rootのsnapshotで、全Bot同一瞬間の新transaction保証を作らない。
+
+| 固定口 | 親の捕捉・入力・終端 |
+| --- | --- |
+| `display.words` | 親context DIがobserver actorのsystem opaqueを捕捉。専用callback laneのみ、root requestは拒否。`{botId,groupId,words}`を閉検証し、delivery登録不要で子appendInterimWordsへ。wordsは既text/kind/atだけ。Owner/Bot bodyや偽deliveryで権限を作らない。同RPC実completionは保存と親event終端後にだけ完了 |
+| `user.post/user.turn`の`recordUser:false` | 親のonboarding actorだけを許可しtargetは同botId。Owner/Bot/usageの自己申告falseは拒否、公開HTTP bodyから新権限を増やさない。true/省略は既意味。同期acceptedと元実completionを保持し、初期案内のユーザー記録を省く |
+
+assets.open/prepareBotAssetRemoval/cancelBotAssetRemovalは親同gate/FDへモリーが合成する。selfTurns.start/stopのpoll timerとstore/rooms.watchの親event寿命、共有application-services/runtime/HTTP/MCP/ledgerと旧writer撤去もモリー所有。facadeには第二writer/タイマー/任意methodを追加しない。既callback5種へのdisplay偽登録やsystem actorの追加は行わず、7actorのobserver捕捉に固定callback権限だけを足す。

@@ -1,5 +1,5 @@
 import { assertConversationRootAuthority } from './authority.mjs'
-import { CONVERSATION_CALLBACK_METHODS } from './callbacks.mjs'
+import { CONVERSATION_CALLBACK_METHODS, validateConversationCallback } from './callbacks.mjs'
 
 const invalid = () => { throw Object.assign(new Error('CONVERSATION_REQUEST_INVALID'), {
   code: 'CONVERSATION_REQUEST_INVALID', status: 400, outcome: 'not_accepted',
@@ -61,7 +61,14 @@ export function validateConversationRequest(method, params, context) {
     case 'member.removeFromRooms': return fields(params, { botId: id })
     case 'history.listMessages': return fields(params, { botId: id })
     case 'direct.post': return fields(params, { from: id, target: id, ...post })
-    case 'user.post': case 'user.turn': return fields(params, { target: id, ...post })
+    case 'user.post': case 'user.turn':
+      fields(params, { target: id, ...post }, { recordUser: bool })
+      if (params.recordUser === false && context.actor.kind !== 'onboarding') invalid()
+      return true
+    case 'display.words':
+      fields(params, { botId: id, groupId: identity, words: Array.isArray })
+      validateConversationCallback('delivery.words', { words: params.words })
+      return true
     case 'room.post': return fields(params, { from: id, room: roomId, ...post }, {
       targets: nullable(array(id)), kind: oneOf('message', 'schedule'),
       schedule: nullable(value => fields(value, { id: nonempty, name: text })),

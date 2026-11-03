@@ -50,7 +50,7 @@ export function validateConversationResult(method, value) {
     case 'assets.save': if (!asset(value)) invalid(); return true
     case 'assets.saveAll': if (!array(asset)(value)) invalid(); return true
     case 'call.receive': return fields(value, { delivery, delivery_id: nonempty, target: id })
-    case 'observation.poll': return fields(value, { applied: value => value === true })
+    case 'observation.poll': case 'display.words': return fields(value, { applied: value => value === true })
     default: invalid()
   }
 }

@@ -173,22 +173,25 @@ export function createConversationParentChannel(child, { generation, admission, 
       for (const source of record.observerSources?.values() ?? []) if (!source.finished) { source.finished = true; admission.finish(source.source) }
     }).catch(() => {})
   }
-  function request(method, params, options = {}) {
+  function request(method, params, options = {}, kind = 'root') {
     let lease, actor
     try { lease = admission.assertLease(options.conversationLease, { generation }); actor = authorizeActor(method, options.capturedAuthority)
+      check((method === 'display.words') === (kind === 'callback'))
       validateConversationRequest(method, params, { generation, operationId: lease.correlation, actor, continuation: lease.epoch !== admission.capture().epoch }) }
     catch (cause) {
       const rejected = Promise.reject(cause); rejected.catch(() => {}); rejected.completion = rejected
       if (method === 'user.turn') rejected.accepted = rejected
       return rejected
     }
-    return peer.call('root', method, params, {
+    return peer.call(kind, method, params, {
       context: Object.freeze({ generation, operationId: lease.correlation, actor: Object.freeze({ ...actor }), continuation: lease.epoch !== admission.capture().epoch }),
       onChunk: options.onChunk,
       beforeSend: (completion, context, id) => attach(method, options, context, completion, id),
     })
   }
-  function callback(method, params, { conversationDelivery } = {}) {
+  function callback(method, params, options = {}) {
+    if (method === 'display.words') return request(method, params, options, 'callback')
+    const { conversationDelivery } = options
     const info = deliveries.get(conversationDelivery); check(info)
     const context = admission.binding(conversationDelivery, method)
     admission.assertCallback(conversationDelivery, context); validateConversationCallback(method, params)
@@ -260,10 +263,12 @@ export function createConversationChildChannel({ dispatcher, endpoint = process,
       }
       check(['root', 'callback'].includes(entry.kind) && entry.context?.generation === generation)
       const context = Object.freeze(structuredClone(entry.context))
-      if (entry.kind === 'callback') {
+      if (entry.kind === 'callback' && entry.method === 'display.words') {
+        check(entry.source === null && context.actor?.kind === 'observer')
+      } else if (entry.kind === 'callback') {
         validateConversationCallbackContext(entry.method, context)
         const source = deliveries.get(bindingKey(context)); check(source && source.record.id === entry.source)
-      } else check(accepting || context.continuation === true)
+      } else check(entry.method !== 'display.words' && (accepting || context.continuation === true))
       const record = { id: entry.id, context, refs: 0 }
       contexts.set(context, record)
       const finish = hold(record)

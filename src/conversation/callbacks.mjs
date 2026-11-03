@@ -92,7 +92,7 @@ export function normalizeConversationCallback(method, params) {
 }
 
 export function validateConversationCallbackResult(method, result) {
-  if (!CONVERSATION_CALLBACK_METHODS.includes(method)) fail()
+  if (method !== 'display.words' && !CONVERSATION_CALLBACK_METHODS.includes(method)) fail()
   object(result, ['applied'])
   if (result.applied !== true) fail()
 }
