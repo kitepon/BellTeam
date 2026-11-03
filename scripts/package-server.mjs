@@ -63,7 +63,7 @@ try {
   const codeFiles = [], seen = new Set()
   for (const item of codePaths.files) {
     if (Object.keys(item).sort().join(',') !== 'imagePath,installPath'
-      || typeof item.imagePath !== 'string' || !/^\/app\/(?:install\.sh|(?:scripts|config)\/[a-zA-Z0-9][a-zA-Z0-9_.-]*|distribution\/server\/updater\/(?:host\.service\.in|catalog-refresh\.service\.in|catalog-refresh\.timer|compose\.overlay\.yaml))$/u.test(item.imagePath)
+      || typeof item.imagePath !== 'string' || !/^\/app\/(?:install\.sh|(?:scripts|config)\/[a-zA-Z0-9][a-zA-Z0-9_.-]*|distribution\/server\/updater\/(?:bellteam-container-update-host\.service\.in|bellteam-update-catalog-refresh\.service\.in|bellteam-update-catalog-refresh\.timer|compose\.overlay\.yaml))$/u.test(item.imagePath)
       || item.installPath !== item.imagePath.slice(5) || seen.has(item.imagePath)) throw new Error('Invalid root updater code path')
     seen.add(item.imagePath)
     const file = join(output, item.installPath), info = await lstat(file)

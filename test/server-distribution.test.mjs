@@ -25,7 +25,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'scripts/verify-notifications.py', 'scripts/notifications-start.c',
     'scripts/verify-update-catalog.py', 'scripts/update_catalog.py', 'config/update-catalog-verification.json',
     'scripts/container-update-host.py', 'scripts/install-container-update-code.py', 'scripts/cleanup-deploy-images.py', 'scripts/save-deploy-restore-point.py',
-    ...['host.service.in', 'catalog-refresh.service.in', 'catalog-refresh.timer', 'compose.overlay.yaml', 'README.md', 'root-code-paths.json'].map(name => 'distribution/server/updater/' + name),
+    ...['bellteam-container-update-host.service.in', 'bellteam-update-catalog-refresh.service.in', 'bellteam-update-catalog-refresh.timer', 'compose.overlay.yaml', 'README.md', 'root-code-paths.json'].map(name => 'distribution/server/updater/' + name),
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
     'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
     'scripts/seat-exec.c', 'scripts/server-start.c',
@@ -37,7 +37,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   ]
   for (const path of paths) {
     await mkdir(join(root, path, '..'), { recursive: true })
-    await writeFile(join(root, path), path === 'distribution/server/updater/root-code-paths.json' ? JSON.stringify({schema:'bellteam.host-updater.code-paths.v1',files:['scripts/container-update-host.py','install.sh','scripts/cleanup-deploy-images.py','scripts/save-deploy-restore-point.py','scripts/verify-update-catalog.py','scripts/update_catalog.py','scripts/module_artifact_verifier.py','scripts/web_gateway_artifact.py','config/update-catalog-verification.json','config/web-gateway-trusted-root.jsonl','distribution/server/updater/host.service.in','distribution/server/updater/catalog-refresh.service.in','distribution/server/updater/catalog-refresh.timer','distribution/server/updater/compose.overlay.yaml'].map(name=>({imagePath:'/app/'+name,installPath:name}))}) : path === 'config/bots.json' ? '{"bots":[{"id":"owner-private"}]}' : `${path}\n`)
+    await writeFile(join(root, path), path === 'distribution/server/updater/root-code-paths.json' ? JSON.stringify({schema:'bellteam.host-updater.code-paths.v1',files:['scripts/container-update-host.py','install.sh','scripts/cleanup-deploy-images.py','scripts/save-deploy-restore-point.py','scripts/verify-update-catalog.py','scripts/update_catalog.py','scripts/module_artifact_verifier.py','scripts/web_gateway_artifact.py','config/update-catalog-verification.json','config/web-gateway-trusted-root.jsonl','distribution/server/updater/bellteam-container-update-host.service.in','distribution/server/updater/bellteam-update-catalog-refresh.service.in','distribution/server/updater/bellteam-update-catalog-refresh.timer','distribution/server/updater/compose.overlay.yaml'].map(name=>({imagePath:'/app/'+name,installPath:name}))}) : path === 'config/bots.json' ? '{"bots":[{"id":"owner-private"}]}' : `${path}\n`)
   }
   await mkdir(join(root, 'distribution/server'), { recursive: true })
   for (const path of ['distribution-profile.mjs', 'bots.json', 'compose.yaml', 'compose.aiterm-checkpoint.yaml', '.env.example', 'README.md', 'install.sh']) {
