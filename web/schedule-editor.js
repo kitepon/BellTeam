@@ -249,5 +249,5 @@ export function createScheduleEditor(dialog, { api, getBot }) {
     }
   }
 
-  return { open }
+  return { open, async refresh() { if (!dialog.open || !target) return; try { await loadSchedules() } catch { scheduleFormError.textContent = '予定一覧を更新できませんでした。入力を残しています。' } } }
 }

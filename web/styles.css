@@ -491,3 +491,58 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .retained-inputs section { display: grid; gap: 8px; margin-top: 12px; }
 .retained-inputs textarea { width: 100%; min-height: 4em; box-sizing: border-box; }
 .retained-inputs img { max-width: 100%; max-height: 160px; object-fit: contain; }
+
+/* Profile forms keep the same controls and save contracts at every width. */
+.roster-search { display: block; padding: 0 22px 16px; }
+.roster-search input { width: 100%; min-height: 44px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: #f6f6f8; font: inherit; font-size: 15px; }
+.bot-position { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #62626c; line-height: 1.6; }
+.search-empty { padding: 20px 24px; color: var(--muted); font-size: 14px; line-height: 1.8; }
+.profile-dialog { width: min(720px, calc(100vw - 32px)); }
+.profile-dialog .sheet-body { padding: 28px 32px 40px; }
+.profile-dialog .sheet-header { min-height: 72px; }
+.profile-dialog .sheet-header h2 { font-size: 18px; letter-spacing: -.02em; }
+.profile-dialog .field { gap: 9px; margin-bottom: 24px; }
+.profile-dialog .field > span:first-child { color: #42424c; font-size: 14px; font-weight: 650; line-height: 1.6; }
+.profile-dialog .field input, .profile-dialog .field select, .profile-dialog .field textarea { font-size: 16px; line-height: 1.7; padding: 12px 14px; }
+.profile-dialog .field textarea { min-height: 128px; }
+.form-section-heading { margin: 28px 0 22px; padding-top: 24px; border-top: 1px solid var(--line); }
+.form-section-heading:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.form-section-heading h3 { font-size: 21px; font-weight: 650; letter-spacing: -.025em; margin: 6px 0 9px; }
+.form-section-heading p, .field-help { margin: 0; color: #666671; font-size: 13px; line-height: 1.8; }
+.profile-dialog .avatar-editor .avatar { width: 88px; height: 88px; flex: 0 0 88px; }
+.profile-dialog .feature-settings-section { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
+.profile-dialog .feature-settings-section > h3 { font-size: 19px; line-height: 1.6; margin: 0 0 10px; }
+.profile-dialog .feature-settings-section > p { line-height: 1.8; }
+.member-picker label[hidden] { display: none; }
+.member-picker small { display: block; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.profile-dialog .form-error:not(:empty) { padding: 12px 14px; border-radius: 12px; background: #fff2f1; line-height: 1.8; }
+@media (max-width: 640px) {
+  .profile-dialog { width: 100%; max-width: 100%; }
+  .profile-dialog .sheet-body { padding: 24px 20px 32px; }
+  .profile-dialog .owner-link-row { grid-template-columns: minmax(0, 1fr) 42px; }
+  .profile-dialog .owner-link-row input:first-child { grid-column: 1; }
+  .profile-dialog .owner-link-row input:nth-child(2) { grid-row: 2; grid-column: 1; }
+  .profile-dialog .owner-link-row button { grid-column: 2; grid-row: 1 / 3; }
+}
+
+.profile-dialog .member-picker > .field { display: grid; grid-template-columns: minmax(0, 1fr); padding: 0; background: transparent; }
+
+.toggle-field { display: flex; align-items: center; gap: 12px; min-height: 48px; font-size: 15px; }
+.toggle-field input { width: 20px; height: 20px; }
+#bot-fast-status { margin-bottom: 24px; }
+.profile-dialog .upload-button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; text-align: center; line-height: 1.6; }
+@media (max-width: 640px) { .profile-dialog .avatar-editor { flex-wrap: wrap; gap: 12px; } .profile-dialog .avatar-editor .upload-button { white-space: nowrap; } }
+
+.schedule-source { padding: 20px 0; border-top: 1px solid var(--line); }
+.schedule-create { margin: 24px 0; }
+.schedule-create > button, .schedule-source button { min-height: 44px; padding: 10px 16px; border: 0; border-radius: 12px; font: inherit; cursor: pointer; }
+
+.large-avatar-section { margin: 20px 0; border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+.large-avatar-section summary { font-size: 14px; font-weight: 650; cursor: pointer; padding: 4px 0; }
+.large-avatar-section .avatar-editor { margin: 20px 0 0; }
+#bot-appearance-status { margin: 12px 0 24px; }
+
+.settings-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 28px; }
+.settings-tabs button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 999px; background: white; font: inherit; font-size: 13px; cursor: pointer; }
+
+.profile-dialog #bot-configuration-status[data-state="notice"]:not(:empty) { background: #f5f5f7; color: #60606b; }

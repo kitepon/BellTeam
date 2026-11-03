@@ -1,3 +1,5 @@
+import { matchesMemberQuery } from './roster-search.js?v=__ASSET_VERSION__'
+import { guardEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
 import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
 
@@ -7,6 +9,8 @@ export function createRoomEditor(dialog, { api, getBots, onSaved, onDeleted }) {
   const roomDialogTitle = dialog.querySelector('#room-dialog-title')
   const roomName = dialog.querySelector('#room-name')
   const roomPurpose = dialog.querySelector('#room-purpose')
+  const memberSearch = dialog.querySelector('#room-member-search')
+  const memberCount = dialog.querySelector('#room-member-count')
   const roomMembers = dialog.querySelector('#room-members')
   const roomRepresentative = dialog.querySelector('#room-representative')
   const roomFormError = dialog.querySelector('#room-form-error')
@@ -18,14 +22,16 @@ export function createRoomEditor(dialog, { api, getBots, onSaved, onDeleted }) {
   const deleteRoomButton = dialog.querySelector('#delete-room-button')
   const roomManagementActions = dialog.querySelector('#room-management-actions')
   const roomSubmit = roomForm.querySelector('button[type="submit"]')
-  const avatar = createAvatarEditor({ applyAvatar, initials, escapeClass,
+  const avatar = createAvatarEditor({ onChange: () => { editRevision++ }, applyAvatar, initials, escapeClass,
     fileInput: roomAvatarFile, preview: roomAvatarPreview, cropEditor: roomCropEditor,
     canvas: roomAvatarCrop, zoom: roomAvatarZoom, nameInput: roomName, fallback: 'R', error: roomFormError, previewClass: 'avatar room-avatar' })
   roomForm.addEventListener('submit', saveRoom)
-  roomForm.addEventListener('input', () => { editRevision++ })
-  roomForm.addEventListener('change', () => { editRevision++ })
+  roomForm.addEventListener('input', event => { if (event?.target !== memberSearch) editRevision++ })
+  roomForm.addEventListener('change', event => { if (event?.target !== memberSearch) editRevision++ })
   roomMembers.addEventListener('change', () => renderRoomRepresentativeOptions())
   deleteRoomButton.addEventListener('click', remove)
+  memberSearch.addEventListener('input', filterMembers)
+  guardEditorClose(dialog, () => Boolean(owner && (editRevision !== owner.initialRevision || avatar.changed())), () => Boolean(owner && saving === owner))
   dialog.addEventListener('close', () => { if (!dialog.open) { owner = null; avatar.cancelRead() } })
   function open(room = null) {
     owner = { room }
@@ -38,13 +44,25 @@ export function createRoomEditor(dialog, { api, getBots, onSaved, onDeleted }) {
     roomName.value = room?.name ?? ''
     roomPurpose.value = room?.purpose ?? ''
     avatar.reset(room?.avatar ?? '')
+    memberSearch.value = ''
     roomMembers.replaceChildren(...getBots().map(bot => {
       const label = document.createElement('label')
-      label.innerHTML = `<input type="checkbox" value="${escapeHtml(bot.id)}" ${room?.memberIds.includes(bot.id) ? 'checked' : ''}><span>${escapeHtml(bot.displayName)}</span>`
+      label.dataset.memberId = bot.id
+      label.innerHTML = `<input type="checkbox" value="${escapeHtml(bot.id)}" ${room?.memberIds.includes(bot.id) ? 'checked' : ''}><span>${escapeHtml(bot.displayName)}<small>${escapeHtml(bot.position || '役職未設定')}</small></span>`
       return label
     }))
     renderRoomRepresentativeOptions(room?.representativeId ?? '')
+    filterMembers()
+    owner.initialRevision = editRevision
     if (!dialog.open) dialog.showModal()
+  }
+
+  function filterMembers() {
+    for (const label of roomMembers.children) {
+      const bot = getBots().find(item => item.id === label.dataset.memberId)
+      label.hidden = !bot || !matchesMemberQuery(bot, memberSearch.value)
+    }
+    memberCount.textContent = `${roomMembers.querySelectorAll('input:checked').length}人を選択中 · ${[...roomMembers.children].filter(label => !label.hidden).length}人を表示`
   }
 
   function renderRoomRepresentativeOptions(preferred = roomRepresentative.value) {
@@ -54,11 +72,13 @@ export function createRoomEditor(dialog, { api, getBots, onSaved, onDeleted }) {
       return new Option(bot?.displayName ?? id, id)
     }))
     roomRepresentative.value = selectedIds.includes(preferred) ? preferred : ''
+    filterMembers()
   }
 
   async function saveRoom(event) {
     event.preventDefault()
     if (!owner || saving === owner) return
+    if (avatar.pending()) { roomFormError.textContent = '写真を読み込んでいます。表示を確認してから保存してください。'; return }
     const opened = owner, revision = editRevision
     const current = () => owner === opened && revision === editRevision
     saving = opened

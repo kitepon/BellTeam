@@ -70,3 +70,7 @@ node --test test/web-client.test.mjs test/web-module.test.mjs test/web-event-ref
 今回の操作接続はcontainer個別だけ。明示POST plansの固定target/期限/影響を確認し、再起動を要する計画はcheckbox確認後にPOST operationsを一回だけ発行する。UUIDとplanIdをsessionStorageへ保存してから要求し、POST応答不明/再読込/接続復帰は同UUIDのGETで確認する。inventoryが取得できなくても結果照会を行う。旧応答、別requestId/plan、期限切れ、保存不正を実行へ進めない。all/独立moduleの共通耐久操作は未接続で無効。WebからHostや任意shellへ直接接続しない。
 
 構築時は無通信。認証後の起動、open、ready/updates、表示復帰、手動再取得で既clientから読む。破棄後や古いreadは適用せず、最新の取得失敗時は古い版を最新として残さない。noticeと共通comparisonだけからロゴ右の状態語を表示し、Webは版を比較しない。operation/previousOperationは実行と稼働検証を分け、両成功のcompletedだけ完了とする。desktopは一覧内スクロール、狭幅は詳細から選択行へ戻る操作を持つ。資材登録/版置換は既assets、試験は`test/web-update-center.test.mjs`と従来の組立て/SSE。公開契約の9有限例を表示へ渡す局所検証と、実HTTP/共通投影→実ブラウザー/既SSE再同期を直接境界で確認する。
+
+## Appleとの操作整合
+
+[固定sourceの機能対応・検索/編集図](apple-parity.md)を正本とする。公開APIを増やさずWeb内部を更新する。未供給currentWorkは理由付き未取得表示で独立して扱う。
