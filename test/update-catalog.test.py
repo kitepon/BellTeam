@@ -57,7 +57,7 @@ class CatalogTest(unittest.TestCase):
         release.update(componentId='notifications', versionId='c' * 64,
             artifact=dict(kind='archive', signerCommit=SIGNER, archive=dict(url=url, bytes=42, sha256='c' * 64),
                           bundle=dict(url=url+'.sigstore.json', bytes=41, sha256='d' * 64)),
-            compatibility=dict(nodeMajor=26, parentProtocol=1, stateSchema=1, containerUpdate=None))
+            compatibility=dict(nodeMajor=26, parentProtocol=2, stateSchema=2, containerUpdate=None))
         validate_catalog(value, now=NOW)
         for bad in ['http://github.com/evil', url.replace('kitepon/BellTeam', 'evil/fork'), url + '?redirect=evil']:
             release['artifact']['archive']['url'] = bad

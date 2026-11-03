@@ -39,7 +39,7 @@ class NotificationsArtifactTest(unittest.TestCase):
             manifest, digest = check_archive(stream, SOURCE, ARCH, component='notifications')
         self.assertEqual(manifest, self.manifest)
         self.assertEqual(manifest['schema'], 'bellteam.notifications.artifact.v1')
-        self.assertEqual(manifest['runtime']['stateSchema'], 1)
+        self.assertEqual(manifest['runtime']['stateSchema'], 2)
         self.assertEqual(len(digest), 64)
         self.assertEqual(len(manifest['files']), 4)
         self.assertIn('payload/node_modules/jose/package.json', [f['path'] for f in manifest['files']])
@@ -49,9 +49,9 @@ class NotificationsArtifactTest(unittest.TestCase):
                        lambda m: m.update(schema='bellteam.web-gateway.artifact.v1'),
                        lambda m: m.update(entry='payload/src/http-gateway-entry.mjs'),
                        lambda m: m['runtime'].pop('stateSchema'),
-                       lambda m: m['runtime'].update(stateSchema=2),
+                       lambda m: m['runtime'].update(stateSchema=1),
                        lambda m: m['runtime'].update(stateSchema=True),
-                       lambda m: m['runtime'].update(parentProtocol=2),
+                       lambda m: m['runtime'].update(parentProtocol=1),
                        lambda m: m['runtime'].update(nodeMajor=27),
                        lambda m: m.update(policy={'allowUnsigned': True}),
                        lambda m: m.update(files=m['files'][:-1])]:
@@ -63,6 +63,58 @@ class NotificationsArtifactTest(unittest.TestCase):
         for component in ['unknown', '../notifications', 'web-gateway/notifications']:
             with self.assertRaisesRegex(ValueError, 'MODULE_COMPONENT_INVALID'):
                 contract(component)
+
+    def test_catalog_requires_exact_abi2_and_matching_archive_identity(self):
+        from update_catalog import validate_notifications_archive, validate_notifications_compatibility
+        compatibility = dict(nodeMajor=26, parentProtocol=2, stateSchema=2, containerUpdate=None)
+        release = dict(componentId='notifications', sourceCommit=SOURCE,
+                       platform=dict(os='linux', arch=ARCH), compatibility=compatibility)
+        self.assertIs(validate_notifications_archive(release, self.manifest), self.manifest)
+        for key, value in [('nodeMajor', None), ('parentProtocol', 1), ('stateSchema', 1),
+                           ('parentProtocol', True), ('stateSchema', '2'), ('containerUpdate', 1)]:
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                validate_notifications_compatibility({**compatibility, key: value})
+        for value in [{k: v for k, v in compatibility.items() if k != 'stateSchema'},
+                      {**compatibility, 'origin': 'https://fixture.example'}]:
+            with self.assertRaises(ValueError): validate_notifications_compatibility(value)
+        for mutate in [lambda m: m.update(sourceCommit='b' * 40),
+                       lambda m: m['runtime'].update(arch='arm64' if ARCH == 'amd64' else 'amd64'),
+                       lambda m: m['runtime'].update(parentProtocol=1, stateSchema=1)]:
+            manifest = json.loads(json.dumps(self.manifest)); mutate(manifest)
+            with self.assertRaises(ValueError): validate_notifications_archive(release, manifest)
+
+    def test_parent_probe_resolves_only_staged_payload_dependencies(self):
+        spec = importlib.util.spec_from_file_location('notifications_probe', ROOT / 'test/helpers/notifications-artifact-probe.py')
+        probe = importlib.util.module_from_spec(spec); spec.loader.exec_module(probe)
+        checkout = self.root / 'checkout'; (checkout / 'scripts').mkdir(parents=True)
+        parent = checkout / 'scripts/probe-notifications-runtime.mjs'
+        parent.write_text("import { value } from '../src/entry.mjs'; console.log(value)\n")
+        app = self.root / 'app'; (app / 'src').mkdir(parents=True)
+        (app / 'src/entry.mjs').write_text("import value from 'probe-dependency'; export { value }\n")
+        dependency = app / 'node_modules/probe-dependency'; dependency.mkdir(parents=True)
+        (dependency / 'package.json').write_text('{"type":"module","exports":"./index.mjs"}')
+        (dependency / 'index.mjs').write_text("export default 'payload-dependency'\n")
+        with patch.object(probe, 'APP', app), patch.object(probe, 'ROOT', checkout): staged = probe.stage_parent_probe()
+        self.assertEqual(staged.read_bytes(), parent.read_bytes())
+        for path in app.rglob('*'): path.chmod(0o555 if path.is_dir() else 0o444)
+        result = subprocess.run(['node', str(staged)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, 'payload-dependency\n')
+        for path in app.rglob('*'):
+            if path.is_dir(): path.chmod(0o755)
+
+    def test_publication_checks_official_notifications_policy_then_archive(self):
+        spec = importlib.util.spec_from_file_location('publication', ROOT / 'scripts/check-update-catalog-publication.py')
+        publication = importlib.util.module_from_spec(spec); spec.loader.exec_module(publication)
+        release = dict(componentId='notifications', sourceCommit=SOURCE, platform=dict(os='linux', arch=ARCH),
+            compatibility=dict(nodeMajor=26, parentProtocol=2, stateSchema=2, containerUpdate=None),
+            artifact=dict(archive={}, bundle={}, signerCommit='b' * 40))
+        with patch.object(publication, 'download_asset', side_effect=[self.archive.read_bytes(), b'{}']), \
+             patch('module_artifact_verifier.verify_signature') as official:
+            publication.verify_notifications_release(release)
+            self.assertEqual(official.call_args.args[3]['signerWorkflow'],
+                             'kitepon/BellTeam/.github/workflows/publish-notifications.yml')
+            self.assertEqual(official.call_args.kwargs, dict(source=SOURCE, signer='b' * 40))
 
     def test_notifications_policy_pins_workflow_and_fd_snapshot(self):
         policy = json.loads((ROOT / 'config/notifications-verification.json').read_text())
