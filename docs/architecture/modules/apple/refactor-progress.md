@@ -31,7 +31,12 @@ Ownerのリファクタリング指示の全文を、2026-11-03にレヴィア�
 | 残りの機能の詳細図 | `gpt-6.1-sol` high | `codex exec`、別の作業ツリー（HEAD `afda947` のdetached）で実行。session `01a1a10a-9d03-7180-a6fd-6f4261ba00c9`。対象は新規の conversation.md、requests-and-auth.md、goals.md、lifecycle-and-platform.md、tests.md（試験の本文） | 完了。`822563d` で取り込み。レヴィアタンが描画・目視し、会話の送信図を1点補正（`defb299`） |
 | 責務の設計（先行9件） | `gpt-6-astra` xhigh | `codex exec`、この作業ツリーで実行。session `01a1a10a-9cfb-76f0-a189-10a70111d959`。対象は refactor-design.md だけ | 完了。採用4・不採用4・保留1。`822563d` |
 | 責務の設計（追加12件） | `gpt-6-astra` xhigh | `codex exec`、session `01a1a11d-7053-7300-9b78-db60e7d6cd34`。refactor-design.md へ追記 | 完了。採用4・不採用8。前回判断の変更なし。段階はPR0〜PR5 |
-| 実装 | `gpt-6.1-sol` high | 段階ごとに `codex exec` で実行 | PR0から開始 |
+| 実装 PR0 | `gpt-6.1-sol` high | session `01a1a12e-19ca-7600-ad26-a04478153005` | 完了 `e58e5c0`。試験名とコメントだけ。ビルド・試験は設計どおり不要 |
+| 実装 PR1 | `gpt-6.1-sol` high | session `01a1a130-daf2-76e2-bc48-b8f469847fdd` | 完了 `e82f12a`。BotSaveTests 20件通過（追加2件を含む）。対応表の補正 `bd19c00` |
+| 実装 PR2 | `gpt-6.1-sol` high | session `01a1a13e-673b-7370-b596-fe9a68af0a5c` | 完了 `8ca6746`。BotTerminalTextViewTests 1件、MacのUI試験2件（インスペクター、端末画面）通過 |
+| 実装 PR3 | `gpt-6.1-sol` high | session `01a1a148-b06a-7fe2-bb40-44c0ca965c4f` | 完了 `22d56bf`。MessageInputTests・ConversationDraftTests 6件、MacのUI試験2件（入力キー、会話切替の下書き）通過 |
+| 実装 PR4 | `gpt-6.1-sol` high | session `01a1a150-4b74-7921-ae71-35d1bd9ebcf7` | 完了 `5356a7e`。BillingStoreTests 21件通過（再起動の直接試験5件を含む） |
+| 実装 PR5 | `gpt-6.1-sol` high | session `01a1a157-97fd-7850-8e7a-3bc3a627154e` | 完了 `6b3ed89`。goalの直接試験4件と隣接1件通過 |
 | 最後の整合確認 | `gpt-6-astra` xhigh | 未実行 | — |
 
 Aitermの起動の失敗はエレグへ報告した（call-bridge通話 `29cba01a-03a0-4301-851d-acba07bc25c1`、seq9とseq10）。`codex exec` での実行は、Aitermの欠陥が直ったことを意味しない。
@@ -59,6 +64,18 @@ Ownerからトロニー経由で受けたUI改善6点（トロニー通話 seq42
 保留中の修理：配達失敗の赤表示（`deliveryTracking`）と、大画像の前面復帰時の再読込。どちらも全体の受け入れ後。
 
 ## 次の作業
+
+試験の原本（xcresultとlog）は親のMacの `~/Library/Developer/BellTeam-evidence/2026-11-03-apple-refactor/` にある。試験はすべて Mac Catalyst（macOS 27.0）で、iPhone・iPadでは実行していない。
+
+全体の受け入れ前に残る確認：
+
+| 段階 | 設計が求めるMac実画面確認 | 現状 |
+| --- | --- | --- |
+| PR1 | 既存メンバーの文面保存、画像変更なし、画像保存の結果表示、一覧と入力の保持、PATCHが1回 | 未成立。`DesktopWorkspaceUITests.testSaveWithoutAvatarChangesWhileModelsArePending` は変更前の `4e01fad` でも180〜181行で同じように失敗する（原因は未調査）。製品を変えない手動確認で補う |
+| PR3 | 画像の束・単画像・galleryの切替、画像GET失敗の表示 | 未実施。`ConversationAppearanceUITests` の `BELLTEAM_IMAGE_SMOKE_URL` の試験サーバーがrepo内に無い |
+| PR4 | 失敗文言と診断が1回、再操作の成功でerrorが消えinspectorが残る | 未実施。`test/helpers/profile-terminal-ui-server.mjs` に購読応答、再起動の失敗と成功、要求記録、診断の受信を足す必要がある |
+| PR5 | goals-ui fixtureでの一覧・会話・editor・単独項目・結果不明・読取失敗後の回復 | 未実施 |
+| 全体 | 最後の整合確認（Astra xhigh） | 未実行 |
 
 - 第一版（`afda947`）は2026-11-03に返却済み。レヴィアタンの描画・目視で、送信失敗の図の分岐を1点補正した。製品Swiftは全文読了、XCTest 45本は宣言だけで本文は未読（tests.md で補う）。
 - 責務の設計の第一版は2026-11-04 12:00 JSTまでに返す。各調査担当の完了イベントを親の照合の開始条件にし、入力待ちのまま待たない。
