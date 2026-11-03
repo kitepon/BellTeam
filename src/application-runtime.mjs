@@ -104,8 +104,8 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       await gateway.start()
       scheduler.start()
       selfTurns.start()
-      seatTurns.start()
-      idleSessions.start()
+      seatTurns?.start()
+      idleSessions?.start()
     } catch (error) {
       try { await close() }
       catch (cleanupError) { throw new AggregateError([error, cleanupError], 'APPLICATION_START_FAILED') }
@@ -125,10 +125,10 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         () => services.updateCenter.close(),
         () => webGatewayControl.close(),
         () => gateway?.close(),
-        () => scheduler.stop(), () => idleSessions.stop(), () => selfTurns.stop(), () => seatTurns.stop(),
+        () => scheduler.stop(), () => idleSessions?.stop(), () => selfTurns.stop(), () => seatTurns?.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => features.close(),
         () => bootstrap.seatRuntime?.memoryModule?.close(),
-        () => transport.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.usageAssembly?.close(), () => services.diagnosticsModule?.close(),
+        () => transport.close(), () => services.execution && transport.client.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.usageAssembly?.close(), () => services.diagnosticsModule?.close(),
         () => socketDirectory && rm(socketDirectory, { recursive: true, force: true }),
       ]) {
         try { await stop() } catch (error) { errors.push(error) }

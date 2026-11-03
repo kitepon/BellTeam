@@ -100,6 +100,7 @@
     "src/module-exchange-mutex.mjs",
     "src/diagnostics-facade.mjs",
     "src/usage-assembly.mjs",
-    "src/server-source.mjs"
+    "src/server-source.mjs",
+    "src/bootstrap.mjs"
   ]
 }
