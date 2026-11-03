@@ -5,6 +5,7 @@ import ctypes
 import errno
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -92,9 +93,9 @@ def snapshot(source_dir, name, target, limit):
 
 
 def verify(archive, bundle, expected, component='web-gateway'):
-    if component not in ('web-gateway', 'notifications'):
+    if component not in ('web-gateway', 'notifications', 'members'):
         fail('GATEWAY_INSTALL_COMPONENT')
-    verifier = 'verify-notifications.py' if component == 'notifications' else 'verify-web-gateway.py'
+    verifier = {'web-gateway':'verify-web-gateway.py','notifications':'verify-notifications.py','members':'verify-members.py'}[component]
     child = subprocess.Popen(['/usr/bin/python3', '/app/scripts/' + verifier, str(archive), str(bundle), str(expected)],
                              env={'PATH': '/usr/local/bin:/usr/bin:/bin'}, stdin=subprocess.DEVNULL,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, close_fds=True)
@@ -137,7 +138,7 @@ def publish(source, target):
 
 
 def extract(archive, receipt, expected, destination, component='web-gateway'):
-    if component not in ('web-gateway', 'notifications'):
+    if component not in ('web-gateway', 'notifications', 'members'):
         fail('GATEWAY_INSTALL_COMPONENT')
     if set(receipt) != {'schema', 'archiveSha256', 'manifestSha256', 'manifest', 'verification'} or (
         receipt['schema'] != f'bellteam.{component}.verification.v1'
@@ -151,6 +152,11 @@ def extract(archive, receipt, expected, destination, component='web-gateway'):
             or manifest.get('entry') != 'payload/src/notifications-entry.mjs'
             or manifest.get('runtime', {}).get('stateSchema') != 1):
         fail('GATEWAY_INSTALL_RECEIPT')
+    if component == 'members':
+        spec = importlib.util.spec_from_file_location('artifact_contract', Path(__file__).with_name('web_gateway_artifact.py'))
+        contract = importlib.util.module_from_spec(spec); spec.loader.exec_module(contract)
+        try: contract.validate_manifest(manifest, component='members')
+        except Exception: fail('GATEWAY_INSTALL_RECEIPT')
     files = {}
     if not isinstance(manifest.get('files'), list) or not 0 < len(manifest['files']) <= 20000:
         fail('GATEWAY_INSTALL_MEMBER')
@@ -211,7 +217,7 @@ def extract(archive, receipt, expected, destination, component='web-gateway'):
 
 
 def install(private_root, incoming_root, expected, component_name='web-gateway'):
-    if component_name not in ('web-gateway', 'notifications'):
+    if component_name not in ('web-gateway', 'notifications', 'members'):
         fail('GATEWAY_INSTALL_COMPONENT')
     info = directory(private_root)
     if info.st_gid != SERVER_GID or stat.S_IMODE(info.st_mode) != 0o750:
@@ -273,7 +279,7 @@ def main(component='web-gateway'):
     if any(value != 0 for value in [os.getuid(), os.geteuid(), os.getgid(), os.getegid()]):
         fail('GATEWAY_INSTALL_ROOT_REQUIRED')
     os.umask(0o077)
-    incoming = INCOMING_ROOT if component == 'web-gateway' else Path('/srv/bellteam-notifications-incoming')
+    incoming = INCOMING_ROOT if component == 'web-gateway' else Path('/srv/bellteam-' + component + '-incoming')
     print(json.dumps(install(PRIVATE_ROOT, incoming, expected, component)))
 
 

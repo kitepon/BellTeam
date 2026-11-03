@@ -39,6 +39,10 @@
     {
       "module": "testgate",
       "port": "hook"
+    },
+    {
+      "module": "execution",
+      "port": "members-admission"
     }
   ],
   "source": [
@@ -93,6 +97,17 @@
     "src/container-update-client.mjs",
     "scripts/container-update-host.py",
     "scripts/install-container-update-code.py",
-    "distribution/server/updater"
+    "distribution/server/updater",
+    "scripts/members-start.c",
+    "scripts/probe-members-runtime.mjs",
+    "scripts/install-members-release.py",
+    "src/members-entry.mjs",
+    "src/members-ipc.mjs",
+    "src/members-locks.mjs",
+    "src/members-process.mjs",
+    "src/members-project-files.mjs",
+    "src/members-runtime-effects.mjs",
+    "src/members-release.mjs",
+    "src/members-install-plan.mjs"
   ]
 }

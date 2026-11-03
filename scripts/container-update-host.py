@@ -429,7 +429,7 @@ class HostUpdater:
             check(params == {}); return self.capabilities()
         if action == 'catalog':
             check(exact(params, 'componentId') and type(params['componentId']) is str
-                  and params['componentId'] in {'container','web-gateway','notifications'})
+                  and params['componentId'] in {'container','web-gateway','notifications','members'})
             pointer = read_json(self.prefix / 'catalog/state.json', self.uid, CATALOG_LIMIT)
             catalog = self.catalog(pointer['catalogSha256'])
             selected = [row for row in catalog['releases'] if row['componentId'] == params['componentId'] and row['platform'] == self.config['platform']]

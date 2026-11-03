@@ -2,6 +2,7 @@ import { constants } from 'node:fs'
 import { lstat, open, readdir } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
+import { assertMembersStateCompatibility } from './members/state-compatibility.mjs'
 
 const controlRoot = '/run/bellteam-maintenance'
 const digest = /^[a-f0-9]{64}$/
@@ -22,17 +23,18 @@ export function validateGatewayReleaseManifest(manifest) {
 }
 
 function validateManifest(manifest, component) {
-  const notifications = component === 'notifications'
+  const notifications = component === 'notifications', members = component === 'members'
   if (!exactKeys(manifest, 'schema,component,sourceCommit,entry,runtime,files')
     || manifest.schema !== `bellteam.${component}.artifact.v1` || manifest.component !== component
-    || !source.test(manifest.sourceCommit) || manifest.entry !== (notifications ? 'payload/src/notifications-entry.mjs' : 'payload/src/http-gateway-entry.mjs')
-    || !exactKeys(manifest.runtime, notifications ? 'os,arch,nodeMajor,parentProtocol,stateSchema' : 'os,arch,nodeMajor,parentProtocol')
+    || !source.test(manifest.sourceCommit) || manifest.entry !== (members ? 'payload/src/members-entry.mjs' : notifications ? 'payload/src/notifications-entry.mjs' : 'payload/src/http-gateway-entry.mjs')
+    || !exactKeys(manifest.runtime, members ? 'os,arch,nodeMajor,parentProtocol,stateCompatibility' : notifications ? 'os,arch,nodeMajor,parentProtocol,stateSchema' : 'os,arch,nodeMajor,parentProtocol')
     || manifest.runtime.os !== process.platform
     || manifest.runtime.arch !== ({ x64: 'amd64', arm64: 'arm64' })[process.arch]
     || manifest.runtime.nodeMajor !== 26 || Number(process.versions.node.split('.')[0]) !== 26
     || notifications && manifest.runtime.stateSchema !== 1
     || manifest.runtime.parentProtocol !== 1 || !Array.isArray(manifest.files) || !manifest.files.length)
     throw failure('GATEWAY_RELEASE_INCOMPATIBLE')
+  if (members) assertMembersStateCompatibility(manifest.runtime.stateCompatibility)
   const names = new Set()
   for (const file of manifest.files) {
     if (!exactKeys(file, 'path,bytes,sha256') || typeof file.path !== 'string'
@@ -42,7 +44,7 @@ function validateManifest(manifest, component) {
       || typeof file.sha256 !== 'string' || !digest.test(file.sha256)) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
     names.add(file.path)
   }
-  for (const required of [manifest.entry, 'payload/package.json', 'payload/package-lock.json', ...(notifications ? [] : ['payload/web/assets.mjs'])])
+  for (const required of [manifest.entry, 'payload/package.json', 'payload/package-lock.json', ...(members ? ['payload/config/common-agents.md', 'payload/src/members/state-compatibility.mjs'] : notifications ? [] : ['payload/web/assets.mjs'])])
     if (!names.has(required)) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
   return manifest
 }
@@ -64,6 +66,8 @@ async function rootFile(path) {
 
 // Only root's authenticated installer publishes installation.json; this reader writes nothing.
 export function prepareGatewayRelease(versionId, options) { return prepareRelease('web-gateway', versionId, options) }
+export function prepareMembersRelease(versionId, options) { return prepareRelease('members', versionId, options) }
+export function validateMembersReleaseManifest(manifest) { return validateManifest(manifest, 'members') }
 export function prepareNotificationsRelease(versionId, options) { return prepareRelease('notifications', versionId, options) }
 export function validateNotificationsReleaseManifest(manifest) { return validateManifest(manifest, 'notifications') }
 
@@ -109,5 +113,5 @@ async function prepareRelease(component, versionId, { signal } = {}) {
   await inspect('payload')
   if (found.size !== inventory.size) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
   signal?.throwIfAborted()
-  return { versionId, appRoot: join(directory, 'payload'), protocolVersion: 1, ...(component === 'notifications' ? { stateSchema: 1 } : {}) }
+  return { versionId, appRoot: join(directory, 'payload'), protocolVersion: 1, ...(component === 'members' ? { sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch }, stateCompatibility: manifest.runtime.stateCompatibility } : component === 'notifications' ? { stateSchema: 1 } : {}) }
 }

@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import test from 'node:test'
 import { notificationsInstallPlan } from '../src/notifications-install-plan.mjs'
+import { membersInstallPlan } from '../src/members-install-plan.mjs'
 import { webGatewayInstallPlan } from '../src/web-gateway-install-plan.mjs'
 const execute = promisify(execFile)
 const image = 'sha256:' + 'a'.repeat(64), cid = 'b'.repeat(64)
@@ -80,13 +81,24 @@ else:sys.exit(91)
   const env={...process.env,PATH:bin+':'+process.env.PATH,FIXTURE_LOG:log,FIXTURE_CURRENT:join(root,'current.json'),FIXTURE_NORMAL:join(saved,'normal.json'),FIXTURE_NODE:process.execPath,FIXTURE_PLAN:plan,FIXTURE_COMPONENT:'web-gateway'}
   await execute('sh',[script,'--install-web-gateway',saved,'c'.repeat(64),'d'.repeat(40),'e'.repeat(40)],{cwd:root,env})
   await execute('sh',[script,'--install-notifications',saved,'c'.repeat(64),'d'.repeat(40),'e'.repeat(40)],{cwd:root,env:{...env,FIXTURE_COMPONENT:'notifications',FIXTURE_PLAN:new URL('../src/notifications-install-plan.mjs',import.meta.url).pathname}})
+  await execute('sh',[script,'--install-members',saved,'c'.repeat(64),'d'.repeat(40),'e'.repeat(40)],{cwd:root,env:{...env,FIXTURE_COMPONENT:'members',FIXTURE_PLAN:new URL('../src/members-install-plan.mjs',import.meta.url).pathname}})
   const commands=(await readFile(log,'utf8')).trim().split('\n').map(JSON.parse)
   assert.ok(commands.some(a=>a[0]==='compose'&&a.includes('web-gateway-install')))
   assert.ok(commands.some(a=>a[0]==='compose'&&a.includes('notifications-install')))
+  assert.ok(commands.some(a=>a[0]==='compose'&&a.includes('members-install')))
   for(const a of commands)assert.ok(!a.some(v=>['stop','restart','up','update','rm','pull','exec'].includes(v)),JSON.stringify(a))
   assert.ok(commands.some(a=>a[0]==='run'&&a.includes('--pull')&&a.includes('never')))
   const inspection=commands.filter(a=>a[0]==='container').map(a=>a[a.indexOf('--format')+1]).join('\n')
   assert.doesNotMatch(inspection,/Config.Env/)
+})
+
+test('members install selects only its fixed helper and rejects a writable private mount',()=>{
+ const {normal,current}=fixture(),model=membersInstallPlan(normal,current),s=model.services['members-install']
+ assert.equal(s.entrypoint.at(-1),'/app/scripts/install-members-release.py')
+ assert.equal(s.volumes[0].source,'/installation/runtime/members-incoming')
+ assert.equal(s.volumes[0].target,'/srv/bellteam-members-incoming')
+ assert.equal(s.volumes[0].read_only,true)
+ current.mounts[2].RW=true;assert.throws(()=>membersInstallPlan(normal,current))
 })
 
 test('notification install reuses exact mount checks but selects only its fixed helper and incoming',()=>{
