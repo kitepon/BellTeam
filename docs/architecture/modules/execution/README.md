@@ -9,6 +9,7 @@
 ## 現行図と移管工程
 
 - [待機outcomeと設定適用の契約](wait-contract.md)
+- [members交換中の親admission・lease](members-admission.md)
 - [control-details.md](../../control-details.md)
 - [delivery-details.md](../../delivery-details.md)
 - [observation-details.md](../../observation-details.md)

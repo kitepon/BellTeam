@@ -113,7 +113,7 @@ flowchart LR
 | [Caveat](modules/caveat/README.md) | ノア | public |
 | [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access |
 | [商用配布](modules/distribution/README.md) | センチ | image / web-gateway-artifact / notifications-artifact / update-catalog |
-| [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation |
+| [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission |
 | [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics |
 | [mcp-lazy](modules/mcp-lazy/README.md) | レオナ | relay |
 | [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions |

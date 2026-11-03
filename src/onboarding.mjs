@@ -119,10 +119,10 @@ export class Onboarding {
     })
   }
 
-  async prepareStartup(bot) {
+  async prepareStartup(bot, context) {
     if (bot.id !== this.state.guideBotId || this.state.complete) return
     const text = `\n# 初期設定の案内\n\n${GUIDE_INSTRUCTIONS}\n`
-    if (this.projectFiles) await this.projectFiles.appendInstructions(bot, text)
+    if (this.projectFiles) await this.projectFiles.appendInstructions(bot, text, context)
     else await appendFile(join(bot.project, 'AGENTS.md'), text)
   }
 

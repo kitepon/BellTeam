@@ -65,12 +65,16 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
       waitProcess: (process, signal) => runWaitProcess(process, signal, { seatProject: root }),
     } : {}),
     assertWorkAllowed: () => aiControl.assertEnabled(),
-    prepareStartup: async (bot, shortTermMemory) => {
-      await bots.prepareStartupContext(bot.id, shortTermMemory)
-      await onboarding.prepareStartup(bot)
+    requireMember: async (bot, context) => {
+      await bots.refresh(context)
+      if (!bots.get(bot.id)) throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND', status: 404, effect: 'not_started' })
     },
-    updateSession: (botId, session) => bots.updateSession(botId, session),
-    updateFastMode: (botId, fastMode) => bots.update(botId, { fastMode }),
+    prepareStartup: async (bot, shortTermMemory, context) => {
+      await bots.prepareStartupContext(bot.id, shortTermMemory, context)
+      await onboarding.prepareStartup(bot, context)
+    },
+    updateSession: (botId, session, context) => bots.updateSession(botId, session, context),
+    updateFastMode: (botId, fastMode, context) => bots.update(botId, { fastMode }, context),
   })
   const idleSessions = new IdleSessions({ bots, transport })
   const goals = new BotGoals({ transport, admitWork: () => aiControl.admit(), reportError: async error => {

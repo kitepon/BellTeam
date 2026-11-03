@@ -1,5 +1,7 @@
 # 停止・設定適用・Goalの責任
 
+members子の交換中に親の起動/保存を維持する新入場・既leaseの契約は[execution/members-admission](modules/execution/members-admission.md)。全体停止epochと別に扱い、既stop/AI/job/watchの寿命を交換で変更しない。
+
 対象sourceと確認範囲は[全体図](feature-map.md)に従う。[制御の全体像](control-and-state.md)に対する関数と状態の対応。処理を止めること、席を閉じること、希望設定を保存することは別の操作である。
 
 ## 全体停止は保存より先に受付を閉じる
