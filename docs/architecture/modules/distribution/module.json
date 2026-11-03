@@ -6,7 +6,8 @@
   "external": false,
   "provides": [
     "image",
-    "web-gateway-artifact"
+    "web-gateway-artifact",
+    "notifications-artifact"
   ],
   "uses": [
     {
@@ -28,6 +29,12 @@
     "scripts/web_gateway_artifact.py",
     "config/web-gateway-verification.json",
     "config/web-gateway-trusted-root.jsonl",
-    ".github/workflows/publish-web-gateway.yml"
+    ".github/workflows/publish-web-gateway.yml",
+    "scripts/package-notifications.py",
+    "scripts/verify-notifications.py",
+    "scripts/module_artifact_package.py",
+    "scripts/module_artifact_verifier.py",
+    "config/notifications-verification.json",
+    ".github/workflows/publish-notifications.yml"
   ]
 }

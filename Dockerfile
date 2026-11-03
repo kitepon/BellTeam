@@ -61,6 +61,9 @@ RUN /usr/sbin/groupadd -g 1001 bellteam-server \
   && mkdir -p /usr/local/libexec \
   && cc -O2 -Wall -Wextra -Werror scripts/seat-exec.c -o /usr/local/libexec/bellteam-seat-exec \
   && cc -O2 -Wall -Wextra -Werror scripts/server-start.c -o /usr/local/libexec/bellteam-server-start \
+  && cc -O2 -Wall -Wextra -Werror scripts/notifications-start.c -o /usr/local/libexec/bellteam-notifications-start \
+  && chown root:root /usr/local/libexec/bellteam-notifications-start \
+  && chmod 0755 /usr/local/libexec/bellteam-notifications-start \
   && chown root:root /usr/local/libexec/bellteam-seat-exec /usr/local/libexec/bellteam-server-start \
   && chmod 0755 /usr/local/libexec/bellteam-seat-exec /usr/local/libexec/bellteam-server-start \
   && printf 'bellteam-server ALL=(root) NOPASSWD: /usr/local/libexec/bellteam-seat-exec -- *\n' > /etc/sudoers.d/bellteam-server \

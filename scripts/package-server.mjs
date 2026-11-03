@@ -20,15 +20,17 @@ try {
     'Dockerfile', '.dockerignore', 'package.json', 'package-lock.json', 'src', 'web', 'integrations',
     'config/common-agents.md', 'config/setup-guide.json', 'config/ponytail-LICENSE',
     'config/web-gateway-verification.json', 'config/web-gateway-trusted-root.jsonl',
+    'config/notifications-verification.json',
     'docs/bot-environment.md', 'docs/onboarding.md',
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
     'distribution/server',
     'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
-    'scripts/seat-exec.c', 'scripts/server-start.c',
+    'scripts/seat-exec.c', 'scripts/server-start.c', 'scripts/notifications-start.c',
     'scripts/assert-state-writers-stopped.sh',
     'scripts/install-sce-headers.py',
     'scripts/verify-web-gateway.py', 'scripts/web_gateway_artifact.py',
-    'scripts/install-web-gateway-release.py',
+    'scripts/verify-notifications.py', 'scripts/module_artifact_verifier.py',
+    'scripts/install-web-gateway-release.py', 'scripts/install-notifications-release.py',
   ], { cwd: root })
   await exec('tar', ['-xf', archive, '-C', output])
   await mkdir(join(output, 'bridge'))
