@@ -22,3 +22,8 @@ archiveはsrc/run-memory-runtime.mjs、memory/{factory,dispatcher,state-compatib
 code rootと全directoryはroot:root/0555、file0444。private control0:1001/0750とinstallation/採用recordを席1000へ公開しない。初回mount/state準備はruntime所有、以後code追加は同volume内。codeを先に公開し、manifest/installationを持つprivate releaseを最後に公開する。中断でcodeだけ残ればreaderは選択不可。再入時は同SHAの全inventory/owner/modeを検査してからprivate公開へ進み、既codeを上書きしない。追加未知file/リンク/改変を拒否する。既private SHとcomponent lock、root検証、stage清掃、fsyncを維持する。
 
 署名workflowは両nativeの実UID1000・archive entry無作用restore probe/OS終了を経て公式OIDCを発行する。交換・実DB更新・親停止影響は同source imageの別native工程であり、archive probeだけで成立とはしない。通常imageへの初回mount導入と実Host判断は別工程。元state形式の移行や既DB全schema照合は追加しない。
+
+
+同sourceの有限実物確認は `verify-memory-image.yml` が既通常image digestと専用署名runを両nativeでpullする。`memory-real-boundary.py` は既Web fixtureの割当・同image比較・cleanupを再利用し、人工supervisorだけをRO差替えする。実初回prepareのcode root0555/private750とreceipt再入保持、実root署名検証→code専用view、UID1001の実SeatRuntime.memory→既sudo/seat-exec C→UID1000の固定entry/業務を使う。fixture sourceはimage sourceと別に固定し、通常imageを再buildしない。
+
+親の公開run接点は既createSeatProcessRunnerへそのまま委譲し、実OS/stdio closeを返すPromiseと世代/entryを記録するだけで出力・取消・遅延を偽装しない。人工DBへの受付済writerが終端してから新版無作用restoreへ進む順序、保存の再送0、restore前後のDB/notes全bytes一致、builtin→署名→builtin後の最新改訂/新知識保持を確認する。codeは1000/1001可読・書込拒否、private receiptは1000拒否。親CID/PIDbirth・別人工businessと実gateway PIDbirth/portの保持、close後の受付拒否と自己cleanupを原本に残す。公開Update ledger、実席/実データ/Host/本番、60秒busy反例の再走はこのfixtureへ足さない。
