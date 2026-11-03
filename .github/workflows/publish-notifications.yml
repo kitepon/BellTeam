@@ -55,7 +55,7 @@
         },
         {
           "name": "実archiveを固定C入口とUID1001のlockで起動・回収して確認",
-          "run": "archive=\"runtime/notifications/notifications-$SOURCE-linux-$ARCH.tar.gz\"\nsudo python3 test/helpers/notifications-artifact-probe.py \"$archive\" \"$(command -v node)\"\n"
+          "run": "archive=\"runtime/notifications/notifications-$SOURCE-linux-$ARCH.tar.gz\"\nsudo unshare --mount --propagation private python3 test/helpers/notifications-artifact-probe.py \"$archive\" \"$(command -v node)\"\n"
         },
         {
           "name": "archiveの公式OIDC attestationを生成",

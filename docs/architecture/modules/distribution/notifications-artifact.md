@@ -25,3 +25,9 @@ CLIはpackage-notifications.py OUTPUT --source SHA40 --arch amd64|arm64、およ
 package-serverは通知verifier/policy/共通Python、Epi roothelperとnotifications-start.cを明示収録。既src全収録に通知entry/reader/planが入る。DockerfileはCを固定/usr/local/libexec/bellteam-notifications-startへroot所有0755で収録する。setuid/新mount/任意commandは追加しない。roothelper/installer/Cの業務とlockはruntimeが所有する。Rootが採用後のstate更新と交換、Mikaが通知DTO/処理/保存、Mollyがassemblyと通常mainを持つ。
 
 公式OIDC前に実archiveのentry/ready/閉じ方/自己完結を人工provider・隔離stateで確認する。通知A-B-A/登録保持/署名拒否/UID1001実lock/readonly/他process保持は同新sourceと実署名資材/固定imageで受け入れる。実APNs送信/Host/本番を人工providerで代用済みとしない。旧全成功群や既署名の再発行をgateにしない。
+
+## 初回の同source builtin/署名版/戻し
+
+Root初回裁定はimage builtin A→同sourceの署名archive B→同image builtin A。異source互換の証明にしない。公開POSTのversionIdはSHA又は固定literal builtinだけ。署名前probeは捨てnative runnerのprivate mount namespaceへ閉じ、setup-nodeのNode26を必要時だけ固定Node pathへbindして原本を上書きしない。runner既Nodeが別majorでも製品のNode26拒否を緩めない。
+
+verify-notifications-image.yml→test/helpers/notifications-real-boundary.pyが通常source/専用署名run/auto image run/indexを固定し、実imageのinstaller/C/reader/controllerと公開APIで交換する。既Web fixtureの有限allocation/cleanup契約だけを再利用し、旧Web署名や旧成功群を再実行しない。guest supervisorだけを人工bootstrap/client/businessへ置換し、通知は固定C/実UID1001/実SH/EXで動かす。人工端末の既push-devices配列をseedし、未設定providerのまま登録bytesとlock inodeを保持、同時writerを実拒否する。親・Web・他processのPID出生/port/client.close0、raw container before/after、改変archive/誤sourceのroot公開前拒否、root receipt/旧採用不変、自己資材清掃を確認する。実APNs/実AI/Host/本番を示さない。
