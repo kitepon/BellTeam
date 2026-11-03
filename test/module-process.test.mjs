@@ -1,0 +1,173 @@
+import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import test from 'node:test'
+import { createModuleProcess } from '../src/module-process.mjs'
+
+const sha = 'a'.repeat(64)
+const deferred = () => {
+  let resolve, reject
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no }); promise.catch(() => {})
+  return { promise, resolve, reject }
+}
+const turn = () => new Promise(resolve => setImmediate(resolve))
+async function fixture(t, options = {}) {
+  const root = await mkdtemp(join(tmpdir(), 'module-controller-'))
+  await mkdir(join(root, 'state'))
+  const children = [], controls = [], preparations = [], requests = []
+  const behavior = { holdExit: false, quiesce: true, failNew: false, request: () => Promise.resolve('result'), ...options }
+  const reap = child => {
+    if (child.exitCode !== null) return
+    child.exitCode = 0; child.connected = false
+    child.stdout.closed = child.stderr.closed = true
+    child.emit('exit', 0, null); child.emit('close', 0, null)
+  }
+  const process = createModuleProcess({ component: 'diagnostics', root, investigationsFile: '/fixture/notes.json',
+    exportHandoff: () => behavior.export?.() ?? Promise.resolve(undefined),
+    prepareRelease: async (versionId, expected) => {
+      preparations.push({ versionId, expected })
+      await behavior.prepare?.()
+      return { versionId, appRoot: `/run/bellteam-maintenance/diagnostics/releases/${versionId}/payload` }
+    },
+    validateReady: ready => assert.equal(ready.protocolVersion, 1),
+    spawnProcess: (path, args, spawnOptions) => {
+      assert.equal(path, '/usr/local/libexec/bellteam-diagnostics-start')
+      assert.deepEqual(spawnOptions.env, { BELLTEAM_DIAGNOSTIC_INVESTIGATIONS: '/fixture/notes.json' })
+      assert.equal(spawnOptions.serialization, 'advanced')
+      const child = new EventEmitter()
+      Object.assign(child, { connected: true, exitCode: null, signalCode: null,
+        versionId: args[0] === 'builtin' ? null : args[0],
+        stdout: Object.assign(new EventEmitter(), { closed: false, resume() {} }),
+        stderr: Object.assign(new EventEmitter(), { closed: false, resume() {} }),
+        kill: () => { queueMicrotask(() => reap(child)); return true }, disconnect: () => reap(child),
+      })
+      children.push(child); return child
+    },
+    createChannel: (child, { generation }) => {
+      if (child.versionId && behavior.failChannel) throw new Error('fixture channel construction failed')
+      return {
+      ready: Promise.resolve({ versionId: child.versionId, protocolVersion: 1 }),
+      request: (method, params, requestOptions) => { requests.push({ method, params, requestOptions, generation }); return behavior.request() },
+      callback: () => Promise.resolve('callback'),
+      control: async (method, params) => {
+        controls.push({ child, method, params })
+        if (method === 'initialize') {
+          if (child.versionId && behavior.failNew) throw new Error('fixture restore failed')
+          assert.equal(params.generation, generation)
+          return {}
+        }
+        if (method === 'resume') return { resumed: true }
+        if (method === 'quiesce') return { quiesced: behavior.quiesce }
+        if (method === 'exit') { if (!behavior.holdExit) queueMicrotask(() => reap(child)); return { closed: true } }
+      },
+      reaped: () => { child.reaped = true },
+      drainIncoming: () => behavior.parentWork?.() ?? Promise.resolve(),
+      }
+    },
+  })
+  t.after(async () => { behavior.holdExit = false; behavior.quiesce = true; await process.close(); await rm(root, { recursive: true, force: true }) })
+  return { process, root, children, controls, preparations, requests, behavior, reap }
+}
+
+test('exchange retains actual request completion and OS/pipe close before the next generation', async t => {
+  const f = await fixture(t)
+  await f.process.start()
+  const done = deferred(), result = Promise.resolve('accepted')
+  Object.defineProperty(result, 'completion', { value: done.promise })
+  f.behavior.request = () => result
+  assert.equal(await f.process.request('record', { report: 'fixture' }), 'accepted')
+  f.behavior.holdExit = true
+  const exchanging = f.process.replace(sha)
+  await turn()
+  assert.equal(f.children.length, 1)
+  await assert.rejects(f.process.request('record', {}), /NOT_ACCEPTING/)
+  done.resolve(); await turn()
+  assert.ok(f.controls.some(c => c.method === 'exit'))
+  assert.equal(f.children.length, 1)
+  f.reap(f.children[0])
+  const state = await exchanging
+  assert.equal(f.children.length, 2); assert.equal(f.children[0].reaped, true)
+  assert.equal(state.currentVersionId, sha)
+  const record = JSON.parse(await readFile(join(f.root, 'state/diagnostics-release.json')))
+  assert.equal(record.currentVersionId, sha); assert.equal(record.previousVersionId, null)
+})
+
+test('failed quiesce resumes the original writer and issues no new child', async t => {
+  const f = await fixture(t); await f.process.start()
+  f.behavior.quiesce = false
+  await assert.rejects(f.process.replace(sha), /QUIESCE_FAILED/)
+  assert.equal(f.children.length, 1); assert.equal(f.children[0].exitCode, null)
+  assert.equal(f.process.snapshot().available, true)
+})
+
+test('parent effects after child OS close hold reaped and the next writer', async t => {
+  const f = await fixture(t); await f.process.start()
+  const done = deferred(); f.behavior.parentWork = () => done.promise
+  const replacing = f.process.replace(sha); await turn()
+  assert.equal(f.children[0].exitCode, 0)
+  assert.equal(f.children[0].reaped, undefined); assert.equal(f.children.length, 1)
+  done.resolve(); await replacing
+  assert.equal(f.children[0].reaped, true); assert.equal(f.children.length, 2)
+})
+
+test('private handoff metadata alone does not end the old generation before stream completion', async t => {
+  const f = await fixture(t); await f.process.start()
+  const done = deferred(), exported = Promise.resolve({ private: 'fixture' })
+  Object.defineProperty(exported, 'completion', { value: done.promise })
+  f.behavior.export = () => exported
+  const replacing = f.process.replace(sha); await turn()
+  assert.equal(f.children.length, 1)
+  assert.equal(f.controls.some(c => c.method === 'exit'), false)
+  done.resolve(); await replacing
+  assert.equal(f.children.length, 2)
+})
+
+test('failed new read-restore reaps the candidate before restoring the old bundle', async t => {
+  const f = await fixture(t, { failNew: true }); await f.process.start()
+  await assert.rejects(f.process.replace(sha), /REPLACE_ROLLED_BACK/)
+  assert.equal(f.children.length, 3)
+  assert.equal(f.children[0].reaped, true); assert.equal(f.children[1].reaped, true)
+  assert.equal(f.children[2].versionId, null)
+  assert.equal(f.process.snapshot().available, true)
+})
+
+test('reservation completion covers real replacement or cancellation', async t => {
+  const f = await fixture(t); await f.process.start()
+  const cancelled = f.process.reserve(sha); cancelled.cancel(); await cancelled.completion
+  assert.equal(f.process.snapshot().update.status, 'not_started')
+  const done = deferred(); f.behavior.prepare = () => done.promise
+  const operation = f.process.reserve(sha)
+  await assert.rejects(f.process.replace(sha), /UPDATE_IN_PROGRESS/)
+  operation.start()
+  let settled = false; operation.completion.then(() => { settled = true })
+  await turn(); assert.equal(settled, false)
+  done.resolve(); await operation.completion
+  assert.equal(f.process.snapshot().update.status, 'succeeded')
+})
+
+test('a channel constructor failure still reaps the spawned candidate before rollback', async t => {
+  const f = await fixture(t, { failChannel: true }); await f.process.start()
+  await assert.rejects(f.process.replace(sha), /REPLACE_ROLLED_BACK/)
+  assert.equal(f.children.length, 3); assert.equal(f.children[1].exitCode, 0)
+  assert.equal(f.process.snapshot().available, true)
+})
+
+test('shutdown during prepare prevents a new child after preparation finishes', async t => {
+  const f = await fixture(t); await f.process.start()
+  const done = deferred(); f.behavior.prepare = () => done.promise
+  const replacing = f.process.replace(sha); await turn()
+  const closing = f.process.close(); done.resolve()
+  await assert.rejects(replacing, /CLOSED/); await closing
+  assert.equal(f.children.length, 1); assert.equal(f.children[0].reaped, true)
+})
+
+test('adoption metadata with an invalid version fails closed before any child starts', async t => {
+  const f = await fixture(t)
+  await writeFile(join(f.root, 'state/diagnostics-release.json'), JSON.stringify({
+    schema: 'bellteam.diagnostics.adoption.v1', currentVersionId: '../escape', previousVersionId: null,
+  }), { mode: 0o600 })
+  await assert.rejects(f.process.start(), /ADOPTION_INVALID/)
+  assert.equal(f.children.length, 0)
+})

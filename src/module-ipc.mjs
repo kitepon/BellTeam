@@ -20,7 +20,7 @@ export function createModuleEndpoint(endpoint, { validateResult, onRequest, onDi
   const membersError = (code, outcome = 'unknown', status = 503) => Object.assign(new Error(code.replace(/^MEMBERS/u, errorPrefix)), { code: code.replace(/^MEMBERS/u, errorPrefix), outcome, status })
   const check = (value, code = 'MEMBERS_IPC_INVALID') => { if (!value) throw membersError(code, 'not_accepted') }
   let sequence = 0, incoming = 0, dead = false, queued = 0, controlQueued = 0
-  const pending = new Map(), running = new Set()
+  const pending = new Map(), running = new Set(), settling = new Set()
   const safeWireError = (error, outcome) => { const value = safeError(error, outcome); if (value.code === 'MODULE_OPERATION_FAILED') value.code = `${errorPrefix}_OPERATION_FAILED`; if (statusCodes && !statusCodes.includes(value.status)) value.status = 503; return value }
   const counts = { root: 0, effect: 0, callback: 0, projection: 0, diagnostic: 0, control: 0 }
   const reserve = (kind, bytes) => {
@@ -108,7 +108,11 @@ export function createModuleEndpoint(endpoint, { validateResult, onRequest, onDi
           const body = afterResult?.(task, message.value)
           task.resolve(message.value)
           if (body === undefined) finish()
-          else Promise.resolve(body).then(() => { if (!dead) finish() }, () => { protocolFailure() })
+          else {
+            const completion = Promise.resolve(body).then(() => { if (!dead) finish() }, () => { protocolFailure() })
+            settling.add(completion)
+            void completion.finally(() => settling.delete(completion))
+          }
         } else {
           const error = Object.assign(new Error(message.error.code), message.error)
           task.reject(error); finish(error)
@@ -144,6 +148,9 @@ export function createModuleEndpoint(endpoint, { validateResult, onRequest, onDi
   endpoint.on('disconnect', fail)
   endpoint.on('error', fail)
   return { call, pending, counts, running, send, fail,
+    drainIncoming: async () => {
+      while (running.size || settling.size) await Promise.allSettled([...running, ...settling])
+    },
     // Only the OS/stdio barrier may terminate completions after IPC loss.
     reaped: () => {
       fail()

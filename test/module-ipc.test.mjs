@@ -87,3 +87,22 @@ test('a body failure after metadata keeps credit and actual completion until the
   const reaped = assert.rejects(request.completion, { code: 'MODULE_CHILD_EXITED' })
   a.reaped(); await reaped
 })
+
+test('parent drain holds incoming effects and result commit work after IPC disconnect', async t => {
+  for (const bodyCommit of [false, true]) {
+    const [parent, child] = pair(), work = Promise.withResolvers(), started = Promise.withResolvers()
+    const a = createModuleEndpoint(parent, { validateResult: () => true,
+      onRequest: () => async () => { started.resolve(); await work.promise; return {} },
+      ...(bodyCommit ? { afterResult: () => { started.resolve(); return work.promise } } : {}),
+    })
+    const b = createModuleEndpoint(child, { validateResult: () => true, onRequest: () => () => ({}) })
+    t.after(() => { a.reaped(); b.reaped() })
+    const request = bodyCommit ? a.call('root', 'list', {}, {}) : b.call('effect', 'write', {}, {})
+    request.catch(() => {}); request.completion.catch(() => {})
+    await started.promise
+    parent.disconnect()
+    let settled = false; const draining = a.drainIncoming().then(() => { settled = true })
+    await Promise.resolve(); await Promise.resolve(); assert.equal(settled, false)
+    work.resolve(); await draining; assert.equal(settled, true)
+  }
+})

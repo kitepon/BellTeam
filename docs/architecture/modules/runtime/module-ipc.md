@@ -6,6 +6,8 @@
 
 `afterResult(task,value)`がPromiseを返すとmetadataをcallerへ返した後も、そのPromiseが終わるまでroot credit/実completionを保持する。大list/private snapshotの実読取・反映ACKをここへ結び、metadata ACKだけで次世代へ移らない。taskはid/kind/method/context、beforeSendで同期に登録できる。afterResponse(message,value)は返信の送信後で、exit→disconnectはここから行う。
 
+`drainIncoming()`は受信済parent effect/callbackとafterResultの実commitを待つ。子のOS/pipe終了後も親保存が残る場合があるため、固有parent channelはこの関数を公開し、controllerはその終端後だけreapedを呼ぶ。切断後にreapedを待つoutgoing credit自体は含めず、循環を作らない。
+
 streamed:trueのendpointは既open/data/credit/end/closed/abort/rejected/controlを同channelのstream機構へ渡し、`createModuleStreams(...,{rpcFrames:true})`はcall/accepted/resultをRPCへ渡す。未知frameは拒否する。`module-streams.mjs`は既conversation実装の共通移管で、256KiB/4credit/8stream（4はcallback/continuation予約）、履歴は同snapshot AsyncIterableの逐次JSON。既conversation-streamsは再exportだけにし同じ契約を参照する。履歴laneの総量制限無しは既意味を保ち、他body96MiB+64KiBを緩和しない。
 
 新moduleの固定error code/outcome/statusだけをwireへ出し、statusは整数400..599。自由message/stackを送らない。legacy membersだけstatusCodes=[400,403,404,409,503]を明示し既型を保持する。Root再採否や既業務成功群の再走は加えず、新stream共存/実body終端/status保持と変更したmembers低層の境界だけを検証する。

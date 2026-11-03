@@ -108,6 +108,7 @@
     "scripts/usage-start.c",
     "scripts/diagnostics-start.c",
     "src/module-locks.mjs",
+    "src/module-process.mjs",
     "src/usage-locks.mjs",
     "src/diagnostics-locks.mjs",
     "scripts/probe-members-runtime.mjs",
