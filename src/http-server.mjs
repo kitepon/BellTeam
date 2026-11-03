@@ -79,7 +79,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
         stage = 'members_refresh'
         const botRead = /^\/api\/bots\/[a-z0-9-]+(?:\/(.*))?$/u.exec(url.pathname)
         const directRead = request.method === 'GET' && (
-          url.pathname === '/api/bots' && typeof bots.listForClient === 'function'
+          !internal && url.pathname === '/api/queue'
+          || url.pathname === '/api/bots' && typeof bots.listForClient === 'function'
           || ['/api/owner', '/api/owner/avatar', '/api/user-rules'].includes(url.pathname)
           || botRead && typeof bots.readMember === 'function' && (['', 'messages', 'queue', 'avatar', 'avatar-large', 'avatar-source', 'avatar-large-source'].includes(botRead[1] ?? '')
             || /^character-sheet(?:\/[^/]+)?$/u.test(botRead[1] ?? '')))

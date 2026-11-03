@@ -18,7 +18,8 @@ def main():
     archive, node = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
     arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}[platform.machine()]
     with archive.open('rb') as stream: manifest, _ = check_archive(stream, arch=arch, component='memory')
-    root = Path(tempfile.mkdtemp(prefix='memory-probe-', dir=archive.parent)); root.chmod(0o755)
+    # UID1000 must not traverse a checkout owned by the separate CI runner account.
+    root = Path(tempfile.mkdtemp(prefix='memory-probe-', dir='/tmp')); root.chmod(0o755)
     try:
         with tarfile.open(archive, 'r:gz') as tar:
             for row in manifest['files']:

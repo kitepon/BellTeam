@@ -24,10 +24,11 @@ test('型付き503は共通refresh段階と固定code/型routeだけを保存し
     cause: new Error('private-cause'),
   })
   error.stack = 'private-stack'
-  const base = await serve(t, { diagnostics, bots: { refresh() { throw error } }, ownerProfile: { get() { throw error } } })
+  const base = await serve(t, { diagnostics, bots: { refresh() { throw error } }, transport: { queueItems() { throw error } }, ownerProfile: { get() { throw error } } })
   const routes = new Map([
     ['/api/bots/private-bot/messages', '/api/bots/:id/messages'],
     ['/api/bots/private-bot/queue', '/api/bots/:id/queue'],
+    ['/api/rooms/private-room/avatar', '/api/rooms/:id/avatar'], ['/api/queue', '/api/queue'],
     ['/api/bots', '/api/bots'], ['/api/owner', '/api/owner'], ['/api/rooms', '/api/rooms'],
   ])
   for (const [route, expected] of routes) {
@@ -40,7 +41,7 @@ test('型付き503は共通refresh段階と固定code/型routeだけを保存し
     assert.equal(row.category, 'SERVER_HTTP_503')
     assert.equal(log.error_code, 'MEMBERS_NOT_ACCEPTED')
     assert.equal(log.http_method, 'GET')
-    assert.equal(log.http_stage, route === '/api/owner' ? 'feature' : 'members_refresh')
+    assert.equal(log.http_stage, ['/api/owner', '/api/queue'].includes(route) ? 'feature' : 'members_refresh')
     assert.equal(log.request_route, expected)
     assert(log.request_started_at_ms >= before)
     assert(Date.parse(log.response_selected_at) >= log.request_started_at_ms)
@@ -61,7 +62,7 @@ test('型付き503は共通refresh段階と固定code/型routeだけを保存し
   await reloaded.initialize()
   assert.deepEqual(reloaded.list(), diagnostics.list())
   assert.equal(reloaded.list().length, 1)
-  assert.equal(reloaded.list()[0].occurrence_count, 6)
+  assert.equal(reloaded.list()[0].occurrence_count, 8)
 })
 
 test('feature内の503はHTTP段階だけを示しmembers失敗phaseを推測しない', async t => {

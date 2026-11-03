@@ -21,6 +21,34 @@ class MemoryArtifact(unittest.TestCase):
  def tearDown(self):
   for root,dirs,files in os.walk(self.root):os.chmod(root,0o700)
   self.temp.cleanup()
+ def test_probe_uses_independent_traversable_root_and_cleans_success_and_failure(self):
+  spec=importlib.util.spec_from_file_location('probe',ROOT/'test/helpers/memory-artifact-probe.py')
+  probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(probe)
+  parent_mode=self.root.stat().st_mode
+  roots=[]
+  def run(command,**options):
+   entry=Path(command[1]);root=entry.parents[2];roots.append(root)
+   self.assertEqual(root.parent,Path('/tmp'))
+   self.assertFalse(root.is_relative_to(self.root))
+   self.assertTrue(entry.is_file())
+   for path in [root,root/'payload',entry.parent]:self.assertEqual(path.stat().st_mode&0o005,0o005)
+   self.assertEqual((options['user'],options['group'],options['extra_groups']),(1000,1000,[]))
+   self.assertEqual(list(Path(options['cwd']).iterdir()),[])
+   request=json.loads(options['input'])
+   value=dict(protocolVersion=1,generation=request['generation'],stateCompatibility=self.state,result=dict(restored=True))
+   return subprocess.CompletedProcess(command,exit_code,stdout=json.dumps(value),stderr='')
+  remove=probe.shutil.rmtree
+  def remove_as_owner(path):
+   # This unit fixture maps root cleanup capability to its unprivileged owner.
+   for directory,_,_ in os.walk(path):os.chmod(directory,0o700)
+   remove(path)
+  for exit_code in [0,1]:
+   with patch.object(probe.os,'geteuid',return_value=0),patch.object(probe.sys,'argv',['probe',str(self.archive),'/usr/bin/node']),patch.object(probe.subprocess,'run',side_effect=run),patch.object(probe.shutil,'rmtree',side_effect=remove_as_owner):
+    if exit_code:
+     with self.assertRaisesRegex(ValueError,'MEMORY_PROBE_FAILED'):probe.main()
+    else:probe.main()
+   self.assertFalse(roots[-1].exists())
+   self.assertEqual(self.root.stat().st_mode,parent_mode)
  def test_closure_and_actual_state_reject_missing_extra_replaced_bad_types(self):
   self.assertEqual(set(f['path'] for f in self.manifest['files']),MEMORY_FILES)
   self.assertEqual(policy_for('memory')['signerWorkflow'],'kitepon/BellTeam/.github/workflows/publish-memory.yml')
