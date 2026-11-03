@@ -38,11 +38,30 @@ test('normal conversation parent authenticates ingress and keeps its sole writer
   for (const producer of ['scheduler', 'selfTurns', 'seatTurns', 'idleSessions']) if (runtime.services[producer]) runtime.services[producer].start = () => {}
   await runtime.start()
   const port = runtime.gateway.address.port, url = `http://127.0.0.1:${port}`
+  const internal = `http://127.0.0.1:${runtime.internalServer.address().port}`
+  let denied = await fetch(internal + '/api/rooms', { method: 'POST', body: JSON.stringify({ name: 'Spoof', memberIds: ['bot-fixture'], actor: { kind: 'owner' } }) })
+  assert.equal(denied.status, 403)
+  denied = await fetch(internal + '/api/deliveries/direct/1234/resume', { method: 'POST', headers: { 'X-Bellteam-Seat': 'bot-fixture' }, body: JSON.stringify({ target: 'bot-fixture', actor: { kind: 'owner' } }) })
+  assert.equal(denied.status, 403)
+  assert.equal((await denied.json()).error, 'CONVERSATION_METHOD_FORBIDDEN')
   let response = await fetch(url + '/api/rooms', { method: 'POST', body: JSON.stringify({ name: 'Preserved', memberIds: ['bot-fixture'] }) })
   assert.equal(response.status, 201, await response.clone().text())
   const room = (await response.json()).room
   assert.equal(runtime.services.rooms.get(room.id).name, 'Preserved')
   const saved = await readFile(join(root, 'rooms', room.id, 'room.json'))
+  const record = id => ({ schema: 'bellteam.direct-message.v1', delivery_id: id, from: 'user', target: 'bot-fixture', message: 'private fixture text', at: '2026-11-04T00:00:00Z' })
+  const log = Buffer.concat([Buffer.from(JSON.stringify(record('before')) + '\n'), Buffer.alloc(147), Buffer.from('\n' + JSON.stringify(record('after')) + '\n')])
+  await writeFile(join(root, 'logs/direct-messages.jsonl'), log)
+  response = await fetch(url + '/api/bots/bot-fixture/export')
+  assert.equal(response.status, 200, await response.clone().text())
+  assert.deepEqual((await response.json()).messages.map(row => row.id), ['before', 'after'])
+  for (let n = 0; n < 100 && !(await runtime.services.diagnostics.list()).some(row => row.category === 'MESSAGE_LOG_INVALID'); n++) await new Promise(resolve => setTimeout(resolve, 5))
+  const reports = (await runtime.services.diagnostics.list()).filter(row => row.category === 'MESSAGE_LOG_INVALID')
+  assert.equal(reports.length, 1)
+  const diagnostic = JSON.parse(reports[0].diagnostic_log)
+  assert.equal(diagnostic.line, 2); assert.equal(diagnostic.length, 147); assert.equal(diagnostic.reason, 'nul')
+  assert.doesNotMatch(JSON.stringify(reports), /private fixture text/)
+  assert.deepEqual(await readFile(join(root, 'logs/direct-messages.jsonl')), log)
   const parent = process.pid
   await runtime.services.conversationAssembly.controller.replace('a'.repeat(64))
   response = await fetch(url + '/api/rooms/' + room.id)

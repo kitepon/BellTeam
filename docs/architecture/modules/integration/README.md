@@ -444,7 +444,7 @@ flowchart LR
   Ledger --> View[既Update HTTP/schema/SSE / backend結果]
 ```
 
-親は業務データを直接書かず、安定facadeと公開controllerを組み立てる。共通ledgerはplan/同UUID・step/再開・結果を停止跨ぎ保持し、unknownから新要求を自動再送しない。runnerが旧世代の新入場を閉じ実root/effect/保存・OS子終端をdrainし、業務moduleが同state restore/唯一writerと入力検証を所有する。adapterはその既公開結果だけを親ledgerへ投影する。現container耐久接続は成立、module/all共通executorは実装中。既web/notifications/members controllerから先行し、全moduleの納品待ちへ戻さない。diagnostics内部は[Signalの正本](../diagnostics/README.md)へ移し、親の既diagnostics窓口は同facadeで維持する。
+親は業務データを直接書かず、安定facadeと公開controllerを組み立てる。共通ledgerはplan/同UUID・step/再開・結果を停止跨ぎ保持し、unknownから新要求を自動再送しない。runnerが旧世代の新入場を閉じ実root/effect/保存・OS子終端をdrainし、業務moduleが同state restore/唯一writerと入力検証を所有する。adapterはその既公開結果だけを親ledgerへ投影する。containerと登録済みmodule/allの共通executorを組み立て、各controllerの実結果を同じ台帳へ保存する。diagnostics内部は[Signalの正本](../diagnostics/README.md)へ移し、親の既diagnostics窓口は同facadeで維持する。
 
 ### 通常UIと連絡のreadonly入場
 
@@ -466,7 +466,7 @@ flowchart LR
   Unknown --> Result
 ```
 
-共通ledgerがplan/operation/stepの唯一writer。既web/通知/members controllerとroot所有資材の公開prepareを再利用し、子writer・新版資材配置を追加しない。未配置はplan前のprepareで拒否する。catalogは通知protocol/state 2、members状態指紋、Web protocol 1を照合する。全体planは同catalogの更新対象を固定し、必要なcontainer stepだけ既Host計画を末尾へ付ける。個別旧container計画/結果照会を維持する。
+共通ledgerがplan/operation/stepの唯一writer。既web/通知/members controllerとroot所有資材の公開prepareを再利用し、子writer・新版資材配置を追加しない。未配置のENOENTだけは後述の既Host設置stepへ接続し、その他のprepare失敗は拒否する。catalogは通知protocol/state 2、members状態指紋、Web protocol 1を照合する。全体planは同catalogの更新対象を固定し、必要なcontainer stepだけ既Host計画を末尾へ付ける。個別旧container計画/結果照会を維持する。
 
 戻しはplan入力のaction=rollbackで明示し、省略はupdate。operationは保存planのactionを使い、別action/targetをbodyへ受けない。個別moduleの直前に当ledgerが成功確認した交換だけ、元のbuiltin又は検証済archiveへ現データのまま戻す。全体/container戻しは未対応として拒否し、業務データ/Owner設定/unknownを巻き戻さない。途中のmodule実行が未確定ならunknown、Hostへ発行済みの最後stepは同requestId照会だけで追う。親終了は新受付を閉じ、既実Promiseを回収してからcontrollerを閉じる。
 
@@ -532,4 +532,6 @@ flowchart LR
   Crash[親中断] --> Unknown[公開結果unknown / install getのみ / replace再発行0]
 ```
 
-新しい公開HTTP/MCP schema・保存writerを増やさない。公開operation UUIDと各設置stepのUUIDは別に耐久保存する。catalog/互換が固定され、既readerがENOENTとなった更新だけHost planへ渡す。改竄・不適合・権限エラーは設置で隠さない。戻しは既配置だけ使う。Host plan/operationはcatalog・component・source・SHA・planId・requestIdを照合し、containerRestart:falseを確認する。失敗/unknown/応答不整合ではreplaceせず、未確定Hostがある間は新更新を拒否する。再起動時は保存済みUUIDの結果照会だけ許し、既設置済みと判明しても中断moduleのreplaceは自動再発行しない。初回Host機構と同image installerの導入・本番承認は別条件。
+新しい公開HTTP/MCP schema・保存writerを増やさない。公開operation UUIDと各設置stepのUUIDは別に耐久保存する。catalog/互換が固定され、既readerがENOENTとなった更新だけHost planへ渡す。改竄・不適合・権限エラーは設置で隠さない。戻しは既配置だけ使う。Host plan/operationはcatalog・component・source・SHA・planId・requestIdを照合し、containerRestart:falseを確認する。失敗/unknown/応答不整合ではreplaceせず、未確定Hostがある間は新更新を拒否する。再起動時は保存済みUUIDの結果照会だけ許し、既設置済みと判明しても中断moduleのreplaceは自動再発行しない。Hostが明示的に未受付と返した設置はfailedとして確定し、未知の受付と区別する。初回Host機構と同image installerの導入・本番承認は別条件。
+
+会話子のStore固定診断はdispatcher→厳密なIPC union→親onDiagnostic→同Diagnostics writerへ保存する。MESSAGE_LOG_INVALIDのcode/物理line/byte offset/length/固定reasonだけを渡し、本文や自由例外を診断へ含めない。旧fallback Storeも同じ診断writerへ接続する。

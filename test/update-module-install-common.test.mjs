@@ -167,3 +167,15 @@ test('reconstruction refuses an installation UUID aliased to the public operatio
   await assert.rejects(createModuleUpdateExecutor(f.options), { code: 'UPDATE_LEDGER_INVALID' })
   assert.equal(f.calls.starts.length, 1)
 })
+
+test('explicit Host not-accepted remains failed and does not leave an unknown installation blocking future plans', async t => {
+  const f = await fixture(t), plan = await f.plan(), request = f.request(plan)
+  const start = f.moduleHost.startModuleInstall
+  f.moduleHost.startModuleInstall = async input => { await start(input); throw Object.assign(new Error(), { code: 'HOST_UPDATE_BUSY', outcome: 'not_accepted' }) }
+  await f.executor.start(request)
+  assert.equal((await done(f.executor, request.requestId)).phase, 'failed')
+  assert.equal((await f.ledger()).operations[0].steps[0].installPhase, 'failed')
+  assert.equal(f.calls.applies, 0)
+  await f.plan()
+  assert.equal(f.calls.starts.length, 1)
+})

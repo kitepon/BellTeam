@@ -142,8 +142,15 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
   const install = async (step, progress) => {
     progress.installIssued = true; await save()
     // Persist the separate step UUID before the only issuing call; all recovery is read-only.
-    const accepted = installResult(step, progress, await moduleHost.startModuleInstall({
-      requestId: progress.installRequestId, planId: step.installPlan.planId }))
+    let accepted
+    try {
+      accepted = installResult(step, progress, await moduleHost.startModuleInstall({
+        requestId: progress.installRequestId, planId: step.installPlan.planId }))
+    } catch (error) {
+      if (error.outcome === 'not_accepted') { progress.installPhase = 'failed'; await save() }
+      throw error
+    }
+    if (accepted.admission === 'rejected') { progress.installPhase = 'failed'; await save() }
     requireValue(accepted.admission === 'accepted', 'UPDATE_ADMISSION_UNCONFIRMED')
     while (true) {
       requireValue(!closed, 'UPDATE_EXECUTOR_CLOSED')
