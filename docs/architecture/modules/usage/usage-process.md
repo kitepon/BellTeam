@@ -166,3 +166,11 @@ parent channelのdrainIncoming()は共通endpointへ直接委譲する。control
 
 
 cold parent restartは既adoptionと保存済diskを読み、settings({restore:true})→subscriptions→servicesをhandoff無しで初期化する。volatile stateは新規のまま、保存値/依頼/秘密値のbytesと形式を保持する。mode=restoreのhotswapは実private handoffを必須とする。認証開始・入力、設定apply、通知の再発行を初期化に加えない。runtimeのstartPaused/activateはEpiの責任で、親private seed後に段階初期化し、activateで実resume/同admissionを再開する。
+
+## installed reader/wrapperと安定facadeの結合
+
+Epi固定`00a0dd59`の`createUsageProcess`/`prepareModuleRelease`を親公開口として使う。初期private seedからcreateApplicationFeaturesを構築し、subscriptions/services完了→activateの実resume後に既applyを初期化する。usage側の業務や親native graphを再構築しない。
+
+親onEffectで受け取る同root contextはAsyncLocalStorage等の親closureで保持する。設定applyからのusageContext(method)は、live effect中なら同usageLease/usageEffect＋system method限定opaqueを返し、controller.callbackへ渡す。親admission閉鎖中に別rootを作らない。通常入口は新opaqueを同admissionのrootへ結び、実completion後にreleaseする。新結合試験は実createApplicationFeaturesの停止失敗を交換drain中に返し、同root callbackのerror/epochがhot handoffを越えることを確認する。
+
+検証のinstalled reader正例/署名配置はCentiの実物工程に残す。新試験で実readerを呼ぶのは未配置版の拒否境界であり、旧process/PIDとavailableを保持する。正例の交換・戻しは明示descriptor DIと実Node IPC/既factory/親facadeで行い、固定C/UID1001/実署名/本番の成立に補完しない。
