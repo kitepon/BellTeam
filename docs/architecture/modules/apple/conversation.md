@@ -87,13 +87,14 @@ flowchart TD
   ID --> Accepted["acceptSend<br/>受付済み・反映待ち"]
   Accepted --> Load["activeなら会話と共通一覧を取得"]
   Load --> Received["履歴に同じ受付IDが到着<br/>仮行を除去・履歴の配送状態を表示"]
-  Access -->|"失敗"| Restore["仮行削除・本文/画像を復元"]
-  Post -->|"失敗・取消・期限終了"| Restore
-  ID -->|"応答不正"| Restore
-  Restore --> Error["入力を残してerror / 診断<br/>結果不明かつactiveならloadを呼ぶ"]
+  Access -->|"失敗"| Failure["失敗の3経路<br/>正本は状態と同期の送信図"]
+  Post -->|"失敗・取消・期限終了"| Failure
+  ID -->|"応答不正"| Failure
 ```
 
-[send](../../../../ios/BellBot/BellBot/Views/ConversationView.swift#L745)の本文は元の送信文＋送信中の新しい入力、画像は元の画像＋新しい画像の順に復元する。宛先は送信前に消さない。認証失敗は入力を戻しrequireLogin、購読等の許可失敗はactiveならloadしてエラーを表示する。送信失敗後の照会判断は`SendFailureReconcileObservation`が記録し、load呼出しと実HTTP成功を区別する。自動POST再送はない。
+失敗の経路は[状態と同期の送信図](state-and-sync.md#送信停止取消途中失敗)を正本とし、ここでは複製しない。要点は3つに分かれる。`authorizeAIUse`の認証失敗は入力を戻して`requireLogin`し、loadしない（[send](../../../../ios/BellBot/BellBot/Views/ConversationView.swift#L765)）。その他の事前失敗は入力を戻し、結果不明かどうかを問わずactiveならloadしてエラーを表示する（同773行）。POSTとackの失敗だけが`SendFailureReconcileObservation`を通り、activeかつ結果不明の時にloadする（同793行）。
+
+本文は元の送信文＋送信中の新しい入力、画像は元の画像＋新しい画像の順に復元する。宛先は送信前に消さない。`SendFailureReconcileObservation`はload呼出しと実HTTP成功を区別して記録する。自動POST再送はない。
 
 [BackgroundMessageSend](../../../../ios/BellBot/BellBot/Core/BackgroundMessageSend.swift#L5)はOSの実行時間が取れなければoperation taskをcancelしbackgroundSendUnavailable。期限通知ではexpiredを立ててcancelし即時finish、エラーをbackgroundSendExpiredにする。caller取消も子taskへ伝える。通常終了・失敗のdeferもfinishを通り、identifierをinvalidにして二重終了を避ける。
 
