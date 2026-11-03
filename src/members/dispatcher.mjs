@@ -50,6 +50,10 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
     botsRoot: join(root, 'bots'), stateRoot: join(root, 'state/bots'), projectFiles,
     models: { forHarness: harness => call('models.read', { harness }) },
     onChange: registry => call('cli.configure', { botIds: [...registry.keys()] }),
+    assetRemoval: {
+      prepareBotAssetRemoval: botId => call('assets.prepareBotAssetRemoval', { botId }),
+      cancelBotAssetRemoval: (botId, lease, state) => call('assets.cancelBotAssetRemoval', { botId, lease, state }),
+    },
   })
   const ownerProfile = new OwnerProfile({ root }), userRules = new UserRules({ root })
   let ownerSaving = Promise.resolve(), globalWriting = Promise.resolve()
@@ -101,6 +105,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
   }
   async function execute(method, params) {
     switch (method) {
+      case 'profiles.cli': await bots.refresh(); return { botIds: [...bots.keys()] }
       case 'profiles.read': await bots.refresh(); return { profiles: (await bots.listForClient()).map(withoutImages) }
       case 'profile.read': {
         await bots.refresh()
@@ -109,6 +114,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
         return { bot }
       }
       case 'profile.preview': return { bot: await bots.previewUpdate(params.botId, params.changes) }
+      case 'profile.remove': return bots.remove(params.botId)
       case 'profile.update': return { bot: await bots.update(params.botId, params.changes) }
       case 'profile.create': {
         const bot = await bots.create(params.input)
@@ -155,7 +161,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
     return track(() => contexts.run(context, async () => {
       const result = await execute(method, params)
       validateMembersResult(method, result)
-      if (!['profiles.read', 'profile.read', 'profile.preview', 'removals.read', 'owner.read', 'rules.read', 'schedules.list'].includes(method)) await snapshot(context)
+      if (!['profiles.cli', 'profiles.read', 'profile.read', 'profile.preview', 'removals.read', 'owner.read', 'rules.read', 'schedules.list'].includes(method)) await snapshot(context)
       return result
     }))
   }

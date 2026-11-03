@@ -10,7 +10,8 @@ flowchart TD
   Target -->|"既pending"| Resume["202 / deleting:id<br/>同じ削除意図の再開"]
   Accepted --> Stop["execution.stop<br/>席終了"]
   Stop --> Rooms["conversation.membership-cleanup<br/>部屋・予定targetsから外す"]
-  Rooms --> Record["receipt保存・active Map退役<br/>stateを.deletingへrename"]
+  Rooms --> Gate["対象Bot画像の新save停止・旧save終端"]
+  Gate --> Record["receipt保存・active Map退役<br/>stateを.deletingへrename"]
   Record --> Listing["通常一覧へdeletingを保持"]
   Record --> Cleanup["runtime.project-filesで専用project削除<br/>pending state→receiptを削除"]
   Resume -->|"native停止・部屋整理を繰り返さない"| Cleanup
@@ -47,3 +48,13 @@ membersは`state/bots/<id>`、`.deleting/<id>`と`<id>.json`、専用`bots/<id>`
 `test/member-deletion.test.mjs`で同期失敗時のcleanup、cleanup失敗との同時報告、receiptだけ/dirだけ/両方のpendingを正規MCP→HTTPで再開、GET/PATCH/完全不存在の拒否、native呼出0、無関係Bot保持、並行cleanupを確認する。既Bot state/registry/Administration/HTTP/MCP/席API試験を直接境界として併走する。
 
 これはsourceと隔離fixtureの修理。実対象Andersonへの再DELETE、手動rm、状態手変更、実席の停止/再起動、本番反映は行っていない。共有JSON競合の修理はruntime担当、外部CLI writerの競合解消までをこの差分の保証に含めない。
+
+## 独立更新でのleaseと画像gate
+
+親startMemberRemovalはtransportと同じMembersAdmissionから一leaseを取り、fresh refresh/target確認→既stop→Room整理→子profile.removeの完了まで保持する。HTTP202を返しても背景処理終端までfinishしない。各bots refresh/hasPending/removeとtransport.stopの追加optionsは同opaqueで、新root化しない。pendingは従来どおりnative停止/Room整理を繰り返さない。
+
+子`profile.remove({botId})`は既BotRegistry.removeの完了返却（id/configurationSync）を持ち、native stop/Room整理は親で既に済ませる。子は固定assets.prepareBotAssetRemoval `{botId}` effectでopaque string leaseを得てからreceipt/退役へ進み、project/CLIは同rootの固定effect。prepare不明/失敗では退役0。親conversationの同一MessageAssetsへ接続し、別writerを作らない。
+
+BotRegistryのassetRemoval adapterはprepare/cancelの2関数。早期失敗時だけ同削除operation順序内でfresh refresh/active/intent/pending/退役を短い状態lockで確認し、active=true/hasIntent=false/retired=falseと同opaqueを固定cancel effectへ渡す。保存lockは外部待ち前に解放し、次の削除operationは早期中止終端まで開始しない。unknown、receipt残存、退役済み、fresh検査失敗ではcancel0。callbackへ値を自己申告させず、一覧不在から許可しない。
+
+親CLI唯一queueは実開始時に専用callback`profiles.cli({})`→`{botIds:[id]}`を同leaseで取得する。childのrefresh→keysだけで、外部effect/状態mutation lock/投影送信/新root0。子effect送信時のbotIdsをそのまま採用せず、親がroot/bots/idへ解決する。

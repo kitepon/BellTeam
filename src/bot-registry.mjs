@@ -50,6 +50,7 @@ export class BotRegistry extends Map {
     this.onChange = onChange
     this.models = models
     this.projectFiles = projectFiles
+    this.assetRemoval = options.assetRemoval ?? null
     this.watchers = new Set()
     this.deletionIntents = new Set()
   }
@@ -335,7 +336,33 @@ export class BotRegistry extends Map {
   async remove(id) {
     validateId(id)
     const previous = this.#removalOperations.get(id) ?? Promise.resolve()
-    const removing = previous.catch(() => {}).then(() => this.#remove(id))
+    const removing = previous.catch(() => {}).then(async () => {
+      let lease
+      if (this.assetRemoval) {
+        await this.refresh()
+        if (!this.has(id) && !await this.hasPendingRemoval(id)) throw new Error(`BOT_NOT_FOUND: ${id}`)
+        lease = await this.assetRemoval.prepareBotAssetRemoval(id)
+      }
+      try { return await this.#remove(id) }
+      catch (error) {
+        if (lease && error.outcome !== 'unknown') {
+          // Same deletion operation queue excludes another intent while the state lock stays available to callbacks.
+          const state = await this.#mutateProfile(id, async () => {
+            await this.refresh()
+            return {
+              active: this.has(id) && await pathExists(this.statePath(id)),
+              hasIntent: this.deletionIntents.has(id) || await this.hasPendingRemoval(id),
+              retired: this.separateState && await pathExists(join(this.stateRoot, '.deleting', id)),
+            }
+          }).catch(() => null)
+          if (state?.active && !state.hasIntent && !state.retired) {
+            try { await this.assetRemoval.cancelBotAssetRemoval(id, lease, state) }
+            catch { /* Unknown cancellation never authorizes another attempt. */ }
+          }
+        }
+        throw error
+      }
+    })
     this.#removalOperations.set(id, removing)
     try { return await removing } finally { if (this.#removalOperations.get(id) === removing) this.#removalOperations.delete(id) }
   }

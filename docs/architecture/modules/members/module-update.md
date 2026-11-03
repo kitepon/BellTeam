@@ -60,6 +60,12 @@ Bot削除は同Botの削除操作の順序を維持しつつ、短い保存ロ�
 
 この段階でもprofile.removeの画像gate/早期cancel、親通常組立と固定entry/実物受入は未了。予定のrun/prepareResumeを子へ再root化するmethodは足さず、親同schedulerを公開窓口として使う。
 
+### 削除とCLI最新台帳の公開接続（第六差分）
+
+rootにprofile.remove `{botId}`→既完了result `{id,configurationSync?}`、effectにassets.prepareBotAssetRemoval `{botId}`→string lease、assets.cancelBotAssetRemoval `{botId,lease,state:{active:true,hasIntent:false,retired:false}}`→booleanを追加。親202背景受付は従来のstop/Room整理を行い、同leaseで子の完了を待つ。[削除図](deletion.md)に早期cancelとstate確認の境界を固定した。
+
+callback専用のprofiles.cli `{}`→`{botIds:[id]}`を追加。通常rootからは拒否。同leaseでrefresh→keysだけを返し、外部effect/投影/新rootは0。親の唯一CLI queueは実開始時にこの結果を使い、effect送信時に添えたbotIdsを最新の保証にしない。
+
 ## 現状と初回の分離
 
 ```mermaid

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises'
+import { mkdtemp, writeFile, rm, mkdir, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { BotRegistry } from '../src/bot-registry.mjs'
@@ -109,4 +109,50 @@ test('quiesce detects incompatible current state before allowing old writer exit
   await assert.rejects(f.dispatcher.control('quiesce', {}), /OWNER_PROFILE_FILE_INVALID/)
   await assert.rejects(f.dispatcher.control('exit', {}), /MEMBERS_NOT_QUIESCED/)
   assert.deepEqual(await f.dispatcher.control('resume', {}), { resumed: true })
+})
+
+test('profile.remove waits the asset gate before retirement and drains its background effects', async t => {
+  const entered = deferred(), release = deferred(), calls = []
+  let f
+  f = await fixture(t, async (method, params, ctx) => {
+    calls.push(method)
+    if (method === 'assets.prepareBotAssetRemoval') {
+      entered.resolve(); await release.promise
+      return 'opaque-asset-gate'
+    }
+    if (method === 'project.remove') {
+      await assert.rejects(stat(join(f.root, 'state/bots/bot-a')), { code: 'ENOENT' })
+      assert.ok(await stat(join(f.root, 'state/bots/.deleting/bot-a')))
+    }
+  })
+  const removing = f.request('profile.remove', { botId: 'bot-a' })
+  await entered.promise
+  const quiescing = f.dispatcher.control('quiesce', {})
+  assert.ok(await stat(join(f.root, 'state/bots/bot-a/bot.json')))
+  await f.dispatcher.dispatchCallback('profile.session', { botId: 'bot-a', session: 'last-save' }, context)
+  release.resolve()
+  assert.deepEqual(await removing, { id: 'bot-a' })
+  assert.deepEqual(await quiescing, { quiesced: true })
+  assert.deepEqual(calls, ['assets.prepareBotAssetRemoval', 'project.remove', 'cli.configure'])
+})
+
+test('CLI queue callback reads current IDs during drain without effects or another root', async t => {
+  let dispatcher, ids
+  const entered = deferred(), release = deferred()
+  const f = await fixture(t, async (method, params, ctx) => {
+    if (method === 'assets.prepareBotAssetRemoval') return 'asset-gate'
+    if (method === 'cli.configure') {
+      entered.resolve(); await release.promise
+      dispatcher.validateCallback('profiles.cli', {}, ctx)
+      ids = await dispatcher.dispatchCallback('profiles.cli', {}, ctx)
+    }
+  })
+  dispatcher = f.dispatcher
+  assert.throws(() => dispatcher.validateRequest('profiles.cli', {}, context))
+  const removing = f.request('profile.remove', { botId: 'bot-a' })
+  await entered.promise
+  const quiescing = dispatcher.control('quiesce', {})
+  release.resolve(); await removing
+  assert.deepEqual(await quiescing, { quiesced: true })
+  assert.deepEqual(ids, { botIds: [] })
 })

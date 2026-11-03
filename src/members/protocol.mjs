@@ -54,6 +54,7 @@ const requests = {
   'profile.preview': value => object(value, { botId: id, changes }),
   'profile.update': value => object(value, { botId: id, changes }),
   'profile.startup': value => object(value, { botId: id, shortTermMemory: body }),
+  'profile.remove': value => object(value, { botId: id }),
   'removals.read': empty,
   'owner.read': empty, 'owner.update': value => object(value, { changes: ownerChanges }),
   'rules.read': empty, 'rules.update': value => object(value, { text: value => string(value, 20000) }),
@@ -63,6 +64,7 @@ const requests = {
   'schedules.claimDue': value => object(value, claim), 'schedules.skipDue': value => object(value, claim),
 }
 const callbacks = {
+  'profiles.cli': empty,
   'profile.session': value => object(value, { botId: id, session: value => { string(value, 8000); if (!value.trim()) fail() } }),
   'profile.fastMode': value => object(value, { botId: id, fastMode: bool }),
 }
@@ -91,6 +93,10 @@ const effects = {
   'cli.configure': value => object(value, { botIds: ids }),
   'models.read': value => object(value, { harness }),
   'memory.ensureScope': value => object(value, projectId),
+  'assets.prepareBotAssetRemoval': value => object(value, projectId),
+  'assets.cancelBotAssetRemoval': value => object(value, { ...projectId, lease: text, state: value => object(value, {
+    active: value => { if (value !== true) fail() }, hasIntent: value => { if (value !== false) fail() }, retired: value => { if (value !== false) fail() },
+  }) }),
   'room.schedules.list': value => object(value, roomId),
   'room.schedules.set': value => object(value, { ...roomId, input: schedule }),
   'room.schedules.remove': value => object(value, { ...roomId, scheduleId: text }),
@@ -121,6 +127,11 @@ const removalStates = value => object(value, { removals: values => {
   values.forEach(item => object(item, { botId: id, active: bool, hasIntent: value => { if (value !== true) fail() }, retired: bool }))
 } })
 function checkMembersResult(method, value) {
+  if (method === 'profiles.cli') { object(value, { botIds: ids }); return }
+  if (method === 'profile.remove') {
+    object(value, { id, configurationSync: value => object(value, { state: value => { if (value !== 'failed') fail() }, name: text, message: text, code: text, status: value => { if (!Number.isInteger(value)) fail() } }, ['state', 'name', 'message']) }, ['id'])
+    return
+  }
   if (method === 'profiles.read') { object(value, { profiles: values => { if (!Array.isArray(values)) fail(); values.forEach(bot) } }); return }
   if (['profile.read', 'profile.create', 'profile.preview', 'profile.update', 'profile.session', 'profile.fastMode'].includes(method)) { object(value, { bot }); return }
   if (method === 'profile.startup') { object(value, { prepared: value => { if (value !== true) fail() } }); return }
@@ -134,6 +145,8 @@ function checkMembersResult(method, value) {
   fail()
 }
 function checkMembersEffectResult(method, value) {
+  if (method === 'assets.prepareBotAssetRemoval') { string(value, 200); if (!value) fail(); return }
+  if (method === 'assets.cancelBotAssetRemoval') { bool(value); return }
   if (method === 'project.readPreviousSession') { body(value); return }
   if (method === 'models.read') {
     if (!value || typeof value !== 'object' || !Array.isArray(value.efforts) || value.efforts.some(item => typeof item !== 'string')
