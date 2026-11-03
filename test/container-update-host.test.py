@@ -1,0 +1,229 @@
+import datetime as dt
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import tempfile
+import threading
+import unittest
+import uuid
+from unittest.mock import patch
+
+spec=importlib.util.spec_from_file_location('host_updater',Path(__file__).resolve().parents[1]/'scripts/container-update-host.py')
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+
+class HostTest(unittest.TestCase):
+    def setUp(self):
+        # Root ownership is substituted with current UID; no root/systemd/Docker claim.
+        self.temp=tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]);self.addCleanup(self.temp.cleanup)
+        self.prefix=Path(self.temp.name);(self.prefix/'state').mkdir(mode=0o700);(self.prefix/'catalog').mkdir()
+        self.current={'containerId':'a'*64,'imageId':'sha256:'+'b'*64,'sourceCommit':'c'*40,'health':'healthy','imageRef':None}
+        self.calls=[];self.threads=[];self.release=threading.Event();self.release.set()
+        self.config={'platform':{'os':'linux','arch':'amd64'},'projectName':'bellteam'}
+        self.updater=module.HostUpdater(self.prefix,self.config,uid=os.getuid(),inspect=lambda:dict(self.current),launcher=self.launch,execute=self.execute)
+        self.updater.assert_model_binding=lambda *args:None
+        self.catalog=self.make_catalog();self.install_catalog(self.catalog)
+        self.addCleanup(self.writable);self.addCleanup(self.join)
+    def writable(self):
+        for root,_,_ in os.walk(self.prefix):os.chmod(root,0o700)
+    def join(self):
+        self.release.set()
+        for thread in self.threads:thread.join(3);self.assertFalse(thread.is_alive())
+    def make_catalog(self, seconds=-60, revoked=None):
+        now=dt.datetime.now(dt.timezone.utc)
+        return {'schema':'bellteam.update-catalog.v1','publishedAt':(now+dt.timedelta(seconds=seconds)).isoformat(),
+          'expiresAt':(now+dt.timedelta(days=1)).isoformat(),'revokedCatalogs':revoked or [],'releases':[
+          {'componentId':'container','sourceCommit':'d'*40,'versionId':'sha256:'+'e'*64,'platform':self.config['platform'],
+           'artifact':{'kind':'oci-index','reference':'ghcr.io/kitepon/bellteam-server@sha256:'+'e'*64},
+           'compatibility':{'nodeMajor':26,'parentProtocol':None,'stateSchema':None,'containerUpdate':1},'changes':['Update']} ]}
+    def install_catalog(self,catalog):
+        raw=json.dumps(catalog).encode();identifier=hashlib.sha256(raw).hexdigest()
+        receipt={'schema':'bellteam.update-catalog.verification.v1','catalogSha256':identifier,'catalog':catalog,
+         'verification':{'method':'github-oidc-attestation','repositoryId':'1404510084','sourceCommit':'f'*40,'signerCommit':'f'*40,
+          'signerWorkflow':'kitepon/BellTeam/.github/workflows/publish-update-catalog.yml'}}
+        result=module.accept_catalog(self.updater,raw,receipt);self.digest=result;return result
+    def plan(self):
+        return self.updater.plan({'planId':str(uuid.uuid4()),'catalogSha256':self.digest,'versionId':'sha256:'+'e'*64})
+    def launch(self,identifier):
+        self.calls.append(identifier)
+        thread=threading.Thread(target=lambda:self.updater.worker(identifier));thread.start();self.threads.append(thread)
+    def execute(self,plan,directory):
+        self.release.wait(3)
+        return {'execution':'succeeded','verification':'succeeded','cleanup':'failed','rollback':'not_needed','observed':self.current,
+                'error':'HOST_UPDATE_CLEANUP_FAILED'}
+    def test_durable_acceptance_duplicate_same_id_and_separate_completion(self):
+        self.release.clear();plan=self.plan();identifier=str(uuid.uuid4())
+        args={'requestId':identifier,'planId':plan['planId'],'confirmContainerRestart':True}
+        accepted=self.updater.start(args);self.assertEqual(accepted['admission'],'accepted')
+        self.assertEqual(self.updater.start(args)['requestId'],identifier);self.assertEqual(self.calls,[identifier])
+        with self.assertRaises(module.Failure) as error:self.updater.start({**args,'planId':str(uuid.uuid4())})
+        self.assertEqual(error.exception.status,409)
+        # New frontend instance sees the same worker/ledger; no reissue on reconnect.
+        reconnected=module.HostUpdater(self.prefix,self.config,uid=os.getuid(),inspect=lambda:dict(self.current),launcher=self.launch)
+        self.assertEqual(reconnected.get(identifier)['admission'],'accepted')
+        self.release.set();self.join()
+        result=reconnected.get(identifier);self.assertEqual(result['phase'],'completed');self.assertEqual(result['cleanup'],'failed')
+        self.assertNotIn('worker',result)
+        with self.assertRaises(FileExistsError):self.updater.worker(identifier)
+    def test_restart_confirmation_current_binding_and_parallel_operation(self):
+        plan=self.plan();args={'requestId':str(uuid.uuid4()),'planId':plan['planId'],'confirmContainerRestart':False}
+        with self.assertRaises(module.Failure):self.updater.start(args)
+        self.current['containerId']='b'*64
+        with self.assertRaises(module.Failure):self.updater.start({**args,'confirmContainerRestart':True})
+        self.current['containerId']='a'*64;self.release.clear()
+        self.updater.start({**args,'confirmContainerRestart':True})
+        with self.assertRaises(module.Failure) as error:self.updater.start({**args,'requestId':str(uuid.uuid4()),'confirmContainerRestart':True})
+        self.assertEqual(error.exception.code,'HOST_UPDATE_IN_PROGRESS')
+    def test_handoff_loss_remains_unknown_and_never_relaunches(self):
+        plan=self.plan();identifier=str(uuid.uuid4());calls=[]
+        def lost(request):calls.append(request);raise OSError()
+        self.updater.launcher=lost
+        args={'requestId':identifier,'planId':plan['planId'],'confirmContainerRestart':True}
+        for _ in range(2):
+            with self.assertRaises(module.Failure) as error:self.updater.start(args)
+            self.assertEqual(error.exception.outcome,'unknown')
+        self.assertEqual(calls,[identifier]);self.assertEqual(self.updater.get(identifier)['admission'],'unknown')
+    def test_catalog_monotonic_replay_expiry_and_durable_revocation(self):
+        first=self.digest
+        self.assertEqual(self.install_catalog(self.catalog),first)
+        other=dict(self.catalog,revokedCatalogs=['a'*64])
+        with self.assertRaises(module.Failure):self.install_catalog(other)
+        with self.assertRaises(module.Failure):self.install_catalog(self.make_catalog(-120))
+        self.install_catalog(self.make_catalog(-30,['a'*64]))
+        self.install_catalog(self.make_catalog(-10,[]))
+        state=module.read_json(self.prefix/'catalog/state.json',os.getuid(),module.CATALOG_LIMIT)
+        self.assertIn('a'*64,state['revokedCatalogs'])
+        with patch.object(module.time,'time',return_value=module.time.time()+2*86400):
+            self.assertFalse(self.updater.capabilities()['supported'])
+        with patch.object(module.time,'time',return_value=module.time.time()-600):
+            self.assertFalse(self.updater.capabilities()['supported'])
+    def test_lost_worker_is_unknown_and_get_never_launches(self):
+        self.release.clear();plan=self.plan();identifier=str(uuid.uuid4())
+        self.updater.start({'requestId':identifier,'planId':plan['planId'],'confirmContainerRestart':True})
+        path=self.prefix/'state/operations'/identifier/'operation.json'
+        value=module.read_json(path,os.getuid());value['worker']['pid']=99999999
+        module.atomic(path,value)
+        result=self.updater.get(identifier)
+        self.assertEqual(result['phase'],'unknown');self.assertEqual(result['execution'],'unknown')
+        self.assertEqual(self.calls,[identifier])
+    def executor_fixture(self, fail=False):
+        import subprocess
+        release=self.prefix/'releases'/('a'*40);(release/'scripts').mkdir(parents=True)
+        installation=self.prefix/'installation';installation.mkdir()
+        install=self.prefix/'install';install.mkdir()
+        self.updater.config.update(release='a'*40,installRoot=str(install),shell='/bin/sh',docker='/usr/bin/docker',python='/usr/bin/python3')
+        module.atomic(installation/'normal.json',{'name':'bellteam','services':{'bellteam':{'image':self.current['imageId']}}})
+        (release/'scripts/cleanup-deploy-images.py').write_text('# fixture cleanup subprocess is mocked\n')
+        script="""#!/bin/sh
+set -eu
+test -z "${LEAK_NOT_ALLOWED:-}"
+saved="$BELLTEAM_INSTALL_DIR/.bellteam-compose.ABC123"
+mkdir -p "$saved"
+if [ "$1" = --recover ]; then touch "$BELLTEAM_INSTALL_DIR/recovered"; exit 0; fi
+cp "$COMPOSE_FILE" "$saved/normal.json"
+cp "$BELLTEAM_PREVIOUS_COMPOSE" "$saved/previous-normal.json"
+cp "$(dirname "$BELLTEAM_PREVIOUS_COMPOSE")/previous-runtime.json" "$saved/previous-runtime.json"
+printf 'saved-compose=%s\\n' "$saved"
+[ ! -f "$BELLTEAM_INSTALL_DIR/fail" ] || exit 3
+touch "$BELLTEAM_INSTALL_DIR/applied"
+"""
+        (release/'install.sh').write_text(script)
+        if fail:(install/'fail').touch()
+        selected='sha256:'+'f'*64
+        def command(args,**options):
+            if args[0]==self.updater.config['docker']:
+                return selected.encode() if args[1:3]==['image','inspect'] else b''
+            raise subprocess.CalledProcessError(1,args)
+        self.updater.command=command
+        self.updater.inspect_current=lambda:dict(self.current) if (install/'recovered').exists() or not (install/'applied').exists() else {
+            **self.current,'imageId':selected,'sourceCommit':'d'*40,'containerId':'f'*64}
+        return install
+    def test_installer_subprocess_cleanup_failure_does_not_rollback_healthy_new_runtime(self):
+        install=self.executor_fixture()
+        plan=self.plan();directory=self.prefix/'state/fixture-result';directory.mkdir()
+        with patch.dict(os.environ,{'LEAK_NOT_ALLOWED':'secret'}):result=module.execute_installer(self.updater,plan,directory)
+        self.assertEqual(result['verification'],'succeeded');self.assertEqual(result['cleanup'],'failed')
+        self.assertEqual(result['rollback'],'not_needed');self.assertFalse((install/'recovered').exists())
+        self.assertEqual(module.read_json(self.prefix/'state/current-runtime.json',os.getuid())['sourceCommit'],'d'*40)
+    def test_installer_failure_uses_existing_recover_and_verifies_old_image_source(self):
+        install=self.executor_fixture(fail=True)
+        plan=self.plan();directory=self.prefix/'state/fixture-result';directory.mkdir()
+        result=module.execute_installer(self.updater,plan,directory)
+        self.assertEqual(result['execution'],'failed');self.assertEqual(result['verification'],'failed')
+        self.assertEqual(result['rollback'],'succeeded');self.assertTrue((install/'recovered').exists())
+    def test_separate_process_worker_survives_frontend_recreation_and_returns_same_request(self):
+        import subprocess,sys
+        code=self.prefix/'fixture-worker.py'
+        code.write_text("import importlib.util,sys,os,time\nfrom pathlib import Path\n"+
+          "s=importlib.util.spec_from_file_location('worker',"+repr(str(Path(module.__file__)))+");m=importlib.util.module_from_spec(s);s.loader.exec_module(m)\n"+
+          "p=Path(sys.argv[1]);config="+repr(self.config)+"\n"+
+          "def execute(plan,directory):\n while not (p/'release-worker').exists():time.sleep(.01)\n return dict(execution='succeeded',verification='succeeded',cleanup='succeeded',rollback='not_needed',observed=None,error=None)\n"+
+          "u=m.HostUpdater(p,config,uid=os.getuid(),inspect=lambda:"+repr(self.current)+",execute=execute);u.assert_model_binding=lambda *args:None;u.worker(sys.argv[2])\n")
+        processes=[]
+        def launch(identifier):processes.append(subprocess.Popen([sys.executable,'-I',str(code),str(self.prefix),identifier],start_new_session=True))
+        self.updater.launcher=launch
+        identifier=str(uuid.uuid4());plan=self.plan()
+        try:
+            accepted=self.updater.start({'requestId':identifier,'planId':plan['planId'],'confirmContainerRestart':True})
+            self.assertEqual(accepted['admission'],'accepted')
+            replacement=module.HostUpdater(self.prefix,self.config,uid=os.getuid(),inspect=lambda:self.current)
+            self.assertEqual(replacement.get(identifier)['requestId'],identifier)
+            (self.prefix/'release-worker').touch();self.assertEqual(processes[0].wait(timeout=3),0)
+            self.assertEqual(replacement.get(identifier)['phase'],'completed')
+            self.assertNotEqual(processes[0].pid,os.getpid())
+        finally:
+            for process in processes:
+                if process.poll() is None:process.kill();process.wait()
+    def test_verified_new_catalog_without_activation_blocks_plans_until_commit_repair(self):
+        candidate=self.make_catalog(-20,['a'*64])
+        original=module.atomic
+        def fail_state(path,value,limit=module.LIMIT):
+            if Path(path)==self.prefix/'catalog/state.json':raise OSError('simulated disk failure')
+            return original(path,value,limit)
+        with patch.object(module,'atomic',side_effect=fail_state):
+            with self.assertRaises(OSError):self.install_catalog(candidate)
+        self.assertFalse(self.updater.capabilities()['supported'])
+        self.install_catalog(candidate)
+        self.assertTrue(self.updater.capabilities()['supported'])
+    def test_current_storage_model_must_match_actual_bind_volume_and_subpath(self):
+        normal={'services':{'bellteam':{'volumes':[{'type':'bind','source':'/fixed/data','target':'/srv/bellteam'},
+          {'type':'volume','source':'state','target':'/srv/bellteam/state','volume':{'nocopy':True,'subpath':'state'}}]}},'volumes':{'state':{'name':'fixed-state'}}}
+        mounts=[{'Type':'bind','Source':'/fixed/data','Destination':'/srv/bellteam','RW':True},
+          {'Type':'volume','Name':'fixed-state','Destination':'/srv/bellteam/state','RW':True}]
+        specs=[{'Source':'fixed-state','Target':'/srv/bellteam/state','ReadOnly':False,'VolumeOptions':{'NoCopy':True,'Subpath':'state'}}]
+        module.verify_model_mounts(normal,mounts,specs)
+        mounts[0]['Source']='/foreign/data'
+        with self.assertRaises(module.Failure):module.verify_model_mounts(normal,mounts,specs)
+        mounts[0]['Source']='/fixed/data';specs[0]['VolumeOptions']['Subpath']='rooms'
+        with self.assertRaises(module.Failure):module.verify_model_mounts(normal,mounts,specs)
+    def test_verifier_isolated_sibling_import_and_publisher_argv(self):
+        import sys
+        scripts=self.prefix/'releases'/('a'*40)/'scripts';scripts.mkdir(parents=True)
+        (scripts/'fixture_receipt.py').write_text('marker=True\n')
+        catalog_path=self.prefix/'unsigned.json';catalog_path.write_text(json.dumps(self.make_catalog(seconds=-30)))
+        bundle=self.prefix/'unsigned.bundle';bundle.write_text('{}')
+        (scripts/'verify-update-catalog.py').write_text(
+          "import fixture_receipt,sys,json,hashlib\nfrom pathlib import Path\n"
+          "assert fixture_receipt.marker and sys.flags.isolated and sys.argv[1]=='--publisher'\n"
+          "raw=Path(sys.argv[2]).read_bytes();value=json.loads(raw)\n"
+          "print(json.dumps(dict(schema='bellteam.update-catalog.verification.v1',catalogSha256=hashlib.sha256(raw).hexdigest(),catalog=value,verification=dict(method='github-oidc-attestation',repositoryId='1404510084',sourceCommit='f'*40,signerCommit='f'*40,signerWorkflow='kitepon/BellTeam/.github/workflows/publish-update-catalog.yml'))))\n")
+        self.updater.config.update(release='a'*40,python=sys.executable)
+        result=module.verify_and_install_catalog(self.updater,catalog_path,bundle)
+        self.assertEqual(result,hashlib.sha256(catalog_path.read_bytes()).hexdigest())
+
+    def test_argument_and_root_path_boundaries(self):
+        for value in [None, [], {}, 1]:
+            with self.assertRaises(module.Failure) as error:
+                self.updater.dispatch({'operation':'catalog','params':{'componentId':value}})
+            self.assertEqual(error.exception.status,400)
+        for raw in [b'{"a":NaN}',b'{"a":Infinity}']:
+            with self.assertRaises(module.Failure):module.decode(raw)
+        for frame in [{'operation':'shell','params':{}},{'operation':'start','params':{'path':'/tmp/x'}},{'operation':'capabilities','params':{},'env':{}}]:
+            with self.assertRaises(module.Failure):self.updater.dispatch(frame)
+        with self.assertRaises(module.Failure):module.decode(b'{"x":1,"x":2}')
+        with self.assertRaises(module.Failure):self.updater.plan({'planId':str(uuid.uuid4()),'catalogSha256':self.digest,'versionId':'latest'})
+        path=self.prefix/'catalog/state.json';path.unlink();path.symlink_to(self.prefix/'missing')
+        with self.assertRaises(module.Failure):module.read_json(path,os.getuid())
+
+if __name__=='__main__':unittest.main()

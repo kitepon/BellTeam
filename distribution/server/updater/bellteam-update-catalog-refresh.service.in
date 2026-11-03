@@ -1,0 +1,29 @@
+[Unit]
+Description=Verify BellTeam official update publication
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+WorkingDirectory=/
+ExecStart=/usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8 @PYTHON@ -I -B -S /srv/bellteam/shared/tools/bellteam-container-update-host/releases/@RELEASE@/scripts/container-update-host.py --refresh-catalog
+Environment=PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8
+StandardInput=null
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ReadWritePaths=/srv/bellteam/shared/tools/bellteam-container-update-host/state /srv/bellteam/shared/tools/bellteam-container-update-host/catalog
+InaccessiblePaths=-/var/run/docker.sock -/run/docker.sock
+KillMode=control-group
+TimeoutStartSec=180
+LimitCORE=0
