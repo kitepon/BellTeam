@@ -23,13 +23,14 @@ if (mode === 'initialize') {
   }
   await chown('/private', 0, 1001); await chmod('/private', 0o750)
   // Nested mounts otherwise leave root-owned shared/tools before the synthetic bootstrap.
-  for (const part of ['data', 'home', 'data/shared', 'data/shared/tools']) {
+  for (const part of ['data', 'home', 'data/bots', 'data/shared', 'data/shared/tools']) {
     const path = '/fixture-runtime/' + part
     await mkdir(path, { recursive: true }); await chown(path, 1001, 1001); await chmod(path, 0o755)
     const info = await stat(path)
     assert.equal(info.uid, 1001); assert.equal(info.gid, 1001); assert.equal(info.mode & 0o777, 0o755)
   }
-  console.log(JSON.stringify({ initialized: true, syntheticDataOwner: 1001, privateOwner: '0:1001/0750' }))
+  await chown('/fixture-runtime/data', 1000, 1000); await chmod('/fixture-runtime/data', 0o711)
+  console.log(JSON.stringify({ initialized: true, syntheticDataOwner: 1000, privateOwner: '0:1001/0750' }))
 } else if (mode === 'status') {
   console.log(await readFile(statusPath, 'utf8'))
 } else if (mode === 'command') {
@@ -43,8 +44,16 @@ if (mode === 'initialize') {
   const ids = JSON.parse(await readFile('/fixture-input.json', 'utf8'))
   assert.match(ids.b, /^[a-f0-9]{64}$/); assert.match(ids.source, /^[a-f0-9]{40}$/)
   const devicesPath = `${state}/push-devices.json`, lockPath = `${state}/notifications.lock`
-  await write(devicesPath, [{ token: 'a'.repeat(64), environment: 'production', server: 'https://example.com' }])
+  const { writeNotificationsWebFixture } = await import('/app/test/fixtures/notifications-web-push-state.mjs')
+  const fixture = await writeNotificationsWebFixture('/srv/bellteam')
   const devicesHash = hash(await readFile(devicesPath))
+  const savedState = async () => Object.fromEntries(await Promise.all(['push-devices.json', 'web-push-keys.json', 'web-push-subscriptions.json'].map(async name => {
+    const path = `${state}/${name}`, info = await stat(path)
+    assert.equal(info.uid, 1001); assert.equal(info.mode & 0o7777, 0o600); assert.equal(info.nlink, 1)
+    return [name, hash(await readFile(path))]
+  })))
+  const seeded = await savedState()
+  let retainedState
   const seedPath = `${state}/fixture-seed.json`
   await write(seedPath, { schema: 'bellteam.bots.v1', bots: [] })
   const bots = new BotRegistry({ seedPath, botsRoot: '/srv/bellteam/bots' })
@@ -84,6 +93,7 @@ if (mode === 'initialize') {
     assert.equal(clientCloses, 0); assert.equal(runtime.gateway.address.port, port)
     assert.equal(hash(await readFile(devicesPath)), devicesHash)
     if (firstLock) assert.deepEqual(await inspectLock(), firstLock)
+    if (retainedState) assert.deepEqual(await savedState(), retainedState)
   }
   const value = async () => {
     const response = await fetch(base + '/api/notifications-release'); assert.equal(response.status, 200)
@@ -92,12 +102,51 @@ if (mode === 'initialize') {
   const publish = async phase => {
     await invariant()
     const snapshot = await value()
-    assert.equal(snapshot.available, true); assert.equal(snapshot.status.configured, false)
+    assert.equal(snapshot.available, true); assert.equal(snapshot.status.apns.configured, false)
+    assert.equal(snapshot.protocolVersion, 2); assert.equal(snapshot.stateSchema, 2)
+    assert.equal(snapshot.status.webPush.enabled, true)
+    assert.equal(snapshot.status.webPush.publicKey, fixture.applicationServerKey)
+    assert.equal(snapshot.applyError.webPush, null)
+    assert.equal(snapshot.appliedEpoch.webPush, snapshot.configurationEpoch)
     assert.equal(snapshot.builtinSourceCommit, ids.source)
     const record = { ...evidence, phase, parent: parentIdentity, business: businessIdentity, gateway: gatewayIdentity,
       notification: await childIdentity('src/notifications-entry.mjs'), port, currentVersionId: snapshot.currentVersionId,
-      currentTarget: snapshot.currentTarget, devicesSha256: devicesHash, writerLock: await inspectLock(), clientCloses }
+      currentTarget: snapshot.currentTarget, configurationEpoch: snapshot.configurationEpoch, appliedEpoch: snapshot.appliedEpoch,
+      webConfiguration: settings.configuration('webPush'), stateSha256: await savedState(), devicesSha256: devicesHash, writerLock: await inspectLock(), clientCloses }
     await write(statusPath + '.tmp', record); await rename(statusPath + '.tmp', statusPath)
+  }
+  const originChecks = async (replace = false) => {
+    const notifications = runtime.services.notifications
+    const endpoint = replace ? fixture.subscription.endpoint : fixture.replacementSubscription.endpoint
+    const before = await savedState()
+    assert.deepEqual(await notifications.webStatus(endpoint, fixture.origin), { registered: true })
+    assert.deepEqual(await notifications.webStatus(endpoint, fixture.otherOrigin), { registered: false })
+    assert.deepEqual(await notifications.webUnregister({ endpoint }, fixture.otherOrigin), { registered: false })
+    const input = { subscription: replace ? fixture.subscription : fixture.replacementSubscription, applicationServerKey: fixture.applicationServerKey }
+    await assert.rejects(notifications.webStatus(endpoint), { code: 'WEB_PUSH_INPUT_INVALID' })
+    for (const origin of [undefined, 'https://bellteam-fixture.example/path'])
+      await assert.rejects(notifications.webRegister(input, origin), { code: 'WEB_PUSH_INPUT_INVALID' })
+    await assert.rejects(notifications.webRegister(input, fixture.otherOrigin), { code: 'WEB_PUSH_SUBSCRIPTION_CONFLICT', status: 409 })
+    for (const previousEndpoint of [fixture.foreignSubscription.endpoint, 'https://fcm.googleapis.com/missing'])
+      await assert.rejects(notifications.webRegister({ ...input, previousEndpoint }, fixture.origin), { code: 'WEB_PUSH_SUBSCRIPTION_CONFLICT', status: 409 })
+    assert.deepEqual(await savedState(), before)
+    if (replace) {
+      assert.deepEqual(await notifications.webRegister({ subscription: fixture.replacementSubscription,
+        applicationServerKey: fixture.applicationServerKey, previousEndpoint: fixture.subscription.endpoint }, fixture.origin), { registered: true })
+      assert.deepEqual(await notifications.webStatus(fixture.subscription.endpoint, fixture.origin), { registered: false })
+      assert.deepEqual(await notifications.webStatus(fixture.replacementSubscription.endpoint, fixture.origin), { registered: true })
+      retainedState = await savedState()
+      assert.equal(retainedState['push-devices.json'], seeded['push-devices.json'])
+      assert.equal(retainedState['web-push-keys.json'], seeded['web-push-keys.json'])
+    }
+    evidence.checks.push({ originOwnership: true, malformedOriginRejected: true, conflict409AllFilesUnchanged: true, sameOriginReplacement: replace })
+  }
+  const latestConfiguration = async subject => {
+    await settings.update('webPush', { enabled: true, values: { subject } })
+    const current = runtime.services.notifications.controller.snapshot()
+    assert.equal(current.appliedEpoch.webPush, current.configurationEpoch)
+    await assert.rejects(runtime.services.notifications.configureWebPush({ enabled: false, subject: '' }), { code: 'PUSH_CONFIGURATION_STALE', status: 409 })
+    return current.configurationEpoch
   }
   const command = async action => {
     const deadline = Date.now() + 150000
@@ -142,9 +191,10 @@ if (mode === 'initialize') {
     assert.equal((await fetch(internal, { method: 'POST', body: JSON.stringify({ versionId: ids.b }) })).status, 403)
     const second = spawn('/usr/local/libexec/bellteam-notifications-start', ['builtin'], { env: {}, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] })
     assert.deepEqual(await once(second, 'close'), [126, null]); evidence.checks.push({ concurrentWriterRejectedByRealLock: true })
+    await latestConfiguration('mailto:first@example.com'); await originChecks(true)
     await publish('ready')
-    await command('adopt-b'); await select(ids.b); await publish('b-active')
-    await command('return-a'); await select('builtin'); await publish('done')
+    await command('adopt-b'); await latestConfiguration('mailto:archive@example.com'); await select(ids.b); await originChecks(); await publish('b-active')
+    await command('return-a'); await latestConfiguration('mailto:latest@example.com'); await select('builtin'); await originChecks(); await publish('done')
     await new Promise(() => {})
   } catch (error) {
     await write(statusPath, { ...evidence, phase: 'failed', error: error.message }); throw error
