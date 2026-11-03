@@ -74,3 +74,5 @@ node --test test/web-client.test.mjs test/web-module.test.mjs test/web-event-ref
 ## Appleとの操作整合
 
 [固定sourceの機能対応・検索/編集図](apple-parity.md)を正本とする。公開APIを増やさずWeb内部を更新する。未供給currentWorkは理由付き未取得表示で独立して扱う。
+
+[Web通知のSW・設定・ID復帰](web-push.md)を担当内正本とする。既HTTP/SSE窓口のまま接続し、providerとoriginはintegration/usageが所有する。

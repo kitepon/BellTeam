@@ -1,3 +1,4 @@
+import { createWebPushSettings } from './web-push.js?v=__ASSET_VERSION__'
 import { serverDestination } from './server-origin.js?v=__ASSET_VERSION__'
 import { readConversationMotion, conversationMotionKey } from './view-preferences.js?v=__ASSET_VERSION__'
 import { guardEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
@@ -12,6 +13,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
   const form = find('owner-form'), name = find('owner-name'), description = find('owner-description')
   const xUrl = find('owner-x-url'), githubUrl = find('owner-github-url'), ownerLinks = find('owner-links')
   const error = find('owner-form-error'), rulesInput = find('user-rules'), saveButton = dialog.querySelector('button[form="owner-form"]')
+  const webPush = createWebPushSettings(find('web-push-settings'), api)
   const aiControl = aiControlView(find('ai-control'), api)
   const avatar = createAvatarEditor({ onChange: () => { editRevision++ }, applyAvatar, initials, escapeClass,
     fileInput: find('owner-avatar-file'), preview: find('owner-avatar-preview'), cropEditor: find('owner-crop-editor'),
@@ -57,6 +59,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
   dialog.addEventListener('close', () => {
     if (dialog.open) return
     owner = null
+    webPush.close()
     clearSettingSecrets()
     avatar.cancelRead()
     harnessAuthSection?.stop()
@@ -64,7 +67,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
   })
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) clearSettingSecrets()
-    else if (dialog.open) void aiControl.refresh()
+    else if (dialog.open) { void aiControl.refresh(); void webPush.refresh() }
   })
   async function refreshFeatures(opened = owner) {
     if (!opened || opened !== owner) return
@@ -82,7 +85,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
     onSettings(settings, session.authMode)
     find('access-logout').hidden = session.authMode !== 'cloudflare'
     find('connection-mode').textContent = session.authMode === 'cloudflare' ? 'Cloudflare Accessで認証済み' : 'ローカル接続'
-    if (opened.featuresRendered) refreshFeatureSettingsStatus(opened.features, settings)
+    if (opened.featuresRendered) { refreshFeatureSettingsStatus(opened.features, settings); void webPush.refresh() }
     else {
       renderFeatureSettings(opened.features, settings, { api, onChange: () => refreshFeatures(opened) })
       opened.featuresRendered = true
@@ -117,6 +120,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
     owner.initialRevision = editRevision
     if (!dialog.open) dialog.showModal()
     void refreshNotification()
+    void webPush.open()
     const initialRules = rulesInput.value
     try {
       const result = await api('/api/user-rules')
@@ -185,5 +189,5 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
   }
 
 
-  return { open, refreshAI: () => aiControl.refresh(), refreshFeatureStatus(settings) { if (dialog.open && owner) refreshFeatureSettingsStatus(owner.features, settings) } }
+  return { open, refreshAI: () => aiControl.refresh(), refreshFeatureStatus(settings) { if (dialog.open && owner) { refreshFeatureSettingsStatus(owner.features, settings); void webPush.refresh() } } }
 }

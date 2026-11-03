@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/styles.css?v=__ASSET_VERSION__">
 </head>
 <body>
+  <div class="notification-route-notice" id="notification-route-notice" role="alert" hidden><span data-notification-notice></span><button type="button" id="notification-route-retry">再確認</button><button type="button" id="notification-route-dismiss" aria-label="通知の案内を閉じる">閉じる</button></div>
   <main class="app" id="app">
     <aside class="roster" id="roster">
       <header class="roster-header">
@@ -181,7 +182,8 @@
         <div id="feature-settings"></div>
       </section>
       <section class="feature-settings-section"><h3>表示と接続</h3><label class="field"><span>会話を開くときの動き</span><select id="conversation-motion"><option value="rise">下から浮き上がる</option><option value="fade">フェードイン</option></select></label><p class="field-help" id="motion-status" role="status"></p><label class="field"><span>接続先のURL</span><input id="server-address" type="url" inputmode="url" placeholder="https://bellteam.example.com" autocomplete="off"></label><button class="text-button" id="server-open" type="button">別のサーバーを開く</button><p id="server-error" class="field-help" role="status"></p><p>現在の入力はこのタブに残し、新しいタブで接続します。</p><p id="access-logout" hidden><a href="/cdn-cgi/access/logout">Cloudflare Accessからログアウト</a><br><small>他のAccessアプリのセッションからもログアウトします。</small></p></section>
-      <section class="feature-settings-section"><h3>通知</h3><p id="notification-status" role="status">通知の設定は未取得です。</p><button class="text-button" id="notification-refresh" type="button">状態を更新</button><p>Webを開いている間は新しい会話と入力依頼を画面へ反映します。ブラウザーを閉じた後の通知にはまだ対応していません。</p></section>
+      <section class="feature-settings-section web-push-settings" id="web-push-settings"><p class="eyebrow">THIS BROWSER</p><h3>ブラウザー通知</h3><p>新しい返信や入力依頼を、この端末で受け取れます。サーバーの設定と端末の許可・登録を分けて確認します。</p><dl class="web-push-states"><dt>利用環境</dt><dd data-web-push-environment>確認前</dd><dt>通知の許可</dt><dd data-web-push-permission>未確認</dd><dt>ブラウザー</dt><dd data-web-push-browser>未確認</dd><dt>通知サーバー</dt><dd data-web-push-server>未接続・未確認</dd><dt>サーバー登録</dt><dd data-web-push-registration>未確認</dd></dl><p data-web-push-notice role="status" aria-live="polite" class="field-help"></p><div class="web-push-actions"><button type="button" data-web-push-enable disabled>通知を準備する</button><button type="button" data-web-push-remove disabled>登録を解除</button><button type="button" data-web-push-refresh>状態を更新</button></div><p class="field-help">iPhone・iPadはホーム画面に追加したBellTeamから設定してください。登録できても、配信や端末への表示が完了したことは示しません。</p></section>
+      <section class="feature-settings-section"><h3>通知</h3><p id="notification-status" role="status">通知の設定は未取得です。</p><button class="text-button" id="notification-refresh" type="button">状態を更新</button><p>Webを開いている間は新しい会話と入力依頼を画面へ反映します。閉じた後の通知は、上のブラウザー通知の対応・許可・登録状態を確認してください。</p></section>
       <section class="feature-settings-section"><h3>利用と購読</h3><p>Web版は無料です。Appleアプリの月額購読は、Appleアプリ内の設定で購入・復元・管理できます。サーバーとAIはご自身の契約で利用します。</p></section>
       </div>
     </div>
