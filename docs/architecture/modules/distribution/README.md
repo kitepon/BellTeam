@@ -12,6 +12,7 @@
 - [H1 offline保存更新の配布入力](h1-offline.md)
 - [Web受付の固定artifactと公式認証](web-gateway-artifact.md)
 - [通知の固定artifactと公式認証](notifications-artifact.md)
+- [正式Update catalogの信頼境界](update-catalog.md)
 
 上の既存詳細図は現行実装の読取資料。複数担当が含まれる章は最初の分離で当moduleへ移し、元の章を参照リンクへ置換する。内容を二つの現行図へ複製しない。図とコードの分離完了はまだ宣言していない。
 

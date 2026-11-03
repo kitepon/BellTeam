@@ -7,7 +7,8 @@
   "provides": [
     "image",
     "web-gateway-artifact",
-    "notifications-artifact"
+    "notifications-artifact",
+    "update-catalog"
   ],
   "uses": [
     {
@@ -35,6 +36,11 @@
     "scripts/module_artifact_package.py",
     "scripts/module_artifact_verifier.py",
     "config/notifications-verification.json",
-    ".github/workflows/publish-notifications.yml"
+    ".github/workflows/publish-notifications.yml",
+    "scripts/update_catalog.py",
+    "scripts/verify-update-catalog.py",
+    "config/update-catalog-verification.json",
+    ".github/workflows/publish-update-catalog.yml",
+    "scripts/check-update-catalog-publication.py"
   ]
 }

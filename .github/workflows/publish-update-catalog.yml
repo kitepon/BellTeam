@@ -1,0 +1,62 @@
+{
+  "name": "正式Update catalogを公式OIDC付きReleaseへ公開",
+  "on": {
+    "workflow_dispatch": {}
+  },
+  "permissions": {
+    "contents": "write",
+    "id-token": "write",
+    "attestations": "write"
+  },
+  "concurrency": {
+    "group": "formal-update-catalog",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "publish": {
+      "if": "github.repository == 'kitepon/BellTeam' && github.ref == 'refs/heads/main'",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "env": {
+        "GH_TOKEN": "${{ github.token }}",
+        "SOURCE": "${{ github.sha }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v7",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "正式対象とschema/固定locator/期限を確認",
+          "run": "python3 test/update-catalog.test.py\npython3 scripts/check-update-catalog-publication.py > publication.json\n"
+        },
+        {
+          "name": "公式発行元のOIDCをcatalog全bytesへ付ける",
+          "id": "attest",
+          "uses": "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6",
+          "with": {
+            "subject-path": "config/update-catalog.json",
+            "create-storage-record": false
+          }
+        },
+        {
+          "name": "正式Releaseへ固定catalogとbundleを公開",
+          "env": {
+            "BUNDLE": "${{ steps.attest.outputs.bundle-path }}"
+          },
+          "run": "mkdir -p runtime/update-catalog\ncp config/update-catalog.json runtime/update-catalog/catalog.json\ncp \"$BUNDLE\" runtime/update-catalog/catalog.json.sigstore.json\ngh attestation verify runtime/update-catalog/catalog.json --repo kitepon/BellTeam --signer-workflow kitepon/BellTeam/.github/workflows/publish-update-catalog.yml --source-ref refs/heads/main --source-digest \"$SOURCE\" --signer-digest \"$SOURCE\" --deny-self-hosted-runners --bundle runtime/update-catalog/catalog.json.sigstore.json --custom-trusted-root config/web-gateway-trusted-root.jsonl --format json > runtime/update-catalog/verified.json\njq -e 'length > 0 and all(.[]; .verificationResult.signature.certificate.sourceRepositoryIdentifier == \"1404510084\")' runtime/update-catalog/verified.json\nrelease_tag=$(jq -r .tag publication.json)\ngh release create \"$release_tag\" --repo kitepon/BellTeam --target \"$SOURCE\" --title \"BellTeam update catalog $release_tag\" --notes \"正式公開資材の固定版・互換・変更情報。\" runtime/update-catalog/catalog.json runtime/update-catalog/catalog.json.sigstore.json\n"
+        },
+        {
+          "uses": "actions/upload-artifact@v7",
+          "with": {
+            "name": "formal-update-catalog-${{ github.run_attempt }}",
+            "path": "runtime/update-catalog/\npublication.json",
+            "if-no-files-found": "error"
+          }
+        }
+      ]
+    }
+  }
+}

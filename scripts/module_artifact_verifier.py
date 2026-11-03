@@ -29,6 +29,31 @@ def root_file(path, maximum):
         raise
 
 
+def verify_signature(artifact_file, bundle, trusted, policy, *, source=None, signer=None):
+    descriptors = (artifact_file.fileno(), bundle.fileno(), trusted.fileno())
+    artifact, proof, roots = ['/proc/self/fd/' + str(fd) for fd in descriptors]
+    with tempfile.TemporaryDirectory(prefix='bellteam-gateway-proof-', dir='/tmp') as stage:
+        # gh selects the bundle parser by extension; the link keeps the inherited snapshot FD.
+        alias = Path(stage) / 'bundle.json'
+        alias.symlink_to(proof)
+        proof = str(alias)
+        command = ['/usr/bin/gh', 'attestation', 'verify', artifact,
+            '--repo', policy['repository'], '--signer-workflow', policy['signerWorkflow'],
+            '--source-ref', policy['sourceRef'], '--deny-self-hosted-runners',
+            '--predicate-type', policy['predicateType'], '--bundle', proof, '--custom-trusted-root', roots, '--format', 'json']
+        if source is not None: command += ['--source-digest', source]
+        if signer is not None: command += ['--signer-digest', signer]
+        result = subprocess.run(command,
+            pass_fds=descriptors, capture_output=True, timeout=60, check=True,
+            env={'PATH': '/usr/bin:/bin', 'GH_CONFIG_DIR': '/nonexistent', 'GH_HOST': 'github.com', 'GH_PROMPT_DISABLED': '1'})
+    verified = json.loads(result.stdout)
+    require(type(verified) is list and verified, 'GATEWAY_ATTESTATION_MISSING')
+    for proof in verified:
+        require(proof['verificationResult']['signature']['certificate']['sourceRepositoryIdentifier'] == policy['repositoryId'],
+                'GATEWAY_REPOSITORY_ID_MISMATCH')
+    return verified
+
+
 def authenticate(archive, bundle, trusted, policy, expectation, *, component='web-gateway'):
     contract(component)
     require(subprocess.check_output(['/usr/local/bin/node', '-p', 'process.versions.node.split(".")[0]'],
@@ -42,25 +67,7 @@ def authenticate(archive, bundle, trusted, policy, expectation, *, component='we
     require(policy == {'schema': f'bellteam.{component}.verification-policy.v1', 'repository': 'kitepon/BellTeam',
         'repositoryId': '1404510084', 'signerWorkflow': f'kitepon/BellTeam/.github/workflows/publish-{component}.yml',
         'sourceRef': 'refs/heads/main', 'predicateType': 'https://slsa.dev/provenance/v1'})
-    descriptors = (archive.fileno(), bundle.fileno(), trusted.fileno())
-    artifact, proof, roots = ['/proc/self/fd/' + str(fd) for fd in descriptors]
-    with tempfile.TemporaryDirectory(prefix='bellteam-gateway-proof-', dir='/tmp') as stage:
-        # gh selects the bundle parser by extension; the link keeps the inherited snapshot FD.
-        alias = Path(stage) / 'bundle.json'
-        alias.symlink_to(proof)
-        proof = str(alias)
-        result = subprocess.run(['/usr/bin/gh', 'attestation', 'verify', artifact,
-            '--repo', policy['repository'], '--signer-workflow', policy['signerWorkflow'],
-            '--source-ref', policy['sourceRef'], '--source-digest', expectation['sourceCommit'],
-            '--signer-digest', expectation['signerCommit'], '--deny-self-hosted-runners',
-            '--predicate-type', policy['predicateType'], '--bundle', proof, '--custom-trusted-root', roots, '--format', 'json'],
-            pass_fds=descriptors, capture_output=True, timeout=60, check=True,
-            env={'PATH': '/usr/bin:/bin', 'GH_CONFIG_DIR': '/nonexistent', 'GH_HOST': 'github.com', 'GH_PROMPT_DISABLED': '1'})
-    verified = json.loads(result.stdout)
-    require(type(verified) is list and verified, 'GATEWAY_ATTESTATION_MISSING')
-    for proof in verified:
-        require(proof['verificationResult']['signature']['certificate']['sourceRepositoryIdentifier'] == policy['repositoryId'],
-                'GATEWAY_REPOSITORY_ID_MISMATCH')
+    verify_signature(archive, bundle, trusted, policy, source=expectation['sourceCommit'], signer=expectation['signerCommit'])
     arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
     require(platform.system() == 'Linux' and arch is not None, 'GATEWAY_PLATFORM_INVALID')
     manifest, manifest_sha = check_archive(archive, expectation['sourceCommit'], arch, component=component)

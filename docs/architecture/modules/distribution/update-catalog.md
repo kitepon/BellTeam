@@ -1,0 +1,29 @@
+# 正式Update catalogの信頼境界
+
+配布が非実行JSONのschema/固定publisher公式検証/正式発行、runtimeがroot受入と鮮度/失効state、integrationがread-only providerとUpdate APIを持つ。CI候補・単なるarchive署名を一般Updateへ昇格しない。公開発行と本番設置の成立は別の具体原本で確認する。
+
+```mermaid
+flowchart LR
+  Formal[正式採用した固定資材 / 互換 / 変更] --> Catalog[非実行update-catalog.v1]
+  Catalog --> Publish[main専用publish-update-catalog / 公式OIDC / 正式Release]
+  API[固定同repo Release一覧 / 未信頼selector] --> Fetch[固定名catalog + bundle / 上限付きsnapshot]
+  Publish --> Fetch
+  Policy[固定repoID / main / workflow / 既trustroot] --> Verify[公式gh / 同FD / 実subject SHA]
+  Pin[初回だけ承認済SHA/source/signer] --> Verify
+  Fetch --> Verify
+  Verify --> Identity[成功certificateだけからsource/signerを導出]
+  Identity --> Writer[runtime root受入 / 旧時刻拒否 / 失効union / 原子公開]
+  Writer --> Provider[integration read-only provider / publishedと理由]
+```
+
+catalog rootはschema/publishedAt/expiresAt/releases/revokedCatalogs。固定container/web-gateway/notifications、同platform重複不可、OCIは固定GHCR repo@digest、moduleは同repo正式Release archive/bundleのhash/sizeで固定する。source/version/互換/変更の供給と、現在稼働版/計画/実行結果を分ける。未知互換はnullで保持し、旧正式d9dの通知対応を捏造しない。
+
+公式検証はverify-update-catalog.py CATALOG BUNDLE EXPECTATION（初回catalogSha256/sourceCommit/signerCommit）又は固定--publisher CATALOG BUNDLE（常用）。未信頼JSONから期待値を作らず、固定policyで公式gh検証後の証明書/subjectから実SHA/source/signerを導出する。sourceとsignerを抽出できない証明や複数の異なるidentityは拒否。root通常file/同FD/bundle.json alias/秘密env不継承/既public trustrootを継承する。CLIは認証receiptだけを返し、採用stateを書かない。
+
+署名publishedAtの未来許容300秒、最大期限7日、期限到達以後plan不可。runtimeは最後の時刻/hash/認証事実と失効unionを耐久保持し、同時刻異SHA/旧時刻を拒否、同時刻同SHAはidempotent、失効の省略で解除しない。時計逆行・期限切れ・失効は新plan不可/現稼働維持。UIは独自時刻/失効判定を作らない。
+
+実行artifactの固定二component契約を任意module registryへ広げない。新正式catalog/署名発行/実Host/本番をsource単体やmock試験の成功から推定しない。
+
+containerUpdateは対応Host installer契約の検証済値又はnull。現一般公開imageに新Host helperがあると補完しない。Host root closureの収録はEpi sourceと合わせる後続差分とする。今回のcatalog verifier/policy収録はそこから独立する。後続package-serverはEpi固定root-code-paths.jsonのimagePath/installPath宣言を読み、flatten後の実通常fileから10fileのbytes/SHAをroot-code-manifest.v1へ束縛する。distribution/server/updaterは削除前に退避して同じpathへ復元、Host clientは既src、root helper/cleanup/save/verifier closureは明示収録する。root updater/OS条件とroot公開/実行はruntimeが所有する。
+
+正式publisherは固定config/update-catalog.jsonが存在しschema/期限/既公開target確認を通る場合だけ署名する。containerは現一般latestのindex/source、moduleは非draft/nonprereleaseの同repo正式Release asset/digest/sizeを確認し、通常CI候補を取り込まない。実catalog配置データは未供給で、workflow sourceだけを実行可能な正式版や公開済みと表示しない。
