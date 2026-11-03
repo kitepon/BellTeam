@@ -105,6 +105,28 @@ class MembersArtifactTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'MEMBERS_SOURCE_STATE_INCOMPATIBLE'):
             validate_members_source(self.payload)
 
+    def test_probe_refuses_shared_paths_and_seeds_only_empty_existing_formats(self):
+        spec = importlib.util.spec_from_file_location('members_probe', ROOT / 'test/helpers/members-artifact-probe.py')
+        probe = importlib.util.module_from_spec(spec); spec.loader.exec_module(probe)
+        with patch('os.geteuid', return_value=1000), self.assertRaisesRegex(ValueError, 'MEMBERS_PROBE_ROOT_REQUIRED'):
+            probe.clean_runner()
+        with patch('os.geteuid', return_value=0), patch.object(probe, 'APP', self.root), self.assertRaisesRegex(ValueError, 'MEMBERS_PROBE_REQUIRES_CLEAN_RUNNER'):
+            probe.clean_runner()
+        with patch('os.readlink', return_value='mnt:[same]'), self.assertRaisesRegex(ValueError, 'MEMBERS_PROBE_PRIVATE_MOUNT_NAMESPACE_REQUIRED'):
+            probe.private_mount_namespace()
+        prefix=self.root / 'state-prefix'; prefix.mkdir(); created=[]
+        with patch.object(probe, 'STATE', prefix), patch('os.chown') as chown:
+            probe.seed_members_state(created)
+        self.assertTrue(all(call.args[1:] == (1001,1001) for call in chown.call_args_list))
+        self.assertEqual(len(chown.call_args_list),6)
+        self.assertEqual([x.name for x in (prefix/'state/bots').iterdir()],['.initialized'])
+        self.assertEqual((prefix/'state/bots/.initialized').read_bytes(),b'')
+        self.assertEqual((prefix/'owner/user-rules.md').read_bytes(),b'')
+        self.assertEqual(json.loads((prefix/'owner/profile.json').read_text()),dict(schema='bellteam.owner-profile.v1',name='fixture',profile='',avatar='',xUrl='',githubUrl='',links=[]))
+        self.assertFalse((prefix/'state/.transaction').exists())
+        for path in created:
+            self.assertEqual(path.stat().st_mode & 0o7777, 0o700 if path.is_dir() else 0o600)
+
     def test_unsigned_fixed_cli_does_not_claim_authentication(self):
         result = subprocess.run([sys.executable, str(ROOT / 'scripts/verify-members.py'),
                                  str(self.archive), str(self.archive), str(self.archive)], capture_output=True)

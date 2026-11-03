@@ -46,6 +46,7 @@
     ".github/workflows/verify-container-updater-systemd.yml",
     "scripts/package-members.py",
     "scripts/verify-members.py",
-    "config/members-verification.json"
+    "config/members-verification.json",
+    ".github/workflows/publish-members.yml"
   ]
 }
