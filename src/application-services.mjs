@@ -18,9 +18,11 @@ import { PushNotifications } from './push-notifications.mjs'
 import { Subscriptions } from './subscriptions.mjs'
 import { Onboarding } from './onboarding.mjs'
 import { HarnessAuth } from './harness-auth.mjs'
+import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
+import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null }) {
+export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined }) {
   const subscriptions = new Subscriptions({
     path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'),
     environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production',
@@ -96,11 +98,33 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     notify: item => messenger.enqueueUserTurn({ target: item.botId, message: ownerAnswerMessage(item) }),
   })
   await ownerQuestions.initialize()
+  let olrwAuthCaller = null
+  try {
+    if (olrwManagement === undefined) olrwManagement = await prepareOlrwManagement({ root, ownerQuestions, aiControl })
+    if (olrwManagement) {
+      olrwAuthCaller = attachOlrwOwnerQuestion({
+        plan: olrwManagement.plan, ownerQuestions, aiControl, assertAuthorized: olrwManagement.assertAuthorized,
+        createConsumer: ({ assertAuthorized }) => {
+          const consumer = olrwManagement.createConsumer({ secretRequests, runDirectory: join(root, 'state/olrw-auth'),
+            context: olrwManagement.context, assertAuthorized, auth: olrwManagement.auth })
+          return { ownerSecretGuide: input => consumer.ownerSecretGuide(input),
+            execute: async options => { try { return await consumer.execute(options) } finally { await olrwManagement.auth?.close?.() } },
+            close: async () => { await consumer.close(); await olrwManagement.auth?.close?.() } }
+        },
+        reportFailure: code => diagnostics.record({ code, module: 'integration' }),
+      })
+      if (olrwAuthCaller.status === 'already_answered') await olrwManagement.auth?.close?.()
+    }
+  } catch {
+    try { await olrwManagement?.auth?.close?.() } catch {}
+    olrwAuthCaller = { status: 'unavailable', ownerSecretGuide: async () => null, async close() {} }
+    try { await diagnostics.record({ code: 'OLRW_MANAGEMENT_UNAVAILABLE', module: 'integration' }) } catch {}
+  }
   return {
     aiControl, subscriptions, settings, onboarding, harnessAuth,
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
-    scheduler, diagnostics, idleSessions, selfTurns, seatTurns, administration, goals,
+    scheduler, diagnostics, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
   }
 }

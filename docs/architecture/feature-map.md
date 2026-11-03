@@ -25,6 +25,7 @@ flowchart LR
   m_conversation -->|"schedules"| m_members
   m_conversation -->|"seat-process"| m_runtime
   m_conversation -->|"settings"| m_usage
+  m_conversation -->|"auth"| m_usage
   m_conversation -->|"observation"| m_execution
   m_distribution -->|"update"| m_runtime
   m_execution -->|"diagnostics"| m_integration
@@ -38,6 +39,7 @@ flowchart LR
   m_integration -->|"lifecycle"| m_runtime
   m_integration -->|"assets"| m_web
   m_integration -->|"update"| m_runtime
+  m_integration -->|"auth"| m_usage
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
   m_members -->|"cli-registration"| m_runtime
@@ -87,6 +89,7 @@ flowchart LR
   m_conversation -->|"context"| m_throughline
   m_execution -->|"native"| m_aiterm
   m_execution -->|"context"| m_throughline
+  m_integration -->|"public"| m_approval_box
   m_memory -->|"context"| m_throughline
   m_runtime -->|"native"| m_aiterm
   m_runtime -->|"context"| m_throughline

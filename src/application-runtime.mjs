@@ -20,13 +20,14 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     secretRequests, ownerQuestions, bots, rooms, roomMessenger, messenger,
     store, transport, memory, ownerProfile, userRules, characterSheets,
     refreshGlobalInstructions, assets, scheduler, diagnostics,
-    idleSessions, selfTurns, seatTurns, administration, goals,
+    idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
   } = services
   const { aiterm } = bootstrap
   let socketDirectory = null, gateway = null
   const webGatewayControl = createWebGatewayControl({ gateway: () => gateway })
   const serverOptions = {
     webGatewayControl,
+    ownerSecretGuide: input => olrwAuthCaller?.ownerSecretGuide(input) ?? null,
     aiControl,
     subscriptions,
     settings,
@@ -107,6 +108,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     closing ??= (async () => {
       const errors = []
       for (const stop of [
+        () => olrwAuthCaller?.close(),
         () => webGatewayControl.close(),
         () => gateway?.close(),
         () => scheduler.stop(), () => idleSessions.stop(), () => selfTurns.stop(), () => seatTurns.stop(),

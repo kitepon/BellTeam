@@ -25,6 +25,8 @@
 
 HTTPの機能固有handlerは`http-conversation-api.mjs`（Bot履歴/投稿/queue、export、SSE/保存画像）、`http-room-api.mjs`、`http-delivery-api.mjs`に置く。MCPの会話/部屋toolは`mcp-conversation-tools.mjs`のconversationTools/callConversationToolにschema・説明・処理をまとめる。部屋予定のMCP schema/handlerはmembersが持ち、room-accessを使う。
 
+`createMessageViews`は任意`ownerSecretGuide({requestId,botId,roomId}) -> Promise<null|{url:string}>`を受け、選択済みBot/roomページの秘密カードだけへ`secret_request.ownerGuide.url`を複製して付ける。RootがOwner向けHTTPにだけusageの同一getterを渡し、internalはnullとする。URL取得失敗はカードを保持。索引/元row/本文/一般export/recent/receipt/通知/SSE payloadは変えない。usageのrun・許可/停止/期限・公式origin検証とWebの固定文言/URL再検証は各担当。具体順序は[履歴表示図](flow.md#履歴を画面へ戻す)を正本とする。
+
 共通MCP入口がtool存在・引数キー・呼出席の存在・台帳refreshを確認してから専用handlerへ渡す。handlerの入力は`{name,args,from,registry,messenger,store,rooms,roomMessenger,deliverMessage,deliverRoomMessage,listQueued}`。内部HTTPへの配送窓口を注入した場合はその窓口を優先する。avatar本文を返却から外す表現処理と認証・共通エラーは統合が持つ。`mcp-tools.mjs`からの既存resolveBotImagePath exportは維持する。
 
 `conversation-services.mjs:createConversationServices`は`{root,bots,transport,notifications,aiControl,settings,seatRuntime?}`を受け、同じstore/assets/messenger実体とinitializeを返す。共通組立ては初期案内のinitialize後にこのinitializeを呼び、selfTurns/seatTurns/rooms/roomMessengerを受け取る。factoryの構築だけでHTTPやtimerを起動しない。start/stop順はapplication-runtimeが登録する。

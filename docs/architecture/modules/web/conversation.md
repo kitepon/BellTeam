@@ -51,6 +51,25 @@ flowchart TD
 
 サーバーは`createMessageViews.sources → timelinePage/webMessage`で保存履歴とカード索引を合成する。部屋には秘密、直接会話には秘密と質問カードがある。`TimelineIndex`はページ検索、`ConversationStore/RoomHistory`は保存記録の読取であり、WebがJSONLを書き換える経路ではない。
 
+## 秘密カードのOwner向け公式認証リンク
+
+既Owner向け履歴の `item.secret_request.ownerGuide?: {url:string}` を `renderItemElement → renderSecretRequest` へ渡す。直接/部屋、初回/latest/after/beforeは共通描画を使う。usageが管理runの許可・正常/pending・run15分と入力10分の最小期限を確認し、会話担当がページ後段でOwner向け応答だけに付与する。元shared row/秘密item/get、内部MCP/Bot通知、通常receipt、本文、exportには追加しない。共通投影への無条件追加やWebのexport後処理ではこの分離を代替しない。
+
+```mermaid
+flowchart TD
+  Run["usage 管理run<br/>許可・状態・期限の正本"] --> Page["会話担当のページ後段<br/>Owner応答だけへownerGuideを付与"]
+  Page --> Card["Web secret-input<br/>既秘密カードと入力dialog"]
+  Card --> Valid{"pending / HTTPS / userinfoなし<br/>固定の公式originと一致"}
+  Valid -->|"一致"| Link["公式認証ページを開く<br/>別tab / noopener noreferrer / no-referrer"]
+  Link -->|"Ownerがクリック"| Vendor["公式認証ページ<br/>生成・選択はnative"]
+  Valid -->|"欠落・不正・閉じたカード"| Hidden["リンクを表示しない<br/>既存入力操作を維持"]
+  Update["終了・失効・提出後の更新<br/>ownerGuideなし"] --> Card
+```
+
+許可originは `https://claude.ai`、`https://console.anthropic.com`、`https://platform.claude.com` の完全一致。変更はRoot/nativeとの契約変更とする。リンク文言は固定し、URLを本文・console・エラー・storageへ書かず、先読み通信・自動認証・新URL RPC・poll・新認証画面を追加しない。入力dialogは同じ依頼のカード再描画時にリンク部分だけを更新し、入力値やsubmit/cancelの既契約を変えない。サーバーの期限判定を端末の時計や独自timerで補わず、履歴更新でfieldが除去された時にカードと開いているdialogからリンクを除く。クリックは認証完了の証拠にしない。
+
+Webが所有するsourceは `web/secret-input.js`、既callerは `web/conversation-timeline.js:renderItemElement`。URLはブラウザーのanchorだけが持ち、新しいWeb資材/export/依存はない。機能間窓口は既HTTP/SSEのままなのでmodule.json/生成全体図の接続変更はなく、外部ページへの遷移をこの担当図へ記す。有限fixtureは `test/secret-owner-guide.test.mjs` の固定3origin/不正URL/旧カード/閉じた状態/既dialog/明示submitと取消、`timeline-open-queue` の直接・部屋と履歴更新時の除去。Owner専用投影とexport除外の実fixtureはサーバー担当との結合で確認する。人工DOM試験を公式認証/本番の成功と扱わない。
+
 ## 受付後の追跡故障を未達へ読み替えない
 
 会話/実行担当が公開する任意の`deliveryTracking`を表示根拠にする。`delivery === 'failed'`で、`schema === 'bellteam.delivery-tracking.v1'`・`admission === 'accepted'`・`completion === 'unknown'`の全値が一致する場合だけ、直接会話は「受付済み・完了未確認」、部屋は「完了未確認の宛先あり」と中立表示する。fieldなしの旧failedと欠落/未知/不正tupleは従来の「配達失敗」を維持する。running/delivered/stopped等をこのtupleだけで変更しない。

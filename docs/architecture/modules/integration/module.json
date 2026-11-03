@@ -41,6 +41,14 @@
     {
       "module": "runtime",
       "port": "update"
+    },
+    {
+      "module": "usage",
+      "port": "auth"
+    },
+    {
+      "module": "approval-box",
+      "port": "public"
     }
   ],
   "source": [
@@ -55,6 +63,9 @@
     "src/http-gateway-entry.mjs",
     "src/http-gateway-process.mjs",
     "src/http-assets.mjs",
-    "src/web-gateway-control.mjs"
+    "src/web-gateway-control.mjs",
+    "src/olrw-management-caller.mjs",
+    "src/olrw-rabbit-auth.mjs",
+    "src/olrw-management-loader.mjs"
   ]
 }

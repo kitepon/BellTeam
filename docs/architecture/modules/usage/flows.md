@@ -63,6 +63,10 @@ sequenceDiagram
 
 `OwnerQuestions.answer`は秘密入力の`finish`と違い、通知失敗を保存した`failed`値に変換せず例外を返す。画面の「送れませんでした」は回答未保存の証明ではない。再取得したカードはansweredになり得る。共通化できるのは既存の表示索引であり、回答・秘密値・通知失敗の状態機械は同一にしない。秘密入力にも質問にも新しい永続配送キューはない。
 
+## Rabbit認証consumer候補
+
+[run・操作intent・Owner専用guide](olrw-auth.md)を参照する。秘密カード作成時の最初の更新通知より後にrunの案内が読取可能になるため、SecretRequests.notifyOwnerGuideはguide同期後に既存changeイベントを一回発行する。payloadは既存のtopic/bot/roomだけで、URLや新しい保存項目を加えない。
+
 ## 認証：公式CLIの状態を保持するのはAiterm
 
 ```mermaid
