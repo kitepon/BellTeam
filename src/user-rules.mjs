@@ -27,6 +27,10 @@ export class UserRules {
 
   async get() {
     if (!await exists(this.path)) return this.initialize()
+    return this.restore()
+  }
+
+  async restore() {
     return readFile(this.path, 'utf8')
   }
 

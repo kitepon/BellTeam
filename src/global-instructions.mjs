@@ -2,8 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { ownerInstructions } from './owner-profile.mjs'
-import { userRulesInstructions } from './user-rules.mjs'
+import { renderGlobalInstructions } from './members/instructions.mjs'
 import { runtimeHome } from './runtime-home.mjs'
 
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -12,7 +11,7 @@ const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 export function createGlobalInstructionsRefresher({ ownerProfile, userRules, home = runtimeHome(), write = writeGlobalInstructions }) {
   return async function refreshGlobalInstructions() {
     const commonRules = await readFile(join(appRoot, 'config/common-agents.md'), 'utf8')
-    const instructions = `${ownerInstructions(await ownerProfile.get())}\n\n${userRulesInstructions(await userRules.get())}\n\n${commonRules}`
+    const instructions = renderGlobalInstructions(await ownerProfile.get(), await userRules.get(), commonRules)
     await write(home, instructions)
   }
 }

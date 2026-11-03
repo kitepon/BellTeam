@@ -1,6 +1,27 @@
 # メンバー・予定の独立更新：契約入力
 
-担当：ベロータ。入力sourceは `9e83c192a9b624e3c5e891df65953e755d098314`（PR272）。本紙は図を先に具体化した**実装前の契約案**。既存の動作は[registry](registry.md)、[profiles](profiles.md)、[schedules](schedules.md)、[deletion](deletion.md)、[instructions](instructions.md)が正本。実装・単独交換・配布受入済みという意味ではない。
+担当：ベロータ。入力sourceは `9e83c192a9b624e3c5e891df65953e755d098314`（PR272）。初回案をRoot公開契約v1（作者席正本SHA256 `7c0a83e3dba30607b6dfe098d55c51ac4e7c14d00acc896e50ab37d9eaaf6a0e`）で固定し、段階実装中。既存動作は[registry](registry.md)、[profiles](profiles.md)、[schedules](schedules.md)、[deletion](deletion.md)、[instructions](instructions.md)が正本。単独交換・配布受入済みという意味ではない。
+
+## 実装した内部接点（第一差分）
+
+```mermaid
+flowchart LR
+  Bootstrap[初回 initialize] --> Effects[既seed/移行/指示生成/cleanup]
+  Ready[交換 ready] --> Restore[BotRegistry/OwnerProfile/UserRules.restore]
+  Restore --> Read[既state読取・検証のみ]
+  Read --> Removal[readRemovalStates: 対象画像gate復元入力]
+  Profile[正規化profile・短期記憶] --> Render[members/instructions: 純粋本文生成]
+  Render --> Existing[既ProjectFiles / global refresher]
+  Existing --> Writer[runtime物理writer]
+```
+
+`BotRegistry.restore()`は既`.initialized`、bot.v8、schedule.v1と削除receiptを検証してrefreshする。seed/migration/cleanup/モデル照会/指示書込/CLI同期は呼ばず、欠損や未知形式を修復しない。通常initializeは既動作を維持する。OwnerProfile/UserRulesのrestoreも存在必須の読取のみで、既getの未初期化互換動作とは分ける。これらはchild ready組立の公開口であり、まだ親bootstrapへ第二writerを追加しない。
+
+`BotRegistry.readRemovalStates()` → `{removals:[{botId,active,hasIntent:true,retired}]}`。毎回既receipt/退役directoryと当該writerのintentを読む。active/pending両directory競合や不正receiptは失敗。不明を空一覧にしない。親conversationの起動前gate復元用であり、cancelのactive/intent無し条件を証明する口ではない。通常運転中のcancelは同per-Bot直列化内のfresh判定が必要。
+
+`renderBotInstructions(profile, shortTermMemory='')`と`renderGlobalInstructions(owner,rules,commonRules)`を`src/members/instructions.mjs`で公開。前者には正規化profileとtrim済み短期記憶、後者には既Owner/rulesと同配布物のcommon本文を渡す。ファイル操作なし。既ProjectFiles/global refresherもこの関数を使い、既export/物理writerと出力を維持する。
+
+`src/members/state-compatibility.mjs`の`MEMBERS_STATE_COMPATIBILITY`と`assertMembersStateCompatibility(value)`は既形式6key/valueのexact宣言/検証。宣言一致は実state検証の代用ではなく、restoreを別に行う。entry/dispatcher/IPC/effect/claim切替は次差分で、未供給のfactoryがあるように呼び出さない。
 
 Rootの全体設計に沿い、membersの台帳・規範生成・予定定義/発行判断を固定版の子processへ移す。既AIのtransport/job/watch・会話writer・RoomRegistry・共有CLI登録writerは生かす。同UID1001内の協調writer分離を提案し、別UIDのOS隔離を成立済みとはしない。共通入口と組立てはモリー、起動/排他/版交換はエピネル、署名配布はセンチ。各担当の公開契約をRootが固定してから実装する。
 

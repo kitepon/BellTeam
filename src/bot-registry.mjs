@@ -95,6 +95,30 @@ export class BotRegistry extends Map {
     return this.refresh()
   }
 
+  // Swap readiness validates current state without bootstrap effects or repair.
+  async restore() {
+    if (!await exists(join(this.stateRoot, '.initialized'))) throw registryError('BOT_STATE_UNINITIALIZED')
+    const entries = await readdir(this.stateRoot, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !BOT_ID.test(entry.name)) continue
+      const value = JSON.parse(await readFile(join(this.statePath(entry.name), 'bot.json'), 'utf8'))
+      if (value?.schema !== 'bellteam.bot.v8' || value.id !== entry.name || Object.hasOwn(value, 'title'))
+        throw registryError('BOT_PROFILE_INVALID')
+      normalizeProfile({ ...value, project: this.projectPath(entry.name) })
+      const document = JSON.parse(await readFile(join(this.statePath(entry.name), 'schedule.json'), 'utf8'))
+      if (document?.schema !== 'bellteam.schedule.v1' || !Array.isArray(document.schedules))
+        throw registryError('SCHEDULE_FILE_INVALID')
+      for (const schedule of document.schedules) {
+        scheduleRevision(schedule)
+        normalizeSchedule(schedule, this.now())
+      }
+    }
+    await this.refresh()
+    await this.readRemovalStates()
+    await this.listForClient()
+    return this
+  }
+
   refresh() {
     const result = this.#refreshQueue.then(() => this.#readProfiles())
     this.#refreshQueue = result.catch(() => {})
@@ -283,6 +307,35 @@ export class BotRegistry extends Map {
     validateId(id)
     return this.separateState && (await pathExists(join(this.stateRoot, '.deleting', id))
       || await pathExists(join(this.stateRoot, '.deleting', `${id}.json`)))
+  }
+
+  // Fresh read for conversation's startup asset gate; never resumes cleanup.
+  async readRemovalStates() {
+    if (!this.separateState) return { removals: [] }
+    const root = join(this.stateRoot, '.deleting')
+    const ids = new Set(this.deletionIntents)
+    if (await pathExists(root)) {
+      for (const entry of await readdir(root, { withFileTypes: true })) {
+        if (entry.isDirectory() && BOT_ID.test(entry.name)) ids.add(entry.name)
+        if (entry.isFile() && entry.name.endsWith('.json') && BOT_ID.test(entry.name.slice(0, -5))) {
+          const id = entry.name.slice(0, -5)
+          const value = JSON.parse(await readFile(join(root, entry.name), 'utf8'))
+          if (value?.schema !== 'bellteam.bot-deletion.v1' || value.profile?.id !== id)
+            throw registryError('BOT_DELETE_RECORD_INVALID')
+          normalizeProfile(value.profile)
+          ids.add(id)
+        }
+      }
+    }
+    const removals = []
+    for (const botId of [...ids].sort()) {
+      const active = await pathExists(this.statePath(botId))
+      const retired = await pathExists(join(root, botId))
+      if (active && retired) throw registryError('BOT_DELETE_CONFLICT')
+      const hasIntent = this.deletionIntents.has(botId) || retired || await pathExists(join(root, `${botId}.json`))
+      if (hasIntent) removals.push({ botId, active, hasIntent: true, retired })
+    }
+    return { removals }
   }
 
   async #remove(id) {
