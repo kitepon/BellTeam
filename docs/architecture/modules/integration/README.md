@@ -517,3 +517,19 @@ executionのcapacity継続は既Messenger.sendmessage(input,options)へ親固定
 `conversation-assembly.mjs`が同じConversationLifetimesと両module予約、method限定authorityを所有し、固有facade/閉effects/実controllerへ接続する。子だけが直接会話・Room・画像・observer状態を書き、親はreadonly履歴合成・FD reader・画像保存gate・認証済みactorを保持する。元RPCのactualCompletionとdelivery/background ACKまでauthorityを保持し、期限だけで成功終端へ読み替えない。membersからのRoom/画像逆effectも元membersLeaseへ会話予約を束縛し、202後のcleanupと同じ実終端まで保持する。
 
 親はcreateModuleExchangeMutex一実体をmembers/conversation両assemblyへ渡し、両runtime controllerのreplaceが同runExclusiveへ入る。片側交換中に他方が新しい交換gateを閉じない。通常業務の予約は別のmoduleOperationsで維持し、mutexへAI完走をqueueしない。
+
+### 未配置moduleのHost設置step
+
+```mermaid
+flowchart LR
+  Plan[公開plan / 固定catalog target] --> Probe[既reader prepare]
+  Probe -->|ENOENTだけ| HostPlan[既Host capability / 固定install plan]
+  HostPlan --> Journal[親ledgerへinstall planと別step UUIDを保存]
+  Journal --> Issue[start intentをfsync後 / Host start一度]
+  Issue --> Get[同step UUIDのHost getだけで追跡]
+  Get -->|completed / executionとverification成功| Reader[既readerで実配置再検証]
+  Reader --> Replace[同controller replace / 実結果確認]
+  Crash[親中断] --> Unknown[公開結果unknown / install getのみ / replace再発行0]
+```
+
+新しい公開HTTP/MCP schema・保存writerを増やさない。公開operation UUIDと各設置stepのUUIDは別に耐久保存する。catalog/互換が固定され、既readerがENOENTとなった更新だけHost planへ渡す。改竄・不適合・権限エラーは設置で隠さない。戻しは既配置だけ使う。Host plan/operationはcatalog・component・source・SHA・planId・requestIdを照合し、containerRestart:falseを確認する。失敗/unknown/応答不整合ではreplaceせず、未確定Hostがある間は新更新を拒否する。再起動時は保存済みUUIDの結果照会だけ許し、既設置済みと判明しても中断moduleのreplaceは自動再発行しない。初回Host機構と同image installerの導入・本番承認は別条件。

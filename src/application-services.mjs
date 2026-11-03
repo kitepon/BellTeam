@@ -120,7 +120,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   }
   const conversationPorts = { bots, settings, seatRuntime, aiControl, conversationUsage: createConversationUsage({ settings, notifications }) }
   if (conversationFactory) conversationAssembly = conversationFactory({ root, membersAdmission, exchangeMutex, getServices: () => conversationPorts,
-    onDiagnostic: report => diagnostics.record({ ...report, module: 'conversation' }), onState: () => updateCenter?.notify() })
+    onDiagnostic: report => diagnostics.record({ code: report.code, module: 'conversation',
+      ...(report.code === 'MESSAGE_LOG_INVALID' ? { diagnostic_log: JSON.stringify(report) } : {}) }), onState: () => updateCenter?.notify() })
   if (executionFactory) {
     const selection = adoptionFactory({ root }), selected = await selection.read()
     const queueListeners = new Set()
@@ -216,7 +217,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   const hostUpdateClient = hostClient ?? createContainerUpdateClient()
   const hostUpdate = createHostUpdateAdapter({ root, client: hostUpdateClient })
   const moduleCatalog = createModuleUpdateCatalog({ client: hostUpdateClient })
-  const moduleExecutor = await createModuleUpdateExecutor({ root, catalog: moduleCatalog, host: hostUpdate,
+  const moduleExecutor = await createModuleUpdateExecutor({ root, catalog: moduleCatalog, host: hostUpdate, moduleHost: hostUpdateClient,
     adapters: createModuleUpdateAdapters({ gateway, builtinSourceCommit, notifications, members, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule,
       prepareDiagnostics, usage: usageAssembly?.controller, prepareUsage, conversation: conversationAssembly?.controller, prepareConversation: (versionId, options) => prepareModuleRelease('conversation', versionId, options), execution: execution?.controller, prepareExecution }), notify: () => updateCenter?.notify() })
   updateCenter = createUpdateCenter({ gateway, builtinSourceCommit, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule, usage: usageAssembly?.controller, conversation: conversationAssembly?.controller, execution: execution?.controller })
