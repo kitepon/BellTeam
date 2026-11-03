@@ -370,7 +370,7 @@ flowchart LR
 既watchQueueのSSE接続を再利用し二重watch無し。summaryを新たに読むことで正規AI/auth/Goalや設定発行へ到達しない。Apple実装の順序はOwner指定の全体受入後で、本schema供給から先行実装の許可へ拡張しない。
 
 
-## Web Pushのtrusted originと固定SW（組立て前）
+## Web Pushのtrusted originと固定SW
 
 ```mermaid
 flowchart LR
@@ -385,4 +385,6 @@ flowchart LR
 
 Root Web Push契約v1.1に従う。`createWebPushOrigin({settings})`が返す`assertWebPushOrigin(request)`は毎要求の保存済みcloudflare.publicUrlだけからcanonical HTTPS originを生成する。公開URL欠測/不正はWEB_PUSH_ORIGIN_UNAVAILABLE/503、Origin欠測/null/重複/不一致・path/資格・cross-siteはWEB_PUSH_ORIGIN_FORBIDDEN/403。Sec-Fetch-Site有りならsame-originだけを通す。request Host/Forwarded、body、endpointからtrusted originを補わない。Owner認証自体は既HTTP入口、内部403と閉bodyはusage handlerが検査する。GET公開状態と他feature/Apple APIの条件は変えない。
 
-登録照会/登録/解除のprivate originへこの返却だけを渡す。provider/configureへoriginを足さず、別origin登録の操作を同等権限にしない。固定sw.jsは版付置換の有無によらずJS MIME/no-cache、他immutable資材を維持。SW本文/公開asset mapはAdmi固定作者sourceの後に同候補へ接続する。この差分だけでWebPush API・provider・ABI2や実送信成立を宣言しない。
+`createBellTeamServer`が同じ親FeatureSettingsから検証関数を一つ構築し、`createControlApi`→`createUsageApi`へ注入する。既Owner認証の後、登録照会/登録/解除のprivate originへこの返却だけを渡す。provider/configureへoriginを足さず、別origin登録の操作を同等権限にしない。固定sw.jsは版付置換の有無によらずJS MIME/no-cache、他immutable資材を維持。SW本文/公開asset mapはAdmi固定作者sourceへ接続する。
+
+`application-services`は同じ設定一実体のAPNs/Web二設定をcontrollerへ供給する。onStateの両provider applyErrorは各featureへ分けて投影し、ready/statusのnullで保存済み適用失敗を消さない。成功した明示設定適用は既FeatureSettingsのonChange結果で更新する。子/controllerのconfig epoch・復帰後差分適用と実署名nativeはruntime/配布の固定成果へ結合するまで未成立。実送信/資格/Host本番の証明にはしない。

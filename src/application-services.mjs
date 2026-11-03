@@ -58,9 +58,11 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     refreshGlobalInstructions = async () => {}
   }
   const notifications = createNotifications({ root, bots, diagnostics,
-    configuration: () => settings.configuration('notifications'), createProcess,
+    configuration: () => ({ apns: settings.configuration('notifications'), webPush: settings.configuration('webPush') }), createProcess,
     onState: state => {
-      if (state.applyError) settings.setError('notifications', { code: state.applyError })
+      for (const [provider, feature] of [['apns', 'notifications'], ['webPush', 'webPush']]) {
+        if (state.applyError?.[provider]) settings.setError(feature, { code: state.applyError[provider] })
+      }
       updateCenter?.notify()
     },
   })
