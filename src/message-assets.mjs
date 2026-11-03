@@ -54,11 +54,11 @@ export class MessageAssets {
   async save({ owner, id, image }) {
     validateId(owner)
     validateId(id)
-    return this.#trackSave(owner, () => this.#save({ owner, id, image }))
+    return this.#trackSave(owner, lease => this.#save({ owner, id, image, lease }))
   }
 
-  async #save({ owner, id, image }) {
-    const bytes = await this.readImage(image, this.maxBytes)
+  async #save({ owner, id, image, lease }) {
+    const bytes = await this.readImage(image, this.maxBytes, lease)
     const mime = detectMime(bytes)
     if (!mime) throw new Error('IMAGE_FILE_INVALID')
     const extension = MIME_EXTENSION.get(mime)
@@ -97,12 +97,12 @@ export class MessageAssets {
   // オーナーが送った画像は、Botのプロジェクトではなくオーナーの場所に置く。
   async saveAll({ owner, id, images }) {
     validateId(owner)
-    return this.#trackSave(owner, async () => {
+    return this.#trackSave(owner, async lease => {
       const saved = []
       for (const [index, image] of images.entries()) {
         const imageId = `${id}-${index + 1}`
         validateId(imageId)
-        saved.push(await this.#save({ owner, id: imageId, image }))
+        saved.push(await this.#save({ owner, id: imageId, image, lease }))
       }
       return saved
     })
@@ -122,7 +122,7 @@ export class MessageAssets {
     this.#saves.set(owner, saves)
     saves.add(pending)
     let failure
-    try { return await save() }
+    try { return await save(lease) }
     catch (error) { failure = error; throw error }
     finally {
       saves.delete(pending)
