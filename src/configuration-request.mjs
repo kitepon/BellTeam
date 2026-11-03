@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 
-export const CONFIGURATION_VERSION = '0.63.6'
-export const CONFIGURATION_INTENT_VERSIONS = ['0.63.5', '0.63.6']
+export const CONFIGURATION_VERSION = '0.63.7'
+export const CONFIGURATION_INTENT_VERSIONS = ['0.63.5', '0.63.6', '0.63.7']
 export const CONFIGURATION_SCHEMA = 'aiterm.agent-configure-request-result.v1'
 const failureRequests = new WeakMap()
 export function captureConfigurationRequest(error, request) {
