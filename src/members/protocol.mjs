@@ -138,7 +138,7 @@ function checkMembersResult(method, value) {
     object(value, { id, configurationSync: value => object(value, { state: value => { if (value !== 'failed') fail() }, name: text, message: text, code: text, status: value => { if (!Number.isInteger(value)) fail() } }, ['state', 'name', 'message']) }, ['id'])
     return
   }
-  if (method === 'profiles.read') { object(value, { profiles: values => { if (!Array.isArray(values)) fail(); values.forEach(bot) } }); return }
+  if (method === 'profiles.read') { object(value, { revision }); return }
   if (['profile.read', 'profile.create', 'profile.preview', 'profile.update', 'profile.session', 'profile.fastMode'].includes(method)) { object(value, { bot }); return }
   if (method === 'profile.startup') { object(value, { prepared: value => { if (value !== true) fail() } }); return }
   if (method === 'removals.read') { removalStates(value); return }

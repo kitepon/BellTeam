@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { mkdtemp, writeFile, rm, mkdir, stat } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile, rm, mkdir, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { BotRegistry } from '../src/bot-registry.mjs'
@@ -206,8 +206,9 @@ test('display read can retain pending avatar bytes while active authorization st
   const display = await f.request('profile.read', { botId: 'bot-a', includeDeleting: true })
   assert.equal(display.bot.deleting, true); assert.equal(display.bot.avatar, avatar)
   const metadata = await f.request('profiles.read', {})
-  assert.equal(Object.hasOwn(metadata.profiles[0], 'avatar'), false)
-  assert.equal(metadata.profiles[0].hasAvatar, true)
+  const projected = f.records.find(item => item.record.type === 'profile' && item.record.revision === metadata.revision).record.bot
+  assert.equal(Object.hasOwn(projected, 'avatar'), false)
+  assert.equal(projected.hasAvatar, true)
 })
 
 test('fixed semantic errors preserve HTTP status while the wire can omit private messages', async t => {
@@ -220,4 +221,23 @@ test('fixed semantic errors preserve HTTP status while the wire can omit private
   const unknown = new Error('private free text')
   assert.equal(normalizeMembersError(unknown), unknown)
   assert.equal(Object.hasOwn(unknown, 'code'), false)
+})
+
+test('fresh metadata larger than one payload is streamed without a member-count limit', async t => {
+  const f = await fixture(t), template = JSON.parse(await readFile(join(f.root, 'state/bots/bot-a/bot.json'), 'utf8'))
+  const text = 'x'.repeat(8000)
+  await Promise.all(Array.from({ length: 600 }, async (_, index) => {
+    const id = `bot-many-${index}`, directory = join(f.root, 'state/bots', id)
+    await mkdir(directory)
+    await writeFile(join(directory, 'bot.json'), JSON.stringify({ ...template, id, session: id, profileText: text, personality: text, speechStyle: text, role: text }))
+    await writeFile(join(directory, 'schedule.json'), JSON.stringify({ schema: 'bellteam.schedule.v1', schedules: [] }))
+  }))
+  const result = await f.request('profiles.read', {})
+  assert.ok(Buffer.byteLength(JSON.stringify(result)) < 100)
+  const records = f.records.filter(item => item.record.revision === result.revision)
+  assert.equal(records.filter(item => item.record.type === 'profile').length, 601)
+  assert.equal(records.at(-1).record.type, 'snapshot-end')
+  const sizes = records.map(item => Buffer.byteLength(JSON.stringify(item.record)))
+  assert.ok(sizes.reduce((total, size) => total + size, 0) > 16 * 1024 * 1024)
+  assert.ok(sizes.every(size => size < 64 * 1024))
 })

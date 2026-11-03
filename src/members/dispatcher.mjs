@@ -86,6 +86,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
       await send({ type: 'snapshot-start', revision: current })
       for (const profile of await bots.listForClient()) await send({ type: 'profile', revision: current, bot: withoutImages(profile) })
       await send({ type: 'snapshot-end', revision: current })
+      return current
     })
     projecting = next
     return next
@@ -107,7 +108,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
   async function execute(method, params) {
     switch (method) {
       case 'profiles.cli': await bots.refresh(); return { botIds: [...bots.keys()] }
-      case 'profiles.read': await bots.refresh(); return { profiles: (await bots.listForClient()).map(withoutImages) }
+      case 'profiles.read': return { revision: await snapshot(contexts.getStore()) }
       case 'profile.read': {
         await bots.refresh()
         const bot = bots.get(params.botId) ?? (params.includeDeleting ? (await bots.listForClient()).find(bot => bot.id === params.botId) : undefined)

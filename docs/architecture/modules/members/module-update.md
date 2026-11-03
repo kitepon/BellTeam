@@ -82,6 +82,14 @@ profile.readは`{botId,includeDeleting?:true}`へ。省略時はactiveのみ、t
 
 src/members/errors.mjsのnormalizeMembersError(error)は有限の既domain code又は固定message prefixを認識してcode/statusを付ける。公開request/callback/effect validator、dispatch/controlで適用。Epi wireは従来の{code,outcome,status}だけを送り、未知の自由文はgenericにする。外部Room effect側でも親共通adapterが同normalizerを使ってからwireへ返す。unknown outcomeをnot_acceptedへ変更しない。保存後effect失敗では可能な限り最新snapshotを送ってから元失敗を返す。
 
+### 件数上限を追加しないfresh一覧（第十差分）
+
+profiles.readのresultを全metadata配列から小さい`{revision}`へ変更し、既ACK付きsnapshot-start/profile/snapshot-endを一件ずつfresh送出してから返す。画像を除いても600件の最大本文は16MiBを越えるため、一frameの全metadataへ戻さない。root名/context/外部HTTP-MCP schemaは変えず、新paging/RPC/件数上限を増やさない。snapshotが途中失敗すればresultは成功しない。
+
+親facadeは同lease結果後、同generationかつrevision>=受領revisionの確定projectionを使う。古い世代/未完は503unknown、再取得再送しない。表示画像はそこから個別profile.read includeDeleting:trueへ逐次。読取だけでSSEが自己循環しないよう、共通projectionは内容/availability/generationの変更だけを通知し、同内容でrevisionだけ進んだreadは通知しない（Molly公開接点）。
+
+記憶ensureは従来HTTP/MCP callerがcreate公開結果/投影後に行い、子profile.createから重複発行しない。これは既保存・記憶失敗の部分結果を保つcaller契約内の修理で、記憶writerを子へ移す意味ではない。
+
 ## 現状と初回の分離
 
 ```mermaid
