@@ -40,6 +40,7 @@ flowchart LR
   m_integration -->|"assets"| m_web
   m_integration -->|"update"| m_runtime
   m_integration -->|"auth"| m_usage
+  m_integration -->|"notify"| m_usage
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
   m_members -->|"cli-registration"| m_runtime

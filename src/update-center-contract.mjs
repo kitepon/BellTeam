@@ -54,7 +54,8 @@ export function validateUpdateRequest(name, value) {
   if (!requests[name](value).valid) throw Object.assign(new Error('UPDATE_INPUT_INVALID'), { code: 'UPDATE_INPUT_INVALID', status: 400 })
 }
 
-export const updateResponseSchemas = { inventory: updatesSchema, plan: object({ plan }), operation: object({ operation }) }
+export const updateEventSchema = object({ at: date, topics: { const: ['updates'] }, botIds: { const: [] }, roomIds: { const: [] }, type: { const: 'updates' }, all: { const: true } })
+export const updateResponseSchemas = { inventory: updatesSchema, plan: object({ plan }), operation: object({ operation }), error: objectSchema({ error: text, message: text }, ['error']), event: updateEventSchema }
 const exampleCurrent = { version: 'a'.repeat(64), sourceCommit: '1'.repeat(40), digest: 'sha256:' + 'a'.repeat(64), origin: 'container' }
 const examplePublished = { version: 'b'.repeat(64), sourceCommit: '2'.repeat(40), digest: 'sha256:' + 'b'.repeat(64), origin: 'published' }
 const examplePlan = { planId: '11111111-1111-4111-8111-111111111111', scope: 'component', componentId: 'container',

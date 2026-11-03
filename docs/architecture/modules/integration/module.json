@@ -49,6 +49,10 @@
     {
       "module": "approval-box",
       "port": "public"
+    },
+    {
+      "module": "usage",
+      "port": "notify"
     }
   ],
   "source": [
