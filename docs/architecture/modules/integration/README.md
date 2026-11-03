@@ -53,6 +53,25 @@ flowchart TD
 
 内部の実装・図は各moduleだけに置き、この図は接続に限る。商用更新通知は各担当の設計案で、新しい更新API/UI/Host実行は実装していない。本番と一般配布はOwner保留中。
 
+## 一覧履歴の親集約
+
+```mermaid
+flowchart LR
+  Bots[GET /api/bots] --> Views[facade.timelineViews / 入力順の逐次取得]
+  Rooms[GET /api/rooms] --> Refresh[rooms.refresh / 返値と実completion]
+  Refresh --> RoomView[rooms.messageView / 各Roomを逐次取得]
+  Views --> History[同actor・options / 既history root]
+  RoomView --> History
+  History --> Result[返値と元Promiseの実completionを待つ]
+  Result --> Next[次の履歴へ / 全件・入力順を保持]
+  RoomView --> Prepared[取得済みIndexを既sources第3引数へ]
+  Prepared --> Cards[既recent・usageカード合成]
+```
+
+以前の一覧内Promise.allは9件以上で同時にmembers logical8へ新rootを予約し、一覧自身で受付拒否を起こせた。親集約だけを逐次化し、結果の射影で保持された元completionまで待って次を発行する。Mapの重複IDは既来どおり最後の値、Roomはrefresh後の一覧を捕捉して最後に現投影を再検査する。messageViewのない既readerではsourcesの既fallbackを維持する。新しい件数制限・再試行・容量変更・一括snapshot保証は加えない。
+
+同actor/options identity・既認可・全件/順序/公開shape・元結果/実completionの拒否を保持し、失敗後の後続発行は止める。部分結果を成功へ変換しない。閉鎖/別要求の混雑は既拒否のまま。子writer/stream/channel/controller/members内部は不変で、facade内部の正本は[会話process](../conversation/process.md)、lease解放は[execution入場](../execution/members-admission.md)。Rootの2026-11-04裁定とN102明示許容により、この差分だけ親集約loopをintegrationが修理する。本番全503/MCP/初回unhealthyの単独原因や本番回復をこの局所反例から証明しない。
+
 ## 実行失敗の診断接続
 
 ```mermaid

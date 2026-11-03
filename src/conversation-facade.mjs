@@ -61,7 +61,15 @@ export function createConversationFacade({ getController, context }) {
   const store = {
     timeline: (botId, options) => history('history.listMessages', { botId }, options),
     timelineView: (botId, options) => { const attempt = store.timeline(botId, options); return inherit(attempt.then(rows => new TimelineIndex(rows)), attempt) },
-    timelineViews: (botIds, options) => Promise.all(botIds.map(async id => [id, await store.timelineView(id, options)])).then(entries => new Map(entries)),
+    timelineViews: async (botIds, options) => {
+      const entries = []
+      for (const id of botIds) {
+        const attempt = store.timelineView(id, options)
+        entries.push([id, await attempt])
+        await attempt.completion
+      }
+      return new Map(entries)
+    },
   }
   const user = (method, input, options) => invoke(method, { target: input.target, message: input.message, images: images(input),
     ...pick(input, ['recordUser']) }, options)
