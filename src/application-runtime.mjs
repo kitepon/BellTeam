@@ -22,6 +22,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
   } = services
   const { aiterm } = bootstrap
   const serverOptions = {
+    ownerSecretGuide: input => olrwAuthCaller?.ownerSecretGuide(input) ?? null,
     aiControl,
     subscriptions,
     settings,
