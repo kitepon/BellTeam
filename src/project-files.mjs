@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { CHARACTER_SHEET_DIRECTORY } from './character-sheets.mjs'
 
 import { renderBotInstructions } from './members/instructions.mjs'
+import { composeProjectInstructions } from './project-instructions.mjs'
 
 const exec = promisify(execFile)
 
@@ -29,7 +30,7 @@ export class ProjectFiles {
   async writeInstructions(profile) {
     const memoryPath = join(profile.project, 'memory', 'previous-session.md')
     const shortTermMemory = await exists(memoryPath) ? (await readFile(memoryPath, 'utf8')).trim() : ''
-    const body = renderBotInstructions(profile, shortTermMemory)
+    const body = await composeProjectInstructions(profile.project, renderBotInstructions(profile, shortTermMemory))
     await Promise.all([
       writeFile(join(profile.project, 'AGENTS.md'), body, { mode: 0o644 }),
       writeFile(join(profile.project, 'CLAUDE.md'), '@AGENTS.md\n', { mode: 0o644 }),
