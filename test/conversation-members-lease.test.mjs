@@ -72,3 +72,33 @@ test('notify拒否は同leaseの一回だけで返し、会話側で再発行し
   await assert.rejects(messenger.sendmessage({ from: 'scheduler', target: 'bot-a', message: 'fixture' }, { membersLease: lease }), error => error === failure)
   assert.deepEqual(calls, [lease])
 })
+
+for (const roomDelivery of [false, true]) test(`交換中のfresh refreshも同既受付leaseで継続する、部屋=${roomDelivery}`, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'conversation-refresh-lease-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const lease = opaque(), reads = [], notified = []
+  const bots = new Map([['bot-a', { id: 'bot-a', name: 'A' }]])
+  bots.refresh = async context => {
+    if (context?.membersLease !== lease) throw Object.assign(new Error('new root closed'), { status: 503 })
+    reads.push(context.membersLease)
+  }
+  const transport = { async notify(bot, text, options) {
+    assert.equal(options.membersLease, lease)
+    notified.push(options.queue)
+    return { delivery: 'running' }
+  } }
+  const room = { id: 'room-a', name: 'fixture', purpose: '', memberIds: ['bot-a'], representativeId: null }
+  const records = [], rooms = new Map([[room.id, room]])
+  rooms.appendMessage = async (id, record) => { records.push(record) }
+  const messenger = roomDelivery ? new RoomMessenger({ bots, rooms, transport, roomTurns: async () => [] })
+    : new BellTeamMessenger({ bots, transport, logPath: join(root, 'messages.jsonl') })
+  const send = options => roomDelivery
+    ? messenger.sendroommessage({ from: 'scheduler', room: room.id, message: 'fixture', targets: ['bot-a'], membersLease: lease }, options)
+    : messenger.sendmessage({ from: 'scheduler', target: 'bot-a', message: 'fixture', membersLease: lease }, options)
+  await assert.rejects(send(), { status: 503 })
+  assert.equal(notified.length, 0)
+  assert.equal((await send({ membersLease: lease })).delivery, 'running')
+  assert.deepEqual(reads, [lease])
+  assert.equal(notified.length, 1)
+  assert.doesNotMatch(JSON.stringify(records) + JSON.stringify(notified), /membersLease|private-lease/u)
+})

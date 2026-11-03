@@ -43,7 +43,7 @@ export class RoomMessenger {
   // Botの発言（MCP）は画像1枚の `image`、ユーザーの発言は複数枚の `images` で渡す。
   async sendRoomMessageInOrder({ from, room: roomId, message, image = null, images = image ? [image] : [], targets = null, kind = 'message', schedule = null, responseTo = null, executionSource }, check = () => {}, { membersLease } = {}) {
     check()
-    await Promise.all([this.rooms.refresh?.(), this.bots.refresh?.()])
+    await Promise.all([this.rooms.refresh?.(), this.bots.refresh?.(membersLease === undefined ? undefined : { membersLease })])
     const room = this.rooms.get(roomId)
     if (!room) throw new Error(`ROOM_NOT_FOUND: ${roomId}`)
     if (typeof message !== 'string' || (!message.length && !images.length)) throw new Error('MESSAGE_REQUIRED')

@@ -40,12 +40,16 @@ flowchart LR
   Scheduler["親scheduler: 同membersLeaseでclaim成功"] --> Messenger["sendmessage(input, {membersLease})"]
   Scheduler --> Room["sendroommessage(input, {membersLease})"]
   Room --> Order["部屋順序待ち / 同opaque参照を保持"]
+  Messenger --> Fresh["bots.refresh({membersLease}) / 同既受付profiles.read"]
+  Order --> Fresh
   Order --> Notify["transport.notify options.membersLease"]
   Messenger --> Notify
   Notify --> Execution["execution: live lease検証・既受付の継続"]
 ```
 
 第2内部引数の`membersLease`だけを呼出時に捕捉し、同じ参照をnotify optionsへ渡す。Roomは前投稿の成功/失敗待ちと各宛先のfanoutを越えて同じopaqueを保持する。入力本文/会話record/queue/通知文/返却へleaseを保存せず、第1引数の同名fieldから権限を作らない。第2引数省略時は従来のoptionsを保つ。leaseの実在/世代/相関と継続・終端はexecution/runtimeが検証し、会話はclone/再入場/finish/再送を行わない。既全体停止のadmitWork/requireAccessも維持する。ユーザーturn/過去配送の再開/通話の意味をこの予定接点で拡張しない。
+
+配送前のBot台帳refreshにも同じ`{membersLease}`を渡す。integration facadeは同live leaseのfresh profiles.readとしてchannelへ継承し、新root入場/finishを追加しない。context無しrefreshは通常の新rootで、交換中は503。pure projectionを本人性の代用にせず、既受付の名前解決は捕捉identity/親projectionで継続する。RoomRegistryのrefreshは同じ親台帳の読取のまま。
 
 ## 会話の保存画像と、nativeへ渡す一時画像を分ける
 

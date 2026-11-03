@@ -32,7 +32,7 @@ export class BellTeamMessenger extends ConversationWriter {
   // Botの送信（MCP）は画像1枚の `image`、ユーザーの送信は複数枚の `images` で渡す。
   async sendmessage({ from, target, message, image = null, images = image ? [image] : [], executionSource }, { membersLease } = {}) {
     const check = target === 'user' ? () => {} : this.admitWork()
-    await this.bots.refresh?.()
+    await this.bots.refresh?.(membersLease === undefined ? undefined : { membersLease })
     if (!['user', 'scheduler'].includes(from) && !this.bots.has(from)) throw new Error(`SENDER_NOT_FOUND: ${from}`)
     if (target === 'user' && from === 'user') throw new Error('USER_TO_USER_NOT_ALLOWED')
     const bot = target === 'user' ? null : this.bots.get(target)
