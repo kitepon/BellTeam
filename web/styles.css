@@ -51,7 +51,13 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .update-toolbar p { margin: 0; color: #63634a; font-size: 11px; line-height: 1.7; }
 .update-toolbar button { min-height: 38px; padding: 8px 10px; flex: none; border: 0; border-radius: 8px; color: #454b3c; background: #ffffff80; cursor: pointer; font-size: 11px; }
 .update-toolbar button:disabled { opacity: .55; cursor: wait; }
-.update-layout { display: grid; grid-template-columns: 39% minmax(0, 1fr); padding: 28px 32px 32px; gap: 28px; }
+.update-layout { display: grid; grid-template-columns: 39% minmax(0, 1fr); align-items: start; padding: 28px 32px 32px; gap: 28px; }
+.update-component-status { color: #5d6d4c; font-size: 11px; line-height: 1.6; }
+.update-component-reason { color: #6e7567; font-size: 11px; line-height: 1.7; }
+.is-selected .update-component-status { color: #e0efb5; }
+.is-selected .update-component-reason { color: #c1cdb6; }
+.update-back-to-components { display: none; }
+@media (min-width: 781px) { [data-update-components] { max-height: min(60dvh, 660px); padding: 2px 6px 2px 2px; overflow-y: auto; overscroll-behavior: contain; } }
 .update-section-label { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin: 0 4px 16px; font-size: 12px; font-weight: 700; }
 .update-section-label > span { color: #7a8273; font-size: 10px; font-weight: 400; }
 .update-component { display: flex; gap: 13px; align-items: flex-start; width: 100%; min-height: 112px; margin-bottom: 10px; padding: 20px 16px; border: 1px solid #dfe3d7; border-radius: 16px; background: #ffffffa6; text-align: left; color: inherit; cursor: pointer; transition: background .18s, border-color .18s, box-shadow .18s; }
@@ -101,6 +107,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
   .update-layout { grid-template-columns: minmax(0, 1fr); padding: 22px 16px; gap: 20px; }
   .update-component { min-height: 0; padding: 15px; }
   .update-detail { padding: 23px 20px; }
+  .update-back-to-components { display: inline-flex; margin-bottom: 20px; padding: 8px 0; border: 0; background: transparent; color: #4f603f; font-size: 12px; cursor: pointer; }
   .update-detail-title { font-size: 21px; }
   .update-footer { padding: 16px 22px; }
 }

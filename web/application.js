@@ -248,6 +248,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   async function startConversations(setup) {
     state.setup = setup
+    void updateCenter.start()
     await loadBots()
     if (!setup.complete && setup.guideBotId) {
       const guide = state.bots.find(bot => bot.id === setup.guideBotId)

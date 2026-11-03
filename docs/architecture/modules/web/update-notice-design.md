@@ -60,11 +60,15 @@ Updateは共通状態の更新あり/進行/失敗/確認不能を文字で区�
 
 ### Web内部の実装図
 
+11/3共通APIの採用sourceは`cc49ddbf8117035886ee6c8fa0c7095c8031846b`。公開JSONの一正本は`src/update-center-contract.mjs`、接続先図は[integrationの共通Update状態](../integration/README.md#共通update状態と受付段階接続)。Webは旧module別GETと固定3項目を廃止し、GET `/api/updates`の裸snapshotから実在componentsの名称/説明/current/published/comparison/capability/availabilityを表示する。schemaの独自field/nullは追加せず、表示に使う形と閉じた状態語を検証して不正時は確認不能にする。正式版/実行機構未供給のcapabilityfalse/plans[]を実行可能へ変えない。計画/操作POSTは今回のinventory接続段階では発行しない。
+
+操作と前回結果は正本にある場合だけphase/execution/verificationを分けて描画し、completedは実行/実稼働検証の両成功を必要とする。availabilityは版採用と別欄で表示。未独立の項目も一覧から隠さず、公開理由を表示して実行を無効にする。常設Updateの状態語はnotice、最新版はcomparisonのAPI確認時だけ。起動/ready/updates/表示復帰で既GETへ再同期し、新SSE/poll/ローカル保存の版は作らない。
+
 ```mermaid
 flowchart LR
   Logo["BellTeamロゴ右 Update<br/>一覧と狭幅の会話header"] --> Center["update-center: 更新センター<br/>本体/module一覧・全体/個別選択・詳細"]
   Application["application: 起動/ready/表示復帰/破棄"] --> Center
-  Center -->|"既client.api"| HTTP["integration: 認証済み公開HTTP"]
+  Center -->|"既client.api / GET api/updates"| HTTP["integration: 認証済み公開HTTP"]
   HTTP -->|"実稼働版・正式版・計画・結果"| Center
   Center -->|"実際に再起動を要する計画だけ確認"| Confirm["対象版を固定して明示実行"]
   Confirm -->|"供給された公開操作だけ"| HTTP

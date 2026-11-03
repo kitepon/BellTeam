@@ -11,7 +11,7 @@ flowchart LR
   Browser["index.html / app.js<br/>画面の起動だけ"] --> Application["application.createWebApp<br/>一覧・選択・viewの接続"]
   Application --> Views["各view<br/>編集 / 下書き / 履歴 / 画像"]
   Application --> Updates["update-center<br/>ロゴ右入口・稼働版と更新計画の段階表示"]
-  Updates -->|"既公開の状態GETだけ / 未供給操作は無効"| Client
+  Updates -->|"共通GET api/updates / 未供給操作は無効"| Client
   Application --> Client["client.createWebClient<br/>JSON / 画像 / SSE"]
   Views -->|"api / fetchImage"| Client
   Client -->|"既公開HTTPだけ"| Integration["integration.HTTP/SSE"]
@@ -64,4 +64,6 @@ node --test test/web-client.test.mjs test/web-module.test.mjs test/web-event-ref
 
 ## 更新センターの段階導入
 
-[Update通知と更新センター](update-notice-design.md)はロゴ右の入口、本体/moduleの稼働版と説明、全体/個別計画、影響確認、実結果表示の正本。`update-center.js`が現行公開GETのWeb受付状態だけを検証して表示する。通知moduleと共通計画の未供給はレビュー用の未接続状態で示し、実行を無効にする。起動時は通信せず、初回open/ready/updates/表示復帰/手動再取得で読む。破棄後や古いreadは適用しない。Webは版比較や更新実行の正本を持たず、既HTTP/SSEを使う。新部品はassetsの配信/版置換登録へ含めた。動作試験は`test/web-update-center.test.mjs`、既組立てとSSE境界は従来のWeb試験を使用する。
+[Update通知と更新センター](update-notice-design.md)はロゴ右入口、実在moduleの稼働版と説明、全体/個別計画、影響・実結果の正本。`update-center.js`は共通GET `/api/updates`からcomponentsの名称/説明/版/比較/実行可否/利用可否を表示し、固定一覧と旧module別GETを持たない。表示用の型/状態語は検証し、厳密schema/有限例の正本はintegration公開`src/update-center-contract.mjs`。未独立は理由付き無効、provider利用不可と版採用を分離する。正式版/計画/実行機構の未供給では操作無効。今回の接続は読取だけでPOSTを発行しない。
+
+構築時は無通信。認証後の起動、open、ready/updates、表示復帰、手動再取得で既clientから読む。破棄後や古いreadは適用せず、最新の取得失敗時は古い版を最新として残さない。noticeと共通comparisonだけからロゴ右の状態語を表示し、Webは版を比較しない。operation/previousOperationは実行と稼働検証を分け、両成功のcompletedだけ完了とする。desktopは一覧内スクロール、狭幅は詳細から選択行へ戻る操作を持つ。資材登録/版置換は既assets、試験は`test/web-update-center.test.mjs`と従来の組立て/SSE。公開契約の9有限例を表示へ渡す局所検証と、実HTTP/共通投影→実ブラウザー/既SSE再同期を直接境界で確認する。
