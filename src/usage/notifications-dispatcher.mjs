@@ -1,4 +1,6 @@
 import { PushNotifications, validatePushDevice } from '../push-notifications.mjs'
+import { WebPushNotifications } from '../web-push-notifications.mjs'
+import { validateWebPushParams } from './web-push-schema.mjs'
 
 const methods = new Set(['status', 'configure', 'register', 'unregister', 'publish'])
 const printable = value => typeof value === 'string' && Boolean(value.trim()) && !/[\u0000-\u001f\u007f]/u.test(value)
@@ -13,6 +15,12 @@ function object(value, required, optional = []) {
 export function validateNotificationRequest(method, params) {
   if (!methods.has(method)) throw failure('PUSH_INPUT_INVALID')
   if (Buffer.byteLength(JSON.stringify(params) ?? '') > 65536) throw failure('PUSH_INPUT_INVALID')
+  if (method !== 'publish') {
+    if (params?.provider === 'webPush') { validateWebPushParams(method, params); return }
+    if (params?.provider !== 'apns') throw failure('PUSH_INPUT_INVALID')
+    const { provider, ...value } = params
+    params = value
+  }
   if (method === 'status') object(params, [])
   if (method === 'configure') {
     object(params, ['enabled', 'relayUrl'])
@@ -51,18 +59,20 @@ function notificationEvent(event) {
         : event.type === 'room' ? 'ルームに新しいメッセージが届きました。' : '返信が届きました。' }
 }
 
-export function createNotificationsDispatcher({ root, diagnostic, provider }) {
+export function createNotificationsDispatcher({ root, diagnostic, provider, webPushProvider }) {
   const service = new PushNotifications({ root, provider, diagnostics: { async record(report) {
     try { await diagnostic(report) }
     catch { process.stderr.write('BellTeam: 通知の診断を保存できませんでした (PUSH_DIAGNOSTIC_FAILED)\n') }
   } } })
+  const web = new WebPushNotifications({ root, diagnostic,
+    ...(webPushProvider ? { createProvider: () => webPushProvider } : {}) })
   let initialized = false, initializationStarted = false, accepting = false, quiesced = false, exiting = false, epoch = 0
   const active = new Set()
   const drain = async () => {
     do {
-      await Promise.allSettled([...active, ...service.inflight])
-      await service.saving
-    } while (active.size || service.inflight.size)
+      await Promise.allSettled([...active, ...service.inflight, ...web.inflight])
+      await Promise.all([service.saving, web.saving])
+    } while (active.size || service.inflight.size || web.inflight.size)
   }
   const validateRequest = (method, params) => {
     validateNotificationRequest(method, params)
@@ -72,8 +82,10 @@ export function createNotificationsDispatcher({ root, diagnostic, provider }) {
     // The channel has already accepted this operation, even if quiesce now closes its gate.
     validateNotificationRequest(method, params)
     const task = Promise.resolve().then(() => {
-      if (method === 'publish') { service.publish(notificationEvent(params)); return { accepted: true } }
-      return service[method](params)
+      if (method === 'publish') { service.publish(notificationEvent(params)); web.publish(params); return { accepted: true } }
+      const { provider, ...value } = params
+      if (provider === 'webPush') return web[method](value)
+      return service[method](value)
     })
     active.add(task)
     void task.then(() => active.delete(task), () => active.delete(task))
@@ -83,13 +95,24 @@ export function createNotificationsDispatcher({ root, diagnostic, provider }) {
     if (method === 'initialize') {
       object(params, ['configuration'])
       if (initialized || exiting) throw failure('PUSH_CONTROL_INVALID')
-      validateNotificationRequest('configure', params.configuration)
+      object(params.configuration, ['apns', 'webPush'])
+      object(params.configuration.apns, ['enabled', 'relayUrl'])
+      object(params.configuration.webPush, ['enabled', 'subject'])
+      validateNotificationRequest('configure', { ...params.configuration.apns, provider: 'apns' })
+      validateNotificationRequest('configure', { ...params.configuration.webPush, provider: 'webPush' })
       await service.initialize()
+      await web.initialize()
       initialized = true
-      let applyError = null
-      try { await service.configure(params.configuration) }
-      catch (error) { applyError = /^[A-Z_0-9]+$/u.test(error.code ?? '') ? error.code : 'PUSH_CONFIGURATION_FAILED' }
-      return { status: service.status(), applyError }
+      const applyError = { apns: null, webPush: null }
+      for (const [name, target] of [['apns', service], ['webPush', web]]) {
+        try { await target.configure(params.configuration[name]) }
+        catch (error) {
+          const code = /^[A-Z_0-9]+$/u.test(error.code ?? '') ? error.code : name === 'apns' ? 'PUSH_CONFIGURATION_FAILED' : 'WEB_PUSH_CONFIGURATION_FAILED'
+          applyError[name] = code
+          if (name === 'webPush') web.setError(code)
+        }
+      }
+      return { status: { apns: service.status(), webPush: web.status() }, applyError }
     }
     object(params, [])
     if (!initialized || exiting) throw failure('PUSH_CONTROL_INVALID')
@@ -109,7 +132,7 @@ export function createNotificationsDispatcher({ root, diagnostic, provider }) {
     if (method === 'exit') {
       if (!quiesced) throw failure('PUSH_NOT_QUIESCED')
       exiting = true
-      await service.close()
+      await Promise.all([service.close(), web.close()])
       return { closed: true }
     }
     throw failure('PUSH_CONTROL_INVALID')
@@ -128,7 +151,7 @@ export function createNotificationsDispatcher({ root, diagnostic, provider }) {
     exiting = true
     epoch++
     await drain()
-    await service.close()
+    await Promise.all([service.close(), web.close()])
   }
   return { validateRequest, dispatch, control, disconnect }
 }

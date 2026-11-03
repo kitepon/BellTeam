@@ -7,6 +7,7 @@ import { applyAvatar, dayLabel, initials, memberDisplay, formatTime, formatDateT
 export function createConversationTimeline({ timeline, latestButton, api, messageImages, getBot, isStopping, onStop, onQueueChange }) {
   let target = null
   const avatarColors = new Map()
+  const cardSnapshots = new WeakMap()
   const state = { timelineMap: new Map(), timelineQueue: [], timelineQueueRequest: 0,
     timelineQueueError: '', timelineHasMore: false, timelineOldestId: null,
     timelineLoadingOlder: false, timelineToken: 0, historyRequest: 0, historyError: '', stickToBottom: true }
@@ -165,10 +166,34 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     }
   }
 
+  async function revealRequest(id, kind) {
+    const token = state.timelineToken
+    if (!target) throw Error('NO_CONVERSATION')
+    if (!state.timelineMap.has(id) && !await readHistory(refreshTimeline)) throw Error('HISTORY_UNAVAILABLE')
+    while (token === state.timelineToken && !state.timelineMap.has(id) && state.timelineHasMore) {
+      if (state.timelineLoadingOlder) throw Error('HISTORY_BUSY')
+      const oldest = state.timelineOldestId
+      await loadOlderMessages()
+      if (oldest === state.timelineOldestId) break
+    }
+    if (token !== state.timelineToken) throw Error('CONVERSATION_CHANGED')
+    const item = state.timelineMap.get(id)
+    if (!item || !['secret_request','owner_question'].includes(kind) || item[kind]?.id !== id) throw Error('REQUEST_NOT_FOUND')
+    const card = timelineItems.querySelector(`[data-id="${CSS.escape(id)}"]`)
+    if (!card) throw Error('REQUEST_NOT_RENDERED')
+    state.stickToBottom = false
+    card.tabIndex = -1
+    card.classList.add('notification-highlight')
+    card.scrollIntoView({ block:'center' })
+    card.focus({ preventScroll:true })
+  }
+
   function rerenderItem(id, token) {
     if (token !== state.timelineToken) return
     const item = state.timelineMap.get(id)
     const element = timelineItems.querySelector(`[data-id="${CSS.escape(id)}"]`)
+    const card = item?.secret_request ?? item?.owner_question
+    if (card && element && cardSnapshots.get(element) === JSON.stringify(card)) return
     if (item && element) element.replaceWith(renderItem(item, queuedFor(item)))
   }
 
@@ -197,6 +222,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   function renderItem(item, queued = []) {
     const element = renderItemElement(item, queued)
     element.dataset.id = item.id
+    const card = item.secret_request ?? item.owner_question
+    if (card) cardSnapshots.set(element, JSON.stringify(card))
     return element
   }
 
@@ -470,7 +497,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     return [h * 60, s, l]
   }
 
-  return { open(value) { target = { ...value }; return readHistory(openTimeline) },
+  return { revealRequest, open(value) { target = { ...value }; return readHistory(openTimeline) },
     refresh() { return target ? readHistory(refreshTimeline) : Promise.resolve(true) }, close,
     updateTarget(value) { if (target?.type === value.type && target.id === value.id) target = { ...value } },
     isBusy(id) { return state.timelineQueue.some(item => item.botId === id) },

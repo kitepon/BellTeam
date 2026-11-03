@@ -176,6 +176,8 @@ class MembersArtifactTest(unittest.TestCase):
                 release['versionId']='sha256:'+'c'*64;release['artifact']=dict(kind='oci-index',reference='ghcr.io/kitepon/bellteam-server@'+release['versionId'])
             else:
                 for kind in ['archive','bundle']:release['artifact'][kind]['url']=release['artifact'][kind]['url'].replace('/members-','/'+component+'-')
+            if component == 'notifications':
+                release['compatibility'].update(parentProtocol=2, stateSchema=2)
             validate_catalog(catalog,now=now)
             release['compatibility']['stateCompatibility']=self.manifest['runtime']['stateCompatibility']
             with self.subTest(component=component),self.assertRaises(ValueError):validate_catalog(catalog,now=now)

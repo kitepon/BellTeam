@@ -1,0 +1,110 @@
+{
+  "syntheticOnly": true,
+  "doNotSend": true,
+  "origin": "https://bellteam-fixture.example",
+  "status": {
+    "off": {
+      "enabled": false,
+      "configured": false,
+      "publicKey": null,
+      "error": null
+    },
+    "configured": {
+      "enabled": true,
+      "configured": true,
+      "publicKey": "BH_2Rdql9GX-EpAtjTJNFKhBQNPtmmGNe8bGkhvgpI4sojdTrapUFvQUNNV10fW2fycJO_ISibhkIDjVULUJbvo",
+      "error": null
+    },
+    "unavailable": {
+      "enabled": false,
+      "configured": false,
+      "publicKey": null,
+      "error": {
+        "code": "WEB_PUSH_KEYS_INVALID",
+        "message": "Web通知の設定・送信を確認できませんでした。設定を確認してください。"
+      }
+    }
+  },
+  "publicRegistrationBody": {
+    "subscription": {
+      "endpoint": "https://fcm.googleapis.com/bellteam-artificial-browser",
+      "expirationTime": null,
+      "keys": {
+        "p256dh": "BDiT9c-BdV_U0Qr2mwQlQjJVDDWfqUl0zUzgnGhmgNUV4qGVPjq15T3GAJKZDSrdsWds9z8pM6iG1knVvFcdJXQ",
+        "auth": "mODlzI_4Qv0j-9gN_WbuUw"
+      }
+    },
+    "applicationServerKey": "BH_2Rdql9GX-EpAtjTJNFKhBQNPtmmGNe8bGkhvgpI4sojdTrapUFvQUNNV10fW2fycJO_ISibhkIDjVULUJbvo"
+  },
+  "lookupBody": {
+    "endpoint": "https://fcm.googleapis.com/bellteam-artificial-browser"
+  },
+  "registered": {
+    "registered": true
+  },
+  "unregistered": {
+    "registered": false
+  },
+  "payloads": [
+    {
+      "schema": "bellteam.web-push.v1",
+      "kind": "reply",
+      "messageId": "fixture-direct",
+      "requestId": null,
+      "botId": "bot-fixture",
+      "roomId": null,
+      "sender": {
+        "id": "bot-fixture",
+        "name": "テストメンバー"
+      },
+      "roomName": null,
+      "title": "テストメンバー",
+      "body": "返信が届きました。"
+    },
+    {
+      "schema": "bellteam.web-push.v1",
+      "kind": "reply",
+      "messageId": "fixture-room",
+      "requestId": null,
+      "botId": "bot-fixture",
+      "roomId": "room-fixture",
+      "sender": {
+        "id": "bot-fixture",
+        "name": "テストメンバー"
+      },
+      "roomName": "テストルーム",
+      "title": "テストメンバー · テストルーム",
+      "body": "ルームに新しいメッセージが届きました。"
+    },
+    {
+      "schema": "bellteam.web-push.v1",
+      "kind": "secret_request",
+      "messageId": "fixture-secret",
+      "requestId": "fixture-secret",
+      "botId": "bot-fixture",
+      "roomId": "room-fixture",
+      "sender": {
+        "id": "bot-fixture",
+        "name": "テストメンバー"
+      },
+      "roomName": null,
+      "title": "テストメンバー",
+      "body": "秘密情報の入力が必要です。"
+    },
+    {
+      "schema": "bellteam.web-push.v1",
+      "kind": "owner_question",
+      "messageId": "fixture-question",
+      "requestId": "fixture-question",
+      "botId": "bot-fixture",
+      "roomId": null,
+      "sender": {
+        "id": "bot-fixture",
+        "name": "テストメンバー"
+      },
+      "roomName": null,
+      "title": "テストメンバー",
+      "body": "選んでほしいことがあります。"
+    }
+  ]
+}

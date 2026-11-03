@@ -63,14 +63,14 @@ export async function staticFile(response, root, pathname, assetVersion, { files
     response.writeHead(200, {
       'content-type': contentTypes.get(extname(file)),
       'content-length': Buffer.byteLength(body),
-      'cache-control': name === 'index.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+      'cache-control': name === 'index.html' || name === 'sw.js' ? 'no-cache' : 'public, max-age=31536000, immutable',
     })
     return response.end(body)
   }
   response.writeHead(200, {
     'content-type': contentTypes.get(extname(file)) ?? 'application/octet-stream',
     'content-length': info.size,
-    'cache-control': 'public, max-age=31536000, immutable',
+    'cache-control': name === 'sw.js' ? 'no-cache' : 'public, max-age=31536000, immutable',
   })
   createReadStream(file).pipe(response)
 }

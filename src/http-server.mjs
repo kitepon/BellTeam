@@ -15,6 +15,7 @@ import { staticFile } from './http-assets.mjs'
 import { respondHttpError } from './http-errors.mjs'
 import { createMessageViews } from './http-messages.mjs'
 import { createMessageEvents, EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS } from './http-events.mjs'
+import { createWebPushOrigin } from './web-push-origin.mjs'
 
 export { avatarVersion } from './http-assets.mjs'
 export { pageItems } from './http-messages.mjs'
@@ -31,7 +32,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
   const { sources, timeline, messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions,
     ownerSecretGuide: internal ? null : ownerSecretGuide })
 
-  const controlApi = createControlApi({ aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models, webGatewayControl, notificationsReleaseControl, updateCenter })
+  const assertWebPushOrigin = createWebPushOrigin({ settings })
+  const controlApi = createControlApi({ aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models, webGatewayControl, notificationsReleaseControl, updateCenter, assertWebPushOrigin })
   administration ??= new BotAdministration({ bots, rooms, transport, writeLog,
     reportError: report => diagnostics?.record(report) })
   const featureApis = [

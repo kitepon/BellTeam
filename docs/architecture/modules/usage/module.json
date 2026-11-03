@@ -47,6 +47,8 @@
     "src/owner-questions.mjs",
     "src/secret-requests.mjs",
     "src/push-notifications.mjs",
+    "src/web-push-notifications.mjs",
+    "src/web-push-provider.mjs",
     "src/subscriptions.mjs",
     "src/cloudflare-access.mjs",
     "src/usage/http-api.mjs",
@@ -54,6 +56,7 @@
     "src/usage/mcp-tools.mjs",
     "src/usage/notifications.mjs",
     "src/usage/notifications-dispatcher.mjs",
+    "src/usage/web-push-schema.mjs",
     "src/notifications-entry.mjs",
     "src/usage/olrw-auth-consumer.mjs"
   ]

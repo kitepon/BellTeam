@@ -44,7 +44,9 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
     await configureHarnessConfig(bots, home, { aiterm: async () => aiterm, callBridge: config })
   }
   const initialize = async () => {
-    for (const [id, apply] of [['diagnostics', configureDiagnostics], ['callBridge', configureCalls], ['notifications', value => notifications.initialStatus ? notifications.initialStatus() : notifications.configure(value)]]) {
+    const initial = [['diagnostics', configureDiagnostics], ['callBridge', configureCalls], ['notifications', value => notifications.initialStatus ? notifications.initialStatus() : notifications.configure(value)]]
+    if (notifications.initialWebStatus || notifications.configureWebPush) initial.push(['webPush', value => notifications.initialWebStatus ? notifications.initialWebStatus() : notifications.configureWebPush(value)])
+    for (const [id, apply] of initial) {
       try { await apply(settings.configuration(id)) }
       catch (error) {
         settings.setError(id, error)
@@ -71,6 +73,7 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
           }
         }
         if (id === 'notifications') await notifications.configure(config)
+        if (id === 'webPush') await notifications.configureWebPush(config)
       } catch (error) {
         settings.setError(id, error)
         throw error

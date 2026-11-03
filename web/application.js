@@ -1,3 +1,4 @@
+import { createNotificationNavigation } from './notification-navigation.js?v=__ASSET_VERSION__'
 import { workLabel, roomWorkPreview, renderCurrentWork } from './current-work.js?v=__ASSET_VERSION__'
 import { animateConversation } from './view-preferences.js?v=__ASSET_VERSION__'
 import { createSchedulesOverview } from './schedules-overview.js?v=__ASSET_VERSION__'
@@ -83,7 +84,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   const messageImages = createMessageImageCache(fetchImage)
   window.addEventListener('pagehide', event => {
-    if (!event.persisted) { state.stopEvents?.(); messageImages.close(); updateCenter.close() }
+    if (!event.persisted) { state.stopEvents?.(); messageImages.close(); updateCenter.close(); notifications.close() }
   })
 
   const conversationComposer = createConversationComposer({
@@ -178,6 +179,28 @@ export function createWebApp({ client = createWebClient() } = {}) {
     },
   })
 
+  const notificationNotice = document.querySelector('#notification-route-notice')
+  const notifications = createNotificationNavigation({
+    onRoot: () => app.classList.remove('chat-open'),
+    onNotice: message => { notificationNotice.hidden = !message; notificationNotice.querySelector('[data-notification-notice]').textContent = message },
+    onRoute: async route => {
+      if (document.querySelector('dialog[open]')) throw Error('EDITOR_OPEN')
+      const type = route.roomId ? 'room' : 'bot', id = route.roomId ?? route.botId
+      const response = await api(`/api/${type === 'room' ? 'rooms' : 'bots'}/${encodeURIComponent(id)}`)
+      const observed = response[type]
+      if (!observed || observed.id !== id) throw Error('TARGET_UNAVAILABLE')
+      const listed = (type === 'room' ? state.rooms : state.bots).find(item => item.id === id)
+      const selected = { ...listed, ...observed }
+      if (!listed) { if (type === 'room') state.rooms.push(selected); else state.bots.push(selected); renderBots() }
+      if (state.selectedType !== type || state.selected?.id !== id) await (type === 'room' ? selectRoom(selected) : selectBot(selected))
+      else app.classList.add('chat-open')
+      if (state.selectedType !== type || state.selected?.id !== id) throw Error('SELECTION_CHANGED')
+      if (route.requestId) await conversationTimeline.revealRequest(route.requestId, route.kind)
+    },
+  })
+  document.querySelector('#notification-route-retry').addEventListener('click', () => { void notifications.retry() })
+  document.querySelector('#notification-route-dismiss').addEventListener('click', () => { notificationNotice.hidden = true })
+
   targetButton.addEventListener('click', () => toggleTargetMenu())
   document.addEventListener('click', event => {
     if (!targetMenu.hidden && !targetPicker.contains(event.target)) toggleTargetMenu(false)
@@ -250,7 +273,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
         notice.className = 'form-error'
         notice.textContent = 'Cloudflare Accessへログインしてください。'
         const login = document.createElement('a')
-        login.href = location.origin
+        login.href = location.href
         login.textContent = '接続先を開いてログイン'
         notice.append(login)
         app.prepend(notice)
@@ -278,6 +301,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
       await selectBot(guide)
     }
     void connectEvents()
+    await notifications.ready()
   }
 
   async function loadFeatureSettings() {
