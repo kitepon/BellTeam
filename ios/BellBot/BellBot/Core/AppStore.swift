@@ -5,8 +5,30 @@ import SwiftUI
 import Combine
 import Darwin
 
-private enum EventResource: Hashable {
+enum EventResource: Hashable {
     case all, bots, rooms, owner, queue
+}
+
+/// 一覧の再取得の赤字と、それを立てた経路。対象を絞った再取得の成功は、自分が立てた赤字だけを消す。
+struct MemberListRefreshError {
+    private(set) var message: String?
+    /// 対象を絞った再取得が立てた時の資源。nilは全件取得などが立てた赤字で、部分の成功では消さない。
+    private(set) var eventResources: Set<EventResource>?
+
+    mutating func clear() { message = nil; eventResources = nil }
+
+    mutating func fullRefreshFailed(_ text: String) { message = text; eventResources = nil }
+
+    mutating func eventRefreshFailed(_ text: String, resources: Set<EventResource>) {
+        let fromFullRefresh = message != nil && eventResources == nil
+        message = text
+        if !fromFullRefresh { eventResources = (eventResources ?? []).union(resources) }
+    }
+
+    mutating func eventRefreshSucceeded(resources: Set<EventResource>) {
+        guard let failed = eventResources, failed.isSubset(of: resources) else { return }
+        clear()
+    }
 }
 
 enum MemberListReadOrigin: String {
@@ -73,7 +95,7 @@ final class AppStore: ObservableObject {
     @Published private(set) var aiControlUpdating = false
     @Published private(set) var aiControlError: String?
     @Published var connectionError: String?
-    private var refreshError: String?
+    private var refreshFailure = MemberListRefreshError()
     private var eventsError: String?
     private var notificationError: String?
     @Published var selectedTab = 0
@@ -547,7 +569,7 @@ final class AppStore: ObservableObject {
 
     func confirmBotDeletion(_ id: String) async throws -> Bool {
         try await refresh(origin: .deletionConfirmation)
-        refreshError = nil
+        refreshFailure.clear()
         updateConnectionError()
         return !bots.contains(where: { $0.id == id })
     }
@@ -583,7 +605,7 @@ final class AppStore: ObservableObject {
                          refreshSubscription: Bool = true) async {
         do {
             try await refresh(origin: origin)
-            refreshError = nil
+            refreshFailure.clear()
             updateConnectionError()
             if refreshSubscription { await billing.refreshFromServer() }
         }
@@ -591,7 +613,7 @@ final class AppStore: ObservableObject {
         catch let error as URLError where error.code == .cancelled { return }
         catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error) }
         catch {
-            refreshError = error.localizedDescription
+            refreshFailure.fullRefreshFailed(error.localizedDescription)
             updateConnectionError()
             api.diagnostics.report(error, path: "/api/bots", method: "GET", observation: .read(error, retainedData: !bots.isEmpty || !rooms.isEmpty))
         }
@@ -626,11 +648,13 @@ final class AppStore: ObservableObject {
             if let roomList, self.rooms != roomList { self.rooms = roomList }
             if let ownerValue, self.owner != ownerValue { self.owner = ownerValue }
             if let queueResponse { applyFetchedQueue(queueResponse.items) }
+            refreshFailure.eventRefreshSucceeded(resources: resources)
+            updateConnectionError()
         } catch is CancellationError { return }
         catch let error as URLError where error.code == .cancelled { return }
         catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error) }
         catch {
-            refreshError = error.localizedDescription
+            refreshFailure.eventRefreshFailed(error.localizedDescription, resources: resources)
             updateConnectionError()
             api.diagnostics.report(error, path: "/api/bots", method: "GET",
                                    observation: .read(error, retainedData: !bots.isEmpty || !rooms.isEmpty))
@@ -638,7 +662,7 @@ final class AppStore: ObservableObject {
     }
 
     private func updateConnectionError() {
-        let next = eventsError ?? refreshError ?? notificationError
+        let next = eventsError ?? refreshFailure.message ?? notificationError
         if connectionError != next { connectionError = next }
     }
 
@@ -703,7 +727,7 @@ final class AppStore: ObservableObject {
                                 self.eventRevision += 1
                                 self.requestRefreshFromEvent()
                             case .targeted(let topics, let botIDs, let roomIDs):
-                                if self.refreshError != nil {
+                                if self.refreshFailure.message != nil {
                                     self.eventRevision += 1
                                     self.requestRefreshFromEvent()
                                 } else {
@@ -784,7 +808,7 @@ final class AppStore: ObservableObject {
         foregroundTask = nil
         stopEvents()
         resetAIControl()
-        refreshError = nil
+        refreshFailure.clear()
         eventsError = nil
         notificationError = nil
         updateConnectionError()
