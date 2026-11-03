@@ -7,8 +7,15 @@ import { isLocalHostname } from '../server-address.mjs'
 import { writeHarnessConfig } from '../harness-config.mjs'
 
 // Feature settings own their listeners/configuration. They do not own Bot delivery state.
-export function createApplicationFeatures({ services, aiterm, home, callBridgeHeaders, environment = process.env, notify, configureHarnessConfig = writeHarnessConfig }) {
+export function createApplicationFeatures({ services, aiterm, home, callBridgeHeaders, environment = process.env, notify, configureHarnessConfig = writeHarnessConfig, usageContext = () => undefined }) {
   const { bots, messenger, settings, diagnostics, notifications, transport } = services
+  const setError = async (id, error, epoch) => {
+    if (settings.configurationState) {
+      if (!error) return
+      try { await settings.setError(id, error, { epoch, usageContext: usageContext('settings.setError') }) }
+      catch (failure) { if (failure.code !== 'USAGE_SETTINGS_STALE') throw failure }
+    } else settings.setError(id, error)
+  }
   let cloudflareAuthorize = null
   const configureCloudflare = config => {
     cloudflareAuthorize = config.enabled ? cloudflareAccessAuthorizer(config) : null
@@ -47,35 +54,38 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
     const initial = [['diagnostics', configureDiagnostics], ['callBridge', configureCalls], ['notifications', value => notifications.initialStatus ? notifications.initialStatus() : notifications.configure(value)]]
     if (notifications.initialWebStatus || notifications.configureWebPush) initial.push(['webPush', value => notifications.initialWebStatus ? notifications.initialWebStatus() : notifications.configureWebPush(value)])
     for (const [id, apply] of initial) {
-      try { await apply(settings.configuration(id)) }
+      const state = settings.configurationState?.(id)
+      try { await apply(state?.configuration ?? settings.configuration(id)) }
       catch (error) {
-        settings.setError(id, error)
+        await setError(id, error, state?.epoch)
         process.stderr.write(`BellTeam: ${id}の設定を反映できませんでした\n`)
         await diagnostics.record({ code: 'SERVER_FEATURE_CONFIGURATION_FAILED', module: 'server', diagnostic_log: id })
       }
     }
-    settings.onChange = async (id, config) => {
-      settings.setError(id, null)
+    settings.onChange = async (id, config, { epoch } = {}) => {
+      await setError(id, null, epoch)
       try {
         if (id === 'cloudflare') configureCloudflare(config)
         if (id === 'diagnostics') await configureDiagnostics(config)
         if (id === 'callBridge') {
           await configureCalls(config)
           // CLIは起動時にMCP登録を読む。現在のターンを終えたら閉じ、次の配送で新しい登録を読む。
+          const pending = []
           for (const bot of bots.values()) {
             if (!await transport.isRunning(bot)) continue
-            transport.stopForConfiguration(bot).catch(async error => {
+            pending.push(transport.stopForConfiguration(bot).catch(async error => {
               process.stderr.write(`BellTeam: 通話設定をメンバーへ反映できませんでした (${bot.id})\n`)
-              settings.setError(id, error)
+              await setError(id, error, epoch)
               notify({ type: 'settings', featureId: id })
               await diagnostics.record({ code: 'SERVER_CALL_CONFIGURATION_FAILED', module: 'server', diagnostic_log: error.code ?? 'CALL_CONFIGURATION_FAILED' })
-            })
+            }))
           }
+          await Promise.all(pending)
         }
         if (id === 'notifications') await notifications.configure(config)
         if (id === 'webPush') await notifications.configureWebPush(config)
       } catch (error) {
-        settings.setError(id, error)
+        await setError(id, error, epoch)
         throw error
       } finally {
         notify({ type: 'settings', featureId: id })

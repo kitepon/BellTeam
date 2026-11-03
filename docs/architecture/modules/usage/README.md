@@ -10,6 +10,8 @@ Rabbit認証consumerの未配布候補は[認証runとOwner案内の契約](olrw
 
 ## 機能内の正本
 
+[残るusageの単体更新](usage-process.md)に6service factory・閉dispatcher・安定facadeとread-only restore/volatile handoffの接点を置く。runtime/通常assembly/同source実物への接続は別工程として区別する。
+
 [Web Pushの別providerと公開契約](web-push.md)にRoot固定v1.1、登録/鍵writer・origin・安全な終端・ABI2の接点を置く。
 
 [処理と保存順序](flows.md)に秘密入力・質問・認証・設定適用・通知/購読の図と実関数を置く。旧support-detailsの所有章は参照リンクへ置換した。共通診断writerは[統合の詳細](../../support-details.md#診断観測集約調査注記を分ける)を参照する。
