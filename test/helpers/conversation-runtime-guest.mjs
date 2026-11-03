@@ -185,9 +185,10 @@ if (mode === 'initialize') {
     checks.push({ target, generation: controller.snapshot().generation, adoption, durableSelectionReadBack: true,
       oldCloseBeforeRestore: true, readonlyRestore: true, selected })
   }
-  const progress = async stage => {
+  const progress = async (stage, failure = null) => {
     await write(statusPath + '.tmp', { phase: 'starting', stage, checks, events, busyCases,
-      controller: controller?.snapshot(), lifetimeChecks: lifetime.snapshot() })
+      controller: controller?.snapshot(), lifetimeChecks: lifetime.snapshot(),
+      failure: failure && { name: failure.name, code: failure.code ?? null, message: failure.message, stack: failure.stack } })
     await rename(statusPath + '.tmp', statusPath)
   }
   try {
@@ -226,7 +227,7 @@ if (mode === 'initialize') {
       await progress('hold-' + kind)
       const held = await lifetime.hold(kind), before = controller.snapshot(), count = children.length
       const child = await identity(children.at(-1).pid), started = performance.now()
-      let elapsed
+      let elapsed, failure
       await progress('drain-' + kind)
       try {
         await assert.rejects(controller.replace(ids.b), { code: 'CONVERSATION_DRAIN_TIMEOUT' })
@@ -236,7 +237,8 @@ if (mode === 'initialize') {
         assert.equal(controller.snapshot().generation, before.generation); assert.equal(controller.snapshot().available, true)
         assert.equal(controller.snapshot().currentVersionId, before.currentVersionId)
         await held.assertResumed()
-      } finally { await progress('release-' + kind); await held.release() }
+      } catch (error) { failure = error; throw error }
+      finally { await progress('release-' + kind, failure); await held.release() }
       busyCases.push({ kind, elapsedMilliseconds: elapsed, generation: before.generation,
         sameChildIdentity: true, noNewChild: true, oldResumed: true, actualRootDoneBeforeNext: true })
     }

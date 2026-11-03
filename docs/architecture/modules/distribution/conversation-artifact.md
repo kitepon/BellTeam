@@ -64,3 +64,5 @@ fixtureの公開入力はsource/digest/supply_run/image_run。異source/別workf
 managed data rootは実anchor契約どおり1000:1000/0711へ準備し、initialize原本とUID1001側の実metadataで一致を確認する。UID1001からroot一覧・直下書込は拒否し、seedは既1001 private state内へ置く。保守root/stateの実mount・FD3/4とinode/本人lock検証は製品のまま通し、fixtureで信頼anchorを代用しない。
 
 外側は署名採用・builtin戻し/根寿命・終了の失敗段階を分け、各hold/drain/release前に同private stateへcontroller/世代/実根寿命countのcheckpointをatomic保存する。親が終了してもcleanup前に同containerの固定statusをdocker cpで回収し、最後に通過した段階を失わない。checkpointは既fixture状態除外内で、業務state/60秒制御/受付/timeoutを変更しない。
+
+保留解放のfinallyへ入る時は、直前のdrain/旧resume検査で捕捉した元errorのname/code/message/stackも同checkpointへ保存する。解放の実done待ちが継続しても先行した失敗を失わず、元errorのthrowや解放/期限/受付判定を変更しない。
