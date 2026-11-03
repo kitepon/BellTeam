@@ -20,11 +20,12 @@ const abortable = (promise, signal) => {
 export function createNotificationsProcess({ root, configuration, onDiagnostic = async () => {}, onState = () => {}, prepareRelease = prepareNotificationsRelease }) {
   const adoptionPath = join(root, 'state/notifications-release.json')
   let instance = null, currentVersionId = null, previousVersionId = null, phase = 'unavailable'
+  let builtinSourceCommit = null
   let status = null, applyError = null, available = false, exchanging = false, update = null, closed = false
   let operation = null, cancellation = null, closing = null, configuring = 0, initialized = false
   const emit = () => { try { onState({ phase, exchanging, available, status, applyError }) } catch {} }
   const state = (next, usable = false) => { phase = next; available = usable; emit() }
-  const snapshot = () => ({ currentVersionId, previousVersionId, available, status, applyError, phase, update: update ? { ...update } : null })
+  const snapshot = () => ({ currentVersionId, previousVersionId, currentTarget: currentVersionId === null ? 'builtin' : 'release', builtinSourceCommit, available, status, applyError, phase, update: update ? { ...update } : null })
   const prepare = async (versionId, signal) => {
     if (versionId === null) return
     if (!versionValid(versionId)) throw failure('NOTIFICATIONS_VERSION_INVALID', 400)
@@ -44,7 +45,7 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
       let record
       try { record = JSON.parse(await file.readFile('utf8')) } catch { throw failure('NOTIFICATIONS_ADOPTION_INVALID') }
       if (Object.keys(record ?? {}).sort().join(',') !== 'currentVersionId,previousVersionId,schema'
-        || record.schema !== 'bellteam.notifications.adoption.v1' || !versionValid(record.currentVersionId)
+        || record.schema !== 'bellteam.notifications.adoption.v1' || (record.currentVersionId !== null && !versionValid(record.currentVersionId))
         || record.previousVersionId !== null && !versionValid(record.previousVersionId)) throw failure('NOTIFICATIONS_ADOPTION_INVALID')
       return record
     } finally { await file.close() }
@@ -110,6 +111,15 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
     return exclusive(async signal => {
       if (initialized) throw failure('NOTIFICATIONS_ALREADY_STARTED')
       state('starting')
+      let metadata
+      try {
+        metadata = await open('/app/distribution.json', constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
+        const info = await metadata.stat()
+        if (!info.isFile() || info.uid !== 0 || info.nlink !== 1 || info.mode & 0o22 || info.size > 4096) throw failure('NOTIFICATIONS_BUILTIN_IDENTITY_INVALID')
+        const value = JSON.parse(await metadata.readFile('utf8'))
+        if (value.schema !== 'bellteam.server.distribution.v1' || !/^[a-f0-9]{40}$/.test(value.sourceCommit)) throw failure('NOTIFICATIONS_BUILTIN_IDENTITY_INVALID')
+        builtinSourceCommit = value.sourceCommit
+      } finally { await metadata?.close() }
       const record = await readAdoption()
       if (record) {
         await prepare(record.currentVersionId, signal)
@@ -143,7 +153,8 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
     } finally { if (method === 'configure') configuring-- }
   }
   const replace = versionId => {
-    if (!versionValid(versionId)) return Promise.reject(failure('NOTIFICATIONS_VERSION_INVALID', 400))
+    if (versionId !== 'builtin' && !versionValid(versionId)) return Promise.reject(failure('NOTIFICATIONS_VERSION_INVALID', 400))
+    versionId = versionId === 'builtin' ? null : versionId
     if (closed || !initialized || !instance) return Promise.reject(failure('NOTIFICATIONS_UNAVAILABLE'))
     if (configuring) return Promise.reject(failure('NOTIFICATIONS_CONFIGURATION_BUSY', 409))
     return exclusive(async signal => {
@@ -200,7 +211,7 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
     })
   }
   const reserve = versionId => {
-    if (!versionValid(versionId)) throw failure('NOTIFICATIONS_VERSION_INVALID', 400)
+    if (versionId !== 'builtin' && !versionValid(versionId)) throw failure('NOTIFICATIONS_VERSION_INVALID', 400)
     if (closed || !initialized || !instance || !available) throw failure('NOTIFICATIONS_UNAVAILABLE')
     if (configuring || operation || update && ['accepted', 'running'].includes(update.status)) throw failure('NOTIFICATIONS_UPDATE_IN_PROGRESS', 409)
     const next = { versionId, status: 'accepted' }; update = next
