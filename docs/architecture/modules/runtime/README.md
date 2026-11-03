@@ -14,6 +14,7 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 - [usage・diagnosticsの固定Cとlock本人性](module-start.md)
 - [固有channelを載せる共通child世代controller](module-process.md)
 - [usage・diagnosticsのinstalled readerと固定wrapper](module-release.md)
+- [executionの固定host factory読込](execution-loader.md)
 - [CLI登録・共有設定の所有と完了](cli-registration.md)
 - [installer・状態移行・backup/restore](recovery.md)
 - [アプリからcontainerを更新するHost受付とworker](container-update.md)（source実装、未設置）
