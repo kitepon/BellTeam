@@ -1,6 +1,8 @@
 # 共通入口・結合実装
 
-実装責任者：モリー。全体設計・公開契約裁定・統合採否・main・本番はトロニー。機能内部と配布は各担当。
+実装と通常main統合の責任者：モリー。全体設計・公開契約裁定・優先順位・本番・Owner判断はトロニー。機能内部と配布は各担当。
+
+既公開契約内の作者成果照合、必要な結合、図合成、競合解消、通常main push・CI/source bindingと作者への採用SHA返却までを持つ。毎回Root採否を追加条件にせず、契約変更・責任境界の衝突だけ具体差分をトロニーへ返す。既自動candidateはセンチの通常image受入へ接続し、共通導入caller・保持戻し・停止影響・具体image参照を本番判断用に用意する。手動追加buildや本番導入の権限は含めない。
 
 Rabbit認証の一件管理caller候補は[固定契機と許可原本の接続](olrw-auth-caller.md)。実行readyや本番反映を示さない。
 
@@ -153,4 +155,4 @@ flowchart TD
 
 ## 実装所有の境界（2026-11-03）
 
-共通入口の認可・承認原本/profileと観測の接続・assemblyはモリーが実装する。公開契約の用途制限と裁定、設計整合・採否・本番はRootが持つ。`src/http-gateway-process.mjs`の子起動停止/ready/同port交換/adoption/戻し、OLRW固定root記録writer/有限watch/取消/OS observerはruntime（エピネル）の実装所有。Root候補1775fa5とruntime所有移管19fad7fの既成功証跡を引き継ぎ、未採用候補のsourceや実供給・実権限はこの移管から成立しない。
+共通入口の認可・承認原本/profileと観測の接続・assembly、既契約内の通常main統合はモリーが持つ。公開契約の用途制限と裁定、全体設計・本番はRootが持つ。`src/http-gateway-process.mjs`の子起動停止/ready/同port交換/adoption/戻し、OLRW固定root記録writer/有限watch/取消/OS observerはruntime（エピネル）の実装所有。Root候補1775fa5とruntime所有移管19fad7fの既成功証跡を引き継ぎ、未採用候補のsourceや実供給・実権限はこの移管から成立しない。
