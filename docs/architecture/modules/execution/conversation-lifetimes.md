@@ -41,6 +41,8 @@ flowchart TD
 
 `registerDelivery(operationLease,{deliveryId,target,dispatch,kinds}) -> deliveryLease`。deliveryId/targetは親の固定callerが捕捉した1〜128字、同operation/target/deliveryの再登録拒否。dispatchは親ローカルclosure、kindsは下記5種の重複無しsubset。delivery自身のdone参照を親operationへ同期登録する。deliveryLeaseもfinish/trackCompletion対象。nativeを呼ばない失敗経路でもその登録は明示finishが必要。
 
+`deliveryFor(operationLease,{deliveryId,target}) -> deliveryLease`は親captured operationの登録だけを検索する。異operation/target・未登録/終端/複製opaqueはprotocol unconfirmed。新root/新sourceを子IDから生成しない。登録済みIDの再使用禁止も元Mapに保持する。
+
 `dispatch(kind, localParams, capturedBinding)`を呼ぶ。bindingは親が作る `{generation,operationId,deliveryId,target,callbackKind}` のexact5値。localParams内に権限を混ぜない。`assertDelivery(deliveryLease,{deliveryId?,target?}={})`、`binding(deliveryLease,kind)`、`assertCallback(deliveryLease,wireBinding)`で同opaqueへ完全照合する。kindはdelivery.status/words/answer/user.complete/turn.endだけ。
 
 `callbacks(deliveryLease)`は登録subsetだけのonStatus/onInterim/onAnswer/onTurnEnd/userCompleteを返す。親ローカルparamsはstatus={delivery,error,tracking}、words={words}、answer={text}、user.complete={reply}、turn.end={startedAt,endedAt}。statusのErrorはまだ親内の値。**Epiの親dispatchはN102公開src/conversation/callbacks.mjsのnormalizeConversationCallback(kind,params)へ通してからwireへ送り**、Error自由message/stack/causeを送らない。子はvalidateとsafe failure fieldsだけを使う。N102供給元d40c1ffdの公開formatter/ACK schemaと接続する。dispatcher/context/frameの私有実装は当gateからimportしない。
@@ -70,3 +72,11 @@ SelfTurns/子afterTurnは、元observer/保存operationのregistered sourceか�
 既親watchは同gateを参照する。新watch作成時だけtryEnterし、閉鎖中はskip。元pty_list読取/currentWork更新と既watchのidle/別turn終了検知は継続する。新watchはnative waiterより前にdeliveryと実completionを登録し、既followInterimの最後のread/保存ACKまで保持。onInterimの第4内部引数へcapturedBindingを渡すため、parent facadeはそのgenerationへ固定して保存しexact{applied:true}を返す。root callback枠8をAI終了まで占有しない。watch pollの返却はfinish条件ではない。
 
 source/fakeのgate9＋native接続8境界を確認。native接続の初期fixture一件は全体停止をfailedと誤期待していたため、既DeliveryJobのAI_GLOBAL_PAUSED→stopped契約へ訂正（本体意味変更0）。旧watch互換は変更点に限り選択確認する。SelfTurns/子afterTurn、channelの実ACK/timeout、dispatcher/両入場/OS exchangeは各所有者の結合が残り、この源sourceだけで会話交換成功としない。
+
+## background effect adapterへの固定接点
+
+N102の`execution.background.begin {deliveryId,target}`は親captured operationでdeliveryForを引き、parent所有のdeferred実completionをrunBackgroundへ同期登録してからopaque背景登録に対応するbackgroundIdをACKする。backgroundIdは同operation/sourceに束縛し、子paramsから権限を作らない。`execution.background.end {backgroundId} -> {requested:true}`は終了要求だけでdeferredをsettleしない。既channelの実子背景/保存/check/report終端又は確認済みOScloseと親effect終端が揃ってruntimeが実completionを終端させる。caller timeout/ACKだけではreleaseしない。turn.endはinvokeが既に背景windowを開くので同sourceへbeginを重ねない。
+
+native effectはparentの承認targetからregisterDelivery→transport.turn/notify（claimNativeはtransportが一度だけ行う）。queue.groupIdを登録deliveryIdへ親が一致させ、子queueの別値を権限にしない。turnは従来の最終reply Promiseを保ち、acceptedだけを別窓口でrunning/steeredへ返す。reportは同sourceのderiveReport一回→notifyReport、targetを元登録から固定、queue.context=reportを親が設定。
+
+SelfTurnsは新native操作ではなくobserver source。親が捕捉したobservation.pollのopaqueと検証済みBot snapshot/各保存対象を使う固定callerが、afterTurn一回ごとのsourceをkinds:[]でregisterDeliveryし、子へ本人sourceのIDだけを渡す必要がある。子自己申告IDだけでbeginがsource登録を兼ねることは認めない。現通常SeatTurnWatchはwordsだけのsourceであり、Throughline SelfTurnsの元turn証明へ代用しない。既root/observer readのどの箇所がこの登録を所有するかはN102/Epi/Mollyのdispatcher結合で固定し、未供給ならbeginを拒否して未結合を残す。source登録Promise/子の同期pendingとparent begin ACKが揃うまで元root/保存callbackの最後の参照を落とさない。

@@ -97,3 +97,33 @@ test('native callback sets match the turn or notify route before any native work
     gate.finish(delivery); gate.finish(root)
   }
 })
+
+
+test('captured operation lookup never manufactures or revives a delivery from child IDs', async () => {
+  for (const variant of ['other-root', 'other-target', 'terminal', 'cloned-root']) {
+    const gate = new ConversationLifetimes(), root = gate.enter(), source = register(gate, root, { kinds: [] })
+    gate.finish(root)
+    assert.equal(gate.deliveryFor(root, { deliveryId: 'delivery-a', target: 'bot-a' }), source)
+    let selected = root
+    if (variant === 'other-root') selected = gate.enter()
+    if (variant === 'cloned-root') selected = { ...root }
+    if (variant === 'terminal') { gate.finish(source); await tick() }
+    assert.throws(() => gate.deliveryFor(selected, { deliveryId: 'delivery-a', target: variant === 'other-target' ? 'bot-b' : 'bot-a' }), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
+    if (variant !== 'terminal') gate.finish(source)
+    if (variant === 'other-root') gate.finish(selected)
+  }
+})
+
+test('background begin acquires a real reference before ACK and end requested cannot settle it', async () => {
+  const gate = new ConversationLifetimes(), root = gate.enter(), source = register(gate, root, { kinds: [] }), actual = deferred()
+  const background = gate.runBackground(gate.deliveryFor(root, { deliveryId: 'delivery-a', target: 'bot-a' }), () => actual.promise)
+  gate.finish(source); gate.finish(root)
+  const ticket = gate.close()
+  assert.deepEqual(await gate.drain(ticket, { timeoutMs: 0 }), { status: 'busy' })
+  // The wire end ACK has no path to the parent-owned actual completion.
+  const endAck = { requested: true }; assert.equal(endAck.requested, true)
+  gate.assertDelivery(source)
+  const report = gate.deriveReport(source, { deliveryId: 'report-one', reason: 'missing', dispatch: async () => ({ applied: true }) })
+  gate.finish(report); actual.resolve(); await background
+  assert.deepEqual(await gate.drain(ticket), { status: 'drained' })
+})

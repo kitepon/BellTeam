@@ -20,7 +20,7 @@ export class ConversationLifetimes {
     this.assertOpen(expected)
     if (!id(correlation) || this.#operations.has(correlation)) throw rejected()
     const record = this.#make('operation', correlation)
-    record.usedDeliveries = new Set(); this.#operations.set(correlation, record)
+    record.usedDeliveries = new Map(); this.#operations.set(correlation, record)
     return record.lease
   }
   tryEnter(expected = this.capture(), correlation = randomUUID()) {
@@ -75,12 +75,19 @@ export class ConversationLifetimes {
     if (operation.kind !== 'operation' || !id(deliveryId) || !id(target) || typeof dispatch !== 'function'
       || !Array.isArray(kinds) || new Set(kinds).size !== kinds.length || kinds.some(kind => !CONVERSATION_CALLBACK_KINDS.includes(kind))
       || operation.usedDeliveries.has(key)) throw this.#protocol()
-    operation.usedDeliveries.add(key)
     const record = this.#make('delivery', lease.correlation)
     Object.assign(record, { operation, binding: Object.freeze({ generation: lease.generation, operationId: lease.correlation, deliveryId, target }),
       dispatch, kinds: new Set(kinds), report: false, reportUsed: false, backgroundStarted: false, reportWindow: false })
+    operation.usedDeliveries.set(key, record.lease)
     this.trackCompletion(lease, record.done)
     return record.lease
+  }
+  deliveryFor(lease, { deliveryId, target }) {
+    let operation
+    try { operation = this.#record(lease) } catch { throw this.#protocol() }
+    const delivery = operation.kind === 'operation' && operation.usedDeliveries.get(JSON.stringify([deliveryId, target]))
+    if (!delivery) throw this.#protocol()
+    return this.assertDelivery(delivery, { deliveryId, target })
   }
   assertDelivery(lease, { deliveryId, target } = {}) {
     let record
