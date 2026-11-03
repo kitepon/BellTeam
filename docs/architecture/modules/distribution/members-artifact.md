@@ -6,7 +6,8 @@
 flowchart LR
   Git[通常main固定source / 作者entryとstate互換export] --> Pack[clean Git / prod npm / common-agents template]
   Pack --> Archive[members.artifact.v1 / 完全inventory]
-  Archive --> Native[専用両native Node26 / C builtin probe]
+  Archive --> Stage[disposable /app/src・node_modules + 同source親probe /app/scripts]
+  Stage --> Native[専用両native Node26 / C builtin probe]
   Native --> Signature[専用publish-members / 公式OIDC]
   Trust[固定members policy / 同信頼根 / 64-40-40期待値] --> Verify[同FD公式gh / schema・state完全一致]
   Signature --> Verify
@@ -31,3 +32,5 @@ membersのsrc/package/lock/clean production依存に、本文生成が読むpayl
 publish-membersは両nativeでarchive→unsigned builtin/ready/OSclose→公式attest→取得後公式identity確認→成功資材だけを供給する。失敗時のentry-probe stdout/stderrは別diagnostics artifactへ保存し、未署名/失敗結果を正式供給成功にしない。実Bot/Owner/予定stateをfixtureへコピーしない。
 
 正式catalog側もmembersだけ厳密5key（既4key＋stateCompatibility6実値）を持つ。schema/producerとarchive/consumerの照合は[正式catalog](update-catalog.md)が正本、実state read-restoreはwriter/runtimeが所有する。
+
+親Nodeprobeは同固定sourceのscripts/probe-members-runtime.mjsを使い捨て/app/scriptsへ同bytesコピーしてからreadonly化し、その固定pathで起動する。相対importはarchiveの/app/srcと/app/node_modulesへ解決する。checkoutへ依存を追加せずNODE_PATH/CWD fallbackも使わない。この試験用コピーは署名payload inventoryに含めず、/appと一緒に回収する。C/IPC/作者DTOの契約変更はない。
