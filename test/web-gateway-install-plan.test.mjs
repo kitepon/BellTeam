@@ -7,6 +7,7 @@ import { promisify } from 'node:util'
 import test from 'node:test'
 import { notificationsInstallPlan } from '../src/notifications-install-plan.mjs'
 import { usageInstallPlan } from '../src/usage-install-plan.mjs'
+import { conversationInstallPlan } from '../src/conversation-install-plan.mjs'
 import { executionInstallPlan } from '../src/execution-install-plan.mjs'
 import { diagnosticsInstallPlan } from '../src/diagnostics-install-plan.mjs'
 import { memoryInstallPlan } from '../src/memory-install-plan.mjs'
@@ -35,6 +36,20 @@ function fixture() {
   ]}
   return {normal,current}
 }
+
+test('conversation install binds its fixed helper and current private volume without parent business restart', () => {
+  const { normal, current } = fixture(), model = conversationInstallPlan(normal, current)
+  const service = model.services['conversation-install']
+  assert.equal(service.entrypoint.at(-1), '/app/scripts/install-conversation-release.py')
+  assert.equal(service.volumes[0].source, '/installation/runtime/conversation-incoming')
+  assert.equal(service.volumes[0].target, '/srv/bellteam-conversation-incoming')
+  assert.equal(service.volumes[0].read_only, true)
+  assert.equal(service.volumes.length, 2)
+  assert.equal(service.pull_policy, 'never')
+  assert.doesNotMatch(JSON.stringify(model), /SECRET|never-copy|docker.sock/)
+  current.mounts[2].RW = true
+  assert.throws(() => conversationInstallPlan(normal, current))
+})
 
 test('online model uses only fixed code, read-only incoming and the same private volume',()=>{
   const {normal,current}=fixture(),model=webGatewayInstallPlan(normal,current),s=model.services['web-gateway-install']

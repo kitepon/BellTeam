@@ -104,6 +104,7 @@
     "src/bootstrap.mjs",
     "src/diagnostics.mjs",
     "src/module-operation-context.mjs",
-    "src/conversation-authority.mjs"
+    "src/conversation-authority.mjs",
+    "src/conversation-assembly.mjs"
   ]
 }

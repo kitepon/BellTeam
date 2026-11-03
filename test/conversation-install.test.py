@@ -11,6 +11,8 @@ from unittest.mock import patch
 spec = importlib.util.spec_from_file_location('web_test', Path(__file__).with_name('web-gateway-install.test.py'))
 base = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(base)
+spec = importlib.util.spec_from_file_location("artifact", Path(__file__).resolve().parents[1] / "scripts/web_gateway_artifact.py")
+artifact = importlib.util.module_from_spec(spec); spec.loader.exec_module(artifact)
 
 class ConversationWriterTest(unittest.TestCase):
     def setUp(self):
@@ -19,13 +21,13 @@ class ConversationWriterTest(unittest.TestCase):
         self.addCleanup(self.f.doCleanups)
         manifest = dict(schema='bellteam.conversation.artifact.v1', component='conversation', sourceCommit='a'*40,
             entry='payload/src/conversation-entry.mjs', runtime=dict(os='linux',arch='amd64',nodeMajor=26,parentProtocol=1,stateSchema=None,stateCompatibility=dict(directRecordSchemas=['bellteam.direct-message.v1','bellteam.interim-word.v1','bellteam.delivery-status.v1'],roomRecordSchemas=['bellteam.room-message.v1','bellteam.room-routing-status.v1','bellteam.room-delivery-status.v1'],roomSchema='bellteam.room.v1',scheduleSchema='bellteam.schedule.v1',selfTurnsSchema='bellteam.self-turns.v1',imageMimeTypes=['image/png','image/jpeg','image/webp','image/gif'],readerContract='bellteam.conversation-reader.v1')))
-        files={'payload/src/conversation-entry.mjs': b'export {}\n','payload/package.json':b'{}\n','payload/package-lock.json':b'{}\n','payload/config/common-agents.md':b'fixture\n','payload/src/conversation/state-compatibility.mjs':b'export {}\n'}
+        files={name: b'fixture\n' for name in artifact.contract('conversation')[2]}
         manifest['files']=[dict(path=k,bytes=len(v),sha256=hashlib.sha256(v).hexdigest()) for k,v in files.items()]
         self.manifest=manifest
         self.make_archive()
     def make_archive(self):
         manifest=self.manifest
-        files={'payload/src/conversation-entry.mjs': b'export {}\n','payload/package.json':b'{}\n','payload/package-lock.json':b'{}\n','payload/config/common-agents.md':b'fixture\n','payload/src/conversation/state-compatibility.mjs':b'export {}\n'}
+        files={name: b'fixture\n' for name in artifact.contract('conversation')[2]}
         metadata=(json.dumps(manifest)+'\n').encode();out=io.BytesIO()
         with tarfile.open(fileobj=out,mode='w:gz') as archive:
             for name,content in [('manifest.json',metadata),*files.items()]:
