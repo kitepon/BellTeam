@@ -50,6 +50,14 @@ def seed_members_state(created):
     create_fixture_file(owner / 'user-rules.md', '', created)
 
 
+def stage_parent_probe():
+    directory = APP / 'scripts'
+    directory.mkdir(exist_ok=True)
+    probe = directory / 'probe-members-runtime.mjs'
+    shutil.copyfile(ROOT / 'scripts/probe-members-runtime.mjs', probe)
+    return probe
+
+
 def private_mount_namespace():
     require(os.readlink('/proc/self/ns/mnt') != os.readlink('/proc/1/ns/mnt'),
             'MEMBERS_PROBE_PRIVATE_MOUNT_NAMESPACE_REQUIRED')
@@ -88,13 +96,14 @@ def main():
                 tar.extractall(staging, filter='data')
             created.append(APP)
             shutil.copytree(Path(staging) / 'payload', APP)
+        probe = stage_parent_probe()
         for path in sorted(APP.rglob('*'), reverse=True):
             path.chmod(0o555 if path.is_dir() else 0o444)
         APP.chmod(0o555)
         for path, uid, mode in [(PRIVATE, 0, 0o750), (STATE, 0, 0o755), (HOME, 1001, 0o700)]:
             create_directory(path, uid, 1001, mode, created)
         seed_members_state(created)
-        process = subprocess.Popen([str(NODE), str(ROOT / 'scripts/probe-members-runtime.mjs')],
+        process = subprocess.Popen([str(NODE), str(probe)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True,
             env={'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': '/tmp'})
         try:

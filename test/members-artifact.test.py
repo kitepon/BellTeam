@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -126,6 +127,35 @@ class MembersArtifactTest(unittest.TestCase):
         self.assertFalse((prefix/'state/.transaction').exists())
         for path in created:
             self.assertEqual(path.stat().st_mode & 0o7777, 0o700 if path.is_dir() else 0o600)
+
+    @unittest.skipIf(os.geteuid() == 0, 'Import regression stops at the unprivileged environment guard')
+    def test_parent_probe_resolves_staged_production_dependencies(self):
+        spec = importlib.util.spec_from_file_location('members_probe', ROOT / 'test/helpers/members-artifact-probe.py')
+        helper = importlib.util.module_from_spec(spec); spec.loader.exec_module(helper)
+        checkout = self.root / 'checkout'; payload = self.root / 'app'
+        for root in [checkout, payload]:
+            shutil.copytree(ROOT / 'src', root / 'src')
+        (checkout / 'scripts').mkdir()
+        original = ROOT / 'scripts/probe-members-runtime.mjs'
+        shutil.copyfile(original, checkout / 'scripts' / original.name)
+        for name in ['package.json', 'package-lock.json']:
+            shutil.copyfile(ROOT / name, payload / name)
+        subprocess.run(['npm', 'ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'],
+                       cwd=payload, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=180)
+        def execute(path):
+            return subprocess.run(['node', str(path)], cwd='/', stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
+        before = execute(checkout / 'scripts' / original.name)
+        self.assertNotEqual(before.returncode, 0)
+        self.assertIn(b"Cannot find package 'croner'", before.stderr)
+        with patch.object(helper, 'ROOT', checkout), patch.object(helper, 'APP', payload):
+            staged = helper.stage_parent_probe()
+        self.assertEqual(staged.read_bytes(), original.read_bytes())
+        after = execute(staged)
+        self.assertNotEqual(after.returncode, 0)
+        self.assertIn(b'MEMBERS_PROBE_ENVIRONMENT', after.stderr)
+        self.assertNotIn(b'ERR_MODULE_NOT_FOUND', after.stderr)
+        self.assertEqual(after.stdout, b'')
+        self.assertFalse((checkout / 'node_modules').exists())
 
     def catalog(self):
         version=sha256(self.archive.read_bytes());url=f'https://github.com/kitepon/BellTeam/releases/download/updates-20261103T000000Z/members-{SOURCE}-linux-{ARCH}.tar.gz'
