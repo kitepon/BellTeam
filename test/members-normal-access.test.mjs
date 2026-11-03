@@ -79,7 +79,8 @@ test('MCP identity and direct contact use fresh reads with eight unrelated AI le
   const f = await fixture(t)
   const result = await callBellTeamTool({ name: 'get_self', from: 'bot-from', registry: f.facade.bots, rooms: f.rooms })
   assert.equal(result.bot.id, 'bot-from')
-  const sent = await f.messenger.sendmessage({ from: 'bot-from', target: 'bot-target', message: 'new contact' })
+  const sent = await callBellTeamTool({ name: 'sendmessage', arguments: { target: 'bot-target', message: 'new contact' },
+    from: 'bot-from', registry: f.facade.bots, rooms: f.rooms, messenger: f.messenger })
   assert.equal(sent.delivery, 'running')
   assert.equal(f.sends, 1)
   assert(f.calls.includes('profiles.read') && f.calls.includes('profile.read'))
