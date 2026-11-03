@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
-from web_gateway_artifact import BUSINESS_FILES, check_archive, contract, require, safe_path, write_archive
+from web_gateway_artifact import BUSINESS_FILES, EXECUTION_FILES, check_archive, contract, require, safe_path, write_archive
 
 
 def validate_members_source(payload):
@@ -45,6 +45,8 @@ def main(component):
             paths += ['web', 'services/subscriptions/product.json', 'services/subscriptions/endpoints.json']
         elif component == 'members':
             paths += ['config/common-agents.md']
+        if component == 'execution':
+            paths = sorted(name.removeprefix('payload/') for name in EXECUTION_FILES)
         if component in BUSINESS_FILES:
             paths = sorted(name.removeprefix('payload/') for name in BUSINESS_FILES[component])
         raw = subprocess.check_output(['git', 'archive', source, *paths], cwd=repo)
@@ -57,7 +59,7 @@ def main(component):
                 else:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(tar.extractfile(item).read())
-        if component != 'diagnostics':
+        if component not in ('diagnostics', 'execution'):
             (payload / 'src/distribution-profile.mjs').write_bytes(subprocess.check_output(
                 ['git', 'show', source + ':distribution/server/distribution-profile.mjs'], cwd=repo))
         if component == 'members':
@@ -83,8 +85,8 @@ def main(component):
                     with path.open('rb') as file: magic = file.read(4)
                     require(path.suffix != '.node' and magic not in [b'\x7fELF', b'\x00asm']
                             and not magic.startswith(b'MZ'), 'GATEWAY_NATIVE_RUNNER_REQUIRED')
-        if component in BUSINESS_FILES:
-            module, exported = ('src/usage/state-compatibility.mjs', 'USAGE_STATE_COMPATIBILITY') if component == 'usage' else ('src/diagnostics-protocol.mjs', 'DIAGNOSTICS_STATE_COMPATIBILITY')
+        if component in BUSINESS_FILES or component == 'execution':
+            module, exported = ('src/execution-dispatcher.mjs', 'EXECUTION_STATE_COMPATIBILITY') if component == 'execution' else ('src/usage/state-compatibility.mjs', 'USAGE_STATE_COMPATIBILITY') if component == 'usage' else ('src/diagnostics-protocol.mjs', 'DIAGNOSTICS_STATE_COMPATIBILITY')
             actual = json.loads(subprocess.check_output(['node', '--input-type=module', '-e',
                 'const m = await import(process.argv[1]); console.log(JSON.stringify(m[process.argv[2]]))',
                 (payload / module).as_uri(), exported], env={'PATH': os.environ['PATH']}, text=True))

@@ -89,6 +89,55 @@ BUSINESS_FILES = {
     )},
 }
 
+EXECUTION_FILES = {'payload/' + name for name in (
+    'config/common-agents.md',
+    'package-lock.json',
+    'package.json',
+    'src/agent-launch-error.mjs',
+    'src/aiterm-client.mjs',
+    'src/aiterm-transport.mjs',
+    'src/aiterm-wait-process.mjs',
+    'src/bot-administration.mjs',
+    'src/bot-environment.mjs',
+    'src/bot-execution-errors.mjs',
+    'src/bot-goals.mjs',
+    'src/bot-session-state.mjs',
+    'src/capacity-continuation.mjs',
+    'src/configuration-intents.mjs',
+    'src/configuration-request.mjs',
+    'src/configuration-requests.mjs',
+    'src/current-work.mjs',
+    'src/delivery-job.mjs',
+    'src/diagnostic-report-context.mjs',
+    'src/execution-bridge.mjs',
+    'src/execution-dispatcher.mjs',
+    'src/execution-error.mjs',
+    'src/execution-failure-report.mjs',
+    'src/execution-transport.mjs',
+    'src/global-instructions.mjs',
+    'src/http-response.mjs',
+    'src/idle-sessions.mjs',
+    'src/json-file.mjs',
+    'src/mcp-request-context.mjs',
+    'src/members-admission.mjs',
+    'src/members/deletion.mjs',
+    'src/members/instructions.mjs',
+    'src/owner-profile.mjs',
+    'src/resume-pipe.mjs',
+    'src/resume-policy.mjs',
+    'src/resume-storage.mjs',
+    'src/returned-mcp-error.mjs',
+    'src/runtime-home.mjs',
+    'src/seat-activity.mjs',
+    'src/seat-command.mjs',
+    'src/seat-process.mjs',
+    'src/seat-turns.mjs',
+    'src/session-interruption.mjs',
+    'src/stop-failure-report.mjs',
+    'src/throughline-context.mjs',
+    'src/user-rules.mjs',
+)}
+
 BUSINESS_STATE = {
     'usage': dict(settingsFeatures=['routing','callBridge','cloudflare','diagnostics','notifications','webPush'], onboardingSchema='bellteam.onboarding.v1', subscriptionSchema='bellteam.subscription.v1', requestEncoding='json-files', secretEncoding='utf8-exclusive-0600', handoffSchema='bellteam.usage-volatile.v1'),
     'diagnostics': dict(diagnostics='unversioned-rows-array', investigations='optional-fingerprint-map'),
@@ -107,8 +156,8 @@ def validate_memory_state(value):
 
 
 def contract(component):
-    require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics'), 'MODULE_COMPONENT_INVALID')
-    entry = 'payload/src/run-memory-runtime.mjs' if component == 'memory' else ENTRY if component == 'web-gateway' else f'payload/src/{component}-entry.mjs'
+    require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution'), 'MODULE_COMPONENT_INVALID')
+    entry = 'payload/src/execution-dispatcher.mjs' if component == 'execution' else 'payload/src/run-memory-runtime.mjs' if component == 'memory' else ENTRY if component == 'web-gateway' else f'payload/src/{component}-entry.mjs'
     runtime = dict(os='linux', nodeMajor=26, parentProtocol=1)
     required = {entry, 'payload/package.json', 'payload/package-lock.json'}
     if component == 'web-gateway':
@@ -118,6 +167,9 @@ def contract(component):
         runtime.update(parentProtocol=2, stateSchema=2)
     elif component == 'memory':
         required = MEMORY_FILES
+    elif component == 'execution':
+        required = EXECUTION_FILES
+        runtime['stateCompatibility'] = 'bellteam.execution-state.v1'
     elif component in BUSINESS_FILES:
         required = BUSINESS_FILES[component]
         runtime['stateCompatibility'] = BUSINESS_STATE[component]
@@ -157,7 +209,7 @@ def validate_manifest(value, source=None, arch=None, *, component='web-gateway')
         total += file['bytes']
     require(total <= MAX_CONTENT)
     require(names == required if component in ('memory', 'usage') else required <= names)
-    if component == 'diagnostics':
+    if component in ('diagnostics', 'execution'):
         require(all(name in required or name.startswith('payload/node_modules/') for name in names))
     return value
 

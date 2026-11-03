@@ -115,13 +115,13 @@ def validate_memory_archive(release, manifest, consumer_state):
 
 
 def validate_business_compatibility(component, value):
-    from web_gateway_artifact import BUSINESS_STATE
-    require(component in BUSINESS_STATE, 'UPDATE_MODULE_COMPONENT_INVALID')
+    from web_gateway_artifact import BUSINESS_STATE, contract
+    require(component in (*BUSINESS_STATE, 'execution'), 'UPDATE_MODULE_COMPONENT_INVALID')
     exact(value, 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility')
     require(type(value['nodeMajor']) is int and value['nodeMajor'] == 26
             and type(value['parentProtocol']) is int and value['parentProtocol'] == 1
             and value['stateSchema'] is None and value['containerUpdate'] is None
-            and value['stateCompatibility'] == BUSINESS_STATE[component], 'UPDATE_MODULE_STATE_INCOMPATIBLE')
+            and value['stateCompatibility'] == contract(component)[1]['stateCompatibility'], 'UPDATE_MODULE_STATE_INCOMPATIBLE')
     return value
 
 
@@ -156,13 +156,13 @@ def validate_catalog(value, *, now=None):
     for release in releases:
         exact(release, 'componentId,sourceCommit,versionId,platform,artifact,compatibility,changes')
         component = release['componentId']
-        require(component in ['container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics'])
+        require(component in ['container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution'])
         require(hexadecimal(release['sourceCommit'], 40))
         platform = release['platform']; exact(platform, 'os,arch')
         require(platform['os'] == 'linux' and platform['arch'] in ['amd64', 'arm64'])
         key = component, platform['arch']; require(key not in seen); seen.add(key)
         compatibility = release['compatibility']
-        if component in ('usage', 'diagnostics'):
+        if component in ('usage', 'diagnostics', 'execution'):
             validate_business_compatibility(component, compatibility)
         elif component == 'notifications':
             validate_notifications_compatibility(compatibility)

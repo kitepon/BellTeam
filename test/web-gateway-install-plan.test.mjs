@@ -7,6 +7,7 @@ import { promisify } from 'node:util'
 import test from 'node:test'
 import { notificationsInstallPlan } from '../src/notifications-install-plan.mjs'
 import { usageInstallPlan } from '../src/usage-install-plan.mjs'
+import { executionInstallPlan } from '../src/execution-install-plan.mjs'
 import { diagnosticsInstallPlan } from '../src/diagnostics-install-plan.mjs'
 import { memoryInstallPlan } from '../src/memory-install-plan.mjs'
 import { membersInstallPlan } from '../src/members-install-plan.mjs'
@@ -134,7 +135,7 @@ test('memory install binds only the same private volume and code-only readonly s
 })
 
 test('usage and diagnostics install plans keep their fixed component and private mount boundary', () => {
-  for (const [component, plan] of [['usage', usageInstallPlan], ['diagnostics', diagnosticsInstallPlan]]) {
+  for (const [component, plan] of [['usage', usageInstallPlan], ['diagnostics', diagnosticsInstallPlan], ['execution', executionInstallPlan]]) {
     const { normal, current } = fixture(), helper = plan(normal, current).services[component + '-install']
     assert.equal(helper.entrypoint.at(-1), `/app/scripts/install-${component}-release.py`)
     assert.equal(helper.volumes[0].source, '/installation/runtime/' + component + '-incoming')
