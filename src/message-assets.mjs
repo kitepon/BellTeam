@@ -21,11 +21,14 @@ export class MessageAssets {
   #ready
   #restored
 
-  constructor({ root, maxBytes = MAX_IMAGE_BYTES, botsAssetsRoot = join(root, 'bots'), readImage = readImageBytes, readRemovalStates = null }) {
+  constructor({ root, maxBytes = MAX_IMAGE_BYTES, botsAssetsRoot = join(root, 'bots'), readImage = readImageBytes, readRemovalStates = null, saveAdmission = null }) {
+    if (saveAdmission && (readRemovalStates !== null || typeof saveAdmission.beginSave !== 'function'
+      || typeof saveAdmission.endSave !== 'function')) throw new Error('IMAGE_ASSET_ADMISSION_INVALID')
     this.root = root
     this.maxBytes = maxBytes
     this.botsAssetsRoot = botsAssetsRoot
     this.readImage = readImage
+    this.saveAdmission = saveAdmission
     this.#restored = readRemovalStates === null
     this.#ready = readRemovalStates === null ? Promise.resolve() : Promise.resolve().then(async () => {
       const state = await readRemovalStates()
@@ -72,6 +75,7 @@ export class MessageAssets {
   }
 
   async open(owner, file) {
+    if (this.saveAdmission) throw new Error('IMAGE_ASSET_READ_PARENT_ONLY')
     validateId(owner)
     const match = String(file).match(ASSET_FILE)
     if (!match) throw new Error('IMAGE_ASSET_INVALID')
@@ -105,6 +109,11 @@ export class MessageAssets {
   }
 
   async #trackSave(owner, save) {
+    let lease
+    if (this.saveAdmission) {
+      lease = await this.saveAdmission.beginSave(owner)
+      if (typeof lease !== 'string' || !lease) throw new Error('IMAGE_ASSET_ADMISSION_INVALID')
+    }
     if (owner !== 'user' && !this.#restored) await this.#ready
     if (owner !== 'user' && this.#removals.has(owner)) throw new Error('IMAGE_BOT_REMOVAL_PENDING')
     let finish
@@ -112,11 +121,20 @@ export class MessageAssets {
     const saves = this.#saves.get(owner) ?? new Set()
     this.#saves.set(owner, saves)
     saves.add(pending)
+    let failure
     try { return await save() }
+    catch (error) { failure = error; throw error }
     finally {
       saves.delete(pending)
       if (!saves.size) this.#saves.delete(owner)
       finish()
+      if (this.saveAdmission) {
+        try { await this.saveAdmission.endSave(lease) }
+        catch (error) {
+          if (failure) throw new AggregateError([failure, error], 'IMAGE_ASSET_SAVE_AND_RELEASE_FAILED')
+          throw error
+        }
+      }
     }
   }
 
@@ -128,6 +146,7 @@ export class MessageAssets {
   }
 
   async prepareBotAssetRemoval(botId) {
+    if (this.saveAdmission) throw new Error('IMAGE_ASSET_GATE_PARENT_ONLY')
     validateBotId(botId)
     const gate = this.#closeBot(botId)
     await this.#ready
@@ -136,6 +155,7 @@ export class MessageAssets {
   }
 
   cancelBotAssetRemoval(botId, lease, state) {
+    if (this.saveAdmission) throw new Error('IMAGE_ASSET_GATE_PARENT_ONLY')
     validateBotId(botId)
     const gate = this.#removals.get(botId)
     if (!this.#restored || !gate || typeof lease !== 'string' || gate.lease !== lease
