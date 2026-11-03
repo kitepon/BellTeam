@@ -74,6 +74,7 @@
     "src/usage/channel-protocol.mjs",
     "src/usage/channel-dispatcher.mjs",
     "src/usage/state-compatibility.mjs",
-    "src/usage-entry.mjs"
+    "src/usage-entry.mjs",
+    "src/usage-parent-effects.mjs"
   ]
 }

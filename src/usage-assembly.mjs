@@ -10,6 +10,7 @@ import { createUsageProjection } from './usage/projection.mjs'
 export function createUsageAssembly({ root, environment = {}, seatRuntime = false, getServices,
   onEffect, onState, createProcess = createUsageProcess, prepareRelease, spawnProcess }) {
   const admission = new MembersAdmission('usage-parent'), authority = createUsageAuthority()
+  const capturedContexts = new WeakMap(), parents = new WeakMap()
   const scope = new AsyncLocalStorage()
   const projection = createUsageProjection({ bots: { get: id => getServices().bots?.get(id) } })
   let controller
@@ -20,11 +21,13 @@ export function createUsageAssembly({ root, environment = {}, seatRuntime = fals
     try {
       authority.authorizeActor(method, token)
       const options = callback ? context : { usageLease: lease = admission.enter(), capturedAuthorization: token }
+      if (lease && capturedContexts.has(token)) parents.set(lease, capturedContexts.get(token))
       result = callback ? controller.callback(method, params, options) : controller.request(method, params, options)
       // A caller timeout does not revoke authority while the real request still runs.
       const completion = result.completion ?? result
       if (lease) admission.trackCompletion(lease, completion)
-      completion.then(() => authority.release(token), () => authority.release(token))
+      const release = () => { authority.release(token); capturedContexts.delete(token); if (lease) parents.delete(lease) }
+      completion.then(release, release)
       return result
     } catch (error) {
       authority.release(token)
@@ -40,7 +43,11 @@ export function createUsageAssembly({ root, environment = {}, seatRuntime = fals
       seatRuntime: Boolean(seatRuntime),
       subscription: { environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production', accessMode: environment.BELLTEAM_SUBSCRIPTION_ACCESS_MODE ?? 'subscription' },
     },
-    onEffect: (method, params, context) => scope.run(context, () => onEffect(method, params, context)),
+    onEffect: (method, params, context) => {
+      const inherited = parents.get(context.usageLease)
+      const current = inherited ? Object.freeze({ ...inherited, ...context }) : context
+      return scope.run(current, () => onEffect(method, params, current))
+    },
     onProjection: (row, context) => context.phase === 'seed' ? projection.seed(row, context.generation)
       : context.phase === 'snapshot' ? projection.accept(row, context.generation) : facade.accept(row, context.generation),
     onSnapshotStart: context => projection.begin(context.generation),
@@ -49,9 +56,14 @@ export function createUsageAssembly({ root, environment = {}, seatRuntime = fals
   })
   return {
     controller, facade,
-    capture: (method, actor) => authority.capture(method, actor),
-    systemContext(method) {
+    capture(method, actor, parentContext) {
+      const token = authority.capture(method, actor)
+      if (parentContext) capturedContexts.set(token, parentContext)
+      return token
+    },
+    systemContext(method, parentContext) {
       const capturedAuthorization = authority.capture(method, { kind: 'system', botId: null })
+      if (parentContext) capturedContexts.set(capturedAuthorization, parentContext)
       const context = scope.getStore()
       return context?.usageEffect ? { usageLease: context.usageLease, usageEffect: context.usageEffect, capturedAuthorization } : capturedAuthorization
     },

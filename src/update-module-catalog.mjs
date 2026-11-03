@@ -1,9 +1,10 @@
 import { isDeepStrictEqual } from 'node:util'
+import { USAGE_STATE_COMPATIBILITY } from './usage/state-compatibility.mjs'
 import { DIAGNOSTICS_STATE_COMPATIBILITY } from './diagnostics-protocol.mjs'
 import { MEMORY_STATE_COMPATIBILITY } from './memory/state-compatibility.mjs'
 import { MEMBERS_STATE_COMPATIBILITY } from './members/state-compatibility.mjs'
 
-const ids = ['web-gateway', 'notifications', 'members', 'memory', 'diagnostics']
+const ids = ['web-gateway', 'notifications', 'members', 'memory', 'diagnostics', 'usage']
 const hex = (value, length) => typeof value === 'string' && new RegExp(`^[a-f0-9]{${length}}$`).test(value)
 const date = value => typeof value === 'string' && Number.isFinite(Date.parse(value))
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
@@ -33,10 +34,10 @@ function selection(value, id) {
   requireValue(typeof artifact.archive.url === 'string' && new RegExp(`^${url.replace('github.com', 'github\\.com')}$`).test(artifact.archive.url)
     && artifact.archive.sha256 === release.versionId && artifact.bundle.url === artifact.archive.url + '.sigstore.json')
   const compatibility = release.compatibility
-  requireValue(exact(compatibility, ['members', 'memory', 'diagnostics'].includes(id) ? 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility' : 'nodeMajor,parentProtocol,stateSchema,containerUpdate'))
+  requireValue(exact(compatibility, ['members', 'memory', 'diagnostics', 'usage'].includes(id) ? 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility' : 'nodeMajor,parentProtocol,stateSchema,containerUpdate'))
   requireValue(['nodeMajor', 'parentProtocol', 'stateSchema', 'containerUpdate'].every(key => compatibility[key] === null || Number.isInteger(compatibility[key]) && compatibility[key] > 0 && compatibility[key] <= 65535))
-  if (['members', 'memory', 'diagnostics'].includes(id)) requireValue(compatibility.nodeMajor === 26 && compatibility.parentProtocol === 1 && compatibility.stateSchema === null
-    && compatibility.containerUpdate === null && isDeepStrictEqual(compatibility.stateCompatibility, id === 'members' ? MEMBERS_STATE_COMPATIBILITY : id === 'memory' ? MEMORY_STATE_COMPATIBILITY : DIAGNOSTICS_STATE_COMPATIBILITY))
+  if (['members', 'memory', 'diagnostics', 'usage'].includes(id)) requireValue(compatibility.nodeMajor === 26 && compatibility.parentProtocol === 1 && compatibility.stateSchema === null
+    && compatibility.containerUpdate === null && isDeepStrictEqual(compatibility.stateCompatibility, id === 'members' ? MEMBERS_STATE_COMPATIBILITY : id === 'memory' ? MEMORY_STATE_COMPATIBILITY : id === 'diagnostics' ? DIAGNOSTICS_STATE_COMPATIBILITY : USAGE_STATE_COMPATIBILITY))
   return value
 }
 
@@ -44,7 +45,7 @@ export function moduleReleaseCompatible(id, release) {
   const value = release?.compatibility
   return value?.nodeMajor === 26 && value.containerUpdate === null
     && value.parentProtocol === (id === 'notifications' ? 2 : 1)
-    && (['members', 'memory', 'diagnostics'].includes(id) ? isDeepStrictEqual(value.stateCompatibility, id === 'members' ? MEMBERS_STATE_COMPATIBILITY : id === 'memory' ? MEMORY_STATE_COMPATIBILITY : DIAGNOSTICS_STATE_COMPATIBILITY) && value.stateSchema === null
+    && (['members', 'memory', 'diagnostics', 'usage'].includes(id) ? isDeepStrictEqual(value.stateCompatibility, id === 'members' ? MEMBERS_STATE_COMPATIBILITY : id === 'memory' ? MEMORY_STATE_COMPATIBILITY : id === 'diagnostics' ? DIAGNOSTICS_STATE_COMPATIBILITY : USAGE_STATE_COMPATIBILITY) && value.stateSchema === null
       : value.stateSchema === (id === 'notifications' ? 2 : 1))
 }
 
