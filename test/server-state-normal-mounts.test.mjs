@@ -55,3 +55,27 @@ test('既shared socketのbindは通常の独立stateと重ねず保持できる'
     target: '/srv/bellteam/shared/sockets', read_only: true })
   assert.equal(stateWriterPlan(c).roots.length, 3)
 })
+
+test('memory code view is optional and limited to the same private volume readonly subpath', () => {
+  const c = fixture(), before = stateWriterPlan(c)
+  const mount = { type: 'volume', source: 'server-state', target: '/run/bellteam-memory-code',
+    read_only: true, volume: { nocopy: true, subpath: 'memory-code' } }
+  c.services.bellteam.volumes.push(mount)
+  assert.deepEqual(stateWriterPlan(c), before)
+  for (const mutate of [
+    m => { m.type = 'bind' },
+    m => { m.source = 'cursor-cli' },
+    m => { m.read_only = false },
+    m => { delete m.read_only },
+    m => { m.volume.nocopy = false },
+    m => { m.volume.subpath = 'memory' },
+    m => { delete m.volume.subpath },
+  ]) {
+    const changed = structuredClone(c); mutate(changed.services.bellteam.volumes.at(-1))
+    assert.throws(() => stateWriterPlan(changed), /WRITER_METADATA_INVALID/)
+  }
+  const duplicate = structuredClone(c); duplicate.services.bellteam.volumes.push(structuredClone(mount))
+  assert.throws(() => stateWriterPlan(duplicate), /WRITER_METADATA_INVALID/)
+  c.services.bellteam.volumes = c.services.bellteam.volumes.filter(m => !m.target.startsWith('/srv/bellteam/'))
+  assert.throws(() => stateWriterPlan(c), /WRITER_METADATA_INVALID/)
+})

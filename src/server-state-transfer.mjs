@@ -336,6 +336,9 @@ export async function prepareServerStateRuntime({ root, privateRoot = join(root,
   root = resolve(root); privateRoot = resolve(privateRoot)
   await directory(root); await directory(privateRoot)
   await setDirectoryOwner(privateRoot, 0, 1001, 0o750)
+  const memoryCode = join(privateRoot, 'memory-code')
+  await directory(memoryCode)
+  await setDirectoryOwner(memoryCode, 0, 0, 0o555)
   const home = join(root, 'home')
   if (!await exists(home)) {
     // HOME and its staging stay on the same bind; the private volume is a different mount.
