@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { setImmediate } from 'node:timers/promises'
 import { SecretRequests } from '../src/secret-requests.mjs'
 import { createOlrwAuthConsumer } from '../src/usage/olrw-auth-consumer.mjs'
+import { AitermClient } from '../src/aiterm-client.mjs'
 
 const binding = { session_id: 'auth-synthetic', launch_id: 'synthetic-launch', metadata_identity: 'synthetic-metadata', native_id: '$10', pane_id: '%10', server_pid: 100, server_started: 'birth1', pane_pid: 101, pane_started: 'birth2' }
 const url = 'https://claude.ai/oauth/authorize?synthetic=owner-only'
@@ -281,3 +282,46 @@ for (const action of ['status', 'cleanup']) {
     assert.equal(f.calls.at(-1).action, action)
   })
 }
+
+for (const code of ['AITERM_AUTH_CONNECTION_ARGUMENTS', 'AITERM_AUTH_CONNECTION_UNCONFIRMED', 'AITERM_AUTH_SERVER_VERSION_UNCONFIRMED']) {
+  test(`local auth guard ${code} is separate from native receipt and consumes permission`, async t => {
+    const client = new AitermClient({ command: 'must-not-spawn', env: {} })
+    let connects = 0, rpcs = 0
+    const transport = { pid: 123 }
+    const sdk = { transport, getServerVersion: () => ({ name: 'aiterm', version: 'synthetic-version' }),
+      callTool() { rpcs++; assert.fail('guard must reject before RPC') } }
+    client.client = sdk; client.transport = transport
+    client.connect = () => { connects++; assert.fail('guard must not connect') }
+    let options = { expectedAuthConnection: sdk, expectedAuthServerVersion: 'synthetic-version' }
+    if (code === 'AITERM_AUTH_CONNECTION_ARGUMENTS') options = { expectedAuthServerVersion: 'synthetic-version' }
+    else if (code === 'AITERM_AUTH_CONNECTION_UNCONFIRMED') client.client = null
+    else options.expectedAuthServerVersion = 'other-version'
+    const f = await fixture(t, { native: { respond: () => client.call('agent_auth', { action: 'respond' }, options) } })
+    const item = await f.request(); await f.guide(item); await f.secrets.submit(item.id, 'SYNTHETIC-CODE')
+    assert.deepEqual(await f.pending, { runId: f.context.runId, outcome: 'not_issued', reason: 'local_not_issued' })
+    assert.equal(connects, 0); assert.equal(rpcs, 0)
+    assert.equal(f.calls.at(-1).action, 'respond')
+    const count = f.calls.length
+    const state = (await f.journal()).at(-1)
+    assert.equal(state.consumed, true); assert.equal(state.counts.respond, 1)
+    assert.equal((await f.make().execute()).outcome, 'not_issued')
+    assert.equal(f.calls.length, count)
+  })
+}
+
+for (const [label, failure] of [
+  ['unknown code', Object.assign(Error('SYNTHETIC'), { code: 'SYNTHETIC_UNKNOWN', effect: 'not_issued' })],
+  ['contradictory effect', Object.assign(Error('SYNTHETIC'), { code: 'AITERM_AUTH_CONNECTION_UNCONFIRMED', effect: 'unknown' })],
+  ['missing effect', Object.assign(Error('SYNTHETIC'), { code: 'AITERM_AUTH_CONNECTION_UNCONFIRMED' })],
+  ['plain object', { code: 'AITERM_AUTH_CONNECTION_UNCONFIRMED', effect: 'not_issued' }],
+  ['transport exception', Error('SYNTHETIC_TRANSPORT_FAILURE')],
+]) test(`local auth guard ${label} stays unknown with no continuation`, async t => {
+  const f = await fixture(t, { native: { respond: () => { throw failure } } })
+  const item = await f.request(); await f.guide(item); await f.secrets.submit(item.id, 'SYNTHETIC-CODE')
+  assert.deepEqual(await f.pending, { runId: f.context.runId, outcome: 'unknown', reason: 'native_unconfirmed' })
+  assert.equal(f.calls.at(-1).action, 'respond')
+  const count = f.calls.length
+  assert.equal((await f.journal()).at(-1).consumed, true)
+  assert.equal((await f.make().execute()).outcome, 'not_issued')
+  assert.equal(f.calls.length, count)
+})

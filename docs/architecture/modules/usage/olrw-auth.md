@@ -30,4 +30,6 @@ native応答はMCP isError/structuredContentを受ける。operation-error(statu
 
 operation-errorはnative505のstrictな6項目(schema/harness/session_id/action/code/effect)だけを受け、status又はcancelと実操作・対象を照合する。codeはAGENT_AUTH_OPERATION_NOT_ISSUEDとnot_issued、AGENT_AUTH_OPERATION_UNKNOWNとunknownの対応に限る。余分/不足fieldや矛盾はinvalid_receipt/unknownで停止する。response-errorの公開code string契約は維持する。既存図のtyped失敗検証内の修理で、状態所有・接続・公開窓口の変更はない。
 
+Client48ee19cのRPC前固定Errorは、codeがAITERM_AUTH_CONNECTION_ARGUMENTS/AITERM_AUTH_CONNECTION_UNCONFIRMED/AITERM_AUTH_SERVER_VERSION_UNCONFIRMEDのいずれかでeffect=not_issuedの場合だけlocal_not_issued/not_issuedへ分ける。native typed receiptのnative_not_issuedとは別理由で、一般例外・通信断・未知code・矛盾effectはnative_unconfirmed/unknownを保つ。いずれも同許可の消費を戻さず、後続status/cleanup・再送をしない。既存図の送信前判定/失敗検証契約内で接続変更なし。
+
 秘密カードには固定のlabel/messageだけ。URLはrunのみに保存。Owner guideは同request/bot/room/run、pending・正常・許可・期限内でだけ返す。HTTPS/userinfo無し、originはclaude.ai/console.anthropic.com/platform.claude.com完全一致。通常receiptはrunId/outcome/reasonだけでURL/raw UI/値/hash/path/例外を含まない。Root/N102/Admiの接続は別所有。module source以外のcaller/export/config/保存済データは変更しない。実callerの接続は未統合、試験fixtureだけがこの候補を呼ぶ。

@@ -115,7 +115,12 @@ export function createOlrwAuthConsumer({ secretRequests, runDirectory, context, 
       if (action === 'status') state.lastStatus = Date.now()
       return auth[action](payload)
     }), deadline()) }
-    catch { throw stop('native_unconfirmed', 'unknown') }
+    catch (error) {
+      if (error instanceof Error && error.effect === 'not_issued'
+        && ['AITERM_AUTH_CONNECTION_ARGUMENTS', 'AITERM_AUTH_CONNECTION_UNCONFIRMED', 'AITERM_AUTH_SERVER_VERSION_UNCONFIRMED'].includes(error.code))
+        throw stop('local_not_issued')
+      throw stop('native_unconfirmed', 'unknown')
+    }
     parse(result, action)
     state.intent = null
     await record()
