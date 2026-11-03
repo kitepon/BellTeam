@@ -28,7 +28,7 @@ application-servicesが同execution client/storeを注入し、公開受付前�
 
 Owner認証済みの既HTTP枠の`POST /api/bots/:id/configuration/reconcile`はbodyを`{request_id:UUID}`だけに限定する。保存済み原要求を読み、同approved local SDKで設定値無しreconcile一回。原ID/launchが無いlegacy不明、別bindingはnative発行前に拒否。現在のlocal uncertainty/versionと停止世代が変われば解除0。画面操作/goal/送信/再構成を行わない。新MCP toolやUIボタンは追加しない。
 
-read-only結果のterminal/excludedは保存済terminal/native未発行だけ。成功でもnative入力ありはunconfirmedで、現在値一致・時間経過・handler終端・新版導入を解除根拠にしない。旧ヘンゼルの回復は別Owner判断とquiescence/退役の契約であり、本口で新IDを付けない。親共有SDK closeも対象限定quiescence証明にしない。
+read-only結果のterminal/excludedは保存済terminal/native未発行だけ。成功でもnative入力ありはunconfirmedで、現在値一致・時間経過・handler終端・新版導入を解除根拠にしない。原設定の確定と[既存席への通常配送](configuration-delivery.md)は分離する。旧legacy/null-bindingも設定不明だけでは配送を拒否しないが、本口で新IDを付けたり原不明を消したりしない。親共有SDK closeも対象限定quiescence証明にしない。
 
 callerはBotAdministration.apply/view/reconcile、AitermTransport.reconfigure/reconcileConfiguration、BotSessionStateのfence照合、Client限定bound call、application-servicesとhttp-bot-api。native変更をtracked apply以外へ迂回させない。同harnessの変更値消去やharness変更など既restart分岐は従来契約として分離する。低層単独transportの既legacy callerは明示注入無しの従来契約を保ち、通常本体は必ずtracked serviceを注入する。
 
