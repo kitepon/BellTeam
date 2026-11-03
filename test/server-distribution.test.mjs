@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -23,6 +24,8 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'config/notifications-verification.json', 'scripts/module_artifact_verifier.py',
     'scripts/verify-notifications.py', 'scripts/notifications-start.c',
     'scripts/verify-update-catalog.py', 'scripts/update_catalog.py', 'config/update-catalog-verification.json',
+    'scripts/container-update-host.py', 'scripts/install-container-update-code.py', 'scripts/cleanup-deploy-images.py', 'scripts/save-deploy-restore-point.py',
+    ...['host.service.in', 'catalog-refresh.service.in', 'catalog-refresh.timer', 'compose.overlay.yaml', 'README.md', 'root-code-paths.json'].map(name => 'distribution/server/updater/' + name),
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
     'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
     'scripts/seat-exec.c', 'scripts/server-start.c',
@@ -34,7 +37,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   ]
   for (const path of paths) {
     await mkdir(join(root, path, '..'), { recursive: true })
-    await writeFile(join(root, path), path === 'config/bots.json' ? '{"bots":[{"id":"owner-private"}]}' : `${path}\n`)
+    await writeFile(join(root, path), path === 'distribution/server/updater/root-code-paths.json' ? JSON.stringify({schema:'bellteam.host-updater.code-paths.v1',files:['scripts/container-update-host.py','install.sh','scripts/cleanup-deploy-images.py','scripts/save-deploy-restore-point.py','scripts/verify-update-catalog.py','scripts/update_catalog.py','scripts/module_artifact_verifier.py','scripts/web_gateway_artifact.py','config/update-catalog-verification.json','config/web-gateway-trusted-root.jsonl','distribution/server/updater/host.service.in','distribution/server/updater/catalog-refresh.service.in','distribution/server/updater/catalog-refresh.timer','distribution/server/updater/compose.overlay.yaml'].map(name=>({imagePath:'/app/'+name,installPath:name}))}) : path === 'config/bots.json' ? '{"bots":[{"id":"owner-private"}]}' : `${path}\n`)
   }
   await mkdir(join(root, 'distribution/server'), { recursive: true })
   for (const path of ['distribution-profile.mjs', 'bots.json', 'compose.yaml', 'compose.aiterm-checkpoint.yaml', '.env.example', 'README.md', 'install.sh']) {
@@ -69,10 +72,26 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'scripts/verify-web-gateway.py', 'scripts/web_gateway_artifact.py',
     'scripts/install-web-gateway-release.py', 'scripts/install-notifications-release.py',
     'config/notifications-verification.json', 'scripts/module_artifact_verifier.py',
-    'scripts/verify-notifications.py', 'scripts/notifications-start.c',
-    'scripts/verify-update-catalog.py', 'scripts/update_catalog.py', 'config/update-catalog-verification.json']) assert.ok(pathsInArchive.includes(path))
+    'scripts/verify-notifications.py', 'scripts/notifications-start.c']) assert.ok(pathsInArchive.includes(path))
+  const rootCode = JSON.parse(await readFile(join(output, 'distribution/server/updater/root-code-manifest.json'), 'utf8'))
+  assert.equal(rootCode.schema, 'bellteam.host-updater.code-manifest.v1')
+  assert.equal(rootCode.sourceCommit, result.sourceCommit)
+  assert.equal(rootCode.files.length, 14)
+  for (const item of rootCode.files) {
+    const bytes = await readFile(join(output, item.installPath))
+    assert.equal(item.bytes, bytes.length)
+    assert.equal(item.sha256, createHash('sha256').update(bytes).digest('hex'))
+  }
+  assert.ok(!pathsInArchive.includes('updater/root-code-paths.json'))
   assert.ok(!pathsInArchive.includes('config/models.json'), 'モデル候補は導入先CLIから取得し古い一覧を同梱しない')
   assert.deepEqual(JSON.parse(await readFile(join(output, 'config/bots.json'), 'utf8')).bots, [])
   for (const path of ['.env', 'runtime/home/auth.json', 'services/subscriptions/keys/private.p8']) assert.ok(!pathsInArchive.includes(path))
   assert.equal(JSON.parse(await readFile(join(output, 'distribution.json'), 'utf8')).sourceCommit, result.sourceCommit)
+  await writeFile(join(root, 'distribution/server/updater/root-code-paths.json'), JSON.stringify({
+    schema: 'bellteam.host-updater.code-paths.v1', files: [{ imagePath: '/app/scripts/../../.env', installPath: 'scripts/../../.env' }],
+  }))
+  await exec('git', ['add', 'distribution/server/updater/root-code-paths.json'], { cwd: root })
+  await exec('git', ['-c', 'user.name=配布試験', '-c', 'user.email=test@example.com', 'commit', '-qm', '越境拒否の入力'], { cwd: root })
+  await assert.rejects(exec(process.execPath, [join(root, 'scripts/package-server.mjs'), join(root, 'invalid-output')]), /Invalid root updater code path/u)
+
 })
