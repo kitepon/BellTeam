@@ -11,7 +11,7 @@ import { MEMBERS_STATE_COMPATIBILITY } from '../src/members/state-compatibility.
 import { createMembersRuntimeEffects } from '../src/members-runtime-effects.mjs'
 import { normalizeMembersError } from '../src/members/errors.mjs'
 
-async function start(t, { onEffect: external, authorizeOwner } = {}) {
+async function start(t, { onEffect: external, authorizeOwner, populate } = {}) {
   const root = await mkdtemp(join(process.cwd(), '.members-ipc-'))
   const home = join(root, 'home')
   await mkdir(join(root, 'state/bots'), { recursive: true, mode: 0o700 })
@@ -20,6 +20,7 @@ async function start(t, { onEffect: external, authorizeOwner } = {}) {
   await writeFile(join(root, 'owner/profile.json'), JSON.stringify({ schema: 'bellteam.owner-profile.v1',
     name: 'fixture', profile: '', avatar: '', xUrl: '', githubUrl: '', links: [] }), { mode: 0o600 })
   await writeFile(join(root, 'owner/user-rules.md'), '', { mode: 0o600 })
+  await populate?.(root)
   for (const cli of ['.claude', '.codex', '.grok', '.cursor', '.gemini']) await mkdir(join(home, cli), { recursive: true })
   const child = spawn(process.execPath, [new URL('./fixtures/members-runtime-child.mjs', import.meta.url).pathname, 'builtin', root],
     { env: {}, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] })
@@ -146,7 +147,7 @@ test('ACK and response deadlines report unknown while completion and old lease r
     assert.equal(admission.assertLease(lease), lease)
     assert.equal(channel.snapshot().root, 1)
     if (!accepted) endpoint.emit('message', { type: 'accepted', kind: 'root', id: sent.id })
-    endpoint.emit('message', { type: 'result', kind: 'root', id: sent.id, ok: true, value: { profiles: [] } })
+    endpoint.emit('message', { type: 'result', kind: 'root', id: sent.id, ok: true, value: { revision: 1 } })
     await attempt.completion
     await Promise.resolve()
     assert.throws(() => admission.assertLease(lease), { code: 'MEMBERS_NOT_ACCEPTED' })
@@ -239,5 +240,32 @@ test('a normalized parent Room failure keeps its status and never forwards its f
     assert.equal(error.message, 'ROOM_NOT_FOUND')
     return true
   })
+  await x.channel.control('quiesce'); await x.channel.control('exit'); await x.ended
+})
+
+test('fresh profiles snapshot streams a collection larger than one payload and returns only its revision', { timeout: 20000 }, async t => {
+  const count = 601
+  const x = await start(t, { populate: async root => {
+    const body = 'x'.repeat(8000)
+    for (let i = 0; i < count; i++) {
+      const id = `bot-${i}`, directory = join(root, 'state/bots', id)
+      await mkdir(directory)
+      await writeFile(join(directory, 'bot.json'), JSON.stringify({ schema: 'bellteam.bot.v8', id,
+        name: id, harness: 'codex', session: id, profileText: body, personality: body, speechStyle: body, role: body }))
+      await writeFile(join(directory, 'schedule.json'), JSON.stringify({ schema: 'bellteam.schedule.v1', schedules: [] }))
+    }
+  } })
+  await x.channel.control('resume')
+  const firstEnd = x.projections.at(-1).revision
+  const result = await x.request('profiles.read')
+  assert.deepEqual(Object.keys(result), ['revision'])
+  assert.equal(JSON.stringify(result).length < 100, true)
+  assert.equal(result.revision > firstEnd, true)
+  const records = x.projections.filter(record => record.revision === result.revision)
+  assert.equal(records[0].type, 'snapshot-start'); assert.equal(records.at(-1).type, 'snapshot-end')
+  assert.equal(records.filter(record => record.type === 'profile').length, count)
+  assert.equal(records.reduce((total, record) => total + Buffer.byteLength(JSON.stringify(record)), 0) > 16 * 1024 * 1024, true)
+  assert.equal(records.every(record => Buffer.byteLength(JSON.stringify(record)) < 64 * 1024), true)
+  assert.equal(x.channel.snapshot().queuedBytes, 0)
   await x.channel.control('quiesce'); await x.channel.control('exit'); await x.ended
 })
