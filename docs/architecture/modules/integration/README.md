@@ -233,3 +233,18 @@ flowchart LR
 Owner権限は公開HTTPの既authorize成功後だけ、PATCH ownerとPUT user-rulesの許可methodへ束縛して捕捉する。親WeakMapのobject同一性で検証し、body/actor/owner自己申告・別object・別methodを拒否する。要求終了時は失効する。既Owner/rules公開操作へcontextを渡すが、grant/bearerは子へ送らない。初期専用grant空/unknown、専用proxyと新子controller接続は残工程であり、この差分を唯一writer成立とはしない。既internal互換callerは権限objectを得ない。
 
 初回画像gate復元のPromiseをonboarding.initializeより前に待つ。親assetsは一度だけ構築し、module交換では再生成しない。N102の初回読取失敗を空一覧へ変換しない。Kiroのtransport.membersAdmissionは同じ親controllerへ注入する公開口で、既session/fast/onboarding contextを保持する。Host Update client一実体とpublicplan保存の接続も保持する。
+
+## members投影の原子的採用（結合候補）
+
+```mermaid
+flowchart LR
+  Channel[runtime: initialize又はlive leaseを検証] --> Projection[members-projection.accept / 作者DTO検証]
+  Start[snapshot-start / generation+revision] --> Staging[未公開Mapへ一件ずつ蓄積]
+  Projection --> Staging
+  Staging --> End[snapshot-end 同generation/revision]
+  End --> Swap[全件Mapを原子的採用]
+  Swap --> Event[onChange / SSE再取得通知へ]
+  Cut[途中切断/不正/未供給] --> Stale[旧採用Mapと旧generation/revisionをstale保持]
+```
+
+親投影は`createMembersProjection`の一実体。beginで次generationを固定するが表示中の旧generation/revisionは採用まで変更しない。画像本文・重複ID・異世代・revision不一致・再送を拒否し、件数の新上限は作らない。get/values/snapshotはcopyを返しcaller変更で正本を変えない。contextのinitialize/live lease・相関の実検証はruntime channelの公開責任であり、投影helperだけを本人確認に使わない。onChangeは全件採用後だけ一度呼ぶ。未供給のcontrollerへの配線とfresh async facade/SSEは次工程で、旧writer廃止や実交換の成功を主張しない。
