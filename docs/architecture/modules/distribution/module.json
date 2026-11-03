@@ -8,7 +8,8 @@
     "image",
     "web-gateway-artifact",
     "notifications-artifact",
-    "update-catalog"
+    "update-catalog",
+    "members-artifact"
   ],
   "uses": [
     {
@@ -42,6 +43,9 @@
     "config/update-catalog-verification.json",
     ".github/workflows/publish-update-catalog.yml",
     "scripts/check-update-catalog-publication.py",
-    ".github/workflows/verify-container-updater-systemd.yml"
+    ".github/workflows/verify-container-updater-systemd.yml",
+    "scripts/package-members.py",
+    "scripts/verify-members.py",
+    "config/members-verification.json"
   ]
 }
