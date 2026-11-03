@@ -95,9 +95,10 @@ Room予定のtargetsはlistを使わずclaim返却snapshotだけを発行する�
 
 ```mermaid
 flowchart LR
-  Accepted[親schedulerの受付context] --> Fresh[Bot/Room refreshとlistSchedules]
+  Reserve[共通moduleOperations.withContext / 両入場] --> Accepted[親schedulerの同opaque context]
+  Accepted --> Fresh[Bot/Room refreshとlistSchedules]
   Fresh --> Claim[唯一writer claimDue/skipDue]
   Claim --> Delivery[同contextで既配送]
 ```
 
-runDueのRoom refreshも他の読取/claimと同じ内部optionsを受ける。これは親安定Room facadeへ旧受付leaseを渡す修理で、Room writerを複製しない。後続conversation導入時の両module作用前一括予約は共通assemblyの公開口へ接続し、その実装前に一方のleaseから他方の新rootを作らない。
+runDueのRoom refreshも他の読取/claimと同じ内部optionsを受ける。これは親安定Room facadeへ旧受付leaseを渡す修理で、Room writerを複製しない。conversation導入時はconstructorのmoduleOperationsへ共通createModuleOperationContextの実体を注入する。tick/prepareResume/手動runはwithContext(operation, context?)で最初のfresh/消化前に両入場を予約し、親opaque contextをcloneせず読取/claim/skip/配送へ渡す。既contextはassertされた継続で、新予約/finishを増やさない。一方拒否なら作用0、accepted後unknownは再送0。provider未注入の既builtinは従来membersAdmissionだけを使う。両入場の原子性・channel逆effect束縛・交換mutexは共通/runtime所有で、このcallerは再実装しない。

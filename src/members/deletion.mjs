@@ -28,16 +28,17 @@ export function createMemberDeletionApi({ administration }) {
 }
 
 // Pending targets have already retired; never start or close another native session to resume cleanup.
-export async function startMemberRemoval(botId, { bots, rooms, transport, writeLog, onRemoved }) {
+export async function startMemberRemoval(botId, { bots, rooms, transport, writeLog, onRemoved, moduleOperations = null }) {
   const admission = transport.membersAdmission
-  const lease = admission?.enter()
-  const options = lease ? { membersLease: lease } : {}
+  const lease = moduleOperations ? null : admission?.enter()
+  const options = moduleOperations ? moduleOperations.reserve() : lease ? { membersLease: lease } : {}
+  const finish = () => { if (moduleOperations) moduleOperations.finish(options); else if (lease) admission.finish(lease) }
   let bot
   try {
     await bots.refresh?.(options)
     bot = await requireRemovalTarget(bots, botId, options)
   } catch (error) {
-    if (lease) admission.finish(lease)
+    finish()
     throw error
   }
   const reportSync = result => {
@@ -54,6 +55,6 @@ export async function startMemberRemoval(botId, { bots, rooms, transport, writeL
   })().catch(error => {
     reportSync(error)
     writeLog(`BellTeam delete error: ${botId}: ${error.stack ?? error.message}\n`)
-  }).finally(() => { if (lease) admission.finish(lease) })
+  }).finally(finish)
   return { deleting: botId }
 }

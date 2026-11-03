@@ -63,9 +63,10 @@ BotRegistryのassetRemoval adapterはprepare/cancelの2関数。早期失敗時�
 
 ```mermaid
 flowchart LR
-  Existing[親削除受付の同context] --> Stop[既execution stop]
+  Reserve[共通moduleOperations.reserve / 作用前両入場] --> Existing[親削除受付の同opaque context]
+  Existing --> Stop[既execution stop]
   Stop --> Rooms[親安定Room facade removeBot]
   Rooms --> Remove[子profile.remove / 親画像gate / rename]
 ```
 
-rooms.removeBot(botId, options)へfresh/stop/profile.removeと同じ内部optionsを渡す。親stable facadeはconversation子の唯一Room writerへ委譲し、当callerはpath/別writerを持たない。202返却後も削除背景終端まで同leaseを維持する。後続の作用前両module一括予約/親削除gateは共通/runtime公開口へ接続し、既pending/native停止省略・cancel fresh条件を変えない。
+rooms.removeBot(botId, options)へfresh/stop/profile.removeと同じ内部optionsを渡す。親stable facadeはconversation子の唯一Room writerへ委譲し、当callerはpath/別writerを持たない。202返却後も削除背景終端まで同leaseを維持する。BotAdministrationとstartMemberRemovalはmoduleOperationsを受け、refresh/native停止/intentより前にreserve()する。一方拒否なら202前にnot_acceptedで作用0。fresh失敗又は202背景削除の実終端finallyだけfinish(context)を要請し、Room整理/子profile.remove/親gate/renameの同contextを保持する。既pendingはnative停止/Room整理を繰り返さず同予約でcleanupを完了する。provider未注入の既builtinは従来membersAdmissionだけ。親削除gate/cancel fresh条件、contextの親IPC相関束縛は所有者公開口で維持する。

@@ -6,10 +6,11 @@ import { executionFailureReport, reportExecutionFailure } from './execution-fail
 // Botの設定変更・停止・削除の業務判断。HTTP APIと、HTTP経由で届く席MCPのupdate_self/update_bot/delete_botが
 // 同じ判断を使う。応答の形と状態コードはHTTPが持ち、ここは保存と稼働中の席への反映の順序を決める。
 export class BotAdministration {
-  constructor({ bots, rooms, transport, writeLog = line => process.stderr.write(line), reportError = () => {} }) {
+  constructor({ bots, rooms, transport, moduleOperations = null, writeLog = line => process.stderr.write(line), reportError = () => {} }) {
     this.bots = bots
     this.rooms = rooms
     this.transport = transport
+    this.moduleOperations = moduleOperations
     this.writeLog = writeLog
     this.reportError = reportError
     this.applications = new Map()
@@ -119,6 +120,6 @@ export class BotAdministration {
 
   remove(botId) {
     return startMemberRemoval(botId, { bots: this.bots, rooms: this.rooms, transport: this.transport,
-      writeLog: this.writeLog, onRemoved: id => this.applications.delete(id) })
+      writeLog: this.writeLog, onRemoved: id => this.applications.delete(id), moduleOperations: this.moduleOperations })
   }
 }
