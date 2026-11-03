@@ -34,6 +34,7 @@
     }
   ],
   "source": [
+    "src/execution-dispatcher.mjs",
     "src/aiterm-transport.mjs",
     "src/capacity-continuation.mjs",
     "src/current-work.mjs",
@@ -51,6 +52,7 @@
     "src/ai-control.mjs",
     "src/bot-goals.mjs",
     "src/seat-turns.mjs",
-    "src/idle-sessions.mjs"
+    "src/idle-sessions.mjs",
+    "src/bot-administration.mjs"
   ]
 }

@@ -819,7 +819,7 @@ export class AitermTransport {
 
   // BellTeamが始めていないターン（Aitermの子の結果で始まったターンなど）を見つけて追う。
   // 席の今のターンを返さない版のAitermではfalseを返す。
-  async watchSeatTurns(bots, { onInterim = null, groupId = randomUUID } = {}) {
+  async watchSeatTurns(bots, { onInterim = null, groupId = randomUUID, allowNew = () => true } = {}) {
     const versions = new Map(bots.map(bot => [bot.id, this.stopVersions.get(bot.id)]))
     const turns = await this.seatTurns(bots)
     if (!turns) return false
@@ -831,12 +831,12 @@ export class AitermTransport {
       // 追っているターンがもう動いていない。止められたターンでは、Aitermの待ちは返らない（完了の印だけを待つ）。
       // nullは「分からない」なので、追い続ける。
       if (watch && turn?.state === 'running' && turn.turn_id !== watch.turnId) {
-        this.watchTurn(bot, session, turn, { onInterim, groupId })
+        if (allowNew()) this.watchTurn(bot, session, turn, { onInterim, groupId })
         watch.end()
         continue
       }
       if (watch && (turn === undefined || turn?.state === 'idle')) watch.end()
-      if (turn?.state === 'running' && this.isIdle(bot.id) && this.activity.followedTurns.get(bot.id) !== turn.turn_id)
+      if (allowNew() && turn?.state === 'running' && this.isIdle(bot.id) && this.activity.followedTurns.get(bot.id) !== turn.turn_id)
         this.watchTurn(bot, session, turn, { onInterim, groupId })
     }
     return true
@@ -884,6 +884,15 @@ export class AitermTransport {
   // 席が自分で始めたターンのうち、最後に追ったターンで合間の言葉として出した文と、追い終えた時刻。
   shownInSelfTurn(botId) {
     return this.activity.shownWords.get(botId) ?? null
+  }
+
+  consumeShownWords(botId, shown, prefix) {
+    if (!Array.isArray(prefix) || prefix.some(word => typeof word !== 'string'))
+      throw Object.assign(new Error('CONVERSATION_SHOWN_INVALID'), { code: 'CONVERSATION_SHOWN_INVALID' })
+    if (!prefix.length || !shown || this.shownInSelfTurn(botId) !== shown
+      || !prefix.every((word, index) => shown.words[index] === word)) return false
+    shown.words.splice(0, prefix.length)
+    return true
   }
 
   idle(botId) {
