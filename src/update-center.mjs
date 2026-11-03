@@ -1,0 +1,42 @@
+import { EventEmitter } from 'node:events'
+import { updateComponents, validateUpdates, validateUpdateRequest } from './update-center-contract.mjs'
+const unavailable = () => Object.assign(new Error('UPDATE_EXECUTOR_UNAVAILABLE'), { code: 'UPDATE_EXECUTOR_UNAVAILABLE', status: 503,
+  publicMessage: 'この設置では、まだアプリから更新を実行できません。' })
+const sourceValid = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value)
+const versionValid = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
+export function createUpdateCenter({ gateway = () => null, notifications = null } = {}) {
+  const events = new EventEmitter()
+  return {
+    notify: () => events.emit('change'),
+    watch(listener) { events.on('change', listener); return () => events.off('change', listener) },
+    snapshot() {
+      const web = gateway(), push = notifications?.controller?.snapshot()
+      const source = sourceValid(push?.builtinSourceCommit) ? push.builtinSourceCommit : null
+      const builtin = source ? { version: source, sourceCommit: source, digest: null, origin: 'builtin' } : null
+      const active = (id, versionId) => versionValid(versionId)
+        ? { version: versionId, sourceCommit: null, digest: `sha256:${versionId}`, origin: 'release' }
+        : id === 'container' && builtin ? { ...builtin, origin: 'container' } : builtin
+      const components = updateComponents.map(([id, name, description]) => {
+        const current = active(id, id === 'web-gateway' ? web?.versionId : id === 'notifications' ? push?.currentVersionId : null)
+        let available = null, reason = 'AVAILABILITY_UNKNOWN'
+        if (id === 'web-gateway') { available = Boolean(web?.pid); reason = available ? null : 'WEB_GATEWAY_UNAVAILABLE' }
+        if (id === 'notifications') {
+          available = Boolean(push?.available && push.status?.configured)
+          reason = available ? null : push?.applyError ?? (push?.available ? 'PUSH_NOT_CONFIGURED' : 'NOTIFICATIONS_UNAVAILABLE')
+        }
+        return { id, name, description, current, published: null, changes: [],
+          comparison: { state: 'unavailable', reason: 'PUBLISHED_RELEASE_UNAVAILABLE' },
+          capability: { supported: false, reason: ['container', 'web-gateway', 'notifications'].includes(id)
+            ? 'UPDATE_EXECUTOR_UNAVAILABLE' : 'MODULE_NOT_INDEPENDENT' }, availability: { available, reason } }
+      })
+      const value = { schema: 'bellteam.updates.v1', server: { id: null }, observedAt: new Date().toISOString(),
+        notice: { state: 'unavailable', code: 'UPDATE_PROVIDERS_UNAVAILABLE', message: '更新情報を取得できないため、確認できた現在版を表示しています。' },
+        components, plans: [], operation: null, previousOperation: null }
+      if (!validateUpdates(value).valid) throw new Error('UPDATE_SNAPSHOT_INVALID')
+      return value
+    },
+    plan(input) { validateUpdateRequest('plan', input); throw unavailable() },
+    start(input) { validateUpdateRequest('operation', input); throw unavailable() },
+    operation(requestId) { validateUpdateRequest('requestId', requestId); throw unavailable() },
+  }
+}

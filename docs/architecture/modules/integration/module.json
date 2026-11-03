@@ -68,6 +68,8 @@
     "src/olrw-management-loader.mjs",
     "scripts/deploy.sh",
     "scripts/deploy-host.sh",
-    "scripts/deploy-cleanup.sh"
+    "scripts/deploy-cleanup.sh",
+    "src/update-center.mjs",
+    "src/update-center-contract.mjs"
   ]
 }

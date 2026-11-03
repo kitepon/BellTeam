@@ -24,14 +24,14 @@ export { EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS }
 // 手前の中継（cloudflaredの既定90秒）より長く保つ。
 export const KEEP_ALIVE_TIMEOUT_MS = 125000
 
-export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, ownerSecretGuide = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
+export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, ownerSecretGuide = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, updateCenter = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
 
   if (typeof authorize !== 'function') throw new Error('BELLTEAM_AUTHORIZER_REQUIRED')
-  const events = createMessageEvents({ store, secretRequests, ownerQuestions, rooms, bots, transport, aiControl, eventKeepalive, messageEventWindow })
+  const events = createMessageEvents({ store, secretRequests, ownerQuestions, rooms, bots, transport, aiControl, updateCenter, eventKeepalive, messageEventWindow })
   const { sources, timeline, messagePage } = createMessageViews({ rooms, store, secretRequests, ownerQuestions,
     ownerSecretGuide: internal ? null : ownerSecretGuide })
 
-  const controlApi = createControlApi({ aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models, webGatewayControl, notificationsReleaseControl })
+  const controlApi = createControlApi({ aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models, webGatewayControl, notificationsReleaseControl, updateCenter })
   administration ??= new BotAdministration({ bots, rooms, transport, writeLog,
     reportError: report => diagnostics?.record(report) })
   const featureApis = [
@@ -54,7 +54,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       if (request.method === 'GET' && url.pathname === '/healthz') return json(response, 200, { status: 'ok' })
       const authenticated = await authorize(request)
       if (request.method === 'GET' && url.pathname === '/api/session') return json(response, 200, { authenticated, authMode: authMode(request) })
-      if (!authenticated) return json(response, 401, { error: 'UNAUTHORIZED' })
+      if (!authenticated) return json(response, url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/') ? 403 : 401, { error: 'UNAUTHORIZED' })
       // 席のCLIがつなぐMCP。内部入口（loopback）だけで開く。
       if (internal && seatMcp && (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/'))) return await seatMcp(request, response, url)
 

@@ -16,6 +16,7 @@ import { OwnerQuestions, ownerAnswerMessage } from './owner-questions.mjs'
 import { IdleSessions } from './idle-sessions.mjs'
 import { createNotifications } from './usage/notifications.mjs'
 import { createNotificationsProcess } from './notifications-process.mjs'
+import { createUpdateCenter } from './update-center.mjs'
 import { Subscriptions } from './subscriptions.mjs'
 import { Onboarding } from './onboarding.mjs'
 import { HarnessAuth } from './harness-auth.mjs'
@@ -23,7 +24,7 @@ import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess }) {
+export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null }) {
   const subscriptions = new Subscriptions({
     path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'),
     environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production',
@@ -34,10 +35,15 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     investigationsFile: environment.BELLTEAM_DIAGNOSTIC_INVESTIGATIONS ?? null,
   })
   await diagnostics.initialize()
+  let updateCenter
   const notifications = createNotifications({ root, bots, diagnostics,
     configuration: () => settings.configuration('notifications'), createProcess,
-    onState: state => { if (state.applyError) settings.setError('notifications', { code: state.applyError }) },
+    onState: state => {
+      if (state.applyError) settings.setError('notifications', { code: state.applyError })
+      updateCenter?.notify()
+    },
   })
+  updateCenter = createUpdateCenter({ gateway, notifications })
   await notifications.initialize()
   const memory = seatRuntime ? seatRuntime.memory(bots) : new BellTeamMemory({ registry: bots, root })
   await memory.initialize()
@@ -125,7 +131,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     try { await diagnostics.record({ code: 'OLRW_MANAGEMENT_UNAVAILABLE', module: 'integration' }) } catch {}
   }
   return {
-    aiControl, subscriptions, settings, onboarding, harnessAuth,
+    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter,
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,

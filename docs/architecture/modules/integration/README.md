@@ -95,6 +95,24 @@ mcp_request補助JSONのみ追加"]
 
 `src/mcp-request-context.mjs:mcpRequestContext(error)`から返る安全な新objectだけを保存する。phaseはconnect/call、toolは実行担当が列挙した正規名、call失敗だけoutcome=unknown。本文・args・meta・自由message・IDは含めず、不正/未知metadataはnullとして省略する。既failure_stageの判定、HTTP返却、診断集約キーは変えない。Client/Transportの再送判断やWeakMap保持はexecutionが所有し、共通writerは例外propertyを直接読まない。元の過去診断の欠測を後付けせず、補助情報から本文未送信や成功を推測しない。
 
+## 共通Update状態と受付（段階接続）
+
+`update-center`が現在のWeb受付/通知controller一実体から稼働情報を合成し、正式catalogと耐久更新executorの供給を区別する。厳密JSON schema/null/有限例は`src/update-center-contract.mjs`を正本とする。Owner用GET `/api/updates`、POST `/api/updates/plans`、POST `/api/updates/operations`、GET `/api/updates/operations/:requestId`を既認証/HTTPへ登録し、内部Bot HTTPは403。未供給catalogはpublished:null、耐久executor未供給はcapability:false/plans:[]/操作503を返す。メモリだけの受付を永続acceptedへ見せ替えない。
+
+```mermaid
+flowchart LR
+  Owner[Owner認証] --> API[共通Update HTTP]
+  API --> State[update-center: 現在版と供給状態]
+  State --> Gateway[既Web controller]
+  State --> Push[既通知 controller]
+  Catalog[distribution: 正式catalog provider 未供給] -.-> State
+  Worker[runtime: 耐久Host受付とledger 未供給] -.-> API
+  State --> Events[既SSE messages / type updates]
+  Events --> UI[Web: GETで状態再同期]
+```
+
+container以外の機能を停止する副作用はGETにない。各moduleの個別更新未対応は理由付きで返す。公開版や稼働source不明を架空versionで埋めず、通知providerの利用不可と版採用を分ける。既moduleの更新窓口からは同じUpdate変更通知を発行する。正式providerとHost設置の実受入が残り、この段階を全体更新完成とはしない。
+
 ## 通知processの共通接続（実装中）
 
 通知内部はusage、起動・交換・排他はruntime、署名資材はdistributionを正本とする。共通assemblyはruntimeの`createNotificationsProcess`とusage facadeを各一実体だけ生成し、親の旧PushNotifications writerを作らない。診断は既Diagnostics一writerへ接続し、子の終了まで応答窓口を残す。親のbots/環境/会話やカードの本文は子へ渡さない。

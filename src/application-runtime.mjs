@@ -14,7 +14,8 @@ import { runtimeHome } from './runtime-home.mjs'
 
 // Importing this factory does not bootstrap the installation or bind any ports.
 export async function createApplicationRuntime({ root, appRoot, bootstrap, environment = process.env, home = runtimeHome(), client }) {
-  const services = await createApplicationServices({ root, ...bootstrap, environment, client })
+  let socketDirectory = null, gateway = null
+  const services = await createApplicationServices({ root, ...bootstrap, environment, client, gateway: () => gateway })
   const {
     aiControl, subscriptions, settings, onboarding, harnessAuth, notifications,
     secretRequests, ownerQuestions, bots, rooms, roomMessenger, messenger,
@@ -23,11 +24,11 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
   } = services
   const { aiterm } = bootstrap
-  let socketDirectory = null, gateway = null
-  const webGatewayControl = createWebGatewayControl({ gateway: () => gateway })
+  const webGatewayControl = createWebGatewayControl({ gateway: () => gateway, notify: () => services.updateCenter.notify() })
   const serverOptions = {
     webGatewayControl,
     notificationsReleaseControl: notifications.controller,
+    updateCenter: services.updateCenter,
     ownerSecretGuide: input => olrwAuthCaller?.ownerSecretGuide(input) ?? null,
     aiControl,
     subscriptions,

@@ -4,9 +4,31 @@ import { createOwnerApi } from './members/owner-http.mjs'
 import { createUsageApi } from './usage/http-api.mjs'
 
 export function createControlApi(options) {
-  const { aiControl, diagnostics, models, internal, webGatewayControl, notificationsReleaseControl } = options
+  const { aiControl, diagnostics, models, internal, webGatewayControl, notificationsReleaseControl, updateCenter } = options
   const usageApi = createUsageApi(options)
   return async (request, response, url) => {
+    if (url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/')) {
+      if (internal) return json(response, 403, { error: 'UPDATE_OWNER_REQUIRED' })
+      if (!updateCenter) return json(response, 503, { error: 'UPDATE_EXECUTOR_UNAVAILABLE' })
+      if (url.pathname === '/api/updates') {
+        if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+        return json(response, 200, await updateCenter.snapshot())
+      }
+      if (url.pathname === '/api/updates/plans') {
+        if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+        return json(response, 200, { plan: await updateCenter.plan(await readJson(request, 4096)) })
+      }
+      if (url.pathname === '/api/updates/operations') {
+        if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+        return json(response, 202, { operation: await updateCenter.start(await readJson(request, 4096)) })
+      }
+      const operationMatch = url.pathname.match(/^\/api\/updates\/operations\/([^/]+)$/u)
+      if (operationMatch) {
+        if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+        return json(response, 200, { operation: await updateCenter.operation(operationMatch[1]) })
+      }
+      return json(response, 404, { error: 'NOT_FOUND' })
+    }
     if (url.pathname === '/api/notifications-release') {
       if (internal) return json(response, 403, { error: 'NOTIFICATIONS_OWNER_REQUIRED' })
       if (!notificationsReleaseControl) return json(response, 503, { error: 'NOTIFICATIONS_UNAVAILABLE' })
