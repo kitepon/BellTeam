@@ -24,7 +24,7 @@ export function createMembersFacade({ request, callback, admission, projection }
     readRemovalStates: context => invoke('removals.read', {}, context),
     hasPendingRemoval: async (botId, context) => (await invoke('removals.read', {}, context)).removals.some(value => value.botId === botId),
     remove: (botId, context) => invoke('profile.remove', { botId }, context),
-    create: async (input, context) => (await invoke('profile.create', { input }, context)).bot,
+    create: async (input, context = {}) => (await invoke('profile.create', { input, ...(context.id === undefined ? {} : { id: context.id }) }, context)).bot,
     previewUpdate: async (botId, changes, context) => (await invoke('profile.preview', { botId, changes }, context)).bot,
     update: async (botId, changes, context) => (await invoke('profile.update', { botId, changes }, context)).bot,
     prepareStartupContext: async (botId, shortTermMemory, context) => { await invoke('profile.startup', { botId, shortTermMemory }, context) },

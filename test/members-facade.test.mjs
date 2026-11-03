@@ -97,3 +97,10 @@ test('removal and CLI queue read use closed methods with the same live effect co
   await assert.rejects(f.readCurrentBotIds(), { status: 503 })
   admission.finish(lease); await admission.drain(ticket)
 })
+
+test('fixed onboarding creation option is retained outside the profile input', async () => {
+  const f = fixture()
+  await f.bots.create({ name: 'guide' }, { id: 'bot-guide' })
+  assert.deepEqual(f.calls[0].params, { input: { name: 'guide' }, id: 'bot-guide' })
+  assert.equal(Object.hasOwn(f.calls[0].context, 'id'), false)
+})
