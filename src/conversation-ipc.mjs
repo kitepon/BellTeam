@@ -42,6 +42,7 @@ export function createConversationParentChannel(child, { generation, admission, 
     if (!delivery && record.effectContext) return record.effectContext
     const value = Object.freeze({ ...record.context,
     rootMethod: (record.root ?? record).method, conversationLease: record.lease,
+    actualCompletion: record.actualCompletion,
     ...(delivery ? { conversationDelivery: delivery } : {}),
     operationContext: record.options.operationContext, admissionCheck: record.options.admissionCheck })
     if (!delivery) record.effectContext = value
@@ -165,7 +166,7 @@ export function createConversationParentChannel(child, { generation, admission, 
     },
   })
   const attach = (method, options, context, completion, id, root = null) => {
-    const record = { id, method, options, context, lease: options.conversationLease, root, refs: 0, effects: new Set() }
+    const record = { id, method, options, context, actualCompletion: completion, lease: options.conversationLease, root, refs: 0, effects: new Set() }
     records.set(id, record); hold(record, completion); admission.trackCompletion(record.lease, completion)
     completion.finally(() => {
       for (const source of record.observerSources?.values() ?? []) if (!source.finished) { source.finished = true; admission.finish(source.source) }

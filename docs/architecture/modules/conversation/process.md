@@ -138,3 +138,32 @@ Epiの正式handoffにより新conversation-process.mjsとprobe-conversation-run
 quiesce制御は第三timeout省略時だけ0で、controllerの明示残時間は尊重する。caller期限は実completionを解放せず、共通controllerが残60秒を実待機全体へ適用する。新wrapperのreadyはprotocol1と実state互換7値を検証、固定source/catalogの検証はruntime公開prepareModuleRelease('conversation',...)へ委ねる。
 
 無引数probeはrootによる固定C起動だけを許し、子UID/GID1001/env空/advanced IPC。Centi/Epiが事前配置した作者probe-fixtureの表示snapshotでrestore→ready→resume→quiesce→exit→既OS/IPC/pipe closeを確認する。作用effect/eventは拒否、実SDK/席0、人工state配置や本番root変更をprobe自身で行わない。失敗はprobe子を回収し実closeまで待つ。成功はbellteam.conversation.runtime-probe.v1/互換7値/childClosed/externalEffects0だけを返す。
+
+## 会話固有の親effects adapter
+
+モリー00:39 JSTの正式移管により、`src/conversation-parent-effects.mjs`の`createConversationParentEffects({getServices,observerEffects,onExecution})`はN102が所有する。親共通の組立て・HTTP/MCP・ledger・旧writer撤去はモリー、gate/画像read/FDの機構はエピネル、native claim/finishは実transportの既所有を維持する。
+
+```mermaid
+flowchart TD
+  RPC[親channel attach / beforeSendの同RPC実completion] --> Captured[親専用enriched context / actualCompletion]
+  Captured --> Adapter[会話の閉effect検証 / context同identity]
+  Adapter --> Members[bots.refresh / 同operationContext / 表示5field]
+  Adapter --> Usage[同conversationUsage.dispatch]
+  Adapter --> Observer[既observer-parent / 同poll source]
+  Adapter --> Execution[固定onExecution / native処理をDI]
+  Adapter --> Room[親固定roomsRoot / 既roomTurnsFromThroughline]
+  Adapter --> Begin[既asset gate.beginSave / opaque lease]
+  RPC --> Track[begin ACK前にgate.trackCompletion]
+  Begin --> Track
+  Track --> Read[同gate・同RPC handle / 既SeatRuntime.readImage 25MiB]
+  Read --> End[endSaveはrequestedだけを返す]
+  End --> Drain[同RPC実completion・実readの終端後だけgate解放]
+```
+
+親`getServices()`は`bots`、`conversationUsage`、`conversationAssetGate`、`conversationCompletion(context)`、`seatRuntime`、`roomsRoot`を同実体で供給する。membersはfresh ACK後の同期表示snapshotからid/name/displayName/position/roleだけを射影する。usage/observer/onExecutionへは元enriched contextをそのまま渡す。任意methodやroomのprojectPath/CLI/envは閉DTOで拒否し、roomのprojectPathには親固定roomsRootだけを補う。実room-context runnerとその失敗意味は既公開helperが持つ。
+
+channelのattachは送信試行前に受け取った実`completion`をrecord.actualCompletionへ保存し、同Promiseを親enriched context.actualCompletionへ渡す。wire root4field/callback5fieldは変更しない。共通assemblyのconversationCompletionはその親fieldをPromise検査して返し、欠測はbegin作用前に拒否する。同leaseの別RPC、caller返却Promise、end ACK、新deferredへ代用しない。
+
+画像wire handleは同enriched context identityへ束縛し、その時点のgate/runtimeを保持する。clone/別RPC/別generationはlookup後の実gate assert前にも拒否する。readの実Promiseも実read開始前にgateへ登録する。endSaveの実終端PromiseはACKでawaitせず、成功終端後にhandleを破棄する。子がendSaveを送れなかった場合も同RPC実completionのsettleだけを契機に終了要請し、切断や期限から成功resolveを作らない。gateの実pending/削除drain/OS終端契約は変更しない。
+
+直接試験は`test/conversation-parent-effects.test.mjs`と`test/conversation-ipc.test.mjs`の親保存接点。fresh射影・閉委譲・同context・元Promise identity・begin ACK前追跡・end requested中の未終端保持・別source handle拒否を確認する。親全assembly/HTTP/MCP/実C/native/署名/本番の成立は別工程である。

@@ -11,6 +11,7 @@ import { createConversationDispatcher } from '../src/conversation/dispatcher.mjs
 import { ConversationLifetimes } from '../src/conversation-lifetimes.mjs'
 import { createConversationObserverParentEffects } from '../src/conversation/observer-parent.mjs'
 import { createConversationPeer } from '../src/conversation-channel.mjs'
+import { createConversationParentEffects } from '../src/conversation-parent-effects.mjs'
 
 function pair() {
   const endpoints = [new EventEmitter(), new EventEmitter()]
@@ -79,6 +80,37 @@ async function setup(t, { effect = () => {}, dispatcher: factory = createConvers
   }
   return { root, fixture, parent, child, dispatcher, admission, lease, request, calls, native, operationContext, admissionCheck, endpoints, closed, diagnostics }
 }
+
+test('parent save effect receives the same RPC actualCompletion before begin and retains it beyond requested end', { timeout: 4000 }, async t => {
+  let adapter, request, h, ended = false, resultDone = false
+  const notification = Promise.withResolvers(), gateDone = Promise.withResolvers(), endStarted = Promise.withResolvers(), tracked = [], opaque = {}
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+y6xkAAAAASUVORK5CYII=', 'base64')
+  h = await setup(t, { effect: (method, params, context) => adapter(method, params, context) })
+  const services = {
+    bots: { refresh: value => assert.equal(value, h.operationContext), values: () => h.fixture.bots },
+    conversationCompletion: context => { assert.equal(context.actualCompletion, request.completion); return context.actualCompletion },
+    conversationAssetGate: {
+      beginSave: (owner, value) => { assert.equal(owner, h.fixture.bots[0].id); assert.equal(value, h.operationContext); return opaque },
+      trackCompletion: (lease, actual) => { assert.equal(lease, opaque); tracked.push(actual) },
+      assertSave: (lease, owner, value) => { assert.equal(lease, opaque); assert.equal(owner, h.fixture.bots[0].id); assert.equal(value, h.operationContext) },
+      endSave: lease => { assert.equal(lease, opaque); ended = true; endStarted.resolve(); return gateDone.promise },
+    },
+    seatRuntime: { readImage: () => { assert.equal(tracked[0], request.completion); assert.equal(tracked.length, 2); return png } },
+    conversationUsage: { dispatch: async method => { assert.equal(method, 'usage.notify.direct'); await notification.promise; return { accepted: true } } },
+  }
+  adapter = createConversationParentEffects({ getServices: () => services, onExecution: method => {
+    assert.equal(method, 'execution.assertAccess'); return { allowed: true }
+  } })
+  request = h.request('direct.post', { from: h.fixture.bots[0].id, target: 'user', message: 'image', images: [{ mime: 'image/png', data: png.toString('base64') }] })
+  request.completion.then(() => { resultDone = true })
+  await endStarted.promise
+  assert.equal(ended, true); assert.equal(resultDone, false)
+  const calls = h.calls.filter(call => call.method.startsWith('assets.') || call.method === 'runtime.image.read')
+  assert.equal(calls.length, 3)
+  assert(calls.every(call => call.context === calls[0].context && call.context.actualCompletion === request.completion))
+  notification.resolve(); await request; await request.completion
+  assert.equal(resultDone, true); gateDone.resolve()
+})
 
 test('real channel envelopes keep parallel per-call authority and same opaque operation identities', { timeout: 4000 }, async t => {
   const h = await setup(t)
