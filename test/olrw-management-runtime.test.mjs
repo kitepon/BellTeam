@@ -1,3 +1,4 @@
+import { createSyntheticNotificationsProcess } from './helpers/notifications-process.mjs'
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -28,7 +29,7 @@ test('通常カードの先回答があっても実runtimeの公開/内部受付
   let clientCloses = 0
   const runtime = await createApplicationRuntime({ root, appRoot: fileURLToPath(new URL('../', import.meta.url)), home: join(root, 'home'),
     environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0' },
-    bootstrap: { bots, settings, ownerProfile, userRules, refreshGlobalInstructions: async () => {},
+    bootstrap: { createNotificationsProcess: createSyntheticNotificationsProcess, bots, settings, ownerProfile, userRules, refreshGlobalInstructions: async () => {},
       aiterm: { command: 'synthetic-aiterm', args: [] },
       olrwManagement: { plan: { questionId: item.id, requesterBotId: 'synthetic', question: item.question, options: item.options, answer: 'yes' },
         assertAuthorized: () => assert.fail('preanswered must not read authorization'),

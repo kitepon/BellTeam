@@ -1,3 +1,4 @@
+import { createSyntheticNotificationsProcess } from './helpers/notifications-process.mjs'
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { createServer, request as httpRequest } from 'node:http'
@@ -28,7 +29,7 @@ test('公開受付の終了・kill・起動失敗から業務実行を止めず�
   let clientClosed = 0, turns = 0
   const runtime = await createApplicationRuntime({ root, appRoot, home: join(root, 'home'),
     environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0' },
-    bootstrap: { bots, settings, ownerProfile, userRules, aiterm: { command: 'synthetic', args: ['/synthetic/native.js', '--execution-interrupt'] }, refreshGlobalInstructions: async () => {} },
+    bootstrap: { createNotificationsProcess: createSyntheticNotificationsProcess, bots, settings, ownerProfile, userRules, aiterm: { command: 'synthetic', args: ['/synthetic/native.js', '--execution-interrupt'] }, refreshGlobalInstructions: async () => {} },
     client: { async call() { return { content: [{ type: 'text', text: '(セッション無し)' }] } }, async close() { clientClosed++ } },
   })
   t.after(async () => { await runtime.close().catch(() => {}); await rm(root, { recursive: true, force: true }) })

@@ -1,3 +1,4 @@
+import { createSyntheticNotificationsProcess } from './helpers/notifications-process.mjs'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { once } from 'node:events'
@@ -31,7 +32,7 @@ test('監視開始に失敗した本体は取得済み監視と機能のsocket�
   let clientClosed = 0
   const runtime = await createApplicationRuntime({ root, appRoot, home,
     environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0', BELLTEAM_CALL_BRIDGE_SOCKET: socketPath },
-    bootstrap: { bots, settings, ownerProfile, userRules,
+    bootstrap: { createNotificationsProcess: createSyntheticNotificationsProcess, bots, settings, ownerProfile, userRules,
       aiterm: { command: 'synthetic-aiterm', args: ['/synthetic/native.js', '--execution-interrupt'] },
       refreshGlobalInstructions: async () => {} },
     client: { async close() { clientClosed++ } },
@@ -69,7 +70,7 @@ test('実HTTP終了のwatch例外を呼出元へ返し、後続の資源も解�
   let clientClosed = 0, notificationsClosed = 0, failure
   const runtime = await createApplicationRuntime({ root, appRoot, home,
     environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0', BELLTEAM_CALL_BRIDGE_SOCKET: socketPath },
-    bootstrap: { bots, settings, ownerProfile, userRules,
+    bootstrap: { createNotificationsProcess: createSyntheticNotificationsProcess, bots, settings, ownerProfile, userRules,
       aiterm: { command: 'synthetic-aiterm', args: ['/synthetic/native.js', '--execution-interrupt'] },
       refreshGlobalInstructions: async () => {} },
     client: { async call() { return { content: [{ type: 'text', text: '(セッション無し)' }] } }, async close() { clientClosed++ } },
@@ -138,7 +139,7 @@ test('隔離した本体を組み立て、公開/内部API・設定通知・終�
   let refreshes = 0
   const runtime = await createApplicationRuntime({ root, appRoot, home,
     environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0', BELLTEAM_CALL_BRIDGE_SOCKET: socketPath },
-    bootstrap: { bots, settings, ownerProfile, userRules, aiterm: { command: 'synthetic-aiterm', args: ['/synthetic/native.js', '--execution-interrupt'] }, refreshGlobalInstructions: async () => { refreshes++ } },
+    bootstrap: { createNotificationsProcess: createSyntheticNotificationsProcess, bots, settings, ownerProfile, userRules, aiterm: { command: 'synthetic-aiterm', args: ['/synthetic/native.js', '--execution-interrupt'] }, refreshGlobalInstructions: async () => { refreshes++ } },
     client: { async call(name) {
       calls.push(name)
       return { content: [{ type: 'text', text: '(セッション無し)' }], _meta: { 'aiterm/seat_turns': { schema: 'aiterm.seat-turns.v1', seats: [] } } }

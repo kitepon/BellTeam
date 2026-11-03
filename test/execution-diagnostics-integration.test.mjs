@@ -1,3 +1,4 @@
+import { createSyntheticNotificationsProcess } from './helpers/notifications-process.mjs'
 import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -16,7 +17,7 @@ test('同じサービス組立てのモデル拒否と追跡失敗が共通診�
   const bots = new Map([[bot.id, bot]])
   bots.previewUpdate = async (id, changes) => ({ ...bots.get(id), ...changes })
   bots.update = async (id, changes) => { const next = { ...bots.get(id), ...changes }; bots.set(id, next); return next }
-  const services = await createApplicationServices({ root, bots, environment: {},
+  const services = await createApplicationServices({ createNotificationsProcess: createSyntheticNotificationsProcess, root, bots, environment: {},
     client: { async close() {} }, settings: {}, refreshGlobalInstructions: async () => {} })
   t.after(() => services.notifications.close())
   services.transport.isRunning = async () => true

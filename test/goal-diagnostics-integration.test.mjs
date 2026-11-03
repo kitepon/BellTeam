@@ -1,3 +1,4 @@
+import { createSyntheticNotificationsProcess } from './helpers/notifications-process.mjs'
 import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -8,7 +9,7 @@ import { createApplicationServices } from '../src/application-services.mjs'
 test('組立てたGoalは読取と変更の失敗を記録し、元の未確認結果を返す', async t => {
   const root = await mkdtemp(join(tmpdir(), 'bt-goal-diag-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  const services = await createApplicationServices({ root, bots: new Map(), environment: {},
+  const services = await createApplicationServices({ createNotificationsProcess: createSyntheticNotificationsProcess, root, bots: new Map(), environment: {},
     client: { async close() {} }, settings: {}, refreshGlobalInstructions: async () => {} })
   t.after(() => services.notifications.close())
   const launch = 'a'.repeat(32), bot = { id: 'synthetic-bot', session: 'synthetic-seat' }

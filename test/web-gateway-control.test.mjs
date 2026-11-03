@@ -1,3 +1,4 @@
+import { createSyntheticNotificationsProcess } from './helpers/notifications-process.mjs'
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
@@ -64,7 +65,7 @@ test('実公開受付の202後に同port交換し、短い業務drain/保存/旧
   let clientCloses = 0, modelCalls = 0
   const runtime = await createApplicationRuntime({ root, appRoot, home: join(root, 'home'),
     environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0' },
-    bootstrap: { bots, settings, ownerProfile, userRules, refreshGlobalInstructions: async () => {},
+    bootstrap: { createNotificationsProcess: createSyntheticNotificationsProcess, bots, settings, ownerProfile, userRules, refreshGlobalInstructions: async () => {},
       aiterm: { command: 'synthetic-aiterm', args: [] }, prepareGatewayRelease: async id => releases.get(id),
       models: { list: async () => { modelCalls++; entered.resolve(); return business.promise } } },
     client: { async call() { return { content: [{ type: 'text', text: '(セッション無し)' }] } }, async close() { clientCloses++ } },
