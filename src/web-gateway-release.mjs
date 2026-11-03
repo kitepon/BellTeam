@@ -18,13 +18,19 @@ const version = value => {
 
 // This checks content compatibility only; it never authenticates an unsigned manifest.
 export function validateGatewayReleaseManifest(manifest) {
+  return validateManifest(manifest, 'web-gateway')
+}
+
+function validateManifest(manifest, component) {
+  const notifications = component === 'notifications'
   if (!exactKeys(manifest, 'schema,component,sourceCommit,entry,runtime,files')
-    || manifest.schema !== 'bellteam.web-gateway.artifact.v1' || manifest.component !== 'web-gateway'
-    || !source.test(manifest.sourceCommit) || manifest.entry !== 'payload/src/http-gateway-entry.mjs'
-    || !exactKeys(manifest.runtime, 'os,arch,nodeMajor,parentProtocol')
+    || manifest.schema !== `bellteam.${component}.artifact.v1` || manifest.component !== component
+    || !source.test(manifest.sourceCommit) || manifest.entry !== (notifications ? 'payload/src/notifications-entry.mjs' : 'payload/src/http-gateway-entry.mjs')
+    || !exactKeys(manifest.runtime, notifications ? 'os,arch,nodeMajor,parentProtocol,stateSchema' : 'os,arch,nodeMajor,parentProtocol')
     || manifest.runtime.os !== process.platform
     || manifest.runtime.arch !== ({ x64: 'amd64', arm64: 'arm64' })[process.arch]
     || manifest.runtime.nodeMajor !== 26 || Number(process.versions.node.split('.')[0]) !== 26
+    || notifications && manifest.runtime.stateSchema !== 1
     || manifest.runtime.parentProtocol !== 1 || !Array.isArray(manifest.files) || !manifest.files.length)
     throw failure('GATEWAY_RELEASE_INCOMPATIBLE')
   const names = new Set()
@@ -36,7 +42,7 @@ export function validateGatewayReleaseManifest(manifest) {
       || typeof file.sha256 !== 'string' || !digest.test(file.sha256)) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
     names.add(file.path)
   }
-  for (const required of [manifest.entry, 'payload/package.json', 'payload/package-lock.json', 'payload/web/assets.mjs'])
+  for (const required of [manifest.entry, 'payload/package.json', 'payload/package-lock.json', ...(notifications ? [] : ['payload/web/assets.mjs'])])
     if (!names.has(required)) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
   return manifest
 }
@@ -57,25 +63,29 @@ async function rootFile(path) {
 }
 
 // Only root's authenticated installer publishes installation.json; this reader writes nothing.
-export async function prepareGatewayRelease(versionId, { signal } = {}) {
+export function prepareGatewayRelease(versionId, options) { return prepareRelease('web-gateway', versionId, options) }
+export function prepareNotificationsRelease(versionId, options) { return prepareRelease('notifications', versionId, options) }
+export function validateNotificationsReleaseManifest(manifest) { return validateManifest(manifest, 'notifications') }
+
+async function prepareRelease(component, versionId, { signal } = {}) {
   version(versionId)
   signal?.throwIfAborted()
   let directory = controlRoot
   await rootDirectory(directory)
-  for (const part of ['web-gateway', 'releases', versionId]) {
+  for (const part of [component, 'releases', versionId]) {
     directory = join(directory, part)
     await rootDirectory(directory, part === versionId)
   }
   const installation = json(await rootFile(join(directory, 'installation.json')))
   const bytes = await rootFile(join(directory, 'manifest.json'))
   if (!exactKeys(installation, 'schema,component,archiveSha256,manifestSha256,sourceCommit,verification')
-    || installation.schema !== 'bellteam.web-gateway.installation.v1'
-    || installation.component !== 'web-gateway' || installation.archiveSha256 !== versionId
+    || installation.schema !== `bellteam.${component}.installation.v1`
+    || installation.component !== component || installation.archiveSha256 !== versionId
     || installation.manifestSha256 !== sha256(bytes)
     || !exactKeys(installation.verification, 'method,repositoryId')
     || installation.verification.method !== 'github-oidc-attestation'
     || installation.verification.repositoryId !== '1404510084') throw failure('GATEWAY_RELEASE_INSTALLATION_INVALID')
-  const manifest = validateGatewayReleaseManifest(json(bytes))
+  const manifest = validateManifest(json(bytes), component)
   if (installation.sourceCommit !== manifest.sourceCommit) throw failure('GATEWAY_RELEASE_INSTALLATION_INVALID')
   const inventory = new Map(manifest.files.map(file => [file.path, file]))
   const found = new Set()
@@ -99,5 +109,5 @@ export async function prepareGatewayRelease(versionId, { signal } = {}) {
   await inspect('payload')
   if (found.size !== inventory.size) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
   signal?.throwIfAborted()
-  return { versionId, appRoot: join(directory, 'payload'), protocolVersion: 1 }
+  return { versionId, appRoot: join(directory, 'payload'), protocolVersion: 1, ...(component === 'notifications' ? { stateSchema: 1 } : {}) }
 }

@@ -81,6 +81,14 @@
     "scripts/install-web-gateway-release.py",
     "src/web-gateway-install-plan.mjs",
     "scripts/cleanup-deploy-images.py",
-    "src/http-gateway-process.mjs"
+    "src/http-gateway-process.mjs",
+    "scripts/notifications-start.c",
+    "scripts/probe-notifications-runtime.mjs",
+    "src/notifications-ipc.mjs",
+    "src/notifications-locks.mjs",
+    "src/notifications-process.mjs",
+    "src/notifications-release.mjs",
+    "src/notifications-install-plan.mjs",
+    "scripts/install-notifications-release.py"
   ]
 }

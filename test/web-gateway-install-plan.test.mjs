@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import test from 'node:test'
+import { notificationsInstallPlan } from '../src/notifications-install-plan.mjs'
 import { webGatewayInstallPlan } from '../src/web-gateway-install-plan.mjs'
 const execute = promisify(execFile)
 const image = 'sha256:' + 'a'.repeat(64), cid = 'b'.repeat(64)
@@ -68,7 +69,7 @@ elif a[0]=='compose' and 'config' in a: print(Path(os.environ['FIXTURE_NORMAL'])
 elif a[0]=='run':
  p=subprocess.run([os.environ['FIXTURE_NODE'],os.environ['FIXTURE_PLAN']],input=sys.stdin.buffer.read());sys.exit(p.returncode)
 elif a[0]=='compose' and 'run' in a:
- model=json.loads(Path(a[a.index('-f')+1]).read_text());assert model['services']['web-gateway-install']['entrypoint'][-1]=='/app/scripts/install-web-gateway-release.py'
+ model=json.loads(Path(a[a.index('-f')+1]).read_text());assert model['services'][os.environ['FIXTURE_COMPONENT']+'-install']['entrypoint'][-1]=='/app/scripts/install-'+os.environ['FIXTURE_COMPONENT']+'-release.py'
  assert a[-3:]==['${'c'.repeat(64)}','${'d'.repeat(40)}','${'e'.repeat(40)}']
  print('{"fixturePlacementOnly":true}')
 else:sys.exit(91)
@@ -76,12 +77,23 @@ else:sys.exit(91)
   // The dedicated helper invocation is observed; no root process or signature success is simulated.
   await writeFile(join(root,'install.sh'),await readFile(new URL('../distribution/server/install.sh',import.meta.url)))
   const script=join(root,'install.sh')
-  const env={...process.env,PATH:bin+':'+process.env.PATH,FIXTURE_LOG:log,FIXTURE_CURRENT:join(root,'current.json'),FIXTURE_NORMAL:join(saved,'normal.json'),FIXTURE_NODE:process.execPath,FIXTURE_PLAN:plan}
+  const env={...process.env,PATH:bin+':'+process.env.PATH,FIXTURE_LOG:log,FIXTURE_CURRENT:join(root,'current.json'),FIXTURE_NORMAL:join(saved,'normal.json'),FIXTURE_NODE:process.execPath,FIXTURE_PLAN:plan,FIXTURE_COMPONENT:'web-gateway'}
   await execute('sh',[script,'--install-web-gateway',saved,'c'.repeat(64),'d'.repeat(40),'e'.repeat(40)],{cwd:root,env})
+  await execute('sh',[script,'--install-notifications',saved,'c'.repeat(64),'d'.repeat(40),'e'.repeat(40)],{cwd:root,env:{...env,FIXTURE_COMPONENT:'notifications',FIXTURE_PLAN:new URL('../src/notifications-install-plan.mjs',import.meta.url).pathname}})
   const commands=(await readFile(log,'utf8')).trim().split('\n').map(JSON.parse)
   assert.ok(commands.some(a=>a[0]==='compose'&&a.includes('web-gateway-install')))
+  assert.ok(commands.some(a=>a[0]==='compose'&&a.includes('notifications-install')))
   for(const a of commands)assert.ok(!a.some(v=>['stop','restart','up','update','rm','pull','exec'].includes(v)),JSON.stringify(a))
   assert.ok(commands.some(a=>a[0]==='run'&&a.includes('--pull')&&a.includes('never')))
   const inspection=commands.filter(a=>a[0]==='container').map(a=>a[a.indexOf('--format')+1]).join('\n')
   assert.doesNotMatch(inspection,/Config.Env/)
+})
+
+test('notification install reuses exact mount checks but selects only its fixed helper and incoming',()=>{
+ const {normal,current}=fixture(),model=notificationsInstallPlan(normal,current),s=model.services['notifications-install']
+ assert.equal(s.entrypoint.at(-1),'/app/scripts/install-notifications-release.py')
+ assert.equal(s.volumes[0].source,'/installation/runtime/notifications-incoming')
+ assert.equal(s.volumes[0].target,'/srv/bellteam-notifications-incoming')
+ assert.equal(s.volumes[0].read_only,true)
+ current.mounts[2].RW=true;assert.throws(()=>notificationsInstallPlan(normal,current))
 })

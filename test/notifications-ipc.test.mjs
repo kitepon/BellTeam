@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import test from 'node:test'
-import { createNotificationsParentChannel } from '../src/notifications-ipc.mjs'
+import { createNotificationsParentChannel, waitNotificationsChildClose } from '../src/notifications-ipc.mjs'
 const fixture = new URL('./fixtures/notifications-runtime-child.mjs', import.meta.url).pathname
 async function start(t, options = {}) {
   const child = spawn(process.execPath, [fixture, 'builtin', options.mode ?? ''], { env: {}, stdio: ['ignore','ignore','pipe','ipc'] })
-  const ended = once(child, 'close')
+  const ended = waitNotificationsChildClose(child).then(({code,signal})=>[code,signal])
   const channel = createNotificationsParentChannel(child, options)
   t.after(async () => { child.kill('SIGKILL'); await ended; channel.dispose() })
   await channel.control('initialize', {configuration:{enabled:false,relayUrl:''}})
@@ -44,4 +44,15 @@ test('quiesce waits for accepted work, and resume cancels a stale quiesce before
   await work
   await rejected
   assert.deepEqual(await channel.request('status',{}),{configured:false,environments:[]})
+})
+
+test('parent disconnect drains an accepted operation before child exit',async t=>{
+ const {channel,child,ended}=await start(t)
+ await channel.control('resume')
+ const work=channel.request('register',{token:'still-saving',delay:120})
+ const failed=assert.rejects(work,{outcome:'unknown'})
+ // A later request establishes that the delayed operation has already been admitted.
+ await channel.request('status',{})
+ const at=Date.now();child.disconnect();await failed
+ assert.deepEqual(await ended,[0,null]);assert.ok(Date.now()-at>=75)
 })
