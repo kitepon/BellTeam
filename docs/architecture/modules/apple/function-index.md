@@ -8,6 +8,8 @@ PR2で移した6型の所在と行番号は、実装の固定source `e82f12aa536
 
 PR3の入力・添付・会話画像と会話ファイルに残る定義の所在は、固定source `8ca67462304a059f1ee7a335b9d939a19ec6870e` からの配置変更を反映している。
 
+PR4の再起動操作と二つのcallback、直接試験は、固定source `22d56bfeb20263ee2e51ca0830a213ae6cb6aedf` からの変更を反映している。ビルド・試験は未実行。
+
 ## Core/Models.swift
 
 ファイル：[Models.swift](../../../../ios/BellBot/BellBot/Core/Models.swift)。値の所有と適用先は[状態図](state-and-sync.md)。
@@ -47,7 +49,7 @@ PR3の入力・添付・会話画像と会話ファイルに残る定義の所�
 | [ImagePayload / SendMessageBody](../../../../ios/BellBot/BellBot/Core/Models.swift#L492) | 本文・画像・ルーム宛先の送信body |
 | [SecretRequest / SecretRequestResponse](../../../../ios/BellBot/BellBot/Core/Models.swift#L503) | 秘密入力要求の状態と結果 |
 | [OwnerQuestion / OwnerAnswerBody / OwnerQuestionResponse](../../../../ios/BellBot/BellBot/Core/Models.swift#L516) | 選択質問・回答要求・結果 |
-| [EmptyBody](../../../../ios/BellBot/BellBot/Core/Models.swift#L533) | ConversationDetailViewとDesktopInspectorの再起動要求の空JSON値 |
+| [EmptyBody](../../../../ios/BellBot/BellBot/Core/Models.swift#L533) | AppStore.restartConversationの再起動要求の空JSON値 |
 
 ## Core/AppStore.swift
 
@@ -79,41 +81,42 @@ PR3の入力・添付・会話画像と会話ファイルに残る定義の所�
 | [startGuide](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L373) | 初回開始POST、ready確認 |
 | [enterConversations](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L382) | 一覧取得・ready・SSE/購読/通知接続 |
 | [authorizeAIUse](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L394) | 初期guideと購読によるAI利用照会 |
-| [activateNotifications](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L401) | APIと署名取引を通知singletonへ |
-| [refresh](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L405) | 4資源と画像の取得・一括適用 |
-| [withResolvedBotAvatars](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L424) | Bot名簿の画像解決要求を作る |
-| [withResolvedRoomAvatars](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L437) | Room名簿の画像解決要求を作る |
-| [withResolvedOwnerAvatar](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L450) | Ownerの画像解決 |
-| [applyFetchedQueue](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L459) | runningのBot ID集合を適用 |
-| [storeBotAvatarsIfChanged](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L464) | 通知用共有cacheの差分保存 |
-| [resolveAvatars](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L483) | 画像要求を並列解決 |
-| [immediateAvatar](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L498) | inline・空version・前回値の利用 |
-| [avatar](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L507) | Botディスクcacheまたは画像GET |
-| [requestRefreshFromEvent()](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L515) | 全資源の更新要求 |
-| [requestRefreshFromEvent(resources:)](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L519) | 資源集合をまとめ、現在取得後にも処理 |
-| [applySavedRoom](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L534) | 保存応答を一覧へ、recentは前値保持 |
-| [requestBotDeletion](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L543) | DELETE受付とpending ID |
-| [confirmBotDeletion](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L548) | 成功した一覧読取で消失確認 |
-| [applyFetchedBots](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L555) | 名簿適用・削除済みの選択とdraft整理 |
-| [deleteRoom](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L571) | DELETE成功後にApple状態を削除 |
-| [applyDeletedRoom](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L576) | ルーム一覧・選択・draftを削除 |
-| [refreshFromView](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L582) | 表示用の取得・エラー・購読確認 |
-| [getForEvent](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L600) | 必要な資源だけGET |
-| [refreshResourcesFromEvent](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L606) | 対象資源取得・画像解決・適用 |
-| [updateConnectionError](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L640) | SSE、読取、通知の順にエラーを選ぶ |
-| [sceneChanged](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L645) | foregroundの読取・再接続、background停止 |
-| [startEvents](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L678) | SSE分岐、再接続、失敗の表示と診断 |
-| [applyTargetedEvent](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L751) | topic/IDから画面通知と再取得資源へ |
-| [stopEvents](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L774) | SSEと更新task・保留集合を破棄 |
-| [requireLogin()](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L782) | 通信停止・状態整理・認証画面へ |
-| [requireLogin(for:)](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L794) | Cloudflare判定と自動ログイン表示 |
-| [signOut](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L800) | draft/ページ/cookie/購読/通知の後始末 |
-| [openPendingNotification](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L822) | server照合・会話移動・秘密要求読取 |
-| [syncCookies](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L843) | 対象serverのCF_Authorizationを同期 |
-| [cookieBelongsToServer](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L855) | cookie domain照合 |
-| [HTTPCookie.isExpired](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L863) | cookie期限判定 |
-| [WKHTTPCookieStore.allCookies](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L867) | callback読取をasyncへ |
-| [WKHTTPCookieStore.deleteCookie](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L873) | callback削除をasyncへ |
+| [restartConversation(target:)](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L401) | authorizeAIUse後にEmptyBodyをPOSTしてAPIAcknowledgementを受領。DesktopInspector.profileとConversationDetailView.bodyのonRestartが呼び、成功・失敗の画面処理は各callerに残す |
+| [activateNotifications](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L406) | APIと署名取引を通知singletonへ |
+| [refresh](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L410) | 4資源と画像の取得・一括適用 |
+| [withResolvedBotAvatars](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L429) | Bot名簿の画像解決要求を作る |
+| [withResolvedRoomAvatars](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L442) | Room名簿の画像解決要求を作る |
+| [withResolvedOwnerAvatar](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L455) | Ownerの画像解決 |
+| [applyFetchedQueue](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L464) | runningのBot ID集合を適用 |
+| [storeBotAvatarsIfChanged](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L469) | 通知用共有cacheの差分保存 |
+| [resolveAvatars](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L488) | 画像要求を並列解決 |
+| [immediateAvatar](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L503) | inline・空version・前回値の利用 |
+| [avatar](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L512) | Botディスクcacheまたは画像GET |
+| [requestRefreshFromEvent()](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L520) | 全資源の更新要求 |
+| [requestRefreshFromEvent(resources:)](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L524) | 資源集合をまとめ、現在取得後にも処理 |
+| [applySavedRoom](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L539) | 保存応答を一覧へ、recentは前値保持 |
+| [requestBotDeletion](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L548) | DELETE受付とpending ID |
+| [confirmBotDeletion](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L553) | 成功した一覧読取で消失確認 |
+| [applyFetchedBots](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L560) | 名簿適用・削除済みの選択とdraft整理 |
+| [deleteRoom](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L576) | DELETE成功後にApple状態を削除 |
+| [applyDeletedRoom](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L581) | ルーム一覧・選択・draftを削除 |
+| [refreshFromView](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L587) | 表示用の取得・エラー・購読確認 |
+| [getForEvent](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L605) | 必要な資源だけGET |
+| [refreshResourcesFromEvent](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L611) | 対象資源取得・画像解決・適用 |
+| [updateConnectionError](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L645) | SSE、読取、通知の順にエラーを選ぶ |
+| [sceneChanged](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L650) | foregroundの読取・再接続、background停止 |
+| [startEvents](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L683) | SSE分岐、再接続、失敗の表示と診断 |
+| [applyTargetedEvent](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L756) | topic/IDから画面通知と再取得資源へ |
+| [stopEvents](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L779) | SSEと更新task・保留集合を破棄 |
+| [requireLogin()](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L787) | 通信停止・状態整理・認証画面へ |
+| [requireLogin(for:)](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L799) | Cloudflare判定と自動ログイン表示 |
+| [signOut](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L805) | draft/ページ/cookie/購読/通知の後始末 |
+| [openPendingNotification](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L827) | server照合・会話移動・秘密要求読取 |
+| [syncCookies](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L848) | 対象serverのCF_Authorizationを同期 |
+| [cookieBelongsToServer](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L860) | cookie domain照合 |
+| [HTTPCookie.isExpired](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L868) | cookie期限判定 |
+| [WKHTTPCookieStore.allCookies](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L872) | callback読取をasyncへ |
+| [WKHTTPCookieStore.deleteCookie](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L878) | callback削除をasyncへ |
 
 ## Core/BellAPI.swift
 
@@ -192,8 +195,8 @@ PR3の入力・添付・会話画像と会話ファイルに残る定義の所�
 | [DesktopInspector.bot / room](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L266) | target.idで共通一覧を参照 |
 | [DesktopInspector.body](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L269) | 端末画面/プロフィール切替と画像sheet |
 | [profileSmallImageSize](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L289) | platform別のプロフィール画像寸法 |
-| [profile](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L297) | 参加者、画像・本文、再起動、編集を接続 |
-| [heading](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L359) | プロフィール見出し |
+| [profile](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L297) | 参加者、画像・本文、編集を接続。onRestartはAppStore.restartConversationを呼び、成功時error消去、失敗時operationFailureMessageと/restart・POST・.write診断 |
+| [heading](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L358) | プロフィール見出し |
 
 ## Views/ManagementView.swift
 
@@ -305,7 +308,7 @@ PR3の入力・添付・会話画像と会話ファイルに残る定義の所�
 | [BellBot/Views/AvatarCropEditor.swift](../../../../ios/BellBot/BellBot/Views/AvatarCropEditor.swift) | 切抜きdraft、drag/zoom/useImage、Mac sheet寸法 |
 | [BellBot/Views/AvatarImagePicker.swift](../../../../ios/BellBot/BellBot/Views/AvatarImagePicker.swift) | 写真/Macファイル、prepare/取消/lifetime、onSelect/onFailure |
 | [BellBot/Views/BotScreenView.swift](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift) | privateの[ScreenResponse](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L4) / [BotTerminalView](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L9)、internalの[BotTerminalTextView.show](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L33) / [BotScreenView](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L47)。[body](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L58) / [screenContent](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L86) / [refreshScreen](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L106)で端末snapshot取得・置換・読書位置保持 |
-| [BellBot/Views/ConversationDetailView.swift](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift) | internalの[ConversationDetailView](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift#L4)。[bot / room](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift#L13)を共通一覧から選び、[body](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift#L16)がプロフィール・再起動・編集/端末sheet・画像のStateObjectを所有 |
+| [BellBot/Views/ConversationDetailView.swift](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift) | internalの[ConversationDetailView](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift#L4)。[bot / room](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift#L13)を共通一覧から選び、[body](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift#L16)がプロフィール・再起動・編集/端末sheet・画像のStateObjectを所有。onRestartはAppStore.restartConversationを呼び、成功時dismiss、失敗時localizedDescriptionを表示 |
 | [BellBot/Views/ConversationImages.swift](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift) | internalの[ConversationGallery](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L5) / [MessageImages](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L11) / [MessageImageGallery](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L59)、privateの[AuthenticatedImage](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L146) / [conversationImageOrigin](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L186) / [ConversationImageCache](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L198)。[image](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L210) / [decode](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L246)で認証取得・共有・縮小復号 |
 | [BellBot/Views/ConversationInput.swift](../../../../ios/BellBot/BellBot/Views/ConversationInput.swift) | internalの[ConversationInput](../../../../ios/BellBot/BellBot/Views/ConversationInput.swift#L5)、privateの[MessageInput](../../../../ios/BellBot/BellBot/Views/ConversationInput.swift#L69)と[Coordinator](../../../../ios/BellBot/BellBot/Views/ConversationInput.swift#L123)、internalの[MessageTextView](../../../../ios/BellBot/BellBot/Views/ConversationInput.swift#L135)。入力同期・最大5行の寸法・Return/修飾キー・画像貼付け |
 | [BellBot/Views/ConversationList.swift](../../../../ios/BellBot/BellBot/Views/ConversationList.swift) | UITableView/DiffableDataSource/UIHostingConfiguration、Markdown先読み、過去取得要求、末尾/読書位置、rise/fade、Mac WheelScrollSmoother |
@@ -340,7 +343,7 @@ PR3の入力・添付・会話画像と会話ファイルに残る定義の所�
 | [AvatarImageTests.swift](../../../../ios/BellBot/BellBotTests/AvatarImageTests.swift) | lifetime、variant表示、ファイル読取、JPEG切抜き、旧crop復元 |
 | [BackgroundMessageSendTests.swift](../../../../ios/BellBot/BellBotTests/BackgroundMessageSendTests.swift) | 実行時間、成功/失敗/期限/拒否/caller取消と終了 |
 | [BellDiagnosticsTests.swift](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift) | 状態時計、診断参照、匿名化・route・復号context、予定不足、SSEParser/対象範囲、flushとcookie |
-| [BillingStoreTests.swift](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift) | 初回未確認・再確認、developer/本人権利、失敗・古い照会・restore重複 |
+| [BillingStoreTests.swift](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift) | 初回未確認・再確認、developer/本人権利、失敗・古い照会・restore重複。[restartConversation直接試験5関数](tests.md#billingstoretestsswift)は権限拒否・空JSON一回・POST失敗3種のError保持と非再送・初期guideのsetup再照会を検査 |
 | [BotSaveTests.swift](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift) | variant選択保持、画像だけの要求、保存GET照合（復号失敗のunconfirmedとcoding path保持を含む）、認証、fast、編集draft |
 | [BotStopTests.swift](../../../../ios/BellBot/BellBotTests/BotStopTests.swift) | 202/200の照合と未確認時の非再送 |
 | [BotTerminalTextViewTests.swift](../../../../ios/BellBot/BellBotTests/BotTerminalTextViewTests.swift) | 端末画面置換と読書位置・末尾追従 |

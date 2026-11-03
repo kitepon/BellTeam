@@ -112,7 +112,7 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 
 ### BillingStoreTests.swift
 
-対象：購読と本人権利。補助型も同じファイルを読んだ。
+対象：購読と本人権利、PR4の`AppStore.restartConversation(target:)`直接呼出し。補助型も同じファイルを読んだ。PR4の追加5関数とfixture拡張は固定source `22d56bfeb20263ee2e51ca0830a213ae6cb6aedf` からの変更で、ビルド・試験は未実行。
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
@@ -132,6 +132,13 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testStoppingAnOldCheckDoesNotOverwriteTheNewConnection](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L197) | stop前の旧照会は新しいactiveを上書きしない |
 | [testFailedCheckDoesNotReportNoSubscription](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L222) | Apple照会失敗はunavailable、checking解除 |
 | [testRestoreKeepsCheckingThroughAuthenticationAndPreventsOverlap](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L232) | 復元の認証待ち全体をcheckingとし、復元/権利照会の重複を抑止 |
+| [testRestartConversationDeniedAccessDoesNotPost](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L261) | 本体subscription・本人権利なしは権限確認のErrorを返し、再起動POST0件 |
+| [testRestartConversationAuthorizedPostsEmptyJSONOnceToTarget](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L283) | 注入した本人権利の確認後、Bot/ルームそれぞれの正しいpathへ空JSONのPOST一回だけ |
+| [testRestartConversationPostFailuresPreserveErrorsWithoutRetry](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L306) | POSTのtimeoutはURLError.timedOut、401はBellAPIError.unauthorized、不正JSONはDecodingError.dataCorruptedを保持し、各POST一回で再送・refreshなし |
+| [testRestartConversationInitialGuideRefreshesSetupBeforePost](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L339) | 保持中complete=trueからGET setupでfalseへ更新したguideは本人権利照会を免除。setup GET→restart POSTの順序 |
+| [testRestartConversationCompletedGuideRequiresPaidAccessAfterSetupRefresh](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L357) | 保持中complete=falseでもGET setupがtrueなら本人権利を照会。権利なしで拒否しPOST0件 |
+
+二つの画面の成功・失敗処理は[再起動図](settings-and-profile.md#再起動の共有操作)を参照。Mac実画面用の`profile-terminal-ui-server.mjs`は未変更で、購読・再起動route・要求記録を追加する必要がある。失敗文言と診断一回、再操作成功時のerror消去・inspector保持は未確認。
 
 ### BotSaveTests.swift
 
@@ -717,7 +724,7 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 | AIControlProtocol | 受付/unconfirmed/保存失敗/応答喪失とGET件数・paused値。sessionをinvalidate |
 | BackgroundMessageSendTests.ExecutionTime | begin/end/expireを注入、実OS枠の試験は別関数 |
 | ServerErrorProtocol | status/headerを注入して診断参照を検査 |
-| BillingScenario / BillingProtocol | 本体GET成功/timeout列、Apple権利/復元はclosure/continuation注入。sessionとstatic scenarioを解除 |
+| BillingScenario / BillingProtocol | 有限の応答列。本体GET subscription成功/timeoutに、GET setupのguide・complete、再起動POSTの200空JSON/timeout/401/不正JSONを追加。method/path/bodyを記録し、Protocolは指定statusを返す。Apple権利/復元は既存closure/continuation注入。sessionとstatic scenarioを解除 |
 | SaveFixture / SaveProtocol | PATCH適用前後切断、GET失敗/401、bodyをmerge。画像/設定照合と診断を確認。session/static fixtureを解除 |
 | BotStopProtocol | ID別に202/200/502/404/不正応答/切断。POST body無し・要求回数を記録 |
 | DelayedForegroundGETs / Protocol | 4GETを保留し開始/取消/次回期待値。finishAll・SSE停止・session/static fixture解除 |

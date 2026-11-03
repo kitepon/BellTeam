@@ -117,16 +117,31 @@ flowchart TD
 | saveBotAvatarSelection / confirmBotAvatarSelection（`Core/BellAPI+BotSettings.swift:4,24`） | PATCH成功はsaved。networkConnectionLost/timedOutだけGET照合へ。確認は対象3項目だけ。GET認証以外の失敗はunconfirmed |
 | saveImage / confirmImageSave | 選択の一致をfinishで検査。saved/confirmedなら選択を除去し名簿refresh。不一致・不明は選択を保持して結果確認/破棄を表示。確認操作自体はPATCHしない |
 | discardImageSelection | 対象variantだけdraftとerrorを消す。サーバー変更はしない |
-| BotProfileAISection / BotProfileDetails | 共通のAI表示・操作callbackとプロフィール本文。再起動通信自体は呼出画面が持つ |
+| BotProfileAISection / BotProfileDetails | 共通のAI表示・操作callbackとプロフィール本文。再起動callbackは各画面が持ち、利用権限確認とPOSTはAppStore.restartConversationへ渡す |
 
 `saveImage`は成功結果を受けてpending選択を除去した後に一覧をrefreshする。refreshだけ失敗した場合は「画像を保存しましたが、表示を更新できませんでした」と別表示する。認証失敗では選択を保持してrequireLogin。`confirmImageSave`も確認成功と表示更新を別段階で扱う。
 
 プロフィール本文・AI設定のメンバー編集は[BotEditor](members-and-rooms.md#メンバーdraftモデル候補画像)へ接続する。Owner/ルーム画像のdraftと、メンバー画像のvariant別未確認選択を同じ保存方式とは記述しない。
 
+## 再起動の共有操作
+
+```mermaid
+flowchart TD
+  Desktop["DesktopInspector.profile<br/>onRestartのTask"] --> Restart["AppStore.restartConversation(target:)<br/>Core/AppStore.swift:401"]
+  Detail["ConversationDetailView.body<br/>onRestartのTask"] --> Restart
+  Restart --> Access["authorizeAIUse(target:)<br/>購読・初期guideの確認"]
+  Access --> Post["BellAPI.post<br/>POST target.path + /restart・EmptyBody"]
+  Post --> Ack["APIAcknowledgement受領<br/>呼出画面へ戻る"]
+```
+
+利用権限確認またはPOSTのErrorはそのまま画面へ返す。Desktopは成功時に`errorText=nil`、失敗時に`operationFailureMessage`と`target.path + "/restart"`・POST・`.write`の診断を一回送る。詳細は成功時にdismiss、失敗時に`localizedDescription`だけを表示する。共通操作はUI状態・画面遷移・診断・refresh・再送を持たず、ackを再起動完了とは扱わない。
+
+直接試験は[BillingStoreTestsの再起動5関数](tests.md#billingstoretestsswift)に対応する。Mac実画面用fixtureの購読・再起動応答と要求記録はこの段階では追加していない。
+
 ## 整理候補
 
 - **A-P1**：`ios/BellBot/BellBot/Views/SettingsView.swift:277`。ProfileEditor.saveがOwner PATCH、規範PUT、共通一覧refresh、エラー表示と診断を一つの関数で持つ。loadはuser-rulesをGETするが診断pathには`/api/owner`を渡す（同:267,272）。
-- **A-P2**：`ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift:323`と`ios/BellBot/BellBot/Views/ConversationView.swift:1572`。同じBotProfileAISectionの再起動callbackを各画面が持ち、authorizeAIUseとrestart POSTをそれぞれ実装する。成功時は前者がerrorTextを消し、後者が詳細を閉じる。
+- **A-P2（PR4反映済み）**：`ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift:323`と`ios/BellBot/BellBot/Views/ConversationDetailView.swift:43`。同じBotProfileAISectionの再起動callbackから`AppStore.restartConversation(target:)`を呼ぶ。成功・失敗後の画面処理は各callbackに残す。
 - **A-P3**：`ios/BellBot/BellBot/Views/BotProfileComponents.swift:16,22,34`と`ios/BellBot/BellBot/Core/AppStore.swift:86`。variant別の画像選択をBotProfileImageState.pendingSelectionsとAppStore.profileImageDraftsの両方で保持し、loadDrafts/persistImageSelectionsで受け渡す。
 
 ## 未調査
