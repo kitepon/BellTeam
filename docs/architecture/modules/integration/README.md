@@ -367,7 +367,7 @@ flowchart LR
 既watchQueueのSSE接続を再利用し二重watch無し。summaryを新たに読むことで正規AI/auth/Goalや設定発行へ到達しない。Apple実装の順序はOwner指定の全体受入後で、本schema供給から先行実装の許可へ拡張しない。
 
 
-## conversation導入の親一括予約（未組立て）
+## conversationの親一括予約と派生reportの短命準備
 
 ```mermaid
 flowchart LR
@@ -381,19 +381,22 @@ flowchart LR
   Channel --> Effect[逆effectに同identity / wireには渡さない]
   Effect --> Facade
   Done[要求終端 finish] --> Completion[各gateの登録済み実completionは保持]
+  Context --> Report[元会話lifetimeの固定派生report]
+  Report --> Fresh[新members通常入場 / fresh本人・stop確認]
+  Fresh --> Accepted[native受付まで同短命lease / 実AIは元会話lifetime]
   Replace[両module replace] --> Mutex[同module-exchange-mutex / 非queue busy拒否]
 ```
 
-横断正本はRoot conversation-update-contract-20261103.md v1。`createModuleOperationContext({membersAdmission,conversationAdmission})`の`reserve()`は作用前に両方を同期取得する。どちらかの拒否でcallerを実行せず、片leaseで他のroot枠を待たない。公開contextはfreezeした`{membersLease,conversationLease}`だが、同じ値のJSON/cloneは権限にならず、親WeakSetと各gateで同identity/liveを検証する。既members単独leaseから後付けで両予約を作らない。
+横断正本はRoot conversation-update-contract-20261103.md v1。`createModuleOperationContext({membersAdmission,conversationAdmission})`の`reserve()`は作用前に両方を同期取得する。どちらかの拒否でcallerを実行せず、片leaseで他のroot枠を待たない。公開contextはfreezeした`{membersLease,conversationLease}`だが、同じ値のJSON/cloneは権限にならず、親WeakSetと各gateで同identity/liveを検証する。親が認証済みmembers callerの既leaseを借用する場合は同identityを検証し、会話側の予約だけを所有する。子や外部DTOから借用leaseを生成しない。
 
 `assert(context)`は元objectを返す。`finish(context)`は両leaseへ一度だけ終了を要求し、送信前に各所有者がtrackCompletionした実終端を早期解放しない。`withContext(operation, context?)`は未指定時だけreserveし、同期例外/Promise成功・失敗の終端で所有予約をfinishする。既contextなら入場/finish追加0。削除202の背景処理は明示reserve→背景実終端finally finishを使い、HTTP finishでは解放しない。通常会話の短いmembers準備をこの両予約でAI完走まで延長しない。
 
 親facadeは各controllerへ`options.operationContext`に同objectを渡す。runtimeが親enriched reverse-effectへ同参照を保持し、wireにはlease objectを出さない。各所有者がそのmoduleのlease/lifetimeを検証し、必要な跨module effectだけ元予約を共通assertで照合する。N102の安定Room facade第2引数とBelorta callerはこの元contextを伝搬する。body/actor/任意propertyから予約を補わない。
 
-`createModuleExchangeMutex().runExclusive(operation)`は交換だけの一実体。競合は固定MODULE_EXCHANGE_BUSY/409/not_accepted/not_startedで未実行としqueueを作らず、例外でも解放する。両runtime controllerへ同instanceを渡す接続は作者供給後。これら単独helperをconversation子/writer/bootstrap/長い配送lifetime成立としない。conversation gateのroot8slotと配送lifetime分離はexecution、channelと60秒drain/旧resume/OScloseはruntime、業務writerはconversationが持つ。
+`createModuleExchangeMutex().runExclusive(operation)`は交換だけの一実体。競合は固定MODULE_EXCHANGE_BUSY/409/not_accepted/not_startedで未実行としqueueを作らず、例外でも解放する。両runtime controllerへ同instanceを渡し、prepare前から交換実終端まで保持する。conversation gateのroot8slotと配送lifetime分離はexecution、channelと60秒drain/旧resume/OScloseはruntime、業務writerはconversationが持つ。
 
 
-親予約のconversation側はexecutionの`ConversationLifetimes`一実体へ結合する。root8creditと違い、このgateはAI lifetimeの8上限を持たない。新結合試験ではmembers準備をfinishしてmembers drainが完了した後も、登録済みconversation delivery callbackだけは旧世代で通り、callback実終端までconversation drainがbusyとなる。members leaseをAI完走まで延ばさず、両方必要な新effectは再び通常の両入場を確認する。実channel/長いnative jobへの接続は作者後続であり、この単体合成で完成を補完しない。
+親予約のconversation側はexecutionの`ConversationLifetimes`一実体へ結合する。root8creditと違い、このgateはAI lifetimeの8上限を持たない。members準備をfinishしてmembers drainが完了した後も、登録済みconversation delivery callbackは旧世代で通り、callback実終端までconversation drainがbusyとなる。派生reportは元conversation lease/source/delivery/operationContextを保持し、終了済みmembersLeaseを再使用しない。既transport.membersAdmission.withLeaseでreport専用の短命members予約を新規取得し、fresh本人確認からnative受付まで同leaseを渡す。閉鎖中は通常拒否し、自動再発行しない。これによりmembersの8枠をAI完走まで占有せず、新しい会話rootも作らない。実C/署名/本番の成立は配布原本で別に確認する。
 
 ## conversationの親actor捕捉（入口の配線前）
 
