@@ -185,7 +185,11 @@ if (mode === 'initialize') {
     checks.push({ target, generation: controller.snapshot().generation, adoption, durableSelectionReadBack: true,
       oldCloseBeforeRestore: true, readonlyRestore: true, selected })
   }
-  const progress = stage => write(statusPath, { phase: 'starting', stage, events })
+  const progress = async stage => {
+    await write(statusPath + '.tmp', { phase: 'starting', stage, checks, events, busyCases,
+      controller: controller?.snapshot(), lifetimeChecks: lifetime.snapshot() })
+    await rename(statusPath + '.tmp', statusPath)
+  }
   try {
     await progress('application-create')
     runtime = await createApplicationRuntime({ root, appRoot: '/app', home: '/home/bell',
@@ -213,13 +217,17 @@ if (mode === 'initialize') {
     const release = `/run/bellteam-maintenance/conversation/releases/${ids.b}`
     assert.equal(JSON.parse(await readFile(`${release}/manifest.json`, 'utf8')).sourceCommit, ids.source)
     await assert.rejects(writeFile(`${release}/payload/src/conversation-entry.mjs`, 'x'), error => ['EROFS', 'EACCES'].includes(error.code))
-    await replace(ids.b); await fixture.exercise({ runtime, label: 'signed', versionId: ids.b })
-    await publish('b-active'); await command('return-a'); await replace('builtin')
+    await progress('adopt-signed'); await replace(ids.b); await fixture.exercise({ runtime, label: 'signed', versionId: ids.b })
+    await publish('b-active'); await command('return-a')
+    await progress('return-builtin'); await replace('builtin')
+    await progress('preserve-builtin-return')
     await fixture.exercise({ runtime, label: 'builtin-return', versionId: 'builtin' })
     for (const kind of ['ai', 'callback', 'report']) {
+      await progress('hold-' + kind)
       const held = await lifetime.hold(kind), before = controller.snapshot(), count = children.length
       const child = await identity(children.at(-1).pid), started = performance.now()
       let elapsed
+      await progress('drain-' + kind)
       try {
         await assert.rejects(controller.replace(ids.b), { code: 'CONVERSATION_DRAIN_TIMEOUT' })
         elapsed = performance.now() - started
@@ -228,11 +236,12 @@ if (mode === 'initialize') {
         assert.equal(controller.snapshot().generation, before.generation); assert.equal(controller.snapshot().available, true)
         assert.equal(controller.snapshot().currentVersionId, before.currentVersionId)
         await held.assertResumed()
-      } finally { await held.release() }
+      } finally { await progress('release-' + kind); await held.release() }
       busyCases.push({ kind, elapsedMilliseconds: elapsed, generation: before.generation,
         sameChildIdentity: true, noNewChild: true, oldResumed: true, actualRootDoneBeforeNext: true })
     }
-    await replace(ids.b); await replace('builtin')
+    await progress('final-adopt-signed'); await replace(ids.b)
+    await progress('final-return-builtin'); await replace('builtin')
     readonlyRestoreVerified = businessVerified = true
     await publish('done'); await command('finish')
     const completed = lifetime.snapshot()
