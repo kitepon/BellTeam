@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createExecutionDispatcher, EXECUTION_METHODS } from '../src/execution-dispatcher.mjs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { MembersAdmission } from '../src/members-admission.mjs'
 
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
@@ -8,6 +11,8 @@ const tick = () => new Promise(resolve => setImmediate(resolve))
 const bot = { id: 'bot-synthetic', session: 'bot-synthetic', harness: 'codex', project: '/synthetic' }
 const request = (method, ...args) => ({ method, args })
 async function fixture(t, nativeCall, { handoff, generation = 'first', waitProcess = async () => ({ outcome: 'done', turn_id: 'turn' }), continuation } = {}) {
+  const storageRoot = await mkdtemp(join(tmpdir(), 'execution-factory-'))
+  t.after(() => rm(storageRoot, { recursive: true, force: true }))
   const bots = new Map([[bot.id, bot]]), calls = []
   bots.refresh = async () => {}
   let closes = 0
@@ -21,7 +26,7 @@ async function fixture(t, nativeCall, { handoff, generation = 'first', waitProce
     if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: 'synthetic answer', turn_id: 'turn' } }
     throw Error(`unexpected ${name}`)
   }, async close() { closes++ } }, bots, rooms: {}, membersAdmission: new MembersAdmission(),
-    configurationIntents: { pending: async () => [] }, access: { assertWorkAllowed() {} },
+    configurationStorage: { root: join(storageRoot, 'intents'), ownerUid: process.getuid() }, access: { assertWorkAllowed() {} },
     seat: { waitProcess },
     observer: { report() {} }, diagnostics: { record() {} }, ...(continuation ? { continuation } : {}) }
   const engine = createExecutionDispatcher({ generation, ports, handoff })

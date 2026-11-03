@@ -1,5 +1,6 @@
 import { createManagedTransport } from './aiterm-transport.mjs'
 import { BotAdministration } from './bot-administration.mjs'
+import { ConfigurationIntents } from './configuration-intents.mjs'
 import { ConfigurationRequests } from './configuration-requests.mjs'
 import { BotGoals } from './bot-goals.mjs'
 import { SeatTurns } from './seat-turns.mjs'
@@ -25,17 +26,18 @@ export const EXECUTION_METHODS = Object.freeze({
   dispatch: Object.freeze(Object.entries(asyncMethods).flatMap(([owner, names]) => names.map(name => `${owner}.${name}`))),
   project: Object.freeze(Object.entries(syncMethods).flatMap(([owner, names]) => names.map(name => `${owner}.${name}`))),
 })
-const portNames = ['native', 'membersAdmission', 'conversationAdmission', 'bots', 'rooms', 'configurationIntents',
+const portNames = ['native', 'membersAdmission', 'conversationAdmission', 'bots', 'rooms', 'configurationStorage',
   'access', 'storage', 'seat', 'observer', 'diagnostics', 'continuation']
 
 // This module and every relative engine import belong to the same fixed bundle.
 export function createExecutionDispatcher({ generation, ports, handoff = null }) {
   if (typeof generation !== 'string' || !generation || !ports || Object.keys(ports).some(key => !portNames.includes(key))
-    || !ports.native || !ports.membersAdmission || !ports.bots || !ports.rooms || !ports.configurationIntents
+    || !ports.native || !ports.membersAdmission || !ports.bots || !ports.rooms || !ports.configurationStorage
     || typeof ports.access?.assertWorkAllowed !== 'function') throw failure('EXECUTION_PORTS_INVALID')
   if (handoff && (handoff.stateCompatibility !== COMPATIBILITY || handoff.generation === generation
     || typeof handoff.generation !== 'string')) throw failure('EXECUTION_STATE_INCOMPATIBLE')
   const groups = {
+    configurationStorage: ['root', 'trustedAnchor', 'ownerUid'],
     access: ['assertWorkAllowed', 'admitWork', 'requireMember', 'requireAccess'],
     storage: ['prepareStartup', 'updateSession', 'updateFastMode'],
     seat: ['waitProcess', 'handoffContext', 'writeTemporaryImage', 'removeTemporaryImage', 'tempRoot'],
@@ -64,7 +66,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null })
   }
   native.connect = (...args) => { alive(); return track(ports.native.connect(...args)) }
   native.close = async () => {} // The host owns the shared SDK and native PTYs.
-  const requests = new ConfigurationRequests({ client: native, intents: ports.configurationIntents })
+  const { root, ...storageOptions } = ports.configurationStorage
+  const requests = new ConfigurationRequests({ client: native, intents: new ConfigurationIntents(root, storageOptions) })
   const transport = createManagedTransport({
     ...ports.seat, ...ports.storage,
     client: native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
