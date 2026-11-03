@@ -157,8 +157,14 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
     } catch (error) { await killUnadmitted(instance); state('unavailable'); throw error }
   })
   const request = (method, params, options = {}) => {
-    if (!instance || !options.membersLease && (!available || exchanging || closed)) return Promise.reject(fail('MEMBERS_NOT_ACCEPTING'))
-    try { return membersAdmission.withLease(lease => instance.channel.request(method, params, { ...options, membersLease: lease }), { lease: options.membersLease }) }
+    if (!instance || !options.membersLease && !options.membersReadPin && (!available || exchanging || closed)) return Promise.reject(fail('MEMBERS_NOT_ACCEPTING'))
+    try {
+      if (options.membersReadPin) {
+        membersAdmission.assertReadPin(options.membersReadPin, { method })
+        return instance.channel.request(method, params, options)
+      }
+      return membersAdmission.withLease(lease => instance.channel.request(method, params, { ...options, membersLease: lease }), { lease: options.membersLease })
+    }
     catch (error) { return Promise.reject(error) }
   }
   const callback = (method, params, options = {}) => {

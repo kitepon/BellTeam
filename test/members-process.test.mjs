@@ -6,9 +6,10 @@ import { syncBuiltinESMExports } from 'node:module'
 import { join } from 'node:path'
 import { createMembersProcess } from '../src/members-process.mjs'
 import { MEMBERS_STATE_COMPATIBILITY } from '../src/members/state-compatibility.mjs'
+import { MembersAdmission } from '../src/members-admission.mjs'
 
 const a = 'a'.repeat(64), bad = 'b'.repeat(64), hang = 'c'.repeat(64)
-async function setup(t, { mode = '', prepare = async () => {} } = {}) {
+async function setup(t, { mode = '', prepare = async () => {}, membersAdmission } = {}) {
   const root = await mkdtemp(join(process.cwd(), '.members-controller-')), children = [], generations = []
   await mkdir(join(root, 'state/bots'), { recursive: true }); await mkdir(join(root, 'owner'))
   await writeFile(join(root, 'state/bots/.initialized'), '')
@@ -28,7 +29,7 @@ async function setup(t, { mode = '', prepare = async () => {} } = {}) {
     children.push(child); return child
   })
   syncBuiltinESMExports()
-  const controller = createMembersProcess({ root, onGeneration: value => generations.push(value),
+  const controller = createMembersProcess({ root, membersAdmission, onGeneration: value => generations.push(value),
     prepareRelease: async (versionId, options) => { await prepare(versionId, options); return { versionId,
       appRoot: `/run/bellteam-maintenance/members/releases/${versionId}/payload`, protocolVersion: 1,
       stateCompatibility: MEMBERS_STATE_COMPATIBILITY, sourceCommit: 'e'.repeat(40), platform: { os: 'linux', arch: 'amd64' } } } })
@@ -41,6 +42,16 @@ async function setup(t, { mode = '', prepare = async () => {} } = {}) {
   })
   return { root, controller, children, generations }
 }
+
+test('controller routes a method pin through actual IPC while all AI lease slots are occupied', async t => {
+  const gate = new MembersAdmission(), x = await setup(t, { membersAdmission: gate })
+  await x.controller.start()
+  const leases = Array.from({ length: 8 }, () => gate.enter()), pin = gate.enterReadPin('owner.read')
+  await assert.rejects(x.controller.request('owner.read', {}), { code: 'MEMBERS_NOT_ACCEPTED' })
+  assert.equal((await x.controller.request('owner.read', {}, { membersReadPin: pin })).owner.name, 'fixture')
+  gate.finishReadPin(pin); leases.forEach(lease => gate.finish(lease))
+  await x.controller.close()
+})
 
 test('fixed builtin/archive/builtin controller preserves state and one writer after every OS close', async t => {
   const x = await setup(t); const before = await readFile(join(x.root, 'owner/profile.json'))
