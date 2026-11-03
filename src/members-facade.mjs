@@ -3,13 +3,13 @@ import { validateMembersResult } from './members/protocol.mjs'
 // Request/callback are the same live controller's closed public channel methods.
 export function createMembersFacade({ request, callback, admission, projection }) {
   const invoke = (method, params, context = {}) => admission.withLease(async membersLease => {
-    const result = await request(method, params, { membersLease, capturedAuthorization: context.capturedAuthorization })
+    const result = await request(method, params, { membersLease, capturedAuthorization: context.capturedAuthorization, membersEffect: context.membersEffect })
     validateMembersResult(method, result)
     return result
   }, { lease: context.membersLease })
   const save = async (method, params, context) => {
     const membersLease = admission.assertLease(context?.membersLease)
-    const result = await callback(method, params, { membersLease })
+    const result = await callback(method, params, { membersLease, membersEffect: context.membersEffect })
     validateMembersResult(method, result)
     return result.bot
   }

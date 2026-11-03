@@ -18,14 +18,15 @@ function fixture() {
   return { ...facade, admission, calls }
 }
 test('fresh refresh and persistence keep the old opaque lease during closure, new roots reject', async () => {
-  const f = fixture(), lease = f.admission.enter(), ticket = f.admission.close()
+  const f = fixture(), lease = f.admission.enter(), ticket = f.admission.close(), membersEffect = Object.freeze({})
   let enters = 0
   const enter = f.admission.enter.bind(f.admission)
   f.admission.enter = (...args) => { enters++; return enter(...args) }
   assert.equal((await f.bots.refresh({ membersLease: lease }))[0].name, 'test')
-  await f.bots.updateSession(bot.id, 'next', { membersLease: lease })
+  await f.bots.updateSession(bot.id, 'next', { membersLease: lease, membersEffect })
   await f.bots.updateFastMode(bot.id, false, { membersLease: lease })
   assert.equal(enters, 0); assert.ok(f.calls.every(call => call.context.membersLease === lease))
+  assert.equal(f.calls[1].context.membersEffect, membersEffect)
   f.admission.assertLease(lease)
   await assert.rejects(f.bots.refresh(), { status: 503 })
   await assert.rejects(f.bots.updateSession(bot.id, 'next'), { status: 503 })
