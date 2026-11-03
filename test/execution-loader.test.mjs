@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { mkdtemp, mkdir, copyFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { createExecutionFactoryLoader } from '../src/execution-loader.mjs'
 import { validateExecutionReleaseManifest, prepareExecutionRelease } from '../src/web-gateway-release.mjs'
 
@@ -79,4 +85,21 @@ test('invalid and cancelled installed reads stop before importing the builtin bu
   await assert.rejects(prepareExecutionRelease('../x'), /VERSION_INVALID/)
   const abort = new AbortController(); abort.abort()
   await assert.rejects(prepareExecutionRelease(sha, { signal: abort.signal }), { name: 'AbortError' })
+})
+
+test('execution loader imports without uninstalled usage and diagnostics business modules', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'execution-loader-base-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  for (const folder of ['', 'members', 'memory']) await mkdir(join(root, 'src', folder), { recursive: true })
+  for (const name of ['execution-loader.mjs', 'web-gateway-release.mjs', 'module-release.mjs',
+    'members/state-compatibility.mjs', 'memory/state-compatibility.mjs', 'memory-search.mjs'])
+    await copyFile(new URL('../src/' + name, import.meta.url), join(root, 'src', name))
+  const source = `import {createExecutionFactoryLoader} from ${JSON.stringify(pathToFileURL(join(root, 'src/execution-loader.mjs')).href)};
+import {validateModuleReleaseManifest} from ${JSON.stringify(pathToFileURL(join(root, 'src/module-release.mjs')).href)};
+const load=createExecutionFactoryLoader({builtinIdentity:async()=>${JSON.stringify(sourceCommit)},importFactory:async()=>({EXECUTION_STATE_COMPATIBILITY:${JSON.stringify(state)},createExecutionDispatcher:()=>({})})});
+const result=await load();if(result.sourceCommit!==${JSON.stringify(sourceCommit)})throw new Error('identity');
+try{validateModuleReleaseManifest('other',{})}catch(error){if(error.code!=='MODULE_RELEASE_COMPONENT_INVALID')throw error}
+console.log('loaded');`
+  const result = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', source], { env: {} })
+  assert.equal(result.stdout.trim(), 'loaded')
 })

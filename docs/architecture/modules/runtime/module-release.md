@@ -18,6 +18,8 @@ flowchart LR
 
 manifestはP1/Node26/platform、実USAGE_STATE_COMPATIBILITY又はDIAGNOSTICS_STATE_COMPATIBILITYを完全一致検査し、entry・固有channel/dispatcher・共通IPC/stream/locksとpackage metadataを要求する。catalogの固定5key compatibility（stateSchema/containerUpdateはnull）をsource/platform/archiveへ結ぶ。validator通過は未署名shapeの確認にすぎず、認証はroot installerの別工程。
 
+各互換validatorはNode26の同期ESM読込で選択componentを検査する時だけ取得する。同期validateBusinessModuleManifest契約を保ち、executionや他componentのreader importを未導入usage/diagnostics業務へ依存させない。閉relative path以外をresolverへ渡さず、未導入の選択moduleは拒否する。
+
 `createDiagnosticsProcess({root,investigationsFile=null,onState,prepareRelease?,spawnProcess?})`は同作者createDiagnosticsParentChannel/validateDiagnosticsReadyへ直結し、共通start/request/replace/reserve/snapshot/closeを返す。notesは既親configだけ、固定Cの唯一env許可から同factoryへ。list配列/row/HTTP契約は変更しない。初回writer lockは固定Cが準備済みstateでO_CREAT/no-follow/0600として取得し、既inode/owner不一致は拒否する。広いchown/chmodやlock削除を追加しない。
 
 `createUsageProcess`はroot/admission/bootstrap/authorizeActor、固定effect/private projectionの各親port、onGeneration/onStateを受ける。親live object/秘密を公開snapshotへ出さない。初回startはsettings seed/readyだけでphase=initializing/available=false、同admissionを閉じたまま返す。親が既順序でinitialize('subscriptions')、他module組立後initialize('services')、activate()を呼び、実resume ACK後だけ新rootを公開する。偽resume成功を作らない。交換のrestoreは同control一回で全stage/private snapshot ACKを終え、旧control('export')の実completion付き{handoff}をunwrapして渡す。

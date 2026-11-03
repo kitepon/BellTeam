@@ -2,13 +2,18 @@ import { constants } from 'node:fs'
 import { lstat, open, readdir } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
+import { createRequire } from 'node:module'
 import { assertMembersStateCompatibility } from './members/state-compatibility.mjs'
 import { assertMemoryStateCompatibility } from './memory/state-compatibility.mjs'
-import { assertUsageStateCompatibility } from './usage/state-compatibility.mjs'
-import { assertDiagnosticsStateCompatibility } from './diagnostics-protocol.mjs'
 
 const moduleEntries = Object.freeze({ usage: 'usage-entry', diagnostics: 'diagnostics-entry' })
-const moduleCompatibility = Object.freeze({ usage: assertUsageStateCompatibility, diagnostics: assertDiagnosticsStateCompatibility })
+const requireModule = createRequire(import.meta.url)
+export function assertBusinessModuleCompatibility(component, value) {
+  // Resolve only the selected module so independent installations remain loadable.
+  if (component === 'usage') return requireModule('./usage/state-compatibility.mjs').assertUsageStateCompatibility(value)
+  if (component === 'diagnostics') return requireModule('./diagnostics-protocol.mjs').assertDiagnosticsStateCompatibility(value)
+  throw failure('MODULE_RELEASE_COMPONENT_INVALID')
+}
 
 const controlRoot = '/run/bellteam-maintenance'
 const digest = /^[a-f0-9]{64}$/
@@ -46,7 +51,7 @@ function validateManifest(manifest, component, executionCompatibility) {
   if (execution) {
     if (typeof executionCompatibility !== 'string' || !executionCompatibility
       || manifest.runtime.stateCompatibility !== executionCompatibility) throw failure('EXECUTION_STATE_INCOMPATIBLE')
-  } else if (module) moduleCompatibility[component](manifest.runtime.stateCompatibility)
+  } else if (module) assertBusinessModuleCompatibility(component, manifest.runtime.stateCompatibility)
   const names = new Set()
   for (const file of manifest.files) {
     if (!exactKeys(file, 'path,bytes,sha256') || typeof file.path !== 'string'
