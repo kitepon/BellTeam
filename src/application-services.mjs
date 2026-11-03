@@ -1,3 +1,4 @@
+import { createConversationUsage } from './usage/conversation-effects.mjs'
 import { loadExecutionFactory } from './execution-loader.mjs'
 import { createExecutionAdoptionStore } from './execution-adoption.mjs'
 import { prepareExecutionRelease } from './web-gateway-release.mjs'
@@ -42,8 +43,8 @@ import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
-  let members = null, diagnosticsModule = null, execution = null, executionClient, memory, rooms, assets, updateCenter
+export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
+  let members = null, diagnosticsModule = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter
   const membersAdmission = new MembersAdmission()
   try {
   const trustedAnchor = acquireConfigurationStateAnchor(root)
@@ -65,7 +66,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   await diagnostics.initialize()
   if (seatRuntime || membersFactory) {
     members = createMembersAssembly({ root, seatRuntime, aiterm, settings, models, membersAdmission,
-      membersAuthorization, diagnostics, dependencies: () => ({ memory, rooms, assets }), onState: () => updateCenter?.notify(),
+      membersAuthorization, diagnostics, dependencies: () => ({ memory, rooms, assets, conversationAssembly }), onState: () => updateCenter?.notify(),
       ...(membersFactory ? { createProcess: membersFactory } : {}),
     })
     await members.controller.start()
@@ -116,16 +117,20 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     const frames = String(error.stack ?? '').split('\n').slice(1).filter(line => /^\s*at\s/u.test(line)).slice(0, 12)
     await diagnostics.record({ code: 'GOAL_OPERATION_UNCONFIRMED', module: 'goals', diagnostic_log: `${error.constructor.name}\n${frames.join('\n')}` })
   }
+  const conversationPorts = { bots, settings, seatRuntime, aiControl, conversationUsage: createConversationUsage({ settings, notifications }) }
+  if (conversationFactory) conversationAssembly = conversationFactory({ root, membersAdmission, getServices: () => conversationPorts,
+    onDiagnostic: report => diagnostics.record({ ...report, module: 'conversation' }), onState: () => updateCenter?.notify() })
   if (executionFactory) {
     const selection = adoptionFactory({ root }), selected = await selection.read()
     const queueListeners = new Set()
     execution = executionFactory({ ports: {
-      native: executionClient, membersAdmission, bots, rooms: { removeBot: (...args) => rooms.removeBot(...args) },
+      native: executionClient, membersAdmission, bots,
+      ...(conversationAssembly ? { conversationAdmission: conversationAssembly.admission, moduleOperations: conversationAssembly.moduleOperations } : {}), rooms: { removeBot: (...args) => rooms.removeBot(...args) },
       configurationStorage: { root: join(root, 'state/configuration-intents'), trustedAnchor },
       access: { assertWorkAllowed: () => aiControl.assertEnabled(), admitWork: () => aiControl.admit(), requireMember },
       storage: storagePorts, seat: seatPorts,
       diagnostics: { record: report => diagnostics.record(report), goalError },
-      observer: { appendInterimWords: (...args) => messenger.appendInterimWords(...args),
+      observer: { appendInterimWords: (...args) => conversationAssembly ? conversationAssembly.run({ kind: 'observer' }, () => messenger.appendInterimWords(...args)) : messenger.appendInterimWords(...args),
         emitQueue: async change => { await Promise.all([...queueListeners].map(listener => listener(change))) } },
       continuation: { models, harnessAuth: { status: harness => harnessAuth.status(harness, usageAssembly?.systemContext('auth.status')) },
         messenger: { sendmessage: (...args) => messenger.sendmessage(...args) } },
@@ -142,24 +147,43 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   if (!execution) await transport.restoreConfigurationRequests()
   const idleSessions = execution ? null : new IdleSessions({ bots, transport })
   const goals = execution?.goals ?? new BotGoals({ transport, admitWork: () => aiControl.admit(), reportError: goalError })
-  const conversation = createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime, seatObservation: !execution })
+  conversationPorts.transport = transport
+  if (conversationAssembly) await conversationAssembly.initialize()
+  const conversation = conversationAssembly ? { ...conversationAssembly.facade, assets: conversationAssembly.assets }
+    : createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime, seatObservation: !execution })
   const { store, messenger } = conversation
+  if (conversationAssembly) {
+    store.watch = listener => conversationAssembly.watch(listener)
+    conversation.rooms.watch = listener => conversationAssembly.watch(listener)
+  }
   assets = conversation.assets
   const onboarding = usage?.onboarding ?? new Onboarding({
     root, bots, client: transport.client, subscriptions,
     ...(seatRuntime ? { path: join(root, 'state/onboarding.json'), projectFiles: members ? {
       appendInstructions: (bot, text) => seatRuntime.membersProject('project.appendInstructions', { botId: bot.id, text }),
     } : seatRuntime.projectFiles } : {}),
-    startConversation: (bot, message) => messenger.enqueueUserTurn({ target: bot.id, message, recordUser: false }),
+    startConversation: (bot, message) => conversationAssembly ? conversationAssembly.run({ kind: 'onboarding', botId: bot.id }, () => messenger.enqueueUserTurn({ target: bot.id, message, recordUser: false })) : messenger.enqueueUserTurn({ target: bot.id, message, recordUser: false }),
   })
   await assets.initialize()
   if (!usageAssembly) await onboarding.initialize()
   const harnessAuth = usage?.harnessAuth ?? new HarnessAuth({ bots, client: transport.client })
-  const conversationServices = await conversation.initialize()
+  let pollTimer = null, pollWork = null
+  const pollConversation = () => {
+    if (!pollWork) {
+      const result = conversationAssembly.run({ kind: 'observer' }, () => conversationAssembly.facade.selfTurns.poll())
+      pollWork = result.completion ?? result
+      void pollWork.finally(() => { pollWork = null }).catch(() => {})
+    }
+    return pollWork
+  }
+  const conversationServices = conversationAssembly ? { rooms: conversation.rooms, roomMessenger: conversation.roomMessenger,
+    seatTurns: null, selfTurns: { start() { if (!pollTimer) { void pollConversation().catch(() => {}); pollTimer = setInterval(() => { void pollConversation().catch(() => {}) }, 5000) } },
+      async stop() { clearInterval(pollTimer); pollTimer = null; await pollWork } } } : await conversation.initialize()
   rooms = conversationServices.rooms
   const { selfTurns, seatTurns, roomMessenger } = conversationServices
   const scheduler = new BotScheduler({ registry: bots, messenger, transport, rooms, roomMessenger,
     membersAdmission: transport.membersAdmission,
+    ...(conversationAssembly ? { moduleOperations: { withContext: (operation, context) => conversationAssembly.run({ kind: 'scheduler' }, () => conversationAssembly.moduleOperations.withContext(operation, context)) } } : {}),
     admitWork: () => aiControl.admit(),
     ...(seatRuntime ? { completedTurns: project => completedThroughlineTurns(project, { seatCommands: true }),
       runCommand: request => runShellCommand(request, { seatProject: request.cwd }) } : {}),
@@ -169,7 +193,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   const characterSheets = seatRuntime ? seatRuntime.characterSheets(id => bots.projectPath(id))
     : new CharacterSheets({ projectPath: id => bots.projectPath(id) })
   // Bot設定変更・停止・削除の業務判断。公開APIと席MCPが同じ判断を使う。
-  const administration = execution?.administration ?? new BotAdministration({ bots, rooms, transport,
+  const administration = execution?.administration ?? new BotAdministration({ bots, rooms, transport, ...(conversationAssembly ? { moduleOperations: conversationAssembly.moduleOperations } : {}),
     reportError: report => diagnostics.record(report) })
   if (!execution) transport.continuation = new CapacityContinuation({ bots, administration, messenger, models, harnessAuth,
     assertEnabled: () => aiControl.assertEnabled() })
@@ -192,9 +216,9 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   const moduleCatalog = createModuleUpdateCatalog({ client: hostUpdateClient })
   const moduleExecutor = await createModuleUpdateExecutor({ root, catalog: moduleCatalog, host: hostUpdate,
     adapters: createModuleUpdateAdapters({ gateway, builtinSourceCommit, notifications, members, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule,
-      prepareDiagnostics, usage: usageAssembly?.controller, prepareUsage, execution: execution?.controller, prepareExecution }), notify: () => updateCenter?.notify() })
-  updateCenter = createUpdateCenter({ gateway, builtinSourceCommit, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule, usage: usageAssembly?.controller, execution: execution?.controller })
-  Object.assign(usageServices, { bots, rooms, transport, messenger, notifications, settings, updateCenter })
+      prepareDiagnostics, usage: usageAssembly?.controller, prepareUsage, conversation: conversationAssembly?.controller, prepareConversation: (versionId, options) => prepareModuleRelease('conversation', versionId, options), execution: execution?.controller, prepareExecution }), notify: () => updateCenter?.notify() })
+  updateCenter = createUpdateCenter({ gateway, builtinSourceCommit, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule, usage: usageAssembly?.controller, conversation: conversationAssembly?.controller, execution: execution?.controller })
+  Object.assign(usageServices, { bots, rooms, transport, messenger, notifications, settings, updateCenter, conversationAssembly })
   if (usageAssembly) await usageAssembly.initializeServices()
   if (execution) await execution.controller.start()
   let olrwAuthCaller = null
@@ -220,7 +244,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     try { await diagnostics.record({ code: 'OLRW_MANAGEMENT_UNAVAILABLE', module: 'integration' }) } catch {}
   }
   return {
-    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, membersAuthorization, members, usageAssembly, execution,
+    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, membersAuthorization, members, usageAssembly, conversationAssembly, execution,
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
@@ -229,7 +253,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   } catch (error) {
     const failures = []
     for (const close of [() => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
-      () => execution?.controller.close(), () => execution && executionClient?.close(),
+      () => conversationAssembly?.close(), () => execution?.controller.close(), () => execution && executionClient?.close(),
       () => members?.controller.close(), () => usageAssembly?.close(), () => diagnosticsModule?.close()]) {
       try { await close() } catch (cleanupError) { failures.push(cleanupError) }
     }

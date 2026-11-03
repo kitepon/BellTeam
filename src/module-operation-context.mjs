@@ -40,6 +40,6 @@ export function createModuleOperationContext({ membersAdmission, conversationAdm
     return Promise.resolve(result).finally(() => { if (owned) finish(current) })
   }
   return { reserve, assert, finish, withContext,
-    forMembers(lease) { const value = byMembers.get(lease); return value && !finished.has(value) ? assert(value) : null },
+    forMembers(lease) { const value = byMembers.get(lease); try { return value ? assert(value) : null } catch { return null } },
   }
 }

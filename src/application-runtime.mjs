@@ -33,6 +33,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     updateCenter: services.updateCenter,
     membersAuthorization: services.membersAuthorization,
     usageAssembly: services.usageAssembly,
+    conversationAssembly: services.conversationAssembly,
     ownerSecretGuide: input => olrwAuthCaller?.ownerSecretGuide(input) ?? null,
     aiControl,
     subscriptions,
@@ -61,7 +62,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
   }
   const internalPort = Number(environment.BELLTEAM_INTERNAL_PORT ?? 4181)
   const callBridgeHeaders = bootstrap.callBridgeHeaders ?? join(root, 'shared/tools/call-bridge/headers')
-  const features = createApplicationFeatures({ services, aiterm, home, callBridgeHeaders, environment, notify: data => server.notify(data),
+  const features = createApplicationFeatures({ services: services.conversationAssembly ? { ...services, messenger: { ...messenger, receiveCallBridge: (...args) => services.conversationAssembly.run({ kind: 'bridge' }, () => messenger.receiveCallBridge(...args)) } } : services, aiterm, home, callBridgeHeaders, environment, notify: data => server.notify(data),
     ...(services.usageAssembly ? { usageContext: method => services.usageAssembly.systemContext(method) } : {}),
     ...(bootstrap.seatRuntime ? { configureHarnessConfig: (bots, _home, { callBridge }) =>
       services.members ? transport.membersAdmission.withLease(membersLease =>
@@ -70,6 +71,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
   const server = createBellTeamServer({ ...serverOptions, authMode: features.authMode, authorize: features.authorize })
   const seatMcp = createSeatMcp({
     bots,
+    runTool: (from, operation) => services.conversationAssembly ? services.conversationAssembly.run({ kind: 'bot', botId: from }, operation) : operation(),
     toolsForSource: executionSource => ({ ...internalApi(internalPort, fetch, { executionSource }),
       currentWork: bot => transport.currentWork(bot),
       currentWorkBinding: bot => transport.currentWorkBinding(bot, executionSource),
@@ -128,7 +130,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         () => scheduler.stop(), () => idleSessions?.stop(), () => selfTurns.stop(), () => seatTurns?.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => features.close(),
         () => bootstrap.seatRuntime?.memoryModule?.close(),
-        () => transport.close(), () => services.execution && transport.client.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.usageAssembly?.close(), () => services.diagnosticsModule?.close(),
+        () => services.conversationAssembly?.close(), () => transport.close(), () => services.execution && transport.client.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.usageAssembly?.close(), () => services.diagnosticsModule?.close(),
         () => socketDirectory && rm(socketDirectory, { recursive: true, force: true }),
       ]) {
         try { await stop() } catch (error) { errors.push(error) }

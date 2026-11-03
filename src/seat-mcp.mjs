@@ -85,7 +85,7 @@ export function internalApi(port, request = fetch, { executionSource } = {}) {
 }
 
 // tools: callBellTeamTool へ渡す依存（台帳・配送・記憶など）。callBridge: () => ({ url, headersFile }) または null。
-export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), callBridge = () => null, assertWorkAllowed = () => {}, admitWork = () => assertWorkAllowed }) {
+export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runTool = (_from, operation) => operation(), callBridge = () => null, assertWorkAllowed = () => {}, admitWork = () => assertWorkAllowed }) {
   const relays = new Set()
   const handle = async (request, response, url) => {
     if (url.pathname !== BELLTEAM_MCP_PATH && url.pathname !== CALL_BRIDGE_MCP_PATH) return reply(response, 404, { error: 'NOT_FOUND' })
@@ -107,7 +107,7 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), callBr
     const server = new Server({ name: 'bellteam', version: '0.1.0' }, { capabilities: { tools: {} }, instructions: INSTRUCTIONS })
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: bellTeamTools }))
     server.setRequestHandler(CallToolRequestSchema, async call => {
-      try { return { content: [{ type: 'text', text: JSON.stringify(await callBellTeamTool({ ...scopedTools, name: call.params.name, arguments: call.params.arguments, from })) }] } }
+      try { return { content: [{ type: 'text', text: JSON.stringify(await runTool(from, () => callBellTeamTool({ ...scopedTools, name: call.params.name, arguments: call.params.arguments, from }))) }] } }
       catch (error) {
         if (call.params.name !== 'update_work_summary') throw error
         const code = Object.hasOwn(currentWorkErrors, error?.code) ? error.code : 'CURRENT_WORK_UNAVAILABLE'

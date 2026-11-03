@@ -1,3 +1,4 @@
+export { createConversationAssembly } from './conversation-assembly.mjs'
 import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -34,7 +35,12 @@ export const attachUsageServices = services => { usageServices = services }
 const usageEffects = createUsageParentEffects({ getServices: () => usageServices,
   getFeatures: () => ({ onChange: usageServices.settings?.onChange }), seatRuntime })
 export const usageAssembly = createUsageAssembly({ root, seatRuntime, getServices: () => usageServices,
-  onEffect: usageEffects, onState: () => usageServices.updateCenter?.notify(), environment: {
+  onEffect: (method, params, context) => {
+    const conversation = usageServices.conversationAssembly
+    const actor = method === 'onboarding.startConversation' ? { kind: 'onboarding', botId: params.botId }
+      : ['secret.completed', 'question.answered'].includes(method) ? { kind: 'usage', botId: params.botId, source: method === 'secret.completed' ? 'secret' : 'question' } : null
+    return conversation && actor ? conversation.run(actor, () => usageEffects(method, params, context), context) : usageEffects(method, params, context)
+  }, onState: () => usageServices.updateCenter?.notify(), environment: {
     ...process.env, BELLTEAM_CALL_BRIDGE_MCP_URL: process.env.BELLTEAM_CALL_BRIDGE_MCP_URL || defaultCallBridgeMcpUrl || '',
   } })
 await usageAssembly.initializeSettings()

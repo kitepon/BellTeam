@@ -42,7 +42,7 @@ export function createConversationParentChannel(child, { generation, admission, 
     if (!delivery && record.effectContext) return record.effectContext
     const value = Object.freeze({ ...record.context,
     rootMethod: (record.root ?? record).method, conversationLease: record.lease,
-    actualCompletion: record.actualCompletion,
+    actualCompletion: record.actualCompletion, executionSource: record.options.executionSource,
     ...(delivery ? { conversationDelivery: delivery } : {}),
     operationContext: record.options.operationContext, admissionCheck: record.options.admissionCheck })
     if (!delivery) record.effectContext = value

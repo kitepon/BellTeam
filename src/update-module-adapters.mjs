@@ -9,10 +9,10 @@ const source = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value
 const version = (id, builtin) => id ? { version: id, digest: `sha256:${id}`, sourceCommit: null, origin: 'release' }
   : source(builtin) ? { version: builtin, digest: null, sourceCommit: builtin, origin: 'builtin' } : null
 
-export function createModuleUpdateAdapters({ gateway, builtinSourceCommit = null, notifications, members, memory = null, diagnostics = null, prepareDiagnostics = null, usage = null, prepareUsage = null, execution = null, prepareExecution = prepareExecutionRelease,
-  prepare = { 'web-gateway': prepareGatewayRelease, notifications: prepareNotificationsRelease, members: prepareMembersRelease, memory: prepareMemoryRelease, execution: prepareExecution, ...(prepareDiagnostics ? { diagnostics: prepareDiagnostics } : {}), ...(prepareUsage ? { usage: prepareUsage } : {}) } }) {
+export function createModuleUpdateAdapters({ gateway, builtinSourceCommit = null, notifications, members, memory = null, diagnostics = null, prepareDiagnostics = null, usage = null, prepareUsage = null, execution = null, conversation = null, prepareConversation = null, prepareExecution = prepareExecutionRelease,
+  prepare = { 'web-gateway': prepareGatewayRelease, notifications: prepareNotificationsRelease, members: prepareMembersRelease, memory: prepareMemoryRelease, execution: prepareExecution, ...(prepareConversation ? { conversation: prepareConversation } : {}), ...(prepareDiagnostics ? { diagnostics: prepareDiagnostics } : {}), ...(prepareUsage ? { usage: prepareUsage } : {}) } }) {
   const result = { 'web-gateway': createWebGatewayUpdateAdapter({ gateway, builtinSourceCommit, prepare: prepare['web-gateway'] }) }
-  for (const [id, controller] of [['notifications', notifications?.controller], ['members', members?.controller], ['memory', memory], ['diagnostics', diagnostics], ['usage', usage], ['execution', execution]]) {
+  for (const [id, controller] of [['notifications', notifications?.controller], ['members', members?.controller], ['memory', memory], ['diagnostics', diagnostics], ['usage', usage], ['execution', execution], ['conversation', conversation]]) {
     if (!controller) continue
     const snapshot = () => controller.snapshot()
     const current = () => { const state = snapshot(); return version(state.currentVersionId, state.builtinSourceCommit) }
