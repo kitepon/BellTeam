@@ -107,7 +107,13 @@ sequenceDiagram
   Parent->>Endpoint: initialize generation/mode + private body marker
   Parent->>Stream: 同control IDのbootstrap/handoff body
   Stream->>Child: credit付きprivate body
-  Child->>Factory: settings/subscriptions/services又はrestore
+  alt initial parent startup
+    Child->>Factory: settings/subscriptions/services（既初期化）
+  else cold parent restart
+    Child->>Factory: read-only settings/subscriptions/services（handoff無し）
+  else hot swap
+    Child->>Factory: read-only restore（実handoff必須）
+  end
   Factory->>Endpoint: seed/update projection + private ACK
   Factory->>Stream: snapshot recordを一件ずつ
   Stream->>Parent: onSnapshotStart→accept→commit ACK
@@ -139,3 +145,6 @@ entryはverifyUsageLocks()を通過後、固定rootのdispatcher/factoryだけ�
 
 
 parent channelのdrainIncoming()は共通endpointへ直接委譲する。controllerは子OS/IPC/pipe終端→受信済み親effect/afterResult commitの実終端→reaped→次子の順を必須とする。outgoingのreaped待ちcredit/.completionはdrainIncomingに含めず、子終了後も残る親処理を待つために循環を作らない。wire/業務/8枠は変えない。
+
+
+cold parent restartは既adoptionと保存済diskを読み、settings({restore:true})→subscriptions→servicesをhandoff無しで初期化する。volatile stateは新規のまま、保存値/依頼/秘密値のbytesと形式を保持する。mode=restoreのhotswapは実private handoffを必須とする。認証開始・入力、設定apply、通知の再発行を初期化に加えない。runtimeのstartPaused/activateはEpiの責任で、親private seed後に段階初期化し、activateで実resume/同admissionを再開する。

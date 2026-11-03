@@ -72,7 +72,7 @@ export function createUsageChannelDispatcher({ root = '/srv/bellteam', effect, p
           if (stage !== 'settings' || Object.keys(params).sort().join(',') !== 'generation,mode') throw usageError('USAGE_INITIALIZATION_ORDER', 409)
           await emit(await services.initializeSubscriptions({ restore }), 'seed'); stage = 'subscriptions'
         } else {
-          if (stage !== 'subscriptions' || !keys(params, ['generation', 'mode'], ['handoff']) || restore && !params.handoff) throw usageError('USAGE_INITIALIZATION_ORDER', 409)
+          if (stage !== 'subscriptions' || !keys(params, ['generation', 'mode'], ['handoff'])) throw usageError('USAGE_INITIALIZATION_ORDER', 409)
           await services.initialize({ restore, handoff: params.handoff ?? null })
           for (const row of services.snapshot()) await emit(row, 'snapshot')
           stage = 'services'
