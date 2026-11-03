@@ -470,7 +470,7 @@ export class BotRegistry extends Map {
   async setSchedule(id, input) {
     await this.refresh()
     if (!this.has(id)) throw new Error(`BOT_NOT_FOUND: ${id}`)
-    return mutateSchedules(this, id, schedules => {
+    return this.#mutateProfile(id, () => mutateSchedules(this, id, schedules => {
       const existing = input.id ? schedules.find(item => item.id === input.id) : null
       if (input.id && !existing) throw new Error(`SCHEDULE_NOT_FOUND: ${input.id}`)
       const schedule = normalizeSchedule({
@@ -480,18 +480,18 @@ export class BotRegistry extends Map {
         revision: nextScheduleRevision(existing),
       }, this.now())
       return { schedules: existing ? schedules.map(item => item.id === schedule.id ? schedule : item) : [...schedules, schedule], value: schedule }
-    })
+    }))
   }
 
   async removeSchedule(id, scheduleId) {
-    return mutateSchedules(this, id, schedules => {
+    return this.#mutateProfile(id, () => mutateSchedules(this, id, schedules => {
       if (!schedules.some(item => item.id === scheduleId)) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
       return { schedules: schedules.filter(item => item.id !== scheduleId), value: true }
-    })
+    }))
   }
 
   async markScheduleRun(id, scheduleId, ranAt, { skipped = false, expectedRevision } = {}) {
-    return mutateSchedules(this, id, schedules => {
+    return this.#mutateProfile(id, () => mutateSchedules(this, id, schedules => {
       const current = schedules.find(item => item.id === scheduleId)
       if (expectedRevision !== undefined && (!current || scheduleRevision(current) !== expectedRevision)) return { value: current ?? null }
       if (!current) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
@@ -502,6 +502,31 @@ export class BotRegistry extends Map {
         lastRunAt: skipped ? current.lastRunAt : timestamp,
       }, new Date(timestamp))
       return { schedules: schedules.map(item => item.id === scheduleId ? updated : item), value: updated }
+    }))
+  }
+
+  claimDue(input) { return this.#consumeDue(input, false) }
+
+  skipDue(input) { return this.#consumeDue(input, true) }
+
+  async #consumeDue({ botId, scheduleId, expectedRevision, expectedNextRunAt, ranAt }, skipped) {
+    validateId(botId)
+    if (typeof scheduleId !== 'string' || !scheduleId || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0
+      || typeof expectedNextRunAt !== 'string' || !Number.isFinite(Date.parse(expectedNextRunAt))
+      || !(typeof ranAt === 'string' || ranAt instanceof Date) || !Number.isFinite(new Date(ranAt).getTime()))
+      throw registryError('SCHEDULE_CLAIM_INVALID')
+    const timestamp = new Date(ranAt).toISOString()
+    return this.#mutateProfile(botId, async () => {
+      await this.refresh()
+      if (!this.has(botId)) return null
+      return mutateSchedules(this, botId, schedules => {
+        const current = schedules.find(item => item.id === scheduleId)
+        if (!current || !current.enabled || scheduleRevision(current) !== expectedRevision
+          || current.nextRunAt !== expectedNextRunAt || Date.parse(expectedNextRunAt) > Date.parse(timestamp)) return { value: null }
+        const updated = normalizeSchedule({ ...current, enabled: current.kind === 'once' ? false : current.enabled,
+          lastRunAt: skipped ? current.lastRunAt : timestamp }, new Date(timestamp))
+        return { schedules: schedules.map(item => item.id === scheduleId ? updated : item), value: structuredClone(current) }
+      })
     })
   }
 
@@ -550,7 +575,7 @@ export class BotRegistry extends Map {
 
   async readScheduleDocument(id) {
     const path = join(this.statePath(id), 'schedule.json')
-    if (!await exists(path)) await writeAtomic(path, scheduleDocument([]))
+    if (!await exists(path)) return scheduleDocument([])
     const value = JSON.parse(await readFile(path, 'utf8'))
     if (value?.schema !== 'bellteam.schedule.v1' || !Array.isArray(value.schedules))
       throw new Error(`SCHEDULE_FILE_INVALID: ${id}`)

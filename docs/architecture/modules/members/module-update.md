@@ -23,6 +23,14 @@ flowchart LR
 
 `src/members/state-compatibility.mjs`の`MEMBERS_STATE_COMPATIBILITY`と`assertMembersStateCompatibility(value)`は既形式6key/valueのexact宣言/検証。宣言一致は実state検証の代用ではなく、restoreを別に行う。entry/dispatcher/IPC/effect/claim切替は次差分で、未供給のfactoryがあるように呼び出さない。
 
+### Bot予定の保存窓口（第二差分）
+
+`BotRegistry.claimDue({botId,scheduleId,expectedRevision,expectedNextRunAt,ranAt})`と`skipDue(同DTO)`を公開。同per-Bot順序→既mutateSchedulesで現在状態を照合し、保存完了後だけ消化前snapshot、競合/不在/未到来はnull。skipはlastRunAtを保持する。旧revision0も受け入れる。応答不明からこの窓口を再送して発行権を復元しない。
+
+Botのset/remove/markも退役と同per-Bot順序へ接続した。欠損scheduleの読取は空文書を返すだけでファイルを生成しないため、退役と交差した古い読取でdirectoryを再作成しない。bootstrap/createの初回予定作成は従来どおり。交換restoreは別に存在必須で検証する。
+
+この差分は保存窓口のみで、現schedulerのdispatch→markをまだ切り替えない。親lease/停止世代とRoom窓口を結合する後続差分で保存後一回まで発行へ変更する。19passの直接試験はBot同tuple/skip/失敗/再restore/退役と既競合/削除に限り、親配送unknown・Room・実予定発行を証明しない。
+
 Rootの全体設計に沿い、membersの台帳・規範生成・予定定義/発行判断を固定版の子processへ移す。既AIのtransport/job/watch・会話writer・RoomRegistry・共有CLI登録writerは生かす。同UID1001内の協調writer分離を提案し、別UIDのOS隔離を成立済みとはしない。共通入口と組立てはモリー、起動/排他/版交換はエピネル、署名配布はセンチ。各担当の公開契約をRootが固定してから実装する。
 
 ## 現状と初回の分離
