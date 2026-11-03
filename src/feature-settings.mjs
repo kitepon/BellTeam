@@ -1,6 +1,7 @@
 import { access, chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { isSupportedServerURL } from './server-address.mjs'
+import { validateWebPushSubject } from './usage/web-push-schema.mjs'
 
 const features = [
   { id: 'routing', title: 'AIによるルーム応答の振り分け', fields: [{ key: 'apiKey', label: 'TypeSafe APIキー', secret: true }] },
@@ -13,6 +14,7 @@ const features = [
   ] },
   { id: 'diagnostics', title: '診断情報の連携', fields: [{ key: 'key', label: 'BugHubの合鍵', secret: true }] },
   { id: 'notifications', title: 'プッシュ通知', fields: [{ key: 'relayUrl', label: '通知中継URL', url: true }] },
+  { id: 'webPush', title: 'ブラウザーの通知', fields: [{ key: 'subject', label: '通知運用の公開連絡先' }] },
 ]
 
 export class FeatureSettingsError extends Error {
@@ -46,6 +48,10 @@ function validateValues(feature, values) {
     const field = feature.fields.find(item => item.key === key)
     if (typeof value !== 'string' || value.includes('\0')) {
       throw new FeatureSettingsError('FEATURE_VALUE_INVALID', 400, '設定値は文字列で入力してください。')
+    }
+    if (feature.id === 'webPush' && value !== '') {
+      try { validateWebPushSubject(value) }
+      catch { throw new FeatureSettingsError('FEATURE_VALUE_INVALID', 400, '通知運用の公開連絡先の形式が正しくありません。') }
     }
     if (!value.trim()) continue
     if (field.url || field.domain) {
@@ -88,8 +94,11 @@ export class FeatureSettings {
     if (text !== undefined) {
       try {
         const settings = JSON.parse(text)
-        if (!object(settings) || Object.keys(settings).length !== features.length) throw new Error('設定項目が一致しません。')
-        for (const feature of features) {
+        if (!object(settings)) throw new Error('設定項目が一致しません。')
+        const legacy = !Object.hasOwn(settings, 'webPush') && Object.keys(settings).length === features.length - 1
+        const expected = legacy ? features.filter(feature => feature.id !== 'webPush') : features
+        if (Object.keys(settings).length !== expected.length) throw new Error('設定項目が一致しません。')
+        for (const feature of expected) {
           const entry = settings[feature.id]
           if (!object(entry) || typeof entry.enabled !== 'boolean') throw new Error('設定の形式が一致しません。')
           const { enabled, ...values } = entry
@@ -97,7 +106,8 @@ export class FeatureSettings {
           validateValues(feature, values)
           if (enabled && !configured(feature, values, this.legacyAPNsConfigured)) throw new Error('有効な設定に必要な値がありません。')
         }
-        this.settings = settings
+        this.settings = legacy ? { ...settings, webPush: { enabled: false, subject: '' } } : settings
+        if (legacy) await this.save(this.settings)
       } catch (cause) {
         throw new FeatureSettingsError('FEATURE_SETTINGS_INVALID', 500, '保存済みの設定を読み取れません。', cause)
       }

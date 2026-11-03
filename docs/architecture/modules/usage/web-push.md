@@ -39,6 +39,6 @@ facadeは `webStatus(endpoint?,origin?) / webRegister(value,origin) / webUnregis
 
 ## payloadと接続先
 
-Web payloadはRoot固定11key、既event ID/種別/botId/roomId/表示snapshot/固定title-bodyだけ、JSON<=3072byte。各IDは制御文字無しUTF8<=200byteで切詰め0。表示名だけ固定名へ縮めても超過ならWebだけerror。秘密値/発言/質問文/ownerGuide/URL/endpoint/資格無し。SWでも余剰key・型・相関・byte上限を検証。不正は固定汎用通知/rootだけ。UI/SW内部はAdmi、認証/asset JS MIME-no-cache/Apple互換はMolly、channelはEpi、署名/ABI2同source builtin→signed→builtinの実物はCenti所有。
+Web payloadはRoot固定10key、既event ID/種別/botId/roomId/表示snapshot/固定title-bodyだけ、JSON<=3072byte。各IDは制御文字無しUTF8<=200byteで切詰め0。表示名だけ固定名へ縮めても超過ならWebだけerror。秘密値/発言/質問文/ownerGuide/URL/endpoint/資格無し。SWでも余剰key・型・相関・byte上限を検証。不正は固定汎用通知/rootだけ。UI/SW内部はAdmi、認証/asset JS MIME-no-cache/Apple互換はMolly、channelはEpi、署名/ABI2同source builtin→signed→builtinの実物はCenti所有。
 
 根拠はRoot正本と [library本人API](https://github.com/web-push-libs/web-push#generaterequestdetailspushsubscription-payload-options)、[IANA IPv4](https://www.iana.org/assignments/iana-ipv4-special-registry/)、[IANA IPv6](https://www.iana.org/assignments/iana-ipv6-special-registry/)。vendor向け公開IP policyは保守的にspecial-purpose帯を除外する。Rootの有限policyを標準必須条件とは説明しない。

@@ -18,19 +18,19 @@ async function start(t, { mode = '', configuration = { enabled: false, relayUrl:
   child.stderr.on('data', chunk => { stderr += chunk })
   const channel = createNotificationsParentChannel(child, { onDiagnostic })
   t.after(async () => { child.kill('SIGKILL'); await ended; channel.dispose(); await rm(root, { recursive: true, force: true }) })
-  await channel.control('initialize', { configuration })
+  await channel.control('initialize', { configuration: { apns: configuration, webPush: { enabled: false, subject: '' } } })
   const ready = await channel.ready
   return { channel, ready, root, child, ended, stderr: () => stderr }
 }
 
 test('実IPCとusage dispatcherは未設定ready・resume前拒否・正常exitを接続する', async t => {
   const { channel, ready, ended } = await start(t)
-  assert.deepEqual(ready, { type: 'ready', versionId: null, protocolVersion: 1, stateSchema: 1,
-    status: { configured: false, environments: [] }, applyError: null })
-  await assert.rejects(channel.request('status', {}), { outcome: 'not_accepted' })
+  assert.deepEqual(ready, { type: 'ready', versionId: null, protocolVersion: 2, stateSchema: 2,
+    status: { apns: { configured: false, environments: [] }, webPush: { enabled: false, configured: false, publicKey: null, error: null } }, applyError: { apns: null, webPush: null } })
+  await assert.rejects(channel.request('status', { provider: 'apns' }), { outcome: 'not_accepted' })
   await channel.control('resume')
-  assert.deepEqual(await channel.request('status', {}), ready.status)
-  await assert.rejects(channel.request('register', device), { code: 'PUSH_NOT_CONFIGURED', outcome: 'unknown' })
+  assert.deepEqual(await channel.request('status', { provider: 'apns' }), ready.status.apns)
+  await assert.rejects(channel.request('register', { ...device, provider: 'apns' }), { code: 'PUSH_NOT_CONFIGURED', outcome: 'unknown' })
   await channel.control('quiesce')
   await channel.control('exit')
   assert.deepEqual(await ended, { code: 0, signal: null })
@@ -40,12 +40,12 @@ test('実IPCでpublish受付後のquiesceはprovider終端まで待ち、状態�
   const { channel, root, ended } = await start(t, { mode: 'provider', configuration: { enabled: true, relayUrl: '' } })
   await channel.control('resume')
   await assert.rejects(channel.request('publish', { ...event, body: 'PRIVATE_BODY' }), { code: 'PUSH_INPUT_INVALID', outcome: 'not_accepted' })
-  await assert.rejects(channel.request('register', { ...device, token: 'bad' }), { code: 'PUSH_DEVICE_INVALID', outcome: 'not_accepted' })
-  assert.deepEqual(await channel.request('register', device), { registered: true })
+  await assert.rejects(channel.request('register', { ...device, provider: 'apns', token: 'bad' }), { code: 'PUSH_DEVICE_INVALID', outcome: 'not_accepted' })
+  assert.deepEqual(await channel.request('register', { ...device, provider: 'apns' }), { registered: true })
   assert.deepEqual(await channel.request('publish', event), { accepted: true })
   let finished = false
   const quiescing = channel.control('quiesce').then(value => { finished = true; return value })
-  await assert.rejects(channel.request('status', {}), { outcome: 'not_accepted' })
+  await assert.rejects(channel.request('status', { provider: 'apns' }), { outcome: 'not_accepted' })
   assert.equal(finished, false)
   await writeFile(join(root, 'release'), '')
   assert.deepEqual(await quiescing, { quiesced: true })
@@ -64,8 +64,8 @@ test('実IPCの診断ACK失敗でも設定の元エラーとreadyを保ち、再
   const { ready, channel, stderr } = await start(t, { configuration: { enabled: true, relayUrl: 'PRIVATE_INVALID_URL' },
     onDiagnostic: async () => { reports++; throw new Error('PRIVATE_DIAGNOSTIC') } })
   assert.equal(reports, 1)
-  assert.equal(ready.applyError, 'PUSH_RELAY_URL_INVALID')
-  assert.equal(ready.status.configured, false)
+  assert.equal(ready.applyError.apns, 'PUSH_RELAY_URL_INVALID')
+  assert.equal(ready.status.apns.configured, false)
   assert(!stderr().includes('PRIVATE_'))
   await channel.control('resume')
   await channel.control('quiesce')
@@ -75,7 +75,7 @@ test('実IPCの診断ACK失敗でも設定の元エラーとreadyを保ち、再
 test('親IPC切断後もusage送信終端を待ち、OS/IPC/pipe回収barrierで終了する', async t => {
   const { channel, child, root, ended } = await start(t, { mode: 'provider', configuration: { enabled: true, relayUrl: '' } })
   await channel.control('resume')
-  await channel.request('register', device)
+  await channel.request('register', { ...device, provider: 'apns' })
   await channel.request('publish', event)
   let closed = false
   void ended.then(() => { closed = true })

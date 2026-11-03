@@ -24,10 +24,13 @@ async function fixture(t, { provider, configuration = { enabled: true, relayUrl:
   const sent = [], reports = []
   provider ??= { environments: ['production'], async send(...args) { sent.push(args) }, close() {} }
   const dispatcher = createNotificationsDispatcher({ root, provider, diagnostic: async report => { reports.push(report) } })
-  const initial = await dispatcher.control('initialize', { configuration })
+  const initial = await dispatcher.control('initialize', { configuration: { apns: configuration, webPush: { enabled: false, subject: '' } } })
   await dispatcher.control('resume', {})
   t.after(() => dispatcher.disconnect())
-  const request = (method, params) => { dispatcher.validateRequest(method, params); return dispatcher.dispatch(method, params) }
+  const request = (method, params) => {
+    const value = method === 'publish' ? params : { ...params, provider: 'apns' }
+    dispatcher.validateRequest(method, value); return dispatcher.dispatch(method, value)
+  }
   return { root, dispatcher, request, sent, reports, initial, provider }
 }
 
@@ -39,7 +42,7 @@ function facadeFixture({ request = async () => ({ accepted: true }) } = {}) {
   const service = createNotifications({ root: 'unused', bots, diagnostics: { async record(report) { reports.push(report) } },
     configuration: () => ({}), createProcess(value) { options = value; return controller } })
   const state = value => options.onState({ phase: 'running', exchanging: false, available: true,
-    status: { configured: true, environments: ['production'] }, applyError: null, ...value })
+    status: { apns: { configured: true, environments: ['production'] }, webPush: { enabled: false, configured: false, publicKey: null, error: null } }, applyError: { apns: null, webPush: null }, ...value })
   state({})
   return { service, sent, reports, state, controller }
 }
@@ -68,7 +71,7 @@ test('閉じたDTOは未知field・制御文字・不正端末・64KiB超過を�
     assert.throws(() => validateNotificationRequest('publish', value), /PUSH_INPUT_INVALID/)
   }
   assert.throws(() => validateNotificationRequest('status', { token: device.token }), /PUSH_INPUT_INVALID/)
-  assert.throws(() => validateNotificationRequest('register', { ...device, previousToken: 'invalid' }), /PUSH_DEVICE_INVALID/)
+  assert.throws(() => validateNotificationRequest('register', { ...device, provider: 'apns', previousToken: 'invalid' }), /PUSH_DEVICE_INVALID/)
   assert.throws(() => validateNotificationRequest('delete', {}), /PUSH_INPUT_INVALID/)
 })
 
@@ -101,12 +104,12 @@ test('送信中quiesceは待ち、resume後の遅いquiesce完了で受付を再
   const quiescing = dispatcher.control('quiesce', {}).then(value => { finished = true; return value })
   await tick()
   assert.equal(finished, false)
-  assert.throws(() => dispatcher.validateRequest('status', {}), /PUSH_UNAVAILABLE/)
+  assert.throws(() => dispatcher.validateRequest('status', { provider: 'apns' }), /PUSH_UNAVAILABLE/)
   assert.deepEqual(await dispatcher.control('resume', {}), { resumed: true })
-  assert.doesNotThrow(() => dispatcher.validateRequest('status', {}))
+  assert.doesNotThrow(() => dispatcher.validateRequest('status', { provider: 'apns' }))
   pending.resolve()
   assert.deepEqual(await quiescing, { quiesced: false })
-  assert.doesNotThrow(() => dispatcher.validateRequest('status', {}))
+  assert.doesNotThrow(() => dispatcher.validateRequest('status', { provider: 'apns' }))
 })
 
 test('登録保存完了を返し、旧版と同じ端末形式で再読取できる', async t => {
@@ -119,10 +122,10 @@ test('登録保存完了を返し、旧版と同じ端末形式で再読取で�
   await dispatcher.control('quiesce', {})
   await dispatcher.control('exit', {})
   const restored = createNotificationsDispatcher({ root, provider, diagnostic: async () => {} })
-  await restored.control('initialize', { configuration: { enabled: true, relayUrl: '' } })
+  await restored.control('initialize', { configuration: { apns: { enabled: true, relayUrl: '' }, webPush: { enabled: false, subject: '' } } })
   await restored.control('resume', {})
-  restored.validateRequest('unregister', { token: replacement.token })
-  await restored.dispatch('unregister', { token: replacement.token })
+  restored.validateRequest('unregister', { provider: 'apns', token: replacement.token })
+  await restored.dispatch('unregister', { provider: 'apns', token: replacement.token })
   await restored.disconnect()
   assert.deepEqual(JSON.parse(await readFile(join(root, 'state/push-devices.json'), 'utf8')), [])
 })
@@ -164,10 +167,10 @@ test('通知窓口の停止/断線でも実会話・秘密/質問カードは保
 
 test('disabledと設定適用失敗はready statusへ、破損stateと不正鍵は初期化失敗', async t => {
   const off = await fixture(t, { configuration: { enabled: false, relayUrl: '' } })
-  assert.deepEqual(off.initial, { status: { configured: false, environments: [] }, applyError: null })
+  assert.deepEqual(off.initial, { status: { apns: { configured: false, environments: [] }, webPush: { enabled: false, configured: false, publicKey: null, error: null } }, applyError: { apns: null, webPush: null } })
   const invalid = await fixture(t, { configuration: { enabled: true, relayUrl: 'invalid-url' } })
-  assert.equal(invalid.initial.applyError, 'PUSH_RELAY_URL_INVALID')
-  assert.equal(invalid.initial.status.configured, false)
+  assert.equal(invalid.initial.applyError.apns, 'PUSH_RELAY_URL_INVALID')
+  assert.equal(invalid.initial.status.apns.configured, false)
   assert.equal(invalid.reports.at(-1).code, 'SERVER_PUSH_UNAVAILABLE')
   const root = await mkdtemp(join(tmpdir(), 'notifications-corrupt-'))
   t.after(() => rm(root, { recursive: true, force: true }))
@@ -175,13 +178,13 @@ test('disabledと設定適用失敗はready statusへ、破損stateと不正鍵�
   for (const text of ['{}', '[{"token":"bad"}]']) {
     await writeFile(join(root, 'state/push-devices.json'), text)
     const service = createNotificationsDispatcher({ root, diagnostic: async () => {} })
-    await assert.rejects(service.control('initialize', { configuration: { enabled: false, relayUrl: '' } }), /PUSH_STATE_INVALID/)
+    await assert.rejects(service.control('initialize', { configuration: { apns: { enabled: false, relayUrl: '' }, webPush: { enabled: false, subject: '' } } }), /PUSH_STATE_INVALID/)
     assert.equal(await readFile(join(root, 'state/push-devices.json'), 'utf8'), text)
   }
   await mkdir(join(root, 'shared/tools/apns'), { recursive: true })
   await writeFile(join(root, 'shared/tools/apns/config.json'), '{}')
   const service = createNotificationsDispatcher({ root, diagnostic: async () => {} })
-  await assert.rejects(service.control('initialize', { configuration: { enabled: false, relayUrl: '' } }), /APNS_CONFIG_INVALID/)
+  await assert.rejects(service.control('initialize', { configuration: { apns: { enabled: false, relayUrl: '' }, webPush: { enabled: false, subject: '' } } }), /APNS_CONFIG_INVALID/)
 })
 
 test('親bufferは交換中の未送信256件までで、ACK不明イベントを再送しない', async () => {
