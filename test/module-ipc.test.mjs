@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { EventEmitter } from 'node:events'
 import { createModuleEndpoint } from '../src/module-ipc.mjs'
-import { createModuleStreams } from '../src/module-streams.mjs'
+import { createModuleStreams, encodeModuleJson } from '../src/module-streams.mjs'
 
 function pair() {
   const a = new EventEmitter(), b = new EventEmitter()
@@ -105,4 +105,14 @@ test('parent drain holds incoming effects and result commit work after IPC disco
     await Promise.resolve(); await Promise.resolve(); assert.equal(settled, false)
     work.resolve(); await draining; assert.equal(settled, true)
   }
+})
+
+test('JSONの符号化は小さな断片を枠の上限までまとめ、行数に比例した枠を作らない', async () => {
+  const rows = Array.from({ length: 20000 }, (_, index) => ({ id: `row-${index}`, at: '2026-11-04T08:00:00+09:00', text: '日本語', images: [] }))
+  const iterable = { async *[Symbol.asyncIterator]() { yield* rows } }
+  const chunks = []
+  for await (const chunk of encodeModuleJson(iterable)) chunks.push(chunk)
+  const body = Buffer.concat(chunks)
+  assert.deepEqual(JSON.parse(body.toString('utf8')), rows)
+  assert.ok(chunks.length <= Math.ceil(body.length / (256 * 1024)) + 1, `${chunks.length} chunks`)
 })
