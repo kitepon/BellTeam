@@ -1,0 +1,105 @@
+{
+  "name": "署名conversationを同image ApplicationRuntimeで更新・戻し・会話stateと根寿命保持",
+  "on": {
+    "workflow_dispatch": {
+      "inputs": {
+        "source": {
+          "description": "通常mainのconversation完成source SHA40",
+          "required": true,
+          "type": "string"
+        },
+        "digest": {
+          "description": "同source既auto candidateのindex digest",
+          "required": true,
+          "type": "string"
+        },
+        "supply_run": {
+          "description": "同sourceconversation専用署名run ID",
+          "required": true,
+          "type": "string"
+        },
+        "image_run": {
+          "description": "同source既auto image run ID",
+          "required": true,
+          "type": "string"
+        }
+      }
+    }
+  },
+  "permissions": {
+    "contents": "read",
+    "actions": "read"
+  },
+  "concurrency": {
+    "group": "conversation-finite-root-runtime",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "runtime": {
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {
+          "include": [
+            {
+              "arch": "amd64",
+              "runner": "ubuntu-24.04"
+            },
+            {
+              "arch": "arm64",
+              "runner": "ubuntu-24.04-arm"
+            }
+          ]
+        }
+      },
+      "runs-on": "${{ matrix.runner }}",
+      "timeout-minutes": 15,
+      "env": {
+        "DIGEST": "${{ inputs.digest }}",
+        "ARCH": "${{ matrix.arch }}",
+        "RESULT": "runtime/conversation-${{ matrix.arch }}",
+        "SUPPLY": "runtime/conversation-input-${{ matrix.arch }}",
+        "SOURCE": "${{ inputs.source }}",
+        "SUPPLY_RUN": "${{ inputs.supply_run }}",
+        "IMAGE_RUN": "${{ inputs.image_run }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v7",
+          "with": {
+            "persist-credentials": false,
+            "fetch-depth": 0
+          }
+        },
+        {
+          "name": "有限fixture入力の拒否を確認",
+          "run": "python3 test/conversation-real-boundary.test.py"
+        },
+        {
+          "name": "固定run/archと元ZIPのdigest-sizeを照合して署名原本を取得",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "run": "python3 - <<'PYTHON'\nimport os,platform,re\nassert re.fullmatch(r'[a-f0-9]{40}',os.environ['SOURCE'])\nassert re.fullmatch(r'sha256:[a-f0-9]{64}',os.environ['DIGEST'])\nassert re.fullmatch(r'[1-9][0-9]*',os.environ['SUPPLY_RUN'])\nassert re.fullmatch(r'[1-9][0-9]*',os.environ['IMAGE_RUN'])\nassert {'x86_64':'amd64','aarch64':'arm64'}[platform.machine()] == os.environ['ARCH']\nPYTHON\npython3 test/helpers/conversation-real-boundary.py fetch \"$SOURCE\" \"$SUPPLY_RUN\" \"$IMAGE_RUN\" \"$DIGEST\" \"$SUPPLY\"\ndocker pull --platform \"linux/$ARCH\" \"ghcr.io/kitepon/bellteam-server@$DIGEST\"\n"
+        },
+        {
+          "name": "実root配置とUID1001 conversation generation・同state builtin/署名版/戻し",
+          "run": "python3 test/helpers/conversation-real-boundary.py run \"ghcr.io/kitepon/bellteam-server@$DIGEST\" \"$RESULT\" \"$SUPPLY\""
+        },
+        {
+          "name": "取消・失敗でも当fixtureの資材だけを清掃",
+          "if": "always()",
+          "run": "python3 test/helpers/conversation-real-boundary.py cleanup \"$RESULT\""
+        },
+        {
+          "uses": "actions/upload-artifact@v7",
+          "if": "always()",
+          "with": {
+            "name": "conversation-runtime-${{ matrix.arch }}-${{ github.run_attempt }}",
+            "path": "runtime/conversation-${{ matrix.arch }}/\nruntime/conversation-input-${{ matrix.arch }}/",
+            "if-no-files-found": "error"
+          }
+        }
+      ]
+    }
+  }
+}

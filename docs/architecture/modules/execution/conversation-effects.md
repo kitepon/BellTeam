@@ -25,3 +25,27 @@ reconcileは既deliveryExecutionRefとtransport.reconcileLaunchを使い、実ex
 親IPCのonExecution前処理拒否には`finishUnclaimedDelivery(同opaque)`をcatchで使用する。登録済かつnative claim前の陽性だけ一回finishし、claimed/終端済みはfalse。Transport到達後のunknownを未発行へ変更せず、通常native claim/finishはTransport一回のまま。
 
 application-services/ALS/authority/ledgerはMolly所有。新wire/保存schema/任意method・Proxy/SDK操作は作らない。
+
+## 同imageの実AppRuntimeで使う寿命検査helper
+
+`test/helpers/conversation-execution-lifetime.mjs:createConversationExecutionLifetimeFixture({botId})`は同期で`client/createExecutionAssembly/attach/hold/snapshot/close`を返す。外側Centiが実createApplicationRuntimeにtop-level `client:f.client`、bootstrapに`createExecutionAssembly:f.createExecutionAssembly`を渡す。bootstrap.clientだけではruntimeの明示client引数に上書きされる。wrapperは実createExecutionAssemblyへ委譲し、既ports.seat.waitProcess/handoffContextだけを人工化する。同親members/conversation/moduleOperationsと全その他optionsを保持する。実会話Assembly/default createProcess、loader、署名、controller.replaceは差し替えない。
+
+```mermaid
+flowchart LR
+  Outer["Centi: 実AppRuntime / C / 署名 / replace / cleanup"] --> Attach["helper.attach(runtime) / 同port・同gateを検査"]
+  Attach --> RPC["assembly.run(owner) → 実user.turn RPC"]
+  RPC --> AI["ai: native受付後waitProcess実Promiseを保留"]
+  RPC --> ACK["callback: 実watch eventの保存後ACKを保留"]
+  RPC --> Report["report: 空回答 → 非awaitbackground → 同元operationの派生nativeを保留"]
+  AI --> Busy["外側: 実60秒busy / 旧resume / 新子0"]
+  ACK --> Busy
+  Report --> Busy
+  Busy --> Done["handle.release: root結果・Transport idle・同operationCompletionまで待つ"]
+  Done --> Exchange["外側: 全3hold終端後の実交換・builtin復元 / 最新state保持"]
+```
+
+AppRuntime構築後の`attach(runtime)`は実execution返却実体、native client、conversationAdmission/moduleOperationsの同identityを確認する。`await hold('ai'|'callback'|'report')`は対象rootの受付と各保留点到達まで待ち、snapshot/assertResumed/releaseのhandleを返す。native発行時は実元currentOperationを捕捉し、reportでは同object/会話leaseを確認する（元operationContextの古いmembers leaseは再利用しない）。callbackは受理済みrootのdelivery-status変更通知を同assembly.watchで待ち、native完了後も実callback/event ACKを保留する。reportは空transcriptから実missing判定を通し、元RPC結果/実completionが返った後も同元operationが派生deliveryを保持していることを要求する。
+
+外側がcontroller.replaceを実時間で実行してbusy/旧resumeを確認した後、`handle.assertResumed()`は同generation/running/availableと未終端operation、abort/stop/本文再送0を検査する。helper自身はreplace/admission.close/reserveを呼ばず、60秒経過や新子0の代替証明を作らない。`await handle.release()`は保留native/eventを解放し、元root結果→全同Bot配送idle→捕捉済み同admission.operationCompletionまで待つ。bool/整数だけのsnapshotにnative呼出/待機/終端/abort/stop/launch/SDKclose/PTYclose/本文再送を返す。closeは保留を解放してwatchを外し、runtimeや外側data/Cを閉じない。
+
+N102 preservationの固定timeline検査は先に終え、寿命phaseの人工AI追記と混ぜない。同rootで追加した最新記録のbytes/mode/mtime保持、同image/C/署名/既定loader/実60秒/旧新OS終端/cleanupは外側の成立範囲。新直接検査は実AppRuntime/実Assembly/実IPC/実executionを使い、ローカルだけloaderの明示I/OとNode子のroot引数を人工化する。ai/callbackの局所timer進行とreportの実時間60秒を区別し、C/UID1001/署名/image成功へ補完しない。新report準備の3反例は期限切れ元membersからの通常新入場、members閉鎖時の再発行0、fresh await後stop拒否とlease解放を確認する。

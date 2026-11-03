@@ -39,3 +39,24 @@ publish-conversation.ymlは固定main/両native/Node26の専用OIDC workflow。�
 test/helpers/conversation-artifact-probe.pyは既membersの使い捨てroot/private mount namespace・固定Node/C・独立/tmpの同source親probe・有限KILL/reap/自己回収を再利用する。N102 src/conversation/probe-fixture.json（先着9a7cbb9d）の同archive/同checkout bytes一致を検査し、固定Room定義/空schedule/selfTurnsの3fileをJSON stringify+LF/0600、dir0700で事前配置。表示snapshotは同assetのbots、generationはruntime発行、initialize modeはrestoreでありseedに実予定/資格/画像/履歴を含めない。初回lockも1001/0600で事前作成し、全state file-directoryのbytes/mode/uid/gid/mtimeを起動前後比較する。親probeはpayloadを複製した独立/tmpで実行し、parent lifetimesだけ同checkoutから補う。親probeを署名payloadへ足さず、archiveをinstallationとして公開しない。成功receiptは合意した厳密JSON/実child closeだけを受け取り、Jev/外部effect0は作者runtime probeの実channelへ結合して確認する。
 
 N102 f0fa4652の固定wrapper/無引数probeとEpi7a73267の共通reader/controllerを最終接点とする。probeの成功JSONは上記identity/実互換/childClosedに加えnativeAuth:falseとexternalEffects:0を必須とし、欠測・余剰・型違い・作用発生を拒否する。配布側は作者receiptへの接続だけを直し、親authority/制御・cleanup・state不変条件は変更しない。固定sourceの供給と実C/署名/nativeの成立は分け、後者は同通常mainから検証する。
+
+## 同imageの状態保持・根寿命fixture
+
+`verify-conversation-image.yml`は同sourceの既auto imageと専用署名runを固定して両nativeへpullし、既有限allocation/cleanupを再利用する。通常C/UID1001の人工supervisorから実`createApplicationRuntime`を作り、既bootstrapの通知だけ人工化する。会話の既定C/prepareRelease/loader/controllerと実親facadeは置換しない。既公開createProcessのspawnを観測し、onEffectへ業務helperの固定人工observer三口を渡す。
+
+```mermaid
+flowchart LR
+  Inputs[同source imageと署名 / 元ZIP SHA-size] --> Plan[公開conversationInstallPlan / 実inspect]
+  Plan --> Root[固定roothelper / 改竄と別source拒否]
+  Root --> Runtime[実ApplicationRuntime / 会話C1001 / 既定loader]
+  Runtime --> State[N102公開helper / builtin-署名-builtinの最新state保持]
+  State --> Holds[Kiro実RPCのAI・callback・非awaitreportを保留]
+  Holds --> Busy[各60秒busy / 旧resume / 新子0 / abort・再送0]
+  Busy --> Done[実operationDoneまで解放]
+  Done --> Return[再度署名-builtin / 最新全root不変]
+  Return --> Cleanup[実OS-IPC終端 / 親PIDbirth-port保持 / 所属資材回収]
+```
+
+状態保持と人工AI追記は同root内で段階を分ける。N102の厳密な履歴・cursor/token・元不正bytes・Room・表示Botの三段検査を先に終え、同helperはobserver口以外を元onEffectへ同params/contextで渡し、後半の根寿命段階も観測する。AIをN102の固定timelineへ混ぜて成功を作らない。三つの保留を実終端まで解放した後に再度往復し、最新AI記録も含む全rootのbytes/mode/uid/gid/mtimeを旧OScloseと新restore間で照合する。全五子世代の正常OS/IPC/pipe終端とprivateSH・会話EX、同親Web/port保持を確認する。背景selfTurnsの初回poll/実5秒timerは無効化せず、人工observerはunchangedで外部CLI/新turn/保存0を返す。
+
+fixtureの公開入力はsource/digest/supply_run/image_run。異source/別workflow/別repo/異arch/改竄は署名設置や作用前に拒否する。実席・実vendorAI・Host・公開catalog・本番反映の証明には広げない。
