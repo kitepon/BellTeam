@@ -7,6 +7,8 @@ const context = { generation: 'generation-a', operationId: 'operation-a', actor:
 const queue = { context: 'direct', contextId: 'bot-a', groupId: 'delivery-a', from: 'user', fromName: 'Owner', target: 'bot-a', message: 'Q' }
 const native = { deliveryId: 'delivery-a', target: 'bot-a', message: 'Q', images: [], queue, kinds: ['delivery.status', 'delivery.answer'] }
 const samples = {
+  'execution.shown.read': [{ botId: 'bot-a' }, { shownId: 'shown-a', words: ['hello'], endedAt: null }],
+  'execution.shown.consume': [{ botId: 'bot-a', shownId: 'shown-a' }, { applied: true }],
   'members.profiles.read': [{}, { bots: [{ id: 'bot-a', name: 'A' }] }],
   'execution.assertAccess': [{}, { allowed: true }],
   'execution.reconcile': [{ botId: 'bot-a', deliveryId: 'delivery-a', target: { session_id: 'bot-a', launch_id: 'a'.repeat(32) } }, { recoveryId: 'recovery-a' }],

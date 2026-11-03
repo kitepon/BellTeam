@@ -8,6 +8,7 @@ export const CONVERSATION_EFFECT_METHODS = Object.freeze([
   'runtime.observer.changed', 'runtime.observer.read', 'execution.notify', 'execution.turn',
   'execution.background.begin', 'execution.background.end', 'execution.observation.source', 'execution.report',
   'execution.assertAccess', 'execution.reconcile', 'execution.closeLaunch',
+  'execution.shown.read', 'execution.shown.consume',
 ])
 const invalid = () => { throw Object.assign(new Error('CONVERSATION_EFFECT_INVALID'), { code: 'CONVERSATION_EFFECT_INVALID' }) }
 const plain = value => value !== null && typeof value === 'object'
@@ -49,6 +50,9 @@ export function validateConversationEffect(method, params, capturedContext) {
     case 'members.profiles.read': case 'usage.routing.read': case 'runtime.observer.changed':
     case 'execution.assertAccess': return fields(params, {})
     case 'execution.reconcile': case 'execution.closeLaunch': return fields(params, { botId: id, deliveryId: identity, target: launch })
+    case 'execution.shown.read': case 'execution.shown.consume':
+      if (capturedContext.actor?.kind !== 'observer') invalid()
+      return fields(params, { botId: id, ...(method.endsWith('.consume') ? { shownId: identity } : {}) })
     case 'usage.notify.direct': return fields(params, { deliveryId: identity, from: nonempty, target: id })
     case 'usage.notify.room': return fields(params, { id: identity, sender: label, room: label })
     case 'assets.beginSave': return fields(params, { owner: id })
@@ -132,6 +136,9 @@ export function validateConversationEffectResult(method, result, params) {
     case 'execution.assertAccess': return fields(result, { allowed: value => value === true })
     case 'execution.reconcile': return fields(result, { recoveryId: identity })
     case 'execution.closeLaunch': return fields(result, { closureId: identity })
+    case 'execution.shown.read': if (result === null) return true
+      return fields(result, { shownId: identity, words: array(text), endedAt: nullable(finite) })
+    case 'execution.shown.consume': return fields(result, { applied: bool })
     default: invalid()
   }
 }

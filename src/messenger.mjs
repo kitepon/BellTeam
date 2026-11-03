@@ -17,8 +17,8 @@ export function userEnvelope(from, message) {
 
 export class BellTeamMessenger extends ConversationWriter {
   // onTurnEndは、Botのターンが終わった時にオーナーへの報告漏れを確かめる処理（turn-reports.mjs）を呼ぶ。
-  constructor({ bots, transport, logPath, store = new ConversationStore({ logPath }), assets = null, onMessage = () => {}, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, now = () => new Date().toISOString(), deliveryId = randomUUID }) {
-    super({ logPath, now, id: deliveryId, onMessage })
+  constructor({ bots, transport, logPath, store = new ConversationStore({ logPath }), assets = null, onMessage = () => {}, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, now = () => new Date().toISOString(), deliveryId = randomUUID, failureFields }) {
+    super({ logPath, now, id: deliveryId, onMessage, failureFields })
     this.bots = bots
     this.transport = transport
     this.assets = assets

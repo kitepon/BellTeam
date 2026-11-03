@@ -6,7 +6,7 @@ import { chooseRoomResponder, roomTurnsFromThroughline } from './room-routing.mj
 import { deliveryFailureFields } from './conversation-writer.mjs'
 
 export class RoomMessenger {
-  constructor({ rooms, bots, transport, assets = null, onMessage = () => {}, onInterimWords = null, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, automaticRouting = () => true, now = () => new Date().toISOString(), messageId = randomUUID, roomTurns = roomTurnsFromThroughline, chooseResponder = chooseRoomResponder }) {
+  constructor({ rooms, bots, transport, assets = null, onMessage = () => {}, onInterimWords = null, onTurnEnd = () => {}, requireAccess = async () => {}, admitWork = () => () => {}, automaticRouting = () => true, now = () => new Date().toISOString(), messageId = randomUUID, roomTurns = roomTurnsFromThroughline, chooseResponder = chooseRoomResponder, failureFields = deliveryFailureFields }) {
     this.rooms = rooms
     this.bots = bots
     this.transport = transport
@@ -22,6 +22,7 @@ export class RoomMessenger {
     this.chooseResponder = chooseResponder
     this.automaticRouting = automaticRouting
     this.roomTasks = new Map()
+    this.failureFields = failureFields
   }
 
   sendroommessage(input, { membersLease } = {}) {
@@ -50,7 +51,7 @@ export class RoomMessenger {
     if (!['user', 'scheduler'].includes(from) && !room.memberIds.includes(from)) throw new Error(`ROOM_SENDER_INVALID: ${from}`)
     const manualResponders = targets?.length ? [...new Set(targets)] : null
     if (manualResponders?.some(id => !room.memberIds.includes(id))) throw new Error('ROOM_TARGET_INVALID')
-    const automaticRouting = this.automaticRouting()
+    const automaticRouting = await this.automaticRouting()
     if (!manualResponders && !responseTo && room.memberIds.length && !automaticRouting) throw Object.assign(new Error('返信者の自動選択は未設定です。返信するメンバーを選んでください。'), { code: 'ROOM_AUTOMATIC_ROUTING_DISABLED', status: 409 })
     if (responseTo) {
       const posted = (await this.rooms.messages(room.id)).find(item => item.responseTo === responseTo && item.sender.id === from)
@@ -78,7 +79,7 @@ export class RoomMessenger {
       ...(imageAssets.length ? { image_assets: imageAssets } : {}),
     }
     await this.rooms.appendMessage(room.id, record)
-    this.onMessage(record)
+    await this.onMessage(record)
     const failedRouting = async error => {
       const stopped = ['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code)
       await this.rooms.appendMessage(room.id, {
@@ -120,7 +121,7 @@ export class RoomMessenger {
         onStatus: (delivery, error, tracking) => this.rooms.appendMessage(room.id, {
           schema: 'bellteam.room-delivery-status.v1', message_id: record.id,
           target: id, at: this.now(), delivery,
-          ...deliveryFailureFields(error),
+          ...this.failureFields(error),
           ...(deliveryTracking(delivery, tracking) ? { delivery_tracking: deliveryTracking(delivery, tracking) } : {}),
         }),
         // 合間の言葉と最後の回答は、そのBotの会話画面に出すだけ。ルームにも他のBotにも届けない。

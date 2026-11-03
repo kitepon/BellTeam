@@ -15,17 +15,18 @@ export function deliveryFailureFields(error) {
 }
 
 export class ConversationWriter {
-  constructor({ logPath, now, id, onMessage }) {
+  constructor({ logPath, now, id, onMessage, failureFields = deliveryFailureFields }) {
     this.logPath = logPath
     this.now = now
     this.deliveryId = id
     this.onMessage = onMessage
+    this.failureFields = failureFields
   }
 
   async append(record) {
     await mkdir(dirname(this.logPath), { recursive: true })
     await appendFile(this.logPath, `${JSON.stringify(record)}\n`, { mode: 0o600 })
-    this.onMessage(record)
+    await this.onMessage(record)
   }
 
   // 合間の言葉は、そのBotと指揮官の会話画面に出すだけの記録。誰にも配送せず、返信の候補にも通知にもならない。
@@ -45,7 +46,7 @@ export class ConversationWriter {
     const detail = deliveryTracking(delivery, tracking)
     return this.append({
       schema: 'bellteam.delivery-status.v1', delivery_id: deliveryId, at: this.now(), delivery,
-      ...deliveryFailureFields(error),
+      ...this.failureFields(error),
       ...(detail ? { delivery_tracking: detail } : {}),
     })
   }
