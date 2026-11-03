@@ -10,6 +10,8 @@ Rabbit認証consumerの未配布候補は[認証runとOwner案内の契約](olrw
 
 ## 機能内の正本
 
+[残るusageの単体更新](usage-process.md)に6service factory・閉dispatcher・安定facadeとread-only restore/volatile handoffの接点を置く。runtime/通常assembly/同source実物への接続は別工程として区別する。
+
 [Web Pushの別providerと公開契約](web-push.md)にRoot固定v1.1、登録/鍵writer・origin・安全な終端・ABI2の接点を置く。
 
 [処理と保存順序](flows.md)に秘密入力・質問・認証・設定適用・通知/購読の図と実関数を置く。旧support-detailsの所有章は参照リンクへ置換した。共通診断writerは[統合の詳細](../../support-details.md#診断観測集約調査注記を分ける)を参照する。
@@ -73,3 +75,7 @@ Webはアドミ、Apple画面はベル、native認証はエレグ。usage内部�
 - fixture・設定形式・既export・HTTP/MCPの公開payloadは不変。新試験は公開module経由で保存成功と通知/適用失敗、後続の明示操作と独立利用を確認する。図は所有位置と実関数の接続を更新し、状態遷移は保持した。
 
 2026-11-02の分離差分で上記14ファイルの120試験が全件成功した。基準341535dとの比較で公開MCP定義全体・HTTP処理本文・設定適用本文の同一性を確認。20moduleから全体図を再生成し、担当図と旧索引のローカル29リンクを確認した。本番/一般配布は保留のまま。
+
+## 通常親への単体更新接続
+
+[親組立の正本](../integration/README.md#usage段階組立の親接点)が同usage controller/private投影を通常bootstrapへ接続する。初回の親imageへの登録が必要で、登録後の対応code交換/個別戻しは共通台帳を使い親を再起動しない。旧classは明示未注入のfixtureだけ。親の認証済み入口がmethod限定opaqueを捕捉し、子からactorを自己申告しない。12effectsと同保存epochのapplyは[固有契約](usage-process.md)へ、runner/readerとOS終端はruntimeへ辿る。

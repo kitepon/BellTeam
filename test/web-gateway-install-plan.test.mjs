@@ -6,6 +6,8 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import test from 'node:test'
 import { notificationsInstallPlan } from '../src/notifications-install-plan.mjs'
+import { usageInstallPlan } from '../src/usage-install-plan.mjs'
+import { diagnosticsInstallPlan } from '../src/diagnostics-install-plan.mjs'
 import { memoryInstallPlan } from '../src/memory-install-plan.mjs'
 import { membersInstallPlan } from '../src/members-install-plan.mjs'
 import { webGatewayInstallPlan } from '../src/web-gateway-install-plan.mjs'
@@ -129,4 +131,18 @@ test('memory install binds only the same private volume and code-only readonly s
    x=>x.normal.services.bellteam.volumes.pop()]){
   const x=make();mutate(x);assert.throws(()=>memoryInstallPlan(x.normal,x.current))
  }
+})
+
+test('usage and diagnostics install plans keep their fixed component and private mount boundary', () => {
+  for (const [component, plan] of [['usage', usageInstallPlan], ['diagnostics', diagnosticsInstallPlan]]) {
+    const { normal, current } = fixture(), helper = plan(normal, current).services[component + '-install']
+    assert.equal(helper.entrypoint.at(-1), `/app/scripts/install-${component}-release.py`)
+    assert.equal(helper.volumes[0].source, '/installation/runtime/' + component + '-incoming')
+    assert.equal(helper.network_mode, 'none'); assert.equal(helper.read_only, true)
+    assert.equal(helper.environment, undefined)
+    current.mounts.find(item => item.Destination === '/run/bellteam-maintenance').RW = true
+    assert.throws(() => plan(normal, current))
+  }
+  const { normal, current } = fixture()
+  assert.throws(() => webGatewayInstallPlan(normal, current, 'arbitrary'))
 })

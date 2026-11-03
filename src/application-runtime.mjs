@@ -11,11 +11,13 @@ import { createSeatMcp, internalApi } from './seat-mcp.mjs'
 import { createBugHubSecurity } from './bughub-security.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { runtimeHome } from './runtime-home.mjs'
+import { readServerSourceCommit } from './server-source.mjs'
 
 // Importing this factory does not bootstrap the installation or bind any ports.
 export async function createApplicationRuntime({ root, appRoot, bootstrap, environment = process.env, home = runtimeHome(), client }) {
   let socketDirectory = null, gateway = null
-  const services = await createApplicationServices({ root, ...bootstrap, environment, client, gateway: () => gateway })
+  const builtinSourceCommit = await readServerSourceCommit()
+  const services = await createApplicationServices({ root, ...bootstrap, environment, client, gateway: () => gateway, builtinSourceCommit })
   const {
     aiControl, subscriptions, settings, onboarding, harnessAuth, notifications,
     secretRequests, ownerQuestions, bots, rooms, roomMessenger, messenger,
@@ -30,6 +32,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     notificationsReleaseControl: notifications.controller,
     updateCenter: services.updateCenter,
     membersAuthorization: services.membersAuthorization,
+    usageAssembly: services.usageAssembly,
     ownerSecretGuide: input => olrwAuthCaller?.ownerSecretGuide(input) ?? null,
     aiControl,
     subscriptions,
@@ -59,6 +62,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
   const internalPort = Number(environment.BELLTEAM_INTERNAL_PORT ?? 4181)
   const callBridgeHeaders = bootstrap.callBridgeHeaders ?? join(root, 'shared/tools/call-bridge/headers')
   const features = createApplicationFeatures({ services, aiterm, home, callBridgeHeaders, environment, notify: data => server.notify(data),
+    ...(services.usageAssembly ? { usageContext: method => services.usageAssembly.systemContext(method) } : {}),
     ...(bootstrap.seatRuntime ? { configureHarnessConfig: (bots, _home, { callBridge }) =>
       services.members ? transport.membersAdmission.withLease(membersLease =>
         bootstrap.seatRuntime.configureMembersHarnesses(() => services.members.readCurrentBotIds({ membersLease }), aiterm,
@@ -124,7 +128,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         () => scheduler.stop(), () => idleSessions.stop(), () => selfTurns.stop(), () => seatTurns.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => features.close(),
         () => bootstrap.seatRuntime?.memoryModule?.close(),
-        () => transport.close(), () => services.members?.controller.close(), () => notifications.close(),
+        () => transport.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.usageAssembly?.close(), () => services.diagnosticsModule?.close(),
         () => socketDirectory && rm(socketDirectory, { recursive: true, force: true }),
       ]) {
         try { await stop() } catch (error) { errors.push(error) }

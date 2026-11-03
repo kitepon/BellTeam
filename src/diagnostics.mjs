@@ -47,6 +47,15 @@ function validInvestigation(value) {
     && Number.isFinite(Date.parse(value.updated_at))
 }
 
+export function validateDiagnosticReport(report) {
+  const { code, module, app_version: version, diagnostic_log: log, severity: assessed } = report ?? {}
+  if (!Object.hasOwn(reports, code) || !modules.has(module)) throw new Error('DIAGNOSTIC_INVALID')
+  const bySender = reports[code][2]
+  if (bySender && assessed !== undefined && !severities.has(assessed)) throw new Error('DIAGNOSTIC_INVALID')
+  if (version !== undefined && (typeof version !== 'string' || version.length > 40 || !/^[\w.+() -]+$/u.test(version))) throw new Error('DIAGNOSTIC_INVALID')
+  if (log !== undefined && (typeof log !== 'string' || !log.trim() || Buffer.byteLength(log) > 49152)) throw new Error('DIAGNOSTIC_INVALID')
+}
+
 export class Diagnostics {
   constructor(file, { investigationsFile = null } = {}) {
     this.file = file
@@ -56,9 +65,10 @@ export class Diagnostics {
     this.pending = Promise.resolve()
   }
 
-  async initialize() {
+  async initialize({ mode = 'bootstrap' } = {}) {
+    if (!['bootstrap', 'restore'].includes(mode)) throw new Error('DIAGNOSTIC_INVALID')
     try {
-      await chmod(this.file, 0o600)
+      if (mode === 'bootstrap') await chmod(this.file, 0o600)
       for (const row of JSON.parse(await readFile(this.file, 'utf8'))) this.rows.set(row.fingerprint, row)
     } catch (error) {
       if (error.code !== 'ENOENT') throw error
@@ -80,11 +90,8 @@ export class Diagnostics {
   record(report) {
     const task = this.pending.then(async () => {
       const { code, module, app_version: version, diagnostic_log: log, severity: assessed } = report ?? {}
-      if (!Object.hasOwn(reports, code) || !modules.has(module)) throw new Error('DIAGNOSTIC_INVALID')
+      validateDiagnosticReport(report)
       const [fixed, template, bySender] = reports[code]
-      if (bySender && assessed !== undefined && !severities.has(assessed)) throw new Error('DIAGNOSTIC_INVALID')
-      if (version !== undefined && (typeof version !== 'string' || version.length > 40 || !/^[\w.+() -]+$/u.test(version))) throw new Error('DIAGNOSTIC_INVALID')
-      if (log !== undefined && (typeof log !== 'string' || !log.trim() || Buffer.byteLength(log) > 49152)) throw new Error('DIAGNOSTIC_INVALID')
       // 送信元が重大度を付けた報告は、重大度ごとに別の行にする。参考の記録が、影響のあった記録を薄めない。
       const evaluated = Boolean(bySender && assessed) && (assessed !== 'info' || referenceGrounds.every(line => line.test(log ?? '')))
       const severity = evaluated ? assessed : fixed
@@ -124,23 +131,30 @@ export class Diagnostics {
   }
 
   list(status = 'all', limit = 500) {
+    return [...this.listSnapshot(status, limit)]
+  }
+
+  listSnapshot(status = 'all', limit = 500) {
     if (!['all', 'open', 'resolved'].includes(status) || !Number.isInteger(limit) || limit < 1 || limit > 1000) throw new Error('DIAGNOSTIC_INVALID')
-    return [...this.rows.values()].filter(row => status === 'all' || row.status === status)
+    const rows = [...this.rows.values()].filter(row => status === 'all' || row.status === status)
       .sort((a, b) => b.last_seen.localeCompare(a.last_seen)).slice(0, limit)
-      // 調査注記は報告元の読取表示にだけ添える。受信した診断原本と集計は書き換えない。
-      .map(row => {
-        const existing = this.investigations[row.fingerprint]
+    // 調査注記は報告元の読取表示にだけ添え、保存原本は変えない。
+    const investigations = this.investigations
+    return (function* () {
+      for (const row of rows) {
+        const existing = investigations[row.fingerprint]
         const note = row.investigation_note
         // 既存調査のsummary/evidence/時刻は上限まで無変更で保つ。
         // 後から付けた判定は要求発生時の原文と混ぜず、中央の既存追加文脈へ投影する。
-        return { ...row,
+        yield { ...structuredClone(row),
           ...(existing ? { investigation: structuredClone(existing) } : {}),
           ...(note ? { diagnostic_context: {
             ...structuredClone(row.diagnostic_context ?? {}),
             investigation_note: structuredClone(note),
           } } : {}),
         }
-      })
+      }
+    })()
   }
 
   setStatus(fingerprint, status, { note } = {}) {
@@ -157,13 +171,15 @@ export class Diagnostics {
       if (typeof fingerprint !== 'string' || !/^[a-f0-9]{64}$/u.test(fingerprint)) throw new Error('DIAGNOSTIC_INVALID')
       if (status !== undefined && !['open', 'resolved'].includes(status)) throw new Error('DIAGNOSTIC_INVALID')
       if (note !== undefined && (typeof note !== 'string' || !note.trim() || note.length > 2000)) throw new Error('DIAGNOSTIC_INVALID')
-      const row = this.rows.get(fingerprint)
-      if (!row) throw new Error('DIAGNOSTIC_NOT_FOUND')
+      const previous = this.rows.get(fingerprint)
+      if (!previous) throw new Error('DIAGNOSTIC_NOT_FOUND')
+      const row = { ...previous }
       if (status !== undefined) row.status = status
       if (note !== undefined) row.investigation_note = {
         summary: note, updated_at: new Date().toISOString(),
         occurrence_count: row.occurrence_count, status: row.status,
       }
+      this.rows.set(fingerprint, row)
       await this.save()
       return row
     })
@@ -186,7 +202,7 @@ export function createDiagnosticsAdminServer({ diagnostics, key }) {
       if (Buffer.byteLength(supplied) !== Buffer.byteLength(expected) || !timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) return send(response, 401, { error: 'UNAUTHORIZED' })
       const url = new URL(request.url, 'http://bellteam.local')
       if (request.method === 'GET' && url.pathname === '/api/admin/logs') {
-        return send(response, 200, diagnostics.list(url.searchParams.get('status') ?? 'all', Number(url.searchParams.get('limit') ?? 500)))
+        return send(response, 200, await diagnostics.list(url.searchParams.get('status') ?? 'all', Number(url.searchParams.get('limit') ?? 500)))
       }
       if (request.method === 'POST' && ['/api/admin/logs/resolve', '/api/admin/logs/reopen'].includes(url.pathname)) {
         const body = await readSmallJson(request)
@@ -199,6 +215,8 @@ export function createDiagnosticsAdminServer({ diagnostics, key }) {
       }
       return send(response, 404, { error: 'NOT_FOUND' })
     } catch (error) {
+      if (['DIAGNOSTICS_NOT_ACCEPTING', 'DIAGNOSTICS_NOT_ACCEPTED', 'DIAGNOSTICS_UNAVAILABLE'].includes(error.code))
+        return send(response, 503, { error: 'DIAGNOSTICS_UNAVAILABLE' })
       if (error.message === 'DIAGNOSTIC_NOT_FOUND') return send(response, 404, { error: error.message })
       if (error.message === 'DIAGNOSTIC_INVALID' || error.message === 'INVALID_JSON') return send(response, 400, { error: error.message })
       process.stderr.write(`BellTeam diagnostics admin error: ${error.stack ?? error.message}\n`)

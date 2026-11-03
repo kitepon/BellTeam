@@ -9,6 +9,7 @@
     "seat-process",
     "project-files",
     "cli-registration",
+    "module-runner",
     "update",
     "module-runner"
   ],
@@ -109,6 +110,9 @@
     "scripts/diagnostics-start.c",
     "src/module-locks.mjs",
     "src/module-process.mjs",
+    "src/module-release.mjs",
+    "src/diagnostics-process.mjs",
+    "src/usage-process.mjs",
     "src/usage-locks.mjs",
     "src/diagnostics-locks.mjs",
     "scripts/probe-members-runtime.mjs",

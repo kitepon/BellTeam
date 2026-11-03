@@ -168,7 +168,7 @@ final class BellDiagnosticsTests: XCTestCase {
     func testUnknownRequestRouteDoesNotBecomeSettingsFailure() {
         let route = BellRequestTrace.route(for: "/api/unlisted/private-value")
         XCTAssertEqual(route, "/api/other")
-        XCTAssertEqual(BellRequestTrace.route(for: "/api/harness-auth/private-value"), "/api/other")
+        XCTAssertEqual(BellRequestTrace.route(for: "/api/harness-auth/private-value/input"), "/api/other")
         var module = ""
         var log = ""
         let diagnostics = BellDiagnostics { _, value, _, message in module = value; log = message }
@@ -182,6 +182,29 @@ final class BellDiagnosticsTests: XCTestCase {
         XCTAssertTrue(log.contains("operation=unknown"))
         XCTAssertFalse(log.contains("private-value"))
         XCTAssertFalse(log.contains("settings_read"))
+    }
+
+    func testScheduleImageAndHarnessGetRoutesAreNamedWithoutTheirValues() {
+        let routes = [
+            "/api/schedules": ("/api/schedules", "schedules", "schedule_read"),
+            "/api/message-images/private-owner/private-file.png": ("/api/message-images/:id/:id", "image", "unknown"),
+            "/api/harness-auth/private-value": ("/api/harness-auth/:id", "session", "unknown"),
+        ]
+        for (path, expected) in routes {
+            let route = BellRequestTrace.route(for: path)
+            XCTAssertEqual(route, expected.0, path)
+            var module = ""
+            var log = ""
+            let diagnostics = BellDiagnostics { _, value, _, message in module = value; log = message }
+            let trace = BellRequestTrace(route: route, method: "GET", startedAt: Date(), failedAt: Date(),
+                                         appStateAtStart: "active", attempts: 1, metrics: nil)
+            let error = BellAPIError.httpStatus(503, nil, trace)
+            diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: false))
+            XCTAssertEqual(module, expected.1, path)
+            XCTAssertTrue(log.contains("request_route=\(expected.0)\n"), path)
+            XCTAssertTrue(log.contains("operation=\(expected.2)\n"), path)
+            XCTAssertFalse(log.contains("private"), path)
+        }
     }
 
     func testFixedPublicGetRoutesKeepOnlyKnownNames() {

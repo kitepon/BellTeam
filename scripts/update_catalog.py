@@ -114,6 +114,31 @@ def validate_memory_archive(release, manifest, consumer_state):
     return manifest
 
 
+def validate_business_compatibility(component, value):
+    from web_gateway_artifact import BUSINESS_STATE
+    require(component in BUSINESS_STATE, 'UPDATE_MODULE_COMPONENT_INVALID')
+    exact(value, 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility')
+    require(type(value['nodeMajor']) is int and value['nodeMajor'] == 26
+            and type(value['parentProtocol']) is int and value['parentProtocol'] == 1
+            and value['stateSchema'] is None and value['containerUpdate'] is None
+            and value['stateCompatibility'] == BUSINESS_STATE[component], 'UPDATE_MODULE_STATE_INCOMPATIBLE')
+    return value
+
+
+def validate_business_archive(release, manifest, consumer_state):
+    from web_gateway_artifact import validate_manifest
+    component = release['componentId']
+    compatibility = validate_business_compatibility(component, release['compatibility'])
+    validate_manifest(manifest, release['sourceCommit'], release['platform']['arch'], component=component)
+    runtime = manifest['runtime']
+    require(release['platform']['os'] == runtime['os']
+            and compatibility['nodeMajor'] == runtime['nodeMajor']
+            and compatibility['parentProtocol'] == runtime['parentProtocol']
+            and compatibility['stateCompatibility'] == runtime['stateCompatibility'] == consumer_state,
+            'UPDATE_MODULE_ARCHIVE_INCOMPATIBLE')
+    return manifest
+
+
 def validate_catalog(value, *, now=None):
     exact(value, 'schema,publishedAt,expiresAt,releases,revokedCatalogs')
     require(value['schema'] == 'bellteam.update-catalog.v1')
@@ -131,13 +156,15 @@ def validate_catalog(value, *, now=None):
     for release in releases:
         exact(release, 'componentId,sourceCommit,versionId,platform,artifact,compatibility,changes')
         component = release['componentId']
-        require(component in ['container', 'web-gateway', 'notifications', 'members', 'memory'])
+        require(component in ['container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics'])
         require(hexadecimal(release['sourceCommit'], 40))
         platform = release['platform']; exact(platform, 'os,arch')
         require(platform['os'] == 'linux' and platform['arch'] in ['amd64', 'arm64'])
         key = component, platform['arch']; require(key not in seen); seen.add(key)
         compatibility = release['compatibility']
-        if component == 'notifications':
+        if component in ('usage', 'diagnostics'):
+            validate_business_compatibility(component, compatibility)
+        elif component == 'notifications':
             validate_notifications_compatibility(compatibility)
         elif component == 'memory':
             validate_memory_compatibility(compatibility)

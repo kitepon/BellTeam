@@ -420,6 +420,11 @@ final class AppStore: ObservableObject {
         try await billing.requirePaidAccess(initialGuide: initialGuide)
     }
 
+    func restartConversation(target: ChatTarget) async throws {
+        try await authorizeAIUse(target: target)
+        let _: APIAcknowledgement = try await api.post(target.path + "/restart", body: EmptyBody())
+    }
+
     func activateNotifications() async {
         await BellNotifications.shared.activate(api: api, signedTransaction: billing.notificationSignedTransaction)
     }

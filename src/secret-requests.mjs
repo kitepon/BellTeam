@@ -6,21 +6,22 @@ import { join } from 'node:path'
 
 // 秘密の値はこのクラスのsubmitだけが受け取り、一覧・通知・イベントへ渡さない。
 export class SecretRequests {
-  constructor({ root, bots, rooms, notify, onRequest = () => {} }) {
+  constructor({ root, bots, rooms, notify, onRequest = () => {}, onSave = () => {} }) {
     this.directory = join(root, 'state/secret-requests')
     this.toolsDirectory = join(root, 'state/secret-values')
     this.bots = bots
     this.rooms = rooms
     this.notify = notify
     this.onRequest = onRequest
+    this.onSave = onSave
     this.items = new Map()
     this.cardTimelines = new CardTimelines(bots, 'secret_request')
     this.busy = new Set()
     this.events = new EventEmitter()
   }
 
-  async initialize() {
-    await mkdir(this.directory, { recursive: true, mode: 0o700 })
+  async initialize({ readOnly = false } = {}) {
+    if (!readOnly) await mkdir(this.directory, { recursive: true, mode: 0o700 })
     for (const file of await readdir(this.directory)) {
       if (!file.endsWith('.json')) continue
       const item = JSON.parse(await readFile(join(this.directory, file), 'utf8'))
@@ -127,6 +128,7 @@ export class SecretRequests {
     await rename(`${path}.tmp`, path)
     this.items.set(item.id, item)
     this.cardTimelines.put(item)
+    this.onSave({ ...item })
     this.events.emit('change', { all: false, topics: ['requests'], botIds: [item.botId], roomIds: item.roomId ? [item.roomId] : [] })
   }
 }

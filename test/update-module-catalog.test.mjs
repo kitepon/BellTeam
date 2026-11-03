@@ -21,7 +21,7 @@ function center(catalog) {
 }
 test('trusted selected module records map to inventory without enabling plans or changing availability', async () => {
   const calls = [], state = await center(async id => { calls.push(id); return selection(id) }).snapshot()
-  assert.deepEqual(calls, [...ids, 'memory'])
+  assert.deepEqual(calls, [...ids, 'memory', 'diagnostics', 'usage'])
   for (const id of ids) {
     const component = state.components.find(value => value.id === id)
     assert.equal(component.published.version, 'b'.repeat(64))

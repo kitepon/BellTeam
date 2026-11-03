@@ -36,10 +36,16 @@ export function diagnosticRequestContext({ method, url }, frames = [], error = n
     route = '/api/models'
     operation = 'model_catalog_read'
     expected = 'model_catalog_response'
-  } else if (/^\/api\/(bots|rooms)\/[a-z0-9-]+\/schedules$/u.test(path) && requestMethod === 'GET') {
-    route = `/api/${path.split('/')[2]}/:id/schedules`
+  } else if ((path === '/api/schedules' || /^\/api\/(bots|rooms)\/[a-z0-9-]+\/schedules$/u.test(path)) && requestMethod === 'GET') {
+    route = path === '/api/schedules' ? path : `/api/${path.split('/')[2]}/:id/schedules`
     operation = 'schedule_read'
     expected = 'schedule_data_response'
+  } else if (/^\/api\/message-images\/[a-z0-9-]+\/[a-z0-9-]+\.(?:png|jpg|webp|gif)$/u.test(path) && requestMethod === 'GET') {
+    route = '/api/message-images/:id/:id'
+    expected = 'successful_response'
+  } else if (/^\/api\/harness-auth\/[a-z]+$/u.test(path) && requestMethod === 'GET') {
+    route = '/api/harness-auth/:id'
+    expected = 'successful_response'
   } else if (path === '/api/subscription' && requestMethod === 'GET') {
     route = path
     operation = 'subscription_status_read'

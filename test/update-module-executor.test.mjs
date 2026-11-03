@@ -1,3 +1,4 @@
+import { readServerSourceCommit } from '../src/server-source.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
@@ -290,10 +291,11 @@ test('Owner plan/start/get and individual rollback exchange all three real contr
     value.release.versionId = selectedVersion; value.release.artifact.archive.sha256 = selectedVersion
     return value
   } } })
-  const adapters = createModuleUpdateAdapters({ gateway: () => gateway, notifications: { controller: push }, members: { controller: members },
+  const builtinSourceCommit = await readServerSourceCommit()
+  const adapters = createModuleUpdateAdapters({ gateway: () => gateway, builtinSourceCommit, notifications: { controller: push }, members: { controller: members },
     prepare: Object.fromEntries(['web-gateway', 'notifications', 'members'].map(id => [id, async versionId => descriptor(id, versionId)])) })
   const executor = await createModuleUpdateExecutor({ root, catalog, adapters })
-  center = createUpdateCenter({ gateway: () => gateway, notifications: { controller: push }, members: { controller: members }, moduleCatalog: catalog, moduleExecutor: executor })
+  center = createUpdateCenter({ gateway: () => gateway, builtinSourceCommit, notifications: { controller: push }, members: { controller: members }, moduleCatalog: catalog, moduleExecutor: executor })
   server = createBellTeamServer({ bots: Object.assign(new Map(), { refresh: async () => {} }), store: { watch: async () => () => {} }, transport: {}, updateCenter: center, authorize: async () => true, writeLog() {} })
   const socketPath = join(root, 'business.sock'); server.listen(socketPath); await once(server, 'listening')
   gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: webRoots.get('builtin'), prepareRelease: async id => descriptor('web-gateway', id), adoptionPath: join(root, 'state/web-gateway-release.json') })
@@ -314,6 +316,11 @@ test('Owner plan/start/get and individual rollback exchange all three real contr
     }
     assert.fail('real controller exchange did not finish within the fixture budget')
   }
+  await run({ scope: 'component', componentId: 'web-gateway' })
+  assert.equal(gateway.versionId, digest)
+  await run({ scope: 'component', componentId: 'web-gateway', action: 'rollback' })
+  assert.equal(gateway.versionId, null)
+  assert.equal(gateway.address.port, port)
   await run({ scope: 'all' })
   assert.notEqual(gateway.pid, oldPid)
   assert.equal(gateway.versionId, digest); assert.equal(push.snapshot().currentVersionId, digest); assert.equal(members.snapshot().currentVersionId, digest)

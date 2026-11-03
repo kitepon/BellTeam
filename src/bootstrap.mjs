@@ -8,11 +8,13 @@ import { createGlobalInstructionsRefresher } from './global-instructions.mjs'
 import { OwnerProfile } from './owner-profile.mjs'
 import { UserRules } from './user-rules.mjs'
 import { runtimeHome } from './runtime-home.mjs'
-import { FeatureSettings } from './feature-settings.mjs'
+import { createUsageAssembly } from './usage-assembly.mjs'
+import { createUsageParentEffects } from './usage-parent-effects.mjs'
 import { defaultCallBridgeMcpUrl } from './distribution-profile.mjs'
 import { SeatRuntime } from './seat-runtime.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { AitermClient } from './aiterm-client.mjs'
+export { createDiagnosticsProcess } from './diagnostics-process.mjs'
 
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const home = runtimeHome()
@@ -26,11 +28,16 @@ export const seatRuntime = new SeatRuntime({ root, home })
 export const aiterm = await seatRuntime.aitermRegistration()
 export const models = new LiveModelCatalog({ cwd: root, client: () => new AitermClient({ ...aiterm, seatProject: root }) })
 export const callBridgeHeaders = join(root, 'state/call-bridge/headers')
-export const settings = new FeatureSettings({ root, bridgeHeadersPath: callBridgeHeaders, environment: {
-  ...process.env,
-  BELLTEAM_CALL_BRIDGE_MCP_URL: process.env.BELLTEAM_CALL_BRIDGE_MCP_URL || defaultCallBridgeMcpUrl || '',
-} })
-await settings.initialize()
+let usageServices = {}
+export const attachUsageServices = services => { usageServices = services }
+const usageEffects = createUsageParentEffects({ getServices: () => usageServices,
+  getFeatures: () => ({ onChange: usageServices.settings?.onChange }), seatRuntime })
+export const usageAssembly = createUsageAssembly({ root, seatRuntime, getServices: () => usageServices,
+  onEffect: usageEffects, onState: () => usageServices.updateCenter?.notify(), environment: {
+    ...process.env, BELLTEAM_CALL_BRIDGE_MCP_URL: process.env.BELLTEAM_CALL_BRIDGE_MCP_URL || defaultCallBridgeMcpUrl || '',
+  } })
+await usageAssembly.initializeSettings()
+export const settings = usageAssembly.facade.settings
 const configure = bots => seatRuntime.configureHarnesses(bots, aiterm, settings.configuration('callBridge'))
 
 export const ownerProfile = new OwnerProfile({ root })

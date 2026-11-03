@@ -15,6 +15,8 @@ import { createManagedTransport } from './aiterm-transport.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
 import { completedThroughlineTurns, latestThroughlineHandoffContext } from './throughline-context.mjs'
 import { AiControl, stopRegisteredWork } from './ai-control.mjs'
+import { prepareModuleRelease } from './module-release.mjs'
+import { createDiagnosticsFacade } from './diagnostics-facade.mjs'
 import { Diagnostics } from './diagnostics.mjs'
 import { BellTeamMemory } from './memory-service.mjs'
 import { BotScheduler, runShellCommand } from './scheduler.mjs'
@@ -36,21 +38,26 @@ import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory }) {
-  let members = null, memory, rooms, assets, updateCenter
+export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options) }) {
+  let members = null, diagnosticsModule = null, memory, rooms, assets, updateCenter
   const membersAdmission = new MembersAdmission()
   try {
   const trustedAnchor = acquireConfigurationStateAnchor(root)
   const membersAuthorization = createMembersOwnerAuthorization()
-  const subscriptions = new Subscriptions({
+  const usage = usageAssembly?.facade
+  const usageServices = { bots, settings }
+  attachUsageServices(usageServices)
+  const subscriptions = usage?.subscriptions ?? new Subscriptions({
     path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'),
     environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production',
     accessMode: environment.BELLTEAM_SUBSCRIPTION_ACCESS_MODE ?? 'subscription',
   })
-  await subscriptions.initialize()
-  const diagnostics = new Diagnostics(join(root, 'logs/diagnostics.json'), {
-    investigationsFile: environment.BELLTEAM_DIAGNOSTIC_INVESTIGATIONS ?? null,
-  })
+  if (usageAssembly) await usageAssembly.initializeSubscriptions()
+  else await subscriptions.initialize()
+  const investigationsFile = environment.BELLTEAM_DIAGNOSTIC_INVESTIGATIONS ?? null
+  if (diagnosticsFactory) diagnosticsModule = diagnosticsFactory({ root, investigationsFile, prepareRelease: prepareDiagnostics, onState: () => updateCenter?.notify() })
+  const diagnostics = diagnosticsModule ? createDiagnosticsFacade(diagnosticsModule)
+    : new Diagnostics(join(root, 'logs/diagnostics.json'), { investigationsFile })
   await diagnostics.initialize()
   if (seatRuntime || membersFactory) {
     members = createMembersAssembly({ root, seatRuntime, aiterm, settings, models, membersAdmission,
@@ -65,18 +72,20 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   const notifications = createNotifications({ root, bots, diagnostics,
     configuration: () => ({ apns: settings.configuration('notifications'), webPush: settings.configuration('webPush') }), createProcess,
     onState: state => {
-      for (const [provider, feature] of [['apns', 'notifications'], ['webPush', 'webPush']]) {
+      // Usage applies errors through its captured settings.changed epoch, never a later snapshot.
+      if (!usageAssembly) for (const [provider, feature] of [['apns', 'notifications'], ['webPush', 'webPush']]) {
         if (state.applyError?.[provider]) settings.setError(feature, { code: state.applyError[provider] })
       }
       updateCenter?.notify()
     },
   })
-  const hostUpdateClient = createContainerUpdateClient()
+  const hostUpdateClient = hostClient ?? createContainerUpdateClient()
   const hostUpdate = createHostUpdateAdapter({ root, client: hostUpdateClient })
   const moduleCatalog = createModuleUpdateCatalog({ client: hostUpdateClient })
   const moduleExecutor = await createModuleUpdateExecutor({ root, catalog: moduleCatalog, host: hostUpdate,
-    adapters: createModuleUpdateAdapters({ gateway, notifications, members, memory: seatRuntime?.memoryModule }), notify: () => updateCenter?.notify() })
-  updateCenter = createUpdateCenter({ gateway, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, memory: seatRuntime?.memoryModule })
+    adapters: createModuleUpdateAdapters({ gateway, builtinSourceCommit, notifications, members, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule,
+      prepareDiagnostics, usage: usageAssembly?.controller, prepareUsage }), notify: () => updateCenter?.notify() })
+  updateCenter = createUpdateCenter({ gateway, builtinSourceCommit, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule, usage: usageAssembly?.controller })
   await notifications.initialize()
   memory = seatRuntime ? seatRuntime.memory(bots) : new BellTeamMemory({ registry: bots, root })
   await memory.initialize()
@@ -107,7 +116,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     },
     prepareStartup: async (bot, shortTermMemory, context) => {
       await bots.prepareStartupContext(bot.id, shortTermMemory, context)
-      await onboarding.prepareStartup(bot, context)
+      await onboarding.prepareStartup(bot, usageAssembly ? usageAssembly.systemContext('onboarding.prepareStartup', context) : context)
     },
     updateSession: (botId, session, context) => bots.updateSession(botId, session, context),
     updateFastMode: (botId, fastMode, context) => members ? bots.updateFastMode(botId, fastMode, context) : bots.update(botId, { fastMode }, context),
@@ -121,7 +130,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   const conversation = createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime })
   const { store, messenger } = conversation
   assets = conversation.assets
-  const onboarding = new Onboarding({
+  const onboarding = usage?.onboarding ?? new Onboarding({
     root, bots, client: transport.client, subscriptions,
     ...(seatRuntime ? { path: join(root, 'state/onboarding.json'), projectFiles: members ? {
       appendInstructions: (bot, text) => seatRuntime.membersProject('project.appendInstructions', { botId: bot.id, text }),
@@ -129,8 +138,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     startConversation: (bot, message) => messenger.enqueueUserTurn({ target: bot.id, message, recordUser: false }),
   })
   await assets.initialize()
-  await onboarding.initialize()
-  const harnessAuth = new HarnessAuth({ bots, client: transport.client })
+  if (!usageAssembly) await onboarding.initialize()
+  const harnessAuth = usage?.harnessAuth ?? new HarnessAuth({ bots, client: transport.client })
   const conversationServices = await conversation.initialize()
   rooms = conversationServices.rooms
   const { selfTurns, seatTurns, roomMessenger } = conversationServices
@@ -149,18 +158,22 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     reportError: report => diagnostics.record(report) })
   transport.continuation = new CapacityContinuation({ bots, administration, messenger, models, harnessAuth,
     assertEnabled: () => aiControl.assertEnabled() })
-  const secretRequests = new SecretRequests({
+  const secretRequests = usage ? { ...usage.secretRequests,
+    notifyOwnerGuide: id => usage.secretRequests.notifyOwnerGuide(id, usageAssembly.systemContext('secrets.notifyOwnerGuide')),
+  } : new SecretRequests({
     root, bots, rooms,
     onRequest: item => notifications.secret(item),
     notify: item => messenger.enqueueUserTurn({ target: item.botId, message: secretCompletionMessage(item) }),
   })
-  await secretRequests.initialize()
-  const ownerQuestions = new OwnerQuestions({
+  if (!usageAssembly) await secretRequests.initialize()
+  const ownerQuestions = usage?.ownerQuestions ?? new OwnerQuestions({
     root, bots,
     onRequest: item => notifications.question(item),
     notify: item => messenger.enqueueUserTurn({ target: item.botId, message: ownerAnswerMessage(item) }),
   })
-  await ownerQuestions.initialize()
+  if (!usageAssembly) await ownerQuestions.initialize()
+  Object.assign(usageServices, { bots, rooms, transport, messenger, notifications, settings, updateCenter })
+  if (usageAssembly) await usageAssembly.initializeServices()
   let olrwAuthCaller = null
   try {
     if (olrwManagement === undefined) olrwManagement = await prepareOlrwManagement({ root, ownerQuestions, aiControl })
@@ -184,17 +197,19 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     try { await diagnostics.record({ code: 'OLRW_MANAGEMENT_UNAVAILABLE', module: 'integration' }) } catch {}
   }
   return {
-    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, membersAuthorization, members,
+    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, membersAuthorization, members, usageAssembly,
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
-    scheduler, diagnostics, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
+    scheduler, diagnostics, diagnosticsModule, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
   }
   } catch (error) {
-    await updateCenter?.close()
-    await seatRuntime?.memoryModule?.close()
-    try { await members?.controller.close() }
-    catch (cleanupError) { throw new AggregateError([error, cleanupError], 'MEMBERS_ASSEMBLY_FAILED') }
+    const failures = []
+    for (const close of [() => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
+      () => members?.controller.close(), () => usageAssembly?.close(), () => diagnosticsModule?.close()]) {
+      try { await close() } catch (cleanupError) { failures.push(cleanupError) }
+    }
+    if (failures.length) throw new AggregateError([error, ...failures], 'APPLICATION_SERVICES_FAILED')
     throw error
   }
 }

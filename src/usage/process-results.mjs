@@ -1,0 +1,29 @@
+import { usageMethods } from './process-schema.mjs'
+import { usageProjectionRecordValid, usageSettingValid, usageConfigurationValid } from './projection.mjs'
+
+const object = value => value && typeof value === 'object' && !Array.isArray(value)
+const exact = (value, names) => object(value) && Object.keys(value).length === names.length && names.every(key => Object.hasOwn(value, key))
+const record = (type, value) => usageProjectionRecordValid({ type, value, revision: 0 })
+const auth = value => value === null || exact(value, ['status', 'url', 'user_code', 'input_required', 'message', 'session_id', 'auth_ui'])
+  && ['waiting', 'authenticated', 'blocked', 'failed'].includes(value.status) && typeof value.input_required === 'boolean'
+const timeline = (kind, value) => Array.isArray(value) && value.every(row => exact(row, ['id', 'kind', 'direction', 'at', 'message', 'sender', kind])
+  && row.kind === kind && row.direction === 'incoming' && typeof row.message === 'string'
+  && exact(row.sender, ['id', 'name']) && typeof row.sender.name === 'string' && record(kind === 'secret_request' ? 'secret' : 'question', row[kind]))
+
+// The channel validates a reply before it becomes a successful public business result.
+export function usageResultValid(method, value, params = {}) {
+  if (!Object.hasOwn(usageMethods, method)) return false
+  if (method === 'settings.list') return Array.isArray(value) && value.length === 6 && new Set(value.map(item => item?.id)).size === 6 && value.every(usageSettingValid)
+  if (method === 'settings.configuration') return usageConfigurationValid(params.id, value)
+  if (method === 'settings.update') return usageSettingValid(value) && value.id === params.id
+  if (['settings.setError', 'onboarding.prepareStartup', 'secrets.notifyOwnerGuide'].includes(method)) return value === null
+  if (method.startsWith('onboarding.')) return record('onboarding', value)
+  if (method === 'auth.list') return record('auth', value)
+  if (method.startsWith('auth.')) return exact(value, ['harness', 'auth']) && value.harness === params.harness && auth(value.auth)
+  if (method === 'secrets.timeline') return timeline('secret_request', value)
+  if (method.startsWith('secrets.')) return record('secret', value) && (!params.id || value.id === params.id)
+  if (method === 'questions.timeline') return timeline('owner_question', value)
+  if (method.startsWith('questions.')) return record('question', value) && (!params.id || value.id === params.id)
+  if (method === 'subscriptions.runSetupTest') return exact(value, ['subscription', 'reply']) && record('subscription', value.subscription) && typeof value.reply === 'string' && value.reply.trim().length > 0
+  return method.startsWith('subscriptions.') && record('subscription', value)
+}
