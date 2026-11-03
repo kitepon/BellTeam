@@ -10,8 +10,33 @@ const FAST_MODE_MESSAGES = {
   BOT_FAST_MODE_UNSUPPORTED: 'ファストモードへ切り替えられません。このBotのCLIとモデルは、ファストモードに対応していません。保存は変えていません。',
   BOT_FAST_MODE_ACCOUNT_UNAVAILABLE: 'ファストモードへ切り替えられません。このBotのCLIのアカウントでは、今はファストモードを使えません。保存は変えていません。',
 }
-export async function respondHttpError(request, response, error, diagnostics) {
-  if (typeof error.code === 'string' && Number.isInteger(error.status)) return json(response, error.status, { error: error.code, message: error.publicMessage ?? error.message, ...(['AUTH_RESPONSE_NOT_ISSUED', 'AUTH_RESPONSE_UNCONFIRMED', 'HARNESS_AUTH_RESPONSE_UNCONFIRMED', 'SETUP_AUTH_RESPONSE_UNCONFIRMED'].includes(error.code) ? { effect: error.effect ?? 'unknown' } : {}) })
+const unavailableCodes = new Set(['MEMBERS_NOT_ACCEPTED', 'MEMBERS_NOT_ACCEPTING', 'MEMBERS_UNAVAILABLE',
+  'MEMBERS_IPC_CAPACITY', 'MEMBERS_IPC_DISCONNECTED', 'MEMBERS_IPC_SEND_FAILED', 'MEMBERS_IPC_ACK_TIMEOUT',
+  'MEMBERS_IPC_TIMEOUT', 'MEMBERS_CHILD_EXITED', 'MEMBERS_IPC_INVALID', 'MEMBERS_RESULT_INVALID',
+  'MEMBERS_OPERATION_FAILED', 'MEMBERS_PROJECTION_UNCONFIRMED', 'BOT_SESSION_UNCONFIRMED'])
+const httpStages = new Set(['url', 'authorize', 'members_authorization', 'seat_mcp', 'control', 'members_refresh', 'feature', 'static'])
+const unavailableRoutes = new Set(['/api/bots', '/api/rooms', '/api/owner', '/api/queue', '/api/models', '/api/settings'])
+
+export async function respondHttpError(request, response, error, diagnostics, context = {}) {
+  if (typeof error.code === 'string' && Number.isInteger(error.status)) {
+    if (error.status === 503 && diagnostics) {
+      const path = typeof request.url === 'string' ? request.url.split(/[?#]/u, 1)[0] : ''
+      const scoped = /^\/api\/(bots|rooms)\/[a-z0-9-]+\/(messages|queue)$/u.exec(path)
+      try {
+        await diagnostics.record({ code: 'SERVER_HTTP_503', module: 'server', diagnostic_log: JSON.stringify({
+          schema: 'bellteam.http-unavailable.v1',
+          error_code: unavailableCodes.has(error.code) ? error.code : 'unknown',
+          http_method: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'].includes(request.method) ? request.method : 'unknown',
+          request_route: unavailableRoutes.has(path) ? path : scoped ? `/api/${scoped[1]}/:id/${scoped[2]}` : '/api/other',
+          request_started_at_ms: Number.isSafeInteger(context.startedAt) && context.startedAt >= 0 ? context.startedAt : null,
+          response_selected_at: new Date().toISOString(),
+          http_stage: httpStages.has(context.stage) ? context.stage : 'unknown',
+          members_denial_reason: 'unknown', members_live_roots: null, members_failure_phase: 'unknown',
+        }) })
+      } catch { process.stderr.write('BellTeam: HTTP503の診断を保存できませんでした\n') }
+    }
+    return json(response, error.status, { error: error.code, message: error.publicMessage ?? error.message, ...(['AUTH_RESPONSE_NOT_ISSUED', 'AUTH_RESPONSE_UNCONFIRMED', 'HARNESS_AUTH_RESPONSE_UNCONFIRMED', 'SETUP_AUTH_RESPONSE_UNCONFIRMED'].includes(error.code) ? { effect: error.effect ?? 'unknown' } : {}) })
+  }
   if (error instanceof SubscriptionAccessError) return json(response, error.status, { error: error.code, message: error.message })
   if (request.url?.startsWith('/api/subscription') && ['INVALID_JSON', 'REQUEST_TOO_LARGE'].includes(error.message))
     return json(response, 400, { error: error.message, message: '購入情報または動作確認のリクエスト形式を確認してください。' })

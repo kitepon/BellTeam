@@ -70,6 +70,19 @@ executionは`SERVER_MODEL_CONFIGURATION_FAILED`（bots）と`SERVER_TURN_TRACKIN
 
 通常deployとcleanup結果保存の接続は[担当と保存契約](deploy-cleanup.md)へ。
 
+## 型付きHTTP503の受動診断
+
+```mermaid
+flowchart LR
+  HTTP["業務HTTP: 認証→control→members refresh→feature"] --> Error["http-errors: 型付き503を選択"]
+  Error --> Safe["固定code allowlist / HTTP段階 / 型route / 時刻"]
+  Safe --> Writer["既Diagnostics.record / SERVER_HTTP_503"]
+  Writer --> Saved["既private診断保存 / 管理GET / BugHub通常取込"]
+  Error --> Response["既status・JSON応答"]
+```
+
+早期returnしていた型付き503だけを既writerへ記録する。任意のerror.message/stack/header/body/queryや対象IDは記録せず、未知codeはunknown、routeは固定型又は`/api/other`。HTTP段階はhandlerの進行位置で、members内部の失敗phaseではない。親拒否分類・live数・失敗phaseを同一判定へ結び付ける既公開口が無いためunknown/nullを保持し、catch直後のcapture/snapshotから補完しない。既集約はSERVER_HTTP_503/serverの1行でcountと最新診断を保持し、旧500/Apple診断の集約・状態を変えない。診断保存失敗は固定文だけをstderrへ残し元HTTP応答を返す。認可・入場8枠・既処理・status/JSON・再送方針は不変。自然再発や実席probeは検証条件にしない。
+
 ## 本番更新入口の旧profile保存
 
 ```mermaid
