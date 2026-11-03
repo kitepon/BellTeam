@@ -1,0 +1,22 @@
+{
+  "schema": "bellteam.bot.v8",
+  "id": "bot-fixture",
+  "session": "bot-fixture",
+  "name": "Synthetic fixture member",
+  "position": "",
+  "role": "Synthetic data only; never launch a real task.",
+  "profileText": "",
+  "personality": "",
+  "speechStyle": "",
+  "avatar": "",
+  "color": "violet",
+  "avatarLarge": "",
+  "avatarSource": "",
+  "avatarLargeSource": "",
+  "avatarCrop": null,
+  "avatarLargeCrop": null,
+  "harness": "grok",
+  "model": "",
+  "reasoningEffort": "",
+  "fastMode": false
+}

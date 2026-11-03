@@ -84,6 +84,7 @@
     "src/members-projection.mjs",
     "src/members-facade.mjs",
     "src/members-assembly.mjs",
-    "src/members-owner-proxy.mjs"
+    "src/members-owner-proxy.mjs",
+    "src/update-module-catalog.mjs"
   ]
 }
