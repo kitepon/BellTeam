@@ -1,0 +1,35 @@
+[Unit]
+Description=BellTeam container update admission
+After=local-fs.target
+
+[Service]
+Type=exec
+User=root
+Group=1001
+UMask=0077
+WorkingDirectory=/
+ExecStart=/usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8 @PYTHON@ -I -B -S /srv/bellteam/shared/tools/bellteam-container-update-host/releases/@RELEASE@/scripts/container-update-host.py
+Environment=PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8
+StandardInput=null
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/srv/bellteam/shared/tools/bellteam-container-update-host/state /srv/bellteam/shared/tools/bellteam-container-update-host/socket
+InaccessiblePaths=-/var/run/docker.sock -/run/docker.sock
+KillMode=control-group
+TimeoutStopSec=5
+Restart=on-failure
+LimitCORE=0
+
+[Install]
+WantedBy=multi-user.target

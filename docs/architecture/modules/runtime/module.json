@@ -89,6 +89,10 @@
     "src/notifications-process.mjs",
     "src/notifications-release.mjs",
     "src/notifications-install-plan.mjs",
-    "scripts/install-notifications-release.py"
+    "scripts/install-notifications-release.py",
+    "src/container-update-client.mjs",
+    "scripts/container-update-host.py",
+    "scripts/install-container-update-code.py",
+    "distribution/server/updater"
   ]
 }

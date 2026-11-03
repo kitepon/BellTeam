@@ -1,0 +1,12 @@
+[Unit]
+Description=Check official BellTeam update publications without AI polling
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+RandomizedDelaySec=60
+Unit=bellteam-update-catalog-refresh.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

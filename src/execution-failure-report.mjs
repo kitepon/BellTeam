@@ -1,5 +1,7 @@
 import { constants } from 'node:os'
 import { returnedExecutionError } from './execution-error.mjs'
+import { diagnosticFailureDetails } from './diagnostic-report-context.mjs'
+import { mcpRequestContext } from './mcp-request-context.mjs'
 
 const processCodes = new Set(['ABORT_ERR', 'SEAT_PROCESS_FAILED', 'SEAT_PROCESS_START_FAILED',
   'SEAT_BUFFER_EXCEEDED', 'SEAT_INPUT_FAILED', 'AITERM_WAIT_INVALID', 'AITERM_FAST_UNAVAILABLE'])
@@ -25,6 +27,17 @@ export function executionFailureReport(botId, phase, error, context = {}) {
     }
   }
   if (phase === 'configuration') {
+    detail.failure = diagnosticFailureDetails(error)
+    const request = mcpRequestContext(error)
+    if (request) detail.mcp_request = request
+    if (error?.aitermResponseReturned === true) detail.responseReturned = true
+    const receipt = error?.agentConfigureResult
+    if (receipt?.schema === 'aiterm.agent-configure-error.v1'
+      && Object.keys(receipt).sort().join(',') === 'effect,outcome,schema,session_id'
+      && typeof receipt.session_id === 'string' && /^[A-Za-z0-9_-]{1,64}$/u.test(receipt.session_id)
+      && (receipt.outcome === 'not_applied' && receipt.effect === 'not_started'
+        || receipt.outcome === 'outcome_unknown' && receipt.effect === 'possible'))
+      detail.configureFailure = { outcome: receipt.outcome, effect: receipt.effect }
     const notStarted = error?.effect === 'not_started'
       || error?.agentConfigureResult?.outcome === 'not_applied' && error.agentConfigureResult.effect === 'not_started'
     detail.outcome = notStarted ? 'not_applied' : 'outcome_unknown'

@@ -1,0 +1,9 @@
+services:
+  bellteam:
+    volumes:
+      - type: bind
+        source: /srv/bellteam/shared/tools/bellteam-container-update-host/socket
+        target: /run/bellteam-updater
+        read_only: true
+        bind:
+          create_host_path: false

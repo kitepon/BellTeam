@@ -1,6 +1,6 @@
 # installer・状態移行・backup/restore
 
-責任者：エピネル。公開窓口は[runtime](README.md)の`update`。配布構成・採用imageと公開は[distribution](../distribution/README.md)、本番実行はトロニー、OSは各Host担当。ここで示すのは現行実装で、[商用更新の設計案](commercial-update-design.md)の新機能を実装済みとしない。
+責任者：エピネル。公開窓口は[runtime](README.md)の`update`。配布構成・採用imageと公開は[distribution](../distribution/README.md)、本番実行はトロニー、OSは各Host担当。既installerは以下の現行契約を保持する。アプリからの限定Host受付とworkerのsourceは[container更新](container-update.md)へ分離し、source実装と実Host導入を区別する。
 
 H1対応の保存要求では、旧CID停止/再起動防止・writer検査・private準備後にoffline checkpointを行い、通常bootstrap前に復元を採用する。[H1接続候補](resume.md)を参照。保持非対応の旧/tmp初回と通常リセット更新を区別し、正式版へ供給済みとはしない。
 

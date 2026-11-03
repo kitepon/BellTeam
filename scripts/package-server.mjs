@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { promisify } from 'node:util'
-import { chmod, copyFile, mkdir, mkdtemp, open, rm, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, lstat, mkdir, mkdtemp, open, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -30,8 +31,9 @@ try {
     'scripts/install-sce-headers.py',
     'scripts/verify-web-gateway.py', 'scripts/web_gateway_artifact.py',
     'scripts/verify-notifications.py', 'scripts/module_artifact_verifier.py',
-    'scripts/verify-update-catalog.py', 'scripts/update_catalog.py',
     'scripts/install-web-gateway-release.py', 'scripts/install-notifications-release.py',
+    'scripts/verify-update-catalog.py', 'scripts/update_catalog.py',
+    'scripts/container-update-host.py', 'scripts/install-container-update-code.py', 'scripts/cleanup-deploy-images.py', 'scripts/save-deploy-restore-point.py',
   ], { cwd: root })
   await exec('tar', ['-xf', archive, '-C', output])
   await mkdir(join(output, 'bridge'))
@@ -48,11 +50,30 @@ try {
   ]) await copyFile(join(output, 'distribution/server', source), join(output, target))
   await chmod(join(output, 'install.sh'), 0o755)
   await chmod(join(output, 'bridge/install.sh'), 0o755)
+  await rename(join(output, 'distribution/server/updater'), join(output, 'updater'))
   await rm(join(output, 'distribution'), { recursive: true })
   await mkdir(join(output, 'distribution/server'), { recursive: true })
+  await rename(join(output, 'updater'), join(output, 'distribution/server/updater'))
   // Dockerfile uses the same two source paths in repository and public contexts.
   for (const name of ['install-resume-state.sh', 'compose.aiterm-checkpoint.yaml'])
     await copyFile(join(output, name), join(output, 'distribution/server', name))
+  const codePaths = JSON.parse(await readFile(join(output, 'distribution/server/updater/root-code-paths.json'), 'utf8'))
+  if (codePaths.schema !== 'bellteam.host-updater.code-paths.v1' || !Array.isArray(codePaths.files) || !codePaths.files.length)
+    throw new Error('Invalid root updater code paths')
+  const codeFiles = [], seen = new Set()
+  for (const item of codePaths.files) {
+    if (Object.keys(item).sort().join(',') !== 'imagePath,installPath'
+      || typeof item.imagePath !== 'string' || !/^\/app\/(?:install\.sh|(?:scripts|config)\/[a-zA-Z0-9][a-zA-Z0-9_.-]*|distribution\/server\/updater\/(?:bellteam-container-update-host\.service\.in|bellteam-update-catalog-refresh\.service\.in|bellteam-update-catalog-refresh\.timer|compose\.overlay\.yaml))$/u.test(item.imagePath)
+      || item.installPath !== item.imagePath.slice(5) || seen.has(item.imagePath)) throw new Error('Invalid root updater code path')
+    seen.add(item.imagePath)
+    const file = join(output, item.installPath), info = await lstat(file)
+    if (!info.isFile() || info.nlink !== 1) throw new Error('Untrusted root updater code file')
+    const bytes = await readFile(file)
+    codeFiles.push({ ...item, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') })
+  }
+  await writeFile(join(output, 'distribution/server/updater/root-code-manifest.json'), JSON.stringify({
+    schema: 'bellteam.host-updater.code-manifest.v1', sourceCommit, files: codeFiles,
+  }, null, 2) + '\n')
   await writeFile(join(output, 'distribution.json'), JSON.stringify({
     schema: 'bellteam.server.distribution.v1', sourceCommit, profile: 'public',
   }, null, 2) + '\n')

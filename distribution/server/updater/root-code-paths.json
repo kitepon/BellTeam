@@ -1,0 +1,61 @@
+{
+  "schema": "bellteam.host-updater.code-paths.v1",
+  "files": [
+    {
+      "imagePath": "/app/scripts/container-update-host.py",
+      "installPath": "scripts/container-update-host.py"
+    },
+    {
+      "imagePath": "/app/install.sh",
+      "installPath": "install.sh"
+    },
+    {
+      "imagePath": "/app/scripts/cleanup-deploy-images.py",
+      "installPath": "scripts/cleanup-deploy-images.py"
+    },
+    {
+      "imagePath": "/app/scripts/save-deploy-restore-point.py",
+      "installPath": "scripts/save-deploy-restore-point.py"
+    },
+    {
+      "imagePath": "/app/scripts/verify-update-catalog.py",
+      "installPath": "scripts/verify-update-catalog.py"
+    },
+    {
+      "imagePath": "/app/scripts/update_catalog.py",
+      "installPath": "scripts/update_catalog.py"
+    },
+    {
+      "imagePath": "/app/scripts/module_artifact_verifier.py",
+      "installPath": "scripts/module_artifact_verifier.py"
+    },
+    {
+      "imagePath": "/app/scripts/web_gateway_artifact.py",
+      "installPath": "scripts/web_gateway_artifact.py"
+    },
+    {
+      "imagePath": "/app/config/update-catalog-verification.json",
+      "installPath": "config/update-catalog-verification.json"
+    },
+    {
+      "imagePath": "/app/config/web-gateway-trusted-root.jsonl",
+      "installPath": "config/web-gateway-trusted-root.jsonl"
+    },
+    {
+      "imagePath": "/app/distribution/server/updater/bellteam-container-update-host.service.in",
+      "installPath": "distribution/server/updater/bellteam-container-update-host.service.in"
+    },
+    {
+      "imagePath": "/app/distribution/server/updater/bellteam-update-catalog-refresh.service.in",
+      "installPath": "distribution/server/updater/bellteam-update-catalog-refresh.service.in"
+    },
+    {
+      "imagePath": "/app/distribution/server/updater/bellteam-update-catalog-refresh.timer",
+      "installPath": "distribution/server/updater/bellteam-update-catalog-refresh.timer"
+    },
+    {
+      "imagePath": "/app/distribution/server/updater/compose.overlay.yaml",
+      "installPath": "distribution/server/updater/compose.overlay.yaml"
+    }
+  ]
+}

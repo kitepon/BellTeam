@@ -1,0 +1,54 @@
+{
+  "name": "Host updaterのsystemd受領・停止跨ぎを隔離VMで確認",
+  "on": {
+    "workflow_dispatch": {
+      "inputs": {
+        "source": {
+          "description": "通常mainへ採用済みの固定source SHA40",
+          "required": true,
+          "type": "string"
+        }
+      }
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "container-updater-finite-systemd",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "systemd": {
+      "if": "github.repository == 'kitepon/BellTeam' && github.ref == 'refs/heads/main'",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 8,
+      "env": {
+        "SOURCE": "${{ inputs.source }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v7",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "固定sourceと専用VMを照合し実root-systemd境界を確認",
+          "run": "python3 - <<'CHECK'\nimport hashlib,json,os,re,subprocess\nfrom pathlib import Path\nsource=os.environ['SOURCE']\nassert re.fullmatch('[a-f0-9]{40}',source)\nassert os.environ['GITHUB_REF']=='refs/heads/main'\nassert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==source\nout=Path('runtime/updater-systemd');out.mkdir(parents=True)\nfiles=[]\nfor name in ['test/helpers/container-updater-systemd.py','scripts/container-update-host.py','distribution/server/updater/bellteam-container-update-host.service.in']:\n    raw=Path(name).read_bytes();files.append(dict(path=name,bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest()))\n(out/'source-binding.json').write_text(json.dumps(dict(source=source,files=files),indent=2)+'\\n')\ndef observe():\n    names=subprocess.check_output(['systemctl','list-units','--all','--no-legend','--plain','--no-pager','bellteam-updater-native-front-*','bellteam-container-update-worker-*'],text=True)\n    return dict(units=sorted(line.split()[0] for line in names.splitlines() if line.strip()),directories=sorted(str(p) for p in Path('/run').glob('bellteam-updater-native-*')))\nbefore=observe();(out/'before.json').write_text(json.dumps(before,indent=2)+'\\n')\nassert before==dict(units=[],directories=[]),'Dedicated disposable runner must have no previous fixture'\nresult=subprocess.run(['sudo','env','BELLTEAM_UPDATER_NATIVE_FIXTURE=disposable','/usr/bin/python3','test/helpers/container-updater-systemd.py'],capture_output=True,timeout=240)\n(out/'stdout.log').write_bytes(result.stdout);(out/'stderr.log').write_bytes(result.stderr)\nafter=observe();(out/'after.json').write_text(json.dumps(after,indent=2)+'\\n')\nassert result.returncode==0,result.stderr.decode(errors='replace')\nreceipt=json.loads(result.stdout)\nassert receipt==dict(schema='bellteam.host-updater.systemd-fixture.v1',realSystemd=True,peer1001=True,separateCgroup=True,workerSurvivedFrontendStop=True,sameRequestReadback=True,socketParentRetained=True,realDocker=False,realSignature=False,productionEntrypoint=False)\nassert after==before,'Fixture units and temporary root must be collected'\n(out/'acceptance.json').write_text(json.dumps(dict(source=source,receipt=receipt,cleanupExact=True,architecture='amd64'),indent=2)+'\\n')\nprint(json.dumps(receipt))\nCHECK\n"
+        },
+        {
+          "name": "隔離VMの実物原本を保存",
+          "if": "always()",
+          "uses": "actions/upload-artifact@v7",
+          "with": {
+            "name": "container-updater-systemd-amd64-${{ github.run_attempt }}",
+            "path": "runtime/updater-systemd/",
+            "if-no-files-found": "error",
+            "retention-days": 7
+          }
+        }
+      ]
+    }
+  }
+}

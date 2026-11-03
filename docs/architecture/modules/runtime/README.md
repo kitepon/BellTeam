@@ -11,6 +11,7 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 - [起動と席の実行機構](execution.md)
 - [CLI登録・共有設定の所有と完了](cli-registration.md)
 - [installer・状態移行・backup/restore](recovery.md)
+- [アプリからcontainerを更新するHost受付とworker](container-update.md)（source実装、未設置）
 - [Aiterm H1のoffline保存・起動前採用の接続候補](resume.md)
 - [Web受付固定資材の配置とdescriptor](web-gateway-release.md)
 - [通知の固定資材・起動・writer排他の提案](notifications-release.md)（Root裁定前、未実装）
@@ -25,9 +26,9 @@ runtime-detailsとdistribution-detailsのruntime所有章はここへ移管し�
 | seat-process | 操作と最小入力→結果/error、画像stream | UID/環境/取消/stdioの機構。native制御はexecution/Aiterm |
 | project-files | ProjectFiles公開method/args→結果/error | 席proxyだけ。メンバー構造/指示の内容はmembers |
 | cli-registration | 現在台帳のid/project、native公開登録、通話有効状態→設定完了Promise/error | 同じSeatRuntimeで登録操作を直列化。管理外項目を保持 |
-| update | 固定配布物と設置設定→設置/移行/backup/restoreの実行結果 | 配布版/imageはdistribution。本番操作はトロニー。アプリからの商用更新は設計中 |
+| update | 固定配布物と設置設定→設置/移行/backup/restoreの実行結果 | 配布版/imageはdistribution。本番操作はトロニー。アプリ更新のHost sourceはcontainer-updateへ分離 |
 
-商用更新の受付・停止を跨ぐ実行・結果確認は[設計案](commercial-update-design.md)を参照。実行主体/配置/APIは未合意で、新機能のコードは未実装。
+商用更新の受付・停止を跨ぐ実行・結果確認は[設計案](commercial-update-design.md)を参照。Host限定受付・独立worker・固定catalog接続は[container更新](container-update.md)のsourceへ実装。正式供給やHost導入が未成立の設置では実行能力を無効とし、旧設計案の未合意を実装済みの接点へ混ぜない。
 
 所有するのは管理CLI節・trust・hook登録、席の一時画像、移行/復旧の実行状態。台帳・ProjectFiles内部・記憶形式・native state・配布版対応表は各所有者の窓口を使う。`run-seat-runtime`は操作dispatchだけを持ち、ProjectFilesと記憶の処理は各機能へ渡す。登録修理はruntime所有の既存ファイル内で完結し、members/usage内部の編集を要しない。
 

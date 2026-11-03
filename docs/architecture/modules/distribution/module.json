@@ -41,6 +41,7 @@
     "scripts/verify-update-catalog.py",
     "config/update-catalog-verification.json",
     ".github/workflows/publish-update-catalog.yml",
-    "scripts/check-update-catalog-publication.py"
+    "scripts/check-update-catalog-publication.py",
+    ".github/workflows/verify-container-updater-systemd.yml"
   ]
 }
