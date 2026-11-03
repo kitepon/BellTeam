@@ -65,6 +65,8 @@ node --test test/web-client.test.mjs test/web-module.test.mjs test/web-event-ref
 
 ## 更新センターの段階導入
 
+Web受付固有の内蔵版切替と採用状態は[内蔵版戻し](gateway-builtin.md)を正本とする。共通module adapter/排他と資材reader/Host配置は各接続先が所有する。
+
 [Update通知と更新センター](update-notice-design.md)はロゴ右入口、実在moduleの稼働版と説明、計画・影響・実結果の正本。`update-center.js`は共通GET `/api/updates`から名称/説明/版/比較/実行可否/利用可否/publicationを表示する。厳密schema/有限例の正本はintegration公開`src/update-center-contract.mjs`。受入catalogとfeed取得確認を分離し、取得失敗/未確認を最新版と表示しない。未独立やprovider未供給は理由付き無効。
 
 共通POST plansへ全体又は個別更新を要求し、個別moduleの戻しはaction:rollbackで可否を確認する。明示POST plansの固定target/期限/影響を確認し、再起動を要する計画はcheckbox確認後にPOST operationsを一回だけ発行する。UUIDとplanIdをsessionStorageへ保存してから要求し、POST応答不明/再読込/接続復帰は同UUIDのGETで確認する。inventoryが取得できなくても結果照会を行う。旧応答、別requestId/plan、期限切れ、保存不正を実行へ進めない。戻せる版をWebで推測せず、backend planのaction/全target/可否/影響を表示する。all/container戻しは非対応。WebからHostや任意shellへ直接接続しない。

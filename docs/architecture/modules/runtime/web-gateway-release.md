@@ -1,6 +1,6 @@
 # Web受付だけの固定資材配置と起動descriptor
 
-runtime正本。HTTP交換制御は[integration](../integration/README.md)、資材/発行元認証と完全file集合の供給は[distribution](../distribution/README.md)。この段階はsource・図・隔離fixtureの契約で、正式attestation・実root配置・実Host/本番の成立ではない。
+runtime正本。HTTP交換制御は[integration](../integration/README.md)、内蔵版選択/採用状態の固有境界は[Web](../web/gateway-builtin.md)、資材/発行元認証と完全file集合の供給は[distribution](../distribution/README.md)。この段階はsource・図・隔離fixtureの契約で、正式attestation・実root配置・実Host/本番の成立ではない。
 
 ```mermaid
 flowchart TD
@@ -46,7 +46,7 @@ incoming archive/bundleを開いたFDからroot stagingへsnapshotしてfsync、
 
 manifestは配布の`bellteam.web-gateway.artifact.v1`、component、sourceCommit、entry=payload/src/http-gateway-entry.mjs、runtime={os:linux,arch:amd64|arm64,nodeMajor:26,parentProtocol:1}、files=[{path,bytes,sha256}]。OS/arch/Node major/親契約は受取資材の自己申告を採用せず、現在親の固定値と比較する。src/webとprod依存をpayload内へ固定し親/appの依存fallback無し。実署名供給が無い今は正常系root installationを作っていない。
 
-このAPIは準備/読取のみで、停止・採用記録変更・起動を行わない。採用記録は`{schema:"bellteam.web-gateway.adoption.v1",currentVersionId,previousVersionId}`で、成功した版と直前版を持ち、再起動時はcurrentをprepareし直す。previousVersionId=nullだけが直前の内蔵/appを意味し、任意pathは記録しない。記録無しの初回だけroot-owned image内蔵/appが既入口。current不明/破損を勝手に/appへfallbackしない。旧sourceを含め、稼働中/現採用/直前版の資材を削除しない。自動世代pruneは今回追加しない。
+このAPIは準備/読取のみで、停止・採用記録変更・起動を行わない。採用記録は`{schema:"bellteam.web-gateway.adoption.v1",currentVersionId,previousVersionId}`で、成功した版と直前版を持ち、再起動時はSHAのcurrent/previousをprepareし直す。currentVersionId=nullは内蔵版の明示採用、previousVersionId=nullは直前の内蔵版を意味し、任意pathは記録しない。明示current null又は記録無しの初回は親起動時の固定appRootを使う。欠落/不明/破損したcurrentを勝手に内蔵版へfallbackしない。内蔵版選択は[Web固有境界](../web/gateway-builtin.md)で、readerのSHA64契約は変更しない。旧sourceを含め、稼働中/現採用/直前版の資材を削除しない。自動世代pruneは今回追加しない。
 
 ## 失敗・戻し
 
