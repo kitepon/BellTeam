@@ -2,6 +2,15 @@
 
 担当：ベル（Apple）。指導と成果確認：レヴィアタン。正本の入口は[README](README.md)。共通の変更手順は[module-ownership](../../module-ownership.md)。
 
+## 受入
+
+2026-11-03、レヴィアタンが固定候補 `refactor/apple-feature-map-20261103` / `cdaeeadee6773799c6f486b0108b5952018e67ba`（base main `4e01fad`）を、Apple全体リファクタリングの完成候補として受け入れた（call-bridge通話 `eaf2a294-2993-43b1-88b3-530200159a3e`、seq28。確認記録 `docs/reviews/apple-final-cdaeead-20261103/review.md`）。追加のコード・図の補正はなし。Macの実行結果とAstraのsessionは、本人報告の結果表として受領された（レヴィアタンがMacで直接実行した証明とは分ける）。
+
+- 専任の工程はここで終え、通常保守へ戻す。リファクタ中の他依頼の遮断も終える。
+- main統合・配布は通常の手順に従う別工程で、この受入から公開・停止・再起動の許可は作らない。
+- UI改善6点と保留中の修理は別差分。Root・モリー・Admi・Apple・共有Macの境界は変えない。
+- 未確認のまま残すもの：iPhone・iPadの実画面、Finderの画像ファイルURL貼付け、goalの既知2失敗（10件中8件の通過を全件通過とは扱わない）、実StoreKit・APNs。
+
 ## 指示
 
 Ownerのリファクタリング指示の全文を、2026-11-03にレヴィアタンから受領した（call-bridge通話 `eaf2a294-2993-43b1-88b3-530200159a3e`、seq12）。対象は `ios/BellBot` の全体。
@@ -69,7 +78,7 @@ Ownerからトロニー経由で受けたUI改善6点（トロニー通話 seq42
 
 試験の原本（xcresultとlog）は親のMacの `~/Library/Developer/BellTeam-evidence/2026-11-03-apple-refactor/` にある。試験はすべて Mac Catalyst（macOS 27.0）で、iPhone・iPadでは実行していない。
 
-全体の受け入れ前に残る確認：
+受入時点のMac実画面確認：
 
 | 段階 | 設計が求めるMac実画面確認 | 現状 |
 | --- | --- | --- |
