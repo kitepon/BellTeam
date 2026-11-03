@@ -1,12 +1,12 @@
 # 原要求を保持する設定適用と照合
 
-所有キロ。正式0.63.6/tag258b8aef、Root configure-consumer-supply正本と0636 formal handoffが配布根拠。設定契約は正式0.63.5と同bytesだが、発行は承認0.63.6の同local SDK/transport/initialize版とtools/list能力を必須にする。旧版へのfallback/接続交換はしない。
+所有キロ。正式0.63.7/tage86af7af、Aiterm担当のnative-transient-recovery/publication.jsonが配布根拠。原要求設定契約を維持し、発行は正式0.63.7の同local SDK/transport/initialize版とtools/list能力を必須にする。旧版へのfallback/接続交換はしない。
 
 ```mermaid
 flowchart TD
   Desired[Administration.update / 希望値保存] --> Idle[既AI idle待ち / lease外]
   Idle --> Fresh[同epoch/fresh本人/既sessionを再確認]
-  Fresh --> Capability[承認0.63.6同SDK/transportとschema]
+  Fresh --> Capability[承認0.63.7同SDK/transportとschema]
   Capability --> Target[同接続pty_listの公開launchを捕捉]
   Target --> Intent[親UID1001 state/configuration-intents/Bot/UUID.intent.json<br/>非上書きfile+dir sync / 4096]
   Intent --> Guard[発行直前に同期で同接続guard]
@@ -31,7 +31,7 @@ runtimeの`acquireConfigurationStateAnchor(root)`が保証する固定stateの`{
 
 旧Centi4faf/Molly146e/bot220 b6d3の表示、ENOENT、現行sourceから新preparation証拠を後付けしない。証拠無しの旧pendingはlocal終端対象外で、従来の保存原要求によるnative read-only reconcileだけが適用候補。元b5152件の欠測を補完しない。新証拠も、local終端保存前に親processを失えば欠測として扱い、再起動後のintentから未返却を推測しない。
 
-保存原要求はschema/botId/binding/canonical requested/version。0.63.5/0.63.6 intentの読取は同一正式契約として保持するが、新発行guardは0.63.6だけ。receiptにはapplyかreconcileかの取得起源を併記する。reconcileで歴史的applied/unconfirmedを得ても元の不明を解除せず、再起動後もpendingとして復元する。通常applyで直接確認したappliedと同一視しない。terminal以外は原intentを保持し、terminal receiptは一回だけ公開、再読取のobserved_at差以外を上書きしない。
+保存原要求はschema/botId/binding/canonical requested/version。0.63.5/0.63.6/0.63.7 intentの読取は同一正式契約として保持するが、新発行guardは0.63.7だけ。receiptにはapplyかreconcileかの取得起源を併記する。reconcileで歴史的applied/unconfirmedを得ても元の不明を解除せず、再起動後もpendingとして復元する。通常applyで直接確認したappliedと同一視しない。terminal以外は原intentを保持し、terminal receiptは一回だけ公開、再読取のobserved_at差以外を上書きしない。
 
 application-servicesが同execution client/storeを注入し、公開受付前にpending intentをBotSessionStateの新tracked不明へ復元する。旧legacy不明を消さない。BotAdministration.viewのconfigurationRequestは原binding/requested/歴史的receiptで、currentはunsupported。既希望保存とconfigurationApplicationのpending/accepted/failedを現設定readbackへ変えない。known not_issuedは既表示not_applied/not_startedに写す。
 
@@ -48,3 +48,5 @@ callerはBotAdministration.apply/view/reconcile、AitermTransport.reconfigure/re
 同じBotの後続要求が始まっても、失敗の補助情報は捕捉済み原bindingから作り、latestや時刻から付け替えない。安全診断は検証済みconfiguration_requestの4fieldだけを追加し、requested/receipt本文/SDK参照/任意messageをログへ混ぜない。既診断code/重大度/fingerprintは維持する。
 
 SDKが同じ例外objectを異なる原要求へ再利用した場合は、binding補助情報を曖昧として省く。原例外を変形せず、別原要求の識別子を診断へ割り当てない。
+
+0.63.7のfailure/input_id公開契約へconsumerを接続し、Dockerのnative pinも同じ正式版に固定する。旧.5/.6 intent bytesを書き換えず元IDで照合のみ可能。SDK/transport途中交換・未承認.6/.8からの新発行は引き続き拒否する。

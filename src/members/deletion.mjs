@@ -28,7 +28,7 @@ export function createMemberDeletionApi({ administration }) {
 }
 
 // Pending targets have already retired; never start or close another native session to resume cleanup.
-export async function startMemberRemoval(botId, { bots, rooms, transport, writeLog, onRemoved }) {
+export async function startMemberRemoval(botId, { bots, rooms, transport, writeLog, onRemoved, trackCompletion = () => {} }) {
   const admission = transport.membersAdmission
   const lease = admission?.enter()
   const options = lease ? { membersLease: lease } : {}
@@ -43,7 +43,7 @@ export async function startMemberRemoval(botId, { bots, rooms, transport, writeL
   const reportSync = result => {
     if (result?.configurationSync) writeLog(`BellTeam CLI configuration sync error after delete: ${botId}: ${JSON.stringify(result.configurationSync)}\n`)
   }
-  void (async () => {
+  const completion = (async () => {
     if (bot) {
       await transport.stop(bot, undefined, options)
       await rooms.removeBot(botId)
@@ -55,5 +55,6 @@ export async function startMemberRemoval(botId, { bots, rooms, transport, writeL
     reportSync(error)
     writeLog(`BellTeam delete error: ${botId}: ${error.stack ?? error.message}\n`)
   }).finally(() => { if (lease) admission.finish(lease) })
+  trackCompletion(completion)
   return { deleting: botId }
 }

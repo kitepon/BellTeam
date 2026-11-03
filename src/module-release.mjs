@@ -1,8 +1,9 @@
-import { prepareBusinessModuleRelease, validateBusinessModuleManifest } from './web-gateway-release.mjs'
-import { assertUsageStateCompatibility } from './usage/state-compatibility.mjs'
-import { assertDiagnosticsStateCompatibility } from './diagnostics-protocol.mjs'
+import { prepareBusinessModuleRelease, validateBusinessModuleManifest, assertBusinessModuleCompatibility } from './web-gateway-release.mjs'
 
-const validators = Object.freeze({ usage: assertUsageStateCompatibility, diagnostics: assertDiagnosticsStateCompatibility })
+const validators = Object.freeze({
+  usage: value => assertBusinessModuleCompatibility('usage', value),
+  diagnostics: value => assertBusinessModuleCompatibility('diagnostics', value),
+})
 const exact = (value, names) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).sort().join(',') === names.split(',').sort().join(',')
 const checkComponent = component => {

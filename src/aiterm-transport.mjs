@@ -18,6 +18,7 @@ import { BotSessionState } from './bot-session-state.mjs'
 import { DeliveryJob } from './delivery-job.mjs'
 import { SeatActivity, SeatTurnWatch } from './seat-activity.mjs'
 import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
+import { recoverableTurnFailure } from './capacity-continuation.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
 export { runWaitProcess } from './aiterm-wait-process.mjs'
@@ -171,8 +172,8 @@ export class AitermTransport {
       this.wakeNow(bot, { ...options, membersLease })), options)
   }
 
-  async wakeNow(bot, { setupTest = false, execution = null, membersLease } = {}) {
-    if (!membersLease) return this.memberOperation(bot, lease => this.wakeNow(bot, { setupTest, execution, membersLease: lease }))
+  async wakeNow(bot, { setupTest = false, execution = null, membersLease, admissionCheck } = {}) {
+    if (!membersLease) return this.memberOperation(bot, lease => this.wakeNow(bot, { setupTest, execution, membersLease: lease, admissionCheck }))
     this.membersAdmission.assertLease(membersLease)
     const version = this.captureStopVersion(bot)
     if (this.executionBridge && !execution) await this.awaitUnboundAdmission(bot, version)
@@ -188,6 +189,7 @@ export class AitermTransport {
     let launch
     try {
       this.requireStopVersion(bot.id, version)
+      admissionCheck?.()
       launch = await this.changeSession(bot, 'agent_launch', {
         harness,
         cwd: bot.project,
@@ -279,7 +281,11 @@ export class AitermTransport {
     return this.activity.configurationChanges.track(bot.id, pending)
   }
 
-  async reconfigure(current, next, { reapply = false } = {}) {
+  reconfigure(current, next, options = {}) {
+    return this.activity.configurationChanges.track(current.id, this.reconfigureNow(current, next, options))
+  }
+
+  async reconfigureNow(current, next, { reapply = false, admissionCheck } = {}) {
     const expected = this.membersAdmission.capture()
     this.membersAdmission.assertOpen(expected)
     this.assertWorkAllowed()
@@ -291,13 +297,14 @@ export class AitermTransport {
     if (restarting) await restarting
     await this.idle(current.id)
     return this.memberOperation(current, async membersLease => {
+      admissionCheck?.()
       this.requireStopVersion(current.id, version)
       const requiresRestart = current.harness !== next.harness
         || (current.model && !next.model)
         || (current.reasoningEffort && !next.reasoningEffort)
         || (reapply && (!next.model || !next.reasoningEffort))
       if (requiresRestart) {
-        const session = await this.restartNow(next, version, undefined, membersLease)
+        const session = await this.restartNow(next, version, undefined, membersLease, admissionCheck)
         return { botId: next.id, session, mode: 'restart' }
       }
       const configuration = { session_id: this.session(next) }
@@ -569,27 +576,31 @@ export class AitermTransport {
 
   // 通知で始まったターンの最後の回答は誰にも配送しない。onAnswerがあれば、そのBotの会話画面へ出すために渡す。
   // onTurnEndは、差し込みではなく新しく始まったターンが終わった時だけ、その時間の幅を渡して呼ぶ。
-  async notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease } = {}) {
-    const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease })
+  async notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease, admissionCheck } = {}) {
+    const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease, admissionCheck })
     completion.catch(error => process.stderr.write(`BellTeam Aiterm delivery error: ${error.stack ?? error.message}\n`))
     return completion.accepted
   }
 
-  async restartNow(bot, version = this.stopVersions.get(bot.id), onClosed = () => {}, membersLease) {
-    if (!membersLease) return this.memberOperation(bot, lease => this.restartNow(bot, version, onClosed, lease))
+  async restartNow(bot, version = this.stopVersions.get(bot.id), onClosed = () => {}, membersLease, admissionCheck) {
+    if (!membersLease) return this.memberOperation(bot, lease => this.restartNow(bot, version, onClosed, lease, admissionCheck))
     this.membersAdmission.assertLease(membersLease)
     await this.requireAccess({ setupTest: false, botId: bot.id })
     this.requireStopVersion(bot.id, version)
+    admissionCheck?.()
     await this.changeSession(bot, 'pty_close', { session_id: this.session(bot) })
     onClosed()
     await this.removeRetainedImages(bot.id)
     this.requireStopVersion(bot.id, version)
-    return this.wake(bot, { membersLease })
+    admissionCheck?.()
+    return this.wake(bot, { membersLease, ...(admissionCheck ? { admissionCheck } : {}) })
   }
 
   // 一回の配送。受付（Aitermの受理）までと、受理したターンの終わりまでを一つのjobとして進める。
   // 続けてよいかはjobの停止結論と席の状態に聞き、停止の結論を決めるのはjob（DeliveryJob）だけ。
   submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease } = {}) {
+    const recoveryVersion = this.captureStopVersion(bot)
+    let recoverySession = this.session(bot)
     if (membersLease) this.membersAdmission.assertLease(membersLease)
     const job = new DeliveryJob({
       id: this.activeId(), bot, startedAt: this.now(),
@@ -709,6 +720,18 @@ export class AitermTransport {
     job.completion = completion
     completion.accepted = accepted
     completion.admissionCompletion = admissionCompletion
+    completion.then(() => this.continuation?.succeeded(bot.id, info.groupId ?? job.id), error => {
+      if (!error?.recoveryFailure || job.stopped || job.stopRequested) return
+      this.continuation?.failed({ bot, deliveryId: info.groupId ?? job.id, failure: error.recoveryFailure,
+        reconfigured: () => { this.requireStopVersion(bot.id, recoveryVersion); recoverySession = this.session(bot) },
+        check: allowedMessage => {
+          this.assertWorkAllowed()
+          this.requireStopVersion(bot.id, recoveryVersion)
+          if (this.session(bot) !== recoverySession || [...this.activity.jobs].some(other => other.bot.id === bot.id
+            && !(allowedMessage && other.info.from === 'scheduler' && other.info.message === allowedMessage)))
+            throw Object.assign(new Error('CONTINUATION_SUPERSEDED'), { code: 'CONTINUATION_SUPERSEDED', effect: 'not_started' })
+        } })
+    }).catch(() => {})
     return completion
   }
 
@@ -796,7 +819,7 @@ export class AitermTransport {
 
   // BellTeamが始めていないターン（Aitermの子の結果で始まったターンなど）を見つけて追う。
   // 席の今のターンを返さない版のAitermではfalseを返す。
-  async watchSeatTurns(bots, { onInterim = null, groupId = randomUUID } = {}) {
+  async watchSeatTurns(bots, { onInterim = null, groupId = randomUUID, allowNew = () => true } = {}) {
     const versions = new Map(bots.map(bot => [bot.id, this.stopVersions.get(bot.id)]))
     const turns = await this.seatTurns(bots)
     if (!turns) return false
@@ -808,12 +831,12 @@ export class AitermTransport {
       // 追っているターンがもう動いていない。止められたターンでは、Aitermの待ちは返らない（完了の印だけを待つ）。
       // nullは「分からない」なので、追い続ける。
       if (watch && turn?.state === 'running' && turn.turn_id !== watch.turnId) {
-        this.watchTurn(bot, session, turn, { onInterim, groupId })
+        if (allowNew()) this.watchTurn(bot, session, turn, { onInterim, groupId })
         watch.end()
         continue
       }
       if (watch && (turn === undefined || turn?.state === 'idle')) watch.end()
-      if (turn?.state === 'running' && this.isIdle(bot.id) && this.activity.followedTurns.get(bot.id) !== turn.turn_id)
+      if (allowNew() && turn?.state === 'running' && this.isIdle(bot.id) && this.activity.followedTurns.get(bot.id) !== turn.turn_id)
         this.watchTurn(bot, session, turn, { onInterim, groupId })
     }
     return true
@@ -861,6 +884,15 @@ export class AitermTransport {
   // 席が自分で始めたターンのうち、最後に追ったターンで合間の言葉として出した文と、追い終えた時刻。
   shownInSelfTurn(botId) {
     return this.activity.shownWords.get(botId) ?? null
+  }
+
+  consumeShownWords(botId, shown, prefix) {
+    if (!Array.isArray(prefix) || prefix.some(word => typeof word !== 'string'))
+      throw Object.assign(new Error('CONVERSATION_SHOWN_INVALID'), { code: 'CONVERSATION_SHOWN_INVALID' })
+    if (!prefix.length || !shown || this.shownInSelfTurn(botId) !== shown
+      || !prefix.every((word, index) => shown.words[index] === word)) return false
+    shown.words.splice(0, prefix.length)
+    return true
   }
 
   idle(botId) {
@@ -917,7 +949,7 @@ export class AitermTransport {
       let session = this.session(bot)
       let result
       try {
-        result = await this.sendToSession(session, message, imageFiles)
+        result = await this.sendToSession(session, message, imageFiles, check)
       } catch (error) {
         check()
         // 入力後の不明や復帰確認の要求は、席が消えて見えても起こし直して再送しない。
@@ -938,7 +970,7 @@ export class AitermTransport {
           return this.wake(bot, { setupTest, membersLease: lease })
         }, { membersLease })
         check()
-        result = await this.sendToSession(session, message, imageFiles)
+        result = await this.sendToSession(session, message, imageFiles, check)
       }
       const receipt = result.structuredContent
       if (receipt?.mode !== 'agent_steer'
@@ -955,14 +987,14 @@ export class AitermTransport {
   // 画像はaitermのimage引数へ渡す。harness別の添付手順（パスの先打鍵等）はaitermが吸収する（0.30.0）。
   // require_agentで、登録が無い席へ普通の端末として打たれる（mode=sent）のを止める。
   // BellTeamの印を付けると、差し込みの返りに、その文を取ったターンを追う手がかりが入る（Aiterm 0.60.0、ADR 0122）。
-  async sendToSession(session, message, imageFiles) {
+  async sendToSession(session, message, imageFiles, admissionCheck) {
     this.assertWorkAllowed()
     return this.client.call('pty_send', {
       session_id: session,
       text: message,
       require_agent: true,
       ...(imageFiles.length ? { image: imageFiles.map(file => file.path) } : {}),
-    }, { meta: CALLER_META })
+    }, { meta: CALLER_META, ...(admissionCheck ? { admissionCheck } : {}) })
   }
 
   session(bot) {
@@ -992,12 +1024,13 @@ export class AitermTransport {
   async waitUntilDone(receipt, signal = null) {
     while (!signal?.aborted) {
       const result = await this.waitProcess(receipt.wait_process, signal)
+      const recoveryFailure = recoverableTurnFailure(receipt, result)
       if (result.outcome === 'done') { this.workState.completedTurn(result); return result }
       if (result.outcome === 'timeout' || result.outcome === 'running') continue
       // error: harnessの記録でturnがAPIエラー等で打ち切られた（Aiterm 0.31.0）。本文を残して配送失敗にする。
-      if (result.outcome === 'error') throw Object.assign(new Error(`AITERM_TURN_ERROR: ${result.error ?? 'unknown'}`), { waitOutcome: result.outcome, turnCompleted: true })
+      if (result.outcome === 'error') throw Object.assign(new Error(`AITERM_TURN_ERROR: ${result.error ?? 'unknown'}`), { waitOutcome: result.outcome, turnCompleted: true, ...(recoveryFailure ? { recoveryFailure } : {}) })
       // rate_limited: harnessの利用上限。Aitermが画面や記録から拾った上限の知らせを理由に残す。
-      if (result.outcome === 'rate_limited' && result.rate_limit) throw Object.assign(new Error(`AITERM_TURN_RATE_LIMITED: ${result.rate_limit}`), { waitOutcome: result.outcome, turnCompleted: true })
+      if (result.outcome === 'rate_limited' && result.rate_limit) throw Object.assign(new Error(`AITERM_TURN_RATE_LIMITED: ${result.rate_limit}`), { waitOutcome: result.outcome, turnCompleted: true, ...(recoveryFailure ? { recoveryFailure } : {}) })
       throw Object.assign(new Error(`AITERM_TURN_${String(result.outcome).toUpperCase()}`), { waitOutcome: result.outcome })
     }
     throw new Error('AITERM_WAIT_STOPPED')
@@ -1014,10 +1047,12 @@ export class AitermTransport {
   }
 
   async close() {
+    const recovery = this.continuation?.close()
     this.workState.close()
     for (const watch of this.activity.watches.values()) watch.end()
     const botIds = new Set([...this.activity.active.values()].map(item => item.bot.id))
     await Promise.all([...botIds].map(botId => this.idle(botId)))
+    await recovery
     await this.client.close?.()
   }
 }

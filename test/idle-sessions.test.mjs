@@ -120,3 +120,19 @@ test('Approval Boxの答え待ちは、Claude Codeの席だけAitermの観測に
   assert.equal(pendingDecisionsByHarness({ harness: 'claude' }), 0)
   for (const harness of ['codex', 'grok', 'cursor']) assert.equal(pendingDecisionsByHarness({ harness }), null)
 })
+
+
+test('module quiesce after the pending-decision await prevents an idle native close', async () => {
+  let allowed = true, time = 0, finishDecision
+  const closed = []
+  const idle = new IdleSessions({ bots: new Map([['bot-a', { id: 'bot-a' }]]),
+    transport: { observe: async () => quiet(), isIdle: () => true, closeIdle: async id => { closed.push(id); return true } },
+    pendingDecisions: () => new Promise(resolve => { finishDecision = resolve }),
+    allowClose: () => allowed, idleMs: 10, now: () => time,
+  })
+  await idle.check(); time = 11
+  const pending = idle.check()
+  while (!finishDecision) await new Promise(resolve => setImmediate(resolve))
+  allowed = false; finishDecision(0); await pending
+  assert.deepEqual(closed, [])
+})

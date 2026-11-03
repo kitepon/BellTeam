@@ -63,6 +63,7 @@ test('new apply is persisted before one bound wire call and keeps unsupported/un
   const binding = result.configurationRequest.binding
   assert.equal(binding.digest, configurationDigest({ model: 'next', reasoning_effort: 'high' }))
   assert.equal((await f.intents.terminal(f.bot.id, binding)).origin, 'apply')
+  assert.equal((await f.intents.read(f.bot.id, binding.id)).version, '0.63.7')
   assert.deepEqual(await f.intents.pending(), [])
 })
 
@@ -199,14 +200,18 @@ test('a wrong-binding wire result cannot be saved or clear uncertainty', async t
   assert.equal(await f.intents.terminal(f.bot.id, original), null)
 })
 
-test('old 0.63.5 intent remains readable while new wire uses approved 0.63.6 only', async t => {
+for (const version of ['0.63.5', '0.63.6']) test(`old ${version} intent stays byte-identical while wire uses approved 0.63.7`, async t => {
   const f = await fixture(t)
   const binding = { id: 'a1234567-1234-4123-8123-123456789abc', session_id: f.bot.session, launch_id: '1'.repeat(32), digest: configurationDigest({ model: 'next' }) }
   await f.intents.publish(f.bot.id, { schema: 'bellteam.configuration-intent.v1', botId: f.bot.id, binding,
-    requested: { model: 'next', reasoning_effort: null, fast: null }, version: '0.63.5' })
+    requested: { model: 'next', reasoning_effort: null, fast: null }, version })
+  const path = join(f.root, 'configuration-intents', f.bot.id, `${binding.id}.intent.json`)
+  const before = await readFile(path)
   await f.transport.restoreConfigurationRequests()
   assert.equal((await f.transport.reconcileConfiguration(f.bot, binding.id)).fence, 'cleared')
   assert.equal(f.calls.filter(call => call.args.action === 'apply').length, 0)
+  assert.deepEqual(await readFile(path), before)
+  assert.equal((await f.intents.read(f.bot.id, binding.id)).version, version)
 })
 
 test('authenticated reconcile route accepts only the stored request ID and cannot submit settings', async t => {
@@ -278,6 +283,7 @@ test('storage failure after apply cannot be mistaken for a local pre-wire refusa
   assert.equal((await f.transport.reconcileConfiguration(f.bot, binding.id)).fence, 'absent')
   assert.equal(f.requests.pending.has(f.bot.id), false)
   assert.equal((await f.intents.terminal(f.bot.id, binding)).origin, 'apply')
+  assert.equal((await f.intents.read(f.bot.id, binding.id)).version, '0.63.7')
   assert.equal(f.calls.filter(call => call.args.action === 'apply').length, 1)
 })
 
@@ -453,4 +459,10 @@ test('fixed storage rejection codes and preparation stage reach the existing sav
   assert.equal(row.status, 'open'); assert.equal(row.severity, 'high')
   assert.doesNotMatch(JSON.stringify(row), /next|reasoning_effort|stack|requested/)
   assert.equal(f.calls.filter(call => call.name === 'agent_configure').length, 0)
+})
+
+for (const version of ['0.63.6', '0.63.8']) test(`unapproved native ${version} cannot issue a new configuration`, async t => {
+  const f = await fixture(t); f.version = version
+  await assert.rejects(apply(f), { code: 'CONFIGURATION_CONNECTION_UNCONFIRMED', effect: 'not_issued' })
+  assert.deepEqual(f.calls, [])
 })

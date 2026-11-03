@@ -87,6 +87,8 @@ RPC/connect失敗、typed失敗、untyped isErrorを識別する補助観測で�
 
 ## 修理の適用範囲と別の未実装機能
 
+自動継続の親同期guardは内部options.admissionCheckを通常Messenger.sendmessage→transport.notify→submit→sendToSession→Client.pty_sendへ捕捉し、fresh await後と接続await後のSDK発行直前に再検査する。callbackは親の同operationだけに保持しchild DTO/履歴へ関数を出さない。別tool/launch/env/認証設定option併用は発行前拒否、guardの拒否をRPC応答不明へ変えない。元AI停止世代又は保存設定が変わった古い自動継続を発行しない。通常callerの未指定時の挙動は不変。
+
 元の各設定拒否ではwaiterのexitCodeが保存されていない。この不良との一意相関、Cinderella08:40とエレグ08:51の利用復旧を、このsource修理の成功から補完しない。実故障後に現在状態がnullのままなら未完了として保持する。明示watch終了・close/restartの既取消経路は保持し、完了を推測して待機を解放しない。配送jobそのものの失敗結果は従来どおり失敗として返し、同じ本文を再送しない。
 
 現在ターンを自動で区切り、同会話に適用して続きを一回起こす機能は別途設計する。必要な接点はMCP応答完了後の対象ターン限定終了、native完了の観測、通常配送による一回再開と全体停止・並行入力との整合。今回の修理は自動終了・自動再送・再開の仕組みを追加しない。

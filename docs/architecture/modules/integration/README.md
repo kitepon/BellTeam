@@ -457,3 +457,11 @@ Owner GET /api/queueはexecutionの同期queueItems投影だけを使い、不�
 ### Web受付の既知内蔵版への戻し
 
 Web固有の[内蔵版戻し](../web/gateway-builtin.md)がprocess/control/adapterを所有し、共通台帳は同adapterを登録する。通常runtimeは固定/app/distribution.jsonをno-follow・root所有/単一link/書込不可・4096B以内・既schema/SHA40で確認し、同imageのbuiltinSourceCommitを一度だけDIする。controller snapshotやHTTP bodyからsourceを補完しない。確認不能はnull/current不明とし内蔵戻しを拒否する。共通catalog/plan/start/get/UUID/排他は従来のまま、個別module直前成功からのcode戻しだけ。SHAとliteral builtinは既Owner入口へ、all/container戻しとデータ巻戻しは提供しない。
+
+### executionの実engineと親公開口
+
+通常bootstrapはKiroのcreateExecutionAssemblyを注入する。親はEpi adoption storeのreadした2scalarと同store.saveを直接使い、検証済loadExecutionFactory・同native client・members gate・queue listener・requestStopを固定liveportsへ結ぶ。rooms/onboarding/messenger/authの遅い依存は固定method closureへ渡し、全graphとusage初期化後に同controllerをstartする。旧外側Transport/Goals/Admin/SeatTurns/IdleSessionsを通常経路へ別生成せず、会話SelfTurnsは保持する。
+
+同期currentWork/session/queue等とasync dispatchは固有facadeのまま、親の同Update inventory/catalog/prepare/耐久ledgerへcontrollerを一つ登録する。保存compatibilityは本人export文字列bellteam.execution-state.v1とNode26/P1/stateSchema:nullのまま。交換は旧actual zero→退役→新initialize→file/dir fsync保存ACK後だけ受付を開き、親PID・SDK・native PTYを交換のために閉じない。アプリ全終了時だけ、engine close後に親が共有clientを一度closeする。
+
+新Owner HTTP→台帳→実reader選択/実engine交換・builtin戻しと同期投影/採用0600/同parent-portを検査し、C/root署名配置/実SDK/本番をこの人工I/O fixtureで補完しない。署名artifact/公開catalogの実物は配布担当の同source受入へ結ぶ。

@@ -6,12 +6,13 @@ import { executionFailureReport, reportExecutionFailure } from './execution-fail
 // Botの設定変更・停止・削除の業務判断。HTTP APIと、HTTP経由で届く席MCPのupdate_self/update_bot/delete_botが
 // 同じ判断を使う。応答の形と状態コードはHTTPが持ち、ここは保存と稼働中の席への反映の順序を決める。
 export class BotAdministration {
-  constructor({ bots, rooms, transport, writeLog = line => process.stderr.write(line), reportError = () => {} }) {
+  constructor({ bots, rooms, transport, writeLog = line => process.stderr.write(line), reportError = () => {}, trackCompletion = () => {} }) {
     this.bots = bots
     this.rooms = rooms
     this.transport = transport
     this.writeLog = writeLog
     this.reportError = reportError
+    this.trackCompletion = trackCompletion
     this.applications = new Map()
   }
 
@@ -23,7 +24,7 @@ export class BotAdministration {
   }
 
   // 保存は先に返し、稼働中Botへの適用は現在の作業の後に並ぶ。
-  async update(botId, changes) {
+  async update(botId, changes, { waitForApplication = false, expected, admissionCheck } = {}) {
     const current = this.bots.get(botId)
     const candidate = await this.bots.previewUpdate(botId, changes)
     const harnessChanged = candidate.harness !== current.harness
@@ -35,20 +36,28 @@ export class BotAdministration {
       Object.hasOwn(changes, key) && candidate[key] === previous.requested[key])
     const configurationChanged = reapply || differs
     const wasRunning = configurationChanged ? await this.transport.isRunning(current) : false
+    admissionCheck?.()
+    if (expected && ['harness', 'model', 'reasoningEffort', 'fastMode'].some(key => this.bots.get(botId)?.[key] !== expected[key]))
+      throw Object.assign(new Error('CONTINUATION_SUPERSEDED'), { code: 'CONTINUATION_SUPERSEDED', effect: 'not_started' })
     const bot = await this.bots.update(botId, changes)
-    if (wasRunning) this.apply(current, candidate, { fastModeChanged, reapply })
-    else if (configurationChanged) this.applications.delete(botId)
+    const applying = wasRunning ? this.apply(current, candidate, { fastModeChanged, reapply, admissionCheck }) : null
+    if (applying && waitForApplication) {
+      await applying
+      if (this.applications.get(botId)?.state !== 'accepted')
+        throw Object.assign(new Error('CONTINUATION_CONFIGURATION_UNCONFIRMED'), { code: 'CONTINUATION_CONFIGURATION_UNCONFIRMED' })
+    }
+    if (!wasRunning && configurationChanged) this.applications.delete(botId)
     return { bot: this.view(bot), harnessChanged, configurationChanged, applying: wasRunning }
   }
 
-  apply(current, candidate, { fastModeChanged, reapply }) {
+  apply(current, candidate, { fastModeChanged, reapply, admissionCheck }) {
     const application = { state: 'pending', fields: reapply ? [...this.applications.get(current.id).fields]
       : ['harness', 'model', 'reasoningEffort', 'fastMode'].filter(key => candidate[key] !== current[key]), requested: {
       harness: candidate.harness, model: candidate.model ?? '',
       reasoningEffort: candidate.reasoningEffort ?? '', fastMode: candidate.fastMode === true,
     } }
     this.applications.set(current.id, application)
-    this.transport.reconfigure(current, candidate, reapply ? { reapply: true } : undefined)
+    const pending = this.transport.reconfigure(current, candidate, reapply || admissionCheck ? { ...(reapply ? { reapply: true } : {}), ...(admissionCheck ? { admissionCheck } : {}) } : undefined)
       .then(result => {
         if (this.applications.get(current.id) === application) {
           application.state = 'accepted'
@@ -74,6 +83,8 @@ export class BotAdministration {
         if (fastModeChanged && notStarted && this.bots.get(current.id)?.fastMode === candidate.fastMode) await this.bots.update(current.id, { fastMode: current.fastMode })
       })
       .catch(error => this.writeLog(`BellTeam fast mode restore error: ${error.stack ?? error.message}\n`))
+    this.trackCompletion(pending)
+    return pending
   }
 
   async reconcile(botId, id) {
@@ -112,14 +123,15 @@ export class BotAdministration {
 
   restart(bot) {
     const application = this.applications.get(bot.id)
-    this.transport.restart(bot).then(() => {
+    const pending = this.transport.restart(bot).then(() => {
       if (this.applications.get(bot.id) === application) this.applications.delete(bot.id)
     })
       .catch(error => this.writeLog(`BellTeam restart error: ${error.stack ?? error.message}\n`))
+    this.trackCompletion(pending)
   }
 
   remove(botId) {
     return startMemberRemoval(botId, { bots: this.bots, rooms: this.rooms, transport: this.transport,
-      writeLog: this.writeLog, onRemoved: id => this.applications.delete(id) })
+      writeLog: this.writeLog, trackCompletion: this.trackCompletion, onRemoved: id => this.applications.delete(id) })
   }
 }

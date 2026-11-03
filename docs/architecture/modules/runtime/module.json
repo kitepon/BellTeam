@@ -111,6 +111,8 @@
     "src/module-locks.mjs",
     "src/module-process.mjs",
     "src/module-release.mjs",
+    "src/execution-loader.mjs",
+    "src/execution-adoption.mjs",
     "src/diagnostics-process.mjs",
     "src/usage-process.mjs",
     "src/usage-locks.mjs",

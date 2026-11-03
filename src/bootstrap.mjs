@@ -14,6 +14,7 @@ import { defaultCallBridgeMcpUrl } from './distribution-profile.mjs'
 import { SeatRuntime } from './seat-runtime.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { AitermClient } from './aiterm-client.mjs'
+export { createExecutionAssembly } from './execution-assembly.mjs'
 export { createDiagnosticsProcess } from './diagnostics-process.mjs'
 
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))

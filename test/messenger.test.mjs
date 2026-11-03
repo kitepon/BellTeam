@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -7,6 +7,38 @@ import test from 'node:test'
 import { MessageAssets } from '../src/message-assets.mjs'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { BellTeamMessenger, userEnvelope } from '../src/messenger.mjs'
+
+test('internal continuation guard rejects a changed target after fresh read without sending', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'continuation-guard-')); t.after(() => rm(root, { recursive: true, force: true }))
+  const bot = { id: 'bot-target', name: 'Target' }, bots = new Map([[bot.id, bot]])
+  let current = true, sent = 0
+  bots.refresh = async () => { current = false }
+  const messenger = new BellTeamMessenger({ bots, transport: { notify: async () => { sent++ } }, logPath: join(root, 'direct.jsonl') })
+  const error = Object.assign(Error('superseded'), { code: 'CONTINUATION_SUPERSEDED' })
+  await assert.rejects(messenger.sendmessage({ from: 'scheduler', target: bot.id, message: 'Continue saved work' }, {
+    admissionCheck: () => { if (!current) throw error },
+  }), failure => failure === error)
+  assert.equal(sent, 0)
+  await assert.rejects(readFile(join(root, 'direct.jsonl')), { code: 'ENOENT' })
+})
+
+test('continuation guard stays in parent options and is rechecked by notify before native issuance', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'continuation-guard-')); t.after(() => rm(root, { recursive: true, force: true }))
+  const bot = { id: 'bot-target', name: 'Target' }
+  let current = true, sent = 0, checks = 0
+  const transport = new AitermTransport({ client: {} })
+  transport.dispatchInOrder = async (value, text, images, options) => {
+    current = false
+    options.check()
+    sent++
+  }
+  const messenger = new BellTeamMessenger({ bots: new Map([[bot.id, bot]]), transport, logPath: join(root, 'direct.jsonl') })
+  await assert.rejects(messenger.sendmessage({ from: 'scheduler', target: bot.id, message: 'Continue saved work' }, {
+    admissionCheck: () => { checks++; if (!current) throw Object.assign(Error('superseded'), { code: 'CONTINUATION_SUPERSEDED' }) },
+  }), { code: 'CONTINUATION_SUPERSEDED' })
+  assert.equal(sent, 0); assert.ok(checks >= 2)
+  assert.doesNotMatch(await readFile(join(root, 'direct.jsonl'), 'utf8'), /admissionCheck|current|function/)
+})
 
 test('sendmessageは自然な宛名と本文だけを配達し、識別情報は内部状態へ残す', async () => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-message-'))

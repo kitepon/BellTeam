@@ -8,7 +8,10 @@
 
 ## 現行図と移管工程
 
+- [host内の実engine factoryと交換](host-factory.md)
+
 - [待機outcomeと設定適用の契約](wait-contract.md)
+- [capacityと利用上限からの新しい継続](capacity-continuation.md)
 - [本人要約と現在turnの投影](current-work.md)
 - [members交換中の親admission・lease](members-admission.md)
 - [原要求を保持する設定適用・照合](configuration-requests.md)
