@@ -103,8 +103,8 @@ if (mode === 'initialize') {
   const publish = async phase => {
     await invariant()
     const snapshot = controller.snapshot(); assert.equal(snapshot.available, true)
-    await write(statusPath + '.tmp', { phase, checks, events, parent: parentIdentity, business: businessIdentity,
-      gateway: gatewayIdentity, port, ...snapshot, currentDataPreserved, codeViewVerified,
+    await write(statusPath + '.tmp', { ...snapshot, runtimePhase: snapshot.phase, phase, checks, events, parent: parentIdentity, business: businessIdentity,
+      gateway: gatewayIdentity, port, currentDataPreserved, codeViewVerified,
       realSeatCloseBeforeRestore: checks.filter(item => item.oldCloseBeforeRestore).length === 2 })
     await rename(statusPath + '.tmp', statusPath)
   }

@@ -30,3 +30,4 @@ code rootと全directoryはroot:root/0555、file0444。private control0:1001/075
 署名workflowのunsigned entry probeはrootが固定`/tmp`に作る専用一時directory（外側0755、code0555/0444、empty-data0555）を使い、別UID1000へ切り替える。runner checkoutの祖先権限へ依存せず、checkoutのchmod/chownをしない。stdout/stderrは元archive側へ保存し、成功・失敗とも専用directoryだけ回収する。a960署名run41646901277は両archでcheckout配下entryのMODULE_NOT_FOUND、OIDC未到達を保持し、この修理の後続source成功へ読み替えない。
 
 fixtureの原本GETだけはHTTP502/503/504に限り最大3回（1秒・2秒待ち）とし、認可失敗・不正ZIP・identity不一致は繰り返さない。起動中の最後の段階・実runner開始/closeとstatus読取のstdout/stderr、清掃前の人工コンテナprocess一覧を保存する。readyの45秒期限、実処理の再送禁止、判定とcleanupは維持する。旧41651056389のarm64 ready timeoutは途中原本が不足しており、追加記録だけを原因修理や実交換成功とは扱わない。
+有限native fixtureの状態出力はphaseを検査工程（ready/b-active/done）、runtimePhaseを実controller snapshot.phaseとして分ける。snapshotの展開で検査工程を上書きせず、親/子の不変条件を確認してから同じatomic renameで公開する。製品snapshotの契約、45秒期限、実交換・署名・cleanup条件は変更しない。
