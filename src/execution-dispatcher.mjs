@@ -7,7 +7,8 @@ import { SeatTurns } from './seat-turns.mjs'
 import { IdleSessions } from './idle-sessions.mjs'
 import { CapacityContinuation } from './capacity-continuation.mjs'
 
-const COMPATIBILITY = 'bellteam.execution-state.v1'
+export const EXECUTION_STATE_COMPATIBILITY = 'bellteam.execution-state.v1'
+const COMPATIBILITY = EXECUTION_STATE_COMPATIBILITY
 const failure = code => Object.assign(new Error(code), { code, effect: 'not_started', status: 503 })
 const asyncMethods = {
   transport: ['isRunning', 'runningBots', 'screen', 'ensure', 'wake', 'restart', 'reconfigure',

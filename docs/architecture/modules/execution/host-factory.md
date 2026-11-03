@@ -27,3 +27,28 @@ handoffはhost内volatile、同schema互換のみ。sessions/stopVersions/stopSe
 未initializeのcreatedとinitialize失敗のfailed candidateは、公開disconnect/exitで実pending0を再検査して破棄できる。initialize本体の実Promiseが未終端ならbusyで保持し、caller timeoutで解放しない。cleanup開始と同stackでdiscardingへ進め、同時initialize/旧callbackの再入場を拒否し、timer/listener停止後にだけclosedを返す。running候補の破棄には従来どおりquiesceが必要。これで失敗candidateのclosed後だけ旧bundle再生成が可能で、closed欠測時の旧再生成は不可。
 
 `test/execution-bundle-handoff.test.mjs`は別々の人工source rootからentryと相対engineをimportし、Administration実dependencyの変更が同期投影へ出ること、stop/uncertainty引渡し、初期化失敗candidateのclosed後に旧bundleを再生成できることを公開口だけで検査する。外部nativeはpty_listだけの人工port、署名/配置/loader/HTTP/main/imageの実証には使わない。fixture本文変更は一時source内だけで製品業務コードには入らない。
+
+
+## 固有generation/controllerと親保存ACK
+
+Epiから正式handoffした`src/execution-generation.mjs:createExecutionGeneration`がhost内の固有transactionを所有する。共通child controllerを複製しない。`loadFactory(versionId=null,{expectedRelease})`へbuiltin/SHAだけを渡し、runtime読取口のfrozen `{versionId,sourceCommit,createExecutionDispatcher}`だけで新engineを生成する。任意URL/import/外部business factory選択はHTTPへ出さない。reader比較用に`EXECUTION_STATE_COMPATIBILITY`を旧実値のままexportする。
+
+親Mollyは同一ports、初期currentVersionId/previousVersionIdと既保存writerへの`onAdopt({currentVersionId,previousVersionId})`を注入する。onAdoptは実durable completion（`.completion`があればそれも）を含み、ACK前は新rootを開かない。別保存schema/writer無し。公開は`start/replace/reserve/snapshot/dispatch/project/close`。reserveはstart一回とcancel、実completionを持つ。projectは同期のまま常に現instanceへ転送する。親のtransport.client/membersAdmission/requestStopはliveportsのまま保持し、queue listenerは親observerへ。旧外側SeatTurns/IdleSessionsを別生成して二重producerにせず、factoryが一実体を持つ。
+
+```mermaid
+flowchart TD
+  Load["runtime検証済factory取得"] --> Close["新root閉鎖・旧実operation drain60s"]
+  Close -->|busy| Resume["旧resume5s・候補生成0"]
+  Close --> Export["旧export→retire"]
+  Export --> Init["新engine initialize"]
+  Init --> Save["親onAdoptの実ACK"]
+  Save --> Running["現世代へ同期projection/dispatch"]
+  Init -->|失敗| Cleanup["candidate closed実確認"]
+  Cleanup -->|未確認| Unavailable["unavailable・新root0・二重engine0"]
+  Cleanup --> Restore["同旧factory＋handoff再生成"]
+  Restore --> OldSave["旧current/previousの親保存ACK"]
+  OldSave -->|成功| Running
+  OldSave -->|不明| Unavailable
+```
+
+旧instanceは退役後resumeしない。初期化/保存待ちcallerの期限は実資源を解放しない。candidateのhandle/closed欠測、復元失敗/保存ACK不明はunavailable。close途中の遅いfactory読込から未来のengineを生成しない。SDK/nativePTYclose/AIabort/本文再送は行わない。共通readerの署名・設置と親のstable facade/ledger組立、通常main/imageは各本人の実接続結果を要する。
