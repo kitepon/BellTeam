@@ -50,7 +50,9 @@ export function createManagedTransport({ client = new AitermClient(), ...options
 // BellTeamとAitermの間。席の状態（BotSessionState）と席の活動（SeatActivity）を持ち、一回の配送（DeliveryJob）を進める。
 // Aitermのnativeな実行判断はAitermに在り、ここは返却を事実として受け取る。
 export class AitermTransport {
-  constructor({ configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
+  constructor({ conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
+    this.conversationAdmission = conversationAdmission
+    this.trackCompletion = trackCompletion
     this.configurationRequests = configurationRequests
     this.membersAdmission = membersAdmission
     this.requireMember = requireMember
@@ -507,8 +509,8 @@ export class AitermTransport {
     return this.activity.configurationChanges.track(bot.id, previous.then(run, run))
   }
 
-  turn(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, admissionCheck = () => {}, membersLease } = {}) {
-    return this.submit(bot, message, { images, info: queue, onStatus, onInterim, admissionCheck, transcript: true, membersLease })
+  turn(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, admissionCheck = () => {}, membersLease, conversationDelivery } = {}) {
+    return this.submit(bot, message, { images, info: queue, onStatus, onInterim, admissionCheck, transcript: true, membersLease, conversationDelivery })
   }
 
   // BellTeamが追っているターンの合間の言葉を、完了まで数秒おきにAitermから受け取る。
@@ -576,10 +578,17 @@ export class AitermTransport {
 
   // 通知で始まったターンの最後の回答は誰にも配送しない。onAnswerがあれば、そのBotの会話画面へ出すために渡す。
   // onTurnEndは、差し込みではなく新しく始まったターンが終わった時だけ、その時間の幅を渡して呼ぶ。
-  async notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease, admissionCheck } = {}) {
-    const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease, admissionCheck })
+  async notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck } = {}) {
+    const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck })
     completion.catch(error => process.stderr.write(`BellTeam Aiterm delivery error: ${error.stack ?? error.message}\n`))
     return completion.accepted
+  }
+
+  notifyReport(bot, message, options = {}) {
+    if (!options.conversationDelivery || !this.conversationAdmission?.isReport(options.conversationDelivery)
+      || options.onTurnEnd || options.queue?.context !== 'report')
+      throw Object.assign(new Error('CONVERSATION_REPORT_NOT_ALLOWED'), { code: 'CONVERSATION_REPORT_NOT_ALLOWED', status: 403, effect: 'not_started' })
+    return this.notify(bot, message, options)
   }
 
   async restartNow(bot, version = this.stopVersions.get(bot.id), onClosed = () => {}, membersLease, admissionCheck) {
@@ -598,7 +607,7 @@ export class AitermTransport {
 
   // 一回の配送。受付（Aitermの受理）までと、受理したターンの終わりまでを一つのjobとして進める。
   // 続けてよいかはjobの停止結論と席の状態に聞き、停止の結論を決めるのはjob（DeliveryJob）だけ。
-  submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease } = {}) {
+  submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease, conversationDelivery } = {}) {
     const recoveryVersion = this.captureStopVersion(bot)
     let recoverySession = this.session(bot)
     if (membersLease) this.membersAdmission.assertLease(membersLease)
@@ -608,6 +617,17 @@ export class AitermTransport {
       info: { ...info, message: info.message ?? message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}) },
       stopping: () => this.executionStopping,
     })
+    let conversationCallbacks = null
+    if (conversationDelivery) {
+      if (!this.conversationAdmission || onStatus || onInterim || onAnswer || onTurnEnd)
+        throw Object.assign(new Error('CONVERSATION_NOT_ACCEPTED'), { code: 'CONVERSATION_NOT_ACCEPTED', status: 503, effect: 'not_started' })
+      const kind = transcript ? 'turn' : this.conversationAdmission.isReport(conversationDelivery) ? 'report' : 'notify'
+      this.conversationAdmission.claimNative(conversationDelivery, { deliveryId: info.groupId ?? job.id, target: bot.id, kind })
+      conversationCallbacks = this.conversationAdmission.callbacks(conversationDelivery)
+      this.trackCompletion(this.conversationAdmission.deliveryCompletion(conversationDelivery))
+      ;({ onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null } = conversationCallbacks)
+    } else if (this.conversationAdmission && (onStatus || onInterim || onAnswer || onTurnEnd))
+      throw Object.assign(new Error('CONVERSATION_NOT_ACCEPTED'), { code: 'CONVERSATION_NOT_ACCEPTED', status: 503, effect: 'not_started' })
     this.activity.register(job)
     const check = () => {
       job.assertNotStopped()
@@ -718,8 +738,19 @@ export class AitermTransport {
       }
     })()
     job.completion = completion
-    completion.accepted = accepted
-    completion.admissionCompletion = admissionCompletion
+    let result = completion
+    if (conversationDelivery) {
+      // submit yields before native work, so all real references exist before issuance.
+      this.conversationAdmission.trackCompletion(conversationDelivery, completion)
+      if (conversationCallbacks.userComplete) {
+        result = completion.then(async reply => { await conversationCallbacks.userComplete(reply); return reply })
+        this.conversationAdmission.trackCompletion(conversationDelivery, result)
+      }
+      const finish = () => this.conversationAdmission.finish(conversationDelivery)
+      result.then(finish, finish)
+    }
+    result.accepted = accepted
+    result.admissionCompletion = admissionCompletion
     completion.then(() => this.continuation?.succeeded(bot.id, info.groupId ?? job.id), error => {
       if (!error?.recoveryFailure || job.stopped || job.stopRequested) return
       this.continuation?.failed({ bot, deliveryId: info.groupId ?? job.id, failure: error.recoveryFailure,
@@ -732,7 +763,7 @@ export class AitermTransport {
             throw Object.assign(new Error('CONTINUATION_SUPERSEDED'), { code: 'CONTINUATION_SUPERSEDED', effect: 'not_started' })
         } })
     }).catch(() => {})
-    return completion
+    return result
   }
 
   followAcceptedDelivery(job, delivery) {
@@ -846,11 +877,25 @@ export class AitermTransport {
   // 回答は運ばない。席が自分で始めたターンの回答は、self-turns.mjsがThroughlineから出す（オーナー裁定 2026-10-01）。
   watchTurn(bot, session, turn, { onInterim, groupId }) {
     const watch = new SeatTurnWatch({ id: this.activeId(), bot, turn, groupId: groupId(), now: this.now() })
+    let operationLease, conversationDelivery, words = onInterim
+    if (this.conversationAdmission) {
+      operationLease = this.conversationAdmission.tryEnter(undefined, watch.id)
+      if (!operationLease) return null
+      try {
+        conversationDelivery = this.conversationAdmission.registerDelivery(operationLease, {
+          deliveryId: watch.info.groupId, target: bot.id, kinds: onInterim ? ['delivery.words'] : [],
+          dispatch: (kind, params, binding) => onInterim(bot.id, watch.info.groupId, params.words, binding),
+        })
+        words = onInterim ? (botId, groupId, value) => this.conversationAdmission.invoke(conversationDelivery, 'delivery.words', { words: value }) : null
+      } catch (error) { this.conversationAdmission.finish(operationLease); throw error }
+    }
     this.activity.beginWatch(watch)
     watch.completion = (async () => {
-      const say = onInterim ? async words => {
-        await onInterim(bot.id, watch.info.groupId, words)
-        watch.shown.words.push(...words.filter(word => word.kind !== 'error').map(word => word.text.trim()).filter(Boolean))
+      // The observer's lifetime is registered before the first native waiter/interim read.
+      await Promise.resolve()
+      const say = words ? async value => {
+        await words(bot.id, watch.info.groupId, value)
+        watch.shown.words.push(...value.filter(word => word.kind !== 'error').map(word => word.text.trim()).filter(Boolean))
       } : null
       const interim = say ? this.followInterim(session, turn, say, { from: turn.interim_from, turnId: turn.turn_id }) : null
       let turnCompleted = false
@@ -879,6 +924,13 @@ export class AitermTransport {
         this.activity.endWatch(watch)
       }
     })()
+    if (conversationDelivery) {
+      this.conversationAdmission.trackCompletion(conversationDelivery, watch.completion)
+      const finish = () => this.conversationAdmission.finish(conversationDelivery)
+      watch.completion.then(finish, finish)
+      this.conversationAdmission.finish(operationLease)
+    }
+    return watch
   }
 
   // 席が自分で始めたターンのうち、最後に追ったターンで合間の言葉として出した文と、追い終えた時刻。
