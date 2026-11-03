@@ -42,7 +42,7 @@ test('subscription and private origin have closed canonical shapes with validate
 
 test('contact settings and Web status expose only the fixed public shape', () => {
   for (const subject of ['mailto:operator@example.com', 'https://example.com/contact']) validateWebPushSubject(subject)
-  for (const subject of ['', 'mailto:', 'mailto:a@example.com?body=secret', 'https://user:pass@example.com/', 'https://localhost/', 'https://example.com/#x']) assert.throws(() => validateWebPushSubject(subject))
+  for (const subject of ['', 'mailto:', 'mailto:a@example.com?body=secret', 'mailto:a\u0085@example.com', 'https://user:pass@example.com/', 'https://localhost/', 'https://example.com/#x']) assert.throws(() => validateWebPushSubject(subject))
   const value = { enabled: false, configured: false, publicKey: null, error: null }
   assert.equal(webPushStatusValid(value), true)
   assert.equal(webPushStatusValid({ ...value, error: { code: 'WEB_PUSH_STATE_INVALID', message: WEB_PUSH_ERROR_MESSAGE } }), true)

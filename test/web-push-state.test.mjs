@@ -158,6 +158,7 @@ test('four safe payload variants exclude source content; large names shrink but 
   assert.equal(value.messageId, event.id)
   assert.ok(Buffer.byteLength(JSON.stringify(value)) <= 3072)
   assert.throws(() => webPushPayload({ ...event, id: 'x'.repeat(201) }), { code: 'WEB_PUSH_PAYLOAD_INVALID' })
+  assert.throws(() => webPushPayload({ ...event, id: 'id\u0085' }), { code: 'WEB_PUSH_PAYLOAD_INVALID' })
 })
 
 test('close includes an accepted registration whose atomic saving has not terminated', async t => {

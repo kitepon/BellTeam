@@ -27,7 +27,7 @@ export function validateWebPushPublicKey(value) {
 }
 
 export function validateWebPushEndpoint(endpoint) {
-  if (typeof endpoint !== 'string' || Buffer.byteLength(endpoint) > 8192 || /[\s\u0000-\u001f\u007f\\]/u.test(endpoint)) throw invalid()
+  if (typeof endpoint !== 'string' || Buffer.byteLength(endpoint) > 8192 || /[\s\p{Cc}\\]/u.test(endpoint)) throw invalid()
   let url
   try { url = new URL(endpoint) } catch { throw invalid() }
   const host = url.hostname
@@ -42,7 +42,7 @@ export function validateWebPushEndpoint(endpoint) {
 }
 
 export function validateWebPushOrigin(origin) {
-  if (typeof origin !== 'string' || Buffer.byteLength(origin) > 2048 || /[\u0000-\u0020\u007f]/u.test(origin)) throw invalid()
+  if (typeof origin !== 'string' || Buffer.byteLength(origin) > 2048 || /[\p{Cc} ]/u.test(origin)) throw invalid()
   let url
   try { url = new URL(origin) } catch { throw invalid() }
   if (url.protocol !== 'https:' || url.origin !== origin || url.username || url.password) throw invalid()
@@ -50,7 +50,7 @@ export function validateWebPushOrigin(origin) {
 }
 
 export function validateWebPushSubject(subject) {
-  if (typeof subject !== 'string' || Buffer.byteLength(subject) > 2048 || /[\u0000-\u0020\u007f]/u.test(subject)) throw invalid()
+  if (typeof subject !== 'string' || Buffer.byteLength(subject) > 2048 || /[\p{Cc} ]/u.test(subject)) throw invalid()
   let url
   try { url = new URL(subject) } catch { throw invalid() }
   if (url.protocol === 'mailto:') {

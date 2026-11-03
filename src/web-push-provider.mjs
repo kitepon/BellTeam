@@ -51,6 +51,7 @@ export class WebPushProvider {
           vapidDetails: this.vapid, TTL: 86400, urgency: 'normal', contentEncoding: 'aes128gcm',
         })
       } catch { throw webPushError('WEB_PUSH_ENCRYPTION_FAILED', 503) }
+      if (timedOut || Date.now() - started >= this.timeoutMs) throw timeout()
       const results = await Promise.allSettled([resolver.resolve4(url.hostname), resolver.resolve6(url.hostname)])
       if (timedOut || Date.now() - started >= this.timeoutMs) throw timeout()
       const addresses = []
@@ -75,6 +76,7 @@ export class WebPushProvider {
           req.destroy()
           socket?.destroy()
         }
+        if (timedOut || Date.now() - started >= this.timeoutMs) { reject(timeout()); return }
         try {
           req = this.request({ protocol: 'https:', hostname: url.hostname, port: 443,
             path: `${url.pathname}${url.search}`, method: 'POST', headers: details.headers,

@@ -22,10 +22,10 @@ function validateKeys(value) {
 
 export function webPushPayload(event) {
   const id = value => typeof value === 'string' && Boolean(value) && Buffer.byteLength(value) <= 200
-    && !/[\u0000-\u001f\u007f]/u.test(value)
+    && !/\p{Cc}/u.test(value)
   if (!['direct', 'room', 'secret', 'question'].includes(event.type) || !id(event.id) || !id(event.botId)
     || event.roomId != null && !id(event.roomId) || event.type === 'room' && !id(event.roomId)) throw webPushError('WEB_PUSH_PAYLOAD_INVALID')
-  const name = value => typeof value === 'string' && Boolean(value.trim()) && !/[\u0000-\u001f\u007f]/u.test(value)
+  const name = value => typeof value === 'string' && Boolean(value.trim()) && !/\p{Cc}/u.test(value)
   const make = (senderName, roomName) => ({ schema: 'bellteam.web-push.v1',
     kind: event.type === 'secret' ? 'secret_request' : event.type === 'question' ? 'owner_question' : 'reply',
     messageId: event.id, requestId: ['secret', 'question'].includes(event.type) ? event.id : null,
