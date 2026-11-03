@@ -129,6 +129,19 @@ stream本文はcallのaccepted/返値metadataのresult-readyを受けてから�
 
 ## 正式public observerと既保存の合成
 
+### accepted AIとcaller期限
+
+```mermaid
+flowchart LR
+  Accepted[user.turn admitted] --> Deadline[通常無進行60秒]
+  Deadline --> Proof[親の同RPC・元delivery・完全binding照合]
+  Proof -->|native受付陽性・元Promise未終端| Native[元native実待ち＋callback保存ACK]
+  Native -->|実終端・拒否とも| Deadline
+  Proof -->|根拠なし| Timeout[callerだけtimeout / 実completionは保持]
+```
+
+親requestは同RPC recordと未派生deliveryのgeneration/operationId/deliveryId/targetを元gateの`getNativeContinuation`へ渡す。admitted済みuser.turnのcaller期限に限り、その公開口が返す元native実completion Promiseの同identityを待ち、実終端後に通常60秒を再開する。登録/claimだけ・別RPC/別世代/別target・unknown・lease全体activeは継続根拠にしない。hookは親closureだけでwireやcaller optionsへ公開せず、channelに第二native状態を作らない。native Promiseのrejectは成功に変換せず期限再開だけを行う。通常callの無進行60秒、ACK5秒、stream credit、control/drain60秒と元RPC実completion/資源保持は変更しない。
+
 `createConversationObserverParentEffects({snapshot,current,check,read})`は親だけの窓口。snapshot(context)→既同operationから実Bot配列、current(botId,context)→現在実Bot、check/readは既public CLI runnerのclosureを注入する。親channelは同rootの非native effect contextを同identityで保持し、factoryはWeakMapで同poll/generationへ実object/projectを束縛する。子は実path/CLI引数を指定できない。runtime.observer.snapshot {}→{projects:[{botId,scope,projectBytes}]}、check {projects:[{id,scope,after}]}→既公開check結果、read {botId,scope,afterCursor?,throughCursor?,pageToken?}→既v2消費fieldだけ。
 
 scopeはprojectのSHA256不透明値で、記録元やcursor/tokenの新方式ではない。旧state.projectの実pathは同hashで照合してcursor/token/seenを保持し、完読時だけ不透明scopeへ束縛する。通常親SelfTurnsもraw/opaque両projectを照合できる。同schema v1内のproject関連付けでありready中の保存/修理は0。新scope不一致は既project変更と同じ初回snapshot扱い。JSON path幅はBuffer.byteLength(JSON.stringify(projectPath),'utf8')を使い、子が既256/1MiBと同じchunkを組み立てる。
