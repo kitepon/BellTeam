@@ -90,6 +90,21 @@ test('one assembly binds both saved configurations and sticky provider errors to
   assert.deepEqual(await (await fetch(base + '/api/notifications')).json(), { configured: false, environments: [] })
   const features = await (await fetch(base + '/api/settings')).json()
   assert.equal(features.settings.find(item => item.id === 'webPush').enabled, false)
+  // The existing Apple Decodable models use String IDs/status and these required field types.
+  for (const setting of features.settings) {
+    for (const key of ['id', 'title', 'status']) assert.equal(typeof setting[key], 'string')
+    assert.equal(typeof setting.enabled, 'boolean')
+    for (const field of setting.fields) {
+      for (const key of ['key', 'label', 'value']) assert.equal(typeof field[key], 'string')
+      for (const key of ['secret', 'configured']) assert.equal(typeof field[key], 'boolean')
+    }
+    if (setting.error) for (const key of ['code', 'message']) assert.equal(typeof setting.error[key], 'string')
+  }
+  const worker = await fetch(base + '/sw.js')
+  assert.equal(worker.status, 200)
+  assert.equal(worker.headers.get('cache-control'), 'no-cache')
+  assert.equal(worker.headers.get('content-type'), 'text/javascript; charset=utf-8')
+  assert.match(await worker.text(), /notification-worker/)
   await runtime.close()
   assert.equal(closes, 1)
 })
