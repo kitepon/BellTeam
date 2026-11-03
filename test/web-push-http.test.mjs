@@ -84,6 +84,7 @@ test('Owner HTTP connects settings, facade and both-provider dispatcher; Origin/
   assert.equal((await call('/api/web-push/status', { endpoint: subscription.endpoint }, 'POST', { 'content-type': 'text/plain' })).status, 400)
   assert.equal((await call('/api/web-push/status', { endpoint: 'x'.repeat(17000) })).status, 400)
   assert.deepEqual(await (await call('/api/notifications', undefined, 'GET')).json(), { configured: false, environments: [] })
+  assert.equal((await call('/api/notifications/devices', { provider: 'webPush', ...registration })).status, 503)
   notifications.question({ id: 'request-1', botId: 'bot-a', question: 'PRIVATE_QUESTION' })
   await new Promise(resolve => setImmediate(resolve))
   await dispatcher.control('quiesce', {})

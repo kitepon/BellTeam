@@ -10,14 +10,15 @@ import test from 'node:test'
 import webPush from 'web-push'
 import { WebPushProvider } from '../src/web-push-provider.mjs'
 
-test('real Node HTTPS completes or destroys its artificial TLS socket under the absolute deadline', async t => {
+test('real Node HTTPS completes or destroys its artificial TLS socket under the absolute deadline', { timeout: 5000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'web-push-artificial-tls-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const key = join(root, 'synthetic-only-key.pem'), cert = join(root, 'synthetic-only-cert.pem')
   await promisify(execFile)('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256',
     '-nodes', '-keyout', key, '-out', cert, '-days', '1', '-subj', '/CN=fcm.googleapis.com', '-addext', 'subjectAltName=DNS:fcm.googleapis.com'])
   const ca = await readFile(cert)
-  let requests = 0, closed = 0, received, sni, hang = false, sawRequest
+  let requests = 0, closed = 0, received, sni, hang = false, sawRequest, allClosed
+  const closedAll = new Promise(resolve => { allClosed = resolve })
   const server = createServer({ key: await readFile(key), cert: ca }, (req, res) => {
     requests++; sni = req.socket.servername
     const chunks = []
@@ -28,7 +29,7 @@ test('real Node HTTPS completes or destroys its artificial TLS socket under the 
       if (!hang) { res.writeHead(201); res.end('synthetic service receipt') }
     })
   })
-  server.on('secureConnection', socket => socket.once('close', () => { closed++ }))
+  server.on('secureConnection', socket => socket.once('close', () => { closed++; if (closed === 2) allClosed() }))
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
   t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve) }))
   const receiver = createECDH('prime256v1'); receiver.generateKeys()
@@ -49,12 +50,12 @@ test('real Node HTTPS completes or destroys its artificial TLS socket under the 
   assert.equal(sni, 'fcm.googleapis.com')
   assert.equal(received.includes('synthetic plaintext'), false)
   hang = true
-  provider.timeoutMs = 100
+  provider.timeoutMs = 1000
   const entered = new Promise(resolve => { sawRequest = resolve })
   const sending = provider.send(subscription, '{}')
   await entered
   await assert.rejects(sending, { code: 'WEB_PUSH_TIMEOUT', outcome: 'unknown' })
-  await new Promise(resolve => setImmediate(resolve))
+  await closedAll
   assert.equal(requests, 2)
   assert.equal(closed, 2)
 })

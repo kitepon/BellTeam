@@ -42,3 +42,9 @@ facadeは `webStatus(endpoint?,origin?) / webRegister(value,origin) / webUnregis
 Web payloadはRoot固定10key、既event ID/種別/botId/roomId/表示snapshot/固定title-bodyだけ、JSON<=3072byte。各IDは制御文字無しUTF8<=200byteで切詰め0。表示名だけ固定名へ縮めても超過ならWebだけerror。秘密値/発言/質問文/ownerGuide/URL/endpoint/資格無し。SWでも余剰key・型・相関・byte上限を検証。不正は固定汎用通知/rootだけ。UI/SW内部はAdmi、認証/asset JS MIME-no-cache/Apple互換はMolly、channelはEpi、署名/ABI2同source builtin→signed→builtinの実物はCenti所有。
 
 根拠はRoot正本と [library本人API](https://github.com/web-push-libs/web-push#generaterequestdetailspushsubscription-payload-options)、[IANA IPv4](https://www.iana.org/assignments/iana-ipv4-special-registry/)、[IANA IPv6](https://www.iana.org/assignments/iana-ipv6-special-registry/)。vendor向け公開IP policyは保守的にspecial-purpose帯を除外する。Rootの有限policyを標準必須条件とは説明しない。
+
+## 有限fixtureと検証
+
+`test/fixtures/notifications-web-push-state.mjs:writeNotificationsWebFixture(root)` は使い捨て人工rootへ実writerの設定/登録APIだけで0600のVAPID/登録と既APNs配列を作り、publish無しで閉じる。返却はorigin/otherOrigin/applicationServerKey/subscription/foreignSubscription/replacementSubscription/apnsDeviceと、両OFFのconfiguration。生成値は人工fixtureだけで実endpoint/実Owner値をコピーしない。CentiはこのAPIと固定P2 dispatcher/entryへ結合する。製品entryへ任意path/provider/envを追加しない。
+
+必要直接試験はschema、旧5設定移行/破損拒否、キー永続/0600/欠測/破損/保存失敗、origin所有の原子的無変更、HTTP Owner/Origin/閉body/既APNs投影、両inflight/savingと実IPC drain。providerは合成DNS/人工TLSで公開IP固定・VAPID暗号化・redirect/401/403/404/410/未知・期限destroy/実socket終端を確認する。人工TLS用一時証明書は試験中の一時root内で生成し必ず回収、実serviceへ送信しない。ABI2の資材/両native受入は別Centi原本と結合するまで未成立。
