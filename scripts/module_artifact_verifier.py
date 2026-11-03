@@ -76,12 +76,13 @@ def authenticate(archive, bundle, trusted, policy, expectation, *, component='we
     arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
     require(platform.system() == 'Linux' and arch is not None, 'GATEWAY_PLATFORM_INVALID')
     manifest, manifest_sha = check_archive(archive, expectation['sourceCommit'], arch, component=component)
-    if component in ('memory', 'usage', 'diagnostics'):
+    if component in ('memory', 'usage', 'diagnostics', 'execution'):
         # Read trusted image code, never code from the supplied archive.
         module, exported = {
             'memory': ('memory/state-compatibility', 'MEMORY_STATE_COMPATIBILITY'),
             'usage': ('usage/state-compatibility', 'USAGE_STATE_COMPATIBILITY'),
             'diagnostics': ('diagnostics-protocol', 'DIAGNOSTICS_STATE_COMPATIBILITY'),
+            'execution': ('execution-dispatcher', 'EXECUTION_STATE_COMPATIBILITY'),
         }[component]
         actual = json.loads(subprocess.check_output(['/usr/local/bin/node', '--input-type=module', '-e',
             f'import {{ {exported} as s }} from "/app/src/{module}.mjs"; console.log(JSON.stringify(s))'],
