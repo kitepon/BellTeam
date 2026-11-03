@@ -8,7 +8,7 @@ import { createOwnerEditor } from '../web/owner-editor.js'
 import { editorDOM, deferred } from './helpers/editor-dom.mjs'
 const source=await readFile(new URL('../web/application.js',import.meta.url),'utf8')
 function catalogue(){
- const reads=[],state={selected:null,selectedType:'bot'},ctx={catalogueRead:0,state,api:path=>{
+ const reads=[],state={selected:null,selectedType:'bot'},ctx={catalogueRead:0,state,rosterRetry:{disabled:false},rosterError:{textContent:''},rosterNotice:{hidden:true},api:path=>{
   if(path.startsWith('/api/bots')){const pending=deferred();reads.push(pending);return pending.promise}
   return Promise.resolve(path==='/api/rooms'?{rooms:[]}:{owner:{name:'old'}})
  },renderCurrentWork(){},updateSendButton(){},document:{querySelector(){}},renderOwner(){},renderBots(){},clearSelection(){state.selected=null},conversationTimeline:{updateTarget(){}},app:{classList:{contains:()=>false}}}
@@ -20,8 +20,8 @@ test('catalogue latest response keeps selection; stale success and failure are s
  reads[1].resolve({bots:[{id:'new'}]});assert.equal(await fresh,true);state.selected=state.bots[0]
  reads[0].resolve({bots:[]});assert.equal(await old,null);assert.equal(state.selected.id,'new')
  const failure=ctx.loadBots(),current=ctx.loadBots();reads[3].resolve({bots:[{id:'new'}]});await current
- reads[2].reject(Error('stale'));assert.equal(await failure,null)
- const latest=ctx.loadBots();reads[4].reject(Error('current'));await assert.rejects(latest,/current/);assert.equal(state.selected.id,'new')
+ reads[2].reject(Error('stale'));assert.equal(await failure,null);assert.equal(ctx.rosterNotice.hidden,true)
+ const latest=ctx.loadBots();reads[4].reject(Error('current'));await assert.rejects(latest,/current/);assert.equal(state.selected.id,'new');assert.equal(ctx.rosterNotice.hidden,false);assert.equal(ctx.rosterRetry.disabled,false)
 })
 test('accepted Owner update invalidates catalogue reads already in progress',async()=>{
  const {ctx,state,reads}=catalogue(),old=ctx.loadBots()

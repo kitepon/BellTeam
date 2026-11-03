@@ -1,6 +1,7 @@
 import { validateMembersRequest, validateMembersCallback, validateMembersEffect,
   validateMembersResult, validateMembersEffectResult, validateMembersProjection } from './members/protocol.mjs'
 import { MEMBERS_STATE_COMPATIBILITY, assertMembersStateCompatibility } from './members/state-compatibility.mjs'
+import { MEMBERS_READ_PIN_METHODS } from './members-admission.mjs'
 export { verifyMembersLocks } from './members-locks.mjs'
 export { waitNotificationsChildClose as waitMembersChildClose } from './notifications-ipc.mjs'
 export const MEMBERS_PAYLOAD_LIMIT = 16 * 1024 * 1024
@@ -180,7 +181,8 @@ export function createMembersParentChannel(child, { generation, admission, valid
     check(contextValid(context) && context.generation === generation)
     const task = channel.pending.get(Number(context.rootId))
     check(task && ['root', 'callback'].includes(task.kind) && sameContext(task.context, context))
-    return admission.assertLease(task.lease, { generation, correlation: task.lease.correlation })
+    if (task.readPin) return { task, readPin: admission.assertReadPin(task.readPin, { generation, method: task.method }) }
+    return { task, lease: admission.assertLease(task.lease, { generation, correlation: task.lease.correlation }) }
   }
   channel = endpointChannel(child, {
     validateResult: (kind, method, value) => {
@@ -202,20 +204,26 @@ export function createMembersParentChannel(child, { generation, admission, valid
         const initial = contextValid(message.context, true) && message.context.leaseId === null
           && message.context.generation === generation && channel.pending.get(Number(message.context.rootId))?.kind === 'control'
           && channel.pending.get(Number(message.context.rootId))?.method === 'initialize'
-        if (!initial) live(message.context)
+        if (!initial) {
+          const source = live(message.context)
+          check(!source.readPin || source.task.method === 'profiles.read', 'MEMBERS_NOT_ACCEPTED')
+        }
         check(validateProjection(message.params, message.context) !== false)
       } else if (message.kind === 'effect') {
-        const lease = live(message.context)
+        const { lease, readPin, task } = live(message.context)
+        check(!readPin || task.method === 'schedules.list' && task.readParams.ownerKind === 'room'
+          && message.method === 'room.schedules.list' && message.params.roomId === task.readParams.ownerId, 'MEMBERS_NOT_ACCEPTED')
         check(channel.pending.get(Number(message.context.rootId))?.kind === 'root', 'MEMBERS_CALLBACK_RECURSION')
         check(received.effect < 8 && callbackCredits() < 8, 'MEMBERS_IPC_CAPACITY')
         check(validateEffect(message.method, message.params, message.context) !== false)
-        const effect = Object.freeze({ id: message.id, membersLease: lease, context: message.context })
+        const effect = Object.freeze({ id: message.id, ...(readPin ? { membersReadPin: readPin } : { membersLease: lease }), context: message.context })
         effects.set(effect, true)
-        const context = Object.freeze({ ...message.context, membersLease: lease, membersEffect: effect })
+        const context = Object.freeze({ ...message.context, ...(readPin ? { membersReadPin: readPin } : { membersLease: lease }), membersEffect: effect })
         received.effect++
         let complete
         const completion = new Promise(resolve => { complete = resolve })
-        admission.trackCompletion(lease, completion)
+        if (readPin) admission.trackReadCompletion(readPin, completion)
+        else admission.trackCompletion(lease, completion)
         const run = () => onEffect(message.method, message.params, context)
         run.finish = () => { effects.delete(effect); received.effect--; complete() }
         return run
@@ -233,11 +241,14 @@ export function createMembersParentChannel(child, { generation, admission, valid
       return run
     },
   })
-  const request = (kind, method, params, { membersLease, capturedAuthorization, membersEffect } = {}) => {
-    let lease
+  const request = (kind, method, params, { membersLease, membersReadPin, capturedAuthorization, membersEffect } = {}) => {
+    let lease, readPin
     try {
-      lease = admission.assertLease(membersLease, { generation })
-      const ownerWrite = authorizeOwner(method, capturedAuthorization) === true
+      check(!membersReadPin || kind === 'root' && !membersLease && !membersEffect && MEMBERS_READ_PIN_METHODS.includes(method), 'MEMBERS_NOT_ACCEPTED')
+      if (membersReadPin) readPin = admission.assertReadPin(membersReadPin, { generation, method })
+      else lease = admission.assertLease(membersLease, { generation })
+      const binding = readPin ?? lease
+      const ownerWrite = !readPin && authorizeOwner(method, capturedAuthorization) === true
       const validate = kind === 'root' ? validateRequest : validateCallback
       if (kind === 'callback' && !membersEffect) membersEffect = [...effects.keys()].find(effect => effect.membersLease === lease
         && ![...channel.pending.values()].some(task => task.effect === effect))
@@ -246,14 +257,17 @@ export function createMembersParentChannel(child, { generation, admission, valid
       else if (kind === 'callback') check(callbackCredits() < 8, 'MEMBERS_IPC_CAPACITY')
       const attempt = channel.call(kind, method, params,
         id => {
-          const context = Object.freeze({ generation, leaseId: lease.leaseId, rootId: String(id), ownerWrite, continuation: lease.epoch !== admission.capture().epoch })
+          const context = Object.freeze({ generation, leaseId: binding.leaseId, rootId: String(id), ownerWrite, continuation: binding.epoch !== admission.capture().epoch })
           check(validate(method, params, context) !== false)
           return context
         }, {
           beforeSend: (completion, context) => {
             channel.pending.get(Number(context.rootId)).lease = lease
+            channel.pending.get(Number(context.rootId)).readPin = readPin
+            if (readPin) channel.pending.get(Number(context.rootId)).readParams = structuredClone(params)
             channel.pending.get(Number(context.rootId)).effect = membersEffect
-            admission.trackCompletion(lease, completion)
+            if (readPin) admission.trackReadCompletion(readPin, completion)
+            else admission.trackCompletion(lease, completion)
           },
         })
       return attempt

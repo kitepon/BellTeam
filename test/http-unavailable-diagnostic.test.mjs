@@ -24,7 +24,7 @@ test('型付き503は共通refresh段階と固定code/型routeだけを保存し
     cause: new Error('private-cause'),
   })
   error.stack = 'private-stack'
-  const base = await serve(t, { diagnostics, bots: { refresh() { throw error } } })
+  const base = await serve(t, { diagnostics, bots: { refresh() { throw error } }, ownerProfile: { get() { throw error } } })
   const routes = new Map([
     ['/api/bots/private-bot/messages', '/api/bots/:id/messages'],
     ['/api/bots/private-bot/queue', '/api/bots/:id/queue'],
@@ -40,7 +40,7 @@ test('型付き503は共通refresh段階と固定code/型routeだけを保存し
     assert.equal(row.category, 'SERVER_HTTP_503')
     assert.equal(log.error_code, 'MEMBERS_NOT_ACCEPTED')
     assert.equal(log.http_method, 'GET')
-    assert.equal(log.http_stage, 'members_refresh')
+    assert.equal(log.http_stage, route === '/api/owner' ? 'feature' : 'members_refresh')
     assert.equal(log.request_route, expected)
     assert(log.request_started_at_ms >= before)
     assert(Date.parse(log.response_selected_at) >= log.request_started_at_ms)

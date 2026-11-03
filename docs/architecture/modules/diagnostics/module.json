@@ -1,0 +1,20 @@
+{
+  "title": "診断",
+  "owner": "シグナル",
+  "botId": "bot-531bd220",
+  "scope": "diagnostics業務内部・factory/閉dispatcher・同state restore・close-drain・既report/code/集約/唯一writer/管理GET契約。親facade/組立と共通ledgerはモリー、runnerはエピネル、BugHubはフラジャイル",
+  "external": false,
+  "provides": [
+    "diagnostics"
+  ],
+  "uses": [
+    {
+      "module": "runtime",
+      "port": "module-runner"
+    }
+  ],
+  "source": [
+    "src/diagnostics.mjs",
+    "src/diagnostic-report-context.mjs"
+  ]
+}

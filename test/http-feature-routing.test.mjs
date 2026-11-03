@@ -50,7 +50,7 @@ test('制御APIの早期返却と機能APIの台帳refresh・共有サービス�
   }
   calls.length = 0
   assert.equal((await get('/api/owner')).status, 200)
-  assert.deepEqual(calls, ['authorize', 'bots.refresh', 'owner.get'])
+  assert.deepEqual(calls, ['authorize', 'owner.get'])
   calls.length = 0
   assert.equal((await get('/api/bots/bot-a/memory?query=needle&scope=shared')).status, 200)
   assert.deepEqual(calls, ['authorize', 'bots.refresh', ['recall', { botId: 'bot-a', query: 'needle', scope: 'shared' }]])

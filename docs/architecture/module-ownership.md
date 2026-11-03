@@ -19,10 +19,11 @@ Owner 2026-11-02指示による本体分担。機能を分離し、担当が自�
 | ベロータ | メンバー・予定 | BotRegistry、ProjectFilesのメンバー構造と指示、Owner規範、アバター/設定画、Schedule定義・実行発行 |
 | ミカ | 利用設定・通知 | Onboarding、HarnessAuth、AuthUI、FeatureSettings、質問/秘密入力、PushNotifications、Subscriptions、Cloudflare利用認証 |
 | アドミ | Web | web全体の状態・操作・表示。サーバーの機能判定を画面へ複製しない |
-| エピネル | 実行環境・更新復旧 | bootstrap/supervisor/lifecycle、SeatRuntime/短命runner、CLI/hook登録、状態移行、installer、backup/restore、更新実行の製品コード |
+| エピネル | 実行環境・更新復旧 | 全module共通交換runner/controller・世代/close-drain、bootstrap/supervisor/lifecycle、SeatRuntime/短命runner、CLI/hook登録、状態移行、installer、backup/restore、更新実行の製品コード |
 | ビスケット | 記憶・知識 | MemoryService/Search、記憶形式と検索索引、短期記憶の方針。DB実行proxyはエピネル |
 | センチ | 商用配布 | Docker/Compose/profile、package、候補CI、image/source受入、公式版発行・promotion。installerの動作実装はエピネルと接続 |
-| モリー | 共通入口・結合実装 | 共通HTTP/MCP dispatch、application組立て、共通エラー/診断、機能間接続・必要な結合試験と既公開契約内の通常main統合 |
+| モリー | 薄い親・共通入口 | 安定facade、共通HTTP/MCP dispatch、全module共通ledger/adapter組立、機能間接続・必要な結合試験と通常main統合 |
+| シグナル | diagnostics専任 | 診断factory/閉dispatcher、report/code/集約・唯一writer、同state restore、close-drain、管理GET契約。BugHubはフラジャイル |
 | トロニー | 全体設計・統合裁定 | 全体設計・公開契約/診断方針裁定、共通規範、全体図整合、優先順位、本番反映・Owner判断 |
 
 Apple/Windowsクライアントは各ベル、Aitermはエレグ、Throughlineはリヴァリン、Bridgeはリター、mcp-lazyはレオナ、RTKはドリリー、testgateはシラツル、BugHubはフラジャイル、Approval Boxはナユタ、Caveatはノア。各正本と公開接点は modules の索引へ接続する。OS・ホストはエマ等の既担当。
@@ -61,3 +62,7 @@ Apple/Windowsクライアントは各ベル、Aitermはエレグ、Throughline�
 ## 11/3 共通実装の正式移管
 
 Ownerの正式割当によりintegration moduleの実装ownerをモリーへ移す。通常main統合もモリーが作者成果照合・必要結合・図合成・競合解消・push・CI/source binding・採用SHA返却まで一貫して持ち、毎回Root採否を待つ条件にしない。Rootは全体設計/公開契約・診断方針裁定/優先順位/本番・Owner判断を持つ。runtime移管19fad7fの子起動停止・版交換/adoption/戻しと固定root記録writer/有限watch/取消/OS observerはエピネル、機能内部は各担当、配布はセンチ。共通callerは公開接点だけを使い、内部sourceの変更は所有者が持つ。既成功群の再走を新gateにせず、変更した直接境界を検証する。移管は本番・資格利用・OS権限の承認を追加しない。
+
+## モジュール更新の現在の受渡し
+
+薄い親・安定facade・全module共通ledger/adapter組立はモリー、共通交換runner/controllerはエピネル。業務内部はwebアドミ、notifications/usageミカ、membersベロータ、conversation N102、executionキロ、memoryビスケット、diagnosticsシグナル、配布センチ。diagnosticsのFragile一時割当は撤回、BugHub担当は変えない。個別の入出力・同state writer・世代/close-drain・失敗出力は各moduleの正本、共通接続はintegrationの正本へ置く。既3controllerのadapter/共通ledgerを先行し、会話/usage/memory等の全納品を待つ条件にしない。未供給moduleは未対応を明示し、正本を読めない状態で成功へ投影しない。

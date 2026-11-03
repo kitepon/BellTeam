@@ -58,6 +58,7 @@ export async function readApiError(response) {
 
 // 送信が拒否された時に入力欄の上へ出す一行。本文は呼び出し側が入力欄へ戻す。
 export function sendFailureText(code) {
+  if (code === 'MEMBERS_NOT_ACCEPTED') return 'メンバー機能が一時的に新しい操作を受け付けられません。入力は保持しています。会話の状態を確認してください。'
   if (/^HTTP_5\d\d$/u.test(code)) return `送信できませんでした。サーバーが応答しませんでした（${code}）`
   return `送信できませんでした（${code}）`
 }

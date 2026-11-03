@@ -37,6 +37,28 @@ function fixture(t, options = {}) {
 }
 const image = { type: 'image/png' }
 
+test('members admission refusal preserves room text, image and responders without automatic resend', async t => {
+  const calls = []
+  const f = fixture(t, { api: async (path, request) => {
+    calls.push({ path, body: JSON.parse(request.body) })
+    throw Object.assign(new Error('MEMBERS_NOT_ACCEPTED'), { status: 503 })
+  } })
+  const room = { type: 'room', id: 'room', name: 'Room' }
+  f.available.push(room); f.targets.set(room.id, ['a'])
+  f.composer.select(room); f.input.value = '保持する本文'; f.composer.addImages([image])
+  await f.composer.send()
+  assert.equal(f.input.value, '保持する本文')
+  assert.equal(f.attachments.children.length, 1)
+  assert.deepEqual(f.targets.get(room.id), ['a'])
+  assert.match(f.error.textContent, /新しい操作を受け付けられません。入力は保持/)
+  assert.doesNotMatch(f.error.textContent, /MEMBERS_NOT_ACCEPTED/)
+  assert.deepEqual(f.revoked, [])
+  f.composer.select(f.a); f.composer.select(room); f.composer.update()
+  assert.equal(f.input.value, '保持する本文')
+  assert.equal(calls.length, 1)
+  assert.deepEqual(calls[0].body.targets, ['a'])
+})
+
 test('accepted POST followed by display failure keeps the new input and never restores sent text', async t => {
   const f = fixture(t, { onAccepted: async () => { throw new Error('GET failed') } })
   f.input.value = 'sent'

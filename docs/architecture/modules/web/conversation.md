@@ -20,6 +20,18 @@ appは組立て・一覧・会話選択・機能間の接続を持つ。各機�
 
 `loadBots`は適用したらtrue、旧読取なら成功/失敗を表示へ反映せずnull、最新読取の失敗はthrowする。Bot/room保存と再起動後の自動選択はtrueの時だけ。composerの受付後更新はnullを表示失敗にせず、実GET失敗と履歴のfalseだけを扱う。起動・SSE・停止後にも同じ窓口を使い、古い結果を避けるための再GETは増やさない。
 
+初回一覧が503でも、一覧上に未取得理由と「一覧を再取得」を表示し、既SSEを接続する。起動失敗を空一覧の取得成功へ変えず、案内Botの自動選択は一覧成功時だけ。最新の一覧GET失敗は取得済み表示と下書きを保持し、既SSEのready/変更通知又は明示buttonの読取だけで復帰する。成功した最新GETで案内を消し、古い応答は案内も変更しない。再取得はGETだけで、本文/画像の再POSTや新pollを行わない。
+
+```mermaid
+flowchart LR
+  Start[初回の一覧GET] --> Failure[一覧の取得失敗 / 既表示と入力保持]
+  Failure --> Notice[一覧上の理由と再取得button]
+  Failure --> Events[既SSEを接続]
+  Events --> Read[ready又は変更で同じ一覧GET]
+  Notice -->|明示の読取だけ| Read
+  Read --> Success[最新一式成功で表示採用 / 案内を消す]
+```
+
 ## 開いた会話の結果だけを描く
 
 ```mermaid
@@ -112,6 +124,8 @@ flowchart TD
 appの`sendMessage`は返信者必須条件を確認し、composerの`send`を呼ぶ。composerは`capture → claimMessageSend`で対象・本文・File/URL・返信先を**画像変換前**に固定する。送信中も新しい下書きを書けるが、同宛先POSTは受付まで一件。finallyでsendingを解除し、受付後の`onAccepted`失敗では元本文を戻さない。
 
 `onAccepted`はappへ渡したcallback。画像previewをcacheへ渡し、一覧と現在表示中の対象履歴をallSettledで更新する。どちらかが失敗しても二回目POSTはしない。API成功はAI回答完了ではない。POST応答不明では未配送と断定せず、再送前に会話を確認するよう表示する。
+
+明確な`MEMBERS_NOT_ACCEPTED`拒否では、メンバー機能が新しい操作を受け付けられないことと入力保持を説明する。容量/閉鎖/世代の原因はWebで推測せず、本文・画像・返信者の既回収と明示送信の契約を維持する。
 
 `renderRecovery`は「保持した入力」に元本文、画像、宛先、理由を出す。新しい入力を連結・上書きしない。「入力欄に戻す」は空の元下書きへ移して会話を選ぶだけで、送信は利用者の明示操作。削除済み対象は復元不可だが、本文と画像は読める。「破棄」と添付削除はそのURLを解放する。これはページ内の状態であり、再読込後まで保管するstoreではない。
 

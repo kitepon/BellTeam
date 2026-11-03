@@ -8,7 +8,9 @@ function fixture() {
   const projection = { get: () => ({ ...bot, name: 'stale' }), has: () => true, keys: () => [bot.id].values(), values: () => [bot].values(), snapshot: () => ({ available: true, generation: 'generation', revision: 1, profiles: [bot] }) }
   const facade = createMembersFacade({ admission, projection,
     request: async (method, params, context) => {
-      admission.assertLease(context.membersLease); calls.push({ method, params, context })
+      if (context.membersReadPin) admission.assertReadPin(context.membersReadPin, { method })
+      else admission.assertLease(context.membersLease)
+      calls.push({ method, params, context })
       return method === 'profiles.read' ? { revision: 1 } : { bot }
     },
     callback: async (method, params, context) => {
@@ -37,8 +39,8 @@ test('fresh identity read never uses the display projection and finished callbac
   const f = fixture()
   assert.equal(f.bots.get(bot.id).name, 'stale')
   assert.equal((await f.bots.readMember(bot.id)).name, 'test')
-  const used = f.calls[0].context.membersLease
-  assert.throws(() => f.admission.assertLease(used))
+  const used = f.calls[0].context.membersReadPin
+  assert.throws(() => f.admission.assertReadPin(used))
   await assert.rejects(f.bots.updateFastMode(bot.id, false, { membersLease: used }), { status: 503 })
 })
 test('malformed response is unknown and never retried', async () => {
@@ -48,23 +50,23 @@ test('malformed response is unknown and never retried', async () => {
   assert.equal(calls.length, 1)
 })
 
-test('caller unknown leaves the tracked real completion and old callbacks live', async () => {
+test('caller unknown holds the read generation until actual completion without granting callbacks', async () => {
   const admission = new MembersAdmission()
   let settle, used
   const completion = new Promise(resolve => { settle = resolve })
-  const f = createMembersFacade({ admission, projection: {}, request: (method, params, { membersLease }) => {
-    used = membersLease
-    admission.trackCompletion(membersLease, completion)
+  const f = createMembersFacade({ admission, projection: {}, request: (method, params, { membersReadPin }) => {
+    used = membersReadPin
+    admission.trackReadCompletion(membersReadPin, completion)
     return Promise.reject(Object.assign(new Error('ACK_MISSING'), { outcome: 'unknown' }))
   }, callback: async () => ({ bot }) })
   await assert.rejects(f.bots.refresh(), { outcome: 'unknown' })
   const ticket = admission.close()
   let drained = false
   const drain = admission.drain(ticket).then(() => { drained = true })
-  await f.bots.updateSession(bot.id, 'saved', { membersLease: used })
+  await assert.rejects(f.bots.updateSession(bot.id, 'saved', { membersLease: used }), { status: 503 })
   assert.equal(drained, false)
   settle(); await drain
-  assert.throws(() => admission.assertLease(used))
+  assert.throws(() => admission.assertReadPin(used))
 })
 
 test('seat identity uses fresh read and separates confirmed absence from unavailability', async () => {
@@ -105,19 +107,21 @@ test('fixed onboarding creation option is retained outside the profile input', a
   assert.equal(Object.hasOwn(f.calls[0].context, 'id'), false)
 })
 
-test('display list restores full profiles one at a time under one lease; active authorization stays separate', async () => {
+test('display list restores full profiles with distinct method pins and no AI credit', async () => {
   const admission = new MembersAdmission(), calls = []
   let entered = 0
   const enter = admission.enter.bind(admission); admission.enter = (...args) => { entered++; return enter(...args) }
   const pending = { ...bot, id: 'bot-pending', deleting: true, avatar: '', avatarLarge: '' }
   const f = createMembersFacade({ admission, projection: { snapshot: () => ({ available: true, generation: 'builtin', revision: 1, profiles: [bot, pending] }) }, request: async (method, params, options) => {
-    calls.push({ method, params, lease: options.membersLease }); admission.assertLease(options.membersLease)
+    calls.push({ method, params, pin: options.membersReadPin }); admission.assertReadPin(options.membersReadPin, { method })
     if (method === 'profiles.read') return { revision: 1 }
     if (params.botId === pending.id && !params.includeDeleting) throw Object.assign(new Error('missing'), { code: 'BOT_NOT_FOUND', status: 404 })
     return { bot: params.botId === pending.id ? pending : { ...bot, avatar: '' } }
   } })
   const listed = await f.bots.listForClient()
-  assert.equal(entered, 1); assert.ok(calls.every(call => call.lease === calls[0].lease))
+  assert.equal(entered, 0)
+  assert.equal(calls[0].pin.method, 'profiles.read')
+  assert.ok(calls.slice(1).every(call => call.pin === calls[1].pin && call.pin.method === 'profile.read'))
   assert.ok(calls.slice(1).every(call => call.params.includeDeleting === true))
   assert.equal(listed[1].deleting, true); assert.equal(Object.hasOwn(listed[0], 'avatar'), true)
   await assert.rejects(f.bots.readMember(pending.id), { status: 404 })

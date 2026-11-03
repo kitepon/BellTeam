@@ -11,6 +11,7 @@
 ```mermaid
 flowchart LR
   m_conversation["会話・履歴 / N102"]
+  m_diagnostics["診断 / シグナル"]
   m_distribution["商用配布 / センチ"]
   m_execution["AI実行制御 / キロ"]
   m_integration["共通入口・結合実装 / モリー"]
@@ -27,6 +28,7 @@ flowchart LR
   m_conversation -->|"settings"| m_usage
   m_conversation -->|"auth"| m_usage
   m_conversation -->|"observation"| m_execution
+  m_diagnostics -->|"module-runner"| m_runtime
   m_distribution -->|"update"| m_runtime
   m_execution -->|"diagnostics"| m_integration
   m_execution -->|"registry"| m_members
@@ -42,6 +44,8 @@ flowchart LR
   m_integration -->|"auth"| m_usage
   m_integration -->|"notify"| m_usage
   m_integration -->|"members-admission"| m_execution
+  m_integration -->|"diagnostics"| m_diagnostics
+  m_integration -->|"module-runner"| m_runtime
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
   m_members -->|"cli-registration"| m_runtime
@@ -114,6 +118,7 @@ flowchart LR
 | [BugHub](modules/bughub/README.md) | フラジャイル | public |
 | [Caveat](modules/caveat/README.md) | ノア | public |
 | [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access |
+| [診断](modules/diagnostics/README.md) | シグナル | diagnostics |
 | [商用配布](modules/distribution/README.md) | センチ | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact |
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission |
 | [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics |
@@ -121,7 +126,7 @@ flowchart LR
 | [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions |
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |
 | [RTK](modules/rtk/README.md) | ドリリー | hook |
-| [実行環境・更新復旧](modules/runtime/README.md) | エピネル | lifecycle / seat-process / project-files / cli-registration / update |
+| [実行環境・更新復旧](modules/runtime/README.md) | エピネル | lifecycle / seat-process / project-files / cli-registration / update / module-runner |
 | [testgate](modules/testgate/README.md) | シラツル | hook |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context |
 | [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth |

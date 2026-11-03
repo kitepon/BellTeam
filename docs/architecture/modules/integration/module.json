@@ -2,7 +2,7 @@
   "title": "共通入口・結合実装",
   "owner": "モリー",
   "botId": "bot-39be7047",
-  "scope": "共通HTTP/MCP入口・サービス組立て・共通診断・結合試験と既公開契約内の通常main統合。全体設計/公開契約裁定/優先順位/本番・Owner判断はトロニー、機能内部と配布は各担当",
+  "scope": "薄い親・共通HTTP/MCP入口・安定facade・全module共通ledger/adapter組立・通常main統合。業務内部は各担当、共通交換runner/controllerはruntime、本番はトロニー",
   "external": false,
   "provides": [
     "HTTP/MCP",
@@ -57,6 +57,14 @@
     {
       "module": "execution",
       "port": "members-admission"
+    },
+    {
+      "module": "diagnostics",
+      "port": "diagnostics"
+    },
+    {
+      "module": "runtime",
+      "port": "module-runner"
     }
   ],
   "source": [
@@ -66,7 +74,6 @@
     "src/mcp-tools.mjs",
     "src/seat-mcp.mjs",
     "src/http-errors.mjs",
-    "src/diagnostics.mjs",
     "src/http-gateway.mjs",
     "src/http-gateway-entry.mjs",
     "src/http-assets.mjs",

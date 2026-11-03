@@ -22,17 +22,21 @@ export function createConversationApi({ bots, rooms, timeline }) {
 }
 
 export function createBotConversationApi({ bots, transport, messagePage, messenger }) {
+  const exists = async id => {
+    try { return bots.readMember ? Boolean(await bots.readMember(id)) : bots.has(id) }
+    catch (error) { if (error.code === 'BOT_NOT_FOUND' && error.status === 404) return false; throw error }
+  }
   return async (request, response, url) => {
     const botQueueMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/queue$/u)
     if (request.method === 'GET' && botQueueMatch) {
-      if (!bots.has(botQueueMatch[1])) return json(response, 404, { error: 'BOT_NOT_FOUND' })
+      if (!await exists(botQueueMatch[1])) return json(response, 404, { error: 'BOT_NOT_FOUND' })
       return json(response, 200, { items: transport.queueItems({ botId: botQueueMatch[1] }) })
     }
 
     const match = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/messages$/u)
     if (match) {
       const botId = match[1]
-      if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
+      if (!(request.method === 'GET' ? await exists(botId) : bots.has(botId))) return json(response, 404, { error: 'BOT_NOT_FOUND' })
       if (request.method === 'GET') return json(response, 200, await messagePage('bots', botId, url))
       if (request.method === 'POST') {
         const body = await readJson(request, MESSAGE_MAX_BYTES)

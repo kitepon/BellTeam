@@ -401,3 +401,25 @@ Root Web Push契約v1.1に従う。`createWebPushOrigin({settings})`が返す`as
 `createBellTeamServer`が同じ親FeatureSettingsから検証関数を一つ構築し、`createControlApi`→`createUsageApi`へ注入する。既Owner認証の後、登録照会/登録/解除のprivate originへこの返却だけを渡す。provider/configureへoriginを足さず、別origin登録の操作を同等権限にしない。固定sw.jsは版付置換の有無によらずJS MIME/no-cache、他immutable資材を維持。SW本文/公開asset mapはAdmi固定作者sourceへ接続する。
 
 `application-services`は同じ設定一実体のAPNs/Web二設定をcontrollerへ供給する。onStateの両provider applyErrorは各featureへ分けて投影し、ready/statusのnullで保存済み適用失敗を消さない。成功した明示設定適用は既FeatureSettingsのonChange結果で更新する。子/controllerのconfig epoch・復帰後差分適用と実署名nativeはruntime/配布の固定成果へ結合するまで未成立。実送信/資格/Host本番の証明にはしない。
+
+## 薄い親と全module共通の耐久更新
+
+```mermaid
+flowchart LR
+  In[HTTP/MCP / 親で認証済み入力] --> Facade[同じ安定facade / 最小DTO]
+  In --> Ledger[共通plan・同UUID operation ledger / 親が唯一writer]
+  Ledger --> Adapter[componentごとの公開controller adapter]
+  Adapter --> Runner[runtime: 共通runner/controller / 世代・close-drain]
+  Runner --> Module[各moduleのfactory/dispatcher / 同state唯一writer]
+  Module --> Done[実completion / 失敗・unknown]
+  Done --> Ledger
+  Ledger --> View[既Update HTTP/schema/SSE / backend結果]
+```
+
+親は業務データを直接書かず、安定facadeと公開controllerを組み立てる。共通ledgerはplan/同UUID・step/再開・結果を停止跨ぎ保持し、unknownから新要求を自動再送しない。runnerが旧世代の新入場を閉じ実root/effect/保存・OS子終端をdrainし、業務moduleが同state restore/唯一writerと入力検証を所有する。adapterはその既公開結果だけを親ledgerへ投影する。現container耐久接続は成立、module/all共通executorは実装中。既web/notifications/members controllerから先行し、全moduleの納品待ちへ戻さない。diagnostics内部は[Signalの正本](../diagnostics/README.md)へ移し、親の既diagnostics窓口は同facadeで維持する。
+
+### 通常UIと連絡のreadonly入場
+
+AIのlogical8leaseと、固定6methodのreadonly世代pinを分ける。pinは同gateのopaque identity/単一method/generationに束縛し、readもclose/drain/実completionへ参加する。既IPC root8は増やさず、projectionはprofiles.read、readonly effectはschedules.listの同roomだけ。facadeは既AIleaseの操作を同leaseのまま、通常fresh readをread pinへ渡す。listForClientはprofiles.read/profile.readの別pinを同generation/epochで同期捕捉して再利用する。mutation/callbackへpinを転用しない。
+
+Owner GETの一覧/Owner/個別profile・画像・設定画・会話/queueは自身のfresh窓口を使い、不要な全profile snapshotを先に要求しない。会話/queueは対象をfresh readMemberで確認し、確定404と拒否/unknownを分ける。MCP/POSTの既fresh本人/対象認可は保持する。保存済み大画像の再取得でMEMBERS_NOT_ACCEPTEDを表示したOwner症状もこの読取経路へ含め、画像保存成功を取消したりnative故障と扱ったりしない。

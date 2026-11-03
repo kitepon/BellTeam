@@ -68,6 +68,10 @@ def run_fixture(image, output, supply):
     saved = work / '.bellteam-compose.fixture'; saved.mkdir()
     guest = REPO / 'test/helpers/notifications-runtime-guest.mjs'
     shutil.copyfile(guest, work / 'guest.mjs'); (work / 'guest.mjs').chmod(0o644)
+    fixture_dir = work / 'fixtures'; fixture_dir.mkdir()
+    for name in ['notifications-web-push-state.mjs', 'notifications-usage-child.mjs']:
+        shutil.copyfile(REPO / 'test/fixtures' / name, fixture_dir / name); (fixture_dir / name).chmod(0o644)
+    shutil.copyfile(REPO / 'test/helpers/notifications-drain-companion.mjs', work / 'drain.mjs'); (work / 'drain.mjs').chmod(0o644)
     save(work / 'fixture-input.json', dict(b=inputs['b']['versionId'], source=source)); (work / 'fixture-input.json').chmod(0o644)
     volumes = [prefix + '-private', prefix + '-cursor']
     report = dict(accepted=False, image=image, imageSource=source, inputs=inputs, stages=[],
@@ -90,9 +94,11 @@ def run_fixture(image, output, supply):
                  'src/notifications-release.mjs', 'src/web-gateway-release.mjs', 'src/notifications-process.mjs',
                  'src/notifications-ipc.mjs', 'src/notifications-locks.mjs', 'src/notifications-entry.mjs',
                  'src/usage/notifications.mjs', 'src/usage/notifications-dispatcher.mjs', 'src/push-notifications.mjs',
+                 'src/web-push-notifications.mjs', 'src/web-push-provider.mjs', 'src/usage/web-push-schema.mjs',
                  'src/server-address.mjs', 'src/application-runtime.mjs', 'src/application-services.mjs',
                  'src/http-application-api.mjs', 'config/notifications-verification.json', 'config/web-gateway-trusted-root.jsonl']
         binding = {}
+        save(output / 'fixture-source-binding.json', {str(path.relative_to(REPO)): dict(bytes=path.stat().st_size, sha256=sha(path.read_bytes())) for path in [guest, REPO / 'test/helpers/notifications-drain-companion.mjs', *[REPO / 'test/fixtures' / name for name in ['notifications-web-push-state.mjs', 'notifications-usage-child.mjs']]]})
         for name in paths + ['install.sh']:
             raw = docker('run', '--pull', 'never', '--rm', '--network', 'none', '--read-only', '--entrypoint', '/bin/cat', image_id, '/app/' + name).stdout
             path = 'distribution/server/install.sh' if name == 'install.sh' else name
@@ -113,7 +119,9 @@ def run_fixture(image, output, supply):
                   dict(type='volume', source='private', target='/run/bellteam-maintenance', read_only=True, volume=dict(nocopy=True)),
                   *[dict(type='volume', source='private', target='/srv/bellteam/' + part, volume=dict(nocopy=True, subpath=part.split('/')[-1])) for part in PARTS],
                   dict(type='bind', source=str(work / 'guest.mjs'), target='/app/src/supervisor.mjs', read_only=True),
-                  dict(type='bind', source=str(work / 'fixture-input.json'), target='/fixture-input.json', read_only=True)]
+                  dict(type='bind', source=str(work / 'fixture-input.json'), target='/fixture-input.json', read_only=True),
+                  dict(type='bind', source=str(fixture_dir), target='/app/test/fixtures', read_only=True),
+                  dict(type='bind', source=str(work / 'drain.mjs'), target='/app/test/helpers/notifications-drain-companion.mjs', read_only=True)]
         normal = dict(name=prefix, services=dict(bellteam=dict(image=image_id, pull_policy='never', user='1001:1001', init=True,
             read_only=True, network_mode='none', restart='no', volumes=mounts,
             tmpfs=['/tmp:rw,nosuid,nodev,size=64m', '/run:size=64m', '/run/bellteam-server:uid=1001,gid=1001,mode=0700,size=64m'])),
@@ -156,6 +164,11 @@ console.log(JSON.stringify({versions,staging,installations,adoption:f.existsSync
             assert (c.returncode == 0) == expect_success, label
             if expect_success: assert json.loads(c.stdout)['versionId'] == value['versionId']
         stage = 'admit-normal'; wait_phase('ready')
+        stage = 'separate-ipc-drain'
+        companion = docker('exec', '--user', '1001:1001', cid, '/usr/local/bin/node', '/app/test/helpers/notifications-drain-companion.mjs')
+        (output / 'drain.stdout.log').write_bytes(companion.stdout); (output / 'drain.stderr.log').write_bytes(companion.stderr)
+        drain = json.loads(companion.stdout); assert drain['accepted'] and drain['uid'] == 1001 and drain['syntheticProviders'] and drain['osExit'] == 0 and drain['temporaryRootRemoved']
+        save(output / 'separate-ipc-drain.json', drain)
         lock = docker('run', '--pull', 'never', '--rm', '--network', 'none', '--read-only', '--user', '0:0',
             '--mount', f'type=volume,source={volumes[0]},target=/private,volume-nocopy',
             '--entrypoint', '/usr/bin/flock', image_id, '-x', '-n', '-E', '75', '/private', '/bin/true', check=False)
@@ -171,9 +184,11 @@ console.log(JSON.stringify({versions,staging,installations,adoption:f.existsSync
         guest_call('command', 'return-a'); final = wait_phase('done')
         stage = 'verify-final'
         after = inspection(); compare_inspections(before, after, output)
-        for key in ['parent', 'business', 'gateway', 'port', 'devicesSha256', 'writerLock']:
+        for key in ['parent', 'business', 'gateway', 'port', 'devicesSha256', 'writerLock', 'stateSha256']:
             assert final[key] == held[key], key
         assert final['clientCloses'] == 0 and final['currentVersionId'] is None
+        assert held['configurationEpoch'] < active['configurationEpoch'] < final['configurationEpoch']
+        assert final['webConfiguration'] == dict(enabled=True, subject='mailto:latest@example.com')
         assert active['notification'] != held['notification'] and final['notification'] != active['notification']
         installed = snapshot()
         assert installed['versions'] == [inputs['b']['versionId']] and installed['staging'] == []
@@ -186,6 +201,7 @@ console.log(JSON.stringify({versions,staging,installations,adoption:f.existsSync
         report.update(accepted=True, parentCIDAndPIDUnchanged=True, businessPIDAndStartUnchanged=True,
                       gatewayPIDAndStartUnchanged=True, devicesAndWriterLockUnchanged=True,
                       sameSourceBuiltinArchiveBuiltinOnly=True, realSignedRootInstall=True,
+                      abi2OriginAndConflictAndLatestEpoch=True, separateActualIpcArtificialProviderDrain=drain,
                       rejectedBeforePublication=['tampered-archive', 'wrong-source'], final=final)
     except BaseException as error:
         report.update(failedStage=stage, error=str(error) or type(error).__name__); raise
