@@ -127,6 +127,51 @@ class MembersArtifactTest(unittest.TestCase):
         for path in created:
             self.assertEqual(path.stat().st_mode & 0o7777, 0o700 if path.is_dir() else 0o600)
 
+    def catalog(self):
+        version=sha256(self.archive.read_bytes());url=f'https://github.com/kitepon/BellTeam/releases/download/updates-20261103T000000Z/members-{SOURCE}-linux-{ARCH}.tar.gz'
+        return dict(schema='bellteam.update-catalog.v1',publishedAt='2026-11-03T00:00:00Z',expiresAt='2026-11-04T00:00:00Z',revokedCatalogs=[],releases=[dict(componentId='members',sourceCommit=SOURCE,versionId=version,platform=dict(os='linux',arch=ARCH),artifact=dict(kind='archive',archive=dict(url=url,sha256=version,bytes=self.archive.stat().st_size),bundle=dict(url=url+'.sigstore.json',sha256='b'*64,bytes=100),signerCommit=SOURCE),compatibility=dict(nodeMajor=26,parentProtocol=1,stateSchema=None,containerUpdate=None,stateCompatibility=self.manifest['runtime']['stateCompatibility']),changes=['fixture'])])
+
+    def test_members_catalog_five_keys_and_legacy_four_keys_are_strict(self):
+        from update_catalog import validate_catalog
+        from datetime import datetime,timezone
+        now=datetime(2026,11,3,1,tzinfo=timezone.utc).timestamp()
+        self.assertEqual(validate_catalog(self.catalog(),now=now)['releases'][0]['componentId'],'members')
+        changes=[lambda c:c.pop('stateCompatibility'),lambda c:c.update(extra=1),lambda c:c.update(stateCompatibility=None),lambda c:c.update(stateCompatibility={}),lambda c:c['stateCompatibility'].pop('initializedMarker'),lambda c:c['stateCompatibility'].update(extra='v1'),lambda c:c['stateCompatibility'].update(botProfileSchema='bellteam.bot.v9'),lambda c:c.update(nodeMajor='26'),lambda c:c.update(parentProtocol=True),lambda c:c.update(stateSchema=1),lambda c:c.update(containerUpdate=1)]
+        for change in changes:
+            catalog=json.loads(json.dumps(self.catalog()));change(catalog['releases'][0]['compatibility'])
+            with self.subTest(catalog=catalog),self.assertRaises(ValueError):validate_catalog(catalog,now=now)
+        for component in ['container','web-gateway','notifications']:
+            catalog=json.loads(json.dumps(self.catalog()));release=catalog['releases'][0];release['componentId']=component;release['compatibility'].pop('stateCompatibility')
+            if component=='container':
+                release['versionId']='sha256:'+'c'*64;release['artifact']=dict(kind='oci-index',reference='ghcr.io/kitepon/bellteam-server@'+release['versionId'])
+            else:
+                for kind in ['archive','bundle']:release['artifact'][kind]['url']=release['artifact'][kind]['url'].replace('/members-','/'+component+'-')
+            validate_catalog(catalog,now=now)
+            release['compatibility']['stateCompatibility']=self.manifest['runtime']['stateCompatibility']
+            with self.subTest(component=component),self.assertRaises(ValueError):validate_catalog(catalog,now=now)
+        catalog=self.catalog();catalog['releases'][0]['componentId']='future-component'
+        with self.assertRaises(ValueError):validate_catalog(catalog,now=now)
+
+    def test_catalog_archive_and_consumer_must_match_and_asset_hash_is_checked(self):
+        from update_catalog import validate_members_archive
+        release=self.catalog()['releases'][0];state=self.manifest['runtime']['stateCompatibility']
+        validate_members_archive(release,self.manifest,state)
+        for change in [lambda m:m.update(sourceCommit='b'*40),lambda m:m['runtime'].update(arch='arm64' if ARCH=='amd64' else 'amd64'),lambda m:m['runtime']['stateCompatibility'].update(userRulesEncoding='utf16')]:
+            manifest=json.loads(json.dumps(self.manifest));change(manifest)
+            with self.assertRaises(ValueError):validate_members_archive(release,manifest,state)
+        for unknown in [{},{**state,'extra':'v1'},{**state,'botProfileSchema':'bellteam.bot.v9'}]:
+            with self.assertRaisesRegex(ValueError,'UPDATE_MEMBERS_CONSUMER_UNSUPPORTED'):validate_members_archive(release,self.manifest,unknown)
+        spec=importlib.util.spec_from_file_location('members_publication',ROOT/'scripts/check-update-catalog-publication.py');publication=importlib.util.module_from_spec(spec);spec.loader.exec_module(publication)
+        data=b'fixed archive';expected=dict(url=release['artifact']['archive']['url'],bytes=len(data),sha256=sha256(data))
+        with patch('module_artifact_package.validate_members_source',return_value=state), patch('module_artifact_verifier.verify_signature') as official, patch.object(publication,'download_asset',side_effect=[self.archive.read_bytes(),b'{}']):
+            publication.verify_members_release(release)
+            self.assertEqual(official.call_args.kwargs,dict(source=SOURCE,signer=SOURCE))
+            self.assertEqual(official.call_args.args[3]['signerWorkflow'],'kitepon/BellTeam/.github/workflows/publish-members.yml')
+        with patch.object(publication,'download',return_value=data):
+            self.assertEqual(publication.download_asset(expected),data)
+            for wrong in [{**expected,'sha256':'0'*64},{**expected,'bytes':len(data)+1}]:
+                with self.assertRaisesRegex(ValueError,'UPDATE_RELEASE_CONTENT_MISMATCH'):publication.download_asset(wrong)
+
     def test_unsigned_fixed_cli_does_not_claim_authentication(self):
         result = subprocess.run([sys.executable, str(ROOT / 'scripts/verify-members.py'),
                                  str(self.archive), str(self.archive), str(self.archive)], capture_output=True)

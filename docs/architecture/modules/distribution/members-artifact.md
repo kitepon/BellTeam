@@ -29,3 +29,5 @@ membersのsrc/package/lock/clean production依存に、本文生成が読むpayl
 署名前のmembers-artifact-probe.pyは既通知の使い捨てroot/native mount namespace機構を固定membersへ限定して再利用する。既/app・private・state・home・Cがあれば作用前拒否。archive通常fileだけをroot-owned/appへ配置し、Node26の固定pathを必要時だけprivate bind、C compile0755後、Epi固定probeへ接続する。fixtureはstate/bots/.initialized空markerとowner/profile.jsonの既schema最小値・user-rules.md空だけを1001:1001/0700・0600で先に作る。Bot subdir0/.transaction無し、業務seed/migrationをreadyへ入れない。empty projection ACK以外のparent effect/予定/実席作用はEpi probeで拒否する。
 
 publish-membersは両nativeでarchive→unsigned builtin/ready/OSclose→公式attest→取得後公式identity確認→成功資材だけを供給する。失敗時のentry-probe stdout/stderrは別diagnostics artifactへ保存し、未署名/失敗結果を正式供給成功にしない。実Bot/Owner/予定stateをfixtureへコピーしない。
+
+正式catalog側もmembersだけ厳密5key（既4key＋stateCompatibility6実値）を持つ。schema/producerとarchive/consumerの照合は[正式catalog](update-catalog.md)が正本、実state read-restoreはwriter/runtimeが所有する。

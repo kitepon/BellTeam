@@ -5,16 +5,39 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
-from update_catalog import MAX_CATALOG, strict_json, validate_catalog, require
+from update_catalog import MAX_CATALOG, strict_json, validate_catalog, validate_members_archive, require
 
 
-def download(url, headers=None):
+def download(url, headers=None, maximum=4 * MAX_CATALOG):
     with urlopen(Request(url, headers=headers or {}), timeout=30) as response:
-        raw = response.read(4 * MAX_CATALOG + 1)
-    require(len(raw) <= 4 * MAX_CATALOG, 'UPDATE_PUBLICATION_RESPONSE_LIMIT')
+        raw = response.read(maximum + 1)
+    require(len(raw) <= maximum, 'UPDATE_PUBLICATION_RESPONSE_LIMIT')
     return raw
+
+
+def download_asset(item):
+    raw = download(item['url'], maximum=item['bytes'])
+    require(len(raw) == item['bytes'] and hashlib.sha256(raw).hexdigest() == item['sha256'], 'UPDATE_RELEASE_CONTENT_MISMATCH')
+    return raw
+
+
+def verify_members_release(release):
+    from module_artifact_package import validate_members_source
+    from module_artifact_verifier import policy_for, verify_signature
+    from web_gateway_artifact import check_archive
+    root = Path(__file__).resolve().parents[1]
+    state = validate_members_source(root)
+    artifact = release['artifact']
+    with tempfile.TemporaryDirectory(prefix='members-publication-') as directory:
+        archive = Path(directory) / 'archive.tar.gz'; archive.write_bytes(download_asset(artifact['archive']))
+        bundle = Path(directory) / 'bundle.json'; bundle.write_bytes(download_asset(artifact['bundle']))
+        with archive.open('rb') as a, bundle.open('rb') as b, (root / 'config/web-gateway-trusted-root.jsonl').open('rb') as t:
+            verify_signature(a, b, t, policy_for('members'), source=release['sourceCommit'], signer=artifact['signerCommit'])
+            manifest, _ = check_archive(a, release['sourceCommit'], release['platform']['arch'], component='members')
+        validate_members_archive(release, manifest, state)
 
 
 def main():
@@ -48,6 +71,8 @@ def main():
                 matches = [a for a in public['assets'] if a['name'] == name]
                 require(len(matches) == 1 and matches[0]['size'] == expected['bytes']
                         and matches[0]['digest'] == 'sha256:'+expected['sha256'], 'UPDATE_RELEASE_ASSET_MISMATCH')
+            if release['componentId'] == 'members':
+                verify_members_release(release)
     tag = 'updates-' + catalog['publishedAt'].replace('-','').replace(':','').split('.')[0].removesuffix('Z') + 'Z'
     print(json.dumps(dict(tag=tag, catalogSha256=hashlib.sha256(raw).hexdigest())))
 

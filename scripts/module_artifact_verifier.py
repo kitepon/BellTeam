@@ -54,6 +54,13 @@ def verify_signature(artifact_file, bundle, trusted, policy, *, source=None, sig
     return verified
 
 
+def policy_for(component):
+    contract(component)
+    return dict(schema=f'bellteam.{component}.verification-policy.v1', repository='kitepon/BellTeam',
+        repositoryId='1404510084', signerWorkflow=f'kitepon/BellTeam/.github/workflows/publish-{component}.yml',
+        sourceRef='refs/heads/main', predicateType='https://slsa.dev/provenance/v1')
+
+
 def authenticate(archive, bundle, trusted, policy, expectation, *, component='web-gateway'):
     contract(component)
     require(subprocess.check_output(['/usr/local/bin/node', '-p', 'process.versions.node.split(".")[0]'],
@@ -64,9 +71,7 @@ def authenticate(archive, bundle, trusted, policy, expectation, *, component='we
     archive.seek(0)
     digest = hashlib.file_digest(archive, 'sha256').hexdigest()
     require(digest == expectation['archiveSha256'], 'GATEWAY_ARCHIVE_DIGEST_MISMATCH')
-    require(policy == {'schema': f'bellteam.{component}.verification-policy.v1', 'repository': 'kitepon/BellTeam',
-        'repositoryId': '1404510084', 'signerWorkflow': f'kitepon/BellTeam/.github/workflows/publish-{component}.yml',
-        'sourceRef': 'refs/heads/main', 'predicateType': 'https://slsa.dev/provenance/v1'})
+    require(policy == policy_for(component))
     verify_signature(archive, bundle, trusted, policy, source=expectation['sourceCommit'], signer=expectation['signerCommit'])
     arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
     require(platform.system() == 'Linux' and arch is not None, 'GATEWAY_PLATFORM_INVALID')

@@ -20,6 +20,7 @@ def validate_members_source(payload):
         'const m = await import(process.argv[1]); console.log(JSON.stringify(m.MEMBERS_STATE_COMPATIBILITY))', path],
         env={'PATH': os.environ['PATH']}, text=True))
     require(actual == contract('members')[1]['stateCompatibility'], 'MEMBERS_SOURCE_STATE_INCOMPATIBLE')
+    return actual
 
 
 def main(component):
