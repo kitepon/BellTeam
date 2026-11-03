@@ -117,6 +117,8 @@ eventは`{type:'changed',topics,all,botIds,roomIds}`だけで、本文/資格/�
 
 ## 会話固有channel/entryの所有変更
 
+diagnosticは既channelの子送信/親受信で同じ固定unionを検証し、MESSAGE_LOG_INVALIDだけexact {code,line,offset,length,reason}（lineは1以上、offset/lengthは0以上のsafe整数、reasonはnul/syntax/schema）を許し、他はcode-onlyを維持して本文/自由例外/stderrを転送せず親onDiagnosticへ渡す。
+
 Root21:55分担により会話固有parent/child adapterと薄いentryはN102が所有。Epiの共通module-streams、input budget、background/delivery-release、C/locks/controllerをそのまま使用し複製しない。同lease/correlationで複数の順次・同時rootを許し、各RPCの数値封筒idと親captured method/authorityを個別に保持する。reverse effect/eventの封筒sourceは元RPC id、wire root/callback context自体は既4/5fieldのまま。同operationIdだけで別methodの権限へ広げない。
 
 親optionsのconversationLease/capturedAuthority/operationContext/admissionCheckは同identityで親に保持し、onEffectへconversationDeliveryを加える。native前registerDelivery/delivery-release、report derive、observer source、背景runBackground/deferredとACKをadapterが結合し、transportのclaimNative/finishは重ねない。root8のslotはuser.turnの実acceptedで解放、元RPC completion/保存参照は完走まで残す。historyは別streamをawait onChunk(Buffer)へ送る。独立control capabilityをdata credit待ちにせず、切断/期限で実completionをresolveしない。
