@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import { configurationCapability, configurationConnection, configurationSettings, configurationDigest, configurationBinding,
-  configurationReceipt, configurationError, configurationWasNotIssued, captureConfigurationRequest, CONFIGURATION_VERSION } from './configuration-request.mjs'
+  configurationReceipt, configurationError, configurationWasNotIssued, configurationIntentWasNotWritten, captureConfigurationRequest, CONFIGURATION_VERSION } from './configuration-request.mjs'
 
 // New requests only. Existing IDs are read through reconcile, never applied again.
 export class ConfigurationRequests {
@@ -11,6 +11,7 @@ export class ConfigurationRequests {
     this.pending = new Map()
     this.active = new Set()
     this.latest = new Map()
+    this.rejectedPreparations = new Map()
   }
 
   async restore() {
@@ -26,7 +27,7 @@ export class ConfigurationRequests {
   view(botId) {
     const value = this.latest.get(botId)
     return value ? structuredClone({ binding: value.intent.binding, requested: value.intent.requested, receipt: value.receipt, receipt_persisted: value.persisted === true,
-      ...(value.localNotIssued ? { local_not_issued: true } : {}) }) : null
+      ...(value.preparation ? { preparation: value.preparation } : {}), ...(value.localNotIssued ? { local_not_issued: true } : {}) }) : null
   }
 
   async prepare(botId, sessionId, settings) {
@@ -35,6 +36,7 @@ export class ConfigurationRequests {
     this.active.add(botId)
     let original
     let published = false
+    let publication = 'not_started'
     try {
       const requested = configurationSettings(settings)
       const connection = await configurationCapability(this.client)
@@ -50,21 +52,53 @@ export class ConfigurationRequests {
       original = { schema: 'bellteam.configuration-intent.v1', botId, binding, requested, version: CONFIGURATION_VERSION }
       this.pending.set(botId, original)
       this.latest.set(botId, { intent: original, receipt: null })
+      publication = 'unknown'
       try { await this.intents.publish(botId, original) }
-      catch (cause) { throw Object.assign(configurationError('CONFIGURATION_INTENT_SAVE_UNCONFIRMED'), { cause }) }
+      catch (cause) {
+        if (configurationIntentWasNotWritten(cause)) publication = 'not_started'
+        throw Object.assign(configurationError('CONFIGURATION_INTENT_SAVE_UNCONFIRMED'), { cause })
+      }
       published = true
+      publication = 'confirmed'
       configurationConnection(this.client, connection.sdk, connection.transport)
       const { session_id, ...request } = binding
       return { intent: structuredClone(original), connection,
         args: { action: 'apply', session_id, request, ...Object.fromEntries(Object.entries(requested).filter(([, value]) => value !== null)) } }
     } catch (error) {
       if (!original && error?.effect !== 'not_issued') error = Object.assign(configurationError('CONFIGURATION_CAPABILITY_UNCONFIRMED'), { cause: error })
+      if (original) {
+        const preparation = { state: 'not_returned', publication }
+        this.rejectedPreparations.set(botId, { original, preparation })
+        this.latest.get(botId).preparation = preparation
+      }
       if (published && configurationWasNotIssued(error)) {
         try { await this.finishNotIssued(botId, original.binding) } catch { /* Retain the original intent and failure if its completion cannot be saved. */ }
       }
       if (original) captureConfigurationRequest(error, { binding: original.binding, requested: original.requested, receipt: null,
-        receipt_persisted: false, ...(this.latest.get(botId)?.localNotIssued ? { local_not_issued: true } : {}) })
+        receipt_persisted: false, preparation: this.latest.get(botId).preparation,
+        ...(this.latest.get(botId)?.localNotIssued ? { local_not_issued: true } : {}) })
       throw error
+    } finally { this.active.delete(botId) }
+  }
+
+  canRecoverPreparation(botId, id) {
+    const rejected = this.rejectedPreparations.get(botId)
+    return rejected?.original.binding.id === id && this.pending.get(botId) === rejected.original
+  }
+
+  async recoverPreparation(botId, id) {
+    if (!this.canRecoverPreparation(botId, id)) throw configurationError('CONFIGURATION_PREPARATION_UNCONFIRMED', 'possible')
+    if (this.active.has(botId)) throw configurationError('CONFIGURATION_REQUEST_PENDING')
+    const rejected = this.rejectedPreparations.get(botId)
+    this.active.add(botId)
+    try {
+      await this.intents.recoverNotIssued(rejected.original)
+      if (!this.canRecoverPreparation(botId, id)) throw configurationError('CONFIGURATION_PREPARATION_UNCONFIRMED', 'possible')
+      this.pending.delete(botId)
+      this.rejectedPreparations.delete(botId)
+      this.latest.get(botId).localNotIssued = true
+      return { schema: 'bellteam.configuration-local-completion.v1', binding: { ...rejected.original.binding },
+        outcome: 'not_applied', effect: 'not_issued' }
     } finally { this.active.delete(botId) }
   }
 

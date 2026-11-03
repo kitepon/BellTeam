@@ -10,6 +10,9 @@ flowchart TD
   Capability --> Target[同接続pty_listの公開launchを捕捉]
   Target --> Intent[親UID1001 state/configuration-intents/Bot/UUID.intent.json<br/>非上書きfile+dir sync / 4096]
   Intent --> Guard[発行直前に同期で同接続guard]
+  Intent -->|保存検査拒否 / publish途中失敗| Rejected[新prepareのcatchで未返却を捕捉<br/>publication not_started / unknown を分離]
+  Rejected --> Local[既reconcile / 同原IDを厳密保存<br/>not-issued印をsync保存してlocal終端]
+  Local --> KeepHistory[failed/希望/原診断を保持 / native RPCなし]
   Guard --> Apply[tracked apply 一回 / 原binding]
   Apply --> Receipt[厳密receipt / isErrorも構造保持]
   Apply --> Unknown[元例外と原ID保持 / 再applyなし]
@@ -21,6 +24,12 @@ flowchart TD
 ```
 
 親のみが固定rootを組立て、HTTP/MCPでroot/pathを受けない。0700/0600、owner/realpath/祖先の非信頼writerを検査。既publishResumeFile/readResumeFileだけを再利用し、保存失敗・temp/nlink2・ACK欠測を未保存や新IDの許可へ変えない。members交換/通常更新で移管・消去せずTTL無し。廃棄はproduct state明示廃棄と同じ判断。stateが欠測した事から未受理を作らない。
+
+runtimeの`acquireConfigurationStateAnchor(root)`が保証する固定stateの`{path,uid,dev,ino}`を内部assemblyから`trustedAnchor`として注入する。consumerはanchor自身のowner/realpath/no group-other write/dev/inoを毎回照合し、配下のprivate0700/0600を検査する。anchorより上のUID1000を一般許可しない。未注入は従来の全祖先検査。runtimeの信頼根拠と取得契約は[runtime](../runtime/README.md)が所有する。
+
+新prepareのcatchだけが原objectに束縛した`preparation:{state:'not_returned',publication:'not_started'|'unknown'|'confirmed'}`を保持する。`not_started`は実storeがintent file writerへ入る前に拒否した内部証拠、`unknown`はpublish呼出の保存結果欠測、`confirmed`はpublish返却後。いずれもprepareがcallerへ返らなかった事実と、disk保存の状態を別にする。既reconcileはこの新しい同pending証拠がある場合にだけ、nativeへ送らず、原ID/全設定が一致するintentとnot-issued印の耐久保存を完成して原pendingを終端する。途中temp/不正file/別binding/active/別uncertainty/保存失敗は拒否・保持。新IDやnative receiptを生成しない。返却`localCompletion`はnative結果と別のschemaで、applicationはfailedのまま保持する。
+
+旧Centi4faf/Molly146e/bot220 b6d3の表示、ENOENT、現行sourceから新preparation証拠を後付けしない。証拠無しの旧pendingはlocal終端対象外で、従来の保存原要求によるnative read-only reconcileだけが適用候補。元b5152件の欠測を補完しない。新証拠も、local終端保存前に親processを失えば欠測として扱い、再起動後のintentから未返却を推測しない。
 
 保存原要求はschema/botId/binding/canonical requested/version。0.63.5/0.63.6 intentの読取は同一正式契約として保持するが、新発行guardは0.63.6だけ。receiptにはapplyかreconcileかの取得起源を併記する。reconcileで歴史的applied/unconfirmedを得ても元の不明を解除せず、再起動後もpendingとして復元する。通常applyで直接確認したappliedと同一視しない。terminal以外は原intentを保持し、terminal receiptは一回だけ公開、再読取のobserved_at差以外を上書きしない。
 

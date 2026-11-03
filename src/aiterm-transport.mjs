@@ -365,6 +365,16 @@ export class AitermTransport {
 
   async reconcileConfiguration(bot, id) {
     if (!this.configurationRequests) throw configurationError('CONFIGURATION_UNAVAILABLE')
+    if (this.configurationRequests.canRecoverPreparation(bot.id, id)) {
+      return this.membersAdmission.withLease(async membersLease => {
+        await this.requireMember(bot, { membersLease })
+        this.membersAdmission.assertLease(membersLease)
+        if (this.uncertainChanges.has(bot.id) || this.sessionChanges.has(bot.id) || this.activity.configurationChanges.has(bot.id))
+          throw configurationError('CONFIGURATION_PREPARATION_UNCONFIRMED', 'possible')
+        const localCompletion = await this.configurationRequests.recoverPreparation(bot.id, id)
+        return { localCompletion, fence: this.uncertainChanges.has(bot.id) ? 'retained' : 'absent' }
+      })
+    }
     const original = await this.configurationRequests.intents.read(bot.id, id)
     if (original.binding.session_id !== this.session(bot)) throw configurationError('CONFIGURATION_REQUEST_UNBOUND')
     const before = this.sessionState.configurationFence(bot.id, original.binding)

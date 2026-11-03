@@ -2,7 +2,7 @@ import { lstat, mkdir, readdir, realpath } from 'node:fs/promises'
 import { dirname, isAbsolute, join, parse } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
 import { publishResumeFile, readResumeFile } from './resume-storage.mjs'
-import { configurationBinding, configurationBot, configurationDigest, configurationError, configurationReceipt, configurationSettings, configurationUUID, CONFIGURATION_INTENT_VERSIONS } from './configuration-request.mjs'
+import { configurationBinding, configurationBot, configurationDigest, configurationError, configurationReceipt, configurationSettings, configurationUUID, markConfigurationIntentNotWritten, CONFIGURATION_INTENT_VERSIONS } from './configuration-request.mjs'
 
 function intent(value, botId, id) {
   if (!value || Object.keys(value).sort().join(',') !== 'binding,botId,requested,schema,version'
@@ -17,10 +17,15 @@ function intent(value, botId, id) {
 
 // The root comes only from trusted parent assembly, never an HTTP/MCP DTO.
 export class ConfigurationIntents {
-  constructor(root, { ownerUid = 1001 } = {}) {
+  constructor(root, { ownerUid = 1001, trustedAnchor = null } = {}) {
     if (!isAbsolute(root) || root !== parse(root).root && root.endsWith('/')) throw configurationError('CONFIGURATION_STORAGE_INVALID')
+    if (trustedAnchor && (Object.keys(trustedAnchor).sort().join(',') !== 'dev,ino,path,uid'
+      || typeof trustedAnchor.path !== 'string' || !isAbsolute(trustedAnchor.path) || trustedAnchor.path.endsWith('/') || trustedAnchor.uid !== ownerUid
+      || ![trustedAnchor.dev, trustedAnchor.ino].every(value => Number.isSafeInteger(value) && value >= 0)
+      || !root.startsWith(`${trustedAnchor.path}/`))) throw configurationError('CONFIGURATION_STORAGE_INVALID')
     this.root = root
     this.ownerUid = ownerUid
+    this.trustedAnchor = trustedAnchor ? { ...trustedAnchor } : null
   }
 
   async directory(path, create = false, privateDirectory = true) {
@@ -28,16 +33,21 @@ export class ConfigurationIntents {
     const paths = []
     for (let current = path; ; current = dirname(current)) {
       paths.unshift(current)
+      if (this.trustedAnchor && current === this.trustedAnchor.path) break
       if (current === dirname(current)) break
     }
+    if (this.trustedAnchor && paths[0] !== this.trustedAnchor.path) throw configurationError('CONFIGURATION_STORAGE_INVALID')
     for (const current of paths) {
       let st
       try { st = await lstat(current) } catch (error) {
-        if (error.code !== 'ENOENT' || !create) throw error
+        if (error.code !== 'ENOENT' || !create || current === this.trustedAnchor?.path) throw error
         await mkdir(current, { mode: 0o700 }); st = await lstat(current)
       }
       if (!st.isDirectory() || ![0, this.ownerUid].includes(st.uid) || await realpath(current) !== current
         || (st.mode & 0o022) && !(st.uid === 0 && st.mode & 0o1000)) throw configurationError('CONFIGURATION_STORAGE_INVALID')
+      if (this.trustedAnchor && current === this.trustedAnchor.path
+        && (st.uid !== this.trustedAnchor.uid || st.dev !== this.trustedAnchor.dev || st.ino !== this.trustedAnchor.ino))
+        throw configurationError('CONFIGURATION_STORAGE_INVALID')
       if (current === path && privateDirectory && (st.uid !== this.ownerUid || (st.mode & 0o777) !== 0o700))
         throw configurationError('CONFIGURATION_STORAGE_INVALID')
     }
@@ -51,12 +61,31 @@ export class ConfigurationIntents {
   }
 
   async publish(botId, value) {
-    const validated = intent(value, botId, value.binding?.id)
-    const directory = await this.botDirectory(botId, true)
-    const bytes = Buffer.from(JSON.stringify(validated) + '\n')
-    if (bytes.length > 4096) throw configurationError('CONFIGURATION_INTENT_INVALID')
+    let validated, directory, bytes
+    try {
+      validated = intent(value, botId, value.binding?.id)
+      directory = await this.botDirectory(botId, true)
+      bytes = Buffer.from(JSON.stringify(validated) + '\n')
+      if (bytes.length > 4096) throw configurationError('CONFIGURATION_INTENT_INVALID')
+    } catch (error) { throw markConfigurationIntentNotWritten(error) }
     await publishResumeFile(directory, `${validated.binding.id}.intent.json`, bytes)
     return validated
+  }
+
+  async recoverNotIssued(original) {
+    const validated = intent(original, original.botId, original.binding?.id)
+    const directory = await this.botDirectory(validated.botId, true)
+    if ((await readdir(directory)).some(name => name.startsWith('.') && name.endsWith('.tmp')))
+      throw configurationError('CONFIGURATION_INTENTS_UNCONFIRMED', 'possible')
+    let saved
+    try { saved = await this.read(validated.botId, validated.binding.id) }
+    catch (error) {
+      if (error.code !== 'ENOENT') throw error
+      await this.publish(validated.botId, validated)
+      saved = await this.read(validated.botId, validated.binding.id)
+    }
+    if (!isDeepStrictEqual(saved, validated)) throw configurationError('CONFIGURATION_INTENT_INVALID', 'possible')
+    await this.saveNotIssued(validated.botId, validated.binding)
   }
 
   async read(botId, id) {
