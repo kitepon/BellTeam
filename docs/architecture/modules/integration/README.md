@@ -397,3 +397,20 @@ flowchart LR
 
 
 親予約のconversation側はexecutionの`ConversationLifetimes`一実体へ結合する。root8creditと違い、このgateはAI lifetimeの8上限を持たない。新結合試験ではmembers準備をfinishしてmembers drainが完了した後も、登録済みconversation delivery callbackだけは旧世代で通り、callback実終端までconversation drainがbusyとなる。members leaseをAI完走まで延ばさず、両方必要な新effectは再び通常の両入場を確認する。実channel/長いnative jobへの接続は作者後続であり、この単体合成で完成を補完しない。
+
+## conversationの親actor捕捉（入口の配線前）
+
+```mermaid
+flowchart LR
+  Ingress[既7入口の認証・本人確認] --> Capture[conversation-authority.capture method, actor]
+  Capture --> Ceiling[N102の7tag閉method ceilingを検証]
+  Ceiling --> Token[親WeakMapのmethod別opaque token / actorを固定]
+  Token --> Channel[options.capturedAuthority / JSONへ渡さない]
+  Channel --> Authorize[authorizeActor method, token / 同identityだけprojection]
+  Authorize --> Wire[子へ閉actorだけ / operationContextは別検証]
+  End[実root/effect/callback資源終端] --> Release[release token]
+```
+
+`createConversationAuthority()`は親組立てが一実体だけ所有し、認証済みOwner/席本人/scheduler/Bridge/onboarding/usage/observer入口から確定したmethod/actorでだけ`capture`する。body/paramsのactor・Owner宣言や汎用system actorから生成しない。methodごとに発行し、子と同じ`assertConversationRootAuthority`で上限を確認する。`authorizeActor(method,options.capturedAuthority)`は元factory/同object/同methodだけを受け、固定actorを返す。不明・clone・別method・終端済みtokenはfalse。原actorの後続変更は権限を変えない。
+
+認証そのもの、親の席session/launch/source、両moduleのlive operationContext、停止世代・fresh membershipは別の既入口/各gateで検証する。このtokenはそれらの代わりではない。解放はHTTP/caller期限やroot8のacceptedではなくruntimeの実資源終端へ結合する。history親合成は公開ceilingを確認した上で実wire list2へ各methodのtokenを捕捉する。callbackはKiro登録exact5だけを使いroot tokenから新権限を作らない。全HTTP/MCP/Bridgeの捕捉・安定facade/dispatcherへの配線は後続結合であり、このfactoryだけで会話process成立とはしない。
