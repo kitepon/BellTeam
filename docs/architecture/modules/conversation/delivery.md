@@ -33,6 +33,20 @@ flowchart TD
 
 `recordUserReply`は、そのターンの間にBotが明示的にOwnerへ送った新しい記録を優先し、`knownReplyIds/claimedReplyIds`で二度の回答保存を避ける。空回答を新しい発言にしない。この処理は通知の単なる表示callbackとは責務が違う。
 
+### members予定から配送への既受付lease
+
+```mermaid
+flowchart LR
+  Scheduler["親scheduler: 同membersLeaseでclaim成功"] --> Messenger["sendmessage(input, {membersLease})"]
+  Scheduler --> Room["sendroommessage(input, {membersLease})"]
+  Room --> Order["部屋順序待ち / 同opaque参照を保持"]
+  Order --> Notify["transport.notify options.membersLease"]
+  Messenger --> Notify
+  Notify --> Execution["execution: live lease検証・既受付の継続"]
+```
+
+第2内部引数の`membersLease`だけを呼出時に捕捉し、同じ参照をnotify optionsへ渡す。Roomは前投稿の成功/失敗待ちと各宛先のfanoutを越えて同じopaqueを保持する。入力本文/会話record/queue/通知文/返却へleaseを保存せず、第1引数の同名fieldから権限を作らない。第2引数省略時は従来のoptionsを保つ。leaseの実在/世代/相関と継続・終端はexecution/runtimeが検証し、会話はclone/再入場/finish/再送を行わない。既全体停止のadmitWork/requireAccessも維持する。ユーザーturn/過去配送の再開/通話の意味をこの予定接点で拡張しない。
+
 ## 会話の保存画像と、nativeへ渡す一時画像を分ける
 
 `prepareUserTurn/sendmessage/sendRoomMessageInOrder → MessageAssets.save/saveAll`は画像の実bytesを確認し、ownerごとの保存領域へ0600/wxで作る。`directory`はOwner画像とBot画像を別の保存先へ置く。`readImageBytes/detectMime`はサイズ/形式を検証し、HTTP読取は`open`からstreamを返す。席由来のpath読取はSeatRuntimeの窓口を使う。
