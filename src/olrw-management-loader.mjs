@@ -3,6 +3,7 @@ import { lstat, open, readFile, mkdir } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { dirname, join, parse } from 'node:path'
 import { isDeepStrictEqual as equal } from 'node:util'
+import { setTimeout as delay } from 'node:timers/promises'
 import { writeAtomic } from './json-file.mjs'
 import { createOlrwAuthorization } from './olrw-management-caller.mjs'
 import { createOlrwRabbitAuth, fixedRabbitClientOptions } from './olrw-rabbit-auth.mjs'
@@ -47,7 +48,7 @@ async function connectionMetadata(connection) {
 }
 
 // This is a single root-provisioned run, not a caller-supplied permission document.
-export async function prepareOlrwManagement({ root, ownerQuestions, readManaged = readOlrwManagedFile,
+export async function prepareOlrwManagement({ root, ownerQuestions, aiControl, readManaged = readOlrwManagedFile,
   makeAuth = createOlrwRabbitAuth, metadata = connectionMetadata, fetchImpl = fetch }) {
   let raw
   try { raw = await readManaged(OLRW_MANAGEMENT_PATHS.plan, 32768) }
@@ -83,34 +84,87 @@ export async function prepareOlrwManagement({ root, ownerQuestions, readManaged 
     const unchanged = async () => {
       if (hash(await readManaged(OLRW_MANAGEMENT_PATHS.plan, 32768)) !== planHash) throw denied()
     }
-    await unchanged(); await authorize('initialize')
-    auth = makeAuth({ ...document.target, sessionId: document.context.sessionId, protectedHosted: document.context.protectedHosted })
-    let timer
-    let connection
-    try {
-      connection = await Promise.race([auth.prepare(), new Promise((_, reject) => { timer = setTimeout(() => reject(denied()), 10000) })])
-    } finally { clearTimeout(timer) }
-    const bound = await metadata(connection)
-    const expected = { schema: 'bellteam.olrw-auth.target-evidence.v1', runId: document.context.runId,
-      profileSha256: document.target.profileSha256, ...bound }
-    await mkdir(join(root, 'logs'), { recursive: true, mode: 0o700 })
-    await writeAtomic(join(root, 'logs/olrw-client-preflight.json'), { ...expected, target: document.target,
-      scope: 'connection identity only; independently measured SSH/Node/artifact/environment profile is still required' })
+    let admission = null, connection = null, bound = null, expected = null, initializing = null, closing = null
+    const controller = new AbortController()
+    let deadline = Date.parse(document.context.expiresAt)
+    const check = () => {
+      controller.signal.throwIfAborted()
+      if (!admission || Date.now() >= deadline) throw denied()
+      admission()
+    }
+    const rawAuth = makeAuth({ ...document.target, sessionId: document.context.sessionId, protectedHosted: document.context.protectedHosted,
+      assertBeforeIssue: check })
+    const close = () => {
+      controller.abort()
+      closing ??= Promise.resolve().then(() => rawAuth.close())
+      return closing
+    }
     const targetUnchanged = async () => {
-      if (!equal(await metadata(connection), bound)) throw denied()
+      if (!connection || !equal(await metadata(connection), bound)) throw denied()
       const evidence = JSON.parse(await readManaged(OLRW_MANAGEMENT_PATHS.evidence, 16384))
       if (!equal(evidence, expected)) throw denied()
     }
     const assertAuthorized = async action => {
       try {
         if (!['start', 'status', 'respond', 'cancel'].includes(action)) throw denied()
+        if (!admission && action === 'start') admission = aiControl.admit()
+        check()
         await unchanged()
-        await targetUnchanged()
+        if (expected) await targetUnchanged()
+        else if (action !== 'start') throw denied()
+        check()
         await authorize(action)
         await unchanged()
-        await targetUnchanged()
+        if (expected) await targetUnchanged()
+        check()
       } catch { throw denied() }
     }
+    const initialize = async () => {
+      deadline = Math.min(deadline, Date.now() + 900000)
+      check()
+      await unchanged()
+      await authorize('initialize')
+      // initialize can have effects: do not cross the awaited approval with a stale plan.
+      await unchanged()
+      check()
+      let timer
+      try {
+        connection = await Promise.race([rawAuth.prepare(), new Promise((_, reject) => {
+          timer = setTimeout(() => reject(denied()), Math.max(0, Math.min(10000, deadline - Date.now())))
+        })])
+      } finally { clearTimeout(timer) }
+      check()
+      bound = await metadata(connection)
+      expected = { schema: 'bellteam.olrw-auth.target-evidence.v1', runId: document.context.runId,
+        profileSha256: document.target.profileSha256, ...bound }
+      await mkdir(join(root, 'logs'), { recursive: true, mode: 0o700 })
+      await writeAtomic(join(root, 'logs/olrw-client-preflight.json'), { ...expected, target: document.target,
+        scope: 'connection identity only; independently measured SSH/Node/artifact/environment profile is still required' })
+      for (;;) {
+        check()
+        await unchanged()
+        check()
+        try { await targetUnchanged(); break }
+        catch (error) { if (error.code !== 'ENOENT') throw error }
+        await delay(Math.min(100, Math.max(1, deadline - Date.now())), undefined, { signal: controller.signal })
+      }
+      await assertAuthorized('start')
+    }
+    auth = {
+      async start() {
+        try {
+          initializing ??= initialize()
+          await initializing
+          check()
+          return await rawAuth.start()
+        } catch (error) { await close(); throw error }
+      },
+      status: input => rawAuth.status(input),
+      respond: input => rawAuth.respond(input),
+      cleanup: input => rawAuth.cleanup(input),
+      close,
+    }
+
     return { ...base, auth, assertAuthorized }
   } catch {
     try { await auth?.close() } catch {}

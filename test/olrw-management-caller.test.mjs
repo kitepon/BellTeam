@@ -82,3 +82,17 @@ test('実OwnerQuestionsの保存後watchから一回実行し、親停止epoch�
   assert.equal(execute, 0)
   assert.equal(failure, 'OLRW_MANAGEMENT_EXECUTION_UNCONFIRMED')
 })
+
+test('拒否回答と実行前許可失敗はconsumerを一回回収し再closeを重複しない', async () => {
+  for (const answer of ['no', 'yes']) {
+    let listener, closes = 0, executions = 0
+    const item = { botId: 'bot', question: 'synthetic?', options: ['yes', 'no'], allowOther: false, status: 'open' }
+    const caller = attachOlrwOwnerQuestion({ plan: { questionId: 'q', requesterBotId: 'bot', question: item.question, options: item.options, answer: 'yes' },
+      ownerQuestions: { get: () => ({ ...item }), watch: fn => { listener = fn; return () => {} } },
+      aiControl: { admit: () => () => {} }, assertAuthorized: async () => { throw new Error('denied') }, reportFailure: () => {},
+      createConsumer: () => ({ execute: async () => { executions++ }, close: async () => { closes++ } }) })
+    item.status = 'answered'; item.answer = answer
+    listener(); await caller.result; await caller.close(); await caller.close()
+    assert.equal(executions, 0); assert.equal(closes, 1)
+  }
+})

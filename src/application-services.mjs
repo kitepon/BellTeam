@@ -100,7 +100,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   await ownerQuestions.initialize()
   let olrwAuthCaller = null
   try {
-    if (olrwManagement === undefined) olrwManagement = await prepareOlrwManagement({ root, ownerQuestions })
+    if (olrwManagement === undefined) olrwManagement = await prepareOlrwManagement({ root, ownerQuestions, aiControl })
     if (olrwManagement) {
       olrwAuthCaller = attachOlrwOwnerQuestion({
         plan: olrwManagement.plan, ownerQuestions, aiControl, assertAuthorized: olrwManagement.assertAuthorized,

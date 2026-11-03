@@ -54,7 +54,7 @@ export function attachOlrwOwnerQuestion({ plan, ownerQuestions, aiControl, asser
   if (question.status === 'answered') return { status: 'already_answered', result: null, ownerSecretGuide: async () => null, async close() {} }
   if (question.status !== 'open') throw denied()
   const controller = new AbortController()
-  let invoked = false, pending = null, admission = null
+  let invoked = false, pending = null, admission = null, closing = null
   const consumer = createConsumer({ assertAuthorized: async action => {
     controller.signal.throwIfAborted()
     admission()
@@ -62,22 +62,30 @@ export function attachOlrwOwnerQuestion({ plan, ownerQuestions, aiControl, asser
     controller.signal.throwIfAborted()
     admission()
   } })
+  const close = () => {
+    controller.abort(); unwatch()
+    closing ??= Promise.resolve().then(() => consumer.close())
+    return closing
+  }
   const unwatch = ownerQuestions.watch(() => {
     if (invoked || controller.signal.aborted) return
     const current = ownerQuestions.get(plan.questionId)
     if (current.status !== 'answered') return
     invoked = true
     unwatch()
-    if (current.other || current.answer !== plan.answer) return
+    if (current.other || current.answer !== plan.answer) { pending = close(); return }
     pending = (async () => {
       admission = aiControl.admit()
       await assertAuthorized('start')
       controller.signal.throwIfAborted()
       admission()
       return consumer.execute({ signal: controller.signal })
-    })().catch(async () => { try { await reportFailure('OLRW_MANAGEMENT_EXECUTION_UNCONFIRMED') } catch {} })
+    })().catch(async () => {
+      try { await close() } catch {}
+      try { await reportFailure('OLRW_MANAGEMENT_EXECUTION_UNCONFIRMED') } catch {}
+    })
   })
   return { status: 'watching', get result() { return pending },
     ownerSecretGuide: input => controller.signal.aborted ? Promise.resolve(null) : consumer.ownerSecretGuide(input),
-    async close() { controller.abort(); unwatch(); await consumer.close() } }
+    close }
 }

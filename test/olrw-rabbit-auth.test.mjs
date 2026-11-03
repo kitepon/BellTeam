@@ -65,3 +65,18 @@ test('版不一致/切断/別SDK/型付き失敗の後は新connectや後続RPC�
   await assert.rejects(auth.start(), /CONNECTION_CLOSED/)
   assert.equal(f.calls.length, 1); assert.equal(f.connects, 1)
 })
+
+test('非同期prepare後の最後の同期停止判定がRPCを止め、再開しても同許可を再送しない', async () => {
+  let epoch = 0
+  const admitted = epoch, f = fixture()
+  const auth = createOlrwRabbitAuth({ ...profile, client: f.client, assertBeforeIssue: () => {
+    if (epoch !== admitted) throw new Error('stopped')
+  } })
+  await auth.prepare()
+  const pending = auth.start()
+  epoch++
+  await assert.rejects(pending, /stopped/)
+  assert.equal(f.calls.length, 0)
+  await assert.rejects(auth.start(), /CONNECTION_CLOSED/)
+  assert.equal(f.connects, 1)
+})

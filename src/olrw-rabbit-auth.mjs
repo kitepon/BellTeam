@@ -13,6 +13,7 @@ export function fixedRabbitClientOptions({ nodePath, entryPath }) {
 
 // Assembly supplies only a root-managed profile; there is no caller-selected remote or shell.
 export function createOlrwRabbitAuth({ nodePath, entryPath, version, sessionId, protectedHosted,
+  assertBeforeIssue = () => {},
   client = new AitermClient(fixedRabbitClientOptions({ nodePath, entryPath })) }) {
   fixedRabbitClientOptions({ nodePath, entryPath })
   if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)
@@ -39,6 +40,7 @@ export function createOlrwRabbitAuth({ nodePath, entryPath, version, sessionId, 
     try {
       const connection = await prepare()
       if (closed || halted) throw new Error('OLRW_RABBIT_CONNECTION_CLOSED')
+      if (assertBeforeIssue() !== undefined) throw invalid()
       const result = await client.call('agent_auth', { action, harness: 'claude-code', session_id: sessionId, ...options },
         { expectedAuthConnection: connection, expectedAuthServerVersion: version })
       if (result?.isError) halted = true

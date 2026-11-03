@@ -9,7 +9,11 @@ flowchart LR
   Plan[管理側の固定planと正規接続参照] --> Caller
   Caller --> Box[固定origin Approval Box 原本GET]
   Box --> Consumer[usage consumer.execute 一回]
-  Consumer --> Gate[Root assertAuthorized 各操作直前]
+  Consumer --> Claim[usage 永続run/session予約・start intent]
+  Claim --> Init[Root initialize許可GET・照会後plan/期限/epoch再検査]
+  Init --> MCP[同接続MCP prepare 一回]
+  MCP --> Evidence[接続名札出力・root実測証拠の有界待ち]
+  Evidence --> Gate[Root assertAuthorized 各操作直前]
   Gate --> Box
 ```
 
@@ -33,8 +37,10 @@ application-servicesはOwnerQuestions初期化後にprepareOlrwManagementを呼�
 
 planのschemaはbellteam.olrw-auth.management.v1、contextはusageの7field、questionは固定カード5field、approvalは固定decision/回答済み版/Owner・connection/許可option/context/options SHA/requester、targetは承認済みnodePath/entryPath/正式version/profileSha256の4field。profileSha256はSSH/UID/Node/正式package全体integrity/HOME/config/cwd/state/socketとinitialize副作用の独立確認原本のdigest参照で、自己申告boolの代用にはしない。root配置者がその原本/Owner裁定との束縛を持つ。
 
-pendingカードでは固定Box原本でinitializeまでの許可を確認してから固定MCPを準備（10秒上限）。logs/olrw-client-preflight.jsonへ親PID/出生・その接続のSSH PID/出生・対象profile参照を1001/0600で出す。この出力は観測対象の名札であり許可証ではない。独立した承認済み実測後、root配置者だけがcontrol内target-evidence.jsonをroot:1001/0440で公開する。schema bellteam.olrw-auth.target-evidence.v1、runId/profileSha256/親PID出生/SSH PID出生が現在接続と完全一致する場合だけauthへ進める。実測/配置の手順・担当・具体値は統括の実行案で確定し、このsourceから実SSH/権限/配置を許可済みにしない。
+pendingカードのbootstrapは固定参照を組み立てるだけで、原本GET/接続prepareを行わない。Owner回答後のclaim前start許可はplan/期限/停止epoch/Boxだけを照合し、未生成のtarget証拠を要求しない。usageの永続run/session名予約とstart intent fsyncの後、auth.start内でinitialize原本GET→照会後plan/期限/epoch再検査→固定MCP prepare一回（10秒上限）へ進む。撤去/置換/期限/停止ならprepare0。成功/失敗/unknown/再起動後のrun/session再使用拒否はusageの唯一の正本が持ち、Rootに別run台帳を追加しない。
 
-各auth直前にplan raw bytes不変・同接続PID出生・root evidence・Box原本を再確認し、変更/取消し相当のplan除去/期限/切断は停止。usage一正本はそのまま、接続名札を認証runの第二正本にしない。初期化後にカードが先回答になった場合もauth0で接続を回収する。run完了/親closeはconsumer入場停止と管理client closeだけで、無許可cancelを追加しない。
+接続後logs/olrw-client-preflight.jsonへ親PID/出生・その接続のSSH PID/出生・対象profile参照を1001/0600で出す。この出力は観測対象の名札であり許可証ではない。独立した承認済み実測後、root配置者だけがtarget-evidence.jsonをroot:1001/0440で公開する。schema bellteam.olrw-auth.target-evidence.v1、runId/profileSha256/親PID出生/SSH PID出生が現在接続と完全一致する場合だけauthへ進める。欠測のみ100ms間隔で受動再読し、期限はrun開始15分/管理許可期限の最小。close/停止epoch/期限で待ちを終了し、遅着証拠を採用せず再prepare/auth0。一般待受けや新daemonではない。
+
+実auth前はplan raw bytes不変・同接続PID出生・root evidence・Box原本を照会後にも再確認し、SDKへ渡す直前にはawait無しで期限/close/停止epochを確認する。unknown後の再準備/再接続/別env launcher/自動status・cancelは無い。通常終了/親close/拒否回答/許可失敗はconsumer入場停止と管理client closeだけで、無許可cancelを追加しない。実測/配置の手順・担当・具体値は統括の実行案で確定し、このsourceから実SSH/権限/配置を許可済みにしない。
 
 source: src/olrw-management-caller.mjs、olrw-management-loader.mjs、olrw-rabbit-auth.mjsと直接試験。application-servicesは通常bootstrapの固定loaderか明示合成fixtureから得るolrwManagementを使い、同じSecretRequests実体とstate/olrw-authをconsumerへ注入する。application-runtime全体closeはcaller停止→既資源closeを行う。固定plan無しは通常無効、無反映でlive graphへ注入しない。実root配置/資格/正式native供給/実到達が未成立の現在は本番で有効化しない。既公開契約の変更はない。
