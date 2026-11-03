@@ -35,6 +35,7 @@
   ],
   "source": [
     "src/aiterm-transport.mjs",
+    "src/conversation-lifetimes.mjs",
     "src/current-work.mjs",
     "src/members-admission.mjs",
     "src/configuration-request.mjs",
