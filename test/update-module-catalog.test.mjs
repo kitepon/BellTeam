@@ -12,7 +12,7 @@ function selection(id) {
     publication: { status: 'failed', checkedAt: '2026-11-03T01:00:00Z', error: 'HOST_UPDATE_PUBLICATION_FAILED' },
     release: { componentId: id, sourceCommit: source, versionId: version, platform: { os: 'linux', arch: 'amd64' },
       artifact: { kind: 'archive', archive: { url, sha256: version, bytes: 1000 }, bundle: { url: url + '.sigstore.json', sha256: 'd'.repeat(64), bytes: 100 }, signerCommit: source },
-      compatibility: { nodeMajor: 26, parentProtocol: 1, stateSchema: id === 'members' ? null : 1, containerUpdate: null,
+      compatibility: { nodeMajor: 26, parentProtocol: id === 'notifications' ? 2 : 1, stateSchema: id === 'members' ? null : id === 'notifications' ? 2 : 1, containerUpdate: null,
         ...(id === 'members' ? { stateCompatibility: { ...MEMBERS_STATE_COMPATIBILITY } } : {}) }, changes: ['公開版の変更説明'] } }
 }
 function center(catalog) {

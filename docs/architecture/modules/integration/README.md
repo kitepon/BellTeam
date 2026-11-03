@@ -423,3 +423,21 @@ flowchart LR
 AIのlogical8leaseと、固定6methodのreadonly世代pinを分ける。pinは同gateのopaque identity/単一method/generationに束縛し、readもclose/drain/実completionへ参加する。既IPC root8は増やさず、projectionはprofiles.read、readonly effectはschedules.listの同roomだけ。facadeは既AIleaseの操作を同leaseのまま、通常fresh readをread pinへ渡す。listForClientはprofiles.read/profile.readの別pinを同generation/epochで同期捕捉して再利用する。mutation/callbackへpinを転用しない。
 
 Owner GETの一覧/Owner/個別profile・画像・設定画・会話/queueは自身のfresh窓口を使い、不要な全profile snapshotを先に要求しない。会話/queueは対象をfresh readMemberで確認し、確定404と拒否/unknownを分ける。MCP/POSTの既fresh本人/対象認可は保持する。保存済み大画像の再取得でMEMBERS_NOT_ACCEPTEDを表示したOwner症状もこの読取経路へ含め、画像保存成功を取消したりnative故障と扱ったりしない。
+
+### module/all更新の実行と耐久結果
+
+```mermaid
+flowchart LR
+  Plan[Owner固定plan / action省略時update] --> Check[同catalog・実current・期限・既prepareの互換確認]
+  Check --> Journal[state/update-ledger / fsync済planと同UUID受付]
+  Journal --> Steps[固定順のmodule step / containerは必要時のみ最後]
+  Steps --> Public[同controllerのreplace実Promise / Host start-get]
+  Public --> Verify[実snapshotのtargetと利用可能性]
+  Verify --> Result[step・operation保存 / 既SSE再取得]
+  Restart[親再起動] --> Unknown[未終端module stepはunknown / 自動再apply無し]
+  Unknown --> Result
+```
+
+共通ledgerがplan/operation/stepの唯一writer。既web/通知/members controllerとroot所有資材の公開prepareを再利用し、子writer・新版資材配置を追加しない。未配置はplan前のprepareで拒否する。catalogは通知protocol/state 2、members状態指紋、Web protocol 1を照合する。全体planは同catalogの更新対象を固定し、必要なcontainer stepだけ既Host計画を末尾へ付ける。個別旧container計画/結果照会を維持する。
+
+戻しはplan入力のaction=rollbackで明示し、省略はupdate。operationは保存planのactionを使い、別action/targetをbodyへ受けない。個別moduleの直前に当ledgerが成功確認した交換だけ、元のbuiltin又は検証済archiveへ現データのまま戻す。全体/container戻しは未対応として拒否し、業務データ/Owner設定/unknownを巻き戻さない。途中のmodule実行が未確定ならunknown、Hostへ発行済みの最後stepは同requestId照会だけで追う。親終了は新受付を閉じ、既実Promiseを回収してからcontrollerを閉じる。

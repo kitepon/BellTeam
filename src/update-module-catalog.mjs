@@ -38,22 +38,31 @@ function selection(value, id) {
   return value
 }
 
+export function moduleReleaseCompatible(id, release) {
+  const value = release?.compatibility
+  return value?.nodeMajor === 26 && value.containerUpdate === null
+    && value.parentProtocol === (id === 'notifications' ? 2 : 1)
+    && (id === 'members' ? isDeepStrictEqual(value.stateCompatibility, MEMBERS_STATE_COMPATIBILITY) && value.stateSchema === null
+      : value.stateSchema === (id === 'notifications' ? 2 : 1))
+}
+
 // Trust and freshness belong to the Host catalog reader; this maps its closed selection only.
 export function createModuleUpdateCatalog({ client }) {
+  const select = async id => { requireValue(ids.includes(id)); return selection(await client.catalog(id), id) }
   return {
+    select,
     async snapshot(inventory) {
       await Promise.all(ids.map(async id => {
         const component = inventory.components.find(value => value.id === id)
         if (!component) return
         try {
-          const selected = selection(await client.catalog(id), id)
+          const selected = await select(id)
           component.publication = { catalog: { sha256: selected.catalogSha256, publishedAt: selected.publishedAt, expiresAt: selected.expiresAt }, check: selected.publication }
           if (!selected.release) return
           const release = selected.release, compatibility = release.compatibility
           component.published = { version: release.versionId, sourceCommit: release.sourceCommit, digest: 'sha256:' + release.versionId, origin: 'published' }
           component.changes = release.changes
-          const compatible = compatibility.nodeMajor === 26 && compatibility.parentProtocol === 1
-            && (id === 'members' || compatibility.stateSchema === 1 && compatibility.containerUpdate === null)
+          const compatible = moduleReleaseCompatible(id, release)
           const same = component.current?.digest === component.published.digest
             || component.current?.origin === 'builtin' && component.current.sourceCommit === release.sourceCommit
           component.comparison = { state: !compatible ? 'incompatible' : same ? 'up_to_date' : component.current ? 'update_available' : 'unknown',

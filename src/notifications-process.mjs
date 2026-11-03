@@ -298,17 +298,19 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
     if (configuring || operation || update && ['accepted', 'running'].includes(update.status)) throw failure('NOTIFICATIONS_UPDATE_IN_PROGRESS', 409)
     const next = { versionId, status: 'accepted' }; update = next
     const options = expectedRelease ? { expectedRelease: structuredClone(expectedRelease) } : undefined
+    let complete
+    const completion = new Promise(resolve => { complete = resolve })
     let settled = false
-    return { start() {
+    return { completion, start() {
       if (settled) return
       settled = true
-      if (closed) { next.status = 'not_started'; return }
+      if (closed) { next.status = 'not_started'; complete(); return }
       next.status = 'running'
       void replace(versionId, options).then(() => { next.status = 'succeeded' }, error => {
         next.status = 'failed'
         next.error = /^NOTIFICATIONS_[A-Z_]+$/.test(error?.message ?? '') ? error.message : 'NOTIFICATIONS_UPDATE_FAILED'
-      })
-    }, cancel() { if (!settled) { settled = true; next.status = 'not_started' } } }
+      }).finally(complete)
+    }, cancel() { if (!settled) { settled = true; next.status = 'not_started'; complete() } } }
   }
   const close = () => {
     if (closing) return closing

@@ -25,6 +25,8 @@ import { createNotificationsProcess } from './notifications-process.mjs'
 import { createContainerUpdateClient } from './container-update-client.mjs'
 import { createHostUpdateAdapter } from './update-host-adapter.mjs'
 import { createModuleUpdateCatalog } from './update-module-catalog.mjs'
+import { createModuleUpdateExecutor } from './update-module-executor.mjs'
+import { createModuleUpdateAdapters } from './update-module-adapters.mjs'
 import { createUpdateCenter } from './update-center.mjs'
 import { Subscriptions } from './subscriptions.mjs'
 import { Onboarding } from './onboarding.mjs'
@@ -69,7 +71,11 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     },
   })
   const hostUpdateClient = createContainerUpdateClient()
-  updateCenter = createUpdateCenter({ gateway, notifications, members, host: createHostUpdateAdapter({ root, client: hostUpdateClient }), moduleCatalog: createModuleUpdateCatalog({ client: hostUpdateClient }) })
+  const hostUpdate = createHostUpdateAdapter({ root, client: hostUpdateClient })
+  const moduleCatalog = createModuleUpdateCatalog({ client: hostUpdateClient })
+  const moduleExecutor = await createModuleUpdateExecutor({ root, catalog: moduleCatalog, host: hostUpdate,
+    adapters: createModuleUpdateAdapters({ gateway, notifications, members }), notify: () => updateCenter?.notify() })
+  updateCenter = createUpdateCenter({ gateway, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor })
   await notifications.initialize()
   memory = seatRuntime ? seatRuntime.memory(bots) : new BellTeamMemory({ registry: bots, root })
   await memory.initialize()
@@ -182,6 +188,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     scheduler, diagnostics, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
   }
   } catch (error) {
+    await updateCenter?.close()
     try { await members?.controller.close() }
     catch (cleanupError) { throw new AggregateError([error, cleanupError], 'MEMBERS_ASSEMBLY_FAILED') }
     throw error

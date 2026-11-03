@@ -94,6 +94,9 @@
     "src/members-owner-proxy.mjs",
     "src/update-module-catalog.mjs",
     "src/current-work-contract.mjs",
-    "src/web-push-origin.mjs"
+    "src/web-push-origin.mjs",
+    "src/update-module-adapters.mjs",
+    "src/update-module-executor.mjs",
+    "src/module-exchange-mutex.mjs"
   ]
 }
