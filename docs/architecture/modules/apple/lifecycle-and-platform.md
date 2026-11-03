@@ -116,10 +116,10 @@ SubscriptionViewはloadSubscriptionで本体/商品/権利を確認し、購入/
 | 入口・所有 | 配置・受渡し・後始末 |
 | --- | --- |
 | BellBotApp | App単位のStateObject AppStoreを全画面へ注入。Macは主WindowGroupとmember-editor WindowGroupで共有。RootViewはphaseからsetup/login/onboarding/ready/failureを選択 |
-| iPhone BellTabs / HomeView | 会話/予定/goal/設定。会話はNavigationStack(path: chatPath)→ConversationView。プロフィール/端末はsheet。接続errorは上部。通知秘密sheetはtabsの根 |
+| iPhone BellTabs / HomeView | 会話/予定/goal/設定。会話はNavigationStack(path: chatPath)→ConversationView。プロフィールは[Views/ConversationDetailView.swift](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift#L4)、端末は[Views/BotScreenView.swift](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L47)のsheet。接続errorは上部。通知秘密sheetはtabsの根 |
 | iPad DesktopWorkspaceView | NavigationSplitViewの一覧/詳細＋inspector。compactColumnは選択とtabで変わり、compact幅でinspectorを閉じる。bot選択時に端末表示を戻す。編集は共通sheet |
 | Mac DesktopWorkspaceView | 同じ選択・画面部品。Bot会話は会話/inspectorを等幅、roomはinspector固定280。主window最小1100×640。Bot編集は別window、roomはsheet |
-| DesktopInspector | showingScreenは親のBinding、画像状態はStateObject。端末表示をembedded BotScreenViewへ切替え、戻るとプロフィール。ルーム参加者からchatPathを書き換える |
+| DesktopInspector | showingScreenは親のBinding、画像状態はStateObject。端末表示をembedded [BotScreenView（Views/BotScreenView.swift）](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L47)へ切替え、戻るとプロフィール。ルーム参加者からchatPathを書き換える |
 | MemberEditorWindow | Botを共有名簿から解決してBotEditor、見つからなければ不存在表示。geometry要求失敗は上部error。close callbackはdismissWindow |
 | TabletWorkspace | このHEADで同名の製品Swift型/ファイルは無い。iPad配置はDesktopWorkspaceViewが持ち、TabletWorkspaceUITestsがその契約を確認する |
 
@@ -127,7 +127,7 @@ SubscriptionViewはloadSubscriptionで本体/商品/権利を確認し、購入/
 
 ## 整理候補
 
-- **A-L1**：`ios/BellBot/BellBot/Views/ConversationView.swift:1457`と`ios/BellBot/Shared/BotAvatarCache.swift:94`。会話画像cacheは専用のorigin正規化、通知画像cacheはServerOrigin.urlを経由したorigin正規化を持つ。
+- **A-L1**：`ios/BellBot/BellBot/Views/ConversationView.swift:1455`と`ios/BellBot/Shared/BotAvatarCache.swift:94`。会話画像cacheは専用のorigin正規化、通知画像cacheはServerOrigin.urlを経由したorigin正規化を持つ。
 - **A-L2**：`ios/BellBot/BellBot/App/BellBotApp.swift:201`と`ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift:92`。通知秘密sheetと完了時eventRevision増加をtabsとworkspaceがそれぞれ接続している。
 
 ## 未調査

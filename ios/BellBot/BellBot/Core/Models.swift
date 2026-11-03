@@ -529,3 +529,5 @@ struct OwnerAnswerBody: Encodable {
 }
 
 struct OwnerQuestionResponse: Decodable { let question: OwnerQuestion }
+
+struct EmptyBody: Encodable {}

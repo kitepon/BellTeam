@@ -58,7 +58,7 @@ SSE本文をそのまま名簿や会話の正本にしない。`AppStore`が必�
 | 会話行・本文・画像 | `Views/ConversationList.swift`、`MessageText.swift`、`SelectableText.swift`、`ConversationView.swift`内の画像gallery/cache、`Design/AvatarTone.swift`。UITableViewの行・Markdown先読み・末尾追従 | 画像は履歴の`imageUrls / imageUrl`を`BellAPI.image`でGET。routeをAppleで組み立てない | 履歴更新経由 |
 | 添付とルーム宛先 | `ConversationView.swift`。写真選択・Macファイル選択・画像貼付け・URLドロップ、JPEG化、`selectedTargets`。未選択の自動選択はrouting設定を参照 | `POST T/messages`の`images`と`targets` | topic `settings`でrouting設定更新、`rooms`で参加者更新 |
 | 会話書き出し | `ConversationView.swift`、`Core/ConversationDocument.swift`。FileDocumentでJSON出力 | `GET T/export` | 直接の専用購読なし |
-| 個別停止・再起動・端末画面 | `ConversationView.swift`内の`stopBot`、`BotScreenView`、`BotTerminalTextView`、`DesktopInspector` | `POST /api/bots/:id/stop`、`POST /api/bots/:id/restart`、`GET /api/bots/:id/screen?history=1`。画面はactive時に1秒ごと、失敗で停止 | 停止後は履歴・名簿再取得。端末画面はSSEでなく照会 |
+| 個別停止・再起動・端末画面 | `ConversationView.swift`内の`stopBot`、`Views/ConversationDetailView.swift`の詳細プロフィールと再起動、`Views/BotScreenView.swift`の`BotScreenView`・`BotTerminalTextView`、`DesktopInspector`。再起動の`EmptyBody`は`Core/Models.swift` | `POST /api/bots/:id/stop`、`POST /api/bots/:id/restart`、`GET /api/bots/:id/screen?history=1`。画面はactive時に1秒ごと、失敗で停止 | 停止後は履歴・名簿再取得。端末画面はSSEでなく照会 |
 | メンバー・ルームの作成編集削除 | `Views/ManagementView.swift`、`Core/BotSettings.swift`。draft・選択ID・保存照合は[詳細](members-and-rooms.md) | `GET /api/models`、`GET /api/bots/:id`、`POST /api/bots`、`PATCH /api/bots/:id`、`DELETE /api/bots/:id`、`POST /api/rooms`、`PATCH /api/rooms/:id`、`DELETE /api/rooms/:id` | `bots`または全更新、topic `bots`・`rooms`。Bot削除完了はGET一覧で確認 |
 | Owner・規範・メンバー画像 | `Views/SettingsView.swift`、`BotProfileComponents.swift`、`AvatarImagePicker.swift`、`AvatarCropEditor.swift`、`Core/AvatarImage.swift`。編集状態は[詳細](settings-and-profile.md) | `GET /api/user-rules`、`PATCH /api/owner`、`PUT /api/user-rules`、`GET /api/bots/:id/avatar?v=:version`、`GET /api/rooms/:id/avatar?v=:version`、`GET /api/owner/avatar?v=:version`、`GET /api/bots/:id/avatar-large?v=:version`、`GET/PATCH /api/bots/:id` | topic `owner`・`bots`、全更新 |
 | 設定・全体停止・会話の開き方 | `SettingsView.swift`、`FeatureSettingsView.swift`。会話の開き方は端末のAppStorage | `GET /api/settings`、`PATCH /api/settings/:id`、`GET /api/session`、`GET/PATCH /api/ai-control` | イベント/ topic `settings`・`ai-control` |
@@ -100,7 +100,7 @@ flowchart LR
 
 ## 整理候補
 
-- **A-O1**：`ios/BellBot/BellBot/Views/ConversationView.swift:50, 886, 1469, 1533, 1654`。同一ファイルに会話の取得送信・入力画像、認証付き画像cache、プロフィール詳細、端末画面の照会を定義している。行位置と型名は[索引](function-index.md)を参照。
+- **A-O1**：`ios/BellBot/BellBot/Views/ConversationView.swift:50, 886, 1467`に会話の取得送信・入力画像、認証付き画像cacheが残る。PR2でプロフィール詳細を`Views/ConversationDetailView.swift:4`、端末画面を`Views/BotScreenView.swift:4, 9, 32, 47`、`EmptyBody`を`Core/Models.swift:533`へ配置した。行位置と型名は[索引](function-index.md)を参照。
 
 ## 未調査
 

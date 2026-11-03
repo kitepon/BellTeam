@@ -39,7 +39,7 @@ HomeViewの並びは`BellDate.parse`で日時へ変換し、欠損・不正日�
 | --- | --- |
 | HomeViewの＋ | BotEditor(initial:nil) / RoomEditor(initial:nil)のsheet |
 | DesktopWorkspaceViewの＋ | 同じ2つのsheet |
-| iPhone/iPadの会話詳細 | ConversationDetailViewからBotEditor / RoomEditorのsheet |
+| iPhone/iPadの会話詳細 | [Views/ConversationDetailView.swiftのConversationDetailView](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift#L4)からBotEditor / RoomEditorのsheet（同64行） |
 | DesktopInspector | Roomはsheet。MacのBotは`openWindow(id: member-editor, value: target.id)`、iPadのBotはsheet |
 | MacのMemberEditorWindow | AppStore.botsでIDからBotを求め、共通BotEditorへcloseWindow callbackを渡す |
 
