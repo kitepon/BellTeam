@@ -49,6 +49,9 @@
   "source": [
     "src/bootstrap.mjs",
     "src/seat-runtime.mjs",
+    "src/memory-process.mjs",
+    "src/memory-release.mjs",
+    "src/run-memory-runtime.mjs",
     "src/run-seat-runtime.mjs",
     "src/seat-process.mjs",
     "src/seat-command.mjs",

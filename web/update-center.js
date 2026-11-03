@@ -13,8 +13,12 @@ const version = value => value === null || value && text(value.version)
   && (value.digest === null || /^sha256:[a-f0-9]{64}$/.test(value.digest))
   && ['container', 'builtin', 'release', 'published'].includes(value.origin)
 const plan = value => value && uuid(value.planId) && ['all', 'component'].includes(value.scope) && nullableText(value.componentId)
-  && date(value.expiresAt) && Array.isArray(value.targets)
+  && (value.action === undefined || ['update', 'rollback'].includes(value.action))
+  && date(value.expiresAt) && Array.isArray(value.targets) && value.targets.length > 0
+  && new Set(value.targets.map(target => target?.componentId)).size === value.targets.length
   && value.targets.every(target => target && text(target.componentId) && version(target.current) && target.published !== null && version(target.published))
+  && (value.scope === 'all' ? value.componentId === null && value.action !== 'rollback'
+    : value.targets.length === 1 && value.targets[0].componentId === value.componentId && (value.componentId !== 'container' || value.action !== 'rollback'))
   && value.compatibility && typeof value.compatibility.compatible === 'boolean' && nullableText(value.compatibility.reason)
   && value.impact && typeof value.impact.containerRestart === 'boolean' && text(value.impact.description) && capability(value.capability)
 const operation = value => value === null || value && uuid(value.requestId) && plan(value.plan)
@@ -51,7 +55,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
   const list = get('[data-update-components]'), detail = get('[data-update-detail]')
   const notice = get('[data-update-notice]'), refreshButton = get('[data-update-refresh]')
   let selected = 'all', generation = 0, opened = false, disposed = false, loading = false
-  let opener = null, inventory = null, failure = ''
+  let opener = null, inventory = null, failure = '', planFailure = ''
   const requestKey = 'bellteam-update-request.v1'
   let planned = null, planning = false, submitting = false, confirmed = false, planGeneration = 0
   let pending = null, ownResult = null, operationMessage = '', storageFailure = '', requestStorage = storage
@@ -121,19 +125,25 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     renderDetail()
     if (focusedControl) root.querySelector(`[data-update-control="${focusedControl}"]`)?.focus()
   }
-  function canPlan() {
-    return selected === 'container' && !loading && !planning && !submitting && !pending && !storageFailure && !failure
-      && inventory?.components.find(item => item.id === 'container')?.capability.supported
+  function canRequest() {
+    return Boolean(inventory) && !loading && !planning && !submitting && !pending && !storageFailure && !failure
       && (!inventory.operation || terminal(inventory.operation))
   }
+  function canPlan(action = 'update') {
+    if (!canRequest()) return false
+    const component = inventory.components.find(item => item.id === selected)
+    if (action === 'rollback') return selected !== 'all' && selected !== 'container' && component
+      && component.capability.reason !== 'MODULE_NOT_INDEPENDENT'
+    return selected === 'all' ? inventory.components.some(item => item.capability.supported) : component?.capability.supported
+  }
   function canExecute() {
-    return canPlan() && planned && planned.capability.supported && planned.compatibility.compatible
+    return canRequest() && planned && planned.capability.supported && planned.compatibility.compatible
       && Date.parse(planned.expiresAt) > Date.now() && (!planned.impact.containerRestart || confirmed)
   }
   function renderDetail() {
     const supportOpen = Array.from(detail.children).find(node => node.className === 'update-support')?.open ?? false
     const component = inventory?.components.find(item => item.id === selected)
-    const selectedPlan = selected === 'container' ? planned : null
+    const selectedPlan = planned
     const affects = item => item && (selected === 'all' || item.plan.targets.some(target => target.componentId === selected))
     const current = inventory?.operation, previous = inventory?.previousOperation
     const result = affects(ownResult) ? ownResult : affects(current) ? current : affects(previous) ? previous : null
@@ -149,7 +159,8 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     detail.append(element('h3', 'update-detail-title', component?.name ?? '製品全体のアップデート'))
     detail.append(element('p', 'update-detail-description', component?.description ?? '各機能の状態を確認し、互換性のある更新計画を選びます。'))
     const versions = element('div', 'update-versions')
-    for (const [label, value] of [[selectedPlan ? '計画時の稼働版' : '現在稼働', selectedPlan ? versionLabel(selectedPlan.targets[0].current) : component ? versionLabel(component.current) : '一覧で各機能を確認'], [selectedPlan ? '固定した更新先' : '正式公開版', selectedPlan ? versionLabel(selectedPlan.targets[0].published) : component?.published ? versionLabel(component.published) : '情報を取得できません']]) {
+    const multiple = selectedPlan?.targets.length > 1
+    for (const [label, value] of [[selectedPlan ? '計画時の稼働版' : '現在稼働', selectedPlan ? multiple ? `${selectedPlan.targets.length}項目の固定対象を下で確認` : versionLabel(selectedPlan.targets[0].current) : component ? versionLabel(component.current) : '一覧で各機能を確認'], [selectedPlan?.action === 'rollback' ? '固定した戻し先' : selectedPlan ? '固定した更新先' : '正式公開版', selectedPlan ? multiple ? '対象と実行順は計画に固定されています' : versionLabel(selectedPlan.targets[0].published) : component?.published ? versionLabel(component.published) : '情報を取得できません']]) {
       const column = element('div', '')
       column.append(element('span', 'update-field-label', label), element('strong', '', value))
       versions.append(column)
@@ -175,23 +186,30 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     }
     const changes = element('section', 'update-detail-section')
     changes.append(element('h4', '', 'この更新で変わること'))
-    if (component?.changes.length) for (const change of component.changes) changes.append(element('p', '', change))
+    const changed = selected === 'all' ? (displayPlan?.targets.map(target => inventory?.components.find(item => item.id === target.componentId)) ?? inventory?.components ?? []).filter(Boolean) : component ? [component] : []
+    if (displayPlan?.action === 'rollback') changes.append(element('p', '', '成功確認済みの交換のコードを戻します。対象と影響は下の計画を確認してください。'))
+    else if (changed.some(item => item.changes.length)) for (const item of changed) for (const change of item.changes) changes.append(element('p', '', selected === 'all' ? `${item.name}: ${change}` : change))
     else changes.append(element('p', '', '正式版の変更内容を取得できていません。'))
     detail.append(changes)
     const impact = element('section', 'update-impact')
     impact.append(element('h4', '', '対象と影響'), element('p', '', displayPlan?.impact.description ?? '更新計画が未提供のため、実際の更新対象と影響は確認できません。'))
     if (displayPlan?.impact.containerRestart) impact.append(element('p', 'update-failure', 'コンテナの再起動が必要です。実行前に中断の影響を確認してください。'))
-    if (selectedPlan) {
-      const target = selectedPlan.targets[0]
-      impact.append(element('p', 'update-fixed-target', `固定した更新先: ${versionLabel(target.published)}`))
-      impact.append(element('p', '', `計画の有効期限: ${formatDate(selectedPlan.expiresAt)}`))
+    if (displayPlan) {
+      for (const target of displayPlan.targets) {
+        const name = inventory?.components.find(item => item.id === target.componentId)?.name ?? target.componentId
+        impact.append(element('p', 'update-fixed-target', `${name} · ${displayPlan.action === 'rollback' ? '固定した戻し先' : '固定した更新先'}: ${versionLabel(target.published)}`))
+      }
+      if (displayPlan.action === 'rollback') impact.append(element('p', '', '機能のコードを戻します。現在のデータ・設定・更新履歴は巻き戻しません。'))
+      if (selectedPlan) impact.append(element('p', '', `計画の有効期限: ${formatDate(selectedPlan.expiresAt)}`))
     }
     detail.append(impact)
     const progress = element('section', 'update-detail-section update-result')
     progress.append(element('h4', '', '進行と実際の結果'))
     if (result) {
-      if (result === previous) progress.append(element('p', '', '前回の更新'))
-      progress.append(element('p', 'update-result-state', result === ownResult && resultUnconfirmed ? `結果確認不能 / 最終確認: ${phases[result.phase]}` : phases[result.phase]))
+      if (selectedPlan && selectedPlan.planId !== result.plan.planId) progress.append(element('p', '', '直前の操作結果です。表示中の計画はまだ実行していません。'))
+      else if (result === previous) progress.append(element('p', '', '前回の更新'))
+      const phase = result.plan.action === 'rollback' && result.phase === 'completed' ? '戻し完了' : phases[result.phase]
+      progress.append(element('p', 'update-result-state', result === ownResult && resultUnconfirmed ? `結果確認不能 / 最終確認: ${phase}` : phase))
       progress.append(element('p', '', `受付: ${{ accepted: '受付済み', rejected: '未受付', unknown: '確認不能' }[result.admission]} / 実行: ${outcomes[result.execution]} / 稼働確認: ${outcomes[result.verification]}`))
       if (result.error) progress.append(element('p', 'update-failure', result.error.message))
     } else progress.append(element('p', 'update-result-state', inventory ? '更新の記録はありません' : '更新の結果を確認できません'))
@@ -200,7 +218,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       const message = element('p', 'update-operation-message', operationMessage || '同じ要求の進行と結果を確認しています。')
       message.setAttribute('role', 'status'); detail.append(message)
     }
-    const action = element('button', 'update-execute', submitting ? '受付を確認しています…' : planning ? '計画を取得しています…' : selectedPlan ? 'この計画で本体を更新' : canPlan() ? '本体の更新計画を確認' : '更新を実行できません')
+    const action = element('button', 'update-execute', submitting ? '受付を確認しています…' : planning ? '計画を取得しています…' : selectedPlan ? selectedPlan.action === 'rollback' ? 'この計画で戻す' : 'この計画で更新' : canPlan() ? '更新計画を確認' : '更新を実行できません')
     action.type = 'button'; action.dataset.updateControl = 'execute'
     if (selectedPlan?.impact.containerRestart) {
       const label = element('label', 'update-restart-confirm')
@@ -213,8 +231,8 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     }
     action.disabled = selectedPlan ? !canExecute() : !canPlan()
     action.addEventListener('click', () => { if (selectedPlan) void execute(); else void requestPlan() })
-    let reasonText = selected === 'container' ? '対象版と影響を確認してから、明示的に更新します。' : 'この対象の更新実行は、まだ接続されていません。'
-    if (component && !component.capability.supported) reasonText = explanation(component.capability.reason)
+    let reasonText = '対象版と影響を計画で確認してから、明示的に実行します。'
+    if (component && !component.capability.supported && !selectedPlan) reasonText = explanation(component.capability.reason)
     if (selectedPlan && !selectedPlan.compatibility.compatible) reasonText = '計画の互換性を確認できないため、実行できません。'
     if (selectedPlan && !selectedPlan.capability.supported) reasonText = explanation(selectedPlan.capability.reason)
     if (selectedPlan && Date.parse(selectedPlan.expiresAt) <= Date.now()) reasonText = '計画の有効期限が切れました。計画を再取得してください。'
@@ -222,17 +240,22 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     const reason = element('p', 'update-action-reason', storageFailure || reasonText)
     reason.id = 'update-action-reason'; action.setAttribute('aria-describedby', reason.id)
     detail.append(action, reason)
+    if (selected !== 'all' && selected !== 'container' && component && component.capability.reason !== 'MODULE_NOT_INDEPENDENT') {
+      const rollback = element('button', 'update-replan', '戻しの可否を確認')
+      rollback.type = 'button'; rollback.disabled = !canPlan('rollback'); rollback.dataset.updateControl = 'rollback'
+      rollback.addEventListener('click', () => { void requestPlan('rollback') }); detail.append(rollback)
+    }
     if (selectedPlan && !pending && !submitting) {
       const replan = element('button', 'update-replan', '計画を再取得')
       replan.type = 'button'; replan.disabled = planning; replan.dataset.updateControl = 'replan'
-      replan.addEventListener('click', () => { void requestPlan() }); detail.append(replan)
+      replan.addEventListener('click', () => { void requestPlan(selectedPlan.action ?? 'update') }); detail.append(replan)
     }
     const support = element('details', 'update-support')
     support.open = supportOpen
     const summary = element('summary', '', 'サポート用の詳細')
     summary.dataset.updateControl = 'support-summary'; support.append(summary)
     const fields = element('dl', '')
-    const codes = new Set([component?.availability.reason, component?.comparison.reason, component?.capability.reason,
+    const codes = new Set([planFailure, component?.availability.reason, component?.comparison.reason, component?.capability.reason,
       component?.publication?.check.error, displayPlan?.compatibility.reason, displayPlan?.capability.reason, result?.error?.code].filter(Boolean))
     const values = [
       ['稼働版', component?.current?.version], ['稼働配布物', component?.current?.digest],
@@ -245,19 +268,25 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     if (!fields.children.length) fields.append(element('dd', '', '詳細情報はまだ取得できていません。'))
     support.append(fields); detail.append(support)
   }
-  async function requestPlan() {
-    if (!canPlan()) return
+  async function requestPlan(action = 'update') {
+    if (!canPlan(action)) return
     const read = ++planGeneration
-    planning = true; planned = null; confirmed = false; operationMessage = ''; renderDetail()
+    const componentId = selected
+    planning = true; planned = null; confirmed = false; operationMessage = ''; planFailure = ''; renderDetail()
     try {
-      const value = await api('/api/updates/plans', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scope: 'component', componentId: 'container' }) })
+      const value = await api('/api/updates/plans', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...(componentId === 'all' ? { scope: 'all' } : { scope: 'component', componentId }), ...(action === 'rollback' ? { action } : {}) }) })
       if (read !== planGeneration || disposed) return
       const next = value?.plan
-      if (!plan(next) || next.scope !== 'component' || next.componentId !== 'container'
-        || next.targets.length !== 1 || next.targets[0].componentId !== 'container' || Date.parse(next.expiresAt) <= Date.now()) throw Error('INVALID_PLAN')
+      if (!plan(next) || next.scope !== (componentId === 'all' ? 'all' : 'component') || next.componentId !== (componentId === 'all' ? null : componentId)
+        || (next.action ?? 'update') !== action || Date.parse(next.expiresAt) <= Date.now()) throw Error('INVALID_PLAN')
       planned = next
-    } catch {
-      if (read === planGeneration && !disposed) operationMessage = '更新計画を確認できませんでした。状態を確認して、計画を再取得してください。'
+    } catch (error) {
+      if (read === planGeneration && !disposed) planFailure = error.message
+      if (read === planGeneration && !disposed) operationMessage = error.message === 'UPDATE_ROLLBACK_UNAVAILABLE'
+        ? '戻せる直前の個別更新を確認できません。戻しは開始していません。'
+        : error.message === 'UPDATE_ROLLBACK_UNSUPPORTED' ? 'この対象の戻しには対応していません。'
+        : error.message === 'RELEASE_NOT_INSTALLED' ? '対象の配布物がこの環境に配置されていません。実行は開始していません。'
+        : '操作の計画を確認できませんでした。状態を確認して、計画を再取得してください。'
     } finally {
       if (read === planGeneration && !disposed) { planning = false; render() }
     }
@@ -268,7 +297,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
   }
   function applyOperation(value, request) {
     if (!value || !operation(value) || value.requestId !== request.requestId || value.plan.planId !== request.planId
-      || value.plan.scope !== 'component' || value.plan.componentId !== 'container' || value.plan.targets.length !== 1 || value.plan.targets[0].componentId !== 'container') throw Error('INVALID_OPERATION')
+      || planned?.planId === request.planId && (value.plan.action ?? 'update') !== (planned.action ?? 'update')) throw Error('INVALID_OPERATION')
     if (ownResult?.requestId === value.requestId && terminal(ownResult) && !terminal(value)) return
     ownResult = value; operationMessage = ''
     resultUnconfirmed = value.phase === 'unknown' || value.admission === 'unknown'

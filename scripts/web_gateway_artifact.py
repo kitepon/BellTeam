@@ -31,9 +31,26 @@ def safe_path(name):
     return name
 
 
+MEMORY_FILES = {'payload/' + name for name in (
+    'src/run-memory-runtime.mjs', 'src/memory/factory.mjs', 'src/memory/dispatcher.mjs',
+    'src/memory/state-compatibility.mjs', 'src/memory-service.mjs', 'src/memory-search.mjs')}
+
+
+def validate_memory_state(value):
+    fixed = dict(memoryUserVersion=0, knowledgeUserVersion=0,
+        memoryRequiredSchemaSha256='aac945fb2c594987168317fd857233fb41274072ad6b0d032563459fb4b3733f',
+        knowledgeRequiredSchemaSha256='7197ac37c820132a47c4404887df9880058e504db9d42a255b726ebed5d8eccd',
+        knowledgeEncoding='utf8', knowledgeFrontmatterFields='id,title,source,created_at,confidence,tags')
+    require(type(value) is dict and set(value) == {*fixed, 'searchIndexVersion'}
+            and all(type(value[k]) is type(v) and value[k] == v for k, v in fixed.items())
+            and type(value['searchIndexVersion']) is str
+            and re.fullmatch(r'1:[0-9]+(?:\.[0-9]+){1,3}', value['searchIndexVersion']), 'MEMORY_STATE_INCOMPATIBLE')
+    return value
+
+
 def contract(component):
-    require(component in ('web-gateway', 'notifications', 'members'), 'MODULE_COMPONENT_INVALID')
-    entry = ENTRY if component == 'web-gateway' else f'payload/src/{component}-entry.mjs'
+    require(component in ('web-gateway', 'notifications', 'members', 'memory'), 'MODULE_COMPONENT_INVALID')
+    entry = 'payload/src/run-memory-runtime.mjs' if component == 'memory' else ENTRY if component == 'web-gateway' else f'payload/src/{component}-entry.mjs'
     runtime = dict(os='linux', nodeMajor=26, parentProtocol=1)
     required = {entry, 'payload/package.json', 'payload/package-lock.json'}
     if component == 'web-gateway':
@@ -41,6 +58,8 @@ def contract(component):
                          'payload/services/subscriptions/endpoints.json'})
     elif component == 'notifications':
         runtime.update(parentProtocol=2, stateSchema=2)
+    elif component == 'memory':
+        required = MEMORY_FILES
     else:
         # Match the writer's existing formats; exchange never authorizes migration.
         runtime['stateCompatibility'] = dict(
@@ -59,7 +78,8 @@ def validate_manifest(value, source=None, arch=None, *, component='web-gateway')
     require(source is None or value['sourceCommit'] == source, 'GATEWAY_SOURCE_MISMATCH')
     require(value['entry'] == entry)
     runtime = value['runtime']
-    require(type(runtime) is dict and set(runtime) == {*fixed_runtime, 'arch'})
+    require(type(runtime) is dict and set(runtime) == {*fixed_runtime, 'arch', *(['stateCompatibility'] if component == 'memory' else [])})
+    if component == 'memory': validate_memory_state(runtime['stateCompatibility'])
     require(runtime['arch'] in ['amd64', 'arm64'] and all(type(runtime[key]) is type(wanted)
             and runtime[key] == wanted for key, wanted in fixed_runtime.items()))
     require(arch is None or runtime['arch'] == arch, 'GATEWAY_ARCH_MISMATCH')
@@ -75,11 +95,11 @@ def validate_manifest(value, source=None, arch=None, *, component='web-gateway')
         names.add(name)
         total += file['bytes']
     require(total <= MAX_CONTENT)
-    require(required <= names)
+    require(names == required if component == 'memory' else required <= names)
     return value
 
 
-def write_archive(payload, output, source, arch, *, component='web-gateway'):
+def write_archive(payload, output, source, arch, *, component='web-gateway', state_compatibility=None):
     payload = Path(payload).resolve()
     inventory = []
     paths = {}
@@ -94,6 +114,8 @@ def write_archive(payload, output, source, arch, *, component='web-gateway'):
         inventory.append(dict(path=name, bytes=len(data), sha256=sha256(data)))
         paths[name] = target
     entry, runtime, _ = contract(component)
+    if component == 'memory': runtime['stateCompatibility'] = validate_memory_state(state_compatibility)
+    else: require(state_compatibility is None)
     manifest = validate_manifest(dict(schema=f'bellteam.{component}.artifact.v1', component=component,
         sourceCommit=source, entry=entry, runtime={**runtime, 'arch': arch}, files=inventory), component=component)
     metadata = (json.dumps(manifest, sort_keys=True, separators=(',', ':')) + '\n').encode()

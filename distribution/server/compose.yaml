@@ -45,6 +45,13 @@ services:
           nocopy: true
       - type: volume
         source: server-state
+        target: /run/bellteam-memory-code
+        read_only: true
+        volume:
+          nocopy: true
+          subpath: memory-code
+      - type: volume
+        source: server-state
         target: /srv/bellteam/state
         volume:
           nocopy: true

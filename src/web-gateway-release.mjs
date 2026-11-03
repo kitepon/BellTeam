@@ -3,6 +3,7 @@ import { lstat, open, readdir } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { assertMembersStateCompatibility } from './members/state-compatibility.mjs'
+import { assertMemoryStateCompatibility } from './memory/state-compatibility.mjs'
 
 const controlRoot = '/run/bellteam-maintenance'
 const digest = /^[a-f0-9]{64}$/
@@ -23,11 +24,11 @@ export function validateGatewayReleaseManifest(manifest) {
 }
 
 function validateManifest(manifest, component) {
-  const notifications = component === 'notifications', members = component === 'members'
+  const notifications = component === 'notifications', members = component === 'members', memory = component === 'memory'
   if (!exactKeys(manifest, 'schema,component,sourceCommit,entry,runtime,files')
     || manifest.schema !== `bellteam.${component}.artifact.v1` || manifest.component !== component
-    || !source.test(manifest.sourceCommit) || manifest.entry !== (members ? 'payload/src/members-entry.mjs' : notifications ? 'payload/src/notifications-entry.mjs' : 'payload/src/http-gateway-entry.mjs')
-    || !exactKeys(manifest.runtime, members ? 'os,arch,nodeMajor,parentProtocol,stateCompatibility' : notifications ? 'os,arch,nodeMajor,parentProtocol,stateSchema' : 'os,arch,nodeMajor,parentProtocol')
+    || !source.test(manifest.sourceCommit) || manifest.entry !== (memory ? 'payload/src/run-memory-runtime.mjs' : members ? 'payload/src/members-entry.mjs' : notifications ? 'payload/src/notifications-entry.mjs' : 'payload/src/http-gateway-entry.mjs')
+    || !exactKeys(manifest.runtime, members || memory ? 'os,arch,nodeMajor,parentProtocol,stateCompatibility' : notifications ? 'os,arch,nodeMajor,parentProtocol,stateSchema' : 'os,arch,nodeMajor,parentProtocol')
     || manifest.runtime.os !== process.platform
     || manifest.runtime.arch !== ({ x64: 'amd64', arm64: 'arm64' })[process.arch]
     || manifest.runtime.nodeMajor !== 26 || Number(process.versions.node.split('.')[0]) !== 26
@@ -35,6 +36,7 @@ function validateManifest(manifest, component) {
     || manifest.runtime.parentProtocol !== (notifications ? 2 : 1) || !Array.isArray(manifest.files) || !manifest.files.length)
     throw failure('GATEWAY_RELEASE_INCOMPATIBLE')
   if (members) assertMembersStateCompatibility(manifest.runtime.stateCompatibility)
+  if (memory) assertMemoryStateCompatibility(manifest.runtime.stateCompatibility)
   const names = new Set()
   for (const file of manifest.files) {
     if (!exactKeys(file, 'path,bytes,sha256') || typeof file.path !== 'string'
@@ -44,7 +46,7 @@ function validateManifest(manifest, component) {
       || typeof file.sha256 !== 'string' || !digest.test(file.sha256)) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
     names.add(file.path)
   }
-  for (const required of [manifest.entry, 'payload/package.json', 'payload/package-lock.json', ...(members ? ['payload/config/common-agents.md', 'payload/src/members/state-compatibility.mjs'] : notifications ? [] : ['payload/web/assets.mjs'])])
+  for (const required of [manifest.entry, ...(memory ? ['payload/src/memory/dispatcher.mjs', 'payload/src/memory/state-compatibility.mjs', 'payload/src/memory-service.mjs', 'payload/src/memory-search.mjs'] : ['payload/package.json', 'payload/package-lock.json', ...(members ? ['payload/config/common-agents.md', 'payload/src/members/state-compatibility.mjs'] : notifications ? [] : ['payload/web/assets.mjs'])])])
     if (!names.has(required)) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
   return manifest
 }
@@ -70,6 +72,8 @@ export function prepareMembersRelease(versionId, options) { return prepareReleas
 export function validateMembersReleaseManifest(manifest) { return validateManifest(manifest, 'members') }
 export function prepareNotificationsRelease(versionId, options) { return prepareRelease('notifications', versionId, options) }
 export function validateNotificationsReleaseManifest(manifest) { return validateManifest(manifest, 'notifications') }
+export function prepareMemoryRelease(versionId, options) { return prepareRelease('memory', versionId, options) }
+export function validateMemoryReleaseManifest(manifest) { return validateManifest(manifest, 'memory') }
 
 async function prepareRelease(component, versionId, { signal } = {}) {
   version(versionId)
@@ -92,10 +96,15 @@ async function prepareRelease(component, versionId, { signal } = {}) {
   const manifest = validateManifest(json(bytes), component)
   if (installation.sourceCommit !== manifest.sourceCommit) throw failure('GATEWAY_RELEASE_INSTALLATION_INVALID')
   const inventory = new Map(manifest.files.map(file => [file.path, file]))
+  const codeDirectory = component === 'memory' ? join('/run/bellteam-memory-code', versionId) : directory
+  if (component === 'memory') {
+    await rootDirectory('/run/bellteam-memory-code', true)
+    await rootDirectory(codeDirectory, true)
+  }
   const found = new Set()
   async function inspect(relative) {
     signal?.throwIfAborted()
-    const path = join(directory, relative)
+    const path = join(codeDirectory, relative)
     await rootDirectory(path, true)
     for (const name of await readdir(path, { withFileTypes: true })) {
       const child = relative + '/' + name.name
@@ -103,7 +112,7 @@ async function prepareRelease(component, versionId, { signal } = {}) {
       else {
         const expected = inventory.get(child)
         if (!expected || !name.isFile()) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
-        const content = await rootFile(join(directory, child))
+        const content = await rootFile(join(codeDirectory, child))
         if (content.length !== expected.bytes || sha256(content) !== expected.sha256)
           throw failure('GATEWAY_RELEASE_CONTENT_CHANGED')
         found.add(child)
@@ -113,5 +122,7 @@ async function prepareRelease(component, versionId, { signal } = {}) {
   await inspect('payload')
   if (found.size !== inventory.size) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
   signal?.throwIfAborted()
-  return { versionId, appRoot: join(directory, 'payload'), protocolVersion: component === 'notifications' ? 2 : 1, sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch }, ...(component === 'members' ? { sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch }, stateCompatibility: manifest.runtime.stateCompatibility } : component === 'notifications' ? { sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch }, stateSchema: 2 } : {}) }
+  return { versionId, appRoot: join(codeDirectory, 'payload'), protocolVersion: component === 'notifications' ? 2 : 1,
+    sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch },
+    ...(['members', 'memory'].includes(component) ? { stateCompatibility: manifest.runtime.stateCompatibility } : component === 'notifications' ? { stateSchema: 2 } : {}) }
 }

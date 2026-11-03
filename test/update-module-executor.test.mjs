@@ -236,3 +236,96 @@ test('same-version generation changes and shutdown during preflight cannot issue
   await assert.rejects(starting, { code: 'UPDATE_PLAN_EXPIRED' }); await closing
   assert.deepEqual(f.calls, [])
 })
+
+test('Owner plan/start/get and individual rollback exchange all three real controllers while the parent and business data stay alive', { timeout: 15000 }, async t => {
+  const childProcess = (await import('node:child_process')).default
+  const fs = (await import('node:fs/promises')).default
+  const { syncBuiltinESMExports } = await import('node:module')
+  const { createNotificationsProcess } = await import('../src/notifications-process.mjs')
+  const { createMembersProcess } = await import('../src/members-process.mjs')
+  const { createHttpGatewayProcess } = await import('../src/http-gateway-process.mjs')
+  const { createBellTeamServer } = await import('../src/http-server.mjs')
+  const root = await mkdtemp(join(tmpdir(), 'ledger-real-controllers-')), children = []
+  let gateway, push, members, server, center
+  t.after(async () => {
+    await center?.close(); await gateway?.close(); await push?.close(); await members?.close()
+    if (server?.listening) await new Promise(resolve => server.close(resolve))
+    for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+    t.mock.restoreAll(); syncBuiltinESMExports(); await rm(root, { recursive: true, force: true })
+  })
+  await fs.mkdir(join(root, 'state/bots'), { recursive: true }); await fs.mkdir(join(root, 'owner'))
+  await fs.writeFile(join(root, 'state/bots/.initialized'), '')
+  const owner = JSON.stringify({ schema: 'bellteam.owner-profile.v1', name: 'retained owner', profile: '', avatar: '', xUrl: '', githubUrl: '', links: [] })
+  await fs.writeFile(join(root, 'owner/profile.json'), owner); await fs.writeFile(join(root, 'owner/user-rules.md'), 'retained rules')
+  const realOpen = fs.open, realSpawn = childProcess.spawn
+  t.mock.method(fs, 'open', async (path, ...args) => path === '/app/distribution.json'
+    ? { stat: async () => ({ isFile: () => true, uid: 0, nlink: 1, mode: 0o644, size: 135 }), readFile: async () => JSON.stringify({ schema: 'bellteam.server.distribution.v1', sourceCommit: source }), close: async () => {} } : realOpen(path, ...args))
+  t.mock.method(childProcess, 'spawn', (command, args, options) => {
+    let child
+    if (command === '/usr/local/libexec/bellteam-notifications-start') child = realSpawn(process.execPath, [new URL('./fixtures/notifications-runtime-child.mjs', import.meta.url).pathname, args[0], '', root], options)
+    else if (command === '/usr/local/libexec/bellteam-members-start') child = realSpawn(process.execPath, [new URL('./fixtures/members-runtime-child.mjs', import.meta.url).pathname, args[0], root, ''], options)
+    else child = realSpawn(command, args, options)
+    children.push(child); return child
+  }); syncBuiltinESMExports()
+  const webRoots = new Map()
+  for (const id of ['builtin', digest, 'f'.repeat(64)]) {
+    const path = join(root, id)
+    await fs.mkdir(join(path, 'src'), { recursive: true }); await fs.mkdir(join(path, 'web'))
+    await fs.copyFile(new URL('../src/http-gateway-entry.mjs', import.meta.url), join(path, 'src/http-gateway-entry.mjs'))
+    await fs.symlink(new URL('../src/http-gateway.mjs', import.meta.url).pathname, join(path, 'src/http-gateway.mjs'))
+    await fs.copyFile(new URL('../web/assets.mjs', import.meta.url), join(path, 'web/assets.mjs'))
+    await fs.writeFile(join(path, 'web/index.html'), `<h1>${id}</h1>`); webRoots.set(id, path)
+  }
+  const descriptor = (id, versionId) => ({ versionId, sourceCommit: nextSource, platform: { os: 'linux', arch: 'amd64' },
+    appRoot: id === 'web-gateway' ? webRoots.get(versionId) : `/run/bellteam-maintenance/${id}/releases/${versionId}/payload`,
+    protocolVersion: id === 'notifications' ? 2 : 1, ...(id === 'notifications' ? { stateSchema: 2 } : id === 'members' ? { stateCompatibility: MEMBERS_STATE_COMPATIBILITY } : {}) })
+  push = createNotificationsProcess({ root, configuration: () => ({ apns: { enabled: false, relayUrl: '' }, webPush: { enabled: false, subject: '' } }), prepareRelease: async id => descriptor('notifications', id) })
+  members = createMembersProcess({ root, prepareRelease: async id => descriptor('members', id) })
+  await push.start(); await members.start()
+  await push.request('register', { provider: 'apns', token: 'retained artificial token' })
+  const devices = await fs.readFile(join(root, 'state/push-devices.json'))
+  let selectedVersion = digest
+  const catalog = createModuleUpdateCatalog({ client: { catalog: async id => {
+    const value = selection(id)
+    value.release.versionId = selectedVersion; value.release.artifact.archive.sha256 = selectedVersion
+    return value
+  } } })
+  const adapters = createModuleUpdateAdapters({ gateway: () => gateway, notifications: { controller: push }, members: { controller: members },
+    prepare: Object.fromEntries(['web-gateway', 'notifications', 'members'].map(id => [id, async versionId => descriptor(id, versionId)])) })
+  const executor = await createModuleUpdateExecutor({ root, catalog, adapters })
+  center = createUpdateCenter({ gateway: () => gateway, notifications: { controller: push }, members: { controller: members }, moduleCatalog: catalog, moduleExecutor: executor })
+  server = createBellTeamServer({ bots: Object.assign(new Map(), { refresh: async () => {} }), store: { watch: async () => () => {} }, transport: {}, updateCenter: center, authorize: async () => true, writeLog() {} })
+  const socketPath = join(root, 'business.sock'); server.listen(socketPath); await once(server, 'listening')
+  gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: webRoots.get('builtin'), prepareRelease: async id => descriptor('web-gateway', id), adoptionPath: join(root, 'state/web-gateway-release.json') })
+  await gateway.start()
+  const parentPid = process.pid, port = gateway.address.port, oldPid = gateway.pid
+  const post = async (path, body) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/updates/${path}`, { method: 'POST', body: JSON.stringify(body) })
+    const value = await response.json(); assert.ok(response.ok, JSON.stringify(value)); return { status: response.status, ...value }
+  }
+  const run = async input => {
+    const { plan } = await post('plans', input), requestId = randomUUID()
+    const reply = await post('operations', { planId: plan.planId, requestId, confirmContainerRestart: false })
+    assert.equal(reply.status, 202)
+    for (let attempt = 0; attempt < 300; attempt++) {
+      const value = await center.operation(requestId)
+      if (['completed', 'failed', 'unknown'].includes(value.phase)) { assert.equal(value.phase, 'completed', JSON.stringify(value)); return }
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    assert.fail('real controller exchange did not finish within the fixture budget')
+  }
+  await run({ scope: 'all' })
+  assert.notEqual(gateway.pid, oldPid)
+  assert.equal(gateway.versionId, digest); assert.equal(push.snapshot().currentVersionId, digest); assert.equal(members.snapshot().currentVersionId, digest)
+  selectedVersion = 'f'.repeat(64)
+  for (const componentId of ['web-gateway', 'notifications', 'members']) {
+    await run({ scope: 'component', componentId })
+    await run({ scope: 'component', componentId, action: 'rollback' })
+  }
+  assert.equal(process.pid, parentPid); assert.equal(gateway.address.port, port)
+  assert.equal(gateway.versionId, digest); assert.equal(push.snapshot().currentVersionId, digest); assert.equal(members.snapshot().currentVersionId, digest)
+  assert.equal(await fs.readFile(join(root, 'owner/profile.json'), 'utf8'), owner)
+  assert.equal(await fs.readFile(join(root, 'owner/user-rules.md'), 'utf8'), 'retained rules')
+  assert.deepEqual(await fs.readFile(join(root, 'state/push-devices.json')), devices)
+  assert.equal(children.filter(child => child.exitCode === null && child.signalCode === null).length, 3)
+})

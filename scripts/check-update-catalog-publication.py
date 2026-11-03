@@ -8,7 +8,7 @@ import sys
 import tempfile
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
-from update_catalog import MAX_CATALOG, strict_json, validate_catalog, validate_members_archive, validate_notifications_archive, require
+from update_catalog import MAX_CATALOG, strict_json, validate_catalog, validate_members_archive, validate_notifications_archive, validate_memory_archive, require
 
 
 def download(url, headers=None, maximum=4 * MAX_CATALOG):
@@ -38,6 +38,23 @@ def verify_members_release(release):
             verify_signature(a, b, t, policy_for('members'), source=release['sourceCommit'], signer=artifact['signerCommit'])
             manifest, _ = check_archive(a, release['sourceCommit'], release['platform']['arch'], component='members')
         validate_members_archive(release, manifest, state)
+
+
+def verify_memory_release(release):
+    from module_artifact_verifier import policy_for, verify_signature
+    from web_gateway_artifact import check_archive
+    root = Path(__file__).resolve().parents[1]
+    state = json.loads(subprocess.check_output(['node', '--input-type=module', '-e',
+        'const m = await import(process.argv[1]); console.log(JSON.stringify(m.MEMORY_STATE_COMPATIBILITY))',
+        (root / 'src/memory/state-compatibility.mjs').as_uri()], text=True))
+    artifact = release['artifact']
+    with tempfile.TemporaryDirectory(prefix='memory-publication-') as directory:
+        archive = Path(directory) / 'archive.tar.gz'; archive.write_bytes(download_asset(artifact['archive']))
+        bundle = Path(directory) / 'bundle.json'; bundle.write_bytes(download_asset(artifact['bundle']))
+        with archive.open('rb') as a, bundle.open('rb') as b, (root / 'config/web-gateway-trusted-root.jsonl').open('rb') as t:
+            verify_signature(a, b, t, policy_for('memory'), source=release['sourceCommit'], signer=artifact['signerCommit'])
+            manifest, _ = check_archive(a, release['sourceCommit'], release['platform']['arch'], component='memory')
+        validate_memory_archive(release, manifest, state)
 
 
 def verify_notifications_release(release):
@@ -85,7 +102,9 @@ def main():
                 matches = [a for a in public['assets'] if a['name'] == name]
                 require(len(matches) == 1 and matches[0]['size'] == expected['bytes']
                         and matches[0]['digest'] == 'sha256:'+expected['sha256'], 'UPDATE_RELEASE_ASSET_MISMATCH')
-            if release['componentId'] == 'members':
+            if release['componentId'] == 'memory':
+                verify_memory_release(release)
+            elif release['componentId'] == 'members':
                 verify_members_release(release)
             elif release['componentId'] == 'notifications':
                 verify_notifications_release(release)

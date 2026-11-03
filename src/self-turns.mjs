@@ -5,16 +5,14 @@
 // BellTeamが配送したターン（prompt）は配送の側で画面に出しているので、ここでは自分から始まったターン（self）を出す。
 // Aitermが子の結果を親の席へ渡して始めたターンも、記録ではpromptになる。BellTeamは配送していないので、selfと同じく出す
 // （2026-10-13、リリーバイスの席で、子の結果で始まったターンの回答がオーナーの画面に出なかった）。
-import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { promisify } from 'node:util'
-import { runtimeEnvironment, runtimeHome } from './runtime-home.mjs'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
+import { runtimeEnvironment } from './runtime-home.mjs'
 import { createSeatProcessRunner } from './seat-process.mjs'
+import { checkObserverProjects, observerCheckRequests, validateObserverCheckResult, runObserverCommand } from './observer-check.mjs'
 
-const execFileAsync = promisify(execFile)
-// 記録の変化を見に行く間隔。変化が無ければThroughlineを呼ばない。
+// 公開checkと読み残しを確認する一巡の終了後から次巡までの間隔。
 const INTERVAL_MS = 5000
 // thread_switched（/clearなど）で読み終えた分がまた届くので、Botごとに最近の鍵を覚えて重複を落とす。
 const SEEN_LIMIT = 500
@@ -45,14 +43,14 @@ function startedOutsideDelivery(turn) {
 }
 
 export class SelfTurns {
-  constructor({ bots, statePath, appendAnswer, afterTurn = () => {}, shown = () => null, read = readObserverTurns, changed = throughlineChanged(), report = message => process.stderr.write(`${message}\n`), groupId = randomUUID, intervalMs = INTERVAL_MS }) {
+  constructor({ bots, statePath, appendAnswer, afterTurn = () => {}, shown = () => null, read = readObserverTurns, check = checkObserverProjects, report = message => process.stderr.write(`${message}\n`), groupId = randomUUID, intervalMs = INTERVAL_MS }) {
     this.bots = bots
     this.statePath = statePath
     this.appendAnswer = appendAnswer
     this.afterTurn = afterTurn
     this.shown = shown
     this.read = read
-    this.changed = changed
+    this.check = check
     this.report = report
     this.groupId = groupId
     this.intervalMs = intervalMs
@@ -60,6 +58,8 @@ export class SelfTurns {
     this.pending = new Set()
     this.timer = null
     this.running = null
+    this.controller = null
+    this.stopped = false
   }
 
   async initialize() {
@@ -73,78 +73,154 @@ export class SelfTurns {
   }
 
   start() {
+    if (this.timer) return
+    this.stopped = false
     const tick = async () => {
-      this.running = this.poll().catch(error => this.report(`BellTeam self turns: ${error.message}`))
-      await this.running
-      if (this.timer) this.timer = setTimeout(tick, this.intervalMs)
+      await this.poll().catch(() => this.report('BellTeam self turns: OBSERVER_POLL_FAILED'))
+      if (!this.stopped) this.timer = setTimeout(tick, this.intervalMs)
     }
     this.timer = setTimeout(tick, 0)
   }
 
   async stop() {
+    this.stopped = true
     clearTimeout(this.timer)
     this.timer = null
+    this.controller?.abort()
     await this.running
   }
 
-  // 記録が変わった時と、書きかけ（projection_pending）で読み残したBotがある時だけ読む。
-  async poll() {
-    if (!await this.changed() && !this.pending.size) return
-    for (const bot of [...this.bots.values()]) {
-      try {
-        await this.follow(bot)
-      } catch (error) {
-        this.report(`BellTeam self turns: ${bot.id} を読めませんでした（${error.message}）`)
-      }
-    }
-    await this.save()
+  poll() {
+    if (this.stopped) return Promise.resolve()
+    if (this.running) return this.running
+    this.controller = new AbortController()
+    const running = this.pollBots(this.controller.signal).finally(() => {
+      this.running = null
+      this.controller = null
+    })
+    this.running = running
+    return running
   }
 
-  async follow(bot) {
+  stateFor(bot) {
     const current = this.state[bot.id]
+    if (current && (current.project === undefined || current.project === bot.project)) return current
+    return this.state[bot.id] = { project: bot.project, cursor: null, seen: [], lastCompletedAt: null, checkToken: null }
+  }
+
+  assertCurrent(bot, signal) {
+    signal?.throwIfAborted()
+    if (this.bots.get(bot.id)?.project !== bot.project) throw new Error('OBSERVER_PROJECT_CHANGED')
+  }
+
+  async pollBots(signal) {
+    const bots = [...this.bots.values()].map(({ id, project }) => ({ id, project }))
+    const pending = new Set(this.pending)
+    for (const bot of bots.filter(bot => pending.has(bot.id))) {
+      if (signal.aborted) return
+      await this.consume(bot, undefined, signal)
+    }
+    if (signal.aborted) return
+    const remaining = bots.filter(bot => !pending.has(bot.id))
+    const requests = observerCheckRequests(remaining.map(bot => ({
+      id: bot.id, projectPath: bot.project, after: this.stateFor(bot).checkToken ?? null,
+    })))
+    for (const request of requests) {
+      if (signal.aborted) return
+      let results
+      try {
+        const result = await this.check(request, { signal })
+        signal.throwIfAborted()
+        results = validateObserverCheckResult(result, request)
+      } catch {
+        for (const item of request.projects) this.pending.add(item.id)
+        if (!signal.aborted) this.report('BellTeam self turns: THROUGHLINE_OBSERVER_CHECK_FAILED')
+        continue
+      }
+      for (const [index, result] of results.entries()) {
+        if (signal.aborted) return
+        if (result.status === 'unchanged') continue
+        const item = request.projects[index]
+        await this.consume({ id: item.id, project: item.projectPath },
+          result.status === 'changed' ? result.token : result.status === 'resync_required' ? null : undefined, signal)
+      }
+    }
+  }
+
+  async consume(bot, token, signal) {
+    const current = this.stateFor(bot)
+    const cursor = current.cursor, checkToken = current.checkToken, project = current.project
+    this.pending.add(bot.id)
+    try {
+      this.assertCurrent(bot, signal)
+      const complete = await this.follow(bot, signal)
+      this.assertCurrent(bot, signal)
+      if (complete) {
+        current.project = bot.project
+        if (token !== undefined) current.checkToken = token
+      }
+      await this.save(signal)
+      if (complete) this.pending.delete(bot.id)
+    } catch {
+      current.cursor = cursor
+      current.checkToken = checkToken
+      current.project = project
+      if (!signal.aborted) this.report(`BellTeam self turns: ${bot.id} OBSERVER_CONSUME_FAILED`)
+    }
+  }
+
+  async follow(bot, signal) {
+    const current = this.stateFor(bot)
     // 初めて見るBotは今の位置から始め、過去のターンを画面へ流し込まない。
-    if (!current?.cursor) return this.reset(bot)
+    if (!current?.cursor) return this.reset(bot, signal)
     let throughCursor = null
     let pageToken = null
     do {
-      const result = await this.read({ project: bot.project, afterCursor: current.cursor, throughCursor, pageToken })
+      this.assertCurrent(bot, signal)
+      const result = await this.read({ project: bot.project, afterCursor: current.cursor, throughCursor, pageToken }, { signal })
+      this.assertCurrent(bot, signal)
       if (result.status === 'resync_required') {
+        // Legacy state has no project association; let the public cursor check it before binding.
+        if (current.project === undefined) return this.reset(bot, signal)
         this.report(`BellTeam self turns: ${bot.id} の読んだ位置が古くなったので、今の位置から読み直します`)
-        return this.resync(bot, current)
+        return this.resync(bot, current, signal)
       }
-      if (result.status === 'projection_pending') {
+      if (result.status === 'projection_pending' || result.status === 'ambiguous_parent') {
         this.pending.add(bot.id)
-        return
+        return false
       }
       if (result.status === 'error') throw new Error(result.code ?? 'THROUGHLINE_OBSERVER_READ_FAILED')
-      for (const turn of result.turns ?? []) await this.accept(bot, current, turn)
+      requireReadPage(result)
+      if (throughCursor && result.throughCursor !== throughCursor) throw new Error('THROUGHLINE_OBSERVER_READ_INVALID')
+      for (const turn of result.turns) await this.accept(bot, current, turn, signal)
       throughCursor = result.throughCursor ?? throughCursor
       pageToken = result.page?.complete === false ? result.page.nextToken : null
     } while (pageToken)
     if (throughCursor) current.cursor = throughCursor
-    this.pending.delete(bot.id)
+    return true
   }
 
-  async accept(bot, current, turn) {
+  async accept(bot, current, turn, signal) {
+    this.assertCurrent(bot, signal)
     const key = turn.source_sha256
     if (!key || current.seen.includes(key)) return
-    current.seen = [...current.seen, key].slice(-SEEN_LIMIT)
     const startedAt = current.lastCompletedAt
     const completedAt = Number.isFinite(turn.completed_at) ? turn.completed_at : Date.now()
-    current.lastCompletedAt = Math.max(current.lastCompletedAt ?? 0, completedAt)
     const whole = typeof turn.assistant === 'string' ? turn.assistant.trim() : ''
-    if (!startedOutsideDelivery(turn) || !whole) return
-    const shown = this.shown(bot.id)
-    const text = withoutShownWords(whole, shown, completedAt)
-    // 外した分を、次のターンの回答からもう一度外さない。
-    if (text !== whole) shown.words.length = 0
-    await this.appendAnswer(bot.id, this.groupId(), text)
-    // 自分から始まったターンも、配送したターンと同じく報告漏れを確かめる。幅は前のターンの終わりから、いま画面へ出した回答まで。
-    this.afterTurn({
-      botId: bot.id, context: 'self',
-      startedAt: new Date(startedAt ?? completedAt).toISOString(),
-      endedAt: new Date(Math.max(completedAt, Date.now())).toISOString(),
-    })
+    if (startedOutsideDelivery(turn) && whole) {
+      const shown = this.shown(bot.id)
+      const text = withoutShownWords(whole, shown, completedAt)
+      await this.appendAnswer(bot.id, this.groupId(), text)
+      if (text !== whole) shown.words.length = 0
+      current.seen = [...current.seen, key].slice(-SEEN_LIMIT)
+      current.lastCompletedAt = Math.max(current.lastCompletedAt ?? 0, completedAt)
+      this.afterTurn({ botId: bot.id, context: 'self',
+        startedAt: new Date(startedAt ?? completedAt).toISOString(),
+        endedAt: new Date(Math.max(completedAt, Date.now())).toISOString() })
+    } else {
+      current.seen = [...current.seen, key].slice(-SEEN_LIMIT)
+      current.lastCompletedAt = Math.max(current.lastCompletedAt ?? 0, completedAt)
+    }
   }
 
   // 位置が無効になっても、その間に終わったターンは落とさない。読み直した中で、最後に見たターンより新しい分だけを受け取る。
@@ -152,66 +228,73 @@ export class SelfTurns {
   // 読み直しのたびに捨てていたので、その席が自分から始めたターンの回答が画面へ出なかった（2026-10-05、トロニーの席で2回）。
   // 読み直しで返るのは、その席で最後にターンが終わった1つの会話の直近100件だけ。別の会話（子のAIなど）のターンが
   // 後から終わっていると、元の会話の未読は返らず、ここでは拾えない（Throughlineが位置の不具合を直すまで残る）。
-  async resync(bot, current) {
+  async resync(bot, current, signal) {
     // どこまで見たか分からない時は、初めて見るBotと同じく今の位置から始める（過去のターンを流し込まない）。
-    if (!Number.isFinite(current.lastCompletedAt)) return this.reset(bot)
-    const result = await this.read({ project: bot.project })
+    if (!Number.isFinite(current.lastCompletedAt)) return this.reset(bot, signal)
+    this.assertCurrent(bot, signal)
+    const result = await this.read({ project: bot.project }, { signal })
+    this.assertCurrent(bot, signal)
     if (result.status === 'error') throw new Error(result.code ?? 'THROUGHLINE_OBSERVER_READ_FAILED')
-    if (result.status === 'projection_pending') {
+    if (result.status === 'projection_pending' || result.status === 'ambiguous_parent') {
       this.pending.add(bot.id)
-      return
+      return false
     }
+    requireReadPage(result)
     const since = current.lastCompletedAt
     for (const turn of result.turns ?? []) {
-      if (Number.isFinite(turn.completed_at) && turn.completed_at > since) await this.accept(bot, current, turn)
+      if (Number.isFinite(turn.completed_at) && turn.completed_at > since) await this.accept(bot, current, turn, signal)
       else if (turn.source_sha256 && !current.seen.includes(turn.source_sha256))
         current.seen = [...current.seen, turn.source_sha256].slice(-SEEN_LIMIT)
     }
     current.cursor = result.throughCursor ?? null
-    this.pending.delete(bot.id)
+    return true
   }
 
-  async reset(bot) {
-    const result = await this.read({ project: bot.project })
+  async reset(bot, signal) {
+    this.assertCurrent(bot, signal)
+    const result = await this.read({ project: bot.project }, { signal })
+    this.assertCurrent(bot, signal)
     if (result.status === 'error') throw new Error(result.code ?? 'THROUGHLINE_OBSERVER_READ_FAILED')
-    const turns = result.turns ?? []
-    this.state[bot.id] = {
+    if (result.status === 'projection_pending' || result.status === 'ambiguous_parent') return false
+    if (result.status === 'resync_required') throw new Error('THROUGHLINE_OBSERVER_READ_INVALID')
+    requireReadPage(result)
+    const turns = result.turns
+    Object.assign(this.stateFor(bot), {
       cursor: result.throughCursor ?? null,
       seen: turns.map(turn => turn.source_sha256).filter(Boolean).slice(-SEEN_LIMIT),
       lastCompletedAt: Math.max(0, ...turns.map(turn => turn.completed_at).filter(Number.isFinite)) || null,
-    }
-    this.pending.delete(bot.id)
+    })
+    return true
   }
 
-  async save() {
+  async save(signal) {
     await mkdir(dirname(this.statePath), { recursive: true })
     const temporary = `${this.statePath}.${process.pid}.tmp`
-    await writeFile(temporary, `${JSON.stringify({ schema: 'bellteam.self-turns.v1', bots: this.state })}\n`, { mode: 0o600 })
-    await rename(temporary, this.statePath)
+    try {
+      await writeFile(temporary, `${JSON.stringify({ schema: 'bellteam.self-turns.v1', bots: this.state })}\n`, { mode: 0o600 })
+      signal?.throwIfAborted()
+      await rename(temporary, this.statePath)
+    } finally { await rm(temporary, { force: true }) }
   }
 }
 
-export async function readObserverTurns({ project, afterCursor, throughCursor, pageToken }, { run = execFileAsync, seatCommands = false } = {}) {
+function requireReadPage(result) {
+  if (!['snapshot', 'delta', 'thread_switched', 'host_switched'].includes(result?.status)
+    || !Array.isArray(result.turns) || typeof result.throughCursor !== 'string' || !result.throughCursor
+    || result.page?.complete === false && (typeof result.page.nextToken !== 'string' || !result.page.nextToken))
+    throw new Error('THROUGHLINE_OBSERVER_READ_INVALID')
+}
+
+export async function readObserverTurns({ project, afterCursor, throughCursor, pageToken }, { run, seatCommands = false, signal } = {}) {
   const args = ['observer-read', '--project', project, '--wire', 'v2', '--limit', '100', '--json']
   if (afterCursor) args.push('--after-cursor', afterCursor)
   if (throughCursor) args.push('--through-cursor', throughCursor)
   if (pageToken) args.push('--page-token', pageToken)
-  const execute = seatCommands ? createSeatProcessRunner(project) : run
-  const { stdout } = await execute('throughline', args, { ...(seatCommands ? {} : { env: runtimeEnvironment() }), maxBuffer: 16 * 1024 * 1024 })
+  signal?.throwIfAborted()
+  const execute = run ?? (seatCommands ? createSeatProcessRunner(project) : runObserverCommand)
+  const { stdout } = await execute('throughline', args, { signal, ...(seatCommands ? {} : { env: runtimeEnvironment() }), maxBuffer: 16 * 1024 * 1024 })
+  signal?.throwIfAborted()
   const result = JSON.parse(stdout)
   if (result.schema !== 'throughline.observer_read.v2') throw new Error(`THROUGHLINE_OBSERVER_READ_INVALID: ${result.schema}`)
   return result
-}
-
-// ThroughlineのDB（WALを含む）の更新時刻が変わったかを見る。最初の1回は変わったとみなす。
-export function throughlineChanged(root = join(runtimeHome(), '.throughline')) {
-  let last = null
-  return async () => {
-    const times = await Promise.all(['throughline.db', 'throughline.db-wal'].map(name =>
-      stat(join(root, name)).then(info => info.mtimeMs, () => 0)))
-    const next = times.join(':')
-    const changed = next !== last
-    last = next
-    return changed
-  }
 }

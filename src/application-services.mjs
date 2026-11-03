@@ -74,8 +74,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   const hostUpdate = createHostUpdateAdapter({ root, client: hostUpdateClient })
   const moduleCatalog = createModuleUpdateCatalog({ client: hostUpdateClient })
   const moduleExecutor = await createModuleUpdateExecutor({ root, catalog: moduleCatalog, host: hostUpdate,
-    adapters: createModuleUpdateAdapters({ gateway, notifications, members }), notify: () => updateCenter?.notify() })
-  updateCenter = createUpdateCenter({ gateway, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor })
+    adapters: createModuleUpdateAdapters({ gateway, notifications, members, memory: seatRuntime?.memoryModule }), notify: () => updateCenter?.notify() })
+  updateCenter = createUpdateCenter({ gateway, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, memory: seatRuntime?.memoryModule })
   await notifications.initialize()
   memory = seatRuntime ? seatRuntime.memory(bots) : new BellTeamMemory({ registry: bots, root })
   await memory.initialize()
@@ -189,6 +189,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   }
   } catch (error) {
     await updateCenter?.close()
+    await seatRuntime?.memoryModule?.close()
     try { await members?.controller.close() }
     catch (cleanupError) { throw new AggregateError([error, cleanupError], 'MEMBERS_ASSEMBLY_FAILED') }
     throw error

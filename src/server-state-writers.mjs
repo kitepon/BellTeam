@@ -31,6 +31,8 @@ export function stateWriterPlan(config) {
   if (service.volumes.some(mount => ['/srv/bellteam-legacy', '/srv/bellteam-maintenance-backups']
     .some(view => mount.target === view || typeof mount.target === 'string' && mount.target.startsWith(view + '/')))) invalid()
   const stateMounts = service.volumes.filter(mount => stateTargets.includes(mount.target))
+  const memoryCode = service.volumes.filter(mount => mount.target === '/run/bellteam-memory-code')
+  if (memoryCode.length > 1 || memoryCode.length && !stateMounts.length) invalid()
   let stateVolume
   if (stateMounts.length) {
     if (stateMounts.length !== stateTargets.length) invalid()
@@ -47,6 +49,9 @@ export function stateWriterPlan(config) {
     const control = service.volumes.filter(mount => mount.target === '/run/bellteam-maintenance')
     if (control.length !== 1 || control[0].type !== 'volume' || control[0].source !== source
       || control[0].read_only !== true || control[0].volume?.nocopy !== true || control[0].volume?.subpath) invalid()
+    if (memoryCode.length && (memoryCode[0].type !== 'volume' || memoryCode[0].source !== source
+      || memoryCode[0].read_only !== true || memoryCode[0].volume?.nocopy !== true
+      || memoryCode[0].volume?.subpath !== 'memory-code')) invalid()
   }
   const maintenance = config.services['state-maintenance']
   if (maintenance) {

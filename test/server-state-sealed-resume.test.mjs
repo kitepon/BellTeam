@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import fs from 'node:fs'
 import { syncBuiltinESMExports } from 'node:module'
-import { mkdtemp, mkdir, writeFile, readFile, lstat, rename, link, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, lstat, rename, link, rm, chmod, symlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { transferServerState, migrateServerState, relocateServerRoots, prepareServerStateRuntime } from '../src/server-state-transfer.mjs'
@@ -39,6 +39,37 @@ function ownerFixture(t) {
   t.after(() => { Object.assign(fs.promises, original); syncBuiltinESMExports() })
   return original
 }
+
+test('memory code prepare adds readonly code root on prepared state without changing archives or private access', async t => {
+  const f = await fixture(t); ownerFixture(t)
+  const privateRoot = join(f.root, 'server-only/state-data'), code = join(privateRoot, 'memory-code')
+  await prepareServerStateRuntime({ root: f.root })
+  try {
+    const receipt = await f.get('server-only/state-data/.prepared.json')
+    await rm(code, { recursive: true })
+    await mkdir(code, { mode: 0o700 })
+    await f.put('server-only/state-data/memory-code/archive/payload', 'retained code')
+    const before = await lstat(join(code, 'archive/payload'))
+    assert.equal((await prepareServerStateRuntime({ root: f.root })).status, 'already-prepared')
+    const info = await lstat(code), control = await lstat(privateRoot), after = await lstat(join(code, 'archive/payload'))
+    assert.deepEqual([info.uid, info.gid, info.mode & 0o7777], [0, 0, 0o555])
+    assert.deepEqual([control.uid, control.gid, control.mode & 0o7777], [0, 1001, 0o750])
+    assert.deepEqual([after.ino, after.uid, after.gid, after.mode], [before.ino, before.uid, before.gid, before.mode])
+    assert.equal(await f.get('server-only/state-data/memory-code/archive/payload'), 'retained code')
+    assert.equal(await f.get('server-only/state-data/.prepared.json'), receipt)
+  } finally { await chmod(code, 0o755) }
+})
+
+test('memory code prepare refuses a symlink instead of changing its target permissions', async t => {
+  const f = await fixture(t); ownerFixture(t)
+  await f.put('target/retained', 'unchanged')
+  const target = join(f.root, 'target'), before = await lstat(target)
+  await mkdir(join(f.root, 'server-only/state-data'), { recursive: true })
+  await symlink(target, join(f.root, 'server-only/state-data/memory-code'))
+  await assert.rejects(prepareServerStateRuntime({ root: f.root }), /SERVER_STATE_DIRECTORY_INVALID/)
+  const after = await lstat(target)
+  assert.deepEqual([after.ino, after.uid, after.gid, after.mode], [before.ino, before.uid, before.gid, before.mode])
+})
 
 test('fresh prepare creates writable seat HOME, while existing HOME identity and bytes remain intact', async t => {
   const f = await fixture(t); ownerFixture(t)
