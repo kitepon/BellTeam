@@ -27,7 +27,7 @@ function pair() {
   return endpoints
 }
 const settle = () => new Promise(resolve => setImmediate(resolve))
-async function setup(t, { effect = () => {}, dispatcher: factory = createConversationDispatcher, forked = false } = {}) {
+async function setup(t, { effect = () => {}, event = async () => {}, dispatcher: factory = createConversationDispatcher, forked = false } = {}) {
   const fixture = JSON.parse(await readFile(new URL('../src/conversation/probe-fixture.json', import.meta.url), 'utf8'))
   const root = await mkdtemp(join(tmpdir(), 'conversation-channel-'))
   t.after(() => rm(root, { recursive: true, force: true }))
@@ -47,6 +47,7 @@ async function setup(t, { effect = () => {}, dispatcher: factory = createConvers
   if (dispatcher) child = createConversationChildChannel({ dispatcher, endpoint: endpoints[1], versionId: null })
   parent = createConversationParentChannel(endpoints[0], { generation, admission,
     onDiagnostic: report => { diagnostics.push(report) },
+    onEvent: event,
     authorizeActor: (method, token) => tokens.get(token)?.method === method ? tokens.get(token).actor : false,
     onEffect: async (method, params, context) => {
       calls.push({ method, params, context })
@@ -406,4 +407,33 @@ test('caller deadline retains actual completion and the root slot until the actu
   actual.resolve({ done: true })
   assert.deepEqual(await request.completion, { done: true })
   assert.equal(parent.snapshot().root, 0)
+})
+
+for (const rejects of [false, true]) test(`event ACK follows actual completion beyond caller deadline: ${rejects ? 'reject' : 'resolve'}`, { timeout: 4000 }, async t => {
+  const entered = Promise.withResolvers(), ack = Promise.withResolvers()
+  t.after(() => ack.resolve())
+  const h = await setup(t, { event: async () => { entered.resolve(); await ack.promise }, effect: method => {
+    if (method === 'assets.beginSave') return { leaseId: 'event-save-lease' }
+    if (method === 'assets.endSave') return { requested: true }
+  } })
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const attempt = h.request('direct.post', { from: h.fixture.bots[0].id, target: 'user', message: 'save ACK boundary', images: [] })
+  const caller = assert.rejects(attempt, { code: 'CONVERSATION_IPC_TIMEOUT' })
+  let actualSettled = false
+  attempt.completion.then(() => { actualSettled = true }, () => { actualSettled = true })
+  await Promise.race([entered.promise, attempt.then(() => { throw new Error('event was not emitted') })])
+  t.mock.timers.tick(60000)
+  await caller
+  for (let i = 0; i < 8; i++) await settle()
+  assert.equal(actualSettled, false)
+  if (rejects) {
+    const failed = assert.rejects(attempt.completion)
+    ack.reject(Object.assign(new Error('event ACK failed'), { code: 'CONVERSATION_PROTOCOL_ERROR' }))
+    await failed
+  } else {
+    ack.resolve()
+    await attempt.completion
+  }
+  assert.equal(actualSettled, true)
+  h.admission.finish(h.lease)
 })
