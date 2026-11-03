@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { once } from 'node:events'
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { createNotificationsParentChannel } from '../src/notifications-ipc.mjs'
+import { createNotificationsParentChannel, waitNotificationsChildClose } from '../src/notifications-ipc.mjs'
 
 const fixture = new URL('./fixtures/notifications-usage-child.mjs', import.meta.url).pathname
 const device = { token: 'a'.repeat(64), environment: 'production', server: 'https://bellteam.example', signedTransaction: 'PRIVATE_TRANSACTION' }
@@ -14,14 +13,14 @@ const event = { type: 'direct', id: 'slow', botId: 'bot-a', senderName: 'ミカ'
 async function start(t, { mode = '', configuration = { enabled: false, relayUrl: '' }, onDiagnostic = async () => {} } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'notifications-usage-ipc-'))
   const child = spawn(process.execPath, [fixture, 'builtin', root, mode], { env: {}, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] })
-  const ended = once(child, 'close')
+  const ended = waitNotificationsChildClose(child)
   let stderr = ''
   child.stderr.on('data', chunk => { stderr += chunk })
   const channel = createNotificationsParentChannel(child, { onDiagnostic })
   t.after(async () => { child.kill('SIGKILL'); await ended; channel.dispose(); await rm(root, { recursive: true, force: true }) })
   await channel.control('initialize', { configuration })
   const ready = await channel.ready
-  return { channel, ready, root, ended, stderr: () => stderr }
+  return { channel, ready, root, child, ended, stderr: () => stderr }
 }
 
 test('実IPCとusage dispatcherは未設定ready・resume前拒否・正常exitを接続する', async t => {
@@ -34,7 +33,7 @@ test('実IPCとusage dispatcherは未設定ready・resume前拒否・正常exit�
   await assert.rejects(channel.request('register', device), { code: 'PUSH_NOT_CONFIGURED', outcome: 'unknown' })
   await channel.control('quiesce')
   await channel.control('exit')
-  assert.deepEqual(await ended, [0, null])
+  assert.deepEqual(await ended, { code: 0, signal: null })
 })
 
 test('実IPCでpublish受付後のquiesceはprovider終端まで待ち、状態を同形式で保存する', async t => {
@@ -57,7 +56,7 @@ test('実IPCでpublish受付後のquiesceはprovider終端まで待ち、状態�
   const saved = JSON.parse(await readFile(join(root, 'state/push-devices.json'), 'utf8'))
   assert.deepEqual(saved, [device])
   await channel.control('exit')
-  assert.deepEqual(await ended, [0, null])
+  assert.deepEqual(await ended, { code: 0, signal: null })
 })
 
 test('実IPCの診断ACK失敗でも設定の元エラーとreadyを保ち、再設定しない', async t => {
@@ -71,4 +70,19 @@ test('実IPCの診断ACK失敗でも設定の元エラーとreadyを保ち、再
   await channel.control('resume')
   await channel.control('quiesce')
   await channel.control('exit')
+})
+
+test('親IPC切断後もusage送信終端を待ち、OS/IPC/pipe回収barrierで終了する', async t => {
+  const { channel, child, root, ended } = await start(t, { mode: 'provider', configuration: { enabled: true, relayUrl: '' } })
+  await channel.control('resume')
+  await channel.request('register', device)
+  await channel.request('publish', event)
+  let closed = false
+  void ended.then(() => { closed = true })
+  child.disconnect()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(closed, false)
+  await writeFile(join(root, 'release'), '')
+  assert.deepEqual(await ended, { code: 0, signal: null })
+  assert.deepEqual(JSON.parse(await readFile(join(root, 'state/push-devices.json'), 'utf8')), [device])
 })

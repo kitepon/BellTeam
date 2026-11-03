@@ -199,4 +199,6 @@ runtime案のUID1001固定は寿命/協調writerの分離を提供する。同UI
 
 直接試験は `test/notifications-usage.test.mjs` と `test/notifications-usage-ipc.test.mjs`。Epi固定e206b062の実channelとusageの実dispatcherを別Node processで接続し、未設定ready、resume前拒否、provider送信終端までquiesce、端末保存、診断ACK失敗でも設定元エラーを保つこと、正常exitを確認する。fixtureのroot/provider注入は試験専用であり、製品entryは固定root/lockを使う。
 
+追加のEpi f02e958にあるOS exit/IPC切断/所有pipe回収のbarrierへ試験も接続し、親からIPC切断後にusage送信をdrainして終了する実process反例を加えた。親切断後60秒はNode event loopが進む場合の上限であり、停止したevent loopを保証するものではない（Root追補・runtime担当境界）。
+
 新単体試験ではfield射影/既filter、DTO拒否、4payload、保存/reload/失効保存、送信中quiesce/resume、保存失敗、実ConversationWriter/SecretRequests/OwnerQuestionsの保存継続、disabled/設定適用失敗とstate/鍵不正、buffer件数/bytes、ACK不明再送0、HTTP互換を扱う。既直接のpush/usage module/application runtimeは初回21件を継承し、code補完後に影響するpush/外部relayだけ再確認する。実UID1001/正規C entry/署名archiveのprobe・固定版交換と共通assemblyの受入はEpi/Centi/Mollyの工程へ接続する。
