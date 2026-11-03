@@ -70,6 +70,7 @@ export class FeatureSettings {
     this.onChange = onChange
     this.legacyAPNsConfigured = false
     this.errors = new Map()
+    this.routingEpoch = 0
     this.settings = Object.fromEntries(features.map(feature => [feature.id, {
       enabled: false, ...Object.fromEntries(feature.fields.map(field => [field.key, ''])),
     }]))
@@ -146,6 +147,10 @@ export class FeatureSettings {
     return { ...this.settings[id] }
   }
 
+  routingState() {
+    return { enabled: this.settings.routing.enabled, epoch: this.routingEpoch }
+  }
+
   setError(id, error) {
     definition(id)
     if (!error) this.errors.delete(id)
@@ -189,6 +194,7 @@ export class FeatureSettings {
       const settings = { ...this.settings, [id]: next }
       await this.save(settings)
       this.settings = settings
+      if (id === 'routing') this.routingEpoch += 1
       this.setError(id, null)
       try { await this.onChange(id, this.configuration(id)) }
       catch (cause) {

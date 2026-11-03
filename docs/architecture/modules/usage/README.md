@@ -10,6 +10,8 @@ Rabbit認証consumerの未配布候補は[認証runとOwner案内の契約](olrw
 
 ## 機能内の正本
 
+[会話子へのusage限定接点](conversation-effects.md)にrouting一資格の供給・失効と、親の通知/秘密カード境界を置く。会話独立更新のRoot固定契約v1に従い、実装の公開接点をN102・共通組立て担当と合わせる。
+
 [処理と保存順序](flows.md)に秘密入力・質問・認証・設定適用・通知/購読の図と実関数を置く。旧support-detailsの所有章は参照リンクへ置換した。共通診断writerは[統合の詳細](../../support-details.md#診断観測集約調査注記を分ける)を参照する。
 
 [通知の独立process化](notification-process.md)に基準03c952bfの全caller・writer/停止境界、固定契約v1の公開factoryと実装・直接結合を置く。単独交換と固定資材の実物受入は継続中である。
