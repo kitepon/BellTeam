@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { MembersAdmission } from './members-admission.mjs'
+import { configurationReceipt, configurationError, configurationWasNotIssued, markConfigurationNotIssued, captureConfigurationRequest } from './configuration-request.mjs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -47,7 +48,8 @@ export function createManagedTransport({ client = new AitermClient(), ...options
 // BellTeamとAitermの間。席の状態（BotSessionState）と席の活動（SeatActivity）を持ち、一回の配送（DeliveryJob）を進める。
 // Aitermのnativeな実行判断はAitermに在り、ここは返却を事実として受け取る。
 export class AitermTransport {
-  constructor({ membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
+  constructor({ configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
+    this.configurationRequests = configurationRequests
     this.membersAdmission = membersAdmission
     this.requireMember = requireMember
     this.client = client
@@ -300,9 +302,75 @@ export class AitermTransport {
         || current.model !== next.model && next.reasoningEffort) configuration.reasoning_effort = next.reasoningEffort
       if (reapply || (current.fastMode === true) !== (next.fastMode === true)) configuration.fast = next.fastMode === true
       if (next.harness === 'cursor' && configuration.reasoning_effort && !configuration.model) configuration.model = next.model
-      await this.changeSession(current, 'agent_configure', configuration)
-      return { botId: next.id, session: this.session(next), mode: 'configure' }
+      const receipt = this.configurationRequests ? await this.applyConfigurationRequest(current, configuration, version)
+        : await this.changeSession(current, 'agent_configure', configuration)
+      return { botId: next.id, session: this.session(next), mode: 'configure',
+        ...(this.configurationRequests ? { configurationRequest: receipt } : {}) }
     }, { expected })
+  }
+
+  async restoreConfigurationRequests() {
+    for (const original of await this.configurationRequests?.restore() ?? [])
+      this.uncertainChanges.set(original.botId, 'agent_configure', original.binding)
+  }
+
+  async applyConfigurationRequest(bot, configuration, stopVersion) {
+    let prepared
+    let excluded = false
+    let knownApply = false
+    let received = null
+    let persisted = false
+    try {
+      const { session_id, ...settings } = configuration
+      prepared = await this.configurationRequests.prepare(bot.id, session_id, settings)
+      try { this.requireStopVersion(bot.id, stopVersion) }
+      catch (cause) { throw markConfigurationNotIssued(Object.assign(configurationError('CONFIGURATION_STOPPED'), { cause })) }
+      const result = await this.changeSession(bot, 'agent_configure', prepared.args, {
+        expectedConfiguration: prepared.connection, configurationRequest: prepared.intent.binding,
+      })
+      const receipt = configurationReceipt(result?.structuredContent, prepared.intent.binding)
+      received = receipt
+      if (result.isError && receipt.outcome === 'applied') throw configurationError('CONFIGURATION_RESULT_UNCONFIRMED', 'possible')
+      knownApply = receipt.request_state === 'terminal' && receipt.outcome === 'applied'
+      await this.configurationRequests.record(bot.id, receipt, 'apply')
+      persisted = receipt.request_state === 'terminal'
+      excluded = receipt.request_state === 'terminal' && receipt.later_effect === 'excluded'
+      if (receipt.request_state !== 'terminal' || receipt.outcome !== 'applied') {
+        const notApplied = excluded && receipt.outcome === 'not_applied'
+        throw Object.assign(configurationError(notApplied ? 'CONFIGURATION_NOT_APPLIED' : 'CONFIGURATION_OUTCOME_UNKNOWN', notApplied ? 'not_started' : 'possible'),
+          { aitermResponseReturned: true })
+      }
+      return receipt
+    } catch (error) {
+      if (prepared) {
+        const localNotIssued = configurationWasNotIssued(error)
+        let locallySaved = false
+        if (localNotIssued) {
+          try { await this.configurationRequests.finishNotIssued(bot.id, prepared.intent.binding); locallySaved = true } catch { /* Saving failure cannot authorize a replacement UUID. */ }
+        }
+        if (!excluded && !localNotIssued && ['not_issued', 'not_started'].includes(error?.effect))
+          error = Object.assign(configurationError('CONFIGURATION_RESULT_SAVE_UNCONFIRMED', 'possible'), { cause: error })
+        captureConfigurationRequest(error, { binding: prepared.intent.binding, requested: prepared.intent.requested,
+          receipt: received, receipt_persisted: persisted, ...(locallySaved ? { local_not_issued: true } : {}) })
+        if (!excluded && !knownApply && !localNotIssued)
+          this.uncertainChanges.set(bot.id, 'agent_configure', prepared.intent.binding)
+      }
+      throw error
+    }
+  }
+
+  async reconcileConfiguration(bot, id) {
+    if (!this.configurationRequests) throw configurationError('CONFIGURATION_UNAVAILABLE')
+    const original = await this.configurationRequests.intents.read(bot.id, id)
+    if (original.binding.session_id !== this.session(bot)) throw configurationError('CONFIGURATION_REQUEST_UNBOUND')
+    const before = this.sessionState.configurationFence(bot.id, original.binding)
+    return this.membersAdmission.withLease(async membersLease => {
+      await this.requireMember(bot, { membersLease })
+      this.membersAdmission.assertLease(membersLease)
+      const receipt = await this.configurationRequests.reconcile(bot.id, id)
+      const cleared = this.sessionState.resolveConfigurationFence(bot.id, original.binding, before, receipt)
+      return { configurationRequest: receipt, fence: cleared ? 'cleared' : this.uncertainChanges.has(bot.id) ? 'retained' : 'absent' }
+    })
   }
 
   async stop(bot, version = this.captureStopVersion(bot), { membersLease, expected = this.membersAdmission.capture() } = {}) {

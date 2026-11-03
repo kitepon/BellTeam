@@ -2,6 +2,7 @@ import { constants } from 'node:os'
 import { returnedExecutionError } from './execution-error.mjs'
 import { diagnosticFailureDetails } from './diagnostic-report-context.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
+import { configurationBinding, configurationRequestFailure } from './configuration-request.mjs'
 
 const processCodes = new Set(['ABORT_ERR', 'SEAT_PROCESS_FAILED', 'SEAT_PROCESS_START_FAILED',
   'SEAT_BUFFER_EXCEEDED', 'SEAT_INPUT_FAILED', 'AITERM_WAIT_INVALID', 'AITERM_FAST_UNAVAILABLE'])
@@ -28,6 +29,10 @@ export function executionFailureReport(botId, phase, error, context = {}) {
   }
   if (phase === 'configuration') {
     detail.failure = diagnosticFailureDetails(error)
+    const configuration = configurationRequestFailure(error)
+    if (configuration) {
+      try { detail.configuration_request = configurationBinding(configuration.binding) } catch { /* Invalid supplemental data is not diagnostic evidence. */ }
+    }
     const request = mcpRequestContext(error)
     if (request) detail.mcp_request = request
     if (error?.aitermResponseReturned === true) detail.responseReturned = true
@@ -38,7 +43,7 @@ export function executionFailureReport(botId, phase, error, context = {}) {
       && (receipt.outcome === 'not_applied' && receipt.effect === 'not_started'
         || receipt.outcome === 'outcome_unknown' && receipt.effect === 'possible'))
       detail.configureFailure = { outcome: receipt.outcome, effect: receipt.effect }
-    const notStarted = error?.effect === 'not_started'
+    const notStarted = ['not_started', 'not_issued'].includes(error?.effect)
       || error?.agentConfigureResult?.outcome === 'not_applied' && error.agentConfigureResult.effect === 'not_started'
     detail.outcome = notStarted ? 'not_applied' : 'outcome_unknown'
     detail.effect = notStarted ? 'not_started' : 'possible'

@@ -7,6 +7,8 @@ import { CharacterSheets } from './character-sheets.mjs'
 import { BotAdministration } from './bot-administration.mjs'
 import { BotGoals } from './bot-goals.mjs'
 import { AitermClient } from './aiterm-client.mjs'
+import { ConfigurationIntents } from './configuration-intents.mjs'
+import { ConfigurationRequests } from './configuration-requests.mjs'
 import { createManagedTransport } from './aiterm-transport.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
 import { completedThroughlineTurns, latestThroughlineHandoffContext } from './throughline-context.mjs'
@@ -71,10 +73,13 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     beforeResume: at => scheduler.prepareResume(new Date(at)),
   })
   await aiControl.initialize()
+  const executionClient = client ?? new AitermClient({ ...aiterm, ...(seatRuntime ? { seatProject: root } : {}) })
+  const configurationRequests = new ConfigurationRequests({ client: executionClient, intents: new ConfigurationIntents(join(root, 'state/configuration-intents')) })
   const transport = createManagedTransport({
     membersAdmission,
+    configurationRequests,
     reportError: report => diagnostics.record(report),
-    client: client ?? new AitermClient({ ...aiterm, ...(seatRuntime ? { seatProject: root } : {}) }),
+    client: executionClient,
     ...(seatRuntime ? {
       writeTemporaryImage: (path, bytes) => seatRuntime.writeTemporaryImage(path, bytes),
       removeTemporaryImage: path => seatRuntime.removeTemporaryImage(path),
@@ -94,6 +99,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     updateSession: (botId, session, context) => bots.updateSession(botId, session, context),
     updateFastMode: (botId, fastMode, context) => members ? bots.updateFastMode(botId, fastMode, context) : bots.update(botId, { fastMode }, context),
   })
+  await transport.restoreConfigurationRequests()
   const idleSessions = new IdleSessions({ bots, transport })
   const goals = new BotGoals({ transport, admitWork: () => aiControl.admit(), reportError: async error => {
     const frames = String(error.stack ?? '').split('\n').slice(1).filter(line => /^\s*at\s/u.test(line)).slice(0, 12)

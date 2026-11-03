@@ -10,6 +10,7 @@ import { returnedExecutionError, ERROR_META } from './execution-error.mjs'
 import { authenticationPreflightFailure, unpromptedLaunchActionRequired } from './agent-launch-error.mjs'
 import { captureMcpRequest } from './mcp-request-context.mjs'
 import { captureMcpError } from './returned-mcp-error.mjs'
+import { configurationConnection, configurationError, markConfigurationNotIssued, CONFIGURATION_SCHEMA } from './configuration-request.mjs'
 
 export class AitermClient {
   constructor(options = {}) {
@@ -69,7 +70,11 @@ export class AitermClient {
   }
 
   async call(name, args = {}, options = {}) {
-    const { env, meta, launchProject, expectedAuthConnection, expectedAuthServerVersion } = options
+    const { env, meta, launchProject, expectedAuthConnection, expectedAuthServerVersion, expectedConfiguration } = options
+    const boundConfiguration = Object.hasOwn(options, 'expectedConfiguration')
+    if (boundConfiguration && (!expectedConfiguration || name !== 'agent_configure' || Object.hasOwn(options, 'env')
+      || Object.hasOwn(options, 'launchProject') || Object.hasOwn(options, 'expectedAuthConnection') || Object.hasOwn(options, 'expectedAuthServerVersion')))
+      throw markConfigurationNotIssued(configurationError('CONFIGURATION_CONNECTION_ARGUMENTS'))
     const boundAuth = Object.hasOwn(options, 'expectedAuthConnection') || Object.hasOwn(options, 'expectedAuthServerVersion')
     if (boundAuth && (name !== 'agent_auth' || !expectedAuthConnection
       || typeof expectedAuthServerVersion !== 'string' || !expectedAuthServerVersion.trim()
@@ -103,13 +108,14 @@ export class AitermClient {
         await launcher.close()
       }
     }
-    if (!boundAuth) {
+    if (!boundAuth && !boundConfiguration) {
       try { await this.connect() } catch (error) {
         captureMcpRequest(error, 'connect', name)
         throw error
       }
     }
     const callClient = this.client
+    if (boundConfiguration) configurationConnection(this, expectedConfiguration.sdk, expectedConfiguration.transport)
     if (boundAuth) {
       if (callClient !== expectedAuthConnection || !this.transport || this.connecting
         || !Number.isSafeInteger(this.transport.pid) || this.transport.pid <= 0
@@ -126,6 +132,7 @@ export class AitermClient {
       throw error
     }
     if (result.isError) {
+      if (name === 'agent_configure' && expectedConfiguration && result.structuredContent?.schema === CONFIGURATION_SCHEMA) return result
       if (name === 'agent_auth'
         && ['aiterm.auth-response-error.v1', 'aiterm.auth-operation-error.v1'].includes(result.structuredContent?.schema)) return result
       const message = textResult(result) || `AITERM_TOOL_FAILED: ${name}`

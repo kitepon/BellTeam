@@ -1,5 +1,6 @@
 import { isDeepStrictEqual as same } from 'node:util'
 import { stoppedError } from './bot-execution-errors.mjs'
+import { configurationReceipt, configurationError } from './configuration-request.mjs'
 
 // Only typed status fields cross into logs; launch text can contain credentials.
 function changeReport(bot, name, args, result, error) {
@@ -99,14 +100,14 @@ export class BotSessionState {
   changeSession(bot, name, args, options) {
     if (name !== 'pty_close') this.assertWorkAllowed()
     this.requireSessionKnown(bot.id)
-    const { execution, ...clientOptions } = options ?? {}
+    const { execution, configurationRequest, ...clientOptions } = options ?? {}
     const version = this.captureStopVersion(bot), barrier = this.stopping
     let issued = false
     const invoke = () => {
       if (name !== 'pty_close') this.assertWorkAllowed()
       issued = true
       this.invalidateRunning()
-      return execution ? execution.invoke(name, args, clientOptions) : this.call(name, args, options)
+      return execution ? execution.invoke(name, args, clientOptions) : this.call(name, args, clientOptions)
     }
     const pending = this.executionBridge && !execution ? (async () => {
       await this.awaitUnboundAdmission(bot, version, barrier)
@@ -135,9 +136,9 @@ export class BotSessionState {
     pending.then(result => { report(result); clear() }, error => {
       report(undefined, error)
       // RPCのrejectは遠隔の変更を取り消さない。後から旧closeが届き得る同名の席を自動で再利用しない。
-      if (issued && ((error?.effect !== 'not_started' && error?.aitermResponseReturned !== true && error?.launch?.schema !== 'aiterm.agent-launch-result.v1')
+      if (issued && ((!['not_started', 'not_issued'].includes(error?.effect) && error?.aitermResponseReturned !== true && error?.launch?.schema !== 'aiterm.agent-launch-result.v1')
         || error?.executionError?.effect === 'possible'))
-        this.uncertainChanges.set(bot.id, name, execution?.reservation?.request)
+        this.uncertainChanges.set(bot.id, name, execution?.reservation?.request ?? configurationRequest)
       clear()
     })
     return pending
@@ -149,6 +150,22 @@ export class BotSessionState {
     error.code = 'BOT_SESSION_UNCONFIRMED'
     error.publicMessage = error.message
     throw error
+  }
+
+  configurationFence(botId, binding) {
+    const cause = this.uncertainChanges.get(botId), version = this.uncertainChanges.version(botId)
+    if (cause && (cause !== 'agent_configure' || !same(version?.request, binding)))
+      throw Object.assign(configurationError('CONFIGURATION_REQUEST_UNBOUND'), { status: 409 })
+    return { cause, version, stopVersion: this.stopVersions.get(botId) }
+  }
+
+  resolveConfigurationFence(botId, binding, before, result) {
+    const receipt = configurationReceipt(result, binding)
+    if (before.cause !== 'agent_configure' || receipt.request_state !== 'terminal' || receipt.later_effect !== 'excluded'
+      || this.stopVersions.get(botId) !== before.stopVersion || this.uncertainChanges.get(botId) !== before.cause
+      || this.uncertainChanges.version(botId) !== before.version || !same(before.version?.request, binding)) return false
+    this.uncertainChanges.delete(botId)
+    return true
   }
 
   async reconcileLaunch(bot, request, target) {

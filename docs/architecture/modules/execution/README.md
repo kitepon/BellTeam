@@ -10,6 +10,7 @@
 
 - [待機outcomeと設定適用の契約](wait-contract.md)
 - [members交換中の親admission・lease](members-admission.md)
+- [原要求を保持する設定適用・照合](configuration-requests.md)
 - [control-details.md](../../control-details.md)
 - [delivery-details.md](../../delivery-details.md)
 - [observation-details.md](../../observation-details.md)
