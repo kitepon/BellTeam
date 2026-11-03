@@ -86,7 +86,7 @@ flowchart LR
 
 ## Throughline公開observer-checkの実行接続
 
-N102のconsumer差分と同時に採用する。runtimeの旧SeatRuntime.throughlineChangedとthroughline-signature dispatchを除き、私有DB/WALのmtimeを席機構から読まない。consumer実装・結果検証・token/cursor保存・分割はN102、製品schema/binはThroughlineが所有する。固定供給候補b1cf82f3611ddc375b36b1ecb4846f23870457ebへの接続であり、本番の採用記録ではない。
+N102のconsumer差分と同時に採用する。runtimeの旧SeatRuntime.throughlineChangedとthroughline-signature dispatchを除き、私有DB/WALのmtimeを席機構から読まない。consumer実装・結果検証・token/cursor保存・分割はN102、製品schema/binはThroughlineが所有する。正式CLI0.16.52/source9247ae042dcc18ae4fde73e318dfd03ac9e01e9cを同imageへ固定する。候補b1cf82fの公開check/read契約は不変として継承し、本番の採用記録とは分ける。
 
 ```mermaid
 flowchart LR

@@ -27,6 +27,6 @@ checkは共通rootの既runner/base環境、readは各projectの既接続を使�
 
 2026-11-03、製品側は有限CLI計測・既runner接続・必要CIを返却した。N102はconsumerの直接39試験と、consumer→候補実binのcheck/read→既runnerによる空の人工3project接続を確認したと報告している。証跡と限界は[製品供給結果](/srv/bellteam/bots/bot-220e0f1b/work/throughline-observer-check-20261103/supply-result.json)を参照する。
 
-これは通常統合へ渡す開発候補の接続である。正式package版・供給日は未定で、Throughlineのmain/公開/本番と実consumerの本番受入は未成立。BellTeamの通常main統合はモリー、公開版の供給と本番反映は既Root/製品条件に従う。
+上記候補と39直接試験は公開契約の不変部分として継承する。正式package 0.16.52は2026-11-03 21:29:41 JSTに公開済み。sourceは9247ae042dcc18ae4fde73e318dfd03ac9e01e9c、registry tar SHA256はac849684be7fd98ba8ea93a100aae938dd20fe5e92547761a53291f5df18a67d。候補から正式sourceへのobserver/check/read/bin/schema差分は無く、旧開発supply-resultではなく製品のregistry-source-binding.json/registry-cli-result.jsonとN102本人照合を供給結果に使う。実consumerの本番受入は未成立。BellTeamの通常main統合はモリー、公開版の供給と本番反映は既Root/製品条件に従う。
 
 [接続情報](module.json) / [共通の変更手順](../../module-ownership.md)
