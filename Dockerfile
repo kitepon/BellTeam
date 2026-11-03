@@ -63,8 +63,10 @@ RUN /usr/sbin/groupadd -g 1001 bellteam-server \
   && cc -O2 -Wall -Wextra -Werror scripts/server-start.c -o /usr/local/libexec/bellteam-server-start \
   && cc -O2 -Wall -Wextra -Werror scripts/notifications-start.c -o /usr/local/libexec/bellteam-notifications-start \
   && cc -O2 -Wall -Wextra -Werror scripts/members-start.c -o /usr/local/libexec/bellteam-members-start \
-  && chown root:root /usr/local/libexec/bellteam-notifications-start /usr/local/libexec/bellteam-members-start \
-  && chmod 0755 /usr/local/libexec/bellteam-notifications-start /usr/local/libexec/bellteam-members-start \
+  && cc -O2 -Wall -Wextra -Werror scripts/usage-start.c -o /usr/local/libexec/bellteam-usage-start \
+  && cc -O2 -Wall -Wextra -Werror scripts/diagnostics-start.c -o /usr/local/libexec/bellteam-diagnostics-start \
+  && chown root:root /usr/local/libexec/bellteam-notifications-start /usr/local/libexec/bellteam-members-start /usr/local/libexec/bellteam-usage-start /usr/local/libexec/bellteam-diagnostics-start \
+  && chmod 0755 /usr/local/libexec/bellteam-notifications-start /usr/local/libexec/bellteam-members-start /usr/local/libexec/bellteam-usage-start /usr/local/libexec/bellteam-diagnostics-start \
   && chown root:root /usr/local/libexec/bellteam-seat-exec /usr/local/libexec/bellteam-server-start \
   && chmod 0755 /usr/local/libexec/bellteam-seat-exec /usr/local/libexec/bellteam-server-start \
   && printf 'bellteam-server ALL=(root) NOPASSWD: /usr/local/libexec/bellteam-seat-exec -- *\n' > /etc/sudoers.d/bellteam-server \
