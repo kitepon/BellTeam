@@ -100,3 +100,36 @@ test('all three same-root phases finish their own operation and preserve the ori
   assert.equal(state.nativeAborts, 0); assert.equal(state.bodyResends, 0)
   t.diagnostic(JSON.stringify({ scope: 'same-root-after-three-phases', ...state }))
 })
+
+test('caller rejection still waits a separate real callback ACK and original operation done before preserving the same error', { timeout: 15_000 }, async t => {
+  const { fixture, runtime } = await setup(t)
+  const refused = Promise.withResolvers(), entered = Promise.withResolvers(), ack = Promise.withResolvers()
+  refused.promise.catch(() => {})
+  const userTurn = runtime.services.messenger.userTurn
+  runtime.services.messenger.userTurn = (...args) => {
+    const original = userTurn(...args), caller = Promise.race([original, refused.promise])
+    caller.accepted = original.accepted; caller.completion = original.completion
+    return caller
+  }
+  let armed = false
+  const unsubscribe = runtime.services.conversationAssembly.watch(async change => {
+    if (armed && change.all === true) { entered.resolve(); await ack.promise }
+  })
+  t.after(() => { ack.resolve(); unsubscribe() })
+  const held = await fixture.hold('ai'), originalError = Object.assign(Error('caller deadline'), { code: 'CONVERSATION_IPC_TIMEOUT' })
+  armed = true; refused.reject(originalError); await tick()
+  assert.equal(held.snapshot().rootResultSettled, true)
+  assert.equal(held.snapshot().rootRPCSettled, false)
+  let released = false
+  const releasing = held.release()
+  const rejected = assert.rejects(releasing, error => { assert.equal(error, originalError); return true })
+  releasing.then(() => { released = true }, () => { released = true })
+  await entered.promise; await tick()
+  assert.equal(released, false); assert.equal(held.snapshot().originalOperationLive, true)
+  ack.resolve(); await rejected
+  assert.equal(held.snapshot().originalOperationLive, false)
+  assert.equal(held.snapshot().rootRPCSettled, true)
+  assert.equal(held.snapshot().released, 1)
+  assert.equal(held.release(), releasing)
+  t.diagnostic(JSON.stringify({ scope: 'caller-error-after-actual-done', ...fixture.snapshot() }))
+})

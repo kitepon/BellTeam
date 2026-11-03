@@ -89,14 +89,20 @@ export function createConversationExecutionLifetimeFixture({ botId }) {
   const release = state => state.releasing ??= (async () => {
     state.callback.resolve()
     state.source?.waiting.resolve(); state.report?.waiting.resolve()
-    await state.root
-    await runtime.services.transport.idle(botId)
-    await state.operationDone
+    let failure
+    try { await state.root } catch (error) { failure = error }
+    finally {
+      const completed = await Promise.allSettled([
+        Promise.resolve().then(() => runtime.services.transport.idle(botId)), state.operationDone,
+      ])
+      failure ??= completed.find(value => value.status === 'rejected')?.reason
+    }
     assert.equal(state.operationLive, false)
     assert.equal(counts.nativeAborts, 0); assert.equal(counts.nativeStops, 0)
     assert.equal(counts.bodyResends, 0); assert.equal(counts.ptyCloses, 0); assert.equal(counts.sdkCloses, 0)
     counts.released++; releasedAt = Date.now()
     if (current === state) { last = state; current = null }
+    if (failure) throw failure
     return snapshot()
   })()
   return {
