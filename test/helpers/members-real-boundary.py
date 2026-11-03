@@ -60,6 +60,7 @@ def run_fixture(image, output, supply):
     inputs = json.loads((supply / 'inputs.json').read_text())
     assert image.endswith('@' + inputs['imageDigest']) and re.fullmatch('[a-f0-9]{40}', inputs['imageSource'])
     source = inputs['imageSource']
+    assert inputs['architecture'] == {'x86_64': 'amd64', 'aarch64': 'arm64'}[platform.machine()]
     output.mkdir(parents=True, exist_ok=False)
     prefix = 'gateway-real-' + uuid.uuid4().hex[:12]
     work = Path(tempfile.mkdtemp(prefix=prefix + '-')); work.chmod(0o755)
@@ -78,7 +79,7 @@ def run_fixture(image, output, supply):
     def compose(*args, **kwargs): return docker('compose', '--project-directory', str(work), '-f', str(saved / 'normal.json'), *args, **kwargs)
     stage = 'image'
     try:
-        im = json.loads(docker('image', 'inspect', '--platform', 'linux/' + inputs['architecture'], image).stdout)[0]
+        im = json.loads(docker('image', 'inspect', image).stdout)[0]
         assert im['Architecture'] == inputs['architecture'] and im['Os'] == 'linux'
         assert im['Config']['Labels']['org.opencontainers.image.revision'] == source and image in im['RepoDigests']
         assert im['Config']['Entrypoint'] == ['/usr/local/libexec/bellteam-server-start']
