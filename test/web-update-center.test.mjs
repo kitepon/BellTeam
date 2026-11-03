@@ -205,12 +205,12 @@ test('publication failure or unknown never claims latest; accepted catalog and e
   assert.equal(validUpdateInventory(value), false)
 })
 
-test('a plan arriving after selection changes is ignored and all/module starts remain unavailable', async t => {
+test('a plan arriving after selection changes is ignored and all requires its own explicit plan', async t => {
   const { value, fixedPlan } = executable(), pendingPlan = deferred()
   const f = fixture(t, async path => path.endsWith('/plans') ? pendingPlan.promise : value, storeFixture())
   await f.center.start(); f.select('container'); control(f, 'execute').handlers.click()
   f.select('all'); pendingPlan.resolve({ plan: fixedPlan }); await settle()
-  assert.equal(control(f, 'execute').disabled, true)
+  assert.equal(control(f, 'execute').disabled, false)
   assert.equal(control(f, 'restart-confirm'), undefined)
   assert.equal(f.calls.filter(([path]) => path === '/api/updates/operations').length, 0)
 })
