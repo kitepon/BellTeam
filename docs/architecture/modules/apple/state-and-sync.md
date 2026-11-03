@@ -14,6 +14,8 @@
 | `BillingStore` | 本体購読status、StoreKit entitlement/product/currentTransaction、照会・復元中、エラー | AppStoreが所有し、購読画面がObservedObjectで購読。権利変更callbackは通知登録へ |
 | `BellNotifications.shared` | APNs token、登録API、署名取引、表示中会話、通知route、登録状況 | 通知タップはAppStoreのonOpen、OS delegateはsingletonへ返す |
 
+下書きは`Core/ConversationDraft.swift:6`の`ConversationDraft`、添付値は同`:51`の`PendingImage`（`init(data:)`は`:56`、`init(fileURL:)`は`:63`）に置く。入力欄は`Views/ConversationInput.swift:5`の`ConversationInput`だけがdraftを観測し、同`:69`のprivateな`MessageInput`と`:135`の`MessageTextView`がUIKitの編集を扱う。会話画像の表示とcacheは`Views/ConversationImages.swift`に置く。状態の所有と寿命は変えない。
+
 ## 初回読込と共通一覧の適用
 
 ```mermaid
@@ -101,7 +103,7 @@ flowchart TD
   Post --> Cleanup["defer / 期限通知<br/>背景実行時間を一度だけ終了"]
 ```
 
-送信前の利用確認（`authorizeAIUse`）の失敗と、POSTの失敗は別の経路になる。前者は `ConversationView.swift` の765〜778行で、認証失敗なら`requireLogin`して戻り、それ以外は結果不明かどうかを問わずactiveなら`load`する。後者は793〜801行で、`SendFailureReconcileObservation.observe`（同32〜38行）がactiveかつ`operationResultUnconfirmed`の時だけ`load`する。
+送信前の利用確認（`authorizeAIUse`）の失敗と、POSTの失敗は別の経路になる。前者は `ConversationView.swift` の764〜777行で、認証失敗なら`requireLogin`して戻り、それ以外は結果不明かどうかを問わずactiveなら`load`する。後者は792〜800行で、`SendFailureReconcileObservation.observe`（同31〜37行）がactiveかつ`operationResultUnconfirmed`の時だけ`load`する。
 
 `ConversationContent.load`は非activeと送信応答待ちで取得を始めない。進行中readerがあれば次の読取要求をまとめる。初回本文とqueueは並列に取り、本文を先に表示するので、queueだけが失敗しても本文を残せる。初回は10件、過去取得は`ConversationHistoryPage.pageSize`の25件。更新は最新20件とafter取得を併合する。
 
@@ -130,7 +132,7 @@ flowchart TD
 | HTTP cookieStorage / WK httpCookieStore | syncCookies・Webログイン | signOutは指定された両storeのcookieを全て削除する |
 | App Group `avatars/<origin>/`とversions.json | BotAvatarCache.storeVersioned、前回名簿に無い画像は整理 | signOutでディスクcacheを削除する呼出しなし |
 | drafts・Bot編集draft・profileImageDrafts | AppStore内のメモリ | 保持中ConversationDraftをclearして辞書も削除。会話ページも世代を増やして削除 |
-| 履歴・画像・日付・色のメモリcache | conversationPages、ConversationImageCache、AvatarPortraitCache、BellDate、AvatarTone | signOutはconversationPagesを消す。後4つのstatic cacheを消す呼出しはない |
+| 履歴・画像・日付・色のメモリcache | conversationPages、`Views/ConversationImages.swift:198`のConversationImageCache、AvatarPortraitCache、BellDate、AvatarTone | signOutはconversationPagesを消す。後4つのstatic cacheを消す呼出しはない |
 | BillingStore・通知 | 取引監視・登録状態・route | billing.stop、BellNotifications.detach、配信済み通知削除、route/表示中会話/secretを消す |
 | 共通一覧bots/rooms/owner・setup・settings | GETの結果 | signOut自身では空にしない。changeServerが名簿・Owner・setup・settings等を消す |
 

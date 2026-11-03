@@ -6,6 +6,8 @@
 
 PR2で移した6型の所在と行番号は、実装の固定source `e82f12aa53678534645946e64e56626b25bc2a84` からの配置変更を反映している。
 
+PR3の入力・添付・会話画像と会話ファイルに残る定義の所在は、固定source `8ca67462304a059f1ee7a335b9d939a19ec6870e` からの配置変更を反映している。
+
 ## Core/Models.swift
 
 ファイル：[Models.swift](../../../../ios/BellBot/BellBot/Core/Models.swift)。値の所有と適用先は[状態図](state-and-sync.md)。
@@ -278,7 +280,7 @@ PR2で移した6型の所在と行番号は、実装の固定source `e82f12aa536
 
 ## その他の製品Swift：ファイル単位
 
-パスは`ios/BellBot/`から。上の9ファイルを除く39ファイル。型・関数名は到達先の目印で、この表では関数ごとの全分岐を列挙していない。
+パスは`ios/BellBot/`から。上の9ファイルを除く41ファイル。型・関数名は到達先の目印で、この表では関数ごとの全分岐を列挙していない。
 
 | ファイル | 主な型・機能・接続先 |
 | --- | --- |
@@ -292,7 +294,7 @@ PR2で移した6型の所在と行番号は、実装の固定source `e82f12aa536
 | [BellBot/Core/BillingStore.swift](../../../../ios/BellBot/BellBot/Core/BillingStore.swift) | 購読status/entitlement/product、本人権利照会、purchase/restore/recheck、verify/finish |
 | [BellBot/Core/BotSettings.swift](../../../../ios/BellBot/BellBot/Core/BotSettings.swift) | BotProfileResponse、BotSettings.normalized/withSmallAvatar/withLargeAvatar/withAvatarSelection、BotEditorDraft、AvatarSelectionDrafts、BotSettingsRequest.encode、BotSaveResult |
 | [BellBot/Core/ConversationDocument.swift](../../../../ios/BellBot/BellBot/Core/ConversationDocument.swift) | JSON FileDocumentの読込・書出し |
-| [BellBot/Core/ConversationDraft.swift](../../../../ios/BellBot/BellBot/Core/ConversationDraft.swift) | 入力本文・画像・選択宛先、UIKitからの変更と外部clear/restore |
+| [BellBot/Core/ConversationDraft.swift](../../../../ios/BellBot/BellBot/Core/ConversationDraft.swift) | [ConversationDraft](../../../../ios/BellBot/BellBot/Core/ConversationDraft.swift#L6)の入力本文・画像・選択宛先、UIKitからの変更と外部clear/restore。[PendingImage](../../../../ios/BellBot/BellBot/Core/ConversationDraft.swift#L51)の[init(data:)](../../../../ios/BellBot/BellBot/Core/ConversationDraft.swift#L56) / [init(fileURL:)](../../../../ios/BellBot/BellBot/Core/ConversationDraft.swift#L63)で添付画像の検査・JPEG化 |
 | [BellBot/Core/ConversationTimelineState.swift](../../../../ios/BellBot/BellBot/Core/ConversationTimelineState.swift) | 受信履歴とpending送信、受付ID照合、refresh併合・過去追加 |
 | [BellBot/Core/HarnessAuthenticationFlow.swift](../../../../ios/BellBot/BellBot/Core/HarnessAuthenticationFlow.swift) | 公式AI再認証refresh/poll/start/respond/cancel、requestSequence |
 | [BellBot/Core/PreviewFixtures.swift](../../../../ios/BellBot/BellBot/Core/PreviewFixtures.swift) | Debug専用AppStore.preparePreview、会話/質問/秘密/通知/画像fixture |
@@ -304,8 +306,10 @@ PR2で移した6型の所在と行番号は、実装の固定source `e82f12aa536
 | [BellBot/Views/AvatarImagePicker.swift](../../../../ios/BellBot/BellBot/Views/AvatarImagePicker.swift) | 写真/Macファイル、prepare/取消/lifetime、onSelect/onFailure |
 | [BellBot/Views/BotScreenView.swift](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift) | privateの[ScreenResponse](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L4) / [BotTerminalView](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L9)、internalの[BotTerminalTextView.show](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L33) / [BotScreenView](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L47)。[body](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L58) / [screenContent](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L86) / [refreshScreen](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L106)で端末snapshot取得・置換・読書位置保持 |
 | [BellBot/Views/ConversationDetailView.swift](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift) | internalの[ConversationDetailView](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift#L4)。[bot / room](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift#L13)を共通一覧から選び、[body](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift#L16)がプロフィール・再起動・編集/端末sheet・画像のStateObjectを所有 |
+| [BellBot/Views/ConversationImages.swift](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift) | internalの[ConversationGallery](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L5) / [MessageImages](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L11) / [MessageImageGallery](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L59)、privateの[AuthenticatedImage](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L146) / [conversationImageOrigin](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L186) / [ConversationImageCache](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L198)。[image](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L210) / [decode](../../../../ios/BellBot/BellBot/Views/ConversationImages.swift#L246)で認証取得・共有・縮小復号 |
+| [BellBot/Views/ConversationInput.swift](../../../../ios/BellBot/BellBot/Views/ConversationInput.swift) | internalの[ConversationInput](../../../../ios/BellBot/BellBot/Views/ConversationInput.swift#L5)、privateの[MessageInput](../../../../ios/BellBot/BellBot/Views/ConversationInput.swift#L69)と[Coordinator](../../../../ios/BellBot/BellBot/Views/ConversationInput.swift#L123)、internalの[MessageTextView](../../../../ios/BellBot/BellBot/Views/ConversationInput.swift#L135)。入力同期・最大5行の寸法・Return/修飾キー・画像貼付け |
 | [BellBot/Views/ConversationList.swift](../../../../ios/BellBot/BellBot/Views/ConversationList.swift) | UITableView/DiffableDataSource/UIHostingConfiguration、Markdown先読み、過去取得要求、末尾/読書位置、rise/fade、Mac WheelScrollSmoother |
-| [BellBot/Views/ConversationView.swift](../../../../ios/BellBot/BellBot/Views/ConversationView.swift) | ConversationContentの初回/差分/過去/送信/停止/JSON出力、PendingImage/MessageInput、カードsheet/画像gallery/cache。詳細sheetからConversationDetailViewを呼ぶ |
+| [BellBot/Views/ConversationView.swift](../../../../ios/BellBot/BellBot/Views/ConversationView.swift) | ConversationContentの初回/差分/過去/送信/停止/JSON出力、ReadCoordinator/ConversationCardStates/ConversationSheet/ConversationHistoryPage、MessageRow/PeerMessageSheet、送信失敗の観測型。ConversationInput、ConversationGallery/MessageImages/MessageImageGallery、詳細sheetのConversationDetailViewを呼ぶ |
 | [BellBot/Views/GoalsView.swift](../../../../ios/BellBot/BellBot/Views/GoalsView.swift) | GoalForegroundLoad、各harnessのgoal decode、GoalViewModel、GoalsView/ChatGoalBar/GoalCard/GoalEditor。GET/POST goalとcapability/binding/outcome |
 | [BellBot/Views/HarnessAuthenticationView.swift](../../../../ios/BellBot/BellBot/Views/HarnessAuthenticationView.swift) | AI一覧・Row状態・再認証画面、3秒poll・開始警告・明示更新 |
 | [BellBot/Views/LoginView.swift](../../../../ios/BellBot/BellBot/Views/LoginView.swift) | ServerSetupView、LoginView、WKWebViewのCloudflareLoginView。URL入力・Web完了通知 |

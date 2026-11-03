@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import UIKit
 
 @MainActor
 final class ConversationDraft: ObservableObject {
@@ -43,5 +44,29 @@ final class ConversationDraft: ObservableObject {
         emptyState = nextIsEmpty
         textState = nextHasText
         if publishRevision || visibleStateChanged { textRevision += 1 }
+    }
+}
+
+/// 送信前の添付画像。送信はJPEGにそろえる。
+struct PendingImage: Identifiable {
+    let id: UUID
+    let data: Data
+    let preview: UIImage
+
+    init?(data: Data) {
+        guard let image = UIImage(data: data), let jpeg = image.jpegData(compressionQuality: 0.85) else { return nil }
+        id = UUID()
+        self.data = jpeg
+        preview = image
+    }
+
+    init(fileURL url: URL) throws {
+        guard url.isFileURL else { throw BellAPIError.server("画像ファイルを選んでください。") }
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+        guard let image = PendingImage(data: try Data(contentsOf: url)) else {
+            throw BellAPIError.server("画像ではないファイルは添付できません（\(url.lastPathComponent)）。")
+        }
+        self = image
     }
 }

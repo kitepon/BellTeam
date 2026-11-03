@@ -15,7 +15,9 @@
 | `ConversationList.Coordinator` | 行ID、前回本文/queue、実高、既に表示した行、Markdown先読済みsource、読書位置、過去取得要求の状態。表から親へ更新・過去取得・末尾状態をcallback |
 | `ConversationCardStates` | message ID別の質問/秘密カード状態を保持。UITableViewの行が画面外になっても保持。会話画面終了後まで保存する処理はない |
 
-主な根拠：[ConversationContent](../../../../ios/BellBot/BellBot/Views/ConversationView.swift#L50)、[draft](../../../../ios/BellBot/BellBot/Core/ConversationDraft.swift#L5)、[timeline](../../../../ios/BellBot/BellBot/Core/ConversationTimelineState.swift#L4)、[表](../../../../ios/BellBot/BellBot/Views/ConversationList.swift#L17)。共通一覧・SSEからの通知の生成は[状態と同期](state-and-sync.md#sseの適用)を参照。
+主な根拠：[ConversationContent](../../../../ios/BellBot/BellBot/Views/ConversationView.swift#L49)、[draft](../../../../ios/BellBot/BellBot/Core/ConversationDraft.swift#L6)、[timeline](../../../../ios/BellBot/BellBot/Core/ConversationTimelineState.swift#L4)、[表](../../../../ios/BellBot/BellBot/Views/ConversationList.swift#L17)。共通一覧・SSEからの通知の生成は[状態と同期](state-and-sync.md#sseの適用)を参照。
+
+入力部品は`Views/ConversationInput.swift`（`ConversationInput:5`、privateな`MessageInput:69`とそのcoordinator、internalの`MessageTextView:135`）に置く。添付値`PendingImage`は`Core/ConversationDraft.swift:51`にあり、二つのinitializerは同`:56,63`。画像は`Views/ConversationImages.swift`の`ConversationGallery:5`、`MessageImages:11`、`MessageImageGallery:59`、privateな`AuthenticatedImage:146`・`conversationImageOrigin:186`・`ConversationImageCache:198`に置く。`ConversationContent`、reader、カード状態、sheet、履歴page、`MessageRow`、`PeerMessageSheet`と送信失敗の観測型は`ConversationView.swift`に残す。
 
 ## 初回・更新・過去の取得
 
@@ -33,7 +35,7 @@ flowchart TD
   Delta --> Merge["既知行はlatestの値に更新<br/>未知IDはafterから追加"]
 ```
 
-[load以降](../../../../ios/BellBot/BellBot/Views/ConversationView.swift#L558)を確認した。初回のrememberは取得開始時の`conversationGeneration`が同じ時だけ書く。logout/接続先変更後の初回応答は成功・失敗とも捨てる。更新で受信履歴末尾が無い経路は最新20件とqueueを適用し、hasMoreと末尾移動を更新する。通常の差分更新はhasMoreや保存pageを更新しない。
+[load以降](../../../../ios/BellBot/BellBot/Views/ConversationView.swift#L557)を確認した。初回のrememberは取得開始時の`conversationGeneration`が同じ時だけ書く。logout/接続先変更後の初回応答は成功・失敗とも捨てる。更新で受信履歴末尾が無い経路は最新20件とqueueを適用し、hasMoreと末尾移動を更新する。通常の差分更新はhasMoreや保存pageを更新しない。
 
 | 取得 | 成功・失敗・取消 |
 | --- | --- |
@@ -92,7 +94,7 @@ flowchart TD
   ID -->|"応答不正"| Failure
 ```
 
-失敗の経路は[状態と同期の送信図](state-and-sync.md#送信停止取消途中失敗)を正本とし、ここでは複製しない。要点は3つに分かれる。`authorizeAIUse`の認証失敗は入力を戻して`requireLogin`し、loadしない（[send](../../../../ios/BellBot/BellBot/Views/ConversationView.swift#L765)）。その他の事前失敗は入力を戻し、結果不明かどうかを問わずactiveならloadしてエラーを表示する（同773行）。POSTとackの失敗だけが`SendFailureReconcileObservation`を通り、activeかつ結果不明の時にloadする（同793行）。
+失敗の経路は[状態と同期の送信図](state-and-sync.md#送信停止取消途中失敗)を正本とし、ここでは複製しない。要点は3つに分かれる。`authorizeAIUse`の認証失敗は入力を戻して`requireLogin`し、loadしない（[send](../../../../ios/BellBot/BellBot/Views/ConversationView.swift#L764)）。その他の事前失敗は入力を戻し、結果不明かどうかを問わずactiveならloadしてエラーを表示する（同772行）。POSTとackの失敗だけが`SendFailureReconcileObservation`を通り、activeかつ結果不明の時にloadする（同792行）。
 
 本文は元の送信文＋送信中の新しい入力、画像は元の画像＋新しい画像の順に復元する。宛先は送信前に消さない。`SendFailureReconcileObservation`はload呼出しと実HTTP成功を区別して記録する。自動POST再送はない。
 
@@ -125,9 +127,9 @@ flowchart TD
 
 ## 整理候補
 
-- **A-C1**：`ios/BellBot/BellBot/Views/ConversationView.swift:72,76,237,238,241`。添付はdraftとvisibleAttachments、宛先はdraftとselectedTargetsで保持し、表示開始と変更時に相互受渡ししている。
-- **A-C2**：`ios/BellBot/BellBot/Views/ConversationView.swift:302,306`。書出しは`T/export`をGETするが、失敗診断には`T/messages`を渡している。
-- **A-C3**：`ios/BellBot/BellBot/Views/ConversationView.swift:650,681,700`。AppStoreの会話page保存は初回取得の経路にあり、通常更新・過去取得は画面のtimelineを更新する。
+- **A-C1**：`ios/BellBot/BellBot/Views/ConversationView.swift:71,75,236,237,240`。添付はdraftとvisibleAttachments、宛先はdraftとselectedTargetsで保持し、表示開始と変更時に相互受渡ししている。
+- **A-C2**：`ios/BellBot/BellBot/Views/ConversationView.swift:301,305`。書出しは`T/export`をGETするが、失敗診断には`T/messages`を渡している。
+- **A-C3**：`ios/BellBot/BellBot/Views/ConversationView.swift:649,680,699`。AppStoreの会話page保存は初回取得の経路にあり、通常更新・過去取得は画面のtimelineを更新する。
 
 ## 未調査
 

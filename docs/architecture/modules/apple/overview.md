@@ -54,9 +54,9 @@ SSE本文をそのまま名簿や会話の正本にしない。`AppStore`が必�
 | 入口・platform配置 | `BellBot/App/BellBotApp.swift`、`Views/HomeView.swift`、`Views/DesktopWorkspaceView.swift`。phase・タブ・会話選択はAppStore | 起動時`GET /api/session`、`/api/settings`、`/api/setup` | ready後に接続開始 |
 | 共通状態と同期 | `Core/Models.swift`、`AppStore.swift`、`BellAPI.swift`。名簿・Owner・稼働ID・設定・初回状態・AI停止状態 | `GET /api/bots?avatar=omit`、`/api/rooms?avatar=omit`、`/api/owner?avatar=omit`、`/api/queue`、`/api/events` | `ready`、`settings`、`setup`、`ai-control`、`bots`、`messages`。全topicの表は[詳細](state-and-sync.md) |
 | 一覧と検索 | `Views/HomeView.swift`、`DesktopWorkspaceView.swift`。検索語は各画面の`@State`。Bot.displayName、Room.nameを検索 | 共通状態のGETを利用。検索専用HTTPなし | topic `bots`、`rooms`、`timeline`、`requests`、`questions`等から一覧再取得 |
-| 会話・下書き・配送表示 | `Views/ConversationView.swift`、`Core/ConversationDraft.swift`、`ConversationTimelineState.swift`、`BackgroundMessageSend.swift`。下書きは宛先別、履歴・pending送信・queueは会話画面 | `GET T/messages?limit=10`、`?limit=20`、`?limit=25&before=:id`、`?after=:id`、`GET T/queue`、`POST T/messages` | 全更新、topic `timeline`、`queue`、`requests`、`questions`で対象会話を再取得 |
-| 会話行・本文・画像 | `Views/ConversationList.swift`、`MessageText.swift`、`SelectableText.swift`、`ConversationView.swift`内の画像gallery/cache、`Design/AvatarTone.swift`。UITableViewの行・Markdown先読み・末尾追従 | 画像は履歴の`imageUrls / imageUrl`を`BellAPI.image`でGET。routeをAppleで組み立てない | 履歴更新経由 |
-| 添付とルーム宛先 | `ConversationView.swift`。写真選択・Macファイル選択・画像貼付け・URLドロップ、JPEG化、`selectedTargets`。未選択の自動選択はrouting設定を参照 | `POST T/messages`の`images`と`targets` | topic `settings`でrouting設定更新、`rooms`で参加者更新 |
+| 会話・下書き・配送表示 | `Views/ConversationView.swift`、`Views/ConversationInput.swift`、`Core/ConversationDraft.swift`、`ConversationTimelineState.swift`、`BackgroundMessageSend.swift`。下書きは宛先別、履歴・pending送信・queueは会話画面 | `GET T/messages?limit=10`、`?limit=20`、`?limit=25&before=:id`、`?after=:id`、`GET T/queue`、`POST T/messages` | 全更新、topic `timeline`、`queue`、`requests`、`questions`で対象会話を再取得 |
+| 会話行・本文・画像 | `Views/ConversationList.swift`、`MessageText.swift`、`SelectableText.swift`、`ConversationImages.swift`の画像gallery/cache、`Design/AvatarTone.swift`。UITableViewの行・Markdown先読み・末尾追従 | 画像は履歴の`imageUrls / imageUrl`を`BellAPI.image`でGET。routeをAppleで組み立てない | 履歴更新経由 |
+| 添付とルーム宛先 | `ConversationView.swift`の写真・Macファイル選択とURLドロップ、`Views/ConversationInput.swift`の入力・画像貼付け、`Core/ConversationDraft.swift`のPendingImage（JPEG化）。宛先は会話の`selectedTargets`。未選択の自動選択はrouting設定を参照 | `POST T/messages`の`images`と`targets` | topic `settings`でrouting設定更新、`rooms`で参加者更新 |
 | 会話書き出し | `ConversationView.swift`、`Core/ConversationDocument.swift`。FileDocumentでJSON出力 | `GET T/export` | 直接の専用購読なし |
 | 個別停止・再起動・端末画面 | `ConversationView.swift`内の`stopBot`、`Views/ConversationDetailView.swift`の詳細プロフィールと再起動、`Views/BotScreenView.swift`の`BotScreenView`・`BotTerminalTextView`、`DesktopInspector`。再起動の`EmptyBody`は`Core/Models.swift` | `POST /api/bots/:id/stop`、`POST /api/bots/:id/restart`、`GET /api/bots/:id/screen?history=1`。画面はactive時に1秒ごと、失敗で停止 | 停止後は履歴・名簿再取得。端末画面はSSEでなく照会 |
 | メンバー・ルームの作成編集削除 | `Views/ManagementView.swift`、`Core/BotSettings.swift`。draft・選択ID・保存照合は[詳細](members-and-rooms.md) | `GET /api/models`、`GET /api/bots/:id`、`POST /api/bots`、`PATCH /api/bots/:id`、`DELETE /api/bots/:id`、`POST /api/rooms`、`PATCH /api/rooms/:id`、`DELETE /api/rooms/:id` | `bots`または全更新、topic `bots`・`rooms`。Bot削除完了はGET一覧で確認 |
@@ -100,7 +100,7 @@ flowchart LR
 
 ## 整理候補
 
-- **A-O1**：`ios/BellBot/BellBot/Views/ConversationView.swift:50, 886, 1467`に会話の取得送信・入力画像、認証付き画像cacheが残る。PR2でプロフィール詳細を`Views/ConversationDetailView.swift:4`、端末画面を`Views/BotScreenView.swift:4, 9, 32, 47`、`EmptyBody`を`Core/Models.swift:533`へ配置した。行位置と型名は[索引](function-index.md)を参照。
+- **A-O1**：会話の取得送信は`ios/BellBot/BellBot/Views/ConversationView.swift:49`に残す。PR3で入力部品を`Views/ConversationInput.swift:5, 69, 135`、添付値を`Core/ConversationDraft.swift:51`、画像gallery/cacheを`Views/ConversationImages.swift:5, 11, 59, 146, 186, 198`へ配置した。PR2のプロフィール詳細（`Views/ConversationDetailView.swift:4`）、端末画面（`Views/BotScreenView.swift:4, 9, 32, 47`）、`EmptyBody`（`Core/Models.swift:533`）の配置は同じ。行位置と型名は[索引](function-index.md)を参照。
 
 ## 未調査
 
