@@ -1,6 +1,6 @@
 // Executed by the fixed seat entry, after all UID/GID slots have changed.
-import { basename, dirname, isAbsolute, join } from 'node:path'
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises'
+import { basename, dirname, isAbsolute } from 'node:path'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { ProjectFiles } from './project-files.mjs'
 import { SEAT_PROJECT_METHODS } from './seat-runtime.mjs'
 import { configureHarnesses, writeHarnessConfig } from './harness-config.mjs'
@@ -39,11 +39,6 @@ async function operate(request) {
       return writeGlobalInstructions(request.home, request.instructions)
     case 'remove-claude-copies':
       return removeSeatClaudeCopies(bots)
-    case 'throughline-signature':
-      return Promise.all(['throughline.db', 'throughline.db-wal'].map(async name => {
-        try { return (await stat(join(request.home, '.throughline', name))).mtimeMs }
-        catch (error) { if (error.code === 'ENOENT') return 0; throw error }
-      }))
     case 'read-image':
       return { data: (await readImageBytes(request.image, request.maxBytes)).toString('base64') }
     case 'write-image': {
