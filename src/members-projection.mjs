@@ -14,6 +14,7 @@ export function createMembersProjection({ onChange = () => {} } = {}) {
     accept(record, context) {
       try {
         validateMembersProjection(record, context)
+        if (context.leaseId === null && context.continuation !== false) throw invalid()
         if (context.generation !== targetGeneration) throw invalid()
         if (record.type === 'snapshot-start') {
           if (pending || generation === targetGeneration && revision !== null && record.revision <= revision) throw invalid()

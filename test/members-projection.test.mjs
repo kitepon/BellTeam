@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createMembersProjection } from '../src/members-projection.mjs'
-const context = generation => ({ generation, leaseId: null, rootId: 'initialize', ownerWrite: false })
+const context = generation => ({ generation, leaseId: null, rootId: 'initialize', ownerWrite: false, continuation: false })
 const bot = id => ({ id, name: id, harness: 'codex', session: '' })
 function publish(view, generation, revision, ids) {
   view.accept({ type: 'snapshot-start', revision }, context(generation))
@@ -42,4 +42,17 @@ test('projection reads cannot mutate the committed roster and impose no member-c
   const v = createMembersProjection(); v.begin('a'); publish(v, 'a', 0, Array.from({ length: 1001 }, (_, i) => 'bot-' + i))
   v.get('bot-0').name = 'changed'; [...v.values()][0].name = 'changed'; v.snapshot().profiles[0].name = 'changed'
   assert.equal(v.get('bot-0').name, 'bot-0'); assert.equal(v.snapshot().profiles.length, 1001)
+})
+
+test('five-field context is required, initialization cannot claim continuation', () => {
+  for (const modify of [value => { delete value.continuation }, value => { value.continuation = 'true' }, value => { value.continuation = true }]) {
+    const view = createMembersProjection(); view.begin('a')
+    const captured = context('a'); modify(captured)
+    assert.throws(() => view.accept({ type: 'snapshot-start', revision: 1 }, captured))
+    assert.equal(view.snapshot().available, false)
+  }
+  const view = createMembersProjection(); view.begin('a')
+  const trustedLive = { ...context('a'), leaseId: 'old-live-lease', rootId: 'root', continuation: true }
+  for (const record of [{ type: 'snapshot-start', revision: 1 }, { type: 'profile', revision: 1, bot: bot('continued') }, { type: 'snapshot-end', revision: 1 }]) view.accept(record, trustedLive)
+  assert.equal(view.get('continued').id, 'continued')
 })
