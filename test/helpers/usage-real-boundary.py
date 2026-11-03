@@ -88,7 +88,7 @@ def run_fixture(image, output, supply):
         image_id = im['Id']; report['imageId'] = image_id
         save(output / 'allocation.json', dict(prefix=prefix, work=str(work), volumes=volumes, imageId=image_id))
         paths = ['src/usage-process.mjs', 'src/usage/facade.mjs', 'src/module-process.mjs',
-                 'src/module-release.mjs', 'src/usage-entry.mjs', 'src/usage/dispatcher.mjs',
+                 'src/module-release.mjs', 'src/usage-entry.mjs', 'src/usage/channel-dispatcher.mjs',
                  'src/usage/services.mjs', 'src/usage/authority.mjs', 'src/usage/projection.mjs', 'src/usage/channel.mjs', 'src/usage-install-plan.mjs', 'scripts/install-usage-release.py']
         binding = {}
         for name in paths + ['install.sh']:
