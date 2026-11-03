@@ -192,8 +192,8 @@ console.log(JSON.stringify({versions,staging,installations,adoption:f.existsSync
         install(invalid, archive=changed, expect_success=False, label=stage); assert snapshot() == original
         stage = 'reject-source'; install(inputs['b'], source='0' * 40, expect_success=False, label=stage); assert snapshot() == original
         stage = 'install-b-online'; install(inputs['b'], label=stage); assert snapshot()['adoption'] == original['adoption']
-        guest_call('command', 'adopt-b'); active = wait_phase('b-active')
-        guest_call('command', 'return-a'); final = wait_phase('done')
+        stage = 'adopt-signed'; guest_call('command', 'adopt-b'); active = wait_phase('b-active')
+        stage = 'return-builtin-and-root-lifetimes'; guest_call('command', 'return-a'); final = wait_phase('done')
         stage = 'verify-final'
         after = inspection(); compare_inspections(before, after, output)
         for key in ['parent', 'business', 'gateway', 'port']:
@@ -213,7 +213,7 @@ console.log(JSON.stringify({versions,staging,installations,adoption:f.existsSync
         assert record['record']['sourceCommit'] == source
         assert record['record']['verification'] == dict(method='github-oidc-attestation', repositoryId='1404510084')
         save(output / 'root-after-return.json', installed)
-        guest_call('command', 'finish'); closed = wait_phase('closed')
+        stage = 'close-runtime'; guest_call('command', 'finish'); closed = wait_phase('closed')
         assert closed['conversationChildrenEnded'] and closed['gatewayAndBusinessClosed']
         report.update(accepted=True, childOsCloseConfirmed=True, parentCIDAndPIDUnchanged=True, businessPIDAndStartUnchanged=True,
                       gatewayPIDAndStartUnchanged=True, businessStateAndAdoptionVerified=True,
@@ -226,6 +226,8 @@ console.log(JSON.stringify({versions,staging,installations,adoption:f.existsSync
             if 'image_id' in locals():
                 try:
                     if 'cid' in locals():
+                        captured = docker('cp', cid + ':/srv/bellteam/state/fixture-status.json', str(output / 'latest-runtime-status.json'), check=False)
+                        save(output / 'runtime-status-capture.json', dict(exit=captured.returncode, stderr=captured.stderr.decode(errors='replace')))
                         top = docker('top', cid, '-eo', 'pid,ppid,uid,gid,stat,wchan:24,args', check=False)
                         (output / 'processes.log').write_bytes(top.stdout + top.stderr)
                     logs = compose('logs', '--no-color', 'bellteam', check=False)
