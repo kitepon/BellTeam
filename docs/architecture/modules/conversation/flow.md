@@ -66,7 +66,10 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  Direct["直接会話JSONL"] --> Store["ConversationStore<br/>snapshotと索引"]
+  Direct["直接会話JSONL / 読取専用"] --> Validate["LF確定行ごとにJSON/schema検証<br/>物理行数とbyte位置を進める"]
+  Validate -->|有効行| Store["ConversationStore<br/>snapshotと索引"]
+  Validate -->|不正な確定行| Corruption["固定診断callback<br/>code / line / offset / length / reason"]
+  Corruption --> Fallback["同期throw / Promise拒否は<br/>同固定診断をstderrへ"]
   Room["部屋の記録"] --> Views["表示用の履歴を組む"]
   Store --> Views
   Cards["秘密入力・質問のカード"] --> Views
@@ -89,6 +92,16 @@ SSEは本文全体ではなく変更通知。サーバーはtopicと対象IDを�
 基底では選択中の会話と関係しないSSEでも `loadMessages` を呼んでいた。現在はeventAffectsTimelineで対象を選び、refreshFromEventが必要な再取得を接続する。ただし一覧の最新活動は他の会話の変更でも更新が必要で、`loadBots` まで一緒に止める根拠にはならない。ready/all/未知形式には全体更新のfallbackを残す。
 
 基底で重複していたConversationStoreの読取cache/索引は、組立て側のstoreをMessengerへ注入して共有した。二重writerや保存破損を修理したという意味ではない。
+
+### 破損した直接履歴の読取
+
+`new ConversationStore({logPath,onCorruption?})`はLFで確定した各行を既JSON/schema検証へ通す。不正行は行全体を除外し、有効な前後行を元順序で索引へ反映する。NULを削ってJSONを連結・復元しない。元ファイルのbytes/mode/mtimeは変更しない。writerの追記前検査や親の診断組立はMollyが持ち、読取に修復書込を足さない。
+
+診断は凍結した`{code:'MESSAGE_LOG_INVALID',line,offset,length,reason}`だけ。lineは空行・不正行を含む1始まりの物理行、offsetは行頭の0始まりbyte位置、lengthは末尾LFを除くbyte長。reasonは`nul`（生NULあり）、`syntax`（JSON不正）、`schema`（既schema/配送状態検証で拒否）の固定enumで、本文・path・任意例外を含まない。callbackは同期に呼び、戻るPromiseは待たず拒否だけを捕捉する。同期throw/Promise拒否は同固定DTOをstderrへ出し、有効履歴を拒否しない。省略時も同stderr診断を使う。
+
+読取済みoffsetは全確定行のbytes、linesは空行・不正行を含むLF数として進め、record件数と分ける。同ファイルの増分読取では同じ不正行の診断を繰り返さない。inode置換/短縮/同size内容更新は既条件で全体再構築し、新ファイルの位置で再診断する。未改行末尾は確定不正行として除外せず、従来どおり不完全JSONは保留、妥当JSONはpreview、未知schemaは行番号付き拒否。LF確定時にpreviewを重複登録せず、後続bytesでpreviewが不正行になった時も除去と全体変更通知を行う。IO失敗は従来どおり伝播する。
+
+限定反例は`conversation-store.test.mjs`の`corruption:`群。147NULと同一行のJSONを捨てても前後行/元bytesを保持すること、byte位置/物理行、schema拒否、増分/置換、preview、診断callback故障を確認する。
 
 ## 関数と確認先
 

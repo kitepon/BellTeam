@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { appendFile, mkdtemp, open, writeFile } from 'node:fs/promises'
+import { appendFile, mkdtemp, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -61,14 +61,16 @@ test('合間の言葉はそのBotの会話画面にBotの発言として時刻�
   assert.equal((await store.records())[0].delivery, 'delivered')
 })
 
-test('ログ未作成は空、壊れたJSONLは明示エラーにする', async () => {
+test('corruption: ログ未作成は空、壊れた確定行は診断する', async () => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-conversation-empty-'))
   const logPath = join(root, 'direct.jsonl')
-  const store = new ConversationStore({ logPath })
+  const diagnostics = []
+  const store = new ConversationStore({ logPath, onCorruption: value => diagnostics.push(value) })
   assert.deepEqual(await store.timeline('bell-grok-a'), [])
 
   await writeFile(logPath, '{broken}\n')
-  await assert.rejects(store.timeline('bell-grok-a'), /MESSAGE_LOG_INVALID/)
+  assert.deepEqual(await store.timeline('bell-grok-a'), [])
+  assert.deepEqual(diagnostics, [{ code: 'MESSAGE_LOG_INVALID', line: 1, offset: 0, length: 8, reason: 'syntax' }])
 })
 
 const line = record => `${JSON.stringify(record)}\n`
@@ -76,7 +78,7 @@ const direct = (id, extra = {}) => ({
   schema: 'bellteam.direct-message.v1', delivery_id: id, at: '2026-10-03T01:00:00.000Z', from: 'user', target: 'bell-grok-a', message: `m${id}`, delivery: 'running', ...extra,
 })
 
-test('追記された行だけを読み足し、後から届いた配送状態も前の記録へ反映する', async () => {
+test('corruption: 追記だけを読み足し、新readerは壊れた過去行を診断する', async () => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-conversation-append-'))
   const logPath = join(root, 'direct.jsonl')
   await writeFile(logPath, line(direct('1')))
@@ -95,7 +97,10 @@ test('追記された行だけを読み足し、後から届いた配送状態�
   await file.close()
   await appendFile(logPath, line(direct('3')))
   assert.deepEqual((await store.records()).map(record => record.delivery_id), ['1', '2', '3'])
-  await assert.rejects(new ConversationStore({ logPath }).records(), /MESSAGE_LOG_INVALID: line 1/)
+  const diagnostics = []
+  const fresh = new ConversationStore({ logPath, onCorruption: value => diagnostics.push(value) })
+  assert.deepEqual((await fresh.records()).map(record => record.delivery_id), ['2', '3'])
+  assert.equal(diagnostics[0].line, 1)
 })
 
 test('同時の呼び出しは同じ結果を返し、短くなったログは最初から読み直す', async () => {
@@ -134,17 +139,143 @@ test('JSONとして書き終わった最後の行が知らない種類なら、�
   await assert.rejects(new ConversationStore({ logPath }).records(), /MESSAGE_LOG_INVALID: line 2/)
 })
 
-test('改行で終わっていない最後の行も返し、続きが書かれても重ねない。壊れた行は毎回同じ行番号で知らせる', async () => {
+test('corruption: 未改行previewを重ねず、確定不正行は一回だけ診断する', async () => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-conversation-tail-'))
   const logPath = join(root, 'direct.jsonl')
   await writeFile(logPath, line(direct('1')) + JSON.stringify(direct('2')))
-  const store = new ConversationStore({ logPath })
+  const diagnostics = []
+  const store = new ConversationStore({ logPath, onCorruption: value => diagnostics.push(value) })
 
   assert.deepEqual((await store.records()).map(record => record.delivery_id), ['1', '2'])
   await appendFile(logPath, `\n${line(direct('3'))}`)
   assert.deepEqual((await store.records()).map(record => record.delivery_id), ['1', '2', '3'])
 
   await appendFile(logPath, '{broken}\n')
-  await assert.rejects(store.records(), /MESSAGE_LOG_INVALID: line 4/)
-  await assert.rejects(store.records(), /MESSAGE_LOG_INVALID: line 4/)
+  assert.deepEqual((await store.records()).map(record => record.delivery_id), ['1', '2', '3'])
+  await store.records()
+  assert.equal(diagnostics.length, 1)
+  assert.equal(diagnostics[0].line, 4)
+})
+
+async function corruptionFixture(t, content, onCorruption) {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-corruption-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const logPath = join(root, 'direct.jsonl')
+  await writeFile(logPath, content)
+  const diagnostics = []
+  const store = new ConversationStore({ logPath, onCorruption: onCorruption ?? (value => diagnostics.push(value)) })
+  return { logPath, store, diagnostics }
+}
+
+test('corruption: 147NULに連結されたrecordは復元せず、前後の有効行と元bytesを保持する', async t => {
+  const prefix = line(direct('before', { message: '日本語' }))
+  const damaged = Buffer.concat([Buffer.alloc(147), Buffer.from(line(direct('joined')))])
+  const bytes = Buffer.concat([Buffer.from(prefix), damaged, Buffer.from(line(direct('after')))])
+  const { logPath, store, diagnostics } = await corruptionFixture(t, bytes)
+  const before = await stat(logPath)
+  assert.deepEqual((await store.records()).map(value => value.delivery_id), ['before', 'after'])
+  assert.deepEqual(diagnostics, [{ code: 'MESSAGE_LOG_INVALID', line: 2, offset: Buffer.byteLength(prefix), length: damaged.length - 1, reason: 'nul' }])
+  assert.deepEqual(await readFile(logPath), bytes)
+  const after = await stat(logPath)
+  assert.deepEqual([after.mtimeMs, after.mode, after.size], [before.mtimeMs, before.mode, before.size])
+  assert.equal(store.read.offset, bytes.length)
+  assert.equal(store.read.lines, 3)
+})
+
+test('corruption: 空行・schema拒否・syntax拒否の物理行とbyte位置を数え、状態を捏造しない', async t => {
+  const prefix = line(direct('1', { message: 'あいう' })) + '\n'
+  const badSchema = line({ schema: 'bellteam.delivery-status.v1', delivery_id: '1', delivery: 'made-up' })
+  const badSyntax = '{"secret":"private-value" bad}\n'
+  const goodStatus = line({ schema: 'bellteam.delivery-status.v1', delivery_id: '1', delivery: 'failed' })
+  const { store, diagnostics } = await corruptionFixture(t, prefix + badSchema + badSyntax + goodStatus)
+  const view = await store.timelineView('bell-grok-a')
+  assert.equal((await store.records())[0].delivery, 'failed')
+  assert.equal((await store.timeline('bell-grok-a'))[0].delivery, 'failed')
+  assert.equal(await store.timelineView('bell-grok-a'), view)
+  assert.deepEqual(diagnostics, [
+    { code: 'MESSAGE_LOG_INVALID', line: 3, offset: Buffer.byteLength(prefix), length: Buffer.byteLength(badSchema) - 1, reason: 'schema' },
+    { code: 'MESSAGE_LOG_INVALID', line: 4, offset: Buffer.byteLength(prefix + badSchema), length: Buffer.byteLength(badSyntax) - 1, reason: 'syntax' },
+  ])
+  assert(!JSON.stringify(diagnostics).includes('private-value'))
+  assert(diagnostics.every(Object.isFrozen))
+  assert.equal(store.read.lines, 5)
+})
+
+test('corruption: 不正行だけの追記でもoffsetを進め、次の追記と同時読取で診断を重ねない', async t => {
+  const { logPath, store, diagnostics } = await corruptionFixture(t, '{bad}\n\n')
+  await Promise.all(Array.from({ length: 8 }, () => store.records()))
+  assert.equal(diagnostics.length, 1)
+  assert.equal(store.read.lines, 2)
+  assert.equal(store.read.offset, 7)
+  await appendFile(logPath, '{}\n' + line(direct('1')))
+  assert.deepEqual((await store.records()).map(value => value.delivery_id), ['1'])
+  assert.deepEqual(diagnostics[1], { code: 'MESSAGE_LOG_INVALID', line: 3, offset: 7, length: 2, reason: 'schema' })
+})
+
+test('corruption: 未確定の破損末尾は保留し、LF確定後だけ診断して次のpreviewを保持する', async t => {
+  const { logPath, store, diagnostics } = await corruptionFixture(t, line(direct('1')) + '\0'.repeat(147))
+  assert.deepEqual((await store.records()).map(value => value.delivery_id), ['1'])
+  assert.equal(diagnostics.length, 0)
+  await appendFile(logPath, '\n' + JSON.stringify(direct('2')))
+  assert.deepEqual((await store.records()).map(value => value.delivery_id), ['1', '2'])
+  assert.equal(diagnostics.length, 1)
+  assert.equal(diagnostics[0].line, 2)
+  assert.equal(store.read.lines, 2)
+  assert.deepEqual((await store.records()).map(value => value.delivery_id), ['1', '2'])
+  await appendFile(logPath, '\n' + line(direct('3')))
+  assert.deepEqual((await store.records()).map(value => value.delivery_id), ['1', '2', '3'])
+  assert.equal(store.read.lines, 4)
+  await appendFile(logPath, JSON.stringify({ schema: 'unknown' }))
+  await assert.rejects(store.records(), /MESSAGE_LOG_INVALID: line 5/)
+})
+
+test('corruption: previewに不正な続きが確定したら取り除き、後続statusと有効行を読む', async t => {
+  const { logPath, store, diagnostics } = await corruptionFixture(t, line(direct('1')) + JSON.stringify(direct('2')))
+  assert.deepEqual((await store.records()).map(value => value.delivery_id), ['1', '2'])
+  await appendFile(logPath, '\0\n' + line({ schema: 'bellteam.delivery-status.v1', delivery_id: '1', delivery: 'delivered' }) + line(direct('3')))
+  assert.deepEqual((await store.records()).map(value => [value.delivery_id, value.delivery]), [['1', 'delivered'], ['3', 'running']])
+  assert.equal(diagnostics.length, 1)
+  assert.equal(diagnostics[0].line, 2)
+})
+
+test('corruption: previewだけが不正行として確定した場合も変更を通知する', async t => {
+  const { logPath, store, diagnostics } = await corruptionFixture(t, JSON.stringify(direct('preview')))
+  assert.equal((await store.records()).length, 1)
+  const changes = []
+  store.listeners.add(value => changes.push(value))
+  await appendFile(logPath, '\0\n')
+  assert.deepEqual(await store.records(), [])
+  assert.equal(diagnostics.length, 1)
+  assert.equal(changes.length, 1)
+  assert.equal(changes[0].all, true)
+})
+
+test('corruption: 同size置換・inode置換・短縮時は物理位置と診断を新ファイルから再構築する', async t => {
+  const original = '{bad}\n' + line(direct('1'))
+  const { logPath, store, diagnostics } = await corruptionFixture(t, original)
+  await store.records()
+  await writeFile(logPath, '{err}\n' + line(direct('2')))
+  assert.deepEqual((await store.records()).map(value => value.delivery_id), ['2'])
+  await writeFile(logPath + '.new', original)
+  await rename(logPath + '.new', logPath)
+  assert.deepEqual((await store.records()).map(value => value.delivery_id), ['1'])
+  await writeFile(logPath, '{}\n')
+  assert.deepEqual(await store.records(), [])
+  assert.deepEqual(diagnostics.map(value => [value.line, value.offset]), [[1, 0], [1, 0], [1, 0], [1, 0]])
+  assert.equal(store.read.lines, 1)
+  assert.equal(store.read.offset, 3)
+})
+
+test('corruption: 診断callbackのthrow・reject・未終端を履歴へ伝播せず、既定診断にも本文を出さない', async t => {
+  const logged = []
+  t.mock.method(console, 'error', value => logged.push(JSON.parse(value)))
+  for (const callback of [() => { throw new Error('private-throw') }, async () => { throw new Error('private-reject') }, () => new Promise(() => {})]) {
+    const { store } = await corruptionFixture(t, '{"secret":"private-body" bad}\n' + line(direct('1')), callback)
+    assert.deepEqual((await store.records()).map(value => value.delivery_id), ['1'])
+  }
+  const { logPath } = await corruptionFixture(t, '{}\n' + line(direct('1')))
+  assert.equal((await new ConversationStore({ logPath }).records()).length, 1)
+  assert.equal(logged.length, 3)
+  assert(logged.every(value => value.code === 'MESSAGE_LOG_INVALID'))
+  assert(!JSON.stringify(logged).includes('private-'))
 })
