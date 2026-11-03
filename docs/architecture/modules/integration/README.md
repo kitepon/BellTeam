@@ -449,3 +449,7 @@ flowchart LR
 通知のUpdate利用可否はP2のAPNs/Web両status・applyErrorから単一の公開reasonへ投影する。旧P1のscalarだけを読んでP2のerror objectをreasonへ入れず、通知未設定でも更新inventory/planを読めるようにする。
 
 初回の機能登録（親factory/controller・安定facade/effect・catalog・固定Cとmount）は通常imageへ組み立てて導入する。未登録moduleを既imageへ動的追加する機構は提供しない。この初回導入後の、登録済みcontrollerが対応するコード版交換/戻しだけを親再起動無しで実行する。共通ledger→実3controllerの公開HTTP交換と個別戻しは、人工公開catalog/C代替Node子で親PID・同port・保存bytes保持まで確認し、署名/実C/本番の既配布成果とは分ける。
+
+既typed503の安全なroute正規化にroom/bot avatarを加え、queueと同じ固定code/HTTP段階/timeだけを既診断writerへ保存する。原request ID/本文/query/header/例外自由文は保存しない。22:50新room-avatar/全体queue事象は原code欠測のため根因未確定、PR287の前段profiles.read pin適用範囲と後段rooms/queueの担当確認を分け、過去の別scopeへ同根因を補完しない。
+
+Owner GET /api/queueはexecutionの同期queueItems投影だけを使い、不要な全members refreshを先行させない。Owner認証は既入口のまま、内部Bot APIの既fresh処理は保持する。room avatarはRoomRegistry.refreshの全room/member正規化に依存するため、前段freshを投影認可へ置き換えずPR287のprofiles.read pinを保持する。

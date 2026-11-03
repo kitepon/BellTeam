@@ -10,7 +10,7 @@ import { createBellTeamServer } from '../src/http-server.mjs'
 import { callBellTeamTool } from '../src/mcp-tools.mjs'
 import { BellTeamMessenger } from '../src/messenger.mjs'
 
-async function fixture(t) {
+async function fixture(t, { internal = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'members-normal-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const admission = new MembersAdmission('current'), calls = []
@@ -47,7 +47,7 @@ async function fixture(t) {
   }
   const messenger = new BellTeamMessenger({ bots: facade.bots, transport, logPath: join(root, 'messages.jsonl') })
   const rooms = new Map(); rooms.refresh = async () => {}
-  const server = createBellTeamServer({ bots: facade.bots, rooms, transport, messenger,
+  const server = createBellTeamServer({ internal, bots: facade.bots, rooms, transport, messenger,
     store: messenger.store, ownerProfile: facade.ownerProfile, userRules: facade.userRules,
     writeLog() {}, authorize: request => request.headers.authorization === 'Bearer fixture' })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -134,4 +134,19 @@ test('committed large avatar remains readable after saving while all AI admissio
   assert.deepEqual(f.calls, ['profile.read', 'profile.read'])
   assert.equal(f.profiles[1].avatarLarge, saved)
   assert.equal(f.sends, 0)
+})
+
+
+test('Owner queue projection does not require members refresh and keeps authorization and internal freshness', async t => {
+  const f = await fixture(t)
+  f.admission.close()
+  const reply = await f.request('/api/queue')
+  assert.equal(reply.status, 200); assert.deepEqual(await reply.json(), { items: [] })
+  assert.deepEqual(f.calls, [])
+  const denied = await f.request('/api/queue', { headers: { authorization: 'invalid' } })
+  assert.equal(denied.status, 401); assert.deepEqual(f.calls, [])
+  const internal = await fixture(t, { internal: true }); internal.admission.close()
+  const unchanged = await internal.request('/api/queue')
+  assert.equal(unchanged.status, 503)
+  assert.equal((await unchanged.json()).error, 'MEMBERS_NOT_ACCEPTED')
 })

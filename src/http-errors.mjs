@@ -10,7 +10,7 @@ const FAST_MODE_MESSAGES = {
   BOT_FAST_MODE_UNSUPPORTED: 'ファストモードへ切り替えられません。このBotのCLIとモデルは、ファストモードに対応していません。保存は変えていません。',
   BOT_FAST_MODE_ACCOUNT_UNAVAILABLE: 'ファストモードへ切り替えられません。このBotのCLIのアカウントでは、今はファストモードを使えません。保存は変えていません。',
 }
-const unavailableCodes = new Set(['MEMBERS_NOT_ACCEPTED', 'MEMBERS_NOT_ACCEPTING', 'MEMBERS_UNAVAILABLE',
+const unavailableCodes = new Set(['MODULE_OPERATION_NOT_ACCEPTED', 'MEMBERS_NOT_ACCEPTED', 'MEMBERS_NOT_ACCEPTING', 'MEMBERS_UNAVAILABLE',
   'MEMBERS_IPC_CAPACITY', 'MEMBERS_IPC_DISCONNECTED', 'MEMBERS_IPC_SEND_FAILED', 'MEMBERS_IPC_ACK_TIMEOUT',
   'MEMBERS_IPC_TIMEOUT', 'MEMBERS_CHILD_EXITED', 'MEMBERS_IPC_INVALID', 'MEMBERS_RESULT_INVALID',
   'MEMBERS_OPERATION_FAILED', 'MEMBERS_PROJECTION_UNCONFIRMED', 'BOT_SESSION_UNCONFIRMED'])
@@ -21,7 +21,7 @@ export async function respondHttpError(request, response, error, diagnostics, co
   if (typeof error.code === 'string' && Number.isInteger(error.status)) {
     if (error.status === 503 && diagnostics) {
       const path = typeof request.url === 'string' ? request.url.split(/[?#]/u, 1)[0] : ''
-      const scoped = /^\/api\/(bots|rooms)\/[a-z0-9-]+\/(messages|queue)$/u.exec(path)
+      const scoped = /^\/api\/(bots|rooms)\/[a-z0-9-]+\/(messages|queue|avatar)$/u.exec(path)
       try {
         await diagnostics.record({ code: 'SERVER_HTTP_503', module: 'server', diagnostic_log: JSON.stringify({
           schema: 'bellteam.http-unavailable.v1',
