@@ -14,7 +14,8 @@ import { BotScheduler, runShellCommand } from './scheduler.mjs'
 import { SecretRequests, secretCompletionMessage } from './secret-requests.mjs'
 import { OwnerQuestions, ownerAnswerMessage } from './owner-questions.mjs'
 import { IdleSessions } from './idle-sessions.mjs'
-import { PushNotifications } from './push-notifications.mjs'
+import { createNotifications } from './usage/notifications.mjs'
+import { createNotificationsProcess } from './notifications-process.mjs'
 import { Subscriptions } from './subscriptions.mjs'
 import { Onboarding } from './onboarding.mjs'
 import { HarnessAuth } from './harness-auth.mjs'
@@ -33,7 +34,10 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     investigationsFile: environment.BELLTEAM_DIAGNOSTIC_INVESTIGATIONS ?? null,
   })
   await diagnostics.initialize()
-  const notifications = new PushNotifications({ root, bots, diagnostics })
+  const notifications = createNotifications({ root, bots, diagnostics,
+    configuration: () => settings.configuration('notifications'), createProcess: createNotificationsProcess,
+    onState: state => settings.setError('notifications', state.applyError),
+  })
   await notifications.initialize()
   const memory = seatRuntime ? seatRuntime.memory(bots) : new BellTeamMemory({ registry: bots, root })
   await memory.initialize()

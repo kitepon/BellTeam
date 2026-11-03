@@ -93,6 +93,27 @@ mcp_request補助JSONのみ追加"]
 
 `src/mcp-request-context.mjs:mcpRequestContext(error)`から返る安全な新objectだけを保存する。phaseはconnect/call、toolは実行担当が列挙した正規名、call失敗だけoutcome=unknown。本文・args・meta・自由message・IDは含めず、不正/未知metadataはnullとして省略する。既failure_stageの判定、HTTP返却、診断集約キーは変えない。Client/Transportの再送判断やWeakMap保持はexecutionが所有し、共通writerは例外propertyを直接読まない。元の過去診断の欠測を後付けせず、補助情報から本文未送信や成功を推測しない。
 
+## 通知processの共通接続（実装中）
+
+通知内部はusage、起動・交換・排他はruntime、署名資材はdistributionを正本とする。共通assemblyはruntimeの`createNotificationsProcess`とusage facadeを各一実体だけ生成し、親の旧PushNotifications writerを作らない。診断は既Diagnostics一writerへ接続し、子の終了まで応答窓口を残す。親のbots/環境/会話やカードの本文は子へ渡さない。
+
+```mermaid
+flowchart LR
+  Owner[既Owner認証] --> HTTP[GET/POST notifications-release]
+  HTTP --> Controller[runtime: 同じnotifications controller]
+  Assembly[application-services: 一実体を組立て] --> Controller
+  Assembly --> Facade[usage: DTO射影・同期callback失敗分離]
+  Facade --> Controller
+  Controller --> Child[usage: 通知専用process / 唯一writer]
+  Child --> Diagnostic[通知専用の許可report]
+  Diagnostic --> Writer[integration: 既Diagnostics writer]
+  Internal[内部HTTP/MCP] --> Denied[403]
+```
+
+公開GETはcontrollerのsnapshot（採用版/更新結果/通知利用可否）をそのまま返す。POSTはSHA64のversionIdだけを受け、reserveで重複/設定適用中を409・停止中を503とし、202応答finish後にstartする。finish前断線はcancelし、acceptedを交換成功へ読み替えない。固定資材配置や任意path/UID/commandをHTTPから受けない。通知だけの交換・失敗から親runtime.close/transport.closeへ到達せず、本文を再送しない。
+
+公開schemaと保存責任はRootの通知契約v1に従う。独立UIDのOS隔離や実AI保持はこの共通接続から成立しない。直接確認は認証/内部403/入力400/二重409/202finishと断線/GET結果、共有factoryと診断接続に絞る。
+
 ## 公開Web受付の二プロセス化（初回差分）
 
 ```mermaid

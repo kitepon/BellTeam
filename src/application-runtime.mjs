@@ -27,6 +27,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
   const webGatewayControl = createWebGatewayControl({ gateway: () => gateway })
   const serverOptions = {
     webGatewayControl,
+    notificationsReleaseControl: notifications.controller,
     ownerSecretGuide: input => olrwAuthCaller?.ownerSecretGuide(input) ?? null,
     aiControl,
     subscriptions,
