@@ -9,50 +9,50 @@ async function start(t, options = {}) {
   const ended = waitNotificationsChildClose(child).then(({code,signal})=>[code,signal])
   const channel = createNotificationsParentChannel(child, options)
   t.after(async () => { child.kill('SIGKILL'); await ended; channel.dispose() })
-  await channel.control('initialize', {configuration:{enabled:false,relayUrl:''}})
+  await channel.control('initialize', {configuration:{apns:{enabled:false,relayUrl:''},webPush:{enabled:false,subject:''}}})
   await channel.ready
   return {child, channel, ended}
 }
 test('closed admission, accepted result, diagnostic ACK and graceful OS close', async t => {
   const reports=[]
   const {channel,ended}=await start(t,{onDiagnostic:async report=>reports.push(report)})
-  await assert.rejects(channel.request('status',{}),{outcome:'not_accepted'})
+  await assert.rejects(channel.request('status',{provider:'apns'}),{outcome:'not_accepted'})
   await channel.control('resume')
-  await channel.request('status',{diagnostic:true})
+  await channel.request('status',{provider:'apns',diagnostic:true})
   assert.equal(reports.length,1)
   await channel.control('quiesce')
-  await assert.rejects(channel.request('register',{token:'test'}),{outcome:'not_accepted'})
+  await assert.rejects(channel.request('register',{provider:'apns',token:'test'}),{outcome:'not_accepted'})
   await channel.control('exit')
   assert.deepEqual(await ended,[0,null])
 })
 test('oversized and excess requests are unsent; ACK then crash is unknown and never replayed', async t => {
   const {channel}=await start(t)
   await channel.control('resume')
-  await assert.rejects(channel.request('register',{token:'x'.repeat(65536)}),{outcome:'not_accepted'})
-  const pending=Array.from({length:64},()=>channel.request('status',{delay:100}))
-  await assert.rejects(channel.request('status',{}),{code:'PUSH_IPC_BUSY',outcome:'not_accepted'})
+  await assert.rejects(channel.request('register',{provider:'apns',token:'x'.repeat(65536)}),{outcome:'not_accepted'})
+  const pending=Array.from({length:64},()=>channel.request('status',{provider:'apns',delay:100}))
+  await assert.rejects(channel.request('status',{provider:'apns'}),{code:'PUSH_IPC_BUSY',outcome:'not_accepted'})
   await Promise.all(pending)
-  await assert.rejects(channel.request('status',{crash:true}),{outcome:'unknown'})
+  await assert.rejects(channel.request('status',{provider:'apns',crash:true}),{outcome:'unknown'})
 })
 test('quiesce waits for accepted work, and resume cancels a stale quiesce before it can pause again', async t => {
   const {channel}=await start(t)
   await channel.control('resume')
-  const work=channel.request('register',{token:'kept',delay:150})
+  const work=channel.request('register',{provider:'apns',token:'kept',delay:150})
   const quiesce=channel.control('quiesce',{},5000)
   const rejected=assert.rejects(quiesce,{code:'PUSH_QUIESCE_CANCELLED'})
   await channel.control('resume')
   await work
   await rejected
-  assert.deepEqual(await channel.request('status',{}),{configured:false,environments:[]})
+  assert.deepEqual(await channel.request('status',{provider:'apns'}),{configured:false,environments:[]})
 })
 
 test('parent disconnect drains an accepted operation before child exit',async t=>{
  const {channel,child,ended}=await start(t)
  await channel.control('resume')
- const work=channel.request('register',{token:'still-saving',delay:120})
+ const work=channel.request('register',{provider:'apns',token:'still-saving',delay:120})
  const failed=assert.rejects(work,{outcome:'unknown'})
  // A later request establishes that the delayed operation has already been admitted.
- await channel.request('status',{})
+ await channel.request('status',{provider:'apns'})
  const at=Date.now();child.disconnect();await failed
  assert.deepEqual(await ended,[0,null]);assert.ok(Date.now()-at>=75)
 })

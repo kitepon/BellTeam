@@ -31,8 +31,8 @@ function validateManifest(manifest, component) {
     || manifest.runtime.os !== process.platform
     || manifest.runtime.arch !== ({ x64: 'amd64', arm64: 'arm64' })[process.arch]
     || manifest.runtime.nodeMajor !== 26 || Number(process.versions.node.split('.')[0]) !== 26
-    || notifications && manifest.runtime.stateSchema !== 1
-    || manifest.runtime.parentProtocol !== 1 || !Array.isArray(manifest.files) || !manifest.files.length)
+    || notifications && manifest.runtime.stateSchema !== 2
+    || manifest.runtime.parentProtocol !== (notifications ? 2 : 1) || !Array.isArray(manifest.files) || !manifest.files.length)
     throw failure('GATEWAY_RELEASE_INCOMPATIBLE')
   if (members) assertMembersStateCompatibility(manifest.runtime.stateCompatibility)
   const names = new Set()
@@ -113,5 +113,5 @@ async function prepareRelease(component, versionId, { signal } = {}) {
   await inspect('payload')
   if (found.size !== inventory.size) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
   signal?.throwIfAborted()
-  return { versionId, appRoot: join(directory, 'payload'), protocolVersion: 1, ...(component === 'members' ? { sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch }, stateCompatibility: manifest.runtime.stateCompatibility } : component === 'notifications' ? { stateSchema: 1 } : {}) }
+  return { versionId, appRoot: join(directory, 'payload'), protocolVersion: component === 'notifications' ? 2 : 1, ...(component === 'members' ? { sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch }, stateCompatibility: manifest.runtime.stateCompatibility } : component === 'notifications' ? { sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch }, stateSchema: 2 } : {}) }
 }
