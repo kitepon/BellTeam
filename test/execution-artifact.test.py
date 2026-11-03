@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import io
+import importlib.util
 import json
 from pathlib import Path
 import platform
@@ -71,6 +72,29 @@ class ExecutionArtifact(unittest.TestCase):
         with self.archive.open('rb') as a, self.archive.open('rb') as b, self.archive.open('rb') as t, patch.object(verifier,'verify_signature'), patch.object(verifier.subprocess,'check_output',side_effect=['26\n',json.dumps({})]):
             with self.assertRaisesRegex(ValueError,'EXECUTION_IMAGE_STATE_INCOMPATIBLE'):
                 verifier.authenticate(a,b,t,verifier.policy_for('execution'),expected,component='execution')
+
+    def test_installer_fixed_execution_receipt_and_literal_bytes(self):
+        path=Path(__file__).resolve().parents[1]/'scripts/install-web-gateway-release.py'
+        spec=importlib.util.spec_from_file_location('installer',path)
+        installer=importlib.util.module_from_spec(spec);spec.loader.exec_module(installer)
+        with self.archive.open('rb') as stream: manifest,digest=check_archive(stream,component='execution')
+        expected=dict(archiveSha256=hashlib.sha256(self.archive.read_bytes()).hexdigest(),sourceCommit='a'*40,signerCommit='a'*40)
+        receipt=dict(schema='bellteam.execution.verification.v1',archiveSha256=expected['archiveSha256'],manifestSha256=digest,
+            manifest=manifest,verification=dict(method='github-oidc-attestation',repositoryId='1404510084'))
+        target=self.root/'installed';target.mkdir()
+        wrong=copy.deepcopy(receipt);wrong['manifest']['component']='members'
+        with self.assertRaises(ValueError): installer.extract(self.archive,wrong,expected,target,'execution')
+        self.assertEqual(list(target.iterdir()),[])
+        try:
+            installer.extract(self.archive,receipt,expected,target,'execution')
+            self.assertEqual(json.loads((target/'installation.json').read_text())['component'],'execution')
+            self.assertEqual(target.stat().st_mode&4095,0o555)
+            for row in manifest['files']:
+                file=target/row['path'];self.assertEqual(file.stat().st_mode&4095,0o444)
+                self.assertEqual(hashlib.sha256(file.read_bytes()).hexdigest(),row['sha256'])
+        finally:
+            for directory in [target,*target.rglob('*')]:
+                if directory.is_dir(): directory.chmod(0o700)
 
 
 if __name__=='__main__': unittest.main()
