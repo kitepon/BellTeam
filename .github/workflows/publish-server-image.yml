@@ -104,6 +104,33 @@ jobs:
             nodeDefaultRootsPem: getCACertificates("default"),
           }, null, 2));
           ' > runtime/image-ca/roots.json
+      - name: 正式Throughlineと公開observer-check入口を同imageで確認
+        run: |
+          image_id=$(node -p 'JSON.parse(require("fs").readFileSync("runtime/image-ca/image-built.json"))[0].Id')
+          docker run --pull never --rm --network none --read-only --cap-drop ALL --user 1000:1000 \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777 --entrypoint node "$image_id" --input-type=module -e '
+          import assert from "node:assert/strict";
+          import { mkdtempSync, mkdirSync, existsSync, rmSync } from "node:fs";
+          import { spawnSync } from "node:child_process";
+          const root = mkdtempSync("/tmp/throughline-image-");
+          try {
+            const project = root + "/project"; mkdirSync(project);
+            const env = { ...process.env, HOME: root, USERPROFILE: root, CODEX_HOME: root + "/codex", XDG_STATE_HOME: root + "/state", LOCALAPPDATA: root + "/state" };
+            const cli = (args, input) => {
+              const result = spawnSync("throughline", args, { input, encoding: "utf8", env, timeout: 10000, maxBuffer: 1024 * 1024 });
+              assert.equal(result.error, undefined); assert.equal(result.signal, null);
+              assert.equal(result.status, 0, result.stderr); assert.equal(result.stderr, "");
+              return result.stdout;
+            };
+            const version = cli(["--version"]).trim(); assert.equal(version, "0.16.52");
+            const check = after => JSON.parse(cli(["observer-check", "--json"], JSON.stringify({ schema: "throughline.observer_check_request.v1", projects: [{ id: "image", projectPath: project, after }] })));
+            const first = check(null); assert.equal(first.schema, "throughline.observer_check_result.v1"); assert.equal(first.status, "complete"); assert.equal(first.results.length, 1);
+            assert.equal(first.results[0].id, "image"); assert.equal(first.results[0].status, "changed"); assert.match(first.results[0].token, /^tloc1\./);
+            const second = check(first.results[0].token); assert.deepEqual(second, { ...first, results: [{ ...first.results[0], status: "unchanged" }] });
+            assert.equal(existsSync(root + "/.throughline"), false); assert.equal(existsSync(root + "/state"), false);
+            console.log(JSON.stringify({ version, uid: process.getuid(), publicCheck: true, firstStatus: "changed", secondStatus: "unchanged", dbCreated: false }));
+          } finally { rmSync(root, { recursive: true, force: true }); }
+          ' > runtime/image-ca/throughline-observer-check.json
       - name: 個人設定と開発者免除の除去を確認
         run: |
           docker run --rm --entrypoint node "$BELLTEAM_SERVER_IMAGE" --input-type=module -e '
