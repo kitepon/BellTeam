@@ -108,3 +108,34 @@ test('existing watch keeps its captured generation through final interim ACK whi
   assert.deepEqual(await f.gate.drain(ticket), { status: 'drained' }); assert.equal(f.native, 0)
   assert.equal(f.calls.filter(name => name === 'pty_list').length, 1)
 })
+
+
+test('shown prefix consumption preserves words appended after the snapshot and its original object', () => {
+  const transport = new AitermTransport(), shown = { words: ['first', 'second'], endedAt: 42 }
+  transport.activity.shownWords.set(bot.id, shown)
+  const actual = transport.shownInSelfTurn(bot.id), prefix = [...actual.words]
+  shown.words.push('later')
+  assert.equal(transport.consumeShownWords(bot.id, actual, prefix), true)
+  assert.equal(transport.shownInSelfTurn(bot.id), shown)
+  assert.deepEqual(shown, { words: ['later'], endedAt: 42 })
+})
+
+test('shown prefix consumption cannot clear a new watch or a concurrently consumed prefix', () => {
+  for (const kind of ['new-object', 'changed-prefix', 'wrong-bot']) {
+    const transport = new AitermTransport(), shown = { words: ['first'], endedAt: null }, prefix = [...shown.words]
+    transport.activity.shownWords.set(bot.id, shown)
+    if (kind === 'new-object') transport.activity.shownWords.set(bot.id, { words: ['first', 'new'], endedAt: null })
+    if (kind === 'changed-prefix') shown.words.splice(0, 1, 'new')
+    const current = transport.shownInSelfTurn(bot.id), before = structuredClone(current)
+    assert.equal(transport.consumeShownWords(kind === 'wrong-bot' ? 'other' : bot.id, shown, prefix), false)
+    assert.deepEqual(current, before)
+  }
+})
+
+test('shown prefix consumption rejects malformed input without changing displayed words', () => {
+  const transport = new AitermTransport(), shown = { words: ['first'], endedAt: null }
+  transport.activity.shownWords.set(bot.id, shown)
+  assert.equal(transport.consumeShownWords(bot.id, shown, []), false)
+  assert.throws(() => transport.consumeShownWords(bot.id, shown, [null]), { code: 'CONVERSATION_SHOWN_INVALID' })
+  assert.deepEqual(shown.words, ['first'])
+})

@@ -903,6 +903,15 @@ export class AitermTransport {
     return this.activity.shownWords.get(botId) ?? null
   }
 
+  consumeShownWords(botId, shown, prefix) {
+    if (!Array.isArray(prefix) || prefix.some(word => typeof word !== 'string'))
+      throw Object.assign(new Error('CONVERSATION_SHOWN_INVALID'), { code: 'CONVERSATION_SHOWN_INVALID' })
+    if (!prefix.length || !shown || this.shownInSelfTurn(botId) !== shown
+      || !prefix.every((word, index) => shown.words[index] === word)) return false
+    shown.words.splice(0, prefix.length)
+    return true
+  }
+
   idle(botId) {
     return this.activity.whenIdle(botId)
   }

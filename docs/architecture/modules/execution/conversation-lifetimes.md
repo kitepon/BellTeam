@@ -87,3 +87,12 @@ SelfTurnsは新native操作ではなくobserver source。親が捕捉したobser
 `deliveryCompletion(deliveryOpaque) -> Promise<void>`は登録済みlive deliveryのprivate doneだけを読み取り公開する。native発行/finishより先に同opaqueから捕捉する。operation/偽object/終端後からの新取得はprotocol failure。PromiseはfinishRequestedかつ全登録native/callback/背景pending0でだけresolveし、accepted/finish呼出し直後/発行結果では解決しない。words/answer無しのreportも同じ終端である。公開は状態を変更せずfinishもしない。
 
 runtimeはnative前にこのPromiseとcaptured exact4 {generation,operationId,deliveryId,target}を保存する。Promise終端後の専用resource-close/controlで子releaseDeliveryを呼びACKまで追う。そのACKの実completionは**deliveryではなく親operationへnative前にtrackCompletionしておく**。delivery.doneを待って発行するACKをdelivery.pendingへ入れると循環するので禁止。done後に初めてoperation参照を追加する方法も、既にrootが終端するraceがあるため使わない。child registryの解放/ACKとparent operationの最後の解放をruntimeが結合する。原callback失敗/誤相関/OS断線のprotocol failureは既channel/gateの未確認制御を維持し、このdoneを正常保存証明にしない。
+
+
+## SelfTurnsの表示済みprefix
+
+既`shownInSelfTurn(botId)`は親SeatActivityの実{words,endedAt}参照。endedAtはwatch終端のDate.parse(now)によるnumber又はnull。parent fixed observer adapterが同captured poll/許可Botを検査し、実objectとprefixコピーをparent-only shownIdへ束縛する。wire readはnull又は{shownId,words:[string],endedAt:number|null}。IDは同operation/generation/botで一回消費し、snapshotをcurrentWork/本人性へ昇格しない。
+
+`consumeShownWords(botId, capturedShownObject, capturedPrefix) -> boolean`は実object同一＋現words先頭が捕捉prefixと全一致した場合だけ、そのprefix長をspliceしtrue。取得後に末尾へ増えたwordsを保持し、別watch object/先頭変化/空prefixはfalseで変更0。parent adapterはchildからwords/objectを受けず、保存したhandleからこのメソッドを呼ぶ。一回権は送信前に消費し、同値の新wordsが後着しても同shownIdで再消費しない。
+
+private consume返却は{applied:boolean}を必要とする。競合時にtrueを偽らず、falseは実表示objectが変化済みという通常競合でnative/protocolの成功・失敗証明にしない。子はprefixが実際に外れた時だけconsumeし、既withoutShownWordsの60秒幅/全文消失時は外さない意味を保つ。追加native/AI/observer/永続queue無し。親handleのlifetime/lookupはEpiが既operation registryへ結合する。
