@@ -14,9 +14,34 @@ final class BotProfileImageState: ObservableObject {
     @Published fileprivate(set) var imageSaveErrors: [AvatarCropVariant: String] = [:]
     @Published fileprivate(set) var imageSaveMessage: String?
     @Published fileprivate(set) var pendingSelections = AvatarSelectionDrafts()
+    /// 保存は済んだが、直後の名簿再取得が失敗して表示が追い付いていないvariant。
+    private(set) var refreshFailedVariants: Set<AvatarCropVariant> = []
 
     static func usesSmallImage(_ bot: Bot) -> Bool {
         bot.avatarLargeVersion == nil || bot.avatarLargeVersion == bot.avatarVersion || bot.avatarLargeVersion == ""
+    }
+
+    static func avatarVersion(of bot: Bot?, variant: AvatarCropVariant) -> String? {
+        variant == .small ? bot?.avatarVersion : bot?.avatarLargeVersion
+    }
+
+    /// 保存後の再取得が失敗しても、名簿が既に保存前と違う版なら表示は更新済みとして扱う。更新済みならtrue。
+    func noteRefreshFailure(_ error: Error, variant: AvatarCropVariant, versionBeforeSave: String?,
+                            current: Bot?, success: String) -> Bool {
+        if Self.avatarVersion(of: current, variant: variant) != versionBeforeSave {
+            imageSaveMessage = success
+            return true
+        }
+        refreshFailedVariants.insert(variant)
+        imageSaveErrors[variant] = "画像を保存しましたが、表示を更新できませんでした。\n\(error.localizedDescription)"
+        return false
+    }
+
+    /// 名簿の画像版が変わったら、後の更新で表示が追い付いたので古い再取得失敗を消す。
+    func avatarVersionChanged(_ variant: AvatarCropVariant) {
+        guard refreshFailedVariants.remove(variant) != nil else { return }
+        imageSaveErrors[variant] = nil
+        imageSaveMessage = "画像を保存しました。"
     }
 
     func loadDrafts(for bot: Bot, store: AppStore) {
@@ -40,6 +65,7 @@ final class BotProfileImageState: ObservableObject {
         guard !savingImage else { return }
         pendingSelections.discard(variant)
         persistImageSelections(for: bot, store: store)
+        refreshFailedVariants.remove(variant)
         imageSaveErrors[variant] = nil
         imageSaveMessage = "選択を破棄しました。"
     }
@@ -49,7 +75,9 @@ final class BotProfileImageState: ObservableObject {
         guard !savingImage else { return }
         pendingSelections.select(selection, for: variant)
         persistImageSelections(for: bot, store: store)
+        refreshFailedVariants.remove(variant)
         imageSaveErrors[variant] = nil
+        let versionBeforeSave = Self.avatarVersion(of: store.bots.first { $0.id == bot.id }, variant: variant)
         savingImage = true
         defer { savingImage = false }
         let path = "/api/bots/\(bot.id)"
@@ -65,7 +93,8 @@ final class BotProfileImageState: ObservableObject {
                     try await store.refresh(origin: .avatarSave)
                     imageSaveMessage = "画像を保存しました。"
                 } catch {
-                    imageSaveErrors[variant] = "画像を保存しましたが、表示を更新できませんでした。\n\(error.localizedDescription)"
+                    _ = noteRefreshFailure(error, variant: variant, versionBeforeSave: versionBeforeSave,
+                                           current: store.bots.first { $0.id == bot.id }, success: "画像を保存しました。")
                 }
             case .different:
                 imageSaveErrors[variant] = "サーバーの画像は選んだ内容と一致しません。選択は保持しています。"
@@ -87,6 +116,8 @@ final class BotProfileImageState: ObservableObject {
     func confirmImageSave(_ variant: AvatarCropVariant, bot: Bot, store: AppStore) async {
         guard !savingImage else { return }
         guard let selection = pendingSelections.selection(for: variant) else { return }
+        refreshFailedVariants.remove(variant)
+        let versionBeforeSave = Self.avatarVersion(of: store.bots.first { $0.id == bot.id }, variant: variant)
         savingImage = true
         defer { savingImage = false }
         do {
@@ -97,7 +128,14 @@ final class BotProfileImageState: ObservableObject {
             switch result {
             case .saved, .confirmed:
                 imageSaveErrors[variant] = nil
-                try await store.refresh(origin: .avatarConfirmation)
+                do { try await store.refresh(origin: .avatarConfirmation) }
+                catch let error where BellAPIError.isAuthenticationError(error) { throw error }
+                catch {
+                    if noteRefreshFailure(error, variant: variant, versionBeforeSave: versionBeforeSave,
+                                          current: store.bots.first { $0.id == bot.id },
+                                          success: "画像の保存を確認しました。") { imageAction = nil }
+                    return
+                }
                 imageSaveMessage = "画像の保存を確認しました。"
                 imageAction = nil
             case .different:
@@ -232,6 +270,8 @@ struct BotProfileHero: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: bot.id) { images.loadDrafts(for: bot, store: store) }
+        .onChange(of: bot.avatarVersion) { images.avatarVersionChanged(.small) }
+        .onChange(of: bot.avatarLargeVersion) { images.avatarVersionChanged(.large) }
         .task(id: "\(bot.id):\(bot.avatarLargeVersion ?? "")") {
             images.loadedLargeAvatar = nil
             images.largeAvatarError = false
