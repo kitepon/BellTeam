@@ -40,7 +40,7 @@ test('席の名札ごとに、1つの入口が別のBotとして道具を実行�
   const [selfA, selfB] = await Promise.all([a.callTool({ name: 'get_self', arguments: {} }), b.callTool({ name: 'get_self', arguments: {} })])
   assert.equal(JSON.parse(selfA.content[0].text).bot.id, 'bot-a')
   assert.equal(JSON.parse(selfB.content[0].text).bot.id, 'bot-b')
-  assert.match(a.getInstructions(), /sendmessage/u)
+  assert.match(a.getInstructions(), /SEC番号の所見.*bughub_.*BugHubへ記録/u)
 })
 
 test('名札が無い・展開されていない・台帳に無い要求は、どちらの入口でも席を決めずに拒む', async t => {
