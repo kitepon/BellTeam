@@ -124,7 +124,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         () => scheduler.stop(), () => idleSessions.stop(), () => selfTurns.stop(), () => seatTurns.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => features.close(),
         () => bootstrap.seatRuntime?.memoryModule?.close(),
-        () => transport.close(), () => services.members?.controller.close(), () => notifications.close(),
+        () => transport.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.diagnosticsModule?.close(),
         () => socketDirectory && rm(socketDirectory, { recursive: true, force: true }),
       ]) {
         try { await stop() } catch (error) { errors.push(error) }

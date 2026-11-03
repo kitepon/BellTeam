@@ -7,11 +7,12 @@ import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 export class OwnerQuestions {
-  constructor({ root, bots, notify, onRequest = () => {}, now = () => new Date().toISOString(), id = randomUUID }) {
+  constructor({ root, bots, notify, onRequest = () => {}, onSave = () => {}, now = () => new Date().toISOString(), id = randomUUID }) {
     this.directory = join(root, 'state/owner-questions')
     this.bots = bots
     this.notify = notify
     this.onRequest = onRequest
+    this.onSave = onSave
     this.now = now
     this.id = id
     this.items = new Map()
@@ -20,8 +21,8 @@ export class OwnerQuestions {
     this.events = new EventEmitter()
   }
 
-  async initialize() {
-    await mkdir(this.directory, { recursive: true, mode: 0o700 })
+  async initialize({ readOnly = false } = {}) {
+    if (!readOnly) await mkdir(this.directory, { recursive: true, mode: 0o700 })
     for (const file of await readdir(this.directory)) {
       if (!file.endsWith('.json')) continue
       const item = JSON.parse(await readFile(join(this.directory, file), 'utf8'))
@@ -86,6 +87,7 @@ export class OwnerQuestions {
     await rename(`${path}.tmp`, path)
     this.items.set(item.id, item)
     this.cardTimelines.put(item)
+    this.onSave({ ...item })
     this.events.emit('change', { all: false, topics: ['questions'], botIds: [item.botId], roomIds: item.roomId ? [item.roomId] : [] })
   }
 }

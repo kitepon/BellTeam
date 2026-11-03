@@ -1,11 +1,13 @@
 #!/bin/sh
 set -eu
 cd "${BELLTEAM_INSTALL_DIR:-$(dirname "$0")}"
-if [ "${1-}" = --install-web-gateway ] || [ "${1-}" = --install-notifications ] || [ "${1-}" = --install-members ] || [ "${1-}" = --install-memory ]; then
+if [ "${1-}" = --install-web-gateway ] || [ "${1-}" = --install-notifications ] || [ "${1-}" = --install-members ] || [ "${1-}" = --install-memory ] || [ "${1-}" = --install-usage ] || [ "${1-}" = --install-diagnostics ]; then
   component=web-gateway
   [ "$1" != --install-notifications ] || component=notifications
   [ "$1" != --install-members ] || component=members
   [ "$1" != --install-memory ] || component=memory
+  [ "$1" != --install-usage ] || component=usage
+  [ "$1" != --install-diagnostics ] || component=diagnostics
   shift
   [ "$#" -eq 4 ] || { echo GATEWAY_INSTALL_ARGUMENTS >&2; exit 2; }
   saved=$(CDPATH= cd "$1" && pwd)

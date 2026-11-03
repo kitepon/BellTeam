@@ -82,7 +82,7 @@ export class FeatureSettings {
     this.pending = Promise.resolve()
   }
 
-  async initialize() {
+  async initialize({ readOnly = false } = {}) {
     this.legacyAPNsConfigured = false
     try {
       await access(join(this.root, 'shared/tools/apns/config.json'))
@@ -107,12 +107,13 @@ export class FeatureSettings {
           if (enabled && !configured(feature, values, this.legacyAPNsConfigured)) throw new Error('有効な設定に必要な値がありません。')
         }
         this.settings = legacy ? { ...settings, webPush: { enabled: false, subject: '' } } : settings
-        if (legacy) await this.save(this.settings)
+        if (legacy && !readOnly) await this.save(this.settings)
       } catch (cause) {
         throw new FeatureSettingsError('FEATURE_SETTINGS_INVALID', 500, '保存済みの設定を読み取れません。', cause)
       }
       return this.list()
     }
+    if (readOnly) throw new FeatureSettingsError('FEATURE_SETTINGS_MISSING', 503, '保存済みの設定がありません。')
     const assignments = [
       ['routing', 'apiKey', 'TYPESAFE_API_KEY'], ['callBridge', 'url', 'BELLTEAM_CALL_BRIDGE_MCP_URL'],
       ['cloudflare', 'teamDomain', 'BELLTEAM_CF_TEAM_DOMAIN'], ['cloudflare', 'audience', 'BELLTEAM_CF_AUD'],

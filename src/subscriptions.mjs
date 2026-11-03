@@ -28,7 +28,7 @@ export class Subscriptions {
     this.pending = Promise.resolve()
   }
 
-  async initialize() {
+  async initialize({ readOnly = false } = {}) {
     try {
       const state = JSON.parse(await readFile(this.path, 'utf8'))
       if (state.schema !== this.state.schema || typeof state.setupComplete !== 'boolean'
@@ -38,7 +38,7 @@ export class Subscriptions {
         state.signedTransaction = null
         state.error = { code: 'SUBSCRIPTION_ENVIRONMENT_CHANGED', status: 409, message: '購読確認の実行環境を変更しました。アプリから購入情報を復元してください。' }
         this.state = state
-        await this.save()
+        if (!readOnly) await this.save()
       }
       if (state.verification) this.validate(state.verification)
       if (state.error && (typeof state.error.code !== 'string' || typeof state.error.message !== 'string'

@@ -14,6 +14,8 @@ import { createManagedTransport } from './aiterm-transport.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
 import { completedThroughlineTurns, latestThroughlineHandoffContext } from './throughline-context.mjs'
 import { AiControl, stopRegisteredWork } from './ai-control.mjs'
+import { prepareModuleRelease } from './module-release.mjs'
+import { createDiagnosticsFacade } from './diagnostics-facade.mjs'
 import { Diagnostics } from './diagnostics.mjs'
 import { BellTeamMemory } from './memory-service.mjs'
 import { BotScheduler, runShellCommand } from './scheduler.mjs'
@@ -35,8 +37,8 @@ import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory }) {
-  let members = null, memory, rooms, assets, updateCenter
+export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options) }) {
+  let members = null, diagnosticsModule = null, memory, rooms, assets, updateCenter
   const membersAdmission = new MembersAdmission()
   try {
   const trustedAnchor = acquireConfigurationStateAnchor(root)
@@ -47,9 +49,10 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     accessMode: environment.BELLTEAM_SUBSCRIPTION_ACCESS_MODE ?? 'subscription',
   })
   await subscriptions.initialize()
-  const diagnostics = new Diagnostics(join(root, 'logs/diagnostics.json'), {
-    investigationsFile: environment.BELLTEAM_DIAGNOSTIC_INVESTIGATIONS ?? null,
-  })
+  const investigationsFile = environment.BELLTEAM_DIAGNOSTIC_INVESTIGATIONS ?? null
+  if (diagnosticsFactory) diagnosticsModule = diagnosticsFactory({ root, investigationsFile, prepareRelease: prepareDiagnostics, onState: () => updateCenter?.notify() })
+  const diagnostics = diagnosticsModule ? createDiagnosticsFacade(diagnosticsModule)
+    : new Diagnostics(join(root, 'logs/diagnostics.json'), { investigationsFile })
   await diagnostics.initialize()
   if (seatRuntime || membersFactory) {
     members = createMembersAssembly({ root, seatRuntime, aiterm, settings, models, membersAdmission,
@@ -70,12 +73,13 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
       updateCenter?.notify()
     },
   })
-  const hostUpdateClient = createContainerUpdateClient()
+  const hostUpdateClient = hostClient ?? createContainerUpdateClient()
   const hostUpdate = createHostUpdateAdapter({ root, client: hostUpdateClient })
   const moduleCatalog = createModuleUpdateCatalog({ client: hostUpdateClient })
   const moduleExecutor = await createModuleUpdateExecutor({ root, catalog: moduleCatalog, host: hostUpdate,
-    adapters: createModuleUpdateAdapters({ gateway, notifications, members, memory: seatRuntime?.memoryModule }), notify: () => updateCenter?.notify() })
-  updateCenter = createUpdateCenter({ gateway, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, memory: seatRuntime?.memoryModule })
+    adapters: createModuleUpdateAdapters({ gateway, notifications, members, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule,
+      prepareDiagnostics }), notify: () => updateCenter?.notify() })
+  updateCenter = createUpdateCenter({ gateway, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule })
   await notifications.initialize()
   memory = seatRuntime ? seatRuntime.memory(bots) : new BellTeamMemory({ registry: bots, root })
   await memory.initialize()
@@ -185,13 +189,15 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
-    scheduler, diagnostics, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
+    scheduler, diagnostics, diagnosticsModule, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
   }
   } catch (error) {
-    await updateCenter?.close()
-    await seatRuntime?.memoryModule?.close()
-    try { await members?.controller.close() }
-    catch (cleanupError) { throw new AggregateError([error, cleanupError], 'MEMBERS_ASSEMBLY_FAILED') }
+    const failures = []
+    for (const close of [() => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
+      () => members?.controller.close(), () => diagnosticsModule?.close()]) {
+      try { await close() } catch (cleanupError) { failures.push(cleanupError) }
+    }
+    if (failures.length) throw new AggregateError([error, ...failures], 'APPLICATION_SERVICES_FAILED')
     throw error
   }
 }
