@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
-import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -8,6 +8,7 @@ import { SecretRequests, secretCompletionMessage } from '../src/secret-requests.
 import { Diagnostics } from '../src/diagnostics.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 import { callBellTeamTool } from '../src/mcp-tools.mjs'
+import { usageProjectionRecordValid } from '../src/usage/projection.mjs'
 
 async function fixture(t, notify) {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-secrets-'))
@@ -232,4 +233,20 @@ test('共有ツールの親が利用不能でも秘密入力を保存し、旧�
   const restored = new SecretRequests({ root, bots, rooms, notify: () => {} })
   await restored.initialize()
   assert.equal(restored.get(old.id).path, old.path)
+})
+
+test('改名前の配送済み状態queuedで保存された依頼を、sentとして読み込む', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-secrets-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const directory = join(root, 'state/secret-requests')
+  await mkdir(directory, { recursive: true })
+  const stored = { id: 'legacy', botId: 'bot-a', roomId: null, toolId: 'example', label: '接続トークン', message: '入力してください。',
+    at: '2026-09-27T00:22:34.650Z', status: 'submitted', path: join(root, 'state/secret-values/example/secrets/legacy'), notification: 'queued' }
+  await writeFile(join(directory, 'legacy.json'), JSON.stringify(stored))
+  const bots = new Map([['bot-a', { id: 'bot-a' }]]), rooms = new Map()
+  const service = new SecretRequests({ root, bots, rooms, notify: () => {} })
+  await service.initialize()
+  const item = service.items.get('legacy')
+  assert.equal(item.notification, 'sent')
+  assert.ok(usageProjectionRecordValid({ type: 'secret', value: item, revision: 0 }))
 })
