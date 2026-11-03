@@ -88,6 +88,13 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .update-result .update-result-state { color: #404d35; }
 .update-detail .update-failure { color: #8b5c30; }
 .update-execute { width: 100%; min-height: 48px; padding: 12px 18px; border: 1px solid #dfe3d7; border-radius: 12px; background: #edf0e7; color: #737c68; font-size: 12px; font-weight: 650; }
+.update-execute:not(:disabled) { background: #26352b; border-color: #26352b; color: #f4f8ed; cursor: pointer; box-shadow: 0 6px 18px #26352b18; }
+.update-execute:not(:disabled):hover { background: #3c513c; }
+.update-restart-confirm { display: flex; gap: 12px; align-items: center; min-height: 52px; margin: 18px 0; padding: 15px; border: 1px solid #d6cba9; border-radius: 12px; background: #faf6e9; color: #61502e; font-size: 12px; line-height: 1.8; cursor: pointer; }
+.update-restart-confirm input { width: 18px; height: 18px; flex: none; accent-color: #405936; }
+.update-impact .update-fixed-target { margin-top: 12px; font-family: ui-monospace, SFMono-Regular, monospace; overflow-wrap: anywhere; }
+.update-replan { display: block; min-height: 44px; margin: 8px auto 0; padding: 8px 12px; border: 0; background: transparent; color: #51663e; font-size: 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.update-operation-message { margin: 16px 0; padding: 12px 14px; border-radius: 10px; background: #f1f3e9; color: #565d48; font-size: 12px; line-height: 1.8; }
 .update-action-reason { margin: 11px 0 0; color: #818876; font-size: 10px; line-height: 1.8; text-align: center; }
 .update-footer { display: flex; gap: 9px; align-items: center; padding: 18px 32px; border-top: 1px solid #dfe2d9; color: #6c7662; font-size: 10px; line-height: 1.7; }
 .update-footer-dot { width: 6px; height: 6px; border-radius: 50%; background: #8a9c6b; flex: none; }
