@@ -109,13 +109,17 @@ export function createOlrwAuthConsumer({ secretRequests, runDirectory, context, 
     // Recheck after fsync and before the effect; authorization failure never issues native input.
     await authorized(action === 'cleanup' ? 'cancel' : action)
     const payload = typeof input === 'function' ? await input() : input
-    let result
+    let result, gateFailure
+    const assertBeforeIssue = () => {
+      try { check() } catch (error) { gateFailure = error; throw error }
+    }
     try { result = await bounded(Promise.resolve().then(() => {
-      check()
+      assertBeforeIssue()
       if (action === 'status') state.lastStatus = Date.now()
-      return auth[action](payload)
+      return auth[action](payload, { assertBeforeIssue })
     }), deadline()) }
     catch (error) {
+      if (gateFailure) throw gateFailure
       if (error instanceof Error && error.effect === 'not_issued'
         && ['AITERM_AUTH_CONNECTION_ARGUMENTS', 'AITERM_AUTH_CONNECTION_UNCONFIRMED', 'AITERM_AUTH_SERVER_VERSION_UNCONFIRMED'].includes(error.code))
         throw stop('local_not_issued')

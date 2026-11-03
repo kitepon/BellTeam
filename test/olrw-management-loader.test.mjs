@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { AitermClient } from '../src/aiterm-client.mjs'
+import { createOlrwRabbitAuth } from '../src/olrw-rabbit-auth.mjs'
 import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -76,7 +78,7 @@ async function fixture(t, { answered = false, expiry = 60000 } = {}) {
     return caller
   }
   const evidence = () => records.set(paths.evidence, Buffer.from(JSON.stringify({ schema: 'bellteam.olrw-auth.target-evidence.v1', runId: document.context.runId, profileSha256: document.target.profileSha256, ...current })))
-  return { root, options, records, document, counts, current, start, evidence,
+  return { root, options, records, document, counts, current, start, evidence, secrets,
     stop: () => { epoch++ }, mutate: fn => { mutateInitialize = fn }, failPrepare: () => { prepareFailure = true } }
 }
 
@@ -137,4 +139,39 @@ test('初期化unknownを回収し同runの再executeではprepare0', async t =>
   const caller = await f.start()
   assert.equal((await caller.result).outcome, 'unknown')
   assert.equal(f.counts.initialize, 1); assert.equal(f.counts.auth, 0); assert.equal(f.counts.close, 1)
+})
+
+for (const boundary of ['input', 'run', 'close']) test(`SDK deadline: usage ${boundary} gate crosses awaited prepare with zero respond RPC`, async t => {
+  const realNow = Date.now.bind(Date); let offset = 0
+  t.mock.method(Date, 'now', () => realNow() + offset)
+  const f = await fixture(t, { expiry: 1200000 }), issued = []
+  const binding = { session_id: 'synthetic-auth', launch_id: 'l', metadata_identity: 'm', native_id: '$10', pane_id: '%10', server_pid: 100, server_started: 's', pane_pid: 101, pane_started: 'p' }
+  const result = complete => ({ structuredContent: { schema: 'aiterm.agent-auth-result.v1', harness: 'claude-code', session_id: binding.session_id,
+    status: complete ? 'authenticated' : 'waiting', auth_ui: { schema: 'aiterm.auth-ui.v1', binding, stage: complete ? 'complete' : 'paste_code', title: 'synthetic', message: '',
+      url: complete ? null : 'https://claude.ai/oauth/authorize?synthetic=only', user_code: null, input: complete ? null : 'authorization_code', prompt_digest: complete ? null : 'a'.repeat(64), choices: [] } } })
+  let caller
+  f.options.makeAuth = options => {
+    const client = new AitermClient({ command: 'must-not-spawn', env: {} }), transport = { pid: 123 }
+    const sdk = { transport, getServerVersion: () => ({ name: 'aiterm', version: f.document.target.version }), callTool: async ({ arguments: args }) => {
+      issued.push({ action: args.action, at: Date.now() })
+      return args.action === 'cancel' ? { structuredContent: { schema: 'aiterm.agent-auth-result.v1', harness: 'claude-code', session_id: null, status: 'blocked' } } : result(args.action === 'respond')
+    } }
+    client.connect = async () => { f.counts.initialize++; client.client = sdk; client.transport = transport }
+    client.close = async () => { f.counts.close++; client.client = null; client.transport = null }
+    const raw = createOlrwRabbitAuth({ ...options, client })
+    return { ...raw, respond: (...args) => {
+      queueMicrotask(() => { if (boundary === 'close') void caller.close(); else offset = boundary === 'input' ? 600001 : 900001 })
+      return raw.respond(...args)
+    } }
+  }
+  caller = await f.start(); await until(() => f.counts.initialize === 1); f.evidence()
+  const journal = async () => (await readFile(join(f.root, 'state/olrw-auth/synthetic-run.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse)
+  await until(async () => { try { return (await journal()).at(-1).phase === 'awaiting_secret' } catch { return false } })
+  await f.secrets.submit([...f.secrets.items.values()][0].id, 'SYNTHETIC-CODE')
+  const answer = await caller.result
+  assert.deepEqual(issued.map(x => x.action), ['start', 'status'])
+  assert.equal(f.counts.initialize, 1)
+  assert.equal((await journal()).at(-1).consumed, true)
+  assert.notEqual(answer.outcome, 'confirmed')
+  if (boundary !== 'close') assert.equal(answer.reason, 'expired')
 })

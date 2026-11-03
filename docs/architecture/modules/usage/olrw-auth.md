@@ -8,8 +8,10 @@ flowchart TD
   Execute --> Lock[資格設定dir単位の永続排他・run新規作成]
   Lock --> Reserve[session名の永久予約・wx/fsync・親directory同期]
   Reserve --> Intent[許可確認・予算・送信前intent同期]
-  Intent --> Native[固定auth start/status/respond/cleanup]
-  Native --> Check[typed失敗・世代・正規transition検証]
+  Intent --> Native[固定auth start/status/respond/cleanup・await prepare]
+  Native --> Gate[実SDK発行直前・同期usage gate]
+  Gate --> SDK[guardedClientへ発行]
+  SDK --> Check[typed失敗・世代・正規transition検証]
   Check --> Request[SecretRequests正規create・runへID保存]
   Request --> Wait[watch・10分以内の提出待ち]
   Wait --> Fresh[5秒間隔・fresh status照合]
@@ -26,6 +28,8 @@ session名は同target排他内のsession-<sessionId>.reserved（0600、内容ru
 固定context: runId（英数_- 1..64）、requesterBotId、toolId、sessionId（予約済認証名）、expiresAt（ISO）、roomId（null又は固定room）、protectedHosted（元hosted名）。sessionId==protectedHostedは拒否。固定Rabbit/kite/claude-code/cwdはauth adapterが所有。contextは管理plan由来、自由HTTP/MCP入力ではない。
 
 factory({secretRequests,runDirectory,context,assertAuthorized,auth}) → execute({signal}), close(), ownerSecretGuide({requestId,botId,roomId})。RootがassertAuthorized(action)の拒否throw/成功undefinedを保証。native操作名はstart/status/respond/cancel（cleanupからcancelへ許可照合）。guideはrespond許可を読取り確認し、native/秘密/正本の更新は行わない。
+
+各auth methodは第2引数 `{assertBeforeIssue}` を受け、managed/raw adapterを通して実SDK直前まで同じcallbackを渡す。await prepare後、既Rootのepoch/許可期限checkとusageの同期callbackをawait無しで呼び、直ちにguardedClientへ発行する。run/入力期限の正本はusageだけ。callback由来のstopped例外はexpired/interrupted・not_issuedを保持し、callbackが拒否していない発行後のtimeout/中断はunknownを保つ。予算/intent/消費/永久予約は戻さず、後続も発行しない。callback拒否は既に行ったMCP initializeの作用を巻き戻したという意味ではない。
 
 予算はstart1/respond1/cleanup1/status12・間隔5秒、run15分、request発行から提出10分。choiceは空でintervention_required。全期限は最小値、unknown/期限後native0。statusも作用なので毎回intentと許可を必要とする。提出待ちでnative pollをしない。各nativeは全体期限/close/abortで有限待機し、タイムアウト/中断後の返却は採用せずunknown。
 

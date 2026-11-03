@@ -20,7 +20,7 @@ async function until(predicate) {
   for (let n = 0; n < 10000; n++) { if (await predicate()) return; await setImmediate() }
   assert.fail('synthetic fixture did not reach state')
 }
-async function fixture(t, { native = {}, authorization = async () => {}, expiry = 900000, prepare = async () => {} } = {}) {
+async function fixture(t, { native = {}, authorization = async () => {}, expiry = 900000, prepare = async () => {}, signal } = {}) {
   const base = join(import.meta.dirname, '../.olrw-fixture')
   await mkdir(base, { recursive: true })
   const root = await mkdtemp(join(base, 'run-'))
@@ -30,9 +30,9 @@ async function fixture(t, { native = {}, authorization = async () => {}, expiry 
   const secrets = new SecretRequests({ root, bots, rooms: { refresh() {}, get() { return { memberIds: ['bot-synthetic'] } } }, notify: item => notifications.push(item) })
   await secrets.initialize()
   secrets.watch(event => changes.push(event))
-  const auth = Object.fromEntries(['start', 'status', 'respond', 'cleanup'].map(action => [action, async args => {
+  const auth = Object.fromEntries(['start', 'status', 'respond', 'cleanup'].map(action => [action, async (args, options) => {
     calls.push({ action, args: structuredClone(args) })
-    return native[action] ? native[action](args) : action === 'cleanup' ? cleanup : action === 'respond' ? result('complete') : result()
+    return native[action] ? native[action](args, options) : action === 'cleanup' ? cleanup : action === 'respond' ? result('complete') : result()
   }]))
   const context = { runId: 'run-synthetic', requesterBotId: 'bot-synthetic', toolId: 'olrw-auth', sessionId: binding.session_id,
     expiresAt: new Date(Date.now() + expiry).toISOString(), protectedHosted: 'original-synthetic', roomId: null }
@@ -40,7 +40,7 @@ async function fixture(t, { native = {}, authorization = async () => {}, expiry 
   await prepare({ root, runDirectory, context })
   const make = (change = {}) => createOlrwAuthConsumer({ secretRequests: secrets, runDirectory, context, assertAuthorized: authorization, auth, ...change })
   const consumer = make()
-  const pending = consumer.execute()
+  const pending = consumer.execute({ signal })
   t.after(() => consumer.close())
   const request = async () => { await until(() => [...secrets.items.values()].some(x => x.status === 'pending')); return [...secrets.items.values()][0] }
   const guide = async item => { let value; await until(async () => (value = await consumer.ownerSecretGuide({ requestId: item.id, botId: item.botId, roomId: item.roomId })) !== null); return value }
@@ -383,5 +383,48 @@ test('session reservation: initialization starts after durable reservation and s
   assert.equal((await f.pending).outcome, 'unknown')
   assert.equal((await f.make().execute()).outcome, 'not_issued')
   assert.equal(initialized, 1)
+  assert.deepEqual(f.calls.map(x => x.action), ['start'])
+})
+
+for (const scenario of ['run', 'input', 'close', 'abort']) test(`final issue gate: ${scenario} stops after awaited prepare without SDK issue`, async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() })
+  const controller = new AbortController(), action = scenario === 'input' ? 'respond' : 'start'
+  let issued = 0
+  const f = await fixture(t, { expiry: 1200000, signal: controller.signal, native: { [action]: async (_, options) => {
+    await Promise.resolve()
+    if (scenario === 'run') t.mock.timers.tick(900001)
+    else if (scenario === 'input') t.mock.timers.tick(600001)
+    else if (scenario === 'close') f.consumer.close()
+    else controller.abort()
+    options.assertBeforeIssue()
+    issued++
+    return result('complete')
+  } } })
+  if (scenario === 'input') {
+    const item = await f.request(); await f.guide(item); await f.secrets.submit(item.id, 'SYNTHETIC-CODE')
+  }
+  assert.deepEqual(await f.pending, { runId: f.context.runId, outcome: 'not_issued', reason: ['run', 'input'].includes(scenario) ? 'expired' : 'interrupted' })
+  assert.equal(issued, 0)
+  assert.equal(f.calls.at(-1).action, action)
+  const count = f.calls.length
+  assert.equal((await f.make().execute()).outcome, 'not_issued')
+  assert.equal(f.calls.length, count)
+  const state = (await f.journal()).at(-1)
+  assert.equal(state.intent, action)
+  if (scenario === 'input') assert.equal(state.consumed, true)
+})
+
+test('final issue gate: interrupt after issue remains unknown', async t => {
+  let enter, issued = 0
+  const entered = new Promise(resolve => { enter = resolve })
+  const f = await fixture(t, { native: { start: async (_, options) => {
+    options.assertBeforeIssue()
+    issued++; enter()
+    return new Promise(() => {})
+  } } })
+  await Promise.race([entered, f.pending])
+  f.consumer.close()
+  assert.deepEqual(await f.pending, { runId: f.context.runId, outcome: 'unknown', reason: 'native_unconfirmed' })
+  assert.equal(issued, 1)
   assert.deepEqual(f.calls.map(x => x.action), ['start'])
 })
