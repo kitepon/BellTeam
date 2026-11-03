@@ -590,18 +590,18 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
 | [testPhoneSearchProfileAndVisibleScreenPolling](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L6) | iPhone検索clear、プロフィールとhistory=1照会、snapshot重複無し、閉じた後poll停止 |
-| [testPhoneTenThousandLineHistoryRequestsAndRenders](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L62) | 1万行設定後history=1照会と画面capture。1万行本文の存在/行数assert無し |
-| [testOldProfileSchemaKeepsTextSaveAndDisablesNewImageEditing](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L87) | 旧画像schemaは独立編集無効、文面保存可能、端末GET無し |
-| [testPhoneAvatarSheetShowsCurrentImagesWithoutReloadingOnOpen](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L118) | 画像sheetを開くだけでは完全設定GET無し、調整時のみ1GET、取消POST無し |
-| [testPhoneCropEditorKeepsAdjustmentAcrossBotRefresh](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L177) | crop調整をBot更新/復帰で保持、明示取消後は初期zoomへ |
-| [testPhoneChosenPhotoSurvivesBotRefreshBeforeUse](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L239) | 写真pickerと未使用cropはBot更新後も存在・zoom保持 |
-| [testPhoneImageChangePreparationSurvivesBotRefreshAndForegroundReturn](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L303) | 画像変更準備中のBot更新/復帰後も写真→cropへ進める |
-| [testPhoneOwnerPhotoSurvivesInitialRulesReply](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L334) | 遅い初回規範応答より先に選んだOwner写真を応答後も保持 |
-| [testPhoneNewMemberPhotoSurvivesInitialModelsReply](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L376) | 遅い初回モデル応答より先に選んだ新Bot写真を応答後も保持 |
-| [testPhoneSmallCropSavesWithoutReplacingLargeImage](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L419) | 小crop保存は小3keyだけ、大cropを保持 |
-| [testPhoneLargeCropSavesSquareSelectionAndKeepsSmallImage](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L461) | 大crop保存は大3keyだけ、正方形crop |
-| [testPhoneImageTargetsStaySeparateAndCancelDoesNotSave](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L500) | 小/大画像操作を分け取消だけなら0write |
-| [testTabletKeepsInspectorWithNewProfileContent](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L530) | iPad検索消去と詳細inspectorのAI/役職/再起動、sheet無し |
+| [testPhoneLongHistoryRequestsHistoryAndCapturesScreen](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L62) | 1万行fixtureでhistory=1の要求と画面取得を確認する。端末本文の行数・最終行はこの試験では照合しない |
+| [testOldProfileSchemaKeepsTextSaveAndDisablesNewImageEditing](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L88) | 旧画像schemaは独立編集無効、文面保存可能、端末GET無し |
+| [testPhoneAvatarSheetShowsCurrentImagesWithoutReloadingOnOpen](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L119) | 画像sheetを開くだけでは完全設定GET無し、調整時のみ1GET、取消POST無し |
+| [testPhoneCropEditorKeepsAdjustmentAcrossBotRefresh](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L178) | crop調整をBot更新/復帰で保持、明示取消後は初期zoomへ |
+| [testPhoneChosenPhotoSurvivesBotRefreshBeforeUse](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L240) | 写真pickerと未使用cropはBot更新後も存在・zoom保持 |
+| [testPhoneImageChangePreparationSurvivesBotRefreshAndForegroundReturn](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L304) | 画像変更準備中のBot更新/復帰後も写真→cropへ進める |
+| [testPhoneOwnerPhotoSurvivesInitialRulesReply](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L335) | 遅い初回規範応答より先に選んだOwner写真を応答後も保持 |
+| [testPhoneNewMemberPhotoSurvivesInitialModelsReply](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L377) | 遅い初回モデル応答より先に選んだ新Bot写真を応答後も保持 |
+| [testPhoneSmallCropSavesWithoutReplacingLargeImage](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L420) | 小crop保存は小3keyだけ、大cropを保持 |
+| [testPhoneLargeCropSavesSquareSelectionAndKeepsSmallImage](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L462) | 大crop保存は大3keyだけ、正方形crop |
+| [testPhoneImageTargetsStaySeparateAndCancelDoesNotSave](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L501) | 小/大画像操作を分け取消だけなら0write |
+| [testTabletKeepsInspectorWithNewProfileContent](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L531) | iPad検索消去と詳細inspectorのAI/役職/再起動、sheet無し |
 
 ### RoomDeletionUITests.swift
 
@@ -618,7 +618,7 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
-| [testSecureInputSavesWithoutPostingChatText](../../../../ios/BellBot/BellBotUITests/SecretInputUITests.swift#L4) | 専用SecureFieldから登録済み表示、秘密値/field非表示、再起動後も登録済み。会話POST件数はassertしない |
+| [testSecureInputHidesValueAndShowsSubmittedAfterRelaunch](../../../../ios/BellBot/BellBotUITests/SecretInputUITests.swift#L4) | 登録表示・値と入力欄の非表示・再起動後の表示を確認する。通常会話へのPOST件数はこの試験では確認しない |
 
 ### ServerSetupUITests.swift
 
@@ -727,9 +727,9 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 
 ## 整理候補
 
-- **A-T1**：`ios/BellBot/BellBotUITests/SecretInputUITests.swift:4,24,29`。関数名は通常chatへPOSTしないことを含むが、本文のassertは登録済み表示、秘密値/入力欄非表示、再起動後の登録表示であり、通常chatへのPOST件数を照合していない。
-- **A-T2**：`ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift:65,78,80,81,84`。1万行を要求する試験はhistory=1の要求とscreenshotを確認し、端末本文の1万行や最終行のassertは持たない。
-- **A-T3**：`ios/BellBot/BellBotUITests/ConversationScrollUITests.swift:34,46`。過去取得のコメントは20件、assertのqueryはlimit=25である。
+- **A-T1（PR0反映済み）**：`ios/BellBot/BellBotUITests/SecretInputUITests.swift:4,25,30`。関数名とコメントを登録表示・値と入力欄の非表示・再起動後の表示に合わせた。通常会話へのPOST件数は確認しない。操作・assertは変更していない。
+- **A-T2（PR0反映済み）**：`ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift:62,66,79,81,82,85`。関数名とコメントを1万行fixtureでのhistory=1要求と画面取得に合わせた。端末本文の行数・最終行は照合しない。操作・assertは変更していない。
+- **A-T3（PR0反映済み）**：`ios/BellBot/BellBotUITests/ConversationScrollUITests.swift:34,46`。過去取得のコメントを25件へ訂正し、assertのqueryはlimit=25のまま維持した。
 
 ## 未調査
 

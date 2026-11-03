@@ -369,9 +369,9 @@
 | [MemberDeletionUITests.swift](../../../../ios/BellBot/BellBotUITests/MemberDeletionUITests.swift) | 削除範囲確認と失敗保持 |
 | [NetworkLifecycleProbeUITests.swift](../../../../ios/BellBot/BellBotUITests/NetworkLifecycleProbeUITests.swift) | 追加設定初回/後続読取、予定/会話背景とtimeout、SSE、送信復元/受付、停止不明、診断参照、実サーバー対象更新 |
 | [NotificationNavigationUITests.swift](../../../../ios/BellBot/BellBotUITests/NotificationNavigationUITests.swift) | 通知から表示会話置換 |
-| [ProfileTerminalUITests.swift](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift) | 検索・プロフィール・端末照会・長履歴、旧schema、写真/切抜き/更新中保持、小大独立保存、iPad詳細 |
+| [ProfileTerminalUITests.swift](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift) | 検索・プロフィール・端末照会、長履歴は1万行fixtureでhistory=1要求と画面取得（本文の行数・最終行は未照合）、旧schema、写真/切抜き/更新中保持、小大独立保存、iPad詳細 |
 | [RoomDeletionUITests.swift](../../../../ios/BellBot/BellBotUITests/RoomDeletionUITests.swift) | 取消/失敗の保持、成功時一覧復帰とメンバー保持 |
-| [SecretInputUITests.swift](../../../../ios/BellBot/BellBotUITests/SecretInputUITests.swift) | 秘密入力が通常chatへ送信されないこと |
+| [SecretInputUITests.swift](../../../../ios/BellBot/BellBotUITests/SecretInputUITests.swift) | 登録表示・値と入力欄の非表示・再起動後の表示。通常会話へのPOST件数は確認しない |
 | [ServerSetupUITests.swift](../../../../ios/BellBot/BellBotUITests/ServerSetupUITests.swift) | 接続後AI選択、未接続の導入ガイドとURL入力保持 |
 | [TabletWorkspaceUITests.swift](../../../../ios/BellBot/BellBotUITests/TabletWorkspaceUITests.swift) | iPad画像寸法、列/回転/draft、キーボード、共通編集sheet |
 
