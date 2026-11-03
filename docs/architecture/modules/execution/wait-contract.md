@@ -61,6 +61,8 @@ flowchart LR
 ```mermaid
 flowchart LR
   Configure["BotAdministration.apply / 設定拒否・不明"] --> Report["executionFailureReport<br/>固定fieldのみ"]
+  Configure --> Provenance["既MCP要求文脈・例外分類<br/>返却済み印・typed失敗の安全射影"]
+  Provenance --> Report
   Tracking["配送の待機例外 / watch追跡故障"] --> Report
   Tracking --> Snapshot["配送wait例外の取得時<br/>job/group ID・停止要求・stopped・signal.aborted"]
   Snapshot --> Report
@@ -78,6 +80,10 @@ reportErrorは任意constructor引数。設定失敗は`SERVER_MODEL_CONFIGURATI
 共通code登録・writerとapplication組立ては統合担当が持つ。executionは既共通writerを使う診断公開接点をmodule.jsonへ登録する。新しい常駐処理・再試行loop・入力待ちの追加承認gateは作らない。
 
 限定回帰は `test/aiterm-wait-process.test.mjs`。正常/nonzero JSONの両経路、汎用runnerの既定nonzero拒否、不正JSON・起動・取消・出力上限、timeout→running→doneのwatchとconfigure順を確認する。固定の権限entryだけを試験内で置換し、実際のNode子processのstdioと終了・取消を使う。native Aiterm・実席・本番設定は操作しない。
+
+`configuration`だけ、`failure`へ既`diagnosticFailureDetails`の固定error_type/error_code/cause_code、存在する`mcp_request`へ既`mcpRequestContext`の検証済み射影を残す。`responseReturned=true`は既Clientの返却済み印がtrueの時だけ。`configureFailure`はClientが対象sessionと完全schemaを検証して保持した4field receiptを、再度形を確認してoutcome/effectだけに縮める。欠測からfalseやnative受理を作らない。生message/stack/args/設定値/IDは追加しない。
+
+RPC/connect失敗、typed失敗、untyped isErrorを識別する補助観測で、適用結果の分類・Map・拒否・再送判断は変更しない。診断のcode/重大度/集約keyも不変。原要求ID/launchを持つreconcileは未提供で、これらのfieldで不明状態を解除せず、旧事故の欠測を補完しない。全体の接続は既execution→integration.diagnostics内。限定fixtureは`test/configuration-diagnostic-provenance.test.mjs`。
 
 ## 修理の適用範囲と別の未実装機能
 
