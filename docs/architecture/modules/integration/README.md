@@ -112,7 +112,7 @@ flowchart LR
   Internal[内部HTTP/MCP] --> Denied[403]
 ```
 
-公開GETはcontrollerのsnapshot（採用版/更新結果/通知利用可否）をそのまま返す。POSTはSHA64のversionIdだけを受け、reserveで重複/設定適用中を409・停止中を503とし、202応答finish後にstartする。finish前断線はcancelし、acceptedを交換成功へ読み替えない。固定資材配置や任意path/UID/commandをHTTPから受けない。通知だけの交換・失敗から親runtime.close/transport.closeへ到達せず、本文を再送しない。
+公開GETはcontrollerのsnapshot（採用版/更新結果/通知利用可否）をそのまま返す。POSTはSHA64又はimage内の既知版を表す固定literal `builtin` のversionIdだけを受け、reserveで重複/設定適用中を409・停止中を503とし、202応答finish後にstartする。finish前断線はcancelし、acceptedを交換成功へ読み替えない。固定資材配置や任意path/UID/commandをHTTPから受けない。通知だけの交換・失敗から親runtime.close/transport.closeへ到達せず、本文を再送しない。
 
 公開schemaと保存責任はRootの通知契約v1に従う。独立UIDのOS隔離や実AI保持はこの共通接続から成立しない。直接確認は認証/内部403/入力400/二重409/202finishと断線/GET結果、共有factoryと診断接続に絞る。
 

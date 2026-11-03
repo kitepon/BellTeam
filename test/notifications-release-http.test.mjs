@@ -18,7 +18,7 @@ test('通知版の公開入口は既認証・内部拒否・入力制限を保�
     reserve(id) {
       reserves++
       if (active) throw Object.assign(new Error('NOTIFICATIONS_UPDATE_IN_PROGRESS'), { code: 'NOTIFICATIONS_UPDATE_IN_PROGRESS', status: 409 })
-      assert.equal(id, versionId)
+      assert.ok([versionId, 'builtin'].includes(id))
       active = true
       state.update = { versionId: id, status: 'accepted' }
       return { start() { starts++; state.update.status = 'running' }, cancel() {} }
@@ -48,12 +48,15 @@ test('通知版の公開入口は既認証・内部拒否・入力制限を保�
   assert.equal(starts, 1)
   assert.equal((await post({ versionId })).status, 409)
   assert.equal((await (await fetch(base + path)).json()).notificationsRelease.update.status, 'running')
+  active = false
+  assert.equal((await post({ versionId: 'builtin' })).status, 202)
+  assert.equal(state.update.versionId, 'builtin')
   assert.equal(refreshes, 0)
   const api = createControlApi({ internal: true, notificationsReleaseControl: controller })
   const response = { writeHead(status) { this.status = status }, end(body) { this.body = JSON.parse(body) } }
   await api({ method: 'POST' }, response, new URL('http://local' + path))
   assert.equal(response.status, 403)
-  assert.equal(reserves, 2)
+  assert.equal(reserves, 3)
   const unavailable = createControlApi({})
   await unavailable({ method: 'GET' }, response, new URL('http://local' + path))
   assert.equal(response.status, 503)

@@ -14,7 +14,7 @@ export function createControlApi(options) {
       if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
       const body = await readJson(request, 1024)
       if (!body || Array.isArray(body) || Object.keys(body).join(',') !== 'versionId'
-        || typeof body.versionId !== 'string' || !/^[a-f0-9]{64}$/.test(body.versionId))
+        || typeof body.versionId !== 'string' || body.versionId !== 'builtin' && !/^[a-f0-9]{64}$/.test(body.versionId))
         return json(response, 400, { error: 'NOTIFICATIONS_VERSION_INVALID' })
       const pending = notificationsReleaseControl.reserve(body.versionId)
       response.once('finish', pending.start)
