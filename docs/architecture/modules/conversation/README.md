@@ -6,6 +6,8 @@
 
 ## 内部図の正本
 
+- [クラッシュ後の直接JSONL追記境界](log-append.md)
+
 - [会話・履歴・SSEの流れ](flow.md)
 - [受付と回答所有、保存画像、部屋の配送](delivery.md)
 - [部屋定義と履歴](rooms.md)

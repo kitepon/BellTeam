@@ -142,7 +142,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   if (!execution) await transport.restoreConfigurationRequests()
   const idleSessions = execution ? null : new IdleSessions({ bots, transport })
   const goals = execution?.goals ?? new BotGoals({ transport, admitWork: () => aiControl.admit(), reportError: goalError })
-  const conversation = createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime, seatObservation: !execution })
+  const conversation = createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime, seatObservation: !execution,
+    onLogCorruption: report => diagnostics.record({ code: report.code, module: 'conversation', diagnostic_log: JSON.stringify(report) }) })
   const { store, messenger } = conversation
   assets = conversation.assets
   const onboarding = usage?.onboarding ?? new Onboarding({

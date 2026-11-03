@@ -5,8 +5,9 @@ import { dirname, basename } from 'node:path'
 import { TimelineIndex } from './timeline-index.mjs'
 
 export class ConversationStore {
-  constructor({ logPath }) {
+  constructor({ logPath, onCorruption = logCorruption }) {
     this.logPath = logPath
+    this.onCorruption = onCorruption
     this.read = emptyRead()
     this.observedSize = null
     this.queue = Promise.resolve()
@@ -49,14 +50,18 @@ export class ConversationStore {
       const buffer = Buffer.alloc(size - this.read.offset)
       const { bytesRead } = await file.read(buffer, 0, buffer.length, this.read.offset)
       const complete = bytesRead ? buffer.lastIndexOf(0x0a, bytesRead - 1) + 1 : 0
-      // 索引を変える前に確定行をまとめて検証し、不正行があれば同じ位置で失敗させる。
-      // 検証に失敗した一群のうち、一部だけを表示へ反映しない。
-      const records = parseRecords(buffer.toString('utf8', 0, complete), this.read.lines)
-      if (records.length) {
+      const previewChanged = this.preview && complete && buffer.toString('utf8', 0, buffer.indexOf(0x0a)) !== this.preview.text
+      const { records, lines } = parseRecords(buffer.subarray(0, complete), this.read, diagnostic => {
+        // 診断先の失敗や未終端Promiseで、有効な履歴の読取りを止めない。
+        try { Promise.resolve(this.onCorruption(diagnostic)).catch(() => logCorruption(diagnostic)) }
+        catch { logCorruption(diagnostic) }
+      })
+      if (complete) {
         const change = applyRecords(records, this.read)
         this.read.offset += complete
+        this.read.lines += lines
         this.preview = null
-        this.changed(change)
+        if (records.length || previewChanged) this.changed({ ...change, all: change.all || Boolean(previewChanged) })
       }
       this.read.mtimeMs = mtimeMs; this.read.signature = signature
       if (complete === bytesRead) return this.read
@@ -200,7 +205,6 @@ function changeFor(records, state) {
 }
 function applyRecords(records, state) {
   for (const record of records) {
-    state.lines++
     if (record.schema === 'bellteam.delivery-status.v1') {
       state.statuses.set(record.delivery_id, record)
       for (const original of state.byDelivery.get(record.delivery_id) ?? []) {
@@ -231,13 +235,26 @@ function validateRecord(record, line) {
     || (record?.schema === 'bellteam.delivery-status.v1' && ['running', 'delivered', 'failed', 'stopped'].includes(record.delivery))) return
   throw new Error(`MESSAGE_LOG_INVALID: line ${line}`)
 }
-function parseRecords(text, offset) {
-  return text.split('\n').filter(Boolean).map((line, index) => {
-    let record
-    try { record = JSON.parse(line) } catch { throw new Error(`MESSAGE_LOG_INVALID: line ${offset + index + 1}`) }
-    validateRecord(record, offset + index + 1)
-    return record
-  })
+function logCorruption(diagnostic) { console.error(JSON.stringify(diagnostic)) }
+function parseRecords(buffer, state, onCorruption) {
+  const records = []; let lines = 0, start = 0
+  for (let end = buffer.indexOf(0x0a); end !== -1; end = buffer.indexOf(0x0a, start)) {
+    const bytes = buffer.subarray(start, end), line = state.lines + ++lines
+    if (bytes.length) {
+      let record, reason
+      if (bytes.includes(0)) reason = 'nul'
+      else {
+        try { record = JSON.parse(bytes.toString('utf8')) } catch { reason = 'syntax' }
+        if (!reason) {
+          try { validateRecord(record, line) } catch { reason = 'schema' }
+        }
+      }
+      if (reason) onCorruption(Object.freeze({ code: 'MESSAGE_LOG_INVALID', line, offset: state.offset + start, length: bytes.length, reason }))
+      else records.push(record)
+    }
+    start = end + 1
+  }
+  return { records, lines }
 }
 function cloneRead(source) {
   const state = { ...emptyRead(), ino: source.ino, mtimeMs: source.mtimeMs, offset: source.offset }
