@@ -45,7 +45,7 @@ const owner = { ownerKind: value => { if (!['bot', 'room'].includes(value)) fail
 const claim = { ...owner, scheduleId: text, expectedRevision: revision, expectedNextRunAt: time, ranAt: time }
 
 export function validateMembersContext(context, { initialize = false } = {}) {
-  object(context, { generation: value => { string(value, 200); if (!value) fail() }, leaseId: value => { if (initialize && value === null) return; string(value, 200); if (!value) fail() }, rootId: value => { string(value, 200); if (!value) fail() }, ownerWrite: bool })
+  object(context, { generation: value => { string(value, 200); if (!value) fail() }, leaseId: value => { if (initialize && value === null) return; string(value, 200); if (!value) fail() }, rootId: value => { string(value, 200); if (!value) fail() }, ownerWrite: bool, continuation: bool })
 }
 
 const requests = {

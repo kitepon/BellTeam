@@ -66,6 +66,12 @@ rootにprofile.remove `{botId}`→既完了result `{id,configurationSync?}`、ef
 
 callback専用のprofiles.cli `{}`→`{botIds:[id]}`を追加。通常rootからは拒否。同leaseでrefresh→keysだけを返し、外部effect/投影/新rootは0。親の唯一CLI queueは実開始時にこの結果を使い、effect送信時に添えたbotIdsを最新の保証にしない。
 
+### 旧leaseからのroot継続（第七差分）
+
+contextを固定5field `{generation,leaseId,rootId,ownerWrite,continuation}`へ更新。continuationはboolean必須、親channelだけがassertLease後の`lease.epoch !== admission.capture().epoch`から作る。caller params/optionsからは作らない。initializeではfalse必須。子root gateはaccepting又はtrusted continuationの時だけ通す。
+
+旧leaseのfresh profiles.read/profile.startupは外部effectを持ち得るroot継続であり、汎用callbackへ移さない。session/fast/profiles.cliの専用callbackは従来どおりeffect再帰0。新rootは親enterとchild通常gateで拒否、5fieldは逆effect/projectionの相関でも捕捉・照合する。Molly facadeは同opaqueを渡すだけで自己申告flagを増やさない。Epiが実channel側を担当、当席はprotocol/dispatcherと同lease読取→startupの限定反例を担当する。
+
 ## 現状と初回の分離
 
 ```mermaid

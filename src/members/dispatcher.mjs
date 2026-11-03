@@ -96,7 +96,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
   const validateRequest = (method, params, context) => {
     validateMembersRequest(method, params, context)
     assertContext(context)
-    if (!accepting) throw failure('MEMBERS_UNAVAILABLE')
+    if (!accepting && !context.continuation) throw failure('MEMBERS_UNAVAILABLE')
   }
   const validateCallback = (method, params, context) => {
     validateMembersCallback(method, params, context)
@@ -170,7 +170,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
     validateMembersControl(method, params)
     if (method === 'initialize') {
       validateMembersContext(context, { initialize: true })
-      if (initializationStarted || exiting || context.leaseId !== null || context.generation !== params.generation) throw failure('MEMBERS_CONTROL_INVALID')
+      if (initializationStarted || exiting || context.leaseId !== null || context.continuation || context.generation !== params.generation) throw failure('MEMBERS_CONTROL_INVALID')
       initializationStarted = true
       generation = params.generation
       return track(async () => {

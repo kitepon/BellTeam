@@ -8,7 +8,7 @@ import { OwnerProfile } from '../src/owner-profile.mjs'
 import { UserRules } from '../src/user-rules.mjs'
 import { createMembersDispatcher } from '../src/members/dispatcher.mjs'
 import { validateMembersRequest, validateMembersEffect, validateMembersEffectResult } from '../src/members/protocol.mjs'
-const context = Object.freeze({ generation: 'test', leaseId: 'lease', rootId: 'root', ownerWrite: false })
+const context = Object.freeze({ generation: 'test', leaseId: 'lease', rootId: 'root', ownerWrite: false, continuation: false })
 const initial = Object.freeze({ ...context, leaseId: null })
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
 async function fixture(t, effect = async method => method === 'project.readPreviousSession' ? '' : undefined) {
@@ -155,4 +155,24 @@ test('CLI queue callback reads current IDs during drain without effects or anoth
   release.resolve(); await removing
   assert.deepEqual(await quiescing, { quiesced: true })
   assert.deepEqual(ids, { botIds: [] })
+})
+
+test('trusted old-lease root continuation can fresh-read and prepare startup during quiesce', async t => {
+  const entered = deferred(), release = deferred(), effects = []
+  const f = await fixture(t, async (method, params, ctx) => {
+    effects.push({ method, context: ctx })
+    if (method === 'project.readPreviousSession') { entered.resolve(); await release.promise; return '' }
+  })
+  const updating = f.request('profile.update', { botId: 'bot-a', changes: { name: 'Updated' } })
+  await entered.promise
+  const quiescing = f.dispatcher.control('quiesce', {})
+  const continued = Object.freeze({ ...context, rootId: 'continued', continuation: true })
+  assert.equal((await f.request('profile.read', { botId: 'bot-a' }, continued)).bot.name, 'Updated')
+  assert.deepEqual(await f.request('profile.startup', { botId: 'bot-a', shortTermMemory: 'previous' }, continued), { prepared: true })
+  assert.equal(effects.find(item => item.method === 'project.prepareStartupContext').context, continued)
+  assert.throws(() => f.dispatcher.validateRequest('profile.startup', { botId: 'bot-a', shortTermMemory: '' }, context), /MEMBERS_UNAVAILABLE/)
+  assert.throws(() => f.dispatcher.validateRequest('profile.read', { botId: 'bot-a', continuation: true }, context))
+  assert.throws(() => f.dispatcher.validateCallback('profile.startup', { botId: 'bot-a', shortTermMemory: '' }, continued))
+  release.resolve(); await updating
+  assert.deepEqual(await quiescing, { quiesced: true })
 })
