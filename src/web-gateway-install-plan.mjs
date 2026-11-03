@@ -6,7 +6,8 @@ import { stateWriterPlan } from './server-state-writers.mjs'
 const invalid = () => { throw new Error('GATEWAY_INSTALL_MODEL_INVALID') }
 
 // A new helper gets only this server's incoming directory and private volume.
-export function webGatewayInstallPlan(normal, current) {
+export function webGatewayInstallPlan(normal, current, component = 'web-gateway') {
+  if (!['web-gateway', 'notifications'].includes(component)) invalid()
   const plan = stateWriterPlan(normal), service = normal.services.bellteam
   if (!plan.stateVolume || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(normal.name ?? '')
     || !/^[a-f0-9]{64}$/u.test(current?.id ?? '') || !/^sha256:[a-f0-9]{64}$/u.test(current?.image ?? '')
@@ -41,13 +42,13 @@ export function webGatewayInstallPlan(normal, current) {
       || mount.Source !== control.Source || spec.ReadOnly === true
       || spec.VolumeOptions.Subpath !== posix.basename(part)) invalid()
   }
-  return { name: normal.name, services: { 'web-gateway-install': {
+  return { name: normal.name, services: { [component + '-install']: {
     image: current.image, pull_policy: 'never', user: '0:0',
-    entrypoint: ['/usr/bin/env', '-i', 'PATH=/usr/local/bin:/usr/bin:/bin', '/usr/bin/python3', '-I', '/app/scripts/install-web-gateway-release.py'],
+    entrypoint: ['/usr/bin/env', '-i', 'PATH=/usr/local/bin:/usr/bin:/bin', '/usr/bin/python3', '-I', component === 'notifications' ? '/app/scripts/install-notifications-release.py' : '/app/scripts/install-web-gateway-release.py'],
     init: true, read_only: true, network_mode: 'none', cap_drop: ['ALL'], cap_add: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER'],
     security_opt: ['no-new-privileges:true'], cpus: 1, mem_limit: '2g', memswap_limit: '2g', pids_limit: 512,
     tmpfs: ['/tmp:rw,nosuid,nodev,size=64m'], volumes: [
-      { type: 'bind', source: posix.join(runtime, 'web-gateway-incoming'), target: '/srv/bellteam-web-gateway-incoming', read_only: true, bind: { create_host_path: false } },
+      { type: 'bind', source: posix.join(runtime, component + '-incoming'), target: '/srv/bellteam-' + component + '-incoming', read_only: true, bind: { create_host_path: false } },
       { type: 'volume', source: 'server-state', target: '/srv/bellteam-private', volume: { nocopy: true } },
     ],
   } }, volumes: { 'server-state': { external: true, name: plan.stateVolume } } }

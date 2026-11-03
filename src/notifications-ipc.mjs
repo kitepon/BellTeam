@@ -34,6 +34,24 @@ const send = (endpoint, message) => new Promise((resolve, reject) => {
   catch { reject(notificationError('PUSH_IPC_SEND_FAILED')) }
 })
 
+// A parent-initiated IPC disconnect can omit ChildProcess close on Node 26.
+// Reap still requires OS exit, disconnected IPC and every owned pipe's close.
+export function waitNotificationsChildClose(child) {
+  return new Promise(resolve => {
+    let exited = child.exitCode !== null || child.signalCode !== null
+    let result = { code: child.exitCode, signal: child.signalCode }
+    const streams = [child.stdin, child.stdout, child.stderr].filter(Boolean)
+    const finish = () => {
+      if (exited && !child.connected && streams.every(stream => stream.closed)) resolve(result)
+    }
+    child.once('exit', (code, signal) => { exited = true; result = { code, signal }; finish() })
+    child.once('close', (code, signal) => resolve({ code, signal }))
+    child.on('disconnect', finish)
+    for (const stream of streams) stream.once('close', finish)
+    finish()
+  })
+}
+
 export function createNotificationsParentChannel(child, { onDiagnostic = async () => {} } = {}) {
   let sequence = 0, dead = false, business = 0, readyValue = null, readyResolve, readyReject
   const pending = new Map()

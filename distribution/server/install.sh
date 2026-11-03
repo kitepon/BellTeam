@@ -1,7 +1,9 @@
 #!/bin/sh
 set -eu
 cd "${BELLTEAM_INSTALL_DIR:-$(dirname "$0")}"
-if [ "${1-}" = --install-web-gateway ]; then
+if [ "${1-}" = --install-web-gateway ] || [ "${1-}" = --install-notifications ]; then
+  component=web-gateway
+  [ "$1" != --install-notifications ] || component=notifications
   shift
   [ "$#" -eq 4 ] || { echo GATEWAY_INSTALL_ARGUMENTS >&2; exit 2; }
   saved=$(CDPATH= cd "$1" && pwd)
@@ -27,8 +29,8 @@ if [ "${1-}" = --install-web-gateway ]; then
   docker compose --project-directory "$PWD" -f "$saved/normal.json" config --format json > "$staging/normal.json"
   {
     printf '['; cat "$staging/normal.json"; printf ','; cat "$staging/current.json"; printf ']'
-  } | docker run --pull never --rm -i --network none --read-only --entrypoint /usr/local/bin/node "$image" /app/src/web-gateway-install-plan.mjs > "$staging/helper.json"
-  docker compose --project-directory "$PWD" -f "$staging/helper.json" run --pull never --rm --no-deps -T web-gateway-install "$version" "$source" "$signer"
+  } | docker run --pull never --rm -i --network none --read-only --entrypoint /usr/local/bin/node "$image" "/app/src/$component-install-plan.mjs" > "$staging/helper.json"
+  docker compose --project-directory "$PWD" -f "$staging/helper.json" run --pull never --rm --no-deps -T "$component-install" "$version" "$source" "$signer"
   exit 0
 fi
 pull=true
@@ -38,7 +40,7 @@ case "$#:${1-}" in
   0:) ;;
   1:--no-pull) pull=false ;;
   2:--recover) recovery=true; pull=false; saved=$(CDPATH= cd "$2" && pwd) ;;
-  *) echo '使い方: sh install.sh [--no-pull] | --recover <保存世代> | --install-web-gateway <保存世代> <archiveSHA> <sourceSHA> <signerSHA>' >&2; exit 2 ;;
+  *) echo '使い方: sh install.sh [--no-pull] | --recover <保存世代> | --install-notifications <保存世代> <archiveSHA> <sourceSHA> <signerSHA> | --install-web-gateway <保存世代> <archiveSHA> <sourceSHA> <signerSHA>' >&2; exit 2 ;;
 esac
 umask 077
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-install.XXXXXX")

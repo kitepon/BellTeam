@@ -1,14 +1,14 @@
 // Runs only in a disposable native root runner prepared by the distribution probe.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { createNotificationsParentChannel } from '../src/notifications-ipc.mjs'
+import { createNotificationsParentChannel, waitNotificationsChildClose } from '../src/notifications-ipc.mjs'
 
 if (process.argv.length !== 2 || process.getuid() !== 0 || Number(process.versions.node.split('.')[0]) !== 26)
   throw new Error('NOTIFICATIONS_PROBE_ENVIRONMENT')
 const child = spawn('/usr/local/libexec/bellteam-notifications-start', ['builtin'], {
   uid: 1001, gid: 1001, env: {}, stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
 })
-const ended = new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal })))
+const ended = waitNotificationsChildClose(child)
 const channel = createNotificationsParentChannel(child)
 let timer, finished = false
 try {

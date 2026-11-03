@@ -91,8 +91,11 @@ def snapshot(source_dir, name, target, limit):
         os.close(fd)
 
 
-def verify(archive, bundle, expected):
-    child = subprocess.Popen(['/usr/bin/python3', '/app/scripts/verify-web-gateway.py', str(archive), str(bundle), str(expected)],
+def verify(archive, bundle, expected, component='web-gateway'):
+    if component not in ('web-gateway', 'notifications'):
+        fail('GATEWAY_INSTALL_COMPONENT')
+    verifier = 'verify-notifications.py' if component == 'notifications' else 'verify-web-gateway.py'
+    child = subprocess.Popen(['/usr/bin/python3', '/app/scripts/' + verifier, str(archive), str(bundle), str(expected)],
                              env={'PATH': '/usr/local/bin:/usr/bin:/bin'}, stdin=subprocess.DEVNULL,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, close_fds=True)
     try:
@@ -133,14 +136,20 @@ def publish(source, target):
         raise OSError(error, os.strerror(error))
 
 
-def extract(archive, receipt, expected, destination):
+def extract(archive, receipt, expected, destination, component='web-gateway'):
+    if component not in ('web-gateway', 'notifications'):
+        fail('GATEWAY_INSTALL_COMPONENT')
     if set(receipt) != {'schema', 'archiveSha256', 'manifestSha256', 'manifest', 'verification'} or (
-        receipt['schema'] != 'bellteam.web-gateway.verification.v1'
+        receipt['schema'] != f'bellteam.{component}.verification.v1'
         or receipt['archiveSha256'] != expected['archiveSha256']
         or receipt['verification'] != {'method': 'github-oidc-attestation', 'repositoryId': '1404510084'}):
         fail('GATEWAY_INSTALL_RECEIPT')
     manifest = receipt['manifest']
-    if manifest.get('sourceCommit') != expected['sourceCommit'] or manifest.get('component') != 'web-gateway':
+    if manifest.get('sourceCommit') != expected['sourceCommit'] or manifest.get('component') != component:
+        fail('GATEWAY_INSTALL_RECEIPT')
+    if component == 'notifications' and (manifest.get('schema') != 'bellteam.notifications.artifact.v1'
+            or manifest.get('entry') != 'payload/src/notifications-entry.mjs'
+            or manifest.get('runtime', {}).get('stateSchema') != 1):
         fail('GATEWAY_INSTALL_RECEIPT')
     files = {}
     if not isinstance(manifest.get('files'), list) or not 0 < len(manifest['files']) <= 20000:
@@ -192,7 +201,7 @@ def extract(archive, receipt, expected, destination):
             found.add(name)
     if found != set(files) or 'manifest.json' not in seen:
         fail('GATEWAY_INSTALL_MEMBER')
-    installation = dict(schema='bellteam.web-gateway.installation.v1', component='web-gateway',
+    installation = dict(schema=f'bellteam.{component}.installation.v1', component=component,
                         archiveSha256=expected['archiveSha256'], manifestSha256=receipt['manifestSha256'],
                         sourceCommit=expected['sourceCommit'], verification=receipt['verification'])
     write_file(destination / 'installation.json', (json.dumps(installation) + '\n').encode())
@@ -201,7 +210,9 @@ def extract(archive, receipt, expected, destination):
         sync_directory(root)
 
 
-def install(private_root, incoming_root, expected):
+def install(private_root, incoming_root, expected, component_name='web-gateway'):
+    if component_name not in ('web-gateway', 'notifications'):
+        fail('GATEWAY_INSTALL_COMPONENT')
     info = directory(private_root)
     if info.st_gid != SERVER_GID or stat.S_IMODE(info.st_mode) != 0o750:
         fail('GATEWAY_INSTALL_PRIVATE_ROOT')
@@ -214,7 +225,7 @@ def install(private_root, incoming_root, expected):
             fail('GATEWAY_INSTALL_PRIVATE_CHANGED')
         if os.path.lexists(private_root / '.transaction.json'):
             fail('GATEWAY_INSTALL_MAINTENANCE_ACTIVE')
-        component = private_root / 'web-gateway'
+        component = private_root / component_name
         directory(component, create=True)
         lock = os.open(component / '.install.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
         with os.fdopen(lock, 'rb') as held:
@@ -243,9 +254,10 @@ def install(private_root, incoming_root, expected):
                     os.close(root_fd)
                 expectation_path = stage / 'expectation.json'
                 write_file(expectation_path, (json.dumps(expected) + '\n').encode(), 0o400)
-                receipt = verify(stage / 'archive.tar.gz', stage / 'bundle.json', expectation_path)
+                receipt = (verify(stage / 'archive.tar.gz', stage / 'bundle.json', expectation_path)
+                           if component_name == 'web-gateway' else verify(stage / 'archive.tar.gz', stage / 'bundle.json', expectation_path, component_name))
                 output = stage / 'release'; output.mkdir(mode=0o700)
-                extract(stage / 'archive.tar.gz', receipt, expected, output)
+                extract(stage / 'archive.tar.gz', receipt, expected, output, component_name)
                 publish(output, target)
                 sync_directory(releases)
                 return {'versionId': expected['archiveSha256'], 'installed': True}
@@ -253,7 +265,7 @@ def install(private_root, incoming_root, expected):
                 remove_stage(stage)
 
 
-def main():
+def main(component='web-gateway'):
     import sys
     if len(sys.argv) != 4:
         fail('GATEWAY_INSTALL_ARGUMENTS')
@@ -261,7 +273,8 @@ def main():
     if any(value != 0 for value in [os.getuid(), os.geteuid(), os.getgid(), os.getegid()]):
         fail('GATEWAY_INSTALL_ROOT_REQUIRED')
     os.umask(0o077)
-    print(json.dumps(install(PRIVATE_ROOT, INCOMING_ROOT, expected)))
+    incoming = INCOMING_ROOT if component == 'web-gateway' else Path('/srv/bellteam-notifications-incoming')
+    print(json.dumps(install(PRIVATE_ROOT, incoming, expected, component)))
 
 
 if __name__ == '__main__':
