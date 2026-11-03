@@ -93,11 +93,15 @@ flowchart TD
   Post --> Ack["ackのIDを照合<br/>timeline.acceptSend"]
   Ack --> Read["activeなら会話・一覧を再取得"]
   Read --> Visible["履歴IDと仮発言を照合<br/>配送状態を画面へ"]
-  Access -->|"拒否・失敗"| Restore["仮発言を除去<br/>元の本文・画像を新しい入力の前へ戻す"]
-  Post -->|"取消・期限切れ・通信・応答失敗"| Restore
-  Restore --> Check["結果不明かつactiveならloadを呼ぶ<br/>エラー表示・診断、自動再送なし"]
+  Access -->|"認証失敗"| AuthFail["仮発言を除去・入力を戻す<br/>requireLoginしてreturn"]
+  Access -->|"その他の失敗"| PreFail["仮発言を除去・入力を戻す<br/>activeならload・エラー表示・診断<br/>結果不明の判定はしない"]
+  Post -->|"取消・期限切れ・通信・応答・ID照合の失敗"| Restore["仮発言を除去・入力を戻す"]
+  Restore --> Check["SendFailureReconcileObservation<br/>activeかつ結果不明の時だけload"]
+  Check --> Report["認証失敗はrequireLogin、それ以外はエラー表示<br/>reconcileの記録付きで診断、自動再送なし"]
   Post --> Cleanup["defer / 期限通知<br/>背景実行時間を一度だけ終了"]
 ```
+
+送信前の利用確認（`authorizeAIUse`）の失敗と、POSTの失敗は別の経路になる。前者は `ConversationView.swift` の765〜778行で、認証失敗なら`requireLogin`して戻り、それ以外は結果不明かどうかを問わずactiveなら`load`する。後者は793〜801行で、`SendFailureReconcileObservation.observe`（同32〜38行）がactiveかつ`operationResultUnconfirmed`の時だけ`load`する。
 
 `ConversationContent.load`は非activeと送信応答待ちで取得を始めない。進行中readerがあれば次の読取要求をまとめる。初回本文とqueueは並列に取り、本文を先に表示するので、queueだけが失敗しても本文を残せる。初回は10件、過去取得は`ConversationHistoryPage.pageSize`の25件。更新は最新20件とafter取得を併合する。
 

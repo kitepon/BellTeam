@@ -27,8 +27,9 @@ Ownerのリファクタリング指示の全文を、2026-11-03にレヴィア�
 | 工程 | 指示のモデル | 実際の経路 | 状態 |
 | --- | --- | --- | --- |
 | 候補の確認 | — | Aiterm `agent_models`（codex-cli） | `gpt-6.1-sol` と `gpt-6-astra` があり、どちらも high と xhigh を受け付ける |
-| 実コードの調査と図化 | `gpt-6.1-sol` high | Aitermの `agent_launch` は2回とも「OSのprocess一覧を取得できません」で起動しなかった。公式CLI `codex exec` で実行。1回目（17:55 JST）は標準入力を閉じずに起動したため入力待ちで止まり、成果なしで停止した。2回目は19:4x JSTに起動し、ヘッダーで model `gpt-6.1-sol`、reasoning effort `high` を確認（session `01a1a0f7-de30-7521-b880-3c82ae8e2629`） | 実行中 |
-| 責務の設計 | `gpt-6-astra` xhigh | 未実行 | — |
+| 実コードの調査と図化（先行範囲） | `gpt-6.1-sol` high | Aitermの `agent_launch` は2回とも「OSのprocess一覧を取得できません」で起動しなかった。公式CLI `codex exec` で実行。1回目（17:55 JST）は標準入力を閉じずに起動したため入力待ちで止まり、成果なしで停止した。2回目は19:4x JSTに起動し、ヘッダーで model `gpt-6.1-sol`、reasoning effort `high` を確認（session `01a1a0f7-de30-7521-b880-3c82ae8e2629`） | 完了。`afda947` でcommit。レヴィアタンが描画・目視し、送信失敗の図を1点補正 |
+| 残りの機能の詳細図 | `gpt-6.1-sol` high | `codex exec`、別の作業ツリー（HEAD `afda947` のdetached）で実行。session `01a1a10a-9d03-7180-a6fd-6f4261ba00c9`。対象は新規の conversation.md、requests-and-auth.md、goals.md、lifecycle-and-platform.md、tests.md（試験の本文） | 実行中 |
+| 責務の設計 | `gpt-6-astra` xhigh | `codex exec`、この作業ツリーで実行。session `01a1a10a-9cfb-76f0-a189-10a70111d959`。対象は refactor-design.md だけ | 実行中 |
 | 最後の整合確認 | `gpt-6-astra` xhigh | 未実行 | — |
 
 Aitermの起動の失敗はエレグへ報告した（call-bridge通話 `29cba01a-03a0-4301-851d-acba07bc25c1`、seq9とseq10）。`codex exec` での実行は、Aitermの欠陥が直ったことを意味しない。
@@ -57,7 +58,9 @@ Ownerからトロニー経由で受けたUI改善6点（トロニー通話 seq42
 
 ## 次の作業
 
-- 調査担当の完了イベントを、親の照合の開始条件にする。照合済みの第一版は2026-11-03 22:00 JSTまでに返す見込み。その時刻にも調査担当の稼働と終了を確かめ、入力待ちのまま待たない。
+- 第一版（`afda947`）は2026-11-03に返却済み。レヴィアタンの描画・目視で、送信失敗の図の分岐を1点補正した。製品Swiftは全文読了、XCTest 45本は宣言だけで本文は未読（tests.md で補う）。
+- 責務の設計の第一版は2026-11-04 12:00 JSTまでに返す。各調査担当の完了イベントを親の照合の開始条件にし、入力待ちのまま待たない。
+- 設計で特に確かめる点：A-M1はiPhoneとiPad/Macで副題と日時の並べ方が違うので、無意識に同じにしない。A-P3は`pendingSelections`とAppStoreのdraftの寿命と所有の違いを確かめ、二重に持つことだけで不要と決めない。
 - 第一版の完了条件：6文書がそろい、実関数へつながる。overviewには未読の範囲（BillingStore、BackgroundMessageSend、AvatarImage、ConversationTimelineState、Design、Shared、NotificationService、試験とpack）も対象一覧、所有、入口、未調査として残す。読んだ部分と全文を確認した部分を分ける。停止、取消、途中失敗、結果不明、後始末、原本の保持は実sourceで裏付け、未確認を推測で埋めない。
 - 返却物：照合済みのcommitと完全なHEAD、6つのMarkdown原図、README、module.json、対応するsourceの参照、SHA256のmanifest。レヴィアタンが読める正規の共有経路か通話本文で渡す。Macの絶対pathだけでは渡さない。未承認のpushはしない。
 - 描画と目視はレヴィアタンの環境で行い、版と接点もレヴィアタンが独立に確認する。
