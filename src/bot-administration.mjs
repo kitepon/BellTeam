@@ -82,6 +82,7 @@ export class BotAdministration {
     if (!bot) throw Object.assign(new Error('BOT_NOT_FOUND'), { status: 404 })
     const result = await this.transport.reconcileConfiguration(bot, id)
     const application = this.applications.get(botId)
+    if (result.localCompletion && application?.requestId === id) application.localCompletion = result.localCompletion
     if (result.fence === 'cleared' && application?.requestId === id) {
       if (result.configurationRequest.outcome === 'applied') {
         application.state = 'accepted'

@@ -57,6 +57,7 @@
     "src/cursor-instructions.mjs",
     "src/server-state-transfer.mjs",
     "src/server-state-ownership.mjs",
+    "src/configuration-state-anchor.mjs",
     "src/server-state-writers.mjs",
     "distribution/server/install.sh",
     "scripts/archive-live-volume.py",

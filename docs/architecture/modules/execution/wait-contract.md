@@ -83,7 +83,7 @@ reportErrorは任意constructor引数。設定失敗は`SERVER_MODEL_CONFIGURATI
 
 `configuration`だけ、`failure`へ既`diagnosticFailureDetails`の固定error_type/error_code/cause_code、存在する`mcp_request`へ既`mcpRequestContext`の検証済み射影を残す。`responseReturned=true`は既Clientの返却済み印がtrueの時だけ。`configureFailure`はClientが対象sessionと完全schemaを検証して保持した4field receiptを、再度形を確認してoutcome/effectだけに縮める。欠測からfalseやnative受理を作らない。生message/stack/args/設定値/IDは追加しない。
 
-RPC/connect失敗、typed失敗、untyped isErrorを識別する補助観測で、適用結果の分類・Map・拒否・再送判断は変更しない。診断のcode/重大度/集約keyも不変。原要求ID/launchを持つreconcileは未提供で、これらのfieldで不明状態を解除せず、旧事故の欠測を補完しない。全体の接続は既execution→integration.diagnostics内。限定fixtureは`test/configuration-diagnostic-provenance.test.mjs`。
+RPC/connect失敗、typed失敗、untyped isErrorを識別する補助観測で、適用結果の分類・再送判断は変更しない。診断のcode/重大度/集約keyも不変。新要求の原ID照合とlocal終端は[設定要求の正本](configuration-requests.md)を参照し、旧原ID/launch欠測を補完しない。configurationだけ固定`CONFIGURATION_INTENT_SAVE_UNCONFIRMED`/`CONFIGURATION_STORAGE_INVALID`をfailureのcode/causeに許可し、新prepare未返却の安全な段階を記録する。任意messageや保存設定は記録しない。全体の接続は既execution→integration.diagnostics内。限定fixtureは`test/configuration-diagnostic-provenance.test.mjs`と`test/configuration-requests.test.mjs`。
 
 ## 修理の適用範囲と別の未実装機能
 

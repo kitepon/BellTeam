@@ -49,12 +49,15 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
   ]
 
   const server = createServer(async (request, response) => {
+    const startedAt = Date.now()
+    let stage = 'url'
     logWriteRequest(request, response, writeLog)
     logReadRequest(request, response, writeLog)
     let membersContext
     try {
       const url = new URL(request.url, 'http://bellteam.local')
       if (request.method === 'GET' && url.pathname === '/healthz') return json(response, 200, { status: 'ok' })
+      stage = 'authorize'
       const authenticated = await authorize(request)
       if (request.method === 'GET' && url.pathname === '/api/session') return json(response, 200, { authenticated, authMode: authMode(request) })
       if (!authenticated) return json(response, url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/') ? 403 : 401, { error: 'UNAUTHORIZED' })
@@ -62,13 +65,20 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
         // No approved dedicated registrations have been supplied for initial migration.
         return json(response, 403, { error: 'MEMBERS_OWNER_GRANT_UNKNOWN' })
       }
+      stage = 'members_authorization'
       if (!internal) membersContext = membersAuthorization?.captureHttp(request, url.pathname)
       // 席のCLIがつなぐMCP。内部入口（loopback）だけで開く。
-      if (internal && seatMcp && (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/'))) return await seatMcp(request, response, url)
+      if (internal && seatMcp && (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/'))) {
+        stage = 'seat_mcp'
+        return await seatMcp(request, response, url)
+      }
 
       if (url.pathname.startsWith('/api/')) {
+        stage = 'control'
         if (await controlApi(request, response, url) !== false) return
+        stage = 'members_refresh'
         await bots.refresh?.()
+        stage = 'feature'
         for (const handle of featureApis) {
           if (await handle(request, response, url, membersContext) !== false) return
         }
@@ -76,9 +86,10 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       }
 
       if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+      stage = 'static'
       return staticFile(response, staticRoot, url.pathname, assetVersion)
     } catch (error) {
-      return respondHttpError(request, response, error, diagnostics)
+      return respondHttpError(request, response, error, diagnostics, { stage, startedAt })
     } finally {
       membersAuthorization?.releaseHttp(request)
     }

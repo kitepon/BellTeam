@@ -7,6 +7,7 @@ import { configurationBinding, configurationRequestFailure } from './configurati
 const processCodes = new Set(['ABORT_ERR', 'SEAT_PROCESS_FAILED', 'SEAT_PROCESS_START_FAILED',
   'SEAT_BUFFER_EXCEEDED', 'SEAT_INPUT_FAILED', 'AITERM_WAIT_INVALID', 'AITERM_FAST_UNAVAILABLE'])
 const waitOutcomes = new Set(['done', 'running', 'timeout', 'closed', 'error', 'rate_limited', 'not_taken'])
+const configurationCodes = new Set(['CONFIGURATION_INTENT_SAVE_UNCONFIRMED', 'CONFIGURATION_STORAGE_INVALID'])
 
 export function executionFailureReport(botId, phase, error, context = {}) {
   if (!['configuration', 'delivery_wait', 'seat_watch'].includes(phase)) return null
@@ -29,9 +30,14 @@ export function executionFailureReport(botId, phase, error, context = {}) {
   }
   if (phase === 'configuration') {
     detail.failure = diagnosticFailureDetails(error)
+    if (configurationCodes.has(error?.code)) detail.failure.error_code = error.code
+    if (configurationCodes.has(error?.cause?.code)) detail.failure.cause_code = error.cause.code
     const configuration = configurationRequestFailure(error)
     if (configuration) {
       try { detail.configuration_request = configurationBinding(configuration.binding) } catch { /* Invalid supplemental data is not diagnostic evidence. */ }
+      const preparation = configuration.preparation
+      if (preparation?.state === 'not_returned' && ['not_started', 'unknown', 'confirmed'].includes(preparation.publication)
+        && Object.keys(preparation).sort().join(',') === 'publication,state') detail.preparation = { ...preparation }
     }
     const request = mcpRequestContext(error)
     if (request) detail.mcp_request = request

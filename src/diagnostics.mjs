@@ -21,6 +21,7 @@ const reports = {
   IOS_RESPONSE_INVALID: ['high', 'Appleアプリが応答を読み取れなかった', true],
   SERVER_SECRET_FAILED: ['high', '秘密情報の登録処理に失敗した'],
   SERVER_HTTP_500: ['high', 'BellTeamのAPI処理に失敗した'],
+  SERVER_HTTP_503: ['warn', 'BellTeamのAPIが利用不可の応答を返した（原因未確定）'],
   SERVER_MODEL_CONFIGURATION_FAILED: ['high', 'AIのモデル設定を反映できなかった'],
   SERVER_TURN_TRACKING_FAILED: ['high', 'AIの処理終了を追跡できなかった'],
   GOAL_OPERATION_UNCONFIRMED: ['warn', 'ゴール操作の結果を確認できなかった'],

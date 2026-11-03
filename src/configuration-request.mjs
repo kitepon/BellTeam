@@ -15,6 +15,9 @@ export function captureConfigurationRequest(error, request) {
 }
 export const configurationRequestFailure = error => failureRequests.has(error) ? structuredClone(failureRequests.get(error)) : null
 const notIssued = new WeakSet()
+const intentNotWritten = new WeakSet()
+export const configurationIntentWasNotWritten = error => intentNotWritten.has(error)
+export function markConfigurationIntentNotWritten(error) { intentNotWritten.add(error); return error }
 export const configurationWasNotIssued = error => notIssued.has(error)
 export function markConfigurationNotIssued(error) { notIssued.add(error); return error }
 export function configurationError(code, effect = 'not_issued') {
