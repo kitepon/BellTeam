@@ -10,6 +10,7 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 
 - [起動と席の実行機構](execution.md)
 - [記憶の固定版席runnerと実子終端](memory-process.md)
+- [共通の有限IPCとstream](module-ipc.md)
 - [CLI登録・共有設定の所有と完了](cli-registration.md)
 - [installer・状態移行・backup/restore](recovery.md)
 - [アプリからcontainerを更新するHost受付とworker](container-update.md)（source実装、未設置）

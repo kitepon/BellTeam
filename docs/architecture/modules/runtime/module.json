@@ -108,6 +108,8 @@
     "scripts/install-members-release.py",
     "src/members-entry.mjs",
     "src/members-ipc.mjs",
+    "src/module-ipc.mjs",
+    "src/module-streams.mjs",
     "src/members-locks.mjs",
     "src/members-process.mjs",
     "src/members-project-files.mjs",
