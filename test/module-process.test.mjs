@@ -59,7 +59,7 @@ async function fixture(t, options = {}) {
           return {}
         }
         if (method === 'resume') return { resumed: true }
-        if (method === 'quiesce') return { quiesced: behavior.quiesce }
+        if (method === 'quiesce') return behavior.quiesceWait ?? { quiesced: behavior.quiesce }
         if (method === 'exit') { if (!behavior.holdExit) queueMicrotask(() => reap(child)); return { closed: true } }
       },
       reaped: () => { child.reaped = true },
@@ -100,6 +100,22 @@ test('failed quiesce resumes the original writer and issues no new child', async
   await assert.rejects(f.process.replace(sha), /QUIESCE_FAILED/)
   assert.equal(f.children.length, 1); assert.equal(f.children[0].exitCode, null)
   assert.equal(f.process.snapshot().available, true)
+})
+
+test('quiesce has an outer deadline while its actual completion remains held', async t => {
+  const f = await fixture(t); await f.process.start()
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const done = deferred(); f.behavior.quiesceWait = done.promise
+  const replacing = f.process.replace(sha)
+  await turn()
+  const rejected = assert.rejects(replacing, /DRAIN_TIMEOUT/)
+  t.mock.timers.tick(60001); await rejected
+  assert.equal(f.children.length, 1); assert.equal(f.process.snapshot().available, true)
+  let finished = false
+  const closing = f.process.close().then(() => { finished = true })
+  await turn(); assert.equal(finished, false)
+  f.behavior.quiesceWait = null; done.resolve({ quiesced: true })
+  t.mock.timers.reset(); await closing
 })
 
 test('parent effects after child OS close hold reaped and the next writer', async t => {

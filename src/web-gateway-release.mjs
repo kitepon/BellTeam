@@ -6,12 +6,13 @@ import { createRequire } from 'node:module'
 import { assertMembersStateCompatibility } from './members/state-compatibility.mjs'
 import { assertMemoryStateCompatibility } from './memory/state-compatibility.mjs'
 
-const moduleEntries = Object.freeze({ usage: 'usage-entry', diagnostics: 'diagnostics-entry' })
+const moduleEntries = Object.freeze({ usage: 'usage-entry', diagnostics: 'diagnostics-entry', conversation: 'conversation-entry' })
 const requireModule = createRequire(import.meta.url)
 export function assertBusinessModuleCompatibility(component, value) {
   // Resolve only the selected module so independent installations remain loadable.
   if (component === 'usage') return requireModule('./usage/state-compatibility.mjs').assertUsageStateCompatibility(value)
   if (component === 'diagnostics') return requireModule('./diagnostics-protocol.mjs').assertDiagnosticsStateCompatibility(value)
+  if (component === 'conversation') return requireModule('./conversation/state-compatibility.mjs').assertConversationStateCompatibility(value)
   throw failure('MODULE_RELEASE_COMPONENT_INVALID')
 }
 
@@ -34,16 +35,17 @@ export function validateGatewayReleaseManifest(manifest) {
 }
 
 function validateManifest(manifest, component, executionCompatibility) {
-  const notifications = component === 'notifications', members = component === 'members', memory = component === 'memory'
+  const notifications = component === 'notifications', members = component === 'members', memory = component === 'memory', conversation = component === 'conversation'
   const execution = component === 'execution', module = Object.hasOwn(moduleEntries, component) || execution
   if (!exactKeys(manifest, 'schema,component,sourceCommit,entry,runtime,files')
     || manifest.schema !== `bellteam.${component}.artifact.v1` || manifest.component !== component
     || !source.test(manifest.sourceCommit) || manifest.entry !== (module ? `payload/src/${execution ? 'execution-dispatcher' : moduleEntries[component]}.mjs` : memory ? 'payload/src/run-memory-runtime.mjs' : members ? 'payload/src/members-entry.mjs' : notifications ? 'payload/src/notifications-entry.mjs' : 'payload/src/http-gateway-entry.mjs')
-    || !exactKeys(manifest.runtime, members || memory || module ? 'os,arch,nodeMajor,parentProtocol,stateCompatibility' : notifications ? 'os,arch,nodeMajor,parentProtocol,stateSchema' : 'os,arch,nodeMajor,parentProtocol')
+    || !exactKeys(manifest.runtime, conversation ? 'os,arch,nodeMajor,parentProtocol,stateSchema,stateCompatibility' : members || memory || module ? 'os,arch,nodeMajor,parentProtocol,stateCompatibility' : notifications ? 'os,arch,nodeMajor,parentProtocol,stateSchema' : 'os,arch,nodeMajor,parentProtocol')
     || manifest.runtime.os !== process.platform
     || manifest.runtime.arch !== ({ x64: 'amd64', arm64: 'arm64' })[process.arch]
     || manifest.runtime.nodeMajor !== 26 || Number(process.versions.node.split('.')[0]) !== 26
     || notifications && manifest.runtime.stateSchema !== 2
+    || conversation && manifest.runtime.stateSchema !== null
     || manifest.runtime.parentProtocol !== (notifications ? 2 : 1) || !Array.isArray(manifest.files) || !manifest.files.length)
     throw failure('GATEWAY_RELEASE_INCOMPATIBLE')
   if (members) assertMembersStateCompatibility(manifest.runtime.stateCompatibility)
@@ -63,10 +65,11 @@ function validateManifest(manifest, component, executionCompatibility) {
   }
   if (execution && !names.has('payload/config/common-agents.md'))
     throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
-  const moduleFiles = execution ? ['execution-dispatcher', 'aiterm-transport', 'configuration-intents'] : component === 'usage'
+  const moduleFiles = execution ? ['execution-dispatcher', 'aiterm-transport', 'configuration-intents'] : conversation
+    ? ['conversation-ipc', 'conversation-channel', 'conversation/dispatcher', 'conversation/state-compatibility', 'conversation-locks', 'conversation-streams'] : component === 'usage'
     ? ['usage/channel', 'usage/channel-dispatcher', 'usage/services', 'usage/state-compatibility', 'usage-locks']
     : ['diagnostics-ipc', 'diagnostics-dispatcher', 'diagnostics-protocol', 'diagnostics-locks']
-  for (const required of [manifest.entry, ...(memory ? ['payload/src/memory/dispatcher.mjs', 'payload/src/memory/state-compatibility.mjs', 'payload/src/memory-service.mjs', 'payload/src/memory-search.mjs'] : ['payload/package.json', 'payload/package-lock.json', ...(module ? [...moduleFiles, ...(execution ? [] : ['module-ipc', 'module-streams', 'module-locks'])].map(name => `payload/src/${name}.mjs`) : members ? ['payload/config/common-agents.md', 'payload/src/members/state-compatibility.mjs'] : notifications ? [] : ['payload/web/assets.mjs'])])])
+  for (const required of [manifest.entry, ...(memory ? ['payload/src/memory/dispatcher.mjs', 'payload/src/memory/state-compatibility.mjs', 'payload/src/memory-service.mjs', 'payload/src/memory-search.mjs'] : ['payload/package.json', 'payload/package-lock.json', ...(module ? [...moduleFiles, ...(execution ? [] : conversation ? ['module-streams'] : ['module-ipc', 'module-streams', 'module-locks'])].map(name => `payload/src/${name}.mjs`) : members ? ['payload/config/common-agents.md', 'payload/src/members/state-compatibility.mjs'] : notifications ? [] : ['payload/web/assets.mjs'])])])
     if (!names.has(required)) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
   return manifest
 }
@@ -159,5 +162,6 @@ async function prepareRelease(component, versionId, { signal } = {}, executionCo
   signal?.throwIfAborted()
   return { versionId, appRoot: join(codeDirectory, 'payload'), protocolVersion: component === 'notifications' ? 2 : 1,
     sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch },
-    ...(['members', 'memory', 'usage', 'diagnostics', 'execution'].includes(component) ? { stateCompatibility: manifest.runtime.stateCompatibility } : component === 'notifications' ? { stateSchema: 2 } : {}) }
+    ...(['members', 'memory', 'usage', 'diagnostics', 'conversation', 'execution'].includes(component) ? { stateCompatibility: manifest.runtime.stateCompatibility } : component === 'notifications' ? { stateSchema: 2 } : {}),
+    ...(component === 'conversation' ? { stateSchema: null } : {}) }
 }

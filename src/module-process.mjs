@@ -130,7 +130,8 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   const drain = async (target, ticket) => {
     const started = Date.now()
     await within(Promise.all([waitActive(), admission?.drain(ticket)]), 60000, `${prefix}_DRAIN_TIMEOUT`)
-    if ((await track(target.channel.control('quiesce', {}, Math.max(1, 60000 - (Date.now() - started))))).quiesced !== true)
+    const remaining = Math.max(1, 60000 - (Date.now() - started))
+    if ((await within(track(target.channel.control('quiesce', {}, remaining)), remaining, `${prefix}_DRAIN_TIMEOUT`)).quiesced !== true)
       throw fail('QUIESCE_FAILED')
   }
   const finishExit = async target => {

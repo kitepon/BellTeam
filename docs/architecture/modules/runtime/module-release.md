@@ -1,4 +1,4 @@
-# usage・diagnosticsのinstalled readerと固定wrapper
+# 業務moduleのinstalled readerと固定wrapper
 
 所有エピネル。業務と固有channelはMika/Signal、親の一実体facadeと組立はMolly、archive/署名/root配置はCenti。既[共通controller](module-process.md)と[固定C](module-start.md)を使い、各作者の互換値/ready validatorを参照する。
 
@@ -23,6 +23,8 @@ manifestはP1/Node26/platform、実USAGE_STATE_COMPATIBILITY又はDIAGNOSTICS_ST
 `createDiagnosticsProcess({root,investigationsFile=null,onState,prepareRelease?,spawnProcess?})`は同作者createDiagnosticsParentChannel/validateDiagnosticsReadyへ直結し、共通start/request/replace/reserve/snapshot/closeを返す。notesは既親configだけ、固定Cの唯一env許可から同factoryへ。list配列/row/HTTP契約は変更しない。初回writer lockは固定Cが準備済みstateでO_CREAT/no-follow/0600として取得し、既inode/owner不一致は拒否する。広いchown/chmodやlock削除を追加しない。
 
 `createUsageProcess`はroot/admission/bootstrap/authorizeActor、固定effect/private projectionの各親port、onGeneration/onStateを受ける。親live object/秘密を公開snapshotへ出さない。初回startはsettings seed/readyだけでphase=initializing/available=false、同admissionを閉じたまま返す。親が既順序でinitialize('subscriptions')、他module組立後initialize('services')、activate()を呼び、実resume ACK後だけ新rootを公開する。偽resume成功を作らない。交換のrestoreは同control一回で全stage/private snapshot ACKを終え、旧control('export')の実completion付き{handoff}をunwrapして渡す。
+
+conversationもprepareModuleRelease/同期validateModuleReleaseManifestの閉集合へ追加する。作者CONVERSATION_STATE_COMPATIBILITYの実7値と既manifestの明示runtime.stateSchema:nullを維持し、欠測/整数schemaを拒否する。descriptorもstateSchema:nullを返し、catalogのnullと区別しない。entry/channel/dispatcher/locks/conversation-streams再export/module-streamsとpackage metadataの固定closureを確認する。会話固有薄wrapper/probeはN102へ正式handoffし、親表示bots snapshot・権限・accepted Promiseの意味は本人が同channelへ接続する。runtimeは共通reader/C/配置を維持する。
 
 cold parent restartは既採用recordから選択した同版へsettings restore:true→subscriptions→servicesと進める。private volatileが失われた通常cold起動はMika3a3eの既read-only restore/新規volatileを使い、人工handoffを作らない。hotswapのmode=restoreでは実handoff必須を維持する。同期設定はprivate seed/commitだけを読み、fresh認可GETとは区別する。
 
