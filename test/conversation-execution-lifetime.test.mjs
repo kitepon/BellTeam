@@ -153,3 +153,28 @@ test('original accepted native survives the actual channel 60-second boundary th
   assert.equal(ended.sourceSends, 1); assert.equal(ended.nativeAborts, 0); assert.equal(ended.nativeStops, 0); assert.equal(ended.bodyResends, 0)
   t.diagnostic(JSON.stringify({ scope: 'actual-AppRuntime-original-native61s', elapsedMilliseconds: elapsed, before, retained, ended }))
 })
+
+test('original callback ACK survives actual60s busy and old resume then ends the real root', { timeout: 85_000 }, async t => {
+  const { fixture, runtime, children } = await setup(t)
+  const assembly = runtime.services.conversationAssembly, controller = assembly.controller
+  const held = await fixture.hold('callback'), before = held.snapshot(), generation = controller.snapshot().generation, pid = children[0].pid
+  assert.equal(before.callbackPending, true); assert.equal(before.nativeDone, 1)
+  const began = performance.now()
+  await assert.rejects(controller.replace(version), { code: 'CONVERSATION_DRAIN_TIMEOUT' })
+  const elapsedMilliseconds = performance.now() - began, retained = held.snapshot()
+  assert.ok(elapsedMilliseconds >= 59_000 && elapsedMilliseconds < 80_000)
+  assert.equal(retained.callbackPending, true); assert.equal(retained.originalOperationLive, true)
+  assert.equal(retained.rootResultSettled, false); assert.equal(retained.rootRPCSettled, false)
+  assert.equal(assembly.admission.snapshot().unconfirmed, false)
+  assert.equal(children.length, 1); assert.equal(children[0].pid, pid); assert.equal(children[0].exitCode, null)
+  assert.equal(controller.snapshot().generation, generation); held.assertResumed()
+  await held.release()
+  const ended = held.snapshot()
+  assert.equal(ended.callbackPending, false); assert.equal(ended.originalOperationLive, false)
+  assert.equal(ended.rootResultSettled, true); assert.equal(ended.rootRPCSettled, true)
+  assert.equal(assembly.admission.snapshot().unconfirmed, false)
+  assert.equal(ended.resumed, 1); assert.equal(ended.released, 1)
+  assert.equal(ended.sourceSends, 1); assert.equal(ended.nativeDone, 1)
+  for (const key of ['nativeAborts', 'nativeStops', 'bodyResends', 'sdkCloses', 'ptyCloses']) assert.equal(ended[key], 0)
+  t.diagnostic(JSON.stringify({ scope: 'actual-AppRuntime-original-callback60s-resume', elapsedMilliseconds, before, retained, ended }))
+})
