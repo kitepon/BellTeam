@@ -96,6 +96,18 @@ export class ConversationLifetimes {
       || target !== undefined && record.binding.target !== target) throw this.#protocol()
     return lease
   }
+  finishUnclaimedDelivery(lease) {
+    const record = this.#records.get(lease)
+    if (!record || record.kind !== 'delivery' || lease.generation !== this.#generation) throw rejected()
+    if (!record.live || record.nativeClaimed || record.finishRequested) return false
+    record.finishRequested = true; this.#release(record)
+    return true
+  }
+  operationCompletion(lease) {
+    const record = this.#record(lease)
+    if (record.kind !== 'operation') throw rejected()
+    return record.done
+  }
   deliveryCompletion(lease) {
     this.assertDelivery(lease)
     return this.#records.get(lease).done

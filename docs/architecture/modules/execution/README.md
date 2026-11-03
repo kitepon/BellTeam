@@ -8,6 +8,8 @@
 
 ## 現行図と移管工程
 
+- [会話effectの親固定adapterとauthority実終端](conversation-effects.md)
+
 - [host内の実engine factoryと交換](host-factory.md)
 
 - [待機outcomeと設定適用の契約](wait-contract.md)

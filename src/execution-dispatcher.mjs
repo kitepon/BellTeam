@@ -13,7 +13,7 @@ const failure = code => Object.assign(new Error(code), { code, effect: 'not_star
 const asyncMethods = {
   transport: ['isRunning', 'runningBots', 'screen', 'ensure', 'wake', 'restart', 'reconfigure',
     'reconcileConfiguration', 'stop', 'interrupt', 'interruptMany', 'reconcileLaunch', 'closeLaunch',
-    'observe', 'goalTargets', 'closeIdle', 'stopForConfiguration', 'turn', 'setupTest', 'notify',
+    'observe', 'goalTargets', 'closeIdle', 'stopForConfiguration', 'turn', 'setupTest', 'notify', 'notifyReport',
     'idle', 'restartIfIdle', 'updateWorkSummary', 'seatTurns', 'watchSeatTurns'],
   administration: ['update', 'reconcile', 'stop', 'restart', 'remove'],
   goals: ['list', 'inspect', 'mutate'],
