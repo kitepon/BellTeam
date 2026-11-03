@@ -48,3 +48,5 @@ entryは固定`src/diagnostics-entry.mjs`、実dispatcher一つだけを構築�
 固有追加の直接確認はprotocol4件とchannel5件。実IPCの保存/固定404/一覧配列/終了、JSONescapeで96MiB超の無省略history、caller期限後root8保持、stream容量拒否後のdrain、metadata後IPC切断のreaped保持を確認した。最初の共通切断反例失敗はruntime修理後成功へ変更。署名前probeのコードを供給するが、固定C/lockと実UID1001のnative成立はruntime/配布で確認する。
 
 共通controllerとの追加結合は`test/diagnostics-controller.test.mjs`。試験DIで固定Cのspawnだけを同じ実diagnostics fixture子へ差し替え、3つの実OS世代と同stateのbuiltin→release識別→builtin、保存row/count/open/原文・管理注記・設置別調査の維持、notes無書換え、旧OS/IPC/全pipe終端後の新起動を確認する。release識別は同じ試験コードへ付けるため、別bundleの署名/実C/UID1001/imageをこの確認で代用しない。共通controllerの固定版と参照を結んで通常assemblyへ渡す。
+
+管理GET/更新の交換中受付停止は固定DIAGNOSTICS_NOT_ACCEPTING/NOT_ACCEPTED/UNAVAILABLEだけをHTTP503 `{error:'DIAGNOSTICS_UNAVAILABLE'}`へ返す。既Bearer401/入力400/不存在404と一般例外・保存不明500は維持し、任意の例外codeやmessageを公開しない。

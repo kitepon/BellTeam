@@ -215,6 +215,8 @@ export function createDiagnosticsAdminServer({ diagnostics, key }) {
       }
       return send(response, 404, { error: 'NOT_FOUND' })
     } catch (error) {
+      if (['DIAGNOSTICS_NOT_ACCEPTING', 'DIAGNOSTICS_NOT_ACCEPTED', 'DIAGNOSTICS_UNAVAILABLE'].includes(error.code))
+        return send(response, 503, { error: 'DIAGNOSTICS_UNAVAILABLE' })
       if (error.message === 'DIAGNOSTIC_NOT_FOUND') return send(response, 404, { error: error.message })
       if (error.message === 'DIAGNOSTIC_INVALID' || error.message === 'INVALID_JSON') return send(response, 400, { error: error.message })
       process.stderr.write(`BellTeam diagnostics admin error: ${error.stack ?? error.message}\n`)
