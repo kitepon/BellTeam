@@ -214,3 +214,22 @@ flowchart LR
 ```
 
 本段階ではcontainer個別plan/start/getだけがHost durable受付へ接続する。全体step計画と独立moduleの耐久操作ledgerはまだ未接続で、scope=allと各moduleの共通実行は理由付き503/無効を維持する。既個別module APIのcontrollerは複製しない。publicplanはHostのcurrent/target/期限をそのまま保存し、再構築した共通serviceでも同requestId結果へ結ぶ。publication.catalogは検証済catalogの識別/期限、publication.checkは直近feed確認であり、取得失敗を更新無しへ変えない。
+
+## membersの親Owner権限と初回画像gate（結合候補）
+
+```mermaid
+flowchart LR
+  HTTP[公開HTTP既認証成功] --> Capture[親一実体のmethod限定opaque authorization]
+  Capture --> Context[共通handler第4引数 context]
+  Context --> Owner[Owner/rules公開操作第2引数]
+  Capture --> Verify[同一親authorizeOwner / identityとmethod照合]
+  Verify --> Channel[runtime channelがownerWrite booleanだけ注入]
+  Internal[内部HTTP / 通常MCP / 外部body] --> NoGrant[authority生成なし]
+  Response[要求終端/失敗] --> Revoke[親opaque権限を失効]
+  Assets[同parent assets生成 / removals読取開始] --> Restore[assets.initialize完了]
+  Restore --> Guide[onboarding初期化 / conversation初期化]
+```
+
+Owner権限は公開HTTPの既authorize成功後だけ、PATCH ownerとPUT user-rulesの許可methodへ束縛して捕捉する。親WeakMapのobject同一性で検証し、body/actor/owner自己申告・別object・別methodを拒否する。要求終了時は失効する。既Owner/rules公開操作へcontextを渡すが、grant/bearerは子へ送らない。初期専用grant空/unknown、専用proxyと新子controller接続は残工程であり、この差分を唯一writer成立とはしない。既internal互換callerは権限objectを得ない。
+
+初回画像gate復元のPromiseをonboarding.initializeより前に待つ。親assetsは一度だけ構築し、module交換では再生成しない。N102の初回読取失敗を空一覧へ変換しない。Kiroのtransport.membersAdmissionは同じ親controllerへ注入する公開口で、既session/fast/onboarding contextを保持する。Host Update client一実体とpublicplan保存の接続も保持する。

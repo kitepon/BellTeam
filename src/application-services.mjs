@@ -1,3 +1,4 @@
+import { createMembersOwnerAuthorization } from './members-owner-authorization.mjs'
 import { join } from 'node:path'
 import { createConversationServices } from './conversation-services.mjs'
 import { CharacterSheets } from './character-sheets.mjs'
@@ -27,6 +28,7 @@ import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
 export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null }) {
+  const membersAuthorization = createMembersOwnerAuthorization()
   const subscriptions = new Subscriptions({
     path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'),
     environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production',
@@ -88,6 +90,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     ...(seatRuntime ? { path: join(root, 'state/onboarding.json'), projectFiles: seatRuntime.projectFiles } : {}),
     startConversation: (bot, message) => messenger.enqueueUserTurn({ target: bot.id, message, recordUser: false }),
   })
+  await assets.initialize()
   await onboarding.initialize()
   const harnessAuth = new HarnessAuth({ bots, client: transport.client })
   const { selfTurns, seatTurns, rooms, roomMessenger } = await conversation.initialize()
@@ -137,7 +140,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     try { await diagnostics.record({ code: 'OLRW_MANAGEMENT_UNAVAILABLE', module: 'integration' }) } catch {}
   }
   return {
-    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter,
+    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, membersAuthorization,
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,

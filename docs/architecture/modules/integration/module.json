@@ -75,6 +75,7 @@
     "scripts/deploy-cleanup.sh",
     "src/update-center.mjs",
     "src/update-center-contract.mjs",
-    "src/update-host-adapter.mjs"
+    "src/update-host-adapter.mjs",
+    "src/members-owner-authorization.mjs"
   ]
 }

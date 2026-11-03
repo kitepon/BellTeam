@@ -29,6 +29,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     webGatewayControl,
     notificationsReleaseControl: notifications.controller,
     updateCenter: services.updateCenter,
+    membersAuthorization: services.membersAuthorization,
     ownerSecretGuide: input => olrwAuthCaller?.ownerSecretGuide(input) ?? null,
     aiControl,
     subscriptions,
