@@ -24,6 +24,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'config/notifications-verification.json', 'scripts/module_artifact_verifier.py',
     'scripts/verify-notifications.py', 'scripts/notifications-start.c',
     'config/members-verification.json', 'scripts/verify-members.py', 'scripts/members-start.c', 'scripts/install-members-release.py',
+    'config/memory-verification.json', 'scripts/verify-memory.py', 'scripts/install-memory-release.py',
     'scripts/verify-update-catalog.py', 'scripts/update_catalog.py', 'config/update-catalog-verification.json',
     'scripts/container-update-host.py', 'scripts/install-container-update-code.py', 'scripts/cleanup-deploy-images.py', 'scripts/save-deploy-restore-point.py',
     ...['bellteam-container-update-host.service.in', 'bellteam-update-catalog-refresh.service.in', 'bellteam-update-catalog-refresh.timer', 'compose.overlay.yaml', 'README.md', 'root-code-paths.json'].map(name => 'distribution/server/updater/' + name),
@@ -74,7 +75,8 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'scripts/install-web-gateway-release.py', 'scripts/install-notifications-release.py',
     'config/notifications-verification.json', 'scripts/module_artifact_verifier.py',
     'scripts/verify-notifications.py', 'scripts/notifications-start.c',
-    'config/members-verification.json', 'scripts/verify-members.py', 'scripts/members-start.c', 'scripts/install-members-release.py']) assert.ok(pathsInArchive.includes(path))
+    'config/members-verification.json', 'scripts/verify-members.py', 'scripts/members-start.c', 'scripts/install-members-release.py',
+    'config/memory-verification.json', 'scripts/verify-memory.py', 'scripts/install-memory-release.py']) assert.ok(pathsInArchive.includes(path))
   const rootCode = JSON.parse(await readFile(join(output, 'distribution/server/updater/root-code-manifest.json'), 'utf8'))
   assert.equal(rootCode.schema, 'bellteam.host-updater.code-manifest.v1')
   assert.equal(rootCode.sourceCommit, result.sourceCommit)

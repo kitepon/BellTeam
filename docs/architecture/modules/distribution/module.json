@@ -9,7 +9,8 @@
     "web-gateway-artifact",
     "notifications-artifact",
     "update-catalog",
-    "members-artifact"
+    "members-artifact",
+    "memory-artifact"
   ],
   "uses": [
     {
@@ -47,6 +48,10 @@
     "scripts/package-members.py",
     "scripts/verify-members.py",
     "config/members-verification.json",
-    ".github/workflows/publish-members.yml"
+    ".github/workflows/publish-members.yml",
+    "scripts/package-memory.py",
+    "scripts/verify-memory.py",
+    "config/memory-verification.json",
+    ".github/workflows/publish-memory.yml"
   ]
 }

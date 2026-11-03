@@ -1,10 +1,11 @@
 #!/bin/sh
 set -eu
 cd "${BELLTEAM_INSTALL_DIR:-$(dirname "$0")}"
-if [ "${1-}" = --install-web-gateway ] || [ "${1-}" = --install-notifications ] || [ "${1-}" = --install-members ]; then
+if [ "${1-}" = --install-web-gateway ] || [ "${1-}" = --install-notifications ] || [ "${1-}" = --install-members ] || [ "${1-}" = --install-memory ]; then
   component=web-gateway
   [ "$1" != --install-notifications ] || component=notifications
   [ "$1" != --install-members ] || component=members
+  [ "$1" != --install-memory ] || component=memory
   shift
   [ "$#" -eq 4 ] || { echo GATEWAY_INSTALL_ARGUMENTS >&2; exit 2; }
   saved=$(CDPATH= cd "$1" && pwd)
@@ -41,7 +42,7 @@ case "$#:${1-}" in
   0:) ;;
   1:--no-pull) pull=false ;;
   2:--recover) recovery=true; pull=false; saved=$(CDPATH= cd "$2" && pwd) ;;
-  *) echo '使い方: sh install.sh [--no-pull] | --recover <保存世代> | --install-members <保存世代> <archiveSHA> <sourceSHA> <signerSHA> | --install-notifications <保存世代> <archiveSHA> <sourceSHA> <signerSHA> | --install-web-gateway <保存世代> <archiveSHA> <sourceSHA> <signerSHA>' >&2; exit 2 ;;
+  *) echo '使い方: sh install.sh [--no-pull] | --recover <保存世代> | --install-memory <保存世代> <archiveSHA> <sourceSHA> <signerSHA> | --install-members <保存世代> <archiveSHA> <sourceSHA> <signerSHA> | --install-notifications <保存世代> <archiveSHA> <sourceSHA> <signerSHA> | --install-web-gateway <保存世代> <archiveSHA> <sourceSHA> <signerSHA>' >&2; exit 2 ;;
 esac
 umask 077
 staging=$(mktemp -d "${TMPDIR:-/tmp}/bellteam-install.XXXXXX")

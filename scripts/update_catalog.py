@@ -89,6 +89,31 @@ def validate_members_archive(release, manifest, consumer_state):
     return manifest
 
 
+def validate_memory_compatibility(value):
+    from web_gateway_artifact import validate_memory_state
+    exact(value, 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility')
+    require(type(value['nodeMajor']) is int and value['nodeMajor'] == 26
+            and type(value['parentProtocol']) is int and value['parentProtocol'] == 1
+            and value['stateSchema'] is None and value['containerUpdate'] is None)
+    validate_memory_state(value['stateCompatibility'])
+    return value
+
+
+def validate_memory_archive(release, manifest, consumer_state):
+    from web_gateway_artifact import validate_manifest, validate_memory_state
+    require(release['componentId'] == 'memory')
+    compatibility = validate_memory_compatibility(release['compatibility'])
+    validate_manifest(manifest, release['sourceCommit'], release['platform']['arch'], component='memory')
+    validate_memory_state(consumer_state)
+    runtime = manifest['runtime']
+    require(release['platform']['os'] == runtime['os']
+            and compatibility['nodeMajor'] == runtime['nodeMajor']
+            and compatibility['parentProtocol'] == runtime['parentProtocol']
+            and compatibility['stateCompatibility'] == runtime['stateCompatibility'] == consumer_state,
+            'UPDATE_MEMORY_ARCHIVE_INCOMPATIBLE')
+    return manifest
+
+
 def validate_catalog(value, *, now=None):
     exact(value, 'schema,publishedAt,expiresAt,releases,revokedCatalogs')
     require(value['schema'] == 'bellteam.update-catalog.v1')
@@ -106,7 +131,7 @@ def validate_catalog(value, *, now=None):
     for release in releases:
         exact(release, 'componentId,sourceCommit,versionId,platform,artifact,compatibility,changes')
         component = release['componentId']
-        require(component in ['container', 'web-gateway', 'notifications', 'members'])
+        require(component in ['container', 'web-gateway', 'notifications', 'members', 'memory'])
         require(hexadecimal(release['sourceCommit'], 40))
         platform = release['platform']; exact(platform, 'os,arch')
         require(platform['os'] == 'linux' and platform['arch'] in ['amd64', 'arm64'])
@@ -114,6 +139,8 @@ def validate_catalog(value, *, now=None):
         compatibility = release['compatibility']
         if component == 'notifications':
             validate_notifications_compatibility(compatibility)
+        elif component == 'memory':
+            validate_memory_compatibility(compatibility)
         elif component == 'members':
             validate_members_compatibility(compatibility)
         else:

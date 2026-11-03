@@ -12,6 +12,7 @@
 - [H1 offline保存更新の配布入力](h1-offline.md)
 - [Web受付の固定artifactと公式認証](web-gateway-artifact.md)
 - [通知の固定artifactと公式認証](notifications-artifact.md)
+- [memoryの固定archiveとコード専用読取view](memory-artifact.md)
 - [membersの固定artifactと公式認証](members-artifact.md)
 - [正式Update catalogの信頼境界](update-catalog.md)
 
