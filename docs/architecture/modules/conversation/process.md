@@ -109,7 +109,7 @@ flowchart LR
 
 user.turnのdispatch Promiseには同期accepted Promiseを保ち、user.postは受付だけ返す。両方とも最終保存Promiseは子pendingに残る。user.completeは同delivery登録と一回性を検証し、最終保存と同operationの背景begin取得までACKしない。native.releaseDeliveryは親が実終端を証明して送る4field bindingだけを受け、callback処理中や不一致を拒否する。delivered/status/acceptedだけで登録を消さない。native/親gate/OS処理の所有は移さない。
 
-history list2は既readerが作った一回のarray snapshotをAsyncIteratorへ渡し、後続appendを混ぜない。文字列全件再生成/件数制限0。未読streamもpendingへ入り、終端又はiterator.return/throwで解放する。元readerのbad batch/partial tail判定は変更しない。親はこのstreamを一回集成してusageカードと既paginationを適用する。
+history list2は既readerが作った一回のarray snapshotをAsyncIteratorへ渡し、後続appendを混ぜない。文字列全件再生成/件数制限0。未読streamもpendingへ入り、終端又はiterator.return/throwで解放する。direct確定不正行の局所除外と診断は[現行履歴読取契約](flow.md#破損した直接履歴の読取)に従い、Roomのbatch検証と各未改行tailの既判定は保つ。親はこのstreamを一回集成してusageカードと既paginationを適用する。
 
 effectへ`execution.shown.read {botId}`→null又は`{shownId,words,endedAt}`、`execution.shown.consume {botId,shownId}`→`{applied:boolean}`を追加する。observer捕捉rootだけ許し、親が既shownInSelfTurnの実参照へ不透明shownIdを束縛する。子は回答append成功後にだけ同shownを消費し、親の新しい表示語を古いhandleで消さない。これは既表示語除去の接続で、observer cursorや確認値の新方式へ切替えない。
 
@@ -200,3 +200,22 @@ Roomのget/has/values/keys/entries/require/sizeは同期の表示投影だけ。
 | `user.post/user.turn`の`recordUser:false` | 親のonboarding actorだけを許可しtargetは同botId。Owner/Bot/usageの自己申告falseは拒否、公開HTTP bodyから新権限を増やさない。true/省略は既意味。同期acceptedと元実completionを保持し、初期案内のユーザー記録を省く |
 
 assets.open/prepareBotAssetRemoval/cancelBotAssetRemovalは親同gate/FDへモリーが合成する。selfTurns.start/stopのpoll timerとstore/rooms.watchの親event寿命、共有application-services/runtime/HTTP/MCP/ledgerと旧writer撤去もモリー所有。facadeには第二writer/タイマー/任意methodを追加しない。既callback5種へのdisplay偽登録やsystem actorの追加は行わず、7actorのobserver捕捉に固定callback権限だけを足す。
+
+## 交換前後の業務state検査helper（test-only）
+
+`test/helpers/conversation-preservation.mjs:createConversationPreservationFixture({root,appRoot})`は既probe-fixtureのBot/Room/selfTurnsを再利用し、人工rootの固定stateだけを作る。writer/RoomRegistry公開口で前後の有効direct行とRoom履歴を保存し、その間に147NULを含む不正な一確定行を置く。非空cursor/seen/checkToken/lastCompletedAtとBot表示seedを持たせる。既fileは上書きしない。
+
+```mermaid
+flowchart LR
+  Seed[既probe fixtureとwriterで人工state] --> Parent[実createApplicationRuntimeの親facade]
+  Parent --> Before[exercise: 履歴/Room更新/自主回答pollを保存]
+  Before --> Exchange[外側Centi: 署名SHA交換又はbuiltin戻し]
+  Exchange --> Restore[次exercise冒頭: 最新bytes/mode/mtimeと作用回数不変]
+  Restore --> Parent
+```
+
+外側は実runtimeを作り、会話processの既onEffectに`fixture.wrapEffects(original)`を注入する。fixtureはobserver snapshot/check/readの既閉3effectだけを人工読取へ置き換える。手動pollは既moduleOperations.reserveの同opaqueを既options.operationContextへ渡して識別し、実保存cursor/checkTokenの旧値を要求して空deltaの新cursor/tokenを返す。runtime.startの初回/5秒timerによる背景pollは同保存tokenのunchangedを返し、CLI/新turn/保存変更0で通す。手動が既running背景巡へ合流した時は同実completion後に最大3回まで再試行する。他effectは既親へ委譲し、配送/背景開始/再送のeffectは拒否する。外側はselfTurns.start等を差し替えず通常runtime.startを呼べる。
+
+外側が交換した後の`fixture.exercise({runtime,label,versionId})`は、公開controllerの選択が期待値であること、保存した最新stateのbytes/mode/mtimeと通常業務逆effect/native回数が交換前と一致することを先に検証する。背景の無変更poll回数は別に記録し、増えても許容する。その後同親のowner/bot/observer文脈で履歴/Room/表示callback/selfTurns.pollを使い、新追記・Room名・cursor/tokenを保存して次段の基準にする。有効前後履歴と各段追記は重複せず、不正行の元bytesも保持する。Bot表示/Room履歴/予定/seen/最終完了値を各段で確認し、completion実Promiseも待つ。seedはconstructorの一回await時に作り、返るseedPath/botsを外側bootstrapへ使う。snapshot()/counts()/receiptsも返し、外側の原本保存へ使える。
+
+helperはroot生成元/署名/C/UID1001/交換/cleanupを所有せず、controller.replaceを呼ばない。新wire/schema/業務APIも増やさない。直接試験は実default runtime.start/親assembly/facade/子IPCを使い、固定Cと署名descriptorだけを既人工child/metadataへ代替する。実5秒背景巡を保留して手動が合流する反例でも、再試行後にcursorを一回だけ進める。作者unitの代替SHA成功を署名実物の成功へ読み替えず、最終親の同bytesでの実署名交換結果はCentiが返す。
