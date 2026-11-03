@@ -47,3 +47,5 @@ prepare→新受付停止→quiesce60秒。未終端なら旧子を殺さずresu
 実C/人工Node子で新旧lock競合、子自身private SH、親死亡と有限終了、quiesce期限超過/resume、quiesced後5秒回収、ready/adoption失敗と旧版戻し、同state保持を確認する。IPCで64KiB/64要求、ACK前後の切断/期限unknown、拒否not_accepted、診断5秒と無再送を確認。reader/rootwriterは通知/Web取り違え・stateSchema拒否・完全集合・immutable/lock/NOREPLACE/失敗cleanup。実root/1001/署名/Host/実配送の成立は各実物結果で区別する。全成功群の定型再走はしない。
 
 親消失の60秒期限は子Nodeのevent loopが進むことを前提とする。同期JS/nativeの永久停止を外部watchdogで回収する機構は今回追加していない。OS終了/IPC切断/所有pipe closeが全て揃うことを回収条件とし、親からIPCを切断した時のNode26のcloseイベント欠測経路も同じbarrierで回収する。
+
+Root初回受入追補：reserve/replaceはSHA64のほか固定literal builtinだけを許し内部nullへ正規化する。currentVersionId:nullの採用recordも明示builtinとして読み、previousは直前SHA/null。snapshotのcurrentTargetとbuiltinSourceCommitは、固定/app/distribution.jsonのroot-owned通常file/size/schema/source確認とimage固定C入口に束縛する。任意path/metadataをAPI入力にしない。初回builtin A→同source署名B→builtin Aで受入し、異source互換の証明にはしない。

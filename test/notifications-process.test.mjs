@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import childProcess from 'node:child_process'
+import fsPromises from 'node:fs/promises'
 import { syncBuiltinESMExports } from 'node:module'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -10,6 +11,10 @@ const fixture = new URL('./fixtures/notifications-runtime-child.mjs',import.meta
 const ids={a:'a'.repeat(64),b:'b'.repeat(64),bad:'c'.repeat(64),hang:'d'.repeat(64)}
 async function setup(t,{mode='',prepare=async()=>{},report=async()=>{}}={}) {
   const root=await mkdtemp(join(tmpdir(),'notifications-controller-'));await mkdir(join(root,'state'))
+  const realOpen=fsPromises.open
+  t.mock.method(fsPromises,'open',async(path,...args)=>path==='/app/distribution.json'
+    ? {stat:async()=>({isFile:()=>true,uid:0,nlink:1,mode:0o644,size:135}),readFile:async()=>JSON.stringify({schema:'bellteam.server.distribution.v1',sourceCommit:'e'.repeat(40)}),close:async()=>{}}
+    :realOpen(path,...args))
   const spawn=childProcess.spawn, children=[]
   t.mock.method(childProcess,'spawn',(command,args,options)=>{
     assert.equal(command,'/usr/local/libexec/bellteam-notifications-start')
@@ -114,4 +119,22 @@ test('45-second new initialization timeout reaps new child and returns to old ve
  t.mock.timers.tick(45001);await rejected;t.mock.timers.reset()
  assert.equal(controller.snapshot().available,true);assert.equal(controller.snapshot().currentVersionId,null)
  assert.equal(children[1].signalCode,'SIGKILL')
+})
+
+test('explicit builtin target returns to image-owned source and persists its previous signed version',async t=>{
+ const {controller,root}=await setup(t)
+ await controller.start();await controller.replace(ids.a);await controller.replace('builtin')
+ const state=controller.snapshot();assert.equal(state.currentTarget,'builtin');assert.equal(state.currentVersionId,null)
+ assert.match(state.builtinSourceCommit,/^[a-f0-9]{40}$/)
+ const record=JSON.parse(await readFile(join(root,'state/notifications-release.json'),'utf8'))
+ assert.equal(record.currentVersionId,null);assert.equal(record.previousVersionId,ids.a)
+ const reservation=controller.reserve('builtin');reservation.cancel()
+ assert.equal(controller.snapshot().update.status,'not_started')
+})
+
+test('adopted builtin with a previous release is read back as builtin on restart',async t=>{
+ const prepared=[]
+ const {controller,root}=await setup(t,{prepare:async id=>prepared.push(id)})
+ await writeFile(join(root,'state/notifications-release.json'),JSON.stringify({schema:'bellteam.notifications.adoption.v1',currentVersionId:null,previousVersionId:ids.a}),{mode:0o600})
+ await controller.start();assert.deepEqual(prepared,[ids.a]);assert.equal(controller.snapshot().currentTarget,'builtin')
 })
