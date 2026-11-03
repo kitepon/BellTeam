@@ -14,6 +14,7 @@ import { createManagedTransport } from './aiterm-transport.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
 import { completedThroughlineTurns, latestThroughlineHandoffContext } from './throughline-context.mjs'
 import { AiControl, stopRegisteredWork } from './ai-control.mjs'
+import { prepareModuleRelease } from './module-release.mjs'
 import { createDiagnosticsFacade } from './diagnostics-facade.mjs'
 import { Diagnostics } from './diagnostics.mjs'
 import { BellTeamMemory } from './memory-service.mjs'
@@ -36,7 +37,7 @@ import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory }) {
+export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options) }) {
   let members = null, diagnosticsModule = null, memory, rooms, assets, updateCenter
   const membersAdmission = new MembersAdmission()
   try {
@@ -49,7 +50,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   })
   await subscriptions.initialize()
   const investigationsFile = environment.BELLTEAM_DIAGNOSTIC_INVESTIGATIONS ?? null
-  if (diagnosticsFactory) diagnosticsModule = diagnosticsFactory({ root, investigationsFile, onState: () => updateCenter?.notify() })
+  if (diagnosticsFactory) diagnosticsModule = diagnosticsFactory({ root, investigationsFile, prepareRelease: prepareDiagnostics, onState: () => updateCenter?.notify() })
   const diagnostics = diagnosticsModule ? createDiagnosticsFacade(diagnosticsModule)
     : new Diagnostics(join(root, 'logs/diagnostics.json'), { investigationsFile })
   await diagnostics.initialize()
@@ -72,11 +73,12 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
       updateCenter?.notify()
     },
   })
-  const hostUpdateClient = createContainerUpdateClient()
+  const hostUpdateClient = hostClient ?? createContainerUpdateClient()
   const hostUpdate = createHostUpdateAdapter({ root, client: hostUpdateClient })
   const moduleCatalog = createModuleUpdateCatalog({ client: hostUpdateClient })
   const moduleExecutor = await createModuleUpdateExecutor({ root, catalog: moduleCatalog, host: hostUpdate,
-    adapters: createModuleUpdateAdapters({ gateway, notifications, members, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule }), notify: () => updateCenter?.notify() })
+    adapters: createModuleUpdateAdapters({ gateway, notifications, members, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule,
+      prepareDiagnostics }), notify: () => updateCenter?.notify() })
   updateCenter = createUpdateCenter({ gateway, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule })
   await notifications.initialize()
   memory = seatRuntime ? seatRuntime.memory(bots) : new BellTeamMemory({ registry: bots, root })
