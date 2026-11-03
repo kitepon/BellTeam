@@ -1,5 +1,6 @@
 import { isAbsolute } from 'node:path'
 import { BellTeamMemory } from '../memory-service.mjs'
+export { MEMORY_STATE_COMPATIBILITY, assertMemoryStateCompatibility } from './state-compatibility.mjs'
 
 export const MEMORY_METHODS = Object.freeze(['initialize', 'ensureScope', 'remember', 'reviseMemory', 'pinMemory',
   'consolidateGrowth', 'recallMemory', 'recordKnowledge', 'searchKnowledge', 'rebuildKnowledgeIndex'])

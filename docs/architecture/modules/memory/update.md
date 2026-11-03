@@ -40,3 +40,25 @@ flowchart TD
 ## source供給と残る接続
 
 この差分は業務factory/dispatcherと人工データでの直接確認。既SeatRuntime.memoryとrun-seat-runtimeのmemory分岐はruntimeが新公開窓口へ接続し、固定版依存sourceを含めて交換する。親application-servicesの一実体接続はintegration。HTTP/MCPの引数、応答・認可、新Bot作成後のensureScopeは変更しない。既直接実行構成のBellTeamMemoryも使用可能なまま。配布と同source実物受入、通常main採用、本番反映はそれぞれの担当工程で確認する。
+
+## 実保存形式の互換宣言
+
+`src/memory/state-compatibility.mjs:MEMORY_STATE_COMPATIBILITY` と `assertMemoryStateCompatibility` をarchive/catalog/consumer共通で使用する。dispatcherからも再exportする。既members方式と同じ完全一致で判定し、欠落・追加・変更を `MEMORY_STATE_INCOMPATIBLE` とする。control initializeの `{restored:true}` とDB無作用の性質は維持する。
+
+```mermaid
+flowchart LR
+  DDL["現memory-serviceが作るDDL<br/>user_versionは両DBとも0"] --> Contract["memory/state-compatibility<br/>必須schema指紋・実保存形式"]
+  Index["memory-searchの実索引版<br/>1:実行NodeのICU版"] --> Contract
+  Contract --> Archive["distribution: archive/catalog"]
+  Contract --> Consumer["runtime: 同版consumer"]
+```
+
+| 宣言値 | 実装の根拠 |
+| --- | --- |
+| memoryUserVersion / knowledgeUserVersion | 現serviceが作るSQLiteの `PRAGMA user_version` は両方0。memory全体のschema番号は追加しない |
+| memoryRequiredSchemaSha256 / knowledgeRequiredSchemaSha256 | 空の人工DBに現serviceが作る必須DDLのSHA-256。`sqlite_schema`の `name NOT LIKE 'sqlite_%'` をtype/name順にし、各行を `[type,name,tbl_name,sql]` の配列へ変換したJSON UTF-8の指紋。FTSの内部table/triggerも含む |
+| knowledgeEncoding | notesとINDEX.mdが実際に使用する `utf8` |
+| knowledgeFrontmatterFields | notesの保存順どおり `id,title,source,created_at,confidence,tags`。各値は既JSON frontmatterで保存する |
+| searchIndexVersion | `memory-search` が両DBの `index_state` の `version` へ保存する既値。`MEMORY_SEARCH_INDEX_VERSION` を共有し、ICU版を含む文字列を二重定義しない |
+
+この宣言はsourceの保存形式を比較する情報。既DBに残る廃止tableまで指紋一致を要求するDB検査や、本文のhandoff・DB移行・索引再構築を追加しない。必須DDLの変更時には人工DBとの限定確認で宣言を合わせる。ICU版が変われば既索引版も変わるため、同じruntimeの実値をarchive/catalog/consumerへ渡す。数値のstateSchemaを創作しない。
