@@ -39,6 +39,7 @@ export const updatesSchema = { $id: 'urn:bellteam:updates:v1', ...object({ schem
   notice: object({ state: enumeration(['ready', 'unavailable', 'updating', 'attention']), code: nullable(text), message: text }),
   components: list(object({ id: text, name: text, description: text, current: nullable(version), published: nullable(version),
     comparison: object({ state: enumeration(['up_to_date', 'update_available', 'unavailable', 'incompatible', 'unknown']), reason: nullable(text) }),
+    publication: nullable(object({ catalog: object({ sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' }, publishedAt: date, expiresAt: date }), check: object({ status: enumeration(['verified', 'failed', 'unconfirmed']), checkedAt: nullable(date), error: nullable(text) }) })),
     changes: list(text), capability, availability: object({ available: nullable({ type: 'boolean' }), reason: nullable(text) }) })),
   plans: list(plan), operation: nullable(operation), previousOperation: nullable(operation),
 }) }
@@ -64,7 +65,7 @@ const examplePlan = { planId: '11111111-1111-4111-8111-111111111111', scope: 'co
   capability: { supported: true, reason: null } }
 const baseExample = { schema: 'bellteam.updates.v1', server: { id: 'example-server' }, observedAt: '2026-11-03T14:00:00+09:00',
   notice: { state: 'unavailable', code: 'UPDATE_PROVIDERS_UNAVAILABLE', message: '正式公開版と更新計画は未接続です。' },
-  components: [{ id: 'container', name: 'BellTeam本体', description: updateComponents[0][2], current: exampleCurrent, published: null,
+  components: [{ id: 'container', name: 'BellTeam本体', description: updateComponents[0][2], current: exampleCurrent, published: null, publication: null,
     comparison: { state: 'unavailable', reason: 'PUBLISHED_RELEASE_UNAVAILABLE' }, changes: [],
     capability: { supported: false, reason: 'UPDATE_EXECUTOR_UNAVAILABLE' }, availability: { available: true, reason: null } }],
   plans: [], operation: null, previousOperation: null }
@@ -88,3 +89,8 @@ export const updateExamples = Object.fromEntries(['running', 'no_update', 'publi
   if (name === 'verified_completed') { Object.assign(value.operation, { phase: 'completed', execution: 'succeeded', verification: 'succeeded' }); component.current = { ...examplePublished, origin: 'container' }; component.comparison = { state: 'up_to_date', reason: null }; value.notice = { state: 'ready', code: null, message: '更新先の稼働を確認しました。' } }
   return [name, value]
 }))
+
+const responses = Object.fromEntries(Object.entries(updateResponseSchemas).map(([name, schema]) => [name, validator.getValidator(schema)]))
+export function validateUpdateResponse(name, value) {
+  if (!responses[name](value).valid) throw Object.assign(new Error('UPDATE_RESPONSE_INVALID'), { code: 'UPDATE_RESPONSE_INVALID', status: 503 })
+}

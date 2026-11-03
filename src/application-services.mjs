@@ -16,6 +16,8 @@ import { OwnerQuestions, ownerAnswerMessage } from './owner-questions.mjs'
 import { IdleSessions } from './idle-sessions.mjs'
 import { createNotifications } from './usage/notifications.mjs'
 import { createNotificationsProcess } from './notifications-process.mjs'
+import { createContainerUpdateClient } from './container-update-client.mjs'
+import { createHostUpdateAdapter } from './update-host-adapter.mjs'
 import { createUpdateCenter } from './update-center.mjs'
 import { Subscriptions } from './subscriptions.mjs'
 import { Onboarding } from './onboarding.mjs'
@@ -43,7 +45,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
       updateCenter?.notify()
     },
   })
-  updateCenter = createUpdateCenter({ gateway, notifications })
+  updateCenter = createUpdateCenter({ gateway, notifications, host: createHostUpdateAdapter({ root, client: createContainerUpdateClient() }) })
   await notifications.initialize()
   const memory = seatRuntime ? seatRuntime.memory(bots) : new BellTeamMemory({ registry: bots, root })
   await memory.initialize()
