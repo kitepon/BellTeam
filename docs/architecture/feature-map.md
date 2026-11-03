@@ -127,7 +127,7 @@ flowchart LR
 | [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions |
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |
 | [RTK](modules/rtk/README.md) | ドリリー | hook |
-| [実行環境・更新復旧](modules/runtime/README.md) | エピネル | lifecycle / seat-process / project-files / cli-registration / update / module-runner |
+| [実行環境・更新復旧](modules/runtime/README.md) | エピネル | lifecycle / seat-process / project-files / cli-registration / module-runner / update / module-runner |
 | [testgate](modules/testgate/README.md) | シラツル | hook |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context |
 | [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth |

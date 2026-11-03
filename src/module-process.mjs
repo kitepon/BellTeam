@@ -22,10 +22,11 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   initializeParams = ({ generation, mode }) => ({ generation, mode }),
   exportHandoff = async () => undefined, admission, canContinue = () => false,
   onGeneration = () => {}, onState = () => {}, investigationsFile = null,
-  spawnProcess = spawn }) {
+  startPaused = false, spawnProcess = spawn }) {
   if (!['conversation', 'usage', 'diagnostics'].includes(component) || typeof root !== 'string'
     || typeof createChannel !== 'function' || typeof prepareRelease !== 'function' || typeof validateReady !== 'function'
     || component !== 'diagnostics' && investigationsFile !== null
+    || startPaused && component !== 'usage'
     || investigationsFile !== null && typeof investigationsFile !== 'string') throw failure('MODULE_OPTIONS_INVALID', 400)
   const prefix = component.toUpperCase(), adoptionPath = join(root, `state/${component}-release.json`)
   const fail = (suffix, status) => failure(`${prefix}_${suffix}`, status)
@@ -95,7 +96,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     })
     // Pipes are drained without retaining or publishing arbitrary child output.
     child.stdout?.resume(); child.stderr?.resume()
-    const target = { child, generation: nextGeneration, ended: false, resumed: false, channel: null }
+    const target = { child, generation: nextGeneration, ticket, ended: false, resumed: false, channel: null }
     instance = target
     target.end = waitNotificationsChildClose(child).then(async () => {
       await target.channel?.drainIncoming?.()
@@ -159,7 +160,8 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     try {
       await admission?.drain(ticket)
       const target = await launch(currentVersionId, ticket, saved ? 'restore' : 'bootstrap')
-      await resume(target, ticket)
+      if (startPaused) state('initializing')
+      else await resume(target, ticket)
       initialized = true
       return snapshot()
     } catch (error) { state(closed ? 'closed' : 'unavailable'); throw error }
@@ -266,8 +268,14 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     request: (method, params, options = {}) => invoke('request', method, params, options),
     callback: (method, params, options = {}) => invoke('callback', method, params, options),
     initialize: mode => {
-      if (!available || closed || exchanging) return Promise.reject(fail('NOT_ACCEPTING'))
+      if (!available && phase !== 'initializing' || closed || exchanging) return Promise.reject(fail('NOT_ACCEPTING'))
       return track(Promise.resolve(initializeParams({ generation, mode })).then(params => track(instance.channel.control('initialize', params, 45000))))
     },
+    activate: () => exclusive(async () => {
+      if (closed || phase !== 'initializing' || !instance) throw fail('NOT_ACCEPTING')
+      await waitActive()
+      await resume(instance, instance.ticket)
+      return snapshot()
+    }),
   }
 }
