@@ -1,0 +1,19 @@
+{
+  "bots": [{"id":"bot-conversation-probe","name":"Conversation probe"}],
+  "files": {
+    "rooms/room-conversation-probe/room.json": {
+      "schema":"bellteam.room.v1",
+      "id":"room-conversation-probe",
+      "name":"Conversation probe",
+      "purpose":"",
+      "representativeId":"bot-conversation-probe",
+      "memberIds":["bot-conversation-probe"],
+      "avatar":""
+    },
+    "rooms/room-conversation-probe/schedule.json": {"schema":"bellteam.schedule.v1","schedules":[]},
+    "logs/self-turns.json": {
+      "schema":"bellteam.self-turns.v1",
+      "bots":{"bot-conversation-probe":{"cursor":null,"seen":[],"lastCompletedAt":null}}
+    }
+  }
+}
