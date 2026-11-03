@@ -15,6 +15,8 @@
   ],
   "source": [
     "src/diagnostics.mjs",
-    "src/diagnostic-report-context.mjs"
+    "src/diagnostic-report-context.mjs",
+    "src/diagnostics-dispatcher.mjs",
+    "src/diagnostics-protocol.mjs"
   ]
 }

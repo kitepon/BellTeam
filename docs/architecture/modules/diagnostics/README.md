@@ -23,6 +23,8 @@ flowchart LR
 | setStatus/setNote/updateInvestigation | 既指紋/状態/注記→保存後row | 既正本へ同writerで直列保存、不正400/不存在404の既出力を維持 |
 | close/drain | 新入場封鎖→先行要求と実保存終端 | timeout/acceptedを保存完了へ置換しない、親facadeとrunnerの実終端を同世代で結ぶ |
 
-現mainでは既Diagnostics classが同processのwriterを所有する。factory/閉dispatcher/独立runnerの接続は未完で、役割/図の割当を分離完成としない。raw rows/investigations・任意path/env・親認証secretは子wireへ公開しない。HTTP要求の安全なroute/code射影は親integrationの`diagnostic-request-context`/`http-errors`が担当し、診断業務が親handlerを編集しない。旧SERVER_HTTP_500/新SERVER_HTTP_503とApple原本を含む既code/重大度/集約/unknownを保持し、新source成功を過去事故の原因/回復へ補完しない。
+本差分で業務factory/閉dispatcherとread-only restore/close-drainを供給する。独立runnerと親facadeの通常main接続は接続担当へ渡す。ローカルclassは従来の同process利用も保つ。raw rows/investigations・任意path/env・親認証secretは子wireへ公開しない。HTTP要求の安全なroute/code射影は親integrationの`diagnostic-request-context`/`http-errors`が担当し、診断業務が親handlerを編集しない。旧SERVER_HTTP_500/新SERVER_HTTP_503とApple原本を含む既code/重大度/集約/unknownを保持し、新source成功を過去事故の原因/回復へ補完しない。
 
 Signalが内部図・source・直接検証を同差分で供給、Epiがrunner実子/世代とstreamを接続、Mollyが安定facade/assemblyと共通ledger/adapter・通常mainへ結ぶ。内部の詳細はこの正本へ追記し、親へ複製しない。
+
+内部factory・閉操作・状態/close-drain/restoreは[単体更新の正本](module-update.md)。
