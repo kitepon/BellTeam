@@ -155,6 +155,7 @@ export function createUsageParentChannel(child, { generation, admission, authori
     ready, request: (method, params, options) => call('root', method, params, options),
     callback: (method, params, options) => call('callback', method, params, options),
     control: (method, params = {}, timeout = 5000) => call('control', method, params, { timeout }),
+    drainIncoming: channel.drainIncoming,
     reaped() { channel.reaped(); streams.close() }, dispose() { channel.fail(); streams.close() },
     snapshot: () => ({ ...channel.snapshot(), streams: streams.snapshot(), effects: effects.size }),
   }

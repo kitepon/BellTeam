@@ -93,7 +93,7 @@ Onboarding.authの任意scalarは既HarnessAuth同様null/booleanへ正規化し
 
 ## usage固有channel/薄entry/probe（追加実装）
 
-Root21:55の並行分担で、closed parent/child adapterと`src/usage-entry.mjs`/`scripts/probe-usage-runtime.mjs`をミカが所有する。既factory/DTOを再利用し、parent公開口ready/request/callback/control/reaped/snapshotを共通runnerへ接続する。C/固定FD3,4,5/排他/世代controllerはEpiの公開窓口に従う。membersの8root/8effect/8callback・実completionを再利用し、private大snapshotはconversation-streamsのcredit/chunkを使う。actorは親opaqueから同channelが閉actorへ写し、子の自己申告や診断への秘密反射を認めない。
+Root21:55の並行分担で、closed parent/child adapterと`src/usage-entry.mjs`/`scripts/probe-usage-runtime.mjs`をミカが所有する。既factory/DTOを再利用し、parent公開口ready/request/callback/control/drainIncoming/reaped/snapshotを共通runnerへ接続する。C/固定FD3,4,5/排他/世代controllerはEpiの公開窓口に従う。membersの8root/8effect/8callback・実completionを再利用し、private大snapshotはconversation-streamsのcredit/chunkを使う。actorは親opaqueから同channelが閉actorへ写し、子の自己申告や診断への秘密反射を認めない。
 
 ## 固有adapterの実接続
 
@@ -117,9 +117,13 @@ sequenceDiagram
   Factory->>Endpoint: 12固定effect・実completion
   Child->>Stream: replyを逐次転送（callback予約laneを保持）
   Endpoint->>Parent: wire metadata後もbody/commit終端までcredit/completion保持
+  Parent->>Parent: 子OS/IPC/pipe終端を確認
+  Parent->>Endpoint: drainIncoming()
+  Endpoint-->>Parent: 親effect/commit実終端
+  Parent->>Endpoint: reaped()の後に次子
 ```
 
-`createUsageParentChannel(child,{generation,admission,authorizeActor,onEffect,onProjection,onSnapshotStart,onSnapshotEnd,onSnapshotAbort,onDiagnostic})`はready/request/callback/control/reaped/snapshotを公開する。optionsは`{usageLease,capturedAuthorization,usageEffect}`で、他moduleのopaqueや偽effectは拒否する。generationはruntimeの不透明文字列。初期controlはmode=settings（bootstrap/restore:false）→subscriptions→services。交換はmode=restore（bootstrap/handoff）一回で全復元を終える。controlの引数はgeneration/mode/streamed markerだけを小さい封筒へ、private bodyを同ID root streamへ送る。
+`createUsageParentChannel(child,{generation,admission,authorizeActor,onEffect,onProjection,onSnapshotStart,onSnapshotEnd,onSnapshotAbort,onDiagnostic})`はready/request/callback/control/drainIncoming/reaped/snapshotを公開する。optionsは`{usageLease,capturedAuthorization,usageEffect}`で、他moduleのopaqueや偽effectは拒否する。generationはruntimeの不透明文字列。初期controlはmode=settings（bootstrap/restore:false）→subscriptions→services。交換はmode=restore（bootstrap/handoff）一回で全復元を終える。controlの引数はgeneration/mode/streamed markerだけを小さい封筒へ、private bodyを同ID root streamへ送る。
 
 onProjection(row,context)のphase=seedはprojection.seed、phase=updateはfacade.accept、phase=snapshotはprojection.accept。onSnapshotStartでbegin、onSnapshotEndでcommitし、完了PromiseをACKとして返す。初期readyはsettingsのprivate seed ACK後で、Owner/Bot業務はservices後だけ。交換のreadyは全restore/snapshot commit終端後。既graphの初回先行読取を、新子の完全業務readyと混同しない。
 
@@ -132,3 +136,6 @@ entryはverifyUsageLocks()を通過後、固定rootのdispatcher/factoryだけ�
 共通endpoint/streamsはEpi f0588a34、lock verifierはEpi cc6ded63からのforeign input。独立した当席作者成果へ混ぜず原本を参照し、共通C/controller/readerの実装を複製しない。
 
 切断時onSnapshotAbort(context)で未採用stagingをdiscardする。afterResult/commit callbackが遅着しても投影を採用せず、成功/.completionはreapedまで未確認のまま保持する。
+
+
+parent channelのdrainIncoming()は共通endpointへ直接委譲する。controllerは子OS/IPC/pipe終端→受信済み親effect/afterResult commitの実終端→reaped→次子の順を必須とする。outgoingのreaped待ちcredit/.completionはdrainIncomingに含めず、子終了後も残る親処理を待つために循環を作らない。wire/業務/8枠は変えない。
