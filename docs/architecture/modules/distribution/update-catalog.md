@@ -31,3 +31,13 @@ containerUpdateは対応Host installer契約の検証済値又はnull。現一�
 Host収録の後続差分はEpi固定root-code-pathsの14entryを使い、bootstrap installerも明示収録する。code manifestはsourceCommit/filesとschemaだけを持ち、path越境・link・重複を拒否し全14fileの最終bytes/hashを固定する。実root provision/設置はこのsource試験から推定しない。
 
 固定unitの実名はbellteam-container-update-host.service.in / bellteam-update-catalog-refresh.service.in / bellteam-update-catalog-refresh.timer。Epi root-code-pathsのこの3名とcompose.overlay.yamlだけをpackagerで許可し、14fileの接続を維持する。
+
+専用verify-container-updater-systemdは採用mainのsourceを照合し、使い捨てamd64 root/systemd VMだけでEpiの固定fixtureを実行する。actual Handler/worker launch_service、UID1001 peer、別service cgroup、受付stop後worker生存、同requestId読戻し、socket親inodeと対象unit/temp回収を原本へ保存する。engine・署名receipt・root prefixは人工、production entry load/実Docker/公式crypto/Host導入の証明にはしない。
+
+```mermaid
+flowchart LR
+  Main[採用main固定source] --> VM[専用root/systemd VM]
+  VM --> Fixture[runtime固定fixture / Handlerとworker]
+  Fixture --> Evidence[実peer1001 / 別cgroup / stop跨ぎ / 原本]
+  Fixture --> Cleanup[自分のunitとtempだけ回収]
+```
