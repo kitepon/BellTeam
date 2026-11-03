@@ -44,7 +44,7 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
     await configureHarnessConfig(bots, home, { aiterm: async () => aiterm, callBridge: config })
   }
   const initialize = async () => {
-    for (const [id, apply] of [['diagnostics', configureDiagnostics], ['callBridge', configureCalls], ['notifications', value => notifications.configure(value)]]) {
+    for (const [id, apply] of [['diagnostics', configureDiagnostics], ['callBridge', configureCalls], ['notifications', value => notifications.initialStatus ? notifications.initialStatus() : notifications.configure(value)]]) {
       try { await apply(settings.configuration(id)) }
       catch (error) {
         settings.setError(id, error)

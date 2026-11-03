@@ -134,6 +134,8 @@ flowchart TD
 
 ## 通知と購読：サーバー会話の成功とは別の機能
 
+[通知の独立process化](notification-process.md)に通知だけの全caller・状態所有・停止と結果不明の境界、必要な接点の案を示す。下図は現行の同一process内の処理である。
+
 ```mermaid
 flowchart LR
   Saved["保存済みの発言 / 新規入力依頼"] --> Event["direct・room・secret・question<br/>汎用の知らせを作る"]

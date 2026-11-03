@@ -60,7 +60,7 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
     }
     if (url.pathname.startsWith('/api/notifications')) {
       if (!notifications) return json(response, 404, { error: 'NOT_FOUND' })
-      if (request.method === 'GET' && url.pathname === '/api/notifications') return json(response, 200, notifications.status())
+      if (request.method === 'GET' && url.pathname === '/api/notifications') return json(response, 200, await notifications.status())
       if (request.method === 'POST' && url.pathname === '/api/notifications/devices')
         return json(response, 200, await notifications.register(await readJson(request, 32768)))
       if (request.method === 'POST' && url.pathname === '/api/notifications/unregister')
