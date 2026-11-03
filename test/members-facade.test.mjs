@@ -5,11 +5,11 @@ import { createMembersFacade } from '../src/members-facade.mjs'
 const bot = { id: 'bot-test', name: 'test', harness: 'codex', session: 'session' }
 function fixture() {
   const admission = new MembersAdmission('generation'), calls = []
-  const projection = { get: () => ({ ...bot, name: 'stale' }), has: () => true, keys: () => [bot.id].values(), values: () => [bot].values() }
+  const projection = { get: () => ({ ...bot, name: 'stale' }), has: () => true, keys: () => [bot.id].values(), values: () => [bot].values(), snapshot: () => ({ available: true, generation: 'generation', revision: 1, profiles: [bot] }) }
   const facade = createMembersFacade({ admission, projection,
     request: async (method, params, context) => {
       admission.assertLease(context.membersLease); calls.push({ method, params, context })
-      return method === 'profiles.read' ? { profiles: [bot] } : { bot }
+      return method === 'profiles.read' ? { revision: 1 } : { bot }
     },
     callback: async (method, params, context) => {
       admission.assertLease(context.membersLease); calls.push({ method, params, context }); return { bot }
@@ -103,4 +103,34 @@ test('fixed onboarding creation option is retained outside the profile input', a
   await f.bots.create({ name: 'guide' }, { id: 'bot-guide' })
   assert.deepEqual(f.calls[0].params, { input: { name: 'guide' }, id: 'bot-guide' })
   assert.equal(Object.hasOwn(f.calls[0].context, 'id'), false)
+})
+
+test('display list restores full profiles one at a time under one lease; active authorization stays separate', async () => {
+  const admission = new MembersAdmission(), calls = []
+  let entered = 0
+  const enter = admission.enter.bind(admission); admission.enter = (...args) => { entered++; return enter(...args) }
+  const pending = { ...bot, id: 'bot-pending', deleting: true, avatar: '', avatarLarge: '' }
+  const f = createMembersFacade({ admission, projection: { snapshot: () => ({ available: true, generation: 'builtin', revision: 1, profiles: [bot, pending] }) }, request: async (method, params, options) => {
+    calls.push({ method, params, lease: options.membersLease }); admission.assertLease(options.membersLease)
+    if (method === 'profiles.read') return { revision: 1 }
+    if (params.botId === pending.id && !params.includeDeleting) throw Object.assign(new Error('missing'), { code: 'BOT_NOT_FOUND', status: 404 })
+    return { bot: params.botId === pending.id ? pending : { ...bot, avatar: '' } }
+  } })
+  const listed = await f.bots.listForClient()
+  assert.equal(entered, 1); assert.ok(calls.every(call => call.lease === calls[0].lease))
+  assert.ok(calls.slice(1).every(call => call.params.includeDeleting === true))
+  assert.equal(listed[1].deleting, true); assert.equal(Object.hasOwn(listed[0], 'avatar'), true)
+  await assert.rejects(f.bots.readMember(pending.id), { status: 404 })
+  assert.equal(Object.hasOwn(calls.at(-1).params, 'includeDeleting'), false)
+})
+test('list projection disappearance skips confirmed 404 only, unknown never returns an empty roster', async () => {
+  const admission = new MembersAdmission()
+  let failure = Object.assign(new Error(), { code: 'BOT_NOT_FOUND', status: 404 })
+  const f = createMembersFacade({ admission, projection: { snapshot: () => ({ available: true, generation: 'builtin', revision: 1, profiles: [bot] }) }, request: async method => {
+    if (method === 'profiles.read') return { revision: 1 }
+    throw failure
+  } })
+  assert.deepEqual(await f.bots.listForClient(), [])
+  failure = Object.assign(new Error(), { code: 'MEMBERS_UNAVAILABLE', status: 503, outcome: 'unknown' })
+  await assert.rejects(f.bots.listForClient(), { status: 503, outcome: 'unknown' })
 })

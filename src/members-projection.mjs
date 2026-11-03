@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import { validateMembersProjection } from './members/protocol.mjs'
 
 const invalid = () => Object.assign(new Error('MEMBERS_PROJECTION_INVALID'), { code: 'MEMBERS_PROJECTION_INVALID', status: 503 })
@@ -12,6 +13,7 @@ export function createMembersProjection({ onChange = () => {} } = {}) {
       targetGeneration = nextGeneration; available = false; pending = null
     },
     accept(record, context) {
+      let changed = false
       try {
         validateMembersProjection(record, context)
         if (context.leaseId === null && context.continuation !== false) throw invalid()
@@ -27,12 +29,13 @@ export function createMembersProjection({ onChange = () => {} } = {}) {
           pending.profiles.set(record.bot.id, structuredClone(record.bot))
           return
         }
+        changed = !available || generation !== targetGeneration || !isDeepStrictEqual(profiles, pending.profiles)
         profiles = pending.profiles; generation = targetGeneration; revision = pending.revision; pending = null; available = true
       } catch (error) {
         pending = null; available = false
         throw error
       }
-      onChange()
+      if (changed) onChange()
     },
     unavailable() { pending = null; available = false },
     snapshot() { return { generation, revision, available, stale: !available, profiles: [...profiles.values()].map(value => structuredClone(value)) } },

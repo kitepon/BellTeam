@@ -1,21 +1,15 @@
 #!/usr/bin/env node
-// ベルの席だけが自分のGrok設定（--scope project）へ登録するMCP。ユーザー規範の書き換えを持つ。
+// Dedicated Owner MCP proxies to the parent; registration comments confer no authority.
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 
-import { createGlobalInstructionsRefresher } from './global-instructions.mjs'
 import { callOwnerTool, ownerTools } from './mcp-owner-tools.mjs'
-import { OwnerProfile } from './owner-profile.mjs'
-import { UserRules } from './user-rules.mjs'
-import { runtimeHome } from './runtime-home.mjs'
+import { createMembersOwnerProxy } from './members-owner-proxy.mjs'
 
-const root = process.env.BELLTEAM_ROOT ?? '/srv/bellteam'
-const ownerProfile = new OwnerProfile({ root })
-await ownerProfile.initialize()
-const userRules = new UserRules({ root })
-await userRules.initialize()
-const refreshGlobalInstructions = createGlobalInstructionsRefresher({ ownerProfile, userRules, home: runtimeHome() })
+const proxy = createMembersOwnerProxy({ port: Number(process.env.BELLTEAM_INTERNAL_PORT ?? 4181) })
+const userRules = { update: text => proxy.updateUserRules(text) }
+const refreshGlobalInstructions = async () => {}
 
 const server = new Server(
   { name: 'bellteam-owner', version: '0.1.0' },

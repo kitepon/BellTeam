@@ -56,3 +56,13 @@ test('five-field context is required, initialization cannot claim continuation',
   for (const record of [{ type: 'snapshot-start', revision: 1 }, { type: 'profile', revision: 1, bot: bot('continued') }, { type: 'snapshot-end', revision: 1 }]) view.accept(record, trustedLive)
   assert.equal(view.get('continued').id, 'continued')
 })
+
+test('fresh snapshot revision alone never generates a read-to-SSE feedback loop', () => {
+  let events = 0
+  const view = createMembersProjection({ onChange() { events++ } })
+  view.begin('a'); publish(view, 'a', 1, ['same'])
+  publish(view, 'a', 2, ['same']); publish(view, 'a', 3, ['same'])
+  assert.equal(events, 1); assert.equal(view.snapshot().revision, 3)
+  view.unavailable(); publish(view, 'a', 4, ['same']); assert.equal(events, 2)
+  publish(view, 'a', 5, ['changed']); assert.equal(events, 3)
+})

@@ -56,6 +56,10 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       const authenticated = await authorize(request)
       if (request.method === 'GET' && url.pathname === '/api/session') return json(response, 200, { authenticated, authMode: authMode(request) })
       if (!authenticated) return json(response, url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/') ? 403 : 401, { error: 'UNAUTHORIZED' })
+      if (url.pathname === '/internal/members-owner') {
+        // No approved dedicated registrations have been supplied for initial migration.
+        return json(response, 403, { error: 'MEMBERS_OWNER_GRANT_UNKNOWN' })
+      }
       if (!internal) membersContext = membersAuthorization?.captureHttp(request, url.pathname)
       // 席のCLIがつなぐMCP。内部入口（loopback）だけで開く。
       if (internal && seatMcp && (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/'))) return await seatMcp(request, response, url)

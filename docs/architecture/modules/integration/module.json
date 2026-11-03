@@ -83,6 +83,7 @@
     "src/members-owner-authorization.mjs",
     "src/members-projection.mjs",
     "src/members-facade.mjs",
-    "src/members-assembly.mjs"
+    "src/members-assembly.mjs",
+    "src/members-owner-proxy.mjs"
   ]
 }

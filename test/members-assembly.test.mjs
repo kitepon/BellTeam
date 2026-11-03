@@ -12,7 +12,7 @@ test('assembly uses one gate/controller and dispatches only fixed effects with o
     dependencies: () => ({ memory: { async ensureScope() { return { private: true } } } }),
     seatRuntime: {
       async membersProject(method, params) { projects++; assert.equal(method, 'project.claim'); assert.deepEqual(params, { botId: 'bot-test' }); return null },
-      async configureMembersHarnesses(read, aiterm, callBridge) { cli++; assert.equal(callBridge, currentBridge); assert.deepEqual(await read(), ['bot-test']) },
+      async configureMembersHarnesses(read, aiterm, callBridge) { cli++; assert.equal(callBridge(), currentBridge); assert.deepEqual(await read(), ['bot-test']) },
     }, createProcess(options) {
       hooks = options; assert.equal(options.membersAdmission, gate)
       return { async start() {
@@ -31,7 +31,7 @@ test('assembly uses one gate/controller and dispatches only fixed effects with o
   currentBridge = { token: 'private-b' }
   await hooks.onEffect('cli.configure', { botIds: ['stale'] }, context)
   assert.equal(callbackContext.membersLease, lease); assert.equal(callbackContext.membersEffect, effect)
-  assert.equal(await hooks.onEffect('memory.ensureScope', { botId: 'bot-test' }, context), null)
+  await assert.rejects(hooks.onEffect('memory.ensureScope', { botId: 'bot-test' }, context), { code: 'MEMBERS_INPUT_INVALID' })
   await assert.rejects(hooks.onEffect('arbitrary.exec', {}, context))
   assert.equal(projects, 1); assert.equal(cli, 1)
   hooks.onState({ available: false }); assert.equal(assembly.projection.snapshot().stale, true)

@@ -12,9 +12,9 @@ function fixture({ stopAfterClaim = false } = {}) {
   const originalEnter = admission.enter.bind(admission)
   admission.enter = (...args) => { entered++; return originalEnter(...args) }
   const schedule = { ...normalizeSchedule({ id: 'test-schedule', kind: 'once', at: '2030-01-01T00:00:00Z', prompt: 'synthetic' }, new Date('2029-12-31T00:00:00Z')), revision: 0 }
-  const { bots } = createMembersFacade({ admission, projection: { values: () => [profile].values() }, request: async (method, params, { membersLease }) => {
+  const { bots } = createMembersFacade({ admission, projection: { values: () => [profile].values(), snapshot: () => ({ available: true, generation: 'test', revision: 1, profiles: [profile] }) }, request: async (method, params, { membersLease }) => {
     admission.assertLease(membersLease); seen.push(membersLease)
-    if (method === 'profiles.read') return { profiles: [profile] }
+    if (method === 'profiles.read') return { revision: 1 }
     if (method === 'schedules.list') return { schedules: consumed ? [] : [schedule] }
     assert.equal(method, 'schedules.claimDue')
     assert.deepEqual(params, { ownerKind: 'bot', ownerId: profile.id, scheduleId: schedule.id, expectedRevision: 0, expectedNextRunAt: schedule.nextRunAt, ranAt: now.toISOString() })
