@@ -80,7 +80,7 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
               await diagnostics.record({ code: 'SERVER_CALL_CONFIGURATION_FAILED', module: 'server', diagnostic_log: error.code ?? 'CALL_CONFIGURATION_FAILED' })
             }))
           }
-          await Promise.all(pending)
+          if (settings.configurationState) await Promise.all(pending)
         }
         if (id === 'notifications') await notifications.configure(config)
         if (id === 'webPush') await notifications.configureWebPush(config)
