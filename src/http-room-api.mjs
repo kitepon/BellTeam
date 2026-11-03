@@ -8,9 +8,9 @@ export function createRoomApi({ bots, rooms, transport, sources, messagePage, ro
   return async (request, response, url) => {
     if (request.method === 'GET' && url.pathname === '/api/rooms') {
       await rooms.refresh()
-      const histories = await Promise.all([...rooms.values()].map(async room => ({
-        id: room.id, recent: recentTimeline(await sources('rooms', room.id)),
-      })))
+      // 部屋ごとの読み取りが会話の受付枠を1つずつ使うため、同時に出さず順に読む。
+      const histories = []
+      for (const room of [...rooms.values()]) histories.push({ id: room.id, recent: recentTimeline(await sources('rooms', room.id)) })
       const work = new Map(), list = []
       for (const history of histories) {
         const room = rooms.get(history.id)

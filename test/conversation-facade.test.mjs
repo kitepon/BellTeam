@@ -73,3 +73,13 @@ test('only captured onboarding can omit the user record and display callback rej
   assert.throws(() => validateConversationRequest('display.words', { ...words, deliveryId: 'fake' }, context({ kind: 'observer' })))
   assert.throws(() => validateConversationRequest('display.words', { ...words, words: [{ text: 42 }] }, context({ kind: 'observer' })))
 })
+
+test('全メンバーの履歴を順に読み、受付枠8つを超えて同時に出さない', async () => {
+  let active = 0, peak = 0
+  const f = createConversationFacade({ context: () => { active++; peak = Math.max(peak, active); return {} },
+    getController: () => ({ request: () => task((async function* () { await new Promise(resolve => setImmediate(resolve)); active--; yield { id: 'row', at: '2026-11-04T08:00:00+09:00', text: '' } })()) }) })
+  const ids = Array.from({ length: 20 }, (_, index) => `bot-${index}`)
+  const views = await f.store.timelineViews(ids)
+  assert.deepEqual([...views.keys()], ids)
+  assert.equal(peak, 1)
+})
