@@ -376,6 +376,108 @@ final class DesktopWorkspaceUITests: XCTestCase {
     }
 
     @MainActor
+    func testMacInspectorScreenPollsOnlyWhileVisible() async throws {
+        continueAfterFailure = false
+        let server = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"],
+                                   "test/helpers/profile-terminal-ui-server.mjsの起動が必要です。")
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try await fixtureData("/test/reset", base: base)
+        func screenReads() async throws -> [[String: Any]] {
+            let proof = try await fixtureProof(base)
+            return try XCTUnwrap(proof["reads"] as? [[String: Any]])
+                .filter { $0["path"] as? String == "/api/bots/bot-one/screen" }
+        }
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-profile-terminal",
+                               "-bellbot-preview-server", server]
+        app.launch()
+        defer { app.terminate() }
+        let bot = app.buttons["conversation-bot-one"]
+        XCTAssertTrue(bot.waitForExistence(timeout: 10))
+        bot.click()
+        let open = app.buttons["Botの画面を見る"]
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        let beforeOpen = try await screenReads().count
+        XCTAssertEqual(beforeOpen, 0, "プロフィール表示中は端末を照会しない")
+        open.click()
+        let screen = app.textViews["bot-screen-text"]
+        XCTAssertTrue(screen.waitForExistence(timeout: 5))
+        await fulfillment(of: [expectation(for: NSPredicate(format: "value CONTAINS %@", "履歴の最初の行"),
+                                          evaluatedWith: screen)], timeout: 5)
+        let initialCount = try await screenReads().count
+        XCTAssertGreaterThan(initialCount, 0)
+        _ = try await fixtureData("/test/append-screen", base: base)
+        await fulfillment(of: [expectation(for: NSPredicate(format: "value CONTAINS %@", "追加された一行"),
+                                          evaluatedWith: screen)], timeout: 5)
+        let visibleReads = try await screenReads()
+        XCTAssertGreaterThan(visibleReads.count, initialCount, "表示中は初回取得後も照会を続ける")
+        XCTAssertTrue(visibleReads.allSatisfy { $0["history"] as? String == "1" })
+
+        app.typeKey("i", modifierFlags: [.command, .shift])
+        XCTAssertTrue(screen.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["back-to-profile"].exists)
+        let afterHide = try await screenReads().count
+        // 1秒周期の照会を二周期以上観測する。
+        try await Task.sleep(for: .seconds(2.4))
+        let afterWait = try await screenReads().count
+        XCTAssertEqual(afterWait, afterHide, "インスペクターを非表示にした後は端末を照会しない")
+        XCTAssertTrue(app.textViews["message-input"].exists, "会話を表示したまま照会だけ止まる")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testMacSmallCropSaveShowsResultAndWritesOnce() async throws {
+        continueAfterFailure = false
+        let server = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"],
+                                   "test/helpers/profile-terminal-ui-server.mjsの起動が必要です。")
+        let base = try XCTUnwrap(URL(string: server))
+        _ = try await fixtureData("/test/reset", base: base)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-profile-terminal",
+                               "-bellbot-preview-server", server]
+        app.launch()
+        defer { app.terminate() }
+        let bot = app.buttons["conversation-bot-one"]
+        XCTAssertTrue(bot.waitForExistence(timeout: 10))
+        bot.click()
+        let small = app.buttons["profile-small-avatar"]
+        XCTAssertTrue(small.waitForExistence(timeout: 5))
+        small.click()
+        let adjust = app.buttons["profile-image-adjust"]
+        XCTAssertTrue(adjust.waitForExistence(timeout: 5))
+        adjust.click()
+        let slider = app.sliders["アバター画像の拡大・縮小"]
+        XCTAssertTrue(slider.waitForExistence(timeout: 5))
+        slider.adjust(toNormalizedSliderPosition: 0.5)
+        // 切り抜きはシートで開き、「使用する」はシートの中のボタンとして公開される。
+        let use = app.sheets.buttons["使用する"]
+        XCTAssertTrue(use.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(use.isEnabled)
+        use.click()
+        XCTAssertTrue(app.staticTexts["画像を保存しました。"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["workspace-inspector"].firstMatch.exists)
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = "Macの小画像保存の結果"
+        capture.lifetime = .keepAlways
+        add(capture)
+        let proof = try await fixtureProof(base)
+        let writes = try XCTUnwrap(proof["writes"] as? [[String: Any]])
+        XCTAssertEqual(writes.count, 1, "一度の画像保存でPATCHは一回だけ")
+        let saved = try XCTUnwrap(writes.first)
+        XCTAssertEqual(saved["keys"] as? [String], ["avatar", "avatarCrop", "avatarSource"])
+        XCTAssertEqual(saved["small"] as? Bool, true)
+        XCTAssertEqual(saved["large"] as? Bool, false)
+        let crop = try XCTUnwrap(saved["smallCrop"] as? [String: Any])
+        XCTAssertLessThan(try XCTUnwrap(crop["width"] as? Double), 1)
+        let data = try await fixtureData("/api/bots/bot-one", base: base)
+        let detail = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let profile = try XCTUnwrap(detail["bot"] as? [String: Any])
+        XCTAssertTrue(try XCTUnwrap(profile["avatarSource"] as? String).hasPrefix("data:image/"))
+        XCTAssertEqual((profile["avatarLargeCrop"] as? [String: Any])?["width"] as? Double, 1,
+                       "小画像の保存は大画像のcropを変えない")
+    }
+
+    @MainActor
     private func fixtureData(_ path: String, base: URL) async throws -> Data {
         let url = try XCTUnwrap(URL(string: path, relativeTo: base))
         let (data, response) = try await URLSession.shared.data(from: url)

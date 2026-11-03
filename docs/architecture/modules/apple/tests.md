@@ -494,11 +494,13 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | [testMacJumpIntoUnloadedHistoryReachesTheOldestMessage](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L72) | Macの大きなscroll移動でも最古に到達 |
 | [testMacShortPageLoadsOlderWithoutScrolling](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L95) | Mac短pageは自動で過去1回取得、最古済みは無し、失敗反復無し |
 | [testMacHasOneInspectorButtonAndNoProfilePopup](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L142) | 詳細toggleでpopup/windowを増やさず、端末とプロフィールへ戻れる |
-| [testSaveWithoutAvatarChangesWhileModelsArePending](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L167) | モデルGET保留中に既存Botの役職を編集。保存ボタンが有効、editorが閉じることを維持し、proofでPATCH一回・宛先・文面・保存済みモデル・画像キーの省略・保存後の一覧応答を照合。画面でも全メンバー/ルーム、会話draft、inspectorを保持。既存の保存ボタン検出失敗は未解明 |
-| [testConversationReturnKeys](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L229) | Shift/Option Returnは改行、Return送信の失敗でも本文保持 |
-| [testBotScreenStaysInInspectorAndEditorOpensLargeWindow](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L255) | 端末はinspector内、Bot編集は大きな独立window |
-| [testConversationSwitchPreservesDraftAndInspector](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L281) | 会話切替でdraft保持、inspector toggleとroom詳細 |
-| [testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L310) | 人工購読の利用許可を使い、inspectorの再起動POSTが503の時は結果未確認の全文と診断一回・POST一回を照合。明示再操作の200成功で失敗文言を消し、inspector・window数・sheet無しを保持。二操作で空JSONのPOST計二回、診断は計一回 |
+| [testSaveWithoutAvatarChangesWhileModelsArePending](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L167) | モデルGET保留中に既存Botの役職を編集。保存ボタンが有効、editorが閉じることを維持し、proofでPATCH一回・宛先・文面・保存済みモデル・画像キーの省略・保存後の一覧応答を照合。画面でも全メンバー/ルーム、会話draft、inspectorを保持。保存はMacのツールバーのラベル「保存」で探す |
+| [testConversationReturnKeys](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L230) | Shift/Option Returnは改行、Return送信の失敗でも本文保持 |
+| [testBotScreenStaysInInspectorAndEditorOpensLargeWindow](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L256) | 端末はinspector内、Bot編集は大きな独立window |
+| [testConversationSwitchPreservesDraftAndInspector](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L282) | 会話切替でdraft保持、inspector toggleとroom詳細 |
+| [testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L311) | 人工購読の利用許可を使い、inspectorの再起動POSTが503の時は結果未確認の全文と診断一回・POST一回を照合。明示再操作の200成功で失敗文言を消し、inspector・window数・sheet無しを保持。二操作で空JSONのPOST計二回、診断は計一回 |
+| [testMacInspectorScreenPollsOnlyWhileVisible](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L379) | Macのinspectorで端末本文と追加行の反映を待ち、screen要求の増加と全要求のhistory=1を照合。⌘⇧Iで端末を非表示にし、会話を前面に残したまま2.4秒間screen要求が増えないことを照合 |
+| [testMacSmallCropSaveShowsResultAndWritesOnce](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L429) | Macのinspectorから既存の小画像を選びcrop調整して保存。成功文言とinspector、PATCH一回・小画像3keyだけ・crop幅・source・大画像crop保持を照合。写真ライブラリは使わない |
 
 ### PR1・PR4のMac確認の補助試験
 
@@ -531,11 +533,76 @@ xcodebuild -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam \
 4. PR4は試験自身が `/test/reset` → `/test/restart-failure` → 操作 → `/test/restart-success` → 再操作の順に制御する。`/test/proof` の `restarts` と `diagnostics` はmethod/path/bodyの配列で、長さが受信回数。resetは両配列を空にし再起動応答を成功へ戻す。従来のread/write等の意味は維持する。
 5. 両試験は `defer` で起動したアプリを終了する。終了後は専用terminalのhelper二本もCtrl-Cで止める。PR1の保存ボタン検出失敗が続く場合、追加したUI階層とxcresultを調べる。今回の追加を成功実績に数えない。
 
+### PR1・PR2・PR5のMac確認の補助試験
+
+固定source `refactor/apple-feature-map-20261103` / `e9935631c1cd6d9f319377be2d249db93dc36837` に対する追加準備。ビルド・試験・helper起動は行わず、実行結果は親が記録する。製品コード・Shared・NotificationServiceとfixtureの応答・記録は変更していない。既存の配置とHTTP契約を試験から確認するため、機能図の変更は不要。
+
+- PR2は追加した `DesktopWorkspaceUITests.testMacInspectorScreenPollsOnlyWhileVisible` を使う。profile-terminalの既存 `/test/proof.reads` からpathが `/api/bots/bot-one/screen` の要求だけを数える。非表示前に本文更新と要求の継続を確認し、非表示後の二周期以上を照合する。appを終了・背景化して停止を作る試験にはしない。
+- PR1は追加した `DesktopWorkspaceUITests.testMacSmallCropSaveShowsResultAndWritesOnce` を使う。`ProfileTerminalUITests.testPhoneSmallCropSavesWithoutReplacingLargeImage` と同じfixture応答、既存の小画像→画像調整→使用する→保存結果の経路。Macの「使用する」はツールバーのラベルで探す。写真pickerの操作可否は未調査で、写真選択の成功・失敗はこの試験では判定しない。小画像の再調整による保存結果の確認には写真libraryの準備が不要。
+- PR5は下表の既存10件を再利用する。Macはサイドバーの「ゴール」、他platformはタブバーから開く。対象10件の操作はMacでclick、それ以外でtapとし、既存assertは維持する。createボタンはMacのツールバーのラベル「ゴールを設定」で探す。独自のMac用goal試験とfixture変更は追加していない。
+
+親が実行する手順（repo直下。以下は今回未実行）：
+
+1. 専用terminalで `node test/helpers/profile-terminal-ui-server.mjs` を起動し、標準出力の `{"url":"http://127.0.0.1:PORT"}` を控える。
+2. XcodeのTest環境変数へ `BELLTEAM_PROFILE_TERMINAL_URL` を設定する。コマンドの場合はtest runnerへ `TEST_RUNNER_` 接頭辞で渡す。親の署名・DerivedData・証跡指定を併用する。
+
+```sh
+TEST_RUNNER_BELLTEAM_PROFILE_TERMINAL_URL='http://127.0.0.1:PROFILEのPORT' \
+xcodebuild -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam \
+  -configuration Debug -destination 'platform=macOS,variant=Mac Catalyst' \
+  -parallel-testing-enabled NO \
+  -only-testing:BellBotUITests/DesktopWorkspaceUITests/testMacInspectorScreenPollsOnlyWhileVisible \
+  -only-testing:BellBotUITests/DesktopWorkspaceUITests/testMacSmallCropSaveShowsResultAndWritesOnce \
+  test
+```
+
+3. 両試験が `/test/reset` とpreview起動引数を自身で設定する。PR1の文面保存とPR4の通過済み試験は、今回の追加を確認するための再実行に含めない。`BELLTEAM_MEMBER_EDITOR_SMOKE_URL` は今回の追加二件には不要。
+4. PR5は次の五構成をそれぞれ新しいhelperプロセスで起動する。示していない `GOALS_FIXTURE_*` は未設定にし、構成を混ぜない。FULLのcreate確認はCHATを併用すると初期goalが既にあるため、別構成にする。各構成内の試験は自身で `/test/reset` する。並列実行はしない。
+
+| 構成 | 専用terminalでの起動 | 対象（全て `GoalsUITests`） |
+| --- | --- | --- |
+| FULL | `GOALS_FIXTURE_FULL=1 node test/helpers/goals-ui-server.mjs` | `testGoalCreateAndEditWhenCapabilityIsAvailable`（一覧・editor・目的と予算を単独項目で各一回保存）、`testUnconfirmedGoalChangeWaitsForRefreshWithoutResending`（結果不明の無効化・明示更新・一回POST）、`testLostGoalResponseReadsCurrentStateWithoutResending`（応答喪失後は同Botを一回GETしPOST再送なし）、`testGoalPageHidesPreviousStatusAfterFailedRefresh`（一覧読取失敗で古い値を隠し明示更新で回復） |
+| FULL＋CHAT | `GOALS_FIXTURE_FULL=1 GOALS_FIXTURE_CHAT=1 node test/helpers/goals-ui-server.mjs` | `testChatPillShowsCurrentStateAndSharesGoalActions`（会話の目的・状態・経過、pause/resume/clearとproof）、`testChatGoalEditorSavesOneObjectiveChange`（会話editorは目的だけ一回POST）、`testChatPillHidesPreviousStatusAfterFailedRefresh`（詳細読取失敗で古い目的・経過・操作を隠し明示更新で回復） |
+| TAGGED | `GOALS_FIXTURE_TAGGED=1 node test/helpers/goals-ui-server.mjs` | `testTaggedClaudeGoalAndClearedHistory`（Claude履歴・使用量・ターン、Codex native、取消一回） |
+| GROK＋符号付きtoken | `GOALS_FIXTURE_GROK=1 GOALS_FIXTURE_GROK_SIGNED_TOKENS=1 node test/helpers/goals-ui-server.mjs` | `testGrokSignedCurrentTokensRemainVisible`（現在token=-1を保持、書込なし） |
+| GROK＋DETAIL | `GOALS_FIXTURE_GROK=1 GOALS_FIXTURE_GROK_DETAIL=1 node test/helpers/goals-ui-server.mjs` | `testGrokDetailDisplaysRawFieldsAndAllowsNullPhase`（raw表示とnull phase、書込なし） |
+
+5. 各helperの標準出力URLを `BELLTEAM_GOALS_FIXTURE_URL` に設定する。次のFULLの例と同じ共通引数を使い、他構成は直後のselector一覧から該当分だけ指定する。
+
+```sh
+TEST_RUNNER_BELLTEAM_GOALS_FIXTURE_URL='http://127.0.0.1:GOALSのPORT' \
+xcodebuild -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam \
+  -configuration Debug -destination 'platform=macOS,variant=Mac Catalyst' \
+  -parallel-testing-enabled NO \
+  -only-testing:BellBotUITests/GoalsUITests/testGoalCreateAndEditWhenCapabilityIsAvailable \
+  -only-testing:BellBotUITests/GoalsUITests/testUnconfirmedGoalChangeWaitsForRefreshWithoutResending \
+  -only-testing:BellBotUITests/GoalsUITests/testLostGoalResponseReadsCurrentStateWithoutResending \
+  -only-testing:BellBotUITests/GoalsUITests/testGoalPageHidesPreviousStatusAfterFailedRefresh \
+  test
+```
+
+その他の構成の `-only-testing` 一覧（各構成を別々に実行する）：
+
+```sh
+# FULL＋CHAT
+-only-testing:BellBotUITests/GoalsUITests/testChatPillShowsCurrentStateAndSharesGoalActions
+-only-testing:BellBotUITests/GoalsUITests/testChatGoalEditorSavesOneObjectiveChange
+-only-testing:BellBotUITests/GoalsUITests/testChatPillHidesPreviousStatusAfterFailedRefresh
+# TAGGED
+-only-testing:BellBotUITests/GoalsUITests/testTaggedClaudeGoalAndClearedHistory
+# GROK＋符号付きtoken
+-only-testing:BellBotUITests/GoalsUITests/testGrokSignedCurrentTokensRemainVisible
+# GROK＋DETAIL
+-only-testing:BellBotUITests/GoalsUITests/testGrokDetailDisplaysRawFieldsAndAllowsNullPhase
+```
+
+6. 各試験は `defer` でアプリを終了する。親は各構成の完了後に専用terminalのhelperをCtrl-Cで止めてから次の構成を起動し、最後にprofile-terminalも止める。Macの未観測の要素公開で停止した場合はxcresultとUI階層を確認し、assertを弱めて通さない。今回の追加を実行済みに数えない。
+
 ### GoalsUITests.swift
 
 対象：goal一覧と会話内goal。補助型も同じファイルを読んだ。
 
-画面は`Views/GoalsView.swift:11,149,262,386`のGoalsView・ChatGoalBar・GoalCard・GoalEditor、取得・変更状態は`Core/GoalViewModel.swift:89`、値型とharness別decodeは`Core/GoalModels.swift:3`に対応する。下表の20件と既存`test/helpers/goals-ui-server.mjs`のfixtureは変更しない。
+画面は`Views/GoalsView.swift:11,149,262,386`のGoalsView・ChatGoalBar・GoalCard・GoalEditor、取得・変更状態は`Core/GoalViewModel.swift:89`、値型とharness別decodeは`Core/GoalModels.swift:3`に対応する。下表の20件のうち、上記の実行構成に挙げた10件にMacの操作を追加した。既存assertと`test/helpers/goals-ui-server.mjs`のfixture応答は維持する。他の10件のMac実行は今回の準備に含めない。
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
@@ -543,22 +610,22 @@ xcodebuild -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam \
 | [testTabletGoalEditorSavesOneFieldAtATime](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L28) | iPadのcreate/edit予算は各1項目ずつ2POST |
 | [testGoalListUsesCapabilitiesAndChangesCurrentGoal](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L74) | capabilityで操作を出し分け、pause→resume→clear |
 | [testGoalCreateAndEditWhenCapabilityIsAvailable](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L101) | 目的createと予算editを別POST、表示値/送信項目照合 |
-| [testEditorKeepsDraftWhenSameBindingCapabilitiesChange](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L140) | 同bindingでfield可否が変わっても目的draft保持、保存は目的だけ |
-| [testUnconfirmedGoalChangeWaitsForRefreshWithoutResending](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L188) | unconfirmedで操作無効・1POST、明示更新後解除 |
-| [testLostGoalResponseReadsCurrentStateWithoutResending](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L220) | 応答喪失後は同Botを1GETしpause現在値、POST再送無し |
-| [testOldGoalListCannotOverwriteAnEdit](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L246) | 一覧GET中は保存不可、応答後draft保持して1編集POST |
-| [testTaggedClaudeGoalAndClearedHistory](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L301) | Claude taggedの使用量/ターンと取消履歴、Codex nativeも表示 |
-| [testGrokUsesCurrentStatusAndKeepsBusyUnavailable](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L331) | Grokは現在status/tokens/timeを使い保存nativeの古い値を使わず、不可操作無し |
-| [testGrokSignedCurrentTokensRemainVisible](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L359) | Grok現在tokens=-1を0へ補正せず表示 |
-| [testGrokDetailDisplaysRawFieldsAndAllowsNullPhase](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L380) | Grok detailのraw表示を保持、null phaseを古いnativeで補わない |
-| [testGrokIdleClearIsOneWriteAndReadsBackNoGoal](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L408) | Grok idle clearは1POST、fresh GETでもgoal:null、再更新でclear復活無し |
-| [testGrokActiveAndDetailDoNotOfferClear](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L443) | Grok active/detailのclear不可はボタン無し・0POST |
-| [testChatPillShowsCurrentStateAndSharesGoalActions](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L468) | chat pillに状態/時間、展開して目的とpause/resume/clearの順を照合 |
-| [testChatGoalUnavailableAndUnsupportedShowReasons](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L505) | chatのunavailable/unsupportedは理由表示・clear無し |
-| [testChatLongGoalCanScrollWithoutHidingComposer](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L533) | 長いchat目的は高さ100超〜181以内、composerと操作が存在（scroll操作のassert無し） |
-| [testChatGoalEditorSavesOneObjectiveChange](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L554) | chat editorは目的edit1回、予算項目無し |
-| [testGoalPageHidesPreviousStatusAfterFailedRefresh](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L584) | 一覧GET失敗時は旧goalを隠し未確認、更新成功で回復、POST無し |
-| [testChatPillHidesPreviousStatusAfterFailedRefresh](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L615) | chat GET失敗時は旧目的/経過/操作を隠し更新成功で回復 |
+| [testEditorKeepsDraftWhenSameBindingCapabilitiesChange](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L146) | 同bindingでfield可否が変わっても目的draft保持、保存は目的だけ |
+| [testUnconfirmedGoalChangeWaitsForRefreshWithoutResending](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L194) | unconfirmedで操作無効・1POST、明示更新後解除 |
+| [testLostGoalResponseReadsCurrentStateWithoutResending](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L227) | 応答喪失後は同Botを1GETしpause現在値、POST再送無し |
+| [testOldGoalListCannotOverwriteAnEdit](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L254) | 一覧GET中は保存不可、応答後draft保持して1編集POST |
+| [testTaggedClaudeGoalAndClearedHistory](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L309) | Claude taggedの使用量/ターンと取消履歴、Codex nativeも表示 |
+| [testGrokUsesCurrentStatusAndKeepsBusyUnavailable](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L340) | Grokは現在status/tokens/timeを使い保存nativeの古い値を使わず、不可操作無し |
+| [testGrokSignedCurrentTokensRemainVisible](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L368) | Grok現在tokens=-1を0へ補正せず表示 |
+| [testGrokDetailDisplaysRawFieldsAndAllowsNullPhase](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L390) | Grok detailのraw表示を保持、null phaseを古いnativeで補わない |
+| [testGrokIdleClearIsOneWriteAndReadsBackNoGoal](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L419) | Grok idle clearは1POST、fresh GETでもgoal:null、再更新でclear復活無し |
+| [testGrokActiveAndDetailDoNotOfferClear](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L454) | Grok active/detailのclear不可はボタン無し・0POST |
+| [testChatPillShowsCurrentStateAndSharesGoalActions](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L479) | chat pillに状態/時間、展開して目的とpause/resume/clearの順を照合 |
+| [testChatGoalUnavailableAndUnsupportedShowReasons](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L517) | chatのunavailable/unsupportedは理由表示・clear無し |
+| [testChatLongGoalCanScrollWithoutHidingComposer](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L545) | 長いchat目的は高さ100超〜181以内、composerと操作が存在（scroll操作のassert無し） |
+| [testChatGoalEditorSavesOneObjectiveChange](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L566) | chat editorは目的edit1回、予算項目無し |
+| [testGoalPageHidesPreviousStatusAfterFailedRefresh](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L597) | 一覧GET失敗時は旧goalを隠し未確認、更新成功で回復、POST無し |
+| [testChatPillHidesPreviousStatusAfterFailedRefresh](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L629) | chat GET失敗時は旧目的/経過/操作を隠し更新成功で回復 |
 
 ### HarnessAuthenticationUITests.swift
 
@@ -632,7 +699,7 @@ xcodebuild -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam \
 
 対象：プロフィールと端末。補助型も同じファイルを読んだ。
 
-Macの再起動失敗・診断・再操作成功は上記 `DesktopWorkspaceUITests.testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector` が同じ `BELLTEAM_PROFILE_TERMINAL_URL` とhelperを使う。下表のphone/pad試験の操作・assertは変更していない。`testTabletKeepsInspectorWithNewProfileContent` は引き続き再起動ボタンの存在までで、POST成功の検証には数えない。
+Macの端末表示中の照会と非表示後の停止、小画像保存の結果表示は上記 `DesktopWorkspaceUITests.testMacInspectorScreenPollsOnlyWhileVisible` と `testMacSmallCropSaveShowsResultAndWritesOnce` に準備した。Macの再起動失敗・診断・再操作成功は上記 `DesktopWorkspaceUITests.testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector` が同じ `BELLTEAM_PROFILE_TERMINAL_URL` とhelperを使う。下表のphone/pad試験の操作・assertは変更していない。`testTabletKeepsInspectorWithNewProfileContent` は引き続き再起動ボタンの存在までで、POST成功の検証には数えない。
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
@@ -780,7 +847,7 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 
 ## 未調査
 
-- 指定3ディレクトリの試験本文未読は無し。本文読了は47ファイル、XCTestの対応は単体195関数・UI114関数（計309）、独立チェック2プログラム。UI一件増は上記のMac再起動試験の追加による。
+- 指定3ディレクトリの試験本文未読は無し。本文読了は47ファイル、XCTestの対応は単体195関数・UI116関数（計311）、独立チェック2プログラム。UIの追加はMac再起動の一件と、今回の端末照会・小画像保存の二件。
 - 試験の実行・現在の合否、実機/Simulatorの状態・写真library・言語/keyboard、実接続・OS権限・証明書・StoreKit/APNs環境。今回これらを用意・起動・変更していない。
 - IMAGE_SMOKE/ROOM_SMOKEのfixture実装、INSTALL_SMOKEのinstaller起動手順。Swiftに指定されたURLの実環境は未確認。
 - fixtureがimportする`src/`・`web/`内部、Xcode生成projectの全登録照合、Mermaid描画結果。

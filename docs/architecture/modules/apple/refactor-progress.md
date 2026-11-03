@@ -71,14 +71,16 @@ Ownerからトロニー経由で受けたUI改善6点（トロニー通話 seq42
 
 | 段階 | 設計が求めるMac実画面確認 | 現状 |
 | --- | --- | --- |
-| PR1 | 既存メンバーの文面保存、画像変更なし、画像保存の結果表示、一覧と入力の保持、PATCHが1回 | 文面保存は確認済み。`DesktopWorkspaceUITests.testSaveWithoutAvatarChangesWhileModelsArePending` がMacで通過（役職編集、PATCH1回、画像キー省略、モデル保持、保存後の一覧応答、画面の一覧と会話の下書きの保持）。変更前の `4e01fad` から続いていた失敗の原因は試験側で、Mac Catalystのツールバーへ出た保存ボタンが `save-member` の識別子を持たずラベル「保存」だけで公開されるため（失敗時のUI階層で確認）。試験をラベルで探す形へ直した。画像保存の結果表示は未確認 |
-| PR2 | 非表示にした後の端末画面の照会停止 | 未実施。PR2で通ったUI試験2件は画面の切替とwindowの確認で、照会の停止は検査していない。`BotTerminalTextViewTests` は部品単体の確認。profile-terminal fixtureの要求記録で、非表示後にscreen要求が増えないことを確かめる |
+| PR1 | 既存メンバーの文面保存、画像変更なし、画像保存の結果表示、一覧と入力の保持、PATCHが1回 | 確認済み。文面保存は `DesktopWorkspaceUITests.testSaveWithoutAvatarChangesWhileModelsArePending`（役職編集、PATCH1回、画像キー省略、モデル保持、保存後の一覧、画面の一覧と会話の下書きの保持）、画像保存は `testMacSmallCropSaveShowsResultAndWritesOnce`（成功文言、PATCH1回、小画像3キーだけ、大画像cropの保持）がMacで通過。前者の変更前からの失敗は、Mac Catalystのツールバーで保存ボタンの識別子が外れるため（試験をラベルで探す形へ直した）。後者の「使用する」はシート内のボタンとして探す |
+| PR2 | 非表示にした後の端末画面の照会停止 | 確認済み。`DesktopWorkspaceUITests.testMacInspectorScreenPollsOnlyWhileVisible` がMacで通過（表示中はscreen要求が続き、すべて history=1、⌘⇧Iで非表示にした後2.4秒間は要求が増えない） |
 | PR3 | 画像の束・単画像・galleryの切替、画像GET失敗の表示、画像ファイルと画像の貼付け、添付の除去、送信失敗後の画像の復元 | 未実施。`ConversationAppearanceUITests` の `BELLTEAM_IMAGE_SMOKE_URL` の試験サーバーがrepo内に無い。入力キーと会話切替のUI試験の通過は本文の確認で、画像の証明にはしない |
 | PR4 | 失敗文言と診断が1回、再操作の成功でerrorが消えinspectorが残る | 確認済み。`profile-terminal-ui-server.mjs` に購読、再起動の失敗と成功、要求と診断の記録、resetを足し、`DesktopWorkspaceUITests.testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector` がMacで通過（失敗文言、診断1回、POST1回、再操作の成功で文言が消えinspectorが残る、POST計2回、診断計1回） |
-| PR5 | goals-ui fixtureでの一覧・会話・editor・単独項目・結果不明・読取失敗後の回復 | 未実施 |
+| PR5 | goals-ui fixtureでの一覧・会話・editor・単独項目・結果不明・読取失敗後の回復 | 一部確認。Macで通過は5件（会話内の `testChatPillShowsCurrentStateAndSharesGoalActions`、`testChatGoalEditorSavesOneObjectiveChange`、`testChatPillHidesPreviousStatusAfterFailedRefresh`、`testLostGoalResponseReadsCurrentStateWithoutResending`、`testGrokSignedCurrentTokensRemainVisible`）。一覧画面の5件（`testGoalCreateAndEditWhenCapabilityIsAvailable`、`testUnconfirmedGoalChangeWaitsForRefreshWithoutResending`、`testGoalPageHidesPreviousStatusAfterFailedRefresh`、`testTaggedClaudeGoalAndClearedHistory`、`testGrokDetailDisplaysRawFieldsAndAllowsNullPhase`）は失敗。Macでは一覧の操作ボタンがポップアップボタンとして公開され、識別子で見つからない（試験のMac対応が未完。製品の失敗かは未確認） |
 | 全体 | 最後の整合確認（Astra xhigh） | 未実行 |
 
-今回の試験準備は固定source `refactor/apple-feature-map-20261103` / `d1114a499cab282da7dff9826861ad5c71a4a1d0` に対して行った。変更範囲はhelper二本、`DesktopWorkspaceUITests.swift`、`tests.md`、本書のみ。製品コード・Shared・NotificationServiceは未変更。ビルド・試験・helper起動・gitの変更操作は行っていない。[tests.mdの起動手順とPR1の静的調査](tests.md#pr1pr4のmac確認の補助試験)に環境変数・対象selector・未解明の境界を記載した。実行結果による表の更新は親の確認後に行う。
+前回（PR1文面・PR4）の試験準備は固定source `refactor/apple-feature-map-20261103` / `d1114a499cab282da7dff9826861ad5c71a4a1d0` に対して行った。変更範囲はhelper二本、`DesktopWorkspaceUITests.swift`、`tests.md`、本書のみ。製品コード・Shared・NotificationServiceは未変更。ビルド・試験・helper起動・gitの変更操作は行っていない。[tests.mdの起動手順とPR1の静的調査](tests.md#pr1pr4のmac確認の補助試験)に環境変数・対象selector・未解明の境界を記載した。実行結果による表の更新は親の確認後に行う。
+
+今回（PR1画像・PR2・PR5）の準備sourceは `refactor/apple-feature-map-20261103` / `e9935631c1cd6d9f319377be2d249db93dc36837`。変更範囲は `DesktopWorkspaceUITests.swift`、`GoalsUITests.swift`、`tests.md`、本書だけ。fixtureは既存の応答と記録を利用し、変更不要。製品コード・Shared・NotificationServiceは未変更。ビルド・試験・helper起動・gitの変更操作は行っていない。画像保存はiPhoneの既存試験と同じ現在画像の再調整で確認するため写真libraryは不要で、Macの写真pickerの操作可否は判定していない。[今回の実行手順](tests.md#pr1pr2pr5のmac確認の補助試験)に環境変数と構成別selectorを記載し、実行結果は記載していない。
 
 - 第一版（`afda947`）は2026-11-03に返却済み。レヴィアタンの描画・目視で、送信失敗の図の分岐を1点補正した。製品Swiftは全文読了、XCTest 45本は宣言だけで本文は未読（tests.md で補う）。
 - 責務の設計の第一版は2026-11-04 12:00 JSTまでに返す。各調査担当の完了イベントを親の照合の開始条件にし、入力待ちのまま待たない。
