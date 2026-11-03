@@ -108,7 +108,7 @@ flowchart TD
   Read --> Validate
   Validate --> Save["設定の正本を保存"]
   Save --> Apply["onChangeで対象機能を適用"]
-  Apply --> Route["routing<br/>次の判断時に読む"]
+  Apply --> Route["routing<br/>epochと会話子の新発行gateを更新"]
   Apply --> CF["cloudflare<br/>公開認証器を差し替える"]
   Apply --> Diag["diagnostics<br/>管理HTTPを閉じて開く"]
   Apply --> Call["callBridge<br/>header・socket・CLI登録を更新"]
@@ -127,7 +127,7 @@ flowchart TD
 | 起動時適用 | `createApplicationFeatures.initialize` | diagnostics/callBridge/notificationsの各失敗を記録し、他の適用を続ける |
 | Cloudflare | `configureCloudflare/authMode/authorize` | localと公開JWT認証の選択。JWT検証は`cloudflareAccessAuthorizer` |
 | 通話 | `configureCalls` → `listenCallBridge/writeHarnessConfig` → `stopForConfiguration` | header/socket/登録変更後の席反映は背景処理。設定HTTP200だけで全席の再読込完了としない |
-| 自動振分け | `automaticRouting/judge`のcallbackが`configuration('routing')`を読む | 設定保存で新しい常駐処理を開始しない |
+| 自動振分け | 保存成功でroutingEpochを更新し、組立てが注入する`conversationUsageChanged`の同epoch ACKを待つ。資格は許可された`usage.routing.read`だけ | 適用失敗でも保存値/epochは戻さない。readyで資格を取得しない。従来の同process組立ては未注入互換を保持 |
 | 通知 | `PushNotifications.configure` | 旧providerを外す→inflight待ち→close→新provider。失敗時はproviderなし・診断ありになり得る |
 
 実装は[feature-settings.mjs](../../../../src/feature-settings.mjs)と[usage/application-features.mjs](../../../../src/usage/application-features.mjs)。設定エラーを消すために保存値を架空の旧値へ戻す変更はしない。

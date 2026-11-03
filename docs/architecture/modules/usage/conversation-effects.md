@@ -37,6 +37,8 @@ Jev本体は `room-routing.mjs:chooseRoomResponder` と `turn-reports.mjs:judgeO
 
 設定適用は同じ会話controllerの `routing.changed {enabled,epoch}` をACK `{applied:true,epoch}` まで待つ。資格は載せない。子はchanged時に新発行gate/保持参照を更新し、遅着した旧epochのread結果も破棄する。既発行のunknownを再送しない。制御機構はEpi、子実装はN102、親assemblyはMollyが持つ。
 
+Mollyの `src/conversation-assembly.mjs` がusage factoryを一実体保持し、`services.conversationUsageChanged({enabled,epoch}):Promise<{applied:true,epoch}>` を同controllerの固定設定制御へ接続する。routing保存後に `createApplicationFeatures` の既onChangeからこのcallbackを一度awaitし、applied:trueと同epochを確認してから成功を返す。欠測/異epoch/失敗は既FEATURE_APPLY_FAILEDとして保存済み設定とepochを維持する。callback省略は従来の同process組立て互換だけで、子を接続する組立ては必ず注入する。初期化ではこのcallbackを呼ばず、read-only readyへ外部作用を追加しない。設定制御はbusiness root枠と分け、交換中に新root枠を待つ処理にはしない。
+
 ## 通知・カードの所有
 
 通知は本文を渡さず、既 `usage/notifications.mjs` のdirect/room filterと名前射影を保持する。新規secret/questionは親カード作成のonRequestだけ。同期void callbackの失敗とIPC rejectionを通知側で回収し、会話保存成功を失敗へ変えない。再送と新しい永続queueを追加しない。
