@@ -539,7 +539,7 @@ xcodebuild -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam \
 
 - PR2は追加した `DesktopWorkspaceUITests.testMacInspectorScreenPollsOnlyWhileVisible` を使う。profile-terminalの既存 `/test/proof.reads` からpathが `/api/bots/bot-one/screen` の要求だけを数える。非表示前に本文更新と要求の継続を確認し、非表示後の二周期以上を照合する。appを終了・背景化して停止を作る試験にはしない。
 - PR1は追加した `DesktopWorkspaceUITests.testMacSmallCropSaveShowsResultAndWritesOnce` を使う。`ProfileTerminalUITests.testPhoneSmallCropSavesWithoutReplacingLargeImage` と同じfixture応答、既存の小画像→画像調整→使用する→保存結果の経路。Macの「使用する」はツールバーのラベルで探す。写真pickerの操作可否は未調査で、写真選択の成功・失敗はこの試験では判定しない。小画像の再調整による保存結果の確認には写真libraryの準備が不要。
-- PR5は下表の既存10件を再利用する。Macはサイドバーの「ゴール」、他platformはタブバーから開く。対象10件の操作はMacでclick、それ以外でtapとし、既存assertは維持する。createボタンはMacのツールバーのラベル「ゴールを設定」で探す。独自のMac用goal試験とfixture変更は追加していない。
+- PR5は下表の既存10件を再利用する。Macはサイドバーの「ゴール」、他platformはタブバーから開く。対象10件の操作はMacでclick、それ以外でtapとし、既存assertは維持する。createボタンはMacのツールバーのButton「追加」、一覧更新はButton「更新」で探す。今回修正した一覧のカード操作は、識別子を保持するButtonをScrollView内で探す。独自のMac用goal試験とfixture変更は追加していない。
 
 親が実行する手順（repo直下。以下は今回未実行）：
 
@@ -604,28 +604,50 @@ xcodebuild -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam \
 
 画面は`Views/GoalsView.swift:11,149,262,386`のGoalsView・ChatGoalBar・GoalCard・GoalEditor、取得・変更状態は`Core/GoalViewModel.swift:89`、値型とharness別decodeは`Core/GoalModels.swift:3`に対応する。下表の20件のうち、上記の実行構成に挙げた10件にMacの操作を追加した。既存assertと`test/helpers/goals-ui-server.mjs`のfixture応答は維持する。他の10件のMac実行は今回の準備に含めない。
 
+#### Mac Catalystの一覧操作の修正と残る不一致
+
+固定sourceは`refactor/apple-feature-map-20261103`、HEAD `b8c4f08f1c27f0c5b5d40eea1cefeed5f4fd2988`。親から渡された証跡ディレクトリ`/Users/kite/Library/Developer/BellTeam-evidence/2026-11-03-apple-refactor/`の`v3-g-*.fail.txt`、`v3-g-full.log`・`v3-g-tagged.log`・`v3-g-grokd.log`と、対応する既存xcresultの`App UI hierarchy`添付を読み合わせた。以下は過去の失敗時の観測であり、修正後の合格報告ではない。今回ビルド・試験は実行していない。
+
+| 操作 | sourceとMacでの公開 | 試験の検索 |
+| --- | --- | --- |
+| 作成 | `GoalsView.swift:93–97`は候補1人ならplusのButton。FULLの作成失敗時ツリーはネイティブToolbar直下のButton、label「追加」、identifier無し。指定label「ゴールを設定」も公開されていない | Macは`app.toolbars.buttons["追加"]`。iPhone・iPadは従来の`goal-create-bot-one` |
+| 一覧更新 | `GoalsView.swift:83–90`はarrow.clockwiseのButton。FULL/GROK_DETAILの更新失敗時ツリーはToolbar直下のButton、label「更新」、identifier無し | Macは`app.toolbars.buttons["更新"]`。iPhone・iPadは従来の「ゴールを更新」 |
+| 一時停止 | `GoalsView.swift:366–368`のButton。FULLのログで`goal-pause-bot-two`の存在確認とclickが成功し、作成失敗時ツリーにも同identifierとlabel「一時停止」がある | Macは`app.scrollViews.buttons["goal-pause-bot-two"]`。識別子を変更しない |
+| 編集 | `GoalsView.swift:361–364`のButton。FULLの作成/更新失敗時ツリーは`goal-edit-bot-two`、label「編集」 | 作成後のMacは同じID規則の`app.scrollViews.buttons["goal-edit-bot-one"]`。作成後のbot-one自体は未観測 |
+| クリア | `GoalsView.swift:374–376`のButton。FULLのツリーは`goal-clear-bot-two`、label「取り消す」。TAGGEDのログでは`goal-clear-bot-one`の検索とclickが成功 | Macは`app.scrollViews.buttons["goal-clear-bot-one"]`。取消後の非存在も同じ要素で確認 |
+
+失敗文の`computed PopUpButton ... vs Button`だけでgoalボタンの型を判定しない。失敗時ツリーのPopUpButtonはサイドバーの「追加」（identifier `workspace-sidebar`）で、goalの作成/更新とは別要素。Toolbar内に検索を絞って区別する。sourceには作成候補が複数ならMenuとなる分岐もあるが、今回のFULL fixtureは候補1人であり、そのMenuのMacでの公開は未観測。
+
+- `testGoalCreateAndEditWhenCapabilityIsAvailable`：Macの作成をToolbar「追加」、編集をScrollView内のIDで検索する。目的・予算の保存内容と2POSTのassertを維持する。作成後のフォーム・項目切替のMac公開はこの証跡では未確認で、要素不在時は画面ツリーを残す。
+- `testGoalPageHidesPreviousStatusAfterFailedRefresh`：失敗を起こす更新と回復の更新をToolbar「更新」へ変更する。旧目的/操作の非表示、確認不可表示、回復、0POSTのassertを維持する。
+- `testGrokDetailDisplaysRawFieldsAndAllowsNullPhase`：null phaseへの切替後の更新をToolbar「更新」へ変更する。raw表示と0POSTのassertを維持する。
+- `testUnconfirmedGoalChangeWaitsForRefreshWithoutResending`：最初のpauseは検索成功済み。失敗はunconfirmed後の`pause.isEnabled`取得であり、IDが外れたためではない。`GoalViewModel.swift:202–204`が`needsRefresh = true`、同`:97`が`currentSnapshots = []`とし、`GoalsView.swift:53–56`は確認不可表示へ替える。失敗時ツリーにも確認不可とgoal-errorだけがあり、pauseはない。Macのカード検索範囲と更新ラベル、要素不在時の診断を直したが、無効ボタンの存在を前提とする既存assertはそのまま。検索変更だけでは通過できない。
+- `testTaggedClaudeGoalAndClearedHistory`：clearの検索とclickは成功済み。fixtureはclearで`nativeHistory`を保存して`goal = null`にする（`goals-ui-server.mjs:180–184`）。`GoalsView.swift:18–19`は`goal != nil`だけを一覧へ出すため、同`:322–324`の履歴Textを持つカード自体が消える。取消後のツリーにもbot-oneのカード/履歴はない。Macのclear検索範囲と診断を直したが、取消履歴のassertはそのまま。検索変更だけでは通過できない。
+
+この2件を合格させるには製品と試験が要求する表示契約の不一致を解消する必要があるため、今回の指示に従って製品・fixture・既存assertを変更していない。要素の存在を要求するassertへ`app.debugDescription`を追加し、unconfirmed後も要素取得より先に不在を記録する。製品の状態・接続・画面構成は変更しないため、機能図の変更は不要。
+
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
 | [testTabletGoalListShowsAvailabilityAndStatus](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L6) | iPad一覧に取得goal表示、未設定card無し、対応理由の文言 |
 | [testTabletGoalEditorSavesOneFieldAtATime](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L28) | iPadのcreate/edit予算は各1項目ずつ2POST |
 | [testGoalListUsesCapabilitiesAndChangesCurrentGoal](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L74) | capabilityで操作を出し分け、pause→resume→clear |
 | [testGoalCreateAndEditWhenCapabilityIsAvailable](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L101) | 目的createと予算editを別POST、表示値/送信項目照合 |
-| [testEditorKeepsDraftWhenSameBindingCapabilitiesChange](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L146) | 同bindingでfield可否が変わっても目的draft保持、保存は目的だけ |
-| [testUnconfirmedGoalChangeWaitsForRefreshWithoutResending](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L194) | unconfirmedで操作無効・1POST、明示更新後解除 |
-| [testLostGoalResponseReadsCurrentStateWithoutResending](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L227) | 応答喪失後は同Botを1GETしpause現在値、POST再送無し |
-| [testOldGoalListCannotOverwriteAnEdit](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L254) | 一覧GET中は保存不可、応答後draft保持して1編集POST |
-| [testTaggedClaudeGoalAndClearedHistory](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L309) | Claude taggedの使用量/ターンと取消履歴、Codex nativeも表示 |
-| [testGrokUsesCurrentStatusAndKeepsBusyUnavailable](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L340) | Grokは現在status/tokens/timeを使い保存nativeの古い値を使わず、不可操作無し |
-| [testGrokSignedCurrentTokensRemainVisible](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L368) | Grok現在tokens=-1を0へ補正せず表示 |
-| [testGrokDetailDisplaysRawFieldsAndAllowsNullPhase](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L390) | Grok detailのraw表示を保持、null phaseを古いnativeで補わない |
-| [testGrokIdleClearIsOneWriteAndReadsBackNoGoal](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L419) | Grok idle clearは1POST、fresh GETでもgoal:null、再更新でclear復活無し |
-| [testGrokActiveAndDetailDoNotOfferClear](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L454) | Grok active/detailのclear不可はボタン無し・0POST |
-| [testChatPillShowsCurrentStateAndSharesGoalActions](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L479) | chat pillに状態/時間、展開して目的とpause/resume/clearの順を照合 |
-| [testChatGoalUnavailableAndUnsupportedShowReasons](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L517) | chatのunavailable/unsupportedは理由表示・clear無し |
-| [testChatLongGoalCanScrollWithoutHidingComposer](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L545) | 長いchat目的は高さ100超〜181以内、composerと操作が存在（scroll操作のassert無し） |
-| [testChatGoalEditorSavesOneObjectiveChange](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L566) | chat editorは目的edit1回、予算項目無し |
-| [testGoalPageHidesPreviousStatusAfterFailedRefresh](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L597) | 一覧GET失敗時は旧goalを隠し未確認、更新成功で回復、POST無し |
-| [testChatPillHidesPreviousStatusAfterFailedRefresh](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L629) | chat GET失敗時は旧目的/経過/操作を隠し更新成功で回復 |
+| [testEditorKeepsDraftWhenSameBindingCapabilitiesChange](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L162) | 同bindingでfield可否が変わっても目的draft保持、保存は目的だけ |
+| [testUnconfirmedGoalChangeWaitsForRefreshWithoutResending](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L214) | unconfirmedで操作無効・1POST、明示更新後解除 |
+| [testLostGoalResponseReadsCurrentStateWithoutResending](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L258) | 応答喪失後は同Botを1GETしpause現在値、POST再送無し |
+| [testOldGoalListCannotOverwriteAnEdit](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L285) | 一覧GET中は保存不可、応答後draft保持して1編集POST |
+| [testTaggedClaudeGoalAndClearedHistory](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L344) | Claude taggedの使用量/ターンと取消履歴、Codex nativeも表示 |
+| [testGrokUsesCurrentStatusAndKeepsBusyUnavailable](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L385) | Grokは現在status/tokens/timeを使い保存nativeの古い値を使わず、不可操作無し |
+| [testGrokSignedCurrentTokensRemainVisible](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L413) | Grok現在tokens=-1を0へ補正せず表示 |
+| [testGrokDetailDisplaysRawFieldsAndAllowsNullPhase](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L435) | Grok detailのraw表示を保持、null phaseを古いnativeで補わない |
+| [testGrokIdleClearIsOneWriteAndReadsBackNoGoal](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L464) | Grok idle clearは1POST、fresh GETでもgoal:null、再更新でclear復活無し |
+| [testGrokActiveAndDetailDoNotOfferClear](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L499) | Grok active/detailのclear不可はボタン無し・0POST |
+| [testChatPillShowsCurrentStateAndSharesGoalActions](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L524) | chat pillに状態/時間、展開して目的とpause/resume/clearの順を照合 |
+| [testChatGoalUnavailableAndUnsupportedShowReasons](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L562) | chatのunavailable/unsupportedは理由表示・clear無し |
+| [testChatLongGoalCanScrollWithoutHidingComposer](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L590) | 長いchat目的は高さ100超〜181以内、composerと操作が存在（scroll操作のassert無し） |
+| [testChatGoalEditorSavesOneObjectiveChange](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L611) | chat editorは目的edit1回、予算項目無し |
+| [testGoalPageHidesPreviousStatusAfterFailedRefresh](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L642) | 一覧GET失敗時は旧goalを隠し未確認、更新成功で回復、POST無し |
+| [testChatPillHidesPreviousStatusAfterFailedRefresh](../../../../ios/BellBot/BellBotUITests/GoalsUITests.swift#L674) | chat GET失敗時は旧目的/経過/操作を隠し更新成功で回復 |
 
 ### HarnessAuthenticationUITests.swift
 

@@ -111,27 +111,43 @@ final class GoalsUITests: XCTestCase {
 
         showGoalList(in: app)
         #if targetEnvironment(macCatalyst)
-        // Macのツールバーは識別子が外れるため、公開ラベルで探す。
-        let create = app.toolbars.buttons["ゴールを設定"]
+        // Macのツールバーは識別子と指定ラベルが外れ、「追加」で公開される。
+        let create = app.toolbars.buttons["追加"]
         #else
         let create = app.buttons["goal-create-bot-one"]
         #endif
-        XCTAssertTrue(create.waitForExistence(timeout: 10))
+        XCTAssertTrue(create.waitForExistence(timeout: 10), app.debugDescription)
         clickOrTap(create)
         let objective = app.textViews["goal-objective-input"]
-        XCTAssertTrue(objective.waitForExistence(timeout: 5))
+        XCTAssertTrue(objective.waitForExistence(timeout: 5), app.debugDescription)
         clickOrTap(objective); objective.typeText("明日の準備を整える")
+        #if targetEnvironment(macCatalyst)
+        let save = app.buttons["保存"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5), app.debugDescription)
+        #endif
         clickOrTap(app.buttons["保存"])
-        XCTAssertTrue(app.staticTexts["明日の準備を整える"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["明日の準備を整える"].waitForExistence(timeout: 5), app.debugDescription)
 
+        #if targetEnvironment(macCatalyst)
+        let edit = app.scrollViews.buttons["goal-edit-bot-one"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5), app.debugDescription)
+        clickOrTap(edit)
+        #else
         clickOrTap(app.buttons["goal-edit-bot-one"])
+        #endif
+        #if targetEnvironment(macCatalyst)
+        XCTAssertTrue(app.buttons["トークン予算"].waitForExistence(timeout: 5), app.debugDescription)
+        #endif
         clickOrTap(app.buttons["トークン予算"])
         let budget = app.textFields["goal-budget-input"]
-        XCTAssertTrue(budget.waitForExistence(timeout: 5))
+        XCTAssertTrue(budget.waitForExistence(timeout: 5), app.debugDescription)
         clickOrTap(budget); budget.typeText("2000")
+        #if targetEnvironment(macCatalyst)
+        XCTAssertTrue(save.waitForExistence(timeout: 5), app.debugDescription)
+        #endif
         clickOrTap(app.buttons["保存"])
         let amount = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "2,000")).firstMatch
-        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        XCTAssertTrue(amount.waitForExistence(timeout: 5), app.debugDescription)
         let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
         let (proofData, _) = try await URLSession.shared.data(from: proofURL)
         let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: proofData) as? [String: Any])
@@ -206,22 +222,33 @@ final class GoalsUITests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         showGoalList(in: app)
+        #if targetEnvironment(macCatalyst)
+        let pause = app.scrollViews.buttons["goal-pause-bot-two"]
+        #else
         let pause = app.buttons["goal-pause-bot-two"]
-        XCTAssertTrue(pause.waitForExistence(timeout: 10))
+        #endif
+        XCTAssertTrue(pause.waitForExistence(timeout: 10), app.debugDescription)
         let next = try XCTUnwrap(URL(string: url + "/test/next?mode=unconfirmed"))
         let (_, nextResponse) = try await URLSession.shared.data(from: next)
         XCTAssertEqual((nextResponse as? HTTPURLResponse)?.statusCode, 200)
         clickOrTap(pause)
         let error = app.staticTexts["goal-error"]
-        XCTAssertTrue(error.waitForExistence(timeout: 5))
+        XCTAssertTrue(error.waitForExistence(timeout: 5), app.debugDescription)
+        #if targetEnvironment(macCatalyst)
+        // 現行製品はneedsRefreshでカードを隠す。無効ボタンを要求する既存assertは維持する。
+        XCTAssertTrue(pause.exists, "未確認後の一時停止ボタンが存在しません。\n\(app.debugDescription)")
+        #endif
         XCTAssertFalse(pause.isEnabled)
         let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
         let (firstData, _) = try await URLSession.shared.data(from: proofURL)
         let first = try XCTUnwrap(JSONSerialization.jsonObject(with: firstData) as? [String: Any])
         XCTAssertEqual((first["writes"] as? [[String: Any]])?.count, 1)
 
-        clickOrTap(app.buttons["ゴールを更新"])
-        XCTAssertTrue(error.waitForNonExistence(timeout: 5))
+        refreshGoalList(in: app)
+        XCTAssertTrue(error.waitForNonExistence(timeout: 5), app.debugDescription)
+        #if targetEnvironment(macCatalyst)
+        XCTAssertTrue(pause.waitForExistence(timeout: 5), app.debugDescription)
+        #endif
         XCTAssertTrue(pause.isEnabled)
         let (lastData, _) = try await URLSession.shared.data(from: proofURL)
         let last = try XCTUnwrap(JSONSerialization.jsonObject(with: lastData) as? [String: Any])
@@ -325,17 +352,27 @@ final class GoalsUITests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         showGoalList(in: app)
-        XCTAssertTrue(app.staticTexts["資料を整理して報告する"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "使用トークン 1,234")).firstMatch.exists)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "CLI表示ターン数 2")).firstMatch.exists)
-        XCTAssertTrue(app.staticTexts["利用者に今日の進捗を届ける"].exists, "v2 Codexのnative目的も表示する")
+        XCTAssertTrue(app.staticTexts["資料を整理して報告する"].waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "使用トークン 1,234")).firstMatch.exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "CLI表示ターン数 2")).firstMatch.exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["利用者に今日の進捗を届ける"].exists, "v2 Codexのnative目的も表示する\n\(app.debugDescription)")
         XCTAssertFalse(app.buttons["goal-pause-bot-one"].exists, "Claudeに未対応の一時停止を出さない")
         XCTAssertFalse(app.buttons["goal-edit-bot-one"].exists)
 
+        #if targetEnvironment(macCatalyst)
+        let clear = app.scrollViews.buttons["goal-clear-bot-one"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 5), app.debugDescription)
+        clickOrTap(clear)
+        #else
         clickOrTap(app.buttons["goal-clear-bot-one"])
-        XCTAssertTrue(app.staticTexts["前のゴール：取消 · 資料を整理して報告する"].waitForExistence(timeout: 5))
+        #endif
+        XCTAssertTrue(app.staticTexts["前のゴール：取消 · 資料を整理して報告する"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertFalse(app.staticTexts["前のゴール：達成 · 資料を整理して報告する"].exists)
+        #if targetEnvironment(macCatalyst)
+        XCTAssertTrue(clear.waitForNonExistence(timeout: 5), app.debugDescription)
+        #else
         XCTAssertTrue(app.buttons["goal-clear-bot-one"].waitForNonExistence(timeout: 5))
+        #endif
         let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
         let (proofData, _) = try await URLSession.shared.data(from: proofURL)
         let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: proofData) as? [String: Any])
@@ -406,18 +443,18 @@ final class GoalsUITests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         showGoalList(in: app)
-        XCTAssertTrue(app.staticTexts["Grokの資料をまとめる"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Active ⸬ · Planning"].exists)
-        XCTAssertTrue(app.staticTexts["Planning · 4.9k / 1 tokens (100%) · 26s"].exists)
+        XCTAssertTrue(app.staticTexts["Grokの資料をまとめる"].waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Active ⸬ · Planning"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Planning · 4.9k / 1 tokens (100%) · 26s"].exists, app.debugDescription)
         XCTAssertFalse(app.staticTexts["進行中 · 待機"].exists, "保存native.phaseでdetailのnullを補わない")
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "19,000")).firstMatch.exists)
 
         let change = try XCTUnwrap(URL(string: url + "/test/grok-null-phase"))
         let (_, changed) = try await URLSession.shared.data(from: change)
         XCTAssertEqual((changed as? HTTPURLResponse)?.statusCode, 200)
-        clickOrTap(app.buttons["ゴールを更新"])
-        XCTAssertTrue(app.staticTexts["4.9k / 1 tokens (100%) · 26s"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Active ⸬ · Planning"].exists)
+        refreshGoalList(in: app)
+        XCTAssertTrue(app.staticTexts["4.9k / 1 tokens (100%) · 26s"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Active ⸬ · Planning"].exists, app.debugDescription)
         let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
         let (data, _) = try await URLSession.shared.data(from: proofURL)
         let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -614,19 +651,19 @@ final class GoalsUITests: XCTestCase {
         defer { app.terminate() }
         showGoalList(in: app)
         let objective = app.staticTexts["利用者に今日の進捗を届ける"]
-        XCTAssertTrue(objective.waitForExistence(timeout: 10))
+        XCTAssertTrue(objective.waitForExistence(timeout: 10), app.debugDescription)
 
         let fail = try XCTUnwrap(URL(string: url + "/test/fail-next-goal-get?mode=list"))
         let (_, setFailure) = try await URLSession.shared.data(from: fail)
         XCTAssertEqual((setFailure as? HTTPURLResponse)?.statusCode, 200)
-        clickOrTap(app.buttons["ゴールを更新"])
-        XCTAssertTrue(app.staticTexts["現在のゴールを確認できません"].waitForExistence(timeout: 5))
+        refreshGoalList(in: app)
+        XCTAssertTrue(app.staticTexts["現在のゴールを確認できません"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertFalse(objective.exists, "以前の成功値を現在のゴールとして表示しない")
         XCTAssertFalse(app.staticTexts["設定済みのゴールはありません"].exists)
         XCTAssertFalse(app.buttons["goal-pause-bot-two"].exists)
 
-        clickOrTap(app.buttons["ゴールを更新"])
-        XCTAssertTrue(objective.waitForExistence(timeout: 5))
+        refreshGoalList(in: app)
+        XCTAssertTrue(objective.waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertFalse(app.staticTexts["現在のゴールを確認できません"].exists)
         let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
         let (data, _) = try await URLSession.shared.data(from: proofURL)
@@ -675,13 +712,23 @@ final class GoalsUITests: XCTestCase {
         XCTAssertEqual((proof["writes"] as? [[String: Any]])?.count, 0)
     }
 
+    private func refreshGoalList(in app: XCUIApplication) {
+        #if targetEnvironment(macCatalyst)
+        let refresh = app.toolbars.buttons["更新"]
+        XCTAssertTrue(refresh.waitForExistence(timeout: 5), app.debugDescription)
+        clickOrTap(refresh)
+        #else
+        clickOrTap(app.buttons["ゴールを更新"])
+        #endif
+    }
+
     private func showGoalList(in app: XCUIApplication) {
         #if targetEnvironment(macCatalyst)
         let goals = app.buttons["ゴール"]
         #else
         let goals = app.tabBars.buttons["ゴール"]
         #endif
-        XCTAssertTrue(goals.waitForExistence(timeout: 5))
+        XCTAssertTrue(goals.waitForExistence(timeout: 5), app.debugDescription)
         clickOrTap(goals)
     }
 
