@@ -28,8 +28,10 @@ Ownerのリファクタリング指示の全文を、2026-11-03にレヴィア�
 | --- | --- | --- | --- |
 | 候補の確認 | — | Aiterm `agent_models`（codex-cli） | `gpt-6.1-sol` と `gpt-6-astra` があり、どちらも high と xhigh を受け付ける |
 | 実コードの調査と図化（先行範囲） | `gpt-6.1-sol` high | Aitermの `agent_launch` は2回とも「OSのprocess一覧を取得できません」で起動しなかった。公式CLI `codex exec` で実行。1回目（17:55 JST）は標準入力を閉じずに起動したため入力待ちで止まり、成果なしで停止した。2回目は19:4x JSTに起動し、ヘッダーで model `gpt-6.1-sol`、reasoning effort `high` を確認（session `01a1a0f7-de30-7521-b880-3c82ae8e2629`） | 完了。`afda947` でcommit。レヴィアタンが描画・目視し、送信失敗の図を1点補正 |
-| 残りの機能の詳細図 | `gpt-6.1-sol` high | `codex exec`、別の作業ツリー（HEAD `afda947` のdetached）で実行。session `01a1a10a-9d03-7180-a6fd-6f4261ba00c9`。対象は新規の conversation.md、requests-and-auth.md、goals.md、lifecycle-and-platform.md、tests.md（試験の本文） | 実行中 |
-| 責務の設計 | `gpt-6-astra` xhigh | `codex exec`、この作業ツリーで実行。session `01a1a10a-9cfb-76f0-a189-10a70111d959`。対象は refactor-design.md だけ | 実行中 |
+| 残りの機能の詳細図 | `gpt-6.1-sol` high | `codex exec`、別の作業ツリー（HEAD `afda947` のdetached）で実行。session `01a1a10a-9d03-7180-a6fd-6f4261ba00c9`。対象は新規の conversation.md、requests-and-auth.md、goals.md、lifecycle-and-platform.md、tests.md（試験の本文） | 完了。`822563d` で取り込み。レヴィアタンが描画・目視し、会話の送信図を1点補正（`defb299`） |
+| 責務の設計（先行9件） | `gpt-6-astra` xhigh | `codex exec`、この作業ツリーで実行。session `01a1a10a-9cfb-76f0-a189-10a70111d959`。対象は refactor-design.md だけ | 完了。採用4・不採用4・保留1。`822563d` |
+| 責務の設計（追加12件） | `gpt-6-astra` xhigh | `codex exec`、session `01a1a11d-7053-7300-9b78-db60e7d6cd34`。refactor-design.md へ追記 | 完了。採用4・不採用8。前回判断の変更なし。段階はPR0〜PR5 |
+| 実装 | `gpt-6.1-sol` high | 段階ごとに `codex exec` で実行 | PR0から開始 |
 | 最後の整合確認 | `gpt-6-astra` xhigh | 未実行 | — |
 
 Aitermの起動の失敗はエレグへ報告した（call-bridge通話 `29cba01a-03a0-4301-851d-acba07bc25c1`、seq9とseq10）。`codex exec` での実行は、Aitermの欠陥が直ったことを意味しない。
