@@ -135,6 +135,8 @@ def run_fixture(image, output, supply):
             deadline = time.monotonic() + 45
             while time.monotonic() < deadline:
                 c = docker('exec', '--user', '1001:1001', cid, '/usr/local/bin/node', '/app/src/supervisor.mjs', 'status', check=False)
+                save(output / 'last-status.json', dict(expected=expected, exit=c.returncode,
+                    stdout=c.stdout.decode(errors='replace'), stderr=c.stderr.decode(errors='replace')))
                 if c.returncode == 0:
                     value = json.loads(c.stdout)
                     if value['phase'] == 'failed': raise RuntimeError(value['error'])
@@ -200,6 +202,9 @@ console.log(JSON.stringify({versions,code,staging,installations,adoption:f.exist
         try:
             if 'image_id' in locals():
                 try:
+                    if 'cid' in locals():
+                        top = docker('top', cid, '-eo', 'pid,ppid,uid,gid,stat,wchan:24,args', check=False)
+                        (output / 'processes.log').write_bytes(top.stdout + top.stderr)
                     logs = compose('logs', '--no-color', 'bellteam', check=False)
                     (output / 'container.log').write_bytes(logs.stdout + logs.stderr)
                 except Exception:
