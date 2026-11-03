@@ -103,6 +103,7 @@ sequenceDiagram
 
 1. 検証失敗は旧子へ作用しない。二重交換とconfigure/register等との交差は通知proxy/runtimeの一つの受付境界で解決する。停止中の新要求は未受付として返し、メモリや永続配送queueへ溜めて後で自動再送しない。
 2. 旧closeは送信inflightだけでなく、進行中register/unregister/configure・APNS_UNREGISTEREDに由来する全saveを含む。親はclose ACKだけで次子を起こさず、OS child closeとstdio/IPC回収を待つ。無期限awaitを新しく作らない。
+   子の診断が親の保存ACKを待つ場合も、drain中は親の診断窓口を残す。親が先に診断受付を閉じて子のcloseを待つ相互待ちは作らない。
 3. gatewayの5秒drain/15秒startは順序の再利用元。通知ではrelay30秒/APNs15秒が現物にあるため、数値を機械流用せずRoot・ミカと決定する。有限期限を超えた旧子は対象PIDだけKILL→close回収。終了を確認できなければ新子も旧版戻しも起こさない。強制終了時の外部送信は結果不明、保存中操作は保存有無不明として返す。
 4. 新readyはmodule/protocol/version/初期化完了/単独writerの準備完了と結び付ける。設定disabledやprovider無しでも通知子自体のreadyは可能という案。provider利用可否はstatusと分ける。実APNs送信成功をready条件にしない。
 5. 新ready又は採用record保存が失敗したら新子を回収、旧descriptorを再検証し、**その時点の同じ業務state**で旧版を起動する。旧採用recordを保持する。旧版も起動失敗なら両例外と通知利用不可を返す。業務親/会話保存/AI/native/transportを閉じない。
