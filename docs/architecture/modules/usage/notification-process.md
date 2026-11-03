@@ -24,6 +24,7 @@ flowchart LR
 
 - `src/usage/notifications.mjs:createNotifications({root,bots,diagnostics,configuration,prepareRelease,createProcess,onState})` はruntime factoryを注入してcontroller一実体を生成。initialize/close/status/configure/register/unregister/4通知とcontroller/initialStatusを返す。statusは非同期。初回features.initializeはinitialStatusで二重configureを避け、後の明示configureは既設定反映経路を保つ。
 - 親bufferはplanned exchange中の未送信だけ、256件/1MiB。ACK不明・送信試行済みは再送0。overflowはPUSH_UPDATE_BUFFER_FULLの固定通知診断。停止・不正入力・IPC失敗を4callbackの外へthrow/rejectしない。
+- bufferの送出は一件のrequest結果を待ってから次を試みる。channelの同時未終端64件をflush自身で超えない。送信を試みる直前にbufferから除き、交換が再び始まった時の未試行分は件数/bytes制限に含めたまま保持する。
 - `src/usage/notifications-dispatcher.mjs:createNotificationsDispatcher` はDTO検証/5method dispatchと4controlを持つ。親の名簿や設定全体を読まない。runtime ChildChannelはquiesce受信時に同期でgateを閉じ、accepted送信待ちを含むdispatchを待ってからusageのquiesceへ入る。resumeは並行して旧quiesce世代を取り消す。
 - `src/notifications-entry.mjs` はruntimeのverifyNotificationsLocks/CreateChildChannelを使い、一度だけready。exit結果のIPC送信完了後のafterControlでchannel.close。親切断の最大60秒回収と固定lock/FDはruntimeが持つ。
 - 通知provider/保存は既PushNotificationsを使用。state配列/端末形式の不正は固定PUSH_STATE_INVALIDで初期化失敗とし、空状態へ置換しない。APNs/relayの既exportと外部callerは保持する。
@@ -191,3 +192,11 @@ runtime案のUID1001固定は寿命/協調writerの分離を提供する。同UI
 既試験の読取対象はpush-notifications/notification-relay/feature-settings/application-runtime/usage-module/secret-requests/owner-questionsと、共通servicesを使うexecution-diagnostics-integration/goal-diagnostics-integration。source変更後に必要な試験だけ選び、全成功群の再走を要件にしない。独立完了には別process/唯一writer/通知だけ交換・旧版復帰/他業務保持と、固定資材・権限の実物受入が必要。本書作成段階でこれらは未実施。
 
 今回の読取りで先行させる致命的バグは確定していない。close/saving等の欠落は独立化のための差分として記載し、既本番の障害再現と混同しない。独自RPC、コード変更、試験実行、配布、Host/本番、APNs/relay実送信は行っていない。
+
+## 実装と直接検証
+
+上の末尾までの「未実施」は準備commit6e585241時点。固定契約受領後に、親facade、子dispatcher/entry、HTTP status await、初回設定適用結果の再利用を実装した。dispatcherはinitializeもactive管理し、切断時に初期設定の処理をdrainから漏らさない。保存失敗は成功ACKを返さず、既Mapのrollbackを追加しない。PUSH_DEVICE_INVALID/PUSH_NOT_CONFIGURED/PUSH_ENVIRONMENT_UNAVAILABLEは既messageにcodeを加えてIPCでも保持し、facadeで既HTTP400/503とbodyへ戻す。
+
+直接試験は `test/notifications-usage.test.mjs` と `test/notifications-usage-ipc.test.mjs`。Epi固定e206b062の実channelとusageの実dispatcherを別Node processで接続し、未設定ready、resume前拒否、provider送信終端までquiesce、端末保存、診断ACK失敗でも設定元エラーを保つこと、正常exitを確認する。fixtureのroot/provider注入は試験専用であり、製品entryは固定root/lockを使う。
+
+新単体試験ではfield射影/既filter、DTO拒否、4payload、保存/reload/失効保存、送信中quiesce/resume、保存失敗、実ConversationWriter/SecretRequests/OwnerQuestionsの保存継続、disabled/設定適用失敗とstate/鍵不正、buffer件数/bytes、ACK不明再送0、HTTP互換を扱う。既直接のpush/usage module/application runtimeは初回21件を継承し、code補完後に影響するpush/外部relayだけ再確認する。実UID1001/正規C entry/署名archiveのprobe・固定版交換と共通assemblyの受入はEpi/Centi/Mollyの工程へ接続する。

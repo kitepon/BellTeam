@@ -4,24 +4,33 @@ const unavailable = () => Object.assign(new Error('PUSH_UNAVAILABLE'), { code: '
 
 export function createNotifications({ root, bots, diagnostics, configuration, prepareRelease, createProcess, onState = () => {} }) {
   let state = { phase: 'unavailable', exchanging: false, available: false }, closed = false
-  let buffer = [], bufferedBytes = 0
+  let buffer = [], bufferedBytes = 0, flushing = false
   const report = code => {
     const safe = /^[A-Z_0-9]+$/u.test(code ?? '') ? code : 'PUSH_SEND_FAILED'
     void Promise.resolve().then(() => diagnostics.record({ code: 'SERVER_PUSH_SEND_FAILED', module: 'notifications', diagnostic_log: safe }))
       .catch(() => process.stderr.write('BellTeam: 通知の診断を保存できませんでした (PUSH_DIAGNOSTIC_FAILED)\n'))
   }
-  const send = event => {
-    try { Promise.resolve(controller.request('publish', event)).catch(error => report(error.code)) }
+  const send = async event => {
+    try { await controller.request('publish', event) }
     catch (error) { report(error.code) }
+  }
+  const flush = async () => {
+    if (flushing) return
+    flushing = true
+    try {
+      while (!closed && !state.exchanging && state.phase === 'running' && state.available && buffer.length) {
+        const event = buffer.shift()
+        bufferedBytes -= Buffer.byteLength(JSON.stringify(event))
+        await send(event)
+      }
+    } finally { flushing = false }
   }
   const controller = createProcess({ root, configuration, prepareRelease,
     onDiagnostic: report => diagnostics.record(report),
     onState: next => {
       state = next
       if (!closed && !next.exchanging && next.phase === 'running' && next.available) {
-        const unsent = buffer
-        buffer = []; bufferedBytes = 0
-        for (const event of unsent) send(event)
+        void flush().catch(() => report('PUSH_BUFFER_FLUSH_FAILED'))
       } else if (!next.exchanging && !next.available && buffer.length) {
         buffer = []; bufferedBytes = 0
         report('PUSH_UNAVAILABLE')
@@ -36,7 +45,7 @@ export function createNotifications({ root, bots, diagnostics, configuration, pr
       const bytes = Buffer.byteLength(JSON.stringify(event))
       if (buffer.length >= 256 || bufferedBytes + bytes > 1048576) { report('PUSH_UPDATE_BUFFER_FULL'); return }
       buffer.push(event); bufferedBytes += bytes
-    } else if (state.available) send(event)
+    } else if (state.available) void send(event)
     else report('PUSH_UNAVAILABLE')
   }
   const callback = project => record => {

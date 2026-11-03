@@ -12,7 +12,7 @@ Rabbit認証consumerの未配布候補は[認証runとOwner案内の契約](olrw
 
 [処理と保存順序](flows.md)に秘密入力・質問・認証・設定適用・通知/購読の図と実関数を置く。旧support-detailsの所有章は参照リンクへ置換した。共通診断writerは[統合の詳細](../../support-details.md#診断観測集約調査注記を分ける)を参照する。
 
-[通知の独立process化](notification-process.md)に基準03c952bfの全caller・writer/停止境界と、横断契約へ必要な最小DTO案を置く。独立process/単独交換は契約固定前の準備段階である。
+[通知の独立process化](notification-process.md)に基準03c952bfの全caller・writer/停止境界、固定契約v1の公開factoryと実装・直接結合を置く。単独交換と固定資材の実物受入は継続中である。
 
 ```mermaid
 flowchart TD

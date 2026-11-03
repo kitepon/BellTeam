@@ -71,8 +71,8 @@ export class PushNotifications {
   async register({ token, environment, server, previousToken, signedTransaction }) {
     const device = validatePushDevice({ token, environment, server, signedTransaction })
     if (previousToken) validateToken(previousToken)
-    if (!this.provider) throw new Error('PUSH_NOT_CONFIGURED')
-    if (!this.provider.environments.includes(environment)) throw new Error('PUSH_ENVIRONMENT_UNAVAILABLE')
+    if (!this.provider) throw pushError('PUSH_NOT_CONFIGURED')
+    if (!this.provider.environments.includes(environment)) throw pushError('PUSH_ENVIRONMENT_UNAVAILABLE')
     if (previousToken && previousToken !== token) this.devices.delete(previousToken)
     this.devices.set(token, device)
     await this.save()
@@ -168,7 +168,7 @@ export function notificationPayload(event, server) {
 }
 
 function validateToken(token) {
-  if (typeof token !== 'string' || !/^[a-f0-9]{32,512}$/u.test(token)) throw new Error('PUSH_DEVICE_INVALID')
+  if (typeof token !== 'string' || !/^[a-f0-9]{32,512}$/u.test(token)) throw pushError('PUSH_DEVICE_INVALID')
 }
 
 export function validatePushDevice({ token, environment, server, signedTransaction } = {}) {

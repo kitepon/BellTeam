@@ -52,6 +52,9 @@
     "src/usage/http-api.mjs",
     "src/usage/application-features.mjs",
     "src/usage/mcp-tools.mjs",
+    "src/usage/notifications.mjs",
+    "src/usage/notifications-dispatcher.mjs",
+    "src/notifications-entry.mjs",
     "src/usage/olrw-auth-consumer.mjs"
   ]
 }

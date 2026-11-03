@@ -9,6 +9,9 @@ import { createNotificationsDispatcher, validateNotificationRequest } from '../s
 import { createUsageApi } from '../src/usage/http-api.mjs'
 import { createApplicationFeatures } from '../src/usage/application-features.mjs'
 import { respondHttpError } from '../src/http-errors.mjs'
+import { ConversationWriter } from '../src/conversation-writer.mjs'
+import { SecretRequests } from '../src/secret-requests.mjs'
+import { OwnerQuestions } from '../src/owner-questions.mjs'
 
 const device = { token: 'a'.repeat(64), environment: 'production', server: 'https://bellteam.example', signedTransaction: 'PRIVATE_TRANSACTION' }
 const event = { type: 'direct', id: 'existing-id', botId: 'bot-a', senderName: 'メンバー' }
@@ -124,7 +127,7 @@ test('登録保存完了を返し、旧版と同じ端末形式で再読取で�
   assert.deepEqual(JSON.parse(await readFile(join(root, 'state/push-devices.json'), 'utf8')), [])
 })
 
-test('保存失敗は成功を返さず、診断失敗も送信再試行へ変えない', async t => {
+test('保存失敗は成功を返さず、通信失敗も送信再試行へ変えない', async t => {
   const { root, request, dispatcher, provider, reports } = await fixture(t)
   await mkdir(join(root, 'state'), { recursive: true })
   await mkdir(join(root, 'state/push-devices.json.tmp'))
@@ -140,6 +143,23 @@ test('保存失敗は成功を返さず、診断失敗も送信再試行へ変�
   assert.equal(sends, 1)
   assert.equal(reports.at(-1).diagnostic_log, 'APNS_TIMEOUT')
   assert(!JSON.stringify(reports).includes('PRIVATE'))
+})
+
+test('通知窓口の停止/断線でも実会話・秘密/質問カードは保存を完了する', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'notifications-callback-save-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const { service } = facadeFixture({ request: () => { throw Object.assign(new Error('PRIVATE'), { code: 'PUSH_IPC_DISCONNECTED' }) } })
+  const logPath = join(root, 'direct.jsonl')
+  const writer = new ConversationWriter({ logPath, onMessage: service.direct })
+  await writer.append({ schema: 'bellteam.direct-message.v1', delivery_id: 'id', from: 'bot-a', target: 'user', message: '保存する本文' })
+  assert.equal(JSON.parse((await readFile(logPath, 'utf8')).trim()).message, '保存する本文')
+  const bots = new Map([['bot-a', { name: 'ミカ' }]])
+  const secrets = new SecretRequests({ root, bots, onRequest: service.secret, notify: async () => {} })
+  const questions = new OwnerQuestions({ root, bots, onRequest: service.question, notify: async () => {} })
+  await secrets.initialize(); await questions.initialize()
+  assert.equal((await secrets.create({ botId: 'bot-a', toolId: 'test', label: '項目', message: '依頼文' })).status, 'pending')
+  assert.equal((await questions.create({ botId: 'bot-a', question: '質問', options: ['はい', 'いいえ'] })).status, 'open')
+  await tick()
 })
 
 test('disabledと設定適用失敗はready statusへ、破損stateと不正鍵は初期化失敗', async t => {
@@ -185,6 +205,7 @@ test('親bufferの合計1MiB制限と利用不能時のcallback自己回収', as
   state({ phase: 'quiescing', exchanging: true, available: false })
   for (let i = 0; i < 200; i++) service.room({ id: `id-${i}`, sender: { id: 'bot-a', name: 'x'.repeat(8000) }, room: { id: 'r', name: 'room' } })
   state({})
+  await tick()
   assert(sent.length > 0 && sent.length < 200)
   assert(sent.reduce((bytes, item) => bytes + Buffer.byteLength(JSON.stringify(item.params)), 0) <= 1048576)
   state({ phase: 'unavailable', available: false })
@@ -192,6 +213,26 @@ test('親bufferの合計1MiB制限と利用不能時のcallback自己回収', as
   await tick()
   assert(reports.some(item => item.diagnostic_log === 'PUSH_UPDATE_BUFFER_FULL'))
   assert(reports.some(item => item.diagnostic_log === 'PUSH_UNAVAILABLE'))
+})
+
+test('交換buffer256件は通信の同時64件制限を自分で超えず各一度だけ送る', async () => {
+  let active = 0, maximum = 0, completed = 0
+  const finished = deferred()
+  const { service, sent, reports, state } = facadeFixture({ request: async () => {
+    active++; maximum = Math.max(maximum, active)
+    assert(active <= 64)
+    await tick()
+    active--; completed++
+    if (completed === 256) finished.resolve()
+    return { accepted: true }
+  } })
+  state({ phase: 'quiescing', exchanging: true, available: false })
+  for (let i = 0; i < 256; i++) service.question({ id: `buffer-${i}`, botId: 'bot-a' })
+  state({})
+  await finished.promise
+  assert.equal(maximum, 1)
+  assert.equal(new Set(sent.map(item => item.params.id)).size, 256)
+  assert.equal(reports.length, 0)
 })
 
 test('HTTP statusは非同期結果を返し、初回featuresは既適用結果を確認する', async t => {
