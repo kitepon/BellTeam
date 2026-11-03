@@ -37,7 +37,7 @@ import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options) }) {
+export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options) }) {
   let members = null, diagnosticsModule = null, memory, rooms, assets, updateCenter
   const membersAdmission = new MembersAdmission()
   try {
@@ -82,9 +82,9 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   const hostUpdate = createHostUpdateAdapter({ root, client: hostUpdateClient })
   const moduleCatalog = createModuleUpdateCatalog({ client: hostUpdateClient })
   const moduleExecutor = await createModuleUpdateExecutor({ root, catalog: moduleCatalog, host: hostUpdate,
-    adapters: createModuleUpdateAdapters({ gateway, notifications, members, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule,
+    adapters: createModuleUpdateAdapters({ gateway, builtinSourceCommit, notifications, members, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule,
       prepareDiagnostics, usage: usageAssembly?.controller, prepareUsage }), notify: () => updateCenter?.notify() })
-  updateCenter = createUpdateCenter({ gateway, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule, usage: usageAssembly?.controller })
+  updateCenter = createUpdateCenter({ gateway, builtinSourceCommit, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule, usage: usageAssembly?.controller })
   await notifications.initialize()
   memory = seatRuntime ? seatRuntime.memory(bots) : new BellTeamMemory({ registry: bots, root })
   await memory.initialize()

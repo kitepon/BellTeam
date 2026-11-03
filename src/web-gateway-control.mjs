@@ -4,7 +4,7 @@ export function createWebGatewayControl({ gateway, notify = () => {} }) {
   let update = null, closed = false
   const snapshot = () => ({ currentVersionId: gateway()?.versionId ?? null, update: update ? { ...update } : null })
   const reserve = versionId => {
-    if (typeof versionId !== 'string' || !/^[a-f0-9]{64}$/.test(versionId)) throw failure('WEB_GATEWAY_VERSION_INVALID', 400)
+    if (versionId !== 'builtin' && (typeof versionId !== 'string' || !/^[a-f0-9]{64}$/.test(versionId))) throw failure('WEB_GATEWAY_VERSION_INVALID', 400)
     if (closed || !gateway()) throw failure('WEB_GATEWAY_UNAVAILABLE', 503)
     if (update && ['accepted', 'running'].includes(update.status)) throw failure('WEB_GATEWAY_UPDATE_IN_PROGRESS', 409)
     const next = { versionId, status: 'accepted' }

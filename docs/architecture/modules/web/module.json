@@ -2,7 +2,7 @@
   "title": "Webアプリ",
   "owner": "アドミ",
   "botId": "bot-1f622329",
-  "scope": "Web一覧・編集・会話・下書き・表示・接続・更新通知。サーバー正本は機能担当、Appleはベル",
+  "scope": "Web一覧・編集・会話・下書き・表示・接続・更新通知。サーバー正本は機能担当、Appleはベル。Web受付のbuiltin選択/戻しと固有adapter、共通controllerはruntime・認可/台帳はintegration",
   "external": false,
   "provides": [
     "ui",
@@ -15,6 +15,7 @@
     }
   ],
   "source": [
-    "web/"
+    "web/",
+    "src/web-gateway-update-adapter.mjs"
   ]
 }

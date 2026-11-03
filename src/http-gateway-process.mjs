@@ -20,6 +20,8 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
   let currentRoot = appRoot, currentVersion = null, updating = null, initialized = false
   const versionIdValid = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
   const prepare = async (versionId, signal) => {
+    signal?.throwIfAborted()
+    if (versionId === 'builtin') return { versionId: null, appRoot, protocolVersion: 1 }
     if (!versionIdValid(versionId)) throw new Error('GATEWAY_VERSION_INVALID')
     if (typeof prepareRelease !== 'function') throw new Error('GATEWAY_RELEASES_UNAVAILABLE')
     const release = await prepareRelease(versionId, { signal })
@@ -41,7 +43,8 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
       try { state = JSON.parse(await file.readFile('utf8')) }
       catch { throw new Error('GATEWAY_ADOPTION_INVALID') }
       if (Object.keys(state ?? {}).sort().join(',') !== 'currentVersionId,previousVersionId,schema'
-        || state.schema !== 'bellteam.web-gateway.adoption.v1' || !versionIdValid(state.currentVersionId)
+        || state.schema !== 'bellteam.web-gateway.adoption.v1'
+        || state.currentVersionId !== null && !versionIdValid(state.currentVersionId)
         || state.previousVersionId !== null && !versionIdValid(state.previousVersionId))
         throw new Error('GATEWAY_ADOPTION_INVALID')
       return state
@@ -120,7 +123,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
         const state = await readAdoption()
         startup.signal.throwIfAborted()
         if (state) {
-          const release = await prepare(state.currentVersionId, startup.signal)
+          const release = await prepare(state.currentVersionId ?? 'builtin', startup.signal)
           if (state.previousVersionId) {
             const previous = await prepare(state.previousVersionId, startup.signal)
             assetVersions.set(previous.versionId, previous.appRoot)
@@ -149,7 +152,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
     const previousVersion = currentVersion
     try {
       const release = await prepare(versionId, update.signal)
-      assetCatalog(new Map([...assetVersions, [versionId, release.appRoot]]))
+      assetCatalog(release.versionId === null ? assetVersions : new Map([...assetVersions, [release.versionId, release.appRoot]]))
       if (release.appRoot === currentRoot) {
         currentVersion = release.versionId
         return { versionId: currentVersion, address }

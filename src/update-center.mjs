@@ -4,7 +4,7 @@ const unavailable = () => Object.assign(new Error('UPDATE_EXECUTOR_UNAVAILABLE')
   publicMessage: 'この設置では、まだアプリから更新を実行できません。' })
 const sourceValid = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value)
 const versionValid = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
-export function createUpdateCenter({ gateway = () => null, notifications = null, members = null, host = null, moduleCatalog = null, moduleExecutor = null, memory = null, diagnostics = null, usage = null } = {}) {
+export function createUpdateCenter({ gateway = () => null, builtinSourceCommit = null, notifications = null, members = null, host = null, moduleCatalog = null, moduleExecutor = null, memory = null, diagnostics = null, usage = null } = {}) {
   const events = new EventEmitter()
   return {
     close: () => moduleExecutor?.close(),
@@ -20,7 +20,8 @@ export function createUpdateCenter({ gateway = () => null, notifications = null,
         : id === 'container' && builtin ? { ...builtin, origin: 'container' } : builtin
       const components = updateComponents.map(([id, name, description]) => {
         const memoryState = id === 'memory' ? memory?.snapshot() : id === 'diagnostics' ? diagnostics?.snapshot() : id === 'usage' ? usage?.snapshot() : null
-        const current = ['memory', 'diagnostics', 'usage'].includes(id) ? memoryState?.currentVersionId ? active(id, memoryState.currentVersionId) : sourceValid(memoryState?.builtinSourceCommit) ? { version: memoryState.builtinSourceCommit, sourceCommit: memoryState.builtinSourceCommit, digest: null, origin: 'builtin' } : null : id === 'members' ? versionValid(roster?.currentVersionId)
+        const gatewayBuiltin = sourceValid(builtinSourceCommit) ? { version: builtinSourceCommit, sourceCommit: builtinSourceCommit, digest: null, origin: 'builtin' } : null
+        const current = id === 'web-gateway' ? versionValid(web?.versionId) ? active(id, web.versionId) : web?.versionId === null ? gatewayBuiltin : null : ['memory', 'diagnostics', 'usage'].includes(id) ? memoryState?.currentVersionId ? active(id, memoryState.currentVersionId) : sourceValid(memoryState?.builtinSourceCommit) ? { version: memoryState.builtinSourceCommit, sourceCommit: memoryState.builtinSourceCommit, digest: null, origin: 'builtin' } : null : id === 'members' ? versionValid(roster?.currentVersionId)
           ? { version: roster.currentVersionId, sourceCommit: null, digest: `sha256:${roster.currentVersionId}`, origin: 'release' }
           : sourceValid(roster?.builtinSourceCommit) ? { version: roster.builtinSourceCommit, sourceCommit: roster.builtinSourceCommit, digest: null, origin: 'builtin' } : null
           : active(id, id === 'web-gateway' ? web?.versionId : id === 'notifications' ? push?.currentVersionId : null)

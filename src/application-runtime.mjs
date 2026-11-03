@@ -11,11 +11,13 @@ import { createSeatMcp, internalApi } from './seat-mcp.mjs'
 import { createBugHubSecurity } from './bughub-security.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { runtimeHome } from './runtime-home.mjs'
+import { readServerSourceCommit } from './server-source.mjs'
 
 // Importing this factory does not bootstrap the installation or bind any ports.
 export async function createApplicationRuntime({ root, appRoot, bootstrap, environment = process.env, home = runtimeHome(), client }) {
   let socketDirectory = null, gateway = null
-  const services = await createApplicationServices({ root, ...bootstrap, environment, client, gateway: () => gateway })
+  const builtinSourceCommit = await readServerSourceCommit()
+  const services = await createApplicationServices({ root, ...bootstrap, environment, client, gateway: () => gateway, builtinSourceCommit })
   const {
     aiControl, subscriptions, settings, onboarding, harnessAuth, notifications,
     secretRequests, ownerQuestions, bots, rooms, roomMessenger, messenger,
