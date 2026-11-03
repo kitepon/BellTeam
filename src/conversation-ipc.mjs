@@ -175,7 +175,11 @@ export function createConversationParentChannel(child, { generation, admission, 
     let lease, actor
     try { lease = admission.assertLease(options.conversationLease, { generation }); actor = authorizeActor(method, options.capturedAuthority)
       validateConversationRequest(method, params, { generation, operationId: lease.correlation, actor, continuation: lease.epoch !== admission.capture().epoch }) }
-    catch (cause) { const rejected = Promise.reject(cause); rejected.catch(() => {}); rejected.completion = rejected; return rejected }
+    catch (cause) {
+      const rejected = Promise.reject(cause); rejected.catch(() => {}); rejected.completion = rejected
+      if (method === 'user.turn') rejected.accepted = rejected
+      return rejected
+    }
     return peer.call('root', method, params, {
       context: Object.freeze({ generation, operationId: lease.correlation, actor: Object.freeze({ ...actor }), continuation: lease.epoch !== admission.capture().epoch }),
       onChunk: options.onChunk,

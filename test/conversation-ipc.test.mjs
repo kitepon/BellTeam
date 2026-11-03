@@ -158,6 +158,8 @@ test('drainIncoming retains an awaited history consumer commit after disconnect'
 test('unknown authority, foreign lease, forged callback and per-call method escalation issue no native work', { timeout: 4000 }, async t => {
   const h = await setup(t)
   await assert.rejects(h.parent.request('rooms.list', {}, { conversationLease: h.lease, capturedAuthority: {} }))
+  const refusedTurn = h.parent.request('user.turn', { target: h.fixture.bots[0].id, message: 'refused', images: [] }, { conversationLease: h.lease, capturedAuthority: {} })
+  await assert.rejects(refusedTurn); await assert.rejects(refusedTurn.accepted); await assert.rejects(refusedTurn.completion)
   await assert.rejects(h.request('rooms.list', {}, { kind: 'owner' }, { conversationLease: new ConversationLifetimes('other').enter() }))
   assert.throws(() => h.parent.callback('user.complete', { reply: 'forged' }, { conversationDelivery: {} }))
   const denied = await setup(t, { dispatcher: options => {
