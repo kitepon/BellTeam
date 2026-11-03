@@ -123,6 +123,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         () => gateway?.close(),
         () => scheduler.stop(), () => idleSessions.stop(), () => selfTurns.stop(), () => seatTurns.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => features.close(),
+        () => bootstrap.seatRuntime?.memoryModule?.close(),
         () => transport.close(), () => services.members?.controller.close(), () => notifications.close(),
         () => socketDirectory && rm(socketDirectory, { recursive: true, force: true }),
       ]) {

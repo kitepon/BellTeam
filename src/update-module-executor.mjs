@@ -174,7 +174,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         let expires = now() + 10 * 60 * 1000
         for (const id of ids) {
           const adapter = adapters[id], from = adapter.current()
-          requireValue(from && adapter.available(), 'UPDATE_CURRENT_UNAVAILABLE')
+          requireValue(adapter.available() && (from || adapter.capture?.()?.generation), 'UPDATE_CURRENT_UNAVAILABLE')
           if (action === 'rollback') {
             const previous = [...state.operations].reverse().filter(entry => entry.operation.phase === 'completed' && entry.operation.plan.scope === 'component')
               .flatMap(entry => findPlan(entry.operation.plan.planId).steps).find(step => step.componentId === id)
@@ -186,7 +186,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
             requireValue(value.release && Date.parse(value.expiresAt) > now(), 'PUBLISHED_RELEASE_UNAVAILABLE')
             requireValue(moduleReleaseCompatible(id, value.release), 'UPDATE_INCOMPATIBLE', 409)
             selections.push(value.catalogSha256); expires = Math.min(expires, Date.parse(value.expiresAt))
-            if (matches(from, published(value.release)) || from.origin === 'builtin' && from.sourceCommit === value.release.sourceCommit) continue
+            if (matches(from, published(value.release)) || from?.origin === 'builtin' && from.sourceCommit === value.release.sourceCommit) continue
             const old = [...state.plans].reverse().flatMap(entry => entry.steps).find(step => step.componentId === id && matches(from, step.target))
             steps.push({ componentId: id, from, guard: adapter.capture?.() ?? null, target: published(value.release), release: value.release, catalogSha256: value.catalogSha256, fromRelease: old?.release ?? null })
           }
@@ -207,7 +207,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         requireValue(steps.length, 'UPDATE_ALREADY_CURRENT', 409)
         for (const step of steps.filter(step => step.componentId !== 'container')) await adapters[step.componentId].prepare(step)
         const plan = { planId: randomUUID(), scope: input.scope, componentId: input.scope === 'all' ? null : input.componentId, action,
-          expiresAt: new Date(expires).toISOString(), targets: steps.map(step => ({ componentId: step.componentId, current: step.from ?? hostPlan.targets[0].current, published: step.target })),
+          expiresAt: new Date(expires).toISOString(), targets: steps.map(step => ({ componentId: step.componentId, current: step.componentId === 'container' ? hostPlan.targets[0].current : step.from, published: step.target })),
           compatibility: { compatible: true, reason: null }, impact: { containerRestart: Boolean(hostPlan), description: hostPlan ? '機能の切替後、本体を再起動します。会話と処理が一時中断します。' : '対象の機能を順に切り替えます。本体は再起動しません。' }, capability: { supported: true, reason: null } }
         validateUpdateResponse('plan', { plan })
         const entry = { plan, steps, hostPlan }; checkCurrent(entry)
@@ -260,7 +260,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       if (recent[0]) inventory.operation = publicOperation(recent[0])
       if (recent[1]) inventory.previousOperation = publicOperation(recent[1])
       inventory.plans = state.plans.filter(entry => Date.parse(entry.plan.expiresAt) > now()).slice(-16).map(entry => copy(entry.plan))
-      for (const component of inventory.components) if (adapters[component.id] && component.published && component.comparison.state === 'update_available')
+      for (const component of inventory.components) if (adapters[component.id] && component.published && (component.comparison.state === 'update_available' || component.comparison.state === 'unknown' && adapters[component.id].capture?.()?.generation))
         component.capability = { supported: !closed && !fault && !active && !blockedHost, reason: closed ? 'UPDATE_EXECUTOR_CLOSED' : fault ?? (active || blockedHost ? 'MODULE_EXCHANGE_BUSY' : null) }
       if (fault || recent[0] && ['unknown', 'failed'].includes(recent[0].operation.phase)) inventory.notice = { state: 'attention', code: fault ?? recent[0].operation.error?.code ?? 'UPDATE_RESULT_UNKNOWN', message: '保存された更新結果を確認してください。同じ要求を自動で再実行しません。' }
       else if (recent[0] && !terminal(recent[0].operation)) inventory.notice = { state: 'updating', code: null, message: '更新処理の結果を保存しています。' }
