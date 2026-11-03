@@ -316,7 +316,8 @@ export function createConversationChildChannel({ dispatcher, endpoint = process,
       if (method === 'execution.background.end') background.endAcknowledged(params.backgroundId, context)
       return value
     })
-    return attempt
+    attempt.catch(() => {})
+    return attempt.completion
   }
   let sentReady = false
   function ready() {

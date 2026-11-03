@@ -47,7 +47,7 @@ flowchart TD
 
 `callbacks(deliveryLease)`は登録subsetだけのonStatus/onInterim/onAnswer/onTurnEnd/userCompleteを返す。親ローカルparamsはstatus={delivery,error,tracking}、words={words}、answer={text}、user.complete={reply}、turn.end={startedAt,endedAt}。statusのErrorはまだ親内の値。**Epiの親dispatchはN102公開src/conversation/callbacks.mjsのnormalizeConversationCallback(kind,params)へ通してからwireへ送り**、Error自由message/stack/causeを送らない。子はvalidateとsafe failure fieldsだけを使う。N102供給元d40c1ffdの公開formatter/ACK schemaと接続する。dispatcher/context/frameの私有実装は当gateからimportしない。
 
-`invoke(deliveryLease,kind,localParams)`は発行前に実参照を取得し、dispatchの実保存/check/report ACKまで保持する。返却はexact `{applied:true}`だけ。欠測/extra/拒否/例外はprotocol unconfirmed。終端後や偽相関はdrop成功にせず、以後drain/adopt/resumeの成功を拒む。runtimeはcallerunknownでも実callback result/OScloseまで実Promiseをsettleさせない。
+`invoke(deliveryLease,kind,localParams)`は発行前に実参照を取得し、dispatchの実保存/check/report ACKまで保持する。dispatch返却に`completion`があれば同元Promiseを判定源にし、無ければ返却Promiseを使う。caller結果だけの期限切れを実保存ACK失敗へ昇格させず、実completionがpendingの間は参照を保持する。返却はexact `{applied:true}`だけ。実completionの欠測/extra/拒否/例外はprotocol unconfirmed。終端後や偽相関はdrop成功にせず、以後drain/adopt/resumeの成功を拒む。runtimeはcallerunknownでも実callback result/OScloseまで実Promiseをsettleさせない。
 
 ## 背景と一回派生報告
 

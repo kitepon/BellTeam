@@ -168,7 +168,8 @@ export class ConversationLifetimes {
     }
     return this.#run(lease, async () => {
       try {
-        const result = await record.dispatch(kind, params, binding)
+        const dispatched = record.dispatch(kind, params, binding)
+        const result = await (dispatched?.completion ?? dispatched)
         if (!result || Array.isArray(result) || Object.keys(result).length !== 1 || result.applied !== true) throw protocolError()
         return result
       }
