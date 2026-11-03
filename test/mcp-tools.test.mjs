@@ -54,7 +54,7 @@ test('道具の返事は画像本体を外し、有無と取得先だけを返�
   }
   const call = (name, args = {}) => callBellTeamTool({ ...context, name, arguments: args })
 
-  assert.deepEqual(await call('get_self'), { bot: { id: 'bot-a', name: 'あ', hasAvatar: true, avatarUrl: 'http://127.0.0.1:4181/api/bots/bot-a/avatar' } })
+  assert.deepEqual(await call('get_self'), { bot: { id: 'bot-a', name: 'あ', hasAvatar: true, avatarUrl: 'http://127.0.0.1:4181/api/bots/bot-a/avatar', currentWork: { state: 'unknown', summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, observedAt: null, source: null }, currentWorkBinding: null } })
   assert.deepEqual(await call('get_bot', { botId: 'bot-b' }), { bot: { id: 'bot-b', name: 'い', hasAvatar: false } })
   assert.deepEqual(await call('update_self', { role: '整備' }), { bot: { id: 'bot-a', name: 'あ', role: '整備', hasAvatar: true, avatarUrl: 'http://127.0.0.1:4181/api/bots/bot-a/avatar' } })
   assert.deepEqual(await call('get_owner_profile'), { owner: { name: '利用者', hasAvatar: true, avatarUrl: 'http://127.0.0.1:4181/api/owner/avatar' } })

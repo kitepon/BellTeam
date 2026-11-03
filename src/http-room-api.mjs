@@ -1,15 +1,28 @@
+import { readCurrentWork } from './current-work-contract.mjs'
 import { json, readJson } from './http-response.mjs'
 import { recentTimeline } from './timeline-index.mjs'
 import { listAvatar, sendAvatar } from './http-assets.mjs'
 import { messageImages, MESSAGE_MAX_BYTES } from './http-messages.mjs'
 
-export function createRoomApi({ rooms, transport, sources, messagePage, roomMessenger }) {
+export function createRoomApi({ bots, rooms, transport, sources, messagePage, roomMessenger }) {
   return async (request, response, url) => {
     if (request.method === 'GET' && url.pathname === '/api/rooms') {
       await rooms.refresh()
-      const list = await Promise.all([...rooms.values()].map(async room => ({
-        ...room, ...listAvatar(room.avatar, url), recent: recentTimeline(await sources('rooms', room.id)),
+      const histories = await Promise.all([...rooms.values()].map(async room => ({
+        id: room.id, recent: recentTimeline(await sources('rooms', room.id)),
       })))
+      const work = new Map(), list = []
+      for (const history of histories) {
+        const room = rooms.get(history.id)
+        if (!room) continue
+        const members = [...new Set(room.memberIds ?? [])].flatMap(botId => {
+          const bot = bots?.get(botId)
+          if (!bot || bot.deleting) return []
+          if (!work.has(botId)) work.set(botId, readCurrentWork(transport, bot))
+          return [{ botId, currentWork: work.get(botId) }]
+        })
+        list.push({ ...room, ...listAvatar(room.avatar, url), recent: history.recent, currentWork: { scope: 'participants', members } })
+      }
       return json(response, 200, { rooms: list })
     }
     if (request.method === 'POST' && url.pathname === '/api/rooms') {

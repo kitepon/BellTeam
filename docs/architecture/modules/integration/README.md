@@ -345,3 +345,26 @@ flowchart LR
 Hostの同read-only catalog窓口からweb-gateway/notifications/membersの正式選択だけを読む。発行元/署名/期限/失効はHost readerの責任で、共通側は閉じた選択schema・component/source/digest/immutable archive URL・platform・互換metadataを検証し公開JSONへ写像する。membersは厳密5keyと作者6値exact、旧moduleは厳密4keyを保持する。archiveの実bytesや現state検査をこのmetadata比較で代用しない。
 
 source不明/current nullはunknown、正式公開未供給/取得不能はpublished null、署名catalogの受入と直近publication確認失敗を分離する。各componentの障害は他moduleの正式情報や実availabilityを消さない。比較可能なbuiltin source又はrelease digestの一致だけをup_to_dateとし、module executor/all coordinatorの未接続は理由付きcapability falseのまま。GETは実行plan/worker/署名を作らない。既containerの耐久plan/start/getと同Host clientを共有し、controllerを複製しない。
+
+
+## currentWorkの共通一覧と本人MCP
+
+```mermaid
+flowchart LR
+  Observer[execution: 既SeatTurns一回観測] --> Provider[同transport一実体のcurrentWork]
+  History[一覧の履歴await完了] --> Current[現Bot・Room・参加者を再確認]
+  Current --> Provider
+  Provider --> Lists[GET botsの全6key / roomsのparticipants]
+  Ingress[既席MCP本人確認 / seatExecutionSource捕捉] --> Closure[親closureだけがactor情報を渡す]
+  Closure --> Binding[get_self.botのcurrentWorkBindingのみ]
+  Closure --> Update[update_work_summary / 閉DTO]
+  Update --> Writer[同transportの本人memory更新 / CASと受付後既observer]
+  Writer --> Events[既watchQueue / 既SSE再取得]
+  Lists --> UI[Web / Apple全体受入後の別差分]
+```
+
+公開schemaはsrc/current-work-contract.mjs一正本。HTTP一覧は最後の履歴await後に現登録Botを使い、退役を除き、Roomは現memberIdsの重複/非在席を除いた参加者だけを同snapshot cacheから返す。Room自身のsummary/working stateを生成しない。DTOはsource/summary・更新時刻・観測時刻を分離し、未供給/不正projectionはunknown全6key、本文やGoalから補完しない。既online取得以外のnative/AI呼出を加えない。
+
+同transport.currentWorkBinding/updateWorkSummaryへ、既HTTP ingressが捕捉したsourceをtoolsForSource closureからだけ渡す。モデル引数のbotId/path/sourceは受けず、共通await後に本人退役なら更新前403。get_selfだけbot.currentWorkBindingを付け、他Bot読取やHTTP一覧へprivate bindingを出さない。更新の固定400/403/409/503はMCP isError/structuredContentの安全code/statusだけへ投影、自由message/stackやsummaryをエラーへ反射しない。実行所有者のmemory/UUID/CAS/15秒・10分/160文字正規化は同公開transportの責任で、共通が第二writerや追加observerを作らない。
+
+既watchQueueのSSE接続を再利用し二重watch無し。summaryを新たに読むことで正規AI/auth/Goalや設定発行へ到達しない。Apple実装の順序はOwner指定の全体受入後で、本schema供給から先行実装の許可へ拡張しない。
