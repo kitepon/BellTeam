@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { ConversationLifetimes } from '../src/conversation-lifetimes.mjs'
 import { MembersAdmission } from '../src/members-admission.mjs'
 import { createModuleOperationContext } from '../src/module-operation-context.mjs'
 import { createModuleExchangeMutex } from '../src/module-exchange-mutex.mjs'
@@ -7,8 +8,7 @@ import { createModuleExchangeMutex } from '../src/module-exchange-mutex.mjs'
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
 const setup = () => {
   const membersAdmission = new MembersAdmission('members')
-  // The conversation owner supplies its separate lifetime gate at assembly.
-  const conversationAdmission = new MembersAdmission('conversation')
+  const conversationAdmission = new ConversationLifetimes('conversation')
   return { membersAdmission, conversationAdmission, ...createModuleOperationContext({ membersAdmission, conversationAdmission }) }
 }
 
@@ -16,17 +16,18 @@ test('a closed or full peer rejects before work and releases the first reservati
   const gate = setup()
   const closed = gate.conversationAdmission.close()
   let effects = 0
-  assert.throws(() => gate.withContext(() => { effects++ }), { code: 'MEMBERS_NOT_ACCEPTED' })
+  assert.throws(() => gate.withContext(() => { effects++ }), { code: 'CONVERSATION_NOT_ACCEPTED' })
   const ticket = gate.membersAdmission.close()
   await gate.membersAdmission.drain(ticket)
   assert.equal(effects, 0)
   gate.membersAdmission.resume(ticket)
   gate.conversationAdmission.resume(closed)
-  const leases = Array.from({ length: 8 }, () => gate.conversationAdmission.enter())
+  const leases = Array.from({ length: 8 }, () => gate.membersAdmission.enter())
   assert.throws(() => gate.reserve(), { code: 'MEMBERS_NOT_ACCEPTED' })
+  assert.equal(gate.conversationAdmission.snapshot().active, 0)
+  for (const lease of leases) gate.membersAdmission.finish(lease)
   const second = gate.membersAdmission.close()
   await gate.membersAdmission.drain(second)
-  for (const lease of leases) gate.conversationAdmission.finish(lease)
 })
 
 test('only the original opaque context continues through closure and nested calls never enter or finish again', async () => {
@@ -75,4 +76,19 @@ test('one exchange mutex rejects concurrent replacements without queueing and re
   done.resolve('members'); assert.equal(await first, 'members')
   await assert.rejects(mutex.runExclusive(() => { throw new Error('failed') }), /failed/)
   assert.equal(await mutex.runExclusive(() => 'conversation'), 'conversation')
+})
+
+
+test('accepted paired preparation releases members while a real conversation delivery still owns its late callback', async () => {
+  const gate = setup(), context = gate.reserve()
+  const delivery = gate.conversationAdmission.registerDelivery(context.conversationLease, {
+    deliveryId: 'delivery-one', target: 'bot-one', kinds: ['delivery.answer'], dispatch: async () => ({ applied: true }),
+  })
+  gate.finish(context)
+  const members = gate.membersAdmission.close(), conversation = gate.conversationAdmission.close()
+  await gate.membersAdmission.drain(members)
+  assert.deepEqual(await gate.conversationAdmission.drain(conversation, { timeoutMs: 0 }), { status: 'busy' })
+  assert.deepEqual(await gate.conversationAdmission.invoke(delivery, 'delivery.answer', { text: 'finite fixture' }), { applied: true })
+  gate.conversationAdmission.finish(delivery)
+  assert.deepEqual(await gate.conversationAdmission.drain(conversation), { status: 'drained' })
 })
