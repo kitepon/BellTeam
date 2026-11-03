@@ -368,3 +368,29 @@ flowchart LR
 同transport.currentWorkBinding/updateWorkSummaryへ、既HTTP ingressが捕捉したsourceをtoolsForSource closureからだけ渡す。モデル引数のbotId/path/sourceは受けず、共通await後に本人退役なら更新前403。get_selfだけbot.currentWorkBindingを付け、他Bot読取やHTTP一覧へprivate bindingを出さない。更新の固定400/403/409/503はMCP isError/structuredContentの安全code/statusだけへ投影、自由message/stackやsummaryをエラーへ反射しない。実行所有者のmemory/UUID/CAS/15秒・10分/160文字正規化は同公開transportの責任で、共通が第二writerや追加observerを作らない。
 
 既watchQueueのSSE接続を再利用し二重watch無し。summaryを新たに読むことで正規AI/auth/Goalや設定発行へ到達しない。Apple実装の順序はOwner指定の全体受入後で、本schema供給から先行実装の許可へ拡張しない。
+
+
+## conversation導入の親一括予約（未組立て）
+
+```mermaid
+flowchart LR
+  Caller[削除・予定・跨module保存の固定caller] --> Reserve[module-operation-context: 同期reserve]
+  Reserve --> Members[同membersAdmission.enter]
+  Reserve --> Conversation[同conversationAdmission.enter]
+  Conversation -->|閉鎖・満杯| Release[同stackでmembers finish / 作用なし]
+  Reserve --> Context[親opaque operationContext / 両lease]
+  Context --> Facade[各安定facadeへ同object]
+  Facade --> Channel[親channel options.operationContextを捕捉]
+  Channel --> Effect[逆effectに同identity / wireには渡さない]
+  Effect --> Facade
+  Done[要求終端 finish] --> Completion[各gateの登録済み実completionは保持]
+  Replace[両module replace] --> Mutex[同module-exchange-mutex / 非queue busy拒否]
+```
+
+横断正本はRoot conversation-update-contract-20261103.md v1。`createModuleOperationContext({membersAdmission,conversationAdmission})`の`reserve()`は作用前に両方を同期取得する。どちらかの拒否でcallerを実行せず、片leaseで他のroot枠を待たない。公開contextはfreezeした`{membersLease,conversationLease}`だが、同じ値のJSON/cloneは権限にならず、親WeakSetと各gateで同identity/liveを検証する。既members単独leaseから後付けで両予約を作らない。
+
+`assert(context)`は元objectを返す。`finish(context)`は両leaseへ一度だけ終了を要求し、送信前に各所有者がtrackCompletionした実終端を早期解放しない。`withContext(operation, context?)`は未指定時だけreserveし、同期例外/Promise成功・失敗の終端で所有予約をfinishする。既contextなら入場/finish追加0。削除202の背景処理は明示reserve→背景実終端finally finishを使い、HTTP finishでは解放しない。通常会話の短いmembers準備をこの両予約でAI完走まで延長しない。
+
+親facadeは各controllerへ`options.operationContext`に同objectを渡す。runtimeが親enriched reverse-effectへ同参照を保持し、wireにはlease objectを出さない。各所有者がそのmoduleのlease/lifetimeを検証し、必要な跨module effectだけ元予約を共通assertで照合する。N102の安定Room facade第2引数とBelorta callerはこの元contextを伝搬する。body/actor/任意propertyから予約を補わない。
+
+`createModuleExchangeMutex().runExclusive(operation)`は交換だけの一実体。競合は固定MODULE_EXCHANGE_BUSY/409/not_accepted/not_startedで未実行としqueueを作らず、例外でも解放する。両runtime controllerへ同instanceを渡す接続は作者供給後。これら単独helperをconversation子/writer/bootstrap/長い配送lifetime成立としない。conversation gateのroot8slotと配送lifetime分離はexecution、channelと60秒drain/旧resume/OScloseはruntime、業務writerはconversationが持つ。
