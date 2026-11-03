@@ -119,21 +119,22 @@ export async function prepareOlrwManagement({ root, ownerQuestions, aiControl, r
         check()
       } catch { throw denied() }
     }
-    const initialize = async () => {
+    const initialize = async issue => {
+      const checkInitialize = () => { if (issue && issue.assertBeforeIssue() !== undefined) throw denied(); check() }
       deadline = Math.min(deadline, Date.now() + 900000)
-      check()
+      checkInitialize()
       await unchanged()
       await authorize('initialize')
       // initialize can have effects: do not cross the awaited approval with a stale plan.
       await unchanged()
-      check()
+      checkInitialize()
       let timer
       try {
         connection = await Promise.race([rawAuth.prepare(), new Promise((_, reject) => {
           timer = setTimeout(() => reject(denied()), Math.max(0, Math.min(10000, deadline - Date.now())))
         })])
       } finally { clearTimeout(timer) }
-      check()
+      checkInitialize()
       bound = await metadata(connection)
       expected = { schema: 'bellteam.olrw-auth.target-evidence.v1', runId: document.context.runId,
         profileSha256: document.target.profileSha256, ...bound }
@@ -141,9 +142,9 @@ export async function prepareOlrwManagement({ root, ownerQuestions, aiControl, r
       await writeAtomic(join(root, 'logs/olrw-client-preflight.json'), { ...expected, target: document.target,
         scope: 'connection identity only; independently measured SSH/Node/artifact/environment profile is still required' })
       for (;;) {
-        check()
+        checkInitialize()
         await unchanged()
-        check()
+        checkInitialize()
         try { await targetUnchanged(); break }
         catch (error) { if (error.code !== 'ENOENT') throw error }
         await delay(Math.min(100, Math.max(1, deadline - Date.now())), undefined, { signal: controller.signal })
@@ -151,17 +152,17 @@ export async function prepareOlrwManagement({ root, ownerQuestions, aiControl, r
       await assertAuthorized('start')
     }
     auth = {
-      async start() {
+      async start(input, issue) {
         try {
-          initializing ??= initialize()
+          initializing ??= initialize(issue)
           await initializing
           check()
-          return await rawAuth.start()
+          return await rawAuth.start(input, issue)
         } catch (error) { await close(); throw error }
       },
-      status: input => rawAuth.status(input),
-      respond: input => rawAuth.respond(input),
-      cleanup: input => rawAuth.cleanup(input),
+      status: (input, issue) => rawAuth.status(input, issue),
+      respond: (input, issue) => rawAuth.respond(input, issue),
+      cleanup: (input, issue) => rawAuth.cleanup(input, issue),
       close,
     }
 

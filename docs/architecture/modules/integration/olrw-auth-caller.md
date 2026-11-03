@@ -41,6 +41,6 @@ pendingカードのbootstrapは固定参照を組み立てるだけで、原本G
 
 接続後logs/olrw-client-preflight.jsonへ親PID/出生・その接続のSSH PID/出生・対象profile参照を1001/0600で出す。この出力は観測対象の名札であり許可証ではない。独立した承認済み実測後、root配置者だけがtarget-evidence.jsonをroot:1001/0440で公開する。schema bellteam.olrw-auth.target-evidence.v1、runId/profileSha256/親PID出生/SSH PID出生が現在接続と完全一致する場合だけauthへ進める。欠測のみ100ms間隔で受動再読し、期限はrun開始15分/管理許可期限の最小。close/停止epoch/期限で待ちを終了し、遅着証拠を採用せず再prepare/auth0。一般待受けや新daemonではない。
 
-実auth前はplan raw bytes不変・同接続PID出生・root evidence・Box原本を照会後にも再確認し、SDKへ渡す直前にはawait無しで期限/close/停止epochを確認する。unknown後の再準備/再接続/別env launcher/自動status・cancelは無い。通常終了/親close/拒否回答/許可失敗はconsumer入場停止と管理client closeだけで、無許可cancelを追加しない。実測/配置の手順・担当・具体値は統括の実行案で確定し、このsourceから実SSH/権限/配置を許可済みにしない。
+実auth前はplan raw bytes不変・同接続PID出生・root evidence・Box原本を照会後にも再確認し、SDKへ渡す直前にはawait無しでRootの期限/close/停止epochと、usageが各auth呼出し第2引数`{assertBeforeIssue:check}`で渡す一正本のrun/input期限・close/abortを確認する。期限値の複製や別正本は作らず、managed adapterと固定Rabbit adapterが同callbackを透過して実Clientの同期guard直前へ接続する。unknown後の再準備/再接続/別env launcher/自動status・cancelは無い。通常終了/親close/拒否回答/許可失敗はconsumer入場停止と管理client closeだけで、無許可cancelを追加しない。実測/配置の手順・担当・具体値は統括の実行案で確定し、このsourceから実SSH/権限/配置を許可済みにしない。
 
 source: src/olrw-management-caller.mjs、olrw-management-loader.mjs、olrw-rabbit-auth.mjsと直接試験。application-servicesは通常bootstrapの固定loaderか明示合成fixtureから得るolrwManagementを使い、同じSecretRequests実体とstate/olrw-authをconsumerへ注入する。application-runtime全体closeはcaller停止→既資源closeを行う。固定plan無しは通常無効、無反映でlive graphへ注入しない。実root配置/資格/正式native供給/実到達が未成立の現在は本番で有効化しない。既公開契約の変更はない。

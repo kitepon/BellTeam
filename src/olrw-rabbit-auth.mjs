@@ -36,10 +36,11 @@ export function createOlrwRabbitAuth({ nodePath, entryPath, version, sessionId, 
     })()
     return preparing
   }
-  const invoke = async (action, options = {}) => {
+  const invoke = async (action, options = {}, issue) => {
     try {
       const connection = await prepare()
       if (closed || halted) throw new Error('OLRW_RABBIT_CONNECTION_CLOSED')
+      if (issue && issue.assertBeforeIssue() !== undefined) throw invalid()
       if (assertBeforeIssue() !== undefined) throw invalid()
       const result = await client.call('agent_auth', { action, harness: 'claude-code', session_id: sessionId, ...options },
         { expectedAuthConnection: connection, expectedAuthServerVersion: version })
@@ -53,16 +54,16 @@ export function createOlrwRabbitAuth({ nodePath, entryPath, version, sessionId, 
   }
   return {
     prepare,
-    start: () => invoke('start', { cwd: '/home/kite', env_vars: ['HOME'], relogin: true }),
-    status: ({ binding: expected }) => invoke('status', { expected_binding: binding(expected) }),
-    cleanup: ({ binding: expected }) => invoke('cancel', { expected_binding: binding(expected) }),
-    respond: ({ binding: expected, prompt_digest, response }) => {
+    start: (_input, issue) => invoke('start', { cwd: '/home/kite', env_vars: ['HOME'], relogin: true }, issue),
+    status: ({ binding: expected }, issue) => invoke('status', { expected_binding: binding(expected) }, issue),
+    cleanup: ({ binding: expected }, issue) => invoke('cancel', { expected_binding: binding(expected) }, issue),
+    respond: ({ binding: expected, prompt_digest, response }, issue) => {
       if (typeof prompt_digest !== 'string' || !/^[a-f0-9]{64}$/.test(prompt_digest)
         || !response || Object.keys(response).sort().join(',') !== 'kind,value'
         || response.kind !== 'authorization_code' || typeof response.value !== 'string'
         || !/^[!-~]{1,8192}$/.test(response.value)) throw invalid()
       return invoke('respond', { expected_binding: binding(expected), expected_prompt_digest: prompt_digest,
-        response: { kind: 'authorization_code', value: response.value } })
+        response: { kind: 'authorization_code', value: response.value } }, issue)
     },
     async close() { closed = true; await client.close() },
   }
