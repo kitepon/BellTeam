@@ -53,6 +53,10 @@
     {
       "module": "usage",
       "port": "notify"
+    },
+    {
+      "module": "execution",
+      "port": "members-admission"
     }
   ],
   "source": [
@@ -77,6 +81,7 @@
     "src/update-center-contract.mjs",
     "src/update-host-adapter.mjs",
     "src/members-owner-authorization.mjs",
-    "src/members-projection.mjs"
+    "src/members-projection.mjs",
+    "src/members-facade.mjs"
   ]
 }

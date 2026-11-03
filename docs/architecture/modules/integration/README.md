@@ -248,3 +248,26 @@ flowchart LR
 ```
 
 親投影は`createMembersProjection`の一実体。beginで次generationを固定するが表示中の旧generation/revisionは採用まで変更しない。画像本文・重複ID・異世代・revision不一致・再送を拒否し、件数の新上限は作らない。get/values/snapshotはcopyを返しcaller変更で正本を変えない。contextのinitialize/live lease・相関の実検証はruntime channelの公開責任であり、投影helperだけを本人確認に使わない。onChangeは全件採用後だけ一度呼ぶ。未供給のcontrollerへの配線とfresh async facade/SSEは次工程で、旧writer廃止や実交換の成功を主張しない。
+
+## members facade：fresh readと旧lease callback（結合候補）
+
+```mermaid
+flowchart LR
+  Ingress[新HTTP/MCP・明示操作] --> Gate[同MembersAdmission.withLease]
+  Old[既lease付きrefresh/startup] --> Existing[assertLease / 新root0]
+  Gate --> Request[同controller request / 閉DTO]
+  Existing --> Request
+  Save[session/fast保存 callback] --> Assert[同live lease必須 / 新入場0]
+  Assert --> Callback[同controller callback]
+  Request --> Result[作者result validator / 不正はunknown]
+  Callback --> Result
+  Fresh[席MCP/transport requireMember] --> Read[profile.readをawait / 503と確認済404を区別]
+  Read --> Request
+  Display[会話既受付の表示名] --> Projection[旧名簿stale投影を維持]
+```
+
+`createMembersFacade({request,callback,admission,projection})`は親の同controller/channelを注入する。refresh/listForClientはfresh profiles.read、readMemberはprofile.readの返却を直接使う。get/has/valuesは表示投影で認可ではない。既context.membersLeaseは新入場もfinish追加もせず、context無しだけ所有leaseを実終端でfinish要請する。channelが送信前登録する実completionはcaller unknown後もliveに残り、再送せず旧callbackを終端まで通す。session/fast保存はcallback専用、lease無し/偽object/終了済みを拒否する。
+
+Owner/rules更新ではcapturedAuthorizationを同channelへ渡し、子に値は送らない。未公開profile.remove/run/prepareResumeを推測で公開しない。全facadeを製品bootstrapへ切替える工程とruntime controller/source供給は未了。旧writerはまだ稼働経路に残るため、この候補を独立更新完成としてmainへ先行反映しない。
+
+席MCP入口はreadMemberがある場合にfresh本人確認をawaitし、503を未登録400へ丸めない。Map型の既builtinは既本人確認を保つ。HTTP上限16MiB/席MCP4MiBは変更しない。assembly requireMemberもfresh結果を取得し表示投影を本人性の代用にしない。

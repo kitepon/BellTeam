@@ -68,6 +68,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     } : {}),
     assertWorkAllowed: () => aiControl.assertEnabled(),
     requireMember: async (bot, context) => {
+      if (typeof bots.readMember === 'function') { await bots.readMember(bot.id, context); return }
       await bots.refresh(context)
       if (!bots.get(bot.id)) throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND', status: 404, effect: 'not_started' })
     },
