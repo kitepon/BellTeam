@@ -3,6 +3,7 @@ import importlib.util
 from contextlib import ExitStack
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -73,7 +74,13 @@ class ConversationProbe(unittest.TestCase):
         dependency = self.app / 'node_modules/probe-dependency'; dependency.mkdir(parents=True)
         (dependency / 'package.json').write_text('{"type":"module","exports":"./index.mjs"}')
         (dependency / 'index.mjs').write_text("export default 'payload-only'\n")
-        staged = probe.stage_parent_probe()
+        (self.checkout / 'src/conversation-lifetimes.mjs').write_text('// parent only\n')
+        created = []
+        staged = probe.stage_parent_probe(created)
+        self.addCleanup(shutil.rmtree, created[0])
+        self.assertFalse(staged.is_relative_to(self.app))
+        self.assertFalse((self.app / 'src/conversation-lifetimes.mjs').exists())
+        self.assertEqual((staged.parent.parent / 'src/conversation-lifetimes.mjs').read_text(), '// parent only\n')
         self.assertEqual(staged.read_bytes(), parent.read_bytes())
         result = subprocess.run(['node', str(staged)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

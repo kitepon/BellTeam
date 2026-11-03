@@ -68,8 +68,13 @@ def snapshot_state():
     return result
 
 
-def stage_parent_probe():
-    directory = APP / 'scripts'
+def stage_parent_probe(created):
+    # Parent lifetimes must not conceal a missing dependency in the signed child.
+    parent = Path(tempfile.mkdtemp(prefix='conversation-probe-parent-'))
+    created.append(parent)
+    shutil.copytree(APP, parent, dirs_exist_ok=True)
+    shutil.copyfile(ROOT / 'src/conversation-lifetimes.mjs', parent / 'src/conversation-lifetimes.mjs')
+    directory = parent / 'scripts'
     directory.mkdir(exist_ok=True)
     probe = directory / 'probe-conversation-runtime.mjs'
     shutil.copyfile(ROOT / 'scripts/probe-conversation-runtime.mjs', probe)
@@ -122,7 +127,7 @@ def main():
                 tar.extractall(staging, filter='data')
             created.append(APP)
             shutil.copytree(Path(staging) / 'payload', APP)
-        probe = stage_parent_probe()
+        probe = stage_parent_probe(created)
         for path in sorted(APP.rglob('*'), reverse=True):
             path.chmod(0o555 if path.is_dir() else 0o444)
         APP.chmod(0o555)

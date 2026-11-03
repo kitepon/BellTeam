@@ -22,10 +22,10 @@ class ConversationArtifact(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name); self.payload = self.root / 'payload'
-        self.entry, self.runtime, _ = contract('conversation')
-        for name in ['src/conversation-entry.mjs', 'package.json', 'package-lock.json', 'node_modules/mock/package.json']:
+        self.entry, self.runtime, required = contract('conversation')
+        for name in [*(name.removeprefix('payload/') for name in required), 'node_modules/mock/package.json']:
             path = self.payload / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(name)
-        state = self.payload / 'src/conversation/state-compatibility.mjs'; state.parent.mkdir()
+        state = self.payload / 'src/conversation/state-compatibility.mjs'; state.parent.mkdir(exist_ok=True)
         state.write_text('export const CONVERSATION_STATE_COMPATIBILITY = ' + json.dumps(self.runtime['stateCompatibility']))
         self.archive = self.root / 'conversation.tar.gz'
         self.manifest = write_archive(self.payload, self.archive, SOURCE, 'amd64', component='conversation')
@@ -63,6 +63,18 @@ class ConversationArtifact(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'CONVERSATION_SOURCE_STATE_INCOMPATIBLE'): validate_conversation_source(self.payload)
         m=copy.deepcopy(self.manifest);m['files']=[f for f in m['files'] if not f['path'].endswith('state-compatibility.mjs')]
         with self.assertRaises(ValueError): validate_manifest(m, component='conversation')
+
+    def test_literal_closure_missing_dependencies_are_rejected(self):
+        _, _, required = contract('conversation')
+        self.assertEqual(len(required), 54)
+        for omitted in ['payload/src/module-streams.mjs', 'payload/src/conversation/probe-fixture.json',
+                        'payload/src/conversation/dispatcher.mjs', 'payload/src/observer-check.mjs']:
+            manifest = copy.deepcopy(self.manifest)
+            manifest['files'] = [row for row in manifest['files'] if row['path'] != omitted]
+            with self.subTest(path=omitted), self.assertRaises(ValueError):
+                validate_manifest(manifest, component='conversation')
+        self.assertNotIn('payload/src/conversation-lifetimes.mjs', required)
+        self.assertNotIn('payload/src/run-seat-command.mjs', required)
 
     def catalog(self):
         version=sha256(self.archive.read_bytes());url=f'https://github.com/kitepon/BellTeam/releases/download/updates-20261103T000000Z/conversation-{SOURCE}-linux-amd64.tar.gz'

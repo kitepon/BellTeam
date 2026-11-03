@@ -14,6 +14,64 @@ MAX_BUNDLE = 16 * 1024**2
 MAX_FILES = 20000
 ENTRY = 'payload/src/http-gateway-entry.mjs'
 
+# Fixed child import closure plus the author's readonly restore fixture.
+CONVERSATION_FILES = frozenset('payload/' + name for name in '''
+package-lock.json
+package.json
+src/agent-launch-error.mjs
+src/avatar-value.mjs
+src/conversation-background-ipc.mjs
+src/conversation-channel.mjs
+src/conversation-delivery-release.mjs
+src/conversation-entry.mjs
+src/conversation-input.mjs
+src/conversation-ipc.mjs
+src/conversation-locks.mjs
+src/conversation-store.mjs
+src/conversation-streams.mjs
+src/conversation-writer.mjs
+src/conversation/authority.mjs
+src/conversation/background.mjs
+src/conversation/callbacks.mjs
+src/conversation/dispatcher.mjs
+src/conversation/effects.mjs
+src/conversation/native.mjs
+src/conversation/observer.mjs
+src/conversation/probe-fixture.json
+src/conversation/requests.mjs
+src/conversation/restore.mjs
+src/conversation/results.mjs
+src/conversation/routing.mjs
+src/conversation/state-compatibility.mjs
+src/delivery-tracking.mjs
+src/execution-bridge.mjs
+src/execution-error.mjs
+src/json-file.mjs
+src/member-identity.mjs
+src/message-assets.mjs
+src/messenger.mjs
+src/module-streams.mjs
+src/notifications-ipc.mjs
+src/notifications-locks.mjs
+src/observer-check.mjs
+src/resume-policy.mjs
+src/returned-mcp-error.mjs
+src/room-access.mjs
+src/room-history.mjs
+src/room-messenger.mjs
+src/room-registry.mjs
+src/room-routing.mjs
+src/runtime-home.mjs
+src/schedule-definition.mjs
+src/schedule-mutations.mjs
+src/seat-command.mjs
+src/seat-process.mjs
+src/self-turns.mjs
+src/session-interruption.mjs
+src/timeline-index.mjs
+src/turn-reports.mjs
+'''.split())
+
 
 def require(condition, code='GATEWAY_ARTIFACT_INVALID'):
     if not condition:
@@ -188,7 +246,7 @@ def contract(component):
             roomSchema='bellteam.room.v1', scheduleSchema='bellteam.schedule.v1', selfTurnsSchema='bellteam.self-turns.v1',
             imageMimeTypes=['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
             readerContract='bellteam.conversation-reader.v1')
-        required.add('payload/src/conversation/state-compatibility.mjs')
+        required.update(CONVERSATION_FILES)
     return entry, runtime, required
 
 

@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
-from web_gateway_artifact import BUSINESS_FILES, EXECUTION_FILES, check_archive, contract, require, safe_path, write_archive
+from web_gateway_artifact import BUSINESS_FILES, EXECUTION_FILES, CONVERSATION_FILES, check_archive, contract, require, safe_path, write_archive
 
 
 def validate_members_source(payload):
@@ -58,6 +58,8 @@ def main(component):
             paths = sorted(name.removeprefix('payload/') for name in EXECUTION_FILES)
         if component in BUSINESS_FILES:
             paths = sorted(name.removeprefix('payload/') for name in BUSINESS_FILES[component])
+        if component == 'conversation':
+            paths = sorted(name.removeprefix('payload/') for name in CONVERSATION_FILES)
         raw = subprocess.check_output(['git', 'archive', source, *paths], cwd=repo)
         with tarfile.open(fileobj=io.BytesIO(raw)) as tar:
             for item in tar:
@@ -68,7 +70,7 @@ def main(component):
                 else:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(tar.extractfile(item).read())
-        if component not in ('diagnostics', 'execution'):
+        if component not in ('diagnostics', 'execution', 'conversation'):
             (payload / 'src/distribution-profile.mjs').write_bytes(subprocess.check_output(
                 ['git', 'show', source + ':distribution/server/distribution-profile.mjs'], cwd=repo))
         if component == 'members':

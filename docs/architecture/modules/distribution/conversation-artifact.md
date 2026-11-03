@@ -20,11 +20,11 @@ component=conversationだけを既固定allowlistへ追加する。entry=payload
 
 catalogもconversationだけnodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibilityの厳密5key、26/1/null/null/実7値。未知/不足/余剰/型変換/部分一致/配列順違い、catalog/archive/consumer/source/platform/digest不一致を拒否。validate_conversation_archive(release,manifest,consumer_state)を公開し、既membersの関数と他4componentの型/意味は保持する。正式catalog producerは既公開asset SHA-size/専用公式署名/完全inventoryと現実exportを照合する。正式catalog/Release発行自体は別条件。
 
-package-conversation.py/verify-conversation.pyは既共通内部処理の固定入口。config/conversation-verification.jsonは既repoID1404510084/main/SLSAv1・専用publish-conversation.yml・既trustrootに固定し、他component署名を流用しない。全src/package-lockとclean prod依存を基本収録し、固定entry接続後の実literal closureと追加static assetを作者sourceへ束縛する。秘密/settings/env/実stateをarchiveへ含めない。512MiB/20000file等の既完全inventory/link/越境拒否を保つ。
+package-conversation.py/verify-conversation.pyは既共通内部処理の固定入口。config/conversation-verification.jsonは既repoID1404510084/main/SLSAv1・専用publish-conversation.yml・既trustrootに固定し、他component署名を流用しない。最終f0fa/e286の固定entry import closure51srcと作者probe-fixture.json、package/lockの54fileをliteral収録し、既clean prod lock依存を加える。子dispatcherはobserver snapshot/check/readを閉parent effectへ固定注入するため、旧既定observer経由のrun-seat-command/runtime-home資材は追加しない。親専用conversation-lifetimesはarchiveへ含めず、署名前probeの別一時rootへ同checkoutから一つだけ補う。子/appへ親sourceを補って欠落を隠さない。秘密/settings/env/実stateをarchiveへ含めない。512MiB/20000file等の既完全inventory/link/越境拒否を保つ。
 
 初回image導入はRoot既停止境界。署名前probeと親probeは同source/appの依存へ束縛し、readonly readyでは外部Jev/資格取得/observer/予定/初期案内/cleanup/migration0。初回は同source builtin/signed/builtinだけ、長い人工AIと遅い最終callback/非await派生報告は旧維持・busy、新子0/AIabort0/本文再送0、短い全終端後だけ交換を実測する。旧子quiesced/実OSexit/stdio close/専用lock解放前に新writerを起動しない。新子失敗は同最新stateへ一回固定旧builtin restore、snapshot巻戻し無し。親Web/SSE/他module/receipt/process保持と専用cleanupまで原本で確認する。生きた回答の世代移譲や長いAI中即時交換を証明したとは記さない。
 
-作者entry/C/channel/固定probe/共通factoryの実sourceは別担当供給待ち。配布schema sourceだけで通常image/署名/OS成立を加算しない。既members最終受入は完了保持、旧成功群再走/通常Root再採否gateを足さない。実vendorAI/席/予定発行/資格発行/Host/本番/正式catalog公開は本差分から実施しない。
+作者f0fa wrapper/probeと7a73267共通reader/controllerの固定sourceは供給済み。配布schema sourceだけで通常image/署名/OS成立を加算しない。既members最終受入は完了保持、旧成功群再走/通常Root再採否gateを足さない。実vendorAI/席/予定発行/資格発行/Host/本番/正式catalog公開は本差分から実施しない。
 
 ## 公開packageと固定imageへの収録
 
@@ -36,6 +36,6 @@ Dockerfileは会話Cを固定/usr/local/libexec/bellteam-conversation-startへco
 
 publish-conversation.ymlは固定main/両native/Node26の専用OIDC workflow。同一checkout SHAからclean prod archiveを生成し、未署名の固定C/UID1001 probeが正常終端した後だけattestする。source/signer/main/repoIDを公式verifierで確認しarchive/bundleと診断原本を保存する。workflowの存在は発行許可/実行成功ではなく、entry/dispatcher/引数0 runtime probeの完成sourceと通常mainへ結合して必要一回だけ発行する。
 
-test/helpers/conversation-artifact-probe.pyは既membersの使い捨てroot/private mount namespace・固定Node/C・同/app/scripts親probe・有限KILL/reap/自己回収を再利用する。N102 src/conversation/probe-fixture.json（先着9a7cbb9d）の同archive/同checkout bytes一致を検査し、固定Room定義/空schedule/selfTurnsの3fileをJSON stringify+LF/0600、dir0700で事前配置。表示snapshotは同assetのbots、generationはruntime発行、initialize modeはrestoreでありseedに実予定/資格/画像/履歴を含めない。初回lockも1001/0600で事前作成し、全state file-directoryのbytes/mode/uid/gid/mtimeを起動前後比較する。親probeを署名payloadへ足さず、archiveをinstallationとして公開しない。成功receiptは合意した厳密JSON/実child closeだけを受け取り、Jev/外部effect0は作者runtime probeの実channelへ結合して確認する。
+test/helpers/conversation-artifact-probe.pyは既membersの使い捨てroot/private mount namespace・固定Node/C・独立/tmpの同source親probe・有限KILL/reap/自己回収を再利用する。N102 src/conversation/probe-fixture.json（先着9a7cbb9d）の同archive/同checkout bytes一致を検査し、固定Room定義/空schedule/selfTurnsの3fileをJSON stringify+LF/0600、dir0700で事前配置。表示snapshotは同assetのbots、generationはruntime発行、initialize modeはrestoreでありseedに実予定/資格/画像/履歴を含めない。初回lockも1001/0600で事前作成し、全state file-directoryのbytes/mode/uid/gid/mtimeを起動前後比較する。親probeはpayloadを複製した独立/tmpで実行し、parent lifetimesだけ同checkoutから補う。親probeを署名payloadへ足さず、archiveをinstallationとして公開しない。成功receiptは合意した厳密JSON/実child closeだけを受け取り、Jev/外部effect0は作者runtime probeの実channelへ結合して確認する。
 
 N102 f0fa4652の固定wrapper/無引数probeとEpi7a73267の共通reader/controllerを最終接点とする。probeの成功JSONは上記identity/実互換/childClosedに加えnativeAuth:falseとexternalEffects:0を必須とし、欠測・余剰・型違い・作用発生を拒否する。配布側は作者receiptへの接続だけを直し、親authority/制御・cleanup・state不変条件は変更しない。固定sourceの供給と実C/署名/nativeの成立は分け、後者は同通常mainから検証する。
