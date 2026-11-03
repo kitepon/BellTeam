@@ -21,6 +21,7 @@
     "src/memory-service.mjs",
     "src/memory-search.mjs",
     "src/memory/factory.mjs",
-    "src/memory/dispatcher.mjs"
+    "src/memory/dispatcher.mjs",
+    "src/memory/state-compatibility.mjs"
   ]
 }
