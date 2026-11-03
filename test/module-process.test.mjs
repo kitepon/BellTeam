@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { createModuleProcess } from '../src/module-process.mjs'
+import { createModuleExchangeMutex } from '../src/module-exchange-mutex.mjs'
 
 const sha = 'a'.repeat(64)
 const deferred = () => {
@@ -25,6 +26,7 @@ async function fixture(t, options = {}) {
     child.emit('exit', 0, null); child.emit('close', 0, null)
   }
   const process = createModuleProcess({ component: 'diagnostics', root, investigationsFile: '/fixture/notes.json',
+    exchangeMutex: options.exchangeMutex,
     exportHandoff: () => behavior.export?.() ?? Promise.resolve(undefined),
     prepareRelease: async (versionId, expected) => {
       preparations.push({ versionId, expected })
@@ -59,7 +61,7 @@ async function fixture(t, options = {}) {
           return {}
         }
         if (method === 'resume') return { resumed: true }
-        if (method === 'quiesce') return { quiesced: behavior.quiesce }
+        if (method === 'quiesce') return behavior.quiesceWait ?? { quiesced: behavior.quiesce }
         if (method === 'exit') { if (!behavior.holdExit) queueMicrotask(() => reap(child)); return { closed: true } }
       },
       reaped: () => { child.reaped = true },
@@ -70,6 +72,30 @@ async function fixture(t, options = {}) {
   t.after(async () => { behavior.holdExit = false; behavior.quiesce = true; await process.close(); await rm(root, { recursive: true, force: true }) })
   return { process, root, children, controls, preparations, requests, behavior, reap }
 }
+
+test('shared exchange mutex retains OS close and rejects another controller before prepare, then releases on failure', async t => {
+  const exchangeMutex = createModuleExchangeMutex()
+  const first = await fixture(t, { exchangeMutex }), second = await fixture(t, { exchangeMutex })
+  await first.process.start(); await second.process.start()
+  first.behavior.holdExit = true
+  const replacing = first.process.replace(sha)
+  await turn()
+  assert.ok(first.controls.some(c => c.method === 'exit'))
+  await assert.rejects(second.process.replace(sha), { code: 'MODULE_EXCHANGE_BUSY', outcome: 'not_accepted' })
+  assert.equal(second.preparations.length, 0)
+  assert.equal(second.process.snapshot().available, true)
+  assert.equal(second.children.length, 1)
+  const reserved = second.process.reserve(sha); reserved.start(); await reserved.completion
+  assert.equal(second.process.snapshot().update.status, 'failed')
+  assert.equal(second.preparations.length, 0)
+  first.reap(first.children[0]); await replacing
+  second.behavior.quiesce = false
+  await assert.rejects(second.process.replace(sha), /QUIESCE_FAILED/)
+  await exchangeMutex.runExclusive(() => {})
+  second.behavior.quiesce = true
+  await second.process.replace(sha)
+  assert.equal(second.process.snapshot().currentVersionId, sha)
+})
 
 test('exchange retains actual request completion and OS/pipe close before the next generation', async t => {
   const f = await fixture(t)
@@ -100,6 +126,22 @@ test('failed quiesce resumes the original writer and issues no new child', async
   await assert.rejects(f.process.replace(sha), /QUIESCE_FAILED/)
   assert.equal(f.children.length, 1); assert.equal(f.children[0].exitCode, null)
   assert.equal(f.process.snapshot().available, true)
+})
+
+test('quiesce has an outer deadline while its actual completion remains held', async t => {
+  const f = await fixture(t); await f.process.start()
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const done = deferred(); f.behavior.quiesceWait = done.promise
+  const replacing = f.process.replace(sha)
+  await turn()
+  const rejected = assert.rejects(replacing, /DRAIN_TIMEOUT/)
+  t.mock.timers.tick(60001); await rejected
+  assert.equal(f.children.length, 1); assert.equal(f.process.snapshot().available, true)
+  let finished = false
+  const closing = f.process.close().then(() => { finished = true })
+  await turn(); assert.equal(finished, false)
+  f.behavior.quiesceWait = null; done.resolve({ quiesced: true })
+  t.mock.timers.reset(); await closing
 })
 
 test('parent effects after child OS close hold reaped and the next writer', async t => {

@@ -7,7 +7,7 @@ import { createMembersRuntimeEffects, MEMBERS_RUNTIME_EFFECT_METHODS } from './m
 import { validateMembersEffect, validateMembersEffectResult } from './members/protocol.mjs'
 
 export function createMembersAssembly({ root, seatRuntime, aiterm, settings, models, membersAdmission,
-  membersAuthorization, diagnostics, dependencies, onState = () => {}, createProcess = createMembersProcess }) {
+  membersAuthorization, diagnostics, dependencies, exchangeMutex, onState = () => {}, createProcess = createMembersProcess }) {
   const listeners = new Set()
   const notify = () => { for (const listener of listeners) listener({ all: true, topics: ['bots', 'owner', 'schedules'], botIds: [], roomIds: [] }) }
   const projection = createMembersProjection({ onChange: notify })
@@ -18,7 +18,7 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
       if (method !== 'room.schedules.list') throw Object.assign(new Error('MEMBERS_EFFECT_UNSUPPORTED'), { code: 'MEMBERS_EFFECT_UNSUPPORTED', status: 503 })
       const { generation, leaseId, rootId, ownerWrite, continuation } = context
       validateMembersEffect(method, params, { generation, leaseId, rootId, ownerWrite, continuation })
-      const value = await dependencies().rooms.listSchedules(params.roomId)
+      const value = await dependencies().rooms.listSchedules(params.roomId, context.operationContext)
       validateMembersEffectResult(method, value)
       return value
     }
@@ -32,14 +32,14 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
       const { rooms, assets } = dependencies()
       switch (method) {
         case 'models.read': value = await models.forHarness(params.harness); break
-        case 'assets.prepareBotAssetRemoval': value = await assets.prepareBotAssetRemoval(params.botId); break
-        case 'assets.cancelBotAssetRemoval': value = assets.cancelBotAssetRemoval(params.botId, params.lease, params.state); break
-        case 'room.schedules.list': value = await rooms.listSchedules(params.roomId); break
-        case 'room.schedules.set': value = await rooms.setSchedule(params.roomId, params.input); break
-        case 'room.schedules.remove': value = await rooms.removeSchedule(params.roomId, params.scheduleId); break
+        case 'assets.prepareBotAssetRemoval': value = await assets.prepareBotAssetRemoval(params.botId, context.operationContext); break
+        case 'assets.cancelBotAssetRemoval': value = assets.cancelBotAssetRemoval(params.botId, params.lease, params.state, context.operationContext); break
+        case 'room.schedules.list': value = await rooms.listSchedules(params.roomId, context.operationContext); break
+        case 'room.schedules.set': value = await rooms.setSchedule(params.roomId, params.input, context.operationContext); break
+        case 'room.schedules.remove': value = await rooms.removeSchedule(params.roomId, params.scheduleId, context.operationContext); break
         case 'room.schedules.claimDue': case 'room.schedules.skipDue': {
           const { roomId, ...input } = params
-          value = await rooms[method.endsWith('claimDue') ? 'claimDue' : 'skipDue']({ roomId, ...input }); break
+          value = await rooms[method.endsWith('claimDue') ? 'claimDue' : 'skipDue']({ roomId, ...input }, context.operationContext); break
         }
         default: throw Object.assign(new Error('MEMBERS_EFFECT_UNSUPPORTED'), { code: 'MEMBERS_EFFECT_UNSUPPORTED', status: 503 })
       }
@@ -47,15 +47,20 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
     validateMembersEffectResult(method, value)
     return value
   }
-  const controller = createProcess({ root, membersAdmission, onEffect: async (...args) => {
-    try { return await onEffect(...args) } catch (error) { throw normalizeMembersError(error) }
+  const controller = createProcess({ root, membersAdmission, exchangeMutex, onEffect: async (...args) => {
+    try {
+      const conversation = dependencies().conversationAssembly
+      const [method, params, context] = args
+      return conversation && (method.startsWith('assets.') || method.startsWith('room.'))
+        ? await conversation.memberEffect(context, operationContext => onEffect(method, params, { ...context, operationContext })) : await onEffect(...args)
+    } catch (error) { throw normalizeMembersError(error) }
   },
     onGeneration: generation => projection.begin(generation), onProjection: (record, context) => projection.accept(record, context),
     onDiagnostic: report => diagnostics.record(report),
     onState: state => { if (!state.available) { projection.unavailable(); notify() }; onState(state) },
     authorizeOwner: (method, authorization) => membersAuthorization.authorizeOwner(method, authorization),
   })
-  facade = createMembersFacade({ request: (...args) => controller.request(...args), callback: (...args) => controller.callback(...args), admission: membersAdmission, projection })
+  facade = createMembersFacade({ request: (method, params, options) => dependencies().conversationAssembly?.memberRequest(method, params, options, (...args) => controller.request(...args)) ?? controller.request(method, params, options), callback: (...args) => controller.callback(...args), admission: membersAdmission, projection })
   Object.defineProperty(facade.bots, 'size', { get: () => [...facade.bots.keys()].length })
   facade.bots.projectPath = id => {
     if (typeof id !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) throw new Error('BOT_ID_INVALID')

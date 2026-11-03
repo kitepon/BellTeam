@@ -7,6 +7,9 @@ flowchart LR
   Engine --> Transport["新版Transport / SessionState / Job / CurrentWork"]
   Engine --> Admin["新版Administration / ConfigurationRequests / Goals"]
   Engine --> Producer["新版SeatTurns / IdleSessions / continuation"]
+  Transport --> Delivery["conversationDelivery: native実終端＋callback実ACK"]
+  Delivery --> Gate["同親conversationAdmission: user.complete / 背景終端"]
+  Admin --> Dual["同親moduleOperations予約: deletion202の実finally"]
   Transport --> Live["親live SDK / gates / 保存ACK / observer ports"]
   Admin --> Live
   Producer --> Live
@@ -16,7 +19,7 @@ flowchart LR
 
 entryは`src/execution-dispatcher.mjs:createExecutionDispatcher({generation,ports,handoff})`。相対importのTransport/Admin/ConfigRequests/Goals/observer/Job/stateと依存全体を同じ署名bundleへ封入する。旧engineを返すport、任意method RPC、外部から与えるbusiness factoryはない。親SDK/nativePTYは共有のままcloseしない。
 
-portsの閉集合は`native`（既AitermClient機械口）、`membersAdmission`、`conversationAdmission`、`bots`/`rooms`（既公開writer）、`configurationStorage`（親が取得したroot/trustedAnchor/必要時ownerUidだけ、保存検査writerは新bundle内で生成）、`access`（assertWorkAllowed/admitWork/requireMember/requireAccess）、`storage`（prepareStartup/updateSession/updateFastMode）、`seat`（既waitProcess/handoffContext/画像一時file）、`observer`（appendInterimWords/emitQueue/report）、`diagnostics`（record/goalError）、`continuation`（models/harnessAuth/messenger）。関数/opaqueはhostだけ、child DTOにはしない。
+portsの閉集合は`native`（既AitermClient機械口）、`membersAdmission`、`conversationAdmission`、`moduleOperations`（親の同operation二重予約opaque、Admin/deletionの実finallyまで保持）、`bots`/`rooms`（既公開writer）、`configurationStorage`（親が取得したroot/trustedAnchor/必要時ownerUidだけ、保存検査writerは新bundle内で生成）、`access`（assertWorkAllowed/admitWork/requireMember/requireAccess）、`storage`（prepareStartup/updateSession/updateFastMode）、`seat`（既waitProcess/handoffContext/画像一時file）、`observer`（appendInterimWords/emitQueue/report）、`diagnostics`（record/goalError）、`continuation`（models/harnessAuth/messenger）。関数/opaqueはhostだけ、child DTOにはしない。
 
 `dispatch({method,args})`は固定method表のみ、引数は既callerのhost値。同期getterは`project({method,args})`を安定facadeへ射影しPromise化しない。`.transport/.administration/.goals`に対応する実method名一覧を`EXECUTION_METHODS`で公開する。parent consumerは旧Transport参照を保存せず毎回現世代へ転送し、`.client/.membersAdmission`は共有機械portを親から別に注入する。watchQueue listenerは親の安定observerへ置く。新規listenerも交換対象engineの旧callbackを生かす経路にはしない。
 
@@ -67,6 +70,10 @@ Mollyの明示handoffで`src/execution-assembly.mjs:createExecutionAssembly({por
 
 親bootstrapの遅い依存（rooms/メッセンジャー/onboarding/認証）はportsの固定公開method closureへ束縛し、全依存準備後にcontroller.startを呼ぶ。初期current/previousの読取とonAdoptの実保存は親が持つため、このhelperに第二のreader/writerを足さない。同期投影/argument opaque/実Promise completion/共有client・members gate・requestStop・watchQueueのidentityを既facadeのまま保つ。親application-services/runtimeの旧SeatTurns/IdleSessions生成/start/stopを削除し、親updateCenter/controller closeと一実体へ結び、会話SelfTurnsは維持する。
 
+
+会話結合時もnotify/submitは同optionsのadmissionCheckとconversationDeliveryを共存させる。native jobのcompletionからcapacity分類/新規継続を判断し、会話callbackのuser.complete/背景実ACKは別trackCompletionで保持する。acceptedとmembers admissionCompletionで実delivery/callback/202 cleanupを終端化しない。moduleOperationsは親の同objectをAdministrationへ渡し、新wire/schema/予約再構成を作らない。deletionは二重予約をfinallyで一回finishし、その実Promiseをengine trackCompletionへ登録する。
+
+同gateが生成するcallbackは旧legacy callback wrapperを通らないため、Transportはnative前にdeliveryCompletion(同opaque)をengineのtrackCompletionへ登録する。背景turn.endやuser.complete ACKが残る間はexecutionもbusyとし、accepted/job idleだけで旧engineを退役しない。delivery自身へ自身のdoneを登録せず、親release ACKとの循環を作らない。
 ## PR304/main48の実交換検査guest
 
 `test/helpers/execution-native-business.mjs:createExecutionNativeFixture({root})`は、センチの外側fixtureから使う同期constructor。rootはセンチが作る人工dataの絶対正規pathで、stateは同UID/GID・0700、初期のexecution-release.jsonは存在しないことを要求する。外側のroot権限、署名releaseの設置、実UID1001/両arch/imageの起動・driver・cleanupはセンチが所有する。guestは権限変更、署名の生成、installerの代替、既選択の上書きをしない。

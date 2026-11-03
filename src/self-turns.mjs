@@ -11,6 +11,8 @@ import { dirname } from 'node:path'
 import { runtimeEnvironment } from './runtime-home.mjs'
 import { createSeatProcessRunner } from './seat-process.mjs'
 import { checkObserverProjects, observerCheckRequests, validateObserverCheckResult, runObserverCommand } from './observer-check.mjs'
+import { readSelfTurnsState } from './conversation/restore.mjs'
+import { observerProjectScope, observerScopedRequests } from './conversation/observer.mjs'
 
 // 公開checkと読み残しを確認する一巡の終了後から次巡までの間隔。
 const INTERVAL_MS = 5000
@@ -43,12 +45,14 @@ function startedOutsideDelivery(turn) {
 }
 
 export class SelfTurns {
-  constructor({ bots, statePath, appendAnswer, afterTurn = () => {}, shown = () => null, read = readObserverTurns, check = checkObserverProjects, report = message => process.stderr.write(`${message}\n`), groupId = randomUUID, intervalMs = INTERVAL_MS }) {
+  constructor({ bots, statePath, appendAnswer, afterTurn = () => {}, shown = () => null, consumeShown = null, observer = null, read = readObserverTurns, check = checkObserverProjects, report = message => process.stderr.write(`${message}\n`), groupId = randomUUID, intervalMs = INTERVAL_MS }) {
     this.bots = bots
     this.statePath = statePath
     this.appendAnswer = appendAnswer
     this.afterTurn = afterTurn
     this.shown = shown
+    this.consumeShown = consumeShown
+    this.observer = observer
     this.read = read
     this.check = check
     this.report = report
@@ -82,6 +86,8 @@ export class SelfTurns {
     this.timer = setTimeout(tick, 0)
   }
 
+  async restore() { this.state = await readSelfTurnsState(this.statePath); return this }
+
   async stop() {
     this.stopped = true
     clearTimeout(this.timer)
@@ -104,17 +110,17 @@ export class SelfTurns {
 
   stateFor(bot) {
     const current = this.state[bot.id]
-    if (current && (current.project === undefined || current.project === bot.project)) return current
+    if (current && (current.project === undefined || observerProjectScope(current.project) === observerProjectScope(bot.project))) return current
     return this.state[bot.id] = { project: bot.project, cursor: null, seen: [], lastCompletedAt: null, checkToken: null }
   }
 
   assertCurrent(bot, signal) {
     signal?.throwIfAborted()
-    if (this.bots.get(bot.id)?.project !== bot.project) throw new Error('OBSERVER_PROJECT_CHANGED')
+    if (this.observer ? !this.bots.has(bot.id) : this.bots.get(bot.id)?.project !== bot.project) throw new Error('OBSERVER_PROJECT_CHANGED')
   }
 
   async pollBots(signal) {
-    const bots = [...this.bots.values()].map(({ id, project }) => ({ id, project }))
+    const bots = this.observer ? await this.observer.snapshot() : [...this.bots.values()].map(({ id, project }) => ({ id, project }))
     const pending = new Set(this.pending)
     for (const bot of bots.filter(bot => pending.has(bot.id))) {
       if (signal.aborted) return
@@ -122,14 +128,14 @@ export class SelfTurns {
     }
     if (signal.aborted) return
     const remaining = bots.filter(bot => !pending.has(bot.id))
-    const requests = observerCheckRequests(remaining.map(bot => ({
-      id: bot.id, projectPath: bot.project, after: this.stateFor(bot).checkToken ?? null,
-    })))
+    const requests = this.observer ? observerScopedRequests(remaining.map(bot => ({ id: bot.id, scope: bot.project,
+      projectBytes: bot.projectBytes, after: this.stateFor(bot).checkToken ?? null })))
+      : observerCheckRequests(remaining.map(bot => ({ id: bot.id, projectPath: bot.project, after: this.stateFor(bot).checkToken ?? null })))
     for (const request of requests) {
       if (signal.aborted) return
       let results
       try {
-        const result = await this.check(request, { signal })
+        const result = await (this.observer ? this.observer.check(request) : this.check(request, { signal }))
         signal.throwIfAborted()
         results = validateObserverCheckResult(result, request)
       } catch {
@@ -141,7 +147,7 @@ export class SelfTurns {
         if (signal.aborted) return
         if (result.status === 'unchanged') continue
         const item = request.projects[index]
-        await this.consume({ id: item.id, project: item.projectPath },
+        await this.consume(bots.find(bot => bot.id === item.id),
           result.status === 'changed' ? result.token : result.status === 'resync_required' ? null : undefined, signal)
       }
     }
@@ -177,7 +183,7 @@ export class SelfTurns {
     let pageToken = null
     do {
       this.assertCurrent(bot, signal)
-      const result = await this.read({ project: bot.project, afterCursor: current.cursor, throughCursor, pageToken }, { signal })
+      const result = await this.readForBot(bot, { afterCursor: current.cursor, throughCursor, pageToken }, signal)
       this.assertCurrent(bot, signal)
       if (result.status === 'resync_required') {
         // Legacy state has no project association; let the public cursor check it before binding.
@@ -208,15 +214,16 @@ export class SelfTurns {
     const completedAt = Number.isFinite(turn.completed_at) ? turn.completed_at : Date.now()
     const whole = typeof turn.assistant === 'string' ? turn.assistant.trim() : ''
     if (startedOutsideDelivery(turn) && whole) {
-      const shown = this.shown(bot.id)
+      const shown = await this.shown(bot.id)
       const text = withoutShownWords(whole, shown, completedAt)
       await this.appendAnswer(bot.id, this.groupId(), text)
-      if (text !== whole) shown.words.length = 0
+      if (text !== whole && !this.consumeShown) shown.words.length = 0
       current.seen = [...current.seen, key].slice(-SEEN_LIMIT)
       current.lastCompletedAt = Math.max(current.lastCompletedAt ?? 0, completedAt)
       this.afterTurn({ botId: bot.id, context: 'self',
         startedAt: new Date(startedAt ?? completedAt).toISOString(),
         endedAt: new Date(Math.max(completedAt, Date.now())).toISOString() })
+      if (text !== whole && this.consumeShown) await this.consumeShown(bot.id, shown)
     } else {
       current.seen = [...current.seen, key].slice(-SEEN_LIMIT)
       current.lastCompletedAt = Math.max(current.lastCompletedAt ?? 0, completedAt)
@@ -232,7 +239,7 @@ export class SelfTurns {
     // どこまで見たか分からない時は、初めて見るBotと同じく今の位置から始める（過去のターンを流し込まない）。
     if (!Number.isFinite(current.lastCompletedAt)) return this.reset(bot, signal)
     this.assertCurrent(bot, signal)
-    const result = await this.read({ project: bot.project }, { signal })
+    const result = await this.readForBot(bot, {}, signal)
     this.assertCurrent(bot, signal)
     if (result.status === 'error') throw new Error(result.code ?? 'THROUGHLINE_OBSERVER_READ_FAILED')
     if (result.status === 'projection_pending' || result.status === 'ambiguous_parent') {
@@ -252,7 +259,7 @@ export class SelfTurns {
 
   async reset(bot, signal) {
     this.assertCurrent(bot, signal)
-    const result = await this.read({ project: bot.project }, { signal })
+    const result = await this.readForBot(bot, {}, signal)
     this.assertCurrent(bot, signal)
     if (result.status === 'error') throw new Error(result.code ?? 'THROUGHLINE_OBSERVER_READ_FAILED')
     if (result.status === 'projection_pending' || result.status === 'ambiguous_parent') return false
@@ -265,6 +272,11 @@ export class SelfTurns {
       lastCompletedAt: Math.max(0, ...turns.map(turn => turn.completed_at).filter(Number.isFinite)) || null,
     })
     return true
+  }
+
+  readForBot(bot, request, signal) {
+    return this.observer ? this.observer.read({ botId: bot.id, scope: bot.project, ...request })
+      : this.read({ project: bot.project, ...request }, { signal })
   }
 
   async save(signal) {

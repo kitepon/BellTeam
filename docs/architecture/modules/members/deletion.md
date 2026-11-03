@@ -58,3 +58,17 @@ membersは`state/bots/<id>`、`.deleting/<id>`と`<id>.json`、専用`bots/<id>`
 BotRegistryのassetRemoval adapterはprepare/cancelの2関数。早期失敗時だけ同削除operation順序内でfresh refresh/active/intent/pending/退役を短い状態lockで確認し、active=true/hasIntent=false/retired=falseと同opaqueを固定cancel effectへ渡す。保存lockは外部待ち前に解放し、次の削除operationは早期中止終端まで開始しない。unknown、receipt残存、退役済み、fresh検査失敗ではcancel0。callbackへ値を自己申告させず、一覧不在から許可しない。
 
 親CLI唯一queueは実開始時に専用callback`profiles.cli({})`→`{botIds:[id]}`を同leaseで取得する。childのrefresh→keysだけで、外部effect/状態mutation lock/投影送信/新root0。子effect送信時のbotIdsをそのまま採用せず、親がroot/bots/idへ解決する。
+
+## conversation子導入の部屋整理context
+
+```mermaid
+flowchart LR
+  Reserve[共通moduleOperations.reserve / 作用前両入場] --> Existing[親削除受付の同opaque context]
+  Existing --> Stop[既execution stop]
+  Stop --> Rooms[親安定Room facade removeBot]
+  Rooms --> Remove[子profile.remove / 親画像gate / rename]
+```
+
+rooms.removeBot(botId, options)へfresh/stop/profile.removeと同じ内部optionsを渡す。親stable facadeはconversation子の唯一Room writerへ委譲し、当callerはpath/別writerを持たない。202返却後も削除背景終端まで同leaseを維持する。BotAdministrationとstartMemberRemovalはmoduleOperationsを受け、refresh/native停止/intentより前にreserve()する。一方拒否なら202前にnot_acceptedで作用0。fresh失敗又は202背景削除の実終端finallyだけfinish(context)を要請し、Room整理/子profile.remove/親gate/renameの同contextを保持する。既pendingはnative停止/Room整理を繰り返さず同予約でcleanupを完了する。provider未注入の既builtinは従来membersAdmissionだけ。親削除gate/cancel fresh条件、contextの親IPC相関束縛は所有者公開口で維持する。
+
+直接境界は同member operation試験で予約拒否/202背景/早期fresh失敗/既pendingを確認し、実共通factoryでも両drainが背景終端まで待つことを確認する。親画像gateと実child逆effectの結合は共通/runtime/conversation作者sourceへ接続して確認する別の必要境界として残る。

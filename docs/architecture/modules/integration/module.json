@@ -101,6 +101,10 @@
     "src/diagnostics-facade.mjs",
     "src/usage-assembly.mjs",
     "src/server-source.mjs",
-    "src/bootstrap.mjs"
+    "src/bootstrap.mjs",
+    "src/diagnostics.mjs",
+    "src/module-operation-context.mjs",
+    "src/conversation-authority.mjs",
+    "src/conversation-assembly.mjs"
   ]
 }

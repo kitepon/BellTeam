@@ -3,6 +3,7 @@ import { prepareBusinessModuleRelease, validateBusinessModuleManifest, assertBus
 const validators = Object.freeze({
   usage: value => assertBusinessModuleCompatibility('usage', value),
   diagnostics: value => assertBusinessModuleCompatibility('diagnostics', value),
+  conversation: value => assertBusinessModuleCompatibility('conversation', value),
 })
 const exact = (value, names) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).sort().join(',') === names.split(',').sort().join(',')
@@ -22,6 +23,7 @@ export function assertModuleCatalogRelease(component, release, descriptor) {
     || release.artifact?.kind !== 'archive' || release.artifact.archive?.sha256 !== descriptor.versionId) fail()
   validators[component](release.compatibility.stateCompatibility)
   validators[component](descriptor.stateCompatibility)
+  if (component === 'conversation' && descriptor.stateSchema !== null) fail()
   return descriptor
 }
 

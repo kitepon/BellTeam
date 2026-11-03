@@ -367,6 +367,50 @@ flowchart LR
 既watchQueueのSSE接続を再利用し二重watch無し。summaryを新たに読むことで正規AI/auth/Goalや設定発行へ到達しない。Apple実装の順序はOwner指定の全体受入後で、本schema供給から先行実装の許可へ拡張しない。
 
 
+## conversation導入の親一括予約（未組立て）
+
+```mermaid
+flowchart LR
+  Caller[削除・予定・跨module保存の固定caller] --> Reserve[module-operation-context: 同期reserve]
+  Reserve --> Members[同membersAdmission.enter]
+  Reserve --> Conversation[同conversationAdmission.enter]
+  Conversation -->|閉鎖・満杯| Release[同stackでmembers finish / 作用なし]
+  Reserve --> Context[親opaque operationContext / 両lease]
+  Context --> Facade[各安定facadeへ同object]
+  Facade --> Channel[親channel options.operationContextを捕捉]
+  Channel --> Effect[逆effectに同identity / wireには渡さない]
+  Effect --> Facade
+  Done[要求終端 finish] --> Completion[各gateの登録済み実completionは保持]
+  Replace[両module replace] --> Mutex[同module-exchange-mutex / 非queue busy拒否]
+```
+
+横断正本はRoot conversation-update-contract-20261103.md v1。`createModuleOperationContext({membersAdmission,conversationAdmission})`の`reserve()`は作用前に両方を同期取得する。どちらかの拒否でcallerを実行せず、片leaseで他のroot枠を待たない。公開contextはfreezeした`{membersLease,conversationLease}`だが、同じ値のJSON/cloneは権限にならず、親WeakSetと各gateで同identity/liveを検証する。既members単独leaseから後付けで両予約を作らない。
+
+`assert(context)`は元objectを返す。`finish(context)`は両leaseへ一度だけ終了を要求し、送信前に各所有者がtrackCompletionした実終端を早期解放しない。`withContext(operation, context?)`は未指定時だけreserveし、同期例外/Promise成功・失敗の終端で所有予約をfinishする。既contextなら入場/finish追加0。削除202の背景処理は明示reserve→背景実終端finally finishを使い、HTTP finishでは解放しない。通常会話の短いmembers準備をこの両予約でAI完走まで延長しない。
+
+親facadeは各controllerへ`options.operationContext`に同objectを渡す。runtimeが親enriched reverse-effectへ同参照を保持し、wireにはlease objectを出さない。各所有者がそのmoduleのlease/lifetimeを検証し、必要な跨module effectだけ元予約を共通assertで照合する。N102の安定Room facade第2引数とBelorta callerはこの元contextを伝搬する。body/actor/任意propertyから予約を補わない。
+
+`createModuleExchangeMutex().runExclusive(operation)`は交換だけの一実体。競合は固定MODULE_EXCHANGE_BUSY/409/not_accepted/not_startedで未実行としqueueを作らず、例外でも解放する。両runtime controllerへ同instanceを渡す接続は作者供給後。これら単独helperをconversation子/writer/bootstrap/長い配送lifetime成立としない。conversation gateのroot8slotと配送lifetime分離はexecution、channelと60秒drain/旧resume/OScloseはruntime、業務writerはconversationが持つ。
+
+
+親予約のconversation側はexecutionの`ConversationLifetimes`一実体へ結合する。root8creditと違い、このgateはAI lifetimeの8上限を持たない。新結合試験ではmembers準備をfinishしてmembers drainが完了した後も、登録済みconversation delivery callbackだけは旧世代で通り、callback実終端までconversation drainがbusyとなる。members leaseをAI完走まで延ばさず、両方必要な新effectは再び通常の両入場を確認する。実channel/長いnative jobへの接続は作者後続であり、この単体合成で完成を補完しない。
+
+## conversationの親actor捕捉（入口の配線前）
+
+```mermaid
+flowchart LR
+  Ingress[既7入口の認証・本人確認] --> Capture[conversation-authority.capture method, actor]
+  Capture --> Ceiling[N102の7tag閉method ceilingを検証]
+  Ceiling --> Token[親WeakMapのmethod別opaque token / actorを固定]
+  Token --> Channel[options.capturedAuthority / JSONへ渡さない]
+  Channel --> Authorize[authorizeActor method, token / 同identityだけprojection]
+  Authorize --> Wire[子へ閉actorだけ / operationContextは別検証]
+  End[実root/effect/callback資源終端] --> Release[release token]
+```
+
+`createConversationAuthority()`は親組立てが一実体だけ所有し、認証済みOwner/席本人/scheduler/Bridge/onboarding/usage/observer入口から確定したmethod/actorでだけ`capture`する。body/paramsのactor・Owner宣言や汎用system actorから生成しない。methodごとに発行し、子と同じ`assertConversationRootAuthority`で上限を確認する。`authorizeActor(method,options.capturedAuthority)`は元factory/同object/同methodだけを受け、固定actorを返す。不明・clone・別method・終端済みtokenはfalse。原actorの後続変更は権限を変えない。
+
+認証そのもの、親の席session/launch/source、両moduleのlive operationContext、停止世代・fresh membershipは別の既入口/各gateで検証する。このtokenはそれらの代わりではない。解放はHTTP/caller期限やroot8のacceptedではなくruntimeの実資源終端へ結合する。history親合成は公開ceilingを確認した上で実wire list2へ各methodのtokenを捕捉する。callbackはKiro登録exact5だけを使いroot tokenから新権限を作らない。全HTTP/MCP/Bridgeの捕捉・安定facade/dispatcherへの配線は後続結合であり、このfactoryだけで会話process成立とはしない。
 ## Web Pushのtrusted originと固定SW
 
 ```mermaid
@@ -400,7 +444,7 @@ flowchart LR
   Ledger --> View[既Update HTTP/schema/SSE / backend結果]
 ```
 
-親は業務データを直接書かず、安定facadeと公開controllerを組み立てる。共通ledgerはplan/同UUID・step/再開・結果を停止跨ぎ保持し、unknownから新要求を自動再送しない。runnerが旧世代の新入場を閉じ実root/effect/保存・OS子終端をdrainし、業務moduleが同state restore/唯一writerと入力検証を所有する。adapterはその既公開結果だけを親ledgerへ投影する。現container耐久接続は成立、module/all共通executorは実装中。既web/notifications/members controllerから先行し、全moduleの納品待ちへ戻さない。diagnostics内部は[Signalの正本](../diagnostics/README.md)へ移し、親の既diagnostics窓口は同facadeで維持する。
+親は業務データを直接書かず、安定facadeと公開controllerを組み立てる。共通ledgerはplan/同UUID・step/再開・結果を停止跨ぎ保持し、unknownから新要求を自動再送しない。runnerが旧世代の新入場を閉じ実root/effect/保存・OS子終端をdrainし、業務moduleが同state restore/唯一writerと入力検証を所有する。adapterはその既公開結果だけを親ledgerへ投影する。containerと登録済みmodule/allの共通executorを組み立て、各controllerの実結果を同じ台帳へ保存する。diagnostics内部は[Signalの正本](../diagnostics/README.md)へ移し、親の既diagnostics窓口は同facadeで維持する。
 
 ### 通常UIと連絡のreadonly入場
 
@@ -422,7 +466,7 @@ flowchart LR
   Unknown --> Result
 ```
 
-共通ledgerがplan/operation/stepの唯一writer。既web/通知/members controllerとroot所有資材の公開prepareを再利用し、子writer・新版資材配置を追加しない。未配置はplan前のprepareで拒否する。catalogは通知protocol/state 2、members状態指紋、Web protocol 1を照合する。全体planは同catalogの更新対象を固定し、必要なcontainer stepだけ既Host計画を末尾へ付ける。個別旧container計画/結果照会を維持する。
+共通ledgerがplan/operation/stepの唯一writer。既web/通知/members controllerとroot所有資材の公開prepareを再利用し、子writer・新版資材配置を追加しない。未配置のENOENTだけは後述の既Host設置stepへ接続し、その他のprepare失敗は拒否する。catalogは通知protocol/state 2、members状態指紋、Web protocol 1を照合する。全体planは同catalogの更新対象を固定し、必要なcontainer stepだけ既Host計画を末尾へ付ける。個別旧container計画/結果照会を維持する。
 
 戻しはplan入力のaction=rollbackで明示し、省略はupdate。operationは保存planのactionを使い、別action/targetをbodyへ受けない。個別moduleの直前に当ledgerが成功確認した交換だけ、元のbuiltin又は検証済archiveへ現データのまま戻す。全体/container戻しは未対応として拒否し、業務データ/Owner設定/unknownを巻き戻さない。途中のmodule実行が未確定ならunknown、Hostへ発行済みの最後stepは同requestId照会だけで追う。親終了は新受付を閉じ、既実Promiseを回収してからcontrollerを閉じる。
 
@@ -467,3 +511,27 @@ Web固有の[内蔵版戻し](../web/gateway-builtin.md)がprocess/control/adapt
 新Owner HTTP→台帳→実reader選択/実engine交換・builtin戻しと同期投影/採用0600/同parent-portを検査し、C/root署名配置/実SDK/本番をこの人工I/O fixtureで補完しない。署名artifact/公開catalogの実物は配布担当の同source受入へ結ぶ。
 
 executionのcapacity継続は既Messenger.sendmessage(input,options)へ親固定portを直結し、admissionCheckと返却delivery_id/実Promiseを同identityで保持する。user.turn用enqueueへ置換せず、継続対象や本文を親が再生成しない。
+
+### 会話の親組立
+
+`conversation-assembly.mjs`が同じConversationLifetimesと両module予約、method限定authorityを所有し、固有facade/閉effects/実controllerへ接続する。子だけが直接会話・Room・画像・observer状態を書き、親はreadonly履歴合成・FD reader・画像保存gate・認証済みactorを保持する。元RPCのactualCompletionとdelivery/background ACKまでauthorityを保持し、期限だけで成功終端へ読み替えない。membersからのRoom/画像逆effectも元membersLeaseへ会話予約を束縛し、202後のcleanupと同じ実終端まで保持する。
+
+親はcreateModuleExchangeMutex一実体をmembers/conversation両assemblyへ渡し、両runtime controllerのreplaceが同runExclusiveへ入る。片側交換中に他方が新しい交換gateを閉じない。通常業務の予約は別のmoduleOperationsで維持し、mutexへAI完走をqueueしない。
+
+### 未配置moduleのHost設置step
+
+```mermaid
+flowchart LR
+  Plan[公開plan / 固定catalog target] --> Probe[既reader prepare]
+  Probe -->|ENOENTだけ| HostPlan[既Host capability / 固定install plan]
+  HostPlan --> Journal[親ledgerへinstall planと別step UUIDを保存]
+  Journal --> Issue[start intentをfsync後 / Host start一度]
+  Issue --> Get[同step UUIDのHost getだけで追跡]
+  Get -->|completed / executionとverification成功| Reader[既readerで実配置再検証]
+  Reader --> Replace[同controller replace / 実結果確認]
+  Crash[親中断] --> Unknown[公開結果unknown / install getのみ / replace再発行0]
+```
+
+新しい公開HTTP/MCP schema・保存writerを増やさない。公開operation UUIDと各設置stepのUUIDは別に耐久保存する。catalog/互換が固定され、既readerがENOENTとなった更新だけHost planへ渡す。改竄・不適合・権限エラーは設置で隠さない。戻しは既配置だけ使う。Host plan/operationはcatalog・component・source・SHA・planId・requestIdを照合し、containerRestart:falseを確認する。失敗/unknown/応答不整合ではreplaceせず、未確定Hostがある間は新更新を拒否する。再起動時は保存済みUUIDの結果照会だけ許し、既設置済みと判明しても中断moduleのreplaceは自動再発行しない。Hostが明示的に未受付と返した設置はfailedとして確定し、未知の受付と区別する。初回Host機構と同image installerの導入・本番承認は別条件。
+
+会話子のStore固定診断はdispatcher→厳密なIPC union→親onDiagnostic→同Diagnostics writerへ保存する。MESSAGE_LOG_INVALIDのcode/物理line/byte offset/length/固定reasonだけを渡し、本文や自由例外を診断へ含めない。旧fallback Storeも同じ診断writerへ接続する。

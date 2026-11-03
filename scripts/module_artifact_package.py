@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
-from web_gateway_artifact import BUSINESS_FILES, EXECUTION_FILES, check_archive, contract, require, safe_path, write_archive
+from web_gateway_artifact import BUSINESS_FILES, EXECUTION_FILES, CONVERSATION_FILES, check_archive, contract, require, safe_path, write_archive
 
 
 def validate_members_source(payload):
@@ -20,6 +20,15 @@ def validate_members_source(payload):
         'const m = await import(process.argv[1]); console.log(JSON.stringify(m.MEMBERS_STATE_COMPATIBILITY))', path],
         env={'PATH': os.environ['PATH']}, text=True))
     require(actual == contract('members')[1]['stateCompatibility'], 'MEMBERS_SOURCE_STATE_INCOMPATIBLE')
+    return actual
+
+
+def validate_conversation_source(payload):
+    path = (payload / 'src/conversation/state-compatibility.mjs').resolve().as_uri()
+    actual = json.loads(subprocess.check_output(['node', '--input-type=module', '-e',
+        'const m = await import(process.argv[1]); console.log(JSON.stringify(m.CONVERSATION_STATE_COMPATIBILITY))', path],
+        env={'PATH': os.environ['PATH']}, text=True))
+    require(actual == contract('conversation')[1]['stateCompatibility'], 'CONVERSATION_SOURCE_STATE_INCOMPATIBLE')
     return actual
 
 
@@ -49,6 +58,8 @@ def main(component):
             paths = sorted(name.removeprefix('payload/') for name in EXECUTION_FILES)
         if component in BUSINESS_FILES:
             paths = sorted(name.removeprefix('payload/') for name in BUSINESS_FILES[component])
+        if component == 'conversation':
+            paths = sorted(name.removeprefix('payload/') for name in CONVERSATION_FILES)
         raw = subprocess.check_output(['git', 'archive', source, *paths], cwd=repo)
         with tarfile.open(fileobj=io.BytesIO(raw)) as tar:
             for item in tar:
@@ -59,11 +70,13 @@ def main(component):
                 else:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(tar.extractfile(item).read())
-        if component not in ('diagnostics', 'execution'):
+        if component not in ('diagnostics', 'execution', 'conversation'):
             (payload / 'src/distribution-profile.mjs').write_bytes(subprocess.check_output(
                 ['git', 'show', source + ':distribution/server/distribution-profile.mjs'], cwd=repo))
         if component == 'members':
             validate_members_source(payload)
+        if component == 'conversation':
+            validate_conversation_source(payload)
         lock = json.loads((payload / 'package-lock.json').read_text())
         cross = args.arch != {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
         if cross:

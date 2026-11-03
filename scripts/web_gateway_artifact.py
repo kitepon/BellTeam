@@ -14,6 +14,64 @@ MAX_BUNDLE = 16 * 1024**2
 MAX_FILES = 20000
 ENTRY = 'payload/src/http-gateway-entry.mjs'
 
+# Fixed child import closure plus the author's readonly restore fixture.
+CONVERSATION_FILES = frozenset('payload/' + name for name in '''
+package-lock.json
+package.json
+src/agent-launch-error.mjs
+src/avatar-value.mjs
+src/conversation-background-ipc.mjs
+src/conversation-channel.mjs
+src/conversation-delivery-release.mjs
+src/conversation-entry.mjs
+src/conversation-input.mjs
+src/conversation-ipc.mjs
+src/conversation-locks.mjs
+src/conversation-store.mjs
+src/conversation-streams.mjs
+src/conversation-writer.mjs
+src/conversation/authority.mjs
+src/conversation/background.mjs
+src/conversation/callbacks.mjs
+src/conversation/dispatcher.mjs
+src/conversation/effects.mjs
+src/conversation/native.mjs
+src/conversation/observer.mjs
+src/conversation/probe-fixture.json
+src/conversation/requests.mjs
+src/conversation/restore.mjs
+src/conversation/results.mjs
+src/conversation/routing.mjs
+src/conversation/state-compatibility.mjs
+src/delivery-tracking.mjs
+src/execution-bridge.mjs
+src/execution-error.mjs
+src/json-file.mjs
+src/member-identity.mjs
+src/message-assets.mjs
+src/messenger.mjs
+src/module-streams.mjs
+src/notifications-ipc.mjs
+src/notifications-locks.mjs
+src/observer-check.mjs
+src/resume-policy.mjs
+src/returned-mcp-error.mjs
+src/room-access.mjs
+src/room-history.mjs
+src/room-messenger.mjs
+src/room-registry.mjs
+src/room-routing.mjs
+src/runtime-home.mjs
+src/schedule-definition.mjs
+src/schedule-mutations.mjs
+src/seat-command.mjs
+src/seat-process.mjs
+src/self-turns.mjs
+src/session-interruption.mjs
+src/timeline-index.mjs
+src/turn-reports.mjs
+'''.split())
+
 
 def require(condition, code='GATEWAY_ARTIFACT_INVALID'):
     if not condition:
@@ -156,7 +214,7 @@ def validate_memory_state(value):
 
 
 def contract(component):
-    require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution'), 'MODULE_COMPONENT_INVALID')
+    require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation'), 'MODULE_COMPONENT_INVALID')
     entry = 'payload/src/execution-dispatcher.mjs' if component == 'execution' else 'payload/src/run-memory-runtime.mjs' if component == 'memory' else ENTRY if component == 'web-gateway' else f'payload/src/{component}-entry.mjs'
     runtime = dict(os='linux', nodeMajor=26, parentProtocol=1)
     required = {entry, 'payload/package.json', 'payload/package-lock.json'}
@@ -173,13 +231,22 @@ def contract(component):
     elif component in BUSINESS_FILES:
         required = BUSINESS_FILES[component]
         runtime['stateCompatibility'] = BUSINESS_STATE[component]
-    else:
+    elif component == 'members':
         # Match the writer's existing formats; exchange never authorizes migration.
         runtime['stateCompatibility'] = dict(
             botProfileSchema='bellteam.bot.v8', scheduleSchema='bellteam.schedule.v1',
             ownerProfileSchema='bellteam.owner-profile.v1', deletionReceiptSchema='bellteam.bot-deletion.v1',
             userRulesEncoding='utf8', initializedMarker='.initialized')
         required.update({'payload/config/common-agents.md', 'payload/src/members/state-compatibility.mjs'})
+    else:
+        runtime['stateSchema'] = None
+        runtime['stateCompatibility'] = dict(
+            directRecordSchemas=['bellteam.direct-message.v1', 'bellteam.interim-word.v1', 'bellteam.delivery-status.v1'],
+            roomRecordSchemas=['bellteam.room-message.v1', 'bellteam.room-routing-status.v1', 'bellteam.room-delivery-status.v1'],
+            roomSchema='bellteam.room.v1', scheduleSchema='bellteam.schedule.v1', selfTurnsSchema='bellteam.self-turns.v1',
+            imageMimeTypes=['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+            readerContract='bellteam.conversation-reader.v1')
+        required.update(CONVERSATION_FILES)
     return entry, runtime, required
 
 
@@ -209,7 +276,7 @@ def validate_manifest(value, source=None, arch=None, *, component='web-gateway')
         total += file['bytes']
     require(total <= MAX_CONTENT)
     require(names == required if component in ('memory', 'usage') else required <= names)
-    if component in ('diagnostics', 'execution'):
+    if component in ('diagnostics', 'execution', 'conversation'):
         require(all(name in required or name.startswith('payload/node_modules/') for name in names))
     return value
 

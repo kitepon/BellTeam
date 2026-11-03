@@ -83,6 +83,13 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
           if (settings.configurationState) await Promise.all(pending)
         }
         if (id === 'notifications') await notifications.configure(config)
+        if (id === 'routing' && services.conversationUsageChanged) {
+          const state = settings.routingState()
+          const result = await services.conversationUsageChanged(state)
+          if (result?.applied !== true || result.epoch !== state.epoch) {
+            throw Object.assign(new Error('CONVERSATION_ROUTING_APPLY_FAILED'), { code: 'CONVERSATION_ROUTING_APPLY_FAILED' })
+          }
+        }
         if (id === 'webPush') await notifications.configureWebPush(config)
       } catch (error) {
         await setError(id, error, epoch)

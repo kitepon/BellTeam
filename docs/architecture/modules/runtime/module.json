@@ -128,6 +128,13 @@
     "src/members-project-files.mjs",
     "src/members-runtime-effects.mjs",
     "src/members-release.mjs",
-    "src/members-install-plan.mjs"
+    "src/members-install-plan.mjs",
+    "scripts/conversation-start.c",
+    "src/conversation-locks.mjs",
+    "src/conversation-assets.mjs",
+    "src/conversation-install-plan.mjs",
+    "scripts/install-conversation-release.py",
+    "src/conversation-process.mjs",
+    "src/conversation-ipc.mjs"
   ]
 }

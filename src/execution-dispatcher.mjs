@@ -13,7 +13,7 @@ const failure = code => Object.assign(new Error(code), { code, effect: 'not_star
 const asyncMethods = {
   transport: ['isRunning', 'runningBots', 'screen', 'ensure', 'wake', 'restart', 'reconfigure',
     'reconcileConfiguration', 'stop', 'interrupt', 'interruptMany', 'reconcileLaunch', 'closeLaunch',
-    'observe', 'goalTargets', 'closeIdle', 'stopForConfiguration', 'turn', 'setupTest', 'notify',
+    'observe', 'goalTargets', 'closeIdle', 'stopForConfiguration', 'turn', 'setupTest', 'notify', 'notifyReport',
     'idle', 'restartIfIdle', 'updateWorkSummary', 'seatTurns', 'watchSeatTurns'],
   administration: ['update', 'reconcile', 'stop', 'restart', 'remove'],
   goals: ['list', 'inspect', 'mutate'],
@@ -27,7 +27,7 @@ export const EXECUTION_METHODS = Object.freeze({
   dispatch: Object.freeze(Object.entries(asyncMethods).flatMap(([owner, names]) => names.map(name => `${owner}.${name}`))),
   project: Object.freeze(Object.entries(syncMethods).flatMap(([owner, names]) => names.map(name => `${owner}.${name}`))),
 })
-const portNames = ['native', 'membersAdmission', 'conversationAdmission', 'bots', 'rooms', 'configurationStorage',
+const portNames = ['native', 'membersAdmission', 'conversationAdmission', 'moduleOperations', 'bots', 'rooms', 'configurationStorage',
   'access', 'storage', 'seat', 'observer', 'diagnostics', 'continuation']
 
 // This module and every relative engine import belong to the same fixed bundle.
@@ -71,13 +71,13 @@ export function createExecutionDispatcher({ generation, ports, handoff = null })
   const requests = new ConfigurationRequests({ client: native, intents: new ConfigurationIntents(root, storageOptions) })
   const transport = createManagedTransport({
     ...ports.seat, ...ports.storage,
-    client: native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
+    trackCompletion: track, client: native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
     configurationRequests: requests, requireMember: ports.access.requireMember,
     requireAccess: ports.access.requireAccess,
     assertWorkAllowed: () => { alive(); ports.access.assertWorkAllowed() },
     reportError: report => { alive(); return track(ports.diagnostics?.record?.(report)) },
   })
-  const administration = new BotAdministration({ bots: ports.bots, rooms: ports.rooms, transport,
+  const administration = new BotAdministration({ bots: ports.bots, rooms: ports.rooms, transport, moduleOperations: ports.moduleOperations,
     reportError: report => { alive(); return track(ports.diagnostics?.record?.(report)) }, trackCompletion: track })
   const goals = new BotGoals({ transport, admitWork: ports.access.admitWork,
     reportError: error => { alive(); return track(ports.diagnostics?.goalError?.(error)) } })

@@ -7,6 +7,7 @@ import { promisify } from 'node:util'
 import test from 'node:test'
 import { notificationsInstallPlan } from '../src/notifications-install-plan.mjs'
 import { usageInstallPlan } from '../src/usage-install-plan.mjs'
+import { conversationInstallPlan } from '../src/conversation-install-plan.mjs'
 import { executionInstallPlan } from '../src/execution-install-plan.mjs'
 import { diagnosticsInstallPlan } from '../src/diagnostics-install-plan.mjs'
 import { memoryInstallPlan } from '../src/memory-install-plan.mjs'
@@ -36,6 +37,20 @@ function fixture() {
   return {normal,current}
 }
 
+test('conversation install binds its fixed helper and current private volume without parent business restart', () => {
+  const { normal, current } = fixture(), model = conversationInstallPlan(normal, current)
+  const service = model.services['conversation-install']
+  assert.equal(service.entrypoint.at(-1), '/app/scripts/install-conversation-release.py')
+  assert.equal(service.volumes[0].source, '/installation/runtime/conversation-incoming')
+  assert.equal(service.volumes[0].target, '/srv/bellteam-conversation-incoming')
+  assert.equal(service.volumes[0].read_only, true)
+  assert.equal(service.volumes.length, 2)
+  assert.equal(service.pull_policy, 'never')
+  assert.doesNotMatch(JSON.stringify(model), /SECRET|never-copy|docker.sock/)
+  current.mounts[2].RW = true
+  assert.throws(() => conversationInstallPlan(normal, current))
+})
+
 test('online model uses only fixed code, read-only incoming and the same private volume',()=>{
   const {normal,current}=fixture(),model=webGatewayInstallPlan(normal,current),s=model.services['web-gateway-install']
   assert.equal(s.image,image);assert.equal(s.user,'0:0');assert.equal(s.network_mode,'none');assert.equal(s.read_only,true)
@@ -44,6 +59,14 @@ test('online model uses only fixed code, read-only incoming and the same private
   assert.equal(s.volumes[0].source,'/installation/runtime/web-gateway-incoming')
   assert.deepEqual(model.volumes,{'server-state':{external:true,name:'fixture_state'}})
   assert.doesNotMatch(JSON.stringify(model),/SECRET|never-copy|docker.sock|\/home\/bell|flock -x/)
+})
+test('conversation and execution select only their fixed installer in the existing image and state volume',()=>{
+ for(const component of ['conversation','execution']){
+  const {normal,current}=fixture(),model=webGatewayInstallPlan(normal,current,component),service=model.services[component+'-install']
+  assert.equal(service.entrypoint.at(-1),'/app/scripts/install-'+component+'-release.py')
+  assert.equal(service.image,current.image);assert.equal(service.network_mode,'none')
+  assert.deepEqual(model.volumes,{'server-state':{external:true,name:'fixture_state'}})
+ }
 })
 
 test('foreign CID/image/project/mount or a mutable normal root cannot select a helper',()=>{

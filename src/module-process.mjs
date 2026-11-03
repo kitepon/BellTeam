@@ -22,7 +22,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   initializeParams = ({ generation, mode }) => ({ generation, mode }),
   exportHandoff = async () => undefined, admission, canContinue = () => false,
   onGeneration = () => {}, onState = () => {}, investigationsFile = null,
-  startPaused = false, spawnProcess = spawn }) {
+  startPaused = false, exchangeMutex = null, spawnProcess = spawn }) {
   if (!['conversation', 'usage', 'diagnostics'].includes(component) || typeof root !== 'string'
     || typeof createChannel !== 'function' || typeof prepareRelease !== 'function' || typeof validateReady !== 'function'
     || component !== 'diagnostics' && investigationsFile !== null
@@ -130,7 +130,8 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   const drain = async (target, ticket) => {
     const started = Date.now()
     await within(Promise.all([waitActive(), admission?.drain(ticket)]), 60000, `${prefix}_DRAIN_TIMEOUT`)
-    if ((await track(target.channel.control('quiesce', {}, Math.max(1, 60000 - (Date.now() - started))))).quiesced !== true)
+    const remaining = Math.max(1, 60000 - (Date.now() - started))
+    if ((await within(track(target.channel.control('quiesce', {}, remaining)), remaining, `${prefix}_DRAIN_TIMEOUT`)).quiesced !== true)
       throw fail('QUIESCE_FAILED')
   }
   const finishExit = async target => {
@@ -180,7 +181,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     if (reservation && !startingReservation) return Promise.reject(fail('UPDATE_IN_PROGRESS', 409))
     const versionId = requested === 'builtin' ? null : requested
     const expected = expectedRelease ? structuredClone(expectedRelease) : undefined
-    return exclusive(async () => {
+    const perform = async () => {
       await prepare(versionId, expected)
       if (versionId === currentVersionId) return snapshot()
       if (closed) throw fail('CLOSED')
@@ -220,7 +221,8 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
         } catch (rollback) { errors.push(rollback); state(closed ? 'closed' : 'unavailable') }
         throw new AggregateError(errors, errors.length === 1 ? `${prefix}_REPLACE_ROLLED_BACK` : `${prefix}_REPLACE_AND_ROLLBACK_FAILED`)
       } finally { if (phase !== 'running') { exchanging = false; state(phase) } }
-    })
+    }
+    return exclusive(() => exchangeMutex ? exchangeMutex.runExclusive(perform) : perform())
   }
   const reserve = (versionId, options) => {
     if (versionId !== 'builtin' && !versionValid(versionId)) throw fail('VERSION_INVALID', 400)

@@ -10,6 +10,7 @@ Rabbit認証consumerの未配布候補は[認証runとOwner案内の契約](olrw
 
 ## 機能内の正本
 
+[会話子へのusage限定接点](conversation-effects.md)にrouting一資格の供給・失効と、親の通知/秘密カード境界を置く。会話独立更新のRoot固定契約v1に従い、実装の公開接点をN102・共通組立て担当と合わせる。
 [残るusageの単体更新](usage-process.md)に6service factory・閉dispatcher・安定facadeとread-only restore/volatile handoffの接点を置く。runtime/通常assembly/同source実物への接続は別工程として区別する。
 
 [Web Pushの別providerと公開契約](web-push.md)にRoot固定v1.1、登録/鍵writer・origin・安全な終端・ABI2の接点を置く。
@@ -52,7 +53,7 @@ HTTP handlerは未一致の時だけfalseを返す。既存のstatus/JSON・pref
 | --- | --- |
 | Onboarding | 通常shared/onboarding.json、seatRuntimeではstate/onboarding.json。案内段階・authSession |
 | HarnessAuth | sessions/receipts Map。資格情報本体は公式CLI |
-| FeatureSettings | shared/tools/bellteam-settings/settings.json、適用errorsとpending Promise |
+| FeatureSettings | shared/tools/bellteam-settings/settings.json、適用errorsとpending Promise、親インスタンス内routingEpoch（永続化/公開listへ追加しない） |
 | SecretRequests | state/secret-requests/*.json、state/secret-values/<toolId>/secrets/<id>（0600、新規作成）、busy、表示索引 |
 | OwnerQuestions | state/owner-questions/*.json、busy、表示索引。通知例外でも回答済み状態は残る |
 | PushNotifications | state/push-devices.json、provider/inflight/設定エラー。旧APNs設定の読取りを保持 |

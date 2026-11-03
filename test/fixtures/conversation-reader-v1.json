@@ -1,0 +1,11 @@
+{
+  "direct": {"schema":"bellteam.direct-message.v1","delivery_id":"delivery-a","at":"2026-11-03T00:00:00.000Z","from":"bot-a","target":"user","message":"日本語の履歴","image":false,"delivery":"running","optional_future":{"keep":true}},
+  "interim": {"schema":"bellteam.interim-word.v1","id":"word-a","at":"2026-11-03T00:00:01.000Z","bot":"bot-a","group_id":"delivery-a","text":"途中","kind":"answer","written_at":"2026-11-03T00:00:00.500Z"},
+  "status": {"schema":"bellteam.delivery-status.v1","delivery_id":"delivery-a","at":"2026-11-03T00:00:02.000Z","delivery":"failed","delivery_tracking":{"schema":"bellteam.delivery-tracking.v1","admission":"accepted","completion":"unknown"}},
+  "room": {"schema":"bellteam.room-message.v1","id":"message-a","at":"2026-11-03T00:00:00.000Z","message":"部屋の履歴","sender":{"id":"bot-a","name":"A"},"room":{"id":"room-a","name":"fixture","members":[{"id":"bot-a","name":"A"}]},"deliveries":[{"target":"bot-a","delivery":"running"}],"routing":{"status":"pending","responders":[]},"optional_future":{"keep":true}},
+  "routing": {"schema":"bellteam.room-routing-status.v1","message_id":"message-a","at":"2026-11-03T00:00:01.000Z","routing":{"status":"ready","responders":["bot-a"]}},
+  "roomStatus": {"schema":"bellteam.room-delivery-status.v1","message_id":"message-a","target":"bot-a","at":"2026-11-03T00:00:02.000Z","delivery":"failed","delivery_tracking":{"schema":"bellteam.delivery-tracking.v1","admission":"accepted","completion":"unknown"}},
+  "unknownRoom": {"schema":"fixture.unknown-record.v1","id":"future-a","at":"2026-11-03T00:00:03.000Z","message":"既Room readerが保持する未知object"},
+  "selfTurns": {"schema":"bellteam.self-turns.v1","bots":{"bot-a":{"cursor":"opaque-cursor","seen":["source-sha"],"lastCompletedAt":42}}},
+  "imageSignatures": {"image/png":"89504e470d0a1a0a00","image/jpeg":"ffd8ff00","image/webp":"524946460000000057454250","image/gif":"474946383961"}
+}

@@ -90,3 +90,17 @@ Room予定のtargetsはlistを使わずclaim返却snapshotだけを発行する�
 応答不明のclaimは親の短命unconfirmedClaimsで同tupleの再要求を抑制する。新revision/次時刻又は削除を観測すると解除。永続発行台帳や自動再送queueは足さず、親全体再起動の履歴保証へ広げない。保存後・発行前の喪失では未配送が残り、lastRunAtは配送成功ではない。[固定契約](module-update.md)の範囲である。
 
 本差分はN102 020c84→fc7ec352→7e4fb90eのRoom claim/skip・同lease会話adapterが前提。作者席ではこの本人3commitをmergeした隔離開発checkoutで検証する。Molly通常候補は同本人sourceを既に取り込んでおり、N102内部を当席で変更しない。新scheduler境界6件と既関連33件の原本は自席integrations/members-module-update-20261103のscheduler-members-lease-tests.log/scheduler-claim-tests.log。Kiro gate内部/実IPC/実AI/配布成功の証明には使わない。
+
+## conversation子導入のcaller context
+
+```mermaid
+flowchart LR
+  Reserve[共通moduleOperations.withContext / 両入場] --> Accepted[親schedulerの同opaque context]
+  Accepted --> Fresh[Bot/Room refreshとlistSchedules]
+  Fresh --> Claim[唯一writer claimDue/skipDue]
+  Claim --> Delivery[同contextで既配送]
+```
+
+runDueのRoom refreshも他の読取/claimと同じ内部optionsを受ける。これは親安定Room facadeへ旧受付leaseを渡す修理で、Room writerを複製しない。conversation導入時はconstructorのmoduleOperationsへ共通createModuleOperationContextの実体を注入する。tick/prepareResume/手動runはwithContext(operation, context?)で最初のfresh/消化前に両入場を予約し、親opaque contextをcloneせず読取/claim/skip/配送へ渡す。既contextはassertされた継続で、新予約/finishを増やさない。一方拒否なら作用0、accepted後unknownは再送0。provider未注入の既builtinは従来membersAdmissionだけを使う。両入場の原子性・channel逆effect束縛・交換mutexは共通/runtime所有で、このcallerは再実装しない。
+
+直接境界はtest/members-conversation-operation.test.mjsのcaller用providerと、test/members-module-operation-integration.test.mjsの実共通factory＋実Room CASで確認する。後者のconversation gateは別MembersAdmissionによる機構fixtureで、Kiro実lifetime gate/実IPC/実予定発行を証明しない。

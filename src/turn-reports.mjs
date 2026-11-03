@@ -10,7 +10,7 @@ export const SUBSTANCE_MIN = 0.5
 const OWNER_VIEW = '(`owner_view.progress_notes`, `owner_view.messages_to_owner`, and `owner_view.final_message`)'
 
 export class TurnReports {
-  constructor({ bots, store, transport, appendInterimWords, judge = judgeOwnerReport, enabled = () => true, report = message => process.stderr.write(`${message}\n`), messageId = randomUUID }) {
+  constructor({ bots, store, transport, appendInterimWords, judge = judgeOwnerReport, enabled = () => true, report = message => process.stderr.write(`${message}\n`), messageId = randomUUID, notifyReport = null }) {
     this.bots = bots
     this.store = store
     this.transport = transport
@@ -19,6 +19,7 @@ export class TurnReports {
     this.enabled = enabled
     this.report = report
     this.messageId = messageId
+    this.notifyReport = notifyReport
   }
 
   // 配送の完了を止めないよう、呼び出し側は待たない。失敗は記録だけして、報告は頼まない。
@@ -33,7 +34,7 @@ export class TurnReports {
     const shown = ownerView.progress_notes.length || ownerView.messages_to_owner.length || ownerView.final_message
     // ルームの発言はオーナーもルームで読める。黙る指示に従ったターンも漏れではない。
     if (!shown && context !== 'room') return this.requestReport(bot, 'missing', [])
-    if (!memberMessages.length || !this.enabled()) return null
+    if (!memberMessages.length || !await this.enabled()) return null
     const { outcome, substance } = await this.judge({ ownerView, memberMessages })
     if (outcome >= OUTCOME_MIN && substance >= SUBSTANCE_MIN) return null
     return this.requestReport(bot, 'content', [...new Set(memberMessages.map(message => message.to))])
@@ -43,11 +44,12 @@ export class TurnReports {
     const groupId = this.messageId()
     const message = reportRequestMessage(reason, recipients)
     // この依頼で始まるターンは確かめない（onTurnEndを渡さない）。返事はそのBotの会話画面にだけ出す。
-    await this.transport.notify(bot, message, {
+    const notify = this.notifyReport ?? ((...args) => this.transport.notify(...args))
+    await notify(bot, message, {
       queue: { context: 'report', contextId: bot.id, groupId, from: 'bellteam', fromName: 'BellTeam', target: bot.id, message },
       onInterim: words => this.appendInterimWords(bot.id, groupId, words),
       onAnswer: text => this.appendInterimWords(bot.id, groupId, [{ text, kind: 'answer' }]),
-    })
+    }, reason)
     return { reason, recipients, groupId }
   }
 }

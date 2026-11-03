@@ -16,6 +16,9 @@ flowchart TD
   Unit --> Bound[worker一回claim・lock / ledger fsync・受領ACK]
   Bound --> Accepted[永続受領＋worker束縛後だけaccepted]
   Unit --> Installer[固定root closureの既installer / 保持・起動・戻し]
+  Unit --> Module[同image固定module installer / code・receipt配置だけ]
+  Module --> Recheck[親prepareReleaseで配置・互換を再検査]
+  Recheck --> Exchange[同module controllerの実交換 / 他module・親は継続]
   Installer --> Verify[実CID・immutable image・source・health確認]
   Verify --> Result[同requestIdへdurable終端 / cleanup失敗分離]
   Result --> Client
@@ -54,3 +57,15 @@ Host planのexpectedには実mount/specをtarget順で正規化したstorageBind
 catalog(componentId)はHost nativeの選択1recordだけを64KiB以内で返す。publication status/checkedAt/errorはfeed取得確認を表し、catalog署名受入/期限と実稼働版から分ける。定期供給の失敗を更新なしへ置換しない。署名済失効unionを耐久保持、古いcatalog採用/同時刻別digestを拒否、catalog資材公開後にactivation保存が失敗した場合もplanを止めて同資材のrepairでだけ解消する。
 
 専用のtest/helpers/container-updater-systemd.pyは、disposable root/systemd環境で実peer1001/別service cgroup/受付停止後worker継続/同ID再照会/socket親inode保持を確認する入口。engine・署名は人工なのでその証明へ加算しない。本coding環境はUID1000/systemd tools無しで未実行、供給側native VMへ接続する。
+
+## 未配置module archiveの設置
+
+既Unix受付/別workerを再利用する。`moduleInstallCapabilities()`はHostの`moduleInstallProtocol:1`を要求し、旧Host・正式catalog未供給はfalse。`planModuleInstall({planId,catalogSha256,componentId,versionId})`は固定8componentの正式catalog/native platformだけを選ぶ。`startModuleInstall({requestId,planId})`は同startへ`confirmContainerRestart:false`、結果は既`operation(requestId)`へ。任意URL/path/envやrestart指定を増やさない。Mollyの公開operation UUIDは一つ、各install stepは耐久保存した別UUIDをstart/getへ一貫使用する。
+
+plan/start/workerでcatalog鮮度・選択target・実親CID/image/source/volume bindingを再検査する。worker受領前に現在のimmutable imageをnetwork none/UID1001/no-mountで起動し、実Node26/platform・固定installer存在・そのimageの業務互換exportと既mount plannerを確認する。helperへ渡すnormal投影はmount/name/imageとAITERM_STATE_BASEだけで、親の資格環境を渡さない。返るprivate volume名も実normalのRO control mount本人と一致させる。helperのComposeモデルをroot実行へ転用しない。
+
+archive/bundleは正式GitHub release URLだけからroot管理`state/module-incoming/<component>/<SHA>`へsize/hash付きで取得する。redirectも公式HTTPS閉集合、未知origin/port/user情報は拒否。file400・一時dirからNOREPLACE公開・親fsync、再利用時も完全inventory/size/hashを再確認する。現在の同imageで固定`install-<component>-release.py`を実行し、同componentのincoming親をRO公開し、既installerがその下の固定SHAを開く。RW公開は同private volumeだけ。既installerの公式署名/source/runtime/full inventoryとcode→receipt最後の公開をそのまま使う。親serviceのstop/restart/replaceはこのHost工程に含めず、配置完了後に親のprepareRelease→実controllerへ渡す。
+
+containerのcurrent/previous参照は保持し、module設置は別`module-current.json`で同UUID ledgerを参照する。両方とも同ledger/worker lockで排他し、unknownは次要求で越えない。期限・helper非0・結果欠測はunknownを保持し同UUIDで再実行しない。Docker client期限でも実helper終了を推定せず、その設置は要解決として保持する。正常公開後だけ入力cacheを自己回収し、回収失敗は配置成功と分ける。未確定cacheは各module最大4組を保持し、先に原operationを解決する。
+
+初回はこのHost code/現在image内固定installer・socket mountを導入する必要がある。登録済みmodule交換を後発Host口待ちにせず、未配置をprepare成功へ補完しない。新7Python境界（正式選択/入力拒否・同UUID・container排他・限定mount・資格非移送・unknown再送0）とclient/planner3境界は人工I/Oで確認した。実Host/systemd/Docker/署名・対象moduleだけの実交換成立は別の本人受入へ結ぶ。

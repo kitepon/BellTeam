@@ -6,6 +6,7 @@ runtimeエピネル。既members交換手順の共通機構を`src/module-proces
 flowchart LR
   Caller[親安定facade / 固有authority] --> Channel[固有ParentChannel / 実completion]
   Controller[createModuleProcess] --> Channel
+  Mutex[親の共有exchangeMutex.runExclusive] --> Prepare
   Prepare[固定prepareRelease / catalogと互換検証] --> Closed[新受付閉鎖 / 既lease継続だけ]
   Closed --> Drain[実completion＋外部admission drain / 60秒]
   Drain --> Quiesce[child quiesce / 保存・stream・callback終端]
@@ -18,7 +19,7 @@ flowchart LR
   Resume --> Caller
 ```
 
-`createModuleProcess({component,root,createChannel,prepareRelease,validateReady,initializeParams?,exportHandoff?,admission?,canContinue?,onGeneration?,onState?,investigationsFile?,spawnProcess?})`はstart/close/request/callback/initialize/replace/reserve/snapshotを返す。spawnProcessは実起動の試験DI、通常はNode spawn。component/実行path/argvは固定、envは空又はdiagnosticsの既notes設定一変数だけ。createChannel(child,{generation})は本人のready/request/callback/control/reapedを供給する。descriptorの固定appRootを共通検査し、prepareReleaseとvalidateReadyが作者の署名済版・protocol・実stateCompatibilityを検査する。
+`createModuleProcess({component,root,createChannel,prepareRelease,validateReady,initializeParams?,exportHandoff?,admission?,canContinue?,onGeneration?,onState?,investigationsFile?,exchangeMutex?,spawnProcess?})`はstart/close/request/callback/initialize/replace/reserve/snapshotを返す。spawnProcessは実起動の試験DI、通常はNode spawn。component/実行path/argvは固定、envは空又はdiagnosticsの既notes設定一変数だけ。createChannel(child,{generation})は本人のready/request/callback/control/reapedを供給する。descriptorの固定appRootを共通検査し、prepareReleaseとvalidateReadyが作者の署名済版・protocol・実stateCompatibilityを検査する。
 
 usage固有のstartPaused:trueはstartをsettings ready後のinitializingで返し、親がinitializeで既3段を進めた後activate()の実resume ACKで新rootを開く。他componentへのstartPausedは拒否する。初回順序/secret/private snapshotの意味は[module readerとwrapper](module-release.md)と業務正本に従う。
 
@@ -30,6 +31,10 @@ initializeParams({generation,mode,handoff})は初回bootstrap、採用済起動/
 
 quiesce失敗/60秒未終端は旧resume、新子0・kill0・unknown再送0。新版ready/保存/resume失敗時は未受付candidateをOS終了まで回収し、旧固定版と同handoffから再生成する。既にresume済みで終端不明ならkillで済ませずunavailableに保持し二重writerを作らない。closeは起動/交換中operationと既writerを回収し、新子の起動を止める。exitの5秒killはquiesce成功後だけ。
 
+quiesce RPCは残りdrain時間を明示し、共通controller自身もその残時間のwithinで囲む。固有channelのACK/進捗によるcaller期限変更を実drain期限の延長にしない。期限後は元control.completionをactiveへ残し、旧resumeと子epoch検査を使い、遅着quiesceで新受付を再閉鎖しない。close/次交換はその実終端を待つ。
+
 private recordは既0600/no-follow/nlink1/所有/4KiB検査の`bellteam.<component>.adoption.v1`。module/allのdurable requestId ledgerや公開source identityはMollyが所有し、このrecordから捏造しない。reserveはcompletionを返し、実replace終端又はcancelまで同親mutexを保持できる。
 
 このsourceの限定fake-child境界と、各作者の実IPC fixture、Centi同imageの実UID/署名/OS交換は別の証拠。初回親組立とmountはimage導入が必要で、未登録moduleを既imageへ無再起動追加できるとは扱わない。導入後の登録済controller経由コード交換が対象。
+
+親が注入する同exchangeMutexのrunExclusiveでreplace全体（prepare前からdrain/旧OS終端/採用保存ACK/失敗復旧まで）を囲む。mutexが使用中ならMODULE_EXCHANGE_BUSYでprepare・受付閉鎖前に拒否し、子/現在版を変えない。省略時は既個別controller排他だけ。start/close/requestの寿命管理と親の公開Update ledger mutexは変えない。conversation/usage/diagnostics薄wrapperは同identityを転送し、親assemblyの共有一実体DIはintegrationが所有する。

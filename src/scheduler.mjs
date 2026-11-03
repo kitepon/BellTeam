@@ -10,7 +10,7 @@ const MAINTENANCE_HOUR = 3
 const TOKYO_TIME_ZONE = 'Asia/Tokyo'
 
 export class BotScheduler {
-  constructor({ registry, messenger, transport = null, rooms = null, roomMessenger = null, intervalMs = 15_000, completedTurns = completedThroughlineTurns, runCommand = runShellCommand, paused = () => false, assertWorkAllowed = () => {}, admitWork = null, membersAdmission = transport?.membersAdmission ?? null }) {
+  constructor({ registry, messenger, transport = null, rooms = null, roomMessenger = null, intervalMs = 15_000, completedTurns = completedThroughlineTurns, runCommand = runShellCommand, paused = () => false, assertWorkAllowed = () => {}, admitWork = null, membersAdmission = transport?.membersAdmission ?? null, moduleOperations = null }) {
     this.registry = registry
     this.messenger = messenger
     this.runCommand = runCommand
@@ -24,6 +24,7 @@ export class BotScheduler {
     this.maintenanceDate = null
     this.paused = paused
     this.assertWorkAllowed = assertWorkAllowed
+    this.moduleOperations = moduleOperations
     this.membersAdmission = membersAdmission
     this.admitWork = admitWork ?? (() => () => this.assertWorkAllowed())
     this.unconfirmedClaims = new Map()
@@ -49,10 +50,10 @@ export class BotScheduler {
     this.currentRun = new Promise(resolve => { release = resolve })
     try {
       await this.restartLongSessions(now)
-      await this.withMembersLease(async options => {
+      await this.withOperationContext(async options => {
         await this.registry.refresh(options)
         const sources = [{ kind: 'bot', registry: this.registry }]
-        if (this.rooms && this.roomMessenger) { await this.rooms.refresh(); sources.push({ kind: 'room', registry: this.rooms }) }
+        if (this.rooms && this.roomMessenger) { await this.rooms.refresh(options); sources.push({ kind: 'room', registry: this.rooms }) }
         const observed = new Set()
         for (const { kind, registry } of sources) {
           for (const owner of [...registry.values()]) {
@@ -99,7 +100,7 @@ export class BotScheduler {
   // Later, newly created requests with past dates retain ordinary scheduler behavior.
   async prepareResume(at) {
     await this.currentRun
-    return this.withMembersLease(async options => {
+    return this.withOperationContext(async options => {
       for (const [kind, registry] of [['bot', this.registry], ['room', this.rooms]]) {
         if (!registry) continue
         await registry.refresh(options)
@@ -114,9 +115,10 @@ export class BotScheduler {
     })
   }
 
-  withMembersLease(operation, { membersLease } = {}) {
-    if (!this.membersAdmission) return operation({})
-    return this.membersAdmission.withLease(lease => operation({ membersLease: lease }), { lease: membersLease })
+  withOperationContext(operation, context) {
+    if (this.moduleOperations) return this.moduleOperations.withContext(operation, context)
+    if (!this.membersAdmission) return operation(context ?? {})
+    return this.membersAdmission.withLease(lease => operation({ membersLease: lease }), { lease: context?.membersLease })
   }
 
   async dispatchBotSchedule(bot, schedule, options = {}) {
@@ -177,8 +179,8 @@ export class BotScheduler {
   }
 
   // 手動の「今すぐ実行」。予定の次回時刻と有効状態は動かさない。
-  async runBotSchedule(botId, scheduleId, options = {}) {
-    return this.withMembersLease(async options => {
+  async runBotSchedule(botId, scheduleId, options) {
+    return this.withOperationContext(async options => {
       await this.registry.refresh(options)
       const bot = this.registry.get(botId)
       if (!bot) throw new Error(`BOT_NOT_FOUND: ${botId}`)
@@ -189,8 +191,8 @@ export class BotScheduler {
     }, options)
   }
 
-  async runRoomSchedule(roomId, scheduleId, options = {}) {
-    return this.withMembersLease(async options => {
+  async runRoomSchedule(roomId, scheduleId, options) {
+    return this.withOperationContext(async options => {
       await this.rooms.refresh(options)
       const room = this.rooms.get(roomId)
       if (!room) throw new Error(`ROOM_NOT_FOUND: ${roomId}`)
