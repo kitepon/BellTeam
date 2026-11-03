@@ -53,13 +53,16 @@ if (mode === 'initialize') {
   const binary = await stat('/usr/local/libexec/bellteam-seat-exec')
   assert.deepEqual([binary.uid, binary.gid, binary.mode & 4095], [0, 0, 0o755])
   const realRun = createSeatProcessRunner(root, { environment: 'base' }), events = []
+  const progress = stage => write(statusPath, { phase: 'starting', stage, events })
   // Record the existing runner's real close promise; do not replace its output, delay or cancellation.
   const run = async (command, args, options) => {
     const request = JSON.parse(options.input), call = { entry: args[0], method: request.method, generation: request.generation }
     const before = request.method === null ? await dataHashes() : null
     events.push({ event: 'start', ...call })
+    await progress('seat-run')
     const result = await realRun(command, args, options)
     events.push({ event: 'os-stdio-close', ...call })
+    await progress('seat-closed')
     if (before) assert.deepEqual(await dataHashes(), before, 'restore preserves every DB/notes byte')
     return result
   }
@@ -100,8 +103,8 @@ if (mode === 'initialize') {
   const publish = async phase => {
     await invariant()
     const snapshot = controller.snapshot(); assert.equal(snapshot.available, true)
-    await write(statusPath + '.tmp', { phase, checks, events, parent: parentIdentity, business: businessIdentity,
-      gateway: gatewayIdentity, port, ...snapshot, currentDataPreserved, codeViewVerified,
+    await write(statusPath + '.tmp', { ...snapshot, runtimePhase: snapshot.phase, phase, checks, events, parent: parentIdentity, business: businessIdentity,
+      gateway: gatewayIdentity, port, currentDataPreserved, codeViewVerified,
       realSeatCloseBeforeRestore: checks.filter(item => item.oldCloseBeforeRestore).length === 2 })
     await rename(statusPath + '.tmp', statusPath)
   }
@@ -140,11 +143,17 @@ if (mode === 'initialize') {
     checks.push({ target, adoption, oldCloseBeforeRestore: true, noMutationReplay: true, writerId: saved.id })
   }
   try {
+    await progress('controller-start')
     await controller.start()
+    await progress('initial-data-hashes')
     assert.deepEqual(await dataHashes(), {}, 'restore does not initialize business data')
+    await progress('ensure-scope')
     await memory.ensureScope(params.botId, 'personal')
+    await progress('remember')
     const first = await memory.remember({ ...params, content: 'retained-memory-before-exchange' })
+    await progress('record-knowledge')
     const note = await memory.recordKnowledge({ ...params, title: 'retained-knowledge', content: 'retained-knowledge-before-exchange' })
+    await progress('gateway-start')
     await new Promise(resolve => server.listen(socketPath, resolve)); await gateway.start()
     port = gateway.address.port; base = `http://127.0.0.1:${port}`
     business = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)'], { env: {}, stdio: 'ignore' })
