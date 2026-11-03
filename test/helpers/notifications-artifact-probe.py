@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import platform
 import shutil
 import signal
 import subprocess
@@ -36,8 +37,10 @@ def main():
     args = parser.parse_args()
     clean_runner()
     archive = args.archive.resolve()
+    arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
+    require(platform.system() == 'Linux' and arch is not None, 'NOTIFICATIONS_PROBE_NATIVE_RUNNER_REQUIRED')
     with archive.open('rb') as stream:
-        manifest, _ = check_archive(stream, component='notifications')
+        manifest, _ = check_archive(stream, arch=arch, component='notifications')
     node = args.node.resolve(strict=True)
     require(subprocess.check_output([str(node), '-p', 'process.versions.node.split(".")[0]'], text=True).strip() == '26')
     created = []
