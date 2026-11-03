@@ -31,3 +31,9 @@ package-conversation.py/verify-conversation.pyは既共通内部処理の固定�
 Epi foundation91d1ff94の固定scripts/conversation-start.cとscripts/install-conversation-release.py、配布のverify-conversation.pyとconfig/conversation-verification.jsonをpackage-serverの明示allowlistへ収録する。共有Web roothelper/Python検証器/trustrootは従来の同ファイルを使い、全srcも既収録のまま。public flatten後もhelperのimport先とpolicyの相対位置を維持する。Host root-code-pathsの14entry形は増やさず、既共有fileの最終bytes/hashを既manifest生成で更新する。
 
 Dockerfileは会話Cを固定/usr/local/libexec/bellteam-conversation-startへcompileし、root:root/0755の非setuidにする。UID1001/Node固定/匿名advanced IPC/専用lockの意味はruntime作者Cが所有し、配布側に任意path/UID/envを足さない。公開package有限試験は新4fileのarchive収録と元bytes一致、個人state/資格の非収録、14entry inventoryの整合を確認する。C作者と合成した実public packageも同bytesへ束縛するが、image build/実root起動/署名/native成功を代用しない。entry/probeの完成sourceとN102正規restore fixtureが揃った後に専用署名workflowと実物へ接続する。
+
+## 専用署名前probeと作者restore入力
+
+publish-conversation.ymlは固定main/両native/Node26の専用OIDC workflow。同一checkout SHAからclean prod archiveを生成し、未署名の固定C/UID1001 probeが正常終端した後だけattestする。source/signer/main/repoIDを公式verifierで確認しarchive/bundleと診断原本を保存する。workflowの存在は発行許可/実行成功ではなく、entry/dispatcher/引数0 runtime probeの完成sourceと通常mainへ結合して必要一回だけ発行する。
+
+test/helpers/conversation-artifact-probe.pyは既membersの使い捨てroot/private mount namespace・固定Node/C・同/app/scripts親probe・有限KILL/reap/自己回収を再利用する。N102 src/conversation/probe-fixture.json（先着9a7cbb9d）の同archive/同checkout bytes一致を検査し、固定Room定義/空schedule/selfTurnsの3fileをJSON stringify+LF/0600、dir0700で事前配置。表示snapshotは同assetのbots、generationはruntime発行、initialize modeはrestoreでありseedに実予定/資格/画像/履歴を含めない。初回lockも1001/0600で事前作成し、全state file-directoryのbytes/mode/uid/gid/mtimeを起動前後比較する。親probeを署名payloadへ足さず、archiveをinstallationとして公開しない。成功receiptは合意した厳密JSON/実child closeだけを受け取り、Jev/外部effect0は作者runtime probeの実channelへ結合して確認する。
