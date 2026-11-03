@@ -36,6 +36,64 @@ MEMORY_FILES = {'payload/' + name for name in (
     'src/memory/state-compatibility.mjs', 'src/memory-service.mjs', 'src/memory-search.mjs')}
 
 
+BUSINESS_FILES = {
+    'usage': {'payload/' + name for name in (
+        'config/setup-guide.json',
+        'package-lock.json',
+        'package.json',
+        'services/subscriptions/endpoints.json',
+        'services/subscriptions/product.json',
+        'src/auth-ui.mjs',
+        'src/card-timelines.mjs',
+        'src/distribution-profile.mjs',
+        'src/feature-settings.mjs',
+        'src/harness-auth.mjs',
+        'src/module-ipc.mjs',
+        'src/module-locks.mjs',
+        'src/module-streams.mjs',
+        'src/onboarding.mjs',
+        'src/owner-questions.mjs',
+        'src/runtime-home.mjs',
+        'src/secret-requests.mjs',
+        'src/server-address.mjs',
+        'src/subscriptions.mjs',
+        'src/timeline-index.mjs',
+        'src/usage-entry.mjs',
+        'src/usage-locks.mjs',
+        'src/usage/channel-dispatcher.mjs',
+        'src/usage/channel-protocol.mjs',
+        'src/usage/channel.mjs',
+        'src/usage/process-results.mjs',
+        'src/usage/process-schema.mjs',
+        'src/usage/projection.mjs',
+        'src/usage/registry-ports.mjs',
+        'src/usage/services.mjs',
+        'src/usage/state-compatibility.mjs',
+        'src/usage/web-push-schema.mjs',
+    )},
+    'diagnostics': {'payload/' + name for name in (
+        'package-lock.json',
+        'package.json',
+        'src/agent-launch-error.mjs',
+        'src/diagnostic-report-context.mjs',
+        'src/diagnostics-dispatcher.mjs',
+        'src/diagnostics-entry.mjs',
+        'src/diagnostics-ipc.mjs',
+        'src/diagnostics-locks.mjs',
+        'src/diagnostics-protocol.mjs',
+        'src/diagnostics.mjs',
+        'src/json-file.mjs',
+        'src/module-ipc.mjs',
+        'src/module-locks.mjs',
+        'src/module-streams.mjs',
+    )},
+}
+
+BUSINESS_STATE = {
+    'usage': dict(settingsFeatures=['routing','callBridge','cloudflare','diagnostics','notifications','webPush'], onboardingSchema='bellteam.onboarding.v1', subscriptionSchema='bellteam.subscription.v1', requestEncoding='json-files', secretEncoding='utf8-exclusive-0600', handoffSchema='bellteam.usage-volatile.v1'),
+    'diagnostics': dict(diagnostics='unversioned-rows-array', investigations='optional-fingerprint-map'),
+}
+
 def validate_memory_state(value):
     fixed = dict(memoryUserVersion=0, knowledgeUserVersion=0,
         memoryRequiredSchemaSha256='aac945fb2c594987168317fd857233fb41274072ad6b0d032563459fb4b3733f',
@@ -49,7 +107,7 @@ def validate_memory_state(value):
 
 
 def contract(component):
-    require(component in ('web-gateway', 'notifications', 'members', 'memory'), 'MODULE_COMPONENT_INVALID')
+    require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics'), 'MODULE_COMPONENT_INVALID')
     entry = 'payload/src/run-memory-runtime.mjs' if component == 'memory' else ENTRY if component == 'web-gateway' else f'payload/src/{component}-entry.mjs'
     runtime = dict(os='linux', nodeMajor=26, parentProtocol=1)
     required = {entry, 'payload/package.json', 'payload/package-lock.json'}
@@ -60,6 +118,9 @@ def contract(component):
         runtime.update(parentProtocol=2, stateSchema=2)
     elif component == 'memory':
         required = MEMORY_FILES
+    elif component in BUSINESS_FILES:
+        required = BUSINESS_FILES[component]
+        runtime['stateCompatibility'] = BUSINESS_STATE[component]
     else:
         # Match the writer's existing formats; exchange never authorizes migration.
         runtime['stateCompatibility'] = dict(
@@ -95,7 +156,9 @@ def validate_manifest(value, source=None, arch=None, *, component='web-gateway')
         names.add(name)
         total += file['bytes']
     require(total <= MAX_CONTENT)
-    require(names == required if component == 'memory' else required <= names)
+    require(names == required if component in ('memory', 'usage') else required <= names)
+    if component == 'diagnostics':
+        require(all(name in required or name.startswith('payload/node_modules/') for name in names))
     return value
 
 

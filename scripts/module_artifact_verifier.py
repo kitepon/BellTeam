@@ -76,12 +76,17 @@ def authenticate(archive, bundle, trusted, policy, expectation, *, component='we
     arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
     require(platform.system() == 'Linux' and arch is not None, 'GATEWAY_PLATFORM_INVALID')
     manifest, manifest_sha = check_archive(archive, expectation['sourceCommit'], arch, component=component)
-    if component == 'memory':
+    if component in ('memory', 'usage', 'diagnostics'):
         # Read trusted image code, never code from the supplied archive.
+        module, exported = {
+            'memory': ('memory/state-compatibility', 'MEMORY_STATE_COMPATIBILITY'),
+            'usage': ('usage/state-compatibility', 'USAGE_STATE_COMPATIBILITY'),
+            'diagnostics': ('diagnostics-protocol', 'DIAGNOSTICS_STATE_COMPATIBILITY'),
+        }[component]
         actual = json.loads(subprocess.check_output(['/usr/local/bin/node', '--input-type=module', '-e',
-            'import { MEMORY_STATE_COMPATIBILITY as s } from "/app/src/memory/state-compatibility.mjs"; console.log(JSON.stringify(s))'],
+            f'import {{ {exported} as s }} from "/app/src/{module}.mjs"; console.log(JSON.stringify(s))'],
             env={'PATH': '/usr/bin:/bin'}, text=True))
-        require(manifest['runtime']['stateCompatibility'] == actual, 'MEMORY_IMAGE_STATE_INCOMPATIBLE')
+        require(manifest['runtime']['stateCompatibility'] == actual, component.upper() + '_IMAGE_STATE_INCOMPATIBLE')
     return dict(schema=f'bellteam.{component}.verification.v1', archiveSha256=digest,
         manifestSha256=manifest_sha, manifest=manifest,
         verification=dict(method='github-oidc-attestation', repositoryId=policy['repositoryId']))
