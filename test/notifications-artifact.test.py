@@ -1,6 +1,7 @@
 """Notifications content and verifier wiring, not real cryptographic proof."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import platform
 import subprocess
@@ -102,6 +103,15 @@ class NotificationsArtifactTest(unittest.TestCase):
         with patch('os.geteuid', return_value=0), patch.object(probe, 'APP', self.root), \
              self.assertRaisesRegex(ValueError, 'NOTIFICATIONS_PROBE_REQUIRES_CLEAN_RUNNER'):
             probe.clean_runner()
+
+    def test_root_probe_directory_creation_sets_actual_owner_group_and_mode(self):
+        spec = importlib.util.spec_from_file_location('notifications_probe', ROOT / 'test/helpers/notifications-artifact-probe.py')
+        probe = importlib.util.module_from_spec(spec); spec.loader.exec_module(probe)
+        path = self.root / 'probe-private'; created = []
+        probe.create_directory(path, os.getuid(), os.getgid(), 0o750, created)
+        info = path.stat()
+        self.assertEqual((info.st_uid, info.st_gid, info.st_mode & 0o7777), (os.getuid(), os.getgid(), 0o750))
+        self.assertEqual(created, [path])
 
     def test_unsigned_fixed_cli_does_not_claim_authentication(self):
         result = subprocess.run([sys.executable, str(ROOT / 'scripts/verify-notifications.py'),

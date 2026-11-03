@@ -30,6 +30,11 @@ def clean_runner():
         require(not path.exists() and not path.is_symlink(), 'NOTIFICATIONS_PROBE_REQUIRES_CLEAN_RUNNER')
 
 
+def create_directory(path, uid, gid, mode, created):
+    path.mkdir(); created.append(path)
+    os.chown(path, uid, gid); path.chmod(mode)
+
+
 def private_mount_namespace():
     require(os.readlink('/proc/self/ns/mnt') != os.readlink('/proc/1/ns/mnt'),
             'NOTIFICATIONS_PROBE_PRIVATE_MOUNT_NAMESPACE_REQUIRED')
@@ -72,8 +77,8 @@ def main():
             path.chmod(0o555 if path.is_dir() else 0o444)
         APP.chmod(0o555)
         for path, uid, mode in [(PRIVATE, 0, 0o750), (STATE, 0, 0o755), (HOME, 1001, 0o700)]:
-            path.mkdir(); created.append(path); path.chown(uid, 1001); path.chmod(mode)
-        state = STATE / 'state'; state.mkdir(); state.chown(1001, 1001); state.chmod(0o700)
+            create_directory(path, uid, 1001, mode, created)
+        state = STATE / 'state'; create_directory(state, 1001, 1001, 0o700, created)
         process = subprocess.Popen([str(NODE), str(ROOT / 'scripts/probe-notifications-runtime.mjs')],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True,
             env={'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': '/tmp'})
