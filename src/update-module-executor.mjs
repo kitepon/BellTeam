@@ -328,7 +328,10 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       validateUpdateRequest('requestId', id)
       const entry = findOperation(id); requireValue(entry, 'UPDATE_OPERATION_NOT_FOUND', 404)
       if (entry.hostIssued && !['completed', 'failed'].includes(entry.operation.phase) && !active) await exclusive(() => refreshHost(entry))
-      if (entry.steps.some(installPending) && !active) await exclusive(() => refreshInstalls(entry))
+      if (entry.steps.some(installPending) && !active) {
+        // A failed readback must not hide the already durable unknown result.
+        try { await exclusive(() => refreshInstalls(entry)) } catch {}
+      }
       return publicOperation(entry)
     },
     async snapshot(inventory) {

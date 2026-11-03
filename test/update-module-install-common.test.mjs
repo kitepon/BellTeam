@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createModuleUpdateExecutor } from '../src/update-module-executor.mjs'
@@ -131,4 +131,39 @@ test('an archive disappearing after an already-prepared plan does not authorize 
   const plan = await f.plan(); f.setInstalled(false)
   await assert.rejects(f.executor.start(f.request(plan)), { code: 'UPDATE_INSTALL_PLAN_EXPIRED' })
   assert.equal(f.calls.plans, 0); assert.equal(f.calls.starts.length, 0)
+})
+
+test('Host completed without verification is unknown and cannot trigger a module replacement', async t => {
+  const f = await fixture(t), plan = await f.plan(), request = f.request(plan)
+  const operation = f.moduleHost.operation
+  f.moduleHost.operation = async id => ({ ...await operation(id), verification: 'failed' })
+  await f.executor.start(request)
+  const result = await done(f.executor, request.requestId)
+  assert.equal(result.phase, 'unknown'); assert.equal(result.error.code, 'UPDATE_HOST_RESPONSE_INVALID')
+  assert.equal(f.calls.applies, 0)
+})
+
+test('a changed live generation after Host installation prevents replacement', async t => {
+  const f = await fixture(t), plan = await f.plan(), request = f.request(plan)
+  const operation = f.moduleHost.operation
+  f.moduleHost.operation = async id => {
+    const result = await operation(id)
+    f.options.adapters.notifications.current = () => null
+    return result
+  }
+  await f.executor.start(request)
+  const result = await done(f.executor, request.requestId)
+  assert.equal(result.phase, 'failed'); assert.equal(result.error.code, 'UPDATE_CURRENT_CHANGED')
+  assert.equal(f.calls.applies, 0)
+})
+
+test('reconstruction refuses an installation UUID aliased to the public operation', async t => {
+  const f = await fixture(t), plan = await f.plan(), request = f.request(plan)
+  f.setPhase('unknown'); await f.executor.start(request)
+  await done(f.executor, request.requestId); await f.executor.close()
+  const ledger = await f.ledger()
+  ledger.operations[0].steps[0].installRequestId = request.requestId
+  await writeFile(join(f.root, 'state/update-ledger/ledger.json'), JSON.stringify(ledger))
+  await assert.rejects(createModuleUpdateExecutor(f.options), { code: 'UPDATE_LEDGER_INVALID' })
+  assert.equal(f.calls.starts.length, 1)
 })
