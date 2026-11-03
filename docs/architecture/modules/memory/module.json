@@ -2,7 +2,7 @@
   "title": "記憶・知識",
   "owner": "ビスケット",
   "botId": "bot-da7c1cb5",
-  "scope": "短期/長期記憶・知識の内容、保存形式、検索と索引。proxy実行とbackupはエピネル",
+  "scope": "短期/長期記憶・知識の内容、保存形式、検索と索引、業務factory/dispatcher。席proxy・起動停止・版交換はエピネル",
   "external": false,
   "provides": [
     "memory"
@@ -19,6 +19,8 @@
   ],
   "source": [
     "src/memory-service.mjs",
-    "src/memory-search.mjs"
+    "src/memory-search.mjs",
+    "src/memory/factory.mjs",
+    "src/memory/dispatcher.mjs"
   ]
 }
