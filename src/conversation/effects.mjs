@@ -1,11 +1,13 @@
 import { validateConversationActor } from './authority.mjs'
 import { CONVERSATION_CALLBACK_METHODS } from './callbacks.mjs'
 import { validateConversationBotSnapshot, validateConversationCallbackContext } from './requests.mjs'
+import { isObserverProjectScope } from './observer.mjs'
+import { validateObserverCheckResult } from '../observer-check.mjs'
 
 export const CONVERSATION_EFFECT_METHODS = Object.freeze([
   'members.profiles.read', 'usage.routing.read', 'usage.notify.direct', 'usage.notify.room',
   'assets.beginSave', 'assets.endSave', 'runtime.image.read', 'runtime.room.context',
-  'runtime.observer.changed', 'runtime.observer.read', 'execution.notify', 'execution.turn',
+  'runtime.observer.snapshot', 'runtime.observer.check', 'runtime.observer.read', 'execution.notify', 'execution.turn',
   'execution.background.begin', 'execution.background.end', 'execution.observation.source', 'execution.report',
   'execution.assertAccess', 'execution.reconcile', 'execution.closeLaunch',
   'execution.shown.read', 'execution.shown.consume',
@@ -47,7 +49,7 @@ function context(value) {
 export function validateConversationEffect(method, params, capturedContext) {
   context(capturedContext)
   switch (method) {
-    case 'members.profiles.read': case 'usage.routing.read': case 'runtime.observer.changed':
+    case 'members.profiles.read': case 'usage.routing.read': case 'runtime.observer.snapshot':
     case 'execution.assertAccess': return fields(params, {})
     case 'execution.reconcile': case 'execution.closeLaunch': return fields(params, { botId: id, deliveryId: identity, target: launch })
     case 'execution.shown.read': case 'execution.shown.consume':
@@ -59,7 +61,13 @@ export function validateConversationEffect(method, params, capturedContext) {
     case 'assets.endSave': return fields(params, { leaseId: identity })
     case 'runtime.image.read': return fields(params, { image, leaseId: identity })
     case 'runtime.room.context': return fields(params, { roomId: id, messageId: identity, speaker: text, text })
-    case 'runtime.observer.read': return fields(params, { botId: id }, {
+    case 'runtime.observer.check': {
+      fields(params, { projects: array(item => fields(item, { id, scope: isObserverProjectScope,
+        after: nullable(value => nonempty(value) && Buffer.byteLength(value) <= 512) })) })
+      if (!params.projects.length || params.projects.length > 256 || new Set(params.projects.map(item => item.id)).size !== params.projects.length) invalid()
+      return true
+    }
+    case 'runtime.observer.read': return fields(params, { botId: id, scope: isObserverProjectScope }, {
       afterCursor: nullable(text), throughCursor: nullable(text), pageToken: nullable(text),
     })
     case 'execution.observation.source':
@@ -125,7 +133,12 @@ export function validateConversationEffectResult(method, result, params) {
     case 'assets.endSave': case 'execution.background.end': return fields(result, { requested: value => value === true })
     case 'runtime.image.read': return fields(result, { data: text })
     case 'runtime.room.context': return fields(result, { turns: array(value => fields(value, { speaker: text, text })) })
-    case 'runtime.observer.changed': return fields(result, { changed: bool })
+    case 'runtime.observer.snapshot':
+      fields(result, { projects: array(value => fields(value, { botId: id, scope: isObserverProjectScope,
+        projectBytes: value => Number.isSafeInteger(value) && value >= 3 && value <= 24578 })) })
+      if (new Set(result.projects.map(item => item.botId)).size !== result.projects.length) invalid()
+      return true
+    case 'runtime.observer.check': validateObserverCheckResult(result, params); return true
     case 'runtime.observer.read': return observerResult(result)
     case 'execution.notify': case 'execution.turn': case 'execution.report': return fields(result, { delivery: oneOf('running', 'steered') })
     case 'execution.background.begin': return fields(result, { backgroundId: identity })

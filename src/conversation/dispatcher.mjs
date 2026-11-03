@@ -110,8 +110,11 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
     onMessage: record => emit(record, true),
     onInterimWords: (...args) => messenger.appendInterimWords(...args), onTurnEnd: afterTurn })
   const selfTurns = new SelfTurns({ bots, statePath: join(root, 'logs/self-turns.json'),
-    changed: async () => (await invoke('runtime.observer.changed', {})).changed,
-    readBot: (botId, request) => invoke('runtime.observer.read', { botId, ...request }),
+    observer: {
+      snapshot: async () => (await invoke('runtime.observer.snapshot', {})).projects.map(({ botId, scope, projectBytes }) => ({ id: botId, project: scope, projectBytes })),
+      check: request => invoke('runtime.observer.check', request),
+      read: request => invoke('runtime.observer.read', request),
+    },
     shown: botId => invoke('execution.shown.read', { botId }),
     consumeShown: (botId, shown) => invoke('execution.shown.consume', { botId, shownId: shown.shownId }),
     appendAnswer: (botId, groupId, text) => messenger.appendInterimWords(botId, groupId, [{ text, kind: 'answer' }]),

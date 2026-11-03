@@ -202,7 +202,8 @@ test('each admitted image read uses its own parent save lease and rejects a bot 
 
 test('observer uses parent read/source and stores cursor before acknowledging, without project paths', async t => {
   const h = await setup(t, (method, params) => {
-    if (method === 'runtime.observer.changed') return { changed: true }
+    if (method === 'runtime.observer.snapshot') return { projects: [{ botId: h.fixture.bots[0].id, scope: 'tlop1.' + 'a'.repeat(64), projectBytes: 20 }] }
+    if (method === 'runtime.observer.check') return { schema: 'throughline.observer_check_result.v1', status: 'complete', results: params.projects.map(item => ({ id: item.id, status: 'changed', token: 'tloc1.new' })) }
     if (method === 'runtime.observer.read') {
       assert.equal(Object.hasOwn(params, 'project'), false)
       return { status: 'delta', throughCursor: 'cursor-new', page: { complete: true }, turns: [

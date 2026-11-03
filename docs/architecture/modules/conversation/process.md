@@ -71,7 +71,7 @@ execution.notify/turnはdeliveryId/target/message/images/queue/kinds。親はque
 
 子の`ConversationBackground.start(source,context,operation)`はPromiseと同期`.started`を返す。source取得もpending登録後に始め、親begin ACK→channel track登録→実check/report開始の順。dispatcherは同operationの`awaitStarted(context)`だけ待ってから元root/user.complete保存ACKを返し、他operationや報告の実完走待ちへ広げない。child drainは実Promiseを、channel drainは別のcompletion ACKを追う。checkとfinally end両失敗はAggregateErrorで保持する。親observer sourceのfinishは親register callerがbegin参照取得後又は未使用sourceのroot実終端で一回だけ行い、native deliveryのtransport finishを重ねない。
 
-runtime.image.readはimage/wireleaseIdから親の同operation gateを照合し既SeatRuntime.readImage固定25MiB、任意maxBytes0。runtime.room.contextは親固定roomsRootを補い既room-contextを呼ぶ。observer.changedは親で一度構築した既signature closureを維持し、observer.readは親freshBotのprojectへ既observer-read v2を呼ぶ。子snapshotへprojectを渡さない。wire返値は既consumerが読むstatus/cursor/page/turn本文だけへ正規化し、全文/opaque cursor/既statusを保つ。Throughline381 consumerは混ぜない。
+runtime.image.readはimage/wireleaseIdから親の同operation gateを照合し既SeatRuntime.readImage固定25MiB、任意maxBytes0。runtime.room.contextは親固定roomsRootを補い既room-contextを呼ぶ。observerは正式同配布採用main a960の公開check/readへ結合し旧signature/changedを戻さない。子表示snapshotへprojectを渡さず、pollの親snapshotはbotId/不透明scope/実projectのJSON byte幅だけを返す。同pollの親context identityへ実Bot object/projectを捕捉し、check/readの前後で現在object/projectを照合する。wire返値は既consumerが読むstatus/cursor/page/turn本文だけへ正規化し、全文/opaque cursor/既statusを保つ。
 
 history.listMessages/listRoomMessagesは同snapshotのAsyncIterable JSON値そのものを返し、runtimeだけが専用streamへencodeする。親onChunk(Buffer)はawaitで消費し一回既array/indexへ集成、usage cardsを合成してから既timelinePage/recentTimeline/fullTimelineを呼ぶ。子baseだけの先行pageや件数limit追加0、第二全件JSON文字列0。history.page/recent/exportは親facadeで既公開結果を組み立てる接点としてCONVERSATION_PARENT_METHODSへ分類し、actor ceilingは維持する。子wire root集合とprivate request/resultはlist2だけで、同public操作を子の先行pageへ置換しない。
 
@@ -112,3 +112,21 @@ history list2は既readerが作った一回のarray snapshotをAsyncIteratorへ�
 effectへ`execution.shown.read {botId}`→null又は`{shownId,words,endedAt}`、`execution.shown.consume {botId,shownId}`→`{applied:boolean}`を追加する。observer捕捉rootだけ許し、親が既shownInSelfTurnの実参照へ不透明shownIdを束縛する。子は回答append成功後にだけ同shownを消費し、親の新しい表示語を古いhandleで消さない。これは既表示語除去の接続で、observer cursorや確認値の新方式へ切替えない。
 
 eventは`{type:'changed',topics,all,botIds,roomIds}`だけで、本文/資格/任意recordを送らない。direct保存、Roomの初回/経過/callback保存、予定/定義更新後に送る。direct statusの当事者不明はall:trueで既履歴再照合へ。usage通知は従来どおり保存後の非transactional処理で、失敗を診断の固定codeへ送り記録を戻さない。親がeventを既SSE/安定facadeへ接続する。
+
+## 会話固有channel/entryの所有変更
+
+Root21:55分担により会話固有parent/child adapterと薄いentryはN102が所有。Epiの共通module-streams、input budget、background/delivery-release、C/locks/controllerをそのまま使用し複製しない。同lease/correlationで複数の順次・同時rootを許し、各RPCの数値封筒idと親captured method/authorityを個別に保持する。reverse effect/eventの封筒sourceは元RPC id、wire root/callback context自体は既4/5fieldのまま。同operationIdだけで別methodの権限へ広げない。
+
+親optionsのconversationLease/capturedAuthority/operationContext/admissionCheckは同identityで親に保持し、onEffectへconversationDeliveryを加える。native前registerDelivery/delivery-release、report derive、observer source、背景runBackground/deferredとACKをadapterが結合し、transportのclaimNative/finishは重ねない。root8のslotはuser.turnの実acceptedで解放、元RPC completion/保存参照は完走まで残す。historyは別streamをawait onChunk(Buffer)へ送る。独立control capabilityをdata credit待ちにせず、切断/期限で実completionをresolveしない。
+
+親channelのdrainIncomingは受信済effect/event/controlとhistory onChunkの実処理終端だけを待つ。切断ではbyte readerを閉じるが、既発行の親作用や投影commitが戻るまで同Promiseを保持する。outgoing RPCのreaped待ちcompletionは含めない。controllerは旧OS/IPC/pipe終端→drainIncoming→reaped→次子restore/readyの順でつなぎ、切断やcaller期限を作用完了へ置換しない。
+
+stream本文はcallのaccepted/返値metadataのresult-readyを受けてから送る。実advanced IPCがmetadataとopenを同じbatchへ渡す場合にも登録前の本文を落とさない。通常stream4とroot8は別に待機し、callback/continuation枠を保持する。control返値は独立control capabilityの閉DTOとして返し、本文creditを待たない。
+
+## 正式public observerと既保存の合成
+
+`createConversationObserverParentEffects({snapshot,current,check,read})`は親だけの窓口。snapshot(context)→既同operationから実Bot配列、current(botId,context)→現在実Bot、check/readは既public CLI runnerのclosureを注入する。親channelは同rootの非native effect contextを同identityで保持し、factoryはWeakMapで同poll/generationへ実object/projectを束縛する。子は実path/CLI引数を指定できない。runtime.observer.snapshot {}→{projects:[{botId,scope,projectBytes}]}、check {projects:[{id,scope,after}]}→既公開check結果、read {botId,scope,afterCursor?,throughCursor?,pageToken?}→既v2消費fieldだけ。
+
+scopeはprojectのSHA256不透明値で、記録元やcursor/tokenの新方式ではない。旧state.projectの実pathは同hashで照合してcursor/token/seenを保持し、完読時だけ不透明scopeへ束縛する。通常親SelfTurnsもraw/opaque両projectを照合できる。同schema v1内のproject関連付けでありready中の保存/修理は0。新scope不一致は既project変更と同じ初回snapshot扱い。JSON path幅はBuffer.byteLength(JSON.stringify(projectPath),'utf8')を使い、子が既256/1MiBと同じchunkを組み立てる。
+
+main381のsingleflight、pendingを先にreadして同巡checkから除外、chunk全結果検証後の逐次read/save、先行chunk保存の維持、token/cursor/projectの失敗巻戻し、stopで実runner終端まで待つ意味を維持する。dispatcher quiesceは既pollをabortせず実終端まで待つ。shownは親readをawaitし、append成功後だけopaque shownIdをconsumeする。背景begin ACK/実completionは0040500の同source追跡を保持する。全chunk先行走査/旧mtime fallback/別pollのscope借用/任意project proxyは0。

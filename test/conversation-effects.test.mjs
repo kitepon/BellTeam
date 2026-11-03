@@ -4,6 +4,7 @@ import { CONVERSATION_EFFECT_METHODS, validateConversationEffect, validateConver
   normalizeConversationObserverResult } from '../src/conversation/effects.mjs'
 
 const context = { generation: 'generation-a', operationId: 'operation-a', actor: { kind: 'observer' }, continuation: false }
+const scope = 'tlop1.' + 'a'.repeat(64)
 const queue = { context: 'direct', contextId: 'bot-a', groupId: 'delivery-a', from: 'user', fromName: 'Owner', target: 'bot-a', message: 'Q' }
 const native = { deliveryId: 'delivery-a', target: 'bot-a', message: 'Q', images: [], queue, kinds: ['delivery.status', 'delivery.answer'] }
 const samples = {
@@ -20,8 +21,9 @@ const samples = {
   'assets.endSave': [{ leaseId: 'lease-a' }, { requested: true }],
   'runtime.image.read': [{ image: { path: '/parent/validated/image.png' }, leaseId: 'lease-a' }, { data: 'iVBORw0KGgo=' }],
   'runtime.room.context': [{ roomId: 'room-a', messageId: 'message-a', speaker: 'A', text: 'Q' }, { turns: [{ speaker: 'A', text: 'Q' }] }],
-  'runtime.observer.changed': [{}, { changed: false }],
-  'runtime.observer.read': [{ botId: 'bot-a', afterCursor: null }, { status: 'projection_pending', throughCursor: null, turns: [] }],
+  'runtime.observer.snapshot': [{}, { projects: [{ botId: 'bot-a', scope, projectBytes: 20 }] }],
+  'runtime.observer.check': [{ projects: [{ id: 'bot-a', scope, after: null }] }, { schema: 'throughline.observer_check_result.v1', status: 'complete', results: [{ id: 'bot-a', status: 'changed', token: 'tloc1.token' }] }],
+  'runtime.observer.read': [{ botId: 'bot-a', scope, afterCursor: null }, { status: 'projection_pending', throughCursor: null, turns: [] }],
   'execution.notify': [native, { delivery: 'running' }],
   'execution.turn': [{ ...native, kinds: ['delivery.status', 'delivery.words', 'user.complete'] }, { delivery: 'steered' }],
   'execution.background.begin': [{ deliveryId: 'delivery-a', target: 'bot-a' }, { backgroundId: 'background-a' }],
