@@ -414,8 +414,8 @@ export class AitermTransport {
     return this.activity.configurationChanges.track(bot.id, previous.then(run, run), { clearOnFailure: false })
   }
 
-  turn(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, admissionCheck = () => {} } = {}) {
-    return this.submit(bot, message, { images, info: queue, onStatus, onInterim, admissionCheck, transcript: true })
+  turn(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, admissionCheck = () => {}, membersLease } = {}) {
+    return this.submit(bot, message, { images, info: queue, onStatus, onInterim, admissionCheck, transcript: true, membersLease })
   }
 
   // BellTeamが追っているターンの合間の言葉を、完了まで数秒おきにAitermから受け取る。
@@ -483,8 +483,8 @@ export class AitermTransport {
 
   // 通知で始まったターンの最後の回答は誰にも配送しない。onAnswerがあれば、そのBotの会話画面へ出すために渡す。
   // onTurnEndは、差し込みではなく新しく始まったターンが終わった時だけ、その時間の幅を渡して呼ぶ。
-  async notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution } = {}) {
-    const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution })
+  async notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease } = {}) {
+    const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease })
     completion.catch(error => process.stderr.write(`BellTeam Aiterm delivery error: ${error.stack ?? error.message}\n`))
     return completion.accepted
   }
@@ -503,7 +503,8 @@ export class AitermTransport {
 
   // 一回の配送。受付（Aitermの受理）までと、受理したターンの終わりまでを一つのjobとして進める。
   // 続けてよいかはjobの停止結論と席の状態に聞き、停止の結論を決めるのはjob（DeliveryJob）だけ。
-  submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null } = {}) {
+  submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease } = {}) {
+    if (membersLease) this.membersAdmission.assertLease(membersLease)
     const job = new DeliveryJob({
       id: this.activeId(), bot, startedAt: this.now(),
       executionSource: executionSource ? structuredClone(executionSource) : null,
@@ -515,6 +516,7 @@ export class AitermTransport {
       job.assertNotStopped()
       this.assertWorkAllowed()
       admissionCheck()
+      if (membersLease) this.membersAdmission.assertLease(membersLease)
       this.requireSessionKnown(bot.id)
     }
     const parent = this.activity.latest(bot.id)
@@ -523,6 +525,9 @@ export class AitermTransport {
     const accepted = new Promise((resolve, reject) => { accept = resolve; rejectAcceptance = reject })
     accepted.catch(() => {})
     let acknowledged = false
+    let endAdmission
+    const admissionCompletion = new Promise(resolve => { endAdmission = resolve })
+    if (membersLease) this.membersAdmission.trackCompletion(membersLease, admissionCompletion)
     const completion = (async () => {
       let delivery
       // 差し込んだ文を取ったターンの終わりまで追ったか。追えなかった差し込みの画像は、次のターンまで残す。
@@ -545,7 +550,7 @@ export class AitermTransport {
         this.activity.admit(job)
         await this.requireAccess({ setupTest, botId: bot.id })
         check()
-        delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job })
+        delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job, membersLease })
         // 受理した。送信中に届いた停止の結果があれば、この受理と照らす。
         job.receipt = delivery.receipt
         await job.applyStopResult(job.executionStopResult)
@@ -557,6 +562,7 @@ export class AitermTransport {
         await job.checkpoint()
         acknowledged = true
         accept({ delivery: steered ? 'steered' : 'running' })
+        endAdmission()
         // 待つ手がかりを返さない差し込み（Aiterm 0.59.1まで）は、同じ席のjobの終わりを待つ。無ければ、終わりを知る道が無い。
         if (!followed) {
           if (parent) await parent.completion
@@ -604,13 +610,18 @@ export class AitermTransport {
         await onStatus?.(job.stopped ? 'stopped' : 'failed', error, ...tracking)
         throw error
       } finally {
-        if (!this.retainUntrackedImages(job, delivery, followed, parent))
-          await this.removeTemporaryImages(delivery?.imageFiles)
-        this.activity.release(job)
+        try {
+          if (!this.retainUntrackedImages(job, delivery, followed, parent))
+            await this.removeTemporaryImages(delivery?.imageFiles)
+        } finally {
+          this.activity.release(job)
+          endAdmission()
+        }
       }
     })()
     job.completion = completion
     completion.accepted = accepted
+    completion.admissionCompletion = admissionCompletion
     return completion
   }
 
@@ -786,11 +797,11 @@ export class AitermTransport {
     return delivery
   }
 
-  async dispatch(bot, message, images, { setupTest = false, check = () => {}, executionJob } = {}) {
+  async dispatch(bot, message, images, { setupTest = false, check = () => {}, executionJob, membersLease } = {}) {
     const reminder = setupTest ? '' : await taskSettingsReminder()
     if (reminder) message += `\n\n<bellteam_task_settings>\n${reminder}\n</bellteam_task_settings>`
     if (this.executionBridge) {
-      const delivery = await dispatchExecution(this.seat, executionJob, bot, message, images, { setupTest, check })
+      const delivery = await dispatchExecution(this.seat, executionJob, bot, message, images, { setupTest, check, membersLease })
       return { ...delivery, steer: delivery.receipt.mode === 'agent_steer' ? steerFollow(delivery.result) : null }
     }
     check()
@@ -811,15 +822,15 @@ export class AitermTransport {
         if (running && error.code !== 'AGENT_SESSION_REQUIRED') throw error
         // Aitermは画面が無い席も同じ符号で断る（0.52.0）。画面が残っている時だけが登録の消失。
         // 画面は残り登録だけ消えた席は、起動もできない。閉じてから起こし直し、同じ文を1回だけ送る。
-        session = await this.memberOperation(bot, async membersLease => {
+        session = await this.memberOperation(bot, async lease => {
           if (running) {
             process.stderr.write(`BellTeam Aiterm agent registration lost, restarting: ${bot.id}\n`)
             await this.changeSession(bot, 'pty_close', { session_id: session })
             await this.removeRetainedImages(bot.id)
           }
           check()
-          return this.wake(bot, { setupTest, membersLease })
-        })
+          return this.wake(bot, { setupTest, membersLease: lease })
+        }, { membersLease })
         check()
         result = await this.sendToSession(session, message, imageFiles)
       }

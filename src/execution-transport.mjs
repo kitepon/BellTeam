@@ -63,14 +63,14 @@ export async function reserveExecution({ observe, session, executionBridge }, jo
   job.executionWasPresent = observed.exists
 }
 
-export async function dispatchExecution(seat, job, bot, message, images, { setupTest, check }) {
+export async function dispatchExecution(seat, job, bot, message, images, { setupTest, check, membersLease }) {
   check()
   const imageFiles = await seat.imageFiles(images)
   try {
     check()
     const execution = job.execution
     let session = seat.session(bot)
-    if (!job.executionWasPresent) session = await seat.wake(bot, { setupTest, execution })
+    if (!job.executionWasPresent) session = await seat.wake(bot, { setupTest, execution, membersLease })
     check()
     const result = await execution.invoke('pty_send', { session_id: session, text: message, require_agent: true,
       ...(imageFiles.length ? { image: imageFiles.map(file => file.path) } : {}) }, { meta: { 'aiterm/caller': 'BellTeam' } })

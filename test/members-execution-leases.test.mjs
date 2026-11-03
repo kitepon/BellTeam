@@ -126,3 +126,50 @@ test('command registration ends its root lease without waiting for the command t
   command.resolve({ code: 0, stdout: '', stderr: '' }); await completion
   assert.equal(scheduler.commandJobs.size, 0); assert.deepEqual(results, [])
 })
+
+test('claim lease survives quiesce through notify wake persistence and acceptance, without waiting for AI completion', async t => {
+  const f = await fixture(t), configuration = deferred(), turnDone = deferred(), callbacks = []
+  f.transport.activity.configurationChanges.set(f.bot.id, configuration.promise)
+  let sends = 0
+  f.transport.client.call = async name => {
+    f.calls.push(name)
+    if (name === 'pty_send' && ++sends === 1) throw Object.assign(Error('missing'), { code: 'AGENT_SESSION_REQUIRED' })
+    if (name === 'pty_list') return { content: [{ type: 'text', text: '(セッション無し)' }] }
+    if (name === 'agent_launch') return { structuredContent: { session_id: f.bot.session } }
+    return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: '/synthetic', args: [] } } }
+  }
+  f.transport.updateSession = async (id, session, context) => { callbacks.push(context.membersLease); f.gate.assertLease(context.membersLease) }
+  f.transport.waitProcess = () => turnDone.promise
+  const lease = f.gate.enter(), notify = f.transport.notify(f.bot, 'synthetic', { membersLease: lease })
+  f.gate.finish(lease)
+  const ticket = f.gate.close(); f.gate.assertLease(lease)
+  configuration.resolve()
+  assert.equal((await notify).delivery, 'running')
+  await f.gate.drain(ticket)
+  assert.deepEqual(callbacks, [lease])
+  assert.equal(f.transport.jobs.size, 1, 'AI completion does not hold module drain')
+  const job = [...f.transport.jobs][0]
+  assert.equal(Object.hasOwn(job.info, 'membersLease'), false)
+  turnDone.resolve({ outcome: 'done' }); await job.completion
+})
+
+test('pre-accept failure holds the claim lease through the failed-status persistence callback', async t => {
+  const f = await fixture(t), persisting = deferred(), entered = deferred()
+  const original = Object.assign(Error('synthetic unknown send'), { mcp_request: { phase: 'call', tool: 'pty_send', outcome: 'unknown' } })
+  f.transport.client.call = async () => { throw original }
+  const lease = f.gate.enter()
+  const completion = f.transport.submit(f.bot, 'synthetic', { membersLease: lease,
+    onStatus: async status => { assert.equal(status, 'failed'); entered.resolve(); await persisting.promise } })
+  const failed = completion.catch(error => error)
+  f.gate.finish(lease); const ticket = f.gate.close()
+  await entered.promise
+  await assert.rejects(completion.accepted, error => error === original)
+  f.gate.assertLease(lease)
+  persisting.resolve(); assert.equal(await failed, original); await f.gate.drain(ticket)
+})
+
+test('ended lease is rejected before job registration', async t => {
+  const f = await fixture(t), lease = f.gate.enter(); f.gate.finish(lease)
+  assert.throws(() => f.transport.submit(f.bot, 'synthetic', { membersLease: lease }), { code: 'MEMBERS_NOT_ACCEPTED' })
+  assert.equal(f.transport.jobs.size, 0); assert.deepEqual(f.calls, [])
+})
