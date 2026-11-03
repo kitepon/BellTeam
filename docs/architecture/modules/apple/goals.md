@@ -2,14 +2,14 @@
 
 [全体図](overview.md) / [会話](conversation.md) / [共通同期](state-and-sync.md) / [試験](tests.md)。予定は[予定一覧](schedule-list.md)と[全体図](overview.md)を参照。
 
-調査source：HEAD `afda9477bba4aaa7c8a6905100d3bacf26e47c90`（detached）。`ios/BellBot/BellBot/Views/GoalsView.swift`を静的に読んだ結果。サーバー内部は扱わない。
+調査source：HEAD `afda9477bba4aaa7c8a6905100d3bacf26e47c90`（detached）。goal実装を静的に読んだ結果。PR5で値型を`Core/GoalModels.swift`、取得・変更状態を`Core/GoalViewModel.swift`へ移し、画面は`Views/GoalsView.swift`に残した。以下の所在は移動後を示す。サーバー内部は扱わない。
 
 ## 状態・取得・画面
 
 ```mermaid
 flowchart TD
-  Page["GoalsView<br/>独立したGoalViewModel"] --> List["GET /api/goals"]
-  Chat["Bot会話のChatGoalBar<br/>独立したGoalViewModel"] --> Detail["GET /api/bots/:id/goal"]
+  Page["GoalsView（Views/GoalsView.swift）<br/>独立したGoalViewModel（Core/GoalViewModel.swift）"] --> List["GET /api/goals"]
+  Chat["Bot会話のChatGoalBar（Views/GoalsView.swift）<br/>独立したGoalViewModel（Core/GoalViewModel.swift）"] --> Detail["GET /api/bots/:id/goal"]
   List --> Model["snapshots / loaded / loading<br/>mutating / needsRefresh / error"]
   Detail --> Model
   Model --> Cards["GoalCard<br/>capabilityと現在状態から操作を表示"]
@@ -29,9 +29,11 @@ flowchart TD
 | 更新契機 | 一覧はtab task・active復帰（tab=3）・eventRevision（tab=3）・pull/手動更新。chatはbotId task・active復帰・active時eventRevision・手動更新。GoalViewModel.load自身にはscene検査がない。専用goal topic購読はない |
 | 診断 | GoalLoadCallContextはtrigger、viewPhase、連続時計、AppStore診断snapshotを順に採る。同時の原子的観測とは扱わない |
 
-根拠：[GoalForegroundLoad](../../../../ios/BellBot/BellBot/Views/GoalsView.swift#L28)、[GoalViewModel](../../../../ios/BellBot/BellBot/Views/GoalsView.swift#L343)、[GoalsView](../../../../ios/BellBot/BellBot/Views/GoalsView.swift#L464)、[ChatGoalBar](../../../../ios/BellBot/BellBot/Views/GoalsView.swift#L602)。
+根拠：[GoalLoadCallContext](../../../../ios/BellBot/BellBot/Core/GoalViewModel.swift#L4)、[GoalForegroundLoad](../../../../ios/BellBot/BellBot/Core/GoalViewModel.swift#L28)、[GoalViewModel](../../../../ios/BellBot/BellBot/Core/GoalViewModel.swift#L89)、[GoalsView](../../../../ios/BellBot/BellBot/Views/GoalsView.swift#L11)、[ChatGoalBar](../../../../ios/BellBot/BellBot/Views/GoalsView.swift#L149)。
 
 ## 応答の型と操作可否
+
+値型16個は`Core/GoalModels.swift:3–248`に置く。[GoalSnapshot](../../../../ios/BellBot/BellBot/Core/GoalModels.swift#L236)、[NativeGoal](../../../../ios/BellBot/BellBot/Core/GoalModels.swift#L145)、[GrokCurrentStatus](../../../../ios/BellBot/BellBot/Core/GoalModels.swift#L64)が応答の解釈と表示用算出値を持つ。通信専用の応答・要求・結果型とGoalViewErrorは`Core/GoalViewModel.swift:57–86`内のprivate型のまま。
 
 | 応答 | Appleが解釈するもの |
 | --- | --- |
@@ -60,7 +62,7 @@ flowchart TD
   Read -->|"失敗 / botId不一致"| Refresh["needsRefresh=true<br/>現在状態も確認不可"]
 ```
 
-[change](../../../../ios/BellBot/BellBot/Views/GoalsView.swift#L413)はdeferでmutating解除。変更POSTが通ってもsnapshot不一致ならneedsRefreshを立てる。GET照合で現在値が取れた時はreadbackAfterUnknownをthrowし、操作の成立をconfirmedへ読み替えない。カードrunはerrorへ、editor保存はerrorを残して閉じない。変更POSTの取消も認証以外の失敗catchを通り、同じGET照合を試みる。GET照合の失敗は認証エラーもこの内側catchでunknownOutcomeとなり、needsRefreshと診断へ返す。
+[change](../../../../ios/BellBot/BellBot/Core/GoalViewModel.swift#L159)はdeferでmutating解除。変更POSTが通ってもsnapshot不一致ならneedsRefreshを立てる。GET照合で現在値が取れた時はreadbackAfterUnknownをthrowし、操作の成立をconfirmedへ読み替えない。カードrunはerrorへ、editor保存はerrorを残して閉じない。変更POSTの取消も認証以外の失敗catchを通り、同じGET照合を試みる。GET照合の失敗は認証エラーもこの内側catchでunknownOutcomeとなり、needsRefreshと診断へ返す。
 
 | editor | 入力検査・保持 |
 | --- | --- |
@@ -73,8 +75,8 @@ flowchart TD
 
 ## 整理候補
 
-- **A-G1**：`ios/BellBot/BellBot/Views/GoalsView.swift:59,343,464,602,715,839`。応答型とharness別decode、通信状態、一覧、会話bar、カード、編集フォームを同じファイルに定義している。
-- **A-G2**：`ios/BellBot/BellBot/Views/GoalsView.swift:564,680`。一覧と会話barがそれぞれGoalEditorへsnapshots/loadingのBindingとchange callbackを接続し、独立したGoalViewModelを持つ。
+- **A-G1**：値型とharness別decodeは`ios/BellBot/BellBot/Core/GoalModels.swift:3`、取得・変更状態と通信専用型は`Core/GoalViewModel.swift:4`へ配置した。一覧・会話bar・カード・編集フォームは`Views/GoalsView.swift:11,149,262,386`に残す。
+- **A-G2**：`ios/BellBot/BellBot/Views/GoalsView.swift:111,227`。一覧と会話barがそれぞれGoalEditorへsnapshots/loadingのBindingとchange callbackを接続し、独立したGoalViewModelを持つ。
 
 ## 未調査
 

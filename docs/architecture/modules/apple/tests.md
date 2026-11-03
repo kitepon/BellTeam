@@ -309,6 +309,8 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 
 対象：通信・同期・診断・取消。補助型も同じファイルを読んだ。
 
+goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`testGoalTimeoutOrdersCallPhaseChangeAndRequestOnContinuousClock`）と、同`:28`のGoalForegroundLoad（下表のforeground/view taskの3件）に対応する。型の移動後も試験名・操作・assertは同じで、GoalViewModel.load/changeの直接試験を意味しない。
+
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
 | [testMessageAcknowledgementUsesExistingDirectAndRoomIDs](../../../../ios/BellBot/BellBotTests/NetworkRecoveryTests.swift#L10) | DMはdelivery_id、roomはidを受付IDへ、誤った種別はthrow |
@@ -500,6 +502,8 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 ### GoalsUITests.swift
 
 対象：goal一覧と会話内goal。補助型も同じファイルを読んだ。
+
+画面は`Views/GoalsView.swift:11,149,262,386`のGoalsView・ChatGoalBar・GoalCard・GoalEditor、取得・変更状態は`Core/GoalViewModel.swift:89`、値型とharness別decodeは`Core/GoalModels.swift:3`に対応する。下表の20件と既存`test/helpers/goals-ui-server.mjs`のfixtureは変更しない。
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |

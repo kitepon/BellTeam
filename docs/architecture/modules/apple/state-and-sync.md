@@ -7,14 +7,17 @@
 | 所有者 | 保持するもの | 読込・更新の返却先 |
 | --- | --- | --- |
 | `Core/Models.swift`の値型 | Bot/Room/Owner/RecentMessage、TimelineMessage/QueueItem、予定、初回認証、追加機能、質問、秘密要求、API応答 | Decodableで応答を値にする。自分で通信・保存・再取得しない。preview、status、path等は入力値から算出 |
+| `Core/GoalModels.swift:3`の値型16個 | GoalSnapshot、capabilities・fieldCapabilities・binding、各harnessのgoalと履歴 | Decodableで応答を値にし、表示用の値を算出する。自分で通信・保存・再取得しない |
 | `AppStore`、MainActor | phase/serverURL/authMode、setup/featureSettings、bots/rooms/owner、workingBotIDs、AI全体停止、接続エラー、タブ/chatPath、削除待ちID | Publishedを画面が購読。宛先変更は`conversationChanges`、予定変更は`scheduleChanges`。全更新通知は`eventRevision` |
 | `AppStore`内の辞書 | 宛先別ConversationDraft、既存Bot編集draft、画像選択draft、会話の前回ページ | `draft(for:)`は同じ宛先に同じ参照を返す。文字入力はAppStoreのPublishedにしない。ページは世代が同じ応答だけ`remember` |
 | `BellAPI` | baseURL、専用URLSession、cookieStorage、JSONDecoder、diagnostics | HTTPを型付きの戻り値・Data・Errorでcallerへ返す。AppStoreや画面へ直接代入しない。SSEは`onEvent` callback |
-| 各画面 | 会話の履歴/pending送信/queue/カード、一覧の検索、編集フォーム、予定entries、GoalViewModel | HTTPの結果をローカル状態へ適用。共通一覧の更新はAppStoreへ返す。編集draftの例外は上の辞書 |
+| 各画面 | 会話の履歴/pending送信/queue/カード、一覧の検索、編集フォーム、予定entries、`Core/GoalViewModel.swift:89`のGoalViewModel | HTTPの結果をローカル状態へ適用。共通一覧の更新はAppStoreへ返す。編集draftの例外は上の辞書 |
 | `BillingStore` | 本体購読status、StoreKit entitlement/product/currentTransaction、照会・復元中、エラー | AppStoreが所有し、購読画面がObservedObjectで購読。権利変更callbackは通知登録へ |
 | `BellNotifications.shared` | APNs token、登録API、署名取引、表示中会話、通知route、登録状況 | 通知タップはAppStoreのonOpen、OS delegateはsingletonへ返す |
 
 下書きは`Core/ConversationDraft.swift:6`の`ConversationDraft`、添付値は同`:51`の`PendingImage`（`init(data:)`は`:56`、`init(fileURL:)`は`:63`）に置く。入力欄は`Views/ConversationInput.swift:5`の`ConversationInput`だけがdraftを観測し、同`:69`のprivateな`MessageInput`と`:135`の`MessageTextView`がUIKitの編集を扱う。会話画像の表示とcacheは`Views/ConversationImages.swift`に置く。状態の所有と寿命は変えない。
+
+goalのGoalLoadCallContextとGoalForegroundLoadは`Core/GoalViewModel.swift:4,28`、通信専用型とGoalViewErrorは同`:57–86`に置く。`Views/GoalsView.swift:14,153`のStateObjectは一覧と会話barで独立したGoalViewModelを生成し、同`:15,154`のStateがGoalForegroundLoadを保持する。状態の生成位置と寿命は変えない。
 
 ## 初回読込と共通一覧の適用
 
