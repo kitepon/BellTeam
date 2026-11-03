@@ -66,6 +66,24 @@ streamの役割は巨大な画像を全量JSONへ載せないこと。通常の`
 
 CLI登録・共有設定・hookの正本は[runtimeの登録図](cli-registration.md)。登録更新の所有と失敗の契約も同図で管理する。
 
+## 設定保存へ管理済みstateだけを渡す
+
+```mermaid
+flowchart LR
+  Normal[既normal entry / FD3共有保守lock・FD4排他state lock] --> Anchor[runtime: acquireConfigurationStateAnchor]
+  Mount[独立state RW mount / root所有control RO mount] --> Anchor
+  Anchor --> Identity[正準path・owner・権限・control/state同一inode]
+  Identity --> Assembly[integration: application-services]
+  Assembly --> Store[execution: ConfigurationIntents trustedAnchor]
+  Store --> Validate[毎回anchor identity再検査 / 配下0700・0600]
+```
+
+`acquireConfigurationStateAnchor(root)`は既`lifecycle`窓口の固定state条件を公開する。`root === /srv/bellteam`の通常本体だけ、実効/実UID・GID1001、FD3/4のinodeと本人PIDのFLOCK、root0:1001/0750の保守root、state1001:1001/非group-other write、全固定pathのrealpath一致、保守root内stateと固定stateの同一dev/ino、実mountinfoのcontrol RO/state RWを確認し、frozen `{path,uid,dev,ino}`を返す。上位`/`・`/srv`・`/run`はroot所有かつ非group-other write、`/srv/bellteam`は既1000:1000/0711のまま。独立mountのleafは席所有の親からrenameできず、controlのroot所有親とnormal/maintenance lockが管理済み実体を束縛する。実装は[configuration-state-anchor.mjs](../../../../src/configuration-state-anchor.mjs)。
+
+組立ては本値を`new ConfigurationIntents(fixedIntentsRoot,{trustedAnchor})`へ渡す。executionは毎回anchorのrealpath/owner/mode/dev/inoと配下のprivate0700/file0600/symlink/wrongownerを検査する。固定root以外はundefinedで従来の全祖先厳格検査を使う。production条件不成立は`CONFIGURATION_STORAGE_INVALID`で公開受付より前に失敗し、広いUID1000許可や自動chmod/chownへ変えない。パス/UID/anchorをHTTP/MCP入力やenv設定へ追加しない。
+
+信頼するのは既管理mountと正常本体の同UID writerであり、root/Host/Docker管理者や悪意ある同UID1001から隔離する契約ではない。state0711は既call-bridge等の到達に必要なまま保持し、configuration-intents/Botの0700と対象file0600をconsumerが所有する。保存/prepare/pending/原要求終端と診断の正本は[execution](../execution/configuration-requests.md)、既mount/移行条件は[recovery](recovery.md)。新しい保存サービスや本番権限操作を追加しない。
+
 ## Throughline待機の接続案
 
 状態：N102のconsumer切替と同時に行う分離案。現行の`SeatRuntime.throughlineChanged`と`run-seat-runtime`の`throughline-signature`はまだ残っている。これらのDB/WALのmtime参照を公開待機へ移し、両側のcaller/注入を合わせてから除く。

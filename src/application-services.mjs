@@ -8,6 +8,7 @@ import { BotAdministration } from './bot-administration.mjs'
 import { BotGoals } from './bot-goals.mjs'
 import { AitermClient } from './aiterm-client.mjs'
 import { ConfigurationIntents } from './configuration-intents.mjs'
+import { acquireConfigurationStateAnchor } from './configuration-state-anchor.mjs'
 import { ConfigurationRequests } from './configuration-requests.mjs'
 import { createManagedTransport } from './aiterm-transport.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
@@ -36,6 +37,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   let members = null, memory, rooms, assets, updateCenter
   const membersAdmission = new MembersAdmission()
   try {
+  const trustedAnchor = acquireConfigurationStateAnchor(root)
   const membersAuthorization = createMembersOwnerAuthorization()
   const subscriptions = new Subscriptions({
     path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'),
@@ -78,7 +80,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   })
   await aiControl.initialize()
   const executionClient = client ?? new AitermClient({ ...aiterm, ...(seatRuntime ? { seatProject: root } : {}) })
-  const configurationRequests = new ConfigurationRequests({ client: executionClient, intents: new ConfigurationIntents(join(root, 'state/configuration-intents')) })
+  const configurationRequests = new ConfigurationRequests({ client: executionClient, intents: new ConfigurationIntents(join(root, 'state/configuration-intents'), { trustedAnchor }) })
   const transport = createManagedTransport({
     membersAdmission,
     configurationRequests,
