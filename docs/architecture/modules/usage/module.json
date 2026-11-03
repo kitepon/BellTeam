@@ -54,6 +54,7 @@
     "src/usage/mcp-tools.mjs",
     "src/usage/notifications.mjs",
     "src/usage/notifications-dispatcher.mjs",
+    "src/usage/web-push-schema.mjs",
     "src/notifications-entry.mjs",
     "src/usage/olrw-auth-consumer.mjs"
   ]
