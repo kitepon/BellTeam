@@ -14,7 +14,7 @@ const intervalScheduleProperties = {
 export const botScheduleTools = [
   {
     name: 'set_schedule',
-    description: 'Botの自動実行予定を追加または更新する。一回はkind=onceとat、cron式はkind=cronとexpression、日おきはkind=interval_daysとintervalDays・startDate・time、時間帯内の時間おきはkind=interval_hoursとintervalHours・startHour・endHourを使う。実行内容はpromptかcommandのどちらか一方。AIを起こす必要のない作業（スクリプト実行など）はpromptでなくcommandにする。botId省略時は自分。',
+    description: 'Botの自動実行予定を追加または更新する。一回はkind=onceとat、cron式はkind=cronとexpression、日おきはkind=interval_daysとintervalDays・startDate・time、時間帯内の時間おきはkind=interval_hoursとintervalHours・startHour・endHourを使う。実行内容はpromptかcommandのどちらか一方。botId省略時は自分。',
     inputSchema: objectSchema({
       id: { type: 'string', description: '更新する予定ID。新規追加では省略する。' },
       name: { type: 'string', maxLength: 100 },

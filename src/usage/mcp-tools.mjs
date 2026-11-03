@@ -25,7 +25,7 @@ export function usageTools(objectSchema) {
     },
     {
       name: 'request_secret',
-      description: 'ユーザーへトークン・パスワードの専用入力カードを出す。秘密の値を引数やチャットへ書かない。登録・取消後に通知が届くので、このツールを待ち続けずターンを終える。値は利用者の永続領域へ保存され、通知には保存先だけが入る。',
+      description: 'ユーザーへトークン・パスワードの専用入力カードを出す。秘密の値をこの道具の引数へ書かない。登録・取消後に通知が届く。値は利用者の永続領域へ保存され、通知には保存先だけが入る。',
       inputSchema: objectSchema({
         toolId: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{0,63}$', description: '利用するツールのID（例: github）' },
         label: { type: 'string', minLength: 1, maxLength: 80, description: '入力する項目名（例: GitHubトークン）' },
@@ -35,7 +35,7 @@ export function usageTools(objectSchema) {
     },
     {
       name: 'get_secret_request',
-      description: '自分が依頼した秘密情報入力の状態と登録済みの保存先を確認する。値は返さない。保存先を利用するプログラムで読み、標準入力や認証APIへ渡す。cat等でツール出力へ表示しない。',
+      description: '自分が依頼した秘密情報入力の状態と登録済みの保存先を確認する。値は返さない。',
       inputSchema: objectSchema({ requestId: { type: 'string' } }, ['requestId']),
     },
     {
@@ -45,7 +45,7 @@ export function usageTools(objectSchema) {
     },
     {
       name: 'ask_owner',
-      description: 'オーナーに裁定や選択を求める時、選択肢のカードをオーナーとの会話画面へ出す。オーナーは選択肢を押すか、allowOtherがtrueなら文章で答える。答えは次のオーナーからのメッセージとして届くので、このツールを待ち続けずターンを終える。',
+      description: 'オーナーに裁定や選択を求める時、選択肢のカードをオーナーとの会話画面へ出す。オーナーは選択肢を押すか、allowOtherがtrueなら文章で答える。答えは次のオーナーからのメッセージとして届く。',
       inputSchema: objectSchema({
         question: { type: 'string', minLength: 1, maxLength: 2000, description: '尋ねること。判断に要る背景も短く書く。' },
         options: { type: 'array', minItems: 2, maxItems: 8, items: { type: 'string', minLength: 1, maxLength: 200 }, description: '選択肢。重複しない文で2〜8個。' },

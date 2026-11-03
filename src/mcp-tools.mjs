@@ -18,7 +18,7 @@ export const bellTeamTools = Object.freeze([
   ...memberReadTools,
   {
     name: 'remember',
-    description: '会話から残すべき事実、好み、方針、仕事、関係、思い出、成長を長期記憶へ保存する。scope省略時は自分だけのpersonal。BellTeam全体の内容だけsharedを指定する。',
+    description: '会話から残すべき事実、好み、方針、仕事、関係、思い出、成長を長期記憶へ保存する。scope省略時は自分だけのpersonal。sharedは全Botで共有される。',
     inputSchema: objectSchema({
       content: { type: 'string', minLength: 1, description: '記憶する内容' },
       kind: { type: 'string', enum: ['fact', 'preference', 'policy', 'task', 'config', 'incident', 'relationship', 'episode', 'growth'] },
@@ -66,7 +66,7 @@ export const bellTeamTools = Object.freeze([
   },
   {
     name: 'record_knowledge',
-    description: '再利用する調査、仕様、手順、設計知識をMarkdown置き場と検索索引へ同時登録する。scope省略時はpersonal。BellTeam全体の知識だけsharedを指定する。',
+    description: '再利用する調査、仕様、手順、設計知識をMarkdown置き場と検索索引へ同時登録する。scope省略時はpersonal。sharedは全Botで共有される。',
     inputSchema: objectSchema({
       title: { type: 'string', minLength: 1 },
       content: { type: 'string', minLength: 1 },
@@ -91,7 +91,7 @@ export const bellTeamTools = Object.freeze([
   },
   {
     name: 'set_fast_mode',
-    description: 'BotのCLIのファストモード（応答を速くする設定。利用枠を多く使い、Claudeでは別払いになる）を切り替える。通常の進め方を基本にし、ファストを優先しない。複数のやり取りやタスクが重なって対応が大変な時は、必要性を自分で判断して有効にしてよい。単独の作業に戻った時、返答待ちや軽い確認だけになった時は無効へ戻す。全員一律の有効化や、枠を消費するためだけの作業・繰り返し確認はしない。botId省略時は自分。稼働中なら現在の作業の後に適用する。CLIやモデルが対応していない時と、そのCLIのアカウントで使えない時（Claudeは別払いが有効な時だけ使える）は、保存せずに理由を返して断る。適用できなかった時は元の値へ戻す。今の値はget_selfのfastModeで確かめる。',
+    description: 'BotのCLIのファストモード（応答を速くする設定。利用枠を多く使い、Claudeでは別払いになる）を切り替える。botId省略時は自分。稼働中なら現在の作業の後に適用する。CLIやモデルが対応していない時と、そのCLIのアカウントで使えない時（Claudeは別払いが有効な時だけ使える）は、保存せずに理由を返して断る。適用できなかった時は元の値へ戻す。今の値はget_selfのfastModeで確かめる。',
     inputSchema: objectSchema({
       enabled: { type: 'boolean', description: 'trueで有効、falseで無効（通常の速度）。' },
       botId: { type: 'string', minLength: 1 },
