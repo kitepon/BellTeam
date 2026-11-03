@@ -327,3 +327,21 @@ profile一覧は単一巨大resultを作らず、fresh snapshotのreceipt確認�
 初期専用Owner grantが未確認なので固定内部proxyはMEMBERS_OWNER_GRANT_UNKNOWNで拒否する。通常席MCPのOwner更新権限を増やさず、任意body/role/comment/CLI JSONからgrantを作らない。Update inventoryは同controllerのcurrent/availableを読むが、共通module/all耐久executorは未接続のため理由付き無効を維持する。
 
 同じ通常sourceの新tracked設定consumerには、同execution clientと固定state/configuration-intentsを注入し、公開受付前に保存済みpendingを復元する。親UID1001/0700/0600・非上書き・TTL無しを保ち、membersのwriterや交換cleanupへ移さない。親gateとconfigurationRequestsを同transportへ同時注入する。正式0.63.6 pinと同source-imageで配布し、旧席の不明解除や本番回復は別工程。原要求の公開契約は[execution正本](../execution/configuration-requests.md)。
+
+
+## 正式module catalogの読取接続
+
+```mermaid
+flowchart LR
+  Assembly[同createContainerUpdateClient一実体] --> Container[既container plan-start-get adapter]
+  Assembly --> Modules[閉集合module catalog projection]
+  Host[Host検証済selection / native platform / 署名・期限・失効] --> Modules
+  Modules --> Check[component-source-artifactと固定compatibility検証]
+  Check --> Inventory[共通inventory published-publication-comparison]
+  Inventory --> UI[既Owner GETとSSE再取得]
+  Modules -. 耐久executor未接続 .-> Disabled[module-all計画は無効503]
+```
+
+Hostの同read-only catalog窓口からweb-gateway/notifications/membersの正式選択だけを読む。発行元/署名/期限/失効はHost readerの責任で、共通側は閉じた選択schema・component/source/digest/immutable archive URL・platform・互換metadataを検証し公開JSONへ写像する。membersは厳密5keyと作者6値exact、旧moduleは厳密4keyを保持する。archiveの実bytesや現state検査をこのmetadata比較で代用しない。
+
+source不明/current nullはunknown、正式公開未供給/取得不能はpublished null、署名catalogの受入と直近publication確認失敗を分離する。各componentの障害は他moduleの正式情報や実availabilityを消さない。比較可能なbuiltin source又はrelease digestの一致だけをup_to_dateとし、module executor/all coordinatorの未接続は理由付きcapability falseのまま。GETは実行plan/worker/署名を作らない。既containerの耐久plan/start/getと同Host clientを共有し、controllerを複製しない。
