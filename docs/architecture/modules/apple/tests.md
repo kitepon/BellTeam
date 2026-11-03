@@ -148,18 +148,20 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testAntigravityModelAndEffortSurviveSaveReadback](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L115) | Antigravityの不透明なmodel/effortを保存読戻しで保持 |
 | [testFailureBeforeSavingReportsDifferentWithoutResendingPATCH](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L130) | 保存前切断はdifferent、元保存値とPATCH1回を確認 |
 | [testUnavailableReadLeavesResultUnconfirmedWithoutResendingPATCH](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L140) | 保存後GET不能はunconfirmedと元URLError |
-| [testTransportFailureWaitsForHandledOutcome](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L148) | 通常輸送の失敗だけでは診断を報告しない |
-| [testProtectedDecodeFailureWaitsForHandledOutcome](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L163) | 秘密応答decode失敗だけでは診断を報告しない |
-| [testConfirmedSaveIsReferenceWithEvidenceAndNoRepeatedWrite](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L178) | 読戻し確認成功はinfo/無影響/回復済みを1件、私的本文無し |
-| [testTimedOutWriteAlsoChecksTheSavedContent](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L194) | PATCH timeoutもGETで保存照合 |
-| [testTextSavePreservesAnAvatarChangedOnAnotherDevice](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L201) | 文面保存は別端末が変えた画像3項目を保持 |
-| [testExplicitConfirmationAfterReconnectDoesNotWriteAgain](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L216) | 復帰後の明示確認はGETだけ、PATCHを増やさない |
-| [testAuthenticationFailureDuringConfirmationStillRequiresLogin](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L226) | 保存照合GETの401を認証エラーとして返す |
-| [testFastModeIsSentOnlyWhenChanged](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L235) | fastModeは変更時だけencode、true/false双方を確認 |
-| [testEditorInputSurvivesReauthenticationAndExplicitSignOutClearsIt](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L254) | 編集/画像draftは再認証を保持、logoutで消去、編集だけではAppStore更新通知無し |
-| [testDefaultModelAndListedModelUseTheirFastCapability](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L367) | 既定/一覧モデルのfast可否と一覧外モデルを区別 |
-| [testAccountUnavailableReasonIsShown](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L381) | アカウントのfast利用不能理由を表示用に返す |
-| [testMissingDefaultModelCannotBeEnabled](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L388) | 既定モデルが一覧に無ければfastを許可しない |
+| [testMissingBotReadLeavesDecodingPathUnconfirmedWithoutResendingPATCH](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L148) | 保存後の照合GETが `bot` を欠くと unconfirmed(DecodingError.keyNotFound)。欠落キー `bot` と空のcoding pathを保持し、method列は PATCH→GET だけ |
+| [testInvalidBotTypeReadLeavesDecodingPathUnconfirmedWithoutResendingPATCH](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L161) | 保存後の照合GETの `bot` が型不正なら unconfirmed(DecodingError.typeMismatch)。coding path `["bot"]` を保持し、method列は PATCH→GET だけ |
+| [testTransportFailureWaitsForHandledOutcome](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L174) | 通常輸送の失敗だけでは診断を報告しない |
+| [testProtectedDecodeFailureWaitsForHandledOutcome](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L189) | 秘密応答decode失敗だけでは診断を報告しない |
+| [testConfirmedSaveIsReferenceWithEvidenceAndNoRepeatedWrite](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L204) | 読戻し確認成功はinfo/無影響/回復済みを1件、私的本文無し |
+| [testTimedOutWriteAlsoChecksTheSavedContent](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L220) | PATCH timeoutもGETで保存照合 |
+| [testTextSavePreservesAnAvatarChangedOnAnotherDevice](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L227) | 文面保存は別端末が変えた画像3項目を保持 |
+| [testExplicitConfirmationAfterReconnectDoesNotWriteAgain](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L242) | 復帰後の明示確認はGETだけ、PATCHを増やさない |
+| [testAuthenticationFailureDuringConfirmationStillRequiresLogin](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L252) | 保存照合GETの401を認証エラーとして返す |
+| [testFastModeIsSentOnlyWhenChanged](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L261) | fastModeは変更時だけencode、true/false双方を確認 |
+| [testEditorInputSurvivesReauthenticationAndExplicitSignOutClearsIt](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L280) | 編集/画像draftは再認証を保持、logoutで消去、編集だけではAppStore更新通知無し |
+| [testDefaultModelAndListedModelUseTheirFastCapability](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L395) | 既定/一覧モデルのfast可否と一覧外モデルを区別 |
+| [testAccountUnavailableReasonIsShown](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L409) | アカウントのfast利用不能理由を表示用に返す |
+| [testMissingDefaultModelCannotBeEnabled](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L416) | 既定モデルが一覧に無ければfastを許可しない |
 
 ### BotStopTests.swift
 
