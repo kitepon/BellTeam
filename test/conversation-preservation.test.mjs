@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
-import { appendFile, mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { execFileSync, spawn } from 'node:child_process'
+import { appendFile, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -9,6 +9,53 @@ import { createConversationPreservationFixture } from './helpers/conversation-pr
 
 const appRoot = process.env.CONVERSATION_FIXTURE_APP_ROOT ?? fileURLToPath(new URL('../', import.meta.url))
 const load = path => import(pathToFileURL(join(appRoot, path)))
+
+test('seed and six-file fingerprint work as UID1001 below a UID1000 mode0711 managed root', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'conversation-managed-'))
+  const child = String.raw`
+    import assert from 'node:assert/strict'
+    import { readFile, readdir, stat, writeFile } from 'node:fs/promises'
+    import { join } from 'node:path'
+    const [root, appRoot, helper] = process.argv.slice(1)
+    assert.equal(process.getuid(), 1001); assert.equal(process.getgid(), 1001)
+    await assert.rejects(readdir(root), { code: 'EACCES' })
+    await assert.rejects(writeFile(join(root, 'forbidden'), ''), { code: 'EACCES' })
+    const { createConversationPreservationFixture } = await import(helper)
+    const fixture = await createConversationPreservationFixture({ root, appRoot })
+    assert.equal(fixture.seedPath, join(root, 'state/conversation-fixture-seed.json'))
+    const snapshot = await fixture.snapshot(), seed = await stat(fixture.seedPath)
+    assert.equal(Object.keys(snapshot).length, 6)
+    assert(Object.hasOwn(snapshot, 'state/conversation-fixture-seed.json'))
+    assert(!Object.hasOwn(snapshot, 'conversation-fixture-seed.json'))
+    assert.equal(JSON.parse(await readFile(fixture.seedPath, 'utf8')).bots[0].id, fixture.botId)
+    assert.deepEqual([seed.uid, seed.gid, seed.mode & 0o777], [1001, 1001, 0o600])
+    console.log(JSON.stringify({ uid: process.getuid(), fingerprintFiles: 6, seedMode: seed.mode & 0o777 }))
+  `
+  const managed = String.raw`
+    import assert from 'node:assert/strict'
+    import { execFileSync } from 'node:child_process'
+    import { chmod, chown, mkdir, rm, stat } from 'node:fs/promises'
+    import { join } from 'node:path'
+    const [root, appRoot, helper, child] = process.argv.slice(1)
+    try {
+      await chown(root, 1000, 1000); await chmod(root, 0o711)
+      for (const name of ['logs', 'rooms', 'state']) {
+        const path = join(root, name)
+        await mkdir(path, { mode: 0o700 }); await chown(path, 1001, 1001)
+      }
+      const before = await stat(root, { bigint: true })
+      const output = execFileSync(process.execPath, ['--input-type=module', '-e', child, root, appRoot, helper],
+        { uid: 1001, gid: 1001, encoding: 'utf8', timeout: 10000 })
+      const after = await stat(root, { bigint: true })
+      assert.deepEqual([after.uid, after.gid, after.mode & 0o777n, after.mtimeNs], [1000n, 1000n, 0o711n, before.mtimeNs])
+      process.stdout.write(output)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  `
+  const args = ['--input-type=module', '-e', managed, root, appRoot, new URL('./helpers/conversation-preservation.mjs', import.meta.url).href, child]
+  const output = process.getuid() === 0 ? execFileSync(process.execPath, args, { encoding: 'utf8', timeout: 15000 })
+    : execFileSync('sudo', ['-n', process.execPath, ...args], { encoding: 'utf8', timeout: 15000 })
+  assert.deepEqual(JSON.parse(output), { uid: 1001, fingerprintFiles: 6, seedMode: 0o600 })
+})
 
 test('observer fixture delegates later native lifetime work with the same params and parent context', async t => {
   const root = await mkdtemp(join(tmpdir(), 'conversation-preservation-native-'))
@@ -39,7 +86,6 @@ test('business helper uses the default parent runtime across builtin, substitute
     load('src/feature-settings.mjs'), load('src/bot-registry.mjs'), load('src/owner-profile.mjs'), load('src/user-rules.mjs'),
     load('test/helpers/notifications-process.mjs'),
   ])
-  await mkdir(join(root, 'state'))
   const bots = new BotRegistry({ seedPath: fixture.seedPath, botsRoot: join(root, 'bots') })
   const settings = new FeatureSettings({ root, environment: {} }), ownerProfile = new OwnerProfile({ root }), userRules = new UserRules({ root })
   for (const value of [bots, settings, ownerProfile, userRules]) await value.initialize()
