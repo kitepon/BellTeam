@@ -8,6 +8,7 @@ import { updateExamples, validateUpdates, validateUpdateRequest } from '../src/u
 test('有限9状態/nullの正本を検証し、余分fieldと未検証completedを拒否する', () => {
   assert.equal(Object.keys(updateExamples).length, 9)
   for (const [name, value] of Object.entries(updateExamples)) assert.equal(validateUpdates(value).valid, true, name)
+  assert.throws(() => validateUpdateRequest('requestId', '11111111-1111-1111-8111-111111111111'), { code: 'UPDATE_INPUT_INVALID' })
   const invalid = structuredClone(updateExamples.verified_completed)
   invalid.operation.verification = 'pending'
   assert.equal(validateUpdates(invalid).valid, false)

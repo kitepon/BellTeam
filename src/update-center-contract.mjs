@@ -6,7 +6,7 @@ const nullable = schema => ({ anyOf: [schema, { type: 'null' }] })
 const list = items => ({ type: 'array', items })
 const enumeration = values => ({ type: 'string', enum: values })
 const date = { type: 'string', format: 'date-time' }
-const uuid = { type: 'string', format: 'uuid', pattern: '^[a-f0-9-]{36}$' }
+const uuid = { type: 'string', format: 'uuid', pattern: '^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$' }
 export const updateComponents = [
   ['container', 'BellTeam本体', '機能を動かす実行環境と、製品全体の構成。'],
   ['web-gateway', 'Web受付', '公開接続を受け付け、画面を届けます。'],
