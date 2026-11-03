@@ -603,7 +603,10 @@ export class AitermTransport {
     try {
       completion = await this.waitUntilDone(delivery.receipt, job.controller.signal)
     } catch (error) {
-      void reportExecutionFailure(this.reportError, job.bot.id, 'delivery_wait', error)
+      void reportExecutionFailure(this.reportError, job.bot.id, 'delivery_wait', error, {
+        jobId: job.id, groupId: job.info?.groupId, stopRequested: job.stopRequested,
+        stopped: job.stopped, waitAborted: job.controller.signal.aborted,
+      })
       job.waitFailure = error
       const seen = await interim?.stop()
       // 記録にエラーの知らせが無い時（Grok・Cursor、記録に残らない利用上限）は、Aitermが返した理由を代わりに出す。
