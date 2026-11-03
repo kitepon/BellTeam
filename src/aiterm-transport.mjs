@@ -1,3 +1,4 @@
+import { CurrentWork } from './current-work.mjs'
 import { randomUUID } from 'node:crypto'
 import { MembersAdmission } from './members-admission.mjs'
 import { configurationReceipt, configurationError, configurationWasNotIssued, markConfigurationNotIssued, captureConfigurationRequest } from './configuration-request.mjs'
@@ -71,12 +72,14 @@ export class AitermTransport {
     this.now = now
     this.retainedImages = new Map()
     this.activity = new SeatActivity()
+    this.workState = new CurrentWork({ now, notify: id => this.activity.emit({ bot: { id } }) })
     this.restarts = new Map()
     this.sessionState = new BotSessionState({
       assertWorkAllowed: () => this.assertWorkAllowed(),
       executionBridge: () => this.executionBridge,
       call: (name, args, options) => this.client.call(name, args, options),
       invalidateRunning: () => { this.runningSnapshot = null },
+      invalidateWork: id => this.workState.invalidate(id),
       activity: {
         configuration: id => this.activity.configurationChanges.has(id),
         waking: id => this.activity.waking.has(id),
@@ -746,11 +749,29 @@ export class AitermTransport {
     return this.activity.follower(botId)
   }
 
+  currentWork(bot) { return this.workState.snapshot(bot.id, this.session(bot), !this.uncertainChanges.has(bot.id) && !this.sessionChanges.has(bot.id)) }
+
+  currentWorkBinding(bot, source) { return this.workState.selfBinding(bot.id, this.session(bot), source, !this.uncertainChanges.has(bot.id) && !this.sessionChanges.has(bot.id)) }
+
+  updateWorkSummary(bot, input, source) {
+    const session = this.session(bot), version = this.stopVersions.get(bot.id)
+    return this.workState.update(bot.id, session, input, source, () => this.session(bot) === session
+      && this.stopVersions.get(bot.id) === version && !this.uncertainChanges.has(bot.id) && !this.sessionChanges.has(bot.id))
+  }
+
   // 席の今のターン（Aiterm 0.60.0、ADR 0122）。席のsessionごとに、動いているターン・{ state: 'idle' }・null（分からない）。
   // まずCodexの席だけが返り、ほかのハーネスはnull。返さない版のAitermではnullを返す。画面は読まない。
-  async seatTurns() {
-    const result = await this.client.call('pty_list', {}, { meta: CALLER_META })
+  async seatTurns(bots = []) {
+    const read = this.workState.beginRead(bots.map(bot => {
+      const session = this.session(bot), version = this.stopVersions.get(bot.id)
+      return { botId: bot.id, sessionId: session, current: () => this.session(bot) === session
+        && this.stopVersions.get(bot.id) === version && !this.uncertainChanges.has(bot.id) && !this.sessionChanges.has(bot.id) }
+    }))
+    let result
+    try { result = await this.client.call('pty_list', {}, { meta: CALLER_META })
+    } catch (error) { this.workState.endRead(read, null); throw error }
     const data = result?._meta?.['aiterm/seat_turns']
+    this.workState.endRead(read, data)
     if (!data) return null
     if (data.schema !== 'aiterm.seat-turns.v1' || data.error || !Array.isArray(data.seats))
       throw new Error(`AITERM_SEAT_TURNS_INVALID: ${data.error ?? data.schema}`)
@@ -761,7 +782,7 @@ export class AitermTransport {
   // 席の今のターンを返さない版のAitermではfalseを返す。
   async watchSeatTurns(bots, { onInterim = null, groupId = randomUUID } = {}) {
     const versions = new Map(bots.map(bot => [bot.id, this.stopVersions.get(bot.id)]))
-    const turns = await this.seatTurns()
+    const turns = await this.seatTurns(bots)
     if (!turns) return false
     for (const bot of bots) {
       if (versions.get(bot.id) !== this.stopVersions.get(bot.id)) continue
@@ -954,7 +975,7 @@ export class AitermTransport {
   async waitUntilDone(receipt, signal = null) {
     while (!signal?.aborted) {
       const result = await this.waitProcess(receipt.wait_process, signal)
-      if (result.outcome === 'done') return result
+      if (result.outcome === 'done') { this.workState.completedTurn(result); return result }
       if (result.outcome === 'timeout' || result.outcome === 'running') continue
       // error: harnessの記録でturnがAPIエラー等で打ち切られた（Aiterm 0.31.0）。本文を残して配送失敗にする。
       if (result.outcome === 'error') throw Object.assign(new Error(`AITERM_TURN_ERROR: ${result.error ?? 'unknown'}`), { waitOutcome: result.outcome, turnCompleted: true })
@@ -976,6 +997,7 @@ export class AitermTransport {
   }
 
   async close() {
+    this.workState.close()
     for (const watch of this.activity.watches.values()) watch.end()
     const botIds = new Set([...this.activity.active.values()].map(item => item.bot.id))
     await Promise.all([...botIds].map(botId => this.idle(botId)))

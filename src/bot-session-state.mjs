@@ -42,11 +42,12 @@ class UncertainSessionChanges extends Map {
 // BellTeam owns session-slot changes, their pending operations and uncertainty.
 // Delivery/job state is supplied as observations; native execution stays in Aiterm.
 export class BotSessionState {
-  constructor({ assertWorkAllowed, executionBridge, call, invalidateRunning, activity, writeLog = line => process.stderr.write(line) }) {
+  constructor({ assertWorkAllowed, executionBridge, call, invalidateRunning, invalidateWork = () => {}, activity, writeLog = line => process.stderr.write(line) }) {
     this.assertWorkAllowed = assertWorkAllowed
     this.bridge = executionBridge
     this.call = call
     this.invalidateRunning = invalidateRunning
+    this.invalidateWork = invalidateWork
     this.activity = activity
     this.writeLog = writeLog
     this.sessions = new Map()
@@ -66,6 +67,7 @@ export class BotSessionState {
   // 停止世代を進める。進める前に捕まえた世代で待っている変更・起動・配送は、停止として終わる。
   invalidate(botId) {
     this.stopVersions.set(botId, (this.stopVersions.get(botId) ?? 0) + 1)
+    this.invalidateWork(botId)
   }
 
   // 停止が届いた席名を捕まえていたBotを返し、根ではないものの世代も進める（子孫の席もBellTeamのメンバーであり得る）。
@@ -105,6 +107,7 @@ export class BotSessionState {
     let issued = false
     const invoke = () => {
       if (name !== 'pty_close') this.assertWorkAllowed()
+      if (['pty_close', 'agent_launch'].includes(name)) this.invalidateWork(bot.id)
       issued = true
       this.invalidateRunning()
       return execution ? execution.invoke(name, args, clientOptions) : this.call(name, args, clientOptions)
