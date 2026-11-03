@@ -68,6 +68,24 @@ settings先行initializeから始め、subscriptions/members→notifications/tra
 
 `createUsageRegistryPorts({effect,initialMembers})`でこれらのmetadataから既bots/rooms公開形を作る。初期ガイド以外のcreate/updateと未知fieldは拒否する。これがnative/clientや会話graphを二重構築することはない。
 
+## 親12effectsの接続helper
+
+`src/usage-parent-effects.mjs:createUsageParentEffects({getServices,getFeatures,seatRuntime})`をMollyの親assemblyが呼ぶ。返却する(method,params,context)はusage channelで検証済みの閉12effectだけを同servicesへ接続する。ALS/authority/callback lifetimeは呼出元assemblyが所有し、helperはactorやleaseを生成しない。settings.changedはgetFeatures().onChangeの既apply参照を毎回取得し、未初期化ならUSAGE_EFFECT_UNAVAILABLE。settings.updateへ再入しない。
+
+```mermaid
+flowchart LR
+  Channel[usage channel 検証済みeffect] --> Assembly[Molly ALS / opaque実context]
+  Assembly --> Adapter[usage-parent-effects 閉12method]
+  Adapter --> Apply[getFeatures onChange / epoch]
+  Adapter --> Registry[同bots / rooms fresh公開口]
+  Adapter --> Parent[同native client / messenger / notifications / transport]
+  Adapter --> Project[固定seatRuntime membersProject / projectFiles]
+```
+
+auth.callは閉auth fieldだけを既client.agent_authへ渡し、親fresh Bot情報の固定projectと同authOptionsを使う。onboardingはbot-guide、通常authは選択harnessの最初のBotを使う。親resultのcontent/log/envは返さずstructuredContent/isErrorだけ。guide作成は既setup-guide JSONと固定GUIDE_BOT_IDだけ、prepareStartupは同親project口、seatRuntime無しでは親bot.projectのAGENTS.mdへ従来通り追記する。members/roomsはid/name/harnessとid/memberIdsだけを返す。subscription.setupTestはfresh Bot存在とidleを確認し既transport.setupTestをawaitする。購読writerは子に残す。
+
+既公開Promiseの実completionが別にある場合も終端まで保持し、失敗は元code/status/effectを上流へ返す。helperの直接検証と親assembly/実C/署名native受入は分離する。
+
 ## 設定の保存世代と遅着error
 
 private settings recordは`{type:'settings',revision,list,configurations,epochs}`。epochsは6featureごとの保存世代で、当該保存成功→onChangeの前に増加し、同recordを先に送ってから`settings.changed`へ渡す。これは未採用会話95a7のroutingEpochの成立を主張するものではない。共通integrationで会話sourceが入る場合は既routingStateとの一writer接続を保つ。
