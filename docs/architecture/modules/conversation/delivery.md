@@ -47,7 +47,7 @@ flowchart TD
   Serial --> Check["参加者・targets・元返信を検証"]
   Check --> Save["発言と参加者snapshotを保存<br/>routing pending"]
   Save --> Context["Throughline room-contextを読む"]
-  Context --> Routing["明示targets またはJevで返信者決定"]
+  Context --> Routing["明示targetsを優先<br/>自動選定有効ならJev、無効な返信は返信者なし"]
   Routing --> Ready["routing readyを保存"]
   Ready --> Notify["全参加者へ通知<br/>返信不要者にはsilentを指示"]
   Notify --> Results["各配送の結果を個別保存"]
@@ -60,7 +60,7 @@ flowchart TD
 | 投稿順序 | `sendroommessage` / `roomTasks` | 前投稿が失敗しても次の別投稿は処理。current PromiseだけをMapから除く |
 | 投稿前 | `sendRoomMessageInOrder` | 自動選定無効でtargetsなしの新規投稿は409。既responseTo/fromの返信はalready_posted。検証と受付後にだけ画像/発言を保存 |
 | 文脈 | `roomTurnsFromThroughline` | 現状は明示targetsでも呼ぶ。schema/room/latest messageを検証。不正は投稿後のrouting失敗になる。不要と決めつけて省略しない |
-| 選定 | `chooseRoomResponder` | Jevへの入力は現発言・前会話・参加者。確率/所属を検証し0.6以上で一人。manual targetsが優先 |
+| 選定 | `chooseRoomResponder` | manual targetsが優先。TypeSafeを設定して有効にした時だけJevが現発言・前会話・参加者から選ぶ。確率/所属を検証し0.6以上で一人。自動選定無効でtargets省略/空配列の返信はresponders=[]となり、全員へsilentを指示 |
 | 通知 | `roomEnvelope` / `Promise.allSettled` | 配送対象と返信者のsnapshotを分ける。全員の受付結果を回収。各onStatusで部屋recordを更新、途中経過/最終回答は各BotのOwner会話へ |
 | 返信 | `mcp-conversation-tools.mjs`の`respond_to_room` | 元発言/宛先/返信者に対応付ける。silentは制御応答、replyだけ新規部屋投稿。新投稿は新しい返信担当判定を持つ |
 
