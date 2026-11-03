@@ -465,3 +465,5 @@ Web固有の[内蔵版戻し](../web/gateway-builtin.md)がprocess/control/adapt
 同期currentWork/session/queue等とasync dispatchは固有facadeのまま、親の同Update inventory/catalog/prepare/耐久ledgerへcontrollerを一つ登録する。保存compatibilityは本人export文字列bellteam.execution-state.v1とNode26/P1/stateSchema:nullのまま。交換は旧actual zero→退役→新initialize→file/dir fsync保存ACK後だけ受付を開き、親PID・SDK・native PTYを交換のために閉じない。アプリ全終了時だけ、engine close後に親が共有clientを一度closeする。
 
 新Owner HTTP→台帳→実reader選択/実engine交換・builtin戻しと同期投影/採用0600/同parent-portを検査し、C/root署名配置/実SDK/本番をこの人工I/O fixtureで補完しない。署名artifact/公開catalogの実物は配布担当の同source受入へ結ぶ。
+
+executionのcapacity継続は既Messenger.sendmessage(input,options)へ親固定portを直結し、admissionCheckと返却delivery_id/実Promiseを同identityで保持する。user.turn用enqueueへ置換せず、継続対象や本文を親が再生成しない。

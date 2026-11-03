@@ -128,7 +128,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
       observer: { appendInterimWords: (...args) => messenger.appendInterimWords(...args),
         emitQueue: async change => { await Promise.all([...queueListeners].map(listener => listener(change))) } },
       continuation: { models, harnessAuth: { status: harness => harnessAuth.status(harness, usageAssembly?.systemContext('auth.status')) },
-        messenger: { enqueueUserTurn: input => messenger.enqueueUserTurn(input) } },
+        messenger: { sendmessage: (...args) => messenger.sendmessage(...args) } },
     }, loadFactory: loadExecution, onAdopt: selection.save,
       currentVersionId: selected?.currentVersionId ?? null, previousVersionId: selected?.previousVersionId ?? null,
       requestStop: (sessions, options) => sendSessionStop(executionClient, sessions, options),
