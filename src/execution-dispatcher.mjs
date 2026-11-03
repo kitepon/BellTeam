@@ -46,9 +46,9 @@ export function createExecutionDispatcher({ generation, ports, handoff = null })
   }
   for (const [name, allowed] of Object.entries(groups))
     if (ports[name] && Object.keys(ports[name]).some(key => !allowed.includes(key))) throw failure('EXECUTION_PORTS_INVALID')
-  let phase = 'created', initialized = false, draining = null, observerStarted = false, idleStarted = false
+  let phase = 'created', initialized = false, initialization = null, draining = null, observerStarted = false, idleStarted = false
   const pending = new Set()
-  const alive = () => { if (phase === 'retired') throw failure('EXECUTION_GENERATION_RETIRED') }
+  const alive = () => { if (['discarding', 'retired'].includes(phase)) throw failure('EXECUTION_GENERATION_RETIRED') }
   const enter = () => { if (phase !== 'running') throw failure('EXECUTION_NOT_ACCEPTING') }
   const track = value => {
     if (!value || typeof value.then !== 'function') return value
@@ -129,7 +129,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null })
       || !EXECUTION_METHODS[type].includes(request.method)) throw failure('EXECUTION_REQUEST_INVALID')
     return true
   }
-  const idleNow = () => !pending.size && !transport.jobs.size && !transport.active.size && !transport.watches.size
+  const idleNow = () => !initialization && !pending.size && !transport.jobs.size && !transport.active.size && !transport.watches.size
     && !transport.sessionChanges.size && !transport.configurationChanges.size && !transport.dispatches.size
     && !transport.waking.size && !transport.executionStopping && !requests.active.size
     && !transport.workState.pending.size && !transport.runningSnapshot
@@ -193,22 +193,36 @@ export function createExecutionDispatcher({ generation, ports, handoff = null })
   }
   async function retire() {
     if (phase === 'retired') return { closed: true }
-    if (phase !== 'quiesced' || !idleNow()) throw failure('EXECUTION_BUSY')
-    unsubscribe(); transport.activity.listeners.clear()
-    clearTimeout(transport.workState.timer); transport.workState.timer = null
-    // Never call Transport.close(): it closes the shared native client and aborts watches.
-    phase = 'retired'
-    if (continuation) await continuation.close()
-    return { closed: true }
+    if (!['created', 'failed', 'quiesced'].includes(phase) || !idleNow()) throw failure('EXECUTION_BUSY')
+    phase = 'discarding'
+    try {
+      await Promise.all([...(observerStarted ? [observer.stop()] : []), ...(idleStarted ? [idle.stop()] : [])])
+      observerStarted = false; idleStarted = false
+      if (!idleNow()) throw failure('EXECUTION_BUSY')
+      unsubscribe(); transport.activity.listeners.clear()
+      clearTimeout(transport.workState.timer); transport.workState.timer = null
+      // Never call Transport.close(): it closes the shared native client and aborts watches.
+      phase = 'retired'
+      if (continuation) await continuation.close()
+      return { closed: true }
+    } catch (error) {
+      if (phase !== 'retired') phase = 'failed'
+      throw error
+    }
   }
   async function control(action, options = {}) {
     alive()
     if (action === 'initialize') {
       if (initialized || phase !== 'created') throw failure('EXECUTION_NOT_ACCEPTING')
       phase = 'initializing'
-      if (!handoff) await transport.restoreConfigurationRequests()
-      initialized = true; phase = 'running'; transport.workState.schedule(); startProducers()
-      return { stateCompatibility: COMPATIBILITY }
+      initialization = (async () => {
+        if (!handoff) await transport.restoreConfigurationRequests()
+        initialized = true; phase = 'running'; transport.workState.schedule(); startProducers()
+        return { stateCompatibility: COMPATIBILITY }
+      })()
+      try { return await initialization }
+      catch (error) { phase = 'failed'; throw error }
+      finally { initialization = null }
     }
     if (action === 'resume') {
       if (draining || !initialized || !['quiescing', 'quiesced'].includes(phase)) throw failure('EXECUTION_BUSY')

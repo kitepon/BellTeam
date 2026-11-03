@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createExecutionDispatcher, EXECUTION_METHODS } from '../src/execution-dispatcher.mjs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { MembersAdmission } from '../src/members-admission.mjs'
@@ -10,7 +10,7 @@ const deferred = () => { let resolve, reject; const promise = new Promise((yes, 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const bot = { id: 'bot-synthetic', session: 'bot-synthetic', harness: 'codex', project: '/synthetic' }
 const request = (method, ...args) => ({ method, args })
-async function fixture(t, nativeCall, { handoff, generation = 'first', waitProcess = async () => ({ outcome: 'done', turn_id: 'turn' }), continuation } = {}) {
+async function fixture(t, nativeCall, { handoff, generation = 'first', waitProcess = async () => ({ outcome: 'done', turn_id: 'turn' }), continuation, initialize = true } = {}) {
   const storageRoot = await mkdtemp(join(tmpdir(), 'execution-factory-'))
   t.after(() => rm(storageRoot, { recursive: true, force: true }))
   const bots = new Map([[bot.id, bot]]), calls = []
@@ -33,7 +33,7 @@ async function fixture(t, nativeCall, { handoff, generation = 'first', waitProce
   t.after(async () => {
     try { await engine.control('quiesce', { timeoutMs: 200 }); await engine.disconnect() } catch {}
   })
-  await engine.control('initialize')
+  if (initialize) await engine.control('initialize')
   return { engine, ports, bots, calls, closes: () => closes }
 }
 
@@ -166,4 +166,43 @@ test('an observer admitted before quiesce cannot create a new watch after its na
   await f.engine.control('resume'); await tick(); await tick()
   assert.ok(authCalls > 0)
   await f.engine.control('quiesce', { timeoutMs: 200 }); await f.engine.disconnect()
+})
+
+
+test('an uninitialized candidate can be discarded once without closing the shared native client', async t => {
+  const f = await fixture(t, null, { initialize: false })
+  const cleanup = f.engine.disconnect()
+  await assert.rejects(f.engine.control('initialize'), { code: 'EXECUTION_GENERATION_RETIRED' })
+  assert.deepEqual(await cleanup, { closed: true })
+  assert.deepEqual(await f.engine.disconnect(), { closed: true })
+  await assert.rejects(f.engine.control('initialize'), { code: 'EXECUTION_GENERATION_RETIRED' })
+  assert.equal(f.calls.length, 0); assert.equal(f.closes(), 0)
+})
+
+test('a failed real configuration restore candidate can be discarded and does not keep observer timers', async t => {
+  const f = await fixture(t, null, { initialize: false })
+  // A file at the configured directory is a real restore/storage failure.
+  await writeFile(f.ports.configurationStorage.root, 'synthetic invalid storage')
+  await assert.rejects(f.engine.control('initialize'))
+  const before = f.calls.length
+  assert.deepEqual(await f.engine.disconnect(), { closed: true })
+  await new Promise(resolve => setTimeout(resolve, 10))
+  assert.equal(f.calls.length, before); assert.equal(f.closes(), 0)
+})
+
+test('an initialization still awaiting actual storage cannot be discarded after a caller timeout', async t => {
+  const f = await fixture(t, null, { initialize: false })
+  const storage = f.ports.configurationStorage.root
+  await mkdir(storage, { mode: 0o700 })
+  // Block the actual directory read without replacing a business factory port.
+  const { ConfigurationIntents } = await import('../src/configuration-intents.mjs')
+  const original = ConfigurationIntents.prototype.pending, read = deferred()
+  t.after(() => { ConfigurationIntents.prototype.pending = original })
+  ConfigurationIntents.prototype.pending = function () { return this.root === storage ? read.promise : original.call(this) }
+  const initializing = f.engine.control('initialize')
+  await assert.rejects(f.engine.disconnect(), { code: 'EXECUTION_BUSY' })
+  read.reject(Error('synthetic late storage failure'))
+  await assert.rejects(initializing, /synthetic late storage failure/)
+  assert.deepEqual(await f.engine.disconnect(), { closed: true })
+  assert.equal(f.closes(), 0)
 })
