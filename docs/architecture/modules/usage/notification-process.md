@@ -1,9 +1,33 @@
 # 通知の独立process化：現行境界と契約への入力
 
 2026-11-03 JST、ミカ。読取基準は通常main `03c952bf33b58b4eff322a8514f5448336c1a5be`。
-本書は通知内部の正本。現行の説明と、Rootが固定する横断契約への提案を分ける。process/RPC/配布の実装済み契約にはしない。
+本書は通知内部の正本。以下の現行境界と準備時の提案を保持し、実装では「固定契約v1の実装接点」を優先する。実装・実物受入の成立は別に記録する。
 全体は[機能図](../../feature-map.md)、現行usageは[処理と保存順序](flows.md#通知と購読サーバー会話の成功とは別の機能)。
 Root正本は自席 `docs/module-expansion-20261103.md`、runtime案はエピネル自席 `docs/notification-module-runtime-20261103.md`。
+
+## 固定契約v1の実装接点
+
+Root正本 `/srv/bellteam/bots/bot-7b140b27/docs/notification-update-contract-20261103.md` 全文を読み、準備待ちを終了した。state/pathは据置、UID1001協調writer、config存在accessは親に残す。通常quiesce60秒超過は旧子resume ACK後に受付を戻し、quiesced後だけclose5秒有限回収、新ready45秒。disabled/relay適用失敗はreadyとstatusを分け、state/鍵不正はfatal。下の旧提案との未確定差分はこの裁定で解消する。
+
+```mermaid
+flowchart LR
+  Callbacks[保存後の同期void callback] --> Facade[usage createNotifications: filter / 名前射影]
+  Facade --> Buffer[交換中だけ未送信256件かつ1MiB]
+  Buffer -->|送信を試みるのは一度| Process[runtime controller: 匿名IPC / 相関 / timeout]
+  Facade --> Process
+  Process --> Dispatch[usage dispatcher: 5method / DTO検証]
+  Dispatch --> Push[唯一のPushNotifications: provider / devices / saving / inflight]
+  Process --> Controls[initialize / quiesce / resume / exit]
+  Controls --> Drain[全accepted操作→inflight→saving→quiesced]
+  Dispatch --> Diag[IPC診断→親共通writer]
+```
+
+- `src/usage/notifications.mjs:createNotifications({root,bots,diagnostics,configuration,prepareRelease,createProcess,onState})` はruntime factoryを注入してcontroller一実体を生成。initialize/close/status/configure/register/unregister/4通知とcontroller/initialStatusを返す。statusは非同期。初回features.initializeはinitialStatusで二重configureを避け、後の明示configureは既設定反映経路を保つ。
+- 親bufferはplanned exchange中の未送信だけ、256件/1MiB。ACK不明・送信試行済みは再送0。overflowはPUSH_UPDATE_BUFFER_FULLの固定通知診断。停止・不正入力・IPC失敗を4callbackの外へthrow/rejectしない。
+- `src/usage/notifications-dispatcher.mjs:createNotificationsDispatcher` はDTO検証/5method dispatchと4controlを持つ。親の名簿や設定全体を読まない。runtime ChildChannelはquiesce受信時に同期でgateを閉じ、accepted送信待ちを含むdispatchを待ってからusageのquiesceへ入る。resumeは並行して旧quiesce世代を取り消す。
+- `src/notifications-entry.mjs` はruntimeのverifyNotificationsLocks/CreateChildChannelを使い、一度だけready。exit結果のIPC送信完了後のafterControlでchannel.close。親切断の最大60秒回収と固定lock/FDはruntimeが持つ。
+- 通知provider/保存は既PushNotificationsを使用。state配列/端末形式の不正は固定PUSH_STATE_INVALIDで初期化失敗とし、空状態へ置換しない。APNs/relayの既exportと外部callerは保持する。
+- 交換中の別設定保存によるFEATURE_APPLY_FAILEDは、後のready applyError=nullで消さない。共通onStateはapplyErrorがある時だけ設定errorへ投影し、clearは既明示設定applyが持つ。
 
 ## 現行の全callerと所有
 

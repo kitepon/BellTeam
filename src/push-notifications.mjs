@@ -30,7 +30,12 @@ export class PushNotifications {
     this.directProvider = this.provider
     this.file = join(this.root, 'state/push-devices.json')
     try {
-      for (const device of JSON.parse(await readFile(this.file, 'utf8'))) this.devices.set(device.token, device)
+      const devices = JSON.parse(await readFile(this.file, 'utf8'))
+      if (!Array.isArray(devices)) throw pushError('PUSH_STATE_INVALID')
+      for (const device of devices) {
+        try { validatePushDevice(device) } catch { throw pushError('PUSH_STATE_INVALID') }
+        this.devices.set(device.token, device)
+      }
     } catch (error) { if (error.code !== 'ENOENT') throw error }
   }
 
