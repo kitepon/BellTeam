@@ -90,3 +90,14 @@ Room予定のtargetsはlistを使わずclaim返却snapshotだけを発行する�
 応答不明のclaimは親の短命unconfirmedClaimsで同tupleの再要求を抑制する。新revision/次時刻又は削除を観測すると解除。永続発行台帳や自動再送queueは足さず、親全体再起動の履歴保証へ広げない。保存後・発行前の喪失では未配送が残り、lastRunAtは配送成功ではない。[固定契約](module-update.md)の範囲である。
 
 本差分はN102 020c84→fc7ec352→7e4fb90eのRoom claim/skip・同lease会話adapterが前提。作者席ではこの本人3commitをmergeした隔離開発checkoutで検証する。Molly通常候補は同本人sourceを既に取り込んでおり、N102内部を当席で変更しない。新scheduler境界6件と既関連33件の原本は自席integrations/members-module-update-20261103のscheduler-members-lease-tests.log/scheduler-claim-tests.log。Kiro gate内部/実IPC/実AI/配布成功の証明には使わない。
+
+## conversation子導入のcaller context
+
+```mermaid
+flowchart LR
+  Accepted[親schedulerの受付context] --> Fresh[Bot/Room refreshとlistSchedules]
+  Fresh --> Claim[唯一writer claimDue/skipDue]
+  Claim --> Delivery[同contextで既配送]
+```
+
+runDueのRoom refreshも他の読取/claimと同じ内部optionsを受ける。これは親安定Room facadeへ旧受付leaseを渡す修理で、Room writerを複製しない。後続conversation導入時の両module作用前一括予約は共通assemblyの公開口へ接続し、その実装前に一方のleaseから他方の新rootを作らない。

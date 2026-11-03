@@ -52,7 +52,7 @@ export class BotScheduler {
       await this.withMembersLease(async options => {
         await this.registry.refresh(options)
         const sources = [{ kind: 'bot', registry: this.registry }]
-        if (this.rooms && this.roomMessenger) { await this.rooms.refresh(); sources.push({ kind: 'room', registry: this.rooms }) }
+        if (this.rooms && this.roomMessenger) { await this.rooms.refresh(options); sources.push({ kind: 'room', registry: this.rooms }) }
         const observed = new Set()
         for (const { kind, registry } of sources) {
           for (const owner of [...registry.values()]) {
