@@ -391,3 +391,43 @@ final class FastModeTests: XCTestCase {
         XCTAssertNotNil(catalog.fastModeUnavailableReason(model: ""))
     }
 }
+
+@MainActor
+final class AvatarRefreshNoticeTests: XCTestCase {
+    private struct ReadFailure: LocalizedError { var errorDescription: String? { "BellTeam: MEMBERS_NOT_ACCEPTED" } }
+
+    private func bot(small: String?, large: String?) throws -> Bot {
+        var value = try JSONDecoder().decode(Bot.self, from: Data("""
+        {"id":"bot-one","name":"n","displayName":"d","harness":"h","model":"m","reasoningEffort":"e","fastMode":false,
+         "color":"c","profileText":"","personality":"","speechStyle":"","position":"","role":"","avatar":"","online":true}
+        """.utf8))
+        value.avatarVersion = small
+        value.avatarLargeVersion = large
+        return value
+    }
+
+    func testRefreshFailureAfterListAlreadyShowsSavedVersionIsNotAnError() throws {
+        let images = BotProfileImageState()
+        let displayed = images.noteRefreshFailure(ReadFailure(), variant: .large, versionBeforeSave: "large-v1",
+                                                  current: try bot(small: "small-v1", large: "large-v2"), success: "画像を保存しました。")
+        XCTAssertTrue(displayed)
+        XCTAssertNil(images.imageSaveErrors[.large])
+        XCTAssertEqual(images.imageSaveMessage, "画像を保存しました。")
+        images.avatarVersionChanged(.large)
+        XCTAssertNil(images.imageSaveErrors[.large])
+    }
+
+    func testRefreshFailureClearsWhenTheListLaterShowsTheSavedVersion() throws {
+        let images = BotProfileImageState()
+        let displayed = images.noteRefreshFailure(ReadFailure(), variant: .large, versionBeforeSave: "large-v1",
+                                                  current: try bot(small: "small-v1", large: "large-v1"), success: "画像を保存しました。")
+        XCTAssertFalse(displayed)
+        XCTAssertEqual(images.imageSaveErrors[.large], "画像を保存しましたが、表示を更新できませんでした。\nBellTeam: MEMBERS_NOT_ACCEPTED")
+        images.avatarVersionChanged(.small)
+        XCTAssertNotNil(images.imageSaveErrors[.large], "別variantの版変化では消さない")
+        images.avatarVersionChanged(.large)
+        XCTAssertNil(images.imageSaveErrors[.large])
+        XCTAssertEqual(images.imageSaveMessage, "画像を保存しました。")
+        XCTAssertTrue(images.refreshFailedVariants.isEmpty)
+    }
+}
