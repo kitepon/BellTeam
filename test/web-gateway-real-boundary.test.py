@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import importlib.util
 import io
@@ -48,5 +49,67 @@ class BoundaryInputs(unittest.TestCase):
             save.write_text(json.dumps(dict(prefix='production', volumes=[], work='/srv/bellteam')))
             with self.assertRaises(AssertionError): m.cleanup(Path(t))
             execute.assert_not_called()
+
+class ContainerInspection(unittest.TestCase):
+    def setUp(self):
+        self.before = dict(id='container', image='image', pid=7, running=True, restarting=False,
+            readOnly=True, user='1001:1001', mounts=[
+                dict(Type='volume', Name='private', Source='/volumes/private/_data', Destination='/state',
+                     Mode='z', RW=True, Propagation=''),
+                dict(Type='bind', Source='/fixture', Destination='/fixture', Mode='ro', RW=False, Propagation='rprivate')],
+            specMounts=[dict(Type='volume', Source='private', Target='/state', ReadOnly=False,
+                             VolumeOptions=dict(NoCopy=True, Subpath='state')),
+                        dict(Type='bind', Source='/fixture', Target='/fixture', ReadOnly=True)])
+
+    def compare(self, before, after, error=None):
+        original = copy.deepcopy([before, after])
+        with tempfile.TemporaryDirectory() as t:
+            if error:
+                with self.assertRaisesRegex((AssertionError, ValueError), error):
+                    m.compare_inspections(before, after, Path(t))
+            else: m.compare_inspections(before, after, Path(t))
+            self.assertEqual(json.loads((Path(t) / 'container-after.json').read_text()), after)
+        self.assertEqual([before, after], original)
+
+    def test_only_mount_order_is_ignored_and_raw_after_is_preserved(self):
+        for fields in [('mounts',), ('specMounts',), ('mounts', 'specMounts')]:
+            with self.subTest(fields=fields):
+                after = copy.deepcopy(self.before)
+                for field in fields: after[field].reverse()
+                self.compare(self.before, after)
+
+    def test_identity_mount_fields_nested_options_and_unknown_fields_are_compared(self):
+        changes = [(('id',), 'new'), (('image',), 'new'), (('pid',), 8), (('running',), False),
+                   (('restarting',), True), (('readOnly',), False), (('user',), '0:0')]
+        for field in ['Type', 'Name', 'Source', 'Destination', 'Mode', 'RW', 'Propagation']:
+            changes.append((('mounts', 0, field), False if field == 'RW' else '/changed' if field == 'Destination' else 'changed'))
+        for field in ['Type', 'Source', 'Target', 'ReadOnly']:
+            changes.append((('specMounts', 0, field), True if field == 'ReadOnly' else '/changed' if field == 'Target' else 'changed'))
+        changes += [(('specMounts', 0, 'VolumeOptions', 'NoCopy'), False),
+                    (('specMounts', 0, 'VolumeOptions', 'Subpath'), 'rooms'),
+                    (('mounts', 0, 'futureOption'), 'new'), (('futureArray',), [2, 1])]
+        for keys, value in changes:
+            with self.subTest(keys=keys):
+                after = copy.deepcopy(self.before); node = after
+                for key in keys[:-1]: node = node[key]
+                node[keys[-1]] = value
+                self.compare(self.before, after, keys[0])
+        before = dict(self.before, futureArray=[1, 2])
+        self.compare(before, dict(before, futureArray=[2, 1]), 'futureArray')
+        after = copy.deepcopy(self.before); del after['mounts'][0]['Mode']
+        self.compare(self.before, after, 'mounts')
+
+    def test_removed_duplicate_and_missing_targets_are_rejected_on_either_side(self):
+        for field, key in [('mounts', 'Destination'), ('specMounts', 'Target')]:
+            for mutation in ['removed', 'duplicate', 'missing', 'relative', 'null']:
+                for side in ['before', 'after']:
+                    with self.subTest(field=field, mutation=mutation, side=side):
+                        changed = copy.deepcopy(self.before)
+                        if mutation == 'removed': changed[field].pop()
+                        elif mutation == 'duplicate': changed[field].append(copy.deepcopy(changed[field][0]))
+                        elif mutation == 'missing': del changed[field][0][key]
+                        else: changed[field][0][key] = None if mutation == 'null' else 'relative'
+                        self.compare(changed if side == 'before' else self.before,
+                                     changed if side == 'after' else self.before, field)
 
 if __name__ == '__main__': unittest.main()

@@ -45,6 +45,21 @@ def save(path, value):
     path.write_text(json.dumps(value, indent=2) + '\n')
 
 
+def compare_inspections(before, after, output):
+    save(output / 'container-after.json', after)
+    def normalize(value):
+        result = dict(value)
+        for field, key in [('mounts', 'Destination'), ('specMounts', 'Target')]:
+            targets = [item.get(key) for item in value[field]]
+            if not all(isinstance(t, str) and t.startswith('/') for t in targets) or len(set(targets)) != len(targets):
+                raise ValueError('invalid or duplicate target in ' + field)
+            result[field] = sorted(value[field], key=lambda item: item[key])
+        return result
+    left, right = normalize(before), normalize(after)
+    differences = sorted(key for key in left.keys() | right.keys() if key not in left or key not in right or left[key] != right[key])
+    if differences: raise AssertionError('container inspection changed: ' + ', '.join(differences))
+
+
 def sha(raw):
     return hashlib.sha256(raw).hexdigest()
 
@@ -197,8 +212,8 @@ def run_fixture(image, output, supply):
             c = json.loads(docker('container', 'inspect', cid).stdout)[0]
             return dict(id=c['Id'], image=c['Image'], pid=c['State']['Pid'], running=c['State']['Running'], restarting=c['State']['Restarting'],
                         readOnly=c['HostConfig']['ReadonlyRootfs'], user=c['Config']['User'], mounts=c['Mounts'], specMounts=c['HostConfig']['Mounts'])
-        before = inspection(); assert before['running'] and before['readOnly'] and before['user'] == '1001:1001'
-        save(output / 'container-before.json', before)
+        before = inspection(); save(output / 'container-before.json', before)
+        assert before['running'] and before['readOnly'] and before['user'] == '1001:1001'
         def guest_call(*args): return docker('exec', '--user', '1001:1001', cid, '/usr/local/bin/node', '/app/src/supervisor.mjs', *args)
         def wait_phase(expected):
             deadline = time.monotonic() + 45
@@ -242,7 +257,8 @@ console.log(JSON.stringify({versions,staging,installations,adoption:f.existsSync
         stage = 'install-b-online'; install(inputs['b'], label=stage); assert snapshot()['adoption'] == original['adoption']
         guest_call('command', 'adopt-b'); wait_phase('b-active')
         guest_call('command', 'return-a'); final = wait_phase('done')
-        after = inspection(); assert before == after
+        stage = 'verify-final'
+        after = inspection(); compare_inspections(before, after, output)
         assert final['parent'] == held['parent'] and final['business'] == held['business'] and final['port'] == held['port']
         assert final['clientCloses'] == 0 and final['modelCalls'] == 1
         installed = snapshot()
@@ -253,11 +269,10 @@ console.log(JSON.stringify({versions,staging,installations,adoption:f.existsSync
             assert record['record']['sourceCommit'] == inputs[key]['sourceCommit']
             assert record['record']['verification'] == dict(method='github-oidc-attestation', repositoryId='1404510084')
         save(output / 'root-after-return.json', installed)
-        save(output / 'container-after.json', after)
         report.update(accepted=True, parentCIDAndPIDUnchanged=True, businessPIDAndStartUnchanged=True,
                       realSignedRootInstall=True, rejectedBeforePublication=['tampered-archive', 'wrong-source'], final=final)
     except BaseException as error:
-        report.update(failedStage=stage, error=str(error)); raise
+        report.update(failedStage=stage, error=str(error) or type(error).__name__); raise
     finally:
         try:
             if 'image_id' in locals():

@@ -56,7 +56,9 @@ flowchart LR
   Private --> Reader[UID1001 image原本reader]
   Reader --> API[公開Owner API POST202 / GET成功現在版]
   API --> Sequence[A採用 / 同親中B配置選択 / A戻し]
-  Sequence --> Proof[CID/親PID/人工業務PID/旧資材/採用record]
+  Sequence --> Raw[raw before/afterをassert前に保存]
+  Raw --> Compare[mountsとspecMountsの順序だけ正規化・全field比較]
+  Compare --> Proof[CID/親PID/人工業務PID/旧資材/採用record]
   Bad[archive改変 / 誤source] --> Helper
   Helper -->|拒否| Keep[公開集合 / 旧採用不変]
 ```
@@ -66,3 +68,5 @@ callerは`.github/workflows/verify-web-gateway-image.yml`→`test/helpers/web-ga
 Aは9573/run41545179742、Bはmain a1feから新しく一回だけ作る有効署名版。fixture source採否後かつCI sourceをmainへ統合する前にB生成する。CIはA/B runの成功/attempt1/source/署名workflowとAPI ZIP SHA-sizeを検査し、同a1fe auto run41548170408のindex artifactに一致するimageだけpullする。追加build・署名A再発行・Release/promotionを持たない。
 
 有限CI初回run41552323889は両archともfixture bootstrapのshared/memory作成でEACCESとなり、A配置前に停止した。fixtureは空dataのshared/tools中間dirをnested volume mountより前にUID1001/0755で作り、UID/GID/modeをassertする。Dockerに中間dir生成を任せず、private root 0:1001/0750と実image/helper/readerの所有・mode拒否は変更しない。両cleanup残存0と失敗原本を保持し、同runの無変更再走はしない。
+
+最終inspectはraw before/afterをassert前に保存し、比較用copyのmountsをDestination順、specMountsをTarget順に整列する。target欠落/重複は拒否し、ID/image/PIDと全選択field、Source/Mode/RW/Propagation/VolumeOptions.Subpath/NoCopyを含む全要素を保持する。他配列は変更しない。最終確認stageはverify-final、差分top-level field名をerrorへ残し、空例外は型名を残す。失敗でも既finally cleanupとresult保存を通す。run41554930932のafter欠測は復元せず総合失敗を維持し、Root別件の順序差観測から元runの具体差分を断定しない。
