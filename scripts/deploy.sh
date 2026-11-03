@@ -120,37 +120,15 @@ if ! busy="$(ssh "$host" "cd $dir && mkdir -p runtime/backups && queue=runtime/b
 fi
 printf '作業中のBot: %s\n' "${busy:-なし}"
 
-# 反映は本番側で切り離して走らせる。指定imageは再buildせず、受け入れた実物を使う。
+# 本体更新から結果保存までをHost側で切り離す。clientは終端logの読取だけを持つ。
 log="runtime/backups/deploy-$(date +%Y%m%dT%H%M%S).log"
-ssh "$host" "cd $dir && setsid nohup sudo -n /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8 BELLTEAM_PREVIOUS_COMPOSE=$previous BELLTEAM_SERVER_IMAGE=$image sh scripts/deploy-image.sh > $log 2>&1 < /dev/null &"
-for _ in $(seq 1 360); do
-  if ssh "$host" "grep -q '^deploy-exit=' $dir/$log" 2>/dev/null; then break; fi
+ssh "$host" "cd $dir && setsid nohup sudo -n /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8 BELLTEAM_PREVIOUS_COMPOSE=$previous BELLTEAM_SERVER_IMAGE=$image sh scripts/deploy-host.sh > $log 2>&1 < /dev/null &"
+for _ in $(seq 1 384); do
+  if ssh "$host" "grep -q '^deploy-caller-exit=' $dir/$log" 2>/dev/null; then break; fi
   sleep 5
 done
-ssh "$host" "tail -3 $dir/$log"
-if ! ssh "$host" "grep -q '^deploy-exit=0$' $dir/$log"; then
-  echo "本番ビルドまたはコンテナ更新が失敗した。詳細: $dir/$log" >&2
+ssh "$host" "tail -10 $dir/$log"
+if ! ssh "$host" "grep -q '^deploy-caller-exit=0$' $dir/$log"; then
+  echo "本番更新・health確認・cleanup結果保存の完了を確認できない。詳細: $dir/$log" >&2
   exit 1
 fi
-
-health=
-for _ in $(seq 1 24); do
-  if health="$(ssh "$host" 'docker exec bellteam curl -fsS http://127.0.0.1:4180/healthz' 2>/dev/null)" &&
-    printf '%s' "$health" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{if(JSON.parse(d).status!=="ok")process.exitCode=1}catch{process.exitCode=1}})'; then break; fi
-  health=
-  sleep 5
-done
-if [ -z "$health" ]; then
-  echo 'healthzの正常応答を確認できない。反映結果は未確認。' >&2
-  exit 1
-fi
-printf 'healthz: %s\n' "$health"
-# cleanupの成否は本体更新の終端と分け、同じ配備logから原本へ辿れるようにする。
-if ! ssh "$host" "cd $dir && sudo -n /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8 sh scripts/deploy-cleanup.sh $previous >> $log 2>&1"; then
-  echo "本体はhealthy。image cleanupまたは結果保存に失敗した。詳細: $dir/$log" >&2
-  exit 1
-fi
-printf 'cleanup result: %s/deploy-cleanup.json\n' "${previous%/*}"
-ssh "$host" "docker exec bellteam sh -c 'node --version; codex --version; claude --version; grok --version; cursor-agent --version; gh --version | head -1; npm ls -g --depth=0 2>/dev/null | grep -E \"aiterm-mcp|throughline\"'"
-ssh "$host" 'docker exec bellteam curl -fsS http://127.0.0.1:4181/api/bots' \
-  | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const b=JSON.parse(d).bots;console.log(`bots ${b.length} online ${b.filter(x=>x.online).length}`)})'

@@ -23,7 +23,7 @@ if(process.env.FIXTURE_EXIT==='17'){console.error('synthetic removal failure');p
 console.log(JSON.stringify({phase:'completed',removed:['obsolete']}))
 `)
   await chmod(join(root, 'bin/python3'), 0o700)
-  return { root, saved, run: (exit = '0') => exec('sh', ['scripts/deploy-cleanup.sh', join(saved, 'previous-normal.json')], {
+  return { root, saved, run: (exit = '0', args = []) => exec('sh', ['scripts/deploy-cleanup.sh', join(saved, 'previous-normal.json'), ...args], {
     cwd: root, env: { ...process.env, PATH: join(root, 'bin') + ':' + process.env.PATH, FIXTURE_ROOT: root, FIXTURE_EXIT: exit },
   }) }
 }
@@ -103,4 +103,27 @@ else if(a[1]==='inspect'){
     assert.match(rows[1].stderr, /synthetic Docker removal failure/)
     assert.match(await readFile(result.stderr, 'utf8'), /CalledProcessError/)
   } else assert.equal(rows.at(-1).removed[0].image, 'sha256:' + 'c'.repeat(64))
+})
+
+
+test('cleanup continuation preserves the old failure, saves a new private result once and never calls the installer', async t => {
+  const f = await fixture(t)
+  await assert.rejects(f.run('17'), error => error.code === 17)
+  const files = ['deploy-cleanup.stdout.jsonl', 'deploy-cleanup.stderr.log', 'deploy-cleanup.json']
+  const original = await Promise.all(files.map(file => readFile(join(f.saved, file))))
+  const continued = join(f.saved, 'deploy-cleanup-continuation')
+  await f.run('0', ['--continue'])
+  assert.equal((await stat(continued)).mode & 0o777, 0o700)
+  const result = JSON.parse(await readFile(join(continued, 'deploy-cleanup.json')))
+  assert.equal(result.exit, 0)
+  assert.equal(result.previousRuntime, join(f.saved, 'previous-runtime.json'))
+  assert.equal(result.stdout, join(continued, 'deploy-cleanup.stdout.jsonl'))
+  for (const [n, file] of files.entries()) {
+    assert.deepEqual(await readFile(join(f.saved, file)), original[n])
+    assert.equal((await stat(join(continued, file))).mode & 0o777, 0o600)
+  }
+  const success = await readFile(join(continued, 'deploy-cleanup.json'))
+  await assert.rejects(f.run('17', ['--continue']), error => error.code !== 0)
+  assert.deepEqual(await readFile(join(continued, 'deploy-cleanup.json')), success)
+  await assert.rejects(f.run('0', ['--unknown']), error => error.code === 2)
 })

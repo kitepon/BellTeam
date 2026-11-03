@@ -72,7 +72,7 @@ if(a[0]==='exec') {if(a.includes('/bin/cat'))process.stdout.write(fs.readFileSyn
 fs.appendFileSync(e.TEST_EVENTS,JSON.stringify({tool:'ssh',command:c,input})+'\n');
 if(c.includes('sh -s')) {const x=cp.spawnSync('/bin/sh',['-s',c.split(' ').at(-1)],{cwd:e.TEST_ROOT,env:{...e,TEST_REMOTE:'1'},input,encoding:'utf8'});process.stdout.write(x.stdout.replaceAll(e.TEST_ROOT,'/home/kite/BellTeam'));process.stderr.write(x.stderr);process.exit(x.status)}
 if(c.includes('git merge -q')){const x=cp.spawnSync('/bin/sh',['-c',c.replaceAll('/home/kite/BellTeam',e.TEST_ROOT)],{env:{...e,TEST_REMOTE:'1'},encoding:'utf8'});process.stdout.write(x.stdout);process.stderr.write(x.stderr);process.exit(x.status)}
-if(c.includes('/api/queue'))console.log('');else if(c.includes('/healthz'))console.log('{"status":"ok"}');else if(c.includes('/api/bots'))console.log('{"bots":[]}');else if(c.includes('tail -3'))console.log('deploy-exit=0');`,
+if(c.includes('/api/queue'))console.log('');else if(c.includes('/healthz'))console.log('{"status":"ok"}');else if(c.includes('/api/bots'))console.log('{"bots":[]}');else if(c.includes('tail -10'))console.log('deploy-caller-exit=0');`,
     sleep: 'process.exit(0)',
   }
   for (const [name, code] of Object.entries(programs)) { await writeFile(root + '/bin/' + name, '#!' + process.execPath + '\n' + code); await chmod(root + '/bin/' + name, 0o700) }
