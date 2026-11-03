@@ -112,6 +112,24 @@ export class ConversationLifetimes {
     this.assertDelivery(lease)
     return this.#records.get(lease).done
   }
+  trackNativeContinuation(lease, receipt, completion) {
+    this.assertDelivery(lease)
+    const record = this.#records.get(lease)
+    if (!record.nativeClaimed || record.nativeContinuation || !(completion instanceof Promise)
+      || !['agent_dispatch', 'agent_steer'].includes(receipt?.mode)
+      || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process) throw this.#protocol()
+    const native = record.nativeContinuation = { receipt, completion, pending: true }
+    const ended = () => { native.pending = false }
+    completion.then(ended, ended)
+  }
+  getNativeContinuation(lease, expectedBinding) {
+    const record = this.#records.get(lease)
+    if (this.#failed || !record?.live || record.kind !== 'delivery' || record.failed
+      || lease.generation !== this.#generation || !record.nativeClaimed || !record.nativeContinuation?.pending
+      || !expectedBinding || Object.keys(expectedBinding).length !== 4
+      || !Object.entries(record.binding).every(([key, value]) => Object.hasOwn(expectedBinding, key) && expectedBinding[key] === value)) return null
+    return record.nativeContinuation.completion
+  }
   binding(lease, callbackKind) {
     this.assertDelivery(lease)
     const record = this.#records.get(lease)

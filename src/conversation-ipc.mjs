@@ -65,7 +65,7 @@ export function createConversationParentChannel(child, { generation, admission, 
       dispatch: (kind, value) => callback(kind, normalizeConversationCallback(kind, value), { conversationDelivery: delivery }) }
     delivery = source ? admission.deriveReport(source, { ...options, reason: params.reason }) : admission.registerDelivery(record.lease, options)
     const binding = { generation, operationId: record.lease.correlation, deliveryId: params.deliveryId, target: params.target }
-    const info = { record, delivery, binding }
+    const info = { record, delivery, binding, source }
     deliveries.set(delivery, info)
     const done = release.register(record.lease, delivery, params)
     hold(record, done)
@@ -181,7 +181,7 @@ export function createConversationParentChannel(child, { generation, admission, 
     }).catch(() => {})
   }
   function request(method, params, options = {}, kind = 'root') {
-    let lease, actor
+    let lease, actor, requestId
     try { lease = admission.assertLease(options.conversationLease, { generation }); actor = authorizeActor(method, options.capturedAuthority)
       check((method === 'display.words') === (kind === 'callback'))
       validateConversationRequest(method, params, { generation, operationId: lease.correlation, actor, continuation: lease.epoch !== admission.capture().epoch }) }
@@ -190,10 +190,23 @@ export function createConversationParentChannel(child, { generation, admission, 
       if (method === 'user.turn') rejected.accepted = rejected
       return rejected
     }
+    const nativeTarget = kind === 'root' && method === 'user.turn' ? params.target : null
     return peer.call(kind, method, params, {
       context: Object.freeze({ generation, operationId: lease.correlation, actor: Object.freeze({ ...actor }), continuation: lease.epoch !== admission.capture().epoch }),
       onChunk: options.onChunk,
-      beforeSend: (completion, context, id) => attach(method, options, context, completion, id),
+      getNativeContinuation: () => {
+        if (kind !== 'root' || method !== 'user.turn') return null
+        const record = records.get(requestId)
+        if (!record) return null
+        live(requestId, record.context)
+        for (const info of deliveries.values()) {
+          if (info.record !== record || info.source !== null || info.binding.target !== nativeTarget) continue
+          const continuation = admission.getNativeContinuation?.(info.delivery, info.binding)
+          if (continuation instanceof Promise) return continuation
+        }
+        return null
+      },
+      beforeSend: (completion, context, id) => { requestId = id; attach(method, options, context, completion, id) },
     })
   }
   function callback(method, params, options = {}) {

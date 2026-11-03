@@ -82,6 +82,42 @@ async function setup(t, { effect = () => {}, dispatcher: factory = createConvers
   return { root, fixture, parent, child, dispatcher, admission, lease, request, calls, native, operationContext, admissionCheck, endpoints, closed, diagnostics }
 }
 
+test('native deadline hook is bound to the original RPC and delivery, not another RPC or caller options', async t => {
+  const h = await setup(t), actual = Promise.withResolvers(), lookups = []
+  let selected = null, pending = true, callerInjection = 0
+  h.admission.getNativeContinuation = (delivery, binding) => {
+    const original = h.native.find(entry => entry.delivery === delivery)
+    assert(original)
+    assert.deepEqual(binding, { generation: original.context.generation, operationId: original.context.operationId,
+      deliveryId: original.params.deliveryId, target: original.params.target })
+    lookups.push(delivery)
+    return pending && delivery === selected ? actual.promise : null
+  }
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const input = { target: h.fixture.bots[0].id, message: 'native held', images: [] }
+  const first = h.request('user.turn', input)
+  await first.accepted; selected = h.native[0].delivery
+  input.target = 'bot-other'
+  const second = h.request('user.turn', { target: h.fixture.bots[0].id, message: 'no positive native proof', images: [] }, { kind: 'owner' },
+    { getNativeContinuation: () => { callerInjection++; return actual.promise } })
+  await second.accepted
+  const refused = assert.rejects(second, { code: 'CONVERSATION_IPC_TIMEOUT' })
+  let firstSettled = false, firstActualSettled = false, secondActualSettled = false
+  first.then(() => { firstSettled = true }, () => { firstSettled = true })
+  first.completion.then(() => { firstActualSettled = true })
+  second.completion.then(() => { secondActualSettled = true })
+  t.mock.timers.tick(60000); await refused; await settle()
+  assert.equal(firstSettled, false); assert.equal(firstActualSettled, false); assert.equal(secondActualSettled, false)
+  assert(lookups.includes(selected)); assert(lookups.includes(h.native[1].delivery)); assert.equal(callerInjection, 0)
+  pending = false; actual.resolve(); await settle()
+  for (const entry of h.native) {
+    await h.admission.invoke(entry.delivery, 'user.complete', { reply: 'saved at actual completion' })
+    h.admission.finish(entry.delivery)
+  }
+  await first; await first.completion; await second.completion
+  h.admission.finish(h.lease)
+})
+
 test('parent save effect receives the same RPC actualCompletion before begin and retains it beyond requested end', { timeout: 4000 }, async t => {
   let adapter, request, h, ended = false, resultDone = false
   const notification = Promise.withResolvers(), gateDone = Promise.withResolvers(), endStarted = Promise.withResolvers(), tracked = [], opaque = {}

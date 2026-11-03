@@ -65,7 +65,23 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
   }
   const touch = task => {
     clearTimeout(task.timer)
-    if (task.timeout > 0) { task.timer = setTimeout(() => task.result.reject(conversationChannelError('CONVERSATION_IPC_TIMEOUT')), task.timeout); task.timer.unref?.() }
+    if (task.nativeWait) return
+    if (task.timeout > 0) {
+      task.timer = setTimeout(() => {
+        let continuation
+        if (side === 'parent' && task.kind === 'root' && task.method === 'user.turn' && task.admittedSeen) {
+          try { continuation = task.getNativeContinuation?.() } catch {}
+        }
+        if (!(continuation instanceof Promise)) { task.result.reject(conversationChannelError('CONVERSATION_IPC_TIMEOUT')); return }
+        task.nativeWait = continuation
+        const settled = () => {
+          task.nativeWait = null
+          if (!dead && pending.get(task.id) === task) touch(task)
+        }
+        continuation.then(settled, settled)
+      }, task.timeout)
+      task.timer.unref?.()
+    }
   }
   const finish = async (task, error, value) => {
     try { await task.body.promise } catch (cause) { if (cause.outcome !== 'not_accepted') { fail(cause); return }; error ??= cause }
@@ -201,8 +217,8 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
     }),
   })
   endpoint.on('error', fail)
-  function call(kind, method, params, { context = null, source = null, beforeSend, onChunk, timeout = 60000 } = {}) {
-    const task = { id: sequence += 2, kind, method, params, context, source, timeout, onChunk,
+  function call(kind, method, params, { context = null, source = null, beforeSend, onChunk, getNativeContinuation, timeout = 60000 } = {}) {
+    const task = { id: sequence += 2, kind, method, params, context, source, timeout, onChunk, getNativeContinuation,
       result: deferred(), completion: deferred(), admitted: deferred(), body: deferred(), acknowledgement: deferred(), released: false }
     const result = task.result.promise
     result.completion = task.completion.promise

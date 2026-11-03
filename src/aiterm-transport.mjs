@@ -679,6 +679,8 @@ export class AitermTransport {
         await onStatus?.('running')
         await job.checkpoint()
         acknowledged = true
+        if (conversationDelivery && followed)
+          this.conversationAdmission.trackNativeContinuation(conversationDelivery, delivery.receipt, result)
         accept({ delivery: steered ? 'steered' : 'running' })
         endAdmission()
         // 待つ手がかりを返さない差し込み（Aiterm 0.59.1まで）は、同じ席のjobの終わりを待つ。無ければ、終わりを知る道が無い。
