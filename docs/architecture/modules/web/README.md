@@ -11,7 +11,7 @@ flowchart LR
   Browser["index.html / app.js<br/>画面の起動だけ"] --> Application["application.createWebApp<br/>一覧・選択・viewの接続"]
   Application --> Views["各view<br/>編集 / 下書き / 履歴 / 画像"]
   Application --> Updates["update-center<br/>ロゴ右入口・稼働版と更新計画の段階表示"]
-  Updates -->|"共通GET api/updates / 未供給操作は無効"| Client
+  Updates -->|"共通inventory / container計画・明示実行 / 同UUID結果GET"| Client
   Application --> Client["client.createWebClient<br/>JSON / 画像 / SSE"]
   Views -->|"api / fetchImage"| Client
   Client -->|"既公開HTTPだけ"| Integration["integration.HTTP/SSE"]
@@ -39,6 +39,7 @@ WebはHTTPとSSEだけを利用し、MCPを呼ばない。画面に表示する�
 - 画像cache：取得Promiseと所有URL。破棄は生成者が行う。
 - localStorage：`bellteam-read-receipts.v1`の端末内既読だけ。サーバーの読了記録を作らない。
 - update-center：選択中の全体/個別対象、実測snapshot/読取世代、dialogと戻りfocus。正式版・計画未供給ではレビュー用と表示して実行無効。永続版情報や成功判定を作らない。
+- sessionStorage：`bellteam-update-request.v1`のrequestId/planIdだけ。再読込後の結果照会に使い、受付・版・成功の正本にしない。保存できない時は新しい更新を開始しない。
 
 APIの拒否や応答不明を未保存・未配送と断定しない。202は受付、Goal/nativeの実適用とAI回答完了は各サーバーの返す状態に従う。
 
@@ -64,6 +65,8 @@ node --test test/web-client.test.mjs test/web-module.test.mjs test/web-event-ref
 
 ## 更新センターの段階導入
 
-[Update通知と更新センター](update-notice-design.md)はロゴ右入口、実在moduleの稼働版と説明、全体/個別計画、影響・実結果の正本。`update-center.js`は共通GET `/api/updates`からcomponentsの名称/説明/版/比較/実行可否/利用可否を表示し、固定一覧と旧module別GETを持たない。表示用の型/状態語は検証し、厳密schema/有限例の正本はintegration公開`src/update-center-contract.mjs`。未独立は理由付き無効、provider利用不可と版採用を分離する。正式版/計画/実行機構の未供給では操作無効。今回の接続は読取だけでPOSTを発行しない。
+[Update通知と更新センター](update-notice-design.md)はロゴ右入口、実在moduleの稼働版と説明、計画・影響・実結果の正本。`update-center.js`は共通GET `/api/updates`から名称/説明/版/比較/実行可否/利用可否/publicationを表示する。厳密schema/有限例の正本はintegration公開`src/update-center-contract.mjs`。受入catalogとfeed取得確認を分離し、取得失敗/未確認を最新版と表示しない。未独立やprovider未供給は理由付き無効。
+
+今回の操作接続はcontainer個別だけ。明示POST plansの固定target/期限/影響を確認し、再起動を要する計画はcheckbox確認後にPOST operationsを一回だけ発行する。UUIDとplanIdをsessionStorageへ保存してから要求し、POST応答不明/再読込/接続復帰は同UUIDのGETで確認する。inventoryが取得できなくても結果照会を行う。旧応答、別requestId/plan、期限切れ、保存不正を実行へ進めない。all/独立moduleの共通耐久操作は未接続で無効。WebからHostや任意shellへ直接接続しない。
 
 構築時は無通信。認証後の起動、open、ready/updates、表示復帰、手動再取得で既clientから読む。破棄後や古いreadは適用せず、最新の取得失敗時は古い版を最新として残さない。noticeと共通comparisonだけからロゴ右の状態語を表示し、Webは版を比較しない。operation/previousOperationは実行と稼働検証を分け、両成功のcompletedだけ完了とする。desktopは一覧内スクロール、狭幅は詳細から選択行へ戻る操作を持つ。資材登録/版置換は既assets、試験は`test/web-update-center.test.mjs`と従来の組立て/SSE。公開契約の9有限例を表示へ渡す局所検証と、実HTTP/共通投影→実ブラウザー/既SSE再同期を直接境界で確認する。
