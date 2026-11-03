@@ -19,7 +19,7 @@ async function fingerprint(root) {
   }
   return result
 }
-async function setup(t, override = () => {}, mutate = () => {}) {
+async function setup(t, override = () => {}, mutate = () => {}, diagnostic = async () => {}) {
   const fixture = JSON.parse(await readFile(new URL('../src/conversation/probe-fixture.json', import.meta.url), 'utf8'))
   mutate(fixture)
   const root = await mkdtemp(join(tmpdir(), 'conversation-dispatcher-'))
@@ -31,7 +31,7 @@ async function setup(t, override = () => {}, mutate = () => {}) {
   }
   const calls = [], events = [], native = [], backgrounds = []
   let serial = 0
-  const d = createConversationDispatcher({ root, event: async (...args) => events.push(args),
+  const d = createConversationDispatcher({ root, diagnostic, event: async (...args) => events.push(args),
     trackBackground: (id, context, task) => { backgrounds.push({ id, context, task }); task.catch(() => {}) },
     effect: async (method, params, context) => {
       calls.push({ method, params, context })
@@ -71,6 +71,27 @@ async function initialize(h) {
   await h.d.control('initialize', { generation, mode: 'restore', bots: h.fixture.bots }, controlContext)
   await h.d.control('resume', {}, controlContext)
 }
+
+test('dispatcher routes committed log corruption to its diagnostic port and retains valid history', async t => {
+  const reports = [], h = await setup(t, undefined, undefined, async report => reports.push(report))
+  const record = id => ({ schema: 'bellteam.direct-message.v1', delivery_id: id, from: h.fixture.bots[0].id,
+    target: 'user', message: id, at: '2026-11-04T00:00:00Z', delivery: 'delivered' })
+  const first = JSON.stringify(record('before')) + '\n', last = JSON.stringify(record('after')) + '\n'
+  const broken = Buffer.concat([Buffer.alloc(147), Buffer.from('{"private":"body"}\n')])
+  const bytes = Buffer.concat([Buffer.from(first), broken, Buffer.from(last)])
+  const path = join(h.root, 'logs/direct-messages.jsonl')
+  await writeFile(path, bytes)
+  await initialize(h)
+  assert.deepEqual(reports, [])
+  for (let index = 0; index < 2; index++) {
+    const rows = []; for await (const row of await h.dispatch('history.listMessages', { botId: h.fixture.bots[0].id })) rows.push(row)
+    assert.deepEqual(rows.map(row => row.message), ['before', 'after'])
+  }
+  assert.deepEqual(reports, [{ code: 'MESSAGE_LOG_INVALID', line: 2, offset: Buffer.byteLength(first), length: broken.length - 1, reason: 'nul' }])
+  assert.deepEqual(await readFile(path), bytes)
+  assert.equal(h.native.length, 0)
+  assert.deepEqual(h.events, [])
+})
 
 test('dispatcher restore has no effects/writes and history holds one complete snapshot through quiesce', async t => {
   const h = await setup(t), before = await fingerprint(h.root)

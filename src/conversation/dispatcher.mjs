@@ -51,7 +51,7 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
   const routing = new ConversationRouting({ read: context => invoke('usage.routing.read', {}, context), fetcher })
   const native = new ConversationNative({ invoke, current, run: (state, operation) => contexts.run(state, operation),
     awaitStarted: context => background.awaitStarted(context) })
-  const logPath = join(root, 'logs/direct-messages.jsonl'), store = new ConversationStore({ logPath })
+  const logPath = join(root, 'logs/direct-messages.jsonl'), store = new ConversationStore({ logPath, onCorruption: report => diagnostic(report) })
   const rooms = new RoomRegistry({ roomsRoot: join(root, 'rooms'), bots })
   const assets = new MessageAssets({ root, botsAssetsRoot: join(root, 'state/bots'),
     readImage: async (image, _maxBytes, leaseId) => Buffer.from((await invoke('runtime.image.read', { image, leaseId })).data, 'base64'),
