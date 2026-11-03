@@ -48,6 +48,12 @@ profile.updateはモデル照会と指示effectを保存ロックの外へ移し
 
 まだ親bootstrap/facade/専用Owner proxyの通常接続、削除外部effectとgate/cancel、scheduler発行順の切替、固定entry/実物交換が残る。このdispatcher差分だけでは旧writer廃止や独立更新の完成を証明しない。
 
+### 終端前のstate検証と削除effect（第四差分）
+
+quiesceは全active/投影の終端後、旧子を終了可能にする前にbots/owner/rulesのrestore検査を再実行する。未知schemaや欠損はquiesce失敗、quiescedにはならず旧resumeへ戻せる。遅い検証後もepochを再照合するのでresume済み世代を停止しない。検査中のseed/migration/cleanup/生成は0。
+
+Bot削除は同Botの削除操作の順序を維持しつつ、短い保存ロックでreceipt/退役だけを行い、既指示effectの終端→project cleanup→CLI同期はそのロックを解放して待つ。旧session callbackは退役後を確認して拒否でき、他Bot保存も継続できる。保存済みprofile更新が外部指示待ちの間に退役した場合、undefinedの成功を返さずBOT_UPDATE_RETIRED/unknownを返す。profile.removeのdispatcher/gate接続自体は引き続き後続差分。
+
 ## 現状と初回の分離
 
 ```mermaid

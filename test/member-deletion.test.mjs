@@ -54,6 +54,38 @@ test('CLI同期失敗は削除のcleanupを妨げず、削除完了と別の結�
   await assert.rejects(f.bots.remove('bot-b'), /BOT_NOT_FOUND/u)
 })
 
+test('project cleanup and CLI effects do not hold the same Bot session mutation lock', { timeout: 2000 }, async t => {
+  const f = await fixture(t), remove = f.bots.projectFiles.remove.bind(f.bots.projectFiles)
+  f.bots.projectFiles.remove = async project => {
+    await assert.rejects(f.bots.updateSession('bot-b', 'late-session'), /BOT_NOT_FOUND/)
+    await f.bots.updateSession('bot-a', 'other-session')
+    await remove(project)
+  }
+  f.bots.onChange = async () => {
+    await assert.rejects(f.bots.updateSession('bot-b', 'late-cli-session'), /BOT_NOT_FOUND/)
+  }
+  await f.bots.remove('bot-b')
+  assert.equal(f.bots.get('bot-a').session, 'other-session')
+  await f.absent()
+})
+
+test('retirement waits accepted instruction effects before physical cleanup without state lock', async t => {
+  const f = await fixture(t), entered = gate(), release = gate(), retired = gate()
+  f.bots.projectFiles.writeInstructions = async () => { entered.release(); await release.promise }
+  const updating = f.bots.update('bot-b', { name: 'saved before removal' })
+  await entered.promise
+  const unwatch = f.bots.watch(() => { if (!f.bots.has('bot-b')) retired.release() })
+  t.after(unwatch)
+  const removing = f.bots.remove('bot-b')
+  await retired.promise
+  await assert.rejects(f.bots.updateSession('bot-b', 'late-session'), /BOT_NOT_FOUND/)
+  assert.ok(await stat(f.project))
+  release.release()
+  await assert.rejects(updating, { code: 'BOT_UPDATE_RETIRED', outcome: 'unknown' })
+  await removing
+  await f.absent()
+})
+
 for (const remaining of ['both', 'record', 'directory']) {
   test(`正規MCP→HTTP DELETEは既pending(${remaining})をnative停止なしで再開し、完全不存在を拒む`, async t => {
     const f = await fixture(t), native = [], logs = []

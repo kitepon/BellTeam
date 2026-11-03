@@ -27,6 +27,7 @@ export class BotRegistry extends Map {
   #profileCache = new Map()
   #previewBases = new WeakMap()
   #instructionWrites = new Map()
+  #removalOperations = new Map()
 
   constructor(options) {
     const { seedPath, botsRoot, now = () => new Date(), id = randomUUID, botId = () => `bot-${randomUUID().slice(0, 8)}`, onChange = async () => {}, models = new LiveModelCatalog(), projectFiles = new ProjectFiles() } = options
@@ -234,7 +235,9 @@ export class BotRegistry extends Map {
     try { await writing } finally { if (this.#instructionWrites.get(id) === writing) this.#instructionWrites.delete(id) }
     await this.refresh()
     this.changed(id)
-    return this.get(id)
+    const updated = this.get(id)
+    if (!updated) throw Object.assign(registryError('BOT_UPDATE_RETIRED'), { status: 409, outcome: 'unknown' })
+    return updated
   }
 
   async updateFastMode(id, fastMode) {
@@ -331,7 +334,10 @@ export class BotRegistry extends Map {
 
   async remove(id) {
     validateId(id)
-    return this.#mutateProfile(id, () => this.#remove(id))
+    const previous = this.#removalOperations.get(id) ?? Promise.resolve()
+    const removing = previous.catch(() => {}).then(() => this.#remove(id))
+    this.#removalOperations.set(id, removing)
+    try { return await removing } finally { if (this.#removalOperations.get(id) === removing) this.#removalOperations.delete(id) }
   }
 
   async hasPendingRemoval(id) {
@@ -370,37 +376,48 @@ export class BotRegistry extends Map {
   }
 
   async #remove(id) {
-    await this.refresh()
-    const bot = this.get(id)
-    let cleanupError
-    if (!this.separateState) {
-      if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
-      await this.projectFiles.remove(bot.project)
-    } else {
-      const pending = join(this.stateRoot, '.deleting', id)
-      const record = join(this.stateRoot, '.deleting', `${id}.json`)
-      const resuming = !bot && (await pathExists(pending) || await pathExists(record))
-      if (bot && await pathExists(pending)) throw registryError('BOT_DELETE_CONFLICT')
-      if (!resuming) {
+    let bot
+    await this.#mutateProfile(id, async () => {
+      await this.refresh()
+      bot = this.get(id)
+      if (!this.separateState) {
         if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
-        await mkdir(join(this.stateRoot, '.deleting'), { recursive: true, mode: 0o700 })
-        // Keep a separate listing receipt until both roots are fully removed.
-        // Its presence alone never permits deleting an active project on recovery.
-        await writeAtomic(record, { schema: 'bellteam.bot-deletion.v1', profile: bot })
-        // Mark synchronously before the first retirement filesystem await.
         this.deletionIntents.add(id)
         this.delete(id)
-        try { await rename(this.statePath(id), pending) } catch (error) {
-          this.deletionIntents.delete(id)
-          this.set(id, bot)
-          throw error
+      } else {
+        const pending = join(this.stateRoot, '.deleting', id)
+        const record = join(this.stateRoot, '.deleting', `${id}.json`)
+        const resuming = !bot && (await pathExists(pending) || await pathExists(record))
+        if (bot && await pathExists(pending)) throw registryError('BOT_DELETE_CONFLICT')
+        if (!resuming) {
+          if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
+          await mkdir(join(this.stateRoot, '.deleting'), { recursive: true, mode: 0o700 })
+          // Keep a separate listing receipt until both roots are fully removed.
+          // Its presence alone never permits deleting an active project on recovery.
+          await writeAtomic(record, { schema: 'bellteam.bot-deletion.v1', profile: bot })
+          // Mark synchronously before the first retirement filesystem await.
+          this.deletionIntents.add(id)
+          this.delete(id)
+          try { await rename(this.statePath(id), pending) } catch (error) {
+            this.deletionIntents.delete(id)
+            this.set(id, bot)
+            throw error
+          }
         }
+        this.deletionIntents.add(id)
+        this.delete(id)
+        await this.refresh()
+        this.changed()
       }
-      this.deletionIntents.add(id)
-      this.delete(id)
-      await this.refresh()
-      this.changed()
+    })
+    // Accepted instruction effects finish before physical project cleanup, without holding the state lock.
+    await this.#instructionWrites.get(id)?.catch(() => {})
+    let cleanupError
+    if (this.separateState) {
       try { await this.finishRemoval(id) } catch (error) { cleanupError = error }
+    } else {
+      try { await this.projectFiles.remove(bot.project) }
+      finally { this.deletionIntents.delete(id) }
     }
     await this.refresh()
     let configurationSync

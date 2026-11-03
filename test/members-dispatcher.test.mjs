@@ -24,7 +24,7 @@ async function fixture(t, effect = async method => method === 'project.readPrevi
   await dispatcher.control('initialize', { generation: 'test' }, initial)
   await dispatcher.control('resume', {})
   const request = (method, params, ctx = context) => { dispatcher.validateRequest(method, params, ctx); return dispatcher.dispatch(method, params, ctx) }
-  return { dispatcher, request, records }
+  return { dispatcher, request, records, root }
 }
 
 test('restore snapshots complete before ready and root mutations update projection before result', async t => {
@@ -100,4 +100,13 @@ test('internal DTO admits four maximum image fields and enforces UTF-8 byte budg
   validateMembersRequest('profile.update', { botId: 'bot-a', changes: { avatar: image, avatarLarge: image, avatarSource: image, avatarLargeSource: image } }, context)
   assert.throws(() => validateMembersRequest('profile.update', { botId: 'bot-a', changes: { reasoningEffort: 'あ'.repeat(6_000_000) } }, context))
   assert.throws(() => validateMembersEffectResult('project.readPreviousSession', { unexpected: true }), { outcome: 'unknown', code: 'MEMBERS_RESULT_INVALID' })
+})
+
+
+test('quiesce detects incompatible current state before allowing old writer exit', async t => {
+  const f = await fixture(t)
+  await writeFile(join(f.root, 'owner/profile.json'), JSON.stringify({ schema: 'unknown' }))
+  await assert.rejects(f.dispatcher.control('quiesce', {}), /OWNER_PROFILE_FILE_INVALID/)
+  await assert.rejects(f.dispatcher.control('exit', {}), /MEMBERS_NOT_QUIESCED/)
+  assert.deepEqual(await f.dispatcher.control('resume', {}), { resumed: true })
 })

@@ -180,6 +180,9 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
       accepting = false
       const current = ++epoch
       await drain()
+      if (current === epoch && !accepting) {
+        await bots.restore(); await ownerProfile.restore(); await userRules.restore()
+      }
       quiesced = current === epoch && !accepting
       return { quiesced }
     }
