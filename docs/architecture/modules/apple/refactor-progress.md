@@ -63,6 +63,8 @@ Ownerからトロニー経由で受けたUI改善6点（トロニー通話 seq42
 
 保留中の修理：配達失敗の赤表示（`deliveryTracking`）と、大画像の前面復帰時の再読込。どちらも全体の受け入れ後。
 
+記録だけの件：Owner画面（2026-11-03 23:05 JST、トロニーとの会話、版は未指定）で、入力欄の上だけに `BellTeam: MEMBERS_NOT_ACCEPTED` が残り、既存の発言と処理中の表示は見えていた（原本はトロニーの `integrations/owner-operational-recovery-20261103/chat-footer-members-not-accepted-2305.jpg`）。入力欄の上の赤字は `ConversationView` の `errorText` で、1.0.5 (100)で直した上部の一覧の赤字（PR292）とは別の経路。`load()` は本文の取得に成功すると赤字を消し、続く `/queue` の取得の失敗では赤字を立てる（`ConversationView.swift` の `load()`）。本文が見えて処理中の表示がある画面は、この経路と矛盾しない。当時の本体の拒否か残留かは、本体GETとApple診断の当時の行が無く断定しない。本体の拒否の修理（PR287）は本番未反映で、Appleでは扱わない。
+
 ## 次の作業
 
 試験の原本（xcresultとlog）は親のMacの `~/Library/Developer/BellTeam-evidence/2026-11-03-apple-refactor/` にある。試験はすべて Mac Catalyst（macOS 27.0）で、iPhone・iPadでは実行していない。
