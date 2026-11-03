@@ -1,0 +1,89 @@
+{
+  "source": "d00ba40b026bf946de2c191403ffa704be655a86",
+  "mainWithSameStateSources": "4e01fadcb5edcaa74c010436a47be9cb26eabeec",
+  "purpose": "Synthetic offline acceptance fixture, no real seat/state copied",
+  "sources": [
+    {
+      "path": "src/bot-registry.mjs",
+      "source": "d00ba40b026bf946de2c191403ffa704be655a86",
+      "bytes": 35133,
+      "sha256": "539c089ebdc53f17be69a14b79c39506b284dd1fa11e989898630607a99f8a87"
+    },
+    {
+      "path": "src/owner-profile.mjs",
+      "source": "d00ba40b026bf946de2c191403ffa704be655a86",
+      "bytes": 4203,
+      "sha256": "dd23de149c4ad0f2b0b6233b189b11853807cd10f8b4cc79745e7448e49bb323"
+    },
+    {
+      "path": "src/user-rules.mjs",
+      "source": "d00ba40b026bf946de2c191403ffa704be655a86",
+      "bytes": 1618,
+      "sha256": "b697834f5866d6aebe59532ea114bdb7562d67510476817a06dd4deb44f3479a"
+    },
+    {
+      "path": "src/schedule-definition.mjs",
+      "source": "d00ba40b026bf946de2c191403ffa704be655a86",
+      "bytes": 4875,
+      "sha256": "e11366163b9e23dd80461e45961d602b213304cae8da0ac3610b281d09813d35"
+    },
+    {
+      "path": "src/members/state-compatibility.mjs",
+      "source": "d00ba40b026bf946de2c191403ffa704be655a86",
+      "bytes": 663,
+      "sha256": "9e32f2961926995e62de261c4dae0bba09909e0dfab79a1151092fe081510e7a"
+    }
+  ],
+  "documents": [
+    {
+      "path": "root/state/bots/.initialized",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "root/state/bots/bot-fixture/bot.json",
+      "bytes": 502,
+      "sha256": "9ca0b02c8608201651fda10aef2993de86e3e923baa33884fbefb8ff2bb81ec0"
+    },
+    {
+      "path": "root/state/bots/bot-fixture/schedule.json",
+      "bytes": 365,
+      "sha256": "310d5def69ea295db103c95c1bb5f69a5aceb6b45daf797939b00f7ff8787141"
+    },
+    {
+      "path": "root/owner/profile.json",
+      "bytes": 209,
+      "sha256": "6a6910a9a163baf1472da9220a9904da5eccf176216a2da1c8351a1248ec44b3"
+    },
+    {
+      "path": "root/owner/user-rules.md",
+      "bytes": 62,
+      "sha256": "324ce9d169bc4d0959ac05faf82663662e53b6d685da17e44eb144c036676bf3"
+    },
+    {
+      "path": "examples/deletion-receipt.json",
+      "bytes": 709,
+      "sha256": "d4099c950704d587ec3fde65a9f61059acb712453aba3a762f8c7e7325a43805"
+    }
+  ],
+  "checks": {
+    "activeBots": 1,
+    "schedules": 1,
+    "enabledSchedules": 0,
+    "basePendingRemovals": 0,
+    "optionalReceiptOnlyPending": true,
+    "restoreBytesModeMtimeUnchanged": true,
+    "liveModelAccess": 0,
+    "nativeCalls": 0,
+    "cliCalls": 0,
+    "scheduleIssues": 0
+  },
+  "optionalReceipt": {
+    "sourcePath": "examples/deletion-receipt.json",
+    "targetPath": "state/bots/.deleting/bot-fixture-retired.json",
+    "active": false,
+    "hasIntent": true,
+    "retired": false,
+    "notPartOfBase": true
+  }
+}

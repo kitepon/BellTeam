@@ -34,3 +34,23 @@ publish-membersは両nativeでarchive→unsigned builtin/ready/OSclose→公式a
 正式catalog側もmembersだけ厳密5key（既4key＋stateCompatibility6実値）を持つ。schema/producerとarchive/consumerの照合は[正式catalog](update-catalog.md)が正本、実state read-restoreはwriter/runtimeが所有する。
 
 親Nodeprobeは同固定sourceのscripts/probe-members-runtime.mjsを使い捨て/app/scriptsへ同bytesコピーしてからreadonly化し、その固定pathで起動する。相対importはarchiveの/app/srcと/app/node_modulesへ解決する。checkoutへ依存を追加せずNODE_PATH/CWD fallbackも使わない。この試験用コピーは署名payload inventoryに含めず、/appと一緒に回収する。C/IPC/作者DTOの契約変更はない。
+
+## image上の初回署名往復fixture
+
+```mermaid
+flowchart LR
+  Runs[固定同source image run・members署名run] --> Fetch[元ZIP digest-size / 公式bundle原本]
+  Fetch --> Root[既install.sh固定members / root-owned releases]
+  Image[immutable native image / readonly] --> Assembly[実createMembersAssembly / controller・facade]
+  State[作者生成人工Bot8・無効予定1・Owner/rules] --> Restore[read-restore only]
+  Assembly --> Restore
+  Root --> Reader[実署名reader / 固定C UID1001]
+  Restore --> Reader
+  Reader --> ABA[builtin→同source署名→builtin / 前子OSclose]
+  ABA --> Keep[親Web・人工業務PID/port・保存bytes・lock inode保持]
+  Keep --> Close[controller正常close / Web・人工業務close / 当席資材だけ回収]
+```
+
+verify-members-image.ymlはpull-onlyの両native専用工程で、新build/署名生成はしない。同sourceのpush image runとpublish-members runの成功・attempt1・repoID・workflowを検査して元ZIPを全SHA-size確認する。通常imageの実assembly/controller/facadeと既roothelper/reader/Cを使い、親HTTP先の人工業務と別の人工processだけをfixtureにする。slots/model/CLI/実席を開始せず、Owner authorityを作らない。公開members更新HTTPや未供給のall/module耐久coordinatorを新設・試験済み扱いにせず、controller reserve/replaceの有限境界として明記する。
+
+人工stateはtest/fixtures/members-saved-state/manifest.jsonへ全document/作者sourceを束縛。baseはactive Bot1、2100年の無効予定1/nextRunAt:null、人工Owner/rules/.initializedだけ。全bytes hashを交換の前後と正常close後で比較する。deletion receiptは別examplesの完全例として保持し、baseへ混入しない。project値をpath権限へ使わない。fixtureがbootstrap initialize/cleanup/seed/migrationを呼ばず、実assembly startのread-restoreだけを使う。個別SHA・別source・tamperはroot公開前拒否し、rootstore/採用record不変を確認。失敗・取消も共通有限allocation/cleanup契約で当席container/volume/tempだけ回収する。

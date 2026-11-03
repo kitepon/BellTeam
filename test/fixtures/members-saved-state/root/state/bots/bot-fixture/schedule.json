@@ -1,0 +1,16 @@
+{
+  "schema": "bellteam.schedule.v1",
+  "schedules": [
+    {
+      "id": "schedule-fixture",
+      "name": "Disabled synthetic schedule",
+      "kind": "once",
+      "prompt": "Synthetic fixture only; do not execute.",
+      "enabled": false,
+      "lastRunAt": null,
+      "revision": 1,
+      "at": "2100-01-01T00:00:00.000Z",
+      "nextRunAt": null
+    }
+  ]
+}

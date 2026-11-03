@@ -1,0 +1,28 @@
+{
+  "source": "d00ba40b026bf946de2c191403ffa704be655a86",
+  "mainSourcesExact": "4e01fadcb5edcaa74c010436a47be9cb26eabeec",
+  "refs": [
+    {
+      "path": "build-and-check.mjs",
+      "bytes": 7035,
+      "sha256": "625425d829b53ab6d53aad57cad04f5e15573fb8e718db74db008e92eca43380"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2485,
+      "sha256": "f903f32148dd4ecf216ab269e06c93693ea52fd219e4af7f485f2eef430e9c2f"
+    },
+    {
+      "path": "manifest.json",
+      "bytes": 2863,
+      "sha256": "ec631b092b987c49ed026205527cd344fd308968c81e0aa9d21aeff48630a352"
+    },
+    {
+      "path": "direct-check.log",
+      "bytes": 293,
+      "sha256": "b8af6602065763eaa3f6f2ba4a1b3674246c94e50d0ca38f9be3fab0cec086af"
+    }
+  ],
+  "productChanges": 0,
+  "runtimeOperations": 0
+}

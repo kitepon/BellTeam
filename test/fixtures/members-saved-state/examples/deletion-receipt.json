@@ -1,0 +1,26 @@
+{
+  "schema": "bellteam.bot-deletion.v1",
+  "profile": {
+    "id": "bot-fixture-retired",
+    "name": "Synthetic retired member",
+    "displayName": "Synthetic retired member",
+    "harness": "grok",
+    "model": "",
+    "reasoningEffort": "",
+    "fastMode": false,
+    "color": "violet",
+    "profileText": "",
+    "personality": "",
+    "speechStyle": "",
+    "position": "",
+    "role": "",
+    "avatar": "",
+    "avatarLarge": "",
+    "avatarSource": "",
+    "avatarLargeSource": "",
+    "avatarCrop": null,
+    "avatarLargeCrop": null,
+    "session": "bot-fixture-retired",
+    "project": "/srv/bellteam/bots/bot-78d95a79/integrations/members-state-fixture-20261103/root/bots/bot-fixture-retired"
+  }
+}
