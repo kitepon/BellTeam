@@ -19,7 +19,7 @@ flowchart TD
   Scene --> Inactive["inactive<br/>AppStoreでは停止分岐なし"]
 ```
 
-根拠：[AppStore.sceneChanged](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L645)。各待機後にTask.isCancelledを検査する。refreshFromViewは失敗をthrowせずエラー表示へ返すため、次の停止状態/本人権利照会は取消されていなければ進む。RootViewのDebug preview引数ではsceneChangedの呼出しを省く。各画面のtask取消は別にあり、会話は非activeでreader/過去取得を止める。
+根拠：[AppStore.sceneChanged](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L650)。各待機後にTask.isCancelledを検査する。refreshFromViewは失敗をthrowせずエラー表示へ返すため、次の停止状態/本人権利照会は取消されていなければ進む。RootViewのDebug preview引数ではsceneChangedの呼出しを省く。各画面のtask取消は別にあり、会話は非activeでreader/過去取得を止める。
 
 ```mermaid
 flowchart TD
@@ -127,7 +127,7 @@ SubscriptionViewはloadSubscriptionで本体/商品/権利を確認し、購入/
 
 ## 整理候補
 
-- **A-L1**：`ios/BellBot/BellBot/Views/ConversationView.swift:1455`と`ios/BellBot/Shared/BotAvatarCache.swift:94`。会話画像cacheは専用のorigin正規化、通知画像cacheはServerOrigin.urlを経由したorigin正規化を持つ。
+- **A-L1**：`ios/BellBot/BellBot/Views/ConversationImages.swift:186`の`conversationImageOrigin`と`ios/BellBot/Shared/BotAvatarCache.swift:94`。会話画像cacheは専用のorigin正規化、通知画像cacheはServerOrigin.urlを経由したorigin正規化を持つ。
 - **A-L2**：`ios/BellBot/BellBot/App/BellBotApp.swift:201`と`ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift:92`。通知秘密sheetと完了時eventRevision増加をtabsとworkspaceがそれぞれ接続している。
 
 ## 未調査

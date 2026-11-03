@@ -136,7 +136,7 @@ flowchart TD
 
 利用権限確認またはPOSTのErrorはそのまま画面へ返す。Desktopは成功時に`errorText=nil`、失敗時に`operationFailureMessage`と`target.path + "/restart"`・POST・`.write`の診断を一回送る。詳細は成功時にdismiss、失敗時に`localizedDescription`だけを表示する。共通操作はUI状態・画面遷移・診断・refresh・再送を持たず、ackを再起動完了とは扱わない。
 
-直接試験は[BillingStoreTestsの再起動5関数](tests.md#billingstoretestsswift)に対応する。Mac実画面用fixtureの購読・再起動応答と要求記録はこの段階では追加していない。
+直接試験は[BillingStoreTestsの再起動5関数](tests.md#billingstoretestsswift)に対応する。Mac実画面用の`profile-terminal-ui-server.mjs`には購読・再起動の503/200応答・要求と診断の記録・resetを追加済み。`DesktopWorkspaceUITests.testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector`は失敗文言・診断一回・POST一回、再操作成功時のerror消去・inspector保持とPOST計二回・診断計一回を検査し、[親のMac確認記録](refactor-progress.md#次の作業)で通過している。
 
 ## 整理候補
 
@@ -147,5 +147,5 @@ flowchart TD
 ## 未調査
 
 - Owner・規範・追加機能の本体保存と反映、画像schemaの本体での生成・migration、AI再起動の内部実行。
-- 実UIでの画像選択・前面復帰・切り抜き途中状態、未保存フォームのsheet/window終了、同時保存中の操作。ビルド・試験は未実行。
+- 実UIでの画像選択・前面復帰・切り抜き途中状態、未保存フォームのsheet/window終了、同時保存中の操作。PR4実装時の文書更新ではビルド・試験は未実行だった。後続のMacでの画像保存・再起動の確認結果は[親の確認記録](refactor-progress.md#次の作業)を参照し、その範囲外は未確認。
 - AvatarCrop/ProfileTerminal/NetworkLifecycleProbe/BotSave等のXCTest本文・fixture。試験との対応は宣言で確認した範囲。

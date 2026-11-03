@@ -8,7 +8,7 @@ PR2で移した6型の所在と行番号は、実装の固定source `e82f12aa536
 
 PR3の入力・添付・会話画像と会話ファイルに残る定義の所在は、固定source `8ca67462304a059f1ee7a335b9d939a19ec6870e` からの配置変更を反映している。
 
-PR4の再起動操作と二つのcallback、直接試験は、固定source `22d56bfeb20263ee2e51ca0830a213ae6cb6aedf` からの変更を反映している。ビルド・試験は未実行。
+PR4の再起動操作と二つのcallback、直接試験は、固定source `22d56bfeb20263ee2e51ca0830a213ae6cb6aedf` からの変更を反映している。PR4実装時の文書更新ではビルド・試験は未実行だった。後続の実行結果は[親の確認記録](refactor-progress.md#モデルの適用記録)を参照。
 
 ## Core/Models.swift
 
@@ -403,9 +403,11 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 
 ## 読取範囲と本文未読のSwiftファイル
 
-`ios/BellBot/`のSwiftは92本。**全文読了47本**（製品45本とTests2本）、**宣言のみ確認45本**（BellBotTests26本・BellBotUITests19本）。完全に未参照のSwiftファイルは0本。試験宣言だけの読取を本文読了に含めない。
+固定HEAD `3df013d09eac6a7f83dc91d14a79a2984bbf82ad` の`ios/BellBot/`のSwiftは99本（製品52本、BellBotTests26本・BellBotUITests19本、Tests2本）。`rg --files ios/BellBot`の`.swift`ファイルを数えた。初回source `4e01fadcb5edcaa74c010436a47be9cb26eabeec` の92本から新規7本（BellAPI+BotSettings、GoalModels、GoalViewModel、BotScreenView、ConversationDetailView、ConversationImages、ConversationInput）が増え、上の対応表にも掲載済み。
 
-本文未読の全45本は上の「BellBotTests」「BellBotUITests」の対応表に1ファイル1行で全て列挙している。未読範囲はそれらの試験実装・assertion・fixture・補助型。製品コードの未読ファイルは無い。
+初回source `4e01fadcb5edcaa74c010436a47be9cb26eabeec` の読了実績は**全文読了47本**（製品45本とTests2本）、**宣言のみ確認45本**（BellBotTests26本・BellBotUITests19本）、完全に未参照のSwiftファイルは0本。試験宣言だけの読取を本文読了に含めない。
+
+初回sourceで本文未読だった全45本は上の「BellBotTests」「BellBotUITests」の対応表に1ファイル1行で全て列挙している。当時の未読範囲はそれらの試験実装・assertion・fixture・補助型で、製品コードの未読ファイルは無かった。試験本文の後続調査は[試験の対応表](tests.md#読取目録と試験の区分)を参照。
 
 ## 整理候補
 
@@ -413,6 +415,6 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 
 ## 未調査
 
-- 上記45本の試験本文、生成Xcode projectの全登録と構成の一致、packされたアプリ・拡張の実物。
-- 実行時の挙動・各試験の現在の合否。Xcodeビルド・Swiftチェック・XCTest・UI試験・pack・installは全て未実行。
+- 初回sourceで未読だった上記45本の試験本文は[後続調査](tests.md#読取目録と試験の区分)で読了済み。生成Xcode projectの全登録と構成の一致、packされたアプリ・拡張の実物は未調査。
+- 初回sourceの調査ではXcodeビルド・Swiftチェック・XCTest・UI試験・pack・installは全て未実行。後続の実行結果は[親の確認記録](refactor-progress.md#次の作業)を参照し、そこにない実行時の挙動・各試験の現在の合否は未確認。
 - 本体`src/`・`web/`の実装。索引はAppleのcallerを示し、本体処理の責任や完了を推測しない。

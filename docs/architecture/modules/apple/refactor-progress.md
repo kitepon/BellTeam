@@ -37,7 +37,7 @@ Ownerのリファクタリング指示の全文を、2026-11-03にレヴィア�
 | 実装 PR3 | `gpt-6.1-sol` high | session `01a1a148-b06a-7fe2-bb40-44c0ca965c4f` | 完了 `22d56bf`。MessageInputTests・ConversationDraftTests 6件、MacのUI試験2件（入力キー、会話切替の下書き）通過 |
 | 実装 PR4 | `gpt-6.1-sol` high | session `01a1a150-4b74-7921-ae71-35d1bd9ebcf7` | 完了 `5356a7e`。BillingStoreTests 21件通過（再起動の直接試験5件を含む） |
 | 実装 PR5 | `gpt-6.1-sol` high | session `01a1a157-97fd-7850-8e7a-3bc3a627154e` | 完了 `6b3ed89`。goalの直接試験4件と隣接1件通過 |
-| 最後の整合確認 | `gpt-6-astra` xhigh | 未実行 | — |
+| 最後の整合確認 | `gpt-6-astra` xhigh | `codex exec`（読み取り専用）、session `01a1a1c2-cf95-7760-b2cd-67364053cab5`。対象 `ce53f41` | 完了。製品コードは受入可（採用8件を実施、不採用12・保留1の混入なし、挙動の変化なし）。文書の訂正4点（fixtureの古い未実装記述、HTTP/SSEの実装担当、行番号と操作説明、試験数とファイル数）をSol Highが直した |
 
 Aitermの起動の失敗はエレグへ報告した（call-bridge通話 `29cba01a-03a0-4301-851d-acba07bc25c1`、seq9とseq10）。`codex exec` での実行は、Aitermの欠陥が直ったことを意味しない。
 
@@ -78,7 +78,7 @@ Ownerからトロニー経由で受けたUI改善6点（トロニー通話 seq42
 | PR3 | 画像の束・単画像・galleryの切替、画像GET失敗の表示、画像ファイルと画像の貼付け、添付の除去、送信失敗後の画像の復元 | 確認済み。`test/helpers/conversation-images-server.mjs`と`ConversationAppearanceUITests`の5件（DM3枚・room2枚の束とgallery切替、旧単画像と枚数ラベル、画像GET失敗のカードとgallery、ファイル選択と除去、画像2枚の貼付けとPOST失敗後の復元）がMacで通過。既存画像2件と画像GET失敗の試験は、変更前の`22d56bf^`でも同じ行で失敗した。原因は試験側で、Macのgalleryは全画面表示でsheetとして公開されず、`tap()`がSwiftUIのボタンへ届かない（`click()`で押す形へ直した）。Finderからの画像ファイルURLの貼付けは自動化していない（[tests.md](tests.md#pr3のmac確認の補助試験)） |
 | PR4 | 失敗文言と診断が1回、再操作の成功でerrorが消えinspectorが残る | 確認済み。`profile-terminal-ui-server.mjs` に購読、再起動の失敗と成功、要求と診断の記録、resetを足し、`DesktopWorkspaceUITests.testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector` がMacで通過（失敗文言、診断1回、POST1回、再操作の成功で文言が消えinspectorが残る、POST計2回、診断計1回） |
 | PR5 | goals-ui fixtureでの一覧・会話・editor・単独項目・結果不明・読取失敗後の回復 | 10件中8件がMacで通過（作成と編集、読取失敗後の一覧と会話、応答喪失、会話内3件、Grokのtoken、Grokの詳細）。`testUnconfirmedGoalChangeWaitsForRefreshWithoutResending`（239行、結果不明の後の一時停止ボタンが無い）と `testTaggedClaudeGoalAndClearedHistory`（369行、取り消し後の履歴）は失敗。同じ試験を変更前の `4e01fad` に入れても同じ行で失敗したので、PR5による変化ではない。結果不明の後と取り消しの後に一覧からカードが外れる製品の表示と、試験の期待が元から合っていない（iPhone・iPadで同じかは未確認） |
-| 全体 | 最後の整合確認（Astra xhigh） | 未実行 |
+| 全体 | 最後の整合確認（Astra xhigh） | 完了。製品コードは受入可。文書の訂正4点を反映済み。iPhone・iPad、FinderのファイルURL貼付け、goalの既知2失敗は未確認・未解決として残る |
 
 前回（PR1文面・PR4）の試験準備は固定source `refactor/apple-feature-map-20261103` / `d1114a499cab282da7dff9826861ad5c71a4a1d0` に対して行った。変更範囲はhelper二本、`DesktopWorkspaceUITests.swift`、`tests.md`、本書のみ。製品コード・Shared・NotificationServiceは未変更。ビルド・試験・helper起動・gitの変更操作は行っていない。[tests.mdの起動手順とPR1の静的調査](tests.md#pr1pr4のmac確認の補助試験)に環境変数・対象selector・未解明の境界を記載した。実行結果による表の更新は親の確認後に行う。
 

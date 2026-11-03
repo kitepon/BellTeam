@@ -2,7 +2,7 @@
 
 [全体図](overview.md) / [会話](conversation.md) / [要求と認証](requests-and-auth.md) / [goal](goals.md) / [背景とplatform](lifecycle-and-platform.md)。
 
-調査source：HEAD `afda9477bba4aaa7c8a6905100d3bacf26e47c90`（detached）。試験本文・assertion・補助型を静的に読んだ対応表。**試験は全て未実行であり、合格の報告ではない。** 機能の実装説明は上の各図と既存の[メンバー編集](members-and-rooms.md)、[設定](settings-and-profile.md)、[予定](schedule-list.md)を参照。
+初回調査source：HEAD `afda9477bba4aaa7c8a6905100d3bacf26e47c90`（detached）。試験本文・assertion・補助型を静的に読んだ対応表。**初回調査時点では試験は全て未実行だった。** 後続のMac実行結果は[親の確認記録](refactor-progress.md#次の作業)を参照。機能の実装説明は上の各図と既存の[メンバー編集](members-and-rooms.md)、[設定](settings-and-profile.md)、[予定](schedule-list.md)を参照。
 
 ## 読取目録と試験の区分
 
@@ -112,7 +112,7 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 
 ### BillingStoreTests.swift
 
-対象：購読と本人権利、PR4の`AppStore.restartConversation(target:)`直接呼出し。補助型も同じファイルを読んだ。PR4の追加5関数とfixture拡張は固定source `22d56bfeb20263ee2e51ca0830a213ae6cb6aedf` からの変更で、ビルド・試験は未実行。
+対象：購読と本人権利、PR4の`AppStore.restartConversation(target:)`直接呼出し。補助型も同じファイルを読んだ。PR4の追加5関数とfixture拡張は固定source `22d56bfeb20263ee2e51ca0830a213ae6cb6aedf` からの変更。PR4実装時の文書更新ではビルド・試験は未実行だったが、[親の確認記録](refactor-progress.md#モデルの適用記録)では追加5関数を含む21件が通過している。
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
@@ -138,7 +138,7 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testRestartConversationInitialGuideRefreshesSetupBeforePost](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L339) | 保持中complete=trueからGET setupでfalseへ更新したguideは本人権利照会を免除。setup GET→restart POSTの順序 |
 | [testRestartConversationCompletedGuideRequiresPaidAccessAfterSetupRefresh](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L357) | 保持中complete=falseでもGET setupがtrueなら本人権利を照会。権利なしで拒否しPOST0件 |
 
-二つの画面の成功・失敗処理は[再起動図](settings-and-profile.md#再起動の共有操作)を参照。Mac実画面用の`profile-terminal-ui-server.mjs`は未変更で、購読・再起動route・要求記録を追加する必要がある。失敗文言と診断一回、再操作成功時のerror消去・inspector保持は未確認。
+二つの画面の成功・失敗処理は[再起動図](settings-and-profile.md#再起動の共有操作)を参照。Mac実画面用の`profile-terminal-ui-server.mjs`には購読・再起動の503/200応答・要求と診断の記録・resetを追加済み。[Mac再起動試験](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L311)が失敗文言と診断一回・POST一回、再操作成功時のerror消去・inspector保持とPOST計二回・診断計一回を検査し、[親のMac確認記録](refactor-progress.md#次の作業)で通過している。
 
 ### BotSaveTests.swift
 
@@ -449,14 +449,14 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
 | [testSentImagesLoadInDirectAndRoomConversations](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L6) | DM3枚/room2枚の束→gallery、thumbnail・iOSのswipe・Macの前ボタン・閉じるで選択と画像表示。proofでPNG/JPEGのGET成功とpath集合を照合。Macはサイドバーから開き、クリックで操作する（全画面のgalleryはsheetとして公開されない） |
-| [testLegacyImageLoadsAndUnsavedImagesKeepTheirLabel](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L82) | 旧imageUrlの単画像galleryとURL無し2枚label、単一thumbnail無し。Macはハルのサイドバーボタンからクリックで操作し、proofでJPEG一種だけのGET成功を照合 |
-| [testPartOfMessageCopiesIntoComposer](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L304) | 部分コピーをcomposerへ貼り、元本文の部分だけであることを照合 |
-| [testComposerGrowsWithTypedLines](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L332) | 4行入力で本文保持と入力高さ増加 |
-| [testComposerGrowsAfterPastingManyLines](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L364) | 10行貼付けで本文保持と最大5行高さ |
-| [testPastedImagesBecomeAttachmentsAndReturnAfterFailedSend](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L390) | 2画像貼付け→送信失敗で本文/2枚復元、1枚削除 |
-| [testOwnerQuestionCardShowsOptionsAndReportsSendFailure](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L430) | 質問選択肢を表示し利用許可失敗後カードと操作を保持 |
-| [testMessageLinkOpensInBrowser](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L450) | メッセージのLinkからSafariを前面へ |
-| [testMacImageGetFailureAppearsInMessageAndGallery](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L120) | Mac専用。画像GETを503にし、単画像カードとgalleryの「画像を読み込めません」、1 / 1、画像未表示、閉じた後のカードとURL無し枚数ラベルを確認。proofで対象JPEGのGET失敗と送信ゼロを照合 |
+| [testLegacyImageLoadsAndUnsavedImagesKeepTheirLabel](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L81) | 旧imageUrlの単画像galleryとURL無し2枚label、単一thumbnail無し。Macはハルのサイドバーボタンからクリックで操作し、proofでJPEG一種だけのGET成功を照合 |
+| [testPartOfMessageCopiesIntoComposer](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L305) | 部分コピーをcomposerへ貼り、元本文の部分だけであることを照合 |
+| [testComposerGrowsWithTypedLines](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L333) | 4行入力で本文保持と入力高さ増加 |
+| [testComposerGrowsAfterPastingManyLines](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L365) | 10行貼付けで本文保持と最大5行高さ |
+| [testPastedImagesBecomeAttachmentsAndReturnAfterFailedSend](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L391) | 2画像貼付け→送信失敗で本文/2枚復元、1枚削除 |
+| [testOwnerQuestionCardShowsOptionsAndReportsSendFailure](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L431) | 質問選択肢を表示し利用許可失敗後カードと操作を保持 |
+| [testMessageLinkOpensInBrowser](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L451) | メッセージのLinkからSafariを前面へ |
+| [testMacImageGetFailureAppearsInMessageAndGallery](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L118) | Mac専用。画像GETを503にし、単画像カードとgalleryの「画像を読み込めません」、1 / 1、画像未表示、閉じた後のカードとURL無し枚数ラベルを確認。proofで対象JPEGのGET失敗と送信ゼロを照合 |
 | [testMacImageFilePickerAddsAttachmentAndRemovalClearsDraft](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L153) | Mac専用。「画像を添付」→ファイル選択シート→⌘⇧Gで一時PNGを指定→開く。1枚の添付と本文無しの送信可能状態、除去後の送信無効と会話切替後のdraft除去、POSTゼロを確認 |
 | [testMacPastedImagesRestoreAfterPostFailureAndCanBeRemoved](../../../../ios/BellBot/BellBotUITests/ConversationAppearanceUITests.swift#L201) | Mac専用。画像を⌘Vで2回貼り付け、本文と送信。人工購読でPOSTまで進め、保留中の本文・添付clear、503後の本文・2枚復元と除去を確認。proofでPOST一回・本文・復号可能なJPEG2枚を照合 |
 
@@ -602,7 +602,7 @@ xcodebuild -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam \
 固定source `refactor/apple-feature-map-20261103` / `e9935631c1cd6d9f319377be2d249db93dc36837` に対する追加準備。ビルド・試験・helper起動は行わず、実行結果は親が記録する。製品コード・Shared・NotificationServiceとfixtureの応答・記録は変更していない。既存の配置とHTTP契約を試験から確認するため、機能図の変更は不要。
 
 - PR2は追加した `DesktopWorkspaceUITests.testMacInspectorScreenPollsOnlyWhileVisible` を使う。profile-terminalの既存 `/test/proof.reads` からpathが `/api/bots/bot-one/screen` の要求だけを数える。非表示前に本文更新と要求の継続を確認し、非表示後の二周期以上を照合する。appを終了・背景化して停止を作る試験にはしない。
-- PR1は追加した `DesktopWorkspaceUITests.testMacSmallCropSaveShowsResultAndWritesOnce` を使う。`ProfileTerminalUITests.testPhoneSmallCropSavesWithoutReplacingLargeImage` と同じfixture応答、既存の小画像→画像調整→使用する→保存結果の経路。Macの「使用する」はツールバーのラベルで探す。写真pickerの操作可否は未調査で、写真選択の成功・失敗はこの試験では判定しない。小画像の再調整による保存結果の確認には写真libraryの準備が不要。
+- PR1は追加した `DesktopWorkspaceUITests.testMacSmallCropSaveShowsResultAndWritesOnce` を使う。`ProfileTerminalUITests.testPhoneSmallCropSavesWithoutReplacingLargeImage` と同じfixture応答、既存の小画像→画像調整→使用する→保存結果の経路。Macの「使用する」はシート内の`app.sheets.buttons["使用する"]`で探す。写真pickerの操作可否は未調査で、写真選択の成功・失敗はこの試験では判定しない。小画像の再調整による保存結果の確認には写真libraryの準備が不要。
 - PR5は下表の既存10件を再利用する。Macはサイドバーの「ゴール」、他platformはタブバーから開く。対象10件の操作はMacでclick、それ以外でtapとし、既存assertは維持する。createボタンはMacのツールバーのButton「追加」、一覧更新はButton「更新」で探す。今回修正した一覧のカード操作は、識別子を保持するButtonをScrollView内で探す。独自のMac用goal試験とfixture変更は追加していない。
 
 親が実行する手順（repo直下。以下は今回未実行）：
@@ -906,7 +906,8 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 | `BELLTEAM_APPLE_INTEGRATION_URL` → [apple-integration-server.mjs](../../../../test/helpers/apple-integration-server.mjs) | 人工Bot/認証/未来予定と製品HTTP/SSEを接続。新着/配送状態/room/queue/秘密/質問/予定の制御、旧/不正JSON/未知topic注入、再接続、sourceRevision/要求/frame/変更元/CLI記録。中継はGET/HEADとdiagnosticsだけ受理。終了でstream/2server/一時rootを整理 |
 | `BELLTEAM_SECRET_SMOKE=1` → [secret-input-smoke.mjs](../../../../scripts/secret-input-smoke.mjs) | 一時証明書のlocalhost HTTPS、秘密要求、307 routeを作る。SIGINT時にredirect未追跡、保存した合成値一致・通知本文へ値が無いことを検査しserver/一時root整理。UI試験だけのassertと、このscript終了時検査は別 |
 | `BELLTEAM_LIVE_URL` / `BELLTEAM_LIVE_SECONDS` | EventStreamLiveTestsが直接読む。既定330秒。fixtureの代わりに渡されたURLでSSEを接続 |
-| `BELLTEAM_IMAGE_SMOKE_URL` / `BELLTEAM_ROOM_SMOKE_URL` / `BELLTEAM_INSTALL_SMOKE_URL` | Swift本文の利用route/期待値は確認。対応する独立fixture実装・installerの試験起動手順までは特定していない |
+| `BELLTEAM_IMAGE_SMOKE_URL` → [conversation-images-server.mjs](../../../../test/helpers/conversation-images-server.mjs) | DM3枚・room2枚・旧単画像・URL無し枚数ラベル、PNG/JPEGのGET成功/503、添付POSTの保留/503と要求・診断のproof。起動とMac5件の操作は[PR3手順](#pr3のmac確認の補助試験)、通過結果は[親の確認記録](refactor-progress.md#次の作業)を参照 |
+| `BELLTEAM_ROOM_SMOKE_URL` / `BELLTEAM_INSTALL_SMOKE_URL` | Swift本文の利用route/期待値は確認。対応する独立fixture実装・installerの試験起動手順までは特定していない |
 
 ### 単体試験内のfixtureと構成
 
@@ -933,7 +934,7 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 
 ## 未調査
 
-- 指定3ディレクトリの試験本文未読は無し。本文読了は47ファイル、XCTestの対応は単体195関数・UI116関数（計311）、独立チェック2プログラム。UIの追加はMac再起動の一件と、今回の端末照会・小画像保存の二件。
-- 試験の実行・現在の合否、実機/Simulatorの状態・写真library・言語/keyboard、実接続・OS権限・証明書・StoreKit/APNs環境。今回これらを用意・起動・変更していない。
-- IMAGE_SMOKE/ROOM_SMOKEのfixture実装、INSTALL_SMOKEのinstaller起動手順。Swiftに指定されたURLの実環境は未確認。
+- 指定3ディレクトリの試験本文未読は無し。本文読了は47ファイル。固定HEAD `3df013d09eac6a7f83dc91d14a79a2984bbf82ad` のXCTest宣言数は単体202関数・UI119関数（計321）、独立チェック2プログラム。各Swiftの行頭から空白を除いた`func test…(`宣言を数え、コンパイル条件による除外はしていない。単体はBot保存2件・再起動5件、UIは画像3件を旧集計へ追加した。Mac再起動1件・端末照会1件・小画像保存1件は旧UI116関数にも含まれていた。
+- 初回調査（`afda9477bba4aaa7c8a6905100d3bacf26e47c90`）では試験は全て未実行。後続のMac実行結果は[親の確認記録](refactor-progress.md#次の作業)を参照し、その記録にない試験の現在の合否、実機/Simulatorの状態・写真library・言語/keyboard、実接続・OS権限・証明書・StoreKit/APNs環境は未確認。
+- ROOM_SMOKEのfixture実装、INSTALL_SMOKEのinstaller起動手順。これらのSwiftに指定されたURLの実環境は未確認。IMAGE_SMOKEは上表のfixtureとPR3手順で対応済み。Finderからの画像ファイルURLの貼付けは自動化していない。
 - fixtureがimportする`src/`・`web/`内部、Xcode生成projectの全登録照合、Mermaid描画結果。
