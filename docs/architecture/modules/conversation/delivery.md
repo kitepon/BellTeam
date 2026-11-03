@@ -39,6 +39,26 @@ flowchart TD
 
 `saveAll`は順番に保存するため、後の画像失敗でも先の保存が残り得る。一括rollbackの保証はない。これとtransportのdata→一時file・finally削除は別の寿命である。WebのBlob URLとも共通の削除関数へ統合しない。実装：[message-assets.mjs](../../../../src/message-assets.mjs)、[Webの画像所有](../../web-management-details.md)。
 
+### 対象Bot削除の保存境界
+
+```mermaid
+flowchart TD
+  Restore["members公開readRemovalStates / removals.read"] --> Ready["MessageAssets.initialize: 既receipt/退役Bot gate復元"]
+  Ready --> Admission["Bot save/saveAll受付 / 対象gate検査"]
+  Admission --> Accepted["readImageから最終writeまで同ownerの進行保存"]
+  Prepare["prepareBotAssetRemoval(botId)"] --> Closed["対象新保存を先に拒否 / 他Bot・user継続"]
+  Closed --> Drain["既受付保存を全てsettleまでdrain"]
+  Accepted --> Drain
+  Drain --> Lease["Bot/gate世代に束縛したopaque lease"]
+  Lease --> Rename["members: receipt / 退役rename / cleanup"]
+  Lease --> Cancel["同per-Bot直列fresh active/no intent/no retired判定"]
+  Cancel --> Same["cancelBotAssetRemoval: 同leaseだけ早期開放"]
+```
+
+factory option `readRemovalStates: () => Promise<{removals:[{botId:string,active:boolean,hasIntent:true,retired:boolean}]}>`をmembers facadeへ接続する。省略時も`bots.readRemovalStates()`を呼び、空一覧へ失敗を丸めない。構築時に一度読取りを開始し、`assets.initialize(): Promise<void>`とconversation.initializeが復元完了を待つ。初回読取前/失敗時はBot画像を受付せず、userは継続。restoreは既receipt/退役の読取結果だけでgateを閉じ、新しいtombstoneや削除副作用を作らない。active+retired/不正DTOは失敗。親の同じMessageAssetsをmodule交換で保持し、復元を繰り返して開けない。
+
+`prepareBotAssetRemoval(botId): Promise<string>`は新保存を同期的に閉じ、save/saveAllのreadImage前から最終write/failureまで待つ。同じgateのprepareは同じleaseへ合流する。`cancelBotAssetRemoval(botId,lease,{active,hasIntent,retired}): boolean`は同leaseと厳密なtrue/false/falseだけで開放する。判定はmembersの同per-Bot直列化内の専用fresh判定から渡し、read一覧の不在を許可へ変換しない。旧lease/不明/receipt残存/rename済みでは開けない。削除失敗の結論、既receiptの寿命とcleanupはmembersが所有する。
+
 ## 部屋は全員への配送と返信担当を分ける
 
 ```mermaid
