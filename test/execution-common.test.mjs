@@ -23,7 +23,7 @@ test('normal parent callers and durable Update use one execution engine without 
   const ownerProfile = new OwnerProfile({ root }), userRules = new UserRules({ root })
   for (const value of [bots, settings, ownerProfile, userRules]) await value.initialize()
   const version = 'a'.repeat(64), source = 'b'.repeat(40), calls = []
-  let clientCloses = 0, assembly
+  let clientCloses = 0, assembly, continuationPort
   const client = { async connect() {}, async call(method) { calls.push(method); assert.equal(method, 'pty_list'); return { content: [{ type: 'text', text: '' }] } }, async close() { clientCloses++ } }
   const descriptor = async id => ({ versionId: id, sourceCommit: source, protocolVersion: 1, platform: { os: 'linux', arch: 'amd64' },
     stateCompatibility: engine.EXECUTION_STATE_COMPATIBILITY, appRoot: `/run/bellteam-maintenance/execution/releases/${id}/payload` })
@@ -46,6 +46,7 @@ test('normal parent callers and durable Update use one execution engine without 
       createExecutionAssembly: options => {
         // Test storage has the current fixture UID; production keeps the fixed 1001 contract.
         options.ports.configurationStorage.ownerUid = process.getuid()
+        continuationPort = options.ports.continuation.messenger
         assembly = createExecutionAssembly(options); return assembly
       },
     } })
@@ -56,6 +57,12 @@ test('normal parent callers and durable Update use one execution engine without 
   assert.equal(runtime.services.idleSessions, null); assert.equal(runtime.services.seatTurns, null)
   assert.deepEqual(runtime.services.transport.queueItems(), [])
   assert.equal(runtime.services.transport.queueItems() instanceof Promise, false)
+  const originalSend = runtime.services.messenger.sendmessage
+  const message = { from: 'scheduler', target: 'bot-fixture', message: 'synthetic pointer only' }, options = { admissionCheck() {} }
+  const receipt = Object.assign(Promise.resolve({ delivery_id: 'fixture-delivery' }), { completion: Promise.resolve() })
+  runtime.services.messenger.sendmessage = (input, context) => { assert.equal(input, message); assert.equal(context, options); return receipt }
+  assert.equal(continuationPort.sendmessage(message, options), receipt)
+  runtime.services.messenger.sendmessage = originalSend
   await runtime.start()
   const port = runtime.gateway.address.port, parent = process.pid, stableTransport = runtime.services.transport
   const request = async (path, body) => {
