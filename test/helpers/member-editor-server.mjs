@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 
 const source = await readFile(new URL('../../ios/BellBot/BellBot/Core/PreviewFixtures.swift', import.meta.url), 'utf8')
 const fixture = JSON.parse(source.match(/let source = """\n([\s\S]*?)\n\s*"""/u)[1])
-const proof = { modelRequests: 0, releasedModels: false, saves: [] }
+const proof = { modelRequests: 0, releasedModels: false, saves: [], botListReads: [] }
 let releaseModels
 const modelsReady = new Promise(resolve => { releaseModels = resolve })
 const server = createServer(async (request, response) => {
@@ -15,17 +15,20 @@ const server = createServer(async (request, response) => {
   if (path === '/api/models') {
     proof.modelRequests++
     await modelsReady
-    return json({ models: { claude: { efforts: ['high'], models: [{ id: 'opus', efforts: ['high'] }] } } })
+    return json({ models: { claude: { efforts: ['high'], models: [{ id: 'opus', efforts: ['high'], fast: true }] } } })
   }
   if (request.method === 'PATCH' && path === '/api/bots/bot-one') {
     let text = ''
     for await (const chunk of request) text += chunk
     const body = JSON.parse(text)
-    proof.saves.push({ body, modelsPending: !proof.releasedModels })
+    proof.saves.push({ body, modelsPending: !proof.releasedModels, method: request.method, path })
     Object.assign(fixture.bots[0], body)
     return json({ ok: true })
   }
-  if (path === '/api/bots') return json({ bots: fixture.bots })
+  if (path === '/api/bots') {
+    proof.botListReads.push({ method: request.method, path, bots: structuredClone(fixture.bots) })
+    return json({ bots: fixture.bots })
+  }
   if (path === '/api/rooms') return json({ rooms: fixture.rooms })
   if (path === '/api/owner') return json({ owner: fixture.owner })
   if (path === '/api/queue' || path.endsWith('/queue')) return json({ items: [] })

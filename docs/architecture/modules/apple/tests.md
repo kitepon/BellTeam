@@ -494,10 +494,42 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | [testMacJumpIntoUnloadedHistoryReachesTheOldestMessage](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L72) | Macの大きなscroll移動でも最古に到達 |
 | [testMacShortPageLoadsOlderWithoutScrolling](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L95) | Mac短pageは自動で過去1回取得、最古済みは無し、失敗反復無し |
 | [testMacHasOneInspectorButtonAndNoProfilePopup](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L142) | 詳細toggleでpopup/windowを増やさず、端末とプロフィールへ戻れる |
-| [testSaveWithoutAvatarChangesWhileModelsArePending](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L166) | モデル応答保留中も画像未変更の保存が可能でeditor閉じる |
-| [testConversationReturnKeys](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L189) | Shift/Option Returnは改行、Return送信の失敗でも本文保持 |
-| [testBotScreenStaysInInspectorAndEditorOpensLargeWindow](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L215) | 端末はinspector内、Bot編集は大きな独立window |
-| [testConversationSwitchPreservesDraftAndInspector](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L241) | 会話切替でdraft保持、inspector toggleとroom詳細 |
+| [testSaveWithoutAvatarChangesWhileModelsArePending](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L167) | モデルGET保留中に既存Botの役職を編集。保存ボタンが有効、editorが閉じることを維持し、proofでPATCH一回・宛先・文面・保存済みモデル・画像キーの省略・保存後の一覧応答を照合。画面でも全メンバー/ルーム、会話draft、inspectorを保持。既存の保存ボタン検出失敗は未解明 |
+| [testConversationReturnKeys](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L229) | Shift/Option Returnは改行、Return送信の失敗でも本文保持 |
+| [testBotScreenStaysInInspectorAndEditorOpensLargeWindow](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L255) | 端末はinspector内、Bot編集は大きな独立window |
+| [testConversationSwitchPreservesDraftAndInspector](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L281) | 会話切替でdraft保持、inspector toggleとroom詳細 |
+| [testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector](../../../../ios/BellBot/BellBotUITests/DesktopWorkspaceUITests.swift#L310) | 人工購読の利用許可を使い、inspectorの再起動POSTが503の時は結果未確認の全文と診断一回・POST一回を照合。明示再操作の200成功で失敗文言を消し、inspector・window数・sheet無しを保持。二操作で空JSONのPOST計二回、診断は計一回 |
+
+### PR1・PR4のMac確認の補助試験
+
+固定source `refactor/apple-feature-map-20261103` / `d1114a499cab282da7dff9826861ad5c71a4a1d0` を静的に確認し、上記二件とhelperを更新した。**ビルド・試験・helper起動は実施していない。** 製品の処理・状態・HTTP/SSE契約は変えていないため、機能図の変更は不要。
+
+PR1の既存失敗について、静的に分かった範囲：
+
+- `ManagementView.swift` の `BotEditor.body` は `loadingModels` の外でtoolbarと `save-member` を作る。保存の無効条件にも `loadingModels` はない。initで既存値を持ち、`load()` がモデルGETで待機しても保存操作を隠す分岐はない。
+- `BellBotApp.swift` の `WindowGroup("メンバーを編集", id: "member-editor", for: String.self)` と試験のwindow名は一致する。`MemberEditorWindow` は共通 `BotEditor` を配置し、保存後のclose callbackを渡す。SwiftUIのtoolbarが実際にどのaccessibility要素・window配下へ公開されるかは、Swiftソースだけでは確定しない。
+- `member-editor-server.mjs` はモデルGETだけをreleaseまで保留する。保存PATCHは `{ok: true}`、後続refreshのbots/rooms/owner/queueも既存の復号型に対応している。画像未変更では `BotSettingsRequest` が画像キーを省略する。モデル応答を解放する場合には必須の `ModelChoice.fast` が欠けていたので `fast: true` を補ったが、ボタン検索前は応答自体が未返却であり、この不足は180〜181行の失敗を説明しない。
+- **原因は試験の要素探索。** 失敗時のUI階層（2026-11-03、Mac Catalyst）では、保存ボタンは「メンバーを編集」windowのツールバーに、識別子なし・ラベル「保存」のButtonとして公開されていた。Mac Catalystのツールバーへ出たボタンでは `accessibilityIdentifier("save-member")` が外れるため、`editor.buttons["save-member"]` では見つからない。試験を `editor.toolbars.buttons["保存"]` で探す形へ直し、5秒・有効性・保存後closeのassertは保持した。修正後の試験はMacで通過した。画像保存の結果表示はこの文面保存試験では確認しない。
+
+親が実行する手順（以下のコマンドは今回未実行）：
+
+1. repo直下で `node test/helpers/member-editor-server.mjs` と `node test/helpers/profile-terminal-ui-server.mjs` をそれぞれ専用terminalで起動する。各標準出力の `{"url":"http://127.0.0.1:PORT"}` を控える。PR1用helperはモデル保留と要求記録を初期化するため、試行ごとに新しいプロセスにする。
+2. XcodeのTest環境変数には `BELLTEAM_MEMBER_EDITOR_SMOKE_URL` と `BELLTEAM_PROFILE_TERMINAL_URL` を指定する。`xcodebuild` は次のように `TEST_RUNNER_` 接頭辞でtest runnerへ渡す（手元の `xcodebuild(1)` の環境変数仕様を静的に確認済み）。親の署名・DerivedData・証跡の指定があれば併用する。
+
+```sh
+TEST_RUNNER_BELLTEAM_MEMBER_EDITOR_SMOKE_URL='http://127.0.0.1:PR1のPORT' \
+TEST_RUNNER_BELLTEAM_PROFILE_TERMINAL_URL='http://127.0.0.1:PR4のPORT' \
+xcodebuild -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam \
+  -configuration Debug -destination 'platform=macOS,variant=Mac Catalyst' \
+  -parallel-testing-enabled NO \
+  -only-testing:BellBotUITests/DesktopWorkspaceUITests/testSaveWithoutAvatarChangesWhileModelsArePending \
+  -only-testing:BellBotUITests/DesktopWorkspaceUITests/testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector \
+  test
+```
+
+3. PR1は `-bellbot-preview -bellbot-preview-server URL`、PR4は既存の `-bellbot-preview-profile-terminal` と `-bellbot-preview-reporting` も付けて試験自身が起動する。後者は購読の `billing.connect()` と診断送信を有効にするため必須。通常のpreviewでは診断POSTは抑止される。実Botや実購読へは接続しない。
+4. PR4は試験自身が `/test/reset` → `/test/restart-failure` → 操作 → `/test/restart-success` → 再操作の順に制御する。`/test/proof` の `restarts` と `diagnostics` はmethod/path/bodyの配列で、長さが受信回数。resetは両配列を空にし再起動応答を成功へ戻す。従来のread/write等の意味は維持する。
+5. 両試験は `defer` で起動したアプリを終了する。終了後は専用terminalのhelper二本もCtrl-Cで止める。PR1の保存ボタン検出失敗が続く場合、追加したUI階層とxcresultを調べる。今回の追加を成功実績に数えない。
 
 ### GoalsUITests.swift
 
@@ -599,6 +631,8 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 ### ProfileTerminalUITests.swift
 
 対象：プロフィールと端末。補助型も同じファイルを読んだ。
+
+Macの再起動失敗・診断・再操作成功は上記 `DesktopWorkspaceUITests.testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector` が同じ `BELLTEAM_PROFILE_TERMINAL_URL` とhelperを使う。下表のphone/pad試験の操作・assertは変更していない。`testTabletKeepsInspectorWithNewProfileContent` は引き続き再起動ボタンの存在までで、POST成功の検証には数えない。
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
@@ -710,10 +744,10 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 | `BELLTEAM_ANTIGRAVITY_ONBOARDING_URL` → [antigravity-onboarding-server.mjs](../../../../test/helpers/antigravity-onboarding-server.mjs) | session local認証、AI選択→device_code→paste_code→complete。固定binding/digestと入力値を検査、入力bodyをproofへ |
 | `BELLTEAM_ANTIGRAVITY_EDITOR_URL` → [antigravity-editor-server.mjs](../../../../test/helpers/antigravity-editor-server.mjs) | PreviewFixturesから名簿を読み、人工model/effort候補、PATCHを名簿へ反映、保存body/モデル要求数をproofへ |
 | `BELLTEAM_AUTH_SMOKE_URL` → [harness-auth-server.mjs](../../../../test/helpers/harness-auth-server.mjs) | 認証済み/blocked/unreadable/次GET500、旧input_required付き待機、start/cancelと要求body記録。公式CLI・実資格情報へ接続しない |
-| `BELLTEAM_MEMBER_EDITOR_SMOKE_URL` → [member-editor-server.mjs](../../../../test/helpers/member-editor-server.mjs) | モデルGETをreleaseまで保留、PATCH成功とmodelsPendingをproofへ。preview名簿の保存値更新 |
+| `BELLTEAM_MEMBER_EDITOR_SMOKE_URL` → [member-editor-server.mjs](../../../../test/helpers/member-editor-server.mjs) | モデルGETをreleaseまで保留（解放後の候補は必須fast付き）。従来のsaves.body/modelsPendingにmethod/pathを追加し、botListReadsへ一覧GETと応答時のBot値を複製して記録。preview名簿の保存値更新。試行ごとに新規起動 |
 | `BELLTEAM_SCROLL_FIXTURE_URL` → [conversation-scroll-server.mjs](../../../../test/helpers/conversation-scroll-server.mjs) | 60行の混合Markdown/短文、35短文、before/after/limit、旧remaining_before無し、過去GET500、短page。append/対象通知のSSE、要求queryと診断codeをproofへ |
 | `BELLTEAM_GOALS_FIXTURE_URL` → [goals-ui-server.mjs](../../../../test/helpers/goals-ui-server.mjs) | FULL/TAGGED/GROK/GROK_SIGNED_TOKENS/GROK_DETAIL/GROK_CLEAR/GROK_ACTIVE_NO_CLEAR/CHAT/CHAT_LONG（`GOALS_FIXTURE_`接頭辞、値1）で応答を選ぶ。binding/capability/単独項目を検査。unconfirmed/応答破棄/旧一覧保留/GET失敗/field変更、read/writeのproof |
-| `BELLTEAM_PROFILE_TERMINAL_URL` → [profile-terminal-ui-server.mjs](../../../../test/helpers/profile-terminal-ui-server.mjs) | BellPortraitのsmall/large/source/crop、旧schema、1万行端末、遅延profile/rules/models、Bot更新SSE、画像3項目PATCH、read/write/完了数のproof |
+| `BELLTEAM_PROFILE_TERMINAL_URL` → [profile-terminal-ui-server.mjs](../../../../test/helpers/profile-terminal-ui-server.mjs) | BellPortraitのsmall/large/source/crop、旧schema、1万行端末、遅延profile/rules/models、Bot更新SSE、画像3項目PATCH、従来のread/write/完了数を保持。developer購読、再起動POSTの503/200切替、diagnostics POST受信と202応答を追加。proofのrestarts/diagnosticsへmethod/path/bodyを記録しresetで初期化 |
 | `BELLTEAM_NETWORK_PROBE_URL` → [network-lifecycle-server.mjs](../../../../test/helpers/network-lifecycle-server.mjs) | developer購読、20秒POST/8秒予定GET/fast1秒、開始/完了/close時刻・同時数/peak・全GET記録。HTTP受付IDを返すがGET履歴は空 |
 | `BELLTEAM_REPORTING_PROBE_URL` → [bughub-ui-probe.mjs](../../../../test/fixtures/bughub-ui-probe.mjs) | 設定初回/後続503、予定/会話/queue無応答、POST切断/500/503/保留受付、停止502/202、SSE502→ready、保存後応答喪失。要求時刻/closed/imageCount、受信診断をproofへ。人工本文は診断へ含めないassertを試験が持つ |
 | `BELLTEAM_APPLE_INTEGRATION_URL` → [apple-integration-server.mjs](../../../../test/helpers/apple-integration-server.mjs) | 人工Bot/認証/未来予定と製品HTTP/SSEを接続。新着/配送状態/room/queue/秘密/質問/予定の制御、旧/不正JSON/未知topic注入、再接続、sourceRevision/要求/frame/変更元/CLI記録。中継はGET/HEADとdiagnosticsだけ受理。終了でstream/2server/一時rootを整理 |
@@ -746,7 +780,7 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 
 ## 未調査
 
-- 指定3ディレクトリの試験本文未読は無し。本文読了は47ファイル、XCTestの対応は単体195関数・UI113関数（計308）、独立チェック2プログラム。
+- 指定3ディレクトリの試験本文未読は無し。本文読了は47ファイル、XCTestの対応は単体195関数・UI114関数（計309）、独立チェック2プログラム。UI一件増は上記のMac再起動試験の追加による。
 - 試験の実行・現在の合否、実機/Simulatorの状態・写真library・言語/keyboard、実接続・OS権限・証明書・StoreKit/APNs環境。今回これらを用意・起動・変更していない。
 - IMAGE_SMOKE/ROOM_SMOKEのfixture実装、INSTALL_SMOKEのinstaller起動手順。Swiftに指定されたURLの実環境は未確認。
 - fixtureがimportする`src/`・`web/`内部、Xcode生成projectの全登録照合、Mermaid描画結果。
