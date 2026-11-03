@@ -10,7 +10,7 @@ const MAINTENANCE_HOUR = 3
 const TOKYO_TIME_ZONE = 'Asia/Tokyo'
 
 export class BotScheduler {
-  constructor({ registry, messenger, transport = null, rooms = null, roomMessenger = null, intervalMs = 15_000, completedTurns = completedThroughlineTurns, runCommand = runShellCommand, paused = () => false, assertWorkAllowed = () => {} }) {
+  constructor({ registry, messenger, transport = null, rooms = null, roomMessenger = null, intervalMs = 15_000, completedTurns = completedThroughlineTurns, runCommand = runShellCommand, paused = () => false, assertWorkAllowed = () => {}, admitWork = null, membersAdmission = transport?.membersAdmission ?? null }) {
     this.registry = registry
     this.messenger = messenger
     this.runCommand = runCommand
@@ -24,6 +24,9 @@ export class BotScheduler {
     this.maintenanceDate = null
     this.paused = paused
     this.assertWorkAllowed = assertWorkAllowed
+    this.membersAdmission = membersAdmission
+    this.admitWork = admitWork ?? (() => () => this.assertWorkAllowed())
+    this.unconfirmedClaims = new Map()
     this.commandJobs = new Set()
     this.currentRun = null
   }
@@ -45,35 +48,46 @@ export class BotScheduler {
     let release
     this.currentRun = new Promise(resolve => { release = resolve })
     try {
-      await this.registry.refresh()
       await this.restartLongSessions(now)
-      for (const bot of [...this.registry.values()]) {
-        for (const schedule of await this.registry.listSchedules(bot.id)) {
-          if (!schedule.enabled || !schedule.nextRunAt || new Date(schedule.nextRunAt) > now) continue
-          try { await this.dispatchBotSchedule(bot, schedule) }
-          catch (error) {
-            if (error.code === 'AI_GLOBAL_PAUSED') return
-            // 配送の失敗・結果不明も今回の試行として記録する。同じ本文を次のtickで再送しない。
-            reportError(error)
-          }
-          await this.registry.markScheduleRun(bot.id, schedule.id, now, { expectedRevision: scheduleRevision(schedule) })
-        }
-      }
-      if (this.rooms && this.roomMessenger) {
-        await this.rooms.refresh()
-        for (const room of [...this.rooms.values()]) {
-          for (const schedule of await this.rooms.listSchedules(room.id)) {
-            if (!schedule.enabled || !schedule.nextRunAt || new Date(schedule.nextRunAt) > now) continue
-            try { await this.dispatchRoomSchedule(room, schedule) }
-            catch (error) {
-              if (error.code === 'AI_GLOBAL_PAUSED') return
-              // 一部の参加者へ届いた発言も、予定全体を自動で送り直さない。
-              reportError(error)
+      await this.withMembersLease(async options => {
+        await this.registry.refresh(options)
+        const sources = [{ kind: 'bot', registry: this.registry }]
+        if (this.rooms && this.roomMessenger) { await this.rooms.refresh(); sources.push({ kind: 'room', registry: this.rooms }) }
+        const observed = new Set()
+        for (const { kind, registry } of sources) {
+          for (const owner of [...registry.values()]) {
+            for (const schedule of await registry.listSchedules(owner.id, options)) {
+              const key = JSON.stringify([kind, owner.id, schedule.id])
+              const tuple = JSON.stringify([scheduleRevision(schedule), schedule.nextRunAt])
+              observed.add(key)
+              if (this.unconfirmedClaims.has(key) && this.unconfirmedClaims.get(key) !== tuple) this.unconfirmedClaims.delete(key)
+              if (!schedule.enabled || !schedule.nextRunAt || new Date(schedule.nextRunAt) > now || this.unconfirmedClaims.has(key)) continue
+              let claimed
+              try {
+                const check = this.admitWork()
+                check()
+                try {
+                  claimed = await registry.claimDue({ [kind === 'bot' ? 'botId' : 'roomId']: owner.id,
+                    scheduleId: schedule.id, expectedRevision: scheduleRevision(schedule), expectedNextRunAt: schedule.nextRunAt,
+                    ranAt: now.toISOString() }, options)
+                } catch (error) {
+                  if (error.outcome !== 'not_accepted') this.unconfirmedClaims.set(key, tuple)
+                  throw error
+                }
+                if (!claimed) continue
+                check()
+                if (kind === 'bot') await this.dispatchBotSchedule(owner, claimed, options)
+                else await this.dispatchRoomSchedule(owner, claimed, options)
+              } catch (error) {
+                if (error.code === 'AI_GLOBAL_PAUSED' || error.code === 'MEMBERS_NOT_ACCEPTED') return
+                // Consumption precedes dispatch; an unknown grant or dispatch is never replayed.
+                reportError(error)
+              }
             }
-            await this.rooms.markScheduleRun(room.id, schedule.id, now, { expectedRevision: scheduleRevision(schedule) })
           }
         }
-      }
+        for (const key of this.unconfirmedClaims.keys()) if (!observed.has(key)) this.unconfirmedClaims.delete(key)
+      })
     } finally {
       this.running = false
       this.currentRun = null
@@ -85,18 +99,27 @@ export class BotScheduler {
   // Later, newly created requests with past dates retain ordinary scheduler behavior.
   async prepareResume(at) {
     await this.currentRun
-    for (const registry of [this.registry, this.rooms].filter(Boolean)) {
-      await registry.refresh()
-      for (const owner of [...registry.values()]) {
-        for (const schedule of await registry.listSchedules(owner.id)) {
-          if (schedule.enabled && schedule.nextRunAt && new Date(schedule.nextRunAt) <= at)
-            await registry.markScheduleRun(owner.id, schedule.id, at, { skipped: true, expectedRevision: scheduleRevision(schedule) })
+    return this.withMembersLease(async options => {
+      for (const [kind, registry] of [['bot', this.registry], ['room', this.rooms]]) {
+        if (!registry) continue
+        await registry.refresh(options)
+        for (const owner of [...registry.values()]) {
+          for (const schedule of await registry.listSchedules(owner.id, options)) {
+            if (schedule.enabled && schedule.nextRunAt && new Date(schedule.nextRunAt) <= at)
+              await registry.skipDue({ [kind === 'bot' ? 'botId' : 'roomId']: owner.id, scheduleId: schedule.id,
+                expectedRevision: scheduleRevision(schedule), expectedNextRunAt: schedule.nextRunAt, ranAt: at.toISOString() }, options)
+          }
         }
       }
-    }
+    })
   }
 
-  async dispatchBotSchedule(bot, schedule) {
+  withMembersLease(operation, { membersLease } = {}) {
+    if (!this.membersAdmission) return operation({})
+    return this.membersAdmission.withLease(lease => operation({ membersLease: lease }), { lease: membersLease })
+  }
+
+  async dispatchBotSchedule(bot, schedule, options = {}) {
     this.assertWorkAllowed()
     if (schedule.command) {
       // AIを起こす必要のない予定はAIを起こさない（オーナー裁定 2026-09-04）。完了を待たず、失敗だけをユーザーへ知らせる。
@@ -107,7 +130,7 @@ export class BotScheduler {
       from: 'scheduler',
       target: bot.id,
       message: `[BellTeam schedule ${schedule.id}] ${schedule.prompt}`,
-    })
+    }, options)
   }
 
   runCommandSchedule(bot, schedule) {
@@ -145,33 +168,37 @@ export class BotScheduler {
     return results.every(result => result.status === 'fulfilled' && result.value?.stopConfirmed === true)
   }
 
-  async dispatchRoomSchedule(room, schedule) {
+  async dispatchRoomSchedule(room, schedule, options = {}) {
     this.assertWorkAllowed()
     await this.roomMessenger.sendroommessage({
       from: 'scheduler', room: room.id, message: schedule.prompt, targets: schedule.targets,
       kind: 'schedule', schedule: { id: schedule.id, name: schedule.name },
-    })
+    }, options)
   }
 
   // 手動の「今すぐ実行」。予定の次回時刻と有効状態は動かさない。
-  async runBotSchedule(botId, scheduleId) {
-    await this.registry.refresh()
-    const bot = this.registry.get(botId)
-    if (!bot) throw new Error(`BOT_NOT_FOUND: ${botId}`)
-    const schedule = (await this.registry.listSchedules(botId)).find(item => item.id === scheduleId)
-    if (!schedule) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
-    await this.dispatchBotSchedule(bot, schedule)
-    return { id: schedule.id }
+  async runBotSchedule(botId, scheduleId, options = {}) {
+    return this.withMembersLease(async options => {
+      await this.registry.refresh(options)
+      const bot = this.registry.get(botId)
+      if (!bot) throw new Error(`BOT_NOT_FOUND: ${botId}`)
+      const schedule = (await this.registry.listSchedules(botId, options)).find(item => item.id === scheduleId)
+      if (!schedule) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
+      await this.dispatchBotSchedule(bot, schedule, options)
+      return { id: schedule.id }
+    }, options)
   }
 
-  async runRoomSchedule(roomId, scheduleId) {
-    await this.rooms.refresh()
-    const room = this.rooms.get(roomId)
-    if (!room) throw new Error(`ROOM_NOT_FOUND: ${roomId}`)
-    const schedule = (await this.rooms.listSchedules(roomId)).find(item => item.id === scheduleId)
-    if (!schedule) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
-    await this.dispatchRoomSchedule(room, schedule)
-    return { id: schedule.id }
+  async runRoomSchedule(roomId, scheduleId, options = {}) {
+    return this.withMembersLease(async options => {
+      await this.rooms.refresh(options)
+      const room = this.rooms.get(roomId)
+      if (!room) throw new Error(`ROOM_NOT_FOUND: ${roomId}`)
+      const schedule = (await this.rooms.listSchedules(roomId, options)).find(item => item.id === scheduleId)
+      if (!schedule) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
+      await this.dispatchRoomSchedule(room, schedule, options)
+      return { id: schedule.id }
+    }, options)
   }
 
   async restartLongSessions(now) {

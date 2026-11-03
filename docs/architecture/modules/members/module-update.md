@@ -54,6 +54,12 @@ quiesceは全active/投影の終端後、旧子を終了可能にする前にbot
 
 Bot削除は同Botの削除操作の順序を維持しつつ、短い保存ロックでreceipt/退役だけを行い、既指示effectの終端→project cleanup→CLI同期はそのロックを解放して待つ。旧session callbackは退役後を確認して拒否でき、他Bot保存も継続できる。保存済みprofile更新が外部指示待ちの間に退役した場合、undefinedの成功を返さずBOT_UPDATE_RETIRED/unknownを返す。profile.removeのdispatcher/gate接続自体は引き続き後続差分。
 
+### 親schedulerのclaim・同lease発行（第五差分）
+
+[予定図](schedules.md)を保存→発行へ更新。root lease下でfresh Bot読取→Bot/Room claim→返却最新snapshotのdispatchまでつなぐ。HTTP手動runは定刻stateを変更せず同leaseで発行受付。prepareResumeは既tick終端を待って同leaseでskipDue。Molly共通callerはAiControl.admitをadmitWorkへ注入する。N102本人3commitのRoom writer/会話adapterが前提、Kiroのnotify実completionと同gateを使う。
+
+この段階でもprofile.removeの画像gate/早期cancel、親通常組立と固定entry/実物受入は未了。予定のrun/prepareResumeを子へ再root化するmethodは足さず、親同schedulerを公開窓口として使う。
+
 ## 現状と初回の分離
 
 ```mermaid
