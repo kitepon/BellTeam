@@ -102,3 +102,5 @@ flowchart LR
 ```
 
 runDueのRoom refreshも他の読取/claimと同じ内部optionsを受ける。これは親安定Room facadeへ旧受付leaseを渡す修理で、Room writerを複製しない。conversation導入時はconstructorのmoduleOperationsへ共通createModuleOperationContextの実体を注入する。tick/prepareResume/手動runはwithContext(operation, context?)で最初のfresh/消化前に両入場を予約し、親opaque contextをcloneせず読取/claim/skip/配送へ渡す。既contextはassertされた継続で、新予約/finishを増やさない。一方拒否なら作用0、accepted後unknownは再送0。provider未注入の既builtinは従来membersAdmissionだけを使う。両入場の原子性・channel逆effect束縛・交換mutexは共通/runtime所有で、このcallerは再実装しない。
+
+直接境界はtest/members-conversation-operation.test.mjsのcaller用providerと、test/members-module-operation-integration.test.mjsの実共通factory＋実Room CASで確認する。後者のconversation gateは別MembersAdmissionによる機構fixtureで、Kiro実lifetime gate/実IPC/実予定発行を証明しない。
