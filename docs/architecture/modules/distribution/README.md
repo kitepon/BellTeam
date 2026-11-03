@@ -24,3 +24,5 @@
 正式Aiterm0.63.6/source258b8aefをDockerfileで明示固定し、diagnostics v2と原要求tracked apply/reconcileのconsumerを同じ通常source/immutable imageへ結合する。既0.63.5 pinは別の履歴で修理入りとは呼ばない。受入は承認済package/version/必要runtime/同native entryの能力と既Web A-B差分接点に限定し、143runtime/旧成功群を全面再走しない。既image構成/同梱CLI契約内の版固定で図接続は不変。CLI argvから通常core scope生成を推測せず、実接続/UID/base/stdioとRootの別世代・認証条件を維持する。
 
 image CIの空の永続領域からのinstaller検査は、GET `/api/settings`のIDをrouting/callBridge/cloudflare/diagnostics/notifications/webPushの6件・定義順で照合する。旧5件assertの修理で、全OFF・readonly・image identity等の既検査と製品の入出力・状態・接続・失敗処理は変えない。既image/installer検査契約内のため機能図の接続変更は不要。
+
+設定保存修理の実物確認は `verify-configuration-state-image.yml` で既immutable imageを両nativeへ取得し、既C入口→readonly人工supervisor→runtimeの実UID1001/FD3-4/mount anchor→executionの人工要求publish/read/not-issued保存を有限確認する。製品コードはimageの実bytesを使い、fixture sourceとimage sourceを分けて記録する。既Web fixtureの割当・cleanupを再利用し、0700/0600・readonly・実OS終了・残資材ゼロを確認する。SDK/設定RPC・実席・過去要求回復・再buildを含まず、通常image受入はこの別工程を待たせない。公開入出力や既接続の変更は無い。
