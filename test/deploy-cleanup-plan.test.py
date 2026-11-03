@@ -17,7 +17,7 @@ class PlanBoundary(unittest.TestCase):
     def test_missing_explicit_previous_fails_without_nas_fallback_or_removal(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory); (base / '.lock').touch()
-            restore = SimpleNamespace(BASE=base, mount_guard=lambda _: None,
+            restore = SimpleNamespace(BASE=base, image_lock=contextlib.nullcontext, mount_guard=lambda _: None,
                 validated_points=lambda _: (_ for _ in ()).throw(AssertionError('NAS fallback forbidden')))
             fake_spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda _: None))
             with patch.object(cleanup.importlib.util, 'spec_from_file_location', return_value=fake_spec), \
@@ -38,7 +38,7 @@ class PlanBoundary(unittest.TestCase):
                   dict(Id=cloud, RepoTags=['bellteam/cloudflared:latest'], Created='2')]
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory); (base / '.lock').touch()
-            restore = SimpleNamespace(BASE=base, mount_guard=lambda _: None,
+            restore = SimpleNamespace(BASE=base, image_lock=contextlib.nullcontext, mount_guard=lambda _: None,
                 validated_points=lambda _: (_ for _ in ()).throw(AssertionError('normal mode must not select NAS rollback')))
             fake_spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda _: None))
             class Output(io.StringIO):

@@ -36,7 +36,7 @@ if(command.includes('/api/queue')){
 if(command.includes('/healthz')) console.log('{"status":"ok"}')
 else if(command.includes('sh -s'))console.log('/home/kite/BellTeam/.bellteam-compose.ABC123/previous-normal.json')
 else if(command.includes('/api/bots')) console.log('{"bots":[]}')
-else if(command.includes('tail -3')) console.log('deploy-exit=0')
+else if(command.includes('tail -10')) console.log('deploy-caller-exit=0')
 `,
     }
     for (const [name, program] of Object.entries(programs)) {

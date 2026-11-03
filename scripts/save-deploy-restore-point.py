@@ -9,9 +9,21 @@ import subprocess
 import sys
 import time
 from datetime import datetime, timezone
+from contextlib import contextmanager
 
 BASE = Path('/var/mnt/qnap-backups/main-server/products/bellteam/deploy-restore')
 RATE = 10 * 1024 * 1024
+
+
+@contextmanager
+def image_lock():
+    # All generations and both helpers in the fixed deployment checkout share this inode.
+    fd = os.open(Path(__file__).resolve().parent.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield
+    finally:
+        os.close(fd)
 
 
 def sync_dir(path):
@@ -178,41 +190,42 @@ def prune_points(base):
 
 
 def main():
-    os.umask(0o077)
-    mount_guard(BASE.parent)
-    BASE.mkdir(mode=0o700, exist_ok=True)
-    mount_guard(BASE)
-    with (BASE / '.lock').open('a+b') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        images = BASE / 'images'
-        images.mkdir(mode=0o700, exist_ok=True)
-        mount_guard(images)
-        container = json.loads(subprocess.check_output(['docker', 'container', 'inspect', 'bellteam']))[0]
-        cid, image = container['Id'], container['Image']
-        if not re.fullmatch(r'[0-9a-f]{64}', cid):
-            raise RuntimeError('invalid container identity')
-        mounts = [m for m in container['Mounts'] if m['Destination'] == '/home/bell/.local']
-        if len(mounts) != 1 or mounts[0]['Type'] != 'volume' or mounts[0]['Name'] != 'bellteam_cursor-cli':
-            raise RuntimeError('Cursor volume mismatch')
-        point = BASE / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
-        point.mkdir(mode=0o700)
-        sync_dir(BASE)
-        try:
-            blob = image_blob(images, image)
-            # Clear the server environment before the fixed entry drops to the volume's seat UID.
-            cursor = archive(point / 'cursor.tar', ['docker', 'exec', '-i', '--user', '1001:1001', cid,
-                             '/usr/bin/sudo', '-n', '--', '/usr/local/libexec/bellteam-seat-exec', '--',
-                             '/usr/bin/python3', '-', 'create', '/home/bell/.local'], Path('scripts/archive-live-volume.py'))
-            current = json.loads(subprocess.check_output(['docker', 'container', 'inspect', 'bellteam']))[0]
-            if current['Id'] != cid or current['Image'] != image:
-                raise RuntimeError('source container changed during backup')
-            mount_guard(point)
-            json_save(point / 'restore.json', {'container': cid, 'image': blob, 'cursor': {**cursor, 'path': str(point / 'cursor.tar')}, 'cursorVolume': 'bellteam_cursor-cli', 'createdAt': datetime.now(timezone.utc).isoformat()})
-            prune_points(BASE)
-        except BaseException as error:
-            json_save(point / 'failed.json', {'errorType': type(error).__name__, 'container': cid, 'image': image})
-            raise
-        print(str(point))
+    with image_lock():
+        os.umask(0o077)
+        mount_guard(BASE.parent)
+        BASE.mkdir(mode=0o700, exist_ok=True)
+        mount_guard(BASE)
+        with (BASE / '.lock').open('a+b') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            images = BASE / 'images'
+            images.mkdir(mode=0o700, exist_ok=True)
+            mount_guard(images)
+            container = json.loads(subprocess.check_output(['docker', 'container', 'inspect', 'bellteam']))[0]
+            cid, image = container['Id'], container['Image']
+            if not re.fullmatch(r'[0-9a-f]{64}', cid):
+                raise RuntimeError('invalid container identity')
+            mounts = [m for m in container['Mounts'] if m['Destination'] == '/home/bell/.local']
+            if len(mounts) != 1 or mounts[0]['Type'] != 'volume' or mounts[0]['Name'] != 'bellteam_cursor-cli':
+                raise RuntimeError('Cursor volume mismatch')
+            point = BASE / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
+            point.mkdir(mode=0o700)
+            sync_dir(BASE)
+            try:
+                blob = image_blob(images, image)
+                # Clear the server environment before the fixed entry drops to the volume's seat UID.
+                cursor = archive(point / 'cursor.tar', ['docker', 'exec', '-i', '--user', '1001:1001', cid,
+                                 '/usr/bin/sudo', '-n', '--', '/usr/local/libexec/bellteam-seat-exec', '--',
+                                 '/usr/bin/python3', '-', 'create', '/home/bell/.local'], Path('scripts/archive-live-volume.py'))
+                current = json.loads(subprocess.check_output(['docker', 'container', 'inspect', 'bellteam']))[0]
+                if current['Id'] != cid or current['Image'] != image:
+                    raise RuntimeError('source container changed during backup')
+                mount_guard(point)
+                json_save(point / 'restore.json', {'container': cid, 'image': blob, 'cursor': {**cursor, 'path': str(point / 'cursor.tar')}, 'cursorVolume': 'bellteam_cursor-cli', 'createdAt': datetime.now(timezone.utc).isoformat()})
+                prune_points(BASE)
+            except BaseException as error:
+                json_save(point / 'failed.json', {'errorType': type(error).__name__, 'container': cid, 'image': image})
+                raise
+            print(str(point))
 
 
 if __name__ == '__main__':

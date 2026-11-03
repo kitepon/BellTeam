@@ -5,15 +5,21 @@ cd "$(dirname "$0")/.."
 repo=$(pwd)
 previous=${1-}
 case "$#:$previous" in
-  "1:$repo"/.bellteam-compose.*/previous-normal.json) ;;
+  "1:$repo"/.bellteam-compose.*/previous-normal.json|"2:$repo"/.bellteam-compose.*/previous-normal.json) ;;
   *) echo BELLTEAM_CLEANUP_GENERATION_INVALID >&2; exit 2;;
 esac
 case "$previous" in *[!a-zA-Z0-9/._-]*) echo BELLTEAM_CLEANUP_GENERATION_INVALID >&2; exit 2;; esac
 umask 077
 saved=${previous%/*}
-stdout=$saved/deploy-cleanup.stdout.jsonl
-stderr=$saved/deploy-cleanup.stderr.log
-result=$saved/deploy-cleanup.json
+output=$saved
+if [ "$#" -eq 2 ]; then
+  [ "$2" = --continue ] || { echo BELLTEAM_CLEANUP_ARGUMENT_INVALID >&2; exit 2; }
+  output=$saved/deploy-cleanup-continuation
+  mkdir "$output"
+fi
+stdout=$output/deploy-cleanup.stdout.jsonl
+stderr=$output/deploy-cleanup.stderr.log
+result=$output/deploy-cleanup.json
 cleanup_exit=0
 (
   rollback=$(node --input-type=module - "$previous" "$saved/previous-runtime.json" <<'NODE'

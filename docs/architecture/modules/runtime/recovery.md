@@ -66,7 +66,8 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  Running["現在CID / image / Cursor volume"] --> Guard["NAS mountと排他lockを確認"]
+  Running["現在CID / image / Cursor volume"] --> Lock["固定checkout root inodeの共通image排他"]
+  Lock --> Guard["NAS mountと既NAS排他lockを確認"]
   Guard --> Image["不変imageを一つのblobへ保存 / 再利用"]
   Guard --> Server["現在CIDでUID/GID1001としてexec<br/>固定seat-exec入口だけをsudo"]
   Server --> Seat["seat-exec: 環境を消去<br/>UID/GID1000へ移し固定環境を設定"]
@@ -94,11 +95,20 @@ Cursorのreaderは本体の環境を継承する`docker exec`をUID/GID1001で�
 
 `cleanup-deploy-images.py`の選択/削除はruntime、通常deployからの呼出し・世代別stdout/stderr/exitの原本結合はMolly。既stdoutをNDJSONとして扱い、既完了行/個々のDocker結果は保持する。追加の`bellteam.deploy-image-cleanup.plan.v1`を削除前にflushし、rollback/保護全image集合/稼働・停止container参照/対象IDを固定する。planは選択の証拠で削除成功ではなく、途中例外でも完了行を補完しない。callerは非0/欠測をunknown/failedのまま保存する。
 
-通常deployは`--rollback-image sha256:<64hex>`でcallerが世代別previous-runtime/previous-normalの一致から固定した実前版image IDを渡す。helperはそのIDの存在/実inspect本人性を先に確認し、欠測でもNAS最新へfallbackしない。引数無しの旧NAS restore-point modeは維持。両modeとも既NAS mount/排他lockを維持し、通常modeがNAS控えを新規生成/削除することはない。NAS lockが使えなければ安全側失敗でcallerへ返す。実前版の証拠選択と新呼出しをhelperが他人の環境から探索しない。
+通常deployは`--rollback-image sha256:<64hex>`でcallerが世代別previous-runtime/previous-normalの一致から固定した実前版image IDを渡す。helperはそのIDの存在/実inspect本人性を先に確認し、欠測でもNAS最新へfallbackしない。通常modeはNASへアクセスしない。UID0の通常callerはroot_squash/0700のNAS writer1000契約では祖先を辿れず、旧NAS検査を無条件に使うとplan前に失敗するため、実前版を直接渡すmodeから依存を分離した。引数無しの旧NAS restore-point modeは従来どおりexact NAS mount/既NAS lock/検証済み復元点を必須とし、localへfallbackしない。
+
+全cleanup modeとsave helperは、最初に`image_lock`でscriptのある固定checkout root directory inodeへ非待機の排他flockを取り、終了まで保持する。新lock fileを作らず、同repo直下の異なるdeploy世代も同じ排他へ届く。旧NAS modeとsaveはその後に従来NAS lockも取るため取得順は共通。競合は削除/backupより前に失敗し、例外でもFDを閉じる。Mollyの通常callerは`/home/kite/BellTeam`固定で、このrootをrename/交換しない。別checkoutから同じDocker daemonを操作する並行運用はこの接続の対象外。実前版の証拠選択と新呼出しをhelperが他人の環境から探索しない。
 
 ```mermaid
 flowchart LR
-  Previous[Molly: 世代別の実前版固定] --> Helper[runtime: exact rollback ID検査/既排他lock]
+  Previous[Molly: 世代別の実前版固定] --> Lock[固定checkout root inodeの共通image排他]
+  Legacy[旧NAS cleanup] --> Lock
+  SaveEntry[save helper] --> Lock
+  Lock --> Explicit[通常: exact rollback ID検査 / NAS参照0]
+  Lock --> NAS[旧cleanup: NAS guard/lock/復元点検証]
+  Lock --> Backup[save: NAS guard/lock/控え保存]
+  Explicit --> Helper[runtime: image選択/保護]
+  NAS --> Helper
   Helper --> Plan[削除前planをstdoutへflush]
   Plan --> Delete[既選択/非force削除/参照再検査]
   Delete --> Result[既個別結果と末尾完了行]

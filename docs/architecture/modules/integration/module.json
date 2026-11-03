@@ -67,6 +67,7 @@
     "src/olrw-rabbit-auth.mjs",
     "src/olrw-management-loader.mjs",
     "scripts/deploy.sh",
+    "scripts/deploy-host.sh",
     "scripts/deploy-cleanup.sh"
   ]
 }
