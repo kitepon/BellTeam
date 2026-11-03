@@ -8,10 +8,10 @@ const source = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value
 const version = (id, builtin) => id ? { version: id, digest: `sha256:${id}`, sourceCommit: null, origin: 'release' }
   : source(builtin) ? { version: builtin, digest: null, sourceCommit: builtin, origin: 'builtin' } : null
 
-export function createModuleUpdateAdapters({ gateway, notifications, members, memory = null, diagnostics = null, prepareDiagnostics = null,
-  prepare = { 'web-gateway': prepareGatewayRelease, notifications: prepareNotificationsRelease, members: prepareMembersRelease, memory: prepareMemoryRelease, ...(prepareDiagnostics ? { diagnostics: prepareDiagnostics } : {}) } }) {
+export function createModuleUpdateAdapters({ gateway, notifications, members, memory = null, diagnostics = null, prepareDiagnostics = null, usage = null, prepareUsage = null,
+  prepare = { 'web-gateway': prepareGatewayRelease, notifications: prepareNotificationsRelease, members: prepareMembersRelease, memory: prepareMemoryRelease, ...(prepareDiagnostics ? { diagnostics: prepareDiagnostics } : {}), ...(prepareUsage ? { usage: prepareUsage } : {}) } }) {
   const result = {}
-  for (const [id, controller] of [['web-gateway', null], ['notifications', notifications?.controller], ['members', members?.controller], ['memory', memory], ['diagnostics', diagnostics]]) {
+  for (const [id, controller] of [['web-gateway', null], ['notifications', notifications?.controller], ['members', members?.controller], ['memory', memory], ['diagnostics', diagnostics], ['usage', usage]]) {
     if (id !== 'web-gateway' && !controller) continue
     const snapshot = () => id === 'web-gateway' ? { currentVersionId: gateway()?.versionId, available: Boolean(gateway()?.pid),
       builtinSourceCommit: notifications?.controller.snapshot().builtinSourceCommit } : controller.snapshot()
