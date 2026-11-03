@@ -1,5 +1,6 @@
 """Keep all container references and one rollback per BellTeam image family."""
 import argparse
+from contextlib import ExitStack
 import re
 import importlib.util
 import fcntl
@@ -75,14 +76,15 @@ def main(argv=None):
     spec = importlib.util.spec_from_file_location('restore', Path(__file__).with_name('save-deploy-restore-point.py'))
     restore = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(restore)
-    restore.mount_guard(restore.BASE)
-    with (restore.BASE / '.lock').open('r+b') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    with restore.image_lock(), ExitStack() as stack:
         if args.rollback_image is not None:
             rollback = args.rollback_image
             if inspected(rollback) is None:
                 raise RuntimeError('previous runtime image missing')
         else:
+            restore.mount_guard(restore.BASE)
+            lock = stack.enter_context((restore.BASE / '.lock').open('r+b'))
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             points = restore.validated_points(restore.BASE)
             if not points:
                 raise RuntimeError('no accepted rollback point')
