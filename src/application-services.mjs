@@ -1,3 +1,4 @@
+import { createModuleExchangeMutex } from './module-exchange-mutex.mjs'
 import { createConversationUsage } from './usage/conversation-effects.mjs'
 import { loadExecutionFactory } from './execution-loader.mjs'
 import { createExecutionAdoptionStore } from './execution-adoption.mjs'
@@ -45,7 +46,7 @@ import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 // Construct the application graph without starting HTTP listeners or background loops.
 export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
   let members = null, diagnosticsModule = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter
-  const membersAdmission = new MembersAdmission()
+  const membersAdmission = new MembersAdmission(), exchangeMutex = createModuleExchangeMutex()
   try {
   const trustedAnchor = acquireConfigurationStateAnchor(root)
   const membersAuthorization = createMembersOwnerAuthorization()
@@ -65,7 +66,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     : new Diagnostics(join(root, 'logs/diagnostics.json'), { investigationsFile })
   await diagnostics.initialize()
   if (seatRuntime || membersFactory) {
-    members = createMembersAssembly({ root, seatRuntime, aiterm, settings, models, membersAdmission,
+    members = createMembersAssembly({ root, seatRuntime, aiterm, settings, models, membersAdmission, exchangeMutex,
       membersAuthorization, diagnostics, dependencies: () => ({ memory, rooms, assets, conversationAssembly }), onState: () => updateCenter?.notify(),
       ...(membersFactory ? { createProcess: membersFactory } : {}),
     })
@@ -118,7 +119,7 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     await diagnostics.record({ code: 'GOAL_OPERATION_UNCONFIRMED', module: 'goals', diagnostic_log: `${error.constructor.name}\n${frames.join('\n')}` })
   }
   const conversationPorts = { bots, settings, seatRuntime, aiControl, conversationUsage: createConversationUsage({ settings, notifications }) }
-  if (conversationFactory) conversationAssembly = conversationFactory({ root, membersAdmission, getServices: () => conversationPorts,
+  if (conversationFactory) conversationAssembly = conversationFactory({ root, membersAdmission, exchangeMutex, getServices: () => conversationPorts,
     onDiagnostic: report => diagnostics.record({ ...report, module: 'conversation' }), onState: () => updateCenter?.notify() })
   if (executionFactory) {
     const selection = adoptionFactory({ root }), selected = await selection.read()
