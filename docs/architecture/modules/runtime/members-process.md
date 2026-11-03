@@ -14,6 +14,7 @@ flowchart TD
   External --> Callback[同lease専用保存callback / 新root不要]
   Callback --> Child
   Control[prepare→新root閉鎖 / 旧lease継続] --> Drain[全root/effect/callback・席stdio・CLI終端60秒]
+  Mutex[親の共有exchangeMutex.runExclusive] --> Control
   Drain --> Exit[quiesced後exit5秒 / OS・pipe close]
   Exit --> C[固定C / IPC3 / 子新privateSH4・membersEX5]
   C --> Restore[同state読取restore / ready45秒]
@@ -30,7 +31,7 @@ flowchart TD
 
 ## 公開接点と固定schema
 
-createMembersProcess({root,membersAdmission,onEffect,onProjection,onGeneration,onDiagnostic,onState,authorizeOwner,prepareRelease})→start/close/request/callback/snapshot/replace/reserve。同executionのmembers-admissionを一実体で使い、入場後に送信前trackCompletionを登録する。deadline後もactual completion/親effect終端まではgateをlive保持。root/effect/callback各8、受理済返却/control/診断は新rootで塞がない。未送信/受信待ち業務buffer64MiB/control1MiB、payload16MiB＋envelope64KiB。初期snapshotは一profileごとACK、avatar無し、半端な投影を採用しない。rootIdは単調IDの文字列。
+createMembersProcess({root,membersAdmission,onEffect,onProjection,onGeneration,onDiagnostic,onState,authorizeOwner,prepareRelease,exchangeMutex?})→start/close/request/callback/snapshot/replace/reserve。同executionのmembers-admissionを一実体で使い、入場後に送信前trackCompletionを登録する。deadline後もactual completion/親effect終端まではgateをlive保持。root/effect/callback各8、受理済返却/control/診断は新rootで塞がない。未送信/受信待ち業務buffer64MiB/control1MiB、payload16MiB＋envelope64KiB。初期snapshotは一profileごとACK、avatar無し、半端な投影を採用しない。rootIdは単調IDの文字列。
 
 contextはgeneration/leaseId/rootId/ownerWrite/continuationの固定5field。Owner booleanは親opaque認証資料から、continuationは親assertLease後のlease.epochと現在epochの差だけから生成する。child自己申告やbody/paramsを権限にしない。child新root受付はaccepting又は検証済continuation、callbackは同live leaseのみ。callbackからの汎用effect再帰を拒否する。CLI同期はprofiles.cli専用callbackでqueue実開始時の最新IDsを取得し親固定projectへ解決する。
 
@@ -63,3 +64,5 @@ Root採用の`MEMBERS_READ_PIN_METHODS`6methodだけを`options.membersReadPin`�
 pinの親projectionは同pendingのprofiles.readだけ、親effectは同schedules.listのownerKind=roomかつ同ownerIdに対するroom.schedules.listだけ受ける。captureした要求paramsへ相関し、他effectを親adapterへ渡さない。親contextはmembersReadPinを持ち、一般membersLease branchへ入れない。Mollyの専用readonly effect adapterが同pinを再確認する。
 
 送信前にroot actual completion、親readonly effect開始前にeffect実終端を`trackReadCompletion`へ登録する。caller期限/断線だけで解放せず、finish要請と両completion終端後にのみ解放。既pinはclose後も同generationの元methodだけ継続、新pinは閉鎖中拒否。drain/adoptはKiroのAIleaseとreadpinの双方を待つ。固定readのfresh結果を採用し、投影を認可の代用にしない。
+
+親の同exchangeMutex.runExclusiveはreplaceのprepare前からdrain/旧OS終端/保存ACK/失敗復旧まで保持する。共有競合は受付閉鎖・prepare前にMODULE_EXCHANGE_BUSYで拒否する。signal/実completion/readonly pin/root8とclose時の取消は既契約を維持し、新mutexは作らない。親assemblyの同一体DIはintegrationが所有する。

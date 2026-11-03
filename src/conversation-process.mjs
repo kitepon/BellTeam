@@ -5,10 +5,10 @@ import { validateConversationBotSnapshot } from './conversation/requests.mjs'
 import { assertConversationStateCompatibility } from './conversation/state-compatibility.mjs'
 
 export function createConversationProcess({ root, admission, readBots, authorizeActor, onEffect, onEvent, onDiagnostic,
-  onGeneration, onState, prepareRelease = (versionId, options) => prepareModuleRelease('conversation', versionId, options), spawnProcess } = {}) {
+  onGeneration, onState, exchangeMutex, prepareRelease = (versionId, options) => prepareModuleRelease('conversation', versionId, options), spawnProcess } = {}) {
   if (!admission || [readBots, authorizeActor, onEffect].some(value => typeof value !== 'function'))
     throw Object.assign(new Error('CONVERSATION_PORTS_INVALID'), { code: 'CONVERSATION_PORTS_INVALID' })
-  const controller = createModuleProcess({ component: 'conversation', root, admission, onGeneration, onState, prepareRelease, spawnProcess,
+  const controller = createModuleProcess({ component: 'conversation', root, admission, onGeneration, onState, exchangeMutex, prepareRelease, spawnProcess,
     createChannel: (child, { generation }) => createConversationParentChannel(child, { generation, admission, authorizeActor, onEffect, onEvent, onDiagnostic }),
     canContinue: (_method, options, generation) => {
       try { admission.assertLease(options.conversationLease, { generation }); return true } catch { return false }

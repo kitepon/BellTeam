@@ -31,7 +31,7 @@ const within = async (promise, milliseconds, code) => {
 
 export function createMembersProcess({ root, membersAdmission = new MembersAdmission(),
   onEffect, onProjection, onGeneration = () => {}, onDiagnostic, onState = () => {}, authorizeOwner,
-  prepareRelease = prepareMembersRelease }) {
+  prepareRelease = prepareMembersRelease, exchangeMutex = null }) {
   const adoptionPath = join(root, 'state/members-release.json')
   let instance = null, currentVersionId = null, previousVersionId = null, builtinSourceCommit = null
   let available = false, exchanging = false, phase = 'unavailable', initialized = false, closed = false
@@ -176,7 +176,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
     if (closed || !initialized || !instance || !available || draining) return Promise.reject(fail('MEMBERS_NOT_ACCEPTING'))
     const versionId = requested === 'builtin' ? null : requested
     const expected = expectedRelease ? structuredClone(expectedRelease) : undefined
-    return exclusive(async signal => {
+    const perform = async signal => {
       await prepare(versionId, expected, signal)
       if (versionId === currentVersionId) return snapshot()
       if (closed) throw fail('MEMBERS_CLOSED')
@@ -216,7 +216,8 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
         } catch (rollback) { errors.push(rollback); state('unavailable') }
         throw new AggregateError(errors, errors.length === 1 ? 'MEMBERS_REPLACE_ROLLED_BACK' : 'MEMBERS_REPLACE_AND_ROLLBACK_FAILED')
       } finally { if (phase !== 'running') { exchanging = false; state(phase) } }
-    })
+    }
+    return exclusive(signal => exchangeMutex ? exchangeMutex.runExclusive(() => perform(signal)) : perform(signal))
   }
   const reserve = (versionId, { expectedRelease } = {}) => {
     if (versionId !== 'builtin' && !versionValid(versionId)) throw fail('MEMBERS_VERSION_INVALID', 400)

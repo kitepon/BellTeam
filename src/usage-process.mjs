@@ -4,11 +4,11 @@ import { assertUsageStateCompatibility } from './usage/state-compatibility.mjs'
 import { prepareModuleRelease } from './module-release.mjs'
 
 export function createUsageProcess({ root, admission, bootstrap, authorizeActor, onEffect, onProjection,
-  onSnapshotStart, onSnapshotEnd, onSnapshotAbort, onDiagnostic, onGeneration, onState,
+  onSnapshotStart, onSnapshotEnd, onSnapshotAbort, onDiagnostic, onGeneration, onState, exchangeMutex,
   prepareRelease = (versionId, options) => prepareModuleRelease('usage', versionId, options), spawnProcess } = {}) {
   if (!admission || typeof authorizeActor !== 'function') throw Object.assign(new Error('USAGE_PORTS_INVALID'), { code: 'USAGE_PORTS_INVALID' })
   const initial = structuredClone(bootstrap)
-  return createModuleProcess({ component: 'usage', root, admission, onGeneration, onState, prepareRelease, spawnProcess,
+  return createModuleProcess({ component: 'usage', root, admission, onGeneration, onState, exchangeMutex, prepareRelease, spawnProcess,
     startPaused: true,
     createChannel: (child, { generation }) => createUsageParentChannel(child, { generation, admission, authorizeActor,
       onEffect, onProjection, onSnapshotStart, onSnapshotEnd, onSnapshotAbort, onDiagnostic }),

@@ -7,9 +7,10 @@ import { join } from 'node:path'
 import { createMembersProcess } from '../src/members-process.mjs'
 import { MEMBERS_STATE_COMPATIBILITY } from '../src/members/state-compatibility.mjs'
 import { MembersAdmission } from '../src/members-admission.mjs'
+import { createModuleExchangeMutex } from '../src/module-exchange-mutex.mjs'
 
 const a = 'a'.repeat(64), bad = 'b'.repeat(64), hang = 'c'.repeat(64)
-async function setup(t, { mode = '', prepare = async () => {}, membersAdmission } = {}) {
+async function setup(t, { mode = '', prepare = async () => {}, membersAdmission, exchangeMutex } = {}) {
   const root = await mkdtemp(join(process.cwd(), '.members-controller-')), children = [], generations = []
   await mkdir(join(root, 'state/bots'), { recursive: true }); await mkdir(join(root, 'owner'))
   await writeFile(join(root, 'state/bots/.initialized'), '')
@@ -29,7 +30,7 @@ async function setup(t, { mode = '', prepare = async () => {}, membersAdmission 
     children.push(child); return child
   })
   syncBuiltinESMExports()
-  const controller = createMembersProcess({ root, membersAdmission, onGeneration: value => generations.push(value),
+  const controller = createMembersProcess({ root, membersAdmission, exchangeMutex, onGeneration: value => generations.push(value),
     prepareRelease: async (versionId, options) => { await prepare(versionId, options); return { versionId,
       appRoot: `/run/bellteam-maintenance/members/releases/${versionId}/payload`, protocolVersion: 1,
       stateCompatibility: MEMBERS_STATE_COMPATIBILITY, sourceCommit: 'e'.repeat(40), platform: { os: 'linux', arch: 'amd64' } } } })
@@ -42,6 +43,26 @@ async function setup(t, { mode = '', prepare = async () => {}, membersAdmission 
   })
   return { root, controller, children, generations }
 }
+
+test('shared exchange mutex rejects members before prepare and releases when close aborts preparation', async t => {
+  const exchangeMutex = createModuleExchangeMutex()
+  let entered, finish, preparations = 0
+  const waiting = new Promise(resolve => { entered = resolve }), held = new Promise(resolve => { finish = resolve })
+  const x = await setup(t, { exchangeMutex, prepare: async () => { preparations++; entered(); await held } })
+  await x.controller.start()
+  const release = exchangeMutex.reserve()
+  await assert.rejects(x.controller.replace(a), { code: 'MODULE_EXCHANGE_BUSY', outcome: 'not_accepted' })
+  assert.equal(preparations, 0); assert.equal(x.children.length, 1)
+  assert.equal(x.controller.snapshot().available, true)
+  release()
+  const replacing = x.controller.replace(a), rejected = assert.rejects(replacing)
+  await waiting
+  await assert.rejects(exchangeMutex.runExclusive(() => {}), { code: 'MODULE_EXCHANGE_BUSY' })
+  await x.controller.close(); await rejected
+  await exchangeMutex.runExclusive(() => {})
+  finish()
+  assert.equal(x.children.length, 1)
+})
 
 test('controller routes a method pin through actual IPC while all AI lease slots are occupied', async t => {
   const gate = new MembersAdmission(), x = await setup(t, { membersAdmission: gate })
