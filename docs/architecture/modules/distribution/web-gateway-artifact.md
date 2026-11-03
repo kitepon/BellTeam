@@ -16,7 +16,7 @@ flowchart LR
   Prepare --> Switch[integration: 子交換/ready後adoption/旧版戻し]
 ```
 
-実装とcaller: scripts/package-web-gateway.py、scripts/web_gateway_artifact.py、scripts/verify-web-gateway.py、config/web-gateway-verification.json、config/web-gateway-trusted-root.jsonl、専用workflow。既scripts/package-server.mjsがverifier共通moduleと2configをimageへ収録する。既DockerfileのCOPY/chown rootを使用し、新mountや署名秘密鍵を追加しない。
+実装とcaller: scripts/package-web-gateway.py、scripts/web_gateway_artifact.py、scripts/verify-web-gateway.py、config/web-gateway-verification.json、config/web-gateway-trusted-root.jsonl、専用workflow。既scripts/package-server.mjsがverifier共通moduleと2configをimageへ収録する。通知追加後も既Web入口/schemaは固定し、clean package処理はmodule_artifact_package.py、公式検証処理はmodule_artifact_verifier.pyを内部共有する。通知のstateSchemaはWebへ追加しない。既DockerfileのCOPY/chown rootを使用し、新mountや署名秘密鍵を追加しない。
 
 署名検証CLIは /usr/bin/python3 /app/scripts/verify-web-gateway.py ARCHIVE BUNDLE EXPECTATION。image内policyは固定repo/workflow/ref/Node26/protocol1とtrustrootを持つ。EXPECTATIONはrootwriterが承認済archive/source/signer各SHAからroot通常fileへ作り、未検証manifestから自己生成しない。archive/bundleはEpiの同FD snapshot先。成功時だけ schema bellteam.web-gateway.verification.v1 とarchiveSha256/manifestSha256/manifest/verificationを返す。installation.json/採用stateを書かない。
 

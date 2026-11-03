@@ -1,4 +1,4 @@
-"""Web gateway content contract; this module never authenticates or installs a release."""
+"""Fixed Web gateway and notifications content contracts; this module never authenticates or installs a release."""
 import gzip
 import hashlib
 import io
@@ -31,17 +31,30 @@ def safe_path(name):
     return name
 
 
-def validate_manifest(value, source=None, arch=None):
+def contract(component):
+    require(component in ('web-gateway', 'notifications'), 'MODULE_COMPONENT_INVALID')
+    entry = ENTRY if component == 'web-gateway' else 'payload/src/notifications-entry.mjs'
+    runtime = dict(os='linux', nodeMajor=26, parentProtocol=1)
+    required = {entry, 'payload/package.json', 'payload/package-lock.json'}
+    if component == 'web-gateway':
+        required.update({'payload/web/assets.mjs', 'payload/services/subscriptions/product.json',
+                         'payload/services/subscriptions/endpoints.json'})
+    else:
+        runtime['stateSchema'] = 1
+    return entry, runtime, required
+
+
+def validate_manifest(value, source=None, arch=None, *, component='web-gateway'):
     require(type(value) is dict and set(value) == {'schema', 'component', 'sourceCommit', 'entry', 'runtime', 'files'})
-    require(value['schema'] == 'bellteam.web-gateway.artifact.v1' and value['component'] == 'web-gateway')
+    entry, fixed_runtime, required = contract(component)
+    require(value['schema'] == f'bellteam.{component}.artifact.v1' and value['component'] == component)
     require(isinstance(value['sourceCommit'], str) and re.fullmatch('[a-f0-9]{40}', value['sourceCommit']))
     require(source is None or value['sourceCommit'] == source, 'GATEWAY_SOURCE_MISMATCH')
-    require(value['entry'] == ENTRY)
+    require(value['entry'] == entry)
     runtime = value['runtime']
-    require(type(runtime) is dict and set(runtime) == {'os', 'arch', 'nodeMajor', 'parentProtocol'})
-    require(runtime['os'] == 'linux' and runtime['arch'] in ['amd64', 'arm64']
-            and type(runtime['nodeMajor']) is int and runtime['nodeMajor'] == 26
-            and type(runtime['parentProtocol']) is int and runtime['parentProtocol'] == 1)
+    require(type(runtime) is dict and set(runtime) == {*fixed_runtime, 'arch'})
+    require(runtime['arch'] in ['amd64', 'arm64'] and all(type(runtime[key]) is type(wanted)
+            and runtime[key] == wanted for key, wanted in fixed_runtime.items()))
     require(arch is None or runtime['arch'] == arch, 'GATEWAY_ARCH_MISMATCH')
     require(type(value['files']) is list and 0 < len(value['files']) <= MAX_FILES)
     names = set()
@@ -55,12 +68,11 @@ def validate_manifest(value, source=None, arch=None):
         names.add(name)
         total += file['bytes']
     require(total <= MAX_CONTENT)
-    require({ENTRY, 'payload/package.json', 'payload/package-lock.json', 'payload/web/assets.mjs',
-             'payload/services/subscriptions/product.json', 'payload/services/subscriptions/endpoints.json'} <= names)
+    require(required <= names)
     return value
 
 
-def write_archive(payload, output, source, arch):
+def write_archive(payload, output, source, arch, *, component='web-gateway'):
     payload = Path(payload).resolve()
     inventory = []
     paths = {}
@@ -74,8 +86,9 @@ def write_archive(payload, output, source, arch):
         data = target.read_bytes()
         inventory.append(dict(path=name, bytes=len(data), sha256=sha256(data)))
         paths[name] = target
-    manifest = validate_manifest(dict(schema='bellteam.web-gateway.artifact.v1', component='web-gateway',
-        sourceCommit=source, entry=ENTRY, runtime=dict(os='linux', arch=arch, nodeMajor=26, parentProtocol=1), files=inventory))
+    entry, runtime, _ = contract(component)
+    manifest = validate_manifest(dict(schema=f'bellteam.{component}.artifact.v1', component=component,
+        sourceCommit=source, entry=entry, runtime={**runtime, 'arch': arch}, files=inventory), component=component)
     metadata = (json.dumps(manifest, sort_keys=True, separators=(',', ':')) + '\n').encode()
     require(len(metadata) <= MAX_MANIFEST)
     expected_files = {f['path']: f for f in inventory}
@@ -95,7 +108,7 @@ def write_archive(payload, output, source, arch):
     return manifest
 
 
-def check_archive(stream, source=None, arch=None):
+def check_archive(stream, source=None, arch=None, *, component='web-gateway'):
     stream.seek(0)
     found = set()
     total = 0
@@ -112,7 +125,7 @@ def check_archive(stream, source=None, arch=None):
             if manifest is None:
                 require(name == 'manifest.json' and item.size <= MAX_MANIFEST)
                 metadata = body.read()
-                manifest = validate_manifest(json.loads(metadata), source, arch)
+                manifest = validate_manifest(json.loads(metadata), source, arch, component=component)
                 expected = {f['path']: f for f in manifest['files']}
             else:
                 require(name in expected and item.size == expected[name]['bytes'])
