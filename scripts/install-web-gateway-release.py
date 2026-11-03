@@ -150,7 +150,8 @@ def extract(archive, receipt, expected, destination, component='web-gateway'):
         fail('GATEWAY_INSTALL_RECEIPT')
     if component == 'notifications' and (manifest.get('schema') != 'bellteam.notifications.artifact.v1'
             or manifest.get('entry') != 'payload/src/notifications-entry.mjs'
-            or manifest.get('runtime', {}).get('stateSchema') != 1):
+            or manifest.get('runtime', {}).get('parentProtocol') != 2
+            or manifest.get('runtime', {}).get('stateSchema') != 2):
         fail('GATEWAY_INSTALL_RECEIPT')
     if component == 'members':
         spec = importlib.util.spec_from_file_location('artifact_contract', Path(__file__).with_name('web_gateway_artifact.py'))

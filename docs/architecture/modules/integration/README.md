@@ -414,3 +414,21 @@ flowchart LR
 `createConversationAuthority()`は親組立てが一実体だけ所有し、認証済みOwner/席本人/scheduler/Bridge/onboarding/usage/observer入口から確定したmethod/actorでだけ`capture`する。body/paramsのactor・Owner宣言や汎用system actorから生成しない。methodごとに発行し、子と同じ`assertConversationRootAuthority`で上限を確認する。`authorizeActor(method,options.capturedAuthority)`は元factory/同object/同methodだけを受け、固定actorを返す。不明・clone・別method・終端済みtokenはfalse。原actorの後続変更は権限を変えない。
 
 認証そのもの、親の席session/launch/source、両moduleのlive operationContext、停止世代・fresh membershipは別の既入口/各gateで検証する。このtokenはそれらの代わりではない。解放はHTTP/caller期限やroot8のacceptedではなくruntimeの実資源終端へ結合する。history親合成は公開ceilingを確認した上で実wire list2へ各methodのtokenを捕捉する。callbackはKiro登録exact5だけを使いroot tokenから新権限を作らない。全HTTP/MCP/Bridgeの捕捉・安定facade/dispatcherへの配線は後続結合であり、このfactoryだけで会話process成立とはしない。
+## Web Pushのtrusted originと固定SW
+
+```mermaid
+flowchart LR
+  Config[保存済cloudflare.publicUrl] --> Origin[web-push-origin: HTTPS URL.origin]
+  Owner[既Owner認証] --> Check[usage固定POST / webPush設定変更]
+  Check --> Origin
+  Header[単一Origin / Sec-Fetch-Site] --> Origin
+  Origin --> Private[検証値だけprivate paramsへ / HTTP bodyのorigin不可]
+  Private --> Usage[usage唯一Web登録writer / origin束縛]
+  SW[Admi固定sw.js資材] --> Assets[http-assets: JS MIME / no-cache]
+```
+
+Root Web Push契約v1.1に従う。`createWebPushOrigin({settings})`が返す`assertWebPushOrigin(request)`は毎要求の保存済みcloudflare.publicUrlだけからcanonical HTTPS originを生成する。公開URL欠測/不正はWEB_PUSH_ORIGIN_UNAVAILABLE/503、Origin欠測/null/重複/不一致・path/資格・cross-siteはWEB_PUSH_ORIGIN_FORBIDDEN/403。Sec-Fetch-Site有りならsame-originだけを通す。request Host/Forwarded、body、endpointからtrusted originを補わない。Owner認証自体は既HTTP入口、内部403と閉bodyはusage handlerが検査する。GET公開状態と他feature/Apple APIの条件は変えない。
+
+`createBellTeamServer`が同じ親FeatureSettingsから検証関数を一つ構築し、`createControlApi`→`createUsageApi`へ注入する。既Owner認証の後、登録照会/登録/解除のprivate originへこの返却だけを渡す。provider/configureへoriginを足さず、別origin登録の操作を同等権限にしない。固定sw.jsは版付置換の有無によらずJS MIME/no-cache、他immutable資材を維持。SW本文/公開asset mapはAdmi固定作者sourceへ接続する。
+
+`application-services`は同じ設定一実体のAPNs/Web二設定をcontrollerへ供給する。onStateの両provider applyErrorは各featureへ分けて投影し、ready/statusのnullで保存済み適用失敗を消さない。成功した明示設定適用は既FeatureSettingsのonChange結果で更新する。子/controllerのconfig epoch・復帰後差分適用と実署名nativeはruntime/配布の固定成果へ結合するまで未成立。実送信/資格/Host本番の証明にはしない。

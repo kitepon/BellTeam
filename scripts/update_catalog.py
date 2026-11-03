@@ -42,6 +42,27 @@ def strict_json(raw):
     return json.loads(raw, object_pairs_hook=pairs, parse_constant=lambda _: require(False))
 
 
+def validate_notifications_compatibility(value):
+    exact(value, 'nodeMajor,parentProtocol,stateSchema,containerUpdate')
+    require(type(value['nodeMajor']) is int and value['nodeMajor'] == 26
+            and type(value['parentProtocol']) is int and value['parentProtocol'] == 2
+            and type(value['stateSchema']) is int and value['stateSchema'] == 2
+            and value['containerUpdate'] is None, 'UPDATE_NOTIFICATIONS_ABI_INCOMPATIBLE')
+    return value
+
+
+def validate_notifications_archive(release, manifest):
+    from web_gateway_artifact import validate_manifest
+    require(release['componentId'] == 'notifications')
+    compatibility = validate_notifications_compatibility(release['compatibility'])
+    validate_manifest(manifest, release['sourceCommit'], release['platform']['arch'], component='notifications')
+    runtime = manifest['runtime']
+    require(release['platform']['os'] == runtime['os']
+            and all(compatibility[key] == runtime[key] for key in ['nodeMajor', 'parentProtocol', 'stateSchema']),
+            'UPDATE_NOTIFICATIONS_ARCHIVE_INCOMPATIBLE')
+    return manifest
+
+
 def validate_members_compatibility(value):
     from web_gateway_artifact import contract
     exact(value, 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility')
@@ -91,7 +112,9 @@ def validate_catalog(value, *, now=None):
         require(platform['os'] == 'linux' and platform['arch'] in ['amd64', 'arm64'])
         key = component, platform['arch']; require(key not in seen); seen.add(key)
         compatibility = release['compatibility']
-        if component == 'members':
+        if component == 'notifications':
+            validate_notifications_compatibility(compatibility)
+        elif component == 'members':
             validate_members_compatibility(compatibility)
         else:
             exact(compatibility, 'nodeMajor,parentProtocol,stateSchema,containerUpdate')

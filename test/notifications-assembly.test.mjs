@@ -50,12 +50,12 @@ test('一つの通知factoryをHTTP/設定/会話/終了へ接続し、通知失
   const base = `http://127.0.0.1:${runtime.gateway.address.port}`
   const state = await (await fetch(base + '/api/notifications-release')).json()
   assert.deepEqual(state.notificationsRelease, controller.snapshot())
-  options.onState({ phase: 'running', available: true, exchanging: false, applyError: 'PUSH_UNAVAILABLE', status: {} })
+  options.onState({ phase: 'running', available: true, exchanging: false, applyError: { apns: 'PUSH_UNAVAILABLE', webPush: null }, status: null })
   assert.equal(settings.list().find(item => item.id === 'notifications').error.code, 'PUSH_UNAVAILABLE')
   rejectConfigure = true
   await assert.rejects(settings.update('notifications', { enabled: false, values: { relayUrl: 'https://relay.example' } }), { code: 'FEATURE_APPLY_FAILED' })
   assert.equal(settings.configuration('notifications').relayUrl, 'https://relay.example')
-  options.onState({ phase: 'running', available: true, exchanging: false, applyError: null, status: {} })
+  options.onState({ phase: 'running', available: true, exchanging: false, applyError: { apns: null, webPush: null }, status: null })
   assert.equal(settings.list().find(item => item.id === 'notifications').error.code, 'NOTIFICATIONS_UNAVAILABLE')
   rejectConfigure = false
   await settings.update('notifications', { enabled: false, values: {} })

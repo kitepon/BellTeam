@@ -13,6 +13,7 @@
 - [本人要約と現在turnの投影](current-work.md)
 - [members交換中の親admission・lease](members-admission.md)
 - [原要求を保持する設定適用・照合](configuration-requests.md)
+- [設定不明と通常配送を分離する契約](configuration-delivery.md)
 - [control-details.md](../../control-details.md)
 - [delivery-details.md](../../delivery-details.md)
 - [observation-details.md](../../observation-details.md)

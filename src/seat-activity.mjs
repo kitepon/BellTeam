@@ -1,7 +1,7 @@
 import { queueItem } from './delivery-job.mjs'
 
 // 席ごとに一つだけ進む非同期の操作（設定変更、送信の順番待ち、起動）。同じ操作が終わった時だけ外す。
-// 失敗を残す操作（設定反映の失敗）は、利用者が直すまで次の配送にも同じ失敗を返す。
+// 設定の失敗記録はapplication/uncertaintyが持ち、配送はこの順序待ちと分ける。
 export class PendingByBot extends Map {
   track(botId, pending, { clearOnFailure = true } = {}) {
     this.set(botId, pending)

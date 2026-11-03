@@ -25,15 +25,15 @@ async function setup(t,{mode='',prepare=async()=>{},report=async()=>{}}={}) {
     children.push(child);return child
   });syncBuiltinESMExports()
   const states=[]
-  const controller=createNotificationsProcess({root,configuration:()=>({enabled:false,relayUrl:''}),onDiagnostic:report,onState:s=>states.push(s),
-    prepareRelease:async(id,options)=>{await prepare(id,options);return {versionId:id,appRoot:`/run/bellteam-maintenance/notifications/releases/${id}/payload`,protocolVersion:1,stateSchema:1}}})
+  const controller=createNotificationsProcess({root,configuration:()=>({apns:{enabled:false,relayUrl:''},webPush:{enabled:false,subject:''}}),onDiagnostic:report,onState:s=>states.push(s),
+    prepareRelease:async(id,options)=>{await prepare(id,options);return {versionId:id,appRoot:`/run/bellteam-maintenance/notifications/releases/${id}/payload`,protocolVersion:2,stateSchema:2}}})
   t.after(async()=>{await controller.close();t.mock.restoreAll();syncBuiltinESMExports();await rm(root,{recursive:true,force:true})})
   return {controller,children,root,states}
 }
 test('A to B to A retains current state and current/previous adoption references',async t=>{
   const {controller,root,children}=await setup(t)
   await controller.start()
-  await controller.request('register',{token:'persist'})
+  await controller.request('register',{provider:'apns',token:'persist'})
   await controller.replace(ids.a);await controller.replace(ids.b);await controller.replace(ids.a)
   assert.deepEqual(JSON.parse(await readFile(join(root,'state/push-devices.json'),'utf8')),[{token:'persist'}])
   assert.equal(controller.snapshot().currentVersionId,ids.a)
@@ -46,7 +46,7 @@ test('A to B to A retains current state and current/previous adoption references
 test('new initialization failure reaps child and rolls back without rewriting business state',async t=>{
   const {controller,children,root}=await setup(t)
   await controller.start();await controller.replace(ids.a)
-  await controller.request('register',{token:'kept'})
+  await controller.request('register',{provider:'apns',token:'kept'})
   await assert.rejects(controller.replace(ids.bad),/NOTIFICATIONS_REPLACE_ROLLED_BACK/)
   assert.equal(controller.snapshot().currentVersionId,ids.a)
   assert.equal(controller.snapshot().available,true)
@@ -64,9 +64,9 @@ test('adoption save failure restores builtin without requiring a writable adopti
 test('configure blocks reservation, version validation and close abort prepare without new child',async t=>{
   let release, entered
   const entering=new Promise(r=>{entered=r})
-  const {controller,children}=await setup(t,{prepare:async()=>{entered();await new Promise(r=>{release=r})}})
+  const {controller,children}=await setup(t,{mode:'configure-delay',prepare:async()=>{entered();await new Promise(r=>{release=r})}})
   await controller.start()
-  const configuring=controller.request('configure',{enabled:false,relayUrl:'',delay:100})
+  const configuring=controller.request('configure',{provider:'apns',enabled:false,relayUrl:''})
   assert.throws(()=>controller.reserve(ids.a),{status:409})
   await configuring
   assert.throws(()=>controller.reserve('../path'),{status:400})

@@ -18,7 +18,7 @@ class NotificationsWriterTest(unittest.TestCase):
         self.f.setUp()
         self.addCleanup(self.f.doCleanups)
         manifest = dict(schema='bellteam.notifications.artifact.v1', component='notifications', sourceCommit='a'*40,
-            entry='payload/src/notifications-entry.mjs', runtime=dict(os='linux',arch='amd64',nodeMajor=26,parentProtocol=1,stateSchema=1))
+            entry='payload/src/notifications-entry.mjs', runtime=dict(os='linux',arch='amd64',nodeMajor=26,parentProtocol=2,stateSchema=2))
         files={'payload/src/notifications-entry.mjs': b'export {}\n','payload/package.json':b'{}\n','payload/package-lock.json':b'{}\n'}
         manifest['files']=[dict(path=k,bytes=len(v),sha256=hashlib.sha256(v).hexdigest()) for k,v in files.items()]
         self.manifest=manifest
@@ -53,7 +53,7 @@ class NotificationsWriterTest(unittest.TestCase):
     def test_web_receipt_and_incompatible_state_are_rejected_before_publication(self):
         self.f.receipt['schema']='bellteam.web-gateway.verification.v1'
         with self.assertRaisesRegex(ValueError,'GATEWAY_INSTALL_RECEIPT'):self.install()
-        self.manifest['runtime']['stateSchema']=2;self.make_archive()
+        self.manifest['runtime']['stateSchema']=1;self.make_archive()
         with self.assertRaisesRegex(ValueError,'GATEWAY_INSTALL_RECEIPT'):self.install()
         self.assertEqual(list((self.f.private/'notifications/releases').iterdir()),[])
     def test_notification_component_lock_excludes_second_installer(self):

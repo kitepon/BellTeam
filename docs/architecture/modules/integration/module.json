@@ -89,6 +89,7 @@
     "src/current-work-contract.mjs",
     "src/module-operation-context.mjs",
     "src/module-exchange-mutex.mjs",
-    "src/conversation-authority.mjs"
+    "src/conversation-authority.mjs",
+    "src/web-push-origin.mjs"
   ]
 }

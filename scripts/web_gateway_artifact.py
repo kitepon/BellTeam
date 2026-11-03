@@ -40,7 +40,7 @@ def contract(component):
         required.update({'payload/web/assets.mjs', 'payload/services/subscriptions/product.json',
                          'payload/services/subscriptions/endpoints.json'})
     elif component == 'notifications':
-        runtime['stateSchema'] = 1
+        runtime.update(parentProtocol=2, stateSchema=2)
     else:
         # Match the writer's existing formats; exchange never authorizes migration.
         runtime['stateCompatibility'] = dict(

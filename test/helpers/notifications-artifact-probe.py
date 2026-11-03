@@ -35,6 +35,14 @@ def create_directory(path, uid, gid, mode, created):
     os.chown(path, uid, gid); path.chmod(mode)
 
 
+def stage_parent_probe():
+    directory = APP / 'scripts'
+    directory.mkdir(exist_ok=True)
+    probe = directory / 'probe-notifications-runtime.mjs'
+    shutil.copyfile(ROOT / 'scripts/probe-notifications-runtime.mjs', probe)
+    return probe
+
+
 def private_mount_namespace():
     require(os.readlink('/proc/self/ns/mnt') != os.readlink('/proc/1/ns/mnt'),
             'NOTIFICATIONS_PROBE_PRIVATE_MOUNT_NAMESPACE_REQUIRED')
@@ -73,13 +81,14 @@ def main():
                 tar.extractall(staging, filter='data')
             created.append(APP)
             shutil.copytree(Path(staging) / 'payload', APP)
+        probe = stage_parent_probe()
         for path in sorted(APP.rglob('*'), reverse=True):
             path.chmod(0o555 if path.is_dir() else 0o444)
         APP.chmod(0o555)
         for path, uid, mode in [(PRIVATE, 0, 0o750), (STATE, 0, 0o755), (HOME, 1001, 0o700)]:
             create_directory(path, uid, 1001, mode, created)
         state = STATE / 'state'; create_directory(state, 1001, 1001, 0o700, created)
-        process = subprocess.Popen([str(NODE), str(ROOT / 'scripts/probe-notifications-runtime.mjs')],
+        process = subprocess.Popen([str(NODE), str(probe)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True,
             env={'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': '/tmp'})
         try:
@@ -94,7 +103,7 @@ def main():
         (archive.parent / 'entry-probe.stderr.log').write_text(stderr)
         require(process.returncode == 0, 'NOTIFICATIONS_ENTRY_PROBE_FAILED')
         require(json.loads(stdout) == dict(schema='bellteam.notifications.runtime-probe.v1', ok=True,
-                uid=1001, protocolVersion=1, stateSchema=1, childClosed=True), 'NOTIFICATIONS_PROBE_RECEIPT_INVALID')
+                uid=1001, protocolVersion=2, stateSchema=2, childClosed=True), 'NOTIFICATIONS_PROBE_RECEIPT_INVALID')
         result = dict(sourceCommit=manifest['sourceCommit'], architecture=manifest['runtime']['arch'],
                       entry=manifest['entry'], unsignedBuiltinOnly=True, installationCreated=False,
                       realApns=False, fixedCEntry=True, processExit=process.returncode)

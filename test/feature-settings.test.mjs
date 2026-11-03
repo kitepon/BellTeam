@@ -20,7 +20,7 @@ function errorCode(code) {
 
 test('未設定で起動でき、全機能は未設定・無効で秘密の値を返さない', async t => {
   const { settings, root } = await fixture(t)
-  assert.deepEqual(settings.list().map(item => item.id), ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications'])
+  assert.deepEqual(settings.list().map(item => item.id), ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush'])
   for (const item of settings.list()) {
     assert.equal(item.enabled, false)
     assert.equal(item.status, 'unconfigured')
@@ -42,7 +42,7 @@ test('既存envと通話Bearer値を初回だけ取り込み、保存後はenv�
   }
   const settings = new FeatureSettings({ root, environment })
   await settings.initialize()
-  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'enabled', 'enabled', 'enabled', 'unconfigured'])
+  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'enabled', 'enabled', 'enabled', 'unconfigured', 'unconfigured'])
   assert.deepEqual(settings.configuration('callBridge'), { enabled: true, url: environment.BELLTEAM_CALL_BRIDGE_MCP_URL, token: 'bridge-secret' })
   assert.equal(settings.configuration('cloudflare').publicUrl, '')
   const visible = JSON.stringify(settings.list())
