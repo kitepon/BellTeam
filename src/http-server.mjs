@@ -24,7 +24,7 @@ export { EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS }
 // 手前の中継（cloudflaredの既定90秒）より長く保つ。
 export const KEEP_ALIVE_TIMEOUT_MS = 125000
 
-export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, ownerSecretGuide = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, updateCenter = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
+export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, ownerSecretGuide = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, updateCenter = null, membersAuthorization = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
 
   if (typeof authorize !== 'function') throw new Error('BELLTEAM_AUTHORIZER_REQUIRED')
   const events = createMessageEvents({ store, secretRequests, ownerQuestions, rooms, bots, transport, aiControl, updateCenter, eventKeepalive, messageEventWindow })
@@ -49,12 +49,18 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
   const server = createServer(async (request, response) => {
     logWriteRequest(request, response, writeLog)
     logReadRequest(request, response, writeLog)
+    let membersContext
     try {
       const url = new URL(request.url, 'http://bellteam.local')
       if (request.method === 'GET' && url.pathname === '/healthz') return json(response, 200, { status: 'ok' })
       const authenticated = await authorize(request)
       if (request.method === 'GET' && url.pathname === '/api/session') return json(response, 200, { authenticated, authMode: authMode(request) })
       if (!authenticated) return json(response, url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/') ? 403 : 401, { error: 'UNAUTHORIZED' })
+      if (url.pathname === '/internal/members-owner') {
+        // No approved dedicated registrations have been supplied for initial migration.
+        return json(response, 403, { error: 'MEMBERS_OWNER_GRANT_UNKNOWN' })
+      }
+      if (!internal) membersContext = membersAuthorization?.captureHttp(request, url.pathname)
       // 席のCLIがつなぐMCP。内部入口（loopback）だけで開く。
       if (internal && seatMcp && (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/'))) return await seatMcp(request, response, url)
 
@@ -62,7 +68,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
         if (await controlApi(request, response, url) !== false) return
         await bots.refresh?.()
         for (const handle of featureApis) {
-          if (await handle(request, response, url) !== false) return
+          if (await handle(request, response, url, membersContext) !== false) return
         }
         return json(response, 404, { error: 'NOT_FOUND' })
       }
@@ -71,6 +77,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       return staticFile(response, staticRoot, url.pathname, assetVersion)
     } catch (error) {
       return respondHttpError(request, response, error, diagnostics)
+    } finally {
+      membersAuthorization?.releaseHttp(request)
     }
   })
 

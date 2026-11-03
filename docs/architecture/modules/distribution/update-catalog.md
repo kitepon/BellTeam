@@ -41,3 +41,20 @@ flowchart LR
   Fixture --> Evidence[実peer1001 / 別cgroup / stop跨ぎ / 原本]
   Fixture --> Cleanup[自分のunitとtempだけ回収]
 ```
+
+## membersだけの複合状態互換
+
+Rootのmembers catalog裁定に従い固定componentへmembersだけを追加する。既container/Web/通知のcompatibilityは既4key/型/意味のまま。membersだけnodeMajor=26/parentProtocol=1/stateSchema=null/containerUpdate=null/stateCompatibility=作者実6key-valueの厳密5keyを持つ。欠測/余剰/型変換/未知/部分一致を拒否し、架空stateSchema:1を与えない。
+
+producerは同固定sourceの作者state exportを照合し、membersの既正式Release assetをSHA-sizeまで実読取り、固定専用workflowの公式OIDCを確認してからarchive manifestとcatalog/consumerの互換6値/source/archを一致検査する。verifierは非実行JSONのまま、payload JSを実行しない。validate_members_archive(release,manifest,consumer_state)が計画時/交換直前にも使う固定の照合窓口。実state read-restoreを静的manifest検査へ置き換えない。
+
+```mermaid
+flowchart LR
+  Author[固定sourceの作者state export] --> Preflight[正式公開members資材 / SHA-size / 公式署名]
+  Archive[署名archive manifest] --> Bind[catalog・archive・consumerの同一6値]
+  Preflight --> Bind
+  Bind --> Catalog[membersだけ厳密5key / 元catalog SHA・対象digest]
+  Catalog --> Plan[Epi・Molly 計画時と交換直前に再照合]
+```
+
+旧consumerの未知component拒否を緩めない。新consumer/validator/root受入/provider/plan/module executorの同契約が供給された正式catalogだけを提供し、未対応はcapability false/計画無し・現稼働保持にする。今回source差分で正式catalog/Release/Host/本番は発行しない。

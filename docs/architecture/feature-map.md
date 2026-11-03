@@ -41,6 +41,7 @@ flowchart LR
   m_integration -->|"update"| m_runtime
   m_integration -->|"auth"| m_usage
   m_integration -->|"notify"| m_usage
+  m_integration -->|"members-admission"| m_execution
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
   m_members -->|"cli-registration"| m_runtime
@@ -54,6 +55,7 @@ flowchart LR
   m_memory -->|"seat-process"| m_runtime
   m_runtime -->|"registry"| m_members
   m_runtime -->|"image"| m_distribution
+  m_runtime -->|"members-admission"| m_execution
   m_usage -->|"registry"| m_members
   m_usage -->|"messages"| m_conversation
   m_usage -->|"cli-registration"| m_runtime
@@ -112,8 +114,8 @@ flowchart LR
 | [BugHub](modules/bughub/README.md) | フラジャイル | public |
 | [Caveat](modules/caveat/README.md) | ノア | public |
 | [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access |
-| [商用配布](modules/distribution/README.md) | センチ | image / web-gateway-artifact / notifications-artifact / update-catalog |
-| [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation |
+| [商用配布](modules/distribution/README.md) | センチ | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact |
+| [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission |
 | [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics |
 | [mcp-lazy](modules/mcp-lazy/README.md) | レオナ | relay |
 | [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions |

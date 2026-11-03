@@ -1,7 +1,9 @@
 import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { createSeatProcessRunner } from './seat-process.mjs'
 import { readImageBytes } from './message-assets.mjs'
 import { createSeatStreamRunner } from './seat-stream.mjs'
+import { validateMembersProjectRequest } from './members-project-files.mjs'
 
 export const SEAT_PROJECT_METHODS = ['ensureRoot', 'claim', 'initialize', 'remove', 'writeInstructions', 'prepareStartupContext', 'appendInstructions']
 export const SEAT_MEMORY_METHODS = ['initialize', 'ensureScope', 'remember', 'reviseMemory', 'pinMemory', 'consolidateGrowth', 'recallMemory', 'recordKnowledge', 'searchKnowledge', 'rebuildKnowledgeIndex']
@@ -56,6 +58,24 @@ export class SeatRuntime {
 
   writeInstructions(home, instructions) {
     return this.call('global-instructions', { home, instructions })
+  }
+
+  membersProject(operation, params) {
+    validateMembersProjectRequest(operation, params)
+    return this.call('members-project', { operation, params }, { maxBuffer: 16 * 1024 * 1024 + 64 * 1024 })
+  }
+
+  configureMembersHarnesses(readBotIds, aiterm, callBridge) {
+    const pending = this.#harnessConfiguration.then(async () => {
+      const botIds = await readBotIds()
+      if (!Array.isArray(botIds) || new Set(botIds).size !== botIds.length
+        || botIds.some(id => typeof id !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(id)))
+        throw Object.assign(new Error('MEMBERS_PROJECT_INVALID'), { code: 'MEMBERS_PROJECT_INVALID' })
+      return this.call('configure-harnesses', { profiles: botIds.map(id => ({ id, project: join(this.root, 'bots', id) })),
+        aiterm, callBridge: { enabled: Boolean(callBridge().enabled) } })
+    })
+    this.#harnessConfiguration = pending.catch(() => {})
+    return pending
   }
 
   removeClaudeCopies(bots) {

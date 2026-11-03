@@ -25,6 +25,9 @@ export class BotRegistry extends Map {
   #profileMutations = new Map()
   #refreshQueue = Promise.resolve()
   #profileCache = new Map()
+  #previewBases = new WeakMap()
+  #instructionWrites = new Map()
+  #removalOperations = new Map()
 
   constructor(options) {
     const { seedPath, botsRoot, now = () => new Date(), id = randomUUID, botId = () => `bot-${randomUUID().slice(0, 8)}`, onChange = async () => {}, models = new LiveModelCatalog(), projectFiles = new ProjectFiles() } = options
@@ -47,6 +50,7 @@ export class BotRegistry extends Map {
     this.onChange = onChange
     this.models = models
     this.projectFiles = projectFiles
+    this.assetRemoval = options.assetRemoval ?? null
     this.watchers = new Set()
     this.deletionIntents = new Set()
   }
@@ -93,6 +97,30 @@ export class BotRegistry extends Map {
     await this.refresh()
     await Promise.all([...this.values()].map(profile => this.writeInstructions(profile)))
     return this.refresh()
+  }
+
+  // Swap readiness validates current state without bootstrap effects or repair.
+  async restore() {
+    if (!await exists(join(this.stateRoot, '.initialized'))) throw registryError('BOT_STATE_UNINITIALIZED')
+    const entries = await readdir(this.stateRoot, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !BOT_ID.test(entry.name)) continue
+      const value = JSON.parse(await readFile(join(this.statePath(entry.name), 'bot.json'), 'utf8'))
+      if (value?.schema !== 'bellteam.bot.v8' || value.id !== entry.name || Object.hasOwn(value, 'title'))
+        throw registryError('BOT_PROFILE_INVALID')
+      normalizeProfile({ ...value, project: this.projectPath(entry.name) })
+      const document = JSON.parse(await readFile(join(this.statePath(entry.name), 'schedule.json'), 'utf8'))
+      if (document?.schema !== 'bellteam.schedule.v1' || !Array.isArray(document.schedules))
+        throw registryError('SCHEDULE_FILE_INVALID')
+      for (const schedule of document.schedules) {
+        scheduleRevision(schedule)
+        normalizeSchedule(schedule, this.now())
+      }
+    }
+    await this.refresh()
+    await this.readRemovalStates()
+    await this.listForClient()
+    return this
   }
 
   refresh() {
@@ -186,12 +214,41 @@ export class BotRegistry extends Map {
   }
 
   async update(id, changes) {
-    return this.#mutateProfile(id, async () => {
-      const profile = await this.previewUpdate(id, changes)
-      await this.writeProfile(profile)
-      await this.writeInstructions(profile)
+    const candidate = await this.previewUpdate(id, changes)
+    await this.#mutateProfile(id, async () => {
       await this.refresh()
-      this.changed(id)
+      const current = this.get(id), base = this.#previewBases.get(candidate)
+      if (!current) throw new Error(`BOT_NOT_FOUND: ${id}`)
+      if (Object.keys(base).some(key => key !== 'session' && JSON.stringify(base[key]) !== JSON.stringify(current[key])))
+        throw Object.assign(registryError('BOT_UPDATE_CONFLICT'), { status: 409 })
+      const profile = normalizeProfile({ ...candidate, session: current.session })
+      await this.writeProfile(profile)
+      await this.refresh()
+    })
+    const previous = this.#instructionWrites.get(id) ?? Promise.resolve()
+    const writing = previous.catch(() => {}).then(async () => {
+      await this.refresh()
+      const current = this.get(id)
+      if (!current) throw new Error(`BOT_NOT_FOUND: ${id}`)
+      await this.writeInstructions(current)
+    })
+    this.#instructionWrites.set(id, writing)
+    try { await writing } finally { if (this.#instructionWrites.get(id) === writing) this.#instructionWrites.delete(id) }
+    await this.refresh()
+    this.changed(id)
+    const updated = this.get(id)
+    if (!updated) throw Object.assign(registryError('BOT_UPDATE_RETIRED'), { status: 409, outcome: 'unknown' })
+    return updated
+  }
+
+  async updateFastMode(id, fastMode) {
+    if (typeof fastMode !== 'boolean') throw registryError('BOT_FAST_MODE_INVALID')
+    return this.#mutateProfile(id, async () => {
+      await this.refresh()
+      const current = this.get(id)
+      if (!current) throw new Error(`BOT_NOT_FOUND: ${id}`)
+      await this.writeProfile(normalizeProfile({ ...current, fastMode }))
+      await this.refresh()
       return this.get(id)
     })
   }
@@ -248,7 +305,9 @@ export class BotRegistry extends Map {
       if (problem && Object.hasOwn(changes, 'fastMode')) throw fastModeError(problem)
       if (problem) profile = { ...profile, fastMode: false }
     }
-    return Object.freeze(profile)
+    const candidate = Object.freeze(profile)
+    this.#previewBases.set(candidate, current)
+    return candidate
   }
 
   async validateEffort(profile) {
@@ -276,7 +335,36 @@ export class BotRegistry extends Map {
 
   async remove(id) {
     validateId(id)
-    return this.#mutateProfile(id, () => this.#remove(id))
+    const previous = this.#removalOperations.get(id) ?? Promise.resolve()
+    const removing = previous.catch(() => {}).then(async () => {
+      let lease
+      if (this.assetRemoval) {
+        await this.refresh()
+        if (!this.has(id) && !await this.hasPendingRemoval(id)) throw new Error(`BOT_NOT_FOUND: ${id}`)
+        lease = await this.assetRemoval.prepareBotAssetRemoval(id)
+      }
+      try { return await this.#remove(id) }
+      catch (error) {
+        if (lease && error.outcome !== 'unknown') {
+          // Same deletion operation queue excludes another intent while the state lock stays available to callbacks.
+          const state = await this.#mutateProfile(id, async () => {
+            await this.refresh()
+            return {
+              active: this.has(id) && await pathExists(this.statePath(id)),
+              hasIntent: this.deletionIntents.has(id) || await this.hasPendingRemoval(id),
+              retired: this.separateState && await pathExists(join(this.stateRoot, '.deleting', id)),
+            }
+          }).catch(() => null)
+          if (state?.active && !state.hasIntent && !state.retired) {
+            try { await this.assetRemoval.cancelBotAssetRemoval(id, lease, state) }
+            catch { /* Unknown cancellation never authorizes another attempt. */ }
+          }
+        }
+        throw error
+      }
+    })
+    this.#removalOperations.set(id, removing)
+    try { return await removing } finally { if (this.#removalOperations.get(id) === removing) this.#removalOperations.delete(id) }
   }
 
   async hasPendingRemoval(id) {
@@ -285,38 +373,78 @@ export class BotRegistry extends Map {
       || await pathExists(join(this.stateRoot, '.deleting', `${id}.json`)))
   }
 
-  async #remove(id) {
-    await this.refresh()
-    const bot = this.get(id)
-    let cleanupError
-    if (!this.separateState) {
-      if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
-      await this.projectFiles.remove(bot.project)
-    } else {
-      const pending = join(this.stateRoot, '.deleting', id)
-      const record = join(this.stateRoot, '.deleting', `${id}.json`)
-      const resuming = !bot && (await pathExists(pending) || await pathExists(record))
-      if (bot && await pathExists(pending)) throw registryError('BOT_DELETE_CONFLICT')
-      if (!resuming) {
-        if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
-        await mkdir(join(this.stateRoot, '.deleting'), { recursive: true, mode: 0o700 })
-        // Keep a separate listing receipt until both roots are fully removed.
-        // Its presence alone never permits deleting an active project on recovery.
-        await writeAtomic(record, { schema: 'bellteam.bot-deletion.v1', profile: bot })
-        // Mark synchronously before the first retirement filesystem await.
-        this.deletionIntents.add(id)
-        this.delete(id)
-        try { await rename(this.statePath(id), pending) } catch (error) {
-          this.deletionIntents.delete(id)
-          this.set(id, bot)
-          throw error
+  // Fresh read for conversation's startup asset gate; never resumes cleanup.
+  async readRemovalStates() {
+    if (!this.separateState) return { removals: [] }
+    const root = join(this.stateRoot, '.deleting')
+    const ids = new Set(this.deletionIntents)
+    if (await pathExists(root)) {
+      for (const entry of await readdir(root, { withFileTypes: true })) {
+        if (entry.isDirectory() && BOT_ID.test(entry.name)) ids.add(entry.name)
+        if (entry.isFile() && entry.name.endsWith('.json') && BOT_ID.test(entry.name.slice(0, -5))) {
+          const id = entry.name.slice(0, -5)
+          const value = JSON.parse(await readFile(join(root, entry.name), 'utf8'))
+          if (value?.schema !== 'bellteam.bot-deletion.v1' || value.profile?.id !== id)
+            throw registryError('BOT_DELETE_RECORD_INVALID')
+          normalizeProfile(value.profile)
+          ids.add(id)
         }
       }
-      this.deletionIntents.add(id)
-      this.delete(id)
+    }
+    const removals = []
+    for (const botId of [...ids].sort()) {
+      const active = await pathExists(this.statePath(botId))
+      const retired = await pathExists(join(root, botId))
+      if (active && retired) throw registryError('BOT_DELETE_CONFLICT')
+      const hasIntent = this.deletionIntents.has(botId) || retired || await pathExists(join(root, `${botId}.json`))
+      if (hasIntent) removals.push({ botId, active, hasIntent: true, retired })
+    }
+    return { removals }
+  }
+
+  async #remove(id) {
+    let bot
+    await this.#mutateProfile(id, async () => {
       await this.refresh()
-      this.changed()
+      bot = this.get(id)
+      if (!this.separateState) {
+        if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
+        this.deletionIntents.add(id)
+        this.delete(id)
+      } else {
+        const pending = join(this.stateRoot, '.deleting', id)
+        const record = join(this.stateRoot, '.deleting', `${id}.json`)
+        const resuming = !bot && (await pathExists(pending) || await pathExists(record))
+        if (bot && await pathExists(pending)) throw registryError('BOT_DELETE_CONFLICT')
+        if (!resuming) {
+          if (!bot) throw new Error(`BOT_NOT_FOUND: ${id}`)
+          await mkdir(join(this.stateRoot, '.deleting'), { recursive: true, mode: 0o700 })
+          // Keep a separate listing receipt until both roots are fully removed.
+          // Its presence alone never permits deleting an active project on recovery.
+          await writeAtomic(record, { schema: 'bellteam.bot-deletion.v1', profile: bot })
+          // Mark synchronously before the first retirement filesystem await.
+          this.deletionIntents.add(id)
+          this.delete(id)
+          try { await rename(this.statePath(id), pending) } catch (error) {
+            this.deletionIntents.delete(id)
+            this.set(id, bot)
+            throw error
+          }
+        }
+        this.deletionIntents.add(id)
+        this.delete(id)
+        await this.refresh()
+        this.changed()
+      }
+    })
+    // Accepted instruction effects finish before physical project cleanup, without holding the state lock.
+    await this.#instructionWrites.get(id)?.catch(() => {})
+    let cleanupError
+    if (this.separateState) {
       try { await this.finishRemoval(id) } catch (error) { cleanupError = error }
+    } else {
+      try { await this.projectFiles.remove(bot.project) }
+      finally { this.deletionIntents.delete(id) }
     }
     await this.refresh()
     let configurationSync
@@ -417,7 +545,7 @@ export class BotRegistry extends Map {
   async setSchedule(id, input) {
     await this.refresh()
     if (!this.has(id)) throw new Error(`BOT_NOT_FOUND: ${id}`)
-    return mutateSchedules(this, id, schedules => {
+    return this.#mutateProfile(id, () => mutateSchedules(this, id, schedules => {
       const existing = input.id ? schedules.find(item => item.id === input.id) : null
       if (input.id && !existing) throw new Error(`SCHEDULE_NOT_FOUND: ${input.id}`)
       const schedule = normalizeSchedule({
@@ -427,18 +555,18 @@ export class BotRegistry extends Map {
         revision: nextScheduleRevision(existing),
       }, this.now())
       return { schedules: existing ? schedules.map(item => item.id === schedule.id ? schedule : item) : [...schedules, schedule], value: schedule }
-    })
+    }))
   }
 
   async removeSchedule(id, scheduleId) {
-    return mutateSchedules(this, id, schedules => {
+    return this.#mutateProfile(id, () => mutateSchedules(this, id, schedules => {
       if (!schedules.some(item => item.id === scheduleId)) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
       return { schedules: schedules.filter(item => item.id !== scheduleId), value: true }
-    })
+    }))
   }
 
   async markScheduleRun(id, scheduleId, ranAt, { skipped = false, expectedRevision } = {}) {
-    return mutateSchedules(this, id, schedules => {
+    return this.#mutateProfile(id, () => mutateSchedules(this, id, schedules => {
       const current = schedules.find(item => item.id === scheduleId)
       if (expectedRevision !== undefined && (!current || scheduleRevision(current) !== expectedRevision)) return { value: current ?? null }
       if (!current) throw new Error(`SCHEDULE_NOT_FOUND: ${scheduleId}`)
@@ -449,6 +577,31 @@ export class BotRegistry extends Map {
         lastRunAt: skipped ? current.lastRunAt : timestamp,
       }, new Date(timestamp))
       return { schedules: schedules.map(item => item.id === scheduleId ? updated : item), value: updated }
+    }))
+  }
+
+  claimDue(input) { return this.#consumeDue(input, false) }
+
+  skipDue(input) { return this.#consumeDue(input, true) }
+
+  async #consumeDue({ botId, scheduleId, expectedRevision, expectedNextRunAt, ranAt }, skipped) {
+    validateId(botId)
+    if (typeof scheduleId !== 'string' || !scheduleId || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0
+      || typeof expectedNextRunAt !== 'string' || !Number.isFinite(Date.parse(expectedNextRunAt))
+      || !(typeof ranAt === 'string' || ranAt instanceof Date) || !Number.isFinite(new Date(ranAt).getTime()))
+      throw registryError('SCHEDULE_CLAIM_INVALID')
+    const timestamp = new Date(ranAt).toISOString()
+    return this.#mutateProfile(botId, async () => {
+      await this.refresh()
+      if (!this.has(botId)) return null
+      return mutateSchedules(this, botId, schedules => {
+        const current = schedules.find(item => item.id === scheduleId)
+        if (!current || !current.enabled || scheduleRevision(current) !== expectedRevision
+          || current.nextRunAt !== expectedNextRunAt || Date.parse(expectedNextRunAt) > Date.parse(timestamp)) return { value: null }
+        const updated = normalizeSchedule({ ...current, enabled: current.kind === 'once' ? false : current.enabled,
+          lastRunAt: skipped ? current.lastRunAt : timestamp }, new Date(timestamp))
+        return { schedules: schedules.map(item => item.id === scheduleId ? updated : item), value: structuredClone(current) }
+      })
     })
   }
 
@@ -497,7 +650,7 @@ export class BotRegistry extends Map {
 
   async readScheduleDocument(id) {
     const path = join(this.statePath(id), 'schedule.json')
-    if (!await exists(path)) await writeAtomic(path, scheduleDocument([]))
+    if (!await exists(path)) return scheduleDocument([])
     const value = JSON.parse(await readFile(path, 'utf8'))
     if (value?.schema !== 'bellteam.schedule.v1' || !Array.isArray(value.schedules))
       throw new Error(`SCHEDULE_FILE_INVALID: ${id}`)

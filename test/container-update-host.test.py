@@ -212,6 +212,18 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         result=module.verify_and_install_catalog(self.updater,catalog_path,bundle)
         self.assertEqual(result,hashlib.sha256(catalog_path.read_bytes()).hexdigest())
 
+    def test_members_catalog_selection_keeps_exact_state_compatibility(self):
+        catalog=self.make_catalog(seconds=-30)
+        state=dict(botProfileSchema='bellteam.bot.v8',scheduleSchema='bellteam.schedule.v1',ownerProfileSchema='bellteam.owner-profile.v1',deletionReceiptSchema='bellteam.bot-deletion.v1',userRulesEncoding='utf8',initializedMarker='.initialized')
+        url='https://github.com/kitepon/BellTeam/releases/download/updates-20261103T000000Z/members-'+('b'*40)+'-linux-amd64.tar.gz'
+        release=dict(componentId='members',sourceCommit='b'*40,versionId='f'*64,platform=self.config['platform'],changes=[],
+          compatibility=dict(nodeMajor=26,parentProtocol=1,stateSchema=None,containerUpdate=None,stateCompatibility=state),
+          artifact=dict(kind='archive',archive=dict(url=url,sha256='f'*64,bytes=42),bundle=dict(url=url+'.sigstore.json',sha256='a'*64,bytes=24),signerCommit='c'*40))
+        catalog['releases'].append(release);self.install_catalog(catalog)
+        selected=self.updater.dispatch(dict(operation='catalog',params=dict(componentId='members')))
+        self.assertEqual(selected['release'],release)
+        with self.assertRaises(module.Failure):self.updater.dispatch(dict(operation='catalog',params=dict(componentId='arbitrary')))
+
     def test_argument_and_root_path_boundaries(self):
         for value in [None, [], {}, 1]:
             with self.assertRaises(module.Failure) as error:

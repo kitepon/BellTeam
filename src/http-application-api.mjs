@@ -83,8 +83,8 @@ export function createControlApi(options) {
 export function createApplicationApi({ ownerProfile, refreshGlobalInstructions, userRules, events, assets }) {
   const conversation = createConversationAssetsApi({ events, assets })
   const owner = createOwnerApi({ ownerProfile, refreshGlobalInstructions, userRules })
-  return async (request, response, url) => {
-    const handled = await owner(request, response, url)
+  return async (request, response, url, context) => {
+    const handled = await owner(request, response, url, context)
     if (handled !== false) return handled
     return conversation(request, response, url)
   }

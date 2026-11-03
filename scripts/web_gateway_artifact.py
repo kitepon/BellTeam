@@ -1,4 +1,4 @@
-"""Fixed Web gateway and notifications content contracts; this module never authenticates or installs a release."""
+"""Fixed Web gateway, notifications and members content contracts; this module never authenticates or installs a release."""
 import gzip
 import hashlib
 import io
@@ -32,15 +32,22 @@ def safe_path(name):
 
 
 def contract(component):
-    require(component in ('web-gateway', 'notifications'), 'MODULE_COMPONENT_INVALID')
-    entry = ENTRY if component == 'web-gateway' else 'payload/src/notifications-entry.mjs'
+    require(component in ('web-gateway', 'notifications', 'members'), 'MODULE_COMPONENT_INVALID')
+    entry = ENTRY if component == 'web-gateway' else f'payload/src/{component}-entry.mjs'
     runtime = dict(os='linux', nodeMajor=26, parentProtocol=1)
     required = {entry, 'payload/package.json', 'payload/package-lock.json'}
     if component == 'web-gateway':
         required.update({'payload/web/assets.mjs', 'payload/services/subscriptions/product.json',
                          'payload/services/subscriptions/endpoints.json'})
-    else:
+    elif component == 'notifications':
         runtime['stateSchema'] = 1
+    else:
+        # Match the writer's existing formats; exchange never authorizes migration.
+        runtime['stateCompatibility'] = dict(
+            botProfileSchema='bellteam.bot.v8', scheduleSchema='bellteam.schedule.v1',
+            ownerProfileSchema='bellteam.owner-profile.v1', deletionReceiptSchema='bellteam.bot-deletion.v1',
+            userRulesEncoding='utf8', initializedMarker='.initialized')
+        required.update({'payload/config/common-agents.md', 'payload/src/members/state-compatibility.mjs'})
     return entry, runtime, required
 
 

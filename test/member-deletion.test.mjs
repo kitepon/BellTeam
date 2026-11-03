@@ -9,6 +9,7 @@ import { BotRegistry } from '../src/bot-registry.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 import { callBellTeamTool } from '../src/mcp-tools.mjs'
 import { internalApi } from '../src/seat-mcp.mjs'
+import { startMemberRemoval } from '../src/members/deletion.mjs'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 function gate() {
@@ -52,6 +53,87 @@ test('CLI同期失敗は削除のcleanupを妨げず、削除完了と別の結�
   assert.equal(calls, 1)
   await f.absent()
   await assert.rejects(f.bots.remove('bot-b'), /BOT_NOT_FOUND/u)
+})
+
+test('project cleanup and CLI effects do not hold the same Bot session mutation lock', { timeout: 2000 }, async t => {
+  const f = await fixture(t), remove = f.bots.projectFiles.remove.bind(f.bots.projectFiles)
+  f.bots.projectFiles.remove = async project => {
+    await assert.rejects(f.bots.updateSession('bot-b', 'late-session'), /BOT_NOT_FOUND/)
+    await f.bots.updateSession('bot-a', 'other-session')
+    await remove(project)
+  }
+  f.bots.onChange = async () => {
+    await assert.rejects(f.bots.updateSession('bot-b', 'late-cli-session'), /BOT_NOT_FOUND/)
+  }
+  await f.bots.remove('bot-b')
+  assert.equal(f.bots.get('bot-a').session, 'other-session')
+  await f.absent()
+})
+
+test('retirement waits accepted instruction effects before physical cleanup without state lock', async t => {
+  const f = await fixture(t), entered = gate(), release = gate(), retired = gate()
+  f.bots.projectFiles.writeInstructions = async () => { entered.release(); await release.promise }
+  const updating = f.bots.update('bot-b', { name: 'saved before removal' })
+  await entered.promise
+  const unwatch = f.bots.watch(() => { if (!f.bots.has('bot-b')) retired.release() })
+  t.after(unwatch)
+  const removing = f.bots.remove('bot-b')
+  await retired.promise
+  await assert.rejects(f.bots.updateSession('bot-b', 'late-session'), /BOT_NOT_FOUND/)
+  assert.ok(await stat(f.project))
+  release.release()
+  await assert.rejects(updating, { code: 'BOT_UPDATE_RETIRED', outcome: 'unknown' })
+  await removing
+  await f.absent()
+})
+
+test('early asset cancellation requires fresh active state and skips unknown or retired failures', { timeout: 2000 }, async t => {
+  for (const unknown of [false, true]) {
+    const f = await fixture(t), refresh = f.bots.refresh.bind(f.bots), cancelled = []
+    f.bots.assetRemoval = {
+      async prepareBotAssetRemoval() {
+        let fail = true
+        f.bots.refresh = async () => {
+          if (fail) { fail = false; throw Object.assign(new Error('synthetic pre-retirement failure'), unknown ? { outcome: 'unknown' } : {}) }
+          return refresh()
+        }
+        return 'asset-gate'
+      },
+      async cancelBotAssetRemoval(id, lease, state) {
+        cancelled.push({ id, lease, state })
+        await f.bots.updateSession(id, 'cancel-callback')
+        return true
+      },
+    }
+    await assert.rejects(f.bots.remove('bot-b'), /synthetic pre-retirement/)
+    assert.deepEqual(cancelled, unknown ? [] : [{ id: 'bot-b', lease: 'asset-gate', state: { active: true, hasIntent: false, retired: false } }])
+  }
+  const f = await fixture(t), cancelled = []
+  f.bots.assetRemoval = { prepareBotAssetRemoval: async () => 'asset-gate', cancelBotAssetRemoval: async () => { cancelled.push(true) } }
+  f.bots.projectFiles.remove = async () => { throw new Error('synthetic cleanup failure') }
+  await assert.rejects(f.bots.remove('bot-b'), /BOT_DELETE_PENDING/)
+  assert.deepEqual(cancelled, [])
+  assert.ok(await stat(f.pending))
+})
+
+test('202 deletion retains one parent lease through stop, cleanup and final callback', async t => {
+  const f = await fixture(t), stopped = gate(), release = gate(), removed = gate(), lease = Object.freeze({ opaque: true }), contexts = []
+  let finished = 0
+  const remove = f.bots.remove.bind(f.bots)
+  f.bots.remove = (id, options) => { contexts.push(options.membersLease); return remove(id) }
+  assert.deepEqual(await startMemberRemoval('bot-b', {
+    bots: f.bots, rooms: { removeBot: async () => {} }, writeLog: () => {}, onRemoved: () => removed.release(),
+    transport: { membersAdmission: { enter: () => lease, finish: value => { assert.equal(value, lease); finished++ } },
+      async stop(bot, version = 7, options = {}) {
+        assert.equal(version, 7, 'second argument must remain the native stop version')
+        contexts.push(options.membersLease); stopped.release(); await release.promise
+      } },
+  }), { deleting: 'bot-b' })
+  await stopped.promise
+  assert.equal(finished, 0)
+  release.release(); await removed.promise; await tick()
+  assert.deepEqual(contexts, [lease, lease]); assert.equal(finished, 1)
+  await f.absent()
 })
 
 for (const remaining of ['both', 'record', 'directory']) {

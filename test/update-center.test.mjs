@@ -90,3 +90,20 @@ test('Update変更は既SSEのmessages/type=updatesだけを使い、watch停止
   center.notify(); stop(); center.notify()
   assert.equal(called, 1)
 })
+
+
+test('members inventory uses the same controller and keeps durable executor unavailable', () => {
+  const source = '1'.repeat(40), digest = '2'.repeat(64)
+  let state = { builtinSourceCommit: source, currentVersionId: null, available: true }
+  const center = createUpdateCenter({ members: { controller: { snapshot: () => state } } })
+  let member = center.snapshot().components.find(item => item.id === 'members')
+  assert.equal(member.current.sourceCommit, source)
+  assert.equal(member.current.origin, 'builtin')
+  assert.equal(member.availability.available, true)
+  assert.deepEqual(member.capability, { supported: false, reason: 'UPDATE_EXECUTOR_UNAVAILABLE' })
+  state = { ...state, currentVersionId: digest, available: false }
+  member = center.snapshot().components.find(item => item.id === 'members')
+  assert.equal(member.current.digest, `sha256:${digest}`)
+  assert.deepEqual(member.availability, { available: false, reason: 'MEMBERS_UNAVAILABLE' })
+  assert.equal(member.published, null)
+})

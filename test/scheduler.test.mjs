@@ -145,7 +145,7 @@ test('ルーム予定は指定メンバーへscheduled発言として配達す�
   const rooms = {
     async refresh() {}, values() { return [room] },
     async listSchedules() { return [{ id: 'rs-1', name: '朝会', enabled: true, nextRunAt: '2026-08-31T01:00:00Z', prompt: '共有して', targets: ['bot-b'] }] },
-    async markScheduleRun(...args) { calls.push(['mark', ...args]) },
+    async claimDue(input) { calls.push(['claim', input]); return (await this.listSchedules())[0] },
   }
   const scheduler = new BotScheduler({
     registry, messenger: {}, rooms,
@@ -155,11 +155,11 @@ test('ルーム予定は指定メンバーへscheduled発言として配達す�
   const now = new Date('2026-08-31T01:00:01Z')
   await scheduler.runDue(now)
 
-  assert.deepEqual(calls[0], ['send', {
+  assert.deepEqual(calls[1], ['send', {
     from: 'scheduler', room: 'room-a', message: '共有して', targets: ['bot-b'],
     kind: 'schedule', schedule: { id: 'rs-1', name: '朝会' },
   }])
-  assert.deepEqual(calls[1], ['mark', 'room-a', 'rs-1', now, { expectedRevision: 0 }])
+  assert.deepEqual(calls[0], ['claim', { roomId: 'room-a', scheduleId: 'rs-1', expectedRevision: 0, expectedNextRunAt: '2026-08-31T01:00:00Z', ranAt: now.toISOString() }])
 })
 
 test('今すぐ実行は予定の次回時刻と有効状態を動かさずに配達する', async () => {

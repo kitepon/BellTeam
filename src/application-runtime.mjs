@@ -29,6 +29,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     webGatewayControl,
     notificationsReleaseControl: notifications.controller,
     updateCenter: services.updateCenter,
+    membersAuthorization: services.membersAuthorization,
     ownerSecretGuide: input => olrwAuthCaller?.ownerSecretGuide(input) ?? null,
     aiControl,
     subscriptions,
@@ -59,7 +60,9 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
   const callBridgeHeaders = bootstrap.callBridgeHeaders ?? join(root, 'shared/tools/call-bridge/headers')
   const features = createApplicationFeatures({ services, aiterm, home, callBridgeHeaders, environment, notify: data => server.notify(data),
     ...(bootstrap.seatRuntime ? { configureHarnessConfig: (bots, _home, { callBridge }) =>
-      bootstrap.seatRuntime.writeHarnessConfig(bots, aiterm, callBridge) } : {}) })
+      services.members ? transport.membersAdmission.withLease(membersLease =>
+        bootstrap.seatRuntime.configureMembersHarnesses(() => services.members.readCurrentBotIds({ membersLease }), aiterm,
+          () => settings.configuration('callBridge'))) : bootstrap.seatRuntime.writeHarnessConfig(bots, aiterm, callBridge) } : {}) })
   const server = createBellTeamServer({ ...serverOptions, authMode: features.authMode, authorize: features.authorize })
   const seatMcp = createSeatMcp({
     bots,
@@ -115,7 +118,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         () => gateway?.close(),
         () => scheduler.stop(), () => idleSessions.stop(), () => selfTurns.stop(), () => seatTurns.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => features.close(),
-        () => transport.close(), () => notifications.close(),
+        () => transport.close(), () => services.members?.controller.close(), () => notifications.close(),
         () => socketDirectory && rm(socketDirectory, { recursive: true, force: true }),
       ]) {
         try { await stop() } catch (error) { errors.push(error) }

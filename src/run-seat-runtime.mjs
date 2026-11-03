@@ -10,6 +10,7 @@ import { removeSeatClaudeCopies } from './bot-environment.mjs'
 import { readImageBytes } from './message-assets.mjs'
 import { aitermExecutionRegistration } from './aiterm-hooks.mjs'
 import { CharacterSheets } from './character-sheets.mjs'
+import { operateMembersProject } from './members-project-files.mjs'
 
 function temporaryImagePath(path) {
   if (typeof path !== 'string' || !isAbsolute(path)
@@ -21,6 +22,8 @@ function temporaryImagePath(path) {
 async function operate(request) {
   const bots = new Map((request.profiles ?? []).map(bot => [bot.id, bot]))
   switch (request.action) {
+    case 'members-project':
+      return operateMembersProject({ root: request.root, home: request.home }, request.operation, request.params)
     case 'aiterm-registration':
       return aitermExecutionRegistration()
     case 'project': {

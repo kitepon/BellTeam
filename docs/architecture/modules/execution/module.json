@@ -8,7 +8,8 @@
     "turn",
     "configuration",
     "stop",
-    "observation"
+    "observation",
+    "members-admission"
   ],
   "uses": [
     {
@@ -34,6 +35,10 @@
   ],
   "source": [
     "src/aiterm-transport.mjs",
+    "src/members-admission.mjs",
+    "src/configuration-request.mjs",
+    "src/configuration-intents.mjs",
+    "src/configuration-requests.mjs",
     "src/aiterm-client.mjs",
     "src/mcp-request-context.mjs",
     "src/aiterm-wait-process.mjs",

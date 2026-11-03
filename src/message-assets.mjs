@@ -1,4 +1,5 @@
 import { constants } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { mkdir, open, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -15,16 +16,45 @@ const MIME_EXTENSION = new Map([
 const EXTENSION_MIME = new Map([...MIME_EXTENSION].map(([mime, extension]) => [extension, mime]))
 
 export class MessageAssets {
-  constructor({ root, maxBytes = MAX_IMAGE_BYTES, botsAssetsRoot = join(root, 'bots'), readImage = readImageBytes }) {
+  #removals = new Map()
+  #saves = new Map()
+  #ready
+  #restored
+
+  constructor({ root, maxBytes = MAX_IMAGE_BYTES, botsAssetsRoot = join(root, 'bots'), readImage = readImageBytes, readRemovalStates = null }) {
     this.root = root
     this.maxBytes = maxBytes
     this.botsAssetsRoot = botsAssetsRoot
     this.readImage = readImage
+    this.#restored = readRemovalStates === null
+    this.#ready = readRemovalStates === null ? Promise.resolve() : Promise.resolve().then(async () => {
+      const state = await readRemovalStates()
+      if (!Array.isArray(state?.removals)) throw new Error('IMAGE_REMOVAL_STATE_INVALID')
+      const ids = new Set()
+      for (const removal of state.removals) {
+        validateBotId(removal?.botId)
+        if (ids.has(removal.botId) || typeof removal.active !== 'boolean' || removal.hasIntent !== true
+          || typeof removal.retired !== 'boolean' || (removal.active && removal.retired)) throw new Error('IMAGE_REMOVAL_STATE_INVALID')
+        ids.add(removal.botId)
+      }
+      for (const id of ids) this.#closeBot(id)
+      this.#restored = true
+    })
+    // 初期案内より先に開始する読取の失敗は、initialize/saveの待ち手へ返す。
+    this.#ready.catch(() => {})
+  }
+
+  async initialize() {
+    await this.#ready
   }
 
   async save({ owner, id, image }) {
     validateId(owner)
     validateId(id)
+    return this.#trackSave(owner, () => this.#save({ owner, id, image }))
+  }
+
+  async #save({ owner, id, image }) {
     const bytes = await this.readImage(image, this.maxBytes)
     const mime = detectMime(bytes)
     if (!mime) throw new Error('IMAGE_FILE_INVALID')
@@ -62,9 +92,56 @@ export class MessageAssets {
 
   // オーナーが送った画像は、Botのプロジェクトではなくオーナーの場所に置く。
   async saveAll({ owner, id, images }) {
-    const saved = []
-    for (const [index, image] of images.entries()) saved.push(await this.save({ owner, id: `${id}-${index + 1}`, image }))
-    return saved
+    validateId(owner)
+    return this.#trackSave(owner, async () => {
+      const saved = []
+      for (const [index, image] of images.entries()) {
+        const imageId = `${id}-${index + 1}`
+        validateId(imageId)
+        saved.push(await this.#save({ owner, id: imageId, image }))
+      }
+      return saved
+    })
+  }
+
+  async #trackSave(owner, save) {
+    if (owner !== 'user' && !this.#restored) await this.#ready
+    if (owner !== 'user' && this.#removals.has(owner)) throw new Error('IMAGE_BOT_REMOVAL_PENDING')
+    let finish
+    const pending = new Promise(resolve => { finish = resolve })
+    const saves = this.#saves.get(owner) ?? new Set()
+    this.#saves.set(owner, saves)
+    saves.add(pending)
+    try { return await save() }
+    finally {
+      saves.delete(pending)
+      if (!saves.size) this.#saves.delete(owner)
+      finish()
+    }
+  }
+
+  #closeBot(botId) {
+    if (!this.#removals.has(botId)) this.#removals.set(botId, {
+      lease: randomUUID(), drained: Promise.all([...(this.#saves.get(botId) ?? [])]),
+    })
+    return this.#removals.get(botId)
+  }
+
+  async prepareBotAssetRemoval(botId) {
+    validateBotId(botId)
+    const gate = this.#closeBot(botId)
+    await this.#ready
+    await gate.drained
+    return gate.lease
+  }
+
+  cancelBotAssetRemoval(botId, lease, state) {
+    validateBotId(botId)
+    const gate = this.#removals.get(botId)
+    if (!this.#restored || !gate || typeof lease !== 'string' || gate.lease !== lease
+      || state?.active !== true || state?.hasIntent !== false || state?.retired !== false) return false
+    this.#removals.delete(botId)
+    return true
   }
 
   directory(owner) {
@@ -108,4 +185,9 @@ function detectMime(bytes) {
 
 function validateId(value) {
   if (!SAFE_ID.test(String(value))) throw new Error('IMAGE_ASSET_INVALID')
+}
+
+function validateBotId(value) {
+  if (typeof value !== 'string' || value === 'user') throw new Error('IMAGE_ASSET_INVALID')
+  validateId(value)
 }

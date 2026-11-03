@@ -28,6 +28,10 @@ export class OwnerProfile {
 
   async get() {
     if (!await exists(this.path)) return this.initialize()
+    return this.restore()
+  }
+
+  async restore() {
     const value = JSON.parse(await readFile(this.path, 'utf8'))
     if (value?.schema !== 'bellteam.owner-profile.v1') throw new Error('OWNER_PROFILE_FILE_INVALID')
     return normalize(value)

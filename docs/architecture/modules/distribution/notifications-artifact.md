@@ -16,7 +16,7 @@ flowchart LR
   C --> Child[Mika 通知entry / 唯一のpush-devices writer]
 ```
 
-component=notifications、artifact/installation/verification各bellteam.notifications.*.v1、entry=payload/src/notifications-entry.mjs。runtimeはlinux/amd64又はarm64/Node26/parentProtocol1/stateSchema1。Webのschema/runtimeキー/公開CLIは不変。固定Web/通知二つの内部契約だけを使い、manifestが任意policy/entry/workflowを選ぶ入口は作らない。
+component=notifications、artifact/installation/verification各bellteam.notifications.*.v1、entry=payload/src/notifications-entry.mjs。runtimeはlinux/amd64又はarm64/Node26/parentProtocol1/stateSchema1。Webのschema/runtimeキー/公開CLIは不変。固定Web/通知とRootが別途採用したmembersの内部契約だけを使い、manifestが任意policy/entry/workflowを選ぶ入口は作らない。
 
 archiveはmanifest.json先頭とpayload通常fileのみ。sourceCommit40hex、完全inventory各path/bytes/SHA256。通知のsrc/package/lockとclean production依存を自己完結させる。通知はWeb資材を必要条件にしない。実HOME/APNs鍵/端末/状態/envは収録しない。既archive512MiB/展開512MiB/bundle16MiB/manifest8MiB/20000file、link/越境/重複拒否を維持する。
 

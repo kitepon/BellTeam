@@ -42,6 +42,32 @@ def strict_json(raw):
     return json.loads(raw, object_pairs_hook=pairs, parse_constant=lambda _: require(False))
 
 
+def validate_members_compatibility(value):
+    from web_gateway_artifact import contract
+    exact(value, 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility')
+    require(type(value['nodeMajor']) is int and value['nodeMajor'] == 26
+            and type(value['parentProtocol']) is int and value['parentProtocol'] == 1
+            and value['stateSchema'] is None and value['containerUpdate'] is None)
+    require(type(value['stateCompatibility']) is dict
+            and value['stateCompatibility'] == contract('members')[1]['stateCompatibility'], 'UPDATE_MEMBERS_STATE_INCOMPATIBLE')
+    return value
+
+
+def validate_members_archive(release, manifest, consumer_state):
+    from web_gateway_artifact import contract, validate_manifest
+    require(release['componentId'] == 'members')
+    compatibility = validate_members_compatibility(release['compatibility'])
+    validate_manifest(manifest, release['sourceCommit'], release['platform']['arch'], component='members')
+    require(consumer_state == contract('members')[1]['stateCompatibility'], 'UPDATE_MEMBERS_CONSUMER_UNSUPPORTED')
+    runtime = manifest['runtime']
+    require(release['platform']['os'] == runtime['os']
+            and compatibility['nodeMajor'] == runtime['nodeMajor']
+            and compatibility['parentProtocol'] == runtime['parentProtocol']
+            and compatibility['stateCompatibility'] == runtime['stateCompatibility'] == consumer_state,
+            'UPDATE_MEMBERS_ARCHIVE_INCOMPATIBLE')
+    return manifest
+
+
 def validate_catalog(value, *, now=None):
     exact(value, 'schema,publishedAt,expiresAt,releases,revokedCatalogs')
     require(value['schema'] == 'bellteam.update-catalog.v1')
@@ -59,13 +85,17 @@ def validate_catalog(value, *, now=None):
     for release in releases:
         exact(release, 'componentId,sourceCommit,versionId,platform,artifact,compatibility,changes')
         component = release['componentId']
-        require(component in ['container', 'web-gateway', 'notifications'])
+        require(component in ['container', 'web-gateway', 'notifications', 'members'])
         require(hexadecimal(release['sourceCommit'], 40))
         platform = release['platform']; exact(platform, 'os,arch')
         require(platform['os'] == 'linux' and platform['arch'] in ['amd64', 'arm64'])
         key = component, platform['arch']; require(key not in seen); seen.add(key)
-        compatibility = release['compatibility']; exact(compatibility, 'nodeMajor,parentProtocol,stateSchema,containerUpdate')
-        require(all(v is None or type(v) is int and 0 < v <= 65535 for v in compatibility.values()))
+        compatibility = release['compatibility']
+        if component == 'members':
+            validate_members_compatibility(compatibility)
+        else:
+            exact(compatibility, 'nodeMajor,parentProtocol,stateSchema,containerUpdate')
+            require(all(v is None or type(v) is int and 0 < v <= 65535 for v in compatibility.values()))
         changes = release['changes']
         require(type(changes) is list and len(changes) <= 16 and all(type(t) is str and 0 < len(t) <= 1000
                 and not re.search(r'[\x00-\x1f\x7f]', t) for t in changes))

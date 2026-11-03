@@ -6,9 +6,9 @@ export const deleteBotTool = {
   inputSchema: { type: 'object', properties: { botId: { type: 'string', minLength: 1 } }, required: [], additionalProperties: false },
 }
 
-export async function requireRemovalTarget(bots, botId) {
+export async function requireRemovalTarget(bots, botId, options = {}) {
   const bot = bots.get(botId)
-  if (!bot && !await bots.hasPendingRemoval?.(botId))
+  if (!bot && !await bots.hasPendingRemoval?.(botId, options))
     throw Object.assign(new Error(`BOT_NOT_FOUND: ${botId}`), { code: 'BOT_NOT_FOUND', status: 404 })
   return bot
 }
@@ -29,21 +29,31 @@ export function createMemberDeletionApi({ administration }) {
 
 // Pending targets have already retired; never start or close another native session to resume cleanup.
 export async function startMemberRemoval(botId, { bots, rooms, transport, writeLog, onRemoved }) {
-  const bot = await requireRemovalTarget(bots, botId)
+  const admission = transport.membersAdmission
+  const lease = admission?.enter()
+  const options = lease ? { membersLease: lease } : {}
+  let bot
+  try {
+    await bots.refresh?.(options)
+    bot = await requireRemovalTarget(bots, botId, options)
+  } catch (error) {
+    if (lease) admission.finish(lease)
+    throw error
+  }
   const reportSync = result => {
     if (result?.configurationSync) writeLog(`BellTeam CLI configuration sync error after delete: ${botId}: ${JSON.stringify(result.configurationSync)}\n`)
   }
   void (async () => {
     if (bot) {
-      await transport.stop(bot)
+      await transport.stop(bot, undefined, options)
       await rooms.removeBot(botId)
     }
-    const result = await bots.remove(botId)
+    const result = await bots.remove(botId, options)
     onRemoved(botId)
     reportSync(result)
   })().catch(error => {
     reportSync(error)
     writeLog(`BellTeam delete error: ${botId}: ${error.stack ?? error.message}\n`)
-  })
+  }).finally(() => { if (lease) admission.finish(lease) })
   return { deleting: botId }
 }

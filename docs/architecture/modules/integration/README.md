@@ -214,3 +214,116 @@ flowchart LR
 ```
 
 本段階ではcontainer個別plan/start/getだけがHost durable受付へ接続する。全体step計画と独立moduleの耐久操作ledgerはまだ未接続で、scope=allと各moduleの共通実行は理由付き503/無効を維持する。既個別module APIのcontrollerは複製しない。publicplanはHostのcurrent/target/期限をそのまま保存し、再構築した共通serviceでも同requestId結果へ結ぶ。publication.catalogは検証済catalogの識別/期限、publication.checkは直近feed確認であり、取得失敗を更新無しへ変えない。
+
+## membersの親Owner権限と初回画像gate（結合候補）
+
+```mermaid
+flowchart LR
+  HTTP[公開HTTP既認証成功] --> Capture[親一実体のmethod限定opaque authorization]
+  Capture --> Context[共通handler第4引数 context]
+  Context --> Owner[Owner/rules公開操作第2引数]
+  Capture --> Verify[同一親authorizeOwner / identityとmethod照合]
+  Verify --> Channel[runtime channelがownerWrite booleanだけ注入]
+  Internal[内部HTTP / 通常MCP / 外部body] --> NoGrant[authority生成なし]
+  Response[要求終端/失敗] --> Revoke[親opaque権限を失効]
+  Assets[同parent assets生成 / removals読取開始] --> Restore[assets.initialize完了]
+  Restore --> Guide[onboarding初期化 / conversation初期化]
+```
+
+Owner権限は公開HTTPの既authorize成功後だけ、PATCH ownerとPUT user-rulesの許可methodへ束縛して捕捉する。親WeakMapのobject同一性で検証し、body/actor/owner自己申告・別object・別methodを拒否する。要求終了時は失効する。既Owner/rules公開操作へcontextを渡すが、grant/bearerは子へ送らない。初期専用grant空/unknownで専用proxyだけをfail closedとし、Owner HTTPは同controllerへ接続する。既internal互換callerは権限objectを得ない。
+
+初回画像gate復元のPromiseをonboarding.initializeより前に待つ。親assetsは一度だけ構築し、module交換では再生成しない。N102の初回読取失敗を空一覧へ変換しない。Kiroのtransport.membersAdmissionは同じ親controllerへ注入する公開口で、既session/fast/onboarding contextを保持する。Host Update client一実体とpublicplan保存の接続も保持する。
+
+## members投影の原子的採用（結合候補）
+
+```mermaid
+flowchart LR
+  Channel[runtime: initialize又はlive leaseを検証] --> Projection[members-projection.accept / 作者DTO検証]
+  Start[snapshot-start / generation+revision] --> Staging[未公開Mapへ一件ずつ蓄積]
+  Projection --> Staging
+  Staging --> End[snapshot-end 同generation/revision]
+  End --> Swap[全件Mapを原子的採用]
+  Swap --> Event[onChange / SSE再取得通知へ]
+  Cut[途中切断/不正/未供給] --> Stale[旧採用Mapと旧generation/revisionをstale保持]
+```
+
+親投影は`createMembersProjection`の一実体。beginで次generationを固定するが表示中の旧generation/revisionは採用まで変更しない。画像本文・重複ID・異世代・revision不一致・再送を拒否し、件数の新上限は作らない。get/values/snapshotはcopyを返しcaller変更で正本を変えない。contextのinitialize/live lease・相関の実検証はruntime channelの公開責任であり、投影helperだけを本人確認に使わない。onChangeは全件採用後、世代・可用性・metadata内容が変わった場合だけ呼ぶ。同じ内容のrevision更新は通知せず、SSE→GET→snapshotの読取ループを作らない。controller/facade/SSEへ接続済みで、実交換の実物受入は別工程。
+
+## members facade：fresh readと旧lease callback（結合候補）
+
+```mermaid
+flowchart LR
+  Ingress[新HTTP/MCP・明示操作] --> Gate[同MembersAdmission.withLease]
+  Old[既lease付きrefresh/startup] --> Existing[assertLease / 新root0]
+  Gate --> Request[同controller request / 閉DTO]
+  Existing --> Request
+  Save[session/fast保存 callback] --> Assert[同live lease必須 / 新入場0]
+  Assert --> Callback[同controller callback]
+  Request --> Result[作者result validator / 不正はunknown]
+  Callback --> Result
+  Fresh[席MCP/transport requireMember] --> Read[profile.readをawait / 503と確認済404を区別]
+  Read --> Request
+  Display[会話既受付の表示名] --> Projection[旧名簿stale投影を維持]
+```
+
+`createMembersFacade({request,callback,admission,projection})`は親の同controller/channelを注入する。refreshは同leaseでfresh profiles.readのACK付き全件snapshotと小さいrevisionを受け、同generation/確定revision以上の投影を採用する。listForClientは同leaseの個別profile.read includeDeleting:trueを逐次呼んで画像を復元し、認可readMemberはactiveだけのprofile.readを使う。get/has/valuesは表示投影で認可ではない。既context.membersLeaseは新入場もfinish追加もせず、context無しだけ所有leaseを実終端でfinish要請する。channelが送信前登録する実completionはcaller unknown後もliveに残り、再送せず旧callbackを終端まで通す。session/fast保存はcallback専用、lease無し/偽object/終了済みを拒否する。
+
+Owner/rules更新ではcapturedAuthorizationを同channelへ渡し、子に値は送らない。未公開profile.remove/run/prepareResumeを推測で公開しない。通常bootstrapの初回移行後、application-servicesは同controllerをfeatures前にstartして全callerへ一facadeを渡す。初回bootstrapの旧BotRegistry/OwnerProfile/UserRulesは以後参照せず、専用Owner MCPもwriterを作らない。実物の独立交換受入は配布工程で確認する。
+
+席MCP入口はreadMemberがある場合にfresh本人確認をawaitし、503を未登録400へ丸めない。Map型の既builtinは既本人確認を保つ。HTTP上限16MiB/席MCP4MiBは変更しない。assembly requireMemberもfresh結果を取得し表示投影を本人性の代用にしない。
+
+## 予定claimの共通組立て（結合候補）
+
+```mermaid
+flowchart LR
+  Scheduler[同parent BotScheduler] --> Gate[同transport.membersAdmission]
+  Scheduler --> Global[aiControl.admit: 全体停止epoch捕捉]
+  Gate --> Read[facade fresh refresh/list / 同lease]
+  Read --> Claim[唯一writer claimDue / tuple照合・保存]
+  Claim --> Snapshot[消化前の最新snapshot]
+  Snapshot --> Check[全体停止を発行前再検査]
+  Check --> Send[既messenger第2optionsに同lease]
+  Send --> Refresh[配送fresh read / 同lease]
+```
+
+application-servicesはschedulerへ同transport.membersAdmissionとadmitWork:()=>aiControl.admit()を明示注入する。Bot claim/skipはfacadeでownerKind bot/ownerIdへ写像し同contextを転送、Roomは同parent writerへ渡す。claim後の全体停止は発行0/消化巻戻し0。commandJobs/03時/長時間commandは同parent schedulerに保持する。新結合試験は実scheduler+facade+MembersAdmissionで同lease継続とclaim後停止を確認し、native/実IPC/実予定発行の証明にはしない。作者715a79の成功群は再走しない。
+
+
+削除とCLI実開始時のfresh読取：facade.removeは作者profile.removeへ同leaseを渡し、pending判定はremovals.readの明示receipt/intentだけを使う（失敗を不在にしない）。readCurrentBotIds(context)はprofiles.cli専用callbackであり、新rootに折り返さない。EpiのcreateMembersRuntimeEffectsへこの口を渡し、同唯一CLI Promise実開始時に最新botIdsから親固定projectを解決する。古いchild送信snapshotやCLI JSONを使わない。membersEffectの同一objectを保ちcallback creditも継承する。作者startMemberRemovalのstop引数位置衝突は本人へ修理依頼、未修理のまま通常採用しない。
+
+
+members contextは作者4d7211a4の固定5field（generation/leaseId/rootId/ownerWrite/continuation）を使う。親channelだけがassertLease後のepoch差からcontinuationを注入する。共通projectionは同作者validatorを再利用し、initializeのleaseId:nullはcontinuation:falseだけを許す。既live leaseはtrueを保持し、channelによるlive/相関検証を投影helperで代替しない。facadeにcontinuationのcaller optionを追加せず、外部body/actorから継続権限を作らない。
+
+
+## members assembly固定adapter（組立て候補）
+
+`createMembersAssembly`は同MembersAdmission/同controller/同facade/同projectionを一組作る。onGeneration→begin、onProjection→accept、unavailable→stale、同親Owner authorityをchannelへ注入する。固定onEffectはlive lease/generationを確認し、wire5項目だけで作者DTO検証、元opaqueのmembersLease/membersEffectはruntimeへ保持。モデル・Room予定・画像gateは各所有者の公開methodへ、任意method/path/commandは拒否する。memory.ensureScopeは既HTTP/MCP callerだけが作成後に行い、childから追加しない。CLIqueue実開始時は専用callbackで最新IDsを読み、callBridgeはeffect実行時の保存済み設定を親だけが使う。
+
+watchは確定投影の変更を既bots/owner/schedules SSEへ渡す口。表示名簿のsizeとprojectPathは親固定rootから解決する。application-servicesは初回bootstrap後に本組へ切り替えて旧writer参照を廃止する。初回read-only restoreの後だけ他servicesを作り、同parent assets/Room/transport/jobは交換で再生成しない。初期案内bot-guideだけは作者専用literal optionをfacadeのprofile.create top-levelへ保持する。
+
+
+## members通常組立てと終了の接続
+
+```mermaid
+flowchart LR
+  Bootstrap[通常bootstrap 初回移行] --> Start[同MembersAdmissionでcontroller.start / read-only restore]
+  Start --> Facade[一facade / Owner・rules・bots置換]
+  Facade --> HTTP[HTTP/MCP fresh本人性 / 交換中503]
+  Facade --> Projection[ACK snapshot採用 / 同内容revisionはSSEなし]
+  Projection --> SSE[既bots-owner-schedules通知]
+  Facade --> Assets[同parent assets / 初回removals待ち]
+  Facade --> Effects[固定runtime・Room・model・assets adapter]
+  Dedicated[Owner専用MCP writer無し] --> Proxy[固定内部proxy / grant空unknownは403]
+  Auth[Owner HTTP既認証] --> Opaque[親method限定opaque authority]
+  Opaque --> Facade
+  Close[親全体close] --> Transport[transport実終端まで旧lease保持]
+  Transport --> MembersClose[同members controller.close]
+  MembersClose --> Notifications[既通知close]
+  Facade --> Inventory[同controller Update稼働表示 / 耐久module操作503]
+```
+
+profile一覧は単一巨大resultを作らず、fresh snapshotのreceipt確認後、画像だけ同leaseの単一profile読取を逐次行う。確認済404の競合消失だけ除外し、503/unknownを空一覧にしない。表示pendingは認可Mapから除く。初回read失敗/構築失敗では子controllerを閉じ、正常稼働を偽装しない。runtimeの設定CLIqueueは同live leaseのprofiles.cli callbackで実開始時に最新IDsを得る。callback/session/fast/初期案内は旧opaqueを保持する。
+
+初期専用Owner grantが未確認なので固定内部proxyはMEMBERS_OWNER_GRANT_UNKNOWNで拒否する。通常席MCPのOwner更新権限を増やさず、任意body/role/comment/CLI JSONからgrantを作らない。Update inventoryは同controllerのcurrent/availableを読むが、共通module/all耐久executorは未接続のため理由付き無効を維持する。
+
+同じ通常sourceの新tracked設定consumerには、同execution clientと固定state/configuration-intentsを注入し、公開受付前に保存済みpendingを復元する。親UID1001/0700/0600・非上書き・TTL無しを保ち、membersのwriterや交換cleanupへ移さない。親gateとconfigurationRequestsを同transportへ同時注入する。正式0.63.6 pinと同source-imageで配布し、旧席の不明解除や本番回復は別工程。原要求の公開契約は[execution正本](../execution/configuration-requests.md)。

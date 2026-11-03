@@ -69,6 +69,26 @@ test('プロフィールHTTPは実行担当の公開view/update結果をその�
   assert.deepEqual(patch.body, saved)
 })
 
+test('HTTP profile/avatar and MCP self use fresh full profiles rather than image-free projection', async () => {
+  const bot = { id: 'bot-a', name: 'Synthetic', avatar: 'data:image/png;base64,AAAA' }
+  const bots = new Map()
+  bots.readMember = async id => { assert.equal(id, bot.id); return bot }
+  const api = createMemberProfileApi({ bots, administration: {} })
+  const profile = response()
+  await api({ method: 'GET' }, profile, new URL('http://synthetic/api/bots/bot-a'))
+  assert.equal(profile.body.bot.avatar, bot.avatar)
+  const avatar = { status: null, body: null, writeHead(status) { this.status = status }, end(body) { this.body = body } }
+  await api({ method: 'GET', headers: {} }, avatar, new URL('http://synthetic/api/bots/bot-a/avatar'))
+  assert.equal(avatar.status, 200); assert.deepEqual(avatar.body, Buffer.from('AAAA', 'base64'))
+  bots.set(bot.id, { id: bot.id, name: bot.name })
+  bots.refresh = async () => bots
+  const result = await callBellTeamTool({ name: 'get_self', from: bot.id, registry: bots, internalUrl: 'http://synthetic' })
+  assert.equal(result.bot.hasAvatar, true); assert.equal(result.bot.avatarUrl, 'http://synthetic/api/bots/bot-a/avatar')
+  const unavailable = Object.assign(new Error('MEMBERS_UNAVAILABLE'), { code: 'MEMBERS_UNAVAILABLE', status: 503 })
+  bots.readMember = async () => { throw unavailable }
+  await assert.rejects(api({ method: 'GET' }, response(), new URL('http://synthetic/api/bots/bot-a')), error => error === unavailable)
+})
+
 test('Owner HTTP/MCPは保存後の指示生成失敗を返し、保存や専用MCPの境界を変えない', async () => {
   const calls = [], failure = new Error('SYNTHETIC_INSTRUCTIONS_FAILED')
   let profile = { name: 'before' }, text = 'before'

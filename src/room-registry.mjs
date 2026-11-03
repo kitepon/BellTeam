@@ -85,10 +85,12 @@ export class RoomRegistry extends Map {
   async remove(id) {
     await this.refresh()
     this.require(id)
-    await rm(this.roomPath(id), { recursive: true })
-    this.delete(id)
-    this.histories.delete(id)
-    return { id }
+    return mutateSchedules(this, id, async () => {
+      await rm(this.roomPath(id), { recursive: true })
+      this.delete(id)
+      this.histories.delete(id)
+      return { value: { id } }
+    })
   }
 
   async removeBot(botId) {
@@ -241,6 +243,34 @@ export class RoomRegistry extends Map {
       const base = normalizeSchedule({ ...current, lastRunAt: skipped ? current.lastRunAt : new Date(ranAt).toISOString(), enabled: current.kind === 'once' ? false : current.enabled }, new Date(ranAt))
       const updated = { ...base, targets: current.targets ?? null }
       return { schedules: schedules.map(item => item.id === scheduleId ? updated : item), value: updated }
+    })
+  }
+
+  claimDue(input) {
+    return this.#consumeDue(input, false)
+  }
+
+  skipDue(input) {
+    return this.#consumeDue(input, true)
+  }
+
+  async #consumeDue({ roomId, scheduleId, expectedRevision, expectedNextRunAt, ranAt }, skipped) {
+    validateId(roomId)
+    if (typeof scheduleId !== 'string' || !scheduleId.length) throw new Error('SCHEDULE_ID_INVALID')
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new Error('SCHEDULE_REVISION_INVALID')
+    const at = new Date(ranAt), due = new Date(expectedNextRunAt)
+    if (typeof ranAt !== 'string' || !Number.isFinite(at.getTime())
+      || typeof expectedNextRunAt !== 'string' || !Number.isFinite(due.getTime())) throw new Error('SCHEDULE_AT_INVALID')
+    if (!this.has(roomId)) return null
+    return mutateSchedules(this, roomId, schedules => {
+      const current = schedules.find(item => item.id === scheduleId)
+      if (!current || current.enabled !== true || scheduleRevision(current) !== expectedRevision
+        || current.nextRunAt !== expectedNextRunAt || due > at) return { value: null }
+      const updated = { ...normalizeSchedule({ ...current,
+        lastRunAt: skipped ? current.lastRunAt : at.toISOString(),
+        enabled: current.kind === 'once' ? false : current.enabled,
+      }, at), targets: current.targets ?? null }
+      return { schedules: schedules.map(item => item.id === scheduleId ? updated : item), value: structuredClone(current) }
     })
   }
 

@@ -59,12 +59,12 @@ test('an update while completion write is pending cannot be lost by read-modify-
     else secondWriteEntered = true
     return write(...args)
   }
-  const running = f.scheduler.runDue(now); await f.entered.promise; f.delivery.resolve(); await enteredWrite.promise
+  const running = f.scheduler.runDue(now); await enteredWrite.promise
   const updating = f.registry.setSchedule(f.owner, { ...due, id: 'once-id', at: '2026-10-25T11:45:00Z' })
   await new Promise(resolve => setImmediate(resolve))
   if (secondWriteEntered) await updating
   releaseWrite.resolve()
-  const future = await updating; await running
+  const future = await updating; f.delivery.resolve(); await running
   assert.deepEqual((await f.registry.listSchedules(f.owner))[0], future)
 })
 

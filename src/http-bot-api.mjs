@@ -1,3 +1,4 @@
+import { configurationUUID } from './configuration-request.mjs'
 import { json, readJson } from './http-response.mjs'
 import { createMemberProfileApi } from './members/profiles-http.mjs'
 import { createBotConversationApi } from './http-conversation-api.mjs'
@@ -9,6 +10,17 @@ export function createBotApi(options) {
   return async (request, response, url) => {
     const handled = await profiles(request, response, url)
     if (handled !== false) return handled
+    const reconcileMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/configuration\/reconcile$/u)
+    if (reconcileMatch) {
+      if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+      const body = await readJson(request)
+      if (!body || Object.keys(body).join(',') !== 'request_id' || !configurationUUID(body.request_id))
+        return json(response, 400, { error: 'CONFIGURATION_REQUEST_INVALID' })
+      const result = await administration.reconcile(reconcileMatch[1], body.request_id)
+      notify({ type: 'bots' })
+      return json(response, 200, result)
+    }
+
     const stopMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/stop$/u)
     if (stopMatch) {
       if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })

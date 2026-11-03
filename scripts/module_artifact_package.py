@@ -14,6 +14,15 @@ import tempfile
 from web_gateway_artifact import check_archive, contract, require, safe_path, write_archive
 
 
+def validate_members_source(payload):
+    path = (payload / 'src/members/state-compatibility.mjs').resolve().as_uri()
+    actual = json.loads(subprocess.check_output(['node', '--input-type=module', '-e',
+        'const m = await import(process.argv[1]); console.log(JSON.stringify(m.MEMBERS_STATE_COMPATIBILITY))', path],
+        env={'PATH': os.environ['PATH']}, text=True))
+    require(actual == contract('members')[1]['stateCompatibility'], 'MEMBERS_SOURCE_STATE_INCOMPATIBLE')
+    return actual
+
+
 def main(component):
     contract(component)
     parser = argparse.ArgumentParser(description=__doc__)
@@ -34,6 +43,8 @@ def main(component):
         paths = ['src', 'package.json', 'package-lock.json']
         if component == 'web-gateway':
             paths += ['web', 'services/subscriptions/product.json', 'services/subscriptions/endpoints.json']
+        elif component == 'members':
+            paths += ['config/common-agents.md']
         raw = subprocess.check_output(['git', 'archive', source, *paths], cwd=repo)
         with tarfile.open(fileobj=io.BytesIO(raw)) as tar:
             for item in tar:
@@ -46,6 +57,8 @@ def main(component):
                     target.write_bytes(tar.extractfile(item).read())
         (payload / 'src/distribution-profile.mjs').write_bytes(subprocess.check_output(
             ['git', 'show', source + ':distribution/server/distribution-profile.mjs'], cwd=repo))
+        if component == 'members':
+            validate_members_source(payload)
         lock = json.loads((payload / 'package-lock.json').read_text())
         cross = args.arch != {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
         if cross:

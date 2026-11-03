@@ -90,7 +90,7 @@ test('全体停止による発行前拒否は期限を消費せず、後続予�
   await f.registry.setSchedule('bot-b', once)
   let paused = true
   const sent = []
-  const scheduler = new BotScheduler({ registry: f.registry, messenger: { async sendmessage(value) {
+  const scheduler = new BotScheduler({ registry: f.registry, paused: () => paused, messenger: { async sendmessage(value) {
     if (paused) throw Object.assign(new Error('paused'), { code: 'AI_GLOBAL_PAUSED' })
     sent.push(value.target)
   } } })

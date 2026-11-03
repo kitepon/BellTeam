@@ -1,9 +1,14 @@
+import { createMembersAssembly } from './members-assembly.mjs'
+import { MembersAdmission } from './members-admission.mjs'
+import { createMembersOwnerAuthorization } from './members-owner-authorization.mjs'
 import { join } from 'node:path'
 import { createConversationServices } from './conversation-services.mjs'
 import { CharacterSheets } from './character-sheets.mjs'
 import { BotAdministration } from './bot-administration.mjs'
 import { BotGoals } from './bot-goals.mjs'
 import { AitermClient } from './aiterm-client.mjs'
+import { ConfigurationIntents } from './configuration-intents.mjs'
+import { ConfigurationRequests } from './configuration-requests.mjs'
 import { createManagedTransport } from './aiterm-transport.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
 import { completedThroughlineTurns, latestThroughlineHandoffContext } from './throughline-context.mjs'
@@ -26,7 +31,11 @@ import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null }) {
+export async function createApplicationServices({ root, aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory }) {
+  let members = null, memory, rooms, assets, updateCenter
+  const membersAdmission = new MembersAdmission()
+  try {
+  const membersAuthorization = createMembersOwnerAuthorization()
   const subscriptions = new Subscriptions({
     path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'),
     environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production',
@@ -37,7 +46,16 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     investigationsFile: environment.BELLTEAM_DIAGNOSTIC_INVESTIGATIONS ?? null,
   })
   await diagnostics.initialize()
-  let updateCenter
+  if (seatRuntime || membersFactory) {
+    members = createMembersAssembly({ root, seatRuntime, aiterm, settings, models, membersAdmission,
+      membersAuthorization, diagnostics, dependencies: () => ({ memory, rooms, assets }), onState: () => updateCenter?.notify(),
+      ...(membersFactory ? { createProcess: membersFactory } : {}),
+    })
+    await members.controller.start()
+    bots = members.bots; ownerProfile = members.ownerProfile; userRules = members.userRules
+    // The members writer already regenerates global instructions after its saves.
+    refreshGlobalInstructions = async () => {}
+  }
   const notifications = createNotifications({ root, bots, diagnostics,
     configuration: () => settings.configuration('notifications'), createProcess,
     onState: state => {
@@ -45,9 +63,9 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
       updateCenter?.notify()
     },
   })
-  updateCenter = createUpdateCenter({ gateway, notifications, host: createHostUpdateAdapter({ root, client: createContainerUpdateClient() }) })
+  updateCenter = createUpdateCenter({ gateway, notifications, members, host: createHostUpdateAdapter({ root, client: createContainerUpdateClient() }) })
   await notifications.initialize()
-  const memory = seatRuntime ? seatRuntime.memory(bots) : new BellTeamMemory({ registry: bots, root })
+  memory = seatRuntime ? seatRuntime.memory(bots) : new BellTeamMemory({ registry: bots, root })
   await memory.initialize()
   const aiControl = new AiControl({
     path: join(root, seatRuntime ? 'state/ai-control.json' : 'shared/ai-control.json'),
@@ -55,9 +73,13 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     beforeResume: at => scheduler.prepareResume(new Date(at)),
   })
   await aiControl.initialize()
+  const executionClient = client ?? new AitermClient({ ...aiterm, ...(seatRuntime ? { seatProject: root } : {}) })
+  const configurationRequests = new ConfigurationRequests({ client: executionClient, intents: new ConfigurationIntents(join(root, 'state/configuration-intents')) })
   const transport = createManagedTransport({
+    membersAdmission,
+    configurationRequests,
     reportError: report => diagnostics.record(report),
-    client: client ?? new AitermClient({ ...aiterm, ...(seatRuntime ? { seatProject: root } : {}) }),
+    client: executionClient,
     ...(seatRuntime ? {
       writeTemporaryImage: (path, bytes) => seatRuntime.writeTemporaryImage(path, bytes),
       removeTemporaryImage: path => seatRuntime.removeTemporaryImage(path),
@@ -65,29 +87,43 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
       waitProcess: (process, signal) => runWaitProcess(process, signal, { seatProject: root }),
     } : {}),
     assertWorkAllowed: () => aiControl.assertEnabled(),
-    prepareStartup: async (bot, shortTermMemory) => {
-      await bots.prepareStartupContext(bot.id, shortTermMemory)
-      await onboarding.prepareStartup(bot)
+    requireMember: async (bot, context) => {
+      if (typeof bots.readMember === 'function') { await bots.readMember(bot.id, context); return }
+      await bots.refresh(context)
+      if (!bots.get(bot.id)) throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND', status: 404, effect: 'not_started' })
     },
-    updateSession: (botId, session) => bots.updateSession(botId, session),
-    updateFastMode: (botId, fastMode) => bots.update(botId, { fastMode }),
+    prepareStartup: async (bot, shortTermMemory, context) => {
+      await bots.prepareStartupContext(bot.id, shortTermMemory, context)
+      await onboarding.prepareStartup(bot, context)
+    },
+    updateSession: (botId, session, context) => bots.updateSession(botId, session, context),
+    updateFastMode: (botId, fastMode, context) => members ? bots.updateFastMode(botId, fastMode, context) : bots.update(botId, { fastMode }, context),
   })
+  await transport.restoreConfigurationRequests()
   const idleSessions = new IdleSessions({ bots, transport })
   const goals = new BotGoals({ transport, admitWork: () => aiControl.admit(), reportError: async error => {
     const frames = String(error.stack ?? '').split('\n').slice(1).filter(line => /^\s*at\s/u.test(line)).slice(0, 12)
     await diagnostics.record({ code: 'GOAL_OPERATION_UNCONFIRMED', module: 'goals', diagnostic_log: `${error.constructor.name}\n${frames.join('\n')}` })
   } })
   const conversation = createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime })
-  const { store, assets, messenger } = conversation
+  const { store, messenger } = conversation
+  assets = conversation.assets
   const onboarding = new Onboarding({
     root, bots, client: transport.client, subscriptions,
-    ...(seatRuntime ? { path: join(root, 'state/onboarding.json'), projectFiles: seatRuntime.projectFiles } : {}),
+    ...(seatRuntime ? { path: join(root, 'state/onboarding.json'), projectFiles: members ? {
+      appendInstructions: (bot, text) => seatRuntime.membersProject('project.appendInstructions', { botId: bot.id, text }),
+    } : seatRuntime.projectFiles } : {}),
     startConversation: (bot, message) => messenger.enqueueUserTurn({ target: bot.id, message, recordUser: false }),
   })
+  await assets.initialize()
   await onboarding.initialize()
   const harnessAuth = new HarnessAuth({ bots, client: transport.client })
-  const { selfTurns, seatTurns, rooms, roomMessenger } = await conversation.initialize()
+  const conversationServices = await conversation.initialize()
+  rooms = conversationServices.rooms
+  const { selfTurns, seatTurns, roomMessenger } = conversationServices
   const scheduler = new BotScheduler({ registry: bots, messenger, transport, rooms, roomMessenger,
+    membersAdmission: transport.membersAdmission,
+    admitWork: () => aiControl.admit(),
     ...(seatRuntime ? { completedTurns: project => completedThroughlineTurns(project, { seatCommands: true }),
       runCommand: request => runShellCommand(request, { seatProject: request.cwd }) } : {}),
     paused: () => aiControl.paused,
@@ -133,10 +169,15 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
     try { await diagnostics.record({ code: 'OLRW_MANAGEMENT_UNAVAILABLE', module: 'integration' }) } catch {}
   }
   return {
-    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter,
+    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, membersAuthorization, members,
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
     scheduler, diagnostics, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
+  }
+  } catch (error) {
+    try { await members?.controller.close() }
+    catch (cleanupError) { throw new AggregateError([error, cleanupError], 'MEMBERS_ASSEMBLY_FAILED') }
+    throw error
   }
 }

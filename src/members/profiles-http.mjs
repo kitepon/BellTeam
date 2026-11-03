@@ -3,6 +3,7 @@ import { recentTimeline } from '../timeline-index.mjs'
 import { avatarVersion, listAvatar, sendAvatar } from '../http-assets.mjs'
 
 export function createMemberProfileApi({ bots, transport, administration, memory, characterSheets, sources, store }) {
+  const readMember = id => bots.readMember ? bots.readMember(id) : bots.get(id)
   return async (request, response, url) => {
     if (request.method === 'GET' && url.pathname === '/api/bots') {
       const all = bots.listForClient ? await bots.listForClient() : [...bots.values()]
@@ -63,14 +64,14 @@ export function createMemberProfileApi({ bots, transport, administration, memory
     const sheetListMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/character-sheet$/u)
     if (request.method === 'GET' && sheetListMatch) {
       const botId = sheetListMatch[1]
-      if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
+      if (!await readMember(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
       const sheets = await characterSheets.list(botId)
       return json(response, 200, { sheets: sheets.map(sheet => ({ ...sheet, url: `/api/bots/${botId}/character-sheet/${encodeURIComponent(sheet.file)}` })) })
     }
     const sheetFileMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/character-sheet\/([^/]+)$/u)
     if (request.method === 'GET' && sheetFileMatch) {
       const botId = sheetFileMatch[1]
-      if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
+      if (!await readMember(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
       const controller = new AbortController()
       const cancel = () => controller.abort()
       response.once('close', cancel)
@@ -98,16 +99,17 @@ export function createMemberProfileApi({ bots, transport, administration, memory
 
     const botAvatarMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/(avatar(?:-large)?(?:-source)?)$/u)
     if (request.method === 'GET' && botAvatarMatch) {
-      if (!bots.has(botAvatarMatch[1])) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      const bot = bots.get(botAvatarMatch[1])
+      const bot = await readMember(botAvatarMatch[1])
+      if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
       const field = { avatar: 'avatar', 'avatar-large': 'avatarLarge', 'avatar-source': 'avatarSource', 'avatar-large-source': 'avatarLargeSource' }[botAvatarMatch[2]]
       return sendAvatar(request, response, field === 'avatarLarge' ? bot[field] || bot.avatar : bot[field], url)
     }
     const profileMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)$/u)
     if (profileMatch) {
       const botId = profileMatch[1]
-      if (!bots.has(botId)) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      if (request.method === 'GET') return json(response, 200, { bot: administration.view?.(bots.get(botId)) ?? bots.get(botId) })
+      const bot = await readMember(botId)
+      if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
+      if (request.method === 'GET') return json(response, 200, { bot: administration.view?.(bot) ?? bot })
       if (request.method === 'PATCH') return json(response, 200, await administration.update(botId, await readJson(request)))
     }
 

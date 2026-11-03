@@ -42,3 +42,11 @@ flowchart TD
 ## 限定検証
 
 member-profilesが通常保存/configure委譲の分岐と元receipt/例外、表示の適用観測とavatar非露出、作成後の部分保存、Owner生成失敗を専用窓口で確認する。既MCP/席/HTTP、モデル反映表示、avatar/設定画stream、profile並行更新、削除受付を直接境界として確認。共有入口の新しい全面実装や全試験再走を追加しない。
+
+## 独立更新後の画像とfresh読取
+
+投影/profiles.readは画像4fieldを持たない。HTTPのprofile/画像/設定画の対象確認とMCP get_bot/get_selfはfresh readMemberから完全な単一profileを読み、投影だけのavatarを返さない。MCPはその後既共通整形で画像本文を外しhasAvatar/URLを返す。失敗503を404へ丸めない。
+
+HTTP一覧は共通facadeが一leaseでmetadata→profile.read(includeDeleting:true)を逐次読み、既pendingの画像/versionsも保持する。includeDeletingは表示専用の内部literal trueで、通常認可readMemberは省略しactiveだけ。元の外部HTTP/MCP引数を増やさず、画像全名簿を一IPCへ詰めない。構築途中に確認済み404だけを除外でき、unknown/503を空一覧へ変えない。
+
+members/errors.mjsのnormalizeMembersErrorは既固定semantic prefix/コードだけをcode/statusへ変換する。自由message/stack/入力値をwireへ渡さず、未登録errorはruntimeの既generic fallbackへ。受理後outcome unknownを変更しない。部分保存後のeffect失敗でも可能な限り最新metadata投影を先に送って、保存済み状態を古い表示へ隠さない。元例外は保持し成功へ丸めない。

@@ -28,6 +28,15 @@ export function seatBotId(request, bots) {
   return typeof value === 'string' && bots.has(value) ? value : null
 }
 
+// Availability failures remain 503; only a confirmed missing member is unresolved.
+export async function resolveSeatBotId(request, bots) {
+  if (typeof bots.readMember !== 'function') return seatBotId(request, bots)
+  const value = request.headers[SEAT_HEADER.toLowerCase()]
+  if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(value)) return null
+  try { return (await bots.readMember(value)).id === value ? value : null }
+  catch (error) { if (error.code === 'BOT_NOT_FOUND' && error.status === 404) return null; throw error }
+}
+
 // A runtime claim captured at HTTP ingress, never a verified execution or a model argument.
 export function seatExecutionSource(request, bots) {
   const sourceSession = seatBotId(request, bots)
@@ -81,7 +90,9 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), callBr
     // 名札が無い・展開前の文字列のまま・台帳に無い要求は、どちらの入口でも席を決めずに拒む。
     // 403 は返さない。Claude Code は 403 を「認証が要る」と判定して、全席共有の ~/.claude/mcp-needs-auth-cache.json へ
     // サーバー名で記録し、その後しばらく本物の席の接続まで飛ばす（2026-10-04、試験用の席1つで2席が道具なしで起きた）。
-    const from = seatBotId(request, bots)
+    let from
+    try { from = await resolveSeatBotId(request, bots) }
+    catch (error) { return reply(response, error.status ?? 503, { error: error.code ?? 'MEMBERS_UNAVAILABLE' }) }
     if (!from) return reply(response, 400, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
     if (url.pathname === CALL_BRIDGE_MCP_PATH) {
       let check

@@ -33,11 +33,49 @@ flowchart TD
 
 `recordUserReply`は、そのターンの間にBotが明示的にOwnerへ送った新しい記録を優先し、`knownReplyIds/claimedReplyIds`で二度の回答保存を避ける。空回答を新しい発言にしない。この処理は通知の単なる表示callbackとは責務が違う。
 
+### members予定から配送への既受付lease
+
+```mermaid
+flowchart LR
+  Scheduler["親scheduler: 同membersLeaseでclaim成功"] --> Messenger["sendmessage(input, {membersLease})"]
+  Scheduler --> Room["sendroommessage(input, {membersLease})"]
+  Room --> Order["部屋順序待ち / 同opaque参照を保持"]
+  Messenger --> Fresh["bots.refresh({membersLease}) / 同既受付profiles.read"]
+  Order --> Fresh
+  Order --> Notify["transport.notify options.membersLease"]
+  Messenger --> Notify
+  Notify --> Execution["execution: live lease検証・既受付の継続"]
+```
+
+第2内部引数の`membersLease`だけを呼出時に捕捉し、同じ参照をnotify optionsへ渡す。Roomは前投稿の成功/失敗待ちと各宛先のfanoutを越えて同じopaqueを保持する。入力本文/会話record/queue/通知文/返却へleaseを保存せず、第1引数の同名fieldから権限を作らない。第2引数省略時は従来のoptionsを保つ。leaseの実在/世代/相関と継続・終端はexecution/runtimeが検証し、会話はclone/再入場/finish/再送を行わない。既全体停止のadmitWork/requireAccessも維持する。ユーザーturn/過去配送の再開/通話の意味をこの予定接点で拡張しない。
+
+配送前のBot台帳refreshにも同じ`{membersLease}`を渡す。integration facadeは同live leaseのfresh profiles.readとしてchannelへ継承し、新root入場/finishを追加しない。context無しrefreshは通常の新rootで、交換中は503。pure projectionを本人性の代用にせず、既受付の名前解決は捕捉identity/親projectionで継続する。RoomRegistryのrefreshは同じ親台帳の読取のまま。
+
 ## 会話の保存画像と、nativeへ渡す一時画像を分ける
 
 `prepareUserTurn/sendmessage/sendRoomMessageInOrder → MessageAssets.save/saveAll`は画像の実bytesを確認し、ownerごとの保存領域へ0600/wxで作る。`directory`はOwner画像とBot画像を別の保存先へ置く。`readImageBytes/detectMime`はサイズ/形式を検証し、HTTP読取は`open`からstreamを返す。席由来のpath読取はSeatRuntimeの窓口を使う。
 
 `saveAll`は順番に保存するため、後の画像失敗でも先の保存が残り得る。一括rollbackの保証はない。これとtransportのdata→一時file・finally削除は別の寿命である。WebのBlob URLとも共通の削除関数へ統合しない。実装：[message-assets.mjs](../../../../src/message-assets.mjs)、[Webの画像所有](../../web-management-details.md)。
+
+### 対象Bot削除の保存境界
+
+```mermaid
+flowchart TD
+  Restore["members公開readRemovalStates / removals.read"] --> Ready["MessageAssets.initialize: 既receipt/退役Bot gate復元"]
+  Ready --> Admission["Bot save/saveAll受付 / 対象gate検査"]
+  Admission --> Accepted["readImageから最終writeまで同ownerの進行保存"]
+  Prepare["prepareBotAssetRemoval(botId)"] --> Closed["対象新保存を先に拒否 / 他Bot・user継続"]
+  Closed --> Drain["既受付保存を全てsettleまでdrain"]
+  Accepted --> Drain
+  Drain --> Lease["Bot/gate世代に束縛したopaque lease"]
+  Lease --> Rename["members: receipt / 退役rename / cleanup"]
+  Lease --> Cancel["同per-Bot直列fresh active/no intent/no retired判定"]
+  Cancel --> Same["cancelBotAssetRemoval: 同leaseだけ早期開放"]
+```
+
+factory option `readRemovalStates: () => Promise<{removals:[{botId:string,active:boolean,hasIntent:true,retired:boolean}]}>`をmembers facadeへ接続する。省略時も`bots.readRemovalStates()`を呼び、空一覧へ失敗を丸めない。構築時に一度読取りを開始し、`assets.initialize(): Promise<void>`とconversation.initializeが復元完了を待つ。初回読取前/失敗時はBot画像を受付せず、userは継続。restoreは既receipt/退役の読取結果だけでgateを閉じ、新しいtombstoneや削除副作用を作らない。active+retired/不正DTOは失敗。親の同じMessageAssetsをmodule交換で保持し、復元を繰り返して開けない。
+
+`prepareBotAssetRemoval(botId): Promise<string>`は新保存を同期的に閉じ、save/saveAllのreadImage前から最終write/failureまで待つ。同じgateのprepareは同じleaseへ合流する。`cancelBotAssetRemoval(botId,lease,{active,hasIntent,retired}): boolean`は同leaseと厳密なtrue/false/falseだけで開放する。判定はmembersの同per-Bot直列化内の専用fresh判定から渡し、read一覧の不在を許可へ変換しない。旧lease/不明/receipt残存/rename済みでは開けない。削除失敗の結論、既receiptの寿命とcleanupはmembersが所有する。
 
 ## 部屋は全員への配送と返信担当を分ける
 
