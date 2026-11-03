@@ -368,3 +368,21 @@ flowchart LR
 同transport.currentWorkBinding/updateWorkSummaryへ、既HTTP ingressが捕捉したsourceをtoolsForSource closureからだけ渡す。モデル引数のbotId/path/sourceは受けず、共通await後に本人退役なら更新前403。get_selfだけbot.currentWorkBindingを付け、他Bot読取やHTTP一覧へprivate bindingを出さない。更新の固定400/403/409/503はMCP isError/structuredContentの安全code/statusだけへ投影、自由message/stackやsummaryをエラーへ反射しない。実行所有者のmemory/UUID/CAS/15秒・10分/160文字正規化は同公開transportの責任で、共通が第二writerや追加observerを作らない。
 
 既watchQueueのSSE接続を再利用し二重watch無し。summaryを新たに読むことで正規AI/auth/Goalや設定発行へ到達しない。Apple実装の順序はOwner指定の全体受入後で、本schema供給から先行実装の許可へ拡張しない。
+
+
+## Web Pushのtrusted originと固定SW（組立て前）
+
+```mermaid
+flowchart LR
+  Config[保存済cloudflare.publicUrl] --> Origin[web-push-origin: HTTPS URL.origin]
+  Owner[既Owner認証] --> Check[usage固定POST / webPush設定変更]
+  Check --> Origin
+  Header[単一Origin / Sec-Fetch-Site] --> Origin
+  Origin --> Private[検証値だけprivate paramsへ / HTTP bodyのorigin不可]
+  Private --> Usage[usage唯一Web登録writer / origin束縛]
+  SW[Admi固定sw.js資材] --> Assets[http-assets: JS MIME / no-cache]
+```
+
+Root Web Push契約v1.1に従う。`createWebPushOrigin({settings})`が返す`assertWebPushOrigin(request)`は毎要求の保存済みcloudflare.publicUrlだけからcanonical HTTPS originを生成する。公開URL欠測/不正はWEB_PUSH_ORIGIN_UNAVAILABLE/503、Origin欠測/null/重複/不一致・path/資格・cross-siteはWEB_PUSH_ORIGIN_FORBIDDEN/403。Sec-Fetch-Site有りならsame-originだけを通す。request Host/Forwarded、body、endpointからtrusted originを補わない。Owner認証自体は既HTTP入口、内部403と閉bodyはusage handlerが検査する。GET公開状態と他feature/Apple APIの条件は変えない。
+
+登録照会/登録/解除のprivate originへこの返却だけを渡す。provider/configureへoriginを足さず、別origin登録の操作を同等権限にしない。固定sw.jsは版付置換の有無によらずJS MIME/no-cache、他immutable資材を維持。SW本文/公開asset mapはAdmi固定作者sourceの後に同候補へ接続する。この差分だけでWebPush API・provider・ABI2や実送信成立を宣言しない。
