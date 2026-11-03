@@ -31,7 +31,7 @@ final class ConversationScrollUITests: XCTestCase {
         XCTAssertEqual(try requests(), ["?limit=10"], "開いただけでは初回の10件しか取得しない")
     }
 
-    /// 上端へスクロールすると20件を取得し、読んでいた先頭行が同じ位置に残る。足した行のMarkdownが後から伸びても動かない。
+    /// 上端へスクロールすると25件を取得し、読んでいた先頭行が同じ位置に残る。足した行のMarkdownが後から伸びても動かない。
     func testOlderMessagesLoadAutomaticallyAtTopAndKeepPosition() throws {
         try openConversation("ユキ", failBefore: false)
         XCTAssertTrue(text("m060").waitForExistence(timeout: 10))

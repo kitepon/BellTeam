@@ -324,8 +324,7 @@ private struct DesktopInspector: View {
                                         onScreen: { showingScreen = true }, onRestart: {
                         Task {
                             do {
-                                try await store.authorizeAIUse(target: target)
-                                let _: APIAcknowledgement = try await store.api.post(target.path + "/restart", body: EmptyBody())
+                                try await store.restartConversation(target: target)
                                 errorText = nil
                             } catch {
                                 errorText = BellAPIError.operationFailureMessage(error)

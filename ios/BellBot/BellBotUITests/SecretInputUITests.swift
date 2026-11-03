@@ -1,7 +1,8 @@
 import XCTest
 
 final class SecretInputUITests: XCTestCase {
-    func testSecureInputSavesWithoutPostingChatText() throws {
+    func testSecureInputHidesValueAndShowsSubmittedAfterRelaunch() throws {
+        // 登録表示・値と入力欄の非表示・再起動後の表示を確認する。通常会話へのPOST件数はこの試験では確認しない。
         // scripts/secret-input-smoke.mjs と、試験用証明書を信頼した専用Simulatorを使う。
         guard ProcessInfo.processInfo.environment["BELLTEAM_SECRET_SMOKE"] == "1" else {
             throw XCTSkip("秘密入力用のHTTPS試験サーバーが必要です。")
