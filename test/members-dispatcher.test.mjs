@@ -180,7 +180,8 @@ test('trusted old-lease root continuation can fresh-read and prepare startup dur
 })
 
 test('internal onboarding create preserves only the existing literal guide ID', async t => {
-  const f = await fixture(t)
+  const effects = []
+  const f = await fixture(t, async method => { effects.push(method); if (method === 'project.readPreviousSession') return '' })
   const input = { name: 'Synthetic guide', harness: 'grok' }
   assert.throws(() => f.dispatcher.validateRequest('profile.create', { input, id: 'bot-other' }, context))
   assert.equal(GUIDE_BOT_ID, 'bot-guide')
@@ -189,6 +190,7 @@ test('internal onboarding create preserves only the existing literal guide ID', 
   const ordinary = await f.request('profile.create', { input })
   assert.notEqual(ordinary.bot.id, GUIDE_BOT_ID)
   assert.match(ordinary.bot.id, /^bot-/u)
+  assert.equal(effects.includes('memory.ensureScope'), false, 'existing HTTP/MCP callers initialize memory after the published create result')
 })
 
 test('display read can retain pending avatar bytes while active authorization stays 404', async t => {

@@ -97,7 +97,6 @@ const effects = {
   'global.writeInstructions': value => object(value, { body }),
   'cli.configure': value => object(value, { botIds: ids }),
   'models.read': value => object(value, { harness }),
-  'memory.ensureScope': value => object(value, projectId),
   'assets.prepareBotAssetRemoval': value => object(value, projectId),
   'assets.cancelBotAssetRemoval': value => object(value, { ...projectId, lease: text, state: value => object(value, {
     active: value => { if (value !== true) fail() }, hasIntent: value => { if (value !== false) fail() }, retired: value => { if (value !== false) fail() },
