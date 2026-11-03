@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { SelfTurns, readObserverTurns, throughlineChanged } from '../src/self-turns.mjs'
+import { SelfTurns, readObserverTurns } from '../src/self-turns.mjs'
 
 const bots = new Map([['bot-r', { id: 'bot-r', project: '/srv/bellteam/bots/bot-r' }]])
 const turn = (key, start, assistant, completed) => ({ source_sha256: key, turn_start: start, assistant, completed_at: completed, host: 'claude', truncated: false })
@@ -12,13 +12,23 @@ const turn = (key, start, assistant, completed) => ({ source_sha256: key, turn_s
 async function feed(pages, { changed = async () => true, state = null, shown = () => null } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'self-turns-'))
   const statePath = join(dir, 'self-turns.json')
+  if (state) state = Object.fromEntries(Object.entries(state).map(([id, value]) => [id, { project: bots.get(id).project, checkToken: 'tloc1.prior', ...value }]))
   if (state) await writeFile(statePath, JSON.stringify({ schema: 'bellteam.self-turns.v1', bots: state }))
   const reads = []
   const answers = []
   const turns = []
   const reported = []
+  let generation = 0
   const service = new SelfTurns({
-    bots, statePath, changed, shown,
+    bots, statePath, shown,
+    check: async request => {
+      const change = await changed()
+      generation++
+      return { schema: 'throughline.observer_check_result.v1', status: 'complete', results: request.projects.map(item => ({
+        id: item.id, status: change || item.after === null ? 'changed' : 'unchanged',
+        token: change || item.after === null ? `tloc1.fixture${generation}` : item.after,
+      })) }
+    },
     read: async request => { reads.push(request); return pages.shift() },
     appendAnswer: async (...args) => answers.push(args),
     afterTurn: value => turns.push(value),
@@ -37,7 +47,7 @@ test('初めて見るBotは今の位置から始め、過去のターンを画�
   assert.deepEqual(reads, [{ project: '/srv/bellteam/bots/bot-r' }])
   assert.deepEqual(answers, [])
   const saved = JSON.parse(await readFile(statePath, 'utf8'))
-  assert.deepEqual(saved.bots['bot-r'], { cursor: 'c1', seen: ['a'], lastCompletedAt: 1000 })
+  assert.deepEqual(saved.bots['bot-r'], { project: bots.get('bot-r').project, checkToken: 'tloc1.fixture1', cursor: 'c1', seen: ['a'], lastCompletedAt: 1000 })
   await cleanup()
 })
 
@@ -218,14 +228,4 @@ test('Throughlineへv2で全文を求め、v2でない返事は受け取らな�
   assert.deepEqual(calls, [['throughline', ['observer-read', '--project', '/p', '--wire', 'v2', '--limit', '100', '--json', '--after-cursor', 'c1', '--through-cursor', 'c2', '--page-token', 't']]])
   const old = async () => ({ stdout: JSON.stringify({ schema: 'throughline.observer_read.v1', status: 'delta', turns: [] }) })
   await assert.rejects(readObserverTurns({ project: '/p' }, { run: old }), /THROUGHLINE_OBSERVER_READ_INVALID/)
-})
-
-test('ThroughlineのDBが変わった時だけ変わったと答える', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'self-turns-db-'))
-  const changed = throughlineChanged(dir)
-  assert.equal(await changed(), true)
-  assert.equal(await changed(), false)
-  await writeFile(join(dir, 'throughline.db-wal'), 'x')
-  assert.equal(await changed(), true)
-  await rm(dir, { recursive: true, force: true })
 })
