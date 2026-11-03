@@ -6,6 +6,8 @@
 
 接続の正本は[module.json](module.json)。全体の[機能図](../../feature-map.md)と[担当・変更手順](../../module-ownership.md)から、呼出元と依存先を辿る。
 
+[独立更新の契約入力](module-update.md)は固定9e83に対する図と公開操作案。実装・単独交換の完了とは区別する。
+
 ## 所有データと公開契約
 
 - [メンバー・予定・指示](registry.md)：Botのprofile/schedule、専用project構造・個別指示・画像、Owner profile/rulesと指示生成。全製品共通テンプレート`config/common-agents.md`は統合担当が持つ。
