@@ -95,6 +95,8 @@ class NotificationsArtifactTest(unittest.TestCase):
     def test_root_probe_refuses_shared_existing_paths_before_mutation(self):
         spec = importlib.util.spec_from_file_location('notifications_probe', ROOT / 'test/helpers/notifications-artifact-probe.py')
         probe = importlib.util.module_from_spec(spec); spec.loader.exec_module(probe)
+        with patch('os.readlink', return_value='mnt:[same]'), self.assertRaisesRegex(ValueError, 'NOTIFICATIONS_PROBE_PRIVATE_MOUNT_NAMESPACE_REQUIRED'):
+            probe.private_mount_namespace()
         with patch('os.geteuid', return_value=1000), self.assertRaisesRegex(ValueError, 'NOTIFICATIONS_PROBE_ROOT_REQUIRED'):
             probe.clean_runner()
         with patch('os.geteuid', return_value=0), patch.object(probe, 'APP', self.root), \

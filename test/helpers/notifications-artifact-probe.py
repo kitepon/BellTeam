@@ -30,6 +30,11 @@ def clean_runner():
         require(not path.exists() and not path.is_symlink(), 'NOTIFICATIONS_PROBE_REQUIRES_CLEAN_RUNNER')
 
 
+def private_mount_namespace():
+    require(os.readlink('/proc/self/ns/mnt') != os.readlink('/proc/1/ns/mnt'),
+            'NOTIFICATIONS_PROBE_PRIVATE_MOUNT_NAMESPACE_REQUIRED')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('archive', type=Path)
@@ -45,9 +50,13 @@ def main():
     require(subprocess.check_output([str(node), '-p', 'process.versions.node.split(".")[0]'], text=True).strip() == '26')
     created = []
     process = None
+    node_mounted = False
     try:
         if NODE.exists():
-            require(subprocess.check_output([str(NODE), '-p', 'process.versions.node.split(".")[0]'], text=True).strip() == '26')
+            if subprocess.check_output([str(NODE), '-p', 'process.versions.node.split(".")[0]'], text=True).strip() != '26':
+                private_mount_namespace()
+                subprocess.run(['/bin/mount', '--bind', str(node), str(NODE)], check=True)
+                node_mounted = True
         else:
             shutil.copyfile(node, NODE); created.append(NODE); NODE.chmod(0o755)
         if not ENTRY.parent.exists():
@@ -93,6 +102,8 @@ def main():
             except ProcessLookupError:
                 pass
             process.wait()
+        if node_mounted:
+            subprocess.run(['/bin/umount', str(NODE)], check=True)
         for path in reversed(created):
             if path.is_dir():
                 for directory in [path, *[x for x in path.rglob('*') if x.is_dir()]]:
