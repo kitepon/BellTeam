@@ -41,3 +41,25 @@ Epiのonline installerは第三shell案をやめ、既install.sh早期modeへ直
 正式供給初回41544433881ではsetup-nodeのnode指定が27.0.0-alpha.0.0.0を選び、両archともNode26契約でpackagerが拒否した。専用workflowは承認済みruntime.nodeMajor26に合わせ26系の現行版を使う。packager/readerの互換拒否は維持し、全体imageや他CLIの公式現行版方針は変更しない。実署名工程には未到達、元run失敗を保持し同runを無変更再走しない。
 
 正式供給run41545179742の実bundleを固定verifierへ渡すと、公式ghはbundleの拡張子を要求し/proc/self/fd/Nを拒否した。root専用0700一時dir内のbundle.jsonを同じ継承FDへのsymlinkにし、公式CLIの形式判定と同FD snapshot契約を両立する。通常入力pathの再openや検証前copyへ戻さず、gh終了・失敗時ともaliasを削除する。CLI3引数/公開schema/runtime writerへの契約は変わらない。
+
+## 署名済二版と実root配置の有限CI
+
+```mermaid
+flowchart LR
+  Image[a1fe既auto candidate / exact immutable image] --> Normal[実server-start admission / fixture supervisorのみRO差替]
+  A[9573既署名A] --> Installer[image原本install.sh専用入口]
+  B[a1fe一回署名B] --> Installer
+  Normal -->|実CID/image/readonly/mount| Installer
+  Installer --> Helper[image原本plan/roothelper/verifier]
+  Helper --> Private[root private volume / SH+web EX]
+  Private --> Reader[UID1001 image原本reader]
+  Reader --> API[公開Owner API POST202 / GET成功現在版]
+  API --> Sequence[A採用 / 同親中B配置選択 / A戻し]
+  Sequence --> Proof[CID/親PID/人工業務PID/旧資材/採用record]
+  Bad[archive改変 / 誤source] --> Helper
+  Helper -->|拒否| Keep[公開集合 / 旧採用不変]
+```
+
+callerは`.github/workflows/verify-web-gateway-image.yml`→`test/helpers/web-gateway-real-boundary.py`→imageの既install.sh。guestは`test/helpers/web-gateway-runtime-guest.mjs`で、supervisorだけを置換し全業務bootstrapを合成する。roothelper/installer/verifier/reader/application-runtime/API/gatewayはimage実bytes。実署名/実rootと空Bot/合成client/人工業務processを区別する。通常起動全体・Owner実認証・実AI保持・Host/本番の保証へ拡張しない。
+
+Aは9573/run41545179742、Bはmain a1feから新しく一回だけ作る有効署名版。fixture source採否後かつCI sourceをmainへ統合する前にB生成する。CIはA/B runの成功/attempt1/source/署名workflowとAPI ZIP SHA-sizeを検査し、同a1fe auto run41548170408のindex artifactに一致するimageだけpullする。追加build・署名A再発行・Release/promotionを持たない。

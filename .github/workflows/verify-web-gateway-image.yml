@@ -1,0 +1,93 @@
+{
+  "name": "署名済Web二版を同exact imageで隔離配置・公開切替",
+  "on": {
+    "workflow_dispatch": {
+      "inputs": {
+        "digest": {
+          "description": "a1fe auto candidate run41548170408のindex sha256 digest",
+          "required": true,
+          "type": "string"
+        },
+        "b_run": {
+          "description": "main a1feから一回作成した署名Bのpublish-web-gateway run ID",
+          "required": true,
+          "type": "string"
+        }
+      }
+    }
+  },
+  "permissions": {
+    "contents": "read",
+    "actions": "read"
+  },
+  "concurrency": {
+    "group": "web-gateway-finite-root-runtime",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "runtime": {
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {
+          "include": [
+            {
+              "arch": "amd64",
+              "runner": "ubuntu-24.04"
+            },
+            {
+              "arch": "arm64",
+              "runner": "ubuntu-24.04-arm"
+            }
+          ]
+        }
+      },
+      "runs-on": "${{ matrix.runner }}",
+      "timeout-minutes": 15,
+      "env": {
+        "DIGEST": "${{ inputs.digest }}",
+        "B_RUN": "${{ inputs.b_run }}",
+        "ARCH": "${{ matrix.arch }}",
+        "RESULT": "runtime/web-gateway-${{ matrix.arch }}",
+        "SUPPLY": "runtime/web-gateway-input-${{ matrix.arch }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v7",
+          "with": {
+            "persist-credentials": false,
+            "fetch-depth": 0
+          }
+        },
+        {
+          "name": "有限fixture入力の拒否を確認",
+          "run": "python3 test/web-gateway-real-boundary.test.py"
+        },
+        {
+          "name": "固定run/archと元ZIPのdigest-sizeを照合して署名原本を取得",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "run": "python3 - <<'PYTHON'\nimport os,platform,re\nassert re.fullmatch(r'sha256:[a-f0-9]{64}',os.environ['DIGEST'])\nassert re.fullmatch(r'[1-9][0-9]*',os.environ['B_RUN'])\nassert {'x86_64':'amd64','aarch64':'arm64'}[platform.machine()] == os.environ['ARCH']\nPYTHON\npython3 test/helpers/web-gateway-real-boundary.py fetch \"$B_RUN\" \"$DIGEST\" \"$SUPPLY\"\ndocker pull --platform \"linux/$ARCH\" \"ghcr.io/kitepon/bellteam-server@$DIGEST\"\n"
+        },
+        {
+          "name": "同imageの実roothelper配置→1001reader→公開API二版交換・旧版戻し",
+          "run": "python3 test/helpers/web-gateway-real-boundary.py run \"ghcr.io/kitepon/bellteam-server@$DIGEST\" \"$RESULT\" \"$SUPPLY\""
+        },
+        {
+          "name": "取消・失敗でも当fixtureの資材だけを清掃",
+          "if": "always()",
+          "run": "python3 test/helpers/web-gateway-real-boundary.py cleanup \"$RESULT\""
+        },
+        {
+          "uses": "actions/upload-artifact@v7",
+          "if": "always()",
+          "with": {
+            "name": "web-gateway-runtime-${{ matrix.arch }}-${{ github.run_attempt }}",
+            "path": "runtime/web-gateway-${{ matrix.arch }}/\nruntime/web-gateway-input-${{ matrix.arch }}/",
+            "if-no-files-found": "error"
+          }
+        }
+      ]
+    }
+  }
+}
