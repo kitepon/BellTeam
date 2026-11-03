@@ -1,4 +1,6 @@
 """Keep all container references and one rollback per BellTeam image family."""
+import argparse
+import re
 import importlib.util
 import fcntl
 import json
@@ -64,24 +66,39 @@ def remove_image(image):
         attempted.add(ref)
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--rollback-image')
+    args = parser.parse_args(argv)
+    if args.rollback_image is not None and not re.fullmatch('sha256:[a-f0-9]{64}', args.rollback_image):
+        parser.error('rollback image must be an exact image ID')
     spec = importlib.util.spec_from_file_location('restore', Path(__file__).with_name('save-deploy-restore-point.py'))
     restore = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(restore)
     restore.mount_guard(restore.BASE)
     with (restore.BASE / '.lock').open('r+b') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        points = restore.validated_points(restore.BASE)
-        if not points:
-            raise RuntimeError('no accepted rollback point')
-        saved = points[-1][1]
-        rollback = saved['image']['image']
+        if args.rollback_image is not None:
+            rollback = args.rollback_image
+            if inspected(rollback) is None:
+                raise RuntimeError('previous runtime image missing')
+        else:
+            points = restore.validated_points(restore.BASE)
+            if not points:
+                raise RuntimeError('no accepted rollback point')
+            rollback = points[-1][1]['image']['image']
         ids = set()
         for repo in sorted(REPOS):
             ids.update(subprocess.check_output(['docker', 'image', 'ls', '--no-trunc', '--quiet', repo], text=True).split())
         images = json.loads(subprocess.check_output(['docker', 'image', 'inspect', *sorted(ids)])) if ids else []
         before = references()
         plan = select(images, before, rollback)
+        targets = {image['Id'] for image in plan}
+        protected = before | {rollback} | {image['Id'] for image in images if image['Id'] not in targets}
+        print(json.dumps({'schema': 'bellteam.deploy-image-cleanup.plan.v1', 'rollback': rollback,
+                          'rollbackSource': 'caller-previous-runtime' if args.rollback_image is not None else 'accepted-restore-point',
+                          'protectedContainerImages': sorted(before), 'protectedImages': sorted(protected),
+                          'targetImages': sorted(targets)}), flush=True)
         removed = []
         for image in plan:
             # Docker refuses a new container reference too; never force removal.

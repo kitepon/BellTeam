@@ -79,6 +79,7 @@
     "distribution/server/install-resume-state.sh",
     "src/web-gateway-release.mjs",
     "scripts/install-web-gateway-release.py",
-    "src/web-gateway-install-plan.mjs"
+    "src/web-gateway-install-plan.mjs",
+    "scripts/cleanup-deploy-images.py"
   ]
 }

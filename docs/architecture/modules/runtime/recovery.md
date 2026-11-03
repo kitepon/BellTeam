@@ -89,3 +89,21 @@ Cursorのreaderは本体の環境を継承する`docker exec`をUID/GID1001で�
 `restore`は既存destinationを拒否。manifest/重複member/相対path/type/SQLite family/hardlink/symlink祖先を検証し、仮directoryへ展開。生のSQLite/WAL群は復元に使わず、再検証したsnapshotを置く。symlinkは配置検証後に作り、最後に完成directoryをrenameする。復元したdirectoryを本番mountへ切替える操作はこの関数にない。
 
 実装：[installer](../../../../distribution/server/install.sh)、[state transfer](../../../../src/server-state-transfer.mjs)、[writers](../../../../src/server-state-writers.mjs)、[ownership](../../../../src/server-state-ownership.mjs)、[volume archive](../../../../scripts/archive-live-volume.py)、[restore point](../../../../scripts/save-deploy-restore-point.py)。移行/復旧/CI/Host操作の再実行はしていない。実導入の受入範囲は各版の既存記録を参照する。
+
+## image cleanup helperの出力接点
+
+`cleanup-deploy-images.py`の選択/削除はruntime、通常deployからの呼出し・世代別stdout/stderr/exitの原本結合はMolly。既stdoutをNDJSONとして扱い、既完了行/個々のDocker結果は保持する。追加の`bellteam.deploy-image-cleanup.plan.v1`を削除前にflushし、rollback/保護全image集合/稼働・停止container参照/対象IDを固定する。planは選択の証拠で削除成功ではなく、途中例外でも完了行を補完しない。callerは非0/欠測をunknown/failedのまま保存する。
+
+通常deployは`--rollback-image sha256:<64hex>`でcallerが世代別previous-runtime/previous-normalの一致から固定した実前版image IDを渡す。helperはそのIDの存在/実inspect本人性を先に確認し、欠測でもNAS最新へfallbackしない。引数無しの旧NAS restore-point modeは維持。両modeとも既NAS mount/排他lockを維持し、通常modeがNAS控えを新規生成/削除することはない。NAS lockが使えなければ安全側失敗でcallerへ返す。実前版の証拠選択と新呼出しをhelperが他人の環境から探索しない。
+
+```mermaid
+flowchart LR
+  Previous[Molly: 世代別の実前版固定] --> Helper[runtime: exact rollback ID検査/既排他lock]
+  Helper --> Plan[削除前planをstdoutへflush]
+  Plan --> Delete[既選択/非force削除/参照再検査]
+  Delete --> Result[既個別結果と末尾完了行]
+  Plan --> Save[Molly: 同世代stdout/stderr/exit保存]
+  Result --> Save
+```
+
+保存済06:37実績はunknownのまま。新Host照会/cleanup再走/配備をこのsource修理から発行しない。
