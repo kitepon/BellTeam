@@ -66,9 +66,10 @@ class ConversationArtifact(unittest.TestCase):
 
     def test_literal_closure_missing_dependencies_are_rejected(self):
         _, _, required = contract('conversation')
-        self.assertEqual(len(required), 54)
+        self.assertEqual(len(required), 55)
         for omitted in ['payload/src/module-streams.mjs', 'payload/src/conversation/probe-fixture.json',
-                        'payload/src/conversation/dispatcher.mjs', 'payload/src/observer-check.mjs']:
+                        'payload/src/conversation/dispatcher.mjs', 'payload/src/observer-check.mjs',
+                        'payload/src/usage/web-push-schema.mjs']:
             manifest = copy.deepcopy(self.manifest)
             manifest['files'] = [row for row in manifest['files'] if row['path'] != omitted]
             with self.subTest(path=omitted), self.assertRaises(ValueError):
@@ -118,8 +119,12 @@ class ConversationArtifact(unittest.TestCase):
                 self.assertEqual(command[command.index('--signer-workflow')+1],'kitepon/BellTeam/.github/workflows/publish-conversation.yml')
                 self.assertEqual(kwargs['pass_fds'],(a.fileno(),b.fileno(),t.fileno()))
                 return subprocess.CompletedProcess(command,0,json.dumps([{'verificationResult':{'signature':{'certificate':{'sourceRepositoryIdentifier':'1404510084'}}}}]).encode(),b'')
-            with patch('subprocess.check_output',return_value='26\n'),patch('subprocess.run',side_effect=official):
+            with patch('subprocess.check_output',return_value='26\n'),patch('subprocess.run',side_effect=official), \
+                 patch('module_artifact_verifier.platform.machine',return_value='x86_64'):
                 self.assertEqual(authenticate(a,b,t,policy,expectation,component='conversation')['schema'],'bellteam.conversation.verification.v1')
+                with patch('module_artifact_verifier.platform.machine',return_value='aarch64'):
+                    with self.assertRaisesRegex(ValueError,'GATEWAY_ARCH_MISMATCH'):
+                        authenticate(a,b,t,policy,expectation,component='conversation')
             with patch('subprocess.check_output',return_value='26\n'),patch('subprocess.run') as call:
                 with self.assertRaises(ValueError):authenticate(a,b,t,policy_for('members'),expectation,component='conversation')
                 call.assert_not_called()
