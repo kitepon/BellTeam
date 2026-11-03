@@ -133,3 +133,23 @@ test('caller rejection still waits a separate real callback ACK and original ope
   assert.equal(held.release(), releasing)
   t.diagnostic(JSON.stringify({ scope: 'caller-error-after-actual-done', ...fixture.snapshot() }))
 })
+
+test('original accepted native survives the actual channel 60-second boundary then ends its real AppRuntime RPC', { timeout: 80_000 }, async t => {
+  const { fixture, runtime, children } = await setup(t)
+  const controller = runtime.services.conversationAssembly.controller, generation = controller.snapshot().generation
+  const held = await fixture.hold('ai'), before = held.snapshot(), began = performance.now(), pid = children[0].pid
+  assert.equal(before.rootResultSettled, false); assert.equal(before.rootRPCSettled, false)
+  await new Promise(resolve => setTimeout(resolve, 61_000))
+  const elapsed = performance.now() - began, retained = held.snapshot()
+  assert.ok(elapsed >= 60_000)
+  assert.equal(retained.rootResultSettled, false); assert.equal(retained.rootRPCSettled, false)
+  assert.equal(retained.originalOperationLive, true); assert.equal(retained.nativeDone, 0)
+  assert.equal(children.length, 1); assert.equal(children[0].pid, pid); assert.equal(children[0].exitCode, null)
+  assert.equal(controller.snapshot().generation, generation)
+  await held.release()
+  const ended = held.snapshot()
+  assert.equal(ended.rootResultSettled, true); assert.equal(ended.rootRPCSettled, true)
+  assert.equal(ended.originalOperationLive, false); assert.equal(ended.nativeDone, 1)
+  assert.equal(ended.sourceSends, 1); assert.equal(ended.nativeAborts, 0); assert.equal(ended.nativeStops, 0); assert.equal(ended.bodyResends, 0)
+  t.diagnostic(JSON.stringify({ scope: 'actual-AppRuntime-original-native61s', elapsedMilliseconds: elapsed, before, retained, ended }))
+})
