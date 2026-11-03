@@ -79,3 +79,21 @@ test('seat identity uses fresh read and separates confirmed absence from unavail
   await assert.rejects(resolveSeatBotId(request, bots), { status: 503 })
   assert.equal(await resolveSeatBotId({ headers: { 'x-bellteam-seat': '../forged' } }, bots), null)
 })
+
+test('removal and CLI queue read use closed methods with the same live effect context', async () => {
+  const admission = new MembersAdmission(), lease = admission.enter(), effect = Object.freeze({}), calls = []
+  const f = createMembersFacade({ admission, projection: {}, request: async (method, params, options) => {
+    calls.push(method); assert.equal(options.membersLease, lease)
+    return method === 'removals.read' ? { removals: [{ botId: bot.id, active: false, hasIntent: true, retired: true }] } : { id: params.botId }
+  }, callback: async (method, params, options) => {
+    calls.push(method); assert.equal(options.membersLease, lease); assert.equal(options.membersEffect, effect)
+    return { botIds: [bot.id] }
+  } })
+  assert.equal(await f.bots.hasPendingRemoval(bot.id, { membersLease: lease }), true)
+  assert.deepEqual(await f.bots.remove(bot.id, { membersLease: lease }), { id: bot.id })
+  const ticket = admission.close()
+  assert.deepEqual(await f.readCurrentBotIds({ membersLease: lease, membersEffect: effect }), [bot.id])
+  assert.deepEqual(calls, ['removals.read', 'profile.remove', 'profiles.cli'])
+  await assert.rejects(f.readCurrentBotIds(), { status: 503 })
+  admission.finish(lease); await admission.drain(ticket)
+})

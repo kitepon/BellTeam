@@ -287,3 +287,6 @@ flowchart LR
 ```
 
 application-servicesはschedulerへ同transport.membersAdmissionとadmitWork:()=>aiControl.admit()を明示注入する。Bot claim/skipはfacadeでownerKind bot/ownerIdへ写像し同contextを転送、Roomは同parent writerへ渡す。claim後の全体停止は発行0/消化巻戻し0。commandJobs/03時/長時間commandは同parent schedulerに保持する。新結合試験は実scheduler+facade+MembersAdmissionで同lease継続とclaim後停止を確認し、native/実IPC/実予定発行の証明にはしない。作者715a79の成功群は再走しない。
+
+
+削除とCLI実開始時のfresh読取：facade.removeは作者profile.removeへ同leaseを渡し、pending判定はremovals.readの明示receipt/intentだけを使う（失敗を不在にしない）。readCurrentBotIds(context)はprofiles.cli専用callbackであり、新rootに折り返さない。EpiのcreateMembersRuntimeEffectsへこの口を渡し、同唯一CLI Promise実開始時に最新botIdsから親固定projectを解決する。古いchild送信snapshotやCLI JSONを使わない。membersEffectの同一objectを保ちcallback creditも継承する。作者startMemberRemovalのstop引数位置衝突は本人へ修理依頼、未修理のまま通常採用しない。
