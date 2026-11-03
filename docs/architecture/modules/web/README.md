@@ -10,6 +10,8 @@
 flowchart LR
   Browser["index.html / app.js<br/>画面の起動だけ"] --> Application["application.createWebApp<br/>一覧・選択・viewの接続"]
   Application --> Views["各view<br/>編集 / 下書き / 履歴 / 画像"]
+  Application --> Updates["update-center<br/>ロゴ右入口・稼働版と更新計画の段階表示"]
+  Updates -->|"既公開の状態GETだけ / 未供給操作は無効"| Client
   Application --> Client["client.createWebClient<br/>JSON / 画像 / SSE"]
   Views -->|"api / fetchImage"| Client
   Client -->|"既公開HTTPだけ"| Integration["integration.HTTP/SSE"]
@@ -36,6 +38,7 @@ WebはHTTPとSSEだけを利用し、MCPを呼ばない。画面に表示する�
 - 各editor/Goal/補助view：開いた対象、入力、進行中の要求、最新観測、timerと局所URL。受付/保存と後続GET失敗を区別する。
 - 画像cache：取得Promiseと所有URL。破棄は生成者が行う。
 - localStorage：`bellteam-read-receipts.v1`の端末内既読だけ。サーバーの読了記録を作らない。
+- update-center：選択中の全体/個別対象、実測snapshot/読取世代、dialogと戻りfocus。正式版・計画未供給ではレビュー用と表示して実行無効。永続版情報や成功判定を作らない。
 
 APIの拒否や応答不明を未保存・未配送と断定しない。202は受付、Goal/nativeの実適用とAI回答完了は各サーバーの返す状態に従う。
 
@@ -59,6 +62,6 @@ node --test test/web-client.test.mjs test/web-module.test.mjs test/web-event-ref
 
 共有配信の直接境界は既存`http-server`の「HTMLへ起動単位」「Webアプリがimport」の2試験で確認する。全体試験を定型再走しない。
 
-## 設計中の更新通知
+## 更新センターの段階導入
 
-[商用コンテナ更新UI案](update-notice-design.md)は6機能に従う設計資料。APIや画面の実装・配布・本番反映は未着手で、本番/一般配布保留を維持する。
+[Update通知と更新センター](update-notice-design.md)はロゴ右の入口、本体/moduleの稼働版と説明、全体/個別計画、影響確認、実結果表示の正本。`update-center.js`が現行公開GETのWeb受付状態だけを検証して表示する。通知moduleと共通計画の未供給はレビュー用の未接続状態で示し、実行を無効にする。起動時は通信せず、初回open/ready/updates/表示復帰/手動再取得で読む。破棄後や古いreadは適用しない。Webは版比較や更新実行の正本を持たず、既HTTP/SSEを使う。新部品はassetsの配信/版置換登録へ含めた。動作試験は`test/web-update-center.test.mjs`、既組立てとSSE境界は従来のWeb試験を使用する。

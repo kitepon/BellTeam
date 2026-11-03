@@ -1,6 +1,6 @@
-# 商用コンテナの更新表示・操作案
+# Update通知の表示・操作設計
 
-状態：設計案。API形式/実行主体の合意前で、新機能のコードは実装しない。入力はトロニーの[6機能定義](/srv/bellteam/bots/bot-7b140b27/docs/commercial-container-update-functions-20261102.md)。Webの[現行図](README.md)、[runtime](../runtime/README.md)、[distribution](../distribution/README.md)、[Apple](../apple/README.md)へ接続する。更新状態の比較・実行結果はサーバーが所有し、WebとAppleは同じ結果を表示する。[runtimeの設計案](/srv/bellteam/bots/bot-0b867848/work/BellTeam-runtime-20261102/docs/architecture/modules/runtime/commercial-update-design.md)の状態分離と受付保存を使用する。
+状態：2026-11-03にWeb担当が継続を引受、レビュー画面と既GETの実測表示を実装。共通計画/実行は未接続。既Ownerの実装許可を維持し、APIの供給範囲から継続する。入力はトロニーの[6機能定義](/srv/bellteam/bots/bot-7b140b27/docs/commercial-container-update-functions-20261102.md)、[継続工程](/srv/bellteam/bots/bot-7b140b27/docs/module-expansion-20261103.md)、[通知module契約](/srv/bellteam/bots/bot-7b140b27/docs/notification-update-contract-20261103.md)、[確定共通API](/srv/bellteam/bots/bot-7b140b27/docs/update-center-api-20261103.md)。Webの[現行図](README.md)、[runtime](../runtime/README.md)、[distribution](../distribution/README.md)、[Apple](../apple/README.md)へ接続する。公開版・比較・実行結果は本体が所有する。[runtime設計](../runtime/commercial-update-design.md)の状態分離を維持する。横断契約はRoot、共通組立て/APIはMolly、機構はEpi、正式公開版はCentiが持つ。
 
 ## 6機能との対応
 
@@ -15,17 +15,64 @@
 
 ## 通知と操作
 
-現行Webの`roster-title`にあるBellTeam表記をブランド表示として整理し、その右へ文字付きbuttonを置く。Ownerのアバター設定buttonとは分ける。Home/サイドバーではロゴ右を維持する。狭い幅の会話中・サイドバー非表示では、共通位置へロゴと通知を残す案と、更新時だけナビバー下へ細帯を出すApple案を検討する。後者はOwnerのロゴ右指定を変える代替案なので、採用済みと扱わない。通知が隠れる配置の解決は未確定とする。
+現行Webの`.roster-title .eyebrow`にあるBellTeam表記をロゴとして保ち、同じ行の直後へ文字付き`Update` buttonを置く。`#owner-profile-button`はOwnerの設定/画像であり、別の機能として保つ。780px以下の会話中はchat header内にロゴ＋Updateの一行を設け、戻る操作・会話名・既ツールを保つ。両配置は同じ状態と詳細画面を使い、表示中の入口だけをfocus/読み上げ対象にする。会話中もロゴ右を保ち、細帯だけの代替配置にはしない。
 
-文言はApp Storeのアプリ更新と区別し「BellTeam本体の更新あり」とする。進行/失敗/確認不能も本体の更新と分かる表示にする。色に加えて文字で示し、キーボードで開ける名前を付ける。
+Updateは共通状態の更新あり/進行/失敗/確認不能を文字で区別する。複数対象がある場合の代表状態も本体から受ける。色だけに頼らず、キーボードで開ける名前を付ける。通知表示だけでは更新を発行しない。
 
-開いた詳細には接続先、現在稼働版、正式公開版、選択した更新先、変更内容、状態の取得時点と現在の進行を表示する。更新前に「全Botの会話・処理が一時中断する」と説明し、利用者が対象版を確認した実行buttonから一回要求する。詳細を開く行為や通知表示では停止・更新を発行しない。
+詳細は製品全体を一望する更新センターとし、本体/各moduleの稼働版と一文の説明を並べる。「全体更新」と個別moduleを選べるようにする。全体更新は本体が返す互換性確認済みの計画を使い、不要な外箱更新を伴わせない。接続先、対象名、現在稼働版、正式公開された更新先、変更内容、対象と影響、取得時点と進行/実結果/稼働確認を表示する。最終操作は選択した計画と版を固定する。コンテナ入替/再起動が必要な計画に限り、確定前に影響警告と利用者の確認を要する。影響は本体から受け、名称や版から推測しない。対象や影響が不明なら理由を表示して実行を無効にする。入力は[Owner確定要件](/srv/bellteam/bots/bot-7b140b27/docs/update-center-20261103.md)。
+
+| 対象 | 更新前に示す影響 | 更新成功と分ける状態 |
+| --- | --- | --- |
+| Web/API公開受付module | 公開HTTP/SSEの一時切断。親の会話/AI実行は継続する契約 | ブラウザーの復帰、新資材の表示確認。交換だけで全業務の独立更新とはしない |
+| 通知module | 通知の一時利用不可。端末登録/設定適用は交換中に拒否され得る。会話保存/AI実行は継続 | module自体の稼働と通知providerの設定/利用可否。交換成功をAPNs実配送成功にしない |
+| 外箱 | 全Botの会話・処理の一時中断を明示 | 本体再接続と固定対象版/配布物の稼働確認 |
+
+初回の通知module基盤をimageへ導入する全体更新は外箱の影響で扱う。通常module更新へ全Bot中断の定型文を付けない。dialogは名前、戻りfocus、キーボード操作を既UIの方式で用意する。
 
 要求時の接続先と更新先を固定する。通信中の二重クリックを抑え、受付後に公開版が変わっても対象を変更しない。受付応答不明なら「受付を確認できません」とし、再POSTせず共通状態を読む。受付後の状態読取で502/接続断となった時は「再接続後に結果を確認」と示し、成功/失敗を推測しない。受付応答を確認できていない場合は「受付を確認できません」を維持する。接続したサーバーが固定対象の版・配布物と正常稼働を確認した時だけ「更新完了」にする。installerの終了0は実行終了として表示し、稼働確認前に完了へ進めない。
 
 ## 必要な公開入出力（候補）
 
-URLや新ID体系はここで決めない。既存公開HTTPとSSEの接続を使い、正確なschemaと通知topicは本体担当と合意してから固定する。
+### 11/3 読取基準と実装への接続
+
+読取基準はRoot固定source `03c952bf33b58b4eff322a8514f5448336c1a5be`。以前のWeb採用版`80f067de`からWeb source/担当文書の差はない。現行の画面にUpdateはなく、この文書が既保存案の正本。以下は現物と未供給を分けた記録である。
+
+| 窓口 | 基準sourceでの供給 | 不足 |
+| --- | --- | --- |
+| GET/POST `/api/web-gateway-release` | GETは`{webGatewayRelease:{currentVersionId,update}}`。updateはnull又は`{versionId,status,error?}`、statusはaccepted/running/succeeded/failed/not_started。POSTは`{versionId:<SHA64>}`だけ、202 finish後開始、内部403/競合409/未提供503 | 正式公開版・比較・影響・変更内容・sourceに結んだ内蔵版表示・観測時点。交換成功を正式公開版ありに流用しない |
+| GET/POST `/api/notifications-release` | Root契約には存在。基準sourceでは未実装 | 正確なGET field/state、利用可否と稼働の区別、builtin選択拡張、実装SHA/有限応答例 |
+| 共通更新状態/全体計画/外箱更新 | 設計要件だけ。Webは未呼出 | 現在版と正式版catalog、互換計画、受付/結果、停止跨ぎ保存と相関、変更通知topic |
+
+必要fieldは次の意味でRoot/Mollyへ渡す。名前は提案であり、確定schemaや提供済みAPIではない。
+
+| field案 | 意味と供給元 |
+| --- | --- |
+| `schema/server/observedAt/notice` | 形式、接続先の既識別、タイムゾーン付き観測時点、複数対象をまとめる共通表示状態。Molly/Root。時刻表示はJST |
+| `components[]:{id,name,description,current}` | 本体/固定moduleの名称・一文説明・実稼働版/source/digest、内蔵版も実在image/sourceへ束縛。Molly/Epi/各担当 |
+| `published/comparison/changes` | 正式公開版・不変資材・変更本文、更新あり/なし/公開なし/取得失敗/比較不能の共通判定。Centi→本体。未公開CI候補を除く |
+| `plans[]:{target,versions,compatibility,impact,capability}` | 全体/個別の互換計画、固定対象と版、実際のコンテナ再起動要否と影響、実行可否/未提供理由。Epi/Centi→Molly |
+| `operation:{target,admission,phase,execution,verification}` | 受付済み/未受付/不明、引渡し/準備/交換/起動、実結果、実稼働未確認/一致/不一致/確認不能を分離。現在/直前結果と既相関の共通読取。Epi→Molly |
+| `availability/reason` | module自体のreadyと通知providerの設定/利用可否を分離。Mika/Epi→Molly |
+
+必要操作は、(1)共通状態GETの正式URL/全state/null/応答例、(2)互換性を確認した全体/個別計画の選択と対象版固定受付、(3)コンテナ再起動計画の明示確認、(4)再接続後の実結果GET、(5)変更時だけのSSE再読取topic。POSTの競合/拒否/受付不明を区別し、Webで新しいID/任意path/汎用dispatcherを作らない。更新はアプリの認可済み操作で完結し、AIの会話やSSH手順へ渡さない。
+
+### Web内部の実装図
+
+```mermaid
+flowchart LR
+  Logo["BellTeamロゴ右 Update<br/>一覧と狭幅の会話header"] --> Center["update-center: 更新センター<br/>本体/module一覧・全体/個別選択・詳細"]
+  Application["application: 起動/ready/表示復帰/破棄"] --> Center
+  Center -->|"既client.api"| HTTP["integration: 認証済み公開HTTP"]
+  HTTP -->|"実稼働版・正式版・計画・結果"| Center
+  Center -->|"実際に再起動を要する計画だけ確認"| Confirm["対象版を固定して明示実行"]
+  Confirm -->|"供給された公開操作だけ"| HTTP
+  Missing["未供給の共通計画/操作"] --> Review["レビュー用・未接続を明記<br/>版/進捗/成功を捏造せず実行無効"]
+  Review --> Center
+```
+
+所有するのは表示cache、選択、読取世代、dialog/確認の局所状態、実行中の固定値。正本の更新判定・互換・版・結果は本体。初回画面は実在GETの稼働観測と未接続のレビュー表示で構築できる。正式APIが届くまで仮backend/架空version/偽の成功は作らない。新部品のstatic登録と版置換をWebのassets正本へ含める。公開接続は既HTTP/SSE内のためmodule.jsonの変更不要。
+
+RootがURLと要求相関を固定した。GET `/api/updates`、POST `/api/updates/plans`（scope=all/component、componentId）、POST `/api/updates/operations`（planId/requestId UUID/confirmContainerRestart）、GET `/api/updates/operations/:requestId`、既SSEのtype=updatesを使う。正確なfield/null/有限例と実装SHAはMollyが一か所で供給する。提供済みとは扱わず、それまで実行は無効。Webで別の相関方式や仮backendを作らない。
 
 | 窓口 | Webが必要とする情報 | 提供する担当への確認 |
 | --- | --- | --- |
@@ -58,7 +105,7 @@ flowchart TD
 
 受付保存は本体、実行の進行/結果は本体外の一回実行が別の結果文書を所有するruntime案へ接続する。Webは複数writerの私有ファイルを直接読まず、本体の共通状態だけを表示する。受付保存済みでも、実行への引渡し未確認・開始失敗・開始したか不明を「更新中」へまとめない。結果が確認できないまま無期限に処理中の表示を続けず、確認不能として示す。
 
-受付は応答前に固定対象を永続化する案を前提とし、状態GETで同一サーバーの現在/直前の受付対象と結果を全アプリが確認する。ただし同じ版・対象の受付を発見したことだけでは、応答を失った個別要求と同一とは断定できない。要求に結び付けられなければ、共通の進行は表示しつつ自分の操作は確認不能のままにする。相関を推測して再POSTしたり、Webで新しいID体系を作ったりしない。
+Root共通APIは応答前に固定対象を永続化し、利用者の一回の実行操作にrequestId UUIDを一つ割り当てる。応答喪失/再接続後は同じrequestIdのGETで照会し、自動再POSTしない。共通snapshotの現在/直前結果も各アプリから読む。同じ版だけで自分の要求に結び付けず、照会不能は確認不能のままにする。requestIdの保存範囲/更新後の再読取はMolly/Epiの実装に合わせる。
 
 この図は設計中の表示・実行条件を明記するもので、現行のmodule.jsonへ未実装接続を追加しない。全体の現行図は変更不要。
 
@@ -68,7 +115,7 @@ Appleの現在資料は[iOS README](../../../../ios/BellBot/README.md)と[iPad�
 
 | 条件 | 共通の表示・操作案 |
 | --- | --- |
-| 新アプリから旧サーバーへ接続し、更新機能の読取が404 | 更新機能なしとして非表示。認証失敗や未知state/不正応答を404相当にしない |
+| 新アプリから旧サーバーへ接続し、更新機能の読取が404 | 完成版の更新あり通知は出さない。現在の段階導入はOwner指定のレビュー用入口を残して未接続を明記。認証失敗や未知stateを404相当にしない |
 | 未知のstate、形式が解釈できない | 確認不能として表示。既知の成功や更新なしへ変換しない |
 | 状態の変更通知 | 変更時だけSSEで再取得を促す。旧アプリは未知通知で全再読込するため、定期通知や同じ状態の反復送信を追加しない |
 | POSTの通信/デコード/不正応答/5xx | 受付不明とし再POSTしない。共通状態をGET一回で確認。Appleの既存operationResultUnconfirmed分類に合わせ、Webはfetch/JSON/返却値の不明を対応させる |
@@ -83,18 +130,18 @@ Appleの現在資料は[iOS README](../../../../ios/BellBot/README.md)と[iPad�
 
 ## 設計後の検証項目
 
-古い公開版/候補/取得不能を更新ありにしない。固定した版で受付する。別アプリから操作した進行を同じように示す。二重クリック、POST応答喪失、更新中のSSE切断、旧版への再接続、対象版起動後の未確認/失敗、非商用、実行経路未提供、公開版なし、取得失敗、比較不能、同じ対象でも要求との相関が不明な場合、旧サーバー404、未知state、5xx/不正なPOST応答、復帰時の一回読取、接続先切替後の遅い応答を人工APIで検証する。色に頼らない表示、狭い画面/会話中の常設位置、focusと読み上げをブラウザーで確認する。実装承認前にこれらのテストやUIコードは追加しない。
+古い公開版/候補/取得不能を更新ありにしない。固定した版で受付する。別アプリから操作した進行を同じように示す。二重クリック、POST応答喪失、SSE切断、旧版への再接続、対象版起動後の未確認/失敗、公開版なし/取得失敗/比較不能、旧404、未知state、復帰、古い応答を人工APIで確認する。新部品3+既Web組立/通信/SSE/所有17の計20試験成功。実ブラウザーは1440×1100と390×844、会話中のロゴ右入口、未接続表示、実行無効、横overflowなし、Escape/戻りfocus、JS例外0、mutation0を確認。画面検証用HTTPは静的資材とAPI404だけで、架空版や成功を返すbackendを作っていない。共通API/実更新との結合は供給後の残工程。
 
 ## 未合意事項と次の受け渡し
 
 | 項目 | 判断・実行の担当 | 次に揃える情報 / 完了条件 |
 | --- | --- | --- |
-| 会話中の通知位置 | Webはアドミ、Appleはベル。ロゴ右指定の変更はOwner | Webは狭い画面でもロゴと右側の通知を保つ案を維持。Appleの細帯は代替案のまま、指定変更として採用しない |
-| 公開状態の形式 | runtimeはエピネル、共通公開契約はトロニー、Web/Appleは利用側 | stateの固定文字列と各軸の対応、ISO8601の取得時点、変更内容plain text案の採否を一つの公開契約へ固定する |
+| 会話中の通知位置 | Webはアドミ、Appleはベル | Webは狭幅chat headerのロゴ右を実装/確認済み。Appleの配置変更をWebで裁定しない |
+| 公開状態の形式 | 共通契約Root、実装Molly、Web/Appleは利用側 | Root API契約でschema/state/URL/SSEを固定。Mollyの厳密schema/finite JSON/null例/採用SHAの供給から実接続 |
 | 停止を跨ぐ実行経路 | エピネル、配布構成はセンチ、契約接続はトロニー | 本体外の既存一回実行への引渡しと起動の可否を確定。提供可能と確認されるまで実行不可 |
 | 受付保存と結果の相関 | エピネル、契約接続はトロニー | 永続する保存世代、writer/権限、要求との相関、再接続後の共通結果読取を確定。結び付け不能をWebで補完しない |
 | 正式版と配布物、審査環境の区分 | センチ | 正式公開版・不変の配布物・変更内容の元情報、審査環境の商用/非商用区分と更新提供範囲。現時点で合意未成立 |
 
-初回Web分離はPR254からmain `84d3b1047350ff090e1a79cb67751a28113089c8`へ統合済み。最終PR head `637d9a362162bff21ba76ef9b009ee047603b887`とmerge treeは同一。本番/一般配布/更新UI実装は未成立。
+今回のWeb画面は担当checkoutの差分で、通常main採用/本番反映は未成立。過去の分離mainや既配備を今回の実更新完了へ読み替えない。Rootの最新本番裁定を使う。
 
 この表は担当へ既に渡した設計案の残りを示す。回答を重複依頼しない。センチへの配送未達はトロニーと実行担当の正規復帰確認を受けて扱い、無条件再送しない。Appleとの連絡はトロニーの既通話中継を使い、Web担当が他者の通話を操作しない。未合意の配置や権限をWeb側で補完しない。

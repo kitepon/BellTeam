@@ -9,6 +9,7 @@ function fixture(type = 'bot', id = 'bot-a') {
   const requests = [], refreshed = []
   const state = { selectedType: type, selected: id ? { id } : null }
   const context = vm.createContext({ state, ownerDialog: { open: true },
+    updateCenter: { refresh: () => refreshed.push('updates') },
     ownerEditor: { refreshAI: () => refreshed.push('ai-control'), refreshFeatureStatus() {} }, goals: { refreshOnEvent: () => refreshed.push('goals') },
     loadBots: async () => requests.push('/api/bots', '/api/rooms', '/api/owner'),
     loadMessages: async () => requests.push(type === 'room' ? `/api/rooms/${id}/messages` : `/api/bots/${id}/messages`),
@@ -50,12 +51,14 @@ test('ready・全体・未知・対象不足では履歴を再照合し、設定
   await f.run({ type: 'setup', all: true })
   assert.ok(f.refreshed.includes('settings'))
   assert.ok(f.refreshed.includes('ai-control'))
+  assert.ok(f.refreshed.includes('updates'))
   assert.ok(f.requests.includes('/api/setup'))
 })
 
 test('表示取得の失敗をSSE接続の失敗として伝播しない', async () => {
   const notices = []
   const context = vm.createContext({ state: { selectedType: 'bot', selected: { id: 'a' } }, ownerDialog: { open: false },
+    updateCenter: { refresh() {} },
     goals: { refreshOnEvent() {} }, loadBots: async () => { throw new TypeError('GET failed') }, loadMessages: async () => {},
     conversationComposer: { showError: message => notices.push(message) },
   })
@@ -63,4 +66,12 @@ test('表示取得の失敗をSSE接続の失敗として伝播しない', async
   await context.refreshFromEvent({ all: true })
   assert.equal(notices.length, 1)
   assert.match(notices[0], /表示を更新できません/)
+})
+
+test('updates changes refresh the update view; unrelated conversation changes do not', async () => {
+  const f = fixture()
+  await f.run(event(['other']))
+  assert.ok(!f.refreshed.includes('updates'))
+  await f.run({ type: 'updates' })
+  assert.ok(f.refreshed.includes('updates'))
 })

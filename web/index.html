@@ -31,7 +31,7 @@
         </div>
       </header>
       <section class="roster-title">
-        <p class="eyebrow">BellTeam</p>
+        <div class="update-brand"><p class="eyebrow">BellTeam</p><button id="update-open" class="update-entry" type="button" aria-label="Update 更新センターを開く">Update <span aria-hidden="true">↗</span></button></div>
         <h1>メンバー</h1>
       </section>
       <div class="bot-list" id="bot-list" aria-live="polite"></div>
@@ -40,6 +40,7 @@
 
     <section class="chat empty" id="chat">
       <header class="chat-header">
+        <div class="update-brand update-brand-mobile"><span class="eyebrow">BellTeam</span><button id="update-open-mobile" class="update-entry" type="button" aria-label="Update 更新センターを開く">Update <span aria-hidden="true">↗</span></button></div>
         <button class="circle-button back-button" id="back-button" type="button" aria-label="一覧へ戻る">
           <svg viewBox="0 0 24 24"><path d="m15 4-8 8 8 8"/></svg>
         </button>
@@ -339,5 +340,21 @@
   </dialog>
 
   <script type="module" src="/app.js?v=__ASSET_VERSION__"></script>
+  <dialog id="update-center" class="update-center" aria-labelledby="update-center-title">
+    <header class="update-topbar">
+      <span class="update-product">BellTeam <span> / Update</span></span>
+      <button data-update-close class="update-close" type="button" aria-label="更新センターを閉じる">閉じる <span aria-hidden="true">×</span></button>
+    </header>
+    <div class="update-heading">
+      <div><p class="update-kicker">YOUR WORKSPACE, UP TO DATE</p><h2 id="update-center-title">BellTeamを、最新に。</h2><p>更新する機能と影響を、一つの画面で。</p></div>
+      <div class="update-heading-mark" aria-hidden="true">↗</div>
+    </div>
+    <div class="update-toolbar"><p data-update-notice role="status" aria-live="polite"></p><button data-update-refresh type="button">状態を再取得 <span aria-hidden="true">↻</span></button></div>
+    <div class="update-layout">
+      <nav class="update-sidebar" aria-label="更新する対象"><div class="update-section-label">製品と機能<span data-update-observed></span></div><div data-update-components></div><p class="update-sidebar-note">現在版は実稼働の情報です。更新の受付やダウンロードだけでは変わりません。</p></nav>
+      <section class="update-detail" data-update-detail aria-label="選択した更新の詳細"></section>
+    </div>
+    <footer class="update-footer"><span class="update-footer-dot" aria-hidden="true"></span>接続が切れた場合も、再接続後の版と実際の結果を確認します。</footer>
+  </dialog>
 </body>
 </html>

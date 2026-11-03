@@ -14,12 +14,15 @@ import { hasUnreadConversation, newestByRecent } from './activity-order.js?v=__A
 import { requestMemberStop } from './member-stop.js?v=__ASSET_VERSION__'
 import { createWebClient } from './client.js?v=__ASSET_VERSION__'
 import { goalsView } from './goals.js?v=__ASSET_VERSION__'
+import { createUpdateCenter } from './update-center.js?v=__ASSET_VERSION__'
 
 export function createWebApp({ client = createWebClient() } = {}) {
   const { api, fetchImage, watchEvents } = client
   const READ_RECEIPTS_KEY = 'bellteam-read-receipts.v1'
 
   const app = document.querySelector('#app')
+  const updateCenter = createUpdateCenter({ root: document.querySelector('#update-center'), api,
+    buttons: [document.querySelector('#update-open'), document.querySelector('#update-open-mobile')] })
   const goals = goalsView(document.querySelector('#goals-dialog'), api, () => state.bots, document.querySelector('#chat-goal'))
   document.querySelector('#goals-button').addEventListener('click', () => { void goals.open() })
   const botList = document.querySelector('#bot-list')
@@ -72,7 +75,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   const messageImages = createMessageImageCache(fetchImage)
   window.addEventListener('pagehide', event => {
-    if (!event.persisted) { state.stopEvents?.(); messageImages.close() }
+    if (!event.persisted) { state.stopEvents?.(); messageImages.close(); updateCenter.close() }
   })
 
   const conversationComposer = createConversationComposer({
@@ -161,6 +164,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   document.querySelector('#back-button').addEventListener('click', () => app.classList.remove('chat-open'))
   ownerProfileButton.addEventListener('click', openOwnerDialog)
   document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) void updateCenter.refresh()
     if (!document.hidden && document.querySelector('#goals-dialog').open) void goals.refresh()
     else if (!document.hidden) void goals.refreshSelected()
   })
@@ -563,6 +567,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   }
 
   async function refreshFromEvent(payload) {
+    if (payload.all || payload.type === 'ready' || payload.type === 'updates') void updateCenter.refresh()
     try {
       if (payload.type === 'ai-control' && ownerDialog.open) void ownerEditor.refreshAI()
       if (payload.type === 'settings') {
