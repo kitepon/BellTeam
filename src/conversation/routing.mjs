@@ -5,7 +5,8 @@ function state(value, credential = false) {
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || Object.keys(value).length !== keys.length || keys.some(key => !Object.hasOwn(value, key))
     || typeof value.enabled !== 'boolean' || !Number.isSafeInteger(value.epoch) || value.epoch < 0
-    || credential && !(value.apiKey === null || typeof value.apiKey === 'string' && value.apiKey.length > 0))
+    || credential && (!(value.apiKey === null || typeof value.apiKey === 'string' && value.apiKey.length > 0)
+      || !value.enabled && value.apiKey !== null))
     throw failure('CONVERSATION_ROUTING_INPUT_INVALID')
 }
 

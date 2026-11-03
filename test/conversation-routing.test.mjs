@@ -64,6 +64,8 @@ test('unconfigured state is usable without HTTP, while extra settings and arbitr
   })
   const invalid = new ConversationRouting({ read: async () => ({ enabled: true, epoch: 1, apiKey: 'secret', extraProvider: 'not allowed' }) })
   await assert.rejects(invalid.withRouting({}, () => {}), { code: 'CONVERSATION_ROUTING_INPUT_INVALID' })
+  const disabledKey = new ConversationRouting({ read: async () => ({ enabled: false, epoch: 1, apiKey: 'secret' }) })
+  await assert.rejects(disabledKey.withRouting({}, () => assert.fail('disabled credential')), { code: 'CONVERSATION_ROUTING_INPUT_INVALID' })
   const active = new ConversationRouting({ read: async () => ({ enabled: true, epoch: 1, apiKey: 'secret' }) })
   await active.withRouting({}, async configuration => {
     assert.throws(() => configuration.fetcher('https://other.invalid', {}), { code: 'CONVERSATION_ROUTING_ENDPOINT_INVALID' })
