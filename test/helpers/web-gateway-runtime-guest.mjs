@@ -22,9 +22,12 @@ if (mode === 'initialize') {
     await mkdir(path, { recursive: true }); await chown(path, 1001, 1001); await chmod(path, 0o700)
   }
   await chown('/private', 0, 1001); await chmod('/private', 0o750)
-  for (const part of ['data', 'home']) {
+  // Nested mounts otherwise leave root-owned shared/tools before the synthetic bootstrap.
+  for (const part of ['data', 'home', 'data/shared', 'data/shared/tools']) {
     const path = '/fixture-runtime/' + part
     await mkdir(path, { recursive: true }); await chown(path, 1001, 1001); await chmod(path, 0o755)
+    const info = await stat(path)
+    assert.equal(info.uid, 1001); assert.equal(info.gid, 1001); assert.equal(info.mode & 0o777, 0o755)
   }
   console.log(JSON.stringify({ initialized: true, syntheticDataOwner: 1001, privateOwner: '0:1001/0750' }))
 } else if (mode === 'status') {

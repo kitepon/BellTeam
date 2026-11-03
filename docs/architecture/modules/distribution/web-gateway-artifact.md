@@ -46,7 +46,8 @@ Epiのonline installerは第三shell案をやめ、既install.sh早期modeへ直
 
 ```mermaid
 flowchart LR
-  Image[a1fe既auto candidate / exact immutable image] --> Normal[実server-start admission / fixture supervisorのみRO差替]
+  Init[fixture data/shared/toolsをUID1001で先に作る] --> Normal[実server-start admission / fixture supervisorのみRO差替]
+  Image[a1fe既auto candidate / exact immutable image] --> Normal
   A[9573既署名A] --> Installer[image原本install.sh専用入口]
   B[a1fe一回署名B] --> Installer
   Normal -->|実CID/image/readonly/mount| Installer
@@ -63,3 +64,5 @@ flowchart LR
 callerは`.github/workflows/verify-web-gateway-image.yml`→`test/helpers/web-gateway-real-boundary.py`→imageの既install.sh。guestは`test/helpers/web-gateway-runtime-guest.mjs`で、supervisorだけを置換し全業務bootstrapを合成する。roothelper/installer/verifier/reader/application-runtime/API/gatewayはimage実bytes。実署名/実rootと空Bot/合成client/人工業務processを区別する。通常起動全体・Owner実認証・実AI保持・Host/本番の保証へ拡張しない。
 
 Aは9573/run41545179742、Bはmain a1feから新しく一回だけ作る有効署名版。fixture source採否後かつCI sourceをmainへ統合する前にB生成する。CIはA/B runの成功/attempt1/source/署名workflowとAPI ZIP SHA-sizeを検査し、同a1fe auto run41548170408のindex artifactに一致するimageだけpullする。追加build・署名A再発行・Release/promotionを持たない。
+
+有限CI初回run41552323889は両archともfixture bootstrapのshared/memory作成でEACCESとなり、A配置前に停止した。fixtureは空dataのshared/tools中間dirをnested volume mountより前にUID1001/0755で作り、UID/GID/modeをassertする。Dockerに中間dir生成を任せず、private root 0:1001/0750と実image/helper/readerの所有・mode拒否は変更しない。両cleanup残存0と失敗原本を保持し、同runの無変更再走はしない。
