@@ -24,9 +24,9 @@ ENTRY = Path('/usr/local/libexec/bellteam-members-start')
 NODE = Path('/usr/local/bin/node')
 
 
-def clean_runner():
+def clean_runner(entry=ENTRY):
     require(os.geteuid() == 0, 'MEMBERS_PROBE_ROOT_REQUIRED')
-    for path in [APP, PRIVATE, STATE, HOME, ENTRY]:
+    for path in [APP, PRIVATE, STATE, HOME, entry]:
         require(not path.exists() and not path.is_symlink(), 'MEMBERS_PROBE_REQUIRES_CLEAN_RUNNER')
 
 
@@ -50,11 +50,21 @@ def seed_members_state(created):
     create_fixture_file(owner / 'user-rules.md', '', created)
 
 
-def stage_parent_probe():
-    directory = APP / 'scripts'
+def stage_parent_probe(component='members', created=None):
+    parent = APP
+    if component in ('usage', 'diagnostics'):
+        # Parent-only probe helpers cannot make a missing child dependency resolve from /app.
+        parent = Path(tempfile.mkdtemp(prefix=component + '-probe-parent-'))
+        created.append(parent)
+        shutil.copytree(APP, parent, dirs_exist_ok=True)
+        for name in ['src/notifications-ipc.mjs', 'src/notifications-locks.mjs',
+                     'src/usage/web-push-schema.mjs', 'src/members-admission.mjs']:
+            target = parent / name; target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / name, target)
+    directory = parent / 'scripts'
     directory.mkdir(exist_ok=True)
-    probe = directory / 'probe-members-runtime.mjs'
-    shutil.copyfile(ROOT / 'scripts/probe-members-runtime.mjs', probe)
+    probe = directory / f'probe-{component}-runtime.mjs'
+    shutil.copyfile(ROOT / f'scripts/probe-{component}-runtime.mjs', probe)
     return probe
 
 
@@ -63,17 +73,19 @@ def private_mount_namespace():
             'MEMBERS_PROBE_PRIVATE_MOUNT_NAMESPACE_REQUIRED')
 
 
-def main():
+def main(component='members'):
+    require(component in ('members', 'usage', 'diagnostics'), 'MODULE_PROBE_COMPONENT_INVALID')
+    entry = Path('/usr/local/libexec/bellteam-' + component + '-start')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('archive', type=Path)
     parser.add_argument('node', type=Path)
     args = parser.parse_args()
-    clean_runner()
+    clean_runner(entry)
     archive = args.archive.resolve()
     arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
     require(platform.system() == 'Linux' and arch is not None, 'MEMBERS_PROBE_NATIVE_RUNNER_REQUIRED')
     with archive.open('rb') as stream:
-        manifest, _ = check_archive(stream, arch=arch, component='members')
+        manifest, _ = check_archive(stream, arch=arch, component=component)
     node = args.node.resolve(strict=True)
     require(subprocess.check_output([str(node), '-p', 'process.versions.node.split(".")[0]'], text=True).strip() == '26')
     created = []
@@ -87,22 +99,31 @@ def main():
                 node_mounted = True
         else:
             shutil.copyfile(node, NODE); created.append(NODE); NODE.chmod(0o755)
-        if not ENTRY.parent.exists():
-            ENTRY.parent.mkdir(); created.append(ENTRY.parent)
-        subprocess.run(['cc', '-O2', '-Wall', '-Wextra', '-Werror', str(ROOT / 'scripts/members-start.c'), '-o', str(ENTRY)], check=True)
-        created.append(ENTRY); ENTRY.chmod(0o755)
+        if not entry.parent.exists():
+            entry.parent.mkdir(); created.append(entry.parent)
+        subprocess.run(['cc', '-O2', '-Wall', '-Wextra', '-Werror', str(ROOT / f'scripts/{component}-start.c'), '-o', str(entry)], check=True)
+        created.append(entry); entry.chmod(0o755)
         with tempfile.TemporaryDirectory(prefix='members-unsigned-probe-') as staging:
             with tarfile.open(archive, 'r:gz') as tar:
                 tar.extractall(staging, filter='data')
             created.append(APP)
             shutil.copytree(Path(staging) / 'payload', APP)
-        probe = stage_parent_probe()
+        probe = stage_parent_probe(component, created)
         for path in sorted(APP.rglob('*'), reverse=True):
             path.chmod(0o555 if path.is_dir() else 0o444)
         APP.chmod(0o555)
         for path, uid, mode in [(PRIVATE, 0, 0o750), (STATE, 0, 0o755), (HOME, 1001, 0o700)]:
             create_directory(path, uid, 1001, mode, created)
-        seed_members_state(created)
+        if component == 'members':
+            seed_members_state(created)
+        else:
+            for part in ['state', 'logs']:
+                create_directory(STATE / part, 1001, 1001, 0o700, created)
+            if component == 'usage':
+                for part in ['shared', 'shared/tools']:
+                    create_directory(STATE / part, 0, 1001, 0o755, created)
+                for part in ['shared/tools/bellteam-settings', 'shared/tools/apns']:
+                    create_directory(STATE / part, 1001, 1001, 0o700, created)
         process = subprocess.Popen([str(NODE), str(probe)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True,
             env={'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': '/tmp'})
@@ -117,8 +138,10 @@ def main():
         (archive.parent / 'entry-probe.stdout.log').write_text(stdout)
         (archive.parent / 'entry-probe.stderr.log').write_text(stderr)
         require(process.returncode == 0, 'MEMBERS_ENTRY_PROBE_FAILED')
-        require(json.loads(stdout) == dict(schema='bellteam.members.runtime-probe.v1', ok=True,
-                uid=1001, protocolVersion=1, stateCompatibility=manifest['runtime']['stateCompatibility'], childClosed=True), 'MEMBERS_PROBE_RECEIPT_INVALID')
+        expected = dict(schema=f'bellteam.{component}.runtime-probe.v1', ok=True,
+            uid=1001, protocolVersion=1, stateCompatibility=manifest['runtime']['stateCompatibility'], childClosed=True)
+        if component == 'usage': expected.update(nativeAuth=False, externalEffects=0)
+        require(json.loads(stdout) == expected, 'MEMBERS_PROBE_RECEIPT_INVALID')
         result = dict(sourceCommit=manifest['sourceCommit'], architecture=manifest['runtime']['arch'],
                       entry=manifest['entry'], unsignedBuiltinOnly=True, installationCreated=False,
                       realAi=False, realSeats=False, realSchedules=False, fixedCEntry=True, processExit=process.returncode)

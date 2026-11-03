@@ -6,6 +6,9 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import test from 'node:test'
 import { notificationsInstallPlan } from '../src/notifications-install-plan.mjs'
+import { usageInstallPlan } from '../src/usage-install-plan.mjs'
+import { diagnosticsInstallPlan } from '../src/diagnostics-install-plan.mjs'
+import { memoryInstallPlan } from '../src/memory-install-plan.mjs'
 import { membersInstallPlan } from '../src/members-install-plan.mjs'
 import { webGatewayInstallPlan } from '../src/web-gateway-install-plan.mjs'
 const execute = promisify(execFile)
@@ -108,4 +111,38 @@ test('notification install reuses exact mount checks but selects only its fixed 
  assert.equal(s.volumes[0].target,'/srv/bellteam-notifications-incoming')
  assert.equal(s.volumes[0].read_only,true)
  current.mounts[2].RW=true;assert.throws(()=>notificationsInstallPlan(normal,current))
+})
+
+
+test('memory install binds only the same private volume and code-only readonly subpath',()=>{
+ const make=()=>{
+  const x=fixture()
+  x.normal.services.bellteam.volumes.push({type:'volume',source:'state',target:'/run/bellteam-memory-code',read_only:true,volume:{nocopy:true,subpath:'memory-code'}})
+  x.current.mounts.push({Type:'volume',Name:'fixture_state',Source:'/docker/private',Destination:'/run/bellteam-memory-code',RW:false})
+  x.current.specMounts.push({Type:'volume',Source:'fixture_state',Target:'/run/bellteam-memory-code',ReadOnly:true,VolumeOptions:{NoCopy:true,Subpath:'memory-code'}})
+  return x
+ }
+ const {normal,current}=make(),helper=memoryInstallPlan(normal,current).services['memory-install']
+ assert.equal(helper.entrypoint.at(-1),'/app/scripts/install-memory-release.py')
+ assert.equal(helper.volumes[0].source,'/installation/runtime/memory-incoming')
+ for(const mutate of [x=>x.current.mounts.at(-1).RW=true,x=>x.current.mounts.at(-1).Name='foreign',
+   x=>x.current.specMounts.at(-1).VolumeOptions.Subpath='owner',x=>x.current.specMounts.at(-1).ReadOnly=false,
+   x=>x.normal.services.bellteam.volumes.at(-1).read_only=false,x=>x.normal.services.bellteam.volumes.at(-1).volume.subpath='owner',
+   x=>x.normal.services.bellteam.volumes.pop()]){
+  const x=make();mutate(x);assert.throws(()=>memoryInstallPlan(x.normal,x.current))
+ }
+})
+
+test('usage and diagnostics install plans keep their fixed component and private mount boundary', () => {
+  for (const [component, plan] of [['usage', usageInstallPlan], ['diagnostics', diagnosticsInstallPlan]]) {
+    const { normal, current } = fixture(), helper = plan(normal, current).services[component + '-install']
+    assert.equal(helper.entrypoint.at(-1), `/app/scripts/install-${component}-release.py`)
+    assert.equal(helper.volumes[0].source, '/installation/runtime/' + component + '-incoming')
+    assert.equal(helper.network_mode, 'none'); assert.equal(helper.read_only, true)
+    assert.equal(helper.environment, undefined)
+    current.mounts.find(item => item.Destination === '/run/bellteam-maintenance').RW = true
+    assert.throws(() => plan(normal, current))
+  }
+  const { normal, current } = fixture()
+  assert.throws(() => webGatewayInstallPlan(normal, current, 'arbitrary'))
 })

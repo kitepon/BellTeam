@@ -916,3 +916,38 @@ private final class NetworkScenarioProtocol: URLProtocol {
         } catch { client!.urlProtocol(self, didFailWithError: error) }
     }
 }
+
+final class MemberListRefreshErrorTests: XCTestCase {
+    func testTargetedSuccessClearsOnlyTheErrorItRaised() {
+        var failure = MemberListRefreshError()
+        failure.eventRefreshFailed("BellTeam: MEMBERS_NOT_ACCEPTED", resources: [.bots, .queue])
+        failure.eventRefreshSucceeded(resources: [.queue])
+        XCTAssertEqual(failure.message, "BellTeam: MEMBERS_NOT_ACCEPTED", "失敗した資源を含まない成功では消さない")
+        failure.eventRefreshSucceeded(resources: [.bots, .queue, .rooms])
+        XCTAssertNil(failure.message)
+        XCTAssertNil(failure.eventResources)
+    }
+
+    func testTargetedFailuresAccumulateUntilAllAreReadAgain() {
+        var failure = MemberListRefreshError()
+        failure.eventRefreshFailed("一回目", resources: [.bots])
+        failure.eventRefreshFailed("二回目", resources: [.rooms])
+        XCTAssertEqual(failure.message, "二回目")
+        failure.eventRefreshSucceeded(resources: [.bots])
+        XCTAssertNotNil(failure.message)
+        failure.eventRefreshSucceeded(resources: [.bots, .rooms])
+        XCTAssertNil(failure.message)
+    }
+
+    func testTargetedSuccessDoesNotClearAFullRefreshError() {
+        var failure = MemberListRefreshError()
+        failure.fullRefreshFailed("全件取得の失敗")
+        failure.eventRefreshSucceeded(resources: [.bots, .rooms, .owner, .queue])
+        XCTAssertEqual(failure.message, "全件取得の失敗")
+        failure.eventRefreshFailed("対象の失敗", resources: [.bots])
+        failure.eventRefreshSucceeded(resources: [.bots])
+        XCTAssertEqual(failure.message, "対象の失敗", "全件取得が立てた赤字は部分の成功で消さない")
+        failure.clear()
+        XCTAssertNil(failure.message)
+    }
+}

@@ -258,6 +258,128 @@ final class BillingStoreTests: XCTestCase {
         XCTAssertFalse(billing.working)
     }
 
+    func testRestartConversationDeniedAccessDoesNotPost() async {
+        let scenario = BillingScenario(responses: [.mode("subscription")])
+        let api = makeAPI(scenario)
+        let billing = BillingStore(api: api, readAppleEntitlement: {
+            AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
+        })
+        let refreshed = await billing.refreshFromServer()
+        XCTAssertTrue(refreshed)
+        let store = AppStore(api: api, billing: billing)
+
+        do {
+            try await store.restartConversation(target: .bot("restart-test"))
+            XCTFail("利用権限がなければ再起動を許可しない")
+        } catch {
+            guard case BellAPIError.server(let message) = error else {
+                return XCTFail("権限確認のErrorをそのまま返す: \(error)")
+            }
+            XCTAssertTrue(message.contains("月額購読が必要"))
+        }
+        XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/subscription"])
+    }
+
+    func testRestartConversationAuthorizedPostsEmptyJSONOnceToTarget() async throws {
+        for target in [ChatTarget.bot("restart-test"), .room("restart-room")] {
+            let scenario = BillingScenario(responses: [.restart(.success)])
+            let api = makeAPI(scenario)
+            let active = activeEntitlement
+            var entitlementReads = 0
+            let billing = BillingStore(api: api, readAppleEntitlement: {
+                entitlementReads += 1
+                XCTAssertTrue(scenario.requests.isEmpty, "権限確認が終わるまでPOSTしない")
+                return AppleSubscriptionSnapshot(entitlement: active, transaction: nil)
+            })
+            let store = AppStore(api: api, billing: billing)
+
+            try await store.restartConversation(target: target)
+
+            XCTAssertEqual(entitlementReads, 1)
+            XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["POST " + target.path + "/restart"])
+            let body = try XCTUnwrap(scenario.requests.first?.body)
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertTrue(object.isEmpty)
+        }
+    }
+
+    func testRestartConversationPostFailuresPreserveErrorsWithoutRetry() async {
+        for response in [BillingScenario.RestartResponse.timeout, .unauthorized, .invalidJSON] {
+            let scenario = BillingScenario(responses: [.restart(response)])
+            let api = makeAPI(scenario)
+            let active = activeEntitlement
+            let billing = BillingStore(api: api, readAppleEntitlement: {
+                AppleSubscriptionSnapshot(entitlement: active, transaction: nil)
+            })
+            let store = AppStore(api: api, billing: billing)
+
+            do {
+                try await store.restartConversation(target: .bot("restart-test"))
+                XCTFail("POST失敗を成功にしない")
+            } catch {
+                switch response {
+                case .timeout:
+                    XCTAssertEqual((error as? URLError)?.code, .timedOut)
+                case .unauthorized:
+                    guard case BellAPIError.unauthorized = error else {
+                        return XCTFail("401のErrorをそのまま返す: \(error)")
+                    }
+                case .invalidJSON:
+                    guard case DecodingError.dataCorrupted(let context) = error else {
+                        return XCTFail("不正JSONのErrorをそのまま返す: \(error)")
+                    }
+                    XCTAssertTrue(context.codingPath.isEmpty)
+                case .success: XCTFail("成功応答はこの試験に含めない")
+                }
+            }
+            XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["POST /api/bots/restart-test/restart"])
+        }
+    }
+
+    func testRestartConversationInitialGuideRefreshesSetupBeforePost() async throws {
+        let scenario = BillingScenario(responses: [.setup(complete: false), .restart(.success)])
+        let api = makeAPI(scenario)
+        var entitlementReads = 0
+        let billing = BillingStore(api: api, readAppleEntitlement: {
+            entitlementReads += 1
+            return AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
+        })
+        let store = AppStore(api: api, billing: billing)
+        store.setup = SetupResponse(phase: "ready", harness: nil, harnesses: [], guideBotId: "restart-guide", complete: true, auth: nil)
+
+        try await store.restartConversation(target: .bot("restart-guide"))
+
+        XCTAssertEqual(store.setup?.complete, false)
+        XCTAssertEqual(entitlementReads, 0, "初期guideは本人権利の照会を免除する")
+        XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/setup", "POST /api/bots/restart-guide/restart"])
+    }
+
+    func testRestartConversationCompletedGuideRequiresPaidAccessAfterSetupRefresh() async {
+        let scenario = BillingScenario(responses: [.setup(complete: true)])
+        let api = makeAPI(scenario)
+        var entitlementReads = 0
+        let billing = BillingStore(api: api, readAppleEntitlement: {
+            entitlementReads += 1
+            XCTAssertEqual(scenario.requests.map { $0.path }, ["/api/setup"])
+            return AppleSubscriptionSnapshot(entitlement: nil, transaction: nil)
+        })
+        let store = AppStore(api: api, billing: billing)
+        store.setup = SetupResponse(phase: "ready", harness: nil, harnesses: [], guideBotId: "restart-guide", complete: false, auth: nil)
+
+        do {
+            try await store.restartConversation(target: .bot("restart-guide"))
+            XCTFail("初期設定完了後のguideを免除しない")
+        } catch {
+            guard case BellAPIError.server(let message) = error else {
+                return XCTFail("権限確認のErrorをそのまま返す: \(error)")
+            }
+            XCTAssertTrue(message.contains("確認できません"))
+        }
+        XCTAssertEqual(store.setup?.complete, true)
+        XCTAssertEqual(entitlementReads, 1)
+        XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["GET /api/setup"])
+    }
+
     private var activeEntitlement: AppleSubscriptionEntitlement {
         AppleSubscriptionEntitlement(expiresAt: Date().addingTimeInterval(3600), gracePeriodExpiresAt: nil, autoRenewing: true)
     }
@@ -275,26 +397,54 @@ final class BillingStoreTests: XCTestCase {
 }
 
 private final class BillingScenario {
-    enum Response { case failure, mode(String) }
+    enum RestartResponse { case success, timeout, unauthorized, invalidJSON }
+    enum Response { case failure, mode(String), setup(complete: Bool), restart(RestartResponse) }
     private let lock = NSLock()
     private var responses: [Response]
-    private(set) var requests: [(method: String, path: String)] = []
+    private(set) var requests: [(method: String, path: String, body: Data?)] = []
 
     init(responses: [Response]) { self.responses = responses }
 
-    func reply(to request: URLRequest) throws -> Data {
+    func reply(to request: URLRequest) throws -> (status: Int, data: Data) {
         lock.lock()
         defer { lock.unlock() }
-        requests.append((request.httpMethod ?? "", request.url?.path ?? ""))
-        guard request.httpMethod == "GET", request.url?.path == "/api/subscription", !responses.isEmpty else {
-            throw URLError(.unsupportedURL)
-        }
-        switch responses.removeFirst() {
-        case .failure: throw URLError(.timedOut)
-        case .mode(let mode):
-            return Data("""
+        let method = request.httpMethod ?? ""
+        let path = request.url?.path ?? ""
+        requests.append((method, path, try body(of: request)))
+        guard !responses.isEmpty else { throw URLError(.unsupportedURL) }
+        switch (method, path, responses.removeFirst()) {
+        case ("GET", "/api/subscription", .failure): throw URLError(.timedOut)
+        case ("GET", "/api/subscription", .mode(let mode)):
+            return (200, Data("""
                 {"subscription":{"product_id":"test","environment":"Sandbox","access_mode":"\(mode)","setup_complete":true,"entitled":false,"state":"inactive","auto_renewing":false}}
-                """.utf8)
+                """.utf8))
+        case ("GET", "/api/setup", .setup(let complete)):
+            return (200, Data("""
+                {"phase":"ready","harnesses":[],"guide_bot_id":"restart-guide","complete":\(complete)}
+                """.utf8))
+        case ("POST", let path, .restart(let response)) where path.hasSuffix("/restart"):
+            switch response {
+            case .success: return (200, Data("{}".utf8))
+            case .timeout: throw URLError(.timedOut)
+            case .unauthorized: return (401, Data("{}".utf8))
+            case .invalidJSON: return (200, Data("{".utf8))
+            }
+        default: throw URLError(.unsupportedURL)
+        }
+    }
+
+    private func body(of request: URLRequest) throws -> Data? {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return nil }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var bytes = [UInt8](repeating: 0, count: 4096)
+        while true {
+            let count = stream.read(&bytes, maxLength: bytes.count)
+            if count < 0 { throw stream.streamError! }
+            if count == 0 { return data }
+            data.append(contentsOf: bytes.prefix(count))
         }
     }
 }
@@ -305,11 +455,11 @@ private final class BillingProtocol: URLProtocol {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         do {
-            let data = try Self.scenario!.reply(to: request)
-            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
+            let reply = try Self.scenario!.reply(to: request)
+            let response = HTTPURLResponse(url: request.url!, statusCode: reply.status, httpVersion: "HTTP/1.1",
                                            headerFields: ["Content-Type": "application/json"])!
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocol(self, didLoad: reply.data)
             client?.urlProtocolDidFinishLoading(self)
         } catch { client?.urlProtocol(self, didFailWithError: error) }
     }

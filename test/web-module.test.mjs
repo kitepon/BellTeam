@@ -5,10 +5,10 @@ import { createWebClient } from '../web/client.js'
 import { webDOM } from './helpers/web-dom.mjs'
 
 const settle = () => new Promise(resolve => setImmediate(resolve))
-function fixture(t) {
+function fixture(t, settings = {}) {
   const dom = webDOM(t), calls = [], events = new ReadableStream({ start(controller) { dom.events = controller } })
   const bots = ['a', 'b'].map(id => ({ id, name: id, displayName: id, harness: 'codex', color: 'violet', recent: { id: `recent-${id}` } }))
-  let failList = false
+  let failList = settings.failList ?? false
   const client = createWebClient({ fetch: async (path, options = {}) => {
     calls.push({ path, options })
     if (path === '/api/events') {
@@ -18,7 +18,7 @@ function fixture(t) {
     if (path === '/api/session') return Response.json({ authenticated: true })
     if (path === '/api/setup') return Response.json({ phase: 'ready', complete: true })
     if (path === '/api/settings') return Response.json({ settings: [] })
-    if (path.startsWith('/api/bots?')) return failList ? new Response('', { status: 503 }) : Response.json({ bots })
+    if (path.startsWith('/api/bots?')) return failList ? Response.json({ error: 'MEMBERS_NOT_ACCEPTED' }, { status: settings.errorStatus ?? 503 }) : Response.json({ bots })
     if (path === '/api/rooms') return Response.json({ rooms: [] })
     if (path === '/api/owner') return Response.json({ owner: { name: 'Owner' } })
     if (path.endsWith('/goal')) return Response.json({ snapshot: { botId: path.split('/')[3], availability: 'unsupported', capabilities: {} } })
@@ -28,8 +28,48 @@ function fixture(t) {
   } })
   const app = createWebApp({ client })
   assert.equal(calls.length, 0, 'construction must not start API requests')
-  return { ...dom, calls, app, emit: payload => dom.events.enqueue(new TextEncoder().encode(`data:${JSON.stringify(payload)}\n\n`)) }
+  return { ...dom, calls, app, setListFailure: value => { failList = value }, emit: payload => dom.events.enqueue(new TextEncoder().encode(`data:${JSON.stringify(payload)}\n\n`)) }
 }
+
+test('initial members 503 keeps the existing SSE available for readonly recovery', async t => {
+  const f = fixture(t, { failList: true })
+  await f.app.start()
+  assert.equal(f.calls.filter(call => call.path === '/api/events').length, 1)
+  assert.equal(f.get('roster-notice').hidden, false)
+  assert.match(f.get('roster-error').textContent, /新しい操作を受け付けられません/)
+  assert.equal(f.get('bot-list').children.length, 0)
+  f.setListFailure(false)
+  f.emit({ type: 'ready', all: true }); await settle()
+  assert.equal(f.get('roster-notice').hidden, true)
+  await f.choose('bot:a')
+  assert.equal(f.calls.filter(call => call.path === '/api/events').length, 1)
+  assert.equal(f.calls.filter(call => call.options.method === 'POST').length, 0)
+})
+
+test('failed readonly refresh preserves the roster and draft; explicit GET recovers without sending', async t => {
+  const f = fixture(t)
+  await f.app.start(); await f.choose('bot:a')
+  f.get('message-input').value = '保持する入力'
+  const rows = [...f.get('bot-list').children]
+  f.setListFailure(true)
+  f.emit({ type: 'ready', all: true }); await settle()
+  assert.equal(f.get('roster-notice').hidden, false)
+  assert.deepEqual(f.get('bot-list').children, rows)
+  assert.equal(f.get('message-input').value, '保持する入力')
+  f.setListFailure(false)
+  const before = f.calls.length
+  await f.get('roster-retry').handlers.click()
+  assert.equal(f.get('roster-notice').hidden, true)
+  assert.equal(f.get('message-input').value, '保持する入力')
+  assert.deepEqual(f.calls.slice(before).map(call => call.path).sort(), ['/api/bots?avatar=omit', '/api/owner', '/api/rooms'])
+  assert.equal(f.calls.filter(call => call.options.method === 'POST').length, 0)
+})
+
+test('initial authentication refusal still stops startup instead of opening recovery SSE', async t => {
+  const f = fixture(t, { failList: true, errorStatus: 403 })
+  await assert.rejects(f.app.start(), error => error.status === 403)
+  assert.equal(f.calls.filter(call => call.path === '/api/events').length, 0)
+})
 
 test('Web boots and keeps conversation drafts through the public client, without server internals', async t => {
   const f = fixture(t)

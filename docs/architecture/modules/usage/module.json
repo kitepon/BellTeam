@@ -37,6 +37,10 @@
     {
       "module": "execution",
       "port": "turn"
+    },
+    {
+      "module": "runtime",
+      "port": "lifecycle"
     }
   ],
   "source": [
@@ -59,6 +63,19 @@
     "src/usage/notifications-dispatcher.mjs",
     "src/usage/web-push-schema.mjs",
     "src/notifications-entry.mjs",
-    "src/usage/olrw-auth-consumer.mjs"
+    "src/usage/olrw-auth-consumer.mjs",
+    "src/usage/services.mjs",
+    "src/usage/process-schema.mjs",
+    "src/usage/authority.mjs",
+    "src/usage/projection.mjs",
+    "src/usage/facade.mjs",
+    "src/usage/registry-ports.mjs",
+    "src/usage/process-results.mjs",
+    "src/usage/channel.mjs",
+    "src/usage/channel-protocol.mjs",
+    "src/usage/channel-dispatcher.mjs",
+    "src/usage/state-compatibility.mjs",
+    "src/usage-entry.mjs",
+    "src/usage-parent-effects.mjs"
   ]
 }

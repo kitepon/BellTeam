@@ -39,3 +39,18 @@ Root Web Push v1.1（b64a7c27）により通知だけparentProtocol2/stateSchema
 web-pushはMika固定prod dependencyとlockからnpm ciで自己完結収録する。親probeはarchive配置後の/app/scriptsへ同source同bytesを追加し、readonly化して/app/srcとprod node_modulesで解決する。probe自体は署名payload inventoryへ混ぜない。ready鍵生成/外部call0、実OSclose後のみ成功JSONとする。runtimeのABI2 entry/channel/probe完成sourceと原本が揃う前は署名可能/実物成功としない。
 
 private登録照会/register/unregisterだけに親検証済canonical HTTPS originを必須とする。公開状態status/configureへoriginを増やさず、公開bodyのoriginは拒否する。probe/nativeの人工登録はorigin付きで、欠測/非canonical拒否、別origin照会/解除falseかつ保持、同endpoint別origin/previousEndpoint非所有・欠測は同409で全保存不変、同origin置換成功を作者原本へ結合する。鍵0600/再生成0/設定epoch保持、APNs-Web全inflightとsavingの実終端、同source builtin→署名→builtinを両nativeで測る。実鍵/実送信/Host本番0。
+
+
+ABI2 native fixtureはMika正規 `writeNotificationsWebFixture` をtest-only readonly配置から呼び、人工APNs配列・VAPID・2origin登録を0600で作る。実facade/C経路で欠測・非canonical origin拒否、別origin照会/解除false、409時の3保存file全bytes不変、同origin置換を確認する。各交換前に最新Web設定を保存し、P2/S2・公開鍵・最新epoch/設定と3保存hash、writer inode、親/Web/業務processの出生・portを照合する。
+
+```mermaid
+flowchart LR
+  Seed[正規人工writer / test-only] --> C[実C / builtin→同source署名→builtin]
+  C --> Keep[origin所有・409・最新epoch・鍵登録保持]
+  IPC[別UID1001 Node IPC companion / 同image実dispatcher] --> Artificial[人工APNs+Web provider]
+  Artificial --> Drain[両inflight終了→quiesce→exit/OSclose]
+  Keep --> Clean[既有限allocation/cleanup]
+  Drain --> Clean
+```
+
+companionは専用使い捨てrootの実IPCと実dispatcherへ人工providerを渡す。APNs解放後もWeb2件解放まではquiesce未完、保存不変・実OScloseを検査し、固定C/署名子内の実送信とは区別する。製品entryのprovider/path/envは増やさない。managed normalの人工data rootは本番契約と同じ1000:1000/0711にし、privateと書込子directoryは既所有条件を守る。fixture sourceと検査対象image sourceは独立固定し、実Owner鍵・実送信・本番・AIは扱わない。

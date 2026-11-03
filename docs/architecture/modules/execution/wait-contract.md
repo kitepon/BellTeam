@@ -83,9 +83,11 @@ reportErrorは任意constructor引数。設定失敗は`SERVER_MODEL_CONFIGURATI
 
 `configuration`だけ、`failure`へ既`diagnosticFailureDetails`の固定error_type/error_code/cause_code、存在する`mcp_request`へ既`mcpRequestContext`の検証済み射影を残す。`responseReturned=true`は既Clientの返却済み印がtrueの時だけ。`configureFailure`はClientが対象sessionと完全schemaを検証して保持した4field receiptを、再度形を確認してoutcome/effectだけに縮める。欠測からfalseやnative受理を作らない。生message/stack/args/設定値/IDは追加しない。
 
-RPC/connect失敗、typed失敗、untyped isErrorを識別する補助観測で、適用結果の分類・Map・拒否・再送判断は変更しない。診断のcode/重大度/集約keyも不変。原要求ID/launchを持つreconcileは未提供で、これらのfieldで不明状態を解除せず、旧事故の欠測を補完しない。全体の接続は既execution→integration.diagnostics内。限定fixtureは`test/configuration-diagnostic-provenance.test.mjs`。
+RPC/connect失敗、typed失敗、untyped isErrorを識別する補助観測で、適用結果の分類・再送判断は変更しない。診断のcode/重大度/集約keyも不変。新要求の原ID照合とlocal終端は[設定要求の正本](configuration-requests.md)を参照し、旧原ID/launch欠測を補完しない。configurationだけ固定`CONFIGURATION_INTENT_SAVE_UNCONFIRMED`/`CONFIGURATION_STORAGE_INVALID`をfailureのcode/causeに許可し、新prepare未返却の安全な段階を記録する。任意messageや保存設定は記録しない。全体の接続は既execution→integration.diagnostics内。限定fixtureは`test/configuration-diagnostic-provenance.test.mjs`と`test/configuration-requests.test.mjs`。
 
 ## 修理の適用範囲と別の未実装機能
+
+自動継続の親同期guardは内部options.admissionCheckを通常Messenger.sendmessage→transport.notify→submit→sendToSession→Client.pty_sendへ捕捉し、fresh await後と接続await後のSDK発行直前に再検査する。callbackは親の同operationだけに保持しchild DTO/履歴へ関数を出さない。別tool/launch/env/認証設定option併用は発行前拒否、guardの拒否をRPC応答不明へ変えない。元AI停止世代又は保存設定が変わった古い自動継続を発行しない。通常callerの未指定時の挙動は不変。
 
 元の各設定拒否ではwaiterのexitCodeが保存されていない。この不良との一意相関、Cinderella08:40とエレグ08:51の利用復旧を、このsource修理の成功から補完しない。実故障後に現在状態がnullのままなら未完了として保持する。明示watch終了・close/restartの既取消経路は保持し、完了を推測して待機を解放しない。配送jobそのものの失敗結果は従来どおり失敗として返し、同じ本文を再送しない。
 

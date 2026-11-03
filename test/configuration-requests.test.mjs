@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { mkdtemp, rm, chmod, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, chmod, readFile, writeFile, lstat, mkdir, symlink, rename, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { once } from 'node:events'
@@ -12,6 +12,7 @@ import { ConfigurationRequests } from '../src/configuration-requests.mjs'
 import { configurationReceipt, configurationDigest, configurationError, CONFIGURATION_VERSION } from '../src/configuration-request.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 import { executionFailureReport } from '../src/execution-failure-report.mjs'
+import { Diagnostics } from '../src/diagnostics.mjs'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const tool = () => ({ name: 'agent_configure', inputSchema: { properties: {
@@ -62,6 +63,7 @@ test('new apply is persisted before one bound wire call and keeps unsupported/un
   const binding = result.configurationRequest.binding
   assert.equal(binding.digest, configurationDigest({ model: 'next', reasoning_effort: 'high' }))
   assert.equal((await f.intents.terminal(f.bot.id, binding)).origin, 'apply')
+  assert.equal((await f.intents.read(f.bot.id, binding.id)).version, '0.63.7')
   assert.deepEqual(await f.intents.pending(), [])
 })
 
@@ -198,14 +200,18 @@ test('a wrong-binding wire result cannot be saved or clear uncertainty', async t
   assert.equal(await f.intents.terminal(f.bot.id, original), null)
 })
 
-test('old 0.63.5 intent remains readable while new wire uses approved 0.63.6 only', async t => {
+for (const version of ['0.63.5', '0.63.6']) test(`old ${version} intent stays byte-identical while wire uses approved 0.63.7`, async t => {
   const f = await fixture(t)
   const binding = { id: 'a1234567-1234-4123-8123-123456789abc', session_id: f.bot.session, launch_id: '1'.repeat(32), digest: configurationDigest({ model: 'next' }) }
   await f.intents.publish(f.bot.id, { schema: 'bellteam.configuration-intent.v1', botId: f.bot.id, binding,
-    requested: { model: 'next', reasoning_effort: null, fast: null }, version: '0.63.5' })
+    requested: { model: 'next', reasoning_effort: null, fast: null }, version })
+  const path = join(f.root, 'configuration-intents', f.bot.id, `${binding.id}.intent.json`)
+  const before = await readFile(path)
   await f.transport.restoreConfigurationRequests()
   assert.equal((await f.transport.reconcileConfiguration(f.bot, binding.id)).fence, 'cleared')
   assert.equal(f.calls.filter(call => call.args.action === 'apply').length, 0)
+  assert.deepEqual(await readFile(path), before)
+  assert.equal((await f.intents.read(f.bot.id, binding.id)).version, version)
 })
 
 test('authenticated reconcile route accepts only the stored request ID and cannot submit settings', async t => {
@@ -277,6 +283,7 @@ test('storage failure after apply cannot be mistaken for a local pre-wire refusa
   assert.equal((await f.transport.reconcileConfiguration(f.bot, binding.id)).fence, 'absent')
   assert.equal(f.requests.pending.has(f.bot.id), false)
   assert.equal((await f.intents.terminal(f.bot.id, binding)).origin, 'apply')
+  assert.equal((await f.intents.read(f.bot.id, binding.id)).version, '0.63.7')
   assert.equal(f.calls.filter(call => call.args.action === 'apply').length, 1)
 })
 
@@ -299,4 +306,163 @@ test('a shared SDK error object never attaches the other request binding to diag
   assert.equal(JSON.parse(executionFailureReport(f.bot.id, 'configuration', shared).diagnostic_log).configuration_request, undefined)
   assert.equal(f.transport.uncertainChanges.version(f.bot.id).request.id, f.requests.view(f.bot.id).binding.id)
   assert.equal(g.transport.uncertainChanges.version(g.bot.id).request.id, g.requests.view(g.bot.id).binding.id)
+})
+
+test('prepare rejection before the intent writer keeps fixed codes and completes the same original locally', async t => {
+  const f = await fixture(t), directory = f.intents.directory.bind(f.intents)
+  f.intents.directory = async () => { throw configurationError('CONFIGURATION_STORAGE_INVALID') }
+  let failure
+  await assert.rejects(apply(f), error => { failure = error; return error.code === 'CONFIGURATION_INTENT_SAVE_UNCONFIRMED' })
+  const before = f.requests.view(f.bot.id)
+  assert.deepEqual(before.preparation, { state: 'not_returned', publication: 'not_started' })
+  assert.equal(before.local_not_issued, undefined)
+  const diagnostic = JSON.parse(executionFailureReport(f.bot.id, 'configuration', failure).diagnostic_log)
+  assert.deepEqual(diagnostic.failure, { error_type: 'Error', error_code: 'CONFIGURATION_INTENT_SAVE_UNCONFIRMED', cause_code: 'CONFIGURATION_STORAGE_INVALID' })
+  assert.deepEqual(diagnostic.preparation, before.preparation)
+  assert.doesNotMatch(JSON.stringify(diagnostic), /next|reasoning_effort|requested/)
+  await assert.rejects(apply(f), { code: 'CONFIGURATION_REQUEST_PENDING' })
+  f.intents.directory = directory
+  const result = await f.transport.reconcileConfiguration(f.bot, before.binding.id)
+  assert.equal(result.localCompletion.schema, 'bellteam.configuration-local-completion.v1')
+  assert.deepEqual(result.localCompletion.binding, before.binding)
+  assert.equal(result.configurationRequest, undefined, 'no native receipt is fabricated')
+  assert.equal(result.fence, 'absent')
+  assert.equal(f.requests.view(f.bot.id).local_not_issued, true)
+  assert.equal(f.requests.pending.has(f.bot.id), false)
+  assert.equal(await f.intents.notIssued(f.bot.id, before.binding), true)
+  assert.deepEqual((await f.intents.read(f.bot.id, before.binding.id)).requested, before.requested)
+  assert.equal(f.calls.filter(call => call.name === 'agent_configure').length, 0)
+  assert.equal((await f.intents.pending()).length, 0)
+})
+
+test('prepare not-returned evidence separates publish unknown and survives a failed local completion attempt', async t => {
+  const f = await fixture(t), publish = f.intents.publish.bind(f.intents)
+  f.intents.publish = async (...args) => { await publish(...args); throw Object.assign(Error('synthetic sync failure'), { code: 'EIO' }) }
+  await assert.rejects(apply(f), { code: 'CONFIGURATION_INTENT_SAVE_UNCONFIRMED' })
+  const before = f.requests.view(f.bot.id), original = await f.intents.read(f.bot.id, before.binding.id)
+  assert.deepEqual(before.preparation, { state: 'not_returned', publication: 'unknown' })
+  const save = f.intents.saveNotIssued.bind(f.intents)
+  f.intents.saveNotIssued = async () => { throw Object.assign(Error('synthetic save failure'), { code: 'EIO' }) }
+  await assert.rejects(f.transport.reconcileConfiguration(f.bot, before.binding.id), { code: 'EIO' })
+  assert.equal(f.requests.canRecoverPreparation(f.bot.id, before.binding.id), true)
+  assert.equal(f.requests.view(f.bot.id).local_not_issued, undefined)
+  f.intents.saveNotIssued = save
+  await f.transport.reconcileConfiguration(f.bot, before.binding.id)
+  assert.deepEqual(await f.intents.read(f.bot.id, before.binding.id), original)
+  assert.equal(f.calls.filter(call => call.name === 'agent_configure').length, 0)
+})
+
+test('local prepare completion refuses temporary artifacts and original-request conflicts', async t => {
+  const f = await fixture(t), publish = f.intents.publish.bind(f.intents)
+  f.intents.publish = async (...args) => { await publish(...args); throw Error('synthetic lost publication') }
+  await assert.rejects(apply(f))
+  const id = f.requests.view(f.bot.id).binding.id, dir = join(f.intents.root, f.bot.id)
+  await writeFile(join(dir, '.crash.tmp'), 'incomplete', { mode: 0o600 })
+  await assert.rejects(f.transport.reconcileConfiguration(f.bot, id), { code: 'CONFIGURATION_INTENTS_UNCONFIRMED' })
+  await rm(join(dir, '.crash.tmp'))
+  const original = await f.intents.read(f.bot.id, id)
+  original.binding.launch_id = '2'.repeat(32)
+  await writeFile(join(dir, `${id}.intent.json`), JSON.stringify(original))
+  await assert.rejects(f.transport.reconcileConfiguration(f.bot, id), { code: 'CONFIGURATION_INTENT_INVALID' })
+  assert.equal(f.requests.pending.has(f.bot.id), true)
+  assert.equal(f.calls.filter(call => call.name === 'agent_configure').length, 0)
+})
+
+test('old missing-stage pending, active work and another uncertainty cannot authorize local completion', async t => {
+  const f = await fixture(t)
+  f.intents.publish = async () => { throw Error('synthetic storage refusal') }
+  await assert.rejects(apply(f))
+  const id = f.requests.view(f.bot.id).binding.id
+  f.requests.active.add(f.bot.id)
+  await assert.rejects(f.transport.reconcileConfiguration(f.bot, id), { code: 'CONFIGURATION_REQUEST_PENDING' })
+  f.requests.active.delete(f.bot.id)
+  f.transport.uncertainChanges.set(f.bot.id, 'agent_configure', null)
+  const version = f.transport.uncertainChanges.version(f.bot.id)
+  await assert.rejects(f.transport.reconcileConfiguration(f.bot, id), { code: 'CONFIGURATION_PREPARATION_UNCONFIRMED' })
+  assert.equal(f.transport.uncertainChanges.version(f.bot.id), version)
+  f.requests.rejectedPreparations.delete(f.bot.id)
+  delete f.requests.latest.get(f.bot.id).preparation
+  assert.equal(f.requests.canRecoverPreparation(f.bot.id, id), false)
+  await assert.rejects(f.requests.recoverPreparation(f.bot.id, id), { code: 'CONFIGURATION_PREPARATION_UNCONFIRMED' })
+  assert.equal(f.requests.pending.get(f.bot.id).binding.id, id)
+  assert.equal(f.calls.filter(call => call.name === 'agent_configure').length, 0)
+})
+
+test('authenticated local prepare reconciliation preserves failed application and saved desired settings', async t => {
+  const f = await fixture(t), publish = f.intents.publish.bind(f.intents)
+  f.intents.publish = async () => { throw configurationError('CONFIGURATION_STORAGE_INVALID') }
+  let completion
+  const reconfigure = f.transport.reconfigure.bind(f.transport)
+  f.transport.reconfigure = (...args) => { completion = reconfigure(...args); return completion }
+  await f.admin.update(f.bot.id, { model: 'next' }); await assert.rejects(completion); await tick()
+  const before = f.admin.view(f.bots.get(f.bot.id)), id = before.configurationApplication.requestId
+  f.intents.publish = publish
+  const server = createBellTeamServer({ bots: f.bots, transport: f.transport, administration: f.admin,
+    authorize: request => request.headers.authorization === 'Bearer synthetic' })
+  server.listen(0, '127.0.0.1'); await once(server, 'listening'); t.after(() => server.close())
+  const url = `http://127.0.0.1:${server.address().port}/api/bots/${f.bot.id}/configuration/reconcile`
+  const send = (body, authorized = true) => fetch(url, { method: 'POST', headers: authorized ? { authorization: 'Bearer synthetic' } : {}, body: JSON.stringify(body) })
+  assert.equal((await send({ request_id: id }, false)).status, 401)
+  assert.equal((await send({ request_id: id, preparation: 'not_returned' })).status, 400)
+  const response = await send({ request_id: id })
+  assert.equal(response.status, 200)
+  assert.equal((await response.json()).localCompletion.effect, 'not_issued')
+  const after = f.admin.view(f.bots.get(f.bot.id))
+  assert.equal(after.model, 'next')
+  assert.equal(after.configurationApplication.state, 'failed')
+  assert.equal(after.configurationApplication.outcome, before.configurationApplication.outcome)
+  assert.equal(after.configurationApplication.localCompletion.binding.id, id)
+  assert.equal(f.calls.filter(call => call.name === 'agent_configure').length, 0)
+})
+
+test('trusted anchor is identity-bound while private descendants and strict fallback remain enforced', async t => {
+  const f = await fixture(t), st = await lstat(f.root)
+  const anchor = { path: f.root, uid: process.getuid(), dev: st.dev, ino: st.ino }
+  const options = { ownerUid: process.getuid(), trustedAnchor: anchor }
+  const intents = new ConfigurationIntents(join(f.root, 'anchored'), options)
+  assert.equal(await intents.botDirectory(f.bot.id, true), join(f.root, 'anchored', f.bot.id))
+  assert.equal((await lstat(intents.root)).mode & 0o777, 0o700)
+  await chmod(join(intents.root, f.bot.id), 0o755)
+  await assert.rejects(intents.botDirectory(f.bot.id), { code: 'CONFIGURATION_STORAGE_INVALID' })
+  await chmod(join(intents.root, f.bot.id), 0o700)
+  for (const changed of [{ ino: anchor.ino + 1 }, { dev: anchor.dev + 1 }, { uid: anchor.uid + 1 }]) {
+    if (changed.uid) assert.throws(() => new ConfigurationIntents(intents.root, { ...options, trustedAnchor: { ...anchor, ...changed } }), { code: 'CONFIGURATION_STORAGE_INVALID' })
+    else await assert.rejects(new ConfigurationIntents(intents.root, { ...options, trustedAnchor: { ...anchor, ...changed } }).botDirectory(f.bot.id), { code: 'CONFIGURATION_STORAGE_INVALID' })
+  }
+  await chmod(f.root, 0o777)
+  await assert.rejects(intents.botDirectory(f.bot.id), { code: 'CONFIGURATION_STORAGE_INVALID' })
+  await chmod(f.root, 0o700)
+  await symlink(intents.root, join(f.root, 'alias'))
+  await assert.rejects(new ConfigurationIntents(join(f.root, 'alias'), options).botDirectory(f.bot.id), { code: 'CONFIGURATION_STORAGE_INVALID' })
+  assert.throws(() => new ConfigurationIntents(join(f.root, 'sibling'), { ...options, trustedAnchor: { ...anchor, path: join(f.root, 'another') } }), { code: 'CONFIGURATION_STORAGE_INVALID' })
+  await rename(f.root, `${f.root}.old`); t.after(() => rm(`${f.root}.old`, { recursive: true, force: true }))
+  await assert.rejects(intents.botDirectory(f.bot.id, true), { code: 'ENOENT' })
+  await mkdir(f.root, { mode: 0o700 })
+  await assert.rejects(intents.botDirectory(f.bot.id, true), { code: 'CONFIGURATION_STORAGE_INVALID' })
+  assert.deepEqual(await readdir(f.root), [])
+})
+
+test('fixed storage rejection codes and preparation stage reach the existing saved diagnostic writer', async t => {
+  const f = await fixture(t), path = join(f.root, 'diagnostics.json'), diagnostics = new Diagnostics(path)
+  await diagnostics.initialize()
+  f.admin.reportError = report => diagnostics.record(report)
+  f.intents.directory = async () => { throw configurationError('CONFIGURATION_STORAGE_INVALID') }
+  let completion
+  const reconfigure = f.transport.reconfigure.bind(f.transport)
+  f.transport.reconfigure = (...args) => { completion = reconfigure(...args); return completion }
+  await f.admin.update(f.bot.id, { model: 'next' }); await assert.rejects(completion); await tick(); await diagnostics.pending
+  const [row] = JSON.parse(await readFile(path, 'utf8')), detail = JSON.parse(row.diagnostic_log)
+  assert.deepEqual(detail.failure, { error_type: 'Error', error_code: 'CONFIGURATION_INTENT_SAVE_UNCONFIRMED', cause_code: 'CONFIGURATION_STORAGE_INVALID' })
+  assert.deepEqual(detail.preparation, { state: 'not_returned', publication: 'not_started' })
+  assert.deepEqual(detail.configuration_request, f.requests.view(f.bot.id).binding)
+  assert.equal(row.fingerprint, 'b5159a7976e0c5597ce53d6d12c387075b9699da00d27ea5086b6206e0d4f267')
+  assert.equal(row.status, 'open'); assert.equal(row.severity, 'high')
+  assert.doesNotMatch(JSON.stringify(row), /next|reasoning_effort|stack|requested/)
+  assert.equal(f.calls.filter(call => call.name === 'agent_configure').length, 0)
+})
+
+for (const version of ['0.63.6', '0.63.8']) test(`unapproved native ${version} cannot issue a new configuration`, async t => {
+  const f = await fixture(t); f.version = version
+  await assert.rejects(apply(f), { code: 'CONFIGURATION_CONNECTION_UNCONFIRMED', effect: 'not_issued' })
+  assert.deepEqual(f.calls, [])
 })

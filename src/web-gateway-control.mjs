@@ -4,29 +4,32 @@ export function createWebGatewayControl({ gateway, notify = () => {} }) {
   let update = null, closed = false
   const snapshot = () => ({ currentVersionId: gateway()?.versionId ?? null, update: update ? { ...update } : null })
   const reserve = versionId => {
-    if (typeof versionId !== 'string' || !/^[a-f0-9]{64}$/.test(versionId)) throw failure('WEB_GATEWAY_VERSION_INVALID', 400)
+    if (versionId !== 'builtin' && (typeof versionId !== 'string' || !/^[a-f0-9]{64}$/.test(versionId))) throw failure('WEB_GATEWAY_VERSION_INVALID', 400)
     if (closed || !gateway()) throw failure('WEB_GATEWAY_UNAVAILABLE', 503)
     if (update && ['accepted', 'running'].includes(update.status)) throw failure('WEB_GATEWAY_UPDATE_IN_PROGRESS', 409)
     const next = { versionId, status: 'accepted' }
     update = next
     notify()
+    let complete
+    const completion = new Promise(resolve => { complete = resolve })
     let settled = false
     return {
+      completion,
       start() {
         if (settled) return
         settled = true
-        if (closed) { next.status = 'not_started'; notify(); return }
+        if (closed) { next.status = 'not_started'; notify(); complete(); return }
         next.status = 'running'; notify()
         void Promise.resolve().then(() => {
-          if (closed) { next.status = 'not_started'; notify(); return }
+          if (closed) { next.status = 'not_started'; notify(); complete(); return }
           return gateway().replace(versionId).then(() => { next.status = 'succeeded'; notify() })
         }).catch(error => {
           next.status = 'failed'
           next.error = /^GATEWAY_[A-Z_]+$/.test(error?.message ?? '') ? error.message : 'GATEWAY_UPDATE_FAILED'
           notify()
-        })
+        }).finally(complete)
       },
-      cancel() { if (!settled) { settled = true; next.status = 'not_started'; notify() } },
+      cancel() { if (!settled) { settled = true; next.status = 'not_started'; notify(); complete() } },
     }
   }
   const close = () => {

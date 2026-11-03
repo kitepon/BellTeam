@@ -70,7 +70,10 @@ export class AitermClient {
   }
 
   async call(name, args = {}, options = {}) {
-    const { env, meta, launchProject, expectedAuthConnection, expectedAuthServerVersion, expectedConfiguration } = options
+    const { env, meta, launchProject, expectedAuthConnection, expectedAuthServerVersion, expectedConfiguration, admissionCheck } = options
+    if (Object.hasOwn(options, 'admissionCheck') && (name !== 'pty_send' || typeof admissionCheck !== 'function'
+      || ['env', 'launchProject', 'expectedAuthConnection', 'expectedAuthServerVersion', 'expectedConfiguration'].some(key => Object.hasOwn(options, key))))
+      throw Object.assign(new Error('AITERM_SEND_GUARD_INVALID'), { code: 'AITERM_SEND_GUARD_INVALID', effect: 'not_issued' })
     const boundConfiguration = Object.hasOwn(options, 'expectedConfiguration')
     if (boundConfiguration && (!expectedConfiguration || name !== 'agent_configure' || Object.hasOwn(options, 'env')
       || Object.hasOwn(options, 'launchProject') || Object.hasOwn(options, 'expectedAuthConnection') || Object.hasOwn(options, 'expectedAuthServerVersion')))
@@ -126,6 +129,7 @@ export class AitermClient {
         throw Object.assign(new Error('AITERM_AUTH_SERVER_VERSION_UNCONFIRMED'), { code: 'AITERM_AUTH_SERVER_VERSION_UNCONFIRMED', effect: 'not_issued' })
     }
     let result
+    admissionCheck?.()
     try { result = await callClient.callTool({ name, arguments: args, ...(meta ? { _meta: meta } : {}) }) }
     catch (error) {
       captureMcpRequest(error, 'call', name)

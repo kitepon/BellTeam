@@ -13,6 +13,15 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
   const projection = createMembersProjection({ onChange: notify })
   let facade
   const onEffect = async (method, params, context) => {
+    if (context.membersReadPin) {
+      membersAdmission.assertReadPin(context.membersReadPin, { method: 'schedules.list', generation: context.generation })
+      if (method !== 'room.schedules.list') throw Object.assign(new Error('MEMBERS_EFFECT_UNSUPPORTED'), { code: 'MEMBERS_EFFECT_UNSUPPORTED', status: 503 })
+      const { generation, leaseId, rootId, ownerWrite, continuation } = context
+      validateMembersEffect(method, params, { generation, leaseId, rootId, ownerWrite, continuation })
+      const value = await dependencies().rooms.listSchedules(params.roomId)
+      validateMembersEffectResult(method, value)
+      return value
+    }
     membersAdmission.assertLease(context.membersLease, { generation: context.generation })
     const { generation, leaseId, rootId, ownerWrite, continuation } = context
     validateMembersEffect(method, params, { generation, leaseId, rootId, ownerWrite, continuation })

@@ -35,13 +35,15 @@ test('product services replace bootstrap writers, preserve the shared gate/asset
   const createMembersProcess = options => {
     const leases = new Map(), generation = 'test-child'
     const dispatcher = createMembersDispatcher({ root, projection: options.onProjection,
-      effect: (method, params, context) => options.onEffect(method, params, { ...context, membersLease: leases.get(context.rootId) }),
+      effect: (method, params, context) => options.onEffect(method, params, { ...context, ...leases.get(context.rootId) }),
     })
     const call = async (method, params, context, callback) => {
-      options.membersAdmission.assertLease(context.membersLease)
-      const rootId = String(++sequence); leases.set(rootId, context.membersLease)
-      const wire = { generation, rootId, leaseId: context.membersLease.leaseId,
-        ownerWrite: options.authorizeOwner(method, context.capturedAuthorization), continuation: context.membersLease.epoch !== options.membersAdmission.capture().epoch }
+      const binding = context.membersReadPin ?? context.membersLease
+      if (context.membersReadPin) options.membersAdmission.assertReadPin(binding, { method })
+      else options.membersAdmission.assertLease(binding)
+      const rootId = String(++sequence); leases.set(rootId, { membersLease: context.membersLease, membersReadPin: context.membersReadPin })
+      const wire = { generation, rootId, leaseId: binding.leaseId,
+        ownerWrite: options.authorizeOwner(method, context.capturedAuthorization), continuation: binding.epoch !== options.membersAdmission.capture().epoch }
       try { return await dispatcher[callback ? 'dispatchCallback' : 'dispatch'](method, params, wire) }
       finally { leases.delete(rootId) }
     }

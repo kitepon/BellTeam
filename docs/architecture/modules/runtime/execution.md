@@ -66,22 +66,37 @@ streamの役割は巨大な画像を全量JSONへ載せないこと。通常の`
 
 CLI登録・共有設定・hookの正本は[runtimeの登録図](cli-registration.md)。登録更新の所有と失敗の契約も同図で管理する。
 
-## Throughline待機の接続案
-
-状態：N102のconsumer切替と同時に行う分離案。現行の`SeatRuntime.throughlineChanged`と`run-seat-runtime`の`throughline-signature`はまだ残っている。これらのDB/WALのmtime参照を公開待機へ移し、両側のcaller/注入を合わせてから除く。
+## 設定保存へ管理済みstateだけを渡す
 
 ```mermaid
 flowchart LR
-  Consumer["conversation: project/cursorと取消判断"] --> Adapter["conversation: waitObserverTurns"]
-  Adapter -->|"command / args / options.signal"| Runner["runtime: 既createSeatProcessRunner"]
-  Runner -->|"席の環境 / EOF / 子の回収"| Public["Throughline公開observer-wait"]
-  Public -->|"stdout / stderr / exit"| Runner
-  Runner -->|"stdout又は既存の実行失敗"| Adapter
-  Adapter -->|"4状態とopaque cursorを検証"| Consumer
+  Normal[既normal entry / FD3共有保守lock・FD4排他state lock] --> Anchor[runtime: acquireConfigurationStateAnchor]
+  Mount[独立state RW mount / root所有control RO mount] --> Anchor
+  Anchor --> Identity[正準path・owner・権限・control/state同一inode]
+  Identity --> Assembly[integration: application-services]
+  Assembly --> Store[execution: ConfigurationIntents trustedAnchor]
+  Store --> Validate[毎回anchor identity再検査 / 配下0700・0600]
 ```
 
-runtimeは既runnerのまま、stdout/stderr合計buffer、空stdinのEOF、実行終了/取消後のstdio回収を持つ。AbortSignalはoptionsへ渡してJSON化しない。callerのabortではstdio close後にABORT_ERRを返す。CLI自身の取消exit1/空stdoutをtimeoutやchangedへ変えず、既nonzero失敗として返す。runnerは製品のstderr JSONを業務結果へ自動変換しない。汎用runnerを待機だけのために緩和しない。
+`acquireConfigurationStateAnchor(root)`は既`lifecycle`窓口の固定state条件を公開する。`root === /srv/bellteam`の通常本体だけ、実効/実UID・GID1001、FD3/4のinodeと本人PIDのFLOCK、root0:1001/0750の保守root、state1001:1001/非group-other write、全固定pathのrealpath一致、保守root内stateと固定stateの同一dev/ino、実mountinfoのcontrol RO/state RWを確認し、frozen `{path,uid,dev,ino}`を返す。上位`/`・`/srv`・`/run`はroot所有かつ非group-other write、`/srv/bellteam`は既1000:1000/0711のまま。独立mountのleafは席所有の親からrenameできず、controlのroot所有親とnormal/maintenance lockが管理済み実体を束縛する。実装は[configuration-state-anchor.mjs](../../../../src/configuration-state-anchor.mjs)。
 
-公開waitの状態とcursorの仕様は[Throughline正本](../throughline/README.md)、consumerのcursor/seen/pending・ページング・初回reset/resync・Bot間の待機方法は[conversation正本](../conversation/README.md)へ辿る。最小waitは1秒で、複数projectを安価に一括確認する公開窓口は現行にはない。既全体booleanと同等の性能を保証しない。新しいruntime業務handler、daemon、DB fallbackは作らない。
+組立ては本値を`new ConfigurationIntents(fixedIntentsRoot,{trustedAnchor})`へ渡す。executionは毎回anchorのrealpath/owner/mode/dev/inoと配下のprivate0700/file0600/symlink/wrongownerを検査する。固定root以外はundefinedで従来の全祖先厳格検査を使う。production条件不成立は`CONFIGURATION_STORAGE_INVALID`で公開受付より前に失敗し、広いUID1000許可や自動chmod/chownへ変えない。パス/UID/anchorをHTTP/MCP入力やenv設定へ追加しない。
 
-切替時の直接境界は、conversation側のwait注入/停止時取消と、runtime側の旧signature caller除去。N102がreadの未消化分を保持したまま、停止が待機回収まで待つことを限定試験で合わせる。公式供給版・実DB・実席の確認をsource契約の読取で代用しない。
+信頼するのは既管理mountと正常本体の同UID writerであり、root/Host/Docker管理者や悪意ある同UID1001から隔離する契約ではない。state0711は既call-bridge等の到達に必要なまま保持し、configuration-intents/Botの0700と対象file0600をconsumerが所有する。保存/prepare/pending/原要求終端と診断の正本は[execution](../execution/configuration-requests.md)、既mount/移行条件は[recovery](recovery.md)。新しい保存サービスや本番権限操作を追加しない。
+
+## Throughline公開observer-checkの実行接続
+
+N102のconsumer差分と同時に採用する。runtimeの旧SeatRuntime.throughlineChangedとthroughline-signature dispatchを除き、私有DB/WALのmtimeを席機構から読まない。consumer実装・結果検証・token/cursor保存・分割はN102、製品schema/binはThroughlineが所有する。正式CLI0.16.52/source9247ae042dcc18ae4fde73e318dfd03ac9e01e9cを同imageへ固定する。候補b1cf82fの公開check/read契約は不変として継承し、本番の採用記録とは分ける。
+
+```mermaid
+flowchart LR
+  Consumer[conversation: pending先行 / bot・token編成 / 同巡除外] -->|JSON文字列 + options.signal| Runner[runtime: createSeatProcessRunner root base]
+  Runner -->|席UID1000 / stdin EOF| CLI[Throughline: observer-check --json]
+  CLI -->|完全stdout / stderr / exit| Runner
+  Runner -->|stdio close後Promise settle| Consumer
+  Consumer -->|各project既read + signal| Read[Throughline公開read]
+```
+
+consumerは既createSeatProcessRunner(root,{environment:'base'})を直接使う。inputはUTF8 1MiB以内、stdout/stderr合計は既16MiB、input+EOF/close/非0拒否/取消時の子回収は既runnerの契約のまま。signalをJSONへ入れずoptionsへ渡す。結果schema/両上限での編成・分割/pending/消費cursor/tokenの保存はruntimeへ移さない。ThroughlineのDB/WAL fallbackや新しいruntime業務handler、daemonは加えない。
+
+runtimeの限定確認は旧method非公開と旧dispatch拒否、残存callerの責任確認だけ。conversation-services/self-turnsの旧callerはN102のconsumer差分で外すため、runtime単独では採用しない。既runner人工8case/製品試験/実DB/席/Host/本番は再走しない。

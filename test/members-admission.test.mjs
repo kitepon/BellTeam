@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { MembersAdmission } from '../src/members-admission.mjs'
+import { MembersAdmission, MEMBERS_READ_PIN_METHODS } from '../src/members-admission.mjs'
 
 test('caller unknown cannot release a lease with a registered real completion', async () => {
   const gate = new MembersAdmission('a')
@@ -70,4 +70,66 @@ test('operation errors retain identity and release only owned leases', async () 
   const lease = gate.enter()
   assert.throws(() => gate.withLease(() => { throw original }, { lease }), error => error === original)
   gate.assertLease(lease); gate.finish(lease)
+})
+
+test('read pins pass eight occupied AI leases without increasing the eight AI roots', async () => {
+  const gate = new MembersAdmission(), leases = Array.from({ length: 8 }, () => gate.enter())
+  for (const method of MEMBERS_READ_PIN_METHODS) await gate.withReadPin(method, pin => gate.assertReadPin(pin, { method }))
+  assert.throws(() => gate.enter(), { code: 'MEMBERS_NOT_ACCEPTED' })
+  leases.forEach(lease => gate.finish(lease))
+})
+
+test('read pin cannot become an AI root or another method, generation, correlation or copied pin', async () => {
+  const gate = new MembersAdmission('a'), pin = gate.enterReadPin('profiles.read'), lease = gate.enter()
+  for (const method of ['profile.update', 'profile.session', 'profiles.cli', 'unknown', 'profile.read'])
+    assert.throws(() => gate.assertReadPin(pin, { method }), { code: 'MEMBERS_NOT_ACCEPTED' })
+  assert.throws(() => gate.assertReadPin(pin, { generation: 'b' }), { code: 'MEMBERS_NOT_ACCEPTED' })
+  assert.throws(() => gate.assertReadPin(pin, { correlation: 'different' }), { code: 'MEMBERS_NOT_ACCEPTED' })
+  assert.throws(() => gate.assertReadPin({ ...pin }), { code: 'MEMBERS_NOT_ACCEPTED' })
+  assert.throws(() => gate.assertReadPin(lease), { code: 'MEMBERS_NOT_ACCEPTED' })
+  assert.throws(() => gate.assertLease(pin), { code: 'MEMBERS_NOT_ACCEPTED' })
+  assert.throws(() => gate.withLease(() => {}, { lease: pin }), { code: 'MEMBERS_NOT_ACCEPTED' })
+  assert.throws(() => gate.withReadPin('profiles.read', () => {}, { pin: lease }), { code: 'MEMBERS_NOT_ACCEPTED' })
+  assert.throws(() => gate.enterReadPin('profile.update'), { code: 'MEMBERS_NOT_ACCEPTED' })
+  gate.finish(lease); gate.finishReadPin(pin)
+  assert.throws(() => gate.assertReadPin(pin), { code: 'MEMBERS_NOT_ACCEPTED' })
+})
+
+test('read timeout does not release actual completions and shared drain waits both domains', async () => {
+  const gate = new MembersAdmission('a'), lease = gate.enter()
+  let pin, finishRead, finishEffect
+  const real = new Promise(resolve => { finishRead = resolve })
+  await gate.withReadPin('profiles.read', value => { pin = value; gate.trackReadCompletion(pin, real); return 'caller unknown' })
+  const ticket = gate.close()
+  assert.throws(() => gate.enterReadPin('profiles.read'), { code: 'MEMBERS_NOT_ACCEPTED' })
+  gate.assertReadPin(pin)
+  assert.throws(() => gate.adopt(ticket, 'b'), { code: 'MEMBERS_NOT_ACCEPTED' })
+  const callback = new Promise(resolve => { finishEffect = resolve })
+  gate.trackReadCompletion(pin, callback)
+  let drained = false
+  const wait = gate.drain(ticket).then(() => { drained = true })
+  finishRead(); await Promise.resolve(); assert.equal(drained, false)
+  finishEffect(); await Promise.resolve(); assert.equal(drained, false)
+  gate.finish(lease); await wait
+  gate.adopt(ticket, 'b'); gate.resume(ticket)
+  assert.throws(() => gate.assertReadPin(pin), { code: 'MEMBERS_NOT_ACCEPTED' })
+})
+
+test('read pin reuse releases only owned pins and rejects stale epoch after reopen', async () => {
+  const gate = new MembersAdmission('a'), old = gate.capture(), pin = gate.enterReadPin('profile.read', old)
+  await gate.withReadPin('profile.read', value => gate.assertReadPin(value), { pin })
+  gate.assertReadPin(pin)
+  const ticket = gate.close(); gate.resume(ticket)
+  assert.throws(() => gate.enterReadPin('profile.read', old), { code: 'MEMBERS_NOT_ACCEPTED' })
+  gate.assertReadPin(pin); gate.finishReadPin(pin)
+  const next = gate.enterReadPin('profile.read'); gate.finishReadPin(next)
+})
+
+test('rejected read completion is terminal and original operation errors retain identity', async () => {
+  const gate = new MembersAdmission(), original = Error('synthetic'), pin = gate.enterReadPin('profiles.read')
+  gate.trackReadCompletion(pin, Promise.reject(original))
+  gate.finishReadPin(pin)
+  await assert.rejects(gate.withReadPin('profiles.read', async () => { throw original }), error => error === original)
+  assert.throws(() => gate.withReadPin('profiles.read', () => { throw original }), error => error === original)
+  const ticket = gate.close(); await gate.drain(ticket); gate.adopt(ticket, 'next'); gate.resume(ticket)
 })

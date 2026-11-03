@@ -32,6 +32,10 @@ export function createWebApp({ client = createWebClient() } = {}) {
   const goals = goalsView(document.querySelector('#goals-dialog'), api, () => state.bots, document.querySelector('#chat-goal'))
   document.querySelector('#goals-button').addEventListener('click', () => { void goals.open() })
   const botList = document.querySelector('#bot-list')
+  const rosterNotice = document.querySelector('#roster-notice')
+  const rosterError = document.querySelector('#roster-error')
+  const rosterRetry = document.querySelector('#roster-retry')
+  rosterRetry.addEventListener('click', () => loadBots().catch(() => {}))
   const rosterSearch = document.querySelector('#roster-search')
   rosterSearch.addEventListener('input', renderBots)
   document.querySelector('#search-button').addEventListener('click', () => rosterSearch.focus())
@@ -294,8 +298,8 @@ export function createWebApp({ client = createWebClient() } = {}) {
   async function startConversations(setup) {
     state.setup = setup
     void updateCenter.start()
-    await loadBots()
-    if (!setup.complete && setup.guideBotId) {
+    const loaded = await loadBots().catch(error => { if (error.status !== 503) throw error; return false })
+    if (loaded && !setup.complete && setup.guideBotId) {
       const guide = state.bots.find(bot => bot.id === setup.guideBotId)
       if (!guide) throw new Error('案内役が見つかりません。')
       await selectBot(guide)
@@ -311,14 +315,22 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   async function loadBots() {
     const read = ++catalogueRead
+    rosterRetry.disabled = true
     let botResult, roomResult, ownerResult
     try {
       [botResult, roomResult, ownerResult] = await Promise.all([api('/api/bots?avatar=omit'), api('/api/rooms'), api('/api/owner')])
     } catch (error) {
       if (read !== catalogueRead) return null
+      rosterRetry.disabled = false
+      rosterError.textContent = error.message === 'MEMBERS_NOT_ACCEPTED'
+        ? 'メンバー機能が一時的に新しい操作を受け付けられません。取得済みの表示と入力は保持しています。'
+        : '一覧を取得できませんでした。取得済みの表示と入力は保持しています。'
+      rosterNotice.hidden = false
       throw error
     }
     if (read !== catalogueRead) return null
+    rosterRetry.disabled = false
+    rosterNotice.hidden = true
     const listedIds = new Set(botResult.bots.map(bot => bot.id))
     for (const id of state.pendingDeletionIds ?? []) if (!listedIds.has(id)) state.pendingDeletionIds.delete(id)
     state.bots = botResult.bots.map(bot => ({ ...bot, deletionRequested:state.pendingDeletionIds?.has(bot.id) ?? false, avatar: bot.avatarVersion ? `/api/bots/${encodeURIComponent(bot.id)}/avatar?v=${encodeURIComponent(bot.avatarVersion)}` : '' }))

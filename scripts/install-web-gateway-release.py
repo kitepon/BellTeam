@@ -93,9 +93,9 @@ def snapshot(source_dir, name, target, limit):
 
 
 def verify(archive, bundle, expected, component='web-gateway'):
-    if component not in ('web-gateway', 'notifications', 'members'):
+    if component not in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics'):
         fail('GATEWAY_INSTALL_COMPONENT')
-    verifier = {'web-gateway':'verify-web-gateway.py','notifications':'verify-notifications.py','members':'verify-members.py'}[component]
+    verifier = {'web-gateway':'verify-web-gateway.py','notifications':'verify-notifications.py','members':'verify-members.py','memory':'verify-memory.py','usage':'verify-usage.py','diagnostics':'verify-diagnostics.py'}[component]
     child = subprocess.Popen(['/usr/bin/python3', '/app/scripts/' + verifier, str(archive), str(bundle), str(expected)],
                              env={'PATH': '/usr/local/bin:/usr/bin:/bin'}, stdin=subprocess.DEVNULL,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, close_fds=True)
@@ -138,7 +138,7 @@ def publish(source, target):
 
 
 def extract(archive, receipt, expected, destination, component='web-gateway'):
-    if component not in ('web-gateway', 'notifications', 'members'):
+    if component not in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics'):
         fail('GATEWAY_INSTALL_COMPONENT')
     if set(receipt) != {'schema', 'archiveSha256', 'manifestSha256', 'manifest', 'verification'} or (
         receipt['schema'] != f'bellteam.{component}.verification.v1'
@@ -153,10 +153,10 @@ def extract(archive, receipt, expected, destination, component='web-gateway'):
             or manifest.get('runtime', {}).get('parentProtocol') != 2
             or manifest.get('runtime', {}).get('stateSchema') != 2):
         fail('GATEWAY_INSTALL_RECEIPT')
-    if component == 'members':
+    if component in ('members', 'memory', 'usage', 'diagnostics'):
         spec = importlib.util.spec_from_file_location('artifact_contract', Path(__file__).with_name('web_gateway_artifact.py'))
         contract = importlib.util.module_from_spec(spec); spec.loader.exec_module(contract)
-        try: contract.validate_manifest(manifest, component='members')
+        try: contract.validate_manifest(manifest, component=component)
         except Exception: fail('GATEWAY_INSTALL_RECEIPT')
     files = {}
     if not isinstance(manifest.get('files'), list) or not 0 < len(manifest['files']) <= 20000:
@@ -217,8 +217,52 @@ def extract(archive, receipt, expected, destination, component='web-gateway'):
         sync_directory(root)
 
 
+def verify_memory_code(target, manifest):
+    expected = {item['path']: item for item in manifest['files']}
+    directories = {'.', 'payload'}
+    for name in expected:
+        directories.update(str(parent) for parent in PurePosixPath(name).parents)
+    found = set()
+    for root, names, files in os.walk(target, followlinks=False):
+        relative = Path(root).relative_to(target).as_posix()
+        info = directory(Path(root))
+        if relative not in directories or stat.S_IMODE(info.st_mode) != 0o555: fail('MEMORY_CODE_DIRECTORY')
+        for name in names: directory(Path(root) / name)
+        for name in files:
+            path = Path(root) / name; key = path.relative_to(target).as_posix()
+            if key not in expected: fail('MEMORY_CODE_INVENTORY')
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(fd, 'rb') as stream:
+                info = os.fstat(stream.fileno()); item = expected[key]
+                if not stat.S_ISREG(info.st_mode) or info.st_uid != ROOT_UID or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o444:
+                    fail('MEMORY_CODE_FILE')
+                if info.st_size != item['bytes'] or hashlib.file_digest(stream, 'sha256').hexdigest() != item['sha256']:
+                    fail('MEMORY_CODE_CONTENT')
+            found.add(key)
+    if found != set(expected): fail('MEMORY_CODE_INVENTORY')
+
+
+def publish_memory_code(private_root, stage, output, manifest, version_id):
+    code_root = private_root / 'memory-code'
+    if stat.S_IMODE(directory(code_root).st_mode) != 0o555: fail('MEMORY_CODE_ROOT')
+    target = code_root / version_id
+    if os.path.lexists(target):
+        verify_memory_code(target, manifest)
+        # An authenticated identical orphan may finish its private receipt; never overwrite code.
+        output.chmod(0o700)
+        remove_stage(output / 'payload')
+    else:
+        code = stage / 'code'; code.mkdir(mode=0o700)
+        output.chmod(0o700)
+        os.rename(output / 'payload', code / 'payload')
+        code.chmod(0o555); sync_directory(code)
+        publish(code, target)
+        sync_directory(code_root)
+    output.chmod(0o555); sync_directory(output)
+
+
 def install(private_root, incoming_root, expected, component_name='web-gateway'):
-    if component_name not in ('web-gateway', 'notifications', 'members'):
+    if component_name not in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics'):
         fail('GATEWAY_INSTALL_COMPONENT')
     info = directory(private_root)
     if info.st_gid != SERVER_GID or stat.S_IMODE(info.st_mode) != 0o750:
@@ -265,6 +309,8 @@ def install(private_root, incoming_root, expected, component_name='web-gateway')
                            if component_name == 'web-gateway' else verify(stage / 'archive.tar.gz', stage / 'bundle.json', expectation_path, component_name))
                 output = stage / 'release'; output.mkdir(mode=0o700)
                 extract(stage / 'archive.tar.gz', receipt, expected, output, component_name)
+                if component_name == 'memory':
+                    publish_memory_code(private_root, stage, output, receipt['manifest'], expected['archiveSha256'])
                 publish(output, target)
                 sync_directory(releases)
                 return {'versionId': expected['archiveSha256'], 'installed': True}

@@ -15,11 +15,23 @@ AppleのGoal読取失敗は、各画面callerでTask開始前にtrigger・view�
 | 会話GET | conversation_read | conversation_data_response | messages_loaded |
 | 会話POST | message_send | message_acceptance_response | send_result_returned |
 | Bot一覧GET | member_list_read | bot_list_response | member_list_loaded |
-| 個別予定GET | schedule_read | schedule_data_response | schedule_entries_loaded |
+| 全体・個別予定GET | schedule_read | schedule_data_response | schedule_entries_loaded |
+| 会話画像GET | unknown | successful_response | successful_response |
+| 公式認証の個別状態GET | unknown | successful_response | successful_response |
 | 購読状態GET | subscription_status_read | subscription_status_response | subscription_status_loaded |
 | イベントGET | event_stream_connect | sse_stream_response | sse_stream_connected |
 | セッションGET | session_check | session_status_response | session_confirmed |
 | 機能設定GET | settings_read | settings_response | settings_loaded |
+
+3つの追加分類は実handlerと同じGET経路だけを認める。入力→固定route→operation/期待の対応は次のとおり。query/fragment、画像のowner/filename、認証種類は固定routeへ含めない。
+
+| 入力の型 | 記録する固定route | operation / サーバーの期待 |
+| --- | --- | --- |
+| 全予定一覧GET | /api/schedules | schedule_read / schedule_data_response |
+| 実handlerが受ける会話画像GET | /api/message-images/:id/:id | unknown / successful_response |
+| 公式認証の個別状態GET | /api/harness-auth/:id | unknown / successful_response |
+
+Appleの報告moduleは順にschedules/image/session。サーバーHTTP500の報告moduleは従来serverを維持し、報告元を変えない。画像/認証に新operationを作らず、既集約allowlistも変更しない。認証input/start/cancelや秘密入口、実handler外のpath・methodは従来のother/unknown。過去unknownの移行や原因の補完は行わない。固定分類部分はシグナル、HTTP入口/認可/handlerはモリーが所有する。
 
 サーバーの不明な入口はoperation/expected_result=unknown。AitermTransport.dispatchを示すstackがある場合だけfailure_stage=dispatch。それだけで配送状態や原因は決めない。アプリは要求trace無しならscope=app_operation、operation=unknown、expected_result=successful_responseという一般の期待だけを記録し、呼出側の代替pathから実要求や具体的な目的を作らない。
 

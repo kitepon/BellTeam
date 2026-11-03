@@ -1,7 +1,7 @@
 // 検索は文字の一致で探す。記憶やナレッジを語に分けて SQLite の全文検索（FTS5）へ入れ、語から文書を引く（オーナー裁定 2026-10-06）。
 // 語の分け方は2つを合わせる。単語ごと（Node.js に入っている辞書で切る）を重く、2文字ずつを支えにする。
 // 単語の切り方は辞書の版で変わるので、版が変わったら索引を作り直す。索引は元の表から作り直せる。
-const INDEX_VERSION = `1:${process.versions.icu}`
+export const MEMORY_SEARCH_INDEX_VERSION = `1:${process.versions.icu}`
 const WORD_SEGMENTER = new Intl.Segmenter('ja', { granularity: 'word' })
 // 近い順の点（BM25）の重み。自分の文書60節と問い40件で選んだ最初の値。
 const MEMORY_WEIGHTS = { words: 1.5, pairs: 0.3 }
@@ -152,11 +152,11 @@ function inOneTransaction(db, work) {
 }
 
 function indexIsCurrent(db) {
-  return db.prepare("SELECT value FROM index_state WHERE key = 'version'").get()?.value === INDEX_VERSION
+  return db.prepare("SELECT value FROM index_state WHERE key = 'version'").get()?.value === MEMORY_SEARCH_INDEX_VERSION
 }
 
 function markIndexCurrent(db) {
-  db.prepare("INSERT INTO index_state (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(INDEX_VERSION)
+  db.prepare("INSERT INTO index_state (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(MEMORY_SEARCH_INDEX_VERSION)
 }
 
 // Markdownを見出しで区切る。コードの囲みの中の # は見出しにしない。本文の無い見出しは、下の節の見出しに残る。

@@ -1,17 +1,16 @@
+import { createModuleEndpoint } from './module-ipc.mjs'
 import { validateMembersRequest, validateMembersCallback, validateMembersEffect,
   validateMembersResult, validateMembersEffectResult, validateMembersProjection } from './members/protocol.mjs'
 import { MEMBERS_STATE_COMPATIBILITY, assertMembersStateCompatibility } from './members/state-compatibility.mjs'
+import { MEMBERS_READ_PIN_METHODS } from './members-admission.mjs'
 export { verifyMembersLocks } from './members-locks.mjs'
 export { waitNotificationsChildClose as waitMembersChildClose } from './notifications-ipc.mjs'
 export const MEMBERS_PAYLOAD_LIMIT = 16 * 1024 * 1024
 export const MEMBERS_ENVELOPE_LIMIT = 64 * 1024
 export const MEMBERS_BUFFER_LIMIT = 64 * 1024 * 1024
-const lanes = new Set(['root', 'effect', 'callback', 'projection', 'diagnostic', 'control'])
 const controls = new Set(['initialize', 'quiesce', 'resume', 'exit'])
-const business = kind => ['root', 'effect', 'callback', 'projection'].includes(kind)
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const keys = (value, names) => object(value) && Object.keys(value).sort().join(',') === names.split(',').sort().join(',')
-const idValid = value => Number.isSafeInteger(value) && value > 0
 const codeValid = value => typeof value === 'string' && /^[A-Z_0-9]{1,100}$/.test(value)
 const generationValid = value => typeof value === 'string' && value.length > 0 && value.length <= 200
 const contextValid = (value, initial = false) => keys(value, 'generation,leaseId,rootId,ownerWrite,continuation')
@@ -24,145 +23,13 @@ const sameContext = (left, right) => contextValid(left, true) && contextValid(ri
   && ['generation', 'leaseId', 'rootId', 'ownerWrite', 'continuation'].every(key => left[key] === right[key])
 export const membersError = (code, outcome = 'unknown', status = 503) => Object.assign(new Error(code), { code, outcome, status })
 const invalid = () => membersError('MEMBERS_IPC_INVALID')
-const safeError = (error, outcome) => ({ code: codeValid(error?.code) ? error.code : 'MEMBERS_OPERATION_FAILED',
-  outcome, status: [400, 403, 404, 409, 503].includes(error?.status) ? error.status : 503 })
-const validError = value => keys(value, 'code,outcome,status') && codeValid(value.code)
-  && ['unknown', 'not_accepted'].includes(value.outcome) && [400, 403, 404, 409, 503].includes(value.status)
-const size = value => { try { return Buffer.byteLength(JSON.stringify(value)) } catch { return Infinity } }
 const controlResultValid = (method, value) => method === 'initialize' ? keys(value, 'stateCompatibility')
   : method === 'quiesce' ? keys(value, 'quiesced') && typeof value.quiesced === 'boolean'
     : method === 'resume' ? keys(value, 'resumed') && value.resumed === true
       : keys(value, 'closed') && value.closed === true
 const check = (value, code = 'MEMBERS_IPC_INVALID') => { if (!value) throw membersError(code, 'not_accepted') }
 
-// These credits cover unsent frames and received frames waiting to enter a dispatcher.
-function endpointChannel(endpoint, { validateResult, onRequest, onDisconnect, afterResponse = async () => {} }) {
-  let sequence = 0, incoming = 0, dead = false, queued = 0, controlQueued = 0
-  const pending = new Map(), running = new Set()
-  const counts = { root: 0, effect: 0, callback: 0, projection: 0, diagnostic: 0, control: 0 }
-  const reserve = (kind, bytes) => {
-    const large = business(kind)
-    check(Number.isFinite(bytes) && bytes <= (large ? MEMBERS_PAYLOAD_LIMIT + MEMBERS_ENVELOPE_LIMIT : MEMBERS_ENVELOPE_LIMIT), 'MEMBERS_IPC_MESSAGE_LIMIT')
-    check((large ? queued : controlQueued) + bytes <= (large ? MEMBERS_BUFFER_LIMIT : 1024 * 1024), 'MEMBERS_IPC_CAPACITY')
-    if (large) queued += bytes; else controlQueued += bytes
-    let held = true
-    return () => { if (!held) return; held = false; if (large) queued -= bytes; else controlQueued -= bytes }
-  }
-  const send = message => new Promise((resolve, reject) => {
-    let release
-    try {
-      check(!dead && endpoint.connected, 'MEMBERS_IPC_DISCONNECTED')
-      release = reserve(message.kind ?? 'control', size(message))
-      endpoint.send(message, error => { release(); error ? reject(membersError('MEMBERS_IPC_SEND_FAILED')) : resolve() })
-    } catch (error) { release?.(); reject(error) }
-  })
-  const errorReply = (message, error, outcome) => send({ type: 'result', kind: message.kind, id: message.id,
-    ok: false, error: safeError(error, outcome) }).catch(() => {})
-  const fail = () => {
-    if (dead) return
-    dead = true
-    for (const task of pending.values()) task.reject(membersError('MEMBERS_IPC_DISCONNECTED'))
-    onDisconnect?.()
-  }
-  const protocolFailure = () => { fail(); if (endpoint.connected) endpoint.disconnect() }
-  const call = (kind, method, params, context, { timeout = 60000, beforeSend } = {}) => {
-    let complete, incomplete, resolve, reject
-    const completion = new Promise((yes, no) => { complete = yes; incomplete = no }); completion.catch(() => {})
-    const result = new Promise((yes, no) => { resolve = yes; reject = no })
-    Object.defineProperty(result, 'completion', { value: completion })
-    const limit = business(kind) ? kind === 'projection' ? 1 : 8 : 16
-    let id, task
-    try {
-      check(lanes.has(kind) && !dead && endpoint.connected, 'MEMBERS_IPC_DISCONNECTED')
-      check(object(params) && size(params) <= (business(kind) ? MEMBERS_PAYLOAD_LIMIT : MEMBERS_ENVELOPE_LIMIT), 'MEMBERS_IPC_MESSAGE_LIMIT')
-      check(counts[kind] < limit, 'MEMBERS_IPC_CAPACITY')
-      check(sequence < Number.MAX_SAFE_INTEGER, 'MEMBERS_IPC_SEQUENCE')
-      id = ++sequence
-      if (typeof context === 'function') context = context(id)
-      const message = { type: 'call', kind, id, method, params, ...(context ? { context } : {}) }
-      check(size(message) - size(params) <= MEMBERS_ENVELOPE_LIMIT, 'MEMBERS_IPC_MESSAGE_LIMIT')
-      // Reserve before exposing acceptance: a rejected frame has never been attempted.
-      const release = reserve(kind, size(message)); release()
-      task = { kind, method, context, accepted: false, resolve, reject, complete, incomplete }
-      counts[kind]++; pending.set(id, task)
-      task.ack = setTimeout(() => reject(membersError('MEMBERS_IPC_ACK_TIMEOUT')), 5000)
-      task.deadline = setTimeout(() => reject(membersError('MEMBERS_IPC_TIMEOUT')), timeout)
-      beforeSend?.(completion, context)
-      void send(message).catch(error => reject(membersError(error.code)))
-    } catch (error) {
-      if (task) { clearTimeout(task.ack); clearTimeout(task.deadline); pending.delete(id); counts[kind]-- }
-      reject(error); incomplete(error)
-    }
-    return result
-  }
-  endpoint.on('message', message => {
-    try {
-      check(object(message) && lanes.has(message.kind))
-      check(size(message) <= (business(message.kind) ? MEMBERS_PAYLOAD_LIMIT + MEMBERS_ENVELOPE_LIMIT : MEMBERS_ENVELOPE_LIMIT))
-      if (message.type === 'accepted' || message.type === 'result') {
-        const task = pending.get(message.id)
-        check(task && task.kind === message.kind)
-        if (message.type === 'accepted') {
-          check(keys(message, 'type,kind,id') && !task.accepted)
-          task.accepted = true; clearTimeout(task.ack); return
-        }
-        check(typeof message.ok === 'boolean' && keys(message, message.ok ? 'type,kind,id,ok,value' : 'type,kind,id,ok,error'))
-        check(message.ok ? task.accepted : validError(message.error)
-          && !(task.accepted && message.error.outcome === 'not_accepted'))
-        if (message.ok) {
-          check(size(message.value) <= (business(task.kind) ? MEMBERS_PAYLOAD_LIMIT : MEMBERS_ENVELOPE_LIMIT))
-          check(validateResult(task.kind, task.method, message.value) !== false)
-        }
-        clearTimeout(task.ack); clearTimeout(task.deadline); pending.delete(message.id); counts[task.kind]--
-        if (message.ok) { task.resolve(message.value); task.complete(message.value) }
-        else {
-          const error = Object.assign(new Error(message.error.code), message.error)
-          task.reject(error); task.incomplete(error)
-        }
-        return
-      }
-      check(message.type === 'call' && idValid(message.id) && message.id > incoming)
-      check(keys(message, business(message.kind) && message.kind !== 'projection' ? 'type,kind,id,method,params,context'
-        : message.kind === 'projection' ? 'type,kind,id,method,params,context' : 'type,kind,id,method,params'))
-      incoming = message.id
-      check(object(message.params) && size(message.params) <= (business(message.kind) ? MEMBERS_PAYLOAD_LIMIT : MEMBERS_ENVELOPE_LIMIT))
-      let release
-      try { release = reserve(message.kind, size(message)) }
-      catch (error) { void errorReply(message, error, 'not_accepted'); return }
-      let operation
-      try { operation = onRequest(message) }
-      catch (error) { release(); void errorReply(message, error, 'not_accepted'); return }
-      const task = (async () => {
-        try {
-          await send({ type: 'accepted', kind: message.kind, id: message.id })
-          let value
-          try { value = operation(); release(); value = await value }
-          catch (error) { release(); await errorReply(message, error, 'unknown'); return }
-          check(size(value ?? null) <= (business(message.kind) ? MEMBERS_PAYLOAD_LIMIT : MEMBERS_ENVELOPE_LIMIT), 'MEMBERS_IPC_MESSAGE_LIMIT')
-          await send({ type: 'result', kind: message.kind, id: message.id, ok: true, value: value ?? null })
-          await afterResponse(message, value)
-        } finally { release(); operation.finish?.() }
-      })()
-      running.add(task)
-      void task.catch(error => errorReply(message, error, 'unknown')).finally(() => running.delete(task))
-    } catch { protocolFailure() }
-  })
-  endpoint.on('disconnect', fail)
-  endpoint.on('error', fail)
-  return { call, pending, counts, running, send, fail,
-    // Only the OS/stdio barrier may terminate completions after IPC loss.
-    reaped: () => {
-      fail()
-      for (const task of pending.values()) {
-        clearTimeout(task.ack); clearTimeout(task.deadline)
-        task.incomplete(membersError('MEMBERS_CHILD_EXITED'))
-      }
-      pending.clear()
-    },
-    close: () => { fail(); if (endpoint.connected) endpoint.disconnect() },
-    snapshot: () => ({ ...counts, queuedBytes: queued, controlBytes: controlQueued }),
-  }
-}
+const endpointChannel = (endpoint, options) => createModuleEndpoint(endpoint, { ...options, errorPrefix: 'MEMBERS', statusCodes: [400, 403, 404, 409, 503] })
 
 export function createMembersParentChannel(child, { generation, admission, validateRequest = validateMembersRequest, validateCallback = validateMembersCallback,
   validateEffect = validateMembersEffect, validateResult = (_kind, method, value) => validateMembersResult(method, value),
@@ -180,7 +47,8 @@ export function createMembersParentChannel(child, { generation, admission, valid
     check(contextValid(context) && context.generation === generation)
     const task = channel.pending.get(Number(context.rootId))
     check(task && ['root', 'callback'].includes(task.kind) && sameContext(task.context, context))
-    return admission.assertLease(task.lease, { generation, correlation: task.lease.correlation })
+    if (task.readPin) return { task, readPin: admission.assertReadPin(task.readPin, { generation, method: task.method }) }
+    return { task, lease: admission.assertLease(task.lease, { generation, correlation: task.lease.correlation }) }
   }
   channel = endpointChannel(child, {
     validateResult: (kind, method, value) => {
@@ -202,20 +70,26 @@ export function createMembersParentChannel(child, { generation, admission, valid
         const initial = contextValid(message.context, true) && message.context.leaseId === null
           && message.context.generation === generation && channel.pending.get(Number(message.context.rootId))?.kind === 'control'
           && channel.pending.get(Number(message.context.rootId))?.method === 'initialize'
-        if (!initial) live(message.context)
+        if (!initial) {
+          const source = live(message.context)
+          check(!source.readPin || source.task.method === 'profiles.read', 'MEMBERS_NOT_ACCEPTED')
+        }
         check(validateProjection(message.params, message.context) !== false)
       } else if (message.kind === 'effect') {
-        const lease = live(message.context)
+        const { lease, readPin, task } = live(message.context)
+        check(!readPin || task.method === 'schedules.list' && task.readParams.ownerKind === 'room'
+          && message.method === 'room.schedules.list' && message.params.roomId === task.readParams.ownerId, 'MEMBERS_NOT_ACCEPTED')
         check(channel.pending.get(Number(message.context.rootId))?.kind === 'root', 'MEMBERS_CALLBACK_RECURSION')
         check(received.effect < 8 && callbackCredits() < 8, 'MEMBERS_IPC_CAPACITY')
         check(validateEffect(message.method, message.params, message.context) !== false)
-        const effect = Object.freeze({ id: message.id, membersLease: lease, context: message.context })
+        const effect = Object.freeze({ id: message.id, ...(readPin ? { membersReadPin: readPin } : { membersLease: lease }), context: message.context })
         effects.set(effect, true)
-        const context = Object.freeze({ ...message.context, membersLease: lease, membersEffect: effect })
+        const context = Object.freeze({ ...message.context, ...(readPin ? { membersReadPin: readPin } : { membersLease: lease }), membersEffect: effect })
         received.effect++
         let complete
         const completion = new Promise(resolve => { complete = resolve })
-        admission.trackCompletion(lease, completion)
+        if (readPin) admission.trackReadCompletion(readPin, completion)
+        else admission.trackCompletion(lease, completion)
         const run = () => onEffect(message.method, message.params, context)
         run.finish = () => { effects.delete(effect); received.effect--; complete() }
         return run
@@ -233,11 +107,14 @@ export function createMembersParentChannel(child, { generation, admission, valid
       return run
     },
   })
-  const request = (kind, method, params, { membersLease, capturedAuthorization, membersEffect } = {}) => {
-    let lease
+  const request = (kind, method, params, { membersLease, membersReadPin, capturedAuthorization, membersEffect } = {}) => {
+    let lease, readPin
     try {
-      lease = admission.assertLease(membersLease, { generation })
-      const ownerWrite = authorizeOwner(method, capturedAuthorization) === true
+      check(!membersReadPin || kind === 'root' && !membersLease && !membersEffect && MEMBERS_READ_PIN_METHODS.includes(method), 'MEMBERS_NOT_ACCEPTED')
+      if (membersReadPin) readPin = admission.assertReadPin(membersReadPin, { generation, method })
+      else lease = admission.assertLease(membersLease, { generation })
+      const binding = readPin ?? lease
+      const ownerWrite = !readPin && authorizeOwner(method, capturedAuthorization) === true
       const validate = kind === 'root' ? validateRequest : validateCallback
       if (kind === 'callback' && !membersEffect) membersEffect = [...effects.keys()].find(effect => effect.membersLease === lease
         && ![...channel.pending.values()].some(task => task.effect === effect))
@@ -246,14 +123,17 @@ export function createMembersParentChannel(child, { generation, admission, valid
       else if (kind === 'callback') check(callbackCredits() < 8, 'MEMBERS_IPC_CAPACITY')
       const attempt = channel.call(kind, method, params,
         id => {
-          const context = Object.freeze({ generation, leaseId: lease.leaseId, rootId: String(id), ownerWrite, continuation: lease.epoch !== admission.capture().epoch })
+          const context = Object.freeze({ generation, leaseId: binding.leaseId, rootId: String(id), ownerWrite, continuation: binding.epoch !== admission.capture().epoch })
           check(validate(method, params, context) !== false)
           return context
         }, {
           beforeSend: (completion, context) => {
             channel.pending.get(Number(context.rootId)).lease = lease
+            channel.pending.get(Number(context.rootId)).readPin = readPin
+            if (readPin) channel.pending.get(Number(context.rootId)).readParams = structuredClone(params)
             channel.pending.get(Number(context.rootId)).effect = membersEffect
-            admission.trackCompletion(lease, completion)
+            if (readPin) admission.trackReadCompletion(readPin, completion)
+            else admission.trackCompletion(lease, completion)
           },
         })
       return attempt

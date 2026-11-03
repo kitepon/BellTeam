@@ -9,6 +9,13 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 ## 現行図の正本
 
 - [起動と席の実行機構](execution.md)
+- [記憶の固定版席runnerと実子終端](memory-process.md)
+- [共通の有限IPCとstream](module-ipc.md)
+- [usage・diagnosticsの固定Cとlock本人性](module-start.md)
+- [固有channelを載せる共通child世代controller](module-process.md)
+- [usage・diagnosticsのinstalled readerと固定wrapper](module-release.md)
+- [executionの固定host factory読込](execution-loader.md)
+- [execution親の選択保存ACK](execution-adoption.md)
 - [CLI登録・共有設定の所有と完了](cli-registration.md)
 - [installer・状態移行・backup/restore](recovery.md)
 - [アプリからcontainerを更新するHost受付とworker](container-update.md)（source実装、未設置）
@@ -33,4 +40,8 @@ runtime-detailsとdistribution-detailsのruntime所有章はここへ移管し�
 
 所有するのは管理CLI節・trust・hook登録、席の一時画像、移行/復旧の実行状態。台帳・ProjectFiles内部・記憶形式・native state・配布版対応表は各所有者の窓口を使う。`run-seat-runtime`は操作dispatchだけを持ち、ProjectFilesと記憶の処理は各機能へ渡す。登録修理はruntime所有の既存ファイル内で完結し、members/usage内部の編集を要しない。
 
-CLI登録図はwriter所有と完成JSON公開を含む。起動/席実行/移行/復旧図は実装の意味を変えず、正本の場所と責任を明示した。公開窓口/接続先は変わらず、全体図の生成結果は不変。Throughline DB/WALのmtimeへ依存する席実行部の分離はN102のconsumer切替と合わせる残件。機能全体のsource分離や本番反映を完了扱いにしない。
+CLI登録図はwriter所有と完成JSON公開を含む。起動/席実行/移行/復旧図は実装の意味を変えず、正本の場所と責任を明示した。公開窓口/接続先は変わらず、全体図の生成結果は不変。Throughline DB/WALのmtimeを読む旧席窓口は除去し、N102の公開observer-check consumerと同時に採用する。機能全体のsource分離や本番反映を完了扱いにしない。
+
+## 全module共通runnerとの境界
+
+共通交換runner/controller・排他・世代とclose-drain/実OS子終端はruntimeのmodule-runner窓口が持つ。既各controllerをこの公開機構へ揃え、業務writer/factory/DTOは各moduleへ残す。親のplan/同UUID step ledgerとcomponent adapterの組立はintegration、配布資材/source検証はdistribution。未提供factory/runnerを組立てただけで交換成功や耐久完了へ投影しない。

@@ -59,7 +59,8 @@ final class ProfileTerminalUITests: XCTestCase {
         XCTAssertEqual(settled, afterClose, "閉じた画面を更新しない")
     }
 
-    func testPhoneTenThousandLineHistoryRequestsAndRenders() async throws {
+    func testPhoneLongHistoryRequestsHistoryAndCapturesScreen() async throws {
+        // 1万行fixtureでhistory=1の要求と画面取得を確認する。端末本文の行数・最終行はこの試験では照合しない。
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの長いBOT画面を確認する試験です。")
         continueAfterFailure = false
         let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"])

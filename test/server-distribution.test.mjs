@@ -24,11 +24,13 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'config/notifications-verification.json', 'scripts/module_artifact_verifier.py',
     'scripts/verify-notifications.py', 'scripts/notifications-start.c',
     'config/members-verification.json', 'scripts/verify-members.py', 'scripts/members-start.c', 'scripts/install-members-release.py',
+    'config/memory-verification.json', 'config/usage-verification.json', 'config/diagnostics-verification.json', 'scripts/verify-memory.py', 'scripts/verify-usage.py', 'scripts/verify-diagnostics.py', 'scripts/install-memory-release.py', 'scripts/install-usage-release.py', 'scripts/install-diagnostics-release.py',
     'scripts/verify-update-catalog.py', 'scripts/update_catalog.py', 'config/update-catalog-verification.json',
     'scripts/container-update-host.py', 'scripts/install-container-update-code.py', 'scripts/cleanup-deploy-images.py', 'scripts/save-deploy-restore-point.py',
     ...['bellteam-container-update-host.service.in', 'bellteam-update-catalog-refresh.service.in', 'bellteam-update-catalog-refresh.timer', 'compose.overlay.yaml', 'README.md', 'root-code-paths.json'].map(name => 'distribution/server/updater/' + name),
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
     'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
+    'scripts/module-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c',
     'scripts/seat-exec.c', 'scripts/server-start.c',
     'scripts/assert-state-writers-stopped.sh',
     'scripts/install-sce-headers.py',
@@ -67,14 +69,15 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   for (const name of bridgeFiles) assert.ok(pathsInArchive.includes(`bridge/${name}`))
   assert.ok(!pathsInArchive.includes('bridge/bridge.env'), '利用者のBridge認証設定は配布しない')
   for (const path of ['compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh']) assert.ok(pathsInArchive.includes(path))
-  for (const path of ['scripts/seat-exec.c', 'scripts/server-start.c']) assert.ok(pathsInArchive.includes(path))
+  for (const path of ['scripts/module-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c', 'scripts/seat-exec.c', 'scripts/server-start.c']) assert.ok(pathsInArchive.includes(path))
   assert.ok(pathsInArchive.includes('scripts/install-sce-headers.py'))
   for (const path of ['config/web-gateway-verification.json', 'config/web-gateway-trusted-root.jsonl',
     'scripts/verify-web-gateway.py', 'scripts/web_gateway_artifact.py',
     'scripts/install-web-gateway-release.py', 'scripts/install-notifications-release.py',
     'config/notifications-verification.json', 'scripts/module_artifact_verifier.py',
     'scripts/verify-notifications.py', 'scripts/notifications-start.c',
-    'config/members-verification.json', 'scripts/verify-members.py', 'scripts/members-start.c', 'scripts/install-members-release.py']) assert.ok(pathsInArchive.includes(path))
+    'config/members-verification.json', 'scripts/verify-members.py', 'scripts/members-start.c', 'scripts/install-members-release.py',
+    'config/memory-verification.json', 'config/usage-verification.json', 'config/diagnostics-verification.json', 'scripts/verify-memory.py', 'scripts/verify-usage.py', 'scripts/verify-diagnostics.py', 'scripts/install-memory-release.py']) assert.ok(pathsInArchive.includes(path))
   const rootCode = JSON.parse(await readFile(join(output, 'distribution/server/updater/root-code-manifest.json'), 'utf8'))
   assert.equal(rootCode.schema, 'bellteam.host-updater.code-manifest.v1')
   assert.equal(rootCode.sourceCommit, result.sourceCommit)

@@ -3,6 +3,7 @@ import { lstat, mkdir, open, realpath, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { composeProjectInstructions } from './project-instructions.mjs'
 
 const exec = promisify(execFile)
 const maximum = 16 * 1024 * 1024
@@ -110,7 +111,8 @@ export async function operateMembersProject({ root, home }, operation, params) {
   }
   if (operation === 'project.appendInstructions') await file(join(project, 'AGENTS.md'), params.text, 0o644, true)
   else {
-    await file(join(project, 'AGENTS.md'), params.body, 0o644)
+    const body = await composeProjectInstructions(project, params.body)
+    await file(join(project, 'AGENTS.md'), body, 0o644)
     await file(join(project, 'CLAUDE.md'), '@AGENTS.md\n', 0o644)
   }
   return null

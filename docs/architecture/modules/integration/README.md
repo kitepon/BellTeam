@@ -70,6 +70,19 @@ executionは`SERVER_MODEL_CONFIGURATION_FAILED`（bots）と`SERVER_TURN_TRACKIN
 
 通常deployとcleanup結果保存の接続は[担当と保存契約](deploy-cleanup.md)へ。
 
+## 型付きHTTP503の受動診断
+
+```mermaid
+flowchart LR
+  HTTP["業務HTTP: 認証→control→members refresh→feature"] --> Error["http-errors: 型付き503を選択"]
+  Error --> Safe["固定code allowlist / HTTP段階 / 型route / 時刻"]
+  Safe --> Writer["既Diagnostics.record / SERVER_HTTP_503"]
+  Writer --> Saved["既private診断保存 / 管理GET / BugHub通常取込"]
+  Error --> Response["既status・JSON応答"]
+```
+
+早期returnしていた型付き503だけを既writerへ記録する。任意のerror.message/stack/header/body/queryや対象IDは記録せず、未知codeはunknown、routeは固定型又は`/api/other`。HTTP段階はhandlerの進行位置で、members内部の失敗phaseではない。親拒否分類・live数・失敗phaseを同一判定へ結び付ける既公開口が無いためunknown/nullを保持し、catch直後のcapture/snapshotから補完しない。既集約はSERVER_HTTP_503/serverの1行でcountと最新診断を保持し、旧500/Apple診断の集約・状態を変えない。診断保存失敗は固定文だけをstderrへ残し元HTTP応答を返す。認可・入場8枠・既処理・status/JSON・再送方針は不変。自然再発や実席probeは検証条件にしない。
+
 ## 本番更新入口の旧profile保存
 
 ```mermaid
@@ -162,41 +175,25 @@ SSEは業務側からstreamで中継。受付停止時はSSE接続を切断し�
 
 影響範囲：application-runtimeと新HTTP gateway/entry/process、application-runtime直接試験とgateway process直接試験。HTTP handler、MCP schema、service、writer、各担当内部と保存形式は変更しない。packagerはsrc/web全体を収録するため新fileの個別追加不要。app factoryの既server戻り値は非公開listenerとなり、公開addressはgatewayが返すため、その唯一の直接callerである試験を合わせる。現行公開HTTP/MCPの利用者にはaddress形式を露出しない。
 
-## Web受付の固定版切替（実装中の接続）
+## Web受付の固定版切替（親接続）
 
-Owner向け既認証のGET/POST `/api/web-gateway-release`でWeb受付一対象を操作する。内部HTTP/MCPは403。POST本文はversionIdの64hexだけ、同時要求は409。受付202は交換成功ではなく、応答finish後だけ既gateway.replaceを実行する。finish前の切断はnot_started、親closeは未開始要求を止める。要求自身の非SSEdrain待ちで交換を止めない。GETは現在版と一件の直近交換結果を返す。状態は親内だけで、新queue/ID/永続台帳を増やさず、採用版の正本は既adoption recordを保つ。親再起動で直近の受付結果は失われるので、その場合は現在版を確認し自動再送しない。
-
-旧版への戻しも同じPOSTへ旧固定versionIdを指定する。任意path/command/UIDは受け付けない。失敗は固定GATEWAY符号と実際の現在版をGETへ返す。業務handler/writer/job/nativeは停止しない。初回image導入と本番停止はこの窓口の実装承認に含めない。
+Owner向け既認証のGET/POST `/api/web-gateway-release`はversionIdのSHA64又は固定literal `builtin`を受ける。内部HTTP/MCPは403、同時要求は409、応答finish後だけ同gateway.replaceを開始し、finish前断線はnot_started。受付202を交換成功へ置き換えず、GETの実結果を使う。この既個別入口のメモリ受付と、共通Updateの耐久plan/start/get/UUIDは別に保持する。
 
 ```mermaid
-flowchart TD
-  Version[版IDだけを選択] --> Prepare[runtime/配布の公開窓口: 認証・互換・固定配置の確認]
-  Prepare -->|確認済descriptor| Swap[runtime: 公開受付の版切替]
-  Prepare -->|拒否| Keep[旧受付を継続]
-  Swap --> Drain[runtime: 現在受付を停止・回収]
-  Drain --> New[新版の受付子を起動・ready確認]
-  New -->|成功| Adopt[runtimeの採用版記録へ返す]
-  New -->|失敗| Previous[前の固定版の受付子を起動]
-  Previous --> Failure[元失敗と旧版復帰結果を返す]
-  Close[親の全体終了] --> Cancel[版切替の次起動を抑止・受付子回収]
-  Swap -. writer/job/transportに操作なし .-> Business[同じ業務processが継続]
+flowchart LR
+  Owner[既Owner認証] --> Control[Web固有reserve / completion]
+  Ledger[共通耐久plan/start/get] --> Adapter[Web固有update adapter]
+  Control --> Process[同gateway process]
+  Adapter --> Process
+  Process --> Runtime[runtimeの公開reader / 同port・OS終端]
+  Process --> Web[Web固有builtin選択 / 実資材版]
 ```
 
-共通交換入口は版IDを受け、runtimeの公開窓口`prepareGatewayRelease(version)`が返す確認済descriptorを使う。versionId/appRoot/protocolVersion=1はruntime/商用と合意済みで、application-runtimeから公開readerへ接続済み。正式署名資材とroot配置の実供給は未成立であり、reader接続から成立を補完しない。任意のHTTP bodyからpath/UID/commandを受けて起動しない。配布元の認証・manifest互換・固定digest・所有/modeを確認する処理と配置は担当正本へ置く。
-
-確認は旧版を動かしたまま行い、拒否時は旧版へ作用しない。交換中の二重交換は拒否し、旧子回収後だけ新子を起動する。readyのportは整数1..65535かつ要求済み非zero portとの一致を確認してから採用する。初回port=0だけが有効portの選択を許し、以後の交換/戻しは同じ公開portを保持する。不一致readyは子起動失敗として回収し、元portで旧版へ戻す。protocolVersion=1の新子readyと採用記録保存後に成功を返す。新子が15秒以内にreadyを返さないとその子を回収し、起動失敗として扱う。失敗では元の固定版へ戻し、戻しも失敗なら両方の例外を保持する。親終了が重なったら新起動/旧版戻しを続けず、回収して親の既終了を進める。本文再送/業務state再構築をしない。
-
-初回のプロセス分離と違い、ここでは別rootの固定版entryを起動する。writerやnativeは移さない。以前のWeb版の資材参照と新しい画面/SSE再接続は公開Web契約として別途合わせる。配布/配置の契約未成立を、process交換の人工fixtureで成功扱いしない。
-
-この段階の影響範囲はhttp-gateway-process/entryとapplication-runtimeの公開reader接続、直接gateway版切替fixture、既HTTP gateway/runtimeの対象試験。bootstrapはruntimeの公開prepareGatewayReleaseを使い、fixtureだけが合成providerを注入する。正式署名/root配置資材の実受入と運用上の交換窓口は別工程であり、現行本番へ反映済みとは扱わない。
-
-旧Web資材は受付processの交換を越えて保持する。親はこの稼働中に採用したassetVersion→固定appRootを保持し、新子へ確認済一覧だけを渡す。新子は各固定版のweb.assets登録を読み、既?v=に対応した版の資材/置換を配信する。任意queryからfile pathを組み立てず、未知の版は404。履歴一覧が64KiBを超える交換は旧子停止前に拒否し、黙って古い版を捨てない。親再起動後の保持一覧はruntimeの採用/保持契約との接続が残り、このメモリ一覧を耐久記録の代用にしない。
-
-採用版はruntime正本のadoption schemaと既writeAtomicへ接続する。親の初回startだけで1001/0600正本を読み、record無しなら内蔵版、record有りならcurrent/previousをprepareで再確認する。未知/破損/信頼失敗は内蔵版へfallbackしない。新子ready後のrecord保存を成功条件に含め、保存失敗は新子回収→旧descriptor再確認→旧子起動、旧record保持。親close重複時は取消し、次起動と戻しを抑止する。current/previousをstartupで再確認して前版資材を読めるようにし、それ以前の全資材の親再起動後保持はこの差分の対象外。
+source確認と共通登録は下の[親接点](#web受付の既知内蔵版への戻し)、builtinの選択/採用null/予約と固有adapterは[Web正本](../web/gateway-builtin.md)、署名descriptor/root配置・子起動停止/close-drain/同port交換は[runtime正本](../runtime/web-gateway-release.md)へ辿る。親は固定appRootと既prepareGatewayReleaseを使い、HTTP bodyへ任意path/command/UIDを追加しない。業務writer/job/native/親は対象module交換のために停止せず、初回親imageの導入や本番操作は別の既条件を保持する。
 
 ## 実装所有の境界（2026-11-03）
 
-共通入口の認可・承認原本/profileと観測の接続・assembly、既契約内の通常main統合はモリーが持つ。公開契約の用途制限と裁定、全体設計・本番はRootが持つ。`src/http-gateway-process.mjs`の子起動停止/ready/同port交換/adoption/戻し、OLRW固定root記録writer/有限watch/取消/OS observerはruntime（エピネル）の実装所有。Root候補1775fa5とruntime所有移管19fad7fの既成功証跡を引き継ぎ、未採用候補のsourceや実供給・実権限はこの移管から成立しない。
+共通入口の認可・承認原本/profileと観測の接続・assembly、既契約内の通常main統合はモリーが持つ。公開契約の用途制限と裁定、全体設計・本番はRootが持つ。`src/http-gateway-process.mjs`の共通子起動停止/ready/同port交換はruntime、同fileのbuiltin選択/戻しとweb-gateway-control/固有update adapterはWeb（アドミ）が所有する。OLRW固定root記録writer/有限watch/取消/OS observerはruntime（エピネル）の実装所有。Root候補1775fa5とruntime所有移管19fad7fの既成功証跡を引き継ぎ、未採用候補のsourceや実供給・実権限はこの移管から成立しない。
 
 ## Host Update adapterの接続
 
@@ -432,3 +429,85 @@ Root Web Push契約v1.1に従う。`createWebPushOrigin({settings})`が返す`as
 `createBellTeamServer`が同じ親FeatureSettingsから検証関数を一つ構築し、`createControlApi`→`createUsageApi`へ注入する。既Owner認証の後、登録照会/登録/解除のprivate originへこの返却だけを渡す。provider/configureへoriginを足さず、別origin登録の操作を同等権限にしない。固定sw.jsは版付置換の有無によらずJS MIME/no-cache、他immutable資材を維持。SW本文/公開asset mapはAdmi固定作者sourceへ接続する。
 
 `application-services`は同じ設定一実体のAPNs/Web二設定をcontrollerへ供給する。onStateの両provider applyErrorは各featureへ分けて投影し、ready/statusのnullで保存済み適用失敗を消さない。成功した明示設定適用は既FeatureSettingsのonChange結果で更新する。子/controllerのconfig epoch・復帰後差分適用と実署名nativeはruntime/配布の固定成果へ結合するまで未成立。実送信/資格/Host本番の証明にはしない。
+
+## 薄い親と全module共通の耐久更新
+
+```mermaid
+flowchart LR
+  In[HTTP/MCP / 親で認証済み入力] --> Facade[同じ安定facade / 最小DTO]
+  In --> Ledger[共通plan・同UUID operation ledger / 親が唯一writer]
+  Ledger --> Adapter[componentごとの公開controller adapter]
+  Adapter --> Runner[runtime: 共通runner/controller / 世代・close-drain]
+  Runner --> Module[各moduleのfactory/dispatcher / 同state唯一writer]
+  Module --> Done[実completion / 失敗・unknown]
+  Done --> Ledger
+  Ledger --> View[既Update HTTP/schema/SSE / backend結果]
+```
+
+親は業務データを直接書かず、安定facadeと公開controllerを組み立てる。共通ledgerはplan/同UUID・step/再開・結果を停止跨ぎ保持し、unknownから新要求を自動再送しない。runnerが旧世代の新入場を閉じ実root/effect/保存・OS子終端をdrainし、業務moduleが同state restore/唯一writerと入力検証を所有する。adapterはその既公開結果だけを親ledgerへ投影する。現container耐久接続は成立、module/all共通executorは実装中。既web/notifications/members controllerから先行し、全moduleの納品待ちへ戻さない。diagnostics内部は[Signalの正本](../diagnostics/README.md)へ移し、親の既diagnostics窓口は同facadeで維持する。
+
+### 通常UIと連絡のreadonly入場
+
+AIのlogical8leaseと、固定6methodのreadonly世代pinを分ける。pinは同gateのopaque identity/単一method/generationに束縛し、readもclose/drain/実completionへ参加する。既IPC root8は増やさず、projectionはprofiles.read、readonly effectはschedules.listの同roomだけ。facadeは既AIleaseの操作を同leaseのまま、通常fresh readをread pinへ渡す。listForClientはprofiles.read/profile.readの別pinを同generation/epochで同期捕捉して再利用する。mutation/callbackへpinを転用しない。
+
+Owner GETの一覧/Owner/個別profile・画像・設定画・会話/queueは自身のfresh窓口を使い、不要な全profile snapshotを先に要求しない。会話/queueは対象をfresh readMemberで確認し、確定404と拒否/unknownを分ける。MCP/POSTの既fresh本人/対象認可は保持する。保存済み大画像の再取得でMEMBERS_NOT_ACCEPTEDを表示したOwner症状もこの読取経路へ含め、画像保存成功を取消したりnative故障と扱ったりしない。
+
+### module/all更新の実行と耐久結果
+
+```mermaid
+flowchart LR
+  Plan[Owner固定plan / action省略時update] --> Check[同catalog・実current・期限・既prepareの互換確認]
+  Check --> Journal[state/update-ledger / fsync済planと同UUID受付]
+  Journal --> Steps[固定順のmodule step / containerは必要時のみ最後]
+  Steps --> Public[同controllerのreplace実Promise / Host start-get]
+  Public --> Verify[実snapshotのtargetと利用可能性]
+  Verify --> Result[step・operation保存 / 既SSE再取得]
+  Restart[親再起動] --> Unknown[未終端module stepはunknown / 自動再apply無し]
+  Unknown --> Result
+```
+
+共通ledgerがplan/operation/stepの唯一writer。既web/通知/members controllerとroot所有資材の公開prepareを再利用し、子writer・新版資材配置を追加しない。未配置はplan前のprepareで拒否する。catalogは通知protocol/state 2、members状態指紋、Web protocol 1を照合する。全体planは同catalogの更新対象を固定し、必要なcontainer stepだけ既Host計画を末尾へ付ける。個別旧container計画/結果照会を維持する。
+
+戻しはplan入力のaction=rollbackで明示し、省略はupdate。operationは保存planのactionを使い、別action/targetをbodyへ受けない。個別moduleの直前に当ledgerが成功確認した交換だけ、元のbuiltin又は検証済archiveへ現データのまま戻す。全体/container戻しは未対応として拒否し、業務データ/Owner設定/unknownを巻き戻さない。途中のmodule実行が未確定ならunknown、Hostへ発行済みの最後stepは同requestId照会だけで追う。親終了は新受付を閉じ、既実Promiseを回収してからcontrollerを閉じる。
+
+### memoryの同controller組立
+
+既SeatRuntime.memoryModule一実体をmemoryの安定facade・Update inventory/adapter/ledgerへ渡す。親終了は共通更新の実終端を待った後、同memoryModule.closeで全短命席子のOS/結果終端を回収する。別MemoryService/SeatRuntimeを生成しない。memoryはP1/Node26、stateSchema:nullと業務の実7field完全一致。builtinSourceCommitが公開されない版はcurrent:nullを保持し、実generationをprivate plan前提へ束縛する。現版不明を通知のsourceで埋めず、最初のbuiltin戻し計画も作らない。DB/本文/索引は移送せず、同DBを読む固定版runnerのcodeだけ交換する。通常初回mountのruntime/配布差分と同sourceにする。
+
+通知のUpdate利用可否はP2のAPNs/Web両status・applyErrorから単一の公開reasonへ投影する。旧P1のscalarだけを読んでP2のerror objectをreasonへ入れず、通知未設定でも更新inventory/planを読めるようにする。
+
+初回の機能登録（親factory/controller・安定facade/effect・catalog・固定Cとmount）は通常imageへ組み立てて導入する。未登録moduleを既imageへ動的追加する機構は提供しない。この初回導入後の、登録済みcontrollerが対応するコード版交換/戻しだけを親再起動無しで実行する。共通ledger→実3controllerの公開HTTP交換と個別戻しは、人工公開catalog/C代替Node子で親PID・同port・保存bytes保持まで確認し、署名/実C/本番の既配布成果とは分ける。
+
+既typed503の安全なroute正規化にroom/bot avatarを加え、queueと同じ固定code/HTTP段階/timeだけを既診断writerへ保存する。原request ID/本文/query/header/例外自由文は保存しない。22:50新room-avatar/全体queue事象は原code欠測のため根因未確定、PR287の前段profiles.read pin適用範囲と後段rooms/queueの担当確認を分け、過去の別scopeへ同根因を補完しない。
+
+Owner GET /api/queueはexecutionの同期queueItems投影だけを使い、不要な全members refreshを先行させない。Owner認証は既入口のまま、内部Bot APIの既fresh処理は保持する。room avatarはRoomRegistry.refreshの全room/member正規化に依存するため、前段freshを投影認可へ置き換えずPR287のprofiles.read pinを保持する。
+
+### diagnosticsの親facadeと同controller
+
+通常本体はSignalの閉5操作をEpi createDiagnosticsProcess一実体へ注入し、recordの保存ACK/row・listのasync配列と既管理APIを同じ安定facadeで渡す。undefinedの任意note/statusをDTOへ載せず、raw rowsの親cache/第二writerを作らない。先にdiagnostics writerを起動し、members/通知/HTTPの既report callbackを同facadeへ束ねる。親終了では他の業務とHTTPを終えてから同診断controllerを閉じ、起動失敗時も取得済みcontrollerを回収する。
+
+同controllerのsnapshot/実generationをUpdate inventoryと共通ledgerへ渡し、固定stateCompatibility2fieldをcatalog/readerへ完全一致させる。初回親組立と固定C導入は通常image、登録後の子版交換/戻しだけ親無再起動。未登録版/reader不足/不明currentは推測で成功にしない。
+
+通常supervisorはbootstrap namespaceのcreateDiagnosticsProcessをapplication-runtime→servicesへ渡し、独立writerを実起動する。factory未指定の既fixtureだけ旧classを保ち、通常本体がfallbackへ残らない。installed readerはEpi prepareModuleReleaseを同adapterへ注入する。
+
+### usage段階組立の親接点
+
+`usage-assembly.mjs`は同controller・private ACK投影・method限定親authorityを一組だけ生成する。settings seed→subscriptions seed→既graph構築→services snapshot/activateの順で初回を結ぶ。親の認証済みHTTP/席入口だけがactorをcaptureし、bodyのbotIdは権限へ転用しない。呼出元のPromise期限後も実completionまでauthorityとleaseを保持する。設定applyのsystem callbackはAsyncLocalStorage内の元usageLease/usageEffectを同identityで渡し、別rootへ作り直さない。
+
+通常bootstrapはこのcontrollerから設定seedを先に受け、subscriptions→members等の既graph→services snapshot/activateの順で起動する。通常経路では旧6serviceを別生成せず、明示factory未注入のfixtureだけ旧経路を残す。Owner HTTPは既authorize後、席HTTPは既名札をfresh解決した後にmethod限定actorをcaptureし、bodyのbotIdを権限にしない。秘密/質問GETはfresh readをawaitし、settings更新と各書込へ同contextを渡す。MCPから既内部HTTPへは捕捉済みseat名札を引渡す。
+
+固定12effectsは業務担当のusage-parent-effectsへ委譲し、設定applyは同settings.onChange参照と保存epochを保持する。親通知snapshotから最新epochを推測して過去applyErrorを注入しない。update inventory/catalog/installed reader/adapter/耐久ledgerと親終了は同controllerを参照する。HTTP/実席MCP→内部HTTP→実Node子→保存/更新・個別戻しで親PID/portとカード保持を確認し、実C/署名/native/本番の成立とは分ける。
+
+### Web受付の既知内蔵版への戻し
+
+Web固有の[内蔵版戻し](../web/gateway-builtin.md)がprocess/control/adapterを所有し、共通台帳は同adapterを登録する。通常runtimeは固定/app/distribution.jsonをno-follow・root所有/単一link/書込不可・4096B以内・既schema/SHA40で確認し、同imageのbuiltinSourceCommitを一度だけDIする。controller snapshotやHTTP bodyからsourceを補完しない。確認不能はnull/current不明とし内蔵戻しを拒否する。共通catalog/plan/start/get/UUID/排他は従来のまま、個別module直前成功からのcode戻しだけ。SHAとliteral builtinは既Owner入口へ、all/container戻しとデータ巻戻しは提供しない。
+
+### executionの実engineと親公開口
+
+通常bootstrapはKiroのcreateExecutionAssemblyを注入する。親はEpi adoption storeのreadした2scalarと同store.saveを直接使い、検証済loadExecutionFactory・同native client・members gate・queue listener・requestStopを固定liveportsへ結ぶ。rooms/onboarding/messenger/authの遅い依存は固定method closureへ渡し、全graphとusage初期化後に同controllerをstartする。旧外側Transport/Goals/Admin/SeatTurns/IdleSessionsを通常経路へ別生成せず、会話SelfTurnsは保持する。
+
+同期currentWork/session/queue等とasync dispatchは固有facadeのまま、親の同Update inventory/catalog/prepare/耐久ledgerへcontrollerを一つ登録する。保存compatibilityは本人export文字列bellteam.execution-state.v1とNode26/P1/stateSchema:nullのまま。交換は旧actual zero→退役→新initialize→file/dir fsync保存ACK後だけ受付を開き、親PID・SDK・native PTYを交換のために閉じない。アプリ全終了時だけ、engine close後に親が共有clientを一度closeする。
+
+新Owner HTTP→台帳→実reader選択/実engine交換・builtin戻しと同期投影/採用0600/同parent-portを検査し、C/root署名配置/実SDK/本番をこの人工I/O fixtureで補完しない。署名artifact/公開catalogの実物は配布担当の同source受入へ結ぶ。
+
+executionのcapacity継続は既Messenger.sendmessage(input,options)へ親固定portを直結し、admissionCheckと返却delivery_id/実Promiseを同identityで保持する。user.turn用enqueueへ置換せず、継続対象や本文を親が再生成しない。

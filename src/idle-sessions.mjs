@@ -9,10 +9,11 @@ export const IDLE_CLOSE_MS = 30 * 60_000
 const INTERVAL_MS = 5 * 60_000
 
 export class IdleSessions {
-  constructor({ bots, transport, pendingDecisions = pendingDecisionsByHarness, idleMs = IDLE_CLOSE_MS, intervalMs = INTERVAL_MS, now = () => Date.now(), report = message => process.stderr.write(`${message}\n`) }) {
+  constructor({ bots, transport, pendingDecisions = pendingDecisionsByHarness, allowClose = () => true, idleMs = IDLE_CLOSE_MS, intervalMs = INTERVAL_MS, now = () => Date.now(), report = message => process.stderr.write(`${message}\n`) }) {
     this.bots = bots
     this.transport = transport
     // その席が出したApproval Boxの未決・保留の申請のうち、Aitermの観測では分からないものの数。分からない時はnull。
+    this.allowClose = allowClose
     this.pendingDecisions = pendingDecisions
     this.idleMs = idleMs
     this.intervalMs = intervalMs
@@ -41,6 +42,7 @@ export class IdleSessions {
 
   async check() {
     for (const bot of [...this.bots.values()]) {
+      if (!this.allowClose()) break
       try {
         await this.checkBot(bot)
       } catch (error) {
@@ -66,7 +68,7 @@ export class IdleSessions {
     if (since === null || now - since < this.idleMs) return
     // 答えを待っている席を閉じると、答えが出ても席が起きない（Approval Boxは閉じた席を起こさない）。
     if (await this.pendingDecisions(bot) !== 0) return
-    if (!await this.transport.closeIdle(bot)) return
+    if (!this.allowClose() || !await this.transport.closeIdle(bot)) return
     this.seen.delete(bot.id)
     this.report(`BellTeam idle sessions: ${bot.id} を閉じました（${Math.round((now - since) / 60_000)}分動きなし）`)
   }

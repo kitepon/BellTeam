@@ -65,7 +65,14 @@ def sha(raw):
 
 
 def api(path):
-    return execute(['gh', 'api', 'repos/kitepon/BellTeam/' + path]).stdout
+    # Retry only transient read failures; identity and ZIP integrity checks stay outside this loop.
+    for attempt in range(3):
+        result = execute(['gh', 'api', 'repos/kitepon/BellTeam/' + path], check=False)
+        if result.returncode == 0:
+            return result.stdout
+        if attempt == 2 or not re.search(rb'gh: HTTP (502|503|504)\b', result.stderr):
+            raise RuntimeError(f'gh exit={result.returncode}: {result.stderr[-2000:].decode(errors="replace")}')
+        time.sleep(attempt + 1)
 
 
 def extract_artifact(run, name, output):

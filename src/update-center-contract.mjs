@@ -27,6 +27,7 @@ const target = object({ componentId: text, current: nullable(version), published
 const plan = object({ planId: uuid, scope: enumeration(['all', 'component']), componentId: nullable(text), expiresAt: date,
   targets: list(target), compatibility: object({ compatible: { type: 'boolean' }, reason: nullable(text) }),
   impact: object({ containerRestart: { type: 'boolean' }, description: text }), capability })
+plan.properties.action = enumeration(['update', 'rollback'])
 const operation = object({ requestId: uuid, plan, admission: enumeration(['accepted', 'rejected', 'unknown']),
   phase: enumeration(['preparing', 'applying', 'reconnecting', 'verifying', 'completed', 'failed', 'unknown']),
   execution: enumeration(['pending', 'succeeded', 'failed', 'unknown']), verification: enumeration(['pending', 'succeeded', 'failed', 'unknown']),
@@ -44,7 +45,7 @@ export const updatesSchema = { $id: 'urn:bellteam:updates:v1', ...object({ schem
   plans: list(plan), operation: nullable(operation), previousOperation: nullable(operation),
 }) }
 export const updateRequestSchemas = {
-  plan: { oneOf: [object({ scope: { const: 'all' } }), object({ scope: { const: 'component' }, componentId: enumeration(updateComponents.map(([id]) => id)) })] },
+  plan: { oneOf: [object({ scope: { const: 'all' } }), object({ scope: { const: 'component' }, componentId: enumeration(updateComponents.map(([id]) => id)) })].map(schema => ({ ...schema, properties: { ...schema.properties, action: enumeration(['update', 'rollback']) } })) },
   operation: object({ planId: uuid, requestId: uuid, confirmContainerRestart: { type: 'boolean' } }),
   requestId: uuid,
 }
@@ -94,3 +95,27 @@ const responses = Object.fromEntries(Object.entries(updateResponseSchemas).map((
 export function validateUpdateResponse(name, value) {
   if (!responses[name](value).valid) throw Object.assign(new Error('UPDATE_RESPONSE_INVALID'), { code: 'UPDATE_RESPONSE_INVALID', status: 503 })
 }
+
+// action is optional on old plans; omitted requests always mean update.
+export const updateActionExamples = {
+  update: { scope: 'component', componentId: 'notifications' },
+  rollback: { scope: 'component', componentId: 'notifications', action: 'rollback' },
+  all: { scope: 'all', action: 'update' },
+}
+
+export const updateModuleExamples = Object.fromEntries(['module_update', 'module_rollback', 'all_modules', 'interrupted'].map(name => {
+  const value = structuredClone(updateExamples.verified_completed)
+  const plan = { ...value.operation.plan, scope: name === 'all_modules' ? 'all' : 'component', componentId: name === 'all_modules' ? null : 'notifications',
+    action: name === 'module_rollback' ? 'rollback' : 'update', impact: { containerRestart: false, description: '対象の機能を切り替えます。本体は再起動しません。' } }
+  const ids = name === 'all_modules' ? ['web-gateway', 'notifications', 'members'] : ['notifications']
+  plan.targets = ids.map(componentId => ({ componentId, current: { ...exampleCurrent, origin: 'release' },
+    published: name === 'module_rollback' ? { version: '3'.repeat(40), sourceCommit: '3'.repeat(40), digest: null, origin: 'builtin' } : examplePublished }))
+  value.components = ids.map(id => ({ ...structuredClone(value.components[0]), id, name: updateComponents.find(entry => entry[0] === id)[1],
+    description: updateComponents.find(entry => entry[0] === id)[2], current: { ...plan.targets.find(target => target.componentId === id).published, origin: name === 'module_rollback' ? 'builtin' : 'release' } }))
+  value.plans = [plan]; value.operation.plan = plan
+  if (name === 'interrupted') {
+    Object.assign(value.operation, { phase: 'unknown', execution: 'unknown', verification: 'unknown', error: { code: 'UPDATE_PARENT_INTERRUPTED', message: '同じ要求の結果を確認してください。' } })
+    value.notice = { state: 'attention', code: 'UPDATE_PARENT_INTERRUPTED', message: '処理が中断されました。再実行せず同じ要求を照会してください。' }
+  }
+  return [name, value]
+}))

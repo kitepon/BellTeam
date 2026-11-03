@@ -1,15 +1,18 @@
 # 原要求を保持する設定適用と照合
 
-所有キロ。正式0.63.6/tag258b8aef、Root configure-consumer-supply正本と0636 formal handoffが配布根拠。設定契約は正式0.63.5と同bytesだが、発行は承認0.63.6の同local SDK/transport/initialize版とtools/list能力を必須にする。旧版へのfallback/接続交換はしない。
+所有キロ。正式0.63.7/tage86af7af、Aiterm担当のnative-transient-recovery/publication.jsonが配布根拠。原要求設定契約を維持し、発行は正式0.63.7の同local SDK/transport/initialize版とtools/list能力を必須にする。旧版へのfallback/接続交換はしない。
 
 ```mermaid
 flowchart TD
   Desired[Administration.update / 希望値保存] --> Idle[既AI idle待ち / lease外]
   Idle --> Fresh[同epoch/fresh本人/既sessionを再確認]
-  Fresh --> Capability[承認0.63.6同SDK/transportとschema]
+  Fresh --> Capability[承認0.63.7同SDK/transportとschema]
   Capability --> Target[同接続pty_listの公開launchを捕捉]
   Target --> Intent[親UID1001 state/configuration-intents/Bot/UUID.intent.json<br/>非上書きfile+dir sync / 4096]
   Intent --> Guard[発行直前に同期で同接続guard]
+  Intent -->|保存検査拒否 / publish途中失敗| Rejected[新prepareのcatchで未返却を捕捉<br/>publication not_started / unknown を分離]
+  Rejected --> Local[既reconcile / 同原IDを厳密保存<br/>not-issued印をsync保存してlocal終端]
+  Local --> KeepHistory[failed/希望/原診断を保持 / native RPCなし]
   Guard --> Apply[tracked apply 一回 / 原binding]
   Apply --> Receipt[厳密receipt / isErrorも構造保持]
   Apply --> Unknown[元例外と原ID保持 / 再applyなし]
@@ -22,7 +25,13 @@ flowchart TD
 
 親のみが固定rootを組立て、HTTP/MCPでroot/pathを受けない。0700/0600、owner/realpath/祖先の非信頼writerを検査。既publishResumeFile/readResumeFileだけを再利用し、保存失敗・temp/nlink2・ACK欠測を未保存や新IDの許可へ変えない。members交換/通常更新で移管・消去せずTTL無し。廃棄はproduct state明示廃棄と同じ判断。stateが欠測した事から未受理を作らない。
 
-保存原要求はschema/botId/binding/canonical requested/version。0.63.5/0.63.6 intentの読取は同一正式契約として保持するが、新発行guardは0.63.6だけ。receiptにはapplyかreconcileかの取得起源を併記する。reconcileで歴史的applied/unconfirmedを得ても元の不明を解除せず、再起動後もpendingとして復元する。通常applyで直接確認したappliedと同一視しない。terminal以外は原intentを保持し、terminal receiptは一回だけ公開、再読取のobserved_at差以外を上書きしない。
+runtimeの`acquireConfigurationStateAnchor(root)`が保証する固定stateの`{path,uid,dev,ino}`を内部assemblyから`trustedAnchor`として注入する。consumerはanchor自身のowner/realpath/no group-other write/dev/inoを毎回照合し、配下のprivate0700/0600を検査する。anchorより上のUID1000を一般許可しない。未注入は従来の全祖先検査。runtimeの信頼根拠と取得契約は[runtime](../runtime/README.md)が所有する。
+
+新prepareのcatchだけが原objectに束縛した`preparation:{state:'not_returned',publication:'not_started'|'unknown'|'confirmed'}`を保持する。`not_started`は実storeがintent file writerへ入る前に拒否した内部証拠、`unknown`はpublish呼出の保存結果欠測、`confirmed`はpublish返却後。いずれもprepareがcallerへ返らなかった事実と、disk保存の状態を別にする。既reconcileはこの新しい同pending証拠がある場合にだけ、nativeへ送らず、原ID/全設定が一致するintentとnot-issued印の耐久保存を完成して原pendingを終端する。途中temp/不正file/別binding/active/別uncertainty/保存失敗は拒否・保持。新IDやnative receiptを生成しない。返却`localCompletion`はnative結果と別のschemaで、applicationはfailedのまま保持する。
+
+旧Centi4faf/Molly146e/bot220 b6d3の表示、ENOENT、現行sourceから新preparation証拠を後付けしない。証拠無しの旧pendingはlocal終端対象外で、従来の保存原要求によるnative read-only reconcileだけが適用候補。元b5152件の欠測を補完しない。新証拠も、local終端保存前に親processを失えば欠測として扱い、再起動後のintentから未返却を推測しない。
+
+保存原要求はschema/botId/binding/canonical requested/version。0.63.5/0.63.6/0.63.7 intentの読取は同一正式契約として保持するが、新発行guardは0.63.7だけ。receiptにはapplyかreconcileかの取得起源を併記する。reconcileで歴史的applied/unconfirmedを得ても元の不明を解除せず、再起動後もpendingとして復元する。通常applyで直接確認したappliedと同一視しない。terminal以外は原intentを保持し、terminal receiptは一回だけ公開、再読取のobserved_at差以外を上書きしない。
 
 application-servicesが同execution client/storeを注入し、公開受付前にpending intentをBotSessionStateの新tracked不明へ復元する。旧legacy不明を消さない。BotAdministration.viewのconfigurationRequestは原binding/requested/歴史的receiptで、currentはunsupported。既希望保存とconfigurationApplicationのpending/accepted/failedを現設定readbackへ変えない。known not_issuedは既表示not_applied/not_startedに写す。
 
@@ -39,3 +48,5 @@ callerはBotAdministration.apply/view/reconcile、AitermTransport.reconfigure/re
 同じBotの後続要求が始まっても、失敗の補助情報は捕捉済み原bindingから作り、latestや時刻から付け替えない。安全診断は検証済みconfiguration_requestの4fieldだけを追加し、requested/receipt本文/SDK参照/任意messageをログへ混ぜない。既診断code/重大度/fingerprintは維持する。
 
 SDKが同じ例外objectを異なる原要求へ再利用した場合は、binding補助情報を曖昧として省く。原例外を変形せず、別原要求の識別子を診断へ割り当てない。
+
+0.63.7のfailure/input_id公開契約へconsumerを接続し、Dockerのnative pinも同じ正式版に固定する。旧.5/.6 intent bytesを書き換えず元IDで照合のみ可能。SDK/transport途中交換・未承認.6/.8からの新発行は引き続き拒否する。

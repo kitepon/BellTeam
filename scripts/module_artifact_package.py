@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
-from web_gateway_artifact import check_archive, contract, require, safe_path, write_archive
+from web_gateway_artifact import BUSINESS_FILES, check_archive, contract, require, safe_path, write_archive
 
 
 def validate_members_source(payload):
@@ -45,6 +45,8 @@ def main(component):
             paths += ['web', 'services/subscriptions/product.json', 'services/subscriptions/endpoints.json']
         elif component == 'members':
             paths += ['config/common-agents.md']
+        if component in BUSINESS_FILES:
+            paths = sorted(name.removeprefix('payload/') for name in BUSINESS_FILES[component])
         raw = subprocess.check_output(['git', 'archive', source, *paths], cwd=repo)
         with tarfile.open(fileobj=io.BytesIO(raw)) as tar:
             for item in tar:
@@ -55,8 +57,9 @@ def main(component):
                 else:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(tar.extractfile(item).read())
-        (payload / 'src/distribution-profile.mjs').write_bytes(subprocess.check_output(
-            ['git', 'show', source + ':distribution/server/distribution-profile.mjs'], cwd=repo))
+        if component != 'diagnostics':
+            (payload / 'src/distribution-profile.mjs').write_bytes(subprocess.check_output(
+                ['git', 'show', source + ':distribution/server/distribution-profile.mjs'], cwd=repo))
         if component == 'members':
             validate_members_source(payload)
         lock = json.loads((payload / 'package-lock.json').read_text())
@@ -65,20 +68,27 @@ def main(component):
             # Cross-arch source inputs are safe only for this lock's platform-independent JS.
             require(all(not (p.get('hasInstallScript') or p.get('cpu') or p.get('os'))
                         for name, p in lock['packages'].items() if name and not p.get('dev')), 'GATEWAY_NATIVE_RUNNER_REQUIRED')
-        user_config = root / 'user.npmrc'; user_config.write_text('')
-        global_config = root / 'global.npmrc'; global_config.write_text('')
-        npm = shutil.which('npm'); require(npm is not None)
-        subprocess.run([npm, 'ci', '--omit=dev', '--cache', str(root / 'npm-cache'),
-                        '--userconfig', str(user_config), '--globalconfig', str(global_config)], cwd=payload,
-                       env={'PATH': os.environ['PATH'], 'CI': 'true', 'npm_config_audit': 'false',
-                            'npm_config_fund': 'false', 'npm_config_update_notifier': 'false'},
-                       stdout=subprocess.PIPE, check=True, timeout=180)
+        if component != 'usage':
+            user_config = root / 'user.npmrc'; user_config.write_text('')
+            global_config = root / 'global.npmrc'; global_config.write_text('')
+            npm = shutil.which('npm'); require(npm is not None)
+            subprocess.run([npm, 'ci', '--omit=dev', '--cache', str(root / 'npm-cache'),
+                            '--userconfig', str(user_config), '--globalconfig', str(global_config)], cwd=payload,
+                           env={'PATH': os.environ['PATH'], 'CI': 'true', 'npm_config_audit': 'false',
+                                'npm_config_fund': 'false', 'npm_config_update_notifier': 'false'},
+                           stdout=subprocess.PIPE, check=True, timeout=180)
         if cross:
             for path in (payload / 'node_modules').rglob('*'):
                 if path.is_file():
                     with path.open('rb') as file: magic = file.read(4)
                     require(path.suffix != '.node' and magic not in [b'\x7fELF', b'\x00asm']
                             and not magic.startswith(b'MZ'), 'GATEWAY_NATIVE_RUNNER_REQUIRED')
+        if component in BUSINESS_FILES:
+            module, exported = ('src/usage/state-compatibility.mjs', 'USAGE_STATE_COMPATIBILITY') if component == 'usage' else ('src/diagnostics-protocol.mjs', 'DIAGNOSTICS_STATE_COMPATIBILITY')
+            actual = json.loads(subprocess.check_output(['node', '--input-type=module', '-e',
+                'const m = await import(process.argv[1]); console.log(JSON.stringify(m[process.argv[2]]))',
+                (payload / module).as_uri(), exported], env={'PATH': os.environ['PATH']}, text=True))
+            require(actual == contract(component)[1]['stateCompatibility'], 'MODULE_SOURCE_STATE_INCOMPATIBLE')
         staged = root / 'artifact.tar.gz'
         write_archive(payload, staged, source, args.arch, component=component)
         with staged.open('rb') as file: manifest, manifest_sha = check_archive(file, source, args.arch, component=component)

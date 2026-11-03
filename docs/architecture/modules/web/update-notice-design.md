@@ -1,6 +1,6 @@
 # Update通知の表示・操作設計
 
-状態：2026-11-03にWeb担当が継続を引受。共通inventoryの通常main採用に続き、PR274のcontainer個別plan/確認/start/同ID照会とpublication表示を接続。all/独立moduleの共通耐久操作、正式catalog/実Host設置は未供給。既Ownerの実装許可を維持し、APIの供給範囲から継続する。入力はトロニーの[6機能定義](/srv/bellteam/bots/bot-7b140b27/docs/commercial-container-update-functions-20261102.md)、[継続工程](/srv/bellteam/bots/bot-7b140b27/docs/module-expansion-20261103.md)、[通知module契約](/srv/bellteam/bots/bot-7b140b27/docs/notification-update-contract-20261103.md)、[確定共通API](/srv/bellteam/bots/bot-7b140b27/docs/update-center-api-20261103.md)。Webの[現行図](README.md)、[runtime](../runtime/README.md)、[distribution](../distribution/README.md)、[Apple](../apple/README.md)へ接続する。公開版・比較・実行結果は本体が所有する。[runtime設計](../runtime/commercial-update-design.md)の状態分離を維持する。横断契約はRoot、共通組立て/APIはMolly、機構はEpi、正式公開版はCentiが持つ。
+状態：2026-11-03にWeb担当が継続を引受。共通inventoryの通常main採用に続き、PR274のcontainer個別plan/確認/start/同ID照会とpublication表示を接続。PR289固定APIのmodule/all更新・個別module戻し・結果照会を接続する。正式catalog/実Host設置や未配置archiveのinstallは別の未供給工程。既Ownerの実装許可を維持し、APIの供給範囲から継続する。入力はトロニーの[6機能定義](/srv/bellteam/bots/bot-7b140b27/docs/commercial-container-update-functions-20261102.md)、[継続工程](/srv/bellteam/bots/bot-7b140b27/docs/module-expansion-20261103.md)、[通知module契約](/srv/bellteam/bots/bot-7b140b27/docs/notification-update-contract-20261103.md)、[確定共通API](/srv/bellteam/bots/bot-7b140b27/docs/update-center-api-20261103.md)。Webの[現行図](README.md)、[runtime](../runtime/README.md)、[distribution](../distribution/README.md)、[Apple](../apple/README.md)へ接続する。公開版・比較・実行結果は本体が所有する。[runtime設計](../runtime/commercial-update-design.md)の状態分離を維持する。横断契約はRoot、共通組立て/APIはMolly、機構はEpi、正式公開版はCentiが持つ。
 
 ## 6機能との対応
 
@@ -62,17 +62,17 @@ Updateは共通状態の更新あり/進行/失敗/確認不能を文字で区�
 
 ### Web内部の実装図
 
-#### container個別の計画・実行接続
+#### 全体・個別の計画・実行・戻し接続
 
 公開契約の固定sourceはPR274/main`058f601d11ce9439b6a43e57dbbe2611e52d5389`。component.publicationを必須nullableとして追加し、受入catalogの日時/期限とfeed取得確認（verified/failed/unconfirmed）を分離する。取得失敗/未確認のcomparisonを最新版確認済みと表示しない。受入済みcatalogに更新先が残る場合の実行可否は本体capability/固定planに従い、Webがcatalogの採否を変えない。
 
 ```mermaid
 flowchart TD
-  Inventory["共通GET: containerの実行可否とpublication"] -->|"明示操作・container個別だけ"| Plan["POST plans / 固定target・版・期限・影響"]
+  Inventory["共通GET: 全体・個別の状態とpublication"] -->|"明示操作・全体又は個別更新/戻し"| Plan["POST plans / 固定target・版・期限・影響"]
   Plan --> Inspect["固定計画を表示 / 再起動が必要ならcheckbox確認"]
   Inspect -->|"明示実行一回"| Save["canonical UUIDv4とplanIdをsessionStorageへ保存"]
   Save -->|"保存成功だけ"| Start["POST operations / 同じplanId・requestId・確認値"]
-  Start -->|"Host永続受領済みの応答"| Result["同IDの実行・稼働検証を表示"]
+  Start -->|"共通ledger又はHostの永続受領済み応答"| Result["同IDの実行・稼働検証を表示"]
   Start -->|"切断 / 5xx / 不正応答"| Unknown["受付不明を保持 / 自動再POSTなし"]
   Unknown --> Read["GET operations/requestId"]
   Reload["再読込 / ready / updates / 表示復帰 / 手動再取得"] --> Read
@@ -81,13 +81,13 @@ flowchart TD
   Result -->|"確認済み終端だけ"| Clear["照会用IDを削除 / 次の明示計画へ"]
 ```
 
-Webはcontainer以外のplan/startを今回有効にしない。all/独立moduleは未供給理由付き無効。plan responseはcontainer単独/固定版/互換/期限/権限を検証し、選択変更や新計画で再起動確認を解除する。明示実行はcheckbox確認と保存成功を必要とし、二重クリック/旧plan応答/期限切れ/Host409で別targetへ自動変更しない。
+Webは全体/個別の更新と個別moduleの戻し計画を同じ公開窓口へ要求する。action省略はupdate、戻しは明示rollback。plan responseのscope/component/actionと全target・互換・期限・可否を確認し、全固定対象を順序どおり表示する。戻し可否はbackend planだけで確定し、all/containerへ戻し操作を出さない。選択変更や新計画で再起動確認を解除し、impactが再起動を要求する場合だけcheckbox確認を必須にする。保存成功後の明示実行だけを許し、二重クリック/旧plan応答/期限切れ/409で別targetや新要求へ自動変更しない。
 
 同origin・同tabで再読込を跨ぐ照会用の`bellteam-update-request.v1`をsessionStorageへ置く。保存するのはcanonical requestIdとplanIdだけで、版・結果・受付の正本ではない。保存/復元ができない場合は新規実行を止めて理由を示す。POST応答が不明ならIDを残し同ID GETだけで復帰。GET結果のUUID/planIdが違う、形式不正、404/5xxも未受付や完了へ変えない。400/401/403/404/409の明確な受付拒否だけは新計画を要求する。実行/稼働確認の両成功、又は明確な拒否/実行失敗の終端以外では照会IDを破棄しない。
 
 更新結果GETはinventoryと独立に行い、catalog/feed障害で照会を塞がない。取得中の古いinventory/plan/operation応答を新操作へ適用しない。本番/実Hostは担当の既条件で、Webの人工例や隔離HTTPの成功を実配備へ加算しない。
 
-11/3共通APIの採用sourceは`cc49ddbf8117035886ee6c8fa0c7095c8031846b`。公開JSONの一正本は`src/update-center-contract.mjs`、接続先図は[integrationの共通Update状態](../integration/README.md#共通update状態と受付段階接続)。Webは旧module別GETと固定3項目を廃止し、GET `/api/updates`の裸snapshotから実在componentsの名称/説明/current/published/comparison/capability/availabilityを表示する。schemaの独自field/nullは追加せず、表示に使う形と閉じた状態語を検証して不正時は確認不能にする。正式版/実行機構未供給のcapabilityfalse/plans[]を実行可能へ変えない。当時のinventory接続段階は読取だけ。現在のcontainer個別操作は上記PR274の接続契約に従う。
+11/3共通APIの採用sourceは`cc49ddbf8117035886ee6c8fa0c7095c8031846b`。公開JSONの一正本は`src/update-center-contract.mjs`、接続先図は[integrationの共通Update状態](../integration/README.md#共通update状態と受付段階接続)。Webは旧module別GETと固定3項目を廃止し、GET `/api/updates`の裸snapshotから実在componentsの名称/説明/current/published/comparison/capability/availabilityを表示する。schemaの独自field/nullは追加せず、表示に使う形と閉じた状態語を検証して不正時は確認不能にする。正式版/実行機構未供給のcapabilityfalse/plans[]を実行可能へ変えない。当時のinventory接続段階は読取だけ。container個別はPR274、module/allと個別module戻しはPR289/main226626abbbb30acb4e6f97932d98037fa3962f91の同正本に従う。戻し先をcurrent/publishedやWebの前回表示から生成しない。
 
 操作と前回結果は正本にある場合だけphase/execution/verificationを分けて描画し、completedは実行/実稼働検証の両成功を必要とする。availabilityは版採用と別欄で表示。未独立の項目も一覧から隠さず、公開理由を表示して実行を無効にする。常設Updateの状態語はnotice、最新版はcomparisonのAPI確認時だけ。起動/ready/updates/表示復帰で既GETへ再同期し、新SSE/poll/ローカル保存の版は作らない。
 
@@ -140,7 +140,7 @@ flowchart TD
 
 Root共通APIは応答前に固定対象を永続化し、利用者の一回の実行操作にrequestId UUIDを一つ割り当てる。応答喪失/再接続後は同じrequestIdのGETで照会し、自動再POSTしない。共通snapshotの現在/直前結果も各アプリから読む。同じ版だけで自分の要求に結び付けず、照会不能は確認不能のままにする。Webは同origin/tabのsessionStorageへ照会ID/planIdを保存し、再読込後に同IDのGETへ戻す。受付/結果の正本はMolly/Epiが持つ。
 
-この図は表示・実行の条件を示す。今回のcontainer接続は既HTTP/SSE内なのでmodule.jsonの接続変更はなく、全体図の再生成結果も不変。all/独立moduleの未実装操作を実装済みとして追加しない。
+この図は表示・実行の条件を示す。今回の全体/個別更新・戻し接続は既HTTP/SSE内なのでmodule.jsonの接続変更はなく、全体図の再生成結果も不変。共通ledgerの全体/個別planと個別module rollbackへ同窓口で接続し、未配置/未対応の拒否は理由を示す。
 
 ## Appleとの互換・復帰契約
 

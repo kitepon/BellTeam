@@ -1030,7 +1030,9 @@ test('BellTeamが始めていないターンへの差し込みは、その文を
   assert.deepEqual(answers, [])
   assert.deepEqual(turnEnds, [])
   assert.equal(calls.some(([name]) => name === 'pty_read'), false)
-  assert.deepEqual(calls.find(([name]) => name === 'pty_send')[2], { meta: { 'aiterm/caller': 'BellTeam' } })
+  const { admissionCheck: finalCheck, ...sendOptions } = calls.find(([name]) => name === 'pty_send')[2]
+  assert.equal(typeof finalCheck, 'function')
+  assert.deepEqual(sendOptions, { meta: { 'aiterm/caller': 'BellTeam' } })
   assert.deepEqual(calls.find(([name]) => name === 'pty_observe')[2],
     { meta: { 'aiterm/caller': 'BellTeam', 'aiterm/interim_after': 0, 'aiterm/interim_from': 'v1:40:b:900' } })
   assert.deepEqual(waits[0].args.slice(-2), ['--steer', '0123456789abcdef'])

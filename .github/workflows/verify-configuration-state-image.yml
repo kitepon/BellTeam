@@ -1,0 +1,83 @@
+{
+  "name": "固定imageの設定保存anchorとconsumerを両nativeで確認",
+  "on": {
+    "workflow_dispatch": {
+      "inputs": {
+        "digest": {
+          "description": "既受入imageのindex SHA256",
+          "required": true,
+          "type": "string"
+        },
+        "source": {
+          "description": "imageの40文字source SHA",
+          "required": true,
+          "type": "string"
+        }
+      }
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "configuration-state-image-proof",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "storage": {
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {
+          "include": [
+            {
+              "arch": "amd64",
+              "runner": "ubuntu-24.04"
+            },
+            {
+              "arch": "arm64",
+              "runner": "ubuntu-24.04-arm"
+            }
+          ]
+        }
+      },
+      "runs-on": "${{ matrix.runner }}",
+      "timeout-minutes": 10,
+      "env": {
+        "IMAGE": "ghcr.io/kitepon/bellteam-server@${{ inputs.digest }}",
+        "SOURCE": "${{ inputs.source }}",
+        "ARCH": "${{ matrix.arch }}",
+        "RESULT": "runtime/configuration-state-${{ matrix.arch }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v7",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "固定入力だけを検査して同imageを取得",
+          "run": "python3 -B test/helpers/configuration-state-image.py --self-check\npython3 - <<'PY'\nimport os,re\nassert re.fullmatch(r\"ghcr\\.io/kitepon/bellteam-server@sha256:[a-f0-9]{64}\",os.environ[\"IMAGE\"])\nassert re.fullmatch(\"[a-f0-9]{40}\",os.environ[\"SOURCE\"])\nPY\ndocker pull --platform \"linux/$ARCH\" \"$IMAGE\""
+        },
+        {
+          "name": "既C入口の実UID・FD・mountとconsumer保存を確認",
+          "run": "python3 -B test/helpers/configuration-state-image.py \"$IMAGE\" \"$SOURCE\" \"$RESULT\""
+        },
+        {
+          "name": "取消・失敗時も当fixtureの割当だけ回収",
+          "if": "always()",
+          "run": "python3 -B test/helpers/configuration-state-image.py --cleanup \"$RESULT\""
+        },
+        {
+          "uses": "actions/upload-artifact@v7",
+          "if": "always()",
+          "with": {
+            "name": "configuration-state-${{ matrix.arch }}-${{ github.run_attempt }}",
+            "path": "${{ env.RESULT }}/",
+            "if-no-files-found": "error"
+          }
+        }
+      ]
+    }
+  }
+}

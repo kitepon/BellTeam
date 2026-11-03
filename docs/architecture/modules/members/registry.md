@@ -29,7 +29,7 @@ flowchart TB
 | プロフィール更新 | `update/previewUpdate/#mutateProfile` | Bot別に直列化。許可field、画像とcrop、model/effort/fastの契約を確認→profile保存→指示生成→通知 |
 | 実行設定 | HTTP PATCH / MCP configure → `BotAdministration.update/apply` | preview、変更/再適用要否、wasRunningを確認して保存。稼働中は背景reconfigure、返却はpendingになり得る |
 | session対応 | transport callback → `updateSession` | profileのsessionだけ更新。通常編集fieldとして外部から受けない |
-| 起動指示 | `prepareStartupContext` → `ProjectFiles.prepareStartupContext/writeInstructions` | 引継ぎ文をprevious-sessionへ保存して指示を再生成。プロジェクト管理をnative transport内へ複製しない |
+| 起動指示 | `prepareStartupContext` → `ProjectFiles.prepareStartupContext/writeInstructions` | 引継ぎ文をprevious-sessionへ保存し、本人編集のAGENTS.local.mdを席writerで合成して指示を再生成。個別正本は上書きしない。[個別指示の契約](instructions.md#本人編集の個別指示と生成agents)を参照 |
 | モデル一覧 | `LiveModelCatalog` → Aiterm | effort/fast検証に使用。保存値だけでnativeの変更成功を証明しない |
 
 稼働反映の内部状態と実行結果の正本は[execution](../execution/README.md)。保存値と反映観測を同じ正本へまとめない。[bot-registry.mjs](../../../../src/bot-registry.mjs)、[project-files.mjs](../../../../src/project-files.mjs)を参照。

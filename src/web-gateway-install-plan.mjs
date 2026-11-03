@@ -7,7 +7,7 @@ const invalid = () => { throw new Error('GATEWAY_INSTALL_MODEL_INVALID') }
 
 // A new helper gets only this server's incoming directory and private volume.
 export function webGatewayInstallPlan(normal, current, component = 'web-gateway') {
-  if (!['web-gateway', 'notifications', 'members'].includes(component)) invalid()
+  if (!['web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics'].includes(component)) invalid()
   const plan = stateWriterPlan(normal), service = normal.services.bellteam
   if (!plan.stateVolume || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(normal.name ?? '')
     || !/^[a-f0-9]{64}$/u.test(current?.id ?? '') || !/^sha256:[a-f0-9]{64}$/u.test(current?.image ?? '')
@@ -42,9 +42,18 @@ export function webGatewayInstallPlan(normal, current, component = 'web-gateway'
       || mount.Source !== control.Source || spec.ReadOnly === true
       || spec.VolumeOptions.Subpath !== posix.basename(part)) invalid()
   }
+  if (component === 'memory') {
+    const views = service.volumes.filter(mount => mount.target === '/run/bellteam-memory-code')
+    if (views.length !== 1 || views[0].type !== 'volume' || views[0].read_only !== true
+      || views[0].volume?.nocopy !== true || views[0].volume?.subpath !== 'memory-code'
+      || normal.volumes?.[views[0].source]?.name !== plan.stateVolume) invalid()
+    const mount = actual('/run/bellteam-memory-code'), spec = configured('/run/bellteam-memory-code')
+    if (mount.Type !== 'volume' || mount.Name !== plan.stateVolume || mount.Source !== control.Source
+      || mount.RW !== false || spec.ReadOnly !== true || spec.VolumeOptions.Subpath !== 'memory-code') invalid()
+  }
   return { name: normal.name, services: { [component + '-install']: {
     image: current.image, pull_policy: 'never', user: '0:0',
-    entrypoint: ['/usr/bin/env', '-i', 'PATH=/usr/local/bin:/usr/bin:/bin', '/usr/bin/python3', '-I', ({ 'web-gateway':'/app/scripts/install-web-gateway-release.py',notifications:'/app/scripts/install-notifications-release.py',members:'/app/scripts/install-members-release.py' })[component]],
+    entrypoint: ['/usr/bin/env', '-i', 'PATH=/usr/local/bin:/usr/bin:/bin', '/usr/bin/python3', '-I', ({ 'web-gateway':'/app/scripts/install-web-gateway-release.py',notifications:'/app/scripts/install-notifications-release.py',members:'/app/scripts/install-members-release.py',memory:'/app/scripts/install-memory-release.py',usage:'/app/scripts/install-usage-release.py',diagnostics:'/app/scripts/install-diagnostics-release.py' })[component]],
     init: true, read_only: true, network_mode: 'none', cap_drop: ['ALL'], cap_add: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER'],
     security_opt: ['no-new-privileges:true'], cpus: 1, mem_limit: '2g', memswap_limit: '2g', pids_limit: 512,
     tmpfs: ['/tmp:rw,nosuid,nodev,size=64m'], volumes: [

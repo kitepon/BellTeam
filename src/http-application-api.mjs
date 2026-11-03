@@ -3,6 +3,18 @@ import { json, readJson } from './http-response.mjs'
 import { createOwnerApi } from './members/owner-http.mjs'
 import { createUsageApi } from './usage/http-api.mjs'
 
+function reserveRelease(updateCenter, controller, versionId) {
+  const release = updateCenter?.reserveExchange?.()
+  try {
+    const pending = controller.reserve(versionId)
+    if (release) {
+      if (!pending.completion) { pending.cancel(); throw Object.assign(new Error('UPDATE_COMPLETION_UNAVAILABLE'), { code: 'UPDATE_COMPLETION_UNAVAILABLE', status: 503 }) }
+      pending.completion.then(release, release)
+    }
+    return pending
+  } catch (error) { release?.(); throw error }
+}
+
 export function createControlApi(options) {
   const { aiControl, diagnostics, models, internal, webGatewayControl, notificationsReleaseControl, updateCenter } = options
   const usageApi = createUsageApi(options)
@@ -38,7 +50,7 @@ export function createControlApi(options) {
       if (!body || Array.isArray(body) || Object.keys(body).join(',') !== 'versionId'
         || typeof body.versionId !== 'string' || body.versionId !== 'builtin' && !/^[a-f0-9]{64}$/.test(body.versionId))
         return json(response, 400, { error: 'NOTIFICATIONS_VERSION_INVALID' })
-      const pending = notificationsReleaseControl.reserve(body.versionId)
+      const pending = reserveRelease(updateCenter, notificationsReleaseControl, body.versionId)
       response.once('finish', pending.start)
       response.once('close', () => { if (!response.writableFinished) pending.cancel() })
       return json(response, 202, { notificationsRelease: notificationsReleaseControl.snapshot() })
@@ -51,7 +63,7 @@ export function createControlApi(options) {
       const body = await readJson(request, 1024)
       if (!body || Array.isArray(body) || Object.keys(body).join(',') !== 'versionId')
         return json(response, 400, { error: 'WEB_GATEWAY_VERSION_INVALID' })
-      const pending = webGatewayControl.reserve(body.versionId)
+      const pending = reserveRelease(updateCenter, webGatewayControl, body.versionId)
       response.once('finish', pending.start)
       response.once('close', () => { if (!response.writableFinished) pending.cancel() })
       return json(response, 202, { webGatewayRelease: webGatewayControl.snapshot() })

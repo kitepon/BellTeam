@@ -52,7 +52,8 @@ export function internalApi(port, request = fetch, { executionSource } = {}) {
   const call = async (path, body, method = 'POST') => {
     const response = await request(`http://127.0.0.1:${port}${path}`, {
       method,
-      ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+      headers: { ...(executionSource?.sourceSession ? { [SEAT_HEADER]: executionSource.sourceSession } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })
     const result = await response.json()
     // 符号だけでは、文が打たれたかどうかがBotに伝わらない。APIが付けた案内文も一緒に返す。

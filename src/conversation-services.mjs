@@ -7,10 +7,11 @@ import { RoomRegistry } from './room-registry.mjs'
 import { TurnReports, judgeOwnerReport } from './turn-reports.mjs'
 import { SeatTurns } from './seat-turns.mjs'
 import { SelfTurns, readObserverTurns } from './self-turns.mjs'
+import { checkObserverProjects } from './observer-check.mjs'
 import { chooseRoomResponder } from './room-routing.mjs'
 
 // 最初に直接会話を接続し、初期案内の初期化後に観測と部屋を初期化する。
-export function createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime = null,
+export function createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime = null, seatObservation = true,
   readRemovalStates = () => bots.readRemovalStates() }) {
   let turnReports
   const logPath = join(root, 'logs/direct-messages.jsonl')
@@ -40,15 +41,15 @@ export function createConversationServices({ root, bots, transport, notification
       appendAnswer: (botId, groupId, text) => messenger.appendInterimWords(botId, groupId, [{ text, kind: 'answer' }]),
       afterTurn: turn => turnReports.afterTurn(turn),
       shown: botId => transport.shownInSelfTurn(botId),
-      ...(seatRuntime ? { read: request => readObserverTurns(request, { seatCommands: true }),
-        changed: seatRuntime.throughlineChanged() } : {}),
+      read: (request, options) => readObserverTurns(request, { ...options, seatCommands: Boolean(seatRuntime) }),
+      check: (request, options) => checkObserverProjects(request, { ...options, root, seatCommands: Boolean(seatRuntime) }),
     })
     await selfTurns.initialize()
     // BellTeamが始めていないターンも、Aitermに席の今のターンを聞いて「処理中」と合間の言葉に出す。
-    const seatTurns = new SeatTurns({
+    const seatTurns = seatObservation ? new SeatTurns({
       bots, transport,
       appendInterimWords: (botId, groupId, words) => messenger.appendInterimWords(botId, groupId, words),
-    })
+    }) : null
     const rooms = new RoomRegistry({ roomsRoot: join(root, 'rooms'), bots })
     await rooms.initialize()
     const roomMessenger = new RoomMessenger({
