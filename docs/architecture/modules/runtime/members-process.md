@@ -37,3 +37,5 @@ contextはgeneration/leaseId/rootId/ownerWrite/continuationの固定5field。Own
 readyとmanifest.runtimeは作者MEMBERS_STATE_COMPATIBILITYの実6値exact。members catalogだけ5key compatibility（26/1/null/null/実6値）、他3componentは4keyのまま。prepareMembersRelease/replaceのexpectedReleaseを通しcatalog/source/platform/digestとarchive/runtime/consumerを計画時と旧子交換直前に照合する。署名済宣言とquiesceの実state read-restore検証は別。root Host catalog selectionの閉集合にもmembersだけ追加、未知component許可を緩めない。
 
 署名前probeはscripts/probe-members-runtime.mjs、引数0/root Node26→固定非特権Cの実1001。空state/bots+.initializedと既Owner schema/user-rulesをdisposable runnerだけで準備、ready→resume→quiesce→exit、親effect/実席/予定0、全OS/IPC/pipe close後だけ固定成功JSON。初期通常bootstrapのseed/migration/cleanup/setupはMolly/Belortaが一回区切り、交換read-restoreで呼ばない。
+
+親onEffectのcontextにはwire5fieldに加えてopaque membersLease/membersEffectがある。runtime adapterのDTO検証はwire5fieldだけへ射影し、CLI callbackへは同じ親context objectを保持する。これは既固定wire/親権限境界内の修理で機能線は変えない。

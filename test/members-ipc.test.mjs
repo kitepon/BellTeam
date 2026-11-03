@@ -8,6 +8,7 @@ import { MembersAdmission } from '../src/members-admission.mjs'
 import { createMembersParentChannel, waitMembersChildClose } from '../src/members-ipc.mjs'
 import { operateMembersProject } from '../src/members-project-files.mjs'
 import { MEMBERS_STATE_COMPATIBILITY } from '../src/members/state-compatibility.mjs'
+import { createMembersRuntimeEffects } from '../src/members-runtime-effects.mjs'
 
 async function start(t, { onEffect: external, authorizeOwner } = {}) {
   const root = await mkdtemp(join(process.cwd(), '.members-ipc-'))
@@ -155,12 +156,16 @@ test('ACK and response deadlines report unknown while completion and old lease r
 
 test('CLI configuration reads the current child IDs through its reserved callback while the root waits', async t => {
   let x, seen
-  x = await start(t, { onEffect: async (method, _params, context) => {
-    if (method === 'cli.configure') seen = await x.channel.callback('profiles.cli', {}, context)
+  const runtimeEffect = createMembersRuntimeEffects({
+    seatRuntime: { configureMembersHarnesses: async read => { seen = await read() } }, aiterm: {}, callBridge: () => ({ enabled: false }),
+    readCurrentBotIds: async context => (await x.channel.callback('profiles.cli', {}, context)).botIds,
+  })
+  x = await start(t, { onEffect: async (method, params, context) => {
+    if (method === 'cli.configure') await runtimeEffect(method, params, context)
   } })
   await x.channel.control('resume')
   const created = await x.request('profile.create', { input: { name: 'fixture', harness: 'codex' } })
-  assert.deepEqual(seen, { botIds: [created.bot.id] })
+  assert.deepEqual(seen, [created.bot.id])
   await x.channel.control('quiesce'); await x.channel.control('exit'); await x.ended
 })
 

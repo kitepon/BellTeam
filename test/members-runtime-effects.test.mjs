@@ -14,7 +14,8 @@ test('members CLI effects share the original queue and read bot IDs only when th
   } })
   const firstWriter = runtime.writeHarnessConfig(new Map(), {}, { enabled: false })
   await waiting
-  const context = { generation: 'fixture', leaseId: 'lease', rootId: '1', ownerWrite: false, continuation: false }
+  const context = { generation: 'fixture', leaseId: 'lease', rootId: '1', ownerWrite: false, continuation: false,
+    membersLease: Object.freeze({}), membersEffect: Object.freeze({}) }
   const effect = createMembersRuntimeEffects({ seatRuntime: runtime, aiterm: { fixed: true }, callBridge: () => ({ enabled: true }),
     readCurrentBotIds: async captured => { assert.equal(captured, context); reads++; return ids } })
   const writing = effect('cli.configure', { botIds: ['bot-old'] }, context)
