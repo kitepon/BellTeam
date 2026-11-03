@@ -33,6 +33,7 @@ export function validateConversationResult(method, value) {
     case 'room.schedules.list': return fields(value, { schedules: array(schedule) })
     case 'room.schedules.set': return fields(value, { schedule })
     case 'room.schedules.claimDue': case 'room.schedules.skipDue': if (!nullable(schedule)(value)) invalid(); return true
+    case 'history.recent': return fields(value, { message: nullable(plain) })
     case 'history.listMessages': case 'history.listRoomMessages':
       if (typeof value?.[Symbol.asyncIterator] !== 'function') invalid()
       return true

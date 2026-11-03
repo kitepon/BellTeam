@@ -13,7 +13,7 @@ export const CONVERSATION_ACTOR_METHODS = Object.freeze({
   usage: Object.freeze(['user.post']),
   observer: Object.freeze(['observation.poll', 'display.words']),
 })
-export const CONVERSATION_PARENT_METHODS = Object.freeze(['assets.open', 'history.page', 'history.recent', 'history.export'])
+export const CONVERSATION_PARENT_METHODS = Object.freeze(['assets.open', 'history.page', 'history.export'])
 export const CONVERSATION_ROOT_METHODS = Object.freeze([...new Set(Object.values(CONVERSATION_ACTOR_METHODS).flat())]
   .filter(method => method !== 'display.words' && !CONVERSATION_PARENT_METHODS.includes(method)))
 

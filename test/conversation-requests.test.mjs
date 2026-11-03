@@ -19,7 +19,7 @@ const examples = {
   'room.schedules.set': { roomId: 'room-a', schedule: { kind: 'once', at: '2030-01-01', prompt: 'fixture' } },
   'room.schedules.remove': { roomId: 'room-a', scheduleId: 'schedule-a' },
   'room.schedules.claimDue': due, 'room.schedules.skipDue': due,
-  'member.removeFromRooms': { botId: 'bot-a' }, 'history.listMessages': { botId: 'bot-a' },
+  'member.removeFromRooms': { botId: 'bot-a' }, 'history.listMessages': { botId: 'bot-a' }, 'history.recent': { botId: 'bot-a' },
   'direct.post': { from: 'bot-a', target: 'user', ...post }, 'user.post': { target: 'bot-a', ...post },
   'user.turn': { target: 'bot-a', ...post }, 'room.post': { from: 'bot-a', room: 'room-a', ...post },
   'room.reply': { roomId: 'room-a', messageId: 'message-a', ...post },

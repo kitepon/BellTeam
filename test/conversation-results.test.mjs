@@ -22,7 +22,7 @@ const samples = {
   'room.post': { id: 'message-a', room: room.id, targets: ['bot-a'], delivery: 'posted_with_failed_deliveries', failedTargets: [{ id: 'bot-a', error: 'unavailable' }] },
   'room.reply': { id: 'message-a', delivery: 'already_posted' }, 'room.silent': { delivery: 'suppressed' },
   'assets.save': asset, 'assets.saveAll': [asset], 'call.receive': { delivery: 'running', delivery_id: 'delivery-a', target: 'bot-a' },
-  'observation.poll': { applied: true },
+  'observation.poll': { applied: true }, 'history.recent': { message: { id: 'row-a', at: '2026-11-04T08:00:00+09:00' } },
 }
 
 test('every child wire root has a finite result shape while disk optional data remains compatible', () => {

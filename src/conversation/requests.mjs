@@ -59,7 +59,7 @@ export function validateConversationRequest(method, params, context) {
       roomId, scheduleId: nonempty, expectedRevision: integer, expectedNextRunAt: date, ranAt: date,
     })
     case 'member.removeFromRooms': return fields(params, { botId: id })
-    case 'history.listMessages': return fields(params, { botId: id })
+    case 'history.listMessages': case 'history.recent': return fields(params, { botId: id })
     case 'direct.post': return fields(params, { from: id, target: id, ...post })
     case 'user.post': case 'user.turn':
       fields(params, { target: id, ...post }, { recordUser: bool })

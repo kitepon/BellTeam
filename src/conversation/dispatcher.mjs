@@ -203,6 +203,11 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
         if (!bots.has(params.botId)) throw new Error(`BOT_NOT_FOUND: ${params.botId}`)
         return store.timeline(params.botId).then(history)
       case 'history.listRoomMessages': authorizeRoom(params.roomId); return rooms.messages(params.roomId).then(history)
+      // 一覧の直近表示は最後の1件だけを使う。全履歴を親へ送ると、メンバー数に比例して一覧が遅くなる。
+      case 'history.recent': {
+        if (!bots.has(params.botId)) throw new Error(`BOT_NOT_FOUND: ${params.botId}`)
+        return store.timelineView(params.botId).then(index => ({ message: index.length ? index.at(-1) : null }))
+      }
       case 'direct.post': return messenger.sendmessage(params)
       case 'user.post': case 'user.turn': {
         const state = current(), completion = messenger.userTurn(params)

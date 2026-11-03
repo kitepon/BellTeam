@@ -74,12 +74,16 @@ test('only captured onboarding can omit the user record and display callback rej
   assert.throws(() => validateConversationRequest('display.words', { ...words, words: [{ text: 42 }] }, context({ kind: 'observer' })))
 })
 
-test('全メンバーの履歴を順に読み、受付枠8つを超えて同時に出さない', async () => {
+test('一覧の直近表示は各メンバーの最後の1件だけを順に読み、受付枠8つを超えて同時に出さない', async () => {
   let active = 0, peak = 0
+  const methods = [], row = { id: 'row', at: '2026-11-04T08:00:00+09:00', text: '' }
   const f = createConversationFacade({ context: () => { active++; peak = Math.max(peak, active); return {} },
-    getController: () => ({ request: () => task((async function* () { await new Promise(resolve => setImmediate(resolve)); active--; yield { id: 'row', at: '2026-11-04T08:00:00+09:00', text: '' } })()) }) })
+    getController: () => ({ request: (method, params) => { methods.push(method)
+      return task(new Promise(resolve => setImmediate(() => { active--; resolve({ message: params.botId === 'bot-0' ? null : row }) }))) } }) })
   const ids = Array.from({ length: 20 }, (_, index) => `bot-${index}`)
   const views = await f.store.timelineViews(ids)
   assert.deepEqual([...views.keys()], ids)
+  assert.deepEqual(views.get('bot-0'), []); assert.deepEqual(views.get('bot-1'), [row])
+  assert.deepEqual(new Set(methods), new Set(['history.recent']))
   assert.equal(peak, 1)
 })
