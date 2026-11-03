@@ -30,7 +30,7 @@ export class BellTeamMessenger extends ConversationWriter {
   }
 
   // Botの送信（MCP）は画像1枚の `image`、ユーザーの送信は複数枚の `images` で渡す。
-  async sendmessage({ from, target, message, image = null, images = image ? [image] : [], executionSource }, { membersLease } = {}) {
+  async sendmessage({ from, target, message, image = null, images = image ? [image] : [], executionSource }, { membersLease, admissionCheck } = {}) {
     const check = target === 'user' ? () => {} : this.admitWork()
     await this.bots.refresh?.(membersLease === undefined ? undefined : { membersLease })
     if (!['user', 'scheduler'].includes(from) && !this.bots.has(from)) throw new Error(`SENDER_NOT_FOUND: ${from}`)
@@ -42,6 +42,7 @@ export class BellTeamMessenger extends ConversationWriter {
 
     if (from === 'user') return this.enqueueUserTurn({ target, message, images })
     if (bot) await this.requireAccess({ from, target })
+    if (bot) admissionCheck?.()
 
     const deliveryId = this.deliveryId()
     const imageAsset = images.length && target === 'user' && this.assets
@@ -57,6 +58,7 @@ export class BellTeamMessenger extends ConversationWriter {
       try { check() }
       catch (error) { await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
       delivery = await this.transport.notify(bot, directEnvelope(memberIdentity(this.bots, from), message), {
+        ...(admissionCheck ? { admissionCheck: () => { check(); admissionCheck() } } : {}),
         ...(membersLease === undefined ? {} : { membersLease }),
         ...(executionSource ? { executionSource } : {}),
         images,

@@ -569,8 +569,8 @@ export class AitermTransport {
 
   // 通知で始まったターンの最後の回答は誰にも配送しない。onAnswerがあれば、そのBotの会話画面へ出すために渡す。
   // onTurnEndは、差し込みではなく新しく始まったターンが終わった時だけ、その時間の幅を渡して呼ぶ。
-  async notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease } = {}) {
-    const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease })
+  async notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease, admissionCheck } = {}) {
+    const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease, admissionCheck })
     completion.catch(error => process.stderr.write(`BellTeam Aiterm delivery error: ${error.stack ?? error.message}\n`))
     return completion.accepted
   }
@@ -917,7 +917,7 @@ export class AitermTransport {
       let session = this.session(bot)
       let result
       try {
-        result = await this.sendToSession(session, message, imageFiles)
+        result = await this.sendToSession(session, message, imageFiles, check)
       } catch (error) {
         check()
         // 入力後の不明や復帰確認の要求は、席が消えて見えても起こし直して再送しない。
@@ -938,7 +938,7 @@ export class AitermTransport {
           return this.wake(bot, { setupTest, membersLease: lease })
         }, { membersLease })
         check()
-        result = await this.sendToSession(session, message, imageFiles)
+        result = await this.sendToSession(session, message, imageFiles, check)
       }
       const receipt = result.structuredContent
       if (receipt?.mode !== 'agent_steer'
@@ -955,14 +955,14 @@ export class AitermTransport {
   // 画像はaitermのimage引数へ渡す。harness別の添付手順（パスの先打鍵等）はaitermが吸収する（0.30.0）。
   // require_agentで、登録が無い席へ普通の端末として打たれる（mode=sent）のを止める。
   // BellTeamの印を付けると、差し込みの返りに、その文を取ったターンを追う手がかりが入る（Aiterm 0.60.0、ADR 0122）。
-  async sendToSession(session, message, imageFiles) {
+  async sendToSession(session, message, imageFiles, admissionCheck) {
     this.assertWorkAllowed()
     return this.client.call('pty_send', {
       session_id: session,
       text: message,
       require_agent: true,
       ...(imageFiles.length ? { image: imageFiles.map(file => file.path) } : {}),
-    }, { meta: CALLER_META })
+    }, { meta: CALLER_META, ...(admissionCheck ? { admissionCheck } : {}) })
   }
 
   session(bot) {
