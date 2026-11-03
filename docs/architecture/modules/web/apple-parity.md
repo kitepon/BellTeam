@@ -81,3 +81,21 @@ Appleの会話opening設定はこのブラウザーのrise/fade選択としてlo
 ## 検証範囲
 
 局所Web 44件、公開static/import 2件を確認。実createBellTeamServerの公開HTTPとChromium 1440×1100/390×844で、役職検索/隠れた選択の保存/代表維持/未保存取消/失敗入力保持/GET保存結果/fastMode/独立大小写真とmetadata/拡大/全予定から管理/Owner複数行保存/端末motion/資格入りURL拒否を確認。JS例外0、横overflow0。HTTP先のregistry/profileは明示した人工fixtureで、mutation7件はそのメモリ内だけ。原本は担当席integrations/web-apple-parity-20261103/。Apple実機・本番・実Host・実AI・実Cloudflare logout/他サーバー遷移/正規WebPush配送は未実施。currentWork実接続とWebPushは供給後に別の限定検証を行う。既Updateの成功範囲を拡張せず、同fileを変更しない。
+
+## currentWork v1の表示
+
+Molly固定 `contract-artifacts.json` SHA256 `b9767b6668a6c70e64291408fe090ba6b63a0d793527eb8c7834bc977a22cced`、schema SHA256 `fb3d3dbac1694588c67886277c36bfa254e3ebd407ccb3a355c4d0b72373161a`、有限例 SHA256 `e58896bbd192eb5b60bce035ed8363b36264bfcf84eedb3abfb47a905ba0dbb6` を受領。backend実装SHAはこの時点でnull。供給がない旧本体も含めて表示する消費側だけを接続する。
+
+```mermaid
+flowchart LR
+  GET["既Bot/Room GET currentWork"] --> Boundary["current-work.js<br/>6key/状態/要約/時刻整合<br/>欠測・不正はunknown"]
+  Boundary --> Bot["Bot subtitle<br/>current短文 / 未設定 / 期限切れ / 待機 / 未取得"]
+  Boundary --> Room["Room scope:participantsだけ<br/>本人名付き要約最大2名＋残り人数"]
+  Room --> Detail["ヘッダーの仕事details<br/>表示権限内の現参加者全員"]
+  Bot --> Detail
+  Detail --> Times["最終観測と要約更新を別表示<br/>JST・本人記載の意味"]
+```
+
+`online/recent`は接続・最終会話の補助表示でありwork stateへ変換しない。Roomの仕事情報はRoom DTOからだけ読み、名簿からは名前と現在参加者だけを確認する。member DTOからRoom作業を合成しない。SSE→既loadBotsの再読取で同時に更新する。詳細を開閉してもAPI/AIを追加で呼ばない。期限/完了判定はproviderが所有し、Webは古い本文の表示fallbackや独自TTLを作らない。UIの有限例検証と実backend接続成功は別記する。
+
+currentWork消費側の限定確認: 供給6有限例、欠測/不整合/不正文字、Unicode160、Roomに最大2名＋残数/退室者除外/重複unknownを局所確認。実HTTPのfield欠測をunknownと描画。供給例はconsumerへの明示fixtureだけで注入し、画面には『レビュー用：供給契約の有限例 / backend実接続は未確認』を常設したPC/mobile画像を保存。既SSEで選択中の詳細もunknownへ再同期、mutation0/JS例外0。backend実装SHA到着後の実GET mapping照合は未完。原本は担当席integrations/web-current-work-20261103/。

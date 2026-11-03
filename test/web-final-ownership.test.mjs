@@ -11,7 +11,7 @@ function catalogue(){
  const reads=[],state={selected:null,selectedType:'bot'},ctx={catalogueRead:0,state,api:path=>{
   if(path.startsWith('/api/bots')){const pending=deferred();reads.push(pending);return pending.promise}
   return Promise.resolve(path==='/api/rooms'?{rooms:[]}:{owner:{name:'old'}})
- },renderOwner(){},renderBots(){},clearSelection(){state.selected=null},conversationTimeline:{updateTarget(){}},app:{classList:{contains:()=>false}}}
+ },renderCurrentWork(){},document:{querySelector(){}},renderOwner(){},renderBots(){},clearSelection(){state.selected=null},conversationTimeline:{updateTarget(){}},app:{classList:{contains:()=>false}}}
  vm.runInNewContext(source.slice(source.indexOf('async function loadBots()'),source.indexOf('\n  function renderOwner()')),ctx)
  return {ctx,state,reads}
 }

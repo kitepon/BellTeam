@@ -546,3 +546,17 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .settings-tabs button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 999px; background: white; font: inherit; font-size: 13px; cursor: pointer; }
 
 .profile-dialog #bot-configuration-status[data-state="notice"]:not(:empty) { background: #f5f5f7; color: #60606b; }
+
+.chat-header { flex-wrap: wrap; }
+.current-work-detail { flex: 0 0 100%; min-width: 0; font-size: 13px; }
+.current-work-detail[hidden] { display: none; }
+.current-work-detail summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: #5e586b; padding: 8px 0; }
+.current-work-detail [data-work-body] { position: absolute; z-index: 9; top: calc(100% - 6px); left: 16px; right: 16px; max-height: min(50dvh, 440px); overflow-y: auto; border: 1px solid var(--line); border-radius: 18px; padding: 20px; background: white; box-shadow: 0 16px 40px #0002; }
+.current-work-detail section { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.current-work-detail h3 { margin: 0 0 8px; font-size: 15px; }
+.current-work-detail section p { margin: 0 0 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.current-work-detail dl { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 6px; font-size: 12px; color: #6b6871; }
+.current-work-detail dd { margin: 0; }
+.bot-preview.room-work-preview { display: block; white-space: normal; }
+.work-scope, .work-more { display: block; font-size: 11px; line-height: 1.8; color: #76707e; }
+.work-preview-line { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.7; }

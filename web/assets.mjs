@@ -18,6 +18,7 @@ export const webAssetFiles = new Map([
   ['/message-images.js', 'message-images.js'],
   ['/conversation-timeline.js', 'conversation-timeline.js'],
   ['/view-format.js', 'view-format.js'],
+  ['/current-work.js', 'current-work.js'],
   ['/view-preferences.js', 'view-preferences.js'],
   ['/schedule-editor.js', 'schedule-editor.js'],
   ['/schedules-overview.js', 'schedules-overview.js'],
@@ -41,4 +42,4 @@ export const webAssetFiles = new Map([
   ['/icons/icon-512.png', 'icons/icon-512.png'],
 ])
 
-export const versionedWebAssets = new Set(['schedules-overview.js', 'index.html', 'app.js', 'application.js', 'update-center.js', 'client.js', 'owner-editor.js', 'bot-editor.js', 'room-editor.js', 'schedule-editor.js', 'conversation-timeline.js', 'conversation-composer.js', 'harness-auth.js', 'onboarding.js', 'rich-text.js', 'secret-input.js'])
+export const versionedWebAssets = new Set(['current-work.js', 'schedules-overview.js', 'index.html', 'app.js', 'application.js', 'update-center.js', 'client.js', 'owner-editor.js', 'bot-editor.js', 'room-editor.js', 'schedule-editor.js', 'conversation-timeline.js', 'conversation-composer.js', 'harness-auth.js', 'onboarding.js', 'rich-text.js', 'secret-input.js'])

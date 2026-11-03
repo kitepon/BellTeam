@@ -1,3 +1,4 @@
+import { workLabel, roomWorkPreview, renderCurrentWork } from './current-work.js?v=__ASSET_VERSION__'
 import { animateConversation } from './view-preferences.js?v=__ASSET_VERSION__'
 import { createSchedulesOverview } from './schedules-overview.js?v=__ASSET_VERSION__'
 import { matchesMemberQuery, matchesRoomQuery } from './roster-search.js?v=__ASSET_VERSION__'
@@ -301,6 +302,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     }
     renderOwner()
     renderBots()
+    renderCurrentWork(document.querySelector('#current-work-detail'), state.selectedType, state.selected, state.bots)
     return true
   }
 
@@ -320,7 +322,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
       button.dataset.conversation = conversationKey('bot', bot.id)
       button.type = 'button'
       button.addEventListener('click', () => selectBot(bot))
-      const preview = '今の仕事は未取得'
+      const preview = workLabel(bot.currentWork)
       button.innerHTML = `
         <span class="avatar ${escapeClass(bot.color)}" data-avatar>${initials(bot.name)}<i class="presence ${bot.online ? 'online' : ''}"></i></span>
         <span class="bot-copy"><span class="bot-name">${escapeHtml(bot.displayName)}</span><span class="bot-position">${escapeHtml(bot.position || '役職未設定')}</span><span class="bot-preview">${escapeHtml(preview)}</span></span>
@@ -336,10 +338,10 @@ export function createWebApp({ client = createWebClient() } = {}) {
       button.type = 'button'
       button.addEventListener('click', () => selectRoom(room))
       const recent = room.recent
-      const preview = '今の仕事は未取得'
+      const preview = roomWorkPreview(room, state.bots)
       button.innerHTML = `
         <span class="avatar room-avatar">${initials(room.name)}</span>
-        <span class="bot-copy"><span class="bot-name">${escapeHtml(room.name)}</span><span class="bot-preview">${escapeHtml(preview)}</span></span>
+        <span class="bot-copy"><span class="bot-name">${escapeHtml(room.name)}</span><span class="bot-preview room-work-preview">${preview}</span></span>
         <span class="bot-meta"><time class="bot-time" title="最終会話の時刻">${formatTime(recent?.at)}</time>${unread ? '<i class="unread-dot" aria-label="未読"></i>' : ''}</span>`
       applyAvatar(button.querySelector('.avatar'), room)
       return button
@@ -363,8 +365,9 @@ export function createWebApp({ client = createWebClient() } = {}) {
     toggleTargetMenu(false)
     chat.classList.remove('empty')
     app.classList.add('chat-open')
+    renderCurrentWork(document.querySelector('#current-work-detail'), 'bot', bot, state.bots)
     chatName.textContent = bot.displayName
-    chatStatus.textContent = bot.online ? 'オンライン' : '待機中 · 送信時に起動'
+    chatStatus.textContent = bot.online ? 'CLI接続あり' : 'CLI接続なし · 送信時に起動'
     headerAvatar.className = `mini-avatar ${escapeClass(bot.color)}`
     headerAvatar.textContent = initials(bot.name)
     applyAvatar(headerAvatar, bot)
@@ -389,6 +392,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     updateSendButton()
     chat.classList.remove('empty')
     app.classList.add('chat-open')
+    renderCurrentWork(document.querySelector('#current-work-detail'), 'room', room, state.bots)
     chatName.textContent = room.name
     chatStatus.textContent = `${room.memberIds.length}人`
     headerAvatar.className = 'mini-avatar room-avatar'
@@ -405,6 +409,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   }
 
   function clearSelection() {
+    renderCurrentWork(document.querySelector('#current-work-detail'), null, null, state.bots)
     conversationComposer.clear()
     conversationTimeline.close()
     void goals.select(null)
