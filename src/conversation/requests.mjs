@@ -60,10 +60,6 @@ export function validateConversationRequest(method, params, context) {
     })
     case 'member.removeFromRooms': return fields(params, { botId: id })
     case 'history.listMessages': return fields(params, { botId: id })
-    case 'history.page': return fields(params, { kind: oneOf('bots', 'rooms'), id }, {
-      limit: value => typeof value === 'number' && Number.isFinite(value), before: text, after: text,
-    })
-    case 'history.recent': case 'history.export': return fields(params, { kind: oneOf('bots', 'rooms'), id })
     case 'direct.post': return fields(params, { from: id, target: id, ...post })
     case 'user.post': case 'user.turn': return fields(params, { target: id, ...post })
     case 'room.post': return fields(params, { from: id, room: roomId, ...post }, {

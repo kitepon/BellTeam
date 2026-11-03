@@ -8,6 +8,9 @@ const queue = { context: 'direct', contextId: 'bot-a', groupId: 'delivery-a', fr
 const native = { deliveryId: 'delivery-a', target: 'bot-a', message: 'Q', images: [], queue, kinds: ['delivery.status', 'delivery.answer'] }
 const samples = {
   'members.profiles.read': [{}, { bots: [{ id: 'bot-a', name: 'A' }] }],
+  'execution.assertAccess': [{}, { allowed: true }],
+  'execution.reconcile': [{ botId: 'bot-a', deliveryId: 'delivery-a', target: { session_id: 'bot-a', launch_id: 'a'.repeat(32) } }, { recoveryId: 'recovery-a' }],
+  'execution.closeLaunch': [{ botId: 'bot-a', deliveryId: 'delivery-a', target: { session_id: 'bot-a', launch_id: 'a'.repeat(32) } }, { closureId: 'closure-a' }],
   'usage.routing.read': [{}, { enabled: false, epoch: 1, apiKey: null }],
   'usage.notify.direct': [{ deliveryId: 'delivery-a', from: 'bot-a', target: 'user' }, { accepted: true }],
   'usage.notify.room': [{ id: 'message-a', sender: { id: 'bot-a', name: 'A' }, room: { id: 'room-a', name: 'Room' } }, { accepted: true }],
@@ -51,6 +54,9 @@ test('native source/target/callback subsets are closed and turn.end cannot doubl
   assert.throws(() => validateConversationEffect('execution.background.begin', samples['execution.background.begin'][0], callback))
   validateConversationEffect('usage.routing.read', {}, callback)
   assert.throws(() => validateConversationEffectResult('execution.observation.source', { deliveryId: 'delivery-a', target: 'other' }, { target: 'bot-a' }))
+  validateConversationEffect('execution.notify', { ...native, recoveryId: 'recovery-a' }, context)
+  assert.throws(() => validateConversationEffect('execution.turn', { ...samples['execution.turn'][0], recoveryId: 'recovery-a' }, context))
+  assert.throws(() => validateConversationEffectResult('execution.assertAccess', { allowed: false }))
 })
 
 test('observer v2 projection preserves full body, known statuses and opaque paging without private metadata', () => {

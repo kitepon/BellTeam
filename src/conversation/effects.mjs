@@ -7,6 +7,7 @@ export const CONVERSATION_EFFECT_METHODS = Object.freeze([
   'assets.beginSave', 'assets.endSave', 'runtime.image.read', 'runtime.room.context',
   'runtime.observer.changed', 'runtime.observer.read', 'execution.notify', 'execution.turn',
   'execution.background.begin', 'execution.background.end', 'execution.observation.source', 'execution.report',
+  'execution.assertAccess', 'execution.reconcile', 'execution.closeLaunch',
 ])
 const invalid = () => { throw Object.assign(new Error('CONVERSATION_EFFECT_INVALID'), { code: 'CONVERSATION_EFFECT_INVALID' }) }
 const plain = value => value !== null && typeof value === 'object'
@@ -34,6 +35,7 @@ const queue = value => fields(value, { context: oneOf('direct', 'room', 'report'
   groupId: identity, from: nonempty, fromName: text, target: id, message: text }, {
   call: value => fields(value, { sessionId: nonempty, event: oneOf('session.message', 'session.reply'), seq: nullable(finite) }),
 })
+const launch = value => fields(value, { session_id: nonempty, launch_id: value => text(value) && /^[a-f0-9]{32}$/u.test(value) })
 
 function context(value) {
   if (Object.hasOwn(value ?? {}, 'callbackKind')) return validateConversationCallbackContext(value.callbackKind, value)
@@ -44,7 +46,9 @@ function context(value) {
 export function validateConversationEffect(method, params, capturedContext) {
   context(capturedContext)
   switch (method) {
-    case 'members.profiles.read': case 'usage.routing.read': case 'runtime.observer.changed': return fields(params, {})
+    case 'members.profiles.read': case 'usage.routing.read': case 'runtime.observer.changed':
+    case 'execution.assertAccess': return fields(params, {})
+    case 'execution.reconcile': case 'execution.closeLaunch': return fields(params, { botId: id, deliveryId: identity, target: launch })
     case 'usage.notify.direct': return fields(params, { deliveryId: identity, from: nonempty, target: id })
     case 'usage.notify.room': return fields(params, { id: identity, sender: label, room: label })
     case 'assets.beginSave': return fields(params, { owner: id })
@@ -66,7 +70,7 @@ export function validateConversationEffect(method, params, capturedContext) {
       fields(params, { deliveryId: identity, target: id, message: text, queue,
         kinds: array(value => CONVERSATION_CALLBACK_METHODS.includes(value)),
         ...(report ? { sourceDeliveryId: identity, reason: oneOf('missing', 'content') } : { images: array(image) }),
-      })
+      }, method === 'execution.notify' ? { recoveryId: identity } : {})
       if (params.queue.groupId !== params.deliveryId || params.queue.target !== params.target
         || new Set(params.kinds).size !== params.kinds.length) invalid()
       if (report) {
@@ -125,6 +129,9 @@ export function validateConversationEffectResult(method, result, params) {
       fields(result, { deliveryId: identity, target: id })
       if (result.target !== params?.target) invalid()
       return true
+    case 'execution.assertAccess': return fields(result, { allowed: value => value === true })
+    case 'execution.reconcile': return fields(result, { recoveryId: identity })
+    case 'execution.closeLaunch': return fields(result, { closureId: identity })
     default: invalid()
   }
 }

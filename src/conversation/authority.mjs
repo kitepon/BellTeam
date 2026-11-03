@@ -13,8 +13,9 @@ export const CONVERSATION_ACTOR_METHODS = Object.freeze({
   usage: Object.freeze(['user.post']),
   observer: Object.freeze(['observation.poll']),
 })
-export const CONVERSATION_ROOT_METHODS = Object.freeze([...new Set(Object.values(CONVERSATION_ACTOR_METHODS).flat())])
-export const CONVERSATION_PARENT_METHODS = Object.freeze(['assets.open'])
+export const CONVERSATION_PARENT_METHODS = Object.freeze(['assets.open', 'history.page', 'history.recent', 'history.export'])
+export const CONVERSATION_ROOT_METHODS = Object.freeze([...new Set(Object.values(CONVERSATION_ACTOR_METHODS).flat())]
+  .filter(method => !CONVERSATION_PARENT_METHODS.includes(method)))
 
 const id = value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,127}$/u.test(value)
 const invalid = () => { throw Object.assign(new Error('CONVERSATION_ACTOR_INVALID'), { code: 'CONVERSATION_ACTOR_INVALID', status: 403, outcome: 'not_accepted' }) }
