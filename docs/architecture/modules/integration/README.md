@@ -511,3 +511,7 @@ Web固有の[内蔵版戻し](../web/gateway-builtin.md)がprocess/control/adapt
 新Owner HTTP→台帳→実reader選択/実engine交換・builtin戻しと同期投影/採用0600/同parent-portを検査し、C/root署名配置/実SDK/本番をこの人工I/O fixtureで補完しない。署名artifact/公開catalogの実物は配布担当の同source受入へ結ぶ。
 
 executionのcapacity継続は既Messenger.sendmessage(input,options)へ親固定portを直結し、admissionCheckと返却delivery_id/実Promiseを同identityで保持する。user.turn用enqueueへ置換せず、継続対象や本文を親が再生成しない。
+
+### 会話の親組立
+
+`conversation-assembly.mjs`が同じConversationLifetimesと両module予約、method限定authorityを所有し、固有facade/閉effects/実controllerへ接続する。子だけが直接会話・Room・画像・observer状態を書き、親はreadonly履歴合成・FD reader・画像保存gate・認証済みactorを保持する。元RPCのactualCompletionとdelivery/background ACKまでauthorityを保持し、期限だけで成功終端へ読み替えない。membersからのRoom/画像逆effectも元membersLeaseへ会話予約を束縛し、202後のcleanupと同じ実終端まで保持する。

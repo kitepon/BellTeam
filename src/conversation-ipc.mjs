@@ -116,7 +116,8 @@ export function createConversationParentChannel(child, { generation, admission, 
       const delivery = register(record, params, source)
       // A local preparation refusal proves transport was never called; its registered delivery still needs the release ACK.
       try { record.options.admissionCheck?.() } catch (cause) { admission.finish(delivery); throw cause }
-      value = await onEffect(method, params, enriched(record, delivery))
+      try { value = await onEffect(method, params, enriched(record, delivery)) }
+      catch (cause) { admission.finishUnclaimedDelivery(delivery); throw cause }
     } else {
       value = await onEffect(method, params, enriched(record))
       validateConversationEffectResult(method, value, params)
