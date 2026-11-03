@@ -70,6 +70,7 @@ src/self-turns.mjs
 src/session-interruption.mjs
 src/timeline-index.mjs
 src/turn-reports.mjs
+src/usage/web-push-schema.mjs
 '''.split())
 
 

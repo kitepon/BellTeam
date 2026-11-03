@@ -33,9 +33,9 @@ export function createConversationExecutionEffects({ getServices, getController,
       context.admissionCheck?.()
       services.aiControl.assertEnabled()
     }
-    const member = async id => {
-      if (typeof services.bots.readMember === 'function') await services.bots.readMember(id, context.operationContext)
-      else await services.bots.refresh(context.operationContext)
+    const member = async (id, membersContext = context.operationContext) => {
+      if (typeof services.bots.readMember === 'function') await services.bots.readMember(id, membersContext)
+      else await services.bots.refresh(membersContext)
       check()
       const bot = services.bots.get(id)
       if (!bot) invalid()
@@ -73,25 +73,31 @@ export function createConversationExecutionEffects({ getServices, getController,
         check()
         admission.assertDelivery(context.conversationDelivery, { deliveryId: params.deliveryId, target: params.target })
         admission.assertLease(context.conversationDelivery, { generation: context.generation, correlation: context.operationId })
-        const bot = await member(params.target)
-        let recoveredExecution
-        if (params.recoveryId !== undefined) {
-          const entry = take(params.recoveryId, context, 'recovery')
-          if (method !== 'execution.notify' || entry.botId !== params.target || entry.deliveryId !== params.deliveryId
-            || !isDeepStrictEqual(entry.target, entry.value.binding?.target?.launch)) invalid()
-          recoveredExecution = entry.value; handles.delete(params.recoveryId)
+        const deliver = async membersContext => {
+          const bot = await member(params.target, membersContext)
+          let recoveredExecution
+          if (params.recoveryId !== undefined) {
+            const entry = take(params.recoveryId, context, 'recovery')
+            if (method !== 'execution.notify' || entry.botId !== params.target || entry.deliveryId !== params.deliveryId
+              || !isDeepStrictEqual(entry.target, entry.value.binding?.target?.launch)) invalid()
+            recoveredExecution = entry.value; handles.delete(params.recoveryId)
+          }
+          const options = { images: params.images ?? [], queue: params.queue, conversationDelivery: context.conversationDelivery,
+            membersLease: membersContext.membersLease, admissionCheck: context.admissionCheck,
+            conversationLease: context.conversationLease, operationContext: context.operationContext, actualCompletion: context.actualCompletion,
+            ...(context.capturedAuthority ? { capturedAuthority: context.capturedAuthority } : {}),
+            ...(context.executionSource ? { executionSource: context.executionSource } : {}),
+            ...(recoveredExecution ? { recoveredExecution } : {}) }
+          const result = method === 'execution.turn' ? transport.turn(bot, params.message, options)
+            : method === 'execution.report' ? transport.notifyReport(bot, params.message, options) : transport.notify(bot, params.message, options)
+          if (method !== 'execution.turn') return result
+          result.catch(() => {})
+          return result.accepted
         }
-        const options = { images: params.images ?? [], queue: params.queue, conversationDelivery: context.conversationDelivery,
-          membersLease: context.operationContext.membersLease, admissionCheck: context.admissionCheck,
-          conversationLease: context.conversationLease, operationContext: context.operationContext, actualCompletion: context.actualCompletion,
-          ...(context.capturedAuthority ? { capturedAuthority: context.capturedAuthority } : {}),
-          ...(context.executionSource ? { executionSource: context.executionSource } : {}),
-          ...(recoveredExecution ? { recoveredExecution } : {}) }
-        const result = method === 'execution.turn' ? transport.turn(bot, params.message, options)
-          : method === 'execution.report' ? transport.notifyReport(bot, params.message, options) : transport.notify(bot, params.message, options)
-        if (method !== 'execution.turn') return result
-        result.catch(() => {})
-        return result.accepted
+        // Reports keep the original conversation lifetime, but re-enter members only for fresh preparation/acceptance.
+        return method === 'execution.report'
+          ? transport.membersAdmission.withLease(membersLease => deliver({ membersLease }))
+          : deliver(context.operationContext)
       }
       // These effects are consumed by conversation-ipc before onExecution.
       default: invalid()
