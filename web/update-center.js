@@ -1,6 +1,6 @@
 const modules = [
   { id: 'core', name: 'BellTeam本体', description: 'すべての機能を支える実行環境と、製品全体の構成。', mark: 'B', endpoint: null },
-  { id: 'web-gateway', name: 'WebとAPI', description: 'アプリの画面と接続を届ける、BellTeamの窓口。', mark: '↗', endpoint: '/api/web-gateway-release', key: 'webGatewayRelease' },
+  { id: 'web-gateway', name: 'Web受付', description: 'アプリからの接続を受け付け、画面を届けます。', mark: '↗', endpoint: '/api/web-gateway-release', key: 'webGatewayRelease' },
   { id: 'notifications', name: '通知', description: 'メッセージや確認依頼を、お使いの端末へ届けます。', mark: '◉', endpoint: '/api/notifications-release', key: 'notificationsRelease' },
 ]
 const statusLabels = { accepted: '受付済み', running: '更新中', succeeded: '交換機構の成功を確認', failed: '更新に失敗', not_started: '開始していません' }
