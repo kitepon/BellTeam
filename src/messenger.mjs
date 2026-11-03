@@ -153,20 +153,27 @@ export class BellTeamMessenger extends ConversationWriter {
   }
 
   async enqueueUserTurn(input) {
-    const prepared = await this.prepareUserTurn(input)
-    const completion = this.startUserTurn(prepared)
-    completion.then(reply => this.finishUserTurn(prepared, reply))
-      .catch(error => process.stderr.write(`BellTeam user delivery error: ${error.stack ?? error.message}\n`))
-    const accepted = await completion.accepted
-    return {
-      delivery: accepted.delivery, delivery_id: prepared.deliveryId,
-      from: 'user', target: prepared.target,
-    }
+    const completion = this.userTurn(input)
+    completion.catch(error => process.stderr.write(`BellTeam user delivery error: ${error.stack ?? error.message}\n`))
+    return completion.accepted
   }
 
-  async userTurn(input) {
-    const prepared = await this.prepareUserTurn(input)
-    return this.finishUserTurn(prepared, await this.startUserTurn(prepared))
+  userTurn(input) {
+    const accepted = Promise.withResolvers()
+    // Legacy callers await only completion; a failed admission must not be unhandled.
+    accepted.promise.catch(() => {})
+    const completion = (async () => {
+      const prepared = await this.prepareUserTurn(input)
+      const turn = this.startUserTurn(prepared)
+      // A legacy transport without accepted only releases the slot at completion.
+      Promise.resolve(turn.accepted ?? Promise.resolve(turn).then(reply => ({ delivery: reply?.delivery ?? 'delivered' })))
+        .then(result => accepted.resolve({ delivery: result.delivery, delivery_id: prepared.deliveryId,
+          from: 'user', target: prepared.target }), accepted.reject)
+      return this.finishUserTurn(prepared, await turn)
+    })()
+    completion.catch(accepted.reject)
+    completion.accepted = accepted.promise
+    return completion
   }
 
   async prepareUserTurn({ target, message, images = [], recordUser = true }) {
