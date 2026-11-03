@@ -127,3 +127,35 @@ test('background begin acquires a real reference before ACK and end requested ca
   gate.finish(report); actual.resolve(); await background
   assert.deepEqual(await gate.drain(ticket), { status: 'drained' })
 })
+
+
+test('delivery completion waits for real work without callbacks; release ACK holds only the operation', async () => {
+  const gate = new ConversationLifetimes(), root = gate.enter(), source = register(gate, root, { kinds: [] })
+  let report
+  await gate.runBackground(source, () => { report = gate.deriveReport(source, { deliveryId: 'report-empty', reason: 'missing', kinds: [], dispatch: async () => ({ applied: true }) }) })
+  const actual = deferred(), releaseAck = deferred(), done = gate.deliveryCompletion(report)
+  assert.equal(gate.deliveryCompletion(report), done)
+  // Register this on the operation before delivery finishes, or done and ACK would form a cycle.
+  gate.trackCompletion(root, releaseAck.promise)
+  gate.trackCompletion(report, actual.promise)
+  let settled = false; done.then(() => { settled = true })
+  gate.finish(source); gate.finish(report); gate.finish(root)
+  await tick(); assert.equal(settled, false)
+  const ticket = gate.close()
+  actual.resolve(); await done; await tick()
+  assert.equal(settled, true); assert.equal(gate.snapshot().active, 1)
+  assert.deepEqual(await gate.drain(ticket, { timeoutMs: 0 }), { status: 'busy' })
+  gate.assertLease(root)
+  releaseAck.resolve(); assert.deepEqual(await gate.drain(ticket), { status: 'drained' })
+})
+
+test('delivery completion cannot be captured from an operation, forged token or ended delivery', async () => {
+  for (const kind of ['operation', 'forged', 'terminal']) {
+    const gate = new ConversationLifetimes(), root = gate.enter(), delivery = register(gate, root, { kinds: [] })
+    const done = gate.deliveryCompletion(delivery)
+    if (kind === 'terminal') { gate.finish(delivery); await done }
+    assert.throws(() => gate.deliveryCompletion(kind === 'operation' ? root : kind === 'forged' ? { ...delivery } : delivery), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
+    if (kind !== 'terminal') gate.finish(delivery)
+    gate.finish(root); await tick()
+  }
+})

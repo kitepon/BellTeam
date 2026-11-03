@@ -96,6 +96,10 @@ export class ConversationLifetimes {
       || target !== undefined && record.binding.target !== target) throw this.#protocol()
     return lease
   }
+  deliveryCompletion(lease) {
+    this.assertDelivery(lease)
+    return this.#records.get(lease).done
+  }
   binding(lease, callbackKind) {
     this.assertDelivery(lease)
     const record = this.#records.get(lease)
