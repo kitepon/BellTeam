@@ -6,7 +6,8 @@
 flowchart TD
   Root[Root: Owner原本/停止epoch/固定adapter] --> Execute[execute signal・一回入場]
   Execute --> Lock[資格設定dir単位の永続排他・run新規作成]
-  Lock --> Intent[許可確認・予算・送信前intent同期]
+  Lock --> Reserve[session名の永久予約・wx/fsync・親directory同期]
+  Reserve --> Intent[許可確認・予算・送信前intent同期]
   Intent --> Native[固定auth start/status/respond/cleanup]
   Native --> Check[typed失敗・世代・正規transition検証]
   Check --> Request[SecretRequests正規create・runへID保存]
@@ -19,6 +20,8 @@ flowchart TD
 ```
 
 正本はrunDirectory（管理root/state/olrw-auth、管理UID1001/0700）。全runに一つのtarget.lock、runId.jsonl（0600）をusageだけが所有。journal各行をfsync、作成は親directoryも同期する。失敗/unknown/中断はlockを残し、再起動・別runも自動続行しない。成功cleanupと完了記録の同期後だけlock解除。同runのjournalは新規作成専用で再実行しない。保存先/期限を過ぎた記録の削除は自動化せず、統括の独立照合後に管理側で保持見直し。秘密値正本を削除/複製しない。
+
+session名は同target排他内のsession-<sessionId>.reserved（0600、内容runId）へwxで永久予約し、fileと親directoryの同期後にだけstart intentへ進む。成功後もこの予約を削除せず、別run・再起動・失敗・unknown・中断の全場合で同名再使用を拒否。予約保存失敗はstart0。保持見直しでこの予約を期限切れ削除しない。RootのMCP initialize/名札出力/実測evidence待受も固定auth.startの内側へ置き、usageの予約・claim・start intentを先行させる。Rootに第二のrun/名前台帳は作らない。
 
 固定context: runId（英数_- 1..64）、requesterBotId、toolId、sessionId（予約済認証名）、expiresAt（ISO）、roomId（null又は固定room）、protectedHosted（元hosted名）。sessionId==protectedHostedは拒否。固定Rabbit/kite/claude-code/cwdはauth adapterが所有。contextは管理plan由来、自由HTTP/MCP入力ではない。
 

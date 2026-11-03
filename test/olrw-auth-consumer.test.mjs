@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile, unlink, open, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setImmediate } from 'node:timers/promises'
 import { SecretRequests } from '../src/secret-requests.mjs'
@@ -20,7 +20,7 @@ async function until(predicate) {
   for (let n = 0; n < 10000; n++) { if (await predicate()) return; await setImmediate() }
   assert.fail('synthetic fixture did not reach state')
 }
-async function fixture(t, { native = {}, authorization = async () => {}, expiry = 900000 } = {}) {
+async function fixture(t, { native = {}, authorization = async () => {}, expiry = 900000, prepare = async () => {} } = {}) {
   const base = join(import.meta.dirname, '../.olrw-fixture')
   await mkdir(base, { recursive: true })
   const root = await mkdtemp(join(base, 'run-'))
@@ -37,6 +37,7 @@ async function fixture(t, { native = {}, authorization = async () => {}, expiry 
   const context = { runId: 'run-synthetic', requesterBotId: 'bot-synthetic', toolId: 'olrw-auth', sessionId: binding.session_id,
     expiresAt: new Date(Date.now() + expiry).toISOString(), protectedHosted: 'original-synthetic', roomId: null }
   const runDirectory = join(root, 'state/olrw-auth')
+  await prepare({ root, runDirectory, context })
   const make = (change = {}) => createOlrwAuthConsumer({ secretRequests: secrets, runDirectory, context, assertAuthorized: authorization, auth, ...change })
   const consumer = make()
   const pending = consumer.execute()
@@ -324,4 +325,63 @@ for (const [label, failure] of [
   assert.equal((await f.journal()).at(-1).consumed, true)
   assert.equal((await f.make().execute()).outcome, 'not_issued')
   assert.equal(f.calls.length, count)
+})
+
+test('session reservation: successful cleanup never releases the name for another run or restart', async t => {
+  const f = await fixture(t, { native: { start: () => result('complete') } })
+  assert.equal((await f.pending).outcome, 'confirmed')
+  assert.equal(f.calls.length, 2)
+  const reservation = join(f.runDirectory, `session-${f.context.sessionId}.reserved`)
+  assert.equal(await readFile(reservation, 'utf8'), f.context.runId)
+  for (const runId of ['another-run', 'after-restart']) {
+    // Fixture-only retirement of the failed contender's transient lock isolates the name claim.
+    await unlink(join(f.runDirectory, 'target.lock')).catch(() => {})
+    assert.equal((await f.make({ context: { ...f.context, runId } }).execute()).outcome, 'not_issued')
+    assert.equal(f.calls.length, 2)
+  }
+})
+
+for (const scenario of ['failed', 'unknown', 'interrupted']) test(`session reservation: ${scenario} cannot reuse name even after transient lock retirement`, async t => {
+  let starts = 0
+  const f = await fixture(t, { native: {
+    start: () => ++starts > 1 ? result('complete') : scenario === 'unknown' ? Promise.reject(Error('synthetic initialize completed, result lost'))
+      : result(scenario === 'failed' ? 'failed' : 'paste_code'),
+  } })
+  if (scenario === 'interrupted') { await f.guide(await f.request()); f.consumer.close() }
+  assert.notEqual((await f.pending).outcome, 'confirmed')
+  const count = f.calls.length
+  await unlink(join(f.runDirectory, 'target.lock'))
+  assert.equal((await f.make({ context: { ...f.context, runId: 'after-independent-review' } }).execute()).outcome, 'not_issued')
+  assert.equal(f.calls.length, count)
+})
+
+for (const method of ['writeFile', 'sync']) test(`session reservation: ${method} failure occurs before start or initialization`, async t => {
+  const handle = await open(import.meta.filename, 'r')
+  const prototype = Object.getPrototypeOf(handle), original = prototype[method]
+  await handle.close()
+  let reservationPath, failures = 0
+  t.mock.method(prototype, method, async function (...args) {
+    const target = reservationPath && await stat(reservationPath).catch(() => null)
+    if (target && (await this.stat()).ino === target.ino) { failures++; throw Error('synthetic disk failure') }
+    return original.apply(this, args)
+  })
+  const f = await fixture(t, { native: { start: () => result('complete') },
+    prepare: ({ runDirectory, context }) => { reservationPath = join(runDirectory, `session-${context.sessionId}.reserved`) } })
+  assert.equal((await f.pending).outcome, 'not_issued')
+  assert.equal(failures, 1)
+  assert.equal(f.calls.length, 0)
+})
+
+test('session reservation: initialization starts after durable reservation and start intent, unknown never reinitializes', async t => {
+  let initialized = 0
+  const f = await fixture(t, { native: { async start() {
+    assert.equal(await readFile(join(f.runDirectory, `session-${f.context.sessionId}.reserved`), 'utf8'), f.context.runId)
+    assert.equal((await f.journal()).at(-1).intent, 'start')
+    initialized++
+    throw Error('synthetic initialization result unknown')
+  } } })
+  assert.equal((await f.pending).outcome, 'unknown')
+  assert.equal((await f.make().execute()).outcome, 'not_issued')
+  assert.equal(initialized, 1)
+  assert.deepEqual(f.calls.map(x => x.action), ['start'])
 })

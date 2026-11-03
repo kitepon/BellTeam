@@ -185,8 +185,13 @@ export function createOlrwAuthConsumer({ secretRequests, runDirectory, context, 
         lockOwned = true
         try { await lock.writeFile(plan.runId); await lock.sync() } finally { await lock.close() }
         await syncDirectory(runDirectory)
+        try {
+          const reservation = await open(join(runDirectory, `session-${plan.sessionId}.reserved`), 'wx', 0o600)
+          try { await reservation.writeFile(plan.runId); await reservation.sync() } finally { await reservation.close() }
+          await syncDirectory(runDirectory)
+        } catch (error) { throw stop(error?.code === 'EEXIST' ? 'session_reserved' : 'session_reservation_failed') }
         state = { runId: plan.runId, phase: 'running', startedAt: begunAt, deadline: begunAt + 900000,
-          requestId: null, binding: null, digest: null, stage: null, status: null, url: null,
+          sessionId: plan.sessionId, requestId: null, binding: null, digest: null, stage: null, status: null, url: null,
           counts: { start: 0, status: 0, respond: 0, cleanup: 0 }, lastStatus: null, intent: null, consumed: false }
         await record()
         await native('start')
