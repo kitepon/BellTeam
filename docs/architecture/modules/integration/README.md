@@ -197,3 +197,20 @@ flowchart TD
 ## 実装所有の境界（2026-11-03）
 
 共通入口の認可・承認原本/profileと観測の接続・assembly、既契約内の通常main統合はモリーが持つ。公開契約の用途制限と裁定、全体設計・本番はRootが持つ。`src/http-gateway-process.mjs`の子起動停止/ready/同port交換/adoption/戻し、OLRW固定root記録writer/有限watch/取消/OS observerはruntime（エピネル）の実装所有。Root候補1775fa5とruntime所有移管19fad7fの既成功証跡を引き継ぎ、未採用候補のsourceや実供給・実権限はこの移管から成立しない。
+
+## Host Update adapterの接続
+
+共通Updateはruntimeの固定Unix client一実体から正式catalogの選択とcurrent/previous requestIdを読み、既Owner認証と厳密schemaの後で同じHost plan/start/getへ委譲する。共通publicplan（current/target/期限/影響）はHost plan作成後にstate/update-plansへfsyncして保存し、停止後の同ID結果に結ぶ。Host ledgerの代わりに成功や202を作らず、結果不明を再発行しない。catalogの署名受入/期限とpublication feedの確認状態は別fieldで返す。未供給/未設置は既null/false/503。独立moduleの耐久executorと全体step計画が未供給ならそれぞれ理由付き無効を維持する。
+
+```mermaid
+flowchart LR
+  Owner[Owner HTTP] --> Common[共通Update schema/本人確認]
+  Common --> Plans[public plan fsync保存 / 同ID読取]
+  Common --> Host[runtime固定Unix client一実体]
+  Host --> Catalog[root正式選択/鮮度/失効/publication]
+  Host --> Ledger[root plan/requestId/worker]
+  Ledger --> Common
+  Common --> SSE[既updates通知 / GET再取得]
+```
+
+本段階ではcontainer個別plan/start/getだけがHost durable受付へ接続する。全体step計画と独立moduleの耐久操作ledgerはまだ未接続で、scope=allと各moduleの共通実行は理由付き503/無効を維持する。既個別module APIのcontrollerは複製しない。publicplanはHostのcurrent/target/期限をそのまま保存し、再構築した共通serviceでも同requestId結果へ結ぶ。publication.catalogは検証済catalogの識別/期限、publication.checkは直近feed確認であり、取得失敗を更新無しへ変えない。

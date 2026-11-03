@@ -4,7 +4,7 @@ const unavailable = () => Object.assign(new Error('UPDATE_EXECUTOR_UNAVAILABLE')
   publicMessage: 'この設置では、まだアプリから更新を実行できません。' })
 const sourceValid = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value)
 const versionValid = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
-export function createUpdateCenter({ gateway = () => null, notifications = null } = {}) {
+export function createUpdateCenter({ gateway = () => null, notifications = null, host = null } = {}) {
   const events = new EventEmitter()
   return {
     notify: () => events.emit('change'),
@@ -24,7 +24,7 @@ export function createUpdateCenter({ gateway = () => null, notifications = null 
           available = Boolean(push?.available && push.status?.configured)
           reason = available ? null : push?.applyError ?? (push?.available ? 'PUSH_NOT_CONFIGURED' : 'NOTIFICATIONS_UNAVAILABLE')
         }
-        return { id, name, description, current, published: null, changes: [],
+        return { id, name, description, current, published: null, publication: null, changes: [],
           comparison: { state: 'unavailable', reason: 'PUBLISHED_RELEASE_UNAVAILABLE' },
           capability: { supported: false, reason: ['container', 'web-gateway', 'notifications'].includes(id)
             ? 'UPDATE_EXECUTOR_UNAVAILABLE' : 'MODULE_NOT_INDEPENDENT' }, availability: { available, reason } }
@@ -33,10 +33,10 @@ export function createUpdateCenter({ gateway = () => null, notifications = null 
         notice: { state: 'unavailable', code: 'UPDATE_PROVIDERS_UNAVAILABLE', message: '更新情報を取得できないため、確認できた現在版を表示しています。' },
         components, plans: [], operation: null, previousOperation: null }
       if (!validateUpdates(value).valid) throw new Error('UPDATE_SNAPSHOT_INVALID')
-      return value
+      return host ? host.snapshot(value) : value
     },
-    plan(input) { validateUpdateRequest('plan', input); throw unavailable() },
-    start(input) { validateUpdateRequest('operation', input); throw unavailable() },
-    operation(requestId) { validateUpdateRequest('requestId', requestId); throw unavailable() },
+    plan(input) { validateUpdateRequest('plan', input); if (host) return host.plan(input); throw unavailable() },
+    start(input) { validateUpdateRequest('operation', input); if (host) return host.start(input).finally(() => events.emit('change')); throw unavailable() },
+    operation(requestId) { validateUpdateRequest('requestId', requestId); if (host) return host.operation(requestId); throw unavailable() },
   }
 }
