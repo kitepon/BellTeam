@@ -271,3 +271,19 @@ flowchart LR
 Owner/rules更新ではcapturedAuthorizationを同channelへ渡し、子に値は送らない。未公開profile.remove/run/prepareResumeを推測で公開しない。全facadeを製品bootstrapへ切替える工程とruntime controller/source供給は未了。旧writerはまだ稼働経路に残るため、この候補を独立更新完成としてmainへ先行反映しない。
 
 席MCP入口はreadMemberがある場合にfresh本人確認をawaitし、503を未登録400へ丸めない。Map型の既builtinは既本人確認を保つ。HTTP上限16MiB/席MCP4MiBは変更しない。assembly requireMemberもfresh結果を取得し表示投影を本人性の代用にしない。
+
+## 予定claimの共通組立て（結合候補）
+
+```mermaid
+flowchart LR
+  Scheduler[同parent BotScheduler] --> Gate[同transport.membersAdmission]
+  Scheduler --> Global[aiControl.admit: 全体停止epoch捕捉]
+  Gate --> Read[facade fresh refresh/list / 同lease]
+  Read --> Claim[唯一writer claimDue / tuple照合・保存]
+  Claim --> Snapshot[消化前の最新snapshot]
+  Snapshot --> Check[全体停止を発行前再検査]
+  Check --> Send[既messenger第2optionsに同lease]
+  Send --> Refresh[配送fresh read / 同lease]
+```
+
+application-servicesはschedulerへ同transport.membersAdmissionとadmitWork:()=>aiControl.admit()を明示注入する。Bot claim/skipはfacadeでownerKind bot/ownerIdへ写像し同contextを転送、Roomは同parent writerへ渡す。claim後の全体停止は発行0/消化巻戻し0。commandJobs/03時/長時間commandは同parent schedulerに保持する。新結合試験は実scheduler+facade+MembersAdmissionで同lease継続とclaim後停止を確認し、native/実IPC/実予定発行の証明にはしない。作者715a79の成功群は再走しない。

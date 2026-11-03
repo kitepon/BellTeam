@@ -96,6 +96,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   const harnessAuth = new HarnessAuth({ bots, client: transport.client })
   const { selfTurns, seatTurns, rooms, roomMessenger } = await conversation.initialize()
   const scheduler = new BotScheduler({ registry: bots, messenger, transport, rooms, roomMessenger,
+    membersAdmission: transport.membersAdmission,
+    admitWork: () => aiControl.admit(),
     ...(seatRuntime ? { completedTurns: project => completedThroughlineTurns(project, { seatCommands: true }),
       runCommand: request => runShellCommand(request, { seatProject: request.cwd }) } : {}),
     paused: () => aiControl.paused,
