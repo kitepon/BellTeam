@@ -145,6 +145,12 @@ if [ -z "$health" ]; then
   exit 1
 fi
 printf 'healthz: %s\n' "$health"
+# cleanupの成否は本体更新の終端と分け、同じ配備logから原本へ辿れるようにする。
+if ! ssh "$host" "cd $dir && sudo -n /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8 sh scripts/deploy-cleanup.sh $previous >> $log 2>&1"; then
+  echo "本体はhealthy。image cleanupまたは結果保存に失敗した。詳細: $dir/$log" >&2
+  exit 1
+fi
+printf 'cleanup result: %s/deploy-cleanup.json\n' "${previous%/*}"
 ssh "$host" "docker exec bellteam sh -c 'node --version; codex --version; claude --version; grok --version; cursor-agent --version; gh --version | head -1; npm ls -g --depth=0 2>/dev/null | grep -E \"aiterm-mcp|throughline\"'"
 ssh "$host" 'docker exec bellteam curl -fsS http://127.0.0.1:4181/api/bots' \
   | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const b=JSON.parse(d).bots;console.log(`bots ${b.length} online ${b.filter(x=>x.online).length}`)})'

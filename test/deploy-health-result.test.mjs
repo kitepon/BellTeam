@@ -8,11 +8,12 @@ import test from 'node:test'
 
 const exec = promisify(execFile)
 
-for (const [name, body, sshExit, success] of [
+for (const [name, body, sshExit, success, cleanupExit = 0] of [
   ['healthy', '{"status":"ok"}', 0, true],
   ['unhealthy', '{"status":"unhealthy","ok":true}', 0, false],
   ['invalid-json', 'not-json', 0, false],
   ['ssh-failed', '', 7, false],
+  ['cleanup-failed', '{"status":"ok"}', 0, true, 17],
 ]) test(`deploy health result: ${name}`, async t => {
   const root = await mkdtemp(join(tmpdir(), 'deploy-health-'))
   t.after(() => rm(root, {recursive:true, force:true}))
@@ -25,6 +26,7 @@ for (const [name, body, sshExit, success] of [
     ssh: `#!/usr/bin/env node
 const fs=require('node:fs'), command=process.argv[3]
 fs.appendFileSync(process.env.FIXTURE_LOG, command+'\\n')
+if(command.includes('sh scripts/deploy-cleanup.sh'))process.exit(Number(process.env.FIXTURE_CLEANUP_EXIT))
 if(command.includes('/healthz')){
   process.stdout.write(process.env.FIXTURE_HEALTH)
   process.exit(Number(process.env.FIXTURE_HEALTH_EXIT))
@@ -39,20 +41,28 @@ else if(command.includes('tail -3')) console.log('deploy-exit=0')
     await chmod(join(root, 'bin', name), 0o755)
   }
   const env = {PATH:`${join(root,'bin')}:${process.env.PATH}`,
-    FIXTURE_LOG:join(root,'calls'), FIXTURE_HEALTH:body, FIXTURE_HEALTH_EXIT:String(sshExit),
+    FIXTURE_LOG:join(root,'calls'), FIXTURE_HEALTH:body, FIXTURE_HEALTH_EXIT:String(sshExit), FIXTURE_CLEANUP_EXIT:String(cleanupExit),
     BELLTEAM_DEPLOY_IMAGE:`ghcr.io/fixture/server@sha256:${'a'.repeat(64)}`,
     BELLTEAM_DEPLOY_QUIET_EXCEPT:'bot-fixture'}
   const result = await exec('/bin/sh', ['scripts/deploy.sh'], {cwd:root, env}).catch(error => error)
   const calls = (await readFile(env.FIXTURE_LOG,'utf8')).split('\n')
   assert.equal(calls.filter(command=>command.includes('setsid nohup')).length, 1)
   if (success) {
-    assert.equal(result.code, undefined)
-    assert.match(result.stdout, /bots 0 online 0/u)
+    assert.equal(result.code ?? 0, cleanupExit ? 1 : 0)
+    if(cleanupExit){
+      assert.match(result.stderr, /本体はhealthy/u)
+      assert.equal(calls.some(command=>command.includes('node --version')||command.includes('/api/bots')), false)
+    }else assert.match(result.stdout, /bots 0 online 0/u)
     assert.ok(calls.filter(command=>command.includes('/healthz')).length > 0)
+    const cleanup = calls.findIndex(command=>command.includes('sh scripts/deploy-cleanup.sh'))
+    assert.ok(cleanup > calls.findIndex(command=>command.includes('/healthz')))
+    assert.equal(calls.filter(command=>command.includes('sh scripts/deploy-cleanup.sh')).length, 1)
+    assert.ok(calls[cleanup].includes('/home/kite/BellTeam/.bellteam-compose.ABC123/previous-normal.json'))
+    assert.ok(calls[cleanup].includes('>> runtime/backups/deploy-'))
   } else {
     assert.equal(result.code, 1)
     assert.match(result.stderr, /healthz/u)
     assert.equal(calls.filter(command=>command.includes('/healthz')).length, 24)
-    assert.equal(calls.some(command=>command.includes('node --version')||command.includes('/api/bots')), false)
+    assert.equal(calls.some(command=>command.includes('node --version')||command.includes('/api/bots')||command.includes('sh scripts/deploy-cleanup.sh')), false)
   }
 })

@@ -64,6 +64,8 @@ executionは`SERVER_MODEL_CONFIGURATION_FAILED`（bots）と`SERVER_TURN_TRACKIN
 
 この接続の本番反映と中央への実取込は未実施。隔離された保存・管理GETの確認を、本番BugHub登録済みの証明にしない。
 
+通常deployとcleanup結果保存の接続は[担当と保存契約](deploy-cleanup.md)へ。
+
 ## 本番更新入口の旧profile保存
 
 ```mermaid
@@ -137,7 +139,7 @@ flowchart TD
   Swap -. writer/job/transportに操作なし .-> Business[同じ業務processが継続]
 ```
 
-Rootの交換入口は版IDを受け、runtimeの公開窓口`prepareGatewayRelease(version)`が返す確認済descriptorを使う。versionId/appRoot/protocolVersion=1はruntime/商用と合意済みで、application-runtimeから公開readerへ接続済み。正式署名資材とroot配置の実供給は未成立であり、reader接続から成立を補完しない。任意のHTTP bodyからpath/UID/commandを受けて起動しない。配布元の認証・manifest互換・固定digest・所有/modeを確認する処理と配置は担当正本へ置く。
+共通交換入口は版IDを受け、runtimeの公開窓口`prepareGatewayRelease(version)`が返す確認済descriptorを使う。versionId/appRoot/protocolVersion=1はruntime/商用と合意済みで、application-runtimeから公開readerへ接続済み。正式署名資材とroot配置の実供給は未成立であり、reader接続から成立を補完しない。任意のHTTP bodyからpath/UID/commandを受けて起動しない。配布元の認証・manifest互換・固定digest・所有/modeを確認する処理と配置は担当正本へ置く。
 
 確認は旧版を動かしたまま行い、拒否時は旧版へ作用しない。交換中の二重交換は拒否し、旧子回収後だけ新子を起動する。readyのportは整数1..65535かつ要求済み非zero portとの一致を確認してから採用する。初回port=0だけが有効portの選択を許し、以後の交換/戻しは同じ公開portを保持する。不一致readyは子起動失敗として回収し、元portで旧版へ戻す。protocolVersion=1の新子readyと採用記録保存後に成功を返す。新子が15秒以内にreadyを返さないとその子を回収し、起動失敗として扱う。失敗では元の固定版へ戻し、戻しも失敗なら両方の例外を保持する。親終了が重なったら新起動/旧版戻しを続けず、回収して親の既終了を進める。本文再送/業務state再構築をしない。
 

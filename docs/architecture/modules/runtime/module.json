@@ -80,6 +80,7 @@
     "src/web-gateway-release.mjs",
     "scripts/install-web-gateway-release.py",
     "src/web-gateway-install-plan.mjs",
-    "scripts/cleanup-deploy-images.py"
+    "scripts/cleanup-deploy-images.py",
+    "src/http-gateway-process.mjs"
   ]
 }
