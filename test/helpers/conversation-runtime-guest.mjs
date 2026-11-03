@@ -58,7 +58,6 @@ if (mode === 'initialize') {
   assert.deepEqual([binary.uid, binary.gid, binary.mode & 4095], [0, 0, 0o755])
   const fixture = await createConversationPreservationFixture({ root, appRoot: '/app' })
   const lifetime = createConversationExecutionLifetimeFixture({ botId: fixture.botId })
-  let lifetimePhase = false
   const children = [], events = [], checks = [], busyCases = []
   const hash = value => createHash('sha256').update(value).digest('hex')
   const savedState = () => {
@@ -191,8 +190,7 @@ if (mode === 'initialize') {
           createProcess: options => {
             const preserve = fixture.wrapEffects(options.onEffect)
             return createConversationProcess({ ...options, spawnProcess: observeSpawn,
-              onEffect: (method, params, context) => lifetimePhase && !method.startsWith('runtime.observer.')
-                ? options.onEffect(method, params, context) : preserve(method, params, context) })
+              onEffect: preserve })
           } }),
       } })
     lifetime.attach(runtime)
@@ -210,7 +208,6 @@ if (mode === 'initialize') {
     await replace(ids.b); await fixture.exercise({ runtime, label: 'signed', versionId: ids.b })
     await publish('b-active'); await command('return-a'); await replace('builtin')
     await fixture.exercise({ runtime, label: 'builtin-return', versionId: 'builtin' })
-    lifetimePhase = true
     for (const kind of ['ai', 'callback', 'report']) {
       const held = await lifetime.hold(kind), before = controller.snapshot(), count = children.length
       const child = await identity(children.at(-1).pid), started = performance.now()

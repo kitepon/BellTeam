@@ -58,7 +58,7 @@ export async function createConversationPreservationFixture({ root, appRoot }) {
     const observing = context.rootMethod === 'observation.poll'
     if (!observing) effects++
     if (/^execution\.(notify|turn|report|background\.begin|observation\.source|reconcile|closeLaunch)$/u.test(method)) {
-      native++; assert.fail('fixture must not start or replay a delivery')
+      native++
     }
     if (!method.startsWith('runtime.observer.')) return original(method, params, context)
     assert(observing, 'restore must not issue observer effects')

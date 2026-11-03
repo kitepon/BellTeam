@@ -57,6 +57,6 @@ flowchart LR
   Return --> Cleanup[実OS-IPC終端 / 親PIDbirth-port保持 / 所属資材回収]
 ```
 
-状態保持と人工AI追記は同root内で段階を分ける。N102の厳密な履歴・cursor/token・元不正bytes・Room・表示Botの三段検査を先に終え、その後の根寿命段階は同observer口以外を元onEffectへ同contextで渡す。AIをN102の固定timelineへ混ぜて成功を作らない。三つの保留を実終端まで解放した後に再度往復し、最新AI記録も含む全rootのbytes/mode/uid/gid/mtimeを旧OScloseと新restore間で照合する。全五子世代の正常OS/IPC/pipe終端とprivateSH・会話EX、同親Web/port保持を確認する。背景selfTurnsの初回poll/実5秒timerは無効化せず、人工observerはunchangedで外部CLI/新turn/保存0を返す。
+状態保持と人工AI追記は同root内で段階を分ける。N102の厳密な履歴・cursor/token・元不正bytes・Room・表示Botの三段検査を先に終え、同helperはobserver口以外を元onEffectへ同params/contextで渡し、後半の根寿命段階も観測する。AIをN102の固定timelineへ混ぜて成功を作らない。三つの保留を実終端まで解放した後に再度往復し、最新AI記録も含む全rootのbytes/mode/uid/gid/mtimeを旧OScloseと新restore間で照合する。全五子世代の正常OS/IPC/pipe終端とprivateSH・会話EX、同親Web/port保持を確認する。背景selfTurnsの初回poll/実5秒timerは無効化せず、人工observerはunchangedで外部CLI/新turn/保存0を返す。
 
 fixtureの公開入力はsource/digest/supply_run/image_run。異source/別workflow/別repo/異arch/改竄は署名設置や作用前に拒否する。実席・実vendorAI・Host・公開catalog・本番反映の証明には広げない。

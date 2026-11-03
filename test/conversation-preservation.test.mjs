@@ -10,6 +10,22 @@ import { createConversationPreservationFixture } from './helpers/conversation-pr
 const appRoot = process.env.CONVERSATION_FIXTURE_APP_ROOT ?? fileURLToPath(new URL('../', import.meta.url))
 const load = path => import(pathToFileURL(join(appRoot, path)))
 
+test('observer fixture delegates later native lifetime work with the same params and parent context', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'conversation-preservation-native-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const fixture = await createConversationPreservationFixture({ root, appRoot })
+  const context = Object.freeze({ rootMethod: 'user.turn', operationContext: Object.freeze({}) })
+  const params = Object.freeze({ marker: 'same synthetic params' }), result = Object.freeze({ marker: 'same result' })
+  const methods = ['execution.turn', 'execution.report', 'execution.background.begin', 'execution.background.end', 'members.profiles.read']
+  const seen = []
+  const effect = fixture.wrapEffects((method, input, parent) => {
+    assert.equal(input, params); assert.equal(parent, context); seen.push(method); return result
+  })
+  for (const method of methods) assert.equal(await effect(method, params, context), result)
+  assert.deepEqual(seen, methods)
+  assert.equal(fixture.counts().native, 3)
+})
+
 test('business helper uses the default parent runtime across builtin, substituted SHA and builtin without restoring old state', { timeout: 15000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'conversation-preservation-')), children = [], nativeCalls = []
   const backgroundHeld = Promise.withResolvers(), releaseBackground = Promise.withResolvers()
