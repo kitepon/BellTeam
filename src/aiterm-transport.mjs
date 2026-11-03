@@ -144,12 +144,13 @@ export class AitermTransport {
 
   async ensure(bot) {
     this.assertWorkAllowed()
-    this.requireSessionKnown(bot.id)
+    this.requireDeliveryKnown(bot.id)
     const version = this.captureStopVersion(bot)
     if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
     this.requireStopVersion(bot.id, version)
     const running = await this.isRunning(bot)
     this.requireStopVersion(bot.id, version)
+    this.requireDeliveryKnown(bot.id)
     if (running) return this.session(bot)
     return this.wake(bot)
   }
@@ -158,7 +159,7 @@ export class AitermTransport {
     return this.membersAdmission.withLease(async lease => {
       await this.requireMember(bot, { membersLease: lease })
       this.membersAdmission.assertLease(lease)
-      this.requireSessionKnown(bot.id)
+      this.requireDeliveryKnown(bot.id)
       return operation(lease)
     }, { lease: membersLease, expected })
   }
@@ -275,7 +276,7 @@ export class AitermTransport {
     this.restarts.set(bot.id, pending)
     const clear = () => { if (this.restarts.get(bot.id) === pending) this.restarts.delete(bot.id) }
     pending.then(clear, clear)
-    return this.activity.configurationChanges.track(bot.id, pending, { clearOnFailure: false })
+    return this.activity.configurationChanges.track(bot.id, pending)
   }
 
   async reconfigure(current, next, { reapply = false } = {}) {
@@ -425,6 +426,10 @@ export class AitermTransport {
     return this.sessionState.changeSession(bot, name, args, options)
   }
 
+  requireDeliveryKnown(botId) {
+    return this.sessionState.requireDeliveryKnown(botId)
+  }
+
   requireSessionKnown(botId) {
     return this.sessionState.requireSessionKnown(botId)
   }
@@ -481,8 +486,8 @@ export class AitermTransport {
       return this.stop(bot, version, { membersLease, expected })
     }
     const previous = this.activity.configurationChanges.get(bot.id) ?? Promise.resolve()
-    // 失敗時は次の配送にもエラーを返し、利用者が設定を直すまで旧登録へ送らない。
-    return this.activity.configurationChanges.track(bot.id, previous.then(run, run), { clearOnFailure: false })
+    // This map orders pending operations; failure state belongs to sessionState/application.
+    return this.activity.configurationChanges.track(bot.id, previous.then(run, run))
   }
 
   turn(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, admissionCheck = () => {}, membersLease } = {}) {
@@ -588,7 +593,7 @@ export class AitermTransport {
       this.assertWorkAllowed()
       admissionCheck()
       if (membersLease) this.membersAdmission.assertLease(membersLease)
-      this.requireSessionKnown(bot.id)
+      this.requireDeliveryKnown(bot.id)
     }
     const parent = this.activity.latest(bot.id)
     let accept
@@ -607,7 +612,8 @@ export class AitermTransport {
         await this.executionStopping?.catch(() => {})
         job.assertNotStopped()
         const configuration = this.activity.configurationChanges.get(bot.id)
-        if (configuration) await configuration
+        // Wait for ordering, then judge the target independently of setting failure.
+        if (configuration) await configuration.catch(() => {})
         check()
         if (recoveredExecution) {
           if (recoveredExecution.reservation.request.kind !== 'delivery'
@@ -886,7 +892,8 @@ export class AitermTransport {
     return delivery
   }
 
-  async dispatch(bot, message, images, { setupTest = false, check = () => {}, executionJob, membersLease } = {}) {
+  async dispatch(bot, message, images, { setupTest = false, check: checkAdmission = () => {}, executionJob, membersLease } = {}) {
+    const check = () => { checkAdmission(); this.requireDeliveryKnown(bot.id) }
     const reminder = setupTest ? '' : await taskSettingsReminder()
     if (reminder) message += `\n\n<bellteam_task_settings>\n${reminder}\n</bellteam_task_settings>`
     if (this.executionBridge) {
