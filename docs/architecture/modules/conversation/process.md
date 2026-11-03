@@ -203,7 +203,7 @@ assets.open/prepareBotAssetRemoval/cancelBotAssetRemovalは親同gate/FDへモ�
 
 ## 交換前後の業務state検査helper（test-only）
 
-`test/helpers/conversation-preservation.mjs:createConversationPreservationFixture({root,appRoot})`は既probe-fixtureのBot/Room/selfTurnsを再利用し、人工rootの固定stateだけを作る。writer/RoomRegistry公開口で前後の有効direct行とRoom履歴を保存し、その間に147NULを含む不正な一確定行を置く。非空cursor/seen/checkToken/lastCompletedAtとBot表示seedを持たせる。既fileは上書きしない。
+`test/helpers/conversation-preservation.mjs:createConversationPreservationFixture({root,appRoot})`は既probe-fixtureのBot/Room/selfTurnsを再利用し、人工rootの固定stateだけを作る。writer/RoomRegistry公開口で前後の有効direct行とRoom履歴を保存し、その間に147NULを含む不正な一確定行を置く。非空cursor/seen/checkToken/lastCompletedAtとBot表示seedを持たせる。seedPathは既1001 private state内の`state/conversation-fixture-seed.json`で、固定6file fingerprintも同相対pathを使う。外側がroot1000:1000/0711とlogs/rooms/stateのprivate領域1001を準備し、helperは保護root直下へ書き込まず既fileも上書きしない。
 
 ```mermaid
 flowchart LR

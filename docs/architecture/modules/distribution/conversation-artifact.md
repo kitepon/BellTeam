@@ -60,3 +60,5 @@ flowchart LR
 状態保持と人工AI追記は同root内で段階を分ける。N102の厳密な履歴・cursor/token・元不正bytes・Room・表示Botの三段検査を先に終え、同helperはobserver口以外を元onEffectへ同params/contextで渡し、後半の根寿命段階も観測する。AIをN102の固定timelineへ混ぜて成功を作らない。三つの保留を実終端まで解放した後に再度往復し、最新AI記録も含む全rootのbytes/mode/uid/gid/mtimeを旧OScloseと新restore間で照合する。全五子世代の正常OS/IPC/pipe終端とprivateSH・会話EX、同親Web/port保持を確認する。背景selfTurnsの初回poll/実5秒timerは無効化せず、人工observerはunchangedで外部CLI/新turn/保存0を返す。
 
 fixtureの公開入力はsource/digest/supply_run/image_run。異source/別workflow/別repo/異arch/改竄は署名設置や作用前に拒否する。実席・実vendorAI・Host・公開catalog・本番反映の証明には広げない。
+
+managed data rootは実anchor契約どおり1000:1000/0711へ準備し、initialize原本とUID1001側の実metadataで一致を確認する。UID1001からroot一覧・直下書込は拒否し、seedは既1001 private state内へ置く。保守root/stateの実mount・FD3/4とinode/本人lock検証は製品のまま通し、fixtureで信頼anchorを代用しない。

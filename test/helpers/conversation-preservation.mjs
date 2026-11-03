@@ -27,7 +27,8 @@ export async function createConversationPreservationFixture({ root, appRoot }) {
     await mkdir(dirname(path), { recursive: true, mode: 0o700 })
     await writeFile(path, JSON.stringify(probe.files[relative]) + '\n', { flag: 'wx', mode: 0o600 })
   }
-  const seedPath = join(root, 'conversation-fixture-seed.json')
+  const seedPath = join(root, 'state/conversation-fixture-seed.json')
+  await mkdir(dirname(seedPath), { recursive: true, mode: 0o700 })
   await writeFile(seedPath, JSON.stringify({ schema: 'bellteam.bots.v1', bots: [bot] }) + '\n', { flag: 'wx', mode: 0o600 })
   const logPath = join(root, 'logs/direct-messages.jsonl')
   await writeFile(logPath, '', { flag: 'wx', mode: 0o600 })
@@ -44,7 +45,7 @@ export async function createConversationPreservationFixture({ root, appRoot }) {
     at: '2026-11-04T00:00:00Z', message: 'fixture-room-history', sender: { id: botId, name: bot.name },
     room: { id: roomId, name: registry.get(roomId).name, members: [{ id: botId, name: bot.name }] },
     routing: { status: 'ready', responders: [] }, deliveries: [] })
-  paths.push('logs/direct-messages.jsonl', `rooms/${roomId}/messages.jsonl`, 'conversation-fixture-seed.json')
+  paths.push('logs/direct-messages.jsonl', `rooms/${roomId}/messages.jsonl`, 'state/conversation-fixture-seed.json')
   const snapshot = async () => Object.fromEntries(await Promise.all(paths.map(async relative => {
     const path = join(root, relative), info = await stat(path, { bigint: true }), bytes = await readFile(path)
     return [relative, { bytes: bytes.toString('base64'), mode: `${info.mode}`, mtimeNs: `${info.mtimeNs}` }]
