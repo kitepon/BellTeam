@@ -42,7 +42,7 @@ test('inventory is the only data source; all actual components and independent/p
   assert.match(text(f.get('[data-update-detail]')), /個別更新に対応していません/)
   f.select('notifications')
   assert.match(text(f.get('[data-update-detail]')), /内蔵版 · bbbbbbbbbbbb/)
-  assert.match(text(f.get('[data-update-detail]')), /端末への通知は設定されていません/)
+  assert.match(text(f.get('[data-update-detail]')), /通知が未設定のため、端末へのお知らせを送れません/)
   assert.match(text(f.get('[data-update-detail]')), /実行機構は未接続/)
   const action = f.get('[data-update-detail]').children.find(node => node.className === 'update-execute')
   assert.equal(action.disabled, true)
@@ -231,4 +231,30 @@ test('HTTP browsers without randomUUID still use platform randomness for canonic
   await obtainPlan(f); confirm(f); control(f, 'execute').handlers.click(); await settle()
   assert.match(body.requestId, /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/)
   assert.equal(f.calls.filter(([path]) => path === '/api/updates/operations').length, 1)
+})
+
+test('body explains effects once while codes and complete fixed values stay in expandable support details', async t => {
+  const { value, fixedPlan } = executable()
+  const code = 'HOST_UPDATE_PUBLICATION_FAILED'
+  value.components[0].availability = { available: null, reason: 'AVAILABILITY_UNKNOWN' }
+  value.components[0].comparison = { state: 'unknown', reason: code }
+  value.components[0].publication = { catalog: { sha256: 'c'.repeat(64), publishedAt: '2026-11-03T00:00:00Z', expiresAt: '2026-11-04T00:00:00Z' }, check: { status: 'failed', checkedAt: null, error: code } }
+  fixedPlan.targets[0].published.version = fixedPlan.targets[0].published.digest
+  const f = fixture(t, async path => path.endsWith('/plans') ? { plan: fixedPlan } : value, storeFixture())
+  await obtainPlan(f)
+  const detail = f.get('[data-update-detail]')
+  const support = detail.children.find(node => node.className === 'update-support')
+  const body = detail.children.filter(node => node !== support).map(text).join(' ')
+  assert.doesNotMatch(body, /HOST_UPDATE_PUBLICATION_FAILED/)
+  assert.doesNotMatch(body, /利用状態を確認できません/)
+  assert.match(body, /稼働状況を取得できていません。更新可否は計画で確認/)
+  assert.match(body, /失敗しました。最新版とは確認できていません/)
+  assert.doesNotMatch(body, new RegExp(fixedPlan.targets[0].published.version))
+  assert.match(body, /固定した更新先: bbbbbbbbbbbb/)
+  assert.equal(support.open, false)
+  assert.match(text(support), /HOST_UPDATE_PUBLICATION_FAILED/)
+  assert.match(text(support), new RegExp(fixedPlan.targets[0].published.version))
+  assert.match(text(support), new RegExp(fixedPlan.planId))
+  support.open = true; await f.center.refresh()
+  assert.equal(f.get('[data-update-detail]').children.find(node => node.className === 'update-support').open, true)
 })

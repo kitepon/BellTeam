@@ -2,7 +2,7 @@ const comparisons = { up_to_date: '正式公開版と一致', update_available: 
 const phases = { preparing: '準備中', applying: '更新中', reconnecting: '再接続中', verifying: '実稼働を確認中', completed: '更新完了', failed: '失敗', unknown: '結果確認不能' }
 const outcomes = { pending: '未確認', succeeded: '成功', failed: '失敗', unknown: '確認不能' }
 const reasons = { MODULE_NOT_INDEPENDENT: 'この機能は、まだ個別更新に対応していません。', UPDATE_EXECUTOR_UNAVAILABLE: '更新の実行機構は未接続です。', PUBLISHED_RELEASE_UNAVAILABLE: '正式公開版の情報は未接続です。', PUSH_NOT_CONFIGURED: '端末への通知は設定されていません。', NOTIFICATIONS_UNAVAILABLE: '通知機能を利用できません。', WEB_GATEWAY_UNAVAILABLE: 'Web受付の稼働を確認できません。', AVAILABILITY_UNKNOWN: '利用状態を確認できません。', UPDATE_INCOMPATIBLE: 'この更新先との互換性を確認できません。' }
-const explanation = reason => reasons[reason] ?? reason
+const explanation = reason => reasons[reason] ?? '更新に必要な条件を確認できないため、実行できません。'
 const text = value => typeof value === 'string' && value.length > 0
 const nullableText = value => value === null || text(value)
 const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value)
@@ -131,6 +131,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       && Date.parse(planned.expiresAt) > Date.now() && (!planned.impact.containerRestart || confirmed)
   }
   function renderDetail() {
+    const supportOpen = Array.from(detail.children).find(node => node.className === 'update-support')?.open ?? false
     const component = inventory?.components.find(item => item.id === selected)
     const selectedPlan = selected === 'container' ? planned : null
     const affects = item => item && (selected === 'all' || item.plan.targets.some(target => target.componentId === selected))
@@ -157,20 +158,19 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     if (component) {
       const available = component.availability
       const section = element('section', 'update-detail-section')
-      section.append(element('h4', '', '機能の利用状態'), element('p', '', available.available === true ? '利用可能' : available.available === false ? '利用できません' : '確認不能'))
-      if (available.reason) section.append(element('p', '', explanation(available.reason)))
-      section.append(element('p', '', comparisonLabel(component)))
-      if (component.comparison.reason) section.append(element('p', '', explanation(component.comparison.reason)))
+      const unavailableMessage = available.reason === 'PUSH_NOT_CONFIGURED' ? '通知が未設定のため、端末へのお知らせを送れません。'
+        : available.reason === 'NOTIFICATIONS_UNAVAILABLE' ? '通知を現在利用できないため、端末へのお知らせを送れません。' : 'この機能は現在利用できません。'
+      section.append(element('h4', '', '機能の利用状態'), element('p', '', available.available === true ? 'この機能は利用できます。' : available.available === false ? unavailableMessage : '機能の稼働状況を取得できていません。更新可否は計画で確認します。'))
       detail.append(section)
       const published = element('section', 'update-detail-section update-publication')
       published.append(element('h4', '', '公開情報の確認'))
       if (component.publication) {
         const { catalog, check } = component.publication
         published.append(element('p', check.status === 'verified' ? '' : 'update-failure', { verified: '配布情報の取得を確認しました。', failed: '配布情報の取得確認に失敗しました。最新版とは確認できていません。', unconfirmed: '配布情報の取得確認は未確定です。最新版とは確認できていません。' }[check.status]))
+        if (check.status === 'verified') published.append(element('p', '', component.comparison.state === 'unknown' ? '稼働版の情報が不足しているため、公開版との比較はできません。' : comparisons[component.comparison.state]))
         published.append(element('p', '', `受入済み情報の公開日時: ${formatDate(catalog.publishedAt)} / 有効期限: ${formatDate(catalog.expiresAt)}`))
         if (check.checkedAt) published.append(element('p', '', `取得の確認日時: ${formatDate(check.checkedAt)}`))
-        if (check.error) published.append(element('p', 'update-failure', explanation(check.error)))
-      } else published.append(element('p', '', '公開情報の受入・取得確認は未確認です。'))
+      } else published.append(element('p', '', component.published ? '配布情報の取得確認が未完了のため、表示中の版が最新版かどうかは確認できません。' : '正式公開版の情報を取得できていないため、更新先を案内できません。'))
       detail.append(published)
     }
     const changes = element('section', 'update-detail-section')
@@ -183,7 +183,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     if (displayPlan?.impact.containerRestart) impact.append(element('p', 'update-failure', 'コンテナの再起動が必要です。実行前に中断の影響を確認してください。'))
     if (selectedPlan) {
       const target = selectedPlan.targets[0]
-      impact.append(element('p', 'update-fixed-target', `固定した更新先: ${target.published.version}`))
+      impact.append(element('p', 'update-fixed-target', `固定した更新先: ${versionLabel(target.published)}`))
       impact.append(element('p', '', `計画の有効期限: ${formatDate(selectedPlan.expiresAt)}`))
     }
     detail.append(impact)
@@ -215,7 +215,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     action.addEventListener('click', () => { if (selectedPlan) void execute(); else void requestPlan() })
     let reasonText = selected === 'container' ? '対象版と影響を確認してから、明示的に更新します。' : 'この対象の更新実行は、まだ接続されていません。'
     if (component && !component.capability.supported) reasonText = explanation(component.capability.reason)
-    if (selectedPlan && !selectedPlan.compatibility.compatible) reasonText = explanation(selectedPlan.compatibility.reason) || '計画の互換性を確認できません。'
+    if (selectedPlan && !selectedPlan.compatibility.compatible) reasonText = '計画の互換性を確認できないため、実行できません。'
     if (selectedPlan && !selectedPlan.capability.supported) reasonText = explanation(selectedPlan.capability.reason)
     if (selectedPlan && Date.parse(selectedPlan.expiresAt) <= Date.now()) reasonText = '計画の有効期限が切れました。計画を再取得してください。'
     if (pending) reasonText = '結果が確認できるまで、新しい更新を開始しません。'
@@ -227,6 +227,23 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       replan.type = 'button'; replan.disabled = planning; replan.dataset.updateControl = 'replan'
       replan.addEventListener('click', () => { void requestPlan() }); detail.append(replan)
     }
+    const support = element('details', 'update-support')
+    support.open = supportOpen
+    const summary = element('summary', '', 'サポート用の詳細')
+    summary.dataset.updateControl = 'support-summary'; support.append(summary)
+    const fields = element('dl', '')
+    const codes = new Set([component?.availability.reason, component?.comparison.reason, component?.capability.reason,
+      component?.publication?.check.error, displayPlan?.compatibility.reason, displayPlan?.capability.reason, result?.error?.code].filter(Boolean))
+    const values = [
+      ['稼働版', component?.current?.version], ['稼働配布物', component?.current?.digest],
+      ['公開版', component?.published?.version], ['公開配布物', component?.published?.digest],
+      ...(displayPlan?.targets.map(target => [`固定した更新先 · ${target.componentId}`, target.published.version]) ?? []),
+      ['計画ID', displayPlan?.planId], ['要求ID', result?.requestId ?? pending?.requestId],
+      ['状態・理由の符号', [...codes].join(' / ')],
+    ]
+    for (const [label, value] of values) if (value) fields.append(element('dt', '', label), element('dd', '', value))
+    if (!fields.children.length) fields.append(element('dd', '', '詳細情報はまだ取得できていません。'))
+    support.append(fields); detail.append(support)
   }
   async function requestPlan() {
     if (!canPlan()) return
