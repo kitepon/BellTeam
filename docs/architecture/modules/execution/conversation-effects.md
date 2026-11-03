@@ -22,6 +22,26 @@ reconcileは既deliveryExecutionRefとtransport.reconcileLaunchを使い、実ex
 
 `ConversationLifetimes.operationCompletion(lease)`はliveなoperationだけから同private record.done Promiseを返す。delivery done/親release ACK/backgroundが実終端しfinish済みになった後だけ親authorityを解放する。RPC完了/別deferredで置換しない。
 
+## 既受付nativeの実continuation公開口
+
+`getNativeContinuation(delivery,{generation,operationId,deliveryId,target})`は親専用。同live opaque・現generation・完全な4fieldの自己所有binding・既受付陽性・元completion未終端が揃う時だけ、Transportが返した元result Promiseそのものを返す。未登録/claimだけ/偽opaque/別RPC相関/別target/型又はkey不一致/失敗未確認/旧世代/終端後はnull。gate全体activeやfinishUnclaimedDelivery(false)は証明に使わない。
+
+```mermaid
+flowchart LR
+  Native["Transport: native陽性receipt・follow可能"] --> ACK["running保存ACK後 / accepted直前"]
+  ACK --> Bind["trackNativeContinuation: 同delivery・同receipt・元result一回束縛"]
+  Bind --> Actual["実native待ち / 親callback保存ACKまでの元Promise"]
+  Actual --> Getter["完全4bindingを確認して同Promise / それ以外null"]
+  Getter --> Peer["Epi: admitted user.turn期限時だけ元根拠へ接続"]
+  Actual --> End["fulfilled/rejected実終端で公開を閉じる"]
+```
+
+writerはTransportだけで、`trackNativeContinuation(delivery,receipt,completion)`を既native claim後・陽性receipt/follow確認後・running保存ACK後に一回呼ぶ。receiptは元機械返却object、completionは元submit result（user.complete保存ACKも含む）を同identityで保持する。新規deferred/第二native待受け/lease全体のoperationDoneは作らない。追跡根拠の無いsteerやnative前失敗は登録しない。getterは状態を進めず、元Promiseのresolve/rejectでpendingを閉じる。rejectを成功へ変更しない。
+
+共通channelは親record→同元delivery→同RPC/context/4bindingの正本からだけこのgetterを使い、子/外部の自己申告optionsを採用しない。admitted user.turnの期限判定、通常無進行60秒/ACK5秒/stream credit/資源実completionの保持はEpi所有。この差分はtimeout値や共通channelを変更しない。native終了後も同deliveryの保存ACKが未終端なら元resultがpendingであり同根拠を返すが、resultがcallerに返った後の別背景operationへ昇格させない。
+
+新5直接境界は登録/claimのみ拒否、実Transport受付後の同Promiseと完全binding/偽opaque/型/継承field拒否、runningACK前拒否、unknown wait reject後nullと元例外保持、追跡根拠無しsteer拒否。正例は実native wait→user.complete保存ACKを独立に保留し、ACK後だけnullになることを検査する。local人工nativeであり実C/imageの成立にはしない。
+
 親IPCのonExecution前処理拒否には`finishUnclaimedDelivery(同opaque)`をcatchで使用する。登録済かつnative claim前の陽性だけ一回finishし、claimed/終端済みはfalse。Transport到達後のunknownを未発行へ変更せず、通常native claim/finishはTransport一回のまま。
 
 application-services/ALS/authority/ledgerはMolly所有。新wire/保存schema/任意method・Proxy/SDK操作は作らない。
