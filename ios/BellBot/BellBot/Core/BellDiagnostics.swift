@@ -118,9 +118,12 @@ struct BellRequestTrace {
     static func route(for path: String) -> String {
         let parts = path.split(separator: "/").map(String.init)
         guard parts.first == "api", parts.count >= 2 else { return "other" }
-        if parts.count == 2, ["ai-control", "goals", "harness-auth", "notifications", "setup", "user-rules"].contains(parts[1]) {
+        if parts.count == 2, ["ai-control", "goals", "harness-auth", "notifications", "schedules", "setup", "user-rules"].contains(parts[1]) {
             return "/api/" + parts[1]
         }
+        // 所有者・ファイル名・認証の種類は残さず、経路の型だけで見分ける。
+        if parts.count == 3, parts[1] == "harness-auth" { return "/api/harness-auth/:id" }
+        if parts.count == 4, parts[1] == "message-images" { return "/api/message-images/:id/:id" }
         switch parts[1] {
         case "events", "queue", "session", "subscription", "models", "settings", "bots", "rooms", "owner":
             var safe = parts
@@ -523,7 +526,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
     private static func module(for path: String) -> String {
         if path == "/api/events" { return "events" }
         if path == "/api/session" { return "session" }
-        if path == "/api/setup" || path == "/api/harness-auth" { return "session" }
+        if path == "/api/setup" || path == "/api/harness-auth" || path == "/api/harness-auth/:id" { return "session" }
         if path == "/api/goals" { return "bots" }
         if path == "/api/ai-control" { return "settings" }
         if path == "/api/settings" || path.hasPrefix("/api/settings/")
