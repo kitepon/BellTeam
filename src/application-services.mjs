@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { createConversationServices } from './conversation-services.mjs'
 import { CharacterSheets } from './character-sheets.mjs'
 import { BotAdministration } from './bot-administration.mjs'
+import { CapacityContinuation } from './capacity-continuation.mjs'
 import { BotGoals } from './bot-goals.mjs'
 import { AitermClient } from './aiterm-client.mjs'
 import { ConfigurationIntents } from './configuration-intents.mjs'
@@ -146,6 +147,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   // Bot設定変更・停止・削除の業務判断。公開APIと席MCPが同じ判断を使う。
   const administration = new BotAdministration({ bots, rooms, transport,
     reportError: report => diagnostics.record(report) })
+  transport.continuation = new CapacityContinuation({ bots, administration, messenger, models, harnessAuth,
+    assertEnabled: () => aiControl.assertEnabled() })
   const secretRequests = new SecretRequests({
     root, bots, rooms,
     onRequest: item => notifications.secret(item),

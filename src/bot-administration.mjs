@@ -23,7 +23,7 @@ export class BotAdministration {
   }
 
   // 保存は先に返し、稼働中Botへの適用は現在の作業の後に並ぶ。
-  async update(botId, changes) {
+  async update(botId, changes, { waitForApplication = false, expected, admissionCheck } = {}) {
     const current = this.bots.get(botId)
     const candidate = await this.bots.previewUpdate(botId, changes)
     const harnessChanged = candidate.harness !== current.harness
@@ -35,20 +35,28 @@ export class BotAdministration {
       Object.hasOwn(changes, key) && candidate[key] === previous.requested[key])
     const configurationChanged = reapply || differs
     const wasRunning = configurationChanged ? await this.transport.isRunning(current) : false
+    admissionCheck?.()
+    if (expected && ['harness', 'model', 'reasoningEffort', 'fastMode'].some(key => this.bots.get(botId)?.[key] !== expected[key]))
+      throw Object.assign(new Error('CONTINUATION_SUPERSEDED'), { code: 'CONTINUATION_SUPERSEDED', effect: 'not_started' })
     const bot = await this.bots.update(botId, changes)
-    if (wasRunning) this.apply(current, candidate, { fastModeChanged, reapply })
-    else if (configurationChanged) this.applications.delete(botId)
+    const applying = wasRunning ? this.apply(current, candidate, { fastModeChanged, reapply, admissionCheck }) : null
+    if (applying && waitForApplication) {
+      await applying
+      if (this.applications.get(botId)?.state !== 'accepted')
+        throw Object.assign(new Error('CONTINUATION_CONFIGURATION_UNCONFIRMED'), { code: 'CONTINUATION_CONFIGURATION_UNCONFIRMED' })
+    }
+    if (!wasRunning && configurationChanged) this.applications.delete(botId)
     return { bot: this.view(bot), harnessChanged, configurationChanged, applying: wasRunning }
   }
 
-  apply(current, candidate, { fastModeChanged, reapply }) {
+  apply(current, candidate, { fastModeChanged, reapply, admissionCheck }) {
     const application = { state: 'pending', fields: reapply ? [...this.applications.get(current.id).fields]
       : ['harness', 'model', 'reasoningEffort', 'fastMode'].filter(key => candidate[key] !== current[key]), requested: {
       harness: candidate.harness, model: candidate.model ?? '',
       reasoningEffort: candidate.reasoningEffort ?? '', fastMode: candidate.fastMode === true,
     } }
     this.applications.set(current.id, application)
-    this.transport.reconfigure(current, candidate, reapply ? { reapply: true } : undefined)
+    return this.transport.reconfigure(current, candidate, reapply || admissionCheck ? { ...(reapply ? { reapply: true } : {}), ...(admissionCheck ? { admissionCheck } : {}) } : undefined)
       .then(result => {
         if (this.applications.get(current.id) === application) {
           application.state = 'accepted'
