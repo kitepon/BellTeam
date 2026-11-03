@@ -18,6 +18,7 @@ if (mode === 'initialize') {
     const path = '/fixture-runtime/' + part
     await mkdir(path, { recursive: true }); await chown(path, 1001, 1001); await chmod(path, 0o755)
   }
+  await chown('/fixture-runtime/data', 1000, 1000); await chmod('/fixture-runtime/data', 0o711)
   const prepare = await prepareServerStateRuntime({ root: '/fixture-runtime', privateRoot: '/private' })
   const receipt = await readFile('/private/.prepared.json'), before = await stat('/private/.prepared.json')
   assert.equal((await prepareServerStateRuntime({ root: '/fixture-runtime', privateRoot: '/private' })).status, 'already-prepared')
@@ -29,7 +30,10 @@ if (mode === 'initialize') {
   }
   const control = await stat('/private')
   assert.deepEqual([control.uid, control.gid, control.mode & 4095], [0, 1001, 0o750])
-  console.log(JSON.stringify({ prepare, secondPrepareRetainsReceipt: true, private: '0:1001/0750' }))
+  const data = await stat('/fixture-runtime/data')
+  const managedRoot = { uid: data.uid, gid: data.gid, mode: data.mode & 4095 }
+  assert.deepEqual(managedRoot, { uid: 1000, gid: 1000, mode: 0o711 })
+  console.log(JSON.stringify({ prepare, secondPrepareRetainsReceipt: true, private: '0:1001/0750', managedRoot }))
 } else if (mode === 'status') {
   console.log(await readFile(statusPath, 'utf8'))
 } else if (mode === 'command') {
@@ -52,6 +56,10 @@ if (mode === 'initialize') {
     import('/app/test/helpers/conversation-execution-lifetime.mjs'),
   ])
   await assert.rejects(writeFile('/app/fixture-readonly', 'x'), { code: 'EROFS' })
+  const managedRoot = await stat(root)
+  assert.deepEqual([managedRoot.uid, managedRoot.gid, managedRoot.mode & 4095], [1000, 1000, 0o711])
+  assert.throws(() => readdirSync(root), { code: 'EACCES' })
+  await assert.rejects(writeFile(`${root}/fixture-root-write`, 'x'), { code: 'EACCES' })
   const ids = JSON.parse(await readFile('/fixture-input.json', 'utf8'))
   assert.match(ids.b, /^[a-f0-9]{64}$/); assert.match(ids.source, /^[a-f0-9]{40}$/)
   const entry = '/usr/local/libexec/bellteam-conversation-start', binary = await stat(entry)

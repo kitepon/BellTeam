@@ -114,6 +114,7 @@ def run_fixture(image, output, supply):
             '--mount', f'type=bind,source={runtime},target=/fixture-runtime',
             '--mount', f'type=bind,source={work / "guest.mjs"},target=/fixture.mjs,readonly',
             '--entrypoint', '/usr/local/bin/node', image_id, '/fixture.mjs', 'initialize').stdout))
+        assert json.loads((output / 'initialize.json').read_text())['managedRoot'] == dict(uid=1000, gid=1000, mode=0o711)
         mounts = [dict(type='bind', source=str(runtime / 'data'), target='/srv/bellteam'),
                   dict(type='bind', source=str(runtime / 'home'), target='/home/bell'),
                   dict(type='volume', source='cursor', target='/home/bell/.local'),
