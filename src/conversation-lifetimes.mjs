@@ -85,20 +85,28 @@ export class ConversationLifetimes {
   assertDelivery(lease, { deliveryId, target } = {}) {
     let record
     try { record = this.#record(lease) } catch { throw this.#protocol() }
-    if (record.kind !== 'delivery' || deliveryId !== undefined && record.binding.deliveryId !== deliveryId
+    if (record.kind !== 'delivery' || record.failed || deliveryId !== undefined && record.binding.deliveryId !== deliveryId
       || target !== undefined && record.binding.target !== target) throw this.#protocol()
     return lease
   }
   binding(lease, callbackKind) {
     this.assertDelivery(lease)
     const record = this.#records.get(lease)
-    if (!record.kinds.has(callbackKind)) throw this.#protocol()
+    if (record.failed || !record.kinds.has(callbackKind)) throw this.#protocol()
     return Object.freeze({ ...record.binding, callbackKind })
   }
   assertCallback(lease, claimed) {
     const expected = this.binding(lease, claimed?.callbackKind)
     if (!claimed || Object.keys(claimed).length !== 5 || !Object.entries(expected).every(([key, value]) => claimed[key] === value)) throw this.#protocol()
     return lease
+  }
+  claimNative(lease, { deliveryId, target, kind }) {
+    this.assertDelivery(lease, { deliveryId, target })
+    const record = this.#records.get(lease)
+    if (record.nativeClaimed || !['turn', 'notify', 'report'].includes(kind) || record.report !== (kind === 'report')
+      || kind === 'turn' && (record.kinds.has('delivery.answer') || record.kinds.has('turn.end'))
+      || kind === 'notify' && record.kinds.has('user.complete')) throw this.#protocol()
+    record.nativeClaimed = true
   }
   supports(lease, kind) { this.assertDelivery(lease); return this.#records.get(lease).kinds.has(kind) }
   isReport(lease) { this.assertDelivery(lease); return this.#records.get(lease).report }
@@ -120,10 +128,10 @@ export class ConversationLifetimes {
     return this.#run(lease, async () => {
       try {
         const result = await record.dispatch(kind, params, binding)
-        if (!result || Array.isArray(result) || Object.keys(result).length !== 1 || result.applied !== true) throw this.#protocol()
+        if (!result || Array.isArray(result) || Object.keys(result).length !== 1 || result.applied !== true) throw protocolError()
         return result
       }
-      catch (error) { this.#protocol(); throw error }
+      catch (error) { record.failed = true; this.#protocol(); throw error }
       finally { if (kind === 'turn.end') record.reportWindow = false }
     })
   }
@@ -158,9 +166,10 @@ export class ConversationLifetimes {
     return result
   }
   #protocol() {
+    const first = !this.#failed
     this.#failed = true
     const error = protocolError()
-    try { this.onProtocolFailure({ code: error.code, generation: this.#generation }) } catch {}
+    if (first) { try { this.onProtocolFailure({ code: error.code, generation: this.#generation }) } catch {} }
     for (const waiter of this.#waiters) { clearTimeout(waiter.timer); waiter.reject(error) }
     this.#waiters.clear()
     return error

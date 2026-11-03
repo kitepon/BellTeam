@@ -58,3 +58,15 @@ SelfTurns/子afterTurnは、元observer/保存operationのregistered sourceか�
 ## 実装段階
 
 本gateの単独直接9境界が成立。transportへのnative前登録/実job・watch・followInterim/背景hookの接続は続く別作者差分。gate sourceだけで会話交換や実AI保持の受入にはしない。既currentWork一observerは保持し、新watchだけtryEnterで閉じる。図/必要caller/否定例を同差分で進め、旧成功群/実native/実席Hostは使わない。
+
+## Transportへの実接続
+
+既createManagedTransport/AitermTransportのconstructor option `conversationAdmission`に同gate一実体を渡す（省略nullは既低層互換）。通常child dispatcherはnative発行より先にregisterDeliveryし、`turn/notify/submit`の第3内部optionsへ `conversationDelivery: deliveryLease` を渡す。Tokenと同時にraw onStatus/onInterim/onAnswer/onTurnEndを渡さない。registered kindsから親内handlerを生成し、自由callbackとの二重writerを拒否する。tokenをqueue/info/本文/結果へ混入しない。membersLeaseは従来の準備/受付までで解放し、conversationの実AI lifetimeへ延長しない。
+
+`claimNative(deliveryLease,{deliveryId,target,kind:turn|notify|report})`をtransportが同job作成直後・native前に一回だけ消費する。groupId（無ければjob.id）/Bot.idを登録へ一致させ、同tokenからの二重発行0。実completionを同期trackし、accepted/admissionCompletionは従来の時点に返す。登録user.completeがあればその保存/回答claim ACKのPromiseを別に同期trackし、turnの返却replyはその保存まで保持する。非await onTurnEndはinvoke自身が起動前に参照を取得するので、native job idleと報告完了を分ける。実jobと保存ACK/背景参照が全て終端するまでdelivery/operationはlive。
+
+派生は親固定report effectから `transport.notifyReport(bot,message,{conversationDelivery,queue:{context:report,groupId,...}})` だけを使用。元target/deriveReport一回権に束縛し、通常global stop/新members準備を迂回しない。新onTurnEndを渡さず再帰0。parent dispatchはN102のnormalizeで安全plain DTOを作ってchildへ送り、親元Errorをwireへ直接渡さない。保存ACKが不正/不明になったdeliveryは以後のcallback発行も拒否し、同保存を再送しない。
+
+既親watchは同gateを参照する。新watch作成時だけtryEnterし、閉鎖中はskip。元pty_list読取/currentWork更新と既watchのidle/別turn終了検知は継続する。新watchはnative waiterより前にdeliveryと実completionを登録し、既followInterimの最後のread/保存ACKまで保持。onInterimの第4内部引数へcapturedBindingを渡すため、parent facadeはそのgenerationへ固定して保存しexact{applied:true}を返す。root callback枠8をAI終了まで占有しない。watch pollの返却はfinish条件ではない。
+
+source/fakeのgate9＋native接続8境界を確認。native接続の初期fixture一件は全体停止をfailedと誤期待していたため、既DeliveryJobのAI_GLOBAL_PAUSED→stopped契約へ訂正（本体意味変更0）。旧watch互換は変更点に限り選択確認する。SelfTurns/子afterTurn、channelの実ACK/timeout、dispatcher/両入場/OS exchangeは各所有者の結合が残り、この源sourceだけで会話交換成功としない。

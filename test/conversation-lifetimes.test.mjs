@@ -89,3 +89,11 @@ test('missing or malformed save ACK is protocol unknown and cannot permit a succ
     gate.finish(delivery); gate.finish(root); await tick(); await assert.rejects(gate.drain(gate.close()))
   }
 })
+
+test('native callback sets match the turn or notify route before any native work', () => {
+  for (const [kind, kinds] of [['turn', ['delivery.answer']], ['turn', ['turn.end']], ['notify', ['user.complete']]]) {
+    const gate = new ConversationLifetimes(), root = gate.enter(), delivery = register(gate, root, { kinds })
+    assert.throws(() => gate.claimNative(delivery, { deliveryId: 'delivery-a', target: 'bot-a', kind }), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
+    gate.finish(delivery); gate.finish(root)
+  }
+})
