@@ -225,3 +225,8 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     },
   }
 }
+
+
+export function usageHandoffValid(value) {
+  try { volatileState(value); return true } catch { return false }
+}

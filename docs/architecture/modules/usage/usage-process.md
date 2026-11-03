@@ -90,3 +90,43 @@ createApplicationFeaturesは追加usageContext(method)を親capture factoryへ�
 未採用会話作者95a7を同通常差分へ合わせる時は、factoryのrouting保存世代と既FeatureSettings.routingEpoch（同じrouting保存時に+1）を同じ値でhandoffする。facade.routingState()を既3effectへ接続する。会話readyで資格読取/全settings供給を追加しない。95a7採用や会話実結合の成立を本sourceから補完しない。
 
 Onboarding.authの任意scalarは既HarnessAuth同様null/booleanへ正規化し、JSON IPCでundefinedが消えて公開型が崩れないようにした。外部認証の開始/入力や資格発行を試験していない。
+
+## usage固有channel/薄entry/probe（追加実装）
+
+Root21:55の並行分担で、closed parent/child adapterと`src/usage-entry.mjs`/`scripts/probe-usage-runtime.mjs`をミカが所有する。既factory/DTOを再利用し、parent公開口ready/request/callback/control/reaped/snapshotを共通runnerへ接続する。C/固定FD3,4,5/排他/世代controllerはEpiの公開窓口に従う。membersの8root/8effect/8callback・実completionを再利用し、private大snapshotはconversation-streamsのcredit/chunkを使う。actorは親opaqueから同channelが閉actorへ写し、子の自己申告や診断への秘密反射を認めない。
+
+## 固有adapterの実接続
+
+```mermaid
+sequenceDiagram
+  participant Parent as 親opaque/同usage admission
+  participant Endpoint as runtime共通endpoint
+  participant Stream as runtime共通stream/credit
+  participant Child as usage child adapter
+  participant Factory as 既usage factory
+  Parent->>Endpoint: initialize generation/mode + private body marker
+  Parent->>Stream: 同control IDのbootstrap/handoff body
+  Stream->>Child: credit付きprivate body
+  Child->>Factory: settings/subscriptions/services又はrestore
+  Factory->>Endpoint: seed/update projection + private ACK
+  Factory->>Stream: snapshot recordを一件ずつ
+  Stream->>Parent: onSnapshotStart→accept→commit ACK
+  Child->>Endpoint: stateCompatibility / ready
+  Parent->>Endpoint: captured actor付きroot又はlive effect callback
+  Child->>Factory: 閉methodをdispatch
+  Factory->>Endpoint: 12固定effect・実completion
+  Child->>Stream: replyを逐次転送（callback予約laneを保持）
+  Endpoint->>Parent: wire metadata後もbody/commit終端までcredit/completion保持
+```
+
+`createUsageParentChannel(child,{generation,admission,authorizeActor,onEffect,onProjection,onSnapshotStart,onSnapshotEnd,onDiagnostic})`はready/request/callback/control/reaped/snapshotを公開する。optionsは`{usageLease,capturedAuthorization,usageEffect}`で、他moduleのopaqueや偽effectは拒否する。generationはruntimeの不透明文字列。初期controlはmode=settings（bootstrap/restore:false）→subscriptions→services。交換はmode=restore（bootstrap/handoff）一回で全復元を終える。controlの引数はgeneration/mode/streamed markerだけを小さい封筒へ、private bodyを同ID root streamへ送る。
+
+onProjection(row,context)のphase=seedはprojection.seed、phase=updateはfacade.accept、phase=snapshotはprojection.accept。onSnapshotStartでbegin、onSnapshotEndでcommitし、完了PromiseをACKとして返す。初期readyはsettingsのprivate seed ACK後で、Owner/Bot業務はservices後だけ。交換のreadyは全restore/snapshot commit終端後。既graphの初回先行読取を、新子の完全業務readyと混同しない。
+
+reply/control exportはstreamed markerと個別JSON recordを分け、`usageResultValid`とhandoff検証後の実body終端まで.completionを保持する。大snapshotを一つの巨大JSON配列へ組み立てず、record単位で既16MiB payload枠とcreditを使い、全件数/集計サイズの上限を新設しない。root replyの送信待ちは一列にし、callback予約laneを通常replyが消費しない。切断/metadata後body失敗はunknownで、OS/pipe終端のreaped前にroot/effect/callbackを解放しない。
+
+親effectは同generation/root/actor/実leaseへ照合し、initialize controlから許すのはmembers.readだけ。callbackは親effectの実capabilityへ束縛し再帰effectを拒否する。診断は固定codeだけ、自由message/stack/body/秘密を渡さない。既HTTPの秘密/質問のknown errorを固定code/statusへ写し、authのAUTH_RESPONSE_NOT_ISSUEDだけは同codeからeffect=not_issuedを復元する。
+
+entryはverifyUsageLocks()を通過後、固定rootのdispatcher/factoryだけを組む。probeはroot/Node26/fixed builtin C入口でstaged init→quiesce/export/resume→exit→OS終端を確認する。probeの正規UID/FD/mount成功はCentiの同source実物工程であり、当席のdirect Node IPC fixtureを代用しない。
+
+共通endpoint/streamsはEpi f0588a34、lock verifierはEpi cc6ded63からのforeign input。独立した当席作者成果へ混ぜず原本を参照し、共通C/controller/readerの実装を複製しない。

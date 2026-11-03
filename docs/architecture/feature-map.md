@@ -66,6 +66,7 @@ flowchart LR
   m_usage -->|"diagnostics"| m_integration
   m_usage -->|"configuration"| m_execution
   m_usage -->|"turn"| m_execution
+  m_usage -->|"lifecycle"| m_runtime
   m_web -->|"HTTP/SSE"| m_integration
 ```
 

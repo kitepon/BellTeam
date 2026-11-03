@@ -4,6 +4,7 @@ import { usageError } from './process-schema.mjs'
 const object = value => value && typeof value === 'object' && !Array.isArray(value)
 const keys = (value, required, optional = []) => object(value) && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => [...required, ...optional].includes(key))
 const fields = { routing: ['apiKey'], callBridge: ['url', 'token'], cloudflare: ['teamDomain', 'audience', 'publicUrl'], diagnostics: ['key'], notifications: ['relayUrl'], webPush: ['subject'] }
+const validGeneration = value => Number.isSafeInteger(value) && value >= 0 || typeof value === 'string' && value.length > 0 && value.length <= 200
 const secretKeys = new Set(['apiKey', 'token', 'key'])
 export function usageSettingValid(item) {
   if (!keys(item, ['id', 'title', 'enabled', 'status', 'fields'], ['error']) || !Object.hasOwn(fields, item.id)) return false
@@ -53,6 +54,7 @@ export function usageProjectionRecordValid(row) {
 // This private ACK projection serves synchronous legacy readers, never writer authority.
 export function createUsageProjection({ bots }) {
   let generation = null, staging = null, current = null, revision = -1, bootstrap = null, bootstrapGeneration = null
+  const seenGenerations = new Set()
   const records = new Set(['settings', 'onboarding', 'auth', 'subscription', 'secret', 'question', 'event'])
   const empty = () => ({ settings: null, onboarding: null, auth: null, subscription: null, secrets: new Map(), questions: new Map(),
     secretTimeline: new CardTimelines(bots, 'secret_request'), questionTimeline: new CardTimelines(bots, 'owner_question') })
@@ -78,13 +80,13 @@ export function createUsageProjection({ bots }) {
   const state = () => { if (!current && !bootstrap) throw usageError('USAGE_PROJECTION_UNAVAILABLE'); return current ?? bootstrap }
   return {
     seed(row, next) {
-      if (current || generation !== null || !Number.isSafeInteger(next) || next < 0 || bootstrapGeneration !== null && bootstrapGeneration !== next
+      if (!validGeneration(next) || generation === next || seenGenerations.has(next) || bootstrapGeneration !== null && bootstrapGeneration !== next
         || !['settings', 'subscription'].includes(row?.type) || !usageProjectionRecordValid(row)) throw usageError('USAGE_PROJECTION_INVALID')
       bootstrap ??= empty(); bootstrapGeneration = next
       apply(bootstrap, row); revision = Math.max(revision, row.revision)
     },
     begin(next) {
-      if (!Number.isSafeInteger(next) || next < 0 || generation !== null && next <= generation) throw usageError('USAGE_PROJECTION_GENERATION')
+      if (!validGeneration(next) || seenGenerations.has(next)) throw usageError('USAGE_PROJECTION_GENERATION')
       staging = { generation: next, state: empty(), revision: null }
     },
     accept(row, next) {
@@ -102,7 +104,7 @@ export function createUsageProjection({ bots }) {
     },
     commit(next) {
       if (!staging || staging.generation !== next || !['settings', 'onboarding', 'auth', 'subscription'].every(key => staging.state[key])) throw usageError('USAGE_PROJECTION_INCOMPLETE')
-      generation = next; current = staging.state; revision = staging.revision; staging = null; bootstrap = null; bootstrapGeneration = null
+      generation = next; seenGenerations.add(next); current = staging.state; revision = staging.revision; staging = null; bootstrap = null; bootstrapGeneration = null
     },
     discard(next) { if (staging?.generation === next) staging = null },
     configuration(id) {
