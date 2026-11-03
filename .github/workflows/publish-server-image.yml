@@ -164,7 +164,7 @@ jobs:
           const session = await (await fetch(base + "/api/session")).json();
           assert.equal(session.authMode, "local");
           const settings = await (await fetch(base + "/api/settings")).json();
-          assert.equal(settings.settings.length, 5);
+          assert.deepEqual(settings.settings.map(setting => setting.id), ["routing", "callBridge", "cloudflare", "diagnostics", "notifications", "webPush"]);
           assert.ok(settings.settings.every(setting => setting.enabled === false));
           const { subscription } = await (await fetch(base + "/api/subscription")).json();
           assert.equal(subscription.entitled, false);
