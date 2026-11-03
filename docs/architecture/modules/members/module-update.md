@@ -33,6 +33,21 @@ Botのset/remove/markも退役と同per-Bot順序へ接続した。欠損schedul
 
 Rootの全体設計に沿い、membersの台帳・規範生成・予定定義/発行判断を固定版の子processへ移す。既AIのtransport/job/watch・会話writer・RoomRegistry・共有CLI登録writerは生かす。同UID1001内の協調writer分離を提案し、別UIDのOS隔離を成立済みとはしない。共通入口と組立てはモリー、起動/排他/版交換はエピネル、署名配布はセンチ。各担当の公開契約をRootが固定してから実装する。
 
+## dispatcher / channel ABI（第三差分）
+
+`src/members/dispatcher.mjs:createMembersDispatcher({root,effect,projection,diagnostic})`を公開。rootは固定BellTeam root、戻りはvalidateRequest/dispatch/validateCallback/dispatchCallback/control/disconnect。requestとcallbackはいずれも`(method,params,context)`。contextは親が注入する`{generation,leaseId,rootId,ownerWrite:boolean}`、childにgrant/bearerを渡さない。owner.update/rules.updateはownerWrite=true必須。actor/paramsの自己申告は未知keyとして拒否。
+
+`src/members/protocol.mjs`のMEMBERS_REQUEST_METHODS/MEMBERS_CALLBACK_METHODS/MEMBERS_EFFECT_METHODSが現在の閉集合。validateMembersRequest/Callback/Effect/Result/EffectResult/Projection/Controlを同fileで公開。16MiB UTF8と既field制約を検証する。Result不正はunknownであり、保存前のnot_acceptedとは扱わない。
+
+- 現root：profiles.read、profile.read/create/preview/update/startup、removals.read、owner.read/update、rules.read/update、schedules.list/set/remove/claimDue/skipDue。profile.session/fastModeはcallbackだけ。profile.removeと予定run/prepareResumeは未接続で、未知methodを成功へ丸めない。
+- effect(method,params,context)：project.ensureRoot `{}`、claim/initialize/remove/readPreviousSession `{botId}`、writeInstructions `{botId,body}`、prepareStartupContext `{botId,previousSession,body}`、appendInstructions `{botId,text}`、global.writeInstructions `{body}`、cli.configure `{botIds}`、models.read `{harness}`、memory.ensureScope `{botId}`、room.schedules.list/set/remove/claimDue/skipDue（roomIdと既DTO）。任意path/home/env/関数を受けない。project読取は文字列、Roomは既snapshot/null、モデルはcatalog、その他runtime書込みはvoid/nullを返す。
+- projection(record,context)：ACKを待つsnapshot-start `{type,revision}`→profile `{type,revision,bot}`を一件ずつ→snapshot-end `{type,revision}`。画像4fieldは省きhasAvatar/hasAvatarLargeへ。generationはcontext。同revisionを全件受信後だけ親が採用。初回はleaseId:nullのinitialize context限定、以降はlive lease。
+- control.initialize `{generation}`と同generation/leaseId:nullの第3contextでread-restore/初期投影→`{stateCompatibility}`。resume/quiesce/exitは`{}`。root受付を閉じても旧lease callbackは通し、active処理と投影の終端後だけquiescedを返す。遅いquiesceはepochを照合し、resume後に再停止しない。disconnectもactiveをdrainし再送しない。
+
+profile.updateはモデル照会と指示effectを保存ロックの外へ移した。preview時の状態がsession以外で変われば409 BOT_UPDATE_CONFLICT、sessionだけの並行保存は保持する。指示effectは専用の書込み順序で最新profileから生成し、session/fast callbackの短い保存ロックを塞がない。fast callbackはnative観測だけを保存する専用口。Owner/rules保存は短い保存順序を共有し、生成待ちでその順序を保持しない。
+
+まだ親bootstrap/facade/専用Owner proxyの通常接続、削除外部effectとgate/cancel、scheduler発行順の切替、固定entry/実物交換が残る。このdispatcher差分だけでは旧writer廃止や独立更新の完成を証明しない。
+
 ## 現状と初回の分離
 
 ```mermaid

@@ -25,6 +25,8 @@ export class BotRegistry extends Map {
   #profileMutations = new Map()
   #refreshQueue = Promise.resolve()
   #profileCache = new Map()
+  #previewBases = new WeakMap()
+  #instructionWrites = new Map()
 
   constructor(options) {
     const { seedPath, botsRoot, now = () => new Date(), id = randomUUID, botId = () => `bot-${randomUUID().slice(0, 8)}`, onChange = async () => {}, models = new LiveModelCatalog(), projectFiles = new ProjectFiles() } = options
@@ -210,12 +212,39 @@ export class BotRegistry extends Map {
   }
 
   async update(id, changes) {
-    return this.#mutateProfile(id, async () => {
-      const profile = await this.previewUpdate(id, changes)
-      await this.writeProfile(profile)
-      await this.writeInstructions(profile)
+    const candidate = await this.previewUpdate(id, changes)
+    await this.#mutateProfile(id, async () => {
       await this.refresh()
-      this.changed(id)
+      const current = this.get(id), base = this.#previewBases.get(candidate)
+      if (!current) throw new Error(`BOT_NOT_FOUND: ${id}`)
+      if (Object.keys(base).some(key => key !== 'session' && JSON.stringify(base[key]) !== JSON.stringify(current[key])))
+        throw Object.assign(registryError('BOT_UPDATE_CONFLICT'), { status: 409 })
+      const profile = normalizeProfile({ ...candidate, session: current.session })
+      await this.writeProfile(profile)
+      await this.refresh()
+    })
+    const previous = this.#instructionWrites.get(id) ?? Promise.resolve()
+    const writing = previous.catch(() => {}).then(async () => {
+      await this.refresh()
+      const current = this.get(id)
+      if (!current) throw new Error(`BOT_NOT_FOUND: ${id}`)
+      await this.writeInstructions(current)
+    })
+    this.#instructionWrites.set(id, writing)
+    try { await writing } finally { if (this.#instructionWrites.get(id) === writing) this.#instructionWrites.delete(id) }
+    await this.refresh()
+    this.changed(id)
+    return this.get(id)
+  }
+
+  async updateFastMode(id, fastMode) {
+    if (typeof fastMode !== 'boolean') throw registryError('BOT_FAST_MODE_INVALID')
+    return this.#mutateProfile(id, async () => {
+      await this.refresh()
+      const current = this.get(id)
+      if (!current) throw new Error(`BOT_NOT_FOUND: ${id}`)
+      await this.writeProfile(normalizeProfile({ ...current, fastMode }))
+      await this.refresh()
       return this.get(id)
     })
   }
@@ -272,7 +301,9 @@ export class BotRegistry extends Map {
       if (problem && Object.hasOwn(changes, 'fastMode')) throw fastModeError(problem)
       if (problem) profile = { ...profile, fastMode: false }
     }
-    return Object.freeze(profile)
+    const candidate = Object.freeze(profile)
+    this.#previewBases.set(candidate, current)
+    return candidate
   }
 
   async validateEffort(profile) {

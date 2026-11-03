@@ -68,6 +68,10 @@
     "src/scheduler.mjs",
     "src/schedule-definition.mjs",
     "src/schedule-mutations.mjs",
-    "src/character-sheets.mjs"
+    "src/character-sheets.mjs",
+    "src/members/instructions.mjs",
+    "src/members/state-compatibility.mjs",
+    "src/members/protocol.mjs",
+    "src/members/dispatcher.mjs"
   ]
 }
