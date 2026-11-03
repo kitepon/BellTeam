@@ -72,13 +72,16 @@ test('execution artifact uses the business exported state value and same-bundle 
   const manifest = { schema: 'bellteam.execution.artifact.v1', component: 'execution', sourceCommit,
     entry: 'payload/src/execution-dispatcher.mjs',
     runtime: { ...platform, nodeMajor: 26, parentProtocol: 1, stateCompatibility: state },
-    files: ['src/execution-dispatcher.mjs', 'src/aiterm-transport.mjs', 'src/configuration-intents.mjs', 'package.json', 'package-lock.json']
+    files: ['src/execution-dispatcher.mjs', 'src/aiterm-transport.mjs', 'src/configuration-intents.mjs', 'config/common-agents.md', 'package.json', 'package-lock.json']
       .map(path => ({ path: 'payload/' + path, bytes: 1, sha256: sha })),
   }
   assert.equal(validateExecutionReleaseManifest(manifest, state), manifest)
   assert.throws(() => validateExecutionReleaseManifest(manifest, 'other'), /STATE_INCOMPATIBLE/)
   const wrong = structuredClone(manifest); wrong.files.pop()
   assert.throws(() => validateExecutionReleaseManifest(wrong, state), /INVENTORY_INVALID/)
+  const missingReminder = structuredClone(manifest)
+  missingReminder.files = missingReminder.files.filter(file => file.path !== 'payload/config/common-agents.md')
+  assert.throws(() => validateExecutionReleaseManifest(missingReminder, state), /INVENTORY_INVALID/)
 })
 
 test('invalid and cancelled installed reads stop before importing the builtin business module', async () => {

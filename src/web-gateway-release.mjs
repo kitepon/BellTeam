@@ -61,6 +61,8 @@ function validateManifest(manifest, component, executionCompatibility) {
       || typeof file.sha256 !== 'string' || !digest.test(file.sha256)) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
     names.add(file.path)
   }
+  if (execution && !names.has('payload/config/common-agents.md'))
+    throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
   const moduleFiles = execution ? ['execution-dispatcher', 'aiterm-transport', 'configuration-intents'] : component === 'usage'
     ? ['usage/channel', 'usage/channel-dispatcher', 'usage/services', 'usage/state-compatibility', 'usage-locks']
     : ['diagnostics-ipc', 'diagnostics-dispatcher', 'diagnostics-protocol', 'diagnostics-locks']
