@@ -445,3 +445,5 @@ flowchart LR
 ### memoryの同controller組立
 
 既SeatRuntime.memoryModule一実体をmemoryの安定facade・Update inventory/adapter/ledgerへ渡す。親終了は共通更新の実終端を待った後、同memoryModule.closeで全短命席子のOS/結果終端を回収する。別MemoryService/SeatRuntimeを生成しない。memoryはP1/Node26、stateSchema:nullと業務の実7field完全一致。builtinSourceCommitが公開されない版はcurrent:nullを保持し、実generationをprivate plan前提へ束縛する。現版不明を通知のsourceで埋めず、最初のbuiltin戻し計画も作らない。DB/本文/索引は移送せず、同DBを読む固定版runnerのcodeだけ交換する。通常初回mountのruntime/配布差分と同sourceにする。
+
+通知のUpdate利用可否はP2のAPNs/Web両status・applyErrorから単一の公開reasonへ投影する。旧P1のscalarだけを読んでP2のerror objectをreasonへ入れず、通知未設定でも更新inventory/planを読めるようにする。

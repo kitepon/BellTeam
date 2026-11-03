@@ -29,8 +29,9 @@ export function createUpdateCenter({ gateway = () => null, notifications = null,
         if (id === 'web-gateway') { available = Boolean(web?.pid); reason = available ? null : 'WEB_GATEWAY_UNAVAILABLE' }
         if (id === 'members' && members) { available = Boolean(roster?.available); reason = available ? null : 'MEMBERS_UNAVAILABLE' }
         if (id === 'notifications') {
-          available = Boolean(push?.available && push.status?.configured)
-          reason = available ? null : push?.applyError ?? (push?.available ? 'PUSH_NOT_CONFIGURED' : 'NOTIFICATIONS_UNAVAILABLE')
+          available = Boolean(push?.available && (push.status?.apns?.configured || push.status?.webPush?.configured || push.status?.configured))
+          const applyError = typeof push?.applyError === 'string' ? push.applyError : push?.applyError?.apns ?? push?.applyError?.webPush
+          reason = available ? null : applyError ?? (push?.available ? 'PUSH_NOT_CONFIGURED' : 'NOTIFICATIONS_UNAVAILABLE')
         }
         return { id, name, description, current, published: null, publication: null, changes: [],
           comparison: { state: 'unavailable', reason: 'PUBLISHED_RELEASE_UNAVAILABLE' },
