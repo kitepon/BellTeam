@@ -82,16 +82,6 @@ export class SeatRuntime {
     return this.call('remove-claude-copies', { profiles: projects(bots) })
   }
 
-  throughlineChanged() {
-    let previous = null
-    return async () => {
-      const signature = JSON.stringify(await this.call('throughline-signature', {}))
-      const changed = signature !== previous
-      previous = signature
-      return changed
-    }
-  }
-
   memory(registry) {
     return Object.fromEntries(SEAT_MEMORY_METHODS.map(method => [method, (...args) =>
       this.call('memory', { method, args: method === 'ensureScope' ? args : args[0], profiles: memoryProfiles(registry, method, args) })]))

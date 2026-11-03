@@ -84,22 +84,19 @@ flowchart LR
 
 信頼するのは既管理mountと正常本体の同UID writerであり、root/Host/Docker管理者や悪意ある同UID1001から隔離する契約ではない。state0711は既call-bridge等の到達に必要なまま保持し、configuration-intents/Botの0700と対象file0600をconsumerが所有する。保存/prepare/pending/原要求終端と診断の正本は[execution](../execution/configuration-requests.md)、既mount/移行条件は[recovery](recovery.md)。新しい保存サービスや本番権限操作を追加しない。
 
-## Throughline待機の接続案
+## Throughline公開observer-checkの実行接続
 
-状態：N102のconsumer切替と同時に行う分離案。現行の`SeatRuntime.throughlineChanged`と`run-seat-runtime`の`throughline-signature`はまだ残っている。これらのDB/WALのmtime参照を公開待機へ移し、両側のcaller/注入を合わせてから除く。
+N102のconsumer差分と同時に採用する。runtimeの旧SeatRuntime.throughlineChangedとthroughline-signature dispatchを除き、私有DB/WALのmtimeを席機構から読まない。consumer実装・結果検証・token/cursor保存・分割はN102、製品schema/binはThroughlineが所有する。固定供給候補b1cf82f3611ddc375b36b1ecb4846f23870457ebへの接続であり、本番の採用記録ではない。
 
 ```mermaid
 flowchart LR
-  Consumer["conversation: project/cursorと取消判断"] --> Adapter["conversation: waitObserverTurns"]
-  Adapter -->|"command / args / options.signal"| Runner["runtime: 既createSeatProcessRunner"]
-  Runner -->|"席の環境 / EOF / 子の回収"| Public["Throughline公開observer-wait"]
-  Public -->|"stdout / stderr / exit"| Runner
-  Runner -->|"stdout又は既存の実行失敗"| Adapter
-  Adapter -->|"4状態とopaque cursorを検証"| Consumer
+  Consumer[conversation: pending先行 / bot・token編成 / 同巡除外] -->|JSON文字列 + options.signal| Runner[runtime: createSeatProcessRunner root base]
+  Runner -->|席UID1000 / stdin EOF| CLI[Throughline: observer-check --json]
+  CLI -->|完全stdout / stderr / exit| Runner
+  Runner -->|stdio close後Promise settle| Consumer
+  Consumer -->|各project既read + signal| Read[Throughline公開read]
 ```
 
-runtimeは既runnerのまま、stdout/stderr合計buffer、空stdinのEOF、実行終了/取消後のstdio回収を持つ。AbortSignalはoptionsへ渡してJSON化しない。callerのabortではstdio close後にABORT_ERRを返す。CLI自身の取消exit1/空stdoutをtimeoutやchangedへ変えず、既nonzero失敗として返す。runnerは製品のstderr JSONを業務結果へ自動変換しない。汎用runnerを待機だけのために緩和しない。
+consumerは既createSeatProcessRunner(root,{environment:'base'})を直接使う。inputはUTF8 1MiB以内、stdout/stderr合計は既16MiB、input+EOF/close/非0拒否/取消時の子回収は既runnerの契約のまま。signalをJSONへ入れずoptionsへ渡す。結果schema/両上限での編成・分割/pending/消費cursor/tokenの保存はruntimeへ移さない。ThroughlineのDB/WAL fallbackや新しいruntime業務handler、daemonは加えない。
 
-公開waitの状態とcursorの仕様は[Throughline正本](../throughline/README.md)、consumerのcursor/seen/pending・ページング・初回reset/resync・Bot間の待機方法は[conversation正本](../conversation/README.md)へ辿る。最小waitは1秒で、複数projectを安価に一括確認する公開窓口は現行にはない。既全体booleanと同等の性能を保証しない。新しいruntime業務handler、daemon、DB fallbackは作らない。
-
-切替時の直接境界は、conversation側のwait注入/停止時取消と、runtime側の旧signature caller除去。N102がreadの未消化分を保持したまま、停止が待機回収まで待つことを限定試験で合わせる。公式供給版・実DB・実席の確認をsource契約の読取で代用しない。
+runtimeの限定確認は旧method非公開と旧dispatch拒否、残存callerの責任確認だけ。conversation-services/self-turnsの旧callerはN102のconsumer差分で外すため、runtime単独では採用しない。既runner人工8case/製品試験/実DB/席/Host/本番は再走しない。

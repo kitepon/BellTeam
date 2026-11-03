@@ -33,7 +33,7 @@ runtime-detailsとdistribution-detailsのruntime所有章はここへ移管し�
 
 所有するのは管理CLI節・trust・hook登録、席の一時画像、移行/復旧の実行状態。台帳・ProjectFiles内部・記憶形式・native state・配布版対応表は各所有者の窓口を使う。`run-seat-runtime`は操作dispatchだけを持ち、ProjectFilesと記憶の処理は各機能へ渡す。登録修理はruntime所有の既存ファイル内で完結し、members/usage内部の編集を要しない。
 
-CLI登録図はwriter所有と完成JSON公開を含む。起動/席実行/移行/復旧図は実装の意味を変えず、正本の場所と責任を明示した。公開窓口/接続先は変わらず、全体図の生成結果は不変。Throughline DB/WALのmtimeへ依存する席実行部の分離はN102のconsumer切替と合わせる残件。機能全体のsource分離や本番反映を完了扱いにしない。
+CLI登録図はwriter所有と完成JSON公開を含む。起動/席実行/移行/復旧図は実装の意味を変えず、正本の場所と責任を明示した。公開窓口/接続先は変わらず、全体図の生成結果は不変。Throughline DB/WALのmtimeを読む旧席窓口は除去し、N102の公開observer-check consumerと同時に採用する。機能全体のsource分離や本番反映を完了扱いにしない。
 
 ## 全module共通runnerとの境界
 
