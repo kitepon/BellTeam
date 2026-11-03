@@ -10,23 +10,26 @@ export function createWebGatewayControl({ gateway, notify = () => {} }) {
     const next = { versionId, status: 'accepted' }
     update = next
     notify()
+    let complete
+    const completion = new Promise(resolve => { complete = resolve })
     let settled = false
     return {
+      completion,
       start() {
         if (settled) return
         settled = true
-        if (closed) { next.status = 'not_started'; notify(); return }
+        if (closed) { next.status = 'not_started'; notify(); complete(); return }
         next.status = 'running'; notify()
         void Promise.resolve().then(() => {
-          if (closed) { next.status = 'not_started'; notify(); return }
+          if (closed) { next.status = 'not_started'; notify(); complete(); return }
           return gateway().replace(versionId).then(() => { next.status = 'succeeded'; notify() })
         }).catch(error => {
           next.status = 'failed'
           next.error = /^GATEWAY_[A-Z_]+$/.test(error?.message ?? '') ? error.message : 'GATEWAY_UPDATE_FAILED'
           notify()
-        })
+        }).finally(complete)
       },
-      cancel() { if (!settled) { settled = true; next.status = 'not_started'; notify() } },
+      cancel() { if (!settled) { settled = true; next.status = 'not_started'; notify(); complete() } },
     }
   }
   const close = () => {

@@ -118,6 +118,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       const errors = []
       for (const stop of [
         () => olrwAuthCaller?.close(),
+        () => services.updateCenter.close(),
         () => webGatewayControl.close(),
         () => gateway?.close(),
         () => scheduler.stop(), () => idleSessions.stop(), () => selfTurns.stop(), () => seatTurns.stop(),

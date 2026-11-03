@@ -138,3 +138,20 @@ test('adopted builtin with a previous release is read back as builtin on restart
  await writeFile(join(root,'state/notifications-release.json'),JSON.stringify({schema:'bellteam.notifications.adoption.v1',currentVersionId:null,previousVersionId:ids.a}),{mode:0o600})
  await controller.start();assert.deepEqual(prepared,[ids.a]);assert.equal(controller.snapshot().currentTarget,'builtin')
 })
+
+test('reservation completion follows the actual replace or cancellation without starting a second child',async t=>{
+  let entered, release
+  const preparing=new Promise(resolve=>{entered=resolve}), waiting=new Promise(resolve=>{release=resolve})
+  const {controller,children}=await setup(t,{prepare:async()=>{entered();await waiting}})
+  t.after(()=>release())
+  await controller.start()
+  const pending=controller.reserve(ids.a)
+  let completed=false;pending.completion.then(()=>{completed=true})
+  pending.start();await preparing
+  assert.equal(completed,false)
+  release();await pending.completion
+  assert.equal(controller.snapshot().currentVersionId,ids.a)
+  const count=children.length,cancelled=controller.reserve(ids.b)
+  cancelled.cancel();await cancelled.completion;cancelled.start()
+  assert.equal(children.length,count)
+})

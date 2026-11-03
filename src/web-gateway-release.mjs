@@ -113,5 +113,5 @@ async function prepareRelease(component, versionId, { signal } = {}) {
   await inspect('payload')
   if (found.size !== inventory.size) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
   signal?.throwIfAborted()
-  return { versionId, appRoot: join(directory, 'payload'), protocolVersion: component === 'notifications' ? 2 : 1, ...(component === 'members' ? { sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch }, stateCompatibility: manifest.runtime.stateCompatibility } : component === 'notifications' ? { sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch }, stateSchema: 2 } : {}) }
+  return { versionId, appRoot: join(directory, 'payload'), protocolVersion: component === 'notifications' ? 2 : 1, sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch }, ...(component === 'members' ? { sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch }, stateCompatibility: manifest.runtime.stateCompatibility } : component === 'notifications' ? { sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch }, stateSchema: 2 } : {}) }
 }
