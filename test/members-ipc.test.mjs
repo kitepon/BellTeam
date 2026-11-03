@@ -9,6 +9,7 @@ import { createMembersParentChannel, waitMembersChildClose } from '../src/member
 import { operateMembersProject } from '../src/members-project-files.mjs'
 import { MEMBERS_STATE_COMPATIBILITY } from '../src/members/state-compatibility.mjs'
 import { createMembersRuntimeEffects } from '../src/members-runtime-effects.mjs'
+import { normalizeMembersError } from '../src/members/errors.mjs'
 
 async function start(t, { onEffect: external, authorizeOwner } = {}) {
   const root = await mkdtemp(join(process.cwd(), '.members-ipc-'))
@@ -205,4 +206,38 @@ test('parent IPC loss drains the child but does not erase a still-running parent
   const parentFinished = x.admission.drain(x.admission.close())
   release(); await parentFinished
   assert.equal(JSON.parse(await readFile(join(x.root, 'state/bots', bot.id, 'bot.json'), 'utf8')).name, 'saved-before-loss')
+})
+
+test('fixed semantic failures preserve 400/404 and partial-save projection without transferring private messages', async t => {
+  let failing = false
+  const x = await start(t, { onEffect: async method => {
+    if (failing && method === 'project.writeInstructions') throw new Error('PRIVATE_EFFECT_MESSAGE')
+  } })
+  await x.channel.control('resume')
+  await assert.rejects(x.request('profile.read', { botId: 'bot-missing' }), { code: 'BOT_NOT_FOUND', status: 404, outcome: 'unknown' })
+  const { bot } = await x.request('profile.create', { input: { name: 'fixture', harness: 'codex' } })
+  await assert.rejects(x.request('profile.preview', { botId: bot.id, changes: { avatarSource: 'data:image/png;base64,AAAA' } }),
+    { code: 'BOT_AVATAR_CROP_INVALID', status: 400, outcome: 'unknown' })
+  failing = true
+  await assert.rejects(x.request('profile.update', { botId: bot.id, changes: { name: 'saved-before-generation-failed' } }), error => {
+    assert.equal(error.outcome, 'unknown'); assert.equal(error.status, 503)
+    assert.equal(error.message.includes('PRIVATE_'), false)
+    return true
+  })
+  assert.equal(x.projections.filter(record => record.type === 'profile').at(-1).bot.name, 'saved-before-generation-failed')
+  assert.equal((await x.request('profile.read', { botId: bot.id })).bot.name, 'saved-before-generation-failed')
+  await x.channel.control('quiesce'); await x.channel.control('exit'); await x.ended
+})
+
+test('a normalized parent Room failure keeps its status and never forwards its free message', async t => {
+  const x = await start(t, { onEffect: async method => {
+    if (method === 'room.schedules.list') throw normalizeMembersError(new Error('ROOM_NOT_FOUND: PRIVATE_ROOM'))
+  } })
+  await x.channel.control('resume')
+  await assert.rejects(x.request('schedules.list', { ownerKind: 'room', ownerId: 'room-missing' }), error => {
+    assert.equal(error.code, 'ROOM_NOT_FOUND'); assert.equal(error.status, 404); assert.equal(error.outcome, 'unknown')
+    assert.equal(error.message, 'ROOM_NOT_FOUND')
+    return true
+  })
+  await x.channel.control('quiesce'); await x.channel.control('exit'); await x.ended
 })

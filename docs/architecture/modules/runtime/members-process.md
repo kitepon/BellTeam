@@ -39,3 +39,5 @@ readyとmanifest.runtimeは作者MEMBERS_STATE_COMPATIBILITYの実6値exact。me
 署名前probeはscripts/probe-members-runtime.mjs、引数0/root Node26→固定非特権Cの実1001。空state/bots+.initializedと既Owner schema/user-rulesをdisposable runnerだけで準備、ready→resume→quiesce→exit、親effect/実席/予定0、全OS/IPC/pipe close後だけ固定成功JSON。初期通常bootstrapのseed/migration/cleanup/setupはMolly/Belortaが一回区切り、交換read-restoreで呼ばない。
 
 親onEffectのcontextにはwire5fieldに加えてopaque membersLease/membersEffectがある。runtime adapterのDTO検証はwire5fieldだけへ射影し、CLI callbackへは同じ親context objectを保持する。これは既固定wire/親権限境界内の修理で機能線は変えない。
+
+固定semantic code/statusの正規化はmembers作者errors.mjsが所有し、runtimeは自由message/stackを通さない。実IPCで確定404/既入力400、保存後generation失敗の最新metadata投影とunknown維持、親Room正規化404を確認する。本文/秘密や旧成功群を採取・再走しない。
