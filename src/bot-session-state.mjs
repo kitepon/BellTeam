@@ -96,7 +96,7 @@ export class BotSessionState {
       barrier = this.stopping !== barrier ? this.stopping : null
     }
     if (this.stopVersions.get(bot.id) !== version) throw Object.assign(stoppedError(), { effect: 'not_started' })
-    this.requireSessionKnown(bot.id)
+    this.requireDeliveryKnown(bot.id)
   }
 
   changeSession(bot, name, args, options) {
@@ -145,6 +145,11 @@ export class BotSessionState {
       clear()
     })
     return pending
+  }
+
+  // Configuration uncertainty describes settings, not the delivery target.
+  requireDeliveryKnown(botId) {
+    if (this.uncertainChanges.get(botId) !== 'agent_configure') this.requireSessionKnown(botId)
   }
 
   requireSessionKnown(botId) {

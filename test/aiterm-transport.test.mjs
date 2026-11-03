@@ -103,7 +103,7 @@ test('設定反映のcloseが失敗したら、次の送信も旧登録へ渡さ
   } } })
   const bot = { id: 'bot-a', session: 'old-session' }
   await assert.rejects(transport.stopForConfiguration(bot), /CLOSE_FAILED/u)
-  await assert.rejects(transport.turn(bot, '続ける'), /CLOSE_FAILED/u)
+  await assert.rejects(transport.turn(bot, '続ける'), { code: 'BOT_SESSION_UNCONFIRMED' })
 })
 
 test('記録中のセッションへ不達なら新規起動し、返されたIDを保存して一度だけ再送する', async () => {
