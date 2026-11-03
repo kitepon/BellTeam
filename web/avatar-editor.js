@@ -1,10 +1,11 @@
-export function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoom, nameInput, colorInput = null, fallback, error, previewClass = 'avatar owner-avatar', applyAvatar, initials, escapeClass }) {
+export function createAvatarEditor({ retainSource = false, onChange = () => {}, fileInput, preview, cropEditor, canvas, zoom, nameInput, colorInput = null, fallback, error, previewClass = 'avatar owner-avatar', applyAvatar, initials, escapeClass }) {
   const context = canvas.getContext('2d')
   let avatarData = ''
   let changed = false
+  let sourceData = '', savedRect = null
   let crop = null
   let drag = null
-  let readGeneration = 0
+  let readGeneration = 0, reading = false
 
   fileInput.addEventListener('change', readFile)
   zoom.addEventListener('input', zoomImage)
@@ -13,12 +14,23 @@ export function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoo
   canvas.addEventListener('pointermove', moveImage)
   canvas.addEventListener('pointerup', endDrag)
   canvas.addEventListener('pointercancel', endDrag)
+  canvas.addEventListener('keydown', event => {
+    const direction = { ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1] }[event.key]
+    if (!crop || !direction) return
+    event.preventDefault()
+    const step = event.shiftKey ? 16 : 4
+    crop.x += direction[0] * step; crop.y += direction[1] * step
+    clamp(); syncPreview()
+  })
   nameInput.addEventListener('input', updatePreview)
   colorInput?.addEventListener('change', updatePreview)
 
   return {
-    reset(value = '') {
+    reset(value = '', appearance = {}) {
+      sourceData = appearance.source ?? ''
+      savedRect = appearance.rect ?? null
       readGeneration++
+      reading = false
       avatarData = value?.startsWith('data:image/') || value?.startsWith('/api/bots/') ? value : ''
       changed = false
       crop = null
@@ -27,15 +39,38 @@ export function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoo
       cropEditor.hidden = true
       updatePreview()
     },
-    cancelRead() { readGeneration++ },
+    cancelRead() { readGeneration++; reading = false },
+    pending() { return reading },
     value() { return avatarData },
     changed() { return changed },
+    source() { return sourceData },
+    rectangle() { return savedRect },
+    async recrop() {
+      if (!sourceData) return
+      reading = true
+      const generation = ++readGeneration, image = new Image()
+      image.src = sourceData
+      try {
+        await image.decode()
+        if (generation !== readGeneration) return
+        const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight)
+        const nextScale = savedRect ? canvas.width / (image.naturalWidth * savedRect.width) : scale
+        crop = { image, minimumScale:scale, scale:nextScale,
+          x:savedRect ? -savedRect.x * image.naturalWidth * nextScale : (canvas.width-image.naturalWidth*scale)/2,
+          y:savedRect ? -savedRect.y * image.naturalHeight * nextScale : (canvas.height-image.naturalHeight*scale)/2 }
+        zoom.value = String(nextScale / scale)
+        cropEditor.hidden = false
+        clamp(); draw()
+      } catch { if (generation === readGeneration) error.textContent = '保存元の画像を読み込めませんでした。写真を選び直してください。' }
+      finally { if (generation === readGeneration) reading = false }
+    },
   }
 
   async function readFile() {
     const [file] = fileInput.files
     if (!file) return
     const generation = ++readGeneration
+    reading = true
     const source = URL.createObjectURL(file)
     const image = new Image()
     image.src = source
@@ -50,6 +85,18 @@ export function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoo
         x: (canvas.width - image.naturalWidth * scale) / 2,
         y: (canvas.height - image.naturalHeight * scale) / 2,
       }
+      if (retainSource) {
+        const sourceCanvas = document.createElement('canvas')
+        const ratio = Math.min(1, 2048 / Math.max(image.naturalWidth, image.naturalHeight))
+        sourceCanvas.width = Math.max(1, Math.round(image.naturalWidth * ratio))
+        sourceCanvas.height = Math.max(1, Math.round(image.naturalHeight * ratio))
+        sourceCanvas.getContext('2d').drawImage(image, 0, 0, sourceCanvas.width, sourceCanvas.height)
+        for (const quality of [.9, .7, .5, .3]) {
+          sourceData = sourceCanvas.toDataURL('image/jpeg', quality)
+          if (sourceData.length <= 3_000_000) break
+        }
+        if (sourceData.length > 3_000_000) throw Error('IMAGE_TOO_LARGE')
+      }
       zoom.value = '1'
       cropEditor.hidden = false
       draw()
@@ -57,6 +104,7 @@ export function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoo
     } catch {
       if (generation === readGeneration) error.textContent = 'この画像は読み込めませんでした。'
     } finally {
+      if (generation === readGeneration) reading = false
       URL.revokeObjectURL(source)
     }
   }
@@ -115,6 +163,9 @@ export function createAvatarEditor({ fileInput, preview, cropEditor, canvas, zoo
     draw()
     avatarData = canvas.toDataURL('image/jpeg', .9)
     changed = true
+    onChange()
+    savedRect = { x: -crop.x / (crop.image.naturalWidth * crop.scale), y: -crop.y / (crop.image.naturalHeight * crop.scale),
+      width: canvas.width / (crop.image.naturalWidth * crop.scale), height: canvas.height / (crop.image.naturalHeight * crop.scale) }
     updatePreview()
     return avatarData
   }

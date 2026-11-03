@@ -1,3 +1,8 @@
+import { workLabel, roomWorkPreview, renderCurrentWork } from './current-work.js?v=__ASSET_VERSION__'
+import { animateConversation } from './view-preferences.js?v=__ASSET_VERSION__'
+import { createSchedulesOverview } from './schedules-overview.js?v=__ASSET_VERSION__'
+import { matchesMemberQuery, matchesRoomQuery } from './roster-search.js?v=__ASSET_VERSION__'
+import { requestEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
 import { createOwnerEditor } from './owner-editor.js?v=__ASSET_VERSION__'
 import { createBotEditor } from './bot-editor.js?v=__ASSET_VERSION__'
 import { createRoomEditor } from './room-editor.js?v=__ASSET_VERSION__'
@@ -26,6 +31,9 @@ export function createWebApp({ client = createWebClient() } = {}) {
   const goals = goalsView(document.querySelector('#goals-dialog'), api, () => state.bots, document.querySelector('#chat-goal'))
   document.querySelector('#goals-button').addEventListener('click', () => { void goals.open() })
   const botList = document.querySelector('#bot-list')
+  const rosterSearch = document.querySelector('#roster-search')
+  rosterSearch.addEventListener('input', renderBots)
+  document.querySelector('#search-button').addEventListener('click', () => rosterSearch.focus())
   const ownerProfileButton = document.querySelector('#owner-profile-button')
   const ownerDialog = document.querySelector('#owner-dialog')
   const chat = document.querySelector('#chat')
@@ -107,6 +115,12 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   const scheduleEditor = createScheduleEditor(scheduleDialog, { api, getBot: id => state.bots.find(bot => bot.id === id) })
 
+  const allSchedules = createSchedulesOverview(document.querySelector('#all-schedules-dialog'), { api,
+    getTargets: () => [...state.bots.filter(bot => !bot.deleting).map(bot => ({ ...bot, type:'bot' })), ...state.rooms.map(room => ({ ...room,type:'room' }))],
+    onManage: target => scheduleEditor.open(target),
+  })
+  document.querySelector('#all-schedules-button').addEventListener('click', () => { void allSchedules.open() })
+
   const roomEditor = createRoomEditor(roomDialog, { api, getBots: () => state.bots,
     onSaved: async (room, current) => {
       if (await loadBots() !== true) return
@@ -128,12 +142,20 @@ export function createWebApp({ client = createWebClient() } = {}) {
       const saved = state.bots.find(item => item.id === bot.id)
       if (current() && saved) await selectBot(saved)
     },
-    onDeleted: async bot => {
+    onDeleted: async (bot, verify = false) => {
       catalogueRead++
-      state.bots = state.bots.filter(item => item.id !== bot.id)
-      if (state.selectedType === 'bot' && state.selected?.id === bot.id) clearSelection()
+      state.pendingDeletionIds ??= new Set()
+      if (!verify) state.pendingDeletionIds.add(bot.id)
+      state.bots = state.bots.map(item => item.id === bot.id && state.pendingDeletionIds.has(bot.id) ? { ...item, deletionRequested:true } : item)
+      if (state.selectedType === 'bot' && state.selected?.id === bot.id) state.selected = state.bots.find(item => item.id === bot.id) ?? state.selected
       renderBots()
-      setTimeout(() => { void loadBots().catch(() => conversationComposer.showError('一覧を更新できませんでした。')) }, 500)
+      updateSendButton()
+      if (verify) {
+        if (await loadBots() !== true) throw Error('DELETION_READ_SUPERSEDED')
+        return state.bots.some(item => item.id === bot.id)
+      }
+      setTimeout(() => { void loadBots().catch(() => conversationComposer.showError('削除結果の一覧を取得できませんでした。開き直して確認してください。')) }, 500)
+      return true
     },
     onRestarted: bot => setTimeout(async () => {
       try {
@@ -194,7 +216,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     finally { button.disabled = false }
   })
 
-  document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => document.querySelector(`#${button.dataset.closeDialog}`).close()))
+  document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => requestEditorClose(document.querySelector(`#${button.dataset.closeDialog}`))))
   screenButton.addEventListener('click', () => (screenPanel.hidden ? openScreen() : closeScreen()))
   document.querySelector('#screen-close').addEventListener('click', closeScreen)
 
@@ -273,7 +295,9 @@ export function createWebApp({ client = createWebClient() } = {}) {
       throw error
     }
     if (read !== catalogueRead) return null
-    state.bots = botResult.bots.map(bot => ({ ...bot, avatar: bot.avatarVersion ? `/api/bots/${encodeURIComponent(bot.id)}/avatar?v=${encodeURIComponent(bot.avatarVersion)}` : '' }))
+    const listedIds = new Set(botResult.bots.map(bot => bot.id))
+    for (const id of state.pendingDeletionIds ?? []) if (!listedIds.has(id)) state.pendingDeletionIds.delete(id)
+    state.bots = botResult.bots.map(bot => ({ ...bot, deletionRequested:state.pendingDeletionIds?.has(bot.id) ?? false, avatar: bot.avatarVersion ? `/api/bots/${encodeURIComponent(bot.id)}/avatar?v=${encodeURIComponent(bot.avatarVersion)}` : '' }))
     state.rooms = roomResult.rooms
     state.owner = ownerResult.owner
     if (state.selected) {
@@ -288,6 +312,8 @@ export function createWebApp({ client = createWebClient() } = {}) {
     }
     renderOwner()
     renderBots()
+    renderCurrentWork(document.querySelector('#current-work-detail'), state.selectedType, state.selected, state.bots)
+    updateSendButton()
     return true
   }
 
@@ -300,24 +326,22 @@ export function createWebApp({ client = createWebClient() } = {}) {
   function openOwnerDialog() { return ownerEditor.open(state.owner) }
 
   function renderBots() {
-    const botRows = newestByRecent(state.bots).map(bot => {
+    const botRows = newestByRecent(state.bots).filter(bot => matchesMemberQuery(bot, rosterSearch.value)).map(bot => {
       const button = document.createElement('button')
       const unread = hasUnreadConversation(bot, 'bot', state.readReceipts[conversationKey('bot', bot.id)])
       button.className = `bot-row${state.selectedType === 'bot' && state.selected?.id === bot.id ? ' active' : ''}${unread ? ' unread' : ''}`
       button.dataset.conversation = conversationKey('bot', bot.id)
       button.type = 'button'
       button.addEventListener('click', () => selectBot(bot))
-      const preview = bot.recent
-        ? (bot.recent.kind === 'peer' ? '他のメンバーと連絡しました' : bot.recent.message || (bot.recent.image ? '画像を送信しました' : ''))
-        : 'まだ会話はありません'
+      const preview = workLabel(bot.currentWork)
       button.innerHTML = `
         <span class="avatar ${escapeClass(bot.color)}" data-avatar>${initials(bot.name)}<i class="presence ${bot.online ? 'online' : ''}"></i></span>
-        <span class="bot-copy"><span class="bot-name">${escapeHtml(bot.displayName)}</span><span class="bot-preview">${escapeHtml(preview)}</span></span>
-        <span class="bot-meta"><time class="bot-time">${formatTime(bot.recent?.at)}</time>${unread ? '<i class="unread-dot" aria-label="未読"></i>' : ''}</span>`
+        <span class="bot-copy"><span class="bot-name">${escapeHtml(bot.displayName)}</span><span class="bot-position">${escapeHtml(bot.position || '役職未設定')}</span><span class="bot-preview">${escapeHtml(preview)}</span>${bot.deleting || bot.deletionRequested ? '<span class="deletion-state">削除を受付・完了未確認</span>' : ''}</span>
+        <span class="bot-meta"><time class="bot-time" title="最終会話の時刻">${formatTime(bot.recent?.at)}</time>${unread ? '<i class="unread-dot" aria-label="未読"></i>' : ''}</span>`
       applyAvatar(button.querySelector('[data-avatar]'), bot)
       return button
     })
-    const roomRows = newestByRecent(state.rooms).map(room => {
+    const roomRows = newestByRecent(state.rooms).filter(room => matchesRoomQuery(room, state.bots, rosterSearch.value)).map(room => {
       const button = document.createElement('button')
       const unread = hasUnreadConversation(room, 'room', state.readReceipts[conversationKey('room', room.id)])
       button.className = `bot-row${state.selectedType === 'room' && state.selected?.id === room.id ? ' active' : ''}${unread ? ' unread' : ''}`
@@ -325,18 +349,21 @@ export function createWebApp({ client = createWebClient() } = {}) {
       button.type = 'button'
       button.addEventListener('click', () => selectRoom(room))
       const recent = room.recent
-      const preview = recent ? `${memberDisplay(recent.sender)}: ${recent.message || (recent.image ? '画像' : '')}` : 'まだ会話はありません'
+      const preview = roomWorkPreview(room, state.bots)
       button.innerHTML = `
         <span class="avatar room-avatar">${initials(room.name)}</span>
-        <span class="bot-copy"><span class="bot-name">${escapeHtml(room.name)}</span><span class="bot-preview">${escapeHtml(preview)}</span></span>
-        <span class="bot-meta"><time class="bot-time">${formatTime(recent?.at)}</time>${unread ? '<i class="unread-dot" aria-label="未読"></i>' : ''}</span>`
+        <span class="bot-copy"><span class="bot-name">${escapeHtml(room.name)}</span><span class="bot-preview room-work-preview">${preview}</span></span>
+        <span class="bot-meta"><time class="bot-time" title="最終会話の時刻">${formatTime(recent?.at)}</time>${unread ? '<i class="unread-dot" aria-label="未読"></i>' : ''}</span>`
       applyAvatar(button.querySelector('.avatar'), room)
       return button
     })
     const roomHeading = document.createElement('p')
     roomHeading.className = 'list-heading'
     roomHeading.textContent = 'ルーム'
-    botList.replaceChildren(...botRows, roomHeading, ...roomRows)
+    const empty = document.createElement('p')
+    empty.className = 'search-empty'
+    empty.textContent = '該当するメンバー・ルームはありません。名前や役職を変えて検索してください。'
+    botList.replaceChildren(...(botRows.length || roomRows.length ? [...botRows, roomHeading, ...roomRows] : [empty]))
   }
 
   async function selectBot(bot) {
@@ -349,8 +376,9 @@ export function createWebApp({ client = createWebClient() } = {}) {
     toggleTargetMenu(false)
     chat.classList.remove('empty')
     app.classList.add('chat-open')
+    renderCurrentWork(document.querySelector('#current-work-detail'), 'bot', bot, state.bots)
     chatName.textContent = bot.displayName
-    chatStatus.textContent = bot.online ? 'オンライン' : '待機中 · 送信時に起動'
+    chatStatus.textContent = bot.online ? 'CLI接続あり' : 'CLI接続なし · 送信時に起動'
     headerAvatar.className = `mini-avatar ${escapeClass(bot.color)}`
     headerAvatar.textContent = initials(bot.name)
     applyAvatar(headerAvatar, bot)
@@ -360,6 +388,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     markConversationRead('bot', bot)
     renderBots()
     await loadMessages(false)
+    if (state.selected?.id === bot.id && state.selectedType === 'bot') animateConversation(timeline)
     updateSendButton()
     messageInput.focus()
   }
@@ -374,6 +403,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     updateSendButton()
     chat.classList.remove('empty')
     app.classList.add('chat-open')
+    renderCurrentWork(document.querySelector('#current-work-detail'), 'room', room, state.bots)
     chatName.textContent = room.name
     chatStatus.textContent = `${room.memberIds.length}人`
     headerAvatar.className = 'mini-avatar room-avatar'
@@ -384,11 +414,13 @@ export function createWebApp({ client = createWebClient() } = {}) {
     markConversationRead('room', room)
     renderBots()
     await loadMessages(false)
+    if (state.selected?.id === room.id && state.selectedType === 'room') animateConversation(timeline)
     updateSendButton()
     messageInput.focus()
   }
 
   function clearSelection() {
+    renderCurrentWork(document.querySelector('#current-work-detail'), null, null, state.bots)
     conversationComposer.clear()
     conversationTimeline.close()
     void goals.select(null)
@@ -506,10 +538,11 @@ export function createWebApp({ client = createWebClient() } = {}) {
   function updateSendButton() {
     conversationComposer.update()
     const stopping = state.selectedType === 'bot' && state.selected && stoppingMembers.has(state.selected.id)
+    const deleting = state.selectedType === 'bot' && (state.selected?.deleting || state.selected?.deletionRequested)
     const busy = state.selectedType === 'bot' && state.selected && conversationTimeline.isBusy(state.selected.id)
-    stopButton.hidden = !busy && !stopping
+    stopButton.hidden = deleting || !busy && !stopping
     stopButton.disabled = Boolean(stopping)
-    sendButton.hidden = Boolean(busy || stopping)
+    sendButton.hidden = !deleting && Boolean(busy || stopping)
     conversationTimeline.updateStops()
   }
 
@@ -579,6 +612,9 @@ export function createWebApp({ client = createWebClient() } = {}) {
       if (state.selectedType === 'bot' && (payload.all || payload.botId === state.selected?.id || payload.botIds?.includes(state.selected?.id)))
         void goals.refreshOnEvent()
       await Promise.all([loadBots(), ...(eventAffectsTimeline(payload, state.selectedType, state.selected?.id) ? [loadMessages()] : [])])
+      if (payload.all || ['ready','schedules','bots','rooms'].includes(payload.type) || payload.topics?.includes('schedules')) {
+        void allSchedules.refresh(); void scheduleEditor.refresh()
+      }
     } catch {
       conversationComposer.showError('表示を更新できませんでした。会話を開き直して確認してください。')
     }

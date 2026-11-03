@@ -85,6 +85,7 @@
     "src/members-facade.mjs",
     "src/members-assembly.mjs",
     "src/members-owner-proxy.mjs",
-    "src/update-module-catalog.mjs"
+    "src/update-module-catalog.mjs",
+    "src/current-work-contract.mjs"
   ]
 }

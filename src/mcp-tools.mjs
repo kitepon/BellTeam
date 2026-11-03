@@ -1,3 +1,4 @@
+import { readCurrentWork, readCurrentWorkBinding, updateWorkSummaryInputSchema } from './current-work-contract.mjs'
 import { usageTools, usageToolHandlers } from './usage/mcp-tools.mjs'
 import { bugHubSecurityTools } from './bughub-security.mjs'
 import { objectSchema, assertKeys } from './mcp-schema.mjs'
@@ -16,6 +17,9 @@ export const bellTeamTools = Object.freeze([
   },
   ...usageTools(objectSchema),
   ...memberReadTools,
+  { name: 'update_work_summary',
+    description: '今の作業段階が変わった時だけ、自分の短い仕事要約を更新する。get_selfのbot.currentWorkBindingをexpectedへそのまま渡す。summaryは前後空白を除き160 Unicode文字までの一行、nullで解除。現在turnへの本人宣言であり作業成功の証明ではない。秘密値や生の配送本文を転記せず、heartbeatや定期AI起動のために呼ばない。競合・取得不能は再送しない。',
+    inputSchema: updateWorkSummaryInputSchema },
   {
     name: 'remember',
     description: '会話から残すべき事実、好み、方針、仕事、関係、思い出、成長を長期記憶へ保存する。scope省略時は自分だけのpersonal。sharedは全Botで共有される。',
@@ -140,7 +144,8 @@ async function runBellTeamTool(context) {
   const { name, arguments: args = {}, from, registry, botView = bot => bot, bugHubSecurity, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, deliverMessage, deliverRoomMessage, listQueued, restart, remove, configure, getModels } = context
   const tool = bellTeamTools.find(item => item.name === name)
   if (!tool) throw new Error(`TOOL_NOT_FOUND: ${name}`)
-  assertKeys(args, Object.keys(tool.inputSchema.properties))
+  try { assertKeys(args, Object.keys(tool.inputSchema.properties)) }
+  catch (error) { if (name === 'update_work_summary') throw Object.assign(new Error('CURRENT_WORK_INPUT_INVALID'), { code: 'CURRENT_WORK_INPUT_INVALID', status: 400 }); throw error }
   await registry.refresh()
   if (!registry.get(from)) throw new Error(`BOT_NOT_FOUND: ${from}`)
   await rooms?.refresh?.()
@@ -148,6 +153,17 @@ async function runBellTeamTool(context) {
   if (name.startsWith('bughub_')) {
     if (!bugHubSecurity) throw new Error('BUGHUB_SECURITY_NOT_CONFIGURED')
     return bugHubSecurity({ name, args, from })
+  }
+  if (name === 'update_work_summary') {
+    if (!context.updateWorkSummary) throw Object.assign(new Error('CURRENT_WORK_UNAVAILABLE'), { code: 'CURRENT_WORK_UNAVAILABLE', status: 503 })
+    const bot = registry.get(from)
+    if (!bot || bot.deleting) throw Object.assign(new Error('CURRENT_WORK_FORBIDDEN'), { code: 'CURRENT_WORK_FORBIDDEN', status: 403 })
+    return context.updateWorkSummary(bot, args)
+  }
+  if (name === 'get_self') {
+    const result = await callMemberTool({ name, args, from, registry, botView, configure, memory, ownerProfile, userRules })
+    const bot = requireBot(registry, from)
+    return { ...result, bot: { ...result.bot, currentWork: readCurrentWork(context, bot), currentWorkBinding: readCurrentWorkBinding(context.currentWorkBinding, bot) } }
   }
   if (name === 'list_models') return getModels(args.harness)
   if ([...memberReadTools, ...memberWriteTools].some(tool => tool.name === name))

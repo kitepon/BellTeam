@@ -13,3 +13,9 @@ export function supportsServerTransport(address) {
   }
   return !host.includes('.') && !/^\d+$/u.test(host)
 }
+
+export function serverDestination(address) {
+  const url = new URL(address)
+  if (url.username || url.password || !supportsServerTransport(address)) throw Error('HTTPS、またはローカル接続のURLを入力してください。資格情報をURLに含めることはできません。')
+  return url.origin
+}

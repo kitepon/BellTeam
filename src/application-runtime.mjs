@@ -66,7 +66,11 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
   const server = createBellTeamServer({ ...serverOptions, authMode: features.authMode, authorize: features.authorize })
   const seatMcp = createSeatMcp({
     bots,
-    toolsForSource: executionSource => internalApi(internalPort, fetch, { executionSource }),
+    toolsForSource: executionSource => ({ ...internalApi(internalPort, fetch, { executionSource }),
+      currentWork: bot => transport.currentWork(bot),
+      currentWorkBinding: bot => transport.currentWorkBinding(bot, executionSource),
+      updateWorkSummary: (bot, input) => transport.updateWorkSummary(bot, input, executionSource),
+    }),
     admitWork: () => aiControl.admit(),
     assertWorkAllowed: () => aiControl.assertEnabled(),
     tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },

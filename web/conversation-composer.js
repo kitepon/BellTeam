@@ -53,9 +53,10 @@ export function createConversationComposer({ input, attachments, error, sendButt
     attachments.hidden = !draft.pendingImages.length
     update()
   }
+  const deleting = value => value?.type === 'bot' && (findTarget?.(value)?.deleting || findTarget?.(value)?.deletionRequested)
   function update() {
     capture()
-    sendButton.disabled = !target || sending.has(key(target)) || !hasInput(draftFor(target))
+    sendButton.disabled = !target || deleting(target) || sending.has(key(target)) || !hasInput(draftFor(target))
     renderRecovery()
   }
   function select(value) {
@@ -123,6 +124,7 @@ export function createConversationComposer({ input, attachments, error, sendButt
   }
   async function send() {
     if (!target) return
+    if (deleting(target)) { showError(target, '削除操作の結果が未確認のため送信できません。入力は残しています。'); return }
     capture()
     const destination = { ...target }
     const current = draftFor(destination)

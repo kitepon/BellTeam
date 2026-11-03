@@ -145,3 +145,12 @@ test('encoding failure never posts and explicit refusal preserves input and reas
   assert.equal(g.input.value, 'declined')
   assert.match(g.error.textContent, /ROOM_REPRESENTATIVE_REQUIRED/)
 })
+
+test('deletion pending disables sends while keeping drafts; a forced submit cannot post', async t => {
+ const f=fixture(t)
+ f.input.value='未送信の入力';f.available[0].deletionRequested=true;f.composer.update()
+ assert.equal(f.sendButton.disabled,true)
+ await f.composer.send();assert.equal(f.calls.length,0);assert.equal(f.input.value,'未送信の入力')
+ f.composer.select(f.b);f.composer.select(f.a);assert.equal(f.input.value,'未送信の入力')
+ assert.match(f.error.textContent,/未確認/)
+})

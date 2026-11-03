@@ -1,3 +1,6 @@
+import { serverDestination } from './server-origin.js?v=__ASSET_VERSION__'
+import { readConversationMotion, conversationMotionKey } from './view-preferences.js?v=__ASSET_VERSION__'
+import { guardEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
 import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
 import { renderFeatureSettings, refreshFeatureSettingsStatus } from './onboarding.js?v=__ASSET_VERSION__'
@@ -10,10 +13,40 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
   const xUrl = find('owner-x-url'), githubUrl = find('owner-github-url'), ownerLinks = find('owner-links')
   const error = find('owner-form-error'), rulesInput = find('user-rules'), saveButton = dialog.querySelector('button[form="owner-form"]')
   const aiControl = aiControlView(find('ai-control'), api)
-  const avatar = createAvatarEditor({ applyAvatar, initials, escapeClass,
+  const avatar = createAvatarEditor({ onChange: () => { editRevision++ }, applyAvatar, initials, escapeClass,
     fileInput: find('owner-avatar-file'), preview: find('owner-avatar-preview'), cropEditor: find('owner-crop-editor'),
     canvas: find('owner-avatar-crop'), zoom: find('owner-avatar-zoom'), nameInput: name, fallback: 'O', error })
+  for (const button of dialog.querySelectorAll('[data-settings-section]')) button.addEventListener('click', () => {
+    find(button.dataset.settingsSection).scrollIntoView({ behavior:'smooth', block:'start' })
+  })
+  find('conversation-motion').addEventListener('change', () => {
+    try { localStorage.setItem(conversationMotionKey, find('conversation-motion').value); find('motion-status').textContent = 'このブラウザーに保存しました。会話を開き直すと反映します。' }
+    catch { find('motion-status').textContent = 'このブラウザーに設定を保存できませんでした。' }
+  })
+  find('server-open').addEventListener('click', () => {
+    try {
+      const destination = serverDestination(find('server-address').value)
+      window.open(destination, '_blank', 'noopener,noreferrer')
+      find('server-error').textContent = '別のサーバーを開きます。開かない場合はブラウザーのポップアップ設定を確認してください。'
+    } catch { find('server-error').textContent = 'HTTPS、またはローカル接続のURLを入力してください。ユーザー名やパスワードは含めないでください。' }
+  })
+  find('notification-refresh').addEventListener('click', () => { void refreshNotification() })
+  async function refreshNotification() {
+    const opened = owner
+    if (!opened || !dialog.open) return
+    const read = opened.notificationRead = (opened.notificationRead ?? 0) + 1
+    const status = find('notification-status')
+    status.textContent = '通知の設定を確認しています…'
+    try {
+      const result = await api('/api/notifications')
+      if (owner !== opened || opened.notificationRead !== read) return
+      if (typeof result.configured !== 'boolean' || !Array.isArray(result.environments)) throw Error('INVALID_NOTIFICATION_STATUS')
+      status.textContent = result.configured ? 'Appleアプリ向けの通知が設定されています。' : 'Appleアプリ向けの通知は未設定です。'
+      if (result.error) status.textContent += ' 通知サーバーでエラーが発生しています。'
+    } catch { if (owner === opened && opened.notificationRead === read) status.textContent = '通知の設定を取得できませんでした。更新して確認してください。' }
+  }
   let owner = null, saving = null, editRevision = 0, harnessAuthSection = null
+  guardEditorClose(dialog, () => Boolean(owner && (editRevision !== owner.initialRevision || avatar.changed())), () => Boolean(owner && saving === owner))
   form.addEventListener('submit', save)
   form.addEventListener('input', () => { editRevision++ })
   form.addEventListener('change', () => { editRevision++ })
@@ -47,6 +80,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
     }
     if (opened !== owner || read !== opened.featureRead) return
     onSettings(settings, session.authMode)
+    find('access-logout').hidden = session.authMode !== 'cloudflare'
     find('connection-mode').textContent = session.authMode === 'cloudflare' ? 'Cloudflare Accessで認証済み' : 'ローカル接続'
     if (opened.featuresRendered) refreshFeatureSettingsStatus(opened.features, settings)
     else {
@@ -66,6 +100,11 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
     harnessAuthSection = null
     void aiControl.refresh()
     form.reset()
+    find('conversation-motion').value = readConversationMotion()
+    find('motion-status').textContent = 'このブラウザーだけに適用します。端末の視覚効果を減らす設定を優先します。'
+    find('server-address').value = globalThis.location?.origin ?? ''
+    find('server-error').textContent = ''
+    find('access-logout').hidden = true
     saveButton.disabled = true
     rulesInput.disabled = true
     error.textContent = ''
@@ -75,7 +114,9 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
     githubUrl.value = profile.githubUrl ?? ''
     renderOwnerLinkRows(profile.links ?? [])
     avatar.reset(profile.avatar)
+    owner.initialRevision = editRevision
     if (!dialog.open) dialog.showModal()
+    void refreshNotification()
     const initialRules = rulesInput.value
     try {
       const result = await api('/api/user-rules')
@@ -101,6 +142,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
   async function save(event) {
     event.preventDefault()
     if (!owner || !owner.rulesLoaded || saving === owner) return
+    if (avatar.pending()) { error.textContent = '写真を読み込んでいます。表示を確認してから保存してください。'; return }
     const opened = owner, revision = editRevision
     const profile = {
       name: name.value.trim(), profile: description.value, avatar: avatar.value(), xUrl: xUrl.value.trim(), githubUrl: githubUrl.value.trim(),

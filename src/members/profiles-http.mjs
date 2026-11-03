@@ -1,3 +1,4 @@
+import { readCurrentWork } from '../current-work-contract.mjs'
 import { json, readJson } from '../http-response.mjs'
 import { recentTimeline } from '../timeline-index.mjs'
 import { avatarVersion, listAvatar, sendAvatar } from '../http-assets.mjs'
@@ -52,6 +53,7 @@ export function createMemberProfileApi({ bots, transport, administration, memory
         const state = listingState(item.id)
         if (state === 'absent') continue
         if (state === 'pending') { item.deleting = true; item.online = false }
+        item.currentWork = readCurrentWork(transport, state === 'active' ? bots.get(item.id) : null)
         current.push(item)
       }
       return json(response, 200, { bots: current })

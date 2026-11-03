@@ -1,0 +1,79 @@
+{
+  "currentWork": {
+    "workingCurrent": {
+      "state": "working",
+      "summary": "共通APIの接続を確認しています。",
+      "summaryStatus": "current",
+      "summaryUpdatedAt": "2026-11-03T17:59:00+09:00",
+      "observedAt": "2026-11-03T18:00:00+09:00",
+      "source": "self_reported"
+    },
+    "workingMissing": {
+      "state": "working",
+      "summary": null,
+      "summaryStatus": "missing",
+      "summaryUpdatedAt": null,
+      "observedAt": "2026-11-03T18:00:00+09:00",
+      "source": null
+    },
+    "workingStale": {
+      "state": "working",
+      "summary": null,
+      "summaryStatus": "stale",
+      "summaryUpdatedAt": "2026-11-03T17:40:00+09:00",
+      "observedAt": "2026-11-03T18:00:00+09:00",
+      "source": "self_reported"
+    },
+    "idle": {
+      "state": "idle",
+      "summary": null,
+      "summaryStatus": "missing",
+      "summaryUpdatedAt": null,
+      "observedAt": "2026-11-03T18:00:00+09:00",
+      "source": null
+    },
+    "unknownNoObservation": {
+      "state": "unknown",
+      "summary": null,
+      "summaryStatus": "missing",
+      "summaryUpdatedAt": null,
+      "observedAt": null,
+      "source": null
+    },
+    "unknownLastObservation": {
+      "state": "unknown",
+      "summary": null,
+      "summaryStatus": "missing",
+      "summaryUpdatedAt": null,
+      "observedAt": "2026-11-03T17:59:00+09:00",
+      "source": null
+    }
+  },
+  "roomCurrentWork": {
+    "scope": "participants",
+    "members": [
+      {
+        "botId": "bot-example-one",
+        "currentWork": {
+          "state": "working",
+          "summary": "共通APIの接続を確認しています。",
+          "summaryStatus": "current",
+          "summaryUpdatedAt": "2026-11-03T17:59:00+09:00",
+          "observedAt": "2026-11-03T18:00:00+09:00",
+          "source": "self_reported"
+        }
+      },
+      {
+        "botId": "bot-example-two",
+        "currentWork": {
+          "state": "idle",
+          "summary": null,
+          "summaryStatus": "missing",
+          "summaryUpdatedAt": null,
+          "observedAt": "2026-11-03T18:00:00+09:00",
+          "source": null
+        }
+      }
+    ]
+  }
+}

@@ -129,3 +129,7 @@ flowchart TD
 `mutate`はBotとbindingを固定し、失敗時は一回GETだけ。finallyも同bindingの場合だけ照合し、別thread/unknownを古い結果で置換しない。combined=falseなら目的と予算を別々に編集し、空予算を消去へ変換しない。Goal・秘密・質問・認証は既存専用部品をそのまま使う。
 
 確認先：editor-ownership、web-bot-avatar-list、bot-profile-ui、schedule-list/intervals、memory-view、bot-read-views、goals各試験。実dialog DOM＋人工APIで保存中の再open/部分成功も確認した。追加の一覧・未読規範・任意機能反例も局所修理を確認した。局所の成功を全体の完成へ広げない。
+
+## 検索・編集の改善
+
+[Apple対応表と担当図](apple-parity.md#検索と編集の状態所有)に検索の入力/選択保持/未保存確認を接続する。既editorの保存順・世代・部分成功契約内で実装し、サーバーAPI/保存形式は変更しない。
