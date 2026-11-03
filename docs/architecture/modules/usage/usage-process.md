@@ -174,3 +174,30 @@ Epi固定`00a0dd59`の`createUsageProcess`/`prepareModuleRelease`を親公開口
 親onEffectで受け取る同root contextはAsyncLocalStorage等の親closureで保持する。設定applyからのusageContext(method)は、live effect中なら同usageLease/usageEffect＋system method限定opaqueを返し、controller.callbackへ渡す。親admission閉鎖中に別rootを作らない。通常入口は新opaqueを同admissionのrootへ結び、実completion後にreleaseする。新結合試験は実createApplicationFeaturesの停止失敗を交換drain中に返し、同root callbackのerror/epochがhot handoffを越えることを確認する。
 
 検証のinstalled reader正例/署名配置はCentiの実物工程に残す。新試験で実readerを呼ぶのは未配置版の拒否境界であり、旧process/PIDとavailableを保持する。正例の交換・戻しは明示descriptor DIと実Node IPC/既factory/親facadeで行い、固定C/UID1001/実署名/本番の成立に補完しない。
+
+## 同image交換のusage業務fixture
+
+Centiの限定handoffで`test/helpers/usage-native-business.mjs:createUsageNativeFixture({root,spawnProcess})`をusageが所有する。返却はcontroller/start/replace/verify/close/snapshot。既createUsageAssembly→実createUsageProcess/default prepareModuleReleaseを使い、署名descriptorやprovider/path/envの製品DIを追加しない。人工の閉effectだけが認証receipt/設定適用/通知受付を担当する。
+
+```mermaid
+sequenceDiagram
+  participant Outer as Centi root配置 / 固定C観測 / driver
+  participant Fixture as usage業務fixture / 安定facade
+  participant Runtime as 同controller / default reader
+  participant Child as 同source usage writer
+  Outer->>Fixture: start（settings→subscriptions→services→activate）
+  Fixture->>Child: 人工設定 / 秘密提出 / auth session
+  Outer->>Fixture: replace（署名SHA、後にbuiltin）
+  Fixture->>Child: 設定保存 / 親effectを保留
+  Fixture->>Runtime: 同controller.replace(target)
+  Runtime->>Runtime: default reader→quiescing
+  Fixture->>Child: 同lease callbackでcaptured epoch error保存
+  Fixture->>Runtime: effect / root実completion終端
+  Runtime->>Child: export→旧OS/IPC/pipe終端→restore
+  Fixture->>Fixture: 最新設定/epoch/error/秘密値/通知一回/session保持をassert
+  Outer->>Outer: root/UID1001/C/lock/readonly/親gateway保持/cleanupを検査
+```
+
+snapshot/verifyの返却は有限のassert結果・counterだけで秘密値/path/auth receiptを含めない。ローカル直接試験は実Node IPCとdefault reader未配置拒否まで。signed正例と固定C/両native受入をその試験から主張しない。外側workflow/driver/署名fetch/rootprepare/cleanupはCentiが所有する。
+
+fixtureは通常nativeと同じseatRuntime:trueでonboarding/subscriptionをstateへ保存する。各replaceの設定更新は旧世代で受付し、quiescing中に同lease error callbackまで終端する。新世代restore後に行うのは同期投影/秘密ファイルreadと人工auth.status（メモリreceiptだけ）で、追加業務保存を発行しない。外側が旧close時のregular file bytes/mode/mtimeをreplace返却直後に照合する。
