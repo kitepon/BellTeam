@@ -115,7 +115,7 @@ sequenceDiagram
   Note over S,P: 失敗・不明も自動再発行しない
 ```
 
-- claimは新IDやqueueを作らず、既`ownerKind/ownerId/schedule.id/revision/nextRunAt`で照合。競合編集・skip・削除・先行claim後はfalseで発行0。revisionは編集世代のまま、発行で勝手に増やさない。
+- claimは新IDやqueueを作らず、既`ownerKind/ownerId/schedule.id/revision/nextRunAt`で照合。競合編集・skip・削除・先行claim後はnullで発行0。revisionは編集世代のまま、発行で勝手に増やさない。
 - Botはmembers、RoomはRoomRegistryの既mutateSchedules内に実装。有限ranAtと期限到来も検証する。removeBotのtargets整理はrevisionを増やさないため、list時の古いprompt/targetsを使わずclaim時の最新snapshotを発行する。claim後の参加者変更も既RoomMessengerで検証する。返却はno-opの`null`又は消化前の最新schedule snapshot。保存ACK不明時は発行しない。同じ要求の自動再送や、読取りだけで前回の発行権を再構成しない。未終端のclaimが残る間は次の同一回を進めず、交換のdrainにも含める。次tickも消化した同一回を自動再発行しない。
 - 保存後・発行前の死亡では一回分が未配送になる。この案は**一回までの発行**を優先し、必達/ちょうど一回を約束しない。lastRunAtは配送成功時刻ではなく試行時刻という既意味を明記し、判明した未発行/unknownを診断へ残す。電源断耐久性は既writeAtomicの限界を超えた保証にしない。
 - AI停止を先に検出した場合はclaim0。claim後に停止世代が変わればnative/command発行0・その一回分は再送せず停止結果を残す。親admissionは既AiControlの世代検証を保持し、子に別paused正本を置かない。
@@ -172,6 +172,8 @@ stateDiagram-v2
 現在の通知/Update Hostの進行はこの設計の待ち条件にしない。契約入力の返却で終わらず、固定後は担当内部実装→必要境界試験→モリー通常main→センチ同source署名/実物受入→結果照合まで継続する。
 
 ## 必要な限定検証
+
+既試験の再利用、停止位置、担当ごとのassertは[境界試験計画](module-update-tests.md)を参照する。
 
 - 同時profile/session更新、Bot退役と予定編集/空file生成、Owner更新/生成の部分失敗、全writerが一つであること。
 - Room claimの競合編集/削除/同じtuple二要求、保存ACK喪失は発行0、claim後発行結果不明の再送0、global pauseの前後、resume skipのrevision保持。
