@@ -4,6 +4,7 @@ import { createSeatProcessRunner } from './seat-process.mjs'
 import { readImageBytes } from './message-assets.mjs'
 import { createSeatStreamRunner } from './seat-stream.mjs'
 import { validateMembersProjectRequest } from './members-project-files.mjs'
+import { createMemoryProcess } from './memory-process.mjs'
 
 export const SEAT_PROJECT_METHODS = ['ensureRoot', 'claim', 'initialize', 'remove', 'writeInstructions', 'prepareStartupContext', 'appendInstructions']
 export const SEAT_MEMORY_METHODS = ['initialize', 'ensureScope', 'remember', 'reviseMemory', 'pinMemory', 'consolidateGrowth', 'recallMemory', 'recordKnowledge', 'searchKnowledge', 'rebuildKnowledgeIndex']
@@ -20,6 +21,7 @@ export class SeatRuntime {
     this.home = home
     this.run = run
     this.stream = stream
+    this.memoryModule = createMemoryProcess({ root, run })
     this.projectFiles = Object.fromEntries(SEAT_PROJECT_METHODS.map(method =>
       [method, (...args) => this.call('project', { method, args })]))
   }
@@ -93,8 +95,7 @@ export class SeatRuntime {
   }
 
   memory(registry) {
-    return Object.fromEntries(SEAT_MEMORY_METHODS.map(method => [method, (...args) =>
-      this.call('memory', { method, args: method === 'ensureScope' ? args : args[0], profiles: memoryProfiles(registry, method, args) })]))
+    return this.memoryModule.memory(registry)
   }
 
   async readImage(image, maxBytes) {
@@ -118,12 +119,4 @@ export class SeatRuntime {
         [fileURLToPath(new URL('./run-seat-character-sheet.mjs', import.meta.url))], { project: projectPath(botId), file }, options),
     }
   }
-}
-
-function memoryProfiles(registry, method, args) {
-  if (method === 'initialize') return projects(registry)
-  const { botId, scope } = method === 'ensureScope' ? { botId: args[0], scope: args[1] } : args[0] ?? {}
-  if (scope === 'shared') return []
-  const bot = registry.get(botId)
-  return bot ? [{ id: bot.id, project: bot.project }] : []
 }
