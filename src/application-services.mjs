@@ -150,7 +150,8 @@ export async function createApplicationServices({ root, aiterm, bots, ownerProfi
   conversationPorts.transport = transport
   if (conversationAssembly) await conversationAssembly.initialize()
   const conversation = conversationAssembly ? { ...conversationAssembly.facade, assets: conversationAssembly.assets }
-    : createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime, seatObservation: !execution })
+    : createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime, seatObservation: !execution,
+      onLogCorruption: report => diagnostics.record({ code: report.code, module: 'conversation', diagnostic_log: JSON.stringify(report) }) })
   const { store, messenger } = conversation
   if (conversationAssembly) {
     store.watch = listener => conversationAssembly.watch(listener)

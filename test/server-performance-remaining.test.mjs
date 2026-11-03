@@ -170,12 +170,14 @@ test('known Bot schedule writes include schedules and the Bot destination',async
  assert.equal(changed?.all,false);assert.deepEqual(changed.topics,['schedules']);assert.deepEqual(changed.botIds,['bot-a'])
 })
 
-test('invalid direct batches never partly update visible rows; unknown status targets stay global',async t=>{
+test('corruption: invalid direct lines report diagnostics while valid status rows and global reconciliation survive',async t=>{
  const root=await temp(t),path=join(root,'direct.jsonl')
  await writeFile(path,line(direct('a')))
- const store=new ConversationStore({logPath:path});const before=await store.timeline('bot-a')
+ const diagnostics=[]
+ const store=new ConversationStore({logPath:path,onCorruption:value=>diagnostics.push(value)});const before=await store.timeline('bot-a')
  await appendFile(path,line({schema:'bellteam.delivery-status.v1',delivery_id:'a',delivery:'failed'})+'{broken}\n')
- for(let i=0;i<2;i++)await assert.rejects(store.timeline('bot-a'),/MESSAGE_LOG_INVALID: line 3/)
+ for(let i=0;i<2;i++)assert.equal((await store.timeline('bot-a'))[0].delivery,'failed')
+ assert.equal(diagnostics.length,1);assert.equal(diagnostics[0].line,3)
  assert.equal(before[0].delivery,'running')
  await writeFile(path,line(direct('a')))
  await store.timeline('bot-a')

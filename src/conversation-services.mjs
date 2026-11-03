@@ -11,11 +11,11 @@ import { checkObserverProjects } from './observer-check.mjs'
 import { chooseRoomResponder } from './room-routing.mjs'
 
 // 最初に直接会話を接続し、初期案内の初期化後に観測と部屋を初期化する。
-export function createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime = null, seatObservation = true,
+export function createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime = null, seatObservation = true, onLogCorruption,
   readRemovalStates = () => bots.readRemovalStates() }) {
   let turnReports
   const logPath = join(root, 'logs/direct-messages.jsonl')
-  const store = new ConversationStore({ logPath })
+  const store = new ConversationStore({ logPath, onCorruption: onLogCorruption })
   const assets = new MessageAssets({ root, readRemovalStates, ...(seatRuntime ? {
     botsAssetsRoot: join(root, 'state/bots'),
     readImage: (image, maxBytes) => seatRuntime.readImage(image, maxBytes),

@@ -7,6 +7,7 @@
 ## 内部図の正本
 
 - [独立processの業務境界と状態互換](process.md)（固定契約v1に沿って実装中）
+- [クラッシュ後の直接JSONL追記境界](log-append.md)
 
 - [会話・履歴・SSEの流れ](flow.md)
 - [受付と回答所有、保存画像、部屋の配送](delivery.md)

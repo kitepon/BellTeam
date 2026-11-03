@@ -1,4 +1,4 @@
-import { appendFile, mkdir } from 'node:fs/promises'
+import { mkdir, open } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { returnedMcpError } from './returned-mcp-error.mjs'
 import { deliveryTracking } from './delivery-tracking.mjs'
@@ -21,11 +21,30 @@ export class ConversationWriter {
     this.deliveryId = id
     this.onMessage = onMessage
     this.failureFields = failureFields
+    this.appendQueue = Promise.resolve()
   }
 
   async append(record) {
-    await mkdir(dirname(this.logPath), { recursive: true })
-    await appendFile(this.logPath, `${JSON.stringify(record)}\n`, { mode: 0o600 })
+    const line = `${JSON.stringify(record)}\n`
+    const saved = this.appendQueue.then(async () => {
+      await mkdir(dirname(this.logPath), { recursive: true })
+      const file = await open(this.logPath, 'a+', 0o600)
+      try {
+        const { size } = await file.stat()
+        let separator = ''
+        if (size) {
+          const tail = Buffer.alloc(1)
+          const { bytesRead } = await file.read(tail, 0, 1, size - 1)
+          if (bytesRead !== 1) throw new Error('MESSAGE_LOG_TAIL_CHANGED')
+          // Preserve a crash fragment verbatim, but never join the next record to it.
+          if (tail[0] !== 0x0a) separator = '\n'
+        }
+        await file.writeFile(separator + line)
+        await file.sync()
+      } finally { await file.close() }
+    })
+    this.appendQueue = saved.catch(() => {})
+    await saved
     await this.onMessage(record)
   }
 
