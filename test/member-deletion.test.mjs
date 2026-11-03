@@ -124,7 +124,10 @@ test('202 deletion retains one parent lease through stop, cleanup and final call
   assert.deepEqual(await startMemberRemoval('bot-b', {
     bots: f.bots, rooms: { removeBot: async () => {} }, writeLog: () => {}, onRemoved: () => removed.release(),
     transport: { membersAdmission: { enter: () => lease, finish: value => { assert.equal(value, lease); finished++ } },
-      async stop(bot, options) { contexts.push(options.membersLease); stopped.release(); await release.promise } },
+      async stop(bot, version = 7, options = {}) {
+        assert.equal(version, 7, 'second argument must remain the native stop version')
+        contexts.push(options.membersLease); stopped.release(); await release.promise
+      } },
   }), { deleting: 'bot-b' })
   await stopped.promise
   assert.equal(finished, 0)

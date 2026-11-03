@@ -45,7 +45,7 @@ export async function startMemberRemoval(botId, { bots, rooms, transport, writeL
   }
   void (async () => {
     if (bot) {
-      await transport.stop(bot, options)
+      await transport.stop(bot, undefined, options)
       await rooms.removeBot(botId)
     }
     const result = await bots.remove(botId, options)
