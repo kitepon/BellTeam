@@ -72,4 +72,4 @@ RoomRegistryのlist/set/remove/mark/read/write予定窓口、schedule-definition
 
 直接境界の確認先はconversation-module、messenger、mcp-tools/seat-mcp、room-messenger/routing/registry、delivery-recovery、call-bridge-server、message-assets、conversation-store/export、http-server/events、server-history-performance、self-turns/turn-reports、application-runtime、launch-action-required、execution-source。全試験と実席操作を定型の完了条件に加えない。
 
-SelfTurnsの変更検知はThroughline公開observer-checkと既observer-readを使用する。project/checkToken/read cursor/seen/pendingと保存/取消の正本は[自主回答の図](observation.md)。席側runtimeの旧DB/WAL署名窓口はruntime担当の同接続差分で除去し、consumerと同時結合する。Throughline内部のsource解析は製品が所有する。
+SelfTurnsの変更検知はThroughline公開observer-checkと既observer-readを使用する。project/checkToken/read cursor/seen/pendingと保存/取消の正本は[自主回答の図](observation.md)。席側runtimeの旧DB/WAL署名窓口もruntime担当の差分で除去し、consumerと同時結合した。Throughline内部のsource解析は製品が所有する。

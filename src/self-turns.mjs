@@ -104,7 +104,7 @@ export class SelfTurns {
 
   stateFor(bot) {
     const current = this.state[bot.id]
-    if (current?.project === bot.project) return current
+    if (current && (current.project === undefined || current.project === bot.project)) return current
     return this.state[bot.id] = { project: bot.project, cursor: null, seen: [], lastCompletedAt: null, checkToken: null }
   }
 
@@ -149,18 +149,22 @@ export class SelfTurns {
 
   async consume(bot, token, signal) {
     const current = this.stateFor(bot)
-    const cursor = current.cursor, checkToken = current.checkToken
+    const cursor = current.cursor, checkToken = current.checkToken, project = current.project
     this.pending.add(bot.id)
     try {
       this.assertCurrent(bot, signal)
       const complete = await this.follow(bot, signal)
       this.assertCurrent(bot, signal)
-      if (complete && token !== undefined) current.checkToken = token
+      if (complete) {
+        current.project = bot.project
+        if (token !== undefined) current.checkToken = token
+      }
       await this.save(signal)
       if (complete) this.pending.delete(bot.id)
     } catch {
       current.cursor = cursor
       current.checkToken = checkToken
+      current.project = project
       if (!signal.aborted) this.report(`BellTeam self turns: ${bot.id} OBSERVER_CONSUME_FAILED`)
     }
   }
@@ -176,6 +180,8 @@ export class SelfTurns {
       const result = await this.read({ project: bot.project, afterCursor: current.cursor, throughCursor, pageToken }, { signal })
       this.assertCurrent(bot, signal)
       if (result.status === 'resync_required') {
+        // Legacy state has no project association; let the public cursor check it before binding.
+        if (current.project === undefined) return this.reset(bot, signal)
         this.report(`BellTeam self turns: ${bot.id} の読んだ位置が古くなったので、今の位置から読み直します`)
         return this.resync(bot, current, signal)
       }

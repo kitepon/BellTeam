@@ -205,21 +205,38 @@ test('whole invalid results are never partially adopted; unknown read status and
   }
 })
 
-test('old projectless state and project changes reset without old cursor/token or past answers; deletion starts no read', async t => {
+test('legacy read cursor is retained and bound only after public read succeeds; foreign legacy cursor resets', async t => {
+  for (const foreign of [false, true]) {
+    const f = await fixture(t)
+    delete f.service.state.b0.project
+    delete f.service.state.b0.checkToken
+    f.service.check = async r => { assert.equal(r.projects[0].after, null); return changed(r) }
+    f.service.read = async r => {
+      f.reads.push([r])
+      if (r.afterCursor) {
+        assert.equal(r.afterCursor, 'c1')
+        return foreign ? { status: 'resync_required' } : page('c2', [turn('new')])
+      }
+      return page('c3', [turn('past')], { status: 'snapshot' })
+    }
+    await f.service.poll()
+    assert.deepEqual(f.answers.map(x => x[2]), foreign ? [] : ['new'])
+    assert.equal(f.reads.length, foreign ? 2 : 1)
+    assert.equal((await f.saved()).b0.project, '/fixture/0')
+    assert.equal((await f.saved()).b0.checkToken, 'tloc1.new')
+  }
+})
+
+test('project changes reset without old cursor/token or past answers; deletion starts no read', async t => {
   const f = await fixture(t)
-  delete f.service.state.b0.project
-  f.service.check = async r => { assert.equal(r.projects[0].after, null); return changed(r) }
-  f.service.read = async r => { assert.equal(r.afterCursor, undefined); return page('c2', [turn('past')], { status: 'snapshot' }) }
-  await f.service.poll()
-  assert.equal(f.answers.length, 0)
   f.service.check = async r => { f.bots.set('b0', { id: 'b0', project: '/new-project' }); return changed(r) }
   f.service.read = () => assert.fail('old project response must not read')
   await f.service.poll()
   f.service.check = async r => { assert.equal(r.projects[0].after, null); return changed(r) }
-  f.service.read = async r => { assert.equal(r.afterCursor, undefined); assert.equal(r.project, '/new-project'); return page('c3', [], { status: 'snapshot' }) }
-  // The project-change failure is retried as pending and excluded from check.
+  f.service.read = async r => { assert.equal(r.afterCursor, undefined); assert.equal(r.project, '/new-project'); return page('c3', [turn('past')], { status: 'snapshot' }) }
   await f.service.poll()
   assert.equal((await f.saved()).b0.project, '/new-project')
+  assert.equal(f.answers.length, 0)
   f.service.check = async r => { f.bots.delete('b0'); return changed(r) }
   f.service.read = () => assert.fail('deleted bot')
   await f.service.poll()

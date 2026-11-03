@@ -31,7 +31,7 @@ flowchart TD
 | --- | --- | --- |
 | SeatTurnsのtimer/running/supported | `start/poll/stop → transport.watchSeatTurns`。未対応返却ならpoll終了 | RPC失敗はlog後に次poll。未対応を故障と混ぜない |
 | SeatActivityのwatches/followedTurns/shownWords | `watchSeatTurns/watchTurn/beginWatch/endWatch`。取得前後の停止世代一致、idle、未追跡turnのみ開始 | nullは未知なので既watch継続。idle/別turn確認でend。wait異常は安全な途中経過またはstderrへ。回答はここで取得しない |
-| SelfTurnsのcursor/seen/lastCompletedAt | `poll/follow/accept/save`。project/checkTokenと独立read cursor、source_sha256直近500件を所有 | 開始時pendingを先行readし同巡checkから除外。初回/旧stateのproject不明/同IDのproject変更はresetし過去本文を再表示しない |
+| SelfTurnsのcursor/seen/lastCompletedAt | `poll/follow/accept/save`。project/checkTokenと独立read cursor、source_sha256直近500件を所有 | 開始時pendingを先行readし同巡checkから除外。初回/同IDの既知project変更はresetし過去本文を再表示しない。旧stateのcursorは公開readが検証し、成功後にprojectを束縛、旧cursorが無効ならresetする |
 | Throughlineのページ | `readObserverTurns`。wire v2、after/through cursor、page token | projection_pendingは読み残しとして次poll、errorはそのBotをlog。他Bot処理は続行 |
 | 古いcursor | `resync` | 最後に読んだ時刻より新しい分を受ける。返る直近会話/100件の範囲外を復元したとは言わない |
 | 重複表示 | `withoutShownWords` | 既表示語が全て同順のprefix、同ターンとみなす60秒内、残文ありの時だけ除く。不一致なら全回答を保持 |
@@ -41,7 +41,7 @@ flowchart TD
 
 全対象のid一意/UTF8 bytes・絶対project/after bytesを検証し、件数と符号化後bytesの両方で分割する。単一項目超過は明示失敗、切捨て/空chunkなし。失敗時の例外本文/任意path/stdioを画面へ流さず固定分類だけをlogへ出す。
 
-checkは共通rootの既runnerをbase環境で使い、readは各projectの既接続を使う。stdinはJSON+EOF、AbortSignalはoptions、合計16MiB既上限/nonzero拒否/stdio close後回収はruntime契約を保持。停止後に次の起動をしない。runtimeの旧signature窓口除去は担当差分と同時結合する。製品契約/内部図はThroughline担当の正本へ辿り、正式package/公開/本番の成立は固定開発候補の受領とは分ける。
+checkは共通rootの既runnerをbase環境で使い、readは各projectの既接続を使う。stdinはJSON+EOF、AbortSignalはoptions、合計16MiB既上限/nonzero拒否/stdio close後回収はruntime契約を保持。停止後に次の起動をしない。runtimeの旧signature窓口除去は担当差分と同時結合した。製品契約/内部図はThroughline担当の正本へ辿り、正式package/公開/本番の成立は固定開発候補の受領とは分ける。
 
 この二つは観測元も責任も違う。新しい共通poll managerを作る理由にはならない。Throughline内部やAiterm内部のターン判定は、公開返却との境界で留める。
 
