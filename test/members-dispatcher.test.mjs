@@ -7,6 +7,7 @@ import { BotRegistry } from '../src/bot-registry.mjs'
 import { OwnerProfile } from '../src/owner-profile.mjs'
 import { UserRules } from '../src/user-rules.mjs'
 import { createMembersDispatcher } from '../src/members/dispatcher.mjs'
+import { GUIDE_BOT_ID } from '../src/onboarding.mjs'
 import { validateMembersRequest, validateMembersEffect, validateMembersEffectResult } from '../src/members/protocol.mjs'
 const context = Object.freeze({ generation: 'test', leaseId: 'lease', rootId: 'root', ownerWrite: false, continuation: false })
 const initial = Object.freeze({ ...context, leaseId: null })
@@ -175,4 +176,16 @@ test('trusted old-lease root continuation can fresh-read and prepare startup dur
   assert.throws(() => f.dispatcher.validateCallback('profile.startup', { botId: 'bot-a', shortTermMemory: '' }, continued))
   release.resolve(); await updating
   assert.deepEqual(await quiescing, { quiesced: true })
+})
+
+test('internal onboarding create preserves only the existing literal guide ID', async t => {
+  const f = await fixture(t)
+  const input = { name: 'Synthetic guide', harness: 'grok' }
+  assert.throws(() => f.dispatcher.validateRequest('profile.create', { input, id: 'bot-other' }, context))
+  assert.equal(GUIDE_BOT_ID, 'bot-guide')
+  const guide = await f.request('profile.create', { input, id: GUIDE_BOT_ID })
+  assert.equal(guide.bot.id, GUIDE_BOT_ID)
+  const ordinary = await f.request('profile.create', { input })
+  assert.notEqual(ordinary.bot.id, GUIDE_BOT_ID)
+  assert.match(ordinary.bot.id, /^bot-/u)
 })

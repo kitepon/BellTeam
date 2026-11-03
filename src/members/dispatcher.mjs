@@ -117,7 +117,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
       case 'profile.remove': return bots.remove(params.botId)
       case 'profile.update': return { bot: await bots.update(params.botId, params.changes) }
       case 'profile.create': {
-        const bot = await bots.create(params.input)
+        const bot = await bots.create(params.input, params.id === undefined ? {} : { id: params.id })
         await call('memory.ensureScope', { botId: bot.id })
         return { bot }
       }

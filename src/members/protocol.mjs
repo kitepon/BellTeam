@@ -50,7 +50,7 @@ export function validateMembersContext(context, { initialize = false } = {}) {
 
 const requests = {
   'profiles.read': value => empty(value), 'profile.read': value => object(value, { botId: id }),
-  'profile.create': value => object(value, { input: create }),
+  'profile.create': value => object(value, { input: create, id: value => { if (value !== 'bot-guide') fail() } }, ['input']),
   'profile.preview': value => object(value, { botId: id, changes }),
   'profile.update': value => object(value, { botId: id, changes }),
   'profile.startup': value => object(value, { botId: id, shortTermMemory: body }),

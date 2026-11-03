@@ -72,6 +72,10 @@ contextを固定5field `{generation,leaseId,rootId,ownerWrite,continuation}`へ�
 
 旧leaseのfresh profiles.read/profile.startupは外部effectを持ち得るroot継続であり、汎用callbackへ移さない。session/fast/profiles.cliの専用callbackは従来どおりeffect再帰0。新rootは親enterとchild通常gateで拒否、5fieldは逆effect/projectionの相関でも捕捉・照合する。Molly facadeは同opaqueを渡すだけで自己申告flagを増やさない。Epiが実channel側を担当、当席はprotocol/dispatcherと同lease読取→startupの限定反例を担当する。
 
+### 既初期案内の固定ID（第八差分）
+
+profile.createは`{input,id?:'bot-guide'}`へ更新。idは親Onboarding.ensureGuideの既GUIDE_BOT_IDからだけ渡す内部optionで、通常HTTP/MCP入力の中へidを追加しない。他の任意ID・input.idは拒否し、省略時は既BotRegistryのID生成を使う。childは検証済みliteralだけ既createの第2引数へ渡し、親Onboarding/facadeをimportしない。案内ID自体や新権限の追加ではない。
+
 ## 現状と初回の分離
 
 ```mermaid
