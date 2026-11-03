@@ -7,10 +7,17 @@ import { messageImages, MESSAGE_MAX_BYTES } from './http-messages.mjs'
 export function createRoomApi({ bots, rooms, transport, sources, messagePage, roomMessenger }) {
   return async (request, response, url) => {
     if (request.method === 'GET' && url.pathname === '/api/rooms') {
-      await rooms.refresh()
-      const histories = await Promise.all([...rooms.values()].map(async room => ({
-        id: room.id, recent: recentTimeline(await sources('rooms', room.id)),
-      })))
+      const refreshed = rooms.refresh()
+      await refreshed
+      await refreshed?.completion
+      const histories = []
+      for (const room of [...rooms.values()]) {
+        const attempt = rooms.messageView?.(room.id)
+        const prepared = attempt ? await attempt : null
+        await attempt?.completion
+        const recent = recentTimeline(await sources('rooms', room.id, prepared))
+        histories.push({ id: room.id, recent })
+      }
       const work = new Map(), list = []
       for (const history of histories) {
         const room = rooms.get(history.id)
