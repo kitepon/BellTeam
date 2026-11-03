@@ -49,7 +49,7 @@ async function fixture(t, options = {}) {
       changes.push({ row, context }); await options.onProjection?.(row, context)
       if (context.phase === 'seed') projection.seed(row, generation)
       else projection.accept(row, generation)
-    }, onSnapshotStart: () => projection.begin(generation), onSnapshotEnd: async context => { await options.onSnapshotEnd?.(context); projection.commit(generation) },
+    }, onSnapshotStart: () => projection.begin(generation), onSnapshotEnd: async context => { await options.onSnapshotEnd?.(context); projection.commit(generation) }, onSnapshotAbort: () => projection.discard(generation),
   })
   let child
   const dispatcher = createUsageChannelDispatcher({ root, effect: (...args) => child.effect(...args), projection: (...args) => child.projection(...args) })
@@ -138,7 +138,8 @@ test('snapshot commit holds control completion after RPC metadata and disconnect
   f.parentEndpoint.disconnect(); await new Promise(resolve => setImmediate(resolve))
   assert.equal(settled, false); assert.equal(f.parent.snapshot().control, 1)
   f.parent.reaped(); await assert.rejects(initialization, { code: 'USAGE_CHILD_EXITED' })
-  commit.resolve()
+  commit.resolve(); await new Promise(resolve => setImmediate(resolve))
+  assert.equal(f.projection.auth(), null)
 })
 
 test('eight accepted roots retain their real completions and the ninth is rejected before issue', async t => {

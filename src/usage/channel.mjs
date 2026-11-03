@@ -28,12 +28,19 @@ const completeAttempt = (attempt, operation) => {
 const rejected = error => { const result = Promise.reject(error); result.catch(() => {}); Object.defineProperty(result, 'completion', { value: result }); return result }
 
 export function createUsageParentChannel(child, { generation, admission, authorizeActor, onEffect = async () => { throw usageError('USAGE_EFFECT_UNAVAILABLE') },
-  onProjection = async () => {}, onSnapshotStart = async () => {}, onSnapshotEnd = async () => {}, onDiagnostic = async () => {} }) {
+  onProjection = async () => {}, onSnapshotStart = async () => {}, onSnapshotEnd = async () => {}, onSnapshotAbort = () => {}, onDiagnostic = async () => {} }) {
   check(typeof generation === 'string' && generation.length > 0 && generation.length <= 200)
   const operations = new Map(), effects = new Map(), received = { projection: 0, diagnostic: 0 }
   let channel, streams, readySeen = false, readyResolve, readyReject
   const ready = new Promise((resolve, reject) => { readyResolve = resolve; readyReject = reject }); ready.catch(() => {})
-  const failed = () => { readyReject(usageError('USAGE_IPC_DISCONNECTED')); channel?.fail() }
+  const failed = () => {
+    readyReject(usageError('USAGE_IPC_DISCONNECTED'))
+    for (const operation of operations.values()) if (operation.snapshotStarted && !operation.snapshotCommitted && !operation.snapshotAborted) {
+      operation.snapshotAborted = true
+      try { onSnapshotAbort(operation.context) } catch {}
+    }
+    channel?.fail()
+  }
   const live = context => {
     check(contextValid(context) && context.generation === generation)
     const operation = operations.get(Number(context.rootId))
@@ -77,7 +84,7 @@ export function createUsageParentChannel(child, { generation, admission, authori
         check(operation.kind === 'control' ? exact(operation.value, 'handoff') && usageHandoffValid(operation.value.handoff)
           : usageResultValid(operation.method, operation.value, operation.params))
       }
-      if (operation.snapshotStarted) await onSnapshotEnd(operation.context)
+      if (operation.snapshotStarted) { await onSnapshotEnd(operation.context); check(!operation.snapshotAborted, 'USAGE_SNAPSHOT_ABORTED'); operation.snapshotCommitted = true }
     },
     onRequest: message => {
       if (message.kind === 'control' && message.method === 'ready') {

@@ -119,7 +119,7 @@ sequenceDiagram
   Endpoint->>Parent: wire metadata後もbody/commit終端までcredit/completion保持
 ```
 
-`createUsageParentChannel(child,{generation,admission,authorizeActor,onEffect,onProjection,onSnapshotStart,onSnapshotEnd,onDiagnostic})`はready/request/callback/control/reaped/snapshotを公開する。optionsは`{usageLease,capturedAuthorization,usageEffect}`で、他moduleのopaqueや偽effectは拒否する。generationはruntimeの不透明文字列。初期controlはmode=settings（bootstrap/restore:false）→subscriptions→services。交換はmode=restore（bootstrap/handoff）一回で全復元を終える。controlの引数はgeneration/mode/streamed markerだけを小さい封筒へ、private bodyを同ID root streamへ送る。
+`createUsageParentChannel(child,{generation,admission,authorizeActor,onEffect,onProjection,onSnapshotStart,onSnapshotEnd,onSnapshotAbort,onDiagnostic})`はready/request/callback/control/reaped/snapshotを公開する。optionsは`{usageLease,capturedAuthorization,usageEffect}`で、他moduleのopaqueや偽effectは拒否する。generationはruntimeの不透明文字列。初期controlはmode=settings（bootstrap/restore:false）→subscriptions→services。交換はmode=restore（bootstrap/handoff）一回で全復元を終える。controlの引数はgeneration/mode/streamed markerだけを小さい封筒へ、private bodyを同ID root streamへ送る。
 
 onProjection(row,context)のphase=seedはprojection.seed、phase=updateはfacade.accept、phase=snapshotはprojection.accept。onSnapshotStartでbegin、onSnapshotEndでcommitし、完了PromiseをACKとして返す。初期readyはsettingsのprivate seed ACK後で、Owner/Bot業務はservices後だけ。交換のreadyは全restore/snapshot commit終端後。既graphの初回先行読取を、新子の完全業務readyと混同しない。
 
@@ -130,3 +130,5 @@ reply/control exportはstreamed markerと個別JSON recordを分け、`usageResu
 entryはverifyUsageLocks()を通過後、固定rootのdispatcher/factoryだけを組む。probeはroot/Node26/fixed builtin C入口でstaged init→quiesce/export/resume→exit→OS終端を確認する。probeの正規UID/FD/mount成功はCentiの同source実物工程であり、当席のdirect Node IPC fixtureを代用しない。
 
 共通endpoint/streamsはEpi f0588a34、lock verifierはEpi cc6ded63からのforeign input。独立した当席作者成果へ混ぜず原本を参照し、共通C/controller/readerの実装を複製しない。
+
+切断時onSnapshotAbort(context)で未採用stagingをdiscardする。afterResult/commit callbackが遅着しても投影を採用せず、成功/.completionはreapedまで未確認のまま保持する。
