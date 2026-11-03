@@ -95,4 +95,22 @@ class ConversationProbe(unittest.TestCase):
         self.assertTrue(any(step.get('if') == 'failure()' for step in steps))
 
 
+class ConversationProbeReceipt(unittest.TestCase):
+    def test_fixed_author_receipt_and_effect_boundaries(self):
+        state = {'readerContract': 'fixture-only'}
+        value = dict(schema='bellteam.conversation.runtime-probe.v1', ok=True,
+                     uid=1001, protocolVersion=1, stateCompatibility=state, childClosed=True,
+                     nativeAuth=False, externalEffects=0)
+        probe.validate_probe_receipt(value, state)
+        cases = [{k: v for k, v in value.items() if k != 'nativeAuth'},
+                 {**value, 'nativeAuth': True}, {**value, 'nativeAuth': 0},
+                 {**value, 'externalEffects': 1}, {**value, 'externalEffects': False},
+                 {**value, 'externalEffects': 0.0}, {**value, 'extra': None},
+                 {**value, 'childClosed': False}, {**value, 'stateCompatibility': {}},
+                 {**value, 'ok': 1}, {**value, 'protocolVersion': True}, {**value, 'uid': 1001.0}]
+        for invalid in cases:
+            with self.subTest(value=invalid), self.assertRaisesRegex(ValueError, 'RECEIPT_INVALID'):
+                probe.validate_probe_receipt(invalid, state)
+
+
 if __name__ == '__main__': unittest.main()

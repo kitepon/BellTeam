@@ -81,6 +81,14 @@ def private_mount_namespace():
             'CONVERSATION_PROBE_PRIVATE_MOUNT_NAMESPACE_REQUIRED')
 
 
+def validate_probe_receipt(value, state):
+    expected = dict(schema='bellteam.conversation.runtime-probe.v1', ok=True,
+                    uid=1001, protocolVersion=1, stateCompatibility=state, childClosed=True,
+                    nativeAuth=False, externalEffects=0)
+    require(json.dumps(value, sort_keys=True) == json.dumps(expected, sort_keys=True),
+            'CONVERSATION_PROBE_RECEIPT_INVALID')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('archive', type=Path)
@@ -136,8 +144,7 @@ def main():
         (archive.parent / 'entry-probe.stdout.log').write_text(stdout)
         (archive.parent / 'entry-probe.stderr.log').write_text(stderr)
         require(process.returncode == 0, 'CONVERSATION_ENTRY_PROBE_FAILED')
-        require(json.loads(stdout) == dict(schema='bellteam.conversation.runtime-probe.v1', ok=True,
-                uid=1001, protocolVersion=1, stateCompatibility=manifest['runtime']['stateCompatibility'], childClosed=True), 'CONVERSATION_PROBE_RECEIPT_INVALID')
+        validate_probe_receipt(json.loads(stdout), manifest['runtime']['stateCompatibility'])
         require(snapshot_state() == before_state, 'CONVERSATION_PROBE_STATE_CHANGED')
         result = dict(sourceCommit=manifest['sourceCommit'], architecture=manifest['runtime']['arch'],
                       entry=manifest['entry'], unsignedBuiltinOnly=True, installationCreated=False,
