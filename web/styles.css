@@ -560,3 +560,5 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .bot-preview.room-work-preview { display: block; white-space: normal; }
 .work-scope, .work-more { display: block; font-size: 11px; line-height: 1.8; color: #76707e; }
 .work-preview-line { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.7; }
+
+.deletion-state { display: block; font-size: 12px; line-height: 1.8; color: #976630; }

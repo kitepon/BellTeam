@@ -11,7 +11,7 @@ function catalogue(){
  const reads=[],state={selected:null,selectedType:'bot'},ctx={catalogueRead:0,state,api:path=>{
   if(path.startsWith('/api/bots')){const pending=deferred();reads.push(pending);return pending.promise}
   return Promise.resolve(path==='/api/rooms'?{rooms:[]}:{owner:{name:'old'}})
- },renderCurrentWork(){},document:{querySelector(){}},renderOwner(){},renderBots(){},clearSelection(){state.selected=null},conversationTimeline:{updateTarget(){}},app:{classList:{contains:()=>false}}}
+ },renderCurrentWork(){},updateSendButton(){},document:{querySelector(){}},renderOwner(){},renderBots(){},clearSelection(){state.selected=null},conversationTimeline:{updateTarget(){}},app:{classList:{contains:()=>false}}}
  vm.runInNewContext(source.slice(source.indexOf('async function loadBots()'),source.indexOf('\n  function renderOwner()')),ctx)
  return {ctx,state,reads}
 }
@@ -44,13 +44,13 @@ for(const fail of [false,true])test(`unread rules cannot write profile or rules,
  if(!fail){rules.resolve({text:'existing'});await opening;assert.equal(f.get('user-rules').disabled,false)
   f.get('user-rules').value='';await f.submit('owner-form');assert.equal(writes[1].body.text,'')}
 })
-test('accepted Bot deletion invalidates older catalogue; ignored response cannot resurrect it',async()=>{
+test('accepted Bot deletion invalidates older catalogue; stale response cannot clear the pending marker',async()=>{
  const {ctx,state,reads}=catalogue();state.bots=[{id:'gone'}]
  const old=ctx.loadBots();ctx.setTimeout=()=>{}
- const start=source.indexOf('onDeleted: async bot => ')+11,end=source.indexOf('\n    onRestarted:',start)
+ const start=source.indexOf('onDeleted: async (bot, verify = false) => ')+11,end=source.indexOf('\n    onRestarted:',start)
  const callback=source.slice(start,end).trim().replace(/,$/u,'')
  await vm.runInNewContext('('+callback+')({id:"gone"})',ctx)
- reads[0].resolve({bots:[{id:'gone'}]});assert.equal(await old,null);assert.equal(state.bots.length,0)
+ reads[0].resolve({bots:[{id:'gone'}]});assert.equal(await old,null);assert.equal(state.bots.length,1);assert.equal(state.bots[0].deletionRequested,true)
 })
 
 test('Bot deletion remains an acceptance when display callback fails',async t=>{

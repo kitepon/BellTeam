@@ -99,3 +99,18 @@ flowchart LR
 `online/recent`は接続・最終会話の補助表示でありwork stateへ変換しない。Roomの仕事情報はRoom DTOからだけ読み、名簿からは名前と現在参加者だけを確認する。member DTOからRoom作業を合成しない。SSE→既loadBotsの再読取で同時に更新する。詳細を開閉してもAPI/AIを追加で呼ばない。期限/完了判定はproviderが所有し、Webは古い本文の表示fallbackや独自TTLを作らない。UIの有限例検証と実backend接続成功は別記する。
 
 currentWork消費側の限定確認: 供給6有限例、欠測/不整合/不正文字、Unicode160、Roomに最大2名＋残数/退室者除外/重複unknownを局所確認。実HTTPのfield欠測をunknownと描画。供給例はconsumerへの明示fixtureだけで注入し、画面には『レビュー用：供給契約の有限例 / backend実接続は未確認』を常設したPC/mobile画像を保存。既SSEで選択中の詳細もunknownへ再同期、mutation0/JS例外0。backend実装SHA到着後の実GET mapping照合は未完。原本は担当席integrations/web-current-work-20261103/。
+
+## 削除受付と結果確認
+
+Apple `AppStore.requestBotDeletion/confirmBotDeletion/applyFetchedBots` と [members削除契約](../members/deletion.md) は202を受付だけにする。固定Webの先行版は受付で名簿から一度除去するため、この不足を解消する。Webは202応答後のID集合だけをページ内に持ち、成功した一覧GETで不在を確認するまで履歴/下書きを破棄しない。サーバーdeletingとローカル受付のどちらも編集/送信/再起動を無効にし、一覧・詳細で『削除を受付、完了未確認』と表示する。GETは保存結果確認に使い、自動DELETE再送やWeb独自のcleanup/完了判定は作らない。
+
+```mermaid
+flowchart LR
+  Delete["明示DELETE一回"] --> Accepted["202受付<br/>ページ内pending ID"]
+  Accepted --> List["既一覧GET<br/>手動確認 / 既SSE"]
+  List -->|"同IDが残る"| Keep["削除受付/未完表示<br/>履歴とdraft保持・編集/送信無効"]
+  List -->|"同ID不在"| Gone["対象の選択を閉じる"]
+  List -->|"読取失敗"| Unknown["未確認と表示<br/>再DELETEしない"]
+```
+
+削除差分の限定確認: editor/composer/一覧等の28局所試験。公開HTTP+Chromium PC/mobileで202後の対象/下書き保持、編集/再起動/送信無効、強制submitからPOST0、結果GET失敗と再確認、一覧不在後だけ選択/editor解除を確認。DELETE1件は人工メモリregistry/workerのみ、実project/席/本番削除0。JS例外0、狭幅overflow0。原本は担当席integrations/web-deletion-parity-20261103/。他の同等化成果の再走は行わない。

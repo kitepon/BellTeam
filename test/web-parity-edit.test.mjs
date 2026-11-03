@@ -56,3 +56,20 @@ test('large image edits send only the independent large render/source/crop', asy
  assert.equal(writes[0].avatarLargeSource,'data:image/jpeg;base64,bmV3')
  assert.deepEqual(writes[0].avatarLargeCrop,{x:.25,y:0,width:.5,height:1})
 })
+
+test('delete acceptance remains pending; read-only result confirmation never repeats DELETE and closes only on absence', async t => {
+ const f=editorDOM(t),oldWindow=globalThis.window;t.after(()=>{globalThis.window=oldWindow});globalThis.window={confirm:()=>true}
+ const writes=[],observations=[];let present=true
+ const editor=createBotEditor(f.dialog,{...callbacks,onDeleted:async(value,verify=false)=>{observations.push(verify);return present},api:async(path,options)=>{
+  if(options?.method){writes.push(options.method);return{deleting:'a'}}
+  return path==='/api/models'?{models}:{bot:bot('a')}
+ }})
+ await editor.open(bot('a'));await f.get('delete-bot-button').handlers.click()
+ assert.equal(f.dialog.open,true);assert.equal(f.get('save-bot-button').disabled,true)
+ assert.equal(f.get('restart-session-button').disabled,true);assert.equal(f.get('verify-bot-deletion').hidden,false)
+ await f.submit('bot-form');assert.deepEqual(writes,['DELETE'])
+ await f.get('verify-bot-deletion').handlers.click();assert.equal(f.dialog.open,true)
+ assert.match(f.get('bot-deletion-status').textContent,/一覧に残っています/)
+ present=false;await f.get('verify-bot-deletion').handlers.click()
+ assert.equal(f.dialog.open,false);assert.deepEqual(writes,['DELETE']);assert.deepEqual(observations,[false,true,true])
+})

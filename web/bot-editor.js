@@ -32,6 +32,8 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   const verifySaveButton = dialog.querySelector('#verify-bot-save')
   const saveBotButton = dialog.querySelector('#save-bot-button')
   const restartSessionButton = dialog.querySelector('#restart-session-button')
+  const verifyDeletionButton = dialog.querySelector('#verify-bot-deletion')
+  const deletionStatus = dialog.querySelector('#bot-deletion-status')
   const deleteBotButton = dialog.querySelector('#delete-bot-button')
   const botManagementActions = dialog.querySelector('#bot-management-actions')
   const characterSheetButton = dialog.querySelector('#character-sheet-button')
@@ -55,6 +57,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   botForm.addEventListener('change', () => { editRevision++ })
   restartSessionButton.addEventListener('click', restart)
   deleteBotButton.addEventListener('click', remove)
+  verifyDeletionButton.addEventListener('click', verifyDeletion)
   verifySaveButton.addEventListener('click', verifySave)
   memoryButton.addEventListener('click', () => { const bot = owner?.bot; if (bot) { requestEditorClose(dialog); if (!dialog.open) onMemory(bot) } })
   characterSheetButton.addEventListener('click', () => { if (owner?.bot) onSheets(owner.bot) })
@@ -82,6 +85,10 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     verifySaveButton.disabled = false
     renderBotConfigurationStatus(bot)
     botForm.reset()
+    for (const input of botForm.querySelectorAll('input,textarea,select')) input.disabled = false
+    deletionStatus.textContent = ''
+    verifyDeletionButton.disabled = false
+    verifyDeletionButton.hidden = true
     botFormError.textContent = ''
     botFastMode.checked = bot?.fastMode === true
     botDialogTitle.textContent = bot ? 'メンバーを編集' : 'メンバーを追加'
@@ -91,6 +98,8 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     saveBotButton.disabled = true
     botManagementActions.hidden = !bot
     characterSheetButton.hidden = !bot
+    characterSheetButton.disabled = false
+    memoryButton.disabled = false
     if (bot) {
       botName.value = bot.name
       botHarness.value = bot.harness
@@ -111,13 +120,14 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     largeRecrop.disabled = true
     appearanceStatus.textContent = bot ? '保存済みの写真を読み込んでいます…' : '一覧用の小画像とプロフィール用の大画像を別々に保存できます。'
     owner.initialRevision = editRevision
+    renderDeletionState()
     if (!dialog.open) dialog.showModal()
     try {
       const result = await api('/api/models', { signal: controller.signal })
       if (controller.signal.aborted) return
       models = result.models
       renderModelOptions(botHarness.value, bot?.model ?? '', bot?.reasoningEffort ?? '')
-      if (bot) {
+      if (bot && !deletionPending()) {
         try {
           const current = await api(`/api/bots/${bot.id}`, { signal: controller.signal })
           if (!controller.signal.aborted) {
@@ -141,6 +151,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
       if (!controller.signal.aborted) {
         botHarness.disabled = false
         saveBotButton.disabled = false
+        renderDeletionState()
       }
     }
   }
@@ -213,7 +224,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
 
   async function saveBot(event) {
     event.preventDefault()
-    if (!owner || saving === owner) return
+    if (!owner || saving === owner || deletionPending()) return
     if (avatar.pending() || largeAvatar.pending()) { botFormError.textContent = '写真を読み込んでいます。表示を確認してから保存してください。'; return }
     const opened = owner, revision = editRevision
     const current = () => owner === opened && revision === editRevision
@@ -267,7 +278,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   }
   async function restart() {
     const opened = owner, bot = opened?.bot
-    if (!bot || restartSessionButton.disabled) return
+    if (!bot || restartSessionButton.disabled || deletionPending()) return
     restartSessionButton.disabled = true
     onStatus(bot, '再起動中')
     try {
@@ -277,18 +288,51 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     } catch { onStatus(bot, '再起動できませんでした') }
     finally { if (owner === opened) restartSessionButton.disabled = false }
   }
+  function deletionPending() { return Boolean(owner?.deletionRequested || owner?.deletionUnconfirmed || owner?.bot?.deleting || owner?.bot?.deletionRequested) }
+  function renderDeletionState() {
+    const pending = deletionPending()
+    verifyDeletionButton.hidden = !pending
+    if (!pending) return
+    saveBotButton.disabled = true
+    restartSessionButton.disabled = true
+    deleteBotButton.disabled = true
+    appearanceStatus.textContent = '削除結果が未確認のため写真の編集はできません。'
+    memoryButton.disabled = true
+    characterSheetButton.disabled = true
+    for (const input of botForm.querySelectorAll('input,textarea,select')) input.disabled = true
+    deletionStatus.textContent = owner.deletionUnconfirmed ? '削除結果はまだ確認できません。一覧を確認するまで編集はできません。' : '削除操作を受け付けました。完了はまだ確認できていません。'
+  }
+  async function verifyDeletion() {
+    const opened = owner, bot = opened?.bot
+    if (!bot || verifyDeletionButton.disabled) return
+    verifyDeletionButton.disabled = true
+    try {
+      const present = await onDeleted(bot, true)
+      if (owner !== opened) return
+      if (present === false) dialog.close()
+      else deletionStatus.textContent = '一覧に残っています。削除の完了は未確認です。入力と履歴を保持しています。'
+    } catch { if (owner === opened) deletionStatus.textContent = '削除結果を取得できませんでした。再確認してください。削除は再送していません。' }
+    finally { if (owner === opened) verifyDeletionButton.disabled = false }
+  }
   async function remove() {
     const opened = owner, bot = opened?.bot
-    if (!bot || deleteBotButton.disabled || !window.confirm(`${bot.displayName}を削除しますか？`)) return
+    if (!bot || deleteBotButton.disabled || deletionPending() || !window.confirm(`${bot.displayName}を削除しますか？`)) return
     deleteBotButton.disabled = true
     let accepted = false
     try {
       await api(`/api/bots/${bot.id}`, { method: 'DELETE' })
       accepted = true
-      await onDeleted(bot)
-      if (owner === opened) dialog.close()
-    } catch { if (owner === opened) botFormError.textContent = accepted ? '削除操作を受け付けました。表示を更新できませんでした。' : '削除できませんでした。' }
-    finally { if (owner === opened) deleteBotButton.disabled = false }
+      opened.deletionRequested = true
+      if (owner === opened) renderDeletionState()
+      const present = await onDeleted(bot)
+      if (owner === opened && present === false) dialog.close()
+    } catch {
+      if (owner === opened) {
+        if (!accepted) opened.deletionUnconfirmed = true
+        renderDeletionState()
+        botFormError.textContent = accepted ? '削除操作を受け付けました。表示を更新できませんでした。' : '削除結果を確認できませんでした。削除は自動で再送しません。'
+      }
+    } finally { if (owner === opened) deleteBotButton.disabled = deletionPending() }
   }
 
   return { open }

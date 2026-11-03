@@ -142,12 +142,20 @@ export function createWebApp({ client = createWebClient() } = {}) {
       const saved = state.bots.find(item => item.id === bot.id)
       if (current() && saved) await selectBot(saved)
     },
-    onDeleted: async bot => {
+    onDeleted: async (bot, verify = false) => {
       catalogueRead++
-      state.bots = state.bots.filter(item => item.id !== bot.id)
-      if (state.selectedType === 'bot' && state.selected?.id === bot.id) clearSelection()
+      state.pendingDeletionIds ??= new Set()
+      if (!verify) state.pendingDeletionIds.add(bot.id)
+      state.bots = state.bots.map(item => item.id === bot.id && state.pendingDeletionIds.has(bot.id) ? { ...item, deletionRequested:true } : item)
+      if (state.selectedType === 'bot' && state.selected?.id === bot.id) state.selected = state.bots.find(item => item.id === bot.id) ?? state.selected
       renderBots()
-      setTimeout(() => { void loadBots().catch(() => conversationComposer.showError('一覧を更新できませんでした。')) }, 500)
+      updateSendButton()
+      if (verify) {
+        if (await loadBots() !== true) throw Error('DELETION_READ_SUPERSEDED')
+        return state.bots.some(item => item.id === bot.id)
+      }
+      setTimeout(() => { void loadBots().catch(() => conversationComposer.showError('削除結果の一覧を取得できませんでした。開き直して確認してください。')) }, 500)
+      return true
     },
     onRestarted: bot => setTimeout(async () => {
       try {
@@ -287,7 +295,9 @@ export function createWebApp({ client = createWebClient() } = {}) {
       throw error
     }
     if (read !== catalogueRead) return null
-    state.bots = botResult.bots.map(bot => ({ ...bot, avatar: bot.avatarVersion ? `/api/bots/${encodeURIComponent(bot.id)}/avatar?v=${encodeURIComponent(bot.avatarVersion)}` : '' }))
+    const listedIds = new Set(botResult.bots.map(bot => bot.id))
+    for (const id of state.pendingDeletionIds ?? []) if (!listedIds.has(id)) state.pendingDeletionIds.delete(id)
+    state.bots = botResult.bots.map(bot => ({ ...bot, deletionRequested:state.pendingDeletionIds?.has(bot.id) ?? false, avatar: bot.avatarVersion ? `/api/bots/${encodeURIComponent(bot.id)}/avatar?v=${encodeURIComponent(bot.avatarVersion)}` : '' }))
     state.rooms = roomResult.rooms
     state.owner = ownerResult.owner
     if (state.selected) {
@@ -303,6 +313,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     renderOwner()
     renderBots()
     renderCurrentWork(document.querySelector('#current-work-detail'), state.selectedType, state.selected, state.bots)
+    updateSendButton()
     return true
   }
 
@@ -325,7 +336,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
       const preview = workLabel(bot.currentWork)
       button.innerHTML = `
         <span class="avatar ${escapeClass(bot.color)}" data-avatar>${initials(bot.name)}<i class="presence ${bot.online ? 'online' : ''}"></i></span>
-        <span class="bot-copy"><span class="bot-name">${escapeHtml(bot.displayName)}</span><span class="bot-position">${escapeHtml(bot.position || '役職未設定')}</span><span class="bot-preview">${escapeHtml(preview)}</span></span>
+        <span class="bot-copy"><span class="bot-name">${escapeHtml(bot.displayName)}</span><span class="bot-position">${escapeHtml(bot.position || '役職未設定')}</span><span class="bot-preview">${escapeHtml(preview)}</span>${bot.deleting || bot.deletionRequested ? '<span class="deletion-state">削除を受付・完了未確認</span>' : ''}</span>
         <span class="bot-meta"><time class="bot-time" title="最終会話の時刻">${formatTime(bot.recent?.at)}</time>${unread ? '<i class="unread-dot" aria-label="未読"></i>' : ''}</span>`
       applyAvatar(button.querySelector('[data-avatar]'), bot)
       return button
@@ -527,10 +538,11 @@ export function createWebApp({ client = createWebClient() } = {}) {
   function updateSendButton() {
     conversationComposer.update()
     const stopping = state.selectedType === 'bot' && state.selected && stoppingMembers.has(state.selected.id)
+    const deleting = state.selectedType === 'bot' && (state.selected?.deleting || state.selected?.deletionRequested)
     const busy = state.selectedType === 'bot' && state.selected && conversationTimeline.isBusy(state.selected.id)
-    stopButton.hidden = !busy && !stopping
+    stopButton.hidden = deleting || !busy && !stopping
     stopButton.disabled = Boolean(stopping)
-    sendButton.hidden = Boolean(busy || stopping)
+    sendButton.hidden = !deleting && Boolean(busy || stopping)
     conversationTimeline.updateStops()
   }
 
