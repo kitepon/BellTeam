@@ -9,6 +9,7 @@ export class MembersAdmission {
   #generation
   #epoch = 0
   #leases = new Set()
+  #completions = new Map()
   #ticket = null
   #waiters = new Set()
 
@@ -29,6 +30,7 @@ export class MembersAdmission {
     if (this.#leases.size >= 8 || typeof correlation !== 'string' || !correlation) throw rejected()
     const lease = Object.freeze({ leaseId: randomUUID(), generation: this.#generation, epoch: this.#epoch, correlation })
     this.#leases.add(lease)
+    this.#completions.set(lease, { finishRequested: false, pending: new Set() })
     return lease
   }
 
@@ -40,6 +42,24 @@ export class MembersAdmission {
 
   finish(lease) {
     this.assertLease(lease)
+    this.#completions.get(lease).finishRequested = true
+    this.#releaseFinished(lease)
+  }
+
+  trackCompletion(lease, completion) {
+    this.assertLease(lease)
+    if (!(completion instanceof Promise)) throw rejected()
+    const state = this.#completions.get(lease)
+    if (state.pending.has(completion)) return
+    state.pending.add(completion)
+    const done = () => { state.pending.delete(completion); this.#releaseFinished(lease) }
+    completion.then(done, done)
+  }
+
+  #releaseFinished(lease) {
+    const state = this.#completions.get(lease)
+    if (!state?.finishRequested || state.pending.size) return
+    this.#completions.delete(lease)
     this.#leases.delete(lease)
     if (!this.#leases.size) {
       for (const done of this.#waiters) done()

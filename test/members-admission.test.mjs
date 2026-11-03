@@ -2,6 +2,33 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { MembersAdmission } from '../src/members-admission.mjs'
 
+test('caller unknown cannot release a lease with a registered real completion', async () => {
+  const gate = new MembersAdmission('a')
+  let complete, callbackComplete, lease
+  const real = new Promise(resolve => { complete = resolve })
+  await gate.withLease(value => { lease = value; gate.trackCompletion(value, real); return 'unknown' })
+  const ticket = gate.close()
+  let drained = false
+  const wait = gate.drain(ticket).then(() => { drained = true })
+  gate.assertLease(lease)
+  const callback = new Promise(resolve => { callbackComplete = resolve })
+  gate.trackCompletion(lease, callback)
+  complete(); await Promise.resolve(); assert.equal(drained, false)
+  gate.assertLease(lease)
+  callbackComplete(); await wait
+  assert.throws(() => gate.assertLease(lease), { code: 'MEMBERS_NOT_ACCEPTED' })
+})
+
+test('a rejected real completion is terminal, not a retry or an unhandled rejection', async () => {
+  const gate = new MembersAdmission(), lease = gate.enter()
+  let reject
+  gate.trackCompletion(lease, new Promise((resolve, fail) => { reject = fail }))
+  gate.finish(lease); gate.assertLease(lease)
+  reject(Error('synthetic real terminal'))
+  const ticket = gate.close(); await gate.drain(ticket)
+  gate.adopt(ticket, 'b'); gate.resume(ticket)
+})
+
 test('closed root rejects new work while old live lease callbacks drain', async () => {
   const gate = new MembersAdmission('a'), old = gate.capture(), lease = gate.enter(old, 'root-a')
   const ticket = gate.close()
