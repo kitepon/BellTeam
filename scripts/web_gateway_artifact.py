@@ -156,7 +156,7 @@ def validate_memory_state(value):
 
 
 def contract(component):
-    require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution'), 'MODULE_COMPONENT_INVALID')
+    require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation'), 'MODULE_COMPONENT_INVALID')
     entry = 'payload/src/execution-dispatcher.mjs' if component == 'execution' else 'payload/src/run-memory-runtime.mjs' if component == 'memory' else ENTRY if component == 'web-gateway' else f'payload/src/{component}-entry.mjs'
     runtime = dict(os='linux', nodeMajor=26, parentProtocol=1)
     required = {entry, 'payload/package.json', 'payload/package-lock.json'}
@@ -173,13 +173,22 @@ def contract(component):
     elif component in BUSINESS_FILES:
         required = BUSINESS_FILES[component]
         runtime['stateCompatibility'] = BUSINESS_STATE[component]
-    else:
+    elif component == 'members':
         # Match the writer's existing formats; exchange never authorizes migration.
         runtime['stateCompatibility'] = dict(
             botProfileSchema='bellteam.bot.v8', scheduleSchema='bellteam.schedule.v1',
             ownerProfileSchema='bellteam.owner-profile.v1', deletionReceiptSchema='bellteam.bot-deletion.v1',
             userRulesEncoding='utf8', initializedMarker='.initialized')
         required.update({'payload/config/common-agents.md', 'payload/src/members/state-compatibility.mjs'})
+    else:
+        runtime['stateSchema'] = None
+        runtime['stateCompatibility'] = dict(
+            directRecordSchemas=['bellteam.direct-message.v1', 'bellteam.interim-word.v1', 'bellteam.delivery-status.v1'],
+            roomRecordSchemas=['bellteam.room-message.v1', 'bellteam.room-routing-status.v1', 'bellteam.room-delivery-status.v1'],
+            roomSchema='bellteam.room.v1', scheduleSchema='bellteam.schedule.v1', selfTurnsSchema='bellteam.self-turns.v1',
+            imageMimeTypes=['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+            readerContract='bellteam.conversation-reader.v1')
+        required.add('payload/src/conversation/state-compatibility.mjs')
     return entry, runtime, required
 
 
@@ -209,7 +218,7 @@ def validate_manifest(value, source=None, arch=None, *, component='web-gateway')
         total += file['bytes']
     require(total <= MAX_CONTENT)
     require(names == required if component in ('memory', 'usage') else required <= names)
-    if component in ('diagnostics', 'execution'):
+    if component in ('diagnostics', 'execution', 'conversation'):
         require(all(name in required or name.startswith('payload/node_modules/') for name in names))
     return value
 

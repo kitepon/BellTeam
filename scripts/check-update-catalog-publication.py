@@ -8,7 +8,7 @@ import sys
 import tempfile
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
-from update_catalog import MAX_CATALOG, strict_json, validate_catalog, validate_members_archive, validate_notifications_archive, validate_memory_archive, require
+from update_catalog import MAX_CATALOG, strict_json, validate_catalog, validate_members_archive, validate_notifications_archive, validate_memory_archive, validate_conversation_archive, require
 
 
 def download(url, headers=None, maximum=4 * MAX_CATALOG):
@@ -71,6 +71,21 @@ def verify_notifications_release(release):
         validate_notifications_archive(release, manifest)
 
 
+def verify_conversation_release(release):
+    from module_artifact_package import validate_conversation_source
+    from module_artifact_verifier import policy_for, verify_signature
+    from web_gateway_artifact import check_archive
+    root = Path(__file__).resolve().parents[1]
+    state = validate_conversation_source(root)
+    artifact = release['artifact']
+    with tempfile.TemporaryDirectory(prefix='conversation-publication-') as directory:
+        archive = Path(directory) / 'archive.tar.gz'; archive.write_bytes(download_asset(artifact['archive']))
+        bundle = Path(directory) / 'bundle.json'; bundle.write_bytes(download_asset(artifact['bundle']))
+        with archive.open('rb') as a, bundle.open('rb') as b, (root / 'config/web-gateway-trusted-root.jsonl').open('rb') as t:
+            verify_signature(a, b, t, policy_for('conversation'), source=release['sourceCommit'], signer=artifact['signerCommit'])
+            manifest, _ = check_archive(a, release['sourceCommit'], release['platform']['arch'], component='conversation')
+        validate_conversation_archive(release, manifest, state)
+
 def main():
     raw = Path('config/update-catalog.json').read_bytes()
     require(len(raw) <= MAX_CATALOG)
@@ -106,6 +121,8 @@ def main():
                 verify_memory_release(release)
             elif release['componentId'] == 'members':
                 verify_members_release(release)
+            elif release['componentId'] == 'conversation':
+                verify_conversation_release(release)
             elif release['componentId'] == 'notifications':
                 verify_notifications_release(release)
     tag = 'updates-' + catalog['publishedAt'].replace('-','').replace(':','').split('.')[0].removesuffix('Z') + 'Z'

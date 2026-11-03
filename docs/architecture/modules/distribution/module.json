@@ -10,7 +10,8 @@
     "notifications-artifact",
     "update-catalog",
     "members-artifact",
-    "memory-artifact"
+    "memory-artifact",
+    "conversation-artifact"
   ],
   "uses": [
     {
@@ -52,6 +53,9 @@
     "scripts/package-memory.py",
     "scripts/verify-memory.py",
     "config/memory-verification.json",
-    ".github/workflows/publish-memory.yml"
+    ".github/workflows/publish-memory.yml",
+    "scripts/package-conversation.py",
+    "scripts/verify-conversation.py",
+    "config/conversation-verification.json"
   ]
 }

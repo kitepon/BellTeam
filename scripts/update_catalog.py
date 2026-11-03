@@ -139,6 +139,30 @@ def validate_business_archive(release, manifest, consumer_state):
     return manifest
 
 
+def validate_conversation_compatibility(value):
+    from web_gateway_artifact import contract
+    exact(value, 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility')
+    require(type(value['nodeMajor']) is int and value['nodeMajor'] == 26
+            and type(value['parentProtocol']) is int and value['parentProtocol'] == 1
+            and value['stateSchema'] is None and value['containerUpdate'] is None)
+    require(type(value['stateCompatibility']) is dict
+            and value['stateCompatibility'] == contract('conversation')[1]['stateCompatibility'], 'UPDATE_CONVERSATION_STATE_INCOMPATIBLE')
+    return value
+
+def validate_conversation_archive(release, manifest, consumer_state):
+    from web_gateway_artifact import contract, validate_manifest
+    require(release['componentId'] == 'conversation')
+    compatibility = validate_conversation_compatibility(release['compatibility'])
+    validate_manifest(manifest, release['sourceCommit'], release['platform']['arch'], component='conversation')
+    require(consumer_state == contract('conversation')[1]['stateCompatibility'], 'UPDATE_CONVERSATION_CONSUMER_UNSUPPORTED')
+    runtime = manifest['runtime']
+    require(release['platform']['os'] == runtime['os']
+            and compatibility['nodeMajor'] == runtime['nodeMajor']
+            and compatibility['parentProtocol'] == runtime['parentProtocol']
+            and compatibility['stateCompatibility'] == runtime['stateCompatibility'] == consumer_state,
+            'UPDATE_CONVERSATION_ARCHIVE_INCOMPATIBLE')
+    return manifest
+
 def validate_catalog(value, *, now=None):
     exact(value, 'schema,publishedAt,expiresAt,releases,revokedCatalogs')
     require(value['schema'] == 'bellteam.update-catalog.v1')
@@ -156,7 +180,7 @@ def validate_catalog(value, *, now=None):
     for release in releases:
         exact(release, 'componentId,sourceCommit,versionId,platform,artifact,compatibility,changes')
         component = release['componentId']
-        require(component in ['container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution'])
+        require(component in ['container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation'])
         require(hexadecimal(release['sourceCommit'], 40))
         platform = release['platform']; exact(platform, 'os,arch')
         require(platform['os'] == 'linux' and platform['arch'] in ['amd64', 'arm64'])
@@ -170,6 +194,8 @@ def validate_catalog(value, *, now=None):
             validate_memory_compatibility(compatibility)
         elif component == 'members':
             validate_members_compatibility(compatibility)
+        elif component == 'conversation':
+            validate_conversation_compatibility(compatibility)
         else:
             exact(compatibility, 'nodeMajor,parentProtocol,stateSchema,containerUpdate')
             require(all(v is None or type(v) is int and 0 < v <= 65535 for v in compatibility.values()))

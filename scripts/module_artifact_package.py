@@ -23,6 +23,15 @@ def validate_members_source(payload):
     return actual
 
 
+def validate_conversation_source(payload):
+    path = (payload / 'src/conversation/state-compatibility.mjs').resolve().as_uri()
+    actual = json.loads(subprocess.check_output(['node', '--input-type=module', '-e',
+        'const m = await import(process.argv[1]); console.log(JSON.stringify(m.CONVERSATION_STATE_COMPATIBILITY))', path],
+        env={'PATH': os.environ['PATH']}, text=True))
+    require(actual == contract('conversation')[1]['stateCompatibility'], 'CONVERSATION_SOURCE_STATE_INCOMPATIBLE')
+    return actual
+
+
 def main(component):
     contract(component)
     parser = argparse.ArgumentParser(description=__doc__)
@@ -64,6 +73,8 @@ def main(component):
                 ['git', 'show', source + ':distribution/server/distribution-profile.mjs'], cwd=repo))
         if component == 'members':
             validate_members_source(payload)
+        if component == 'conversation':
+            validate_conversation_source(payload)
         lock = json.loads((payload / 'package-lock.json').read_text())
         cross = args.arch != {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
         if cross:
