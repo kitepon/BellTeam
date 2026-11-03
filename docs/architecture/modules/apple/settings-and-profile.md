@@ -97,7 +97,7 @@ flowchart TD
   Read --> Pick["AvatarImagePicker / adjust<br/>選択または元画像から再調整"]
   Pick --> Crop["AvatarCropEditor<br/>render・source・cropを返す"]
   Crop --> Save["BotProfileImageState.saveImage<br/>選択をAppStore.profileImageDraftsへ保持"]
-  Save --> API["BellAPI.saveBotAvatarSelection<br/>選んだvariantの3項目だけPATCH"]
+  Save --> API["BellAPI.saveBotAvatarSelection<br/>Core/BellAPI+BotSettings.swift:4<br/>選んだvariantの3項目だけPATCH"]
   API --> Result["saved / confirmed / different / unconfirmed"]
   Result --> Refresh["成功時は選択を消してrefresh<br/>不一致・不明は選択とエラーを保持"]
 ```
@@ -107,14 +107,14 @@ flowchart TD
 | BotProfileImageState | imageAction、cropSource/cropSettings、loadedLargeAvatar、保存中、variant別errorとpendingSelectionsを所有。AppStoreのID別draftをload/persist |
 | BotProfileHero | 小画像はbot.avatar。大画像版が無い/空/小画像版と同じなら小画像を使う。それ以外は`GET /api/bots/:id/avatar-large?v=:version`。taskの版が変わると表示を読み直す |
 | BotProfileImageActionsModifier | 同じimages参照を使いsheetへ渡す。保存中は操作とinteractiveDismissを無効化 |
-| BotProfileAvatarActions.loadSettings | GET BotProfileResponse。avatarLarge/avatarSource/avatarLargeSourceが欠けた旧schemaは独立画像編集を無効にし理由表示。loadは選択前prepareと調整操作で使う |
+| BotProfileAvatarActions.loadSettings | GET BotProfileResponse（`Core/BotSettings.swift:3`）。avatarLarge/avatarSource/avatarLargeSourceが欠けた旧schemaは独立画像編集を無効にし理由表示。loadは選択前prepareと調整操作で使う |
 | cancelOperations / AvatarActionLifetime | 閉じる・非表示・busyでgenerationを無効化し調整taskをcancel。古い画像情報応答が状態を書き換えないようacceptsで照合 |
 | adjust / adjustmentImage | pending選択があればそのsource/crop。無ければvariantの保存済みsource、source無しならrender。大画像が無ければ小画像。読めない時はerrorText |
 | AvatarImagePicker | iPhone/iPadはPhotosPicker、Macはimage fileImporter。prepareがあれば成功後に選択を開く。非表示等でprepare taskをcancel。失敗はcallerのonFailure |
 | AvatarCropEditor | 拡大・drag、crop範囲を保持。小512角/大1024角。画像選択用callbackはrender/source/crop、Owner/ルームの既存形式callbackはrenderだけを返す。キャンセルはdismissでcallbackしない |
 | AvatarImage | 画像decode・file読取、表示寸法、offset制限、render JPEG、正規化cropの計算と復元、source画像のJPEG化。sourceは長辺1600以下・文字列300万以下 |
-| BotSettingsRequest | imageOnlyVariantでは対象render/source/cropだけencodeしてreturn。プロフィールや他方の画像を要求に入れない |
-| saveBotAvatarSelection | PATCH成功はsaved。networkConnectionLost/timedOutだけGET照合へ。確認は対象3項目だけ。GET認証以外の失敗はunconfirmed |
+| BotSettingsRequest（`Core/BotSettings.swift:102`） | imageOnlyVariantでは対象render/source/cropだけencodeしてreturn。プロフィールや他方の画像を要求に入れない |
+| saveBotAvatarSelection / confirmBotAvatarSelection（`Core/BellAPI+BotSettings.swift:4,24`） | PATCH成功はsaved。networkConnectionLost/timedOutだけGET照合へ。確認は対象3項目だけ。GET認証以外の失敗はunconfirmed |
 | saveImage / confirmImageSave | 選択の一致をfinishで検査。saved/confirmedなら選択を除去し名簿refresh。不一致・不明は選択を保持して結果確認/破棄を表示。確認操作自体はPATCHしない |
 | discardImageSelection | 対象variantだけdraftとerrorを消す。サーバー変更はしない |
 | BotProfileAISection / BotProfileDetails | 共通のAI表示・操作callbackとプロフィール本文。再起動通信自体は呼出画面が持つ |

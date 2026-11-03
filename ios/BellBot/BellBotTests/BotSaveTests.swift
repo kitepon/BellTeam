@@ -145,6 +145,32 @@ final class BotSaveTests: XCTestCase {
         XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
     }
 
+    func testMissingBotReadLeavesDecodingPathUnconfirmedWithoutResendingPATCH() async throws {
+        let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: true, readData: Data("{}".utf8))
+        let result = try await makeAPI(fixture).saveBotSettings(id: "member", settings: newSettings, originalFastMode: false)
+        XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
+        guard case .unconfirmed(let error) = result,
+              let decodingError = error as? DecodingError,
+              case .keyNotFound(let key, let context) = decodingError else {
+            return XCTFail("bot欠落は元の復号エラーを保持して未確認と示す")
+        }
+        XCTAssertEqual(key.stringValue, "bot")
+        XCTAssertEqual(context.codingPath.map(\.stringValue), [])
+    }
+
+    func testInvalidBotTypeReadLeavesDecodingPathUnconfirmedWithoutResendingPATCH() async throws {
+        let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: true,
+                                  readData: Data(#"{"bot":42}"#.utf8))
+        let result = try await makeAPI(fixture).saveBotSettings(id: "member", settings: newSettings, originalFastMode: false)
+        XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
+        guard case .unconfirmed(let error) = result,
+              let decodingError = error as? DecodingError,
+              case .typeMismatch(_, let context) = decodingError else {
+            return XCTFail("botの型不正は元の復号エラーを保持して未確認と示す")
+        }
+        XCTAssertEqual(context.codingPath.map(\.stringValue), ["bot"])
+    }
+
     func testTransportFailureWaitsForHandledOutcome() async throws {
         let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: false)
         var reports = 0
@@ -303,15 +329,17 @@ private final class SaveFixture {
     var readError: URLError.Code?
     let writeError: URLError.Code
     let readStatus: Int
+    let readData: Data?
     var methods: [String] = []
 
     init(saved: BotSettings, applyBeforeFailure: Bool, readError: URLError.Code? = nil,
-         writeError: URLError.Code = .networkConnectionLost, readStatus: Int = 200) {
+         writeError: URLError.Code = .networkConnectionLost, readStatus: Int = 200, readData: Data? = nil) {
         self.saved = saved
         self.applyBeforeFailure = applyBeforeFailure
         self.readError = readError
         self.writeError = writeError
         self.readStatus = readStatus
+        self.readData = readData
     }
 }
 
@@ -337,7 +365,7 @@ private final class SaveProtocol: URLProtocol {
         } else if let error = fixture.readError {
             client?.urlProtocol(self, didFailWithError: URLError(error))
         } else {
-            let data = try! JSONEncoder().encode(["bot": fixture.saved])
+            let data = fixture.readData ?? (try! JSONEncoder().encode(["bot": fixture.saved]))
             let response = HTTPURLResponse(url: request.url!, statusCode: fixture.readStatus, httpVersion: "HTTP/1.1",
                                            headerFields: ["Content-Type": "application/json"])!
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)

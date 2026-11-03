@@ -138,7 +138,7 @@ flowchart TD
 
 ## 整理候補
 
-- **A-S1**：`ios/BellBot/BellBot/Core/BotSettings.swift:152`。BellAPIの保存・保存照合4関数をBotSettingsと同じファイルのextensionに定義し、一般HTTP処理は`Core/BellAPI.swift:97`に定義している。
+- **A-S1**：`ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift:3`。BellAPIの保存・保存照合4関数を専用ファイルのextensionに定義する。値型とencodeは`Core/BotSettings.swift:3–150`、一般HTTP処理は`Core/BellAPI.swift:97`に残す。
 - **A-S2**：`ios/BellBot/BellBot/Core/BellDiagnostics.swift:400`。診断送信はURLRequest、cookie付与、URLSession.shared、HTTP202確認を直接持ち、`Core/BellAPI.swift:416`にもrequest作成とcookie付与がある。
 
 ## 未調査

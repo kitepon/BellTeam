@@ -112,7 +112,7 @@
 
 ## Core/BellAPI.swift
 
-ファイル：[BellAPI.swift](../../../../ios/BellBot/BellBot/Core/BellAPI.swift)。別ファイルのextensionは後のBotSettings行を参照。
+ファイル：[BellAPI.swift](../../../../ios/BellBot/BellBot/Core/BellAPI.swift)。別ファイルのextensionは後のBellAPI+BotSettings行を参照。
 
 | 型・関数 | 機能 |
 | --- | --- |
@@ -283,10 +283,11 @@
 | [BellBot/Core/AppleSubscriptionAccess.swift](../../../../ios/BellBot/BellBot/Core/AppleSubscriptionAccess.swift) | AppleSubscriptionEntitlement、期限/猶予/初期guide/開発者のAI利用判定 |
 | [BellBot/Core/AvatarImage.swift](../../../../ios/BellBot/BellBot/Core/AvatarImage.swift) | crop型、AvatarActionLifetime、AvatarImageの読取・寸法・切抜き・JPEG・復元 |
 | [BellBot/Core/BackgroundMessageSend.swift](../../../../ios/BellBot/BellBot/Core/BackgroundMessageSend.swift) | 背景実行時間確保、期限とcaller取消、終了 |
+| [BellBot/Core/BellAPI+BotSettings.swift](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift) | BellAPI extensionの[saveBotAvatarSelection](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift#L4) / [confirmBotAvatarSelection](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift#L24) / [saveBotSettings](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift#L43) / [confirmBotSettings](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift#L64) |
 | [BellBot/Core/BellDiagnostics.swift](../../../../ios/BellBot/BellBot/Core/BellDiagnostics.swift) | DecodingError.located、BellRequestTrace、BellDiagnosticObservation、BellDiagnostics。通信記録・影響・MetricKit・POST /api/diagnostics |
 | [BellBot/Core/BellNotifications.swift](../../../../ios/BellBot/BellBot/Core/BellNotifications.swift) | BellNotificationRoute、BellNotifications、UIApplication delegate。push登録・解除・表示抑制・移動 |
 | [BellBot/Core/BillingStore.swift](../../../../ios/BellBot/BellBot/Core/BillingStore.swift) | 購読status/entitlement/product、本人権利照会、purchase/restore/recheck、verify/finish |
-| [BellBot/Core/BotSettings.swift](../../../../ios/BellBot/BellBot/Core/BotSettings.swift) | BotSettings.normalized/withSmallAvatar/withLargeAvatar/withAvatarSelection、BotEditorDraft、AvatarSelectionDrafts、BotSettingsRequest.encode。BellAPI extensionのsaveBotAvatarSelection/confirmBotAvatarSelection/saveBotSettings/confirmBotSettings |
+| [BellBot/Core/BotSettings.swift](../../../../ios/BellBot/BellBot/Core/BotSettings.swift) | BotProfileResponse、BotSettings.normalized/withSmallAvatar/withLargeAvatar/withAvatarSelection、BotEditorDraft、AvatarSelectionDrafts、BotSettingsRequest.encode、BotSaveResult |
 | [BellBot/Core/ConversationDocument.swift](../../../../ios/BellBot/BellBot/Core/ConversationDocument.swift) | JSON FileDocumentの読込・書出し |
 | [BellBot/Core/ConversationDraft.swift](../../../../ios/BellBot/BellBot/Core/ConversationDraft.swift) | 入力本文・画像・選択宛先、UIKitからの変更と外部clear/restore |
 | [BellBot/Core/ConversationTimelineState.swift](../../../../ios/BellBot/BellBot/Core/ConversationTimelineState.swift) | 受信履歴とpending送信、受付ID照合、refresh併合・過去追加 |
