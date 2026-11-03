@@ -196,10 +196,10 @@ export function createConversationParentChannel(child, { generation, admission, 
     })
   }
   return { ready: ready.promise, request, callback, drainIncoming: peer.drainIncoming,
-    control(method, params = {}, timeout = 5000) {
+    control(method, params = {}, timeout = method === 'quiesce' ? 0 : 5000) {
       validateConversationControl(method, params, { generation, operationId: null })
       if (method === 'initialize') { check(!initializationStarted); initializationStarted = true }
-      return peer.call('control', method, params, { context: { generation, operationId: null }, timeout: method === 'quiesce' ? 0 : timeout })
+      return peer.call('control', method, params, { context: { generation, operationId: null }, timeout })
     },
     async reaped() { await background.reaped(); release.reaped(); peer.reaped() },
     snapshot: () => ({ ...peer.snapshot(), contexts: records.size, deliveries: deliveries.size, backgrounds: backgrounds.size }),
