@@ -118,7 +118,7 @@ if (mode === 'initialize') {
   const originChecks = async (replace = false) => {
     const notifications = runtime.services.notifications
     const endpoint = replace ? fixture.subscription.endpoint : fixture.replacementSubscription.endpoint
-    const before = await savedState()
+    const before = await savedState(), settingsBefore = hash(await readFile(settings.path))
     assert.deepEqual(await notifications.webStatus(endpoint, fixture.origin), { registered: true })
     assert.deepEqual(await notifications.webStatus(endpoint, fixture.otherOrigin), { registered: false })
     assert.deepEqual(await notifications.webUnregister({ endpoint }, fixture.otherOrigin), { registered: false })
@@ -130,6 +130,7 @@ if (mode === 'initialize') {
     for (const previousEndpoint of [fixture.foreignSubscription.endpoint, 'https://fcm.googleapis.com/missing'])
       await assert.rejects(notifications.webRegister({ ...input, previousEndpoint }, fixture.origin), { code: 'WEB_PUSH_SUBSCRIPTION_CONFLICT', status: 409 })
     assert.deepEqual(await savedState(), before)
+    assert.equal(hash(await readFile(settings.path)), settingsBefore)
     if (replace) {
       assert.deepEqual(await notifications.webRegister({ subscription: fixture.replacementSubscription,
         applicationServerKey: fixture.applicationServerKey, previousEndpoint: fixture.subscription.endpoint }, fixture.origin), { registered: true })
