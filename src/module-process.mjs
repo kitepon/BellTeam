@@ -35,7 +35,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   let instance = null, currentVersionId = null, previousVersionId = null, generation = null
   let initialized = false, closed = false, available = false, phase = 'unavailable', exchanging = false
   let operation = null, closing = null, update = null, reservation = null, startingReservation = false
-  let failedWriterReaped = false, proofHeld = false
+  let failedWriterReaped = false, proofHeld = false, writerRetiring = false
   let recoveryAttempt = 0, childSequence = 0
   const recovery = createModuleChildRestart(async () => {
     recoveryAttempt = Math.min(Number.MAX_SAFE_INTEGER, recoveryAttempt + 1)
@@ -149,7 +149,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       if (unexpected) { closeAdmission('module_child_exit'); state('unavailable'); reportModuleChildExit(component, result, target.stderrObservation(), onModuleChildExit) }
       let stage = 'os_closed'
       const report = (event, error) => {
-        if (!unexpected && !recovering) return
+        if (!unexpected && !recovering && !target.retirementAck) return
         try { console.error(JSON.stringify(moduleTerminationLog(component, stage, event, target.sequence, active.size, admission, error))) } catch {}
       }
       report('completed')
@@ -161,9 +161,10 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
         stage = 'reaped'; report('waiting')
         await target.channel?.reaped()
         report('completed')
-        if (unexpected || recovering) failedWriterReaped = true
+        if (target.retirementAck && !await target.retirementAck) throw fail('WRITER_RETIREMENT_UNCONFIRMED')
+        if (unexpected || recovering || target.retirementAck) failedWriterReaped = true
         if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
-        if (unexpected) { stage = 'lost'; recovery.lost(); report('completed') }
+        if (unexpected || target.retirementAck) { stage = 'lost'; recovery.lost(); report('completed') }
       } catch (error) { report('failed', error); throw error }
     })
     const started = Date.now()
@@ -243,6 +244,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     try {
       const target = instance
       if (proofHeld) throw fail('PROOF_UNAVAILABLE')
+      if (writerRetiring) throw fail('WRITER_RETIREMENT_UNAVAILABLE')
       if (!target || target.ended || kind === 'request' && !available && !canContinue(method, options, target.generation))
         throw fail('NOT_ACCEPTING')
       return track(target.channel[kind](method, params, options))
@@ -416,7 +418,56 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       } finally { proofHeld = false }
     }
   })
-  return { start, close, replace, reserve, snapshot, withInstallReconciliationProof,
+  const retireProtocolFailedWriter = params => {
+    if (!params || Array.isArray(params) || Object.keys(params).join(',') !== 'generation'
+      || typeof params.generation !== 'string') return Promise.reject(fail('WRITER_RETIREMENT_UNAVAILABLE'))
+    const expectedGeneration = params.generation
+    // The parent owns the one shared exchange mutex; this port holds only the local operation.
+    return exclusive(async () => {
+      const target = instance
+      const assertHeld = (alive = true) => {
+        if (component !== 'conversation' || closed || !initialized || !target || instance !== target
+          || generation !== expectedGeneration || admission?.capture?.().generation !== expectedGeneration
+          || admission?.inspectAdmission?.().failed !== true || reservation || proofHeld
+          || alive && (target.ended || !target.resumed || !target.child.connected
+            || target.child.exitCode !== null || target.child.signalCode !== null)) throw fail('WRITER_RETIREMENT_UNAVAILABLE')
+      }
+      assertHeld()
+      if (exchanging || writerRetiring || target.retirementStarted) throw fail('WRITER_RETIREMENT_UNAVAILABLE')
+      closeAdmission('module_child_exit')
+      target.retirementStarted = true
+      writerRetiring = true; state('quiescing')
+      const controlWriter = async (method, key, timeout) => {
+        const pending = target.channel.control(method, {}, timeout)
+        if (!(pending?.completion instanceof Promise)) throw fail('WRITER_RETIREMENT_UNCONFIRMED')
+        const [result, completion] = await Promise.allSettled([pending, pending.completion])
+        if (result.status === 'rejected') throw result.reason
+        if (completion.status === 'rejected') throw completion.reason
+        if (!result.value || Array.isArray(result.value) || Object.keys(result.value).join(',') !== key
+          || result.value[key] !== true) throw fail('WRITER_RETIREMENT_UNCONFIRMED')
+      }
+      try {
+        await controlWriter('quiesceWriter', 'writerQuiesced', 60000)
+        await target.channel.drainIncoming()
+        assertHeld()
+        // OS close may precede delivery of the exit ACK; neither alone proves retirement.
+        const acknowledged = Promise.withResolvers()
+        target.retirementAck = acknowledged.promise; target.intentional = true
+        void target.end.catch(() => {})
+        try {
+          await controlWriter('exitWriter', 'writerClosed', 5000)
+          assertHeld(false)
+          acknowledged.resolve(true)
+        } catch (error) { acknowledged.resolve(false); throw error }
+        await target.end
+        if (closed || instance !== null || generation !== expectedGeneration || !failedWriterReaped)
+          throw fail('WRITER_RETIREMENT_UNCONFIRMED')
+        return snapshot()
+      } catch (error) { state(closed ? 'closed' : 'unavailable'); throw error }
+      finally { writerRetiring = false }
+    })
+  }
+  return { start, close, replace, reserve, snapshot, withInstallReconciliationProof, retireProtocolFailedWriter,
     request: (method, params, options = {}) => invoke('request', method, params, options),
     callback: (method, params, options = {}) => invoke('callback', method, params, options),
     initialize: mode => {
