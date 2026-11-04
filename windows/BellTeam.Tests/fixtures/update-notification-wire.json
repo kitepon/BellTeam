@@ -1,0 +1,116 @@
+{
+  "candidate": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "ready",
+      "code": null,
+      "message": "正式公開版と同じ版です。"
+    },
+    "components": [
+      {
+        "id": "container",
+        "name": "BellTeam本体",
+        "description": "機能を動かす実行環境と、製品全体の構成。",
+        "current": {
+          "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceCommit": "1111111111111111111111111111111111111111",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "origin": "container"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "1111111111111111111111111111111111111111",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": {
+          "catalog": {
+            "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "publishedAt": "2026-11-04T09:00:00Z",
+            "expiresAt": "2026-11-11T09:00:00Z"
+          },
+          "check": {
+            "status": "verified",
+            "checkedAt": "2026-11-04T09:00:00Z",
+            "error": null
+          }
+        },
+        "comparison": {
+          "state": "update_available",
+          "reason": null
+        },
+        "changes": [],
+        "capability": {
+          "supported": false,
+          "reason": "UPDATE_EXECUTOR_UNAVAILABLE"
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [],
+    "operation": null,
+    "previousOperation": null,
+    "notificationCandidates": [
+      {
+        "componentId": "container",
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ]
+  },
+  "none": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "ready",
+      "code": null,
+      "message": "正式公開版と同じ版です。"
+    },
+    "components": [
+      {
+        "id": "container",
+        "name": "BellTeam本体",
+        "description": "機能を動かす実行環境と、製品全体の構成。",
+        "current": {
+          "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceCommit": "1111111111111111111111111111111111111111",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "origin": "container"
+        },
+        "published": {
+          "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceCommit": "1111111111111111111111111111111111111111",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "up_to_date",
+          "reason": null
+        },
+        "changes": [],
+        "capability": {
+          "supported": false,
+          "reason": "UPDATE_EXECUTOR_UNAVAILABLE"
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [],
+    "operation": null,
+    "previousOperation": null,
+    "notificationCandidates": []
+  }
+}

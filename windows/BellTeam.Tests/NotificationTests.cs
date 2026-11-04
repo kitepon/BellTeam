@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using BellTeam.App;
 using BellTeam.Core;
 
@@ -95,6 +96,33 @@ public sealed class NotificationTests
         finally { if (Directory.Exists(directory)) Directory.Delete(directory,recursive:true); }
     }
     [Fact]
+    public async Task ServerProjectedCandidatesDriveOnlyOneNotification()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "BellTeam-update-wire-" + Guid.NewGuid());
+        try
+        {
+            var fixture = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "fixtures", "update-notification-wire.json")))!;
+            var response = fixture["none"]!.DeepClone(); var calls = new List<string>();
+            using var api = new BellApi(new("http://localhost/"), new StubHandler((request, _) => { calls.Add(request.Method + " " + request.RequestUri!.AbsolutePath); return Task.FromResult(StubHandler.Json(response.ToJsonString())); }));
+            var store = new SettingsStore(directory); var sink = new FakeSink();
+            await using var notifications = new DesktopNotifications(sink, store, (_, _) => { });
+            await notifications.SetEnabledAsync(true);
+            var center = new UpdateCenter(api, store);
+            response.AsObject().Remove("notificationCandidates");
+            await notifications.NotifyUpdatesAsync(center.Server, (await center.InventoryAsync()).NotificationCandidates);
+            Assert.Empty(sink.Messages);
+            response = fixture["none"]!.DeepClone();
+            await notifications.NotifyUpdatesAsync(center.Server, (await center.InventoryAsync()).NotificationCandidates);
+            Assert.Empty(sink.Messages);
+            response = fixture["candidate"]!.DeepClone();
+            await notifications.NotifyUpdatesAsync(center.Server, (await center.InventoryAsync()).NotificationCandidates);
+            await notifications.NotifyUpdatesAsync(center.Server, (await center.InventoryAsync()).NotificationCandidates);
+            Assert.Single(sink.Messages); Assert.Equal(new string('b', 64), sink.Messages[0].MessageId);
+            Assert.All(calls, call => Assert.Equal("GET /api/updates", call));
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+    [Fact]
     public async Task UpdatesUseOnlyCandidatesKeepDigestAndDoNotRepeatAfterFailure()
     {
         var directory = Path.Combine(Path.GetTempPath(), "BellTeam-update-notification-" + Guid.NewGuid());
@@ -117,6 +145,7 @@ public sealed class NotificationTests
             await notifications.NotifyUpdatesAsync("http://localhost/", [second]); Assert.Equal(2, sink.Shows);
             await notifications.NotifyUpdatesAsync("http://other/", [second]); Assert.Equal(3, sink.Shows);
             await Assert.ThrowsAsync<BellApiException>(() => notifications.NotifyUpdatesAsync("http://localhost/", [new("usage", "bad")]));
+            await Assert.ThrowsAsync<BellApiException>(() => notifications.NotifyUpdatesAsync("http://localhost/", [new("other", new string('a', 64))]));
         }
         finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
     }

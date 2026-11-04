@@ -104,7 +104,7 @@ public sealed class DesktopNotifications(INotificationSink sink, SettingsStore s
     public async Task NotifyUpdatesAsync(string server, UpdateCandidate[]? candidates)
     {
         if (candidates is null || !Enabled) return;
-        if (candidates.Length > 9 || candidates.Any(item => item is null || string.IsNullOrEmpty(item.ComponentId) || item.Id is null || item.Id.Length != 64 || item.Id.Any(ch => ch is not (>= '0' and <= '9') and not (>= 'a' and <= 'f'))) || candidates.Select(item => item.ComponentId).Distinct().Count() != candidates.Length) throw new BellApiException("更新通知の候補を確認できません。");
+        if (candidates.Length > 9 || candidates.Any(item => item is null || item.ComponentId is not ("container" or "web-gateway" or "notifications" or "members" or "conversation" or "execution" or "usage" or "memory" or "diagnostics") || item.Id is null || item.Id.Length != 64 || item.Id.Any(ch => ch is not (>= '0' and <= '9') and not (>= 'a' and <= 'f'))) || candidates.Select(item => item.ComponentId).Distinct().Count() != candidates.Length) throw new BellApiException("更新通知の候補を確認できません。");
         await updateChanging.WaitAsync();
         try
         {
