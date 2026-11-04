@@ -57,3 +57,16 @@ test('module installation remains unsupported on an old Host without the explici
  protocol=1;assert.deepEqual(await client.moduleInstallCapabilities(),{supported:true,reason:null})
  protocol=2;assert.equal((await client.moduleInstallCapabilities()).supported,false)
 })
+
+test('bundled module capability is separate from container capability and bound to the running source',async t=>{
+ const fs=(await import('node:fs/promises')).default
+ const source='a'.repeat(40)
+ t.mock.method(fs,'readFile',async path=>{assert.equal(path,'/app/distribution.json');return JSON.stringify({sourceCommit:source})})
+ syncBuiltinESMExports()
+ let value={supported:false,reason:'HOST_CONTAINER_UPDATE_UNSUPPORTED',moduleInstallProtocol:1,moduleInstallSupported:true,moduleInstallerSource:source}
+ const {client}=await fixture(t,socket=>socket.end(JSON.stringify({ok:true,value})+'\n'))
+ assert.equal((await client.capabilities()).supported,false)
+ assert.deepEqual(await client.moduleInstallCapabilities(),{supported:true,reason:null})
+ value={...value,moduleInstallerSource:'b'.repeat(40)}
+ assert.deepEqual(await client.moduleInstallCapabilities(),{supported:false,reason:'HOST_MODULE_SOURCE_CHANGED'})
+})

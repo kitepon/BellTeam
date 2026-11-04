@@ -1,4 +1,5 @@
 import { createConnection } from 'node:net'
+import { readFile } from 'node:fs/promises'
 const socketPath = '/run/bellteam-updater/update.sock'
 const failure = (code, outcome = 'unknown', status = 503) => Object.assign(new Error(code), { code, outcome, status })
 
@@ -43,8 +44,14 @@ export function createContainerUpdateClient() {
     moduleInstallCapabilities: async () => {
       try {
         const value = await call('capabilities', {})
-        return value?.supported === true && value.moduleInstallProtocol === 1 ? { supported: true, reason: null }
-          : { supported: false, reason: /^[A-Z_0-9]{1,100}$/.test(value?.reason ?? '') ? value.reason : 'HOST_MODULE_INSTALL_UNAVAILABLE' }
+        if (value?.moduleInstallerSource !== undefined) {
+          const distribution = JSON.parse(await readFile('/app/distribution.json', 'utf8'))
+          if (!/^[a-f0-9]{40}$/.test(value.moduleInstallerSource) || distribution.sourceCommit !== value.moduleInstallerSource)
+            return { supported: false, reason: 'HOST_MODULE_SOURCE_CHANGED' }
+        }
+        const supported = typeof value?.moduleInstallSupported === 'boolean' ? value.moduleInstallSupported : value?.supported
+        return supported === true && value.moduleInstallProtocol === 1 ? { supported: true, reason: null }
+          : { supported: false, reason: /^[A-Z_0-9]{1,100}$/.test(value?.moduleInstallReason ?? value?.reason ?? '') ? (value.moduleInstallReason ?? value.reason) : 'HOST_MODULE_INSTALL_UNAVAILABLE' }
       } catch { return { supported: false, reason: 'HOST_MODULE_INSTALL_UNAVAILABLE' } }
     },
     catalog: componentId => call('catalog', { componentId }),

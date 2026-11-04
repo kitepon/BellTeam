@@ -102,6 +102,8 @@
     "scripts/install-notifications-release.py",
     "src/container-update-client.mjs",
     "scripts/container-update-host.py",
+    "scripts/module-update-service.py",
+    "scripts/module-update-compose.mjs",
     "scripts/install-container-update-code.py",
     "distribution/server/updater",
     "scripts/members-start.c",

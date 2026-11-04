@@ -178,6 +178,10 @@ class HostUpdater:
         for name in ['plans', 'operations', 'docker-config']:
             (self.state / name).mkdir(mode=0o700, exist_ok=True)
 
+    @property
+    def code_root(self):
+        return self.prefix / 'releases' / self.config['release']
+
     def command(self, args, timeout=30, input=None):
         return subprocess.run(args, env=self.env, cwd='/', stdin=subprocess.DEVNULL if input is None else None,
                               input=input, capture_output=True, timeout=timeout, check=True).stdout
@@ -339,10 +343,17 @@ class HostUpdater:
         with locked(self.state / 'ledger.lock'):
             value = self.read_operation(identifier)
             worker = value.get('worker')
-            if value['phase'] not in TERMINAL and worker and birth(worker['pid']) != worker['birth']:
+            if value['phase'] not in TERMINAL and worker and not self.worker_alive(worker):
                 value.update(phase='unknown', execution='unknown', verification='unknown', error='HOST_UPDATE_WORKER_LOST', updatedAt=stamp())
                 atomic(self.state / 'operations' / identifier / 'operation.json', value)
             return self.view(value)
+
+    def worker_alive(self, worker):
+        return birth(worker['pid']) == worker['birth']
+
+    def worker_identity(self, identifier):
+        return {'pid': os.getpid(), 'birth': birth(os.getpid()),
+                'unit': 'bellteam-container-update-worker-' + identifier + '.service'}
 
     def start(self, params):
         check(exact(params, 'requestId,planId,confirmContainerRestart'))
@@ -440,8 +451,7 @@ class HostUpdater:
                     value.update(admission='rejected', phase='failed', execution='failed', verification='unknown', error=error.code, updatedAt=stamp())
                     atomic(directory / 'operation.json', value)
                     return
-                value.update(admission='accepted', worker={'pid': os.getpid(), 'birth': birth(os.getpid()),
-                    'unit': 'bellteam-container-update-worker-' + identifier + '.service'}, updatedAt=stamp())
+                value.update(admission='accepted', worker=self.worker_identity(identifier), updatedAt=stamp())
                 atomic(directory / 'operation.json', value)
             try:
                 value.update(phase='applying', updatedAt=stamp()); atomic(directory / 'operation.json', value)
@@ -934,7 +944,7 @@ def accept_catalog(updater, raw, receipt):
         return identifier
 
 def verify_and_install_catalog(updater, catalog_path, bundle_path, expectation=None):
-    release = updater.prefix / 'releases' / updater.config['release']
+    release = updater.code_root
     verifier = release / 'scripts/verify-update-catalog.py'; trusted(verifier, updater.uid)
     if expectation:
         expected = read_json(expectation, updater.uid)
@@ -974,7 +984,7 @@ def _refresh_catalog(updater):
     rows = decode(fetch('https://api.github.com/repos/kitepon/BellTeam/releases?per_page=100', 4 * CATALOG_LIMIT))
     # Distribution owns the formal publication selector; root still authenticates every selected byte.
     import importlib.util
-    script = updater.prefix/'releases'/updater.config['release']/'scripts/update_catalog.py'
+    script = updater.code_root/'scripts/update_catalog.py'
     trusted(script, updater.uid)
     spec = importlib.util.spec_from_file_location('bellteam_catalog_discovery', script)
     discovery = importlib.util.module_from_spec(spec); spec.loader.exec_module(discovery)

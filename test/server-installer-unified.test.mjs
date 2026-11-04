@@ -79,6 +79,7 @@ else if(a[0]==='run'){
  }else if(entry==='/usr/local/bin/node'){
   if(a.some(v=>v.endsWith('target=/probe'))){if(a.includes('1000:1000'))process.exit(Number(e.TEST_PROBE_RESULT??75));process.exit(0);}
   if(e.TEST_H1&&a.includes('/app/src/resume-install-plan.mjs')){const r=spawnSync(process.execPath,[repo+'/src/resume-install-plan.mjs',a.at(-1)],{stdio:'inherit'});process.exit(r.status??98);}
+  if(a.includes('/app/scripts/module-update-compose.mjs')){const r=spawnSync(process.execPath,[repo+'/scripts/module-update-compose.mjs'],{stdio:'inherit'});process.exit(r.status??98);}
   let j=a.indexOf('-e');
   if(e.TEST_H1&&j>=0&&a[j+1].includes('resume-state-cli.js'))process.exit(0);
   if(e.TEST_H1&&j>=0&&a[j+1].includes('fs.chownSync')){
@@ -86,6 +87,7 @@ else if(a[0]==='run'){
    const code=a[j+1].replace('p="/resume-state"','p='+JSON.stringify(root+'/'+name));
    const r=spawnSync(process.execPath,['-e','require("fs").chownSync=(p,u,g)=>{if(u!==1000||g!==1000)process.exit(89)};'+code],{stdio:'inherit'});process.exit(r.status??98);
   }
+  if(j>=0&&a[j+1].includes('existsSync("/app/scripts/module-update-compose.mjs")'))process.exit(e.TEST_NOT_BUNDLED?75:0);
   if(j>=0){const r=spawnSync(process.execPath,a.slice(j),{stdio:'inherit'});process.exit(r.status??98);}
   const script=a.find(x=>x==='/app/src/server-state-writers.mjs'),phase=a.at(-1);
   if(script&&phase==='plan'){
@@ -110,7 +112,8 @@ else if(a[0]==='run'){
   }else process.exit(95);
  }else process.exit(94);
 }else if(a[0]==='compose'){
- if(a.includes('config')){
+ if(a.includes('module-installer')&&(a.includes('stop')||a.includes('rm')))process.exit(0);
+ else if(a.includes('config')){
   const model=select();
   if(e.TEST_CONFIG_FAIL&&!e.COMPOSE_FILE&&!a.includes('-f'))process.exit(53);
   if(a.includes('--images'))emit(model.services.bellteam.image);
@@ -132,6 +135,7 @@ else if(a[0]==='run'){
   }
   const phase=a.at(-1);if(phase===e.TEST_FAIL_PHASE)process.exit(55);
  }else if(a.includes('up')){
+  if(select().services['module-installer'])process.exit(e.TEST_MODULE_UP_FAIL?64:0);
   if(e.TEST_UP_FAIL||Number(e.TEST_HEALTH_READY_AFTER??0)>Number(a[a.indexOf('--wait-timeout')+1]))process.exit(58);
   const model=select(),previous=state(),counter=fs.existsSync(root+'/starts')?Number(fs.readFileSync(root+'/starts'))+1:1;
   fs.writeFileSync(root+'/starts',String(counter));
@@ -519,4 +523,25 @@ test('起動猶予後のhealthyを有限待機し、期限超過の失敗と保�
  const late=await fixture(t);await assert.rejects(late.run([],{TEST_HEALTH_READY_AFTER:'301'}),{code:58});
  assert.equal((await late.calls()).filter(c=>c.args.includes('up')).length,1);
  assert.ok(await readFile((await late.saved())+'/normal.json'));
+})
+
+
+test('bundled installer freezes the socket and starts the same image service after normal health',async t=>{
+ const f=await fixture(t)
+ await f.run()
+ const saved=await f.saved(),normal=JSON.parse(await readFile(saved+'/normal.json')),backend=JSON.parse(await readFile(saved+'/module-installer.json'))
+ const service=backend.services['module-installer']
+ assert.equal(service.image,currentImage)
+ assert.equal(backend.volumes.private.name,'fixture_state')
+ assert.equal(normal.services.bellteam.volumes.find(v=>v.target==='/run/bellteam-updater').read_only,true)
+ assert.equal(service.volumes.some(v=>v.type==='bind'),false)
+ const calls=await f.calls(),ups=calls.filter(c=>c.args.includes('up'))
+ assert.equal(ups.length,2)
+ assert.equal(ups[0].compose,saved+'/normal.json')
+ assert.equal(ups[1].args[ups[1].args.indexOf('-f')+1],saved+'/module-installer.json')
+ const stop=calls.findIndex(c=>c.args.includes('stop')&&c.args.includes('module-installer'))
+ const maintenance=calls.findIndex(c=>c.args.includes('state-maintenance')&&c.args.at(-1)==='prepare')
+ assert.ok(stop>=0&&maintenance>stop)
+ const failed=await fixture(t)
+ await assert.rejects(failed.run([],{TEST_MODULE_UP_FAIL:'1'}),e=>e.code===1&&/MODULE_INSTALLER_START_FAILED/.test(e.stderr)&&!/BellTeamを起動しました/.test(e.stdout))
 })

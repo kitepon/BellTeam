@@ -24,6 +24,8 @@ flowchart TD
   Result --> Client
 ```
 
+標準の公開installerに同梱するmodule導入経路は[箱同梱module導入](module-installer.md)が正本。以下は既Host機構およびcontainer全体更新を跨ぐworkerの契約であり、標準導入にHost構築を要求するものではない。
+
 ## 固定配置と公開機構
 
 Host prefixは `/srv/bellteam/shared/tools/bellteam-container-update-host`。releases/SHAにroot-owned全code/import/既installer closure、catalogに信頼済catalog、state0700/通常file0600、socket親root:1001/0750とupdate.sock0660。各祖先まで非symlink/root管理/非特権write禁止。実Hostの既shared祖先が成立しなければ権限を奪わず設置拒否する。normalへsocket親だけRO bindし `/run/bellteam-updater/update.sock` へ接続する。state/code/catalog/Docker socketをnormalへ渡さない。同1001子とのOS隔離とOwner本人性をpeer UIDだけで保証しない。

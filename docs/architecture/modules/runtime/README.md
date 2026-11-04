@@ -18,6 +18,7 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 - [execution親の選択保存ACK](execution-adoption.md)
 - [CLI登録・共有設定の所有と完了](cli-registration.md)
 - [installer・状態移行・backup/restore](recovery.md)
+- [箱同梱のmodule導入プログラム](module-installer.md)（実装中、標準Docker方式）
 - [アプリからcontainerを更新するHost受付とworker](container-update.md)（source実装、未設置）
 - [Aiterm H1のoffline保存・起動前採用の接続候補](resume.md)
 - [Web受付固定資材の配置とdescriptor](web-gateway-release.md)

@@ -12,7 +12,8 @@ flowchart TD
   Freeze --> Storage["保存先・Engine API・volumeを検証<br/>初回は権限拒否を試す"]
   Storage --> Previous["旧runtimeと旧設定を保存<br/>現在の世代と照合"]
   Previous --> Keep["保存世代を保持すると決める"]
-  Keep --> Stop["現在CIDを停止<br/>必要時restart無効化と除去"]
+  Keep --> BackendStop["同梱module serviceを停止・除去<br/>ledger/volume保持"]
+  BackendStop --> Stop["現在CIDを停止<br/>必要時restart無効化と除去"]
   Stop --> Writers["重なる全writerを確認"]
   Writers --> Paths["Hostから不可視のbindがあれば<br/>固定image・daemon rootのRO metadata読取"]
   Paths --> Maintain["専用保守processでprepare・移行"]
@@ -21,6 +22,8 @@ flowchart TD
   Mode -->|"復旧"| Old["保存した旧modelを選ぶ"]
   Cursor --> Start["固定imageで起動・health待ち"]
   Old --> Start
+  Start --> Bundled["同imageの同梱module serviceを起動・health待ち<br/>Host初期登録なし"]
+  Bundled -->|"失敗"| ModuleHalt["本体の到達点と保存世代を保持<br/>MODULE_INSTALLER_START_FAILED"]
   Maintain -->|"失敗"| Halt["停止したまま<br/>保存世代と移行状態を保持"]
   Cursor -->|"失敗"| Halt
 ```
@@ -36,6 +39,8 @@ flowchart TD
 | maintenance | `compose.state-maintenance.json` | networkなし、固定entry、private rootの排他flock、runtimeとprivate volumeだけ。root処理はこのオフライン保守が所有 |
 | Cursor更新 | `update-cursor.sh → cursor-update-entrypoint.sh` | normalized project/volume名で使い捨てcontainer。空envの固定入口から公式update。BellTeam本体の環境や資格fileを読み出さない |
 | cleanup | installerのtrap | 一時staging/probeを除く。停止を試みる段階以後は保存世代を消さない。自動的に別imageを起こすrollbackはない |
+
+同梱moduleのモデル生成・状態所有・能力分離は[同梱プログラム](module-installer.md)が正本。normalのsocket親は同project named volumeのRO、専用serviceだけ同private volumeをRWで使う。通常の保守前に当該serviceを停止・除去し、保守後は通常本体のhealth成立から専用serviceのhealthを待つ。古いimageに同梱entryが無い場合は固定codeを表示し、本体導入を維持する。既Host overlayを明示採用しているmodelはそのsocketを保持する。
 
 起動の`compose up --wait`は最大300秒で打ち切る。healthcheckの起動猶予120秒と、その後の判定を待つ有限上限であり、起動時間の保証ではない。unhealthy・container終了・期限超過の非0はそのまま返し、保存世代を保持する。通常更新とrecoverに共通で、後発healthyによって元installerの失敗を成功へ書き換えない。
 
