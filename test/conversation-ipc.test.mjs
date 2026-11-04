@@ -1,3 +1,4 @@
+import { MODULE_CONCURRENCY } from '../src/module-ipc.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { EventEmitter } from 'node:events'
@@ -172,8 +173,8 @@ test('parent display callback saves through the child writer without a delivery 
   t.after(async () => { releaseEvent.resolve(); if (endpoints[0].connected) endpoints[0].disconnect(); await parent.drainIncoming(); await parent.reaped() })
   await parent.control('initialize', { generation: 'generation-display', mode: 'restore', bots: h.fixture.bots }); await parent.ready; await parent.control('resume')
   const lease = admission.enter(), options = { conversationLease: lease, capturedAuthority, operationContext: {} }
-  const roots = Array.from({ length: 8 }, () => parent.request('rooms.list', {}, { ...options, capturedAuthority: rootAuthority }))
-  await settle(); assert.equal(parent.snapshot().root, 8)
+  const roots = Array.from({ length: MODULE_CONCURRENCY }, () => parent.request('rooms.list', {}, { ...options, capturedAuthority: rootAuthority }))
+  await settle(); assert.equal(parent.snapshot().root, MODULE_CONCURRENCY)
   const params = { botId: h.fixture.bots[0].id, groupId: 'native-display-a', words: [{ text: 'hello', kind: 'answer' }] }
   await assert.rejects(parent.request('display.words', params, options))
   await assert.rejects(parent.callback('display.words', params, { ...options, capturedAuthority: {} }))
@@ -232,12 +233,12 @@ test('real channel envelopes keep parallel per-call authority and same opaque op
   assert.deepEqual(schedules.schedules, [])
 })
 
-test('eight user accepted roots release their slots while final saves and native-release ACKs remain live', { timeout: 4000 }, async t => {
+test('configured user accepted roots release their slots while final saves and native-release ACKs remain live', { timeout: 4000 }, async t => {
   const h = await setup(t), target = h.fixture.bots[0].id
-  const attempts = Array.from({ length: 8 }, (_, i) => h.request('user.turn', { target, message: `question-${i}`, images: [] }))
+  const attempts = Array.from({ length: MODULE_CONCURRENCY }, (_, i) => h.request('user.turn', { target, message: `question-${i}`, images: [] }))
   await Promise.all(attempts.map(attempt => attempt.accepted))
   assert.equal(h.parent.snapshot().root, 0)
-  assert.equal(h.native.length, 8)
+  assert.equal(h.native.length, MODULE_CONCURRENCY)
   assert.equal((await h.request('rooms.list', {})).rooms.length, 1)
   let drained = false
   const draining = h.parent.control('quiesce').then(value => { drained = true; return value })
@@ -485,4 +486,23 @@ test('parent HTTP page joins captured usage cards through real fork IPC and leav
   const recent = await f.store.recentViews([botId, botId]); assert.equal(recent.get(botId).at(-1).message, 'body-39')
   assert.equal((await f.store.timelineView(botId)).length, 40)
   h.admission.finish(h.lease)
+})
+
+test('shared callback capacity reaches 64, rejects overflow, and preserves control', { timeout: 4000 }, async t => {
+  const endpoints = pair(), held = Promise.withResolvers(), entered = Promise.withResolvers(); let count = 0
+  const parent = createConversationPeer(endpoints[0], { side: 'parent', validateResult: () => {}, accept: () => assert.fail() })
+  const child = createConversationPeer(endpoints[1], { side: 'child', validateResult: () => {}, accept: entry => () => {
+    if (entry.kind === 'control') return { ready: true }
+    if (++count === MODULE_CONCURRENCY) entered.resolve()
+    return held.promise
+  } })
+  t.after(() => { held.resolve({}); parent.reaped(); child.reaped() })
+  const calls = Array.from({ length: MODULE_CONCURRENCY }, () => parent.call('callback', 'fixture', {}))
+  await entered.promise
+  assert.equal(parent.snapshot().callback, MODULE_CONCURRENCY)
+  assert.deepEqual(await parent.call('control', 'fixture', {}), { ready: true })
+  await assert.rejects(parent.call('callback', 'fixture', {}), { code: 'CONVERSATION_IPC_CAPACITY', outcome: 'not_accepted' })
+  held.resolve({}); await Promise.all(calls.map(call => call.completion))
+  assert.equal(count, MODULE_CONCURRENCY)
+  assert.equal(parent.snapshot().callback, 0)
 })

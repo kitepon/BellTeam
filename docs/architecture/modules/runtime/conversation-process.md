@@ -4,7 +4,7 @@ runtime所有。Root conversation-update-contract-20261103.md v1（133222cf）�
 
 ```mermaid
 flowchart TD
-  Caller[親 認証済facade] --> Root[新root8 / callback8・effect8別枠]
+  Caller[親 認証済facade] --> Root[新root64 / callback64・effect64別枠]
   Root --> Channel[匿名IPC control64KiB・chunk256KiB]
   Channel --> Credit[方向8stream / callback予約4 / stream4credit]
   Credit --> Child[conversation唯一writer / read-only restore]
@@ -39,3 +39,5 @@ root slotと受付済delivery lifetimeは別。AIが長ければ60秒drain失敗
 stream/親FD・save gate/固定C/署名reader・roothelper・installer selectorを先着実装。CはcurrentUIDのcompile-time path fixtureによる実kernel flock・Buffer advanced IPC・空env・旧OS終了後再起動を確認し、本番root1001成立へ補完しない。実Node IPCの試験は既waitNotificationsChildClose（OS exit＋IPC断＋stdio close）を使う。親disconnect時にNode26のcloseイベント単独が発火しない事象をAstra有限再現で切り分け、通信往復自体は正常だった。
 
 本sourceだけではdispatcher/業務channel/controller/lifetime/認証context/通常main/署名・native成立は未完。作者の固定公開I/Fへ接続してから一実体へ組む。root helperは固定conversation分岐でCenti公式verifierとmanifest7値/nullへ接続し、旧componentのCLIを維持する。root配置試験はcurrentUID/receipt stubでcrypto/root試験を代用しない。
+
+Owner共通同時数64の境界としてcallbackも65件目は送信前not_acceptedで返す。未送信callbackをpendingへ積まず、飽和時にもcontrolは独立して進む。

@@ -4,9 +4,9 @@ runtime所有エピネル。Root members-update-contract-20261103.mdを実装す
 
 ```mermaid
 flowchart TD
-  Root[親の新root admission / Kiro live lease] --> Channel[匿名IPC / root8 / 16MiB本文]
+  Root[親の新root admission / Kiro live lease] --> Channel[匿名IPC / root64 / 16MiB本文]
   Channel --> Child[members唯一writer / Belorta dispatcher]
-  Child --> Effect[同leaseの固定effect8 / 先にcallback8確保]
+  Child --> Effect[同leaseの固定effect64 / 先にcallback64確保]
   Effect --> Parent[固定parent adapter / 相関・generation検証]
   Parent --> Seat[既base runner / CでUID1000 / 固定file種別]
   Parent --> CLI[親同一SeatRuntimeの唯一CLI queue]
@@ -50,7 +50,7 @@ profiles.readはfresh ACK snapshotを全件送った後の小さい{revision}だ
 ```mermaid
 flowchart LR
   Fresh[共通facade: 固定read method] --> Pin[execution: enterReadPin / method固定の親opaque]
-  AI[既AI logical lease最大8] --> Channel[既IPC root8 / 同wire5field]
+  AI[既AI logical lease最大64] --> Channel[既IPC root64 / 同wire5field]
   Pin --> Channel
   Channel --> Snapshot[profiles.readだけprojection許可]
   Channel --> Room[schedules.list roomだけroom.schedules.list effect]
@@ -59,10 +59,10 @@ flowchart LR
   Complete --> Drain[shared close/drain/adopt / timeout解放0]
 ```
 
-Root採用の`MEMBERS_READ_PIN_METHODS`6methodだけを`options.membersReadPin`で渡す。channelはgate公開`assertReadPin({method,generation})`で本人性を検査し、AIleaseやcallback/別read/mutationへ転用しない。pendingにはAIleaseと別にpinを保持、wireは既generation/leaseId/rootId/ownerWrite/continuationのまま、ownerWriteは常にfalse。controllerはpinをwithLeaseへ入れ直さない。AI logical8と既IPC root8/effect8/callback8の上限は不変。
+Root採用の`MEMBERS_READ_PIN_METHODS`6methodだけを`options.membersReadPin`で渡す。channelはgate公開`assertReadPin({method,generation})`で本人性を検査し、AIleaseやcallback/別read/mutationへ転用しない。pendingにはAIleaseと別にpinを保持、wireは既generation/leaseId/rootId/ownerWrite/continuationのまま、ownerWriteは常にfalse。controllerはpinをwithLeaseへ入れ直さない。AI logical64と既IPC root64/effect64/callback64の上限は不変。
 
 pinの親projectionは同pendingのprofiles.readだけ、親effectは同schedules.listのownerKind=roomかつ同ownerIdに対するroom.schedules.listだけ受ける。captureした要求paramsへ相関し、他effectを親adapterへ渡さない。親contextはmembersReadPinを持ち、一般membersLease branchへ入れない。Mollyの専用readonly effect adapterが同pinを再確認する。
 
 送信前にroot actual completion、親readonly effect開始前にeffect実終端を`trackReadCompletion`へ登録する。caller期限/断線だけで解放せず、finish要請と両completion終端後にのみ解放。既pinはclose後も同generationの元methodだけ継続、新pinは閉鎖中拒否。drain/adoptはKiroのAIleaseとreadpinの双方を待つ。固定readのfresh結果を採用し、投影を認可の代用にしない。
 
-親の同exchangeMutex.runExclusiveはreplaceのprepare前からdrain/旧OS終端/保存ACK/失敗復旧まで保持する。共有競合は受付閉鎖・prepare前にMODULE_EXCHANGE_BUSYで拒否する。signal/実completion/readonly pin/root8とclose時の取消は既契約を維持し、新mutexは作らない。親assemblyの同一体DIはintegrationが所有する。
+親の同exchangeMutex.runExclusiveはreplaceのprepare前からdrain/旧OS終端/保存ACK/失敗復旧まで保持する。共有競合は受付閉鎖・prepare前にMODULE_EXCHANGE_BUSYで拒否する。signal/実completion/readonly pin/root64とclose時の取消は既契約を維持し、新mutexは作らない。親assemblyの同一体DIはintegrationが所有する。

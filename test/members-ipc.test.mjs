@@ -1,3 +1,4 @@
+import { MODULE_CONCURRENCY } from '../src/module-ipc.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
@@ -96,17 +97,17 @@ test('only the captured parent authorization becomes the child ownerWrite capabi
   await x.channel.control('quiesce'); await x.channel.control('exit'); await x.ended
 })
 
-test('eight roots and effects leave eight persistence callbacks available with a maximum four-image payload', { timeout: 20000 }, async t => {
+test('configured roots and effects leave configured persistence callbacks available with a maximum four-image payload', { timeout: 20000 }, async t => {
   let block = false, entered, release, count = 0
   const waiting = new Promise(resolve => { entered = resolve })
   const held = new Promise(resolve => { release = resolve })
   const x = await start(t, { onEffect: async method => {
-    if (block && method === 'project.readPreviousSession') { if (++count === 8) entered(); await held }
+    if (block && method === 'project.readPreviousSession') { if (++count === MODULE_CONCURRENCY) entered(); await held }
   } })
   t.after(() => release())
   await x.channel.control('resume')
   const bots = []
-  for (let i = 0; i < 8; i++) bots.push((await x.request('profile.create', { input: { name: `fixture-${i}`, harness: 'codex' } })).bot)
+  for (let i = 0; i < MODULE_CONCURRENCY; i++) bots.push((await x.request('profile.create', { input: { name: `fixture-${i}`, harness: 'codex' } })).bot)
   const leases = bots.map(() => x.admission.enter())
   block = true
   const avatar = 'data:image/png;base64,' + 'a'.repeat(3_000_000 - 'data:image/png;base64,'.length)
@@ -115,10 +116,10 @@ test('eight roots and effects leave eight persistence callbacks available with a
       avatarCrop: { x: 0, y: 0, width: 1, height: 1 }, avatarLargeCrop: { x: 0, y: 0, width: 1, height: 1 } } : {}) } },
   { membersLease: leases[i] }))
   await waiting
-  assert.equal(x.channel.snapshot().root, 8)
+  assert.equal(x.channel.snapshot().root, MODULE_CONCURRENCY)
   const ticket = x.admission.close()
   const callbacks = bots.map((bot, i) => x.channel.callback('profile.session', { botId: bot.id, session: `saved-${i}` }, { membersLease: leases[i] }))
-  assert.equal(x.channel.snapshot().callback, 8)
+  assert.equal(x.channel.snapshot().callback, MODULE_CONCURRENCY)
   const saved = await Promise.all(callbacks)
   assert.deepEqual(saved.map(value => value.bot.session), bots.map((_bot, i) => `saved-${i}`))
   const quiescing = x.channel.control('quiesce', {}, 60000)

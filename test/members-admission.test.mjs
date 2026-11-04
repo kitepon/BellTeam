@@ -1,3 +1,4 @@
+import { MODULE_CONCURRENCY } from '../src/module-ipc.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { MembersAdmission, MEMBERS_READ_PIN_METHODS } from '../src/members-admission.mjs'
@@ -47,11 +48,16 @@ test('closed root rejects new work while old live lease callbacks drain', async 
 })
 
 test('root capacity does not consume new credit for an existing lease', async () => {
-  const gate = new MembersAdmission(), leases = Array.from({ length: 8 }, () => gate.enter())
+  const gate = new MembersAdmission(), leases = Array.from({ length: MODULE_CONCURRENCY }, () => gate.enter())
   assert.throws(() => gate.enter(), { status: 503, outcome: 'not_accepted' })
   await gate.withLease(lease => gate.assertLease(lease), { lease: leases[0] })
   gate.assertLease(leases[0])
-  leases.forEach(lease => gate.finish(lease))
+  const actual = Promise.withResolvers()
+  gate.trackCompletion(leases[0], actual.promise); gate.finish(leases[0])
+  assert.throws(() => gate.enter(), { code: 'MEMBERS_NOT_ACCEPTED' })
+  actual.resolve(); await actual.promise; await Promise.resolve()
+  const next = gate.enter(); gate.finish(next)
+  leases.slice(1).forEach(lease => gate.finish(lease))
 })
 
 test('failed drain can resume old generation without invalidating live leases', async () => {
@@ -72,8 +78,8 @@ test('operation errors retain identity and release only owned leases', async () 
   gate.assertLease(lease); gate.finish(lease)
 })
 
-test('read pins pass eight occupied AI leases without increasing the eight AI roots', async () => {
-  const gate = new MembersAdmission(), leases = Array.from({ length: 8 }, () => gate.enter())
+test('read pins pass configured occupied AI leases without increasing the configured AI roots', async () => {
+  const gate = new MembersAdmission(), leases = Array.from({ length: MODULE_CONCURRENCY }, () => gate.enter())
   for (const method of MEMBERS_READ_PIN_METHODS) await gate.withReadPin(method, pin => gate.assertReadPin(pin, { method }))
   assert.throws(() => gate.enter(), { code: 'MEMBERS_NOT_ACCEPTED' })
   leases.forEach(lease => gate.finish(lease))

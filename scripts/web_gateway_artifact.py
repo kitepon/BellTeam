@@ -50,6 +50,7 @@ src/json-file.mjs
 src/member-identity.mjs
 src/message-assets.mjs
 src/messenger.mjs
+src/module-ipc.mjs
 src/module-streams.mjs
 src/notifications-ipc.mjs
 src/notifications-locks.mjs

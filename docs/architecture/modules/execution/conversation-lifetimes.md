@@ -1,6 +1,6 @@
 # ConversationLifetimes：親callbackと実終端
 
-所有キロ。Root conversation-update-contract-20261103.md SHA133222cfのexecution接点。root8枠/stream/ACK期限/OScloseはEpi、本文writer/回答選択/報告はN102、入場の一括予約と交換mutex/facadeはMolly。親gateは会話子と別寿命、本文を複製した新queueを持たない。
+所有キロ。Root conversation-update-contract-20261103.md SHA133222cfのexecution接点。RPCroot64枠/stream/ACK期限/OScloseはEpi、本文writer/回答選択/報告はN102、入場の一括予約と交換mutex/facadeはMolly。親gateは会話子と別寿命、本文を複製した新queueを持たない。
 
 ```mermaid
 flowchart TD
@@ -25,7 +25,7 @@ flowchart TD
 | --- | --- |
 | `capture()` | frozen `{generation,epoch}` |
 | `assertOpen(expected=capture())` | 新root入場。閉鎖/旧epoch/異世代/未確認はCONVERSATION_NOT_ACCEPTED |
-| `enter(expected=capture(), operationId=UUID)` | opaque operationLease。wire operationIdはlease.correlation。**AI lifetimeの8上限無し**、8枠はruntime別 |
+| `enter(expected=capture(), operationId=UUID)` | opaque operationLease。wire operationIdはlease.correlation。**AI lifetime自体の件数上限無し**、RPC同時64枠はruntime別 |
 | `tryEnter(...)` | 閉鎖/未確認ならnull、新watch入場専用。既watchを止めない |
 | `assertLease(lease,{generation=lease.generation,correlation=lease.correlation}={})` | object identity＋同live/generation/correlation。close後旧epochもliveなら通る |
 | `trackCompletion(lease, realPromise)` | 同Promise一回、finish要請後も実settleまで保持。caller期限/受付結果をrealPromiseへ代用しない |

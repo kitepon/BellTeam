@@ -111,7 +111,7 @@ Onboarding.authの任意scalarは既HarnessAuth同様null/booleanへ正規化し
 
 ## usage固有channel/薄entry/probe（追加実装）
 
-Root21:55の並行分担で、closed parent/child adapterと`src/usage-entry.mjs`/`scripts/probe-usage-runtime.mjs`をミカが所有する。既factory/DTOを再利用し、parent公開口ready/request/callback/control/drainIncoming/reaped/snapshotを共通runnerへ接続する。C/固定FD3,4,5/排他/世代controllerはEpiの公開窓口に従う。membersの8root/8effect/8callback・実completionを再利用し、private大snapshotはconversation-streamsのcredit/chunkを使う。actorは親opaqueから同channelが閉actorへ写し、子の自己申告や診断への秘密反射を認めない。
+Root21:55の並行分担で、closed parent/child adapterと`src/usage-entry.mjs`/`scripts/probe-usage-runtime.mjs`をミカが所有する。既factory/DTOを再利用し、parent公開口ready/request/callback/control/drainIncoming/reaped/snapshotを共通runnerへ接続する。C/固定FD3,4,5/排他/世代controllerはEpiの公開窓口に従う。membersの共通MODULE_CONCURRENCYのroot/effect/callback各64・実completionを再利用し、private大snapshotはconversation-streamsのcredit/chunkを使う。actorは親opaqueから同channelが閉actorへ写し、子の自己申告や診断への秘密反射を認めない。
 
 ## 固有adapterの実接続
 
@@ -162,7 +162,7 @@ entryはverifyUsageLocks()を通過後、固定rootのdispatcher/factoryだけ�
 切断時onSnapshotAbort(context)で未採用stagingをdiscardする。afterResult/commit callbackが遅着しても投影を採用せず、成功/.completionはreapedまで未確認のまま保持する。
 
 
-parent channelのdrainIncoming()は共通endpointへ直接委譲する。controllerは子OS/IPC/pipe終端→受信済み親effect/afterResult commitの実終端→reaped→次子の順を必須とする。outgoingのreaped待ちcredit/.completionはdrainIncomingに含めず、子終了後も残る親処理を待つために循環を作らない。wire/業務/8枠は変えない。
+parent channelのdrainIncoming()は共通endpointへ直接委譲する。controllerは子OS/IPC/pipe終端→受信済み親effect/afterResult commitの実終端→reaped→次子の順を必須とする。outgoingのreaped待ちcredit/.completionはdrainIncomingに含めず、子終了後も残る親処理を待つために循環を作らない。wire/業務は維持し、件数は共通MODULE_CONCURRENCYへ従う。
 
 
 cold parent restartは既adoptionと保存済diskを読み、settings({restore:true})→subscriptions→servicesをhandoff無しで初期化する。volatile stateは新規のまま、保存値/依頼/秘密値のbytesと形式を保持する。mode=restoreのhotswapは実private handoffを必須とする。認証開始・入力、設定apply、通知の再発行を初期化に加えない。runtimeのstartPaused/activateはEpiの責任で、親private seed後に段階初期化し、activateで実resume/同admissionを再開する。

@@ -20,7 +20,7 @@ component=conversationだけを既固定allowlistへ追加する。entry=payload
 
 catalogもconversationだけnodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibilityの厳密5key、26/1/null/null/実7値。未知/不足/余剰/型変換/部分一致/配列順違い、catalog/archive/consumer/source/platform/digest不一致を拒否。validate_conversation_archive(release,manifest,consumer_state)を公開し、既membersの関数と他4componentの型/意味は保持する。正式catalog producerは既公開asset SHA-size/専用公式署名/完全inventoryと現実exportを照合する。正式catalog/Release発行自体は別条件。
 
-package-conversation.py/verify-conversation.pyは既共通内部処理の固定入口。config/conversation-verification.jsonは既repoID1404510084/main/SLSAv1・専用publish-conversation.yml・既trustrootに固定し、他component署名を流用しない。PR307の固定entry import closure52srcと作者probe-fixture.json、package/lockの55fileをliteral収録し、既clean prod lock依存を加える。notifications-ipcが読むusage/web-push-schemaは子の静的依存なのでpayloadへ収録し、親probeだけへ補わない。子dispatcherはobserver snapshot/check/readを閉parent effectへ固定注入するため、旧既定observer経由のrun-seat-command/runtime-home資材は追加しない。親専用conversation-lifetimesはarchiveへ含めず、署名前probeの別一時rootへ同checkoutから一つだけ補う。子/appへ親sourceを補って欠落を隠さない。秘密/settings/env/実stateをarchiveへ含めない。512MiB/20000file等の既完全inventory/link/越境拒否を保つ。
+package-conversation.py/verify-conversation.pyは既共通内部処理の固定入口。config/conversation-verification.jsonは既repoID1404510084/main/SLSAv1・専用publish-conversation.yml・既trustrootに固定し、他component署名を流用しない。PR307の固定entry import closure53srcと作者probe-fixture.json、package/lockの56fileをliteral収録し、既clean prod lock依存を加える。notifications-ipcが読むusage/web-push-schemaは子の静的依存なのでpayloadへ収録し、親probeだけへ補わない。子dispatcherはobserver snapshot/check/readを閉parent effectへ固定注入するため、旧既定observer経由のrun-seat-command/runtime-home資材は追加しない。親専用conversation-lifetimesはarchiveへ含めず、署名前probeの別一時rootへ同checkoutから一つだけ補う。子/appへ親sourceを補って欠落を隠さない。秘密/settings/env/実stateをarchiveへ含めない。512MiB/20000file等の既完全inventory/link/越境拒否を保つ。
 
 初回image導入はRoot既停止境界。署名前probeと親probeは同source/appの依存へ束縛し、readonly readyでは外部Jev/資格取得/observer/予定/初期案内/cleanup/migration0。初回は同source builtin/signed/builtinだけ、長い人工AIと遅い最終callback/非await派生報告は旧維持・busy、新子0/AIabort0/本文再送0、短い全終端後だけ交換を実測する。旧子quiesced/実OSexit/stdio close/専用lock解放前に新writerを起動しない。新子失敗は同最新stateへ一回固定旧builtin restore、snapshot巻戻し無し。親Web/SSE/他module/receipt/process保持と専用cleanupまで原本で確認する。生きた回答の世代移譲や長いAI中即時交換を証明したとは記さない。
 
@@ -66,3 +66,5 @@ managed data rootは実anchor契約どおり1000:1000/0711へ準備し、initial
 外側は署名採用・builtin戻し/根寿命・終了の失敗段階を分け、各hold/drain/release前に同private stateへcontroller/世代/実根寿命countのcheckpointをatomic保存する。親が終了してもcleanup前に同containerの固定statusをdocker cpで回収し、最後に通過した段階を失わない。checkpointは既fixture状態除外内で、業務state/60秒制御/受付/timeoutを変更しない。
 
 保留解放のfinallyへ入る時は、直前のdrain/旧resume検査で捕捉した元errorのname/code/message/stackも同checkpointへ保存する。解放の実done待ちが継続しても先行した失敗を失わず、元errorのthrowや解放/期限/受付判定を変更しない。
+
+PR319の共通同時数参照に伴い、conversation-channelの静的依存src/module-ipc.mjsを固定closureへ収録する。entry/protocol/state/署名policyは維持する。
