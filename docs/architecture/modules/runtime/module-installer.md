@@ -11,6 +11,8 @@ flowchart TD
   Normal --> Socket[同projectのsocket volume / normal RO]
   Socket --> Backend
   Backend --> Ledger[root private ledger / 同UUID plan-start-get]
+  Backend --> Get[get / ledger排他解放後の原本再読]
+  Get --> Ledger
   Backend --> Catalog[公式catalog取得 / 既verifier・鮮度・失効]
   Ledger --> Worker[独立process / 実PID出生・元要求claim]
   Worker --> Verify[公式archive / 既署名・runtime・inventory検証]
@@ -24,6 +26,8 @@ flowchart TD
 root専用永続volumeはcatalog/plan/operation/incomingを持つ。socket volumeの親inodeは維持しleafだけ更新。private state volumeは既通常Composeで選んだ同じものを専用serviceへRW公開し、normal control ROを保持。他projectのvolumeや任意path/URL/env/entryはRPC入力にしない。module planはroot自身のsource/platformと実private mountの本人性に束縛し、Dockerから得ていないCID/imageIdを捏造しない。親prepareReleaseは同volumeの正式receipt/互換を再検査する。
 
 workerは同IDを一回claimし、実process出生と永続ACK後だけaccepted。副作用の欠測/worker消失はunknown、元operation GETへ戻して再実行しない。受付寿命と独立のworker processを使い、service全体消失は耐久unknownとして残す。本体の停止/更新を行う機構ではない。
+
+getは[既HostUpdaterの台帳待機契約](container-update.md#実行保存と異常)を共用する。正常なworker書込みとの短い競合では排他解放を待ち、最新原本を読む。既通信期限やworker消失によるunknownと、設置後の親module交換は分けて保持する。
 
 catalog/署名/公開codeの既verifierと既固定component installerを使い、全体保守の排他やroot所有境界を保持する。まず既正式usage1249の導入/交換までを先行受入し、全module/3OS全群を待ち条件にしない。局所試験は新しいbackendと直結client/installer/Composeだけ、Docker製品受入はセンチが公開導入→通常利用→module単品更新で確認する。
 

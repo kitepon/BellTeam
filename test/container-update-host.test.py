@@ -1,4 +1,5 @@
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import hashlib
 import importlib.util
 import json
@@ -107,6 +108,31 @@ class HostTest(unittest.TestCase):
         result=self.updater.get(identifier)
         self.assertEqual(result['phase'],'unknown');self.assertEqual(result['execution'],'unknown')
         self.assertEqual(self.calls,[identifier])
+    def test_get_waits_for_ledger_writer_and_reads_its_completed_record(self):
+        identifier=str(uuid.uuid4());directory=self.prefix/'state/operations'/identifier
+        directory.mkdir(mode=0o700);path=directory/'operation.json'
+        value={'requestId':identifier,'planId':str(uuid.uuid4()),'target':{},'admission':'accepted',
+               'phase':'applying','execution':'pending','verification':'pending','error':None,
+               'cleanup':'pending','rollback':'not_needed','observed':None,'updatedAt':module.stamp(),
+               'worker':{'pid':99999999,'birth':'missing'}}
+        module.atomic(path,value)
+        entered=threading.Event();actual_locked=module.locked
+        def entering_lock(*args,**kwargs):
+            entered.set();return actual_locked(*args,**kwargs)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with actual_locked(self.prefix/'state/ledger.lock'):
+                with patch.object(module,'locked',side_effect=entering_lock):
+                    result=pool.submit(self.updater.get,identifier)
+                    self.assertTrue(entered.wait(1))
+                    with self.assertRaises(TimeoutError):result.result(timeout=0.05)
+                    value.update(phase='completed',execution='succeeded',verification='succeeded',cleanup='succeeded')
+                    module.atomic(path,value)
+            observed=result.result(timeout=1)
+        self.assertEqual(observed['requestId'],identifier)
+        self.assertEqual(observed['phase'],'completed')
+        self.assertIsNone(observed['error'])
+        self.assertEqual(module.read_json(path,os.getuid())['phase'],'completed')
+        self.assertEqual(self.calls,[])
     def executor_fixture(self, fail=False):
         import subprocess
         release=self.prefix/'releases'/('a'*40);(release/'scripts').mkdir(parents=True)

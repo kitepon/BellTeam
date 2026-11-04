@@ -22,6 +22,8 @@ flowchart TD
   Installer --> Verify[実CID・immutable image・source・health確認]
   Verify --> Result[同requestIdへdurable終端 / cleanup失敗分離]
   Result --> Client
+  Client --> Get[同ID get / ledger排他を待機して再読]
+  Get --> Result
 ```
 
 標準の公開installerに同梱するmodule導入経路は[箱同梱module導入](module-installer.md)が正本。以下は既Host機構およびcontainer全体更新を跨ぐworkerの契約であり、標準導入にHost構築を要求するものではない。
@@ -41,6 +43,8 @@ Host prefixは `/srv/bellteam/shared/tools/bellteam-container-update-host`。rel
 root管理のnormalモデルと固定設置先を使い、現在CID/source/imageを照合して既public installerの保持/停止/新起動を呼ぶ。新imageは正式catalogのimmutable OCI refだけ。workerはselected local image IDと再起動後の実image/source/healthを照合し、実稼働までcompletedにしない。起動失敗は保存世代の既recoverへ戻す。cleanup失敗は正常本体を戻さず別結果に保持する。
 
 受付intentとworker受領の間、又は副作用中に失った処理はunknownを保持し、同ID又は別IDへ自動再発行しない。current/previousはledgerへの参照だけで、同target/時刻を要求同一性に使わない。root正常log/公開結果に要求自由本文/秘密/Host絶対pathを返さない。旧ledger/active codeを世代pruneで消さない。
+
+getはworkerの短い台帳公開と競合した時、既ledger排他の解放を待ってから最新原本を読む。worker消失の判定・unknown保存も同じ排他内に保つ。clientの5秒通信期限、受付/workerの非待機排他と一回claimは維持する。通信期限や実worker消失は引き続きunknownとして扱い、設置completedを親の交換成功へ補完しない。
 
 catalog root保存はCentiの専用公式verifier成功後のみ。初回固定期待値と正式自動発行元からの検証供給を分ける。鮮度/失効/過去採用拒否はCenti一正本へ合わせ、未供給/期限切れ/失効ではpublished不明・実行capability false、現在稼働は保持。UIの旧版選択をcatalog巻戻しへ読み替えない。
 

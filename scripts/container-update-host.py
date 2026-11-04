@@ -340,7 +340,7 @@ class HostUpdater:
             'verification', 'error', 'cleanup', 'rollback', 'observed', 'updatedAt']}
 
     def get(self, identifier):
-        with locked(self.state / 'ledger.lock'):
+        with locked(self.state / 'ledger.lock', wait=True):
             value = self.read_operation(identifier)
             worker = value.get('worker')
             if value['phase'] not in TERMINAL and worker and not self.worker_alive(worker):
