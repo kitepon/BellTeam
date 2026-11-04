@@ -43,7 +43,7 @@ archive readerは選択した正式image内の`/app/scripts/install-web-gateway-
 
 ## 元install-IDの追補照合・明示解決
 
-Root横断契約 `same-install-id-reconciliation-contract-20261104.md`の意味で、元operationのunknownとは別にroot-owned追補receiptを持つ。commonの既Owner認証→private client→peer1001の既Unix境界だけから明示inspect/recover/closeを受け、通常get/readは既耐久結果だけを返す。元planはID/target/storage証拠で、期限切れplanを権限にしない。親のfresh認可/decisionとclosed証拠を照合し、本番は別正式供給/製品/Root発行を要する。
+Root横断契約 `same-install-id-reconciliation-contract-20261104.md`の意味で、元operationのunknownとは別にroot-owned追補receiptを持つ。commonの既Owner認証→private client→peer1001の既Unix境界だけから明示inspect/closeを受け、通常get/readは既耐久結果だけを返す。元planはID/target/storage証拠で、期限切れplanを権限にしない。親のfresh認可/decisionとclosed証拠を照合し、本番は別正式供給/製品/Root発行を要する。
 
 ```mermaid
 flowchart LR
@@ -51,8 +51,6 @@ flowchart LR
   Inspect --> Receipt[root追補receipt / content hash / 原本不変]
   Receipt --> Read[readInstallReconciliation / 既receipt読取だけ]
   Read --> Common
-  Common --> Restore[元install-ID一回claim / 元targetだけ配置]
-  Restore --> Receipt
   Common --> Fence[close_without_activation / 原作用発行不明0を検査]
   Fence --> Store[元IDの耐久fence / 旧Start再発行不可]
 ```
@@ -67,4 +65,19 @@ placement=`verified_present|absent|unconfirmed`、quiescence=`confirmed|busy|unc
 
 hashは全階層のobject keyを辞書順へ整列し、compact JSON/UTF-8/非ASCII非escape/末尾LF一つをSHA256する。target hashは元plan.target全体、storage hashは元plan.expected.privateVolumeと実bindingの一致したobject、runtime current hashは検査時のinspect_current object。`src/container-update-client.mjs`は`validateInstallReconciliation(envelope)->boolean`と`installReconciliationHash(value)`をexportし、共通が閉validator/hashを再利用できる。これは入力DTO/hashからOwner権限を作る口ではない。
 
-先行版ではinspect/readだけを実装し、recover/close/consumeや公開capabilityはまだ広告しない。normal read/get/snapshotが検査を起動せず、原unknown/receiptを変更しない条件は全工程で維持する。
+初回版はinspect/readと以下のclose/fenceだけを実装し、recover/consumeは未提供。normal read/get/snapshotが検査を起動せず、原unknown/receiptを変更しない条件は全工程で維持する。
+
+
+### fresh明示close/fence I/O v1
+
+`finalizeInstallReconciliation({requestId,originalOperationSha256,decision,commonProof})`は`close_without_activation`だけを受理する。`readInstallReconciliationFence({requestId,originalOperationSha256})`は既fenceの読取だけで、未発行はNOT_FOUND。restore_placement/consume/独立回復workerは未提供・広告0。配置やengine applyを起動しない。
+
+decisionは`{decisionSha256,decision}`、本体は閉key `schema,publicRequestId,publicPlanId,requestId,planId,originalOperationSha256,publicOperationSha256,inspectionSha256,targetSha256,storageBindingSha256,runtimeCurrentSha256,currentSha256,catalogSha256,action,issuedAt,expiresAt,ownerGrantRef`。schema=`bellteam.module-install-decision.v1`。commonProofは`{proofSha256,proof}`、本体は閉key `schema,publicRequestId,publicPlanId,requestId,planId,originalOperationSha256,publicOperationSha256,decisionSha256,currentSha256,applyState,applyClaimSha256,resultSha256,claimedAt,verifiedAt,ownerGrantRef`、schema=`bellteam.module-install-common-proof.v1`。ID/hash/canonical規則はinspectionと同じ。applyState=not_issued、applyClaimSha256/resultSha256=nullだけ許す。
+
+共通の既Owner fresh認可・私有grant・原apply未発行/同ID close claim/current検証を、信頼済peer1001の同source私有clientから受ける。runtimeは公開body/hashから権限を作らない。受付から最大600秒、原target/storage/runtime current/inspection/現有効catalogと元IDへ束縛し、最終排他内でも期限/本人性を再確認する。旧targetが現catalogに無くてもcloseは復活配置をしないため検証済現catalog自体を要求し、旧targetの許可を捏造しない。
+
+worker/ledger/private保守/component installerの排他内で、実元worker終端・未所有stage無し・回復claim無し・現在配置absent又は固定inventory検証済みを再確認する。元workerのPID namespaceが現在と違う/本人情報不足/proc読取不能ならunconfirmedで拒否し、process世代変更を終端証拠にしない。元workerと同namespaceで元PID出生が既に存在しない場合だけ実終端の候補とする。全body/current/旧native・writerの終端は共通担当のproof側でも別に要求される。
+
+成功時は元operationと別のroot-owned一回fenceをO_EXCL/file fsync/directory fsyncで保存する。閉返値は`{fenceSha256,fence}`、fence本体は`schema,requestId,planId,originalOperationSha256,decisionSha256,commonProofSha256,action,closedAt`、schema=`bellteam.module-install-fence.v1`/action=close_without_activation。`validateInstallReconciliationFence`を共通へexportする。応答不明/再起動後は同ID readだけで、別decisionでも再発行しない。
+
+共通HostUpdaterにoperation_pendingという内部判定点を設け、既Host/本体serviceの挙動は従来どおり、同梱moduleだけ検証済同ID fenceをbusy集計から除外する。原unknown/get/台帳pointerは保持し、別要求/in-flightのbusyは保持する。同IDのstartは既原本を返すだけで、旧workerやwork(entry)を再発行しない。共通公開busy解除は有効fence＋共通終端記録の両方を要求する。runtimeだけのfenceを公開成功にしない。

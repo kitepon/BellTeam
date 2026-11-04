@@ -352,6 +352,9 @@ class HostUpdater:
     def worker_alive(self, worker):
         return birth(worker['pid']) == worker['birth']
 
+    def operation_pending(self, identifier):
+        return self.read_operation(identifier)['phase'] not in TERMINAL
+
     def worker_identity(self, identifier):
         return {'pid': os.getpid(), 'birth': birth(os.getpid()),
                 'unit': 'bellteam-container-update-worker-' + identifier + '.service'}
@@ -381,7 +384,7 @@ class HostUpdater:
                 path = self.state / name
                 active = read_json(path, self.uid) if path.exists() else {'current': None}
                 if active['current']:
-                    check(self.read_operation(active['current'])['phase'] in TERMINAL, 'HOST_UPDATE_IN_PROGRESS', 409)
+                    check(not self.operation_pending(active['current']), 'HOST_UPDATE_IN_PROGRESS', 409)
             # shortcut: retain 4096 operation tombstones; add a durable archive before raising this limit.
             check(len(list((self.state / 'operations').iterdir())) < 4096, 'HOST_UPDATE_LEDGER_CAPACITY')
             directory.mkdir(mode=0o700)

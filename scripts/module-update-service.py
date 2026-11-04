@@ -15,6 +15,7 @@ import stat
 import subprocess
 import sys
 import threading
+import time
 
 
 def load_module(name, filename):
@@ -36,6 +37,25 @@ def reconciliation_bytes(value):
 
 def reconciliation_hash(value):
     return hashlib.sha256(reconciliation_bytes(value)).hexdigest()
+
+
+DECISION_KEYS = 'schema,publicRequestId,publicPlanId,requestId,planId,originalOperationSha256,publicOperationSha256,inspectionSha256,targetSha256,storageBindingSha256,runtimeCurrentSha256,currentSha256,catalogSha256,action,issuedAt,expiresAt,ownerGrantRef'
+PROOF_KEYS = 'schema,publicRequestId,publicPlanId,requestId,planId,originalOperationSha256,publicOperationSha256,decisionSha256,currentSha256,applyState,applyClaimSha256,resultSha256,claimedAt,verifiedAt,ownerGrantRef'
+FENCE_KEYS = 'schema,requestId,planId,originalOperationSha256,decisionSha256,commonProofSha256,action,closedAt'
+
+
+def reconciliation_envelope(value, kind, fields):
+    host.check(host.exact(value, kind + 'Sha256,' + kind), 'HOST_MODULE_RECONCILIATION_ARGUMENTS')
+    body = value[kind]
+    host.check(host.exact(body, fields) and body['schema'] == 'bellteam.module-install-' + (
+        'common-proof' if kind == 'proof' else kind) + '.v1', 'HOST_MODULE_RECONCILIATION_ARGUMENTS')
+    host.check(host.digest(value[kind + 'Sha256']) == reconciliation_hash(body), 'HOST_MODULE_RECONCILIATION_HASH')
+    for key in ['publicRequestId', 'publicPlanId', 'requestId', 'planId']:
+        if key in body: host.request_id(body[key])
+    for key, item in body.items():
+        if key.endswith('Sha256') or key == 'ownerGrantRef':
+            if item is not None or key not in {'applyClaimSha256', 'resultSha256'}: host.digest(item)
+    return body
 
 
 def reconciliation_json(path, uid):
@@ -115,10 +135,12 @@ class ModuleUpdater(host.HostUpdater):
         return value
 
     def dispatch(self, frame):
-        if isinstance(frame, dict) and frame.get('operation') in {'inspectModuleInstall', 'readInstallReconciliation'}:
+        methods = {'inspectModuleInstall': self.inspect_module_install, 'readInstallReconciliation': self.read_install_reconciliation,
+            'finalizeInstallReconciliation': self.finalize_install_reconciliation,
+            'readInstallReconciliationFence': self.read_install_reconciliation_fence}
+        if isinstance(frame, dict) and frame.get('operation') in methods:
             host.check(host.exact(frame, 'operation,params'))
-            method = self.inspect_module_install if frame['operation'] == 'inspectModuleInstall' else self.read_install_reconciliation
-            return method(frame['params'])
+            return methods[frame['operation']](frame['params'])
         if isinstance(frame, dict) and frame.get('operation') == 'catalog' and frame.get('params') == {'componentId': 'container'}:
             raise host.Failure('HOST_CONTAINER_UPDATE_UNSUPPORTED', 400)
         return super().dispatch(frame)
@@ -141,6 +163,21 @@ class ModuleUpdater(host.HostUpdater):
         volume, _ = reconciliation_json(directory / 'module-volume.json', self.uid)
         host.check(volume == plan['expected']['privateVolume'], 'HOST_MODULE_STORAGE_BINDING')
         return directory, value, plan, plan_sha, installer
+
+    def reconciliation_worker_quiescent(self, value):
+        worker = value.get('worker')
+        host.check(host.exact(worker, 'pid,birth,pidNamespace') and type(worker['pid']) is int and worker['pid'] > 0
+            and isinstance(worker['birth'], str) and re.fullmatch('[0-9]+', worker['birth'])
+            and worker['pidNamespace'] == str(os.stat('/proc/self/ns/pid').st_ino),
+            'HOST_MODULE_WORKER_UNCONFIRMED', 409)
+        # A different PID namespace proves no termination of the original worker.
+        try:
+            birth = Path(f"/proc/{worker['pid']}/stat").read_text().rsplit(')', 1)[1].split()[19]
+        except FileNotFoundError:
+            return
+        except (OSError, IndexError):
+            raise host.Failure('HOST_MODULE_WORKER_UNCONFIRMED', 409)
+        host.check(birth != worker['birth'], 'HOST_UPDATE_BUSY', 409)
 
     def read_install_reconciliation(self, params):
         directory, _value, _plan, _plan_sha, _installer = self.reconciliation_origin(params)
@@ -173,20 +210,17 @@ class ModuleUpdater(host.HostUpdater):
                 component = self.private / 'execution'
                 locks.enter_context(reconciliation_lock(component / '.install.lock', self.uid))
                 self.assert_model_binding(current)
-                host.check(not value.get('worker') or not self.worker_alive(value['worker']), 'HOST_UPDATE_BUSY', 409)
+                self.reconciliation_worker_quiescent(value)
                 host.check(not any(path.name.startswith('.staging-') for path in component.iterdir()),
                            'HOST_MODULE_UNOWNED_STAGE', 409)
                 stages = 'clear'
                 claim_path = directory / 'recovery-claim.json'
                 if os.path.lexists(claim_path):
-                    claim = host.read_json(claim_path, self.uid)
-                    recovery_state = 'verified' if claim.get('status') == 'verified' else 'unknown'
-                    host.check(recovery_state == 'verified', 'HOST_MODULE_RECOVERY_UNCONFIRMED', 409)
+                    recovery_state = 'unknown'
+                    raise host.Failure('HOST_MODULE_RECOVERY_UNCONFIRMED', 409)
                 fence_path = directory / 'reconciliation-fence.json'
                 if os.path.lexists(fence_path):
-                    record = host.read_json(fence_path, self.uid)
-                    host.check(record.get('requestId') == params['requestId'] and record.get('state') == 'closed',
-                               'HOST_MODULE_RECONCILIATION_CHANGED')
+                    self.read_install_reconciliation_fence(params)
                     fence = 'closed'
                 quiescence = 'confirmed'
                 expected = installer.expectation(target['versionId'], target['sourceCommit'], target['artifact']['signerCommit'])
@@ -219,6 +253,92 @@ class ModuleUpdater(host.HostUpdater):
             if not path.exists(): host.atomic(path, json.loads(reconciliation_bytes(receipt)))
             host.atomic(location / 'latest.json', {'receiptSha256': receipt_sha})
         return {'receiptSha256': receipt_sha, 'receipt': receipt}
+
+    def reconciliation_decision(self, params):
+        origin = {'requestId': params['requestId'], 'originalOperationSha256': params['originalOperationSha256']}
+        directory, value, plan, plan_sha, installer = self.reconciliation_origin(origin)
+        envelope = params['decision']
+        decision = reconciliation_envelope(envelope, 'decision', DECISION_KEYS)
+        current = self.inspect_current()
+        issued, expires = host.parse_time(decision['issuedAt']), host.parse_time(decision['expiresAt'])
+        claim_time = time.time()
+        host.check(issued <= claim_time <= expires and 0 < expires - issued <= 600 and issued <= time.time(),
+                   'HOST_MODULE_DECISION_EXPIRED', 409)
+        host.check(decision['action'] == 'close_without_activation' and decision['requestId'] == params['requestId']
+            and decision['planId'] == plan['planId'] and decision['originalOperationSha256'] == params['originalOperationSha256']
+            and decision['targetSha256'] == reconciliation_hash(plan['target'])
+            and current['privateVolume'] == plan['expected']['privateVolume']
+            and decision['storageBindingSha256'] == reconciliation_hash(current['privateVolume'])
+            and decision['runtimeCurrentSha256'] == reconciliation_hash(current), 'HOST_MODULE_DECISION_CHANGED', 409)
+        location = directory / 'reconciliation' / (host.digest(decision['inspectionSha256']) + '.json')
+        receipt, observed = reconciliation_json(location, self.uid)
+        host.check(observed == decision['inspectionSha256'] and receipt['requestId'] == params['requestId']
+            and receipt['originalOperationSha256'] == params['originalOperationSha256']
+            and receipt['targetSha256'] == decision['targetSha256']
+            and receipt['storageBindingSha256'] == decision['storageBindingSha256']
+            and receipt['runtimeCurrentSha256'] == decision['runtimeCurrentSha256']
+            and receipt['quiescence'] == 'confirmed' and receipt['stageState'] == 'clear'
+            and receipt['recoveryState'] != 'unknown' and receipt['fence'] == 'open', 'HOST_MODULE_PROOF_UNCONFIRMED', 409)
+        host.check(host.parse_time(receipt['inspectionTime']) <= issued, 'HOST_MODULE_DECISION_CHANGED', 409)
+        self.catalog(decision['catalogSha256'])
+        return origin, directory, value, plan, plan_sha, installer, decision, receipt
+
+    def read_install_reconciliation_fence(self, params):
+        directory, _value, plan, _sha, _installer = self.reconciliation_origin(params)
+        path = directory / 'reconciliation-fence.json'
+        if not path.exists(): raise host.Failure('HOST_MODULE_RECONCILIATION_NOT_FOUND', 404)
+        envelope = host.read_json(path, self.uid)
+        fence = reconciliation_envelope(envelope, 'fence', FENCE_KEYS)
+        host.check(fence['requestId'] == params['requestId'] and fence['planId'] == plan['planId']
+            and fence['originalOperationSha256'] == params['originalOperationSha256']
+            and fence['action'] == 'close_without_activation', 'HOST_MODULE_FENCE_INVALID')
+        host.parse_time(fence['closedAt'])
+        return envelope
+
+    def operation_pending(self, identifier):
+        if not super().operation_pending(identifier): return False
+        directory = self.state / 'operations' / host.request_id(identifier)
+        if not os.path.lexists(directory / 'reconciliation-fence.json'): return True
+        _value, original = reconciliation_json(directory / 'operation.json', self.uid)
+        self.read_install_reconciliation_fence(dict(requestId=identifier, originalOperationSha256=original))
+        return False
+
+    def finalize_install_reconciliation(self, params):
+        host.check(host.exact(params, 'requestId,originalOperationSha256,decision,commonProof'))
+        proof = reconciliation_envelope(params['commonProof'], 'proof', PROOF_KEYS)
+        origin, directory, value, plan, _sha, installer, decision, receipt = self.reconciliation_decision(params)
+        host.check(proof['decisionSha256'] == params['decision']['decisionSha256'] and all(proof[key] == decision[key] for key in [
+            'publicRequestId','publicPlanId','requestId','planId','originalOperationSha256','publicOperationSha256','currentSha256','ownerGrantRef']),
+            'HOST_MODULE_COMMON_PROOF_CHANGED', 409)
+        claim_time, verified_time = host.parse_time(proof['claimedAt']), host.parse_time(proof['verifiedAt'])
+        host.check(host.parse_time(decision['issuedAt']) <= claim_time <= host.parse_time(decision['expiresAt'])
+            and claim_time <= verified_time <= time.time(), 'HOST_MODULE_COMMON_PROOF_CHANGED', 409)
+        host.check(proof['applyState'] == 'not_issued' and proof['applyClaimSha256'] is None
+            and proof['resultSha256'] is None, 'HOST_MODULE_COMMON_PROOF_CHANGED', 409)
+        observed = self.inspect_module_install(origin)['receipt']
+        host.check(observed['quiescence'] == 'confirmed' and observed['stageState'] == 'clear' and observed['fence'] == 'open'
+            and observed['placement'] in {'verified_present', 'absent'}, 'HOST_MODULE_PROOF_UNCONFIRMED', 409)
+        with reconciliation_lock(self.state / 'worker.lock', self.uid), host.locked(self.state / 'ledger.lock', wait=True), contextlib.ExitStack() as locks:
+            locks.enter_context(reconciliation_lock(self.private, self.uid, shared=True))
+            locks.enter_context(reconciliation_lock(self.private / 'execution/.install.lock', self.uid))
+            self.reconciliation_decision(params)
+            self.reconciliation_worker_quiescent(value)
+            host.check(not os.path.lexists(self.private / '.transaction.json') and not any(
+                p.name.startswith('.staging-') for p in (self.private / 'execution').iterdir()), 'HOST_MODULE_PROOF_UNCONFIRMED', 409)
+            host.check(not os.path.lexists(directory / 'recovery-claim.json'), 'HOST_MODULE_RECOVERY_UNCONFIRMED', 409)
+            target = plan['target']
+            expected = installer.expectation(target['versionId'], target['sourceCommit'], target['artifact']['signerCommit'])
+            installer.inspect_execution_release(self.private, expected, self.config['platform']['arch'])
+            host.check(not os.path.lexists(directory / 'reconciliation-fence.json'), 'HOST_MODULE_INTENT_CLOSED', 409)
+            fence = dict(schema='bellteam.module-install-fence.v1', requestId=params['requestId'], planId=decision['planId'],
+                originalOperationSha256=params['originalOperationSha256'], decisionSha256=params['decision']['decisionSha256'],
+                commonProofSha256=params['commonProof']['proofSha256'], action='close_without_activation', closedAt=host.stamp())
+            result = {'fenceSha256': reconciliation_hash(fence), 'fence': fence}
+            try:
+                installer.write_file(directory / 'reconciliation-fence.json', reconciliation_bytes(result), 0o600)
+                installer.sync_directory(directory)
+            except OSError: raise host.Failure('HOST_MODULE_FENCE_UNKNOWN', 503, 'unknown')
+        return result
 
     def install(self, plan, directory):
         target = plan['target']

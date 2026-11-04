@@ -75,6 +75,8 @@ export function createContainerUpdateClient(path = socketPath) {
     operation: requestId => call('get', { requestId }),
     inspectModuleInstall: async params => checkedInstallReconciliation(await call('inspectModuleInstall', params)),
     readInstallReconciliation: async params => checkedInstallReconciliation(await call('readInstallReconciliation', params)),
+    finalizeInstallReconciliation: async params => checkedInstallReconciliationFence(await call('finalizeInstallReconciliation', params)),
+    readInstallReconciliationFence: async params => checkedInstallReconciliationFence(await call('readInstallReconciliationFence', params)),
   }
 }
 
@@ -108,5 +110,25 @@ export function validateInstallReconciliation(value) {
 
 function checkedInstallReconciliation(value) {
   if (!validateInstallReconciliation(value)) throw failure('HOST_MODULE_RECONCILIATION_INVALID')
+  return value
+}
+
+export function validateInstallReconciliationFence(value) {
+  const exact = (item, keys) => item && typeof item === 'object' && !Array.isArray(item)
+    && Object.keys(item).sort().join(',') === keys.split(',').sort().join(',')
+  const sha = item => typeof item === 'string' && /^[a-f0-9]{64}$/.test(item)
+  const uuid = item => typeof item === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(item)
+  if (!exact(value, 'fenceSha256,fence') || !sha(value.fenceSha256)
+    || !exact(value.fence, 'schema,requestId,planId,originalOperationSha256,decisionSha256,commonProofSha256,action,closedAt')) return false
+  const f = value.fence
+  return f.schema === 'bellteam.module-install-fence.v1' && uuid(f.requestId) && uuid(f.planId)
+    && ['originalOperationSha256','decisionSha256','commonProofSha256'].every(key => sha(f[key]))
+    && f.action === 'close_without_activation'
+    && typeof f.closedAt === 'string' && f.closedAt.length <= 40 && Number.isFinite(Date.parse(f.closedAt))
+    && installReconciliationHash(f) === value.fenceSha256
+}
+
+function checkedInstallReconciliationFence(value) {
+  if (!validateInstallReconciliationFence(value)) throw failure('HOST_MODULE_FENCE_INVALID')
   return value
 }
