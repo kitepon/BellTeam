@@ -112,3 +112,26 @@ runtimeは旧OS/IPC/pipes→drainIncoming→await channel.reapedの実終端後�
 新直接境界はtest/conversation-generation-recovery.test.mjs。共通controllerの異常終了/reaped/再起動はruntimeの図と試験が所有し、このhookの単独試験で実再起動成功を主張しない。
 
 recover後の新candidateがrestore/ready/resume ACK前に失敗した場合、runtimeはそのcandidateのOS/IPC/pipes・incoming/reapedを完了し、同ticketを閉じたまま通常adopt(ticket,nextGeneration)で次candidateを採用できる。前提はunconfirmed=falseかつactive=0で、旧callbackの遅着はこの条件を変更しない。close ticketは採用履歴の各世代IDと同値である必要がなく、同一閉鎖の本人性を持つ。新candidate自身が現世代protocol失敗を生じた場合は通常adoptも拒否されるので、この経路で未確認を無条件解除しない。
+
+
+## Q：故障writerの退役（gate先行source）
+
+Root `conversation-failed-generation-contract-20261104.md` とキロ `docs/q-retired-generation-io-20261104.md` が横断契約。gate identityと全live record/元Promiseを維持する。runtimeが旧writerのOS/IPC/全pipe/incoming/effect/reaped barrierを確認した後、同期 `recoverFailedGeneration(ticket, old, next)` を呼ぶ。native完走はbarrier条件へ加えない。
+
+```mermaid
+flowchart LR
+  Runtime["Epi: 旧writer実barrier"] --> Retire["同ticket recoverFailedGeneration: current変更 / 閉鎖継続"]
+  Old["旧opaque / 実native・watch Promise"] --> Cleanup["assertLease / trackCompletion / finish: 元record"]
+  Retire --> Ready["同採用版restore・ready・resume ACK"]
+  Ready --> New["resume: 新current入場"]
+  Old --> Refuse["旧callback503 / 新claim拒否 / 新failed非波及"]
+  Cleanup --> Close["drainForClose: 両世代実参照を待つ"]
+  New --> Close
+  Close --> Outcome["0かつ確認済=drained / 0かつ未確認=元503 / 期限=busy"]
+```
+
+`assertCurrentLease` は新作用入口。既 `assertLease` は元generation/correlation/opaqueの正当なcleanupを認める。旧callback/claim/reportの新作用を拒否し新writerへ転送しない。既claim済みの元receipt/実追跡Promiseだけは退役後も一回登録でき、その実Promiseを同deliveryへtrackする。未resume候補再失敗は候補自身のbarrier後、同ticketと未使用の次generationで同口を呼ぶ。世代再使用/偽ticket/旧generation誤指定は無変更で拒否。
+
+`drain` は正常交換用でglobal active/未確認を保持。`drainForClose(ticket,{timeoutMs:60000})` は未確認でも両世代の実参照0を待ってから元503を返す。期限0〜60000ms、未終端はbusy。既snapshot三値は合算active/合算unconfirmedとcurrent generationを返す。旧保存成功へ読み替えない。
+
+gate先行sourceはTransportのcallback/native追跡分離の完了を意味しない。同Bot占有を含む一組は後続Transport sourceと直接結果で成立判定する。旧continuation節のrunning ACK後・callback結合result登録は後続で置換予定。
