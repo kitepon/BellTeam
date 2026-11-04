@@ -39,6 +39,9 @@ export function createMembersFacade({ request, callback, admission, projection }
     return result
   }
   const listForClient = (context = {}) => {
+    if (context.omitAvatars) return readProfiles(context).then(profiles =>
+      profiles.every(bot => ['avatarVersion', 'avatarLargeVersion', 'avatarSourceVersion', 'avatarLargeSourceVersion'].every(field => Object.hasOwn(bot, field)))
+        ? profiles : listForClient({ ...context, omitAvatars: false }))
     if (context.membersLease) return admission.withLease(membersLease => {
       const options = { ...context, membersLease }
       return collectProfiles(options, options)
@@ -50,6 +53,7 @@ export function createMembersFacade({ request, callback, admission, projection }
   const bots = {
     // These are display projection reads, never fresh authorization.
     get: id => { const bot = projection.get(id); return bot?.deleting ? undefined : bot },
+    clientListingState: id => { const bot = projection.get(id); return bot ? bot.deleting ? 'pending' : 'active' : 'absent' },
     has: id => Boolean(bots.get(id)),
     keys: () => [...bots.values()].map(bot => bot.id).values(),
     values: () => [...projection.values()].filter(bot => !bot.deleting).values(),

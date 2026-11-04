@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { avatarVersion } from '../src/avatar-value.mjs'
 import { MembersAdmission } from '../src/members-admission.mjs'
 import { createMembersParentChannel, waitMembersChildClose } from '../src/members-ipc.mjs'
 import { createMembersProjection } from '../src/members-projection.mjs'
@@ -33,10 +34,20 @@ test('facade adopts streamed real IPC receipts without SSE read loops and contin
   t.after(async () => { child.kill('SIGKILL'); await ended; channel.reaped(); await rm(root, { recursive: true, force: true }) })
   await channel.control('initialize', { generation: 'fixture' }); await channel.ready; await channel.control('resume')
   const { bots } = createMembersFacade({ admission, projection, request: (...args) => channel.request(...args), callback: (...args) => channel.callback(...args) })
-  const bot = await bots.create({ name: 'facade fixture', harness: 'codex' })
+  const avatar = 'data:image/png;base64,AAAA'
+  const bot = await bots.create({ name: 'facade fixture', harness: 'codex', avatar })
   const changes = notifications
-  assert.equal((await bots.refresh()).length, 1)
-  assert.equal((await bots.listForClient())[0].id, bot.id)
+  const snapshot = await bots.refresh()
+  assert.equal(snapshot.length, 1)
+  assert.equal(snapshot[0].avatarVersion, avatarVersion(avatar))
+  assert.equal(snapshot[0].avatarLargeVersion, avatarVersion(avatar))
+  assert.equal(snapshot[0].avatarSourceVersion, '')
+  assert.equal(snapshot[0].avatarLargeSourceVersion, '')
+  assert.equal(Object.hasOwn(snapshot[0], 'avatar'), false)
+  const listed = await bots.listForClient()
+  assert.equal(listed[0].id, bot.id)
+  assert.equal(listed[0].avatar, avatar)
+  assert.equal(Object.hasOwn(listed[0], 'avatarVersion'), false)
   assert.equal(notifications, changes)
   const lease = admission.enter(), ticket = admission.close()
   await assert.rejects(bots.refresh(), { status: 503 })

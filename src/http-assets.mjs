@@ -1,5 +1,6 @@
 import { webAssetFiles, versionedWebAssets } from '../web/assets.mjs'
-import { createHash } from 'node:crypto'
+import { avatarVersion } from './avatar-value.mjs'
+export { avatarVersion } from './avatar-value.mjs'
 import { createReadStream } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { extname, join } from 'node:path'
@@ -13,20 +14,6 @@ const contentTypes = new Map([
   ['.png', 'image/png'],
   ['.webmanifest', 'application/manifest+json'],
 ])
-
-const avatarVersions = new Map()
-
-// アバターはdata URLで保存している。版は中身から決め、アプリは版が変わった時だけ画像を取り直す。
-export function avatarVersion(avatar) {
-  if (typeof avatar !== 'string' || !avatar) return ''
-  let version = avatarVersions.get(avatar)
-  if (!version) {
-    if (avatarVersions.size >= 256) avatarVersions.clear()
-    version = createHash('sha256').update(avatar).digest('hex').slice(0, 16)
-    avatarVersions.set(avatar, version)
-  }
-  return version
-}
 
 // 一覧の `?avatar=omit` は画像本体を外す。指定の無い古いアプリには今までどおり本体を返す。
 export function listAvatar(avatar, url) {

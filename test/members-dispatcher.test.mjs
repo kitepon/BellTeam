@@ -9,7 +9,8 @@ import { UserRules } from '../src/user-rules.mjs'
 import { createMembersDispatcher } from '../src/members/dispatcher.mjs'
 import { GUIDE_BOT_ID } from '../src/onboarding.mjs'
 import { normalizeMembersError } from '../src/members/errors.mjs'
-import { validateMembersRequest, validateMembersEffect, validateMembersEffectResult } from '../src/members/protocol.mjs'
+import { avatarVersion } from '../src/avatar-value.mjs'
+import { validateMembersRequest, validateMembersEffect, validateMembersEffectResult, validateMembersProjection, validateMembersResult } from '../src/members/protocol.mjs'
 const context = Object.freeze({ generation: 'test', leaseId: 'lease', rootId: 'root', ownerWrite: false, continuation: false })
 const initial = Object.freeze({ ...context, leaseId: null })
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
@@ -209,6 +210,12 @@ test('display read can retain pending avatar bytes while active authorization st
   const projected = f.records.find(item => item.record.type === 'profile' && item.record.revision === metadata.revision).record.bot
   assert.equal(Object.hasOwn(projected, 'avatar'), false)
   assert.equal(projected.hasAvatar, true)
+  assert.equal(projected.avatarVersion, avatarVersion(avatar))
+  assert.equal(projected.avatarLargeVersion, avatarVersion(avatar))
+  assert.equal(projected.avatarSourceVersion, '')
+  assert.equal(projected.avatarLargeSourceVersion, '')
+  assert.equal(projected.deleting, true)
+  assert.equal(Object.hasOwn(display.bot, 'avatarVersion'), false)
 })
 
 test('fixed semantic errors preserve HTTP status while the wire can omit private messages', async t => {
@@ -240,4 +247,40 @@ test('fresh metadata larger than one payload is streamed without a member-count 
   const sizes = records.map(item => Buffer.byteLength(JSON.stringify(item.record)))
   assert.ok(sizes.reduce((total, size) => total + size, 0) > 16 * 1024 * 1024)
   assert.ok(sizes.every(size => size < 64 * 1024))
+})
+
+
+test('streamed snapshot versions match HTTP hashing without reading each member', async t => {
+  const f = await fixture(t)
+  const changes = { avatar: 'data:image/png;base64,AAAA', avatarLarge: 'data:image/png;base64,BBBB',
+    avatarSource: 'data:image/png;base64,CCCC', avatarLargeSource: 'data:image/png;base64,DDDD' }
+  await f.request('profile.update', { botId: 'bot-a', changes: { ...changes,
+    avatarCrop: { x: 0, y: 0, width: 1, height: 1 }, avatarLargeCrop: { x: 0, y: 0, width: 1, height: 1 } } })
+  let refreshes = 0, listings = 0
+  const refresh = BotRegistry.prototype.refresh, list = BotRegistry.prototype.listForClient
+  t.after(() => { BotRegistry.prototype.refresh = refresh; BotRegistry.prototype.listForClient = list })
+  BotRegistry.prototype.refresh = function (...args) { refreshes++; return refresh.apply(this, args) }
+  BotRegistry.prototype.listForClient = function (...args) { listings++; return list.apply(this, args) }
+  const { revision } = await f.request('profiles.read', {})
+  assert.deepEqual([refreshes, listings], [1, 1])
+  const projected = f.records.find(item => item.record.type === 'profile' && item.record.revision === revision).record.bot
+  for (const [field, image] of Object.entries(changes)) {
+    assert.equal(Object.hasOwn(projected, field), false)
+    assert.equal(projected[`${field}Version`], avatarVersion(image))
+  }
+  const exact = (await f.request('profile.read', { botId: 'bot-a' })).bot
+  assert.equal(exact.avatar, changes.avatar)
+  assert.equal(Object.hasOwn(exact, 'avatarVersion'), false)
+})
+
+test('avatar versions are projection-only closed metadata with exact digest format', () => {
+  const bot = { id: 'bot-a', name: 'A', harness: 'grok', session: 'bot-a' }
+  for (const field of ['avatarVersion', 'avatarLargeVersion', 'avatarSourceVersion', 'avatarLargeSourceVersion']) {
+    for (const value of ['', '0123456789abcdef'])
+      validateMembersProjection({ type: 'profile', revision: 1, bot: { ...bot, [field]: value } }, context)
+    for (const value of ['xyz', 'A'.repeat(16), 3, null, 'a'.repeat(17)])
+      assert.throws(() => validateMembersProjection({ type: 'profile', revision: 1, bot: { ...bot, [field]: value } }, context))
+    assert.throws(() => validateMembersResult('profile.read', { bot: { ...bot, [field]: '' } }), { code: 'MEMBERS_RESULT_INVALID', outcome: 'unknown' })
+  }
+  assert.throws(() => validateMembersRequest('profile.update', { botId: 'bot-a', changes: { avatarVersion: '' } }, context))
 })
