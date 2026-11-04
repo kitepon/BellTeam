@@ -1,5 +1,5 @@
 import { createModuleChildRestart, reportModuleChildExit, observeModuleChild } from './module-child-restart.mjs'
-import { moduleExchangeDiagnostic } from './module-exchange-diagnostic.mjs'
+import { moduleExchangeDiagnostic, moduleDrainDiagnostic } from './module-exchange-diagnostic.mjs'
 import { spawn } from 'node:child_process'
 import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
@@ -156,10 +156,13 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     admission?.resume(ticket)
     exchanging = false; state('running', true)
   }
-  const drain = async (target, ticket) => {
+  const drain = async (target, ticket, markStage = () => {}) => {
     const started = Date.now()
-    await within(Promise.all([waitActive(), admission?.drain(ticket)]), 60000, `${prefix}_DRAIN_TIMEOUT`)
+    markStage('parent_drain')
+    const [, admissionResult] = await within(Promise.all([waitActive(), admission?.drain(ticket)]), 60000, `${prefix}_DRAIN_TIMEOUT`)
+    if (admissionResult?.status === 'busy') throw fail('DRAIN_TIMEOUT')
     const remaining = Math.max(1, 60000 - (Date.now() - started))
+    markStage('child_quiesce')
     if ((await within(track(target.channel.control('quiesce', {}, remaining)), remaining, `${prefix}_DRAIN_TIMEOUT`)).quiesced !== true)
       throw fail('QUIESCE_FAILED')
   }
@@ -218,13 +221,18 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       const old = instance, oldVersion = currentVersionId, oldPrevious = previousVersionId
       const ticket = closeAdmission()
       exchanging = true; state('quiescing')
-      let handoff
+      let handoff, drainStage = 'parent_drain'
       try {
-        await drain(old, ticket)
+        await drain(old, ticket, stage => { drainStage = stage })
+        drainStage = 'handoff'
         const exporting = track(exportHandoff(old.channel))
         handoff = (await within(Promise.all([exporting, exporting.completion]), 60000, `${prefix}_DRAIN_TIMEOUT`))[0]
         await prepare(versionId, expected)
       } catch (error) {
+        try {
+          if (error?.code === `${prefix}_DRAIN_TIMEOUT`)
+            error.moduleDiagnostic = moduleDrainDiagnostic(component, drainStage, active.size, admission)
+        } catch {}
         if (!closed) { try { await resume(old, ticket) } catch { state('unavailable') } }
         throw error
       }

@@ -10,6 +10,7 @@ const safeCode = (component, error) => {
 }
 
 export function validateModuleExchangeDiagnostic(value) {
+  if (validateModuleDrainDiagnostic(value)) return true
   try {
     return value !== null && typeof value === 'object' && !Array.isArray(value)
       && Object.keys(value).sort().join(',') === 'code,component,rollback,rollbackCode,rollbackStage,schema,stage'
@@ -25,4 +26,26 @@ export function moduleExchangeDiagnostic(component, stage, error, rollbackStage,
   return { schema: 'bellteam.module-exchange-diagnostic.v1', component, stage, code: safeCode(component, error),
     rollback: rollbackStage === null ? 'succeeded' : 'failed', rollbackStage,
     rollbackCode: rollbackStage === null ? null : safeCode(component, rollbackError) }
+}
+
+const count = value => Number.isSafeInteger(value) && value >= 0 ? value : null
+const boolean = value => typeof value === 'boolean' ? value : null
+export function moduleDrainDiagnostic(component, stage, runnerActive, admission) {
+  let snapshot
+  try { snapshot = admission?.snapshot?.() } catch {}
+  return { schema: 'bellteam.module-drain-diagnostic.v1', component, stage, runnerActive: count(runnerActive),
+    admissionActive: count(snapshot?.active), admissionClosed: boolean(snapshot?.closed),
+    admissionUnconfirmed: boolean(snapshot?.unconfirmed) }
+}
+export function validateModuleDrainDiagnostic(value) {
+  try {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+      && [Object.prototype, null].includes(Object.getPrototypeOf(value))
+      && Object.keys(value).sort().join(',') === 'admissionActive,admissionClosed,admissionUnconfirmed,component,runnerActive,schema,stage'
+      && value.schema === 'bellteam.module-drain-diagnostic.v1' && components.includes(value.component)
+      && ['parent_drain', 'child_quiesce', 'handoff'].includes(value.stage)
+      && [value.runnerActive, value.admissionActive].every(n => n === null || Number.isSafeInteger(n) && n >= 0)
+      && [value.admissionClosed, value.admissionUnconfirmed].every(b => b === null || typeof b === 'boolean')
+      && Buffer.byteLength(JSON.stringify(value)) <= 1024
+  } catch { return false }
 }
