@@ -26,6 +26,7 @@ flowchart TD
 | 経路の型 | `BellRequestTrace.route(for:)`（`Core/BellDiagnostics.swift`） | 所有者・ファイル名・認証の種類などの値は残さない。既存の型（bots・rooms・settingsなど）は変えない |
 | 操作名 | `BellDiagnostics.requestContextLog` | 経路の型から決める。`/api/schedules` は既存の `/schedules` 末尾の規則で `schedule_read` になる |
 | module | `BellDiagnostics.module(for:)` | 経路の型から決める。`/api/harness-auth/:id` は `/api/harness-auth` と同じ session |
+| サーバーの失敗符号 | `BellRequestTrace.serverErrorCode(from:)` を `BellAPI.traced` が失敗応答の本文から付け、`BellDiagnostics.errorLog` が書く | 応答本文の `error` が値全体で `[A-Z0-9_]{1,100}` の時だけ `http_error_code=` に残す。人向けの `message`・自由文・`BOT_NOT_FOUND: <id>` のような値付きの文は残さない。画面の文と失敗の扱いは変えない。集約の単位（`src/diagnostic-report-context.mjs`）には入れない |
 
 サーバー側の分類（`src/diagnostic-request-context.mjs`、担当モリー）も同じ3本を `/api/other` にしている。名前の揃え方はモリーと合わせる。
 

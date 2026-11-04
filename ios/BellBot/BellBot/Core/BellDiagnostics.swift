@@ -90,6 +90,15 @@ struct BellRequestTrace {
     var sessionTimeoutMs: Int? = nil
     var callerContext: String? = nil
     var serverDiagnostic: String? = nil
+    var serverErrorCode: String? = nil
+
+    /// 失敗応答の本文から、サーバーの固定の失敗符号だけを読む。人向けの文や値付きの文は残さない。
+    static func serverErrorCode(from body: Data) -> String? {
+        struct ErrorBody: Decodable { let error: String }
+        guard let code = (try? JSONDecoder().decode(ErrorBody.self, from: body))?.error,
+              code.wholeMatch(of: /[A-Z0-9_]{1,100}/) != nil else { return nil }
+        return code
+    }
 
     /// 500応答が返した保存済み診断の参照を、この応答の値だけから作る。欠落・形式不正はunknownにする。
     static func serverDiagnostic(from response: URLResponse) -> String? {
@@ -441,8 +450,8 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         if let urlError = error as? URLError {
             return "module=\(module)\nerror_domain=NSURLErrorDomain\nerror_code=\(urlError.errorCode)"
         }
-        if case BellAPIError.httpStatus(let status, _, _) = error {
-            return "module=\(module)\nhttp_status=\(status)"
+        if case BellAPIError.httpStatus(let status, _, let trace) = error {
+            return "module=\(module)\nhttp_status=\(status)" + (trace?.serverErrorCode.map { "\nhttp_error_code=\($0)" } ?? "")
         }
         if let decoding = error as? DecodingError {
             let kind: String

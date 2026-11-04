@@ -133,7 +133,7 @@ final class BellAPI {
             let (data, response) = try await session.data(for: request)
             do { try validate(response, data: data) }
             catch { throw traced(error, with: protectedTrace(path: path, method: "POST", startedAt: startedAt,
-                                                             appState: startedState, response: response)) }
+                                                             appState: startedState, response: response), body: data) }
             responseData = data
         } catch { try Task.checkCancellation(); throw error }
         return try decode(SecretRequestResponse.self, from: responseData, path: path, method: "POST")
@@ -165,7 +165,7 @@ final class BellAPI {
             let (data, response) = try await session.data(for: request)
             do { try validate(response, data: data) }
             catch { throw traced(error, with: protectedTrace(path: path, method: method, startedAt: startedAt,
-                                                             appState: startedState, response: response)) }
+                                                             appState: startedState, response: response), body: data) }
             responseData = data
         } catch { try Task.checkCancellation(); throw error }
         return try decode(Response.self, from: responseData, path: path, method: method)
@@ -247,7 +247,7 @@ final class BellAPI {
         do {
             let (data, response, trace) = try await load(request(path: path, method: "GET"))
             do { try validate(response, data: data) }
-            catch { throw traced(error, with: trace) }
+            catch { throw traced(error, with: trace, body: data) }
             guard let mime = (response as? HTTPURLResponse)?.mimeType, mime.hasPrefix("image/") else {
                 throw BellAPIError.invalidResponse
             }
@@ -299,7 +299,7 @@ final class BellAPI {
             }
             let (data, response, trace) = try await load(request, callerContext: callerContext)
             do { try validate(response, data: data) }
-            catch { throw traced(error, with: trace) }
+            catch { throw traced(error, with: trace, body: data) }
             guard let http = response as? HTTPURLResponse else { throw BellAPIError.invalidResponse }
             if !(data.isEmpty || http.statusCode == 204),
                http.value(forHTTPHeaderField: "Content-Type")?.contains("application/json") != true {
@@ -393,13 +393,15 @@ final class BellAPI {
         }
     }
 
-    private func traced(_ error: Error, with trace: BellRequestTrace) -> Error {
+    private func traced(_ error: Error, with trace: BellRequestTrace, body: Data? = nil) -> Error {
         if let url = error as? URLError {
             var userInfo = url.userInfo
             userInfo[BellRequestTrace.userInfoKey] = trace
             return URLError(url.code, userInfo: userInfo)
         }
         if case BellAPIError.httpStatus(let status, let message, _) = error {
+            var trace = trace
+            trace.serverErrorCode = body.flatMap(BellRequestTrace.serverErrorCode(from:))
             return BellAPIError.httpStatus(status, message, trace)
         }
         return error
