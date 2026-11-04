@@ -16,6 +16,7 @@ flowchart TD
   Backend --> Catalog[公式catalog取得 / 既verifier・鮮度・失効]
   Ledger --> Worker[独立process / 実PID出生・元要求claim]
   Worker --> Verify[公式archive / 既署名・runtime・inventory検証]
+  Image[選択した正式同source image / app reader] --> Verify
   Verify --> Store[同private volume RW / code・receipt配置]
   Store --> Normal
   Normal --> Exchange[親prepareRelease / 対象moduleだけ交換]
@@ -33,6 +34,8 @@ catalog/署名/公開codeの既verifierと既固定component installerを使い�
 
 
 固定entryは`/app/scripts/module-update-service.py`、モデル生成は`/app/scripts/module-update-compose.mjs`。backendモデルは凍結normalのbellteamから同image ID・同project・選択private volumeだけを使って生成し、利用者の任意service/command/envをroot serviceへ転送しない。normalの追加serviceは保持し、生成する`module-installer`名との衝突を拒否する。保守/Cursorのimage選択はbellteamを明示する。package-serverの明示収録と既image CIのpath filterに含める。
+
+archive readerは選択した正式image内の`/app/scripts/install-web-gateway-release.py`→隣接`web_gateway_artifact.py`で固定し、incoming archiveから選ばない。executionの非node_modules inventoryは、既署名47件又はautomatic-configuration-application.mjsを加えた48件の閉集合だけを受入する。任意extra/他の欠落は拒否し、producerは48件を必須とする。旧署名47の選択・既配置を維持しつつ新48を導入するには、このreaderを含む同source正式imageを標準導入/本体更新で供給する。module単品交換だけではreader imageは更新されず、別source backendだけの差し替えは行わない。
 
 実装は既HostUpdaterの署名catalog/plan/start/get/元worker台帳を使う。code_root/worker_identity/worker_aliveの内部差し替え点だけを設け、既Hostのroot code配置とsystemmanager unit本人性は同じ既定を維持する。同梱側のexpectedは実source/platform・private root dev/inoであり、workerは実PID/birth/pidnamespaceを記録する。clientは同梱sourceと自身のdistribution sourceを照合し、異なる箱のprogramを利用可能へ投影しない。公開DTOに架空CID/image IDを加えない。
 

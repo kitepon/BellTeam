@@ -279,7 +279,12 @@ def validate_manifest(value, source=None, arch=None, *, component='web-gateway')
         names.add(name)
         total += file['bytes']
     require(total <= MAX_CONTENT)
-    require(names == required if component in ('memory', 'usage') else required <= names)
+    if component == 'execution':
+        # Signed releases before the configuration helper use the closed 47-file layout.
+        sources = {name for name in names if not name.startswith('payload/node_modules/')}
+        require(sources in (required, required - {'payload/src/automatic-configuration-application.mjs'}))
+    else:
+        require(names == required if component in ('memory', 'usage') else required <= names)
     if component in ('diagnostics', 'execution', 'conversation'):
         require(all(name in required or name.startswith('payload/node_modules/') for name in names))
     return value
@@ -299,7 +304,8 @@ def write_archive(payload, output, source, arch, *, component='web-gateway', sta
         data = target.read_bytes()
         inventory.append(dict(path=name, bytes=len(data), sha256=sha256(data)))
         paths[name] = target
-    entry, runtime, _ = contract(component)
+    entry, runtime, required = contract(component)
+    if component == 'execution': require(required <= paths.keys())
     if component == 'memory': runtime['stateCompatibility'] = validate_memory_state(state_compatibility)
     else: require(state_compatibility is None)
     manifest = validate_manifest(dict(schema=f'bellteam.{component}.artifact.v1', component=component,
