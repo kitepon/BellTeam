@@ -23,6 +23,15 @@ https://github.com/kitepon/BellTeam
 
 Dockerの導入条件・料金・対応OSは公式の案内を確認してください。すでにDockerとComposeが使える場合は、その環境を使えます。
 
+インストール後、BellTeamを設置するユーザーのターミナルで次を実行します。
+
+```sh
+docker version
+docker compose version
+```
+
+`docker version`にClientとServerの両方が表示され、`docker compose version`にComposeの版が表示されることを確認します。Serverへ接続できない場合はDockerの起動と利用権限を確認してください。`docker compose`が見つからない場合は、上のOS別の公式手順でComposeを導入してから進めます。LinuxでComposeを手動配置する場合も、公式手順のプラグイン配置先を使い、同じユーザーでこの2つのコマンドを確認してください。
+
 ## 2. BellTeamを起動する
 
 PCのターミナルを開き、次のコマンドをまとめて実行します。Macでは「ターミナル」、WindowsではWSLのターミナルを使います。
@@ -59,5 +68,7 @@ Webとサーバーは無料です。Appleアプリの通常のAI利用はアプ�
 ## 使い続けるとき
 
 サーバーを動かすPCやDockerを停止すると、アプリから接続できなくなります。会話・設定・AIの認証情報は設置フォルダ内の`runtime`とDocker volumeへ保存されます。更新時も保存先を残してください。
+
+設置先のIP・保存先・利用するイメージの指定と、機能ごとの更新は、[サーバー配布手順](https://github.com/kitepon/BellTeam/blob/main/distribution/server/README.md)を参照してください。機能の個別更新に必要な初期登録は、Linux/systemd向けの正式手順を準備中です。Mac/Docker Desktop・Windows/WSL向けの初期登録も未提供です。本体は上のMac・Windows・Linux向け手順で利用できます。個別更新は、対応する初期導入手順の公開後に更新画面の対応状態を確認して利用してください。
 
 外出先からの接続と追加機能は、[初回設定と追加機能](https://github.com/kitepon/BellTeam/blob/main/docs/onboarding.md)を参照してください。同じLANからの利用は、その設定をせずに始められます。
