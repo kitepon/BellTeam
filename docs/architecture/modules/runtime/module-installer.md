@@ -84,11 +84,12 @@ worker/ledger/private保守/component installerの排他内で、実元worker終
 
 ## 正規切替時の元worker終端bridge
 
-Root 2026-11-05採用契約。旧worker namespaceを新版namespace不一致だけで終端扱いしない。公開install.shが選択した同正式imageのmodule-worker-termination.pyだけを短命helperとして起動する。固定helper modelはmodule-update-compose.mjs --termination-helperがnormalのproject/image/private volumeから導出し、ledger/privateと固定Docker socketだけをmountする。通常module-installer/本体にはDocker socketを追加しない。helperのDocker権限は既公開installerと同等であり、一般利用者向けRPCは追加しない。
+Root 2026-11-05採用契約。旧worker namespaceを新版namespace不一致だけで終端扱いしない。公開install.shが選択した同正式imageのmodule-worker-termination.pyだけを短命helperとして起動する。固定helper modelはmodule-update-compose.mjs --termination-helperがnormalのproject/image/private volumeと検証済data/home同親runtimeから導出し、ledger/privateと固定Docker socketだけをmountする。通常module-installer/本体にはDocker socketを追加しない。helperのDocker権限は既公開installerと同等であり、一般利用者向けRPCは追加しない。
 
 ```mermaid
 flowchart LR
-  Public[新正式公開install.sh + 同source image] --> Lock[固定helper / worker ledger private component排他]
+  Public[新正式公開install.sh + 同source image] --> Storage[凍結normalの同親data/homeからprivate device固定]
+  Storage --> Lock[固定helper / worker ledger private component排他]
   Lock --> Bind[元unknown hash plan storage worker と実旧CID namespaceを照合]
   Bind --> Prepare[元ID prepare O_EXCL + file dir fsync]
   Prepare --> Stop[同CID restart no / stop / wait / 最終実停止確認]
@@ -113,3 +114,7 @@ privileged private readの固定口は同正式imageの `/app/scripts/module-wor
 切替consoleは閉code MODULE_WORKER_SWITCH/stage/requestId/receiptSha256/oldContainerIdだけ。stageはnot_needed/prepared/stop_returned/recorded/removed/already_stopped。未適用fieldはnull、本文/自由error/環境は出さない。実stop/waitとroot耐久recordは標準Docker製品側で別確認し、fixtureのcommand注入結果を本番成功へ流用しない。
 
 shortcut: 完全receiptは初回切替先sourceへ固定、別sourceへの再切替は元intentのfence完了後か別の明示契約が必要。namespace再生成を自動追認しない。
+
+### 正規private volumeのstorage照合
+
+固定helperの第4引数は凍結normalの同親data/home bindから導出したruntime/server-only/state-dataだけ。既installerのpermission probeが選ぶEngine内local volume（Options null/{}）又は同project label＋exact Options {type:none,o:bind,device:固定device}のprivate volumeを受け入れる。module-updaterはlocal/noOptionsだけ。任意device/driver/追加Options/追加mountを許可せず、private bindの正規形を一般bind許可へ広げない。Docker socket以外のHost bindをhelperへ増設しない。公開20key/元worker namespace/排他/prepareと完全receiptの意味は同じ。

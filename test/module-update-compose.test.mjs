@@ -28,15 +28,19 @@ test('同image/選択private volumeを結び、normal ROと専用service RWを�
 
 test('termination helper alone owns temporary Docker access and pins the same project/image/volumes',()=>{
  const input={name:'selected-project',services:{bellteam:{image:'sha256:'+'a'.repeat(64),environment:{SECRET:'private'},volumes:[
+  {type:'bind',source:'/selected/runtime/data',target:'/srv/bellteam'},
+  {type:'bind',source:'/selected/runtime/home',target:'/home/bell'},
   {type:'volume',source:'state',target:'/run/bellteam-maintenance',read_only:true,volume:{nocopy:true}}]},sidecar:{image:'other'}},volumes:{state:{name:'selected-state',external:true}}}
  const result=moduleWorkerTerminationModel(input),helper=result.services['module-worker-termination']
  assert.deepEqual(helper.entrypoint,['/usr/bin/python3','-I','-B','/app/scripts/module-worker-termination.py'])
- assert.deepEqual(helper.command,['selected-project',input.services.bellteam.image,'selected-state'])
+ assert.deepEqual(helper.command,['selected-project',input.services.bellteam.image,'selected-state','/selected/runtime/server-only/state-data'])
  assert.equal(helper.volumes.some(m=>m.target==='/run/bellteam-updater'),false)
  assert.equal(helper.volumes.filter(m=>m.type==='bind').length,1)
  assert.equal(helper.volumes.find(m=>m.type==='bind').bind.create_host_path,false)
  assert.equal(helper.restart,undefined);assert.equal(helper.healthcheck,undefined)
  assert.doesNotMatch(JSON.stringify(result),/SECRET|sidecar|other/)
+ const bad=structuredClone(input);bad.services.bellteam.volumes[1].source='/other/home'
+ assert.throws(()=>moduleWorkerTerminationModel(bad),/MODULE_INSTALLER_MODEL_INVALID/)
  const conflicting=structuredClone(input);conflicting.services['module-worker-termination']={image:'other'}
  assert.throws(()=>moduleWorkerTerminationModel(conflicting),/MODULE_INSTALLER_MODEL_INVALID/)
 })

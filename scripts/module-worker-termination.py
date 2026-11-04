@@ -93,10 +93,11 @@ FORMAT = '{"id":{{json .Id}},"image":{{json .Image}},"started":{{json .State.Sta
 
 
 class Switch:
-    def __init__(self, api, updater, project, image, private_name, command=None):
+    def __init__(self, api, updater, project, image, private_name, command=None, private_device=None):
         self.api, self.host, self.updater = api, api.host, updater
         self.project, self.image, self.private_name = project, image, private_name
         self.command = command or self.run
+        self.private_device = private_device
         self.container_id = None
 
     def run(self, args, data=None):
@@ -126,7 +127,12 @@ class Switch:
         for name in [self.project + '-module-updater', self.private_name]:
             volume = h.decode(self.command(['volume', 'inspect', '--format', '{{json .}}', name]))
             h.check(volume.get('Name') == name and volume.get('Driver') == 'local'
-                and volume.get('Options') in (None, {}), 'HOST_MODULE_SWITCH_STORAGE', 409)
+                and (volume.get('Options') in (None, {}) or name == self.private_name
+                    and isinstance(self.private_device, str) and self.private_device.startswith('/')
+                    and str(Path(self.private_device)) == self.private_device
+                    and (volume.get('Labels') or {}).get('com.docker.compose.project') == self.project
+                    and volume.get('Options') == dict(type='none', o='bind', device=self.private_device)),
+                'HOST_MODULE_SWITCH_STORAGE', 409)
         return record
 
     def write(self, installer, path, body):
@@ -255,7 +261,7 @@ def read_receipt(api,updater,request):
 def main():
     api=load('termination_module_api','module-update-service.py')
     read_only=len(sys.argv)==3 and sys.argv[1]=='--read'
-    api.host.check(read_only or len(sys.argv)==4,'HOST_MODULE_SWITCH_ARGUMENTS')
+    api.host.check(read_only or len(sys.argv)==5,'HOST_MODULE_SWITCH_ARGUMENTS')
     api.host.check(os.getuid()==os.geteuid()==0,'HOST_UPDATE_ROOT_REQUIRED')
     os.umask(0o077)
     distribution=api.host.read_json('/app/distribution.json')
@@ -270,7 +276,7 @@ def main():
     if read_only:
         print(json.dumps(read_receipt(api,updater,sys.argv[2]),separators=(',',':')))
         return
-    Switch(api,updater,*sys.argv[1:]).switch()
+    Switch(api,updater,*sys.argv[1:4],private_device=sys.argv[4]).switch()
 
 
 if __name__=='__main__':
