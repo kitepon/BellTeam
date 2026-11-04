@@ -128,7 +128,7 @@ struct UpdateContent: View {
         case .loading: ("arrow.triangle.2.circlepath", "確認しています", "最新の状態かどうかを確かめています。", BellTheme.muted)
         case .unreachable: ("exclamationmark.triangle", "更新を確認できませんでした", "接続を確かめて、もう一度お試しください。", BellTheme.muted)
         case .updating(let phase): ("arrow.down.circle", "更新しています", "\(phase)。完了まで、この画面を閉じても大丈夫です。", BellTheme.violet)
-        case .unconfirmed: ("clock.arrow.circlepath", "更新の結果を確認中", "接続が戻ると結果を確かめます。更新を送り直すことはありません。", BellTheme.muted)
+        case .unconfirmed: ("clock.arrow.circlepath", "更新の結果を確認中", "更新の結果を、まだ確認できていません。", BellTheme.muted)
         case .failed: ("xmark.circle", "更新できませんでした", "更新を完了できませんでした。理由は「詳細」で確認できます。", BellTheme.muted)
         case .completed: ("checkmark.circle.fill", "更新しました", "\(updatedNames)を新しい版にしました。", BellTheme.mint)
         case .available: ("arrow.down.circle.fill", "更新があります", candidates.count == 1 ? "\(candidates[0].name)の新しい版を使えます。" : "\(candidates.count)つの機能に新しい版があります。", BellTheme.violet)
