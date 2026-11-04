@@ -68,3 +68,14 @@ export function moduleRecoveryLog(component, stage, event, attempt, runnerActive
     runnerActive: count(runnerActive), admissionActive: counts?.admissionActive ?? null,
     admissionClosed: counts?.admissionClosed ?? null, admissionUnconfirmed: counts?.admissionUnconfirmed ?? null }
 }
+
+// Child-local sequence is diagnostic correlation, never a lease or termination proof.
+export function moduleTerminationLog(component, stage, event, childSequence, runnerActive, admission, error) {
+  if (!components.includes(component) || !['os_closed', 'incoming', 'reaped', 'lost'].includes(stage)
+    || !['waiting', 'completed', 'failed'].includes(event)) return null
+  const counts = moduleDrainDiagnostic(component, 'parent_drain', runnerActive, admission)
+  return { code: 'MODULE_CHILD_TERMINATION', component, stage, event, childSequence: count(childSequence),
+    observedAt: new Date().toISOString(), failureCode: event === 'failed' ? safeCode(component, error) : null,
+    runnerActive: counts.runnerActive, admissionActive: counts.admissionActive,
+    admissionClosed: counts.admissionClosed, admissionUnconfirmed: counts.admissionUnconfirmed }
+}

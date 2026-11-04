@@ -128,3 +128,11 @@ flowchart LR
   Private --> Ledger[既moduleDiagnostic / private runtimeDiagnostic]
   Private --> Old
 ```
+
+## T：終了report後の段階診断
+
+既consoleのMODULE_CHILD_TERMINATIONは異常稼働子と未resume回復candidateのOS/IPC/pipe終了後だけ発行する。閉keyはcode/component/stage/event/childSequence/observedAt/failureCode/runnerActive/admissionActive/admissionClosed/admissionUnconfirmed。stageはos_closed/incoming/reaped/lost、eventはwaiting/completed/failed。childSequenceはcontroller内起動順の非負safe整数で、生generation/lease/本文は含めない。時刻はISO UTC（収集者がJSTへ変換）、不明code/件数/状態はnull。標準Docker logの固定JSONをread契約とし、新HTTP/別writerを作らない。
+
+os_closed completed→incoming waiting/completed→reaped waiting/completed→lost completedの順。lostは既recovery.lostの呼出完了であり、新子readyやtimer実発火の証明ではない。後続のMODULE_CHILD_RECOVERYを同container/親process/component/時刻で結ぶ。incoming/reapedが未完なら次段階へ進まず、拒否はその段階のfailedを残して元例外を保持。console/snapshot失敗は診断欠測として元制御を変えない。close/交換の意図終了はこの診断の対象外。欠測やsequenceを実終端証明にしない。
+
+注入admission.close(source)は既引数無し互換のKiro契約で、module_start/module_replace/module_close/module_child_exit/module_recoveryを各既callerから渡す。ticket/failed/閉鎖主体の保持とinspectAdmissionの単一validatorはexecution担当。共通は既snapshotの安全な3scalarだけを投影し、生存gateの強制再開は行わない。

@@ -1,5 +1,5 @@
 import { createModuleChildRestart, reportModuleChildExit, observeModuleChild } from './module-child-restart.mjs'
-import { moduleExchangeDiagnostic, moduleDrainDiagnostic, moduleRecoveryLog } from './module-exchange-diagnostic.mjs'
+import { moduleExchangeDiagnostic, moduleDrainDiagnostic, moduleRecoveryLog, moduleTerminationLog } from './module-exchange-diagnostic.mjs'
 import { spawn } from 'node:child_process'
 import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
@@ -36,7 +36,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   let initialized = false, closed = false, available = false, phase = 'unavailable', exchanging = false
   let operation = null, closing = null, update = null, reservation = null, startingReservation = false
   let failedWriterReaped = false
-  let recoveryAttempt = 0
+  let recoveryAttempt = 0, childSequence = 0
   const recovery = createModuleChildRestart(async () => {
     recoveryAttempt = Math.min(Number.MAX_SAFE_INTEGER, recoveryAttempt + 1)
     let stage = 'operation'
@@ -50,7 +50,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       if (closed || instance || !initialized) { report('skipped'); return }
       const perform = async () => {
         if (closed || instance) { report('skipped'); return }
-        const ticket = closeAdmission()
+        const ticket = closeAdmission('module_recovery')
         mark('runner')
         await waitActive()
         mark('prepare')
@@ -112,7 +112,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       return value
     } finally { await file.close() }
   }
-  const closeAdmission = () => admission?.close()
+  const closeAdmission = source => admission?.close(source)
   const stopUnadmitted = async target => {
     if (!target || target.ended) return
     // Never kill a previously resumed writer as an exchange timeout shortcut.
@@ -140,18 +140,31 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     })
     // Pipes are drained without retaining or publishing arbitrary child output.
     child.stdout?.resume(); child.stderr?.resume()
-    const target = { child, generation: nextGeneration, ticket, ended: false, resumed: false, channel: null }
+    childSequence = Math.min(Number.MAX_SAFE_INTEGER, childSequence + 1)
+    const target = { sequence: childSequence, child, generation: nextGeneration, ticket, ended: false, resumed: false, channel: null }
     target.stderrObservation = observeModuleChild(child)
     instance = target
     target.end = waitNotificationsChildClose(child).then(async result => {
       const unexpected = target.resumed && initialized && !closed && !target.intentional
-      if (unexpected) { closeAdmission(); state('unavailable'); reportModuleChildExit(component, result, target.stderrObservation(), onModuleChildExit) }
-      await target.channel?.drainIncoming?.()
-      target.ended = true
-      await target.channel?.reaped()
-      if (unexpected || recovering) failedWriterReaped = true
-      if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
-      if (unexpected) recovery.lost()
+      if (unexpected) { closeAdmission('module_child_exit'); state('unavailable'); reportModuleChildExit(component, result, target.stderrObservation(), onModuleChildExit) }
+      let stage = 'os_closed'
+      const report = (event, error) => {
+        if (!unexpected && !recovering) return
+        try { console.error(JSON.stringify(moduleTerminationLog(component, stage, event, target.sequence, active.size, admission, error))) } catch {}
+      }
+      report('completed')
+      try {
+        stage = 'incoming'; report('waiting')
+        await target.channel?.drainIncoming?.()
+        report('completed')
+        target.ended = true
+        stage = 'reaped'; report('waiting')
+        await target.channel?.reaped()
+        report('completed')
+        if (unexpected || recovering) failedWriterReaped = true
+        if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
+        if (unexpected) { stage = 'lost'; recovery.lost(); report('completed') }
+      } catch (error) { report('failed', error); throw error }
     })
     const started = Date.now()
     try {
@@ -216,7 +229,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       await prepare(saved.currentVersionId); await prepare(saved.previousVersionId)
       currentVersionId = saved.currentVersionId; previousVersionId = saved.previousVersionId
     }
-    const ticket = closeAdmission()
+    const ticket = closeAdmission('module_start')
     try {
       await admission?.drain(ticket)
       const target = await launch(currentVersionId, ticket, saved ? 'restore' : 'bootstrap')
@@ -245,7 +258,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       if (versionId === currentVersionId) return snapshot()
       if (closed) throw fail('CLOSED')
       const old = instance, oldVersion = currentVersionId, oldPrevious = previousVersionId
-      const ticket = closeAdmission()
+      const ticket = closeAdmission('module_replace')
       exchanging = true; state('quiescing')
       let handoff, drainStage = 'parent_drain'
       try {
@@ -332,7 +345,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
         await operation?.catch(() => {})
         const target = instance
         if (target) {
-          const ticket = closeAdmission()
+          const ticket = closeAdmission('module_close')
           try { await drain(target, ticket, () => {}, true); await finishExit(target) }
           catch (error) {
             if (target.child.connected) target.child.disconnect()
@@ -340,7 +353,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
             throw error
           }
         } else if (retainCloseFailure) {
-          const ticket = closeAdmission()
+          const ticket = closeAdmission('module_close')
           const [, result] = await within(Promise.all([waitActive(), drainAdmission(ticket, true)]), 60000, `${prefix}_DRAIN_TIMEOUT`)
           if (result?.status === 'busy') throw fail('DRAIN_TIMEOUT')
         }
