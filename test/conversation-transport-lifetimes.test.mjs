@@ -76,7 +76,7 @@ test('derived report uses the same old operation but still obeys global stop and
   let report, status
   await f.gate.runBackground(f.delivery, async () => {
     report = f.gate.deriveReport(f.delivery, { deliveryId: 'report-a', reason: 'missing', dispatch: async (kind, params) => { status = params; return { applied: true } } })
-    await assert.rejects(f.transport.notifyReport(bot, 'fixed report request', { queue: { groupId: 'report-a', context: 'report' }, conversationDelivery: report }), { code: 'AI_GLOBAL_PAUSED' })
+    assert.deepEqual(await f.transport.notifyReport(bot, 'fixed report request', { queue: { groupId: 'report-a', context: 'report' }, conversationDelivery: report }), { report: 'unavailable', reason: 'not_issued' })
     assert.equal(status.delivery, 'stopped'); assert.equal(status.error.code, 'AI_GLOBAL_PAUSED')
   })
   f.gate.finish(f.delivery); f.gate.finish(f.root); await tick()
