@@ -18,7 +18,8 @@ export function createMemberProfileApi({ bots, transport, administration, memory
       ])
       const list = await Promise.all(all.map(async bot => {
         const last = recentTimeline(await sources('bots', bot.id, views?.get(bot.id)))
-        const application = administration.view?.(bot)?.configurationApplication
+        const view = administration.view?.(bot)
+        const application = view?.configurationApplication
         const avatars = {}
         for (const field of ['avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource']) {
           avatars[field] = omitAvatars ? '' : bot[field] ?? ''
@@ -46,6 +47,7 @@ export function createMemberProfileApi({ bots, transport, administration, memory
           ...(deleting(bot) ? { deleting: true } : {}),
           recent: last && { id: last.id, kind: last.kind, direction: last.direction, message: last.message, image: last.image, at: last.at },
           ...(application ? { configurationApplication: application } : {}),
+          ...(view?.automaticConfigurationApplication ? { automaticConfigurationApplication: view.automaticConfigurationApplication } : {}),
         }
       }))
       // Serialize only the current listing state after all asynchronous timeline reads.

@@ -10,6 +10,8 @@ flowchart TD
   Tools -->|"model/harness/effortあり"| Configure["execution.configuration<br/>既configure"]
   Profile -->|"PATCH"| Admin["execution.configuration<br/>Administration.update/view"]
   Admin --> Registry
+  Admin -->|"view: 既適用状態とoptional自動操作snapshot"| Listing
+  Admin -->|"botView: 同じoptional欄を保持"| Tools
   Tools -->|"画像path"| Image["conversation公開path解決"]
   Image -->|"MIME/data URL"| Registry
   Tools -->|"作成"| Create["profile/project保存"]
@@ -29,6 +31,7 @@ flowchart TD
 | `profiles-mcp.mjs` | memberReadTools/memberWriteToolsとcallMemberTool。list_bots/get_bot/get_self/get_owner_profile/get_user_rules/update_self/update_bot/set_avatar/create_botの説明/schema/handlerを所有。入力は`{name,args,from,registry,botView?,configure,memory,ownerProfile,userRules}` |
 | MCP通常更新 | プロフィールだけならregistry.update。model/harness/reasoningEffortのいずれかを指定したら、他の同時変更も含め既configureへ渡す。返ったpending/failed/unknownを変換せず、現在値だけで適用成功にしない。update_selfの対象はfrom |
 | MCP読取 | get_bot/get_selfは既botViewを使い適用観測を保持。list_botsは従来どおりactive台帳のみ。avatar本文を外しURLへする共通整形と認証/引数keyの検証はintegrationが維持 |
+| 自動設定操作の表示 | HTTP一覧とget_self/get_botはexecution.viewのoptional `automaticConfigurationApplication`を保持する。HTTP単体profile GETも既viewを返す。閉DTO/同期snapshotの正本は[execution](../execution/automatic-configuration.md)。membersはDTOを生成・補完せず、欄不在とunknownをそのまま扱う。既configurationApplicationの意味・値を変えず、native作用や操作完了を推測しない |
 | avatar | 既resolveBotImagePath、PNG/JPEG/WebP/GIF検証、data URL化→registry.updateの順を維持。HTTPのavatar/large/source経路とfallback/etagは既共有画像窓口を使用 |
 | `profiles-http.mjs` | createMemberProfileApiがBot一覧/作成、GET/PATCH profile、avatar、character-sheet一覧/streamを所有。既createBotApiはこのhandlerへ委譲し、execution/memory/conversationの残る経路を保持 |
 | HTTP更新/表示 | PATCHは既Administration.updateへ、GETと一覧の適用観測は既viewへ。返却/statusは既契約。モデルの稼働適用/Map/停止・再開はexecutionが持つ |
