@@ -322,7 +322,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     let mark = candidates.length ? '↑' : latest ? '✓' : '↻'
     if (completed) { title = '更新しました'; description = candidates.length ? 'ほかにも更新できる項目があります。' : '選んだ項目の更新が完了しました。'; mark = '✓' }
     if (result?.phase === 'failed') { title = '更新できませんでした'; description = '状況を確認してから、もう一度お試しください。'; mark = '↻' }
-    if (unresolved && !completed) { title = '更新の結果を確認中'; description = '前の更新の記録を保持しています。状況を確認してください。'; mark = '↻' }
+    if (unresolved && !completed) { title = '更新の結果を確認中'; description = '更新結果をまだ確認できません。'; mark = '↻' }
     if (running) { title = '更新しています'; description = '完了を確認するまで、このままお待ちください。'; mark = '↑' }
     if (failure || storageFailure || pendingReadFailed) { title = unresolved ? '更新の結果を確認中' : '更新を確認できませんでした'; description = '接続を確認し、状況を確認してください。'; mark = '↻' }
     if (loading && !inventory) { title = '更新を確認しています'; description = '少しお待ちください。'; mark = '↻' }
@@ -349,7 +349,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
         const section = element('section', 'update-release-notes'); section.append(element('h4', '', '更新内容'))
         for (const line of changes) section.append(element('p', '', line))
         product.append(section)
-      } else if (candidates.length && !selectedPlan && !running && !unresolved) product.append(element('p', 'update-notes-empty', '詳しい変更内容はまだ届いていません。'))
+      }
       if (selectedPlan) {
         const review = element('section', 'update-plan-review')
         review.append(element('h4', '', selectedPlan.action === 'rollback' ? '戻す項目' : '更新する項目'))
