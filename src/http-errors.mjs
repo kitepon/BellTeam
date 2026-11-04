@@ -15,7 +15,7 @@ const unavailableCodes = new Set(['MODULE_OPERATION_NOT_ACCEPTED', 'MEMBERS_NOT_
   'MEMBERS_IPC_TIMEOUT', 'MEMBERS_CHILD_EXITED', 'MEMBERS_IPC_INVALID', 'MEMBERS_RESULT_INVALID',
   'MEMBERS_OPERATION_FAILED', 'MEMBERS_PROJECTION_UNCONFIRMED', 'BOT_SESSION_UNCONFIRMED'])
 const httpStages = new Set(['url', 'authorize', 'members_authorization', 'seat_mcp', 'control', 'members_refresh', 'feature', 'static'])
-const unavailableRoutes = new Set(['/api/bots', '/api/rooms', '/api/owner', '/api/queue', '/api/models', '/api/settings'])
+const unavailableRoutes = new Set(['/api/bots', '/api/rooms', '/api/owner', '/api/queue', '/api/models', '/api/settings', '/api/schedules'])
 
 export async function respondHttpError(request, response, error, diagnostics, context = {}) {
   if (typeof error.code === 'string' && Number.isInteger(error.status)) {

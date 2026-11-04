@@ -30,6 +30,7 @@ test('型付き503は共通refresh段階と固定code/型routeだけを保存し
     ['/api/bots/private-bot/queue', '/api/bots/:id/queue'],
     ['/api/rooms/private-room/avatar', '/api/rooms/:id/avatar'], ['/api/queue', '/api/queue'],
     ['/api/bots', '/api/bots'], ['/api/owner', '/api/owner'], ['/api/rooms', '/api/rooms'],
+    ['/api/schedules', '/api/schedules'],
   ])
   for (const [route, expected] of routes) {
     const before = Date.now()
@@ -62,7 +63,7 @@ test('型付き503は共通refresh段階と固定code/型routeだけを保存し
   await reloaded.initialize()
   assert.deepEqual(reloaded.list(), diagnostics.list())
   assert.equal(reloaded.list().length, 1)
-  assert.equal(reloaded.list()[0].occurrence_count, 8)
+  assert.equal(reloaded.list()[0].occurrence_count, 9)
 })
 
 test('feature内の503はHTTP段階だけを示しmembers失敗phaseを推測しない', async t => {
