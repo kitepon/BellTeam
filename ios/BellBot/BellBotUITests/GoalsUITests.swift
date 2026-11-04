@@ -234,11 +234,9 @@ final class GoalsUITests: XCTestCase {
         clickOrTap(pause)
         let error = app.staticTexts["goal-error"]
         XCTAssertTrue(error.waitForExistence(timeout: 5), app.debugDescription)
-        #if targetEnvironment(macCatalyst)
-        // 現行製品はneedsRefreshでカードを隠す。無効ボタンを要求する既存assertは維持する。
-        XCTAssertTrue(pause.exists, "未確認後の一時停止ボタンが存在しません。\n\(app.debugDescription)")
-        #endif
-        XCTAssertFalse(pause.isEnabled)
+        // 結果を確かめるまでは、古いカードと操作を現在の値として出さない。
+        XCTAssertTrue(app.staticTexts["現在のゴールを確認できません"].exists, app.debugDescription)
+        XCTAssertFalse(pause.exists, "結果不明の後に古い一時停止ボタンを出さない")
         let proofURL = try XCTUnwrap(URL(string: url + "/test/proof"))
         let (firstData, _) = try await URLSession.shared.data(from: proofURL)
         let first = try XCTUnwrap(JSONSerialization.jsonObject(with: firstData) as? [String: Any])
@@ -246,9 +244,7 @@ final class GoalsUITests: XCTestCase {
 
         refreshGoalList(in: app)
         XCTAssertTrue(error.waitForNonExistence(timeout: 5), app.debugDescription)
-        #if targetEnvironment(macCatalyst)
         XCTAssertTrue(pause.waitForExistence(timeout: 5), app.debugDescription)
-        #endif
         XCTAssertTrue(pause.isEnabled)
         let (lastData, _) = try await URLSession.shared.data(from: proofURL)
         let last = try XCTUnwrap(JSONSerialization.jsonObject(with: lastData) as? [String: Any])
@@ -366,8 +362,8 @@ final class GoalsUITests: XCTestCase {
         #else
         clickOrTap(app.buttons["goal-clear-bot-one"])
         #endif
-        XCTAssertTrue(app.staticTexts["前のゴール：取消 · 資料を整理して報告する"].waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertFalse(app.staticTexts["前のゴール：達成 · 資料を整理して報告する"].exists)
+        // 一覧は実際にゴールがあるメンバーだけを並べるので、取り消したカードは外れる。
+        XCTAssertTrue(app.staticTexts["資料を整理して報告する"].waitForNonExistence(timeout: 5), app.debugDescription)
         #if targetEnvironment(macCatalyst)
         XCTAssertTrue(clear.waitForNonExistence(timeout: 5), app.debugDescription)
         #else
