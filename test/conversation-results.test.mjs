@@ -17,6 +17,7 @@ const samples = {
   'room.schedules.remove': { removed: schedule.id }, 'room.schedules.claimDue': schedule, 'room.schedules.skipDue': null,
   'member.removeFromRooms': { removed: 'bot-a' }, 'history.listMessages': stream(), 'history.listRoomMessages': stream(),
   'history.page': stream(), 'history.recentBatch': stream(),
+  'history.deliveryAnchor': { deliveryId: 'delivery-a', target: 'bot-a', context: 'direct', contextId: 'bot-a' },
   'direct.post': post, 'user.post': { ...post, from: 'user', target: 'bot-a' }, 'delivery.resume': post,
   'user.turn': { ...post, delivery: 'delivered', reply: null },
   'delivery.closeLaunch': { closureId: 'closure-a', delivery_id: 'delivery-a', from: 'bot-a', target: 'bot-b' },

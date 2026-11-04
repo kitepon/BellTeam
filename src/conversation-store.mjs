@@ -15,6 +15,13 @@ export class ConversationStore {
     this.preview = null
   }
   async records() { return (await this.entries()).filter(record => record.schema === 'bellteam.direct-message.v1') }
+  async deliveryAnchor({ deliveryId, target, context, contextId }) {
+    await this.snapshot()
+    const records = this.read.byDelivery.get(deliveryId), record = records?.length === 1 ? records[0] : null
+    return !this.read.anchorInvalid && record?.target === target && typeof record.from === 'string'
+      && typeof record.message === 'string' && typeof record.at === 'string'
+      ? { deliveryId, target, context, contextId } : null
+  }
   async entries() {
     const state = await this.snapshot()
     return state.resolved ??= state.entries.map(record => record.schema === 'bellteam.direct-message.v1' && state.statuses.has(record.delivery_id)
@@ -52,6 +59,7 @@ export class ConversationStore {
       const complete = bytesRead ? buffer.lastIndexOf(0x0a, bytesRead - 1) + 1 : 0
       const previewChanged = this.preview && complete && buffer.toString('utf8', 0, buffer.indexOf(0x0a)) !== this.preview.text
       const { records, lines } = parseRecords(buffer.subarray(0, complete), this.read, diagnostic => {
+        this.read.anchorInvalid = true
         // 診断先の失敗や未終端Promiseで、有効な履歴の読取りを止めない。
         try { Promise.resolve(this.onCorruption(diagnostic)).catch(() => logCorruption(diagnostic)) }
         catch { logCorruption(diagnostic) }
@@ -161,7 +169,7 @@ function peerItem(record, direction, peer) {
 }
 
 function emptyRead() {
-  return { ino: null, mtimeMs: null, offset: 0, lines: 0, entries: [], statuses: new Map(), byBot: new Map(), byDelivery: new Map(), views: new Map(), resolved: null }
+  return { ino: null, mtimeMs: null, offset: 0, lines: 0, anchorInvalid: false, entries: [], statuses: new Map(), byBot: new Map(), byDelivery: new Map(), views: new Map(), resolved: null }
 }
 function participants(record) {
   return record.schema === 'bellteam.interim-word.v1' ? [record.bot]

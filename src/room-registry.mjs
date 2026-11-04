@@ -139,6 +139,12 @@ export class RoomRegistry extends Map {
     return this.histories.get(id).view()
   }
 
+  async deliveryAnchor(input) {
+    this.require(input.contextId)
+    if (!this.histories.has(input.contextId)) this.histories.set(input.contextId, new RoomHistory(join(this.roomPath(input.contextId), 'messages.jsonl')))
+    return this.histories.get(input.contextId).deliveryAnchor(input)
+  }
+
   async appendMessage(id, record) {
     this.require(id)
     const path = join(this.roomPath(id), 'messages.jsonl')

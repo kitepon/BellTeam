@@ -204,6 +204,12 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
         if (!bots.has(params.botId)) throw new Error(`BOT_NOT_FOUND: ${params.botId}`)
         return store.timeline(params.botId).then(history)
       case 'history.listRoomMessages': authorizeRoom(params.roomId); return rooms.messages(params.roomId).then(history)
+      case 'history.deliveryAnchor': {
+        if (current().context.actor.botId !== params.target) throw Object.assign(failure('CONVERSATION_ACTOR_INVALID'), { status: 403 })
+        if (!bots.has(params.target)) throw new Error(`BOT_NOT_FOUND: ${params.target}`)
+        if (params.context === 'room') { authorizeRoom(params.contextId); return rooms.deliveryAnchor(params) }
+        return store.deliveryAnchor(params)
+      }
       case 'history.page': {
         let base
         if (params.kind === 'rooms') { authorizeRoom(params.id); base = rooms.messageView(params.id) }
@@ -252,7 +258,8 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
     const task = track(contexts.run({ context }, async () => {
       await bots.refresh()
       if (method.startsWith('room') || ['history.listRoomMessages', 'member.removeFromRooms'].includes(method)
-        || method === 'history.page' && params.kind === 'rooms') await rooms.refresh()
+        || method === 'history.page' && params.kind === 'rooms'
+        || method === 'history.deliveryAnchor' && params.context === 'room') await rooms.refresh()
       const result = execute(method, params)
       if (accepted) Promise.resolve(result.accepted).then(value => { validateConversationResult('user.post', value); accepted.resolve(value) }, accepted.reject).catch(accepted.reject)
       const value = await result

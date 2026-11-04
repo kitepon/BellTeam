@@ -2,6 +2,8 @@
 
 [担当と公開契約](README.md) / [全体図](../../feature-map.md)。章を旧詳細図から移管した。
 
+Mの元delivery照合は[一件readの正本](process.md#m-元deliveryの保存原本一件照合)に従う。認証済Bot本人と保存確定原本の対応だけを閉4fieldで返し、native採用の証明とorigin束縛はexecutionが所有する。
+
 ## 人がBotへ送る
 
 ```mermaid
