@@ -5,6 +5,7 @@ import importlib.util
 import json
 from pathlib import Path
 import platform
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -28,8 +29,9 @@ class ExecutionArtifact(unittest.TestCase):
         with self.archive.open('rb') as stream: self.manifest, _ = check_archive(stream, component='execution')
 
     def test_literal_asset_entry_and_string_state_are_required(self):
-        self.assertEqual(len(EXECUTION_FILES), 47)
+        self.assertEqual(len(EXECUTION_FILES), 48)
         changes = [lambda m: m.update(entry='payload/src/usage-entry.mjs'),
+            lambda m: m.update(files=[r for r in m['files'] if r['path'] != 'payload/src/automatic-configuration-application.mjs']),
             lambda m: m.update(files=[r for r in m['files'] if r['path'] != 'payload/src/module-ipc.mjs']),
             lambda m: m.update(files=[r for r in m['files'] if r['path'] != 'payload/config/common-agents.md']),
             lambda m: m['files'].append(dict(path='payload/src/run-seat-command.mjs', bytes=0, sha256='b'*64)),
@@ -41,6 +43,27 @@ class ExecutionArtifact(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(ValueError): validate_manifest(value, component='execution')
         with self.assertRaises(ValueError): validate_manifest(self.manifest, 'b'*40, component='execution')
         with self.assertRaises(ValueError): validate_manifest(self.manifest, arch='unknown', component='execution')
+
+    def test_fixed_source_relative_import_closure(self):
+        root = Path(__file__).resolve().parents[1]
+        files = sorted(name.removeprefix('payload/') for name in EXECUTION_FILES)
+        script = """
+import { SourceTextModule } from 'node:vm';
+import { readFileSync } from 'node:fs';
+import { dirname, posix, resolve } from 'node:path';
+const files = JSON.parse(readFileSync(0, 'utf8')), selected = new Set(files), missing = [];
+for (const file of files.filter(name => name.endsWith('.mjs'))) {
+  const module = new SourceTextModule(readFileSync(resolve(process.argv[1], file), 'utf8'));
+  for (const specifier of module.dependencySpecifiers.filter(name => name.startsWith('.'))) {
+    const target = posix.normalize(posix.join(dirname(file), specifier));
+    if (!selected.has(target)) missing.push({ from: file, target });
+  }
+}
+process.stdout.write(JSON.stringify(missing));
+"""
+        missing = json.loads(subprocess.check_output(['node', '--experimental-vm-modules',
+            '--input-type=module', '-e', script, str(root)], input=json.dumps(files), text=True))
+        self.assertEqual(missing, [])
 
     def test_inventory_content_tamper_rejected(self):
         altered=self.root/'altered.tar.gz'

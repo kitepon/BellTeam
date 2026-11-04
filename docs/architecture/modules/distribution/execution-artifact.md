@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-  Source[固定Git / 44 JSとcommon-agents / packageとlock] --> Package[47literalと同lock production依存]
+  Source[固定Git / 45 JSとcommon-agents / packageとlock] --> Package[48literalと同lock production依存]
   Package --> Probe[別tmpのUID1001 / 実factoryとasset / 人工native ports]
   Probe --> Sign[execution専用main OIDC]
   Sign --> Verify[公式検証 / sourceとarch / 実互換文字列 / 完全inventory]
@@ -16,6 +16,7 @@ flowchart LR
 入口はpayload/src/execution-dispatcher.mjs、Node26/Linux/P1、stateCompatibilityは実export文字列bellteam.execution-state.v1のまま。catalog5keyのstateSchema/containerUpdateはnull。package/lockは同Git、SDK依存は通常npm ci --omit=dev。任意src追加や欠測common-agents、別source/platform/互換、改竄は公開前拒否。archive JSは認証中に実行せず、既信頼済imageのexportで照合する。
 
 members-admissionが読むmodule-ipc.mjsを固定payloadへ含め、現行の共通容量64を同じ完成sourceから収録する。親ports・engine・状態互換の実装は変更しない。
+bot-administrationが読むautomatic-configuration-application.mjsも同じ固定sourceから収録し、実ソースの相対import閉包を構文解析だけで確認する。
 
 通常親DIのnative.call/connect/launchOptionsは親AitermClient receiver、waitProcess/handoffContext/write/removeも親application-servicesのclosureに束縛される。run-seat-command/run-seat-aiterm-launchは親/app側URL、run-seat-setupはbootstrapのみでengineから呼ばない。この3sidecarはpayloadに収録せず、private payloadのUID1000公開やfallbackを追加しない。任意custom/test portsの一般保証ではない。親assembly/generation/adoptionは通常imageに置き、engine literalへ増やさない。
 
