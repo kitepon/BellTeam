@@ -89,7 +89,10 @@ for (const [name, extra, success, cleanup = false] of [
     assert.equal(manifest.exit, Number(extra.FIXTURE_CLEANUP_EXIT ?? 0))
     assert.equal(manifest.previousRuntime, join(f.saved,'previous-runtime.json'))
     if(!success){assert.match(log,/本体はhealthy/u);assert.equal(calls.some(c=>c.includes('/api/bots')),false)}
-    else assert.match(log,/bots 0 online 0/)
+    else {
+      assert.match(log,/Bot稼働数: 未確認（配備workerには席認証がありません）/u)
+      assert.equal(calls.some(c=>c.includes('/api/bots')),false)
+    }
   }else if(name === 'adapter-failed'){
     assert.match(log,/deploy-exit=57/)
     assert.equal(calls.some(c=>c.includes('/healthz')),false)

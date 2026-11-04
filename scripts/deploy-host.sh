@@ -31,5 +31,4 @@ if ! sh scripts/deploy-cleanup.sh "$previous"; then
 fi
 printf 'cleanup result: %s/deploy-cleanup.json\n' "${previous%/*}"
 docker exec bellteam sh -c 'node --version; codex --version; claude --version; grok --version; cursor-agent --version; gh --version | head -1; npm ls -g --depth=0 2>/dev/null | grep -E "aiterm-mcp|throughline"'
-docker exec bellteam curl -fsS http://127.0.0.1:4181/api/bots \
-  | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const b=JSON.parse(d).bots;console.log(`bots ${b.length} online ${b.filter(x=>x.online).length}`)})'
+printf 'Bot稼働数: 未確認（配備workerには席認証がありません）\n'
