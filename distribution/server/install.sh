@@ -171,6 +171,20 @@ try {
     75) echo MODULE_INSTALLER_NOT_BUNDLED >&2;;
     *) echo MODULE_INSTALLER_MODEL_UNAVAILABLE >&2; exit 1;;
   esac
+  updater=0
+  docker run --pull never --rm --network none --read-only --entrypoint /usr/local/bin/node "$image" \
+    -e 'process.exit(require("fs").existsSync("/app/scripts/container-update-compose.mjs")?0:75)' || updater=$?
+  case "$updater" in
+    0)
+      docker run --pull never --rm -i --network none --read-only --entrypoint /usr/local/bin/node "$image" \
+        /app/scripts/container-update-compose.mjs < "$saved/normal.json" > "$staging/container-models.jsonl"
+      sed -n '1p' "$staging/container-models.jsonl" > "$saved/normal.json"
+      if [ "$(sed -n '2p' "$staging/container-models.jsonl")" != null ]; then
+        sed -n '2p' "$staging/container-models.jsonl" > "$saved/container-updater.json"
+      fi;;
+    75) echo CONTAINER_UPDATER_NOT_BUNDLED >&2;;
+    *) echo CONTAINER_UPDATER_MODEL_UNAVAILABLE >&2; exit 1;;
+  esac
 fi
 cp "$saved/compose.state-maintenance.json" "$staging/compose.state-maintenance.json"
 COMPOSE_FILE="$saved/normal.json"
@@ -192,7 +206,14 @@ try{const d=JSON.parse(fs.readFileSync(0,"utf8").replaceAll("$$","$")),v=d.servi
 ' < "$saved/compose.state-maintenance.json" > "$staging/storage.txt"
 runtime=$(sed -n '1p' "$staging/storage.txt")
 state_volume=$(sed -n '2p' "$staging/storage.txt")
-mkdir -p "$runtime/server-only"
+if [ "${BELLTEAM_CONTAINER_UPDATE_WORKER:-}" = 1 ]; then
+  # The worker has no data/HOME mount; Docker resolves the selected runtime on its host.
+  docker run --pull never --rm --network none --read-only --user 0:0 \
+    --mount "type=bind,source=$runtime,target=/runtime" --entrypoint /usr/local/bin/node "$image" \
+    -e 'require("fs").mkdirSync("/runtime/server-only",{recursive:true})'
+else
+  mkdir -p "$runtime/server-only"
+fi
 docker volume ls --format '{{.Name}}' > "$staging/volume-names.txt"
 if grep -Fx "$state_volume" "$staging/volume-names.txt" >/dev/null; then
   docker volume inspect "$state_volume" > "$staging/volume.json"
@@ -251,20 +272,31 @@ capture_previous() {
   old_hash=$(docker container inspect --format '{{index .Config.Labels "com.docker.compose.config-hash"}}' "$stopped_container") || return 1
   old_env=$(docker container inspect --format '{{index .Config.Labels "com.docker.compose.project.environment_file"}}' "$stopped_container") || return 1
   [ "$old_project" = "$project" ] || return 1
-  case "$old_working" in /*) [ -d "$old_working" ] || return 1;; *) return 1;; esac
   case "$old_files" in
-    "$old_working/compose.yaml")
-      docker run --pull never --rm --network none --read-only --entrypoint /bin/cat "$old_image" /app/compose.yaml > "$saved/previous-compose.yaml" || return 1
-      old_files="$saved/previous-compose.yaml";;
-    */.bellteam-compose.*/normal.json|*/.bellteam-compose.*/previous-normal.json)
-      [ -f "$old_files" ] || return 1
-      old_install=$(dirname "$(dirname "$old_files")")
-      [ "$old_working" = "$old_install" ] || [ "$old_working" = "$(dirname "$old_files")" ] || return 1;;
-    *) return 1;;
+    */installation/work/.bellteam-compose.*/normal.json|*/installation/work/.bellteam-compose.*/previous-normal.json)
+      # A Web update stores its frozen model in a root-only Docker volume.
+      docker volume inspect --format '{{json .}}' "$project-container-updater" > "$staging/previous-updater-volume.json" || return 1
+      docker run --pull never --rm -i --network none --read-only --user 0:0 \
+        --mount "type=volume,source=$project-container-updater,target=/updater,readonly,volume-nocopy" \
+        --entrypoint /usr/local/bin/node "$image" /app/scripts/read-container-update-normal.mjs \
+        "$project" "$old_working" "$old_files" < "$staging/previous-updater-volume.json" > "$saved/previous-model.json" || return 1;;
+    *)
+    case "$old_working" in /*) [ -d "$old_working" ] || return 1;; *) return 1;; esac
+    case "$old_files" in
+      "$old_working/compose.yaml")
+        docker run --pull never --rm --network none --read-only --entrypoint /bin/cat "$old_image" /app/compose.yaml > "$saved/previous-compose.yaml" || return 1
+        old_files="$saved/previous-compose.yaml";;
+      */.bellteam-compose.*/normal.json|*/.bellteam-compose.*/previous-normal.json)
+        [ -f "$old_files" ] || return 1
+        old_install=$(dirname "$(dirname "$old_files")")
+        [ "$old_working" = "$old_install" ] || [ "$old_working" = "$(dirname "$old_files")" ] || return 1;;
+      *) return 1;;
+    esac
+    case "$old_env" in ''|'<no value>') old_env="$old_working/.env"; [ -f "$old_env" ] || old_env=/dev/null;; esac
+    BELLTEAM_SERVER_IMAGE="$old_ref" docker compose --project-directory "$old_working" -p "$old_project" \
+      --env-file "$old_env" -f "$old_files" config --format json > "$saved/previous-model.json" || return 1
+      ;;
   esac
-  case "$old_env" in ''|'<no value>') old_env="$old_working/.env"; [ -f "$old_env" ] || old_env=/dev/null;; esac
-  BELLTEAM_SERVER_IMAGE="$old_ref" docker compose --project-directory "$old_working" -p "$old_project" \
-    --env-file "$old_env" -f "$old_files" config --format json > "$saved/previous-model.json" || return 1
   hash=$(docker compose -p "$project" -f "$saved/previous-model.json" config --hash bellteam) || return 1
   [ "$hash" = "bellteam $old_hash" ] || return 1
   profile=$(docker container inspect --format '{{range .Mounts}}{{if eq .Destination "/app/src/distribution-profile.mjs"}}{{.Type}} {{.RW}}{{end}}{{end}}' "$stopped_container") || return 1
@@ -406,6 +438,14 @@ if ! "$recovery" && [ -f "$saved/module-installer.json" ]; then
   if ! docker compose --project-directory "$PWD" -f "$saved/module-installer.json" \
     up -d --wait --wait-timeout 300 --pull never; then
     echo MODULE_INSTALLER_START_FAILED >&2; exit 1
+  fi
+fi
+if ! "$recovery" && [ -f "$saved/container-updater.json" ]; then
+  if ! docker compose --project-directory "$PWD" -f "$saved/container-updater.json" \
+    run --pull never --rm --no-deps -T container-updater --configure < "$saved/normal.json" \
+    || ! docker compose --project-directory "$PWD" -f "$saved/container-updater.json" \
+      up -d --wait --wait-timeout 300 --pull never; then
+    echo CONTAINER_UPDATER_START_FAILED >&2; exit 1
   fi
 fi
 endpoint=$(docker compose port bellteam 4180)

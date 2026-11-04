@@ -17,6 +17,9 @@ on:
       - scripts/module-update-service.py
       - scripts/module-update-compose.mjs
       - scripts/container-update-host.py
+      - scripts/container-update-service.py
+      - scripts/container-update-compose.mjs
+      - scripts/read-container-update-normal.mjs
       - scripts/assert-state-writers-stopped.sh
       - scripts/update-cursor.sh
       - scripts/cursor-update-entrypoint.sh

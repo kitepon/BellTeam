@@ -117,26 +117,22 @@ def load():
     return updater
 
 
-def main():
-    updater = load()
-    if len(sys.argv) == 3 and sys.argv[1] == '--worker':
-        updater.worker(sys.argv[2])
-        return
-    if len(sys.argv) == 2 and sys.argv[1] == '--health':
-        # Socket is published only after a verified catalog has been accepted.
-        host.check(stat.S_ISSOCK((SOCKET / 'update.sock').lstat().st_mode), 'HOST_MODULE_SOCKET_UNAVAILABLE')
-        updater.catalog(host.read_json(PREFIX / 'catalog/state.json')['catalogSha256'])
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
-            probe.settimeout(4)
-            probe.connect(str(SOCKET / 'update.sock'))
-        return
-    host.check(len(sys.argv) == 1)
-    host.trusted(SOCKET, directory=True)
-    os.chown(SOCKET, 0, 1001)
-    os.chmod(SOCKET, 0o750)
+def health(updater, socket_directory):
+    # Socket is published only after a verified catalog has been accepted.
+    host.check(stat.S_ISSOCK((socket_directory / 'update.sock').lstat().st_mode), 'HOST_MODULE_SOCKET_UNAVAILABLE')
+    updater.catalog(host.read_json(updater.prefix / 'catalog/state.json')['catalogSha256'])
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+        probe.settimeout(4)
+        probe.connect(str(socket_directory / 'update.sock'))
+    return
+
+def serve(updater, socket_directory):
+    host.trusted(socket_directory, directory=True)
+    os.chown(socket_directory, 0, 1001)
+    os.chmod(socket_directory, 0o750)
     with host.locked(updater.state / 'daemon.lock'):
         host.refresh_catalog(updater)
-        path = SOCKET / 'update.sock'
+        path = socket_directory / 'update.sock'
         if os.path.lexists(path):
             info = path.lstat()
             host.check(stat.S_ISSOCK(info.st_mode) and info.st_uid == 0, 'HOST_UPDATE_SOCKET_INVALID')
@@ -159,6 +155,16 @@ def main():
             finally:
                 stop.set()
                 if os.path.lexists(path) and path.lstat().st_ino == inode: path.unlink()
+
+
+def main():
+    updater = load()
+    if len(sys.argv) == 3 and sys.argv[1] == '--worker':
+        updater.worker(sys.argv[2]); return
+    if len(sys.argv) == 2 and sys.argv[1] == '--health':
+        health(updater, SOCKET); return
+    host.check(len(sys.argv) == 1)
+    serve(updater, SOCKET)
 
 
 if __name__ == '__main__':

@@ -6,6 +6,8 @@ RUN git clone https://github.com/kitepon/mcp-lazy.git /src \
   && cd /src \
   && CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags '-s -w' -o /out/mcp-lazy .
 
+FROM docker:cli AS docker-client
+
 FROM node:current-trixie AS harnesses
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -49,6 +51,10 @@ RUN curl https://cursor.com/install -fsS | bash \
 
 FROM harnesses AS server
 USER root
+
+COPY --from=docker-client /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker-client /usr/local/libexec/docker/cli-plugins/docker-compose /usr/local/libexec/docker/cli-plugins/docker-compose
+RUN docker --version && docker compose version
 
 WORKDIR /app
 COPY package.json package-lock.json ./

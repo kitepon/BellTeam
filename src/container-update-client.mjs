@@ -1,14 +1,26 @@
 import { createConnection } from 'node:net'
-import { readFile } from 'node:fs/promises'
+import { lstat, readFile } from 'node:fs/promises'
 const socketPath = '/run/bellteam-updater/update.sock'
 const failure = (code, outcome = 'unknown', status = 503) => Object.assign(new Error(code), { code, outcome, status })
 
-export function createContainerUpdateClient() {
+export async function createUpdateClients() {
+  const module = createContainerUpdateClient()
+  try {
+    const directory = await lstat('/run/bellteam-container-updater')
+    if (!directory.isDirectory() || directory.isSymbolicLink()) throw failure('HOST_UPDATE_SOCKET_INVALID', 'not_accepted')
+  } catch (error) {
+    if (error.code === 'ENOENT') return { container: module, module }
+    throw error
+  }
+  return { container: createContainerUpdateClient('/run/bellteam-container-updater/update.sock'), module }
+}
+
+export function createContainerUpdateClient(path = socketPath) {
   const call = (operation, params) => new Promise((resolve, reject) => {
     const raw = Buffer.from(JSON.stringify({ operation, params }) + '\n')
     if (raw.length > 65536) return reject(failure('HOST_UPDATE_MESSAGE_LIMIT', 'not_accepted', 400))
     let attempted = false, settled = false, response = Buffer.alloc(0)
-    const socket = createConnection({ path: socketPath })
+    const socket = createConnection({ path })
     const finish = (error, value) => {
       if (settled) return
       settled = true; socket.destroy()

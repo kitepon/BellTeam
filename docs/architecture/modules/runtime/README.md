@@ -19,7 +19,8 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 - [CLI登録・共有設定の所有と完了](cli-registration.md)
 - [installer・状態移行・backup/restore](recovery.md)
 - [箱同梱のmodule導入プログラム](module-installer.md)（実装中、標準Docker方式）
-- [アプリからcontainerを更新するHost受付とworker](container-update.md)（source実装、未設置）
+- [アプリからcontainerを更新するHost受付とworker](container-update.md)
+- [箱同梱の本体更新serviceとDocker独立worker](container-update-bundled.md)（source実装、正式供給・公開実物は別工程）
 - [Aiterm H1のoffline保存・起動前採用の接続候補](resume.md)
 - [Web受付固定資材の配置とdescriptor](web-gateway-release.md)
 - [membersの固定C・lease相関・逆effect・席writer](members-process.md)（source実装、通常結合・実物は別工程）

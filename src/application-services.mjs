@@ -31,7 +31,7 @@ import { OwnerQuestions, ownerAnswerMessage } from './owner-questions.mjs'
 import { IdleSessions } from './idle-sessions.mjs'
 import { createNotifications } from './usage/notifications.mjs'
 import { createNotificationsProcess } from './notifications-process.mjs'
-import { createContainerUpdateClient } from './container-update-client.mjs'
+import { createUpdateClients } from './container-update-client.mjs'
 import { createHostUpdateAdapter } from './update-host-adapter.mjs'
 import { createModuleUpdateCatalog } from './update-module-catalog.mjs'
 import { createModuleUpdateExecutor } from './update-module-executor.mjs'
@@ -214,10 +214,10 @@ export async function createApplicationServices({ root, exchangeMutex = createMo
     notify: item => messenger.enqueueUserTurn({ target: item.botId, message: ownerAnswerMessage(item) }),
   })
   if (!usageAssembly) await ownerQuestions.initialize()
-  const hostUpdateClient = hostClient ?? createContainerUpdateClient()
-  const hostUpdate = createHostUpdateAdapter({ root, client: hostUpdateClient })
-  const moduleCatalog = createModuleUpdateCatalog({ client: hostUpdateClient })
-  const moduleExecutor = await createModuleUpdateExecutor({ root, catalog: moduleCatalog, host: hostUpdate, moduleHost: hostUpdateClient,
+  const updateClients = hostClient ? { container: hostClient, module: hostClient } : await createUpdateClients()
+  const hostUpdate = createHostUpdateAdapter({ root, client: updateClients.container })
+  const moduleCatalog = createModuleUpdateCatalog({ client: updateClients.module })
+  const moduleExecutor = await createModuleUpdateExecutor({ root, catalog: moduleCatalog, host: hostUpdate, moduleHost: updateClients.module,
     adapters: createModuleUpdateAdapters({ gateway, builtinSourceCommit, notifications, members, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule,
       prepareDiagnostics, usage: usageAssembly?.controller, prepareUsage, conversation: conversationAssembly?.controller, prepareConversation: (versionId, options) => prepareModuleRelease('conversation', versionId, options), execution: execution?.controller, prepareExecution }), notify: () => updateCenter?.notify() })
   updateCenter = createUpdateCenter({ gateway, builtinSourceCommit, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule, usage: usageAssembly?.controller, conversation: conversationAssembly?.controller, execution: execution?.controller })

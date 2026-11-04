@@ -66,7 +66,7 @@ mkdir -p assets
 docker compose config --quiet && sh install.sh
 ```
 
-別imageを使う追加serviceもCompose標準の`services`へ記載できます。`module-installer`は付属の機能導入プログラムが使うservice名なので、追加serviceには別名を付けてください。保守対象の保存領域へ同時に書き込む追加serviceがあれば、更新はwriter検査で停止します。
+別imageを使う追加serviceもCompose標準の`services`へ記載できます。`module-installer`と`container-updater`は付属の導入・更新プログラムが使うservice名なので、追加serviceには別名を付けてください。保守対象の保存領域へ同時に書き込む追加serviceがあれば、更新はwriter検査で停止します。
 
 複数の追加fileを使う場合は、`.env`に次のように記します。先頭を配布`compose.yaml`にし、自動読込みの代わりに使うfileを順番に全て指定します。Mac・Linux・WSLでは区切りは`:`です。
 
@@ -128,17 +128,25 @@ iPhone・Macアプリからの通常の会話と予定操作は共通の月額�
 3. 計画の対象が選んだ機能だけで、表示された影響が希望どおりか確認し、「この計画で更新」を押します。本体再起動が必要と表示される計画は、機能だけの無停止更新とは異なります。
 4. 「更新完了」と、実行・稼働確認の両方が「成功」になったことを確認します。受付やダウンロードの完了だけでは、更新は完了していません。
 
-同梱版の `sh install.sh` は、同じイメージから本体と機能導入プログラムを起動します。DockerやHostの追加設定、sudo、Host用ツール・unitの登録は不要です。Mac/Docker Desktop・Windows/WSL・Linuxでは、上の本体導入と同じ操作を使います。環境ごとの実物確認状況はリリースの受入記録を参照してください。
+同梱版の `sh install.sh` は、同じイメージから本体、機能導入プログラム、本体更新専用プログラムを起動します。DockerやHostの追加設定、sudo、Host用ツール・unitの登録は不要です。Mac/Docker Desktop・Windows/WSL・Linuxでは、上の本体導入と同じ操作を使います。環境ごとの実物確認状況はリリースの受入記録を参照してください。
+
+本体更新用の`container-updater`だけがDocker socketを使います。この権限はHost上のコンテナや保存領域を操作できる強い権限です。本体、Bot、機能導入用の`module-installer`にはDocker socketを渡しません。本体更新用プログラムは、画面で確認した正式な更新計画だけを受け付けます。
 
 導入プログラムは公式の更新一覧と署名を確認してから機能を配置し、アプリが対象機能だけを交換します。本体全体のコンテナ更新は別の対応能力として表示されます。「更新を実行できません」と表示されたら、その対象の対応状態と表示されたエラーを確認してください。資格や設定を手で書き足して通す必要はありません。
 
 `MODULE_INSTALLER_START_FAILED` の場合、本体起動後に機能導入プログラムが準備できず、installerは非0で終了しています。保存設定と元の操作結果を残して確認してください。古いイメージを明示指定した場合の `MODULE_INSTALLER_NOT_BUNDLED` は、その版に同梱されていないことを示します。通常本体の利用と機能更新の対応状態を分けて確認します。
+
+`CONTAINER_UPDATER_START_FAILED`は、本体更新用プログラムの準備に失敗したことを示します。本体の起動状況と保存設定は残り、installerは非0で終了します。古いイメージで`CONTAINER_UPDATER_NOT_BUNDLED`と表示された場合、その版には本体更新用プログラムが含まれていません。
 
 更新操作の結果も専用Docker volumeへ保存します。結果が不明な間はvolumeを削除しないでください。
 
 「結果確認不能」になった場合は、新しい更新を重ねず、同じ画面で「状態を再取得」を使って元の操作の結果を確認してください。会話・設定などの保存先と、設置時の`.env`を保持します。
 
 ### 本体イメージを更新する
+
+同梱版では、アプリのUpdateでBellTeam本体を選び、公開版と再起動の影響を確認して計画を作成します。実行中の作業を終え、表示された本体再起動を明示的に確認して実行してください。更新中は接続が切れます。再接続後は同じ操作の結果と実際に起動した版を確認します。結果不明の場合は同じ要求を再送せず、その操作結果を確認してください。
+
+画面からの更新は、導入時に保存した追加設定と保存先を引き継ぎます。設置フォルダの`.env`やoverrideを書き換えた場合は、次の`sh install.sh`で変更を適用してください。画面から更新した後も、元の設置フォルダから公開installerを使って更新できます。
 
 イメージ内の`/app/distribution.json`にソースのGit commitを記録しています。`docker compose exec bellteam cat /app/distribution.json`で確認できます。既定の公開タグは`latest`です。以前の`preview`も同じ検査済みイメージを指します。更新は`sh install.sh`で行います。再作成すると実行中のメンバーが停止するため、実行中の作業を確認してから行ってください。
 
@@ -218,6 +226,8 @@ BELLTEAM_SERVER_IMAGE=bellteam-server:local sh install.sh --no-pull
 本体専用の設定・会話・予定は、外部volume `bellteam-server-state` に保存します。初回に実際の権限拒否を検査し、Linuxなどでは`runtime/server-only/state-data/`をvolumeの実体にします。Mac Docker Desktopなど共有フォルダの権限が効かない環境では、Docker Engine内のvolumeを使います。`runtime/home/`とメンバーの作業フォルダは保持します。別名volumeを使う場合は`BELLTEAM_SERVER_STATE_VOLUME`を初回から指定し、保存した設定と同じものを使ってください。
 
 `docker compose down -v`でもこの外部volumeは残ります。`docker volume rm`で削除すると本体の状態が失われるため、削除しないでください。控えを取る場合は`runtime/`全体と参照中の`.bellteam-compose.*`に加え、volumeも非公開の保存先へ残します。volumeの控えは、利用中のimageからvolumeを読み取り専用でmountし、`tar`で保存できます。旧imageと保存世代は復旧が不要になるまで保持してください。
+
+本体更新の結果と、画面から更新した時の保存世代は`<project>-container-updater` volumeにも残ります。このvolumeと参照中の保存世代を削除しないでください。控えを取る時は、このvolumeも非公開の保存先へ含めます。
 
 移行は異なるfilesystem間でもcopyし、公開先の全bytesを確認してから元を`retired/<操作ID>/`へ退避します。退避した原本は移行時点の控えで、移行後の新しい会話を含むbackupではありません。正常移行と必要な控えの確認後にだけ整理してください。
 
