@@ -51,7 +51,7 @@ flowchart TD
 
 共通MCP全体説明は対象範囲と、設定された設置のSEC所見をBugHubへ記録する案内を持つ。道具の引数・既定値・効果・返却は各description、道具を持ち出す場面・順序はcommon-agents.mdへ置く。v4の共通規範を先に採用してから説明の重複を除き、schema/handler/保存と公開接続は変えない。
 
-内部の実装・図は各moduleだけに置き、この図は接続に限る。商用更新通知は各担当の設計案で、新しい更新API/UI/Host実行は実装していない。本番と一般配布はOwner保留中。
+内部の実装・図は各moduleだけに置き、この図は接続に限る。公開Updateの現行APIと耐久ledgerの接続は本書のmodule/all更新節、画面はWeb、Host受付と実行はruntimeの正本を参照する。正式配布・製品確認・本番の成立は各工程の実原本で判断する。
 
 ## 一覧履歴の親集約
 
@@ -665,3 +665,17 @@ flowchart LR
 読取は一つずつ進め、閉鎖でtimerを止め進行中の読取を回収する。全clientを閉じても本体が動く間は既catalog readerを確認し、独自daemonやAI・永続queueは作らない。候補はcurrent/published非null、comparison=update_available、publication.check=verifiedとcatalog期限内から共通で選ぶ。既更新API v1へoptional notificationCandidates:[{componentId,id:published.version64}]だけを追加する。旧13例は有効で、clientは受けた候補IDだけを使い比較を複製しない。
 
 component別の最新IDを最大9件だけ保持し、候補無し/一時失敗で消さない。起動時の候補は各一回、新IDのみ通知し、送信前に記録してunknownを再発行しない。再起動後の同候補通知は起こり得る。読取/通知失敗を更新実行へ変えず、利用者のplan/startは明示操作のまま。旧署名通知4f850855は新update種を拒否するので、L対応の新署名を正式catalogへ供給し、旧P2/state2だけで対応済みとしない。通知業務/payloadは[usageの正本](../usage/update-push.md)、Web clickは[Webの正本](../web/web-push.md)を参照する。
+
+## 本体とmoduleの更新client組立
+
+```mermaid
+flowchart LR
+  Services[application-services] --> Factory[runtime createUpdateClients]
+  Factory --> Container[container client]
+  Factory --> Module[module client]
+  Container --> Host[共通Host adapter / 本体planと同UUID結果]
+  Module --> Catalog[共通module catalog]
+  Module --> Install[module ledgerの設置step / 同step UUID結果]
+```
+
+親はruntimeの固定factoryが返すcontainerをHost adapterへ、moduleをcatalogとmoduleHostへ注入する。旧Hostでは同じclientを双方で使う。既hostUpdateClient注入のcallerも同一clientを双方へ維持する。専用mount判定・socket選択・通信失敗とunknownはruntimeが所有し、親から別clientへ再送しない。公開schema、plan/operationの状態所有、module stepと本体結果の照会先は既契約のまま。
