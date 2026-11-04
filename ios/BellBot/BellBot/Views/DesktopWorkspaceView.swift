@@ -118,6 +118,7 @@ struct DesktopWorkspaceView: View {
             HStack(spacing: 10) {
                 Image(systemName: "sparkles").foregroundStyle(BellTheme.violet).font(.title2)
                 Text("BellTeam").font(.system(size: 22, weight: .bold, design: .rounded))
+                    .fixedSize()
                 UpdateBadge(updates: store.updates) { store.updatePresented = true }
                 Spacer()
                 Menu {

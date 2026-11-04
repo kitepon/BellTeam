@@ -8,13 +8,14 @@ struct UpdateBadge: View {
     var body: some View {
         if updates.inventory?.hasAvailableUpdate == true {
             Button(action: action) {
-                Label("更新あり", systemImage: "arrow.down.circle.fill")
-                    .font(.system(size: 13, weight: .semibold))
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(BellTheme.violet)
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(BellTheme.violetLight, in: Capsule())
+                    .padding(7)
+                    .background(BellTheme.violetLight, in: Circle())
             }
             .buttonStyle(.plain)
+            .fixedSize()
             .accessibilityLabel("更新があります。アップデートを開く")
             .accessibilityIdentifier("update-badge")
         }

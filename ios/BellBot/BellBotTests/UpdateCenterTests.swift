@@ -307,6 +307,33 @@ final class UpdateViewTests: XCTestCase {
         }
     }
 
+    func testUpdateBadgeIsIconOnlyAndKeepsNarrowSidebarTitleOnOneLine() async throws {
+        let store = try await store(for: "restart_required")
+        XCTAssertEqual(store.inventory?.hasAvailableUpdate, true)
+        let badge = ImageRenderer(content: UpdateBadge(updates: store) {})
+        let size = try XCTUnwrap(badge.uiImage).size
+        XCTAssertLessThanOrEqual(max(size.width, size.height), 36, "見える文字を外したアイコンだけの入口")
+        // DesktopWorkspaceView.sidebarのheaderと同じ並びを、iPadのsidebarの最小幅と標準幅で描く。
+        for width in [230.0, 270.0] {
+            let header = HStack(spacing: 10) {
+                Image(systemName: "sparkles").foregroundStyle(BellTheme.violet).font(.title2)
+                Text("BellTeam").font(.system(size: 22, weight: .bold, design: .rounded)).fixedSize()
+                UpdateBadge(updates: store) {}
+                Spacer()
+                Image(systemName: "plus.circle").font(.title3)
+            }
+            .padding(20).frame(width: width).background(BellTheme.canvas)
+            let renderer = ImageRenderer(content: header)
+            renderer.scale = 2
+            let image = try XCTUnwrap(renderer.uiImage)
+            XCTAssertLessThanOrEqual(image.size.height, 80, "タイトルも入口も追加ボタンも一行のまま")
+            let attachment = XCTAttachment(image: image)
+            attachment.name = "update-badge-sidebar-\(Int(width))"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
+
     func testUnconfirmedRequestKeepsCheckingButOffersAnotherFormalCandidate() async throws {
         var interrupted = try XCTUnwrap(try UpdateFixtures.examples()["interrupted"])
         let plain = try await store(for: "interrupted")
