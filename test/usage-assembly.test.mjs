@@ -1,6 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createUsageAssembly } from '../src/usage-assembly.mjs'
+import { developerAccessAllowed } from '../src/distribution-profile.mjs'
+import { copyFile, mkdtemp, rm, symlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 test('usage assembly retains captured authority and admission until actual completion after caller failure', async () => {
   let ports, options, finish, currentMethod
@@ -32,7 +37,7 @@ test('usage effect callbacks keep the original parent identity and bootstrap exp
   let ports, assembly, callbackOptions
   const lease = Object.freeze({}), effect = Object.freeze({})
   assembly = createUsageAssembly({ root: '/unused', getServices: () => ({ bots: new Map() }),
-    environment: { TYPESAFE_API_KEY: 'fixture', UNRELATED_SECRET: 'never sent' },
+    environment: { TYPESAFE_API_KEY: 'fixture', UNRELATED_SECRET: 'never sent', BELLTEAM_SUBSCRIPTION_ACCESS_MODE: 'developer', BELLTEAM_SUBSCRIPTION_DEVELOPER_ACCESS_ALLOWED: String(!developerAccessAllowed) },
     onEffect: async () => {
       await Promise.resolve()
       return assembly.facade.settings.setError('routing', { code: 'FIXTURE_ERROR' }, { epoch: 2, usageContext: assembly.systemContext('settings.setError') })
@@ -47,7 +52,28 @@ test('usage effect callbacks keep the original parent identity and bootstrap exp
       } }
     } })
   assert.deepEqual(ports.bootstrap.environment, { TYPESAFE_API_KEY: 'fixture' })
+  assert.equal(ports.bootstrap.subscription.developerAccessAllowed, developerAccessAllowed)
   await ports.onEffect('settings.changed', {}, { usageLease: lease, usageEffect: effect })
   assert.equal(callbackOptions.usageLease, lease); assert.equal(callbackOptions.usageEffect, effect)
   assert.throws(() => ports.authorizeActor('settings.setError', callbackOptions.capturedAuthorization), /FORBIDDEN/)
+})
+
+test('public parent bootstrap retains the legacy subscription fields and refuses developer access despite environment input', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-public-usage-assembly-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await copyFile(new URL('../src/usage-assembly.mjs', import.meta.url), join(root, 'usage-assembly.mjs'))
+  await copyFile(new URL('../distribution/server/distribution-profile.mjs', import.meta.url), join(root, 'distribution-profile.mjs'))
+  for (const path of ['members-admission.mjs', 'usage-process.mjs', 'usage']) {
+    await symlink(new URL('../src/' + path, import.meta.url), join(root, path))
+  }
+  const { createUsageAssembly: createPublicAssembly } = await import(pathToFileURL(join(root, 'usage-assembly.mjs')))
+  let bootstrap
+  const options = { root: '/unused', getServices: () => ({ bots: new Map() }),
+    createProcess: value => { bootstrap = value.bootstrap; return {} },
+    environment: { BELLTEAM_SUBSCRIPTION_DEVELOPER_ACCESS_ALLOWED: 'true' } }
+  createPublicAssembly(options)
+  assert.deepEqual(bootstrap.subscription, { environment: 'Production', accessMode: 'subscription' })
+  assert.throws(() => createPublicAssembly({ ...options, environment: { ...options.environment, BELLTEAM_SUBSCRIPTION_ACCESS_MODE: 'developer' } }), {
+    message: 'SUBSCRIPTION_DEVELOPER_ACCESS_UNAVAILABLE',
+  })
 })
