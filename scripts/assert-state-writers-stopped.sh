@@ -12,7 +12,14 @@ resume_source=${BELLTEAM_RESUME_SOURCE_VOLUME:-}
 case "$resume_source" in *[!a-zA-Z0-9_.-]*) echo SERVER_STATE_WRITER_METADATA_INVALID >&2; exit 1;; esac
 case "$stopped_container" in *[!a-f0-9]*) echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1;; esac
 [ -z "$stopped_container" ] || [ "${#stopped_container}" -eq 64 ] || { echo SERVER_STATE_CONTAINER_ID_INVALID >&2; exit 1; }
-image=$(docker compose config --images)
+# config --images also includes dependency images; select the server from canonical YAML.
+image=$(docker compose config --format yaml | awk '
+  /^services:$/ { services=1; next }
+  services && /^[^ ]/ { services=0 }
+  services && /^  bellteam:$/ { server=1; next }
+  server && /^  [^ ]/ { server=0 }
+  server && /^    image: / { value=substr($0,12); gsub(/^["\047]|["\047]$/, "", value); print value; exit }
+')
 case "$image" in ''|*[[:space:]]*) echo SERVER_STATE_IMAGE_INVALID >&2; exit 1;; esac
 image=$(docker image inspect --format '{{.Id}}' "$image")
 digest=${image#sha256:}

@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-  Install[公開install.sh / 既5入力] --> Normal[通常bellteam / 既control RO]
+  Install[公開install.sh / .env / Compose標準追加構成] --> Normal[通常bellteamと追加service / 既control RO]
   Install --> Backend[同imageのmodule-installer service]
   Normal --> Socket[同projectのsocket volume / normal RO]
   Socket --> Backend
@@ -32,7 +32,7 @@ getは[既HostUpdaterの台帳待機契約](container-update.md#実行保存と�
 catalog/署名/公開codeの既verifierと既固定component installerを使い、全体保守の排他やroot所有境界を保持する。まず既正式usage1249の導入/交換までを先行受入し、全module/3OS全群を待ち条件にしない。局所試験は新しいbackendと直結client/installer/Composeだけ、Docker製品受入はセンチが公開導入→通常利用→module単品更新で確認する。
 
 
-固定entryは`/app/scripts/module-update-service.py`、モデル生成は`/app/scripts/module-update-compose.mjs`。backendモデルは凍結normalから同image ID・同project・選択private volumeだけを使って生成し、利用者の任意service/command/envをroot serviceへ転送しない。独立モデルであるため既一image/一normal serviceの状態保守処理を変更しない。package-serverの明示収録と既image CIのpath filterに含める。
+固定entryは`/app/scripts/module-update-service.py`、モデル生成は`/app/scripts/module-update-compose.mjs`。backendモデルは凍結normalのbellteamから同image ID・同project・選択private volumeだけを使って生成し、利用者の任意service/command/envをroot serviceへ転送しない。normalの追加serviceは保持し、生成する`module-installer`名との衝突を拒否する。保守/Cursorのimage選択はbellteamを明示する。package-serverの明示収録と既image CIのpath filterに含める。
 
 実装は既HostUpdaterの署名catalog/plan/start/get/元worker台帳を使う。code_root/worker_identity/worker_aliveの内部差し替え点だけを設け、既Hostのroot code配置とsystemmanager unit本人性は同じ既定を維持する。同梱側のexpectedは実source/platform・private root dev/inoであり、workerは実PID/birth/pidnamespaceを記録する。clientは同梱sourceと自身のdistribution sourceを照合し、異なる箱のprogramを利用可能へ投影しない。公開DTOに架空CID/image IDを加えない。
 

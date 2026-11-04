@@ -2,7 +2,14 @@
 # ビルド後、入れ替え前に1回だけ実行。認証値をconfigから取り出さない。
 set -eu
 updater_compose="$(CDPATH= cd "$(dirname "$0")/.." && pwd)/compose.cursor-update.yaml"
-BELLTEAM_CURSOR_UPDATE_IMAGE=$(docker compose config --images)
+# config --images also includes dependency images; select the server from canonical YAML.
+BELLTEAM_CURSOR_UPDATE_IMAGE=$(docker compose config --format yaml | awk '
+  /^services:$/ { services=1; next }
+  services && /^[^ ]/ { services=0 }
+  services && /^  bellteam:$/ { server=1; next }
+  server && /^  [^ ]/ { server=0 }
+  server && /^    image: / { value=substr($0,12); gsub(/^["\047]|["\047]$/, "", value); print value; exit }
+')
 # Composeが正規化したproject/volume名だけを読む。設置先にNode/Pythonを要求しない。
 info=$(docker compose config --format yaml | awk '
   /^name: / { project=$2 }

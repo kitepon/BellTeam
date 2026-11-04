@@ -8,9 +8,9 @@ H1対応の保存要求では、旧CID停止/再起動防止・writer検査・pr
 
 ```mermaid
 flowchart TD
-  Input["通常導入 / no-pull / recover"] --> Freeze["image IDと正規化Composeを固定"]
+  Input["通常導入 / no-pull / recover<br/>公開.env + Compose標準追加構成"] --> Freeze["全追加構成を解決し正規化Composeへ固定<br/>bellteamのimage IDを選択"]
   Freeze --> Storage["保存先・Engine API・volumeを検証<br/>初回は権限拒否を試す"]
-  Storage --> Previous["旧runtimeと旧設定を保存<br/>現在の世代と照合"]
+  Storage --> Previous["旧runtimeと旧設定を保存<br/>実旧設置dir・Compose hashと保存先を照合"]
   Previous --> Keep["保存世代を保持すると決める"]
   Keep --> BackendStop["同梱module serviceを停止・除去<br/>ledger/volume保持"]
   BackendStop --> Stop["現在CIDを停止<br/>必要時restart無効化と除去"]
@@ -32,7 +32,7 @@ flowchart TD
 | --- | --- | --- |
 | 設定固定 | `distribution/server/install.sh` | imageのIDを固定しimage内の保守/Cursor scriptを抽出。normal/maintenanceの同世代JSONはprivate。後から.envやtagが変わっても途中で選び直さない |
 | 初回storage | installerのpermission probe/volume照合 | UID1000の実読取拒否が成立するHostはlocal bind volume、拒否されない共有folderはEngine内volume。既volumeのname/driver/labels/optionsが違えば停止 |
-| 旧model回収 | `capture_previous` | 証明不能ならprevious-normalを作らず警告、原本保持。通常更新そのものは進め得るが、その世代のrecoverは拒否 |
+| 旧model回収 | `capture_previous` | 実旧CIDのlabels/working directory/hashで旧normalを証明する。新旧設置dirが異なっても保存先が一致すれば保持できる。証明不能や必須保存先不一致は旧本体を停止せず拒否 |
 | recover | installer `--recover` | 保存した旧model/旧imageが存在することを停止前に確認。現在データを旧配置へ戻す場合もあり、古いbackupへ巻き戻す操作ではない |
 | writer確認 | `assert-state-writers-stopped.sh → stateWriterPlan/Volumes/Sources/assertStateWritersStopped` | 全containerの稼働/restart policyとRW mount、volume実体、canonical pathを比較。Hostユーザーからobserved bind/deviceが不可視なら、同固定imageの短命metadata readerでdaemon rootをRO mountし、全pathをそのroot内で再解決する。絶対symlinkもdaemon root内で辿り、既存observedの欠測/danglingは拒否、plannedだけ未作成末尾を許す。capabilityはDAC_READ_SEARCHだけ、networkなし・rootfs RO・no-new-privileges。Host chmod/sudo/daemon設定変更は要求しない。通常のHost解決が可能なら既経路を使う。Docker socketはreaderへ渡さず、env/資格内容を証拠へ複製しない |
 | writerの限界 | `participates/volumePaths` | stoppedContainerのunless-stoppedだけを特例扱い。未知driver/metadata/aliasは成功へしない。snapshotだけでは保守中の新writerを防げないためlock/data sealと組合せる |
@@ -41,6 +41,8 @@ flowchart TD
 | cleanup | installerのtrap | 一時staging/probeを除く。停止を試みる段階以後は保存世代を消さない。自動的に別imageを起こすrollbackはない |
 
 同梱moduleのモデル生成・状態所有・能力分離は[同梱プログラム](module-installer.md)が正本。normalのsocket親は同project named volumeのRO、専用serviceだけ同private volumeをRWで使う。通常の保守前に当該serviceを停止・除去し、保守後は通常本体のhealth成立から専用serviceのhealthを待つ。古いimageに同梱entryが無い場合は固定codeを表示し、本体導入を維持する。既Host overlayを明示採用しているmodelはそのsocketを保持する。
+
+追加設定はCompose標準の`compose.override.yaml`または`COMPOSE_FILE`で指定する。env・mount・port・運用設定・追加serviceはComposeが解決し、利用者の入力fileをinstallerが上書きしない。image抽出は`bellteam`だけを対象にし、追加serviceのimageを保守/Cursorへ渡さない。解決済normalには通常service群を保持し、追加設定をroot専用module serviceへ転送しない。data/homeの同親配置、private state・Cursor・AI stateの所有とwriter検査は既契約を維持する。管理済みprofileは明示RO mountの信頼資材であり、要求body/envだけでdeveloper許可を生成しない。保存normalは秘密を含み得るためprivateに保持する。
 
 起動の`compose up --wait`は最大300秒で打ち切る。healthcheckの起動猶予120秒と、その後の判定を待つ有限上限であり、起動時間の保証ではない。unhealthy・container終了・期限超過の非0はそのまま返し、保存世代を保持する。通常更新とrecoverに共通で、後発healthyによって元installerの失敗を成功へ書き換えない。
 

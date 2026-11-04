@@ -88,7 +88,14 @@ if "$recovery"; then
 fi
 if "$pull"; then docker compose pull; fi
 docker compose config --format json > "$staging/normal.raw.json"
-image=$(docker compose -f "$staging/normal.raw.json" config --images)
+# config --images also includes dependency images; select the server from canonical YAML.
+image=$(docker compose -f "$staging/normal.raw.json" config --format yaml | awk '
+  /^services:$/ { services=1; next }
+  services && /^[^ ]/ { services=0 }
+  services && /^  bellteam:$/ { server=1; next }
+  server && /^  [^ ]/ { server=0 }
+  server && /^    image: / { value=substr($0,12); gsub(/^["\047]|["\047]$/, "", value); print value; exit }
+')
 case "$image" in ''|*[[:space:]]*) echo SERVER_STATE_IMAGE_INVALID >&2; exit 1;; esac
 selected_image=$image
 if ! "$pull" && ! docker image inspect "$image" >/dev/null; then
@@ -121,6 +128,8 @@ try {
   if(typeof normal.name!=="string"||!path.isAbsolute(saved))throw Error();
   const bind=target=>{const m=service.volumes.filter(v=>v.target===target);if(m.length!==1||m[0].type!=="bind"||m[0].read_only||typeof m[0].source!=="string"||/[\0\r\n]/.test(m[0].source))throw Error();return path.resolve(m[0].source)};
   const data=bind("/srv/bellteam"),home=bind("/home/bell"),runtime=path.dirname(data);
+  const profiles=service.volumes.filter(v=>v.target==="/app/src/distribution-profile.mjs");
+  if(profiles.length>1||profiles.some(v=>v.type!=="bind"||v.read_only!==true||v.bind?.create_host_path!==false))throw Error();
   if(data!==path.join(runtime,"data")||home!==path.join(runtime,"home")||service.volumes.some(v=>
     v.type==="bind"&&(saved===path.resolve(v.source)||saved.startsWith(path.resolve(v.source)+path.sep))))throw Error();
   const stateMount=service.volumes.find(v=>v.target==="/srv/bellteam/state"),source=stateMount?.source;
@@ -242,17 +251,18 @@ capture_previous() {
   old_hash=$(docker container inspect --format '{{index .Config.Labels "com.docker.compose.config-hash"}}' "$stopped_container") || return 1
   old_env=$(docker container inspect --format '{{index .Config.Labels "com.docker.compose.project.environment_file"}}' "$stopped_container") || return 1
   [ "$old_project" = "$project" ] || return 1
+  case "$old_working" in /*) [ -d "$old_working" ] || return 1;; *) return 1;; esac
   case "$old_files" in
-    "$PWD/compose.yaml")
-      [ "$old_working" = "$PWD" ] || return 1
+    "$old_working/compose.yaml")
       docker run --pull never --rm --network none --read-only --entrypoint /bin/cat "$old_image" /app/compose.yaml > "$saved/previous-compose.yaml" || return 1
       old_files="$saved/previous-compose.yaml";;
-    "$PWD"/.bellteam-compose.*/normal.json|"$PWD"/.bellteam-compose.*/previous-normal.json)
-      [ -f "$old_files" ] && [ "$(dirname "$(dirname "$old_files")")" = "$PWD" ] || return 1
-      [ "$old_working" = "$PWD" ] || [ "$old_working" = "$(dirname "$old_files")" ] || return 1;;
+    */.bellteam-compose.*/normal.json|*/.bellteam-compose.*/previous-normal.json)
+      [ -f "$old_files" ] || return 1
+      old_install=$(dirname "$(dirname "$old_files")")
+      [ "$old_working" = "$old_install" ] || [ "$old_working" = "$(dirname "$old_files")" ] || return 1;;
     *) return 1;;
   esac
-  case "$old_env" in ''|'<no value>') old_env="$PWD/.env"; [ -f "$old_env" ] || old_env=/dev/null;; esac
+  case "$old_env" in ''|'<no value>') old_env="$old_working/.env"; [ -f "$old_env" ] || old_env=/dev/null;; esac
   BELLTEAM_SERVER_IMAGE="$old_ref" docker compose --project-directory "$old_working" -p "$old_project" \
     --env-file "$old_env" -f "$old_files" config --format json > "$saved/previous-model.json" || return 1
   hash=$(docker compose -p "$project" -f "$saved/previous-model.json" config --hash bellteam) || return 1
@@ -285,7 +295,9 @@ try {
 if ! "$recovery" && [ -n "$stopped_container" ]; then
   if capture_previous; then :; else
     rm -f "$saved/previous-normal.json"
-    echo '旧設定を証明できません。原本を保存しました。この世代からの自動復旧は使えません。' >&2
+    keep_saved=true
+    echo SERVER_STATE_PREVIOUS_MODEL_UNVERIFIED >&2
+    exit 1
   fi
 fi
 
@@ -297,7 +309,13 @@ try{const d=JSON.parse(require("fs").readFileSync(0,"utf8").replaceAll("$$","$")
  console.log(d.services.bellteam.volumes.some(v=>v.target==="/srv/bellteam/state")?"to-server":"to-legacy")
 }catch{process.exitCode=1}')
   # Confirm both pinned generations are present before stopping or changing data.
-  old_image=$(docker compose -f "$saved/previous-normal.json" config --images)
+  old_image=$(docker compose -f "$saved/previous-normal.json" config --format yaml | awk '
+  /^services:$/ { services=1; next }
+  services && /^[^ ]/ { services=0 }
+  services && /^  bellteam:$/ { server=1; next }
+  server && /^  [^ ]/ { server=0 }
+  server && /^    image: / { value=substr($0,12); gsub(/^["\047]|["\047]$/, "", value); print value; exit }
+')
   docker image inspect "$old_image" >/dev/null
 fi
 if [ -n "$stopped_container" ]; then
@@ -318,6 +336,8 @@ try{
   if(x?.type!=="bind"||y?.type!=="bind"||x.source!==y.source)throw Error();}
  const cursor=(m,s)=>{const x=bind(s,"/home/bell/.local");if(x?.type!=="volume")throw Error();return m.volumes[x.source].name};
  if(cursor(normal,a)!==cursor(old,b)||old.name!==normal.name||b.image!==original.Image)throw Error();
+ const privateState=(m,s)=>{const x=bind(s,"/srv/bellteam/state");return x?.type==="volume"?m.volumes[x.source]?.name:null};
+ if(privateState(old,b)!==null&&privateState(normal,a)!==privateState(old,b))throw Error();
  // Compose restarts an unchanged container without replacing its ID or original config-file label.
  const labels=current.Config.Labels??{},sameOriginal=current.Id===original.Id&&current.Image===original.Image;
  if(labels["com.docker.compose.project"]!==normal.name||labels["com.docker.compose.service"]!=="bellteam"
