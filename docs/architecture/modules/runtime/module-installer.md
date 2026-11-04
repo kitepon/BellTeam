@@ -81,3 +81,35 @@ worker/ledger/private保守/component installerの排他内で、実元worker終
 成功時は元operationと別のroot-owned一回fenceをO_EXCL/file fsync/directory fsyncで保存する。閉返値は`{fenceSha256,fence}`、fence本体は`schema,requestId,planId,originalOperationSha256,decisionSha256,commonProofSha256,action,closedAt`、schema=`bellteam.module-install-fence.v1`/action=close_without_activation。`validateInstallReconciliationFence`を共通へexportする。応答不明/再起動後は同ID readだけで、別decisionでも再発行しない。
 
 共通HostUpdaterにoperation_pendingという内部判定点を設け、既Host/本体serviceの挙動は従来どおり、同梱moduleだけ検証済同ID fenceをbusy集計から除外する。原unknown/get/台帳pointerは保持し、別要求/in-flightのbusyは保持する。同IDのstartは既原本を返すだけで、旧workerやwork(entry)を再発行しない。共通公開busy解除は有効fence＋共通終端記録の両方を要求する。runtimeだけのfenceを公開成功にしない。
+
+## 正規切替時の元worker終端bridge
+
+Root 2026-11-05採用契約。旧worker namespaceを新版namespace不一致だけで終端扱いしない。公開install.shが選択した同正式imageのmodule-worker-termination.pyだけを短命helperとして起動する。固定helper modelはmodule-update-compose.mjs --termination-helperがnormalのproject/image/private volumeから導出し、ledger/privateと固定Docker socketだけをmountする。通常module-installer/本体にはDocker socketを追加しない。helperのDocker権限は既公開installerと同等であり、一般利用者向けRPCは追加しない。
+
+```mermaid
+flowchart LR
+  Public[新正式公開install.sh + 同source image] --> Lock[固定helper / worker ledger private component排他]
+  Lock --> Bind[元unknown hash plan storage worker と実旧CID namespaceを照合]
+  Bind --> Prepare[元ID prepare O_EXCL + file dir fsync]
+  Prepare --> Stop[同CID restart no / stop / wait / 最終実停止確認]
+  Stop --> Record[prepare hash束縛 完全root receipt / O_EXCL fsync]
+  Record --> Remove[同CIDだけ削除 / 新版service起動]
+  Record --> Inspect[新版inspect/finalize 最終排他で再検証]
+  Inspect --> Evidence[既20key receipt / evidenceSha256へのcommitment]
+```
+
+helperは対象namespace内で固定readonly Python probeを実行し、元workerのPID出生が不在/別出生でnamespaceが元記録と一致することを停止前に確認する。probeは新正式helper内の固定codeで、旧serviceの/appを差し替えず、本文/資格を読まない。旧serviceのproject/service/image/StartedAt・固定entrypoint/root/read-only/private PID namespaceと3volumeを照合する。正常な初回導入は旧service/未完operationが共に無い場合だけskip。通常切替もworker/ledger排他を維持し、他の未完workerを停止してprepare条件を作らない。
+
+prepareの閉schema bellteam.module-worker-prepare.v1はschema/requestId/planId/originalOperationSha256/planSha256/targetSha256/storageBindingSha256/ledgerBinding/worker/oldService/target/preparedAt。oldServiceはcontainerId/imageId/sourceCommit/startedAt/pidNamespace/modelSha256/project、targetはsourceCommit/imageId。ledgerBindingはdevice/inode、workerは元pid/birth/pidNamespace。元IDのoperations/<requestId>/worker-termination-prepare.jsonにroot-onlyで一回保存する。
+
+完全receiptは閉{prepareSha256,prepare,terminationSha256,termination}でworker-termination.jsonへroot-only保存する。terminationの閉schema bellteam.module-worker-termination.v1はschema/requestId/originalOperationSha256/prepareSha256/oldContainerId/status/running/restarting/pid/finishedAt/exitCode/stoppedAt。status=stopped、running/restarting=false、pid=0、同CIDのStartedAt/image/再起動禁止/stop-wait結果を最終照合する。完全保存後だけ同CIDを削除し、service名を引き直して別CIDを停止/削除しない。
+
+prepare保存不明・stop応答不明・途中record・hash不一致はunconfirmed。再試行でprepareやstopを再発行せず、同IDの既完全recordを読む。完全recordと同停止済みCIDが一致する場合の削除収束、および既削除CIDについて完全record読取だけによる新版起動の再開は可能。不明中は通常installerの保守/起動も非0で止める。対応helperが同imageに無い場合も旧stop/rmへfallbackせず停止前に拒否する。record保存前に旧CIDを削除しない。旧namespaceが事前に失われた場合は拒否し、歴史的な無作用/成功や元unknownを変更しない。
+
+新版backendは既排他内で元operation生bytes/plan/target/storage/ledger/worker/旧service namespaceと切替sourceを完全recordへ再照合する。同namespaceが残っていても途中prepareがあれば完全recordを要求する。recordはroot所有・祖先・mode/nlink/no-follow・canonical hashを検査し、公開JSONを証拠化しない。完全record hashは既evidenceSha256のworkerTerminationSha256へ含め、既公開20key/decision/claim/fence/二providerを変更しない。
+
+privileged private readの固定口は同正式imageの `/app/scripts/module-worker-termination.py --read <元UUID>`。既worker/ledger/private/component排他内で保存recordだけを検証し、閉code MODULE_WORKER_TERMINATION_READ/requestId/originalOperationSha256/oldContainerId/worker/receiptSha256/statusをstdoutへ返す。Docker操作/inspect作用/record書込は行わない。Centiは保存済みmodule modelでentrypointをこの固定scriptへ指定した短命読取を使える。通常RPCや利用者bodyからこの私有証拠を渡す口は無い。
+
+切替consoleは閉code MODULE_WORKER_SWITCH/stage/requestId/receiptSha256/oldContainerIdだけ。stageはnot_needed/prepared/stop_returned/recorded/removed/already_stopped。未適用fieldはnull、本文/自由error/環境は出さない。実stop/waitとroot耐久recordは標準Docker製品側で別確認し、fixtureのcommand注入結果を本番成功へ流用しない。
+
+shortcut: 完全receiptは初回切替先sourceへ固定、別sourceへの再切替は元intentのfence完了後か別の明示契約が必要。namespace再生成を自動追認しない。

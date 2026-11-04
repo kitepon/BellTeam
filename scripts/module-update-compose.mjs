@@ -42,9 +42,28 @@ export function moduleInstallerModels(input) {
   return {normal,backend}
 }
 
+export function moduleWorkerTerminationModel(input) {
+  if (Object.hasOwn(input?.services ?? {}, 'module-worker-termination')) throw Error('MODULE_INSTALLER_MODEL_INVALID')
+  const { normal, backend } = moduleInstallerModels(input)
+  if (!backend) return null
+  const service = structuredClone(backend.services['module-installer'])
+  delete service.restart; delete service.healthcheck
+  service.entrypoint = ['/usr/bin/python3', '-I', '-B', '/app/scripts/module-worker-termination.py']
+  service.command = [normal.name, service.image, backend.volumes.private.name]
+  service.volumes = service.volumes.filter(m => m.source !== 'module-socket')
+  service.volumes.push({ type: 'bind', source: '/var/run/docker.sock', target: '/var/run/docker.sock', bind: { create_host_path: false } })
+  return { name: normal.name, services: { 'module-worker-termination': service },
+    volumes: { 'module-updater': backend.volumes['module-updater'], private: backend.volumes.private } }
+}
+
 if (process.argv[1] && import.meta.url === (await import('node:url')).pathToFileURL(process.argv[1]).href) {
   try {
     const input = JSON.parse((await text(process.stdin)).replaceAll('$$','$'))
+    if (process.argv.length > 2) {
+      if (process.argv.length !== 3 || process.argv[2] !== '--termination-helper') throw Error()
+      console.log(JSON.stringify(moduleWorkerTerminationModel(input),(_key,value)=>typeof value==='string'?value.replaceAll('$',()=> '$$'):value))
+      process.exit(0)
+    }
     const {normal,backend} = moduleInstallerModels(input)
     for (const model of [normal,backend]) console.log(JSON.stringify(model,(_key,value)=>typeof value==='string'?value.replaceAll('$',()=> '$$'):value))
   } catch { console.error('MODULE_INSTALLER_MODEL_INVALID');process.exitCode=1 }

@@ -142,6 +142,7 @@
     "src/conversation-install-plan.mjs",
     "scripts/install-conversation-release.py",
     "src/conversation-process.mjs",
-    "src/conversation-ipc.mjs"
+    "src/conversation-ipc.mjs",
+    "scripts/module-worker-termination.py"
   ]
 }

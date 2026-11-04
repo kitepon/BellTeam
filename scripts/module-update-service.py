@@ -164,13 +164,18 @@ class ModuleUpdater(host.HostUpdater):
         host.check(volume == plan['expected']['privateVolume'], 'HOST_MODULE_STORAGE_BINDING')
         return directory, value, plan, plan_sha, installer
 
-    def reconciliation_worker_quiescent(self, value):
+    def reconciliation_worker_quiescent(self, value, directory=None, plan=None, plan_sha=None):
         worker = value.get('worker')
         host.check(host.exact(worker, 'pid,birth,pidNamespace') and type(worker['pid']) is int and worker['pid'] > 0
             and isinstance(worker['birth'], str) and re.fullmatch('[0-9]+', worker['birth'])
-            and worker['pidNamespace'] == str(os.stat('/proc/self/ns/pid').st_ino),
+            and isinstance(worker['pidNamespace'],str) and re.fullmatch('[0-9]+',worker['pidNamespace']),
             'HOST_MODULE_WORKER_UNCONFIRMED', 409)
-        # A different PID namespace proves no termination of the original worker.
+        # Namespace change alone is never evidence; only the fixed installer's bound durable receipt is.
+        bridge_record = directory is not None and any(os.path.lexists(directory/name) for name in ['worker-termination-prepare.json','worker-termination.json'])
+        if bridge_record or worker['pidNamespace'] != str(os.stat('/proc/self/ns/pid').st_ino):
+            host.check(directory is not None and plan is not None and plan_sha is not None, 'HOST_MODULE_WORKER_UNCONFIRMED',409)
+            bridge=load_module('module_worker_termination','module-worker-termination.py')
+            return bridge.read_termination(self,host,directory,value,plan,plan_sha)
         try:
             birth = Path(f"/proc/{worker['pid']}/stat").read_text().rsplit(')', 1)[1].split()[19]
         except FileNotFoundError:
@@ -199,7 +204,7 @@ class ModuleUpdater(host.HostUpdater):
         placement, quiescence, stages, manifest_sha, reason = 'unconfirmed', 'unconfirmed', 'unconfirmed', None, None
         current = self.inspect_current()
         host.check(current['privateVolume'] == plan['expected']['privateVolume'], 'HOST_MODULE_STORAGE_BINDING', 409)
-        recovery_state, fence = 'not_issued', 'open'
+        recovery_state, fence, termination_sha = 'not_issued', 'open', None
         try:
             with contextlib.ExitStack() as locks:
                 locks.enter_context(reconciliation_lock(self.state / 'worker.lock', self.uid))
@@ -210,7 +215,7 @@ class ModuleUpdater(host.HostUpdater):
                 component = self.private / 'execution'
                 locks.enter_context(reconciliation_lock(component / '.install.lock', self.uid))
                 self.assert_model_binding(current)
-                self.reconciliation_worker_quiescent(value)
+                termination_sha = self.reconciliation_worker_quiescent(value,directory,plan,plan_sha)
                 host.check(not any(path.name.startswith('.staging-') for path in component.iterdir()),
                            'HOST_MODULE_UNOWNED_STAGE', 409)
                 stages = 'clear'
@@ -241,7 +246,7 @@ class ModuleUpdater(host.HostUpdater):
             runtimeCurrentSha256=reconciliation_hash(current), inspectionTime=host.stamp(), placement=placement,
             quiescence=quiescence, stageState=stages, manifestSha256=manifest_sha, recoveryState=recovery_state,
             fence=fence, evidenceSha256=reconciliation_hash(dict(current=current, target=target, planSha256=plan_sha,
-                placement=placement, manifestSha256=manifest_sha, stageState=stages, recoveryState=recovery_state, fence=fence)),
+                placement=placement, manifestSha256=manifest_sha, stageState=stages, recoveryState=recovery_state, fence=fence, workerTerminationSha256=termination_sha)),
             reason=reason)
         receipt_sha = reconciliation_hash(receipt)
         with host.locked(self.state / 'ledger.lock', wait=True):
@@ -322,7 +327,7 @@ class ModuleUpdater(host.HostUpdater):
             locks.enter_context(reconciliation_lock(self.private, self.uid, shared=True))
             locks.enter_context(reconciliation_lock(self.private / 'execution/.install.lock', self.uid))
             self.reconciliation_decision(params)
-            self.reconciliation_worker_quiescent(value)
+            self.reconciliation_worker_quiescent(value,directory,plan,_sha)
             host.check(not os.path.lexists(self.private / '.transaction.json') and not any(
                 p.name.startswith('.staging-') for p in (self.private / 'execution').iterdir()), 'HOST_MODULE_PROOF_UNCONFIRMED', 409)
             host.check(not os.path.lexists(directory / 'recovery-claim.json'), 'HOST_MODULE_RECOVERY_UNCONFIRMED', 409)
