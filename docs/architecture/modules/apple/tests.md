@@ -330,8 +330,9 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
-| [testTabletReturnSendsAndModifiersInsertNewlines](../../../../ios/BellBot/BellBotTests/MessageInputTests.swift#L7) | iPad/MacのShift/Option Returnは改行とdelegate、Returnだけ送信 |
-| [testPhoneReturnUsesSystemKeyboardBehavior](../../../../ios/BellBot/BellBotTests/MessageInputTests.swift#L35) | iPhoneは独自Return送信コマンド無し |
+| [testTabletReturnSendsAndModifiersInsertNewlines](../../../../ios/BellBot/BellBotTests/MessageInputTests.swift#L8) | iPad/MacのShift/Option Returnは改行とdelegate、Returnだけ送信 |
+| [testCopiedImageFileIsAttachedBeforeItsIconAndOtherFilesFail](../../../../ios/BellBot/BellBotTests/MessageInputTests.swift#L35) | Finderでコピーした画像ファイル（file URL＋アイコン画像）はファイル本体を添付し、画像以外のファイルは添付せず失敗を表示する。名前付きのクリップボードで確かめる |
+| [testPhoneReturnUsesSystemKeyboardBehavior](../../../../ios/BellBot/BellBotTests/MessageInputTests.swift#L70) | iPhoneは独自Return送信コマンド無し |
 
 ### NetworkRecoveryTests.swift
 
