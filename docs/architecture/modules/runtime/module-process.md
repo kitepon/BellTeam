@@ -31,6 +31,8 @@ initializeParams({generation,mode,handoff})は初回bootstrap、採用済起動/
 
 quiesce失敗/60秒未終端は旧resume、新子0・kill0・unknown再送0。新版ready/保存/resume失敗時は未受付candidateをOS終了まで回収し、旧固定版と同handoffから再生成する。既にresume済みで終端不明ならkillで済ませずunavailableに保持し二重writerを作らない。closeは起動/交換中operationと既writerを回収し、新子の起動を止める。exitの5秒killはquiesce成功後だけ。
 
+admission.drainが明示busyを返した時は、子quiesceへ進まず同DRAIN_TIMEOUTで旧resumeへ戻る。
+
 quiesce RPCは残りdrain時間を明示し、共通controller自身もその残時間のwithinで囲む。固有channelのACK/進捗によるcaller期限変更を実drain期限の延長にしない。期限後は元control.completionをactiveへ残し、旧resumeと子epoch検査を使い、遅着quiesceで新受付を再閉鎖しない。close/次交換はその実終端を待つ。
 
 private recordは既0600/no-follow/nlink1/所有/4KiB検査の`bellteam.<component>.adoption.v1`。module/allのdurable requestId ledgerや公開source identityはMollyが所有し、このrecordから捏造しない。reserveはcompletionを返し、実replace終端又はcancelまで同親mutexを保持できる。
@@ -88,4 +90,24 @@ flowchart LR
   Report --> Callback[onModuleChildExit / 非待機・失敗隔離]
   Callback --> Parent[Molly親登録 / Signal単一writer]
   Close --> Existing[既incoming reaped待ち・同採用版の再生成]
+```
+
+
+## 旧exit前のdrain timeout
+
+更新のDRAIN_TIMEOUTだけ既error.moduleDiagnosticへ`bellteam.module-drain-diagnostic.v1`を付ける。schema/component/stage/runnerActive/admissionActive/admissionClosed/admissionUnconfirmedの閉7key・1024 bytes以内。stageはparent_drain/child_quiesce/handoff。activeは非負safe整数又は欠測null、boolも欠測null可。既admission.snapshotからactive/closed/unconfirmedだけを選び、generation/lease/correlation・自由error・本文・stackを含めない。snapshot失敗は欠測にし、元error/code/60秒/旧resume/非再送を変えない。
+
+診断は旧resumeの前に捕捉し、親は既private step.runtimeDiagnosticへ保存する。validateModuleExchangeDiagnosticは旧exchange-v1又は新drain-v1の閉variantだけを許可し、既7key exchangeの検査と過去field無しledgerを維持。公開Operation DTOへ追加しない。現在の本番f3f098bbの段階/activeを新sourceから後付けせず、元欠測を保持する。
+
+```mermaid
+flowchart LR
+  Parent[親実completion + admission drain] --> Busy{明示busyか}
+  Busy -->|yes| Old[同DRAIN_TIMEOUT / 旧resume / 元要求保持]
+  Busy -->|no| Quiesce[残り60秒内の子quiesce]
+  Quiesce --> Export[handoff実completion]
+  Parent -->|timeout| Private[固定stage / runner件数 / 既admissionの3scalar]
+  Quiesce -->|timeout| Private
+  Export -->|timeout| Private
+  Private --> Ledger[既moduleDiagnostic / private runtimeDiagnostic]
+  Private --> Old
 ```
