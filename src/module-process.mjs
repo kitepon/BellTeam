@@ -434,7 +434,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       }
       assertHeld()
       if (exchanging || writerRetiring || target.retirementStarted) throw fail('WRITER_RETIREMENT_UNAVAILABLE')
-      closeAdmission('module_child_exit')
+      closeAdmission('module_protocol_failure')
       target.retirementStarted = true
       writerRetiring = true; state('quiescing')
       const controlWriter = async (method, key, timeout) => {
