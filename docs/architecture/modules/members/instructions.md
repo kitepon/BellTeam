@@ -13,8 +13,11 @@ flowchart TD
   Save --> Data
   Save --> Refresh["refreshGlobalInstructions"]
   Common["integration所有<br/>common-agents.md"] --> Refresh
+  Common --> Reminder["execution: taskSettingsReminder<br/>作業設定見直しの第1段落だけ"]
+  Reminder --> Dispatch["通常dispatch / steer<br/>bellteam_task_settings付記"]
   Data --> Refresh
   Refresh --> Write["Owner情報→個別規範→製品規範<br/>runtime公開writerへ"]
+  Write --> Globals["home下5CLIのAGENTS<br/>次の通常指示読込から"]
   Refresh -->|"失敗"| Failure["生成失敗を返す<br/>既保存は残る"]
 ```
 
@@ -41,6 +44,14 @@ CLI固有のAGENTS.overrideやCLAUDE.localに依存しない。個別指示は�
 ## Ownerプロフィールと規範
 
 `OwnerProfile.get/update`が`owner/profile.json`、`UserRules.get/update`が`owner/user-rules.md`を所有する。HTTPの更新と別owner MCPは、保存後に`refreshGlobalInstructions`を呼ぶ。`createGlobalInstructionsRefresher`はOwner情報→ユーザー規範→製品規範の順に生成して、`writeGlobalInstructions`または席proxyに渡す。Bot個別のAGENTS生成とは別責任である。全製品共通テンプレート`config/common-agents.md`は統合担当が所有し、membersは生成経路へ渡された本文を使う。
+
+### 全文と配送付記の有効template
+
+共通規範の正本は`config/common-agents.md`一か所。`taskSettingsReminder`は「作業設定の見直し」直後から最初の空行までを毎dispatchで読む。開始時要約の確定文はその第1段落の第2文に置き、全文と付記へ同じ本文を渡す。別段落やUserRulesに複製して付記の代用にしない。通常Ownerchat/sendmessage/返信対象room/prompt予定は同dispatchへ到達し、setupTestは付記除外、command予定はAI配送なし。実作業turn開始時と実際の工程切替だけの本人更新で、待機前/同工程確認/heartbeatを追加しない。bindingがnullなら発行せず、conflict/unavailableを再送・本業の待ち条件にしない。既10分期限は変更しない。
+
+供給にはbuiltinの`package-server.mjs`収録config、members artifactの本文生成用config、executionの`EXECUTION_FILES`収録configの有効世代を同じSHAへ合わせる。前者のglobal helperとmembers dispatcherは各配置内のtemplateを読み、後者も自分の配置内のtemplateを読む。stateのUserRules更新だけではこのtemplateは変わらない。採用mainからの通常image又は既公開moduleの反映単位・供給順はintegration/distribution/runtimeの既条件に従う。
+
+全文の正規生成契機はbootstrapのglobal refresher、又は正規Owner/UserRules保存後のmembers `writeGlobal`→`global.writeInstructions`→runtime writer。members initializeのrestore/projection、個別profileやAGENTS.local再生成だけをglobal生成と扱わない。生成した全文は各CLIの次の通常指示読込から、付記は有効template反映後の次dispatchから使う。既配送本文/既読込contextの遡及更新や、nativeによる初回tool順序強制はこの規範変更に含めない。
 
 Webの`createOwnerEditor.save`はprofile PATCH→rules PUTの順であり、一括transactionではない。後段に失敗した時にも前段の保存は残り得る。指示生成失敗も、正本保存の失敗と同じ意味にはしない。[owner-profile.mjs](../../../../src/owner-profile.mjs)、[user-rules.mjs](../../../../src/user-rules.mjs)、[global-instructions.mjs](../../../../src/global-instructions.mjs)を参照。
 

@@ -23,6 +23,7 @@ test('task settings: one canonical rule reaches all five CLI globals with owner 
  for(const cli of ['claude','codex','grok','cursor','gemini'])await mkdir(join(home,'.'+cli))
  await globalInstructions.createGlobalInstructionsRefresher({home,ownerProfile:{get:async()=>({name:'Synthetic owner',links:[]})},userRules:{get:async()=>'Synthetic user rule'}})()
  const rule=await globalInstructions.taskSettingsReminder()
+ assert.match(rule,/実作業を行う各ターンの開始時と工程の切替では.*currentWorkBinding.*update_work_summary/u)
  for(const text of ['Sol最新版のHighを基本','Terra最新版のxhigh','極めて単純な作業を行う担当に限り','get_self','list_models','update_self','set_fast_mode(enabled=false)','次ターン','独立した工程'])assert.ok(rule.includes(text),text)
  for(const cli of ['claude','codex','grok','cursor','gemini']){
   const text=await readFile(join(home,'.'+cli,'AGENTS.md'),'utf8')
@@ -32,7 +33,7 @@ test('task settings: one canonical rule reaches all five CLI globals with owner 
  assert.match(common,/現在の設定が適切なら書き戻さない/)
  assert.match(common,/Terra xhighで想定外の結果が出たら、調査へ入る前にSol High/)
  assert.doesNotMatch(common,/LunaのHigh|平常時はTerra|平常の仕事へ戻る時はTerra/)
- assert.match(common,/AIが不要な実行は従来どおりcommand予定/)
+ assert.match(common,/AI不要なら`command`、判断・修理が必要なら`prompt`予定を使う/)
 })
 
 test('task settings: live sessions receive the reminder on dispatch and steering across all harnesses, setup stays unchanged',async()=>{
