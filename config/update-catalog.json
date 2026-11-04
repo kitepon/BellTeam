@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-04T00:21:15Z",
-  "expiresAt": "2026-11-11T00:21:15Z",
+  "publishedAt": "2026-11-04T01:43:17Z",
+  "expiresAt": "2026-11-11T01:43:17Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "9cb850704f28e85be3e8d4f414d60bdce118dd1e",
-      "versionId": "99329628fd982a770c921d6ee7812d8b714c818fd6102838e9306bed13e7209d",
+      "sourceCommit": "1249362e62472069e0a287400b2b6e80e0ccffb7",
+      "versionId": "6fecaa91d9b613d8b1f31373c7ff73702cdc1d28dce53d627aa33d01b67e76e4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T002035Z/usage-9cb850704f28e85be3e8d4f414d60bdce118dd1e-linux-amd64.tar.gz",
-          "sha256": "99329628fd982a770c921d6ee7812d8b714c818fd6102838e9306bed13e7209d",
-          "bytes": 63035
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T014111Z/usage-1249362e62472069e0a287400b2b6e80e0ccffb7-linux-amd64.tar.gz",
+          "sha256": "6fecaa91d9b613d8b1f31373c7ff73702cdc1d28dce53d627aa33d01b67e76e4",
+          "bytes": 63363
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T002035Z/usage-9cb850704f28e85be3e8d4f414d60bdce118dd1e-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "f46e3e46d933a3e43deff68b1df4d45c4a187dfa8dd4b39e9864bc297ac688df",
-          "bytes": 11011
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T014111Z/usage-1249362e62472069e0a287400b2b6e80e0ccffb7-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "919cca1d423f50f6a82952b4314d1479101290dd7112656752d0785f3cf89fe8",
+          "bytes": 11046
         },
-        "signerCommit": "9cb850704f28e85be3e8d4f414d60bdce118dd1e"
+        "signerCommit": "1249362e62472069e0a287400b2b6e80e0ccffb7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -47,14 +47,15 @@
         }
       },
       "changes": [
+        "同時に処理できる依頼と応答を64件に増やします。",
         "改名前に保存された配送済み状態queuedをsentとして読み込みます。",
         "JSON転送を枠の上限までまとめます。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "9cb850704f28e85be3e8d4f414d60bdce118dd1e",
-      "versionId": "4c355b3063fcafd29fe9232c4b51ace7c3752f047a3e55c13e36edf007a7174f",
+      "sourceCommit": "1249362e62472069e0a287400b2b6e80e0ccffb7",
+      "versionId": "90db1f3a3606d8242bfc8077166da162299b029287e8b3b8bca10109b96e97d0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +63,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T002035Z/usage-9cb850704f28e85be3e8d4f414d60bdce118dd1e-linux-arm64.tar.gz",
-          "sha256": "4c355b3063fcafd29fe9232c4b51ace7c3752f047a3e55c13e36edf007a7174f",
-          "bytes": 63035
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T014111Z/usage-1249362e62472069e0a287400b2b6e80e0ccffb7-linux-arm64.tar.gz",
+          "sha256": "90db1f3a3606d8242bfc8077166da162299b029287e8b3b8bca10109b96e97d0",
+          "bytes": 63363
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T002035Z/usage-9cb850704f28e85be3e8d4f414d60bdce118dd1e-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "45287de2659f21b3034a1313e1611837634dd457efae5d427784360da5e17a1f",
-          "bytes": 10905
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T014111Z/usage-1249362e62472069e0a287400b2b6e80e0ccffb7-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "4b4178335843e9c44369c5857f4d3eae0014900d0af2a3016852bc56fc003ef9",
+          "bytes": 11046
         },
-        "signerCommit": "9cb850704f28e85be3e8d4f414d60bdce118dd1e"
+        "signerCommit": "1249362e62472069e0a287400b2b6e80e0ccffb7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -95,6 +96,7 @@
         }
       },
       "changes": [
+        "同時に処理できる依頼と応答を64件に増やします。",
         "改名前に保存された配送済み状態queuedをsentとして読み込みます。",
         "JSON転送を枠の上限までまとめます。"
       ]
