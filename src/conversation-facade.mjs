@@ -1,6 +1,6 @@
 import { TimelineIndex } from './timeline-index.mjs'
 import { readConversationJson } from './conversation-streams.mjs'
-import { validateConversationPageRows, validateConversationRecentRows } from './conversation/results.mjs'
+import { validateConversationPageRows, validateConversationRecentRows, validateConversationResult } from './conversation/results.mjs'
 
 const images = input => input.images ?? (input.image ? [input.image] : [])
 const inherit = (promise, original) => {
@@ -60,6 +60,12 @@ export function createConversationFacade({ getController, context }) {
   }
   Object.defineProperty(rooms, 'size', { get: () => projection.size })
   const store = {
+    deliveryAnchor: (input, options) => invoke('history.deliveryAnchor', input, options, value => {
+      validateConversationResult('history.deliveryAnchor', value)
+      if (value !== null && ['deliveryId', 'target', 'context', 'contextId'].some(key => value[key] !== input[key]))
+        throw Object.assign(new Error('CONVERSATION_RESULT_INVALID'), { code: 'CONVERSATION_RESULT_INVALID' })
+      return value
+    }),
     recentViews: (botIds, options) => {
       const attempt = history('history.recentBatch', { botIds }, options)
       return inherit(attempt.then(async rows => {

@@ -17,6 +17,15 @@ export class RoomHistory {
     return state.visible ??= state.messages.map(message => state.index.get(message))
   }
   async view() { return (await this.snapshot()).index }
+  async deliveryAnchor({ deliveryId, target, context, contextId }) {
+    await this.snapshot()
+    const records = this.read.byId.get(deliveryId), record = records?.length === 1 ? records[0] : null
+    return record?.schema === 'bellteam.room-message.v1' && record.room?.id === contextId
+      && typeof record.sender?.id === 'string' && typeof record.message === 'string' && typeof record.at === 'string' && Array.isArray(record.deliveries)
+      && record.deliveries.every(item => typeof item?.target === 'string')
+      && record.deliveries.filter(item => item?.target === target).length === 1
+      ? { deliveryId, target, context, contextId } : null
+  }
   async readAppended() {
     let file
     try { file = await open(this.path, 'r') }

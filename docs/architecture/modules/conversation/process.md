@@ -52,6 +52,26 @@ runtimeのwriter終端と親native/watchの実終端は別である。execution�
 
 userTurnは返すPromiseへ同期`.accepted`を持つ。nativeの既受付後にそのPromiseだけが終端し、runtimeはroot slotを解放できる。元Promiseは既prepared/knownReplyIds/claimedReplyIdsと最終保存を同旧子で持ち、受付成功を回答保存成功にしない。enqueueUserTurnは同経路のacceptedだけを既返却形で返す。acceptedを持たない既低層transportでは実completionまでslotを解放しない。dispatcherもasyncラッパーでこのpropertyを落とさず、背景報告の親参照と実completionはroot slotから別に追跡する。
 
+## M 元deliveryの保存原本一件照合
+
+`facade.store.deliveryAnchor(input,options)`はprivate root `history.deliveryAnchor`へ通常のcapturedAuthority/実completionで接続する。閉入力と非null返値は`{deliveryId,target,context,contextId}`、contextはdirect又はroom。認証済bot actorだけに許しtarget=actor.botId、fresh memberと既Room認可を確認する。directはcontextId=target、roomは元roomIdを使う。元M capture/job/receiptの対応検証はexecution所有で、このreadがnative採用を証明することはない。
+
+```mermaid
+flowchart LR
+  Origin[execution: 元captureとlive job/receiptの検証] --> Input[認証済bot / 対象・元contextの閉4field]
+  Input --> Facade[store.deliveryAnchor / 既authority・実completion]
+  Facade --> Fresh[子fresh member / target本人 / Room認可]
+  Fresh --> Direct[Store確定byDelivery一件]
+  Fresh --> Room[指定Roomの確定byId一件 / deliveries.target]
+  Direct --> Closed[同4field又はnull / 本文転送なし]
+  Room --> Closed
+  Closed --> Match[execution: 元native client_delivery/task対応へ照合]
+```
+
+通常表示snapshotの改行前previewは保存証明にしない。更新後の確定read stateで原direct-message又はroom-messageを一件だけ選び、重複原ID・不正行・target/context不一致・元行無しはnull又は既安全errorでM作用0とする。directの破損行を表示readerがskipした場合もanchor readは未確認としてnull。Roomの同IDは複数targetへ配送されるためrouting.respondersでなく原deliveries.targetを照合する。全Room走査/全timeline転送/status又はinterim行/本文や時刻の一致は代用しない。
+
+元RPC残budgetかつ最大5秒の一回capture+read期限はexecution consumerで管理し、caller期限で会話の実completion/leaseを偽settleしない。遅着readは別responseへ使わない。新writer/native発行/旧入力再送/新HTTP窓口は追加しない。
+
 ## callback保存の閉DTO
 
 親normalizerはsrc/conversation/callbacks.mjs。元Errorのmessage/stack/cause/任意keyをwireへ写さず、停止判定に必要なBOT_STOPPED/AI_GLOBAL_PAUSED又は固定failure codeと既安全mcp_error/native_launch、HTTP status/known outcomeだけを残す。これはroot業務Errorの公開意味を変える正規化ではなく、登録済みdelivery callbackの保存用射影。親は元Error/実receiptを保持する。

@@ -34,6 +34,11 @@ export function validateConversationResult(method, value) {
     case 'room.schedules.set': return fields(value, { schedule })
     case 'room.schedules.claimDue': case 'room.schedules.skipDue': if (!nullable(schedule)(value)) invalid(); return true
     case 'history.recent': return fields(value, { message: nullable(plain) })
+    case 'history.deliveryAnchor':
+      if (value === null) return true
+      fields(value, { deliveryId: nonempty, target: id, context: oneOf('direct', 'room'), contextId: id })
+      if (value.context === 'direct' && value.contextId !== value.target) invalid()
+      return true
     case 'history.listMessages': case 'history.listRoomMessages': case 'history.page': case 'history.recentBatch':
       if (typeof value?.[Symbol.asyncIterator] !== 'function') invalid()
       return true
