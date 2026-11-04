@@ -74,7 +74,7 @@ export class ConversationLifetimes {
     const key = JSON.stringify([deliveryId, target])
     if (operation.kind !== 'operation' || !id(deliveryId) || !id(target) || typeof dispatch !== 'function'
       || !Array.isArray(kinds) || new Set(kinds).size !== kinds.length || kinds.some(kind => !CONVERSATION_CALLBACK_KINDS.includes(kind))
-      || operation.usedDeliveries.has(key)) throw this.#protocol()
+      || operation.usedDeliveries.has(key)) throw this.#protocol(lease)
     const record = this.#make('delivery', lease.correlation)
     Object.assign(record, { operation, binding: Object.freeze({ generation: lease.generation, operationId: lease.correlation, deliveryId, target }),
       dispatch, kinds: new Set(kinds), report: false, reportUsed: false, backgroundStarted: false, reportWindow: false })
@@ -84,16 +84,16 @@ export class ConversationLifetimes {
   }
   deliveryFor(lease, { deliveryId, target }) {
     let operation
-    try { operation = this.#record(lease) } catch { throw this.#protocol() }
+    try { operation = this.#record(lease) } catch { throw this.#protocol(lease) }
     const delivery = operation.kind === 'operation' && operation.usedDeliveries.get(JSON.stringify([deliveryId, target]))
-    if (!delivery) throw this.#protocol()
+    if (!delivery) throw this.#protocol(lease)
     return this.assertDelivery(delivery, { deliveryId, target })
   }
   assertDelivery(lease, { deliveryId, target } = {}) {
     let record
-    try { record = this.#record(lease) } catch { throw this.#protocol() }
+    try { record = this.#record(lease) } catch { throw this.#protocol(lease) }
     if (record.kind !== 'delivery' || record.failed || deliveryId !== undefined && record.binding.deliveryId !== deliveryId
-      || target !== undefined && record.binding.target !== target) throw this.#protocol()
+      || target !== undefined && record.binding.target !== target) throw this.#protocol(lease)
     return lease
   }
   finishUnclaimedDelivery(lease) {
@@ -117,7 +117,7 @@ export class ConversationLifetimes {
     const record = this.#records.get(lease)
     if (!record.nativeClaimed || record.nativeContinuation || !(completion instanceof Promise)
       || !['agent_dispatch', 'agent_steer'].includes(receipt?.mode)
-      || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process) throw this.#protocol()
+      || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process) throw this.#protocol(lease)
     const native = record.nativeContinuation = { receipt, completion, pending: true }
     const ended = () => { native.pending = false }
     completion.then(ended, ended)
@@ -133,12 +133,12 @@ export class ConversationLifetimes {
   binding(lease, callbackKind) {
     this.assertDelivery(lease)
     const record = this.#records.get(lease)
-    if (record.failed || !record.kinds.has(callbackKind)) throw this.#protocol()
+    if (record.failed || !record.kinds.has(callbackKind)) throw this.#protocol(lease)
     return Object.freeze({ ...record.binding, callbackKind })
   }
   assertCallback(lease, claimed) {
     const expected = this.binding(lease, claimed?.callbackKind)
-    if (!claimed || Object.keys(claimed).length !== 5 || !Object.entries(expected).every(([key, value]) => claimed[key] === value)) throw this.#protocol()
+    if (!claimed || Object.keys(claimed).length !== 5 || !Object.entries(expected).every(([key, value]) => claimed[key] === value)) throw this.#protocol(lease)
     return lease
   }
   claimNative(lease, { deliveryId, target, kind }) {
@@ -146,7 +146,7 @@ export class ConversationLifetimes {
     const record = this.#records.get(lease)
     if (record.nativeClaimed || !['turn', 'notify', 'report'].includes(kind) || record.report !== (kind === 'report')
       || kind === 'turn' && (record.kinds.has('delivery.answer') || record.kinds.has('turn.end'))
-      || kind === 'notify' && record.kinds.has('user.complete')) throw this.#protocol()
+      || kind === 'notify' && record.kinds.has('user.complete')) throw this.#protocol(lease)
     record.nativeClaimed = true
   }
   supports(lease, kind) { this.assertDelivery(lease); return this.#records.get(lease).kinds.has(kind) }
@@ -161,9 +161,9 @@ export class ConversationLifetimes {
   }
   invoke(lease, kind, params) {
     const binding = this.binding(lease, kind), record = this.#records.get(lease)
-    if (!params || typeof params !== 'object' || Array.isArray(params)) throw this.#protocol()
+    if (!params || typeof params !== 'object' || Array.isArray(params)) throw this.#protocol(lease)
     if (kind === 'turn.end') {
-      if (record.report || record.backgroundStarted) throw this.#protocol()
+      if (record.report || record.backgroundStarted) throw this.#protocol(lease)
       record.backgroundStarted = true; record.reportWindow = true
     }
     return this.#run(lease, async () => {
@@ -173,22 +173,22 @@ export class ConversationLifetimes {
         if (!result || Array.isArray(result) || Object.keys(result).length !== 1 || result.applied !== true) throw protocolError()
         return result
       }
-      catch (error) { record.failed = true; this.#protocol(); throw error }
+      catch (error) { record.failed = true; this.#protocol(lease); throw error }
       finally { if (kind === 'turn.end') record.reportWindow = false }
     })
   }
   runBackground(lease, operation) {
     this.assertDelivery(lease)
     const record = this.#records.get(lease)
-    if (record.report || record.backgroundStarted || typeof operation !== 'function') throw this.#protocol()
+    if (record.report || record.backgroundStarted || typeof operation !== 'function') throw this.#protocol(lease)
     record.backgroundStarted = true; record.reportWindow = true
-    return this.#run(lease, async () => { try { return await operation() } catch (error) { this.#protocol(); throw error } finally { record.reportWindow = false } })
+    return this.#run(lease, async () => { try { return await operation() } catch (error) { this.#protocol(lease); throw error } finally { record.reportWindow = false } })
   }
   deriveReport(lease, { deliveryId, reason, dispatch, kinds = ['delivery.status', 'delivery.words', 'delivery.answer'] }) {
     this.assertDelivery(lease)
     const source = this.#records.get(lease)
     if (source.report || source.reportUsed || !source.reportWindow || !['missing', 'content'].includes(reason)
-      || !Array.isArray(kinds) || kinds.some(kind => ['user.complete', 'turn.end'].includes(kind))) throw this.#protocol()
+      || !Array.isArray(kinds) || kinds.some(kind => ['user.complete', 'turn.end'].includes(kind))) throw this.#protocol(lease)
     // A refused native preparation still consumes the one report right; never reissue it.
     source.reportUsed = true
     const child = this.registerDelivery(source.operation.lease, { deliveryId, target: source.binding.target, dispatch, kinds })
@@ -207,7 +207,10 @@ export class ConversationLifetimes {
     ]) if (this.supports(lease, kind)) result[name] = callback
     return result
   }
-  #protocol() {
+  #protocol(lease) {
+    const record = this.#records.get(lease)
+    // A known retired capability cannot fail the current generation; wire IDs alone confer no exemption.
+    if (record && record.lease.generation !== this.#generation) return protocolError()
     const first = !this.#failed
     this.#failed = true
     const error = protocolError()
@@ -241,6 +244,12 @@ export class ConversationLifetimes {
     this.#assertTicket(ticket)
     if (this.#failed || this.#active.size || !id(generation) || generation === this.#generation) throw rejected()
     this.#generation = generation
+  }
+  recover(ticket, previousGeneration, generation) {
+    this.#assertTicket(ticket)
+    if (previousGeneration !== this.#generation || ticket.generation !== previousGeneration || this.#active.size
+      || !id(generation) || generation === previousGeneration) throw rejected()
+    this.#generation = generation; this.#failed = false
   }
   resume(ticket) { this.#assertTicket(ticket); if (this.#failed) throw protocolError(); this.#ticket = null }
   snapshot() { return { generation: this.#generation, closed: Boolean(this.#ticket), active: this.#active.size, unconfirmed: this.#failed } }
