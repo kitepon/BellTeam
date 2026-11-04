@@ -2,6 +2,7 @@
   <PropertyGroup><TargetFramework>net10.0-windows10.0.19041.0</TargetFramework><UseWPF>true</UseWPF><IsTestProject>true</IsTestProject><IsPackable>false</IsPackable></PropertyGroup>
   <ItemGroup>
     <None Include="../../test/fixtures/delivery-tracking-wire.json" Link="delivery-tracking-wire.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="fixtures/update-center.json" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../BellTeam.Core/BellTeam.Core.csproj" />
     <ProjectReference Include="../BellTeam.App/BellTeam.App.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />

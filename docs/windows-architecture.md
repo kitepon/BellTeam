@@ -8,7 +8,7 @@
 flowchart LR
   user[利用者] --> app[Windows画面・操作<br/>BellTeam.App]
   app --> core[通信・モデル・SSE・下書き・端末設定<br/>BellTeam.Core]
-  core -->|HTTP API・SSE| integration[BellTeam共通入口<br/>トロニー]
+  core -->|HTTP API・SSE| integration[BellTeam共通入口<br/>モリー]
   core --> local[このPCの設定・認証情報]
   app --> toast[Windows通知]
   integration --> server[BellTeam本体の各機能]
@@ -22,6 +22,14 @@ flowchart LR
 
 変更前に[全体図](architecture/feature-map.md)からこの図、呼出元と接続先の図へ辿り、機能・入出力・状態所有・接続・失敗の扱いを確認して図の変更要否を決める。全caller、データ、test、fixture、設定、exportまで影響範囲を確認する。必要な図と接続情報はコードと同じ差分で更新し、図を変えない場合は既存図に収まる理由を変更説明に記す。全体図の生成と直接境界の検証は[共通手順](architecture/module-ownership.md)に従う。
 
-## 設計中の接点
+## 更新センター
 
-商用コンテナ更新は設計中。WindowsでもBellTeamロゴ右に通知と本体の共通状態・進行を表示する要求を受けている。本体の状態や更新実行は各所有担当に置き、Windowsは合意された公開窓口から受け取る表示と操作を担当する。具体的な窓口・入出力・操作は担当間で設計する。現時点で新しい更新機能は実装しない。
+ロゴ右の入口は共通の更新状態を表示し、更新センターで各対象の稼働版・公開版・変更内容と計画を示す。状態・計画・影響・実行結果の正本は[共通入口](architecture/modules/integration/README.md)のUpdate API。Windowsは計画の内容を見せ、明示操作で固定planを実行し、requestIdを保持して同じ要求を照会する。結果が不明な操作を成功へ変えず、自動再送しない。通知種別・通知からの導線はミカとの契約に従う。
+
+```mermaid
+flowchart LR
+  Logo[ロゴ右のUpdate状態] --> Center[Windows更新センター]
+  Center -->|一覧・計画・実行・同ID照会| API[共通Update API]
+  API -->|updatesイベント| Center
+  Center --> IDs[このPCの接続先ごとの要求ID]
+```
