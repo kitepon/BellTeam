@@ -15,7 +15,7 @@ test('termination stages expose actual incoming and reaped waits without startin
   const incoming = Promise.withResolvers(), reaped = Promise.withResolvers()
   const admission = new ConversationLifetimes(), children = [], logs = [], origins = []
   const close = admission.close.bind(admission)
-  admission.close = source => { origins.push(source); return close() }
+  admission.close = source => { origins.push(source); return close(source) }
   t.mock.method(console, 'error', line => { if (String(line).startsWith('{')) logs.push(JSON.parse(line)) })
   const end = child => {
     child.exitCode = 0; child.connected = false; child.stdout.closed = child.stderr.closed = true
@@ -42,6 +42,8 @@ test('termination stages expose actual incoming and reaped waits without startin
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const stages = () => logs.filter(v => v.code === 'MODULE_CHILD_TERMINATION').map(v => [v.stage, v.event])
   end(children[0]); await tick()
+  assert.equal(admission.inspectAdmission().closedBy, 'module_child_exit')
+  assert.equal(admission.inspectAdmission().ticket, true)
   assert.deepEqual(stages(), [['os_closed','completed'], ['incoming','waiting']])
   t.mock.timers.tick(30000); await tick(); assert.equal(children.length, 1)
   incoming.resolve(); await tick()
