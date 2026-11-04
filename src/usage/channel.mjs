@@ -1,4 +1,4 @@
-import { createModuleEndpoint, MODULE_PAYLOAD_LIMIT } from '../module-ipc.mjs'
+import { createModuleEndpoint, MODULE_PAYLOAD_LIMIT, MODULE_CONCURRENCY } from '../module-ipc.mjs'
 import { createModuleStreams, encodeModuleJson, readModuleJson } from '../module-streams.mjs'
 import { validateUsageRequest, usageError } from './process-schema.mjs'
 import { usageResultValid } from './process-results.mjs'
@@ -106,7 +106,7 @@ export function createUsageParentChannel(child, { generation, admission, authori
         const run = async () => { await publish(message.params, operation); return { acknowledged: true } }
         run.finish = () => { received.projection-- }; return run
       }
-      check(message.kind === 'effect' && effects.size < 8 && operation.context.kind !== 'callback', 'USAGE_CALLBACK_RECURSION')
+      check(message.kind === 'effect' && effects.size < MODULE_CONCURRENCY && operation.context.kind !== 'callback', 'USAGE_CALLBACK_RECURSION')
       check(usageEffectValid(message.method, message.params, operation.context, operation.params))
       const capability = Object.freeze({}), item = { operation, id: message.id }
       effects.set(capability, item)
@@ -240,7 +240,7 @@ export function createUsageChildChannel({ endpoint = process, versionId = proces
       }
       check(['root', 'callback'].includes(message.kind) && contextValid(message.context) && message.context.generation === generation
         && message.context.rootId === String(message.id) && message.context.kind === message.kind && message.context.method === message.method)
-      check(received[message.kind] < 8 && !orphaned && mode !== 'closed', 'USAGE_IPC_CAPACITY')
+      check(received[message.kind] < MODULE_CONCURRENCY && !orphaned && mode !== 'closed', 'USAGE_IPC_CAPACITY')
       const early = message.kind === 'root' && message.context.actor.kind === 'system' && ['settings.list', 'settings.configuration', 'settings.setError'].includes(message.method)
       check(message.kind === 'callback' || mode === 'services' || early && ['settings', 'subscriptions'].includes(mode), 'USAGE_UNAVAILABLE')
       const context = Object.freeze({ ...message.context, actor: Object.freeze({ ...message.context.actor }) })
