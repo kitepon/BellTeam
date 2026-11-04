@@ -90,7 +90,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
           || url.pathname === '/api/bots' && typeof bots.listForClient === 'function'
           || ['/api/owner', '/api/owner/avatar', '/api/user-rules'].includes(url.pathname)
           || botRead && typeof bots.readMember === 'function' && (['', 'messages', 'queue', 'avatar', 'avatar-large', 'avatar-source', 'avatar-large-source'].includes(botRead[1] ?? '')
-            || /^character-sheet(?:\/[^/]+)?$/u.test(botRead[1] ?? '')))
+            || /^character-sheet(?:\/[^/]+)?$/u.test(botRead[1] ?? '') || /^configuration-operations\/[^/]+$/u.test(botRead[1] ?? '')))
         if (!directRead) await bots.refresh?.()
         stage = 'feature'
         for (const handle of featureApis) {
