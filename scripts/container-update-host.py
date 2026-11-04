@@ -519,7 +519,7 @@ if(Object.hasOwn(validators,id)){const [path,name]=validators[id];(await import(
 if(id==='execution'&&(await import('/app/src/execution-dispatcher.mjs')).EXECUTION_STATE_COMPATIBILITY!==target.compatibility.stateCompatibility)throw Error('compatibility');
 const plan=webGatewayInstallPlan(normal,current,id);console.log(JSON.stringify({privateVolume:plan.volumes['server-state'].name}));"""
         try:
-            output = self.command([self.config['docker'], 'run', '--rm', '--network', 'none', '--read-only', '--user', '1001:1001',
+            output = self.command([self.config['docker'], 'run', '--rm', '--interactive', '--network', 'none', '--read-only', '--user', '1001:1001',
                 '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '--pids-limit', '64', '--memory', '256m',
                 '--memory-swap', '256m', '--entrypoint', '/usr/local/bin/node', current['imageId'], '--input-type=module', '-e', program],
                 input=json.dumps([model, runtime, target]).encode())
