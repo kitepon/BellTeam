@@ -25,6 +25,7 @@ const reports = {
   SERVER_HTTP_503: ['warn', 'BellTeamのAPIが利用不可の応答を返した（原因未確定）'],
   SERVER_MODEL_CONFIGURATION_FAILED: ['high', 'AIのモデル設定を反映できなかった'],
   SERVER_TURN_TRACKING_FAILED: ['high', 'AIの処理終了を追跡できなかった'],
+  SERVER_MODULE_CHILD_EXITED: ['high', 'BellTeamの部品が予期せず終了した'],
   GOAL_OPERATION_UNCONFIRMED: ['warn', 'ゴール操作の結果を確認できなかった'],
   // 送信の失敗と設定の反映の失敗を分ける前の記録。保存済みの行のために残し、新しくは記録しない。
   SERVER_PUSH_FAILED: ['high', '端末への通知送信に失敗した'],
@@ -37,6 +38,40 @@ const reports = {
 const assessments = { info: '適切に処理した参考記録', warn: '影響あり', high: '影響あり', fatal: '影響あり' }
 const referenceGrounds = [/^user_impact=none$/mu, /^app_handling=\S/mu]
 const modules = new Set(['app', 'session', 'conversation', 'events', 'image', 'bots', 'rooms', 'owner', 'schedules', 'settings', 'queue', 'server', 'secrets', 'notifications', 'goals'])
+
+const exitComponents = ['conversation', 'usage', 'diagnostics', 'members', 'notifications', 'web-gateway']
+const exitSignals = ['SIGABRT', 'SIGBUS', 'SIGFPE', 'SIGHUP', 'SIGILL', 'SIGINT', 'SIGKILL', 'SIGPIPE', 'SIGQUIT', 'SIGSEGV', 'SIGTERM']
+const exitCodes = ['ERR_IPC_CHANNEL_CLOSED', 'ERR_OUT_OF_RANGE', 'ERR_WORKER_OUT_OF_MEMORY', 'ERR_MODULE_NOT_FOUND']
+const exactKeys = (value, keys) => value !== null && typeof value === 'object' && !Array.isArray(value)
+  && [Object.prototype, null].includes(Object.getPrototypeOf(value))
+  && Object.keys(value).sort().join(',') === keys
+const heapNumber = value => Number.isFinite(value) && value >= 0 && value <= 1e9
+
+export function validateModuleChildExitDiagnostic(value) {
+  try {
+    return exactKeys(value, 'component,exitCode,reason,schema,signal,stderrBytes,stderrCodes,stderrTail,stderrTruncated')
+      && value.schema === 'bellteam.module-child-exit.v1' && exitComponents.includes(value.component)
+      && (value.exitCode === null || Number.isInteger(value.exitCode) && value.exitCode >= -2147483648 && value.exitCode <= 2147483647)
+      && (value.signal === null || exitSignals.includes(value.signal))
+      && Array.isArray(value.stderrCodes) && value.stderrCodes.length <= 4
+      && value.stderrCodes.every(code => exitCodes.includes(code)) && new Set(value.stderrCodes).size === value.stderrCodes.length
+      && ['heap_out_of_memory', 'worker_out_of_memory', 'unknown'].includes(value.reason)
+      && Number.isSafeInteger(value.stderrBytes) && value.stderrBytes >= 0 && typeof value.stderrTruncated === 'boolean'
+      && Array.isArray(value.stderrTail) && value.stderrTail.length <= 8
+      && Array.from(value.stderrTail).every(entry => exactKeys(entry, 'kind') && entry.kind === 'heap_oom'
+        || exactKeys(entry, 'afterMiB,beforeMiB,capacityMiB,kind,pauseMs') && entry.kind === 'gc'
+          && [entry.beforeMiB, entry.afterMiB, entry.capacityMiB, entry.pauseMs].every(heapNumber))
+      && Buffer.byteLength(JSON.stringify(value)) <= 4096
+  } catch { return false }
+}
+
+export function moduleChildExitReport(value) {
+  if (!validateModuleChildExitDiagnostic(value)) throw new Error('DIAGNOSTIC_INVALID')
+  const diagnostic_log = JSON.stringify(value)
+  // Validate the serialized copy too; caller objects must not change the wire value through toJSON.
+  if (!validateModuleChildExitDiagnostic(JSON.parse(diagnostic_log))) throw new Error('DIAGNOSTIC_INVALID')
+  return { code: 'SERVER_MODULE_CHILD_EXITED', module: 'server', diagnostic_log }
+}
 
 // BugHubが既に受け取る調査注記の形式。不正な注記で原本の取得まで失敗させない。
 function validInvestigation(value) {
@@ -55,6 +90,12 @@ export function validateDiagnosticReport(report) {
   if (bySender && assessed !== undefined && !severities.has(assessed)) throw new Error('DIAGNOSTIC_INVALID')
   if (version !== undefined && (typeof version !== 'string' || version.length > 40 || !/^[\w.+() -]+$/u.test(version))) throw new Error('DIAGNOSTIC_INVALID')
   if (log !== undefined && (typeof log !== 'string' || !log.trim() || Buffer.byteLength(log) > 49152)) throw new Error('DIAGNOSTIC_INVALID')
+  if (code === 'SERVER_MODULE_CHILD_EXITED') {
+    let detail
+    try { detail = JSON.parse(log) } catch { throw new Error('DIAGNOSTIC_INVALID') }
+    if (module !== 'server' || Buffer.byteLength(log) > 4096 || !validateModuleChildExitDiagnostic(detail)) throw new Error('DIAGNOSTIC_INVALID')
+    return detail
+  }
 }
 
 export class Diagnostics {
@@ -91,13 +132,13 @@ export class Diagnostics {
   record(report) {
     const task = this.pending.then(async () => {
       const { code, module, app_version: version, diagnostic_log: log, severity: assessed } = report ?? {}
-      validateDiagnosticReport(report)
+      const childExit = validateDiagnosticReport(report)
       const [fixed, template, bySender] = reports[code]
       // 送信元が重大度を付けた報告は、重大度ごとに別の行にする。参考の記録が、影響のあった記録を薄めない。
       const evaluated = Boolean(bySender && assessed) && (assessed !== 'info' || referenceGrounds.every(line => line.test(log ?? '')))
       const severity = evaluated ? assessed : fixed
       const context = diagnosticReportContext(log)
-      const legacyKey = evaluated ? `${code}:${module}:${assessed}` : `${code}:${module}`
+      const legacyKey = evaluated ? `${code}:${module}:${assessed}` : `${code}:${module}${childExit ? `:${childExit.component}` : ''}`
       const fingerprint = createHash('sha256').update(context ? `${legacyKey}:request:${context.key}` : legacyKey).digest('hex')
       const previous = this.rows.get(fingerprint)
       const message = bySender ? `${template}（${evaluated ? assessments[assessed] : '重大度は旧契約の暫定。影響とアプリの対処は未評価'}）` : template

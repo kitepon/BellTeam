@@ -28,3 +28,22 @@ flowchart LR
 Signalが内部図・source・直接検証を同差分で供給、Signalが固有channel/entry/probeを接続、Epiが共通runner/世代とstreamを供給、Mollyが安定facade/assemblyと共通ledger/adapter・通常mainへ結ぶ。内部の詳細はこの正本へ追記し、親へ複製しない。
 
 内部factory・閉操作・状態/close-drain/restoreは[単体更新の正本](module-update.md)。
+
+## 子終了の有限診断
+
+runtimeの[子終了観測](../runtime/module-process.md)は既exit/signalと固定codeのconsole出力を持つ。診断へは `onModuleChildExit(dto)` を親が登録し、`moduleChildExitReport(dto)` の閉検証から既record/唯一writer/管理GETへ接続する。観測と6常駐子のcallback転送はEpi、親登録はMollyで、診断だけの差分を接続完了とはしない。
+
+```mermaid
+flowchart LR
+  Observe[runtime: OS/IPC/pipe終端と有限stderr観測] --> Callback[onModuleChildExit: 閉DTO]
+  Callback --> Parent[integration: 最大6componentの最新値]
+  Parent --> Validate[diagnostics: moduleChildExitReport / 閉検証]
+  Validate --> Record[既record: component別の6指紋 / countと最新値]
+  Record --> Writer[既唯一writer / 保存ACK]
+  Writer --> Get[既認証付き管理GET / restore]
+  Ready[既diagnostics onState available] --> Parent
+```
+
+`bellteam.module-child-exit.v1` はcomponent固定6種、signed32bit exitCode又はnull、既11signal又はnull、重複の無い既4stderrCodes、reason（heap_out_of_memory/worker_out_of_memory/unknown）、stderrBytes（非負safe整数）、stderrTruncated（boolean）、stderrTail（最大8件）だけ。末尾要素は `{kind:'heap_oom'}` 又は `{kind:'gc',beforeMiB,afterMiB,capacityMiB,pauseMs}`、数値は有限・非負・1e9以下、DTOは4096 UTF8 bytes以内。不明key/文字列/過大値は受付前に拒否する。観測時のraw末尾はruntimeの8KiB以内に留め、保存/公開へ渡さない。任意stderr本文の末尾保存全般は対象外のまま明示し、Nodeの認識可能な末尾証拠だけを保持する。SIGKILLからOS OOMを断定しない。
+
+新固定category `SERVER_MODULE_CHILD_EXITED` / module `server` / high を既recordで保存する。集約はcomponent別の最大6指紋だけを加え、既codeと指紋・状態形式を変えない。同componentはcountと最新DTOを更新し、古いstderr履歴を蓄積しない。ログなし/不正JSONや余分fieldを含む新categoryは拒否する。親はdiagnostics停止中の最大6最新値を保持し、復帰ready後に一回flushする。保存ACK済みの同一値だけを削除し、保存結果unknownを再recordしない。タイマー/別writer/永続queue/本文再送を加えず、親消失時の未保存は欠測を維持する。旧事故の終了原因は新観測から補完しない。
