@@ -45,6 +45,12 @@ public sealed class SettingsWindow(Workspace workspace, Action? changeServer = n
                 var retry = new Button { Content = "一覧を更新", HorizontalAlignment = HorizontalAlignment.Left }; retry.Click += (_, _) => _ = ReloadAsync(); authentication.Children.Add(retry);
             }
             Body.Children.Add(Card(authentication));
+            var background = new StackPanel { Margin = new Thickness(20) };
+            background.Children.Add(new TextBlock { Text = "仕事の要約", FontSize = 20, FontWeight = FontWeights.SemiBold });
+            background.Children.Add(new TextBlock { Text = "チーム全体の仕事を要約するAIを設定します。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 8) });
+            var backgroundButton = new Button { Content = "要約するAIを設定", HorizontalAlignment = HorizontalAlignment.Left };
+            backgroundButton.Click += (_, _) => { var editor = new BackgroundAgentWindow(workspace) { Owner = DialogOwner }; _ = editor.InitializeAsync(); editor.ShowDialog(); };
+            background.Children.Add(backgroundButton); Body.Children.Add(Card(background));
             if (notifications is not null)
             {
                 var localNotifications = new StackPanel { Margin = new Thickness(20) }; localNotifications.Children.Add(new TextBlock { Text = "このPCの通知", FontSize = 20, FontWeight = FontWeights.SemiBold });
