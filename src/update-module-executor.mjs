@@ -7,6 +7,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { validateUpdateRequest, validateUpdateResponse } from './update-center-contract.mjs'
 import { moduleReleaseCompatible } from './update-module-catalog.mjs'
 import { validateModuleExchangeDiagnostic } from './module-exchange-diagnostic.mjs'
+import { createInstallInspection, validateSavedInstallInspection, installReconciliationClosed } from './update-install-inspection.mjs'
 
 const failure = (code, status = 503) => Object.assign(new Error(code), { code, status })
 const requireValue = (ok, code, status) => { if (!ok) throw failure(code, status) }
@@ -19,7 +20,7 @@ const matches = (current, target) => current !== null && (target.origin === 'bui
   ? current.origin === 'builtin' && current.sourceCommit === target.sourceCommit : current.digest === target.digest)
 
 // The server state lock owns this ledger. Controllers retain their own writer/drain locks.
-export async function createModuleUpdateExecutor({ root, catalog, adapters, host = null, moduleHost = null, notify = () => {}, now = Date.now }) {
+export async function createModuleUpdateExecutor({ root, catalog, adapters, host = null, moduleHost = null, withInstallReconciliationProof = null, notify = () => {}, now = Date.now }) {
   const directory = join(root, 'state/update-ledger'), path = join(directory, 'ledger.json')
   let state = { schema: 'bellteam.module-update.ledger.v1', plans: [], operations: [] }
   const exchangeMutex = createModuleExchangeMutex()
@@ -77,6 +78,8 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       for (const [index, step] of entry.steps.entries()) if (Object.hasOwn(step, 'runtimeDiagnostic'))
         requireValue(validateModuleExchangeDiagnostic(step.runtimeDiagnostic)
           && step.runtimeDiagnostic.component === plan.steps[index].componentId, 'UPDATE_LEDGER_INVALID')
+      for (const step of entry.steps) if (Object.hasOwn(step, 'applyIssued'))
+        requireValue(typeof step.applyIssued === 'boolean', 'UPDATE_LEDGER_INVALID')
       for (const [index, step] of entry.steps.entries()) if (step.installRequestId !== undefined) {
         validateUpdateRequest('requestId', step.installRequestId)
         requireValue(plan.steps[index].installPlan && !installIds.has(step.installRequestId)
@@ -84,6 +87,9 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
           && ['pending', 'completed', 'failed', 'unknown'].includes(step.installPhase), 'UPDATE_LEDGER_INVALID')
         installIds.add(step.installRequestId)
       }
+      for (const [index, step] of entry.steps.entries()) if (Object.hasOwn(step, 'installReconciliation'))
+        requireValue(step.installRequestId && validateSavedInstallInspection(step.installReconciliation,
+          plan.steps[index], step, entry.operation), 'UPDATE_LEDGER_INVALID')
     }
     let changed = false
     for (const entry of state.operations.filter(entry => !terminal(entry.operation))) {
@@ -99,11 +105,13 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     requireValue(!closed && !fault, fault ?? 'UPDATE_EXECUTOR_CLOSED')
     requireValue(!busy, 'MODULE_EXCHANGE_BUSY', 409)
     busy = true
-    try { return await operation() } finally { busy = false }
+    try { return await operation() } finally { busy = false; try { notify() } catch {} }
   }
   const findPlan = id => state.plans.find(entry => entry.plan.planId === id)
   const findOperation = id => state.operations.find(entry => entry.operation.requestId === id)
-  const installPending = step => step.installIssued && !['completed', 'failed'].includes(step.installPhase)
+  const inspection = createInstallInspection({ findOperation, findPlan, moduleHost, adapters, catalog, save, now,
+    withCloseProof: withInstallReconciliationProof, isOpen: () => !closed && !fault })
+  const installPending = step => step.installIssued && !['completed', 'failed'].includes(step.installPhase) && !installReconciliationClosed(step)
   const hostPending = entry => entry.hostIssued && !['completed', 'failed'].includes(entry.operation.phase)
     || entry.steps.some(installPending)
   const prepareStep = async (step, planning = false) => {
@@ -138,7 +146,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
   const refreshInstalls = async entry => {
     if (!moduleHost) return
     const planned = findPlan(entry.operation.plan.planId)
-    for (const [index, progress] of entry.steps.entries()) if (installPending(progress)) {
+    for (const [index, progress] of entry.steps.entries()) if (installPending(progress) && !progress.installReconciliation) {
       const value = installResult(planned.steps[index], progress, await moduleHost.operation(progress.installRequestId))
       if (['completed', 'failed'].includes(value.phase)) { progress.installPhase = value.phase; await save() }
     }
@@ -217,6 +225,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         if (!await prepareStep(step)) await install(step, progress)
         await adapter.prepare(step)
         requireValue(adapter.available() && isDeepStrictEqual(adapter.current(), step.from) && isDeepStrictEqual(adapter.capture?.() ?? null, step.guard), 'UPDATE_CURRENT_CHANGED', 409)
+        progress.applyIssued = true; await save()
         await adapter.apply(step)
         progress.phase = 'verifying'; entry.operation.phase = 'verifying'; entry.operation.execution = 'succeeded'; await save()
         requireValue(adapter.available() && matches(adapter.current(), step.target), 'UPDATE_VERIFICATION_FAILED')
@@ -242,11 +251,21 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
   return {
     reserveExchange() {
       requireValue(!closed && !fault, fault ?? 'UPDATE_EXECUTOR_CLOSED')
-      requireValue(!state.operations.some(hostPending), 'MODULE_EXCHANGE_BUSY', 409)
+      requireValue(!busy && !state.operations.some(hostPending), 'MODULE_EXCHANGE_BUSY', 409)
       return exchangeMutex.reserve()
     },
     hasPlan: id => Boolean(findPlan(id)),
     hasOperation: id => Boolean(findOperation(id)),
+    installReconciliation(requestId, installRequestId) {
+      requireValue(!busy, 'MODULE_EXCHANGE_BUSY', 409)
+      return inspection.read(requestId, installRequestId)
+    },
+    inspectModuleInstall(requestId, installRequestId, input, grant) {
+      return exclusive(() => exchangeMutex.runExclusive(() => {
+        requireValue(!active, 'MODULE_EXCHANGE_BUSY', 409)
+        return inspection.inspect(requestId, installRequestId, input, grant)
+      }))
+    },
     async plan(input, inventory = null) {
       validateUpdateRequest('plan', input)
       return exclusive(async () => {
@@ -329,7 +348,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         checkCurrent(planned)
         requireValue(!closed && Date.parse(planned.plan.expiresAt) > now(), 'UPDATE_PLAN_EXPIRED', 409)
         const entry = { operation: { requestId: input.requestId, plan: copy(planned.plan), admission: 'accepted', phase: 'preparing', execution: 'pending', verification: 'pending', error: null, reference: input.requestId },
-          steps: planned.steps.map(step => ({ phase: 'pending', ...(step.installPlan ? {
+          steps: planned.steps.map(step => ({ phase: 'pending', applyIssued: false, ...(step.installPlan ? {
             installRequestId: randomUUID(), installIssued: false, installPhase: 'pending',
           } : {}) })), hostIssued: false }
         state.operations.push(entry)
@@ -356,7 +375,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       const pendingHost = state.operations.find(hostPending)
       if (pendingHost && !active && !closed && !fault) { try { await exclusive(async () => { await refreshHost(pendingHost); await refreshInstalls(pendingHost) }) } catch {} }
       const recent = state.operations.slice(-2).reverse()
-      const blockedHost = Boolean(pendingHost)
+      const blockedHost = Boolean(pendingHost) || busy
       if (recent[0]) inventory.operation = publicOperation(recent[0])
       if (recent[1]) inventory.previousOperation = publicOperation(recent[1])
       inventory.plans = state.plans.filter(entry => Date.parse(entry.plan.expiresAt) > now()).slice(-16).map(entry => copy(entry.plan))

@@ -16,12 +16,25 @@ function reserveRelease(updateCenter, controller, versionId) {
 }
 
 export function createControlApi(options) {
-  const { aiControl, diagnostics, models, internal, webGatewayControl, notificationsReleaseControl, updateCenter } = options
+  const { aiControl, diagnostics, models, internal, webGatewayControl, notificationsReleaseControl, updateCenter, captureInstallInspectionOwner } = options
   const usageApi = createUsageApi(options)
   return async (request, response, url) => {
     if (url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/')) {
       if (internal) return json(response, 403, { error: 'UPDATE_OWNER_REQUIRED' })
       if (!updateCenter) return json(response, 503, { error: 'UPDATE_EXECUTOR_UNAVAILABLE' })
+      const reconciliation = url.pathname.match(/^\/api\/updates\/operations\/([^/]+)\/reconciliation\/([^/]+)$/u)
+      if (reconciliation) {
+        if (url.search || request.method === 'GET' && (request.headers['transfer-encoding']
+          || Number(request.headers['content-length'] ?? 0) !== 0)) return json(response, 400, { error: 'UPDATE_RECONCILIATION_INPUT_INVALID' })
+        if (request.method === 'GET') return json(response, 200, {
+          reconciliation: await updateCenter.installReconciliation(reconciliation[1], reconciliation[2]),
+        })
+        if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+        if (!captureInstallInspectionOwner) return json(response, 503, { error: 'UPDATE_RECONCILIATION_UNAVAILABLE' })
+        return json(response, 200, { reconciliation: await updateCenter.inspectModuleInstall(
+          reconciliation[1], reconciliation[2], await readJson(request, 4096), captureInstallInspectionOwner(request),
+        ) })
+      }
       if (url.pathname === '/api/updates') {
         if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
         return json(response, 200, await updateCenter.snapshot())

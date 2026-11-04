@@ -18,6 +18,7 @@ import { createMessageViews } from './http-messages.mjs'
 import { createMessageEvents, EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS } from './http-events.mjs'
 import { createWebPushOrigin } from './web-push-origin.mjs'
 import { validateConversationAdmissionDiagnostic } from './conversation-lifetimes.mjs'
+import { captureInstallInspectionOwner } from './update-install-inspection.mjs'
 
 export { avatarVersion } from './http-assets.mjs'
 export { pageItems } from './http-messages.mjs'
@@ -40,7 +41,8 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     if (internal && !botId) throw Object.assign(new Error('BELLTEAM_SEAT_UNRESOLVED'), { code: 'BELLTEAM_SEAT_UNRESOLVED', status: 403 })
     return usageAssembly.capture(method, { kind: internal ? 'bot' : 'owner', botId })
   } : undefined
-  const controlApi = createControlApi({ captureUsageContext, aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models, webGatewayControl, notificationsReleaseControl, updateCenter, assertWebPushOrigin })
+  const controlApi = createControlApi({ captureUsageContext, aiControl, onboarding, internal, notify: event => server.notify(event), harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, diagnostics, models, webGatewayControl, notificationsReleaseControl, updateCenter, assertWebPushOrigin,
+    captureInstallInspectionOwner: request => captureInstallInspectionOwner(async () => !internal && await authorize(request) === true) })
   administration ??= new BotAdministration({ bots, rooms, transport, writeLog,
     reportError: report => diagnostics?.record(report) })
   const featureApis = [

@@ -40,7 +40,7 @@ async function fixture(t) {
   const adapters = { notifications: {
     current: () => ({ ...current }), available: () => true, canRollback: () => true,
     async prepare() { if (!installed) throw missing(); if (prepareError) throw prepareError },
-    async apply(step) { assert(installed); calls.applies++; current = { ...step.target, origin: 'release' } },
+    async apply(step) { assert(installed); assert.equal((await ledger()).operations[0].steps[0].applyIssued, true); calls.applies++; current = { ...step.target, origin: 'release' } },
   } }
   const options = { root, catalog: { select: async () => selection }, adapters, moduleHost }
   const executor = await createModuleUpdateExecutor(options)

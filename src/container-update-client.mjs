@@ -1,5 +1,6 @@
 import { createConnection } from 'node:net'
 import { lstat, readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 const socketPath = '/run/bellteam-updater/update.sock'
 const failure = (code, outcome = 'unknown', status = 503) => Object.assign(new Error(code), { code, outcome, status })
 
@@ -72,5 +73,62 @@ export function createContainerUpdateClient(path = socketPath) {
     startModuleInstall: ({ requestId, planId }) => call('start', { requestId, planId, confirmContainerRestart: false }),
     start: params => call('start', params),
     operation: requestId => call('get', { requestId }),
+    inspectModuleInstall: async params => checkedInstallReconciliation(await call('inspectModuleInstall', params)),
+    readInstallReconciliation: async params => checkedInstallReconciliation(await call('readInstallReconciliation', params)),
+    finalizeInstallReconciliation: async params => checkedInstallReconciliationFence(await call('finalizeInstallReconciliation', params)),
+    readInstallReconciliationFence: async params => checkedInstallReconciliationFence(await call('readInstallReconciliationFence', params)),
   }
+}
+
+export function installReconciliationHash(value) {
+  const canonical = item => item && typeof item === 'object'
+    ? Array.isArray(item) ? item.map(canonical) : Object.fromEntries(Object.keys(item).sort().map(key => [key, canonical(item[key])]))
+    : item
+  return createHash('sha256').update(JSON.stringify(canonical(value)) + '\n').digest('hex')
+}
+
+export function validateInstallReconciliation(value) {
+  const exact = (item, keys) => item && typeof item === 'object' && !Array.isArray(item)
+    && Object.keys(item).sort().join(',') === keys.split(',').sort().join(',')
+  const sha = item => typeof item === 'string' && /^[a-f0-9]{64}$/.test(item)
+  const uuid = item => typeof item === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(item)
+  if (!exact(value, 'receiptSha256,receipt') || !sha(value.receiptSha256)) return false
+  const r = value.receipt
+  if (!exact(r, 'schema,requestId,planId,componentId,versionId,sourceCommit,originalOperationSha256,planSha256,targetSha256,storageBindingSha256,runtimeCurrentSha256,inspectionTime,placement,quiescence,stageState,manifestSha256,recoveryState,fence,evidenceSha256,reason')) return false
+  return r.schema === 'bellteam.module-install-inspection.v1' && uuid(r.requestId) && uuid(r.planId)
+    && r.componentId === 'execution' && typeof r.sourceCommit === 'string' && /^[a-f0-9]{40}$/.test(r.sourceCommit)
+    && ['versionId','originalOperationSha256','planSha256','targetSha256','storageBindingSha256','runtimeCurrentSha256','evidenceSha256'].every(key => sha(r[key]))
+    && typeof r.inspectionTime === 'string' && r.inspectionTime.length <= 40 && Number.isFinite(Date.parse(r.inspectionTime))
+    && ['verified_present','absent','unconfirmed'].includes(r.placement) && ['confirmed','busy','unconfirmed'].includes(r.quiescence)
+    && ['clear','unconfirmed'].includes(r.stageState) && (r.manifestSha256 === null || sha(r.manifestSha256))
+    && (r.placement === 'verified_present' ? sha(r.manifestSha256) : r.manifestSha256 === null)
+    && ['not_issued','verified','unknown'].includes(r.recoveryState) && ['open','closed'].includes(r.fence)
+    && [null,'HOST_UPDATE_BUSY','HOST_MODULE_UNOWNED_STAGE','HOST_MODULE_RECOVERY_UNCONFIRMED','HOST_MODULE_INSPECTION_UNCONFIRMED'].includes(r.reason)
+    && (r.quiescence !== 'confirmed' || r.stageState === 'clear' && r.recoveryState !== 'unknown')
+    && installReconciliationHash(r) === value.receiptSha256
+}
+
+function checkedInstallReconciliation(value) {
+  if (!validateInstallReconciliation(value)) throw failure('HOST_MODULE_RECONCILIATION_INVALID')
+  return value
+}
+
+export function validateInstallReconciliationFence(value) {
+  const exact = (item, keys) => item && typeof item === 'object' && !Array.isArray(item)
+    && Object.keys(item).sort().join(',') === keys.split(',').sort().join(',')
+  const sha = item => typeof item === 'string' && /^[a-f0-9]{64}$/.test(item)
+  const uuid = item => typeof item === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(item)
+  if (!exact(value, 'fenceSha256,fence') || !sha(value.fenceSha256)
+    || !exact(value.fence, 'schema,requestId,planId,originalOperationSha256,decisionSha256,commonProofSha256,action,closedAt')) return false
+  const f = value.fence
+  return f.schema === 'bellteam.module-install-fence.v1' && uuid(f.requestId) && uuid(f.planId)
+    && ['originalOperationSha256','decisionSha256','commonProofSha256'].every(key => sha(f[key]))
+    && f.action === 'close_without_activation'
+    && typeof f.closedAt === 'string' && f.closedAt.length <= 40 && Number.isFinite(Date.parse(f.closedAt))
+    && installReconciliationHash(f) === value.fenceSha256
+}
+
+function checkedInstallReconciliationFence(value) {
+  if (!validateInstallReconciliationFence(value)) throw failure('HOST_MODULE_FENCE_INVALID')
+  return value
 }

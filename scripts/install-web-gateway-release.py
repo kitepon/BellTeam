@@ -261,6 +261,68 @@ def publish_memory_code(private_root, stage, output, manifest, version_id):
     output.chmod(0o555); sync_directory(output)
 
 
+def inspect_execution_release(private_root, expected, arch):
+    """Read the fixed release without importing payload code or repairing any file."""
+    def immutable_file(path, limit):
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            before = os.fstat(fd)
+            if (not stat.S_ISREG(before.st_mode) or before.st_uid != ROOT_UID or before.st_nlink != 1
+                    or stat.S_IMODE(before.st_mode) != 0o444 or before.st_size > limit):
+                fail('GATEWAY_RELEASE_FILE_INVALID')
+            with os.fdopen(fd, 'rb', closefd=False) as stream: raw = stream.read(limit + 1)
+            after, linked = os.fstat(fd), path.lstat()
+            identity = lambda st: (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+            if identity(before) != identity(after) or identity(after) != identity(linked) or len(raw) != before.st_size:
+                fail('GATEWAY_RELEASE_CONTENT_CHANGED')
+            return raw
+        finally:
+            os.close(fd)
+
+    for parent in [private_root, private_root / 'execution', private_root / 'execution/releases']:
+        directory(parent)
+    target = private_root / 'execution/releases' / expected['archiveSha256']
+    try: info = directory(target)
+    except FileNotFoundError: return None
+    if stat.S_IMODE(info.st_mode) != 0o555: fail('GATEWAY_RELEASE_DIRECTORY_INVALID')
+    if {path.name for path in target.iterdir()} != {'installation.json', 'manifest.json', 'payload'}:
+        fail('GATEWAY_RELEASE_INVENTORY_INVALID')
+    installation = json.loads(immutable_file(target / 'installation.json', 65536))
+    metadata = immutable_file(target / 'manifest.json', 8 * 1024 * 1024)
+    manifest_sha = hashlib.sha256(metadata).hexdigest()
+    if installation != dict(schema='bellteam.execution.installation.v1', component='execution',
+            archiveSha256=expected['archiveSha256'], manifestSha256=manifest_sha,
+            sourceCommit=expected['sourceCommit'],
+            verification=dict(method='github-oidc-attestation', repositoryId='1404510084')):
+        fail('GATEWAY_RELEASE_INSTALLATION_INVALID')
+    spec = importlib.util.spec_from_file_location('inspection_artifact_contract', Path(__file__).with_name('web_gateway_artifact.py'))
+    contract = importlib.util.module_from_spec(spec); spec.loader.exec_module(contract)
+    manifest = contract.validate_manifest(json.loads(metadata), expected['sourceCommit'], arch, component='execution')
+    expected_files = {row['path']: row for row in manifest['files']}
+    directories = {'payload'}
+    for name in expected_files:
+        directories.update(str(parent) for parent in PurePosixPath(name).parents if str(parent) != '.')
+    found = set()
+    for root, names, files in os.walk(target / 'payload', followlinks=False):
+        path = Path(root); relative = path.relative_to(target).as_posix()
+        if relative not in directories or stat.S_IMODE(directory(path).st_mode) != 0o555:
+            fail('GATEWAY_RELEASE_DIRECTORY_INVALID')
+        for name in names:
+            child = path / name
+            if child.relative_to(target).as_posix() not in directories or stat.S_IMODE(directory(child).st_mode) != 0o555:
+                fail('GATEWAY_RELEASE_DIRECTORY_INVALID')
+        for name in files:
+            child = path / name; relative = child.relative_to(target).as_posix()
+            row = expected_files.get(relative)
+            if row is None: fail('GATEWAY_RELEASE_INVENTORY_INVALID')
+            raw = immutable_file(child, row['bytes'])
+            if len(raw) != row['bytes'] or hashlib.sha256(raw).hexdigest() != row['sha256']:
+                fail('GATEWAY_RELEASE_CONTENT_CHANGED')
+            found.add(relative)
+    if found != set(expected_files): fail('GATEWAY_RELEASE_INVENTORY_INVALID')
+    return manifest_sha
+
+
 def install(private_root, incoming_root, expected, component_name='web-gateway'):
     if component_name not in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation'):
         fail('GATEWAY_INSTALL_COMPONENT')

@@ -135,6 +135,10 @@ export function createExecutionDispatcher({ generation, ports, handoff = null })
     && !transport.waking.size && !transport.executionStopping && !requests.active.size
     && !transport.workState.pending.size && !transport.runningSnapshot
     && !deferredRecovery.length && !continuation?.pending.size
+  const assertQuiescent = () => {
+    if (phase !== 'quiesced' || !idleNow()) throw failure('EXECUTION_BUSY')
+    return true
+  }
   const startProducers = () => {
     if (!observerStarted) { observer.start(); observerStarted = true }
     if (!idleStarted) { idle.start(); idleStarted = true }
@@ -238,5 +242,5 @@ export function createExecutionDispatcher({ generation, ports, handoff = null })
     throw failure('EXECUTION_REQUEST_INVALID')
   }
   return Object.freeze({ validateRequest, dispatch: request => invoke(request, 'dispatch'),
-    project: request => invoke(request, 'project'), control, exportState, disconnect: retire })
+    project: request => invoke(request, 'project'), control, exportState, disconnect: retire, assertQuiescent })
 }

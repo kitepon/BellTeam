@@ -97,6 +97,7 @@
     "src/web-push-origin.mjs",
     "src/update-module-adapters.mjs",
     "src/update-module-executor.mjs",
+    "src/update-install-inspection.mjs",
     "src/module-exchange-mutex.mjs",
     "src/diagnostics-facade.mjs",
     "src/usage-assembly.mjs",

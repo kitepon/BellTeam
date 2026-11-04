@@ -40,3 +40,44 @@ archive readerは選択した正式image内の`/app/scripts/install-web-gateway-
 実装は既HostUpdaterの署名catalog/plan/start/get/元worker台帳を使う。code_root/worker_identity/worker_aliveの内部差し替え点だけを設け、既Hostのroot code配置とsystemmanager unit本人性は同じ既定を維持する。同梱側のexpectedは実source/platform・private root dev/inoであり、workerは実PID/birth/pidnamespaceを記録する。clientは同梱sourceと自身のdistribution sourceを照合し、異なる箱のprogramを利用可能へ投影しない。公開DTOに架空CID/image IDを加えない。
 
 初回起動で公式catalogを既verifierへ渡して受入し、成功後にsocketを公開する。以後15分間隔で取得し、失敗は既refresh.jsonへ保存する。受入catalogの鮮度/失効はplan/start/workerとhealthで再確認する。healthはstale socket fileだけを成功にせず実listenへ接続する。専用serviceの失敗はinstaller非0、normalの既到達点と保存設定を保持する。正常本体が起動しただけでmodule導入可能とはしない。
+
+## 元install-IDの追補照合・明示解決
+
+Root横断契約 `same-install-id-reconciliation-contract-20261104.md`の意味で、元operationのunknownとは別にroot-owned追補receiptを持つ。commonの既Owner認証→private client→peer1001の既Unix境界だけから明示inspect/closeを受け、通常get/readは既耐久結果だけを返す。元planはID/target/storage証拠で、期限切れplanを権限にしない。親のfresh認可/decisionとclosed証拠を照合し、本番は別正式供給/製品/Root発行を要する。
+
+```mermaid
+flowchart LR
+  Common[共通Owner認可と同public-ID decision] --> Inspect[元IDと原unknown SHA / 既排他下のreadonly inspect]
+  Inspect --> Receipt[root追補receipt / content hash / 原本不変]
+  Receipt --> Read[readInstallReconciliation / 既receipt読取だけ]
+  Read --> Common
+  Common --> Fence[close_without_activation / 原作用発行不明0を検査]
+  Fence --> Store[元IDの耐久fence / 旧Start再発行不可]
+```
+
+inspectionはworker/ledger/private保守/component installer排他と元storage本人性を検査し、固定execution targetだけのroot immutable receipt/manifest/payload inventory/hashを読取る。既component直下に未所有stageがあれば削除せずunconfirmed。incoming cacheの存在を設置成功にしない。placement verified_present/absent/unconfirmed、quiescence confirmed/busy/unconfirmedを分ける。原operation/install receiptのbytes・理由・時刻を保持し、照合をcompletedへ投影しない。新口未完成の間は公開capabilityを広告しない。commonだけが別の明示consumeと公開副資源/busy解消を所有する。
+
+### inspection先行I/O v1
+
+private clientは`inspectModuleInstall({requestId,originalOperationSha256})`と`readInstallReconciliation({requestId,originalOperationSha256})`を分離し、両方とも`{receiptSha256,receipt}`を返す。read未発行は`HOST_MODULE_RECONCILIATION_NOT_FOUND`。receiptはschema=`bellteam.module-install-inspection.v1`と次の閉keyだけ：requestId/planId/componentId/versionId/sourceCommit/originalOperationSha256/planSha256/targetSha256/storageBindingSha256/runtimeCurrentSha256/inspectionTime/placement/quiescence/stageState/manifestSha256/recoveryState/fence/evidenceSha256/reason。componentは初回executionのみ。
+
+placement=`verified_present|absent|unconfirmed`、quiescence=`confirmed|busy|unconfirmed`、stageState=`clear|unconfirmed`、recoveryState=`not_issued|verified|unknown`、fence=`open|closed`。manifestSha256はverified_presentだけ64hex、他はnull。reasonはnull又は固定HOST_UPDATE_BUSY/HOST_MODULE_UNOWNED_STAGE/HOST_MODULE_RECOVERY_UNCONFIRMED/HOST_MODULE_INSPECTION_UNCONFIRMEDだけ。各SHAは小文字64hex、IDはUUIDv4、sourceは40hex。再検査は別inspectionTimeを持ち、元完了時刻にしない。
+
+hashは全階層のobject keyを辞書順へ整列し、compact JSON/UTF-8/非ASCII非escape/末尾LF一つをSHA256する。target hashは元plan.target全体、storage hashは元plan.expected.privateVolumeと実bindingの一致したobject、runtime current hashは検査時のinspect_current object。`src/container-update-client.mjs`は`validateInstallReconciliation(envelope)->boolean`と`installReconciliationHash(value)`をexportし、共通が閉validator/hashを再利用できる。これは入力DTO/hashからOwner権限を作る口ではない。
+
+初回版はinspect/readと以下のclose/fenceだけを実装し、recover/consumeは未提供。normal read/get/snapshotが検査を起動せず、原unknown/receiptを変更しない条件は全工程で維持する。
+
+
+### fresh明示close/fence I/O v1
+
+`finalizeInstallReconciliation({requestId,originalOperationSha256,decision,commonProof})`は`close_without_activation`だけを受理する。`readInstallReconciliationFence({requestId,originalOperationSha256})`は既fenceの読取だけで、未発行はNOT_FOUND。restore_placement/consume/独立回復workerは未提供・広告0。配置やengine applyを起動しない。
+
+decisionは`{decisionSha256,decision}`、本体は閉key `schema,publicRequestId,publicPlanId,requestId,planId,originalOperationSha256,publicOperationSha256,inspectionSha256,targetSha256,storageBindingSha256,runtimeCurrentSha256,currentSha256,catalogSha256,action,issuedAt,expiresAt,ownerGrantRef`。schema=`bellteam.module-install-decision.v1`。commonProofは`{proofSha256,proof}`、本体は閉key `schema,publicRequestId,publicPlanId,requestId,planId,originalOperationSha256,publicOperationSha256,decisionSha256,currentSha256,applyState,applyClaimSha256,resultSha256,claimedAt,verifiedAt,ownerGrantRef`、schema=`bellteam.module-install-common-proof.v1`。ID/hash/canonical規則はinspectionと同じ。applyState=not_issued、applyClaimSha256/resultSha256=nullだけ許す。
+
+共通の既Owner fresh認可・私有grant・原apply未発行/同ID close claim/current検証を、信頼済peer1001の同source私有clientから受ける。runtimeは公開body/hashから権限を作らない。受付から最大600秒、原target/storage/runtime current/inspection/現有効catalogと元IDへ束縛し、最終排他内でも期限/本人性を再確認する。旧targetが現catalogに無くてもcloseは復活配置をしないため検証済現catalog自体を要求し、旧targetの許可を捏造しない。
+
+worker/ledger/private保守/component installerの排他内で、実元worker終端・未所有stage無し・回復claim無し・現在配置absent又は固定inventory検証済みを再確認する。元workerのPID namespaceが現在と違う/本人情報不足/proc読取不能ならunconfirmedで拒否し、process世代変更を終端証拠にしない。元workerと同namespaceで元PID出生が既に存在しない場合だけ実終端の候補とする。全body/current/旧native・writerの終端は共通担当のproof側でも別に要求される。
+
+成功時は元operationと別のroot-owned一回fenceをO_EXCL/file fsync/directory fsyncで保存する。閉返値は`{fenceSha256,fence}`、fence本体は`schema,requestId,planId,originalOperationSha256,decisionSha256,commonProofSha256,action,closedAt`、schema=`bellteam.module-install-fence.v1`/action=close_without_activation。`validateInstallReconciliationFence`を共通へexportする。応答不明/再起動後は同ID readだけで、別decisionでも再発行しない。
+
+共通HostUpdaterにoperation_pendingという内部判定点を設け、既Host/本体serviceの挙動は従来どおり、同梱moduleだけ検証済同ID fenceをbusy集計から除外する。原unknown/get/台帳pointerは保持し、別要求/in-flightのbusyは保持する。同IDのstartは既原本を返すだけで、旧workerやwork(entry)を再発行しない。共通公開busy解除は有効fence＋共通終端記録の両方を要求する。runtimeだけのfenceを公開成功にしない。

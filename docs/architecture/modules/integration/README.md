@@ -716,3 +716,35 @@ flowchart LR
 `GET /api/diagnostics/conversation-admission`は同実親graphに保持するadmissionだけを読み、認証前・内部席・POSTを拒否する。query/body400、provider欠落/不正DTO503。正常時は`{admission: bellteam.conversation-admission.v1}`を返し、executionの`validateConversationAdmissionDiagnostic`を再利用する。members refreshやadmission.enterを通さず、閉じた状態でも読める。close/quiesce/cleanup/finish・新writer・制御変更は0。opaque generationを公開せず、writerRevisionは同親の局所値として扱い、別親の同値へ補完しない。
 
 `application-runtime`が既serverOptionsへ渡す同conversationAssemblyを使うため、別admissionの生成・別module読取・席からの対象指定を受け付けない。gatewayは既認証先へそのまま中継する。有限scriptは同originの読取時刻と標準Dockerの親世代を一緒に保存し、再作成をまたぐ値を同世代としない。この診断は実quiescence/同IDclose proofの代用ではない。実writer終端consoleは[runtime正本](../runtime/module-process.md#t終了report後の段階診断)、15keyの意味は[execution正本](../execution/conversation-lifetimes.md)を参照する。
+## 同install-IDのinspectionと明示close入口
+
+```mermaid
+flowchart LR
+  Owner[既Owner認証 / 明示POST] --> Grant[元requestのfresh認可 / 私有grant]
+  Grant --> Inspect[共通executor / 元publicとinstall ID照合]
+  Inspect --> Runtime[同moduleHost.inspectModuleInstall]
+  Runtime --> Validate[既runtime閉validator / 元targetとunknown hash束縛]
+  Validate --> Ledger[private step.installReconciliationへfsync]
+  Read[Owner GET副資源] --> Ledger
+```
+
+`GET /api/updates/operations/:requestId/reconciliation/:installRequestId`は共通ledgerの保存結果だけを返し、backend readやinspectionを発行しない。同URIの明示POSTは閉`{action:"inspect",originalOperationSha256}`だけを受ける。既Owner認証と同requestのfresh認可を通した私有grantが必要で、内部席/bodyのactorやgrant JSONでは発行できない。runtimeのinspection先行I/O v1と同validator/hashを使い、元UUID/plan/component/source/target/original unknown SHAへ束縛する。公開副資源は元phaseと閉inspection概要だけ、private target/storage/path/証明本文は出さない。
+
+元operation DTO・installPhaseを変更せず、inspectionでbusyを解除しない。保存復元でも全receiptを同元stepとpublic operation hashへ束縛し、改竄を拒否する。初回はinspectionと以下のcloseだけで、recover/consumeは未提供。横断の意味はRootの同install-ID契約、runtimeの配置/排他/receiptは[module-installer](../runtime/module-installer.md)が所有する。
+
+初回close接続は同POSTの閉`{action:"close_without_activation",originalOperationSha256,inspectionSha256}`を使う。親のprivate grant再検査、元install unknownによるapply未到達の証明、現current/capture/availableと正式catalog、execution所有の実native/writer終端証明が必要。証明provider未供給ならcloseを拒否する。親再作成やavailableだけを終端証明にしない。
+
+```mermaid
+flowchart LR
+  Owner[既Owner認証とfresh再認可] --> Proof[元ID/原apply未発行/現世代/実終端]
+  Proof --> Claim[同IDのclose decision/commonProofをfsync]
+  Claim --> Fence[runtime finalize一回 / 耐久fence]
+  Fence --> Complete[親のfenceと共通終端をfsync]
+  Complete --> Busy[同元IDだけbusyから除外]
+  Unknown[claim後の応答不明] --> Read[同POSTは同ID readFenceだけ]
+  Read --> Complete
+```
+
+一回claim後はdecisionを作り直さず、再POSTも同ID readFenceだけ。GETは親の保存済み射影だけでruntime読取も発行しない。fenceと共通終端の両方を閉validatorで元ID・decision/proof・public原本hashへ照合する。保存失敗・不明はbusyを保持し、復元後も新しいclaim/finalizeを発行しない。別要求のbusy、元operation/unknown、旧Startの冪等応答、通常guardを維持する。restore/consume/回復workerは未提供で初回範囲外。
+
+親は同application-servicesが保持する共有exchangeMutexを外側で一回だけ取り、実execution.controller→実conversation.controllerのwithInstallReconciliationProofを固定順で呼ぶ。両assertは同期関数のままcallback前後・claim前・runtime発行前後で再検査する。各providerはlocal排他だけを使い、共有mutex再入や利用者bypass引数を持たない。proof中の実available=falseもcurrent/captureと同hashに保存し、通常plan/applyのavailable guardは保持する。新しいapplyはapplyIssuedを先にfsyncし、旧installPhase=unknownは既completed-install耐久barrierの手前なのでapply未到達の限定証拠とする。親close/期限切れ/認可失効後は新発行しない。保存中は公開read/更新能力をbusyとし、fsync前の閉鎖を表示しない。

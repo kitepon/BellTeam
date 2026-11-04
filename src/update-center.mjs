@@ -90,6 +90,14 @@ export function createUpdateCenter({ gateway = () => null, builtinSourceCommit =
     plan(input) { validateUpdateRequest('plan', input); if (moduleExecutor) return Promise.resolve(this.snapshot()).then(value => moduleExecutor.plan(input, value)); if (host && (!input.action || input.action === 'update')) return host.plan(input); throw unavailable() },
     start(input) { validateUpdateRequest('operation', input); if ((moduleExecutor?.hasPlan(input.planId) || moduleExecutor?.hasOperation(input.requestId))) return moduleExecutor.start(input); if (host) return host.start(input).finally(() => events.emit('change')); throw unavailable() },
     operation(requestId) { validateUpdateRequest('requestId', requestId); if (moduleExecutor?.hasOperation(requestId)) return moduleExecutor.operation(requestId); if (host) return host.operation(requestId); throw unavailable() },
+    installReconciliation(requestId, installRequestId) {
+      if (!moduleExecutor) throw unavailable()
+      return moduleExecutor.installReconciliation(requestId, installRequestId)
+    },
+    inspectModuleInstall(requestId, installRequestId, input, grant) {
+      if (!moduleExecutor) throw unavailable()
+      return moduleExecutor.inspectModuleInstall(requestId, installRequestId, input, grant)
+    },
   }
   return center
 }
