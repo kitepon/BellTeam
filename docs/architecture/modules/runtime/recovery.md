@@ -44,6 +44,8 @@ flowchart TD
 
 追加設定はCompose標準の`compose.override.yaml`または`COMPOSE_FILE`で指定する。env・mount・port・運用設定・追加serviceはComposeが解決し、利用者の入力fileをinstallerが上書きしない。image抽出は`bellteam`だけを対象にし、追加serviceのimageを保守/Cursorへ渡さない。解決済normalには通常service群を保持し、追加設定をroot専用module serviceへ転送しない。data/homeの同親配置、private state・Cursor・AI stateの所有とwriter検査は既契約を維持する。管理済みprofileは明示RO mountの信頼資材であり、要求body/envだけでdeveloper許可を生成しない。保存normalは秘密を含み得るためprivateに保持する。
 
+通常の本体更新は実行中AI/PTY/親メモリを停止して新実行世代を作る。会話・設定・予定・台帳session・署名adoptionとdata/home/Cursor/Throughlineを同保存先で引き継ぎ、旧AI原volumeと旧normalは削除・上書き・cleanup回収しない。通常resetの新AI volumeを同nativeの復元成功とは扱わない。元accepted/unknownや未保存ACKの結果を新親から補完せず、旧本文/applyを再送しない。必要な保存復元を明示要求する既H1とは分ける。
+
 起動の`compose up --wait`は最大300秒で打ち切る。healthcheckの起動猶予120秒と、その後の判定を待つ有限上限であり、起動時間の保証ではない。unhealthy・container終了・期限超過の非0はそのまま返し、保存世代を保持する。通常更新とrecoverに共通で、後発healthyによって元installerの失敗を成功へ書き換えない。
 
 ## 状態移行の三つの責任
