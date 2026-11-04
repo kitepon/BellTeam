@@ -97,6 +97,7 @@ export function createNotifications({ root, bots, diagnostics, configuration, pr
     configureWebPush: value => request('configure', { ...value, provider: 'webPush' }),
     webRegister: (value, origin) => request('register', { ...value, origin, provider: 'webPush' }),
     webUnregister: (value, origin) => request('unregister', { ...value, origin, provider: 'webPush' }),
+    update: callback(item => ({ type: 'update', id: item.id })),
     direct: callback(record => record?.schema === 'bellteam.direct-message.v1' && record.target === 'user' && !['user', 'scheduler'].includes(record.from)
       ? { type: 'direct', id: record.delivery_id, botId: record.from, senderName: senderName(record.from) } : null),
     room: callback(record => !['user', 'scheduler'].includes(record.sender.id)

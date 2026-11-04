@@ -428,15 +428,16 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     if (previous.length) try { saveRequests(pending) } catch { storageFailure = '保持した要求の結果を保存できません。新しい更新は開始できません。' }
     loading = false; render()
   }
-  for (const button of buttons) button.addEventListener('click', () => {
+  function open(button = buttons.find(item => item.getClientRects().length && window.getComputedStyle(item).visibility === 'visible') ?? buttons[0]) {
     if (disposed) return
     opener = button; opened = true; confirmed = false
     if (!root.open) root.showModal()
-    void refresh()
-  })
+    return refresh()
+  }
+  for (const button of buttons) button.addEventListener('click', () => { void open(button) })
   refreshButton.addEventListener('click', () => { if (!loading) void refresh() })
   get('[data-update-close]').addEventListener('click', () => root.close())
   root.addEventListener('close', () => { confirmed = false; opener?.focus() })
   render()
-  return { start() { opened = true; return refresh() }, refresh, close() { disposed = true; generation++; planGeneration++ } }
+  return { start() { opened = true; return refresh() }, open, refresh, close() { disposed = true; generation++; planGeneration++ } }
 }

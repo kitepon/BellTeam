@@ -189,6 +189,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     onNotice: message => { notificationNotice.hidden = !message; notificationNotice.querySelector('[data-notification-notice]').textContent = message },
     onRoute: async route => {
       if (document.querySelector('dialog[open]')) throw Error('EDITOR_OPEN')
+      if (route.kind === 'update') { await updateCenter.open(); return }
       const type = route.roomId ? 'room' : 'bot', id = route.roomId ?? route.botId
       const response = await api(`/api/${type === 'room' ? 'rooms' : 'bots'}/${encodeURIComponent(id)}`)
       const observed = response[type]

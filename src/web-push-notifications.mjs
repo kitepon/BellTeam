@@ -21,6 +21,11 @@ function validateKeys(value) {
 }
 
 export function webPushPayload(event) {
+  if (event.type === 'update') {
+    if (typeof event.id !== 'string' || !/^[a-f0-9]{64}$/u.test(event.id)) throw webPushError('WEB_PUSH_PAYLOAD_INVALID')
+    return { schema: 'bellteam.web-push.v1', kind: 'update', messageId: event.id,
+      title: 'BellTeam', body: '更新があります。Updateで確認してください。' }
+  }
   const id = value => typeof value === 'string' && Boolean(value) && Buffer.byteLength(value) <= 200
     && !/\p{Cc}/u.test(value)
   if (!['direct', 'room', 'secret', 'question'].includes(event.type) || !id(event.id) || !id(event.botId)
