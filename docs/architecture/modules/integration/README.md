@@ -584,6 +584,15 @@ Owner GET /api/queueはexecutionの同期queueItems投影だけを使い、不�
 
 ### usage段階組立の親接点
 
+```mermaid
+flowchart LR
+ParentProfile[親自身のdistribution-profile / 固定developerAccessAllowed bool] --> Assembly[usage-assembly]
+Assembly --> Bootstrap[developerのみsubscription.developerAccessAllowed / private bootstrap]
+Bootstrap --> Usage[usage閉dispatcher / service factory / Subscriptions]
+```
+
+developerモードでは親の配布profileが持つ固定boolを初回・交換後のsubscription bootstrapへ渡す。envやHTTP入力を許可根拠にせず、public親のdeveloper指定は親自身のprofileで拒否する。通常subscriptionは旧archiveとの交換・戻しを保つため従来の2fieldだけを渡す。usage側の閉field検証・constructorへの内部受渡しと同じ版で採用し、未指定の既callerは各moduleの既profileを使う。業務側の認可契約は[usage単体更新](../usage/usage-process.md)を正本とする。
+
 `usage-assembly.mjs`は同controller・private ACK投影・method限定親authorityを一組だけ生成する。settings seed→subscriptions seed→既graph構築→services snapshot/activateの順で初回を結ぶ。親の認証済みHTTP/席入口だけがactorをcaptureし、bodyのbotIdは権限へ転用しない。呼出元のPromise期限後も実completionまでauthorityとleaseを保持する。設定applyのsystem callbackはAsyncLocalStorage内の元usageLease/usageEffectを同identityで渡し、別rootへ作り直さない。
 
 通常bootstrapはこのcontrollerから設定seedを先に受け、subscriptions→members等の既graph→services snapshot/activateの順で起動する。通常経路では旧6serviceを別生成せず、明示factory未注入のfixtureだけ旧経路を残す。Owner HTTPは既authorize後、席HTTPは既名札をfresh解決した後にmethod限定actorをcaptureし、bodyのbotIdを権限にしない。秘密/質問GETはfresh readをawaitし、settings更新と各書込へ同contextを渡す。MCPから既内部HTTPへは捕捉済みseat名札を引渡す。

@@ -10,7 +10,9 @@ const keys = (value, required, optional = []) => object(value) && required.every
 const environmentKeys = ['TYPESAFE_API_KEY', 'BELLTEAM_CALL_BRIDGE_MCP_URL', 'BELLTEAM_CF_TEAM_DOMAIN', 'BELLTEAM_CF_AUD', 'BELLTEAM_BUGHUB_KEY']
 const bootstrapValid = value => keys(value, ['environment', 'seatRuntime', 'subscription']) && keys(value.environment, [], environmentKeys)
   && Object.values(value.environment).every(value => typeof value === 'string') && typeof value.seatRuntime === 'boolean'
-  && keys(value.subscription, [], ['environment', 'accessMode']) && Object.values(value.subscription).every(value => typeof value === 'string')
+  && keys(value.subscription, [], ['environment', 'accessMode', 'developerAccessAllowed'])
+  && ['environment', 'accessMode'].every(key => !Object.hasOwn(value.subscription, key) || typeof value.subscription[key] === 'string')
+  && (!Object.hasOwn(value.subscription, 'developerAccessAllowed') || typeof value.subscription.developerAccessAllowed === 'boolean')
 
 const businessStatuses = { SECRET_REQUEST_NOT_FOUND: 404, SECRET_REQUEST_CLOSED: 409, SECRET_REQUEST_INVALID: 400,
   SECRET_VALUE_INVALID: 400, SECRET_ROOM_INVALID: 400, BOT_NOT_FOUND: 404, OWNER_QUESTION_NOT_FOUND: 404,
