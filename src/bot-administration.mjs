@@ -2,6 +2,7 @@ import { configurationRequestFailure } from './configuration-request.mjs'
 import { stopFailureReport } from './stop-failure-report.mjs'
 import { startMemberRemoval } from './members/deletion.mjs'
 import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
+import { automaticConfigurationApplication, automaticConfigurationView, validConfigurationOperationId, configurationOperationError } from './automatic-configuration-application.mjs'
 
 // Botの設定変更・停止・削除の業務判断。HTTP APIと、HTTP経由で届く席MCPのupdate_self/update_bot/delete_botが
 // 同じ判断を使う。応答の形と状態コードはHTTPが持ち、ここは保存と稼働中の席への反映の順序を決める。
@@ -15,13 +16,29 @@ export class BotAdministration {
     this.reportError = reportError
     this.trackCompletion = trackCompletion
     this.applications = new Map()
+    this.automaticConfigurationOperations = new Map()
   }
 
   view(bot) {
     const application = this.applications.get(bot.id)
     const request = this.transport.configurationRequests?.view(bot.id)
+    const automatic = automaticConfigurationView(this.automaticConfigurationOperations, bot.id)
     return { ...bot, ...(application ? { configurationApplication: structuredClone(application) } : {}),
-      ...(request ? { configurationRequest: request } : {}) }
+      ...(request ? { configurationRequest: request } : {}),
+      ...(automatic ? { automaticConfigurationApplication: automatic } : {}) }
+  }
+
+  readConfigurationOperation(botId, requestId) {
+    if (!this.bots.get(botId)) throw configurationOperationError('BOT_NOT_FOUND', 404)
+    if (!validConfigurationOperationId(requestId)) throw configurationOperationError('CONFIGURATION_OPERATION_ID_INVALID', 400)
+    try {
+      const record = this.automaticConfigurationOperations.get(botId)?.records.get(requestId)
+      if (!record) throw configurationOperationError('CONFIGURATION_OPERATION_NOT_RECORDED', 404)
+      return automaticConfigurationApplication(record, requestId)
+    } catch (error) {
+      if (error?.code === 'CONFIGURATION_OPERATION_NOT_RECORDED') throw error
+      throw configurationOperationError('CONFIGURATION_OPERATION_READ_UNAVAILABLE', 503)
+    }
   }
 
   // 保存は先に返し、稼働中Botへの適用は現在の作業の後に並ぶ。
@@ -118,7 +135,12 @@ export class BotAdministration {
     } catch (error) {
       try { this.writeLog(`BellTeam stop failure: ${JSON.stringify(stopFailureReport(bot.id, error))}\n`) }
       catch { /* Reporting must not change the stop response or retry it. */ }
-      throw Object.assign(new Error('BOT_STOP_UNCONFIRMED', { cause: error }), { code: 'BOT_STOP_UNCONFIRMED' })
+      const failure = Object.assign(new Error('BOT_STOP_UNCONFIRMED', { cause: error }), { code: 'BOT_STOP_UNCONFIRMED' })
+      try {
+        const automatic = automaticConfigurationView(this.automaticConfigurationOperations, bot.id)
+        if (automatic) failure.automaticConfigurationApplication = automatic
+      } catch { /* Projection failure must not replace the original stop failure. */ }
+      throw failure
     }
   }
 
@@ -133,6 +155,7 @@ export class BotAdministration {
 
   remove(botId) {
     return startMemberRemoval(botId, { bots: this.bots, rooms: this.rooms, transport: this.transport,
-      writeLog: this.writeLog, trackCompletion: this.trackCompletion, onRemoved: id => this.applications.delete(id), moduleOperations: this.moduleOperations })
+      writeLog: this.writeLog, trackCompletion: this.trackCompletion,
+      onRemoved: id => { this.applications.delete(id); this.automaticConfigurationOperations.delete(id) }, moduleOperations: this.moduleOperations })
   }
 }

@@ -15,7 +15,7 @@ const asyncMethods = {
     'reconcileConfiguration', 'stop', 'interrupt', 'interruptMany', 'reconcileLaunch', 'closeLaunch',
     'observe', 'goalTargets', 'closeIdle', 'stopForConfiguration', 'turn', 'setupTest', 'notify', 'notifyReport',
     'idle', 'restartIfIdle', 'updateWorkSummary', 'seatTurns', 'watchSeatTurns'],
-  administration: ['update', 'reconcile', 'stop', 'restart', 'remove'],
+  administration: ['update', 'reconcile', 'readConfigurationOperation', 'stop', 'restart', 'remove'],
   goals: ['list', 'inspect', 'mutate'],
 }
 const syncMethods = {
@@ -170,7 +170,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null })
       sessions: state.sessions, stopVersions: state.stopVersions, stopSessions: state.stopSessions,
       uncertainty: new Map(state.uncertainChanges), uncertaintyVersions: state.uncertainChanges.versions,
       requests: { pending: requests.pending, latest: requests.latest, rejectedPreparations: requests.rejectedPreparations },
-      applications: administration.applications, work: { records: transport.workState.records, seq: transport.workState.seq },
+      applications: administration.applications, automaticConfigurationOperations: administration.automaticConfigurationOperations,
+      work: { records: transport.workState.records, seq: transport.workState.seq },
       followedTurns: transport.followedTurns, retainedImages: transport.retainedImages,
       idleSeen: idle.seen, continuationStates: continuation?.states ?? new Map(),
     })
@@ -185,6 +186,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null })
     transport.uncertainChanges.versions = m.uncertaintyVersions
     Object.assign(requests, m.requests, { restoring: Promise.resolve() })
     administration.applications = m.applications
+    administration.automaticConfigurationOperations = m.automaticConfigurationOperations ?? new Map()
     transport.workState.records = m.work.records; transport.workState.seq = m.work.seq
     for (const entry of m.followedTurns) transport.followedTurns.set(...entry)
     transport.retainedImages = m.retainedImages

@@ -57,6 +57,7 @@
     "src/seat-turns.mjs",
     "src/idle-sessions.mjs",
     "src/bot-administration.mjs",
+    "src/automatic-configuration-application.mjs",
     "src/conversation-lifetimes.mjs",
     "src/conversation-execution-effects.mjs"
   ]
