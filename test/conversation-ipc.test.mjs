@@ -14,6 +14,9 @@ import { createConversationPeer } from '../src/conversation-channel.mjs'
 import { createConversationParentEffects } from '../src/conversation-parent-effects.mjs'
 import { validateConversationPageRows, validateConversationRecentRows } from '../src/conversation/results.mjs'
 import { createConversationFacade } from '../src/conversation-facade.mjs'
+import { createMessageViews } from '../src/http-messages.mjs'
+import { createBotConversationApi } from '../src/http-conversation-api.mjs'
+import { TimelineIndex } from '../src/timeline-index.mjs'
 
 function pair() {
   const endpoints = [new EventEmitter(), new EventEmitter()]
@@ -456,5 +459,30 @@ test('fork IPC streams selected page and ordered recent batch; actual completion
   const batch = []
   await h.request('history.recentBatch', { botIds: [botId, botId] }, { kind: 'owner' }, { onChunk: async chunk => { batch.push(chunk) } })
   assert.deepEqual(validateConversationRecentRows(JSON.parse(Buffer.concat(batch).toString('utf8')), [botId, botId]).map(row => [row.botId, row.message.message]), [[botId, 'body-39'], [botId, 'body-39']])
+  h.admission.finish(h.lease)
+})
+
+test('parent HTTP page joins captured usage cards through real fork IPC and leaves full history intact', { timeout: 10000 }, async t => {
+  const h = await setup(t, { forked: true }), botId = h.fixture.bots[0].id, methods = []
+  const records = Array.from({ length: 40 }, (_, n) => ({ schema: 'bellteam.direct-message.v1', delivery_id: `parent-row-${n}`,
+    from: botId, target: 'user', message: `body-${n}`, at: `2026-11-04T00:00:${String(n).padStart(2, '0')}Z`, delivery: 'delivered' }))
+  await writeFile(join(h.root, 'logs/direct-messages.jsonl'), records.map(row => JSON.stringify(row)).join('\n') + '\n')
+  const f = createConversationFacade({ context: () => ({}), getController: () => ({ request(method, params, options) {
+    methods.push(method); return h.request(method, params, { kind: 'owner' }, options)
+  } }) })
+  const secret = { id: 'secret-parent', at: '2026-11-04T00:00:40Z', kind: 'secret_request', message: 'parent-only body',
+    secret_request: { id: 'secret-parent', botId } }
+  const question = { id: 'question-parent', at: '2026-11-04T00:00:41Z', kind: 'owner_question', message: 'parent-only question' }
+  const views = createMessageViews({ store: f.store, secretRequests: { timelineView: () => new TimelineIndex([secret]) },
+    ownerQuestions: { timelineView: () => new TimelineIndex([question]) }, ownerSecretGuide: async () => ({ url: 'https://example.test/guide' }) })
+  const api = createBotConversationApi({ bots: new Map([[botId, h.fixture.bots[0]]]), messagePage: views.messagePage })
+  const response = { writeHead(status) { this.status = status }, end(body) { this.body = JSON.parse(body) } }
+  await api({ method: 'GET' }, response, new URL(`http://fixture/api/bots/${botId}/messages?limit=3`))
+  assert.equal(response.status, 200); assert.deepEqual(response.body.items.map(row => row.message), ['body-39', secret.message, question.message])
+  assert.equal(response.body.remaining_before, 39); assert.equal(response.body.has_more, true)
+  assert.equal(response.body.items[1].secret_request.ownerGuide.url, 'https://example.test/guide')
+  assert.deepEqual(methods, ['history.page'])
+  const recent = await f.store.recentViews([botId, botId]); assert.equal(recent.get(botId).at(-1).message, 'body-39')
+  assert.equal((await f.store.timelineView(botId)).length, 40)
   h.admission.finish(h.lease)
 })

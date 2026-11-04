@@ -13,7 +13,7 @@ export function createMemberProfileApi({ bots, transport, administration, memory
       const deleting = bot => bot.deleting || listingState(bot.id) === 'pending'
       const [running, views] = await Promise.all([
         transport.runningBots(all.filter(bot => !deleting(bot) && listingState(bot.id) === 'active')),
-        store.timelineViews?.(all.map(bot => bot.id)),
+        store.recentViews ? store.recentViews(all.map(bot => bot.id)) : store.timelineViews?.(all.map(bot => bot.id)),
       ])
       const list = await Promise.all(all.map(async bot => {
         const last = recentTimeline(await sources('bots', bot.id, views?.get(bot.id)))
