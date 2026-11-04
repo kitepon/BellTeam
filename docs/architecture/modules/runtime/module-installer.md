@@ -40,3 +40,31 @@ archive readerは選択した正式image内の`/app/scripts/install-web-gateway-
 実装は既HostUpdaterの署名catalog/plan/start/get/元worker台帳を使う。code_root/worker_identity/worker_aliveの内部差し替え点だけを設け、既Hostのroot code配置とsystemmanager unit本人性は同じ既定を維持する。同梱側のexpectedは実source/platform・private root dev/inoであり、workerは実PID/birth/pidnamespaceを記録する。clientは同梱sourceと自身のdistribution sourceを照合し、異なる箱のprogramを利用可能へ投影しない。公開DTOに架空CID/image IDを加えない。
 
 初回起動で公式catalogを既verifierへ渡して受入し、成功後にsocketを公開する。以後15分間隔で取得し、失敗は既refresh.jsonへ保存する。受入catalogの鮮度/失効はplan/start/workerとhealthで再確認する。healthはstale socket fileだけを成功にせず実listenへ接続する。専用serviceの失敗はinstaller非0、normalの既到達点と保存設定を保持する。正常本体が起動しただけでmodule導入可能とはしない。
+
+## 元install-IDの追補照合・明示解決
+
+Root横断契約 `same-install-id-reconciliation-contract-20261104.md`の意味で、元operationのunknownとは別にroot-owned追補receiptを持つ。commonの既Owner認証→private client→peer1001の既Unix境界だけから明示inspect/recover/closeを受け、通常get/readは既耐久結果だけを返す。元planはID/target/storage証拠で、期限切れplanを権限にしない。親のfresh認可/decisionとclosed証拠を照合し、本番は別正式供給/製品/Root発行を要する。
+
+```mermaid
+flowchart LR
+  Common[共通Owner認可と同public-ID decision] --> Inspect[元IDと原unknown SHA / 既排他下のreadonly inspect]
+  Inspect --> Receipt[root追補receipt / content hash / 原本不変]
+  Receipt --> Read[readInstallReconciliation / 既receipt読取だけ]
+  Read --> Common
+  Common --> Restore[元install-ID一回claim / 元targetだけ配置]
+  Restore --> Receipt
+  Common --> Fence[close_without_activation / 原作用発行不明0を検査]
+  Fence --> Store[元IDの耐久fence / 旧Start再発行不可]
+```
+
+inspectionはworker/ledger/private保守/component installer排他と元storage本人性を検査し、固定execution targetだけのroot immutable receipt/manifest/payload inventory/hashを読取る。既component直下に未所有stageがあれば削除せずunconfirmed。incoming cacheの存在を設置成功にしない。placement verified_present/absent/unconfirmed、quiescence confirmed/busy/unconfirmedを分ける。原operation/install receiptのbytes・理由・時刻を保持し、照合をcompletedへ投影しない。新口未完成の間は公開capabilityを広告しない。commonだけが別の明示consumeと公開副資源/busy解消を所有する。
+
+### inspection先行I/O v1
+
+private clientは`inspectModuleInstall({requestId,originalOperationSha256})`と`readInstallReconciliation({requestId,originalOperationSha256})`を分離し、両方とも`{receiptSha256,receipt}`を返す。read未発行は`HOST_MODULE_RECONCILIATION_NOT_FOUND`。receiptはschema=`bellteam.module-install-inspection.v1`と次の閉keyだけ：requestId/planId/componentId/versionId/sourceCommit/originalOperationSha256/planSha256/targetSha256/storageBindingSha256/runtimeCurrentSha256/inspectionTime/placement/quiescence/stageState/manifestSha256/recoveryState/fence/evidenceSha256/reason。componentは初回executionのみ。
+
+placement=`verified_present|absent|unconfirmed`、quiescence=`confirmed|busy|unconfirmed`、stageState=`clear|unconfirmed`、recoveryState=`not_issued|verified|unknown`、fence=`open|closed`。manifestSha256はverified_presentだけ64hex、他はnull。reasonはnull又は固定HOST_UPDATE_BUSY/HOST_MODULE_UNOWNED_STAGE/HOST_MODULE_RECOVERY_UNCONFIRMED/HOST_MODULE_INSPECTION_UNCONFIRMEDだけ。各SHAは小文字64hex、IDはUUIDv4、sourceは40hex。再検査は別inspectionTimeを持ち、元完了時刻にしない。
+
+hashは全階層のobject keyを辞書順へ整列し、compact JSON/UTF-8/非ASCII非escape/末尾LF一つをSHA256する。target hashは元plan.target全体、storage hashは元plan.expected.privateVolumeと実bindingの一致したobject、runtime current hashは検査時のinspect_current object。`src/container-update-client.mjs`は`validateInstallReconciliation(envelope)->boolean`と`installReconciliationHash(value)`をexportし、共通が閉validator/hashを再利用できる。これは入力DTO/hashからOwner権限を作る口ではない。
+
+先行版ではinspect/readだけを実装し、recover/close/consumeや公開capabilityはまだ広告しない。normal read/get/snapshotが検査を起動せず、原unknown/receiptを変更しない条件は全工程で維持する。

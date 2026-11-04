@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Bundled module installer: no Host setup, Docker socket or container restart."""
+import contextlib
+import fcntl
+import hashlib
 import importlib.util
+import json
 import os
 from pathlib import Path
 import platform
@@ -24,6 +28,44 @@ host = load_module('bundled_host_protocol', 'container-update-host.py')
 PREFIX = Path('/srv/bellteam-module-updater')
 PRIVATE = Path('/srv/bellteam-private')
 SOCKET = Path('/run/bellteam-updater')
+
+
+def reconciliation_bytes(value):
+    return (json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':')) + '\n').encode()
+
+
+def reconciliation_hash(value):
+    return hashlib.sha256(reconciliation_bytes(value)).hexdigest()
+
+
+def reconciliation_json(path, uid):
+    host.trusted(path, uid)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        before = os.fstat(fd)
+        host.check(before.st_size <= host.LIMIT, 'HOST_MODULE_RECONCILIATION_LIMIT')
+        with os.fdopen(fd, 'rb', closefd=False) as stream: raw = stream.read(host.LIMIT + 1)
+        after, linked = os.fstat(fd), path.lstat()
+        identity = lambda info: (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+        host.check(identity(before) == identity(after) == identity(linked) and len(raw) == before.st_size,
+                   'HOST_MODULE_RECONCILIATION_CHANGED')
+        return host.decode(raw), hashlib.sha256(raw).hexdigest()
+    finally:
+        os.close(fd)
+
+
+@contextlib.contextmanager
+def reconciliation_lock(path, uid, shared=False):
+    info = host.trusted(path, uid, directory=shared)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        actual = os.fstat(fd)
+        host.check((info.st_dev, info.st_ino) == (actual.st_dev, actual.st_ino), 'HOST_MODULE_STORAGE_BINDING')
+        try: fcntl.flock(fd, (fcntl.LOCK_SH if shared else fcntl.LOCK_EX) | fcntl.LOCK_NB)
+        except BlockingIOError: raise host.Failure('HOST_UPDATE_BUSY', 409)
+        yield
+    finally:
+        os.close(fd)
 
 
 class ModuleUpdater(host.HostUpdater):
@@ -73,9 +115,110 @@ class ModuleUpdater(host.HostUpdater):
         return value
 
     def dispatch(self, frame):
+        if isinstance(frame, dict) and frame.get('operation') in {'inspectModuleInstall', 'readInstallReconciliation'}:
+            host.check(host.exact(frame, 'operation,params'))
+            method = self.inspect_module_install if frame['operation'] == 'inspectModuleInstall' else self.read_install_reconciliation
+            return method(frame['params'])
         if isinstance(frame, dict) and frame.get('operation') == 'catalog' and frame.get('params') == {'componentId': 'container'}:
             raise host.Failure('HOST_CONTAINER_UPDATE_UNSUPPORTED', 400)
         return super().dispatch(frame)
+
+    def reconciliation_origin(self, params):
+        host.check(host.exact(params, 'requestId,originalOperationSha256'))
+        identifier, original = host.request_id(params['requestId']), host.digest(params['originalOperationSha256'])
+        directory = self.state / 'operations' / identifier
+        value, observed = reconciliation_json(directory / 'operation.json', self.uid)
+        host.check(observed == original, 'HOST_MODULE_ORIGINAL_CHANGED', 409)
+        host.check(value['requestId'] == identifier and value['admission'] == 'accepted' and value['phase'] == 'unknown',
+                   'HOST_MODULE_RECONCILIATION_STATE', 409)
+        plan, plan_sha = reconciliation_json(self.state / 'plans' / (host.request_id(value['planId']) + '.json'), self.uid)
+        host.check(plan['planId'] == value['planId'] and plan['target'] == value['target']
+                   and plan['target']['componentId'] == 'execution', 'HOST_MODULE_RECONCILIATION_TARGET', 409)
+        target = plan['target']
+        installer = load_module('inspection_fixed_installer', 'install-web-gateway-release.py')
+        installer.expectation(target['versionId'], target['sourceCommit'], target['artifact']['signerCommit'])
+        host.check(target['artifact']['archive']['sha256'] == target['versionId'], 'HOST_MODULE_RECONCILIATION_TARGET')
+        volume, _ = reconciliation_json(directory / 'module-volume.json', self.uid)
+        host.check(volume == plan['expected']['privateVolume'], 'HOST_MODULE_STORAGE_BINDING')
+        return directory, value, plan, plan_sha, installer
+
+    def read_install_reconciliation(self, params):
+        directory, _value, _plan, _plan_sha, _installer = self.reconciliation_origin(params)
+        location = directory / 'reconciliation'
+        if not (location / 'latest.json').exists():
+            raise host.Failure('HOST_MODULE_RECONCILIATION_NOT_FOUND', 404)
+        pointer = host.read_json(location / 'latest.json', self.uid)
+        host.check(host.exact(pointer, 'receiptSha256'))
+        receipt_sha = host.digest(pointer['receiptSha256'])
+        receipt, observed = reconciliation_json(location / (receipt_sha + '.json'), self.uid)
+        host.check(observed == receipt_sha and receipt['requestId'] == params['requestId']
+                   and receipt['originalOperationSha256'] == params['originalOperationSha256'],
+                   'HOST_MODULE_RECONCILIATION_CHANGED')
+        return {'receiptSha256': receipt_sha, 'receipt': receipt}
+
+    def inspect_module_install(self, params):
+        directory, value, plan, plan_sha, installer = self.reconciliation_origin(params)
+        target = plan['target']
+        placement, quiescence, stages, manifest_sha, reason = 'unconfirmed', 'unconfirmed', 'unconfirmed', None, None
+        current = self.inspect_current()
+        host.check(current['privateVolume'] == plan['expected']['privateVolume'], 'HOST_MODULE_STORAGE_BINDING', 409)
+        recovery_state, fence = 'not_issued', 'open'
+        try:
+            with contextlib.ExitStack() as locks:
+                locks.enter_context(reconciliation_lock(self.state / 'worker.lock', self.uid))
+                locks.enter_context(reconciliation_lock(self.state / 'ledger.lock', self.uid))
+                self.reconciliation_origin(params)
+                locks.enter_context(reconciliation_lock(self.private, self.uid, shared=True))
+                host.check(not os.path.lexists(self.private / '.transaction.json'), 'HOST_UPDATE_BUSY', 409)
+                component = self.private / 'execution'
+                locks.enter_context(reconciliation_lock(component / '.install.lock', self.uid))
+                self.assert_model_binding(current)
+                host.check(not value.get('worker') or not self.worker_alive(value['worker']), 'HOST_UPDATE_BUSY', 409)
+                host.check(not any(path.name.startswith('.staging-') for path in component.iterdir()),
+                           'HOST_MODULE_UNOWNED_STAGE', 409)
+                stages = 'clear'
+                claim_path = directory / 'recovery-claim.json'
+                if os.path.lexists(claim_path):
+                    claim = host.read_json(claim_path, self.uid)
+                    recovery_state = 'verified' if claim.get('status') == 'verified' else 'unknown'
+                    host.check(recovery_state == 'verified', 'HOST_MODULE_RECOVERY_UNCONFIRMED', 409)
+                fence_path = directory / 'reconciliation-fence.json'
+                if os.path.lexists(fence_path):
+                    record = host.read_json(fence_path, self.uid)
+                    host.check(record.get('requestId') == params['requestId'] and record.get('state') == 'closed',
+                               'HOST_MODULE_RECONCILIATION_CHANGED')
+                    fence = 'closed'
+                quiescence = 'confirmed'
+                expected = installer.expectation(target['versionId'], target['sourceCommit'], target['artifact']['signerCommit'])
+                manifest_sha = installer.inspect_execution_release(self.private, expected, self.config['platform']['arch'])
+                placement = 'verified_present' if manifest_sha else 'absent'
+                self.assert_model_binding(current)
+                self.reconciliation_origin(params)
+        except host.Failure as error:
+            reason = error.code if error.code in {'HOST_UPDATE_BUSY', 'HOST_MODULE_UNOWNED_STAGE',
+                'HOST_MODULE_RECOVERY_UNCONFIRMED'} else 'HOST_MODULE_INSPECTION_UNCONFIRMED'
+            quiescence = 'busy' if error.code == 'HOST_UPDATE_BUSY' else 'unconfirmed'
+        except (OSError, ValueError, KeyError, TypeError):
+            reason = 'HOST_MODULE_INSPECTION_UNCONFIRMED'
+        receipt = dict(schema='bellteam.module-install-inspection.v1', requestId=params['requestId'], planId=plan['planId'],
+            componentId='execution', versionId=target['versionId'], sourceCommit=target['sourceCommit'],
+            originalOperationSha256=params['originalOperationSha256'], planSha256=plan_sha,
+            targetSha256=reconciliation_hash(target), storageBindingSha256=reconciliation_hash(current['privateVolume']),
+            runtimeCurrentSha256=reconciliation_hash(current), inspectionTime=host.stamp(), placement=placement,
+            quiescence=quiescence, stageState=stages, manifestSha256=manifest_sha, recoveryState=recovery_state,
+            fence=fence, evidenceSha256=reconciliation_hash(dict(current=current, target=target, planSha256=plan_sha,
+                placement=placement, manifestSha256=manifest_sha, stageState=stages, recoveryState=recovery_state, fence=fence)),
+            reason=reason)
+        receipt_sha = reconciliation_hash(receipt)
+        with host.locked(self.state / 'ledger.lock', wait=True):
+            self.reconciliation_origin(params)
+            location = directory / 'reconciliation'
+            location.mkdir(mode=0o700, exist_ok=True)
+            host.trusted(location, self.uid, directory=True)
+            path = location / (receipt_sha + '.json')
+            if not path.exists(): host.atomic(path, json.loads(reconciliation_bytes(receipt)))
+            host.atomic(location / 'latest.json', {'receiptSha256': receipt_sha})
+        return {'receiptSha256': receipt_sha, 'receipt': receipt}
 
     def install(self, plan, directory):
         target = plan['target']
