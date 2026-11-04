@@ -88,7 +88,7 @@ def run_fixture(image, output, supply):
         paths = ['scripts/install-web-gateway-release.py', 'scripts/install-members-release.py',
                  'scripts/verify-members.py', 'scripts/module_artifact_verifier.py', 'scripts/web_gateway_artifact.py',
                  'src/members-install-plan.mjs', 'src/web-gateway-install-plan.mjs', 'src/members-release.mjs',
-                 'src/web-gateway-release.mjs', 'src/members-process.mjs', 'src/members-ipc.mjs', 'src/members-locks.mjs',
+                 'src/web-gateway-release.mjs', 'src/members-process.mjs', 'src/module-child-restart.mjs', 'src/members-ipc.mjs', 'src/members-locks.mjs',
                  'src/members-entry.mjs', 'src/members-assembly.mjs', 'src/members-facade.mjs', 'src/members-projection.mjs',
                  'src/members/protocol.mjs', 'src/members/dispatcher.mjs', 'src/members/state-compatibility.mjs',
                  'src/application-runtime.mjs', 'src/application-services.mjs', 'config/members-verification.json',

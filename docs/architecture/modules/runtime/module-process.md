@@ -53,3 +53,20 @@ flowchart LR
   Validator --> Ledger[Molly既private step.runtimeDiagnostic]
   Original --> Public[既公開unknown / 元安全code処理]
 ```
+
+
+## 子だけの自動再生成
+
+成功稼働子が意図close/交換以外で終了したら新受付を閉じ、OS/IPC/pipe→drainIncoming→await channel.reaped→旧要求completion終端を待つ。採用済み同版を再検証し新generationのrestore/ready/resume ACK後だけ再開。会話はadmission.recover(ticket,old,next)で閉鎖採用、未resume候補の再失敗は同ticketの通常adopt。旧要求や作用不明は再送しない。usageは初回段階順序を保ち、障害復帰ではsettings後subscriptions/servicesも復元する。
+
+module-child-restartは既controller排他へ接続し初回1秒、連続失敗2/4/8/16/最大30秒、正常60秒で初期化。回数による恒久停止無し、closeでtimer取消。members/notifications/web-gatewayも採用版と固有初期化を保持し同timerを使う。親/他子/Dockerは再起動しない。終了logは固定MODULE_CHILD_EXITED/component/整数exitCode/閉signalのみ、stderrは1024字以内の断片から固定4codeだけを抽出し、任意本文を保持/公開しない。常駐子のstdout/stderrはpipeで排出し、inheritで本文を親logへ流さない。
+
+```mermaid
+flowchart LR
+  Exit[子の異常終了] --> Reap[新受付閉鎖 / 実OS IPC pipe incoming reaped終端]
+  Reap --> Timer[1秒から最大30秒]
+  Timer --> Restore[同採用版 新generation restore ready]
+  Restore --> Resume[実resume ACK / 新受付]
+  Restore --> Timer
+  Close[親close] --> Cancel[timer取消]
+```

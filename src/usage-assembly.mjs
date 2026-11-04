@@ -7,7 +7,7 @@ import { createUsageFacade } from './usage/facade.mjs'
 import { createUsageProjection } from './usage/projection.mjs'
 
 // Bootstrap owns this one controller before constructing the remaining service graph.
-export function createUsageAssembly({ root, environment = {}, seatRuntime = false, getServices,
+export function createUsageAssembly({ root, exchangeMutex, environment = {}, seatRuntime = false, getServices,
   onEffect, onState, createProcess = createUsageProcess, prepareRelease, spawnProcess }) {
   const admission = new MembersAdmission('usage-parent'), authority = createUsageAuthority()
   const capturedContexts = new WeakMap(), parents = new WeakMap()
@@ -35,7 +35,7 @@ export function createUsageAssembly({ root, environment = {}, seatRuntime = fals
     } finally { if (lease) admission.finish(lease) }
   }
   const facade = createUsageFacade({ request, projection, toolsDirectory: join(root, 'state/secret-values') })
-  controller = createProcess({ root, admission, authorizeActor: authority.authorizeActor, onState,
+  controller = createProcess({ root, admission, exchangeMutex, authorizeActor: authority.authorizeActor, onState,
     ...(prepareRelease ? { prepareRelease } : {}), ...(spawnProcess ? { spawnProcess } : {}),
     bootstrap: {
       environment: Object.fromEntries(['TYPESAFE_API_KEY', 'BELLTEAM_CALL_BRIDGE_MCP_URL', 'BELLTEAM_CF_TEAM_DOMAIN', 'BELLTEAM_CF_AUD', 'BELLTEAM_BUGHUB_KEY']

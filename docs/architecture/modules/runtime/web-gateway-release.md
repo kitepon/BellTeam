@@ -67,3 +67,6 @@ helper entryは空envの固定`python3 -I /app/scripts/install-web-gateway-relea
 rootwriter隔離fixtureはcurrent UIDへ所有者検査を差替え、verifier成功receiptを契約mockとして渡す。rootのDAC_OVERRIDEもこのfixture内だけで模擬し、NOREPLACE syscall/lock/filebytes/mode/cleanupは実一時fileで確認する。これは実root/署名成功の採用ではない。別fixtureで通常installer入口から停止を発行しない固定helper選択・CID/image/mount不一致拒否を確認する。
 
 Docker観測ではMounts.Sourceはvolume rootで、subpathはHostConfig.Mounts.VolumeOptions.Subpathにある。installer planは両観測のvolume名/RO/NoCopy/明示subpathと既normalを合わせ、Sourceへsubpathを足した推測をしない。実装根拠は[Moby mount Path](https://github.com/moby/moby/blob/master/daemon/volume/mounts/mounts.go)とcontainer GetMountPoints（取得blob c48f0be08227600b31cc28459ef566fef7f26b2d）を参照。
+
+
+異常終了時は[module-processの自動再生成](module-process.md#子だけの自動再生成)と同じtimerを使い、固有の採用版・初期化・意図停止・実終端を保持する。

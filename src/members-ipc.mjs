@@ -148,7 +148,7 @@ export function createMembersParentChannel(child, { generation, admission, valid
     control: (method, params = {}, timeout = 5000) => {
       check(controls.has(method))
       return channel.call('control', method, params, null, { timeout })
-    }, reaped: channel.reaped, dispose: channel.fail, snapshot: channel.snapshot,
+    }, drainIncoming: channel.drainIncoming, reaped: channel.reaped, dispose: channel.fail, snapshot: channel.snapshot,
   }
 }
 

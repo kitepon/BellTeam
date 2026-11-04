@@ -13,8 +13,13 @@ flowchart TD
   End --> Drain[close / drain最大60秒]
   Drain -->|busy| Resume[旧resumeACK後 gate.resume / AI継続]
   Drain -->|drained| OS[旧OS終端とlock解放はEpi]
-  OS --> Adopt[新子read-only ready後adopt/resume]
-  Late[偽相関 / 終端後callback / 保存ACK不正] --> Unknown[protocol unconfirmed / 新世代採用0]
+  OS --> Adopt[adoptで閉鎖採用]
+  Adopt --> Ready[新子restore・ready・resumeACK後 gate.resume]
+  Unknown --> Barrier[異常終了 / 旧OS・IPC・pipe・親effect終端とreapedはEpi]
+  Barrier --> Recover[全active0 / 同close ticket・旧世代でrecover]
+  Recover --> Ready
+  Retired[既知旧opaqueの遅着callback] --> OldError[旧要求へ失敗返却 / 現世代の未確認状態は変更0]
+  Late[偽相関 / 終端後callback / 保存ACK不正] --> Unknown[protocol unconfirmed / 通常drain・adopt・resume拒否]
 ```
 
 ## 同期入場と実参照
@@ -33,7 +38,8 @@ flowchart TD
 | `withLease(operation,{lease?,expected?,correlation?}={})` | ownedだけfinally finish。同期operation内で実completionを登録してから返す |
 | `close()` | 同opaque ticketを返し新入場だけ閉じる |
 | `drain(ticket,{timeoutMs=60000}={})` | 全実参照0で`{status:'drained'}`、上限まで残れば`{status:'busy'}`。実参照保持/AIabort0。timeoutMsは0〜60000、productionは60000 |
-| `adopt(ticket,newGeneration)` | 参照0/未確認0/別generationのみ。OS/lock/ready確認は呼出元runtimeが先に行う |
+| `adopt(ticket,newGeneration)` | 参照0/未確認0/別generationのみ。旧OS/lock確認は呼出元runtimeが先に行い、新子restore/readyは閉鎖採用後に行う |
+| `recover(ticket,previousGeneration,newGeneration)` | 異常終了専用。現在close ticket本人性とticket/現世代=previous、全active0、妥当な別newを要求。failedを解除してnewを閉鎖採用。旧OS/IPC/pipes・親effect・await channel.reapedの実終端はruntimeが先に確認し、通常adoptの代わりに呼ぶ。native生存/ACK待ちは拒否。 |
 | `resume(ticket)` | 同ticketを開く。busyでも旧live参照を維持。子resumeACK5秒の確認後だけ呼ぶ |
 | `snapshot()` | `{generation,closed,active,unconfirmed}`。activeは実参照登録数でnative並行数ではない |
 
@@ -47,7 +53,7 @@ flowchart TD
 
 `callbacks(deliveryLease)`は登録subsetだけのonStatus/onInterim/onAnswer/onTurnEnd/userCompleteを返す。親ローカルparamsはstatus={delivery,error,tracking}、words={words}、answer={text}、user.complete={reply}、turn.end={startedAt,endedAt}。statusのErrorはまだ親内の値。**Epiの親dispatchはN102公開src/conversation/callbacks.mjsのnormalizeConversationCallback(kind,params)へ通してからwireへ送り**、Error自由message/stack/causeを送らない。子はvalidateとsafe failure fieldsだけを使う。N102供給元d40c1ffdの公開formatter/ACK schemaと接続する。dispatcher/context/frameの私有実装は当gateからimportしない。
 
-`invoke(deliveryLease,kind,localParams)`は発行前に実参照を取得し、dispatchの実保存/check/report ACKまで保持する。dispatch返却に`completion`があれば同元Promiseを判定源にし、無ければ返却Promiseを使う。caller結果だけの期限切れを実保存ACK失敗へ昇格させず、実completionがpendingの間は参照を保持する。返却はexact `{applied:true}`だけ。実completionの欠測/extra/拒否/例外はprotocol unconfirmed。終端後や偽相関はdrop成功にせず、以後drain/adopt/resumeの成功を拒む。runtimeはcallerunknownでも実callback result/OScloseまで実Promiseをsettleさせない。
+`invoke(deliveryLease,kind,localParams)`は発行前に実参照を取得し、dispatchの実保存/check/report ACKまで保持する。dispatch返却に`completion`があれば同元Promiseを判定源にし、無ければ返却Promiseを使う。caller結果だけの期限切れを実保存ACK失敗へ昇格させず、実completionがpendingの間は参照を保持する。返却はexact `{applied:true}`だけ。実completionの欠測/extra/拒否/例外はprotocol unconfirmed。同世代の終端後や偽相関はdrop成功にせず、以後drain/adopt/resumeの成功を拒む。親WeakMapに実登録された別世代opaqueの遅着callbackは元要求へprotocol失敗を返し、現世代のfailed/onProtocolFailure/drain waiterを変更しない。自己申告generationや複製opaqueはこの例外を得ない。runtimeはcallerunknownでも実callback result/OScloseまで実Promiseをsettleさせない。
 
 ## 背景と一回派生報告
 
@@ -96,3 +102,13 @@ runtimeはnative前にこのPromiseとcaptured exact4 {generation,operationId,de
 `consumeShownWords(botId, capturedShownObject, capturedPrefix) -> boolean`は実object同一＋現words先頭が捕捉prefixと全一致した場合だけ、そのprefix長をspliceしtrue。取得後に末尾へ増えたwordsを保持し、別watch object/先頭変化/空prefixはfalseで変更0。parent adapterはchildからwords/objectを受けず、保存したhandleからこのメソッドを呼ぶ。一回権は送信前に消費し、同値の新wordsが後着しても同shownIdで再消費しない。
 
 private consume返却は{applied:boolean}を必要とする。競合時にtrueを偽らず、falseは実表示objectが変化済みという通常競合でnative/protocolの成功・失敗証明にしない。子はprefixが実際に外れた時だけconsumeし、既withoutShownWordsの60秒幅/全文消失時は外さない意味を保つ。追加native/AI/observer/永続queue無し。親handleのlifetime/lookupはEpiが既operation registryへ結合する。
+
+## 異常終了後の世代回復
+
+`recover`は旧要求を新世代へ移さず、旧native/作用不明/保存ACK不明を成功又はnot_startedへ変更しない。全active0を確認するだけでfinish/abort/再送やPromiseのsettleを行わない。旧native、callback実completion、親effect、release ACKが一つでも登録中ならCONVERSATION_NOT_ACCEPTEDで拒否する。失敗した旧参照も元の実Promiseがsettleした時点で通常releaseされる。
+
+runtimeは旧OS/IPC/pipes→drainIncoming→await channel.reapedの実終端後に呼ぶ。返却voidの後も同ticketで閉鎖したまま、新子の同state restore/ready/resume ACKが完了して初めてresume(ticket)する。旧generation/ticketを使う回復の二重実行は拒否する。通常adopt/drainの未確認拒否は維持し、failedだけを無条件に解除する窓口は作らない。
+
+新直接境界はtest/conversation-generation-recovery.test.mjs。共通controllerの異常終了/reaped/再起動はruntimeの図と試験が所有し、このhookの単独試験で実再起動成功を主張しない。
+
+recover後の新candidateがrestore/ready/resume ACK前に失敗した場合、runtimeはそのcandidateのOS/IPC/pipes・incoming/reapedを完了し、同ticketを閉じたまま通常adopt(ticket,nextGeneration)で次candidateを採用できる。前提はunconfirmed=falseかつactive=0で、旧callbackの遅着はこの条件を変更しない。close ticketは採用履歴の各世代IDと同値である必要がなく、同一閉鎖の本人性を持つ。新candidate自身が現世代protocol失敗を生じた場合は通常adoptも拒否されるので、この経路で未確認を無条件解除しない。

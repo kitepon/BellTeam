@@ -66,3 +66,6 @@ pinの親projectionは同pendingのprofiles.readだけ、親effectは同schedule
 送信前にroot actual completion、親readonly effect開始前にeffect実終端を`trackReadCompletion`へ登録する。caller期限/断線だけで解放せず、finish要請と両completion終端後にのみ解放。既pinはclose後も同generationの元methodだけ継続、新pinは閉鎖中拒否。drain/adoptはKiroのAIleaseとreadpinの双方を待つ。固定readのfresh結果を採用し、投影を認可の代用にしない。
 
 親の同exchangeMutex.runExclusiveはreplaceのprepare前からdrain/旧OS終端/保存ACK/失敗復旧まで保持する。共有競合は受付閉鎖・prepare前にMODULE_EXCHANGE_BUSYで拒否する。signal/実completion/readonly pin/root64とclose時の取消は既契約を維持し、新mutexは作らない。親assemblyの同一体DIはintegrationが所有する。
+
+
+異常終了時は[module-processの自動再生成](module-process.md#子だけの自動再生成)と同じtimerを使い、固有の採用版・初期化・意図停止・実終端を保持する。

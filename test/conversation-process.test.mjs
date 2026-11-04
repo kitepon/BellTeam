@@ -39,7 +39,7 @@ async function fixture(t) {
     spawnProcess: (entry, args, options) => {
       assert.equal(entry, '/usr/local/libexec/bellteam-conversation-start')
       assert.deepEqual(options.env, {}); assert.equal(options.serialization, 'advanced')
-      for (const old of children) { assert.notEqual(old.exitCode, null); assert(old.stdout.closed && old.stderr.closed && !old.connected) }
+      for (const old of children) { assert.ok(old.exitCode !== null || old.signalCode !== null); assert(old.stdout.closed && old.stderr.closed && !old.connected) }
       const child = spawn(process.execPath, [new URL('./fixtures/conversation-channel-child.mjs', import.meta.url).pathname, root, args[0]], options)
       children.push(child); closed.push(waitConversationChildClose(child)); return child
     },
@@ -124,4 +124,17 @@ test('explicit quiesce deadline rejects the caller while actual completion remai
 test('fixed probe refuses caller arguments before trying the fixed C entry', async () => {
   await assert.rejects(promisify(execFile)(process.execPath, [new URL('../scripts/probe-conversation-runtime.mjs', import.meta.url).pathname, '--root=forged'], { env: {} }),
     error => error.stderr.includes('CONVERSATION_PROBE_ENVIRONMENT') && !error.stderr.includes('ENOENT'))
+})
+
+
+test('automatic recovery restores conversation in the same durable root', { timeout: 10000 }, async t => {
+  const h = await fixture(t); await h.controller.start()
+  const before = h.controller.snapshot().generation
+  h.children[0].kill('SIGKILL')
+  await new Promise(resolve => setTimeout(resolve, 1400))
+  assert.equal(h.children.length, 2)
+  assert.equal(h.controller.snapshot().available, true)
+  assert.notEqual(h.controller.snapshot().generation, before)
+  assert.equal((await h.request('rooms.list', {})).rooms.length, 1)
+  assert.equal(h.native.length, 0)
 })

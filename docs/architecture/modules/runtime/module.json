@@ -110,6 +110,7 @@
     "scripts/diagnostics-start.c",
     "src/module-locks.mjs",
     "src/module-process.mjs",
+    "src/module-child-restart.mjs",
     "src/module-exchange-diagnostic.mjs",
     "src/module-release.mjs",
     "src/execution-loader.mjs",

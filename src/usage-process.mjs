@@ -24,6 +24,10 @@ export function createUsageProcess({ root, admission, bootstrap, authorizeActor,
       if (mode === 'bootstrap' || mode === 'restore') return { generation, mode: 'settings', bootstrap: structuredClone(initial), restore: mode === 'restore' }
       return { generation, mode }
     },
+    restoreAfterRestart: async (channel, generation) => {
+      await channel.control('initialize', { generation, mode: 'subscriptions' }, 45000)
+      await channel.control('initialize', { generation, mode: 'services' }, 45000)
+    },
     exportHandoff: channel => channel.control('export', {}, 60000),
   })
 }

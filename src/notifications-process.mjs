@@ -1,3 +1,4 @@
+import { createModuleChildRestart, reportModuleChildExit, observeModuleChild } from './module-child-restart.mjs'
 import { spawn } from 'node:child_process'
 import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
@@ -27,6 +28,16 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
   const desiredEpoch = { apns: -1, webPush: -1 }, appliedEpoch = { apns: null, webPush: null }, errorEpoch = { apns: -1, webPush: -1 }
   const providers = ['apns', 'webPush']
   let operation = null, cancellation = null, closing = null, configuring = 0, initialized = false
+  const recovery = createModuleChildRestart(async () => {
+    await operation?.catch(() => {})
+    if (closed || instance || !initialized) return
+    await exclusive(async signal => {
+      await prepare(currentVersionId, signal)
+      const target = await launch(currentVersionId, signal)
+      try { await resume(target, signal); state('running', true) }
+      catch (error) { await killAndReap(target); throw error }
+    })
+  })
   const captureConfiguration = (provider, expected) => {
     const next = structuredClone(configuration())
     if (!next || Object.keys(next).sort().join(',') !== 'apns,webPush') throw failure('NOTIFICATIONS_CONFIGURATION_INVALID')
@@ -41,7 +52,7 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
   }
   const emit = () => { try { onState({ phase, exchanging, available, status, applyError: { ...applyError },
     configurationEpoch, appliedEpoch: { ...appliedEpoch } }) } catch {} }
-  const state = (next, usable = false) => { phase = next; available = usable; emit() }
+  const state = (next, usable = false) => { phase = next; available = usable; if (usable) recovery.running(); emit() }
   const snapshot = () => ({ currentVersionId, previousVersionId, currentTarget: currentVersionId === null ? 'builtin' : 'release', builtinSourceCommit, available, status, applyError: { ...applyError }, phase,
     configurationEpoch, appliedEpoch: { ...appliedEpoch }, protocolVersion: 2, stateSchema: 2, update: update ? { ...update } : null })
   const commitApplication = (provider, epoch, value, error) => {
@@ -86,14 +97,18 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
     signal.throwIfAborted()
     if (instance) throw failure('NOTIFICATIONS_ALREADY_STARTED')
     const child = spawn('/usr/local/libexec/bellteam-notifications-start', [versionId ?? 'builtin'], {
-      env: {}, stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+      env: {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
     const target = { child, ended: false, attemptedEpoch: {}, channel: createNotificationsParentChannel(child, { onDiagnostic }) }
-    target.end = waitNotificationsChildClose(child).then(() => {
+    target.end = waitNotificationsChildClose(child).then(result => {
+      const unexpected = target.resumed && initialized && !closed && !target.intentional
+      if (unexpected) reportModuleChildExit('notifications', result, target.stderrCodes())
       target.ended = true
       target.channel.dispose()
       if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
+      if (unexpected) recovery.lost()
     })
+    target.stderrCodes = observeModuleChild(child)
     instance = target
     try {
       const startedAt = Date.now()
@@ -140,10 +155,11 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
       }
       const latest = captureConfiguration()
       if (target.ended || !target.child.connected) throw failure('NOTIFICATIONS_UNAVAILABLE')
-      if (providers.every(provider => target.attemptedEpoch[provider] >= latest.epochs[provider])) return
+      if (providers.every(provider => target.attemptedEpoch[provider] >= latest.epochs[provider])) { target.resumed = true; return }
     }
   }
   const finishExit = async target => {
+    target.intentional = true
     let timer, timedOut = false
     const deadline = new Promise(resolve => { timer = setTimeout(() => { timedOut = true; target.child.kill('SIGKILL'); resolve() }, 5000) })
     try {
@@ -314,7 +330,7 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
   }
   const close = () => {
     if (closing) return closing
-    closed = true; available = false; cancellation?.abort(); emit()
+    closed = true; recovery.close(); available = false; cancellation?.abort(); emit()
     if (update?.status === 'accepted') update.status = 'not_started'
     closing = (async () => {
       await operation?.catch(() => {})

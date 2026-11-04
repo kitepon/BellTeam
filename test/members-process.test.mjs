@@ -23,7 +23,7 @@ async function setup(t, { mode = '', prepare = async () => {}, membersAdmission,
     : open(path, ...args))
   t.mock.method(childProcess, 'spawn', (command, args, options) => {
     assert.equal(command, '/usr/local/libexec/bellteam-members-start'); assert.equal(args.length, 1)
-    assert.deepEqual(options, { env: {}, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] })
+    assert.deepEqual(options, { env: {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
     // Source fixture substitutes the fixed C executable, never adds a production path argument.
     const child = spawn(process.execPath, [new URL('./fixtures/members-runtime-child.mjs', import.meta.url).pathname,
       args[0], root, args[0] === bad ? 'bad-initialize' : args[0] === hang ? 'hang-initialize' : mode], options)
@@ -165,4 +165,16 @@ test('only a quiesced old child can be killed at the five-second exit deadline',
   assert.equal(x.controller.snapshot().currentVersionId, a)
   assert.equal(x.children.filter(value => value.exitCode === null && value.signalCode === null).length, 1)
   t.mock.timers.reset()
+})
+
+
+test('automatic recovery of the adopted child preserves state without parent recreation', async t => {
+  const x = await setup(t); await x.controller.start()
+  const before = x.controller.snapshot()
+  x.children[0].kill('SIGKILL')
+  await new Promise(resolve => setTimeout(resolve, 1400))
+  assert.equal(x.children.length, 2)
+  assert.equal(x.controller.snapshot().available, true)
+  assert.equal(x.controller.snapshot().currentVersionId, before.currentVersionId)
+  await x.controller.close()
 })

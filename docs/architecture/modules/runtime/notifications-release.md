@@ -70,3 +70,6 @@ Root WebPushv1.1/b64aにより親子protocol2/stateSchema2。既APNs file1とHTT
 `reserve/replace(versionId,{expectedRelease?})`は正式catalogの固定releaseを送信前にcloneする。P2/S2・source/platform/version・exact4互換をprepare時とquiesce後exit直前に照合し、不一致なら旧子resumeで中止する。通常mainの計画/供給/失効再検証は共通/Hostが所有し、この型一致を公式検証や鮮度の代用にしない。
 
 変更直接境界は新epoch/実dispatcher8、P2へ更新した機構caller15、reader3、current UID rootwriter stub3。新実root1001/公式署名/両nativeは配布担当へ同sourceで接続し、旧P1実物成立から補完しない。
+
+
+異常終了時は[module-processの自動再生成](module-process.md#子だけの自動再生成)と同じtimerを使い、固有の採用版・初期化・意図停止・実終端を保持する。
