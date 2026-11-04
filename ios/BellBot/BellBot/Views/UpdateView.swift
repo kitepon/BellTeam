@@ -102,8 +102,8 @@ struct UpdateContent: View {
                 .accessibilityHidden(true)
             Text(title).font(.title2.weight(.bold)).accessibilityIdentifier("update-status")
             Text(detail).font(.body).foregroundStyle(BellTheme.muted).fixedSize(horizontal: false, vertical: true)
-            if let message = updates.message {
-                Text(message).font(.footnote).foregroundStyle(BellTheme.ink)
+            if let note = heroNote {
+                Text(note).font(.footnote).foregroundStyle(BellTheme.ink)
                     .padding(10).frame(maxWidth: .infinity, alignment: .leading)
                     .background(BellTheme.violetLight.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
                     .accessibilityIdentifier("update-message")
@@ -114,17 +114,26 @@ struct UpdateContent: View {
         .padding(22).bellCard()
     }
 
+    /// 操作の失敗は短い案内だけを標準面に出す。元の説明・符号は詳細に残す。
+    var heroNote: String? { updates.message == nil ? nil : "操作を完了できませんでした。内容は「詳細」で確認できます。" }
+
+    /// 結果を確かめている間も、正式な候補があれば利用者は別の計画を選べる。同じ計画の再実行はStoreが拒む。
+    var offersAnotherPlan: Bool {
+        guard case .unconfirmed = status else { return false }
+        return updates.plan == nil && updates.canStartPlan && !candidates.isEmpty
+    }
+
     var heroText: (String, String, String, Color) {
         switch status {
         case .loading: ("arrow.triangle.2.circlepath", "確認しています", "最新の状態かどうかを確かめています。", BellTheme.muted)
         case .unreachable: ("exclamationmark.triangle", "更新を確認できませんでした", "接続を確かめて、もう一度お試しください。", BellTheme.muted)
         case .updating(let phase): ("arrow.down.circle", "更新しています", "\(phase)。完了まで、この画面を閉じても大丈夫です。", BellTheme.violet)
         case .unconfirmed: ("clock.arrow.circlepath", "更新の結果を確認中", "接続が戻ると結果を確かめます。更新を送り直すことはありません。", BellTheme.muted)
-        case .failed(let reason): ("xmark.circle", "更新できませんでした", reason ?? "時間をおいて、もう一度確認してください。", BellTheme.muted)
+        case .failed: ("xmark.circle", "更新できませんでした", "更新を完了できませんでした。理由は「詳細」で確認できます。", BellTheme.muted)
         case .completed: ("checkmark.circle.fill", "更新しました", "\(updatedNames)を新しい版にしました。", BellTheme.mint)
         case .available: ("arrow.down.circle.fill", "更新があります", candidates.count == 1 ? "\(candidates[0].name)の新しい版を使えます。" : "\(candidates.count)つの機能に新しい版があります。", BellTheme.violet)
         case .upToDate: ("checkmark.seal.fill", "最新の状態です", "今のところ、新しい更新はありません。", BellTheme.mint)
-        case .unknown(let notice): ("questionmark.circle", "更新を確認できませんでした", notice.isEmpty ? "時間をおいて、もう一度確認してください。" : notice, BellTheme.muted)
+        case .unknown: ("questionmark.circle", "更新を確認できませんでした", "時間をおいて、もう一度確認してください。", BellTheme.muted)
         }
     }
 
@@ -154,6 +163,13 @@ struct UpdateContent: View {
             Button { Task { await updates.refresh() } } label: { Text("状況を確認").frame(maxWidth: .infinity) }
                 .buttonStyle(.bordered).controlSize(.large)
                 .accessibilityIdentifier("update-refresh")
+            if offersAnotherPlan {
+                Button("別の更新を選ぶ") {
+                    if candidates.count == 1 { Task { await updates.makePlan(componentID: candidates[0].id) } } else { choosing = true }
+                }
+                .font(.subheadline).frame(maxWidth: .infinity)
+                .accessibilityIdentifier("update-another-plan")
+            }
         default: EmptyView()
         }
     }
@@ -232,6 +248,8 @@ struct UpdateContent: View {
     private var details: some View {
         DisclosureGroup("詳細") {
             VStack(alignment: .leading, spacing: 14) {
+                if let message = updates.message { Text("お知らせ: \(message)").accessibilityIdentifier("update-message") }
+                if let notice = updates.inventory?.notice { Text("サーバー: \(notice.message)\(Self.reason(notice.code))") }
                 ForEach(updates.inventory?.components ?? []) { component in
                     VStack(alignment: .leading, spacing: 3) {
                         Text(component.name).font(.subheadline.weight(.semibold))

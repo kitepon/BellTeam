@@ -45,14 +45,16 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testTheSameUnconfirmedPlanIsNotExecutedAgain](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L211) | 結果を確定できていない要求と同じ計画は再実行せず、POSTは1回のまま |
 | [testInterruptedRequestAllowsAnotherPlanButNotTheSamePlanAgain](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L229) | 中断（accepted・unknown）では新しい計画を止めず、同じ計画は再実行しない。別の計画は一回だけ実行し、前の要求は過去の要求に残す |
 | [testInventoryWithAnUnknownValueIsShownAsAnInvalidResponse](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L261) | 未知のnotice stateでinventoryをnilにし応答形式の失敗を表示 |
-| [testOnlyTheExactThreeKeysAreAccepted](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L340) | 3key完全一致だけ受ける。余分key・欠落・型違い・大文字hex・63桁・kind違い・server型違いを捨て、既存`BellNotificationRoute`はkind=updateを受けない |
-| [testEventTypeUpdatesIsNotAFullRefresh](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L352) | `type=updates`のイベントがtypeとして読める |
-| [testUpdatesEventReadsOnlyTheInventory](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L358) | SSE `updates`でGET /api/updatesが1回、共通一覧（bots）は読まない |
-| [testTapOpensUpdateAndReadsWithoutAnyPost](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L372) | 一致するserverのタップで画面を開きGET、POSTは0回 |
-| [testTapForAnotherServerOpensNothingAndCallsNothing](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L384) | server不一致では開かず通信もせず、1件保留する |
+| [testOnlyTheExactThreeKeysAreAccepted](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L379) | 3key完全一致だけ受ける。余分key・欠落・型違い・大文字hex・63桁・kind違い・server型違いを捨て、既存`BellNotificationRoute`はkind=updateを受けない |
+| [testEventTypeUpdatesIsNotAFullRefresh](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L391) | `type=updates`のイベントがtypeとして読める |
+| [testUpdatesEventReadsOnlyTheInventory](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L397) | SSE `updates`でGET /api/updatesが1回、共通一覧（bots）は読まない |
+| [testTapOpensUpdateAndReadsWithoutAnyPost](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L411) | 一致するserverのタップで画面を開きGET、POSTは0回 |
+| [testTapForAnotherServerOpensNothingAndCallsNothing](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L423) | server不一致では開かず通信もせず、1件保留する |
 | [testEachServerStateShowsOneSimpleStatus](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L290) | サーバーの有限例7種で標準画面の見出しが状態ごとに一つに決まる。幅390・820の実画面を試験結果へ画像で添付する |
-| [testPendingTapForAnotherServerOpensOnlyAfterTheUserSwitchesThere](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L394) | 保留した不一致の通知は、利用者がその接続先へ切り替えてready後にだけ開きGET、POSTは0回 |
-| [testTapBeforeReadyWaitsInsteadOfConnecting](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L416) | ready前は開かず通信もしない |
+| [testUnconfirmedRequestKeepsCheckingButOffersAnotherFormalCandidate](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L310) | interruptedでは主操作は状況の確認のまま。正式な候補がある時だけ別の計画を選べ、無ければ出さない。POSTは0回 |
+| [testRejectionCodesStayInDetailsNotOnTheStandardScreen](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L328) | 内部の符号入りの計画拒否や実行失敗でも、標準面の案内に符号・元の説明を出さず、元の文はStoreに保持する |
+| [testPendingTapForAnotherServerOpensOnlyAfterTheUserSwitchesThere](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L433) | 保留した不一致の通知は、利用者がその接続先へ切り替えてready後にだけ開きGET、POSTは0回 |
+| [testTapBeforeReadyWaitsInsteadOfConnecting](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L455) | ready前は開かず通信もしない |
 
 ### AuthSetupOrderingTests.swift
 
