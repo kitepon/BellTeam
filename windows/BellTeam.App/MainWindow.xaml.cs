@@ -53,12 +53,14 @@ public partial class MainWindow : Window
         };
         model.PropertyChanged += (_, args) =>
         {
+            if (args.PropertyName == nameof(Workspace.Connected)) { if (model.Connected) _ = RefreshUpdateNoticeAsync(); else UpdateButton.Content = "Update"; }
             if (args.PropertyName == nameof(Workspace.IsRoom) && inspectorVisible)
                 InspectorColumn.Width = model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star);
             if (args.PropertyName == nameof(Workspace.Selected) && page is null) ProfileLayout();
             if (args.PropertyName is nameof(Workspace.Loading) or nameof(Workspace.Selected)) UpdateWelcome();
             if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible;
         };
+        model.UpdatesChanged += () => _ = RefreshUpdateNoticeAsync();
         PreviewKeyDown += Window_KeyDown;
         StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) model.ReturnToProfile(); };
         if (persistPlacement)
@@ -146,6 +148,20 @@ public partial class MainWindow : Window
     private void OpenMenu_Click(object sender, RoutedEventArgs e) { if (sender is Button { ContextMenu: { } menu } button) { menu.PlacementTarget = button; menu.IsOpen = true; } }
     private void Schedules_Click(object sender, RoutedEventArgs e) => ShowSchedules();
     private void Settings_Click(object sender, RoutedEventArgs e) => ShowSettings();
+    private void Updates_Click(object sender, RoutedEventArgs e) => ShowUpdates();
+    public void ShowUpdates() { if (!model.Connected) return; var editor = new UpdateCenterWindow(model); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
+    private async Task RefreshUpdateNoticeAsync()
+    {
+        var server = model.Server;
+        try
+        {
+            var state = await new UpdateCenter(model.Management.Api, new SettingsStore(SettingsStore.UserDirectory)).InventoryAsync(model.ConnectionToken);
+            if (model.Server != server) return;
+            UpdateButton.Content = state.Notice.State switch { "updating" => "Update · 更新中", "attention" => "Update · 要確認", "unavailable" => "Update · 利用不能", _ when state.Components.Any(item => item.Comparison.State == "update_available") => "Update · 更新あり", _ => "Update" };
+        }
+        catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { }
+        catch (Exception) { if (model.Server == server) UpdateButton.Content = "Update · 確認不能"; }
+    }
     public void ShowSchedules() { if (!model.Connected) return; var editor = new SchedulesWindow(model); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
     public void ShowSettings() { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings, notifications, () => _ = SignOutAsync()); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
     private bool ShowPage(EditorWindow editor)

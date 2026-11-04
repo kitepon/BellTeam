@@ -56,6 +56,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public ManagementApi Management => new(api ?? throw new BellApiException("接続先を設定してください。"));
     public PlanningApi Planning => new(api ?? throw new BellApiException("接続先を設定してください。"));
     public event Action? ServerChanged;
+    public event Action? UpdatesChanged;
     public event Action<MessageNotification>? MessageArrived;
     public ConversationEntry[] Conversations => all.ToArray();
     public Bot[] Bots => all.Where(entry => entry.Bot is not null).Select(entry => entry.Bot!).ToArray();
@@ -153,6 +154,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             await foreach (var item in current.EventsAsync(token))
             {
                 ConnectionStatus = "接続済み・新着を受信中";
+                if (item.TryGetProperty("type", out var type) && type.ValueKind == System.Text.Json.JsonValueKind.String && type.GetString() == "updates") UpdatesChanged?.Invoke();
                 if (item.EnumerateObject().Any()) { await RefreshAsync(current, token, notify: true); ServerChanged?.Invoke(); }
             }
         }
