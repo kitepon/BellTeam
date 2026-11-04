@@ -581,3 +581,16 @@ flowchart LR
 新しい公開HTTP/MCP schema・保存writerを増やさない。公開operation UUIDと各設置stepのUUIDは別に耐久保存する。catalog/互換が固定され、既readerがENOENTとなった更新だけHost planへ渡す。改竄・不適合・権限エラーは設置で隠さない。戻しは既配置だけ使う。Host plan/operationはcatalog・component・source・SHA・planId・requestIdを照合し、containerRestart:falseを確認する。失敗/unknown/応答不整合ではreplaceせず、未確定Hostがある間は新更新を拒否する。再起動時は保存済みUUIDの結果照会だけ許し、既設置済みと判明しても中断moduleのreplaceは自動再発行しない。Hostが明示的に未受付と返した設置はfailedとして確定し、未知の受付と区別する。初回Host機構と同image installerの導入・本番承認は別条件。
 
 会話子のStore固定診断はdispatcher→厳密なIPC union→親onDiagnostic→同Diagnostics writerへ保存する。MESSAGE_LOG_INVALIDのcode/物理line/byte offset/length/固定reasonだけを渡し、本文や自由例外を診断へ含めない。旧fallback Storeも同じ診断writerへ接続する。
+
+## 通話bridge配送と閉DTOの接続
+
+```mermaid
+flowchart LR
+  Bridge[Bridge call-bridge.delivery.v1] --> Validate[call-bridge-server schema・配送field検証]
+  Validate --> Project[検証済schemaだけを除去]
+  Project --> Actor[application-runtime bridge actor捕捉]
+  Actor --> Facade[receiveCallBridge / call.receive閉DTO]
+  Facade --> Child[conversation dispatcher / writer / notify]
+```
+
+共通受口は外側schemaを検証後に除去し、残る配送fieldをそのまま会話窓口へ渡す。call.receiveはN102の閉DTOを維持し、追加fieldを許可しない。reply_required/seq・元エラーと423/404/502の分類は既契約を保持する。Bridge内部の保存/配送判断は[Bridge正本](../bridge/README.md)、本体受付の公開契約は[conversation/calls](../conversation/calls.md)を参照する。
