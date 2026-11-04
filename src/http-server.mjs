@@ -17,6 +17,7 @@ import { respondHttpError } from './http-errors.mjs'
 import { createMessageViews } from './http-messages.mjs'
 import { createMessageEvents, EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS } from './http-events.mjs'
 import { createWebPushOrigin } from './web-push-origin.mjs'
+import { validateConversationAdmissionDiagnostic } from './conversation-lifetimes.mjs'
 
 export { avatarVersion } from './http-assets.mjs'
 export { pageItems } from './http-messages.mjs'
@@ -67,6 +68,16 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       const authenticated = await authorize(request)
       if (request.method === 'GET' && url.pathname === '/api/session') return json(response, 200, { authenticated, authMode: authMode(request) })
       if (!authenticated) return json(response, url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/') ? 403 : 401, { error: 'UNAUTHORIZED' })
+      if (url.pathname === '/api/diagnostics/conversation-admission') {
+        if (internal) return json(response, 403, { error: 'DIAGNOSTIC_OWNER_REQUIRED' })
+        if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+        if (url.search || request.headers['transfer-encoding'] || Number(request.headers['content-length'] ?? 0) !== 0)
+          return json(response, 400, { error: 'DIAGNOSTIC_INPUT_INVALID' })
+        let admission
+        try { admission = validateConversationAdmissionDiagnostic(conversationAssembly?.admission?.inspectAdmission?.()) }
+        catch { return json(response, 503, { error: 'CONVERSATION_ADMISSION_DIAGNOSTIC_UNAVAILABLE' }) }
+        return json(response, 200, { admission })
+      }
       if (url.pathname === '/internal/members-owner') {
         // No approved dedicated registrations have been supplied for initial migration.
         return json(response, 403, { error: 'MEMBERS_OWNER_GRANT_UNKNOWN' })
