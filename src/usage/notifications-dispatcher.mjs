@@ -36,6 +36,11 @@ export function validateNotificationRequest(method, params) {
     if (typeof params.token !== 'string' || !/^[a-f0-9]{32,512}$/u.test(params.token)) throw failure('PUSH_DEVICE_INVALID')
   }
   if (method === 'publish') {
+    if (params?.type === 'update') {
+      object(params, ['type', 'id'])
+      if (typeof params.id !== 'string' || !/^[a-f0-9]{64}$/u.test(params.id)) throw failure('PUSH_INPUT_INVALID')
+      return
+    }
     const fields = ['type', 'id', 'botId', 'senderName']
     if (params?.type === 'room') fields.push('roomId', 'roomName')
     if (params?.type === 'secret') fields.push('roomId')
@@ -48,6 +53,7 @@ export function validateNotificationRequest(method, params) {
 }
 
 function notificationEvent(event) {
+  if (event.type === 'update') return { id: event.id, kind: 'update', title: 'BellTeam', body: '更新があります。Updateで確認してください。' }
   const { id, botId, senderName, roomId, roomName } = event
   return { id, botId, sender: { id: botId, name: senderName },
     kind: event.type === 'secret' ? 'secret_request' : event.type === 'question' ? 'owner_question' : 'reply',

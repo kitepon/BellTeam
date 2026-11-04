@@ -104,6 +104,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         prepareRelease: bootstrap.prepareGatewayRelease ?? prepareGatewayRelease,
         adoptionPath: join(root, 'state/web-gateway-release.json') })
       await gateway.start()
+      services.updateCenter.startNotifications()
       scheduler.start()
       selfTurns.start()
       seatTurns?.start()

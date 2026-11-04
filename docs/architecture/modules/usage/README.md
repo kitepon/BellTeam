@@ -15,6 +15,8 @@ Rabbit認証consumerの未配布候補は[認証runとOwner案内の契約](olrw
 
 [Web Pushの別providerと公開契約](web-push.md)にRoot固定v1.1、登録/鍵writer・origin・安全な終端・ABI2の接点を置く。
 
+[正式更新候補の端末通知](update-push.md)は工程Lの最小payload・共通候補判定との接続・既通知許可/重複/失敗と、同接続先Updateへの受入口の正本。
+
 [処理と保存順序](flows.md)に秘密入力・質問・認証・設定適用・通知/購読の図と実関数を置く。旧support-detailsの所有章は参照リンクへ置換した。共通診断writerは[統合の詳細](../../support-details.md#診断観測集約調査注記を分ける)を参照する。
 
 [通知の独立process化](notification-process.md)に基準03c952bfの全caller・writer/停止境界、固定契約v1の公開factoryと実装・直接結合を置く。単独交換と固定資材の実物受入は継続中である。

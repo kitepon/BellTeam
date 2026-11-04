@@ -649,3 +649,19 @@ flowchart LR
 ```
 
 共通受口は外側schemaを検証後に除去し、残る配送fieldをそのまま会話窓口へ渡す。call.receiveはN102の閉DTOを維持し、追加fieldを許可しない。reply_required/seq・元エラーと423/404/502の分類は既契約を保持する。Bridge内部の保存/配送判断は[Bridge正本](../bridge/README.md)、本体受付の公開契約は[conversation/calls](../conversation/calls.md)を参照する。
+
+## 正式候補の通知
+
+```mermaid
+flowchart LR
+  Runtime[既runtime start / close] --> Read[共通Updateを初回と60秒毎に読取]
+  Read --> Snapshot[既Hostとmoduleの正式catalog / 公開snapshot]
+  Snapshot --> Candidate[検証済み・期限内・更新あり / notificationCandidates]
+  Candidate --> SSE[既updates SSE / clientは同GET]
+  Candidate --> Dedupe[component別最新id最大9 / 既値保持]
+  Dedupe --> Push[usage notifications.update / 既端末通知]
+```
+
+読取は一つずつ進め、閉鎖でtimerを止め進行中の読取を回収する。全clientを閉じても本体が動く間は既catalog readerを確認し、独自daemonやAI・永続queueは作らない。候補はcurrent/published非null、comparison=update_available、publication.check=verifiedとcatalog期限内から共通で選ぶ。既更新API v1へoptional notificationCandidates:[{componentId,id:published.version64}]だけを追加する。旧13例は有効で、clientは受けた候補IDだけを使い比較を複製しない。
+
+component別の最新IDを最大9件だけ保持し、候補無し/一時失敗で消さない。起動時の候補は各一回、新IDのみ通知し、送信前に記録してunknownを再発行しない。再起動後の同候補通知は起こり得る。読取/通知失敗を更新実行へ変えず、利用者のplan/startは明示操作のまま。旧署名通知4f850855は新update種を拒否するので、L対応の新署名を正式catalogへ供給し、旧P2/state2だけで対応済みとしない。通知業務/payloadは[usageの正本](../usage/update-push.md)、Web clickは[Webの正本](../web/web-push.md)を参照する。

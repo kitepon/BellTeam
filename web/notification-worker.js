@@ -7,7 +7,7 @@ export function installNotificationWorker(scope) {
     let parsed=null
     try { parsed=parseNotificationPayload(event.data?.text()) } catch {}
     const notice=notificationPresentation(parsed)
-    event.waitUntil(scope.registration.showNotification(notice.title,{body:notice.body,icon:'/icons/icon-192.png',badge:'/icons/icon-192.png',data:notice.route,tag:notice.route?.messageId}))
+    event.waitUntil(scope.registration.showNotification(notice.title,{body:notice.body,icon:'/icons/icon-192.png',badge:'/icons/icon-192.png',data:notice.route,tag:notice.route?.kind === 'update' ? parsed.value.messageId : notice.route?.messageId}))
   })
   scope.addEventListener('notificationclick',event=>{
     event.notification.close()
