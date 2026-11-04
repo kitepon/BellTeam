@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, lstat, readlink } from 'node:fs/promises'
 import { isAbsolute, posix } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { text as streamText } from 'node:stream/consumers'
@@ -190,12 +190,52 @@ export function assertStateWritersStopped(plan, containers, canonical, volumes =
   return { writers: 0 }
 }
 
+// Resolve links inside the daemon's read-only root, including absolute links.
+export async function canonicalStateWriterSources(text, root) {
+  const lines = (text.endsWith('\n') ? text.slice(0, -1) : text).split('\n')
+  if (lines.length % 2) invalid()
+  const result = []
+  for (let i = 0; i < lines.length; i += 2) {
+    const kind = lines[i], source = path(lines[i + 1])
+    if (!['observed', 'planned', 'volume'].includes(kind)) invalid()
+    let links = 0
+    async function resolve(parts, required) {
+      let resolved = '/'
+      for (let n = 0; n < parts.length; n++) {
+        const part = parts[n]
+        if (!part || part === '.') continue
+        if (part === '..') { resolved = posix.dirname(resolved); continue }
+        const candidate = posix.join(resolved, part)
+        let info
+        try { info = await lstat(posix.join(root, candidate)) }
+        catch (error) {
+          if (error.code !== 'ENOENT' || required) throw error
+          return posix.join(candidate, ...parts.slice(n + 1))
+        }
+        if (info.isSymbolicLink()) {
+          if (++links > 40) invalid()
+          const target = await readlink(posix.join(root, candidate))
+          const prefix = target.startsWith('/') ? [] : resolved.split('/')
+          resolved = await resolve([...prefix, ...target.split('/')], true)
+        } else resolved = candidate
+        if (n < parts.length - 1 && !(await lstat(posix.join(root, resolved))).isDirectory()) invalid()
+      }
+      return resolved
+    }
+    const canonical = kind === 'volume' ? source : await resolve(source.split('/'), kind === 'observed')
+    result.push(source, canonical)
+  }
+  return result.join('\n') + '\n'
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const mode = process.argv[2]
     if (mode === 'plan' && process.argv.length === 3) {
       // Compose config doubles dollars in its JSON output, unlike inspect metadata.
       console.log(JSON.stringify(stateWriterPlan(JSON.parse((await streamText(process.stdin)).replaceAll('$$', '$')))))
+    } else if (mode === 'canonical' && process.argv.length === 3) {
+      process.stdout.write(await canonicalStateWriterSources(await readFile('/check/sources.txt', 'utf8'), '/host'))
     } else if (['volumes', 'sources', 'verify'].includes(mode) && process.argv.length === 3) {
       const plan = JSON.parse(await readFile('/check/plan.json', 'utf8'))
       const resumeSource = (await readFile('/check/resume-source-volume.txt', 'utf8').catch(error => {
