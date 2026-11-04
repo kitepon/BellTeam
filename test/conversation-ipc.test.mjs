@@ -12,6 +12,7 @@ import { ConversationLifetimes } from '../src/conversation-lifetimes.mjs'
 import { createConversationObserverParentEffects } from '../src/conversation/observer-parent.mjs'
 import { createConversationPeer } from '../src/conversation-channel.mjs'
 import { createConversationParentEffects } from '../src/conversation-parent-effects.mjs'
+import { validateConversationPageRows, validateConversationRecentRows } from '../src/conversation/results.mjs'
 import { createConversationFacade } from '../src/conversation-facade.mjs'
 
 function pair() {
@@ -435,5 +436,25 @@ for (const rejects of [false, true]) test(`event ACK follows actual completion b
     await attempt.completion
   }
   assert.equal(actualSettled, true)
+  h.admission.finish(h.lease)
+})
+
+test('fork IPC streams selected page and ordered recent batch; actual completion waits for page consumer', { timeout: 10000 }, async t => {
+  const h = await setup(t, { forked: true }), botId = h.fixture.bots[0].id
+  const records = Array.from({ length: 40 }, (_, n) => ({ schema: 'bellteam.direct-message.v1', delivery_id: `row-${n}`, from: botId, target: 'user', message: `body-${n}`, at: `2026-11-04T00:00:${String(n).padStart(2, '0')}Z`, delivery: 'delivered' }))
+  await writeFile(join(h.root, 'logs/direct-messages.jsonl'), records.map(row => JSON.stringify(row)).join('\n') + '\n')
+  const chunks = [], entered = Promise.withResolvers(), release = Promise.withResolvers()
+  const request = h.request('history.page', { kind: 'bots', id: botId, query: { limit: '10', before: null, after: null }, cards: [[], []] }, { kind: 'owner' }, {
+    onChunk: async chunk => { chunks.push(chunk); entered.resolve(); await release.promise },
+  })
+  let done = false; request.completion.then(() => { done = true })
+  await entered.promise; await settle(); assert.equal(done, false)
+  release.resolve(); assert.deepEqual(await request, { streamed: true }); await request.completion
+  const page = validateConversationPageRows(JSON.parse(Buffer.concat(chunks).toString('utf8')), [[], []])
+  assert.equal(page.items.length, 10); assert.equal(page.remaining_before, 30)
+  assert.deepEqual(page.items.map(ref => ref.item.message), records.slice(-10).map(row => row.message))
+  const batch = []
+  await h.request('history.recentBatch', { botIds: [botId, botId] }, { kind: 'owner' }, { onChunk: async chunk => { batch.push(chunk) } })
+  assert.deepEqual(validateConversationRecentRows(JSON.parse(Buffer.concat(batch).toString('utf8')), [botId, botId]).map(row => [row.botId, row.message.message]), [[botId, 'body-39'], [botId, 'body-39']])
   h.admission.finish(h.lease)
 })

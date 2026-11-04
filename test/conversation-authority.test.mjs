@@ -24,7 +24,7 @@ test('actor ceilings reject unrelated roots and do not expose parent FD or callb
     ['user.post', { kind: 'observer' }], ['room.create', { kind: 'bridge' }],
     ['delivery.status', { kind: 'owner' }], ['assets.open', { kind: 'owner' }],
   ]) assert.throws(() => assertConversationRootAuthority(method, actor), { code: 'CONVERSATION_METHOD_FORBIDDEN' })
-  assert.deepEqual(CONVERSATION_PARENT_METHODS, ['assets.open', 'history.page', 'history.recent', 'history.export'])
+  assert.deepEqual(CONVERSATION_PARENT_METHODS, ['assets.open', 'history.export'])
   for (const method of CONVERSATION_PARENT_METHODS) assert.equal(CONVERSATION_ROOT_METHODS.includes(method), false)
   assert.equal(CONVERSATION_ROOT_METHODS.includes('assets.open'), false)
   assert.equal(CONVERSATION_ROOT_METHODS.includes('arbitrary.method'), false)

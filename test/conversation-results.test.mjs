@@ -16,20 +16,21 @@ const samples = {
   'room.schedules.list': { schedules: [schedule] }, 'room.schedules.set': { schedule },
   'room.schedules.remove': { removed: schedule.id }, 'room.schedules.claimDue': schedule, 'room.schedules.skipDue': null,
   'member.removeFromRooms': { removed: 'bot-a' }, 'history.listMessages': stream(), 'history.listRoomMessages': stream(),
+  'history.page': stream(), 'history.recentBatch': stream(),
   'direct.post': post, 'user.post': { ...post, from: 'user', target: 'bot-a' }, 'delivery.resume': post,
   'user.turn': { ...post, delivery: 'delivered', reply: null },
   'delivery.closeLaunch': { closureId: 'closure-a', delivery_id: 'delivery-a', from: 'bot-a', target: 'bot-b' },
   'room.post': { id: 'message-a', room: room.id, targets: ['bot-a'], delivery: 'posted_with_failed_deliveries', failedTargets: [{ id: 'bot-a', error: 'unavailable' }] },
   'room.reply': { id: 'message-a', delivery: 'already_posted' }, 'room.silent': { delivery: 'suppressed' },
   'assets.save': asset, 'assets.saveAll': [asset], 'call.receive': { delivery: 'running', delivery_id: 'delivery-a', target: 'bot-a' },
-  'observation.poll': { applied: true },
+  'observation.poll': { applied: true }, 'history.recent': { message: { id: 'row-a', at: '2026-11-04T08:00:00+09:00' } },
 }
 
 test('every child wire root has a finite result shape while disk optional data remains compatible', () => {
   assert.deepEqual(Object.keys(samples).sort(), [...CONVERSATION_ROOT_METHODS].sort())
   for (const [method, result] of Object.entries(samples)) {
     assert.equal(validateConversationResult(method, result), true, method)
-    if (!['history.listMessages', 'history.listRoomMessages', 'room.schedules.claimDue', 'room.schedules.skipDue', 'assets.saveAll'].includes(method))
+    if (!['history.listMessages', 'history.listRoomMessages', 'history.page', 'history.recentBatch', 'room.schedules.claimDue', 'room.schedules.skipDue', 'assets.saveAll'].includes(method))
       assert.throws(() => validateConversationResult(method, { ...result, authority: {} }))
   }
   assert.deepEqual(samples['room.schedules.list'].schedules[0].future, { preserved: true })
@@ -37,7 +38,7 @@ test('every child wire root has a finite result shape while disk optional data r
   assert.throws(() => validateConversationResult('delivery.closeLaunch', { ...samples['delivery.closeLaunch'], closed: { outcome: 'closed' } }))
 })
 
-test('history composition and the parent FD never become child wire roots', () => {
+test('export and the parent FD remain parent methods', () => {
   const context = { generation: 'generation-a', operationId: 'operation-a', actor: { kind: 'owner' }, continuation: false }
   for (const method of CONVERSATION_PARENT_METHODS) {
     assert.equal(CONVERSATION_ROOT_METHODS.includes(method), false)
