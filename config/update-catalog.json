@@ -1,0 +1,104 @@
+{
+  "schema": "bellteam.update-catalog.v1",
+  "publishedAt": "2026-11-04T00:21:15Z",
+  "expiresAt": "2026-11-11T00:21:15Z",
+  "releases": [
+    {
+      "componentId": "usage",
+      "sourceCommit": "9cb850704f28e85be3e8d4f414d60bdce118dd1e",
+      "versionId": "99329628fd982a770c921d6ee7812d8b714c818fd6102838e9306bed13e7209d",
+      "platform": {
+        "os": "linux",
+        "arch": "amd64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T002035Z/usage-9cb850704f28e85be3e8d4f414d60bdce118dd1e-linux-amd64.tar.gz",
+          "sha256": "99329628fd982a770c921d6ee7812d8b714c818fd6102838e9306bed13e7209d",
+          "bytes": 63035
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T002035Z/usage-9cb850704f28e85be3e8d4f414d60bdce118dd1e-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "f46e3e46d933a3e43deff68b1df4d45c4a187dfa8dd4b39e9864bc297ac688df",
+          "bytes": 11011
+        },
+        "signerCommit": "9cb850704f28e85be3e8d4f414d60bdce118dd1e"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "handoffSchema": "bellteam.usage-volatile.v1",
+          "onboardingSchema": "bellteam.onboarding.v1",
+          "requestEncoding": "json-files",
+          "secretEncoding": "utf8-exclusive-0600",
+          "settingsFeatures": [
+            "routing",
+            "callBridge",
+            "cloudflare",
+            "diagnostics",
+            "notifications",
+            "webPush"
+          ],
+          "subscriptionSchema": "bellteam.subscription.v1"
+        }
+      },
+      "changes": [
+        "改名前に保存された配送済み状態queuedをsentとして読み込みます。",
+        "JSON転送を枠の上限までまとめます。"
+      ]
+    },
+    {
+      "componentId": "usage",
+      "sourceCommit": "9cb850704f28e85be3e8d4f414d60bdce118dd1e",
+      "versionId": "4c355b3063fcafd29fe9232c4b51ace7c3752f047a3e55c13e36edf007a7174f",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T002035Z/usage-9cb850704f28e85be3e8d4f414d60bdce118dd1e-linux-arm64.tar.gz",
+          "sha256": "4c355b3063fcafd29fe9232c4b51ace7c3752f047a3e55c13e36edf007a7174f",
+          "bytes": 63035
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T002035Z/usage-9cb850704f28e85be3e8d4f414d60bdce118dd1e-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "45287de2659f21b3034a1313e1611837634dd457efae5d427784360da5e17a1f",
+          "bytes": 10905
+        },
+        "signerCommit": "9cb850704f28e85be3e8d4f414d60bdce118dd1e"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "handoffSchema": "bellteam.usage-volatile.v1",
+          "onboardingSchema": "bellteam.onboarding.v1",
+          "requestEncoding": "json-files",
+          "secretEncoding": "utf8-exclusive-0600",
+          "settingsFeatures": [
+            "routing",
+            "callBridge",
+            "cloudflare",
+            "diagnostics",
+            "notifications",
+            "webPush"
+          ],
+          "subscriptionSchema": "bellteam.subscription.v1"
+        }
+      },
+      "changes": [
+        "改名前に保存された配送済み状態queuedをsentとして読み込みます。",
+        "JSON転送を枠の上限までまとめます。"
+      ]
+    }
+  ],
+  "revokedCatalogs": []
+}
