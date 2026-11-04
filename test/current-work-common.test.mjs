@@ -44,16 +44,15 @@ test('missing or invalid current-work data stays unknown without exposing provid
   assert.deepEqual(result.bots[0].currentWork, unknownCurrentWork()); assert.equal(validateCurrentWork(result.bots[0].currentWork).valid, true)
 })
 
-test('real transport and seat MCP share actor binding, updates, typed failures and existing observer only', async t => {
+test('seat MCP reads work state but neither lists nor invokes the main-agent summary writer', async t => {
   const bot = { id: 'bot-a', harness: 'codex', session: 'bot-a' }, launch = 'a'.repeat(32), calls = []
   const bots = new Map([[bot.id, bot]]); bots.refresh = async () => {}
   const transport = new AitermTransport({ client: { async call(name) { calls.push(name); assert.equal(name, 'pty_list'); return { _meta: { 'aiterm/seat_turns': { schema: 'aiterm.seat-turns.v1', seats: [{ session_id: bot.id, launch_id: launch, harness: 'codex-cli', turn: { state: 'running', turn_id: 'turn-a', event_cursor: 10, wait_process: { executable: 'synthetic', args: [] } } }] } } } } } })
   await transport.seatTurns([bot])
-  let accepted
-  const began = new Promise(resolve => { accepted = resolve })
+  let updates = 0
   const seat = createSeatMcp({ bots, tools: { registry: bots }, toolsForSource: source => ({
     currentWork: bot => transport.currentWork(bot), currentWorkBinding: bot => transport.currentWorkBinding(bot, source),
-    updateWorkSummary: (bot, input) => { const pending = transport.updateWorkSummary(bot, input, source); accepted(); return pending },
+    updateWorkSummary: () => { updates++; throw Error('main-agent writer invoked') },
   }) })
   const server = createServer((request, response) => seat(request, response, new URL(request.url, 'http://fixture')))
   const base = await listen(server), clients = []
@@ -66,30 +65,20 @@ test('real transport and seat MCP share actor binding, updates, typed failures a
   assert.equal(self.currentWork.state, 'working'); assert.equal(self.currentWorkBinding.launchId, launch); assert.deepEqual(calls, ['pty_list'])
   const other = JSON.parse((await client.callTool({ name: 'get_bot', arguments: { botId: bot.id } })).content[0].text).bot
   assert.equal(Object.hasOwn(other, 'currentWorkBinding'), false)
-  const pending = client.callTool({ name: 'update_work_summary', arguments: { expected: self.currentWorkBinding, summary: ' 段階を更新 ' } })
-  await began; assert.deepEqual(calls, ['pty_list']); await transport.seatTurns([bot])
-  const result = JSON.parse((await pending).content[0].text)
-  assert.equal(result.currentWork.summary, '段階を更新'); assert.notEqual(result.currentWorkBinding.revision, self.currentWorkBinding.revision)
-  for (const [input, code, status] of [[{ expected: result.currentWorkBinding, summary: 'x', botId: bot.id }, 'CURRENT_WORK_INPUT_INVALID', 400],
-    [{ expected: self.currentWorkBinding, summary: 'x' }, 'CURRENT_WORK_CONFLICT', 409]]) {
-    const error = await client.callTool({ name: 'update_work_summary', arguments: input }); assert.equal(error.isError, true); assert.deepEqual(error.structuredContent, { error: code, status })
-  }
+  assert.equal((await client.listTools()).tools.some(tool => tool.name === 'update_work_summary'), false)
+  await assert.rejects(client.callTool({ name: 'update_work_summary', arguments: { expected: self.currentWorkBinding, summary: 'x' } }), /TOOL_NOT_FOUND/)
   const forged = await connect('b'.repeat(32))
-  const error = await forged.callTool({ name: 'update_work_summary', arguments: { expected: result.currentWorkBinding, summary: 'x' } })
-  assert.equal(error.isError, true); assert.deepEqual(error.structuredContent, { error: 'CURRENT_WORK_FORBIDDEN', status: 403 })
-  await transport.close()
-  const unavailable = await client.callTool({ name: 'update_work_summary', arguments: { expected: result.currentWorkBinding, summary: 'x' } })
-  assert.equal(unavailable.isError, true); assert.deepEqual(unavailable.structuredContent, { error: 'CURRENT_WORK_UNAVAILABLE', status: 503 })
-  assert.deepEqual(calls, ['pty_list', 'pty_list'])
+  await assert.rejects(forged.callTool({ name: 'update_work_summary', arguments: { expected: self.currentWorkBinding, summary: 'x' } }), /TOOL_NOT_FOUND/)
+  assert.equal(updates, 0); assert.deepEqual(calls, ['pty_list'])
   assert.deepEqual(seatExecutionSource({ headers: { 'x-bellteam-seat': bot.id, 'x-bellteam-launch-id': launch } }, bots).source.launch, { session_id: bot.id, launch_id: launch })
 })
 
 
-test('member retirement during the common MCP await rejects before the self writer', async () => {
+test('removed main-agent tool rejects before refreshing members or entering the writer', async () => {
   const bots = new Map([['bot-a', { id: 'bot-a' }]])
-  bots.refresh = async () => {}
+  bots.refresh = async () => { throw Error('removed tool refreshed members') }
   let updates = 0
   await assert.rejects(callBellTeamTool({ name: 'update_work_summary', arguments: { expected: {}, summary: 'x' }, from: 'bot-a', registry: bots,
-    rooms: { refresh: async () => { bots.delete('bot-a') } }, updateWorkSummary: async () => { updates++ } }), { code: 'CURRENT_WORK_FORBIDDEN', status: 403 })
+    rooms: { refresh: async () => { bots.delete('bot-a') } }, updateWorkSummary: async () => { updates++ } }), /TOOL_NOT_FOUND/)
   assert.equal(updates, 0)
 })

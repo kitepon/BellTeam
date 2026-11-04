@@ -13,7 +13,7 @@ flowchart TD
   Save --> Data
   Save --> Refresh["refreshGlobalInstructions"]
   Common["integration所有<br/>common-agents.md"] --> Refresh
-  Common --> Reminder["execution: taskSettingsReminder<br/>作業設定見直しの第1段落だけ"]
+  Common -->|"主agentの要約記述・呼出義務なし"| Reminder["execution: taskSettingsReminder<br/>作業設定見直しの第1段落だけ"]
   Reminder --> Dispatch["通常dispatch / steer<br/>bellteam_task_settings付記"]
   Data --> Refresh
   Refresh --> Write["Owner情報→個別規範→製品規範<br/>runtime公開writerへ"]
@@ -47,7 +47,7 @@ CLI固有のAGENTS.overrideやCLAUDE.localに依存しない。個別指示は�
 
 ### 全文と配送付記の有効template
 
-共通規範の正本は`config/common-agents.md`一か所。`taskSettingsReminder`は「作業設定の見直し」直後から最初の空行までを毎dispatchで読む。開始時要約の確定文はその第1段落の第2文に置き、全文と付記へ同じ本文を渡す。別段落やUserRulesに複製して付記の代用にしない。通常Ownerchat/sendmessage/返信対象room/prompt予定は同dispatchへ到達し、setupTestは付記除外、command予定はAI配送なし。実作業turn開始時と実際の工程切替だけの本人更新で、待機前/同工程確認/heartbeatを追加しない。bindingがnullなら発行せず、conflict/unavailableを再送・本業の待ち条件にしない。既10分期限は変更しない。
+共通規範の正本は`config/common-agents.md`一か所。`taskSettingsReminder`は「作業設定の見直し」直後から最初の空行までを毎dispatchで読む。Owner最新指示「メインagentには要約を書かせない」に従い、旧186Bの本人要約記述・`update_work_summary`呼出義務を撤去する。全文と付記には残る同じ第1段落を渡す。別段落やUserRulesに複製して付記の代用にしない。通常Ownerchat/sendmessage/返信対象room/prompt予定は同dispatchへ到達し、setupTestは付記除外、command予定はAI配送なし。背景agentの実行・入力束縛・要約投影はexecution、設定保存はusage、共通組立はintegrationが所有する。その完成を本撤去の条件にせず、既API/handler/DTO/TTLはこの差分では変えない。
 
 供給にはbuiltinの`package-server.mjs`収録config、members artifactの本文生成用config、executionの`EXECUTION_FILES`収録configの有効世代を同じSHAへ合わせる。前者のglobal helperとmembers dispatcherは各配置内のtemplateを読み、後者も自分の配置内のtemplateを読む。stateのUserRules更新だけではこのtemplateは変わらない。採用mainからの通常image又は既公開moduleの反映単位・供給順はintegration/distribution/runtimeの既条件に従う。
 
