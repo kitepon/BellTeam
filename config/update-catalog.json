@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-04T05:47:54Z",
-  "expiresAt": "2026-11-11T05:47:54Z",
+  "publishedAt": "2026-11-04T09:20:30Z",
+  "expiresAt": "2026-11-11T09:20:30Z",
   "releases": [
     {
       "componentId": "usage",
@@ -97,6 +97,88 @@
       "changes": [
         "親で許可された開発者設定を、利用設定の起動時に正しく引き継ぎます。",
         "通常の公開版は開発者設定を拒否します。"
+      ]
+    },
+    {
+      "componentId": "memory",
+      "sourceCommit": "19e739e5625d217ae769df7dad8350190b3f4585",
+      "versionId": "d9e3de1fc8e09c1255ac66955fce99a5a07dfd3d8c78b86fa34ab6b9f6007bf6",
+      "platform": {
+        "os": "linux",
+        "arch": "amd64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T091740Z/memory-19e739e5625d217ae769df7dad8350190b3f4585-linux-amd64.tar.gz",
+          "sha256": "d9e3de1fc8e09c1255ac66955fce99a5a07dfd3d8c78b86fa34ab6b9f6007bf6",
+          "bytes": 12328
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T091740Z/memory-19e739e5625d217ae769df7dad8350190b3f4585-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "92bbc9805688a7499082a0ec6a153da6dff3dc8607a36f69122da3c111457fe5",
+          "bytes": 11023
+        },
+        "signerCommit": "19e739e5625d217ae769df7dad8350190b3f4585"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "knowledgeEncoding": "utf8",
+          "knowledgeFrontmatterFields": "id,title,source,created_at,confidence,tags",
+          "knowledgeRequiredSchemaSha256": "7197ac37c820132a47c4404887df9880058e504db9d42a255b726ebed5d8eccd",
+          "knowledgeUserVersion": 0,
+          "memoryRequiredSchemaSha256": "aac945fb2c594987168317fd857233fb41274072ad6b0d032563459fb4b3733f",
+          "memoryUserVersion": 0,
+          "searchIndexVersion": "1:78.3"
+        }
+      },
+      "changes": [
+        "記憶と知識を、保存した内容を保ちながら単独で更新できます。"
+      ]
+    },
+    {
+      "componentId": "memory",
+      "sourceCommit": "19e739e5625d217ae769df7dad8350190b3f4585",
+      "versionId": "b94b59431cf717b75d907912284ab9f34850d5ec382cc49ba2a1e610ed029d37",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T091740Z/memory-19e739e5625d217ae769df7dad8350190b3f4585-linux-arm64.tar.gz",
+          "sha256": "b94b59431cf717b75d907912284ab9f34850d5ec382cc49ba2a1e610ed029d37",
+          "bytes": 12329
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T091740Z/memory-19e739e5625d217ae769df7dad8350190b3f4585-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "3a4ccad42ec8c275a51702a2cbfc90510acadf3d6770025a6114765cca20c8e5",
+          "bytes": 10929
+        },
+        "signerCommit": "19e739e5625d217ae769df7dad8350190b3f4585"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "knowledgeEncoding": "utf8",
+          "knowledgeFrontmatterFields": "id,title,source,created_at,confidence,tags",
+          "knowledgeRequiredSchemaSha256": "7197ac37c820132a47c4404887df9880058e504db9d42a255b726ebed5d8eccd",
+          "knowledgeUserVersion": 0,
+          "memoryRequiredSchemaSha256": "aac945fb2c594987168317fd857233fb41274072ad6b0d032563459fb4b3733f",
+          "memoryUserVersion": 0,
+          "searchIndexVersion": "1:78.3"
+        }
+      },
+      "changes": [
+        "記憶と知識を、保存した内容を保ちながら単独で更新できます。"
       ]
     }
   ],
