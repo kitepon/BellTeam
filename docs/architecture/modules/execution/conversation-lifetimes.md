@@ -36,12 +36,33 @@ flowchart TD
 | `trackCompletion(lease, realPromise)` | 同Promise一回、finish要請後も実settleまで保持。caller期限/受付結果をrealPromiseへ代用しない |
 | `finish(lease)` | finishRequestedだけ。pendingが0になるまでlive。native unknownの明示占有guardも保持 |
 | `withLease(operation,{lease?,expected?,correlation?}={})` | ownedだけfinally finish。同期operation内で実completionを登録してから返す |
-| `close()` | 同opaque ticketを返し新入場だけ閉じる |
+| `close(source='unknown')` | 同opaque ticketを返し新入場だけ閉じる。固定sourceの初回主体を記録、重複closeで上書きしない |
 | `drain(ticket,{timeoutMs=60000}={})` | 全実参照0で`{status:'drained'}`、上限まで残れば`{status:'busy'}`。実参照保持/AIabort0。timeoutMsは0〜60000、productionは60000 |
 | `adopt(ticket,newGeneration)` | 参照0/未確認0/別generationのみ。旧OS/lock確認は呼出元runtimeが先に行い、新子restore/readyは閉鎖採用後に行う |
 | `recover(ticket,previousGeneration,newGeneration)` | 異常終了専用。現在close ticket本人性とticket/現世代=previous、全active0、妥当な別newを要求。failedを解除してnewを閉鎖採用。旧OS/IPC/pipes・親effect・await channel.reapedの実終端はruntimeが先に確認し、通常adoptの代わりに呼ぶ。native生存/ACK待ちは拒否。 |
 | `resume(ticket)` | 同ticketを開く。busyでも旧live参照を維持。子resumeACK5秒の確認後だけ呼ぶ |
 | `snapshot()` | `{generation,closed,active,unconfirmed}`。active/未確認はcurrent＋retired合算、native並行数ではない |
+| `inspectAdmission()` | 親同identityの同期read-only閉診断。下記T契約。制御・Promise・終端を変更しない |
+
+## T：生存子の入場拒否を区別する診断
+
+```mermaid
+flowchart LR
+  Runtime["Epi: closeの固定呼出主体"] --> Gate["同親lifetime: ticket / failed / 実参照"]
+  Protocol["固定method: 初回protocol失敗"] --> Gate
+  Gate --> Read["inspectAdmission / 同期read-only"]
+  Read --> Validate["validateConversationAdmissionDiagnostic / exact閉形"]
+  Validate --> Parent["Molly: 同親binding / 既認証済み診断read"]
+  Parent --> Sample["Centi: 同UUID / 公開readの有限sample"]
+```
+
+`close(source)`のsourceは`unknown/module_start/module_replace/module_close/module_child_exit/module_recovery`。既引数無しはunknown、未知入力もunknownとして制御は変えない。ticketが既にある時は主体・時刻・revisionを上書きしない。初回current protocol失敗は内部呼出methodの固定名を保持する。既知retiredの失敗は元unconfirmedへだけ作用し、current失敗の遷移を作らない。
+
+`inspectAdmission()`はexact schema `bellteam.conversation-admission.v1` と `ticket/failed/active/unconfirmed/writerRevision/closedBy/closedAt/closedWriterRevision/failureSource/failureAt/failureWriterRevision/transition/transitionAt/revision`。boolはticket/failed/unconfirmed、activeとrevision類は非負safe整数、時刻はUnixミリ秒又はnull、未記録source/transitionはnull。`validateConversationAdmissionDiagnostic`は同fileからexportし、exact key/固定enum/値型を検査したcopyを返す。生generation/ticket/lease/operation/本文/receipt/stackを含めない。
+
+writerRevisionは同親instance内で初期0、成功adopt/recover/recoverFailedGenerationごと+1。世代opaqueや起動IDの代わりに親の既bindingと合わせる診断番号で、別親との同一性を証明しない。closed/failureの各writerRevisionは発生時の番号を保持する。最新transitionはclose/protocol/adopt/recover/recover_failed_generation/resume一件、revisionはそれらの実成功時だけ増える。resume後も過去close主体と時刻は保持し、現在ticket boolと分ける。失敗した制御・診断readは遷移を作らない。
+
+activeはcurrent＋retiredの実lease総数、native件数や実OS終端証明ではない。failedはcurrentだけ、unconfirmedは既合算。診断readでclose/quiesce/cleanup/finish/新作用を開始せず、制御修理・強制resume・過去欠測補完をしない。共通consoleが取り出す閉値と公開認証は各所有者が接続する。新直接試験はticket-only/failed-only/両方、初回主体保持、復帰とretired遅着、改竄拒否だけを検査する。
 
 ## 固定callback登録
 
