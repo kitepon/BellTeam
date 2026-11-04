@@ -86,3 +86,19 @@ test('Owner old read/old save cannot overwrite or close a reopened owner form',a
  await editor.open({name:'newer'});f.get('owner-name').value='latest input';write.resolve({owner:{name:'saved'}});await saving
  assert.equal(f.get('owner-name').value,'latest input');assert.equal(f.dialog.open,true)
 })
+test('Owner profile save keeps a separate unsaved background-agent selection open',async t=>{
+ const f=editorDOM(t),writes=[]
+ const editor=createOwnerEditor(f.dialog,{api:async(path,options)=>{
+  if(options?.method){writes.push(path);return path==='/api/owner'?{owner:{name:'Saved'}}:{}}
+  if(path==='/api/models')return {models}
+  if(path==='/api/settings')return {settings:[],backgroundAgent:{revision:null,selection:null}}
+  return ownerAPI(path)
+ },onOwner(){},onSettings(){}})
+ await editor.open({name:'Owner'});await settle()
+ const root=f.get('background-agent-form'),harness=root.querySelector('[data-background-harness]')
+ harness.value='codex';harness.handlers.change()
+ await f.submit('owner-form')
+ assert.deepEqual(writes,['/api/owner','/api/user-rules'])
+ assert.equal(f.dialog.open,true);assert.equal(harness.value,'codex')
+ assert.match(f.get('owner-form-error').textContent,/保存しました/)
+})

@@ -5,6 +5,9 @@
 ```mermaid
 flowchart LR
   Git[固定Gitとliteral closure] --> Pack[公開profile / 同lockの依存]
+  Background[usage/background-agent-settings.mjs] --> Atomic[src/json-file.mjs / 既atomic保存]
+  Background --> Pack
+  Atomic --> Pack
   Pack --> Archive[完全inventory / P1 / 本人実互換]
   Archive --> Probe[無作用又は人工状態 / 固定C1001 / OS終端]
   Probe --> Sign[component専用main OIDC]
@@ -13,7 +16,9 @@ flowchart LR
   Reader --> Generation[本人wrapper / 共通controller / 親assembly]
 ```
 
-usageはentryから到達する固定30file（設定guideとsubscriptions JSON2を含む）とpackage/lock。src/distribution-profile.mjsだけは既public packageと同じ配布版へ置き換える。Node組込のみでnpm実行0。diagnosticsは固定12fileとpackage/lock、SDK/types依存は同Git lockの通常npm ci --omit=devで固定し、他componentのsrcを収録しない。未知srcや任意追加payloadを拒否する。完全inventoryで全Node依存を確認し、私有state/資格/本文/DBは収録しない。
+usageはentryから到達する固定inventory（設定guideとsubscriptions JSON2、背景agent設定とその依存src/json-file.mjsを含む）とpackage/lock。src/distribution-profile.mjsだけは既public packageと同じ配布版へ置き換える。Node組込のみでnpm実行0。diagnosticsは固定12fileとpackage/lock、SDK/types依存は同Git lockの通常npm ci --omit=devで固定し、他componentのsrcを収録しない。未知srcや任意追加payloadを拒否する。完全inventoryで全Node依存を確認し、私有state/資格/本文/DBは収録しない。
+
+背景agent設定の業務source・唯一writer・閉I/Oはusage所有。配布はBUSINESS_FILES['usage']へ上の2fileだけを追加し、同じ固定sourceのpackage生成と完全inventory検証へ渡す。既6設定の保存形式・互換値や他componentのclosureは変更しない。新backendのsourceと同じ通常候補へ接続し、closureだけを先行配布しない。
 
 実互換はusage/state-compatibility.mjs又はdiagnostics-protocol.mjsの本人exportへ一致させ、Node26/P1、catalog stateSchemaとcontainerUpdateはnull。別のstate番号は作らない。署名policyは各専用workflowのrefs/heads/main、repositoryId1404510084、source/signer/archiveを固定。検証前のarchive JavaScript実行は禁止し、信頼済imageのexportと比較する。
 

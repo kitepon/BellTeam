@@ -57,6 +57,7 @@
     "src/cloudflare-access.mjs",
     "src/usage/http-api.mjs",
     "src/usage/application-features.mjs",
+    "src/usage/background-agent-settings.mjs",
     "src/usage/conversation-effects.mjs",
     "src/usage/mcp-tools.mjs",
     "src/usage/notifications.mjs",

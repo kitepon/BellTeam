@@ -19,7 +19,7 @@ test('generated and legacy summaries retain their sources while unknown sources 
  assert.deepEqual(currentWork(generated),generated)
  assert.deepEqual(currentWork(stale),stale)
  assert.equal(currentWork(legacy).source,'self_reported')
- for(const value of [{...generated,source:'future_agent'},{...stale,summary:'古い本文'},{...generated,summary:'猫'.repeat(161)},{...generated,state:'idle'},{...generated,summary:'指示\n本文'},{...generated,summary:' '+generated.summary}])assert.equal(currentWork(value).state,'unknown')
+ for(const value of [{...generated,source:'future_agent'},{...stale,summary:'古い本文'},{...generated,summary:'猫'.repeat(161)},{...legacy,state:'idle'},{...generated,summary:'指示\n本文'},{...generated,summary:' '+generated.summary}])assert.equal(currentWork(value).state,'unknown')
  assert.equal(currentWork({...generated,summary:'猫'.repeat(160)}).summary.length,160)
  const summary={},body={}
  const root={querySelector:selector=>selector==='summary'?summary:body}
@@ -39,6 +39,26 @@ test('generated and legacy summaries retain their sources while unknown sources 
  renderCurrentWork(root,'bot',{...bots[0],currentWork:{...generated,source:'future_agent'}},bots)
  assert.match(body.innerHTML,/仕事状況を未取得/)
  assert.doesNotMatch(body.innerHTML,/自動生成|本人記載|設定画面を更新しています/)
+})
+test('background summary freshness is independent from all three observed execution states',()=>{
+ const generated={...examples.currentWork.workingCurrent,source:'background_agent'}
+ for(const state of ['working','idle','unknown'])for(const summaryStatus of ['current','missing','stale']){
+  const value={...generated,state,summaryStatus,summary:summaryStatus==='current'?generated.summary:null,summaryUpdatedAt:summaryStatus==='missing'?null:generated.summaryUpdatedAt,source:summaryStatus==='missing'?null:'background_agent'}
+  assert.deepEqual(currentWork(value),value)
+  if(summaryStatus==='current')assert.match(workLabel(value),new RegExp(generated.summary))
+ }
+ const unobserved={...generated,state:'unknown',observedAt:null}
+ assert.deepEqual(currentWork(unobserved),unobserved)
+ assert.match(workLabel(unobserved),/実行状態未取得/)
+ assert.doesNotMatch(workLabel(unobserved),/作業中/)
+ assert.match(workLabel({...generated,state:'idle'}),/待機中/)
+ const summary={},body={},root={querySelector:selector=>selector==='summary'?summary:body}
+ renderCurrentWork(root,'bot',{name:'非対応native',currentWork:unobserved},[])
+ assert.match(body.innerHTML,/<dt>実行状態<\/dt><dd>実行状態未取得<\/dd>/)
+ assert.match(body.innerHTML,/共通APIの接続を確認しています/)
+ assert.match(body.innerHTML,/<dt>最終観測<\/dt><dd>未取得<\/dd>/)
+ for(const state of ['idle','unknown'])for(const summaryStatus of ['current','stale'])assert.equal(currentWork({...generated,state,summaryStatus,summary:summaryStatus==='current'?generated.summary:null,source:'self_reported'}).summaryStatus,'missing')
+ assert.equal(currentWork({...generated,state:'idle',observedAt:null}).summaryStatus,'missing')
 })
 test('missing, inconsistent and malicious fields fail closed without recent or goal fallback',()=>{
  const w=examples.currentWork.workingCurrent

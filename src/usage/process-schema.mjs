@@ -1,4 +1,5 @@
 import { HARNESS } from '../onboarding.mjs'
+import { backgroundInputValid } from './background-agent-settings.mjs'
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const text = value => typeof value === 'string' && value.length > 0 && !value.includes('\0')
@@ -20,6 +21,8 @@ const cardRead = spec(shape({ id }))
 // Only this closed table is an IPC business surface; service names are never invoked dynamically.
 export const usageMethods = {
   'settings.list': spec(none),
+  'settings.backgroundAgent': spec(none),
+  'settings.updateBackgroundAgent': spec(backgroundInputValid, kinds.owner),
   'settings.configuration': spec(shape({ id: feature }), kinds.system),
   'settings.update': spec(shape({ id: feature, input: object }), ['owner', 'bot']),
   'settings.setError': spec(shape({ id: feature, epoch: value => Number.isSafeInteger(value) && value >= 0, error: shape({ code: text }) }), kinds.system),

@@ -1,5 +1,6 @@
 import { usageMethods } from './process-schema.mjs'
 import { usageProjectionRecordValid, usageSettingValid, usageConfigurationValid } from './projection.mjs'
+import { backgroundRecordValid } from './background-agent-settings.mjs'
 
 const object = value => value && typeof value === 'object' && !Array.isArray(value)
 const exact = (value, names) => object(value) && Object.keys(value).length === names.length && names.every(key => Object.hasOwn(value, key))
@@ -13,6 +14,9 @@ const timeline = (kind, value) => Array.isArray(value) && value.every(row => exa
 // The channel validates a reply before it becomes a successful public business result.
 export function usageResultValid(method, value, params = {}) {
   if (!Object.hasOwn(usageMethods, method)) return false
+  if (method === 'settings.backgroundAgent') return backgroundRecordValid(value)
+  if (method === 'settings.updateBackgroundAgent') return backgroundRecordValid(value) && value.selection !== null
+    && ['harness', 'model', 'reasoningEffort'].every(key => value.selection[key] === params[key])
   if (method === 'settings.list') return Array.isArray(value) && value.length === 6 && new Set(value.map(item => item?.id)).size === 6 && value.every(usageSettingValid)
   if (method === 'settings.configuration') return usageConfigurationValid(params.id, value)
   if (method === 'settings.update') return usageSettingValid(value) && value.id === params.id

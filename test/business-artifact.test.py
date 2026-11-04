@@ -17,6 +17,16 @@ import module_artifact_verifier as verifier
 
 
 class BusinessArtifacts(unittest.TestCase):
+    def test_usage_background_agent_closure(self):
+        required = {'payload/src/usage/background-agent-settings.mjs', 'payload/src/json-file.mjs'}
+        _, manifest, _ = self.artifact('usage')
+        self.assertTrue(required <= {row['path'] for row in manifest['files']})
+        for missing in required:
+            incomplete = copy.deepcopy(manifest)
+            incomplete['files'] = [row for row in incomplete['files'] if row['path'] != missing]
+            with self.subTest(missing=missing), self.assertRaises(ValueError):
+                validate_manifest(incomplete, component='usage')
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)

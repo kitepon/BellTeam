@@ -34,6 +34,20 @@ export function createUsageParentEffects({ getServices, getFeatures, seatRuntime
         await complete(features.onChange(params.id, params.configuration, { epoch: params.epoch }))
         break
       }
+      case 'backgroundAgent.models': {
+        if (typeof services.models?.list !== 'function') throw usageError('BACKGROUND_AGENT_MODELS_UNAVAILABLE')
+        const catalog = (await complete(services.models.list(params.harness)))?.[params.harness]
+        if (!catalog || catalog.error || !Array.isArray(catalog.models) || !catalog.models.length)
+          throw usageError('BACKGROUND_AGENT_MODELS_UNAVAILABLE')
+        result = catalog.models.map(({ id, efforts }) => ({ id, efforts }))
+        break
+      }
+      case 'backgroundAgent.changed':
+        try {
+          if (typeof services.backgroundSummary?.configure !== 'function') throw usageError('BACKGROUND_AGENT_UNAVAILABLE')
+          await complete(services.backgroundSummary.configure(params.configuration))
+        } finally { services.notify?.({ type: 'settings', featureId: 'backgroundAgent' }) }
+        break
       case 'auth.call': {
         const keys = ['harness', 'action', 'session_id', 'relogin', 'expected_binding', 'expected_prompt_digest', 'response']
         const harness = Object.keys(HARNESS).find(key => HARNESS[key] === params.harness)
