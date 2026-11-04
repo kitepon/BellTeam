@@ -1,5 +1,6 @@
 import { TimelineIndex } from './timeline-index.mjs'
 import { readConversationJson } from './conversation-streams.mjs'
+import { validateConversationPageRows, validateConversationRecentRows } from './conversation/results.mjs'
 
 const images = input => input.images ?? (input.image ? [input.image] : [])
 const inherit = (promise, original) => {
@@ -59,6 +60,22 @@ export function createConversationFacade({ getController, context }) {
   }
   Object.defineProperty(rooms, 'size', { get: () => projection.size })
   const store = {
+    recentViews: (botIds, options) => {
+      const attempt = history('history.recentBatch', { botIds }, options)
+      return inherit(attempt.then(async rows => {
+        const result = validateConversationRecentRows(rows, botIds)
+        await attempt.completion
+        return new Map(result.map(({ botId, message }) => [botId, new TimelineIndex(message ? [message] : [])]))
+      }), attempt)
+    },
+    messagePage: (input, options) => {
+      const attempt = history('history.page', input, options)
+      return inherit(attempt.then(async rows => {
+        const page = validateConversationPageRows(rows, input.cards)
+        await attempt.completion
+        return page
+      }), attempt)
+    },
     timeline: (botId, options) => history('history.listMessages', { botId }, options),
     timelineView: (botId, options) => { const attempt = store.timeline(botId, options); return inherit(attempt.then(rows => new TimelineIndex(rows)), attempt) },
     timelineViews: async (botIds, options) => {

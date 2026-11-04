@@ -14,6 +14,7 @@ const safeError = error => {
     outcome: error?.outcome === 'not_accepted' ? 'not_accepted' : 'unknown',
     status: Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599 ? error.status : 503 }
 }
+const historyMethods = ['history.listMessages', 'history.listRoomMessages', 'history.page', 'history.recentBatch']
 const streamLane = kind => ['control', 'effect', 'event', 'diagnostic'].includes(kind) ? 'continuation' : kind
 async function encodedLength(value) {
   let size = 0
@@ -100,7 +101,7 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
       timer.unref?.()
       try { await entry.replyReady.promise } finally { clearTimeout(timer) }
     }
-    if (entry.method === 'history.listMessages' || entry.method === 'history.listRoomMessages') {
+    if (historyMethods.includes(entry.method)) {
       channelCheck(value?.[Symbol.asyncIterator])
       await acknowledged({ type: 'result', kind: entry.kind, stream: 'history', length: null })
       await write(encodeConversationJson(value), { lane: 'history', operation: entry.id })
@@ -166,7 +167,7 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
       } else if (value?.type === 'result') {
         channelCheck(exactChannelKeys(value, 'type,kind,stream,length'))
         const task = pending.get(id); channelCheck(task && task.kind === value.kind && task.acknowledged && !task.reply)
-        channelCheck(value.stream === (task.kind === 'root' ? ['history.listMessages', 'history.listRoomMessages'].includes(task.method) ? 'history' : 'result' : 'continuation'))
+        channelCheck(value.stream === (task.kind === 'root' ? historyMethods.includes(task.method) ? 'history' : 'result' : 'continuation'))
         task.reply = value; touch(task)
         await control(id, { type: 'result-ready', kind: task.kind })
       } else if (value?.type === 'result-ready') {

@@ -33,7 +33,8 @@ export function validateConversationResult(method, value) {
     case 'room.schedules.list': return fields(value, { schedules: array(schedule) })
     case 'room.schedules.set': return fields(value, { schedule })
     case 'room.schedules.claimDue': case 'room.schedules.skipDue': if (!nullable(schedule)(value)) invalid(); return true
-    case 'history.listMessages': case 'history.listRoomMessages':
+    case 'history.recent': return fields(value, { message: nullable(plain) })
+    case 'history.listMessages': case 'history.listRoomMessages': case 'history.page': case 'history.recentBatch':
       if (typeof value?.[Symbol.asyncIterator] !== 'function') invalid()
       return true
     case 'direct.post': case 'user.post': case 'delivery.resume': return fields(value, {
@@ -64,4 +65,23 @@ export function validateConversationControlResult(method, value) {
     case 'routing.changed': return fields(value, { applied: value => value === true, epoch: integer })
     default: invalid()
   }
+}
+
+// The parent validates decoded history envelopes before restoring captured card bodies.
+export function validateConversationPageRows(rows, cards) {
+  if (!Array.isArray(rows) || rows.length !== 1) invalid()
+  const reference = value => {
+    if (value?.source === 0) return fields(value, { source: oneOf(0), item: plain })
+    fields(value, { source: value => integer(value) && value > 0 && value <= cards.length, index: integer })
+    if (value.index >= cards[value.source - 1].length) invalid()
+    return true
+  }
+  fields(rows[0], { items: array(reference), has_more: value => typeof value === 'boolean' }, { remaining_before: integer })
+  return rows[0]
+}
+
+export function validateConversationRecentRows(rows, botIds) {
+  if (!Array.isArray(rows) || rows.length !== botIds.length) invalid()
+  rows.forEach((row, index) => fields(row, { botId: oneOf(botIds[index]), message: nullable(plain) }))
+  return rows
 }

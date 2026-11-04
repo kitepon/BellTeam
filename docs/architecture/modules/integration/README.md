@@ -57,10 +57,12 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  Bots[GET /api/bots] --> Views[facade.timelineViews / 入力順の逐次取得]
+  Bots[GET /api/bots] --> Recent[facade.recentViews / history.recentBatch一回]
+  Recent --> History[同actor・options / 既history root]
+  Full[既全件caller] --> Views[facade.timelineViews / 入力順の逐次取得]
   Rooms[GET /api/rooms] --> Refresh[rooms.refresh / 返値と実completion]
   Refresh --> RoomView[rooms.messageView / 各Roomを逐次取得]
-  Views --> History[同actor・options / 既history root]
+  Views --> History
   RoomView --> History
   History --> Result[返値と元Promiseの実completionを待つ]
   Result --> Next[次の履歴へ / 全件・入力順を保持]
@@ -71,6 +73,26 @@ flowchart LR
 以前の一覧内Promise.allは9件以上で同時にmembers logical8へ新rootを予約し、一覧自身で受付拒否を起こせた。親集約だけを逐次化し、結果の射影で保持された元completionまで待って次を発行する。Mapの重複IDは既来どおり最後の値、Roomはrefresh後の一覧を捕捉して最後に現投影を再検査する。messageViewのない既readerではsourcesの既fallbackを維持する。新しい件数制限・再試行・容量変更・一括snapshot保証は加えない。
 
 同actor/options identity・既認可・全件/順序/公開shape・元結果/実completionの拒否を保持し、失敗後の後続発行は止める。部分結果を成功へ変換しない。閉鎖/別要求の混雑は既拒否のまま。子writer/stream/channel/controller/members内部は不変で、facade内部の正本は[会話process](../conversation/process.md)、lease解放は[execution入場](../execution/members-admission.md)。Rootの2026-11-04裁定とN102明示許容により、この差分だけ親集約loopをintegrationが修理する。本番全503/MCP/初回unhealthyの単独原因や本番回復をこの局所反例から証明しない。
+
+## 会話の初回ページと一覧の直近表示
+
+```mermaid
+flowchart LR
+  Message[GET bots/rooms messages] --> Cards[親usageカードのsnapshot / IDと時刻だけ子へ]
+  Cards --> Page[facade.messagePage / history.page]
+  Page --> Child[N102の同snapshot索引 / 既timelinePage]
+  Child --> Stream[既history stream / ページ又は直近列だけ]
+  List[GET bots] --> Recent[facade.recentViews / history.recentBatch一回]
+  Recent --> Stream
+  Stream --> Validate[N102閉DTO検証 / 元実completion待ち]
+  Validate --> Restore[同snapshotカード参照を親本文へ復元]
+  Restore --> HTTP[既webMessage / 秘密入力guide / 公開JSON]
+  Export[既export・全件caller] --> Full[既list2 / 全件・既usage合成]
+```
+
+親は`history.page`へkind/id、URLから得たlimit/before/after文字列又はnull、Botのsecret/question二列又はRoomのsecret一列のid/atだけを渡す。本文は親が同snapshotで保持し、子が返したsource/indexを作者の閉DTO検証後に同位置へ戻す。子は履歴本文だけをsource:0で返す。既limit既定値・上限・小数・未知cursor・after全差分・同時刻順・has_more/remaining_beforeはN102が既timelinePageを使い保持する。guide取得の部分失敗も従来どおりカードを失わない。
+
+`recentViews`は入力順・重複を含む子のrecentBatch列を検証し、Mapの最後の値と既TimelineIndexへ戻す。GET botsだけがこの窓口を優先し、usage合成、認可/read pin、await後の在席/pending再確認と公開shapeは既members handlerのまま。timelineViews/timelineViewとRoom一覧の全件契約、exportは保持する。page/recentBatchは元actual completionを保持して待ち、失敗を空pageへ変えない。子の接点・DTO・stream分類の正本はN102の[会話process](../conversation/process.md)、共通coalesceはruntimeの[module IPC](../runtime/module-ipc.md)を参照する。
 
 ## 実行失敗の診断接続
 

@@ -19,7 +19,9 @@ const examples = {
   'room.schedules.set': { roomId: 'room-a', schedule: { kind: 'once', at: '2030-01-01', prompt: 'fixture' } },
   'room.schedules.remove': { roomId: 'room-a', scheduleId: 'schedule-a' },
   'room.schedules.claimDue': due, 'room.schedules.skipDue': due,
-  'member.removeFromRooms': { botId: 'bot-a' }, 'history.listMessages': { botId: 'bot-a' },
+  'member.removeFromRooms': { botId: 'bot-a' }, 'history.listMessages': { botId: 'bot-a' }, 'history.recent': { botId: 'bot-a' },
+  'history.recentBatch': { botIds: ['bot-a'] },
+  'history.page': { kind: 'bots', id: 'bot-a', query: { limit: null, before: null, after: null }, cards: [[], []] },
   'direct.post': { from: 'bot-a', target: 'user', ...post }, 'user.post': { target: 'bot-a', ...post },
   'user.turn': { target: 'bot-a', ...post }, 'room.post': { from: 'bot-a', room: 'room-a', ...post },
   'room.reply': { roomId: 'room-a', messageId: 'message-a', ...post },
@@ -42,7 +44,7 @@ test('every fixed root has closed payload keys and required fields', () => {
     assert.throws(() => validateConversationRequest(method, { ...params, operationContext: {} }, context))
     for (const key of Object.keys(params)) {
       const missing = { ...params }; delete missing[key]
-      if (!['history.page'].includes(method)) assert.throws(() => validateConversationRequest(method, missing, context))
+      assert.throws(() => validateConversationRequest(method, missing, context))
     }
   }
 })

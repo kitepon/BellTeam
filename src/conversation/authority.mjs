@@ -1,5 +1,5 @@
 const reading = ['rooms.list', 'room.read', 'room.authorize', 'room.schedules.list',
-  'history.page', 'history.recent', 'history.export', 'history.listMessages', 'history.listRoomMessages']
+  'history.page', 'history.recent', 'history.recentBatch', 'history.export', 'history.listMessages', 'history.listRoomMessages']
 const rooms = ['room.create', 'room.update', 'room.remove', 'room.invite', 'room.leave', 'room.schedules.set', 'room.schedules.remove']
 const posting = ['user.post', 'direct.post', 'room.post', 'room.reply', 'room.silent', 'assets.save', 'assets.saveAll']
 
@@ -13,7 +13,7 @@ export const CONVERSATION_ACTOR_METHODS = Object.freeze({
   usage: Object.freeze(['user.post']),
   observer: Object.freeze(['observation.poll', 'display.words']),
 })
-export const CONVERSATION_PARENT_METHODS = Object.freeze(['assets.open', 'history.page', 'history.recent', 'history.export'])
+export const CONVERSATION_PARENT_METHODS = Object.freeze(['assets.open', 'history.export'])
 export const CONVERSATION_ROOT_METHODS = Object.freeze([...new Set(Object.values(CONVERSATION_ACTOR_METHODS).flat())]
   .filter(method => method !== 'display.words' && !CONVERSATION_PARENT_METHODS.includes(method)))
 

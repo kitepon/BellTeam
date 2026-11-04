@@ -1,17 +1,27 @@
 import { TimelineIndex, timelinePage, fullTimeline } from './timeline-index.mjs'
 
 export function createMessageViews({ rooms, store, secretRequests, ownerQuestions, ownerSecretGuide = null }) {
+  const extras = (kind, id) => {
+    const target = kind === 'rooms' ? { roomId: id } : { botId: id }
+    const extra = service => service?.timelineView?.(target) ?? new TimelineIndex(service?.timeline(target) ?? [])
+    return [extra(secretRequests), ...(kind === 'bots' ? [extra(ownerQuestions)] : [])]
+  }
   const sources = async (kind, id, prepared = null) => {
     const base = prepared ?? (kind === 'rooms'
       ? rooms.messageView ? await rooms.messageView(id) : new TimelineIndex(await rooms.messages(id))
       : store.timelineView ? await store.timelineView(id) : new TimelineIndex(await store.timeline(id)))
-    const target = kind === 'rooms' ? { roomId: id } : { botId: id }
-    const extra = service => service?.timelineView?.(target) ?? new TimelineIndex(service?.timeline(target) ?? [])
-    return [base, extra(secretRequests), ...(kind === 'bots' ? [extra(ownerQuestions)] : [])]
+    return [base, ...extras(kind, id)]
   }
   const timeline = async (kind, id) => fullTimeline(await sources(kind, id))
   const messagePage = async (kind, id, url) => {
-    const page = timelinePage(await sources(kind, id), url)
+    let page
+    if (store?.messagePage) {
+      // 子へ渡した位置と本文を同じsnapshotに束縛し、待機中のカード更新を混ぜない。
+      const cards = extras(kind, id).map(source => source.snapshot())
+      const query = Object.fromEntries(['limit', 'before', 'after'].map(key => [key, url.searchParams.get(key)]))
+      const result = await store.messagePage({ kind, id, query, cards: cards.map(rows => rows.map(({ id, at }) => ({ id, at }))) })
+      page = { ...result, items: result.items.map(entry => entry.source === 0 ? entry.item : cards[entry.source - 1][entry.index]) }
+    } else page = timelinePage(await sources(kind, id), url)
     const items = await Promise.all(page.items.map(async entry => {
       const item = webMessage(entry)
       if (!ownerSecretGuide || item.kind !== 'secret_request' || !item.secret_request) return item
