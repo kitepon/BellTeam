@@ -78,6 +78,8 @@ final class AppStore: ObservableObject {
     private var setupReadSequence = 0
     private var setupAuthUpdating = false
     @Published var featureSettings: [FeatureSetting] = []
+    /// nilは未取得か、サーバーが要約のAIの設定を持たない版。
+    @Published var backgroundAgent: BackgroundAgentRecord?
     @Published var authMode = "local"
     var openLoginAutomatically = false
     var routingEnabled: Bool { featureSettings.first { $0.id == "routing" }?.status == "enabled" }
@@ -230,6 +232,7 @@ final class AppStore: ObservableObject {
         setupReadSequence += 1
         setupAuthUpdating = false
         featureSettings = []
+        backgroundAgent = nil
         authMode = "local"
         phase = .setup
     }
@@ -280,6 +283,7 @@ final class AppStore: ObservableObject {
     func refreshSettings() async throws {
         let response: FeatureSettingsResponse = try await api.get("/api/settings")
         if featureSettings != response.settings { featureSettings = response.settings }
+        if backgroundAgent != response.backgroundAgent { backgroundAgent = response.backgroundAgent }
     }
 
     func refreshAIControl() async {
