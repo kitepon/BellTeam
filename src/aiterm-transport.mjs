@@ -608,6 +608,7 @@ export class AitermTransport {
   // 一回の配送。受付（Aitermの受理）までと、受理したターンの終わりまでを一つのjobとして進める。
   // 続けてよいかはjobの停止結論と席の状態に聞き、停止の結論を決めるのはjob（DeliveryJob）だけ。
   submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease, conversationDelivery } = {}) {
+    this.assertConversationOccupation(bot.id)
     const recoveryVersion = this.captureStopVersion(bot)
     let recoverySession = this.session(bot)
     if (membersLease) this.membersAdmission.assertLease(membersLease)
@@ -623,6 +624,7 @@ export class AitermTransport {
         throw Object.assign(new Error('CONVERSATION_NOT_ACCEPTED'), { code: 'CONVERSATION_NOT_ACCEPTED', status: 503, effect: 'not_started' })
       const kind = transcript ? 'turn' : this.conversationAdmission.isReport(conversationDelivery) ? 'report' : 'notify'
       this.conversationAdmission.claimNative(conversationDelivery, { deliveryId: info.groupId ?? job.id, target: bot.id, kind })
+      job.conversationGeneration = conversationDelivery.generation
       conversationCallbacks = this.conversationAdmission.callbacks(conversationDelivery)
       this.trackCompletion(this.conversationAdmission.deliveryCompletion(conversationDelivery))
       ;({ onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null } = conversationCallbacks)
@@ -645,10 +647,9 @@ export class AitermTransport {
     let endAdmission
     const admissionCompletion = new Promise(resolve => { endAdmission = resolve })
     if (membersLease) this.membersAdmission.trackCompletion(membersLease, admissionCompletion)
+    let delivery, followed = false
     const completion = (async () => {
-      let delivery
       // 差し込んだ文を取ったターンの終わりまで追ったか。追えなかった差し込みの画像は、次のターンまで残す。
-      let followed = false
       try {
         await this.executionStopping?.catch(() => {})
         job.assertNotStopped()
@@ -671,16 +672,27 @@ export class AitermTransport {
         delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job, membersLease })
         // 受理した。送信中に届いた停止の結果があれば、この受理と照らす。
         job.receipt = delivery.receipt
-        await job.applyStopResult(job.executionStopResult)
-        await job.checkpoint()
         const tracking = this.followAcceptedDelivery(job, delivery)
         const { steered, follower } = tracking
         followed = tracking.followed
+        if (conversationDelivery && followed) {
+          job.nativeCompletion = this.waitUntilDone(delivery.receipt, job.controller.signal).then(async native => {
+            job.nativeTerminal = true
+            await job.finishExecution('completion')
+            if (native.turn_id) this.activity.followedTurns.set(bot.id, native.turn_id)
+            return native
+          }, error => {
+            job.nativeTerminal = error.turnCompleted === true
+            if (!job.nativeTerminal) job.nativeUnconfirmed = error
+            throw error
+          })
+          this.conversationAdmission.trackNativeContinuation(conversationDelivery, delivery.receipt, job.nativeCompletion)
+        }
+        await job.applyStopResult(job.executionStopResult)
+        await job.checkpoint()
         await onStatus?.('running')
         await job.checkpoint()
         acknowledged = true
-        if (conversationDelivery && followed)
-          this.conversationAdmission.trackNativeContinuation(conversationDelivery, delivery.receipt, result)
         accept({ delivery: steered ? 'steered' : 'running' })
         endAdmission()
         // 待つ手がかりを返さない差し込み（Aiterm 0.59.1まで）は、同じ席のjobの終わりを待つ。無ければ、終わりを知る道が無い。
@@ -690,9 +702,9 @@ export class AitermTransport {
           await onStatus?.('delivered')
           return { delivery: 'steered' }
         }
-        const completion = await this.waitForTurnCompletion(job, delivery, onInterim)
+        const completion = await this.waitForTurnCompletion(job, delivery, onInterim, job.nativeCompletion)
         await job.checkpoint()
-        await job.finishExecution('completion')
+        if (!job.nativeCompletion) await job.finishExecution('completion')
         if (completion.turn_id) this.activity.followedTurns.set(bot.id, completion.turn_id)
         // 動いていたターンが取り込んだ差し込みは、そのターンの一部。回答は、そのターンを始めた側が出す
         // （BellTeamが始めたターンは元の配送、席が自分で始めたターンはself-turns.mjs）。
@@ -727,23 +739,26 @@ export class AitermTransport {
         // Accepted input remains accepted when only its completion tracking fails.
         const tracking = job.waitFailure === error && job.receipt && !job.stopped && !error.turnCompleted
           ? [{ schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' }] : []
-        await onStatus?.(job.stopped ? 'stopped' : 'failed', error, ...tracking)
+        try { await onStatus?.(job.stopped ? 'stopped' : 'failed', error, ...tracking) }
+        catch (callbackError) { if (!conversationDelivery) throw callbackError }
         throw error
-      } finally {
-        try {
-          if (!this.retainUntrackedImages(job, delivery, followed, parent))
-            await this.removeTemporaryImages(delivery?.imageFiles)
-        } finally {
-          this.activity.release(job)
-          endAdmission()
-        }
-      }
+      } finally { endAdmission() }
     })()
-    job.completion = completion
-    let result = completion
+    const release = async () => {
+      try {
+        if (job.nativeCompletion) await job.nativeCompletion.catch(() => {})
+        if (!job.nativeUnconfirmed && !this.retainUntrackedImages(job, delivery, followed, parent))
+          await this.removeTemporaryImages(delivery?.imageFiles)
+      } finally {
+        if (!job.nativeUnconfirmed) this.activity.release(job)
+      }
+    }
+    job.completion = completion.then(async value => { await release(); return value }, async error => { await release(); throw error })
+    job.completion.catch(() => {})
+    let result = conversationDelivery ? completion : job.completion
     if (conversationDelivery) {
       // submit yields before native work, so all real references exist before issuance.
-      this.conversationAdmission.trackCompletion(conversationDelivery, completion)
+      this.conversationAdmission.trackCompletion(conversationDelivery, job.completion)
       if (conversationCallbacks.userComplete) {
         result = completion.then(async reply => { await conversationCallbacks.userComplete(reply); return reply })
         this.conversationAdmission.trackCompletion(conversationDelivery, result)
@@ -753,11 +768,18 @@ export class AitermTransport {
     }
     result.accepted = accepted
     result.admissionCompletion = admissionCompletion
-    completion.then(() => this.continuation?.succeeded(bot.id, info.groupId ?? job.id), error => {
-      if (!error?.recoveryFailure || job.stopped || job.stopRequested) return
+    job.completion.then(() => this.continuation?.succeeded(bot.id, info.groupId ?? job.id), error => {
+      if (!error?.recoveryFailure || job.stopped || job.stopRequested
+        || job.conversationGeneration && job.conversationGeneration !== this.conversationAdmission?.capture().generation) return
       this.continuation?.failed({ bot, deliveryId: info.groupId ?? job.id, failure: error.recoveryFailure,
         reconfigured: () => { this.requireStopVersion(bot.id, recoveryVersion); recoverySession = this.session(bot) },
         check: allowedMessage => {
+          if (conversationDelivery) {
+            if (job.conversationGeneration !== this.conversationAdmission.capture().generation)
+              throw Object.assign(new Error('CONTINUATION_SUPERSEDED'), { code: 'CONTINUATION_SUPERSEDED', effect: 'not_started' })
+            this.conversationAdmission.assertOpen()
+          }
+          this.assertConversationOccupation(bot.id)
           this.assertWorkAllowed()
           this.requireStopVersion(bot.id, recoveryVersion)
           if (this.session(bot) !== recoverySession || [...this.activity.jobs].some(other => other.bot.id === bot.id
@@ -794,12 +816,12 @@ export class AitermTransport {
     return true
   }
 
-  async waitForTurnCompletion(job, delivery, onInterim) {
+  async waitForTurnCompletion(job, delivery, onInterim, nativeCompletion) {
     const interim = onInterim && job.follows
       ? this.followInterim(delivery.session, delivery.receipt, onInterim, { from: delivery.steer?.interimFrom }) : null
     let completion
     try {
-      completion = await this.waitUntilDone(delivery.receipt, job.controller.signal)
+      completion = await (nativeCompletion ?? this.waitUntilDone(delivery.receipt, job.controller.signal))
     } catch (error) {
       void reportExecutionFailure(this.reportError, job.bot.id, 'delivery_wait', error, {
         jobId: job.id, groupId: job.info?.groupId, stopRequested: job.stopRequested,
@@ -877,11 +899,20 @@ export class AitermTransport {
 
   // 見つけたターンを終わりまで「処理中」に出し、合間の言葉を出す。
   // 回答は運ばない。席が自分で始めたターンの回答は、self-turns.mjsがThroughlineから出す（オーナー裁定 2026-10-01）。
+  assertConversationOccupation(botId) {
+    const generation = this.conversationAdmission?.capture().generation
+    if (this.activity.of(botId).some(item => item.nativeUnconfirmed
+      || item.conversationGeneration && item.conversationGeneration !== generation))
+      throw Object.assign(new Error('CONVERSATION_NOT_ACCEPTED'), { code: 'CONVERSATION_NOT_ACCEPTED', status: 503, effect: 'not_started' })
+  }
+
   watchTurn(bot, session, turn, { onInterim, groupId }) {
+    try { this.assertConversationOccupation(bot.id) } catch { return null }
     const watch = new SeatTurnWatch({ id: this.activeId(), bot, turn, groupId: groupId(), now: this.now() })
     let operationLease, conversationDelivery, words = onInterim
     if (this.conversationAdmission) {
       operationLease = this.conversationAdmission.tryEnter(undefined, watch.id)
+      watch.conversationGeneration = operationLease?.generation
       if (!operationLease) return null
       try {
         conversationDelivery = this.conversationAdmission.registerDelivery(operationLease, {
@@ -1103,7 +1134,8 @@ export class AitermTransport {
   async close() {
     const recovery = this.continuation?.close()
     this.workState.close()
-    for (const watch of this.activity.watches.values()) watch.end()
+    for (const watch of this.activity.watches.values())
+      if (!watch.conversationGeneration || watch.conversationGeneration === this.conversationAdmission?.capture().generation) watch.end()
     const botIds = new Set([...this.activity.active.values()].map(item => item.bot.id))
     await Promise.all([...botIds].map(botId => this.idle(botId)))
     await recovery

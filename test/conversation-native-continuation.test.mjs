@@ -19,8 +19,14 @@ function fixture(t, { kinds = [], dispatch = async () => ({ applied: true }), re
   const turn = () => transport.turn({ id: 'bot-native', session: 'bot-native' }, 'synthetic only', {
     queue: { groupId: binding.deliveryId }, conversationDelivery: delivery,
   })
-  t.after(async () => { waiting.resolve(done); await transport.close(); gate.finish(root) })
-  return { gate, root, delivery, binding, waiting, turn, sends: () => sends, waits: () => waits }
+  let closeFailure = null
+  t.after(async () => {
+    waiting.resolve(done)
+    if (closeFailure) await assert.rejects(transport.close(), error => error === closeFailure)
+    else await transport.close()
+    gate.finish(root)
+  })
+  return { gate, root, delivery, binding, waiting, transport, turn, sends: () => sends, waits: () => waits, expectCloseFailure: error => { closeFailure = error } }
 }
 
 test('registration and claim alone never expose a native continuation promise', () => {
@@ -34,24 +40,27 @@ test('registration and claim alone never expose a native continuation promise', 
   gate.finish(delivery); gate.finish(root)
 })
 
-test('real accepted native exposes exactly its original result through user.complete save ACK, only for the full live binding', async t => {
+test('Q native proof is its real waiter while user.complete ACK retains an independent lifetime', async t => {
   const ack = Promise.withResolvers(), entered = Promise.withResolvers()
   t.after(() => ack.resolve({ applied: true }))
   const f = fixture(t, { kinds: ['user.complete'], dispatch: () => { entered.resolve(); return ack.promise } })
   const result = f.turn(); await result.accepted
-  assert.equal(f.gate.getNativeContinuation(f.delivery, f.binding), result)
+  const native = f.gate.getNativeContinuation(f.delivery, f.binding)
+  assert.ok(native instanceof Promise); assert.notEqual(native, result)
   for (const key of Object.keys(f.binding)) assert.equal(f.gate.getNativeContinuation(f.delivery, { ...f.binding, [key]: 'wrong' }), null)
   for (const binding of [null, {}, { ...f.binding, extra: true }]) assert.equal(f.gate.getNativeContinuation(f.delivery, binding), null)
   assert.equal(f.gate.getNativeContinuation(f.delivery, Object.assign(Object.create(f.binding), { a: 1, b: 2, c: 3, d: 4 })), null)
   assert.equal(f.gate.getNativeContinuation(f.root, f.binding), null)
   f.waiting.resolve(done); await entered.promise
-  assert.equal(f.gate.getNativeContinuation(f.delivery, f.binding), result)
+  assert.equal(f.gate.getNativeContinuation(f.delivery, f.binding), null)
+  assert.ok(f.gate.snapshot().active >= 2)
+  assert.equal((await native).turn_id, done.turn_id)
   ack.resolve({ applied: true }); assert.equal(await result, 'synthetic reply'); await tick()
   assert.equal(f.gate.getNativeContinuation(f.delivery, f.binding), null)
   assert.equal(f.sends(), 1); assert.equal(f.waits(), 1)
 })
 
-test('native receipt behind a still-pending running ACK is not yet an accepted continuation', async t => {
+test('Q real native waiter is registered before the still-pending running ACK', async t => {
   const ack = Promise.withResolvers(), entered = Promise.withResolvers()
   t.after(() => ack.resolve({ applied: true }))
   const f = fixture(t, { kinds: ['delivery.status'], dispatch: async (_kind, params) => {
@@ -59,19 +68,22 @@ test('native receipt behind a still-pending running ACK is not yet an accepted c
     return { applied: true }
   } })
   const result = f.turn(); await entered.promise
-  assert.equal(f.gate.getNativeContinuation(f.delivery, f.binding), null)
+  const native = f.gate.getNativeContinuation(f.delivery, f.binding)
+  assert.ok(native instanceof Promise); assert.notEqual(native, result)
+  assert.equal(f.waits(), 1)
   ack.resolve({ applied: true }); await result.accepted
-  assert.equal(f.gate.getNativeContinuation(f.delivery, f.binding), result)
+  assert.equal(f.gate.getNativeContinuation(f.delivery, f.binding), native)
   f.waiting.resolve(done); await result
 })
 
-test('unknown native wait rejection ends the proof and remains the original failure', async t => {
+test('Q unknown native rejection ends positive proof but preserves physical occupation and the original failure', async t => {
   const f = fixture(t), result = f.turn(), failure = Error('synthetic unknown')
   result.catch(() => {}); await result.accepted
-  assert.equal(f.gate.getNativeContinuation(f.delivery, f.binding), result)
+  assert.ok(f.gate.getNativeContinuation(f.delivery, f.binding) instanceof Promise)
+  f.expectCloseFailure(failure)
   f.waiting.reject(failure); await assert.rejects(result, error => error === failure); await tick()
   assert.equal(f.gate.getNativeContinuation(f.delivery, f.binding), null)
-  assert.equal(f.sends(), 1)
+  assert.equal(f.sends(), 1); assert.equal(f.transport.isIdle('bot-native'), false)
 })
 
 test('accepted steer without a real follow handle does not expose an invented native wait', async t => {

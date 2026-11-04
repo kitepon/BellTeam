@@ -7,7 +7,7 @@ const protocolError = () => Object.assign(new Error('CONVERSATION_PROTOCOL_UNCON
 
 // IPC owns the eight root slots. These references follow real work after those slots are released.
 export class ConversationLifetimes {
-  #generation; #epoch = 0; #ticket = null; #records = new WeakMap(); #active = new Set(); #operations = new Map(); #waiters = new Set(); #failed = false; #retiredFailed = new Set(); #generations = new Set(); #closeWaiters = new Set()
+  #generation; #epoch = 0; #ticket = null; #records = new WeakMap(); #active = new Set(); #operations = new Map(); #waiters = new Set(); #failed = false; #retiredFailed = new Set(); #generations = new Set(); #closeWaiters = new Set(); #nativeUnknown = new Set()
   constructor(generation = 'builtin', { onProtocolFailure = () => {} } = {}) {
     if (!id(generation)) throw rejected()
     this.#generation = generation; this.#generations.add(generation); this.onProtocolFailure = onProtocolFailure
@@ -62,7 +62,7 @@ export class ConversationLifetimes {
     completion.then(done, done)
   }
   #release(record) {
-    if (!record.live || !record.finishRequested || record.pending.size) return
+    if (!record.live || !record.finishRequested || record.pending.size || record.nativeUnconfirmed) return
     record.live = false; this.#active.delete(record)
     if (record.kind === 'operation') this.#operations.delete(record.lease.correlation)
     else record.dispatch = null
@@ -125,9 +125,13 @@ export class ConversationLifetimes {
       || !['agent_dispatch', 'agent_steer'].includes(receipt?.mode)
       || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process) throw this.#protocol(lease)
     const native = record.nativeContinuation = { receipt, completion, pending: true }
+    completion.then(() => { native.pending = false }, error => {
+      native.pending = false
+      if (error?.turnCompleted !== true) {
+        record.nativeUnconfirmed = true; this.#nativeUnknown.add(record)
+      }
+    })
     this.trackCompletion(lease, completion)
-    const ended = () => { native.pending = false }
-    completion.then(ended, ended)
   }
   getNativeContinuation(lease, expectedBinding) {
     const record = this.#records.get(lease)
@@ -138,8 +142,8 @@ export class ConversationLifetimes {
     return record.nativeContinuation.completion
   }
   binding(lease, callbackKind) {
-    this.assertCurrentLease(lease)
     this.assertDelivery(lease)
+    if (lease.generation !== this.#generation) throw this.#protocol(lease)
     const record = this.#records.get(lease)
     if (record.failed || !record.kinds.has(callbackKind)) throw this.#protocol(lease)
     return Object.freeze({ ...record.binding, callbackKind })
@@ -223,10 +227,7 @@ export class ConversationLifetimes {
     // A known retired capability cannot fail the current generation; wire IDs alone confer no exemption.
     if (record && record.lease.generation !== this.#generation) {
       this.#retiredFailed.add(record.lease.generation)
-      const error = protocolError()
-      for (const waiter of this.#waiters) { clearTimeout(waiter.timer); waiter.reject(error) }
-      this.#waiters.clear()
-      return error
+      return protocolError()
     }
     const first = !this.#failed
     this.#failed = true
@@ -241,7 +242,7 @@ export class ConversationLifetimes {
     return this.#ticket
   }
   #assertTicket(ticket) { if (!this.#ticket || ticket !== this.#ticket) throw rejected() }
-  #unconfirmed() { return this.#failed || this.#retiredFailed.size > 0 }
+  #unconfirmed() { return this.#failed || this.#retiredFailed.size > 0 || this.#nativeUnknown.size > 0 }
   #notifyDrained() {
     if (this.#active.size) return
     for (const waiter of this.#closeWaiters) {
@@ -250,8 +251,11 @@ export class ConversationLifetimes {
       else waiter.resolve({ status: 'drained' })
     }
     this.#closeWaiters.clear()
-    if (this.#unconfirmed()) return
-    for (const waiter of this.#waiters) { clearTimeout(waiter.timer); waiter.resolve({ status: 'drained' }) }
+    for (const waiter of this.#waiters) {
+      clearTimeout(waiter.timer)
+      if (this.#unconfirmed()) waiter.reject(protocolError())
+      else waiter.resolve({ status: 'drained' })
+    }
     this.#waiters.clear()
   }
   drain(ticket, { timeoutMs = 60_000 } = {}) {

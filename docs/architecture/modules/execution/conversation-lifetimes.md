@@ -16,7 +16,7 @@ flowchart TD
   OS --> Adopt[adoptで閉鎖採用]
   Adopt --> Ready[新子restore・ready・resumeACK後 gate.resume]
   Unknown --> Barrier[異常終了 / 旧OS・IPC・pipe・親effect終端とreapedはEpi]
-  Barrier --> Recover[全active0 / 同close ticket・旧世代でrecover]
+  Barrier --> Recover[故障writer退役 / recoverFailedGeneration / 旧実参照保持]
   Recover --> Ready
   Retired[既知旧opaqueの遅着callback] --> OldError[旧要求へ失敗返却 / 現世代の未確認状態は変更0]
   Late[偽相関 / 終端後callback / 保存ACK不正] --> Unknown[protocol unconfirmed / 通常drain・adopt・resume拒否]
@@ -34,14 +34,14 @@ flowchart TD
 | `tryEnter(...)` | 閉鎖/未確認ならnull、新watch入場専用。既watchを止めない |
 | `assertLease(lease,{generation=lease.generation,correlation=lease.correlation}={})` | object identity＋同live/generation/correlation。close後旧epochもliveなら通る |
 | `trackCompletion(lease, realPromise)` | 同Promise一回、finish要請後も実settleまで保持。caller期限/受付結果をrealPromiseへ代用しない |
-| `finish(lease)` | finishRequestedだけ。pendingが0になるまでlive |
+| `finish(lease)` | finishRequestedだけ。pendingが0になるまでlive。native unknownの明示占有guardも保持 |
 | `withLease(operation,{lease?,expected?,correlation?}={})` | ownedだけfinally finish。同期operation内で実completionを登録してから返す |
 | `close()` | 同opaque ticketを返し新入場だけ閉じる |
 | `drain(ticket,{timeoutMs=60000}={})` | 全実参照0で`{status:'drained'}`、上限まで残れば`{status:'busy'}`。実参照保持/AIabort0。timeoutMsは0〜60000、productionは60000 |
 | `adopt(ticket,newGeneration)` | 参照0/未確認0/別generationのみ。旧OS/lock確認は呼出元runtimeが先に行い、新子restore/readyは閉鎖採用後に行う |
 | `recover(ticket,previousGeneration,newGeneration)` | 異常終了専用。現在close ticket本人性とticket/現世代=previous、全active0、妥当な別newを要求。failedを解除してnewを閉鎖採用。旧OS/IPC/pipes・親effect・await channel.reapedの実終端はruntimeが先に確認し、通常adoptの代わりに呼ぶ。native生存/ACK待ちは拒否。 |
 | `resume(ticket)` | 同ticketを開く。busyでも旧live参照を維持。子resumeACK5秒の確認後だけ呼ぶ |
-| `snapshot()` | `{generation,closed,active,unconfirmed}`。activeは実参照登録数でnative並行数ではない |
+| `snapshot()` | `{generation,closed,active,unconfirmed}`。active/未確認はcurrent＋retired合算、native並行数ではない |
 
 ## 固定callback登録
 
@@ -53,7 +53,7 @@ flowchart TD
 
 `callbacks(deliveryLease)`は登録subsetだけのonStatus/onInterim/onAnswer/onTurnEnd/userCompleteを返す。親ローカルparamsはstatus={delivery,error,tracking}、words={words}、answer={text}、user.complete={reply}、turn.end={startedAt,endedAt}。statusのErrorはまだ親内の値。**Epiの親dispatchはN102公開src/conversation/callbacks.mjsのnormalizeConversationCallback(kind,params)へ通してからwireへ送り**、Error自由message/stack/causeを送らない。子はvalidateとsafe failure fieldsだけを使う。N102供給元d40c1ffdの公開formatter/ACK schemaと接続する。dispatcher/context/frameの私有実装は当gateからimportしない。
 
-`invoke(deliveryLease,kind,localParams)`は発行前に実参照を取得し、dispatchの実保存/check/report ACKまで保持する。dispatch返却に`completion`があれば同元Promiseを判定源にし、無ければ返却Promiseを使う。caller結果だけの期限切れを実保存ACK失敗へ昇格させず、実completionがpendingの間は参照を保持する。返却はexact `{applied:true}`だけ。実completionの欠測/extra/拒否/例外はprotocol unconfirmed。同世代の終端後や偽相関はdrop成功にせず、以後drain/adopt/resumeの成功を拒む。親WeakMapに実登録された別世代opaqueの遅着callbackは元要求へprotocol失敗を返し、現世代のfailed/onProtocolFailure/drain waiterを変更しない。自己申告generationや複製opaqueはこの例外を得ない。runtimeはcallerunknownでも実callback result/OScloseまで実Promiseをsettleさせない。
+`invoke(deliveryLease,kind,localParams)`は発行前に実参照を取得し、dispatchの実保存/check/report ACKまで保持する。dispatch返却に`completion`があれば同元Promiseを判定源にし、無ければ返却Promiseを使う。caller結果だけの期限切れを実保存ACK失敗へ昇格させず、実completionがpendingの間は参照を保持する。返却はexact `{applied:true}`だけ。実completionの欠測/extra/拒否/例外はprotocol unconfirmed。同世代の終端後や偽相関はdrop成功にせず、以後drain/adopt/resumeの成功を拒む。親WeakMapに実登録された別世代opaqueの遅着callbackは元要求へprotocol失敗を返し、現世代failed/onProtocolFailureや待機を直接失敗にしない。全体参照0後のdrain/close結果は元未確認を保持する。自己申告generationや複製opaqueはこの例外を得ない。runtimeはcallerunknownでも実callback result/OScloseまで実Promiseをsettleさせない。
 
 ## 背景と一回派生報告
 
@@ -103,7 +103,7 @@ runtimeはnative前にこのPromiseとcaptured exact4 {generation,operationId,de
 
 private consume返却は{applied:boolean}を必要とする。競合時にtrueを偽らず、falseは実表示objectが変化済みという通常競合でnative/protocolの成功・失敗証明にしない。子はprefixが実際に外れた時だけconsumeし、既withoutShownWordsの60秒幅/全文消失時は外さない意味を保つ。追加native/AI/observer/永続queue無し。親handleのlifetime/lookupはEpiが既operation registryへ結合する。
 
-## 異常終了後の世代回復
+## 既recover：global active0での世代回復
 
 `recover`は旧要求を新世代へ移さず、旧native/作用不明/保存ACK不明を成功又はnot_startedへ変更しない。全active0を確認するだけでfinish/abort/再送やPromiseのsettleを行わない。旧native、callback実completion、親effect、release ACKが一つでも登録中ならCONVERSATION_NOT_ACCEPTEDで拒否する。失敗した旧参照も元の実Promiseがsettleした時点で通常releaseされる。
 
@@ -114,7 +114,7 @@ runtimeは旧OS/IPC/pipes→drainIncoming→await channel.reapedの実終端後�
 recover後の新candidateがrestore/ready/resume ACK前に失敗した場合、runtimeはそのcandidateのOS/IPC/pipes・incoming/reapedを完了し、同ticketを閉じたまま通常adopt(ticket,nextGeneration)で次candidateを採用できる。前提はunconfirmed=falseかつactive=0で、旧callbackの遅着はこの条件を変更しない。close ticketは採用履歴の各世代IDと同値である必要がなく、同一閉鎖の本人性を持つ。新candidate自身が現世代protocol失敗を生じた場合は通常adoptも拒否されるので、この経路で未確認を無条件解除しない。
 
 
-## Q：故障writerの退役（gate先行source）
+## Q：故障writerの退役
 
 Root `conversation-failed-generation-contract-20261104.md` とキロ `docs/q-retired-generation-io-20261104.md` が横断契約。gate identityと全live record/元Promiseを維持する。runtimeが旧writerのOS/IPC/全pipe/incoming/effect/reaped barrierを確認した後、同期 `recoverFailedGeneration(ticket, old, next)` を呼ぶ。native完走はbarrier条件へ加えない。
 
@@ -134,4 +134,11 @@ flowchart LR
 
 `drain` は正常交換用でglobal active/未確認を保持。`drainForClose(ticket,{timeoutMs:60000})` は未確認でも両世代の実参照0を待ってから元503を返す。期限0〜60000ms、未終端はbusy。既snapshot三値は合算active/合算unconfirmedとcurrent generationを返す。旧保存成功へ読み替えない。
 
-gate先行sourceはTransportのcallback/native追跡分離の完了を意味しない。同Bot占有を含む一組は後続Transport sourceと直接結果で成立判定する。旧continuation節のrunning ACK後・callback結合result登録は後続で置換予定。
+元native追跡とcallbackの分離は同Transport sourceへ接続した。旧callbackは旧failure/unknownのまま新writerへ保存しない。通常main/配布/本番の成立は作者sourceの局所確認とは別に記録する。
+
+
+### Q Transportの接続差分
+
+receipt取得後に元native waiterを一回開始し、その実Promiseをcallback await前に元leaseへ登録する。accepted/effectとcaller返却は旧callbackの元failureで直ちにrejectできる。job.completionは元effectと実native追跡・資源cleanupの双方を待つ実寿命であり、activity/leaseはnative完走前に解放しない。同Botのretired occupationを新claim/新watchへ使わず他Botのcurrent入場は許可する。実native追跡のunknown rejectは物理終了ではないため、元receipt/jobと明示unconfirmed占有guardを残し、全closeの成功へ変換しない。架空pending Promiseを作らない。
+
+retired watchは全体closeでも新writer側のwatch取消へ混ぜず、その元native/既observer終端まで実watch.completionを待つ。元世代からの容量継続は新世代へ再root化せず、通常currentの容量継続は元実資源cleanup後に既guardで進める。

@@ -78,3 +78,25 @@ test('fixed execution effect rejects genuine retired context before service acce
   assert.equal(serviceReads, 0); gate.finish(root)
   const fresh = gate.enter(); gate.finish(fresh)
 })
+
+test('late callback on an actually released retired opaque returns original unknown without failing the current writer', async () => {
+  const gate = new ConversationLifetimes('old'), root = gate.enter(), delivery = register(gate, root)
+  const ticket = gate.close(); gate.recoverFailedGeneration(ticket, 'old', 'new'); gate.resume(ticket)
+  gate.finish(delivery); gate.finish(root); await tick()
+  assert.equal(gate.snapshot().active, 0)
+  assert.throws(() => gate.invoke(delivery, 'delivery.status', { delivery: 'delivered' }),
+    { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED', status: 503, outcome: 'outcome_unknown', effect: 'possible' })
+  const fresh = gate.enter(); gate.finish(fresh)
+})
+
+test('old callback does not fail a current global drain waiter early; real cleanup then reports original unknown', async () => {
+  const gate = new ConversationLifetimes('old'), root = gate.enter(), delivery = register(gate, root), actual = deferred()
+  gate.trackCompletion(delivery, actual.promise); gate.finish(delivery); gate.finish(root)
+  const ticket = gate.close(); gate.recoverFailedGeneration(ticket, 'old', 'new'); gate.resume(ticket)
+  const closeTicket = gate.close()
+  let settled = false
+  const draining = assert.rejects(gate.drain(closeTicket), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' }).then(() => { settled = true })
+  assert.throws(() => gate.invoke(delivery, 'delivery.status', { delivery: 'running' }), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
+  await tick(); assert.equal(settled, false)
+  actual.resolve(); await draining
+})

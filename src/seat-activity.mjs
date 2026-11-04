@@ -89,8 +89,12 @@ export class SeatActivity {
   }
 
   async whenIdle(botId) {
-    while (!this.idle(botId))
-      await Promise.all(this.of(botId).map(item => item.completion.catch(() => {})))
+    while (!this.idle(botId)) {
+      const items = this.of(botId)
+      const unknown = items.find(item => item.nativeUnconfirmed)
+      if (unknown) throw unknown.nativeUnconfirmed
+      await Promise.all(items.map(item => item.completion.catch(() => {})))
+    }
   }
 
   items({ botId = null, roomId = null } = {}) {
