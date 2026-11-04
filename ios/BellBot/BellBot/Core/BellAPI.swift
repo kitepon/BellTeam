@@ -55,7 +55,7 @@ enum BellAPIError: LocalizedError {
 }
 
 enum BellEventTopic: String, CaseIterable, Sendable {
-    case timeline, queue, bots, rooms, owner, settings, requests, questions, aiControl = "ai-control", setup, schedules
+    case timeline, queue, bots, rooms, owner, settings, requests, questions, aiControl = "ai-control", setup, schedules, updates
 }
 
 struct BellEvent: Sendable {

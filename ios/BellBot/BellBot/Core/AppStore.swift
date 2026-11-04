@@ -112,6 +112,9 @@ final class AppStore: ObservableObject {
     let api: BellAPI
     let webDataStore: WKWebsiteDataStore
     let billing: BillingStore
+    let updates: UpdateStore
+    @Published var updatePresented = false
+    private(set) var pendingUpdateNotification: BellUpdateRoute?
     private var eventsTask: Task<Void, Never>?
     private var eventRefreshTask: Task<Void, Never>?
     private var eventRefreshResources: Set<EventResource> = []
@@ -155,6 +158,7 @@ final class AppStore: ObservableObject {
         api = suppliedAPI ?? BellAPI(baseURL: url)
         self.webDataStore = webDataStore
         billing = suppliedBilling ?? BillingStore(api: api)
+        updates = UpdateStore(api: api)
         billing.onSetupRequired = { [weak self] in
             guard let self else { return }
             try await self.refreshSetup()
@@ -173,6 +177,10 @@ final class AppStore: ObservableObject {
         BellNotifications.shared.onOpen = { [weak self] route in
             self?.pendingNotification = route
             Task { await self?.openPendingNotification() }
+        }
+        BellNotifications.shared.onOpenUpdate = { [weak self] route in
+            self?.pendingUpdateNotification = route
+            Task { await self?.openPendingUpdateNotification() }
         }
     }
 
@@ -195,6 +203,7 @@ final class AppStore: ObservableObject {
             profileImageDrafts.removeAll()
             pendingBotDeletionIDs.removeAll()
             resetAIControl()
+            updates.reset()
         }
         serverURL = url
         api.baseURL = url
@@ -408,6 +417,7 @@ final class AppStore: ObservableObject {
         startEvents()
         await billing.connect()
         await openPendingNotification()
+        await openPendingUpdateNotification()
         if notificationsEnabled {
             await activateNotifications()
         }
@@ -722,6 +732,8 @@ final class AppStore: ObservableObject {
                         case "ready":
                             self.eventRevision += 1
                             self.requestRefreshFromEvent()
+                            await self.updates.refresh()
+                        case "updates": await self.updates.refresh()
                         case "settings": try await self.refreshSettings()
                         case "setup": try await self.refreshSetup()
                         case "ai-control": await self.refreshAIControl()
@@ -788,6 +800,7 @@ final class AppStore: ObservableObject {
         if topics.contains(.settings) { try await refreshSettings() }
         if topics.contains(.setup) { try await refreshSetup() }
         if topics.contains(.aiControl) { await refreshAIControl() }
+        if topics.contains(.updates) { await updates.refresh() }
         var resources: Set<EventResource> = []
         if !topics.isDisjoint(with: [.timeline, .requests, .questions]) {
             if !botIDs.isEmpty { resources.insert(.bots) }
@@ -840,6 +853,8 @@ final class AppStore: ObservableObject {
         profileImageDrafts.removeAll()
         pendingBotDeletionIDs.removeAll()
         resetAIControl()
+        updates.reset()
+        updatePresented = false
         notificationSecret = nil
         pendingNotification = nil
         for cookie in api.cookieStorage.cookies ?? [] { api.cookieStorage.deleteCookie(cookie) }
@@ -867,6 +882,16 @@ final class AppStore: ObservableObject {
                 updateConnectionError()
             }
         }
+    }
+
+    /// タップは画面を開いてGETで確認するだけ。接続先が違う通知は、自動で切り替え・認証・実行をしない。
+    func openPendingUpdateNotification() async {
+        guard case .ready = phase, let route = pendingUpdateNotification else { return }
+        // 別の接続先の通知は開かずに1件だけ残す。利用者がその接続先へ切り替えて認証した後に開く。
+        guard route.belongs(to: serverURL) else { return }
+        pendingUpdateNotification = nil
+        updatePresented = true
+        await updates.refresh()
     }
 
     private func syncCookies(_ supplied: [HTTPCookie]? = nil) async {

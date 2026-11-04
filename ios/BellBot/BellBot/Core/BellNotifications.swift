@@ -24,6 +24,24 @@ struct BellNotificationRoute: Equatable {
     }
 }
 
+/// 更新の通知。`bellteam`が`server`・`kind`・`messageId`の3keyだけの時に限り受け取る。
+struct BellUpdateRoute: Equatable {
+    let server: String
+
+    init?(userInfo: [AnyHashable: Any]) {
+        guard let value = userInfo["bellteam"] as? [String: Any], value.count == 3,
+              let server = value["server"] as? String, let url = ServerOrigin.url(server),
+              value["kind"] as? String == "update",
+              let messageID = value["messageId"] as? String,
+              messageID.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil else { return nil }
+        self.server = url.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    func belongs(to url: URL?) -> Bool {
+        url?.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == server
+    }
+}
+
 @MainActor
 final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     static let shared = BellNotifications()
@@ -35,7 +53,13 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
             if let pendingRoute, let onOpen { self.pendingRoute = nil; onOpen(pendingRoute) }
         }
     }
+    var onOpenUpdate: ((BellUpdateRoute) -> Void)? {
+        didSet {
+            if let pendingUpdateRoute, let onOpenUpdate { self.pendingUpdateRoute = nil; onOpenUpdate(pendingUpdateRoute) }
+        }
+    }
     private var pendingRoute: BellNotificationRoute?
+    private var pendingUpdateRoute: BellUpdateRoute?
     private var api: BellAPI?
     private var token: String?
     private var signedTransaction: String?
@@ -132,6 +156,7 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
         token = nil
         signedTransaction = nil
         pendingRoute = nil
+        pendingUpdateRoute = nil
         visibleConversation = nil
         statusText = "未設定"
     }
@@ -139,7 +164,11 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
         willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         Task { @MainActor in
-            guard let route = BellNotificationRoute(userInfo: notification.request.content.userInfo),
+            let userInfo = notification.request.content.userInfo
+            if let update = BellUpdateRoute(userInfo: userInfo), update.belongs(to: api?.baseURL), attached {
+                completionHandler([.banner, .list, .sound]); return
+            }
+            guard let route = BellNotificationRoute(userInfo: userInfo),
                   route.belongs(to: api?.baseURL), attached else { completionHandler([]); return }
             completionHandler(visibleConversation == route.target ? [] : [.banner, .list, .sound])
         }
@@ -148,8 +177,11 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         Task { @MainActor in
-            if let route = BellNotificationRoute(userInfo: response.notification.request.content.userInfo) {
+            let userInfo = response.notification.request.content.userInfo
+            if let route = BellNotificationRoute(userInfo: userInfo) {
                 if let onOpen { onOpen(route) } else { pendingRoute = route }
+            } else if let route = BellUpdateRoute(userInfo: userInfo) {
+                if let onOpenUpdate { onOpenUpdate(route) } else { pendingUpdateRoute = route }
             }
             completionHandler()
         }
