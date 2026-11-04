@@ -1,6 +1,6 @@
 namespace BellTeam.Core;
 
-public sealed record MessageNotification(string Server, ChatTarget? Target, string Title, string Body, string Kind = "message")
+public sealed record MessageNotification(string Server, ChatTarget? Target, string Title, string Body, string Kind = "message", string? MessageId = null)
 {
     public static MessageNotification? FromRecent(string server, ChatTarget target, string title, RecentMessage? previous, RecentMessage? current)
     {

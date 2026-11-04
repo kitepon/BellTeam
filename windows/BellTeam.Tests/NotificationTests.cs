@@ -106,7 +106,7 @@ public sealed class NotificationTests
             await notifications.NotifyUpdatesAsync("http://localhost/", [first]); Assert.Equal(0, sink.Shows);
             await notifications.SetEnabledAsync(true);
             await Task.WhenAll(notifications.NotifyUpdatesAsync("http://localhost/", [first]), notifications.NotifyUpdatesAsync("http://localhost/", [first]));
-            Assert.Single(sink.Messages); Assert.Null(sink.Messages[0].Target); Assert.Equal("update", sink.Messages[0].Kind); Assert.Equal("BellTeam", sink.Messages[0].Title); Assert.Equal("更新があります。Updateで確認してください。", sink.Messages[0].Body);
+            Assert.Single(sink.Messages); Assert.Null(sink.Messages[0].Target); Assert.Equal("update", sink.Messages[0].Kind); Assert.Equal(first.Id, sink.Messages[0].MessageId); Assert.Equal("BellTeam", sink.Messages[0].Title); Assert.Equal("更新があります。Updateで確認してください。", sink.Messages[0].Body);
             sink.Activated!(sink.Messages[0].Server, sink.Messages[0].Target); Assert.Equal("http://localhost/", openedServer); Assert.Null(openedTarget);
             await notifications.NotifyUpdatesAsync("http://localhost/", []);
             await notifications.NotifyUpdatesAsync("http://localhost/", [first]); Assert.Single(sink.Messages);

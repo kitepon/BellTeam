@@ -114,7 +114,7 @@ public sealed class DesktopNotifications(INotificationSink sink, SettingsStore s
                 var saved = settings.Load();
                 if (saved.UpdateNotifications.Any(item => item.Server == server && item.ComponentId == candidate.ComponentId && item.Id == candidate.Id)) continue;
                 settings.Save(saved with { UpdateNotifications = saved.UpdateNotifications.Where(item => item.Server != server || item.ComponentId != candidate.ComponentId).Append(new(server, candidate.ComponentId, candidate.Id)).ToArray() });
-                await NotifyAsync(new(server, null, "BellTeam", "更新があります。Updateで確認してください。", "update"));
+                await NotifyAsync(new(server, null, "BellTeam", "更新があります。Updateで確認してください。", "update", candidate.Id));
             }
         }
         finally { updateChanging.Release(); }
