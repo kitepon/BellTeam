@@ -35,7 +35,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   let instance = null, currentVersionId = null, previousVersionId = null, generation = null
   let initialized = false, closed = false, available = false, phase = 'unavailable', exchanging = false
   let operation = null, closing = null, update = null, reservation = null, startingReservation = false
-  let failedWriterReaped = false
+  let failedWriterReaped = false, proofHeld = false
   let recoveryAttempt = 0, childSequence = 0
   const recovery = createModuleChildRestart(async () => {
     recoveryAttempt = Math.min(Number.MAX_SAFE_INTEGER, recoveryAttempt + 1)
@@ -242,6 +242,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   const invoke = (kind, method, params, options) => {
     try {
       const target = instance
+      if (proofHeld) throw fail('PROOF_UNAVAILABLE')
       if (!target || target.ended || kind === 'request' && !available && !canContinue(method, options, target.generation))
         throw fail('NOT_ACCEPTING')
       return track(target.channel[kind](method, params, options))
@@ -362,7 +363,60 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     })()
     return closing
   }
-  return { start, close, replace, reserve, snapshot,
+  const withInstallReconciliationProof = action => exclusive(async () => {
+    if (component !== 'conversation' || typeof action !== 'function' || !initialized || !available
+      || closed || exchanging || reservation || !instance || typeof admission?.assertOpen !== 'function'
+      || typeof admission?.drainForClose !== 'function') throw fail('PROOF_UNAVAILABLE')
+    admission.assertOpen()
+    const target = instance, heldGeneration = generation
+    const ticket = closeAdmission('module_close')
+    let holding = false, primaryError
+    const assertQuiescent = () => {
+      if (!holding || closed || instance !== target || generation !== heldGeneration || target.ended
+        || !target.child.connected || target.child.exitCode !== null || target.child.signalCode !== null
+        || active.size || admission.snapshot().active || admission.snapshot().unconfirmed)
+        throw fail('PROOF_UNAVAILABLE')
+      return true
+    }
+    state('quiescing')
+    try {
+      await drain(target, ticket, () => {}, true)
+      await waitActive()
+      await target.channel.drainIncoming()
+      holding = true; proofHeld = true
+      assertQuiescent()
+      const pending = action(assertQuiescent)
+      const [result, completion] = await Promise.allSettled([pending, pending?.completion])
+      if (result.status === 'rejected') throw result.reason
+      if (completion.status === 'rejected') throw completion.reason
+      assertQuiescent()
+      return result.value
+    } catch (error) { primaryError = error; throw error }
+    finally {
+      holding = false
+      try {
+      if (!closed && instance === target && !target.ended && target.child.connected) {
+        try {
+          const resuming = target.channel.control('resume')
+          const [result, completion] = await Promise.allSettled([resuming, resuming.completion])
+          if (result.status === 'rejected') throw result.reason
+          if (completion.status === 'rejected') throw completion.reason
+          if (result.value?.resumed !== true || closed || instance !== target || target.ended
+            || !target.child.connected || generation !== heldGeneration) throw fail('PROOF_UNAVAILABLE')
+          admission.resume(ticket)
+          target.resumed = true; failedWriterReaped = false
+          state('running', true)
+        }
+        catch (error) {
+          state('unavailable')
+          if (primaryError) throw new AggregateError([primaryError, error], 'CONVERSATION_PROOF_RESUME_FAILED')
+          throw error
+        }
+      }
+      } finally { proofHeld = false }
+    }
+  })
+  return { start, close, replace, reserve, snapshot, withInstallReconciliationProof,
     request: (method, params, options = {}) => invoke('request', method, params, options),
     callback: (method, params, options = {}) => invoke('callback', method, params, options),
     initialize: mode => {
