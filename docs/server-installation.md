@@ -69,4 +69,6 @@ Webとサーバーは無料です。Appleアプリの通常のAI利用はアプ�
 
 サーバーを動かすPCやDockerを停止すると、アプリから接続できなくなります。会話・設定・AIの認証情報は設置フォルダ内の`runtime`とDocker volumeへ保存されます。更新時も保存先を残してください。
 
+設置先のIP・保存先・利用するイメージの指定と、機能ごとの更新は、[サーバー配布手順](https://github.com/kitepon/BellTeam/blob/main/distribution/server/README.md)を参照してください。機能の個別更新には更新機構の初期登録が必要で、現在の公開installerはその自動登録に未対応です。Mac・Windows・Linuxの上の案内は本体の導入手順です。個別更新まで利用できるかは、更新画面の対応状態を確認してください。
+
 外出先からの接続と追加機能は、[初回設定と追加機能](https://github.com/kitepon/BellTeam/blob/main/docs/onboarding.md)を参照してください。同じLANからの利用は、その設定をせずに始められます。
