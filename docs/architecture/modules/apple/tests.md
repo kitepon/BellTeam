@@ -40,13 +40,14 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testConflictAsksForANewPlanWithoutReplanningOrResending](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L88) | 409で「再計画が必要」、計画と保存IDを消し、operations・plansのPOSTは各1回 |
 | [testSavedRequestIDIsQueriedAndOnlyVerifiedCompletionClearsIt](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L108) | 保存IDでGET、unknownは保存IDを残し、completedで消える。POSTなし |
 | [testDisconnectionKeepsTheRequestUnconfirmedWithoutResending](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L135) | POST断線で保存IDを残し確認中、照会断線でも成功を補わず、POSTは1回のまま |
-| [testInventoryWithAnUnknownValueIsShownAsAnInvalidResponse](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L159) | 未知のnotice stateでinventoryをnilにし応答形式の失敗を表示 |
-| [testOnlyTheExactThreeKeysAreAccepted](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L195) | 3key完全一致だけ受ける。余分key・欠落・型違い・大文字hex・63桁・kind違い・server型違いを捨て、既存`BellNotificationRoute`はkind=updateを受けない |
-| [testEventTypeUpdatesIsNotAFullRefresh](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L207) | `type=updates`のイベントがtypeとして読める |
-| [testUpdatesEventReadsOnlyTheInventory](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L213) | SSE `updates`でGET /api/updatesが1回、共通一覧（bots）は読まない |
-| [testTapOpensUpdateAndReadsWithoutAnyPost](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L227) | 一致するserverのタップで画面を開きGET、POSTは0回 |
-| [testTapForAnotherServerOpensNothingAndCallsNothing](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L239) | server不一致では開かず通信もしない |
-| [testTapBeforeReadyWaitsInsteadOfConnecting](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L248) | ready前は開かず通信もしない |
+| [testUnknownRequestIDIsClearedAsNotAcceptedWithoutResending](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L159) | 照会404で保存IDを消し「受け付けられていません」、POSTは0回 |
+| [testInventoryWithAnUnknownValueIsShownAsAnInvalidResponse](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L175) | 未知のnotice stateでinventoryをnilにし応答形式の失敗を表示 |
+| [testOnlyTheExactThreeKeysAreAccepted](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L211) | 3key完全一致だけ受ける。余分key・欠落・型違い・大文字hex・63桁・kind違い・server型違いを捨て、既存`BellNotificationRoute`はkind=updateを受けない |
+| [testEventTypeUpdatesIsNotAFullRefresh](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L223) | `type=updates`のイベントがtypeとして読める |
+| [testUpdatesEventReadsOnlyTheInventory](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L229) | SSE `updates`でGET /api/updatesが1回、共通一覧（bots）は読まない |
+| [testTapOpensUpdateAndReadsWithoutAnyPost](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L243) | 一致するserverのタップで画面を開きGET、POSTは0回 |
+| [testTapForAnotherServerOpensNothingAndCallsNothing](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L255) | server不一致では開かず通信もしない |
+| [testTapBeforeReadyWaitsInsteadOfConnecting](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L264) | ready前は開かず通信もしない |
 
 ### AuthSetupOrderingTests.swift
 

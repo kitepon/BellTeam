@@ -67,6 +67,13 @@ final class UpdateStore: ObservableObject {
             apply(response.operation, for: id)
         } catch {
             guard sequence == readSequence else { return }
+            // サーバーは要求を保存してから受け付けるので、送信中でない時の404は「受け付けられていない」の確定。
+            if case BellAPIError.httpStatus(404, _, _) = error, !busy {
+                setRequestID(nil)
+                operation = nil
+                message = "前回の更新の要求は、サーバーに受け付けられていません。更新は実行されていません。"
+                return
+            }
             message = "更新の結果を確認中です。接続が戻ると同じ要求の状態を取り直します。更新は送り直しません。"
             api.diagnostics.report(error, path: "/api/updates/operations/\(id)", method: "GET", observation: .read(error, retainedData: true))
         }

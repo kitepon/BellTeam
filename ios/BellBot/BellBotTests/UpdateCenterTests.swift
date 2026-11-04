@@ -156,6 +156,22 @@ final class UpdateStoreTests: XCTestCase {
         XCTAssertEqual(UpdateProtocol.count(method: "POST", path: "/api/updates/operations"), 1)
     }
 
+    func testUnknownRequestIDIsClearedAsNotAcceptedWithoutResending() async throws {
+        let operationID = self.operationID
+        let (store, defaults) = try makeStore { request in
+            request.path == "/api/updates" ? .json(200, try UpdateFixtures.examples()["running"]!) : .json(404, ["error": "UPDATE_OPERATION_NOT_FOUND"])
+        }
+        let key = "bellbot.updateRequestID.https://update.test.invalid"
+        defaults.set(operationID, forKey: key)
+        await store.refresh()
+        XCTAssertEqual(UpdateProtocol.count(method: "GET", path: "/api/updates/operations/\(operationID)"), 1)
+        XCTAssertNil(store.requestID)
+        XCTAssertNil(defaults.string(forKey: key))
+        XCTAssertNil(store.operation)
+        XCTAssertTrue(try XCTUnwrap(store.message).contains("受け付けられていません"))
+        XCTAssertEqual(UpdateProtocol.count(method: "POST", path: "/api/updates/operations"), 0)
+    }
+
     func testInventoryWithAnUnknownValueIsShownAsAnInvalidResponse() async throws {
         let (store, _) = try makeStore { _ in
             var example = try UpdateFixtures.examples()["running"]!

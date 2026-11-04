@@ -25,7 +25,7 @@ flowchart TD
 | 応答の型 | `Core/UpdateModels.swift` | `bellteam.updates.v1`をそのままCodableにする。列挙の未知の値・必須nullのキー欠落はdecode失敗＝応答不正。未知のkeyは無視し、版の比較や補完はしない |
 | 状態 | `Core/UpdateStore.swift`（`AppStore.updates`） | inventory、計画、保存requestIdの照会結果、確認中の文言。サーバーの応答を正本とし、SSEや通知の内容は再取得のきっかけにだけ使う |
 | 要求ID | `UpdateStore.execute` | 実行操作ごとに小文字v4のUUIDを作り、送信前に`UserDefaults`へ接続先ごと（`bellbot.updateRequestID.<origin>`）に保存する。保存中は新しい実行を始めない |
-| 確定の判定 | `UpdateOperation.isSettled` | 未受付、`completed`（accepted/succeeded/succeeded）、`failed`かつexecution failedだけ確定。確定で保存IDを消す。unknown・断線・照会失敗は「確認中」のまま残し、成功にしない |
+| 確定の判定 | `UpdateOperation.isSettled` | 未受付、`completed`（accepted/succeeded/succeeded）、`failed`かつexecution failedだけ確定。確定で保存IDを消す。unknown・断線・照会失敗は「確認中」のまま残し、成功にしない。送信中でない時の照会404は、サーバーが保存前に受け付けない契約により「未受付」と確定し、保存IDを消す |
 | 受付の失敗 | `UpdateStore.execute` | HTTP 4xx（409は再計画が必要）はサーバーが受け付けなかった確定として保存IDを消し、計画を捨てる。URLError・5xx・応答不正は受付不明として保存IDを残し、再送しない |
 | 表示 | `Views/UpdateView.swift` | notice、各機能のname/description/current/published/comparison/changes/capability/availability、operation・previousOperationのphase/admission/execution/verification/error、計画のtargets/compatibility/impact/期限。再起動を伴う計画は確認のToggleを必須にする |
 | ロゴ右の印 | `UpdateBadge`（`HomeView.header`、`DesktopWorkspaceView.sidebar`） | いずれかの`comparison.state == update_available`の時だけ。押すと`AppStore.updatePresented`でシートを開く（`BellBotApp.RootView`） |
@@ -42,4 +42,4 @@ flowchart TD
 
 確認済み：`UpdateCenterTests`（[試験の対応](tests.md#updatecentertestsswift)）。サーバーの有限例13種のdecode、plan→確認→operationsが保存requestId付きで1回だけ送られること、409で再送・再計画しないこと、保存requestIdでの照会、unknown・断線で成功にしないこと、SSE `updates`、push 3key、server不一致、タップでPOST 0回。
 
-未確認：iPhone・iPad・Macの実画面での見え方、実機のpush受信、実サーバーとの接続。照会が404を返し続ける場合の保存IDの解除手段は設けていない。
+未確認：iPhone・iPad・Macの実画面での見え方、実機のpush受信、実サーバーとの接続。
