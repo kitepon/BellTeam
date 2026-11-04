@@ -14,6 +14,7 @@ on:
       - integrations/**
       - distribution/server/**
       - scripts/package-server.mjs
+      - scripts/web_gateway_artifact.py
       - scripts/module-update-service.py
       - scripts/module-update-compose.mjs
       - scripts/container-update-host.py
