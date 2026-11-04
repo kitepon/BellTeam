@@ -63,6 +63,18 @@ while IFS= read -r volume; do
     "$volume" >> "$staging/volumes.jsonl"
 done < "$staging/volume-names.txt"
 reader sources > "$staging/sources.txt"
+# Protected mounts need the daemon's filesystem credentials, not a Host chmod.
+daemon_paths=false
+while IFS= read -r kind && IFS= read -r source; do
+  if [ "$kind" = observed ] && [ ! -e "$source" ]; then daemon_paths=true; fi
+done < "$staging/sources.txt"
+if "$daemon_paths"; then
+  docker run --pull never --rm --network none --read-only --user 0:0 \
+    --cap-drop ALL --cap-add DAC_READ_SEARCH --security-opt no-new-privileges \
+    --mount "type=bind,source=$staging,target=/check,readonly" \
+    --mount type=bind,source=/,target=/host,readonly \
+    --entrypoint /usr/local/bin/node "$image" /app/src/server-state-writers.mjs canonical > "$staging/canonical.txt"
+else
 : > "$staging/canonical.txt"
 while IFS= read -r kind && IFS= read -r source; do
   case "$kind" in
@@ -90,4 +102,5 @@ while IFS= read -r kind && IFS= read -r source; do
   else canonical="${resolved%/}$suffix"; fi
   printf '%s\n%s\n' "$source" "$canonical" >> "$staging/canonical.txt"
 done < "$staging/sources.txt"
+fi
 reader verify
