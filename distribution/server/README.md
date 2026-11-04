@@ -6,7 +6,7 @@ Docker Engine 26以降とvolume subpathに対応したDocker Composeを使い、
 
 アプリから初めて使う場合は、[サーバーの導入ガイド](https://github.com/kitepon/BellTeam/blob/main/docs/server-installation.md)でDockerの準備・ファイルの取得・アプリへの接続を確認してください。
 
-1. 設置用ファイルを展開し、そのフォルダで`./install.sh`を実行します。イメージの取得、空の保存先の所有権設定、起動と正常稼働の確認まで行います。`.env`の作成や追加機能の設定は不要です。
+1. 設置用ファイルを展開し、そのフォルダで`sh install.sh`を実行します。イメージの取得、空の保存先の所有権設定、起動と正常稼働の確認まで行います。`.env`の作成や追加機能の設定は不要です。
 2. installerが表示するURLをブラウザで開きます。同じマシンでは`http://localhost:18891`、iPhone・iPadや別のMacでは`http://このマシンのLANアドレス:18891`へ接続できます。アプリの接続先にも同じURLを指定します。
 3. 最初に使うClaude・Codex・Grok・Cursorを画面で選び、表示される公式サイトで認証します。公式CLIの初回設定も画面の案内に従って完了します。
 4. 認証後、案内役との会話が始まります。メンバーや追加機能など、希望する使い方を案内役へ伝えて設定します。
@@ -35,6 +35,63 @@ BELLTEAM_AITERM_STATE_VOLUME=bellteam-lab-aiterm
 ```
 
 別のIPで同じポートを使う設置がある場合、その設置側もIPを限定する必要があります。`0.0.0.0`で同じポートを使用中なら競合します。値を保存したら、同じフォルダで通常どおり`sh install.sh`を実行します。更新時にも同じ`.env`を残します。
+
+## Composeで追加設定する
+
+環境変数・追加mount・port・メモリ制限などは、設置フォルダに自分の`compose.override.yaml`を置いて指定します。Docker Composeが配布物の`compose.yaml`へ自動で重ねます。既存のoverrideがあれば、そのfileへ必要な項目だけを追記してください。
+
+たとえば設置フォルダに`assets/`を作り、次の設定を保存します。`EXAMPLE_OPTION`は環境変数を渡す書き方の例です。実際に使う機能が定める変数名と値へ置き換えてください。
+
+```yaml
+services:
+  bellteam:
+    environment:
+      EXAMPLE_OPTION: example
+    volumes:
+      - type: bind
+        source: ./assets
+        target: /opt/bellteam-assets
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:18893:4180"
+    mem_limit: 8g
+```
+
+この例は既存portに同じPCからの18893番の接続口を追加し、assetsを読み取り専用で公開します。メモリ上限はマシンと用途に合わせてください。相対pathは配布`compose.yaml`があるフォルダを基準にします。設定後は同じフォルダで実行します。
+
+```sh
+mkdir -p assets
+docker compose config --quiet && sh install.sh
+```
+
+別imageを使う追加serviceもCompose標準の`services`へ記載できます。`module-installer`は付属の機能導入プログラムが使うservice名なので、追加serviceには別名を付けてください。保守対象の保存領域へ同時に書き込む追加serviceがあれば、更新はwriter検査で停止します。
+
+複数の追加fileを使う場合は、`.env`に次のように記します。先頭を配布`compose.yaml`にし、自動読込みの代わりに使うfileを順番に全て指定します。Mac・Linux・WSLでは区切りは`:`です。
+
+```dotenv
+COMPOSE_FILE=compose.yaml:compose.override.yaml:compose.site.yaml
+```
+
+以後も同じ`sh install.sh`で追加設定を含めて更新します。取得し直すのは配布`compose.yaml`と`install.sh`だけです。自分の`.env`、override、追加fileと保存データは残してください。追加設定は本体と利用者のserviceへ適用し、root権限で動く付属の機能導入プログラムへ任意の環境変数やmountを引き継ぎません。
+
+本体のdata/homeは同じ親フォルダの`data`と`home`に保ち、private state/controlのvolume・subpath・読み取り専用設定とCursor専用volume、AI状態の所有設定は配布構成の契約を維持してください。必須保存先が既設置と一致しなければ、旧本体を停止する前に拒否します。`docker compose config --quiet`は設定の構文確認で、installerの保存先検査は実行時に行います。解決済み設定や保存された`normal.json`には秘密値が含まれ得るため、ログや公開の問い合わせへ貼り付けないでください。
+
+### 管理済みprofileを使う場合
+
+管理者が由来と権限を確認した既存profileを使う設置では、同じoverrideの`services.bellteam.volumes`へ次の項目を加えます。sourceは管理している実fileの絶対pathへ置き換えてください。
+
+```yaml
+- type: bind
+  source: /absolute/path/to/trusted/distribution-profile.mjs
+  target: /app/src/distribution-profile.mjs
+  read_only: true
+  bind:
+    create_host_path: false
+```
+
+一般配布版のdeveloper禁止は維持します。環境変数や更新要求だけで開発者免除は作れません。保存済みの設定を引き続き使い、設置場所の変更と一緒に購読environmentを変えないでください。environmentを変えると、購読署名の再検証や購入復元が必要になる場合があります。
 
 ## 追加機能と接続
 
@@ -83,9 +140,9 @@ iPhone・Macアプリからの通常の会話と予定操作は共通の月額�
 
 ### 本体イメージを更新する
 
-イメージ内の`/app/distribution.json`にソースのGit commitを記録しています。`docker compose exec bellteam cat /app/distribution.json`で確認できます。既定の公開タグは`latest`です。以前の`preview`も同じ検査済みイメージを指します。更新は`./install.sh`で行います。再作成すると実行中のメンバーが停止するため、実行中の作業を確認してから行ってください。
+イメージ内の`/app/distribution.json`にソースのGit commitを記録しています。`docker compose exec bellteam cat /app/distribution.json`で確認できます。既定の公開タグは`latest`です。以前の`preview`も同じ検査済みイメージを指します。更新は`sh install.sh`で行います。再作成すると実行中のメンバーが停止するため、実行中の作業を確認してから行ってください。
 
-設置には`compose.yaml`と`install.sh`だけを同じフォルダへ保存してください。installerは取得したイメージに入っている更新手順を使うため、別のスクリプトを手で配置する必要はありません。更新時は本体を止めてからCursorを更新し、成功後に起動します。更新に失敗した場合は停止したままエラーを表示します。コンテナ本体は読み取り専用で動作し、利用者の会話・設定・追加ツールは割り当てた永続領域へ保存します。
+設置には配布`compose.yaml`と`install.sh`を同じフォルダへ保存してください。自分の追加設定は上のCompose手順で併置できます。installerは取得したイメージに入っている更新手順を使うため、別のスクリプトを手で配置する必要はありません。更新時は本体を止めてからCursorを更新し、成功後に起動します。更新に失敗した場合は停止したままエラーを表示します。コンテナ本体は読み取り専用で動作し、利用者の会話・設定・追加ツールは割り当てた永続領域へ保存します。
 
 installerは設置フォルダに新しい`.bellteam-compose.XXXXXX/normal.json`と同世代の`compose.state-maintenance.json`を作り、停止から起動まで同じ通常設定を使います。フォルダは実行者所有の0700、設定は0600で、既存の世代を上書きしません。停止を試みた後は、失敗時も選択した設定を残し、コンテナの管理情報から参照できるようにします。設定には秘密情報を含むことがあるため公開せず、`runtime/`と併せて非公開のバックアップに含めてください。稼働中または復旧中のコンテナが参照する世代は削除しないでください。逆移行には同世代の専用maintenance設定を使い、後から変更した.envで保存先を選び直さないでください。設置先は実行者が書き込める場所を使ってください。通常サービスの設定でbind元になっているフォルダの配下は拒否します。別名パスや追加mountでもコンテナから見えない設置先を選んでください。
 
@@ -94,6 +151,44 @@ installerは設置フォルダに新しい`.bellteam-compose.XXXXXX/normal.json`
 Claude・Codex・Grokなどのコマンドは、イメージに入っている物を全メンバーが使います。版が変わるのはイメージを更新した時です。Claude Codeはメンバーのフォルダの中で自分を更新しません（メンバーごとに版がずれるのを防ぐため）。メンバーのフォルダ（`.local`）に残っているClaude Codeの写しは、サーバーの起動時に片付けます。消すのはその写しと入口だけで、ほかのデータには触りません。詳しくは`docs/bot-environment.md`にあります。
 
 AppleアプリはApp Storeで公開されています。Appleの実購入・復元とWSLでの動作の検証状況は、アプリとサーバーの対応する配布記録を参照してください。
+
+### 設置フォルダだけを変えて更新する
+
+保存データを移動せず、新しいフォルダの設置ファイルから同じ環境を更新できます。旧設置フォルダと参照中の`.bellteam-compose.*`は残します。先に旧設置フォルダで、現在のproject名と実保存先を確認してください。mountの表示には保存先とvolume名が含まれます。
+
+```sh
+cid=$(docker compose ps -q bellteam)
+docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$cid"
+docker inspect --format '{{json .Mounts}}' "$cid"
+```
+
+新しい設置フォルダへ[導入ガイド](https://github.com/kitepon/BellTeam/blob/main/docs/server-installation.md#2-bellteamを起動する)の2fileを取得します。まだinstallerは実行せず、既存の`.env`と追加fileを新フォルダへ配置してください。`.env`では先ほど確認した同じproject名、stateとAI stateのvolume指定、接続先とimageの指定を維持します。既設置に`.env`がなければ、現物に合わせて作成します。
+
+新フォルダのoverrideには、既存の実保存先を絶対pathで指定します。以下のpathとCursor volume名は先ほど確認した値に置き換え、既存の追加設定へ合わせてください。
+
+```yaml
+services:
+  bellteam:
+    volumes:
+      - type: bind
+        source: /absolute/path/to/existing/runtime/home
+        target: /home/bell
+      - type: bind
+        source: /absolute/path/to/existing/runtime/data
+        target: /srv/bellteam
+        bind:
+          create_host_path: false
+volumes:
+  cursor-cli:
+    external: true
+    name: existing-project_cursor-cli
+```
+
+dataとhomeの親は同じ既存`runtime`にします。Throughlineの追加bindや管理済みprofileがある場合も、同じ実保存先へ絶対pathで指定し、profileの読み取り専用設定を保持します。複数Compose fileを使う場合は全fileを配置し、`COMPOSE_FILE`内のpathも新フォルダから解決できるようにします。
+
+新フォルダで`docker compose config --quiet && sh install.sh`を実行します。旧containerの管理情報から旧設定を照合し、同じstorageを使って更新します。旧設定の本人性を証明できない場合やdata/home/Cursor/private stateが食い違う場合は、旧本体を停止する前にエラーになります。表示された不一致を確認し、既存の保存先を削除したり、空の保存先へ変更したりして通さないでください。
+
+通常更新ではAI実行用の新しいvolumeへ切り替わり、元volumeは削除しません。実行中の会話の自動再開を保証する手順ではありません。更新前に実行中の作業を終えてください。
 
 ## ソースから構築する
 
