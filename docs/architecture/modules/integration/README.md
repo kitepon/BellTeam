@@ -378,13 +378,16 @@ flowchart LR
   Host[Host検証済selection / native platform / 署名・期限・失効] --> Modules
   Modules --> Check[component-source-artifactと固定compatibility検証]
   Check --> Inventory[共通inventory published-publication-comparison]
-  Inventory --> UI[既Owner GETとSSE再取得]
-  Modules -. 耐久executor未接続 .-> Disabled[module-all計画は無効503]
+  Inventory --> Executor[接続済みmodule executor / 更新可否と総合表示]
+  Executor --> Current[検証済み正式一致は更新不要 / provider未接続と区別]
+  Current --> UI[既Owner GETとSSE再取得]
 ```
 
 Hostの同read-only catalog窓口からweb-gateway/notifications/membersの正式選択だけを読む。発行元/署名/期限/失効はHost readerの責任で、共通側は閉じた選択schema・component/source/digest/immutable archive URL・platform・互換metadataを検証し公開JSONへ写像する。membersは厳密5keyと作者6値exact、旧moduleは厳密4keyを保持する。archiveの実bytesや現state検査をこのmetadata比較で代用しない。
 
 source不明/current nullはunknown、正式公開未供給/取得不能はpublished null、署名catalogの受入と直近publication確認失敗を分離する。各componentの障害は他moduleの正式情報や実availabilityを消さない。比較可能なbuiltin source又はrelease digestの一致だけをup_to_dateとし、module executor/all coordinatorの未接続は理由付きcapability falseのまま。GETは実行plan/worker/署名を作らない。既containerの耐久plan/start/getと同Host clientを共有し、controllerを複製しない。
+
+接続済みmodule executorは、公開情報の検証済み正式一致をcapability=false/UPDATE_ALREADY_CURRENTへ投影する。実行可能な更新が無くても、この取得済み一致をprovider未接続と表示しない。実publication失敗・未確認、閉鎖・fault・実行中・未確定Hostの拒否と最新operationの注意表示を保持し、表示のためにplan/start/ledger変更を行わない。
 
 
 ## currentWorkの共通一覧と本人MCP

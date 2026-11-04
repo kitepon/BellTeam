@@ -151,6 +151,35 @@ test('center publishes the durable module operation and schema-valid inventory t
   assert.equal(value.operation.requestId, input.requestId); assert.equal(value.operation.phase, 'completed')
 })
 
+test('verified current module reports no needed update instead of missing providers', async t => {
+  const f = await fixture(t)
+  t.after(() => f.executor.close())
+  let publicationFailed = false
+  const catalog = createModuleUpdateCatalog({ client: { catalog: async id => {
+    const value = selection(id)
+    if (publicationFailed) value.publication = { ...value.publication, status: 'failed', error: 'CATALOG_FETCH_FAILED' }
+    return value
+  } } })
+  const center = createUpdateCenter({ moduleCatalog: catalog, moduleExecutor: f.executor,
+    notifications: { controller: { snapshot: () => ({ builtinSourceCommit: source, available: true,
+      currentVersionId: digest, status: { configured: true } }) } } })
+  const current = await center.snapshot(), component = current.components.find(value => value.id === 'notifications')
+  assert.equal(validateUpdates(current).valid, true)
+  assert.deepEqual(component.comparison, { state: 'up_to_date', reason: null })
+  assert.deepEqual(component.capability, { supported: false, reason: 'UPDATE_ALREADY_CURRENT' })
+  assert.equal(current.notice.state, 'ready'); assert.equal(current.notice.code, null)
+  publicationFailed = true
+  const failed = await center.snapshot()
+  assert.equal(failed.notice.state, 'unavailable')
+  assert.equal(failed.components.find(value => value.id === 'notifications').comparison.reason, 'CATALOG_FETCH_FAILED')
+  publicationFailed = false
+  await center.close()
+  const closed = await center.snapshot()
+  assert.deepEqual(closed.components.find(value => value.id === 'notifications').capability,
+    { supported: false, reason: 'UPDATE_EXECUTOR_CLOSED' })
+  assert.notEqual(closed.notice.state, 'ready'); assert.deepEqual(f.calls, [])
+})
+
 test('all includes a needed container only as its final Host step and resumes by get without issuing again', async t => {
   let starts = 0, queries = 0, completed = false
   const target = { version: 'sha256:' + 'f'.repeat(64), sourceCommit: nextSource, digest: 'sha256:' + 'f'.repeat(64), origin: 'published' }
