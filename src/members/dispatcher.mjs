@@ -1,3 +1,4 @@
+import { avatarVersion } from '../avatar-value.mjs'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -14,7 +15,9 @@ import { validateMembersRequest, validateMembersCallback, validateMembersControl
 const failure = code => Object.assign(new Error(code), { code, outcome: 'not_accepted', status: 503 })
 const withoutImages = profile => {
   const { avatar, avatarLarge, avatarSource, avatarLargeSource, ...rest } = profile
-  return { ...rest, hasAvatar: Boolean(avatar), hasAvatarLarge: Boolean(avatarLarge) }
+  return { ...rest, hasAvatar: Boolean(avatar), hasAvatarLarge: Boolean(avatarLarge),
+    avatarVersion: avatarVersion(avatar), avatarLargeVersion: avatarVersion(avatarLarge || avatar),
+    avatarSourceVersion: avatarVersion(avatarSource), avatarLargeSourceVersion: avatarVersion(avatarLargeSource) }
 }
 
 export function createMembersDispatcher({ root, effect, projection, diagnostic = async () => {} }) {

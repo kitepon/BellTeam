@@ -116,8 +116,10 @@ export function validateMembersControl(method, params) {
   else fail()
 }
 
-const bot = value => {
-  object(value, { ...profileFields, id, session: text, project: text, displayName: text, deleting: bool, hasAvatar: bool, hasAvatarLarge: bool }, ['id', 'name', 'harness', 'session'])
+const version = value => { if (value !== '' && (typeof value !== 'string' || !/^[a-f0-9]{16}$/u.test(value))) fail() }
+const avatarVersions = { avatarVersion: version, avatarLargeVersion: version, avatarSourceVersion: version, avatarLargeSourceVersion: version }
+const bot = (value, metadata = false) => {
+  object(value, { ...profileFields, ...(metadata ? avatarVersions : {}), id, session: text, project: text, displayName: text, deleting: bool, hasAvatar: bool, hasAvatarLarge: bool }, ['id', 'name', 'harness', 'session'])
 }
 const persistedSchedule = value => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail()
@@ -168,7 +170,7 @@ function checkMembersEffectResult(method, value) {
 export function validateMembersProjection(record, context) {
   validateMembersContext(context, { initialize: true })
   if (record?.type === 'snapshot-start' || record?.type === 'snapshot-end') object(record, { type: text, revision })
-  else if (record?.type === 'profile') object(record, { type: text, revision, bot })
+  else if (record?.type === 'profile') object(record, { type: text, revision, bot: value => bot(value, true) })
   else fail()
 }
 

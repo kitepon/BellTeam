@@ -16,6 +16,8 @@ flowchart TD
   Profile -->|"作成"| Create
   Create --> Memory["memory.ensureScope<br/>保存後の部分失敗を保持"]
   Profile --> Sheet["CharacterSheets<br/>runtimeの画像stream"]
+  Listing --> Snapshot["profiles.read ACK付きstream<br/>画像本文なし・4avatarVersion"]
+  Snapshot --> Registry
   Profile --> Listing["active/pending一覧<br/>履歴・稼働観測・適用表示"]
   Listing -->|"既HTTPのdeleting"| Apple["Apple利用側<br/>予定対象から削除中を外す"]
 ```
@@ -47,6 +49,14 @@ member-profilesが通常保存/configure委譲の分岐と元receipt/例外、�
 
 投影/profiles.readは画像4fieldを持たない。HTTPのprofile/画像/設定画の対象確認とMCP get_bot/get_selfはfresh readMemberから完全な単一profileを読み、投影だけのavatarを返さない。MCPはその後既共通整形で画像本文を外しhasAvatar/URLを返す。失敗503を404へ丸めない。
 
-HTTP一覧は共通facadeが一leaseでmetadata→profile.read(includeDeleting:true)を逐次読み、既pendingの画像/versionsも保持する。includeDeletingは表示専用の内部literal trueで、通常認可readMemberは省略しactiveだけ。元の外部HTTP/MCP引数を増やさず、画像全名簿を一IPCへ詰めない。構築途中に確認済み404だけを除外でき、unknown/503を空一覧へ変えない。
+画像本文を含むHTTP一覧は共通facadeが一leaseでmetadata→profile.read(includeDeleting:true)を逐次読み、既pendingの画像/versionsも保持する。includeDeletingは表示専用の内部literal trueで、通常認可readMemberは省略しactiveだけ。元の外部HTTP/MCP引数を増やさず、画像全名簿を一IPCへ詰めない。構築途中に確認済み404だけを除外でき、unknown/503を空一覧へ変えない。
 
 members/errors.mjsのnormalizeMembersErrorは既固定semantic prefix/コードだけをcode/statusへ変換する。自由message/stack/入力値をwireへ渡さず、未登録errorはruntimeの既generic fallbackへ。受理後outcome unknownを変更しない。部分保存後のeffect失敗でも可能な限り最新metadata投影を先に送って、保存済み状態を古い表示へ隠さない。元例外は保持し成功へ丸めない。
+
+## avatar=omit用の一回snapshot
+
+既`profiles.read {}`の一件ずつACKする投影profileへ、`avatarVersion` / `avatarLargeVersion` / `avatarSourceVersion` / `avatarLargeSourceVersion`を付ける。各値は既avatarVersionの空文字またはSHA256先頭16hex。largeは既HTTP同様`avatarLarge || avatar`を使う。画像4本文を送らず、既hasAvatar/hasAvatarLargeとpendingの意味は保つ。共通hash/cacheはavatar-value.mjsへ移し、http-assets.mjsの既avatarVersion exportを維持する。
+
+親の省略指定時だけ、同read pinのACK完了・同世代/revision確認済みsnapshotを一覧として使う。これによりrefresh/listForClientを各一回にし、profile.read人数分の反復を省く。親facade/HTTP callerと外部avatar空文字/URL/versionの復元はintegration所有。非omitの既単一profile.readと完全profile DTOは維持。await後の在席/pending再確認、認可、失敗を空一覧へ丸めない契約も維持する。
+
+単一配列をIPCへ追加せず、既streamの一件ごとの16MiB上限とactual completion寿命を維持する。600名metadataが合計16MiB超でも一snapshotで扱う。全体図の既registry接続内の修理なので、全体のport追加はない。
