@@ -4,10 +4,44 @@ const unavailable = () => Object.assign(new Error('UPDATE_EXECUTOR_UNAVAILABLE')
   publicMessage: 'この設置では、まだアプリから更新を実行できません。' })
 const sourceValid = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value)
 const versionValid = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
+export function updateNotificationCandidates(inventory, now = Date.now()) {
+  return inventory.components.filter(component => component.current && component.published
+    && component.comparison.state === 'update_available' && component.publication?.check.status === 'verified'
+    && Date.parse(component.publication.catalog.expiresAt) > now
+    && /^[a-f0-9]{64}$/.test(component.published.version))
+    .map(component => ({ componentId: component.id, id: component.published.version }))
+}
+
 export function createUpdateCenter({ gateway = () => null, builtinSourceCommit = null, notifications = null, members = null, host = null, moduleCatalog = null, moduleExecutor = null, memory = null, diagnostics = null, usage = null, execution = null, conversation = null } = {}) {
-  const events = new EventEmitter()
-  return {
-    close: () => moduleExecutor?.close(),
+  const events = new EventEmitter(), notified = new Map()
+  let notificationTimer = null, notificationRead = null, notificationsClosed = false, lastCandidates = null
+  const checkNotifications = () => {
+    if (notificationsClosed || notificationRead) return notificationRead
+    notificationRead = Promise.resolve().then(() => center.snapshot()).then(value => {
+      if (notificationsClosed) return
+      const fingerprint = JSON.stringify(value.notificationCandidates)
+      if (fingerprint !== lastCandidates) { lastCandidates = fingerprint; events.emit('change') }
+      for (const candidate of value.notificationCandidates) {
+        if (notified.get(candidate.componentId) === candidate.id) continue
+        // Mark before publishing; an unconfirmed notification must never be retried.
+        notified.set(candidate.componentId, candidate.id)
+        notifications.update({ id: candidate.id })
+      }
+    }).catch(() => {}).finally(() => { notificationRead = null })
+    return notificationRead
+  }
+  const center = {
+    startNotifications() {
+      if (notificationsClosed || notificationTimer || typeof notifications?.update !== 'function') return
+      notificationTimer = setInterval(checkNotifications, 60000)
+      notificationTimer.unref?.()
+      void checkNotifications()
+    },
+    async close() {
+      notificationsClosed = true; clearInterval(notificationTimer)
+      await notificationRead
+      await moduleExecutor?.close()
+    },
     reserveExchange: moduleExecutor?.reserveExchange,
     notify: () => events.emit('change'),
     watch(listener) { events.on('change', listener); return () => events.off('change', listener) },
@@ -46,13 +80,16 @@ export function createUpdateCenter({ gateway = () => null, builtinSourceCommit =
         components, plans: [], operation: null, previousOperation: null }
       if (!validateUpdates(value).valid) throw new Error('UPDATE_SNAPSHOT_INVALID')
       const snapshot = host ? host.snapshot(value) : value
-      return moduleCatalog ? Promise.resolve(snapshot).then(value => moduleCatalog.snapshot(value)).then(value => {
+      const result = moduleCatalog ? Promise.resolve(snapshot).then(value => moduleCatalog.snapshot(value)).then(value => {
         if (!validateUpdates(value).valid) throw new Error('UPDATE_SNAPSHOT_INVALID')
         return moduleExecutor ? moduleExecutor.snapshot(value) : value
       }) : moduleExecutor ? Promise.resolve(snapshot).then(value => moduleExecutor.snapshot(value)) : snapshot
+      const project = value => ({ ...value, notificationCandidates: updateNotificationCandidates(value) })
+      return result?.then ? result.then(project) : project(result)
     },
     plan(input) { validateUpdateRequest('plan', input); if (moduleExecutor) return Promise.resolve(this.snapshot()).then(value => moduleExecutor.plan(input, value)); if (host && (!input.action || input.action === 'update')) return host.plan(input); throw unavailable() },
     start(input) { validateUpdateRequest('operation', input); if ((moduleExecutor?.hasPlan(input.planId) || moduleExecutor?.hasOperation(input.requestId))) return moduleExecutor.start(input); if (host) return host.start(input).finally(() => events.emit('change')); throw unavailable() },
     operation(requestId) { validateUpdateRequest('requestId', requestId); if (moduleExecutor?.hasOperation(requestId)) return moduleExecutor.operation(requestId); if (host) return host.operation(requestId); throw unavailable() },
   }
+  return center
 }

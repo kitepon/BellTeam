@@ -44,6 +44,8 @@ export const updatesSchema = { $id: 'urn:bellteam:updates:v1', ...object({ schem
     changes: list(text), capability, availability: object({ available: nullable({ type: 'boolean' }), reason: nullable(text) }) })),
   plans: list(plan), operation: nullable(operation), previousOperation: nullable(operation),
 }) }
+// Optional on older snapshots; notification eligibility is decided by the server.
+updatesSchema.properties.notificationCandidates = list(object({ componentId: enumeration(updateComponents.map(([id]) => id)), id: { type: 'string', pattern: '^[a-f0-9]{64}$' } }))
 export const updateRequestSchemas = {
   plan: { oneOf: [object({ scope: { const: 'all' } }), object({ scope: { const: 'component' }, componentId: enumeration(updateComponents.map(([id]) => id)) })].map(schema => ({ ...schema, properties: { ...schema.properties, action: enumeration(['update', 'rollback']) } })) },
   operation: object({ planId: uuid, requestId: uuid, confirmContainerRestart: { type: 'boolean' } }),
