@@ -48,6 +48,8 @@ URLError連続5回目で診断し、429/5xxは各回診断する。取消は終�
 | 秘密通知 | `GET /api/secret-requests/:id`のpendingだけsheetへ。認証失敗はrouteを戻してrequireLogin、その他はconnectionErrorへ。秘密の登録処理は[要求図](requests-and-auth.md) |
 | detach | attached=false、APNs解除・配信済み通知削除→registrationTask終了待ち→保存tokenで`POST /api/notifications/unregister`。成功時だけ保存token削除、失敗は診断。api/token/署名/route/表示会話を消しstatusを未設定へ |
 
+`kind=update`は別の`BellUpdateRoute`（[BellNotifications.swift](../../../../ios/BellBot/BellBot/Core/BellNotifications.swift#L28)）が、`bellteam`の`server`・`kind`・`messageId`の3key完全一致の時だけ受け、`onOpenUpdate`→`AppStore.openPendingUpdateNotification`でUpdate画面を開く。既存3種の解析・移動は変えない。詳細は[Update画面](update.md)。
+
 根拠：[BellNotifications.swift](../../../../ios/BellBot/BellBot/Core/BellNotifications.swift#L28)。routeはServerOriginを通したserver、reply/secret_request/owner_questionと空でないbotIdが必要。roomIdがあればルーム、秘密だけrequestIdを持つ。通知タップは現在の会話へpush追加せずchatPathを置換する。
 
 ```mermaid

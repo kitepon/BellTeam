@@ -163,6 +163,7 @@ private struct RootView: View {
                 }
             }
         }
+        .sheet(isPresented: $store.updatePresented) { UpdateView(updates: store.updates) }
         #if DEBUG
         .safeAreaInset(edge: .top) {
             if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-notification") {

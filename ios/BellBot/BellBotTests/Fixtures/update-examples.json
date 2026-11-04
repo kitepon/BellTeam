@@ -1,0 +1,1531 @@
+{
+  "running": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "updating",
+      "code": null,
+      "message": "更新の実状態を確認しています。"
+    },
+    "components": [
+      {
+        "id": "container",
+        "name": "BellTeam本体",
+        "description": "機能を動かす実行環境と、製品全体の構成。",
+        "current": {
+          "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceCommit": "1111111111111111111111111111111111111111",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "origin": "container"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "update_available",
+          "reason": null
+        },
+        "changes": [
+          "機能を更新します。"
+        ],
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [
+      {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "container",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "container",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "container"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": true,
+          "description": "会話と処理が一時中断します。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        }
+      }
+    ],
+    "operation": {
+      "requestId": "22222222-2222-4222-8222-222222222222",
+      "plan": {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "container",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "container",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "container"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": true,
+          "description": "会話と処理が一時中断します。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        }
+      },
+      "admission": "accepted",
+      "phase": "applying",
+      "execution": "pending",
+      "verification": "pending",
+      "error": null,
+      "reference": null
+    },
+    "previousOperation": null
+  },
+  "no_update": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "ready",
+      "code": null,
+      "message": "正式公開版と同じ版です。"
+    },
+    "components": [
+      {
+        "id": "container",
+        "name": "BellTeam本体",
+        "description": "機能を動かす実行環境と、製品全体の構成。",
+        "current": {
+          "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceCommit": "1111111111111111111111111111111111111111",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "origin": "container"
+        },
+        "published": {
+          "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceCommit": "1111111111111111111111111111111111111111",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "up_to_date",
+          "reason": null
+        },
+        "changes": [],
+        "capability": {
+          "supported": false,
+          "reason": "UPDATE_EXECUTOR_UNAVAILABLE"
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [],
+    "operation": null,
+    "previousOperation": null
+  },
+  "published_unavailable": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "unavailable",
+      "code": "UPDATE_PROVIDERS_UNAVAILABLE",
+      "message": "正式公開版と更新計画は未接続です。"
+    },
+    "components": [
+      {
+        "id": "container",
+        "name": "BellTeam本体",
+        "description": "機能を動かす実行環境と、製品全体の構成。",
+        "current": {
+          "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceCommit": "1111111111111111111111111111111111111111",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "origin": "container"
+        },
+        "published": null,
+        "publication": null,
+        "comparison": {
+          "state": "unavailable",
+          "reason": "PUBLISHED_RELEASE_UNAVAILABLE"
+        },
+        "changes": [],
+        "capability": {
+          "supported": false,
+          "reason": "UPDATE_EXECUTOR_UNAVAILABLE"
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [],
+    "operation": null,
+    "previousOperation": null
+  },
+  "incompatible": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "unavailable",
+      "code": "UPDATE_PROVIDERS_UNAVAILABLE",
+      "message": "正式公開版と更新計画は未接続です。"
+    },
+    "components": [
+      {
+        "id": "container",
+        "name": "BellTeam本体",
+        "description": "機能を動かす実行環境と、製品全体の構成。",
+        "current": {
+          "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceCommit": "1111111111111111111111111111111111111111",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "origin": "container"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "incompatible",
+          "reason": "UPDATE_INCOMPATIBLE"
+        },
+        "changes": [],
+        "capability": {
+          "supported": false,
+          "reason": "UPDATE_INCOMPATIBLE"
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [],
+    "operation": null,
+    "previousOperation": null
+  },
+  "restart_required": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "ready",
+      "code": null,
+      "message": "更新する対象を確認してください。"
+    },
+    "components": [
+      {
+        "id": "container",
+        "name": "BellTeam本体",
+        "description": "機能を動かす実行環境と、製品全体の構成。",
+        "current": {
+          "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceCommit": "1111111111111111111111111111111111111111",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "origin": "container"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "update_available",
+          "reason": null
+        },
+        "changes": [
+          "機能を更新します。"
+        ],
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [
+      {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "container",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "container",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "container"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": true,
+          "description": "会話と処理が一時中断します。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        }
+      }
+    ],
+    "operation": null,
+    "previousOperation": null
+  },
+  "accepted": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "updating",
+      "code": null,
+      "message": "更新の実状態を確認しています。"
+    },
+    "components": [
+      {
+        "id": "container",
+        "name": "BellTeam本体",
+        "description": "機能を動かす実行環境と、製品全体の構成。",
+        "current": {
+          "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceCommit": "1111111111111111111111111111111111111111",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "origin": "container"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "update_available",
+          "reason": null
+        },
+        "changes": [
+          "機能を更新します。"
+        ],
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [
+      {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "container",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "container",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "container"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": true,
+          "description": "会話と処理が一時中断します。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        }
+      }
+    ],
+    "operation": {
+      "requestId": "22222222-2222-4222-8222-222222222222",
+      "plan": {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "container",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "container",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "container"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": true,
+          "description": "会話と処理が一時中断します。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        }
+      },
+      "admission": "accepted",
+      "phase": "preparing",
+      "execution": "pending",
+      "verification": "pending",
+      "error": null,
+      "reference": null
+    },
+    "previousOperation": null
+  },
+  "disconnected_unknown": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "attention",
+      "code": null,
+      "message": "更新の実状態を確認しています。"
+    },
+    "components": [
+      {
+        "id": "container",
+        "name": "BellTeam本体",
+        "description": "機能を動かす実行環境と、製品全体の構成。",
+        "current": {
+          "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceCommit": "1111111111111111111111111111111111111111",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "origin": "container"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "update_available",
+          "reason": null
+        },
+        "changes": [
+          "機能を更新します。"
+        ],
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [
+      {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "container",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "container",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "container"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": true,
+          "description": "会話と処理が一時中断します。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        }
+      }
+    ],
+    "operation": {
+      "requestId": "22222222-2222-4222-8222-222222222222",
+      "plan": {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "container",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "container",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "container"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": true,
+          "description": "会話と処理が一時中断します。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        }
+      },
+      "admission": "unknown",
+      "phase": "unknown",
+      "execution": "unknown",
+      "verification": "unknown",
+      "error": {
+        "code": "UPDATE_RESULT_UNKNOWN",
+        "message": "同じ要求の結果を照会してください。"
+      },
+      "reference": null
+    },
+    "previousOperation": null
+  },
+  "execution_failed": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "attention",
+      "code": null,
+      "message": "更新の実状態を確認しています。"
+    },
+    "components": [
+      {
+        "id": "container",
+        "name": "BellTeam本体",
+        "description": "機能を動かす実行環境と、製品全体の構成。",
+        "current": {
+          "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceCommit": "1111111111111111111111111111111111111111",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "origin": "container"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "update_available",
+          "reason": null
+        },
+        "changes": [
+          "機能を更新します。"
+        ],
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [
+      {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "container",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "container",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "container"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": true,
+          "description": "会話と処理が一時中断します。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        }
+      }
+    ],
+    "operation": {
+      "requestId": "22222222-2222-4222-8222-222222222222",
+      "plan": {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "container",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "container",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "container"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": true,
+          "description": "会話と処理が一時中断します。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        }
+      },
+      "admission": "accepted",
+      "phase": "failed",
+      "execution": "failed",
+      "verification": "unknown",
+      "error": {
+        "code": "UPDATE_EXECUTION_FAILED",
+        "message": "更新処理が失敗しました。"
+      },
+      "reference": null
+    },
+    "previousOperation": null
+  },
+  "verified_completed": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "ready",
+      "code": null,
+      "message": "更新先の稼働を確認しました。"
+    },
+    "components": [
+      {
+        "id": "container",
+        "name": "BellTeam本体",
+        "description": "機能を動かす実行環境と、製品全体の構成。",
+        "current": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "container"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "up_to_date",
+          "reason": null
+        },
+        "changes": [
+          "機能を更新します。"
+        ],
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [
+      {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "container",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "container",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "container"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": true,
+          "description": "会話と処理が一時中断します。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        }
+      }
+    ],
+    "operation": {
+      "requestId": "22222222-2222-4222-8222-222222222222",
+      "plan": {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "container",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "container",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "container"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": true,
+          "description": "会話と処理が一時中断します。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        }
+      },
+      "admission": "accepted",
+      "phase": "completed",
+      "execution": "succeeded",
+      "verification": "succeeded",
+      "error": null,
+      "reference": null
+    },
+    "previousOperation": null
+  },
+  "module_update": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "ready",
+      "code": null,
+      "message": "更新先の稼働を確認しました。"
+    },
+    "components": [
+      {
+        "id": "notifications",
+        "name": "通知",
+        "description": "返信や確認依頼を端末へ知らせます。",
+        "current": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "release"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "up_to_date",
+          "reason": null
+        },
+        "changes": [
+          "機能を更新します。"
+        ],
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [
+      {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "notifications",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "notifications",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "release"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": false,
+          "description": "対象の機能を切り替えます。本体は再起動しません。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "action": "update"
+      }
+    ],
+    "operation": {
+      "requestId": "22222222-2222-4222-8222-222222222222",
+      "plan": {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "notifications",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "notifications",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "release"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": false,
+          "description": "対象の機能を切り替えます。本体は再起動しません。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "action": "update"
+      },
+      "admission": "accepted",
+      "phase": "completed",
+      "execution": "succeeded",
+      "verification": "succeeded",
+      "error": null,
+      "reference": null
+    },
+    "previousOperation": null
+  },
+  "module_rollback": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "ready",
+      "code": null,
+      "message": "更新先の稼働を確認しました。"
+    },
+    "components": [
+      {
+        "id": "notifications",
+        "name": "通知",
+        "description": "返信や確認依頼を端末へ知らせます。",
+        "current": {
+          "version": "3333333333333333333333333333333333333333",
+          "sourceCommit": "3333333333333333333333333333333333333333",
+          "digest": null,
+          "origin": "builtin"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "up_to_date",
+          "reason": null
+        },
+        "changes": [
+          "機能を更新します。"
+        ],
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [
+      {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "notifications",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "notifications",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "release"
+            },
+            "published": {
+              "version": "3333333333333333333333333333333333333333",
+              "sourceCommit": "3333333333333333333333333333333333333333",
+              "digest": null,
+              "origin": "builtin"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": false,
+          "description": "対象の機能を切り替えます。本体は再起動しません。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "action": "rollback"
+      }
+    ],
+    "operation": {
+      "requestId": "22222222-2222-4222-8222-222222222222",
+      "plan": {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "notifications",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "notifications",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "release"
+            },
+            "published": {
+              "version": "3333333333333333333333333333333333333333",
+              "sourceCommit": "3333333333333333333333333333333333333333",
+              "digest": null,
+              "origin": "builtin"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": false,
+          "description": "対象の機能を切り替えます。本体は再起動しません。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "action": "rollback"
+      },
+      "admission": "accepted",
+      "phase": "completed",
+      "execution": "succeeded",
+      "verification": "succeeded",
+      "error": null,
+      "reference": null
+    },
+    "previousOperation": null
+  },
+  "all_modules": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "ready",
+      "code": null,
+      "message": "更新先の稼働を確認しました。"
+    },
+    "components": [
+      {
+        "id": "web-gateway",
+        "name": "Web受付",
+        "description": "公開接続を受け付け、画面を届けます。",
+        "current": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "release"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "up_to_date",
+          "reason": null
+        },
+        "changes": [
+          "機能を更新します。"
+        ],
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      },
+      {
+        "id": "notifications",
+        "name": "通知",
+        "description": "返信や確認依頼を端末へ知らせます。",
+        "current": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "release"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "up_to_date",
+          "reason": null
+        },
+        "changes": [
+          "機能を更新します。"
+        ],
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      },
+      {
+        "id": "members",
+        "name": "メンバーと予定",
+        "description": "メンバーの設定と仕事の予定を管理します。",
+        "current": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "release"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "up_to_date",
+          "reason": null
+        },
+        "changes": [
+          "機能を更新します。"
+        ],
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [
+      {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "all",
+        "componentId": null,
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "web-gateway",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "release"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          },
+          {
+            "componentId": "notifications",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "release"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          },
+          {
+            "componentId": "members",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "release"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": false,
+          "description": "対象の機能を切り替えます。本体は再起動しません。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "action": "update"
+      }
+    ],
+    "operation": {
+      "requestId": "22222222-2222-4222-8222-222222222222",
+      "plan": {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "all",
+        "componentId": null,
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "web-gateway",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "release"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          },
+          {
+            "componentId": "notifications",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "release"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          },
+          {
+            "componentId": "members",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "release"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": false,
+          "description": "対象の機能を切り替えます。本体は再起動しません。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "action": "update"
+      },
+      "admission": "accepted",
+      "phase": "completed",
+      "execution": "succeeded",
+      "verification": "succeeded",
+      "error": null,
+      "reference": null
+    },
+    "previousOperation": null
+  },
+  "interrupted": {
+    "schema": "bellteam.updates.v1",
+    "server": {
+      "id": "example-server"
+    },
+    "observedAt": "2026-11-03T14:00:00+09:00",
+    "notice": {
+      "state": "attention",
+      "code": "UPDATE_PARENT_INTERRUPTED",
+      "message": "処理が中断されました。再実行せず同じ要求を照会してください。"
+    },
+    "components": [
+      {
+        "id": "notifications",
+        "name": "通知",
+        "description": "返信や確認依頼を端末へ知らせます。",
+        "current": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "release"
+        },
+        "published": {
+          "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "sourceCommit": "2222222222222222222222222222222222222222",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "origin": "published"
+        },
+        "publication": null,
+        "comparison": {
+          "state": "up_to_date",
+          "reason": null
+        },
+        "changes": [
+          "機能を更新します。"
+        ],
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "availability": {
+          "available": true,
+          "reason": null
+        }
+      }
+    ],
+    "plans": [
+      {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "notifications",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "notifications",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "release"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": false,
+          "description": "対象の機能を切り替えます。本体は再起動しません。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "action": "update"
+      }
+    ],
+    "operation": {
+      "requestId": "22222222-2222-4222-8222-222222222222",
+      "plan": {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "scope": "component",
+        "componentId": "notifications",
+        "expiresAt": "2026-11-03T14:05:00+09:00",
+        "targets": [
+          {
+            "componentId": "notifications",
+            "current": {
+              "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sourceCommit": "1111111111111111111111111111111111111111",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "origin": "release"
+            },
+            "published": {
+              "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceCommit": "2222222222222222222222222222222222222222",
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "origin": "published"
+            }
+          }
+        ],
+        "compatibility": {
+          "compatible": true,
+          "reason": null
+        },
+        "impact": {
+          "containerRestart": false,
+          "description": "対象の機能を切り替えます。本体は再起動しません。"
+        },
+        "capability": {
+          "supported": true,
+          "reason": null
+        },
+        "action": "update"
+      },
+      "admission": "accepted",
+      "phase": "unknown",
+      "execution": "unknown",
+      "verification": "unknown",
+      "error": {
+        "code": "UPDATE_PARENT_INTERRUPTED",
+        "message": "同じ要求の結果を確認してください。"
+      },
+      "reference": null
+    },
+    "previousOperation": null
+  }
+}

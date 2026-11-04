@@ -92,6 +92,7 @@ struct HomeView: View {
                     .font(.system(size: 23, weight: .bold, design: .rounded))
                     .tracking(-0.7)
                     .foregroundStyle(BellTheme.ink)
+                UpdateBadge(updates: store.updates) { store.updatePresented = true }
             }
             Spacer()
             Menu {

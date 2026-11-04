@@ -62,6 +62,7 @@ flowchart TD
 | --- | --- |
 | `ready` | eventRevision増加、共通一覧の全取得。SSE開始までの変化を再取得する |
 | イベント名/type `settings`・`setup`・`ai-control` | `refreshSettings`・`refreshSetup`・`refreshAIControl`。この分岐でeventRevisionは増やさない |
+| イベント名/type `updates` | `UpdateStore.refresh`（`GET /api/updates`と保存requestIdの照会）だけ。共通一覧とeventRevisionは動かさない。`ready`でも同じ取り直しを追加で行う。詳細は[Update画面](update.md) |
 | イベント名/type `bots` | 共通一覧全取得。この分岐でeventRevisionは増やさない |
 | `messages`の`.all`、その他イベント | eventRevision増加と共通一覧全取得 |
 | topic `timeline`・`queue`・`requests`・`questions` | botIds/roomIdsの全宛先へconversationChanges。timeline/requests/questionsは該当種別の名簿も再取得 |

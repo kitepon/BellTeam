@@ -281,6 +281,24 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [BotProfileDetails.body](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L484) | 役職・背景・性格・口調・仕事 |
 | [BotProfileDetails.detail](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L495) | 共通本文表示・空値は未設定 |
 
+## Update画面
+
+追加時点の行番号（上の固定sourceの表には含まれない）。契約と流れは[Update画面](update.md)。
+
+| 型・関数 | 機能 |
+| --- | --- |
+| [NullableField](../../../../ios/BellBot/BellBot/Core/UpdateModels.swift#L5) | 必須だがnull可の項目。キー欠落をnullにせず応答不正にする |
+| [UpdateInventory](../../../../ios/BellBot/BellBot/Core/UpdateModels.swift#L15)、[UpdateComponent](../../../../ios/BellBot/BellBot/Core/UpdateModels.swift#L50)、[UpdatePlan](../../../../ios/BellBot/BellBot/Core/UpdateModels.swift#L86)、[UpdateOperation](../../../../ios/BellBot/BellBot/Core/UpdateModels.swift#L112) | `bellteam.updates.v1`のClosed Codable。列挙の未知の値はdecode失敗。`isCompleted`・`isSettled`が確定の判定 |
+| [UpdatePlanRequest / UpdateOperationRequest](../../../../ios/BellBot/BellBot/Core/UpdateModels.swift#L135) | `POST /api/updates/plans`・`/operations`のbody |
+| [UpdateStore.refresh](../../../../ios/BellBot/BellBot/Core/UpdateStore.swift#L48) | inventoryと保存requestIdの結果をGET。失敗は成功に補わず確認中 |
+| [UpdateStore.makePlan](../../../../ios/BellBot/BellBot/Core/UpdateStore.swift#L76) | 全体またはcomponentの計画をPOST |
+| [UpdateStore.execute](../../../../ios/BellBot/BellBot/Core/UpdateStore.swift#L96) | 要求IDを保存してからPOST。4xxは確定、その他は受付不明で再送しない |
+| [UpdateStore.reset](../../../../ios/BellBot/BellBot/Core/UpdateStore.swift#L35) / [apply](../../../../ios/BellBot/BellBot/Core/UpdateStore.swift#L127) | 接続先変更時の表示破棄 / 照会結果の適用と確定時の保存ID消去 |
+| [UpdateBadge](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L4) | ロゴ右の印。`update_available`がある時だけ |
+| [UpdateView](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L24)、[componentCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L79) / [operationCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L104) / [planCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L118) | Update画面の表示と、対象選択・計画・実行の操作 |
+| [BellUpdateRoute](../../../../ios/BellBot/BellBot/Core/BellNotifications.swift#L28) | push `kind=update`の3key完全一致の解析と接続先照合 |
+| [AppStore.openPendingUpdateNotification](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L889) | ready後に接続先一致の時だけUpdate画面を開きGET。`startEvents`の`updates`分岐は[AppStore.swift](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L736) |
+
 ## その他の製品Swift：ファイル単位
 
 パスは`ios/BellBot/`から。上の9ファイルを除く43ファイル。型・関数名は到達先の目印で、この表では関数ごとの全分岐を列挙していない。
@@ -293,7 +311,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [BellBot/Core/BackgroundMessageSend.swift](../../../../ios/BellBot/BellBot/Core/BackgroundMessageSend.swift) | 背景実行時間確保、期限とcaller取消、終了 |
 | [BellBot/Core/BellAPI+BotSettings.swift](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift) | BellAPI extensionの[saveBotAvatarSelection](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift#L4) / [confirmBotAvatarSelection](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift#L24) / [saveBotSettings](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift#L43) / [confirmBotSettings](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift#L64) |
 | [BellBot/Core/BellDiagnostics.swift](../../../../ios/BellBot/BellBot/Core/BellDiagnostics.swift) | DecodingError.located、BellRequestTrace、BellDiagnosticObservation、BellDiagnostics。通信記録・影響・MetricKit・POST /api/diagnostics |
-| [BellBot/Core/BellNotifications.swift](../../../../ios/BellBot/BellBot/Core/BellNotifications.swift) | BellNotificationRoute、BellNotifications、UIApplication delegate。push登録・解除・表示抑制・移動 |
+| [BellBot/Core/BellNotifications.swift](../../../../ios/BellBot/BellBot/Core/BellNotifications.swift) | BellNotificationRoute、BellUpdateRoute、BellNotifications、UIApplication delegate。push登録・解除・表示抑制・移動 |
 | [BellBot/Core/BillingStore.swift](../../../../ios/BellBot/BellBot/Core/BillingStore.swift) | 購読status/entitlement/product、本人権利照会、purchase/restore/recheck、verify/finish |
 | [BellBot/Core/BotSettings.swift](../../../../ios/BellBot/BellBot/Core/BotSettings.swift) | BotProfileResponse、BotSettings.normalized/withSmallAvatar/withLargeAvatar/withAvatarSelection、BotEditorDraft、AvatarSelectionDrafts、BotSettingsRequest.encode、BotSaveResult |
 | [BellBot/Core/ConversationDocument.swift](../../../../ios/BellBot/BellBot/Core/ConversationDocument.swift) | JSON FileDocumentの読込・書出し |
@@ -339,6 +357,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 
 | ファイル | 宣言で確認した対象 |
 | --- | --- |
+| [UpdateCenterTests.swift](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift) | サーバー有限例13種のdecode、Closed検査、保存requestId・409・断線、SSE `updates`、push kind=updateの3key、タップ（[対応](tests.md#updatecentertestsswift)） |
 | [AIControlTests.swift](../../../../ios/BellBot/BellBotTests/AIControlTests.swift) | stopping/停止確認、PATCH結果不明のGET、停止解除失敗 |
 | [AuthSetupOrderingTests.swift](../../../../ios/BellBot/BellBotTests/AuthSetupOrderingTests.swift) | 古い認証応答・失敗、明示更新待ち、setup/harnessの順序 |
 | [AuthenticationRecoveryTests.swift](../../../../ios/BellBot/BellBotTests/AuthenticationRecoveryTests.swift) | Access期限とdraft保持、local拒否、認証失敗分類 |
