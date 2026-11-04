@@ -41,6 +41,16 @@ test('derived report rechecks fresh members under one short lease while original
   f.admission.assertDelivery(f.delivery); f.admission.assertLease(f.context.conversationLease)
 })
 
+test('not-issued report adapter retains captured identity and releases only its fresh preparation lease', async t => {
+  const f = fixture(t), unavailable = { report: 'unavailable', reason: 'not_issued' }
+  const result = f.effect('execution.report', f.params, f.context)
+  await tick(); assert.equal(f.state.native, 1)
+  f.accepted.resolve(unavailable)
+  assert.equal(await result, unavailable)
+  f.admission.assertDelivery(f.delivery)
+  assert.throws(() => f.members.assertLease(f.state.lease), { code: 'MEMBERS_NOT_ACCEPTED' })
+})
+
 test('closed members admission rejects the one derived preparation before fresh/native and never retries on resume', async t => {
   const f = fixture(t), ticket = f.members.close()
   await assert.rejects(f.effect('execution.report', f.params, f.context), { code: 'MEMBERS_NOT_ACCEPTED' })

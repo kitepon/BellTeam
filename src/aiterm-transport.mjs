@@ -578,17 +578,23 @@ export class AitermTransport {
 
   // 通知で始まったターンの最後の回答は誰にも配送しない。onAnswerがあれば、そのBotの会話画面へ出すために渡す。
   // onTurnEndは、差し込みではなく新しく始まったターンが終わった時だけ、その時間の幅を渡して呼ぶ。
-  async notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck } = {}) {
+  notify(bot, message, options = {}) { return this.#notify(bot, message, options) }
+
+  async #notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck } = {}, report = false) {
     const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck })
     completion.catch(error => process.stderr.write(`BellTeam Aiterm delivery error: ${error.stack ?? error.message}\n`))
-    return completion.accepted
+    if (!report) return completion.accepted
+    return completion.accepted.catch(async error => {
+      if (await completion.reportNotIssued) return { report: 'unavailable', reason: 'not_issued' }
+      throw error
+    })
   }
 
   notifyReport(bot, message, options = {}) {
     if (!options.conversationDelivery || !this.conversationAdmission?.isReport(options.conversationDelivery)
       || options.onTurnEnd || options.queue?.context !== 'report')
       throw Object.assign(new Error('CONVERSATION_REPORT_NOT_ALLOWED'), { code: 'CONVERSATION_REPORT_NOT_ALLOWED', status: 403, effect: 'not_started' })
-    return this.notify(bot, message, options)
+    return this.#notify(bot, message, options, true)
   }
 
   async restartNow(bot, version = this.stopVersions.get(bot.id), onClosed = () => {}, membersLease, admissionCheck) {
@@ -647,7 +653,7 @@ export class AitermTransport {
     let endAdmission
     const admissionCompletion = new Promise(resolve => { endAdmission = resolve })
     if (membersLease) this.membersAdmission.trackCompletion(membersLease, admissionCompletion)
-    let delivery, followed = false
+    let delivery, followed = false, dispatchStarted = false, failureStatusSaved = false, originalFailure
     const completion = (async () => {
       // 差し込んだ文を取ったターンの終わりまで追ったか。追えなかった差し込みの画像は、次のターンまで残す。
       try {
@@ -669,6 +675,7 @@ export class AitermTransport {
         this.activity.admit(job)
         await this.requireAccess({ setupTest, botId: bot.id })
         check()
+        dispatchStarted = true
         delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job, membersLease })
         // 受理した。送信中に届いた停止の結果があれば、この受理と照らす。
         job.receipt = delivery.receipt
@@ -735,11 +742,12 @@ export class AitermTransport {
         return transcript ? answer : { delivery: 'delivered' }
       } catch (cause) {
         const error = await job.failure(cause)
+        originalFailure = error
         if (!acknowledged) rejectAcceptance(error)
         // Accepted input remains accepted when only its completion tracking fails.
         const tracking = job.waitFailure === error && job.receipt && !job.stopped && !error.turnCompleted
           ? [{ schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' }] : []
-        try { await onStatus?.(job.stopped ? 'stopped' : 'failed', error, ...tracking) }
+        try { await onStatus?.(job.stopped ? 'stopped' : 'failed', error, ...tracking); failureStatusSaved = true }
         catch (callbackError) { if (!conversationDelivery) throw callbackError }
         throw error
       } finally { endAdmission() }
@@ -765,6 +773,13 @@ export class AitermTransport {
       }
       const finish = () => this.conversationAdmission.finish(conversationDelivery)
       result.then(finish, finish)
+    }
+    if (conversationDelivery && this.conversationAdmission.isReport(conversationDelivery)) {
+      // Only this captured job can prove local refusal; receipt absence after dispatch proves nothing.
+      result.reportNotIssued = job.completion.then(() => false, error => !dispatchStarted
+        && error === originalFailure && failureStatusSaved && job.unsent && !job.executionFinishUnconfirmed
+        && job.conversationGeneration === this.conversationAdmission.capture().generation
+        && !this.conversationAdmission.snapshot().unconfirmed)
     }
     result.accepted = accepted
     result.admissionCompletion = admissionCompletion

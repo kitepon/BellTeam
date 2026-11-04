@@ -163,3 +163,21 @@ flowchart LR
 receipt取得後に元native waiterを一回開始し、その実Promiseをcallback await前に元leaseへ登録する。accepted/effectとcaller返却は旧callbackの元failureで直ちにrejectできる。job.completionは元effectと実native追跡・資源cleanupの双方を待つ実寿命であり、activity/leaseはnative完走前に解放しない。同Botのretired occupationを新claim/新watchへ使わず他Botのcurrent入場は許可する。実native追跡のunknown rejectは物理終了ではないため、元receipt/jobと明示unconfirmed占有guardを残し、全closeの成功へ変換しない。架空pending Promiseを作らない。
 
 retired watchは全体closeでも新writer側のwatch取消へ混ぜず、その元native/既observer終端まで実watch.completionを待つ。元世代からの容量継続は新世代へ再root化せず、通常currentの容量継続は元実資源cleanup後に既guardで進める。
+
+
+## T：report専用の確定した未発行結果
+
+```mermaid
+flowchart LR
+  Report[同sourceからderiveReport / notifyReport] --> Pre[dispatchInOrder未進入]
+  Pre --> Saved[失敗status保存callback終端 / 無登録は保存要求無し]
+  Saved --> Job[元job.completion / 元失敗本人 / execution finish確定]
+  Job --> Binding[同report opaqueの捕捉世代 / current未確認無し]
+  Binding --> Result[report unavailable / reason not_issued]
+  Result --> Adapter[N102: 同captured sourceへexecution.report閉union]
+  Adapter --> Business[N102: 報告不能の業務結果 / 実refsとreleaseACK保持]
+```
+
+notifyReportだけが既accepted結果又はexact `{report:'unavailable',reason:'not_issued'}`を返す。親ローカルの元job/opaque/target/groupIdに束縛し、dispatchInOrderに入る前の失敗だけを候補とする。元jobの実completion終端後に、元失敗object本人・失敗status callbackの成功（無登録なら保存要求無し）・unsent・executionFinishUnconfirmed=false・同writer世代・unconfirmed=falseを確認する。callback保存失敗が既catchで保持された場合やcleanupが別例外を返した場合は分類しない。code/status/effect/receipt無しから未発行を推測しない。
+
+普通notifyの受付返却は待たせず、reportも受付成功は従来時点に返す。確定拒否の場合だけ実job終端を待つ。子の報告分類/validator/親adapterはN102、一般背景wireはEpi、一般lifetimeは変更しない。not_issuedはnative受付/報告保存/元要求成功/配送releaseACK済みを意味しない。元pty_send例外の条件付き反例はdispatch後なのでこの結果の対象外。既failed解除や再送をしない。

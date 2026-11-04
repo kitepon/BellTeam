@@ -140,7 +140,10 @@ export function validateConversationEffectResult(method, result, params) {
       return true
     case 'runtime.observer.check': validateObserverCheckResult(result, params); return true
     case 'runtime.observer.read': return observerResult(result)
-    case 'execution.notify': case 'execution.turn': case 'execution.report': return fields(result, { delivery: oneOf('running', 'steered') })
+    case 'execution.report':
+      if (result?.report === 'unavailable') return fields(result, { report: oneOf('unavailable'), reason: oneOf('not_issued') })
+      return fields(result, { delivery: oneOf('running', 'steered') })
+    case 'execution.notify': case 'execution.turn': return fields(result, { delivery: oneOf('running', 'steered') })
     case 'execution.background.begin': return fields(result, { backgroundId: identity })
     case 'execution.observation.source':
       fields(result, { deliveryId: identity, target: id })

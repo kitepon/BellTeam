@@ -32,6 +32,57 @@ function pair() {
   return endpoints
 }
 const settle = () => new Promise(resolve => setImmediate(resolve))
+
+for (const background of [false, true]) test(`not-issued report keeps real release ACK through ${background ? 'background claimed' : 'inline unclaimed'} completion`, { timeout: 4000 }, async t => {
+  let h, report, heldAck
+  const ackEntered = Promise.withResolvers(), releaseAck = Promise.withResolvers()
+  t.after(() => releaseAck.resolve())
+  h = await setup(t, { dispatcher: options => {
+    const dispatcher = createConversationDispatcher(options), release = dispatcher.releaseDelivery
+    dispatcher.releaseDelivery = async binding => {
+      if (binding.deliveryId === report?.params.deliveryId) {
+        heldAck = binding; ackEntered.resolve(); await releaseAck.promise
+      }
+      return release(binding)
+    }
+    return dispatcher
+  }, effect: (method, params, context) => {
+    if (method !== 'execution.report') return
+    report = { params, context }
+    assert.equal(params.sourceDeliveryId, h.native[0].params.deliveryId)
+    assert.equal(context.operationContext, h.operationContext)
+    if (background) {
+      h.admission.claimNative(context.conversationDelivery, { deliveryId: params.deliveryId, target: params.target, kind: 'report' })
+      h.admission.finish(context.conversationDelivery)
+    }
+    return { report: 'unavailable', reason: 'not_issued' }
+  } })
+  const target = h.fixture.bots[0].id
+  const attempt = background
+    ? h.request('user.turn', { target, message: 'original', images: [] })
+    : h.request('direct.post', { from: target, target, message: 'original', images: [] })
+  if (background) await attempt.accepted
+  else await attempt
+  const source = h.native[0].delivery
+  if (background) {
+    await h.admission.invoke(source, 'user.complete', { reply: '' })
+    await attempt
+  } else await h.admission.invoke(source, 'turn.end', { startedAt: '2026-11-05T00:00:00Z', endedAt: '2026-11-05T00:00:01Z' })
+  await ackEntered.promise
+  assert.equal(heldAck.target, target)
+  h.admission.finish(source)
+  const done = h.admission.operationCompletion(h.lease)
+  h.admission.finish(h.lease)
+  let completed = false
+  done.then(() => { completed = true })
+  await settle(); assert.equal(completed, false)
+  assert.equal(h.admission.snapshot().unconfirmed, false)
+  releaseAck.resolve(); await done
+  assert.equal(h.admission.snapshot().active, 0)
+  assert.equal(h.admission.snapshot().unconfirmed, false)
+  await h.parent.control('quiesce')
+})
+
 async function setup(t, { effect = () => {}, event = async () => {}, dispatcher: factory = createConversationDispatcher, forked = false } = {}) {
   const fixture = JSON.parse(await readFile(new URL('../src/conversation/probe-fixture.json', import.meta.url), 'utf8'))
   const root = await mkdtemp(join(tmpdir(), 'conversation-channel-'))

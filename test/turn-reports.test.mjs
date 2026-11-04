@@ -19,6 +19,16 @@ const driley = [
 
 const bots = new Map([['bot-d', { id: 'bot-d', name: 'ドリリー' }], ['bot-o', { id: 'bot-o', name: 'ドロシー' }]])
 
+test('not-issued report is not a requested report and unknown rejection still propagates', async () => {
+  const { service } = reports({ records: [], judge: () => assert.fail('missing report skips judge') })
+  const unavailable = { report: 'unavailable', reason: 'not_issued' }
+  service.notifyReport = async () => unavailable
+  assert.deepEqual(await service.check({ botId: 'bot-d', context: 'owner', ...window }), unavailable)
+  const unknown = new Error('save unknown')
+  service.notifyReport = async () => { throw unknown }
+  await assert.rejects(service.check({ botId: 'bot-d', context: 'owner', ...window }), error => error === unknown)
+})
+
 function reports({ records, judge }) {
   const notified = []
   const appended = []
