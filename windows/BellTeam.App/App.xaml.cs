@@ -63,10 +63,12 @@ public partial class App : Application
                 using var pageWorkspace = new Workspace(); await pageWorkspace.ConnectAsync(pageAddress, listen: false);
                 if (pageWorkspace.ConnectionError is { } failure) throw new BellApiException(failure);
                 var pageWindow = new MainWindow(pageWorkspace, persistPlacement: false, notifications: new DesktopNotifications(new WindowsNotificationSink(), new SettingsStore(SettingsStore.UserDirectory), (_, _) => { }));
-                if (pageKind is "settings" or "settings-lower") pageWindow.ShowSettings(); else if (pageKind == "schedules") pageWindow.ShowSchedules(); else throw new ArgumentException("未対応のページです。");
+                if (pageKind is "settings" or "settings-lower") pageWindow.ShowSettings(); else if (pageKind == "schedules") pageWindow.ShowSchedules(); else if (pageKind is "updates" or "updates-narrow" or "updates-detail-narrow") pageWindow.ShowUpdates(); else throw new ArgumentException("未対応のページです。");
                 await pageWindow.PageReady;
-                var pageRoot = (FrameworkElement)pageWindow.Content; pageRoot.Measure(new Size(1280, 820)); pageRoot.Arrange(new Rect(0, 0, 1280, 820)); pageRoot.UpdateLayout();
-                await pageWindow.PrepareRenderAsync(bottomOfPage: pageKind == "settings-lower"); WritePng(pageWindow, 1280, 820, pageOutput); pageWindow.Close(); Shutdown(0); return;
+                var pageWidth = pageKind is "updates-narrow" or "updates-detail-narrow" ? 1100 : 1280; var pageHeight = pageKind is "updates-narrow" or "updates-detail-narrow" ? 700 : 820;
+                var pageRoot = (FrameworkElement)pageWindow.Content; pageRoot.Measure(new Size(pageWidth, pageHeight)); pageRoot.Arrange(new Rect(0, 0, pageWidth, pageHeight)); pageRoot.UpdateLayout();
+                if (pageKind == "updates-detail-narrow") { FindExpander(pageRoot).IsExpanded = true; pageRoot.UpdateLayout(); }
+                await pageWindow.PrepareRenderAsync(bottomOfPage: pageKind is "settings-lower" or "updates-detail-narrow"); WritePng(pageWindow, pageWidth, pageHeight, pageOutput); pageWindow.Close(); Shutdown(0); return;
             }
             if (e.Args is ["--render-preview", _] || e.Args is ["--render-url", _, _] || e.Args is ["--render-url", _, _, _])
             {
@@ -89,7 +91,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|settings-lower|schedules> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|settings-lower|schedules|updates|updates-narrow|updates-detail-narrow> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));
@@ -116,6 +118,16 @@ public partial class App : Application
             else MessageBox.Show(error.Message, "BellTeam", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
+    }
+    private static System.Windows.Controls.Expander FindExpander(DependencyObject root)
+    {
+        var pending = new Stack<DependencyObject>(); pending.Push(root);
+        while (pending.TryPop(out var current))
+        {
+            if (current is System.Windows.Controls.Expander expander) return expander;
+            for (var index = 0; index < VisualTreeHelper.GetChildrenCount(current); index++) pending.Push(VisualTreeHelper.GetChild(current, index));
+        }
+        throw new InvalidOperationException("更新の詳細を描画できません。");
     }
     private static void WritePng(Window window, int width, int height, string path)
     {
