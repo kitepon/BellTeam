@@ -28,7 +28,7 @@ flowchart TD
 | 確定の判定と保持 | `UpdateOperation.isSettled`・`UpdateStore.history` | サーバーの照会で確定（rejected、completed、failedかつexecution failed）した要求だけ保存IDを外す。4xxは「受け付けられませんでした」と表示するが、要求ID・計画IDは消さずに過去の要求（`history`、端末に保存）へ移す。照会の404・認証失敗・断線は未受付と確定せず、保存IDを残して「結果を確認できません」と表示し、同じUUIDで照会し直す。新しく実行すると、確定していない前の要求は消さずに過去の要求へ移して照会を続ける。結果を確定できていない要求と同じ計画は再実行せず、利用者が取り直した別の計画（capability.supported）だけを一回実行する。手での消去、自動の再送・再計画はしない（Web版と同じ） |
 | 受付の失敗 | `UpdateStore.execute` | HTTP 4xx（409は再計画が必要）は「受け付けられませんでした」と表示して計画を捨てるが、要求ID・計画IDは消さずに過去の要求へ移す。URLError・5xx・応答不正は受付不明として保存IDを残し、再送しない |
 | 表示 | `Views/UpdateView.swift` | notice、各機能のname/description/current/published/comparison/changes/capability/availability、operation・previousOperationのphase/admission/execution/verification/error、計画のtargets/compatibility/impact/期限。再起動を伴う計画は確認のToggleを必須にする |
-| ロゴ右の印 | `UpdateBadge`（`HomeView.header`、`DesktopWorkspaceView.sidebar`） | いずれかの`comparison.state == update_available`の時だけ。押すと`AppStore.updatePresented`でシートを開く（`BellBotApp.RootView`） |
+| ロゴ右の印 | `UpdateBadge`（`HomeView.header`、`DesktopWorkspaceView.sidebar`） | 見える文字の無いアイコンだけ（読上げ名「更新があります。アップデートを開く」）。iPadのsidebar幅230〜270ptでもタイトルと追加ボタンを押し潰さない。いずれかの`comparison.state == update_available`の時だけ。押すと`AppStore.updatePresented`でシートを開く（`BellBotApp.RootView`） |
 | 診断 | 既存`BellDiagnostics.report` | 取得は`.read`、受付不明のPOSTは`.write`。4xxは既存規則で報告しない |
 | 接続先・ログアウト | `AppStore.setServerAddress`・`signOut` | `updates.reset()`で前の接続先の表示を捨てる。保存requestIdは端末に残る |
 
