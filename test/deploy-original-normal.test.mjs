@@ -67,7 +67,7 @@ const r=JSON.parse(fs.readFileSync(e.TEST_ROOT+'/runtime.json'));if(e.TEST_CHANG
 if(a[0]==='container') {const f=a[a.indexOf('--format')+1];console.log(f==='{{json .}}'?JSON.stringify(r):f==='{{.Id}} {{.Image}}'?r.Id+' '+r.Image:f==='{{.State.StartedAt}}'?r.State.StartedAt:'volume bellteam_cursor-cli');process.exit(0)}
 if(a[0]==='compose') {if(a.includes('config')){const x=cp.spawnSync(e.TEST_COMPOSE,a.slice(1),{env:e,encoding:'utf8'});process.stdout.write(x.stdout);process.stderr.write(x.stderr);process.exit(x.status)}if(a.includes('pull'))process.exit(97)}
 if(a[0]==='image'&&a[1]==='save')fs.writeFileSync(a[a.indexOf('--output')+1],'synthetic-image');
-if(a[0]==='exec') {if(a.includes('/bin/cat'))process.stdout.write(fs.readFileSync(e.TEST_ROOT+'/src/distribution-profile.mjs'));else if(a.includes('/usr/bin/stat'))console.log(e.TEST_FAILURE==='profile-mode'?'600':'644');else if(a.includes('/bin/tar'))process.stdout.write('synthetic-cursor');}`,
+if(a[0]==='exec') {if(a.includes('/bin/cat'))process.stdout.write(fs.readFileSync(e.TEST_ROOT+'/src/distribution-profile.mjs'));else if(a.includes('/usr/bin/stat'))console.log(e.TEST_FAILURE==='profile-mode'?'600':e.TEST_FAILURE==='profile-readonly'?'444':'644');else if(a.includes('/bin/tar'))process.stdout.write('synthetic-cursor');}`,
     ssh: String.raw`const fs=require('node:fs'),cp=require('node:child_process'),e=process.env,c=process.argv[3],input=c.includes('sh -s')?fs.readFileSync(0,'utf8'):'';
 fs.appendFileSync(e.TEST_EVENTS,JSON.stringify({tool:'ssh',command:c,input})+'\n');
 if(c.includes('sh -s')) {const x=cp.spawnSync('/bin/sh',['-s',c.split(' ').at(-1)],{cwd:e.TEST_ROOT,env:{...e,TEST_REMOTE:'1'},input,encoding:'utf8'});process.stdout.write(x.stdout.replaceAll(e.TEST_ROOT,'/home/kite/BellTeam'));process.stderr.write(x.stderr);process.exit(x.status)}
@@ -163,4 +163,21 @@ test('original normal: fixed root actor and recovered previous normal remain cap
   assert.equal(model.services.bellteam.image,oldImage)
   assert.equal(model.services.bellteam.environment.SECRET,'synthetic-original-secret')
  }
+})
+
+
+test('original normal: readonly 444 profile is captured without changing the single-service contract', async t => {
+  const f = await fixture(t, 'profile-readonly')
+  await f.run()
+  const saved = await f.captured()
+  const normal = JSON.parse(await readFile(saved + '/previous-normal.json', 'utf8'))
+  assert.deepEqual(Object.keys(normal.services), ['bellteam'])
+  assert.equal(normal.services.bellteam.image, oldImage)
+  const profile = normal.services.bellteam.volumes.find(value => value.target === '/app/src/distribution-profile.mjs')
+  assert.equal(profile.read_only, true)
+  assert.equal(profile.source, saved + '/previous-profile.mjs')
+  assert.equal(await readFile(profile.source, 'utf8'), 'export const profile = "old-profile"\n')
+  assert.equal((await stat(profile.source)).mode & 0o777, 0o644)
+  const refused = await fixture(t, 'profile-mode')
+  await assert.rejects(refused.run(), error => error.stderr.includes('BELLTEAM_ORIGINAL_CONFIG_UNAVAILABLE'))
 })

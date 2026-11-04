@@ -134,7 +134,7 @@ flowchart LR
   Saved --> Installer["runtime: 既installerへ旧normalを引渡し"]
 ```
 
-更新前の旧profileはmode644の同じ公開fileだけを読む。Docker execが継承する本体の鍵環境を席UID1000のprocessへ渡さないため、既本体serverのUID/GIDを明示する。旧CID・開始時刻・Compose hash・profile mount/保存modeの照合は維持し、保存後にmainを取り込む。runtime内部の移行・復旧・停止条件は変更しない。範囲はこの非定期deploy入口の2読取で、Host全体の監査や過去の漏出有無を断定しない。
+更新前の旧profileはmode444又は644の同じreadonly bindの公開fileだけを読む。Host上の元fileのmodeやmountを変更せず、保存世代に読取可能な644のコピーを固定する。normalはbellteam一serviceのまま検証し、同梱backendは別固定modelとして既public installerへ寿命管理を委譲する。Docker execが継承する本体の鍵環境を席UID1000のprocessへ渡さないため、既本体serverのUID/GIDを明示する。旧CID・開始時刻・Compose hash・profile mount/保存modeの照合は維持し、保存後にmainを取り込む。runtime内部の移行・復旧・停止条件は変更しない。範囲はこの非定期deploy入口の2読取で、Host全体の監査や過去の漏出有無を断定しない。
 
 ## 応答不明のMCP要求文脈
 
