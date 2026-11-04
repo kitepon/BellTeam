@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-04T09:49:01Z",
-  "expiresAt": "2026-11-11T09:49:01Z",
+  "publishedAt": "2026-11-04T10:11:19Z",
+  "expiresAt": "2026-11-11T10:11:19Z",
   "releases": [
     {
       "componentId": "usage",
@@ -351,6 +351,142 @@
       },
       "changes": [
         "新版の更新候補を、許可済みの端末通知で知らせます。"
+      ]
+    },
+    {
+      "componentId": "diagnostics",
+      "sourceCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3",
+      "versionId": "fa3f9afa4be312767c0dc031e3a1501e4ff01a1592a0238c86a1e62703f1546a",
+      "platform": {
+        "os": "linux",
+        "arch": "amd64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/diagnostics-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-amd64.tar.gz",
+          "sha256": "fa3f9afa4be312767c0dc031e3a1501e4ff01a1592a0238c86a1e62703f1546a",
+          "bytes": 3826276
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/diagnostics-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "fb5c1084777d8ddc4d081a23ac4676aaa4bdaf161afb9b63c188d544557ea277",
+          "bytes": 11205
+        },
+        "signerCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "diagnostics": "unversioned-rows-array",
+          "investigations": "optional-fingerprint-map"
+        }
+      },
+      "changes": [
+        "子の異常終了の有限な診断情報を保存して取得します。"
+      ]
+    },
+    {
+      "componentId": "diagnostics",
+      "sourceCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3",
+      "versionId": "fa8e96c39f070bf473c3fe493261810ae91b008e4000dea5a7827403f11c9846",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/diagnostics-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-arm64.tar.gz",
+          "sha256": "fa8e96c39f070bf473c3fe493261810ae91b008e4000dea5a7827403f11c9846",
+          "bytes": 3826276
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/diagnostics-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "90283ba89a301345f1e400459cf54a22167f2fdecdd6801d9debc9cf2ea31f35",
+          "bytes": 11311
+        },
+        "signerCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "diagnostics": "unversioned-rows-array",
+          "investigations": "optional-fingerprint-map"
+        }
+      },
+      "changes": [
+        "子の異常終了の有限な診断情報を保存して取得します。"
+      ]
+    },
+    {
+      "componentId": "web-gateway",
+      "sourceCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3",
+      "versionId": "849aedadf8bba23c00153de265bb2af56e3226dfc512f9e779ff867b9d70c103",
+      "platform": {
+        "os": "linux",
+        "arch": "amd64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/web-gateway-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-amd64.tar.gz",
+          "sha256": "849aedadf8bba23c00153de265bb2af56e3226dfc512f9e779ff867b9d70c103",
+          "bytes": 4938934
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/web-gateway-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "89f085957414af16411bea22740564fda2183f4be53d0daa8cbfd5eaf3f6fb42",
+          "bytes": 11017
+        },
+        "signerCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": 1,
+        "containerUpdate": null
+      },
+      "changes": [
+        "共通Update画面と、新版通知からの導線に対応します。"
+      ]
+    },
+    {
+      "componentId": "web-gateway",
+      "sourceCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3",
+      "versionId": "00e194609528059b6ca6d527bb6036dfb1f1bff11fc1d4c3ea015082538705e1",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/web-gateway-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-arm64.tar.gz",
+          "sha256": "00e194609528059b6ca6d527bb6036dfb1f1bff11fc1d4c3ea015082538705e1",
+          "bytes": 4938934
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/web-gateway-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "e6ccaf3d0c95919ef9701fbd4f662d325f801049907f1010b8aadbf8ca972227",
+          "bytes": 11111
+        },
+        "signerCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": 1,
+        "containerUpdate": null
+      },
+      "changes": [
+        "共通Update画面と、新版通知からの導線に対応します。"
       ]
     }
   ],
