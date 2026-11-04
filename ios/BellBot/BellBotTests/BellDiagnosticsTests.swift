@@ -156,13 +156,26 @@ final class BellDiagnosticsTests: XCTestCase {
         XCTAssertEqual(log, "module=queue\nhttp_status=503")
     }
 
-    func testServerErrorLogKeepsOnlyFixedServerErrorCode() {
-        let log = BellDiagnostics.errorLog(
-            BellAPIError.httpStatus(503, "MEMBERS_NOT_ACCEPTED"), module: "bots")
-        XCTAssertEqual(log, "module=bots\nhttp_status=503\nhttp_error_code=MEMBERS_NOT_ACCEPTED")
-        let located = BellDiagnostics.errorLog(
-            BellAPIError.httpStatus(404, "BOT_NOT_FOUND: bot-deadbeef"), module: "bots")
-        XCTAssertEqual(located, "module=bots\nhttp_status=404")
+    func testServerErrorLogKeepsOnlyFixedServerErrorCodeFromActualResponse() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ServerErrorProtocol.self]
+        let api = BellAPI(baseURL: URL(string: "https://server-error.test.invalid")!,
+                          session: URLSession(configuration: configuration),
+                          diagnostics: BellDiagnostics(onReport: { _, _, _, _ in }))
+        func failure(_ body: String) async throws -> Error {
+            ServerErrorProtocol.body = body
+            do { try await api.delete("/api/bots/first"); XCTFail("503を成功にしない") } catch { return error }
+            return BellAPIError.invalidResponse
+        }
+        ServerErrorProtocol.status = 503
+        defer { ServerErrorProtocol.status = 500; ServerErrorProtocol.body = ServerErrorProtocol.defaultBody }
+        let typed = try await failure(#"{"error":"MEMBERS_NOT_ACCEPTED","message":"メンバーの受付を一時停止しています"}"#)
+        XCTAssertEqual(typed.localizedDescription, "BellTeam: メンバーの受付を一時停止しています")
+        XCTAssertTrue(BellAPIError.operationResultUnconfirmed(typed))
+        XCTAssertEqual(BellDiagnostics.errorLog(typed, module: "bots"),
+                       "module=bots\nhttp_status=503\nhttp_error_code=MEMBERS_NOT_ACCEPTED")
+        let located = try await failure(#"{"error":"BOT_NOT_FOUND: bot-deadbeef","message":"見つかりません"}"#)
+        XCTAssertEqual(BellDiagnostics.errorLog(located, module: "bots"), "module=bots\nhttp_status=503")
     }
 
     func testRequestRouteKeepsOnlyGeneratedOpaqueMemberIds() {
@@ -453,6 +466,8 @@ final class ConnectionResetTests: XCTestCase {
 private final class ServerErrorProtocol: URLProtocol {
     static var status = 500
     static var headers: [String: String] = [:]
+    static let defaultBody = #"{"error":"INTERNAL_ERROR"}"#
+    static var body = defaultBody
 
     override class func canInit(with request: URLRequest) -> Bool {
         request.url?.host == "server-error.test.invalid"
@@ -464,7 +479,7 @@ private final class ServerErrorProtocol: URLProtocol {
         let response = HTTPURLResponse(url: request.url!, statusCode: Self.status, httpVersion: "HTTP/1.1",
                                        headerFields: Self.headers.merging(["Content-Type": "application/json"]) { $1 })!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(#"{"error":"INTERNAL_ERROR"}"#.utf8))
+        client?.urlProtocol(self, didLoad: Data(Self.body.utf8))
         client?.urlProtocolDidFinishLoading(self)
     }
 
