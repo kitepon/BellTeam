@@ -182,6 +182,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
     'src/members-admission.mjs',
     'src/members/deletion.mjs',
     'src/members/instructions.mjs',
+    'src/module-ipc.mjs',
     'src/owner-profile.mjs',
     'src/resume-pipe.mjs',
     'src/resume-policy.mjs',
