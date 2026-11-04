@@ -301,3 +301,28 @@ execution.reportの返値だけに既 `{delivery:'running'|'steered'}` 又はexa
 親channelは正常unionも閉validator通過後、register済みdeliveryへ既finishUnclaimedDeliveryを適用する。未claimのみを正規finishし、nativeClaimed/既finish済みはtransportの実finishを重ねない。release ACKは元operationの実参照とrecord holdに残し、DTOでresolve/削除しない。子は同binding/active callback無しを検査してrelease ACKを返す。ACKをdelivery自身のpendingへ入れる自己待ちは作らない。
 
 TurnReports.requestReportは未発行結果をそのまま返し、reason/recipients/groupIdの報告依頼済み結果へ進めない。inline/background双方のreports.checkは通常業務結果として終端する。報告保存/native受付/元要求成功/release済みを意味しない。一般background/lifetime/wireは変更せず、保存・相関・ACK未確認/切断・旧世代・dispatch開始後の失敗は既rejectを維持する。元pty_send条件反例や自然事故の原因解決は本差分に含まない。
+
+
+## T：protocol-failed生存writer専用退役
+
+```mermaid
+flowchart LR
+  Failed[親: 同instance世代/current failed確認] --> Seal[quiesceWriter / 新rootとcallbackと後着保存を封鎖]
+  Seal --> Saves[既受付業務scope / userTurn prepareとfinish / 背景報告]
+  Seal --> Effects[reverse effectとeventの実completion]
+  Saves --> Proof[writerQuiesced true / 実completion]
+  Effects --> Proof
+  Proof --> Parent[親incoming / 本人再検査]
+  Parent --> Exit[exitWriter / writerClosed true実ACK後IPC close]
+  Exit --> OS[共通OS/IPC/全pipe/incoming/effect/reaped]
+  OS --> Q[既Q / 旧世代退役と同採用版restore]
+  Native[親旧native/watch/opaque/同Bot占有] --> Keep[元実Promiseとunknown保持 / finishしない]
+```
+
+Owner承認Root `protocol-failed-writer-retirement-proposal-20261105.md` の会話固有契約。親私有controller.retireProtocolFailedWriter({generation})は同親mutex/同instance/current failedを確認する。子controlは同generation envelope＋params{}だけ、quiesceWriter→exact{writerQuiesced:true}、exitWriter→exact{writerClosed:true}。通常quiesce/exitの全native/registry/context drainを流用しない。exitWriterはwriter封鎖と実writer pending0の再検査後のみACKし、channelは正規ACK送信後だけIPCを閉じる。私有kill/failed解除/偽保存ACKは無い。
+
+dispatcherは非native rootとcallbackの既受付scope、背景報告、userTurn.prepareUserTurn/finishUserTurnの保存を追跡し、userTurnのnative待ちだけを分離する。seal後の新root/callbackは拒否。既受付scopeと同operation内の継続だけ実終端まで許し、scope0後は旧結果の新規保存もeffectも拒否する。seal後は既受付保存scopeからも新nativeのturn/notify/reportやreconcile/closeLaunchを発行しない。保存完了に付随する既背景begin/end等の追跡だけは同scopeで終端まで処理する。store/Room/画像/self cursorの書込はこれらの業務scopeを通る。bootstrap/restoreは通常initializeの既順序で、退役controlはinitialize済み世代にしか使えない。
+
+reverse effectは呼出結果とpeerの実completionを両方追跡する。caller deadlineのrejectでは保留参照を落とさない。eventも実completionまで追跡し、既受付save/effectが終端しなければwriter ACKを出さない。失敗が実終端しても保存成功には変えず、元failure/unknownを保持する。新controlが既failed解除や報告成功の代用になることは無い。
+
+未保存の旧native回答/status/reportの保存と新writerへの移送は保証しない。旧callbackは同子封鎖後に拒否され、親の元native/watch/opaque/receipt/job/同Bot占有はKiroの実追跡に残る。親incoming/effect/reapedをnative物理終了へ変換しない。ACK不明/実completion未確定は停止せずunknown/unavailableを保持する。通常drain/close/交換と既Q異常終了回復は従来契約のまま。

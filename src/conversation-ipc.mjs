@@ -222,7 +222,7 @@ export function createConversationParentChannel(child, { generation, admission, 
     })
   }
   return { ready: ready.promise, request, callback, drainIncoming: peer.drainIncoming,
-    control(method, params = {}, timeout = method === 'quiesce' ? 0 : 5000) {
+    control(method, params = {}, timeout = ['quiesce', 'quiesceWriter'].includes(method) ? 0 : 5000) {
       validateConversationControl(method, params, { generation, operationId: null })
       if (method === 'initialize') { check(!initializationStarted); initializationStarted = true }
       return peer.call('control', method, params, { context: { generation, operationId: null }, timeout })
@@ -257,12 +257,12 @@ export function createConversationChildChannel({ dispatcher, endpoint = process,
       if (entry.kind !== 'control') return
       if (entry.method === 'initialize') await ready()
       if (afterControl) await afterControl(entry.method, value)
-      else if (entry.method === 'exit') peer.close()
+      else if (['exit', 'exitWriter'].includes(entry.method)) peer.close()
     },
     accept: entry => {
       if (entry.kind === 'control') {
-        check(['initialize', 'quiesce', 'resume', 'exit', 'routing.changed'].includes(entry.method))
-        if (entry.method === 'quiesce') accepting = false
+        check(['initialize', 'quiesce', 'resume', 'exit', 'quiesceWriter', 'exitWriter', 'routing.changed'].includes(entry.method))
+        if (['quiesce', 'quiesceWriter'].includes(entry.method)) accepting = false
         const current = entry.method === 'resume' ? ++epoch : epoch
         return async params => {
           validateConversationControl(entry.method, params, entry.context)
@@ -311,12 +311,16 @@ export function createConversationChildChannel({ dispatcher, endpoint = process,
     }
     const attempt = peer.call(kind, method, params, { context, source: record.id,
       beforeSend: completion => { const finish = hold(record); completion.then(finish, finish) } })
-    if (kind === 'effect') return attempt.then(value => {
-      validateConversationEffectResult(method, value, params)
-      if (method === 'execution.background.begin') { background.issued(value.backgroundId, context); backgroundContexts.set(value.backgroundId, hold(record)) }
-      if (method === 'execution.background.end') background.endAcknowledged(params.backgroundId, context)
-      return value
-    })
+    if (kind === 'effect') {
+      const result = attempt.then(value => {
+        validateConversationEffectResult(method, value, params)
+        if (method === 'execution.background.begin') { background.issued(value.backgroundId, context); backgroundContexts.set(value.backgroundId, hold(record)) }
+        if (method === 'execution.background.end') background.endAcknowledged(params.backgroundId, context)
+        return value
+      })
+      result.completion = attempt.completion
+      return result
+    }
     attempt.catch(() => {})
     return attempt.completion
   }

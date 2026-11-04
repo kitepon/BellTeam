@@ -33,6 +33,117 @@ function pair() {
 }
 const settle = () => new Promise(resolve => setImmediate(resolve))
 
+for (const forked of [false, true]) test(`writer retirement seals a native-waiting child and preserves real native refs: ${forked}`, { timeout: 5000 }, async t => {
+  const h = await setup(t, { forked }), native = Promise.withResolvers()
+  const attempt = h.request('user.turn', { target: h.fixture.bots[0].id, message: 'held native', images: [] })
+  const failed = assert.rejects(attempt), completed = assert.rejects(attempt.completion)
+  await attempt.accepted
+  const delivery = h.native[0].delivery, nativeDone = h.admission.deliveryCompletion(delivery)
+  h.admission.trackCompletion(delivery, native.promise)
+  h.admission.finish(delivery)
+  let nativeEnded = false
+  nativeDone.then(() => { nativeEnded = true })
+  t.after(() => native.resolve())
+  const quiescing = h.parent.control('quiesceWriter')
+  assert.deepEqual(await quiescing, { writerQuiesced: true }); await quiescing.completion
+  assert.equal(nativeEnded, false)
+  await assert.rejects(h.request('history.listMessages', { botId: h.fixture.bots[0].id }), { code: 'CONVERSATION_IPC_INVALID' })
+  await assert.rejects(h.parent.callback('delivery.status', { delivery: 'delivered' }, { conversationDelivery: delivery }),
+    { code: 'CONVERSATION_WRITER_SEALED' })
+  await assert.rejects(h.parent.control('resume'), { code: 'CONVERSATION_WRITER_SEALED' })
+  const exiting = h.parent.control('exitWriter')
+  assert.deepEqual(await exiting, { writerClosed: true }); await exiting.completion
+  if (h.closed) await h.closed
+  else await settle()
+  assert.equal(h.endpoints[0].connected, false)
+  await h.parent.drainIncoming(); await h.parent.reaped()
+  await failed; await completed
+  h.admission.finish(h.lease)
+  assert.equal(nativeEnded, false)
+  assert.ok(h.admission.snapshot().active > 0)
+  native.resolve(); await nativeDone
+})
+
+test('writer retirement refuses exit until an accepted save and event really finish', { timeout: 4000 }, async t => {
+  const entered = Promise.withResolvers(), release = Promise.withResolvers()
+  t.after(() => release.resolve())
+  const h = await setup(t, { event: async () => { entered.resolve(); await release.promise } })
+  const saved = h.request('direct.post', { from: h.fixture.bots[0].id, target: 'user', message: 'accepted save', images: [] })
+  await entered.promise
+  const quiescing = h.parent.control('quiesceWriter')
+  let quiesced = false
+  quiescing.then(() => { quiesced = true })
+  await settle(); await settle()
+  assert.equal(quiesced, false)
+  await assert.rejects(h.parent.control('exitWriter'), { code: 'CONVERSATION_WRITER_NOT_QUIESCED' })
+  assert.equal(h.endpoints[0].connected, true)
+  release.resolve(); await saved
+  assert.deepEqual(await quiescing, { writerQuiesced: true }); await quiescing.completion
+  assert.match(await readFile(join(h.root, 'logs/direct-messages.jsonl'), 'utf8'), /accepted save/)
+  h.admission.finish(h.lease)
+})
+
+test('writer retirement refuses new native issuance from a preseal save scope', { timeout: 4000 }, async t => {
+  const entered = Promise.withResolvers(), release = Promise.withResolvers()
+  t.after(() => release.resolve())
+  const h = await setup(t, { event: async () => { entered.resolve(); await release.promise } })
+  const target = h.fixture.bots[0].id
+  const attempt = h.request('direct.post', { from: target, target, message: 'saved before native', images: [] })
+  const refused = assert.rejects(attempt, { code: 'CONVERSATION_WRITER_SEALED' })
+  await entered.promise
+  const quiescing = h.parent.control('quiesceWriter')
+  await settle(); await settle()
+  release.resolve(); await refused
+  assert.deepEqual(await quiescing, { writerQuiesced: true }); await quiescing.completion
+  assert.equal(h.native.length, 0)
+  h.admission.finish(h.lease)
+})
+
+test('writer retirement waits reverse effect actual completion after caller timeout', { timeout: 4000 }, async t => {
+  const entered = Promise.withResolvers(), release = Promise.withResolvers()
+  t.after(() => release.resolve())
+  let h
+  h = await setup(t, { effect: async method => {
+    if (method === 'members.profiles.read') { entered.resolve(); await release.promise; return { bots: h.fixture.bots } }
+  } })
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const attempt = h.request('user.turn', { target: h.fixture.bots[0].id, message: 'before native', images: [] })
+  const failed = assert.rejects(attempt), completed = assert.rejects(attempt.completion)
+  await entered.promise
+  t.mock.timers.tick(60000); await failed
+  const quiescing = h.parent.control('quiesceWriter')
+  let quiesced = false
+  quiescing.then(() => { quiesced = true })
+  await settle(); await settle()
+  assert.equal(quiesced, false)
+  assert.equal(h.endpoints[0].connected, true)
+  assert.equal(h.native.length, 0)
+  release.resolve(); await completed
+  assert.deepEqual(await quiescing, { writerQuiesced: true }); await quiescing.completion
+  h.admission.finish(h.lease)
+})
+
+test('writer retirement completes a user result save admitted before the seal', { timeout: 4000 }, async t => {
+  const entered = Promise.withResolvers(), release = Promise.withResolvers()
+  t.after(() => release.resolve())
+  let hold = false
+  const h = await setup(t, { event: async () => { if (hold) { entered.resolve(); await release.promise } } })
+  const attempt = h.request('user.turn', { target: h.fixture.bots[0].id, message: 'original', images: [] })
+  await attempt.accepted
+  hold = true
+  const delivery = h.native[0].delivery
+  const saving = h.admission.invoke(delivery, 'user.complete', { reply: 'accepted final save' })
+  await entered.promise
+  const quiescing = h.parent.control('quiesceWriter')
+  let quiesced = false
+  quiescing.then(() => { quiesced = true })
+  await settle(); await settle(); assert.equal(quiesced, false)
+  release.resolve(); await saving; await attempt
+  assert.deepEqual(await quiescing, { writerQuiesced: true }); await quiescing.completion
+  assert.match(await readFile(join(h.root, 'logs/direct-messages.jsonl'), 'utf8'), /accepted final save/)
+  h.admission.finish(delivery); h.admission.finish(h.lease)
+})
+
 for (const background of [false, true]) test(`not-issued report keeps real release ACK through ${background ? 'background claimed' : 'inline unclaimed'} completion`, { timeout: 4000 }, async t => {
   let h, report, heldAck
   const ackEntered = Promise.withResolvers(), releaseAck = Promise.withResolvers()

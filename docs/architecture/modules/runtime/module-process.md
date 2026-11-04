@@ -19,7 +19,7 @@ flowchart LR
   Resume --> Caller
 ```
 
-`createModuleProcess({component,root,createChannel,prepareRelease,validateReady,initializeParams?,exportHandoff?,admission?,canContinue?,onGeneration?,onState?,onModuleChildExit?,investigationsFile?,exchangeMutex?,spawnProcess?})`はstart/close/request/callback/initialize/replace/reserve/snapshotを返す。spawnProcessは実起動の試験DI、通常はNode spawn。component/実行path/argvは固定、envは空又はdiagnosticsの既notes設定一変数だけ。createChannel(child,{generation})は本人のready/request/callback/control/reapedを供給する。descriptorの固定appRootを共通検査し、prepareReleaseとvalidateReadyが作者の署名済版・protocol・実stateCompatibilityを検査する。
+`createModuleProcess({component,root,createChannel,prepareRelease,validateReady,initializeParams?,exportHandoff?,admission?,canContinue?,onGeneration?,onState?,onModuleChildExit?,investigationsFile?,exchangeMutex?,spawnProcess?})`はstart/close/request/callback/initialize/replace/reserve/snapshotと会話限定retireProtocolFailedWriterを返す。spawnProcessは実起動の試験DI、通常はNode spawn。component/実行path/argvは固定、envは空又はdiagnosticsの既notes設定一変数だけ。createChannel(child,{generation})は本人のready/request/callback/control/reapedを供給する。descriptorの固定appRootを共通検査し、prepareReleaseとvalidateReadyが作者の署名済版・protocol・実stateCompatibilityを検査する。
 
 usage固有のstartPaused:trueはstartをsettings ready後のinitializingで返し、親がinitializeで既3段を進めた後activate()の実resume ACKで新rootを開く。他componentへのstartPausedは拒否する。初回順序/secret/private snapshotの意味は[module readerとwrapper](module-release.md)と業務正本に従う。
 
@@ -146,3 +146,31 @@ conversationのwithInstallReconciliationProof(operation)はlocal operation排他
 callback成功/失敗後とも同子の実resumeを試み、元失敗とresume失敗はAggregateErrorで両方保持する。親closeが始まった場合は再開しない。旧unknown/原Start/台帳作用はproviderに持ち込まない。会話固有drain/唯一writer意味とwrapperはN102、engine実参照はKiro、認可・同ID・共有排他と集約はMollyが所有する。
 
 callbackのcaller結果と任意.completionを両方settleまで保持する。callback期間はcontroller request/callbackも拒否し、終了後assertは失効。finallyのresume ACKと実completionの両方が終わり、同instance/generation/生存を再検査してからだけadmissionを開く。既閉ticket/failedは開始時assertOpenで拒否し借用しない。親は自身の会話leaseを持ってこの口へ入らず、callbackからwriterへ再入場しない。snapshotのactive/unconfirmedは拒否の追加guardだけで、実drain/quiesceの代用にはしない。
+
+## 生存protocol-failed writerの正式退役
+
+Owner K-PEJQSP v3 / Root protocol-failed-writer-retirement-proposal-20261105契約。親内部の`retireProtocolFailedWriter({generation})`はexact1keyだけを受け、conversationの同instance/current generationと同admissionのcapture/inspectAdmission.failedを同期再検査する。任意PID/子/target/停止signalを受ける口ではない。親assemblyが既共有exchangeMutexを外側で一回保持し、controllerは既local operation排他だけを使う。通常replace/既close/finishExitは流用しない。
+
+```mermaid
+flowchart LR
+  Failed[Molly: 同assembly初回protocol通知] --> Shared[親共有exchangeMutex一回]
+  Shared --> Local[同controller local排他 / 同instance世代failed再検査]
+  Local --> Quiesce[N102 quiesceWriter / writer保存effect実終端ACK＋completion]
+  Quiesce --> Incoming[親drainIncoming / 同identity再検査]
+  Incoming --> Exit[N102 exitWriter / writerClosed ACK＋completion]
+  Exit --> OS[実OS IPC 全owned pipe終端]
+  OS --> Parent[親incoming effect reaped終端]
+  Parent --> Both{正式exit ACKも確認済み}
+  Both -->|yes| Lost[failedWriterReaped / 既Q lost]
+  Both -->|no| Unknown[unavailable / 同旧世代保持]
+  Lost --> Return[available false snapshotを返し共有mutex解放]
+  Return --> Q[既Q timer / 同採用版restore ready resume]
+  Native[Kiro: 元native watch opaque 同Bot占有] --> Retained[元実参照のまま保持]
+  Retained --> Q
+```
+
+N102正式channel.control('quiesceWriter',{},60000)はexact {writerQuiesced:true}と同Promiseの実.completionを要求する。既受付writer保存とreverse effect/event終端だけを待ち、全native/global admission drainや全runner drainに読み替えない。親drainIncomingも実完了し、同target/current failedを再検査後だけcontrol('exitWriter',{},5000)へ進む。exact {writerClosed:true}と実.completion、実OS/IPC/pipe/incoming/reapedを全て要する。子が先に閉じてもACK未確認を終了証拠へ補完しない。
+
+同instanceは退役を一回だけ開始する。開始後の新request/callbackは拒否し、保存/ACK不明・不正DTO・世代変更は停止前なら停止せずunavailable、終了ACKが不明なままOS/barrierが終わってもQへ進めない。caller期限が先にrejectしても実.completionまでlocal排他を保持し、期限kill/強制resume/failed手消去/偽native finish/元要求再送はない。親closeは従来の全体close契約を維持する。
+
+返値は旧writerの全barrierと既Q lost接続時の既snapshotでavailable=false。同共有mutexを解放してから既Qが同mutexを取得して新子を作るため、新readyを退役callback内で待たない。admission.snapshot.unconfirmedは旧retiredFailed/nativeUnknownを含むので新resumeの追加拒否に使わず、既recoverFailedGeneration/resumeのcurrent failed検査と元native/watch実参照を保持する。writer専用保存/effect分類と二control/子ACKは[conversation正本](../conversation/process.md)、通知/同親bindingはintegration、元native/同Bot占有は[execution正本](../execution/conversation-lifetimes.md)が所有する。

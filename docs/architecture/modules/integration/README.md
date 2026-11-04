@@ -621,6 +621,24 @@ executionのcapacity継続は既Messenger.sendmessage(input,options)へ親固定
 
 親はcreateModuleExchangeMutex一実体をmembers/conversation両assemblyへ渡し、両runtime controllerのreplaceが同runExclusiveへ入る。片側交換中に他方が新しい交換gateを閉じない。通常業務の予約は別のmoduleOperationsで維持し、mutexへAI完走をqueueしない。
 
+#### 生存protocol-failed writerの退役通知
+
+```mermaid
+flowchart LR
+  Fail[同admission初回current protocol失敗] --> Pending[同親closure / generation単一pending]
+  Pending --> Idle[既waitForIdle解放event / 元throwは非待機]
+  Idle --> Mutex[親共有mutex一回]
+  Mutex --> Check[同controller generation / admission current failed再検査]
+  Check --> Retire[Epi retireProtocolFailedWriter generation / local排他だけ]
+  Retire --> Lost[正式writer ACKと実barrier / Q lost / available false]
+  Lost --> Release[親mutex解放]
+  Release --> Q[既Q timer / 同採用版restore ready resume]
+```
+
+Owner承認の生存protocol-failed会話子だけを対象とする。既onProtocolFailureの閉code/generationを同assembly内で捕捉し、元throw/保存ACKを待たせない。mutex busy時は既waitForIdleの解放eventへ同generation通知を保持し、取得競合だけ未発行のまま待ち直す。定期監視や固定delayは作らない。同controller/current generationとinspectAdmission().failedをidle後・排他内で再検査し、stale/親closeでは作用しない。合算unconfirmedをcurrent failedへ代用しない。
+
+controller正式退役を一回呼んだ後の拒否/不明は再発行せず、既診断口へ固定CONVERSATION_PROTOCOL_UNCONFIRMEDだけを渡して非同期rejectを所有する。任意対象/HTTP/私有kill/failed解除/旧要求再送は追加しない。writer保存/effect終端と正式ACK・OS/IPC/全pipe/incoming/effect/reapedはruntime/conversationの正本が所有し、証明不能では停止しない。返値はQ lost接続時のsnapshotで新ready成功ではなく、親はmutex解放前に復帰readyを待たない。旧native/watch/opaque/同Bot占有/元unknownは既Qのまま保持する。
+
 ### 未配置moduleのHost設置step
 
 ```mermaid

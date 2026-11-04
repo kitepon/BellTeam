@@ -27,6 +27,8 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
   if ([effect, event, trackBackground].some(value => typeof value !== 'function')) throw failure('CONVERSATION_ADAPTER_REQUIRED')
   const contexts = new AsyncLocalStorage(), active = new Set(), bots = new Map()
   let generation, initializationStarted = false, initialized = false, accepting = false, exiting = false, quiesced = false, epoch = 0
+  let writerSealed = false, writerQuiesced = false
+  const writerPending = new Set(), writerScopes = new Map()
   const current = () => {
     const value = contexts.getStore()
     if (!value) throw failure('CONVERSATION_CONTEXT_REQUIRED')
@@ -37,9 +39,31 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
     task.then(() => active.delete(task), () => active.delete(task))
     return task
   }
+  const write = (context, operation, entry = false) => {
+    const key = context.operationId
+    // An admitted callback's save continues on its original operation after the seal.
+    if (writerSealed && (entry || !writerScopes.has(key))) throw failure('CONVERSATION_WRITER_SEALED')
+    writerScopes.set(key, (writerScopes.get(key) ?? 0) + 1)
+    const leave = () => {
+      const count = writerScopes.get(key) - 1
+      if (count) writerScopes.set(key, count)
+      else writerScopes.delete(key)
+    }
+    let result
+    try { result = operation() } catch (error) { leave(); throw error }
+    // Caller timeout is not the reverse effect's actual terminal.
+    const completion = Promise.allSettled([result, result?.completion])
+    writerPending.add(completion)
+    completion.then(() => { leave(); writerPending.delete(completion) })
+    return result
+  }
+  const publish = (...args) => write(current().context, () => event(...args))
   const invoke = async (method, params, context = current().context) => {
     validateConversationEffect(method, params, context)
-    const result = await effect(method, params, context)
+    // Completing an admitted save cannot issue another native action after retirement starts.
+    if (writerSealed && ['execution.turn', 'execution.notify', 'execution.report', 'execution.reconcile', 'execution.closeLaunch'].includes(method))
+      throw failure('CONVERSATION_WRITER_SEALED')
+    const result = await write(context, () => effect(method, params, context))
     validateConversationEffectResult(method, result, params)
     return result
   }
@@ -63,7 +87,7 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
   const reportFailure = () => diagnostic({ code: 'CONVERSATION_BACKGROUND_FAILED' })
   const emit = async (record, room = false) => {
     const context = current().context
-    if (!room) await event({ type: 'changed', topics: ['timeline'], all: record.schema === 'bellteam.delivery-status.v1',
+    if (!room) await publish({ type: 'changed', topics: ['timeline'], all: record.schema === 'bellteam.delivery-status.v1',
       botIds: [...new Set([record.bot, record.from, record.target].filter(id => bots.has(id)))], roomIds: [] }, context)
     if (record.schema === 'bellteam.direct-message.v1' || room) {
       try {
@@ -77,22 +101,26 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
   const appendRoomMessage = rooms.appendMessage.bind(rooms)
   rooms.appendMessage = async (roomId, record) => {
     await appendRoomMessage(roomId, record)
-    await event({ type: 'changed', topics: ['timeline'], all: false, botIds: [], roomIds: [roomId] }, current().context)
+    await publish({ type: 'changed', topics: ['timeline'], all: false, botIds: [], roomIds: [roomId] }, current().context)
   }
   const afterTurn = turn => {
     const state = current()
     if (state.inlineReport) return reports.check(turn)
     const child = { ...state }
-    const task = background.start(async () => {
+    const task = write(state.context, () => background.start(async () => {
       child.source = state.source ?? await invoke('execution.observation.source', { target: turn.botId })
       return child.source
-    }, state.context, () => contexts.run(child, () => reports.check(turn)))
+    }, state.context, () => contexts.run(child, () => reports.check(turn))))
     task.catch(reportFailure).catch(() => {})
     return task
   }
   const messenger = new BellTeamMessenger({ bots, transport: native, logPath, store, assets,
     failureFields: conversationCallbackFailureFields,
     admitWork: () => () => {}, requireAccess: access, onMessage: record => emit(record), onTurnEnd: afterTurn })
+  for (const method of ['prepareUserTurn', 'finishUserTurn']) {
+    const operation = messenger[method].bind(messenger)
+    messenger[method] = (...args) => write(current().context, () => operation(...args))
+  }
   const reports = new TurnReports({ bots, store, transport: native,
     appendInterimWords: (...args) => messenger.appendInterimWords(...args),
     notifyReport: (...args) => native.report(...args),
@@ -127,9 +155,11 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
   function validateRequest(method, params, context) {
     validateConversationRequest(method, params, context)
     assertContext(context)
+    if (writerSealed) throw failure('CONVERSATION_WRITER_SEALED')
     if (!accepting && !context.continuation) throw failure('CONVERSATION_UNAVAILABLE')
   }
   function validateCallback(method, params, context) {
+    if (writerSealed) throw failure('CONVERSATION_WRITER_SEALED')
     if (method === 'display.words') { validateConversationRequest(method, params, context); assertContext(context); return }
     validateConversationCallback(method, params)
     validateConversationCallbackContext(method, context)
@@ -141,7 +171,7 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
     return (representative ? requireRepresentative : requireRoomMember)(rooms, roomId, actor.botId)
   }
   const changedRooms = async value => {
-    await event({ type: 'changed', topics: ['rooms', 'schedules', 'timeline'], botIds: [], roomIds: [], all: true }, current().context)
+    await publish({ type: 'changed', topics: ['rooms', 'schedules', 'timeline'], botIds: [], roomIds: [], all: true }, current().context)
     return value
   }
   function history(items) {
@@ -255,7 +285,7 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
     assertContext(context)
     const accepted = method === 'user.turn' ? Promise.withResolvers() : null
     accepted?.promise.catch(() => {})
-    const task = track(contexts.run({ context }, async () => {
+    const perform = async () => {
       await bots.refresh()
       if (method.startsWith('room') || ['history.listRoomMessages', 'member.removeFromRooms'].includes(method)
         || method === 'history.page' && params.kind === 'rooms'
@@ -266,7 +296,9 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
       await background.awaitStarted(context)
       validateConversationResult(method, value)
       return value
-    }))
+    }
+    const task = track(contexts.run({ context }, () => ['user.post', 'user.turn'].includes(method)
+      ? perform() : write(context, perform, true)))
     if (accepted) { task.catch(accepted.reject); task.accepted = accepted.promise }
     return task
   }
@@ -291,7 +323,15 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
       value = { stateCompatibility: CONVERSATION_STATE_COMPATIBILITY }
     } else {
       assertContext(context)
-      if (method === 'routing.changed') value = routing.changed(params)
+      if (writerSealed && !['quiesceWriter', 'exitWriter'].includes(method)) throw failure('CONVERSATION_WRITER_SEALED')
+      if (method === 'quiesceWriter') {
+        accepting = false; writerSealed = true; epoch++
+        while (writerPending.size) await Promise.all([...writerPending])
+        writerQuiesced = true; value = { writerQuiesced: true }
+      } else if (method === 'exitWriter') {
+        if (!writerSealed || !writerQuiesced || writerPending.size) throw failure('CONVERSATION_WRITER_NOT_QUIESCED')
+        exiting = true; value = { writerClosed: true }
+      } else if (method === 'routing.changed') value = routing.changed(params)
       else if (method === 'resume') { epoch++; accepting = true; quiesced = false; value = { resumed: true } }
       else if (method === 'quiesce') {
         accepting = false
@@ -309,7 +349,7 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
   }
   return { validateRequest, dispatch, validateCallback,
     dispatchCallback: (method, params, context) => { validateCallback(method, params, context); return method === 'display.words'
-      ? dispatch(method, params, context) : track(native.dispatchCallback(method, params, context)) },
+      ? dispatch(method, params, context) : track(write(context, () => native.dispatchCallback(method, params, context), true)) },
     releaseDelivery: binding => native.releaseDelivery(binding), control,
     disconnect: async () => { accepting = false; exiting = true; epoch++; native.disconnect(failure('CONVERSATION_DISCONNECTED')); await drain() },
   }

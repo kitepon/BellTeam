@@ -65,6 +65,8 @@ export function validateConversationControlResult(method, value) {
   switch (method) {
     case 'initialize': return fields(value, { stateCompatibility: value => { assertConversationStateCompatibility(value); return true } })
     case 'quiesce': return fields(value, { quiesced: value => value === true })
+    case 'quiesceWriter': return fields(value, { writerQuiesced: value => value === true })
+    case 'exitWriter': return fields(value, { writerClosed: value => value === true })
     case 'resume': return fields(value, { resumed: value => value === true })
     case 'exit': return fields(value, { closed: value => value === true })
     case 'routing.changed': return fields(value, { applied: value => value === true, epoch: integer })
