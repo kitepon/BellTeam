@@ -576,3 +576,37 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .notification-route-notice button { min-height: 40px; border: 0; background: transparent; cursor: pointer; font: inherit; font-weight: 650; }
 .notification-highlight { outline: 2px solid #87779c; outline-offset: 6px; border-radius: 16px; }
 @media(max-width: 640px) { .web-push-states { grid-template-columns: minmax(0,1fr); gap: 4px; padding: 16px; } .web-push-states dd { margin-bottom: 12px; } }
+
+.update-center { width: min(620px, calc(100vw - 40px)); max-height: calc(100dvh - 40px); background: #fafbf7; border-radius: 26px; }
+.update-center[open] { animation: none; }
+.update-topbar { padding: 20px 28px; border: 0; }
+.update-product { margin: 0; font-size: 15px; letter-spacing: -.02em; }
+.update-close { border: 0; font-size: 12px; }
+.update-overview { padding: 28px 52px 40px; text-align: center; }
+.update-status-icon { display: grid; place-items: center; width: 76px; height: 76px; margin: 0 auto 25px; border-radius: 24px; background: #e8efdd; color: #3c5430; font-size: 35px; line-height: 1; }
+.update-status-title { margin: 0 0 12px; color: #27372d; font-size: clamp(25px, 4.5vw, 32px); line-height: 1.4; font-weight: 750; letter-spacing: -.045em; }
+.update-status-copy, .update-notes-empty { margin: 0; color: #747d70; font-size: 13px; line-height: 1.9; overflow-wrap: anywhere; }
+.update-notes-empty { margin-top: 27px; font-size: 12px; }
+.update-overview .update-execute { margin-top: 32px; min-height: 52px; border-radius: 14px; font: inherit; font-size: 14px; font-weight: 700; }
+.update-overview .update-status-copy:last-child { margin-top: 14px; }
+.update-release-notes, .update-plan-review { margin: 28px 0 0; padding: 22px 24px; border: 1px solid #e4e8dd; border-radius: 16px; background: #fff; text-align: left; }
+.update-release-notes h4, .update-plan-review h4 { margin: 0 0 10px; font-size: 12px; color: #405438; }
+.update-release-notes p, .update-plan-review p { margin: 6px 0 0; font-size: 13px; line-height: 1.85; color: #5b6756; overflow-wrap: anywhere; }
+.update-options { display: grid; gap: 10px; margin-top: 28px; }
+.update-option { min-height: 52px; padding: 14px 20px; border: 1px solid #dce3d3; border-radius: 14px; color: #34492e; background: #fff; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.update-option:hover { background: #eef3e6; }
+.update-advanced { border-top: 1px solid #e6e9e0; }
+.update-advanced > summary { padding: 19px 28px; color: #77816e; font-size: 12px; cursor: pointer; }
+.update-advanced .update-layout { grid-template-columns: minmax(0, 1fr); padding: 20px; gap: 18px; }
+.update-advanced .update-toolbar { margin: 0 20px; flex-wrap: wrap; }
+.update-advanced .update-detail { padding: 20px; }
+.update-advanced .update-component { min-height: 64px; padding: 12px; }
+.update-advanced [data-update-components] { max-height: 340px; overflow: auto; }
+.update-overview button:focus-visible, .update-advanced > summary:focus-visible { outline: 3px solid #719740; outline-offset: 3px; }
+@media (max-width: 640px) {
+  .update-center { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); border-radius: 22px; }
+  .update-topbar { padding: 16px 20px; }
+  .update-overview { padding: 22px 24px 30px; }
+  .update-status-icon { width: 68px; height: 68px; margin-bottom: 22px; border-radius: 22px; }
+  .update-release-notes, .update-plan-review { padding: 18px; }
+}
