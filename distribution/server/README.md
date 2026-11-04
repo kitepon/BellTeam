@@ -13,6 +13,29 @@ Docker Engine 26以降とvolume subpathに対応したDocker Composeを使い、
 
 Webアプリとサーバーは無料です。初期設定の後も、すべてのメンバーとの会話、メンバー間の配送、予定の実行を購読なしで使えます。AI各社や追加機能に使う外部サービスの契約は自分で用意します。
 
+## 設置先とイメージの指定
+
+通常は指定せずに設置できます。接続するIP、Compose project、保存先のvolume名、使うイメージを指定する場合は、`compose.yaml`と同じフォルダの`.env`へ記します。既存の設置では、保存先を変えると別の空の環境になるため、初回に選んだ値を保持してください。
+
+| 入力 | 指定する値 |
+| --- | --- |
+| `BELLTEAM_BIND_IP` | 接続を受けるホストのIP。`127.0.0.1`などのloopbackは同じPCからだけ接続できます |
+| `COMPOSE_PROJECT_NAME` | この設置を識別するCompose project名。他の設置と異なる名前を使います |
+| `BELLTEAM_SERVER_STATE_VOLUME` | 本体の設定・会話などを保存する専用volume名 |
+| `BELLTEAM_AITERM_STATE_VOLUME` | AI実行の状態を保存する専用volume名 |
+| `BELLTEAM_SERVER_IMAGE` | 使用する公開イメージ。版を固定するときは配布元が示す`ghcr.io/kitepon/bellteam-server@sha256:…`の完全な参照を指定します |
+
+たとえば別の設置と保存先を分け、同じPCからだけ接続する場合の`.env`は次の形です。projectとvolumeの名前は、この設置専用の名前に変えてください。
+
+```dotenv
+BELLTEAM_BIND_IP=127.0.0.1
+COMPOSE_PROJECT_NAME=bellteam-lab
+BELLTEAM_SERVER_STATE_VOLUME=bellteam-lab-state
+BELLTEAM_AITERM_STATE_VOLUME=bellteam-lab-aiterm
+```
+
+別のIPで同じポートを使う設置がある場合、その設置側もIPを限定する必要があります。`0.0.0.0`で同じポートを使用中なら競合します。値を保存したら、同じフォルダで通常どおり`sh install.sh`を実行します。更新時にも同じ`.env`を残します。
+
 ## 追加機能と接続
 
 追加機能は未設定のまま無効になります。設定画面または案内役との会話から、使う機能だけを設定できます。必要な秘密情報は専用の入力カードへ登録します。

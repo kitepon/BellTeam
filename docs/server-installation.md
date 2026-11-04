@@ -23,6 +23,15 @@ https://github.com/kitepon/BellTeam
 
 Dockerの導入条件・料金・対応OSは公式の案内を確認してください。すでにDockerとComposeが使える場合は、その環境を使えます。
 
+インストール後、BellTeamを設置するユーザーのターミナルで次を実行します。
+
+```sh
+docker version
+docker compose version
+```
+
+`docker version`にClientとServerの両方が表示され、`docker compose version`にComposeの版が表示されることを確認します。Serverへ接続できない場合はDockerの起動と利用権限を確認してください。`docker compose`が見つからない場合は、上のOS別の公式手順でComposeを導入してから進めます。LinuxでComposeを手動配置する場合も、公式手順のプラグイン配置先を使い、同じユーザーでこの2つのコマンドを確認してください。
+
 ## 2. BellTeamを起動する
 
 PCのターミナルを開き、次のコマンドをまとめて実行します。Macでは「ターミナル」、WindowsではWSLのターミナルを使います。
