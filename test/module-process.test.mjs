@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { createModuleProcess } from '../src/module-process.mjs'
+import { validateModuleExchangeDiagnostic } from '../src/module-exchange-diagnostic.mjs'
 import { createModuleExchangeMutex } from '../src/module-exchange-mutex.mjs'
 
 const sha = 'a'.repeat(64)
@@ -56,11 +57,15 @@ async function fixture(t, options = {}) {
       control: async (method, params) => {
         controls.push({ child, method, params })
         if (method === 'initialize') {
-          if (child.versionId && behavior.failNew) throw new Error('fixture restore failed')
+          if (child.versionId && behavior.failNew) throw behavior.restoreError ?? new Error('fixture restore failed')
           assert.equal(params.generation, generation)
           return {}
         }
-        if (method === 'resume') return { resumed: true }
+        if (method === 'resume') {
+          if (child.versionId && behavior.failCandidateResume || !child.versionId && children.length > 2 && behavior.failRollbackResume)
+            throw Object.assign(new Error('private message'), { code: 'DIAGNOSTICS_RESUME_FAILED' })
+          return { resumed: true }
+        }
         if (method === 'quiesce') return behavior.quiesceWait ?? { quiesced: behavior.quiesce }
         if (method === 'exit') { if (!behavior.holdExit) queueMicrotask(() => reap(child)); return { closed: true } }
       },
@@ -212,4 +217,37 @@ test('adoption metadata with an invalid version fails closed before any child st
   }), { mode: 0o600 })
   await assert.rejects(f.process.start(), /ADOPTION_INVALID/)
   assert.equal(f.children.length, 0)
+})
+
+
+test('private exchange diagnostics retain candidate stage and only a closed safe code after old resume',async t=>{
+ for(const [options,stage,code] of [
+  [{failNew:true,restoreError:Object.assign(new Error('secret-message'),{code:'PRIVATE_SECRET',errors:[{secret:'hidden'}]})},'initialize',null],
+  [{failChannel:true},'channel',null],
+  [{failCandidateResume:true},'resume','DIAGNOSTICS_RESUME_FAILED'],
+ ]) {
+  const f=await fixture(t,options);await f.process.start();
+  await assert.rejects(f.process.replace(sha),error=>{
+   assert.ok(error instanceof AggregateError);assert.equal(error.code,undefined);assert.equal(error.errors.length,1);
+   const d=error.moduleDiagnostic;assert.ok(validateModuleExchangeDiagnostic(d));
+   assert.deepEqual(d,{schema:'bellteam.module-exchange-diagnostic.v1',component:'diagnostics',stage,code,rollback:'succeeded',rollbackStage:null,rollbackCode:null});
+   assert.doesNotMatch(JSON.stringify(d),/secret|private|hidden|message|stack|errors/);return true;
+  });
+  assert.equal(f.process.snapshot().available,true);assert.equal(f.process.snapshot().currentVersionId,null);
+ }
+})
+
+test('rollback adoption alone is not success when old resume fails',async t=>{
+ const f=await fixture(t,{failNew:true,failRollbackResume:true});await f.process.start();
+ await assert.rejects(f.process.replace(sha),error=>{
+  assert.ok(error instanceof AggregateError);assert.equal(error.code,undefined);assert.equal(error.errors.length,2);
+  const d=error.moduleDiagnostic;assert.ok(validateModuleExchangeDiagnostic(d));
+  assert.equal(d.stage,'initialize');assert.equal(d.rollback,'failed');assert.equal(d.rollbackStage,'resume');assert.equal(d.rollbackCode,'DIAGNOSTICS_RESUME_FAILED');return true;
+ });
+ assert.equal(f.process.snapshot().available,false);
+})
+
+test('pre-candidate quiesce failure does not fabricate candidate diagnostics',async t=>{
+ const f=await fixture(t);await f.process.start();f.behavior.quiesce=false;
+ await assert.rejects(f.process.replace(sha),error=>{assert.equal(error.moduleDiagnostic,undefined);assert.equal(f.children.length,1);return true});
 })
