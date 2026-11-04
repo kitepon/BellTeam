@@ -19,7 +19,7 @@ const abortable = (promise, signal) => {
   })
 }
 
-export function createNotificationsProcess({ root, configuration, onDiagnostic = async () => {}, onState = () => {}, prepareRelease = prepareNotificationsRelease }) {
+export function createNotificationsProcess({ root, configuration, onDiagnostic = async () => {}, onState = () => {}, onModuleChildExit, prepareRelease = prepareNotificationsRelease }) {
   const adoptionPath = join(root, 'state/notifications-release.json')
   let instance = null, currentVersionId = null, previousVersionId = null, phase = 'unavailable'
   let builtinSourceCommit = null
@@ -102,13 +102,13 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
     const target = { child, ended: false, attemptedEpoch: {}, channel: createNotificationsParentChannel(child, { onDiagnostic }) }
     target.end = waitNotificationsChildClose(child).then(result => {
       const unexpected = target.resumed && initialized && !closed && !target.intentional
-      if (unexpected) reportModuleChildExit('notifications', result, target.stderrCodes())
+      if (unexpected) reportModuleChildExit('notifications', result, target.stderrObservation(), onModuleChildExit)
       target.ended = true
       target.channel.dispose()
       if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
       if (unexpected) recovery.lost()
     })
-    target.stderrCodes = observeModuleChild(child)
+    target.stderrObservation = observeModuleChild(child)
     instance = target
     try {
       const startedAt = Date.now()

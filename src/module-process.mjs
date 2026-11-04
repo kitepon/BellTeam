@@ -23,7 +23,7 @@ const within = async (value, milliseconds, code) => {
 export function createModuleProcess({ component, root, createChannel, prepareRelease, validateReady,
   initializeParams = ({ generation, mode }) => ({ generation, mode }),
   exportHandoff = async () => undefined, admission, canContinue = () => false,
-  onGeneration = () => {}, onState = () => {}, investigationsFile = null,
+  onGeneration = () => {}, onState = () => {}, onModuleChildExit, investigationsFile = null,
   startPaused = false, restoreAfterRestart = async () => {}, exchangeMutex = null, spawnProcess = spawn }) {
   if (!['conversation', 'usage', 'diagnostics'].includes(component) || typeof root !== 'string'
     || typeof createChannel !== 'function' || typeof prepareRelease !== 'function' || typeof validateReady !== 'function'
@@ -119,11 +119,11 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     // Pipes are drained without retaining or publishing arbitrary child output.
     child.stdout?.resume(); child.stderr?.resume()
     const target = { child, generation: nextGeneration, ticket, ended: false, resumed: false, channel: null }
-    target.stderrCodes = observeModuleChild(child)
+    target.stderrObservation = observeModuleChild(child)
     instance = target
     target.end = waitNotificationsChildClose(child).then(async result => {
       const unexpected = target.resumed && initialized && !closed && !target.intentional
-      if (unexpected) { closeAdmission(); state('unavailable'); reportModuleChildExit(component, result, target.stderrCodes()) }
+      if (unexpected) { closeAdmission(); state('unavailable'); reportModuleChildExit(component, result, target.stderrObservation(), onModuleChildExit) }
       await target.channel?.drainIncoming?.()
       target.ended = true
       await target.channel?.reaped()

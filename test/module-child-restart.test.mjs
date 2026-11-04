@@ -37,6 +37,6 @@ test('stderr observation retains only a finite set of fixed codes', () => {
   stderr.emit('data', Buffer.from('private token secret ERR_IPC_CHANNEL_'))
   stderr.emit('data', Buffer.from('CLOSED private body ' + 'x'.repeat(10000)))
   stderr.emit('data', Buffer.from('ERR_WORKER_OUT_OF_MEMORY secret'))
-  assert.deepEqual(codes(), ['ERR_WORKER_OUT_OF_MEMORY'])
+  assert.deepEqual(codes().stderrCodes, ['ERR_IPC_CHANNEL_CLOSED', 'ERR_WORKER_OUT_OF_MEMORY'])
   assert.doesNotMatch(JSON.stringify(codes()), /private|secret|token/)
 })

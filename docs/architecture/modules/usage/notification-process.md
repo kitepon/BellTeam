@@ -30,6 +30,17 @@ flowchart LR
 - 通知provider/保存は既PushNotificationsを使用。state配列/端末形式の不正は固定PUSH_STATE_INVALIDで初期化失敗とし、空状態へ置換しない。APNs/relayの既exportと外部callerは保持する。
 - 交換中の別設定保存によるFEATURE_APPLY_FAILEDは、後のready applyError=nullで消さない。共通onStateはapplyErrorがある時だけ設定errorへ投影し、clearは既明示設定applyが持つ。
 
+## Kの子終了診断callbackの転送
+
+```mermaid
+flowchart LR
+  Assembly[integration application-services] -->|同じonModuleChildExit関数| Facade[usage createNotifications]
+  Facade -->|同じ関数を一field転送| Process[runtime createNotificationsProcess]
+  Process -->|既閉DTOの観測結果| Callback[integrationの同callback / diagnostics唯一writer]
+```
+
+親から任意注入される`onModuleChildExit`を、通知facadeは既`createProcess`へ同identityで渡す。呼出し・変換・保存・失敗処理を追加しない。runtimeの終了観測/DTO生成とintegrationの登録・有限保留/flushは各担当の既契約を使う。通知業務、publishの新旧kind、交換buffer、診断writerと状態所有、既再送0は不変。親の登録はintegration、runtime factoryはruntimeの正本を参照する。
+
 ## 現行の全callerと所有
 
 ```mermaid

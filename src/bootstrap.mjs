@@ -10,6 +10,7 @@ import { OwnerProfile } from './owner-profile.mjs'
 import { UserRules } from './user-rules.mjs'
 import { runtimeHome } from './runtime-home.mjs'
 import { createUsageAssembly } from './usage-assembly.mjs'
+import { createModuleChildExitReporter } from './module-child-exit-reporter.mjs'
 import { createModuleExchangeMutex } from './module-exchange-mutex.mjs'
 import { createUsageParentEffects } from './usage-parent-effects.mjs'
 import { defaultCallBridgeMcpUrl } from './distribution-profile.mjs'
@@ -36,7 +37,8 @@ export const attachUsageServices = services => { usageServices = services }
 const usageEffects = createUsageParentEffects({ getServices: () => usageServices,
   getFeatures: () => ({ onChange: usageServices.settings?.onChange }), seatRuntime })
 export const exchangeMutex = createModuleExchangeMutex()
-export const usageAssembly = createUsageAssembly({ root, seatRuntime, exchangeMutex, getServices: () => usageServices,
+export const moduleChildExitReporter = createModuleChildExitReporter()
+export const usageAssembly = createUsageAssembly({ root, seatRuntime, exchangeMutex, onModuleChildExit: moduleChildExitReporter.observe, getServices: () => usageServices,
   onEffect: (method, params, context) => {
     const conversation = usageServices.conversationAssembly
     const actor = method === 'onboarding.startConversation' ? { kind: 'onboarding', botId: params.botId }

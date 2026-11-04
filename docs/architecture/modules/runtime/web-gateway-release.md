@@ -70,3 +70,5 @@ Docker観測ではMounts.Sourceはvolume rootで、subpathはHostConfig.Mounts.V
 
 
 異常終了時は[module-processの自動再生成](module-process.md#子だけの自動再生成)と同じtimerを使い、固有の採用版・初期化・意図停止・実終端を保持する。
+
+Web常駐子の`createHttpGatewayProcess`は`onModuleChildExit?`を受け、既ChildProcess close後・稼働成功済みの異常終了だけを[共通観測](module-process.md#子終了診断のcallback)へ渡す。意図close/交換を除き、既同port再起動を維持する。

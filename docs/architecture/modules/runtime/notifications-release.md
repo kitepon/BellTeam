@@ -23,7 +23,7 @@ flowchart TD
 
 ## 公開sourceと所有
 
-- `src/notifications-process.mjs:createNotificationsProcess({root,configuration,onDiagnostic,onState,prepareRelease})`。start/close/request/replace/snapshot/reserve、同一controllerをassembly/facade/更新HTTPへ注入。reserveは202 finish後start/cancel、二重更新・configure進行中409。phaseとexchanging/availableをonStateへ返しMikaのunsent bufferを接続。
+- `src/notifications-process.mjs:createNotificationsProcess({root,configuration,onDiagnostic,onState,onModuleChildExit?,prepareRelease})`。start/close/request/replace/snapshot/reserve、同一controllerをassembly/facade/更新HTTPへ注入。reserveは202 finish後start/cancel、二重更新・configure進行中409。phaseとexchanging/availableをonStateへ返しMikaのunsent bufferを接続。
 - `src/notifications-ipc.mjs`は専用channelのschema/相関/accepted/期限。業務5methodだけ、UTF8 JSON64KiB/未終端64、status/device30秒・configure90秒。送信試行後の期限/断線はunknown、未送信/明示拒否だけnot_accepted。再送しない。
 - 同moduleのchild factoryはvalidateRequest/dispatch/control/disconnectを通知内部へ接続。controlはinitialize/quiesce/resume/exit。readyは固定version/protocol/stateSchemaとstatus/applyError。診断専用相関5秒、親writerの失敗を送信retryにしない。
 - `scripts/notifications-start.c`はimage固定`/usr/local/libexec/bellteam-notifications-start`。builtin又はSHA64だけ、Node固定、最小env、親のlock FD非継承。IPC3は新channel、lock4/5は子自身で開く。Node側`src/notifications-locks.mjs:verifyNotificationsLocks`がFD/inode/metadata/kernel flockを確認してから通知のstateへ触れる。
@@ -73,3 +73,5 @@ Root WebPushv1.1/b64aにより親子protocol2/stateSchema2。既APNs file1とHTT
 
 
 異常終了時は[module-processの自動再生成](module-process.md#子だけの自動再生成)と同じtimerを使い、固有の採用版・初期化・意図停止・実終端を保持する。
+
+通知子の異常終了診断は[共通観測](module-process.md#子終了診断のcallback)へ`onModuleChildExit`を渡す。意図交換/closeでは報告せず、callback失敗で復旧を止めない。

@@ -31,7 +31,7 @@ const within = async (promise, milliseconds, code) => {
 }
 
 export function createMembersProcess({ root, membersAdmission = new MembersAdmission(),
-  onEffect, onProjection, onGeneration = () => {}, onDiagnostic, onState = () => {}, authorizeOwner,
+  onEffect, onProjection, onGeneration = () => {}, onDiagnostic, onState = () => {}, onModuleChildExit, authorizeOwner,
   prepareRelease = prepareMembersRelease, exchangeMutex = null }) {
   const adoptionPath = join(root, 'state/members-release.json')
   let instance = null, currentVersionId = null, previousVersionId = null, builtinSourceCommit = null
@@ -98,11 +98,11 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
     const target = { child, ended: false, resumed: false, generation,
       channel: createMembersParentChannel(child, { generation, admission: membersAdmission,
         onEffect, onProjection, onDiagnostic, authorizeOwner }) }
-    target.stderrCodes = observeModuleChild(child)
+    target.stderrObservation = observeModuleChild(child)
     instance = target
     target.end = waitMembersChildClose(child).then(async result => {
       const unexpected = target.resumed && initialized && !closed && !target.intentional
-      if (unexpected) { membersAdmission.close(); state('unavailable'); reportModuleChildExit('members', result, target.stderrCodes()) }
+      if (unexpected) { membersAdmission.close(); state('unavailable'); reportModuleChildExit('members', result, target.stderrObservation(), onModuleChildExit) }
       await target.channel.drainIncoming?.()
       target.ended = true; await target.channel.reaped()
       if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }

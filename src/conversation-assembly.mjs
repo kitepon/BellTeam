@@ -16,7 +16,7 @@ const denied = () => Object.assign(new Error('CONVERSATION_CONTEXT_REQUIRED'), {
 
 // One parent graph owns admission and captured authority; the child alone owns conversation writes.
 export function createConversationAssembly({ root, membersAdmission, exchangeMutex, getServices, createFacade = createConversationFacade,
-  onExecution, onDiagnostic, onState, createProcess = createConversationProcess, prepareRelease, spawnProcess }) {
+  onExecution, onDiagnostic, onState, onModuleChildExit, createProcess = createConversationProcess, prepareRelease, spawnProcess }) {
   const admission = new ConversationLifetimes(), authority = createConversationAuthority()
   const moduleOperations = createModuleOperationContext({ membersAdmission, conversationAdmission: admission })
   const scope = new AsyncLocalStorage(), owned = new WeakMap(), listeners = new Set(), memberParents = new WeakMap()
@@ -36,7 +36,7 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
       if (!(context.actualCompletion instanceof Promise)) throw denied()
       return context.actualCompletion
     }, roomsRoot: join(root, 'rooms') }), observerEffects, onExecution: executionEffects })
-  controller = createProcess({ root, admission, exchangeMutex, authorizeActor: authority.authorizeActor,
+  controller = createProcess({ root, admission, exchangeMutex, onModuleChildExit, authorizeActor: authority.authorizeActor,
     readBots: async () => { await getBots().refresh(); return [...getBots().values()].map(({ id, name, displayName, position, role }) => ({ id, name,
       ...(displayName === undefined ? {} : { displayName }), ...(position === undefined ? {} : { position }), ...(role === undefined ? {} : { role }) })) },
     onEffect: (method, params, context) => scope.run({ actor: context.actor, parent: context }, () => effects(method, params, context)),

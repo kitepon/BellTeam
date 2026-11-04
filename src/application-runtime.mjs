@@ -100,7 +100,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       const socketPath = join(socketDirectory, 'public.sock')
       await listen(server, socketPath)
       await listen(internalServer, internalPort, '127.0.0.1')
-      gateway = createHttpGatewayProcess({ socketPath, port: Number(environment.BELLTEAM_WEB_PORT ?? 4180), appRoot,
+      gateway = createHttpGatewayProcess({ onModuleChildExit: services.moduleChildExitReporter.observe, socketPath, port: Number(environment.BELLTEAM_WEB_PORT ?? 4180), appRoot,
         prepareRelease: bootstrap.prepareGatewayRelease ?? prepareGatewayRelease,
         adoptionPath: join(root, 'state/web-gateway-release.json') })
       await gateway.start()
@@ -124,6 +124,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     closing ??= (async () => {
       const errors = []
       for (const stop of [
+        () => services.moduleChildExitReporter.close(),
         () => olrwAuthCaller?.close(),
         () => services.updateCenter.close(),
         () => webGatewayControl.close(),
