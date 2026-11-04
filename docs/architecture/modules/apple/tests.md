@@ -90,25 +90,26 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testExpectedCancellationDoesNotBecomeRepairRequest](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L136) | 期待した取消は通常診断/push診断とも報告0件 |
 | [testNetworkLogExcludesURLAndErrorText](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L144) | 通信ログへURL/エラー本文の秘密を出さない |
 | [testServerErrorLogExcludesResponseText](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L153) | HTTPエラーログへ応答本文を出さない |
-| [testRequestRouteKeepsOnlyGeneratedOpaqueMemberIds](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L159) | 生成形式のBot/room IDだけ保持し私的名前を:id化 |
-| [testUnknownRequestRouteDoesNotBecomeSettingsFailure](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L168) | 未知routeは/api/other、設定の報告pathからmodule/operationを補わない |
-| [testFixedPublicGetRoutesKeepOnlyKnownNames](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L187) | 既知固定GET routeとmoduleを照合、operationはunknown |
-| [testExistingSettingsModelAndSubscriptionModulesStaySettings](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L207) | 既存settings/models/subscriptionのmodule分類を保持 |
-| [testRequestContextSeparatesContractFromObservedFailure](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L221) | コードの期待結果と要求で観測した500を区別し画面観測を主張しない |
-| [testRequestContextDoesNotInferOperationFromFallbackPath](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L238) | trace無しではfallback pathからoperationを推定しない |
-| [testScheduleTimeoutUsesTracedRequestWithoutClaimingScreenObservation](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L249) | 予定timeoutはtraceのrouteを使い画面未観測と記録 |
-| [testDecodingLogKeepsStaticFieldsAndHidesDynamicKeysAndValues](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L263) | decodeの固定key/indexは保持、動的辞書key/値を隠す |
-| [testDecodingRouteRemovesQueryAndGeneratedIDs](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L288) | decode routeからqueryとIDを除外 |
-| [testDeletingBotIsNotExpectedFromTheAllSchedulesResponse](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L311) | 予定取得対象からdeleting=trueだけ除き、残る対象の応答を受理 |
-| [testMissingScheduleTargetFailsAndReportsCountsWithoutIDs](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L321) | 予定不足は件数だけのInvalidResponse診断、ID無し |
-| [testDuplicateScheduleSourceStaysAnInvalidResponse](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L339) | 予定source重複はinvalidResponse |
-| [testKeepaliveCommentsAreSkipped](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L355) | SSEのkeepaliveコメントを飛ばす |
-| [testEventNameDistinguishesReadyFromMessageUpdate](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L360) | SSEのevent名でready/messagesを区別 |
-| [testTargetedMessageEventKeepsEveryAffectedConversation](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L370) | 対象SSEの複数Bot/roomとtopicsを全て保持 |
-| [testLegacyAndInvalidEventScopesRequireFullRefresh](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L384) | 旧形式/未知topic/ID無し/数値allは全更新 |
-| [testCRLFAndSplitDataLines](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L397) | CRLFと複数data行をJSONへ組立て |
-| [testDeviceStateIsNotReportedAsFailure](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L401) | deviceState判定はofflineだけで接続喪失/timeoutと区別 |
-| [testResetConnectionsKeepsAccessCookie](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L409) | session.flush後も共有Access cookieを保持 |
+| [testServerErrorLogKeepsOnlyFixedServerErrorCode](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L159) | HTTPエラーログへ固定の失敗符号だけを残し、値付きの文は残さない |
+| [testRequestRouteKeepsOnlyGeneratedOpaqueMemberIds](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L168) | 生成形式のBot/room IDだけ保持し私的名前を:id化 |
+| [testUnknownRequestRouteDoesNotBecomeSettingsFailure](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L177) | 未知routeは/api/other、設定の報告pathからmodule/operationを補わない |
+| [testFixedPublicGetRoutesKeepOnlyKnownNames](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L219) | 既知固定GET routeとmoduleを照合、operationはunknown |
+| [testExistingSettingsModelAndSubscriptionModulesStaySettings](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L239) | 既存settings/models/subscriptionのmodule分類を保持 |
+| [testRequestContextSeparatesContractFromObservedFailure](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L253) | コードの期待結果と要求で観測した500を区別し画面観測を主張しない |
+| [testRequestContextDoesNotInferOperationFromFallbackPath](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L270) | trace無しではfallback pathからoperationを推定しない |
+| [testScheduleTimeoutUsesTracedRequestWithoutClaimingScreenObservation](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L281) | 予定timeoutはtraceのrouteを使い画面未観測と記録 |
+| [testDecodingLogKeepsStaticFieldsAndHidesDynamicKeysAndValues](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L295) | decodeの固定key/indexは保持、動的辞書key/値を隠す |
+| [testDecodingRouteRemovesQueryAndGeneratedIDs](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L320) | decode routeからqueryとIDを除外 |
+| [testDeletingBotIsNotExpectedFromTheAllSchedulesResponse](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L343) | 予定取得対象からdeleting=trueだけ除き、残る対象の応答を受理 |
+| [testMissingScheduleTargetFailsAndReportsCountsWithoutIDs](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L353) | 予定不足は件数だけのInvalidResponse診断、ID無し |
+| [testDuplicateScheduleSourceStaysAnInvalidResponse](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L371) | 予定source重複はinvalidResponse |
+| [testKeepaliveCommentsAreSkipped](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L387) | SSEのkeepaliveコメントを飛ばす |
+| [testEventNameDistinguishesReadyFromMessageUpdate](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L392) | SSEのevent名でready/messagesを区別 |
+| [testTargetedMessageEventKeepsEveryAffectedConversation](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L402) | 対象SSEの複数Bot/roomとtopicsを全て保持 |
+| [testLegacyAndInvalidEventScopesRequireFullRefresh](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L416) | 旧形式/未知topic/ID無し/数値allは全更新 |
+| [testCRLFAndSplitDataLines](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L429) | CRLFと複数data行をJSONへ組立て |
+| [testDeviceStateIsNotReportedAsFailure](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L433) | deviceState判定はofflineだけで接続喪失/timeoutと区別 |
+| [testResetConnectionsKeepsAccessCookie](../../../../ios/BellBot/BellBotTests/BellDiagnosticsTests.swift#L441) | session.flush後も共有Access cookieを保持 |
 
 ### BillingStoreTests.swift
 

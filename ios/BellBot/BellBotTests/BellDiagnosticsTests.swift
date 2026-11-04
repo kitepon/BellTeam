@@ -156,6 +156,15 @@ final class BellDiagnosticsTests: XCTestCase {
         XCTAssertEqual(log, "module=queue\nhttp_status=503")
     }
 
+    func testServerErrorLogKeepsOnlyFixedServerErrorCode() {
+        let log = BellDiagnostics.errorLog(
+            BellAPIError.httpStatus(503, "MEMBERS_NOT_ACCEPTED"), module: "bots")
+        XCTAssertEqual(log, "module=bots\nhttp_status=503\nhttp_error_code=MEMBERS_NOT_ACCEPTED")
+        let located = BellDiagnostics.errorLog(
+            BellAPIError.httpStatus(404, "BOT_NOT_FOUND: bot-deadbeef"), module: "bots")
+        XCTAssertEqual(located, "module=bots\nhttp_status=404")
+    }
+
     func testRequestRouteKeepsOnlyGeneratedOpaqueMemberIds() {
         XCTAssertEqual(BellRequestTrace.route(for: "/api/bots/bot-deadbeef/schedules"),
                        "/api/bots/bot-deadbeef/schedules")

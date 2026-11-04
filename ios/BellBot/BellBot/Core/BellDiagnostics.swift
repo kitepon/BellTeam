@@ -441,8 +441,10 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         if let urlError = error as? URLError {
             return "module=\(module)\nerror_domain=NSURLErrorDomain\nerror_code=\(urlError.errorCode)"
         }
-        if case BellAPIError.httpStatus(let status, _, _) = error {
-            return "module=\(module)\nhttp_status=\(status)"
+        if case BellAPIError.httpStatus(let status, let message, _) = error {
+            // サーバーの固定の失敗符号だけを残し、503の理由を分けられるようにする。自由な応答文は残さない。
+            let code = message.flatMap { $0.wholeMatch(of: /[A-Z0-9_]{1,100}/) != nil ? $0 : nil }
+            return "module=\(module)\nhttp_status=\(status)" + (code.map { "\nhttp_error_code=\($0)" } ?? "")
         }
         if let decoding = error as? DecodingError {
             let kind: String
