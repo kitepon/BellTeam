@@ -679,3 +679,17 @@ flowchart LR
 ```
 
 親はruntimeの固定factoryが返すcontainerをHost adapterへ、moduleをcatalogとmoduleHostへ注入する。旧Hostでは同じclientを双方で使う。既hostUpdateClient注入のcallerも同一clientを双方へ維持する。専用mount判定・socket選択・通信失敗とunknownはruntimeが所有し、親から別clientへ再送しない。公開schema、plan/operationの状態所有、module stepと本体結果の照会先は既契約のまま。
+
+## 子終了情報の親登録
+
+```mermaid
+flowchart LR
+  Bootstrap[bootstrap / usage親] --> Reporter[一つのmoduleChildExitReporter]
+  Services[services / conversation・members・診断・通知] --> Reporter
+  Gateway[runtime / Web受付] --> Reporter
+  Reporter --> Pending[component別最新report最大6 / volatile]
+  Ready[既診断onState available / initialize ACK] --> Pending
+  Pending --> Facade[同diagnostics facade.record / 唯一writer]
+```
+
+6factoryへ同一callbackを転送し、bootstrap初期化中から有限DTOを保持する。Signalの単一formatterで検証・本文を閉じた後、componentごと最新1件、同componentの保存は一件ずつ進める。診断不在/未readyは保留し、既onStateの復帰又は初期化ACK後にflush。保存ACKした同一entryだけを削除し、途中で来た新entryを消さない。明示not_acceptedだけ次の復帰に再試行でき、結果unknownは再recordしない。closeで新受付を止め保存中を回収、親消失後の未保存を復元済みとしない。別writer/永続queue/追加timer/元要求再送は作らない。観測・再生成はruntime、閉DTOと保存はdiagnosticsの正本へ従う。

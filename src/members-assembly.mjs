@@ -7,7 +7,7 @@ import { createMembersRuntimeEffects, MEMBERS_RUNTIME_EFFECT_METHODS } from './m
 import { validateMembersEffect, validateMembersEffectResult } from './members/protocol.mjs'
 
 export function createMembersAssembly({ root, seatRuntime, aiterm, settings, models, membersAdmission,
-  membersAuthorization, diagnostics, dependencies, exchangeMutex, onState = () => {}, createProcess = createMembersProcess }) {
+  membersAuthorization, diagnostics, dependencies, exchangeMutex, onModuleChildExit, onState = () => {}, createProcess = createMembersProcess }) {
   const listeners = new Set()
   const notify = () => { for (const listener of listeners) listener({ all: true, topics: ['bots', 'owner', 'schedules'], botIds: [], roomIds: [] }) }
   const projection = createMembersProjection({ onChange: notify })
@@ -47,7 +47,7 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
     validateMembersEffectResult(method, value)
     return value
   }
-  const controller = createProcess({ root, membersAdmission, exchangeMutex, onEffect: async (...args) => {
+  const controller = createProcess({ root, membersAdmission, exchangeMutex, onModuleChildExit, onEffect: async (...args) => {
     try {
       const conversation = dependencies().conversationAssembly
       const [method, params, context] = args

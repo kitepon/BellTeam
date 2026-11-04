@@ -1,3 +1,4 @@
+import { createModuleChildExitReporter } from './module-child-exit-reporter.mjs'
 import { createModuleExchangeMutex } from './module-exchange-mutex.mjs'
 import { createConversationUsage } from './usage/conversation-effects.mjs'
 import { loadExecutionFactory } from './execution-loader.mjs'
@@ -44,7 +45,7 @@ import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
+export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
   let members = null, diagnosticsModule = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter
   const membersAdmission = new MembersAdmission()
   try {
@@ -61,13 +62,14 @@ export async function createApplicationServices({ root, exchangeMutex = createMo
   if (usageAssembly) await usageAssembly.initializeSubscriptions()
   else await subscriptions.initialize()
   const investigationsFile = environment.BELLTEAM_DIAGNOSTIC_INVESTIGATIONS ?? null
-  if (diagnosticsFactory) diagnosticsModule = diagnosticsFactory({ root, investigationsFile, prepareRelease: prepareDiagnostics, onState: () => updateCenter?.notify() })
+  if (diagnosticsFactory) diagnosticsModule = diagnosticsFactory({ root, investigationsFile, prepareRelease: prepareDiagnostics, onModuleChildExit: moduleChildExitReporter.observe, onState: state => { moduleChildExitReporter.ready(Boolean(state.available)); updateCenter?.notify() } })
   const diagnostics = diagnosticsModule ? createDiagnosticsFacade(diagnosticsModule)
     : new Diagnostics(join(root, 'logs/diagnostics.json'), { investigationsFile })
   await diagnostics.initialize()
+  moduleChildExitReporter.attach(diagnostics, !diagnosticsModule || Boolean(diagnosticsModule.snapshot().available))
   if (seatRuntime || membersFactory) {
     members = createMembersAssembly({ root, seatRuntime, aiterm, settings, models, membersAdmission, exchangeMutex,
-      membersAuthorization, diagnostics, dependencies: () => ({ memory, rooms, assets, conversationAssembly }), onState: () => updateCenter?.notify(),
+      membersAuthorization, diagnostics, onModuleChildExit: moduleChildExitReporter.observe, dependencies: () => ({ memory, rooms, assets, conversationAssembly }), onState: () => updateCenter?.notify(),
       ...(membersFactory ? { createProcess: membersFactory } : {}),
     })
     await members.controller.start()
@@ -75,7 +77,7 @@ export async function createApplicationServices({ root, exchangeMutex = createMo
     // The members writer already regenerates global instructions after its saves.
     refreshGlobalInstructions = async () => {}
   }
-  const notifications = createNotifications({ root, bots, diagnostics,
+  const notifications = createNotifications({ root, bots, diagnostics, onModuleChildExit: moduleChildExitReporter.observe,
     configuration: () => ({ apns: settings.configuration('notifications'), webPush: settings.configuration('webPush') }), createProcess,
     onState: state => {
       // Usage applies errors through its captured settings.changed epoch, never a later snapshot.
@@ -119,7 +121,7 @@ export async function createApplicationServices({ root, exchangeMutex = createMo
     await diagnostics.record({ code: 'GOAL_OPERATION_UNCONFIRMED', module: 'goals', diagnostic_log: `${error.constructor.name}\n${frames.join('\n')}` })
   }
   const conversationPorts = { bots, settings, seatRuntime, aiControl, conversationUsage: createConversationUsage({ settings, notifications }) }
-  if (conversationFactory) conversationAssembly = conversationFactory({ root, membersAdmission, exchangeMutex, getServices: () => conversationPorts,
+  if (conversationFactory) conversationAssembly = conversationFactory({ root, membersAdmission, exchangeMutex, onModuleChildExit: moduleChildExitReporter.observe, getServices: () => conversationPorts,
     onDiagnostic: report => diagnostics.record({ code: report.code, module: 'conversation',
       ...(report.code === 'MESSAGE_LOG_INVALID' ? { diagnostic_log: JSON.stringify(report) } : {}) }), onState: () => updateCenter?.notify() })
   if (executionFactory) {
@@ -247,7 +249,7 @@ export async function createApplicationServices({ root, exchangeMutex = createMo
     try { await diagnostics.record({ code: 'OLRW_MANAGEMENT_UNAVAILABLE', module: 'integration' }) } catch {}
   }
   return {
-    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, membersAuthorization, members, usageAssembly, conversationAssembly, execution,
+    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, moduleChildExitReporter, membersAuthorization, members, usageAssembly, conversationAssembly, execution,
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
@@ -255,7 +257,7 @@ export async function createApplicationServices({ root, exchangeMutex = createMo
   }
   } catch (error) {
     const failures = []
-    for (const close of [() => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
+    for (const close of [() => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
       () => conversationAssembly?.close(), () => execution?.controller.close(), () => execution && executionClient?.close(),
       () => members?.controller.close(), () => usageAssembly?.close(), () => diagnosticsModule?.close()]) {
       try { await close() } catch (cleanupError) { failures.push(cleanupError) }
