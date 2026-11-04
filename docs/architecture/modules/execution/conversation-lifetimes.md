@@ -56,7 +56,7 @@ flowchart LR
   Parent --> Sample["Centi: 同UUID / 公開readの有限sample"]
 ```
 
-`close(source)`のsourceは`unknown/module_start/module_replace/module_close/module_child_exit/module_recovery`。既引数無しはunknown、未知入力もunknownとして制御は変えない。ticketが既にある時は主体・時刻・revisionを上書きしない。初回current protocol失敗は内部呼出methodの固定名を保持する。既知retiredの失敗は元unconfirmedへだけ作用し、current失敗の遷移を作らない。
+`close(source)`のsourceは`unknown/module_start/module_replace/module_close/module_child_exit/module_recovery/module_protocol_failure`。既引数無しはunknown、未知入力もunknownとして制御は変えない。ticketが既にある時は主体・時刻・revisionを上書きしない。初回current protocol失敗は内部呼出methodの固定名を保持する。既知retiredの失敗は元unconfirmedへだけ作用し、current失敗の遷移を作らない。
 
 `inspectAdmission()`はexact schema `bellteam.conversation-admission.v1` と `ticket/failed/active/unconfirmed/writerRevision/closedBy/closedAt/closedWriterRevision/failureSource/failureAt/failureWriterRevision/transition/transitionAt/revision`。boolはticket/failed/unconfirmed、activeとrevision類は非負safe整数、時刻はUnixミリ秒又はnull、未記録source/transitionはnull。`validateConversationAdmissionDiagnostic`は同fileからexportし、exact key/固定enum/値型を検査したcopyを返す。生generation/ticket/lease/operation/本文/receipt/stackを含めない。
 
@@ -181,3 +181,17 @@ flowchart LR
 notifyReportだけが既accepted結果又はexact `{report:'unavailable',reason:'not_issued'}`を返す。親ローカルの元job/opaque/target/groupIdに束縛し、dispatchInOrderに入る前の失敗だけを候補とする。元jobの実completion終端後に、元失敗object本人・失敗status callbackの成功（無登録なら保存要求無し）・unsent・executionFinishUnconfirmed=false・同writer世代・unconfirmed=falseを確認する。callback保存失敗が既catchで保持された場合やcleanupが別例外を返した場合は分類しない。code/status/effect/receipt無しから未発行を推測しない。
 
 普通notifyの受付返却は待たせず、reportも受付成功は従来時点に返す。確定拒否の場合だけ実job終端を待つ。子の報告分類/validator/親adapterはN102、一般背景wireはEpi、一般lifetimeは変更しない。not_issuedはnative受付/報告保存/元要求成功/配送releaseACK済みを意味しない。元pty_send例外の条件付き反例はdispatch後なのでこの結果の対象外。既failed解除や再送をしない。
+
+
+## 承認済みT：protocol故障からのwriter退役起点
+
+```mermaid
+flowchart LR
+  Protocol[同current protocol failed / 生存子] --> Retire[Epi 正式retireProtocolFailedWriter]
+  Retire --> Close[close module_protocol_failure / 初回主体保持]
+  OS[実子の異常終了] --> Exit[close module_child_exit]
+  Close --> Inspect[同じ15key inspectAdmission / 単一validator]
+  Exit --> Inspect
+```
+
+module_protocol_failureは新しい故障退役caller専用origin。子がまだ生存するwriter-only quiesce前の閉鎖を、実OS終了由来のmodule_child_exitと区別する。既ticketがあれば従来どおり初回主体を保持し上書きしない。15key/schema/制御/実Promise/世代/failed条件は同じで、新しい停止口や解除をgateへ追加しない。Epiは新retire caller一か所だけを更新、Centiは閉DTO読取enumへ同値を接続する。以前の保存診断は補完しない。

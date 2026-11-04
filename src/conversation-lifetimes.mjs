@@ -323,7 +323,7 @@ export class ConversationLifetimes {
 }
 
 export const CONVERSATION_ADMISSION_CLOSE_SOURCES = Object.freeze([
-  'unknown', 'module_start', 'module_replace', 'module_close', 'module_child_exit', 'module_recovery',
+  'unknown', 'module_start', 'module_replace', 'module_close', 'module_child_exit', 'module_recovery', 'module_protocol_failure',
 ])
 const failureSources = ['assert_current_lease', 'register_delivery', 'delivery_for', 'assert_delivery',
   'track_native_continuation', 'binding', 'assert_callback', 'claim_native', 'invoke', 'run_background', 'derive_report']
