@@ -46,7 +46,7 @@ public sealed class NotificationTests
         workspace.MessageArrived += notification => { arrivals.Add(notification); received.TrySetResult(); };
         await workspace.ConnectAsync("http://localhost", listen: false); Assert.Empty(arrivals);
         latest = "manual"; await workspace.RefreshManagementAsync(); Assert.Empty(arrivals);
-        await workspace.ConnectAsync("http://localhost"); await received.Task.WaitAsync(TimeSpan.FromSeconds(5)); Assert.Single(arrivals); Assert.Equal("ユキ", arrivals[0].Title); Assert.Equal("one", arrivals[0].Target.Id);
+        await workspace.ConnectAsync("http://localhost"); await received.Task.WaitAsync(TimeSpan.FromSeconds(5)); Assert.Single(arrivals); Assert.Equal("ユキ", arrivals[0].Title); Assert.Equal("one", arrivals[0].Target!.Id);
     }
     [Fact]
     public async Task DefaultOffEnableDisableAndExitReleaseTheSinkAndPreserveOtherSettings()
@@ -94,11 +94,40 @@ public sealed class NotificationTests
         }
         finally { if (Directory.Exists(directory)) Directory.Delete(directory,recursive:true); }
     }
+    [Fact]
+    public async Task UpdatesUseOnlyCandidatesKeepDigestAndDoNotRepeatAfterFailure()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "BellTeam-update-notification-" + Guid.NewGuid());
+        try
+        {
+            var store = new SettingsStore(directory); var sink = new FakeSink(); string? openedServer = null; ChatTarget? openedTarget = new("old", false);
+            await using var notifications = new DesktopNotifications(sink, store, (server, target) => { openedServer = server; openedTarget = target; });
+            var first = new UpdateCandidate("usage", new string('a', 64));
+            await notifications.NotifyUpdatesAsync("http://localhost/", [first]); Assert.Equal(0, sink.Shows);
+            await notifications.SetEnabledAsync(true);
+            await Task.WhenAll(notifications.NotifyUpdatesAsync("http://localhost/", [first]), notifications.NotifyUpdatesAsync("http://localhost/", [first]));
+            Assert.Single(sink.Messages); Assert.Null(sink.Messages[0].Target); Assert.Equal("update", sink.Messages[0].Kind); Assert.Equal("BellTeam", sink.Messages[0].Title); Assert.Equal("更新があります。Updateで確認してください。", sink.Messages[0].Body);
+            sink.Activated!(sink.Messages[0].Server, sink.Messages[0].Target); Assert.Equal("http://localhost/", openedServer); Assert.Null(openedTarget);
+            await notifications.NotifyUpdatesAsync("http://localhost/", []);
+            await notifications.NotifyUpdatesAsync("http://localhost/", [first]); Assert.Single(sink.Messages);
+            sink.FailShow = true;
+            var second = new UpdateCandidate("usage", new string('b', 64));
+            await notifications.NotifyUpdatesAsync("http://localhost/", [second]); Assert.Equal(2, sink.Shows);
+            sink.FailShow = false; await notifications.SetEnabledAsync(true);
+            await notifications.NotifyUpdatesAsync("http://localhost/", [second]); Assert.Equal(2, sink.Shows);
+            await notifications.NotifyUpdatesAsync("http://other/", [second]); Assert.Equal(3, sink.Shows);
+            await Assert.ThrowsAsync<BellApiException>(() => notifications.NotifyUpdatesAsync("http://localhost/", [new("usage", "bad")]));
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
     private sealed class FakeSink : INotificationSink
     {
         public int Starts; public int Shows; public int Stops; public bool FailStart; public bool FailShow; public Action<string>? Failure;
-        public void Start(Action<string, ChatTarget> activated, Action<string> failed) { Failure = failed; Starts++; if (FailStart) throw new InvalidOperationException("模擬の失敗"); }
-        public void Show(MessageNotification message) { Shows++; if (FailShow) throw new InvalidOperationException("模擬の失敗"); }
+        public Action<string, ChatTarget?>? Activated;
+        public List<MessageNotification> Messages { get; } = [];
+        public void Start(Action<string, ChatTarget?> activated, Action<string> failed) { Activated = activated; Failure = failed; Starts++; if (FailStart) throw new InvalidOperationException("模擬の失敗"); }
+        public void Show(MessageNotification message) { Shows++; Messages.Add(message); if (FailShow) throw new InvalidOperationException("模擬の失敗"); }
         public Task StopAsync() { Stops++; return Task.CompletedTask; }
     }
 }

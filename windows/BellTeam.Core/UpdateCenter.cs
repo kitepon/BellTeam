@@ -14,7 +14,9 @@ public sealed record UpdatePlan(Guid PlanId, string Scope, string? ComponentId, 
 public sealed record UpdateError(string Code, string Message);
 public sealed record UpdateOperation(Guid RequestId, UpdatePlan Plan, string Admission, string Phase, string Execution, string Verification, UpdateError? Error, string? Reference);
 public sealed record UpdateComponent(string Id, string Name, string Description, UpdateVersion? Current, UpdateVersion? Published, UpdateComparison Comparison, string[] Changes, UpdateCapability Capability, UpdateAvailability Availability, JsonElement Publication);
-public sealed record UpdateInventory(string Schema, UpdateNotice Notice, UpdateComponent[] Components, UpdatePlan[] Plans, UpdateOperation? Operation, UpdateOperation? PreviousOperation);
+public sealed record UpdateCandidate(string ComponentId, string Id);
+public sealed record UpdateNotificationSeen(string Server, string ComponentId, string Id);
+public sealed record UpdateInventory(string Schema, UpdateNotice Notice, UpdateComponent[] Components, UpdatePlan[] Plans, UpdateOperation? Operation, UpdateOperation? PreviousOperation, UpdateCandidate[]? NotificationCandidates = null);
 public sealed record UpdatePlanResponse(UpdatePlan Plan);
 public sealed record UpdateOperationResponse(UpdateOperation Operation);
 public sealed record UpdateRequest(string Server, Guid RequestId, Guid PlanId, UpdateOperation? Result, string? Rejection = null);

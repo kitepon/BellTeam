@@ -24,7 +24,9 @@ flowchart LR
 
 ## 更新センター
 
-ロゴ右の入口は共通の更新状態を表示し、更新センターで各対象の稼働版・公開版・変更内容と計画を示す。状態・計画・影響・実行結果の正本は[共通入口](architecture/modules/integration/README.md)のUpdate API。Windowsは計画の内容を見せ、明示操作で固定planを実行し、requestIdを保持して同じ要求を照会する。結果が不明な操作を成功へ変えず、自動再送しない。通知種別・通知からの導線はミカとの契約に従う。
+ロゴ右の入口は共通の更新状態を表示し、更新センターで各対象の稼働版・公開版・変更内容と計画を示す。状態・計画・影響・実行結果の正本は[共通入口](architecture/modules/integration/README.md)のUpdate API。Windowsは計画の内容を見せ、明示操作で固定planを実行し、requestIdを保持して同じ要求を照会する。結果が不明な操作を成功へ変えず、自動再送しない。
+
+起動中の更新通知は共通inventoryの `notificationCandidates` だけを使用し、同じ接続先と機能の最新digestを端末に保持して重複を抑止する。既存のWindows通知設定とToastを使い、押すと同じ接続先の更新センターを開く。受信による更新POSTはしない。終了中のPush受信口は未提供で、別途方式と登録主体を設計する。
 
 ```mermaid
 flowchart LR

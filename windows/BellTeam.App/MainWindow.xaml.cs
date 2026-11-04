@@ -157,6 +157,7 @@ public partial class MainWindow : Window
         {
             var state = await new UpdateCenter(model.Management.Api, new SettingsStore(SettingsStore.UserDirectory)).InventoryAsync(model.ConnectionToken);
             if (model.Server != server) return;
+            if (notifications is not null) await notifications.NotifyUpdatesAsync(server, state.NotificationCandidates);
             UpdateButton.Content = state.Notice.State switch { "updating" => "Update · 更新中", "attention" => "Update · 要確認", "unavailable" => "Update · 利用不能", _ when state.Components.Any(item => item.Comparison.State == "update_available") => "Update · 更新あり", _ => "Update" };
         }
         catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { }
@@ -244,6 +245,7 @@ public partial class MainWindow : Window
             }
             if (!setup.Complete && setup.GuideBotId is { } guide && model.Entries.FirstOrDefault(entry => entry.Target == new ChatTarget(guide, false)) is { } conversation) await model.SelectAsync(conversation);
             if (notifications is not null) await notifications.InitializeAsync();
+            if (notifications is not null) await RefreshUpdateNoticeAsync();
         }
         catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { }
         catch (Exception error) { model.ReportActionError(error.Message); }
@@ -254,10 +256,11 @@ public partial class MainWindow : Window
         try { if (new AccessLoginWindow(access, ServerOrigin.Parse(model.Server)) { Owner = this }.ShowDialog() == true) await ConnectAsync(model.Server); }
         catch (Exception) { model.ReportActionError("ログイン画面を開けませんでした。接続先とWebView2 Runtimeを確認してください。"); }
     }
-    public async Task OpenNotificationAsync(string server, ChatTarget target)
+    public async Task OpenNotificationAsync(string server, ChatTarget? target)
     {
-        if (server != model.Server || !model.Connected) { model.ReportActionError("通知の接続先へ接続してから、会話を開いてください。"); return; }
-        if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから通知の会話を開いてください。"); return; }
+        if (server != model.Server || !model.Connected) { model.ReportActionError(target is null ? "通知の接続先へ接続してから、更新センターを開いてください。" : "通知の接続先へ接続してから、会話を開いてください。"); return; }
+        if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから通知を開いてください。"); return; }
+        if (target is null) { if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal; Show(); Activate(); ShowUpdates(); return; }
         var entry = model.Conversations.FirstOrDefault(item => item.Target == target);
         if (entry is null) { model.ReportActionError("通知の会話が見つかりません。メンバーとルームの一覧を更新してください。"); return; }
         ShowConversation(); if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal; Show(); Activate(); await model.SelectAsync(entry);
