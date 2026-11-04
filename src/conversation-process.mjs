@@ -11,7 +11,7 @@ export function createConversationProcess({ root, admission, readBots, authorize
   const controller = createModuleProcess({ component: 'conversation', root, admission, onGeneration, onState, onModuleChildExit, exchangeMutex, prepareRelease, spawnProcess,
     createChannel: (child, { generation }) => createConversationParentChannel(child, { generation, admission, authorizeActor, onEffect, onEvent, onDiagnostic }),
     canContinue: (_method, options, generation) => {
-      try { admission.assertLease(options.conversationLease, { generation }); return true } catch { return false }
+      try { admission.assertCurrentLease(options.conversationLease, { generation }); return true } catch { return false }
     },
     validateReady: ready => {
       if (ready.protocolVersion !== 1) throw Object.assign(new Error('CONVERSATION_READY_INVALID'), { code: 'CONVERSATION_READY_INVALID' })

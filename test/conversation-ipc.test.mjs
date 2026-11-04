@@ -88,6 +88,46 @@ async function setup(t, { effect = () => {}, event = async () => {}, dispatcher:
   return { root, fixture, parent, child, dispatcher, admission, lease, request, calls, native, operationContext, admissionCheck, endpoints, closed, diagnostics }
 }
 
+test('retired conversation channel rejects old entry while a restored writer serves new roots', { timeout: 5000 }, async t => {
+  const h = await setup(t), actual = Promise.withResolvers()
+  const original = h.request('user.turn', { target: h.fixture.bots[0].id, message: 'held old execution', images: [] })
+  const originalFailure = assert.rejects(original), actualFailure = assert.rejects(original.completion)
+  await original.accepted
+  const delivery = h.native[0].delivery, oldDone = h.admission.operationCompletion(h.lease)
+  h.admission.trackCompletion(delivery, actual.promise)
+  h.admission.finish(delivery)
+  h.endpoints[0].disconnect()
+  await h.parent.drainIncoming(); await h.parent.reaped()
+  await originalFailure; await actualFailure
+  h.admission.finish(h.lease)
+  const ticket = h.admission.close(), generation = 'restored-writer'
+  h.admission.recoverFailedGeneration(ticket, h.lease.generation, generation)
+  const endpoints = pair()
+  let child, newEffects = 0
+  const parent = createConversationParentChannel(endpoints[0], { generation, admission: h.admission,
+    authorizeActor: () => ({ kind: 'owner' }), onEffect: method => {
+      assert.equal(method, 'members.profiles.read'); newEffects++; return { bots: h.fixture.bots }
+    } })
+  const dispatcher = createConversationDispatcher({ root: h.root,
+    effect: (...args) => child.effect(...args), event: (...args) => child.event(...args),
+    trackBackground: (...args) => child.trackBackground(...args) })
+  child = createConversationChildChannel({ dispatcher, endpoint: endpoints[1], versionId: null })
+  t.after(async () => { actual.resolve(); endpoints[0].disconnect(); await parent.drainIncoming(); await parent.reaped() })
+  await parent.control('initialize', { generation, mode: 'restore', bots: h.fixture.bots }); await parent.ready
+  await parent.control('resume'); h.admission.resume(ticket)
+  const protocol = { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED', status: 503, outcome: 'outcome_unknown', effect: 'possible' }
+  await assert.rejects(h.request('rooms.list', {}), protocol)
+  assert.throws(() => h.parent.callback('delivery.status', { delivery: 'running' }, { conversationDelivery: delivery }), protocol)
+  assert.equal(h.admission.snapshot().unconfirmed, true)
+  let oldEnded = false; oldDone.then(() => { oldEnded = true })
+  const fresh = h.admission.enter(), result = parent.request('rooms.list', {}, { conversationLease: fresh, capturedAuthority: {} })
+  assert.equal((await result).rooms.length, 1); await result.completion
+  h.admission.finish(fresh)
+  assert.equal(newEffects, 1); assert.equal(oldEnded, false)
+  actual.resolve(); await oldDone
+  assert.equal(h.admission.snapshot().active, 0)
+})
+
 test('native deadline hook is bound to the original RPC and delivery, not another RPC or caller options', async t => {
   const h = await setup(t), actual = Promise.withResolvers(), lookups = []
   let selected = null, pending = true, callerInjection = 0
