@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-04T12:38:56Z",
-  "expiresAt": "2026-11-11T12:38:56Z",
+  "publishedAt": "2026-11-04T13:11:41Z",
+  "expiresAt": "2026-11-11T13:11:41Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3",
-      "versionId": "849aedadf8bba23c00153de265bb2af56e3226dfc512f9e779ff867b9d70c103",
+      "sourceCommit": "e26a95f708884ab2110ac718ba09256c22eb768d",
+      "versionId": "1cb5f9f15c8501f17359bc57316f067c9b7edfc5c9fefee7a92409af5da9d5d9",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/web-gateway-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-amd64.tar.gz",
-          "sha256": "849aedadf8bba23c00153de265bb2af56e3226dfc512f9e779ff867b9d70c103",
-          "bytes": 4938934
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T130908Z/web-gateway-e26a95f708884ab2110ac718ba09256c22eb768d-linux-amd64.tar.gz",
+          "sha256": "1cb5f9f15c8501f17359bc57316f067c9b7edfc5c9fefee7a92409af5da9d5d9",
+          "bytes": 4947504
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/web-gateway-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "89f085957414af16411bea22740564fda2183f4be53d0daa8cbfd5eaf3f6fb42",
-          "bytes": 11017
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T130908Z/web-gateway-e26a95f708884ab2110ac718ba09256c22eb768d-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "1fb41356fe4d6ed5dbb18c02d83dcd15c6bee27015aac7333549f0e280d5e716",
+          "bytes": 10923
         },
-        "signerCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3"
+        "signerCommit": "e26a95f708884ab2110ac718ba09256c22eb768d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "共通Update画面と、新版通知からの導線に対応します。"
+        "アップデート画面を、更新の状態と次の操作が分かる表示に整えました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3",
-      "versionId": "00e194609528059b6ca6d527bb6036dfb1f1bff11fc1d4c3ea015082538705e1",
+      "sourceCommit": "e26a95f708884ab2110ac718ba09256c22eb768d",
+      "versionId": "c44d65310c730c12279e5104b3d143dee24d67e6e71cc23d78b31b90e61ab12c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/web-gateway-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-arm64.tar.gz",
-          "sha256": "00e194609528059b6ca6d527bb6036dfb1f1bff11fc1d4c3ea015082538705e1",
-          "bytes": 4938934
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T130908Z/web-gateway-e26a95f708884ab2110ac718ba09256c22eb768d-linux-arm64.tar.gz",
+          "sha256": "c44d65310c730c12279e5104b3d143dee24d67e6e71cc23d78b31b90e61ab12c",
+          "bytes": 4947504
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/web-gateway-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "e6ccaf3d0c95919ef9701fbd4f662d325f801049907f1010b8aadbf8ca972227",
-          "bytes": 11111
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T130908Z/web-gateway-e26a95f708884ab2110ac718ba09256c22eb768d-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "4a0ed10ea88becb538feec07cacf83b88f52050cb0edde4140c6a5ce7ea28e56",
+          "bytes": 10970
         },
-        "signerCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3"
+        "signerCommit": "e26a95f708884ab2110ac718ba09256c22eb768d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "共通Update画面と、新版通知からの導線に対応します。"
+        "アップデート画面を、更新の状態と次の操作が分かる表示に整えました。"
       ]
     },
     {
