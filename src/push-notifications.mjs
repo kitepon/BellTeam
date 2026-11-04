@@ -158,6 +158,10 @@ export class PushNotifications {
 
 // mutable-content で、アプリの通知拡張が送り主（sender）のアバター付きの通知へ書き換える。拡張が無い端末では title と body のまま出る。
 export function notificationPayload(event, server) {
+  if (event.kind === 'update') return {
+    aps: { alert: { title: 'BellTeam', body: '更新があります。Updateで確認してください。' }, sound: 'default', 'thread-id': `${server}/updates` },
+    bellteam: { server, kind: 'update', messageId: event.id },
+  }
   return {
     aps: { alert: { title: event.title, body: event.body }, sound: 'default', 'mutable-content': 1,
       'thread-id': `${server}/${event.roomId ? `rooms/${event.roomId}` : `bots/${event.botId}`}` },
