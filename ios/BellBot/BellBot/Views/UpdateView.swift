@@ -27,8 +27,7 @@ struct UpdateView: View {
     @State private var confirmedRestart = false
 
     private var shownOperation: UpdateOperation? { updates.operation ?? updates.inventory?.operation }
-    // 結果を確定できない前の要求があっても新しく計画できる。受け付け済みで進行中の更新がある間だけ止める。
-    private var canStartPlan: Bool { !updates.busy && !(shownOperation.map { $0.admission == .accepted && !$0.isSettled } ?? false) }
+    private var canStartPlan: Bool { updates.canStartPlan }
 
     var body: some View {
         NavigationStack {

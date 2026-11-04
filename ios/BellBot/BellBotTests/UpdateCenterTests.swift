@@ -225,6 +225,38 @@ final class UpdateStoreTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(store.message).contains("同じ計画では実行しません"))
     }
 
+    func testInterruptedRequestAllowsAnotherPlanButNotTheSamePlanAgain() async throws {
+        let interrupted = try UpdateFixtures.examples()["interrupted"]!
+        let operation = try XCTUnwrap(interrupted["operation"] as? [String: Any])
+        let samePlan = try XCTUnwrap(operation["plan"] as? [String: Any])
+        var anotherPlan = samePlan; anotherPlan["planId"] = "33333333-3333-4333-8333-333333333333"
+        var planned = samePlan
+        let (store, defaults) = try makeStore { request in
+            switch (request.method, request.path) {
+            case ("GET", "/api/updates"): return .json(200, interrupted)
+            case ("GET", _): return .json(200, ["operation": operation])
+            case ("POST", "/api/updates/plans"): return .json(200, ["plan": planned])
+            default: return .fail(.notConnectedToInternet)
+            }
+        }
+        defaults.set(operation["requestId"] as? String, forKey: "bellbot.updateRequestID.https://update.test.invalid")
+        defaults.set(samePlan["planId"] as? String, forKey: "bellbot.updateRequestPlanID.https://update.test.invalid")
+        await store.refresh()
+        XCTAssertEqual(store.operation?.admission, .accepted)
+        XCTAssertEqual(store.operation?.phase, .unknown)
+        XCTAssertTrue(store.canStartPlan, "受け付け済みでも状態が分からない要求は、新しい計画を止めない")
+
+        await store.makePlan(componentID: "notifications")
+        await store.execute(confirmContainerRestart: false)
+        XCTAssertEqual(UpdateProtocol.count(method: "POST", path: "/api/updates/operations"), 0, "同じ未確定の計画は再実行しない")
+
+        planned = anotherPlan
+        await store.makePlan(componentID: "notifications")
+        await store.execute(confirmContainerRestart: false)
+        XCTAssertEqual(UpdateProtocol.count(method: "POST", path: "/api/updates/operations"), 1, "別の計画は明示的に一回実行できる")
+        XCTAssertEqual(store.history.map(\.requestId), [operation["requestId"] as? String].compactMap { $0 }, "前の要求は照会できるまま残す")
+    }
+
     func testInventoryWithAnUnknownValueIsShownAsAnInvalidResponse() async throws {
         let (store, _) = try makeStore { _ in
             var example = try UpdateFixtures.examples()["running"]!

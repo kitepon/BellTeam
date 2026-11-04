@@ -110,6 +110,14 @@ final class UpdateStore: ObservableObject {
         }
     }
 
+    /// 新しい計画を取れるか。受け付け済みで進行中の更新がある間だけ止める。状態が分からない要求（中断を含む）は
+    /// 止めずに照会を続け、利用者は別の計画を明示的に取れる（Web版と同じ）。実際の重複はサーバーが拒否する。
+    var canStartPlan: Bool {
+        guard !busy else { return false }
+        guard let current = operation ?? inventory?.operation else { return true }
+        return current.isSettled || current.admission == .unknown || current.phase == .unknown
+    }
+
     /// `componentID`がnilなら全体。
     func makePlan(componentID: String?) async {
         guard !busy else { return }

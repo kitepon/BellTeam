@@ -14,7 +14,7 @@ flowchart TD
   View -->|"対象を選ぶ"| Plan["makePlan<br/>POST /api/updates/plans"]
   Plan -->|"計画を見せる"| Exec["execute<br/>requestIdを保存してから<br/>POST /api/updates/operations"]
   Exec -->|"受付・不明"| Refresh
-  Exec -->|"409など4xx"| Replan["再計画が必要と表示<br/>自動で再計画・再送しない"]
+  Exec -->|"409など4xx"| Replan["受け付けられなかったと表示<br/>要求ID・計画IDは過去の要求に残す<br/>自動で再計画・再送しない"]
   Refresh -->|"completedなど確定"| Clear["保存requestIdを消す"]
 ```
 
@@ -24,9 +24,9 @@ flowchart TD
 | --- | --- | --- |
 | 応答の型 | `Core/UpdateModels.swift` | `bellteam.updates.v1`をそのままCodableにする。列挙の未知の値・必須nullのキー欠落はdecode失敗＝応答不正。未知のkeyは無視し、版の比較や補完はしない |
 | 状態 | `Core/UpdateStore.swift`（`AppStore.updates`） | inventory、計画、保存requestIdの照会結果、確認中の文言。サーバーの応答を正本とし、SSEや通知の内容は再取得のきっかけにだけ使う |
-| 要求ID | `UpdateStore.execute` | 実行操作ごとに小文字v4のUUIDを作り、送信前に`UserDefaults`へ接続先ごと（`bellbot.updateRequestID.<origin>`）に保存する。保存中は新しい実行を始めない |
+| 要求ID | `UpdateStore.execute` | 実行操作ごとに小文字v4のUUIDを作り、送信前に`UserDefaults`へ接続先ごと（`bellbot.updateRequestID.<origin>`）に保存する。計画IDも同じく保存する。新しい計画は、受け付け済みで進行中の更新がある間だけ取れない（`UpdateStore.canStartPlan`）。状態が分からない要求（中断を含む）があっても、利用者は別の計画を明示的に取れる |
 | 確定の判定と保持 | `UpdateOperation.isSettled`・`UpdateStore.history` | サーバーの照会で確定（rejected、completed、failedかつexecution failed）した要求だけ保存IDを外す。4xxは「受け付けられませんでした」と表示するが、要求ID・計画IDは消さずに過去の要求（`history`、端末に保存）へ移す。照会の404・認証失敗・断線は未受付と確定せず、保存IDを残して「結果を確認できません」と表示し、同じUUIDで照会し直す。新しく実行すると、確定していない前の要求は消さずに過去の要求へ移して照会を続ける。結果を確定できていない要求と同じ計画は再実行せず、利用者が取り直した別の計画（capability.supported）だけを一回実行する。手での消去、自動の再送・再計画はしない（Web版と同じ） |
-| 受付の失敗 | `UpdateStore.execute` | HTTP 4xx（409は再計画が必要）はサーバーが受け付けなかった確定として保存IDを消し、計画を捨てる。URLError・5xx・応答不正は受付不明として保存IDを残し、再送しない |
+| 受付の失敗 | `UpdateStore.execute` | HTTP 4xx（409は再計画が必要）は「受け付けられませんでした」と表示して計画を捨てるが、要求ID・計画IDは消さずに過去の要求へ移す。URLError・5xx・応答不正は受付不明として保存IDを残し、再送しない |
 | 表示 | `Views/UpdateView.swift` | notice、各機能のname/description/current/published/comparison/changes/capability/availability、operation・previousOperationのphase/admission/execution/verification/error、計画のtargets/compatibility/impact/期限。再起動を伴う計画は確認のToggleを必須にする |
 | ロゴ右の印 | `UpdateBadge`（`HomeView.header`、`DesktopWorkspaceView.sidebar`） | いずれかの`comparison.state == update_available`の時だけ。押すと`AppStore.updatePresented`でシートを開く（`BellBotApp.RootView`） |
 | 診断 | 既存`BellDiagnostics.report` | 取得は`.read`、受付不明のPOSTは`.write`。4xxは既存規則で報告しない |
