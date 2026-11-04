@@ -117,7 +117,7 @@ export function validateConversationControl(method, params, context) {
       if (params.generation !== context.generation) invalid()
       return true
     case 'routing.changed': return fields(params, { enabled: bool, epoch: integer })
-    case 'quiesce': case 'resume': case 'exit': return fields(params, {})
+    case 'quiesce': case 'resume': case 'exit': case 'quiesceWriter': case 'exitWriter': return fields(params, {})
     default: invalid()
   }
 }

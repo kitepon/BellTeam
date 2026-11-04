@@ -3,7 +3,19 @@ import test from 'node:test'
 import { validateConversationResult, validateConversationControlResult } from '../src/conversation/results.mjs'
 import { CONVERSATION_STATE_COMPATIBILITY } from '../src/conversation/state-compatibility.mjs'
 import { CONVERSATION_ROOT_METHODS, CONVERSATION_PARENT_METHODS } from '../src/conversation/authority.mjs'
-import { validateConversationRequest } from '../src/conversation/requests.mjs'
+import { validateConversationRequest, validateConversationControl } from '../src/conversation/requests.mjs'
+
+test('writer retirement controls and ACKs are exact and generation-bound', () => {
+  const context = { generation: 'writer-a', operationId: null }
+  for (const [method, field] of [['quiesceWriter', 'writerQuiesced'], ['exitWriter', 'writerClosed']]) {
+    validateConversationControl(method, {}, context)
+    validateConversationControlResult(method, { [field]: true })
+    assert.throws(() => validateConversationControl(method, { generation: 'other' }, context))
+    assert.throws(() => validateConversationControl(method, {}, { ...context, operationId: 'arbitrary' }))
+    for (const value of [{ [field]: false }, { [field]: true, extra: true }, {}])
+      assert.throws(() => validateConversationControlResult(method, value))
+  }
+})
 
 const room = { id: 'room-a', name: 'A', purpose: '', representativeId: null, memberIds: ['bot-a'], avatar: '' }
 const schedule = { id: 'schedule-a', kind: 'once', at: '2030-01-01', prompt: 'fixture', future: { preserved: true } }
