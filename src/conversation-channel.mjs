@@ -15,6 +15,8 @@ const safeError = error => {
     outcome: error?.outcome === 'not_accepted' ? 'not_accepted' : 'unknown',
     status: Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599 ? error.status : 503 }
 }
+const exitFailureCodes = new Set(['IPC_INVALID', 'IPC_DISCONNECTED', 'IPC_TIMEOUT', 'IPC_ACK_TIMEOUT', 'IPC_SEND_FAILED',
+  'CHILD_EXITED', 'BACKGROUND_UNCONFIRMED', 'DELIVERY_RELEASE_UNCONFIRMED', 'PROTOCOL_UNCONFIRMED'].map(code => `CONVERSATION_${code}`))
 const historyMethods = ['history.listMessages', 'history.listRoomMessages', 'history.page', 'history.recentBatch']
 const streamLane = kind => ['control', 'effect', 'event', 'diagnostic'].includes(kind) ? 'continuation' : kind
 async function encodedLength(value) {
@@ -28,7 +30,16 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
   let sequence = side === 'parent' ? -1 : 0, sent = 0, received = 0, incoming = 0, dead = false, ordinaryStreams = 0
   const pending = new Map(), running = new Map(), counts = Object.fromEntries([...kinds].map(kind => [kind, 0]))
   const inbound = { ...counts }, waiters = new Set(), budget = createConversationInputBudget(), incomingWork = new Set()
-  let streams
+  let streams, exitOriginReported = false
+  const exitOrigin = (origin, cause) => {
+    if (side !== 'child' || exitOriginReported) return
+    exitOriginReported = true
+    try {
+      const failureCode = exitFailureCodes.has(cause?.code) ? cause.code : null
+      process.stderr.write(`${JSON.stringify({ code: 'CONVERSATION_CHILD_EXIT_ORIGIN', origin, failureCode })}\n`)
+    } catch {}
+  }
+  if (side === 'child') endpoint.once('disconnect', () => exitOrigin('parent_disconnect'))
   const trackIncoming = run => {
     const work = (async () => run())()
     incomingWork.add(work)
@@ -48,6 +59,7 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
     if (dead) return
     dead = true
     const error = cause ?? conversationChannelError('CONVERSATION_IPC_DISCONNECTED')
+    exitOrigin('peer_failure', error)
     for (const task of pending.values()) { clearTimeout(task.ack); clearTimeout(task.timer); task.result.reject(error); task.admitted.reject(error); task.acknowledgement.reject(error) }
     for (const entry of running.values()) if (!entry.bodyStarted && !entry.executing) finishEntry(entry)
     for (const entry of running.values()) entry.replyReady?.reject(error)
@@ -257,7 +269,10 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
     async drainIncoming() { while (incomingWork.size) await Promise.allSettled([...incomingWork]) },
     progress: id => { const task = pending.get(id); if (task) touch(task) },
     reaped() { fail(); for (const task of pending.values()) task.completion.reject(conversationChannelError('CONVERSATION_CHILD_EXITED')); pending.clear() },
-    close() { streams.close(); if (endpoint.connected) endpoint.disconnect() },
+    close(origin) {
+      if (origin === 'exit' || origin === 'exitWriter') exitOrigin(origin === 'exit' ? 'exit_control' : 'exit_writer_control')
+      streams.close(); if (endpoint.connected) endpoint.disconnect()
+    },
     fail, snapshot: () => ({ ...counts, inbound: { ...inbound }, pending: pending.size, running: running.size, ...streams.snapshot() }),
   }
 }
