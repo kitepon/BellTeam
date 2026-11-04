@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-04T10:31:49Z",
-  "expiresAt": "2026-11-11T10:31:49Z",
+  "publishedAt": "2026-11-04T10:54:08Z",
+  "expiresAt": "2026-11-11T10:54:08Z",
   "releases": [
     {
       "componentId": "usage",
@@ -633,6 +633,52 @@
       },
       "changes": [
         "共通同時受付数と一覧profileの版情報に対応します。"
+      ]
+    },
+    {
+      "componentId": "container",
+      "sourceCommit": "80a139e74ab8231553650797fcea656dc6359b40",
+      "versionId": "sha256:758b0b9ab1632f4180fe11f4ba3d36759eb9c47cf139c3bc8ebfce8cdfacec02",
+      "platform": {
+        "os": "linux",
+        "arch": "amd64"
+      },
+      "artifact": {
+        "kind": "oci-index",
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:758b0b9ab1632f4180fe11f4ba3d36759eb9c47cf139c3bc8ebfce8cdfacec02"
+      },
+      "compatibility": {
+        "nodeMajor": null,
+        "parentProtocol": null,
+        "stateSchema": null,
+        "containerUpdate": 1
+      },
+      "changes": [
+        "専用の更新プログラムから本体を更新します。",
+        "部品の異常終了を診断へ保存します。"
+      ]
+    },
+    {
+      "componentId": "container",
+      "sourceCommit": "80a139e74ab8231553650797fcea656dc6359b40",
+      "versionId": "sha256:758b0b9ab1632f4180fe11f4ba3d36759eb9c47cf139c3bc8ebfce8cdfacec02",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "oci-index",
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:758b0b9ab1632f4180fe11f4ba3d36759eb9c47cf139c3bc8ebfce8cdfacec02"
+      },
+      "compatibility": {
+        "nodeMajor": null,
+        "parentProtocol": null,
+        "stateSchema": null,
+        "containerUpdate": 1
+      },
+      "changes": [
+        "専用の更新プログラムから本体を更新します。",
+        "部品の異常終了を診断へ保存します。"
       ]
     }
   ],
