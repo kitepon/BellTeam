@@ -132,7 +132,14 @@ final class UpdateStore: ObservableObject {
 
     /// 計画を実行する。要求IDは送信前に保存し、結果が確定するまで同じ要求を照会する。
     func execute(confirmContainerRestart: Bool) async {
-        guard let plan, !busy, !plan.impact.containerRestart || confirmContainerRestart else { return }
+        guard let plan, !busy, plan.capability.supported, !plan.impact.containerRestart || confirmContainerRestart else { return }
+        // 結果を確定できていない要求と同じ計画は、もう一度実行しない。利用者が取り直した別の計画だけを実行する。
+        let unsettledPlans = Set(history.filter { historyResults[$0.requestId]?.isSettled != true }.compactMap(\.planId))
+            .union(requestID == nil ? [] : [defaults.string(forKey: planKey)].compactMap { $0 })
+        guard !unsettledPlans.contains(plan.planId) else {
+            message = "この計画は、前の要求の結果を確認できていません。同じ計画では実行しません。新しい計画を取得してください。"
+            return
+        }
         let started = epoch
         // 結果を確定できていない前の要求は、消さずに過去の要求として照会を続ける。
         keepInHistory(note: nil)

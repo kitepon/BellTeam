@@ -207,6 +207,24 @@ final class UpdateStoreTests: XCTestCase {
         XCTAssertEqual(UpdateProtocol.count(method: "POST", path: "/api/updates/operations"), 1, "自動で再送しない")
     }
 
+    func testTheSameUnconfirmedPlanIsNotExecutedAgain() async throws {
+        let (store, _) = try makeStore { request in
+            switch (request.method, request.path) {
+            case ("POST", "/api/updates/plans"):
+                return .json(200, ["plan": (try UpdateFixtures.examples()["restart_required"]!["plans"] as! [[String: Any]])[0]])
+            case ("POST", "/api/updates/operations"): return .fail(.notConnectedToInternet)
+            default: return .fail(.notConnectedToInternet)
+            }
+        }
+        await store.makePlan(componentID: nil)
+        await store.execute(confirmContainerRestart: true)
+        let first = try XCTUnwrap(store.requestID)
+        await store.execute(confirmContainerRestart: true)
+        XCTAssertEqual(UpdateProtocol.count(method: "POST", path: "/api/updates/operations"), 1, "同じ未確定の計画は再実行しない")
+        XCTAssertEqual(store.requestID, first)
+        XCTAssertTrue(try XCTUnwrap(store.message).contains("同じ計画では実行しません"))
+    }
+
     func testInventoryWithAnUnknownValueIsShownAsAnInvalidResponse() async throws {
         let (store, _) = try makeStore { _ in
             var example = try UpdateFixtures.examples()["running"]!
