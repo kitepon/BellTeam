@@ -36,6 +36,8 @@ flowchart TD
 | Cursor更新 | `update-cursor.sh → cursor-update-entrypoint.sh` | normalized project/volume名で使い捨てcontainer。空envの固定入口から公式update。BellTeam本体の環境や資格fileを読み出さない |
 | cleanup | installerのtrap | 一時staging/probeを除く。停止を試みる段階以後は保存世代を消さない。自動的に別imageを起こすrollbackはない |
 
+起動の`compose up --wait`は最大300秒で打ち切る。healthcheckの起動猶予120秒と、その後の判定を待つ有限上限であり、起動時間の保証ではない。unhealthy・container終了・期限超過の非0はそのまま返し、保存世代を保持する。通常更新とrecoverに共通で、後発healthyによって元installerの失敗を成功へ書き換えない。
+
 ## 状態移行の三つの責任
 
 ```mermaid
