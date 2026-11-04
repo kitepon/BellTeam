@@ -274,6 +274,8 @@ Owner権限は公開HTTPの既authorize成功後だけ、PATCH ownerとPUT user-
 
 ## members投影の原子的採用（結合候補）
 
+HTTP一覧の`avatar=omit`は`listForClient({omitAvatars:true})`から同`profiles.read`のACK済みsnapshotを一回読む。4avatarVersionを画像空文字とともにそのまま返し、各profileの再読取を省く。旧子のversion未供給時だけ既完全profile経路へ戻し、省略以外は元の画像読取を維持する。facadeの`clientListingState`は表示投影のactive/pending/absentを返し、HTTPの全await後再確認で削除中を保持し退役済みを外す。認可は既fresh readMemberのまま。新子が送るversion fieldは旧親の閉schemaで拒否されるため、導入時は同source builtin親子を一緒に反映する。
+
 ```mermaid
 flowchart LR
   Channel[runtime: initialize又はlive leaseを検証] --> Projection[members-projection.accept / 作者DTO検証]

@@ -1,13 +1,14 @@
 import { readCurrentWork } from '../current-work-contract.mjs'
 import { json, readJson } from '../http-response.mjs'
 import { recentTimeline } from '../timeline-index.mjs'
-import { avatarVersion, listAvatar, sendAvatar } from '../http-assets.mjs'
+import { avatarVersion, sendAvatar } from '../http-assets.mjs'
 
 export function createMemberProfileApi({ bots, transport, administration, memory, characterSheets, sources, store }) {
   const readMember = id => bots.readMember ? bots.readMember(id) : bots.get(id)
   return async (request, response, url) => {
     if (request.method === 'GET' && url.pathname === '/api/bots') {
-      const all = bots.listForClient ? await bots.listForClient() : [...bots.values()]
+      const omitAvatars = url.searchParams.get('avatar') === 'omit'
+      const all = bots.listForClient ? await bots.listForClient({ omitAvatars }) : [...bots.values()]
       const listingState = id => bots.clientListingState?.(id)
         ?? (bots.isDeleting?.(id) ? 'pending' : bots.has(id) ? 'active' : 'absent')
       const deleting = bot => bot.deleting || listingState(bot.id) === 'pending'
@@ -19,9 +20,10 @@ export function createMemberProfileApi({ bots, transport, administration, memory
         const last = recentTimeline(await sources('bots', bot.id, views?.get(bot.id)))
         const application = administration.view?.(bot)?.configurationApplication
         const avatars = {}
-        for (const field of ['avatarLarge', 'avatarSource', 'avatarLargeSource']) {
-          avatars[field] = url.searchParams.get('avatar') === 'omit' ? '' : bot[field] ?? ''
-          avatars[`${field}Version`] = avatarVersion(field === 'avatarLarge' ? bot[field] || bot.avatar : bot[field])
+        for (const field of ['avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource']) {
+          avatars[field] = omitAvatars ? '' : bot[field] ?? ''
+          avatars[`${field}Version`] = omitAvatars && bot[`${field}Version`] !== undefined ? bot[`${field}Version`]
+            : avatarVersion(field === 'avatarLarge' ? bot[field] || bot.avatar : bot[field])
         }
         return {
           id: bot.id,
@@ -37,7 +39,6 @@ export function createMemberProfileApi({ bots, transport, administration, memory
           speechStyle: bot.speechStyle ?? '',
           position: bot.position ?? '',
           role: bot.role ?? '',
-          ...listAvatar(bot.avatar, url),
           ...avatars,
           avatarCrop: bot.avatarCrop ?? null,
           avatarLargeCrop: bot.avatarLargeCrop ?? null,
