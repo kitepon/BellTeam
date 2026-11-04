@@ -1,3 +1,4 @@
+import { createModuleChildRestart, reportModuleChildExit, observeModuleChild } from './module-child-restart.mjs'
 import { spawn } from 'node:child_process'
 import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
@@ -36,10 +37,24 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
   let instance = null, currentVersionId = null, previousVersionId = null, builtinSourceCommit = null
   let available = false, exchanging = false, phase = 'unavailable', initialized = false, closed = false
   let operation = null, closing = null, update = null, draining = null, cancellation = null
+  const recovery = createModuleChildRestart(async () => {
+    await operation?.catch(() => {})
+    if (closed || instance || !initialized) return
+    const perform = async signal => {
+      const ticket = membersAdmission.close()
+      await membersAdmission.drain(ticket)
+      await prepare(currentVersionId, undefined, signal)
+      const target = await launch(currentVersionId, ticket, signal)
+      try { await resume(target, ticket) }
+      catch (error) { await killUnadmitted(target); throw error }
+    }
+    await exclusive(signal => exchangeMutex ? exchangeMutex.runExclusive(() => perform(signal)) : perform(signal))
+  })
   const snapshot = () => ({ currentVersionId, previousVersionId, currentTarget: currentVersionId === null ? 'builtin' : 'release',
     builtinSourceCommit, available, exchanging, phase, generation: membersAdmission.capture().generation, update: update ? { ...update } : null })
   const state = (next, usable = false) => {
     phase = next; available = usable
+    if (usable) recovery.running()
     try { onState(snapshot()) } catch {}
   }
   const prepare = async (versionId, expectedRelease, signal) => {
@@ -78,15 +93,20 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
     membersAdmission.adopt(ticket, generation)
     onGeneration(generation)
     const child = spawn('/usr/local/libexec/bellteam-members-start', [versionId ?? 'builtin'], {
-      env: {}, stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+      env: {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
     const target = { child, ended: false, resumed: false, generation,
       channel: createMembersParentChannel(child, { generation, admission: membersAdmission,
         onEffect, onProjection, onDiagnostic, authorizeOwner }) }
+    target.stderrCodes = observeModuleChild(child)
     instance = target
-    target.end = waitMembersChildClose(child).then(() => {
-      target.ended = true; target.channel.reaped()
+    target.end = waitMembersChildClose(child).then(async result => {
+      const unexpected = target.resumed && initialized && !closed && !target.intentional
+      if (unexpected) { membersAdmission.close(); state('unavailable'); reportModuleChildExit('members', result, target.stderrCodes()) }
+      await target.channel.drainIncoming?.()
+      target.ended = true; await target.channel.reaped()
       if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
+      if (unexpected) recovery.lost()
     })
     const started = Date.now()
     try {
@@ -117,6 +137,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
     if ((await attempt).quiesced !== true) throw fail('MEMBERS_QUIESCE_FAILED')
   }
   const finishExit = async target => {
+    target.intentional = true
     let timer
     try {
       void target.channel.control('exit').catch(() => {})
@@ -235,7 +256,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
   }
   const close = () => {
     if (closing) return closing
-    closed = true; available = false; cancellation?.abort()
+    closed = true; recovery.close(); available = false; cancellation?.abort()
     if (update?.status === 'accepted') update.status = 'not_started'
     closing = (async () => {
       await operation?.catch(() => {})

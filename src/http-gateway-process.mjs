@@ -1,3 +1,4 @@
+import { createModuleChildRestart, reportModuleChildExit, observeModuleChild } from './module-child-restart.mjs'
 import { spawn } from 'node:child_process'
 import { isAbsolute, join } from 'node:path'
 import { constants } from 'node:fs'
@@ -9,6 +10,11 @@ export const GATEWAY_START_TIMEOUT_MS = 15000
 
 export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRelease, adoptionPath = null }) {
   let child = null, address = null, ending = null
+  let closed = false
+  const recovery = createModuleChildRestart(async () => {
+    if (closed || child) return
+    await start()
+  })
   let boundPort = port
   // shortcut: older assets live in this parent; persist the list to retain them across parent restarts.
   const assetVersions = new Map()
@@ -54,11 +60,13 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
     if (child) throw new Error('GATEWAY_ALREADY_STARTED')
     const requestedPort = boundPort
     const next = spawn(process.execPath, [join(root, 'src/http-gateway-entry.mjs'), socketPath, String(requestedPort), versionId ?? '', assetCatalog()], {
-      env: {}, stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+      env: {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
+    const stderrCodes = observeModuleChild(next)
     child = next
     const ended = new Promise(resolve => next.once('close', (code, signal) => {
       if (child === next) { child = null; address = null }
+      if (next.wasReady && !next.intentional && !closed) { reportModuleChildExit('web-gateway', { code, signal }, stderrCodes()); recovery.lost() }
       resolve({ code, signal })
     }))
     ending = ended
@@ -80,6 +88,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
             || typeof message.assetVersion !== 'string' || !message.assetVersion
             || versionId !== null && message.assetVersion !== versionId)
             return reject(new Error('GATEWAY_START_FAILED'))
+          next.wasReady = true
           address = message.address
           boundPort = address.port
           assetVersions.set(message.assetVersion, root)
@@ -89,6 +98,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
           resolve()
         })
       })
+      recovery.running()
       return address
     } catch (error) {
       next.kill('SIGKILL')
@@ -101,6 +111,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
     if (!child) return ending ?? Promise.resolve()
     if (!closing) {
       const next = child, ended = ending
+      next.intentional = true
       closing = (async () => {
         let timedOut = false
         // The gateway owns connections, never the business work behind them.
@@ -115,6 +126,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
     return closing
   }
   const start = async () => {
+    if (closed) throw new Error('GATEWAY_CLOSED')
     if (updating) throw new Error('GATEWAY_UPDATE_IN_PROGRESS')
     const startup = new AbortController()
     updating = startup
@@ -140,6 +152,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
     } finally { if (updating === startup) updating = null }
   }
   const close = () => {
+    closed = true; recovery.close()
     updating?.abort()
     return stop()
   }

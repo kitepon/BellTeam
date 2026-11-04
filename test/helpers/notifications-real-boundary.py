@@ -91,7 +91,7 @@ def run_fixture(image, output, supply):
         paths = ['scripts/install-web-gateway-release.py', 'scripts/install-notifications-release.py',
                  'scripts/verify-notifications.py', 'scripts/module_artifact_verifier.py', 'scripts/web_gateway_artifact.py',
                  'src/notifications-install-plan.mjs', 'src/web-gateway-install-plan.mjs',
-                 'src/notifications-release.mjs', 'src/web-gateway-release.mjs', 'src/notifications-process.mjs',
+                 'src/notifications-release.mjs', 'src/web-gateway-release.mjs', 'src/notifications-process.mjs', 'src/module-child-restart.mjs',
                  'src/notifications-ipc.mjs', 'src/notifications-locks.mjs', 'src/notifications-entry.mjs',
                  'src/usage/notifications.mjs', 'src/usage/notifications-dispatcher.mjs', 'src/push-notifications.mjs',
                  'src/web-push-notifications.mjs', 'src/web-push-provider.mjs', 'src/usage/web-push-schema.mjs',

@@ -171,3 +171,17 @@ test('採用recordを書けない時は新子を回収して旧版へ戻す', { 
   assert.equal(gateway.versionId, null)
   assert.match(await (await fetch(base)).text(), /<h1>one<\/h1>/)
 })
+
+
+test('automatic recovery restarts the same gateway version and port', async t => {
+  const { releases, socketPath } = await fixture(t)
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot })
+  t.after(() => gateway.close())
+  const address = await gateway.start(), oldPid = gateway.pid
+  process.kill(oldPid, 'SIGKILL')
+  await new Promise(resolve => setTimeout(resolve, 1400))
+  assert.notEqual(gateway.pid, oldPid)
+  assert.ok(gateway.pid)
+  assert.equal(gateway.address.port, address.port)
+  assert.equal((await fetch(`http://127.0.0.1:${address.port}/`)).status, 200)
+})

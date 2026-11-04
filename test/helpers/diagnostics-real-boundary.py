@@ -85,7 +85,7 @@ def run_fixture(image, output, supply):
         assert im['Config']['Entrypoint'] == ['/usr/local/libexec/bellteam-server-start']
         image_id = im['Id']; report['imageId'] = image_id
         save(output / 'allocation.json', dict(prefix=prefix, work=str(work), volumes=volumes, imageId=image_id))
-        paths = ['src/diagnostics-process.mjs', 'src/diagnostics-facade.mjs', 'src/module-process.mjs', 'src/module-exchange-diagnostic.mjs',
+        paths = ['src/diagnostics-process.mjs', 'src/diagnostics-facade.mjs', 'src/module-process.mjs', 'src/module-child-restart.mjs', 'src/module-exchange-diagnostic.mjs',
                  'src/module-release.mjs', 'src/diagnostics-entry.mjs', 'src/diagnostics-dispatcher.mjs',
                  'src/diagnostics.mjs', 'src/diagnostics-install-plan.mjs', 'scripts/install-diagnostics-release.py']
         binding = {}

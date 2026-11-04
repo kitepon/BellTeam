@@ -185,7 +185,7 @@ def run_fixture(image, output, supply):
         save(output / 'allocation.json', dict(prefix=prefix, work=str(work), volumes=volumes, imageId=image_id))
         paths = ['scripts/install-web-gateway-release.py', 'scripts/verify-web-gateway.py', 'scripts/web_gateway_artifact.py',
                  'src/web-gateway-install-plan.mjs', 'src/web-gateway-release.mjs', 'src/application-runtime.mjs',
-                 'src/http-application-api.mjs', 'src/web-gateway-control.mjs', 'src/http-gateway-process.mjs', 'src/http-gateway-entry.mjs']
+                 'src/http-application-api.mjs', 'src/web-gateway-control.mjs', 'src/http-gateway-process.mjs', 'src/module-child-restart.mjs', 'src/http-gateway-entry.mjs']
         binding = {}
         for name in paths + ['install.sh']:
             raw = docker('run', '--pull', 'never', '--rm', '--network', 'none', '--read-only', '--entrypoint', '/bin/cat', image_id, '/app/' + name).stdout

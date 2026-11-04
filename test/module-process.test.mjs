@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { ConversationLifetimes } from '../src/conversation-lifetimes.mjs'
 import { createModuleProcess } from '../src/module-process.mjs'
 import { validateModuleExchangeDiagnostic } from '../src/module-exchange-diagnostic.mjs'
 import { createModuleExchangeMutex } from '../src/module-exchange-mutex.mjs'
@@ -27,7 +28,7 @@ async function fixture(t, options = {}) {
     child.emit('exit', 0, null); child.emit('close', 0, null)
   }
   const process = createModuleProcess({ component: 'diagnostics', root, investigationsFile: '/fixture/notes.json',
-    exchangeMutex: options.exchangeMutex,
+    exchangeMutex: options.exchangeMutex, admission: options.admission,
     exportHandoff: () => behavior.export?.() ?? Promise.resolve(undefined),
     prepareRelease: async (versionId, expected) => {
       preparations.push({ versionId, expected })
@@ -57,6 +58,7 @@ async function fixture(t, options = {}) {
       control: async (method, params) => {
         controls.push({ child, method, params })
         if (method === 'initialize') {
+          await behavior.initialize?.(child)
           if (child.versionId && behavior.failNew) throw behavior.restoreError ?? new Error('fixture restore failed')
           assert.equal(params.generation, generation)
           return {}
@@ -69,7 +71,7 @@ async function fixture(t, options = {}) {
         if (method === 'quiesce') return behavior.quiesceWait ?? { quiesced: behavior.quiesce }
         if (method === 'exit') { if (!behavior.holdExit) queueMicrotask(() => reap(child)); return { closed: true } }
       },
-      reaped: () => { child.reaped = true },
+      reaped: async () => { await behavior.reaping?.(); child.reaped = true },
       drainIncoming: () => behavior.parentWork?.() ?? Promise.resolve(),
       }
     },
@@ -250,4 +252,65 @@ test('rollback adoption alone is not success when old resume fails',async t=>{
 test('pre-candidate quiesce failure does not fabricate candidate diagnostics',async t=>{
  const f=await fixture(t);await f.process.start();f.behavior.quiesce=false;
  await assert.rejects(f.process.replace(sha),error=>{assert.equal(error.moduleDiagnostic,undefined);assert.equal(f.children.length,1);return true});
+})
+
+
+test('automatic recovery waits for asynchronous reaping and does not replay requests', async t => {
+  const f = await fixture(t); await f.process.start()
+  const done = deferred(), old = f.process.snapshot().generation
+  f.behavior.reaping = () => done.promise
+  f.reap(f.children[0]); await turn()
+  assert.equal(f.children[0].reaped, undefined)
+  assert.equal(f.process.snapshot().available, false)
+  done.resolve(); await new Promise(resolve => setTimeout(resolve, 1100))
+  assert.equal(f.children.length, 2)
+  assert.equal(f.children[0].reaped, true)
+  assert.equal(f.process.snapshot().available, true)
+  assert.notEqual(f.process.snapshot().generation, old)
+  assert.equal(f.requests.length, 0)
+})
+
+test('automatic recovery cancels pending restart when parent closes', async t => {
+  const f = await fixture(t); await f.process.start()
+  f.reap(f.children[0]); await turn(); await f.process.close()
+  await new Promise(resolve => setTimeout(resolve, 1100))
+  assert.equal(f.children.length, 1)
+  assert.equal(f.process.snapshot().phase, 'closed')
+})
+
+
+test('automatic recovery uses real generation recovery once then closed candidate adopt', async t => {
+  const gate = new ConversationLifetimes('initial')
+  const f = await fixture(t, { admission: gate }); await f.process.start()
+  const root = gate.enter()
+  const delivery = gate.registerDelivery(root, { deliveryId: 'delivery-a', target: 'bot-a', kinds: ['delivery.words'], dispatch: async () => ({ applied: false }) })
+  await assert.rejects(gate.callbacks(delivery).onInterim(['old']), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
+  gate.finish(delivery); gate.finish(root); await turn()
+  f.behavior.initialize = () => { if (f.children.length === 2) throw new Error('candidate initialization failure') }
+  f.reap(f.children[0]); await new Promise(resolve => setTimeout(resolve, 3300))
+  assert.equal(f.children.length, 3)
+  assert.equal(f.process.snapshot().available, true)
+  assert.equal(gate.snapshot().unconfirmed, false)
+  assert.equal(gate.snapshot().closed, false)
+  assert.equal(f.requests.length, 0)
+})
+
+
+test('automatic recovery never replays an accepted request and waits its real completion', async t => {
+  const f = await fixture(t); await f.process.start()
+  const done = deferred(), result = Promise.resolve('accepted')
+  result.completion = done.promise; f.behavior.request = () => result
+  assert.equal(await f.process.request('record', {}), 'accepted')
+  f.reap(f.children[0]); await new Promise(resolve => setTimeout(resolve, 1100))
+  assert.equal(f.children.length, 1)
+  done.resolve(); await turn(); await turn()
+  assert.equal(f.children.length, 2)
+  assert.equal(f.requests.length, 1)
+})
+
+test('automatic recovery excludes intentional exchange exits', async t => {
+  const f = await fixture(t); await f.process.start(); await f.process.replace(sha)
+  await new Promise(resolve => setTimeout(resolve, 1100))
+  assert.equal(f.children.length, 2)
+  assert.equal(f.process.snapshot().currentVersionId, sha)
 })

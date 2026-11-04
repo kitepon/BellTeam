@@ -94,7 +94,7 @@ def run_fixture(image, output, supply):
         save(output / 'allocation.json', dict(prefix=prefix, work=str(work), volumes=volumes, imageId=image_id))
         paths = ['src/application-runtime.mjs', 'src/application-services.mjs', 'src/conversation-assembly.mjs',
                  'src/conversation-process.mjs', 'src/conversation-ipc.mjs', 'src/conversation-facade.mjs',
-                 'src/conversation-lifetimes.mjs', 'src/module-process.mjs', 'src/module-exchange-diagnostic.mjs', 'src/module-release.mjs',
+                 'src/conversation-lifetimes.mjs', 'src/module-process.mjs', 'src/module-child-restart.mjs', 'src/module-exchange-diagnostic.mjs', 'src/module-release.mjs',
                  'src/conversation/dispatcher.mjs', 'src/conversation-install-plan.mjs',
                  'scripts/install-conversation-release.py', 'scripts/module_artifact_verifier.py',
                  'scripts/web_gateway_artifact.py', 'config/conversation-verification.json', 'src/execution-assembly.mjs',

@@ -1,3 +1,4 @@
+import { createModuleChildRestart, reportModuleChildExit, observeModuleChild } from './module-child-restart.mjs'
 import { moduleExchangeDiagnostic } from './module-exchange-diagnostic.mjs'
 import { spawn } from 'node:child_process'
 import { constants } from 'node:fs'
@@ -23,7 +24,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   initializeParams = ({ generation, mode }) => ({ generation, mode }),
   exportHandoff = async () => undefined, admission, canContinue = () => false,
   onGeneration = () => {}, onState = () => {}, investigationsFile = null,
-  startPaused = false, exchangeMutex = null, spawnProcess = spawn }) {
+  startPaused = false, restoreAfterRestart = async () => {}, exchangeMutex = null, spawnProcess = spawn }) {
   if (!['conversation', 'usage', 'diagnostics'].includes(component) || typeof root !== 'string'
     || typeof createChannel !== 'function' || typeof prepareRelease !== 'function' || typeof validateReady !== 'function'
     || component !== 'diagnostics' && investigationsFile !== null
@@ -34,6 +35,23 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   let instance = null, currentVersionId = null, previousVersionId = null, generation = null
   let initialized = false, closed = false, available = false, phase = 'unavailable', exchanging = false
   let operation = null, closing = null, update = null, reservation = null, startingReservation = false
+  const recovery = createModuleChildRestart(async () => {
+    await operation?.catch(() => {})
+    if (closed || instance || !initialized) return
+    const perform = async () => {
+      if (closed || instance) return
+      const ticket = closeAdmission()
+      await waitActive()
+      await prepare(currentVersionId)
+      state('starting')
+      const target = await launch(currentVersionId, ticket, 'restore', undefined, () => {}, true)
+      try {
+        await restoreAfterRestart(target.channel, target.generation)
+        await resume(target, ticket)
+      } catch (error) { await stopUnadmitted(target); throw error }
+    }
+    await exclusive(signal => exchangeMutex ? exchangeMutex.runExclusive(() => perform(signal)) : perform(signal))
+  })
   const active = new Set()
   const snapshot = () => ({ currentVersionId, previousVersionId, generation, available, phase, exchanging,
     currentTarget: currentVersionId === null ? 'builtin' : 'release',
@@ -42,6 +60,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     update: update ? { ...update } : null })
   const state = (next, usable = false) => {
     phase = next; available = usable
+    if (usable) recovery.running()
     try { onState(snapshot()) } catch {}
   }
   const track = promise => {
@@ -84,10 +103,11 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     target.child.kill('SIGKILL')
     await target.end
   }
-  const launch = async (versionId, ticket, mode, handoff, markStage = () => {}) => {
+  const launch = async (versionId, ticket, mode, handoff, markStage = () => {}, recovering = false) => {
     if (closed || instance) throw fail('NOT_ACCEPTING')
     const nextGeneration = `${versionId ?? 'builtin'}:${randomUUID()}`
-    admission?.adopt(ticket, nextGeneration)
+    if (recovering && admission?.recover && ticket.generation === generation) admission.recover(ticket, generation, nextGeneration)
+    else admission?.adopt(ticket, nextGeneration)
     generation = nextGeneration
     onGeneration(nextGeneration)
     const env = component === 'diagnostics' && investigationsFile !== null
@@ -99,12 +119,16 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     // Pipes are drained without retaining or publishing arbitrary child output.
     child.stdout?.resume(); child.stderr?.resume()
     const target = { child, generation: nextGeneration, ticket, ended: false, resumed: false, channel: null }
+    target.stderrCodes = observeModuleChild(child)
     instance = target
-    target.end = waitNotificationsChildClose(child).then(async () => {
+    target.end = waitNotificationsChildClose(child).then(async result => {
+      const unexpected = target.resumed && initialized && !closed && !target.intentional
+      if (unexpected) { closeAdmission(); state('unavailable'); reportModuleChildExit(component, result, target.stderrCodes()) }
       await target.channel?.drainIncoming?.()
       target.ended = true
-      target.channel?.reaped()
+      await target.channel?.reaped()
       if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
+      if (unexpected) recovery.lost()
     })
     const started = Date.now()
     try {
@@ -140,6 +164,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       throw fail('QUIESCE_FAILED')
   }
   const finishExit = async target => {
+    target.intentional = true
     let timer
     try {
       void target.channel.control('exit').catch(() => {})
@@ -266,7 +291,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   }
   const close = () => {
     if (closing) return closing
-    closed = true; available = false; reservation?.cancel()
+    closed = true; recovery.close(); available = false; reservation?.cancel()
     closing = (async () => {
       await operation?.catch(() => {})
       const target = instance

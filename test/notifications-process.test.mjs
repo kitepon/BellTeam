@@ -19,7 +19,7 @@ async function setup(t,{mode='',prepare=async()=>{},report=async()=>{}}={}) {
   t.mock.method(childProcess,'spawn',(command,args,options)=>{
     assert.equal(command,'/usr/local/libexec/bellteam-notifications-start')
     assert.deepEqual(options.env,{})
-    assert.deepEqual(options.stdio,['ignore','inherit','inherit','ipc'])
+    assert.deepEqual(options.stdio,['ignore','pipe','pipe','ipc'])
     assert.equal(args.length,1)
     const child=spawn(process.execPath,[fixture,args[0],args[0]===ids.bad?'bad-initialize':args[0]===ids.hang?'hang-initialize':mode,root],options)
     children.push(child);return child
@@ -154,4 +154,16 @@ test('reservation completion follows the actual replace or cancellation without 
   const count=children.length,cancelled=controller.reserve(ids.b)
   cancelled.cancel();await cancelled.completion;cancelled.start()
   assert.equal(children.length,count)
+})
+
+
+test('automatic recovery of the adopted child preserves state without parent recreation', async t => {
+  const x = await setup(t); await x.controller.start()
+  const before = x.controller.snapshot()
+  x.children[0].kill('SIGKILL')
+  await new Promise(resolve => setTimeout(resolve, 1400))
+  assert.equal(x.children.length, 2)
+  assert.equal(x.controller.snapshot().available, true)
+  assert.equal(x.controller.snapshot().currentVersionId, before.currentVersionId)
+  await x.controller.close()
 })
