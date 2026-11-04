@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import BellBot
 
 /// サーバーの有限例13種（Fixtures/update-examples.json。test/apple-update-fixtures.test.mjsが同一性を守る）をdecodeする。
@@ -280,6 +281,49 @@ final class UpdateStoreTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
         return (UpdateStore(api: api, defaults: defaults), defaults)
+    }
+}
+
+/// Update画面の標準表示。状態ごとの見出しと、実画面の画像（試験結果に添付）を確かめる。
+@MainActor
+final class UpdateViewTests: XCTestCase {
+    func testEachServerStateShowsOneSimpleStatus() async throws {
+        let expected = ["restart_required": "更新があります", "no_update": "最新の状態です", "verified_completed": "更新しました",
+                        "disconnected_unknown": "更新の結果を確認中", "execution_failed": "更新できませんでした",
+                        "accepted": "更新しています", "published_unavailable": "更新を確認できませんでした"]
+        for (name, title) in expected.sorted(by: { $0.key < $1.key }) {
+            let store = try await store(for: name)
+            let content = UpdateContent(updates: store)
+            XCTAssertEqual(content.heroText.1, title, name)
+            for width in [390.0, 820.0] {
+                let renderer = ImageRenderer(content: content.background(BellTheme.canvas).frame(width: width))
+                renderer.scale = 2
+                let image = try XCTUnwrap(renderer.uiImage, name)
+                let attachment = XCTAttachment(image: image)
+                attachment.name = "update-\(name)-\(Int(width))"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+        }
+    }
+
+    private func store(for name: String) async throws -> UpdateStore {
+        let example = try XCTUnwrap(try UpdateFixtures.examples()[name])
+        UpdateProtocol.reset { request in
+            request.path == "/api/updates" ? .json(200, example) : .json(404, ["error": "NOT_FOUND"])
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [UpdateProtocol.self]
+        let session = URLSession(configuration: configuration)
+        addTeardownBlock { session.invalidateAndCancel() }
+        let api = BellAPI(baseURL: URL(string: "https://update.test.invalid")!, session: session,
+                          diagnostics: BellDiagnostics(onReport: { _, _, _, _ in }), cookieStorage: configuration.httpCookieStorage!)
+        let suite = "update-view-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
+        let store = UpdateStore(api: api, defaults: defaults)
+        await store.refresh()
+        return store
     }
 }
 

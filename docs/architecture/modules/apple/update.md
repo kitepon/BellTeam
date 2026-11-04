@@ -32,6 +32,26 @@ flowchart TD
 | 診断 | 既存`BellDiagnostics.report` | 取得は`.read`、受付不明のPOSTは`.write`。4xxは既存規則で報告しない |
 | 接続先・ログアウト | `AppStore.setServerAddress`・`signOut` | `updates.reset()`で前の接続先の表示を捨てる。保存requestIdは端末に残る |
 
+## 標準画面（製品契約 `update-page-product-design-20261104.md`）
+
+`Views/UpdateView.swift` の `UpdateContent`。最初に見せるのは「更新があるか」「何がよくなるか」「次に押すもの」の三点だけで、機能の一覧は標準画面に並べない。
+
+| 状態（`UpdateContent.status`） | 見出し | 主ボタン |
+| --- | --- | --- |
+| 取得中 | 確認しています | なし |
+| inventoryを取得できない、比較を確認できない | 更新を確認できませんでした | 状況を確認（GET） |
+| 受け付け済みで進行中 | 更新しています（段階を一文で） | なし |
+| admission・phaseがunknown、照会できていない保存ID | 更新の結果を確認中 | 状況を確認（同じIDのGET） |
+| 直近の操作が失敗 | 更新できませんでした（サーバーの説明） | 更新できる対象があれば「もう一度更新する」（新しい計画を明示的に取る）、なければ状況を確認 |
+| 更新できる対象がある | 更新があります | 更新する（対象が1つならその計画、複数なら短い名前の候補から選ぶ） |
+| 直近の操作がcompleted | 更新しました（実際の対象名） | なし |
+| すべて公開版と一致 | 最新の状態です | なし |
+
+- 計画を取ったら「更新の前に」で対象名・停止の影響を見せ、再起動が要る時は確認を必須にして「更新を始める」。「やめる」は計画を閉じるだけ（`UpdateStore.discardPlan`）。
+- 「更新内容」は、更新できる・失敗した時だけ、公開版の`changes`をそのまま重複なしで出す。作文しない。
+- 技術情報（版・比較の理由・要求ID・計画ID・内部の符号・保持している操作結果）は、閉じた「詳細」の中だけに置く。
+- 幅は最大560ptの一枚にまとめ、広い画面でも横へ広げない。
+
 ## SSEとpush
 
 - SSE：`type=updates`（topics `["updates"]`、`all: true`）は`AppStore.startEvents`の`updates`分岐で`updates.refresh()`だけを呼ぶ（共通一覧は再取得しない）。`ready`（接続・再接続・前面化後の再接続）でも取り直す。`BellEventTopic.updates`は`messages`のtopicとして届いた場合の対応。
