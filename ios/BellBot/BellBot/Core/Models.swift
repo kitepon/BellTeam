@@ -490,7 +490,36 @@ struct FeatureSetting: Decodable, Identifiable, Equatable {
         return switch status { case "enabled": "有効"; case "disabled": "無効"; default: "未設定" }
     }
 }
-struct FeatureSettingsResponse: Decodable { let settings: [FeatureSetting] }
+struct FeatureSettingsResponse: Decodable {
+    let settings: [FeatureSetting]
+    /// 欠けている時は、この版のサーバーが要約のAIの設定を持たない。未設定（revision・selectionともnull）とは別。
+    let backgroundAgent: BackgroundAgentRecord?
+}
+/// チーム全体で一人だけ、メンバーの仕事の要約を書くAIの設定。
+struct BackgroundAgentRecord: Decodable, Equatable {
+    let revision: String?
+    let selection: BackgroundAgentSelection?
+}
+struct BackgroundAgentSelection: Codable, Equatable {
+    let harness: String
+    let model: String
+    let reasoningEffort: String
+}
+struct BackgroundAgentUpdate: Encodable {
+    let expectedRevision: String?
+    let selection: BackgroundAgentSelection
+
+    // 初回のexpectedRevisionはnullを明示する（キーの省略は入力不正）。
+    func encode(to encoder: Encoder) throws {
+        enum Key: String, CodingKey { case expectedRevision, harness, model, reasoningEffort }
+        var container = encoder.container(keyedBy: Key.self)
+        try container.encode(expectedRevision, forKey: .expectedRevision)
+        try container.encode(selection.harness, forKey: .harness)
+        try container.encode(selection.model, forKey: .model)
+        try container.encode(selection.reasoningEffort, forKey: .reasoningEffort)
+    }
+}
+struct BackgroundAgentResponse: Decodable { let backgroundAgent: BackgroundAgentRecord }
 struct FeatureSettingResponse: Decodable { let setting: FeatureSetting }
 struct FeatureSettingUpdate: Encodable { let enabled: Bool; let values: [String: String] }
 struct APIAcknowledgement: Decodable {}

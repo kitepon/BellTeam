@@ -63,6 +63,7 @@ struct SettingsView: View {
                         .bellCard()
                         HarnessAuthenticationList()
                         FeatureSettingsList()
+                        BackgroundAgentSettingsCard()
                         SubscriptionCard()
                         VStack(alignment: .leading, spacing: 13) {
                             Label("通知", systemImage: "bell.badge")
