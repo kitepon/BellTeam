@@ -60,6 +60,15 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt,
     if (result?.quiesced !== true || performance.now() - started > 60_000) throw fail('QUIESCE_FAILED')
     target.quiesced = true
   }
+  const resume = async target => {
+    const resumed = await within((async () => {
+      await target.quiescing?.catch(() => {})
+      if (closed || instance !== target || phase !== 'quiescing') throw fail('RESUME_FAILED')
+      return target.engine.control('resume')
+    })(), 5000, 'RESUME_FAILED')
+    if (resumed?.resumed !== true) throw fail('RESUME_FAILED')
+    target.quiesced = false; state('running', true)
+  }
   const dispose = async target => {
     if (!target) throw fail('CLEANUP_UNCONFIRMED')
     if (target.initialized && !target.quiesced) await quiesce(target)
@@ -74,12 +83,13 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt,
   }
   const exclusive = action => {
     if (operation) return Promise.reject(fail('UPDATE_IN_PROGRESS', 409))
-    const pending = Promise.resolve().then(() => exchangeMutex ? exchangeMutex.runExclusive(action) : action())
+    const pending = Promise.resolve().then(action)
     operation = pending
     void pending.finally(() => { if (operation === pending) operation = null }).catch(() => {})
     return pending
   }
-  const start = () => exclusive(async () => {
+  const exchange = action => exclusive(() => exchangeMutex ? exchangeMutex.runExclusive(action) : action())
+  const start = () => exchange(async () => {
     if (started || instance || closed) throw fail('NOT_ACCEPTING')
     started = true; state('starting')
     try {
@@ -104,7 +114,7 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt,
     if (requested !== 'builtin' && (requested === null || !valid(versionId))) return Promise.reject(fail('VERSION_INVALID', 400))
     if (!available || closed || reservation && !startingReservation) return Promise.reject(fail('NOT_ACCEPTING'))
     const expected = expectedRelease ? structuredClone(expectedRelease) : undefined
-    return exclusive(async () => {
+    return exchange(async () => {
       const nextFactory = await load(versionId, { expectedRelease: expected })
       if (closed) throw fail('CLOSED')
       if (currentVersionId === versionId) return snapshot()
@@ -116,13 +126,7 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt,
         handoff = old.engine.exportState()
       } catch (error) {
         try {
-          const resumed = await within((async () => {
-            await old.quiescing?.catch(() => {})
-            if (closed || instance !== old || phase !== 'quiescing') throw fail('RESUME_FAILED')
-            return old.engine.control('resume')
-          })(), 5000, 'RESUME_FAILED')
-          if (resumed?.resumed !== true) throw fail('RESUME_FAILED')
-          old.quiesced = false; state('running', true)
+          await resume(old)
         } catch { state('unavailable') }
         throw error
       }
@@ -191,7 +195,39 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt,
     }
     state('closed')
   })()
-  return Object.freeze({ start, replace, reserve, snapshot, close,
+  const withInstallReconciliationProof = callback => {
+    if (typeof callback !== 'function') return Promise.reject(fail('REQUEST_INVALID', 400))
+    if (reservation) return Promise.reject(fail('UPDATE_IN_PROGRESS', 409))
+    return exclusive(async () => {
+      const target = requireCurrent(), expectedGeneration = target.generation
+      if (typeof target.engine.assertQuiescent !== 'function') throw fail('PROOF_UNAVAILABLE')
+      state('quiescing')
+      let valid = true
+      const assertQuiescent = () => {
+        if (!valid || closed || instance !== target || target.generation !== expectedGeneration
+          || phase !== 'quiescing' || available || !target.quiesced) throw fail('PROOF_UNAVAILABLE')
+        if (target.engine.assertQuiescent() !== true) throw fail('PROOF_UNAVAILABLE')
+        return true
+      }
+      try {
+        await quiesce(target)
+        assertQuiescent()
+        const result = callback(assertQuiescent)
+        let value
+        try { value = await result }
+        finally { await (result?.completion ?? result) }
+        assertQuiescent()
+        return value
+      } finally {
+        valid = false
+        if (!closed) {
+          try { await resume(target) }
+          catch (error) { state('unavailable'); throw error }
+        }
+      }
+    })
+  }
+  return Object.freeze({ start, replace, reserve, snapshot, close, withInstallReconciliationProof,
     dispatch(request) {
       try { return track(requireCurrent().engine.dispatch(request)) } catch (error) { return Promise.reject(error) }
     },

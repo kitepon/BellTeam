@@ -97,3 +97,25 @@ replaceは64桁SHA又はbuiltinだけを受け、同版要求は拒否する。�
 verifyは署名SHA→builtinの順の二回成功、三世代、保存0600と現選択、同親port/method/session、人工launch一回/send二回/設定reminder二回、保存ACK二回、失効guard二回を要求する。snapshotと各操作の返却はbool/整数だけで、本文・session・path・署名descriptorは含めない。closeは同controllerを閉じ、外側dataの削除はしない。読込/交換失敗はrejectし、保留observeはfinallyで解放する。既loader/store/readerの製品契約内で検査guestを追加し、runtimeコードは変更しない。
 
 `test/execution-native-business.test.mjs`の新4件は同期休止、既選択拒否、実builtin不在時の代替無し失敗、人工loaderでのguest制御検査。最後の1件だけ隔離子processのmodule mockから同source実factoryを返し、制御のassertを検査する。これは実loader/署名release/UID1001/両arch/image交換の成功ではない。実交換の成立範囲はセンチの外側原本から結合する。476/38aの会話sourceはこの48署名への入力に加えない。
+
+
+## 同install-ID closeの私有execution証明
+
+Root `same-install-id-reconciliation-contract-20261104.md` の初回close/fenceだけを対象とする。親Mollyの `withInstallReconciliationProof(componentId,operation)` は既共有exchangeMutexを一回外側で保持し、execution対象を同graphの `controller.withInstallReconciliationProof(operation)`、続いて同conversation固有proofへ接続し、両assertを合成する。各providerは既local operation排他だけを取る。start/replaceの共有排他は従来通り、bypass引数/token/再入機構を作らない。利用者JSON/保存scalar/診断snapshotを関数や証明へ変換しない。別component/installer worker/stage/保存writerの実barrierはそれぞれの所有者が証明する。
+
+```mermaid
+flowchart LR
+  Parent["Molly: fresh認証 / 元ID / 現同graph / 共有mutex一回"] --> Exclusive["各providerの既local operation排他"]
+  Exclusive --> Gate["新dispatch/project閉鎖 / 現instance捕捉"]
+  Gate --> Drain["既quiesce / 実native callback completion終端"]
+  Drain --> Proof["callback: 同期assertQuiescentを私有供給"]
+  Proof --> Claim["親: claim前 / runtime直前後の再検査"]
+  Claim --> End["callback実completion終端"]
+  End --> Resume["同engineだけresume / 新候補0"]
+```
+
+providerは現在のinstance/generationを捕捉し、既local排他とquiesceを使う。新engineの `assertQuiescent()` は同期で `phase=quiesced && idleNow()` の時だけtrue、他は既EXECUTION_BUSY。controllerのclosureはcallback外/親close/別instance/別generation/available/未quiescedを拒否する。元native・unknown占有/実callback/producerが一つでも残れば既drainはbusy、callback0。同旧engineをresumeし、実占有を解除しない。
+
+保持中の実available=falseを親current hashへそのまま束縛し、通常apply/planのavailable検査を変更しない。callbackは一回で、返却Promiseの `.completion` があれば同実completionまで既排他を保持する。親はclaim直前とruntime作用直前/後にassertする。provider自身もcallback前後にassertし、終了後はclosureを失効させる。遅着callbackや外部参照から新しい作用が生じた場合もidle不足で拒否する。callback失敗は伝播し、旧resume失敗はunavailable。親closeが先行するとproofは失効し、closeはprovider実終端を待つ。
+
+旧署名engineに `assertQuiescent` が無い場合はquiesce前にEXECUTION_PROOF_UNAVAILABLE。既snapshotやavailableで補完せず、新署名供給は別工程。read専用T診断、原worker quiescence、全writer/fence/認可/元IDの証明とは別の接点。provider単独で本番closeを許可しない。SDK/PTYclose/abort/本文再送/新候補/保存schema/公開広告0。
