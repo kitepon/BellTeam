@@ -154,7 +154,7 @@ struct DesktopWorkspaceView: View {
                     }
                     sectionTitle("メンバー", count: visibleBots.count).padding(.top, 16)
                     ForEach(visibleBots) { bot in
-                        row(target: .bot(bot.id), name: bot.displayName, subtitle: bot.recent?.preview ?? bot.position,
+                        row(target: .bot(bot.id), name: bot.displayName, subtitle: CurrentWork.label(bot.currentWork),
                             avatar: bot.avatar, color: BellTheme.accent(bot.color), online: bot.online,
                             working: store.workingBotIDs.contains(bot.id), fastMode: bot.fastMode)
                     }

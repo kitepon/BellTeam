@@ -20,6 +20,24 @@ struct Bot: Decodable, Identifiable, Equatable {
     var deleting: Bool? = nil
     let online: Bool
     let recent: RecentMessage?
+    var currentWork: CurrentWork? = nil
+}
+
+// 名前の下の1行。文言はWebのworkLabelと同じにする。
+struct CurrentWork: Decodable, Equatable {
+    let state: String?
+    let summary: String?
+    let summaryStatus: String?
+
+    static func label(_ work: CurrentWork?) -> String {
+        switch (work?.state, work?.summaryStatus) {
+        case ("working", "current"): return work?.summary ?? "作業中・要約未設定"
+        case ("working", "stale"): return "作業中・要約期限切れ"
+        case ("working", _): return "作業中・要約未設定"
+        case ("idle", _): return "待機中"
+        default: return "仕事状況を未取得"
+        }
+    }
 }
 
 struct Room: Decodable, Identifiable, Equatable {

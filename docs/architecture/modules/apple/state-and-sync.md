@@ -67,7 +67,7 @@ flowchart TD
 | `messages`の`.all`、その他イベント | eventRevision増加と共通一覧全取得 |
 | topic `timeline`・`queue`・`requests`・`questions` | botIds/roomIdsの全宛先へconversationChanges。timeline/requests/questionsは該当種別の名簿も再取得 |
 | topic `schedules` | IDからChatTarget集合を作りscheduleChangesへ。予定画面が対象分を取得 |
-| topic `bots`・`rooms`・`owner`・`queue` | 対応する共通資源を再取得。queueはworkingBotIDsへ |
+| topic `bots`・`rooms`・`owner`・`queue` | 対応する共通資源を再取得。queueはworkingBotIDsへ。現在の仕事の変化はbotIds付きqueueで届くため、botIdsがあればbotsも再取得する |
 | topic `settings`・`setup`・`ai-control` | 対応する状態をGET。上のイベント単体の分岐と同じ関数 |
 | 対象指定messagesを受けた時にrefreshErrorが残っている | 対象更新に進まずeventRevision増加と全取得 |
 | type不正、allがfalseでない、未知/空topic、ID配列不正、宛先が必要なのに無い | BellEvent.scopeをallにする。型列挙はBellEventTopicの11値 |
