@@ -9,6 +9,7 @@ import test from 'node:test'
 
 import { createCallBridgeServer, listenCallBridge } from '../src/call-bridge-server.mjs'
 import { BellTeamMessenger } from '../src/messenger.mjs'
+import { validateConversationRequest } from '../src/conversation/requests.mjs'
 
 function call(socketPath, method, path, body) {
   return new Promise((resolve, reject) => {
@@ -144,4 +145,23 @@ test('Aitermへの受付失敗を通話ブリッジへ成功として返さな�
     await close()
     await rm(root, { recursive: true, force: true })
   }
+})
+
+test('橋の配送はschemaを受け口で確かめ、会話の要求として受け付けられる項目だけを渡す', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-call-schema-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const socketPath = join(root, 'bridge.sock'), received = []
+  const context = { generation: 'generation-a', operationId: 'operation-a', actor: { kind: 'bridge' }, continuation: false }
+  const messenger = { receiveCallBridge: async input => {
+    validateConversationRequest('call.receive', input, context); received.push(input)
+    return { delivery: 'running', delivery_id: 'delivery-a', target: input.target_id }
+  } }
+  const close = await listenCallBridge(createCallBridgeServer({ bots: new Map(), messenger }), socketPath)
+  try {
+    const body = { schema: 'call-bridge.delivery.v1', event: 'session.message', session_id: 'session-a', target_id: 'bot-a',
+      source_system: 'local', source_id: 'bell', source_label: 'ベル', message: 'こんにちは', reply_required: true }
+    const response = await call(socketPath, 'POST', '/v0/deliver', body)
+    assert.equal(response.status, 200)
+    assert.equal(Object.hasOwn(received[0], 'schema'), false)
+  } finally { await close() }
 })
