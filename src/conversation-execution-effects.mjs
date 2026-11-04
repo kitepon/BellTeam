@@ -24,12 +24,12 @@ export function createConversationExecutionEffects({ getServices, getController,
     return entry
   }
   const effect = async (method, params, context) => {
-    admission.assertLease(context?.conversationLease, { generation: context?.generation, correlation: context?.operationId })
+    admission.assertCurrentLease(context?.conversationLease, { generation: context?.generation, correlation: context?.operationId })
     if (!(context.actualCompletion instanceof Promise) || !context.operationContext || !getController()?.callback
       || typeof context.admissionCheck !== 'function' && context.rootMethod !== 'observation.poll') invalid()
     const services = getServices(), transport = services?.transport
     const check = () => {
-      admission.assertLease(context.conversationLease, { generation: context.generation, correlation: context.operationId })
+      admission.assertCurrentLease(context.conversationLease, { generation: context.generation, correlation: context.operationId })
       context.admissionCheck?.()
       services.aiControl.assertEnabled()
     }
@@ -72,7 +72,7 @@ export function createConversationExecutionEffects({ getServices, getController,
       case 'execution.notify': case 'execution.turn': case 'execution.report': {
         check()
         admission.assertDelivery(context.conversationDelivery, { deliveryId: params.deliveryId, target: params.target })
-        admission.assertLease(context.conversationDelivery, { generation: context.generation, correlation: context.operationId })
+        admission.assertCurrentLease(context.conversationDelivery, { generation: context.generation, correlation: context.operationId })
         const deliver = async membersContext => {
           const bot = await member(params.target, membersContext)
           let recoveredExecution
@@ -106,7 +106,7 @@ export function createConversationExecutionEffects({ getServices, getController,
   effect.consumeClosure = (id, operationContext) => {
     const entry = handles.get(id)
     if (!entry || entry.kind !== 'closure' || entry.operationContext !== operationContext) invalid()
-    admission.assertLease(entry.lease, { generation: entry.generation, correlation: entry.operationId })
+    admission.assertCurrentLease(entry.lease, { generation: entry.generation, correlation: entry.operationId })
     handles.delete(id)
     return entry.value
   }

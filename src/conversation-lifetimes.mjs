@@ -7,10 +7,10 @@ const protocolError = () => Object.assign(new Error('CONVERSATION_PROTOCOL_UNCON
 
 // IPC owns the eight root slots. These references follow real work after those slots are released.
 export class ConversationLifetimes {
-  #generation; #epoch = 0; #ticket = null; #records = new WeakMap(); #active = new Set(); #operations = new Map(); #waiters = new Set(); #failed = false
+  #generation; #epoch = 0; #ticket = null; #records = new WeakMap(); #active = new Set(); #operations = new Map(); #waiters = new Set(); #failed = false; #retiredFailed = new Set(); #generations = new Set(); #closeWaiters = new Set(); #nativeUnknown = new Set()
   constructor(generation = 'builtin', { onProtocolFailure = () => {} } = {}) {
     if (!id(generation)) throw rejected()
-    this.#generation = generation; this.onProtocolFailure = onProtocolFailure
+    this.#generation = generation; this.#generations.add(generation); this.onProtocolFailure = onProtocolFailure
   }
   capture() { return Object.freeze({ generation: this.#generation, epoch: this.#epoch }) }
   assertOpen(expected = this.capture()) {
@@ -36,12 +36,17 @@ export class ConversationLifetimes {
   }
   #record(lease) {
     const record = this.#records.get(lease)
-    if (!record?.live || lease.generation !== this.#generation) throw rejected()
+    if (!record?.live) throw rejected()
     return record
   }
   assertLease(lease, { generation = lease?.generation, correlation = lease?.correlation } = {}) {
     this.#record(lease)
     if (generation !== lease.generation || correlation !== lease.correlation) throw rejected()
+    return lease
+  }
+  assertCurrentLease(lease, expected) {
+    this.assertLease(lease, expected)
+    if (lease.generation !== this.#generation) throw this.#protocol(lease)
     return lease
   }
   finish(lease) {
@@ -57,19 +62,20 @@ export class ConversationLifetimes {
     completion.then(done, done)
   }
   #release(record) {
-    if (!record.live || !record.finishRequested || record.pending.size) return
+    if (!record.live || !record.finishRequested || record.pending.size || record.nativeUnconfirmed) return
     record.live = false; this.#active.delete(record)
     if (record.kind === 'operation') this.#operations.delete(record.lease.correlation)
     else record.dispatch = null
     record.resolve(); this.#notifyDrained()
   }
   withLease(operation, { lease, expected, correlation } = {}) {
-    const owned = !lease, current = lease ? this.assertLease(lease) : this.enter(expected, correlation)
+    const owned = !lease, current = lease ? this.assertCurrentLease(lease) : this.enter(expected, correlation)
     let result
     try { result = operation(current) } catch (error) { if (owned) this.finish(current); throw error }
     return Promise.resolve(result).finally(() => { if (owned) this.finish(current) })
   }
   registerDelivery(lease, { deliveryId, target, dispatch, kinds }) {
+    this.assertCurrentLease(lease)
     const operation = this.#record(lease)
     const key = JSON.stringify([deliveryId, target])
     if (operation.kind !== 'operation' || !id(deliveryId) || !id(target) || typeof dispatch !== 'function'
@@ -98,7 +104,7 @@ export class ConversationLifetimes {
   }
   finishUnclaimedDelivery(lease) {
     const record = this.#records.get(lease)
-    if (!record || record.kind !== 'delivery' || lease.generation !== this.#generation) throw rejected()
+    if (!record || record.kind !== 'delivery') throw rejected()
     if (!record.live || record.nativeClaimed || record.finishRequested) return false
     record.finishRequested = true; this.#release(record)
     return true
@@ -109,18 +115,23 @@ export class ConversationLifetimes {
     return record.done
   }
   deliveryCompletion(lease) {
-    this.assertDelivery(lease)
-    return this.#records.get(lease).done
+    const record = this.#record(lease)
+    if (record.kind !== 'delivery') throw rejected()
+    return record.done
   }
   trackNativeContinuation(lease, receipt, completion) {
-    this.assertDelivery(lease)
-    const record = this.#records.get(lease)
-    if (!record.nativeClaimed || record.nativeContinuation || !(completion instanceof Promise)
+    const record = this.#record(lease)
+    if (record.kind !== 'delivery' || !record.nativeClaimed || record.nativeContinuation || !(completion instanceof Promise)
       || !['agent_dispatch', 'agent_steer'].includes(receipt?.mode)
       || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process) throw this.#protocol(lease)
     const native = record.nativeContinuation = { receipt, completion, pending: true }
-    const ended = () => { native.pending = false }
-    completion.then(ended, ended)
+    completion.then(() => { native.pending = false }, error => {
+      native.pending = false
+      if (error?.turnCompleted !== true) {
+        record.nativeUnconfirmed = true; this.#nativeUnknown.add(record)
+      }
+    })
+    this.trackCompletion(lease, completion)
   }
   getNativeContinuation(lease, expectedBinding) {
     const record = this.#records.get(lease)
@@ -132,6 +143,7 @@ export class ConversationLifetimes {
   }
   binding(lease, callbackKind) {
     this.assertDelivery(lease)
+    if (lease.generation !== this.#generation) throw this.#protocol(lease)
     const record = this.#records.get(lease)
     if (record.failed || !record.kinds.has(callbackKind)) throw this.#protocol(lease)
     return Object.freeze({ ...record.binding, callbackKind })
@@ -142,6 +154,7 @@ export class ConversationLifetimes {
     return lease
   }
   claimNative(lease, { deliveryId, target, kind }) {
+    this.assertCurrentLease(lease)
     this.assertDelivery(lease, { deliveryId, target })
     const record = this.#records.get(lease)
     if (record.nativeClaimed || !['turn', 'notify', 'report'].includes(kind) || record.report !== (kind === 'report')
@@ -152,7 +165,7 @@ export class ConversationLifetimes {
   supports(lease, kind) { this.assertDelivery(lease); return this.#records.get(lease).kinds.has(kind) }
   isReport(lease) { this.assertDelivery(lease); return this.#records.get(lease).report }
   #run(lease, operation) {
-    this.assertLease(lease)
+    this.assertCurrentLease(lease)
     let resolve, reject
     const completion = new Promise((yes, no) => { resolve = yes; reject = no })
     this.trackCompletion(lease, completion)
@@ -178,6 +191,7 @@ export class ConversationLifetimes {
     })
   }
   runBackground(lease, operation) {
+    this.assertCurrentLease(lease)
     this.assertDelivery(lease)
     const record = this.#records.get(lease)
     if (record.report || record.backgroundStarted || typeof operation !== 'function') throw this.#protocol(lease)
@@ -185,6 +199,7 @@ export class ConversationLifetimes {
     return this.#run(lease, async () => { try { return await operation() } catch (error) { this.#protocol(lease); throw error } finally { record.reportWindow = false } })
   }
   deriveReport(lease, { deliveryId, reason, dispatch, kinds = ['delivery.status', 'delivery.words', 'delivery.answer'] }) {
+    this.assertCurrentLease(lease)
     this.assertDelivery(lease)
     const source = this.#records.get(lease)
     if (source.report || source.reportUsed || !source.reportWindow || !['missing', 'content'].includes(reason)
@@ -210,7 +225,10 @@ export class ConversationLifetimes {
   #protocol(lease) {
     const record = this.#records.get(lease)
     // A known retired capability cannot fail the current generation; wire IDs alone confer no exemption.
-    if (record && record.lease.generation !== this.#generation) return protocolError()
+    if (record && record.lease.generation !== this.#generation) {
+      this.#retiredFailed.add(record.lease.generation)
+      return protocolError()
+    }
     const first = !this.#failed
     this.#failed = true
     const error = protocolError()
@@ -224,14 +242,25 @@ export class ConversationLifetimes {
     return this.#ticket
   }
   #assertTicket(ticket) { if (!this.#ticket || ticket !== this.#ticket) throw rejected() }
+  #unconfirmed() { return this.#failed || this.#retiredFailed.size > 0 || this.#nativeUnknown.size > 0 }
   #notifyDrained() {
-    if (this.#active.size || this.#failed) return
-    for (const waiter of this.#waiters) { clearTimeout(waiter.timer); waiter.resolve({ status: 'drained' }) }
+    if (this.#active.size) return
+    for (const waiter of this.#closeWaiters) {
+      clearTimeout(waiter.timer)
+      if (this.#unconfirmed()) waiter.reject(protocolError())
+      else waiter.resolve({ status: 'drained' })
+    }
+    this.#closeWaiters.clear()
+    for (const waiter of this.#waiters) {
+      clearTimeout(waiter.timer)
+      if (this.#unconfirmed()) waiter.reject(protocolError())
+      else waiter.resolve({ status: 'drained' })
+    }
     this.#waiters.clear()
   }
   drain(ticket, { timeoutMs = 60_000 } = {}) {
     this.#assertTicket(ticket)
-    if (this.#failed) return Promise.reject(protocolError())
+    if (this.#unconfirmed()) return Promise.reject(protocolError())
     if (!Number.isFinite(timeoutMs) || timeoutMs < 0 || timeoutMs > 60_000) throw rejected()
     if (!this.#active.size) return Promise.resolve({ status: 'drained' })
     return new Promise((resolve, reject) => {
@@ -240,17 +269,33 @@ export class ConversationLifetimes {
       this.#waiters.add(waiter)
     })
   }
+  drainForClose(ticket, { timeoutMs = 60_000 } = {}) {
+    this.#assertTicket(ticket)
+    if (!Number.isFinite(timeoutMs) || timeoutMs < 0 || timeoutMs > 60_000) throw rejected()
+    if (!this.#active.size) return this.#unconfirmed() ? Promise.reject(protocolError()) : Promise.resolve({ status: 'drained' })
+    return new Promise((resolve, reject) => {
+      const waiter = { resolve, reject, timer: null }
+      waiter.timer = setTimeout(() => { this.#closeWaiters.delete(waiter); resolve({ status: 'busy' }) }, timeoutMs)
+      this.#closeWaiters.add(waiter)
+    })
+  }
+  recoverFailedGeneration(ticket, previousGeneration, generation) {
+    this.#assertTicket(ticket)
+    if (previousGeneration !== this.#generation || !id(generation) || this.#generations.has(generation)) throw rejected()
+    if (this.#failed) this.#retiredFailed.add(previousGeneration)
+    this.#generations.add(generation); this.#generation = generation; this.#failed = false
+  }
   adopt(ticket, generation) {
     this.#assertTicket(ticket)
-    if (this.#failed || this.#active.size || !id(generation) || generation === this.#generation) throw rejected()
-    this.#generation = generation
+    if (this.#unconfirmed() || this.#active.size || !id(generation) || generation === this.#generation) throw rejected()
+    this.#generations.add(generation); this.#generation = generation
   }
   recover(ticket, previousGeneration, generation) {
     this.#assertTicket(ticket)
-    if (previousGeneration !== this.#generation || ticket.generation !== previousGeneration || this.#active.size
+    if (previousGeneration !== this.#generation || ticket.generation !== previousGeneration || this.#active.size || this.#retiredFailed.size
       || !id(generation) || generation === previousGeneration) throw rejected()
-    this.#generation = generation; this.#failed = false
+    this.#generations.add(generation); this.#generation = generation; this.#failed = false
   }
   resume(ticket) { this.#assertTicket(ticket); if (this.#failed) throw protocolError(); this.#ticket = null }
-  snapshot() { return { generation: this.#generation, closed: Boolean(this.#ticket), active: this.#active.size, unconfirmed: this.#failed } }
+  snapshot() { return { generation: this.#generation, closed: Boolean(this.#ticket), active: this.#active.size, unconfirmed: this.#unconfirmed() } }
 }

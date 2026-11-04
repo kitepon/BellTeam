@@ -439,6 +439,8 @@ flowchart LR
 
 `assert(context)`は元objectを返す。`finish(context)`は両leaseへ一度だけ終了を要求し、送信前に各所有者がtrackCompletionした実終端を早期解放しない。`withContext(operation, context?)`は未指定時だけreserveし、同期例外/Promise成功・失敗の終端で所有予約をfinishする。既contextなら入場/finish追加0。削除202の背景処理は明示reserve→背景実終端finally finishを使い、HTTP finishでは解放しない。通常会話の短いmembers準備をこの両予約でAI完走まで延長しない。
 
+故障writer退役後の新作用は`assert`/`withContext`/`forMembers`からexecutionの`assertCurrentLease`でcurrentだけに限定する。`finish`は元opaqueの`assertLease`を使い、retiredの実終端処理を保持する。登録済みcontextの拒否を`forMembers`でnullへ変換せず、`conversationAssembly.memberRequest`の新reserveへ旧参照を付け替えない。未登録のmembers leaseだけは従来どおりnullを返す。gateとmoduleOperationsの実体・authority/ALS・実completionの所有は不変、[executionの世代契約](../execution/conversation-lifetimes.md)を使う。
+
 親facadeは各controllerへ`options.operationContext`に同objectを渡す。runtimeが親enriched reverse-effectへ同参照を保持し、wireにはlease objectを出さない。各所有者がそのmoduleのlease/lifetimeを検証し、必要な跨module effectだけ元予約を共通assertで照合する。N102の安定Room facade第2引数とBelorta callerはこの元contextを伝搬する。body/actor/任意propertyから予約を補わない。
 
 `createModuleExchangeMutex().runExclusive(operation)`は交換だけの一実体。競合は固定MODULE_EXCHANGE_BUSY/409/not_accepted/not_startedで未実行としqueueを作らず、例外でも解放する。両runtime controllerへ同instanceを渡し、prepare前から交換実終端まで保持する。conversation gateのroot8slotと配送lifetime分離はexecution、channelと60秒drain/旧resume/OScloseはruntime、業務writerはconversationが持つ。

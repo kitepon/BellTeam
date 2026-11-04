@@ -40,7 +40,7 @@ export function createConversationParentChannel(child, { generation, admission, 
   const live = (id, wire) => {
     const record = records.get(id)
     check(record && isDeepStrictEqual(record.context, wire) && wire.generation === generation)
-    admission.assertLease(record.lease, { generation })
+    admission.assertCurrentLease(record.lease, { generation })
     const root = record.root ?? record
     check(isDeepStrictEqual(authorizeActor(root.method, root.options.capturedAuthority), root.context.actor))
     return record
@@ -182,7 +182,7 @@ export function createConversationParentChannel(child, { generation, admission, 
   }
   function request(method, params, options = {}, kind = 'root') {
     let lease, actor, requestId
-    try { lease = admission.assertLease(options.conversationLease, { generation }); actor = authorizeActor(method, options.capturedAuthority)
+    try { lease = admission.assertCurrentLease(options.conversationLease, { generation }); actor = authorizeActor(method, options.capturedAuthority)
       check((method === 'display.words') === (kind === 'callback'))
       validateConversationRequest(method, params, { generation, operationId: lease.correlation, actor, continuation: lease.epoch !== admission.capture().epoch }) }
     catch (cause) {
