@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { TimelineIndex, timelinePage } from '../src/timeline-index.mjs'
-import { conversationHistoryPage } from '../src/conversation/history-page.mjs'
+import { TimelineIndex, timelinePage, conversationHistoryPage } from '../src/timeline-index.mjs'
 import { validateConversationRequest } from '../src/conversation/requests.mjs'
 
 const context = { generation: 'generation-a', operationId: 'operation-a', actor: { kind: 'owner' }, continuation: false }
