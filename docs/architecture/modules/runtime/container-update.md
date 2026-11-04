@@ -62,7 +62,7 @@ catalog(componentId)はHost nativeの選択1recordだけを64KiB以内で返す�
 
 既Unix受付/別workerを再利用する。`moduleInstallCapabilities()`はHostの`moduleInstallProtocol:1`を要求し、旧Host・正式catalog未供給はfalse。`planModuleInstall({planId,catalogSha256,componentId,versionId})`は固定8componentの正式catalog/native platformだけを選ぶ。`startModuleInstall({requestId,planId})`は同startへ`confirmContainerRestart:false`、結果は既`operation(requestId)`へ。任意URL/path/envやrestart指定を増やさない。Mollyの公開operation UUIDは一つ、各install stepは耐久保存した別UUIDをstart/getへ一貫使用する。
 
-plan/start/workerでcatalog鮮度・選択target・実親CID/image/source/volume bindingを再検査する。worker受領前に現在のimmutable imageをnetwork none/UID1001/no-mountで起動し、実Node26/platform・固定installer存在・そのimageの業務互換exportと既mount plannerを確認する。helperへ渡すnormal投影はmount/name/imageとAITERM_STATE_BASEだけで、親の資格環境を渡さない。返るprivate volume名も実normalのRO control mount本人と一致させる。helperのComposeモデルをroot実行へ転用しない。
+plan/start/workerでcatalog鮮度・選択target・実親CID/image/source/volume bindingを再検査する。worker受領前に現在のimmutable imageをnetwork none/UID1001/no-mountで起動し、実Node26/platform・固定installer存在・そのimageの業務互換exportと既mount plannerを確認する。helperへ渡すnormal投影はmount/name/imageとAITERM_STATE_BASEだけで、親の資格環境を渡さない。固定Docker helperは--interactiveでこのJSON投影のstdinを接続する（TTYは使わない）。返るprivate volume名も実normalのRO control mount本人と一致させる。helperのComposeモデルをroot実行へ転用しない。
 
 archive/bundleは正式GitHub release URLだけからroot管理`state/module-incoming/<component>/<SHA>`へsize/hash付きで取得する。redirectも公式HTTPS閉集合、未知origin/port/user情報は拒否。file400・一時dirからNOREPLACE公開・親fsync、再利用時も完全inventory/size/hashを再確認する。現在の同imageで固定`install-<component>-release.py`を実行し、同componentのincoming親をRO公開し、既installerがその下の固定SHAを開く。RW公開は同private volumeだけ。既installerの公式署名/source/runtime/full inventoryとcode→receipt最後の公開をそのまま使う。親serviceのstop/restart/replaceはこのHost工程に含めず、配置完了後に親のprepareRelease→実controllerへ渡す。
 

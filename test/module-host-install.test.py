@@ -140,6 +140,7 @@ class ModuleHostTest(unittest.TestCase):
         self.updater.storage_metadata = lambda *args: {'mounts': [{'Destination': '/run/bellteam-maintenance', 'Type': 'volume', 'Name': 'fixture_state', 'RW': False}], 'specs': []}
         def command(args, **options):
             if args[1] == 'container': return json.dumps({'id': self.current['containerId'], 'image': self.current['imageId']}).encode()
+            self.assertIn('--interactive', args[:args.index(self.current['imageId'])])
             raw = options['input']; self.assertNotIn(b'never-copy', raw); self.assertNotIn(b'SECRET', raw)
             self.assertIn(b'AITERM_STATE_BASE', raw)
             return b'{"privateVolume":"fixture_state"}'
