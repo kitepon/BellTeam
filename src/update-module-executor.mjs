@@ -360,11 +360,18 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       if (recent[0]) inventory.operation = publicOperation(recent[0])
       if (recent[1]) inventory.previousOperation = publicOperation(recent[1])
       inventory.plans = state.plans.filter(entry => Date.parse(entry.plan.expiresAt) > now()).slice(-16).map(entry => copy(entry.plan))
-      for (const component of inventory.components) if (adapters[component.id] && component.published && (component.comparison.state === 'update_available' || component.comparison.state === 'unknown' && adapters[component.id].capture?.()?.generation))
-        component.capability = { supported: !closed && !fault && !active && !blockedHost, reason: closed ? 'UPDATE_EXECUTOR_CLOSED' : fault ?? (active || blockedHost ? 'MODULE_EXCHANGE_BUSY' : null) }
+      for (const component of inventory.components) {
+        const current = component.comparison.state === 'up_to_date' && component.publication?.check.status === 'verified'
+        if (adapters[component.id] && component.published && (current || component.comparison.state === 'update_available' || component.comparison.state === 'unknown' && adapters[component.id].capture?.()?.generation))
+          component.capability = { supported: !current && !closed && !fault && !active && !blockedHost,
+            reason: closed ? 'UPDATE_EXECUTOR_CLOSED' : fault ?? (active || blockedHost ? 'MODULE_EXCHANGE_BUSY' : current ? 'UPDATE_ALREADY_CURRENT' : null) }
+      }
       if (fault || recent[0] && ['unknown', 'failed'].includes(recent[0].operation.phase)) inventory.notice = { state: 'attention', code: fault ?? recent[0].operation.error?.code ?? 'UPDATE_RESULT_UNKNOWN', message: '保存された更新結果を確認してください。同じ要求を自動で再実行しません。' }
       else if (recent[0] && !terminal(recent[0].operation)) inventory.notice = { state: 'updating', code: null, message: '更新処理の結果を保存しています。' }
       else if (inventory.components.some(component => component.capability.supported)) inventory.notice = { state: 'ready', code: null, message: '固定計画を作成して更新対象を確認できます。' }
+      else if (!closed && !fault && !active && !blockedHost && inventory.notice.code === 'UPDATE_PROVIDERS_UNAVAILABLE'
+        && inventory.components.some(component => adapters[component.id] && component.capability.reason === 'UPDATE_ALREADY_CURRENT'))
+        inventory.notice = { state: 'ready', code: null, message: '確認できた機能の稼働版は、正式公開版と一致しています。' }
       return inventory
     },
     async close() { closed = true; await active; await exchangeMutex.waitForIdle() },
