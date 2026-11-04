@@ -1,5 +1,6 @@
 import { createConversationStreams, encodeConversationJson, readConversationJson } from './conversation-streams.mjs'
 import { createConversationInputBudget } from './conversation-input.mjs'
+import { MODULE_CONCURRENCY } from './module-ipc.mjs'
 
 export const conversationChannelError = (code, outcome = 'unknown', status = 503) => Object.assign(new Error(code), { code, outcome, status })
 export const channelCheck = value => { if (!value) throw conversationChannelError('CONVERSATION_IPC_INVALID') }
@@ -139,7 +140,7 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
         channelCheck(exactChannelKeys(value, value.stream ? 'type,kind,method,context,source,stream,length' : 'type,kind,method,context,source,stream,params')
           && kinds.has(value.kind) && typeof value.method === 'string' && value.method.length <= 128 && id > incoming)
         incoming = id
-        if (inbound[value.kind] >= (['root', 'effect', 'callback', 'event'].includes(value.kind) ? 8 : 16)) {
+        if (inbound[value.kind] >= (['root', 'effect', 'callback', 'event'].includes(value.kind) ? MODULE_CONCURRENCY : 16)) {
           await control(id, { type: 'error', kind: value.kind, error: safeError(conversationChannelError('CONVERSATION_IPC_CAPACITY', 'not_accepted')) }); return
         }
         const entry = { ...value, id, released: false }
@@ -226,13 +227,12 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
     if (kind === 'root' && method === 'user.turn') result.accepted = task.admitted.promise
     try {
       channelCheck(!dead && endpoint.connected && kinds.has(kind))
-      if (kind !== 'callback' && counts[kind] >= (['root', 'effect', 'event'].includes(kind) ? 8 : 16))
+      if (counts[kind] >= (['root', 'effect', 'callback', 'event'].includes(kind) ? MODULE_CONCURRENCY : 16))
         throw conversationChannelError('CONVERSATION_IPC_CAPACITY', 'not_accepted')
       if (typeof context === 'function') task.context = context(task.id)
       beforeSend?.(task.completion.promise, task.context, task.id)
       pending.set(task.id, task)
       void (async () => {
-        if (kind === 'callback') while (counts.callback >= 8) { await new Promise(resolve => waiters.add(resolve)); channelCheck(!dead) }
         counts[kind]++
         const inline = ['event', 'diagnostic'].includes(kind) || kind === 'control' && method !== 'initialize'
         const lane = inline ? null : streamLane(kind), length = inline ? null : await encodedLength(params)

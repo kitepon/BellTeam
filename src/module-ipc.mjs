@@ -1,6 +1,8 @@
 export const MODULE_PAYLOAD_LIMIT = 16 * 1024 * 1024
 export const MODULE_ENVELOPE_LIMIT = 64 * 1024
 export const MODULE_BUFFER_LIMIT = 64 * 1024 * 1024
+// 部品ごとの同時処理数。溜める量はMODULE_BUFFER_LIMITが抑えるので、件数はUIの同時読取りを妨げない大きさにする。
+export const MODULE_CONCURRENCY = 64
 const MEMBERS_PAYLOAD_LIMIT = MODULE_PAYLOAD_LIMIT, MEMBERS_ENVELOPE_LIMIT = MODULE_ENVELOPE_LIMIT, MEMBERS_BUFFER_LIMIT = MODULE_BUFFER_LIMIT
 const lanes = new Set(['root', 'effect', 'callback', 'projection', 'diagnostic', 'control'])
 const business = kind => ['root', 'effect', 'callback', 'projection'].includes(kind)
@@ -53,7 +55,7 @@ export function createModuleEndpoint(endpoint, { validateResult, onRequest, onDi
     const completion = new Promise((yes, no) => { complete = yes; incomplete = no }); completion.catch(() => {})
     const result = new Promise((yes, no) => { resolve = yes; reject = no })
     Object.defineProperty(result, 'completion', { value: completion })
-    const limit = business(kind) ? kind === 'projection' ? 1 : 8 : 16
+    const limit = business(kind) ? kind === 'projection' ? 1 : MODULE_CONCURRENCY : 16
     let id, task
     try {
       check(lanes.has(kind) && !dead && endpoint.connected, 'MEMBERS_IPC_DISCONNECTED')

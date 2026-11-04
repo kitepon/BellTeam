@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 import tempfile
 import unittest
@@ -66,8 +67,8 @@ class ConversationArtifact(unittest.TestCase):
 
     def test_literal_closure_missing_dependencies_are_rejected(self):
         _, _, required = contract('conversation')
-        self.assertEqual(len(required), 55)
-        for omitted in ['payload/src/module-streams.mjs', 'payload/src/conversation/probe-fixture.json',
+        self.assertEqual(len(required), 56)
+        for omitted in ['payload/src/module-ipc.mjs', 'payload/src/module-streams.mjs', 'payload/src/conversation/probe-fixture.json',
                         'payload/src/conversation/dispatcher.mjs', 'payload/src/observer-check.mjs',
                         'payload/src/usage/web-push-schema.mjs']:
             manifest = copy.deepcopy(self.manifest)
@@ -76,6 +77,21 @@ class ConversationArtifact(unittest.TestCase):
                 validate_manifest(manifest, component='conversation')
         self.assertNotIn('payload/src/conversation-lifetimes.mjs', required)
         self.assertNotIn('payload/src/run-seat-command.mjs', required)
+
+    def test_fixed_channel_import_requires_shared_concurrency_module(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name in contract('conversation')[2]:
+                relative = name.removeprefix('payload/')
+                target = root / relative; target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / relative, target)
+            command = ['node', '--input-type=module', '-e', 'await import(' + json.dumps((root / 'src/conversation-channel.mjs').as_uri()) + ')']
+            present = subprocess.run(command, capture_output=True)
+            self.assertEqual(present.returncode, 0, present.stderr.decode())
+            (root / 'src/module-ipc.mjs').unlink()
+            absent = subprocess.run(command, capture_output=True)
+            self.assertNotEqual(absent.returncode, 0)
+            self.assertIn(b'ERR_MODULE_NOT_FOUND', absent.stderr)
 
     def catalog(self):
         version=sha256(self.archive.read_bytes());url=f'https://github.com/kitepon/BellTeam/releases/download/updates-20261103T000000Z/conversation-{SOURCE}-linux-amd64.tar.gz'

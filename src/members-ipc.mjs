@@ -1,4 +1,4 @@
-import { createModuleEndpoint } from './module-ipc.mjs'
+import { createModuleEndpoint, MODULE_CONCURRENCY } from './module-ipc.mjs'
 import { validateMembersRequest, validateMembersCallback, validateMembersEffect,
   validateMembersResult, validateMembersEffectResult, validateMembersProjection } from './members/protocol.mjs'
 import { MEMBERS_STATE_COMPATIBILITY, assertMembersStateCompatibility } from './members/state-compatibility.mjs'
@@ -80,7 +80,7 @@ export function createMembersParentChannel(child, { generation, admission, valid
         check(!readPin || task.method === 'schedules.list' && task.readParams.ownerKind === 'room'
           && message.method === 'room.schedules.list' && message.params.roomId === task.readParams.ownerId, 'MEMBERS_NOT_ACCEPTED')
         check(channel.pending.get(Number(message.context.rootId))?.kind === 'root', 'MEMBERS_CALLBACK_RECURSION')
-        check(received.effect < 8 && callbackCredits() < 8, 'MEMBERS_IPC_CAPACITY')
+        check(received.effect < MODULE_CONCURRENCY && callbackCredits() < MODULE_CONCURRENCY, 'MEMBERS_IPC_CAPACITY')
         check(validateEffect(message.method, message.params, message.context) !== false)
         const effect = Object.freeze({ id: message.id, ...(readPin ? { membersReadPin: readPin } : { membersLease: lease }), context: message.context })
         effects.set(effect, true)
@@ -120,7 +120,7 @@ export function createMembersParentChannel(child, { generation, admission, valid
         && ![...channel.pending.values()].some(task => task.effect === effect))
       if (membersEffect) check(effects.has(membersEffect) && membersEffect.membersLease === lease
         && ![...channel.pending.values()].some(task => task.effect === membersEffect), 'MEMBERS_IPC_CAPACITY')
-      else if (kind === 'callback') check(callbackCredits() < 8, 'MEMBERS_IPC_CAPACITY')
+      else if (kind === 'callback') check(callbackCredits() < MODULE_CONCURRENCY, 'MEMBERS_IPC_CAPACITY')
       const attempt = channel.call(kind, method, params,
         id => {
           const context = Object.freeze({ generation, leaseId: binding.leaseId, rootId: String(id), ownerWrite, continuation: binding.epoch !== admission.capture().epoch })
@@ -198,7 +198,7 @@ export function createMembersChildChannel({ validateRequest, dispatch, validateC
       }
       check(['root', 'callback'].includes(message.kind) && contextValid(message.context)
         && message.context.generation === generation && message.context.rootId === String(message.id))
-      check(received[message.kind] < 8 && (message.kind === 'callback' || accepting || message.context.continuation), 'MEMBERS_NOT_ACCEPTING')
+      check(received[message.kind] < MODULE_CONCURRENCY && (message.kind === 'callback' || accepting || message.context.continuation), 'MEMBERS_NOT_ACCEPTING')
       const validate = message.kind === 'callback' ? validateCallback : validateRequest
       check(validate(message.method, message.params, message.context) !== false)
       const context = Object.freeze({ ...message.context })

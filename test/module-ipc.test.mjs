@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { EventEmitter } from 'node:events'
-import { createModuleEndpoint } from '../src/module-ipc.mjs'
+import { createModuleEndpoint, MODULE_CONCURRENCY } from '../src/module-ipc.mjs'
 import { createModuleStreams, encodeModuleJson } from '../src/module-streams.mjs'
 
 function pair() {
@@ -115,4 +115,19 @@ test('JSONの符号化は小さな断片を枠の上限までまとめ、行数�
   const body = Buffer.concat(chunks)
   assert.deepEqual(JSON.parse(body.toString('utf8')), rows)
   assert.ok(chunks.length <= Math.ceil(body.length / (256 * 1024)) + 1, `${chunks.length} chunks`)
+})
+
+test('shared business lanes admit 64 each, reject overflow, and retain completion independently of control', async t => {
+  const [parent, child] = pair(), held = Promise.withResolvers()
+  const a = createModuleEndpoint(parent, { validateResult: () => true, onRequest: () => assert.fail() })
+  const b = createModuleEndpoint(child, { validateResult: () => true, onRequest: () => () => held.promise })
+  t.after(() => { held.resolve({}); a.reaped(); b.reaped() })
+  const calls = []
+  for (const [kind, limit] of [['root', MODULE_CONCURRENCY], ['effect', MODULE_CONCURRENCY], ['callback', MODULE_CONCURRENCY], ['projection', 1], ['control', 16]]) {
+    calls.push(...Array.from({ length: limit }, () => a.call(kind, 'fixture', {}, kind === 'control' ? null : {})))
+    await assert.rejects(a.call(kind, 'overflow', {}, kind === 'control' ? null : {}), { code: 'MODULE_IPC_CAPACITY', outcome: 'not_accepted' })
+    assert.equal(a.snapshot()[kind], limit)
+  }
+  held.resolve({}); await Promise.all(calls.map(call => call.completion))
+  for (const kind of ['root', 'effect', 'callback', 'projection', 'control']) assert.equal(a.snapshot()[kind], 0)
 })

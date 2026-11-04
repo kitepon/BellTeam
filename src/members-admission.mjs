@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { MODULE_CONCURRENCY } from './module-ipc.mjs'
 
 const rejected = () => Object.assign(new Error('MEMBERS_NOT_ACCEPTED'), {
   code: 'MEMBERS_NOT_ACCEPTED', status: 503, outcome: 'not_accepted', effect: 'not_started',
@@ -30,7 +31,7 @@ export class MembersAdmission {
 
   enter(expected = this.capture(), correlation = randomUUID()) {
     this.assertOpen(expected)
-    if (this.#leases.size >= 8 || typeof correlation !== 'string' || !correlation) throw rejected()
+    if (this.#leases.size >= MODULE_CONCURRENCY || typeof correlation !== 'string' || !correlation) throw rejected()
     const lease = Object.freeze({ leaseId: randomUUID(), generation: this.#generation, epoch: this.#epoch, correlation })
     this.#leases.add(lease)
     this.#completions.set(lease, { finishRequested: false, pending: new Set() })

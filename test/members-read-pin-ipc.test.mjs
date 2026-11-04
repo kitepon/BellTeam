@@ -1,3 +1,4 @@
+import { MODULE_CONCURRENCY } from '../src/module-ipc.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { EventEmitter } from 'node:events'
@@ -17,8 +18,8 @@ function fixture(t, options = {}) {
   return { endpoint, sent, gate, channel, accepted, result }
 }
 
-test('read pin gets a real channel completion while all eight AI leases stay active', async t => {
-  const f = fixture(t), leases = Array.from({ length: 8 }, () => f.gate.enter())
+test('read pin gets a real channel completion while all configured AI leases stay active', async t => {
+  const f = fixture(t), leases = Array.from({ length: MODULE_CONCURRENCY }, () => f.gate.enter())
   const pin = f.gate.enterReadPin('profiles.read')
   const request = f.channel.request('profiles.read', {}, { membersReadPin: pin })
   const message = f.sent[0]
@@ -32,11 +33,11 @@ test('read pin gets a real channel completion while all eight AI leases stay act
   leases.forEach(lease => { f.gate.assertLease(lease); f.gate.finish(lease) })
 })
 
-test('read pins keep the existing shared IPC root limit at eight', async t => {
-  const f = fixture(t), pins = Array.from({ length: 9 }, () => f.gate.enterReadPin('profiles.read'))
-  const requests = pins.slice(0, 8).map(pin => f.channel.request('profiles.read', {}, { membersReadPin: pin }))
-  await assert.rejects(f.channel.request('profiles.read', {}, { membersReadPin: pins[8] }), { code: 'MEMBERS_IPC_CAPACITY' })
-  assert.equal(f.sent.length, 8)
+test('read pins keep the existing shared IPC root limit at configured', async t => {
+  const f = fixture(t), pins = Array.from({ length: MODULE_CONCURRENCY + 1 }, () => f.gate.enterReadPin('profiles.read'))
+  const requests = pins.slice(0, MODULE_CONCURRENCY).map(pin => f.channel.request('profiles.read', {}, { membersReadPin: pin }))
+  await assert.rejects(f.channel.request('profiles.read', {}, { membersReadPin: pins[MODULE_CONCURRENCY] }), { code: 'MEMBERS_IPC_CAPACITY' })
+  assert.equal(f.sent.length, MODULE_CONCURRENCY)
   for (const message of f.sent) { f.accepted(message); f.result(message, { revision: 1 }) }
   await Promise.all(requests)
   pins.forEach(pin => f.gate.finishReadPin(pin))

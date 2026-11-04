@@ -1,3 +1,4 @@
+import { MODULE_CONCURRENCY } from '../src/module-ipc.mjs'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { deserialize, serialize } from 'node:v8'
@@ -53,6 +54,14 @@ async function fixture(t, options = {}) {
   })
   let child
   const dispatcher = createUsageChannelDispatcher({ root, effect: (...args) => child.effect(...args), projection: (...args) => child.projection(...args) })
+  if (options.parallelEffects) {
+    dispatcher.dispatchCallback = async () => null
+    const dispatch = dispatcher.dispatch
+    dispatcher.dispatch = async (method, params, context) => {
+      if (method === 'settings.update') await child.effect('settings.changed', { id: params.id, configuration: {}, epoch: 1 }, context)
+      return dispatch(method, params, context)
+    }
+  }
   if (childEndpoint) child = createUsageChildChannel({ endpoint: childEndpoint, versionId: null, ...dispatcher })
   t.after(async () => {
     if (actual && actual.exitCode === null && actual.signalCode === null) actual.kill('SIGKILL')
@@ -142,14 +151,14 @@ test('snapshot commit holds control completion after RPC metadata and disconnect
   assert.equal(f.projection.auth(), null)
 })
 
-test('eight accepted roots retain their real completions and the ninth is rejected before issue', async t => {
+test('configured accepted roots retain their real completions and the overflow is rejected before issue', async t => {
   const entered = deferred(), release = deferred()
   const f = await fixture(t, { effect: method => { if (method === 'settings.changed') { entered.resolve(); return release.promise } } }); await f.initialize()
   const lease = f.admission.enter(), token = f.authority.capture('settings.update', owner)
   const options = { usageLease: lease, capturedAuthorization: token }
-  const calls = Array.from({ length: 8 }, () => f.parent.request('settings.update', { id: 'routing', input: { enabled: false } }, options))
+  const calls = Array.from({ length: MODULE_CONCURRENCY }, () => f.parent.request('settings.update', { id: 'routing', input: { enabled: false } }, options))
   await entered.promise
-  assert.equal(f.parent.snapshot().root, 8)
+  assert.equal(f.parent.snapshot().root, MODULE_CONCURRENCY)
   await assert.rejects(f.parent.request('settings.update', { id: 'routing', input: { enabled: false } }, options), { code: 'USAGE_IPC_CAPACITY', outcome: 'not_accepted' })
   release.resolve(null); await Promise.all(calls); f.authority.release(token); f.admission.finish(lease)
   assert.equal(f.parent.snapshot().root, 0)
@@ -213,4 +222,25 @@ test('native auth not-issued survives sanitized IPC errors without exposing the 
   await assert.rejects(f.request('auth.input', { harness: 'codex', input: { binding, prompt_digest: prompt, response: { kind: 'authorization_code', value: 'private-native-input' } } }), { code: 'AUTH_RESPONSE_NOT_ISSUED', status: 409, effect: 'not_issued' })
   assert.doesNotMatch(JSON.stringify(f.changes), /private-native-input/)
   await f.parent.control('quiesce'); await f.parent.control('exit')
+})
+
+test('usage carries 64 independent effects and drain callbacks under the same opaque lease', { timeout: 5000 }, async t => {
+  const entered = deferred(), release = deferred(), contexts = []
+  t.after(() => release.resolve(null))
+  const f = await fixture(t, { parallelEffects: true, effect: (method, params, context) => {
+    if (method === 'settings.changed' && contexts.length < MODULE_CONCURRENCY) {
+      contexts.push(context); if (contexts.length === MODULE_CONCURRENCY) entered.resolve(); return release.promise
+    }
+  } }); await f.initialize()
+  const lease = f.admission.enter(), token = f.authority.capture('settings.update', owner)
+  const roots = Array.from({ length: MODULE_CONCURRENCY }, () => f.parent.request('settings.update', { id: 'routing', input: { enabled: false } }, { usageLease: lease, capturedAuthorization: token }))
+  await entered.promise
+  assert.equal(f.child.snapshot().effect, MODULE_CONCURRENCY)
+  const ticket = f.admission.close(), callbackToken = f.authority.capture('settings.setError', system)
+  const callbacks = contexts.map(context => f.parent.callback('settings.setError', { id: 'routing', epoch: 1, error: { code: 'FIXTURE_ERROR' } }, { usageLease: lease, usageEffect: context.usageEffect, capturedAuthorization: callbackToken }))
+  assert.equal(f.parent.snapshot().callback, MODULE_CONCURRENCY)
+  await Promise.all(callbacks)
+  release.resolve(null); await Promise.all(roots)
+  f.authority.release(token); f.authority.release(callbackToken); f.admission.finish(lease)
+  await f.admission.drain(ticket)
 })

@@ -1,3 +1,4 @@
+import { MODULE_CONCURRENCY } from '../src/module-ipc.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { ConversationLifetimes } from '../src/conversation-lifetimes.mjs'
@@ -22,7 +23,7 @@ test('a closed or full peer rejects before work and releases the first reservati
   assert.equal(effects, 0)
   gate.membersAdmission.resume(ticket)
   gate.conversationAdmission.resume(closed)
-  const leases = Array.from({ length: 8 }, () => gate.membersAdmission.enter())
+  const leases = Array.from({ length: MODULE_CONCURRENCY }, () => gate.membersAdmission.enter())
   assert.throws(() => gate.reserve(), { code: 'MEMBERS_NOT_ACCEPTED' })
   assert.equal(gate.conversationAdmission.snapshot().active, 0)
   for (const lease of leases) gate.membersAdmission.finish(lease)
