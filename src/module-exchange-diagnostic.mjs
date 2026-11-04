@@ -52,7 +52,7 @@ export function validateModuleDrainDiagnostic(value) {
 
 // Runtime console evidence only; this is not a public DTO or a ledger variant.
 export function moduleRecoveryLog(component, stage, event, attempt, runnerActive, admission, error) {
-  const recoveryStages = ['operation', 'mutex', 'runner', 'prepare', 'recover_admission', 'spawn', 'channel', 'initialize', 'ready', 'restore', 'resume']
+  const recoveryStages = ['operation', 'local_mutex', 'mutex', 'runner', 'prepare', 'recover_admission', 'spawn', 'channel', 'initialize', 'ready', 'restore', 'resume']
   if (!components.includes(component) || !recoveryStages.includes(stage)
     || !['waiting', 'completed', 'failed', 'skipped'].includes(event)) return null
   let counts, failureCode = null

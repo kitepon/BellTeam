@@ -14,6 +14,7 @@ async function fixture(t, { holdActual = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'module-recovery-'))
   await mkdir(join(root, 'state'))
   const admission = new ConversationLifetimes(), children = []
+  if (holdActual) admission.recoverFailedGeneration = undefined
   let resolveActual, requests = 0
   const actual = new Promise(resolve => { resolveActual = resolve })
   const reap = child => {
@@ -42,7 +43,7 @@ async function fixture(t, { holdActual = false } = {}) {
   return { controller, admission, children, reap, resolveActual, requests: () => requests }
 }
 
-test('recovery reveals pending actual work and gate refusal, then resumes only after both end without replay', async t => {
+test('legacy recovery reveals pending actual work and gate refusal, then resumes only after both end without replay', async t => {
   const logs = []
   t.mock.method(console, 'error', line => logs.push(JSON.parse(line)))
   const f = await fixture(t, { holdActual: true }), original = f.children[0]
@@ -68,7 +69,7 @@ test('recovery reveals pending actual work and gate refusal, then resumes only a
   assert.equal(f.children.length, 2); assert.equal(f.controller.snapshot().available, true)
   assert.equal(f.requests(), 1)
   assert.deepEqual(evidence().filter(value => value.attempt === 2).map(value => value.stage),
-    ['operation', 'mutex', 'runner', 'prepare', 'recover_admission', 'spawn', 'channel', 'initialize', 'ready', 'restore', 'resume', 'resume'])
+    ['operation', 'local_mutex', 'mutex', 'runner', 'prepare', 'recover_admission', 'spawn', 'channel', 'initialize', 'ready', 'restore', 'resume', 'resume'])
   assert.equal(evidence().at(-1).event, 'completed')
   assert.equal(evidence().at(-1).admissionClosed, false)
   assert.doesNotMatch(JSON.stringify(evidence()), /generation|lease|correlation|synthetic|message|stack/)

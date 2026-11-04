@@ -326,3 +326,20 @@ dispatcherは非native rootとcallbackの既受付scope、背景報告、userTur
 reverse effectは呼出結果とpeerの実completionを両方追跡する。caller deadlineのrejectでは保留参照を落とさない。eventも実completionまで追跡し、既受付save/effectが終端しなければwriter ACKを出さない。失敗が実終端しても保存成功には変えず、元failure/unknownを保持する。新controlが既failed解除や報告成功の代用になることは無い。
 
 未保存の旧native回答/status/reportの保存と新writerへの移送は保証しない。旧callbackは同子封鎖後に拒否され、親の元native/watch/opaque/receipt/job/同Bot占有はKiroの実追跡に残る。親incoming/effect/reapedをnative物理終了へ変換しない。ACK不明/実completion未確定は停止せずunknown/unavailableを保持する。通常drain/close/交換と既Q異常終了回復は従来契約のまま。
+
+
+## 子終了理由の有限記録（T原因の不足計測）
+
+子peerは最初の終了理由を一回だけstderrへ一行のexact `{code:'CONVERSATION_CHILD_EXIT_ORIGIN',origin,failureCode}`として記録する。originはpeer_failure/parent_disconnect/exit_control/exit_writer_controlのみ。failureCodeはCONVERSATION_接頭辞のIPC_INVALID/IPC_DISCONNECTED/IPC_TIMEOUT/IPC_ACK_TIMEOUT/IPC_SEND_FAILED/CHILD_EXITED/BACKGROUND_UNCONFIRMED/DELIVERY_RELEASE_UNCONFIRMED/PROTOCOL_UNCONFIRMEDかnull。自由例外、本文、生世代は渡さない。親peerは記録しない。
+
+```mermaid
+flowchart LR
+  Disconnect[親IPC disconnect実通知] --> First[子peerの最初の理由を保持]
+  Failure[peer失敗の既catch] --> First
+  Exit[exit又はexitWriter応答後] --> First
+  First --> Stderr[閉3key stderr一回]
+  Stderr --> Observer[エピネル既bounded observer]
+  Observer --> Bound[親の同子Sequenceと時刻へ結合]
+```
+
+親からのdisconnect通知は共有stream listenerより前に子peerが登録して記録する。自身のpeer失敗は既disconnect前、正常exitは既close前に記録し、後着通知で上書きしない。sink例外は隔離し、既error/Promise/barrier/保存ACK/再生成順を変えない。これはJS接点に到達した理由だけで、突然のOS終了や過去事故原因を網羅しない。親observer/別MODULE_CHILD_EXIT_ORIGIN consoleと共通待機計測はruntime担当、既v1 child-exit DTOは不変。

@@ -257,7 +257,7 @@ export function createConversationChildChannel({ dispatcher, endpoint = process,
       if (entry.kind !== 'control') return
       if (entry.method === 'initialize') await ready()
       if (afterControl) await afterControl(entry.method, value)
-      else if (['exit', 'exitWriter'].includes(entry.method)) peer.close()
+      else if (['exit', 'exitWriter'].includes(entry.method)) peer.close(entry.method)
     },
     accept: entry => {
       if (entry.kind === 'control') {

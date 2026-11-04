@@ -1,4 +1,4 @@
-import { createModuleChildRestart, reportModuleChildExit, observeModuleChild } from './module-child-restart.mjs'
+import { createModuleChildRestart, reportModuleChildExit, observeModuleChild, reportConversationChildExitOrigin } from './module-child-restart.mjs'
 import { moduleExchangeDiagnostic, moduleDrainDiagnostic, moduleRecoveryLog, moduleTerminationLog } from './module-exchange-diagnostic.mjs'
 import { spawn } from 'node:child_process'
 import { constants } from 'node:fs'
@@ -65,8 +65,11 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
         } catch (error) { await stopUnadmitted(target); throw error }
         report('completed')
       }
-      mark('mutex')
-      await exclusive(signal => exchangeMutex ? exchangeMutex.runExclusive(() => perform(signal)) : perform(signal))
+      mark('local_mutex')
+      await exclusive(signal => {
+        mark('mutex')
+        return exchangeMutex ? exchangeMutex.runExclusive(() => perform(signal)) : perform(signal)
+      })
     } catch (error) { report('failed', error); throw error }
   })
   const active = new Set()
@@ -145,6 +148,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     target.stderrObservation = observeModuleChild(child)
     instance = target
     target.end = waitNotificationsChildClose(child).then(async result => {
+      if (component === 'conversation') reportConversationChildExitOrigin(target.sequence, target.stderrObservation())
       const unexpected = target.resumed && initialized && !closed && !target.intentional
       if (unexpected) { closeAdmission('module_child_exit'); state('unavailable'); reportModuleChildExit(component, result, target.stderrObservation(), onModuleChildExit) }
       let stage = 'os_closed'
