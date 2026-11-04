@@ -129,6 +129,9 @@ struct UpdateOperation: Decodable, Equatable {
     var isSettled: Bool { admission == .rejected || isCompleted || (phase == .failed && execution == .failed) }
 }
 
+/// 端末に保存した要求。サーバーの値を作り替えない。
+struct UpdateSavedRequest: Codable, Equatable { let requestId: String; let planId: String? }
+
 struct UpdatePlanResponse: Decodable { let plan: UpdatePlan }
 struct UpdateOperationResponse: Decodable { let operation: UpdateOperation }
 

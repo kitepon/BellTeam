@@ -10,6 +10,11 @@ final class UpdateStore: ObservableObject {
     @Published private(set) var operation: UpdateOperation?
     /// 端末に保存した、結果が確定していない実行の要求ID。
     @Published private(set) var requestID: String?
+    /// 結果を確定できないまま残している過去の要求。消さずに同じIDで照会し続ける。
+    @Published private(set) var history: [UpdateSavedRequest] = []
+    /// 過去の要求ごとの、照会できた最新の結果と、照会できなかった・受け付けられなかった時の表示。
+    @Published private(set) var historyResults: [String: UpdateOperation] = [:]
+    @Published private(set) var historyNotes: [String: String] = [:]
     @Published private(set) var busy = false
     @Published private(set) var message: String?
 
@@ -25,10 +30,23 @@ final class UpdateStore: ObservableObject {
 
     // 要求IDは接続先ごとに保存する。別の接続先の要求を照会しないため。
     private var requestKey: String { "bellbot.updateRequestID.\(api.baseURL?.absoluteString ?? "")" }
+    private var planKey: String { "bellbot.updateRequestPlanID.\(api.baseURL?.absoluteString ?? "")" }
+    private var historyKey: String { "bellbot.updateRequestHistory.\(api.baseURL?.absoluteString ?? "")" }
 
-    private func setRequestID(_ id: String?) {
+    private func setRequest(_ id: String?, planID: String?) {
         requestID = id
         defaults.set(id, forKey: requestKey)
+        defaults.set(planID, forKey: planKey)
+    }
+
+    /// 今の要求を、消さずに過去の要求へ移す。
+    private func keepInHistory(note: String?) {
+        guard let id = requestID else { return }
+        let entry = UpdateSavedRequest(requestId: id, planId: defaults.string(forKey: planKey))
+        if !history.contains(entry) { history.append(entry) }
+        if let note { historyNotes[id] = note }
+        defaults.set(try? JSONEncoder().encode(history), forKey: historyKey)
+        setRequest(nil, planID: nil)
     }
 
     /// 接続先やログインが変わった時、前の接続先の表示を捨てる。保存した要求IDは端末に残す。
@@ -40,6 +58,9 @@ final class UpdateStore: ObservableObject {
         plan = nil
         operation = nil
         requestID = nil
+        history = []
+        historyResults = [:]
+        historyNotes = [:]
         busy = false
         message = nil
     }
@@ -49,6 +70,7 @@ final class UpdateStore: ObservableObject {
         readSequence += 1
         let sequence = readSequence
         requestID = defaults.string(forKey: requestKey)
+        history = defaults.data(forKey: historyKey).flatMap { try? JSONDecoder().decode([UpdateSavedRequest].self, from: $0) } ?? []
         do {
             let value: UpdateInventory = try await api.get("/api/updates")
             guard sequence == readSequence else { return }
@@ -60,6 +82,21 @@ final class UpdateStore: ObservableObject {
             failure = error is DecodingError ? "更新情報の応答形式を確認できません。" : "更新情報を確認できません。\(error.localizedDescription)"
             api.diagnostics.report(error, path: "/api/updates", method: "GET", observation: .read(error, retainedData: false))
         }
+        for entry in history where historyResults[entry.requestId]?.isSettled != true {
+            do {
+                let response: UpdateOperationResponse = try await api.get("/api/updates/operations/\(entry.requestId)")
+                guard sequence == readSequence else { return }
+                guard response.operation.requestId == entry.requestId else { throw BellAPIError.invalidResponse }
+                historyResults[entry.requestId] = response.operation
+                historyNotes[entry.requestId] = nil
+            } catch {
+                guard sequence == readSequence else { return }
+                // 404や認証の失敗だけでは、元の要求が受け付けられていないとは確定できない。
+                if historyResults[entry.requestId] == nil, historyNotes[entry.requestId] == nil {
+                    historyNotes[entry.requestId] = "結果を確認できません。同じ要求を照会し直します。"
+                }
+            }
+        }
         guard let id = requestID else { return }
         do {
             let response: UpdateOperationResponse = try await api.get("/api/updates/operations/\(id)")
@@ -67,14 +104,8 @@ final class UpdateStore: ObservableObject {
             apply(response.operation, for: id)
         } catch {
             guard sequence == readSequence else { return }
-            // サーバーは要求を保存してから受け付けるので、送信中でない時の404は「受け付けられていない」の確定。
-            if case BellAPIError.httpStatus(404, _, _) = error, !busy {
-                setRequestID(nil)
-                operation = nil
-                message = "前回の更新の要求は、サーバーに受け付けられていません。更新は実行されていません。"
-                return
-            }
-            message = "更新の結果を確認中です。接続が戻ると同じ要求の状態を取り直します。更新は送り直しません。"
+            // 404や認証の失敗だけでは、元の要求が受け付けられていないとは確定できない。保存IDは残す。
+            message = "更新の結果を確認できません。同じ要求を照会し直します。更新は送り直しません。"
             api.diagnostics.report(error, path: "/api/updates/operations/\(id)", method: "GET", observation: .read(error, retainedData: true))
         }
     }
@@ -101,10 +132,12 @@ final class UpdateStore: ObservableObject {
 
     /// 計画を実行する。要求IDは送信前に保存し、結果が確定するまで同じ要求を照会する。
     func execute(confirmContainerRestart: Bool) async {
-        guard let plan, !busy, requestID == nil, !plan.impact.containerRestart || confirmContainerRestart else { return }
+        guard let plan, !busy, !plan.impact.containerRestart || confirmContainerRestart else { return }
         let started = epoch
+        // 結果を確定できていない前の要求は、消さずに過去の要求として照会を続ける。
+        keepInHistory(note: nil)
         let id = UUID().uuidString.lowercased()
-        setRequestID(id)
+        setRequest(id, planID: plan.planId)
         operation = nil
         message = nil
         busy = true
@@ -119,11 +152,12 @@ final class UpdateStore: ObservableObject {
         } catch {
             guard started == epoch else { return }
             if case BellAPIError.httpStatus(let status, let reason, _) = error, (400..<500).contains(status) {
-                // サーバーが受け付けなかった確定の失敗。計画は再取得してから、利用者が実行し直す。
-                setRequestID(nil)
-                self.plan = nil
-                message = status == 409 ? "再計画が必要です。計画が古くなったか、別の更新が進行中の可能性があります。更新は実行されていません。"
+                // 受け付けられなかったと表示するが、要求ID・計画IDは消さずに残し、同じIDで照会できるようにする。
+                let note = status == 409 ? "再計画が必要です。計画が古くなったか、別の更新が進行中の可能性があります。"
                     : "更新は受け付けられませんでした。\(reason ?? "HTTP \(status)")"
+                keepInHistory(note: note)
+                self.plan = nil
+                message = note
             } else {
                 message = "更新の受付を確認できません。同じ要求の結果を確認中です。更新は送り直しません。"
                 api.diagnostics.report(error, path: "/api/updates/operations", method: "POST", observation: .write)
@@ -138,6 +172,6 @@ final class UpdateStore: ObservableObject {
         }
         operation = value
         message = nil
-        if value.isSettled { setRequestID(nil) }
+        if value.isSettled { setRequest(nil, planID: nil) }
     }
 }

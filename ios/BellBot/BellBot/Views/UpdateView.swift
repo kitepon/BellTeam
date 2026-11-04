@@ -27,7 +27,8 @@ struct UpdateView: View {
     @State private var confirmedRestart = false
 
     private var shownOperation: UpdateOperation? { updates.operation ?? updates.inventory?.operation }
-    private var canStartPlan: Bool { !updates.busy && updates.requestID == nil }
+    // 結果を確定できない前の要求があっても新しく計画できる。受け付け済みで進行中の更新がある間だけ止める。
+    private var canStartPlan: Bool { !updates.busy && !(shownOperation.map { $0.admission == .accepted && !$0.isSettled } ?? false) }
 
     var body: some View {
         NavigationStack {
@@ -37,6 +38,7 @@ struct UpdateView: View {
                     if let operation = shownOperation { operationCard(operation, title: "更新の進行と結果") }
                     else if updates.requestID != nil { Text("保存した更新要求の結果を確認中です。").font(.subheadline).foregroundStyle(BellTheme.muted) }
                     if let previous = updates.inventory?.previousOperation { operationCard(previous, title: "前回の更新") }
+                    if !updates.history.isEmpty { historyCard }
                     if let plan = updates.plan { planCard(plan) }
                     if let inventory = updates.inventory {
                         Button("全体を更新する計画を作る") { Task { await updates.makePlan(componentID: nil) } }
@@ -99,6 +101,27 @@ struct UpdateView: View {
         .padding(18).bellCard()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("update-component-\(component.id)")
+    }
+
+    /// 結果を確定できないまま残している過去の要求。消さずに、同じ要求IDで照会を続ける。
+    private var historyCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("保持している操作結果").font(.headline)
+            ForEach(updates.history, id: \.requestId) { entry in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("要求ID: \(entry.requestId)").font(.caption.monospaced()).textSelection(.enabled)
+                    if let planId = entry.planId { Text("計画ID: \(planId)").font(.caption.monospaced()).textSelection(.enabled) }
+                    if let result = updates.historyResults[entry.requestId] {
+                        Text("\(Self.phase[result.phase] ?? "") / 受付: \(Self.admission[result.admission] ?? "")").font(.footnote)
+                    }
+                    if let note = updates.historyNotes[entry.requestId] { Text(note).font(.footnote).foregroundStyle(.red) }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18).bellCard()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("update-history")
     }
 
     private func operationCard(_ operation: UpdateOperation, title: String) -> some View {

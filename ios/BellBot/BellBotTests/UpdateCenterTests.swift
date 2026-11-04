@@ -95,14 +95,24 @@ final class UpdateStoreTests: XCTestCase {
             }
         }
         await store.makePlan(componentID: nil)
+        let planID = try XCTUnwrap(store.plan?.planId)
         await store.execute(confirmContainerRestart: true)
         XCTAssertTrue(try XCTUnwrap(store.message).contains("再計画が必要"))
         XCTAssertNil(store.plan)
         XCTAssertNil(store.requestID)
         XCTAssertNil(defaults.string(forKey: "bellbot.updateRequestID.https://update.test.invalid"))
+        // 未受付と表示しても、要求ID・計画IDは消さずに残す。
+        let kept = try XCTUnwrap(store.history.first)
+        XCTAssertEqual(kept.planId, planID)
+        XCTAssertEqual(store.history.count, 1)
+        XCTAssertNotNil(defaults.data(forKey: "bellbot.updateRequestHistory.https://update.test.invalid"))
         XCTAssertEqual(UpdateProtocol.count(method: "POST", path: "/api/updates/operations"), 1)
         XCTAssertEqual(UpdateProtocol.count(method: "POST", path: "/api/updates/plans"), 1)
         XCTAssertEqual(try UpdateProtocol.requests.first?.json() as? [String: String], ["scope": "all"])
+        await store.refresh()
+        XCTAssertEqual(UpdateProtocol.count(method: "GET", path: "/api/updates/operations/\(kept.requestId)"), 1, "同じIDで照会し直す")
+        XCTAssertEqual(UpdateProtocol.count(method: "POST", path: "/api/updates/operations"), 1)
+        XCTAssertEqual(store.history.count, 1)
     }
 
     func testSavedRequestIDIsQueriedAndOnlyVerifiedCompletionClearsIt() async throws {
@@ -156,7 +166,7 @@ final class UpdateStoreTests: XCTestCase {
         XCTAssertEqual(UpdateProtocol.count(method: "POST", path: "/api/updates/operations"), 1)
     }
 
-    func testUnknownRequestIDIsClearedAsNotAcceptedWithoutResending() async throws {
+    func testNotFoundDoesNotClearTheSavedRequestAndQueriesItAgain() async throws {
         let operationID = self.operationID
         let (store, defaults) = try makeStore { request in
             request.path == "/api/updates" ? .json(200, try UpdateFixtures.examples()["running"]!) : .json(404, ["error": "UPDATE_OPERATION_NOT_FOUND"])
@@ -164,12 +174,37 @@ final class UpdateStoreTests: XCTestCase {
         let key = "bellbot.updateRequestID.https://update.test.invalid"
         defaults.set(operationID, forKey: key)
         await store.refresh()
-        XCTAssertEqual(UpdateProtocol.count(method: "GET", path: "/api/updates/operations/\(operationID)"), 1)
-        XCTAssertNil(store.requestID)
-        XCTAssertNil(defaults.string(forKey: key))
+        await store.refresh()
+        XCTAssertEqual(UpdateProtocol.count(method: "GET", path: "/api/updates/operations/\(operationID)"), 2, "同じUUIDで照会し直せる")
+        XCTAssertEqual(store.requestID, operationID, "404だけでは未受付と確定しない")
+        XCTAssertEqual(defaults.string(forKey: key), operationID)
         XCTAssertNil(store.operation)
-        XCTAssertTrue(try XCTUnwrap(store.message).contains("受け付けられていません"))
+        XCTAssertTrue(try XCTUnwrap(store.message).contains("確認できません"))
         XCTAssertEqual(UpdateProtocol.count(method: "POST", path: "/api/updates/operations"), 0)
+    }
+
+    func testNewExecutionKeepsTheUnconfirmedRequestInHistory() async throws {
+        let operationID = self.operationID
+        let (store, defaults) = try makeStore { request in
+            switch (request.method, request.path) {
+            case ("POST", "/api/updates/plans"):
+                return .json(200, ["plan": (try UpdateFixtures.examples()["restart_required"]!["plans"] as! [[String: Any]])[0]])
+            case ("POST", "/api/updates/operations"): return .fail(.notConnectedToInternet)
+            case ("GET", "/api/updates"): return .json(200, try UpdateFixtures.examples()["restart_required"]!)
+            default: return .fail(.notConnectedToInternet)
+            }
+        }
+        defaults.set(operationID, forKey: "bellbot.updateRequestID.https://update.test.invalid")
+        await store.refresh()
+        await store.makePlan(componentID: nil)
+        await store.execute(confirmContainerRestart: true)
+        let newID = try XCTUnwrap(store.requestID)
+        XCTAssertNotEqual(newID, operationID)
+        XCTAssertEqual(store.history.map(\.requestId), [operationID], "前の要求は消さずに残す")
+        XCTAssertEqual(UpdateProtocol.count(method: "POST", path: "/api/updates/operations"), 1)
+        await store.refresh()
+        XCTAssertGreaterThanOrEqual(UpdateProtocol.count(method: "GET", path: "/api/updates/operations/\(operationID)"), 2)
+        XCTAssertEqual(UpdateProtocol.count(method: "POST", path: "/api/updates/operations"), 1, "自動で再送しない")
     }
 
     func testInventoryWithAnUnknownValueIsShownAsAnInvalidResponse() async throws {
@@ -307,6 +342,8 @@ final class UpdateNotificationTests: XCTestCase {
             BellNotifications.shared.onOpen = previousOpen
             BellNotifications.shared.onOpenUpdate = previousUpdate
             UserDefaults.standard.removeObject(forKey: "bellbot.updateRequestID.https://update.test.invalid")
+            UserDefaults.standard.removeObject(forKey: "bellbot.updateRequestPlanID.https://update.test.invalid")
+            UserDefaults.standard.removeObject(forKey: "bellbot.updateRequestHistory.https://update.test.invalid")
         }
         return AppStore(api: api, webDataStore: .nonPersistent())
     }
