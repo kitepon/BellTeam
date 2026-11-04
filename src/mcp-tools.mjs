@@ -18,7 +18,7 @@ export const bellTeamTools = Object.freeze([
   ...usageTools(objectSchema),
   ...memberReadTools,
   { name: 'update_work_summary',
-    description: '今の作業段階が変わった時だけ、自分の短い仕事要約を更新する。get_selfのbot.currentWorkBindingをexpectedへそのまま渡す。summaryは前後空白を除き160 Unicode文字までの一行、nullで解除。現在turnへの本人宣言であり作業成功の証明ではない。秘密値や生の配送本文を転記せず、heartbeatや定期AI起動のために呼ばない。競合・取得不能は再送しない。',
+    description: '各実作業ターンの開始時に一回、自分の短い仕事要約を更新する。同じターン内では、実際に作業段階が変わった時だけ更新する。get_selfのbot.currentWorkBindingをexpectedへそのまま渡す。summaryは前後空白を除き160 Unicode文字までの一行、nullで解除。現在turnへの本人宣言であり作業成功の証明ではない。秘密値や生の配送本文を転記せず、heartbeatや定期AI起動のために呼ばない。競合・取得不能は再送しない。',
     inputSchema: updateWorkSummaryInputSchema },
   {
     name: 'remember',

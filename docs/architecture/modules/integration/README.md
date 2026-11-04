@@ -412,6 +412,8 @@ flowchart LR
 
 同transport.currentWorkBinding/updateWorkSummaryへ、既HTTP ingressが捕捉したsourceをtoolsForSource closureからだけ渡す。モデル引数のbotId/path/sourceは受けず、共通await後に本人退役なら更新前403。get_selfだけbot.currentWorkBindingを付け、他Bot読取やHTTP一覧へprivate bindingを出さない。更新の固定400/403/409/503はMCP isError/structuredContentの安全code/statusだけへ投影、自由message/stackやsummaryをエラーへ反射しない。実行所有者のmemory/UUID/CAS/15秒・10分/160文字正規化は同公開transportの責任で、共通が第二writerや追加observerを作らない。
 
+本人更新は各実作業ターンの開始時に一回、同じターン内は実際の段階変更時だけ行う。既get_selfの本人bindingをそのまま使い、競合・取得不能は同要求を再送しない。入力・handler・DTO・10分の要約TTLは変えず、受信本文の自動転記・heartbeat・仕事開始の強制gateを足さない。
+
 既watchQueueのSSE接続を再利用し二重watch無し。summaryを新たに読むことで正規AI/auth/Goalや設定発行へ到達しない。Apple実装の順序はOwner指定の全体受入後で、本schema供給から先行実装の許可へ拡張しない。
 
 
