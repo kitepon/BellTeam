@@ -701,3 +701,18 @@ flowchart LR
 GET `/api/bots/:botId/configuration-operations/:requestId` は既認証/対象freshを通し、実行担当の `administration.readConfigurationOperation` を作用無しで呼ぶ。返値はexecution正本の全10key validatorで同IDへ束縛し直体200、正規unknownを成功完了へ置換しない。不正ID/query/body400、対象なし404、未記録404、読取不能503。全Bot refreshは省き、対象readMemberを使う。HTTPからnative read/revoke/commit/launchを開始しない。
 
 stop失敗は既502/BOT_STOP_UNCONFIRMED/messageを保持し、元errorのdata propertyから検証できたoptional automaticConfigurationApplication一欄だけを添える。投影不良・非対応は元失敗応答を維持し、任意errorや秘密をspreadしない。bot viewの許可欄転送はmembers、閉DTO/同期snapshot/記録はexecutionが所有。先行projectionだけで自動中断・設定・再開・native gateが実装済みとはしない。
+
+## T：同親の会話admission診断read
+
+```mermaid
+flowchart LR
+  Owner[公開Owner GET / 既認証] --> Graph[同serverOptions.conversationAssembly.admission]
+  Graph --> Read[inspectAdmission / 同期readだけ]
+  Read --> Validate[execution所有の単一閉validator]
+  Validate --> DTO[admission: 閉15key / 生世代と本文なし]
+  DTO --> Sample[商用有限script / 同origin・採取時刻・標準Docker親世代]
+```
+
+`GET /api/diagnostics/conversation-admission`は同実親graphに保持するadmissionだけを読み、認証前・内部席・POSTを拒否する。query/body400、provider欠落/不正DTO503。正常時は`{admission: bellteam.conversation-admission.v1}`を返し、executionの`validateConversationAdmissionDiagnostic`を再利用する。members refreshやadmission.enterを通さず、閉じた状態でも読める。close/quiesce/cleanup/finish・新writer・制御変更は0。opaque generationを公開せず、writerRevisionは同親の局所値として扱い、別親の同値へ補完しない。
+
+`application-runtime`が既serverOptionsへ渡す同conversationAssemblyを使うため、別admissionの生成・別module読取・席からの対象指定を受け付けない。gatewayは既認証先へそのまま中継する。有限scriptは同originの読取時刻と標準Dockerの親世代を一緒に保存し、再作成をまたぐ値を同世代としない。この診断は実quiescence/同IDclose proofの代用ではない。実writer終端consoleは[runtime正本](../runtime/module-process.md#t終了report後の段階診断)、15keyの意味は[execution正本](../execution/conversation-lifetimes.md)を参照する。
