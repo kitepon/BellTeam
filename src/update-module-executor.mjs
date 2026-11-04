@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
 import { validateUpdateRequest, validateUpdateResponse } from './update-center-contract.mjs'
 import { moduleReleaseCompatible } from './update-module-catalog.mjs'
+import { validateModuleExchangeDiagnostic } from './module-exchange-diagnostic.mjs'
 
 const failure = (code, status = 503) => Object.assign(new Error(code), { code, status })
 const requireValue = (ok, code, status) => { if (!ok) throw failure(code, status) }
@@ -73,6 +74,9 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         && Array.isArray(entry.steps) && entry.steps.length === plan.steps.length
         && entry.steps.every(step => ['pending', 'applying', 'verifying', 'succeeded', 'failed', 'unknown'].includes(step.phase)), 'UPDATE_LEDGER_INVALID')
       operationIds.add(entry.operation.requestId)
+      for (const [index, step] of entry.steps.entries()) if (Object.hasOwn(step, 'runtimeDiagnostic'))
+        requireValue(validateModuleExchangeDiagnostic(step.runtimeDiagnostic)
+          && step.runtimeDiagnostic.component === plan.steps[index].componentId, 'UPDATE_LEDGER_INVALID')
       for (const [index, step] of entry.steps.entries()) if (step.installRequestId !== undefined) {
         validateUpdateRequest('requestId', step.installRequestId)
         requireValue(plan.steps[index].installPlan && !installIds.has(step.installRequestId)
@@ -221,7 +225,14 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       await finish(entry)
     } catch (error) {
       const current = entry.steps.find(step => step.phase !== 'succeeded')
-      if (current) current.phase = 'failed'
+      if (current) {
+        current.phase = 'failed'
+        try {
+          const diagnostic = copy(error?.moduleDiagnostic)
+          if (validateModuleExchangeDiagnostic(diagnostic)
+            && diagnostic.component === planned.steps[entry.steps.indexOf(current)].componentId) current.runtimeDiagnostic = diagnostic
+        } catch {} // Diagnostic extraction must not replace the original failure.
+      }
       Object.assign(entry.operation, { phase: 'failed', execution: 'failed', verification: 'unknown',
         error: { code: safeCode(error), message: '更新を完了できませんでした。保存された結果を確認してください。' } })
       if (entry.hostIssued || entry.steps.some(installPending) || !error?.code) Object.assign(entry.operation, { phase: 'unknown', execution: 'unknown' })
