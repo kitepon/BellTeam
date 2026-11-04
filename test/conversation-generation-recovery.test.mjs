@@ -120,3 +120,16 @@ test('accepted transport native keeps recovery closed until its original waiter 
   gate.recover(ticket, 'old', 'new'); gate.resume(ticket)
   assert.equal(sends, 1)
 })
+
+test('unopened recovered candidate can be replaced with ordinary adopt under the same closed ticket', async () => {
+  const { gate, ticket, callbacks } = await failedGeneration()
+  gate.recover(ticket, 'old', 'candidate-a')
+  // Runtime has reaped the failed restore/ready candidate; no root was ever admitted.
+  assert.equal(gate.snapshot().closed, true)
+  gate.adopt(ticket, 'candidate-b')
+  assert.throws(() => callbacks.onInterim(['late']), unknown)
+  assert.deepEqual(gate.snapshot(), { generation: 'candidate-b', closed: true, active: 0, unconfirmed: false })
+  assert.throws(() => gate.enter(), refused)
+  gate.resume(ticket)
+  const fresh = gate.enter(); gate.finish(fresh)
+})

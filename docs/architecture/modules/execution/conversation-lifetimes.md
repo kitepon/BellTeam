@@ -110,3 +110,5 @@ private consume返却は{applied:boolean}を必要とする。競合時にtrue�
 runtimeは旧OS/IPC/pipes→drainIncoming→await channel.reapedの実終端後に呼ぶ。返却voidの後も同ticketで閉鎖したまま、新子の同state restore/ready/resume ACKが完了して初めてresume(ticket)する。旧generation/ticketを使う回復の二重実行は拒否する。通常adopt/drainの未確認拒否は維持し、failedだけを無条件に解除する窓口は作らない。
 
 新直接境界はtest/conversation-generation-recovery.test.mjs。共通controllerの異常終了/reaped/再起動はruntimeの図と試験が所有し、このhookの単独試験で実再起動成功を主張しない。
+
+recover後の新candidateがrestore/ready/resume ACK前に失敗した場合、runtimeはそのcandidateのOS/IPC/pipes・incoming/reapedを完了し、同ticketを閉じたまま通常adopt(ticket,nextGeneration)で次candidateを採用できる。前提はunconfirmed=falseかつactive=0で、旧callbackの遅着はこの条件を変更しない。close ticketは採用履歴の各世代IDと同値である必要がなく、同一閉鎖の本人性を持つ。新candidate自身が現世代protocol失敗を生じた場合は通常adoptも拒否されるので、この経路で未確認を無条件解除しない。
