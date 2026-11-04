@@ -1,4 +1,3 @@
-import { currentWorkErrors } from './current-work-contract.mjs'
 // 席のCLIがHTTPでつなぐMCPの入口。supervisorの内部入口（loopback）だけで開く。
 // 席ごとにnodeを起こさないよう、bellteamの道具と通話ブリッジへの中継をここで受ける。
 import { readFile } from 'node:fs/promises'
@@ -107,13 +106,7 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
     const server = new Server({ name: 'bellteam', version: '0.1.0' }, { capabilities: { tools: {} }, instructions: INSTRUCTIONS })
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: bellTeamTools }))
     server.setRequestHandler(CallToolRequestSchema, async call => {
-      try { return { content: [{ type: 'text', text: JSON.stringify(await runTool(from, () => callBellTeamTool({ ...scopedTools, name: call.params.name, arguments: call.params.arguments, from }))) }] } }
-      catch (error) {
-        if (call.params.name !== 'update_work_summary') throw error
-        const code = Object.hasOwn(currentWorkErrors, error?.code) ? error.code : 'CURRENT_WORK_UNAVAILABLE'
-        const result = { error: code, status: currentWorkErrors[code] }
-        return { isError: true, structuredContent: result, content: [{ type: 'text', text: JSON.stringify(result) }] }
-      }
+      return { content: [{ type: 'text', text: JSON.stringify(await runTool(from, () => callBellTeamTool({ ...scopedTools, name: call.params.name, arguments: call.params.arguments, from }))) }] }
     })
     // 接続ごとの状態を持たない。要求ごとに受け口を作り、応答を返したら閉じる。
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })

@@ -392,7 +392,7 @@ source不明/current nullはunknown、正式公開未供給/取得不能はpubli
 接続済みmodule executorは、公開情報の検証済み正式一致をcapability=false/UPDATE_ALREADY_CURRENTへ投影する。実行可能な更新が無くても、この取得済み一致をprovider未接続と表示しない。実publication失敗・未確認、閉鎖・fault・実行中・未確定Hostの拒否と最新operationの注意表示を保持し、表示のためにplan/start/ledger変更を行わない。
 
 
-## currentWorkの共通一覧と本人MCP
+## currentWorkの共通一覧と読取MCP
 
 ```mermaid
 flowchart LR
@@ -402,17 +402,15 @@ flowchart LR
   Provider --> Lists[GET botsの全6key / roomsのparticipants]
   Ingress[既席MCP本人確認 / seatExecutionSource捕捉] --> Closure[親closureだけがactor情報を渡す]
   Closure --> Binding[get_self.botのcurrentWorkBindingのみ]
-  Closure --> Update[update_work_summary / 閉DTO]
-  Update --> Writer[同transportの本人memory更新 / CASと受付後既observer]
-  Writer --> Events[既watchQueue / 既SSE再取得]
+  Provider --> Events[既watchQueue / 既SSE再取得]
   Lists --> UI[Web / Apple全体受入後の別差分]
 ```
 
 公開schemaはsrc/current-work-contract.mjs一正本。HTTP一覧は最後の履歴await後に現登録Botを使い、退役を除き、Roomは現memberIdsの重複/非在席を除いた参加者だけを同snapshot cacheから返す。Room自身のsummary/working stateを生成しない。DTOはsource/summary・更新時刻・観測時刻を分離し、未供給/不正projectionはunknown全6key、本文やGoalから補完しない。既online取得以外のnative/AI呼出を加えない。
 
-同transport.currentWorkBinding/updateWorkSummaryへ、既HTTP ingressが捕捉したsourceをtoolsForSource closureからだけ渡す。モデル引数のbotId/path/sourceは受けず、共通await後に本人退役なら更新前403。get_selfだけbot.currentWorkBindingを付け、他Bot読取やHTTP一覧へprivate bindingを出さない。更新の固定400/403/409/503はMCP isError/structuredContentの安全code/statusだけへ投影、自由message/stackやsummaryをエラーへ反射しない。実行所有者のmemory/UUID/CAS/15秒・10分/160文字正規化は同公開transportの責任で、共通が第二writerや追加observerを作らない。
+get_selfだけ既bot.currentWorkBindingを読取側の互換欄として返し、他Bot読取やHTTP一覧へprivate bindingを出さない。主agent向けMCPのupdate_work_summaryは登録とdispatchから撤去し、既名を直接呼んでもwriterへ到達しない。背景agentの状態所有・結果検証とwriterはexecutionが供給し、共通が第二writerや追加observerを作らない。
 
-本人更新は各実作業ターンの開始時に一回、同じターン内は実際の段階変更時だけ行う。既get_selfの本人bindingをそのまま使い、競合・取得不能は同要求を再送しない。入力・handler・DTO・10分の要約TTLは変えず、受信本文の自動転記・heartbeat・仕事開始の強制gateを足さない。
+共通templateは旧186Bの本人更新義務を削除し、代わりの禁止文を追加しない。背景方式の未供給を本人更新へ戻さず、既表示DTO・10分の要約TTLは維持する。受信本文の自動転記・heartbeat・仕事開始の強制gateを足さない。
 
 既watchQueueのSSE接続を再利用し二重watch無し。summaryを新たに読むことで正規AI/auth/Goalや設定発行へ到達しない。Apple実装の順序はOwner指定の全体受入後で、本schema供給から先行実装の許可へ拡張しない。
 
