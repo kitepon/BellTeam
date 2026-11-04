@@ -8,18 +8,18 @@ namespace BellTeam.App;
 
 public interface INotificationSink
 {
-    void Start(Action<string, ChatTarget> activated, Action<string> failed);
+    void Start(Action<string, ChatTarget?> activated, Action<string> failed);
     void Show(MessageNotification message);
     Task StopAsync();
 }
 public sealed class WindowsNotificationSink(string appId = DesktopShortcut.AppId, bool suppressPopup = false) : INotificationSink
 {
     private ToastNotifier? notifier;
-    private Action<string, ChatTarget>? activated;
+    private Action<string, ChatTarget?>? activated;
     private Action<string>? failed;
     private readonly object gate = new();
     private readonly Dictionary<ToastNotification, MessageNotification> visible = [];
-    public void Start(Action<string, ChatTarget> activated, Action<string> failed)
+    public void Start(Action<string, ChatTarget?> activated, Action<string> failed)
     {
         Marshal.ThrowExceptionForHR(DesktopShortcut.SetCurrentProcessExplicitAppUserModelID(appId));
         this.activated = activated; this.failed = failed;
@@ -58,13 +58,14 @@ public sealed class WindowsNotificationSink(string appId = DesktopShortcut.AppId
         return Task.CompletedTask;
     }
 }
-public sealed class DesktopNotifications(INotificationSink sink, SettingsStore settings, Action<string, ChatTarget> activated) : INotifyPropertyChanged, IAsyncDisposable
+public sealed class DesktopNotifications(INotificationSink sink, SettingsStore settings, Action<string, ChatTarget?> activated) : INotifyPropertyChanged, IAsyncDisposable
 {
     public bool Enabled { get; private set; }
     public string? Error { get; private set; }
     public string Status => Error ?? (Enabled ? "アプリが起きている間だけ通知します。" : "通知はオフです。");
     public event PropertyChangedEventHandler? PropertyChanged;
     private readonly SemaphoreSlim changing = new(1);
+    private readonly SemaphoreSlim updateChanging = new(1);
     private void Changed([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new(name));
     public Task InitializeAsync() => SetEnabledAsync(settings.Load().NotificationsEnabled, persist: false);
     public async Task SetEnabledAsync(bool enabled, bool persist = true)
@@ -99,6 +100,24 @@ public sealed class DesktopNotifications(INotificationSink sink, SettingsStore s
             Changed(nameof(Enabled)); Changed(nameof(Error)); Changed(nameof(Status));
         }
         finally { changing.Release(); }
+    }
+    public async Task NotifyUpdatesAsync(string server, UpdateCandidate[]? candidates)
+    {
+        if (candidates is null || !Enabled) return;
+        if (candidates.Length > 9 || candidates.Any(item => item is null || item.ComponentId is not ("container" or "web-gateway" or "notifications" or "members" or "conversation" or "execution" or "usage" or "memory" or "diagnostics") || item.Id is null || item.Id.Length != 64 || item.Id.Any(ch => ch is not (>= '0' and <= '9') and not (>= 'a' and <= 'f'))) || candidates.Select(item => item.ComponentId).Distinct().Count() != candidates.Length) throw new BellApiException("更新通知の候補を確認できません。");
+        await updateChanging.WaitAsync();
+        try
+        {
+            foreach (var candidate in candidates)
+            {
+                if (!Enabled) break;
+                var saved = settings.Load();
+                if (saved.UpdateNotifications.Any(item => item.Server == server && item.ComponentId == candidate.ComponentId && item.Id == candidate.Id)) continue;
+                settings.Save(saved with { UpdateNotifications = saved.UpdateNotifications.Where(item => item.Server != server || item.ComponentId != candidate.ComponentId).Append(new(server, candidate.ComponentId, candidate.Id)).ToArray() });
+                await NotifyAsync(new(server, null, "BellTeam", "更新があります。Updateで確認してください。", "update", candidate.Id));
+            }
+        }
+        finally { updateChanging.Release(); }
     }
     private async Task HandleFailureAsync(string error)
     {
