@@ -114,7 +114,7 @@ final class AppStore: ObservableObject {
     let billing: BillingStore
     let updates: UpdateStore
     @Published var updatePresented = false
-    private var pendingUpdateNotification: BellUpdateRoute?
+    private(set) var pendingUpdateNotification: BellUpdateRoute?
     private var eventsTask: Task<Void, Never>?
     private var eventRefreshTask: Task<Void, Never>?
     private var eventRefreshResources: Set<EventResource> = []
@@ -857,7 +857,6 @@ final class AppStore: ObservableObject {
         updatePresented = false
         notificationSecret = nil
         pendingNotification = nil
-        pendingUpdateNotification = nil
         for cookie in api.cookieStorage.cookies ?? [] { api.cookieStorage.deleteCookie(cookie) }
         let store = webDataStore.httpCookieStore
         for cookie in await store.allCookies() { await store.deleteCookie(cookie) }
@@ -885,11 +884,12 @@ final class AppStore: ObservableObject {
         }
     }
 
-    /// タップは画面を開いてGETで確認するだけ。接続先が違う通知では何も開かず、接続も実行もしない。
-    private func openPendingUpdateNotification() async {
+    /// タップは画面を開いてGETで確認するだけ。接続先が違う通知は、自動で切り替え・認証・実行をしない。
+    func openPendingUpdateNotification() async {
         guard case .ready = phase, let route = pendingUpdateNotification else { return }
-        pendingUpdateNotification = nil
+        // 別の接続先の通知は開かずに1件だけ残す。利用者がその接続先へ切り替えて認証した後に開く。
         guard route.belongs(to: serverURL) else { return }
+        pendingUpdateNotification = nil
         updatePresented = true
         await updates.refresh()
     }

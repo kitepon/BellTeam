@@ -46,8 +46,9 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testEventTypeUpdatesIsNotAFullRefresh](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L223) | `type=updates`のイベントがtypeとして読める |
 | [testUpdatesEventReadsOnlyTheInventory](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L229) | SSE `updates`でGET /api/updatesが1回、共通一覧（bots）は読まない |
 | [testTapOpensUpdateAndReadsWithoutAnyPost](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L243) | 一致するserverのタップで画面を開きGET、POSTは0回 |
-| [testTapForAnotherServerOpensNothingAndCallsNothing](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L255) | server不一致では開かず通信もしない |
-| [testTapBeforeReadyWaitsInsteadOfConnecting](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L264) | ready前は開かず通信もしない |
+| [testTapForAnotherServerOpensNothingAndCallsNothing](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L255) | server不一致では開かず通信もせず、1件保留する |
+| [testPendingTapForAnotherServerOpensOnlyAfterTheUserSwitchesThere](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L265) | 保留した不一致の通知は、利用者がその接続先へ切り替えてready後にだけ開きGET、POSTは0回 |
+| [testTapBeforeReadyWaitsInsteadOfConnecting](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L287) | ready前は開かず通信もしない |
 
 ### AuthSetupOrderingTests.swift
 

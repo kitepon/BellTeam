@@ -259,6 +259,29 @@ final class UpdateNotificationTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertFalse(store.updatePresented)
         XCTAssertTrue(UpdateProtocol.requests.isEmpty)
+        XCTAssertEqual(store.pendingUpdateNotification?.server, "https://other.example", "開かずに1件だけ残す")
+    }
+
+    func testPendingTapForAnotherServerOpensOnlyAfterTheUserSwitchesThere() async throws {
+        let defaults = UserDefaults.standard, previous = defaults.string(forKey: "bellbot.serverURL")
+        addTeardownBlock { defaults.set(previous, forKey: "bellbot.serverURL") }
+        let store = makeAppStore(baseURL: URL(string: "https://other.example")!) { request in
+            request.path == "/api/updates" ? .json(200, try UpdateFixtures.examples()["restart_required"]!) : .json(404, ["error": "NOT_FOUND"])
+        }
+        store.phase = .ready
+        BellNotifications.shared.onOpenUpdate?(try XCTUnwrap(BellUpdateRoute(userInfo: userInfo())))
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertFalse(store.updatePresented, "受信やタップで自動で切り替えない")
+        XCTAssertTrue(UpdateProtocol.requests.isEmpty)
+
+        // 利用者が明示的にその接続先へ切り替え、認証してreadyになった後だけ開く。
+        try await store.setServerAddress("https://update.test.invalid")
+        store.phase = .ready
+        await store.openPendingUpdateNotification()
+        XCTAssertTrue(store.updatePresented)
+        XCTAssertNil(store.pendingUpdateNotification)
+        XCTAssertEqual(UpdateProtocol.count(method: "GET", path: "/api/updates"), 1)
+        XCTAssertEqual(UpdateProtocol.requests.filter { $0.method == "POST" }.count, 0)
     }
 
     func testTapBeforeReadyWaitsInsteadOfConnecting() async throws {
@@ -270,12 +293,13 @@ final class UpdateNotificationTests: XCTestCase {
         XCTAssertTrue(UpdateProtocol.requests.isEmpty)
     }
 
-    private func makeAppStore(_ handler: @escaping (UpdateProtocol.Request) throws -> UpdateProtocol.Reply) -> AppStore {
+    private func makeAppStore(baseURL: URL = URL(string: "https://update.test.invalid")!,
+                              _ handler: @escaping (UpdateProtocol.Request) throws -> UpdateProtocol.Reply) -> AppStore {
         UpdateProtocol.reset(handler)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [UpdateProtocol.self]
         let session = URLSession(configuration: configuration)
-        let api = BellAPI(baseURL: URL(string: "https://update.test.invalid")!, session: session,
+        let api = BellAPI(baseURL: baseURL, session: session,
                           diagnostics: BellDiagnostics(onReport: { _, _, _, _ in }), cookieStorage: configuration.httpCookieStorage!)
         let previousOpen = BellNotifications.shared.onOpen, previousUpdate = BellNotifications.shared.onOpenUpdate
         addTeardownBlock {
