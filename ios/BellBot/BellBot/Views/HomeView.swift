@@ -243,8 +243,7 @@ private struct BotRow: View {
                         .font(.system(size: 12))
                         .foregroundStyle(BellTheme.muted)
                 }
-                Text(bot.recent?.kind == "peer" ? "他のメンバーと連絡しました" :
-                     (bot.recent?.preview ?? (bot.position.isEmpty ? "話しかけてみましょう" : bot.position)))
+                Text(CurrentWork.label(bot.currentWork))
                     .font(.system(size: 14))
                     .foregroundStyle(BellTheme.muted)
                     .lineLimit(1)

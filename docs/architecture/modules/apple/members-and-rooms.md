@@ -21,9 +21,10 @@ flowchart TD
 
 | 表示 | タイトル・副題と補助表示の出どころ |
 | --- | --- |
-| iPhoneのBotRow | 名前は`displayName`。副題は`recent.kind == peer`なら固定文「他のメンバーと連絡しました」、それ以外は`recent.preview`、recent無しならposition、position空なら「話しかけてみましょう」 |
+| iPhoneのBotRow | 名前は`displayName`。副題は`CurrentWork.label(currentWork)`（下の現在の仕事） |
 | iPhoneのRoomCard | 名前はname。副題は`recent.preview`、recent無しならpurpose、purpose空なら「チームで話す」。memberIds.countを人数表示 |
-| iPad/MacのBot行 | rowへ`displayName`と`recent.preview ?? position`を渡す。peer専用の置換とposition空時の固定文はこの呼出しに無い |
+| iPad/MacのBot行 | rowへ`displayName`と`CurrentWork.label(currentWork)`を渡す |
+| 現在の仕事 | `GET /api/bots`の`currentWork`。working+currentは本人の要約、working+staleは「作業中・要約期限切れ」、他のworkingは「作業中・要約未設定」、idleは「待機中」、unknown・欠落は「仕事状況を未取得」。文言はWebの`workLabel`と同じ。直近発言や予定promptは副題に使わない |
 | iPad/MacのRoom行 | rowへ`name`と`recent.preview ?? purpose`を渡す。purpose空時の固定文は無い |
 | RecentMessage.preview | messageの前後空白・改行を除き、空なら「画像」、本文の改行は半角空白へ置換。副題専用の追加HTTPなし |
 | 稼働丸・ファスト表示 | BotPresenceDotは`workingBotIDs.contains(id)`なら赤点滅、onlineなら緑、それ以外は灰色。fastModeはBotFastModeBadge。BotRowの日時は`BellDate.short(recent.at)` |

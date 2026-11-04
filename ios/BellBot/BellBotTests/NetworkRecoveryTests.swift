@@ -723,7 +723,7 @@ final class NetworkRecoveryTests: XCTestCase {
         withExtendedLifetime(observation) {}
     }
 
-    func testQueueOnlyEventReadsQueueWithoutUnrelatedLists() async {
+    func testQueueOnlyEventReadsQueueAndMemberWorkWithoutUnrelatedLists() async {
         let stream = "event: messages\ndata: {\"all\":false,\"topics\":[\"queue\"],\"botIds\":[\"bot-network\"],\"roomIds\":[]}\n\n"
         let scenario = NetworkScenario(failures: 0, holdEventsOpen: true, eventStream: stream)
         let store = AppStore(api: makeAPI(scenario))
@@ -734,11 +734,11 @@ final class NetworkRecoveryTests: XCTestCase {
         }
         store.startEvents()
         await fulfillment(of: [notified], timeout: 4)
-        for _ in 0..<80 where scenario.count("/api/queue") == 0 {
+        for _ in 0..<80 where scenario.count("/api/queue") + scenario.count("/api/bots") < 2 {
             try? await Task.sleep(for: .milliseconds(50))
         }
         XCTAssertEqual(scenario.count("/api/queue"), 1)
-        XCTAssertEqual(scenario.count("/api/bots"), 0)
+        XCTAssertEqual(scenario.count("/api/bots"), 1, "現在の仕事はqueue通知で変わり、botsのcurrentWorkから描く")
         XCTAssertEqual(scenario.count("/api/rooms"), 0)
         XCTAssertEqual(scenario.count("/api/owner"), 0)
         withExtendedLifetime(observation) {}

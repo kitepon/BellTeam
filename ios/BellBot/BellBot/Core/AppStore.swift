@@ -809,7 +809,11 @@ final class AppStore: ObservableObject {
         if topics.contains(.bots) { resources.insert(.bots) }
         if topics.contains(.rooms) { resources.insert(.rooms) }
         if topics.contains(.owner) { resources.insert(.owner) }
-        if topics.contains(.queue) { resources.insert(.queue) }
+        if topics.contains(.queue) {
+            resources.insert(.queue)
+            // 現在の仕事の変化はqueueとして届き、一覧の行はbotsのcurrentWorkから描く。
+            if !botIDs.isEmpty { resources.insert(.bots) }
+        }
         if !resources.isEmpty { requestRefreshFromEvent(resources: resources) }
     }
 

@@ -21,6 +21,27 @@ final class MemberActivityTests: XCTestCase {
         XCTAssertEqual(response.items.count, 6, "配送項目そのものは変更しない")
     }
 
+    func testMemberRowShowsCurrentWorkInsteadOfRecentMessage() throws {
+        let work = """
+        {"state":"working","summary":"Update画面を直している","summaryStatus":"current","summaryUpdatedAt":"2026-11-05T00:00:00Z","observedAt":"2026-11-05T00:00:01Z","source":"self_reported"}
+        """
+        let bot = try JSONDecoder().decode(Bot.self, from: Data("""
+        {"id":"bot-one","name":"ユキ","displayName":"ユキ","harness":"codex","model":"","reasoningEffort":"","fastMode":false,
+         "color":"indigo","profileText":"","personality":"","speechStyle":"","position":"","role":"","avatar":"","online":true,
+         "recent":{"id":"m1","at":"2026-11-05T00:00:00Z","message":"[BellTeam schedule 80284] 予定の本文"},"currentWork":\(work)}
+        """.utf8))
+        XCTAssertEqual(CurrentWork.label(bot.currentWork), "Update画面を直している")
+
+        let labels = try [
+            #"{"state":"working","summary":null,"summaryStatus":"stale","summaryUpdatedAt":"2026-11-05T00:00:00Z","observedAt":"2026-11-05T00:10:01Z","source":"self_reported"}"#,
+            #"{"state":"working","summary":null,"summaryStatus":"missing","summaryUpdatedAt":null,"observedAt":"2026-11-05T00:00:01Z","source":null}"#,
+            #"{"state":"idle","summary":null,"summaryStatus":"missing","summaryUpdatedAt":null,"observedAt":"2026-11-05T00:00:01Z","source":null}"#,
+            #"{"state":"unknown","summary":null,"summaryStatus":"missing","summaryUpdatedAt":null,"observedAt":null,"source":null}"#,
+        ].map { CurrentWork.label(try JSONDecoder().decode(CurrentWork.self, from: Data($0.utf8))) }
+        XCTAssertEqual(labels, ["作業中・要約期限切れ", "作業中・要約未設定", "待機中", "仕事状況を未取得"])
+        XCTAssertEqual(CurrentWork.label(nil), "仕事状況を未取得", "currentWorkを返さない旧サーバー")
+    }
+
     func testStoppedDeliveryIsDistinctAndAnotherRunningMemberRemainsVisible() throws {
         let messages = try JSONDecoder().decode([TimelineMessage].self, from: Data("""
         [
