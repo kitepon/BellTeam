@@ -498,6 +498,17 @@ AIのlogical8leaseと、固定6methodのreadonly世代pinを分ける。pinは�
 
 Owner GETの一覧/Owner/個別profile・画像・設定画・会話/queueは自身のfresh窓口を使い、不要な全profile snapshotを先に要求しない。会話/queueは対象をfresh readMemberで確認し、確定404と拒否/unknownを分ける。MCP/POSTの既fresh本人/対象認可は保持する。保存済み大画像の再取得でMEMBERS_NOT_ACCEPTEDを表示したOwner症状もこの読取経路へ含め、画像保存成功を取消したりnative故障と扱ったりしない。
 
+### builtin現在版の親投影
+
+```mermaid
+flowchart LR
+  Image[既readServerSourceCommit / 親にDI済みsource] --> Guard[currentTarget=builtin / currentVersionId=null / 固有source未供給]
+  Guard --> Display[update-center現在版]
+  Guard --> Adapter[update-module-adapters.current / planのfrom]
+```
+
+固有snapshotがbuiltin sourceを供給する場合はその値を優先する。明示builtin稼働かつ版IDがnullで固有source未供給の場合だけ、同imageから既読取済みの親sourceを現在版へ使う。明示release/未知target/ID未供給や不正sourceを既知版へ補完しない。catalog/公開版/capabilityを現在版から生成せず、runtime snapshot・source読取・HTTP DTOを追加しない。
+
 ### usage初回起動と共有交換mutex
 
 ```mermaid
