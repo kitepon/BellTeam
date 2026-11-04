@@ -244,7 +244,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     try {
       const target = instance
       if (proofHeld) throw fail('PROOF_UNAVAILABLE')
-      if (writerRetiring) throw fail('WRITER_RETIREMENT_UNAVAILABLE')
+      if (writerRetiring || target?.retirementStarted) throw fail('WRITER_RETIREMENT_UNAVAILABLE')
       if (!target || target.ended || kind === 'request' && !available && !canContinue(method, options, target.generation))
         throw fail('NOT_ACCEPTING')
       return track(target.channel[kind](method, params, options))

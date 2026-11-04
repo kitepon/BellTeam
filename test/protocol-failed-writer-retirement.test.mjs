@@ -105,6 +105,8 @@ for (const mode of ['not_failed', 'wrong_generation', 'extra_key', 'quiesce_fail
   if (mode === 'quiesce_failure') {
     await assert.rejects(f.retire(), /RETIREMENT_UNAVAILABLE/)
     assert.equal(f.calls.filter(call => call.method === 'quiesceWriter').length, 1, 'one attempt per instance')
+    await assert.rejects(f.controller.callback('old', {}), /RETIREMENT_UNAVAILABLE/)
+    await assert.rejects(f.controller.request('old', {}), /RETIREMENT_UNAVAILABLE/)
   }
 })
 
