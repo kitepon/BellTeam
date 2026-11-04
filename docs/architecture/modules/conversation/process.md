@@ -23,6 +23,31 @@ flowchart LR
 
 閉DTO/writer/restore/追跡の残実装はこの図を拡張して同差分で行う。初版は全callback/SeatTurnWatch/非await afterTurnと元turn一回派生reportの実終端まで旧子を保持する。新世代回答移譲0。親stableRoom/asset gate/FD保持、60秒busy/旧resume/新子0/AIabort0/再送0をRoot正本どおり接続する。先着互換exportの成功を子交換/唯一writer移管/本番成功へ補完しない。
 
+## 異常終了したwriterと旧実行参照の分離
+
+2026-11-04 Qの採用契約。正常交換の全体drainは維持し、異常終了後の新規会話の先行復帰だけを扱う。以下はruntime/executionの世代分離と実追跡の実装を必要とし、既active0 recoverや観測ログの追加だけで成立したとは扱わない。
+
+```mermaid
+flowchart LR
+  Failed[会話子異常終了] --> Barrier[runtime: OS/IPC/pipes/incoming/effect/reaped実終端]
+  Barrier --> Retire[execution: 旧writer世代を終端専用へ退役]
+  Retire --> Restore[同採用版 / 保存済stateの既restore]
+  Restore --> Ready[新子ready・resumeの実ACK]
+  Ready --> New[空の新世代gate / 通常認証の新規会話]
+  Native[親の旧native/watch実参照] --> Old[元opaque・authority・相関・実Promiseを保持]
+  Old --> Callback[元の旧callback closure / failure又はunknown]
+  Callback --> NoWrite[新writerへの付替え・書込・再送・偽保存ACKなし]
+  Old --> Terminal[元実Promiseのsettle / 正規finish]
+  New --> Close[全体close/drainは新旧を合算]
+  Terminal --> Close
+```
+
+会話のcallbackは元generation/operation/delivery/targetへ束縛した旧channel closureに残す。旧子が失ったoptions/state/userSavedを新子の通常initializeやreconcile handleから復元したとは扱わない。旧callbackの実失敗は元failure/unknownへ返し、永久pendingや偽`{applied:true}`で代用しない。既保存ACK済みの内容は保持するが、旧回答/status/reportの新writerへの保存回復は本契約に含めない。旧保存の追加保証が必要なら、限定継続capability・writer state再構成・元commit/unknownの重複防止・実保存ACKを別に定める。
+
+新子は既表示snapshotと保存済stateを同採用版で復元し、唯一writerのready/resume ACK後だけ新規入場を開く。旧実参照の正当な後始末は元gateへ届き、旧callback/failed/waiterが新世代へ作用しない。新entry/claimNative/report/sourceを旧参照から作らない。admission/moduleOperationsのidentityと元operation実終端までのcapturedAuthorityを保持する。世代分離を同Botの実占有解放や旧入力の再発行に使わない。
+
+runtimeのwriter終端と親native/watchの実終端は別である。executionは元receipt/jobの実追跡をcallback await前に一回登録し、旧callback失敗だけで実追跡を解除しない。会話は旧callback保存失敗をnative完了へ変換しない。全体closeと正常交換drainは新旧実参照のglobal active0/unconfirmed条件を維持する。接続の正本は[runtime再生成](../runtime/module-process.md)と[execution lifetime](../execution/conversation-lifetimes.md)。
+
 userTurnは返すPromiseへ同期`.accepted`を持つ。nativeの既受付後にそのPromiseだけが終端し、runtimeはroot slotを解放できる。元Promiseは既prepared/knownReplyIds/claimedReplyIdsと最終保存を同旧子で持ち、受付成功を回答保存成功にしない。enqueueUserTurnは同経路のacceptedだけを既返却形で返す。acceptedを持たない既低層transportでは実completionまでslotを解放しない。dispatcherもasyncラッパーでこのpropertyを落とさず、背景報告の親参照と実completionはroot slotから別に追跡する。
 
 ## callback保存の閉DTO
