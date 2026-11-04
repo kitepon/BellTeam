@@ -188,7 +188,16 @@ export function createConversationStreams(endpoint, { onStream, onOpen = () => t
 }
 
 // One snapshot, one incremental encoding; never stringify the whole history array.
+// 小さな断片を1つずつ送ると、断片ごとに1枠と受領待ちが生じ、27MBの履歴で20秒を超える。枠の上限までまとめて渡す。
 export async function* encodeConversationJson(value) {
+  let parts = [], size = 0
+  for await (const part of encodeJsonParts(value)) {
+    parts.push(part); size += part.length
+    if (size >= CHUNK) { yield Buffer.concat(parts, size); parts = []; size = 0 }
+  }
+  if (size) yield Buffer.concat(parts, size)
+}
+async function* encodeJsonParts(value) {
   if (value === null || typeof value !== 'object') {
     const text = JSON.stringify(value)
     if (text === undefined) throw conversationStreamError('CONVERSATION_JSON_INVALID')
@@ -199,7 +208,7 @@ export async function* encodeConversationJson(value) {
     let comma = false
     for await (const item of value) {
       if (comma) yield Buffer.from(',')
-      yield* encodeConversationJson(item); comma = true
+      yield* encodeJsonParts(item); comma = true
     }
     yield Buffer.from(']')
   } else {
@@ -209,7 +218,7 @@ export async function* encodeConversationJson(value) {
       if (value[key] === undefined) continue
       if (comma) yield Buffer.from(',')
       yield Buffer.from(JSON.stringify(key) + ':')
-      yield* encodeConversationJson(value[key]); comma = true
+      yield* encodeJsonParts(value[key]); comma = true
     }
     yield Buffer.from('}')
   }
