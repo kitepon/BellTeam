@@ -363,7 +363,7 @@ else
     exit "$result"
   fi
 fi
-docker compose --project-directory "$PWD" up -d --wait --wait-timeout 120 --pull never
+docker compose --project-directory "$PWD" up -d --wait --wait-timeout 300 --pull never
 endpoint=$(docker compose port bellteam 4180)
 case "$endpoint" in
   0.0.0.0:*|\[::\]:*) url="http://localhost:18891" ;;

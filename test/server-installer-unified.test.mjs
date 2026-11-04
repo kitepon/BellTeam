@@ -132,7 +132,7 @@ else if(a[0]==='run'){
   }
   const phase=a.at(-1);if(phase===e.TEST_FAIL_PHASE)process.exit(55);
  }else if(a.includes('up')){
-  if(e.TEST_UP_FAIL)process.exit(58);
+  if(e.TEST_UP_FAIL||Number(e.TEST_HEALTH_READY_AFTER??0)>Number(a[a.indexOf('--wait-timeout')+1]))process.exit(58);
   const model=select(),previous=state(),counter=fs.existsSync(root+'/starts')?Number(fs.readFileSync(root+'/starts'))+1:1;
   fs.writeFileSync(root+'/starts',String(counter));
   // Compose restarts an unchanged container and retains its immutable labels.
@@ -509,4 +509,14 @@ test('H1公開2fileの通常reset導入をvolume未指定で繰り返し、保�
  assert.equal(recovery.find(c=>c.args.includes('up')).compose,generations[2]+'/previous-normal.json')
  assert.equal(await readFile(f.root+'/'+volumes[1]+'/retained','utf8'),'old-state-1')
  const calls=await f.calls();assert.equal(calls.some(c=>c.args.includes('aiterm-checkpoint')),false)
+})
+
+
+test('起動猶予後のhealthyを有限待機し、期限超過の失敗と保存世代を保持する',async t=>{
+ const ready=await fixture(t);await ready.run([],{TEST_HEALTH_READY_AFTER:'180'});
+ const up=(await ready.calls()).filter(c=>c.args.includes('up'));assert.equal(up.length,1);
+ assert.equal(up[0].args[up[0].args.indexOf('--wait-timeout')+1],'300');
+ const late=await fixture(t);await assert.rejects(late.run([],{TEST_HEALTH_READY_AFTER:'301'}),{code:58});
+ assert.equal((await late.calls()).filter(c=>c.args.includes('up')).length,1);
+ assert.ok(await readFile((await late.saved())+'/normal.json'));
 })
