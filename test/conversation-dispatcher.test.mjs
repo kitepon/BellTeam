@@ -239,3 +239,33 @@ test('observer uses parent read/source and stores cursor before acknowledging, w
   assert.equal(h.calls.filter(x => x.method === 'execution.background.begin').length, 1)
   await h.d.control('quiesce', {}, controlContext)
 })
+
+test('child recent/page use fresh profiles, one batch snapshot, room authorization and drain ownership', async t => {
+  const h = await setup(t); await initialize(h)
+  const botId = h.fixture.bots[0].id
+  await h.dispatch('direct.post', { from: botId, target: 'user', message: 'first', images: [] })
+  assert.equal((await h.dispatch('history.recent', { botId })).message.message, 'first')
+  const reads = h.calls.filter(call => call.method === 'members.profiles.read').length
+  const batch = await h.dispatch('history.recentBatch', { botIds: [botId, botId] }), rows = []
+  for await (const row of batch) rows.push(row)
+  assert.equal(h.calls.filter(call => call.method === 'members.profiles.read').length, reads + 1)
+  assert.deepEqual(rows.map(row => [row.botId, row.message.message]), [[botId, 'first'], [botId, 'first']])
+  const query = { limit: '1', before: null, after: null }
+  const page = await h.dispatch('history.page', { kind: 'bots', id: botId, query, cards: [[], []] })
+  await h.dispatch('direct.post', { from: botId, target: 'user', message: 'second', images: [] })
+  let drained = false
+  const quiesce = h.d.control('quiesce', {}, controlContext).then(value => { drained = true; return value })
+  await settle(); assert.equal(drained, false)
+  const pages = []; for await (const value of page) pages.push(value)
+  assert.equal(pages.length, 1); assert.equal(pages[0].items[0].item.message, 'first')
+  await quiesce; await h.d.control('resume', {}, controlContext)
+  const next = []; for await (const value of await h.dispatch('history.page', { kind: 'bots', id: botId, query, cards: [[], []] })) next.push(value)
+  assert.equal(next[0].items[0].item.message, 'second')
+  const roomPage = []; for await (const value of await h.dispatch('history.page', { kind: 'rooms', id: 'room-conversation-probe', query, cards: [[]] })) roomPage.push(value)
+  assert.equal(roomPage.length, 1)
+  h.fixture.bots.push({ id: 'bot-outsider', name: 'Outsider' })
+  await assert.rejects(h.dispatch('history.page', { kind: 'rooms', id: 'room-conversation-probe', query, cards: [[]] }, { kind: 'bot', botId: 'bot-outsider' }), /MEMBER_REQUIRED/)
+  await assert.rejects(h.dispatch('history.recentBatch', { botIds: ['bot-missing'] }), /BOT_NOT_FOUND/)
+  h.fixture.bots.length = 0
+  await assert.rejects(h.dispatch('history.page', { kind: 'bots', id: botId, query, cards: [[], []] }), /BOT_NOT_FOUND/)
+})

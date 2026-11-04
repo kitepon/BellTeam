@@ -70,10 +70,12 @@ flowchart LR
   Validate -->|有効行| Store["ConversationStore<br/>snapshotと索引"]
   Validate -->|不正な確定行| Corruption["固定診断callback<br/>code / line / offset / length / reason"]
   Corruption --> Fallback["同期throw / Promise拒否は<br/>同固定診断をstderrへ"]
-  Room["部屋の記録"] --> Views["表示用の履歴を組む"]
+  Room["部屋の記録"] --> Views["子: 履歴の既索引"]
+  Parent["親: 同snapshotカード本文を保持"] --> Cards
   Store --> Views
-  Cards["秘密入力・質問のカード"] --> Views
-  Views --> Page["timelinePage → webMessage<br/>既ID・順序・ページmetadataを確定"]
+  Cards["秘密入力・質問のid/at列"] --> Views
+  Views --> Selected["子history.page: timelinePage<br/>履歴行とカード位置だけ返信"]
+  Selected --> Page["親: 同カード本文へ復元 → webMessage<br/>既ID・順序・ページmetadataを保持"]
   Page --> Guide["messagePageのみ任意ownerSecretGuide照会<br/>対象row / secret_requestを複製"]
   Usage["usage: 認証run正本<br/>許可・停止・期限と公式URLを検証"] --> Guide
   Root["Root: publicへ同じgetter参照を注入<br/>internalはnull"] --> Guide

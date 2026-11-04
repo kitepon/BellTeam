@@ -59,7 +59,15 @@ export function validateConversationRequest(method, params, context) {
       roomId, scheduleId: nonempty, expectedRevision: integer, expectedNextRunAt: date, ranAt: date,
     })
     case 'member.removeFromRooms': return fields(params, { botId: id })
-    case 'history.listMessages': return fields(params, { botId: id })
+    case 'history.listMessages': case 'history.recent': return fields(params, { botId: id })
+    case 'history.recentBatch': return fields(params, { botIds: array(id) })
+    case 'history.page':
+      fields(params, { kind: oneOf('bots', 'rooms'), id,
+        query: value => fields(value, { limit: nullable(text), before: nullable(text), after: nullable(text) }),
+        cards: array(array(value => fields(value, { id: text, at: text }))),
+      })
+      if (params.cards.length !== (params.kind === 'bots' ? 2 : 1) || (params.kind === 'rooms' && !roomId(params.id))) invalid()
+      return true
     case 'direct.post': return fields(params, { from: id, target: id, ...post })
     case 'user.post': case 'user.turn':
       fields(params, { target: id, ...post }, { recordUser: bool })

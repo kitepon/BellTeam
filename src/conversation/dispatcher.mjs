@@ -12,6 +12,7 @@ import { chooseRoomResponder } from '../room-routing.mjs'
 import { ConversationNative } from './native.mjs'
 import { ConversationBackground } from './background.mjs'
 import { ConversationRouting } from './routing.mjs'
+import { conversationHistoryPage } from './history-page.mjs'
 import { readSelfTurnsState } from './restore.mjs'
 import { CONVERSATION_STATE_COMPATIBILITY } from './state-compatibility.mjs'
 import { validateConversationRequest, validateConversationControl } from './requests.mjs'
@@ -203,6 +204,24 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
         if (!bots.has(params.botId)) throw new Error(`BOT_NOT_FOUND: ${params.botId}`)
         return store.timeline(params.botId).then(history)
       case 'history.listRoomMessages': authorizeRoom(params.roomId); return rooms.messages(params.roomId).then(history)
+      case 'history.page': {
+        let base
+        if (params.kind === 'rooms') { authorizeRoom(params.id); base = rooms.messageView(params.id) }
+        else {
+          if (!bots.has(params.id)) throw new Error(`BOT_NOT_FOUND: ${params.id}`)
+          base = store.timelineView(params.id)
+        }
+        return base.then(index => history([conversationHistoryPage(index, params)]))
+      }
+      case 'history.recentBatch': {
+        for (const botId of params.botIds) if (!bots.has(botId)) throw new Error(`BOT_NOT_FOUND: ${botId}`)
+        return store.timelineViews(params.botIds).then(views => history(params.botIds.map(botId => ({ botId, message: views.get(botId).at(-1) ?? null }))))
+      }
+      // 一覧の直近表示は最後の1件だけを使う。全履歴を親へ送ると、メンバー数に比例して一覧が遅くなる。
+      case 'history.recent': {
+        if (!bots.has(params.botId)) throw new Error(`BOT_NOT_FOUND: ${params.botId}`)
+        return store.timelineView(params.botId).then(index => ({ message: index.length ? index.at(-1) : null }))
+      }
       case 'direct.post': return messenger.sendmessage(params)
       case 'user.post': case 'user.turn': {
         const state = current(), completion = messenger.userTurn(params)
@@ -232,7 +251,8 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
     accepted?.promise.catch(() => {})
     const task = track(contexts.run({ context }, async () => {
       await bots.refresh()
-      if (method.startsWith('room') || ['history.listRoomMessages', 'member.removeFromRooms'].includes(method)) await rooms.refresh()
+      if (method.startsWith('room') || ['history.listRoomMessages', 'member.removeFromRooms'].includes(method)
+        || method === 'history.page' && params.kind === 'rooms') await rooms.refresh()
       const result = execute(method, params)
       if (accepted) Promise.resolve(result.accepted).then(value => { validateConversationResult('user.post', value); accepted.resolve(value) }, accepted.reject).catch(accepted.reject)
       const value = await result
