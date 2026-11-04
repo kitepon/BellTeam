@@ -85,7 +85,7 @@ else if(a[0]==='run'){
  }else if(entry==='/usr/local/bin/node'){
   if(a.some(v=>v.endsWith('target=/probe'))){if(a.includes('1000:1000'))process.exit(Number(e.TEST_PROBE_RESULT??75));process.exit(0);}
   if(e.TEST_H1&&a.includes('/app/src/resume-install-plan.mjs')){const r=spawnSync(process.execPath,[repo+'/src/resume-install-plan.mjs',a.at(-1)],{stdio:'inherit'});process.exit(r.status??98);}
-  if(a.includes('/app/scripts/module-update-compose.mjs')){const r=spawnSync(process.execPath,[repo+'/scripts/module-update-compose.mjs'],{stdio:'inherit'});process.exit(r.status??98);}
+  if(a.includes('/app/scripts/module-update-compose.mjs')){const r=spawnSync(process.execPath,[repo+'/scripts/module-update-compose.mjs',...a.slice(a.indexOf('/app/scripts/module-update-compose.mjs')+1)],{stdio:'inherit'});process.exit(r.status??98);}
   if(a.includes('/app/scripts/container-update-compose.mjs')){const r=spawnSync(process.execPath,[repo+'/scripts/container-update-compose.mjs'],{stdio:'inherit'});process.exit(r.status??98);}
   if(a.includes('/app/scripts/read-container-update-normal.mjs')){
    const {containerUpdateSavedPath}=await import(pathToFileURL(repo+'/scripts/read-container-update-normal.mjs'));
@@ -104,6 +104,7 @@ else if(a[0]==='run'){
    const code=a[j+1].replace('p="/resume-state"','p='+JSON.stringify(root+'/'+name));
    const r=spawnSync(process.execPath,['-e','require("fs").chownSync=(p,u,g)=>{if(u!==1000||g!==1000)process.exit(89)};'+code],{stdio:'inherit'});process.exit(r.status??98);
   }
+  if(j>=0&&a[j+1].includes('existsSync("/app/scripts/module-worker-termination.py")'))process.exit(e.TEST_NO_TERMINATION?75:0);
   if(j>=0&&a[j+1].includes('existsSync("/app/scripts/module-update-compose.mjs")'))process.exit(e.TEST_NOT_BUNDLED?75:0);
   if(j>=0&&a[j+1].includes('existsSync("/app/scripts/container-update-compose.mjs")'))process.exit(e.TEST_CONTAINER_UPDATER?0:75);
   if(j>=0){const r=spawnSync(process.execPath,a.slice(j),{stdio:'inherit'});process.exit(r.status??98);}
@@ -149,6 +150,7 @@ else if(a[0]==='run'){
  }else if(a.includes('port'))emit(e.TEST_ENDPOINT??'127.0.0.1:18891');
  else if(a.includes('ps')){if(state())emit(state().Id);}
  else if(a.includes('run')){
+  if(a.includes('module-worker-termination')){if(e.TEST_TERMINATION_FAIL){console.error('HOST_MODULE_TERMINATION_UNCONFIRMED');process.exit(67);}emit({code:'MODULE_WORKER_SWITCH',stage:'removed'});process.exit(0);}
   if(a.includes('container-updater')&&a.includes('--configure')){
    fs.writeFileSync(root+'/configured-container-normal.json',fs.readFileSync(0));
    process.exit(e.TEST_CONTAINER_CONFIG_FAIL?65:0);
@@ -611,7 +613,7 @@ test('bundled installer freezes the socket and starts the same image service aft
  assert.equal(ups.length,2)
  assert.equal(ups[0].compose,saved+'/normal.json')
  assert.equal(ups[1].args[ups[1].args.indexOf('-f')+1],saved+'/module-installer.json')
- const stop=calls.findIndex(c=>c.args.includes('stop')&&c.args.includes('module-installer'))
+ const stop=calls.findIndex(c=>c.args.includes('run')&&c.args.includes('module-worker-termination'))
  const maintenance=calls.findIndex(c=>c.args.includes('state-maintenance')&&c.args.at(-1)==='prepare')
  assert.ok(stop>=0&&maintenance>stop)
  const failed=await fixture(t)
@@ -671,4 +673,29 @@ test('container worker delegates runtime directory and canonical path access to 
  const canonical=calls.find(c=>c.args.includes('/app/src/server-state-writers.mjs')&&c.args.at(-1)==='canonical')
  assert.ok(canonical?.args.includes('type=bind,source=/,target=/host,readonly'))
  assert.ok(calls.some(c=>c.args.includes('/app/src/server-state-writers.mjs')&&c.args.at(-1)==='verify'))
+})
+
+
+test('termination bridge installer runs fixed helper before maintenance and refuses uncertain proof before further stop',async t=>{
+ const f=await fixture(t);await f.run([],{TEST_TERMINATION:'1'})
+ const calls=await f.calls(),saved=await f.saved()
+ const helper=calls.findIndex(c=>c.args.includes('run')&&c.args.includes('module-worker-termination'))
+ const maintenance=calls.findIndex(c=>c.args.includes('state-maintenance')&&c.args.at(-1)==='prepare')
+ assert.ok(helper>=0&&maintenance>helper)
+ assert.equal(calls.some(c=>(c.args.includes('stop')||c.args.includes('rm'))&&c.args.includes('module-installer')),false)
+ const model=JSON.parse(await readFile(saved+'/module-worker-termination.json'))
+ assert.deepEqual(model.services['module-worker-termination'].command,['selected-project',currentImage,'fixture_state'])
+ assert.equal(model.services['module-worker-termination'].volumes.some(m=>m.target==='/var/run/docker.sock'),true)
+ const failed=await fixture(t)
+ await assert.rejects(failed.run([],{TEST_TERMINATION:'1',TEST_TERMINATION_FAIL:'1'}),e=>e.code===67&&/HOST_MODULE_TERMINATION_UNCONFIRMED/.test(e.stderr))
+ const failedCalls=await failed.calls()
+ assert.equal(failedCalls.some(c=>c.args.includes('state-maintenance')||c.args.includes('up')||c.args[0]==='stop'),false)
+})
+
+
+test('termination helper missing in selected image refuses without legacy stop fallback',async t=>{
+ const f=await fixture(t)
+ await assert.rejects(f.run([],{TEST_NO_TERMINATION:'1'}),e=>e.code===1&&/MODULE_WORKER_TERMINATION_UNAVAILABLE/.test(e.stderr))
+ const calls=await f.calls()
+ assert.equal(calls.some(c=>c.args.includes('state-maintenance')||c.args.includes('up')||c.args.includes('stop')||c.args[0]==='rm'),false)
 })

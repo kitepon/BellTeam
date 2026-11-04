@@ -394,8 +394,17 @@ fi
 keep_saved=true
 printf 'saved-compose=%s\n' "$saved"
 if [ -f "$saved/module-installer.json" ]; then
-  docker compose --project-directory "$PWD" -f "$saved/module-installer.json" stop module-installer
-  docker compose --project-directory "$PWD" -f "$saved/module-installer.json" rm -f module-installer
+  termination=0
+  docker run --pull never --rm --network none --read-only --entrypoint /usr/local/bin/node "$image" \
+    -e 'process.exit(require("fs").existsSync("/app/scripts/module-worker-termination.py")?0:75)' || termination=$?
+  case "$termination" in
+    0)
+      docker run --pull never --rm -i --network none --read-only --entrypoint /usr/local/bin/node "$image" \
+        /app/scripts/module-update-compose.mjs --termination-helper < "$saved/normal.json" > "$saved/module-worker-termination.json"
+      docker compose --project-directory "$PWD" -f "$saved/module-worker-termination.json" \
+        run --pull never --rm --no-deps -T module-worker-termination;;
+    *) echo MODULE_WORKER_TERMINATION_UNAVAILABLE >&2; exit 1;;
+  esac
 fi
 if [ -n "$stopped_container" ]; then
   docker stop "$stopped_container"

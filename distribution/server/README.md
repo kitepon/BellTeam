@@ -242,3 +242,10 @@ sh install.sh --recover .bellteam-compose.対象世代
 現在の会話・予定を含むdataを戻し、保存した旧imageと設定で起動します。古いbackupへ巻き戻す操作ではありません。旧設定を証明できなかった世代では復旧を拒否し、保存したcontainer原本を案内します。旧profileの実fileを別世代から参照している場合、その世代も保持してください。
 
 WindowsではWSLのLinux filesystem内へ設置してください。Mac Docker Desktopでは本体専用データをEngine内volumeへ分離します。環境ごとの実移行・復旧の受入状況は対応するリリース記録を確認してください。
+
+
+### 機能導入の結果不明を保持したservice更新
+
+新しい公開`install.sh`と同じ版の正式imageは、機能導入programを停止する前に旧workerの本人性と停止証拠を検査・保存します。元workerが生存中、旧namespaceを確認できない、保存先や元記録が不一致、対応helperがimageに無い、停止/証拠保存が不明の場合は非0で止まり、次の起動へ進みません。保存記録・旧container・元結果不明を手で消したり、再作成だけで解除したりしないでください。
+
+最初の対応では配布`install.sh`を正規に取得し直してから、同sourceの正式imageで通常の`sh install.sh`を使います。稼働中の古いinstallerに新imageだけを指定しても、停止前の検査は追加されません。Host専用ツール・設定・常設daemonを追加する手順はありません。この更新で保存される停止証拠だけでは、元更新を成功にしたり別更新を再発行したりしません。元IDの照合・明示終了には既Owner認可と全ての通常条件が引き続き必要です。
