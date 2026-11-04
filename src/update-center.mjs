@@ -20,8 +20,10 @@ export function createUpdateCenter({ gateway = () => null, builtinSourceCommit =
         : id === 'container' && builtin ? { ...builtin, origin: 'container' } : builtin
       const components = updateComponents.map(([id, name, description]) => {
         const memoryState = id === 'memory' ? memory?.snapshot() : id === 'diagnostics' ? diagnostics?.snapshot() : id === 'usage' ? usage?.snapshot() : id === 'execution' ? execution?.snapshot() : id === 'conversation' ? conversation?.snapshot() : null
+        const moduleBuiltinSource = memoryState?.builtinSourceCommit
+          ?? (memoryState?.currentTarget === 'builtin' && memoryState?.currentVersionId === null ? builtinSourceCommit : null)
         const gatewayBuiltin = sourceValid(builtinSourceCommit) ? { version: builtinSourceCommit, sourceCommit: builtinSourceCommit, digest: null, origin: 'builtin' } : null
-        const current = id === 'web-gateway' ? versionValid(web?.versionId) ? active(id, web.versionId) : web?.versionId === null ? gatewayBuiltin : null : ['memory', 'diagnostics', 'usage', 'execution', 'conversation'].includes(id) ? memoryState?.currentVersionId ? active(id, memoryState.currentVersionId) : sourceValid(memoryState?.builtinSourceCommit) ? { version: memoryState.builtinSourceCommit, sourceCommit: memoryState.builtinSourceCommit, digest: null, origin: 'builtin' } : null : id === 'members' ? versionValid(roster?.currentVersionId)
+        const current = id === 'web-gateway' ? versionValid(web?.versionId) ? active(id, web.versionId) : web?.versionId === null ? gatewayBuiltin : null : ['memory', 'diagnostics', 'usage', 'execution', 'conversation'].includes(id) ? memoryState?.currentVersionId ? active(id, memoryState.currentVersionId) : sourceValid(moduleBuiltinSource) ? { version: moduleBuiltinSource, sourceCommit: moduleBuiltinSource, digest: null, origin: 'builtin' } : null : id === 'members' ? versionValid(roster?.currentVersionId)
           ? { version: roster.currentVersionId, sourceCommit: null, digest: `sha256:${roster.currentVersionId}`, origin: 'release' }
           : sourceValid(roster?.builtinSourceCommit) ? { version: roster.builtinSourceCommit, sourceCommit: roster.builtinSourceCommit, digest: null, origin: 'builtin' } : null
           : active(id, id === 'web-gateway' ? web?.versionId : id === 'notifications' ? push?.currentVersionId : null)

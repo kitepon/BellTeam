@@ -14,6 +14,9 @@ on:
       - integrations/**
       - distribution/server/**
       - scripts/package-server.mjs
+      - scripts/module-update-service.py
+      - scripts/module-update-compose.mjs
+      - scripts/container-update-host.py
       - scripts/assert-state-writers-stopped.sh
       - scripts/update-cursor.sh
       - scripts/cursor-update-entrypoint.sh
@@ -284,6 +287,16 @@ jobs:
       - name: 試験コンテナと保存先を片付ける
         if: always()
         run: |
+          install_directory=$(dirname "$COMPOSE_FILE")
+          for model in "$install_directory"/.bellteam-compose.*/module-installer.json; do
+            [ -f "$model" ] || continue
+            docker compose --project-directory "$install_directory" -f "$model" logs --no-color || true
+            docker compose --project-directory "$install_directory" -f "$model" down --volumes || true
+          done
+          for model in "$install_directory"/.bellteam-compose.*/normal.json; do
+            [ -f "$model" ] || continue
+            docker compose --project-directory "$install_directory" -f "$model" down --volumes || true
+          done
           if [ -f "$COMPOSE_FILE" ]; then
             docker compose logs --no-color || true
             docker compose down --volumes || true

@@ -15,7 +15,12 @@ export function createModuleUpdateAdapters({ gateway, builtinSourceCommit = null
   for (const [id, controller] of [['notifications', notifications?.controller], ['members', members?.controller], ['memory', memory], ['diagnostics', diagnostics], ['usage', usage], ['execution', execution], ['conversation', conversation]]) {
     if (!controller) continue
     const snapshot = () => controller.snapshot()
-    const current = () => { const state = snapshot(); return version(state.currentVersionId, state.builtinSourceCommit) }
+    const current = () => {
+      const state = snapshot()
+      const builtin = state.builtinSourceCommit
+        ?? (state.currentTarget === 'builtin' && state.currentVersionId === null ? builtinSourceCommit : null)
+      return version(state.currentVersionId, builtin)
+    }
     result[id] = {
       current,
       capture: () => ({ generation: snapshot().generation ?? null, pid: null }),

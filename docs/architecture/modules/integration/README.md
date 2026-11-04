@@ -498,6 +498,29 @@ AIのlogical8leaseと、固定6methodのreadonly世代pinを分ける。pinは�
 
 Owner GETの一覧/Owner/個別profile・画像・設定画・会話/queueは自身のfresh窓口を使い、不要な全profile snapshotを先に要求しない。会話/queueは対象をfresh readMemberで確認し、確定404と拒否/unknownを分ける。MCP/POSTの既fresh本人/対象認可は保持する。保存済み大画像の再取得でMEMBERS_NOT_ACCEPTEDを表示したOwner症状もこの読取経路へ含め、画像保存成功を取消したりnative故障と扱ったりしない。
 
+### 同梱module serviceと既image CIの後片付け
+
+```mermaid
+flowchart LR
+  Saved[runtime installerの固定saved model] --> Backend[module-installer.json / logsとdown volumes]
+  Backend --> Normal[同saved normal.json / socket volumeを含むdown volumes]
+  Normal --> Existing[既normal modelのlogs/down]
+  Existing --> State[既CI専用の外部state volume回収]
+```
+
+既image CIはinstallerが作った固定modelだけを使い、module backendを先に終了してからnormalと共有socketを片付ける。saved model未作成時は既cleanupへ戻り、途中のlogs/down失敗でも既normalと専用stateの回収を試みる。任意project/volumeの探索・prune・追加試験群は加えない。backend/installerの実装はruntime、当接点は通常main/既CI接続が持つ。
+
+### builtin現在版の親投影
+
+```mermaid
+flowchart LR
+  Image[既readServerSourceCommit / 親にDI済みsource] --> Guard[currentTarget=builtin / currentVersionId=null / 固有source未供給]
+  Guard --> Display[update-center現在版]
+  Guard --> Adapter[update-module-adapters.current / planのfrom]
+```
+
+固有snapshotがbuiltin sourceを供給する場合はその値を優先する。明示builtin稼働かつ版IDがnullで固有source未供給の場合だけ、同imageから既読取済みの親sourceを現在版へ使う。明示release/未知target/ID未供給や不正sourceを既知版へ補完しない。catalog/公開版/capabilityを現在版から生成せず、runtime snapshot・source読取・HTTP DTOを追加しない。
+
 ### usage初回起動と共有交換mutex
 
 ```mermaid

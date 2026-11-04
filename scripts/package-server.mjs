@@ -34,6 +34,7 @@ try {
     'scripts/verify-notifications.py', 'scripts/verify-members.py', 'scripts/verify-memory.py', 'scripts/verify-usage.py', 'scripts/verify-diagnostics.py', 'scripts/verify-execution.py', 'scripts/verify-conversation.py', 'scripts/module_artifact_verifier.py',
     'scripts/install-web-gateway-release.py', 'scripts/install-notifications-release.py', 'scripts/install-members-release.py', 'scripts/install-memory-release.py', 'scripts/install-usage-release.py', 'scripts/install-diagnostics-release.py', 'scripts/install-execution-release.py', 'scripts/install-conversation-release.py',
     'scripts/verify-update-catalog.py', 'scripts/update_catalog.py',
+    'scripts/module-update-service.py', 'scripts/module-update-compose.mjs',
     'scripts/container-update-host.py', 'scripts/install-container-update-code.py', 'scripts/cleanup-deploy-images.py', 'scripts/save-deploy-restore-point.py',
   ], { cwd: root })
   await exec('tar', ['-xf', archive, '-C', output])

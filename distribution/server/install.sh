@@ -148,6 +148,20 @@ try {
 ' "$image" "$saved" "$selected_image" > "$staging/models.jsonl"
   sed -n '2p' "$staging/models.jsonl" > "$saved/normal.json"
   sed -n '3p' "$staging/models.jsonl" > "$saved/compose.state-maintenance.json"
+  bundled=0
+  docker run --pull never --rm --network none --read-only --entrypoint /usr/local/bin/node "$image" \
+    -e 'process.exit(require("fs").existsSync("/app/scripts/module-update-compose.mjs")?0:75)' || bundled=$?
+  case "$bundled" in
+    0)
+      docker run --pull never --rm -i --network none --read-only --entrypoint /usr/local/bin/node "$image" \
+        /app/scripts/module-update-compose.mjs < "$saved/normal.json" > "$staging/module-models.jsonl"
+      sed -n '1p' "$staging/module-models.jsonl" > "$saved/normal.json"
+      if [ "$(sed -n '2p' "$staging/module-models.jsonl")" != null ]; then
+        sed -n '2p' "$staging/module-models.jsonl" > "$saved/module-installer.json"
+      fi;;
+    75) echo MODULE_INSTALLER_NOT_BUNDLED >&2;;
+    *) echo MODULE_INSTALLER_MODEL_UNAVAILABLE >&2; exit 1;;
+  esac
 fi
 cp "$saved/compose.state-maintenance.json" "$staging/compose.state-maintenance.json"
 COMPOSE_FILE="$saved/normal.json"
@@ -327,6 +341,10 @@ if ! "$recovery"; then
 fi
 keep_saved=true
 printf 'saved-compose=%s\n' "$saved"
+if [ -f "$saved/module-installer.json" ]; then
+  docker compose --project-directory "$PWD" -f "$saved/module-installer.json" stop module-installer
+  docker compose --project-directory "$PWD" -f "$saved/module-installer.json" rm -f module-installer
+fi
 if [ -n "$stopped_container" ]; then
   docker stop "$stopped_container"
   state=$(docker container inspect --format '{{.State.Running}} {{.State.Restarting}}' "$stopped_container")
@@ -364,6 +382,12 @@ else
   fi
 fi
 docker compose --project-directory "$PWD" up -d --wait --wait-timeout 300 --pull never
+if ! "$recovery" && [ -f "$saved/module-installer.json" ]; then
+  if ! docker compose --project-directory "$PWD" -f "$saved/module-installer.json" \
+    up -d --wait --wait-timeout 300 --pull never; then
+    echo MODULE_INSTALLER_START_FAILED >&2; exit 1
+  fi
+fi
 endpoint=$(docker compose port bellteam 4180)
 case "$endpoint" in
   0.0.0.0:*|\[::\]:*) url="http://localhost:18891" ;;

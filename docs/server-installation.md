@@ -69,6 +69,6 @@ Webとサーバーは無料です。Appleアプリの通常のAI利用はアプ�
 
 サーバーを動かすPCやDockerを停止すると、アプリから接続できなくなります。会話・設定・AIの認証情報は設置フォルダ内の`runtime`とDocker volumeへ保存されます。更新時も保存先を残してください。
 
-設置先のIP・保存先・利用するイメージの指定と、機能ごとの更新は、[サーバー配布手順](https://github.com/kitepon/BellTeam/blob/main/distribution/server/README.md)を参照してください。機能の個別更新に必要な初期登録は、Linux/systemd向けの正式手順を準備中です。Mac/Docker Desktop・Windows/WSL向けの初期登録も未提供です。本体は上のMac・Windows・Linux向け手順で利用できます。個別更新は、対応する初期導入手順の公開後に更新画面の対応状態を確認して利用してください。
+設置先のIP・保存先・利用するイメージの指定と、機能ごとの更新は、[サーバー配布手順](https://github.com/kitepon/BellTeam/blob/main/distribution/server/README.md)を参照してください。同梱版では、上の `sh install.sh` が本体と機能の導入プログラムをまとめて起動します。追加のHost設定や別イメージの選択は不要です。初回設定の後、アプリのUpdateで対象機能の計画と結果を確認できます。本体全体のコンテナ更新と、機能だけの更新はそれぞれの対応状態を確認してください。古いイメージを明示指定し `MODULE_INSTALLER_NOT_BUNDLED` と表示された場合、その版には機能の導入プログラムが含まれていません。本体の通常利用は続けられます。
 
 外出先からの接続と追加機能は、[初回設定と追加機能](https://github.com/kitepon/BellTeam/blob/main/docs/onboarding.md)を参照してください。同じLANからの利用は、その設定をせずに始められます。
