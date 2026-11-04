@@ -1,5 +1,5 @@
 import { createModuleChildRestart, reportModuleChildExit, observeModuleChild } from './module-child-restart.mjs'
-import { moduleExchangeDiagnostic, moduleDrainDiagnostic } from './module-exchange-diagnostic.mjs'
+import { moduleExchangeDiagnostic, moduleDrainDiagnostic, moduleRecoveryLog } from './module-exchange-diagnostic.mjs'
 import { spawn } from 'node:child_process'
 import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
@@ -35,22 +35,38 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   let instance = null, currentVersionId = null, previousVersionId = null, generation = null
   let initialized = false, closed = false, available = false, phase = 'unavailable', exchanging = false
   let operation = null, closing = null, update = null, reservation = null, startingReservation = false
+  let recoveryAttempt = 0
   const recovery = createModuleChildRestart(async () => {
-    await operation?.catch(() => {})
-    if (closed || instance || !initialized) return
-    const perform = async () => {
-      if (closed || instance) return
-      const ticket = closeAdmission()
-      await waitActive()
-      await prepare(currentVersionId)
-      state('starting')
-      const target = await launch(currentVersionId, ticket, 'restore', undefined, () => {}, true)
-      try {
-        await restoreAfterRestart(target.channel, target.generation)
-        await resume(target, ticket)
-      } catch (error) { await stopUnadmitted(target); throw error }
+    recoveryAttempt = Math.min(Number.MAX_SAFE_INTEGER, recoveryAttempt + 1)
+    let stage = 'operation'
+    const report = (event, error) => {
+      try { console.error(JSON.stringify(moduleRecoveryLog(component, stage, event, recoveryAttempt, active.size, admission, error))) } catch {}
     }
-    await exclusive(signal => exchangeMutex ? exchangeMutex.runExclusive(() => perform(signal)) : perform(signal))
+    const mark = next => { stage = next; report('waiting') }
+    try {
+      mark('operation')
+      await operation?.catch(() => {})
+      if (closed || instance || !initialized) { report('skipped'); return }
+      const perform = async () => {
+        if (closed || instance) { report('skipped'); return }
+        const ticket = closeAdmission()
+        mark('runner')
+        await waitActive()
+        mark('prepare')
+        await prepare(currentVersionId)
+        state('starting')
+        const target = await launch(currentVersionId, ticket, 'restore', undefined, mark, true)
+        try {
+          mark('restore')
+          await restoreAfterRestart(target.channel, target.generation)
+          mark('resume')
+          await resume(target, ticket)
+        } catch (error) { await stopUnadmitted(target); throw error }
+        report('completed')
+      }
+      mark('mutex')
+      await exclusive(signal => exchangeMutex ? exchangeMutex.runExclusive(() => perform(signal)) : perform(signal))
+    } catch (error) { report('failed', error); throw error }
   })
   const active = new Set()
   const snapshot = () => ({ currentVersionId, previousVersionId, generation, available, phase, exchanging,
@@ -106,6 +122,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   const launch = async (versionId, ticket, mode, handoff, markStage = () => {}, recovering = false) => {
     if (closed || instance) throw fail('NOT_ACCEPTING')
     const nextGeneration = `${versionId ?? 'builtin'}:${randomUUID()}`
+    if (recovering) markStage('recover_admission')
     if (recovering && admission?.recover && ticket.generation === generation) admission.recover(ticket, generation, nextGeneration)
     else admission?.adopt(ticket, nextGeneration)
     generation = nextGeneration
