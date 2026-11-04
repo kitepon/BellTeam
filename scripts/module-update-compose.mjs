@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { text } from 'node:stream/consumers'
+import path from 'node:path'
 
 // The installer supplies its frozen normal model, never a caller-selected service.
 export function moduleInstallerModels(input) {
@@ -49,7 +50,15 @@ export function moduleWorkerTerminationModel(input) {
   const service = structuredClone(backend.services['module-installer'])
   delete service.restart; delete service.healthcheck
   service.entrypoint = ['/usr/bin/python3', '-I', '-B', '/app/scripts/module-worker-termination.py']
-  service.command = [normal.name, service.image, backend.volumes.private.name]
+  const bind = target => {
+    const mounts = normal.services.bellteam.volumes.filter(m => m.target === target), m = mounts[0]
+    if (mounts.length !== 1 || m.type !== 'bind' || m.read_only || typeof m.source !== 'string'
+      || !path.posix.isAbsolute(m.source) || /[\0\r\n]/.test(m.source)) throw Error('MODULE_INSTALLER_MODEL_INVALID')
+    return path.posix.normalize(m.source)
+  }
+  const data = bind('/srv/bellteam'), home = bind('/home/bell'), runtime = path.posix.dirname(data)
+  if (data !== path.posix.join(runtime, 'data') || home !== path.posix.join(runtime, 'home')) throw Error('MODULE_INSTALLER_MODEL_INVALID')
+  service.command = [normal.name, service.image, backend.volumes.private.name, path.posix.join(runtime, 'server-only/state-data')]
   service.volumes = service.volumes.filter(m => m.source !== 'module-socket')
   service.volumes.push({ type: 'bind', source: '/var/run/docker.sock', target: '/var/run/docker.sock', bind: { create_host_path: false } })
   return { name: normal.name, services: { 'module-worker-termination': service },
