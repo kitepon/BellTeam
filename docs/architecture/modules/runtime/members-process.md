@@ -31,7 +31,7 @@ flowchart TD
 
 ## 公開接点と固定schema
 
-createMembersProcess({root,membersAdmission,onEffect,onProjection,onGeneration,onDiagnostic,onState,authorizeOwner,prepareRelease,exchangeMutex?})→start/close/request/callback/snapshot/replace/reserve。同executionのmembers-admissionを一実体で使い、入場後に送信前trackCompletionを登録する。deadline後もactual completion/親effect終端まではgateをlive保持。root/effect/callback各8、受理済返却/control/診断は新rootで塞がない。未送信/受信待ち業務buffer64MiB/control1MiB、payload16MiB＋envelope64KiB。初期snapshotは一profileごとACK、avatar無し、半端な投影を採用しない。rootIdは単調IDの文字列。
+createMembersProcess({root,membersAdmission,onEffect,onProjection,onGeneration,onDiagnostic,onState,onModuleChildExit?,authorizeOwner,prepareRelease,exchangeMutex?})→start/close/request/callback/snapshot/replace/reserve。同executionのmembers-admissionを一実体で使い、入場後に送信前trackCompletionを登録する。deadline後もactual completion/親effect終端まではgateをlive保持。root/effect/callback各8、受理済返却/control/診断は新rootで塞がない。未送信/受信待ち業務buffer64MiB/control1MiB、payload16MiB＋envelope64KiB。初期snapshotは一profileごとACK、avatar無し、半端な投影を採用しない。rootIdは単調IDの文字列。
 
 contextはgeneration/leaseId/rootId/ownerWrite/continuationの固定5field。Owner booleanは親opaque認証資料から、continuationは親assertLease後のlease.epochと現在epochの差だけから生成する。child自己申告やbody/paramsを権限にしない。child新root受付はaccepting又は検証済continuation、callbackは同live leaseのみ。callbackからの汎用effect再帰を拒否する。CLI同期はprofiles.cli専用callbackでqueue実開始時の最新IDsを取得し親固定projectへ解決する。
 
@@ -69,3 +69,5 @@ pinの親projectionは同pendingのprofiles.readだけ、親effectは同schedule
 
 
 異常終了時は[module-processの自動再生成](module-process.md#子だけの自動再生成)と同じtimerを使い、固有の採用版・初期化・意図停止・実終端を保持する。
+
+子終了の`onModuleChildExit`は[共通観測](module-process.md#子終了診断のcallback)へ接続し、既異常終了条件・実pipe終端・再生成を維持する。

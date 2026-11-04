@@ -19,7 +19,7 @@ flowchart LR
   Resume --> Caller
 ```
 
-`createModuleProcess({component,root,createChannel,prepareRelease,validateReady,initializeParams?,exportHandoff?,admission?,canContinue?,onGeneration?,onState?,investigationsFile?,exchangeMutex?,spawnProcess?})`はstart/close/request/callback/initialize/replace/reserve/snapshotを返す。spawnProcessは実起動の試験DI、通常はNode spawn。component/実行path/argvは固定、envは空又はdiagnosticsの既notes設定一変数だけ。createChannel(child,{generation})は本人のready/request/callback/control/reapedを供給する。descriptorの固定appRootを共通検査し、prepareReleaseとvalidateReadyが作者の署名済版・protocol・実stateCompatibilityを検査する。
+`createModuleProcess({component,root,createChannel,prepareRelease,validateReady,initializeParams?,exportHandoff?,admission?,canContinue?,onGeneration?,onState?,onModuleChildExit?,investigationsFile?,exchangeMutex?,spawnProcess?})`はstart/close/request/callback/initialize/replace/reserve/snapshotを返す。spawnProcessは実起動の試験DI、通常はNode spawn。component/実行path/argvは固定、envは空又はdiagnosticsの既notes設定一変数だけ。createChannel(child,{generation})は本人のready/request/callback/control/reapedを供給する。descriptorの固定appRootを共通検査し、prepareReleaseとvalidateReadyが作者の署名済版・protocol・実stateCompatibilityを検査する。
 
 usage固有のstartPaused:trueはstartをsettings ready後のinitializingで返し、親がinitializeで既3段を進めた後activate()の実resume ACKで新rootを開く。他componentへのstartPausedは拒否する。初回順序/secret/private snapshotの意味は[module readerとwrapper](module-release.md)と業務正本に従う。
 
@@ -59,7 +59,7 @@ flowchart LR
 
 成功稼働子が意図close/交換以外で終了したら新受付を閉じ、OS/IPC/pipe→drainIncoming→await channel.reaped→旧要求completion終端を待つ。採用済み同版を再検証し新generationのrestore/ready/resume ACK後だけ再開。会話はadmission.recover(ticket,old,next)で閉鎖採用、未resume候補の再失敗は同ticketの通常adopt。旧要求や作用不明は再送しない。usageは初回段階順序を保ち、障害復帰ではsettings後subscriptions/servicesも復元する。
 
-module-child-restartは既controller排他へ接続し初回1秒、連続失敗2/4/8/16/最大30秒、正常60秒で初期化。回数による恒久停止無し、closeでtimer取消。members/notifications/web-gatewayも採用版と固有初期化を保持し同timerを使う。親/他子/Dockerは再起動しない。終了logは固定MODULE_CHILD_EXITED/component/整数exitCode/閉signalのみ、stderrは1024字以内の断片から固定4codeだけを抽出し、任意本文を保持/公開しない。常駐子のstdout/stderrはpipeで排出し、inheritで本文を親logへ流さない。
+module-child-restartは既controller排他へ接続し初回1秒、連続失敗2/4/8/16/最大30秒、正常60秒で初期化。回数による恒久停止無し、closeでtimer取消。members/notifications/web-gatewayも採用版と固有初期化を保持し同timerを使う。親/他子/Dockerは再起動しない。終了logは固定MODULE_CHILD_EXITED/component/整数exitCode/閉signalのみ、stderrは最大8KiBのrawを全chunkの4KiB区間ごとに処理し、大chunk中央/区間境界の固定4codeも検出する。任意本文を保存/公開しない。常駐子のstdout/stderrはpipeで排出し、inheritで本文を親logへ流さない。
 
 ```mermaid
 flowchart LR
@@ -69,4 +69,23 @@ flowchart LR
   Restore --> Resume[実resume ACK / 新受付]
   Restore --> Timer
   Close[親close] --> Cancel[timer取消]
+```
+
+
+## 子終了診断のcallback
+
+共通3componentとmembers/notifications/web-gatewayの6常駐子factoryは`onModuleChildExit(dto)`を受ける。usage/conversation/diagnosticsの薄wrapperも同identityで転送する。既OS/IPC/pipe終了後の異常終了条件から一回だけ通知し、意図close/交換・未resume候補は報告しない。callbackの同期throw/戻りPromise失敗は再起動・元completionへ伝播しない。初回1秒/最大30秒の再生成、incoming/reaped待ちと元要求非再送は維持する。
+
+`observeModuleChild()`の内部snapshotは固定4code、既Node heap OOM marker、GCのbeforeMiB/afterMiB/capacityMiB/pauseMsだけを返す。rawは8KiB以内でpipe close時に破棄する。最大8件の末尾証拠は`heap_oom`又は`gc`の有限0..1e9数値。stderrBytesは非負safe整数で飽和、raw/evidence上限超過はstderrTruncated=true。不明なstderrやOSのSIGKILLからOOM原因を推定しない。既固定console出力は維持する。
+
+閉DTO `bellteam.module-child-exit.v1`と単一validator/formatter/保存/取得は[diagnostics正本](../diagnostics/README.md#子終了の有限診断)。親登録と診断停止中の最大6最新値・ready時flushは[integration](../integration/README.md)。runtimeは新しいwriter/queue/再送機構を持たない。
+
+```mermaid
+flowchart LR
+  Stderr[全stderr chunk / raw8KiB上限] --> Evidence[固定OOM・4code / GC数値末尾8件]
+  Close[既OS IPC pipe終端 / 異常終了だけ] --> Report[一回report / 既console固定出力]
+  Evidence --> Report
+  Report --> Callback[onModuleChildExit / 非待機・失敗隔離]
+  Callback --> Parent[Molly親登録 / Signal単一writer]
+  Close --> Existing[既incoming reaped待ち・同採用版の再生成]
 ```

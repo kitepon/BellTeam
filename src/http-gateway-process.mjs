@@ -8,7 +8,7 @@ import { writeAtomic } from './json-file.mjs'
 export const GATEWAY_DRAIN_TIMEOUT_MS = 5000
 export const GATEWAY_START_TIMEOUT_MS = 15000
 
-export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRelease, adoptionPath = null }) {
+export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRelease, adoptionPath = null, onModuleChildExit }) {
   let child = null, address = null, ending = null
   let closed = false
   const recovery = createModuleChildRestart(async () => {
@@ -62,11 +62,11 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
     const next = spawn(process.execPath, [join(root, 'src/http-gateway-entry.mjs'), socketPath, String(requestedPort), versionId ?? '', assetCatalog()], {
       env: {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
-    const stderrCodes = observeModuleChild(next)
+    const stderrObservation = observeModuleChild(next)
     child = next
     const ended = new Promise(resolve => next.once('close', (code, signal) => {
       if (child === next) { child = null; address = null }
-      if (next.wasReady && !next.intentional && !closed) { reportModuleChildExit('web-gateway', { code, signal }, stderrCodes()); recovery.lost() }
+      if (next.wasReady && !next.intentional && !closed) { reportModuleChildExit('web-gateway', { code, signal }, stderrObservation(), onModuleChildExit); recovery.lost() }
       resolve({ code, signal })
     }))
     ending = ended
