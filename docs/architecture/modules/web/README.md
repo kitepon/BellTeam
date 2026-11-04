@@ -39,7 +39,7 @@ WebはHTTPとSSEだけを利用し、MCPを呼ばない。画面に表示する�
 - 画像cache：取得Promiseと所有URL。破棄は生成者が行う。
 - localStorage：`bellteam-read-receipts.v1`の端末内既読だけ。サーバーの読了記録を作らない。
 - update-center：選択中の全体/個別対象、実測snapshot/読取世代、dialogと戻りfocus。正式版・計画未供給ではレビュー用と表示して実行無効。永続版情報や成功判定を作らない。
-- sessionStorage：`bellteam-update-request.v1`のrequestId/planIdだけ。再読込後の結果照会に使い、受付・版・成功の正本にしない。保存できない時は新しい更新を開始しない。
+- sessionStorage：`bellteam-update-request.v1`の現在requestId/planIdと、旧unknownを保持するprevious結果配列。旧結果内の同UUID/planIdで再読込後も照会でき、受付・版・成功の正本にはしない。保存できない時は新しい更新を開始しない。[更新図と操作手順](update-notice-design.md#全体個別の計画実行戻し接続)に従い、旧結果を残して新しい個別操作へ進む。
 
 APIの拒否や応答不明を未保存・未配送と断定しない。202は受付、Goal/nativeの実適用とAI回答完了は各サーバーの返す状態に従う。
 

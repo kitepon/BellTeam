@@ -31,6 +31,7 @@ const publication = value => value === null || value && value.catalog && /^[a-f0
   && ['verified', 'failed', 'unconfirmed'].includes(value.check.status)
   && (value.check.checkedAt === null || date(value.check.checkedAt)) && nullableText(value.check.error)
 const terminal = value => value && (value.admission === 'rejected' || value.phase === 'completed' || value.phase === 'failed' && value.execution === 'failed')
+const unknown = value => value && (value.phase === 'unknown' || value.admission === 'unknown')
 const comparisonLabel = item => item.comparison.state === 'up_to_date' && item.publication?.check.status !== 'verified'
   ? '受入済み版と一致 · 公開情報の取得確認が必要です' : comparisons[item.comparison.state]
 
@@ -60,13 +61,21 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
   let planned = null, planning = false, submitting = false, confirmed = false, planGeneration = 0
   let pending = null, ownResult = null, operationMessage = '', storageFailure = '', requestStorage = storage
   let resultUnconfirmed = false
+  let previousResults = [], pendingReadFailed = false
   try {
     requestStorage ??= globalThis.sessionStorage
     const saved = requestStorage?.getItem(requestKey)
     if (saved) {
       const value = JSON.parse(saved)
-      if (!uuid(value?.requestId) || !uuid(value?.planId)) throw Error('INVALID_SAVED_REQUEST')
-      pending = { requestId: value.requestId, planId: value.planId }
+      if (value?.previous !== undefined) {
+        if (!Array.isArray(value.previous) || value.previous.some(result => !result || !operation(result))
+          || new Set(value.previous.map(result => result.requestId)).size !== value.previous.length) throw Error('INVALID_SAVED_REQUEST')
+        previousResults = value.previous.map(result => ({ result, failed: true }))
+      }
+      if (value?.requestId !== undefined || value?.planId !== undefined) {
+        if (!uuid(value.requestId) || !uuid(value.planId) || previousResults.some(entry => entry.result.requestId === value.requestId)) throw Error('INVALID_SAVED_REQUEST')
+        pending = { requestId: value.requestId, planId: value.planId }; pendingReadFailed = true
+      } else if (!previousResults.length) throw Error('INVALID_SAVED_REQUEST')
     }
   } catch { storageFailure = '保存された更新要求を確認できません。新しい更新は開始できません。' }
   const element = (tag, className, value) => {
@@ -82,7 +91,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     const active = pending ? ownResult : inventory?.operation
     const publicationUnknown = inventory?.components.some(item => item.published && item.publication?.check.status !== 'verified')
     let suffix = inventory && !failure ? { ready: inventory.components.some(item => item.comparison.state === 'update_available') ? ' · 更新あり' : '', unavailable: ' · 利用不能', updating: ' · 更新中', attention: ' · 要確認' }[inventory.notice.state] : ''
-    if (publicationUnknown) suffix = ' · 要確認'
+    if (publicationUnknown || previousResults.some(entry => entry.failed || unknown(entry.result))) suffix = ' · 要確認'
     if (active?.admission === 'accepted' && !terminal(active)) suffix = ' · 更新中'
     if (pending && (!active || resultUnconfirmed) || active && (active.admission === 'unknown' || ['failed', 'unknown'].includes(active.phase) || active.verification === 'failed')) suffix = ' · 要確認'
     for (const button of buttons) {
@@ -126,8 +135,13 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     if (focusedControl) root.querySelector(`[data-update-control="${focusedControl}"]`)?.focus()
   }
   function canRequest() {
-    return Boolean(inventory) && !loading && !planning && !submitting && !pending && !storageFailure && !failure
-      && (!inventory.operation || terminal(inventory.operation))
+    if (!inventory || loading || planning || submitting || storageFailure || failure
+      || previousResults.some(entry => entry.failed || !terminal(entry.result) && !unknown(entry.result))) return false
+    if (!pending && !previousResults.some(entry => unknown(entry.result)) && (!inventory.operation || terminal(inventory.operation))) return true
+    const component = inventory.components.find(item => item.id === selected)
+    return selected !== 'all' && selected !== 'container' && component?.capability.supported
+      && (!inventory.operation || terminal(inventory.operation) || unknown(inventory.operation))
+      && (!pending || !pendingReadFailed && unknown(ownResult))
   }
   function canPlan(action = 'update') {
     if (!canRequest()) return false
@@ -236,7 +250,9 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     if (selectedPlan && !selectedPlan.compatibility.compatible) reasonText = '計画の互換性を確認できないため、実行できません。'
     if (selectedPlan && !selectedPlan.capability.supported) reasonText = explanation(selectedPlan.capability.reason)
     if (selectedPlan && Date.parse(selectedPlan.expiresAt) <= Date.now()) reasonText = '計画の有効期限が切れました。計画を再取得してください。'
-    if (pending) reasonText = '結果が確認できるまで、新しい更新を開始しません。'
+    if (pending) reasonText = canRequest()
+      ? '前の要求は確認不能のまま保持します。新しい計画の版と影響を確認してから、別の要求として実行できます。'
+      : '前の要求の状態と、この機能の操作可否を確認できるまで、新しい更新を開始しません。'
     const reason = element('p', 'update-action-reason', storageFailure || reasonText)
     reason.id = 'update-action-reason'; action.setAttribute('aria-describedby', reason.id)
     detail.append(action, reason)
@@ -245,7 +261,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       rollback.type = 'button'; rollback.disabled = !canPlan('rollback'); rollback.dataset.updateControl = 'rollback'
       rollback.addEventListener('click', () => { void requestPlan('rollback') }); detail.append(rollback)
     }
-    if (selectedPlan && !pending && !submitting) {
+    if (selectedPlan && canRequest()) {
       const replan = element('button', 'update-replan', '計画を再取得')
       replan.type = 'button'; replan.disabled = planning; replan.dataset.updateControl = 'replan'
       replan.addEventListener('click', () => { void requestPlan(selectedPlan.action ?? 'update') }); detail.append(replan)
@@ -267,6 +283,28 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     for (const [label, value] of values) if (value) fields.append(element('dt', '', label), element('dd', '', value))
     if (!fields.children.length) fields.append(element('dd', '', '詳細情報はまだ取得できていません。'))
     support.append(fields); detail.append(support)
+    if (previousResults.length) {
+      const history = element('section', 'update-detail-section')
+      history.append(element('h4', '', '保持している操作結果'))
+      for (const entry of previousResults) {
+        const result = entry.result, item = element('details', 'update-support')
+        item.open = entry.open ?? false
+        item.addEventListener('toggle', () => { entry.open = item.open })
+        item.append(element('summary', '', `${result.plan.targets.map(target => inventory?.components.find(component => component.id === target.componentId)?.name ?? target.componentId).join('・')} · ${phases[result.phase]}`))
+        const identities = element('dl', '')
+        for (const [label, value] of [['要求ID', result.requestId], ['計画ID', result.plan.planId], ['状態・理由の符号', result.error?.code]]) {
+          if (value) identities.append(element('dt', '', label), element('dd', '', value))
+        }
+        item.append(identities, element('p', '', `受付: ${{ accepted: '受付済み', rejected: '未受付', unknown: '確認不能' }[result.admission]} / 実行: ${outcomes[result.execution]} / 稼働確認: ${outcomes[result.verification]}`))
+        if (result.error) item.append(element('p', 'update-failure', result.error.message))
+        if (entry.failed) item.append(element('p', 'update-failure', 'この要求の最新結果を確認できていません。前回の結果を保持しています。'))
+        const read = element('button', 'update-replan', 'この要求の状態を再取得')
+        read.type = 'button'; read.disabled = loading || submitting; read.dataset.updateControl = `read-${result.requestId}`
+        read.addEventListener('click', () => { void refresh() })
+        item.append(read); history.append(item)
+      }
+      detail.append(history)
+    }
   }
   async function requestPlan(action = 'update') {
     if (!canPlan(action)) return
@@ -278,7 +316,8 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       if (read !== planGeneration || disposed) return
       const next = value?.plan
       if (!plan(next) || next.scope !== (componentId === 'all' ? 'all' : 'component') || next.componentId !== (componentId === 'all' ? null : componentId)
-        || (next.action ?? 'update') !== action || Date.parse(next.expiresAt) <= Date.now()) throw Error('INVALID_PLAN')
+        || (next.action ?? 'update') !== action || Date.parse(next.expiresAt) <= Date.now()
+        || [ownResult, inventory?.operation, ...previousResults.map(entry => entry.result)].some(result => unknown(result) && result.plan.planId === next.planId)) throw Error('INVALID_PLAN')
       planned = next
     } catch (error) {
       if (read === planGeneration && !disposed) planFailure = error.message
@@ -291,18 +330,32 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       if (read === planGeneration && !disposed) { planning = false; render() }
     }
   }
+  function saveRequests(request, previous = previousResults) {
+    if (!requestStorage) throw Error('STORAGE_UNAVAILABLE')
+    if (!request && !previous.length) {
+      requestStorage.removeItem(requestKey)
+      if (requestStorage.getItem(requestKey) !== null) throw Error('STORAGE_UNAVAILABLE')
+      return
+    }
+    const saved = JSON.stringify({ ...request, ...(previous.length ? { previous: previous.map(entry => entry.result) } : {}) })
+    requestStorage.setItem(requestKey, saved)
+    if (requestStorage.getItem(requestKey) !== saved) throw Error('STORAGE_UNAVAILABLE')
+  }
   function clearPending() {
-    pending = null
-    try { requestStorage?.removeItem(requestKey) } catch { /* A confirmed terminal can be read again after reload. */ }
+    pending = null; pendingReadFailed = false
+    try { saveRequests(null) } catch { storageFailure = '照会用の要求IDを保存できません。新しい更新は開始できません。' }
   }
   function applyOperation(value, request) {
     if (!value || !operation(value) || value.requestId !== request.requestId || value.plan.planId !== request.planId
       || planned?.planId === request.planId && (value.plan.action ?? 'update') !== (planned.action ?? 'update')) throw Error('INVALID_OPERATION')
     if (ownResult?.requestId === value.requestId && terminal(ownResult) && !terminal(value)) return
-    ownResult = value; operationMessage = ''
+    ownResult = value; pendingReadFailed = false; operationMessage = ''
     resultUnconfirmed = value.phase === 'unknown' || value.admission === 'unknown'
     if (resultUnconfirmed) operationMessage = '結果を確認できません。同じ要求の状態を再取得してください。'
-    if (terminal(value)) { clearPending(); planned = null; confirmed = false }
+    if (terminal(value)) {
+      clearPending()
+      if (planned?.planId === value.plan.planId) { planned = null; confirmed = false }
+    }
   }
   async function execute() {
     if (!canExecute()) {
@@ -310,7 +363,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       return
     }
     const target = planned
-    let request
+    let request, previous = [...previousResults]
     try {
       let requestId = globalThis.crypto.randomUUID?.()
       if (!requestId) {
@@ -322,11 +375,12 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       }
       request = { requestId, planId: target.planId }
       if (!uuid(request.requestId) || !requestStorage) throw Error('STORAGE_UNAVAILABLE')
-      const saved = JSON.stringify(request)
-      requestStorage.setItem(requestKey, saved)
-      if (requestStorage.getItem(requestKey) !== saved) throw Error('STORAGE_UNAVAILABLE')
+      for (const result of [ownResult, inventory.operation, inventory.previousOperation]) {
+        if (unknown(result) && !previous.some(entry => entry.result.requestId === result.requestId)) previous.push({ result, failed: false })
+      }
+      saveRequests(request, previous)
     } catch { operationMessage = '照会用の要求IDを保存できません。更新は開始していません。'; render(); return }
-    pending = request; ownResult = null; resultUnconfirmed = true; submitting = true; generation++
+    previousResults = previous; pending = request; ownResult = null; pendingReadFailed = true; resultUnconfirmed = true; submitting = true; generation++
     operationMessage = '更新の受付を確認しています。'; render()
     try {
       const value = await api('/api/updates/operations', { method: 'POST', headers: { 'content-type': 'application/json' },
@@ -352,7 +406,9 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     const read = ++generation
     loading = true; render()
     const request = pending
-    const results = await Promise.allSettled([api('/api/updates'), ...(request ? [api(`/api/updates/operations/${request.requestId}`)] : [])])
+    const previous = [...previousResults]
+    const results = await Promise.allSettled([api('/api/updates'), ...(request ? [api(`/api/updates/operations/${request.requestId}`)] : []),
+      ...previous.map(entry => api(`/api/updates/operations/${entry.result.requestId}`))])
     if (read !== generation || disposed) return
     const result = results[0]
     inventory = result.status === 'fulfilled' && validUpdateInventory(result.value) ? result.value : null
@@ -361,8 +417,15 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       try {
         if (results[1].status !== 'fulfilled') throw Error('RESULT_UNAVAILABLE')
         applyOperation(results[1].value?.operation, request)
-      } catch { resultUnconfirmed = true; operationMessage = '同じ要求の結果を確認できません。再接続後に状態を再取得してください。更新は送り直しません。' }
+      } catch { pendingReadFailed = true; resultUnconfirmed = true; operationMessage = '同じ要求の結果を確認できません。再接続後に状態を再取得してください。更新は送り直しません。' }
     }
+    for (const [index, entry] of previous.entries()) {
+      const response = results[index + (request ? 2 : 1)], value = response.status === 'fulfilled' ? response.value?.operation : null
+      entry.failed = !value || !operation(value) || value.requestId !== entry.result.requestId || value.plan.planId !== entry.result.plan.planId
+        || (value.plan.action ?? 'update') !== (entry.result.plan.action ?? 'update')
+      if (!entry.failed && (!terminal(entry.result) || terminal(value))) entry.result = value
+    }
+    if (previous.length) try { saveRequests(pending) } catch { storageFailure = '保持した要求の結果を保存できません。新しい更新は開始できません。' }
     loading = false; render()
   }
   for (const button of buttons) button.addEventListener('click', () => {

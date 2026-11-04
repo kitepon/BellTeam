@@ -78,12 +78,17 @@ flowchart TD
   Reload["再読込 / ready / updates / 表示復帰 / 手動再取得"] --> Read
   Read --> Result
   Inventory -.->|"取得不能でも結果GETは独立"| Read
-  Result -->|"確認済み終端だけ"| Clear["照会用IDを削除 / 次の明示計画へ"]
+  Result -->|"確認済み終端だけ"| Clear["現在の照会用IDを解除 / 保持済み旧結果は残す"]
+  Result -->|"unknownを取得済み / 最新capability=trueの個別module"| Plan
+  Save --> Keep["旧unknownのUUID・planId・結果を同じ保存キーへ保持"]
+  Keep -->|"旧要求の再照会 / 自動再POSTなし"| Read
 ```
 
 Webは全体/個別の更新と個別moduleの戻し計画を同じ公開窓口へ要求する。action省略はupdate、戻しは明示rollback。plan responseのscope/component/actionと全target・互換・期限・可否を確認し、全固定対象を順序どおり表示する。戻し可否はbackend planだけで確定し、all/containerへ戻し操作を出さない。選択変更や新計画で再起動確認を解除し、impactが再起動を要求する場合だけcheckbox確認を必須にする。保存成功後の明示実行だけを許し、二重クリック/旧plan応答/期限切れ/409で別targetや新要求へ自動変更しない。
 
-同origin・同tabで再読込を跨ぐ照会用の`bellteam-update-request.v1`をsessionStorageへ置く。保存するのはcanonical requestIdとplanIdだけで、版・結果・受付の正本ではない。保存/復元ができない場合は新規実行を止めて理由を示す。POST応答が不明ならIDを残し同ID GETだけで復帰。GET結果のUUID/planIdが違う、形式不正、404/5xxも未受付や完了へ変えない。400/401/403/404/409の明確な受付拒否だけは新計画を要求する。実行/稼働確認の両成功、又は明確な拒否/実行失敗の終端以外では照会IDを破棄しない。
+同origin・同tabで再読込を跨ぐ照会用の`bellteam-update-request.v1`をsessionStorageへ置く。現在のcanonical requestIdとplanIdに加え、新操作へ進む時は旧unknownの結果を`previous`配列へ保持する。旧結果内のrequestId/plan.planIdを使い再照会でき、サーバー台帳や受付・成功の正本にはしない。既存のID二項目だけの保存値も読める。現在の要求が終端又は明確に拒否された後もpreviousは残す。保存/復元ができない場合は新規実行を止めて理由を示す。POST応答が不明ならIDを残し同ID GETで復帰。GET結果のUUID/planIdが違う、形式不正、404/5xxも未受付や完了へ変えない。400/401/403/404/409の明確な受付拒否だけは新計画を要求する。
+
+2026-11-04のRoot裁定：旧unknownは終端へ変えず、同tabに旧pendingがある場合も、正しい同ID結果を取得でき、最新公開component.capability=trueの個別moduleでは新planを明示照会できる。返却planの版・影響を確認した後、新UUIDで明示実行一回だけを送る。新要求と旧unknownの保存を一度に確認してからPOSTし、旧UUID/planId/結果の保持と再照会を続ける。全体/container、継続中の既操作、結果GET失敗、capability=falseではこの例外を使わない。親のactive/hostPending/publication判定を複製せず、busyは拒否として表示する。保持した結果は「保持している操作結果」から個別GETでき、既refreshでも再確認する。新tab回避、保存キーの手消去、旧POST再送、自動実行、新API/ledger変更はしない。元Rabbit tabの欠測を推測で再現しない。
 
 更新結果GETはinventoryと独立に行い、catalog/feed障害で照会を塞がない。取得中の古いinventory/plan/operation応答を新操作へ適用しない。本番/実Hostは担当の既条件で、Webの人工例や隔離HTTPの成功を実配備へ加算しない。
 

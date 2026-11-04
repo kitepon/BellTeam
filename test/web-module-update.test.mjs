@@ -195,3 +195,205 @@ test('module UI never executes an expired or incompatible all plan or an operati
   assert.ok(g.saved.getItem(key)); assert.doesNotMatch(text(g.detail()), /戻し完了/)
   assert.equal(g.calls.filter(call => call.path === '/api/updates/operations').length, 1)
 })
+
+
+const oldId = 'a860633b-e5c7-4dac-b5c2-6b0d39061bde'
+const nextPlanId = '44444444-4444-4444-8444-444444444444'
+function unknownExample() {
+  const { value, plan } = example()
+  const old = operation(structuredClone(plan), oldId, 'unknown')
+  old.error = { code: 'HOST_UPDATE_BUSY', message: '前の要求の結果を確認できません。' }
+  value.operation = old
+  value.notice = { state: 'attention', code: 'HOST_UPDATE_BUSY', message: '保存された更新結果を確認してください。' }
+  plan.planId = nextPlanId
+  return { value, plan, old }
+}
+
+test('unknown UI retains old identities and results across explicit new execution and reload, with and without same-tab pending', async t => {
+  for (const sameTab of [false, true]) {
+    const { value, plan, old } = unknownExample(), saved = storage(), requests = [], oldBefore = structuredClone(old)
+    if (sameTab) saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId }))
+    let next
+    const api = async (path, options) => {
+      if (path === '/api/updates') return value
+      if (path.endsWith('/plans')) return { plan }
+      if (path === '/api/updates/operations') {
+        const input = JSON.parse(options.body); requests.push(input)
+        assert.notEqual(input.requestId, oldId)
+        next = operation(plan, input.requestId, 'completed')
+        return { operation: next }
+      }
+      return { operation: path.endsWith(oldId) ? old : next }
+    }
+    const f = fixture(t, api, saved)
+    await f.center.start(); f.select('notifications')
+    assert.equal(f.control('execute').disabled, false)
+    assert.equal(requests.length, 0)
+    f.control('execute').handlers.click(); await settle()
+    assert.match(text(f.detail()), /表示中の計画はまだ実行していません/)
+    assert.equal(f.control('execute').textContent, 'この計画で更新')
+    assert.equal(requests.length, 0)
+    const submit = f.control('execute'); submit.handlers.click(); submit.handlers.click(); await settle()
+    assert.equal(requests.length, 1)
+    assert.equal(requests[0].planId, nextPlanId)
+    assert.equal(requests[0].confirmContainerRestart, false)
+    assert.deepEqual(JSON.parse(saved.getItem(key)), { previous: [oldBefore] })
+    assert.deepEqual(old, oldBefore)
+    assert.match(text(f.detail()), /保持している操作結果/)
+    assert.match(text(f.detail()), /結果確認不能/)
+    assert.match(text(f.detail()), new RegExp(oldId))
+    f.center.close()
+    const reloaded = fixture(t, api, saved)
+    await reloaded.center.start()
+    assert.ok(reloaded.calls.some(call => call.path.endsWith(oldId)))
+    assert.equal(reloaded.control('execute').disabled, true) // Whole-product update stays blocked.
+    reloaded.select('notifications')
+    assert.equal(reloaded.control('execute').disabled, false)
+    reloaded.control(`read-${oldId}`).handlers.click(); await settle()
+    assert.ok(reloaded.calls.filter(call => call.path.endsWith(oldId)).length >= 2)
+    assert.equal(requests.length, 1)
+    assert.deepEqual(JSON.parse(saved.getItem(key)), { previous: [oldBefore] })
+    reloaded.center.close()
+  }
+})
+
+test('unknown UI does not bypass active, disabled capability, whole-product or container conditions', async t => {
+  for (const condition of ['disabled', 'active', 'all', 'container']) {
+    const { value, plan, old } = unknownExample(), saved = storage()
+    if (condition === 'disabled') value.components[0].capability = { supported: false, reason: 'MODULE_EXCHANGE_BUSY' }
+    if (condition === 'active') { old.phase = 'applying'; old.execution = 'pending' }
+    if (condition === 'container') { value.components[0].id = 'container'; old.plan.componentId = 'container'; old.plan.targets[0].componentId = 'container' }
+    saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId }))
+    const before = saved.getItem(key)
+    const f = fixture(t, async path => path === '/api/updates' ? value : { operation: old }, saved)
+    await f.center.start(); f.select(condition === 'container' ? 'container' : condition === 'all' ? 'all' : 'notifications')
+    assert.equal(f.control('execute').disabled, true, condition)
+    f.control('execute').handlers.click(); await settle()
+    assert.ok(f.calls.every(call => call.body === null), condition)
+    assert.equal(saved.getItem(key), before)
+    f.center.close()
+  }
+})
+
+test('unknown UI blocks new plans after failed, mismatched or malformed old-result GET and preserves the saved request', async t => {
+  for (const response of ['503', '404', 'wrong-id', 'wrong-plan', 'malformed']) {
+    const { value, old } = unknownExample(), saved = storage()
+    saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId }))
+    const before = saved.getItem(key)
+    const f = fixture(t, async path => {
+      if (path === '/api/updates') return value
+      if (response === '503' || response === '404') throw Object.assign(Error('READ_FAILED'), { status: Number(response) })
+      const result = structuredClone(old)
+      if (response === 'wrong-id') result.requestId = nextPlanId
+      if (response === 'wrong-plan') result.plan.planId = nextPlanId
+      return { operation: response === 'malformed' ? {} : result }
+    }, saved)
+    await f.center.start(); f.select('notifications')
+    assert.equal(f.control('execute').disabled, true, response)
+    f.control('execute').handlers.click(); await settle()
+    assert.equal(saved.getItem(key), before)
+    assert.match(text(f.detail()), /結果を確認できません/)
+    assert.ok(f.calls.every(call => call.body === null))
+    f.center.close()
+  }
+})
+
+test('unknown UI preserves old pending when a new plan is busy or saving the next request fails', async t => {
+  for (const failure of ['plan-busy', 'storage']) {
+    const { value, plan, old } = unknownExample(), saved = storage()
+    saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId }))
+    const before = saved.getItem(key)
+    const f = fixture(t, async path => {
+      if (path === '/api/updates') return value
+      if (path.endsWith('/plans')) {
+        if (failure === 'plan-busy') throw Object.assign(Error('MODULE_EXCHANGE_BUSY'), { status: 409 })
+        return { plan }
+      }
+      return { operation: old }
+    }, saved)
+    await f.center.start(); f.select('notifications'); f.control('execute').handlers.click(); await settle()
+    if (failure === 'storage') {
+      saved.setItem = () => { throw Error('QUOTA_EXCEEDED') }
+      f.control('execute').handlers.click(); await settle()
+      assert.match(text(f.detail()), /要求IDを保存できません/)
+    } else assert.match(text(f.detail()), /計画を確認できませんでした/)
+    assert.equal(saved.getItem(key), before)
+    assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 0)
+    f.center.close()
+  }
+})
+
+test('unknown UI keeps retained results when their GET fails and resumes only after a valid GET', async t => {
+  const { value, old } = unknownExample(), saved = storage()
+  saved.setItem(key, JSON.stringify({ previous: [old] }))
+  let unavailable = true
+  const f = fixture(t, async path => {
+    if (path === '/api/updates') return value
+    if (unavailable) throw Object.assign(Error('READ_FAILED'), { status: 503 })
+    return { operation: old }
+  }, saved)
+  await f.center.start(); f.select('notifications')
+  assert.equal(f.control('execute').disabled, true)
+  assert.match(text(f.detail()), /前回の結果を保持しています/)
+  assert.deepEqual(JSON.parse(saved.getItem(key)).previous, [old])
+  unavailable = false; f.control(`read-${oldId}`).handlers.click(); await settle()
+  assert.equal(f.control('execute').disabled, false)
+  assert.equal(f.calls.filter(call => call.body !== null).length, 0)
+})
+
+test('unknown UI restores old history after a rejected new operation without resending either request', async t => {
+  const { value, plan, old } = unknownExample(), saved = storage()
+  saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId }))
+  const f = fixture(t, async path => {
+    if (path === '/api/updates') return value
+    if (path.endsWith('/plans')) return { plan }
+    if (path === '/api/updates/operations') throw Object.assign(Error('MODULE_EXCHANGE_BUSY'), { status: 409 })
+    return { operation: old }
+  }, saved)
+  await f.center.start(); f.select('notifications'); f.control('execute').handlers.click(); await settle()
+  f.control('execute').handlers.click(); await settle()
+  assert.deepEqual(JSON.parse(saved.getItem(key)), { previous: [old] })
+  assert.match(text(f.detail()), /受け付けられませんでした/)
+  assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 1)
+  assert.ok(f.calls.some(call => call.path.endsWith(oldId)))
+})
+
+
+test('unknown UI rejects reuse of the old plan and malformed retained storage', async t => {
+  const { value, old } = unknownExample()
+  const f = fixture(t, async path => path.endsWith('/plans') ? { plan: old.plan } : value)
+  await f.center.start(); f.select('notifications'); f.control('execute').handlers.click(); await settle()
+  assert.doesNotMatch(f.control('execute').textContent, /この計画/)
+  assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 0)
+  f.center.close()
+  for (const previous of [[{}], [old, old]]) {
+    const saved = storage(); saved.setItem(key, JSON.stringify({ previous }))
+    const g = fixture(t, async () => value, saved)
+    await g.center.start(); g.select('notifications')
+    assert.equal(g.control('execute').disabled, true)
+    assert.match(text(g.detail()), /保存された更新要求を確認できません/)
+    assert.equal(g.calls.filter(call => call.body !== null).length, 0)
+    g.center.close()
+  }
+})
+
+test('unknown UI preserves multiple prior requests and blocks if an old request is observed applying', async t => {
+  const { value, plan, old } = unknownExample(), saved = storage()
+  const earlier = structuredClone(old); earlier.requestId = '55555555-5555-4555-8555-555555555555'
+  earlier.plan.planId = '66666666-6666-4666-8666-666666666666'
+  saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId, previous: [earlier] }))
+  let applyEarlier = false, next
+  const f = fixture(t, async (path, options) => {
+    if (path === '/api/updates') return value
+    if (path.endsWith('/plans')) return { plan }
+    if (path === '/api/updates/operations') { next = operation(plan, JSON.parse(options.body).requestId, 'completed'); return { operation: next } }
+    return { operation: path.endsWith(oldId) ? old : path.endsWith(earlier.requestId) ? applyEarlier ? { ...earlier, phase: 'applying' } : earlier : next }
+  }, saved)
+  await f.center.start(); f.select('notifications'); f.control('execute').handlers.click(); await settle()
+  f.control('execute').handlers.click(); await settle()
+  assert.deepEqual(JSON.parse(saved.getItem(key)).previous, [earlier, old])
+  applyEarlier = true; await f.center.refresh()
+  assert.equal(f.control('execute').disabled, true)
+  assert.deepEqual(JSON.parse(saved.getItem(key)).previous.map(result => result.requestId), [earlier.requestId, oldId])
+  assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 1)
+})
