@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-04T09:20:30Z",
-  "expiresAt": "2026-11-11T09:20:30Z",
+  "publishedAt": "2026-11-04T09:49:01Z",
+  "expiresAt": "2026-11-11T09:49:01Z",
   "releases": [
     {
       "componentId": "usage",
@@ -179,6 +179,178 @@
       },
       "changes": [
         "記憶と知識を、保存した内容を保ちながら単独で更新できます。"
+      ]
+    },
+    {
+      "componentId": "conversation",
+      "sourceCommit": "0f6bde5b5208e3d15aabb55132e20947f2e9f2d6",
+      "versionId": "26227d6e9cba68247adc71680f3b03125debcc6690769b8e3196fb763d48a667",
+      "platform": {
+        "os": "linux",
+        "arch": "amd64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T094501Z/conversation-0f6bde5b5208e3d15aabb55132e20947f2e9f2d6-linux-amd64.tar.gz",
+          "sha256": "26227d6e9cba68247adc71680f3b03125debcc6690769b8e3196fb763d48a667",
+          "bytes": 3892753
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T094501Z/conversation-0f6bde5b5208e3d15aabb55132e20947f2e9f2d6-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "9dfd46b4460b73062c738695a44a2cc77de49baa383f9a5fc0006af64cb18c65",
+          "bytes": 11139
+        },
+        "signerCommit": "0f6bde5b5208e3d15aabb55132e20947f2e9f2d6"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "directRecordSchemas": [
+            "bellteam.direct-message.v1",
+            "bellteam.interim-word.v1",
+            "bellteam.delivery-status.v1"
+          ],
+          "imageMimeTypes": [
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "image/gif"
+          ],
+          "readerContract": "bellteam.conversation-reader.v1",
+          "roomRecordSchemas": [
+            "bellteam.room-message.v1",
+            "bellteam.room-routing-status.v1",
+            "bellteam.room-delivery-status.v1"
+          ],
+          "roomSchema": "bellteam.room.v1",
+          "scheduleSchema": "bellteam.schedule.v1",
+          "selfTurnsSchema": "bellteam.self-turns.v1"
+        }
+      },
+      "changes": [
+        "会話と履歴のページ取得と、現在の同時受付数に対応します。"
+      ]
+    },
+    {
+      "componentId": "conversation",
+      "sourceCommit": "0f6bde5b5208e3d15aabb55132e20947f2e9f2d6",
+      "versionId": "1bc86ea846c5054f68cc063d3251210df7f59bc134f98fa9fdbe29ab84f8ef7d",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T094501Z/conversation-0f6bde5b5208e3d15aabb55132e20947f2e9f2d6-linux-arm64.tar.gz",
+          "sha256": "1bc86ea846c5054f68cc063d3251210df7f59bc134f98fa9fdbe29ab84f8ef7d",
+          "bytes": 3892753
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T094501Z/conversation-0f6bde5b5208e3d15aabb55132e20947f2e9f2d6-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "6bd417813a62a5c4f5b2bb8b528d7ac39f521b37191245c34283e256bc816a77",
+          "bytes": 11127
+        },
+        "signerCommit": "0f6bde5b5208e3d15aabb55132e20947f2e9f2d6"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "directRecordSchemas": [
+            "bellteam.direct-message.v1",
+            "bellteam.interim-word.v1",
+            "bellteam.delivery-status.v1"
+          ],
+          "imageMimeTypes": [
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "image/gif"
+          ],
+          "readerContract": "bellteam.conversation-reader.v1",
+          "roomRecordSchemas": [
+            "bellteam.room-message.v1",
+            "bellteam.room-routing-status.v1",
+            "bellteam.room-delivery-status.v1"
+          ],
+          "roomSchema": "bellteam.room.v1",
+          "scheduleSchema": "bellteam.schedule.v1",
+          "selfTurnsSchema": "bellteam.self-turns.v1"
+        }
+      },
+      "changes": [
+        "会話と履歴のページ取得と、現在の同時受付数に対応します。"
+      ]
+    },
+    {
+      "componentId": "notifications",
+      "sourceCommit": "0f6bde5b5208e3d15aabb55132e20947f2e9f2d6",
+      "versionId": "de5399e3155dc529d1ab422a2365c97519ef394e893544eee98b039bfd2d5003",
+      "platform": {
+        "os": "linux",
+        "arch": "amd64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T094501Z/notifications-0f6bde5b5208e3d15aabb55132e20947f2e9f2d6-linux-amd64.tar.gz",
+          "sha256": "de5399e3155dc529d1ab422a2365c97519ef394e893544eee98b039bfd2d5003",
+          "bytes": 4241339
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T094501Z/notifications-0f6bde5b5208e3d15aabb55132e20947f2e9f2d6-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "6c5965d4f6c611440dd4c29e55c401423524d7143e67852e4705cd50280112fd",
+          "bytes": 11135
+        },
+        "signerCommit": "0f6bde5b5208e3d15aabb55132e20947f2e9f2d6"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 2,
+        "stateSchema": 2,
+        "containerUpdate": null
+      },
+      "changes": [
+        "新版の更新候補を、許可済みの端末通知で知らせます。"
+      ]
+    },
+    {
+      "componentId": "notifications",
+      "sourceCommit": "0f6bde5b5208e3d15aabb55132e20947f2e9f2d6",
+      "versionId": "7ca5326f514690a4a2240226afe53ba6889252ce944ae89f28d0f1def3e359ff",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T094501Z/notifications-0f6bde5b5208e3d15aabb55132e20947f2e9f2d6-linux-arm64.tar.gz",
+          "sha256": "7ca5326f514690a4a2240226afe53ba6889252ce944ae89f28d0f1def3e359ff",
+          "bytes": 4241338
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T094501Z/notifications-0f6bde5b5208e3d15aabb55132e20947f2e9f2d6-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "b06d336d76863bb55e36fc7952b8d973c45f2dd361f54336771e7f2fd3ee7881",
+          "bytes": 11037
+        },
+        "signerCommit": "0f6bde5b5208e3d15aabb55132e20947f2e9f2d6"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 2,
+        "stateSchema": 2,
+        "containerUpdate": null
+      },
+      "changes": [
+        "新版の更新候補を、許可済みの端末通知で知らせます。"
       ]
     }
   ],
