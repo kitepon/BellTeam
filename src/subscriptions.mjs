@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import endpoints from '../services/subscriptions/endpoints.json' with { type: 'json' }
 import product from '../services/subscriptions/product.json' with { type: 'json' }
-import { developerAccessAllowed } from './distribution-profile.mjs'
+import { developerAccessAllowed as profileDeveloperAccessAllowed } from './distribution-profile.mjs'
 
 export class SubscriptionAccessError extends Error {
   constructor(code, status, message) {
@@ -14,9 +14,10 @@ export class SubscriptionAccessError extends Error {
 
 // 保存先は利用者自身のサーバー。運営のCloudflareには購読情報を保存しない。
 export class Subscriptions {
-  constructor({ path, environment = 'Production', accessMode = 'subscription', fetch: request = fetch, clock = Date.now, checkIntervalMs = 60 * 60 * 1000 }) {
+  constructor({ path, environment = 'Production', accessMode = 'subscription', developerAccessAllowed = profileDeveloperAccessAllowed, fetch: request = fetch, clock = Date.now, checkIntervalMs = 60 * 60 * 1000 }) {
     if (!Object.hasOwn(endpoints, environment)) throw new Error('SUBSCRIPTION_ENVIRONMENT_INVALID')
     if (!['subscription', 'developer'].includes(accessMode)) throw new Error('SUBSCRIPTION_ACCESS_MODE_INVALID')
+    if (typeof developerAccessAllowed !== 'boolean') throw new Error('SUBSCRIPTION_DEVELOPER_ACCESS_INVALID')
     if (accessMode === 'developer' && !developerAccessAllowed) throw new Error('SUBSCRIPTION_DEVELOPER_ACCESS_UNAVAILABLE')
     this.path = path
     this.environment = environment

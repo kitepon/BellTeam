@@ -201,3 +201,18 @@ sequenceDiagram
 snapshot/verifyの返却は有限のassert結果・counterだけで秘密値/path/auth receiptを含めない。ローカル直接試験は実Node IPCとdefault reader未配置拒否まで。signed正例と固定C/両native受入をその試験から主張しない。外側workflow/driver/署名fetch/rootprepare/cleanupはCentiが所有する。
 
 fixtureは通常nativeと同じseatRuntime:trueでonboarding/subscriptionをstateへ保存する。各replaceの設定更新は旧世代で受付し、quiescing中に同lease error callbackまで終端する。新世代restore後に行うのは同期投影/秘密ファイルreadと人工auth.status（メモリreceiptだけ）で、追加業務保存を発行しない。外側が旧close時のregular file bytes/mode/mtimeをreplace返却直後に照合する。
+
+## 交換時の購読認可
+
+署名usageはpublic distribution profileを持つ。親は自身のprofileから得た既許可をprivate `bootstrap.subscription.developerAccessAllowed`（任意boolean）で渡せる。dispatcherは未知key/非booleanを拒否し、servicesからSubscriptionsの同名内部optionへ渡す。未指定は各版の既profileに従う。public親が環境変数だけで開発者免除を作ることや、HTTP/MCP要求からこの値を指定することはできない。runtimeは初回bootstrapのcloneを交換・cold restoreへ渡し、認可を作らない。保存形式・volatile handoff・唯一writerとread-only restoreは維持する。
+
+```mermaid
+flowchart LR
+  Parent[親自身のdistribution profile] --> Bootstrap[信頼済private bootstrap]
+  Bootstrap --> Runtime[runtime 保持済clone]
+  Runtime --> Closed[dispatcher 閉keyとboolean検査]
+  Closed --> Factory[usage services]
+  Factory --> Subscription[Subscriptions 内部許可 / 未指定は既profile]
+```
+
+旧archiveは未知bootstrap keyを拒否する。親の入力生成・旧版への交換/戻しの互換条件は親assembly担当が保持し、旧public archiveへdeveloper認可を渡せば動くとは扱わない。新許可の保持には対応済親とusageが必要で、旧版の公開購読制限を解除しない。

@@ -69,7 +69,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
       publish(settingsProjection())
       return callEffect('settings.changed', { id, configuration, epoch })
     } })
-  const subscriptions = new Subscriptions({ path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'), environment: subscription.environment ?? 'Production', accessMode: subscription.accessMode ?? 'subscription' })
+  const subscriptions = new Subscriptions({ path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'), environment: subscription.environment ?? 'Production', accessMode: subscription.accessMode ?? 'subscription', developerAccessAllowed: subscription.developerAccessAllowed })
   const client = { authOptions: () => ({}), call: (method, params) => {
     if (method !== 'agent_auth') throw usageError('USAGE_EFFECT_INVALID')
     const { cwd, ...auth } = params
