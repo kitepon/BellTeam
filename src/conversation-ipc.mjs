@@ -90,7 +90,7 @@ export function createConversationParentChannel(child, { generation, admission, 
     if (method === 'execution.observation.source') check(record.allowedBots?.has(params.target))
     if (method === 'usage.routing.read') check(record.context.callbackKind === 'turn.end'
       || ['room.post', 'room.reply', 'user.post', 'user.turn', 'observation.poll'].includes(rootMethod))
-    let value
+    let value, delivery
     if (method === 'execution.background.begin') {
       const source = admission.deliveryFor(record.lease, params)
       const observed = record.observerSources?.get(bindingKey({ generation, operationId: record.lease.correlation, ...params }))
@@ -120,7 +120,7 @@ export function createConversationParentChannel(child, { generation, admission, 
           && record.context.deliveryId === params.sourceDeliveryId && record.context.target === params.target
         check(inline || [...backgrounds.values()].some(state => state.record === record && state.source === source))
       }
-      const delivery = register(record, params, source)
+      delivery = register(record, params, source)
       // A local preparation refusal proves transport was never called; its registered delivery still needs the release ACK.
       try { record.options.admissionCheck?.() } catch (cause) { admission.finish(delivery); throw cause }
       try { value = await onEffect(method, params, enriched(record, delivery)) }
@@ -139,6 +139,7 @@ export function createConversationParentChannel(child, { generation, admission, 
       if (method === 'members.profiles.read') record.allowedBots = new Set(value.bots.map(bot => bot.id))
     }
     validateConversationEffectResult(method, value, params)
+    if (method === 'execution.report' && value.report === 'unavailable') admission.finishUnclaimedDelivery(delivery)
     return value
   }
   peer = createConversationPeer(child, { side: 'parent',

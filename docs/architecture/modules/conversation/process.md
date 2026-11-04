@@ -281,3 +281,23 @@ flowchart LR
 外側が交換した後の`fixture.exercise({runtime,label,versionId})`は、公開controllerの選択が期待値であること、保存した最新stateのbytes/mode/mtimeと通常業務逆effect/native回数が交換前と一致することを先に検証する。背景の無変更poll回数は別に記録し、増えても許容する。その後同親のowner/bot/observer文脈で履歴/Room/表示callback/selfTurns.pollを使い、新追記・Room名・cursor/tokenを保存して次段の基準にする。有効前後履歴と各段追記は重複せず、不正行の元bytesも保持する。Bot表示/Room履歴/予定/seen/最終完了値を各段で確認し、completion実Promiseも待つ。seedはconstructorの一回await時に作り、返るseedPath/botsを外側bootstrapへ使う。snapshot()/counts()/receiptsも返し、外側の原本保存へ使える。
 
 helperはroot生成元/署名/C/UID1001/交換/cleanupを所有せず、controller.replaceを呼ばない。新wire/schema/業務APIも増やさない。直接試験は実default runtime.start/親assembly/facade/子IPCを使い、固定Cと署名descriptorだけを既人工child/metadataへ代替する。実5秒背景巡を保留して手動が合流する反例でも、再試行後にcursorを一回だけ進める。作者unitの代替SHA成功を署名実物の成功へ読み替えず、最終親の同bytesでの実署名交換結果はCentiが返す。
+
+
+## T：reportだけの確定未発行結果
+
+```mermaid
+flowchart LR
+  Captured[親: 元sourceからreport一回登録] --> Native[execution: 元jobの未dispatchと実終端証明]
+  Native --> Union[execution.report閉union / not_issued]
+  Union --> Finish[親: 未claim分だけ既finishUnclaimedDelivery]
+  Union --> Business[子TurnReports: 報告依頼未発行]
+  Finish --> Release[既deliveryCompletion / releaseと実ACK]
+  Business --> Background[inline又は背景の正常業務終端]
+  Release --> Hold[元operationとcaptured recordへACK completion保持]
+```
+
+execution.reportの返値だけに既 `{delivery:'running'|'steered'}` 又はexact `{report:'unavailable',reason:'not_issued'}` を許す。親のnative実証は[execution正本](../execution/conversation-lifetimes.md#t-report専用の確定した未発行結果)を使い、同report opaque/target/groupId/sourceを変えず転送する。notify/turnはこの分岐を受けず、code/status/effect/receipt無しを未発行証明へ変えない。
+
+親channelは正常unionも閉validator通過後、register済みdeliveryへ既finishUnclaimedDeliveryを適用する。未claimのみを正規finishし、nativeClaimed/既finish済みはtransportの実finishを重ねない。release ACKは元operationの実参照とrecord holdに残し、DTOでresolve/削除しない。子は同binding/active callback無しを検査してrelease ACKを返す。ACKをdelivery自身のpendingへ入れる自己待ちは作らない。
+
+TurnReports.requestReportは未発行結果をそのまま返し、reason/recipients/groupIdの報告依頼済み結果へ進めない。inline/background双方のreports.checkは通常業務結果として終端する。報告保存/native受付/元要求成功/release済みを意味しない。一般background/lifetime/wireは変更せず、保存・相関・ACK未確認/切断・旧世代・dispatch開始後の失敗は既rejectを維持する。元pty_send条件反例や自然事故の原因解決は本差分に含まない。

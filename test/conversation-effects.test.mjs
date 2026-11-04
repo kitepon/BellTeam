@@ -4,6 +4,14 @@ import { CONVERSATION_EFFECT_METHODS, validateConversationEffect, validateConver
   normalizeConversationObserverResult } from '../src/conversation/effects.mjs'
 
 const context = { generation: 'generation-a', operationId: 'operation-a', actor: { kind: 'observer' }, continuation: false }
+
+test('not-issued report result is an exact report-only union', () => {
+  const unavailable = { report: 'unavailable', reason: 'not_issued' }
+  validateConversationEffectResult('execution.report', unavailable)
+  for (const method of ['execution.notify', 'execution.turn']) assert.throws(() => validateConversationEffectResult(method, unavailable))
+  for (const value of [{ ...unavailable, extra: true }, { report: 'unavailable' }, { ...unavailable, reason: 'unknown' }, { ...unavailable, delivery: 'running' }])
+    assert.throws(() => validateConversationEffectResult('execution.report', value))
+})
 const scope = 'tlop1.' + 'a'.repeat(64)
 const queue = { context: 'direct', contextId: 'bot-a', groupId: 'delivery-a', from: 'user', fromName: 'Owner', target: 'bot-a', message: 'Q' }
 const native = { deliveryId: 'delivery-a', target: 'bot-a', message: 'Q', images: [], queue, kinds: ['delivery.status', 'delivery.answer'] }

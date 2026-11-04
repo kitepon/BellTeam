@@ -45,11 +45,12 @@ export class TurnReports {
     const message = reportRequestMessage(reason, recipients)
     // この依頼で始まるターンは確かめない（onTurnEndを渡さない）。返事はそのBotの会話画面にだけ出す。
     const notify = this.notifyReport ?? ((...args) => this.transport.notify(...args))
-    await notify(bot, message, {
+    const result = await notify(bot, message, {
       queue: { context: 'report', contextId: bot.id, groupId, from: 'bellteam', fromName: 'BellTeam', target: bot.id, message },
       onInterim: words => this.appendInterimWords(bot.id, groupId, words),
       onAnswer: text => this.appendInterimWords(bot.id, groupId, [{ text, kind: 'answer' }]),
     }, reason)
+    if (result?.report === 'unavailable') return result
     return { reason, recipients, groupId }
   }
 }
