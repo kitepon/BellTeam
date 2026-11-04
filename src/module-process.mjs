@@ -35,6 +35,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   let instance = null, currentVersionId = null, previousVersionId = null, generation = null
   let initialized = false, closed = false, available = false, phase = 'unavailable', exchanging = false
   let operation = null, closing = null, update = null, reservation = null, startingReservation = false
+  let failedWriterReaped = false
   let recoveryAttempt = 0
   const recovery = createModuleChildRestart(async () => {
     recoveryAttempt = Math.min(Number.MAX_SAFE_INTEGER, recoveryAttempt + 1)
@@ -123,7 +124,11 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     if (closed || instance) throw fail('NOT_ACCEPTING')
     const nextGeneration = `${versionId ?? 'builtin'}:${randomUUID()}`
     if (recovering) markStage('recover_admission')
-    if (recovering && admission?.recover && ticket.generation === generation) admission.recover(ticket, generation, nextGeneration)
+    if (recovering && component === 'conversation' && admission?.recoverFailedGeneration) {
+      if (!failedWriterReaped) throw fail('NOT_ACCEPTING')
+      admission.recoverFailedGeneration(ticket, generation, nextGeneration)
+    }
+    else if (recovering && admission?.recover && ticket.generation === generation) admission.recover(ticket, generation, nextGeneration)
     else admission?.adopt(ticket, nextGeneration)
     generation = nextGeneration
     onGeneration(nextGeneration)
@@ -144,6 +149,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       await target.channel?.drainIncoming?.()
       target.ended = true
       await target.channel?.reaped()
+      if (unexpected || recovering) failedWriterReaped = true
       if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
       if (unexpected) recovery.lost()
     })
@@ -171,12 +177,15 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     target.resumed = true
     if (closed) throw fail('CLOSED')
     admission?.resume(ticket)
+    failedWriterReaped = false
     exchanging = false; state('running', true)
   }
-  const drain = async (target, ticket, markStage = () => {}) => {
+  const drainAdmission = (ticket, forClose) => forClose && component === 'conversation' && admission?.drainForClose
+    ? admission.drainForClose(ticket) : admission?.drain(ticket)
+  const drain = async (target, ticket, markStage = () => {}, forClose = false) => {
     const started = Date.now()
     markStage('parent_drain')
-    const [, admissionResult] = await within(Promise.all([waitActive(), admission?.drain(ticket)]), 60000, `${prefix}_DRAIN_TIMEOUT`)
+    const [, admissionResult] = await within(Promise.all([waitActive(), drainAdmission(ticket, forClose)]), 60000, `${prefix}_DRAIN_TIMEOUT`)
     if (admissionResult?.status === 'busy') throw fail('DRAIN_TIMEOUT')
     const remaining = Math.max(1, 60000 - (Date.now() - started))
     markStage('child_quiesce')
@@ -318,18 +327,25 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     if (closing) return closing
     closed = true; recovery.close(); available = false; reservation?.cancel()
     closing = (async () => {
-      await operation?.catch(() => {})
-      const target = instance
-      if (target) {
-        const ticket = closeAdmission()
-        try { await drain(target, ticket); await finishExit(target) }
-        catch (error) {
-          if (target.child.connected) target.child.disconnect()
-          await target.end
-          state('closed'); throw error
+      const retainCloseFailure = component === 'conversation' && typeof admission?.drainForClose === 'function'
+      try {
+        await operation?.catch(() => {})
+        const target = instance
+        if (target) {
+          const ticket = closeAdmission()
+          try { await drain(target, ticket, () => {}, true); await finishExit(target) }
+          catch (error) {
+            if (target.child.connected) target.child.disconnect()
+            await target.end
+            throw error
+          }
+        } else if (retainCloseFailure) {
+          const ticket = closeAdmission()
+          const [, result] = await within(Promise.all([waitActive(), drainAdmission(ticket, true)]), 60000, `${prefix}_DRAIN_TIMEOUT`)
+          if (result?.status === 'busy') throw fail('DRAIN_TIMEOUT')
         }
-      }
-      state('closed')
+        state('closed')
+      } catch (error) { state(retainCloseFailure ? 'unavailable' : 'closed'); throw error }
     })()
     return closing
   }

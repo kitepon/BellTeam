@@ -59,7 +59,13 @@ flowchart LR
 
 ## 子だけの自動再生成
 
-成功稼働子が意図close/交換以外で終了したら新受付を閉じ、OS/IPC/pipe→drainIncoming→await channel.reaped→旧要求completion終端を待つ。採用済み同版を再検証し新generationのrestore/ready/resume ACK後だけ再開。会話はadmission.recover(ticket,old,next)で閉鎖採用、未resume候補の再失敗は同ticketの通常adopt。旧要求や作用不明は再送しない。usageは初回段階順序を保ち、障害復帰ではsettings後subscriptions/servicesも復元する。
+成功稼働子が意図close/交換以外で終了したら新受付を閉じ、OS/IPC/pipe→drainIncoming→await channel.reaped→旧要求completion終端を待つ。採用済み同版を再検証し新generationのrestore/ready/resume ACK後だけ再開。旧admissionではrecover(ticket,old,next)で閉鎖採用し、未resume候補再失敗は同ticketの通常adopt。会話の新しい正式口は次段に従う。旧要求や作用不明は再送しない。usageは初回段階順序を保ち、障害復帰ではsettings後subscriptions/servicesも復元する。
+
+会話の故障世代分離はRoot `conversation-failed-generation-contract-20261104.md`とKiro `q-retired-generation-io-20261104.md`を契約正本とする。新しい`admission.recoverFailedGeneration(ticket,previousGeneration,nextGeneration)->void`が提供される場合、会話の異常終了又はその未resume再生成candidateのOS/IPC/全pipe/incoming/effect/reapedを実完了した世代だけを同正式口へ渡す。retiredの元native/watch実参照は終端専用のまま保持し、新currentは閉じた空bucketで同採用版restore/ready/resume ACKを待つ。同ticketのままcandidate再失敗時もそのcandidate実barrier後に新しい未使用nextを採用する。新口未提供の旧admissionは既recover/adoptの互換を保つ。
+
+正常module交換と既recover/adoptの全体active0/未確認検査へ新口を流用しない。旧opaque/authority/実completionは元bucketに残り、旧callbackのfailure/unknownを新writerへ書かず成功ACKも作らない。新gateの空きを同Botの旧native/receipt占有の解除へ変換しない。native実追跡とcallback失敗の分離、現在/退役の実参照routingはKiro、旧writer/restore/ACKはN102、安定admission/moduleOperationsの親組立はMollyが所有する。
+
+会話の全体closeは正式`admission.drainForClose(ticket,{timeoutMs=60000})`を使い、両世代の実参照が残る間は未確認でも待つ。実参照0で元未確認をrejectし、期限のbusyは既DRAIN_TIMEOUTとして失敗する。正常交換は既drainの即時未確認拒否を維持。現在子が無い場合も全体closeは同口で退役実参照を回収し、未確認又はbusyをclosed成功へ変えずunavailableと元例外を返す。既admissionに同口が無い場合のcloseは互換を維持する。
 
 module-child-restartは既controller排他へ接続し初回1秒、連続失敗2/4/8/16/最大30秒、正常60秒で初期化。回数による恒久停止無し、closeでtimer取消。members/notifications/web-gatewayも採用版と固有初期化を保持し同timerを使う。親/他子/Dockerは再起動しない。終了logは固定MODULE_CHILD_EXITED/component/整数exitCode/閉signalのみ、stderrは最大8KiBのrawを全chunkの4KiB区間ごとに処理し、大chunk中央/区間境界の固定4codeも検出する。任意本文を保存/公開しない。常駐子のstdout/stderrはpipeで排出し、inheritで本文を親logへ流さない。
 
@@ -67,10 +73,17 @@ module-child-restartは既controller排他へ接続し初回1秒、連続失敗2
 flowchart LR
   Exit[子の異常終了] --> Reap[新受付閉鎖 / 実OS IPC pipe incoming reaped終端]
   Reap --> Timer[1秒から最大30秒]
-  Timer --> Restore[同採用版 新generation restore ready]
+  Timer --> Gate{会話の正式故障復帰口あり}
+  Gate -->|yes| Retire[recoverFailedGeneration / 同ticketで閉鎖採用]
+  Gate -->|legacy| Legacy[既recover又はadopt / 全体active0]
+  Retire --> Restore[同採用版 新generation restore ready]
+  Legacy --> Restore
+  Retire --> References[Kiro: 旧native実参照をretiredで保持]
   Restore --> Resume[実resume ACK / 新受付]
   Restore --> Timer
   Close[親close] --> Cancel[timer取消]
+  Close --> FullDrain[会話drainForClose / currentとretired実終端]
+  References --> FullDrain
 ```
 
 共通3componentの再生成試行は既consoleへ`MODULE_CHILD_RECOVERY`を記録する。固定component/stage/event、safe整数attempt、既runner/admissionの安全な件数とclosed/unconfirmed、閉failureCode又はnullだけ。operation/mutex/runner/prepare/recover_admission/spawn/channel/initialize/ready/restore/resumeの各待機開始と試行完了・失敗・不要時skipを残し、未完待機は最後の段階として識別する。各試行の遷移時だけで定期ログは作らず、1秒から最大30秒の再試行契約を維持する。
