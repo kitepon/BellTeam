@@ -6,9 +6,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createModuleUpdateExecutor } from '../src/update-module-executor.mjs'
 import { USAGE_STATE_COMPATIBILITY } from '../src/usage/state-compatibility.mjs'
+import { moduleExchangeDiagnostic } from '../src/module-exchange-diagnostic.mjs'
 
-const diagnostic = () => ({ schema: 'bellteam.module-exchange-diagnostic.v1', component: 'usage', stage: 'ready',
-  code: 'USAGE_READY_INVALID', rollback: 'succeeded', rollbackStage: null, rollbackCode: null })
+const diagnostic = () => moduleExchangeDiagnostic('usage', 'ready', { code: 'USAGE_READY_INVALID' }, null)
 async function fixture(t, value, getter = false) {
   const root = await mkdtemp(join(tmpdir(), 'module-diagnostic-'))
   t.after(() => rm(root, { recursive: true, force: true }))
