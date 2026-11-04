@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-04T15:29:25Z",
-  "expiresAt": "2026-11-11T15:29:25Z",
+  "publishedAt": "2026-11-04T16:46:15Z",
+  "expiresAt": "2026-11-11T16:46:15Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "357b4e9f640a9010e3c4608fed1429f00248c31a",
-      "versionId": "f33e7487254a4df69c9db91db24ff49b25bb7609d3ca4cb3e8d6d0d1e24e52b5",
+      "sourceCommit": "6f2f579738fdcc829e3fd3d18fb34277a6f765da",
+      "versionId": "6eb0cc039ff5eea2f83834f109da3feffe184c7e938afbd32f8354d5b12f848a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T152220Z/conversation-357b4e9f640a9010e3c4608fed1429f00248c31a-linux-amd64.tar.gz",
-          "sha256": "f33e7487254a4df69c9db91db24ff49b25bb7609d3ca4cb3e8d6d0d1e24e52b5",
-          "bytes": 3893326
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T164143Z/conversation-6f2f579738fdcc829e3fd3d18fb34277a6f765da-linux-amd64.tar.gz",
+          "sha256": "6eb0cc039ff5eea2f83834f109da3feffe184c7e938afbd32f8354d5b12f848a",
+          "bytes": 3893957
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T152220Z/conversation-357b4e9f640a9010e3c4608fed1429f00248c31a-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "f46c8f700c0454998eccb333bef66bf5f1fbaa40a1eea315908bc600cf132632",
-          "bytes": 11139
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T164143Z/conversation-6f2f579738fdcc829e3fd3d18fb34277a6f765da-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "ab99eb6054c0508639bcba89552b1911ac4c37e0b8418e7254eebadf48293f73",
+          "bytes": 10845
         },
-        "signerCommit": "357b4e9f640a9010e3c4608fed1429f00248c31a"
+        "signerCommit": "6f2f579738fdcc829e3fd3d18fb34277a6f765da"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "会話後の報告依頼が未発行だった場合、その状態を正しく扱います。"
+        "保存中の処理が終わるのを待ち、受け付けられなくなった会話機能を再開します。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "357b4e9f640a9010e3c4608fed1429f00248c31a",
-      "versionId": "bb54ebfd3b9100b044fbbebe0e852130c123b8479e4becbc0d3c582019d43cbf",
+      "sourceCommit": "6f2f579738fdcc829e3fd3d18fb34277a6f765da",
+      "versionId": "4c31858c94c3a261aee97257f5f02edddeeb09f3d6f2297c86b656b977cdcc85",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T152220Z/conversation-357b4e9f640a9010e3c4608fed1429f00248c31a-linux-arm64.tar.gz",
-          "sha256": "bb54ebfd3b9100b044fbbebe0e852130c123b8479e4becbc0d3c582019d43cbf",
-          "bytes": 3893326
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T164143Z/conversation-6f2f579738fdcc829e3fd3d18fb34277a6f765da-linux-arm64.tar.gz",
+          "sha256": "4c31858c94c3a261aee97257f5f02edddeeb09f3d6f2297c86b656b977cdcc85",
+          "bytes": 3893957
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T152220Z/conversation-357b4e9f640a9010e3c4608fed1429f00248c31a-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "53f264e0b719c5996cb09262df70ae8b25041bccfe90d381217a29b341b9200b",
-          "bytes": 11127
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T164143Z/conversation-6f2f579738fdcc829e3fd3d18fb34277a6f765da-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "b6ba55d69fe5e8dfc244dee0461a7005b4e09aca424bc683b0fe28d3ecd2800a",
+          "bytes": 10751
         },
-        "signerCommit": "357b4e9f640a9010e3c4608fed1429f00248c31a"
+        "signerCommit": "6f2f579738fdcc829e3fd3d18fb34277a6f765da"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "会話後の報告依頼が未発行だった場合、その状態を正しく扱います。"
+        "保存中の処理が終わるのを待ち、受け付けられなくなった会話機能を再開します。"
       ]
     },
     {
