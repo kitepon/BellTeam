@@ -42,6 +42,8 @@ test('standard view has a single primary, genuine changes, and no component tabl
   assert.equal(f.product.children.filter(node => node.tagName === 'BUTTON' || node.dataset?.updateControl === 'primary').length, 1)
   assert.equal(f.control('primary').textContent, '更新する')
   assert.equal(f.calls.filter(call => call.body).length, 0)
+  value.components[0].changes = []; await f.center.refresh()
+  assert.doesNotMatch(f.text(), /変更内容|届いて|未供給/)
 })
 
 test('one candidate requests one fixed plan, then explicit Start exactly once; no automatic follow-up', async t => {
@@ -84,6 +86,7 @@ test('old unknown keeps its UUID, GET-only primary and explicit new-plan path; f
   const old = operation(oldPlan, '22222222-2222-4222-8222-222222222222', 'unknown')
   const f = fixture(t, value, plan, { old, loseGet: true }); await f.center.start()
   assert.match(f.text(), /結果を確認中/); assert.equal(f.control('primary').textContent, '状況を確認')
+  assert.doesNotMatch(f.text(), /記録を保持|要求ID|UUID/)
   f.control('primary').handlers.click(); await settle()
   assert.ok(f.data.get(key).includes(old.requestId)); assert.equal(f.calls.filter(call => call.body).length, 0)
   f.control('choose').handlers.click(); f.control('choose-' + plan.componentId).handlers.click(); await settle()

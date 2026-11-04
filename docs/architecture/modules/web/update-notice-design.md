@@ -17,7 +17,7 @@ flowchart TD
 
 状態は共通comparison/operationを消費しWebで版比較しない。取得不能や旧unknownを最新/成功へ変換せず保持、残候補があれば全体最新としない。candidateは既comparison=update_availableかつcapability.supportedを入口に使い、最終可否は既plan/実行直前判定を維持する。対象一つなら直接そのplan、複数なら短い名前だけ選択し一対象ずつ明示実行する。実行済みの後続Startを自動発行しない。
 
-既管理一覧/生値/可否理由は閉じた詳細内、plan確認では対象名と必要な停止影響/明示checkboxだけを主操作に添える。変更点は実changesの短い文だけ、hash/code/commit表記は詳細に残す。未供給は改善を作らず案内する。詳細開閉とfocus、旧ID/結果・同GET・通知GETだけ/会話下書きを保つ。Web内部のproduct選択状態だけを追加し、module接続/公開schema/永続keyを追加しない。
+既管理一覧/生値/可否理由は閉じた詳細内、plan確認では対象名と必要な停止影響/明示checkboxだけを主操作に添える。変更点は実changesの短い文だけ、hash/code/commit表記は詳細に残す。未供給なら欄ごと省き、保存実装の説明も詳細内に留める。unknownの標準表示は結果をまだ確認できない事実と確認操作だけにする。詳細開閉とfocus、旧ID/結果・同GET・通知GETだけ/会話下書きを保つ。Web内部のproduct選択状態だけを追加し、module接続/公開schema/永続keyを追加しない。
 
 状態：2026-11-03にWeb担当が継続を引受。共通inventoryの通常main採用に続き、PR274のcontainer個別plan/確認/start/同ID照会とpublication表示を接続。PR289固定APIのmodule/all更新・個別module戻し・結果照会を接続する。正式catalog/実Host設置や未配置archiveのinstallは別の未供給工程。既Ownerの実装許可を維持し、APIの供給範囲から継続する。入力はトロニーの[6機能定義](/srv/bellteam/bots/bot-7b140b27/docs/commercial-container-update-functions-20261102.md)、[継続工程](/srv/bellteam/bots/bot-7b140b27/docs/module-expansion-20261103.md)、[通知module契約](/srv/bellteam/bots/bot-7b140b27/docs/notification-update-contract-20261103.md)、[確定共通API](/srv/bellteam/bots/bot-7b140b27/docs/update-center-api-20261103.md)。Webの[現行図](README.md)、[runtime](../runtime/README.md)、[distribution](../distribution/README.md)、[Apple](../apple/README.md)へ接続する。公開版・比較・実行結果は本体が所有する。[runtime設計](../runtime/commercial-update-design.md)の状態分離を維持する。横断契約はRoot、共通組立て/APIはMolly、機構はEpi、正式公開版はCentiが持つ。
 
