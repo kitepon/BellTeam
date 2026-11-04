@@ -145,7 +145,7 @@ public sealed class UpdateCenterTests
                 })))));
                 workspace.ConnectAsync("http://localhost", listen: false).GetAwaiter().GetResult();
                 var window = new UpdateCenterWindow(workspace, new SettingsStore(Path.Combine(Path.GetTempPath(), "BellTeam-view-" + Guid.NewGuid())));
-                void Check()
+                string[] Check()
                 {
                     window.InitializeAsync().GetAwaiter().GetResult();
                     var body = Assert.IsType<StackPanel>(Assert.IsType<DockPanel>(window.Content).Children.OfType<ScrollViewer>().Single().Content);
@@ -153,11 +153,18 @@ public sealed class UpdateCenterTests
                     Assert.Contains(expected, text);
                     Assert.DoesNotContain(text, item => item.Contains("22222222-2222") || item.Contains("aaaaaaaaaaaaaaaa"));
                     Assert.False(Assert.Single(body.Children.OfType<Expander>()).IsExpanded);
+                    return text;
                 }
                 Check();
-                operation["admission"] = "unknown"; operation["phase"] = "unknown"; operation["execution"] = "unknown"; operation["verification"] = "unknown"; expected = "更新の結果を確認中"; Check();
+                operation["admission"] = "unknown"; operation["phase"] = "unknown"; operation["execution"] = "unknown"; operation["verification"] = "unknown"; expected = "更新の結果を確認中";
+                var unknownText = Check(); Assert.Contains("更新の結果をまだ確認できません。", unknownText); Assert.DoesNotContain(unknownText, item => item.Contains("記録") || item.Contains("送り直し"));
                 operation["admission"] = "accepted"; operation["phase"] = "failed"; operation["execution"] = "failed"; expected = "更新を完了できませんでした"; Check();
                 operation["phase"] = "completed"; operation["execution"] = "succeeded"; operation["verification"] = "succeeded"; expected = "更新があります"; Check();
+                fixture["operation"] = null; fixture["components"]![0]!["changes"] = new JsonArray();
+                var noChanges = Check(); Assert.DoesNotContain("今回の更新", noChanges); Assert.DoesNotContain(noChanges, item => item.Contains("変更内容はありません") || item.Contains("公開版"));
+                fixture["components"]![0]!["published"]!["version"] = "0.4.5";
+                Assert.Contains("公開版 0.4.5", Check());
+                fixture["operation"] = operation;
                 fixture["components"]![0]!["comparison"]!["state"] = "up_to_date"; expected = "BellTeam本体を更新しました"; Check();
                 missingApi = true; expected = "更新を確認できませんでした"; Check();
                 window.Close();
