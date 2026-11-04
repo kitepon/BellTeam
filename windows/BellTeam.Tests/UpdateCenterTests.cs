@@ -1,5 +1,6 @@
 using System.IO;
 using System.Net.Http;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using BellTeam.Core;
@@ -106,13 +107,116 @@ public sealed class UpdateCenterTests
                     "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/rooms" => ApiTests.Rooms, "/api/owner" => ApiTests.Owner, "/api/queue" => ApiTests.EmptyQueue, "/api/updates" => inventory, _ => ApiTests.Page
                 })))));
                 workspace.ConnectAsync("http://localhost", listen: false).GetAwaiter().GetResult();
-                var window = new UpdateCenterWindow(workspace); window.InitializeAsync().GetAwaiter().GetResult();
+                var window = new UpdateCenterWindow(workspace, new SettingsStore(Path.Combine(Path.GetTempPath(), "BellTeam-view-" + Guid.NewGuid()))); window.InitializeAsync().GetAwaiter().GetResult();
                 var dock = Assert.IsType<DockPanel>(window.Content);
                 var body = Assert.IsType<StackPanel>(dock.Children.OfType<ScrollViewer>().Single().Content);
                 var sections = body.Children.OfType<Border>().Select(border => border.Child).OfType<StackPanel>().ToArray();
-                Assert.Contains(sections.SelectMany(section => section.Children.OfType<TextBlock>()), item => item.Text.Contains("稼働版:") && item.Text.Contains("公開版:") && item.Text.Contains("更新あり"));
-                Assert.Contains(sections.SelectMany(section => section.Children.OfType<Button>()), item => Equals(item.Content, "更新計画を確認"));
+                var text = body.Children.OfType<TextBlock>().Concat(sections.SelectMany(section => section.Children.OfType<TextBlock>())).Select(item => item.Text).ToArray();
+                Assert.Contains("更新があります", text);
+                Assert.Contains(sections.SelectMany(section => section.Children.OfType<Button>()), item => Equals(item.Content, "更新する"));
+                Assert.Single(sections.SelectMany(section => section.Children.OfType<Button>()));
+                Assert.DoesNotContain(text, item => item.Contains("aaaaaaaaaaaaaaaa") || item.Contains("要求ID") || item.Contains("container"));
+                Assert.False(Assert.Single(body.Children.OfType<Expander>()).IsExpanded);
                 Assert.False(window.IsVisible); window.Close();
+            }
+            catch (Exception error) { failure = error; }
+            finally { System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }
+        });
+        thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Fact]
+    public void UpdateScreenKeepsActualStatesAndHidesTechnicalValues()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var fixture = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "update-center.json")))!;
+                var savedPlan = fixture["plans"]![0]!.DeepClone();
+                var operation = new JsonObject { ["requestId"] = "22222222-2222-4222-8222-222222222222", ["plan"] = savedPlan, ["admission"] = "accepted", ["phase"] = "applying", ["execution"] = "pending", ["verification"] = "pending", ["error"] = null, ["reference"] = null };
+                fixture["operation"] = operation;
+                string expected = "更新しています"; var missingApi = false;
+                using var workspace = new Workspace(origin => new BellApi(origin, new StubHandler((request, _) => Task.FromResult(request.RequestUri!.AbsolutePath == "/api/updates" && missingApi ? StubHandler.Json("{\"error\":\"NOT_FOUND\"}", HttpStatusCode.NotFound) : StubHandler.Json(request.RequestUri.AbsolutePath switch
+                {
+                    "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/rooms" => ApiTests.Rooms, "/api/owner" => ApiTests.Owner, "/api/queue" => ApiTests.EmptyQueue, "/api/updates" => fixture.ToJsonString(), _ => ApiTests.Page
+                })))));
+                workspace.ConnectAsync("http://localhost", listen: false).GetAwaiter().GetResult();
+                var window = new UpdateCenterWindow(workspace, new SettingsStore(Path.Combine(Path.GetTempPath(), "BellTeam-view-" + Guid.NewGuid())));
+                void Check()
+                {
+                    window.InitializeAsync().GetAwaiter().GetResult();
+                    var body = Assert.IsType<StackPanel>(Assert.IsType<DockPanel>(window.Content).Children.OfType<ScrollViewer>().Single().Content);
+                    var text = body.Children.OfType<TextBlock>().Concat(body.Children.OfType<Border>().Select(border => border.Child).OfType<StackPanel>().SelectMany(section => section.Children.OfType<TextBlock>())).Select(item => item.Text).ToArray();
+                    Assert.Contains(expected, text);
+                    Assert.DoesNotContain(text, item => item.Contains("22222222-2222") || item.Contains("aaaaaaaaaaaaaaaa"));
+                    Assert.False(Assert.Single(body.Children.OfType<Expander>()).IsExpanded);
+                }
+                Check();
+                operation["admission"] = "unknown"; operation["phase"] = "unknown"; operation["execution"] = "unknown"; operation["verification"] = "unknown"; expected = "更新の結果を確認中"; Check();
+                operation["admission"] = "accepted"; operation["phase"] = "failed"; operation["execution"] = "failed"; expected = "更新を完了できませんでした"; Check();
+                operation["phase"] = "completed"; operation["execution"] = "succeeded"; operation["verification"] = "succeeded"; expected = "更新があります"; Check();
+                fixture["components"]![0]!["comparison"]!["state"] = "up_to_date"; expected = "BellTeam本体を更新しました"; Check();
+                missingApi = true; expected = "更新を確認できませんでした"; Check();
+                window.Close();
+            }
+            catch (Exception error) { failure = error; }
+            finally { System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }
+        });
+        thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Fact]
+    public void UpdateButtonShowsFixedPlanWithoutStartingIt()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var fixture = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "update-center.json")))!;
+                var plan = fixture["plans"]![0]!.DeepClone(); plan["expiresAt"] = DateTimeOffset.UtcNow.AddMinutes(10).ToString("O");
+                var calls = new List<string>();
+                using var workspace = new Workspace(origin => new BellApi(origin, new StubHandler(async (request, token) =>
+                {
+                    var path = request.RequestUri!.AbsolutePath; calls.Add(request.Method + " " + path);
+                    if (path == "/api/updates/plans")
+                    {
+                        var input = JsonNode.Parse(await request.Content!.ReadAsStringAsync(token))!;
+                        Assert.Equal("component", input["scope"]!.GetValue<string>()); Assert.Equal("container", input["componentId"]!.GetValue<string>());
+                        return StubHandler.Json(new JsonObject { ["plan"] = plan.DeepClone() }.ToJsonString());
+                    }
+                    return StubHandler.Json(path switch { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/rooms" => ApiTests.Rooms, "/api/owner" => ApiTests.Owner, "/api/queue" => ApiTests.EmptyQueue, "/api/updates" => fixture.ToJsonString(), _ => ApiTests.Page });
+                })));
+                workspace.ConnectAsync("http://localhost", listen: false).GetAwaiter().GetResult();
+                var window = new UpdateCenterWindow(workspace, new SettingsStore(Path.Combine(Path.GetTempPath(), "BellTeam-view-" + Guid.NewGuid())));
+                window.InitializeAsync().GetAwaiter().GetResult();
+                var body = Assert.IsType<StackPanel>(Assert.IsType<DockPanel>(window.Content).Children.OfType<ScrollViewer>().Single().Content);
+                var card = Assert.IsType<StackPanel>(body.Children.OfType<Border>().First().Child);
+                card.Children.OfType<Button>().Single().RaiseEvent(new System.Windows.RoutedEventArgs(Button.ClickEvent));
+                card = Assert.IsType<StackPanel>(body.Children.OfType<Border>().First().Child);
+                Assert.Contains(card.Children.OfType<TextBlock>(), item => item.Text.Contains("BellTeam本体"));
+                Assert.Contains(card.Children.OfType<TextBlock>(), item => item.Text.Contains("会話と処理が一時中断"));
+                Assert.Equal("更新を始める", card.Children.OfType<Button>().Single().Content);
+                Assert.Single(calls, call => call == "POST /api/updates/plans");
+                Assert.DoesNotContain("POST /api/updates/operations", calls);
+                window.Close();
+                var second = fixture["components"]![0]!.DeepClone(); second["id"] = "usage"; second["name"] = "利用設定"; fixture["components"]!.AsArray().Add(second);
+                calls.Clear();
+                var selector = new UpdateCenterWindow(workspace, new SettingsStore(Path.Combine(Path.GetTempPath(), "BellTeam-view-" + Guid.NewGuid())));
+                selector.InitializeAsync().GetAwaiter().GetResult();
+                var selectorBody = Assert.IsType<StackPanel>(Assert.IsType<DockPanel>(selector.Content).Children.OfType<ScrollViewer>().Single().Content);
+                var selectorCard = Assert.IsType<StackPanel>(selectorBody.Children.OfType<Border>().First().Child);
+                selectorCard.Children.OfType<Button>().Single().RaiseEvent(new System.Windows.RoutedEventArgs(Button.ClickEvent));
+                Assert.DoesNotContain(calls, call => call.StartsWith("POST "));
+                selectorCard = Assert.IsType<StackPanel>(selectorBody.Children.OfType<Border>().First().Child);
+                Assert.Contains(selectorCard.Children.OfType<Button>(), item => Equals(item.Content, "利用設定"));
+                selectorCard.Children.OfType<Button>().Single(item => Equals(item.Content, "BellTeam本体")).RaiseEvent(new System.Windows.RoutedEventArgs(Button.ClickEvent));
+                Assert.Single(calls, call => call == "POST /api/updates/plans");
+                Assert.DoesNotContain("POST /api/updates/operations", calls); selector.Close();
             }
             catch (Exception error) { failure = error; }
             finally { System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }

@@ -16,6 +16,7 @@ const schedules = {
 }
 const feature = (id, title) => ({ id, title, enabled: true, status: 'enabled', fields: [] })
 const routes = { '/api/session': { authenticated: true, authMode: 'local' }, '/api/bots': { bots: fixture.bots }, '/api/rooms': { rooms: fixture.rooms }, '/api/models': { models }, '/api/owner': { owner: fixture.owner }, '/api/user-rules': { text: 'チーム全員へ共有する指示。' }, '/api/settings': { settings: [feature('routing','AIによるルーム応答の振り分け'),feature('callBridge','メンバー間の連携'),feature('notifications','通知')] }, '/api/queue': { items: Array.from({ length: 12 }, (_, index) => ({ id: `job-${index}`, botId: 'bot-one', botName: 'ユキ', status: 'running', context: 'direct', contextId: 'bot-one' })) } }
+routes['/api/updates'] = JSON.parse(readFileSync('windows/BellTeam.Tests/fixtures/update-center.json', 'utf8'))
 let writes = 0
 let gallery = false
 const galleryAssets = { '/api/message-images/demo/one.png': 'ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png', '/api/message-images/demo/two.png': 'docs/assets/mac-ui-reference-48/01-workspace.png' }
@@ -48,11 +49,12 @@ server.listen(0, '127.0.0.1', async () => {
       ['08-settings-lower.png', ['--render-page', 'settings-lower', origin]],
       ['09-gallery.png', ['--render-gallery', origin, 'bot-one']]
     ]
-    if (process.argv[4] && process.argv[4] !== 'gallery') throw new Error('WINDOWS_RENDER_SCENE_UNKNOWN')
-    const selectedFrames = process.argv[4] === 'gallery' ? frames.filter(([name]) => name === '09-gallery.png') : frames
+    if (process.argv[4] && !['gallery', 'updates'].includes(process.argv[4])) throw new Error('WINDOWS_RENDER_SCENE_UNKNOWN')
+    const selectedFrames = process.argv[4] === 'gallery' ? frames.filter(([name]) => name === '09-gallery.png') : process.argv[4] === 'updates' ? [['update.png', ['--render-page', 'updates', origin]], ['update-narrow.png', ['--render-page', 'updates-narrow', origin]], ['update-detail-narrow.png', ['--render-page', 'updates-detail-narrow', origin]]] : frames
     for (const [name, args] of selectedFrames) {
       if (name === '07-settings-cloudflare.png') routes['/api/session'].authMode = 'cloudflare'
       if (name === '09-gallery.png') gallery = true
+      if (name === 'update-detail-narrow.png') routes['/api/updates'].components[0].current.version = 'a'.repeat(180)
       const output = join(destination, name)
       await new Promise((success, failure) => {
         const child = spawn(executable, [...args, output], { windowsHide: true, stdio: ['ignore', 'inherit', 'inherit'] })
