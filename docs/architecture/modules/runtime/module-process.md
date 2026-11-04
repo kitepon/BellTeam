@@ -43,7 +43,7 @@ private recordは既0600/no-follow/nlink1/所有/4KiB検査の`bellteam.<compone
 
 ## 交換失敗のprivate診断
 
-既candidate launch/adoption/resume失敗のAggregateErrorに`moduleDiagnostic`を追加する。元code無し/errors/制御は保持。`module-exchange-diagnostic.mjs`の単一validatorは厳密7key schema/component/stage/code/rollback/rollbackStage/rollbackCode、1024 UTF8 bytes以内、固定stageとOS/Node/component code閉集合を検査する。未知codeはnull。候補の最初の失敗段階を固定し、戻しのresumeまで完了した時だけrollback succeeded、戻し失敗は独立stage/codeを保存する。prepare/quiesce/export等の旧子exit前失敗にはDTOを作らない。
+既candidate launch/adoption/resume失敗のAggregateErrorに`moduleDiagnostic`を追加する。元code無し/errors/制御は保持。`module-exchange-diagnostic.mjs`の単一validatorは厳密7key schema/component/stage/code/rollback/rollbackStage/rollbackCode、1024 UTF8 bytes以内、固定stageとOS/Node/component code閉集合を検査する。未知codeはnull。候補の最初の失敗段階を固定し、戻しのresumeまで完了した時だけrollback succeeded、戻し失敗は独立stage/codeを保存する。旧子exit前のDRAIN_TIMEOUTは後述のdrain variant、それ以外のprepare/quiesce/export失敗にはDTOを作らない。
 
 Molly共通executorは当該component一致と同validatorで検証したコピーだけを既step.runtimeDiagnosticへ任意保存し、旧ledger field無しを受け入れる。公開error/schema/unknown、同ID非再applyは保持。message/stack/stderr/秘密/本文/環境/PID/任意nested errorsを含めず、過去要求へ欠測を補完しない。
 
@@ -72,6 +72,10 @@ flowchart LR
   Restore --> Timer
   Close[親close] --> Cancel[timer取消]
 ```
+
+共通3componentの再生成試行は既consoleへ`MODULE_CHILD_RECOVERY`を記録する。固定component/stage/event、safe整数attempt、既runner/admissionの安全な件数とclosed/unconfirmed、閉failureCode又はnullだけ。operation/mutex/runner/prepare/recover_admission/spawn/channel/initialize/ready/restore/resumeの各待機開始と試行完了・失敗・不要時skipを残し、未完待機は最後の段階として識別する。各試行の遷移時だけで定期ログは作らず、1秒から最大30秒の再試行契約を維持する。
+
+admission snapshot不在/失敗とconsole失敗は観測欠測になり、元制御へ伝播しない。自由error/message/stack/本文/lease/generation/pathは渡さない。このconsole envelopeは公開DTO/既private exchange又はdrain ledgerのvariantを追加せず、Signalの診断writerや親登録を増やさない。意図close/交換は既recovery条件で除外し、実処理終端・gate active=0・世代recover/adopt・元要求非再送を変えない。旧事故の未保存段階/根因/19:38復帰を後付けしない。
 
 
 ## 子終了診断のcallback

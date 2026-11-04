@@ -49,3 +49,22 @@ export function validateModuleDrainDiagnostic(value) {
       && Buffer.byteLength(JSON.stringify(value)) <= 1024
   } catch { return false }
 }
+
+// Runtime console evidence only; this is not a public DTO or a ledger variant.
+export function moduleRecoveryLog(component, stage, event, attempt, runnerActive, admission, error) {
+  const recoveryStages = ['operation', 'mutex', 'runner', 'prepare', 'recover_admission', 'spawn', 'channel', 'initialize', 'ready', 'restore', 'resume']
+  if (!components.includes(component) || !recoveryStages.includes(stage)
+    || !['waiting', 'completed', 'failed', 'skipped'].includes(event)) return null
+  let counts, failureCode = null
+  try { counts = moduleDrainDiagnostic(component, 'parent_drain', runnerActive, admission) } catch {}
+  if (event === 'failed') {
+    try {
+      const code = error?.code
+      failureCode = ['MODULE_EXCHANGE_BUSY', 'CONVERSATION_NOT_ACCEPTED', 'CONVERSATION_PROTOCOL_UNCONFIRMED'].includes(code)
+        ? code : safeCode(component, error)
+    } catch {}
+  }
+  return { code: 'MODULE_CHILD_RECOVERY', component, stage, event, attempt: count(attempt), failureCode,
+    runnerActive: count(runnerActive), admissionActive: counts?.admissionActive ?? null,
+    admissionClosed: counts?.admissionClosed ?? null, admissionUnconfirmed: counts?.admissionUnconfirmed ?? null }
+}
