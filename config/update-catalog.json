@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-04T10:11:19Z",
-  "expiresAt": "2026-11-11T10:11:19Z",
+  "publishedAt": "2026-11-04T10:31:49Z",
+  "expiresAt": "2026-11-11T10:31:49Z",
   "releases": [
     {
       "componentId": "usage",
@@ -487,6 +487,152 @@
       },
       "changes": [
         "共通Update画面と、新版通知からの導線に対応します。"
+      ]
+    },
+    {
+      "componentId": "execution",
+      "sourceCommit": "3d59588f7f3dcfcd626cc4bb62707be88c753936",
+      "versionId": "a8b2e01ec663d9d6d4936faf9f86412f585db83576103e4ac4cbf2350495e4eb",
+      "platform": {
+        "os": "linux",
+        "arch": "amd64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100935Z/execution-3d59588f7f3dcfcd626cc4bb62707be88c753936-linux-amd64.tar.gz",
+          "sha256": "a8b2e01ec663d9d6d4936faf9f86412f585db83576103e4ac4cbf2350495e4eb",
+          "bytes": 3902345
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100935Z/execution-3d59588f7f3dcfcd626cc4bb62707be88c753936-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "56a1c6f42491dc50e1e09e2ca1d8621e2e1473e88341ceaaab3b122be4aaf442",
+          "bytes": 10852
+        },
+        "signerCommit": "3d59588f7f3dcfcd626cc4bb62707be88c753936"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": "bellteam.execution-state.v1"
+      },
+      "changes": [
+        "現親の固定portsと会話接続、共通IPCの配布閉包に対応します。"
+      ]
+    },
+    {
+      "componentId": "execution",
+      "sourceCommit": "3d59588f7f3dcfcd626cc4bb62707be88c753936",
+      "versionId": "dac179040695f825483523c33c85b32db00127921efb8c0532fbf440be858aa4",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100935Z/execution-3d59588f7f3dcfcd626cc4bb62707be88c753936-linux-arm64.tar.gz",
+          "sha256": "dac179040695f825483523c33c85b32db00127921efb8c0532fbf440be858aa4",
+          "bytes": 3902349
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100935Z/execution-3d59588f7f3dcfcd626cc4bb62707be88c753936-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "2bcd5f35bc27850a893c3f84be62ed10e704ce73e45e7ea19eb8ba1768bc1273",
+          "bytes": 10946
+        },
+        "signerCommit": "3d59588f7f3dcfcd626cc4bb62707be88c753936"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": "bellteam.execution-state.v1"
+      },
+      "changes": [
+        "現親の固定portsと会話接続、共通IPCの配布閉包に対応します。"
+      ]
+    },
+    {
+      "componentId": "members",
+      "sourceCommit": "3d59588f7f3dcfcd626cc4bb62707be88c753936",
+      "versionId": "aa5c7eefa7fd4acaf7e0c02550f54faf7b6fa0abd949e8bee6b79a2c6d1c2624",
+      "platform": {
+        "os": "linux",
+        "arch": "amd64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100935Z/members-3d59588f7f3dcfcd626cc4bb62707be88c753936-linux-amd64.tar.gz",
+          "sha256": "aa5c7eefa7fd4acaf7e0c02550f54faf7b6fa0abd949e8bee6b79a2c6d1c2624",
+          "bytes": 4251038
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100935Z/members-3d59588f7f3dcfcd626cc4bb62707be88c753936-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "6915003376a35acce452b4f49567033086421b154c07ce4eddab61bef6a5590a",
+          "bytes": 10855
+        },
+        "signerCommit": "3d59588f7f3dcfcd626cc4bb62707be88c753936"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "botProfileSchema": "bellteam.bot.v8",
+          "deletionReceiptSchema": "bellteam.bot-deletion.v1",
+          "initializedMarker": ".initialized",
+          "ownerProfileSchema": "bellteam.owner-profile.v1",
+          "scheduleSchema": "bellteam.schedule.v1",
+          "userRulesEncoding": "utf8"
+        }
+      },
+      "changes": [
+        "共通同時受付数と一覧profileの版情報に対応します。"
+      ]
+    },
+    {
+      "componentId": "members",
+      "sourceCommit": "3d59588f7f3dcfcd626cc4bb62707be88c753936",
+      "versionId": "4a6dedf5cdadb1ffd60c820cb35616c0b35c96419e4baca075656abae32c686e",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100935Z/members-3d59588f7f3dcfcd626cc4bb62707be88c753936-linux-arm64.tar.gz",
+          "sha256": "4a6dedf5cdadb1ffd60c820cb35616c0b35c96419e4baca075656abae32c686e",
+          "bytes": 4251039
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100935Z/members-3d59588f7f3dcfcd626cc4bb62707be88c753936-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "63121258aba26eef70584dd65e765766f4408583f01cc5f948ff1c9282c8e183",
+          "bytes": 11008
+        },
+        "signerCommit": "3d59588f7f3dcfcd626cc4bb62707be88c753936"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "botProfileSchema": "bellteam.bot.v8",
+          "deletionReceiptSchema": "bellteam.bot-deletion.v1",
+          "initializedMarker": ".initialized",
+          "ownerProfileSchema": "bellteam.owner-profile.v1",
+          "scheduleSchema": "bellteam.schedule.v1",
+          "userRulesEncoding": "utf8"
+        }
+      },
+      "changes": [
+        "共通同時受付数と一覧profileの版情報に対応します。"
       ]
     }
   ],
