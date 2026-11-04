@@ -1,3 +1,4 @@
+import { automaticConfigurationApplication, validConfigurationOperationId } from './automatic-configuration-application.mjs'
 import { configurationUUID } from './configuration-request.mjs'
 import { json, readJson } from './http-response.mjs'
 import { createMemberProfileApi } from './members/profiles-http.mjs'
@@ -10,6 +11,25 @@ export function createBotApi(options) {
   return async (request, response, url) => {
     const handled = await profiles(request, response, url)
     if (handled !== false) return handled
+    const operationMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/configuration-operations\/([^/]+)$/u)
+    if (operationMatch) {
+      if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+      const [, botId, requestId] = operationMatch
+      const bot = bots.readMember ? await bots.readMember(botId) : bots.get(botId)
+      if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
+      if (!validConfigurationOperationId(requestId) || url.search || Number(request.headers['content-length'] ?? 0) > 0 || request.headers['transfer-encoding'])
+        return json(response, 400, { error: 'CONFIGURATION_OPERATION_ID_INVALID' })
+      try {
+        const result = await administration.readConfigurationOperation(botId, requestId)
+        return json(response, 200, automaticConfigurationApplication(result, requestId))
+      } catch (error) {
+        const statuses = { BOT_NOT_FOUND: 404, CONFIGURATION_OPERATION_ID_INVALID: 400, CONFIGURATION_OPERATION_NOT_RECORDED: 404, CONFIGURATION_OPERATION_READ_UNAVAILABLE: 503 }
+        const returnedCode = Object.getOwnPropertyDescriptor(error ?? {}, 'code')?.value
+        const code = Object.hasOwn(statuses, returnedCode) ? returnedCode : 'CONFIGURATION_OPERATION_READ_UNAVAILABLE'
+        return json(response, statuses[code], { error: code })
+      }
+    }
+
     const reconcileMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/configuration\/reconcile$/u)
     if (reconcileMatch) {
       if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
@@ -30,8 +50,11 @@ export function createBotApi(options) {
         const result = await administration.stop(bot)
         notify({ type: 'bots' })
         return json(response, result.status === 'stop_sent' ? 202 : 200, result)
-      } catch {
-        return json(response, 502, { error: 'BOT_STOP_UNCONFIRMED', message: '処理の中断を確認できませんでした。会話を確認してください。' })
+      } catch (error) {
+        let automatic = null
+        try { automatic = automaticConfigurationApplication(Object.getOwnPropertyDescriptor(error, 'automaticConfigurationApplication')?.value) } catch {}
+        return json(response, 502, { error: 'BOT_STOP_UNCONFIRMED', message: '処理の中断を確認できませんでした。会話を確認してください。',
+          ...(automatic ? { automaticConfigurationApplication: automatic } : {}) })
       }
     }
 
