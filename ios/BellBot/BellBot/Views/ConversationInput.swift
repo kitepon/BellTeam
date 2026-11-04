@@ -136,6 +136,8 @@ final class MessageTextView: UITextView {
     var onSend: () -> Void = {}
     var onPasteImages: ([PendingImage]) -> Void = { _ in }
     var onPasteFailure: (String) -> Void = { _ in }
+    // 試験で名前付きのクリップボードへ差し替えるため。製品では常にシステムのクリップボードを読む。
+    var pasteboard: UIPasteboard = .general
     private var measuredWidth: CGFloat?
     private var measuredHeight: CGFloat = 0
     private var sizeMeasurementIsValid = false
@@ -200,7 +202,7 @@ final class MessageTextView: UITextView {
             return
         }
         if contents.hasImages {
-            let images = UIPasteboard.general.items.compactMap { item -> PendingImage? in
+            let images = pasteboard.items.compactMap { item -> PendingImage? in
                 for (type, value) in item where UTType(type)?.conforms(to: .image) == true {
                     if let data = value as? Data, let image = PendingImage(data: data) { return image }
                     if let data = (value as? UIImage)?.pngData(), let image = PendingImage(data: data) { return image }
@@ -215,7 +217,6 @@ final class MessageTextView: UITextView {
     }
 
     private var pasteboardState: PasteboardState {
-        let pasteboard = UIPasteboard.general
         if let cachedPasteboardState, cachedPasteboardState.changeCount == pasteboard.changeCount {
             return cachedPasteboardState
         }
