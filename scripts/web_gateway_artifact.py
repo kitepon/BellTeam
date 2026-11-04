@@ -157,6 +157,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
     'src/aiterm-client.mjs',
     'src/aiterm-transport.mjs',
     'src/aiterm-wait-process.mjs',
+    'src/automatic-configuration-application.mjs',
     'src/bot-administration.mjs',
     'src/bot-environment.mjs',
     'src/bot-execution-errors.mjs',
