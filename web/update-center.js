@@ -54,6 +54,8 @@ const formatDate = value => new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/T
 export function createUpdateCenter({ root, api, buttons, storage }) {
   const get = selector => root.querySelector(selector)
   const list = get('[data-update-components]'), detail = get('[data-update-detail]')
+  const product = get('[data-update-product]')
+  let choosing = false
   const notice = get('[data-update-notice]'), refreshButton = get('[data-update-refresh]')
   let selected = 'all', generation = 0, opened = false, disposed = false, loading = false
   let opener = null, inventory = null, failure = '', planFailure = ''
@@ -305,6 +307,80 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       }
       detail.append(history)
     }
+    renderProduct({ action, result, selectedPlan })
+  }
+  function renderProduct({ action, result, selectedPlan }) {
+    const focus = document.activeElement?.dataset?.updateControl
+    const candidates = (inventory?.components ?? []).filter(item => item.comparison.state === 'update_available' && item.capability.supported)
+    const active = ownResult ?? inventory?.operation
+    const unresolved = pending || resultUnconfirmed || previousResults.some(entry => entry.failed || unknown(entry.result)) || unknown(active)
+    const running = active && !terminal(active) && !unknown(active)
+    const completed = result?.phase === 'completed' && !resultUnconfirmed
+    const latest = inventory?.components.length && inventory.components.every(item => item.comparison.state === 'up_to_date' && item.publication?.check.status === 'verified')
+    let title = candidates.length ? '更新があります' : latest ? '最新の状態です' : '更新を確認できませんでした'
+    let description = candidates.length ? '新しいバージョンを利用できます。' : latest ? '利用できる更新はありません。' : '接続を確認して、もう一度お試しください。'
+    let mark = candidates.length ? '↑' : latest ? '✓' : '↻'
+    if (completed) { title = '更新しました'; description = candidates.length ? 'ほかにも更新できる項目があります。' : '選んだ項目の更新が完了しました。'; mark = '✓' }
+    if (result?.phase === 'failed') { title = '更新できませんでした'; description = '状況を確認してから、もう一度お試しください。'; mark = '↻' }
+    if (unresolved && !completed) { title = '更新の結果を確認中'; description = '前の更新の記録を保持しています。状況を確認してください。'; mark = '↻' }
+    if (running) { title = '更新しています'; description = '完了を確認するまで、このままお待ちください。'; mark = '↑' }
+    if (failure || storageFailure || pendingReadFailed) { title = unresolved ? '更新の結果を確認中' : '更新を確認できませんでした'; description = '接続を確認し、状況を確認してください。'; mark = '↻' }
+    if (loading && !inventory) { title = '更新を確認しています'; description = '少しお待ちください。'; mark = '↻' }
+    if (selectedPlan && !submitting) { title = '更新内容を確認'; description = '対象と影響を確認してから、更新を始めます。'; mark = '↑' }
+    if (operationMessage && !pending && !running && !result) { title = '更新を開始できませんでした'; description = '状況を確認してから、更新内容をもう一度確認してください。'; mark = '↻' }
+    if (choosing && !selectedPlan) { title = '更新する項目を選択'; description = '更新する項目を一つ選んでください。'; mark = '↑' }
+    product.replaceChildren()
+    const icon = element('div', 'update-status-icon', mark); icon.setAttribute('aria-hidden', 'true')
+    const heading = element('h3', 'update-status-title', title); heading.setAttribute('aria-live', 'polite')
+    product.append(icon, heading, element('p', 'update-status-copy', description))
+    const choose = item => { selected = item.id; choosing = false; planned = null; confirmed = false; planGeneration++; planning = false; if (canPlan()) void requestPlan(); else renderDetail() }
+    if (choosing && !selectedPlan) {
+      const options = element('div', 'update-options')
+      for (const item of candidates) {
+        const button = element('button', 'update-option', item.name + ' ›'); button.type = 'button'
+        button.dataset.updateControl = `choose-${item.id}`; button.disabled = loading || planning || submitting
+        button.addEventListener('click', () => choose(item)); options.append(button)
+      }
+      product.append(options)
+    } else {
+      const changed = selectedPlan ? selectedPlan.targets.map(target => inventory?.components.find(item => item.id === target.componentId)).filter(Boolean) : candidates
+      const changes = [...new Set(changed.flatMap(item => item.changes))].filter(line => line.length <= 160 && !/sha256|commit|protocol|schema|\bnull\b|[a-f0-9]{12,}/i.test(line) && !/\b[A-Z][A-Z_]{5,}\b/.test(line)).slice(0, 3)
+      if (changes.length && !running && !unresolved) {
+        const section = element('section', 'update-release-notes'); section.append(element('h4', '', '更新内容'))
+        for (const line of changes) section.append(element('p', '', line))
+        product.append(section)
+      } else if (candidates.length && !selectedPlan && !running && !unresolved) product.append(element('p', 'update-notes-empty', '詳しい変更内容はまだ届いていません。'))
+      if (selectedPlan) {
+        const review = element('section', 'update-plan-review')
+        review.append(element('h4', '', selectedPlan.action === 'rollback' ? '戻す項目' : '更新する項目'))
+        for (const target of selectedPlan.targets) review.append(element('p', '', inventory?.components.find(item => item.id === target.componentId)?.name ?? '選択した項目'))
+        review.append(element('p', '', selectedPlan.impact.containerRestart ? '更新中は会話と処理が一時中断します。再接続後に結果を確認します。' : '本体の再起動はありません。'))
+        product.append(review)
+        const check = Array.from(detail.children).find(node => node.className === 'update-restart-confirm')
+        if (check) product.append(check)
+        action.textContent = submitting ? '受付を確認しています…' : selectedPlan.action === 'rollback' ? '確認して戻す' : '確認して更新する'
+        product.append(action)
+        if (!selectedPlan.capability.supported || !selectedPlan.compatibility.compatible || Date.parse(selectedPlan.expiresAt) <= Date.now()) {
+          product.append(element('p', 'update-status-copy', 'この計画では更新できません。状況を確認して、更新内容を取り直してください。'))
+          const retry = element('button', 'update-replan', '更新内容を再確認'); retry.type = 'button'; retry.disabled = !canPlan(selectedPlan.action ?? 'update')
+          retry.addEventListener('click', () => { void requestPlan(selectedPlan.action ?? 'update') }); product.append(retry)
+        }
+      } else {
+        const primary = element('button', 'update-execute update-primary', planning ? '更新内容を確認しています…' : running || unresolved ? '状況を確認' : candidates.length && !failure && !storageFailure ? '更新する' : latest ? '更新を確認' : 'もう一度確認')
+        primary.type = 'button'; primary.dataset.updateControl = 'primary'; primary.disabled = loading || planning || submitting
+        primary.addEventListener('click', () => {
+          if (running || unresolved || failure || storageFailure || !candidates.length) { void refresh(); return }
+          if (candidates.length === 1) choose(candidates[0]); else { choosing = true; renderDetail() }
+        })
+        product.append(primary)
+      }
+    }
+    if (unresolved && candidates.length && !running && !selectedPlan || choosing) {
+      const secondary = element('button', 'update-replan', choosing ? '戻る' : '別の更新を選ぶ'); secondary.type = 'button'
+      secondary.dataset.updateControl = 'choose'; secondary.disabled = loading || planning || submitting
+      secondary.addEventListener('click', () => { choosing = !choosing; renderDetail() }); product.append(secondary)
+    }
+    if (focus) product.querySelector(`[data-update-control="${focus}"]`)?.focus()
   }
   async function requestPlan(action = 'update') {
     if (!canPlan(action)) return

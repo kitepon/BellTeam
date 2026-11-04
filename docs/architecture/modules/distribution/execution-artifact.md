@@ -17,6 +17,7 @@ flowchart LR
 
 members-admissionが読むmodule-ipc.mjsを固定payloadへ含め、現行の共通容量64を同じ完成sourceから収録する。親ports・engine・状態互換の実装は変更しない。
 bot-administrationが読むautomatic-configuration-application.mjsも同じ固定sourceから収録し、実ソースの相対import閉包を構文解析だけで確認する。
+web_gateway_artifact.pyの固定inventoryは同梱readerも使うため、その変更は通常push CIのimage供給対象に含める。新archiveは対応readerを含む正式imageへ公開導入してから単品更新する。
 
 通常親DIのnative.call/connect/launchOptionsは親AitermClient receiver、waitProcess/handoffContext/write/removeも親application-servicesのclosureに束縛される。run-seat-command/run-seat-aiterm-launchは親/app側URL、run-seat-setupはbootstrapのみでengineから呼ばない。この3sidecarはpayloadに収録せず、private payloadのUID1000公開やfallbackを追加しない。任意custom/test portsの一般保証ではない。親assembly/generation/adoptionは通常imageに置き、engine literalへ増やさない。
 

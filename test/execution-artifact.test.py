@@ -31,7 +31,7 @@ class ExecutionArtifact(unittest.TestCase):
     def test_literal_asset_entry_and_string_state_are_required(self):
         self.assertEqual(len(EXECUTION_FILES), 48)
         changes = [lambda m: m.update(entry='payload/src/usage-entry.mjs'),
-            lambda m: m.update(files=[r for r in m['files'] if r['path'] != 'payload/src/automatic-configuration-application.mjs']),
+            lambda m: m['files'].append(dict(path='payload/src/unknown-helper.mjs', bytes=0, sha256='b'*64)),
             lambda m: m.update(files=[r for r in m['files'] if r['path'] != 'payload/src/module-ipc.mjs']),
             lambda m: m.update(files=[r for r in m['files'] if r['path'] != 'payload/config/common-agents.md']),
             lambda m: m['files'].append(dict(path='payload/src/run-seat-command.mjs', bytes=0, sha256='b'*64)),
@@ -43,6 +43,29 @@ class ExecutionArtifact(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(ValueError): validate_manifest(value, component='execution')
         with self.assertRaises(ValueError): validate_manifest(self.manifest, 'b'*40, component='execution')
         with self.assertRaises(ValueError): validate_manifest(self.manifest, arch='unknown', component='execution')
+
+    def test_reader_accepts_only_signed_47_and_current_48_layouts(self):
+        legacy = copy.deepcopy(self.manifest)
+        legacy['files'] = [row for row in legacy['files']
+            if row['path'] != 'payload/src/automatic-configuration-application.mjs']
+        for manifest in [legacy, self.manifest]:
+            with self.subTest(files=len(manifest['files'])):
+                self.assertIs(validate_manifest(manifest, component='execution'), manifest)
+                dependencies = copy.deepcopy(manifest)
+                dependencies['files'].append(dict(path='payload/node_modules/dependency/index.js', bytes=0, sha256='b'*64))
+                validate_manifest(dependencies, component='execution')
+                for change in [lambda m: m['files'].pop(0),
+                    lambda m: m['files'].append(dict(path='payload/src/extra.mjs', bytes=0, sha256='b'*64)),
+                    lambda m: m['runtime'].update(nodeMajor=24)]:
+                    invalid = copy.deepcopy(manifest); change(invalid)
+                    with self.assertRaises(ValueError): validate_manifest(invalid, component='execution')
+
+    def test_producer_still_requires_current_48_layout(self):
+        (self.root / 'payload/src/automatic-configuration-application.mjs').unlink()
+        output = self.root / 'legacy-output.tar.gz'
+        with self.assertRaises(ValueError):
+            write_archive(self.root / 'payload', output, 'a'*40, self.arch, component='execution')
+        self.assertFalse(output.exists())
 
     def test_fixed_source_relative_import_closure(self):
         root = Path(__file__).resolve().parents[1]
