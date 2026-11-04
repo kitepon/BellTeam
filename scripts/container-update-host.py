@@ -343,7 +343,8 @@ class HostUpdater:
         with locked(self.state / 'ledger.lock', wait=True):
             value = self.read_operation(identifier)
             worker = value.get('worker')
-            if value['phase'] not in TERMINAL and worker and not self.worker_alive(worker):
+            if (value['phase'] not in TERMINAL and value['phase'] != 'unknown'
+                    and worker and not self.worker_alive(worker)):
                 value.update(phase='unknown', execution='unknown', verification='unknown', error='HOST_UPDATE_WORKER_LOST', updatedAt=stamp())
                 atomic(self.state / 'operations' / identifier / 'operation.json', value)
             return self.view(value)
