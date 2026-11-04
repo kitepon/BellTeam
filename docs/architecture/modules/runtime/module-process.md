@@ -88,6 +88,21 @@ flowchart LR
 
 共通3componentの再生成試行は既consoleへ`MODULE_CHILD_RECOVERY`を記録する。固定component/stage/event、safe整数attempt、既runner/admissionの安全な件数とclosed/unconfirmed、閉failureCode又はnullだけ。operation/mutex/runner/prepare/recover_admission/spawn/channel/initialize/ready/restore/resumeの各待機開始と試行完了・失敗・不要時skipを残し、未完待機は最後の段階として識別する。各試行の遷移時だけで定期ログは作らず、1秒から最大30秒の再試行契約を維持する。
 
+`local_mutex`はcontroller内排他の取得/拒否地点、既`mutex`はその取得後の親共有排他を表す。controller排他の競合は既UPDATE_IN_PROGRESSで即時拒否する。両者の間に新しい排他や期限を設けず、元Promise・実completion・例外を保持する。lostはtimer登録呼出への到達で、復旧完了又は全復帰期限ではない。
+
+会話子の終了理由は既bounded stderr observerへ接続する。固有peerが一回だけ出すexact3key `{code:'CONVERSATION_CHILD_EXIT_ORIGIN',origin,failureCode}` を、1024文字以内の未切断JSON行で検証し最初の有効値だけ保持する。originはpeer_failure/parent_disconnect/exit_control/exit_writer_control、failureCodeはCONVERSATION_接頭のIPC_INVALID/IPC_DISCONNECTED/IPC_TIMEOUT/IPC_ACK_TIMEOUT/IPC_SEND_FAILED/CHILD_EXITED/BACKGROUND_UNCONFIRMED/DELIVERY_RELEASE_UNCONFIRMED/PROTOCOL_UNCONFIRMED又はnull。未知field/code/origin・長行/切断行を証拠にしない。
+
+```mermaid
+flowchart LR
+  Peer[N102 固有peer / 最初の閉終了理由] --> Stderr[既stderr pipe / 本文は排出]
+  Stderr --> Observe[runtime bounded observer / 厳密行検証]
+  Observe --> Closed[OS IPC pipe完了 / 同childSequence]
+  Closed --> Log[MODULE_CHILD_EXIT_ORIGIN / 親console一回]
+  Closed --> Barrier[既incoming reaped lost / 制御は不変]
+```
+
+親は同childのOS/IPC/全pipe終了後、正常closeや未受付candidateを含む会話子の各終了にexact6key `MODULE_CHILD_EXIT_ORIGIN/component:'conversation'/childSequence/observedAt/origin/failureCode`を一回記録する。未取得originはunknown/failureCode=null。console失敗はbarrierへ伝播しない。childSequenceは親process内の相関値であり、Centiは親CID/StartedAt/sourceと一組で扱い、再起動後の同整数を同世代にしない。この記録は固有peerが選んだ終了経路で、実OS終了原因・過去事故の根因・native終端の証明ではない。既`bellteam.module-child-exit.v1`、診断writer/HTTP/ledgerと再生成条件は変更しない。
+
 admission snapshot不在/失敗とconsole失敗は観測欠測になり、元制御へ伝播しない。自由error/message/stack/本文/lease/generation/pathは渡さない。このconsole envelopeは公開DTO/既private exchange又はdrain ledgerのvariantを追加せず、Signalの診断writerや親登録を増やさない。意図close/交換は既recovery条件で除外し、実処理終端・gate active=0・世代recover/adopt・元要求非再送を変えない。旧事故の未保存段階/根因/19:38復帰を後付けしない。
 
 
