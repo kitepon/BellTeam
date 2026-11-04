@@ -6,7 +6,7 @@ export function moduleInstallerModels(input) {
   const normal = structuredClone(input), service = normal?.services?.bellteam
   const project = normal?.name
   if (typeof project !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/.test(project ?? '') || !service
-    || Object.keys(normal.services).join(',') !== 'bellteam'
+    || Object.hasOwn(normal.services, 'module-installer')
     || typeof service.image !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(service.image ?? '') || !Array.isArray(service.volumes)) throw Error('MODULE_INSTALLER_MODEL_INVALID')
   const control = service.volumes.filter(m => m.target === '/run/bellteam-maintenance')
   if (control.length !== 1 || control[0].type !== 'volume' || control[0].read_only !== true

@@ -131,7 +131,7 @@ test('writer CLIは保守flag以外をDocker前に拒否し、通常modelへ保�
   await writeFile(fake, `#!/bin/sh
 printf '%s|%s\\n' "$*" "\${COMPOSE_FILE-}" >> "$TEST_CALLS"
 case "$*" in
-  'compose config --images') echo fixture;;
+  'compose config --format yaml') printf 'services:\\n  bellteam:\\n    image: fixture\\n';;
   'image inspect --format {{.Id}} fixture') printf 'sha256:%064d\\n' 0;;
   'compose config --format json') echo '{}';;
   'compose --project-directory '*'/compose.state-maintenance.json config --format json --no-path-resolution') exit 47;;
@@ -155,7 +155,7 @@ test('maintenance composition keeps the callers explicit normal overlay and proj
   await writeFile(fake, `#!/bin/sh
 printf '%s|%s|%s\\n' "$*" "\${COMPOSE_FILE-}" "\${COMPOSE_PROJECT_NAME-}" >> "$TEST_CALLS"
 case "$*" in
-  'compose config --images') echo fixture;;
+  'compose config --format yaml') printf 'services:\\n  bellteam:\\n    image: fixture\\n';;
   'image inspect --format {{.Id}} fixture') printf 'sha256:%064d\\n' 0;;
   'compose config --format json') echo '{}';;
   'compose --project-directory '*'/compose.state-maintenance.json config --format json --no-path-resolution') exit 47;;

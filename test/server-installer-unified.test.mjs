@@ -39,9 +39,11 @@ else if(a[0]==='image'&&a[1]==='inspect'){
   else if(f==='{{.Config.Image}}')emit(s.Config.Image);
   else if(f==='{{.State.Running}} {{.State.Restarting}}')emit(s.State.Running+' '+s.State.Restarting);
   else if(f.startsWith('{{index .Config.Labels'))emit(s.Config.Labels[f.match(/"([^"]+)"/)[1]]??'<no value>');
-  else if(f.includes('range .Mounts'))emit('');
+  else if(f.includes('range .Mounts')){const p=s.Mounts.find(v=>v.Destination==='/app/src/distribution-profile.mjs');emit(p?p.Type+' '+p.RW:'');}
   else process.exit(97);
  }
+}else if(a[0]==='exec'&&a.at(-1)==='/app/src/distribution-profile.mjs'){
+ process.stdout.write(fs.readFileSync(state().Mounts.find(v=>v.Destination===a.at(-1)).Source));
 }else if(a[0]==='stop'){
  if(e.TEST_STOP_FAIL)process.exit(59);
  const s=state();s.State.Running=!!e.TEST_STILL_RUNNING;s.State.Restarting=!!e.TEST_STILL_RESTARTING;fs.writeFileSync(root+'/runtime.json',JSON.stringify(s));emit(s.Id);
@@ -118,7 +120,7 @@ else if(a[0]==='run'){
   if(e.TEST_CONFIG_FAIL&&!e.COMPOSE_FILE&&!a.includes('-f'))process.exit(53);
   if(a.includes('--images'))emit(model.services.bellteam.image);
   else if(a.includes('--hash'))emit('bellteam '+(e.TEST_HASH_MISMATCH?'wrong':'old-hash'));
-  else if(a[a.indexOf('--format')+1]==='yaml')emit('name: selected-project\nvolumes:\n  cursor-cli:\n    name: fixture_cursor');
+  else if(a[a.indexOf('--format')+1]==='yaml')emit('name: selected-project\nservices:\n  bellteam:\n    image: '+model.services.bellteam.image+'\n  sidecar:\n    image: fixture:other\nvolumes:\n  cursor-cli:\n    name: fixture_cursor');
   else {
    emit(model);
    if(e.TEST_CHANGE_INPUT&&!e.COMPOSE_FILE?.endsWith('.json')&&!a.includes('-f')){
@@ -239,16 +241,62 @@ test('writer拒否とprepare失敗で移行・Cursor・通常upを開始しな�
  }
 })
 
-test('証明できない旧modelは合成せず原本を保持し、その世代のrecoverは拒否する',async t=>{
+test('証明できない旧modelは合成せず原本を保持し、旧本体を停止しない',async t=>{
  const f=await fixture(t,{legacy:true})
- const result=await f.run([],{TEST_HASH_MISMATCH:'1'}),saved=await f.saved()
- assert.match(result.stderr,/旧設定を証明できません/)
+ await assert.rejects(f.run([],{TEST_HASH_MISMATCH:'1'}),e=>e.code===1&&e.stderr.includes('SERVER_STATE_PREVIOUS_MODEL_UNVERIFIED'))
+ const saved=await f.saved()
  await assert.rejects(readFile(saved+'/previous-normal.json'),{code:'ENOENT'})
  assert.equal(JSON.parse(await readFile(saved+'/previous-runtime.json'))[0].Id,cid)
+ assert.equal((await f.calls()).some(c=>c.args[0]==='stop'),false)
  const before=(await f.calls()).length
  await assert.rejects(f.run(['--recover',saved]),e=>e.code===1&&e.stderr.includes('PREVIOUS_MODEL_UNVERIFIED'))
  assert.equal((await f.calls()).length,before)
  assert.ok(await readFile(saved+'/normal.json'))
+})
+
+test('別設置dirの旧normalを実labels/hashで採用し追加env/mount/port/serviceを保存する',async t=>{
+ const f=await fixture(t,{server:true}),previous=join(f.root,'previous','.bellteam-compose.original')
+ await mkdir(previous,{recursive:true})
+ const old=JSON.parse(await readFile(f.root+'/old.json'))
+ const profile={type:'bind',source:join(f.root,'trusted-profile.mjs'),target:'/app/src/distribution-profile.mjs',read_only:true,bind:{create_host_path:false}}
+ const profileCode='export const developerAccessAllowed = true;\n'
+ await writeFile(profile.source,profileCode)
+ old.services.bellteam.volumes.push(profile)
+ await writeFile(previous+'/normal.json',JSON.stringify(old))
+ const runtime=JSON.parse(await readFile(f.root+'/runtime.json'))
+ runtime.Config.Labels['com.docker.compose.project.config_files']=previous+'/normal.json'
+ runtime.Config.Labels['com.docker.compose.project.working_dir']=dirname(previous)
+ runtime.Mounts.push({Type:'bind',Source:profile.source,Destination:profile.target,RW:false})
+ await writeFile(f.root+'/runtime.json',JSON.stringify(runtime))
+ Object.assign(f.normal.services.bellteam,{ports:[{target:4180,published:'18893',protocol:'tcp'}],restart:'always',mem_limit:'4g'})
+ f.normal.services.bellteam.environment.CUSTOM_SETTING='retained'
+ f.normal.services.bellteam.volumes.push({type:'bind',source:join(f.root,'custom'),target:'/custom',read_only:true})
+ f.normal.services.bellteam.volumes.push(profile,{type:'bind',source:join(f.root,'throughline'),target:'/home/bell/.throughline'})
+ f.normal.services.sidecar={image:'fixture:other',environment:{SIDE:'separate'}}
+ f.normal.services.bellteam.depends_on={sidecar:{condition:'service_started',required:true}}
+ await f.writeModel();await f.run()
+ const saved=await f.saved(),normal=JSON.parse(await readFile(saved+'/normal.json'))
+ assert.equal(JSON.parse(await readFile(saved+'/previous-normal.json')).services.bellteam.image,oldImage)
+ assert.deepEqual(normal.services.sidecar,f.normal.services.sidecar)
+ for(const key of ['ports','restart','mem_limit'])assert.deepEqual(normal.services.bellteam[key],f.normal.services.bellteam[key])
+ assert.equal(normal.services.bellteam.environment.CUSTOM_SETTING,'retained')
+ assert.equal(normal.services.bellteam.volumes.find(v=>v.target==='/custom').read_only,true)
+ assert.deepEqual(normal.services.bellteam.volumes.find(v=>v.target===profile.target),profile)
+ assert.equal(normal.services.bellteam.volumes.find(v=>v.target==='/home/bell/.throughline').source,join(f.root,'throughline'))
+ const oldNormal=JSON.parse(await readFile(saved+'/previous-normal.json'))
+ assert.equal(oldNormal.services.bellteam.volumes.find(v=>v.target===profile.target).source,saved+'/previous-profile.mjs')
+ assert.equal(await readFile(saved+'/previous-profile.mjs','utf8'),profileCode)
+ assert.equal((await f.calls()).some(c=>c.args.includes('--images')),false)
+ const backend=JSON.parse(await readFile(saved+'/module-installer.json'))
+ assert.doesNotMatch(JSON.stringify(backend),/CUSTOM_SETTING|SIDE|fixture:other|\/custom/)
+})
+
+test('旧専用stateが異なる場合は旧本体stop前に拒否する',async t=>{
+ const f=await fixture(t,{server:true})
+ const old=JSON.parse(await readFile(f.root+'/old.json'));old.volumes['server-state'].name='old_state'
+ await writeFile(f.root+'/old.json',JSON.stringify(old))
+ await assert.rejects(f.run(),e=>e.code===1&&e.stderr.includes('SERVER_STATE_GENERATION_CHANGED'))
+ assert.equal((await f.calls()).some(c=>c.args[0]==='stop'),false)
 })
 
 test('最初のimage解決後はmutable tagが移っても全consumerへ同じraw IDを渡す',async t=>{
@@ -316,6 +364,7 @@ test('共通親・project・6対応・control RO・世代のbind露出が不正�
   f=>f.normal.services.bellteam.volumes.find(v=>v.target==='/run/bellteam-maintenance').read_only=false,
   f=>f.normal.volumes['server-state'].name='fixture_cursor',
   f=>f.normal.services.bellteam.volumes.push({type:'bind',source:f.install,target:'/exposed'}),
+  f=>f.normal.services.bellteam.volumes.push({type:'bind',source:f.install+'/profile.mjs',target:'/app/src/distribution-profile.mjs',bind:{create_host_path:false}}),
  ];
  for(const change of changes){
   const f=await fixture(t,{legacy:true});change(f);await f.writeModel();
