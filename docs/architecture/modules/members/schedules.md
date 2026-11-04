@@ -75,6 +75,24 @@ flowchart LR
 
 削除未完の修理はmembersの[削除契約](deletion.md)、Appleの期待集合の解釈はApple担当が持つ。名簿件数とsources件数の差だけでHTTP不正や削除完了を判定しない。HTTP200、payloadの意味の検証、実削除の完了は別に扱う。この参照追加は既契約の明記であり、新field/ルート/実削除操作を追加しない。
 
+## 全予定一覧の有限集約
+
+```mermaid
+flowchart LR
+  HTTP["認証済みGET /api/schedules"] --> Refresh["rooms.refresh"]
+  Refresh --> Owners["active Bot → 現在の部屋を入力順で捕捉"]
+  Owners --> Read["各Registry.listSchedulesを一件ずつawait"]
+  Read --> Sources["空予定も含め全sourcesを同順に保持"]
+  Sources --> Next["次の所有者"]
+  Next --> Read
+  Sources --> Done["全件成功後だけ200"]
+  Read --> Error["拒否/読取失敗はそのまま共通HTTPへ伝播"]
+```
+
+全予定の集約は既プロフィール一覧と同じ逐次収集を使う。所有者数によるPromise.allの一斉発行で、単一要求だけで[共通IPCのroot64枠](../runtime/module-ipc.md)を超えないようにする。Bot/部屋の返却順・名前・予定0件のsources・JSON形式を保ち、一件失敗した時は部分一覧を返さず後続読取を止める。rooms.refreshの失敗も伝播する。別要求の混雑や交換中の拒否は既公開契約に従う。所有者間の一括snapshot保証は追加しない。
+
+これは予定一覧の既入出力・失敗契約内の修理である。read pin/認可・IPC上限・Registryの保存・予定発行は各担当の既契約を使う。実IPCの64/65所有者反例で単一要求の構造欠陥を確認したが、2026-11-04 13:43の障害原因は当時の件数/live/要求IDが欠測のため未確定。
+
 ## 確認範囲
 
 `test/member-schedules.test.mjs`が専用handlerと共通登録、Bot対象省略/指定、Registry例外の同一性、部屋資格拒否時の無書込み、targets検証、command拒否、HTTP CRUD/refresh/手動runと互換exportを確認する。関連MCP/席API、予定の定義・世代、HTTP、RoomRegistry、conversation公開helperの試験を実行する。予定発行の実データやnative、本番へ操作しない。
