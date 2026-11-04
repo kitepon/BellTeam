@@ -118,6 +118,9 @@ final class UpdateStore: ObservableObject {
         return current.isSettled || current.admission == .unknown || current.phase == .unknown
     }
 
+    /// 確認中の計画を、実行せずに閉じる。保存した要求や結果は変えない。
+    func discardPlan() { plan = nil }
+
     /// `componentID`がnilなら全体。
     func makePlan(componentID: String?) async {
         guard !busy else { return }

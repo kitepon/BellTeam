@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import BellBot
 
 /// サーバーの有限例13種（Fixtures/update-examples.json。test/apple-update-fixtures.test.mjsが同一性を守る）をdecodeする。
@@ -280,6 +281,88 @@ final class UpdateStoreTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
         return (UpdateStore(api: api, defaults: defaults), defaults)
+    }
+}
+
+/// Update画面の標準表示。状態ごとの見出しと、実画面の画像（試験結果に添付）を確かめる。
+@MainActor
+final class UpdateViewTests: XCTestCase {
+    func testEachServerStateShowsOneSimpleStatus() async throws {
+        let expected = ["restart_required": "更新があります", "no_update": "最新の状態です", "verified_completed": "更新しました",
+                        "disconnected_unknown": "更新の結果を確認中", "execution_failed": "更新できませんでした",
+                        "accepted": "更新しています", "published_unavailable": "更新を確認できませんでした"]
+        for (name, title) in expected.sorted(by: { $0.key < $1.key }) {
+            let store = try await store(for: name)
+            let content = UpdateContent(updates: store)
+            XCTAssertEqual(content.heroText.1, title, name)
+            for width in [390.0, 820.0] {
+                let renderer = ImageRenderer(content: content.background(BellTheme.canvas).frame(width: width))
+                renderer.scale = 2
+                let image = try XCTUnwrap(renderer.uiImage, name)
+                let attachment = XCTAttachment(image: image)
+                attachment.name = "update-\(name)-\(Int(width))"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+        }
+    }
+
+    func testUnconfirmedRequestKeepsCheckingButOffersAnotherFormalCandidate() async throws {
+        var interrupted = try XCTUnwrap(try UpdateFixtures.examples()["interrupted"])
+        let plain = try await store(for: "interrupted")
+        XCTAssertEqual(UpdateContent(updates: plain).heroText.1, "更新の結果を確認中")
+        XCTAssertFalse(UpdateContent(updates: plain).offersAnotherPlan, "正式な候補が無ければ出さない")
+
+        var components = try XCTUnwrap(interrupted["components"] as? [[String: Any]])
+        components[0]["comparison"] = ["state": "update_available", "reason": NSNull()]
+        components[0]["capability"] = ["supported": true, "reason": NSNull()]
+        interrupted["components"] = components
+        let store = try await store(json: interrupted)
+        let content = UpdateContent(updates: store)
+        XCTAssertEqual(content.heroText.1, "更新の結果を確認中", "主操作は状況の確認のまま")
+        XCTAssertTrue(store.canStartPlan)
+        XCTAssertTrue(content.offersAnotherPlan, "別の正式な候補は利用者が選べる")
+        XCTAssertEqual(UpdateProtocol.requests.filter { $0.method == "POST" }.count, 0)
+    }
+
+    func testRejectionCodesStayInDetailsNotOnTheStandardScreen() async throws {
+        let store = try await store(json: try XCTUnwrap(try UpdateFixtures.examples()["restart_required"]),
+                                    plan: .json(409, ["error": "UPDATE_PLAN_STALE", "message": "UPDATE_PLAN_STALE: plan changed"]))
+        await store.makePlan(componentID: "container")
+        let raw = try XCTUnwrap(store.message)
+        XCTAssertTrue(raw.contains("UPDATE_PLAN_STALE"), "元の説明はそのまま保持して詳細に出す")
+        let content = UpdateContent(updates: store)
+        XCTAssertFalse(try XCTUnwrap(content.heroNote).contains("UPDATE_"))
+        XCTAssertFalse(content.heroText.2.contains("UPDATE_"))
+
+        let failed = UpdateContent(updates: try await self.store(for: "execution_failed"))
+        XCTAssertEqual(failed.heroText.1, "更新できませんでした")
+        XCTAssertFalse(failed.heroText.2.contains("UPDATE_"))
+        XCTAssertFalse(failed.heroText.2.contains("更新処理が失敗しました"), "サーバーの元の説明は詳細へ")
+    }
+
+    private func store(for name: String) async throws -> UpdateStore {
+        try await store(json: try XCTUnwrap(try UpdateFixtures.examples()[name]))
+    }
+
+    private func store(json example: [String: Any], plan: UpdateProtocol.Reply? = nil) async throws -> UpdateStore {
+        UpdateProtocol.reset { request in
+            if request.path == "/api/updates" { return .json(200, example) }
+            if request.method == "POST", request.path == "/api/updates/plans", let plan { return plan }
+            return .json(404, ["error": "NOT_FOUND"])
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [UpdateProtocol.self]
+        let session = URLSession(configuration: configuration)
+        addTeardownBlock { session.invalidateAndCancel() }
+        let api = BellAPI(baseURL: URL(string: "https://update.test.invalid")!, session: session,
+                          diagnostics: BellDiagnostics(onReport: { _, _, _, _ in }), cookieStorage: configuration.httpCookieStorage!)
+        let suite = "update-view-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
+        let store = UpdateStore(api: api, defaults: defaults)
+        await store.refresh()
+        return store
     }
 }
 
