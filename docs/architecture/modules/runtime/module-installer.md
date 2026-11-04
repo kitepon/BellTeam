@@ -2,7 +2,7 @@
 
 担当エピネル。Rootの2026-11-04 12:30裁定。source実装の契約。正式main/imageと公開Docker製品受入は各版の別結果で確認する。
 
-標準Dockerと公開install.shだけで同imageの専用Compose serviceを導入する。別Host-image/sourceの選択、Host sudo/package/unit/daemon変更、Docker socketは要求しない。本体container全体更新のHost機構とは能力を分ける。
+標準Dockerと公開install.shだけで同imageの専用Compose serviceを導入する。別Host-image/sourceの選択、Host sudo/package/unit/daemon変更、Docker socketは要求しない。本体container全体更新は[専用service](container-update-bundled.md)へ分け、このmodule serviceへDocker socketを与えない。
 
 ```mermaid
 flowchart TD

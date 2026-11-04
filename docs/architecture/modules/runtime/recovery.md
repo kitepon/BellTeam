@@ -23,6 +23,8 @@ flowchart TD
   Cursor --> Start["固定imageで起動・health待ち"]
   Old --> Start
   Start --> Bundled["同imageの同梱module serviceを起動・health待ち<br/>Host初期登録なし"]
+  Bundled --> ContainerUpdater["本体更新専用serviceをconfigure・起動・health待ち<br/>別Docker workerは停止しない"]
+  ContainerUpdater -->|"失敗"| ContainerHalt["本体の到達点と保存世代を保持<br/>CONTAINER_UPDATER_START_FAILED"]
   Bundled -->|"失敗"| ModuleHalt["本体の到達点と保存世代を保持<br/>MODULE_INSTALLER_START_FAILED"]
   Maintain -->|"失敗"| Halt["停止したまま<br/>保存世代と移行状態を保持"]
   Cursor -->|"失敗"| Halt
@@ -41,6 +43,8 @@ flowchart TD
 | cleanup | installerのtrap | 一時staging/probeを除く。停止を試みる段階以後は保存世代を消さない。自動的に別imageを起こすrollbackはない |
 
 同梱moduleのモデル生成・状態所有・能力分離は[同梱プログラム](module-installer.md)が正本。normalのsocket親は同project named volumeのRO、専用serviceだけ同private volumeをRWで使う。通常の保守前に当該serviceを停止・除去し、保守後は通常本体のhealth成立から専用serviceのhealthを待つ。古いimageに同梱entryが無い場合は固定codeを表示し、本体導入を維持する。既Host overlayを明示採用しているmodelはそのsocketを保持する。
+
+本体更新専用serviceは[箱同梱の本体更新](container-update-bundled.md)へ接続する。通常起動後の最終normalと実CID/image/source/storageをconfigureで束縛する。失敗はCONTAINER_UPDATER_START_FAILEDで非0、実行中の独立workerは停止しない。画面更新でnormalが専用root volume内へ移った場合、後続公開installerは実volume/世代を照合してRO取得し、既hash/保存先検査へ渡す。
 
 追加設定はCompose標準の`compose.override.yaml`または`COMPOSE_FILE`で指定する。env・mount・port・運用設定・追加serviceはComposeが解決し、利用者の入力fileをinstallerが上書きしない。image抽出は`bellteam`だけを対象にし、追加serviceのimageを保守/Cursorへ渡さない。解決済normalには通常service群を保持し、追加設定をroot専用module serviceへ転送しない。data/homeの同親配置、private state・Cursor・AI stateの所有とwriter検査は既契約を維持する。管理済みprofileは明示RO mountの信頼資材であり、要求body/envだけでdeveloper許可を生成しない。保存normalは秘密を含み得るためprivateに保持する。
 

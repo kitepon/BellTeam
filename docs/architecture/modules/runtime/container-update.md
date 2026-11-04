@@ -1,6 +1,6 @@
-# container更新のHost受付と停止を跨ぐworker
+# container更新の限定受付と停止を跨ぐworker
 
-runtime所有エピネル。Root container-update-host-contract/update-center-api/update-catalog-root-contract（2026-11-03）を実装する。OS条件はEmma container-update-host-source-conditions-20261103。設置前のsource工程であり実Hostへ登録済みとはしない。
+runtime所有エピネル。Root container-update-host-contract/update-center-api/update-catalog-root-contract（2026-11-03）を実装する。OS条件はEmma container-update-host-source-conditions-20261103。この文書はHost版source契約で、各設置先の配置・稼働は固定版の導入原本で確認する。
 
 ```mermaid
 flowchart TD
@@ -29,6 +29,8 @@ flowchart TD
 標準の公開installerに同梱するmodule導入経路は[箱同梱module導入](module-installer.md)が正本。以下は既Host機構およびcontainer全体更新を跨ぐworkerの契約であり、標準導入にHost構築を要求するものではない。
 
 ## 固定配置と公開機構
+
+公開箱の専用service/Docker独立worker・状態所有・導入は[箱同梱の本体更新](container-update-bundled.md)が正本。`createUpdateClients()`と親DIはcontainer専用socketと既module socketを分け、専用mountの無い旧Hostだけ同clientを双方へ使う。以下は既Host/system manager版の契約であり、公開箱へ別Host構築を要求しない。
 
 Host prefixは `/srv/bellteam/shared/tools/bellteam-container-update-host`。releases/SHAにroot-owned全code/import/既installer closure、catalogに信頼済catalog、state0700/通常file0600、socket親root:1001/0750とupdate.sock0660。各祖先まで非symlink/root管理/非特権write禁止。実Hostの既shared祖先が成立しなければ権限を奪わず設置拒否する。normalへsocket親だけRO bindし `/run/bellteam-updater/update.sock` へ接続する。state/code/catalog/Docker socketをnormalへ渡さない。同1001子とのOS隔離とOwner本人性をpeer UIDだけで保証しない。
 

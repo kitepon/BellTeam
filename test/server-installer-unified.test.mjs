@@ -53,6 +53,10 @@ else if(a[0]==='ps'){if(state())emit(state().Id);}
 else if(a[0]==='inspect'){
  const s=state();emit({id:s.Id,running:s.State.Running,restarting:false,restartPolicy:'unless-stopped',mounts:[]});
 }else if(a[0]==='volume'){
+ if(e.TEST_WEB_UPDATE_SAVED&&a[1]==='inspect'&&a.at(-1)==='selected-project-container-updater'){
+  emit({Name:a.at(-1),Driver:'local',Options:{},Mountpoint:'/vm/selected-project-container-updater/_data',
+   Labels:{'com.docker.compose.project':e.TEST_OLD_UPDATER_FOREIGN?'foreign':'selected-project','com.docker.compose.volume':'container-updater'}});process.exit(0);
+ }
  const resume=a.at(-1).startsWith('bellteam-aiterm-state'),resumeFile=root+'/resume-volumes.json',resumes=()=>fs.existsSync(resumeFile)?load('resume-volumes.json'):{};
  if(e.TEST_H1&&resume){
   const name=a.at(-1),all=resumes();
@@ -82,7 +86,18 @@ else if(a[0]==='run'){
   if(a.some(v=>v.endsWith('target=/probe'))){if(a.includes('1000:1000'))process.exit(Number(e.TEST_PROBE_RESULT??75));process.exit(0);}
   if(e.TEST_H1&&a.includes('/app/src/resume-install-plan.mjs')){const r=spawnSync(process.execPath,[repo+'/src/resume-install-plan.mjs',a.at(-1)],{stdio:'inherit'});process.exit(r.status??98);}
   if(a.includes('/app/scripts/module-update-compose.mjs')){const r=spawnSync(process.execPath,[repo+'/scripts/module-update-compose.mjs'],{stdio:'inherit'});process.exit(r.status??98);}
+  if(a.includes('/app/scripts/container-update-compose.mjs')){const r=spawnSync(process.execPath,[repo+'/scripts/container-update-compose.mjs'],{stdio:'inherit'});process.exit(r.status??98);}
+  if(a.includes('/app/scripts/read-container-update-normal.mjs')){
+   const {containerUpdateSavedPath}=await import(pathToFileURL(repo+'/scripts/read-container-update-normal.mjs'));
+   try{containerUpdateSavedPath(JSON.parse(fs.readFileSync(0)),...a.slice(a.indexOf('/app/scripts/read-container-update-normal.mjs')+1));}
+   catch{console.error('SERVER_STATE_PREVIOUS_MODEL_UNVERIFIED');process.exit(1);}
+   process.stdout.write(fs.readFileSync(root+'/web-normal.json'));process.exit(0);
+  }
   let j=a.indexOf('-e');
+  if(j>=0&&a[j+1].includes('mkdirSync("/runtime/server-only"')){
+   const source=a[a.indexOf('--mount')+1].match(/^type=bind,source=(.*),target=\/runtime$/)[1];
+   fs.mkdirSync(source+'/server-only',{recursive:true});process.exit(0);
+  }
   if(e.TEST_H1&&j>=0&&a[j+1].includes('resume-state-cli.js'))process.exit(0);
   if(e.TEST_H1&&j>=0&&a[j+1].includes('fs.chownSync')){
    const name=a[a.indexOf('--mount')+1].match(/source=([^,]+)/)[1];
@@ -90,6 +105,7 @@ else if(a[0]==='run'){
    const r=spawnSync(process.execPath,['-e','require("fs").chownSync=(p,u,g)=>{if(u!==1000||g!==1000)process.exit(89)};'+code],{stdio:'inherit'});process.exit(r.status??98);
   }
   if(j>=0&&a[j+1].includes('existsSync("/app/scripts/module-update-compose.mjs")'))process.exit(e.TEST_NOT_BUNDLED?75:0);
+  if(j>=0&&a[j+1].includes('existsSync("/app/scripts/container-update-compose.mjs")'))process.exit(e.TEST_CONTAINER_UPDATER?0:75);
   if(j>=0){const r=spawnSync(process.execPath,a.slice(j),{stdio:'inherit'});process.exit(r.status??98);}
   const script=a.find(x=>x==='/app/src/server-state-writers.mjs'),phase=a.at(-1);
   if(script&&phase==='plan'){
@@ -110,6 +126,8 @@ else if(a[0]==='run'){
     const lines=fs.readFileSync(check+'/canonical.txt','utf8').trimEnd().split('\n'),canonical=[];
     for(let i=0;i<lines.length;i+=2)canonical.push({source:lines[i],canonical:lines[i+1]});
     emit(m.assertStateWritersStopped(p,c,canonical,v));
+   }else if(phase==='canonical'){
+    process.stdout.write(await m.canonicalStateWriterSources(fs.readFileSync(check+'/sources.txt','utf8'),'/'));
    }else process.exit(96);
   }else process.exit(95);
  }else process.exit(94);
@@ -131,6 +149,10 @@ else if(a[0]==='run'){
  }else if(a.includes('port'))emit(e.TEST_ENDPOINT??'127.0.0.1:18891');
  else if(a.includes('ps')){if(state())emit(state().Id);}
  else if(a.includes('run')){
+  if(a.includes('container-updater')&&a.includes('--configure')){
+   fs.writeFileSync(root+'/configured-container-normal.json',fs.readFileSync(0));
+   process.exit(e.TEST_CONTAINER_CONFIG_FAIL?65:0);
+  }
   if(a.includes('state-maintenance')){
    const bind=select().services['state-maintenance'].volumes.find(v=>v.target==='/srv/bellteam-runtime');
    try{if(!fs.statSync(bind.source).isDirectory())process.exit(77);}catch{process.exit(77);}
@@ -138,6 +160,7 @@ else if(a[0]==='run'){
   const phase=a.at(-1);if(phase===e.TEST_FAIL_PHASE)process.exit(55);
  }else if(a.includes('up')){
   if(select().services['module-installer'])process.exit(e.TEST_MODULE_UP_FAIL?64:0);
+  if(select().services['container-updater'])process.exit(e.TEST_CONTAINER_UP_FAIL?66:0);
   if(e.TEST_UP_FAIL||Number(e.TEST_HEALTH_READY_AFTER??0)>Number(a[a.indexOf('--wait-timeout')+1]))process.exit(58);
   const model=select(),previous=state(),counter=fs.existsSync(root+'/starts')?Number(fs.readFileSync(root+'/starts'))+1:1;
   fs.writeFileSync(root+'/starts',String(counter));
@@ -593,4 +616,59 @@ test('bundled installer freezes the socket and starts the same image service aft
  assert.ok(stop>=0&&maintenance>stop)
  const failed=await fixture(t)
  await assert.rejects(failed.run([],{TEST_MODULE_UP_FAIL:'1'}),e=>e.code===1&&/MODULE_INSTALLER_START_FAILED/.test(e.stderr)&&!/BellTeamを起動しました/.test(e.stdout))
+})
+
+test('container updater configures the final normal after health and survives independently; startup failure remains nonzero',async t=>{
+ const f=await fixture(t);await f.run([],{TEST_CONTAINER_UPDATER:'1'})
+ const saved=await f.saved(),normal=JSON.parse(await readFile(saved+'/normal.json'))
+ const configured=JSON.parse(await readFile(f.root+'/configured-container-normal.json'))
+ assert.deepEqual(configured,normal)
+ const backend=JSON.parse(await readFile(saved+'/container-updater.json'))
+ assert.equal(backend.services['container-updater'].image,currentImage)
+ assert.equal(normal.services.bellteam.volumes.find(m=>m.target==='/run/bellteam-container-updater').read_only,true)
+ const calls=await f.calls(),configuredAt=calls.findIndex(c=>c.args.includes('--configure'))
+ const normalUp=calls.findIndex(c=>c.args.includes('up')&&c.compose===saved+'/normal.json')
+ const containerUp=calls.findIndex(c=>c.args.includes('up')&&c.args.includes(saved+'/container-updater.json'))
+ assert.ok(normalUp>=0&&configuredAt>normalUp&&containerUp>configuredAt)
+ assert.equal(calls.some(c=>c.args.includes('container-updater')&&(c.args.includes('stop')||c.args.includes('rm')&&!c.args.includes('run'))),false)
+ const failed=await fixture(t)
+ await assert.rejects(failed.run([],{TEST_CONTAINER_UPDATER:'1',TEST_CONTAINER_CONFIG_FAIL:'1'}),
+  e=>e.code===1&&/CONTAINER_UPDATER_START_FAILED/.test(e.stderr)&&!/BellTeamを起動しました/.test(e.stdout))
+ const failureCalls=await failed.calls(),failureSaved=await failed.saved()
+ assert.ok(await readFile(failureSaved+'/normal.json'))
+ assert.equal(failureCalls.some(c=>c.args.includes('up')&&c.args.includes(failureSaved+'/container-updater.json')),false)
+})
+
+test('public installer reads a previous Web-update generation from its selected root volume; foreign volume fails before stop',async t=>{
+ for(const foreign of [false,true]){
+  const f=await fixture(t,{server:true}),runtime=JSON.parse(await readFile(f.root+'/runtime.json'))
+  const old=JSON.parse(await readFile(f.root+'/old.json'));old.services.bellteam.image=oldImage
+  await writeFile(f.root+'/web-normal.json',JSON.stringify(old))
+  runtime.Config.Image=oldImage
+  runtime.Config.Labels['com.docker.compose.project.working_dir']='/vm/selected-project-container-updater/_data/installation/work'
+  runtime.Config.Labels['com.docker.compose.project.config_files']=runtime.Config.Labels['com.docker.compose.project.working_dir']+'/.bellteam-compose.ABC123/normal.json'
+  await writeFile(f.root+'/runtime.json',JSON.stringify(runtime))
+  const env={TEST_WEB_UPDATE_SAVED:'1',...(foreign?{TEST_OLD_UPDATER_FOREIGN:'1'}:{})}
+  if(foreign){
+   await assert.rejects(f.run([],env),e=>e.code===1&&/SERVER_STATE_PREVIOUS_MODEL_UNVERIFIED/.test(e.stderr))
+   assert.equal((await f.calls()).some(c=>c.args[0]==='stop'),false)
+  }else{
+   await f.run([],env)
+   const saved=await f.saved(),expected=structuredClone(old)
+   expected.services.bellteam.labels={'fixture.$key':'literal $$KEEP'}
+   assert.deepEqual(JSON.parse(await readFile(saved+'/previous-normal.json')),expected)
+   const call=(await f.calls()).find(c=>c.args.includes('/app/scripts/read-container-update-normal.mjs'))
+   assert.ok(call.args.includes('type=volume,source=selected-project-container-updater,target=/updater,readonly,volume-nocopy'))
+  }
+ }
+})
+
+test('container worker delegates runtime directory and canonical path access to fixed Docker helpers without writer bypass',async t=>{
+ const f=await fixture(t);await mkdir(f.install+'/runtime')
+ await f.run([],{TEST_CONTAINER_UPDATER:'1',BELLTEAM_CONTAINER_UPDATE_WORKER:'1'})
+ const calls=await f.calls()
+ assert.ok(calls.some(c=>c.args.some(a=>a==='type=bind,source='+f.install+'/runtime,target=/runtime')))
+ const canonical=calls.find(c=>c.args.includes('/app/src/server-state-writers.mjs')&&c.args.at(-1)==='canonical')
+ assert.ok(canonical?.args.includes('type=bind,source=/,target=/host,readonly'))
+ assert.ok(calls.some(c=>c.args.includes('/app/src/server-state-writers.mjs')&&c.args.at(-1)==='verify'))
 })

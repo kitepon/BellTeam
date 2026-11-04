@@ -72,6 +72,7 @@ done < "$staging/volume-names.txt"
 reader sources > "$staging/sources.txt"
 # Protected mounts need the daemon's filesystem credentials, not a Host chmod.
 daemon_paths=false
+[ "${BELLTEAM_CONTAINER_UPDATE_WORKER:-}" != 1 ] || daemon_paths=true
 while IFS= read -r kind && IFS= read -r source; do
   if [ "$kind" = observed ] && [ ! -e "$source" ]; then daemon_paths=true; fi
 done < "$staging/sources.txt"

@@ -5,21 +5,44 @@ import {mkdtemp,rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import test from 'node:test'
-import {createContainerUpdateClient} from '../src/container-update-client.mjs'
-async function fixture(t,handler){
+import {createContainerUpdateClient,createUpdateClients} from '../src/container-update-client.mjs'
+async function fixture(t,handler,allowed=['/run/bellteam-updater/update.sock']){
  const root=await mkdtemp(join(tmpdir(),'host-update-client-')),path=join(root,'socket')
- const frames=[],connections=new Set()
+ const frames=[],connections=new Set(),paths=[]
  const server=net.createServer(socket=>{
   connections.add(socket);socket.on('close',()=>connections.delete(socket))
   let raw='';socket.on('data',chunk=>{raw+=chunk;if(raw.includes('\n')){const value=JSON.parse(raw);frames.push(value);handler(socket,value)}})
  })
  await new Promise(resolve=>server.listen(path,resolve))
  const connect=net.createConnection
- t.mock.method(net,'createConnection',options=>{assert.deepEqual(options,{path:'/run/bellteam-updater/update.sock'});return connect({path})})
+ t.mock.method(net,'createConnection',options=>{assert.ok(allowed.includes(options.path));paths.push(options.path);return connect({path})})
  syncBuiltinESMExports()
  t.after(async()=>{for(const socket of connections)socket.destroy();await new Promise(resolve=>server.close(resolve));t.mock.restoreAll();syncBuiltinESMExports();await rm(root,{recursive:true,force:true})})
- return {client:createContainerUpdateClient(),frames}
+ return {client:createContainerUpdateClient(),frames,paths}
 }
+test('dedicated mount routes container separately; legacy shares a client and ambiguous start never falls back',async t=>{
+ const fs=(await import('node:fs/promises')).default
+ let mounted=false
+ t.mock.method(fs,'lstat',async path=>{
+  assert.equal(path,'/run/bellteam-container-updater')
+  if(!mounted)throw Object.assign(Error(),{code:'ENOENT'})
+  return {isDirectory:()=>true,isSymbolicLink:()=>false}
+ })
+ syncBuiltinESMExports()
+ const legacy=await createUpdateClients();assert.equal(legacy.container,legacy.module)
+ mounted=true
+ const {frames,paths}=await fixture(t,(socket,frame)=>{
+  if(frame.operation==='start')socket.destroy()
+  else socket.end(JSON.stringify({ok:true,value:frame.params})+'\n')
+ },['/run/bellteam-updater/update.sock','/run/bellteam-container-updater/update.sock'])
+ const clients=await createUpdateClients();assert.notEqual(clients.container,clients.module)
+ await clients.container.catalog('container');await clients.module.catalog('memory')
+ await assert.rejects(clients.container.start({requestId:'a',planId:'b',confirmContainerRestart:true}),{outcome:'unknown'})
+ assert.deepEqual(paths,['/run/bellteam-container-updater/update.sock','/run/bellteam-updater/update.sock','/run/bellteam-container-updater/update.sock'])
+ assert.deepEqual(frames.map(f=>f.operation),['catalog','catalog','start'])
+ t.mock.method(fs,'lstat',async()=>{throw Object.assign(Error(),{code:'EACCES'})});syncBuiltinESMExports()
+ await assert.rejects(createUpdateClients(),{code:'EACCES'})
+})
 test('fixed Unix client carries the common requestId and does not resend after ambiguous admission',async t=>{
  const {client,frames}=await fixture(t,(socket,frame)=>{
   if(frame.operation==='start')socket.destroy()

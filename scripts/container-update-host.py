@@ -213,7 +213,7 @@ class HostUpdater:
         return {'mounts':sorted(mounts,key=lambda row:row['Destination']), 'specs':sorted(specs,key=lambda row:row['Target'])}
 
     def assert_model_binding(self, current, normal=None):
-        normal = normal or read_json(self.prefix / 'installation/normal.json', self.uid)
+        normal = normal or read_json(self.prefix / 'installation/normal.json', self.uid, CATALOG_LIMIT)
         storage = self.storage_metadata(current['containerId'])
         verify_model_mounts(normal, storage['mounts'], storage['specs'])
 
@@ -504,7 +504,7 @@ class HostUpdater:
                 else execute_module_installer(self, plan, directory))
 
     def module_volume(self, current, directory):
-        normal = read_json(self.prefix / 'installation/normal.json', self.uid)
+        normal = read_json(self.prefix / 'installation/normal.json', self.uid, CATALOG_LIMIT)
         service = normal['services']['bellteam']
         # The validation helper receives mount metadata, never the normal server environment.
         model = {'name': self.config['projectName'], 'services': {'bellteam': {
@@ -674,13 +674,14 @@ class Server(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
 
 def execute_installer(updater, plan, directory):
     config = updater.config
-    release = updater.prefix / 'releases' / config['release']
+    release = updater.code_root
     install_root = Path(config['installRoot'])
     trusted(install_root, updater.uid, directory=True)
     script = release / 'install.sh'
     trusted(script, updater.uid)
-    normal = read_json(updater.prefix / 'installation/normal.json', updater.uid)
-    check(normal.get('name') == config['projectName'] and set(normal.get('services', {})) == {'bellteam'}, 'HOST_UPDATE_MODEL_INVALID')
+    normal = read_json(updater.prefix / 'installation/normal.json', updater.uid, CATALOG_LIMIT)
+    check(normal.get('name') == config['projectName'] and type(normal.get('services')) is dict
+          and 'bellteam' in normal['services'], 'HOST_UPDATE_MODEL_INVALID')
     target = plan['target']
     ref = target['artifact']['reference']
     updater.command([config['docker'], 'pull', ref], timeout=900)
@@ -692,10 +693,10 @@ def execute_installer(updater, plan, directory):
     inputs.mkdir(mode=0o700, parents=True, exist_ok=True)
     previous_normal = json.loads(json.dumps(normal))
     previous_normal['services']['bellteam']['image'] = plan['expected']['imageId']
-    atomic(inputs / 'previous-normal.json', previous_normal)
+    atomic(inputs / 'previous-normal.json', previous_normal, CATALOG_LIMIT)
     atomic(inputs / 'previous-runtime.json', {'Id': plan['expected']['containerId'], 'Image': plan['expected']['imageId']})
     normal['services']['bellteam']['image'] = ref
-    normal_file = inputs / 'input-normal.json'; atomic(normal_file, normal)
+    normal_file = inputs / 'input-normal.json'; atomic(normal_file, normal, CATALOG_LIMIT)
     env = {**updater.env, 'COMPOSE_FILE': str(normal_file), 'COMPOSE_PROJECT_NAME': config['projectName'],
            'COMPOSE_DISABLE_ENV_FILE': 'true', 'BELLTEAM_INSTALL_DIR': str(install_root), 'BELLTEAM_SERVER_IMAGE': ref,
            'BELLTEAM_PREVIOUS_COMPOSE': str(inputs / 'previous-normal.json')}
@@ -745,7 +746,7 @@ def execute_installer(updater, plan, directory):
         confirmed = actual['imageId'] == selected and actual['sourceCommit'] == target['sourceCommit'] and actual['health'] == 'healthy'
         if confirmed:
             check(saved is not None, 'HOST_UPDATE_GENERATION_UNKNOWN')
-            updater.assert_model_binding(actual, read_json(saved/'normal.json',updater.uid))
+            updater.assert_model_binding(actual, read_json(saved/'normal.json',updater.uid,CATALOG_LIMIT))
             actual['imageRef'] = ref
         return actual, confirmed
     code = run()
@@ -764,13 +765,13 @@ def execute_installer(updater, plan, directory):
                 rollback = 'succeeded' if recovered and restored['imageId'] == plan['expected']['imageId'] and restored['sourceCommit'] == plan['expected']['sourceCommit'] and restored['health'] == 'healthy' else 'failed'
                 atomic(updater.state / 'current-runtime.json', restored)
                 if rollback == 'succeeded':
-                    atomic(updater.prefix / 'installation/normal.json', read_json(saved / 'previous-normal.json', updater.uid))
+                    atomic(updater.prefix / 'installation/normal.json', read_json(saved / 'previous-normal.json', updater.uid, CATALOG_LIMIT), CATALOG_LIMIT)
             except Exception:
                 rollback = 'unknown'
         return {'execution': 'failed' if code else 'succeeded', 'verification': 'failed', 'observed': actual,
                 'cleanup': 'not_needed', 'rollback': rollback, 'error': 'HOST_UPDATE_INSTALL_FAILED' if code else 'HOST_UPDATE_VERIFICATION_FAILED'}
     check(saved is not None, 'HOST_UPDATE_GENERATION_UNKNOWN')
-    atomic(updater.prefix / 'installation/normal.json', read_json(saved / 'normal.json', updater.uid))
+    atomic(updater.prefix / 'installation/normal.json', read_json(saved / 'normal.json', updater.uid, CATALOG_LIMIT), CATALOG_LIMIT)
     atomic(updater.state / 'current-runtime.json', actual)
     cleanup = 'succeeded'
     try:
