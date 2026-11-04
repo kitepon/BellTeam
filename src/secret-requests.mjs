@@ -25,6 +25,8 @@ export class SecretRequests {
     for (const file of await readdir(this.directory)) {
       if (!file.endsWith('.json')) continue
       const item = JSON.parse(await readFile(join(this.directory, file), 'utf8'))
+      // 配送済みの状態は'queued'から'sent'へ改名した。改名前に保存した依頼も同じ意味で読む。
+      if (item.notification === 'queued') item.notification = 'sent'
       this.items.set(item.id, item)
       this.cardTimelines.put(item)
     }
