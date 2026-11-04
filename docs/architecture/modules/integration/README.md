@@ -510,7 +510,13 @@ flowchart LR
   Verify --> Result[step・operation保存 / 既SSE再取得]
   Restart[親再起動] --> Unknown[未終端module stepはunknown / 自動再apply無し]
   Unknown --> Result
+  Public --> Failure[runtime candidate失敗 / 閉じたmoduleDiagnostic]
+  Failure --> Validate[runtime単一validator / component一致]
+  Validate --> Private[既step.runtimeDiagnostic / private保存だけ]
+  Private --> Result
 ```
+
+candidate失敗の診断はruntimeの単一`validateModuleExchangeDiagnostic`で検証したコピーだけを任意private stepへ保存する。同じcomponent・厳密7key・1024UTF8 bytes以下の閉DTOだけを受け入れ、公開operation/errorへ投影しない。元例外とunknown判定を保持し、診断抽出失敗で元結果を変えない。保存済fieldは読込時も検証し、旧field無しを受け入れる。過去要求への後付け、同要求の再apply、自由message/stack/stderrの保存は行わない。
 
 共通ledgerがplan/operation/stepの唯一writer。既web/通知/members controllerとroot所有資材の公開prepareを再利用し、子writer・新版資材配置を追加しない。未配置のENOENTだけは後述の既Host設置stepへ接続し、その他のprepare失敗は拒否する。catalogは通知protocol/state 2、members状態指紋、Web protocol 1を照合する。全体planは同catalogの更新対象を固定し、必要なcontainer stepだけ既Host計画を末尾へ付ける。個別旧container計画/結果照会を維持する。
 

@@ -1,3 +1,4 @@
+import { moduleExchangeDiagnostic } from './module-exchange-diagnostic.mjs'
 import { spawn } from 'node:child_process'
 import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
@@ -83,7 +84,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     target.child.kill('SIGKILL')
     await target.end
   }
-  const launch = async (versionId, ticket, mode, handoff) => {
+  const launch = async (versionId, ticket, mode, handoff, markStage = () => {}) => {
     if (closed || instance) throw fail('NOT_ACCEPTING')
     const nextGeneration = `${versionId ?? 'builtin'}:${randomUUID()}`
     admission?.adopt(ticket, nextGeneration)
@@ -91,6 +92,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     onGeneration(nextGeneration)
     const env = component === 'diagnostics' && investigationsFile !== null
       ? { BELLTEAM_DIAGNOSTIC_INVESTIGATIONS: investigationsFile } : {}
+    markStage('spawn')
     const child = spawnProcess(`/usr/local/libexec/bellteam-${component}-start`, [versionId ?? 'builtin'], {
       env, serialization: 'advanced', stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
@@ -106,12 +108,15 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     })
     const started = Date.now()
     try {
+      markStage('channel')
       target.channel = createChannel(child, { generation: nextGeneration })
       if (component !== 'diagnostics' && typeof target.channel.drainIncoming !== 'function') throw fail('CHANNEL_INVALID')
+      markStage('initialize')
       const params = await initializeParams({ generation: nextGeneration, mode, handoff })
       const initializing = target.channel.control('initialize', params, 45000)
       await initializing
       await within(initializing.completion ?? Promise.resolve(), 45000 - (Date.now() - started), `${prefix}_READY_TIMEOUT`)
+      markStage('ready')
       const ready = await within(target.channel.ready, 45000 - (Date.now() - started), `${prefix}_READY_TIMEOUT`)
       if (ready.versionId !== versionId) throw fail('READY_INVALID')
       validateReady(ready)
@@ -202,24 +207,36 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       await finishExit(old)
       if (closed) throw fail('CLOSED')
       state('starting')
+      let stage = 'spawn'
+      const markStage = value => { stage = value }
       try {
-        const next = await launch(versionId, ticket, 'restore', handoff)
+        const next = await launch(versionId, ticket, 'restore', handoff, markStage)
+        stage = 'adoption'
         await writeAtomic(adoptionPath, record(versionId, oldVersion))
         currentVersionId = versionId; previousVersionId = oldVersion
+        stage = 'resume'
         await resume(next, ticket)
         return snapshot()
       } catch (error) {
-        const errors = [error]
+        const errors = [error], failedStage = stage
+        let rollbackStage = null, rollbackError
         try {
+          stage = 'candidate_cleanup'
           await stopUnadmitted(instance)
           if (closed) throw fail('CLOSED')
+          stage = 'prepare'
           await prepare(oldVersion)
-          const restored = await launch(oldVersion, ticket, 'restore', handoff)
+          stage = 'spawn'
+          const restored = await launch(oldVersion, ticket, 'restore', handoff, markStage)
+          stage = 'adoption'
           await writeAtomic(adoptionPath, record(oldVersion, oldPrevious))
           currentVersionId = oldVersion; previousVersionId = oldPrevious
+          stage = 'resume'
           await resume(restored, ticket)
-        } catch (rollback) { errors.push(rollback); state(closed ? 'closed' : 'unavailable') }
-        throw new AggregateError(errors, errors.length === 1 ? `${prefix}_REPLACE_ROLLED_BACK` : `${prefix}_REPLACE_AND_ROLLBACK_FAILED`)
+        } catch (rollback) { rollbackStage = stage; rollbackError = rollback; errors.push(rollback); state(closed ? 'closed' : 'unavailable') }
+        const result = new AggregateError(errors, errors.length === 1 ? `${prefix}_REPLACE_ROLLED_BACK` : `${prefix}_REPLACE_AND_ROLLBACK_FAILED`)
+        result.moduleDiagnostic = moduleExchangeDiagnostic(component, failedStage, error, rollbackStage, rollbackError)
+        throw result
       } finally { if (phase !== 'running') { exchanging = false; state(phase) } }
     }
     return exclusive(() => exchangeMutex ? exchangeMutex.runExclusive(perform) : perform())

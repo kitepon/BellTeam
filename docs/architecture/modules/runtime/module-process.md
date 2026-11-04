@@ -38,3 +38,18 @@ private recordは既0600/no-follow/nlink1/所有/4KiB検査の`bellteam.<compone
 このsourceの限定fake-child境界と、各作者の実IPC fixture、Centi同imageの実UID/署名/OS交換は別の証拠。初回親組立とmountはimage導入が必要で、未登録moduleを既imageへ無再起動追加できるとは扱わない。導入後の登録済controller経由コード交換が対象。
 
 親が注入する同exchangeMutexのrunExclusiveでreplace全体（prepare前からdrain/旧OS終端/採用保存ACK/失敗復旧まで）を囲む。mutexが使用中ならMODULE_EXCHANGE_BUSYでprepare・受付閉鎖前に拒否し、子/現在版を変えない。省略時は既個別controller排他だけ。start/close/requestの寿命管理と親の公開Update ledger mutexは変えない。conversation/usage/diagnostics薄wrapperは同identityを転送し、親assemblyの共有一実体DIはintegrationが所有する。
+
+## 交換失敗のprivate診断
+
+既candidate launch/adoption/resume失敗のAggregateErrorに`moduleDiagnostic`を追加する。元code無し/errors/制御は保持。`module-exchange-diagnostic.mjs`の単一validatorは厳密7key schema/component/stage/code/rollback/rollbackStage/rollbackCode、1024 UTF8 bytes以内、固定stageとOS/Node/component code閉集合を検査する。未知codeはnull。候補の最初の失敗段階を固定し、戻しのresumeまで完了した時だけrollback succeeded、戻し失敗は独立stage/codeを保存する。prepare/quiesce/export等の旧子exit前失敗にはDTOを作らない。
+
+Molly共通executorは当該component一致と同validatorで検証したコピーだけを既step.runtimeDiagnosticへ任意保存し、旧ledger field無しを受け入れる。公開error/schema/unknown、同ID非再applyは保持。message/stack/stderr/秘密/本文/環境/PID/任意nested errorsを含めず、過去要求へ欠測を補完しない。
+
+```mermaid
+flowchart LR
+  Failure[candidate launch / adoption / resume失敗] --> Original[元AggregateError / code無し]
+  Failure --> Closed[固定stage・閉code・戻し結果の7key]
+  Closed --> Validator[runtime単一validator / 1024bytes]
+  Validator --> Ledger[Molly既private step.runtimeDiagnostic]
+  Original --> Public[既公開unknown / 元安全code処理]
+```
