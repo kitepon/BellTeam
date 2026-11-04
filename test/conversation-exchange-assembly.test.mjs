@@ -2,10 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createMembersAssembly } from '../src/members-assembly.mjs'
 import { createConversationAssembly } from '../src/conversation-assembly.mjs'
+import { createUsageAssembly } from '../src/usage-assembly.mjs'
 import { createModuleExchangeMutex } from '../src/module-exchange-mutex.mjs'
 import { MembersAdmission } from '../src/members-admission.mjs'
 
-test('members and conversation assemblies retain the same parent exchange capability', async () => {
+test('usage, members and conversation assemblies exclude concurrent exchange with one parent mutex', async () => {
   const exchangeMutex = createModuleExchangeMutex(), membersAdmission = new MembersAdmission()
   const seen = []
   let held, calls = 0
@@ -18,12 +19,16 @@ test('members and conversation assemblies retain the same parent exchange capabi
     membersAuthorization: {}, diagnostics: {}, dependencies: () => ({}) })
   const conversation = createConversationAssembly({ root: '/synthetic', membersAdmission, exchangeMutex, createProcess,
     getServices: () => ({ bots: { readRemovalStates: async () => ({ removals: [] }) } }), createFacade: () => ({ assets: {} }) })
+  const usage = createUsageAssembly({ root: '/synthetic', exchangeMutex, createProcess, getServices: () => ({ bots: new Map() }), onEffect: () => {} })
   await conversation.assets.initialize()
-  assert.deepEqual(seen, [exchangeMutex, exchangeMutex])
+  assert.deepEqual(seen, [exchangeMutex, exchangeMutex, exchangeMutex])
   const first = members.controller.replace()
   await assert.rejects(conversation.controller.replace(), { code: 'MODULE_EXCHANGE_BUSY' })
+  await assert.rejects(usage.controller.replace(), { code: 'MODULE_EXCHANGE_BUSY' })
   assert.equal(calls, 1)
   held(); await first
   await conversation.controller.replace()
   assert.equal(calls, 2)
+  await usage.controller.replace()
+  assert.equal(calls, 3)
 })

@@ -498,6 +498,18 @@ AIのlogical8leaseと、固定6methodのreadonly世代pinを分ける。pinは�
 
 Owner GETの一覧/Owner/個別profile・画像・設定画・会話/queueは自身のfresh窓口を使い、不要な全profile snapshotを先に要求しない。会話/queueは対象をfresh readMemberで確認し、確定404と拒否/unknownを分ける。MCP/POSTの既fresh本人/対象認可は保持する。保存済み大画像の再取得でMEMBERS_NOT_ACCEPTEDを表示したOwner症状もこの読取経路へ含め、画像保存成功を取消したりnative故障と扱ったりしない。
 
+### usage初回起動と共有交換mutex
+
+```mermaid
+flowchart LR
+  Bootstrap[bootstrap: 共有exchangeMutex一実体] --> Usage[usage-assembly / 既usage-process]
+  Bootstrap --> Services[application-services / 同bootstrap export]
+  Services --> Members[members-assembly / 同一mutex]
+  Services --> Conversation[conversation-assembly / 同一mutex]
+```
+
+通常bootstrapはusageのsettings初期化より前に共有mutexを作り、同じ実体をusage-assemblyとbootstrap exportへ渡す。application-runtimeは既bootstrapをapplication-servicesへ渡し、同じmutexをmembers/conversationへ供給する。bootstrapを使わない組立ては既定のmutexを一つ生成する。usageのauthority/admission/facadeは交換・子再起動で作り直さず、runtimeのcontrollerへ同mutexを転送する。runtime所有の子生成・終了・再起動・ready/restore/resumeとKiro所有lifetime回復hookは各担当の公開契約を使う。HTTP/ledgerの旧要求を再送せず、追加の公開APIや設定を作らない。
+
 ### module/all更新の実行と耐久結果
 
 ```mermaid
