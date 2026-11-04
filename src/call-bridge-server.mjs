@@ -47,7 +47,9 @@ export function createCallBridgeServer({ bots, messenger }) {
           return json(response, 400, { error: 'INVALID_DELIVERY' })
         }
         try {
-          const result = await messenger.receiveCallBridge(body)
+          // schemaは受け口で確かめた。会話の要求は決まった項目だけを受けるので、渡す中身から外す。
+          const { schema, ...delivery } = body
+          const result = await messenger.receiveCallBridge(delivery)
           return json(response, 200, result)
         } catch (error) {
           if (error.code === 'AI_GLOBAL_PAUSED') return json(response, 423, { error: error.code })
