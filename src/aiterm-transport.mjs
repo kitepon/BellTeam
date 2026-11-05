@@ -624,7 +624,6 @@ export class AitermTransport {
   // 続けてよいかはjobの停止結論と席の状態に聞き、停止の結論を決めるのはjob（DeliveryJob）だけ。
   submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease, conversationDelivery, summaryAuthority = null } = {}) {
     this.modelHandoff?.assertAdmission(bot.id)
-    this.assertConversationOccupation(bot.id)
     const recoveryVersion = this.captureStopVersion(bot)
     let recoverySession = this.session(bot)
     if (membersLease) this.membersAdmission.assertLease(membersLease)
@@ -634,8 +633,6 @@ export class AitermTransport {
       info: { ...info, message: info.message ?? message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}) },
       stopping: () => this.executionStopping,
     })
-    this.latestSummaryInputs.set(bot.id, job.id)
-    this.backgroundSummary?.invalidate(bot.id)
     let conversationCallbacks = null
     if (conversationDelivery) {
       if (!this.conversationAdmission || onStatus || onInterim || onAnswer || onTurnEnd)
@@ -670,6 +667,9 @@ export class AitermTransport {
     const completion = (async () => {
       // 差し込んだ文を取ったターンの終わりまで追ったか。追えなかった差し込みの画像は、次のターンまで残す。
       try {
+        this.assertConversationOccupation(bot.id)
+        this.latestSummaryInputs.set(bot.id, job.id)
+        this.backgroundSummary?.invalidate(bot.id)
         await this.executionStopping?.catch(() => {})
         job.assertNotStopped()
         const configuration = this.activity.configurationChanges.get(bot.id)
