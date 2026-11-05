@@ -74,6 +74,14 @@ flowchart TD
 
 設定適用Map、SeatActivity.configurationChanges、sessionChanges、BotRegistry保存値は、それぞれ表示・配送の待合せ・発行済み変更・次回起動の希望という異なる所有を持つ。ひとつの「設定状態」へまとめて待合せの意味を失わせない。
 
+## 明示restart後の旧native占有の退役（2026-11-06修理）
+
+機能：同Botの明示restartは既発行の変更/wake返却を待ち、captured旧sessionをcloseする。closeの同sessionへのtyped成功を確認するまで旧job/native未知と新配送拒否を保持する。確認後だけ、close対象に束縛した旧jobの実行枠とnative継続参照を退役し、新launchを一回起動する。元receipt/元unknown/保存失敗を成功へ変更せず、他Bot・新session・保存ACK/背景参照は解放しない。
+
+データフロー：Owner明示restart→既session/旧job snapshot→pty_close→同sessionのclosure証拠→旧job停止・旧native占有退役（歴史的unknown保持）→wake→新規配送。close欠測/失敗/相関不一致→旧占有維持・起動0。元本文/元jobの再発行は無い。
+
+現sourceはmarkStoppedのみでnativeUnconfirmedの占有が残る。直接反例でこの不足を固定し、closure証拠の必要形はAiterm公開契約と照合して実装する。公開Rootのrunning単独をこの条件の成立証拠にしない。
+
 ## Goalは本体に複製せずnativeの対象を確認する
 
 ```mermaid

@@ -2,6 +2,13 @@
 // The older v2 proof reader below is retained for adapter compatibility only.
 import { isDeepStrictEqual as same } from 'node:util'
 
+export function confirmedSessionClosure(result, session) {
+  const receipt = result?.structuredContent
+  return result?.isError !== true && receipt?.schema === 'aiterm.pty-close-result.v1'
+    && Object.keys(receipt).length === 3 && receipt.session_id === session
+    && ['closed', 'already_closed'].includes(receipt.outcome)
+}
+
 const failure = (code = 'EXECUTION_UNCONFIRMED', effect = 'possible') =>
   Object.assign(new Error(code), { code, effect, follow_up: 'status_only' })
 const launch = value => value && typeof value.session_id === 'string'
