@@ -1,6 +1,6 @@
 # BellTeam本体のデータフロー（初回レビュー候補）
 
-対象はsource **`9fccf85c59a528838f6e442c28ad8e32f9698515`**。参照commit `f527c9c0fedf810956b6cc9fb43c111791023b35` と同じtreeを基準にした静的読取りであり、本番421dの配置や実行成功を示す図ではない。実環境で選択された別署名moduleの内部は、そのselected sourceの追加照合が必要であり、本図から同一と推定しない。全体境界・契約はトロニー、製品文書・親組立はモリー、業務内部は各担当、DFD指導はレヴィアタンが所有する。**Root→Levi確認前のdocs-only候補**。
+対象はsource **`9fccf85c59a528838f6e442c28ad8e32f9698515`**。参照commit `f527c9c0fedf810956b6cc9fb43c111791023b35` と同じtreeを基準にした静的読取りであり、本番421dの配置や実行成功を示す図ではない。実環境で選択された別署名moduleの内部は、そのselected sourceの追加照合が必要であり、本図から同一と推定しない。全体境界・契約はトロニー、製品文書・親組立はモリー、業務内部は各担当、DFD指導はレヴィアタンが所有する。**Rootの初回採用後、Levi確認中のdocs-only改定候補**。
 
 [全体機能図](feature-map.md)のuses/providesは窓口への依存を表す。本図は運ぶデータの方向を別に表す。既sequence/flowは受付・実終端・保存ACK等の順序を説明する補助資料として残す。P番号は処理の識別子で、処理順ではない。
 
@@ -48,15 +48,16 @@ members")
  P5("P5 設定・カード・通知を扱う
 usage / 親受付制御")
  D1[("D1 直接会話 / 部屋記録")]
- D3[("D3 intents / execution選択")]
+ D3a[("D3a 設定intent")]
+ D3b[("D3b execution選択")]
  D4[("D4 Bot・予定・指示")]
  D5[("D5 設定・カード・制御状態")]
  E2["E2 Aiterm/native/CLI"]
  E3["E3 通知/認証provider"]
- E1 -->|"F01 投稿 / F03 履歴条件 / F20 管理要求"| P1
+ E1 -->|"F01 投稿 / F03A 利用者query / F20 管理要求"| P1
  P1 -->|"F02 受付/失敗 / F04 履歴 / F21 管理結果"| E1
  P1 -->|"F05 topic・対象IDの変更通知"| E1
- P1 -->|"F01 投稿 / F03 query・カード位置"| P2
+ P1 -->|"F01 投稿 / F03A query / F03B 親生成位置"| P2
  P2 -->|"F02 受付 / F04 ページ / F05 通知"| P1
  P2 -->|"F06 配送入力・callback登録 / 受付照会"| P3
  P3 -->|"F07 受付 / F08 状態・語・回答・終端"| P2
@@ -79,9 +80,11 @@ usage / 親受付制御")
  E3 -->|"C7 配信/認証の返却"| P5
  P2 -->|"F13 発言・配送状態・語・回答"| D1
  D1 -->|"F14 保存済み会話行"| P2
- P3 -->|"設定intent保存"| D3
- D3 -->|"intent/選択読取"| P3
- P1 -->|"採用選択保存 / 親writer"| D3
+ P3 -->|"設定intent保存"| D3a
+ D3a -->|"保存済intent"| P3
+ P1 -->|"current/previous選択保存"| D3b
+ D3b -->|"保存済current/previous選択"| P1
+ P1 -->|"同factoryの選択ID / 親組立"| P3
  P4 -->|"profile/予定/指示保存"| D4
  D4 -->|"保存済profile/予定/指示"| P4
  P5 -->|"設定・カード状態保存"| D5
@@ -105,7 +108,8 @@ runtime / 親adapter")
  P8("P8 診断を集約・照会する
 diagnostics / 親adapter")
  D6[("D6 記憶DB・知識DB/原稿")]
- D7[("D7 検証済資材・更新ledger/選択")]
+ D7a[("D7a 検証済みrelease資材")]
+ D7b[("D7b 共通更新ledger")]
  D8[("D8 診断記録")]
  E3["E3 配布元（再掲）"]
  E4["E4 Throughline"]
@@ -119,14 +123,16 @@ diagnostics / 親adapter")
  E3 -->|"C7 catalog/archive/署名資材"| P7
  P7 -->|"C8 Throughline読取条件"| E4
  E4 -->|"C9 記録済みturn・文脈"| P7
- P7 -->|"検証結果・ledger保存"| D7
- D7 -->|"検証済資材・更新状態"| P7
+ P7 -->|"検証済みrelease配置 / root installer"| D7a
+ D7a -->|"検証済みmanifest/payload"| P7
+ P7 -->|"plan/operation保存 / 親executor"| D7b
+ D7b -->|"保存済plan/operation"| P7
  P2 & P3 & P5 & P7 -->|"F24 限定診断field"| P8
  P8 -->|"診断保存"| D8
  D8 -->|"保存済み診断"| P8
 ```
 
-D3の設定intent writerはexecution内、採用選択writerは親`createExecutionAdoptionStore`。同じストア記号にしたことは単一writer/transactionを意味しない。D5も業務別ファイルの束であり、下表で物理writerを分ける。履歴検索条件はP2内のreaderへ渡り、D1への線は実際に読み取った会話行を表す。検索index/キャッシュはストアの別コピーとして永続化を主張しない。
+D3aは設定intent、D3bはexecution選択で、物理pathとwriterを別IDへ分ける。D7aのrelease配置とD7bの共通更新ledgerにはD3bのexecution選択ファイルを含めない。P7がexecution選択を参照・変更するときも保存先は同じD3bであり、D7という別選択コピーを作らない。D5も業務別ファイルの束であり、下表で物理writerを分ける。履歴検索条件はP2内のreaderへ渡り、D1への線は実際に読み取った会話行を表す。検索index/キャッシュはストアの別コピーとして永続化を主張しない。
 
 ## 詳細DFD：P1＋P2の通常text投稿・返信保存・履歴読取
 
@@ -139,16 +145,18 @@ flowchart TB
  S("P2a 利用者発言を記録し配送入力を作る")
  R("P2b callback・最終回答を同配送へ結び保存する")
  Q("P2c 会話行を照会しページ位置を返す")
- V("P1b カードと会話ページを表示DTOへ整える")
+ V("P1b 同snapshotでページ要求と表示DTOを組み立てる")
  N("P1c 変更をtopic/対象IDへ整える")
  D1[("D1 logs/direct-messages.jsonl<br/>会話子内 ConversationWriter / Store")]
  X["P3 実行を受付・追跡する（境界）"]
  M["P4 メンバー台帳（境界）"]
  U["P5 usage / 受付制御（境界）"]
  DG["P8 診断（境界）"]
- E1 -->|"F01 Bot ID・text / F03 履歴query"| H
+ E1 -->|"F01 Bot ID・text / F03A 履歴query"| H
  H -->|"F01 actorに束縛したuser.post"| S
- H -->|"F03 kind/id/query・カード位置"| Q
+ H -->|"F03A kind/id・利用者query"| V
+ V -->|"F03A kind/id/query"| Q
+ V -->|"F03B 親生成cards位置 id/at"| Q
  S -->|"F09 profiles.read条件"| M
  M -->|"F10 Bot名・role等のprofile投影"| S
  S -->|"F06A 受付可否照会 / 親effect"| X
@@ -164,7 +172,7 @@ flowchart TB
  D1 -->|"F14B 明示回答・既claim照合用の会話行"| R
  R -->|"F13B 状態・途中語・新規最終回答"| D1
  D1 -->|"F14C 保存済み会話行"| Q
- Q -->|"F04A 会話pageとカード位置参照"| V
+ Q -->|"F04A source=0:item / 他:source,index"| V
  U -->|"F21A 質問/秘密依頼カードの表示snapshot"| V
  V -->|"F04 items/has_more等の履歴ページ"| E1
  S & R -->|"F05A changed: timeline / botIds"| N
@@ -183,8 +191,9 @@ flowchart TB
 | --- | --- | --- |
 | F01 投稿 | E1→P1a→P2a。botId、trim済みmessage、images=[]。認証後actor=ownerの同親scope | [http-conversation-api](../../src/http-conversation-api.mjs) `createBotConversationApi`、[http-server](../../src/http-server.mjs) authorize / `conversationAssembly.run`、[facade](../../src/conversation-facade.mjs) `user.post`。不在Bot404、空投稿400、認証拒否403等はP1から返す |
 | F02 受付 | P3→P2a→P1→E1。delivery、delivery_id、from=user、target | [messenger](../../src/messenger.mjs) `userTurn` の `.accepted` / [dispatcher](../../src/conversation/dispatcher.mjs) `user.post`。HTTP200とrunning/steeredは回答保存の完了ではない |
-| F03 履歴条件 | E1→P1→P2c。kind=bots、id、query={limit,before,after}、cardsのid/at位置 | [http-messages](../../src/http-messages.mjs) `messagePage`、[facade](../../src/conversation-facade.mjs) `store.messagePage`。カード本文は親に保持し、位置と本文を同snapshotへ束縛 |
-| F04 履歴 | D1→P2c→P1b→E1。会話row/カード位置→items、has_more等 | [ConversationStore](../../src/conversation-store.mjs) snapshot/timelineView、[timeline-index](../../src/timeline-index.mjs) `conversationHistoryPage`、http-messages `webMessage`。保存失敗/破損を空の成功履歴へ補完しない |
+| F03A 利用者query | E1→P1a→P1b→P2c。URL由来limit/before/afterとroute由来kind/id。カード位置は利用者入力に含めない | [http-conversation-api](../../src/http-conversation-api.mjs) GET→[http-messages](../../src/http-messages.mjs) `messagePage` query抽出→[facade](../../src/conversation-facade.mjs) `store.messagePage` |
+| F03B 親生成カード位置 | P5→P1bのF21A表示snapshotを親が`cards`へ固定し、P1b→P2cへ各rowのid/atだけを写す。子はF03Aとこの位置配列をページ選択に使う | http-messages:20–23の`extras(...).map(snapshot)`→`cards.map(rows=>rows.map(({id,at})=>({id,at})))`。利用者がsource/indexを指定する経路ではない。カード本文はこの要求で子へ送らない |
+| F04 履歴 | D1→P2c→P1b→E1。子F04Aのsource=0はentry.item、カード参照はsource/index。親は要求時の同`cards[entry.source-1][entry.index]`本文へ結合→items/has_more等 | [ConversationStore](../../src/conversation-store.mjs) snapshot/timelineView、[timeline-index](../../src/timeline-index.mjs) `conversationHistoryPage`、http-messages `webMessage`。保存失敗/破損を空の成功履歴へ補完しない |
 | F05 変更通知 | P2→P1c→E1。type=changed、topics、all、botIds、roomIds→SSE時刻 | [dispatcher](../../src/conversation/dispatcher.mjs) `emit`、[assembly](../../src/conversation-assembly.mjs) watch、[http-events](../../src/http-events.mjs) `startMessageWatch`。本文/画像bytesを送らず、履歴readを促す通知 |
 | F06 配送入力 | P2a→P3。deliveryId、target、envelope message、queue、kinds | [ConversationNative](../../src/conversation/native.mjs) `#register/turn`→[parent effects](../../src/conversation-execution-effects.mjs) `execution.turn`→transport.turn。同親lease/actualCompletionは親に保持しwire fieldから再構成しない |
 | F07 native受付 | P3→P2a。result.acceptedを既配送へ対応付ける | conversation-execution-effects `deliver`。親は最終Promiseを受付へ変換せず、callbackと実completionの寿命は[会話寿命](modules/conversation/README.md)・[execution待機契約](modules/execution/wait-contract.md)へ |
@@ -204,23 +213,25 @@ flowchart TB
 | ID / 保存データ | 業務owner / 物理writer | reader・実sourceと確認範囲 |
 | --- | --- | --- |
 | D1 direct JSONL / rooms | conversation / 子のConversationWriter、RoomRegistry・RoomMessenger | ConversationStore/RoomHistory→facade→親ページ整形。`logs/direct-messages.jsonl`、`rooms/`。[delivery](modules/conversation/delivery.md)。今回詳細はdirectだけ |
-| D3 intents / 選択 | executionの設定処理 / ConfigurationIntents。選択は親createExecutionAdoptionStore.save | `state/configuration-intents/`、`state/execution-release.json`。load/start/replace/rollbackの同factoryへ親がports viewを供給。writerを一つと表現しない |
+| D3a 設定intent | executionの設定処理 / ConfigurationIntents | `root/state/configuration-intents/`。ConfigurationRequestsが利用。[親組立](../../src/application-services.mjs)がrootを供給 |
+| D3b execution採用選択 | 親組立 / createExecutionAdoptionStore.save | **`root/state/execution-release.json`**のcurrentVersionId/previousVersionId。`createApplicationServices`がreadしcontrollerへ注入、onAdoptが同saveを呼ぶ。[唯一のreader/writer](../../src/execution-adoption.mjs)。D7に同ファイルを重複定義しない |
 | D4 Bot/profile/schedule/instructions | members / members子のregistry・ProjectFiles | `state/bots/:id/{bot.json,schedule.json}`と席project。親BotRegistry facade・各reader。[registry](modules/members/registry.md)。seedと現在stateを混同しない |
 | D5 設定/カード/制御 | usage各service / FeatureSettings、SecretRequests、OwnerQuestions等。aiControl.jsonは親AiControl | 設定=shared/tools/bellteam-settings/settings.json、カード=state/secret-requests、state/owner-questions。表示snapshotだけP1へ。値file/依頼stateは別保存で単一transactionを主張しない。[usage](modules/usage/README.md) |
 | D6 記憶/知識 | memory / BellTeamMemory、seat構成では同公開memory module | [memory-service](../../src/memory-service.mjs) ensureScope/openMemory/openKnowledge。SQLiteと知識原稿/索引。個人/共通scopeの具体pathは同関数の選択を参照し、この初回で全store内部を展開しない |
-| D7 資材/ledger/選択 | runtime / 既root updater・installerと親adoption writerの各責任 | [runtime](modules/runtime/README.md)、[catalog](modules/distribution/update-catalog.md)、[execution-loader](../../src/execution-loader.mjs)。署名検証/採用/実更新を別データにする。外部registry→保存先の直結線は引かない |
+| D7a 検証済release資材 | runtime / 既root installerによる配置（内部writer詳細は初回未展開） | 例：`/run/bellteam-maintenance/execution/releases/:sha/payload`。`prepareExecutionRelease`と[execution-loader](../../src/execution-loader.mjs)が閉path/manifestを読む。[installed reader](../../src/web-gateway-release.mjs)。これは**資材**であり採用current/previousを持つD3bではない |
+| D7b 共通更新台帳 | integrationの共通更新処理 / createModuleUpdateExecutor内save | **`root/state/update-ledger/ledger.json`**のplans/operations。同executorがread→検証し、saveが一時file/fsync/rename/dir fsyncで書く。[read/save](../../src/update-module-executor.mjs):24–49。execution-release.jsonとは別ファイルでwriterも別。個別componentのその他選択stateは未展開で、このIDへ混ぜない |
 | D8 診断 | diagnosticsの業務＋各callerの限定code / Diagnostics.record/save又は現diagnostics子 | [diagnostics](../../src/diagnostics.mjs)、親のdiagnostics facade。`logs/diagnostics.json`のdefaultと現module差は組立に従う。実保存成功を今回のdocs検査から宣言しない |
 
 ### 親子の入出力対応（balancing）
 
 | 親図の境界データ | P1＋P2詳細への対応 | 親/子の実現 |
 | --- | --- | --- |
-| C1/C2/C3（context↔client） | F01/F03/F20入力、F02/F04/F21返却、F05通知 | 全体のP1に集約。詳細はそのうちtext投稿/履歴/イベントだけ。F20他管理は詳細対象外として残し、消失扱いにしない |
-| P1↔P2 F01/F02/F03/F04/F05 | P1a→P2a/P2c、P2a→P1a、P2c→P1b、P2保存変更→P1c | 親HTTP/安定facade→conversation RPC（user.post/history.page）、child accepted/result/chunk/event→親。履歴chunkは会話行、イベントはtopic/ID |
+| C1/C2/C3（context↔client） | F01/F03A/F20入力、F02/F04/F21返却、F05通知。F03Bは外部入力ではなく親内部で生成 | 全体のP1に集約。詳細はそのうちtext投稿/履歴/イベントだけ。F20他管理は詳細対象外として残し、消失扱いにしない |
+| P1↔P2 F01/F02/F03A/F03B/F04/F05 | P1a→P2a、P1a→P1bのquery、P1b→P2cのqueryと生成位置を別線。P2a→P1a、P2c→P1b、P2保存変更→P1c | 親HTTP/安定facade→conversation RPC（user.post/history.page）、child accepted/result/chunk/event→親。履歴chunkは会話行、イベントはtopic/ID |
 | P2↔P3 F06/F07/F08 | P2a→P3、P3→P2a/P2b、P2b→P3のACK | 会話子effect→親onExecution→同graph transport、親callback→会話子保存。ACK返却を今回の全体F08束に含める |
 | P2↔P4 F09/F10 | P2a↔P4 | 親effectsがmembers facadeへ照会し限定profile DTOを子へ返す。opaque membersLeaseはhost側に残る |
 | P2↔P5 F11/F12 | P2b↔P5の通知受付。F06A/F12AはP3の親effectを通じた受付照会/結果 | text経路にrouting/API key線は追加しない。全体F11/F12は通知/routing/受付制御の束、詳細では該当要素だけ展開 |
-| P1↔P5 F20/F21 | P5→P1bのF21A（カード表示snapshot） | 詳細P1bへ新しく必要な外部入力として明示。P2cへ渡すのは同snapshotのid/at位置、カード本文は親で合成 |
+| P1↔P5 F20/F21 | P5→P1bのF21A（カード表示snapshot）→P1bがF03Bを生成→P2c | 同一cards snapshotの本文を親に保ち、id/atだけ子へ。子のsource/index返却を同snapshot本文へ再結合する。F03Bをクライアント由来のF03Aへ合流した表現にしない |
 | P2↔D1 F13/F14 | F13A/B、F14A/B/C | 親のP2を開いた内部ストアのread/write。P1の直書き線なし |
 | P2→P8 F24 | F24A/B | 限定診断。その他の失敗データはF02/F08/D1に残り、全てを診断保存へ変換しない |
 | P2↔P7 F22/F23 | このtext代表経路では未使用 | room文脈/独立turn観測の別経路として全体に保持。全moduleの詳細完成を主張しない |
@@ -228,8 +239,8 @@ flowchart TB
 ## 具体edgeから次に整理する候補と未確認
 
 - **旧execution portsの不整合（修理済み接点）**：loaderが検証後のselected namespaceから`supportsModelHandoff`を返し、親は旧世代へstorage3key、新世代だけdeliveryAnchorを渡す。MCPは現available generationで入口を選び、invoke前に再照合する。[接続図](modules/integration/model-handoff.md)。能力metadata、接続用関数、業務上のdelivery情報は別のデータであり、依存図の`uses:turn`だけで互換を証明しない。
-- **Aiterm世代reset（未移行）**：通常installerが新しい`/srv/bellteam-aiterm`保存先世代を選ぶ実差は、旧volume残存と別。`src/aiterm-client.mjs`/runtime配置契約とCenti製品原本が次の接点。旧→新保存先へのactive state移行を観測しておらず、移行線やactive native継承を描いていない。DFDのD7と外部E2の間に架空の移行矢印を足さない。
-- **親の表示用カード合成**：会話子へ送るカード位置と親のカード本文snapshotの対応はhttp-messagesが所有する。返却を二度複製するwriterがあるとは今回確認していない。実測なしに削除・統合しない。
+- **Aiterm世代reset（未移行）**：通常installerが新しい`/srv/bellteam-aiterm`保存先世代を選ぶ実差は、旧volume残存と別。`src/aiterm-client.mjs`/runtime配置契約とCenti製品原本が次の接点。旧→新保存先へのactive state移行を観測しておらず、移行線やactive native継承を描いていない。DFDのD7a/D7bと外部E2の間に架空の移行矢印を足さない。
+- **親の表示用カード合成**：会話子へ送るカード位置と親のカード本文snapshotの対応はhttp-messagesが所有する。F03A（利用者query）とF03B（親生成id/at）を分け、返却source/indexを親の要求時snapshotへ再結合する。返却を二度複製するwriterがあるとは今回確認していない。実測なしに削除・統合しない。
 - **error/unknownの違い**：投稿前の認証/本文/台帳拒否はHTTP失敗DTO、受付後の追跡不明はD1のdeliveryTracking、通知provider失敗は限定診断。保存済み発言を失敗で取り消した図にしない。
 
 未確認：部屋/画像/通話の詳細、全memory/runtime/diagnostics内部のwriter分解、全endpoint、外部provider内部、実native継続と全M。初回はsourceの代表接点と既担当正本の照合までで、全source監査・旧試験再走・新generator・本番/AI作用は行っていない。DFDに基づく実装リファクタリングは具体edgeと責任をRootが採否した後、当該ownerの図と同差分で進める。
