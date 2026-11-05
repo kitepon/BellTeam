@@ -34,6 +34,14 @@ flowchart TD
 
 ## 同期入場と実参照
 
+### 明示restartの確認済みsession閉鎖
+
+機能：transportはnative受付で実際のdispatch先sessionと元receiptをjobおよびnativeContinuationへ固定する。明示restartの同session `aiterm.pty-close-result.v1`（closed/already_closed）だけを、元delivery opaque＋元receipt本人性へ対応させる。`confirmNativeClosure(delivery,receipt,closure)`は元native未知を履歴として残し、閉鎖証拠を記録してnative占有だけ退役する。native結果/保存結果を成功・未発行へ書き換えない。
+
+データフロー：dispatch先session/receipt→元job/元delivery継続→明示restartの同session close receipt→同opaqueのnativeClosure→nativeUnknown集合からその参照だけ除外→既pendingの実settle後に通常release。保存ACK/背景pending/current failed/retiredFailedは変更しない。close欠測/誤session/偽opaque/別receiptは退役0。close後に元waitがrejectしても同closureを保持し占有を復活させない。
+
+親builtinがこのmethodを持たない、又は旧jobにdispatch先sessionが記録されていない場合、unknownを持つ明示restartはclose前に閉拒否する。署名executionだけの更新を親builtin更新や既Root復旧へ補完しない。旧in-memory unknownは元binding/実closure原本を持つ正規回復又は許可済み親更新が別に必要。新getter/API/権限は追加しない。
+
 `new ConversationLifetimes(generation='builtin',{onProtocolFailure?})`。generation/operationIdは親生成の空白無し1〜128字、runtimeはversion/builtin＋UUID、operationIdはUUIDを使用する。モデルJSONからopaqueを復元しない。
 
 | 公開方法 | 固定意味 |

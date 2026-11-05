@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path'
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { taskSettingsReminder } from './global-instructions.mjs'
 import { reserveExecution, dispatchExecution, interruptExecutions, sendStopOperations } from './execution-transport.mjs'
-import { sendSessionStop } from './session-interruption.mjs'
+import { sendSessionStop, confirmedSessionClosure } from './session-interruption.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
 import { AitermClient, textResult } from './aiterm-client.mjs'
 import { latestThroughlineHandoffContext } from './throughline-context.mjs'
@@ -274,8 +274,22 @@ export class AitermTransport {
       await Promise.allSettled([...previousChanges, ...(previousWake ? [previousWake] : [])])
       this.requireSessionKnown(bot.id)
       this.requireStopVersion(bot.id, version)
-      const session = await this.restartNow(bot, version, () => {
-        for (const job of previousJobs) job.markStopped()
+      if (previousJobs.some(job => (job.nativeUnconfirmed || job.nativeCompletion && !job.nativeTerminal)
+        && (!job.nativeSession || job.conversationDelivery
+          && typeof this.conversationAdmission?.confirmNativeClosure !== 'function')))
+        throw Object.assign(new Error('CONVERSATION_RECOVERY_UNAVAILABLE'), { code: 'CONVERSATION_RECOVERY_UNAVAILABLE', effect: 'not_started' })
+      const session = await this.restartNow(bot, version, (closure, closedSession) => {
+        if (!confirmedSessionClosure(closure, closedSession))
+          throw Object.assign(new Error('BOT_SESSION_UNCONFIRMED'), { code: 'BOT_SESSION_UNCONFIRMED' })
+        for (const job of previousJobs) {
+          if (job.nativeSession === closedSession && job.receipt) {
+            if (job.conversationDelivery && job.nativeCompletion && !job.nativeTerminal)
+              this.conversationAdmission.confirmNativeClosure(job.conversationDelivery, job.receipt, closure)
+            job.nativeClosure = structuredClone(closure.structuredContent)
+            job.completion.then(() => this.activity.release(job), () => this.activity.release(job))
+          }
+          job.markStopped()
+        }
         previousWatch?.end()
       }, membersLease)
       return { botId: bot.id, session }
@@ -612,8 +626,9 @@ export class AitermTransport {
     await this.requireAccess({ setupTest: false, botId: bot.id })
     this.requireStopVersion(bot.id, version)
     admissionCheck?.()
-    await this.changeSession(bot, 'pty_close', { session_id: this.session(bot) })
-    onClosed()
+    const closedSession = this.session(bot)
+    const closure = await this.changeSession(bot, 'pty_close', { session_id: closedSession })
+    onClosed(closure, closedSession)
     await this.removeRetainedImages(bot.id)
     this.requireStopVersion(bot.id, version)
     admissionCheck?.()
@@ -640,6 +655,7 @@ export class AitermTransport {
       const kind = transcript ? 'turn' : this.conversationAdmission.isReport(conversationDelivery) ? 'report' : 'notify'
       this.conversationAdmission.claimNative(conversationDelivery, { deliveryId: info.groupId ?? job.id, target: bot.id, kind })
       job.conversationGeneration = conversationDelivery.generation
+      job.conversationDelivery = conversationDelivery
       conversationCallbacks = this.conversationAdmission.callbacks(conversationDelivery)
       this.trackCompletion(this.conversationAdmission.deliveryCompletion(conversationDelivery))
       ;({ onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null } = conversationCallbacks)
@@ -692,6 +708,7 @@ export class AitermTransport {
         delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job, membersLease })
         // 受理した。送信中に届いた停止の結果があれば、この受理と照らす。
         job.receipt = delivery.receipt
+        job.nativeSession = delivery.session
         this.startWorkSummary(job, delivery, summaryAuthority, recoveryVersion)
         const tracking = this.followAcceptedDelivery(job, delivery)
         const { steered, follower } = tracking
@@ -707,7 +724,7 @@ export class AitermTransport {
             if (!job.nativeTerminal) job.nativeUnconfirmed = error
             throw error
           })
-          this.conversationAdmission.trackNativeContinuation(conversationDelivery, delivery.receipt, job.nativeCompletion)
+          this.conversationAdmission.trackNativeContinuation(conversationDelivery, delivery.receipt, job.nativeCompletion, delivery.session)
         }
         await job.applyStopResult(job.executionStopResult)
         await job.checkpoint()
@@ -773,10 +790,10 @@ export class AitermTransport {
     const release = async () => {
       try {
         if (job.nativeCompletion) await job.nativeCompletion.catch(() => {})
-        if (!job.nativeUnconfirmed && !this.retainUntrackedImages(job, delivery, followed, parent))
+        if ((!job.nativeUnconfirmed || job.nativeClosure) && !this.retainUntrackedImages(job, delivery, followed, parent))
           await this.removeTemporaryImages(delivery?.imageFiles)
       } finally {
-        if (!job.nativeUnconfirmed) this.activity.release(job)
+        if (!job.nativeUnconfirmed || job.nativeClosure) this.activity.release(job)
       }
     }
     job.completion = completion.then(async value => { await release(); return value }, async error => { await release(); throw error })

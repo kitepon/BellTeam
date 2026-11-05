@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { confirmedSessionClosure } from './session-interruption.mjs'
 
 export const CONVERSATION_CALLBACK_KINDS = Object.freeze(['delivery.status', 'delivery.words', 'delivery.answer', 'user.complete', 'turn.end'])
 const id = value => typeof value === 'string' && value.length > 0 && value.length <= 128 && !/[\u0000-\u0020\u007f]/u.test(value)
@@ -64,7 +65,7 @@ export class ConversationLifetimes {
     completion.then(done, done)
   }
   #release(record) {
-    if (!record.live || !record.finishRequested || record.pending.size || record.nativeUnconfirmed) return
+    if (!record.live || !record.finishRequested || record.pending.size || record.nativeUnconfirmed && !record.nativeClosure) return
     record.live = false; this.#active.delete(record)
     if (record.kind === 'operation') this.#operations.delete(record.lease.correlation)
     else record.dispatch = null
@@ -121,23 +122,32 @@ export class ConversationLifetimes {
     if (record.kind !== 'delivery') throw rejected()
     return record.done
   }
-  trackNativeContinuation(lease, receipt, completion) {
+  trackNativeContinuation(lease, receipt, completion, session) {
     const record = this.#record(lease)
     if (record.kind !== 'delivery' || !record.nativeClaimed || record.nativeContinuation || !(completion instanceof Promise)
       || !['agent_dispatch', 'agent_steer'].includes(receipt?.mode)
       || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process) throw this.#protocol(lease, 'track_native_continuation')
-    const native = record.nativeContinuation = { receipt, completion, pending: true }
+    const native = record.nativeContinuation = { receipt, completion, session, pending: true }
     completion.then(() => { native.pending = false }, error => {
       native.pending = false
       if (error?.turnCompleted !== true) {
-        record.nativeUnconfirmed = true; this.#nativeUnknown.add(record)
+        record.nativeUnconfirmed = true
+        if (!record.nativeClosure) this.#nativeUnknown.add(record)
       }
     })
     this.trackCompletion(lease, completion)
   }
+  confirmNativeClosure(lease, receipt, closure) {
+    const record = this.#records.get(lease), native = record?.nativeContinuation
+    if (!record?.live || record.kind !== 'delivery' || !native || native.receipt !== receipt
+      || !id(native.session) || !confirmedSessionClosure(closure, native.session)) throw rejected()
+    record.nativeClosure = structuredClone(closure.structuredContent)
+    this.#nativeUnknown.delete(record)
+    this.#release(record)
+  }
   getNativeContinuation(lease, expectedBinding) {
     const record = this.#records.get(lease)
-    if (this.#failed || !record?.live || record.kind !== 'delivery' || record.failed
+    if (this.#failed || !record?.live || record.kind !== 'delivery' || record.failed || record.nativeClosure
       || lease.generation !== this.#generation || !record.nativeClaimed || !record.nativeContinuation?.pending
       || !expectedBinding || Object.keys(expectedBinding).length !== 4
       || !Object.entries(record.binding).every(([key, value]) => Object.hasOwn(expectedBinding, key) && expectedBinding[key] === value)) return null
