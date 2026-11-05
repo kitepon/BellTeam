@@ -142,7 +142,7 @@ jobs:
               assert.equal(result.status, 0, result.stderr); assert.equal(result.stderr, "");
               return result.stdout;
             };
-            const version = cli(["--version"]).trim(); assert.equal(version, "0.16.54");
+            const version = cli(["--version"]).trim(); assert.equal(version, "0.16.56");
             const check = after => JSON.parse(cli(["observer-check", "--json"], JSON.stringify({ schema: "throughline.observer_check_request.v1", projects: [{ id: "image", projectPath: project, after }] })));
             const first = check(null); assert.equal(first.schema, "throughline.observer_check_result.v1"); assert.equal(first.status, "complete"); assert.equal(first.results.length, 1);
             assert.equal(first.results[0].id, "image"); assert.equal(first.results[0].status, "changed"); assert.match(first.results[0].token, /^tloc1\./);

@@ -86,7 +86,7 @@ flowchart LR
 
 ## Throughline公開observer-checkの実行接続
 
-N102のconsumer差分と同時に採用する。runtimeの旧SeatRuntime.throughlineChangedとthroughline-signature dispatchを除き、私有DB/WALのmtimeを席機構から読まない。consumer実装・結果検証・token/cursor保存・分割はN102、製品schema/binはThroughlineが所有する。正式CLI0.16.54/source532670ca9049f8f2febdfed6699e0cf585216692（main2ca5233a9d85841bb7d1f5f1c76bd42e80ca57b9）をDockerfileと既同image版検査へ固定する。候補b1cf82fの公開check/read契約は不変として継承し、本番の採用記録とは分ける。
+N102のconsumer差分と同時に採用する。runtimeの旧SeatRuntime.throughlineChangedとthroughline-signature dispatchを除き、私有DB/WALのmtimeを席機構から読まない。consumer実装・結果検証・token/cursor保存・分割はN102、製品schema/binはThroughlineが所有する。正式CLI0.16.56/sourcee7f8a701e521abbbe822bdb7fbdfdcf0e243cb57をDockerfileと既同image版検査へ固定する。公開check/read・hook命令・JSON/schema12契約は不変として継承し、本番の採用記録とは分ける。
 
 CLI登録は既`configureHarnesses → throughline install`を使う。通常のCodex `post-tool-use`失敗では、Throughlineが元例外/stack/event/stage/取得済みsession/transcript参照を私有ログへ先行保存し、既公開runtime-errorsへfingerprint/count/unknown影響を記録してexit1を保持する。診断の保存・収集設定・DBはThroughlineが所有し、BellTeamは私有DBを読まず、実席の収集設定を変更しない。正式供給の隔離CLI確認と、同source image/本番への実反映は別工程。元container例外の原因・利用者影響はunknown、repair_success=falseであり、この版更新を修理成功へ補完しない。
 
