@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-05T04:38:31Z",
-  "expiresAt": "2026-11-12T04:38:31Z",
+  "publishedAt": "2026-11-05T05:19:03Z",
+  "expiresAt": "2026-11-12T05:19:03Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25",
-      "versionId": "befca4c292ec464c1c74d81a66e2da2183a8ccf4980fe649be36102544bc6ce8",
+      "sourceCommit": "cfbc693f2ad1d99ada6d91a5969daaa147c6677f",
+      "versionId": "156b5ccbc0e3d90d625e61e8d50a99b1795eecb726e9f3d0cccdc3b194608db4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/execution-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-amd64.tar.gz",
-          "sha256": "befca4c292ec464c1c74d81a66e2da2183a8ccf4980fe649be36102544bc6ce8",
-          "bytes": 3904784
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T051655Z/execution-cfbc693f2ad1d99ada6d91a5969daaa147c6677f-linux-amd64.tar.gz",
+          "sha256": "156b5ccbc0e3d90d625e61e8d50a99b1795eecb726e9f3d0cccdc3b194608db4",
+          "bytes": 3904817
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/execution-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "b35eb648a53293c18456a3fc8b5fe12e9b7dc645cd9cc62a1647c22c96a14c5a",
-          "bytes": 11130
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T051655Z/execution-cfbc693f2ad1d99ada6d91a5969daaa147c6677f-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "da70eeac0b4e16af41ea351d26a809de8c2b8b69f67c0c1b7503d3dc79850120",
+          "bytes": 10895
         },
-        "signerCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25"
+        "signerCommit": "cfbc693f2ad1d99ada6d91a5969daaa147c6677f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "専用の背景エージェントが、有効な作業入力から仕事要約を生成します。"
+        "停止待ち中の保留継続処理を保持し、既存の再開経路へ戻します。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25",
-      "versionId": "4a3f43d29203b92a52501f3a18aeb9d08623cfd34f1514934e5203e07ca27c01",
+      "sourceCommit": "cfbc693f2ad1d99ada6d91a5969daaa147c6677f",
+      "versionId": "1c509829ed56e4b73158190e6dc024710d649b0b461028f14515ace45c73407b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/execution-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-arm64.tar.gz",
-          "sha256": "4a3f43d29203b92a52501f3a18aeb9d08623cfd34f1514934e5203e07ca27c01",
-          "bytes": 3904783
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T051655Z/execution-cfbc693f2ad1d99ada6d91a5969daaa147c6677f-linux-arm64.tar.gz",
+          "sha256": "1c509829ed56e4b73158190e6dc024710d649b0b461028f14515ace45c73407b",
+          "bytes": 3904815
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/execution-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "fd806da70cbb65c09af6b5006e132b68a62d8477181981e78c0bf99205e62b5e",
-          "bytes": 11083
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T051655Z/execution-cfbc693f2ad1d99ada6d91a5969daaa147c6677f-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "17d55565d5d4c0489f0b9cf474fab0ed67e2f7c6e18597aa59e8212f02aa161d",
+          "bytes": 10832
         },
-        "signerCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25"
+        "signerCommit": "cfbc693f2ad1d99ada6d91a5969daaa147c6677f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "専用の背景エージェントが、有効な作業入力から仕事要約を生成します。"
+        "停止待ち中の保留継続処理を保持し、既存の再開経路へ戻します。"
       ]
     },
     {

@@ -152,3 +152,11 @@ catalog公開と実選択/正規global生成/CLI次読込/背景生成・本番�
 必要親は同source自然CI41968363182のimage `sha256:69a01c23093fd77deba32a302d4edc175d3161ee8a6cdc0b166d7abfe1cdf989`。親の固定Centi/request認可捕捉・opaque grant・登録owner検証能力とusage consumerを同時に必要とし、usage単独選択では新入口は成立しない。構成は[integration担当図](../integration/submitted-secret-caller.md)と[usage担当図](../usage/submitted-secret-consumption.md)を参照する。
 
 新公開時刻/7日期限へ結び、publisherは本config採用後の固定mainから必要一回だけ発行する。正式供給/catalog公開と、管理1001新親実稼働・実秘密消費・認証成功は別工程。本番親導入は未解決JとRootの通常反映判断に従い、保存済み秘密の再入力・新auth・特別導入で迂回しない。
+
+## J保留継続処理のdrain局所修理資材
+
+正式Release `updates-20261105T051655Z` のexecution両arch2recordをsource/signer `cfbc693f2ad1d99ada6d91a5969daaa147c6677f` の正式archiveへ更新する。他16record、V/T/提出済secretのusage資材、固定K本体target、失効と全互換を保持する。公式crypto/OIDC/schema/48固定source/匿名4asset一致と作者最小結果は配布・実行担当の原本を継承する。既catalogの資材供給内の更新で、接続・状態所有・失敗処理は不変。
+
+製品差分は既drain while内の2行で、保留intentを捨てず実EXECUTION_BUSY終端→既controller finally/resume回収へ戻す。公開ABI/imports/Node26-P1/execution-state.v1と421dの固定execution closureは不変、局所修理そのものは新親を必要としない。自然親CI41972729667は別事実として保存し、本体導入へ既定接続しない。
+
+正式新資材の公開は、元53dのunknown/hostPending/閉fence guardや旧engine quiesceを解消しない。既原本どおり未終端なら通常plan/Startは拒否される。Rootの新Start/close/本体入口保留を維持し、guard免除・私製導入で迂回しない。新公開時刻/7日期限へ結び、publisherは本config採用後の固定mainから一回だけ発行する。
