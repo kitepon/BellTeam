@@ -2,6 +2,16 @@
 
 所有キロ。Root conversation-update-contract-20261103.md SHA133222cfのexecution接点。RPCroot64枠/stream/ACK期限/OScloseはEpi、本文writer/回答選択/報告はN102、入場の一括予約と交換mutex/facadeはMolly。親gateは会話子と別寿命、本文を複製した新queueを持たない。
 
+## 配送前の占有拒否と失敗保存
+
+機能構造：`submit`は新DeliveryJobと既conversation callbackを用意してから、completionのtry先頭で同じ`assertConversationOccupation`を検査する。native未確定または旧会話世代の既活動があれば拒否し、既failure処理で`delivery.status(failed)`の実ACKと新jobの解放まで行う。旧活動・nativeUnknownは保持し、native入力や再送を発行しない。watchTurn/継続の同guardは従来位置のまま。
+
+現在入力IDの更新と背景要約の失効は、同guardが通った直後にだけ行う。占有拒否で元仕事の入力ID/要約を変更しない。通常成功では同じstackの最初のawait前に更新する。
+
+データフロー：会話childの初期running記録→execution.notify/turn→新jobとcallback参照→占有guard→拒否error→既status callback→child失敗記録ACK→新jobだけ終端。guardをjob外でthrowして初期runningを残さない。公開schema/API、gateの旧占有拒否条件、会話本文/状態writerの所有は変更しない。
+
+guard通過→現在入力ID/背景要約更新→既停止/設定順序待ち→通常native配送。拒否分岐はこの更新へ接続しない。
+
 ```mermaid
 flowchart TD
   Admit[親 capture / enter] --> Root[operation opaque / generation-operationId]
