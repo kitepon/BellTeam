@@ -59,7 +59,7 @@
     "config/conversation-verification.json",
     ".github/workflows/publish-conversation.yml",
     "test/helpers/conversation-artifact-probe.py",
-    "distribution/server/Dockerfile.m-native",
+    "Dockerfile.m-native",
     ".github/workflows/publish-m-parent-image.yml",
     "scripts/prepare-m-native-image.py",
     "config/m-native-image-input.json"

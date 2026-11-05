@@ -3,16 +3,16 @@
   "ready": false,
   "releaseId": 434955228,
   "nativeSource": "9b9d2cc544228226be462fbbad0a9b961ee75eeb",
-  "cliVersion": null,
+  "cliVersion": "0.166.0",
   "cli": {
-    "id": null,
-    "bytes": null,
-    "sha256": null
+    "id": 712887672,
+    "bytes": 181765938,
+    "sha256": "bb5ba901a16638461ff14605b5c83697b885e9fb60c94c68687295cfa356f4c2"
   },
   "aiterm": {
     "id": 712701322,
     "bytes": 771892,
     "sha256": "214fb376ef70ee47dfc11d362832b17d452350b80207333895cc521926bf3ca9"
   },
-  "cliPackageVersion": null
+  "cliPackageVersion": "0.166.0-bellteam.9b9d2cc.release1"
 }

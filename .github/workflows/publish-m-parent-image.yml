@@ -28,7 +28,7 @@
         },
         {
           "name": "受入済み親へCLIとlocked Aitermだけを組み込む",
-          "run": "docker build --platform linux/amd64 --build-context \"m-native-inputs=$RUNNER_TEMP/m-native-inputs\" --file distribution/server/Dockerfile.m-native --label \"org.opencontainers.image.revision=51aca18e5f7fae6c64ba591148c6aa13e80b0f8a\" --label \"dev.bellteam.m-overlay.source=$GITHUB_SHA\" --tag \"ghcr.io/kitepon/bellteam-server:m-$GITHUB_SHA-amd64\" ."
+          "run": "docker build --platform linux/amd64 --build-context \"m-native-inputs=$RUNNER_TEMP/m-native-inputs\" --file Dockerfile.m-native --label \"org.opencontainers.image.revision=51aca18e5f7fae6c64ba591148c6aa13e80b0f8a\" --label \"dev.bellteam.m-overlay.source=$GITHUB_SHA\" --tag \"ghcr.io/kitepon/bellteam-server:m-$GITHUB_SHA-amd64\" ."
         },
         {
           "name": "同一候補の通常利用UIDでCLI入口と固定SDKを確認",
