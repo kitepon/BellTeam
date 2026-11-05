@@ -13,6 +13,7 @@
 - [Web受付の固定artifactと公式認証](web-gateway-artifact.md)
 - [通知の固定artifactと公式認証](notifications-artifact.md)
 - [executionの固定factory配布](execution-artifact.md)
+- [M native親imageの公開候補と停止条件](m-native-parent.md)
 - [usage・diagnosticsの固定配布](business-artifacts.md)
 - [memoryの固定archiveとコード専用読取view](memory-artifact.md)
 - [membersの固定artifactと公式認証](members-artifact.md)

@@ -1,0 +1,7 @@
+# syntax=docker/dockerfile:1
+FROM ghcr.io/kitepon/bellteam-server@sha256:185a48d20d2effbd4ea84edf19ab09e070e594fea9027b60de616fbd1b46c730
+USER root
+RUN --mount=type=bind,source=scripts/prepare-m-native-image.py,target=/run/prepare-m-native-image.py,readonly \
+    --mount=type=bind,from=m-native-inputs,target=/run/m-native-inputs,readonly \
+    python3 /run/prepare-m-native-image.py install /run/m-native-inputs
+USER bellteam-server

@@ -1,0 +1,18 @@
+{
+  "schema": "bellteam.m-native-image-input.v1",
+  "ready": false,
+  "releaseId": null,
+  "nativeSource": "9b9d2cc544228226be462fbbad0a9b961ee75eeb",
+  "cliVersion": null,
+  "cli": {
+    "id": null,
+    "bytes": null,
+    "sha256": null
+  },
+  "aiterm": {
+    "id": null,
+    "bytes": 771892,
+    "sha256": "214fb376ef70ee47dfc11d362832b17d452350b80207333895cc521926bf3ca9"
+  },
+  "cliPackageVersion": null
+}
