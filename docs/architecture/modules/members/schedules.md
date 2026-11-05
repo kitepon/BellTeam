@@ -21,7 +21,12 @@ flowchart TD
   Claim -->|"成功の最新snapshotだけ"| Prompt["Bot/部屋へpromptを発行"]
   Claim --> Command["Bot projectでcommandを開始"]
   Claim --> NoGrant["null/応答不明は発行0・再送0"]
-  Command --> Finish["背景の終了<br/>失敗ならOwnerへ一通"]
+  Command --> Finish["背景の終了<br/>成功/中断は通知0"]
+  Finish -->|"非0/実行例外だけ"| Failure["同じ失敗結果を既配送へ"]
+  Failure --> OwnerBot["scheduler → 予定ownerBot<br/>既配送で修理開始"]
+  Failure --> Owner["予定ownerBot → Owner<br/>既通知を保持"]
+  OwnerBot --> Delivery["両受付の成功/失敗を回収<br/>片方失敗でも他方を試す"]
+  Owner --> Delivery
   File --> Manual["手動run<br/>予定時刻は変えない"]
   Manual --> ManualRun["配送 / commandの同じ窓口へ<br/>発行の記録は更新しない"]
 ```
@@ -35,6 +40,7 @@ flowchart TD
 | 自動発行 | `BotScheduler.runDue` → claimDue → dispatch | 同module leaseでfresh読取/消化保存/発行受付。claim前と発行前に停止世代を検証。null/不明は発行0、消化を戻さない |
 | 実行記録 | 各Registry.claimDue/skipDue | revision/nextRunAt/enabled/期限を照合し保存。成功時は消化前の最新snapshot、競合はnull。markScheduleRunは互換用に残し自動発行では使わない |
 | command | `runCommandSchedule/performCommandSchedule` | jobを登録しAbortSignalを渡す。発行と終了を分け、成功/中断では失敗通知を出さない |
+| command失敗配送 | `performCommandSchedule` → 既`Messenger.sendmessage` | 元結果の非0/例外から同じ失敗文を予定所有BotとOwnerへ各一回。両方の受付完了/失敗を回収し、配送失敗を伝播。job再実行/通知再送はしない |
 | command停止 | AiControl → `interruptCommands` | 全jobへ先にabortし、completionを集めstopConfirmedを確認 |
 | 手動 | HTTP run → `runBotSchedule/runRoomSchedule` | 既存予定を読むがmarkScheduleRunしない。返却202は発行まで |
 | 全体再開 | AiControl → `prepareResume` | 進行tickを待ち、同leaseで停止解除要求時刻以前だけskipDue。lastRunAtと新revisionを保持 |
@@ -43,6 +49,22 @@ flowchart TD
 予定定義と文書共通処理は基底のBotRegistryから`schedule-definition.mjs`と`json-file.mjs`へ移し、Bot/roomが直接使う。BotRegistryの既exportは互換窓口として残す。[整理案D2](../../detail-status.md#d2-機能の所有者を経由している共通処理を分離する)はこの依存方向を対象にする。時刻計算やwriter順序を作り直す必要はない。
 
 ## 公開handlerと初回登録
+
+### command結果のデータフローと状態所有
+
+全体DFDの[P4 メンバー・予定](../../data-flow.md)から、既conversation.messagesとruntime.seat-processへ接続する詳細。機能構造は上図、データ方向は次表を正本とする。
+
+| flow | 発信元 → 受信先 / データ | 状態所有・失敗 |
+| --- | --- | --- |
+| SC1 | Registryの消化済snapshot → scheduler / bot.id・project、schedule.id・name・command | 予定定義/claimはmembers、親commandJobsはscheduler。消化を戻さない |
+| SC2 | scheduler → runtime.runShellCommand / command・cwd・AbortSignal | 実process、UID、環境、stdout/stderrの回収と実終了はruntime |
+| SC3 | runtime → scheduler / 元code・signal・stdout・stderr又は元実行例外 | 既結果を通知結果で上書きしない。正常code0とjob中断は配送0 |
+| SC4 | scheduler → conversation.messages / 既末尾5行と予定IDを含む失敗文 | `from:scheduler,target:bot.id`で修理担当へ、既`from:bot.id,target:user`でOwnerへ各一回。本文は同じで、新しいincident本文の読取/転送を足さない |
+| SC5 | conversation → scheduler / 各既配送の受付結果又は失敗 | `Promise.allSettled`で片方の失敗による短絡を避け、失敗は元のreportError経路へ返す。受付はAI修理完了の証明ではない |
+| SC6 | conversation → 既会話writer/通知・execution / 配送記録・Bot起動又は停止拒否 | 会話記録はconversation、Owner可視性/Pushはusage、実AI配送/全体停止はexecution。親の消化済leaseを再利用せず既sendmessageの新受付を使う |
+| SC7 | command/backup producer → 既私有incident / 元rc・error・詳細 | incidentはproducer所有のまま。schedulerに新daemon/queue/incident storeを増やさず、元commandも再送しない |
+
+配送が失敗した時は両宛先の試行を終えてから一つなら元例外、複数ならAggregateErrorを返す。元command結果は変更せず、別の成功結果へ置換しない。手動runも同じdispatch窓口を通る。予定schema/保存/claim/停止・runShellCommand/親assembly/通知内部に変更はない。
 
 | 所有する窓口 | 入出力と検証 |
 | --- | --- |

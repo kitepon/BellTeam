@@ -124,7 +124,7 @@ export class BotScheduler {
   async dispatchBotSchedule(bot, schedule, options = {}) {
     this.assertWorkAllowed()
     if (schedule.command) {
-      // AIを起こす必要のない予定はAIを起こさない（オーナー裁定 2026-09-04）。完了を待たず、失敗だけをユーザーへ知らせる。
+      // 正常commandはAIを起こさず、失敗だけ予定所有BotとOwnerへ届ける。
       this.runCommandSchedule(bot, schedule).catch(reportError)
       return
     }
@@ -155,11 +155,14 @@ export class BotScheduler {
     if (job.controller.signal.aborted || result.code === 0) return result
     const outcome = result.code === null ? `シグナル${result.signal ?? '不明'}` : `終了コード${result.code}`
     const tail = (result.stderr.trim() || result.stdout.trim()).split('\n').slice(-5).join('\n')
-    await this.messenger.sendmessage({
-      from: bot.id,
-      target: 'user',
-      message: `[BellTeam schedule ${schedule.id}] 予定「${schedule.name || schedule.command}」のコマンドが${outcome}で失敗した。\n${tail}`,
-    })
+    const message = `[BellTeam schedule ${schedule.id}] 予定「${schedule.name || schedule.command}」のコマンドが${outcome}で失敗した。\n${tail}`
+    const deliveries = await Promise.allSettled([
+      { from: 'scheduler', target: bot.id, message },
+      { from: bot.id, target: 'user', message },
+    ].map(async input => this.messenger.sendmessage(input)))
+    const failures = deliveries.filter(delivery => delivery.status === 'rejected').map(delivery => delivery.reason)
+    if (failures.length === 1) throw failures[0]
+    if (failures.length > 1) throw new AggregateError(failures, 'SCHEDULE_COMMAND_NOTIFICATION_FAILED')
     return result
   }
 
