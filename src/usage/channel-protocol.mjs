@@ -1,6 +1,7 @@
 import { HARNESS, GUIDE_BOT_ID } from '../onboarding.mjs'
 import { usageError, validateUsageActor } from './process-schema.mjs'
 import { usageProjectionRecordValid } from './projection.mjs'
+import { backgroundHarnesses, backgroundRecordValid, backgroundModelsValid } from './background-agent-settings.mjs'
 
 export const object = value => value && typeof value === 'object' && !Array.isArray(value)
 export const exact = (value, keys) => object(value) && Object.keys(value).sort().join(',') === keys.split(',').sort().join(',')
@@ -26,6 +27,7 @@ const authActions = {
   'onboarding.status': ['status'], 'onboarding.select': ['start', 'cancel'], 'onboarding.input': ['respond'], 'onboarding.start': ['status', 'cancel'],
 }
 const allowed = {
+  'backgroundAgent.models': ['settings.updateBackgroundAgent'], 'backgroundAgent.changed': ['settings.updateBackgroundAgent'],
   'settings.changed': ['settings.update'], 'onboarding.ensureGuide': ['onboarding.select'],
   'onboarding.prepareStartup': ['onboarding.prepareStartup'], 'onboarding.startConversation': ['onboarding.start'],
   'secret.created': ['secrets.create'], 'question.created': ['questions.create'],
@@ -42,6 +44,9 @@ export function usageEffectValid(method, params, context, rootParams = {}) {
     && (!params.session_id || text(params.session_id)) && (!Object.hasOwn(params, 'relogin') || typeof params.relogin === 'boolean')
     && (params.action !== 'respond' || object(params.expected_binding) && text(params.expected_prompt_digest) && object(params.response))
   if (!allowed[method]?.includes(context.method)) return false
+  if (method === 'backgroundAgent.models') return exact(params, 'harness') && backgroundHarnesses.includes(params.harness) && params.harness === rootParams.harness
+  if (method === 'backgroundAgent.changed') return exact(params, 'configuration') && backgroundRecordValid(params.configuration)
+    && params.configuration.selection !== null && ['harness', 'model', 'reasoningEffort'].every(key => params.configuration.selection[key] === rootParams[key])
   if (method === 'settings.changed') return exact(params, 'id,configuration,epoch') && params.id === rootParams.id && object(params.configuration) && Number.isSafeInteger(params.epoch) && params.epoch >= 0
   if (method === 'onboarding.ensureGuide') return exact(params, 'harness') && Object.hasOwn(HARNESS, params.harness) && params.harness === rootParams.harness
   if (method === 'onboarding.prepareStartup') return exact(params, 'botId,text') && params.botId === rootParams.botId && text(params.text)
@@ -53,6 +58,7 @@ export function usageEffectValid(method, params, context, rootParams = {}) {
   return exact(params, 'botId,message') && text(params.botId) && text(params.message)
 }
 export function usageEffectResultValid(method, value) {
+  if (method === 'backgroundAgent.models') return backgroundModelsValid(value)
   if (method === 'members.read') return Array.isArray(value) && value.every(metadata)
   if (method === 'onboarding.ensureGuide') return metadata(value) && value.id === GUIDE_BOT_ID
   if (method === 'rooms.read') return Array.isArray(value) && value.every(room => exact(room, 'id,memberIds') && text(room.id) && Array.isArray(room.memberIds) && room.memberIds.every(text))

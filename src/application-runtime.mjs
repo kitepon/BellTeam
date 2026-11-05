@@ -15,9 +15,10 @@ import { readServerSourceCommit } from './server-source.mjs'
 
 // Importing this factory does not bootstrap the installation or bind any ports.
 export async function createApplicationRuntime({ root, appRoot, bootstrap, environment = process.env, home = runtimeHome(), client }) {
-  let socketDirectory = null, gateway = null
+  let socketDirectory = null, gateway = null, server
   const builtinSourceCommit = await readServerSourceCommit()
-  const services = await createApplicationServices({ root, ...bootstrap, environment, client, gateway: () => gateway, builtinSourceCommit })
+  const models = bootstrap.models ?? new LiveModelCatalog({ cwd: root })
+  const services = await createApplicationServices({ root, ...bootstrap, models, environment, client, gateway: () => gateway, builtinSourceCommit, notify: change => server?.notify(change) })
   const {
     aiControl, subscriptions, settings, onboarding, harnessAuth, notifications,
     secretRequests, ownerQuestions, bots, rooms, roomMessenger, messenger,
@@ -54,7 +55,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     refreshGlobalInstructions,
     assets,
     staticRoot: join(appRoot, 'web'),
-    models: bootstrap.models ?? new LiveModelCatalog({ cwd: root }),
+    models,
     scheduler,
     diagnostics,
     administration,
@@ -68,7 +69,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       services.members ? transport.membersAdmission.withLease(membersLease =>
         bootstrap.seatRuntime.configureMembersHarnesses(() => services.members.readCurrentBotIds({ membersLease }), aiterm,
           () => settings.configuration('callBridge'))) : bootstrap.seatRuntime.writeHarnessConfig(bots, aiterm, callBridge) } : {}) })
-  const server = createBellTeamServer({ ...serverOptions, authMode: features.authMode, authorize: features.authorize })
+  server = createBellTeamServer({ ...serverOptions, authMode: features.authMode, authorize: features.authorize })
   const seatMcp = createSeatMcp({
     bots,
     runTool: (from, operation) => services.conversationAssembly ? services.conversationAssembly.run({ kind: 'bot', botId: from }, operation) : operation(),
@@ -124,6 +125,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     closing ??= (async () => {
       const errors = []
       for (const stop of [
+        () => services.backgroundSummary?.close(),
         () => services.moduleChildExitReporter.close(),
         () => olrwAuthCaller?.close(),
         () => services.updateCenter.close(),

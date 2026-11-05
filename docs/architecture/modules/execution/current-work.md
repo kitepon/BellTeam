@@ -1,51 +1,50 @@
-# 現在の仕事 v1：本人要約とnative状態
+# 全体バックグラウンド要約と実行状態
 
-所有キロ。横断正本はRootのcurrent-work-contract-20261103.md（UUID revision追補込み）。親メモリだけで観測と本人宣言を合成し、members/Room/profile/Goalへwriterを増やさない。
+所有キロ。Root `team-background-agent-contract-20261105.md` の方式を採用。主agentの本人要約writerは使わず、親同graphの `TeamBackgroundSummary` 一実体が全Botの変更入力を逐次処理する。Mollyがassemblyの別引数backgroundSummaryから同実体を各execution世代へ渡す。既閉portsへ新keyを追加せず、factory呼出の加法的引数を使うため旧dispatcherは無視でき、旧選択sourceに未提供要約機能を補完しない。設定はusageの全体一件、限定本文はconversationの専用readだけを使う。
 
 ```mermaid
 flowchart TD
-  Poll[既SeatTurns.poll] --> Read[seatTurns bots / read開始seq]
-  Read --> Native[既一回pty_list / BellTeam印]
-  Native --> Rows[元_metaのsession-launch-harness-turnを検証]
-  Rows --> Parent[CurrentWork / UUID revision / 2鮮度]
-  Self[本人updateWorkSummary / captured ingress] --> Wait[同binding/CAS / 受付後の既readを最大15秒待つ]
-  Wait --> Parent
-  End[同turn done / stop世代 / close-launch発行 / uncertainty] --> Clear[旧要約を外す / unknown]
-  Clear --> Parent
-  Parent --> DTO[currentWork / 純snapshot]
-  Parent --> Binding[currentWorkBinding / 本人のみ]
-  Parent --> Event[既watchQueue / SSE通知]
-  DTO --> Common[Molly / botsとRoom参加者の同DTO]
+  Settings[Mika: 全体revisionと選択] --> Worker[親のTeamBackgroundSummary一実体]
+  Effect[認証済親effect / 通常actorとrootMethod] --> Authority[元contextと同期assertCurrent / private参照]
+  Authority --> Job[実DeliveryJob / accepted receipt session-launch / 元job ID]
+  Job --> Latest[Botごと最新入力 / 旧結果失効]
+  Latest --> Worker
+  Worker --> Reader[N102: 一件read / 最大4000字と固定status1000字]
+  Reader --> Runner[既seat process / tools無しCLI / 実run一件]
+  Runner --> Check[設定revision / 元job・停止世代 / 同session-launch再照合]
+  Check --> Memory[一行160Unicode / 10分TTL]
+  Job --> State[親の実行状態 / 要約と独立]
+  Native[既SeatTurns / Codex15秒観測] --> State
+  Memory --> DTO[既currentWork 6key / source background_agent]
+  State --> DTO
+  DTO --> Public[Molly API・既SSE / Web・Apple・Windows]
+  End[新入力・停止・不明・世代失効] --> Latest
 ```
 
-## 固定source窓口
+## 親の固定port
 
-factoryは既 `createManagedTransport` / `AitermTransport`。同transportが唯一の`CurrentWork`実体を構築する。commonが別factoryを呼んだり`new CurrentWork`を追加しない。
+`new TeamBackgroundSummary({configuration,readInput,run,notify,enabled})`。configurationはfresh `Promise<{revision,selection}>`、selectionはnull又はharness/model/reasoningEffortの閉3key。effort空文字はモデル個別effortsが空の時だけCLI指定無しとして許可する。Mikaが保存前にlive catalogで検証し、runnerも発行直前に再検証する。設定の保存成功callbackは `configure(record)`、shutdownは `await close()`。同値は再生成しない。未設定やgetter失敗を別モデルへ補完しない。
 
-| 方法 | 入出力/責任 |
-| --- | --- |
-| `transport.currentWork(bot)` | 同じ現登録Bot記述を渡す。全key固定DTOを同期返却。native/AI/RPC 0。awaitを跨ぐ一覧は最後に改めて呼ぶ |
-| `transport.currentWorkBinding(bot, source)` | fresh working＋本人ingress一致ならsessionId/launchId/turnId/revision、他はnull。一覧へbindingを出さない |
-| `transport.updateWorkSummary(bot, {expected,summary}, source)` | 純memory更新Promise。最初と保存直前に現在session/stop世代/uncertainty/進行session変更を再検査。最大15秒/同時1/追加queue無し |
-| `transport.watchQueue(listener)` | 既SSE登録を再利用。変更時にtopics queue/botIdsを既形で通知。別watch/daemon/新native読取を作らない |
-| `transport.close()` | memory expiry timerと未決更新を閉じ、既watch/client終了順へ戻る |
+`readInput(input,authority)` はJSON閉7key `{botId,sessionId,launchId,inputRevision,deliveryId,context,contextId}` と、private `{context,assertCurrent}` を受ける。元contextは既認証済enriched objectを保持しclone/JSON化しない。assertCurrent(input)は同期で元lease・世代・delivery・親session/launch/inputRevision・停止世代を照合、false/throwは失効。返却はnull又は同7key＋text/progressの閉9key、本文最大4000・保存固定status最大1000 Unicode。interim/自由callback/全文履歴/画像/secret値/任意fileを渡さない。
 
-`bot`は既登録本人をcommonが解決した結果。raw入力のbotIdからこの窓口を勝手に選ばない。`source`は既 `seatExecutionSource(request,bots)` がHTTP ingressで捕捉する `{sourceSession,source:{launch:{session_id,launch_id}|null,boundary:null}}`。モデル引数で渡させずcommon closureから注入する。actorは受付時に安全なsession/launchだけをコピーし、待機中に元objectを変えても原actorは変わらない。headerはnative起源turnの強い証明ではない。表示の宣言sourceはself_reportedのまま。
+`createConversationExecutionEffects` は既親の認証済actorがowner/bot/scheduler、rootMethodがuser.post/user.turn/direct.post/room.post/room.replyの時だけauthorityを捕捉する。usage secret/question/onboarding/observer/bridge/report/recoveryは除外。通常文中の未知の秘密を判定する新分類器は作らない。N102の専用callerが読取前後に同authorityを検査し保存済み元一件と宛先を照合する。既deliveryAnchorの本人actorを緩めない。
 
-expectedのexact keyはsessionId/launchId/turnId/revision、revisionはopaque UUID文字列。summaryはnull又はtrim後1〜160 Unicode codepointの一行、C0/C1/U+2028/U+2029拒否。HTML/Markdownを解釈しない。Mollyの公開toolは作業段階変化時だけ本人更新・秘密/生配送の自動転記禁止・heartbeat不要をdescriptionに持つ。get_selfにこの本人bindingと同read-only DTOを注入する。
+## 実行と結果
 
-拒否は固定Error.code/status：CURRENT_WORK_INPUT_INVALID/400、CURRENT_WORK_FORBIDDEN/403、CURRENT_WORK_CONFLICT/409、CURRENT_WORK_UNAVAILABLE/503。任意本文/stackを診断へ転記しない。成功は `{currentWork,currentWorkBinding}`。nullの既missingへのclearは変化が無いのでrevisionを変えない。同じrunningを再観測しただけでも変えない。
+入力変更は実配送イベントから発行し、GET/描画や全席周期AIから発行しない。inputRevisionは既DeliveryJob.idを使い、session/launchは同Aiterm pty-send receiptの正規fieldを使う。native turnを作らず全主harnessの通常配送へ使える。受理前queue/onlineを実行証明にしない。次入力は元jobを失効、Botごと最新一件を保持する。actual runは全体一件で、取消後もrun Promiseの実終端まで次を開始しない。
 
-## 観測・終端・鮮度
+`createBackgroundSummaryRunner({project,models,runner})` は既createSeatProcessRunnerのbase環境/取消・group終端を再利用。専用projectは親が `shared/tools/bellteam-background-agent` に用意し、Bot席として登録しない。所有はexecutionキロ、READMEへ目的と保持する空lock fileを記す。既authを使い、CLIのtools/MCP/hooks/自動指示読取を無効にした非対話面だけを許可する。現在供給するadapterはClaudeのprint/safe-mode/tools空/strict-mcp-config空/settings-source空/no-session-persistence。その他harnessはBACKGROUND_SUMMARY_HARNESS_UNSUPPORTED、無断代替0。vendor CLI自体に対応不能と断定せず、他adapterは実契約確定後に供給する。60秒期限・64KiB出力上限、失敗後同入力の再発行0。
 
-既 `SeatTurns.poll → watchSeatTurns(bots) → seatTurns(bots)` の一回pty_listを再利用する。戻りのsession→turn Mapは旧watch互換だけに維持し、本機能は変換前の元seat rowを使う。schema/重複/session/launch/harness/turnが不正、nonCodex/null/欠測/例外、親uncertainty又はsession変更進行中はunknown。online/queue/Goalで埋めない。
+runへ渡すのは選択済み設定と限定JSONだけ。出力はplain stringで親がtrim後1〜160Unicode/制御文字無しを検証し、元run closureの対象・入力/設定revisionと現recordを保存直前に照合する。AIに対象や状態の本人性を選ばせない。空・不正・取消・未知はmissing、主仕事を待たせない。
 
-read開始に親seqを捕捉。古いreadの返却は新しい開始readの結果やstop/終端のbarrierを越えず、更新は受付後に開始したreadでだけ確定する。freshnessは完了受領から親monotonic15秒。readが長く止まってもmemoryの単発expiry timerがunknown/SSEへ変える。新しいdaemon/AI/native呼出ではない。
+## currentWork
 
-同session/launch/turnのschema=aiterm.agent-wait-result.v1/outcome=doneは、既wait結果から同turnだけをunknownへ変え、旧inflight readと同完了turnの再登場を拒否する。別turnのdoneは現在要約を消さない。stop世代更新とclose/launch発行も同期で無効化する。sent/timeout/abort/job releaseはidleの証明にしない。新しい公開runningでだけworking、陽性idleでだけidleへ移る。
+既6keyはstate/summary/summaryStatus/summaryUpdatedAt/observedAt/source。新生成のsourceは `background_agent`。currentは本文有り、missingは本文・更新時刻・source=null、staleは本文null/元更新時刻/source維持。要約TTLはmonotonic10分。要約失敗は実行状態から独立。state/observedAtは既native観測を維持し、accepted receiptからworkingを生成しない。native非対応や観測15秒失効でunknownでも、親の元input/設定が有効ならsummaryはcurrent/staleにできる。入力本人性の不明・停止/新入力/失効では要約を外す。自主起動や未供給入力ではmissingのまま。idleをqueue空や取消受付から作らない。
 
-要約はmonotonic10分でstale、本文は返さず元summaryUpdatedAt/sourceを保持する。native失効はunknown/missingで本文・更新時刻・sourceを外し、observedAtは最後の有効観測時刻を保持。期限を完了へ変えない。更新、binding又は無効化の変化でUUIDを更新し、親restartでは別UUIDでunknownから始める。永続epoch/journal/TTL削除無し、members交換でも親recordを維持する。
+`transport.currentWork(bot)` は同共有workerのsnapshotと既CurrentWorkのnative状態を合成する純読取。旧self_reportedは新成功に変換せず外す。`currentWorkBinding()`は常にnull、旧`updateWorkSummary()`はCURRENT_WORK_FORBIDDEN/403。共通側が主agentMCP一覧/dispatchから旧writerを撤去する。API/SSEは同6keyを転送し、共通validatorはbackground_agentと全state×summaryStatusの組合せを許可し、unknownではobservedAt=nullも許可する。同じsnapshotをBot/Room参加者表示へ使う。
 
-同turnに複数配送があっても一record。複数queueをnative並行数へ変換しない。Room帰属やGoal対応は作らず、Mollyが現在参加者ごとの同DTOを投影する。SSE通知は状態/要約の変化時だけで、同じrunningの観測時刻更新では追加通知しない。
+## callerと収録
 
-検証はcurrent-work/current-work-transportの直接境界、変更接点に限るseat-turns/bot-session-stateと既watch互換。sourceとfakeのみ、実席/実native/Host/旧consumer46/7681群の再走0。commonの認証/登録/退役とGET最終await後の再検査、公開MCP/schemaと両一覧DTOはMolly、表示はWeb/Appleが所有する。
+当差分はworker/runner、transportのsubmit/accepted/stop/close、conversation親effectのauthority capture、assembly/generation/factoryの別引数backgroundSummary、直接fixtureを持つ。Mollyはapplication-services/runtimeへ親一実体・限定read・usage record getter/callback・SSE notify・shutdown closeを配線する。N102はStore/RoomHistory/専用read/子dispatcherとfacade、Mikaは設定writer、Centiは正式資材/producerを所有する。
+
+worker/runnerは親imageの所有sourceで、実engineの相対importは追加しない。execution署名はtransport/dispatcher変更が必要。親のworker/runner→seat-process→seat-command/run-seat-command等の既依存は同imageへ収録し、runtimeの内部試験は継承する。会話/usageは各新read・設定sourceに対応した必要署名だけを同mainから供給する。実module交換/正式資材/実表示/本番は作者fixture成功から補完しない。

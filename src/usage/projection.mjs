@@ -1,5 +1,6 @@
 import { CardTimelines } from '../card-timelines.mjs'
 import { usageError } from './process-schema.mjs'
+import { backgroundRecordValid, backgroundAgentError } from './background-agent-settings.mjs'
 
 const object = value => value && typeof value === 'object' && !Array.isArray(value)
 const keys = (value, required, optional = []) => object(value) && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => [...required, ...optional].includes(key))
@@ -21,7 +22,10 @@ export function usageConfigurationValid(id, configuration) {
 export function usageProjectionRecordValid(row) {
   if (!object(row) || !Number.isSafeInteger(row.revision) || row.revision < 0) return false
   if (row.type === 'settings') {
-    if (!keys(row, ['type', 'revision', 'list', 'configurations', 'epochs']) || !keys(row.configurations, Object.keys(fields)) || !keys(row.epochs, Object.keys(fields)) || Object.values(row.epochs).some(epoch => !Number.isSafeInteger(epoch) || epoch < 0) || !Array.isArray(row.list) || row.list.length !== 6) return false
+    if (!keys(row, ['type', 'revision', 'list', 'configurations', 'epochs'], ['backgroundAgent', 'backgroundAgentError'])
+      || Object.hasOwn(row, 'backgroundAgent') && (!backgroundRecordValid(row.backgroundAgent) || Object.hasOwn(row, 'backgroundAgentError'))
+      || Object.hasOwn(row, 'backgroundAgentError') && !['BACKGROUND_AGENT_STATE_INVALID', 'BACKGROUND_AGENT_STATE_FAILED'].includes(row.backgroundAgentError)
+      || !keys(row.configurations, Object.keys(fields)) || !keys(row.epochs, Object.keys(fields)) || Object.values(row.epochs).some(epoch => !Number.isSafeInteger(epoch) || epoch < 0) || !Array.isArray(row.list) || row.list.length !== 6) return false
     const seen = new Set()
     return row.list.every(item => {
       if (!usageSettingValid(item) || seen.has(item.id)) return false
@@ -79,6 +83,13 @@ export function createUsageProjection({ bots }) {
   }
   const state = () => { if (!current && !bootstrap) throw usageError('USAGE_PROJECTION_UNAVAILABLE'); return current ?? bootstrap }
   return {
+    backgroundAgent() {
+      const row = state().settings
+      if (row?.backgroundAgentError) throw backgroundAgentError(row.backgroundAgentError, 500)
+      if (!Object.hasOwn(row ?? {}, 'backgroundAgent')) throw backgroundAgentError('BACKGROUND_AGENT_UNAVAILABLE', 503)
+      return copy(row.backgroundAgent)
+    },
+    hasBackgroundAgent() { const row = state().settings; return Object.hasOwn(row ?? {}, 'backgroundAgent') || Boolean(row?.backgroundAgentError) },
     seed(row, next) {
       if (!validGeneration(next) || generation === next || seenGenerations.has(next) || bootstrapGeneration !== null && bootstrapGeneration !== next
         || !['settings', 'subscription'].includes(row?.type) || !usageProjectionRecordValid(row)) throw usageError('USAGE_PROJECTION_INVALID')

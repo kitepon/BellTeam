@@ -33,6 +33,8 @@ flowchart LR
   m_execution -->|"diagnostics"| m_integration
   m_execution -->|"registry"| m_members
   m_execution -->|"seat-process"| m_runtime
+  m_execution -->|"history"| m_conversation
+  m_execution -->|"settings"| m_usage
   m_integration -->|"turn"| m_execution
   m_integration -->|"messages"| m_conversation
   m_integration -->|"registry"| m_members

@@ -22,6 +22,16 @@ export class ConversationStore {
       && typeof record.message === 'string' && typeof record.at === 'string'
       ? { deliveryId, target, context, contextId } : null
   }
+  async workInput(input) {
+    await this.snapshot()
+    const records = this.read.byDelivery.get(input.deliveryId), record = records?.length === 1 ? records[0] : null
+    if (this.read.anchorInvalid || input.context !== 'direct' || input.contextId !== input.botId
+      || record?.target !== input.botId || typeof record.from !== 'string' || typeof record.at !== 'string'
+      || typeof record.message !== 'string' || !record.message.trim()) return null
+    const status = (this.read.statuses.get(input.deliveryId) ?? record).delivery
+    return { ...input, text: [...record.message].slice(0, 4000).join(''),
+      progress: ['running', 'steered', 'delivered', 'failed', 'stopped'].includes(status) ? status : '' }
+  }
   async entries() {
     const state = await this.snapshot()
     return state.resolved ??= state.entries.map(record => record.schema === 'bellteam.direct-message.v1' && state.statuses.has(record.delivery_id)

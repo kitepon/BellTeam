@@ -107,6 +107,7 @@
     "src/module-operation-context.mjs",
     "src/conversation-authority.mjs",
     "src/conversation-assembly.mjs",
-    "src/module-child-exit-reporter.mjs"
+    "src/module-child-exit-reporter.mjs",
+    "src/background-summary-assembly.mjs"
   ]
 }

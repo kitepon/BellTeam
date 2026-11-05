@@ -10,6 +10,8 @@ Rabbit認証consumerの未配布候補は[認証runとOwner案内の契約](olrw
 
 ## 機能内の正本
 
+[全体の背景要約agent設定](background-agent-settings.md)に、Ownerの三項目・全体一件record・モデル個別検証・revisionと実行側への接続を置く。
+
 [会話子へのusage限定接点](conversation-effects.md)にrouting一資格の供給・失効と、親の通知/秘密カード境界を置く。会話独立更新のRoot固定契約v1に従い、実装の公開接点をN102・共通組立て担当と合わせる。
 [残るusageの単体更新](usage-process.md)に6service factory・閉dispatcher・安定facadeとread-only restore/volatile handoffの接点を置く。runtime/通常assembly/同source実物への接続は別工程として区別する。
 

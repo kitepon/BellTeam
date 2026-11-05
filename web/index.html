@@ -161,6 +161,19 @@
         </div>
       </form>
       <section class="feature-settings-section" id="settings-ai">
+        <h3>仕事の要約</h3>
+        <p>BellTeam全体で一人の背景エージェントが、メンバーの現在の仕事を要約します。</p>
+        <form id="background-agent-form">
+          <p class="field-help" data-background-saved>保存済みの設定は未取得です。</p>
+          <label class="field"><span>ハーネス</span><select data-background-harness disabled></select></label>
+          <label class="field"><span>モデル</span><select data-background-model disabled></select></label>
+          <label class="field"><span>エフォート</span><select data-background-effort disabled></select></label>
+          <p class="form-error" data-background-error role="alert"></p>
+          <p class="field-help" data-background-status role="status" aria-live="polite"></p>
+          <div class="web-push-actions"><button type="submit" data-background-save disabled>要約の設定を保存</button><button type="button" data-background-reload>状態を更新</button><button type="button" data-background-models-reload>候補を再取得</button></div>
+        </form>
+      </section>
+      <section class="feature-settings-section">
         <h3>BellTeam全体の停止</h3>
         <div id="ai-control">
           <label><input type="checkbox" disabled hidden> 全体停止</label>

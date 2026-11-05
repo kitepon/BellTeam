@@ -60,6 +60,12 @@ export function createConversationFacade({ getController, context }) {
   }
   Object.defineProperty(rooms, 'size', { get: () => projection.size })
   const store = {
+    workInput: (input, options) => invoke('history.workInput', input, options, value => {
+      validateConversationResult('history.workInput', value)
+      if (value !== null && Object.keys(input).some(key => value[key] !== input[key]))
+        throw Object.assign(new Error('CONVERSATION_RESULT_INVALID'), { code: 'CONVERSATION_RESULT_INVALID' })
+      return value
+    }),
     deliveryAnchor: (input, options) => invoke('history.deliveryAnchor', input, options, value => {
       validateConversationResult('history.deliveryAnchor', value)
       if (value !== null && ['deliveryId', 'target', 'context', 'contextId'].some(key => value[key] !== input[key]))

@@ -34,6 +34,14 @@ export function validateConversationResult(method, value) {
     case 'room.schedules.set': return fields(value, { schedule })
     case 'room.schedules.claimDue': case 'room.schedules.skipDue': if (!nullable(schedule)(value)) invalid(); return true
     case 'history.recent': return fields(value, { message: nullable(plain) })
+    case 'history.workInput':
+      if (value === null) return true
+      fields(value, { botId: id, sessionId: nonempty, launchId: nonempty, inputRevision: nonempty,
+        deliveryId: nonempty, context: oneOf('direct', 'room'), contextId: id,
+        text: value => text(value) && value.trim().length > 0 && [...value].length <= 4000,
+        progress: value => text(value) && ['', 'running', 'steered', 'delivered', 'failed', 'stopped'].includes(value) })
+      if (value.context === 'direct' && value.contextId !== value.botId) invalid()
+      return true
     case 'history.deliveryAnchor':
       if (value === null) return true
       fields(value, { deliveryId: nonempty, target: id, context: oneOf('direct', 'room'), contextId: id })

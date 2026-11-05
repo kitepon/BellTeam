@@ -14,6 +14,9 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
   const facade = {
     settings: {
       list: () => projection.list(), configuration: id => projection.configuration(id),
+      hasBackgroundAgent: () => projection.hasBackgroundAgent(),
+      backgroundAgentConfiguration: async () => projection.backgroundAgent(),
+      updateBackgroundAgent: (input, options = {}) => call('settings.updateBackgroundAgent', input, options.usageContext),
       routingState: () => ({ enabled: projection.configuration('routing').enabled, epoch: projection.epoch('routing') }),
       configurationState: id => ({ configuration: projection.configuration(id), epoch: projection.epoch(id) }),
       update: (id, input, options = {}) => call('settings.update', { id, input }, options.usageContext),

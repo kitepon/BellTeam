@@ -1,6 +1,6 @@
 import SwiftUI
 
-private struct ModelsResponse: Decodable { let models: [String: HarnessModels] }
+struct ModelsResponse: Decodable { let models: [String: HarnessModels] }
 struct HarnessModels: Decodable {
     let efforts: [String]
     let models: [ModelChoice]

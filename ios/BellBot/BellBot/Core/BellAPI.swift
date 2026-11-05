@@ -143,6 +143,10 @@ final class BellAPI {
         try await protectedJSON(path: "/api/settings/\(id)", method: "PATCH", body: body)
     }
 
+    func updateBackgroundAgent(_ body: BackgroundAgentUpdate) async throws -> BackgroundAgentResponse {
+        try await protectedJSON(path: "/api/settings/backgroundAgent", method: "PATCH", body: body)
+    }
+
     func submitAuthenticationInput(_ body: AuthenticationReply) async throws -> SetupResponse {
         try await protectedJSON(path: "/api/setup/auth/input", method: "POST", body: body)
     }

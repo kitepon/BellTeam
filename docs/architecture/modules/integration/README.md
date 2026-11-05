@@ -766,3 +766,29 @@ flowchart LR
 一回claim後はdecisionを作り直さず、再POSTも同ID readFenceだけ。GETは親の保存済み射影だけでruntime読取も発行しない。fenceと共通終端の両方を閉validatorで元ID・decision/proof・public原本hashへ照合する。保存失敗・不明はbusyを保持し、復元後も新しいclaim/finalizeを発行しない。別要求のbusy、元operation/unknown、旧Startの冪等応答、通常guardを維持する。restore/consume/回復workerは未提供で初回範囲外。
 
 親は同application-servicesが保持する共有exchangeMutexを外側で一回だけ取り、実execution.controller→実conversation.controllerのwithInstallReconciliationProofを固定順で呼ぶ。両assertは同期関数のままcallback前後・claim前・runtime発行前後で再検査する。各providerはlocal排他だけを使い、共有mutex再入や利用者bypass引数を持たない。proof中の実available=falseもcurrent/captureと同hashに保存し、通常plan/applyのavailable guardは保持する。新しいapplyはapplyIssuedを先にfsyncし、旧installPhase=unknownは既completed-install耐久barrierの手前なのでapply未到達の限定証拠とする。親close/期限切れ/認可失効後は新発行しない。保存中は公開read/更新能力をbusyとし、fsync前の閉鎖を表示しない。
+
+
+## 全体の背景agent設定と独立した仕事要約投影
+
+```mermaid
+flowchart LR
+  UI[Owner設定画面] --> Usage[usageの唯一設定writer / record revision]
+  Usage --> ModelEffect[親backgroundAgent.models / harnessだけ]
+  ModelEffect --> Models[HTTP modelsと同一のLiveModelCatalog]
+  Usage --> Changed[保存後backgroundAgent.changed / configuration]
+  Changed --> Configure[同graphの共有backgroundSummary.configure]
+  Changed --> SSE[成功又は反映不明後のsettings通知]
+  Projection[execution currentWork] --> Validate[共通6key validator / stateとsummaryStatusを別に検証]
+  Validate --> Lists[既Bot/Room一覧とSSE再取得]
+```
+
+設定HTTP/厳密4key/Owner認可/sidecar保存はusage正本に従う。親effectsは同harnessの{id,efforts}配列だけを返し、保存済みrecordのconfigure実completionをawaitする。実worker未供給時はBACKGROUND_AGENT_UNAVAILABLEを返し、usageが保存済みAPPLY_FAILEDへ投影する。成功no-opを作らず、finallyで既settings/featureId backgroundAgent通知を出す。初期read/破損recordは背景機能の不足であり、主業務の起動失敗へ変換しない。
+
+currentWorkは既6keyを維持。source背景自動生成background_agentの時だけworking/idle/unknown×current/missing/staleの9組を許可する。旧self_reportedはworking current/staleだけを維持し、新状態へ昇格しない。currentは一行1〜160文字と更新時刻、staleは本文null/元更新時刻/source、missingは本文/更新時刻/source全null。observedAtはunknownだけdate又はnull、working/idleはdate。native非対応や15秒失効のunknownからworkingを補わず、親入力有効性の失効と区別する。未認識sourceや不正DTOは既unknown投影へ閉じる。GET/描画からAIは起動しない。
+
+共通schemaはsrc/current-work-contract.mjs、settingsの業務公開契約は[usage正本](../usage/background-agent-settings.md)、worker/私有入力と実終端はexecution正本を使う。親は同graph一実体と同世代read/configure/shutdownを接続し、設定画面・models読取の成功を実要約生成へ補完しない。
+
+
+背景実体は親application-servicesでcreateTeamBackgroundSummary一回だけ構築し、共通projectはroot/shared/tools/bellteam-background-agent、実CLI排他はrunnerの同summary.lockを使う。execution assembly→generation→dispatcherへは閉portsにkeyを増やさず別引数で同実体を渡し、旧選択factoryが新機能を供給したと見せない。legacy transportも同参照を受ける。readInputは前後assertCurrent→元actor/parentをassembly.runへ保持→facade.store.workInput→実result/completion待ち。原authorityはJSONへ入れず、元leaseを新造しない。readの元例外を保ち、実completionは失敗時も回収する。
+
+起動時は同世代settings.backgroundAgentConfigurationを読みconfigureする。未供給/破損recordで背景要約を開始せず、主業務の起動を止めない。保存後のconfigureは実workerへ届き、同revision不変/旧結果失効は唯一writerが所有。全体closeと起動失敗cleanupでは親がworker.closeをawaitしてから実execution/会話を閉じる。execution単体交換でworkerを再生成しない。runnerの現対応はClaudeのtool無しprintだけ、背景Codex/Grok/Cursor/Antigravityは固定unsupportedで代替0。主Botのharnessにはこの制限を掛けない。実vendor呼出/実表示/正式供給・本番は別確認。

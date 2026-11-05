@@ -7,6 +7,7 @@ import { applyAvatar, initials, escapeClass, escapeHtml } from './view-format.js
 import { renderFeatureSettings, refreshFeatureSettingsStatus } from './onboarding.js?v=__ASSET_VERSION__'
 import { renderHarnessAuth } from './harness-auth.js?v=__ASSET_VERSION__'
 import { aiControlView } from './ai-control.js?v=__ASSET_VERSION__'
+import { createBackgroundAgentSettings } from './background-agent-settings.js?v=__ASSET_VERSION__'
 
 export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
   const find = id => dialog.querySelector(`#${id}`)
@@ -15,6 +16,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
   const error = find('owner-form-error'), rulesInput = find('user-rules'), saveButton = dialog.querySelector('button[form="owner-form"]')
   const webPush = createWebPushSettings(find('web-push-settings'), api)
   const aiControl = aiControlView(find('ai-control'), api)
+  const backgroundAgent = createBackgroundAgentSettings(find('background-agent-form'), api)
   const avatar = createAvatarEditor({ onChange: () => { editRevision++ }, applyAvatar, initials, escapeClass,
     fileInput: find('owner-avatar-file'), preview: find('owner-avatar-preview'), cropEditor: find('owner-crop-editor'),
     canvas: find('owner-avatar-crop'), zoom: find('owner-avatar-zoom'), nameInput: name, fallback: 'O', error })
@@ -48,7 +50,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
     } catch { if (owner === opened && opened.notificationRead === read) status.textContent = '通知の設定を取得できませんでした。更新して確認してください。' }
   }
   let owner = null, saving = null, editRevision = 0, harnessAuthSection = null
-  guardEditorClose(dialog, () => Boolean(owner && (editRevision !== owner.initialRevision || avatar.changed())), () => Boolean(owner && saving === owner))
+  guardEditorClose(dialog, () => Boolean(owner && (editRevision !== owner.initialRevision || avatar.changed() || backgroundAgent.dirty())), () => Boolean(owner && (saving === owner || backgroundAgent.busy())))
   form.addEventListener('submit', save)
   form.addEventListener('input', () => { editRevision++ })
   form.addEventListener('change', () => { editRevision++ })
@@ -60,6 +62,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
     if (dialog.open) return
     owner = null
     webPush.close()
+    backgroundAgent.close()
     clearSettingSecrets()
     avatar.cancelRead()
     harnessAuthSection?.stop()
@@ -102,6 +105,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
     harnessAuthSection?.stop()
     harnessAuthSection = null
     void aiControl.refresh()
+    void backgroundAgent.open()
     form.reset()
     find('conversation-motion').value = readConversationMotion()
     find('motion-status').textContent = 'このブラウザーだけに適用します。端末の視覚効果を減らす設定を優先します。'
@@ -163,7 +167,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
       onOwner(result.owner)
       await api('/api/user-rules', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: rules }) })
       if (owner === opened) {
-        if (revision === editRevision) dialog.close()
+        if (revision === editRevision && !backgroundAgent.dirty() && !backgroundAgent.busy()) dialog.close()
         else error.textContent = '保存しました。新しく書いた内容は入力欄に残しています。'
       }
     } catch (failure) {
@@ -189,5 +193,5 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
   }
 
 
-  return { open, refreshAI: () => aiControl.refresh(), refreshFeatureStatus(settings) { if (dialog.open && owner) { refreshFeatureSettingsStatus(owner.features, settings); void webPush.refresh() } } }
+  return { open, refreshAI: () => aiControl.refresh(), refreshFeatureStatus(settings) { if (dialog.open && owner) { refreshFeatureSettingsStatus(owner.features, settings); void webPush.refresh(); void backgroundAgent.refresh() } } }
 }
