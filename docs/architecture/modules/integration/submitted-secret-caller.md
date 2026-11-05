@@ -25,3 +25,7 @@ flowchart TD
 原期待specはRoot `integrations/background-agent-auth-owner-window-20261105/start-request-original-spec.json` とCenti `integrations/team-background-agent-supply-20261105/claude-auth-once-20261105/approval-spec-K-6782UM.json`。Centiのcontext原文には公式URLがあり、その文面を親source/成果物へ複製せずUTF-8原文hashだけで照合する。
 
 実管理credential/connection参照は原申請者Rootが既MCP登録から追跡中で、ここでは未取得。`submittedSecretManagement`未注入は503で閉じ、検証済み管理能力が注入された時だけcaller/consumerへ接続する。現sourceのcallbackや合成試験を、現在の管理credential/connectionが技術成立した証明として扱わない。
+
+## 登録credential所有主体での固定検証
+
+Rootが13:09:33の独立connection GET identityを今回の検証先として採用した。既登録configはUID1000/0600のまま使い、管理1001は直接読まない。固定owner検証scriptを既base seat runner→固定Node/固定argvで実行し、両元spec/Owner/connectionを実照合する。tokenは1000内メモリだけ、戻りは閉schema/authorizedの2key。任意script/URL/path/credential入力なし。Owner照合失敗/未知/stdout追加field/stderrは親grantを作らず、opaque grant生成前に拒否する。child実close後だけ親へ戻る。現在live固定検証はauthorized=falseを返し、理由未確定なので稼働成立/配布採用へ進めない。
