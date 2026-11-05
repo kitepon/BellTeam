@@ -1,3 +1,4 @@
+import { ModelHandoff } from './model-handoff.mjs'
 import { createManagedTransport } from './aiterm-transport.mjs'
 import { BotAdministration } from './bot-administration.mjs'
 import { ConfigurationIntents } from './configuration-intents.mjs'
@@ -15,7 +16,7 @@ const asyncMethods = {
     'reconcileConfiguration', 'stop', 'interrupt', 'interruptMany', 'reconcileLaunch', 'closeLaunch',
     'observe', 'goalTargets', 'closeIdle', 'stopForConfiguration', 'turn', 'setupTest', 'notify', 'notifyReport',
     'idle', 'restartIfIdle', 'updateWorkSummary', 'seatTurns', 'watchSeatTurns'],
-  administration: ['update', 'reconcile', 'readConfigurationOperation', 'stop', 'restart', 'remove'],
+  administration: ['configureFromMcp', 'update', 'reconcile', 'readConfigurationOperation', 'stop', 'restart', 'remove'],
   goals: ['list', 'inspect', 'mutate'],
 }
 const syncMethods = {
@@ -40,7 +41,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const groups = {
     configurationStorage: ['root', 'trustedAnchor', 'ownerUid'],
     access: ['assertWorkAllowed', 'admitWork', 'requireMember', 'requireAccess'],
-    storage: ['prepareStartup', 'updateSession', 'updateFastMode'],
+    storage: ['prepareStartup', 'updateSession', 'updateFastMode', 'deliveryAnchor'],
     seat: ['waitProcess', 'handoffContext', 'writeTemporaryImage', 'removeTemporaryImage', 'tempRoot'],
     observer: ['appendInterimWords', 'emitQueue', 'report'], diagnostics: ['record', 'goalError'],
     continuation: ['models', 'harnessAuth', 'messenger'],
@@ -70,7 +71,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const { root, ...storageOptions } = ports.configurationStorage
   const requests = new ConfigurationRequests({ client: native, intents: new ConfigurationIntents(root, storageOptions) })
   const transport = createManagedTransport({
-    ...ports.seat, ...ports.storage, backgroundSummary,
+    ...ports.seat, ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
     trackCompletion: track, client: native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
     configurationRequests: requests, requireMember: ports.access.requireMember,
     requireAccess: ports.access.requireAccess,
@@ -79,6 +80,9 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   })
   const administration = new BotAdministration({ bots: ports.bots, rooms: ports.rooms, transport, moduleOperations: ports.moduleOperations,
     reportError: report => { alive(); return track(ports.diagnostics?.record?.(report)) }, trackCompletion: track })
+  const modelHandoff = new ModelHandoff({ transport, requests, readAnchor: ports.storage?.deliveryAnchor,
+    trackCompletion: track, records: administration.automaticConfigurationOperations })
+  administration.handoff = modelHandoff; transport.modelHandoff = modelHandoff
   const goals = new BotGoals({ transport, admitWork: ports.access.admitWork,
     reportError: error => { alive(); return track(ports.diagnostics?.goalError?.(error)) } })
   const continuation = ports.continuation ? new CapacityContinuation({ ...ports.continuation,
@@ -103,7 +107,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     report: message => { alive(); ports.observer?.report?.(message) },
   })
   const poll = observer.poll.bind(observer)
-  observer.poll = () => { alive(); return track(poll()) }
+  observer.poll = () => { alive(); const observing = Promise.all([poll(), modelHandoff.poll()]); return track(observing) }
   const checkIdle = idle.check.bind(idle)
   idle.check = () => { alive(); return track(checkIdle()) }
   const unsubscribe = transport.watchQueue(change => {
@@ -193,6 +197,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     Object.assign(requests, m.requests, { restoring: Promise.resolve() })
     administration.applications = m.applications
     administration.automaticConfigurationOperations = m.automaticConfigurationOperations ?? new Map()
+    modelHandoff.records = administration.automaticConfigurationOperations
     transport.workState.records = m.work.records; transport.workState.seq = m.work.seq
     for (const entry of m.followedTurns) transport.followedTurns.set(...entry)
     transport.retainedImages = m.retainedImages

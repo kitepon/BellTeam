@@ -12,6 +12,7 @@ export class ConfigurationRequests {
     this.active = new Set()
     this.latest = new Map()
     this.rejectedPreparations = new Map()
+    this.unboundHandoffs = new Map()
   }
 
   async restore() {
@@ -30,15 +31,21 @@ export class ConfigurationRequests {
       ...(value.preparation ? { preparation: value.preparation } : {}), ...(value.localNotIssued ? { local_not_issued: true } : {}) }) : null
   }
 
-  async prepare(botId, sessionId, settings) {
+  async prepare(botId, sessionId, settings, id = randomUUID()) {
     await this.restore()
-    if (this.active.has(botId) || this.pending.has(botId)) throw configurationError('CONFIGURATION_REQUEST_PENDING')
+    const unbound = this.unboundHandoffs.get(botId)
+    const reusable = unbound?.binding.id === id && this.pending.get(botId) === unbound ? unbound : null
+    if (this.active.has(botId) || this.pending.has(botId) && !reusable) throw configurationError('CONFIGURATION_REQUEST_PENDING')
     this.active.add(botId)
-    let original
-    let published = false
-    let publication = 'not_started'
+    this.unboundHandoffs.delete(botId)
+    let original = reusable ?? undefined
+    let published = Boolean(reusable)
+    let publication = reusable ? 'confirmed' : 'not_started'
     try {
-      const requested = configurationSettings(settings)
+      const proposed = configurationSettings(settings)
+      if (reusable && Object.keys(settings).some(key => proposed[key] !== reusable.requested[key]))
+        throw configurationError('CONFIGURATION_SETTINGS_INVALID')
+      const requested = reusable?.requested ?? proposed
       const connection = await configurationCapability(this.client)
       let listed
       try { listed = await connection.sdk.callTool({ name: 'pty_list', arguments: {} }) }
@@ -48,12 +55,14 @@ export class ConfigurationRequests {
       const rows = Array.isArray(data?.sessions) ? data.sessions.filter(value => value.session_id === sessionId) : null
       if (listed?.isError || data?.schema !== 'aiterm.pty-list-result.v1' || !Array.isArray(rows) || rows.length !== 1
         || typeof rows[0].launch_id !== 'string' || !/^[a-f0-9]{32}$/u.test(rows[0].launch_id)) throw configurationError('CONFIGURATION_TARGET_UNCONFIRMED')
-      const binding = configurationBinding({ id: randomUUID(), session_id: sessionId, launch_id: rows[0].launch_id, digest: configurationDigest(requested) })
+      if (reusable && (reusable.binding.session_id !== sessionId || reusable.binding.launch_id !== rows[0].launch_id))
+        throw configurationError('CONFIGURATION_TARGET_UNCONFIRMED')
+      const binding = configurationBinding({ id, session_id: sessionId, launch_id: rows[0].launch_id, digest: configurationDigest(requested) })
       original = { schema: 'bellteam.configuration-intent.v1', botId, binding, requested, version: CONFIGURATION_VERSION }
       this.pending.set(botId, original)
       this.latest.set(botId, { intent: original, receipt: null })
-      publication = 'unknown'
-      try { await this.intents.publish(botId, original) }
+      if (!reusable) publication = 'unknown'
+      try { if (!reusable) await this.intents.publish(botId, original) }
       catch (cause) {
         if (configurationIntentWasNotWritten(cause)) publication = 'not_started'
         throw Object.assign(configurationError('CONFIGURATION_INTENT_SAVE_UNCONFIRMED'), { cause })
@@ -81,6 +90,26 @@ export class ConfigurationRequests {
     } finally { this.active.delete(botId) }
   }
 
+  async prepareHandoff(botId, launch, settings, id = randomUUID()) {
+    await this.restore()
+    if (this.active.has(botId) || this.pending.has(botId)) throw configurationError('CONFIGURATION_REQUEST_PENDING')
+    const requested = configurationSettings(settings)
+    const binding = configurationBinding({ id, ...launch, digest: configurationDigest(requested) })
+    const original = { schema: 'bellteam.configuration-intent.v1', botId, binding, requested, version: CONFIGURATION_VERSION }
+    this.active.add(botId)
+    try {
+      this.pending.set(botId, original); this.latest.set(botId, { intent: original, receipt: null })
+      await this.intents.publish(botId, original)
+      this.unboundHandoffs.set(botId, original)
+      return original
+    } finally { this.active.delete(botId) }
+  }
+
+  claimHandoff(botId, binding) {
+    if (!isDeepStrictEqual(this.unboundHandoffs.get(botId)?.binding, binding)) throw configurationError('CONFIGURATION_REQUEST_PENDING')
+    this.unboundHandoffs.delete(botId)
+  }
+
   canRecoverPreparation(botId, id) {
     const rejected = this.rejectedPreparations.get(botId)
     return rejected?.original.binding.id === id && this.pending.get(botId) === rejected.original
@@ -104,6 +133,7 @@ export class ConfigurationRequests {
 
   async finishNotIssued(botId, binding) {
     await this.intents.saveNotIssued(botId, binding)
+    if (this.unboundHandoffs.get(botId)?.binding.id === binding.id) this.unboundHandoffs.delete(botId)
     if (this.pending.get(botId)?.binding.id === binding.id) this.pending.delete(botId)
     const value = this.latest.get(botId)
     if (value?.intent.binding.id === binding.id) value.localNotIssued = true
@@ -122,6 +152,12 @@ export class ConfigurationRequests {
     this.latest.set(botId, { intent: original, receipt, persisted: Boolean(saved), directApply })
     if (receipt.request_state === 'terminal' && (saved?.origin === 'apply' && receipt.outcome === 'applied' || receipt.later_effect === 'excluded')) this.pending.delete(botId)
     else this.pending.set(botId, original)
+  }
+
+  async recordHandoff(botId, snapshot) {
+    const saved = await this.intents.saveHandoffTerminal(botId, snapshot)
+    if (this.pending.get(botId)?.binding.id === saved.operation.id) this.pending.delete(botId)
+    return saved
   }
 
   async reconcile(botId, id) {

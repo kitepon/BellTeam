@@ -290,7 +290,7 @@ export class AitermTransport {
     return this.activity.configurationChanges.track(current.id, this.reconfigureNow(current, next, options))
   }
 
-  async reconfigureNow(current, next, { reapply = false, admissionCheck } = {}) {
+  async reconfigureNow(current, next, { reapply = false, admissionCheck, requestId } = {}) {
     const expected = this.membersAdmission.capture()
     this.membersAdmission.assertOpen(expected)
     this.assertWorkAllowed()
@@ -318,7 +318,7 @@ export class AitermTransport {
         || current.model !== next.model && next.reasoningEffort) configuration.reasoning_effort = next.reasoningEffort
       if (reapply || (current.fastMode === true) !== (next.fastMode === true)) configuration.fast = next.fastMode === true
       if (next.harness === 'cursor' && configuration.reasoning_effort && !configuration.model) configuration.model = next.model
-      const receipt = this.configurationRequests ? await this.applyConfigurationRequest(current, configuration, version)
+      const receipt = this.configurationRequests ? await this.applyConfigurationRequest(current, configuration, version, requestId)
         : await this.changeSession(current, 'agent_configure', configuration)
       return { botId: next.id, session: this.session(next), mode: 'configure',
         ...(this.configurationRequests ? { configurationRequest: receipt } : {}) }
@@ -330,7 +330,7 @@ export class AitermTransport {
       this.uncertainChanges.set(original.botId, 'agent_configure', original.binding)
   }
 
-  async applyConfigurationRequest(bot, configuration, stopVersion) {
+  async applyConfigurationRequest(bot, configuration, stopVersion, requestId) {
     let prepared
     let excluded = false
     let knownApply = false
@@ -338,7 +338,7 @@ export class AitermTransport {
     let persisted = false
     try {
       const { session_id, ...settings } = configuration
-      prepared = await this.configurationRequests.prepare(bot.id, session_id, settings)
+      prepared = await this.configurationRequests.prepare(bot.id, session_id, settings, requestId)
       try { this.requireStopVersion(bot.id, stopVersion) }
       catch (cause) { throw markConfigurationNotIssued(Object.assign(configurationError('CONFIGURATION_STOPPED'), { cause })) }
       const result = await this.changeSession(bot, 'agent_configure', prepared.args, {
@@ -412,8 +412,10 @@ export class AitermTransport {
 
   // 会話を残した現在処理の中断。通常の停止配送か旧追跡adapterを使う。
   interrupt(bot) {
-    if (!this.requestStop && !this.executionBridge) return Promise.reject(Object.assign(
-      new Error('処理の中断を確認できませんでした。'), { code: 'BOT_STOP_UNCONFIRMED' }))
+    if (!this.requestStop && !this.executionBridge) {
+      this.modelHandoff?.ownerStop(bot.id)
+      return Promise.reject(Object.assign(new Error('処理の中断を確認できませんでした。'), { code: 'BOT_STOP_UNCONFIRMED' }))
+    }
     return this.interruptMany([bot]).then(result => {
       if (result.unconfirmedBotIds.length) throw Object.assign(
         new Error('処理の中断を確認できませんでした。'), { code: 'BOT_STOP_UNCONFIRMED', cascade: result.cascade })
@@ -423,7 +425,11 @@ export class AitermTransport {
   }
 
   interruptMany(bots, options = {}) {
-    if (this.requestStop) return sendStopOperations(this.seat, bots, options)
+    for (const bot of bots) this.modelHandoff?.ownerStop(bot.id)
+    if (this.requestStop) {
+      const stopping = sendStopOperations(this.seat, bots, options)
+      return stopping
+    }
     if (!this.executionBridge) throw Object.assign(new Error('EXECUTION_BRIDGE_REQUIRED'), { code: 'BOT_STOP_UNCONFIRMED' })
     const stopping = interruptExecutions(this.seat, bots)
     // The historical adapter still interrupts the turn, but cannot confirm
@@ -617,6 +623,7 @@ export class AitermTransport {
   // 一回の配送。受付（Aitermの受理）までと、受理したターンの終わりまでを一つのjobとして進める。
   // 続けてよいかはjobの停止結論と席の状態に聞き、停止の結論を決めるのはjob（DeliveryJob）だけ。
   submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease, conversationDelivery, summaryAuthority = null } = {}) {
+    this.modelHandoff?.assertAdmission(bot.id)
     this.assertConversationOccupation(bot.id)
     const recoveryVersion = this.captureStopVersion(bot)
     let recoverySession = this.session(bot)
@@ -644,6 +651,7 @@ export class AitermTransport {
     this.activity.register(job)
     const check = () => {
       job.assertNotStopped()
+      this.modelHandoff?.assertAdmission(bot.id)
       this.assertWorkAllowed()
       admissionCheck()
       if (membersLease) this.membersAdmission.assertLease(membersLease)

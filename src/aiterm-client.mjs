@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url'
+import { AITERM_DIST } from './aiterm-hooks.mjs'
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { requireSeatProject, seatCommandSpec } from './seat-command.mjs'
 import { createSeatProcessRunner } from './seat-process.mjs'
@@ -24,6 +25,27 @@ export class AitermClient {
     this.client = null
     this.transport = null
     this.connecting = null
+  }
+
+  captureHandoffConnection() {
+    if (!this.client || !this.transport || this.connecting || this.client.transport !== this.transport) return null
+    const expected = Object.freeze({ sdk: this.client, transport: this.transport })
+    const binding = { expected, currentConnection: () => {
+      if (this.connecting || this.client !== expected.sdk || this.transport !== expected.transport) return null
+      return { sdk: this.client, transport: this.transport }
+    } }
+    return Object.freeze({ ...binding,
+      capture: async (input, signal) => {
+        const capabilities = expected.sdk.getServerCapabilities()?.experimental
+        if (!['control', 'full'].every(name => {
+          const value = capabilities?.[`ai.aiterm/handoff.${name}.v1`]
+          return value?.version === 1 && Object.keys(value).length === 1
+        })) return { schema: 'aiterm.model-handoff.capture-error.v1', status: 'unavailable',
+          error_code: 'HANDOFF_CAPTURE_UNAVAILABLE', effect: 'not_started' }
+        return (await import(`${AITERM_DIST}/model-handoff-transport.js`)).captureModelHandoffOverMcp(input, binding, signal)
+      },
+      control: async (input, signal) => (await import(`${AITERM_DIST}/model-handoff-control-transport.js`)).modelHandoffOverMcp(input, binding, signal),
+    })
   }
 
   async connect() {

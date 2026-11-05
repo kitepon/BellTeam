@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { configurationRequestFailure } from './configuration-request.mjs'
 import { stopFailureReport } from './stop-failure-report.mjs'
 import { startMemberRemoval } from './members/deletion.mjs'
@@ -16,6 +17,7 @@ export class BotAdministration {
     this.reportError = reportError
     this.trackCompletion = trackCompletion
     this.applications = new Map()
+    this.applicationCompletions = new Map()
     this.automaticConfigurationOperations = new Map()
   }
 
@@ -31,6 +33,10 @@ export class BotAdministration {
   readConfigurationOperation(botId, requestId) {
     if (!this.bots.get(botId)) throw configurationOperationError('BOT_NOT_FOUND', 404)
     if (!validConfigurationOperationId(requestId)) throw configurationOperationError('CONFIGURATION_OPERATION_ID_INVALID', 400)
+    const live = this.handoff?.operations.get(requestId)
+    if (live?.botId === botId) return this.handoff.read(live).catch(() => {
+      throw configurationOperationError('CONFIGURATION_OPERATION_READ_UNAVAILABLE', 503)
+    })
     try {
       const record = this.automaticConfigurationOperations.get(botId)?.records.get(requestId)
       if (!record) throw configurationOperationError('CONFIGURATION_OPERATION_NOT_RECORDED', 404)
@@ -42,7 +48,7 @@ export class BotAdministration {
   }
 
   // 保存は先に返し、稼働中Botへの適用は現在の作業の後に並ぶ。
-  async update(botId, changes, { waitForApplication = false, expected, admissionCheck } = {}) {
+  async update(botId, changes, { waitForApplication = false, expected, admissionCheck, handoffIngress } = {}) {
     const current = this.bots.get(botId)
     const candidate = await this.bots.previewUpdate(botId, changes)
     const harnessChanged = candidate.harness !== current.harness
@@ -53,12 +59,12 @@ export class BotAdministration {
     const reapply = !differs && previous?.state === 'failed' && previous.fields.some(key =>
       Object.hasOwn(changes, key) && candidate[key] === previous.requested[key])
     const configurationChanged = reapply || differs
-    const wasRunning = configurationChanged ? await this.transport.isRunning(current) : false
+    const wasRunning = configurationChanged ? this.handoff?.current(botId) ? true : await this.transport.isRunning(current) : false
     admissionCheck?.()
     if (expected && ['harness', 'model', 'reasoningEffort', 'fastMode'].some(key => this.bots.get(botId)?.[key] !== expected[key]))
       throw Object.assign(new Error('CONTINUATION_SUPERSEDED'), { code: 'CONTINUATION_SUPERSEDED', effect: 'not_started' })
     const bot = await this.bots.update(botId, changes)
-    const applying = wasRunning ? this.apply(current, candidate, { fastModeChanged, reapply, admissionCheck }) : null
+    const applying = wasRunning ? this.apply(current, candidate, { fastModeChanged, reapply, admissionCheck, handoffIngress }) : null
     if (applying && waitForApplication) {
       await applying
       if (this.applications.get(botId)?.state !== 'accepted')
@@ -68,14 +74,57 @@ export class BotAdministration {
     return { bot: this.view(bot), harnessChanged, configurationChanged, applying: wasRunning }
   }
 
-  apply(current, candidate, { fastModeChanged, reapply, admissionCheck }) {
+  apply(current, candidate, { fastModeChanged, reapply, admissionCheck, handoffIngress }) {
     const application = { state: 'pending', fields: reapply ? [...this.applications.get(current.id).fields]
       : ['harness', 'model', 'reasoningEffort', 'fastMode'].filter(key => candidate[key] !== current[key]), requested: {
       harness: candidate.harness, model: candidate.model ?? '',
       reasoningEffort: candidate.reasoningEffort ?? '', fastMode: candidate.fastMode === true,
     } }
+    const previousApplying = this.applicationCompletions.get(current.id)
     this.applications.set(current.id, application)
-    const pending = this.transport.reconfigure(current, candidate, reapply || admissionCheck ? { ...(reapply ? { reapply: true } : {}), ...(admissionCheck ? { admissionCheck } : {}) } : undefined)
+    const requestId = handoffIngress || this.handoff?.current(current.id) || previousApplying ? randomUUID() : null
+    if (requestId) application.requestId = requestId
+    const stopVersion = this.transport.captureStopVersion?.(current)
+    const assertCurrent = () => {
+      admissionCheck?.()
+      if (!requestId) return
+      this.transport.requireStopVersion?.(current.id, stopVersion)
+      if (this.applications.get(current.id) !== application || Object.entries(application.requested).some(([key, value]) =>
+        (key === 'fastMode' ? this.bots.get(current.id)?.[key] === true : this.bots.get(current.id)?.[key] ?? '') !== value)) throw Object.assign(new Error('AUTOMATIC_CONFIGURATION_SUPERSEDED'), { code: 'AUTOMATIC_CONFIGURATION_SUPERSEDED', effect: 'not_started' })
+    }
+    const pending = (async () => {
+      const old = this.handoff?.current(current.id)
+      if (old) {
+        void this.handoff.revoke(old, 'superseded', requestId)
+        handoffIngress?.resolve(null)
+        await old.completion
+      }
+      if (requestId && previousApplying) await previousApplying
+      if (handoffIngress?.open && this.handoff) {
+        const prepared = await this.handoff.prepare({ botId: current.id, current, candidate,
+          ingress: handoffIngress.context, requestId, assertCurrent,
+          deadline: handoffIngress.deadline, windowSignal: handoffIngress.window.signal })
+        if (prepared && handoffIngress.open) {
+          prepared.assertCurrent = assertCurrent
+          let operation
+          try { operation = this.handoff.begin(prepared) }
+          catch (error) {
+            await this.handoff.requests.finishNotIssued(current.id, prepared.context.operation).catch(() => {})
+            throw error
+          }
+          handoffIngress.resolve(prepared.metadata)
+          const terminal = await operation.completion
+          if (!terminal.resumed) throw Object.assign(new Error('AUTOMATIC_CONFIGURATION_REVOKED'), { effect: 'possible' })
+          return
+        }
+      }
+      handoffIngress?.resolve(null)
+      assertCurrent()
+      return this.transport.reconfigure(current, candidate, {
+        ...(reapply ? { reapply: true } : {}), ...(requestId ? { admissionCheck: assertCurrent, requestId } : admissionCheck ? { admissionCheck } : {}),
+      })
+    })()
+
       .then(result => {
         if (this.applications.get(current.id) === application) {
           application.state = 'accepted'
@@ -83,6 +132,7 @@ export class BotAdministration {
         }
       })
       .catch(async error => {
+        handoffIngress?.resolve(null)
         void reportExecutionFailure(this.reportError, current.id, 'configuration', error)
         try { this.writeLog(`BellTeam reconfigure error: ${JSON.stringify(executionFailureReport(current.id, 'configuration', error))}\n`) }
         catch { /* Logging must not change the application result. */ }
@@ -101,8 +151,28 @@ export class BotAdministration {
         if (fastModeChanged && notStarted && this.bots.get(current.id)?.fastMode === candidate.fastMode) await this.bots.update(current.id, { fastMode: current.fastMode })
       })
       .catch(error => this.writeLog(`BellTeam fast mode restore error: ${error.stack ?? error.message}\n`))
+    this.applicationCompletions.set(current.id, pending)
+    const clear = () => { if (this.applicationCompletions.get(current.id) === pending) this.applicationCompletions.delete(current.id) }
+    pending.then(clear, clear)
     this.trackCompletion(pending)
     return pending
+  }
+
+  async configureFromMcp(botId, changes, context) {
+    let complete
+    const metadata = new Promise(resolve => { complete = resolve })
+    const window = new AbortController()
+    const handoffIngress = { context, window, deadline: performance.now() + 5000, open: true,
+      resolve: value => { if (handoffIngress.open) { handoffIngress.open = false; window.abort(); complete(value) } } }
+    const timer = setTimeout(() => handoffIngress.resolve(null), 5000)
+    const cancel = () => handoffIngress.resolve(null)
+    context?.signal?.addEventListener?.('abort', cancel, { once: true })
+    if (context?.signal?.aborted) cancel()
+    try {
+      const value = await this.update(botId, changes, { handoffIngress })
+      if (!value.applying) handoffIngress.resolve(null)
+      return { value, handoffMetadata: await metadata }
+    } finally { handoffIngress.resolve(null); clearTimeout(timer); context?.signal?.removeEventListener?.('abort', cancel) }
   }
 
   async reconcile(botId, id) {

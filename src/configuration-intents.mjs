@@ -1,3 +1,4 @@
+import { AITERM_DIST } from './aiterm-hooks.mjs'
 import { lstat, mkdir, readdir, realpath } from 'node:fs/promises'
 import { dirname, isAbsolute, join, parse } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
@@ -144,6 +145,42 @@ export class ConfigurationIntents {
     }
   }
 
+  async saveHandoffStop(botId, binding) {
+    const original = await this.read(botId, binding.id)
+    if (!isDeepStrictEqual(original.binding, binding)) throw configurationError('CONFIGURATION_INTENT_INVALID')
+    const directory = await this.botDirectory(botId)
+    const bytes = Buffer.from(JSON.stringify({ schema: 'bellteam.configuration-handoff-stop.v1', binding }) + '\n')
+    try { await publishResumeFile(directory, `${binding.id}.handoff-stop.json`, bytes) }
+    catch (error) {
+      if (error.code !== 'EEXIST' || !bytes.equals(await readResumeFile(join(directory, `${binding.id}.handoff-stop.json`), 4096))) throw error
+    }
+  }
+
+  async handoffTerminal(botId, binding) {
+    const directory = await this.botDirectory(botId)
+    let value
+    try { value = JSON.parse((await readResumeFile(join(directory, `${binding.id}.handoff.json`), 16384)).toString('utf8')) }
+    catch (error) { if (error.code === 'ENOENT') return null; throw error }
+    if (!value || Object.keys(value).sort().join(',') !== 'schema,snapshot' || value.schema !== 'bellteam.configuration-handoff-result.v1')
+      throw configurationError('CONFIGURATION_INTENT_INVALID')
+    const { handoffSnapshotSchema } = await import(`${AITERM_DIST}/model-handoff-control.js`)
+    const snapshot = handoffSnapshotSchema.parse(value.snapshot)
+    if (!isDeepStrictEqual(snapshot.operation, binding) || snapshot.state !== 'terminal' || snapshot.later_effect !== 'excluded')
+      throw configurationError('CONFIGURATION_INTENT_INVALID')
+    return snapshot
+  }
+
+  async saveHandoffTerminal(botId, snapshot) {
+    const original = await this.read(botId, snapshot.operation.id)
+    if (!isDeepStrictEqual(original.binding, snapshot.operation) || snapshot.state !== 'terminal'
+      || snapshot.later_effect !== 'excluded' || snapshot.in_flight.length) throw configurationError('CONFIGURATION_INTENT_INVALID')
+    const directory = await this.botDirectory(botId)
+    try { await publishResumeFile(directory, `${snapshot.operation.id}.handoff.json`, Buffer.from(JSON.stringify({
+      schema: 'bellteam.configuration-handoff-result.v1', snapshot }) + '\n')) }
+    catch (error) { if (error.code !== 'EEXIST') throw error }
+    return this.handoffTerminal(botId, original.binding)
+  }
+
   async pending() {
     let bots
     try { bots = await readdir(this.root) } catch (error) { if (error.code === 'ENOENT') return []; throw error }
@@ -160,6 +197,7 @@ export class ConfigurationIntents {
           if (await this.terminal(botId, original.binding)) throw configurationError('CONFIGURATION_INTENT_INVALID')
           continue
         }
+        if (await this.handoffTerminal(botId, original.binding)) continue
         const result = await this.terminal(botId, original.binding)
         if (!result || !(result.origin === 'apply' && result.receipt.outcome === 'applied') && result.receipt.later_effect !== 'excluded') unresolved.push(original)
       }
