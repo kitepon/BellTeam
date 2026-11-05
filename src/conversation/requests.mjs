@@ -61,6 +61,11 @@ export function validateConversationRequest(method, params, context) {
     case 'member.removeFromRooms': return fields(params, { botId: id })
     case 'history.listMessages': case 'history.recent': return fields(params, { botId: id })
     case 'history.recentBatch': return fields(params, { botIds: array(id) })
+    case 'history.workInput':
+      fields(params, { botId: id, sessionId: identity, launchId: identity, inputRevision: identity,
+        deliveryId: identity, context: oneOf('direct', 'room'), contextId: id })
+      if (params.context === 'direct' ? params.contextId !== params.botId : !roomId(params.contextId)) invalid()
+      return true
     case 'history.deliveryAnchor':
       fields(params, { deliveryId: identity, target: id, context: oneOf('direct', 'room'), contextId: id })
       if (params.context === 'direct' ? params.contextId !== params.target : !roomId(params.contextId)) invalid()

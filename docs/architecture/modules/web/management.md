@@ -78,6 +78,27 @@ flowchart TD
 
 保存callbackは描いた時のopenedを捕まえる。古い画面の保存完了から新画面のGETを始めず、既に走ったGETも画面/read順を照合する。PATCHの成功後に表示取得だけ失敗した場合はその段階を表示する。Cloudflareの案内判断は送信時enabledを使い、後から変えたcheckboxには依存しない。秘密入力はsubmit/close/非表示で消し、自動再PATCHはしない。
 
+### 全体の仕事要約agent
+
+```mermaid
+flowchart LR
+  Open[Owner設定のAIと動作] --> View[background-agent-settings / 開いた画面の入力]
+  View --> Read[既GET settingsとmodels]
+  Read --> Catalog[ハーネス→モデル→個別efforts]
+  Catalog --> Draft[候補の連動 / 未保存入力を保持]
+  Draft --> Save[Owner PATCH settings/backgroundAgent 一回 / expectedRevision]
+  Save --> GET[成功と失敗を分け同GET再読込]
+  SSE[既settings SSE] --> GET
+  GET --> Saved[保存済み設定を表示 / draftは上書きしない]
+  Saved --> Work[生成状況は既currentWork投影]
+```
+
+`owner-editor`は専用formのopen/closeと既settings通知を接続する。`background-agent-settings.js`が全体一件のrecord・候補cache・未保存draft・読取世代・保存中を持ち、他Botの設定/要約writerは持たない。全体設定と組合せ検証の正本は[usage](../usage/README.md)、HTTP/モデル一覧は[integration](../integration/README.md)、生成/失効は[execution](../execution/README.md)。公開v1はGET settingsのトップbackgroundAgent、Owner PATCH `/api/settings/backgroundAgent`のexpectedRevision/harness/model/reasoningEffort厳密4key。既FeatureSetting配列へ7項目目を加えない。公開6設定・Ownerプロフィール保存と独立する。
+
+未供給キー/不正record/取得失敗では編集と保存を無効にする。候補はモデル個別effortsだけを使い、空配列だけ空文字のCLI既定を許す。初期未設定は候補を自動選択しない。保存済み候補外値は残し保存不可。選択変更でPATCHを発行しない。候補はopen/手動再取得時だけ読み、settings通知は設定GETだけを行う。
+
+保存は元revisionと3項目を固定して一回、200/不正応答/400/409/503/500/通信不明後にGETを一回行う。保存成功後のGET失敗は保存成功と取得失敗を別表示し、保存後apply失敗はGETで選択が保存されている事実と要約稼働未確認を区別する。別画面の409やSSEで保存済み値が変わってもdraftを消さず、利用者が差を確認してから次の操作をする。close/reopen前の旧結果を捨て、未保存/保存中は既close確認へ参加する。プロフィール保存も要約設定のdraftが残る間は閉じない。新AI/設定自己変更/別モデル代替/独自再送はない。
+
 ## 画像の所有者がURLを片付ける
 
 ```mermaid

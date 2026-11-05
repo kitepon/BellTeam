@@ -1,6 +1,7 @@
 import { json, readJson } from '../http-response.mjs'
 import { SubscriptionAccessError } from '../subscriptions.mjs'
 import { webPushError, webPushFields, validateWebPushOrigin } from './web-push-schema.mjs'
+import { backgroundAgentError, backgroundInputValid } from './background-agent-settings.mjs'
 
 export function createUsageApi({ onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, assertWebPushOrigin, captureUsageContext }) {
   const webOrigin = request => {
@@ -39,7 +40,30 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
       if (request.method === 'POST' && action) return json(response, 200, await harnessAuth[action](harness, await context('auth.' + action)))
       return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
     }
-    if (url.pathname === '/api/settings' && request.method === 'GET') return json(response, 200, { settings: settings?.list() ?? [] })
+    if (url.pathname === '/api/settings' && request.method === 'GET') return json(response, 200, {
+      settings: settings?.list() ?? [],
+      ...(settings?.hasBackgroundAgent?.() ? { backgroundAgent: await settings.backgroundAgentConfiguration() } : {}),
+    })
+    if (url.pathname === '/api/settings/backgroundAgent') {
+      if (request.method !== 'PATCH') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+      if (internal) return json(response, 403, { error: 'BACKGROUND_AGENT_OWNER_REQUIRED' })
+      if (!settings?.updateBackgroundAgent || !settings.hasBackgroundAgent?.()) throw backgroundAgentError('BACKGROUND_AGENT_UNAVAILABLE', 503)
+      if (!/^application\/json(?:\s*;|$)/iu.test(request.headers['content-type'] ?? '')) throw backgroundAgentError('BACKGROUND_AGENT_INPUT_INVALID')
+      let input
+      try { input = await readJson(request, 4096) }
+      catch (error) {
+        if (['INVALID_JSON', 'REQUEST_TOO_LARGE'].includes(error.message)) throw backgroundAgentError('BACKGROUND_AGENT_INPUT_INVALID')
+        throw error
+      }
+      if (!backgroundInputValid(input)) throw backgroundAgentError('BACKGROUND_AGENT_INPUT_INVALID')
+      let configuration
+      try { configuration = await settings.updateBackgroundAgent(input, { usageContext: await context('settings.updateBackgroundAgent') }) }
+      catch (error) {
+        if (error.code?.startsWith('BACKGROUND_AGENT_')) throw backgroundAgentError(error.code, error.status)
+        throw error
+      }
+      return json(response, 200, { backgroundAgent: configuration })
+    }
     const settingsMatch = url.pathname.match(/^\/api\/settings\/([A-Za-z]+)$/u)
     if (settingsMatch && request.method === 'PATCH') {
       if (!settings) return json(response, 404, { error: 'NOT_FOUND' })

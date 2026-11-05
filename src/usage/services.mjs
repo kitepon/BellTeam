@@ -8,6 +8,7 @@ import { OwnerQuestions, ownerAnswerMessage } from '../owner-questions.mjs'
 import { Subscriptions } from '../subscriptions.mjs'
 import { authReceipt, authUi } from '../auth-ui.mjs'
 import { usageError, validateUsageRequest } from './process-schema.mjs'
+import { BackgroundAgentSettings } from './background-agent-settings.mjs'
 
 const clone = value => structuredClone(value)
 const receiptKeys = ['schema', 'status', 'session_id', 'url', 'user_code', 'input_required', 'message']
@@ -69,6 +70,12 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
       publish(settingsProjection())
       return callEffect('settings.changed', { id, configuration, epoch })
     } })
+  const backgroundAgent = new BackgroundAgentSettings({ root,
+    models: harness => callEffect('backgroundAgent.models', { harness }),
+    onChange: configuration => {
+      publish(settingsProjection())
+      return callEffect('backgroundAgent.changed', { configuration })
+    } })
   const subscriptions = new Subscriptions({ path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'), environment: subscription.environment ?? 'Production', accessMode: subscription.accessMode ?? 'subscription', developerAccessAllowed: subscription.developerAccessAllowed })
   const client = { authOptions: () => ({}), call: (method, params) => {
     if (method !== 'agent_auth') throw usageError('USAGE_EFFECT_INVALID')
@@ -89,7 +96,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     notify: item => callEffect('question.answered', { botId: item.botId, message: ownerAnswerMessage(item) }) })
   const assertOpen = (method, actor) => {
     if (projectionFailed) throw usageError('USAGE_PROJECTION_UNAVAILABLE')
-    if (!initialized && settingsReady && !stopped && actor.kind === 'system' && ['settings.list', 'settings.configuration', 'settings.setError'].includes(method)) return
+    if (!initialized && settingsReady && !stopped && actor.kind === 'system' && ['settings.list', 'settings.configuration', 'settings.setError', 'settings.backgroundAgent'].includes(method)) return
     if (stopped || !initialized || !accepting) throw usageError('USAGE_UNAVAILABLE')
   }
   const getOwned = (service, id, actor, code) => {
@@ -101,6 +108,8 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'settings.list': () => settings.list(),
     'settings.configuration': ({ id }) => settings.configuration(id),
     'settings.update': ({ id, input }, actor) => settings.update(id, input, { secretRequests, botId: actor.botId, allowSecretValues: actor.kind === 'owner' }),
+    'settings.backgroundAgent': () => backgroundAgent.configuration(),
+    'settings.updateBackgroundAgent': input => backgroundAgent.update(input),
     'settings.setError': ({ id, error, epoch }) => {
       if (epoch !== epochs.get(id)) throw usageError('USAGE_SETTINGS_STALE', 409)
       return settings.setError(id, error)
@@ -140,7 +149,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     projectionTail = result.catch(() => { projectionFailed = true })
     return result
   }
-  const settingsProjection = () => ({ type: 'settings', epochs: Object.fromEntries(epochs), list: settings.list(), configurations: Object.fromEntries(settings.list().map(({ id }) => [id, settings.configuration(id)])) })
+  const settingsProjection = () => ({ type: 'settings', epochs: Object.fromEntries(epochs), list: settings.list(), configurations: Object.fromEntries(settings.list().map(({ id }) => [id, settings.configuration(id)])), ...backgroundAgent.projection() })
   const baseProjection = () => [{ ...settingsProjection() }, { type: 'onboarding', value: onboarding.snapshot() }, { type: 'auth', value: harnessAuth.list() }, { type: 'subscription', value: subscriptions.status() }]
   secretRequests.watch(event => publish({ type: 'event', value: event }))
   ownerQuestions.watch(event => publish({ type: 'event', value: event }))
@@ -166,7 +175,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     async initializeSettings({ restore = false } = {}) {
       if (settingsReady || settingsInitializing || stopped) throw usageError('USAGE_ALREADY_INITIALIZED', 409)
       settingsInitializing = true
-      await settings.initialize({ readOnly: restore }); settingsReady = true
+      await settings.initialize({ readOnly: restore }); await backgroundAgent.initialize(); settingsReady = true
       return clone({ ...settingsProjection(), revision })
     },
     async initialize({ restore = false, handoff = null } = {}) {

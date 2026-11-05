@@ -11,7 +11,7 @@ const within = async (promise, ms, code) => {
 }
 
 // The runtime reader supplies factories; no caller URL or import is accepted here.
-export function createExecutionGeneration({ ports, loadFactory, onAdopt,
+export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgroundSummary = null,
   currentVersionId = null, previousVersionId = null, exchangeMutex = null, onState = () => {} }) {
   if (typeof loadFactory !== 'function' || typeof onAdopt !== 'function' || !valid(currentVersionId) || !valid(previousVersionId))
     throw fail('OPTIONS_INVALID', 400)
@@ -40,7 +40,7 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt,
   const make = (factory, handoff) => {
     const generation = `${factory.versionId ?? 'builtin'}:${randomUUID()}`
     unsafe = true
-    const engine = factory.createExecutionDispatcher({ generation, ports, handoff })
+    const engine = factory.createExecutionDispatcher({ generation, ports, handoff, backgroundSummary })
     if (!engine || !['validateRequest', 'dispatch', 'project', 'control', 'exportState', 'disconnect'].every(key => typeof engine[key] === 'function'))
       throw fail('FACTORY_INVALID')
     unsafe = false

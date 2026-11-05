@@ -1,4 +1,6 @@
 import { createModuleChildExitReporter } from './module-child-exit-reporter.mjs'
+import { mkdir } from 'node:fs/promises'
+import { createTeamBackgroundSummary } from './background-summary-assembly.mjs'
 import { createModuleExchangeMutex } from './module-exchange-mutex.mjs'
 import { createConversationUsage } from './usage/conversation-effects.mjs'
 import { loadExecutionFactory } from './execution-loader.mjs'
@@ -46,14 +48,14 @@ import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
-  let members = null, diagnosticsModule = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter
+export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
+  let members = null, diagnosticsModule = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary
   const membersAdmission = new MembersAdmission()
   try {
   const trustedAnchor = acquireConfigurationStateAnchor(root)
   const membersAuthorization = createMembersOwnerAuthorization()
   const usage = usageAssembly?.facade
-  const usageServices = { bots, settings }
+  const usageServices = { bots, settings, models, notify }
   attachUsageServices(usageServices)
   const subscriptions = usage?.subscriptions ?? new Subscriptions({
     path: join(root, seatRuntime ? 'state/subscription.json' : 'shared/subscription.json'),
@@ -97,6 +99,11 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     beforeResume: at => scheduler.prepareResume(new Date(at)),
   })
   await aiControl.initialize()
+  const summaryProject = join(root, 'shared/tools/bellteam-background-agent')
+  await mkdir(summaryProject, { recursive: true, mode: 0o700 })
+  backgroundSummary = createTeamBackgroundSummary({ project: summaryProject, settings, models,
+    conversation: () => conversationAssembly, enabled: () => !aiControl.paused,
+    notify: () => notify?.({ type: 'bots' }) })
   executionClient = client ?? new AitermClient({ ...aiterm, ...(seatRuntime ? { seatProject: root } : {}) })
   const seatPorts = seatRuntime ? {
     writeTemporaryImage: (path, bytes) => seatRuntime.writeTemporaryImage(path, bytes),
@@ -128,7 +135,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   if (executionFactory) {
     const selection = adoptionFactory({ root }), selected = await selection.read()
     const queueListeners = new Set()
-    execution = executionFactory({ ports: {
+    execution = executionFactory({ backgroundSummary, ports: {
       native: executionClient, membersAdmission, bots,
       ...(conversationAssembly ? { conversationAdmission: conversationAssembly.admission, moduleOperations: conversationAssembly.moduleOperations } : {}), rooms: { removeBot: (...args) => rooms.removeBot(...args) },
       configurationStorage: { root: join(root, 'state/configuration-intents'), trustedAnchor },
@@ -145,7 +152,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       watchQueue: listener => { queueListeners.add(listener); return () => queueListeners.delete(listener) },
       onState: () => updateCenter?.notify() })
   }
-  const transport = execution?.transport ?? createManagedTransport({ membersAdmission, client: executionClient,
+  const transport = execution?.transport ?? createManagedTransport({ backgroundSummary, membersAdmission, client: executionClient,
     configurationRequests: new ConfigurationRequests({ client: executionClient, intents: new ConfigurationIntents(join(root, 'state/configuration-intents'), { trustedAnchor }) }),
     reportError: report => diagnostics.record(report), ...seatPorts, ...storagePorts,
     assertWorkAllowed: () => aiControl.assertEnabled(), requireMember })
@@ -226,8 +233,10 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     adapters: createModuleUpdateAdapters({ gateway, builtinSourceCommit, notifications, members, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule,
       prepareDiagnostics, usage: usageAssembly?.controller, prepareUsage, conversation: conversationAssembly?.controller, prepareConversation: (versionId, options) => prepareModuleRelease('conversation', versionId, options), execution: execution?.controller, prepareExecution }), notify: () => updateCenter?.notify() })
   updateCenter = createUpdateCenter({ gateway, builtinSourceCommit, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule, usage: usageAssembly?.controller, conversation: conversationAssembly?.controller, execution: execution?.controller })
-  Object.assign(usageServices, { bots, rooms, transport, messenger, notifications, settings, updateCenter, conversationAssembly })
+  Object.assign(usageServices, { bots, rooms, transport, messenger, notifications, settings, updateCenter, conversationAssembly, backgroundSummary })
   if (usageAssembly) await usageAssembly.initializeServices()
+  // Missing or corrupt summary settings must not prevent the main application from starting.
+  try { backgroundSummary.configure(await settings.backgroundAgentConfiguration()) } catch {}
   if (execution) await execution.controller.start()
   let olrwAuthCaller = null
   try {
@@ -252,7 +261,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     try { await diagnostics.record({ code: 'OLRW_MANAGEMENT_UNAVAILABLE', module: 'integration' }) } catch {}
   }
   return {
-    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, moduleChildExitReporter, membersAuthorization, members, usageAssembly, conversationAssembly, execution,
+    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, moduleChildExitReporter, membersAuthorization, members, usageAssembly, conversationAssembly, execution, backgroundSummary,
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
@@ -260,7 +269,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   }
   } catch (error) {
     const failures = []
-    for (const close of [() => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
+    for (const close of [() => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
       () => conversationAssembly?.close(), () => execution?.controller.close(), () => execution && executionClient?.close(),
       () => members?.controller.close(), () => usageAssembly?.close(), () => diagnosticsModule?.close()]) {
       try { await close() } catch (cleanupError) { failures.push(cleanupError) }

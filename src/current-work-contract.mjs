@@ -4,11 +4,11 @@ const object = properties => objectSchema(properties, Object.keys(properties))
 const date = { type: 'string', format: 'date-time' }
 const nil = { type: 'null' }
 const summary = { type: 'string', minLength: 1, maxLength: 160, pattern: '^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]+$' }
-export const currentWorkSchema = { oneOf: [['working', 'current'], ['working', 'missing'], ['working', 'stale'], ['idle', 'missing'], ['unknown', 'missing']].map(([state, status]) => object({
+export const currentWorkSchema = { oneOf: ['working', 'idle', 'unknown'].flatMap(state => ['current', 'missing', 'stale'].map(status => object({
   state: { const: state }, summary: status === 'current' ? summary : nil, summaryStatus: { const: status },
   summaryUpdatedAt: status === 'missing' ? nil : date, observedAt: state === 'unknown' ? { anyOf: [date, nil] } : date,
-  source: status === 'missing' ? nil : { const: 'self_reported' },
-})) }
+  source: status === 'missing' ? nil : state === 'working' ? { enum: ['self_reported', 'background_agent'] } : { const: 'background_agent' },
+}))) }
 export const currentWorkBindingSchema = object({ sessionId: { type: 'string', minLength: 1 }, launchId: { type: 'string', minLength: 1 }, turnId: { type: 'string', minLength: 1 }, revision: { type: 'string', format: 'uuid' } })
 // The execution writer trims before enforcing the 160-code-point limit.
 export const updateWorkSummaryInputSchema = object({ expected: currentWorkBindingSchema,

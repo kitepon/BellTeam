@@ -31,6 +31,14 @@
     {
       "module": "throughline",
       "port": "context"
+    },
+    {
+      "module": "conversation",
+      "port": "history"
+    },
+    {
+      "module": "usage",
+      "port": "settings"
     }
   ],
   "source": [
@@ -59,6 +67,8 @@
     "src/bot-administration.mjs",
     "src/automatic-configuration-application.mjs",
     "src/conversation-lifetimes.mjs",
-    "src/conversation-execution-effects.mjs"
+    "src/conversation-execution-effects.mjs",
+    "src/team-background-summary.mjs",
+    "src/background-summary-runner.mjs"
   ]
 }
