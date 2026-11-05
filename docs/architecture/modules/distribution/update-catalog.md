@@ -175,4 +175,10 @@ catalog公開と実選択/正規global生成/CLI次読込/背景生成・本番�
 
 親は検証済み現factoryの能力にstorage viewとMCP入口を合わせ、旧署名executionの閉3keyと通常configureを維持する。新factoryだけ同actor deliveryAnchorとMCP context/metaへ接続し、invoke直前の同generation照合で交換済み要求を発行前に拒否する。接点図は[integration/model-handoff.md](../integration/model-handoff.md)、固有engineとの境界は[execution/host-factory.md](../execution/host-factory.md)を参照する。
 
-新公開時刻/7日期限を付け、このconfig採用mainから配布担当が必要通常publisher一回を発行する。Rootが選んだI本番複製の本体更新targetであり、正式catalog公開だけでclone本体交換・Host認可・plan/Start/既unknown guard成立や本番成功を示さない。M private native候補は旧185a pinのままでは本修理を含まず、新修理親digest/core labelを別に固定し新採否へ接続する。I供給をM実Root/auth/Windows/Macの待ち条件へ戻さない。
+新公開時刻/7日期限を付けた初回publisher42024342816はNOT_STABLEで失敗し、正式公開は未成立。追加publisherはRootの別stable/正規target裁定前に発行しない。Rootが選んだI本番複製の本体更新targetであり、正式catalog公開だけでclone本体交換・Host認可・plan/Start/既unknown guard成立や本番成功を示さない。M private native候補は旧185a pinのままでは本修理を含まず、新修理親digest/core labelを別に固定し新採否へ接続する。I供給をM実Root/auth/Windows/Macの待ち条件へ戻さない。
+
+## read-window修理の正式execution資材入力
+
+source/signer `24a854e49d753f7c60be3f556124920353900c7d`、専用run42037815613の正式Release `updates-20261105T134357Z` をexecution両archの2recordへ結ぶ。既図の正式入力→catalogの供給契約内で、固定50file/Node26/P1/実stateCompatibilityを保持する。caller待機の打切りと元readの実completionは[consumer正本](../execution/model-handoff.md)・[親DFD](../../data-flow.md#mh04mh06-read-window修理のデータ寿命)に従う。
+
+他16record・全互換・失効は保持する。container target9fcc/00feとstable latestの不一致による既NOT_STABLEは未解消であり、この2record採用だけではcatalogを公開できない。Rootの別stable昇格又は正規target変更の裁定までpublisherを発行せず、containerの私製差替え・検査回避・既失敗run再実行をしない。自然親24a854/d442の受入と、Iの9fcc/00fe targetは別の事実であり、ここでIのtargetを替えない。
