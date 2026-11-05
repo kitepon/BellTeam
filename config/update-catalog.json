@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-05T00:44:26Z",
-  "expiresAt": "2026-11-12T00:44:26Z",
+  "publishedAt": "2026-11-05T01:05:05Z",
+  "expiresAt": "2026-11-12T01:05:05Z",
   "releases": [
     {
       "componentId": "usage",
@@ -181,8 +181,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25",
-      "versionId": "f82b94bfda4e131aad499662a54c2b7ff11cd19a4902acb8ce839d3d7ef63a1e",
+      "sourceCommit": "5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f",
+      "versionId": "30b46b57921e8c2c7ed2165c65c0de59c8068d2d8d9541584ead218c3d89187f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -190,16 +190,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/conversation-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-amd64.tar.gz",
-          "sha256": "f82b94bfda4e131aad499662a54c2b7ff11cd19a4902acb8ce839d3d7ef63a1e",
-          "bytes": 3894875
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T010348Z/conversation-5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f-linux-amd64.tar.gz",
+          "sha256": "30b46b57921e8c2c7ed2165c65c0de59c8068d2d8d9541584ead218c3d89187f",
+          "bytes": 3895009
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/conversation-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "1e3b70afb6f9f3a4aff3c2ff5308ec7786a81a1dc56a8fd6f834c2b8b2479d8f",
-          "bytes": 11139
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T010348Z/conversation-5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "87aee773c17243cd5812d02119909d1aa29d3a57b02cf04227dc8b609d7880d1",
+          "bytes": 11280
         },
-        "signerCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25"
+        "signerCommit": "5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -230,13 +230,13 @@
         }
       },
       "changes": [
-        "背景エージェントへ、許可された会話入力だけを渡します。"
+        "会話子の終了後、保存処理の終端を待って自動復帰へ進めます。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25",
-      "versionId": "1e7007fd7a5ad8ead8d28fa09d3e40b0e70ff0c07b963834e08a86b1f6ff6199",
+      "sourceCommit": "5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f",
+      "versionId": "f9d8e81714c74966bae1c40115cbde4970cadcbacfcd1aa8ba05aceee38d1bc7",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -244,16 +244,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/conversation-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-arm64.tar.gz",
-          "sha256": "1e7007fd7a5ad8ead8d28fa09d3e40b0e70ff0c07b963834e08a86b1f6ff6199",
-          "bytes": 3894875
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T010348Z/conversation-5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f-linux-arm64.tar.gz",
+          "sha256": "f9d8e81714c74966bae1c40115cbde4970cadcbacfcd1aa8ba05aceee38d1bc7",
+          "bytes": 3895010
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/conversation-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "27439e4f91f3be9e7529dfd638fa35a30fb27be843e2aa0330cca9035547b8f6",
-          "bytes": 11049
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T010348Z/conversation-5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "95b90b8f279e3b6e347191a8ed61327011e8e989d100bb2c1ca53c14c9d6a4e0",
+          "bytes": 11233
         },
-        "signerCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25"
+        "signerCommit": "5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -284,7 +284,7 @@
         }
       },
       "changes": [
-        "背景エージェントへ、許可された会話入力だけを渡します。"
+        "会話子の終了後、保存処理の終端を待って自動復帰へ進めます。"
       ]
     },
     {
