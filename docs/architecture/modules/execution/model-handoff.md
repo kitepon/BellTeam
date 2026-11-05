@@ -34,3 +34,26 @@ callerはMollyの元handler/scoped configure→同graph固定dispatch→BotAdmin
 親はprivate ports.storage.deliveryAnchor(input,options)を非asyncで同actorのconversationAssembly.run→facade.store.deliveryAnchorへ直接接続し、実completionを保つ（Molly所有）。native portは既shared AitermClientにcaptureHandoffConnectionを供給し、bind/commit/read/revokeはその元SDK closureへ限定する。両方無しでは作用不成立。新しい公開HTTP tool schemaや永続queueは増やさない。
 
 load closureで新規必要fileはsrc/model-handoff.mjs。既clientと新intentが使うsrc/aiterm-hooks.mjsもEXECUTION_FILES収録が必要。producer変更/署名はCenti、親src/aiterm-client.mjsの採用と元handler配線はMolly。同sourceのcapture/control distとschemaはAiterm 0.63.7/native7139295d/Aiterm4452c410のElegg供給を使用する。package/lock変更0。先行DTO、普通の設定不明配送許可、JのdeferredRecovery即busyは既契約を保つ。
+
+## capture/readのcaller待機と実終端（read-window修理）
+
+元configureFromMcpのdeadline/元signalを一つだけ使用し、captureとanchor readのcaller待機を同窓で打ち切る。期限後はprepare=nullで既希望/停止世代の検査を経た通常applyへ戻す。子readの取消は要求しない。元captureと元reading.completionのtrackを競合Promiseで置換しない。
+
+| producer → consumer | データ/状態と失敗 | 保存・寿命所有 |
+| --- | --- | --- |
+| 元MCP/metadata窓 → prepare | 同deadline/AbortSignal。期限又はabortでcaller待機を拒否 | 元窓はconsumer所有、readごとに延長しない |
+| Aiterm capture / 会話read → caller | 元result又は拒否。窓内のみ後続checkへ、失効後は遅着を回収するだけ | 読取結果から失効後prepareHandoff/metadata新発行0 |
+| 元capture / reading.completion → dispatcher | 真の実終端まで元Promise identityを追跡 | 会話leaseは会話所有。caller打切りで終端を偽造・早期解放しない |
+
+```mermaid
+flowchart LR
+  Window[元deadline / signal] --> Wait[同窓captureとread caller待機]
+  Result[元capture / anchor result] --> Wait
+  Wait -->|窓内result| Check[元job / 接続 / 希望検査]
+  Wait -->|期限又はabort| Fallback[prepare null / 既通常apply分岐]
+  Real[元capture / read completion] --> Track[真の終端までdispatcher追跡 / 会話lease保持]
+```
+
+対象は元await二か所の有限化。prepareHandoffの耐久保存や通常設定applyを含む全HTTP wall時間の上限、子強制取消ACKを保証しない。
+
+親seat-mcpのbudgetはnull固定であり数値のRPC残budgetは未取得。現実装はconfigureFromMcp入口で作るperformance.now()+5000と元signal/window.signalを使う。元signalのabortは窓へ伝わるが、未取得のRPC deadlineを推定しない。
