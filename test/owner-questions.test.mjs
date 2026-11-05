@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
-import { mkdtemp, readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -10,8 +10,9 @@ import { OwnerQuestions, ownerAnswerMessage } from '../src/owner-questions.mjs'
 
 const bots = new Map([['bot-d', { id: 'bot-d', name: 'ドリリー' }]])
 
-async function service(notified = []) {
+async function service(t, notified = []) {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-owner-question-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
   const requested = []
   const questions = new OwnerQuestions({
     root, bots, notify: async item => notified.push(item), onRequest: item => requested.push(item.id),
@@ -21,8 +22,8 @@ async function service(notified = []) {
   return { questions, root, requested }
 }
 
-test('選択肢のカードを作り、そのBotの会話画面に出す', async () => {
-  const { questions, root, requested } = await service()
+test('選択肢のカードを作り、そのBotの会話画面に出す', async t => {
+  const { questions, root, requested } = await service(t)
   const item = await questions.create({ botId: 'bot-d', question: 'CodexにRTKを入れていい？', options: ['入れて', 'まだ待って'] })
   assert.deepEqual(item, {
     id: '6f1e2d3c-0000-4000-8000-000000000001', botId: 'bot-d', question: 'CodexにRTKを入れていい？',
@@ -39,8 +40,8 @@ test('選択肢のカードを作り、そのBotの会話画面に出す', async
   assert.equal(JSON.parse(await readFile(join(root, 'state/owner-questions', `${item.id}.json`), 'utf8')).status, 'open')
 })
 
-test('選択肢は2〜8個の重複しない文に限る', async () => {
-  const { questions } = await service()
+test('選択肢は2〜8個の重複しない文に限る', async t => {
+  const { questions } = await service(t)
   for (const input of [
     { botId: 'bot-d', question: '', options: ['a', 'b'] },
     { botId: 'bot-d', question: 'q', options: ['a'] },
@@ -51,9 +52,9 @@ test('選択肢は2〜8個の重複しない文に限る', async () => {
   await assert.rejects(questions.create({ botId: 'bot-x', question: 'q', options: ['a', 'b'] }), /BOT_NOT_FOUND/u)
 })
 
-test('選んだ答えか文章の答えをBotへ届け、答えたカードには二度と答えられない', async () => {
+test('選んだ答えか文章の答えをBotへ届け、答えたカードには二度と答えられない', async t => {
   const notified = []
-  const { questions } = await service(notified)
+  const { questions } = await service(t, notified)
   const item = await questions.create({ botId: 'bot-d', question: 'どうする？', options: ['入れて', '待って'] })
   await assert.rejects(questions.answer(item.id, { choice: '別の案' }), /OWNER_QUESTION_ANSWER_INVALID/u)
   const answered = await questions.answer(item.id, { choice: '入れて' })
@@ -64,11 +65,11 @@ test('選んだ答えか文章の答えをBotへ届け、答えたカードに�
   await assert.rejects(questions.answer(item.id, { choice: '待って' }), /OWNER_QUESTION_CLOSED/u)
 })
 
-test('その他を許さないカードは文章の答えを受けない', async () => {
-  const { questions } = await service()
+test('その他を許さないカードは文章の答えを受けない', async t => {
+  const { questions } = await service(t)
   const item = await questions.create({ botId: 'bot-d', question: 'どれ？', options: ['A', 'B'], allowOther: false })
   await assert.rejects(questions.answer(item.id, { text: 'Cにして' }), /OWNER_QUESTION_ANSWER_INVALID/u)
-  const other = await service()
+  const other = await service(t)
   const open = await other.questions.create({ botId: 'bot-d', question: 'どれ？', options: ['A', 'B'] })
   const answered = await other.questions.answer(open.id, { text: ' Cにして ' })
   assert.deepEqual([answered.answer, answered.other], ['Cにして', true])
@@ -76,7 +77,7 @@ test('その他を許さないカードは文章の答えを受けない', async
 
 test('作成はMCPからの内部APIだけ、回答は公開APIだけで受ける', async t => {
   const notified = []
-  const { questions } = await service(notified)
+  const { questions } = await service(t, notified)
   const common = { bots, ownerQuestions: questions, messenger: {}, transport: {}, authorize: () => true,
     store: { timeline: async () => [], records: async () => [] } }
   const publicServer = createBellTeamServer(common)

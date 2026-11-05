@@ -166,7 +166,9 @@ export class WebPushNotifications {
         || Object.hasOwn(params, 'previousEndpoint') && this.subscriptions.get(params.previousEndpoint)?.origin !== params.origin) {
         throw webPushError('WEB_PUSH_SUBSCRIPTION_CONFLICT', 409)
       }
-      const next = new Map(this.subscriptions)
+      const now = Date.now()
+      const next = new Map([...this.subscriptions].filter(([, entry]) =>
+        entry.subscription.expirationTime === null || entry.subscription.expirationTime > now))
       if (params.previousEndpoint) next.delete(params.previousEndpoint)
       next.set(endpoint, { origin: params.origin, subscription: {
         endpoint, expirationTime: params.subscription.expirationTime, keys: { ...params.subscription.keys },
@@ -216,9 +218,10 @@ export class WebPushNotifications {
       const payload = JSON.stringify(webPushPayload(event))
       let failed = false
       await Promise.all([...this.subscriptions.values()].map(async entry => {
-        if (entry.subscription.expirationTime !== null && entry.subscription.expirationTime <= Date.now()) return
-        try { await provider.send(entry.subscription, payload) }
-        catch (error) {
+        try {
+          if (entry.subscription.expirationTime !== null && entry.subscription.expirationTime <= Date.now()) await this.expire(entry)
+          else await provider.send(entry.subscription, payload)
+        } catch (error) {
           if (error.code === 'WEB_PUSH_EXPIRED') {
             try { await this.expire(entry); return } catch (saveError) { error = saveError }
           }

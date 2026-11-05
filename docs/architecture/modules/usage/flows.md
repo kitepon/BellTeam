@@ -169,3 +169,12 @@ flowchart LR
 ## 確認範囲
 
 保存順序と公開返却は既存sourceを保持した。外部のnative認証・通知配信・購読検証サービスは合成応答の境界外。関連試験と分離状況は[担当正本](README.md)を参照する。
+
+## 担当試験fixtureの生成と回収
+
+| 機能 | 入力→保存→通常/異常終了 | 保持/回収の所有 |
+| --- | --- | --- |
+| OwnerQuestionsの試験service | Node testのcontext→mkdtempで合成root作成→initialize/create/answer/HTTP接点→test終了（正常/assert失敗の両方） | rootを作った直後にt.afterへrm(recursive)を登録。通知/質問本番stateには適用しない |
+| その他の担当fixture | secrets/settings/onboarding/subscriptions/Web Push/認証consumerの合成root→既t.after/finally | 既終了hookを維持。製品の唯一秘密/unknown claimをfixture回収へ混ぜない |
+
+機能図はusage内の試験生成・終了管理、データフローは合成入力→一時root→検証→終了hook→root回収。OwnerQuestionsは未登録だった終了hookだけを既fixtureパターンへ揃え、5本の試験のcallerが同じtest contextを渡す。製品HTTP/公開schema/質問保存順序を変更しない。

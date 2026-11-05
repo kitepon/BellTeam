@@ -180,3 +180,59 @@ test('close includes an accepted registration whose atomic saving has not termin
   await closing
   assert.equal(JSON.parse(await readFile(service.file)).subscriptions.length, 1)
 })
+
+test('lifecycle: accepted registration prunes explicit expired entries after ownership validation only', async t => {
+  let now = 1800000000000
+  t.mock.method(Date, 'now', () => now)
+  const { service, register } = await fixture(t)
+  await service.configure(config)
+  const expired = { ...subscription('old'), expirationTime: now + 10 }, retained = subscription('retained')
+  await register(expired); await register(retained)
+  const keys = await readFile(service.keysFile), before = await readFile(service.file)
+  now += 11
+  await assert.rejects(register({ ...expired, expirationTime: now + 10 }, { origin: other }), { code: 'WEB_PUSH_SUBSCRIPTION_CONFLICT' })
+  assert.deepEqual(await readFile(service.file), before)
+  await register(subscription('new'))
+  const saved = JSON.parse(await readFile(service.file))
+  assert.deepEqual(saved.subscriptions.map(entry => entry.subscription.endpoint).sort(), [retained.endpoint, 'https://fcm.googleapis.com/new'].sort())
+  assert.deepEqual(await readFile(service.keysFile), keys)
+})
+
+test('lifecycle: OFF retains state; normal ON publish durably removes expired entries without sending them', async t => {
+  let now = 1800000000000
+  t.mock.method(Date, 'now', () => now)
+  const { service, register, sent, base } = await fixture(t)
+  await service.configure(config)
+  const expired = { ...subscription('old'), expirationTime: now + 10 }, retained = subscription('retained')
+  await register(expired); await register(retained)
+  await service.configure({ ...config, enabled: false })
+  const before = await readFile(service.file), keys = await readFile(service.keysFile)
+  now += 11
+  service.publish(event)
+  assert.deepEqual(await readFile(service.file), before)
+  await service.configure(config)
+  service.publish(event); await Promise.all([...service.inflight]); await service.saving
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0][0].endpoint, retained.endpoint)
+  assert.deepEqual(await readFile(service.keysFile), keys)
+  const restored = new WebPushNotifications(base)
+  await restored.initialize()
+  assert.deepEqual([...restored.subscriptions.keys()], [retained.endpoint])
+})
+
+test('lifecycle: expired-entry save failure preserves original bytes and refuses Web instead of retrying', async t => {
+  let now = 1800000000000
+  t.mock.method(Date, 'now', () => now)
+  const { service, register, sent } = await fixture(t)
+  await service.configure(config)
+  await register({ ...subscription('old'), expirationTime: now + 10 })
+  const before = await readFile(service.file)
+  now += 11
+  await mkdir(service.file + '.tmp')
+  service.publish(event); await Promise.all([...service.inflight]); await service.saving
+  assert.deepEqual(await readFile(service.file), before)
+  assert.equal(service.subscriptions.size, 1)
+  assert.equal(service.status().configured, false)
+  assert.equal(service.status().error.code, 'WEB_PUSH_STATE_SAVE_FAILED')
+  assert.equal(sent.length, 0)
+})
