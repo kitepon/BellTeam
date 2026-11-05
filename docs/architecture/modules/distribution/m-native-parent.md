@@ -32,3 +32,24 @@ fetchは既contents:readのGITHUB_TOKENをそのstepだけに渡し、同repo re
 Aitermはdigest確認済tarのglobal install --ignore-scripts後、installed package内npm ci --ignore-scripts、SDK1.32.2実版assertを必須とする。CLIはcanonical prefixのbin/codexを/usr/local/bin/codexへ結び、resume/app-serverを同fullCLIへ通す。standalone AppServer代用0。ldd未解決、版/入口不一致、lock不一致はpush前に停止し、OSパッケージ追加で推測修理しない。
 
 必要なCI確認は新しいCLI/ABI/lock/入口だけ。実Root認証・同会話一連・親製品導入、arm64、全M、本番はこの候補の成立に含めず、既担当の次接点へ渡す。作者旧群・既成功群の再走、追加module再署名は行わない。
+
+## 403後の追加一回候補（Owner個別採否前・未実行）
+
+担当センチ。固定main860539/run42011244053の既read tokenは、最初のdraft release434955228 metadata GETで403。asset取得/build/push0。旧一回許可は消費済み。追加候補はこのmanual candidate jobだけcontents:writeを明示し、同じGITHUB_TOKENで同固定IDを読む。通常workflow・repository既定権限・別credentialは変更しない。
+
+```mermaid
+flowchart LR
+ A[Ownerが追加権限と一回を採否] --> B[候補jobだけ Contents write / Packages write]
+ B --> C[固定draft434955228 metadata GET一回]
+ C --> D{200 / drafttrue / 固定asset digest-size}
+ D -->|成立| E[既二asset取得・全検証・専用OCI tag]
+ D -->|拒否又は不明| F[原本保存して停止 / 再試行なし]
+```
+
+公式Releases APIはdraft一覧をpush access保持者に限定し、GET endpoint自体のfine-grained permissionはContents readと記載する。この差からwriteを限定追加する候補を選ぶが、job tokenでのdraft ID取得成功やwriteの十分性は未実証。403は原因を一意に特定していない。次の追加一回でも拒否なら停止し、PAT/別token/公開draftへ迂回しない。
+
+contents:writeはreadより広く、当該repoの内容・releaseへ書ける権限をjobに与える。API操作は既固定GETだけ、checkout persist-credentials:false、tokenはfetch stepのenvだけ、Docker buildへARG/env/secretを渡さない。ただしGitHub token権限はstep単位に絞れず、同jobのactionsも持ち得る。Packages writeは既登録権限を維持する。承認はこの露出差と追加一回を含む必要がある。
+
+固定CLI/Aiterm/親と検証は前節どおり。公開候補tagは追加採用SHAのm-<SHA>-amd64一本、latest/preview/catalog/本番/Host/arm64/新署名/draft公開0。拒否・不明・digest/ABI/版/lock不一致は同じ停止条件。追加実行前にRootがOwner個別判断を取得する。
+
+出典: https://docs.github.com/en/rest/releases/releases / https://docs.github.com/en/rest/releases/assets / https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions 。実アクセス成功は出典から補完しない。
