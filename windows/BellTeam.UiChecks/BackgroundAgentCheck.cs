@@ -9,6 +9,23 @@ using BellTeam.Core;
 
 internal static class BackgroundAgentCheck
 {
+    public static async Task RunApiAsync(string address)
+    {
+        var origin = new Uri(address);
+        if (!origin.IsLoopback) throw new InvalidOperationException("隔離試験はループバックだけです。");
+        using var client = new BellApi(origin);
+        var api = new BackgroundAgentApi(client);
+        var before = await api.ReadAsync();
+        if (before is not { Revision: null, Selection: null }) throw new InvalidOperationException("初期設定が違います。");
+        var selection = new BackgroundAgentSelection("codex", "synthetic-high-only", "high");
+        var saved = await api.SaveAsync(before.Revision, selection);
+        var restored = await api.ReadAsync();
+        if (saved.Revision is null || restored != saved || restored.Selection != selection) throw new InvalidOperationException("保存または再読込が一致しません。");
+        try { await api.SaveAsync(null, selection); throw new InvalidOperationException("古いrevisionが受理されました。"); }
+        catch (BellApiException error) when (error.Code == "BACKGROUND_AGENT_REVISION_CONFLICT") { }
+        Console.WriteLine("隔離された実usage HTTPへWindowsのGET/PATCH/GET/409を接続しました。");
+    }
+
     public static async Task RunAsync(string output)
     {
         using var workspace = new Workspace(origin => new BellApi(origin, new Handler()));
