@@ -1,6 +1,6 @@
 {
   "schema": "bellteam.m-native-image-input.v1",
-  "ready": false,
+  "ready": true,
   "releaseId": 434955228,
   "nativeSource": "9b9d2cc544228226be462fbbad0a9b961ee75eeb",
   "cliVersion": "0.166.0",
