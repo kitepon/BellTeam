@@ -125,6 +125,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     closing ??= (async () => {
       const errors = []
       for (const stop of [
+        () => services.backgroundSummary?.close(),
         () => services.moduleChildExitReporter.close(),
         () => olrwAuthCaller?.close(),
         () => services.updateCenter.close(),

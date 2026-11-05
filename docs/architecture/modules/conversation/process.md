@@ -343,3 +343,23 @@ flowchart LR
 ```
 
 親からのdisconnect通知は共有stream listenerより前に子peerが登録して記録する。自身のpeer失敗は既disconnect前、正常exitは既close前に記録し、後着通知で上書きしない。sink例外は隔離し、既error/Promise/barrier/保存ACK/再生成順を変えない。これはJS接点に到達した理由だけで、突然のOS終了や過去事故原因を網羅しない。親observer/別MODULE_CHILD_EXIT_ORIGIN consoleと共通待機計測はruntime担当、既v1 child-exit DTOは不変。
+
+
+## V-3 共有背景要約の一件限定入力
+
+```mermaid
+flowchart LR
+  Capture[実認証済元contextとDeliveryJob receipt / キロ] --> Check[親private authority前検査 / キロとモリー]
+  Check --> Run[既assembly.runで元actorと実leaseを継承]
+  Run --> Read[facade.store.workInput / history.workInput]
+  Read --> Index[Store.byDelivery又はRoomHistory.byIdの保存確定一件]
+  Index --> Result[同7keyとtext / 保存済固定statusのみprogress]
+  Result --> Recheck[実completionと親authority後検査]
+  Recheck --> Worker[全体一人の共有agent / キロ]
+```
+
+private readInput(input,authority)のinputは閉7key botId/sessionId/launchId/inputRevision/deliveryId/context/contextId。authorityは元enriched本人contextと同期assertCurrentで親だけが保持する。モリーは前後assert→既run(original actor,read,original parent)→実result/completion待ち。失効/終端/交換/退役はnull又は型付き拒否からmissingとし、新leaseで救済しない。通常owner/bot/schedulerの許可された元rootだけを親captureで採用し、usage secret/question/onboarding/observer/bridge/report/recoveryを構造除外する。private closureをwireへ渡さない。
+
+子は閉7keyと保存原本の一意性・宛先/会話・現Bot/Room所属を検査。返却はnull又は同7key＋text/progressの閉9key。textは元本文4000Unicodeまで、progressは同配送の保存済running/steered/delivered/failed/stopped又は空文字（1000上限内）。interim/自由error・画像/任意file/他履歴は返さない。未確定末尾/重複/欠測/壊れた索引は本文を返さない。親がsession/launch/inputRevisionの本人性と実状態を所有し、readerがnative turnを作らない。既deliveryAnchorのbot本人制約は無変更。
+
+新一般HTTP/MCP窓口・履歴全件転送・書込・新AI起動なし。既署名inventory内のファイルだけを変更し、新runtimeファイルは増やさない。通常本文に混入した未知の秘密を検出保証する分類器ではなく、専用secret入力経路を親captureで除外する契約。

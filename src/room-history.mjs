@@ -26,6 +26,19 @@ export class RoomHistory {
       && record.deliveries.filter(item => item?.target === target).length === 1
       ? { deliveryId, target, context, contextId } : null
   }
+  async workInput(input) {
+    await this.snapshot()
+    const records = this.read.byId.get(input.deliveryId), record = records?.length === 1 ? records[0] : null
+    if (input.context !== 'room' || record?.schema !== 'bellteam.room-message.v1' || record.room?.id !== input.contextId
+      || typeof record.sender?.id !== 'string' || typeof record.at !== 'string' || typeof record.message !== 'string'
+      || !record.message.trim() || !Array.isArray(record.deliveries)
+      || record.deliveries.some(item => typeof item?.target !== 'string')
+      || record.deliveries.filter(item => item.target === input.botId).length !== 1) return null
+    const status = (this.read.statuses.get(`${input.deliveryId}\0${input.botId}`)
+      ?? record.deliveries.find(item => item.target === input.botId)).delivery
+    return { ...input, text: [...record.message].slice(0, 4000).join(''),
+      progress: ['running', 'steered', 'delivered', 'failed', 'stopped'].includes(status) ? status : '' }
+  }
   async readAppended() {
     let file
     try { file = await open(this.path, 'r') }

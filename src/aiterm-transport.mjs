@@ -50,7 +50,10 @@ export function createManagedTransport({ client = new AitermClient(), ...options
 // BellTeamとAitermの間。席の状態（BotSessionState）と席の活動（SeatActivity）を持ち、一回の配送（DeliveryJob）を進める。
 // Aitermのnativeな実行判断はAitermに在り、ここは返却を事実として受け取る。
 export class AitermTransport {
-  constructor({ conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
+  constructor({ backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
+    this.backgroundSummary = backgroundSummary
+    this.summaryJobs = new Set()
+    this.latestSummaryInputs = new Map()
     this.conversationAdmission = conversationAdmission
     this.trackCompletion = trackCompletion
     this.configurationRequests = configurationRequests
@@ -82,7 +85,7 @@ export class AitermTransport {
       executionBridge: () => this.executionBridge,
       call: (name, args, options) => this.client.call(name, args, options),
       invalidateRunning: () => { this.runningSnapshot = null },
-      invalidateWork: id => this.workState.invalidate(id),
+      invalidateWork: id => { this.workState.invalidate(id); this.backgroundSummary?.invalidate(id) },
       activity: {
         configuration: id => this.activity.configurationChanges.has(id),
         waking: id => this.activity.waking.has(id),
@@ -509,8 +512,8 @@ export class AitermTransport {
     return this.activity.configurationChanges.track(bot.id, previous.then(run, run))
   }
 
-  turn(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, admissionCheck = () => {}, membersLease, conversationDelivery } = {}) {
-    return this.submit(bot, message, { images, info: queue, onStatus, onInterim, admissionCheck, transcript: true, membersLease, conversationDelivery })
+  turn(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, admissionCheck = () => {}, membersLease, conversationDelivery, summaryAuthority } = {}) {
+    return this.submit(bot, message, { summaryAuthority, images, info: queue, onStatus, onInterim, admissionCheck, transcript: true, membersLease, conversationDelivery })
   }
 
   // BellTeamが追っているターンの合間の言葉を、完了まで数秒おきにAitermから受け取る。
@@ -580,8 +583,8 @@ export class AitermTransport {
   // onTurnEndは、差し込みではなく新しく始まったターンが終わった時だけ、その時間の幅を渡して呼ぶ。
   notify(bot, message, options = {}) { return this.#notify(bot, message, options) }
 
-  async #notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck } = {}, report = false) {
-    const completion = this.submit(bot, message, { images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck })
+  async #notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck, summaryAuthority } = {}, report = false) {
+    const completion = this.submit(bot, message, { summaryAuthority, images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck })
     completion.catch(error => process.stderr.write(`BellTeam Aiterm delivery error: ${error.stack ?? error.message}\n`))
     if (!report) return completion.accepted
     return completion.accepted.catch(async error => {
@@ -613,7 +616,7 @@ export class AitermTransport {
 
   // 一回の配送。受付（Aitermの受理）までと、受理したターンの終わりまでを一つのjobとして進める。
   // 続けてよいかはjobの停止結論と席の状態に聞き、停止の結論を決めるのはjob（DeliveryJob）だけ。
-  submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease, conversationDelivery } = {}) {
+  submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease, conversationDelivery, summaryAuthority = null } = {}) {
     this.assertConversationOccupation(bot.id)
     const recoveryVersion = this.captureStopVersion(bot)
     let recoverySession = this.session(bot)
@@ -624,6 +627,8 @@ export class AitermTransport {
       info: { ...info, message: info.message ?? message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}) },
       stopping: () => this.executionStopping,
     })
+    this.latestSummaryInputs.set(bot.id, job.id)
+    this.backgroundSummary?.invalidate(bot.id)
     let conversationCallbacks = null
     if (conversationDelivery) {
       if (!this.conversationAdmission || onStatus || onInterim || onAnswer || onTurnEnd)
@@ -679,6 +684,7 @@ export class AitermTransport {
         delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job, membersLease })
         // 受理した。送信中に届いた停止の結果があれば、この受理と照らす。
         job.receipt = delivery.receipt
+        this.startWorkSummary(job, delivery, summaryAuthority, recoveryVersion)
         const tracking = this.followAcceptedDelivery(job, delivery)
         const { steered, follower } = tracking
         followed = tracking.followed
@@ -750,7 +756,11 @@ export class AitermTransport {
         try { await onStatus?.(job.stopped ? 'stopped' : 'failed', error, ...tracking); failureStatusSaved = true }
         catch (callbackError) { if (!conversationDelivery) throw callbackError }
         throw error
-      } finally { endAdmission() }
+      } finally {
+        this.backgroundSummary?.invalidate(bot.id, job.id)
+        this.summaryJobs.delete(job)
+        endAdmission()
+      }
     })()
     const release = async () => {
       try {
@@ -858,14 +868,35 @@ export class AitermTransport {
     return this.activity.follower(botId)
   }
 
-  currentWork(bot) { return this.workState.snapshot(bot.id, this.session(bot), !this.uncertainChanges.has(bot.id) && !this.sessionChanges.has(bot.id)) }
+  startWorkSummary(job, delivery, authority, stopVersion) {
+    const receipt = delivery.receipt, bot = job.bot
+    if (!this.backgroundSummary || !authority || receipt?.schema !== 'aiterm.pty-send-result.v1'
+      || receipt.session_id !== delivery.session || !/^[a-f0-9]{32}$/u.test(receipt.launch_id)
+      || this.latestSummaryInputs.get(bot.id) !== job.id) return
+    const input = { botId: bot.id, sessionId: delivery.session, launchId: receipt.launch_id, inputRevision: job.id,
+      deliveryId: job.info.groupId, context: job.info.context, contextId: job.info.contextId }
+    const assertCurrent = expected => {
+      if (!Object.keys(input).every(key => expected[key] === input[key]) || job.stopped || job.stopRequested || job.nativeTerminal || job.nativeUnconfirmed
+        || this.latestSummaryInputs.get(bot.id) !== job.id || this.session(bot) !== delivery.session
+        || this.stopVersions.get(bot.id) !== stopVersion || this.uncertainChanges.has(bot.id) || this.sessionChanges.has(bot.id)) return false
+      authority.assertCurrent()
+      this.assertWorkAllowed()
+      return true
+    }
+    this.summaryJobs.add(job)
+    this.backgroundSummary.accept(input, { context: authority.context, assertCurrent })
+  }
 
-  currentWorkBinding(bot, source) { return this.workState.selfBinding(bot.id, this.session(bot), source, !this.uncertainChanges.has(bot.id) && !this.sessionChanges.has(bot.id)) }
+  currentWork(bot) {
+    const snapshot = this.workState.snapshot(bot.id, this.session(bot), !this.uncertainChanges.has(bot.id) && !this.sessionChanges.has(bot.id))
+    return this.backgroundSummary ? this.backgroundSummary.snapshot(bot.id, this.session(bot), snapshot)
+      : { ...snapshot, summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, source: null }
+  }
 
-  updateWorkSummary(bot, input, source) {
-    const session = this.session(bot), version = this.stopVersions.get(bot.id)
-    return this.workState.update(bot.id, session, input, source, () => this.session(bot) === session
-      && this.stopVersions.get(bot.id) === version && !this.uncertainChanges.has(bot.id) && !this.sessionChanges.has(bot.id))
+  currentWorkBinding() { return null }
+
+  updateWorkSummary() {
+    throw Object.assign(new Error('CURRENT_WORK_FORBIDDEN'), { code: 'CURRENT_WORK_FORBIDDEN', status: 403 })
   }
 
   // 席の今のターン（Aiterm 0.60.0、ADR 0122）。席のsessionごとに、動いているターン・{ state: 'idle' }・null（分からない）。
@@ -1148,6 +1179,8 @@ export class AitermTransport {
 
   async close() {
     const recovery = this.continuation?.close()
+    for (const job of this.summaryJobs) this.backgroundSummary?.invalidate(job.bot.id, job.id)
+    this.summaryJobs.clear()
     this.workState.close()
     for (const watch of this.activity.watches.values())
       if (!watch.conversationGeneration || watch.conversationGeneration === this.conversationAdmission?.capture().generation) watch.end()

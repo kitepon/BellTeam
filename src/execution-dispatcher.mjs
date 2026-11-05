@@ -31,7 +31,7 @@ const portNames = ['native', 'membersAdmission', 'conversationAdmission', 'modul
   'access', 'storage', 'seat', 'observer', 'diagnostics', 'continuation']
 
 // This module and every relative engine import belong to the same fixed bundle.
-export function createExecutionDispatcher({ generation, ports, handoff = null }) {
+export function createExecutionDispatcher({ generation, ports, handoff = null, backgroundSummary = null }) {
   if (typeof generation !== 'string' || !generation || !ports || Object.keys(ports).some(key => !portNames.includes(key))
     || !ports.native || !ports.membersAdmission || !ports.bots || !ports.rooms || !ports.configurationStorage
     || typeof ports.access?.assertWorkAllowed !== 'function') throw failure('EXECUTION_PORTS_INVALID')
@@ -70,7 +70,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null })
   const { root, ...storageOptions } = ports.configurationStorage
   const requests = new ConfigurationRequests({ client: native, intents: new ConfigurationIntents(root, storageOptions) })
   const transport = createManagedTransport({
-    ...ports.seat, ...ports.storage,
+    ...ports.seat, ...ports.storage, backgroundSummary,
     trackCompletion: track, client: native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
     configurationRequests: requests, requireMember: ports.access.requireMember,
     requireAccess: ports.access.requireAccess,
