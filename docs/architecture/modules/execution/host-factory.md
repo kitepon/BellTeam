@@ -119,3 +119,17 @@ providerは現在のinstance/generationを捕捉し、既local排他とquiesce�
 保持中の実available=falseを親current hashへそのまま束縛し、通常apply/planのavailable検査を変更しない。callbackは一回で、返却Promiseの `.completion` があれば同実completionまで既排他を保持する。親はclaim直前とruntime作用直前/後にassertする。provider自身もcallback前後にassertし、終了後はclosureを失効させる。遅着callbackや外部参照から新しい作用が生じた場合もidle不足で拒否する。callback失敗は伝播し、旧resume失敗はunavailable。親closeが先行するとproofは失効し、closeはprovider実終端を待つ。
 
 旧署名engineに `assertQuiescent` が無い場合はquiesce前にEXECUTION_PROOF_UNAVAILABLE。既snapshotやavailableで補完せず、新署名供給は別工程。read専用T診断、原worker quiescence、全writer/fence/認可/元IDの証明とは別の接点。provider単独で本番closeを許可しない。SDK/PTYclose/abort/本文再送/新候補/保存schema/公開広告0。
+
+
+## drain中に終端した容量失敗の保留
+
+```mermaid
+flowchart LR
+  Job[元DeliveryJob実終端] --> Deferred[quiescing中のcontinuation.failed: intent保持]
+  Deferred --> Busy[quiesce自身がEXECUTION_BUSYで実reject]
+  Busy --> Parent[controller finally: 同stoppingの実終端を待つ]
+  Parent --> Resume[既resume: 同intentを取り出す]
+  Resume --> Normal[既capacity guardと通常回収]
+```
+
+idleNowは保留intentを含む全既条件を維持する。drain中にdeferredRecoveryがあればresume前には空にできないため、同drain自身を既EXECUTION_BUSYで終端する。外側timeoutだけの拒否ではない。intentを消さず、callback/claim/新dispatchを発行せず、旧native/ACK/unknownを終端と扱わない。controller既finallyが元quiescing実終端後に同engine.resumeへ進み、既guardで保留intentを回収する。正常な実仕事は引き続き実zeroまで待ち、未終端中のproof成功はない。controller/runtime/共通HTTP/署名口の変更は不要。失敗意味/60秒期限/5秒resume期限は不変。

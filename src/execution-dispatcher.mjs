@@ -154,6 +154,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       if (idleStarted) { idleStarted = false; track(idle.stop()) }
       const deadline = performance.now() + timeoutMs
       while (!idleNow()) {
+        // Deferred continuation can only run after resume; preserve it and end this drain.
+        if (deferredRecovery.length) throw failure('EXECUTION_BUSY')
         if (performance.now() >= deadline) throw failure('EXECUTION_BUSY')
         await new Promise(resolve => setTimeout(resolve, Math.min(10, Math.max(1, deadline - performance.now()))))
       }
