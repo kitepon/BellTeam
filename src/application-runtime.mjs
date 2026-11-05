@@ -75,12 +75,19 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
   const seatMcp = createSeatMcp({
     bots,
     runTool: (from, operation) => services.conversationAssembly ? services.conversationAssembly.run({ kind: 'bot', botId: from }, operation) : operation(),
-    toolsForSource: executionSource => ({ ...internalApi(internalPort, fetch, { executionSource }),
-      configureFromMcp: (botId, changes, context) => administration.configureFromMcp(botId, changes, context),
-      currentWork: bot => transport.currentWork(bot),
-      currentWorkBinding: bot => transport.currentWorkBinding(bot, executionSource),
-      updateWorkSummary: (bot, input) => transport.updateWorkSummary(bot, input, executionSource),
-    }),
+    toolsForSource: executionSource => {
+      const generation = services.modelHandoffGeneration()
+      return { ...internalApi(internalPort, fetch, { executionSource }),
+        ...(generation ? { configureFromMcp: (botId, changes, context) => {
+          if (services.modelHandoffGeneration() !== generation)
+            throw Object.assign(new Error('EXECUTION_NOT_ACCEPTING'), { code: 'EXECUTION_NOT_ACCEPTING', status: 503, effect: 'not_started' })
+          return administration.configureFromMcp(botId, changes, context)
+        } } : {}),
+        currentWork: bot => transport.currentWork(bot),
+        currentWorkBinding: bot => transport.currentWorkBinding(bot, executionSource),
+        updateWorkSummary: (bot, input) => transport.updateWorkSummary(bot, input, executionSource),
+      }
+    },
     admitWork: () => aiControl.admit(),
     assertWorkAllowed: () => aiControl.assertEnabled(),
     tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },

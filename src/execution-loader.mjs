@@ -66,7 +66,9 @@ export function createExecutionFactoryLoader({ prepareRelease = prepareExecution
         throw failure('EXECUTION_STATE_INCOMPATIBLE')
       sourceCommit = descriptor.sourceCommit
     }
-    return Object.freeze({ versionId, sourceCommit, createExecutionDispatcher: namespace.createExecutionDispatcher })
+    return Object.freeze({ versionId, sourceCommit, createExecutionDispatcher: namespace.createExecutionDispatcher,
+      supportsModelHandoff: Array.isArray(namespace.EXECUTION_METHODS?.dispatch)
+        && namespace.EXECUTION_METHODS.dispatch.includes('administration.configureFromMcp') })
   }
 }
 
