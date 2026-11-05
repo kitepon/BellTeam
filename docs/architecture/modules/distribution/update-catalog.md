@@ -182,3 +182,10 @@ catalog公開と実選択/正規global生成/CLI次読込/背景生成・本番�
 source/signer `24a854e49d753f7c60be3f556124920353900c7d`、専用run42037815613の正式Release `updates-20261105T134357Z` をexecution両archの2recordへ結ぶ。既図の正式入力→catalogの供給契約内で、固定50file/Node26/P1/実stateCompatibilityを保持する。caller待機の打切りと元readの実completionは[consumer正本](../execution/model-handoff.md)・[親DFD](../../data-flow.md#mh04mh06-read-window修理のデータ寿命)に従う。
 
 他16record・全互換・失効は保持する。container target9fcc/00feとstable latestの不一致による既NOT_STABLEは未解消であり、この2record採用だけではcatalogを公開できない。Rootの別stable昇格又は正規target変更の裁定までpublisherを発行せず、containerの私製差替え・検査回避・既失敗run再実行をしない。自然親24a854/d442の受入と、Iの9fcc/00fe targetは別の事実であり、ここでIのtargetを替えない。
+
+
+## J配送preflight失敗保存・通知登録の保存寿命の正式資材
+
+既機能図の正式入力→非実行catalog→固定main専用publisher→runtime受入の契約内で、executionとnotificationsの両arch計4recordを更新する。executionはsource/signer `4a884d2e581197611470a27a23e30f631ef597ff`、正式Release `updates-20261105T232833Z`。既占有拒否を新jobのfailed保存へ接続し、guard通過前の旧入力/要約を保持する。notificationsはsource/signer `6ad776ab6328154b4e7826834fefec2043c336e5`、正式Release `updates-20261105T232849Z`。明示期限到達の登録を既原子保存へ接続する。公式署名/manifest/Gitexact/匿名assetは配布原本を継承する。
+
+他14record・全互換・失効を保持し、新公開時刻から7日期限を付ける。自然親4a/8a05の正式供給はcontainer target9fcc/00feの置換を意味せず、既一般stableの保持と公開preflightを変えない。source/signerとcatalog採用後のpublisher sourceを分け、同mainから必要publisher一回だけへ接続する。既返却/Promise/ACK/reader/認可/元completionと保存ownerは不変。正式資材公開を47拒否の全根因解消・実単品交換・本番loaded・実Push成功へ補完しない。
