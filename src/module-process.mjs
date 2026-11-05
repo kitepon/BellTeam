@@ -159,6 +159,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       report('completed')
       try {
         stage = 'incoming'; report('waiting')
+        await target.channel?.childClosed?.()
         await target.channel?.drainIncoming?.()
         report('completed')
         target.ended = true

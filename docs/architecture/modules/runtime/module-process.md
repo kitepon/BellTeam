@@ -12,7 +12,9 @@ flowchart LR
   Drain --> Quiesce[child quiesce / 保存・stream・callback終端]
   Quiesce --> Handoff[固有private export / 必要moduleだけ]
   Handoff --> Exit[exit / OS・IPC・pipe全close]
-  Exit --> Launch[固定C / advanced IPC / 新generation]
+  Exit --> ChildClosed[固有childClosed / 発行済callbackと自身の保存effect終端]
+  ChildClosed --> Reaped[親incoming完了 / reaped]
+  Reaped --> Launch[固定C / advanced IPC / 新generation]
   Launch --> Init[initializeParams / restore・投影ACK / ready45秒]
   Init --> Record[private adoption / 同stateデータ維持]
   Record --> Resume[resume ACK / 親新受付公開]
@@ -24,6 +26,8 @@ flowchart LR
 usage固有のstartPaused:trueはstartをsettings ready後のinitializingで返し、親がinitializeで既3段を進めた後activate()の実resume ACKで新rootを開く。他componentへのstartPausedは拒否する。初回順序/secret/private snapshotの意味は[module readerとwrapper](module-release.md)と業務正本に従う。
 
 usage/conversationのparent channelは共通endpointの`drainIncoming()`も公開する。childのOS/pipe終了後に親effect/保存/投影commitが残る場合、その実終端を待ってからreapedと次子を許す。親effect無しのdiagnosticsは同portを省略可能。outgoing RPCのreaped待ちcompletionをdrainIncomingへ含めない。
+
+固有channelの任意口`childClosed():Promise<void>`は実OS/IPC/全pipe終了後、`drainIncoming()`前にawaitする。会話は発行済callbackだけを各callback自身の保存effect終端後に失敗終端させ、incoming→callback completion→reaped→incomingの循環を解く。root/control/背景ACK/nativeは既reapedまで保持する。hookの拒否は既incoming段階の失敗として伝播し、reaped/lostへ進めない。未提供channelの既順序は同じ。
 
 admissionを使うmoduleは同親のclose/drain/adopt/resumeを注入する。canContinueは同親が元opaque leaseとgenerationを照合する関数で、既受付の継続だけを閉鎖中に通す。既定は拒否。callbackの本人性/相関は固有channelが毎回検査し、新root枠へ転用しない。requestと後続initializeはcaller Promiseだけでなく`.completion`を追跡する。quiesce期限も実completionを切らず保持する。既子の全OS/IPC/pipe終了後だけreapedを通知し、次子を起こす。
 
@@ -59,7 +63,7 @@ flowchart LR
 
 ## 子だけの自動再生成
 
-成功稼働子が意図close/交換以外で終了したら新受付を閉じ、OS/IPC/pipe→drainIncoming→await channel.reaped→旧要求completion終端を待つ。採用済み同版を再検証し新generationのrestore/ready/resume ACK後だけ再開。旧admissionではrecover(ticket,old,next)で閉鎖採用し、未resume候補再失敗は同ticketの通常adopt。会話の新しい正式口は次段に従う。旧要求や作用不明は再送しない。usageは初回段階順序を保ち、障害復帰ではsettings後subscriptions/servicesも復元する。
+成功稼働子が意図close/交換以外で終了したら新受付を閉じ、OS/IPC/pipe→await channel.childClosed（提供時）→drainIncoming→await channel.reaped→旧要求completion終端を待つ。採用済み同版を再検証し新generationのrestore/ready/resume ACK後だけ再開。旧admissionではrecover(ticket,old,next)で閉鎖採用し、未resume候補再失敗は同ticketの通常adopt。会話の新しい正式口は次段に従う。旧要求や作用不明は再送しない。usageは初回段階順序を保ち、障害復帰ではsettings後subscriptions/servicesも復元する。
 
 会話の故障世代分離はRoot `conversation-failed-generation-contract-20261104.md`とKiro `q-retired-generation-io-20261104.md`を契約正本とする。新しい`admission.recoverFailedGeneration(ticket,previousGeneration,nextGeneration)->void`が提供される場合、会話の異常終了又はその未resume再生成candidateのOS/IPC/全pipe/incoming/effect/reapedを実完了した世代だけを同正式口へ渡す。retiredの元native/watch実参照は終端専用のまま保持し、新currentは閉じた空bucketで同採用版restore/ready/resume ACKを待つ。同ticketのままcandidate再失敗時もそのcandidate実barrier後に新しい未使用nextを採用する。新口未提供の旧admissionは既recover/adoptの互換を保つ。
 

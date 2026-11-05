@@ -266,6 +266,16 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
     return result
   }
   return { call, control: capability => control(1, capability), pending, running,
+    async childClosed(waitEffects) {
+      channelCheck(side === 'parent')
+      fail()
+      await Promise.all([...pending.values()].filter(task => task.kind === 'callback').map(async task => {
+        await waitEffects(task.id)
+        if (pending.get(task.id) !== task) return
+        pending.delete(task.id); release(task, true)
+        task.completion.reject(conversationChannelError('CONVERSATION_CHILD_EXITED'))
+      }))
+    },
     async drainIncoming() { while (incomingWork.size) await Promise.allSettled([...incomingWork]) },
     progress: id => { const task = pending.get(id); if (task) touch(task) },
     reaped() { fail(); for (const task of pending.values()) task.completion.reject(conversationChannelError('CONVERSATION_CHILD_EXITED')); pending.clear() },

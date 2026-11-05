@@ -72,6 +72,7 @@ async function fixture(t, options = {}) {
         if (method === 'exit') { if (!behavior.holdExit) queueMicrotask(() => reap(child)); return { closed: true } }
       },
       reaped: async () => { await behavior.reaping?.(); child.reaped = true },
+      childClosed: () => behavior.childClosed?.(),
       drainIncoming: () => behavior.parentWork?.() ?? Promise.resolve(),
       }
     },
@@ -159,6 +160,34 @@ test('parent effects after child OS close hold reaped and the next writer', asyn
   assert.equal(f.children[0].reaped, undefined); assert.equal(f.children.length, 1)
   done.resolve(); await replacing
   assert.equal(f.children[0].reaped, true); assert.equal(f.children.length, 2)
+})
+
+test('childClosed waits for every child barrier before releasing callback and draining incoming', async t => {
+  const f = await fixture(t); await f.process.start()
+  const child = f.children[0], callback = deferred(), incoming = deferred(), events = []
+  f.behavior.holdExit = true
+  f.behavior.childClosed = async () => { events.push('childClosed'); await callback.promise }
+  f.behavior.parentWork = async () => { events.push('incoming'); await incoming.promise }
+  const replacing = f.process.replace(sha)
+  try {
+    await turn()
+    child.exitCode = 0; child.connected = false; child.emit('exit', 0, null)
+    await turn(); assert.deepEqual(events, [])
+    child.stdout.closed = true; child.stdout.emit('close')
+    await turn(); assert.deepEqual(events, [])
+    child.stderr.closed = true; child.stderr.emit('close'); child.emit('close', 0, null)
+    await turn(); assert.deepEqual(events, ['childClosed'])
+    assert.equal(child.reaped, undefined); assert.equal(f.children.length, 1)
+    callback.resolve(); await turn()
+    assert.deepEqual(events, ['childClosed', 'incoming'])
+    assert.equal(child.reaped, undefined); assert.equal(f.children.length, 1)
+    incoming.resolve(); await replacing
+    assert.equal(child.reaped, true); assert.equal(f.children.length, 2)
+  } finally {
+    callback.resolve(); incoming.resolve(); f.behavior.holdExit = false
+    child.stdout.closed = child.stderr.closed = true; child.emit('close', 0, null)
+    await replacing
+  }
 })
 
 test('private handoff metadata alone does not end the old generation before stream completion', async t => {

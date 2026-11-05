@@ -33,6 +33,44 @@ function pair() {
 }
 const settle = () => new Promise(resolve => setImmediate(resolve))
 
+test('childClosed ends callback cycle only after its real reverse event and retains native', { timeout: 4000 }, async t => {
+  const saving = Promise.withResolvers(), saved = Promise.withResolvers(), native = Promise.withResolvers()
+  let h, delivery, callbackWork
+  h = await setup(t, {
+    event: async (_event, context) => { if (context.callbackKind === 'delivery.status') { saving.resolve(); await saved.promise } },
+    effect: async (method, params, context) => {
+      if (method !== 'execution.turn') return
+      delivery = context.conversationDelivery
+      h.admission.claimNative(delivery, { deliveryId: params.deliveryId, target: params.target, kind: 'turn' })
+      h.admission.trackCompletion(delivery, native.promise)
+      callbackWork = h.admission.invoke(delivery, 'delivery.status', { delivery: 'running' })
+      await callbackWork
+      return { delivery: 'running' }
+    },
+  })
+  const attempt = h.request('user.turn', { target: h.fixture.bots[0].id, message: 'callback cycle', images: [] })
+  const failed = assert.rejects(attempt), completed = assert.rejects(attempt.completion)
+  await saving.promise
+  const callbackFailed = assert.rejects(callbackWork, { code: 'CONVERSATION_CHILD_EXITED', outcome: 'unknown' })
+  let callbackEnded = false, rootEnded = false, closed = false
+  callbackWork.then(() => { callbackEnded = true }, () => { callbackEnded = true })
+  attempt.completion.catch(() => { rootEnded = true })
+  h.endpoints[0].disconnect()
+  const closing = h.parent.childClosed().then(() => { closed = true })
+  await settle(); await settle()
+  assert.equal(closed, false); assert.equal(callbackEnded, false); assert.equal(rootEnded, false)
+  saved.resolve(); await closing; await callbackFailed; await h.parent.drainIncoming()
+  assert.equal(callbackEnded, true); assert.equal(rootEnded, false)
+  assert.ok(h.admission.snapshot().active > 0)
+  await h.parent.reaped(); await failed; await completed
+  assert.equal(rootEnded, true)
+  h.admission.finish(delivery); h.admission.finish(h.lease)
+  let nativeEnded = false
+  const nativeDone = h.admission.deliveryCompletion(delivery).then(() => { nativeEnded = true })
+  await settle(); assert.equal(nativeEnded, false)
+  native.resolve(); await nativeDone
+})
+
 for (const forked of [false, true]) test(`writer retirement seals a native-waiting child and preserves real native refs: ${forked}`, { timeout: 5000 }, async t => {
   const h = await setup(t, { forked }), native = Promise.withResolvers()
   const attempt = h.request('user.turn', { target: h.fixture.bots[0].id, message: 'held native', images: [] })
