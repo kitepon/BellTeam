@@ -1,5 +1,6 @@
 import { createModuleChildExitReporter } from './module-child-exit-reporter.mjs'
 import { mkdir } from 'node:fs/promises'
+import { createSeatProcessRunner } from './seat-process.mjs'
 import { createTeamBackgroundSummary } from './background-summary-assembly.mjs'
 import { createModuleExchangeMutex } from './module-exchange-mutex.mjs'
 import { createConversationUsage } from './usage/conversation-effects.mjs'
@@ -100,7 +101,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   })
   await aiControl.initialize()
   const summaryProject = join(root, 'shared/tools/bellteam-background-agent')
-  await mkdir(summaryProject, { recursive: true, mode: 0o700 })
+  if (seatRuntime) await createSeatProcessRunner(root, { environment: 'base' })('/usr/bin/mkdir', ['-p', '-m', '700', '--', summaryProject])
+  else await mkdir(summaryProject, { recursive: true, mode: 0o700 })
   backgroundSummary = createTeamBackgroundSummary({ project: summaryProject, settings, models,
     conversation: () => conversationAssembly, enabled: () => !aiControl.paused,
     notify: () => notify?.({ type: 'bots' }) })
