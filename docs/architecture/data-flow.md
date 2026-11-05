@@ -61,6 +61,8 @@ usage / 親受付制御")
  P2 -->|"F02 受付 / F04 ページ / F05 通知"| P1
  P2 -->|"F06 配送入力・callback登録 / 受付照会"| P3
  P3 -->|"F07 受付 / F08 状態・語・回答・終端"| P2
+ P3 -->|"MH04 元delivery anchor照会"| P2
+ P2 -->|"MH05 anchor又はnull / 拒否"| P3
  P2 -->|"F08A 保存ACK / 拒否"| P3
  P2 -->|"F09 profile照会"| P4
  P4 -->|"F10 profile投影"| P2
@@ -72,6 +74,8 @@ usage / 親受付制御")
  P5 -->|"受付可否判定"| P3
  P1 -->|"F20 管理要求"| P4 & P5
  P4 & P5 -->|"F21 結果・カード投影・失敗"| P1
+ P1 -->|"MH02 設定changes / 同invocation context"| P3
+ P3 -->|"MH08 value / 当該handoff metadata"| P1
  P3 -->|"C4 実行/設定/停止・入力文脈"| E2
  E2 -->|"C5 受付・観測・回答・終端"| P3
  P5 -->|"C4 CLI認証要求"| E2
@@ -235,6 +239,24 @@ flowchart TB
 | P2↔D1 F13/F14 | F13A/B、F14A/B/C | 親のP2を開いた内部ストアのread/write。P1の直書き線なし |
 | P2→P8 F24 | F24A/B | 限定診断。その他の失敗データはF02/F08/D1に残り、全てを診断保存へ変換しない |
 | P2↔P7 F22/F23 | このtext代表経路では未使用 | room文脈/独立turn観測の別経路として全体に保持。全moduleの詳細完成を主張しない |
+
+## 親execution境界の詳細対応
+
+通常親が旧正式executionを保持した際に壊れた一境界を、[親model-handoff正本](modules/integration/model-handoff.md#9fccの境界契約実データとhost内の接続能力)のMH01–MH10で開く。関数/opaque/SDK/Promiseはwireデータに数えず、同正本の「接続能力の束縛」表で別管理する。公開入力・逆方向の結果・保存ACK・実寿命を次の対応で追う。既feature-mapのuses/providesは変更しない。
+
+| 全体の境界/保存ID | 詳細のデータ対応・生成元と利用先 | 正本で区別する責任 |
+| --- | --- | --- |
+| E1→P1 C1/F20、P1→P3 MH02 | MH01元MCP arguments→H1。HTTP席解決/元SDK fullExtraから作る閉8context＋検証済changes→X。expectedLaunchはclaim、nativeCallは元_meta由来で、実capture前に本人性へ昇格しない | H1の元invocationとXの業務検証。tools/callのinputとhost生成actor/signal/requestIdを別にする |
+| D7a→親H2（資材検証）、H2→X（host束縛） | 検証済実namespaceのmethod表→supportsModelHandoff。現factory能力→世代storage view、現generation→MCP広告/発行前分岐 | 既loader検証の後にだけmetadata化。builtin trueを旧selectedへ流用せず、関数そのものをF/MHのDTOと呼ばない |
+| P3→P2 MH04、P2→P3 MH05 | Xの唯一実job/captureから4key anchor照会→同actor C。Cの保存行照合→同anchor/null/エラーを逆返却。直接履歴本文F04とは異なる限定read | 会話writerはD1のまま、新writerなし。MH06は当該readの認可lease/実completion追跡というhost寿命。元native lease identityは未供給 |
+| P3↔E2 C4/C5 | MH03 capture要求/結果、MH07同bindingのcontrol/receipt。元call/job/launch/cursor/anchor→origin tuple/digest | Xが元SDK接続を捕捉。phase/proof/実受領/実終端は[consumer正本](modules/execution/model-handoff.md)の範囲、広告だけで成立させない |
+| P3→P1 MH08、P1→E1 C2/F21 | MH08閉2 `{value,handoffMetadata}`→H1。MH09既tool本文はvalueの公開整形、MH10同元responseだけ予約_meta（元signal未abort時） | 元responseの値/metadataと、独立して残る実apply/control/read completionを分ける。別callにmetadataを共有しない |
+| P3→P4 F09/F10、P3↔D3a | 希望Bot設定の保存→members writer、実設定intent/終端→XのConfigurationIntents writer→同Bot/request reader | D4の希望保存/受付と、D3aの作用binding/receiptは別。親はtrusted storage root/anchorを注入するだけ |
+| controller→D3b / D3b→親 | `{currentVersionId,previousVersionId}`→親onAdopt/saveのdurable ACK→新root開放。起動readは2scalar→controller | 設定intent D3a/共通ledger D7bと別保存。rollbackでも旧選択保存ACKが必要。[host-factory](modules/execution/host-factory.md) |
+
+修理前は親storage4keyが旧selectedの閉3keyへ漏れてconstructor拒否、常時M closureも旧dispatch未登録methodへ進み得た。9fccは同load結果からstorage3/4keyとMCP分岐を揃え、invoke直前の同generation検査で交換後の滞留要求を未発行拒否する。詳細正本の修理前後表から実sourceへ辿れる。
+
+具体edgeは**MH04のabort.signalが会話assembly options/IPCへ未配線**であること。N102の担当確認を継承し、現状は子readの強制取消ではなく、実completion追跡とread返却後の期限/current再検査。5秒を超えるread待機があり得る。今回このedgeをRootの修理採否へ返すが、取消schema/コード変更を許可済みとしない。
 
 ## 具体edgeから次に整理する候補と未確認
 
