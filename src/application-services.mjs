@@ -123,6 +123,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     if (!bots.get(bot.id)) throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND', status: 404, effect: 'not_started' })
   }
   const storagePorts = {
+    deliveryAnchor: (input, options) => conversationAssembly.run(options.actor,
+      () => conversationAssembly.facade.store.deliveryAnchor(input, options)),
     prepareStartup: async (bot, shortTermMemory, context) => {
       await bots.prepareStartupContext(bot.id, shortTermMemory, context)
       await onboarding.prepareStartup(bot, usageAssembly ? usageAssembly.systemContext('onboarding.prepareStartup', context) : context)

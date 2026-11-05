@@ -102,11 +102,29 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
       return relayCallBridge(request, response, { from, callBridge, relays, assertWorkAllowed: check })
     }
     if (request.method !== 'POST') return reply(response, 405, { error: 'METHOD_NOT_ALLOWED' }, { allow: 'POST' })
-    const scopedTools = { ...tools, ...toolsForSource(seatExecutionSource(request, bots)) }
-    const server = new Server({ name: 'bellteam', version: '0.1.0' }, { capabilities: { tools: {} }, instructions: INSTRUCTIONS })
+    const executionSource = seatExecutionSource(request, bots)
+    const scopedTools = { ...tools, ...toolsForSource(executionSource) }
+    const server = new Server({ name: 'bellteam', version: '0.1.0' }, { capabilities: { tools: {},
+      ...(scopedTools.configureFromMcp ? { experimental: { 'ai.aiterm/handoff.v1': { version: 1, tools: ['update_self'] } } } : {}),
+    }, instructions: INSTRUCTIONS })
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: bellTeamTools }))
-    server.setRequestHandler(CallToolRequestSchema, async call => {
-      return { content: [{ type: 'text', text: JSON.stringify(await runTool(from, () => callBellTeamTool({ ...scopedTools, name: call.params.name, arguments: call.params.arguments, from }))) }] }
+    server.setRequestHandler(CallToolRequestSchema, async (call, fullExtra) => {
+      let handoffMetadata = null
+      const configure = scopedTools.configureFromMcp ? async (botId, changes) => {
+        const result = await scopedTools.configureFromMcp(botId, changes, {
+          schema: 'bellteam.mcp-configuration-ingress.v1', actor: { kind: 'bot', botId: from },
+          toolName: call.params.name, originalMcpRequestId: fullExtra.requestId,
+          expectedLaunch: executionSource.source.launch,
+          nativeCall: call.params._meta?.['ai.aiterm/handoff.v1'] ?? null,
+          signal: fullExtra.signal, budget: null,
+        })
+        handoffMetadata = result.handoffMetadata
+        return result.value
+      } : scopedTools.configure
+      const value = await runTool(from, () => callBellTeamTool({ ...scopedTools, configure, name: call.params.name, arguments: call.params.arguments, from }))
+      return { content: [{ type: 'text', text: JSON.stringify(value) }],
+        ...(handoffMetadata && !fullExtra.signal.aborted ? { _meta: { 'ai.aiterm/handoff.v1': handoffMetadata } } : {}),
+      }
     })
     // 接続ごとの状態を持たない。要求ごとに受け口を作り、応答を返したら閉じる。
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })

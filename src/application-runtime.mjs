@@ -76,6 +76,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     bots,
     runTool: (from, operation) => services.conversationAssembly ? services.conversationAssembly.run({ kind: 'bot', botId: from }, operation) : operation(),
     toolsForSource: executionSource => ({ ...internalApi(internalPort, fetch, { executionSource }),
+      configureFromMcp: (botId, changes, context) => administration.configureFromMcp(botId, changes, context),
       currentWork: bot => transport.currentWork(bot),
       currentWorkBinding: bot => transport.currentWorkBinding(bot, executionSource),
       updateWorkSummary: (bot, input) => transport.updateWorkSummary(bot, input, executionSource),
