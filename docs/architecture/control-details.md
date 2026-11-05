@@ -82,6 +82,8 @@ flowchart TD
 
 現sourceはmarkStoppedのみでnativeUnconfirmedの占有が残る。直接反例でこの不足を固定し、closure証拠の必要形はAiterm公開契約と照合して実装する。公開Rootのrunning単独をこの条件の成立証拠にしない。
 
+発行済みsendのreceiptがcloseより後に返る場合も、発行前の実session記録→元jobのclosure保持→後着receipt/opaqueで消費する。元send返却を待つためにcloseを遅らせず、元送信は一回のまま保持する。
+
 ## Goalは本体に複製せずnativeの対象を確認する
 
 ```mermaid
