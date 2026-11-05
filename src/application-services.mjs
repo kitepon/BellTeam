@@ -1,3 +1,7 @@
+import { createSubmittedSecretApprovalBridge } from './submitted-secret-approval-bridge.mjs'
+import { createSubmittedSecretConsumer } from './usage/submitted-secret-consumer.mjs'
+import { createSubmittedSecretRabbitClient } from './usage/submitted-secret-rabbit-client.mjs'
+import { createSubmittedSecretCaller } from './submitted-secret-caller.mjs'
 import { createModuleChildExitReporter } from './module-child-exit-reporter.mjs'
 import { mkdir } from 'node:fs/promises'
 import { createSeatProcessRunner } from './seat-process.mjs'
@@ -49,8 +53,8 @@ import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
-  let members = null, diagnosticsModule = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary
+export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
+  let members = null, diagnosticsModule = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null
   const membersAdmission = new MembersAdmission()
   try {
   const trustedAnchor = acquireConfigurationStateAnchor(root)
@@ -220,6 +224,13 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notify: item => messenger.enqueueUserTurn({ target: item.botId, message: secretCompletionMessage(item) }),
   })
   if (!usageAssembly) await secretRequests.initialize()
+  if (submittedSecretManagement === undefined && seatRuntime) submittedSecretManagement = {
+    assertOwnerAuthorized: createSubmittedSecretApprovalBridge({ project: root }),
+    createConsumer: createSubmittedSecretConsumer, consume: createSubmittedSecretRabbitClient({ project: root }),
+  }
+  submittedSecretCaller = submittedSecretManagement ? createSubmittedSecretCaller({
+    root, secretRequests, usageAssembly, aiControl, bots, ...submittedSecretManagement,
+  }) : null
   const ownerQuestions = usage?.ownerQuestions ?? new OwnerQuestions({
     root, bots,
     onRequest: item => notifications.question(item),
@@ -267,11 +278,11 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
-    scheduler, diagnostics, diagnosticsModule, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
+    scheduler, diagnostics, diagnosticsModule, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
   }
   } catch (error) {
     const failures = []
-    for (const close of [() => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
+    for (const close of [() => submittedSecretCaller?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
       () => conversationAssembly?.close(), () => execution?.controller.close(), () => execution && executionClient?.close(),
       () => members?.controller.close(), () => usageAssembly?.close(), () => diagnosticsModule?.close()]) {
       try { await close() } catch (cleanupError) { failures.push(cleanupError) }

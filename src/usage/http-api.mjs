@@ -1,9 +1,10 @@
 import { json, readJson } from '../http-response.mjs'
 import { SubscriptionAccessError } from '../subscriptions.mjs'
 import { webPushError, webPushFields, validateWebPushOrigin } from './web-push-schema.mjs'
+import { authCodeChallenge } from '../auth-ui.mjs'
 import { backgroundAgentError, backgroundInputValid } from './background-agent-settings.mjs'
 
-export function createUsageApi({ onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, assertWebPushOrigin, captureUsageContext }) {
+export function createUsageApi({ onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, assertWebPushOrigin, captureUsageContext, submittedSecretConsumer, captureSubmittedSecretContext }) {
   const webOrigin = request => {
     if (!assertWebPushOrigin) throw webPushError('WEB_PUSH_ORIGIN_UNAVAILABLE', 503)
     return validateWebPushOrigin(assertWebPushOrigin(request))
@@ -125,6 +126,21 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
     }
     if (url.pathname.startsWith('/api/secret-requests')) {
       if (!secretRequests) return json(response, 404, { error: 'NOT_FOUND' })
+      const consumeMatch = url.pathname.match(/^\/api\/secret-requests\/([a-f0-9-]+)\/consume-claude-code$/u)
+      if (consumeMatch) {
+        if (!internal) return json(response, 403, { error: 'SECRET_CONSUMER_INTERNAL_REQUIRED' })
+        if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+        if (url.search || !/^application\/json(?:\s*;|$)/iu.test(request.headers['content-type'] ?? ''))
+          return json(response, 400, { error: 'SECRET_CHALLENGE_INVALID' })
+        if (!submittedSecretConsumer || !captureSubmittedSecretContext) return json(response, 503, { error: 'SECRET_CONSUMER_UNAVAILABLE' })
+        const requestId = consumeMatch[1]
+        let admission, challenge
+        try { admission = await captureSubmittedSecretContext(request, requestId) }
+        catch (error) { return json(response, error.status === 503 ? 503 : 403, { error: error.status === 503 ? 'SECRET_CONSUMER_UNAVAILABLE' : 'SECRET_CONSUMER_FORBIDDEN' }) }
+        try { challenge = authCodeChallenge(await readJson(request, 8192)) }
+        catch { return json(response, 400, { error: 'SECRET_CHALLENGE_INVALID' }) }
+        return json(response, 200, { receipt: await submittedSecretConsumer.execute({ requestId, challenge, admission }) })
+      }
       if (request.method === 'POST' && url.pathname === '/api/secret-requests' && internal) {
         return json(response, 201, { request: await secretRequests.create(await readJson(request, 8192), await context('secrets.create')) })
       }

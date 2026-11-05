@@ -802,3 +802,7 @@ flowchart LR
 ```
 
 shared/toolsは1000:1000/0711のため通常本体から直接作成しない。既[runtime席実行窓口](../runtime/execution.md)で固定`/usr/bin/mkdir -p -m 700 --`を実行する。未作成projectをcwdにせず既存rootを使い、env.shを評価しない。既存directoryのmode/所有権は変更しない。seatRuntime無しの開発graphは従来の直接mkdirを使う。共有親の権限・projectのpath・summary.lock・業務入出力は不変。
+
+## 提出済secretの管理caller
+
+[同requestの管理callerと認可捕捉](submitted-secret-caller.md)が親側の正本。usage固定consumerと既Owner技術許可の両方が注入された時だけ接続し、未供給は503で閉じる。
