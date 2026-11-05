@@ -25,7 +25,7 @@ flowchart LR
 
 公開される実内容はfullCLI bin/codex、同source code-mode-host/exec-server、既rg/bwrap、package metadata、4452全distとSDK1.32.2固定依存。raw入力tar、token、Owner資格・実HOME/dataは追加しない。入力tarはread-only BuildKit mountで消費しlayerへCOPYしない。実CLI/JS bytesはimageから取得可能になるため、draftを読む許可だけではこの公開を許可しない。
 
-fetchは既contents:readのGITHUB_TOKENをそのstepだけに渡し、同repo release/asset IDのAPIだけを読む。metadataのdraft=true/asset digest-sizeと固定manifestを照合し、binary GETのSHA-sizeを照合する。403/404/不明/不一致でbuild前に停止、再試行・local admin tokenへの切替・write権限追加を行わない。固定manifestは現在ready=false、CLI版/SHA/size、release/asset IDはnullであり、未供給値を捏造しない。CLI sourceは7139295を親にTUI二callerだけ直した9b9d2cc5。CLI build/ABI/通常entryの本人完成原本を受けてから固定値を埋める。
+fetchは既contents:readのGITHUB_TOKENをそのstepだけに渡し、同repo release/asset IDのAPIだけを読む。metadataのdraft=true/asset digest-sizeと固定manifestを照合し、binary GETのSHA-sizeを照合する。403/404/不明/不一致でbuild前に停止、再試行・local admin tokenへの切替・write権限追加を行わない。固定manifestは現在ready=false、CLI版/SHA/sizeとCLI asset IDはnull（Root準備許可後のdraft release IDとAiterm asset IDだけは私有ステージ受入原本から固定）であり、未供給値を捏造しない。CLI sourceは7139295を親にTUI二callerだけ直した9b9d2cc5。CLI build/ABI/通常entryの本人完成原本を受けてから固定値を埋める。
 
 Aitermはdigest確認済tarのglobal install --ignore-scripts後、installed package内npm ci --ignore-scripts、SDK1.32.2実版assertを必須とする。CLIはcanonical prefixのbin/codexを/usr/local/bin/codexへ結び、resume/app-serverを同fullCLIへ通す。standalone AppServer代用0。ldd未解決、版/入口不一致、lock不一致はpush前に停止し、OSパッケージ追加で推測修理しない。
 
