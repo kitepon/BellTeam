@@ -792,3 +792,13 @@ currentWorkは既6keyを維持。source背景自動生成background_agentの時�
 背景実体は親application-servicesでcreateTeamBackgroundSummary一回だけ構築し、共通projectはroot/shared/tools/bellteam-background-agent、実CLI排他はrunnerの同summary.lockを使う。execution assembly→generation→dispatcherへは閉portsにkeyを増やさず別引数で同実体を渡し、旧選択factoryが新機能を供給したと見せない。legacy transportも同参照を受ける。readInputは前後assertCurrent→元actor/parentをassembly.runへ保持→facade.store.workInput→実result/completion待ち。原authorityはJSONへ入れず、元leaseを新造しない。readの元例外を保ち、実completionは失敗時も回収する。
 
 起動時は同世代settings.backgroundAgentConfigurationを読みconfigureする。未供給/破損recordで背景要約を開始せず、主業務の起動を止めない。保存後のconfigureは実workerへ届き、同revision不変/旧結果失効は唯一writerが所有。全体closeと起動失敗cleanupでは親がworker.closeをawaitしてから実execution/会話を閉じる。execution単体交換でworkerを再生成しない。runnerの現対応はClaudeのtool無しprintだけ、背景Codex/Grok/Cursor/Antigravityは固定unsupportedで代替0。主Botのharnessにはこの制限を掛けない。実vendor呼出/実表示/正式供給・本番は別確認。
+
+```mermaid
+flowchart LR
+  Parent[親UID1001 / application-services] --> Prepare[既seat runner / cwdは既存root / base環境]
+  Prepare --> Mkdir[固定mkdir / UID1000 / shared/tools下のproject0700]
+  Mkdir -->|実終了成功をawait| Worker[同じ背景worker一実体を生成]
+  Mkdir -->|失敗| Cleanup[既起動失敗cleanupへ伝播]
+```
+
+shared/toolsは1000:1000/0711のため通常本体から直接作成しない。既[runtime席実行窓口](../runtime/execution.md)で固定`/usr/bin/mkdir -p -m 700 --`を実行する。未作成projectをcwdにせず既存rootを使い、env.shを評価しない。既存directoryのmode/所有権は変更しない。seatRuntime無しの開発graphは従来の直接mkdirを使う。共有親の権限・projectのpath・summary.lock・業務入出力は不変。
