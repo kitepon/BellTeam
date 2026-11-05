@@ -160,3 +160,11 @@ catalog公開と実選択/正規global生成/CLI次読込/背景生成・本番�
 製品差分は既drain while内の2行で、保留intentを捨てず実EXECUTION_BUSY終端→既controller finally/resume回収へ戻す。公開ABI/imports/Node26-P1/execution-state.v1と421dの固定execution closureは不変、局所修理そのものは新親を必要としない。自然親CI41972729667は別事実として保存し、本体導入へ既定接続しない。
 
 正式新資材の公開は、元53dのunknown/hostPending/閉fence guardや旧engine quiesceを解消しない。既原本どおり未終端なら通常plan/Startは拒否される。Rootの新Start/close/本体入口保留を維持し、guard免除・私製導入で迂回しない。新公開時刻/7日期限へ結び、publisherは本config採用後の固定mainから一回だけ発行する。
+
+## 元MCPモデル切替consumerの署名資材
+
+正式Release `updates-20261105T073942Z` のexecution両arch2recordをsource/signer `51aca18e5f7fae6c64ba591148c6aa13e80b0f8a` の正式archiveへ更新する。他16record、失効と全runtime/state互換を保持する。固定50file・公式OIDC/crypto/schema/source-signer・匿名4asset一致は配布担当の正式原本を継承し、作者・独立fixture・配布の既成功群を再走しない。既catalog供給契約内の更新で、公開窓口・状態所有・失敗処理は変えない。
+
+親の元handler/fullExtra/同graph/private actor anchorと共有AitermClientを同sourceで採用済み。接続は[integration担当図](../integration/model-handoff.md)、consumerは[execution担当図](../execution/model-handoff.md)、closureは[配布図](execution-artifact.md)を参照する。matching execution単独、自然親CI成功、同じ公開version表示をprivate native/CLIの正式配置や全M実一連の代用にしない。正式親のnative起動配置mapping/lockと標準製品は各担当の別原本で確認する。
+
+新公開時刻と7日期限へ結び、本config採用mainから必要publisher一回だけを発行する。元53d unknown・正規guard・本番/Start/close/Host/本体入口の保留はこの資材公開では解除しない。会話/membersの再署名と追加buildは不要。
