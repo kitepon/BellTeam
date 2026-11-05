@@ -185,7 +185,7 @@ test('今すぐ実行は予定の次回時刻と有効状態を動かさずに�
   await assert.rejects(() => scheduler.runBotSchedule('bot-a', 'missing'), /SCHEDULE_NOT_FOUND/u)
 })
 
-test('command予定はAIへ配達せずコマンドを実行し、失敗した時だけユーザーへ知らせる', async () => {
+test('command予定は正常時AIを起こさず、失敗した時だけ所有Botとユーザーへ知らせる', async () => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-scheduler-command-'))
   const seedPath = join(root, 'seed.json')
   await writeFile(seedPath, JSON.stringify({
@@ -225,9 +225,15 @@ test('command予定はAIへ配達せずコマンドを実行し、失敗した�
   await new Promise(resolve => setImmediate(resolve))
 
   assert.deepEqual(sent, [{
+    from: 'scheduler', target: 'bot-a',
+    message: '[BellTeam schedule cmd-1] 予定「サイト更新」のコマンドが終了コード1で失敗した。\nboom\nTraceback',
+  }, {
     from: 'bot-a', target: 'user',
     message: '[BellTeam schedule cmd-1] 予定「サイト更新」のコマンドが終了コード1で失敗した。\nboom\nTraceback',
   }])
+  await scheduler.runDue(new Date('2026-09-04T01:40:16.000Z'))
+  assert.equal(commands.length, 2)
+  assert.equal(sent.length, 2)
 })
 
 test('runShellCommandはBotのフォルダでsh -cとして実行し、終了コードと出力を返す', async () => {

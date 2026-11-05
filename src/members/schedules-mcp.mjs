@@ -24,7 +24,7 @@ export const botScheduleTools = [
       expression: { type: 'string', description: '反復実行のcron式' },
       timezone: { type: 'string', description: 'IANA timezone。既定はAsia/Tokyo' },
       prompt: { type: 'string', minLength: 1, maxLength: 8000, description: 'AIへの指示。commandと同時には指定しない。' },
-      command: { type: 'string', minLength: 1, maxLength: 8000, description: 'AIを起こさずBotのプロジェクトフォルダでsh -cとして実行するコマンド。失敗した時だけユーザーへ知らせる。' },
+      command: { type: 'string', minLength: 1, maxLength: 8000, description: 'Botのプロジェクトフォルダでsh -cとして実行するコマンド。正常時はAIを起こさず、失敗した時だけ予定所有Botとユーザーへ知らせる。' },
       enabled: { type: 'boolean' },
       botId: { type: 'string', minLength: 1, description: '対象Bot ID。省略時は自分。' },
     }, ['kind']),
