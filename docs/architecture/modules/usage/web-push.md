@@ -11,6 +11,9 @@ flowchart TD
   Facade --> IPC[Epi: provider閉union / protocol2 stateSchema2 / 設定epoch]
   IPC --> Child[既通知子: APNsとWeb唯一writer / 専用lock]
   Child --> State[Web登録origin付き / VAPID pair / 各0600保存]
+  Child --> Expired["通常register成功時 / ON publish時<br/>明示expirationTime到達の登録だけ回収"]
+  Expired --> Persist["既saving列で原子的保存<br/>遅着失効は同entry一致時だけ削除"]
+  Persist --> State
   Child --> Crypto[web-push 3.6.7: VAPID / aes128gcm]
   Crypto --> HTTPS[固定vendor再検査 / 全DNS公開unicast / IP固定 / TLS検証]
   HTTPS --> End[接続前から15秒 / destroy / DNSとsocket実終端]
@@ -32,6 +35,8 @@ facadeは `webStatus(endpoint?,origin?) / webRegister(value,origin) / webUnregis
 `src/web-push-notifications.mjs` が `state/web-push-subscriptions.json`（schema+origin/subscription配列）と `state/web-push-keys.json`（schema+VAPID public/private）を所有。明示enable保存後の初回configureだけ鍵生成し、既鍵は再生成しない。原子的0600保存/file同期/rename/dir同期が終わってから成功。保存不明時はWebだけ利用不可として再発行しない。登録・置換・解除・失効のsavingを一つへ直列化し、同origin所有と公開鍵/期限の検証を変更前に行う。別origin照会/解除はfalseで保持、同endpoint別origin/previousEndpoint非所有・欠測は同409で全変更0。
 
 鍵/登録不正、登録有り鍵欠測はWebだけerror、空reset/rotation無し。OFFは新送信停止し鍵/登録とstatus/解除を保持。設定保存と適用成功は別、両provider errorを独立に保持する。quiesce/closeはAPNs/Web全inflightとsavingを待ち、60秒未終端は旧resume、新子0、再送0。
+
+通常registerは所有/鍵/新入力の検証に成功した後の同じ保存で、既登録の明示expirationTimeが到達したentryだけを除く。拒否された登録は従来どおり全保存不変。ONの通常publishも送信せずに飛ばしていた期限到達entryを既expire(entry)へ渡し、同entryのままならsaving列で回収する。expirationTime=nullや未来の登録、更新されたentry、VAPID鍵は残す。登録の明示期限だけを使い、OFFでの無操作/再起動では保持契約を変えない。回収失敗は既保存失敗のWeb不可/固定診断に従う。
 
 `src/web-push-provider.mjs` はweb-push本人generateRequestDetailsと標準httpsを使う。固定vendor（fcm.googleapis.com / updates.push.services.mozilla.com / ラベル境界の*.push.apple.com）だけ、HTTPS443/資格・fragment・IP literal・末尾dot・不正host無し。DNS全A/AAAA候補をNode標準BlockListによる公開unicast policyで検査し、検査済みIPだけを同接続へ供給。任意proxy/agent/headerは受けない。TTL86400/通常urgency/aes128gcm、redirect/自動再送0、開始から15秒でDNS取消/requestとsocket destroy、実終端までinflightを保持する。
 
