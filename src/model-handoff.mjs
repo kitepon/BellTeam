@@ -48,13 +48,20 @@ export class ModelHandoff {
       if (abort.signal.aborted || performance.now() >= deadline || !connection.currentConnection()
         || !this.transport.jobs.has(job) || job.stopped || job.stopRequested || job.nativeTerminal || job.nativeUnconfirmed) throw unavailable()
     }
+    const waitInWindow = value => new Promise((resolve, reject) => {
+      const stop = () => { clear(); reject(unavailable()) }
+      const clear = () => abort.signal.removeEventListener('abort', stop)
+      abort.signal.addEventListener('abort', stop, { once: true })
+      Promise.resolve(value).then(result => { clear(); resolve(result) }, error => { clear(); reject(error) })
+      if (abort.signal.aborted) stop()
+    })
     let original
     try {
       check()
       const capturing = connection.capture({ schema: 'aiterm.model-handoff.capture-request.v1', action: 'capture',
         launch, native_call: ingress.nativeCall, max_wait_ms: Math.max(1, Math.floor(deadline-performance.now())) }, abort.signal)
       this.trackCompletion(capturing)
-      const captured = await capturing
+      const captured = await waitInWindow(capturing)
       check()
       if (captured.status !== 'captured' || !same(captured.launch, launch) || !same(captured.native_call, ingress.nativeCall)
         || captured.point.boundary.event_cursor !== job.receipt.event_cursor
@@ -62,7 +69,7 @@ export class ModelHandoff {
       const anchor = { deliveryId: job.info.groupId, target: botId, context: job.info.context, contextId: job.info.contextId }
       const reading = this.readAnchor(anchor, { actor: ingress.actor, signal: abort.signal })
       this.trackCompletion(reading?.completion ?? reading)
-      if (!same(await reading, anchor)) return null
+      if (!same(await waitInWindow(reading), anchor)) return null
       check()
       original = await this.requests.prepareHandoff(botId, launch, settings(candidate), requestId)
       check()

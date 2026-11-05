@@ -1,6 +1,6 @@
 # BellTeam本体のデータフロー（初回レビュー候補）
 
-対象はsource **`9fccf85c59a528838f6e442c28ad8e32f9698515`**。参照commit `f527c9c0fedf810956b6cc9fb43c111791023b35` と同じtreeを基準にした静的読取りであり、本番421dの配置や実行成功を示す図ではない。実環境で選択された別署名moduleの内部は、そのselected sourceの追加照合が必要であり、本図から同一と推定しない。全体境界・契約はトロニー、製品文書・親組立はモリー、業務内部は各担当、DFD指導はレヴィアタンが所有する。**Rootの初回採用後、Levi確認中のdocs-only改定候補**。
+対象はsource **`9fccf85c59a528838f6e442c28ad8e32f9698515`**。参照commit `f527c9c0fedf810956b6cc9fb43c111791023b35` と同じtreeを基準にした静的読取りであり、本番421dの配置や実行成功を示す図ではない。実環境で選択された別署名moduleの内部は、そのselected sourceの追加照合が必要であり、本図から同一と推定しない。全体境界・契約はトロニー、製品文書・親組立はモリー、業務内部は各担当、DFD指導はレヴィアタンが所有する。**Root受入済みの構造を保持した通常統合候補**。read-window修理は作者source `f4909e9030caf09df3bb56ea73a5fe4e1769e67a` を合成し、以下のMH03–06/最終節でcaller待機と実寿命の変更を示す。9fccの静的基準と修理後の差を分ける。
 
 [全体機能図](feature-map.md)のuses/providesは窓口への依存を表す。本図は運ぶデータの方向を別に表す。既sequence/flowは受付・実終端・保存ACK等の順序を説明する補助資料として残す。P番号は処理の識別子で、処理順ではない。
 
@@ -256,7 +256,7 @@ flowchart TB
 
 修理前は親storage4keyが旧selectedの閉3keyへ漏れてconstructor拒否、常時M closureも旧dispatch未登録methodへ進み得た。9fccは同load結果からstorage3/4keyとMCP分岐を揃え、invoke直前の同generation検査で交換後の滞留要求を未発行拒否する。詳細正本の修理前後表から実sourceへ辿れる。
 
-具体edgeは**MH04のabort.signalが会話assembly options/IPCへ未配線**であること。N102の担当確認を継承し、現状は子readの強制取消ではなく、実completion追跡とread返却後の期限/current再検査。5秒を超えるread待機があり得る。今回このedgeをRootの修理採否へ返すが、取消schema/コード変更を許可済みとしない。
+9fccで特定したedgeは**MH04のabort.signalが会話assembly options/IPCへ未配線**であること。N102の担当確認を継承し、修理後も子read取消は追加しない。Root採用のread-window契約により、Xは同deadline/signalでcallerのcapture/read待機を有限化し、失効後遅着から新規prepareHandoff/metadataへ進まない。元read.completionと当該read認可leaseは真の終端まで残り、5秒を超え得る。数値のRPC残時間は未取得、親budget=null/開始時一回5秒deadlineのまま。
 
 ## 具体edgeから次に整理する候補と未確認
 
@@ -266,3 +266,7 @@ flowchart TB
 - **error/unknownの違い**：投稿前の認証/本文/台帳拒否はHTTP失敗DTO、受付後の追跡不明はD1のdeliveryTracking、通知provider失敗は限定診断。保存済み発言を失敗で取り消した図にしない。
 
 未確認：部屋/画像/通話の詳細、全memory/runtime/diagnostics内部のwriter分解、全endpoint、外部provider内部、実native継続と全M。初回はsourceの代表接点と既担当正本の照合までで、全source監査・旧試験再走・新generator・本番/AI作用は行っていない。DFDに基づく実装リファクタリングは具体edgeと責任をRootが採否した後、当該ownerの図と同差分で進める。
+
+## MH04–MH06 read-window修理のデータ寿命
+
+P3 executionは元MCPの同deadline/signalでcapture/read結果のcaller待機を有限化する。MH05の失効後遅着は新しいhandoff準備へ流さない。MH06の元実completionは会話leaseとdispatcherが真の終端まで保持し、caller timeoutと区別する。親/会話IPCへ新cancelデータを追加しない。詳細の正本は[executionの待機/実終端表](modules/execution/model-handoff.md#capturereadのcaller待機と実終端read-window修理)と[統合MH04–06](modules/integration/model-handoff.md)。
