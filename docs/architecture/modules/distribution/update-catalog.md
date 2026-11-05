@@ -168,3 +168,11 @@ catalog公開と実選択/正規global生成/CLI次読込/背景生成・本番�
 親の元handler/fullExtra/同graph/private actor anchorと共有AitermClientを同sourceで採用済み。接続は[integration担当図](../integration/model-handoff.md)、consumerは[execution担当図](../execution/model-handoff.md)、closureは[配布図](execution-artifact.md)を参照する。matching execution単独、自然親CI成功、同じ公開version表示をprivate native/CLIの正式配置や全M実一連の代用にしない。正式親のnative起動配置mapping/lockと標準製品は各担当の別原本で確認する。
 
 新公開時刻と7日期限へ結び、本config採用mainから必要publisher一回だけを発行する。元53d unknown・正規guard・本番/Start/close/Host/本体入口の保留はこの資材公開では解除しない。会話/membersの再署名と追加buildは不要。
+
+## 旧正式executionを保持する修理親とI本体更新target
+
+自然親CI `42022666958` / source `9fccf85c59a528838f6e442c28ad8e32f9698515` の正式index `sha256:00fe86497500def7fbbf918ff271ab9ad1b77e6943f6b4a84ecba25b19425991` をcontainer両arch2recordへ採用する。他16record、全互換値、失効情報は保持する。CI3job成功と匿名OCIの両arch manifest/config/source一致は配布担当の固定原本を継承し、余分なimage build・作者群再走・他module署名を追加しない。既catalog供給契約内のtarget更新であり、公開窓口・保存状態・guardは変更しない。
+
+親は検証済み現factoryの能力にstorage viewとMCP入口を合わせ、旧署名executionの閉3keyと通常configureを維持する。新factoryだけ同actor deliveryAnchorとMCP context/metaへ接続し、invoke直前の同generation照合で交換済み要求を発行前に拒否する。接点図は[integration/model-handoff.md](../integration/model-handoff.md)、固有engineとの境界は[execution/host-factory.md](../execution/host-factory.md)を参照する。
+
+新公開時刻/7日期限を付け、このconfig採用mainから配布担当が必要通常publisher一回を発行する。Rootが選んだI本番複製の本体更新targetであり、正式catalog公開だけでclone本体交換・Host認可・plan/Start/既unknown guard成立や本番成功を示さない。M private native候補は旧185a pinのままでは本修理を含まず、新修理親digest/core labelを別に固定し新採否へ接続する。I供給をM実Root/auth/Windows/Macの待ち条件へ戻さない。

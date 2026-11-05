@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-05T07:42:13Z",
-  "expiresAt": "2026-11-12T07:42:13Z",
+  "publishedAt": "2026-11-05T12:03:16Z",
+  "expiresAt": "2026-11-12T12:03:16Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "80a139e74ab8231553650797fcea656dc6359b40",
-      "versionId": "sha256:758b0b9ab1632f4180fe11f4ba3d36759eb9c47cf139c3bc8ebfce8cdfacec02",
+      "sourceCommit": "9fccf85c59a528838f6e442c28ad8e32f9698515",
+      "versionId": "sha256:00fe86497500def7fbbf918ff271ab9ad1b77e6943f6b4a84ecba25b19425991",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:758b0b9ab1632f4180fe11f4ba3d36759eb9c47cf139c3bc8ebfce8cdfacec02"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:00fe86497500def7fbbf918ff271ab9ad1b77e6943f6b4a84ecba25b19425991"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,21 +652,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "専用の更新プログラムから本体を更新します。",
-        "部品の異常終了を診断へ保存します。"
+        "旧版の実行部品を選択したままでも、本体更新後に起動できます。",
+        "モデル変更に対応する実行部品への接続を本体に含めます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "80a139e74ab8231553650797fcea656dc6359b40",
-      "versionId": "sha256:758b0b9ab1632f4180fe11f4ba3d36759eb9c47cf139c3bc8ebfce8cdfacec02",
+      "sourceCommit": "9fccf85c59a528838f6e442c28ad8e32f9698515",
+      "versionId": "sha256:00fe86497500def7fbbf918ff271ab9ad1b77e6943f6b4a84ecba25b19425991",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:758b0b9ab1632f4180fe11f4ba3d36759eb9c47cf139c3bc8ebfce8cdfacec02"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:00fe86497500def7fbbf918ff271ab9ad1b77e6943f6b4a84ecba25b19425991"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -675,8 +675,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "専用の更新プログラムから本体を更新します。",
-        "部品の異常終了を診断へ保存します。"
+        "旧版の実行部品を選択したままでも、本体更新後に起動できます。",
+        "モデル変更に対応する実行部品への接続を本体に含めます。"
       ]
     }
   ],
