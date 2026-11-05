@@ -58,6 +58,10 @@
     "scripts/verify-conversation.py",
     "config/conversation-verification.json",
     ".github/workflows/publish-conversation.yml",
-    "test/helpers/conversation-artifact-probe.py"
+    "test/helpers/conversation-artifact-probe.py",
+    "Dockerfile.m-native",
+    ".github/workflows/publish-m-parent-image.yml",
+    "scripts/prepare-m-native-image.py",
+    "config/m-native-image-input.json"
   ]
 }

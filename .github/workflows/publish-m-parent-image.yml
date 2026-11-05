@@ -1,0 +1,57 @@
+{
+  "name": "M nativeを含むamd64親image候補（Root公開裁定前は無効）",
+  "on": {
+    "workflow_dispatch": {}
+  },
+  "permissions": {
+    "contents": "read",
+    "packages": "write"
+  },
+  "jobs": {
+    "candidate": {
+      "if": "${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 25,
+      "steps": [
+        {
+          "uses": "actions/checkout@v7",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "固定draft入力を既read tokenで一回取得・SHA-size照合",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "run": "python3 scripts/prepare-m-native-image.py fetch config/m-native-image-input.json \"$RUNNER_TEMP/m-native-inputs\""
+        },
+        {
+          "name": "受入済み親へCLIとlocked Aitermだけを組み込む",
+          "run": "docker build --platform linux/amd64 --build-context \"m-native-inputs=$RUNNER_TEMP/m-native-inputs\" --file Dockerfile.m-native --label \"org.opencontainers.image.revision=51aca18e5f7fae6c64ba591148c6aa13e80b0f8a\" --label \"dev.bellteam.m-overlay.source=$GITHUB_SHA\" --tag \"ghcr.io/kitepon/bellteam-server:m-$GITHUB_SHA-amd64\" ."
+        },
+        {
+          "name": "同一候補の通常利用UIDでCLI入口と固定SDKを確認",
+          "run": "docker run --rm --network none --read-only --entrypoint codex \"ghcr.io/kitepon/bellteam-server:m-$GITHUB_SHA-amd64\" --version\ndocker run --rm --network none --read-only --entrypoint node \"ghcr.io/kitepon/bellteam-server:m-$GITHUB_SHA-amd64\" -e 'const p=\"/usr/local/lib/node_modules/aiterm-mcp\"; if(require(p+\"/node_modules/@modelcontextprotocol/sdk/package.json\").version!==\"1.32.2\") process.exit(1)'"
+        },
+        {
+          "uses": "docker/login-action@v4",
+          "with": {
+            "registry": "ghcr.io",
+            "username": "${{ github.actor }}",
+            "password": "${{ secrets.GITHUB_TOKEN }}"
+          }
+        },
+        {
+          "name": "公開許可済みの専用amd64候補だけを登録",
+          "run": "docker push \"ghcr.io/kitepon/bellteam-server:m-$GITHUB_SHA-amd64\""
+        },
+        {
+          "name": "入力一時領域だけ回収",
+          "if": "always()",
+          "run": "rm -rf -- \"$RUNNER_TEMP/m-native-inputs\""
+        }
+      ]
+    }
+  }
+}
