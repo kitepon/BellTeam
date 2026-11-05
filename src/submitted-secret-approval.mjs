@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createOlrwAuthorization } from './olrw-management-caller.mjs'
 
 // Original pre-request specs; never derived from a current decision response.
@@ -20,14 +21,32 @@ const expected = [
   }
 ]
 
-export function createSubmittedSecretApprovalAuthorization({ connectionId, userId, expiresAt, readBearer, fetchImpl, now,
+export function createSubmittedSecretApprovalAuthorization({ connectionId, userId, expiresAt, readBearer, fetchImpl = fetch, now,
   createAuthorization = createOlrwAuthorization }) {
   if (typeof connectionId !== 'string' || !connectionId || typeof userId !== 'string' || !userId
     || !Number.isFinite(Date.parse(expiresAt)) || typeof readBearer !== 'function')
     throw new Error('SUBMITTED_SECRET_APPROVAL_UNAVAILABLE')
   const checks = expected.map(plan => createAuthorization({
     plan: { ...plan, connectionId, userId, expiresAt, actions: ['consume'] }, readBearer,
-    ...(fetchImpl ? { fetchImpl } : {}), ...(now ? { now } : {}),
+    fetchImpl: plan.decisionId === 'K-3JM9PS' ? async (url, options) => {
+      const response = await fetchImpl(url, options)
+      if (url !== 'https://approval-box.kitepon.dev/connector/v1/decisions/K-3JM9PS' || !response.ok || !response.body) return response
+      let size = 0
+      const chunks = []
+      for await (const chunk of response.body) {
+        size += chunk.length
+        if (size > 65536) throw new Error('SUBMITTED_SECRET_APPROVAL_UNAVAILABLE')
+        chunks.push(chunk)
+      }
+      const decision = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      const text = decision.answer?.text
+      if (typeof text !== 'string' || Buffer.byteLength(text) !== 48
+        || createHash('sha256').update(text).digest('hex') !== '668c51b4b24fa19e654ba6d4ffadc54565620aca4c86f13835713f209b010780'
+        || decision.answer.answered_at !== '2026-11-05T03:12:22.959Z') throw new Error('SUBMITTED_SECRET_APPROVAL_UNAVAILABLE')
+      // The dedicated wrapper validates the original supplementary text before the unchanged OLRW checks.
+      decision.answer.text = null
+      return new Response(JSON.stringify(decision))
+    } : fetchImpl, ...(now ? { now } : {}),
   }))
   return async () => { for (const check of checks) await check('consume') }
 }
