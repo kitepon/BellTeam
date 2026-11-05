@@ -282,8 +282,8 @@ export class AitermTransport {
         if (!confirmedSessionClosure(closure, closedSession))
           throw Object.assign(new Error('BOT_SESSION_UNCONFIRMED'), { code: 'BOT_SESSION_UNCONFIRMED' })
         for (const job of previousJobs) {
-          if (job.nativeSession === closedSession && job.receipt) {
-            if (job.conversationDelivery && job.nativeCompletion && !job.nativeTerminal)
+          if (job.nativeSession === closedSession) {
+            if (job.receipt && job.conversationDelivery && job.nativeCompletion && !job.nativeTerminal)
               this.conversationAdmission.confirmNativeClosure(job.conversationDelivery, job.receipt, closure)
             job.nativeClosure = structuredClone(closure.structuredContent)
             job.completion.then(() => this.activity.release(job), () => this.activity.release(job))
@@ -725,6 +725,8 @@ export class AitermTransport {
             throw error
           })
           this.conversationAdmission.trackNativeContinuation(conversationDelivery, delivery.receipt, job.nativeCompletion, delivery.session)
+          if (job.nativeClosure)
+            this.conversationAdmission.confirmNativeClosure(conversationDelivery, delivery.receipt, { structuredContent: job.nativeClosure })
         }
         await job.applyStopResult(job.executionStopResult)
         await job.checkpoint()
@@ -1105,6 +1107,7 @@ export class AitermTransport {
       let session = this.session(bot)
       let result
       try {
+        if (executionJob) executionJob.nativeSession = session
         result = await this.sendToSession(session, message, imageFiles, check)
       } catch (error) {
         check()
@@ -1126,6 +1129,7 @@ export class AitermTransport {
           return this.wake(bot, { setupTest, membersLease: lease })
         }, { membersLease })
         check()
+        if (executionJob) executionJob.nativeSession = session
         result = await this.sendToSession(session, message, imageFiles, check)
       }
       const receipt = result.structuredContent

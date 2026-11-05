@@ -72,6 +72,7 @@ export async function dispatchExecution(seat, job, bot, message, images, { setup
     let session = seat.session(bot)
     if (!job.executionWasPresent) session = await seat.wake(bot, { setupTest, execution, membersLease })
     check()
+    job.nativeSession = session
     const result = await execution.invoke('pty_send', { session_id: session, text: message, require_agent: true,
       ...(imageFiles.length ? { image: imageFiles.map(file => file.path) } : {}) }, { meta: { 'aiterm/caller': 'BellTeam' } })
     const receipt = result.structuredContent

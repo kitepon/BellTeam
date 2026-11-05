@@ -158,3 +158,36 @@ test('confirmed native closure does not clear an independently failed callback',
   assert.equal(f.gate.snapshot().unconfirmed, true)
   assert.throws(() => f.gate.enter(), { code: 'CONVERSATION_NOT_ACCEPTED' })
 })
+
+test('a send receipt returning after confirmed close consumes that original session closure without replay', async () => {
+  const bot = { id: 'bot-late-receipt', session: 'old-session' }, gate = new ConversationLifetimes('generation')
+  const root = gate.enter(), entered = Promise.withResolvers(), sent = Promise.withResolvers(), calls = []
+  const delivery = gate.registerDelivery(root, { deliveryId: 'late-delivery', target: bot.id,
+    kinds: [], dispatch: async () => ({ applied: true }) })
+  const transport = new AitermTransport({ conversationAdmission: gate, waitProcess: (_process, signal) => {
+    assert.equal(signal.aborted, true)
+    return Promise.reject(Error('closed original waiter'))
+  }, client: { async call(name, args) {
+    calls.push({ name, args })
+    if (name === 'pty_send') { entered.resolve(); return sent.promise }
+    assert.equal(name, 'pty_close'); return closeResult(args.session_id)
+  } } })
+  transport.wake = async () => { transport.sessions.set(bot.id, 'new-session'); return 'new-session' }
+  const result = transport.turn(bot, 'original synthetic input', {
+    queue: { groupId: 'late-delivery' }, conversationDelivery: delivery,
+  })
+  result.catch(() => {}); result.accepted.catch(() => {})
+  await entered.promise
+  const job = [...transport.activity.jobs][0]
+  await transport.restart(bot)
+  sent.resolve({ structuredContent: { mode: 'agent_dispatch', event_cursor: 1,
+    wait_process: { executable: 'synthetic', args: [] } } })
+  await assert.rejects(result, { code: 'BOT_STOPPED' }); gate.finish(root); await tick()
+  assert.equal(job.receipt.mode, 'agent_dispatch')
+  assert.equal(job.nativeClosure.session_id, 'old-session')
+  assert.equal(transport.activity.idle(bot.id), true)
+  assert.equal(gate.snapshot().active, 0)
+  assert.equal(gate.snapshot().unconfirmed, false)
+  assert.equal(calls.filter(call => call.name === 'pty_send').length, 1)
+  assert.equal(calls.find(call => call.name === 'pty_send').args.session_id, 'old-session')
+})
