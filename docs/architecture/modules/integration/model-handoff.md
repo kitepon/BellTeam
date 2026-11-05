@@ -7,6 +7,10 @@ flowchart LR
  Seat[元HTTPで解決したseat / launch claim] --> Handler[元SDK tools/call / fullExtra]
  Handler --> Context[同invocation 閉8context]
  Context --> Scoped[同graph administration.configureFromMcp]
+ Factory[検証済み現factoryの能力] --> Ports[親の世代別storage view]
+ Ports --> Consumer
+ Factory --> Advertise[要求ごとのMCP能力 / invoke直前の同generation照合]
+ Advertise --> Scoped
  Scoped --> Consumer[execution固定dispatch / 作者consumer]
  Consumer --> Anchor[private storage.deliveryAnchor]
  Anchor --> Scope[同actor conversationAssembly.run]
@@ -24,3 +28,9 @@ seat-mcpはSDK handlerの第2引数をそのまま捕捉し、元requestIdの型
 private storage.deliveryAnchor(input,options)は非async closureで、同actorのconversationAssembly.runから同facadeの一件readを直接returnする。元resultとcompletionを保持し、親にread実装やlegacy fallbackを作らない。欠測/失敗は作者consumerの作用不成立へ返す。親共有AitermClientには作者のcaptureHandoffConnectionを採用し、engineへ同実体を注入する。固定dispatchから生成するfacadeへ手書きmethodを足さない。
 
 作者/独立fixtureの既結果を継承し、親の元handler→同graph/context→元responseとprivate actor/completion接点だけを最小検証する。Jのdeferred guard・V/Tの寿命/保存・既catalogを保持し、配布closure/署名はdistribution、本番採否はRootのまま。
+
+## 旧正式executionを保持した親交換
+
+loaderの検証済み同namespace `EXECUTION_METHODS.dispatch` に `administration.configureFromMcp` がある時だけ、返却factoryの `supportsModelHandoff` はtrue。旧export/欠測はfalseで、builtinの能力をselectedへ流用しない。親はloadごとに同factoryのconstructorへportsを束縛し、false世代には自分が追加したdeliveryAnchorだけを通常の列挙storage viewから除く。他port/関数/返却completionは同identity。署名bundle・選択・閉key検査は変更しない。construct/replace/rollbackは同じ経路を通る。
+
+親の現controllerがavailableで同current factory対応の時だけ、要求ごとにM closureと広告を出す。旧selectedは既configure経路、M広告/予約_meta無し。invoke直前にも同generationを同期照合し、交換済み/非availableなら発行前拒否する。拒否後に通常updateを再発行しない。次requestは現factoryへ追従する。通常親起動とM consumer成立は分け、旧選択のままM成功を宣言しない。

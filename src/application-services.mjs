@@ -56,6 +56,11 @@ import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
   let members = null, diagnosticsModule = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null
   const membersAdmission = new MembersAdmission()
+  const executionHandoffSupport = new Map()
+  const modelHandoffGeneration = () => {
+    const current = execution?.controller.snapshot()
+    return current?.available && executionHandoffSupport.get(current.currentVersionId) === true ? current.generation : null
+  }
   try {
   const trustedAnchor = acquireConfigurationStateAnchor(root)
   const membersAuthorization = createMembersOwnerAuthorization()
@@ -154,7 +159,16 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
         emitQueue: async change => { await Promise.all([...queueListeners].map(listener => listener(change))) } },
       continuation: { models, harnessAuth: { status: harness => harnessAuth.status(harness, usageAssembly?.systemContext('auth.status')) },
         messenger: { sendmessage: (...args) => messenger.sendmessage(...args) } },
-    }, loadFactory: loadExecution, onAdopt: selection.save,
+    }, loadFactory: async (...args) => {
+      const factory = await loadExecution(...args)
+      const supported = factory.supportsModelHandoff === true
+      executionHandoffSupport.set(factory.versionId, supported)
+      return Object.freeze({ ...factory, createExecutionDispatcher: input => {
+        if (supported) return factory.createExecutionDispatcher(input)
+        const { deliveryAnchor, ...storage } = input.ports.storage
+        return factory.createExecutionDispatcher({ ...input, ports: { ...input.ports, storage } })
+      } })
+    }, onAdopt: selection.save,
       currentVersionId: selected?.currentVersionId ?? null, previousVersionId: selected?.previousVersionId ?? null,
       requestStop: (sessions, options) => sendSessionStop(executionClient, sessions, options),
       watchQueue: listener => { queueListeners.add(listener); return () => queueListeners.delete(listener) },
@@ -276,7 +290,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     try { await diagnostics.record({ code: 'OLRW_MANAGEMENT_UNAVAILABLE', module: 'integration' }) } catch {}
   }
   return {
-    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, moduleChildExitReporter, membersAuthorization, members, usageAssembly, conversationAssembly, execution, backgroundSummary,
+    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, moduleChildExitReporter, membersAuthorization, members, usageAssembly, conversationAssembly, execution, modelHandoffGeneration, backgroundSummary,
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,

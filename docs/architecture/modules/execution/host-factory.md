@@ -133,3 +133,7 @@ flowchart LR
 ```
 
 idleNowは保留intentを含む全既条件を維持する。drain中にdeferredRecoveryがあればresume前には空にできないため、同drain自身を既EXECUTION_BUSYで終端する。外側timeoutだけの拒否ではない。intentを消さず、callback/claim/新dispatchを発行せず、旧native/ACK/unknownを終端と扱わない。controller既finallyが元quiescing実終端後に同engine.resumeへ進み、既guardで保留intentを回収する。正常な実仕事は引き続き実zeroまで待ち、未終端中のproof成功はない。controller/runtime/共通HTTP/署名口の変更は不要。失敗意味/60秒期限/5秒resume期限は不変。
+
+## 親側の世代別M port view
+
+runtime readerは同namespaceの既EXECUTION_METHODSからsupportsModelHandoffをfrozen factoryへ付記する。親integration/model-handoff.mdの能力接続に従い、旧factoryはstorage3keyのまま、新M factoryだけdeliveryAnchorを受ける。元closed path/catalog/source/状態互換検証を維持し、旧exportを必須化しない。固有generation/controllerはこのmetadataを判断せず、渡された同factory constructorをconstruct/replace/rollbackで使う。MCP広告と発行前の同generation照合は親が所有する。
