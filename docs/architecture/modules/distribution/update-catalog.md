@@ -144,3 +144,11 @@ catalog公開と実選択/正規global生成/CLI次読込/背景生成・本番�
 必要親は同sourceの自然CI41945584224。親controllerは実OS/IPC/全pipe終了後に固有childClosedを待ち、会話はcallback自身の保存effect終端後にそのcompletionだけをCHILD_EXITED/unknownで拒否してincoming/reaped/lostへ進む。旧native/lease/root/control/背景ACKの実終端は保持する。新会話資材のV限定readも同じ署名に含まれ、V実背景生成を本修理の供給条件には加えない。
 
 既存の状態互換・一般Update契約を広げず、公開時刻と7日期限だけ新内容へ結ぶ。catalog公開と新親/会話資材の実選択・標準製品・本番反映は別の原本で確認する。事故0916の採用source/generationと因果は未束縛で、固定421d/e519/01f9/e228の本番候補は変更しない。publisherはこのconfig採用後のmainから必要一回だけ発行する。
+
+## 提出済secretの管理一回consumer修理資材
+
+正式Release `updates-20261105T043439Z` のusage両arch2recordをsource/signer `576e21f255284db8041a5ff045f98a874f20fbfc` の署名archiveへ接続する。他16record、V/T資材、固定K本体target、失効と全runtime/state互換を保持する。既catalog機能内の資材更新であり、公開窓口・状態所有・失敗処理は変えない。公式crypto/schema/source全bytes/匿名4asset一致と両arch installer成功は配布担当の正式原本を継承する。
+
+必要親は同source自然CI41968363182のimage `sha256:69a01c23093fd77deba32a302d4edc175d3161ee8a6cdc0b166d7abfe1cdf989`。親の固定Centi/request認可捕捉・opaque grant・登録owner検証能力とusage consumerを同時に必要とし、usage単独選択では新入口は成立しない。構成は[integration担当図](../integration/submitted-secret-caller.md)と[usage担当図](../usage/submitted-secret-consumption.md)を参照する。
+
+新公開時刻/7日期限へ結び、publisherは本config採用後の固定mainから必要一回だけ発行する。正式供給/catalog公開と、管理1001新親実稼働・実秘密消費・認証成功は別工程。本番親導入は未解決JとRootの通常反映判断に従い、保存済み秘密の再入力・新auth・特別導入で迂回しない。

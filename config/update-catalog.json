@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-05T01:05:05Z",
-  "expiresAt": "2026-11-12T01:05:05Z",
+  "publishedAt": "2026-11-05T04:38:31Z",
+  "expiresAt": "2026-11-12T04:38:31Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25",
-      "versionId": "c21ba727ae77419267237be15869e72db586bc41fa07edac89dc7efdb8885be2",
+      "sourceCommit": "576e21f255284db8041a5ff045f98a874f20fbfc",
+      "versionId": "0e3fccfc016c726714669622484d22d5509612e85bfea405a61b1913463b69bc",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/usage-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-amd64.tar.gz",
-          "sha256": "c21ba727ae77419267237be15869e72db586bc41fa07edac89dc7efdb8885be2",
-          "bytes": 65692
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T043439Z/usage-576e21f255284db8041a5ff045f98a874f20fbfc-linux-amd64.tar.gz",
+          "sha256": "0e3fccfc016c726714669622484d22d5509612e85bfea405a61b1913463b69bc",
+          "bytes": 65797
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/usage-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "356fbd5b53cf34428f9ad3bde1eb95ecac0c9437a84c33874133ee226a089ec7",
-          "bytes": 10905
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T043439Z/usage-576e21f255284db8041a5ff045f98a874f20fbfc-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "d743aebf36f2e9823f184dd83ed240c58117828dac3bf437ccd2dda94ca6de72",
+          "bytes": 11003
         },
-        "signerCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25"
+        "signerCommit": "576e21f255284db8041a5ff045f98a874f20fbfc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -47,13 +47,13 @@
         }
       },
       "changes": [
-        "チーム背景エージェントの設定とモデル候補を保存・取得できます。"
+        "提出済み認証コードを、本人と既承認を検証する管理側の一回処理へ接続します。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25",
-      "versionId": "6cc7144a83c8aa27dedf20df399db123f6b504622bedc7729fa30a2b1364a856",
+      "sourceCommit": "576e21f255284db8041a5ff045f98a874f20fbfc",
+      "versionId": "5ad95301ca3e66d602e779ffc0deb64da1379beaee1a80177a4c2d0a1972a006",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -61,16 +61,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/usage-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-arm64.tar.gz",
-          "sha256": "6cc7144a83c8aa27dedf20df399db123f6b504622bedc7729fa30a2b1364a856",
-          "bytes": 65692
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T043439Z/usage-576e21f255284db8041a5ff045f98a874f20fbfc-linux-arm64.tar.gz",
+          "sha256": "5ad95301ca3e66d602e779ffc0deb64da1379beaee1a80177a4c2d0a1972a006",
+          "bytes": 65797
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/usage-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "4b450fc4b7ce15fcd4583ae205fc747ddec13af2c9dfa774217cddef5a34db88",
-          "bytes": 11003
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T043439Z/usage-576e21f255284db8041a5ff045f98a874f20fbfc-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "6239ccd10d162e8d289d3ddc5b42947939a8fd0c1c666e4ca8410388a67c914b",
+          "bytes": 10952
         },
-        "signerCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25"
+        "signerCommit": "576e21f255284db8041a5ff045f98a874f20fbfc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -94,7 +94,7 @@
         }
       },
       "changes": [
-        "チーム背景エージェントの設定とモデル候補を保存・取得できます。"
+        "提出済み認証コードを、本人と既承認を検証する管理側の一回処理へ接続します。"
       ]
     },
     {
