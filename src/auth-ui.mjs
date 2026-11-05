@@ -47,6 +47,15 @@ export function authUi(receipt, session) {
     choices: ui.stage === 'select' ? ui.choices.map(({ id, label }) => ({ id, label })) : [] }
 }
 
+export function authCodeChallenge(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)
+    || Object.keys(input).sort().join(',') !== 'binding,prompt_digest'
+    || !bindingValid(input.binding) || typeof input.prompt_digest !== 'string' || !/^[a-f0-9]{64}$/u.test(input.prompt_digest)) {
+    throw Object.assign(new Error('SECRET_CHALLENGE_INVALID'), { code: 'SECRET_CHALLENGE_INVALID', status: 400 })
+  }
+  return { binding: { ...input.binding }, prompt_digest: input.prompt_digest }
+}
+
 export function authResponse(input, session, ui) {
   const fail = () => { throw Object.assign(new Error('AUTH_RESPONSE_INVALID'), { code: 'AUTH_RESPONSE_INVALID', status: 409,
     publicMessage: '認証の状態を更新してから、表示された手順で操作してください。' }) }

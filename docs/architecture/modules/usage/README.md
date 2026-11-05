@@ -10,6 +10,8 @@ Rabbit認証consumerの未配布候補は[認証runとOwner案内の契約](olrw
 
 ## 機能内の正本
 
+[提出済み認証コードの一回消費](submitted-secret-consumption.md)に固定requestの管理入力・永続claim・固定Rabbit client・親認可との接点を置く。source候補であり、管理grant/元challenge callerの注入と実反映を別工程とする。
+
 [全体の背景要約agent設定](background-agent-settings.md)に、Ownerの三項目・全体一件record・モデル個別検証・revisionと実行側への接続を置く。
 
 [会話子へのusage限定接点](conversation-effects.md)にrouting一資格の供給・失効と、親の通知/秘密カード境界を置く。会話独立更新のRoot固定契約v1に従い、実装の公開接点をN102・共通組立て担当と合わせる。

@@ -41,6 +41,10 @@
     {
       "module": "runtime",
       "port": "lifecycle"
+    },
+    {
+      "module": "runtime",
+      "port": "seat-process"
     }
   ],
   "source": [
@@ -77,6 +81,8 @@
     "src/usage/channel-dispatcher.mjs",
     "src/usage/state-compatibility.mjs",
     "src/usage-entry.mjs",
-    "src/usage-parent-effects.mjs"
+    "src/usage-parent-effects.mjs",
+    "src/usage/submitted-secret-consumer.mjs",
+    "src/usage/submitted-secret-rabbit-client.mjs"
   ]
 }
