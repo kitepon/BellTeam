@@ -29,7 +29,7 @@ class ExecutionArtifact(unittest.TestCase):
         with self.archive.open('rb') as stream: self.manifest, _ = check_archive(stream, component='execution')
 
     def test_literal_asset_entry_and_string_state_are_required(self):
-        self.assertEqual(len(EXECUTION_FILES), 48)
+        self.assertEqual(len(EXECUTION_FILES), 50)
         changes = [lambda m: m.update(entry='payload/src/usage-entry.mjs'),
             lambda m: m['files'].append(dict(path='payload/src/unknown-helper.mjs', bytes=0, sha256='b'*64)),
             lambda m: m.update(files=[r for r in m['files'] if r['path'] != 'payload/src/module-ipc.mjs']),
@@ -44,11 +44,14 @@ class ExecutionArtifact(unittest.TestCase):
         with self.assertRaises(ValueError): validate_manifest(self.manifest, 'b'*40, component='execution')
         with self.assertRaises(ValueError): validate_manifest(self.manifest, arch='unknown', component='execution')
 
-    def test_reader_accepts_only_signed_47_and_current_48_layouts(self):
-        legacy = copy.deepcopy(self.manifest)
-        legacy['files'] = [row for row in legacy['files']
+    def test_reader_accepts_only_signed_47_48_and_current_50_layouts(self):
+        legacy48 = copy.deepcopy(self.manifest)
+        legacy48['files'] = [row for row in legacy48['files']
+            if row['path'] not in {'payload/src/aiterm-hooks.mjs', 'payload/src/model-handoff.mjs'}]
+        legacy47 = copy.deepcopy(legacy48)
+        legacy47['files'] = [row for row in legacy47['files']
             if row['path'] != 'payload/src/automatic-configuration-application.mjs']
-        for manifest in [legacy, self.manifest]:
+        for manifest in [legacy47, legacy48, self.manifest]:
             with self.subTest(files=len(manifest['files'])):
                 self.assertIs(validate_manifest(manifest, component='execution'), manifest)
                 dependencies = copy.deepcopy(manifest)
@@ -60,12 +63,24 @@ class ExecutionArtifact(unittest.TestCase):
                     invalid = copy.deepcopy(manifest); change(invalid)
                     with self.assertRaises(ValueError): validate_manifest(invalid, component='execution')
 
-    def test_producer_still_requires_current_48_layout(self):
-        (self.root / 'payload/src/automatic-configuration-application.mjs').unlink()
-        output = self.root / 'legacy-output.tar.gz'
-        with self.assertRaises(ValueError):
-            write_archive(self.root / 'payload', output, 'a'*40, self.arch, component='execution')
-        self.assertFalse(output.exists())
+    def test_partial_handoff_layouts_are_rejected(self):
+        for missing in ['aiterm-hooks.mjs', 'model-handoff.mjs', 'automatic-configuration-application.mjs']:
+            manifest = copy.deepcopy(self.manifest)
+            manifest['files'] = [row for row in manifest['files'] if row['path'] != 'payload/src/' + missing]
+            with self.subTest(missing=missing), self.assertRaises(ValueError):
+                validate_manifest(manifest, component='execution')
+
+    def test_producer_requires_current_50_layout(self):
+        for missing in ['aiterm-hooks.mjs', 'model-handoff.mjs', 'automatic-configuration-application.mjs']:
+            path = self.root / 'payload/src' / missing
+            raw = path.read_bytes(); path.unlink()
+            output = self.root / ('missing-' + missing + '.tar.gz')
+            try:
+                with self.subTest(missing=missing), self.assertRaises(ValueError):
+                    write_archive(self.root / 'payload', output, 'a'*40, self.arch, component='execution')
+                self.assertFalse(output.exists())
+            finally:
+                path.write_bytes(raw)
 
     def test_fixed_source_relative_import_closure(self):
         root = Path(__file__).resolve().parents[1]

@@ -157,6 +157,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
     'package.json',
     'src/agent-launch-error.mjs',
     'src/aiterm-client.mjs',
+    'src/aiterm-hooks.mjs',
     'src/aiterm-transport.mjs',
     'src/aiterm-wait-process.mjs',
     'src/automatic-configuration-application.mjs',
@@ -185,6 +186,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
     'src/members-admission.mjs',
     'src/members/deletion.mjs',
     'src/members/instructions.mjs',
+    'src/model-handoff.mjs',
     'src/module-ipc.mjs',
     'src/owner-profile.mjs',
     'src/resume-pipe.mjs',
@@ -282,9 +284,10 @@ def validate_manifest(value, source=None, arch=None, *, component='web-gateway')
         total += file['bytes']
     require(total <= MAX_CONTENT)
     if component == 'execution':
-        # Signed releases before the configuration helper use the closed 47-file layout.
+        # Keep the two published layouts closed while requiring the complete new handoff closure.
         sources = {name for name in names if not name.startswith('payload/node_modules/')}
-        require(sources in (required, required - {'payload/src/automatic-configuration-application.mjs'}))
+        legacy = required - {'payload/src/aiterm-hooks.mjs', 'payload/src/model-handoff.mjs'}
+        require(sources in (required, legacy, legacy - {'payload/src/automatic-configuration-application.mjs'}))
     else:
         require(names == required if component in ('memory', 'usage') else required <= names)
     if component in ('diagnostics', 'execution', 'conversation'):

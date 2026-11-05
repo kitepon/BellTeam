@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-  Source[固定Git / 45 JSとcommon-agents / packageとlock] --> Package[48literalと同lock production依存]
+  Source[固定Git / 47 JSとcommon-agents / packageとlock] --> Package[50literalと同lock production依存]
   Package --> Probe[別tmpのUID1001 / 実factoryとasset / 人工native ports]
   Probe --> Sign[execution専用main OIDC]
   Sign --> Verify[公式検証 / sourceとarch / 実互換文字列 / 完全inventory]
@@ -17,6 +17,7 @@ flowchart LR
 
 members-admissionが読むmodule-ipc.mjsを固定payloadへ含め、現行の共通容量64を同じ完成sourceから収録する。親ports・engine・状態互換の実装は変更しない。
 bot-administrationが読むautomatic-configuration-application.mjsも同じ固定sourceから収録し、実ソースの相対import閉包を構文解析だけで確認する。
+M consumerのmodel-handoff.mjsと、aiterm-client/configuration-intentsが読むaiterm-hooks.mjsを同source固定payloadへ収録する。producerは50件を要求し、readerは公開済み47件・48件と現50件の完全な集合だけを受理する。新helperの片方だけの49件や任意の欠落・追加は拒否する。common-agents/package/lockは同source、追加npm依存は無い。Mのshared AitermClient.captureHandoffConnectionと元handler/actor anchorは同main親資材、対応native/Aitermは正式供給で合わせる。execution単独交換を全M成立としない。
 web_gateway_artifact.pyの固定inventoryは同梱readerも使うため、その変更は通常push CIのimage供給対象に含める。新archiveは対応readerを含む正式imageへ公開導入してから単品更新する。
 
 通常親DIのnative.call/connect/launchOptionsは親AitermClient receiver、waitProcess/handoffContext/write/removeも親application-servicesのclosureに束縛される。run-seat-command/run-seat-aiterm-launchは親/app側URL、run-seat-setupはbootstrapのみでengineから呼ばない。この3sidecarはpayloadに収録せず、private payloadのUID1000公開やfallbackを追加しない。任意custom/test portsの一般保証ではない。親assembly/generation/adoptionは通常imageに置き、engine literalへ増やさない。
