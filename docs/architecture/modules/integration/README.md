@@ -10,6 +10,8 @@ Rabbit認証の一件管理caller候補は[固定契機と許可原本の接続]
 
 接続の正本は[module.json](module.json)。全体の[機能図](../../feature-map.md)と[担当・変更手順](../../module-ownership.md)から、呼出元と依存先を辿る。
 
+元MCP設定要求のcontext・同graph consumer・元response metadataの接続は[設定切替の親接続](model-handoff.md)に記す。
+
 ## 現行図と移管工程
 
 - [entrypoints.md](../../entrypoints.md)
