@@ -363,3 +363,21 @@ private readInput(input,authority)のinputは閉7key botId/sessionId/launchId/in
 子は閉7keyと保存原本の一意性・宛先/会話・現Bot/Room所属を検査。返却はnull又は同7key＋text/progressの閉9key。textは元本文4000Unicodeまで、progressは同配送の保存済running/steered/delivered/failed/stopped又は空文字（1000上限内）。interim/自由error・画像/任意file/他履歴は返さない。未確定末尾/重複/欠測/壊れた索引は本文を返さない。親がsession/launch/inputRevisionの本人性と実状態を所有し、readerがnative turnを作らない。既deliveryAnchorのbot本人制約は無変更。
 
 新一般HTTP/MCP窓口・履歴全件転送・書込・新AI起動なし。既署名inventory内のファイルだけを変更し、新runtimeファイルは増やさない。通常本文に混入した未知の秘密を検出保証する分類器ではなく、専用secret入力経路を親captureで除外する契約。
+
+
+## 実子終了後のcallback終端
+
+```mermaid
+flowchart LR
+  OS[共通の実OS IPC 全pipe終端] --> Closed[channel.childClosed]
+  Closed --> Effects[発行済callback自身のreverse effect/event実終端]
+  Effects --> Unknown[そのcallback completionだけCHILD_EXITED unknown]
+  Unknown --> Incoming[共通drainIncoming]
+  Incoming --> Reaped[既background release peer reaped]
+  Reaped --> Recover[同採用版の新writer restore ready resume]
+  Native[旧nativeの実Promise] --> Keep[実終端まで保持]
+```
+
+親私有childClosed():Promise<void>は実OS/IPC/全pipe終了を共通controllerが証明した後、incoming段階のdrainIncomingより前に呼ぶ。発行済callbackだけを選び、各record.effectsのdirect reverse effect/eventが実終端してからそのcompletionをCHILD_EXITED/unknownで拒否する。保存成功を作らず、元resultの失敗を保持する。root incomingがcallbackを待つため、rootのeffectsを待ち集合へ混ぜない。callback各件は並列に終端し、他callbackがroot側で待つ循環も作らない。
+
+root/control/背景ACK/delivery release/旧nativeはこの口で解放しない。既reapedと元実Promiseの終端を維持し、保存effectが未終端ならchildClosedも未終端。新wire/新deadline/新診断stageなし。共通は既incoming waiting後に本口をawaitし、drainIncoming→reaped→lostを続ける。直接試験はtest/conversation-ipc.test.mjsのchildClosed一件の当接点だけ、共通OS順序と実子閉の合成はruntime所有者へ渡す。

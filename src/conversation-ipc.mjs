@@ -222,6 +222,11 @@ export function createConversationParentChannel(child, { generation, admission, 
     })
   }
   return { ready: ready.promise, request, callback, drainIncoming: peer.drainIncoming,
+    childClosed: () => peer.childClosed(async id => {
+      const record = records.get(id)
+      // Only this callback's reverse work can precede its completion; its root may be waiting on it.
+      while (record?.effects.size) await Promise.allSettled([...record.effects])
+    }),
     control(method, params = {}, timeout = ['quiesce', 'quiesceWriter'].includes(method) ? 0 : 5000) {
       validateConversationControl(method, params, { generation, operationId: null })
       if (method === 'initialize') { check(!initializationStarted); initializationStarted = true }
