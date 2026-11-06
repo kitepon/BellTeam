@@ -50,7 +50,7 @@ export function createManagedTransport({ client = new AitermClient(), ...options
 // BellTeamとAitermの間。席の状態（BotSessionState）と席の活動（SeatActivity）を持ち、一回の配送（DeliveryJob）を進める。
 // Aitermのnativeな実行判断はAitermに在り、ここは返却を事実として受け取る。
 export class AitermTransport {
-  constructor({ backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
+  constructor({ backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, activityPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -78,7 +78,7 @@ export class AitermTransport {
     this.now = now
     this.retainedImages = new Map()
     this.activity = new SeatActivity()
-    this.workState = new CurrentWork({ now, notify: id => this.activity.emit({ bot: { id } }) })
+    this.workState = new CurrentWork({ now, activityPath, reportActivity: () => this.reportError({ code: 'RESTART_ACTIVITY_UNAVAILABLE', module: 'execution' }), notify: id => this.activity.emit({ bot: { id } }) })
     this.restarts = new Map()
     this.sessionState = new BotSessionState({
       assertWorkAllowed: () => this.assertWorkAllowed(),
@@ -257,6 +257,29 @@ export class AitermTransport {
       throw error
     }
     return session
+  }
+
+  async resumePreviouslyActive(bot, reference) {
+    if (!['claude-code', 'codex-cli'].includes(reference.harness) || HARNESS.get(bot.harness) !== reference.harness
+      || this.session(bot) !== reference.sessionId) return null
+    return this.memberOperation(bot, async membersLease => {
+      this.requireSessionKnown(bot.id)
+      const version = this.captureStopVersion(bot)
+      await this.requireAccess({ setupTest: false, botId: bot.id })
+      this.requireStopVersion(bot.id, version)
+      if (this.session(bot) !== reference.sessionId) return null
+      const options = this.client.launchOptions ? await this.client.launchOptions(bot.project) : { env: await loadBotEnvironment(bot.project) }
+      this.requireStopVersion(bot.id, version)
+      const result = await this.changeSession(bot, 'agent_launch', { harness: reference.harness, cwd: bot.project,
+        session_name: reference.sessionId, require_existing_resume: true }, options)
+      this.membersAdmission.assertLease(membersLease)
+      this.requireStopVersion(bot.id, version)
+      const receipt = result?.structuredContent
+      if (receipt?.schema !== 'aiterm.agent-launch-result.v1' || receipt.session_id !== reference.sessionId
+        || receipt.startup?.status !== 'ready' || receipt.initial_prompt?.status !== 'not_requested')
+        throw Object.assign(new Error('RESTART_RESUME_UNCONFIRMED'), { code: 'RESTART_RESUME_UNCONFIRMED' })
+      return { sessionId: receipt.session_id, resumedAt: this.now() }
+    })
   }
 
   async restart(bot, { membersLease } = {}) {
@@ -740,6 +763,7 @@ export class AitermTransport {
         delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job, membersLease })
         // 受理した。送信中に届いた停止の結果があれば、この受理と照らす。
         job.receipt = delivery.receipt
+        job.restartActivity = this.workState.startedActivity(bot.id, HARNESS.get(bot.harness), delivery.session, delivery.receipt)
         job.nativeSession = delivery.session
         this.startWorkSummary(job, delivery, summaryAuthority, recoveryVersion)
         const tracking = this.followAcceptedDelivery(job, delivery)
@@ -830,6 +854,8 @@ export class AitermTransport {
         if (!job.nativeUnconfirmed || job.nativeClosure) this.activity.release(job)
       }
     }
+    const finishActivity = () => this.workState.finishedActivity(bot.id, job.restartActivity)
+    completion.then(finishActivity, finishActivity)
     job.completion = completion.then(async value => { await release(); return value }, async error => { await release(); throw error })
     job.completion.catch(() => {})
     let result = conversationDelivery ? completion : job.completion

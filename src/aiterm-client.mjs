@@ -8,7 +8,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
 import { returnedExecutionError, ERROR_META } from './execution-error.mjs'
-import { authenticationPreflightFailure, unpromptedLaunchActionRequired } from './agent-launch-error.mjs'
+import { authenticationPreflightFailure, unpromptedLaunchActionRequired, resumeUnavailable } from './agent-launch-error.mjs'
 import { captureMcpRequest } from './mcp-request-context.mjs'
 import { captureMcpError } from './returned-mcp-error.mjs'
 import { configurationConnection, configurationError, markConfigurationNotIssued, CONFIGURATION_SCHEMA } from './configuration-request.mjs'
@@ -150,6 +150,14 @@ export class AitermClient {
       if (server?.name !== 'aiterm' || server.version !== expectedAuthServerVersion)
         throw Object.assign(new Error('AITERM_AUTH_SERVER_VERSION_UNCONFIRMED'), { code: 'AITERM_AUTH_SERVER_VERSION_UNCONFIRMED', effect: 'not_issued' })
     }
+    if (name === 'agent_launch' && args.require_existing_resume === true) {
+      let supported = false
+      try {
+        const tools = await callClient.listTools()
+        supported = tools.tools.some(tool => tool.name === 'agent_launch' && tool.inputSchema?.properties?.require_existing_resume?.type === 'boolean')
+      } catch { /* No launch was issued by the capability read. */ }
+      if (!supported) throw Object.assign(new Error('RESUME_CAPABILITY_UNAVAILABLE'), { code: 'RESUME_CAPABILITY_UNAVAILABLE', effect: 'not_started' })
+    }
     let result
     admissionCheck?.()
     try { result = await callClient.callTool({ name, arguments: args, ...(meta ? { _meta: meta } : {}) }) }
@@ -177,6 +185,9 @@ export class AitermClient {
       }
       if (name === 'agent_goal' && ['aiterm.agent-goal-result.v1', 'aiterm.agent-goal-result.v2'].includes(result.structuredContent?.schema))
         error.agentGoalResult = result.structuredContent
+      const unavailableResume = name === 'agent_launch' && args.require_existing_resume === true
+        ? resumeUnavailable(result._meta?.['aiterm/resume_unavailable'], args.session_name) : null
+      if (unavailableResume) Object.assign(error, { code: unavailableResume.code, effect: unavailableResume.effect, resumeUnavailable: unavailableResume })
       if (['agent_launch', 'claude_agent'].includes(name)) {
         const preflight = authenticationPreflightFailure(result.structuredContent)
         if (preflight) {

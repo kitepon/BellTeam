@@ -150,7 +150,14 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   if (executionFactory) {
     const selection = adoptionFactory({ root }), selected = await selection.read()
     const queueListeners = new Set()
-    execution = executionFactory({ backgroundSummary, ports: {
+    execution = executionFactory({ backgroundSummary, requestRestartSummary: ({ botId, from, to }) => {
+      if (![from, to].every(value => typeof value === 'string' && Number.isFinite(Date.parse(value))) || Date.parse(from) >= Date.parse(to))
+        throw new Error('RESTART_SUMMARY_INTERVAL_INVALID')
+      const [start, end] = [from, to].map(value => new Date(Date.parse(value) + 9 * 3600000).toISOString().slice(0, 19).replace('T', ' '))
+      const send = () => messenger.sendmessage({ from: 'scheduler', target: botId,
+        message: `BellTeam reconnected after an interruption. Please summarize any output I missed between ${start} and ${end} JST. Do not repeat the previous task or external actions.` })
+      return conversationAssembly ? conversationAssembly.run({ kind: 'scheduler' }, send) : send()
+    }, ports: {
       native: executionClient, membersAdmission, bots,
       ...(conversationAssembly ? { conversationAdmission: conversationAssembly.admission, moduleOperations: conversationAssembly.moduleOperations } : {}), rooms: { removeBot: (...args) => rooms.removeBot(...args) },
       configurationStorage: { root: join(root, 'state/configuration-intents'), trustedAnchor },
