@@ -383,3 +383,20 @@ flowchart LR
 親私有childClosed():Promise<void>は実OS/IPC/全pipe終了を共通controllerが証明した後、incoming段階のdrainIncomingより前に呼ぶ。発行済callbackだけを選び、各record.effectsのdirect reverse effect/eventが実終端してからそのcompletionをCHILD_EXITED/unknownで拒否する。保存成功を作らず、元resultの失敗を保持する。root incomingがcallbackを待つため、rootのeffectsを待ち集合へ混ぜない。callback各件は並列に終端し、他callbackがroot側で待つ循環も作らない。
 
 root/control/背景ACK/delivery release/旧nativeはこの口で解放しない。既reapedと元実Promiseの終端を維持し、保存effectが未終端ならchildClosedも未終端。新wire/新deadline/新診断stageなし。共通は既incoming waiting後に本口をawaitし、drainIncoming→reaped→lostを続ける。直接試験はtest/conversation-ipc.test.mjsのchildClosed一件の当接点だけ、共通OS順序と実子閉の合成はruntime所有者へ渡す。
+
+## Protocol v1 reverse-error compatibility (2026-11-07)
+
+The parent sends error envelopes with exactly `code,outcome,status` to retained conversation children. All parent failure paths (execution, acceptance, capacity and input budget) use this projection. An operation failure must reject that operation while preserving the channel for subsequent requests. Child-to-parent errors retain the existing sanitized optional failure fields. Delivery-history details continue through the registered `delivery.status` callback, whose exact original delivery/target binding and persistence precede execution acceptance rejection. Error envelopes do not substitute for callback persistence. No new protocol version, capability, gate or retry is introduced.
+
+```mermaid
+flowchart LR
+  Failure[Parent operation failure] --> Legacy[Closed v1 code / outcome / status]
+  Legacy --> Child[Retained or current child rejects operation]
+  Child --> Continue[Same channel accepts next request]
+  Native[Execution failure details] --> Callback[Registered delivery.status callback]
+  Callback --> Save[Same-ID direct or per-target Room history]
+  ChildFailure[Child operation failure] --> Details[Existing sanitized parent-facing detail]
+  Details --> Parent[Parent caller]
+```
+
+The retained91d9/current-parent1015 source counterexample proves an incompatible error envelope, not the original production five-second exit trigger; no original reverse operation/error was captured. Runtime lifecycle/gate changes remain runtime-owned.

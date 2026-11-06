@@ -15,7 +15,7 @@ const pendingError = (deliveryId, botId = 'bot-target') => Object.assign(new Err
     sessionId: botId, launchId: null, stage: 'before_execution_registration', effect: 'not_started', reason: 'session_absent' },
 })
 
-test('two error-frame hops preserve exact pending proof and existing sanitized failure fields', { timeout: 3000 }, async t => {
+test('reverse errors preserve v1 fields without forwarding parent-only pending details', { timeout: 3000 }, async t => {
   const endpoints = [new EventEmitter(), new EventEmitter()]
   for (const [index, endpoint] of endpoints.entries()) {
     endpoint.connected = true
@@ -38,9 +38,9 @@ test('two error-frame hops preserve exact pending proof and existing sanitized f
   const attempt = parent.call('root', 'new.input', {})
   await assert.rejects(attempt, received => {
     assert.equal(received.code, 'BOT_SESSION_UNCONFIRMED')
-    assert.deepEqual(normalInputPending(received), error.normalInputPending)
-    assert.deepEqual(received.mcp_error, error.mcp_error)
-    assert.deepEqual(received.native_launch, error.native_launch)
+    assert.equal(normalInputPending(received), null)
+    assert.equal(received.mcp_error, undefined)
+    assert.equal(received.native_launch, undefined)
     assert.equal(received.message, 'BOT_SESSION_UNCONFIRMED')
     return true
   })
