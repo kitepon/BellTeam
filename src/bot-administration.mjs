@@ -68,7 +68,7 @@ export class BotAdministration {
     if (applying && waitForApplication) {
       await applying
       if (this.applications.get(botId)?.state !== 'accepted')
-        throw Object.assign(new Error('CONTINUATION_CONFIGURATION_UNCONFIRMED'), { code: 'CONTINUATION_CONFIGURATION_UNCONFIRMED' })
+        try { this.writeLog('BellTeam configuration result: CONTINUATION_CONFIGURATION_UNCONFIRMED\n') } catch {}
     }
     if (!wasRunning && configurationChanged) this.applications.delete(botId)
     return { bot: this.view(bot), harnessChanged, configurationChanged, applying: wasRunning }

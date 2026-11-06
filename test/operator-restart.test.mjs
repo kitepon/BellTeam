@@ -46,12 +46,15 @@ test('明示再起動は終わらない旧ターンを待たず閉じ、重複�
   assert.equal(f.calls[1].args.harness, 'codex-cli')
 })
 
-test('再起動close不明なら起動せず他席へ作用しない', async t => {
+test('an unknown close result is recorded and does not block the operator launch', async t => {
   const f = await fixture(t)
-  f.transport.client.call = async (name, args) => { f.calls.push({ name, args }); throw new Error('RPC_CLOSED_WITHOUT_RECEIPT') }
-  await assert.rejects(f.transport.restart(f.bot), /RPC_CLOSED_WITHOUT_RECEIPT/)
-  assert.deepEqual(f.calls.map(c => [c.name, c.args.session_id]), [['pty_close', 'old-session']])
-  assert.equal(f.transport.uncertainChanges.has(f.bot.id), true)
+  f.transport.client.call = async (name, args) => {
+    f.calls.push({ name, args })
+    if (name === 'pty_close') throw Error('RPC_CLOSED_WITHOUT_RECEIPT')
+    return { structuredContent: { session_id: 'new-session' } }
+  }
+  await f.transport.restart(f.bot)
+  assert.deepEqual(f.calls.map(c => c.name), ['pty_close', 'agent_launch'])
 })
 
 test('旧配送をclose後に終了させ、再起動中の新配送は新個体へ一回だけ送る', async t => {

@@ -187,7 +187,6 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     configurationRequests: new ConfigurationRequests({ client: executionClient, intents: new ConfigurationIntents(join(root, 'state/configuration-intents'), { trustedAnchor }) }),
     reportError: report => diagnostics.record(report), ...seatPorts, ...storagePorts,
     assertWorkAllowed: () => aiControl.assertEnabled(), requireMember })
-  if (!execution) await transport.restoreConfigurationRequests()
   const idleSessions = execution ? null : new IdleSessions({ bots, transport })
   const goals = execution?.goals ?? new BotGoals({ transport, admitWork: () => aiControl.admit(), reportError: goalError })
   conversationPorts.transport = transport

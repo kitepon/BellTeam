@@ -169,7 +169,6 @@ test('無関係な席の未着手dispatch/wake/旧変更は停止要求を待た
   pending.promise.executionSession = f.bots[2].session
   f.transport.sessionChanges.set(f.bots[2].id, new Set([pending.promise]))
   assert.equal((await f.transport.interrupt(f.bots[0])).status, 'interrupted')
-  assert.equal(f.transport.uncertainChanges.has(f.bots[2].id), false)
   pending.resolve()
 })
 
@@ -218,7 +217,6 @@ test('中断RPCの結果不明で同じ会話を永久禁止せず、受理済�
   f.onStop(async () => { throw Object.assign(Error('synthetic lost stop response'), { effect: 'possible' }) })
   const a = f.start(f.bots[0], 'a'); await a.completion.accepted; await tick()
   await assert.rejects(f.transport.interrupt(f.bots[0]), { code: 'BOT_STOP_UNCONFIRMED' })
-  assert.equal(f.transport.uncertainChanges.has(f.bots[0].id), false)
   f.waits.get('1').resolve({ outcome: 'done' })
   assert.deepEqual(await a.completion, { delivery: 'delivered' })
   assert.equal(f.calls.filter(call => call.action === 'pty_send').length, 1)
@@ -243,7 +241,6 @@ test('roots読取後の連鎖停止中に来た未結合変更は発行せず、
     release.resolve()
     assert.equal((await stopped).status, 'interrupted', 'unissued changes must not create legacy pending gaps')
     assert.equal((await change).code, 'BOT_STOPPED')
-    assert.equal(f.transport.uncertainChanges.has(f.bots[0].id), false)
   })
 })
 
@@ -288,15 +285,6 @@ test('停止前に受け付けた再起動は、準備が後着しても依頼�
   release.resolve()
   assert.equal((await change).code, 'BOT_STOPPED')
   assert.equal(f.calls.some(call => call.action === 'raw:pty_close'), false)
-})
-
-test('中断結果の返却中に判明した旧変更の作用不明も返却前に保持する', async t => {
-  const f = await fixture(t)
-  const a = f.start(f.bots[0], 'a'); await a.completion.accepted; await tick()
-  f.onStop(async () => { f.transport.uncertainChanges.set(f.bots[0].id, 'synthetic-late-rpc-timeout') })
-  await assert.rejects(f.transport.interrupt(f.bots[0]), { code: 'BOT_STOP_UNCONFIRMED' })
-  await assert.rejects(f.transport.ensure(f.bots[0]), { code: 'BOT_SESSION_UNCONFIRMED' })
-  assert.equal((await a.result).code, 'BOT_STOPPED')
 })
 
 test('jobを持たない連鎖先も、停止前の設定準備のversionを進めて後着変更を取消す', { timeout: 2000 }, async t => {
@@ -368,7 +356,6 @@ test('キー受付のみは未確認で、同じlaunchの新依頼を永久禁�
   f.transform(result => ({ ...result, status: 'unconfirmed', targets: result.targets.map(target => ({ ...target,
     interruption: 'unconfirmed', session_preserved: 'unconfirmed', key: 'Escape', key_receipt: 'accepted' })) }))
   await assert.rejects(f.transport.interrupt(f.bots[0]), { code: 'BOT_STOP_UNCONFIRMED' })
-  assert.equal(f.transport.uncertainChanges.size, 0)
   const next = f.start(f.bots[0], 'new')
   await next.completion.accepted; await tick()
   assert.deepEqual(f.launches.get(f.bots[0].id), launch)

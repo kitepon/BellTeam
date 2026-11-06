@@ -75,7 +75,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     ...ports.seat, ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
     activityPath: join(dirname(root), 'execution-activity.json'),
     trackCompletion: track, client: native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
-    configurationRequests: requests, requireMember: ports.access.requireMember,
+    resolveBot: id => ports.bots.get(id), configurationRequests: requests, requireMember: ports.access.requireMember,
     requireAccess: ports.access.requireAccess,
     assertWorkAllowed: () => { alive(); ports.access.assertWorkAllowed() },
     reportError: report => { alive(); return track(ports.diagnostics?.record?.(report)) },
@@ -180,11 +180,12 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     // Clone the entire evidence graph once: rejected.original must remain pending's object.
     const metadata = structuredClone({
       sessions: state.sessions, stopVersions: state.stopVersions, stopSessions: state.stopSessions,
-      uncertainty: new Map(state.uncertainChanges), uncertaintyVersions: state.uncertainChanges.versions,
-      requests: { pending: requests.pending, latest: requests.latest, rejectedPreparations: requests.rejectedPreparations },
+      // Empty legacy fields keep older handoff readers compatible; they are never admission state.
+      uncertainty: new Map(), uncertaintyVersions: new Map(),
+      requests: { pending: requests.pending, latest: requests.latest },
       applications: administration.applications, automaticConfigurationOperations: administration.automaticConfigurationOperations,
       work: { records: transport.workState.records, seq: transport.workState.seq, restartActivity: transport.workState.restartActivity },
-      followedTurns: transport.followedTurns, retainedImages: transport.retainedImages,
+      followedTurns: transport.followedTurns, retainedImages: transport.retainedImages, failedDeliveries: transport.activity.failed,
       idleSeen: idle.seen, continuationStates: continuation?.states ?? new Map(),
     })
     return { stateCompatibility: COMPATIBILITY, generation, metadata,
@@ -194,8 +195,6 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   if (handoff) {
     const m = handoff.metadata
     for (const key of ['sessions', 'stopVersions', 'stopSessions']) for (const entry of m[key]) transport.sessionState[key].set(...entry)
-    for (const [id, cause] of m.uncertainty) Map.prototype.set.call(transport.uncertainChanges, id, cause)
-    transport.uncertainChanges.versions = m.uncertaintyVersions
     Object.assign(requests, m.requests, { restoring: Promise.resolve() })
     administration.applications = m.applications
     administration.automaticConfigurationOperations = m.automaticConfigurationOperations ?? new Map()
@@ -203,6 +202,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     transport.workState.records = m.work.records; transport.workState.seq = m.work.seq
     transport.workState.restartActivity = m.work.restartActivity ?? new Map()
     for (const entry of m.followedTurns) transport.followedTurns.set(...entry)
+    transport.activity.failed = m.failedDeliveries ?? new Map()
     transport.retainedImages = m.retainedImages
     transport.activity.shownWords = handoff.shownWords
     idle.seen = m.idleSeen
@@ -234,7 +234,6 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       phase = 'initializing'
       initialization = (async () => {
         if (!handoff) {
-          await transport.restoreConfigurationRequests()
           for (const reference of await transport.workState.takeRestartActivity()) {
             const bot = ports.bots.get(reference.botId)
             if (!bot) continue

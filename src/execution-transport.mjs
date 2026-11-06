@@ -45,8 +45,8 @@ export function sendStopOperations(seat, bots, options = {}) {
   })
 }
 
-export async function reserveExecution({ observe, session, executionBridge }, job) {
-  const observed = await observe(job.bot)
+export async function reserveExecution({ observe, session, executionBridge }, job, observed = null) {
+  observed ??= await observe(job.bot)
   if (observed?.schema !== 'aiterm.pty-observe-result.v1' || observed.session_id !== session(job.bot)
     || typeof observed.exists !== 'boolean' || (observed.exists ? !/^[0-9a-f]{32}$/u.test(observed.launch_id ?? '') : observed.launch_id !== null))
     throw unknown()
@@ -71,6 +71,7 @@ export async function dispatchExecution(seat, job, bot, message, images, { setup
     const execution = job.execution
     let session = seat.session(bot)
     if (!job.executionWasPresent) session = await seat.wake(bot, { setupTest, execution, membersLease })
+    job.deliveryStage = 'BOT_SEND_FAILED'
     check()
     job.nativeSession = session
     const result = await execution.invoke('pty_send', { session_id: session, text: message, require_agent: true,
@@ -92,15 +93,11 @@ export function interruptExecutions(seat, bots) {
   return stopOperation(seat, bots, ({ roots, rootIds, jobs }) => Promise.resolve().then(async () => {
     const executionBridge = seat.executionBridge
     const reads = new Map(), expected = new Map()
-    const legacyGaps = new Set(sessionState.uncertainChanges.keys())
+    const legacyGaps = new Set()
     const knownSession = id => sessionState.stopSessions.get(id) ?? sessionState.sessions.get(id)
       ?? jobs.find(job => job.bot.id === id)?.bot.session ?? roots.find(bot => bot.id === id)?.session ?? id
     const gapSessions = new Map([...legacyGaps].map(id => [id, knownSession(id)]))
     const captureLegacy = () => {
-      for (const id of sessionState.uncertainChanges.keys()) {
-        legacyGaps.add(id)
-        if (!gapSessions.has(id)) gapSessions.set(id, knownSession(id))
-      }
       for (const [id, pending] of sessionState.sessionChanges) {
         const unbound = [...pending].find(value => !value.executionBound && value.executionIssued !== false)
         if (unbound) { legacyGaps.add(id); gapSessions.set(id, unbound.executionSession ?? sessionState.sessions.get(id) ?? id) }
@@ -140,7 +137,6 @@ export function interruptExecutions(seat, bots) {
       captureLegacy()
       const affectedLegacy = [...legacyGaps].filter(id => rootIds.has(id)
         || result?.targets.some(target => target.launch.session_id === gapSessions.get(id)))
-      for (const id of affectedLegacy) sessionState.uncertainChanges.set(id, 'legacy_change_pending')
       const unconfirmedBotIds = roots.filter(bot => {
         const read = reads.get(bot.id)
         // Only the final v2 receipt proves the interruption and preserved

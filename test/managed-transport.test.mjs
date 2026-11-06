@@ -102,7 +102,6 @@ test('global roots are sent in one batch and a following stop can use the same s
   assert.deepEqual(first.unconfirmedBotIds, [])
   assert.deepEqual(calls, [{ name: 'agent_stop', args: { session_ids: ['bot-a', 'bot-b'] } }])
   assert.equal(transport.executionStopping, null)
-  assert.equal(transport.uncertainChanges.size, 0)
   await transport.interruptMany(bots)
   assert.equal(calls.length, 2)
 })

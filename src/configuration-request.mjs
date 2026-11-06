@@ -85,32 +85,5 @@ export function configurationConnection(client, sdk, transport) {
   if (!sdk || client.client !== sdk || client.transport !== transport || client.connecting || !transport
     || sdk.transport !== transport || !Number.isSafeInteger(transport.pid) || transport.pid <= 0
     || server?.name !== 'aiterm')
-    throw markConfigurationNotIssued(configurationError('CONFIGURATION_CONNECTION_UNCONFIRMED'))
-}
-
-export async function configurationCapability(client) {
-  await client.connect()
-  const sdk = client.client, transport = client.transport
-  configurationConnection(client, sdk, transport)
-  let cursor, found
-  const cursors = new Set()
-  for (let page = 0; page < 16; page++) {
-    const result = await sdk.listTools(cursor ? { cursor } : {})
-    configurationConnection(client, sdk, transport)
-    if (!Array.isArray(result.tools)) throw configurationError('CONFIGURATION_CAPABILITY_UNCONFIRMED')
-    for (const tool of result.tools) if (tool.name === 'agent_configure') {
-      if (found) throw configurationError('CONFIGURATION_CAPABILITY_UNCONFIRMED')
-      found = tool
-    }
-    if (!result.nextCursor) { cursor = null; break }
-    if (typeof result.nextCursor !== 'string' || cursors.has(result.nextCursor)) throw configurationError('CONFIGURATION_CAPABILITY_UNCONFIRMED')
-    cursor = result.nextCursor; cursors.add(cursor)
-  }
-  const properties = found?.inputSchema?.properties, request = properties?.request
-  const schema = found?.outputSchema?.properties?.schema
-  if (cursor || !properties?.action?.enum?.includes('apply') || !properties.action.enum.includes('reconcile')
-    || request?.type !== 'object' || !['id', 'launch_id', 'digest'].every(key => request.required?.includes(key) && request.properties?.[key]?.type === 'string')
-    || !(schema?.const === CONFIGURATION_SCHEMA || schema?.enum?.includes(CONFIGURATION_SCHEMA)))
-    throw configurationError('CONFIGURATION_CAPABILITY_UNCONFIRMED')
-  return { sdk, transport }
+    try { process.stderr.write('BellTeam configuration connection changed; observing again on the next input\n') } catch {}
 }

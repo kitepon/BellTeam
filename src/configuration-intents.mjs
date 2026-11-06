@@ -73,22 +73,6 @@ export class ConfigurationIntents {
     return validated
   }
 
-  async recoverNotIssued(original) {
-    const validated = intent(original, original.botId, original.binding?.id)
-    const directory = await this.botDirectory(validated.botId, true)
-    if ((await readdir(directory)).some(name => name.startsWith('.') && name.endsWith('.tmp')))
-      throw configurationError('CONFIGURATION_INTENTS_UNCONFIRMED', 'possible')
-    let saved
-    try { saved = await this.read(validated.botId, validated.binding.id) }
-    catch (error) {
-      if (error.code !== 'ENOENT') throw error
-      await this.publish(validated.botId, validated)
-      saved = await this.read(validated.botId, validated.binding.id)
-    }
-    if (!isDeepStrictEqual(saved, validated)) throw configurationError('CONFIGURATION_INTENT_INVALID', 'possible')
-    await this.saveNotIssued(validated.botId, validated.binding)
-  }
-
   async read(botId, id) {
     if (!configurationUUID(id)) throw configurationError('CONFIGURATION_INTENT_INVALID')
     const directory = await this.botDirectory(botId)
@@ -181,29 +165,4 @@ export class ConfigurationIntents {
     return this.handoffTerminal(botId, original.binding)
   }
 
-  async pending() {
-    let bots
-    try { bots = await readdir(this.root) } catch (error) { if (error.code === 'ENOENT') return []; throw error }
-    await this.directory(this.root)
-    const pending = []
-    for (const botId of bots) {
-      const directory = await this.botDirectory(botId)
-      const unresolved = []
-      for (const name of await readdir(directory)) {
-        if (name.startsWith('.') && name.endsWith('.tmp')) throw configurationError('CONFIGURATION_INTENTS_UNCONFIRMED')
-        if (!name.endsWith('.intent.json')) continue
-        const original = await this.read(botId, name.slice(0, -12))
-        if (await this.notIssued(botId, original.binding)) {
-          if (await this.terminal(botId, original.binding)) throw configurationError('CONFIGURATION_INTENT_INVALID')
-          continue
-        }
-        if (await this.handoffTerminal(botId, original.binding)) continue
-        const result = await this.terminal(botId, original.binding)
-        if (!result || !(result.origin === 'apply' && result.receipt.outcome === 'applied') && result.receipt.later_effect !== 'excluded') unresolved.push(original)
-      }
-      if (unresolved.length > 1) throw configurationError('CONFIGURATION_INTENTS_UNCONFIRMED')
-      if (unresolved.length) pending.push(unresolved[0])
-    }
-    return pending
-  }
 }

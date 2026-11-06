@@ -21,7 +21,6 @@ test('連鎖中断口未接続なら4CLIとも作用せず、close/キー/消失
     const transport = new AitermTransport({ client: { async call(name) { calls.push(name); throw Error('must not call') } } })
     await assert.rejects(transport.interrupt(bot), { code: 'BOT_STOP_UNCONFIRMED' })
     assert.deepEqual(calls, [])
-    assert.equal(transport.uncertainChanges.size, 0)
   }
 })
 

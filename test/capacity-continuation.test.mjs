@@ -102,7 +102,6 @@ test('unknown close preserves uncertainty and does not launch or send continuati
   const f = await fixture(t, { closeUnknown: true }); await f.start(); await f.settle()
   assert.equal(f.calls.filter(x => x.name === 'pty_send').length, 1)
   assert.equal(f.calls.filter(x => x.name === 'agent_launch').length, 0)
-  assert.equal(f.transport.uncertainChanges.get(f.bot.id), 'pty_close')
 })
 
 test('unbound, nonterminal, legacy and mismatched input failures never authorize recovery', async () => {
