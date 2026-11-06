@@ -6,11 +6,11 @@ import test from 'node:test'
 const source = await readFile(new URL('../web/application.js', import.meta.url), 'utf8')
 const functions = source.slice(source.indexOf('function eventAffectsTimeline('), source.indexOf('async function connectEvents()'))
 function fixture(type = 'bot', id = 'bot-a') {
-  const requests = [], refreshed = []
+  const requests = [], refreshed = [], updateEvents = []
   const state = { selectedType: type, selected: id ? { id } : null }
   const context = vm.createContext({ state, ownerDialog: { open: true },
     allSchedules: { refresh() {} }, scheduleEditor: { refresh() {} },
-    updateCenter: { refresh: () => refreshed.push('updates') },
+    updateCenter: { refresh: event => { refreshed.push('updates'); updateEvents.push(event) } },
     ownerEditor: { refreshAI: () => refreshed.push('ai-control'), refreshFeatureStatus() {} }, goals: { refreshOnEvent: () => refreshed.push('goals') },
     loadBots: async () => requests.push('/api/bots', '/api/rooms', '/api/owner'),
     loadMessages: async () => requests.push(type === 'room' ? `/api/rooms/${id}/messages` : `/api/bots/${id}/messages`),
@@ -18,9 +18,16 @@ function fixture(type = 'bot', id = 'bot-a') {
     document: { querySelector() {} }, api: async path => requests.push(path),
   })
   vm.runInContext(functions, context)
-  return { requests, refreshed, run: payload => context.refreshFromEvent(payload) }
+  return { requests, refreshed, updateEvents, run: payload => context.refreshFromEvent(payload) }
 }
 const event = (botIds = [], roomIds = [], topics = ['timeline']) => ({ all: false, topics, botIds, roomIds })
+
+test('stored update jobs SSE reader errors reach the update view unchanged', async () => {
+  const f = fixture()
+  const payload = { type: 'updates', all: true, error: { code: 'UNREADABLE', message: 'EACCES', path: '/state/jobs/record.json', reason: 'EACCES' } }
+  await f.run(payload)
+  assert.equal(f.updateEvents[0], payload)
+})
 
 test('別会話の通知は一覧だけ取得し、開いている履歴を読み直さない', async () => {
   const f = fixture()

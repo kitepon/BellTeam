@@ -3,7 +3,10 @@ import { readApiError, readApiResponse } from './chat-input.js?v=__ASSET_VERSION
 export function createWebClient({ fetch = globalThis.fetch, setTimeout = globalThis.setTimeout, clearTimeout = globalThis.clearTimeout } = {}) {
   async function api(path, options = {}) {
     const response = await fetch(path, options)
-    if (!response.ok) { const error = new Error(await readApiError(response)); error.status = response.status; throw error }
+    if (!response.ok) {
+      const detail = await readApiError(response, { details: true })
+      throw Object.assign(new Error(detail.message), detail, { status: response.status })
+    }
     return readApiResponse(response)
   }
 

@@ -1,5 +1,53 @@
 # Update通知の表示・操作設計
 
+## Durable job display contract (2026-11-07)
+
+Root's [job ledger contract](/srv/bellteam/bots/bot-7b140b27/docs/module-job-ledger-contract-20261107.md) supersedes the historical operation-result/unknown display below. Runtime's [exact record and DFD](/srv/bellteam/bots/bot-0b867848/work/BellTeam-module-job-ledger-20261107/docs/architecture/modules/runtime/update-jobs.md) owns job transitions. Job display consumes Molly's final [HTTP/SSE contract](../integration/update-jobs.md), supplied before Web source. Do not infer wire paths from runtime's private socket endpoints. The independent problems projection is final in [Signal PR456](https://github.com/kitepon/BellTeam/pull/456), `docs/architecture/modules/diagnostics/module-restart-limit.md`.
+
+| Function | Input -> display/output | Ownership |
+| --- | --- | --- |
+| Explicit start | Fixed plan + retained request identity -> one authenticated POST; retain returned job binding | Existing update-center flow; Molly defines actual acceptance/idempotency mapping |
+| Job read | Existing operation lookup/common projection -> stored jobId, state, failed reason | Runtime record is authoritative; parent requestId can differ from backend jobId |
+| Job render | queued/downloading/verifying/swapping/ready/failed -> exact state and jobId visibly on the update screen; reason.code/message verbatim | Web only; no completed/unknown inference from legacy operation fields |
+| Read error | UNREADABLE with supplied path/reason, or public API error -> visible error and preserved lookup identity | Error is separate from stored job state; no replay or invented failed/ready state |
+| Problem render | Common public projection of Signal's stable module_restart_limit aggregate -> emitted module/count/window/lastExit/lastReason and explicit status | Signal stores; runtime explicitly clears; Web does not recalculate or expire it |
+| Refresh | Existing open/start/ready/updates/manual/visible triggers -> authenticated GET | application/client; exact diagnostic invalidation follows Molly's contract |
+
+```mermaid
+flowchart LR
+  Explicit[User confirms fixed plan] --> Retain[Retain request identity]
+  Retain --> Post[One common authenticated POST]
+  Post --> Binding[Actual durable job binding from Molly]
+  Binding --> Read[Common authenticated GET]
+  Event[Existing SSE and display refresh triggers] --> Read
+  Read --> Stored[Stored jobId / state / reason]
+  Stored --> Screen[Existing update summary and details]
+  Read --> Error[Public read error / path and reason]
+  Error --> Screen
+  Identity[Retained lookup identity after error or reload] --> Read
+  Runtime[Runtime restart-limit emit / explicit clear] --> Signal[Diagnostics stable aggregate]
+  Signal --> Projection[Molly public problem projection]
+  Projection --> Screen
+```
+
+The main screen must expose the real job ID and state rather than hide them only in support details. Display reason text with textContent; do not translate backend messages into browser diagnoses. No browser job store, automatic POST replay, server-judgment duplication, restart timer/counter, admin-key endpoint, or rollback feature is added. Preserve existing drafts, focus, selected targets and fixed plan confirmation. Unrelated version comparison and conversation deliveryTracking accepted/unknown retain their own contracts.
+
+### Final problems projection
+
+Existing authenticated GET `/api/updates` optionally includes `problems: [{fingerprint,status,kind:"module_restart_limit",moduleId,count,windowSeconds:1800,lastExit:{code,signal},lastReason}]`. Status is `open|resolved`; both null exit values mean no observed OS exit. Web checks the consumed display types, then renders a problems section on the existing main update view, using the supplied fingerprint for identity and inventory component names for labels. Show status, count, windowSeconds, exit code/signal and lastReason; null exit fields display as unobserved, never zero/success. Resolved rows retain the same exact evidence and show resolved. Use only text nodes and existing section styles. No separate fetch, storage, timer, calculation, recovery button or raw diagnostic fields. Each ordinary inventory refresh replaces the display from this projection; missing optional problems means no problem rows.
+
+### Final job projection and browser ownership
+
+POST `/api/updates/operations` keeps the existing body; caller idempotencyKey defaults to requestId, so Web keeps its existing single canonical UUID and does not generate per-step keys. 202 `{operation}` follows every durable per-step admission. `operation.jobs[]` contains full stored records; no aggregate job state exists. GET `/api/updates/operations/:requestId` refreshes the same bound records. GET `/api/updates` adds recent `jobs[]` (16) and problems[]. The Web uses these existing inventory/operation reads, without an extra recent-jobs request. The common contract also provides GET `/api/updates/jobs` and `/api/updates/jobs/:kind/:jobId`; Web need not duplicate its reads through these routes.
+
+Render every stored record with its jobId, exact state, module target and failed reason.code/message in both main view and appropriate operation detail/history. Do not derive an operation-wide state from these records or legacy phase/execution/verification. Legacy operations without jobs retain requestId/planId and display their supplied historical error, if any, plus the absence of a stored job; do not fabricate a job or show an unknown state.
+
+Keep `bellteam-update-request.v1` current requestId/planId and historical snapshots. When an explicit new operation replaces an unresolved lookup, preserve its IDs as a previous reference even if no result was readable; previous entries may therefore be original historical operation snapshots or `{requestId,planId}` references. New history stores only these references, without copying full job records; preserve existing historical snapshots unchanged. GET recovery always uses those same IDs, including after terminal records, reload or reader failure. A browser snapshot is never a server ledger. No automatic POST retry. Capability/plan and server admission own concurrency decisions; a failed read or legacy unknown does not introduce a new browser admission guard. Retain fixed-target confirmation, double-click suppression and storage errors protecting lookup identity.
+
+The shared client error reader retains its string result for existing callers and optionally returns closed message/code/path/reason details to client.api, which attaches them to the status-bearing Error. UNREADABLE HTTP503 exposes `message:reason,path,reason`; render those strings verbatim as an error, separate from last stored job records. Malformed responses produce a read error, not a job state. SSE type=updates still invalidates/refetches existing GETs; application passes the event to the update center so an explicit SSE reader error is also visible. Each new successful read replaces previous read failure; no browser timer or transition inference.
+
+SSE updates.jobs[] is also a validated stored-record input to the in-memory recent display, so it remains visible if the subsequent inventory GET fails. A successful inventory GET replaces that display with its own jobs[]. The records remain separate from the reader error; no browser persistence or state transition is inferred. The source function map is createUpdateCenter -> display validation / same-ID GET / renderJobs shared by main and details/history; application.refreshFromEvent -> updateCenter.refresh(payload); client.api -> readApiError(details). Only this changed display/error boundary needs new tests. Peer runtime, diagnostics and common tests are inherited.
+
 ## 現行の製品画面（2026-11-04工程S）
 
 Rootのupdate-page-product-design-20261104.mdに従い、標準は「アップデート」と状態一つ・利用者向け変更点・主操作一つ。以下の旧管理一覧layoutは閉じた詳細として保持し、標準画面にはしない。API/保存/実行可否の正本は既共通契約のまま。
