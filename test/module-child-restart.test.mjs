@@ -9,8 +9,7 @@ test('restart timer backs off to thirty seconds and close cancels retries', asyn
   t.mock.timers.enable({ apis: ['setTimeout'] })
   let calls = 0
   const recovery = createModuleChildRestart(async () => { calls++; throw new Error('failed startup') })
-  recovery.lost(); t.mock.timers.tick(1000); await settle(); assert.equal(calls, 0)
-  recovery.running(); recovery.lost()
+  recovery.lost()
   for (const [i, delay] of [1000, 2000, 4000, 8000, 16000, 30000, 30000].entries()) {
     t.mock.timers.tick(delay - 1); await settle(); assert.equal(calls, i)
     t.mock.timers.tick(1); await settle(); assert.equal(calls, i + 1)

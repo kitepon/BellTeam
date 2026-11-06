@@ -103,14 +103,14 @@ for (const mode of ['not_failed', 'wrong_generation', 'extra_key', 'quiesce_fail
   assert.equal(f.children.length, 1); assert.equal(f.children[0].exitCode, null)
   assert.equal(f.calls.some(call => call.method === 'exitWriter'), false); assert.equal(f.mutexCalls(), 0)
   if (mode === 'quiesce_failure') {
-    await assert.rejects(f.retire(), /RETIREMENT_UNAVAILABLE/)
-    assert.equal(f.calls.filter(call => call.method === 'quiesceWriter').length, 1, 'one attempt per instance')
+    await assert.rejects(f.retire(), /CONVERSATION_WRITER_UNCONFIRMED/)
+    assert.equal(f.calls.filter(call => call.method === 'quiesceWriter').length, 2, 'same writer lifecycle can be retried')
     await assert.rejects(f.controller.callback('old', {}), /RETIREMENT_UNAVAILABLE/)
     await assert.rejects(f.controller.request('old', {}), /RETIREMENT_UNAVAILABLE/)
   }
 })
 
-test('failed writer rejects unknown exit completion even after real OS/barrier; Q stays unavailable', async t => {
+test('failed writer records unknown exit completion and recovers after actual OS/barrier', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const f = await fixture(t); f.fail()
   const exit = Promise.withResolvers(); f.behavior.exitCompletion = exit.promise
@@ -118,8 +118,8 @@ test('failed writer rejects unknown exit completion even after real OS/barrier; 
   await settled(); assert.equal(f.children[0].reaped, true)
   exit.reject(Error('exit unknown')); await rejected
   t.mock.timers.tick(10000); await settled()
-  assert.equal(f.children.length, 1); assert.equal(f.controller.snapshot().available, false)
-  assert.equal(f.admission.inspectAdmission().failed, true); assert.equal(f.admission.capture().generation, f.controller.snapshot().generation)
+  assert.equal(f.children.length, 2); assert.equal(f.controller.snapshot().available, true)
+  assert.equal(f.admission.inspectAdmission().failed, false); assert.equal(f.admission.capture().generation, f.controller.snapshot().generation)
 })
 
 test('failed writer rechecks current generation after asynchronous writer barrier', async t => {

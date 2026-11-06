@@ -37,24 +37,39 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   let operation = null, closing = null, update = null, reservation = null, startingReservation = false
   let failedWriterReaped = false, proofHeld = false, writerRetiring = false
   let recoveryAttempt = 0, childSequence = 0
+  const recoveryEvidence = new Set()
   const recovery = createModuleChildRestart(async () => {
     recoveryAttempt = Math.min(Number.MAX_SAFE_INTEGER, recoveryAttempt + 1)
     let stage = 'operation'
     const report = (event, error) => {
+      const key = `${stage}:${event}`
+      if (recoveryEvidence.has(key)) return
+      recoveryEvidence.add(key)
       try { console.error(JSON.stringify(moduleRecoveryLog(component, stage, event, recoveryAttempt, active.size, admission, error))) } catch {}
     }
     const mark = next => { stage = next; report('waiting') }
     try {
       mark('operation')
       await operation?.catch(() => {})
-      if (closed || instance || !initialized) { report('skipped'); return }
+      if (closed || available) { report('skipped'); return }
+      if (!initialized && !instance) { await startAttempt(); return }
       const perform = async () => {
-        if (closed || instance) { report('skipped'); return }
+        if (closed || available) { report('skipped'); return }
+        const selected = await readAdoption()
+        currentVersionId = selected?.currentVersionId ?? null; previousVersionId = selected?.previousVersionId ?? null
+        mark('prepare'); await prepare(currentVersionId)
         const ticket = closeAdmission('module_recovery')
+        if (instance) {
+          const retained = instance
+          if (retained.child.exitCode !== null || retained.child.signalCode !== null || !retained.child.connected) await retained.finishTermination()
+          else if (retained.retirementStarted || component === 'conversation' && admission?.inspectAdmission?.().failed) await retireFailedWriter(generation)
+          else if (retained.intentional) await finishExit(retained)
+          else if (retained.versionId === currentVersionId && retained.ready) { await resume(retained, ticket); initialized = true; return }
+          else if (retained.resumed) { await drain(retained, ticket, mark); await finishExit(retained) }
+          else await stopUnadmitted(retained)
+        }
         mark('runner')
         await waitActive()
-        mark('prepare')
-        await prepare(currentVersionId)
         state('starting')
         const target = await launch(currentVersionId, ticket, 'restore', undefined, mark, true)
         try {
@@ -71,7 +86,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
         return exchangeMutex ? exchangeMutex.runExclusive(() => perform(signal)) : perform(signal)
       })
     } catch (error) { report('failed', error); throw error }
-  })
+  }, component)
   const active = new Set()
   const snapshot = () => ({ currentVersionId, previousVersionId, generation, available, phase, exchanging,
     currentTarget: currentVersionId === null ? 'builtin' : 'release',
@@ -80,7 +95,8 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     update: update ? { ...update } : null })
   const state = (next, usable = false) => {
     phase = next; available = usable
-    if (usable) recovery.running()
+    if (usable) { recovery.running(); recoveryEvidence.clear() }
+    else if (next === 'unavailable' && !closed) recovery.lost()
     try { onState(snapshot()) } catch {}
   }
   const track = promise => {
@@ -144,34 +160,46 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     // Pipes are drained without retaining or publishing arbitrary child output.
     child.stdout?.resume(); child.stderr?.resume()
     childSequence = Math.min(Number.MAX_SAFE_INTEGER, childSequence + 1)
-    const target = { sequence: childSequence, child, generation: nextGeneration, ticket, ended: false, resumed: false, channel: null }
+    const target = { sequence: childSequence, versionId, child, generation: nextGeneration, ticket, ended: false, resumed: false, channel: null }
     target.stderrObservation = observeModuleChild(child)
     instance = target
-    target.end = waitNotificationsChildClose(child).then(async result => {
-      if (component === 'conversation') reportConversationChildExitOrigin(target.sequence, target.stderrObservation())
-      const unexpected = target.resumed && initialized && !closed && !target.intentional
-      if (unexpected) { closeAdmission('module_child_exit'); state('unavailable'); reportModuleChildExit(component, result, target.stderrObservation(), onModuleChildExit) }
+    const osClosed = waitNotificationsChildClose(child)
+    const terminationEvidence = new Set()
+    const reportTermination = (stage, event, error) => {
+      if (!target.unexpected && !recovering && !target.retirementAck) return
+      const key = `${stage}:${event}`
+      if (terminationEvidence.has(key)) return
+      terminationEvidence.add(key)
+      try { console.error(JSON.stringify(moduleTerminationLog(component, stage, event, target.sequence, active.size, admission, error))) } catch {}
+    }
+    target.finishTermination = () => target.termination ??= (async () => {
+      await osClosed
       let stage = 'os_closed'
-      const report = (event, error) => {
-        if (!unexpected && !recovering && !target.retirementAck) return
-        try { console.error(JSON.stringify(moduleTerminationLog(component, stage, event, target.sequence, active.size, admission, error))) } catch {}
-      }
-      report('completed')
+      reportTermination(stage, 'completed')
       try {
-        stage = 'incoming'; report('waiting')
-        await target.channel?.childClosed?.()
-        await target.channel?.drainIncoming?.()
-        report('completed')
+        stage = 'incoming'; reportTermination(stage, 'waiting')
+        if (!target.childClosed) { await target.channel?.childClosed?.(); target.childClosed = true }
+        if (!target.incomingDrained) { await target.channel?.drainIncoming?.(); target.incomingDrained = true }
+        reportTermination(stage, 'completed')
         target.ended = true
-        stage = 'reaped'; report('waiting')
-        await target.channel?.reaped()
-        report('completed')
-        if (target.retirementAck && !await target.retirementAck) throw fail('WRITER_RETIREMENT_UNCONFIRMED')
-        if (unexpected || recovering || target.retirementAck) failedWriterReaped = true
+        stage = 'reaped'; reportTermination(stage, 'waiting')
+        if (!target.reaped) { await target.channel?.reaped(); target.reaped = true }
+        reportTermination(stage, 'completed')
+        if (target.unexpected || recovering || target.retirementAck) failedWriterReaped = true
         if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
-        if (unexpected || target.retirementAck) { stage = 'lost'; recovery.lost(); report('completed') }
-      } catch (error) { report('failed', error); throw error }
+        stage = 'lost'; reportTermination(stage, 'completed')
+      } catch (error) { reportTermination(stage, 'failed', error); throw error }
+    })().finally(() => { target.termination = null })
+    target.end = osClosed.then(async result => {
+      if (component === 'conversation') reportConversationChildExitOrigin(target.sequence, target.stderrObservation())
+      target.unexpected = target.resumed && initialized && !closed && !target.intentional
+      if (target.unexpected) {
+        closeAdmission('module_child_exit'); state('unavailable')
+        reportModuleChildExit(component, result, target.stderrObservation(), onModuleChildExit)
+      }
+      await target.finishTermination()
     })
+    void target.end.catch(() => { state(closed ? 'closed' : 'unavailable') })
     const started = Date.now()
     try {
       markStage('channel')
@@ -227,7 +255,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     void promise.finally(() => { if (operation === promise) operation = null }).catch(() => {})
     return promise
   }
-  const start = () => exclusive(async () => {
+  const startAttempt = () => exclusive(async () => {
     if (closed || initialized) throw fail('ALREADY_STARTED')
     state('starting')
     const saved = await readAdoption()
@@ -244,6 +272,10 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       initialized = true
       return snapshot()
     } catch (error) { state(closed ? 'closed' : 'unavailable'); throw error }
+  })
+  const start = () => available ? Promise.resolve(snapshot()) : startAttempt().catch(error => {
+    if (closed || phase !== 'unavailable') throw error
+    return recovery.wait().then(() => { if (closed) throw error; return snapshot() })
   })
   const invoke = (kind, method, params, options) => {
     try {
@@ -317,7 +349,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
         const result = new AggregateError(errors, errors.length === 1 ? `${prefix}_REPLACE_ROLLED_BACK` : `${prefix}_REPLACE_AND_ROLLBACK_FAILED`)
         result.moduleDiagnostic = moduleExchangeDiagnostic(component, failedStage, error, rollbackStage, rollbackError)
         throw result
-      } finally { if (phase !== 'running') { exchanging = false; state(phase) } }
+      } finally { if (phase !== 'running') { exchanging = false; state(closed ? 'closed' : 'unavailable') } }
     }
     return exclusive(() => exchangeMutex ? exchangeMutex.runExclusive(perform) : perform())
   }
@@ -423,54 +455,60 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       } finally { proofHeld = false }
     }
   })
+  const retireFailedWriter = async expectedGeneration => {
+    const target = instance
+    const assertHeld = (alive = true) => {
+      if (component !== 'conversation' || closed || !initialized || !target || instance !== target && !(alive === false && instance === null && target.reaped && failedWriterReaped)
+        || generation !== expectedGeneration || admission?.capture?.().generation !== expectedGeneration
+        || admission?.inspectAdmission?.().failed !== true || reservation || proofHeld
+        || alive && (target.ended || !target.resumed || !target.child.connected
+          || target.child.exitCode !== null || target.child.signalCode !== null)) throw fail('WRITER_RETIREMENT_UNAVAILABLE')
+    }
+    assertHeld()
+    if (exchanging || writerRetiring) throw fail('WRITER_RETIREMENT_UNAVAILABLE')
+    closeAdmission('module_protocol_failure')
+    target.retirementStarted = true
+    writerRetiring = true; state('quiescing')
+    const controlWriter = async (method, key, timeout) => {
+      const pending = target.channel.control(method, {}, timeout)
+      if (!(pending?.completion instanceof Promise)) throw fail('WRITER_RETIREMENT_UNCONFIRMED')
+      const [result, completion] = await Promise.allSettled([pending, pending.completion])
+      if (result.status === 'rejected') throw result.reason
+      if (completion.status === 'rejected') throw completion.reason
+      if (!result.value || Array.isArray(result.value) || Object.keys(result.value).join(',') !== key
+        || result.value[key] !== true) throw fail('WRITER_RETIREMENT_UNCONFIRMED')
+    }
+    try {
+      if (!target.writerQuiesced) {
+        await controlWriter('quiesceWriter', 'writerQuiesced', 60000)
+        target.writerQuiesced = true
+      }
+      await target.channel.drainIncoming()
+      assertHeld()
+      // Actual OS/effect completion can retire a gone writer even when the exit ACK is lost.
+      const acknowledged = Promise.withResolvers()
+      target.retirementAck = acknowledged.promise; target.intentional = true
+      void target.end.catch(() => {})
+      try {
+        await controlWriter('exitWriter', 'writerClosed', 5000)
+        assertHeld(false)
+        acknowledged.resolve(true)
+      } catch (error) { acknowledged.resolve(false); throw error }
+      await target.end
+      if (closed || instance !== null || generation !== expectedGeneration || !failedWriterReaped)
+        throw fail('WRITER_RETIREMENT_UNCONFIRMED')
+      return snapshot()
+    } catch (error) { state(closed ? 'closed' : 'unavailable'); throw error }
+    finally { writerRetiring = false }
+  }
   const retireProtocolFailedWriter = params => {
     if (!params || Array.isArray(params) || Object.keys(params).join(',') !== 'generation'
       || typeof params.generation !== 'string') return Promise.reject(fail('WRITER_RETIREMENT_UNAVAILABLE'))
     const expectedGeneration = params.generation
-    // The parent owns the one shared exchange mutex; this port holds only the local operation.
-    return exclusive(async () => {
-      const target = instance
-      const assertHeld = (alive = true) => {
-        if (component !== 'conversation' || closed || !initialized || !target || instance !== target
-          || generation !== expectedGeneration || admission?.capture?.().generation !== expectedGeneration
-          || admission?.inspectAdmission?.().failed !== true || reservation || proofHeld
-          || alive && (target.ended || !target.resumed || !target.child.connected
-            || target.child.exitCode !== null || target.child.signalCode !== null)) throw fail('WRITER_RETIREMENT_UNAVAILABLE')
-      }
-      assertHeld()
-      if (exchanging || writerRetiring || target.retirementStarted) throw fail('WRITER_RETIREMENT_UNAVAILABLE')
-      closeAdmission('module_protocol_failure')
-      target.retirementStarted = true
-      writerRetiring = true; state('quiescing')
-      const controlWriter = async (method, key, timeout) => {
-        const pending = target.channel.control(method, {}, timeout)
-        if (!(pending?.completion instanceof Promise)) throw fail('WRITER_RETIREMENT_UNCONFIRMED')
-        const [result, completion] = await Promise.allSettled([pending, pending.completion])
-        if (result.status === 'rejected') throw result.reason
-        if (completion.status === 'rejected') throw completion.reason
-        if (!result.value || Array.isArray(result.value) || Object.keys(result.value).join(',') !== key
-          || result.value[key] !== true) throw fail('WRITER_RETIREMENT_UNCONFIRMED')
-      }
-      try {
-        await controlWriter('quiesceWriter', 'writerQuiesced', 60000)
-        await target.channel.drainIncoming()
-        assertHeld()
-        // OS close may precede delivery of the exit ACK; neither alone proves retirement.
-        const acknowledged = Promise.withResolvers()
-        target.retirementAck = acknowledged.promise; target.intentional = true
-        void target.end.catch(() => {})
-        try {
-          await controlWriter('exitWriter', 'writerClosed', 5000)
-          assertHeld(false)
-          acknowledged.resolve(true)
-        } catch (error) { acknowledged.resolve(false); throw error }
-        await target.end
-        if (closed || instance !== null || generation !== expectedGeneration || !failedWriterReaped)
-          throw fail('WRITER_RETIREMENT_UNCONFIRMED')
-        return snapshot()
-      } catch (error) { state(closed ? 'closed' : 'unavailable'); throw error }
-      finally { writerRetiring = false }
-    })
+    if (!closed && component === 'conversation' && generation === expectedGeneration && admission?.inspectAdmission?.().failed)
+      state('unavailable')
+    // The parent owns the shared mutex; recovery retries the same retirement under that mutex.
+    return exclusive(() => retireFailedWriter(expectedGeneration))
   }
   return { start, close, replace, reserve, snapshot, withInstallReconciliationProof, retireProtocolFailedWriter,
     request: (method, params, options = {}) => invoke('request', method, params, options),

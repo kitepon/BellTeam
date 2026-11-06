@@ -39,22 +39,34 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
   let operation = null, closing = null, update = null, draining = null, cancellation = null
   const recovery = createModuleChildRestart(async () => {
     await operation?.catch(() => {})
-    if (closed || instance || !initialized) return
+    if (closed || available) return
+    if (!initialized && !instance) { await startAttempt(); return }
     const perform = async signal => {
-      const ticket = membersAdmission.close()
-      await membersAdmission.drain(ticket)
+      const selected = await readAdoption()
+      currentVersionId = selected?.currentVersionId ?? null; previousVersionId = selected?.previousVersionId ?? null
       await prepare(currentVersionId, undefined, signal)
+      const ticket = membersAdmission.close()
+      if (instance) {
+        const target = instance
+        if (target.child.exitCode !== null || target.child.signalCode !== null || !target.child.connected) await target.finishTermination()
+        else if (target.intentional) await finishExit(target)
+        else if (target.versionId === currentVersionId) { await resume(target, ticket); initialized = true; return }
+        else if (target.resumed) { await drain(target, ticket); await finishExit(target) }
+        else await killUnadmitted(target)
+      }
+      await membersAdmission.drain(ticket)
       const target = await launch(currentVersionId, ticket, signal)
       try { await resume(target, ticket) }
       catch (error) { await killUnadmitted(target); throw error }
     }
     await exclusive(signal => exchangeMutex ? exchangeMutex.runExclusive(() => perform(signal)) : perform(signal))
-  })
+  }, 'members')
   const snapshot = () => ({ currentVersionId, previousVersionId, currentTarget: currentVersionId === null ? 'builtin' : 'release',
     builtinSourceCommit, available, exchanging, phase, generation: membersAdmission.capture().generation, update: update ? { ...update } : null })
   const state = (next, usable = false) => {
     phase = next; available = usable
     if (usable) recovery.running()
+    else if (next === 'unavailable' && !closed) recovery.lost()
     try { onState(snapshot()) } catch {}
   }
   const prepare = async (versionId, expectedRelease, signal) => {
@@ -95,19 +107,25 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
     const child = spawn('/usr/local/libexec/bellteam-members-start', [versionId ?? 'builtin'], {
       env: {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
-    const target = { child, ended: false, resumed: false, generation,
+    const target = { child, versionId, ended: false, resumed: false, generation,
       channel: createMembersParentChannel(child, { generation, admission: membersAdmission,
         onEffect, onProjection, onDiagnostic, authorizeOwner }) }
     target.stderrObservation = observeModuleChild(child)
     instance = target
-    target.end = waitMembersChildClose(child).then(async result => {
+    const osClosed = waitMembersChildClose(child)
+    target.finishTermination = () => target.termination ??= (async () => {
+      await osClosed
+      if (!target.incomingDrained) { await target.channel.drainIncoming?.(); target.incomingDrained = true }
+      target.ended = true
+      if (!target.reaped) { await target.channel.reaped(); target.reaped = true }
+      if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
+    })().finally(() => { target.termination = null })
+    target.end = osClosed.then(async result => {
       const unexpected = target.resumed && initialized && !closed && !target.intentional
       if (unexpected) { membersAdmission.close(); state('unavailable'); reportModuleChildExit('members', result, target.stderrObservation(), onModuleChildExit) }
-      await target.channel.drainIncoming?.()
-      target.ended = true; await target.channel.reaped()
-      if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
-      if (unexpected) recovery.lost()
+      await target.finishTermination()
     })
+    void target.end.catch(() => { state(closed ? 'closed' : 'unavailable') })
     const started = Date.now()
     try {
       await abortable(target.channel.control('initialize', { generation }, 45000), signal)
@@ -152,7 +170,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
     void promise.finally(() => { if (operation === promise) { operation = null; cancellation = null } }).catch(() => {})
     return promise
   }
-  const start = () => exclusive(async signal => {
+  const startAttempt = () => exclusive(async signal => {
     if (closed || initialized) throw fail('MEMBERS_ALREADY_STARTED')
     state('starting')
     const metadata = await open('/app/distribution.json', constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
@@ -175,7 +193,14 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
       if (closed) throw fail('MEMBERS_CLOSED')
       await resume(target, ticket); initialized = true
       return snapshot()
-    } catch (error) { await killUnadmitted(instance); state('unavailable'); throw error }
+    } catch (error) {
+      try { await killUnadmitted(instance) } finally { state('unavailable') }
+      throw error
+    }
+  })
+  const start = () => available ? Promise.resolve(snapshot()) : startAttempt().catch(error => {
+    if (closed || phase !== 'unavailable') throw error
+    return recovery.wait().then(() => { if (closed) throw error; return snapshot() })
   })
   const request = (method, params, options = {}) => {
     if (!instance || !options.membersLease && !options.membersReadPin && (!available || exchanging || closed)) return Promise.reject(fail('MEMBERS_NOT_ACCEPTING'))
@@ -236,7 +261,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
           await resume(restored, ticket)
         } catch (rollback) { errors.push(rollback); state('unavailable') }
         throw new AggregateError(errors, errors.length === 1 ? 'MEMBERS_REPLACE_ROLLED_BACK' : 'MEMBERS_REPLACE_AND_ROLLBACK_FAILED')
-      } finally { if (phase !== 'running') { exchanging = false; state(phase) } }
+      } finally { if (phase !== 'running') { exchanging = false; state(closed ? 'closed' : 'unavailable') } }
     }
     return exclusive(signal => exchangeMutex ? exchangeMutex.runExclusive(() => perform(signal)) : perform(signal))
   }

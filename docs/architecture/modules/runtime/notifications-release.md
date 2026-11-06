@@ -1,5 +1,7 @@
 # 通知の固定資材・起動・writer排他 / ABI2
 
+Startup, exchange, and retained-child failures use the [single module lifecycle recovery contract](module-process.md#shared-automatic-lifecycle-recovery-owner-2026-11-07), restoring the latest configuration epochs without replaying notification sends.
+
 runtime所有：エピネル。基準03c952bf。Rootの固定通知契約とWebPush v1.1/b64a `/srv/bellteam/bots/bot-7b140b27/docs/web-push-contract-20261103.md` に従う。[全体図](../../feature-map.md)→[runtime](README.md)、通知内部は[usage](../usage/README.md)、組立ては[integration](../integration/README.md)、署名供給は[distribution](../distribution/README.md)。同UID1001の協調writerと寿命を分ける。別UIDのOS隔離は残る。
 
 ```mermaid

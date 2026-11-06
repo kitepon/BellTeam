@@ -68,8 +68,7 @@ test('legacy recovery reveals pending actual work and gate refusal, then resumes
   t.mock.timers.tick(1); await settle()
   assert.equal(f.children.length, 2); assert.equal(f.controller.snapshot().available, true)
   assert.equal(f.requests(), 1)
-  assert.deepEqual(evidence().filter(value => value.attempt === 2).map(value => value.stage),
-    ['operation', 'local_mutex', 'mutex', 'runner', 'prepare', 'recover_admission', 'spawn', 'channel', 'initialize', 'ready', 'restore', 'resume', 'resume'])
+  assert.equal(evidence().filter(value => value.attempt === 2 && value.stage === 'operation').length, 0, 'retry does not repeat an observed lifecycle stage')
   assert.equal(evidence().at(-1).event, 'completed')
   assert.equal(evidence().at(-1).admissionClosed, false)
   assert.doesNotMatch(JSON.stringify(evidence()), /generation|lease|correlation|synthetic|message|stack/)

@@ -1,8 +1,15 @@
 // Only lifecycle recovery is retried; accepted business requests are never replayed.
-export function createModuleChildRestart(restart) {
-  let timer = null, closed = false, enabled = false, delay = 1000, healthySince = null, attempting = false
+export function createModuleChildRestart(restart, component = null) {
+  let timer = null, closed = false, delay = 1000, healthySince = null, attempting = false, state = null
+  const waiters = new Set()
+  const wake = () => { for (const resolve of waiters) resolve(); waiters.clear() }
+  const transition = next => {
+    if (state === next) return
+    state = next
+    if (component) try { console.error(JSON.stringify({ code: 'MODULE_LIFECYCLE_STATE', component, state: next })) } catch {}
+  }
   const schedule = () => {
-    if (closed || !enabled || timer || attempting) return
+    if (closed || timer || attempting) return
     timer = setTimeout(async () => {
       timer = null
       if (closed) return
@@ -18,13 +25,16 @@ export function createModuleChildRestart(restart) {
     timer.unref?.()
   }
   return {
-    running() { enabled = true; healthySince ??= Date.now() },
+    running() { healthySince ??= Date.now(); clearTimeout(timer); timer = null; transition('available'); wake() },
     lost() {
+      if (closed) return
       if (healthySince !== null && Date.now() - healthySince >= 60000) delay = 1000
       healthySince = null
+      transition('backoff')
       schedule()
     },
-    close() { closed = true; clearTimeout(timer); timer = null },
+    wait: () => state === 'available' || closed ? Promise.resolve() : new Promise(resolve => waiters.add(resolve)),
+    close() { closed = true; clearTimeout(timer); timer = null; transition('closed'); wake() },
   }
 }
 

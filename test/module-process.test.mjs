@@ -17,6 +17,7 @@ const deferred = () => {
 }
 const turn = () => new Promise(resolve => setImmediate(resolve))
 async function fixture(t, options = {}) {
+  const component = options.component ?? 'diagnostics'
   const root = await mkdtemp(join(tmpdir(), 'module-controller-'))
   await mkdir(join(root, 'state'))
   const children = [], controls = [], preparations = [], requests = []
@@ -27,18 +28,18 @@ async function fixture(t, options = {}) {
     child.stdout.closed = child.stderr.closed = true
     child.emit('exit', 0, null); child.emit('close', 0, null)
   }
-  const process = createModuleProcess({ component: 'diagnostics', root, investigationsFile: '/fixture/notes.json',
+  const process = createModuleProcess({ component, root, investigationsFile: component === 'diagnostics' ? '/fixture/notes.json' : null,
     exchangeMutex: options.exchangeMutex, admission: options.admission,
     exportHandoff: () => behavior.export?.() ?? Promise.resolve(undefined),
     prepareRelease: async (versionId, expected) => {
       preparations.push({ versionId, expected })
       await behavior.prepare?.()
-      return { versionId, appRoot: `/run/bellteam-maintenance/diagnostics/releases/${versionId}/payload` }
+      return { versionId, appRoot: `/run/bellteam-maintenance/${component}/releases/${versionId}/payload` }
     },
     validateReady: ready => assert.equal(ready.protocolVersion, 1),
     spawnProcess: (path, args, spawnOptions) => {
-      assert.equal(path, '/usr/local/libexec/bellteam-diagnostics-start')
-      assert.deepEqual(spawnOptions.env, { BELLTEAM_DIAGNOSTIC_INVESTIGATIONS: '/fixture/notes.json' })
+      assert.equal(path, `/usr/local/libexec/bellteam-${component}-start`)
+      assert.deepEqual(spawnOptions.env, component === 'diagnostics' ? { BELLTEAM_DIAGNOSTIC_INVESTIGATIONS: '/fixture/notes.json' } : {})
       assert.equal(spawnOptions.serialization, 'advanced')
       const child = new EventEmitter()
       Object.assign(child, { connected: true, exitCode: null, signalCode: null,
@@ -55,7 +56,8 @@ async function fixture(t, options = {}) {
       ready: Promise.resolve({ versionId: child.versionId, protocolVersion: 1 }),
       request: (method, params, requestOptions) => { requests.push({ method, params, requestOptions, generation }); return behavior.request() },
       callback: () => Promise.resolve('callback'),
-      control: async (method, params) => {
+      control: (method, params) => {
+        const result = (async () => {
         controls.push({ child, method, params })
         if (method === 'initialize') {
           await behavior.initialize?.(child)
@@ -68,8 +70,20 @@ async function fixture(t, options = {}) {
             throw Object.assign(new Error('private message'), { code: 'DIAGNOSTICS_RESUME_FAILED' })
           return { resumed: true }
         }
+        if (method === 'quiesceWriter') {
+          if (behavior.writerQuiesceFailures-- > 0) throw Error('temporary writer quiesce failure')
+          return { writerQuiesced: true }
+        }
+        if (method === 'exitWriter') {
+          queueMicrotask(() => reap(child))
+          if (behavior.writerExitAckLost) throw Error('exit ACK lost')
+          return { writerClosed: true }
+        }
         if (method === 'quiesce') return behavior.quiesceWait ?? { quiesced: behavior.quiesce }
         if (method === 'exit') { if (!behavior.holdExit) queueMicrotask(() => reap(child)); return { closed: true } }
+        })()
+        result.completion = result
+        return result
       },
       reaped: async () => { await behavior.reaping?.(); child.reaped = true },
       childClosed: () => behavior.childClosed?.(),
@@ -77,7 +91,7 @@ async function fixture(t, options = {}) {
       }
     },
   })
-  t.after(async () => { behavior.holdExit = false; behavior.quiesce = true; await process.close(); await rm(root, { recursive: true, force: true }) })
+  t.after(async () => { behavior.holdExit = false; behavior.quiesce = true; await process.close().catch(error => { if (component !== 'conversation' || error.code !== 'CONVERSATION_PROTOCOL_UNCONFIRMED') throw error }); await rm(root, { recursive: true, force: true }) })
   return { process, root, children, controls, preparations, requests, behavior, reap }
 }
 
@@ -342,4 +356,60 @@ test('automatic recovery excludes intentional exchange exits', async t => {
   await new Promise(resolve => setTimeout(resolve, 1100))
   assert.equal(f.children.length, 2)
   assert.equal(f.process.snapshot().currentVersionId, sha)
+})
+
+
+test('unavailable enters shared backoff and relaunches without replay after termination and startup failures', async t => {
+  const settled = async () => { for (let i = 0; i < 8; i++) await turn() }
+  const logs = []
+  t.mock.method(console, 'error', line => logs.push(JSON.parse(line)))
+  const f = await fixture(t)
+  await f.process.start()
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let reaping = 0, incoming = 0
+  f.behavior.parentWork = async () => { incoming++ }
+  f.behavior.reaping = async () => { if (++reaping < 3) throw Error('temporary termination failure') }
+  f.behavior.initialize = async () => { if (f.children.length === 2) throw Error('temporary startup failure') }
+  f.reap(f.children[0]); await settled()
+  assert.equal(f.process.snapshot().available, false)
+  assert.equal(logs.filter(x => x.code === 'MODULE_LIFECYCLE_STATE' && x.state === 'backoff').length, 1)
+  t.mock.timers.tick(999); await settled(); assert.equal(f.children.length, 1)
+  t.mock.timers.tick(1); await settled()
+  assert.equal(reaping, 2); assert.equal(f.children.length, 1)
+  t.mock.timers.tick(2000); await settled()
+  assert.equal(f.children.length, 2); assert.equal(f.process.snapshot().available, false)
+  t.mock.timers.tick(4000); await settled()
+  assert.equal(f.children.length, 3); assert.equal(f.process.snapshot().available, true)
+  assert.equal(f.children[0].reaped, true)
+  assert.equal(f.requests.length, 0, 'lifecycle recovery never replays a business request')
+  assert.equal(incoming, 2, 'completed incoming work is not retried when the next termination stage fails')
+  assert.deepEqual(logs.filter(x => x.code === 'MODULE_LIFECYCLE_STATE').map(x => x.state), ['available', 'backoff', 'available'])
+  const admission = new ConversationLifetimes()
+  const conversation = await fixture(t, { component: 'conversation', admission,
+    writerQuiesceFailures: 1, writerExitAckLost: true })
+  await conversation.process.start()
+  const generation = conversation.process.snapshot().generation
+  assert.throws(() => admission.assertDelivery({}), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
+  await assert.rejects(conversation.process.retireProtocolFailedWriter({ generation }), /temporary writer quiesce failure/)
+  t.mock.timers.tick(1000); await settled()
+  assert.equal(conversation.children[0].exitCode, 0, 'same failed writer exits after validated quiescence')
+  assert.equal(conversation.process.snapshot().available, false)
+  t.mock.timers.tick(2000); await settled()
+  assert.equal(conversation.children.length, 2)
+  assert.equal(conversation.process.snapshot().available, true)
+  assert.notEqual(conversation.process.snapshot().generation, generation)
+  assert.equal(admission.inspectAdmission().failed, false)
+  assert.equal(conversation.requests.length, 0)
+  assert.equal(conversation.controls.filter(x => x.method === 'quiesceWriter').length, 2)
+  assert.equal(conversation.controls.filter(x => x.method === 'exitWriter').length, 1)
+
+  let firstStart = true
+  const boot = await fixture(t, { initialize: async () => { if (firstStart) { firstStart = false; throw Error('transient bootstrap failure') } } })
+  let booted = false
+  const startup = boot.process.start().then(() => { booted = true })
+  await settled(); assert.equal(booted, false)
+  t.mock.timers.tick(1000); await settled(); await startup
+  assert.equal(booted, true); assert.equal(boot.process.snapshot().available, true)
+  assert.equal(boot.children.length, 2, 'bootstrap waits for the same lifecycle instead of restarting the container')
+
 })
