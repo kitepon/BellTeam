@@ -13,7 +13,7 @@ flowchart TD
   Save --> Data
   Save --> Refresh["refreshGlobalInstructions"]
   Common["integration所有<br/>common-agents.md"] --> Refresh
-  Common -->|"主agentの要約記述・呼出義務なし"| Reminder["execution: taskSettingsReminder<br/>作業設定見直しの第1段落だけ"]
+  Common -->|"主agentの要約記述・呼出義務なし"| Reminder["execution: taskSettingsReminder<br/>SECTION models block"]
   Reminder --> Dispatch["通常dispatch / steer<br/>bellteam_task_settings付記"]
   Data --> Refresh
   Refresh --> Write["Owner情報→個別規範→製品規範<br/>runtime公開writerへ"]
@@ -47,7 +47,7 @@ CLI固有のAGENTS.overrideやCLAUDE.localに依存しない。個別指示は�
 
 ### 全文と配送付記の有効template
 
-共通規範の正本は`config/common-agents.md`一か所。`taskSettingsReminder`は「作業設定の見直し」直後から最初の空行までを毎dispatchで読む。Owner最新指示「メインagentには要約を書かせない」に従い、旧186Bの本人要約記述・`update_work_summary`呼出義務を撤去する。全文と付記には残る同じ第1段落を渡す。別段落やUserRulesに複製して付記の代用にしない。通常Ownerchat/sendmessage/返信対象room/prompt予定は同dispatchへ到達し、setupTestは付記除外、command予定はAI配送なし。背景agentの実行・入力束縛・要約投影はexecution、設定保存はusage、共通組立はintegrationが所有する。その完成を本撤去の条件にせず、既API/handler/DTO/TTLはこの差分では変えない。
+共通規範の正本は`config/common-agents.md`一か所。`taskSettingsReminder` reads the canonical `SECTION models` heading and body through the next blank line on every dispatch.Owner最新指示「メインagentには要約を書かせない」に従い、旧186Bの本人要約記述・`update_work_summary`呼出義務を撤去する。The full global instructions and delivery reminder carry the same canonical models block.別段落やUserRulesに複製して付記の代用にしない。通常Ownerchat/sendmessage/返信対象room/prompt予定は同dispatchへ到達し、setupTestは付記除外、command予定はAI配送なし。背景agentの実行・入力束縛・要約投影はexecution、設定保存はusage、共通組立はintegrationが所有する。その完成を本撤去の条件にせず、既API/handler/DTO/TTLはこの差分では変えない。
 
 供給にはbuiltinの`package-server.mjs`収録config、members artifactの本文生成用config、executionの`EXECUTION_FILES`収録configの有効世代を同じSHAへ合わせる。前者のglobal helperとmembers dispatcherは各配置内のtemplateを読み、後者も自分の配置内のtemplateを読む。stateのUserRules更新だけではこのtemplateは変わらない。採用mainからの通常image又は既公開moduleの反映単位・供給順はintegration/distribution/runtimeの既条件に従う。
 
@@ -68,3 +68,7 @@ Webの`createOwnerEditor.save`はprofile PATCH→rules PUTの順であり、一�
 ## 現行の専用owner MCPのwriter
 
 `src/mcp-owner-server.mjs`は独立したstdio入口で、OwnerProfile/UserRulesとglobal refresherを自身で生成する。通常bootstrapとは別実体で同じ正本を書き得る。独立更新では専用権限を保つproxyへ接続してwriterを一本化する必要がある。[契約入力](module-update.md)に初回の変更範囲を記した。現行sourceで既に一本化済みとはしない。
+
+## Common-rules DSL prefix (Owner 2026-11-07)
+
+Function: integration owns the verbatim DSL prefix in config/common-agents.md; taskSettingsReminder selects SECTION models through its next blank line. DFD: unchanged rendered Owner/user prefix + full common template → existing five CLI global writers; canonical models block → existing bellteam_task_settings delivery suffix. members/dispatcher and members/instructions pass the template through without heading parsing. The existing communication-and-later tail remains byte-identical pending Root’s separately delegated content decision. No new endpoint, write location or runtime policy parser is introduced.
