@@ -59,7 +59,7 @@ def main(component):
         if component in BUSINESS_FILES:
             paths = sorted(name.removeprefix('payload/') for name in BUSINESS_FILES[component])
         if component == 'conversation':
-            paths = sorted(name.removeprefix('payload/') for name in CONVERSATION_FILES)
+            paths = sorted({*(name.removeprefix('payload/') for name in CONVERSATION_FILES), 'src/direct-log-record.mjs'})
         raw = subprocess.check_output(['git', 'archive', source, *paths], cwd=repo)
         with tarfile.open(fileobj=io.BytesIO(raw)) as tar:
             for item in tar:

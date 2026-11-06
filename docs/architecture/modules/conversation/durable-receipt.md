@@ -35,3 +35,5 @@ Root公開契約2026-11-06、親接続Molly・実入力Kiro・ready Epi。会話
 閉wire enumへqueuedを追加する共通MCP/HTTP返却はMolly担当。これをrunningへ写像しない。通常ready→drainのイベント接続も親担当。本source単体を親接続完了へ補完しない。
 
 既executionSourceは親だけの一時参照としてdispatchへ渡し、本文JSONLへ保存しない。process再生成後に元authorityを捏造して復元しない。入力済callback後の実delivered/failed追跡は後着例外でqueued/unknownへ上書きしない。
+
+親認可・同asset gate・実dispatcher・通常再開・closeの正本は[integration/message-receipt.md](../integration/message-receipt.md)を参照。親callbacksは同writerへ直接保存するため、会話child追跡不明だけで新規AI入力を待たせない。

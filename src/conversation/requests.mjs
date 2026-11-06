@@ -43,6 +43,12 @@ const post = { message: text, images: array(image) }
 export function validateConversationRequest(method, params, context) {
   fields(context, { generation: identity, operationId: identity,
     actor: value => { assertConversationRootAuthority(method, value); return true }, continuation: bool })
+  return validateConversationInput(method, params, context.actor)
+}
+
+// Parent receipts reuse the same pure input/actor validation without an IPC lease.
+export function validateConversationInput(method, params, actor) {
+  assertConversationRootAuthority(method, actor)
   switch (method) {
     case 'rooms.list': case 'observation.poll': return fields(params, {})
     case 'room.read': case 'room.schedules.list': case 'room.remove':
@@ -80,7 +86,7 @@ export function validateConversationRequest(method, params, context) {
     case 'direct.post': return fields(params, { from: id, target: id, ...post })
     case 'user.post': case 'user.turn':
       fields(params, { target: id, ...post }, { recordUser: bool })
-      if (params.recordUser === false && context.actor.kind !== 'onboarding') invalid()
+      if (params.recordUser === false && actor.kind !== 'onboarding') invalid()
       return true
     case 'display.words':
       fields(params, { botId: id, groupId: identity, words: Array.isArray })

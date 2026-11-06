@@ -15,3 +15,25 @@ Owner公開契約は2026-11-06の「耐久受領とAI実行を分ける」。共
 ## 緊急新規入力の接続
 
 Root限定割当の実行3接点は[通常配送と未確認記録の分離](../execution/configuration-delivery.md)を正本とする。Owner通常チャット/peer→既保存→通常notify/turn→既現AI入力を、旧追跡不明だけで拒否しない。N102の唯一親writer/queued受領の組立は別の後続差分であり、この修理を待たせない。
+
+## 親の唯一writerと通常再開（実装前設計）
+
+| 親機能 | 接続・所有・失敗 |
+| --- | --- |
+| 一実体 | application-servicesがN102 DurableMessageReceiptsを一回生成し、conversationPorts.directReceiptsへ同参照を供給。子direct.log.appendは同writerへ。Roomは既所有 |
+| 認可 | assemblyの現在の認証actorを純粋な既method/入力検証で捕捉。Bot送信者・usage/onboarding targetを保持。子admission/AI有効を受領の条件にしない。executionSourceは登録済親contextだけ、本文由来は採用しない |
+| 添付 | assemblyの既asset gateを共有。親saveはmembersだけの短命contextで同gateへ入り、子writer/admissionを予約しない。削除は同gateが親/子の実save終端を待つ |
+| 新受領 | 公開MCP/HTTP user/peer/Bridge→安定親receive→queued+fsync→queued返却。recordUser=falseは既onboarding専用経路。履歴read/旧制御/Roomは既facade |
+| 実入力 | 同queued IDを耐久claim→fresh本人/明示AI許可→既transport turn/notify→実accepted。同callbacksは親writerへ保存、Owner実replyも保存。Bridge session/event/seq/hint保持。実入力前の既拒否だけnot_started、native例外はunknownを保持 |
+| 通常再開 | onPending・conversation/executionのrunningavailable・AiControl保存後enabledが同nonblocking要求へ。mutex解放後にfresh execution ready/AI許可/closedを確認。会話の追跡不明だけを新規入力gateにしない。組立完了後初回一回。queued-not_started自己再試行/新timer/AIpoll無し |
+| 終了 | drain要求のclosed化・AI購読解除→既起動失敗/通常close。元job/native/watch/callbackを付替えない |
+
+DFD: `認証済actor→純粋な既認可→親一実体receive→同asset gate→同JSONL queued/fsync→同ID受領`。`onPending/既runningavailable/AI enabled→nonblocking request→exchangeMutex.waitForIdle→fresh execution/AI→同ID queued claim→fresh本人→通常transport→実callback/Owner返答→同writer→既履歴watch/通知`。`旧legacy/unknown/dispatching→保持`、`保存失敗→受領拒否/native0`、`明示not_started→queued保持・次の外部通常eventまで自己loop無し`。
+
+N102 b0602e18の6case/35.790054msを継承。親の新規接続だけを追加検証し、全作者内部群は再走しない。本sourceを現用無停止採用の証明にしない。
+
+正式conversation archiveは新effectsのliteral依存direct-log-record.mjsをpackagerの実closureへ含める。旧archiveの既56必須inventoryへ新依存を遡及追加しない。新親sourceと新conversationを同適用単位とし、旧親へdirect.log.append依存の新子を単品promotionしない。親新writerのJSONL watchを既履歴SSEへ接続し、子通知が無い親保存も表示へ届く。
+
+親受領の入力検証は既requestsの純粋な入力部分を公開して再利用する。親受領のために偽のgeneration/operation/leaseを作らない。既IPC要求は元context検証を保持した上で同入力検証を呼ぶ。
+
+新しい直接配送のonTurnEndも既TurnReportsへ接続する。親側の同保存store/transport/既routing設定を使い、元会話子のcallback/Room報告は付替えない。既報告確認は受領ACKを待たせず、新pollを足さない。

@@ -1,3 +1,5 @@
+import { TurnReports, judgeOwnerReport } from './turn-reports.mjs'
+import { createDirectReceiptAssembly } from './direct-receipt-assembly.mjs'
 import { createSubmittedSecretApprovalBridge } from './submitted-secret-approval-bridge.mjs'
 import { createSubmittedSecretConsumer } from './usage/submitted-secret-consumer.mjs'
 import { createSubmittedSecretRabbitClient } from './usage/submitted-secret-rabbit-client.mjs'
@@ -54,7 +56,7 @@ import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Construct the application graph without starting HTTP listeners or background loops.
 export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
-  let members = null, diagnosticsModule = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null
+  let members = null, diagnosticsModule = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null, directMessages = null
   const membersAdmission = new MembersAdmission()
   const executionHandoffSupport = new Map()
   const modelHandoffGeneration = () => {
@@ -144,7 +146,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   const conversationPorts = { bots, settings, seatRuntime, aiControl, conversationUsage: createConversationUsage({ settings, notifications }) }
   if (conversationFactory) conversationAssembly = conversationFactory({ root, membersAdmission, exchangeMutex, onModuleChildExit: moduleChildExitReporter.observe, getServices: () => conversationPorts,
     onDiagnostic: report => diagnostics.record({ code: report.code, module: 'conversation',
-      ...(report.code === 'MESSAGE_LOG_INVALID' ? { diagnostic_log: JSON.stringify(report) } : {}) }), onState: () => updateCenter?.notify() })
+      ...(report.code === 'MESSAGE_LOG_INVALID' ? { diagnostic_log: JSON.stringify(report) } : {}) }), onState: state => { updateCenter?.notify(); if (state.phase === 'running' && state.available) directMessages?.requestDrain() } })
   if (executionFactory) {
     const selection = adoptionFactory({ root }), selected = await selection.read()
     const queueListeners = new Set()
@@ -172,7 +174,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       currentVersionId: selected?.currentVersionId ?? null, previousVersionId: selected?.previousVersionId ?? null,
       requestStop: (sessions, options) => sendSessionStop(executionClient, sessions, options),
       watchQueue: listener => { queueListeners.add(listener); return () => queueListeners.delete(listener) },
-      onState: () => updateCenter?.notify() })
+      onState: state => { updateCenter?.notify(); if (state.phase === 'running' && state.available) directMessages?.requestDrain() } })
   }
   const transport = execution?.transport ?? createManagedTransport({ backgroundSummary, membersAdmission, client: executionClient,
     configurationRequests: new ConfigurationRequests({ client: executionClient, intents: new ConfigurationIntents(join(root, 'state/configuration-intents'), { trustedAnchor }) }),
@@ -182,13 +184,25 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   const idleSessions = execution ? null : new IdleSessions({ bots, transport })
   const goals = execution?.goals ?? new BotGoals({ transport, admitWork: () => aiControl.admit(), reportError: goalError })
   conversationPorts.transport = transport
-  if (conversationAssembly) await conversationAssembly.initialize()
   const conversation = conversationAssembly ? { ...conversationAssembly.facade, assets: conversationAssembly.assets }
     : createConversationServices({ root, bots, transport, notifications, aiControl, settings, seatRuntime, seatObservation: !execution,
       onLogCorruption: report => diagnostics.record({ code: report.code, module: 'conversation', diagnostic_log: JSON.stringify(report) }) })
-  const { store, messenger } = conversation
+  const { store } = conversation
+  let directTurnReports
+  directMessages = createDirectReceiptAssembly({ root, bots, assets: conversationAssembly?.directAssets ?? conversation.assets,
+    legacy: conversation.messenger, conversation: conversationAssembly, transport, aiControl, exchangeMutex,
+    executionReady: () => !execution || execution.controller.snapshot().phase === 'running' && execution.controller.snapshot().available,
+    onMessage: record => notifications.direct(record), onTurnEnd: turn => directTurnReports.afterTurn(turn),
+    onError: () => diagnostics.record({ code: 'DIRECT_RECEIPT_DISPATCH_UNCONFIRMED', module: 'integration' }) })
+  conversationPorts.directReceipts = directMessages.receipts
+  const messenger = directMessages.messenger
+  directTurnReports = new TurnReports({ bots, store: directMessages.receipts.store, transport,
+    enabled: () => !aiControl.paused && settings.configuration('routing').enabled,
+    judge: value => judgeOwnerReport({ ...value, apiKey: settings.configuration('routing').apiKey }),
+    appendInterimWords: (...args) => directMessages.receipts.appendInterimWords(...args) })
+  if (conversationAssembly) await conversationAssembly.initialize()
   if (conversationAssembly) {
-    store.watch = listener => conversationAssembly.watch(listener)
+    store.watch = listener => directMessages.receipts.store.watch(listener)
     conversation.rooms.watch = listener => conversationAssembly.watch(listener)
   }
   assets = conversation.assets
@@ -289,8 +303,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     olrwAuthCaller = { status: 'unavailable', ownerSecretGuide: async () => null, async close() {} }
     try { await diagnostics.record({ code: 'OLRW_MANAGEMENT_UNAVAILABLE', module: 'integration' }) } catch {}
   }
+  directMessages.start()
   return {
-    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, moduleChildExitReporter, membersAuthorization, members, usageAssembly, conversationAssembly, execution, modelHandoffGeneration, backgroundSummary,
+    aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, moduleChildExitReporter, membersAuthorization, members, usageAssembly, conversationAssembly, execution, modelHandoffGeneration, backgroundSummary, directMessages,
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
@@ -298,7 +313,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   }
   } catch (error) {
     const failures = []
-    for (const close of [() => submittedSecretCaller?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
+    for (const close of [() => directMessages?.close(), () => submittedSecretCaller?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
       () => conversationAssembly?.close(), () => execution?.controller.close(), () => execution && executionClient?.close(),
       () => members?.controller.close(), () => usageAssembly?.close(), () => diagnosticsModule?.close()]) {
       try { await close() } catch (cleanupError) { failures.push(cleanupError) }
