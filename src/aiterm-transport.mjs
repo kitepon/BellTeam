@@ -147,13 +147,11 @@ export class AitermTransport {
 
   async ensure(bot) {
     this.assertWorkAllowed()
-    this.requireDeliveryKnown(bot.id)
     const version = this.captureStopVersion(bot)
     if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
     this.requireStopVersion(bot.id, version)
     const running = await this.isRunning(bot)
     this.requireStopVersion(bot.id, version)
-    this.requireDeliveryKnown(bot.id)
     if (running) return this.session(bot)
     return this.wake(bot)
   }
@@ -162,7 +160,6 @@ export class AitermTransport {
     return this.membersAdmission.withLease(async lease => {
       await this.requireMember(bot, { membersLease: lease })
       this.membersAdmission.assertLease(lease)
-      this.requireDeliveryKnown(bot.id)
       return operation(lease)
     }, { lease: membersLease, expected })
   }
@@ -446,7 +443,7 @@ export class AitermTransport {
   }
 
   requireDeliveryKnown(botId) {
-    return this.sessionState.requireDeliveryKnown(botId)
+    // Old async closures still call this method after in-place adoption.
   }
 
   requireSessionKnown(botId) {
@@ -614,7 +611,6 @@ export class AitermTransport {
   // 一回の配送。受付（Aitermの受理）までと、受理したターンの終わりまでを一つのjobとして進める。
   // 続けてよいかはjobの停止結論と席の状態に聞き、停止の結論を決めるのはjob（DeliveryJob）だけ。
   submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease, conversationDelivery } = {}) {
-    this.assertConversationOccupation(bot.id)
     const recoveryVersion = this.captureStopVersion(bot)
     let recoverySession = this.session(bot)
     if (membersLease) this.membersAdmission.assertLease(membersLease)
@@ -634,15 +630,13 @@ export class AitermTransport {
       conversationCallbacks = this.conversationAdmission.callbacks(conversationDelivery)
       this.trackCompletion(this.conversationAdmission.deliveryCompletion(conversationDelivery))
       ;({ onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null } = conversationCallbacks)
-    } else if (this.conversationAdmission && (onStatus || onInterim || onAnswer || onTurnEnd))
-      throw Object.assign(new Error('CONVERSATION_NOT_ACCEPTED'), { code: 'CONVERSATION_NOT_ACCEPTED', status: 503, effect: 'not_started' })
+    }
     this.activity.register(job)
     const check = () => {
       job.assertNotStopped()
       this.assertWorkAllowed()
       admissionCheck()
       if (membersLease) this.membersAdmission.assertLease(membersLease)
-      this.requireDeliveryKnown(bot.id)
     }
     const parent = this.activity.latest(bot.id)
     let accept
@@ -1035,7 +1029,7 @@ export class AitermTransport {
   }
 
   async dispatch(bot, message, images, { setupTest = false, check: checkAdmission = () => {}, executionJob, membersLease } = {}) {
-    const check = () => { checkAdmission(); this.requireDeliveryKnown(bot.id) }
+    const check = checkAdmission
     const reminder = setupTest ? '' : await taskSettingsReminder()
     if (reminder) message += `\n\n<bellteam_task_settings>\n${reminder}\n</bellteam_task_settings>`
     if (this.executionBridge) {

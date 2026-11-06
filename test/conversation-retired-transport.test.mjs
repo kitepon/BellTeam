@@ -44,14 +44,13 @@ test('running callback failure settles original effect before native; fresh root
   f.gate.finish(f.root)
   const ticket = f.gate.close(); f.gate.recoverFailedGeneration(ticket, 'old', 'new'); f.gate.resume(ticket)
   const fresh = f.gate.enter(undefined, 'new-root')
-  const blocked = f.gate.registerDelivery(fresh, { deliveryId: 'new-delivery', target: bot.id, kinds: [], dispatch() {} })
-  assert.throws(() => f.transport.turn(bot, 'must not send', { queue: { groupId: 'new-delivery' }, conversationDelivery: blocked }), { code: 'CONVERSATION_NOT_ACCEPTED' })
-  f.gate.finishUnclaimedDelivery(blocked); f.gate.finish(fresh)
+  const freshInput = f.transport.turn(bot, 'fresh independent input', { queue: { groupId: 'new-delivery' } })
+  await freshInput.accepted; f.gate.finish(fresh)
   f.transport.assertConversationOccupation('bot-b')
   assert.equal(f.transport.watchTurn(bot, 'bot-a', { turn_id: 'old-turn' }, { groupId: () => 'fresh-watch' }), null)
   let idle = false; const waiting = f.transport.idle(bot.id).then(() => { idle = true })
-  await tick(); assert.equal(idle, false); assert.equal(f.sends(), 1); assert.equal(f.waits(), 1)
-  f.native.resolve(done); assert.equal(await actual, done); await waiting
+  await tick(); assert.equal(idle, false); assert.equal(f.sends(), 2); assert.equal(f.waits(), 2)
+  f.native.resolve(done); assert.equal(await actual, done); assert.equal(await freshInput, 'answer'); await waiting
   assert.equal(f.transport.isIdle(bot.id), true)
   await tick(); assert.equal(f.gate.snapshot().active, 0)
   await assert.rejects(f.gate.drainForClose(f.gate.close()), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
@@ -118,13 +117,13 @@ test('unknown native rejection stays the same rejected promise and an explicit o
   assert.equal(f.clientClosed(), 0); assert.equal(f.sends(), 1); assert.equal(f.waits(), 1)
 })
 
-test('legacy submit cannot bypass retired Bot occupation and still waits its normal resource cleanup', { timeout: 2000 }, async () => {
+test('fresh submit bypasses retired tracking and still waits its normal resource cleanup', { timeout: 2000 }, async () => {
   const f = fixture(), result = f.turn(); await result.accepted
   f.gate.finish(f.root)
   const ticket = f.gate.close(); f.gate.recoverFailedGeneration(ticket, 'old', 'new'); f.gate.resume(ticket)
-  assert.throws(() => f.transport.turn(bot, 'legacy must not bypass'), { code: 'CONVERSATION_NOT_ACCEPTED' })
+  const fresh = f.transport.turn(bot, 'fresh independent input'); await fresh.accepted
   f.native.resolve(done); await assert.rejects(result, { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' }); await f.transport.idle(bot.id)
-  assert.equal(f.sends(), 1); await f.transport.close()
+  assert.equal(await fresh, 'answer'); assert.equal(f.sends(), 2); await f.transport.close()
   const cleanup = Promise.withResolvers(), entered = Promise.withResolvers()
   const transport = new AitermTransport({ waitProcess: async () => done, client: { async call(name) {
     if (name === 'pty_send') return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: 'local-fixture', args: [] } } }
