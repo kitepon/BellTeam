@@ -149,6 +149,50 @@ test('application constructs sole receiver before child start and performs initi
   assert.equal((await childStartReceiver.store.records())[0].delivery_id, original.delivery_id)
 })
 
+test('parent display reads saved history while the conversation child is unavailable', async t => {
+  const { createApplicationRuntime } = await import('../src/application-runtime.mjs')
+  const { FeatureSettings } = await import('../src/feature-settings.mjs')
+  const { OwnerProfile } = await import('../src/owner-profile.mjs')
+  const { UserRules } = await import('../src/user-rules.mjs')
+  const { createSyntheticNotificationsProcess } = await import('./helpers/notifications-process.mjs')
+  const { writeFile } = await import('node:fs/promises')
+  const root = await mkdtemp(join(tmpdir(), 'direct-application-'))
+  const bot = { id: 'bot-quincy', name: 'Quincy', session: 'quincy', project: join(root, 'bots/bot-quincy'), harness: 'codex' }
+  const bots = new Map([[bot.id, bot]])
+  bots.refresh = async () => {}; bots.readRemovalStates = async () => ({ removals: [] }); bots.projectPath = id => join(root, 'bots', id)
+  const settings = new FeatureSettings({ root, environment: {} }), ownerProfile = new OwnerProfile({ root }), userRules = new UserRules({ root })
+  for (const value of [settings, ownerProfile, userRules]) await value.initialize()
+  await mkdir(join(root, 'logs'))
+  const original = { schema: 'bellteam.direct-message.v1', durable_receipt: true, delivery_id: 'original-saved-id', at: new Date().toISOString(), from: 'user', target: bot.id, message: 'saved before bootstrap', image: false, delivery: 'delivered' }
+  await writeFile(join(root, 'logs/direct-messages.jsonl'), JSON.stringify(original) + '\n')
+  let childStartReceiver, sends = 0
+  const runtime = await createApplicationRuntime({ root, appRoot: new URL('../', import.meta.url).pathname, home: join(root, 'home'),
+    environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0' },
+    bootstrap: { bots, settings, ownerProfile, userRules, aiterm: {}, createNotificationsProcess: createSyntheticNotificationsProcess,
+      createConversationAssembly: options => createConversationAssembly({ ...options, createProcess: processOptions => ({
+        async start() { childStartReceiver = options.getServices().directReceipts; assert.ok(childStartReceiver); processOptions.onState({ phase: 'running', available: true, exchanging: true }) },
+        snapshot: () => ({ phase: 'running', available: true }), async close() {}, request() { assert.fail('new direct entered child') },
+      }) }),
+    },
+    client: { async call(name) {
+      if (name === 'pty_send') { sends++; return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: 'fixture', args: [] } } } }
+      if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: 'reply' } }
+      if (name === 'pty_observe') return {}
+      assert.fail('unexpected ' + name)
+    }, async close() {} },
+  })
+  // The SDK waiter is irrelevant to reception; use an explicit terminal fixture for this queued new turn.
+  runtime.services.transport.waitProcess = async () => ({ outcome: 'done' })
+  t.after(async () => { await runtime.close(); await rm(root, { recursive: true, force: true }) })
+  assert.equal(childStartReceiver, runtime.services.directMessages.receipts)
+  runtime.services.conversationAssembly.admission.close('module_child_exit')
+  const views = await runtime.services.store.recentViews([bot.id])
+  assert.equal(views.get(bot.id).at(-1).message, original.message)
+  assert.equal((await runtime.services.store.timeline(bot.id))[0].message, original.message)
+  assert.equal(sends, 0)
+  assert.equal((await childStartReceiver.store.records())[0].delivery_id, original.delivery_id)
+})
+
 
 test('direct first failure reaches registered diagnostics with bound safe fields and no private error data', async t => {
   const secret = 'PRIVATE_MESSAGE_BODY_STACK_ENV_PATH'

@@ -35,7 +35,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   let instance = null, currentVersionId = null, previousVersionId = null, generation = null
   let initialized = false, closed = false, available = false, phase = 'unavailable', exchanging = false
   let operation = null, closing = null, update = null, reservation = null, startingReservation = false
-  let failedWriterReaped = false, proofHeld = false, writerRetiring = false
+  let proofHeld = false
   let recoveryAttempt = 0, childSequence = 0
   const recoveryEvidence = new Set()
   const recovery = createModuleChildRestart(async () => {
@@ -62,14 +62,13 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
         if (instance) {
           const retained = instance
           if (retained.child.exitCode !== null || retained.child.signalCode !== null || !retained.child.connected) await retained.finishTermination()
-          else if (retained.retirementStarted || component === 'conversation' && admission?.inspectAdmission?.().failed) await retireFailedWriter(generation)
           else if (retained.intentional) await finishExit(retained)
           else if (retained.versionId === currentVersionId && retained.ready) { await resume(retained, ticket); initialized = true; return }
           else if (retained.resumed) { await drain(retained, ticket, mark); await finishExit(retained) }
           else await stopUnadmitted(retained)
         }
         mark('runner')
-        await waitActive()
+        if (component !== 'conversation') await waitActive()
         state('starting')
         const target = await launch(currentVersionId, ticket, 'restore', undefined, mark, true)
         try {
@@ -131,7 +130,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       return value
     } finally { await file.close() }
   }
-  const closeAdmission = source => admission?.close(source)
+  const closeAdmission = source => component === 'conversation' ? undefined : admission?.close(source)
   const stopUnadmitted = async target => {
     if (!target || target.ended) return
     // Never kill a previously resumed writer as an exchange timeout shortcut.
@@ -143,10 +142,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     if (closed || instance) throw fail('NOT_ACCEPTING')
     const nextGeneration = `${versionId ?? 'builtin'}:${randomUUID()}`
     if (recovering) markStage('recover_admission')
-    if (recovering && component === 'conversation' && admission?.recoverFailedGeneration) {
-      if (!failedWriterReaped) throw fail('NOT_ACCEPTING')
-      admission.recoverFailedGeneration(ticket, generation, nextGeneration)
-    }
+    if (component === 'conversation') admission?.selectGeneration?.(nextGeneration)
     else if (recovering && admission?.recover && ticket.generation === generation) admission.recover(ticket, generation, nextGeneration)
     else admission?.adopt(ticket, nextGeneration)
     generation = nextGeneration
@@ -176,6 +172,15 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       await osClosed
       let stage = 'os_closed'
       reportTermination(stage, 'completed')
+      if (component === 'conversation') {
+        target.ended = true
+        // Old callers retain their own outcomes; their effects cannot fence a new child after observed OS death.
+        void Promise.resolve().then(() => target.channel?.reaped()).catch(error => reportTermination('reaped', 'failed', error))
+        void Promise.resolve().then(() => target.channel?.drainIncoming?.()).catch(error => reportTermination('incoming', 'failed', error))
+        if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
+        reportTermination('lost', 'completed')
+        return
+      }
       try {
         stage = 'incoming'; reportTermination(stage, 'waiting')
         if (!target.childClosed) { await target.channel?.childClosed?.(); target.childClosed = true }
@@ -185,7 +190,6 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
         stage = 'reaped'; reportTermination(stage, 'waiting')
         if (!target.reaped) { await target.channel?.reaped(); target.reaped = true }
         reportTermination(stage, 'completed')
-        if (target.unexpected || recovering || target.retirementAck) failedWriterReaped = true
         if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
         stage = 'lost'; reportTermination(stage, 'completed')
       } catch (error) { reportTermination(stage, 'failed', error); throw error }
@@ -223,8 +227,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     if ((await target.channel.control('resume')).resumed !== true) throw fail('RESUME_FAILED')
     target.resumed = true
     if (closed) throw fail('CLOSED')
-    admission?.resume(ticket)
-    failedWriterReaped = false
+    if (component !== 'conversation') admission?.resume(ticket)
     exchanging = false; state('running', true)
   }
   const drainAdmission = (ticket, forClose) => forClose && component === 'conversation' && admission?.drainForClose
@@ -232,7 +235,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   const drain = async (target, ticket, markStage = () => {}, forClose = false) => {
     const started = Date.now()
     markStage('parent_drain')
-    const [, admissionResult] = await within(Promise.all([waitActive(), drainAdmission(ticket, forClose)]), 60000, `${prefix}_DRAIN_TIMEOUT`)
+    const [, admissionResult] = await within(Promise.all(component === 'conversation' ? [] : [waitActive(), drainAdmission(ticket, forClose)]), 60000, `${prefix}_DRAIN_TIMEOUT`)
     if (admissionResult?.status === 'busy') throw fail('DRAIN_TIMEOUT')
     const remaining = Math.max(1, 60000 - (Date.now() - started))
     markStage('child_quiesce')
@@ -265,7 +268,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     }
     const ticket = closeAdmission('module_start')
     try {
-      await admission?.drain(ticket)
+      if (component !== 'conversation') await admission?.drain(ticket)
       const target = await launch(currentVersionId, ticket, saved ? 'restore' : 'bootstrap')
       if (startPaused) state('initializing')
       else await resume(target, ticket)
@@ -280,9 +283,8 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   const invoke = (kind, method, params, options) => {
     try {
       const target = instance
-      if (proofHeld) throw fail('PROOF_UNAVAILABLE')
-      if (writerRetiring || target?.retirementStarted) throw fail('WRITER_RETIREMENT_UNAVAILABLE')
-      if (!target || target.ended || kind === 'request' && !available && !canContinue(method, options, target.generation))
+      if (component !== 'conversation' && proofHeld) throw fail('PROOF_UNAVAILABLE')
+      if (!target || target.ended || component !== 'conversation' && kind === 'request' && !available && !canContinue(method, options, target.generation))
         throw fail('NOT_ACCEPTING')
       return track(target.channel[kind](method, params, options))
     } catch (error) { return Promise.reject(error) }
@@ -413,7 +415,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     const assertQuiescent = () => {
       if (!holding || closed || instance !== target || generation !== heldGeneration || target.ended
         || !target.child.connected || target.child.exitCode !== null || target.child.signalCode !== null
-        || active.size || admission.snapshot().active || admission.snapshot().unconfirmed)
+        || active.size)
         throw fail('PROOF_UNAVAILABLE')
       return true
     }
@@ -443,7 +445,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
           if (result.value?.resumed !== true || closed || instance !== target || target.ended
             || !target.child.connected || generation !== heldGeneration) throw fail('PROOF_UNAVAILABLE')
           admission.resume(ticket)
-          target.resumed = true; failedWriterReaped = false
+          target.resumed = true
           state('running', true)
         }
         catch (error) {
@@ -455,62 +457,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       } finally { proofHeld = false }
     }
   })
-  const retireFailedWriter = async expectedGeneration => {
-    const target = instance
-    const assertHeld = (alive = true) => {
-      if (component !== 'conversation' || closed || !initialized || !target || instance !== target && !(alive === false && instance === null && target.reaped && failedWriterReaped)
-        || generation !== expectedGeneration || admission?.capture?.().generation !== expectedGeneration
-        || admission?.inspectAdmission?.().failed !== true || reservation || proofHeld
-        || alive && (target.ended || !target.resumed || !target.child.connected
-          || target.child.exitCode !== null || target.child.signalCode !== null)) throw fail('WRITER_RETIREMENT_UNAVAILABLE')
-    }
-    assertHeld()
-    if (exchanging || writerRetiring) throw fail('WRITER_RETIREMENT_UNAVAILABLE')
-    closeAdmission('module_protocol_failure')
-    target.retirementStarted = true
-    writerRetiring = true; state('quiescing')
-    const controlWriter = async (method, key, timeout) => {
-      const pending = target.channel.control(method, {}, timeout)
-      if (!(pending?.completion instanceof Promise)) throw fail('WRITER_RETIREMENT_UNCONFIRMED')
-      const [result, completion] = await Promise.allSettled([pending, pending.completion])
-      if (result.status === 'rejected') throw result.reason
-      if (completion.status === 'rejected') throw completion.reason
-      if (!result.value || Array.isArray(result.value) || Object.keys(result.value).join(',') !== key
-        || result.value[key] !== true) throw fail('WRITER_RETIREMENT_UNCONFIRMED')
-    }
-    try {
-      if (!target.writerQuiesced) {
-        await controlWriter('quiesceWriter', 'writerQuiesced', 60000)
-        target.writerQuiesced = true
-      }
-      await target.channel.drainIncoming()
-      assertHeld()
-      // Actual OS/effect completion can retire a gone writer even when the exit ACK is lost.
-      const acknowledged = Promise.withResolvers()
-      target.retirementAck = acknowledged.promise; target.intentional = true
-      void target.end.catch(() => {})
-      try {
-        await controlWriter('exitWriter', 'writerClosed', 5000)
-        assertHeld(false)
-        acknowledged.resolve(true)
-      } catch (error) { acknowledged.resolve(false); throw error }
-      await target.end
-      if (closed || instance !== null || generation !== expectedGeneration || !failedWriterReaped)
-        throw fail('WRITER_RETIREMENT_UNCONFIRMED')
-      return snapshot()
-    } catch (error) { state(closed ? 'closed' : 'unavailable'); throw error }
-    finally { writerRetiring = false }
-  }
-  const retireProtocolFailedWriter = params => {
-    if (!params || Array.isArray(params) || Object.keys(params).join(',') !== 'generation'
-      || typeof params.generation !== 'string') return Promise.reject(fail('WRITER_RETIREMENT_UNAVAILABLE'))
-    const expectedGeneration = params.generation
-    if (!closed && component === 'conversation' && generation === expectedGeneration && admission?.inspectAdmission?.().failed)
-      state('unavailable')
-    // The parent owns the shared mutex; recovery retries the same retirement under that mutex.
-    return exclusive(() => retireFailedWriter(expectedGeneration))
-  }
-  return { start, close, replace, reserve, snapshot, withInstallReconciliationProof, retireProtocolFailedWriter,
+  return { start, close, replace, reserve, snapshot, withInstallReconciliationProof,
     request: (method, params, options = {}) => invoke('request', method, params, options),
     callback: (method, params, options = {}) => invoke('callback', method, params, options),
     initialize: mode => {

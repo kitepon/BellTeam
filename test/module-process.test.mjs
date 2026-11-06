@@ -384,25 +384,6 @@ test('unavailable enters shared backoff and relaunches without replay after term
   assert.equal(f.requests.length, 0, 'lifecycle recovery never replays a business request')
   assert.equal(incoming, 2, 'completed incoming work is not retried when the next termination stage fails')
   assert.deepEqual(logs.filter(x => x.code === 'MODULE_LIFECYCLE_STATE').map(x => x.state), ['available', 'backoff', 'available'])
-  const admission = new ConversationLifetimes()
-  const conversation = await fixture(t, { component: 'conversation', admission,
-    writerQuiesceFailures: 1, writerExitAckLost: true })
-  await conversation.process.start()
-  const generation = conversation.process.snapshot().generation
-  assert.throws(() => admission.assertDelivery({}), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
-  await assert.rejects(conversation.process.retireProtocolFailedWriter({ generation }), /temporary writer quiesce failure/)
-  t.mock.timers.tick(1000); await settled()
-  assert.equal(conversation.children[0].exitCode, 0, 'same failed writer exits after validated quiescence')
-  assert.equal(conversation.process.snapshot().available, false)
-  t.mock.timers.tick(2000); await settled()
-  assert.equal(conversation.children.length, 2)
-  assert.equal(conversation.process.snapshot().available, true)
-  assert.notEqual(conversation.process.snapshot().generation, generation)
-  assert.equal(admission.inspectAdmission().failed, false)
-  assert.equal(conversation.requests.length, 0)
-  assert.equal(conversation.controls.filter(x => x.method === 'quiesceWriter').length, 2)
-  assert.equal(conversation.controls.filter(x => x.method === 'exitWriter').length, 1)
-
   let firstStart = true
   const boot = await fixture(t, { initialize: async () => { if (firstStart) { firstStart = false; throw Error('transient bootstrap failure') } } })
   let booted = false
@@ -412,4 +393,26 @@ test('unavailable enters shared backoff and relaunches without replay after term
   assert.equal(booted, true); assert.equal(boot.process.snapshot().available, true)
   assert.equal(boot.children.length, 2, 'bootstrap waits for the same lifecycle instead of restarting the container')
 
+})
+
+
+test('conversation restarts after observed death without admission ceremonies or old operation drain', async t => {
+  const admission = new ConversationLifetimes()
+  for (const method of ['close', 'drain', 'drainForClose', 'adopt', 'recover', 'recoverFailedGeneration', 'resume'])
+    admission[method] = () => assert.fail(`obsolete admission call: ${method}`)
+  const pending = deferred()
+  const f = await fixture(t, { component: 'conversation', admission, request: () => pending.promise, parentWork: () => pending.promise })
+  await f.process.start()
+  const generation = f.process.snapshot().generation
+  const old = f.process.request('fixture', {}, {})
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  f.reap(f.children[0])
+  for (let n = 0; n < 10; n++) await turn()
+  t.mock.timers.tick(1000)
+  for (let n = 0; n < 20; n++) await turn()
+  assert.equal(f.children.length, 2)
+  assert.equal(f.process.snapshot().available, true)
+  assert.notEqual(f.process.snapshot().generation, generation)
+  assert.equal(f.requests.length, 1, 'the lost business request is never replayed')
+  pending.resolve('old operation terminal'); await old
 })
