@@ -24,7 +24,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends gh \
   && rm -rf /var/lib/apt/lists/*
 
-RUN npm install --global corepack@latest @openai/codex@latest @anthropic-ai/claude-code@latest throughline@0.16.56 aiterm-mcp@0.63.8 \
+RUN npm install --global corepack@latest @openai/codex@latest @anthropic-ai/claude-code@latest throughline@0.16.56 aiterm-mcp@0.63.9 \
   && corepack --version && codex --version && claude --version && throughline --version \
   && node -e 'for (const name of ["aiterm-mcp"]) console.log(name, require("/usr/local/lib/node_modules/" + name + "/package.json").version)'
 RUN curl -fsSL https://x.ai/cli/install.sh | bash \
