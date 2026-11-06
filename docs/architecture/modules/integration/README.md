@@ -827,3 +827,7 @@ Execution [restart-resume](../execution/restart-resume.md) owns saved prior-acti
 ## Bot/profile read connection after admission removal
 
 Application services reuse `directMessages.receipts.store` for direct timeline/timelineView/timelineViews and recentViews (the existing timelineViews Map port). These read-only methods use the same canonical JSONL and never reserve a conversation reference. Latest display selection remains with recentTimeline; no empty-history fallback is introduced. The writer/authority and room-history ports remain their existing owners. See the current conversation lifecycle DFD in runtime/module-process.md and conversation/flow.md.
+
+## Durable updater jobs and restart-limit visibility
+
+Canonical common function/data-flow and API contract: [update-jobs.md](update-jobs.md). Runtime owns disk jobs/client/probe/detector; Signal owns the closed problem projection and existing diagnostics writer; common assembly forwards their stored values.

@@ -18,7 +18,7 @@ const denied = () => Object.assign(new Error('CONVERSATION_CONTEXT_REQUIRED'), {
 
 // One parent graph owns admission/authority; direct writes share its durable writer.
 export function createConversationAssembly({ root, membersAdmission, exchangeMutex, getServices, createFacade = createConversationFacade,
-  onExecution, onDiagnostic, onState, onModuleChildExit, createProcess = createConversationProcess, prepareRelease, spawnProcess }) {
+  onExecution, onDiagnostic, onState, onModuleChildExit, onModuleRestartLimit, createProcess = createConversationProcess, prepareRelease, spawnProcess }) {
   let controller
   const admission = new ConversationLifetimes(), authority = createConversationAuthority()
   const moduleOperations = createModuleOperationContext({ membersAdmission, conversationAdmission: admission })
@@ -50,7 +50,22 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
       if (!(context.actualCompletion instanceof Promise)) throw denied()
       return context.actualCompletion
     }, roomsRoot: join(root, 'rooms') }), observerEffects, onExecution: executionEffects })
-  controller = createProcess({ root, admission, exchangeMutex, onModuleChildExit, authorizeActor: authority.authorizeActor,
+  controller = createProcess({ root, admission, exchangeMutex, onModuleChildExit, onModuleRestartLimit, authorizeActor: authority.authorizeActor,
+    probeCandidate: channel => {
+      const token = authority.capture('rooms.list', { kind: 'owner' })
+      let operation
+      try {
+        operation = moduleOperations.reserve()
+        const result = channel.request('rooms.list', {}, { capturedAuthority: token,
+          conversationLease: operation.conversationLease, operationContext: operation })
+        const completion = result.completion ?? result
+        membersAdmission.trackCompletion(operation.membersLease, completion)
+        admission.trackCompletion(operation.conversationLease, completion)
+        completion.then(() => authority.release(token), () => authority.release(token))
+        return result
+      } catch (error) { authority.release(token); throw error }
+      finally { if (operation) moduleOperations.finish(operation) }
+    },
     readBots: async () => { await getBots().refresh(); return [...getBots().values()].map(({ id, name, displayName, position, role }) => ({ id, name,
       ...(displayName === undefined ? {} : { displayName }), ...(position === undefined ? {} : { position }), ...(role === undefined ? {} : { role }) })) },
     onEffect: (method, params, context) => scope.run({ actor: context.actor, parent: context }, () => effects(method, params, context)),

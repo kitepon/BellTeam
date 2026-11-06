@@ -3,7 +3,7 @@ import { webPushError } from './web-push-schema.mjs'
 
 const unavailable = () => Object.assign(new Error('PUSH_UNAVAILABLE'), { code: 'PUSH_UNAVAILABLE', status: 503, outcome: 'not_accepted', publicMessage: '通知を利用できません。' })
 
-export function createNotifications({ root, bots, diagnostics, configuration, prepareRelease, createProcess, onModuleChildExit, onState = () => {} }) {
+export function createNotifications({ root, bots, diagnostics, configuration, prepareRelease, createProcess, onModuleChildExit, onModuleRestartLimit, onState = () => {} }) {
   let state = { phase: 'unavailable', exchanging: false, available: false }, closed = false
   let buffer = [], bufferedBytes = 0, flushing = false
   const report = code => {
@@ -26,7 +26,7 @@ export function createNotifications({ root, bots, diagnostics, configuration, pr
       }
     } finally { flushing = false }
   }
-  const controller = createProcess({ root, configuration, prepareRelease, onModuleChildExit,
+  const controller = createProcess({ root, configuration, prepareRelease, onModuleChildExit, onModuleRestartLimit,
     onDiagnostic: report => diagnostics.record(report),
     onState: next => {
       state = next

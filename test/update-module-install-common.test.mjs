@@ -1,3 +1,4 @@
+import { createFixtureJobClient } from './fixtures/update-job-client.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
@@ -20,7 +21,7 @@ async function fixture(t) {
   const ledger = async () => JSON.parse(await readFile(join(root, 'state/update-ledger/ledger.json')))
   const result = id => ({ requestId: id, planId: hostPlan.planId, target: release, admission: 'accepted', phase: hostPhase,
     execution: hostPhase === 'completed' ? 'succeeded' : 'pending', verification: hostPhase === 'completed' ? 'succeeded' : 'pending', error: null })
-  const moduleHost = {
+  const moduleHost = { ...createFixtureJobClient(root),
     moduleInstallCapabilities: async () => ({ supported: true }),
     async planModuleInstall(input) {
       calls.plans++; hostPlan = { schema: 'bellteam.host-update.plan.v1', ...input, target: release,

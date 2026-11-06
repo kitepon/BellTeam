@@ -12,7 +12,7 @@ export function updateNotificationCandidates(inventory, now = Date.now()) {
     .map(component => ({ componentId: component.id, id: component.published.version }))
 }
 
-export function createUpdateCenter({ gateway = () => null, builtinSourceCommit = null, notifications = null, members = null, host = null, moduleCatalog = null, moduleExecutor = null, memory = null, diagnostics = null, usage = null, execution = null, conversation = null } = {}) {
+export function createUpdateCenter({ gateway = () => null, builtinSourceCommit = null, notifications = null, members = null, host = null, moduleCatalog = null, moduleExecutor = null, jobReader = null, problemReader = null, memory = null, diagnostics = null, usage = null, execution = null, conversation = null } = {}) {
   const events = new EventEmitter(), notified = new Map()
   let notificationTimer = null, notificationRead = null, notificationsClosed = false, lastCandidates = null
   const checkNotifications = () => {
@@ -45,6 +45,8 @@ export function createUpdateCenter({ gateway = () => null, builtinSourceCommit =
     reserveExchange: moduleExecutor?.reserveExchange,
     notify: () => events.emit('change'),
     watch(listener) { events.on('change', listener); return () => events.off('change', listener) },
+    jobs: () => jobReader ? jobReader.jobs() : Promise.resolve({ jobs: [] }),
+    job(kind, jobId) { if (!jobReader) throw unavailable(); return jobReader.job(kind, jobId) },
     snapshot() {
       const web = gateway(), push = notifications?.controller?.snapshot(), roster = members?.controller?.snapshot()
       const source = sourceValid(push?.builtinSourceCommit) ? push.builtinSourceCommit : null
@@ -84,7 +86,11 @@ export function createUpdateCenter({ gateway = () => null, builtinSourceCommit =
         if (!validateUpdates(value).valid) throw new Error('UPDATE_SNAPSHOT_INVALID')
         return moduleExecutor ? moduleExecutor.snapshot(value) : value
       }) : moduleExecutor ? Promise.resolve(snapshot).then(value => moduleExecutor.snapshot(value)) : snapshot
-      const project = value => ({ ...value, notificationCandidates: updateNotificationCandidates(value) })
+      const project = value => {
+        const result = { ...value, notificationCandidates: updateNotificationCandidates(value) }
+        return jobReader || problemReader ? Promise.all([jobReader?.jobs(), problemReader?.()])
+          .then(([jobs, problems]) => ({ ...result, ...jobs, ...(problems ? { problems } : {}) })) : result
+      }
       return result?.then ? result.then(project) : project(result)
     },
     plan(input) { validateUpdateRequest('plan', input); if (moduleExecutor) return Promise.resolve(this.snapshot()).then(value => moduleExecutor.plan(input, value)); if (host && (!input.action || input.action === 'update')) return host.plan(input); throw unavailable() },

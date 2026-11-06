@@ -18,6 +18,8 @@ const httpStages = new Set(['url', 'authorize', 'members_authorization', 'seat_m
 const unavailableRoutes = new Set(['/api/bots', '/api/rooms', '/api/owner', '/api/queue', '/api/models', '/api/settings', '/api/schedules'])
 
 export async function respondHttpError(request, response, error, diagnostics, context = {}) {
+  if (error.code === 'UNREADABLE' && error.status === 503)
+    return json(response, 503, { error: error.code, message: error.reason, path: error.path, reason: error.reason })
   if (typeof error.code === 'string' && Number.isInteger(error.status)) {
     if (error.status === 503 && diagnostics) {
       const path = typeof request.url === 'string' ? request.url.split(/[?#]/u, 1)[0] : ''
