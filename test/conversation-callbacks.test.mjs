@@ -6,7 +6,7 @@ import { normalizeConversationCallbackError, conversationCallbackFailureFields,
 test('callback error projection never serializes raw Error text, cause, arbitrary fields or a private tool', () => {
   const error = Object.assign(new Error('secret raw body'), { code: 'PRIVATE_SECRET', status: 503, outcome: 'unknown',
     cause: new Error('private cause'), arbitrary: 'private', mcp_error: { tool: 'agent_auth', message: 'private', truncated: false } })
-  assert.deepEqual(normalizeConversationCallbackError(error), { code: 'CONVERSATION_CALLBACK_FAILED', status: 503, outcome: 'unknown' })
+  assert.deepEqual(normalizeConversationCallbackError(error), { code: 'CONVERSATION_CALLBACK_FAILED', status: 503, outcome: 'unknown', delivery_error: { code: 'BOT_DELIVERY_FAILED' } })
   const stopped = normalizeConversationCallbackError(Object.assign(error, { code: 'BOT_STOPPED' }))
   assert.equal(stopped.code, 'BOT_STOPPED')
   assert.doesNotMatch(JSON.stringify(stopped), /secret|private|stack|cause|arbitrary/u)

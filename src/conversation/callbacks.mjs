@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util'
-import { deliveryFailureFields } from '../conversation-writer.mjs'
+import { deliveryFailureFields, deliveryError, DELIVERY_ERROR_CODES } from '../conversation-writer.mjs'
 import { returnedMcpError } from '../returned-mcp-error.mjs'
 import { deliveryTracking } from '../delivery-tracking.mjs'
 
@@ -7,7 +7,7 @@ export const CONVERSATION_CALLBACK_METHODS = Object.freeze([
   'delivery.status', 'delivery.words', 'delivery.answer', 'user.complete', 'turn.end',
 ])
 const statuses = new Set(['running', 'delivered', 'failed', 'stopped'])
-const errorCodes = new Set(['BOT_STOPPED', 'AI_GLOBAL_PAUSED', 'CONVERSATION_CALLBACK_FAILED'])
+const errorCodes = new Set(['BOT_STOPPED', 'AI_GLOBAL_PAUSED', 'CONVERSATION_CALLBACK_FAILED', ...DELIVERY_ERROR_CODES])
 const fail = () => { throw Object.assign(new Error('CONVERSATION_CALLBACK_INVALID'), { code: 'CONVERSATION_CALLBACK_INVALID' }) }
 const string = value => { if (typeof value !== 'string') fail() }
 function object(value, required, optional = []) {
@@ -36,14 +36,16 @@ export function normalizeConversationCallbackError(error) {
 
 export function conversationCallbackFailureFields(error) {
   if (error == null) return {}
-  object(error, ['code'], ['status', 'outcome', 'mcp_error', 'native_launch'])
+  object(error, ['code'], ['status', 'outcome', 'mcp_error', 'native_launch', 'delivery_error'])
   if (!errorCodes.has(error.code)) fail()
   if (Object.hasOwn(error, 'status') && (!Number.isInteger(error.status) || error.status < 400 || error.status > 599)) fail()
   if (Object.hasOwn(error, 'outcome') && !['not_accepted', 'unknown'].includes(error.outcome)) fail()
   const mcp = returnedMcpError(error), launch = nativeLaunch(error.native_launch)
+  const failure = deliveryError('failed', error.delivery_error)
+  if (Object.hasOwn(error, 'delivery_error') && (!failure || !isDeepStrictEqual(failure, error.delivery_error))) fail()
   if (Object.hasOwn(error, 'mcp_error') && (!mcp || !isDeepStrictEqual(mcp, error.mcp_error))) fail()
   if (Object.hasOwn(error, 'native_launch') && (!launch || !isDeepStrictEqual(launch, error.native_launch))) fail()
-  return { ...(mcp ? { mcp_error: mcp } : {}), ...(launch ? { native_launch: launch } : {}) }
+  return { ...deliveryFailureFields(error), ...(launch ? { native_launch: launch } : {}) }
 }
 
 export function validateConversationCallback(method, params) {

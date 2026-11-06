@@ -1,3 +1,4 @@
+import { deliveryError } from './conversation-writer.mjs'
 import { deliveryTracking } from './delivery-tracking.mjs'
 import { open } from 'node:fs/promises'
 import { TimelineIndex } from './timeline-index.mjs'
@@ -84,9 +85,10 @@ function project(message, state) {
   return { ...message,
     ...(Array.isArray(message.deliveries) ? { deliveries: message.deliveries.map(item => {
       const status = state.statuses.get(`${message.id}\0${item.target}`) ?? item
-      const { delivery_tracking: _raw, deliveryTracking: _public, ...original } = item
+      const { delivery_tracking: _raw, deliveryTracking: _public, delivery_error: _error, ...original } = item
       const tracking = deliveryTracking(status.delivery, status.delivery_tracking)
-      return { ...original, delivery: status.delivery, ...(tracking ? { deliveryTracking: tracking } : {}) }
+      const error = deliveryError(status.delivery, status.delivery_error)
+      return { ...original, delivery: status.delivery, ...(error ? { delivery_error: error } : {}), ...(tracking ? { deliveryTracking: tracking } : {}) }
     }) } : {}),
     routing: state.routing.get(message.id) ?? message.routing }
 }

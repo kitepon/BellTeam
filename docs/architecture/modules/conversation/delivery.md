@@ -111,3 +111,18 @@ executionの[待機契約](../execution/wait-contract.md)が既onStatus(status,e
 表示は直接『受付済み・完了未確認』。部屋のrouting失敗/根拠なしfailedを優先し、それ以外に根拠付きfailedがある場合『完了未確認の宛先あり』とし、混在する他宛先の受付/成功を補完しない。Web/Apple/Windows各担当が表示する。未知/不正tupleでは従来の表示を保つ。
 
 検証はconversation-tracking.test.mjs。実executionの人工wait故障→Messenger→JSONL→Store、user/通知/部屋callback、HTTPページとMCP投影、後続状態/不正任意fieldを確認する。test/fixtures/delivery-tracking-wire.jsonは保存経路から得た直接/混在部屋の公開ページと一致を固定する。native/実席・実DB・本番の受入を代用しない。
+
+
+## D1: closed delivery failure reason
+
+Conversation owner: N102. Observation/configuration/launch/send, callback-before-acceptance-rejection ordering and the single integrated writer/readback case: Kiro. Web wording: Admi. Root's final amendment supersedes the earlier refusal-only proposal; no uncertainty gate or new refusal state is introduced here.
+
+| Function | Input / output and ownership | Failure rule |
+| --- | --- | --- |
+| Existing deliveryFailureFields | Runtime error → optional stored delivery_error:{code} | Fixed codes: BOT_OBSERVATION_FAILED, BOT_CONFIGURATION_FAILED, BOT_LAUNCH_FAILED, BOT_SEND_FAILED, BOT_DELIVERY_FAILED (fallback). BOT_SESSION_UNCONFIRMED remains legacy-compatible display data. Never copy message/stack or infer no-input proof from a code |
+| Callback/channel and direct-log validators | Existing delivery.status error and channel error → same closed optional delivery_error | Allow these fixed callback codes and validate the nested code-only tuple. Reject unknown/extra nested fields. Preserve same delivery ID, outcome and delivery_tracking |
+| ConversationStore / RoomHistory | Latest same-ID status → direct item.delivery_error / room deliveries[*].delivery_error | Expose only failed plus the canonical code, never a room top-level reason. A later status clears an old reason |
+
+Data flow: Kiro's actual observation/configuration/launch/send failure → existing failure callback → callback normalization and existing same-generation channel when used → shared deliveryFailureFields → existing direct/room status JSONL at original ID → latest-status selection → closed delivery_error on existing history/UI. Kiro saves the callback before rejecting acceptance. Accepted-but-unknown remains existing deliveryTracking and never becomes proof of no input. No queue, replay, HTTP route, schema family or lifecycle action is added.
+
+Only a new pure normalization/closed-validator assertion runs locally. Kiro's assigned unit covers the full writer/readback once; old tests, peer artifact comparisons and duplicate integrated cases are omitted.
