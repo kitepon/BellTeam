@@ -31,6 +31,12 @@ flowchart TD
 
 旧modelは更新前に固定する。親umask077を保ち、Git fetch/mergeだけ022。旧profileのbytesとmount先、Compose hash、CID/image/開始時刻の再確認を持つ。ただしCompose hashだけではmount/寿命の全同一性を証明できない。Hostのdeploy終了と、呼出し元CLIが正常帰還したことも別である。
 
+### Image CI cleanup evidence
+
+Function flow (`publish-server-image.yml`, existing `always()` cleanup): for each existing generated module-installer model, collect logs then down; for each existing generated normal model, collect logs then down; finally collect base Compose logs and down, then remove the remaining state volume. Every log command is best-effort (`|| true`), so collection failure still reaches cleanup.
+
+Data flow: `.bellteam-compose.*/normal.json` + the existing install directory → `docker compose --project-directory ... -f ... logs --no-color` → Actions step output, before that model's containers are removed. Later base Compose logs cannot recover removed containers. Existing artifact paths, test/build/publication decisions and runtime startup ownership are unchanged.
+
 ## installerは停止前の準備と、停止後の保守を分ける
 
 [runtimeのinstaller図・固定対象・失敗の保持](modules/runtime/recovery.md#installerは停止前の準備と停止後の保守を分ける)。

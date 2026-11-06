@@ -300,6 +300,7 @@ jobs:
           done
           for model in "$install_directory"/.bellteam-compose.*/normal.json; do
             [ -f "$model" ] || continue
+            docker compose --project-directory "$install_directory" -f "$model" logs --no-color || true
             docker compose --project-directory "$install_directory" -f "$model" down --volumes || true
           done
           if [ -f "$COMPOSE_FILE" ]; then
