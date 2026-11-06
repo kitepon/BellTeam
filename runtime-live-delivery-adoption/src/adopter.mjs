@@ -11,7 +11,7 @@ export const METHODS = Object.freeze({
   BotSessionState: ['awaitUnboundAdmission', 'requireDeliveryKnown'],
 })
 const NAMES = Object.freeze({ AitermTransport: 'aiterm-transport.mjs', BotSessionState: 'bot-session-state.mjs' })
-const ROOT = '/run/bellteam-maintenance/runtime-adoptions'
+const ROOT = '/run/bellteam-live-delivery-adoptions'
 export const STATE_ROOT = '/srv/bellteam/state/runtime-adoptions'
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/
 const SHA = /^[a-f0-9]{64}$/
@@ -159,7 +159,7 @@ export async function loadOperation(path, expectedSha) {
   check(SHA.test(expectedSha ?? ''), 'LIVE_OPERATION_INVALID')
   const match = new RegExp(`^${ROOT}/([a-f0-9-]+)/operation\\.json$`).exec(path)
   check(match && UUID.test(match[1]), 'LIVE_OPERATION_PATH_INVALID')
-  await trustedDirectory('/run/bellteam-maintenance', 0)
+  await trustedDirectory('/run', 0)
   await trustedDirectory(ROOT, 0)
   await trustedDirectory(dirname(path), 0)
   const operation = JSON.parse(await trustedFile(path, 16384, 0, expectedSha))

@@ -35,9 +35,13 @@ verify.pyはCI通常userでも同CLIで動く。archive/bundle/既policy/trusted
 
 literal参照の投影はstatic importだけでなくstatic `export ... from`も同じ元cached URLへ束縛する。実transport採用fixtureの初回は再exportが相対のまま残り、policy側の不存在aiterm-client.mjsで変更前に拒否されたため、この接点を明示して修理した。dynamic importは許可せず、7method本文は変更しない。
 
+## Root実測を受けたstage接続
+
+Root配置契約は旧maintenanceの別RO volumeを使わず、既RW `/run` tmpfs直下の `/run/bellteam-live-delivery-adoptions/<UUID>/` を使用する。新規root0:1001 dir0750/file0640、元ReadonlyRootfs/既mount/既dir権限は変更しない。機能/DFDはRoot固定operation→新stage→同client/loadOperationのROOTと `/run` 祖先確認→既UID1001 state intent/receipt。7method/schema/元owner/別subjectは不変。この共有配置pathだけを通常統合で合わせ、adopter業務ロジックは作者b899のまま継承する。
+
 ## 実作用の固定入力
 
-Rootが別に確定するoperationのpathは `/run/bellteam-maintenance/runtime-adoptions/<UUID>/operation.json`。同dirに検証済archive内容とroot-owned `verification.json` を置く。root0・group/other書込不可・regular/no-follow/nlink1を検証し、operation全bytes SHAはclient引数へpinする。parentはUID1001、PID/start/boot、/app/distribution.jsonの421dと元2fileSHA/7method指紋を検証する。未採取selectorを読まず変更せず、Rootのfresh公開builtin projectionとcached指紋を入力根拠にする。
+Rootが別に確定するoperationのpathは `/run/bellteam-live-delivery-adoptions/<UUID>/operation.json`。同dirに検証済archive内容とroot-owned `verification.json` を置く。root0・group/other書込不可・regular/no-follow/nlink1を検証し、operation全bytes SHAはclient引数へpinする。parentはUID1001、PID/start/boot、/app/distribution.jsonの421dと元2fileSHA/7method指紋を検証する。未採取selectorを読まず変更せず、Rootのfresh公開builtin projectionとcached指紋を入力根拠にする。
 
 operationはschema/operationId/target/policyだけ。targetはcontainerId（外側actor束縛）、namespace pid/startTicks/bootId/pidNamespace/networkNamespace。policyはsourceCommit/backportSourceCommit/archiveSha256/manifestSha256/verificationSha256/adopterSha256だけ。同UID1001専用 `/srv/bellteam/state/runtime-adoptions/<UUID>/` にclient-intent/intent/receiptを書く。普通入力を止めず、書込不明は同UUID照合へ。再発行・selector変更・旧53d操作・historical原文入力0。
 
@@ -54,8 +58,8 @@ Rootは正式署名Sと対象CID/imageを別作用で固定し、検証後に同
 同container・同pid/net namespaceでUID/GID1001として実行する固定CLIは次の形。`OP_SHA`はRoot固定operation全bytesのSHA256、`UUID`は同作用のUUIDv4である。Rootの具体actor/隔離/一回signal許可と実行直前本人照合が成立するまで実行しない。
 
 ```
-/usr/local/bin/node /run/bellteam-maintenance/runtime-adoptions/UUID/src/client.mjs apply /run/bellteam-maintenance/runtime-adoptions/UUID/operation.json OP_SHA
-/usr/local/bin/node /run/bellteam-maintenance/runtime-adoptions/UUID/src/client.mjs inspect /run/bellteam-maintenance/runtime-adoptions/UUID/operation.json OP_SHA
+/usr/local/bin/node /run/bellteam-live-delivery-adoptions/UUID/src/client.mjs apply /run/bellteam-live-delivery-adoptions/UUID/operation.json OP_SHA
+/usr/local/bin/node /run/bellteam-live-delivery-adoptions/UUID/src/client.mjs inspect /run/bellteam-live-delivery-adoptions/UUID/operation.json OP_SHA
 ```
 
 `inspect`は同UUID記録があれば歴史receiptとして返し、receipt未保存時に既Inspectorが残っていれば読み取り照合する。新signalや採用は発行しない。閉じたInspectorを勝手に再起動しない。通信喪失時は実適用が進行/完了している可能性があり、exit非0だけを根拠に別UUIDを発行しない。今回listenerの終了確認はRootの短命窓受入にも残す。
