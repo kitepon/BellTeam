@@ -1,6 +1,7 @@
 import { createConversationStreams, encodeConversationJson, readConversationJson } from './conversation-streams.mjs'
 import { createConversationInputBudget } from './conversation-input.mjs'
 import { MODULE_CONCURRENCY } from './module-ipc.mjs'
+import { conversationCallbackFailureFields, normalizeConversationCallbackError } from './conversation/callbacks.mjs'
 
 export const conversationChannelError = (code, outcome = 'unknown', status = 503) => Object.assign(new Error(code), { code, outcome, status })
 export const channelCheck = value => { if (!value) throw conversationChannelError('CONVERSATION_IPC_INVALID') }
@@ -9,11 +10,26 @@ export const exactChannelKeys = (value, keys) => value && typeof value === 'obje
 const deferred = () => { const d = Promise.withResolvers(); d.promise.catch(() => {}); return d }
 const kinds = new Set(['root', 'effect', 'callback', 'event', 'diagnostic', 'control'])
 const code = value => typeof value === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(value)
+export function normalInputPending(error) {
+  const value = error?.normalInputPending
+  const id = value => typeof value === 'string' && value.length > 0 && value.length <= 128 && !value.includes('\0')
+  return error?.code === 'BOT_SESSION_UNCONFIRMED' && error.effect === 'not_started'
+    && exactChannelKeys(value, 'schema,deliveryId,botId,sessionId,launchId,stage,effect,reason')
+    && value.schema === 'bellteam.normal-input-pending.v1'
+    && ['deliveryId', 'botId', 'sessionId'].every(key => id(value[key]))
+    && value.stage === 'before_execution_registration' && value.effect === 'not_started'
+    && (value.reason === 'session_absent' && value.launchId === null
+      || value.reason === 'session_not_ready' && typeof value.launchId === 'string' && /^[a-f0-9]{32}$/u.test(value.launchId))
+    ? value : null
+}
 const safeError = error => {
   const candidate = error?.code ?? error?.message?.split(':')[0]
+  const pending = normalInputPending(error)
   return { code: code(candidate) ? candidate : 'CONVERSATION_OPERATION_FAILED',
     outcome: error?.outcome === 'not_accepted' ? 'not_accepted' : 'unknown',
-    status: Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599 ? error.status : 503 }
+    status: Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599 ? error.status : 503,
+    ...conversationCallbackFailureFields(normalizeConversationCallbackError(error)),
+    ...(pending ? { effect: 'not_started', normalInputPending: pending } : {}) }
 }
 const exitFailureCodes = new Set(['IPC_INVALID', 'IPC_DISCONNECTED', 'IPC_TIMEOUT', 'IPC_ACK_TIMEOUT', 'IPC_SEND_FAILED',
   'CHILD_EXITED', 'BACKGROUND_UNCONFIRMED', 'DELIVERY_RELEASE_UNCONFIRMED', 'PROTOCOL_UNCONFIRMED'].map(code => `CONVERSATION_${code}`))
@@ -189,9 +205,15 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
         channelCheck(entry?.kind === value.kind && entry.replyReady && !entry.replyAcknowledged)
         entry.replyAcknowledged = true; entry.replyReady.resolve()
       } else if (value?.type === 'error') {
-        channelCheck(exactChannelKeys(value, 'type,kind,error') && exactChannelKeys(value.error, 'code,outcome,status')
+        const { mcp_error, native_launch, effect, normalInputPending: proof, ...base } = value.error ?? {}
+        channelCheck(exactChannelKeys(value, 'type,kind,error') && exactChannelKeys(base, 'code,outcome,status')
           && code(value.error.code) && ['unknown', 'not_accepted'].includes(value.error.outcome)
           && Number.isInteger(value.error.status) && value.error.status >= 400 && value.error.status <= 599)
+        conversationCallbackFailureFields({ code: 'CONVERSATION_CALLBACK_FAILED',
+          ...(Object.hasOwn(value.error, 'mcp_error') ? { mcp_error } : {}),
+          ...(Object.hasOwn(value.error, 'native_launch') ? { native_launch } : {}) })
+        if (Object.hasOwn(value.error, 'effect') || Object.hasOwn(value.error, 'normalInputPending'))
+          channelCheck(Boolean(normalInputPending(value.error)))
         const task = pending.get(id); channelCheck(task && task.kind === value.kind && !task.reply)
         task.reply = value
         const error = Object.assign(new Error(value.error.code), value.error)

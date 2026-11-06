@@ -52,3 +52,14 @@ N102 b0602e18の6case/35.790054msを継承。親の新規接続だけを追加�
 | Child notification | After the parent append succeeds, call the same child's onMessage once, preserving its actor/operation async context. Parent appendFromChild suppresses duplicate parent notification. | Original save/notification failures are not swallowed into receipt success. |
 
 DFD: existing child appendQueue -> captured old-write barrier -> same child append entry -> parent direct.log.append validation -> sole parent DurableMessageReceipts appendQueue -> original child onMessage. After the old-write barrier ACK, authenticated new input may use the existing completed parent receipt/claim/normal-ready assembly. Unknown/legacy IDs remain excluded. This source seam does not install the missing live421d parent effect-validator acceptance or ready subscription by itself; Epi's fixed runtime adoption must supply those exact contacts first. No whole-parent exchange or AI quiescence is the default.
+
+
+## Exact not-started proof and failure-field connection
+
+| Connection | Accepted data and ownership | Failure |
+| --- | --- | --- |
+| Runtime → conversation error frame | Existing code/outcome/status plus only closed sanitized callback failure fields. Preserve the exact normalInputPending v1 proof only with BOT_SESSION_UNCONFIRMED/effect=not_started, closed field set, exact stage/reason and typed delivery/bot/session/launch IDs. | Invalid proof does not become not_started; raw messages/stack/arbitrary causes/credentials are not added to the wire. Both channel endpoints must support this source. |
+| Parent receipt → runtime | Before runtime invocation, existing local member/access preflight can prove not_started. After invocation, only the typed proof matching this receipt's deliveryId and target may leave it queued. | Code alone, wrong ID/target, unknown observation, or missing proof becomes unknown and is never replayed. |
+| Normal ready | Reuse the completed nonblocking requestDrain/mutex/AI-enabled/current-execution readiness path. A queued proof waits for a new external ready request, without a self-retry loop. | Do not use this full-consumer source as the standalone421d profile; Epi's independent wake-only profile retains the old startup behavior. |
+
+DFD: new saved ID → durable dispatching claim → runtime pre-registration observation → exact bound pending proof → error-frame closed validation → same parent receipt queued → later ordinary ready → same-ID claim once. Native/legacy unknown remains retained. Existing sanitized mcp_error/native_launch flows through both error-frame hops and the existing callback writer instead of being dropped; historical missing fields are not reconstructed. This is source connection work, not a new diagnostic API or a prerequisite for Epi's standalone runtime adoption.

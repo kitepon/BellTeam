@@ -27,10 +27,11 @@ function nativeLaunch(value) {
 
 export function normalizeConversationCallbackError(error) {
   if (error == null) return null
+  const launch = nativeLaunch(error.native_launch)
   return { code: errorCodes.has(error.code) ? error.code : 'CONVERSATION_CALLBACK_FAILED',
     ...(Number.isInteger(error.status) && error.status >= 400 && error.status <= 599 ? { status: error.status } : {}),
     ...(['not_accepted', 'unknown'].includes(error.outcome) ? { outcome: error.outcome } : {}),
-    ...deliveryFailureFields(error) }
+    ...deliveryFailureFields(error), ...(launch ? { native_launch: launch } : {}) }
 }
 
 export function conversationCallbackFailureFields(error) {
