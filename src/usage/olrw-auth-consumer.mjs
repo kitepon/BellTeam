@@ -121,7 +121,7 @@ export function createOlrwAuthConsumer({ secretRequests, runDirectory, context, 
     catch (error) {
       if (gateFailure) throw gateFailure
       if (error instanceof Error && error.effect === 'not_issued'
-        && ['AITERM_AUTH_CONNECTION_ARGUMENTS', 'AITERM_AUTH_CONNECTION_UNCONFIRMED', 'AITERM_AUTH_SERVER_VERSION_UNCONFIRMED'].includes(error.code))
+        && ['AITERM_AUTH_CONNECTION_ARGUMENTS', 'AITERM_AUTH_CONNECTION_UNCONFIRMED', 'AITERM_AUTH_CAPABILITY_UNCONFIRMED'].includes(error.code))
         throw stop('local_not_issued')
       throw stop('native_unconfirmed', 'unknown')
     }

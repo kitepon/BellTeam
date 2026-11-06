@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { authTool } from './helpers/auth-capability.mjs'
 import { AitermClient } from '../src/aiterm-client.mjs'
 import { createOlrwRabbitAuth, fixedRabbitClientOptions } from '../src/olrw-rabbit-auth.mjs'
 
@@ -10,7 +11,7 @@ function fixture(info = { name: 'aiterm', version: profile.version }) {
   const client = new AitermClient(), calls = []
   let connects = 0, closes = 0
   const transport = { pid: 1234 }
-  const sdk = { transport, getServerVersion: () => info, callTool: async input => { calls.push(input); return receipt } }
+  const sdk = { transport, listTools: async () => ({ tools: [authTool()] }), getServerVersion: () => info, callTool: async input => { calls.push(input); return receipt } }
   client.connect = async () => { connects++; client.client = sdk; client.transport = transport }
   client.close = async () => { closes++; client.client = null; client.transport = null }
   return { client, calls, sdk, get connects() { return connects }, get closes() { return closes } }
@@ -44,10 +45,10 @@ test('固定SSH/Node/entryを使い一接続だけで公開authを組み、remot
   assert.equal(f.calls.length, 4)
 })
 
-test('版不一致/切断/別SDK/型付き失敗の後は新connectや後続RPCを発行しない', async () => {
-  for (const info of [{ name: 'other', version: profile.version }, { name: 'aiterm', version: '0.0.0' }, {}]) {
+test('incompatible identity, disconnect, replacement and typed failure halt further auth calls', async () => {
+  for (const info of [{ name: 'other', version: profile.version }, {}]) {
     const f = fixture(info), auth = createOlrwRabbitAuth({ ...profile, client: f.client })
-    await assert.rejects(auth.start(), /VERSION_UNCONFIRMED/)
+    await assert.rejects(auth.start(), /CONNECTION_UNCONFIRMED/)
     await assert.rejects(auth.start(), /CONNECTION_CLOSED/)
     assert.equal(f.connects, 1); assert.equal(f.calls.length, 0)
   }

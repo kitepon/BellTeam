@@ -284,7 +284,7 @@ for (const action of ['status', 'cleanup']) {
   })
 }
 
-for (const code of ['AITERM_AUTH_CONNECTION_ARGUMENTS', 'AITERM_AUTH_CONNECTION_UNCONFIRMED', 'AITERM_AUTH_SERVER_VERSION_UNCONFIRMED']) {
+for (const code of ['AITERM_AUTH_CONNECTION_ARGUMENTS', 'AITERM_AUTH_CONNECTION_UNCONFIRMED', 'AITERM_AUTH_CAPABILITY_UNCONFIRMED']) {
   test(`local auth guard ${code} is separate from native receipt and consumes permission`, async t => {
     const client = new AitermClient({ command: 'must-not-spawn', env: {} })
     let connects = 0, rpcs = 0
@@ -293,10 +293,9 @@ for (const code of ['AITERM_AUTH_CONNECTION_ARGUMENTS', 'AITERM_AUTH_CONNECTION_
       callTool() { rpcs++; assert.fail('guard must reject before RPC') } }
     client.client = sdk; client.transport = transport
     client.connect = () => { connects++; assert.fail('guard must not connect') }
-    let options = { expectedAuthConnection: sdk, expectedAuthServerVersion: 'synthetic-version' }
-    if (code === 'AITERM_AUTH_CONNECTION_ARGUMENTS') options = { expectedAuthServerVersion: 'synthetic-version' }
+    let options = { expectedAuthConnection: sdk }
+    if (code === 'AITERM_AUTH_CONNECTION_ARGUMENTS') options = { expectedAuthConnection: null }
     else if (code === 'AITERM_AUTH_CONNECTION_UNCONFIRMED') client.client = null
-    else options.expectedAuthServerVersion = 'other-version'
     const f = await fixture(t, { native: { respond: () => client.call('agent_auth', { action: 'respond' }, options) } })
     const item = await f.request(); await f.guide(item); await f.secrets.submit(item.id, 'SYNTHETIC-CODE')
     assert.deepEqual(await f.pending, { runId: f.context.runId, outcome: 'not_issued', reason: 'local_not_issued' })

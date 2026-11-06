@@ -91,8 +91,10 @@ export class AitermClient {
     return this.seatProject !== null ? {} : { env: runtimeEnvironment() }
   }
 
+  prepareAuthConnection() { return authCapability(this) }
+
   async call(name, args = {}, options = {}) {
-    const { env, meta, launchProject, expectedAuthConnection, expectedAuthServerVersion, expectedConfiguration, admissionCheck } = options
+    const { env, meta, launchProject, expectedAuthConnection, expectedConfiguration, admissionCheck } = options
     if (Object.hasOwn(options, 'admissionCheck') && (name !== 'pty_send' || typeof admissionCheck !== 'function'
       || ['env', 'launchProject', 'expectedAuthConnection', 'expectedAuthServerVersion', 'expectedConfiguration'].some(key => Object.hasOwn(options, key))))
       throw Object.assign(new Error('AITERM_SEND_GUARD_INVALID'), { code: 'AITERM_SEND_GUARD_INVALID', effect: 'not_issued' })
@@ -102,7 +104,7 @@ export class AitermClient {
       throw markConfigurationNotIssued(configurationError('CONFIGURATION_CONNECTION_ARGUMENTS'))
     const boundAuth = Object.hasOwn(options, 'expectedAuthConnection') || Object.hasOwn(options, 'expectedAuthServerVersion')
     if (boundAuth && (name !== 'agent_auth' || !expectedAuthConnection
-      || typeof expectedAuthServerVersion !== 'string' || !expectedAuthServerVersion.trim()
+      || Object.hasOwn(options, 'expectedAuthServerVersion')
       || Object.hasOwn(options, 'env') || Object.hasOwn(options, 'launchProject')))
       throw Object.assign(new Error('AITERM_AUTH_CONNECTION_ARGUMENTS'), { code: 'AITERM_AUTH_CONNECTION_ARGUMENTS', effect: 'not_issued' })
     if (this.seatProject !== null) requireSeatProject(this.seatProject)
@@ -141,15 +143,7 @@ export class AitermClient {
     }
     const callClient = this.client
     if (boundConfiguration) configurationConnection(this, expectedConfiguration.sdk, expectedConfiguration.transport)
-    if (boundAuth) {
-      if (callClient !== expectedAuthConnection || !this.transport || this.connecting
-        || !Number.isSafeInteger(this.transport.pid) || this.transport.pid <= 0
-        || callClient.transport !== this.transport)
-        throw Object.assign(new Error('AITERM_AUTH_CONNECTION_UNCONFIRMED'), { code: 'AITERM_AUTH_CONNECTION_UNCONFIRMED', effect: 'not_issued' })
-      const server = callClient.getServerVersion()
-      if (server?.name !== 'aiterm' || server.version !== expectedAuthServerVersion)
-        throw Object.assign(new Error('AITERM_AUTH_SERVER_VERSION_UNCONFIRMED'), { code: 'AITERM_AUTH_SERVER_VERSION_UNCONFIRMED', effect: 'not_issued' })
-    }
+    if (boundAuth) authConnection(this, expectedAuthConnection)
     if (name === 'agent_launch' && args.require_existing_resume === true) {
       let supported = false
       try {
@@ -261,4 +255,91 @@ export class AitermClient {
 
 export function textResult(result) {
   return result?.content?.find(item => item.type === 'text')?.text ?? ''
+}
+
+const prepared = new WeakMap()
+const authConnectionError = code => Object.assign(new Error(code), { code, effect: 'not_issued' })
+const unavailable = () => authConnectionError('AITERM_AUTH_CAPABILITY_UNCONFIRMED')
+const variants = schema => {
+  const values = schema?.anyOf ?? schema?.oneOf ?? [schema]
+  return Array.isArray(values) ? values : []
+}
+const type = (schema, name) => variants(schema).some(value => value?.type === name || Array.isArray(value?.type) && value.type.includes(name))
+const literal = (schema, value) => schema?.const === value || Array.isArray(schema?.enum) && schema.enum.includes(value)
+const includes = (schema, values) => Array.isArray(schema?.enum) && values.every(value => schema.enum.includes(value))
+const fields = (schema, names) => schema?.type === 'object' && schema.additionalProperties === false
+  && Object.keys(schema.properties ?? {}).sort().join(',') === [...names].sort().join(',')
+  && Array.isArray(schema.required) && names.every(name => schema.required.includes(name))
+const strings = ['session_id', 'metadata_identity', 'native_id', 'pane_id', 'server_started', 'pane_started']
+function binding(schema) {
+  const p = schema?.properties
+  return fields(schema, [...strings, 'launch_id', 'server_pid', 'pane_pid'])
+    && strings.every(name => p[name]?.type === 'string')
+    && type(p.launch_id, 'string') && type(p.launch_id, 'null')
+    && ['server_pid', 'pane_pid'].every(name => p[name]?.type === 'integer'
+      && (p[name].exclusiveMinimum === 0 || p[name].minimum >= 1))
+}
+function compatible(tool) {
+  const p = tool?.inputSchema?.properties, out = tool?.outputSchema?.properties, ui = out?.auth_ui?.properties
+  const response = variants(p?.response)
+  return includes(p?.action, ['start', 'status', 'cancel', 'respond'])
+    && includes(p?.harness, ['claude-code']) && p.session_id?.type === 'string' && p.relogin?.type === 'boolean'
+    && binding(p.expected_binding) && p.expected_prompt_digest?.type === 'string'
+    && ['^[a-f0-9]{64}$', '^[0-9a-f]{64}$'].includes(p.expected_prompt_digest.pattern)
+    && response.some(s => fields(s, ['kind', 'value']) && literal(s.properties.kind, 'authorization_code')
+      && s.properties.value?.type === 'string' && s.properties.value.minLength >= 1
+      && s.properties.value.maxLength <= 8192 && s.properties.value.pattern === '^[!-~]+$')
+    && response.some(s => fields(s, ['kind', 'id']) && literal(s.properties.kind, 'choice')
+      && s.properties.id?.type === 'string' && s.properties.id.pattern === '^option-[1-9]$')
+    && literal(out?.schema, 'aiterm.agent-auth-result.v1')
+    && ['schema', 'harness', 'status', 'session_id', 'url', 'user_code', 'input_required', 'message'].every(name => tool.outputSchema.required?.includes(name))
+    && out?.input_required?.type === 'boolean'
+    && ['session_id', 'url', 'user_code', 'message'].every(name => type(out?.[name], 'string') && type(out?.[name], 'null'))
+    && includes(out?.status, ['waiting', 'authenticated', 'blocked', 'failed'])
+    && literal(ui?.schema, 'aiterm.auth-ui.v1')
+    && ['schema', 'stage', 'title', 'message', 'binding', 'url', 'user_code', 'input', 'prompt_digest', 'choices'].every(name => out.auth_ui.required?.includes(name))
+    && includes(ui?.stage, ['open_url', 'device_code', 'paste_code', 'select', 'waiting', 'complete', 'failed', 'unavailable'])
+    && variants(ui?.binding).some(binding) && type(ui?.binding, 'null')
+    && ['authorization_code', 'choice', null].every(value => variants(ui?.input).some(s => literal(s, value) || value === null && s?.type === 'null'))
+    && type(ui?.prompt_digest, 'string') && type(ui?.prompt_digest, 'null')
+    && ui?.choices?.type === 'array' && fields(ui.choices.items, ['id', 'label'])
+    && ['id', 'label'].every(name => ui.choices.items.properties[name]?.type === 'string')
+}
+function sameConnection(client, sdk, transport, pid) {
+  if (!sdk || client.client !== sdk || client.transport !== transport || client.connecting || !transport
+    || sdk.transport !== transport || !Number.isSafeInteger(pid) || pid <= 0 || transport.pid !== pid
+    || sdk.getServerVersion?.()?.name !== 'aiterm')
+    throw authConnectionError('AITERM_AUTH_CONNECTION_UNCONFIRMED')
+}
+function authConnection(client, sdk) {
+  const evidence = prepared.get(sdk)
+  if (!evidence) {
+    sameConnection(client, sdk, client.transport, client.transport?.pid)
+    throw unavailable()
+  }
+  if (evidence.owner !== client) throw authConnectionError('AITERM_AUTH_CONNECTION_UNCONFIRMED')
+  sameConnection(client, sdk, evidence.transport, evidence.pid)
+}
+async function authCapability(client) {
+  await client.connect()
+  const sdk = client.client, transport = client.transport, pid = transport?.pid
+  sameConnection(client, sdk, transport, pid)
+  let cursor, found
+  const cursors = new Set()
+  for (let page = 0; page < 16; page++) {
+    let result
+    try { result = await sdk.listTools(cursor ? { cursor } : {}) } catch { throw unavailable() }
+    sameConnection(client, sdk, transport, pid)
+    if (!Array.isArray(result?.tools)) throw unavailable()
+    for (const tool of result.tools) if (tool?.name === 'agent_auth') {
+      if (found) throw unavailable()
+      found = tool
+    }
+    if (!result.nextCursor) { cursor = null; break }
+    if (typeof result.nextCursor !== 'string' || cursors.has(result.nextCursor)) throw unavailable()
+    cursor = result.nextCursor; cursors.add(cursor)
+  }
+  if (cursor || !compatible(found)) throw unavailable()
+  prepared.set(sdk, { owner: client, transport, pid })
+  return sdk
 }

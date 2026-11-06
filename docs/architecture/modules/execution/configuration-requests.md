@@ -1,12 +1,12 @@
 # 原要求を保持する設定適用と照合
 
-Permanent owner Kiro; Root authorizes Molly for the bounded combined06311 lab compatibility repair. Formal aiterm-mcp0.63.11/source5ba97054 preserves the tracked configure contract (Elegg configure-contract-06311.json; configure-request.ts identical to public0.63.7). New requests accept the compatible published0.63.7–0.63.11 set on the same local SDK/transport plus the existing tools/list schema checks. Root selected a bounded compatible set rather than a new single-release pin; unknown future versions, older-runtime fallback and connection replacement remain refused. The persisted intent version names the current common contract, not a readback of the connected producer.
+Permanent owner Kiro; Root authorizes Molly for the bounded combined06311 lab compatibility repair. Formal aiterm-mcp0.63.11/source5ba97054 preserves the tracked configure contract (Elegg configure-contract-06311.json; configure-request.ts identical to public0.63.7). Owner prohibits live release pinning. New requests require the same local SDK/transport, initialized aiterm identity and the existing tools/list apply/reconcile/request/output-schema checks; the server release string never admits or rejects a request. Missing or incompatible capabilities, connection replacement and reconnect remain refused. The persisted intent version is an independent common storage-contract marker, not the connected producer release.
 
 ```mermaid
 flowchart TD
   Desired[Administration.update / 希望値保存] --> Idle[既AI idle待ち / lease外]
   Idle --> Fresh[同epoch/fresh本人/既sessionを再確認]
-  Fresh --> Capability[Compatible0.63.7–0.63.11 / same SDK, transport, schema]
+  Fresh --> Capability[Same SDK / transport / required configure capabilities]
   Capability --> Target[同接続pty_listの公開launchを捕捉]
   Target --> Intent[親UID1001 state/configuration-intents/Bot/UUID.intent.json<br/>非上書きfile+dir sync / 4096]
   Intent --> Guard[発行直前に同期で同接続guard]
@@ -31,7 +31,7 @@ runtimeの`acquireConfigurationStateAnchor(root)`が保証する固定stateの`{
 
 旧Centi4faf/Molly146e/bot220 b6d3の表示、ENOENT、現行sourceから新preparation証拠を後付けしない。証拠無しの旧pendingはlocal終端対象外で、従来の保存原要求によるnative read-only reconcileだけが適用候補。元b5152件の欠測を補完しない。新証拠も、local終端保存前に親processを失えば欠測として扱い、再起動後のintentから未返却を推測しない。
 
-保存原要求はschema/botId/binding/canonical requested/version。0.63.5–0.63.11 intentの読取は同一正式契約として保持するが、新発行guardは互換集合0.63.7–0.63.11と構造化能力検査。receiptにはapplyかreconcileかの取得起源を併記する。reconcileで歴史的applied/unconfirmedを得ても元の不明を解除せず、再起動後もpendingとして復元する。通常applyで直接確認したappliedと同一視しない。terminal以外は原intentを保持し、terminal receiptは一回だけ公開、再読取のobserved_at差以外を上書きしない。
+保存原要求はschema/botId/binding/canonical requested/version。0.63.5–0.63.11 intentの読取は同一正式契約として保持するが、新発行guardは版番号と独立した同接続・構造化能力検査。receiptにはapplyかreconcileかの取得起源を併記する。reconcileで歴史的applied/unconfirmedを得ても元の不明を解除せず、再起動後もpendingとして復元する。通常applyで直接確認したappliedと同一視しない。terminal以外は原intentを保持し、terminal receiptは一回だけ公開、再読取のobserved_at差以外を上書きしない。
 
 application-servicesが同execution client/storeを注入し、公開受付前にpending intentをBotSessionStateの新tracked不明へ復元する。旧legacy不明を消さない。BotAdministration.viewのconfigurationRequestは原binding/requested/歴史的receiptで、currentはunsupported。既希望保存とconfigurationApplicationのpending/accepted/failedを現設定readbackへ変えない。known not_issuedは既表示not_applied/not_startedに写す。
 
@@ -53,4 +53,4 @@ SDKが同じ例外objectを異なる原要求へ再利用した場合は、bindi
 
 ## Combined0.63.11 changed contact
 
-Function: configurationConnection accepts the published compatible0.63.7–0.63.11 producer set; configurationCapability still verifies apply/reconcile, binding and output schema before prepare. DFD: normal live PATCH→same approved local connection/schema→existing durable intent version0.63.11→same bound tracked apply→validated terminal receipt. Existing0.63.5/.6/.7 intent bytes remain readable; no replay, migration or history rewrite. Actual prior lab PATCH was refused before intent/dispatch and remains failed. One new explicit configuration on a different new management Bot verifies the repaired contact; no replay of the refused operation. Unsupported versions outside that bounded set still fail before writing/dispatch.
+Function: configurationConnection requires the initialized aiterm identity and unchanged structural capability contract without release comparison; configurationCapability still verifies apply/reconcile, binding and output schema before prepare. DFD: normal live PATCH→same approved local connection/schema→existing durable intent version0.63.11→same bound tracked apply→validated terminal receipt. Existing0.63.5/.6/.7 intent bytes remain readable; no replay, migration or history rewrite. Actual prior lab PATCH was refused before intent/dispatch and remains failed. One new explicit configuration on a different new management Bot verifies the repaired contact; no replay of the refused operation. Missing structural capabilities still fail before writing/dispatch regardless of release string. New intents retain the common contract marker0.63.11 even on a differently versioned compatible producer; producer release is not inferred from durable bytes.

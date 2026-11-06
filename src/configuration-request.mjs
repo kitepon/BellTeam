@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto'
 
 // Persisted common intent contract; compatible producer releases still need structural capability checks.
 export const CONFIGURATION_VERSION = '0.63.11'
-const CONFIGURATION_COMPATIBLE_VERSIONS = ['0.63.7', '0.63.8', '0.63.9', '0.63.10', '0.63.11']
 export const CONFIGURATION_INTENT_VERSIONS = ['0.63.5', '0.63.6', '0.63.7', '0.63.8', '0.63.9', '0.63.10', '0.63.11']
 export const CONFIGURATION_SCHEMA = 'aiterm.agent-configure-request-result.v1'
 const failureRequests = new WeakMap()
@@ -85,7 +84,7 @@ export function configurationConnection(client, sdk, transport) {
   const server = sdk?.getServerVersion()
   if (!sdk || client.client !== sdk || client.transport !== transport || client.connecting || !transport
     || sdk.transport !== transport || !Number.isSafeInteger(transport.pid) || transport.pid <= 0
-    || server?.name !== 'aiterm' || !CONFIGURATION_COMPATIBLE_VERSIONS.includes(server.version))
+    || server?.name !== 'aiterm')
     throw markConfigurationNotIssued(configurationError('CONFIGURATION_CONNECTION_UNCONFIRMED'))
 }
 
