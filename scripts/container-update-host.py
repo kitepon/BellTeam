@@ -296,8 +296,14 @@ class HostUpdater:
         identifier = request_id(params['jobId'])
         with locked(self.state / 'ledger.lock', wait=True):
             job = self.read_job(identifier)
+            operation_path = self.state / 'operations' / identifier / 'operation.json'
+            if job['kind'] == 'container':
+                check(job['state'] == 'queued' and params['state'] == 'failed'
+                      and not os.path.lexists(operation_path) and not os.path.lexists(operation_path.parent / 'claimed'),
+                      'HOST_UPDATE_JOB_CONFLICT', 409)
+                return self.set_job(identifier, 'failed', params['reason'])
             check(job['kind'] == 'module', 'HOST_UPDATE_JOB_CONFLICT', 409)
-            if (self.state / 'operations' / identifier / 'operation.json').exists():
+            if operation_path.exists():
                 operation = self.read_operation(identifier)
                 check(params['state'] in {'swapping', 'ready', 'failed'} and operation['phase'] == 'completed'
                       and operation['execution'] == operation['verification'] == 'succeeded', 'HOST_UPDATE_JOB_NOT_INSTALLED', 409)
