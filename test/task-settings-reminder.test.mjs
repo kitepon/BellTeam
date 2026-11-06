@@ -35,7 +35,7 @@ test('task settings: one canonical rule reaches all five CLI globals with owner 
  assert.doesNotMatch(rule,/SECTION design/)
  assert.match(common,/RULE guards\.named-protection/)
  assert.doesNotMatch(common,/LunaのHigh|平常時はTerra|平常の仕事へ戻る時はTerra/)
- assert.match(common,/AI不要なら`command`、判断・修理が必要なら`prompt`予定を使う/)
+ assert.match(common,/command schedule when no AI is needed; prompt schedule when judgment or repair is/)
 })
 
 test('task settings: live sessions receive the reminder on dispatch and steering across all harnesses, setup stays unchanged',async()=>{
