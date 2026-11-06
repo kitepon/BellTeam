@@ -28,7 +28,7 @@ const job = value => value && value.schema === 'bellteam.update-job.v1' && uuid(
     ? value.reason && text(value.reason.code) && text(value.reason.message) : value.reason === null)
 const jobs = value => value === undefined || Array.isArray(value) && value.every(job)
 const operation = value => value === null || value && uuid(value.requestId) && plan(value.plan)
-  && ['accepted', 'rejected', 'unknown'].includes(value.admission) && legacyPhases.includes(value.phase)
+  && ['pending', 'accepted', 'rejected', 'unknown'].includes(value.admission) && legacyPhases.includes(value.phase)
   && legacyOutcomes.includes(value.execution) && legacyOutcomes.includes(value.verification)
   && (value.error === null || value.error && text(value.error.code) && text(value.error.message)) && nullableText(value.reference)
   && jobs(value.jobs)

@@ -38,6 +38,8 @@ Existing authenticated GET `/api/updates` optionally includes `problems: [{finge
 
 ### Final job projection and browser ownership
 
+GET/inventory may return `operation.admission:"pending"` while per-step durable admission is incomplete. The Web validator accepts this additive acceptance metadata alongside accepted/rejected/legacy unknown and renders any exact jobs[] already supplied. It does not display pending as a job state or infer an aggregate. POST still requires the actual accepted receipt after every admission; partial GET visibility changes no start/replay behavior.
+
 POST `/api/updates/operations` keeps the existing body; caller idempotencyKey defaults to requestId, so Web keeps its existing single canonical UUID and does not generate per-step keys. 202 `{operation}` follows every durable per-step admission. `operation.jobs[]` contains full stored records; no aggregate job state exists. GET `/api/updates/operations/:requestId` refreshes the same bound records. GET `/api/updates` adds recent `jobs[]` (16) and problems[]. The Web uses these existing inventory/operation reads, without an extra recent-jobs request. The common contract also provides GET `/api/updates/jobs` and `/api/updates/jobs/:kind/:jobId`; Web need not duplicate its reads through these routes.
 
 Render every stored record with its jobId, exact state, module target and failed reason.code/message in both main view and appropriate operation detail/history. Do not derive an operation-wide state from these records or legacy phase/execution/verification. Legacy operations without jobs retain requestId/planId and display their supplied historical error, if any, plus the absence of a stored job; do not fabricate a job or show an unknown state.
