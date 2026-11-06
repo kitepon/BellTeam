@@ -1,3 +1,4 @@
+import { probeModuleReady } from './module-ready-probe.mjs'
 import { randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
@@ -20,7 +21,7 @@ const within = async (task, code) => {
 
 // Each generation owns the actual seat children, not merely their returned JSON values.
 export function createMemoryProcess({ root, run = createSeatProcessRunner(root, { environment: 'base' }),
-  prepareRelease = prepareMemoryRelease, exchangeMutex = null, onState = () => {} }) {
+  prepareRelease = prepareMemoryRelease, exchangeMutex = null, onState = () => {}, onModuleRestartLimit }) {
   const adoptionPath = join(root, 'state/memory-release.json'), active = new Set()
   const builtinRoot = dirname(dirname(fileURLToPath(import.meta.url)))
   let currentVersionId = null, previousVersionId = null, descriptor = null, generation, available = false
@@ -29,7 +30,7 @@ export function createMemoryProcess({ root, run = createSeatProcessRunner(root, 
     await replacing?.catch(() => {})
     await Promise.allSettled([...active])
     if (!closed) await startAttempt()
-  }, 'memory')
+  }, 'memory', onModuleRestartLimit)
   const snapshot = () => ({ currentVersionId, previousVersionId, generation, available, exchanging: changing, phase, update: update ? { ...update } : null })
   const state = (next, usable = false) => {
     phase = next; available = usable
@@ -66,8 +67,10 @@ export function createMemoryProcess({ root, run = createSeatProcessRunner(root, 
     return task
   }
   const restore = async (target, epoch) => {
+    recovery.restarting()
     const value = await execute(target, epoch, null, null)
     if (!value || Object.keys(value).join(',') !== 'restored' || value.restored !== true) throw failure('MEMORY_RESTORE_INVALID')
+    await probeModuleReady(() => execute(target, epoch, 'recallMemory', { args: [{ scope: 'shared', query: '', limit: 1 }], profiles: [] }))
   }
   const readAdoption = async () => {
     let file
@@ -134,6 +137,10 @@ export function createMemoryProcess({ root, run = createSeatProcessRunner(root, 
         update = { versionId: requested, status: 'succeeded' }; state('running', true)
         return snapshot()
       } catch (error) {
+        if (['READY_TIMEOUT', 'READY_PROBE_FAILED'].includes(error?.code)) {
+          await writeAtomic(adoptionPath, { schema: 'bellteam.memory.adoption.v1', currentVersionId: versionId, previousVersionId: old.currentVersionId })
+          descriptor = null; state('unavailable'); recovery.lost(error); throw error
+        }
         if (saving) {
           try { await writeAtomic(adoptionPath, old) }
           catch (rollback) { state('unavailable'); throw new AggregateError([error, rollback], 'MEMORY_ADOPTION_UNCONFIRMED') }

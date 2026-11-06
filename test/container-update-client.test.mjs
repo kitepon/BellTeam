@@ -37,7 +37,7 @@ test('dedicated mount routes container separately; legacy shares a client and am
  },['/run/bellteam-updater/update.sock','/run/bellteam-container-updater/update.sock'])
  const clients=await createUpdateClients();assert.notEqual(clients.container,clients.module)
  await clients.container.catalog('container');await clients.module.catalog('memory')
- await assert.rejects(clients.container.start({requestId:'a',planId:'b',confirmContainerRestart:true}),{outcome:'unknown'})
+ await assert.rejects(clients.container.start({requestId:'a',planId:'b',confirmContainerRestart:true}),{code:'UNREADABLE',outcome:'not_accepted'})
  assert.deepEqual(paths,['/run/bellteam-container-updater/update.sock','/run/bellteam-updater/update.sock','/run/bellteam-container-updater/update.sock'])
  assert.deepEqual(frames.map(f=>f.operation),['catalog','catalog','start'])
  t.mock.method(fs,'lstat',async()=>{throw Object.assign(Error(),{code:'EACCES'})});syncBuiltinESMExports()
@@ -49,7 +49,7 @@ test('fixed Unix client carries the common requestId and does not resend after a
   else socket.end(JSON.stringify({ok:true,value:{requestId:frame.params.requestId,admission:'unknown'}})+'\n')
  })
  const requestId='a0dd350b-abda-4d12-b08b-3172105e2a71'
- await assert.rejects(client.start({requestId,planId:'b0dd350b-abda-4d12-b08b-3172105e2a71',confirmContainerRestart:true}),{outcome:'unknown'})
+ await assert.rejects(client.start({requestId,planId:'b0dd350b-abda-4d12-b08b-3172105e2a71',confirmContainerRestart:true}),{code:'UNREADABLE',outcome:'not_accepted'})
  assert.equal((await client.operation(requestId)).requestId,requestId)
  assert.deepEqual(frames.map(frame=>frame.operation),['start','get'])
 })

@@ -1,3 +1,4 @@
+import { probeModuleReady } from './module-ready-probe.mjs'
 import { createModuleChildRestart, reportModuleChildExit, observeModuleChild } from './module-child-restart.mjs'
 import { spawn } from 'node:child_process'
 import { constants } from 'node:fs'
@@ -31,7 +32,7 @@ const within = async (promise, milliseconds, code) => {
 }
 
 export function createMembersProcess({ root, membersAdmission = new MembersAdmission(),
-  onEffect, onProjection, onGeneration = () => {}, onDiagnostic, onState = () => {}, onModuleChildExit, authorizeOwner,
+  onEffect, onProjection, onGeneration = () => {}, onDiagnostic, onState = () => {}, onModuleChildExit, onModuleRestartLimit, authorizeOwner,
   prepareRelease = prepareMembersRelease, exchangeMutex = null }) {
   const adoptionPath = join(root, 'state/members-release.json')
   let instance = null, currentVersionId = null, previousVersionId = null, builtinSourceCommit = null
@@ -49,6 +50,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
       if (instance) {
         const target = instance
         if (target.child.exitCode !== null || target.child.signalCode !== null || !target.child.connected) await target.finishTermination()
+        else if (target.probeFailed) { await drain(target, ticket); await finishExit(target) }
         else if (target.intentional) await finishExit(target)
         else if (target.versionId === currentVersionId) { await resume(target, ticket); initialized = true; return }
         else if (target.resumed) { await drain(target, ticket); await finishExit(target) }
@@ -57,10 +59,10 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
       await membersAdmission.drain(ticket)
       const target = await launch(currentVersionId, ticket, signal)
       try { await resume(target, ticket) }
-      catch (error) { await killUnadmitted(target); throw error }
+      catch (error) { if (!target.probeFailed) await killUnadmitted(target); throw error }
     }
     await exclusive(signal => exchangeMutex ? exchangeMutex.runExclusive(() => perform(signal)) : perform(signal))
-  }, 'members')
+  }, 'members', onModuleRestartLimit)
   const snapshot = () => ({ currentVersionId, previousVersionId, currentTarget: currentVersionId === null ? 'builtin' : 'release',
     builtinSourceCommit, available, exchanging, phase, generation: membersAdmission.capture().generation, update: update ? { ...update } : null })
   const state = (next, usable = false) => {
@@ -104,6 +106,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
     const generation = `${versionId ?? 'builtin'}:${randomUUID()}`
     membersAdmission.adopt(ticket, generation)
     onGeneration(generation)
+    recovery.restarting()
     const child = spawn('/usr/local/libexec/bellteam-members-start', [versionId ?? 'builtin'], {
       env: {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
@@ -122,7 +125,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
     })().finally(() => { target.termination = null })
     target.end = osClosed.then(async result => {
       const unexpected = target.resumed && initialized && !closed && !target.intentional
-      if (unexpected) { membersAdmission.close(); state('unavailable'); reportModuleChildExit('members', result, target.stderrObservation(), onModuleChildExit) }
+      if (unexpected) { membersAdmission.close(); state('unavailable'); recovery.exited(result); reportModuleChildExit('members', result, target.stderrObservation(), onModuleChildExit) }
       await target.finishTermination()
     })
     void target.end.catch(() => { state(closed ? 'closed' : 'unavailable') })
@@ -133,7 +136,7 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
       if (ready.versionId !== versionId) throw fail('MEMBERS_READY_INVALID')
       assertMembersStateCompatibility(ready.stateCompatibility)
       return target
-    } catch (error) { await killUnadmitted(target); throw error }
+    } catch (error) { if (!target.probeFailed) await killUnadmitted(target); throw error }
   }
   const resume = async (target, ticket) => {
     if (closed) throw fail('MEMBERS_CLOSED')
@@ -141,6 +144,12 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
     if (closed) throw fail('MEMBERS_CLOSED')
     target.resumed = true
     membersAdmission.resume(ticket)
+    if (!target.probed) {
+      try {
+        await probeModuleReady(() => membersAdmission.withLease(membersLease => target.channel.request('owner.read', {}, { membersLease })))
+        target.probed = true
+      } catch (error) { target.probeFailed = true; state('unavailable'); recovery.lost(error); throw error }
+    }
     exchanging = false; state('running', true)
   }
   const drain = async (target, ticket) => {
@@ -250,6 +259,9 @@ export function createMembersProcess({ root, membersAdmission = new MembersAdmis
         await resume(next, ticket)
         return snapshot()
       } catch (error) {
+        if (['READY_TIMEOUT', 'READY_PROBE_FAILED'].includes(error?.code)) {
+          state('unavailable'); recovery.lost(error); throw error
+        }
         await killUnadmitted(instance)
         if (closed) throw error
         const errors = [error]

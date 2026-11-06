@@ -16,12 +16,12 @@ export class SeatRuntime {
   #harnessConfiguration = Promise.resolve()
 
   constructor({ root, home, run = createSeatProcessRunner(root, { environment: 'base' }),
-    stream = createSeatStreamRunner(root, { environment: 'base' }) }) {
+    stream = createSeatStreamRunner(root, { environment: 'base' }), onModuleRestartLimit }) {
     this.root = root
     this.home = home
     this.run = run
     this.stream = stream
-    this.memoryModule = createMemoryProcess({ root, run })
+    this.memoryModule = createMemoryProcess({ root, run, onModuleRestartLimit })
     this.projectFiles = Object.fromEntries(SEAT_PROJECT_METHODS.map(method =>
       [method, (...args) => this.call('project', { method, args })]))
   }

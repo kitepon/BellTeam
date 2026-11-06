@@ -67,11 +67,13 @@ class ContainerUpdaterTests(unittest.TestCase):
         self.updater.planned_target = lambda _plan: target
         plan_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
         host.atomic(self.updater.state / 'plans' / (plan_id + '.json'),
-                    dict(planId=plan_id, target=target, expected=self.current, expiresAt='2099-01-01T00:00:00Z',
+                    dict(planId=plan_id, catalogSha256='a'*64, target=target, expected=self.current, expiresAt='2099-01-01T00:00:00Z',
                          impact=dict(containerRestart=True)))
         effects = []
-        self.updater.execute = lambda *_args: effects.append('once') or dict(execution='succeeded', verification='succeeded',
-            cleanup='succeeded', rollback='not_needed', observed=self.current, error=None)
+        def execute(_plan,directory):
+            effects.append('once');self.updater.progress(directory,'verifying');self.updater.progress(directory,'swapping')
+            return dict(execution='succeeded',verification='succeeded',cleanup='succeeded',rollback='not_needed',observed=self.current,error=None)
+        self.updater.execute=execute
         self.updater.launcher = self.updater.worker
         params = dict(requestId=self.identifier, planId=plan_id, confirmContainerRestart=True)
         self.assertEqual(self.updater.start(params)['phase'], 'completed')
@@ -81,11 +83,13 @@ class ContainerUpdaterTests(unittest.TestCase):
         self.assertEqual(value['worker']['containerId'], self.record['id'])
         self.assertTrue((self.updater.state / 'operations' / self.identifier / 'claimed').is_file())
         value['phase'] = 'applying'
+        job=self.updater.read_job(self.identifier);job['state']='swapping';job['transitions']=job['transitions'][:-1];job['updatedAtNs']=job['transitions'][-1]['atNs']
+        host.atomic(self.updater.state/'jobs'/(self.identifier+'.json'),job)
         host.atomic(self.updater.state / 'operations' / self.identifier / 'operation.json', value)
         self.updater.launcher = lambda _id: self.fail('GET/repeated UUID must not launch')
         self.record['running'] = False
-        self.assertEqual(self.updater.get(self.identifier)['phase'], 'unknown')
-        self.assertEqual(self.updater.start(params)['phase'], 'unknown')
+        self.assertEqual(self.updater.get(self.identifier)['phase'], 'failed')
+        self.assertEqual(self.updater.start(params)['phase'], 'failed')
         self.assertEqual(effects, ['once'])
         with self.assertRaises(host.Failure): self.updater.module_target('any', 'any', 'any')
 
@@ -151,6 +155,7 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
                     artifact=dict(reference='ghcr.io/kitepon/bellteam-server@sha256:' + 'e' * 64)),
                     expected=self.current, planId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
         directory = self.updater.state / 'result'; directory.mkdir()
+        self.updater.progress = lambda *_: None  # Direct installer fixture; job progression is checked separately.
         with patch.object(service.ContainerUpdater, 'code_root', new_callable=PropertyMock, return_value=release), \
              patch.dict(os.environ, {'MUST_NOT_LEAK': 'private'}):
             result = host.execute_installer(self.updater, plan, directory)

@@ -36,7 +36,7 @@ class BundledModuleTests(unittest.TestCase):
             target = {'componentId': 'usage', 'versionId': 'b' * 64}
             updater.planned_target = lambda plan: target
             plan_id, request_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-            host.atomic(updater.state / 'plans' / (plan_id + '.json'), dict(planId=plan_id, target=target,
+            host.atomic(updater.state / 'plans' / (plan_id + '.json'), dict(planId=plan_id, catalogSha256='a'*64, target=target,
                 expected=current, expiresAt='2099-01-01T00:00:00+00:00', impact={'containerRestart': False}))
             updater.launcher = updater.worker  # Finite protocol fixture, no root/real installer claim.
             params = dict(requestId=request_id, planId=plan_id, confirmContainerRestart=False)
@@ -49,7 +49,7 @@ class BundledModuleTests(unittest.TestCase):
             self.assertNotIn('unit', record['worker'])
             record.update(phase='applying', worker={**record['worker'], 'pidNamespace': 'different'})
             host.atomic(updater.state / 'operations' / request_id / 'operation.json', record)
-            self.assertEqual(updater.get(request_id)['phase'], 'unknown')
+            self.assertEqual(updater.get(request_id)['phase'], 'failed')
             self.assertEqual(calls, ['install'])
             with patch.object(host.HostUpdater, 'capabilities', return_value=dict(supported=True, reason=None, moduleInstallProtocol=1)):
                 capability = updater.capabilities()
@@ -76,6 +76,7 @@ class BundledModuleTests(unittest.TestCase):
             updater.planned_target = lambda _plan: target
             updater.assert_model_binding = Mock()
             updater.inspect_current = lambda: plan['expected']
+            updater.progress = lambda *_: None  # This fixture calls the installer directly, outside job admission.
             installer = Mock()
             installer.expectation.return_value = {'archiveSha256': target['versionId']}
             installer.install.return_value = dict(versionId=target['versionId'], installed=True)

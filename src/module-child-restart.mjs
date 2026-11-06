@@ -1,6 +1,19 @@
 // Only lifecycle recovery is retried; accepted business requests are never replayed.
-export function createModuleChildRestart(restart, component = null) {
+export function createModuleChildRestart(restart, component = null, onModuleRestartLimit) {
   let timer = null, closed = false, delay = 1000, healthySince = null, attempting = false, state = null
+  let quietTimer = null, reported = false, attempts = [], lastExit = { code: null, signal: null }, lastReason = 'recovery_failed'
+  const emit = value => { try { Promise.resolve(onModuleRestartLimit?.(value)).catch(() => {}) } catch {} }
+  const clearQuiet = () => { clearTimeout(quietTimer); quietTimer = null }
+  const quiet = () => {
+    if (quietTimer || !reported || closed || healthySince === null) return
+    quietTimer = setTimeout(() => {
+      quietTimer = null
+      if (closed || healthySince === null || Date.now() - healthySince < 1_800_000) return
+      reported = false; attempts = []
+      emit({ kind: 'module_restart_limit', moduleId: component, cleared: true })
+    }, Math.max(1, 1_800_000 - (Date.now() - healthySince)))
+    quietTimer.unref?.()
+  }
   const waiters = new Set()
   const wake = () => { for (const resolve of waiters) resolve(); waiters.clear() }
   const transition = next => {
@@ -15,7 +28,7 @@ export function createModuleChildRestart(restart, component = null) {
       if (closed) return
       attempting = true
       try { await restart() }
-      catch {}
+      catch (error) { lastReason = error?.code === 'READY_TIMEOUT' ? 'ready_timeout' : error?.code === 'READY_PROBE_FAILED' ? 'ready_probe_failed' : 'recovery_failed' }
       finally {
         delay = Math.min(30000, delay * 2)
         attempting = false
@@ -25,16 +38,35 @@ export function createModuleChildRestart(restart, component = null) {
     timer.unref?.()
   }
   return {
-    running() { healthySince ??= Date.now(); clearTimeout(timer); timer = null; transition('available'); wake() },
-    lost() {
+    running() { healthySince ??= Date.now(); clearTimeout(timer); timer = null; quiet(); transition('available'); wake() },
+    lost(error) {
       if (closed) return
+      clearQuiet()
+      if (error?.code === 'READY_TIMEOUT') lastReason = 'ready_timeout'
+      else if (error?.code === 'READY_PROBE_FAILED') lastReason = 'ready_probe_failed'
       if (healthySince !== null && Date.now() - healthySince >= 60000) delay = 1000
       healthySince = null
       transition('backoff')
       schedule()
     },
+    restarting() {
+      if (closed || !attempting) return
+      attempts = attempts.filter(at => Date.now() - at < 1_800_000)
+      attempts.push(Date.now())
+      if (!reported && attempts.length >= 5 && component) {
+        reported = true
+        emit({ kind: 'module_restart_limit', moduleId: component, count: attempts.length, windowSeconds: 1800,
+          lastExit: { ...lastExit }, lastReason })
+      }
+      if (attempts.length > 5) attempts.shift()
+    },
+    exited({ code, signal }) {
+      lastExit = { code: Number.isInteger(code) && code >= -2147483648 && code <= 2147483647 ? code : null,
+        signal: childSignals.includes(signal) ? signal : null }
+      lastReason = 'process_exit'
+    },
     wait: () => state === 'available' || closed ? Promise.resolve() : new Promise(resolve => waiters.add(resolve)),
-    close() { closed = true; clearTimeout(timer); timer = null; transition('closed'); wake() },
+    close() { closed = true; clearTimeout(timer); clearQuiet(); timer = null; transition('closed'); wake() },
   }
 }
 

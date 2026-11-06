@@ -9,7 +9,7 @@ export function createModuleChildExitReporter() {
     for (const [component, entry] of pending) {
       if (entry.phase !== 'pending' || active.has(component)) continue
       entry.phase = 'issued'
-      const task = Promise.resolve().then(() => diagnostics.record(entry.report)).then(() => {
+      const task = Promise.resolve().then(() => entry.restart ? diagnostics.recordModuleRestartLimit(entry.report) : diagnostics.record(entry.report)).then(() => {
         if (pending.get(component) === entry) pending.delete(component)
       }, error => { entry.phase = error?.outcome === 'not_accepted' ? 'pending' : 'unknown' }).finally(() => {
         active.delete(component)
@@ -23,6 +23,11 @@ export function createModuleChildExitReporter() {
       if (closed) return
       const report = moduleChildExitReport(dto)
       pending.set(dto.component, { report, phase: 'pending' })
+      flush()
+    },
+    observeRestartLimit(dto) {
+      if (closed) return
+      pending.set(`restart:${dto.moduleId}`, { report: structuredClone(dto), restart: true, phase: 'pending' })
       flush()
     },
     attach(writer, ready) { diagnostics = writer; available = ready; flush() },
