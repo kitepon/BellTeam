@@ -222,7 +222,8 @@ export class AitermClient {
       // Aitermが未送信を明示した入力受付の拒否は、その席の状態との衝突。
       // その他の送信失敗や受付後の不明な結果まで成功・未送信と決めない。
       if (name === 'pty_send'
-        && message.startsWith(`aiterm: agent session '${args.session_id}' の `)
+        && ['', 'AGENT_INPUT_NOT_READY: ', 'AGENT_INPUT_TARGET_UNAVAILABLE: '].some(prefix =>
+          message.startsWith(`aiterm: ${prefix}agent session '${args.session_id}' の `))
         && message.includes(' TUI が入力受付状態になりません。文字列は送信していません。')) {
         error.code = 'BOT_INPUT_NOT_READY'
         error.status = 409

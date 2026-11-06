@@ -125,20 +125,27 @@ test('Botを起動できなかった時は、サーバー障害として記録�
   assert.deepEqual(diagnostics.map(value => value.code), ['SERVER_HTTP_500'])
 })
 
-test('入力拒否の分類は該当するpty_sendだけに限定し、元の理由を保持する', async () => {
-  const client = new AitermClient()
-  client.client = { async callTool() {
-    return { isError: true, content: [{ type: 'text', text: `${refusal}\nstate=blocked reason=hooks_review` }] }
-  } }
-  await assert.rejects(client.call('pty_send', { session_id: 'bot-a', text: '本文' }), error => {
-    assert.equal(error.status, 409)
-    assert.equal(error.code, 'BOT_INPUT_NOT_READY')
-    assert.match(error.message, /state=blocked reason=hooks_review/u)
-    return true
+for (const prefix of ['', 'AGENT_INPUT_NOT_READY: ', 'AGENT_INPUT_TARGET_UNAVAILABLE: ']) {
+  test(`input refusal ${prefix || 'legacy'} preserves the reason and matches only the requested pty_send`, async () => {
+    const client = new AitermClient()
+    const message = `${refusal.replace('aiterm: ', `aiterm: ${prefix}`)}\nstate=blocked reason=hooks_review`
+    client.client = { async callTool() {
+      return { isError: true, content: [{ type: 'text', text: message }] }
+    } }
+    await assert.rejects(client.call('pty_send', { session_id: 'bot-a', text: '本文' }), error => {
+      assert.equal(error.status, 409)
+      assert.equal(error.code, 'BOT_INPUT_NOT_READY')
+      assert.match(error.message, /state=blocked reason=hooks_review/u)
+      return true
+    })
+    await assert.rejects(client.call('pty_send', { session_id: 'bot-b', text: '本文' }), error => error.status === undefined)
+    await assert.rejects(client.call('pty_read', { session_id: 'bot-a' }), error => error.status === undefined)
+    client.client = { async callTool() {
+      return { isError: true, content: [{ type: 'text', text: message.replace('文字列は送信していません。', '') }] }
+    } }
+    await assert.rejects(client.call('pty_send', { session_id: 'bot-a', text: '本文' }), error => error.status === undefined)
   })
-  await assert.rejects(client.call('pty_send', { session_id: 'bot-b', text: '本文' }), error => error.status === undefined)
-  await assert.rejects(client.call('pty_read', { session_id: 'bot-a' }), error => error.status === undefined)
-})
+}
 
 test('順番待ちの断りの分類は該当する席へのpty_sendだけに限定し、元の理由を保持する', async () => {
   const client = new AitermClient()
