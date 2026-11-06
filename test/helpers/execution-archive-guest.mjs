@@ -12,7 +12,7 @@ export async function probeExecutionArchive(payload, data, uid) {
   const { MembersAdmission } = await from('members-admission.mjs')
   const { taskSettingsReminder } = await from('global-instructions.mjs')
   const rules = await readFile(join(payload, 'config/common-agents.md'), 'utf8')
-  const expected = rules.split('## 作業設定の見直し\n\n')[1]?.split('\n\n')[0]
+  const expected = rules.match(/(?:^|\n)(SECTION models\n[\s\S]*?)(?=\n\n|$)/)?.[1]
   assert.ok(expected); assert.equal(await taskSettingsReminder(), expected)
   assert.equal(EXECUTION_STATE_COMPATIBILITY, 'bellteam.execution-state.v1')
   const bot = { id: 'bot-synthetic', session: 'synthetic-session', harness: 'codex' }
