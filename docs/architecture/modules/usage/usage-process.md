@@ -216,3 +216,12 @@ flowchart LR
 ```
 
 旧archiveは未知bootstrap keyを拒否する。親の入力生成・旧版への交換/戻しの互換条件は親assembly担当が保持し、旧public archiveへdeveloper認可を渡せば動くとは扱わない。新許可の保持には対応済親とusageが必要で、旧版の公開購読制限を解除しない。
+
+## Fresh member identity at ordinary startup (2026-11-06)
+
+Root appoints Molly temporarily for this two-contact correction; permanent owner Mica.
+
+| Function | Public input/output | Failure boundary |
+| --- | --- | --- |
+| onboarding.prepareStartup | Existing system-authorized `{botId}` → await existing registry refresh → exact current identity lookup → existing onboarding instruction append | Fresh absent target remains BOT_NOT_FOUND; refresh failure propagates without cached fallback. No native/config/delivery state changes. |
+| members.read effect admission | Existing closed empty params/root context additionally permits ONLY onboarding.prepareStartup | Existing context, actor authority, inherited members lease and result validation remain mandatory. Other root methods gain no permission. |

@@ -37,7 +37,7 @@ const allowed = {
 export function usageEffectValid(method, params, context, rootParams = {}) {
   if (!contextValid(context)) return false
   if (method === 'members.read') return exact(params, '') && (context.kind === 'control' && context.method === 'initialize' && ['services', 'restore'].includes(context.mode)
-    || context.kind === 'root' && ['secrets.create', 'questions.create'].includes(context.method))
+    || context.kind === 'root' && ['secrets.create', 'questions.create', 'onboarding.prepareStartup'].includes(context.method))
   if (context.kind !== 'root') return false
   if (method === 'auth.call') return named(params, ['harness', 'action'], ['session_id', 'relogin', 'expected_binding', 'expected_prompt_digest', 'response'])
     && Object.values(HARNESS).includes(params.harness) && authActions[context.method]?.includes(params.action)

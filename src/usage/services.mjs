@@ -118,7 +118,8 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'onboarding.select': ({ harness }) => onboarding.select(harness),
     'onboarding.input': ({ input }) => onboarding.input(input), 'onboarding.start': () => onboarding.start(),
     'onboarding.complete': (_, actor) => onboarding.complete(actor.kind === 'bot' ? actor.botId : undefined),
-    'onboarding.prepareStartup': ({ botId }) => {
+    'onboarding.prepareStartup': async ({ botId }) => {
+      await bots.refresh()
       const bot = bots.get(botId)
       if (!bot) throw usageError('BOT_NOT_FOUND', 404)
       return onboarding.prepareStartup(bot)

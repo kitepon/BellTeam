@@ -244,3 +244,18 @@ test('usage carries 64 independent effects and drain callbacks under the same op
   f.authority.release(token); f.authority.release(callbackToken); f.admission.finish(lease)
   await f.admission.drain(ticket)
 })
+
+
+test('startup refresh finds a post-initialization member while missing and unauthorized targets stay refused', async t => {
+  const members = [{ id: 'bot-a', name: 'A', harness: 'codex' }]
+  const f = await fixture(t, { effect: method => method === 'members.read' ? members : undefined })
+  await f.initialize()
+  members.push({ id: 'bot-new', name: 'New', harness: 'codex' })
+  const before = f.effects.length
+  await f.request('onboarding.prepareStartup', { botId: 'bot-new' }, system)
+  assert.equal(f.effects[before].method, 'members.read')
+  await assert.rejects(f.request('onboarding.prepareStartup', { botId: 'bot-missing' }, system), { code: 'BOT_NOT_FOUND' })
+  const after = f.effects.length
+  await assert.rejects(f.request('onboarding.prepareStartup', { botId: 'bot-new' }, bot), { code: 'USAGE_ACTOR_FORBIDDEN' })
+  assert.equal(f.effects.length, after)
+})
