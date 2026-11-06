@@ -4,6 +4,8 @@
 
 ## 実装の範囲
 
+- Owner rule (2026-11-07; takes precedence over the retry restriction below for Aiterm/cloud-AI commands): Never block on an unknown command outcome. A command to Aiterm/a cloud AI that lands twice is harmless; stopping is the harm. Commands are idempotent by content (and UUID where the counterpart dedups); on unknown, proceed and re-apply. No *_UNCONFIRMED / 'possible' / 'unknown' refusal may gate a dispatch, a launch, a stop or an operator restart; such facts are recorded and shown, never used as a lock. A guard is added only if its state diagram shows an exit the server can take by itself; 'unknown' is not a state in the model — only desired and actual are.
+
 - コード修正前に `docs/architecture/feature-map.md` から担当と接続先の機能図を読み、図の変更要否を判断してから全caller・試験・設定を含む範囲を決める。コードと必要な図を同じ差分で更新する。担当と図の正本は `docs/architecture/module-ownership.md` に従う。
 
 - Mac・iPhone・Webで共通化できる処理は共通実装へ置き、OS・UI基盤・画面構成による差だけを個別実装へ置く。
