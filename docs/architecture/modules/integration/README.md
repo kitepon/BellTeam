@@ -810,3 +810,7 @@ shared/toolsは1000:1000/0711のため通常本体から直接作成しない。
 ## 提出済secretの管理caller
 
 [同requestの管理callerと認可捕捉](submitted-secret-caller.md)が親側の正本。usage固定consumerと既Owner技術許可の両方が注入された時だけ接続し、未供給は503で閉じる。
+
+## 共通JSON保存
+
+[共通JSON保存の機能・データフロー](shared-json-file.md)が`writeAtomic`の一時file所有・異常時回収の正本。保存値とACKは各callerが所有する。
