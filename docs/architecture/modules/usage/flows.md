@@ -178,3 +178,7 @@ flowchart LR
 | その他の担当fixture | secrets/settings/onboarding/subscriptions/Web Push/認証consumerの合成root→既t.after/finally | 既終了hookを維持。製品の唯一秘密/unknown claimをfixture回収へ混ぜない |
 
 機能図はusage内の試験生成・終了管理、データフローは合成入力→一時root→検証→終了hook→root回収。OwnerQuestionsは未登録だった終了hookだけを既fixtureパターンへ揃え、5本の試験のcallerが同じtest contextを渡す。製品HTTP/公開schema/質問保存順序を変更しない。
+
+## Ordinary startup after member creation
+
+DFD: parent authoritative member creation → later system-authorized onboarding.prepareStartup({botId}) → existing members.read effect under same root context/inherited lease → authoritative parent refresh → closed identity list → child registry replacement → exact target lookup → existing instruction append. Initialization-only cached membership cannot authorize or reject this operation. Missing current target/refused refresh stops before append; unauthorized actors stop before the effect. No new port/store or stale fallback.
