@@ -116,4 +116,37 @@ class DurableJobs(unittest.TestCase):
         finally:
             server.shutdown();worker.join(2);server.server_close()
 
+    def test_parent_abort_only_closes_unclaimed_queued_container(self):
+        def admit():
+            params = self.admission(component='container', version='sha256:' + 'd' * 64)
+            params['kind'] = 'container'
+            return self.updater.admit_job(params)
+        job = admit()
+        reason = dict(code='EARLIER_MODULE_FAILED', message='EARLIER_MODULE_FAILED')
+        params = dict(jobId=job['jobId'], state='failed', reason=reason)
+        for state in ['downloading', 'verifying', 'swapping', 'ready']:
+            with self.assertRaises(host.Failure) as error:
+                self.updater.update_job(dict(params, state=state, reason=None))
+            self.assertEqual(error.exception.code, 'HOST_UPDATE_JOB_CONFLICT')
+        saved = self.updater.dispatch(dict(operation='updateJob', params=params))
+        self.assertEqual(saved['state'], 'failed'); self.assertEqual(saved['reason'], reason)
+        self.assertEqual([row['state'] for row in saved['transitions']], ['queued', 'failed'])
+        self.assertEqual(self.updater.job(job['jobId']), saved)
+        self.assertFalse((self.updater.state / 'operations' / job['jobId']).exists())
+        with self.assertRaises(host.Failure):
+            self.updater.start(dict(requestId=job['jobId'], idempotencyKey=job['idempotencyKey'],
+                                    planId=str(uuid.uuid4()), confirmContainerRestart=True))
+        for marker in ['operation.json', 'claimed', 'started']:
+            owned = admit(); directory = self.updater.state / 'operations' / owned['jobId']
+            if marker == 'started':
+                with host.locked(self.updater.state / 'ledger.lock'):
+                    self.updater.set_job(owned['jobId'], 'downloading')
+            else:
+                directory.mkdir(mode=0o700); (directory / marker).write_text('{}')
+            with self.assertRaises(host.Failure) as error:
+                self.updater.update_job(dict(params, jobId=owned['jobId']))
+            self.assertEqual(error.exception.code, 'HOST_UPDATE_JOB_CONFLICT')
+            self.assertEqual(self.updater.read_job(owned['jobId'])['state'], 'downloading' if marker == 'started' else 'queued')
+        self.assertEqual(self.launches, [])
+
 if __name__ == '__main__': unittest.main()
