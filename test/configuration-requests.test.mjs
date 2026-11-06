@@ -9,7 +9,7 @@ import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { BotAdministration } from '../src/bot-administration.mjs'
 import { ConfigurationIntents } from '../src/configuration-intents.mjs'
 import { ConfigurationRequests } from '../src/configuration-requests.mjs'
-import { configurationReceipt, configurationDigest, configurationError, CONFIGURATION_VERSION } from '../src/configuration-request.mjs'
+import { configurationReceipt, configurationDigest, configurationError, CONFIGURATION_VERSION, configurationConnection } from '../src/configuration-request.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 import { executionFailureReport } from '../src/execution-failure-report.mjs'
 import { Diagnostics } from '../src/diagnostics.mjs'
@@ -54,8 +54,10 @@ async function fixture(t) {
 }
 const apply = f => f.transport.reconfigure(f.bot, { ...f.bot, model: 'next' })
 
-test('new apply is persisted before one bound wire call and keeps unsupported/unconfirmed history', async t => {
-  const f = await fixture(t), result = await apply(f)
+test('approved0.63.11 apply persists its intent and rejects an unapproved future producer', async t => {
+  const f = await fixture(t)
+  f.version = '0.63.11'
+  const result = await apply(f)
   assert.equal(result.configurationRequest.outcome, 'applied')
   assert.equal(result.configurationRequest.later_effect, 'unconfirmed')
   assert.deepEqual(result.configurationRequest.current, { availability: 'unsupported' })
@@ -63,7 +65,14 @@ test('new apply is persisted before one bound wire call and keeps unsupported/un
   const binding = result.configurationRequest.binding
   assert.equal(binding.digest, configurationDigest({ model: 'next', reasoning_effort: 'high' }))
   assert.equal((await f.intents.terminal(f.bot.id, binding)).origin, 'apply')
-  assert.equal((await f.intents.read(f.bot.id, binding.id)).version, '0.63.7')
+  assert.equal((await f.intents.read(f.bot.id, binding.id)).version, '0.63.11')
+  for (const version of ['0.63.7', '0.63.8', '0.63.9', '0.63.10', '0.63.11']) {
+    f.version = version
+    assert.doesNotThrow(() => configurationConnection(f.client, f.sdk, f.client.transport))
+  }
+  f.version = '0.63.12'
+  await assert.rejects(apply(f), { code: 'CONFIGURATION_CONNECTION_UNCONFIRMED', effect: 'not_issued' })
+  assert.equal(f.calls.filter(call => call.args.action === 'apply').length, 1)
   assert.deepEqual(await f.intents.pending(), [])
 })
 
