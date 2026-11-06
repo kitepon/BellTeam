@@ -814,3 +814,7 @@ shared/toolsは1000:1000/0711のため通常本体から直接作成しない。
 ## 共通JSON保存
 
 [共通JSON保存の機能・データフロー](shared-json-file.md)が`writeAtomic`の一時file所有・異常時回収の正本。保存値とACKは各callerが所有する。
+
+## メッセージの受領入口
+
+[受領入口の機能・データフロー](message-receipt.md)で直接送信と不要なRoom取得の境界、耐久受領/実行との接続を定める。
