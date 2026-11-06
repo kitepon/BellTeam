@@ -7,7 +7,8 @@ flowchart TD
   UI[認証済みアプリ / 同じ許可済みBot運用] --> Common[Molly: plan・requestId・再起動確認]
   Common --> Client[runtime: 固定Unix client / NDJSON64KiB・5秒]
   Client --> Socket[固定socket / peer Host UID1001 / 同時16]
-  Socket --> Host[root限定受付 / path・env・shellを受けない]
+  Socket --> Capacity[Handler capacity / 16 active / wait for a free slot]
+  Capacity --> Host[root限定受付 / path・env・shellを受けない]
   Catalog[Centi: 正式発行の公式検証] --> Store[root immutable catalog / 鮮度・失効・単調採用]
   Store --> Host
   Host --> Plan[root保存plan / target・current前提・5分期限]
@@ -79,3 +80,9 @@ archive/bundleは正式GitHub release URLだけからroot管理`state/module-inc
 containerのcurrent/previous参照は保持し、module設置は別`module-current.json`で同UUID ledgerを参照する。両方とも同ledger/worker lockで排他し、unknownは次要求で越えない。期限・helper非0・結果欠測はunknownを保持し同UUIDで再実行しない。Docker client期限でも実helper終了を推定せず、その設置は要解決として保持する。正常公開後だけ入力cacheを自己回収し、回収失敗は配置成功と分ける。未確定cacheは各module最大4組を保持し、先に原operationを解決する。
 
 初回はこのHost code/現在image内固定installer・socket mountを導入する必要がある。登録済みmodule交換を後発Host口待ちにせず、未配置をprepare成功へ補完しない。新7Python境界（正式選択/入力拒否・同UUID・container排他・限定mount・資格非移送・unknown再送0）とclient/planner3境界は人工I/Oで確認した。実Host/systemd/Docker/署名・対象moduleだけの実交換成立は別の本人受入へ結ぶ。
+
+## Socket capacity and diagnostics
+
+The shared Server used by Host, module-installer and bundled container-updater keeps at most 16 active handlers. A connected request waits for a free slot on the accept thread; remaining connections stay in the bounded socket backlog. Catalog fan-out must not silently discard an install start/get request. The existing client five-second deadline still applies; no request is retried or replayed. Peer/frame validation and worker/ledger ownership remain unchanged. Unexpected Handler exceptions emit only HOST_UPDATE_REQUEST_FAILED and the exception class to stderr; exception messages, request bodies, paths and credentials are omitted.
+
+The source-local capacity contact confirms the seventeenth request is dispatched once after a slot is released. This fixes a demonstrated silent-drop defect; the original ff55 public failure has no saved handler-count or exception trace, so this change does not attribute that historical failure to saturation.
