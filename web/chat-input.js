@@ -47,13 +47,18 @@ export function releaseSingleFlight(inFlight, key) {
   inFlight.delete(key)
 }
 
-export async function readApiError(response) {
+export async function readApiError(response, { details = false } = {}) {
+  let body
   try {
-    const body = await response.json()
-    return body.message || body.error || `HTTP_${response.status}`
-  } catch {
-    return `HTTP_${response.status}`
+    body = await response.json()
+  } catch { /* Non-JSON errors still retain the HTTP status. */ }
+  const message = [body?.message, body?.error].find(value => typeof value === 'string' && value) || `HTTP_${response.status}`
+  if (!details) return message
+  const result = { message }
+  for (const [field, key] of [['error', 'code'], ['path', 'path'], ['reason', 'reason']]) {
+    if (typeof body?.[field] === 'string') result[key] = body[field]
   }
+  return result
 }
 
 // 送信が拒否された時に入力欄の上へ出す一行。本文は呼び出し側が入力欄へ戻す。

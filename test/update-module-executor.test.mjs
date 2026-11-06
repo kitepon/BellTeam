@@ -1,3 +1,4 @@
+import { createFixtureJobClient } from './fixtures/update-job-client.mjs'
 import { readServerSourceCommit } from '../src/server-source.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -35,11 +36,17 @@ async function fixture(t, { ids = ['notifications'], apply = null, prepare = nul
       calls.push(id); if (apply) await apply(step)
       current[id] = { ...step.target, origin: step.target.origin === 'builtin' ? 'builtin' : 'release' }
     } }]))
-  const executor = await createModuleUpdateExecutor({ root, catalog, adapters, host })
+  const moduleHost = createFixtureJobClient(root)
+  if (host) {
+    host.job = moduleHost.job
+    host.admitJob = async ({ jobId, idempotencyKey }) => moduleHost.admitJob({ jobId, idempotencyKey, kind: 'container',
+      target: { catalogSha256: 'd'.repeat(64), moduleId: 'container', versionId: (await host.plan()).targets[0].published.version } })
+  }
+  const executor = await createModuleUpdateExecutor({ root, catalog, adapters, host, moduleHost })
   const request = plan => ({ planId: plan.planId, requestId: randomUUID(), confirmContainerRestart: false })
   const plan = input => executor.plan(input ?? { scope: 'component', componentId: ids[0] })
   const done = async id => { await executor.close(); return executor.operation(id) }
-  return { root, catalog, adapters, executor, current, calls, request, plan, done }
+  return { root, catalog, adapters, moduleHost, executor, current, calls, request, plan, done }
 }
 
 test('fixed action schema preserves the old operation body and rejects target/action overrides', () => {
@@ -112,7 +119,8 @@ test('parent death after durable admission becomes unknown on restart, even if t
   const f = await fixture(t)
   const script = `import {createModuleUpdateExecutor} from ${JSON.stringify(new URL('../src/update-module-executor.mjs', import.meta.url).href)};
     const root=${JSON.stringify(f.root)}, current=${JSON.stringify(builtin)}, selected=${JSON.stringify(selection('notifications'))};
-    const executor=await createModuleUpdateExecutor({root,catalog:{select:async()=>selected},adapters:{notifications:{current:()=>current,available:()=>true,prepare:async()=>{},apply:async()=>new Promise(()=>{}),canRollback:()=>true}}});
+    const {createFixtureJobClient}=await import(${JSON.stringify(new URL('./fixtures/update-job-client.mjs', import.meta.url).href)});
+    const executor=await createModuleUpdateExecutor({root,moduleHost:createFixtureJobClient(root),catalog:{select:async()=>selected},adapters:{notifications:{current:()=>current,available:()=>true,prepare:async()=>{},apply:async()=>new Promise(()=>{}),canRollback:()=>true}}});
     const plan=await executor.plan({scope:'component',componentId:'notifications'});const requestId=${JSON.stringify(randomUUID())};
     await executor.start({planId:plan.planId,requestId,confirmContainerRestart:false});console.log(requestId);setInterval(()=>{},1000);`
   const child = spawn(process.execPath, ['--input-type=module', '-e', script], { stdio: ['ignore', 'pipe', 'inherit'] })
@@ -323,7 +331,7 @@ test('Owner plan/start/get and individual rollback exchange all three real contr
   const builtinSourceCommit = await readServerSourceCommit()
   const adapters = createModuleUpdateAdapters({ gateway: () => gateway, builtinSourceCommit, notifications: { controller: push }, members: { controller: members },
     prepare: Object.fromEntries(['web-gateway', 'notifications', 'members'].map(id => [id, async versionId => descriptor(id, versionId)])) })
-  const executor = await createModuleUpdateExecutor({ root, catalog, adapters })
+  const executor = await createModuleUpdateExecutor({ root, catalog, adapters, moduleHost: createFixtureJobClient(root) })
   center = createUpdateCenter({ gateway: () => gateway, builtinSourceCommit, notifications: { controller: push }, members: { controller: members }, moduleCatalog: catalog, moduleExecutor: executor })
   server = createBellTeamServer({ bots: Object.assign(new Map(), { refresh: async () => {} }), store: { watch: async () => () => {} }, transport: {}, updateCenter: center, authorize: async () => true, writeLog() {} })
   const socketPath = join(root, 'business.sock'); server.listen(socketPath); await once(server, 'listening')

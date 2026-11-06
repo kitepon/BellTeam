@@ -1,12 +1,24 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createWebClient } from '../web/client.js'
+import { readApiError } from '../web/chat-input.js'
 import { deferred } from './helpers/editor-dom.mjs'
 const settle = () => new Promise(resolve => setImmediate(resolve))
 const stream = chunks => new Response(new ReadableStream({ start(controller) {
   for (const text of chunks) controller.enqueue(new TextEncoder().encode(text))
   controller.close()
 } }))
+
+test('stored update jobs UNREADABLE preserves the public reason/path and string-error compatibility', async () => {
+  const body = { error: 'UNREADABLE', message: 'EACCES', path: '/state/jobs/record.json', reason: 'EACCES', privateValue: 'never copy' }
+  let calls = 0
+  const client = createWebClient({ fetch: async () => { calls++; return Response.json(body, { status: 503 }) } })
+  await assert.rejects(client.api('/api/updates'), error => error.status === 503 && error.code === 'UNREADABLE'
+    && error.message === body.message && error.path === body.path && error.reason === body.reason && !Object.hasOwn(error, 'privateValue'))
+  assert.equal(calls, 1)
+  assert.equal(await readApiError(Response.json(body, { status: 503 })), 'EACCES')
+  assert.deepEqual(await readApiError(new Response('bad', { status: 502 }), { details: true }), { message: 'HTTP_502' })
+})
 
 test('JSON requests preserve response status, 204, options and make no automatic mutation retry', async () => {
   const calls = [], options = { method: 'PATCH', body: '{"name":"saved"}', redirect: 'error' }

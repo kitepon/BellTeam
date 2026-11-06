@@ -1,3 +1,4 @@
+import { createFixtureJobClient } from './fixtures/update-job-client.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, rm } from 'node:fs/promises'
@@ -51,7 +52,7 @@ test('one memory controller and its actual generation drive the stable facade, d
   await memory.start(); const oldGeneration = memory.snapshot().generation
   const facade = memory.memory(new Map()), adapters = createModuleUpdateAdapters({ gateway: () => null, memory, prepare: { memory: prepare } })
   const catalog = createModuleUpdateCatalog({ client: { catalog: async id => { assert.equal(id, 'memory'); return selected() } } })
-  const executor = await createModuleUpdateExecutor({ root, catalog, adapters: { memory: adapters.memory } })
+  const executor = await createModuleUpdateExecutor({ root, catalog, moduleHost: createFixtureJobClient(root), adapters: { memory: adapters.memory } })
   const center = createUpdateCenter({ memory, moduleExecutor: executor, moduleCatalog: catalog })
   const before = await center.snapshot(), row = before.components.find(component => component.id === 'memory')
   assert.equal(row.current, null); assert.equal(row.capability.supported, true)

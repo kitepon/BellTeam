@@ -26,11 +26,14 @@ PREFIX = Path('/srv/bellteam/shared/tools/bellteam-container-update-host')
 LIMIT = 64 * 1024
 CATALOG_LIMIT = 1024 * 1024
 TERMINAL = {'completed', 'failed'}
+JOB_STATES = ['queued', 'downloading', 'verifying', 'swapping', 'ready', 'failed']
+JOB_RETAIN = 256
 MODULES = {'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'conversation', 'execution'}
 
 class Failure(Exception):
-    def __init__(self, code, status=503, outcome='not_accepted'):
+    def __init__(self, code, status=503, outcome='not_accepted', *, path=None, reason=None):
         self.code, self.status, self.outcome = code, status, outcome
+        self.path, self.reason = path, reason
 
 def check(value, code='HOST_UPDATE_ARGUMENTS', status=400):
     if not value:
@@ -175,8 +178,136 @@ class HostUpdater:
         self.execute = execute or self.install
         self.env = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': '/root', 'LANG': 'C.UTF-8',
                     'DOCKER_HOST': 'unix:///var/run/docker.sock', 'DOCKER_CONFIG': str(self.state / 'docker-config')}
-        for name in ['plans', 'operations', 'docker-config']:
+        for name in ['plans', 'operations', 'docker-config', 'jobs']:
             (self.state / name).mkdir(mode=0o700, exist_ok=True)
+        descriptor = os.open(self.state, os.O_RDONLY | os.O_DIRECTORY)
+        try: os.fsync(descriptor)
+        finally: os.close(descriptor)
+
+    def read_job(self, identifier):
+        path = self.state / 'jobs' / (request_id(identifier) + '.json')
+        try:
+            value = read_json(path, self.uid)
+            check(exact(value, 'schema,jobId,idempotencyKey,kind,target,state,reason,transitions,updatedAtNs')
+                  and value['schema'] == 'bellteam.update-job.v1' and value['jobId'] == identifier
+                  and value['state'] in JOB_STATES and value['kind'] in {'container', 'module'}
+                  and type(value['idempotencyKey']) is str and re.fullmatch(r'[\x20-\x7e]{1,128}', value['idempotencyKey'])
+                  and exact(value['target'], 'catalogSha256,moduleId,versionId')
+                  and type(value['transitions']) is list and 1 <= len(value['transitions']) <= 6
+                  and all(exact(row, 'state,atNs') and row['state'] in JOB_STATES
+                          and type(row['atNs']) is str and row['atNs'].isdigit() for row in value['transitions'])
+                  and value['transitions'][-1] == {'state': value['state'], 'atNs': value['updatedAtNs']}
+                  and type(value['updatedAtNs']) is str and value['updatedAtNs'].isdigit()
+                  and (exact(value['reason'], 'code,message') if value['state'] == 'failed' else value['reason'] is None),
+                  'JOB_RECORD_INVALID')
+            return value
+        except FileNotFoundError:
+            raise Failure('HOST_UPDATE_NOT_FOUND', 404)
+        except (OSError, Failure, KeyError, TypeError) as error:
+            raise Failure('UNREADABLE', path=str(path), reason=getattr(error, 'code', None) or type(error).__name__)
+
+    def prune_jobs(self):
+        terminal = []
+        for path in (self.state / 'jobs').glob('*.json'):
+            job = self.read_job(path.stem)
+            if job['state'] in {'ready', 'failed'}: terminal.append(job)
+        for job in sorted(terminal, key=lambda row: int(row['updatedAtNs']), reverse=True)[JOB_RETAIN:]:
+            directory = self.state / 'operations' / job['jobId']
+            if directory.exists():
+                operation = self.read_operation(job['jobId'])
+                if operation['phase'] not in TERMINAL: continue
+                trusted(directory, self.uid, directory=True)
+                shutil.rmtree(directory)
+            (self.state / 'jobs' / (job['jobId'] + '.json')).unlink()
+        descriptor = os.open(self.state / 'jobs', os.O_RDONLY | os.O_DIRECTORY)
+        try: os.fsync(descriptor)
+        finally: os.close(descriptor)
+
+    def admit_job(self, params):
+        check(exact(params, 'jobId,idempotencyKey,kind,target'))
+        identifier, target = request_id(params['jobId']), params['target']
+        check(type(params['idempotencyKey']) is str and re.fullmatch(r'[\x20-\x7e]{1,128}', params['idempotencyKey'])
+              and params['kind'] in {'container', 'module'} and exact(target, 'catalogSha256,moduleId,versionId')
+              and target['moduleId'] in MODULES | {'container'}
+              and (target['moduleId'] == 'container') == (params['kind'] == 'container')
+              and (target['catalogSha256'] is None or digest(target['catalogSha256']))
+              and type(target['versionId']) is str and (target['versionId'] == 'builtin'
+                   or re.fullmatch('[a-f0-9]{64}|sha256:[a-f0-9]{64}', target['versionId'])))
+        with locked(self.state / 'ledger.lock', wait=True):
+            for path in (self.state / 'jobs').glob('*.json'):
+                job = self.read_job(path.stem)
+                if job['idempotencyKey'] == params['idempotencyKey'] or job['jobId'] == identifier:
+                    check(job['target'] == target and job['kind'] == params['kind'] and job['idempotencyKey'] == params['idempotencyKey'],
+                          'HOST_UPDATE_REQUEST_CONFLICT', 409)
+                    return job
+            at = str(time.time_ns())
+            job = {'schema': 'bellteam.update-job.v1', **params, 'state': 'queued', 'reason': None,
+                   'transitions': [{'state': 'queued', 'atNs': at}], 'updatedAtNs': at}
+            atomic(self.state / 'jobs' / (identifier + '.json'), job)
+            self.prune_jobs()
+            return job
+
+    def set_job(self, identifier, state, reason=None):
+        # Caller holds ledger.lock; installation progress and parent activation share this writer.
+        job = self.read_job(identifier)
+        check(state in JOB_STATES)
+        if job['state'] == state:
+            check(job['reason'] == reason, 'HOST_UPDATE_JOB_CONFLICT', 409)
+            return job
+        check(job['state'] not in {'ready', 'failed'} and (state == 'failed'
+              or JOB_STATES.index(state) == JOB_STATES.index(job['state']) + 1), 'HOST_UPDATE_JOB_CONFLICT', 409)
+        check((exact(reason, 'code,message') and type(reason['code']) is str and re.fullmatch('[A-Z_0-9]{1,100}', reason['code'])
+               and type(reason['message']) is str and 1 <= len(reason['message']) <= 256)
+              if state == 'failed' else reason is None)
+        at = str(time.time_ns())
+        job.update(state=state, reason=reason, updatedAtNs=at)
+        job['transitions'].append({'state': state, 'atNs': at})
+        atomic(self.state / 'jobs' / (identifier + '.json'), job)
+        if state in {'ready', 'failed'}: self.prune_jobs()
+        return job
+
+    def progress(self, directory, state):
+        with locked(self.state / 'ledger.lock', wait=True):
+            return self.set_job(directory.name, state)
+
+    def job(self, identifier):
+        with locked(self.state / 'ledger.lock', wait=True):
+            job = self.read_job(identifier)
+            if job['state'] not in {'ready', 'failed'} and (self.state / 'operations' / identifier / 'operation.json').exists():
+                operation = self.read_operation(identifier)
+                worker = operation.get('worker')
+                lost = worker and operation['phase'] not in TERMINAL and not self.worker_alive(worker)
+                unbound = not worker and time.time() - parse_time(operation['updatedAt']) > 30
+                if lost or unbound:
+                    code = 'HOST_UPDATE_WORKER_LOST' if lost else 'HOST_UPDATE_HANDOFF_FAILED'
+                    operation.update(phase='failed', execution='failed', verification='failed', error=code, updatedAt=stamp())
+                    atomic(self.state / 'operations' / identifier / 'operation.json', operation)
+                    job = self.set_job(identifier, 'failed', {'code': code, 'message': code})
+            return job
+
+    def jobs(self, limit=16):
+        check(type(limit) is int and 1 <= limit <= 16)
+        with locked(self.state / 'ledger.lock', wait=True):
+            values = [self.read_job(path.stem) for path in (self.state / 'jobs').glob('*.json')]
+        return {'jobs': [self.job(value['jobId']) for value in sorted(values, key=lambda row: int(row['updatedAtNs']), reverse=True)[:limit]]}
+
+    def update_job(self, params):
+        check(exact(params, 'jobId,state,reason') and params['state'] in JOB_STATES[1:])
+        identifier = request_id(params['jobId'])
+        with locked(self.state / 'ledger.lock', wait=True):
+            job = self.read_job(identifier)
+            operation_path = self.state / 'operations' / identifier / 'operation.json'
+            if job['kind'] == 'container':
+                check(job['state'] == 'queued' and params['state'] == 'failed'
+                      and not os.path.lexists(operation_path) and not os.path.lexists(operation_path.parent / 'claimed'),
+                      'HOST_UPDATE_JOB_CONFLICT', 409)
+                return self.set_job(identifier, 'failed', params['reason'])
+            check(job['kind'] == 'module', 'HOST_UPDATE_JOB_CONFLICT', 409)
+            if operation_path.exists():
+                operation = self.read_operation(identifier)
+                check(params['state'] in {'swapping', 'ready', 'failed'} and operation['phase'] == 'completed'
+                      and operation['execution'] == operation['verification'] == 'succeeded', 'HOST_UPDATE_JOB_NOT_INSTALLED', 409)
+            return self.set_job(identifier, params['state'], params['reason'])
 
     @property
     def code_root(self):
@@ -311,7 +442,8 @@ class HostUpdater:
                 pointer_path = self.state / name
                 if pointer_path.exists():
                     for operation in read_json(pointer_path, self.uid).values():
-                        if operation: referenced.add(self.read_operation(operation)['planId'])
+                        if operation and (self.state / 'operations' / operation / 'operation.json').exists():
+                            referenced.add(self.read_operation(operation)['planId'])
             for candidate in (self.state / 'plans').glob('*.json'):
                 value = read_json(candidate, self.uid)
                 if value['planId'] not in referenced and parse_time(value['expiresAt']) <= time.time(): candidate.unlink()
@@ -332,48 +464,59 @@ class HostUpdater:
         path = self.state / 'operations' / identifier / 'operation.json'
         if not path.exists():
             raise Failure('HOST_UPDATE_NOT_FOUND', 404)
-        return read_json(path, self.uid)
+        try: return read_json(path, self.uid)
+        except (OSError, Failure) as error:
+            raise Failure('UNREADABLE', path=str(path), reason=getattr(error, 'code', None) or type(error).__name__)
 
-    @staticmethod
-    def view(value):
-        return {key: value[key] for key in ['requestId', 'planId', 'target', 'admission', 'phase', 'execution',
+    def view(self, value):
+        result = {key: value[key] for key in ['requestId', 'planId', 'target', 'admission', 'phase', 'execution',
             'verification', 'error', 'cleanup', 'rollback', 'observed', 'updatedAt']}
+        job = self.read_job(value['requestId'])
+        result.update(jobId=job['jobId'], state=job['state'], reason=job['reason'], job=job)
+        return result
 
     def get(self, identifier):
+        self.job(identifier)
         with locked(self.state / 'ledger.lock', wait=True):
-            value = self.read_operation(identifier)
-            worker = value.get('worker')
-            if (value['phase'] not in TERMINAL and value['phase'] != 'unknown'
-                    and worker and not self.worker_alive(worker)):
-                value.update(phase='unknown', execution='unknown', verification='unknown', error='HOST_UPDATE_WORKER_LOST', updatedAt=stamp())
-                atomic(self.state / 'operations' / identifier / 'operation.json', value)
-            return self.view(value)
+            return self.view(self.read_operation(identifier))
 
     def worker_alive(self, worker):
         return birth(worker['pid']) == worker['birth']
 
     def operation_pending(self, identifier):
-        return self.read_operation(identifier)['phase'] not in TERMINAL
+        path = self.state / 'jobs' / (identifier + '.json')
+        if path.exists(): return self.read_job(identifier)['state'] not in {'ready', 'failed'}
+        directory = self.state / 'operations' / identifier / 'operation.json'
+        return directory.exists() and self.read_operation(identifier)['phase'] not in TERMINAL
 
     def worker_identity(self, identifier):
         return {'pid': os.getpid(), 'birth': birth(os.getpid()),
                 'unit': 'bellteam-container-update-worker-' + identifier + '.service'}
 
     def start(self, params):
-        check(exact(params, 'requestId,planId,confirmContainerRestart'))
+        check(exact(params, 'requestId,planId,confirmContainerRestart') or exact(params, 'requestId,planId,confirmContainerRestart,idempotencyKey'))
         identifier, plan_id = request_id(params['requestId']), request_id(params['planId'])
-        check(type(params['confirmContainerRestart']) is bool)
-        with locked(self.state / 'ledger.lock'):
+        key = params.get('idempotencyKey', identifier)
+        check(type(key) is str and re.fullmatch(r'[\x20-\x7e]{1,128}', key) and type(params['confirmContainerRestart']) is bool)
+        with locked(self.state / 'ledger.lock', wait=True):
+            admitted = None
+            for path in (self.state / 'jobs').glob('*.json'):
+                job = self.read_job(path.stem)
+                if job['idempotencyKey'] == key or job['jobId'] == identifier:
+                    check(job['idempotencyKey'] == key, 'HOST_UPDATE_REQUEST_CONFLICT', 409)
+                    identifier = job['jobId']
+                    if not (self.state / 'operations' / identifier / 'operation.json').exists():
+                        check(job['state'] == 'queued', 'HOST_UPDATE_JOB_CONFLICT', 409)
+                        admitted = job
+                        break
+                    existing = self.read_operation(job['jobId'])
+                    check(existing['planId'] == plan_id and job['idempotencyKey'] == key, 'HOST_UPDATE_REQUEST_CONFLICT', 409)
+                    return self.view(existing)
             directory = self.state / 'operations' / identifier
-            if directory.exists():
-                existing = self.read_operation(identifier)
-                check(existing['planId'] == plan_id, 'HOST_UPDATE_REQUEST_CONFLICT', 409)
-                if existing['admission'] == 'rejected':
-                    raise Failure(existing['error'], 409, 'not_accepted')
-                if existing['admission'] != 'accepted':
-                    raise Failure('HOST_UPDATE_HANDOFF_UNKNOWN', 503, 'unknown')
-                return self.view(existing)
+            check(not directory.exists(), 'HOST_UPDATE_REQUEST_CONFLICT', 409)
             plan = read_json(self.state / 'plans' / (plan_id + '.json'), self.uid)
+            target = {'catalogSha256': plan['catalogSha256'], 'moduleId': plan['target']['componentId'], 'versionId': plan['target']['versionId']}
+            if admitted: check(admitted['target'] == target, 'HOST_UPDATE_REQUEST_CONFLICT', 409)
             check(params['confirmContainerRestart'] == plan['impact']['containerRestart'], 'HOST_UPDATE_RESTART_CONFIRMATION_REQUIRED', 409)
             check(parse_time(plan['expiresAt']) > time.time(), 'HOST_UPDATE_PLAN_EXPIRED', 409)
             check(self.planned_target(plan) == plan['target'], 'HOST_UPDATE_PLAN_CHANGED', 409)
@@ -385,29 +528,35 @@ class HostUpdater:
                 active = read_json(path, self.uid) if path.exists() else {'current': None}
                 if active['current']:
                     check(not self.operation_pending(active['current']), 'HOST_UPDATE_IN_PROGRESS', 409)
-            # shortcut: retain 4096 operation tombstones; add a durable archive before raising this limit.
-            check(len(list((self.state / 'operations').iterdir())) < 4096, 'HOST_UPDATE_LEDGER_CAPACITY')
             directory.mkdir(mode=0o700)
             value = {'schema': 'bellteam.host-update.operation.v1', 'requestId': identifier, 'planId': plan_id,
-                     'target': plan['target'], 'admission': 'unknown', 'phase': 'preparing', 'execution': 'pending',
+                     'target': plan['target'], 'admission': 'accepted', 'phase': 'preparing', 'execution': 'pending',
                      'verification': 'pending', 'cleanup': 'pending', 'rollback': 'not_needed', 'observed': None,
                      'error': None, 'worker': None, 'updatedAt': stamp()}
             atomic(directory / 'operation.json', value)
+            descriptor = os.open(directory.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try: os.fsync(descriptor)
+            finally: os.close(descriptor)
+            at = str(time.time_ns())
+            job = {'schema': 'bellteam.update-job.v1', 'jobId': identifier, 'idempotencyKey': key,
+                   'kind': 'container' if plan['target']['componentId'] == 'container' else 'module',
+                   'target': {'catalogSha256': plan['catalogSha256'], 'moduleId': plan['target']['componentId'], 'versionId': plan['target']['versionId']},
+                   'state': 'queued', 'reason': None, 'transitions': [{'state': 'queued', 'atNs': at}], 'updatedAtNs': at}
+            if not admitted: atomic(self.state / 'jobs' / (identifier + '.json'), job)
             atomic(pointer_path, {'current': identifier, 'previous': pointer['current']})
-        # The intent is durable before any service launch. A lost handoff is never repeated.
+            self.prune_jobs()
+        # Acceptance is durable before launch; a repeated key only reads this record.
         try:
             self.launcher(identifier)
         except Exception:
-            raise Failure('HOST_UPDATE_HANDOFF_UNKNOWN', 503, 'unknown')
-        until = time.monotonic() + 5
-        while time.monotonic() < until:
-            value = self.read_operation(identifier)
-            if value['admission'] == 'rejected':
-                raise Failure(value['error'], 409, 'not_accepted')
-            if value['worker'] and value['admission'] == 'accepted':
-                return self.view(value)
-            time.sleep(0.02)
-        raise Failure('HOST_UPDATE_HANDOFF_UNKNOWN', 503, 'unknown')
+            with locked(self.state / 'ledger.lock', wait=True):
+                value = self.read_operation(identifier)
+                if value['worker'] is None and self.read_job(identifier)['state'] == 'queued':
+                    code = 'HOST_UPDATE_HANDOFF_FAILED'
+                    value.update(phase='failed', execution='failed', verification='failed', error=code, updatedAt=stamp())
+                    atomic(directory / 'operation.json', value)
+                    self.set_job(identifier, 'failed', {'code': code, 'message': code})
+        return self.get(identifier)
 
     def launch_service(self, identifier):
         identifier = request_id(identifier)
@@ -440,7 +589,7 @@ class HostUpdater:
                 os.close(fd)
             with locked(self.state / 'ledger.lock', wait=True):
                 value = self.read_operation(identifier)
-                check(value['admission'] == 'unknown' and value['worker'] is None, 'HOST_UPDATE_WORKER_DUPLICATE')
+                check(value['admission'] == 'accepted' and value['worker'] is None and self.read_job(identifier)['state'] == 'queued', 'HOST_UPDATE_WORKER_DUPLICATE')
                 try:
                     plan = read_json(self.state / 'plans' / (value['planId'] + '.json'), self.uid)
                     check(self.planned_target(plan) == plan['target'], 'HOST_UPDATE_PLAN_CHANGED')
@@ -452,21 +601,30 @@ class HostUpdater:
                         atomic(directory / 'module-volume.json', self.module_volume(observed, directory))
                     check(birth(os.getpid()) is not None, 'HOST_UPDATE_WORKER_IDENTITY')
                 except Failure as error:
-                    value.update(admission='rejected', phase='failed', execution='failed', verification='unknown', error=error.code, updatedAt=stamp())
+                    value.update(admission='rejected', phase='failed', execution='failed', verification='failed', error=error.code, updatedAt=stamp())
                     atomic(directory / 'operation.json', value)
+                    self.set_job(identifier, 'failed', {'code': error.code, 'message': error.code})
                     return
                 value.update(admission='accepted', worker=self.worker_identity(identifier), updatedAt=stamp())
                 atomic(directory / 'operation.json', value)
             try:
+                self.progress(directory, 'downloading')
                 value.update(phase='applying', updatedAt=stamp()); atomic(directory / 'operation.json', value)
                 outcome = self.execute(plan, directory)
                 value.update(outcome)
                 value['phase'] = 'completed' if value['execution'] == value['verification'] == 'succeeded' else 'failed'
-            except Exception:
-                value.update(phase='unknown', execution='unknown', verification='unknown', error='HOST_UPDATE_EXECUTION_UNKNOWN')
+            except Exception as error:
+                code = error.code if isinstance(error, Failure) else 'HOST_UPDATE_EXECUTION_FAILED'
+                value.update(phase='failed', execution='failed', verification='failed', error=code)
             value['updatedAt'] = stamp()
             with locked(self.state / 'ledger.lock', wait=True):
+                if self.read_job(identifier)['state'] == 'failed': return
                 atomic(directory / 'operation.json', value)
+                if value['phase'] == 'failed':
+                    code = value['error'] or 'HOST_UPDATE_EXECUTION_FAILED'
+                    self.set_job(identifier, 'failed', {'code': code, 'message': code})
+                elif plan['target']['componentId'] == 'container':
+                    self.set_job(identifier, 'ready')
 
     def capabilities(self):
         references = read_json(self.state / 'current.json', self.uid) if (self.state / 'current.json').exists() else {'current': None, 'previous': None}
@@ -499,6 +657,12 @@ class HostUpdater:
                     'publication':read_json(self.prefix/'catalog/refresh.json',self.uid) if (self.prefix/'catalog/refresh.json').exists() else {'status':'unconfirmed','checkedAt':None,'error':'HOST_UPDATE_PUBLICATION_UNCONFIRMED'}}
         if action == 'plan': return self.plan(params)
         if action == 'start': return self.start(params)
+        if action == 'admitJob': return self.admit_job(params)
+        if action == 'getJob':
+            check(exact(params, 'jobId')); return self.job(params['jobId'])
+        if action == 'listJobs':
+            check(exact(params, 'limit')); return self.jobs(params['limit'])
+        if action == 'updateJob': return self.update_job(params)
         if action == 'get':
             check(exact(params, 'requestId')); return self.get(params['requestId'])
         raise Failure('HOST_UPDATE_ARGUMENTS', 400)
@@ -611,10 +775,11 @@ def execute_module_installer(updater, plan, directory):
     target, current = plan['target'], plan['expected']
     try:
         incoming = module_inputs(updater, target)
+        updater.progress(directory, 'verifying')
         check(updater.planned_target(plan) == target, 'HOST_UPDATE_PLAN_CHANGED')
         check(updater.inspect() == current, 'HOST_UPDATE_CURRENT_CHANGED')
     except Exception:
-        return {'execution': 'failed', 'verification': 'unknown', 'cleanup': 'not_needed', 'rollback': 'not_needed',
+        return {'execution': 'failed', 'verification': 'failed', 'cleanup': 'not_needed', 'rollback': 'not_needed',
                 'observed': None, 'error': 'HOST_MODULE_PREPARE_FAILED'}
     volume = read_json(directory / 'module-volume.json', updater.uid)['privateVolume']
     check(type(volume) is str and re.fullmatch('[a-zA-Z0-9][a-zA-Z0-9_.-]*', volume), 'HOST_MODULE_STORAGE_BINDING')
@@ -632,7 +797,7 @@ def execute_module_installer(updater, plan, directory):
         target['versionId'], target['sourceCommit'], target['artifact']['signerCommit']], timeout=300)
     result = decode(output)
     check(exact(result, 'versionId,installed') and result['versionId'] == target['versionId'] and result['installed'] is True,
-          'HOST_MODULE_INSTALL_UNKNOWN')
+          'HOST_MODULE_INSTALL_FAILED')
     observed = updater.inspect()
     check(observed == current, 'HOST_UPDATE_CURRENT_CHANGED')
     cleanup, error = 'succeeded', None
@@ -644,21 +809,44 @@ def execute_module_installer(updater, plan, directory):
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):
         self.request.settimeout(5)
+        http = False
         try:
             _pid, uid, _gid = struct.unpack('3i', self.request.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
             check(uid == 1001, 'HOST_UPDATE_PEER_REJECTED', 403)
             raw = self.rfile.readline(LIMIT + 1)
             check(raw.endswith(b'\n') and len(raw) <= LIMIT, 'HOST_UPDATE_FRAME_INVALID', 400)
-            result = {'ok': True, 'value': self.server.updater.dispatch(decode(raw))}
+            http = raw.startswith(b'GET ')
+            if http:
+                match = re.fullmatch(rb'GET (/jobs(?:/[a-f0-9-]{36})?) HTTP/1\.[01]\r\n', raw)
+                check(match is not None, 'HOST_UPDATE_ARGUMENTS', 400)
+                total = len(raw)
+                while True:
+                    header = self.rfile.readline(LIMIT + 1); total += len(header)
+                    check(header.endswith(b'\r\n') and total <= LIMIT, 'HOST_UPDATE_FRAME_INVALID', 400)
+                    if header == b'\r\n': break
+                path = match[1].decode()
+                value = self.server.updater.jobs() if path == '/jobs' else self.server.updater.job(path.rsplit('/', 1)[1])
+            else:
+                value = self.server.updater.dispatch(decode(raw))
+            result = {'ok': True, 'value': value}
         except Failure as error:
             result = {'ok': False, 'error': {'code': error.code, 'status': error.status, 'outcome': error.outcome}}
+            if error.code == 'UNREADABLE': result['error'].update(path=error.path, reason=error.reason)
         except Exception as error:
             print(json.dumps({'code': 'HOST_UPDATE_REQUEST_FAILED', 'exception': type(error).__name__}), file=sys.stderr, flush=True)
-            result = {'ok': False, 'error': {'code': 'HOST_UPDATE_UNAVAILABLE', 'status': 503, 'outcome': 'unknown'}}
+            result = {'ok': False, 'error': {'code': 'UNREADABLE', 'status': 503, 'outcome': 'not_accepted',
+                                          'path': str(self.server.updater.state), 'reason': type(error).__name__}}
         raw = (json.dumps(result, ensure_ascii=False, separators=(',', ':')) + '\n').encode()
         if len(raw) > LIMIT:
-            raw = b'{"ok":false,"error":{"code":"HOST_UPDATE_RESPONSE_LIMIT","status":503,"outcome":"unknown"}}\n'
-        try: self.wfile.write(raw)
+            result = {'ok': False, 'error': {'code': 'UNREADABLE', 'status': 503, 'outcome': 'not_accepted',
+                                          'path': str(self.server.updater.state), 'reason': 'RESPONSE_LIMIT'}}
+            raw = (json.dumps(result) + '\n').encode()
+        try:
+            if http:
+                status = 200 if result['ok'] else result['error']['status']
+                body = (json.dumps(result['value'] if result['ok'] else result) + '\n').encode()
+                self.wfile.write(f'HTTP/1.1 {status} Result\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\nConnection: close\r\n\r\n'.encode() + body)
+            else: self.wfile.write(raw)
         except OSError: pass
 
 class Server(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
@@ -690,6 +878,7 @@ def execute_installer(updater, plan, directory):
     target = plan['target']
     ref = target['artifact']['reference']
     updater.command([config['docker'], 'pull', ref], timeout=900)
+    updater.progress(directory, 'verifying')
     selected = updater.command([config['docker'], 'image', 'inspect', '--format', '{{.Id}}', ref]).decode().strip()
     check(re.fullmatch('sha256:[a-f0-9]{64}', selected), 'HOST_UPDATE_IMAGE_INVALID')
     check(updater.inspect_current() == plan['expected'], 'HOST_UPDATE_CURRENT_CHANGED')
@@ -743,17 +932,18 @@ def execute_installer(updater, plan, directory):
                 selector.close()
                 child.stdout.close()
                 if child.poll() is None:
-                    # Timeout is unknown; terminate the complete installer process group, never another operation.
+                    # Persist the timeout as failure; terminate only this installer process group.
                     import signal
                     os.killpg(child.pid, signal.SIGKILL); child.wait()
     def verify():
         actual = updater.inspect_current()
         confirmed = actual['imageId'] == selected and actual['sourceCommit'] == target['sourceCommit'] and actual['health'] == 'healthy'
         if confirmed:
-            check(saved is not None, 'HOST_UPDATE_GENERATION_UNKNOWN')
+            check(saved is not None, 'HOST_UPDATE_GENERATION_FAILED')
             updater.assert_model_binding(actual, read_json(saved/'normal.json',updater.uid,CATALOG_LIMIT))
             actual['imageRef'] = ref
         return actual, confirmed
+    updater.progress(directory, 'swapping')
     code = run()
     actual, confirmed = (None, False)
     if code == 0:
@@ -772,10 +962,10 @@ def execute_installer(updater, plan, directory):
                 if rollback == 'succeeded':
                     atomic(updater.prefix / 'installation/normal.json', read_json(saved / 'previous-normal.json', updater.uid, CATALOG_LIMIT), CATALOG_LIMIT)
             except Exception:
-                rollback = 'unknown'
+                rollback = 'failed'
         return {'execution': 'failed' if code else 'succeeded', 'verification': 'failed', 'observed': actual,
                 'cleanup': 'not_needed', 'rollback': rollback, 'error': 'HOST_UPDATE_INSTALL_FAILED' if code else 'HOST_UPDATE_VERIFICATION_FAILED'}
-    check(saved is not None, 'HOST_UPDATE_GENERATION_UNKNOWN')
+    check(saved is not None, 'HOST_UPDATE_GENERATION_FAILED')
     atomic(updater.prefix / 'installation/normal.json', read_json(saved / 'normal.json', updater.uid, CATALOG_LIMIT), CATALOG_LIMIT)
     atomic(updater.state / 'current-runtime.json', actual)
     cleanup = 'succeeded'

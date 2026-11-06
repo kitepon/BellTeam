@@ -29,6 +29,10 @@ Signalが内部図・source・直接検証を同差分で供給、Signalが固�
 
 内部factory・閉操作・状態/close-drain/restoreは[単体更新の正本](module-update.md)。
 
+## Restart-limit problems
+
+The additive `recordModuleRestartLimit(problem)` intake stores and serves the runtime's `module_restart_limit` observation and explicit recovery using the existing diagnostics writer and GET. Exact DTO, per-module aggregation, state transitions and ownership are canonical in [restart-limit problems](module-restart-limit.md). Restart counting and healthy-window timing remain runtime-owned; restarts continue.
+
 ## 子終了の有限診断
 
 runtimeの[子終了観測](../runtime/module-process.md)は既exit/signalと固定codeのconsole出力を持つ。診断へは `onModuleChildExit(dto)` を親が登録し、`moduleChildExitReport(dto)` の閉検証から既record/唯一writer/管理GETへ接続する。観測と6常駐子のcallback転送はEpi、親登録はMollyで、診断だけの差分を接続完了とはしない。

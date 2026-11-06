@@ -1,3 +1,4 @@
+import { createFixtureJobClient } from './fixtures/update-job-client.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
@@ -31,7 +32,7 @@ async function fixture(t, { missingProof = false } = {}) {
   const selection = { catalogSha256: 'd'.repeat(64), expiresAt: '2099-01-01T00:00:00Z', release,
     publication: { status: 'verified' } }
   let installPlan
-  const moduleHost = {
+  const moduleHost = { ...createFixtureJobClient(root),
     moduleInstallCapabilities: async () => ({ supported: true }),
     planModuleInstall: async input => (installPlan = { schema: 'bellteam.host-update.plan.v1', ...input, target: release,
       expiresAt: '2099-01-01T00:00:00Z', impact: { containerRestart: false } }),

@@ -9,7 +9,7 @@ import { createUsageProjection } from './usage/projection.mjs'
 
 // Bootstrap owns this one controller before constructing the remaining service graph.
 export function createUsageAssembly({ root, exchangeMutex, environment = {}, seatRuntime = false, getServices,
-  onEffect, onState, onModuleChildExit, createProcess = createUsageProcess, prepareRelease, spawnProcess }) {
+  onEffect, onState, onModuleChildExit, onModuleRestartLimit, createProcess = createUsageProcess, prepareRelease, spawnProcess }) {
   const accessMode = environment.BELLTEAM_SUBSCRIPTION_ACCESS_MODE ?? 'subscription'
   if (accessMode === 'developer' && !developerAccessAllowed) throw new Error('SUBSCRIPTION_DEVELOPER_ACCESS_UNAVAILABLE')
   const admission = new MembersAdmission('usage-parent'), authority = createUsageAuthority()
@@ -38,7 +38,20 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     } finally { if (lease) admission.finish(lease) }
   }
   const facade = createUsageFacade({ request, projection, toolsDirectory: join(root, 'state/secret-values') })
-  controller = createProcess({ root, admission, exchangeMutex, onModuleChildExit, authorizeActor: authority.authorizeActor, onState,
+  controller = createProcess({ root, admission, exchangeMutex, onModuleChildExit, onModuleRestartLimit, authorizeActor: authority.authorizeActor, onState,
+    probeCandidate: channel => {
+      const token = authority.capture('onboarding.status', { kind: 'system', botId: null })
+      let lease
+      try {
+        lease = admission.enter()
+        const result = channel.request('onboarding.status', {}, { usageLease: lease, capturedAuthorization: token })
+        const completion = result.completion ?? result
+        admission.trackCompletion(lease, completion)
+        completion.then(() => authority.release(token), () => authority.release(token))
+        return result
+      } catch (error) { authority.release(token); throw error }
+      finally { if (lease) admission.finish(lease) }
+    },
     ...(prepareRelease ? { prepareRelease } : {}), ...(spawnProcess ? { spawnProcess } : {}),
     bootstrap: {
       environment: Object.fromEntries(['TYPESAFE_API_KEY', 'BELLTEAM_CALL_BRIDGE_MCP_URL', 'BELLTEAM_CF_TEAM_DOMAIN', 'BELLTEAM_CF_AUD', 'BELLTEAM_BUGHUB_KEY']

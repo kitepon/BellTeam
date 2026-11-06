@@ -28,7 +28,8 @@ export function createDiagnosticsParentChannel(child, { generation }) {
     validateResult: (kind, method, value) => {
       if (kind === 'control') { validateDiagnosticsControlResult(method, value); return true }
       check(kind === 'root')
-      return method === 'list' ? streamedResult(value) : validateDiagnosticsRow(value)
+      return method === 'list' ? streamedResult(value)
+        : method === 'recordModuleRestartLimit' && value === null || validateDiagnosticsRow(value)
     },
     afterResult: (task, value) => {
       if (task.kind === 'root' && task.method === 'list') {
@@ -142,7 +143,10 @@ export function createDiagnosticsChildChannel({ dispatcher, event = process, ver
       const run = async () => {
         try {
           const value = await dispatcher.dispatch(message.method, message.params, message.context)
-          if (message.method !== 'list') { validateDiagnosticsRow(value); return value }
+          if (message.method !== 'list') {
+            if (message.method !== 'recordModuleRestartLimit' || value !== null) validateDiagnosticsRow(value)
+            return value
+          }
           // history has no additional aggregate cap; the existing row/count contract owns list size.
           try { await streams.write(encodeModuleJson(value), { lane: 'history', operation: message.id }) }
           finally { await value.return?.() }

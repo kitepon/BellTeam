@@ -1,3 +1,4 @@
+import { probeModuleReady } from './module-ready-probe.mjs'
 import { randomUUID } from 'node:crypto'
 import { createModuleChildRestart } from './module-child-restart.mjs'
 import { EXECUTION_STATE_COMPATIBILITY } from './execution-dispatcher.mjs'
@@ -13,7 +14,7 @@ const within = async (promise, ms, code) => {
 
 // The runtime reader supplies factories; no caller URL or import is accepted here.
 export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgroundSummary = null, requestRestartSummary = null,
-  currentVersionId = null, previousVersionId = null, exchangeMutex = null, onState = () => {} }) {
+  currentVersionId = null, previousVersionId = null, exchangeMutex = null, onState = () => {}, onModuleRestartLimit }) {
   if (typeof loadFactory !== 'function' || typeof onAdopt !== 'function' || !valid(currentVersionId) || !valid(previousVersionId))
     throw fail('OPTIONS_INVALID', 400)
   let instance = null, phase = 'unavailable', available = false, closed = false, operation = null, closing = null
@@ -49,7 +50,7 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
         state('running', true)
       } catch (error) { state(closed ? 'closed' : 'unavailable'); throw error }
     })
-  }, 'execution')
+  }, 'execution', onModuleRestartLimit)
   const active = new Set()
   const snapshot = () => ({ currentVersionId, previousVersionId, builtinSourceCommit,
     generation: instance?.generation ?? null, available, phase, exchanging: operation !== null,
@@ -76,6 +77,7 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
   }
   const make = (factory, handoff) => {
     const generation = `${factory.versionId ?? 'builtin'}:${randomUUID()}`
+    recovery.restarting()
     const engine = factory.createExecutionDispatcher({ generation, ports, handoff, backgroundSummary, requestRestartSummary })
     if (!engine || !['validateRequest', 'dispatch', 'project', 'control', 'exportState', 'disconnect'].every(key => typeof engine[key] === 'function'))
       throw fail('FACTORY_INVALID')
@@ -88,6 +90,7 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
       target.ready = true
     })
     await within(target.initializing, 45_000, 'INITIALIZE_TIMEOUT')
+    await probeModuleReady(() => target.engine.project({ method: 'transport.queueItems', args: [] }))
   }
   const quiesce = async target => {
     const started = performance.now()
@@ -191,6 +194,13 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
         state('running', true)
         return snapshot()
       } catch (error) {
+        if (['READY_TIMEOUT', 'READY_PROBE_FAILED'].includes(error?.code)) {
+          recoveryState = { factory: nextFactory, handoff, selection: { currentVersionId: versionId, previousVersionId: oldSelection.currentVersionId } }
+          candidate.retiring = true
+          state('unavailable'); recovery.lost(error)
+          await adopt(recoveryState.selection)
+          throw error
+        }
         const errors = [error]
         try {
           await dispose(candidate)

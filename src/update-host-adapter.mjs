@@ -14,22 +14,23 @@ const version = (release, origin = 'published') => {
 }
 export function createHostUpdateAdapter({ root, client }) {
   const directory = join(root, 'state/update-plans')
-  const load = async id => {
+  const load = async (id, binding = false) => {
     validateUpdateRequest('requestId', id)
     let value
     try { value = JSON.parse(await readFile(join(directory, id + '.json'), 'utf8')) }
     catch (error) { if (error.code === 'ENOENT') throw failure('UPDATE_PLAN_NOT_FOUND', 404); throw failure('UPDATE_PLAN_INVALID') }
-    validateUpdateResponse('plan', { plan: value }); requireValue(value.planId === id)
-    return value
+    const record = value.plan ? value : { plan: value, catalogSha256: null }
+    validateUpdateResponse('plan', { plan: record.plan }); requireValue(record.plan.planId === id)
+    return binding ? record : record.plan
   }
-  const save = async plan => {
+  const save = async (plan, catalogSha256) => {
     validateUpdateResponse('plan', { plan })
     await mkdir(directory, { recursive: true, mode: 0o700 })
     // shortcut: retain at most 4096 immutable plans; add an archive before increasing this bound.
     requireValue((await readdir(directory)).length < 4096, 'UPDATE_PLAN_CAPACITY')
     const temporary = join(directory, randomUUID() + '.tmp'), target = join(directory, plan.planId + '.json')
     const file = await open(temporary, 'wx', 0o600)
-    try { await file.writeFile(JSON.stringify(plan) + '\n'); await file.sync() } finally { await file.close() }
+    try { await file.writeFile(JSON.stringify({ plan, catalogSha256 }) + '\n'); await file.sync() } finally { await file.close() }
     try { await link(temporary, target) } finally { await unlink(temporary) }
     const parent = await open(directory, 'r'); try { await parent.sync() } finally { await parent.close() }
   }
@@ -59,10 +60,20 @@ export function createHostUpdateAdapter({ root, client }) {
     const result = { requestId: id, plan, admission: value.admission, phase: value.phase,
       execution: value.execution, verification: value.verification,
       error: value.error === null ? null : { code: code(value.error), message: '更新結果を確認してください。' }, reference: id }
+    if (value.job) result.jobs = [value.job]
     validateUpdateResponse('operation', { operation: result }); return result
   }
   return {
     operation,
+    job: id => client.job(id),
+    updateJob: input => client.updateJob(input),
+    async admitJob({ planId, jobId, idempotencyKey }) {
+      const saved = await load(planId, true)
+      requireValue(/^[a-f0-9]{64}$/.test(saved.catalogSha256 ?? ''), 'UPDATE_JOB_BINDING_UNAVAILABLE')
+      return client.admitJob({ jobId, idempotencyKey, kind: 'container', target: {
+        catalogSha256: saved.catalogSha256, moduleId: 'container', versionId: saved.plan.targets[0].published.version,
+      } })
+    },
     async snapshot(value) {
       const capability = await client.capabilities()
       const container = value.components.find(x => x.id === 'container')
@@ -103,7 +114,7 @@ export function createHostUpdateAdapter({ root, client }) {
       const plan = { planId, scope: 'component', componentId: 'container', expiresAt: host.expiresAt,
         targets: [{ componentId: 'container', current, published: version(selected.release) }],
         compatibility: { compatible: true, reason: null }, impact: { containerRestart: true, description: '本体の再起動中は会話と処理が一時中断します。' }, capability: { supported: true, reason: null } }
-      await save(plan); return plan
+      await save(plan, selected.catalogSha256); return plan
     },
     async start(input) {
       validateUpdateRequest('operation', input); await load(input.planId)

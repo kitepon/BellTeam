@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { chmod, mkdir, readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { constants } from 'node:os'
 import { dirname } from 'node:path'
 import { diagnosticReportContext } from './diagnostic-report-context.mjs'
 import { writeAtomic } from './json-file.mjs'
@@ -46,6 +47,28 @@ const exactKeys = (value, keys) => value !== null && typeof value === 'object' &
   && [Object.prototype, null].includes(Object.getPrototypeOf(value))
   && Object.keys(value).sort().join(',') === keys
 const heapNumber = value => Number.isFinite(value) && value >= 0 && value <= 1e9
+
+const restartModules = new Set([...exitComponents, 'memory', 'execution'])
+export function validateModuleRestartLimitProblem(value) {
+  if (!value || value.kind !== 'module_restart_limit' || !restartModules.has(value.moduleId)) return false
+  if (exactKeys(value, 'cleared,kind,moduleId')) return value.cleared === true
+  return exactKeys(value, 'count,kind,lastExit,lastReason,moduleId,windowSeconds')
+    && Number.isSafeInteger(value.count) && value.count >= 5 && value.windowSeconds === 1800
+    && exactKeys(value.lastExit, 'code,signal')
+    && (value.lastExit.code === null || Number.isInteger(value.lastExit.code)
+      && value.lastExit.code >= -2147483648 && value.lastExit.code <= 2147483647)
+    && (value.lastExit.signal === null || typeof value.lastExit.signal === 'string' && Object.hasOwn(constants.signals, value.lastExit.signal))
+    && ['process_exit', 'ready_timeout', 'ready_probe_failed', 'recovery_failed'].includes(value.lastReason)
+}
+
+export function moduleRestartLimitProblems(rows) {
+  return rows.filter(row => row.category === 'module_restart_limit').map(row => {
+    if (!validateModuleRestartLimitProblem(row.problem) || row.problem.cleared === true
+      || typeof row.fingerprint !== 'string' || !/^[a-f0-9]{64}$/u.test(row.fingerprint)
+      || !['open', 'resolved'].includes(row.status)) throw new Error('DIAGNOSTIC_INVALID')
+    return { fingerprint: row.fingerprint, status: row.status, ...structuredClone(row.problem) }
+  })
+}
 
 export function validateModuleChildExitDiagnostic(value) {
   try {
@@ -174,6 +197,33 @@ export class Diagnostics {
 
   list(status = 'all', limit = 500) {
     return [...this.listSnapshot(status, limit)]
+  }
+
+  recordModuleRestartLimit(problem) {
+    const task = this.pending.then(async () => {
+      if (!validateModuleRestartLimitProblem(problem)) throw new Error('DIAGNOSTIC_INVALID')
+      const evidence = structuredClone(problem)
+      if (!validateModuleRestartLimitProblem(evidence)) throw new Error('DIAGNOSTIC_INVALID')
+      const fingerprint = createHash('sha256').update(`module_restart_limit:${evidence.moduleId}`).digest('hex')
+      const previous = this.rows.get(fingerprint)
+      if (evidence.cleared && (!previous || previous.status === 'resolved')) return previous ? structuredClone(previous) : null
+      const row = evidence.cleared ? { ...previous, status: 'resolved' } : {
+        ...previous, fingerprint, severity: 'warn', module: 'server', category: 'module_restart_limit',
+        message_template: 'BellTeamの部品が30分以内に5回以上再起動しました。再起動は継続しています。',
+        occurrence_count: (previous?.occurrence_count ?? 0) + (previous?.status === 'open' ? 0 : 1),
+        last_seen: new Date().toISOString(), status: 'open', problem: evidence,
+      }
+      this.rows.set(fingerprint, row)
+      try { await this.save() }
+      catch (error) {
+        if (previous) this.rows.set(fingerprint, previous)
+        else this.rows.delete(fingerprint)
+        throw error
+      }
+      return structuredClone(row)
+    })
+    this.pending = task.catch(() => {})
+    return task
   }
 
   listSnapshot(status = 'all', limit = 500) {

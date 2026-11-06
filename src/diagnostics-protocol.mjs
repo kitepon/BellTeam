@@ -1,9 +1,9 @@
-import { validateDiagnosticReport } from './diagnostics.mjs'
+import { validateDiagnosticReport, validateModuleRestartLimitProblem } from './diagnostics.mjs'
 
 export const DIAGNOSTICS_STATE_COMPATIBILITY = Object.freeze({
   diagnostics: 'unversioned-rows-array', investigations: 'optional-fingerprint-map',
 })
-export const DIAGNOSTICS_METHODS = Object.freeze(['record', 'list', 'setStatus', 'setNote', 'updateInvestigation'])
+export const DIAGNOSTICS_METHODS = Object.freeze(['record', 'list', 'setStatus', 'setNote', 'updateInvestigation', 'recordModuleRestartLimit'])
 export const diagnosticsError = (code, status = 400) => Object.assign(new Error(code), { code, status, outcome: 'not_accepted' })
 export const diagnosticsObject = (value, required, optional = []) => value && typeof value === 'object' && !Array.isArray(value)
   && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => required.includes(key) || optional.includes(key))
@@ -16,6 +16,8 @@ export function validateDiagnosticsRequest(method, params, context) {
   if (method === 'record') {
     check(diagnosticsObject(params, ['report']) && diagnosticsObject(params.report, ['code', 'module'], ['app_version', 'diagnostic_log', 'severity']))
     validateDiagnosticReport(params.report)
+  } else if (method === 'recordModuleRestartLimit') {
+    check(diagnosticsObject(params, ['problem']) && validateModuleRestartLimitProblem(params.problem))
   } else if (method === 'list') {
     check(diagnosticsObject(params, [], ['status', 'limit']))
     check(params.status === undefined || ['all', 'open', 'resolved'].includes(params.status))
@@ -68,7 +70,9 @@ export function validateDiagnosticsRow(value) {
     || typeof value.message_template !== 'string' || typeof value.module !== 'string' || typeof value.category !== 'string'
     || !Number.isInteger(value.occurrence_count) || value.occurrence_count < 1
     || typeof value.last_seen !== 'string' || !Number.isFinite(Date.parse(value.last_seen))
-    || !['open', 'resolved'].includes(value.status)) throw diagnosticsError('DIAGNOSTICS_RESULT_INVALID', 503)
+    || !['open', 'resolved'].includes(value.status)
+    || value.category === 'module_restart_limit' && (!validateModuleRestartLimitProblem(value.problem)
+      || value.problem.cleared === true)) throw diagnosticsError('DIAGNOSTICS_RESULT_INVALID', 503)
   return true
 }
 

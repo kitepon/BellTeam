@@ -26,7 +26,8 @@ const root = process.env.BELLTEAM_ROOT ?? '/srv/bellteam'
 const configPath = process.env.BELLTEAM_BOTS_CONFIG ?? join(appRoot, 'config/bots.json')
 // Supervisorと5CLIは同じnative入口を使う。通常18ツールの入口では停止を提供できない。
 // 登録の読取失敗を通常入口へのfallbackで隠さず、起動時に返す。
-export const seatRuntime = new SeatRuntime({ root, home })
+export const moduleChildExitReporter = createModuleChildExitReporter()
+export const seatRuntime = new SeatRuntime({ root, home, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit })
 // Scope resolution belongs to the seat too: resolving under UID1001 would
 // select a different native state root/socket from the UID1000 CLI hooks.
 export const aiterm = await seatRuntime.aitermRegistration()
@@ -37,8 +38,7 @@ export const attachUsageServices = services => { usageServices = services }
 const usageEffects = createUsageParentEffects({ getServices: () => usageServices,
   getFeatures: () => ({ onChange: usageServices.settings?.onChange }), seatRuntime })
 export const exchangeMutex = createModuleExchangeMutex()
-export const moduleChildExitReporter = createModuleChildExitReporter()
-export const usageAssembly = createUsageAssembly({ root, seatRuntime, exchangeMutex, onModuleChildExit: moduleChildExitReporter.observe, getServices: () => usageServices,
+export const usageAssembly = createUsageAssembly({ root, seatRuntime, exchangeMutex, onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, getServices: () => usageServices,
   onEffect: (method, params, context) => {
     const conversation = usageServices.conversationAssembly
     const actor = method === 'onboarding.startConversation' ? { kind: 'onboarding', botId: params.botId }

@@ -22,6 +22,15 @@ export function createControlApi(options) {
     if (url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/')) {
       if (internal) return json(response, 403, { error: 'UPDATE_OWNER_REQUIRED' })
       if (!updateCenter) return json(response, 503, { error: 'UPDATE_EXECUTOR_UNAVAILABLE' })
+      if (url.pathname === '/api/updates/jobs') {
+        if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+        return json(response, 200, await updateCenter.jobs())
+      }
+      const jobMatch = url.pathname.match(/^\/api\/updates\/jobs\/(module|container)\/([^/]+)$/u)
+      if (jobMatch) {
+        if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+        return json(response, 200, await updateCenter.job(jobMatch[1], jobMatch[2]))
+      }
       const reconciliation = url.pathname.match(/^\/api\/updates\/operations\/([^/]+)\/reconciliation\/([^/]+)$/u)
       if (reconciliation) {
         if (url.search || request.method === 'GET' && (request.headers['transfer-encoding']

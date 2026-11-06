@@ -2,7 +2,7 @@ import { createConnection } from 'node:net'
 import { lstat, readFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 const socketPath = '/run/bellteam-updater/update.sock'
-const failure = (code, outcome = 'unknown', status = 503) => Object.assign(new Error(code), { code, outcome, status })
+const failure = (code, outcome = 'not_accepted', status = 503) => Object.assign(new Error(code), { code, outcome, status })
 
 export async function createUpdateClients() {
   const module = createContainerUpdateClient()
@@ -20,20 +20,21 @@ export function createContainerUpdateClient(path = socketPath) {
   const call = (operation, params) => new Promise((resolve, reject) => {
     const raw = Buffer.from(JSON.stringify({ operation, params }) + '\n')
     if (raw.length > 65536) return reject(failure('HOST_UPDATE_MESSAGE_LIMIT', 'not_accepted', 400))
-    let attempted = false, settled = false, response = Buffer.alloc(0)
+    let settled = false, response = Buffer.alloc(0)
     const socket = createConnection({ path })
     const finish = (error, value) => {
       if (settled) return
       settled = true; socket.destroy()
       error ? reject(error) : resolve(value)
     }
-    const unavailable = () => finish(failure('HOST_UPDATE_UNAVAILABLE', attempted ? 'unknown' : 'not_accepted'))
-    socket.setTimeout(5000, unavailable)
+    const unreadable = reason => Object.assign(failure('UNREADABLE'), { path, reason })
+    const unavailable = error => finish(unreadable(error?.code ?? 'CONNECTION_CLOSED'))
+    socket.setTimeout(5000, () => finish(unreadable('ETIMEDOUT')))
     socket.once('error', unavailable)
-    socket.once('connect', () => { attempted = true; socket.write(raw, error => { if (error) unavailable() }) })
+    socket.once('connect', () => { socket.write(raw, error => { if (error) unavailable() }) })
     socket.on('data', chunk => {
       response = Buffer.concat([response, chunk])
-      if (response.length > 65536) return finish(failure('HOST_UPDATE_RESPONSE_LIMIT'))
+      if (response.length > 65536) return finish(unreadable('RESPONSE_LIMIT'))
       const end = response.indexOf(10)
       if (end < 0) return
       try {
@@ -42,15 +43,24 @@ export function createContainerUpdateClient(path = socketPath) {
         if (value?.ok === true && Object.keys(value).sort().join(',') === 'ok,value') return finish(null, value.value)
         const error = value?.error
         if (value?.ok !== false || Object.keys(value).sort().join(',') !== 'error,ok'
-          || !error || Object.keys(error).sort().join(',') !== 'code,outcome,status'
-          || !/^[A-Z_0-9]{1,100}$/.test(error.code) || !['not_accepted','unknown'].includes(error.outcome)
+          || !error || ![ 'code,outcome,status', 'code,outcome,path,reason,status' ].includes(Object.keys(error).sort().join(','))
+          || !/^[A-Z_0-9]{1,100}$/.test(error.code) || error.outcome !== 'not_accepted'
           || ![400,403,404,409,503].includes(error.status)) throw new Error()
-        finish(failure(error.code, error.outcome, error.status))
-      } catch { finish(failure('HOST_UPDATE_RESPONSE_INVALID')) }
+        if (error.code === 'UNREADABLE' && (typeof error.path !== 'string' || typeof error.reason !== 'string')) throw new Error()
+        finish(Object.assign(failure(error.code, error.outcome, error.status), error))
+      } catch { finish(unreadable('RESPONSE_INVALID')) }
     })
     socket.once('end', () => { if (!settled) unavailable() })
     socket.once('close', () => { if (!settled) unavailable() })
   })
+  const checkedJob = value => {
+    const states = ['queued', 'downloading', 'verifying', 'swapping', 'ready', 'failed']
+    if (!value || value.schema !== 'bellteam.update-job.v1' || !states.includes(value.state)
+      || typeof value.jobId !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value.jobId)
+      || (value.state === 'failed' ? typeof value.reason?.code !== 'string' || typeof value.reason?.message !== 'string' : value.reason !== null))
+      throw Object.assign(failure('UNREADABLE'), { path, reason: 'JOB_RECORD_INVALID' })
+    return value
+  }
   return {
     capabilities: async () => { try { return await call('capabilities', {}) }
       catch { return { supported: false, reason: 'HOST_UPDATE_UNAVAILABLE', currentRequestId: null, previousRequestId: null } } },
@@ -70,9 +80,17 @@ export function createContainerUpdateClient(path = socketPath) {
     catalog: componentId => call('catalog', { componentId }),
     plan: params => call('plan', params),
     planModuleInstall: params => call('plan', params),
-    startModuleInstall: ({ requestId, planId }) => call('start', { requestId, planId, confirmContainerRestart: false }),
+    startModuleInstall: ({ requestId, planId, idempotencyKey }) => call('start', { requestId, planId, confirmContainerRestart: false, ...(idempotencyKey === undefined ? {} : { idempotencyKey }) }),
     start: params => call('start', params),
     operation: requestId => call('get', { requestId }),
+    admitJob: async params => checkedJob(await call('admitJob', params)),
+    job: async jobId => checkedJob(await call('getJob', { jobId })),
+    jobs: async (limit = 16) => {
+      const value = await call('listJobs', { limit })
+      if (!Array.isArray(value?.jobs) || value.jobs.length > 16) throw Object.assign(failure('UNREADABLE'), { path, reason: 'JOB_RECORD_INVALID' })
+      value.jobs.forEach(checkedJob); return value
+    },
+    updateJob: async params => checkedJob(await call('updateJob', params)),
     inspectModuleInstall: async params => checkedInstallReconciliation(await call('inspectModuleInstall', params)),
     readInstallReconciliation: async params => checkedInstallReconciliation(await call('readInstallReconciliation', params)),
     finalizeInstallReconciliation: async params => checkedInstallReconciliationFence(await call('finalizeInstallReconciliation', params)),

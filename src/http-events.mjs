@@ -7,6 +7,7 @@ export function createMessageEvents({ store, secretRequests, ownerQuestions, roo
   const subscribers = new Set()
   let closeWatch = null
   let pendingNotify = null
+  let updateRead = null, updatePending = false
   const connect = (request, response) => {
     response.writeHead(200, {
       'content-type': 'text/event-stream',
@@ -23,7 +24,7 @@ export function createMessageEvents({ store, secretRequests, ownerQuestions, roo
     })
   }
   const writeEvent = data => {
-    for (const subscriber of subscribers) subscriber.write(`event: messages\ndata: ${JSON.stringify(data)}\n\n`)
+    for (const subscriber of subscribers) if (!subscriber.writableEnded) subscriber.write(`event: messages\ndata: ${JSON.stringify(data)}\n\n`)
   }
   const notifyNow = data => writeEvent({ at: new Date().toISOString(), topics: data.type ? [data.type] : [], botIds: [], roomIds: [], ...data, all: true })
   const startMessageWatch = async () => {
@@ -62,7 +63,20 @@ export function createMessageEvents({ store, secretRequests, ownerQuestions, roo
       if (rooms?.watch) stops.push(await rooms.watch(notify))
       if (bots?.watch) stops.push(bots.watch(notify))
       if (transport?.watchQueue) stops.push(transport.watchQueue(notify))
-      if (updateCenter) stops.push(updateCenter.watch(() => notifyNow({ type: 'updates' })))
+      if (updateCenter) {
+        const notifyUpdates = () => {
+          if (!subscribers.size) return
+          updatePending = true
+          if (updateRead) return
+          updatePending = false
+          updateRead = Promise.resolve().then(() => updateCenter.jobs?.()).then(value => notifyNow({ type: 'updates', ...value }), error => {
+            const code = error.code ?? 'UPDATE_JOB_READ_FAILED'
+            notifyNow({ type: 'updates', error: { code, message: error.reason ?? code,
+              ...(error.path ? { path: error.path } : {}), ...(error.reason ? { reason: error.reason } : {}) } })
+          }).finally(() => { updateRead = null; if (updatePending) notifyUpdates() })
+        }
+        stops.push(updateCenter.watch(notifyUpdates))
+      }
       if (aiControl) stops.push(aiControl.watch(() => notifyNow({ type: 'ai-control' })))
       closeWatch = () => closeMessageWatches(stops)
     } catch (error) {
@@ -77,6 +91,7 @@ export function createMessageEvents({ store, secretRequests, ownerQuestions, roo
     try { closeWatch?.() }
     finally {
       closeWatch = null
+      updatePending = false
       clearTimeout(pendingNotify)
       pendingNotify = null
     }

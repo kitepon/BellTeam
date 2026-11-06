@@ -644,7 +644,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   }
 
   async function refreshFromEvent(payload) {
-    if (payload.all || payload.type === 'ready' || payload.type === 'updates') void updateCenter.refresh()
+    if (payload.all || payload.type === 'ready' || payload.type === 'updates') void updateCenter.refresh(payload)
     try {
       if (payload.type === 'ai-control' && ownerDialog.open) void ownerEditor.refreshAI()
       if (payload.type === 'settings') {

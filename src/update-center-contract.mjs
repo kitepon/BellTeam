@@ -7,6 +7,15 @@ const list = items => ({ type: 'array', items })
 const enumeration = values => ({ type: 'string', enum: values })
 const date = { type: 'string', format: 'date-time' }
 const uuid = { type: 'string', format: 'uuid', pattern: '^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$' }
+const idempotencyKey = { type: 'string', minLength: 1, maxLength: 128, pattern: '^[ -~]+$' }
+const jobState = enumeration(['queued', 'downloading', 'verifying', 'swapping', 'ready', 'failed'])
+const nanoseconds = { type: 'string', pattern: '^[0-9]+$' }
+export const updateJobSchema = object({ schema: { const: 'bellteam.update-job.v1' }, jobId: uuid, idempotencyKey,
+  kind: enumeration(['container', 'module']), target: object({ catalogSha256: nullable({ type: 'string', pattern: '^[a-f0-9]{64}$' }), moduleId: text, versionId: text }),
+  state: jobState, reason: nullable(object({ code: text, message: text })),
+  transitions: list(object({ state: jobState, atNs: nanoseconds })), updatedAtNs: nanoseconds })
+updateJobSchema.allOf = [{ if: { properties: { state: { const: 'failed' } } },
+  then: { properties: { reason: object({ code: text, message: text }) } }, else: { properties: { reason: { type: 'null' } } } }]
 export const updateComponents = [
   ['container', 'BellTeam本体', '機能を動かす実行環境と、製品全体の構成。'],
   ['web-gateway', 'Web受付', '公開接続を受け付け、画面を届けます。'],
@@ -28,10 +37,11 @@ const plan = object({ planId: uuid, scope: enumeration(['all', 'component']), co
   targets: list(target), compatibility: object({ compatible: { type: 'boolean' }, reason: nullable(text) }),
   impact: object({ containerRestart: { type: 'boolean' }, description: text }), capability })
 plan.properties.action = enumeration(['update', 'rollback'])
-const operation = object({ requestId: uuid, plan, admission: enumeration(['accepted', 'rejected', 'unknown']),
+const operation = object({ requestId: uuid, plan, admission: enumeration(['pending', 'accepted', 'rejected', 'unknown']),
   phase: enumeration(['preparing', 'applying', 'reconnecting', 'verifying', 'completed', 'failed', 'unknown']),
   execution: enumeration(['pending', 'succeeded', 'failed', 'unknown']), verification: enumeration(['pending', 'succeeded', 'failed', 'unknown']),
   error: nullable(object({ code: text, message: text })), reference: nullable(text) })
+operation.properties.jobs = list(updateJobSchema)
 operation.allOf = [{ if: { properties: { phase: { const: 'completed' } } }, then: {
   properties: { admission: { const: 'accepted' }, execution: { const: 'succeeded' }, verification: { const: 'succeeded' } },
 } }]
@@ -46,11 +56,18 @@ export const updatesSchema = { $id: 'urn:bellteam:updates:v1', ...object({ schem
 }) }
 // Optional on older snapshots; notification eligibility is decided by the server.
 updatesSchema.properties.notificationCandidates = list(object({ componentId: enumeration(updateComponents.map(([id]) => id)), id: { type: 'string', pattern: '^[a-f0-9]{64}$' } }))
+updatesSchema.properties.jobs = list(updateJobSchema)
+updatesSchema.properties.problems = list(object({ fingerprint: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+  status: enumeration(['open', 'resolved']), kind: { const: 'module_restart_limit' }, moduleId: text,
+  count: { type: 'integer', minimum: 5 }, windowSeconds: { const: 1800 },
+  lastExit: object({ code: nullable({ type: 'integer' }), signal: nullable(text) }),
+  lastReason: enumeration(['process_exit', 'ready_timeout', 'ready_probe_failed', 'recovery_failed']) }))
 export const updateRequestSchemas = {
   plan: { oneOf: [object({ scope: { const: 'all' } }), object({ scope: { const: 'component' }, componentId: enumeration(updateComponents.map(([id]) => id)) })].map(schema => ({ ...schema, properties: { ...schema.properties, action: enumeration(['update', 'rollback']) } })) },
   operation: object({ planId: uuid, requestId: uuid, confirmContainerRestart: { type: 'boolean' } }),
   requestId: uuid,
 }
+updateRequestSchemas.operation.properties.idempotencyKey = idempotencyKey
 const validator = new AjvJsonSchemaValidator()
 export const validateUpdates = validator.getValidator(updatesSchema)
 const requests = Object.fromEntries(Object.entries(updateRequestSchemas).map(([name, schema]) => [name, validator.getValidator(schema)]))
@@ -59,7 +76,11 @@ export function validateUpdateRequest(name, value) {
 }
 
 export const updateEventSchema = object({ at: date, topics: { const: ['updates'] }, botIds: { const: [] }, roomIds: { const: [] }, type: { const: 'updates' }, all: { const: true } })
-export const updateResponseSchemas = { inventory: updatesSchema, plan: object({ plan }), operation: object({ operation }), error: objectSchema({ error: text, message: text }, ['error']), event: updateEventSchema }
+updateEventSchema.properties.jobs = list(updateJobSchema)
+updateEventSchema.properties.error = objectSchema({ code: text, message: text, path: text, reason: text }, ['code', 'message'])
+export const updateResponseSchemas = { inventory: updatesSchema, plan: object({ plan }), operation: object({ operation }),
+  job: object({ job: updateJobSchema }), jobs: object({ jobs: list(updateJobSchema) }),
+  error: objectSchema({ error: text, message: text, path: text, reason: text }, ['error']), event: updateEventSchema }
 const exampleCurrent = { version: 'a'.repeat(64), sourceCommit: '1'.repeat(40), digest: 'sha256:' + 'a'.repeat(64), origin: 'container' }
 const examplePublished = { version: 'b'.repeat(64), sourceCommit: '2'.repeat(40), digest: 'sha256:' + 'b'.repeat(64), origin: 'published' }
 const examplePlan = { planId: '11111111-1111-4111-8111-111111111111', scope: 'component', componentId: 'container',

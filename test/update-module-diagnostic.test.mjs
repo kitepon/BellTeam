@@ -1,3 +1,4 @@
+import { createFixtureJobClient } from './fixtures/update-job-client.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
@@ -18,7 +19,7 @@ async function fixture(t, value, getter = false) {
   if (getter) Object.defineProperty(error, 'moduleDiagnostic', { get() { throw new Error('private SECRET getter') } })
   else if (value !== undefined) error.moduleDiagnostic = value
   let applies = 0
-  const options = { root, catalog: { select: async () => ({ catalogSha256: 'd'.repeat(64), expiresAt: '2099-01-01T00:00:00Z', release }) },
+  const options = { root, moduleHost: createFixtureJobClient(root), catalog: { select: async () => ({ catalogSha256: 'd'.repeat(64), expiresAt: '2099-01-01T00:00:00Z', release }) },
     adapters: { usage: { current: () => null, capture: () => ({ generation: 'builtin:test', pid: null }), available: () => true,
       prepare: async () => {}, apply: async () => { applies++; throw error } } } }
   const executor = await createModuleUpdateExecutor(options); t.after(() => executor.close())
