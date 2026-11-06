@@ -189,3 +189,7 @@ source/signer `24a854e49d753f7c60be3f556124920353900c7d`、専用run42037815613�
 既機能図の正式入力→非実行catalog→固定main専用publisher→runtime受入の契約内で、executionとnotificationsの両arch計4recordを更新する。executionはsource/signer `4a884d2e581197611470a27a23e30f631ef597ff`、正式Release `updates-20261105T232833Z`。既占有拒否を新jobのfailed保存へ接続し、guard通過前の旧入力/要約を保持する。notificationsはsource/signer `6ad776ab6328154b4e7826834fefec2043c336e5`、正式Release `updates-20261105T232849Z`。明示期限到達の登録を既原子保存へ接続する。公式署名/manifest/Gitexact/匿名assetは配布原本を継承する。
 
 他14record・全互換・失効を保持し、新公開時刻から7日期限を付ける。自然親4a/8a05の正式供給はcontainer target9fcc/00feの置換を意味せず、既一般stableの保持と公開preflightを変えない。source/signerとcatalog採用後のpublisher sourceを分け、同mainから必要publisher一回だけへ接続する。既返却/Promise/ACK/reader/認可/元completionと保存ownerは不変。正式資材公開を47拒否の全根因解消・実単品交換・本番loaded・実Push成功へ補完しない。
+
+## Web既読回収の正式資材
+
+Webだけ両arch2recordを正式Release `updates-20261106T005219Z`・source/signer `494861b5f424a799bb99eb92b3808fd44ec6a95a`へ更新する。機能/DFDは、Admi最新完全一覧時の既読回収図→PR424通常main→既Web署名run42139478685→Centi公式crypto/全manifestと匿名4asset受入→厳密18record catalog→専用publisher→正式catalog2file。既他16record・全互換・失効情報、execution4a/通知6adとcontainer9fcc/00feは保持する。親249b/ef217復旧候補や別shared-json修理1042の採否へ流用しない。公開時刻/期限だけ新公開へ束縛し、署名sourceとcatalog publisher sourceを分離する。Web内部試験・暗号・既CIは担当成果を継承、当差分は対象asset参照と保持/validatorだけを確認。Owner本番停止・旧unknown・未送信入力を維持し、端末利用版/実交換は別工程。
