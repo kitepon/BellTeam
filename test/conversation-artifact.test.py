@@ -43,6 +43,22 @@ class ConversationArtifact(unittest.TestCase):
         again = self.root / 'again.tar.gz'; write_archive(self.payload, again, SOURCE, 'amd64', component='conversation')
         self.assertEqual(self.archive.read_bytes(), again.read_bytes())
 
+    def test_durable_receipt_dependency_is_allowed_without_expanding_old_inventory(self):
+        _, _, required = contract('conversation')
+        self.assertEqual(len(required), 56)
+        dependency = self.payload / 'src/direct-log-record.mjs'
+        dependency.write_bytes((ROOT / 'src/direct-log-record.mjs').read_bytes())
+        archive = self.root / 'durable-receipt.tar.gz'
+        manifest = write_archive(self.payload, archive, SOURCE, 'amd64', component='conversation')
+        with archive.open('rb') as stream:
+            checked, _ = check_archive(stream, SOURCE, 'amd64', component='conversation')
+        self.assertEqual(checked, manifest)
+        sources = {row['path'] for row in checked['files'] if not row['path'].startswith('payload/node_modules/')}
+        self.assertEqual(sources, required | {'payload/src/direct-log-record.mjs'})
+        bad = copy.deepcopy(manifest)
+        bad['files'].append(dict(path='payload/src/unregistered.mjs', bytes=0, sha256='0' * 64))
+        with self.assertRaises(ValueError): validate_manifest(bad, component='conversation')
+
     def test_all_seven_values_order_types_and_unknown_fields_are_strict(self):
         changes = [lambda m:m.update(component='members'), lambda m:m.update(entry='payload/src/members-entry.mjs'),
                    lambda m:m['runtime'].update(stateSchema=1), lambda m:m['runtime'].pop('stateSchema'),

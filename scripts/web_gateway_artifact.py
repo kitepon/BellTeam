@@ -291,7 +291,8 @@ def validate_manifest(value, source=None, arch=None, *, component='web-gateway')
     else:
         require(names == required if component in ('memory', 'usage') else required <= names)
     if component in ('diagnostics', 'execution', 'conversation'):
-        require(all(name in required or name.startswith('payload/node_modules/') for name in names))
+        allowed = required | ({'payload/src/direct-log-record.mjs'} if component == 'conversation' else set())
+        require(all(name in allowed or name.startswith('payload/node_modules/') for name in names))
     return value
 
 
