@@ -41,3 +41,14 @@ N102 b0602e18の6case/35.790054msを継承。親の新規接続だけを追加�
 ## 新conversation資材の閉inventory受入
 
 59dのpackager実閉包importは通ったが、正式write_archiveの許可集合に新direct-log-record.mjsが含まれず、conversation42147177815は署名前に拒否された。既56必須を維持したまま、許可する追加sourceをこの一fileだけに限定する。DFDは `packager既56+literal1→閉manifest許可56又は57＋依存node_modules→write_archive/check_archive→署名`。旧56archiveの互換と未知source拒否を保持。fresh421dのbootstrap/sidecarは別単位で、この修理を追加gateにしない。
+
+
+## Non-interrupting direct-writer handoff
+
+| Function | Ownership and ordering | Failure boundary |
+| --- | --- | --- |
+| forwardConversationWriter | Keep the existing child writer object/onMessage and replace only its append entry. Capture its old appendQueue, enqueue subsequent records behind it, then forward every record to the registered parent single writer. | Invalid writer/forward callback changes nothing. A forwarded append failure rejects that call; the queue remains usable, as before. |
+| ready | Resolve only after every pre-handoff local append has finished. Parent receipt intake/claim must remain disabled until this exact ready settles and the parent effect is registered. New child writes may wait on that IO barrier; native AI/job/callback ownership is not paused or replaced. | A rejected old queue prevents a successful handoff ACK. Never infer readiness from loaded source. |
+| Child notification | After the parent append succeeds, call the same child's onMessage once, preserving its actor/operation async context. Parent appendFromChild suppresses duplicate parent notification. | Original save/notification failures are not swallowed into receipt success. |
+
+DFD: existing child appendQueue -> captured old-write barrier -> same child append entry -> parent direct.log.append validation -> sole parent DurableMessageReceipts appendQueue -> original child onMessage. After the old-write barrier ACK, authenticated new input may use the existing completed parent receipt/claim/normal-ready assembly. Unknown/legacy IDs remain excluded. This source seam does not install the missing live421d parent effect-validator acceptance or ready subscription by itself; Epi's fixed runtime adoption must supply those exact contacts first. No whole-parent exchange or AI quiescence is the default.

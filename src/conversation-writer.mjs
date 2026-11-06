@@ -14,6 +14,19 @@ export function deliveryFailureFields(error) {
   }
 }
 
+export function forwardConversationWriter(writer, forward) {
+  if (!(writer?.appendQueue instanceof Promise) || typeof writer.append !== 'function'
+    || typeof writer.onMessage !== 'function' || typeof forward !== 'function')
+    throw Object.assign(new Error('DIRECT_WRITER_HANDOFF_INVALID'), { code: 'DIRECT_WRITER_HANDOFF_INVALID' })
+  const ready = writer.appendQueue
+  writer.append = record => {
+    const saved = writer.appendQueue.then(() => forward(record))
+    writer.appendQueue = saved.catch(() => {})
+    return saved.then(() => writer.onMessage(record))
+  }
+  return { ready }
+}
+
 export class ConversationWriter {
   constructor({ logPath, now, id, onMessage, failureFields = deliveryFailureFields }) {
     this.logPath = logPath
