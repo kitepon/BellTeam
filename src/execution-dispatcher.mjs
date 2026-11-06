@@ -258,6 +258,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       finally { initialization = null }
     }
     if (action === 'resume') {
+      if (!draining && initialized && phase === 'running') return { resumed: true }
       if (draining || !initialized || !['quiescing', 'quiesced'].includes(phase)) throw failure('EXECUTION_BUSY')
       phase = 'running'; transport.workState.schedule(); startProducers()
       for (const context of deferredRecovery.splice(0)) recover(context)
