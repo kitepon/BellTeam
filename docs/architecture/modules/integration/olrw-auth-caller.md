@@ -12,7 +12,8 @@ flowchart LR
   Consumer --> Claim[usage 永続run/session予約・start intent]
   Claim --> Init[Root initialize許可GET・照会後plan/期限/epoch再検査]
   Init --> MCP[同接続MCP prepare 一回]
-  MCP --> Evidence[接続名札出力・root実測証拠の有界待ち]
+  MCP --> Capability[Same SDK tools/list: binding-aware auth schema; no release pin]
+  Capability --> Evidence[接続名札出力・root実測証拠の有界待ち]
   Evidence --> Gate[Root assertAuthorized 各操作直前]
   Gate --> Box
 ```
@@ -44,3 +45,5 @@ pendingカードのbootstrapは固定参照を組み立てるだけで、原本G
 実auth前はplan raw bytes不変・同接続PID出生・root evidence・Box原本を照会後にも再確認し、SDKへ渡す直前にはawait無しでRootの期限/close/停止epochと、usageが各auth呼出し第2引数`{assertBeforeIssue:check}`で渡す一正本のrun/input期限・close/abortを確認する。期限値の複製や別正本は作らず、managed adapterと固定Rabbit adapterが同callbackを透過して実Clientの同期guard直前へ接続する。unknown後の再準備/再接続/別env launcher/自動status・cancelは無い。通常終了/親close/拒否回答/許可失敗はconsumer入場停止と管理client closeだけで、無許可cancelを追加しない。実測/配置の手順・担当・具体値は統括の実行案で確定し、このsourceから実SSH/権限/配置を許可済みにしない。
 
 source: src/olrw-management-caller.mjs、olrw-management-loader.mjs、olrw-rabbit-auth.mjsと直接試験。application-servicesは通常bootstrapの固定loaderか明示合成fixtureから得るolrwManagementを使い、同じSecretRequests実体とstate/olrw-authをconsumerへ注入する。application-runtime全体closeはcaller停止→既資源closeを行う。固定plan無しは通常無効、無反映でlive graphへ注入しない。実root配置/資格/正式native供給/実到達が未成立の現在は本番で有効化しない。既公開契約の変更はない。
+
+The fixed adapter uses structural auth negotiation from the execution bound-auth contract. Legacy target.version remains managed profile metadata only; it never gates the connected release. No new plan, approval, credential source or runtime authority is introduced.

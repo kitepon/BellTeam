@@ -12,28 +12,20 @@ export function fixedRabbitClientOptions({ nodePath, entryPath }) {
 }
 
 // Assembly supplies only a root-managed profile; there is no caller-selected remote or shell.
-export function createOlrwRabbitAuth({ nodePath, entryPath, version, sessionId, protectedHosted,
+export function createOlrwRabbitAuth({ nodePath, entryPath, sessionId, protectedHosted,
   assertBeforeIssue = () => {},
   client = new AitermClient(fixedRabbitClientOptions({ nodePath, entryPath })) }) {
   fixedRabbitClientOptions({ nodePath, entryPath })
-  if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)
-    || typeof sessionId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(sessionId)
+  if (typeof sessionId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(sessionId)
     || typeof protectedHosted !== 'string' || sessionId === protectedHosted) throw invalid()
   let preparing = null, closed = false, halted = false
   const prepare = () => {
     if (closed || halted) return Promise.reject(new Error('OLRW_RABBIT_CONNECTION_CLOSED'))
     preparing ??= (async () => {
-      await client.connect()
+      const connection = await client.prepareAuthConnection()
       if (closed) { await client.close(); throw new Error('OLRW_RABBIT_CONNECTION_CLOSED') }
-      const connection = client.client
-      const info = connection?.getServerVersion()
-      if (info?.name !== 'aiterm' || info.version !== version) {
-        halted = true
-        await client.close()
-        throw new Error('OLRW_RABBIT_VERSION_UNCONFIRMED')
-      }
       return connection
-    })()
+    })().catch(async error => { halted = true; await client.close(); throw error })
     return preparing
   }
   const invoke = async (action, options = {}, issue) => {
@@ -43,7 +35,7 @@ export function createOlrwRabbitAuth({ nodePath, entryPath, version, sessionId, 
       if (issue && issue.assertBeforeIssue() !== undefined) throw invalid()
       if (assertBeforeIssue() !== undefined) throw invalid()
       const result = await client.call('agent_auth', { action, harness: 'claude-code', session_id: sessionId, ...options },
-        { expectedAuthConnection: connection, expectedAuthServerVersion: version })
+        { expectedAuthConnection: connection })
       if (result?.isError) halted = true
       return result
     } catch (error) { halted = true; throw error }
