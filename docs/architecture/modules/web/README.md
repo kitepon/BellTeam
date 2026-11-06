@@ -23,7 +23,7 @@ flowchart LR
 | 公開窓口 | 入力 | 出力・所有 |
 | --- | --- | --- |
 | `ui` / `createWebApp({client})` | ブラウザーDOMとclientの`api/fetchImage/watchEvents` | `start()`。構築/importでは通信を始めず、startでsession→設定→setup→一覧→SSE。app.jsが一度呼ぶ |
-| `createWebClient({fetch,setTimeout,clearTimeout})` | 標準fetchとtimer（省略時はブラウザー） | `api(path,options)`はJSON/204とstatus付きError、`fetchImage`はResponse、`watchEvents(onEvent,onError)`は解除関数。人工fetchへ丸ごと差替可能 |
+| `createWebClient({fetch,setTimeout,clearTimeout})` | 標準fetchとtimer（省略時はブラウザー） | `api(path,options)`はJSON/204とstatus付きError（公開されたcode/path/reasonも保持）、`fetchImage`はResponse、`watchEvents(onEvent,onError)`は解除関数。人工fetchへ丸ごと差替可能 |
 | `assets` / `assets.mjs` | integrationからのimport | `webAssetFiles`（公開path→Web内ファイル）、`versionedWebAssets`（版置換対象）。HTTP認証/stream/headerはintegrationが持つ |
 
 通信の全callerはapplicationから各viewへ渡すapi、messageImagesとcharacterSheetsのfetchImage、SSEのwatchEvents。Viewは他moduleの内部サービスや保存データをimportしない。SSEは既存のTypeError/429/5xxだけ1.5秒後に再接続し、認証/JSON形式異常で停止表示する。正常EOFで再接続しない既存契約も維持する。表示GETの失敗はapplicationが表示へ返し、通信障害として再接続しない。
@@ -41,7 +41,7 @@ WebはHTTPとSSEだけを利用し、MCPを呼ばない。画面に表示する�
 - 画像cache：取得Promiseと所有URL。破棄は生成者が行う。
 - localStorage：`bellteam-read-receipts.v1`の端末内既読だけ。サーバーの読了記録を作らない。
 - update-center：選択中の全体/個別対象、実測snapshot/読取世代、dialogと戻りfocus。正式版・計画未供給ではレビュー用と表示して実行無効。永続版情報や成功判定を作らない。
-- sessionStorage：`bellteam-update-request.v1`の現在requestId/planIdと、旧unknownを保持するprevious結果配列。旧結果内の同UUID/planIdで再読込後も照会でき、受付・版・成功の正本にはしない。保存できない時は新しい更新を開始しない。[更新図と操作手順](update-notice-design.md#全体個別の計画実行戻し接続)に従い、旧結果を残して新しい個別操作へ進む。
+- sessionStorage：`bellteam-update-request.v1`の現在requestId/planIdと、旧snapshot又は未読取requestId/planId参照のprevious配列。同じIDで再読込後も照会し、終端でも参照を保持する。受付・版・成功の正本にはしない。保存できない時は新しい更新を開始しない。[更新図と操作手順](update-notice-design.md#全体個別の計画実行戻し接続)に従い、旧結果を残して新しい個別操作へ進む。
 
 APIの拒否や応答不明を未保存・未配送と断定しない。202は受付、Goal/nativeの実適用とAI回答完了は各サーバーの返す状態に従う。
 
@@ -73,7 +73,7 @@ Web受付固有の内蔵版切替と採用状態は[内蔵版戻し](gateway-bui
 
 共通POST plansへ全体又は個別更新を要求し、個別moduleの戻しはaction:rollbackで可否を確認する。明示POST plansの固定target/期限/影響を確認し、再起動を要する計画はcheckbox確認後にPOST operationsを一回だけ発行する。UUIDとplanIdをsessionStorageへ保存してから要求し、POST応答不明/再読込/接続復帰は同UUIDのGETで確認する。inventoryが取得できなくても結果照会を行う。旧応答、別requestId/plan、期限切れ、保存不正を実行へ進めない。戻せる版をWebで推測せず、backend planのaction/全target/可否/影響を表示する。all/container戻しは非対応。WebからHostや任意shellへ直接接続しない。
 
-構築時は無通信。認証後の起動、open、ready/updates、表示復帰、手動再取得で既clientから読む。破棄後や古いreadは適用せず、最新の取得失敗時は古い版を最新として残さない。noticeと共通comparisonだけからロゴ右の状態語を表示し、Webは版を比較しない。operation/previousOperationは実行と稼働検証を分け、両成功のcompletedだけ完了とする。desktopは一覧内スクロール、狭幅は詳細から選択行へ戻る操作を持つ。資材登録/版置換は既assets、試験は`test/web-update-center.test.mjs`と従来の組立て/SSE。公開契約の9有限例を表示へ渡す局所検証と、実HTTP/共通投影→実ブラウザー/既SSE再同期を直接境界で確認する。
+構築時は無通信。認証後の起動、open、ready/updates、表示復帰、手動再取得で既clientから読む。破棄後や古いreadは適用せず、最新の取得失敗時は古い版を最新として残さない。noticeと共通comparisonだけからロゴ右の状態語を表示し、Webは版を比較しない。operation/previousOperationのjobs[]とinventoryのrecent jobs[]を実記録として表示し、各jobId/state/reasonをそのまま示す。親phaseから成功/進行/unknownを作らない。読取Errorは公開reason/pathを保持して表示し、SSE updatesも既GETへ再同期する。module_restart_limitは共通problems[]のopen/resolvedと実証跡を表示する。desktopは一覧内スクロール、狭幅は詳細から選択行へ戻る操作を持つ。資材登録/版置換は既assets、試験は`test/web-update-center.test.mjs`と従来の組立て/SSE。公開契約の9有限例を表示へ渡す局所検証と、実HTTP/共通投影→実ブラウザー/既SSE再同期を直接境界で確認する。
 
 ## Appleとの操作整合
 
