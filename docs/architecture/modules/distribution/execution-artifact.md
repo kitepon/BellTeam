@@ -43,3 +43,24 @@ flowchart LR
 ```
 
 PR304のinstall.sh短縮入口にexecution選択は未収録なので、fixtureは同imageの公開固定planへ保存normal modelと実inspectを渡し、その生成helperを実行する。shell短縮入口/Host反映成功には補完しない。業務guestはキロのtest-only helperを使用し、descriptor/importを人工置換せず同image loaderを経由。実SDK/PTYを触らず人工native portsで共有close0を測り、親の独立business/gatewayと同portを保持する。旧成功群を再実行せず、交換実物と作者の人工試験を分けて記録する。
+
+
+## 現用421dの固定配送method sidecar
+
+通常47/48/50件のexecution archiveと別の非catalog資材を、同main Sの既publish-execution.ymlで供給する。runtime実装/閉manifestとadopterはエピネル、421d基準の3拒否backport2fileと7method指紋はモリー、署名workflowはセンチ、実採用はRootの別具体作用。新しいsigner/workflow/鍵や任意branch署名は追加しない。
+
+```mermaid
+flowchart LR
+  Main[同main S / 固定runtime-live-delivery-adoption] --> Original[既通常archive生成・probe・OIDC・verify]
+  Original --> Sidecar[既amd64-arm64 matrix / 固定package.pyとcheck]
+  Sidecar --> Attest[別subject live-delivery-S-linux-ARCH / 同OIDC]
+  Attest --> Verify[固定verify.py / source=signer=S / 既trusted roots]
+  Verify --> Upload[既execution artifactへarchive・bundle・検証原本を収録]
+  Upload --> Runtime[Root別作用 / 既421d class指紋へ7descriptorだけ採用]
+```
+
+sidecar生成は通常archiveの署名・検証より後に行い、既tar.gz globがsidecarを同じsubjectへ混ぜない。別subjectのbundleを固有名へ保存してから、固定verify.pyが署名と閉inventoryを検査しlive-delivery-verified.jsonを返す。失敗は同job非0、採用器やclientはCIから起動しない。既uploadだけを使い、通常archive名・inventory・証明は変更しない。
+
+固定CLIはruntime-live-delivery-adoption/README.mdの機能/DFD/供給interfaceが正本。package.py --source S --arch ARCH --output runtime/execution/live-delivery-S-linux-ARCH.tar.gz、同package.py --checkとverify.pyのsource/signer/archを同値に束縛する。profileの旧source421d/backport98f5/2file SHA・7method、archive内容、runtimeの対象・失敗扱いは同正本を参照する。
+
+このworkflow差分はruntime側のpackager/verifier/adopter/profileと同main Sで採用する。別branchの旧版や未同梱のscriptを既成立とせず、一般catalog/新親全体受入を初回method採用のgateにしない。実Node/Host/Inspector/AIや現用への作用は発行しない。

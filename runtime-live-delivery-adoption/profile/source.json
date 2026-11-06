@@ -1,0 +1,149 @@
+{
+  "schema": "bellteam.live-delivery-profile.v1",
+  "baseSourceCommit": "421d2a9f3a900cd73991d86511307d2e596a3711",
+  "backportSourceCommit": "98f5cd205dc99d799bf66233ff0aa6b2599c52c8",
+  "modules": [
+    {
+      "class": "AitermTransport",
+      "file": "aiterm-transport.mjs",
+      "beforeFileSha256": "715b4c47ec7243767ff0db14b72c6cd02eb6cf562e00ad77665ce0fd39b9374f",
+      "sourceFileSha256": "e971b38fc4d667c2ab4c24afe0f3542f129bcb673f24943b81ad78c8cd23bd47",
+      "methods": [
+        {
+          "class": "AitermTransport",
+          "method": "ensure",
+          "role": "replacement",
+          "before": {
+            "bytes": 458,
+            "sha256": "b123464a05ad4df232062b85abbc7bc121510ad94573a361275b6e155ab0d93e"
+          },
+          "after": {
+            "bytes": 382,
+            "sha256": "56513eea9832d937a53158fccca9924a2cb7ca6c37bd4ff7c298cff5ed8d74c8"
+          },
+          "descriptor": {
+            "writable": true,
+            "enumerable": false,
+            "configurable": true
+          }
+        },
+        {
+          "class": "AitermTransport",
+          "method": "memberOperation",
+          "role": "replacement",
+          "before": {
+            "bytes": 350,
+            "sha256": "d2a3590b93c20ea1faedcf057670f6f47b26c55e610e59d764451a4dda3f01e8"
+          },
+          "after": {
+            "bytes": 310,
+            "sha256": "fa4813bc8d7fd7495e15fc8669574bf7ebf18c3cbc01e80e18856e3679e042e5"
+          },
+          "descriptor": {
+            "writable": true,
+            "enumerable": false,
+            "configurable": true
+          }
+        },
+        {
+          "class": "AitermTransport",
+          "method": "requireDeliveryKnown",
+          "role": "old-closure-compatibility",
+          "before": {
+            "bytes": 90,
+            "sha256": "d302462895b38ad59baa52da30c3611f929cf209f248181f0d25cd0f414b7b16"
+          },
+          "after": {
+            "bytes": 107,
+            "sha256": "41799671466642dc5086f637df5d050d27afc369b7ae48862987be638c1a1210"
+          },
+          "descriptor": {
+            "writable": true,
+            "enumerable": false,
+            "configurable": true
+          }
+        },
+        {
+          "class": "AitermTransport",
+          "method": "submit",
+          "role": "replacement",
+          "before": {
+            "bytes": 11802,
+            "sha256": "080975e5ea38e5ba79dd905650a8bb600e21cbc8ae9e192d0424d0223e5e7ea4"
+          },
+          "after": {
+            "bytes": 11486,
+            "sha256": "4ea2efc4fde5c9afe1a4279e884c2d285af7afcbac6718db667fd3733af12251"
+          },
+          "descriptor": {
+            "writable": true,
+            "enumerable": false,
+            "configurable": true
+          }
+        },
+        {
+          "class": "AitermTransport",
+          "method": "dispatch",
+          "role": "replacement",
+          "before": {
+            "bytes": 2761,
+            "sha256": "17dc447141641dbd297efdd45a4e9b9902642ff22df6bda0c492ddaf054d53e4"
+          },
+          "after": {
+            "bytes": 2714,
+            "sha256": "c20e87c0a08be06f007e9974c3705cdaeb5674db272ca9271b85698acc080063"
+          },
+          "descriptor": {
+            "writable": true,
+            "enumerable": false,
+            "configurable": true
+          }
+        }
+      ]
+    },
+    {
+      "class": "BotSessionState",
+      "file": "bot-session-state.mjs",
+      "beforeFileSha256": "fd9306888e0e8e82bccd5ea4b06d10a8c28f2b1a67b4496ae61f0a2eb0874a81",
+      "sourceFileSha256": "0c906d814e115522f42d1083a65aa1733afd4d33f101a49a687f1f72064c3ce6",
+      "methods": [
+        {
+          "class": "BotSessionState",
+          "method": "awaitUnboundAdmission",
+          "role": "replacement",
+          "before": {
+            "bytes": 763,
+            "sha256": "3775b71372f2ab419d65cb1c4dc4418d907a36e35d653b40447fda28681d7bfb"
+          },
+          "after": {
+            "bytes": 725,
+            "sha256": "af9fa3cba05d3b7f3335665d0e1b4145678a74b39c19ebce4cfb378f366ed6c1"
+          },
+          "descriptor": {
+            "writable": true,
+            "enumerable": false,
+            "configurable": true
+          }
+        },
+        {
+          "class": "BotSessionState",
+          "method": "requireDeliveryKnown",
+          "role": "old-closure-compatibility",
+          "before": {
+            "bytes": 129,
+            "sha256": "a926993f0937666d0bc6c75cf8a337aea9cb13801076f9d89894b536143b6757"
+          },
+          "after": {
+            "bytes": 30,
+            "sha256": "df042a85ca65c5f5bd1756c1f2351880e6b22638c2018511e3e9a0fe9ceb59ac"
+          },
+          "descriptor": {
+            "writable": true,
+            "enumerable": false,
+            "configurable": true
+          }
+        }
+      ]
+    }
+  ]
+}
