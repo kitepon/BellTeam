@@ -1,11 +1,13 @@
-# R-resume normal build input
+# Normal native build input
 
-Permanent owner Centi; Root appoints Molly temporary author of this one coherent supply/product case. Parent/execution source is main d3b05bdf (PR434). Actual previous Dockerfile input is aiterm-mcp@0.63.7, not latest; natural image run42179341276 can be a successful ordinary image but cannot supply the new resume-only flag.
+Permanent distribution owner Centi; Molly owns the Root-assigned common normal-main/image intake. Native source/publication belongs to Elegg, execution consumer to Kiro, product same-ID/history to N102.
 
-Function: Dockerfile's existing normal npm install→permitted ordinary aiterm-mcp0.63.8→same public image/parent execution caller→supported advertised require_existing_resume/typed unavailable metadata. DFD: Elegg normal public source38038236+existing Owner approval K-DX5DVX→actual normal npm version0.63.8→Dockerfile pin→existing package-server/build-container workflow→immutable coherent image→one standard isolated NEW real working-conversation restart case. No private tgz/dist overlay, extra native source layer, global update, production state or J work.
+## Function and data flow
 
-The pin candidate is prepared before code; it must not be merged/built as usable supply until Elegg reports actual permitted normal publication. Root controls actual isolated actor/credential scope. Existing empty-credential/fake-CLI labs cannot prove real saved-conversation resume. Author/native cases are inherited; no old test sweep or historical-store gate. Stable promotion/deployment is separate.
+Dockerfile uses its existing normal npm install with `aiterm-mcp@latest`, alongside the existing CLI inputs. Official normal publication → npm latest dist-tag → normal Docker build → immutable image → actual installed package-version observation → assigned product retest. No private tar/dist overlay, native source layer, seat/global runtime update, or native source/test re-audit.
 
-Combined06311 compatibility: official native0.63.11/source5ba97054 is pinned by PR441. Configuration connection admission and newly persisted intent version use the approved compatible0.63.7–0.63.11 producer set and current intent contract0.63.11 while retaining old intent readers. Normal image includes this caller correction; no native overlay or new publication. Existing06311 R saved-conversation proof is inherited for the version-only configuration contact repair.
+Root confirms formal aiterm-mcp0.63.12/tagv0.63.12/source6b592f62 under OwnerK-SA3NX5. Elegg npm42252302934/Registry42252334174 success and native6/build/metadata15 are inherited. Kiro compatibility source09d6782→260247d2/PR451mainc3254ec1 and its3 direct cases are inherited. Public launch/send fields and ordering remain unchanged; live connection acceptance is not tied to a release label.
 
-Owner no-pin correction supersedes the bounded compatible release list: live configuration admission relies on required tool capabilities and unchanged local connection identity; durable intent marker is independent of producer release. This common correction and Mica AUTH capability PR share one final normal image and product verification.
+Root orders this next image AFTER Epi's fixed retained91d9 admission/parent-read source. Prepare the latest-input source now; merge both ready PRs into one normal image. Report the version actually installed in that exact image, without treating an unpublished candidate as supply. Current fixed0.63.11 build input is obsolete and is removed, not replaced with another exact release pin.
+
+Existing R-resume/child-lifecycle and author tests are inherited. This distribution-line change needs no new functional test; the required exact-image package-version read and Centi/N102 assigned product outcome remain separate. Production decision/entry belongs to Root/Owner/operator/Bell. Historical unknown effects and failed delivery IDs are not replayed.
