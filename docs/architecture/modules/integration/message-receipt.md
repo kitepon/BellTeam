@@ -37,3 +37,7 @@ N102 b0602e18の6case/35.790054msを継承。親の新規接続だけを追加�
 親受領の入力検証は既requestsの純粋な入力部分を公開して再利用する。親受領のために偽のgeneration/operation/leaseを作らない。既IPC要求は元context検証を保持した上で同入力検証を呼ぶ。
 
 新しい直接配送のonTurnEndも既TurnReportsへ接続する。親側の同保存store/transport/既routing設定を使い、元会話子のcallback/Room報告は付替えない。既報告確認は受領ACKを待たせず、新pollを足さない。
+
+## 新conversation資材の閉inventory受入
+
+59dのpackager実閉包importは通ったが、正式write_archiveの許可集合に新direct-log-record.mjsが含まれず、conversation42147177815は署名前に拒否された。既56必須を維持したまま、許可する追加sourceをこの一fileだけに限定する。DFDは `packager既56+literal1→閉manifest許可56又は57＋依存node_modules→write_archive/check_archive→署名`。旧56archiveの互換と未知source拒否を保持。fresh421dのbootstrap/sidecarは別単位で、この修理を追加gateにしない。
