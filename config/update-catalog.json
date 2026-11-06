@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-05T23:31:21Z",
-  "expiresAt": "2026-11-12T23:31:21Z",
+  "publishedAt": "2026-11-06T00:56:11Z",
+  "expiresAt": "2026-11-13T00:56:11Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25",
-      "versionId": "9f7da1c8a5b25cc3b876a986fc00292e7bead73d1f1b4533193d2dcbb53626f7",
+      "sourceCommit": "494861b5f424a799bb99eb92b3808fd44ec6a95a",
+      "versionId": "62ed50bb88081d4dfbee0742b3c431d669f6be86d54fe60754bdbe62d29e0648",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/web-gateway-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-amd64.tar.gz",
-          "sha256": "9f7da1c8a5b25cc3b876a986fc00292e7bead73d1f1b4533193d2dcbb53626f7",
-          "bytes": 4967781
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261106T005219Z/web-gateway-494861b5f424a799bb99eb92b3808fd44ec6a95a-linux-amd64.tar.gz",
+          "sha256": "62ed50bb88081d4dfbee0742b3c431d669f6be86d54fe60754bdbe62d29e0648",
+          "bytes": 4982819
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/web-gateway-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "9fe8ef15a4134856cb424aa1e361ebf15d2947f8e3be16ab837a8531d2e88ff3",
-          "bytes": 11064
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261106T005219Z/web-gateway-494861b5f424a799bb99eb92b3808fd44ec6a95a-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "a88fdca4cdf03996087313b61c03ab153acf90677284f9d957a65473eb266f2f",
+          "bytes": 11209
         },
-        "signerCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25"
+        "signerCommit": "494861b5f424a799bb99eb92b3808fd44ec6a95a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "背景エージェントの設定画面と、仕事要約の生成元表示を追加します。"
+        "削除されたBot・ルームのブラウザ既読記録を、一覧の正常取得後に回収します。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25",
-      "versionId": "6039aec2026baca56140477d0c3c28490b720f6e74bce3857bdff48d678c4de0",
+      "sourceCommit": "494861b5f424a799bb99eb92b3808fd44ec6a95a",
+      "versionId": "2b1710e486a6ae2bb865dafff5cb3079b39058d6dbb0bde850853c4607668c61",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/web-gateway-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-arm64.tar.gz",
-          "sha256": "6039aec2026baca56140477d0c3c28490b720f6e74bce3857bdff48d678c4de0",
-          "bytes": 4967781
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261106T005219Z/web-gateway-494861b5f424a799bb99eb92b3808fd44ec6a95a-linux-arm64.tar.gz",
+          "sha256": "2b1710e486a6ae2bb865dafff5cb3079b39058d6dbb0bde850853c4607668c61",
+          "bytes": 4982819
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T001445Z/web-gateway-7204438ed08a5a2b8482df008a936183eb4f9b25-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "738241775c22f39b5880201b938e609d30ee5450531b27c53b32679d2baadc1f",
-          "bytes": 10966
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261106T005219Z/web-gateway-494861b5f424a799bb99eb92b3808fd44ec6a95a-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "79bfd3cbbb4e48161942de6f98be66f118d7c69ee0f4880d9a8bb2895150479b",
+          "bytes": 11099
         },
-        "signerCommit": "7204438ed08a5a2b8482df008a936183eb4f9b25"
+        "signerCommit": "494861b5f424a799bb99eb92b3808fd44ec6a95a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "背景エージェントの設定画面と、仕事要約の生成元表示を追加します。"
+        "削除されたBot・ルームのブラウザ既読記録を、一覧の正常取得後に回収します。"
       ]
     },
     {
