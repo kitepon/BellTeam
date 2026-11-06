@@ -19,37 +19,8 @@ const denied = () => Object.assign(new Error('CONVERSATION_CONTEXT_REQUIRED'), {
 // One parent graph owns admission/authority; direct writes share its durable writer.
 export function createConversationAssembly({ root, membersAdmission, exchangeMutex, getServices, createFacade = createConversationFacade,
   onExecution, onDiagnostic, onState, onModuleChildExit, createProcess = createConversationProcess, prepareRelease, spawnProcess }) {
-  let controller, closed = false, retirement = null
-  const currentFailure = pending => !closed && retirement === pending
-    && admission.capture().generation === pending.generation && admission.inspectAdmission().failed === true
-    && controller?.snapshot().generation === pending.generation
-  const admission = new ConversationLifetimes('builtin', { onProtocolFailure: notice => {
-    if (closed || notice.code !== 'CONVERSATION_PROTOCOL_UNCONFIRMED' || retirement?.generation === notice.generation) return
-    const pending = { generation: notice.generation }
-    retirement = pending
-    void (async () => {
-      while (currentFailure(pending)) {
-        await exchangeMutex.waitForIdle()
-        if (!currentFailure(pending)) return
-        let issued = false
-        try {
-          await exchangeMutex.runExclusive(() => {
-            if (!currentFailure(pending)) return
-            issued = true
-            return controller.retireProtocolFailedWriter({ generation: pending.generation })
-          })
-          return
-        } catch (error) {
-          // Only failed mutex acquisition may wait again; an issued retirement is never replayed.
-          if (!issued && error?.code === 'MODULE_EXCHANGE_BUSY') continue
-          throw error
-        }
-      }
-    })().catch(() => {
-      if (closed) return
-      try { Promise.resolve(onDiagnostic?.({ code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })).catch(() => {}) } catch {}
-    }).finally(() => { if (retirement === pending) retirement = null })
-  } }), authority = createConversationAuthority()
+  let controller
+  const admission = new ConversationLifetimes(), authority = createConversationAuthority()
   const moduleOperations = createModuleOperationContext({ membersAdmission, conversationAdmission: admission })
   const scope = new AsyncLocalStorage(), owned = new WeakMap(), listeners = new Set(), memberParents = new WeakMap()
   const executionEffects = onExecution ?? createConversationExecutionEffects({ getServices, getController: () => controller, admission })
@@ -155,6 +126,6 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
     consumeClosure: (...args) => executionEffects.consumeClosure(...args),
     watch(listener) { listeners.add(listener); return () => listeners.delete(listener) },
     async initialize() { await gate.initialize(); await controller.start() },
-    close: () => { closed = true; retirement = null; return controller.close() },
+    close: () => controller.close(),
   }
 }

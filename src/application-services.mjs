@@ -208,7 +208,12 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     appendInterimWords: (...args) => directMessages.receipts.appendInterimWords(...args) })
   if (conversationAssembly) await conversationAssembly.initialize()
   if (conversationAssembly) {
-    store.watch = listener => directMessages.receipts.store.watch(listener)
+    const reader = directMessages.receipts.store
+    store.timeline = id => reader.timeline(id)
+    store.timelineView = id => reader.timelineView(id)
+    store.timelineViews = ids => reader.timelineViews(ids)
+    store.recentViews = ids => reader.timelineViews(ids)
+    store.watch = listener => reader.watch(listener)
     conversation.rooms.watch = listener => conversationAssembly.watch(listener)
   }
   assets = conversation.assets

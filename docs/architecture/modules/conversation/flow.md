@@ -120,3 +120,19 @@ SSEは本文全体ではなく変更通知。サーバーはtopicと対象IDを�
 | 変更通知/画面更新 | http-events.mjs / application-runtime.mjs / web/app.js・conversation-timeline.js・conversation-composer.js | http-events, application-runtime, timeline-open-queue, chat-input |
 
 実装のパスは指定がなければ `src/`、試験は `test/<名前>.test.mjs`。
+
+
+## Current conversation lifecycle (Owner ruling 2026-11-07)
+
+This replaces the conversation admission close/drain/adopt/recover ceremony described in the older sections below. Usage and diagnostics keep their own contracts. Conversation operation references retain actual target/actor/callback identity and completion facts; they do not gate new operations on a ticket, failed generation, active count, or unconfirmed outcome. The current live child receives new operations. Child loss fails only that child's pending callers with unknown outcome and records the fact; recovery never replays their business requests. Observed writer death permits the next child without waiting for native references or acceptance proofs. A planned exchange still quiesces the actual live writer before replacing it to prevent concurrent file writers.
+
+```mermaid
+flowchart LR
+  Read[Authenticated Bot/profile display] --> Reader[Existing parent direct ConversationStore reader]
+  Reader --> Log[Same direct JSONL / read only]
+  Write[New conversation operation / validated target and actor] --> Live[Currently live child]
+  Live -->|dies| Unknown[Only its pending callers: outcome unknown / recorded fact]
+  Live -->|observed OS death| Recovery[Shared lifecycle / selected source restart]
+  Recovery --> Live
+  Native[Old actual native completion references] --> Facts[Recorded outcomes / no admission or recovery lock]
+```

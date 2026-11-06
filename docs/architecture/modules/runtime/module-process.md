@@ -1,5 +1,20 @@
 # 固有channelを載せる共通child世代controller
 
+## Current conversation lifecycle (Owner ruling 2026-11-07)
+
+This replaces the conversation admission close/drain/adopt/recover ceremony described in the older sections below. Usage and diagnostics keep their own contracts. Conversation operation references retain actual target/actor/callback identity and completion facts; they do not gate new operations on a ticket, failed generation, active count, or unconfirmed outcome. The current live child receives new operations. Child loss fails only that child's pending callers with unknown outcome and records the fact; recovery never replays their business requests. Observed writer death permits the next child without waiting for native references or acceptance proofs. A planned exchange still quiesces the actual live writer before replacing it to prevent concurrent file writers.
+
+```mermaid
+flowchart LR
+  Read[Authenticated Bot/profile display] --> Reader[Existing parent direct ConversationStore reader]
+  Reader --> Log[Same direct JSONL / read only]
+  Write[New conversation operation / validated target and actor] --> Live[Currently live child]
+  Live -->|dies| Unknown[Only its pending callers: outcome unknown / recorded fact]
+  Live -->|observed OS death| Recovery[Shared lifecycle / selected source restart]
+  Recovery --> Live
+  Native[Old actual native completion references] --> Facts[Recorded outcomes / no admission or recovery lock]
+```
+
 ## Shared automatic lifecycle recovery (Owner 2026-11-07)
 
 This is the single recovery contract for common module-process, members, notifications, memory, and execution-generation. The existing `module-child-restart` lifecycle owns one cancellable timer: 1/2/4/8/16/30 seconds, capped at30 seconds without an attempt limit; a healthy minute resets the delay. Initial failure also enables recovery. Public start waits for that same actor to become available, keeping parent bootstrap from tearing down the graph on a transient child failure; internal retry attempts release their operation before the next backoff. Close releases startup waiters without reopening a controller. An unavailable snapshot is transient: it always registers lifecycle recovery, including when an instance is retained. Closing cancels recovery and never reopens the controller.

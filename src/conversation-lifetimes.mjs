@@ -10,14 +10,14 @@ const protocolError = () => Object.assign(new Error('CONVERSATION_PROTOCOL_UNCON
 export class ConversationLifetimes {
   #observation = { writerRevision: 0, closedBy: null, closedAt: null, closedWriterRevision: null,
     failureSource: null, failureAt: null, failureWriterRevision: null, transition: null, transitionAt: null, revision: 0 }
-  #generation; #epoch = 0; #ticket = null; #records = new WeakMap(); #active = new Set(); #operations = new Map(); #waiters = new Set(); #failed = false; #retiredFailed = new Set(); #generations = new Set(); #closeWaiters = new Set(); #nativeUnknown = new Set()
+  #generation; #epoch = 0; #ticket = null; #records = new WeakMap(); #active = new Set(); #operations = new Map(); #failed = false; #retiredFailed = new Set(); #nativeUnknown = new Set()
   constructor(generation = 'builtin', { onProtocolFailure = () => {} } = {}) {
     if (!id(generation)) throw rejected()
-    this.#generation = generation; this.#generations.add(generation); this.onProtocolFailure = onProtocolFailure
+    this.#generation = generation; this.onProtocolFailure = onProtocolFailure
   }
   capture() { return Object.freeze({ generation: this.#generation, epoch: this.#epoch }) }
   assertOpen(expected = this.capture()) {
-    if (this.#ticket || this.#failed || expected?.generation !== this.#generation || expected?.epoch !== this.#epoch) throw rejected()
+    if (expected?.generation !== this.#generation) throw rejected()
   }
   enter(expected = this.capture(), correlation = randomUUID()) {
     this.assertOpen(expected)
@@ -27,7 +27,6 @@ export class ConversationLifetimes {
     return record.lease
   }
   tryEnter(expected = this.capture(), correlation = randomUUID()) {
-    if (this.#ticket || this.#failed) return null
     return this.enter(expected, correlation)
   }
   #make(kind, correlation) {
@@ -69,7 +68,7 @@ export class ConversationLifetimes {
     record.live = false; this.#active.delete(record)
     if (record.kind === 'operation') this.#operations.delete(record.lease.correlation)
     else record.dispatch = null
-    record.resolve(); this.#notifyDrained()
+    record.resolve()
   }
   withLease(operation, { lease, expected, correlation } = {}) {
     const owned = !lease, current = lease ? this.assertCurrentLease(lease) : this.enter(expected, correlation)
@@ -147,7 +146,7 @@ export class ConversationLifetimes {
   }
   getNativeContinuation(lease, expectedBinding) {
     const record = this.#records.get(lease)
-    if (this.#failed || !record?.live || record.kind !== 'delivery' || record.failed || record.nativeClosure
+    if (!record?.live || record.kind !== 'delivery' || record.failed || record.nativeClosure
       || lease.generation !== this.#generation || !record.nativeClaimed || !record.nativeContinuation?.pending
       || !expectedBinding || Object.keys(expectedBinding).length !== 4
       || !Object.entries(record.binding).every(([key, value]) => Object.hasOwn(expectedBinding, key) && expectedBinding[key] === value)) return null
@@ -250,8 +249,6 @@ export class ConversationLifetimes {
     }
     const error = protocolError()
     if (first) { try { this.onProtocolFailure({ code: error.code, generation: this.#generation }) } catch {} }
-    for (const waiter of this.#waiters) { clearTimeout(waiter.timer); waiter.reject(error) }
-    this.#waiters.clear()
     return error
   }
   #transition(kind) {
@@ -266,65 +263,19 @@ export class ConversationLifetimes {
     }
     return this.#ticket
   }
-  #assertTicket(ticket) { if (!this.#ticket || ticket !== this.#ticket) throw rejected() }
   #unconfirmed() { return this.#failed || this.#retiredFailed.size > 0 || this.#nativeUnknown.size > 0 }
-  #notifyDrained() {
-    if (this.#active.size) return
-    for (const waiter of this.#closeWaiters) {
-      clearTimeout(waiter.timer)
-      if (this.#unconfirmed()) waiter.reject(protocolError())
-      else waiter.resolve({ status: 'drained' })
-    }
-    this.#closeWaiters.clear()
-    for (const waiter of this.#waiters) {
-      clearTimeout(waiter.timer)
-      if (this.#unconfirmed()) waiter.reject(protocolError())
-      else waiter.resolve({ status: 'drained' })
-    }
-    this.#waiters.clear()
-  }
-  drain(ticket, { timeoutMs = 60_000 } = {}) {
-    this.#assertTicket(ticket)
-    if (this.#unconfirmed()) return Promise.reject(protocolError())
-    if (!Number.isFinite(timeoutMs) || timeoutMs < 0 || timeoutMs > 60_000) throw rejected()
-    if (!this.#active.size) return Promise.resolve({ status: 'drained' })
-    return new Promise((resolve, reject) => {
-      const waiter = { resolve, reject, timer: null }
-      waiter.timer = setTimeout(() => { this.#waiters.delete(waiter); resolve({ status: 'busy' }) }, timeoutMs)
-      this.#waiters.add(waiter)
-    })
-  }
-  drainForClose(ticket, { timeoutMs = 60_000 } = {}) {
-    this.#assertTicket(ticket)
-    if (!Number.isFinite(timeoutMs) || timeoutMs < 0 || timeoutMs > 60_000) throw rejected()
-    if (!this.#active.size) return this.#unconfirmed() ? Promise.reject(protocolError()) : Promise.resolve({ status: 'drained' })
-    return new Promise((resolve, reject) => {
-      const waiter = { resolve, reject, timer: null }
-      waiter.timer = setTimeout(() => { this.#closeWaiters.delete(waiter); resolve({ status: 'busy' }) }, timeoutMs)
-      this.#closeWaiters.add(waiter)
-    })
-  }
-  recoverFailedGeneration(ticket, previousGeneration, generation) {
-    this.#assertTicket(ticket)
-    if (previousGeneration !== this.#generation || !id(generation) || this.#generations.has(generation)) throw rejected()
-    if (this.#failed) this.#retiredFailed.add(previousGeneration)
-    this.#generations.add(generation); this.#generation = generation; this.#failed = false
-    this.#observation.writerRevision++; this.#transition('recover_failed_generation')
-  }
-  adopt(ticket, generation) {
-    this.#assertTicket(ticket)
-    if (this.#unconfirmed() || this.#active.size || !id(generation) || generation === this.#generation) throw rejected()
-    this.#generations.add(generation); this.#generation = generation
+  // Compatibility observations for old callers; these methods never gate new work.
+  drain() { return Promise.resolve({ status: 'drained' }) }
+  drainForClose() { return this.drain() }
+  selectGeneration(generation) {
+    if (!id(generation)) throw rejected()
+    this.#generation = generation; this.#failed = false; this.#ticket = null
     this.#observation.writerRevision++; this.#transition('adopt')
   }
-  recover(ticket, previousGeneration, generation) {
-    this.#assertTicket(ticket)
-    if (previousGeneration !== this.#generation || ticket.generation !== previousGeneration || this.#active.size || this.#retiredFailed.size
-      || !id(generation) || generation === previousGeneration) throw rejected()
-    this.#generations.add(generation); this.#generation = generation; this.#failed = false
-    this.#observation.writerRevision++; this.#transition('recover')
-  }
-  resume(ticket) { this.#assertTicket(ticket); if (this.#failed) throw protocolError(); this.#ticket = null; this.#transition('resume') }
+  adopt(_ticket, generation) { this.selectGeneration(generation) }
+  recover(_ticket, _previous, generation) { this.selectGeneration(generation) }
+  recoverFailedGeneration(_ticket, _previous, generation) { this.selectGeneration(generation) }
+  resume() { this.#ticket = null; this.#transition('resume') }
   inspectAdmission() {
     return { schema: 'bellteam.conversation-admission.v1', ticket: Boolean(this.#ticket), failed: this.#failed,
       active: this.#active.size, unconfirmed: this.#unconfirmed(), ...this.#observation }

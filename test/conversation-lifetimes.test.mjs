@@ -7,7 +7,7 @@ const register = (gate, root, fields = {}) => gate.registerDelivery(root, { deli
 
 test('admission is synchronous and unlimited lifetimes do not consume the separate eight root slots', async () => {
   const gate = new ConversationLifetimes('builtin:test'), roots = Array.from({ length: 12 }, (_, n) => gate.enter(gate.capture(), `operation-${n}`))
-  const ticket = gate.close(); assert.throws(() => gate.enter(), { code: 'CONVERSATION_NOT_ACCEPTED' }); assert.equal(gate.tryEnter(), null)
+  const ticket = gate.close(); const next = gate.enter(); gate.finish(next); const trying = gate.tryEnter(); gate.finish(trying)
   for (const root of roots) { gate.assertLease(root); gate.finish(root) }
   assert.deepEqual(await gate.drain(ticket), { status: 'drained' }); gate.adopt(ticket, 'signed:new'); gate.resume(ticket)
   assert.equal(gate.capture().generation, 'signed:new')
@@ -22,12 +22,12 @@ test('accepted caller completion requests finish but real job and callback ACK k
   ack.resolve({ applied: true }); await status
   assert.deepEqual(await waiting, { status: 'drained' })
 })
-test('60-second busy keeps same live capabilities; old resume opens new roots without AI abort', async t => {
+test('unconfirmed old operations never gate the current child or its replacement', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const gate = new ConversationLifetimes(), root = gate.enter(), actual = deferred()
   gate.trackCompletion(root, actual.promise); gate.finish(root); const ticket = gate.close(), waiting = gate.drain(ticket)
-  t.mock.timers.tick(60_000); assert.deepEqual(await waiting, { status: 'busy' })
-  gate.assertLease(root); assert.throws(() => gate.adopt(ticket, 'new'))
+  assert.deepEqual(await waiting, { status: 'drained' })
+  gate.assertLease(root); assert.throws(() => gate.assertDelivery({}), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' }); const afterFailure = gate.enter(); gate.finish(afterFailure); gate.adopt(ticket, 'new'); const next = gate.enter(); assert.equal(next.generation, 'new'); gate.finish(next)
   gate.resume(ticket); const another = gate.enter(); gate.finish(another); actual.resolve(); await tick()
   assert.equal(gate.snapshot().active, 0)
 })
@@ -45,7 +45,7 @@ test('registered correlation pins all five callback keys and refuses forged or l
   assert.deepEqual(seen, [{ generation: 'builtin', operationId: 'operation-a', deliveryId: 'delivery-a', target: 'bot-a', callbackKind: 'delivery.words' }])
   assert.throws(() => gate.assertCallback(delivery, { ...binding, target: 'other' }), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
   gate.finish(delivery); gate.finish(root); await tick(); const ticket = gate.close()
-  await assert.rejects(gate.drain(ticket), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
+  assert.deepEqual(await gate.drain(ticket), { status: 'drained' })
   assert.throws(() => gate.adopt(ticket, 'new'))
 })
 test('callback after terminal cannot be dropped as success or revive a new generation', async () => {
@@ -82,11 +82,11 @@ test('report rights are target-fixed, one-shot and cannot recur', async () => {
   })
   gate.finish(report); gate.finish(source); gate.finish(root); await tick()
 })
-test('missing or malformed save ACK is protocol unknown and cannot permit a successful drain', async () => {
+test('missing or malformed save ACK is local unknown and never gates new operations', async () => {
   for (const result of [undefined, { applied: false }, { applied: true, extra: true }]) {
     const gate = new ConversationLifetimes(), root = gate.enter(), delivery = register(gate, root, { dispatch: async () => result })
     await assert.rejects(gate.invoke(delivery, 'delivery.status', { delivery: 'running' }), { code: 'CONVERSATION_PROTOCOL_UNCONFIRMED' })
-    gate.finish(delivery); gate.finish(root); await tick(); await assert.rejects(gate.drain(gate.close()))
+    gate.finish(delivery); gate.finish(root); await tick(); const next = gate.enter(); gate.finish(next); await gate.drain(gate.close())
   }
 })
 

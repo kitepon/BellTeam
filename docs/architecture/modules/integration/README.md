@@ -822,3 +822,8 @@ shared/toolsは1000:1000/0711のため通常本体から直接作成しない。
 ## R-resume existing startup and summary sender
 
 Execution [restart-resume](../execution/restart-resume.md) owns saved prior-active selection and native reconnect. Parent retains exactly one execution.controller.start before directMessages.start. Existing execution factory receives the additive requestRestartSummary({botId,from,to}) callback (like backgroundSummary; older engines ignore it); parent enters the existing scheduler conversation actor and sends one conditional gap-summary question via the same durable messenger/history. No parent activity file writer, target selector, launch loop, task replay or fallback. Invalid/unknown interval is not invented. DFD: execution confirmed reconnect/known observation gap→actor-authorized existing sender→normal durable intake/callback/history. Native reconnect readiness is not business input acceptance. New-session memory/USER-start unchanged.
+
+
+## Bot/profile read connection after admission removal
+
+Application services reuse `directMessages.receipts.store` for direct timeline/timelineView/timelineViews and recentViews (the existing timelineViews Map port). These read-only methods use the same canonical JSONL and never reserve a conversation reference. Latest display selection remains with recentTimeline; no empty-history fallback is introduced. The writer/authority and room-history ports remain their existing owners. See the current conversation lifecycle DFD in runtime/module-process.md and conversation/flow.md.
