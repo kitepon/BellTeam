@@ -169,9 +169,26 @@ export class AitermTransport {
 
   wake(bot, options = {}) {
     this.assertWorkAllowed()
-    this.requireSessionKnown(bot.id)
-    return this.memberOperation(bot, membersLease => this.activity.waking.track(bot.id,
-      this.wakeNow(bot, { ...options, membersLease })), options)
+    const version = this.captureStopVersion(bot)
+    return this.memberOperation(bot, async membersLease => {
+      if (this.uncertainChanges.has(bot.id)) {
+        if (this.executionBridge && !options.execution) await this.awaitUnboundAdmission(bot, version)
+        await this.requireAccess({ setupTest: options.setupTest === true, botId: bot.id })
+        const session = this.session(bot), observed = await this.observe(bot)
+        this.requireStopVersion(bot.id, version)
+        this.membersAdmission.assertLease(membersLease)
+        options.admissionCheck?.()
+        const target = options.execution?.reservation.target
+        if (this.session(bot) === session && observed?.schema === 'aiterm.pty-observe-result.v1'
+          && observed.session_id === session && observed.exists === true && /^[a-f0-9]{32}$/u.test(observed.launch_id ?? '')
+          && ['busy', 'idle'].includes(observed.state) && observed.pane_alive === true && observed.harness_alive === true
+          && (!options.execution || target?.session_id === session && target.expected_launch_id === observed.launch_id))
+          return session
+      }
+      this.requireSessionKnown(bot.id)
+      this.requireStopVersion(bot.id, version)
+      return this.activity.waking.track(bot.id, this.wakeNow(bot, { ...options, membersLease }))
+    }, options)
   }
 
   async wakeNow(bot, { setupTest = false, execution = null, membersLease, admissionCheck } = {}) {
@@ -689,7 +706,32 @@ export class AitermTransport {
             throw Object.assign(new Error('EXECUTION_INVALID'), { code: 'EXECUTION_INVALID', effect: 'not_started' })
           job.execution = recoveredExecution
           job.executionWasPresent = true
-        } else if (this.executionBridge) await reserveExecution(this.seat, job)
+        } else if (this.executionBridge) {
+          if (this.uncertainChanges.has(bot.id)) {
+            await this.requireAccess({ setupTest, botId: bot.id })
+            check()
+            const session = this.session(bot), observed = await this.observe(bot)
+            check()
+            const valid = this.session(bot) === session && observed?.schema === 'aiterm.pty-observe-result.v1'
+              && observed.session_id === session && typeof observed.exists === 'boolean'
+              && (observed.exists ? /^[a-f0-9]{32}$/u.test(observed.launch_id ?? '') : observed.launch_id === null)
+            const ready = valid && observed.exists && ['busy', 'idle'].includes(observed.state)
+              && observed.pane_alive === true && observed.harness_alive === true
+            if (!ready) {
+              const error = Object.assign(new Error('BOT_SESSION_UNCONFIRMED'), { code: 'BOT_SESSION_UNCONFIRMED' })
+              // Only this local pre-registration branch proves this new input was not issued.
+              if (valid && (!observed.exists || ['busy', 'idle', 'blocked', 'dead', 'hibernated'].includes(observed.state))) {
+                error.effect = 'not_started'
+                error.normalInputPending = { schema: 'bellteam.normal-input-pending.v1',
+                  deliveryId: info.groupId ?? job.id, botId: bot.id, sessionId: session, launchId: observed.launch_id,
+                  stage: 'before_execution_registration', effect: 'not_started',
+                  reason: observed.exists ? 'session_not_ready' : 'session_absent' }
+              }
+              throw error
+            }
+          }
+          await reserveExecution(this.seat, job)
+        }
         check()
         this.activity.admit(job)
         await this.requireAccess({ setupTest, botId: bot.id })
