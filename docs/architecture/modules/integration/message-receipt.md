@@ -63,3 +63,12 @@ DFD: existing child appendQueue -> captured old-write barrier -> same child appe
 | Normal ready | Reuse the completed nonblocking requestDrain/mutex/AI-enabled/current-execution readiness path. A queued proof waits for a new external ready request, without a self-retry loop. | Do not use this full-consumer source as the standalone421d profile; Epi's independent wake-only profile retains the old startup behavior. |
 
 DFD: new saved ID → durable dispatching claim → runtime pre-registration observation → exact bound pending proof → error-frame closed validation → same parent receipt queued → later ordinary ready → same-ID claim once. Native/legacy unknown remains retained. Existing sanitized mcp_error/native_launch flows through both error-frame hops and the existing callback writer instead of being dropped; historical missing fields are not reconstructed. This is source connection work, not a new diagnostic API or a prerequisite for Epi's standalone runtime adoption.
+
+## Bound direct failure reporting (2026-11-06 R isolated case)
+
+| Function | Input/output and ownership | Failure boundary |
+| --- | --- | --- |
+| Parent direct dispatch reporter | First actual failed callback, dispatch rejection, or completion rejection plus the saved delivery ID/target → existing onError(error, closed context). One report per dispatch attempt. | Preserve callbacks, accepted promise, original error and all delivery/ready guards. Reporting never changes admission or retries. |
+| Application diagnostics caller | Closed parent context → existing SERVER_TURN_TRACKING_FAILED/conversation diagnostic_log. Retain allowlisted code/cause, boolean returned flag, validated request/typed effect only; absent=null. | No message, stack, body, path, environment or arbitrary properties. No writer/store/API change. Generic error code never proves no input. |
+
+DFD: saved direct receipt → existing normal transport → first original failed callback/rejection → parent context projection → registered diagnostics.record → existing diagnostics retention/admin read. Original status/error continues to the unchanged durable writer. Unknown stays unknown; historical missing evidence is not reconstructed. This repairs the invalid previous diagnostics code/module, not a demonstrated native delivery cause. One changed-contact privacy/correlation case validates the existing sink and preserved no-replay result.
