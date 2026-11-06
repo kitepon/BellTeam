@@ -25,7 +25,7 @@ try {
     const mcp_error = returnedMcpError(error)
     const mcp_request = mcpRequestContext(error)
     response = { error: { ...Object.fromEntries(['message', 'code', 'status', 'publicMessage',
-      'aitermResponseReturned', 'executionError', 'launch', 'launchActionRequired'].filter(key => error[key] !== undefined).map(key => [key, error[key]])),
+      'aitermResponseReturned', 'executionError', 'launch', 'launchActionRequired', 'resumeUnavailable', 'effect'].filter(key => error[key] !== undefined).map(key => [key, error[key]])),
     ...(mcp_request ? { mcp_request } : {}), ...(agentLaunchError ? { agentLaunchError } : {}), ...(mcp_error ? { mcp_error } : {}) } }
   }
   await client.close()

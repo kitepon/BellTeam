@@ -31,3 +31,5 @@
 ## 最初の成果
 
 公開入出力、所有データ、実装・全caller・関連試験、他担当との接点を図で確定する。自分の内部変更が他担当の内部コードや保存データの直接変更を要求しない形へ分離する。共有入口は登録/呼出だけにして、業務処理を自分のmoduleへ移す。変更した図とコード・限定検証結果を一つの差分にする。
+
+- [Previously active conversations after box restart](restart-resume.md): Root-authorized R-resume cold-start selection, existing-resume-only admission and existing summary sender.

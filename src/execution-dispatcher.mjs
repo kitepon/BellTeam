@@ -1,3 +1,4 @@
+import { dirname, join } from 'node:path'
 import { ModelHandoff } from './model-handoff.mjs'
 import { createManagedTransport } from './aiterm-transport.mjs'
 import { BotAdministration } from './bot-administration.mjs'
@@ -32,7 +33,7 @@ const portNames = ['native', 'membersAdmission', 'conversationAdmission', 'modul
   'access', 'storage', 'seat', 'observer', 'diagnostics', 'continuation']
 
 // This module and every relative engine import belong to the same fixed bundle.
-export function createExecutionDispatcher({ generation, ports, handoff = null, backgroundSummary = null }) {
+export function createExecutionDispatcher({ generation, ports, handoff = null, backgroundSummary = null, requestRestartSummary = null }) {
   if (typeof generation !== 'string' || !generation || !ports || Object.keys(ports).some(key => !portNames.includes(key))
     || !ports.native || !ports.membersAdmission || !ports.bots || !ports.rooms || !ports.configurationStorage
     || typeof ports.access?.assertWorkAllowed !== 'function') throw failure('EXECUTION_PORTS_INVALID')
@@ -72,6 +73,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const requests = new ConfigurationRequests({ client: native, intents: new ConfigurationIntents(root, storageOptions) })
   const transport = createManagedTransport({
     ...ports.seat, ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
+    activityPath: join(dirname(root), 'execution-activity.json'),
     trackCompletion: track, client: native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
     configurationRequests: requests, requireMember: ports.access.requireMember,
     requireAccess: ports.access.requireAccess,
@@ -137,7 +139,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const idleNow = () => !initialization && !pending.size && !transport.jobs.size && !transport.active.size && !transport.watches.size
     && !transport.sessionChanges.size && !transport.configurationChanges.size && !transport.dispatches.size
     && !transport.waking.size && !transport.executionStopping && !requests.active.size
-    && !transport.workState.pending.size && !transport.runningSnapshot
+    && !transport.workState.activityPending && !transport.workState.pending.size && !transport.runningSnapshot
     && !deferredRecovery.length && !continuation?.pending.size
   const assertQuiescent = () => {
     if (phase !== 'quiesced' || !idleNow()) throw failure('EXECUTION_BUSY')
@@ -181,7 +183,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       uncertainty: new Map(state.uncertainChanges), uncertaintyVersions: state.uncertainChanges.versions,
       requests: { pending: requests.pending, latest: requests.latest, rejectedPreparations: requests.rejectedPreparations },
       applications: administration.applications, automaticConfigurationOperations: administration.automaticConfigurationOperations,
-      work: { records: transport.workState.records, seq: transport.workState.seq },
+      work: { records: transport.workState.records, seq: transport.workState.seq, restartActivity: transport.workState.restartActivity },
       followedTurns: transport.followedTurns, retainedImages: transport.retainedImages,
       idleSeen: idle.seen, continuationStates: continuation?.states ?? new Map(),
     })
@@ -199,6 +201,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     administration.automaticConfigurationOperations = m.automaticConfigurationOperations ?? new Map()
     modelHandoff.records = administration.automaticConfigurationOperations
     transport.workState.records = m.work.records; transport.workState.seq = m.work.seq
+    transport.workState.restartActivity = m.work.restartActivity ?? new Map()
     for (const entry of m.followedTurns) transport.followedTurns.set(...entry)
     transport.retainedImages = m.retainedImages
     transport.activity.shownWords = handoff.shownWords
@@ -230,7 +233,19 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       if (initialized || phase !== 'created') throw failure('EXECUTION_NOT_ACCEPTING')
       phase = 'initializing'
       initialization = (async () => {
-        if (!handoff) await transport.restoreConfigurationRequests()
+        if (!handoff) {
+          await transport.restoreConfigurationRequests()
+          for (const reference of await transport.workState.takeRestartActivity()) {
+            const bot = ports.bots.get(reference.botId)
+            if (!bot) continue
+            const reconnect = transport.configurationChanges.track(bot.id, (async () => {
+              const resumed = await transport.resumePreviouslyActive(bot, reference)
+              if (resumed && requestRestartSummary && Date.parse(resumed.resumedAt) > Date.parse(reference.observedAt))
+                await requestRestartSummary({ botId: bot.id, from: reference.observedAt, to: resumed.resumedAt })
+            })())
+            track(reconnect).catch(() => { try { Promise.resolve(ports.diagnostics?.record?.({ code: 'RESTART_RESUME_UNAVAILABLE', module: 'execution' })).catch(() => {}) } catch {} })
+          }
+        }
         initialized = true; phase = 'running'; transport.workState.schedule(); startProducers()
         return { stateCompatibility: COMPATIBILITY }
       })()

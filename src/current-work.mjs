@@ -1,4 +1,8 @@
 import { randomUUID } from 'node:crypto'
+import { constants } from 'node:fs'
+import { mkdir, open } from 'node:fs/promises'
+import { dirname } from 'node:path'
+import { writeAtomic } from './json-file.mjs'
 import { performance } from 'node:perf_hooks'
 
 const NATIVE_MS = 15_000, SUMMARY_MS = 600_000
@@ -18,11 +22,54 @@ export function workSummaryInput(input) {
   return { expected: { ...input.expected }, summary: input.summary === null ? null : input.summary.trim() }
 }
 
-// Only public observer rows and explicit self reports enter this parent-owned projection.
+// UI state stays observation-based; restart references also use actual accepted native input.
 export class CurrentWork {
-  constructor({ now = () => new Date().toISOString(), monotonic = () => performance.now(), notify = () => {} } = {}) {
+  constructor({ now = () => new Date().toISOString(), monotonic = () => performance.now(), notify = () => {}, activityPath = null, reportActivity = () => {} } = {}) {
     this.now = now; this.monotonic = monotonic; this.notify = notify
+    this.activityPath = activityPath; this.reportActivity = () => { try { Promise.resolve(reportActivity()).catch(() => {}) } catch {} }; this.restartActivity = new Map(); this.activityQueue = Promise.resolve(); this.activityPending = 0
     this.records = new Map(); this.pending = new Map(); this.seq = 0; this.closed = false; this.timer = null
+  }
+  saveActivity() {
+    if (!this.activityPath) return this.activityQueue
+    const targets = [...this.restartActivity.values()].map(value => ({ ...value }))
+    this.activityPending++
+    const saving = this.activityQueue.then(async () => {
+      await mkdir(dirname(this.activityPath), { recursive: true, mode: 0o700 })
+      await writeAtomic(this.activityPath, { schema: 'bellteam.execution-activity.v1', targets })
+    })
+    this.activityQueue = saving.catch(() => { this.reportActivity() }).finally(() => { this.activityPending-- })
+    return saving
+  }
+  startedActivity(botId, harness, sessionId, receipt) {
+    if (this.closed || !text(botId) || !text(harness) || receipt?.session_id !== sessionId || !launch(receipt.launch_id)) return null
+    const value = { botId, harness, sessionId, launchId: receipt.launch_id, observedAt: this.now() }
+    this.restartActivity.set(botId, value); void this.saveActivity().catch(() => {})
+    return value
+  }
+  finishedActivity(botId, expected) {
+    if (!expected || this.restartActivity.get(botId) !== expected) return
+    this.restartActivity.delete(botId); void this.saveActivity().catch(() => {})
+  }
+  async takeRestartActivity() {
+    if (!this.activityPath) return []
+    await this.activityQueue
+    let file
+    try {
+      file = await open(this.activityPath, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
+      const info = await file.stat()
+      if (!info.isFile() || info.uid !== process.getuid() || (info.mode & 0o777) !== 0o600 || info.nlink !== 1 || info.size > 65536) throw Error('ACTIVITY_INVALID')
+      const value = JSON.parse(await file.readFile('utf8'))
+      if (!keys(value, ['schema', 'targets']) || value.schema !== 'bellteam.execution-activity.v1' || !Array.isArray(value.targets)
+        || value.targets.some(row => !keys(row, ['botId','harness','sessionId','launchId','observedAt'])
+          || ![row.botId,row.harness,row.sessionId].every(text) || !launch(row.launchId) || typeof row.observedAt !== 'string' || !Number.isFinite(Date.parse(row.observedAt)))
+        || new Set(value.targets.map(row => row.botId)).size !== value.targets.length) throw Error('ACTIVITY_INVALID')
+      this.restartActivity.clear()
+      await this.saveActivity()
+      return value.targets
+    } catch (error) {
+      if (error.code !== 'ENOENT') this.reportActivity()
+      return []
+    } finally { await file?.close() }
   }
   record(botId) {
     if (!this.records.has(botId)) this.records.set(botId, {
@@ -50,7 +97,7 @@ export class CurrentWork {
     if (this.pending.has(record.botId)) this.finish(this.pending.get(record.botId), failure('UNAVAILABLE', 503))
     if (changed) this.changed(record)
   }
-  invalidate(botId) { this.unknown(this.record(botId)); this.schedule() }
+  invalidate(botId) { this.finishedActivity(botId, this.restartActivity.get(botId)); this.unknown(this.record(botId)); this.schedule() }
   sync(botId, sessionId, available = true) {
     const record = this.record(botId)
     if (record.sessionId !== sessionId) { this.unknown(record); record.sessionId = sessionId }
@@ -101,6 +148,12 @@ export class CurrentWork {
       const changed = record.state !== state || record.launchId !== next.launchId || record.turnId !== next.turnId
       if (changed) { this.clearSummary(record); Object.assign(record, next, { state }) }
       record.observedAt = this.now(); record.observedMono = this.monotonic()
+      const active = this.restartActivity.get(target.botId)
+      if (running) {
+        if (active?.sessionId === target.sessionId && active.launchId === row.launch_id) {
+          active.observedAt = record.observedAt; void this.saveActivity().catch(() => {})
+        } else this.startedActivity(target.botId, row.harness, target.sessionId, { session_id: target.sessionId, launch_id: row.launch_id })
+      } else if (active?.sessionId === target.sessionId) this.finishedActivity(target.botId, active)
       if (changed) this.changed(record)
       this.expire(record)
       const pending = this.pending.get(target.botId)

@@ -33,3 +33,11 @@ export function launchFailureDetails(error) {
     startup: { status: 'blocked', reason: 'vendor_action_required' },
     initial_prompt: { status: 'not_requested', reason: 'not_requested', turn_started: false } }
 }
+
+export function resumeUnavailable(value, sessionId) {
+  return typeof sessionId === 'string' && /^[A-Za-z0-9_-]{1,64}$/u.test(sessionId) && value
+    && Object.keys(value).sort().join(',') === 'code,effect,input,outcome,schema,session_id'
+    && value.schema === 'aiterm.agent-resume-unavailable.v1' && value.code === 'AGENT_RESUME_UNAVAILABLE'
+    && value.session_id === sessionId && value.outcome === 'unavailable' && value.effect === 'not_started' && value.input === 'not_sent'
+    ? { ...value } : null
+}
