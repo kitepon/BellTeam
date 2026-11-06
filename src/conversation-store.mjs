@@ -1,3 +1,4 @@
+import { deliveryError } from './conversation-writer.mjs'
 import { deliveryTracking } from './delivery-tracking.mjs'
 import { watch } from 'node:fs'
 import { mkdir, open } from 'node:fs/promises'
@@ -146,6 +147,7 @@ function messageItem(record, direction) {
     imageAsset: record.image_asset ?? null,
     imageAssets: record.image_assets ?? [],
     delivery: record.delivery ?? 'delivered',
+    ...(deliveryError(record.delivery, record.delivery_error) ? { delivery_error: deliveryError(record.delivery, record.delivery_error) } : {}),
     ...(deliveryTracking(record.delivery, record.delivery_tracking) ? { deliveryTracking: deliveryTracking(record.delivery, record.delivery_tracking) } : {}),
   }
 }
@@ -181,6 +183,7 @@ function peerItem(record, direction, peer) {
     imageAsset: record.image_asset ?? null,
     imageAssets: record.image_assets ?? [],
     delivery: record.delivery ?? 'delivered',
+    ...(deliveryError(record.delivery, record.delivery_error) ? { delivery_error: deliveryError(record.delivery, record.delivery_error) } : {}),
     ...(deliveryTracking(record.delivery, record.delivery_tracking) ? { deliveryTracking: deliveryTracking(record.delivery, record.delivery_tracking) } : {}),
   }
 }
@@ -194,9 +197,10 @@ function participants(record) {
 }
 function resolveStatus(record, statuses) {
   const status = statuses.get(record.delivery_id) ?? record
-  const { delivery_tracking: _tracking, ...original } = record
+  const { delivery_tracking: _tracking, delivery_error: _error, ...original } = record
   const tracking = deliveryTracking(status.delivery, status.delivery_tracking)
-  return { ...original, delivery: status.delivery, ...(tracking ? { delivery_tracking: tracking } : {}) }
+  const error = deliveryError(status.delivery, status.delivery_error)
+  return { ...original, delivery: status.delivery, ...(error ? { delivery_error: error } : {}), ...(tracking ? { delivery_tracking: tracking } : {}) }
 }
 function display(record, bot, statuses) {
   if (record.schema === 'bellteam.interim-word.v1') return interimItem(record)
