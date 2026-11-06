@@ -30,6 +30,7 @@ async function fixture(t, options = {}) {
   }
   const process = createModuleProcess({ component, root, investigationsFile: component === 'diagnostics' ? '/fixture/notes.json' : null,
     exchangeMutex: options.exchangeMutex, admission: options.admission,
+    probeCandidate: channel => behavior.probe ? behavior.probe(channel) : Promise.resolve(),
     exportHandoff: () => behavior.export?.() ?? Promise.resolve(undefined),
     prepareRelease: async (versionId, expected) => {
       preparations.push({ versionId, expected })
@@ -415,4 +416,27 @@ test('conversation restarts after observed death without admission ceremonies or
   assert.notEqual(f.process.snapshot().generation, generation)
   assert.equal(f.requests.length, 1, 'the lost business request is never replayed')
   pending.resolve('old operation terminal'); await old
+})
+
+// Only this new candidate probe contact is run for the durable-job change.
+test('candidate public probe failure preserves requested selection and recovers without rollback', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const value = await fixture(t)
+  await value.process.start()
+  let probes = 0
+  value.behavior.probe = async channel => {
+    probes++
+    await channel.request('list', { status: 'all', limit: 1 })
+    if (probes === 1) throw new Error('read rejected')
+  }
+  await assert.rejects(value.process.replace(sha), error => error.code === 'READY_PROBE_FAILED')
+  assert.equal(value.process.snapshot().currentVersionId, sha)
+  assert.equal(value.process.snapshot().available, false)
+  t.mock.timers.tick(1000)
+  for (let i = 0; i < 100 && !value.process.snapshot().available; i++) await turn()
+  assert.equal(value.process.snapshot().available, true)
+  assert.equal(value.children.length, 3)
+  assert.equal(value.children[2].versionId, sha)
+  assert.equal(probes, 2)
+  assert.equal(value.requests.length, 2)
 })

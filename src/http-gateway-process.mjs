@@ -1,4 +1,6 @@
+import { probeModuleReady } from './module-ready-probe.mjs'
 import { createModuleChildRestart, reportModuleChildExit, observeModuleChild } from './module-child-restart.mjs'
+import { get } from 'node:http'
 import { spawn } from 'node:child_process'
 import { isAbsolute, join } from 'node:path'
 import { constants } from 'node:fs'
@@ -8,13 +10,13 @@ import { writeAtomic } from './json-file.mjs'
 export const GATEWAY_DRAIN_TIMEOUT_MS = 5000
 export const GATEWAY_START_TIMEOUT_MS = 15000
 
-export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRelease, adoptionPath = null, onModuleChildExit }) {
+export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRelease, adoptionPath = null, onModuleChildExit, onModuleRestartLimit }) {
   let child = null, address = null, ending = null
   let closed = false
   const recovery = createModuleChildRestart(async () => {
     if (closed || child) return
     await start()
-  })
+  }, 'web-gateway', onModuleRestartLimit)
   let boundPort = port
   // shortcut: older assets live in this parent; persist the list to retain them across parent restarts.
   const assetVersions = new Map()
@@ -59,6 +61,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
   const startAt = async (root, versionId = null) => {
     if (child) throw new Error('GATEWAY_ALREADY_STARTED')
     const requestedPort = boundPort
+    recovery.restarting()
     const next = spawn(process.execPath, [join(root, 'src/http-gateway-entry.mjs'), socketPath, String(requestedPort), versionId ?? '', assetCatalog()], {
       env: {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
@@ -66,7 +69,7 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
     child = next
     const ended = new Promise(resolve => next.once('close', (code, signal) => {
       if (child === next) { child = null; address = null }
-      if (next.wasReady && !next.intentional && !closed) { reportModuleChildExit('web-gateway', { code, signal }, stderrObservation(), onModuleChildExit); recovery.lost() }
+      if (next.wasReady && !next.intentional && !closed) { recovery.exited({ code, signal }); reportModuleChildExit('web-gateway', { code, signal }, stderrObservation(), onModuleChildExit); recovery.lost() }
       resolve({ code, signal })
     }))
     ending = ended
@@ -98,6 +101,15 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
           resolve()
         })
       })
+      await probeModuleReady(() => new Promise((resolve, reject) => {
+        const request = get({ host: '127.0.0.1', port: address.port, path: '/', timeout: 30_000 }, response => {
+          response.resume()
+          response.once('end', () => response.statusCode === 200 ? resolve() : reject(new Error('HTTP_STATUS')))
+          response.once('error', reject)
+        })
+        request.once('timeout', () => request.destroy(new Error('HTTP_TIMEOUT')))
+        request.once('error', reject)
+      }))
       recovery.running()
       return address
     } catch (error) {
@@ -179,6 +191,11 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
           currentVersionId: release.versionId, previousVersionId: previousVersion })
       } catch (error) {
         if (update.signal.aborted) throw error
+        if (['READY_TIMEOUT', 'READY_PROBE_FAILED'].includes(error?.code)) {
+          currentRoot = release.appRoot; currentVersion = release.versionId
+          if (adoptionPath) await writeAtomic(adoptionPath, { schema: 'bellteam.web-gateway.adoption.v1', currentVersionId: currentVersion, previousVersionId: previousVersion })
+          recovery.lost(error); throw error
+        }
         const errors = [error]
         try { await stop() } catch (stopError) { errors.push(stopError) }
         try {

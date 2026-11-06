@@ -17,7 +17,8 @@ async function fixture(t, hook = async () => {}) {
     prepareRelease: async versionId => ({ versionId, appRoot: `/run/bellteam-memory-code/${versionId}/payload`,
       protocolVersion: 1, stateCompatibility: MEMORY_STATE_COMPATIBILITY }),
     run: async (node, args, options) => {
-      const request = JSON.parse(options.input), call = { entry: args[0], ...request }; calls.push(call)
+      const request = JSON.parse(options.input), call = { entry: args[0], ...request }
+      if (request.method !== 'recallMemory' || request.params?.args?.[0]?.query !== '') calls.push(call)
       const value = await hook(call)
       return { stdout: JSON.stringify({ protocolVersion: 1, generation: request.generation,
         stateCompatibility: MEMORY_STATE_COMPATIBILITY, result: request.method === null ? { restored: true } : value ?? null }) }
@@ -91,7 +92,7 @@ test('a mismatched result generation fails only that memory request', async t =>
   // Use the real runner response guard with a second isolated controller.
   const controller = createMemoryProcess({ root: f.root, run: async (_node, _args, options) => {
     const request = JSON.parse(options.input)
-    return { stdout: JSON.stringify({ protocolVersion: 1, generation: request.method === null ? request.generation : 'wrong',
+    return { stdout: JSON.stringify({ protocolVersion: 1, generation: request.method === null || request.params?.args?.[0]?.query === '' ? request.generation : 'wrong',
       stateCompatibility: MEMORY_STATE_COMPATIBILITY, result: request.method === null ? { restored: true } : null }) }
   } })
   t.after(() => controller.close())

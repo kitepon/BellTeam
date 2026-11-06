@@ -342,19 +342,20 @@ class ModuleUpdater(host.HostUpdater):
             try:
                 installer.write_file(directory / 'reconciliation-fence.json', reconciliation_bytes(result), 0o600)
                 installer.sync_directory(directory)
-            except OSError: raise host.Failure('HOST_MODULE_FENCE_UNKNOWN', 503, 'unknown')
+            except OSError: raise host.Failure('UNREADABLE', path=str(directory / 'reconciliation-fence.json'), reason='OSError')
         return result
 
     def install(self, plan, directory):
         target = plan['target']
         host.check(target['componentId'] in host.MODULES, 'HOST_MODULE_TARGET_INVALID')
         incoming = host.module_inputs(self, target)
+        self.progress(directory, 'verifying')
         host.check(self.planned_target(plan) == target, 'HOST_UPDATE_PLAN_CHANGED')
         self.assert_model_binding(plan['expected'])
         installer = load_module('bundled_fixed_installer', 'install-web-gateway-release.py')
         expected = installer.expectation(target['versionId'], target['sourceCommit'], target['artifact']['signerCommit'])
         result = installer.install(self.private, incoming.parent, expected, target['componentId'])
-        host.check(result == {'versionId': target['versionId'], 'installed': True}, 'HOST_MODULE_INSTALL_UNKNOWN')
+        host.check(result == {'versionId': target['versionId'], 'installed': True}, 'HOST_MODULE_INSTALL_FAILED')
         self.assert_model_binding(plan['expected'])
         cleanup, error = 'succeeded', None
         try:

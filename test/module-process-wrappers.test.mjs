@@ -17,7 +17,7 @@ async function fixture(t, component) {
     for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
     await rm(root, { recursive: true, force: true })
   })
-  return { root, children, spawnProcess: (entry, args, options) => {
+  return { root, children, probeCandidate: async () => {}, spawnProcess: (entry, args, options) => {
     assert.equal(entry, `/usr/local/libexec/bellteam-${component}-start`)
     assert.equal(options.serialization, 'advanced')
     for (const child of children) assert.ok(child.exitCode !== null || child.signalCode !== null)

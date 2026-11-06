@@ -1,3 +1,4 @@
+import { probeModuleReady } from './module-ready-probe.mjs'
 import { createModuleChildRestart, reportModuleChildExit, observeModuleChild, reportConversationChildExitOrigin } from './module-child-restart.mjs'
 import { moduleExchangeDiagnostic, moduleDrainDiagnostic, moduleRecoveryLog, moduleTerminationLog } from './module-exchange-diagnostic.mjs'
 import { spawn } from 'node:child_process'
@@ -23,7 +24,7 @@ const within = async (value, milliseconds, code) => {
 export function createModuleProcess({ component, root, createChannel, prepareRelease, validateReady,
   initializeParams = ({ generation, mode }) => ({ generation, mode }),
   exportHandoff = async () => undefined, admission, canContinue = () => false,
-  onGeneration = () => {}, onState = () => {}, onModuleChildExit, investigationsFile = null,
+  onGeneration = () => {}, onState = () => {}, onModuleChildExit, onModuleRestartLimit, probeCandidate, investigationsFile = null,
   startPaused = false, restoreAfterRestart = async () => {}, exchangeMutex = null, spawnProcess = spawn }) {
   if (!['conversation', 'usage', 'diagnostics'].includes(component) || typeof root !== 'string'
     || typeof createChannel !== 'function' || typeof prepareRelease !== 'function' || typeof validateReady !== 'function'
@@ -62,6 +63,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
         if (instance) {
           const retained = instance
           if (retained.child.exitCode !== null || retained.child.signalCode !== null || !retained.child.connected) await retained.finishTermination()
+          else if (retained.probeFailed) { await drain(retained, ticket, mark); await finishExit(retained) }
           else if (retained.intentional) await finishExit(retained)
           else if (retained.versionId === currentVersionId && retained.ready) { await resume(retained, ticket); initialized = true; return }
           else if (retained.resumed) { await drain(retained, ticket, mark); await finishExit(retained) }
@@ -76,7 +78,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
           await restoreAfterRestart(target.channel, target.generation)
           mark('resume')
           await resume(target, ticket)
-        } catch (error) { await stopUnadmitted(target); throw error }
+        } catch (error) { if (!target.probeFailed) await stopUnadmitted(target); throw error }
         report('completed')
       }
       mark('local_mutex')
@@ -85,7 +87,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
         return exchangeMutex ? exchangeMutex.runExclusive(() => perform(signal)) : perform(signal)
       })
     } catch (error) { report('failed', error); throw error }
-  }, component)
+  }, component, onModuleRestartLimit)
   const active = new Set()
   const snapshot = () => ({ currentVersionId, previousVersionId, generation, available, phase, exchanging,
     currentTarget: currentVersionId === null ? 'builtin' : 'release',
@@ -150,6 +152,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     const env = component === 'diagnostics' && investigationsFile !== null
       ? { BELLTEAM_DIAGNOSTIC_INVESTIGATIONS: investigationsFile } : {}
     markStage('spawn')
+    recovery.restarting()
     const child = spawnProcess(`/usr/local/libexec/bellteam-${component}-start`, [versionId ?? 'builtin'], {
       env, serialization: 'advanced', stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
@@ -199,6 +202,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       target.unexpected = target.resumed && initialized && !closed && !target.intentional
       if (target.unexpected) {
         closeAdmission('module_child_exit'); state('unavailable')
+        recovery.exited(result)
         reportModuleChildExit(component, result, target.stderrObservation(), onModuleChildExit)
       }
       await target.finishTermination()
@@ -220,7 +224,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       validateReady(ready)
       target.ready = structuredClone(ready)
       return target
-    } catch (error) { await stopUnadmitted(target); throw error }
+    } catch (error) { if (!target.probeFailed) await stopUnadmitted(target); throw error }
   }
   const resume = async (target, ticket) => {
     if (closed || target.ended) throw fail('CLOSED')
@@ -228,6 +232,18 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     target.resumed = true
     if (closed) throw fail('CLOSED')
     if (component !== 'conversation') admission?.resume(ticket)
+    if (!target.probed) {
+      try {
+        await probeModuleReady(() => probeCandidate ? probeCandidate(target.channel)
+          : component === 'diagnostics' ? target.channel.request('list', { status: 'all', limit: 1 })
+            : Promise.reject(failure('READY_PROBE_FAILED')))
+        target.probed = true
+      } catch (error) {
+        target.probeFailed = true
+        state('unavailable'); recovery.lost(error)
+        throw error
+      }
+    }
     exchanging = false; state('running', true)
   }
   const drainAdmission = (ticket, forClose) => forClose && component === 'conversation' && admission?.drainForClose
@@ -332,6 +348,10 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
         await resume(next, ticket)
         return snapshot()
       } catch (error) {
+        if (['READY_TIMEOUT', 'READY_PROBE_FAILED'].includes(error?.code)) {
+          state('unavailable'); recovery.lost(error)
+          throw error
+        }
         const errors = [error], failedStage = stage
         let rollbackStage = null, rollbackError
         try {

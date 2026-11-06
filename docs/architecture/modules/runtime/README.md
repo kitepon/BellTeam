@@ -47,3 +47,6 @@ CLI登録図はwriter所有と完成JSON公開を含む。起動/席実行/移�
 ## 全module共通runnerとの境界
 
 共通交換runner/controller・排他・世代とclose-drain/実OS子終端はruntimeのmodule-runner窓口が持つ。既各controllerをこの公開機構へ揃え、業務writer/factory/DTOは各moduleへ残す。親のplan/同UUID step ledgerとcomponent adapterの組立はintegration、配布資材/source検証はdistribution。未提供factory/runnerを組立てただけで交換成功や耐久完了へ投影しない。
+
+
+The 2026-11-07 durable job / real readiness / restart-limit contract is canonical in [update-jobs.md](update-jobs.md). It supersedes unknown-as-job-state and worker-bound-only acceptance text for new jobs. Legacy historical receipts remain unchanged.

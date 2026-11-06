@@ -250,3 +250,6 @@ N102正式channel.control('quiesceWriter',{},60000)はexact {writerQuiesced:true
 同instanceの退役は直列化し、失敗したlifecycle stageだけ再試行できる。開始後の新request/callbackは拒否する。生存writerは同世代のquiesceWriter実ACKと保存/effect終端を確認してからexitWriterを要求し、失敗は共通backoffで同じ退役stageを再試行する。実OS/IPC/pipe終了と親incoming/reaped完了を観測済みなら、exit ACKの欠測だけで新世代への復帰を止めない。caller期限が先にrejectしても実.completionまでlocal排他を保持し、期限kill/強制resume/failed手消去/偽native finish/元要求再送はない。親closeは従来の全体close契約を維持する。
 
 返値は旧writerの全barrierと既Q lost接続時の既snapshotでavailable=false。同共有mutexを解放してから既Qが同mutexを取得して新子を作るため、新readyを退役callback内で待たない。admission.snapshot.unconfirmedは旧retiredFailed/nativeUnknownを含むので新resumeの追加拒否に使わず、既recoverFailedGeneration/resumeのcurrent failed検査と元native/watch実参照を保持する。writer専用保存/effect分類と二control/子ACKは[conversation正本](../conversation/process.md)、通知/同親bindingはintegration、元native/同Bot占有は[execution正本](../execution/conversation-lifetimes.md)が所有する。
+
+
+The 2026-11-07 durable job / real readiness / restart-limit contract is canonical in [update-jobs.md](update-jobs.md). It supersedes unknown-as-job-state and worker-bound-only acceptance text for new jobs. Legacy historical receipts remain unchanged.

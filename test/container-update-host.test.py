@@ -50,7 +50,9 @@ class HostTest(unittest.TestCase):
         self.calls.append(identifier)
         thread=threading.Thread(target=lambda:self.updater.worker(identifier));thread.start();self.threads.append(thread)
     def execute(self,plan,directory):
+        self.updater.progress(directory,'verifying')
         self.release.wait(3)
+        self.updater.progress(directory,'swapping')
         return {'execution':'succeeded','verification':'succeeded','cleanup':'failed','rollback':'not_needed','observed':self.current,
                 'error':'HOST_UPDATE_CLEANUP_FAILED'}
     def test_durable_acceptance_duplicate_same_id_and_separate_completion(self):
@@ -76,15 +78,16 @@ class HostTest(unittest.TestCase):
         self.updater.start({**args,'confirmContainerRestart':True})
         with self.assertRaises(module.Failure) as error:self.updater.start({**args,'requestId':str(uuid.uuid4()),'confirmContainerRestart':True})
         self.assertEqual(error.exception.code,'HOST_UPDATE_IN_PROGRESS')
-    def test_handoff_loss_remains_unknown_and_never_relaunches(self):
+    def test_handoff_failure_is_durable_and_never_relaunches(self):
         plan=self.plan();identifier=str(uuid.uuid4());calls=[]
         def lost(request):calls.append(request);raise OSError()
         self.updater.launcher=lost
         args={'requestId':identifier,'planId':plan['planId'],'confirmContainerRestart':True}
         for _ in range(2):
-            with self.assertRaises(module.Failure) as error:self.updater.start(args)
-            self.assertEqual(error.exception.outcome,'unknown')
-        self.assertEqual(calls,[identifier]);self.assertEqual(self.updater.get(identifier)['admission'],'unknown')
+            result=self.updater.start(args)
+            self.assertEqual(result['state'],'failed')
+            self.assertEqual(result['reason']['code'],'HOST_UPDATE_HANDOFF_FAILED')
+        self.assertEqual(calls,[identifier])
     def test_catalog_monotonic_replay_expiry_and_durable_revocation(self):
         first=self.digest
         self.assertEqual(self.install_catalog(self.catalog),first)
@@ -99,14 +102,19 @@ class HostTest(unittest.TestCase):
             self.assertFalse(self.updater.capabilities()['supported'])
         with patch.object(module.time,'time',return_value=module.time.time()-600):
             self.assertFalse(self.updater.capabilities()['supported'])
-    def test_lost_worker_is_unknown_and_get_never_launches(self):
+    def test_lost_worker_is_failed_and_get_never_launches(self):
         self.release.clear();plan=self.plan();identifier=str(uuid.uuid4())
         self.updater.start({'requestId':identifier,'planId':plan['planId'],'confirmContainerRestart':True})
         path=self.prefix/'state/operations'/identifier/'operation.json'
-        value=module.read_json(path,os.getuid());value['worker']['pid']=99999999
+        value=module.read_json(path,os.getuid())
+        until=module.time.monotonic()+2
+        while value['worker'] is None and module.time.monotonic()<until:
+            threading.Event().wait(.001);value=module.read_json(path,os.getuid())
+        self.assertIsNotNone(value['worker'])
+        value['worker']['pid']=99999999
         module.atomic(path,value)
         result=self.updater.get(identifier)
-        self.assertEqual(result['phase'],'unknown');self.assertEqual(result['execution'],'unknown')
+        self.assertEqual(result['phase'],'failed');self.assertEqual(result['execution'],'failed')
         self.assertEqual(self.calls,[identifier])
     def test_get_waits_for_ledger_writer_and_reads_its_completed_record(self):
         identifier=str(uuid.uuid4());directory=self.prefix/'state/operations'/identifier
@@ -116,6 +124,7 @@ class HostTest(unittest.TestCase):
                'cleanup':'pending','rollback':'not_needed','observed':None,'updatedAt':module.stamp(),
                'worker':{'pid':99999999,'birth':'missing'}}
         module.atomic(path,value)
+        module.atomic(self.prefix/'state/jobs'/(identifier+'.json'),dict(schema='bellteam.update-job.v1',jobId=identifier,idempotencyKey=identifier,kind='container',target=dict(catalogSha256='a'*64,moduleId='container',versionId='b'*64),state='queued',reason=None,transitions=[dict(state='queued',atNs=str(module.time.time_ns()))],updatedAtNs=str(module.time.time_ns())))
         entered=threading.Event();actual_locked=module.locked
         def entering_lock(*args,**kwargs):
             entered.set();return actual_locked(*args,**kwargs)
@@ -127,6 +136,8 @@ class HostTest(unittest.TestCase):
                     with self.assertRaises(TimeoutError):result.result(timeout=0.05)
                     value.update(phase='completed',execution='succeeded',verification='succeeded',cleanup='succeeded')
                     module.atomic(path,value)
+                    job=self.updater.read_job(identifier);job.update(state='ready',updatedAtNs=job['transitions'][0]['atNs']);job['transitions']=[dict(state='ready',atNs=job['updatedAtNs'])]
+                    module.atomic(self.prefix/'state/jobs'/(identifier+'.json'),job)
             observed=result.result(timeout=1)
         self.assertEqual(observed['requestId'],identifier)
         self.assertEqual(observed['phase'],'completed')
@@ -162,6 +173,7 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
                 return selected.encode() if args[1:3]==['image','inspect'] else b''
             raise subprocess.CalledProcessError(1,args)
         self.updater.command=command
+        self.updater.progress=lambda *_:None
         self.updater.inspect_current=lambda:dict(self.current) if (install/'recovered').exists() or not (install/'applied').exists() else {
             **self.current,'imageId':selected,'sourceCommit':'d'*40,'containerId':'f'*64}
         return install
@@ -184,7 +196,7 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         code.write_text("import importlib.util,sys,os,time\nfrom pathlib import Path\n"+
           "s=importlib.util.spec_from_file_location('worker',"+repr(str(Path(module.__file__)))+");m=importlib.util.module_from_spec(s);s.loader.exec_module(m)\n"+
           "p=Path(sys.argv[1]);config="+repr(self.config)+"\n"+
-          "def execute(plan,directory):\n while not (p/'release-worker').exists():time.sleep(.01)\n return dict(execution='succeeded',verification='succeeded',cleanup='succeeded',rollback='not_needed',observed=None,error=None)\n"+
+          "def execute(plan,directory):\n u.progress(directory,'verifying')\n while not (p/'release-worker').exists():time.sleep(.01)\n u.progress(directory,'swapping')\n return dict(execution='succeeded',verification='succeeded',cleanup='succeeded',rollback='not_needed',observed=None,error=None)\n"+
           "u=m.HostUpdater(p,config,uid=os.getuid(),inspect=lambda:"+repr(self.current)+",execute=execute);u.assert_model_binding=lambda *args:None;u.worker(sys.argv[2])\n")
         processes=[]
         def launch(identifier):processes.append(subprocess.Popen([sys.executable,'-I',str(code),str(self.prefix),identifier],start_new_session=True))

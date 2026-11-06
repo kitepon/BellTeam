@@ -86,3 +86,6 @@ containerのcurrent/previous参照は保持し、module設置は別`module-curre
 The shared Server used by Host, module-installer and bundled container-updater keeps at most 16 active handlers. A connected request waits for a free slot on the accept thread; remaining connections stay in the bounded socket backlog. Catalog fan-out must not silently discard an install start/get request. The existing client five-second deadline still applies; no request is retried or replayed. Peer/frame validation and worker/ledger ownership remain unchanged. Unexpected Handler exceptions emit only HOST_UPDATE_REQUEST_FAILED and the exception class to stderr; exception messages, request bodies, paths and credentials are omitted.
 
 The source-local capacity contact confirms the seventeenth request is dispatched once after a slot is released. This fixes a demonstrated silent-drop defect; the original ff55 public failure has no saved handler-count or exception trace, so this change does not attribute that historical failure to saturation.
+
+
+The 2026-11-07 durable job / real readiness / restart-limit contract is canonical in [update-jobs.md](update-jobs.md). It supersedes unknown-as-job-state and worker-bound-only acceptance text for new jobs. Legacy historical receipts remain unchanged.
