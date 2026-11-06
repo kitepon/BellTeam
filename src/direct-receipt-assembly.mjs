@@ -1,5 +1,6 @@
 import { DurableMessageReceipts } from './durable-message-receipts.mjs'
 import { directEnvelope, userEnvelope } from './messenger.mjs'
+import { normalInputPending } from './conversation-channel.mjs'
 
 // Durable receive is independent of AI admission; only saved new IDs reach execution.
 export function createDirectReceiptAssembly({ root, bots, assets, legacy, conversation, transport, aiControl,
@@ -51,7 +52,11 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
         return await transport.notify(bot, envelope, options)
       })
     } catch (error) {
-      if (invoked) throw error
+      if (invoked) {
+        const pending = normalInputPending(error)
+        if (pending?.deliveryId === record.delivery_id && pending.botId === record.target) throw error
+        throw Object.assign(new Error(error.message, { cause: error }), error, { effect: 'unknown' })
+      }
       throw Object.assign(new Error(error.message, { cause: error }), { code: error.code, status: error.status, effect: 'not_started' })
     }
   }
