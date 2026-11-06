@@ -337,6 +337,12 @@ export function createWebApp({ client = createWebClient() } = {}) {
     state.bots = botResult.bots.map(bot => ({ ...bot, deletionRequested:state.pendingDeletionIds?.has(bot.id) ?? false, avatar: bot.avatarVersion ? `/api/bots/${encodeURIComponent(bot.id)}/avatar?v=${encodeURIComponent(bot.avatarVersion)}` : '' }))
     state.rooms = roomResult.rooms
     state.owner = ownerResult.owner
+    const conversationKeys = new Set([...state.bots.map(bot => conversationKey('bot', bot.id)), ...state.rooms.map(room => conversationKey('room', room.id))])
+    const obsoleteReceipts = Object.keys(state.readReceipts).filter(key => !conversationKeys.has(key))
+    if (obsoleteReceipts.length) {
+      for (const key of obsoleteReceipts) delete state.readReceipts[key]
+      try { localStorage.setItem(READ_RECEIPTS_KEY, JSON.stringify(state.readReceipts)) } catch {}
+    }
     if (state.selected) {
       const source = state.selectedType === 'room' ? state.rooms : state.bots
       const current = source.find(item => item.id === state.selected.id)
