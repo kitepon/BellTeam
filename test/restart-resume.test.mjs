@@ -46,7 +46,7 @@ test('cold startup resumes saved active conversations only, never fresh, and ask
   await start('first')
   assert.deepEqual(launches.map(value => value.session_name).sort(), ['active','unavailable'])
   assert.equal(summaries.length, 1); assert.equal(summaries[0].botId, 'active'); assert.equal(summaries[0].from, now)
-  assert.equal(reports.some(value => value.code === 'RESTART_RESUME_UNAVAILABLE'), true)
+  assert.equal(reports.some(value => value.code === 'SERVER_TURN_TRACKING_FAILED' && JSON.parse(value.diagnostic_log).code === 'RESTART_RESUME_UNAVAILABLE'), true)
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).targets, [])
   await start('second')
   assert.equal(launches.length, 2); assert.equal(summaries.length, 1)
@@ -60,4 +60,34 @@ test('cold startup resumes saved active conversations only, never fresh, and ask
   client.client.callTool = async () => ({ isError: true, content: [], _meta: { 'aiterm/resume_unavailable': {
     schema: 'aiterm.agent-resume-unavailable.v1', code: 'AGENT_RESUME_UNAVAILABLE', session_id: 'active', outcome: 'unavailable', effect: 'not_started', input: 'not_sent' } } })
   await assert.rejects(client.call('agent_launch', { session_name: 'active', require_existing_resume: true }), error => error.resumeUnavailable?.input === 'not_sent' && error.code === 'AGENT_RESUME_UNAVAILABLE')
+})
+
+
+test('cold resume rejection reaches the existing registered diagnostics sink without exception text', async t => {
+  const { Diagnostics } = await import('../src/diagnostics.mjs')
+  const root = await mkdtemp(join(tmpdir(), 'restart-diagnostic-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const activity = new CurrentWork({ activityPath: join(root, 'execution-activity.json') })
+  activity.startedActivity('bot-active', 'codex-cli', 'bot-active', { session_id: 'bot-active', launch_id: 'a'.repeat(32) })
+  await activity.activityQueue
+  const diagnostics = new Diagnostics(join(root, 'diagnostics.json')); await diagnostics.initialize()
+  const bots = new Map([['bot-active', { id: 'bot-active', session: 'bot-active', harness: 'codex', project: root }]])
+  let called = false
+  const dispatcher = createExecutionDispatcher({ generation: 'one', ports: {
+    native: { launchOptions: async () => ({}), call: async (tool, args) => {
+      if (tool === 'pty_list') return { content: [] }
+      assert.equal(tool, 'agent_launch'); assert.equal(args.require_existing_resume, true); called = true
+      throw Object.assign(Error('PRIVATE_BODY_STACK'), { code: 'AGENT_RESUME_UNAVAILABLE' })
+    } }, bots, rooms: {}, membersAdmission: new MembersAdmission(),
+    configurationStorage: { root: join(root, 'intents'), ownerUid: process.getuid() },
+    access: { assertWorkAllowed() {} }, diagnostics: { record: report => diagnostics.record(report) }, observer: { report() {} },
+  } })
+  t.after(() => dispatcher.disconnect())
+  await dispatcher.control('initialize')
+  for (let i = 0; i < 100 && !(await diagnostics.list()).length; i++) await new Promise(resolve => setTimeout(resolve, 1))
+  const rows = await diagnostics.list(); assert.equal(called, true); assert.equal(rows.length, 1)
+  assert.deepEqual(JSON.parse(rows[0].diagnostic_log), { stage: 'restart_resume', code: 'RESTART_RESUME_UNAVAILABLE',
+    botId: 'bot-active', sessionId: 'bot-active', cause_code: 'AGENT_RESUME_UNAVAILABLE' })
+  assert.ok(!JSON.stringify(rows).includes('PRIVATE_BODY_STACK'))
+  await dispatcher.disconnect()
 })

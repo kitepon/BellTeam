@@ -243,7 +243,12 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
               if (resumed && requestRestartSummary && Date.parse(resumed.resumedAt) > Date.parse(reference.observedAt))
                 await requestRestartSummary({ botId: bot.id, from: reference.observedAt, to: resumed.resumedAt })
             })())
-            track(reconnect).catch(() => { try { Promise.resolve(ports.diagnostics?.record?.({ code: 'RESTART_RESUME_UNAVAILABLE', module: 'execution' })).catch(() => {}) } catch {} })
+            track(reconnect).catch(error => { try { Promise.resolve(ports.diagnostics?.record?.({
+              code: 'SERVER_TURN_TRACKING_FAILED', module: 'conversation', diagnostic_log: JSON.stringify({
+                stage: 'restart_resume', code: 'RESTART_RESUME_UNAVAILABLE', botId: bot.id, sessionId: reference.sessionId,
+                cause_code: ['AGENT_RESUME_UNAVAILABLE', 'RESUME_CAPABILITY_UNAVAILABLE', 'RESTART_RESUME_UNCONFIRMED'].includes(error?.code) ? error.code : null,
+              }),
+            })).catch(() => {}) } catch {} })
           }
         }
         initialized = true; phase = 'running'; transport.workState.schedule(); startProducers()
