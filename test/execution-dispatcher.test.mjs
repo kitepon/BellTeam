@@ -206,3 +206,12 @@ test('an initialization still awaiting actual storage cannot be discarded after 
   assert.deepEqual(await f.engine.disconnect(), { closed: true })
   assert.equal(f.closes(), 0)
 })
+
+test('resume ACK retry is idempotent for the already running retained engine', async t => {
+  const f = await fixture(t)
+  await f.engine.control('quiesce')
+  assert.deepEqual(await f.engine.control('resume'), { resumed: true })
+  const calls = [...f.calls]
+  assert.deepEqual(await f.engine.control('resume'), { resumed: true })
+  assert.deepEqual(f.calls, calls, 'an ACK retry performs no native/recovery replay')
+})

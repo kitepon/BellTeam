@@ -42,9 +42,7 @@ test('existing matching wait done invalidates the turn without inventing idle; u
   const { transport } = fixture(t, { waitProcess: async () => ({ schema: 'aiterm.agent-wait-result.v1', outcome: 'done', session_id: bot.id, launch_id: launchId, turn_id: 'turn-a' }) })
   await transport.seatTurns([bot]); assert.equal(transport.currentWork(bot).state, 'working')
   await transport.waitUntilDone({ wait_process: {} }); assert.equal(transport.currentWork(bot).state, 'unknown')
-  transport.uncertainChanges.set(bot.id, 'agent_configure', null)
   await transport.seatTurns([bot]); assert.equal(transport.currentWork(bot).state, 'unknown')
-  assert.equal(transport.uncertainChanges.get(bot.id), 'agent_configure')
 })
 test('an old in-flight observer cannot restore status after stop or a new launch', async t => {
   let release, started

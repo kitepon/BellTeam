@@ -137,3 +137,7 @@ idleNowは保留intentを含む全既条件を維持する。drain中にdeferred
 ## 親側の世代別M port view
 
 runtime readerは同namespaceの既EXECUTION_METHODSからsupportsModelHandoffをfrozen factoryへ付記する。親integration/model-handoff.mdの能力接続に従い、旧factoryはstorage3keyのまま、新M factoryだけdeliveryAnchorを受ける。元closed path/catalog/source/状態互換検証を維持し、旧exportを必須化しない。固有generation/controllerはこのmetadataを判断せず、渡された同factory constructorをconstruct/replace/rollbackで使う。MCP広告と発行前の同generation照合は親が所有する。
+
+## Idempotent resume acknowledgement (runtime recovery contact)
+
+Function/DFD: runtime retries retained-engine `control('resume')` after a lost ACK → initialized, running, non-draining same engine → `{resumed:true}` immediately. It neither starts producers again nor replays deferred recovery. Quiescing/quiesced retains the ordinary resume path; draining/initializing/retired and native/generation identity checks remain. This changes one owned lifecycle response only, not the controller's retry policy or writer-retirement proof.

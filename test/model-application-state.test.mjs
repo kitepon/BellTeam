@@ -100,7 +100,6 @@ test('issued configure without a confirmed result preserves fast preference and 
       assert.equal(state.effect, 'possible')
       assert.equal(f.bots.get('bot-a').fastMode, true)
       assert.equal(calls, 1, 'no automatic retry')
-      assert.equal(native.uncertainChanges.has('bot-a'), response === 'lost')
     }
   }
 })

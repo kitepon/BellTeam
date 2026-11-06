@@ -78,17 +78,6 @@ test('idle configure waits outside leases and rejects an exchange epoch before n
   assert.deepEqual(f.calls, [])
 })
 
-test('configure rechecks member and session certainty after idle before issuing', async t => {
-  const entered = deferred(), validated = deferred()
-  const f = await fixture(t, { requireMember: async () => { entered.resolve(); await validated.promise } })
-  const configure = f.transport.reconfigure(f.bot, { ...f.bot, model: 'next' })
-  await entered.promise
-  f.transport.uncertainChanges.set(f.bot.id, 'agent_configure')
-  validated.resolve()
-  await assert.rejects(configure, { code: 'BOT_SESSION_UNCONFIRMED' })
-  assert.deepEqual(f.calls, [])
-})
-
 test('idle close drains while unrelated existing activity is retained', async t => {
   const issued = deferred(), closing = deferred(), f = await fixture(t)
   f.transport.activity.active.set('other', { bot: { id: 'other' }, completion: new Promise(() => {}) })
@@ -100,14 +89,13 @@ test('idle close drains while unrelated existing activity is retained', async t 
   assert.equal(f.transport.activity.active.has('other'), true)
 })
 
-test('session save failure remains uncertain after a module generation exchange', async t => {
+test('session save failure is reported but does not fence the next module generation', async t => {
   const original = Error('synthetic lost persistence reply')
   const f = await fixture(t, { updateSession: async () => { throw original } })
   await assert.rejects(f.transport.wake(f.bot), error => error === original)
-  assert.equal(f.transport.uncertainChanges.get(f.bot.id), 'members_session_save')
   const ticket = f.gate.close(); await f.gate.drain(ticket); f.gate.adopt(ticket, 'b'); f.gate.resume(ticket)
-  assert.throws(() => f.transport.wake(f.bot), { code: 'BOT_SESSION_UNCONFIRMED' })
-  assert.deepEqual(f.calls, ['agent_launch'])
+  await assert.rejects(f.transport.wake(f.bot), error => error === original)
+  assert.deepEqual(f.calls, ['agent_launch', 'agent_launch'])
 })
 
 test('failed fresh member validation emits no native operation', async t => {

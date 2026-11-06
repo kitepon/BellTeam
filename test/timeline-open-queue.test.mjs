@@ -182,6 +182,55 @@ test('tracking metadata cannot replace a known nonfailed status', async t => {
 const roomRecord = (id, deliveries, routing = { status: 'ready', responders: [] }) => ({
   id, sender: { id: 'user', name: 'Owner' }, message: 'room', room: { members: [] }, routing, deliveries,
 })
+
+test('D1 failed input renders closed reasons without running or replay affordances', async t => {
+  const observation = '席の状態を確認できず、送信できませんでした。席を再起動してください。'
+  const launch = '席を起動できず、送信できませんでした。席を再起動してください。'
+  const codes = ['BOT_OBSERVATION_FAILED', 'BOT_CONFIGURATION_FAILED', 'BOT_LAUNCH_FAILED', 'BOT_SEND_FAILED', 'BOT_DELIVERY_FAILED', 'BOT_SESSION_UNCONFIRMED']
+  const items = codes.map(code => ({ id: code, direction: 'outgoing', delivery: 'failed', delivery_error: { code } }))
+  items.push({ id: 'future', direction: 'outgoing', delivery: 'failed', delivery_error: { code: 'FUTURE', message: 'raw-native-error' } },
+    { id: 'accepted', direction: 'outgoing', delivery: 'failed', deliveryTracking: tracking, delivery_error: { code: codes[0] } },
+    { id: 'peer', kind: 'peer', direction: 'sent', peerName: 'B', message: 'peer input', delivery: 'failed', delivery_error: { code: 'BOT_SEND_FAILED' } })
+  const roomItems = [
+    roomRecord('room-refused', [{ delivery: 'failed', delivery_error: { code: 'BOT_LAUNCH_FAILED' } }, { delivery: 'failed', deliveryTracking: tracking }]),
+    roomRecord('room-accepted', [{ delivery: 'failed', deliveryTracking: tracking, delivery_error: { code: codes[0] } }]),
+    { ...roomRecord('room-wrong-location', [{ delivery: 'failed' }]), delivery_error: { code: codes[0] } },
+    roomRecord('room-routing', [{ delivery: 'failed', delivery_error: { code: codes[0] } }], { status: 'failed' }),
+  ]
+  const before = JSON.stringify([items, roomItems])
+  let delivered = false
+  const f = fixture(t, (path, options) => {
+    assert.ok(!options?.method || options.method === 'GET', 'rendering must not replay input')
+    return { items: path.includes('after=') ? [] : path.includes('/rooms/') ? roomItems
+      : delivered ? items.map(item => ({ ...item, delivery: 'delivered' })) : items, has_more: false }
+  })
+  await f.open('a')
+  f.queues[0].resolve({ items: [
+    { id: 'delivery-id', groupId: codes[0], botId: 'a', botName: 'A', status: 'failed', errorCode: codes[0] },
+    { id: 'tail-delivery', groupId: 'tail-group', botId: 'a', botName: 'A', status: 'failed', errorCode: 'BOT_LAUNCH_FAILED' },
+  ] }); await settle()
+  assert.equal(f.view.isBusy('a'), false)
+  assert.equal(f.timeline.querySelectorAll('[data-stop-bot-id]').length, 0)
+  assert.match(f.text(), /配達失敗/)
+  assert.ok(f.text().includes(observation) && f.text().includes(launch))
+  assert.doesNotMatch(f.text(), /処理中|raw-native-error|FUTURE/)
+  assert.deepEqual(f.ids(), items.map(item => item.id))
+  await f.view.refresh(); f.queues[1].resolve({ items: [] }); await settle()
+  assert.deepEqual(messageTimes(f).map(node => node.textContent), [observation,
+    '席の設定を反映できず、送信できませんでした。設定を確認してください。', launch,
+    '席への送信に失敗しました。送信結果を確認してください。', '送信に失敗しました。会話を確認してください。',
+    observation, '配達失敗', '受付済み・完了未確認'])
+  assert.equal(messageTimes(f).at(-1).classes.has('failed'), false)
+  assert.ok(f.text().includes('席への送信に失敗しました。送信結果を確認してください。'))
+  await f.open('r', 'room'); f.queues[2].resolve({ items: [] }); await settle()
+  assert.deepEqual(messageTimes(f).map(node => node.textContent), [launch, '完了未確認の宛先あり', '配達失敗', '配達失敗'])
+  delivered = true
+  await f.open('a'); f.queues[3].resolve({ items: [] }); await settle()
+  assert.deepEqual(messageTimes(f).map(node => node.textContent), Array(8).fill('配達済み'))
+  assert.doesNotMatch(f.text(), /送信できませんでした|送信に失敗|配達失敗/)
+  assert.equal(JSON.stringify([items, roomItems]), before)
+})
+
 test('room projection requires tracking evidence on every failed participant and keeps routing failures', async t => {
   const accepted = { delivery: 'failed', deliveryTracking: tracking }
   const f = fixture(t, () => ({ items: [

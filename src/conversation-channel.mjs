@@ -205,11 +205,12 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
         channelCheck(entry?.kind === value.kind && entry.replyReady && !entry.replyAcknowledged)
         entry.replyAcknowledged = true; entry.replyReady.resolve()
       } else if (value?.type === 'error') {
-        const { mcp_error, native_launch, effect, normalInputPending: proof, ...base } = value.error ?? {}
+        const { mcp_error, native_launch, delivery_error, effect, normalInputPending: proof, ...base } = value.error ?? {}
         channelCheck(exactChannelKeys(value, 'type,kind,error') && exactChannelKeys(base, 'code,outcome,status')
           && code(value.error.code) && ['unknown', 'not_accepted'].includes(value.error.outcome)
           && Number.isInteger(value.error.status) && value.error.status >= 400 && value.error.status <= 599)
         conversationCallbackFailureFields({ code: 'CONVERSATION_CALLBACK_FAILED',
+          ...(Object.hasOwn(value.error, 'delivery_error') ? { delivery_error } : {}),
           ...(Object.hasOwn(value.error, 'mcp_error') ? { mcp_error } : {}),
           ...(Object.hasOwn(value.error, 'native_launch') ? { native_launch } : {}) })
         if (Object.hasOwn(value.error, 'effect') || Object.hasOwn(value.error, 'normalInputPending'))

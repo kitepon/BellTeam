@@ -34,6 +34,30 @@ flowchart LR
 
 ## 開いた会話の結果だけを描く
 
+### D1 failed-input display: function map and data flow
+
+Kiro owns queue/dispatch, N102 owns the closed history projection, and Web owns rendering only. The final dispatch policy observes actual state and prepares the desired configuration before sending; legacy uncertainty reasons are display compatibility, never a new Web gate.
+
+| Existing Web function | Accepted input → presentation | Failure and ownership |
+| --- | --- | --- |
+| `renderQueueStatus` | `status:'failed'` and `errorCode` → failed label plus a fixed Japanese reason | No stop button for any failed row; unknown codes retain generic failure. Other queue states keep their current behavior |
+| `isBusy` → application `updateSendButton` | Same queue entries, excluding `failed` → existing main stop/send affordance | A refused input cannot make the seat appear busy; the UI does not replay or restart it |
+| `renderItemElement` / `deliveryLabel` | Direct/message/peer `delivery:'failed'` plus `delivery_error:{code}` → fixed plain Japanese | Known accepted/unknown tracking retains neutral precedence; non-failed items ignore stale reasons |
+| `roomTimelineItem` | Affected `record.deliveries[*].delivery_error` → existing aggregate failure reason | No Room top-level reason. Preserve IDs, routing failure and accepted/unknown tracking semantics |
+
+Closed code-only mapping:
+
+| Code | Japanese display |
+| --- | --- |
+| `BOT_OBSERVATION_FAILED` | 席の状態を確認できず、送信できませんでした。席を再起動してください。 |
+| `BOT_CONFIGURATION_FAILED` | 席の設定を反映できず、送信できませんでした。設定を確認してください。 |
+| `BOT_LAUNCH_FAILED` | 席を起動できず、送信できませんでした。席を再起動してください。 |
+| `BOT_SEND_FAILED` | 席への送信に失敗しました。送信結果を確認してください。 |
+| `BOT_DELIVERY_FAILED` | 送信に失敗しました。会話を確認してください。 |
+| `BOT_SESSION_UNCONFIRMED` (legacy) | 席の状態を確認できず、送信できませんでした。席を再起動してください。 |
+
+DFD: existing HTTP queue/history → current conversation/read generation → unchanged delivery ID/groupId association → closed-code lookup → plain text failed row. Queue `failed` → excluded from busy → no main stop affordance. History accepted/unknown → existing neutral tracking label. A later non-failed status → old reason hidden. No failure-display edge produces POST, automatic replay, restart, native error text or a new poll. This changes only the Web internal diagram and existing rendering source; module.json and whole-system connection edges stay unchanged. The single new UI case is separate from Kiro's owned refusal writer/readback unit; old test groups are not rerun.
+
 ```mermaid
 flowchart TD
   Select["Bot / 部屋を選ぶ<br/>appが対象を決める"] --> Input["composerへ対象を渡す<br/>その会話の下書きを表示"]

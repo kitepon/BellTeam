@@ -18,6 +18,7 @@ export class SeatActivity {
   constructor() {
     // 配送job。送信処理が始まってから終わるまで（受付前の予約待ちも含む）。
     this.jobs = new Set()
+    this.failed = new Map()
     // 「処理中」として見せる活動。受付済みの配送jobと、席が自分で始めたターンの見張り。
     this.active = new Map()
     // 席ごとの、BellTeamが始めていないターンを追っている見張り（watchTurn）。
@@ -44,6 +45,11 @@ export class SeatActivity {
   release(job) {
     this.active.delete(job.id)
     this.jobs.delete(job)
+    this.emit(job)
+  }
+
+  recordFailure(job, code) {
+    this.failed.set(job.bot.id, { ...queueItem(job), status: 'failed', delivery_error: { code } })
     this.emit(job)
   }
 
@@ -98,10 +104,9 @@ export class SeatActivity {
   }
 
   items({ botId = null, roomId = null } = {}) {
-    return [...this.active.values()]
-      .filter(item => !botId || item.bot.id === botId)
-      .filter(item => !roomId || (item.info.context === 'room' && item.info.contextId === roomId))
-      .map(queueItem)
+    return [...[...this.active.values()].map(queueItem), ...this.failed.values()]
+      .filter(item => !botId || item.botId === botId)
+      .filter(item => !roomId || (item.context === 'room' && item.contextId === roomId))
   }
 
   watch(listener) {

@@ -1,7 +1,7 @@
 import { CurrentWork } from './current-work.mjs'
 import { randomUUID } from 'node:crypto'
 import { MembersAdmission } from './members-admission.mjs'
-import { configurationReceipt, configurationError, configurationWasNotIssued, markConfigurationNotIssued, captureConfigurationRequest } from './configuration-request.mjs'
+import { configurationDigest, configurationSettings, configurationError } from './configuration-request.mjs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -19,6 +19,7 @@ import { DeliveryJob } from './delivery-job.mjs'
 import { SeatActivity, SeatTurnWatch } from './seat-activity.mjs'
 import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
 import { recoverableTurnFailure } from './capacity-continuation.mjs'
+import { deliveryFailureFields } from './conversation-writer.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
 export { runWaitProcess } from './aiterm-wait-process.mjs'
@@ -50,12 +51,13 @@ export function createManagedTransport({ client = new AitermClient(), ...options
 // BellTeamとAitermの間。席の状態（BotSessionState）と席の活動（SeatActivity）を持ち、一回の配送（DeliveryJob）を進める。
 // Aitermのnativeな実行判断はAitermに在り、ここは返却を事実として受け取る。
 export class AitermTransport {
-  constructor({ backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, activityPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, activityPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
     this.conversationAdmission = conversationAdmission
     this.trackCompletion = trackCompletion
+    this.resolveBot = resolveBot
     this.configurationRequests = configurationRequests
     this.membersAdmission = membersAdmission
     this.requireMember = requireMember
@@ -111,7 +113,6 @@ export class AitermTransport {
     this.stopVersions = this.sessionState.stopVersions
     this.stopSessions = this.sessionState.stopSessions
     this.sessionChanges = this.sessionState.sessionChanges
-    this.uncertainChanges = this.sessionState.uncertainChanges
     this.active = this.activity.active
     this.jobs = this.activity.jobs
     this.watches = this.activity.watches
@@ -171,21 +172,6 @@ export class AitermTransport {
     this.assertWorkAllowed()
     const version = this.captureStopVersion(bot)
     return this.memberOperation(bot, async membersLease => {
-      if (this.uncertainChanges.has(bot.id)) {
-        if (this.executionBridge && !options.execution) await this.awaitUnboundAdmission(bot, version)
-        await this.requireAccess({ setupTest: options.setupTest === true, botId: bot.id })
-        const session = this.session(bot), observed = await this.observe(bot)
-        this.requireStopVersion(bot.id, version)
-        this.membersAdmission.assertLease(membersLease)
-        options.admissionCheck?.()
-        const target = options.execution?.reservation.target
-        if (this.session(bot) === session && observed?.schema === 'aiterm.pty-observe-result.v1'
-          && observed.session_id === session && observed.exists === true && /^[a-f0-9]{32}$/u.test(observed.launch_id ?? '')
-          && ['busy', 'idle'].includes(observed.state) && observed.pane_alive === true && observed.harness_alive === true
-          && (!options.execution || target?.session_id === session && target.expected_launch_id === observed.launch_id))
-          return session
-      }
-      this.requireSessionKnown(bot.id)
       this.requireStopVersion(bot.id, version)
       return this.activity.waking.track(bot.id, this.wakeNow(bot, { ...options, membersLease }))
     }, options)
@@ -253,7 +239,6 @@ export class AitermTransport {
         this.membersAdmission.assertLease(membersLease)
       }
     } catch (error) {
-      this.uncertainChanges.set(bot.id, 'members_session_save')
       throw error
     }
     return session
@@ -263,8 +248,7 @@ export class AitermTransport {
     if (!['claude-code', 'codex-cli'].includes(reference.harness) || HARNESS.get(bot.harness) !== reference.harness
       || this.session(bot) !== reference.sessionId) return null
     return this.memberOperation(bot, async membersLease => {
-      this.requireSessionKnown(bot.id)
-      const version = this.captureStopVersion(bot)
+        const version = this.captureStopVersion(bot)
       await this.requireAccess({ setupTest: false, botId: bot.id })
       this.requireStopVersion(bot.id, version)
       if (this.session(bot) !== reference.sessionId) return null
@@ -277,7 +261,7 @@ export class AitermTransport {
       const receipt = result?.structuredContent
       if (receipt?.schema !== 'aiterm.agent-launch-result.v1' || receipt.session_id !== reference.sessionId
         || receipt.startup?.status !== 'ready' || receipt.initial_prompt?.status !== 'not_requested')
-        throw Object.assign(new Error('RESTART_RESUME_UNCONFIRMED'), { code: 'RESTART_RESUME_UNCONFIRMED' })
+        await this.recordDeliveryFailure(bot.id, reference.launchId, 'RESTART_RESUME_UNCONFIRMED')
       return { sessionId: receipt.session_id, resumedAt: this.now() }
     })
   }
@@ -293,7 +277,6 @@ export class AitermTransport {
     const existing = this.restarts.get(bot.id)
     if (existing) return existing
     this.assertWorkAllowed()
-    this.requireSessionKnown(bot.id)
     // 明示再起動は、終了できないターンからも席を戻す操作。旧設定の
     // idle待ちを無効にし、旧CLIを閉じてから保存済み設定で起動する。
     this.sessionState.invalidate(bot.id)
@@ -309,19 +292,13 @@ export class AitermTransport {
       // 発行済みの起動・設定RPCが後から新個体へ届かないよう、その返却だけを
       // 待つ。ターンの完了や、まだ発行していない旧idle待ちは待たない。
       await Promise.allSettled([...previousChanges, ...(previousWake ? [previousWake] : [])])
-      this.requireSessionKnown(bot.id)
       this.requireStopVersion(bot.id, version)
-      if (previousJobs.some(job => (job.nativeUnconfirmed || job.nativeCompletion && !job.nativeTerminal)
-        && (!job.nativeSession || job.conversationDelivery
-          && typeof this.conversationAdmission?.confirmNativeClosure !== 'function')))
-        throw Object.assign(new Error('CONVERSATION_RECOVERY_UNAVAILABLE'), { code: 'CONVERSATION_RECOVERY_UNAVAILABLE', effect: 'not_started' })
       const session = await this.restartNow(bot, version, (closure, closedSession) => {
-        if (!confirmedSessionClosure(closure, closedSession))
-          throw Object.assign(new Error('BOT_SESSION_UNCONFIRMED'), { code: 'BOT_SESSION_UNCONFIRMED' })
+        if (!confirmedSessionClosure(closure, closedSession)) return
         for (const job of previousJobs) {
           if (job.nativeSession === closedSession) {
             if (job.receipt && job.conversationDelivery && job.nativeCompletion && !job.nativeTerminal)
-              this.conversationAdmission.confirmNativeClosure(job.conversationDelivery, job.receipt, closure)
+              this.conversationAdmission?.confirmNativeClosure?.(job.conversationDelivery, job.receipt, closure)
             job.nativeClosure = structuredClone(closure.structuredContent)
             job.completion.then(() => this.activity.release(job), () => this.activity.release(job))
           }
@@ -345,7 +322,6 @@ export class AitermTransport {
     const expected = this.membersAdmission.capture()
     this.membersAdmission.assertOpen(expected)
     this.assertWorkAllowed()
-    this.requireSessionKnown(current.id)
     const version = this.captureStopVersion(current)
     if (this.executionBridge) await this.awaitUnboundAdmission(current, version)
     await this.requireAccess({ setupTest: false, botId: next.id })
@@ -376,77 +352,27 @@ export class AitermTransport {
     }, { expected })
   }
 
-  async restoreConfigurationRequests() {
-    for (const original of await this.configurationRequests?.restore() ?? [])
-      this.uncertainChanges.set(original.botId, 'agent_configure', original.binding)
-  }
-
-  async applyConfigurationRequest(bot, configuration, stopVersion, requestId) {
-    let prepared
-    let excluded = false
-    let knownApply = false
-    let received = null
-    let persisted = false
-    try {
-      const { session_id, ...settings } = configuration
-      prepared = await this.configurationRequests.prepare(bot.id, session_id, settings, requestId)
-      try { this.requireStopVersion(bot.id, stopVersion) }
-      catch (cause) { throw markConfigurationNotIssued(Object.assign(configurationError('CONFIGURATION_STOPPED'), { cause })) }
-      const result = await this.changeSession(bot, 'agent_configure', prepared.args, {
-        expectedConfiguration: prepared.connection, configurationRequest: prepared.intent.binding,
-      })
-      const receipt = configurationReceipt(result?.structuredContent, prepared.intent.binding)
-      received = receipt
-      if (result.isError && receipt.outcome === 'applied') throw configurationError('CONFIGURATION_RESULT_UNCONFIRMED', 'possible')
-      knownApply = receipt.request_state === 'terminal' && receipt.outcome === 'applied'
-      await this.configurationRequests.record(bot.id, receipt, 'apply')
-      persisted = receipt.request_state === 'terminal'
-      excluded = receipt.request_state === 'terminal' && receipt.later_effect === 'excluded'
-      if (receipt.request_state !== 'terminal' || receipt.outcome !== 'applied') {
-        const notApplied = excluded && receipt.outcome === 'not_applied'
-        throw Object.assign(configurationError(notApplied ? 'CONFIGURATION_NOT_APPLIED' : 'CONFIGURATION_OUTCOME_UNKNOWN', notApplied ? 'not_started' : 'possible'),
-          { aitermResponseReturned: true })
-      }
-      return receipt
-    } catch (error) {
-      if (prepared) {
-        const localNotIssued = configurationWasNotIssued(error)
-        let locallySaved = false
-        if (localNotIssued) {
-          try { await this.configurationRequests.finishNotIssued(bot.id, prepared.intent.binding); locallySaved = true } catch { /* Saving failure cannot authorize a replacement UUID. */ }
-        }
-        if (!excluded && !localNotIssued && ['not_issued', 'not_started'].includes(error?.effect))
-          error = Object.assign(configurationError('CONFIGURATION_RESULT_SAVE_UNCONFIRMED', 'possible'), { cause: error })
-        captureConfigurationRequest(error, { binding: prepared.intent.binding, requested: prepared.intent.requested,
-          receipt: received, receipt_persisted: persisted, ...(locallySaved ? { local_not_issued: true } : {}) })
-        if (!excluded && !knownApply && !localNotIssued)
-          this.uncertainChanges.set(bot.id, 'agent_configure', prepared.intent.binding)
-      }
-      throw error
-    }
+  async applyConfigurationRequest(bot, configuration, stopVersion, requestId, expectedLaunch) {
+    this.requireStopVersion(bot.id, stopVersion)
+    const { session_id, ...settings } = configuration
+    const observed = expectedLaunch ? { launch_id: expectedLaunch } : await this.observe(bot)
+    this.requireStopVersion(bot.id, stopVersion)
+    if (!/^[a-f0-9]{32}$/u.test(observed?.launch_id ?? ''))
+      return { request_state: 'not_recorded', outcome: 'outcome_unknown' }
+    const receipt = await this.configurationRequests.apply(bot.id, session_id, observed.launch_id, settings, requestId)
+    if (receipt?.request_state === 'terminal' && receipt.outcome === 'not_applied' && receipt.later_effect === 'excluded')
+      throw configurationError('CONFIGURATION_NOT_APPLIED', 'not_started')
+    return receipt
   }
 
   async reconcileConfiguration(bot, id) {
     if (!this.configurationRequests) throw configurationError('CONFIGURATION_UNAVAILABLE')
-    if (this.configurationRequests.canRecoverPreparation(bot.id, id)) {
-      return this.membersAdmission.withLease(async membersLease => {
-        await this.requireMember(bot, { membersLease })
-        this.membersAdmission.assertLease(membersLease)
-        if (this.uncertainChanges.has(bot.id) || this.sessionChanges.has(bot.id) || this.activity.configurationChanges.has(bot.id))
-          throw configurationError('CONFIGURATION_PREPARATION_UNCONFIRMED', 'possible')
-        const localCompletion = await this.configurationRequests.recoverPreparation(bot.id, id)
-        return { localCompletion, fence: this.uncertainChanges.has(bot.id) ? 'retained' : 'absent' }
-      })
-    }
     const original = await this.configurationRequests.intents.read(bot.id, id)
-    if (original.binding.session_id !== this.session(bot)) throw configurationError('CONFIGURATION_REQUEST_UNBOUND')
-    const before = this.sessionState.configurationFence(bot.id, original.binding)
     return this.membersAdmission.withLease(async membersLease => {
       await this.requireMember(bot, { membersLease })
       this.membersAdmission.assertLease(membersLease)
       const receipt = await this.configurationRequests.reconcile(bot.id, id)
-      const cleared = this.sessionState.resolveConfigurationFence(bot.id, original.binding, before, receipt)
-      return { configurationRequest: receipt, fence: cleared ? 'cleared' : this.uncertainChanges.has(bot.id) ? 'retained' : 'absent' }
+      return { configurationRequest: receipt, fence: 'absent' }
     })
   }
 
@@ -503,10 +429,6 @@ export class AitermTransport {
 
   changeSession(bot, name, args, options) {
     return this.sessionState.changeSession(bot, name, args, options)
-  }
-
-  requireSessionKnown(botId) {
-    return this.sessionState.requireSessionKnown(botId)
   }
 
   reconcileLaunch(bot, request, target) {
@@ -660,8 +582,13 @@ export class AitermTransport {
     this.requireStopVersion(bot.id, version)
     admissionCheck?.()
     const closedSession = this.session(bot)
-    const closure = await this.changeSession(bot, 'pty_close', { session_id: closedSession })
-    onClosed(closure, closedSession)
+    let closure
+    try { closure = await this.changeSession(bot, 'pty_close', { session_id: closedSession }) }
+    catch (error) {
+      if (['not_started', 'not_issued'].includes(error?.effect)) throw error
+      await this.recordDeliveryFailure(bot.id, closedSession, 'BOT_LAUNCH_FAILED')
+    }
+    if (closure) onClosed(closure, closedSession)
     await this.removeRetainedImages(bot.id)
     this.requireStopVersion(bot.id, version)
     admissionCheck?.()
@@ -671,7 +598,6 @@ export class AitermTransport {
   // 一回の配送。受付（Aitermの受理）までと、受理したターンの終わりまでを一つのjobとして進める。
   // 続けてよいかはjobの停止結論と席の状態に聞き、停止の結論を決めるのはjob（DeliveryJob）だけ。
   submit(bot, message, { images = [], info = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, transcript = false, setupTest = false, admissionCheck = () => {}, executionSource, recoveredExecution = null, membersLease, conversationDelivery, summaryAuthority = null } = {}) {
-    this.modelHandoff?.assertAdmission(bot.id)
     const recoveryVersion = this.captureStopVersion(bot)
     let recoverySession = this.session(bot)
     if (membersLease) this.membersAdmission.assertLease(membersLease)
@@ -696,7 +622,6 @@ export class AitermTransport {
     this.activity.register(job)
     const check = () => {
       job.assertNotStopped()
-      this.modelHandoff?.assertAdmission(bot.id)
       this.assertWorkAllowed()
       admissionCheck()
       if (membersLease) this.membersAdmission.assertLease(membersLease)
@@ -729,31 +654,6 @@ export class AitermTransport {
             throw Object.assign(new Error('EXECUTION_INVALID'), { code: 'EXECUTION_INVALID', effect: 'not_started' })
           job.execution = recoveredExecution
           job.executionWasPresent = true
-        } else if (this.executionBridge) {
-          if (this.uncertainChanges.has(bot.id)) {
-            await this.requireAccess({ setupTest, botId: bot.id })
-            check()
-            const session = this.session(bot), observed = await this.observe(bot)
-            check()
-            const valid = this.session(bot) === session && observed?.schema === 'aiterm.pty-observe-result.v1'
-              && observed.session_id === session && typeof observed.exists === 'boolean'
-              && (observed.exists ? /^[a-f0-9]{32}$/u.test(observed.launch_id ?? '') : observed.launch_id === null)
-            const ready = valid && observed.exists && ['busy', 'idle'].includes(observed.state)
-              && observed.pane_alive === true && observed.harness_alive === true
-            if (!ready) {
-              const error = Object.assign(new Error('BOT_SESSION_UNCONFIRMED'), { code: 'BOT_SESSION_UNCONFIRMED' })
-              // Only this local pre-registration branch proves this new input was not issued.
-              if (valid && (!observed.exists || ['busy', 'idle', 'blocked', 'dead', 'hibernated'].includes(observed.state))) {
-                error.effect = 'not_started'
-                error.normalInputPending = { schema: 'bellteam.normal-input-pending.v1',
-                  deliveryId: info.groupId ?? job.id, botId: bot.id, sessionId: session, launchId: observed.launch_id,
-                  stage: 'before_execution_registration', effect: 'not_started',
-                  reason: observed.exists ? 'session_not_ready' : 'session_absent' }
-              }
-              throw error
-            }
-          }
-          await reserveExecution(this.seat, job)
         }
         check()
         this.activity.admit(job)
@@ -789,6 +689,7 @@ export class AitermTransport {
         await onStatus?.('running')
         await job.checkpoint()
         acknowledged = true
+        this.activity.failed.delete(bot.id)
         accept({ delivery: steered ? 'steered' : 'running' })
         endAdmission()
         // 待つ手がかりを返さない差し込み（Aiterm 0.59.1まで）は、同じ席のjobの終わりを待つ。無ければ、終わりを知る道が無い。
@@ -832,12 +733,18 @@ export class AitermTransport {
       } catch (cause) {
         const error = await job.failure(cause)
         originalFailure = error
-        if (!acknowledged) rejectAcceptance(error)
         // Accepted input remains accepted when only its completion tracking fails.
-        const tracking = job.waitFailure === error && job.receipt && !job.stopped && !error.turnCompleted
+        const tracking = job.receipt && !job.stopped && !job.nativeTerminal && !error.turnCompleted
           ? [{ schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' }] : []
-        try { await onStatus?.(job.stopped ? 'stopped' : 'failed', error, ...tracking); failureStatusSaved = true }
-        catch (callbackError) { if (!conversationDelivery) throw callbackError }
+        const stage = job.deliveryStage ?? 'BOT_DELIVERY_FAILED'
+        const statusFailure = { ...deliveryFailureFields(error), code: stage, delivery_error: { code: stage } }
+        if (!job.receipt && !job.stopped) this.activity.recordFailure(job, stage)
+        try {
+          await onStatus?.(job.stopped ? 'stopped' : 'failed', statusFailure, ...tracking)
+          failureStatusSaved = true
+          if (!acknowledged && !job.stopped) await this.recordDeliveryFailure(bot.id, info.groupId ?? job.id, stage)
+        } catch (callbackError) { if (!conversationDelivery) throw callbackError }
+        finally { if (!acknowledged) rejectAcceptance(error) }
         throw error
       } finally {
         this.backgroundSummary?.invalidate(bot.id, job.id)
@@ -963,7 +870,7 @@ export class AitermTransport {
     const assertCurrent = expected => {
       if (!Object.keys(input).every(key => expected[key] === input[key]) || job.stopped || job.stopRequested || job.nativeTerminal || job.nativeUnconfirmed
         || this.latestSummaryInputs.get(bot.id) !== job.id || this.session(bot) !== delivery.session
-        || this.stopVersions.get(bot.id) !== stopVersion || this.uncertainChanges.has(bot.id) || this.sessionChanges.has(bot.id)) return false
+        || this.stopVersions.get(bot.id) !== stopVersion || this.sessionChanges.has(bot.id)) return false
       authority.assertCurrent()
       this.assertWorkAllowed()
       return true
@@ -973,7 +880,7 @@ export class AitermTransport {
   }
 
   currentWork(bot) {
-    const snapshot = this.workState.snapshot(bot.id, this.session(bot), !this.uncertainChanges.has(bot.id) && !this.sessionChanges.has(bot.id))
+    const snapshot = this.workState.snapshot(bot.id, this.session(bot), !this.sessionChanges.has(bot.id))
     return this.backgroundSummary ? this.backgroundSummary.snapshot(bot.id, this.session(bot), snapshot)
       : { ...snapshot, summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, source: null }
   }
@@ -990,7 +897,7 @@ export class AitermTransport {
     const read = this.workState.beginRead(bots.map(bot => {
       const session = this.session(bot), version = this.stopVersions.get(bot.id)
       return { botId: bot.id, sessionId: session, current: () => this.session(bot) === session
-        && this.stopVersions.get(bot.id) === version && !this.uncertainChanges.has(bot.id) && !this.sessionChanges.has(bot.id) }
+        && this.stopVersions.get(bot.id) === version && !this.sessionChanges.has(bot.id) }
     }))
     let result
     try { result = await this.client.call('pty_list', {}, { meta: CALLER_META })
@@ -1150,11 +1057,49 @@ export class AitermTransport {
     return delivery
   }
 
+  async recordDeliveryFailure(botId, deliveryId, code) {
+    try {
+      await this.reportError({ code: 'SERVER_TURN_TRACKING_FAILED', module: 'queue',
+        diagnostic_log: JSON.stringify({ stage: 'delivery', botId, deliveryId, code }) })
+    } catch { /* Diagnostic failure never changes admission. */ }
+  }
+
+  async prepareDesiredConfiguration(bot, check, job) {
+    if (job) job.deliveryStage = 'BOT_OBSERVATION_FAILED'
+    const observed = await this.observe(bot)
+    check()
+    if (observed?.schema !== 'aiterm.pty-observe-result.v1' || observed.session_id !== this.session(bot)
+      || typeof observed.exists !== 'boolean' || (observed.exists ? !/^[a-f0-9]{32}$/u.test(observed.launch_id ?? '') : observed.launch_id !== null))
+      throw Object.assign(new Error('BOT_OBSERVATION_FAILED'), { code: 'BOT_OBSERVATION_FAILED' })
+    if (!observed.exists) return observed
+    const desired = configurationSettings({ model: bot.model, reasoning_effort: bot.reasoningEffort, fast: bot.fastMode === true })
+    const last = this.configurationRequests?.view(bot.id)
+    if (last?.receipt_persisted && last.binding.session_id === observed.session_id && last.binding.launch_id === observed.launch_id
+      && last.binding.digest === configurationDigest(desired) && last.receipt?.request_state === 'terminal' && last.receipt.outcome === 'applied') return observed
+    if (job) job.deliveryStage = 'BOT_CONFIGURATION_FAILED'
+    try {
+      if (this.configurationRequests) {
+        await this.applyConfigurationRequest(bot, { session_id: observed.session_id, ...desired }, this.captureStopVersion(bot), undefined, observed.launch_id)
+      } else await this.changeSession(bot, 'agent_configure', { session_id: observed.session_id,
+        ...Object.fromEntries(Object.entries(desired).filter(([, value]) => value !== null)) })
+    } catch (error) {
+      check()
+      if (['not_started', 'not_issued'].includes(error?.effect) && !String(error?.code).includes('UNCONFIRMED')) throw error
+      await this.recordDeliveryFailure(bot.id, job?.info.groupId ?? job?.id, 'BOT_CONFIGURATION_FAILED')
+    }
+    check()
+    return observed
+  }
+
   async dispatch(bot, message, images, { setupTest = false, check: checkAdmission = () => {}, executionJob, membersLease } = {}) {
     const check = checkAdmission
+    bot = this.resolveBot?.(bot.id) ?? bot
+    const observed = await this.prepareDesiredConfiguration(bot, check, executionJob)
     const reminder = setupTest ? '' : await taskSettingsReminder()
     if (reminder) message += `\n\n<bellteam_task_settings>\n${reminder}\n</bellteam_task_settings>`
     if (this.executionBridge) {
+      if (!executionJob.execution) await reserveExecution(this.seat, executionJob, observed)
+      if (executionJob) executionJob.deliveryStage = observed.exists ? 'BOT_SEND_FAILED' : 'BOT_LAUNCH_FAILED'
       const delivery = await dispatchExecution(this.seat, executionJob, bot, message, images, { setupTest, check, membersLease })
       return { ...delivery, steer: delivery.receipt.mode === 'agent_steer' ? steerFollow(delivery.result) : null }
     }
@@ -1163,8 +1108,14 @@ export class AitermTransport {
     try {
       check()
       let session = this.session(bot)
+      if (!observed.exists) {
+        if (executionJob) executionJob.deliveryStage = 'BOT_LAUNCH_FAILED'
+        session = await this.wake(bot, { setupTest, membersLease })
+        check()
+      }
       let result
       try {
+        if (executionJob) executionJob.deliveryStage = 'BOT_SEND_FAILED'
         if (executionJob) executionJob.nativeSession = session
         result = await this.sendToSession(session, message, imageFiles, check)
       } catch (error) {
