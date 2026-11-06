@@ -32,6 +32,8 @@ WebはHTTPとSSEだけを利用し、MCPを呼ばない。画面に表示する�
 
 ## Webが所有するデータ
 
+[保存・回収の機能図とデータフロー](storage-lifecycle.md)で生成/保持/正常・異常終了の責任を定める。
+
 - application：setup/authMode/settingsとBot/部屋/Ownerの表示cache、選択、部屋ごとの返信者、読取順、SSE解除関数。
 - composer：会話別の未送信入力、添付URL、送信中の固定値、失敗時の回収欄。ページ内に保持する。
 - timeline：開いた対象の履歴Map、前後ページ、queue、読取世代、スクロール。SSEは本文の代わりにしない。
