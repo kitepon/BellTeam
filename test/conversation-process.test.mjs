@@ -1,3 +1,4 @@
+import { ConversationWriter } from '../src/conversation-writer.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawn, execFile } from 'node:child_process'
@@ -18,6 +19,7 @@ async function fixture(t) {
     await mkdir(dirname(join(root, relative)), { recursive: true })
     await writeFile(join(root, relative), JSON.stringify(data) + '\n', { mode: 0o600 })
   }
+  const logWriter = new ConversationWriter({ logPath: join(root, 'logs/direct-messages.jsonl'), onMessage: () => {} })
   const children = [], closed = [], prepared = [], tokens = new WeakMap(), calls = [], native = []
   const admission = new ConversationLifetimes('initial'), operationContext = {}, admissionCheck = () => {}
   let snapshotReads = 0
@@ -25,6 +27,7 @@ async function fixture(t) {
     authorizeActor: (method, token) => tokens.get(token)?.method === method ? tokens.get(token).actor : false,
     onEffect: async (method, params, context) => {
       calls.push({ method, params, context })
+      if (method === 'direct.log.append') { await logWriter.append(params.record); return { applied: true } }
       if (method === 'members.profiles.read') return { bots: fixture.bots }
       if (method === 'execution.assertAccess') return { allowed: true }
       if (method === 'usage.routing.read') return { enabled: false, epoch: 1, apiKey: null }

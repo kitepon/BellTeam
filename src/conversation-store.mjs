@@ -15,6 +15,13 @@ export class ConversationStore {
     this.preview = null
   }
   async records() { return (await this.entries()).filter(record => record.schema === 'bellteam.direct-message.v1') }
+  async durableReceipts() {
+    await this.snapshot()
+    if (this.read.anchorInvalid) throw Object.assign(new Error('MESSAGE_LOG_INVALID'), { code: 'MESSAGE_LOG_INVALID' })
+    // Preview rows without LF are display-only, never execution authority.
+    return this.read.entries.filter(record => record.schema === 'bellteam.direct-message.v1' && record.durable_receipt === true)
+      .map(record => resolveStatus(record, this.read.statuses))
+  }
   async deliveryAnchor({ deliveryId, target, context, contextId }) {
     await this.snapshot()
     const records = this.read.byDelivery.get(deliveryId), record = records?.length === 1 ? records[0] : null
@@ -250,7 +257,7 @@ function applyRecords(records, state) {
 }
 function validateRecord(record, line) {
   if (record?.schema === 'bellteam.direct-message.v1' || record?.schema === 'bellteam.interim-word.v1'
-    || (record?.schema === 'bellteam.delivery-status.v1' && ['running', 'delivered', 'failed', 'stopped'].includes(record.delivery))) return
+    || (record?.schema === 'bellteam.delivery-status.v1' && ['queued', 'dispatching', 'unknown', 'running', 'steered', 'delivered', 'failed', 'stopped'].includes(record.delivery))) return
   throw new Error(`MESSAGE_LOG_INVALID: line ${line}`)
 }
 function logCorruption(diagnostic) { console.error(JSON.stringify(diagnostic)) }

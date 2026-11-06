@@ -30,6 +30,11 @@ export function createConversationParentEffects({ getServices, observerEffects, 
     if (!services) unavailable()
     let result
     switch (method) {
+      case 'direct.log.append':
+        if (typeof services.directReceipts?.appendFromChild !== 'function') unavailable()
+        await services.directReceipts.appendFromChild(params.record)
+        result = { applied: true }
+        break
       case 'members.profiles.read': {
         if (typeof services.bots?.refresh !== 'function') unavailable()
         await services.bots.refresh(context.operationContext)

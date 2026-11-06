@@ -1,3 +1,4 @@
+import { validateDirectLogRecord } from '../direct-log-record.mjs'
 import { validateConversationActor } from './authority.mjs'
 import { CONVERSATION_CALLBACK_METHODS } from './callbacks.mjs'
 import { validateConversationBotSnapshot, validateConversationCallbackContext } from './requests.mjs'
@@ -5,7 +6,7 @@ import { isObserverProjectScope } from './observer.mjs'
 import { validateObserverCheckResult } from '../observer-check.mjs'
 
 export const CONVERSATION_EFFECT_METHODS = Object.freeze([
-  'members.profiles.read', 'usage.routing.read', 'usage.notify.direct', 'usage.notify.room',
+  'direct.log.append', 'members.profiles.read', 'usage.routing.read', 'usage.notify.direct', 'usage.notify.room',
   'assets.beginSave', 'assets.endSave', 'runtime.image.read', 'runtime.room.context',
   'runtime.observer.snapshot', 'runtime.observer.check', 'runtime.observer.read', 'execution.notify', 'execution.turn',
   'execution.background.begin', 'execution.background.end', 'execution.observation.source', 'execution.report',
@@ -49,6 +50,7 @@ function context(value) {
 export function validateConversationEffect(method, params, capturedContext) {
   context(capturedContext)
   switch (method) {
+    case 'direct.log.append': return fields(params, { record: value => { validateDirectLogRecord(value); return true } })
     case 'members.profiles.read': case 'usage.routing.read': case 'runtime.observer.snapshot':
     case 'execution.assertAccess': return fields(params, {})
     case 'execution.reconcile': case 'execution.closeLaunch': return fields(params, { botId: id, deliveryId: identity, target: launch })
@@ -123,6 +125,7 @@ export function normalizeConversationObserverResult(value) {
 
 export function validateConversationEffectResult(method, result, params) {
   switch (method) {
+    case 'direct.log.append': return fields(result, { applied: value => value === true })
     case 'members.profiles.read': return fields(result, { bots: validateConversationBotSnapshot })
     case 'usage.routing.read':
       fields(result, { enabled: bool, epoch: integer, apiKey: nullable(nonempty) })

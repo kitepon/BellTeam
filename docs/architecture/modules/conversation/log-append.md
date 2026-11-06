@@ -18,3 +18,5 @@ flowchart LR
 既JSONLは切詰め・上書き・NUL除去しない。完全JSONだがLF無しの末尾はLFで確定し、途中JSON/NULの末尾もそのまま独立行にする。前後の有効記録を維持し、不正記録を有効なJSONへ推測変換しない。確定不正行の扱いと本文を含まない診断は読取側の契約で定める。HTTP/MCPの入力schema・既message ID・配送結論・通知の宛先は変えない。fsyncは保存済みと通知する前の永続化を要求し、停電時のストレージ機器の保証までは代替しない。
 
 通常親のcreateConversationServicesはonLogCorruptionを同Diagnostics.recordへ接続する。固定MESSAGE_LOG_INVALID/codeと物理line/offset/length/reasonだけを保存し、本文/自由例外は渡さない。診断の拒否はStoreが同固定DTOのstderrへ退避し、有効履歴の取得を止めない。子processでも既定stderr診断は保持する。
+
+2026-11-06の[耐久受領](durable-receipt.md)では直接writerを親安定実体へ移す。子は同親effectへ追記し、同ファイルの第二writerを作らない。既append/fsync/通知の順序とRoom writerは維持する。
