@@ -74,6 +74,26 @@
           "run": "archive=\"runtime/execution/execution-$SOURCE-linux-$ARCH.tar.gz\"\ngh attestation verify \"$archive\" --repo kitepon/BellTeam --signer-workflow kitepon/BellTeam/.github/workflows/publish-execution.yml --source-ref refs/heads/main --source-digest \"$SOURCE\" --signer-digest \"$SOURCE\" --deny-self-hosted-runners --bundle \"$BUNDLE\" --custom-trusted-root config/web-gateway-trusted-root.jsonl --format json > runtime/execution/verified.json\njq -e 'length > 0 and all(.[]; .verificationResult.signature.certificate.sourceRepositoryIdentifier == \"1404510084\")' runtime/execution/verified.json\ncp \"$BUNDLE\" \"$archive.sigstore.json\"\n"
         },
         {
+          "name": "固定421d配送method sidecarを同mainから生成して検査",
+          "run": "archive=\"runtime/execution/live-delivery-$SOURCE-linux-$ARCH.tar.gz\"\npython3 runtime-live-delivery-adoption/package.py --source \"$SOURCE\" --arch \"$ARCH\" --output \"$archive\" > runtime/execution/live-delivery-package-result.json\npython3 runtime-live-delivery-adoption/package.py --check \"$archive\" --source \"$SOURCE\" --arch \"$ARCH\" > runtime/execution/live-delivery-check.json\n"
+        },
+        {
+          "name": "固定配送method sidecarを別subjectとして同OIDCで署名",
+          "id": "live_delivery_attest",
+          "uses": "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6",
+          "with": {
+            "subject-path": "runtime/execution/live-delivery-${{ github.sha }}-linux-${{ matrix.arch }}.tar.gz",
+            "create-storage-record": false
+          }
+        },
+        {
+          "name": "固定配送method sidecarの公式署名と閉manifestを検証",
+          "env": {
+            "BUNDLE": "${{ steps.live_delivery_attest.outputs.bundle-path }}"
+          },
+          "run": "archive=\"runtime/execution/live-delivery-$SOURCE-linux-$ARCH.tar.gz\"\ncp \"$BUNDLE\" \"$archive.sigstore.json\"\npython3 runtime-live-delivery-adoption/verify.py \"$archive\" \"$archive.sigstore.json\" --source \"$SOURCE\" --signer \"$SOURCE\" --arch \"$ARCH\" > runtime/execution/live-delivery-verified.json\n"
+        },
+        {
           "uses": "actions/upload-artifact@v7",
           "with": {
             "name": "execution-${{ matrix.arch }}-${{ github.run_attempt }}",
