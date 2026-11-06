@@ -4,6 +4,7 @@ export function createDiagnosticsFacade(controller) {
   return {
     initialize: () => controller.start(),
     record: report => controller.request('record', { report }),
+    recordModuleRestartLimit: problem => controller.request('recordModuleRestartLimit', { problem }),
     list: (status = 'all', limit = 500) => controller.request('list', { status, limit }),
     setStatus: (fingerprint, status, { note } = {}) => controller.request('setStatus', optional({ fingerprint, status, note })),
     setNote: (fingerprint, note) => controller.request('setNote', { fingerprint, note }),

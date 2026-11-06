@@ -47,6 +47,7 @@ export function createDiagnosticsDispatcher({ root, investigationsFile = null })
     }
     return track(Promise.resolve().then(async () => {
       if (method === 'record') return diagnostics.record(params.report)
+      if (method === 'recordModuleRestartLimit') return diagnostics.recordModuleRestartLimit(params.problem)
       if (method === 'setStatus') return diagnostics.setStatus(params.fingerprint, params.status, { note: params.note })
       if (method === 'setNote') return diagnostics.setNote(params.fingerprint, params.note)
       return diagnostics.updateInvestigation(params.fingerprint, { status: params.status, note: params.note })
