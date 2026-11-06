@@ -82,12 +82,11 @@ test('cold resume rejection reaches the existing registered diagnostics sink wit
     configurationStorage: { root: join(root, 'intents'), ownerUid: process.getuid() },
     access: { assertWorkAllowed() {} }, diagnostics: { record: report => diagnostics.record(report) }, observer: { report() {} },
   } })
-  t.after(() => dispatcher.disconnect())
+  t.after(async () => { await dispatcher.control('quiesce'); await dispatcher.control('exit') })
   await dispatcher.control('initialize')
   for (let i = 0; i < 100 && !(await diagnostics.list()).length; i++) await new Promise(resolve => setTimeout(resolve, 1))
   const rows = await diagnostics.list(); assert.equal(called, true); assert.equal(rows.length, 1)
   assert.deepEqual(JSON.parse(rows[0].diagnostic_log), { stage: 'restart_resume', code: 'RESTART_RESUME_UNAVAILABLE',
     botId: 'bot-active', sessionId: 'bot-active', cause_code: 'AGENT_RESUME_UNAVAILABLE' })
   assert.ok(!JSON.stringify(rows).includes('PRIVATE_BODY_STACK'))
-  await dispatcher.disconnect()
 })
