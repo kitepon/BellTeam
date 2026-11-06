@@ -32,4 +32,3 @@ test('five real recovery attempts emit once, keep restarting, and clear only aft
   assert.deepEqual(problems[1], { kind: 'module_restart_limit', moduleId: 'usage', cleared: true })
   recovery.close()
 })
-
