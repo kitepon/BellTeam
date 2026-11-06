@@ -24,7 +24,7 @@ flowchart LR
 
 席のentryと業務closureを一緒に選択する。親の旧`run-seat-runtime`へ戻り旧/app版memory-serviceをimportする分岐は削除し、`SeatRuntime.memoryModule`一実体へ既10methodを委譲する。通常HTTP/MCPの引数・認可・scopeの業務判定は変えない。親registryは呼出時にid/projectだけ投影し、別Botの台帳や関数を子へ送らない。
 
-`createMemoryProcess({root,run,prepareRelease,exchangeMutex,onState})`はstart/request/replace/reserve/snapshot/closeとmemory(registry)を公開。新規scope初期化は従来callerのinitialize/ensureScopeだけ。各短命子はcontrol initialize/resume→業務1件→quiesce/exitを実行し、restore probeはinitialize/quiesce/exitだけでDBへ触れない。protocol1/generation/実stateCompatibilityと閉responseを親が検査する。既runnerのUID/clearenv/取消/合計buffer/stdio回収を再利用し、新stdin path/env/関数窓口を作らない。
+`createMemoryProcess({root,run,prepareRelease,exchangeMutex,onState})`はstart/request/replace/reserve/snapshot/closeとmemory(registry)を公開。新規scope初期化は従来callerのinitialize/ensureScopeだけ。各短命子はcontrol initialize/resume→業務1件→quiesce/exitを実行し、restore probeはinitialize/quiesce/exitだけでDBへ触れない。その後のready probeは`MEMORY_READY_PROBE`（recallMemory shared/固定語"ready"/limit1）を実業務読み1件として同じ短命子で実行し、空の状態ではshared領域を作って空結果を返す。queryは空にしない（実検索はSEARCH_QUERY_INVALIDで拒否し、start()が永久待ちになる）。protocol1/generation/実stateCompatibilityと閉responseを親が検査する。既runnerのUID/clearenv/取消/合計buffer/stdio回収を再利用し、新stdin path/env/関数窓口を作らない。
 
 固定release entryは `/run/bellteam-memory-code/SHA/payload/src/run-memory-runtime.mjs`、builtinは同imageのentry。コードだけのRO viewは既private volumeのmemory-code subpath、root directory0555/file0444。installation/manifestはprivate memory/releases/SHAに残し、root installerの正式検証receipt・完全inventory・platform/Node26/protocol1/Biscuit実互換を親1001で確認。codeだけ残った未完installは選べない。DB/WAL/本文/資格をviewへ載せない。初回view mountは通常image導入時、以後の版追加は同volume内。
 
