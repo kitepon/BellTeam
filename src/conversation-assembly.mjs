@@ -1,4 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { MessageAssets } from './message-assets.mjs'
+import { validateConversationInput } from './conversation/requests.mjs'
 import { join } from 'node:path'
 import { createConversationProcess } from './conversation-process.mjs'
 import { ConversationLifetimes } from './conversation-lifetimes.mjs'
@@ -14,7 +16,7 @@ import { createConversationFacade } from './conversation-facade.mjs'
 
 const denied = () => Object.assign(new Error('CONVERSATION_CONTEXT_REQUIRED'), { code: 'CONVERSATION_CONTEXT_REQUIRED', status: 403, outcome: 'not_accepted', effect: 'not_started' })
 
-// One parent graph owns admission and captured authority; the child alone owns conversation writes.
+// One parent graph owns admission/authority; direct writes share its durable writer.
 export function createConversationAssembly({ root, membersAdmission, exchangeMutex, getServices, createFacade = createConversationFacade,
   onExecution, onDiagnostic, onState, onModuleChildExit, createProcess = createConversationProcess, prepareRelease, spawnProcess }) {
   let controller, closed = false, retirement = null
@@ -52,7 +54,19 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
   const scope = new AsyncLocalStorage(), owned = new WeakMap(), listeners = new Set(), memberParents = new WeakMap()
   const executionEffects = onExecution ?? createConversationExecutionEffects({ getServices, getController: () => controller, admission })
   const getBots = () => getServices().bots
-  const gate = createConversationAssetGate({ readRemovalStates: () => getBots().readRemovalStates(), assertContext: moduleOperations.assert })
+  const receiptAssetContexts = new WeakSet()
+  const gate = createConversationAssetGate({ readRemovalStates: () => getBots().readRemovalStates(),
+    assertContext: context => receiptAssetContexts.has(context) ? membersAdmission.assertLease(context.membersLease) : moduleOperations.assert(context) })
+  const receiptAssets = new MessageAssets({ root, botsAssetsRoot: join(root, 'state/bots'),
+    ...(getServices().seatRuntime ? { readImage: (image, maxBytes) => getServices().seatRuntime.readImage(image, maxBytes) } : {}) })
+  const directAssets = { directory: owner => receiptAssets.directory(owner),
+    saveAll: input => membersAdmission.withLease(async membersLease => {
+      const context = { membersLease }; receiptAssetContexts.add(context)
+      const lease = await gate.beginSave(input.owner, context)
+      try { return await receiptAssets.saveAll(input) }
+      finally { await gate.endSave(lease); receiptAssetContexts.delete(context) }
+    }) }
+
   const observerEffects = createConversationObserverParentEffects({
     snapshot: async context => { await getBots().refresh(context.operationContext); return [...getBots().values()] },
     current: async (botId, context) => { await getBots().readMember(botId, context.operationContext); return getBots().get(botId) },
@@ -101,7 +115,19 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
     finally { if (state.own) moduleOperations.finish(state.operationContext); owned.delete(options) }
   }
   const facade = createFacade({ getController: () => ({ ...controller, request: invoke, callback: (method, params, options) => invoke(method, params, options, true) }), context })
-  return { controller, admission, moduleOperations, facade,
+  return { controller, admission, moduleOperations, facade, directAssets,
+    captureReceipt(method, input) {
+      const current = scope.getStore()
+      if (!current?.actor) throw denied()
+      const params = method === 'call.receive' ? input : { ...input, images: input.images ?? (input.image ? [input.image] : []) }
+      if (method !== 'call.receive') { delete params.image; delete params.executionSource; if (method === 'user.post') delete params.from }
+      validateConversationInput(method, params, current.actor)
+      if (current.actor.kind === 'bot' && method === 'direct.post' && input.from !== current.actor.botId)
+        throw Object.assign(new Error('CONVERSATION_SENDER_FORBIDDEN'), { code: 'CONVERSATION_SENDER_FORBIDDEN', status: 403 })
+      if (['onboarding', 'usage'].includes(current.actor.kind) && input.target !== current.actor.botId)
+        throw Object.assign(new Error('CONVERSATION_TARGET_FORBIDDEN'), { code: 'CONVERSATION_TARGET_FORBIDDEN', status: 403 })
+      return current.parent?.executionSource
+    },
     assets: { ...facade.assets, open: createConversationAssetReader({ root }), initialize: () => gate.initialize(),
       prepareBotAssetRemoval: (...args) => gate.prepareBotAssetRemoval(...args), cancelBotAssetRemoval: (...args) => gate.cancelBotAssetRemoval(...args) },
     run: (actor, operation, parent) => scope.run({ actor, parent }, operation),

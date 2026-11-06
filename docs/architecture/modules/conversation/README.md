@@ -6,6 +6,8 @@
 
 ## 内部図の正本
 
+- [親安定の耐久受領・保存済ID](durable-receipt.md)
+
 - [独立processの業務境界と状態互換](process.md)（固定契約v1に沿って実装中）
 - [クラッシュ後の直接JSONL追記境界](log-append.md)
 

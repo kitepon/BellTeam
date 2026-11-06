@@ -117,6 +117,10 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
   const messenger = new BellTeamMessenger({ bots, transport: native, logPath, store, assets,
     failureFields: conversationCallbackFailureFields,
     admitWork: () => () => {}, requireAccess: access, onMessage: record => emit(record), onTurnEnd: afterTurn })
+  messenger.append = async record => {
+    await invoke('direct.log.append', { record })
+    await emit(record)
+  }
   for (const method of ['prepareUserTurn', 'finishUserTurn']) {
     const operation = messenger[method].bind(messenger)
     messenger[method] = (...args) => write(current().context, () => operation(...args))

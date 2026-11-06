@@ -1,5 +1,7 @@
 # 会話processの業務境界（実装工程）
 
+2026-11-06: 直接JSONL writerは[親安定の耐久受領](durable-receipt.md)へ移し、子の全直接appendは同親effectへ通す。旧子の世代/authority/実終端検査と子emitは保持。Room/SelfTurns writerと旧native参照の所有は変えない。
+
 N102が会話の閉DTO・writer/reader・Room/画像保存・観測/回答所有/背景報告を所有する。Root横断契約v1はbot-7b140b27/docs/conversation-update-contract-20261103.md（133222cf）が正本。機構/親FD/gateはruntime、native/lifetime信用資料はexecution、認証/facade/両入場/組立てはintegration。既図は[README](README.md)から辿り、全体図を複製しない。
 
 現実装baseはmain6d21419b96f289b1a9f61d707c40c5cbfce12177。初回入力afdc/8ccaとは別。Root読取4e01の15source中14は同bytes、application-servicesだけが共通moduleCatalogを同Host clientへ接続した差分であり、会話内部15sourceの意味を既採用と混同しない。

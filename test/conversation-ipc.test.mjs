@@ -1,3 +1,4 @@
+import { ConversationWriter } from '../src/conversation-writer.mjs'
 import { MODULE_CONCURRENCY } from '../src/module-ipc.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
@@ -246,6 +247,7 @@ async function setup(t, { effect = () => {}, event = async () => {}, dispatcher:
   let childErrors = ''
   processChild?.stderr.on('data', chunk => { childErrors += chunk })
   const endpoints = processChild ? [processChild] : pair(), generation = 'generation-a', admission = new ConversationLifetimes(generation), tokens = new WeakMap(), calls = [], native = [], diagnostics = []
+  const logWriter = new ConversationWriter({ logPath: join(root, 'logs/direct-messages.jsonl'), onMessage: () => {} })
   let child, parent
   const dispatcher = processChild ? null : factory({ root, effect: (...args) => child.effect(...args), event: (...args) => child.event(...args),
     trackBackground: (...args) => child.trackBackground(...args), diagnostic: report => child.diagnostic(report) })
@@ -256,6 +258,7 @@ async function setup(t, { effect = () => {}, event = async () => {}, dispatcher:
     authorizeActor: (method, token) => tokens.get(token)?.method === method ? tokens.get(token).actor : false,
     onEffect: async (method, params, context) => {
       calls.push({ method, params, context })
+      if (method === 'direct.log.append') { await logWriter.append(params.record); return { applied: true } }
       const override = await effect(method, params, context)
       if (override !== undefined) return override
       if (method === 'members.profiles.read') return { bots: fixture.bots }

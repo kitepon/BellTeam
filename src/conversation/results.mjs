@@ -50,7 +50,10 @@ export function validateConversationResult(method, value) {
     case 'history.listMessages': case 'history.listRoomMessages': case 'history.page': case 'history.recentBatch':
       if (typeof value?.[Symbol.asyncIterator] !== 'function') invalid()
       return true
-    case 'direct.post': case 'user.post': case 'delivery.resume': return fields(value, {
+    case 'direct.post': case 'user.post': return fields(value, {
+      delivery: oneOf('queued', 'running', 'steered', 'delivered'), delivery_id: nonempty, from: nonempty, target: id,
+    })
+    case 'delivery.resume': return fields(value, {
       delivery, delivery_id: nonempty, from: nonempty, target: id,
     })
     case 'user.turn': return fields(value, { delivery: oneOf('delivered', 'steered'), delivery_id: nonempty,
@@ -63,7 +66,7 @@ export function validateConversationResult(method, value) {
     case 'room.silent': return fields(value, { delivery: oneOf('suppressed') })
     case 'assets.save': if (!asset(value)) invalid(); return true
     case 'assets.saveAll': if (!array(asset)(value)) invalid(); return true
-    case 'call.receive': return fields(value, { delivery, delivery_id: nonempty, target: id })
+    case 'call.receive': return fields(value, { delivery: oneOf('queued', 'running', 'steered', 'delivered'), delivery_id: nonempty, target: id })
     case 'observation.poll': case 'display.words': return fields(value, { applied: value => value === true })
     default: invalid()
   }

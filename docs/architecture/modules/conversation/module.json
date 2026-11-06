@@ -8,7 +8,8 @@
     "messages",
     "history",
     "membership-cleanup",
-    "room-access"
+    "room-access",
+    "durable-messages"
   ],
   "uses": [
     {
@@ -71,6 +72,8 @@
     "src/http-messages.mjs",
     "src/conversation-services.mjs",
     "src/http-delivery-api.mjs",
-    "src/delivery-tracking.mjs"
+    "src/delivery-tracking.mjs",
+    "src/durable-message-receipts.mjs",
+    "src/direct-log-record.mjs"
   ]
 }

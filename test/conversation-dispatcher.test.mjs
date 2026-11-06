@@ -1,3 +1,4 @@
+import { ConversationWriter } from '../src/conversation-writer.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, stat } from 'node:fs/promises'
@@ -29,6 +30,7 @@ async function setup(t, override = () => {}, mutate = () => {}, diagnostic = asy
     await mkdir(dirname(path), { recursive: true, mode: 0o700 })
     await writeFile(path, `${JSON.stringify(value)}\n`, { mode: 0o600 })
   }
+  const logWriter = new ConversationWriter({ logPath: join(root, 'logs/direct-messages.jsonl'), onMessage: () => {} })
   const calls = [], events = [], native = [], backgrounds = []
   let serial = 0
   const d = createConversationDispatcher({ root, diagnostic, event: async (...args) => events.push(args),
@@ -38,6 +40,7 @@ async function setup(t, override = () => {}, mutate = () => {}, diagnostic = asy
       if (['execution.turn', 'execution.notify', 'execution.report'].includes(method)) native.push({ method, params, context })
       const result = await override(method, params, context)
       if (result !== undefined) return result
+      if (method === 'direct.log.append') { await logWriter.append(params.record); return { applied: true } }
       if (method === 'members.profiles.read') return { bots: fixture.bots }
       if (method === 'execution.assertAccess') return { allowed: true }
       if (method === 'usage.routing.read') return { enabled: false, epoch: 1, apiKey: null }
