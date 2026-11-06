@@ -177,9 +177,9 @@ test('手動で複数人を指定すると全員が読み指定者全員が返�
 test('共通規範は沈黙を内部制御にし、個別連絡で無関係なBotを起こさない', async () => {
   const rules = await readFile(new URL('../config/common-agents.md', import.meta.url), 'utf8')
   assert.match(rules, /respond_to_room\(action="silent", messageId\)/u)
-  assert.match(rules, /沈黙宣言をルームへ投稿しない/u)
-  assert.match(rules, /特定の一人だけに必要な依頼、回答、連絡は、ルームではなく`sendmessage`/u)
-  assert.doesNotMatch(rules, /`targets` を省略すると全メンバーへ届く/u)
+  assert.match(rules, /NEVER: post a silence declaration to the room\./u)
+  assert.match(rules, /what one Bot needs goes by sendmessage to that Bot/u)
+  assert.match(rules, /targets = only the Bots that must reply or act/u)
 })
 
 test('Botがルームへ提示した画像を会話資産として記録する', async () => {
