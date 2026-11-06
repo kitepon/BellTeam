@@ -1,5 +1,7 @@
 # host内のexecution engine交換
 
+Runtime generation recovery follows the [single module lifecycle contract](../runtime/module-process.md#shared-automatic-lifecycle-recovery-owner-2026-11-07). Failed resume/cleanup/restore enters bounded backoff, retaining the same engine or captured handoff; actual native resource and identity protections remain here. No dispatch logic or business request is replayed by controller recovery.
+
 ```mermaid
 flowchart LR
   Caller["HTTP / MCP / scheduler / conversation"] --> Facade["親の安定facade・固定method表"]
@@ -47,14 +49,16 @@ flowchart TD
   Init --> Save["親onAdoptの実ACK"]
   Save --> Running["現世代へ同期projection/dispatch"]
   Init -->|失敗| Cleanup["candidate closed実確認"]
-  Cleanup -->|未確認| Unavailable["unavailable・新root0・二重engine0"]
+  Cleanup -->|retry needed| Backoff["Shared lifecycle backoff / retained engine and handoff"]
   Cleanup --> Restore["同旧factory＋handoff再生成"]
   Restore --> OldSave["旧current/previousの親保存ACK"]
   OldSave -->|成功| Running
-  OldSave -->|不明| Unavailable
+  OldSave -->|retry needed| Backoff
+  Backoff -->|retained usable engine| Resume
+  Backoff -->|retiring or failed candidate| Cleanup
 ```
 
-旧instanceは退役後resumeしない。初期化/保存待ちcallerの期限は実資源を解放しない。candidateのhandle/closed欠測、復元失敗/保存ACK不明はunavailable。close途中の遅いfactory読込から未来のengineを生成しない。SDK/nativePTYclose/AIabort/本文再送は行わない。共通readerの署名・設置と親のstable facade/ledger組立、通常main/imageは各本人の実接続結果を要する。
+旧instanceは退役後resumeしない。初期化/保存待ちcallerの期限は実資源を解放しない。Candidate cleanup, restore, or selection-save failure enters the shared backoff actor; a constructor failure without an accepted engine does not fence rollback. close途中の遅いfactory読込から未来のengineを生成しない。SDK/nativePTYclose/AIabort/本文再送は行わない。共通readerの署名・設置と親のstable facade/ledger組立、通常main/imageは各本人の実接続結果を要する。
 
 ## 固有legacy caller facade
 

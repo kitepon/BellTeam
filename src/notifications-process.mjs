@@ -30,14 +30,27 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
   let operation = null, cancellation = null, closing = null, configuring = 0, initialized = false
   const recovery = createModuleChildRestart(async () => {
     await operation?.catch(() => {})
-    if (closed || instance || !initialized) return
+    if (closed || available) return
+    if (!initialized && !instance) { await startAttempt(); return }
     await exclusive(async signal => {
+      const selected = await readAdoption()
+      currentVersionId = selected?.currentVersionId ?? null; previousVersionId = selected?.previousVersionId ?? null
       await prepare(currentVersionId, signal)
+      if (instance) {
+        const target = instance
+        if (target.child.exitCode !== null || target.child.signalCode !== null || !target.child.connected) await target.finishTermination()
+        else if (target.intentional) await finishExit(target)
+        else if (target.versionId === currentVersionId) { await resume(target, signal); initialized = true; state('running', true); return }
+        else if (target.resumed) {
+          if ((await target.channel.control('quiesce', {}, 60000))?.quiesced !== true) throw failure('NOTIFICATIONS_QUIESCE_FAILED')
+          await finishExit(target)
+        } else await killAndReap(target)
+      }
       const target = await launch(currentVersionId, signal)
       try { await resume(target, signal); state('running', true) }
       catch (error) { await killAndReap(target); throw error }
     })
-  })
+  }, 'notifications')
   const captureConfiguration = (provider, expected) => {
     const next = structuredClone(configuration())
     if (!next || Object.keys(next).sort().join(',') !== 'apns,webPush') throw failure('NOTIFICATIONS_CONFIGURATION_INVALID')
@@ -52,7 +65,7 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
   }
   const emit = () => { try { onState({ phase, exchanging, available, status, applyError: { ...applyError },
     configurationEpoch, appliedEpoch: { ...appliedEpoch } }) } catch {} }
-  const state = (next, usable = false) => { phase = next; available = usable; if (usable) recovery.running(); emit() }
+  const state = (next, usable = false) => { phase = next; available = usable; if (usable) recovery.running(); else if (next === 'unavailable' && !closed) recovery.lost(); emit() }
   const snapshot = () => ({ currentVersionId, previousVersionId, currentTarget: currentVersionId === null ? 'builtin' : 'release', builtinSourceCommit, available, status, applyError: { ...applyError }, phase,
     configurationEpoch, appliedEpoch: { ...appliedEpoch }, protocolVersion: 2, stateSchema: 2, update: update ? { ...update } : null })
   const commitApplication = (provider, epoch, value, error) => {
@@ -99,15 +112,20 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
     const child = spawn('/usr/local/libexec/bellteam-notifications-start', [versionId ?? 'builtin'], {
       env: {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
-    const target = { child, ended: false, attemptedEpoch: {}, channel: createNotificationsParentChannel(child, { onDiagnostic }) }
-    target.end = waitNotificationsChildClose(child).then(result => {
-      const unexpected = target.resumed && initialized && !closed && !target.intentional
-      if (unexpected) reportModuleChildExit('notifications', result, target.stderrObservation(), onModuleChildExit)
+    const target = { child, versionId, ended: false, attemptedEpoch: {}, channel: createNotificationsParentChannel(child, { onDiagnostic }) }
+    const osClosed = waitNotificationsChildClose(child)
+    target.finishTermination = () => target.termination ??= (async () => {
+      await osClosed
       target.ended = true
       target.channel.dispose()
       if (instance === target) { instance = null; state(closed ? 'closed' : 'unavailable') }
-      if (unexpected) recovery.lost()
+    })().finally(() => { target.termination = null })
+    target.end = osClosed.then(async result => {
+      const unexpected = target.resumed && initialized && !closed && !target.intentional
+      if (unexpected) reportModuleChildExit('notifications', result, target.stderrObservation(), onModuleChildExit)
+      await target.finishTermination()
     })
+    void target.end.catch(() => { state(closed ? 'closed' : 'unavailable') })
     target.stderrObservation = observeModuleChild(child)
     instance = target
     try {
@@ -178,7 +196,7 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
     void promise.finally(() => { if (operation === promise) { operation = null; cancellation = null } }).catch(() => {})
     return promise
   }
-  const start = () => {
+  const startAttempt = () => {
     if (closed) return Promise.reject(failure('NOTIFICATIONS_CLOSED'))
     return exclusive(async signal => {
       if (initialized) throw failure('NOTIFICATIONS_ALREADY_STARTED')
@@ -204,9 +222,16 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
         initialized = true
         state('running', true)
         return { versionId: currentVersionId, protocolVersion: 2, stateSchema: 2, status, applyError: { ...applyError } }
-      } catch (error) { await killAndReap(instance); state('unavailable'); throw error }
+      } catch (error) {
+        try { await killAndReap(instance) } finally { state('unavailable') }
+        throw error
+      }
     })
   }
+  const start = () => available ? Promise.resolve(snapshot()) : startAttempt().catch(error => {
+    if (closed || phase !== 'unavailable') throw error
+    return recovery.wait().then(() => { if (closed) throw error; return snapshot() })
+  })
   const request = async (method, params) => {
     if (closed) throw failure('PUSH_NOT_ACCEPTING')
     const provider = params?.provider
@@ -305,7 +330,7 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
           } catch (rollbackError) { errors.push(rollbackError); state('unavailable') }
           throw new AggregateError(errors, errors.length > 1 ? 'NOTIFICATIONS_REPLACE_AND_ROLLBACK_FAILED' : 'NOTIFICATIONS_REPLACE_ROLLED_BACK')
         }
-      } finally { if (phase !== 'running') { exchanging = false; emit() } }
+      } finally { if (phase !== 'running') { exchanging = false; state(closed ? 'closed' : 'unavailable') } }
     })
   }
   const reserve = (versionId, { expectedRelease } = {}) => {

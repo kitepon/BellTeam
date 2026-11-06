@@ -1,5 +1,7 @@
 # membersの起動・排他・固定逆effect
 
+Startup, exchange, and retained-child failures use the [single module lifecycle recovery contract](module-process.md#shared-automatic-lifecycle-recovery-owner-2026-11-07). Recovery retries lifecycle work only, retaining generation authority and pending effects.
+
 runtime所有エピネル。Root members-update-contract-20261103.mdを実装する担当図。基準9e83の業務意味を維持し、通常main34496e43から実装する。機構sourceの成立と通常配線/実物/本番は別記録。
 
 ```mermaid

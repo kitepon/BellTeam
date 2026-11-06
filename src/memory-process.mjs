@@ -8,6 +8,7 @@ import { createMemoryService } from './memory/factory.mjs'
 import { MEMORY_METHODS, assertMemoryStateCompatibility } from './memory/dispatcher.mjs'
 import { prepareMemoryRelease } from './memory-release.mjs'
 import { writeAtomic } from './json-file.mjs'
+import { createModuleChildRestart } from './module-child-restart.mjs'
 
 const versionValid = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value)
 const failure = (code, outcome = 'not_accepted') => Object.assign(new Error(code), { code, status: 503, outcome })
@@ -24,8 +25,18 @@ export function createMemoryProcess({ root, run = createSeatProcessRunner(root, 
   const builtinRoot = dirname(dirname(fileURLToPath(import.meta.url)))
   let currentVersionId = null, previousVersionId = null, descriptor = null, generation, available = false
   let phase = 'unavailable', changing = false, closed = false, starting, closing, replacing, reservation = null, update = null
+  const recovery = createModuleChildRestart(async () => {
+    await replacing?.catch(() => {})
+    await Promise.allSettled([...active])
+    if (!closed) await startAttempt()
+  }, 'memory')
   const snapshot = () => ({ currentVersionId, previousVersionId, generation, available, exchanging: changing, phase, update: update ? { ...update } : null })
-  const state = (next, usable = false) => { phase = next; available = usable; try { onState(snapshot()) } catch {} }
+  const state = (next, usable = false) => {
+    phase = next; available = usable
+    if (usable) recovery.running()
+    else if (next === 'unavailable' && !closed) recovery.lost()
+    try { onState(snapshot()) } catch {}
+  }
   const record = () => ({ schema: 'bellteam.memory.adoption.v1', currentVersionId, previousVersionId })
   const prepare = async (versionId, expectedRelease) => {
     if (versionId === null) return { versionId: null, appRoot: builtinRoot, protocolVersion: 1 }
@@ -73,24 +84,28 @@ export function createMemoryProcess({ root, run = createSeatProcessRunner(root, 
       currentVersionId = value.currentVersionId; previousVersionId = value.previousVersionId
     } finally { await file.close() }
   }
-  const start = () => {
+  const startAttempt = () => {
     if (closed) return Promise.reject(failure('MEMORY_CLOSED'))
+    if (available || changing) return Promise.resolve(snapshot())
     return starting ??= (async () => {
+    try {
     if (closed) throw failure('MEMORY_CLOSED')
+    currentVersionId = null; previousVersionId = null
     await readAdoption(); descriptor = await prepare(currentVersionId); generation = randomUUID()
     await restore(descriptor, generation)
     if (closed) throw failure('MEMORY_CLOSED')
     state('running', true); return snapshot()
-    })()
+    } catch (error) { state(closed ? 'closed' : 'unavailable'); throw error }
+    })().finally(() => { starting = null })
   }
+  const start = () => available ? Promise.resolve(snapshot()) : startAttempt().catch(error => {
+    if (closed || phase !== 'unavailable') throw error
+    return recovery.wait().then(() => { if (closed) throw error; return snapshot() })
+  })
   const request = async (method, params) => {
     await start()
     if (!available || changing || closed || !MEMORY_METHODS.includes(method)) throw failure('MEMORY_NOT_ACCEPTED')
-    try { return await execute(descriptor, generation, method, params) }
-    catch (error) {
-      if (['MEMORY_RESULT_UNCONFIRMED', 'MEMORY_STATE_INCOMPATIBLE'].includes(error.code)) state('unavailable')
-      throw error
-    }
+    return execute(descriptor, generation, method, params)
   }
   const replace = async (requested, { expectedRelease } = {}) => {
     await start()
@@ -149,7 +164,7 @@ export function createMemoryProcess({ root, run = createSeatProcessRunner(root, 
   return { start, request, replace, reserve, snapshot,
     memory: registry => createMemoryService({ registry, dispatch: request }),
     close: () => closing ??= (async () => {
-      closed = true; state('closing')
+      closed = true; recovery.close(); state('closing')
       if (update?.status === 'accepted') update.status = 'not_started'
       await starting?.catch(() => {})
       await replacing?.catch(() => {})

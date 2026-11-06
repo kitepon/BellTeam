@@ -1,5 +1,47 @@
 # 固有channelを載せる共通child世代controller
 
+## Shared automatic lifecycle recovery (Owner 2026-11-07)
+
+This is the single recovery contract for common module-process, members, notifications, memory, and execution-generation. The existing `module-child-restart` lifecycle owns one cancellable timer: 1/2/4/8/16/30 seconds, capped at30 seconds without an attempt limit; a healthy minute resets the delay. Initial failure also enables recovery. Public start waits for that same actor to become available, keeping parent bootstrap from tearing down the graph on a transient child failure; internal retry attempts release their operation before the next backoff. Close releases startup waiters without reopening a controller. An unavailable snapshot is transient: it always registers lifecycle recovery, including when an instance is retained. Closing cancels recovery and never reopens the controller.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Starting
+  Starting --> Available: initialize / ready / restore succeeds
+  Starting --> Unavailable: lifecycle failure
+  Available --> Unavailable: exit / exchange or resume failure
+  Unavailable --> Backoff: register retained generation or lost child
+  Backoff --> Recovering: one timer / local and shared exchange ownership
+  Recovering --> Backoff: failure / keep the same lifecycle work
+  Recovering --> Available: retained resume or selected-source restore completes
+  Starting --> Closed: close
+  Available --> Closed: close
+  Backoff --> Closed: close cancels timer
+  Recovering --> Closed: close cancels future work
+```
+
+```mermaid
+flowchart LR
+  Failure[Lifecycle failure / unavailable] --> Shared[One shared module-child-restart lifecycle]
+  Shared --> Ownership[Wait controller operation / existing exchange mutex]
+  Ownership --> Retained{Retained generation exists?}
+  Retained -->|alive| Resume[Retry same generation resume / pending lifecycle termination]
+  Retained -->|OS closed| Reap[Retry unfinished incoming / reaped stages]
+  Retained -->|absent| Restore[Existing selected-source launch / restore]
+  Reap --> Restore
+  Restore --> Configuration[Latest configuration epochs / same business data]
+  Configuration --> Ready[Ready / resume ACK and actual completion]
+  Resume --> Ready
+  Ready --> Available[Publish available]
+  Shared --> Diagnostic[One fixed diagnostic on lifecycle state transition]
+```
+
+Child and memory controllers reread normal adoption before recovery, so a failed adoption save cannot leave the running source and persisted selection inconsistent. A retained writer whose selected source changed is drained through its existing lifecycle before replacement. Only lifecycle work is retried. No memory mutation, notification send, delivery, or accepted business request is replayed. Invalid output fails that request without latching the module. Memory start is coalesced only while starting, not cached forever; recovery rereads normal selection and probes its source without rolling back business data. Execution retains engine/handoff ownership and retries resume or actual cleanup before reconstructing its selected generation; native jobs, shared SDKs, and conversation identity are not reset. Conversation writer retirement continues to require its actual writer/effect protections. Retained OS-closed children retry the failed termination stage instead of awaiting a permanently rejected `end` promise. A live writer is resumed, never killed as an unavailable shortcut.
+
+Conversation protocol failure uses this same actor. The existing admission failure notification enters writer retirement; an issued retirement failure registers backoff before it can return. A retained live failed writer retries its same-generation quiesceWriter/exitWriter lifecycle stages; validated quiescence is required before requesting its exit. An already OS-closed writer with drained parent effects and completed reaping is observed gone, so an absent exit ACK cannot permanently block the new generation. `recoverFailedGeneration` preserves the retired native references and prevents old callbacks from contaminating the new generation. Delivery-release/background peer failures close their IPC peer and follow the same actual-child-loss path. Per-frame/target identity validation remains unchanged.
+
+Lifecycle diagnostics report backoff/available/closed transitions once; retry attempts do not repeat records. Existing termination evidence remains bounded and stage-specific. Parent assembly and public module-update APIs stay unchanged; recovery restores availability before normal update availability checks. The shared implementation is reused rather than adding per-module timers or public recovery APIs. The specialized failure text below is governed by this contract; unavailable is never an indefinite terminal latch.
+
 runtimeエピネル。既members交換手順の共通機構を`src/module-process.mjs`へ接続し、conversation/usage/diagnosticsの固定3componentだけを扱う。業務DTO/actor/opaque lease/stream/投影ACKは各作者のclosed channel、親facade/実サービス組立はMolly、固定資材と署名はCenti。先行members/通知controllerをこの変更で置換しない。
 
 ```mermaid
@@ -27,13 +69,13 @@ usage固有のstartPaused:trueはstartをsettings ready後のinitializingで返�
 
 usage/conversationのparent channelは共通endpointの`drainIncoming()`も公開する。childのOS/pipe終了後に親effect/保存/投影commitが残る場合、その実終端を待ってからreapedと次子を許す。親effect無しのdiagnosticsは同portを省略可能。outgoing RPCのreaped待ちcompletionをdrainIncomingへ含めない。
 
-固有channelの任意口`childClosed():Promise<void>`は実OS/IPC/全pipe終了後、`drainIncoming()`前にawaitする。会話は発行済callbackだけを各callback自身の保存effect終端後に失敗終端させ、incoming→callback completion→reaped→incomingの循環を解く。root/control/背景ACK/nativeは既reapedまで保持する。hookの拒否は既incoming段階の失敗として伝播し、reaped/lostへ進めない。未提供channelの既順序は同じ。
+固有channelの任意口`childClosed():Promise<void>`は実OS/IPC/全pipe終了後、`drainIncoming()`前にawaitする。会話は発行済callbackだけを各callback自身の保存effect終端後に失敗終端させ、incoming→callback completion→reaped→incomingの循環を解く。root/control/背景ACK/nativeは既reapedまで保持する。A rejected hook remains the pending incoming stage and is retried by the shared lifecycle before reaping or relaunch. 未提供channelの既順序は同じ。
 
 admissionを使うmoduleは同親のclose/drain/adopt/resumeを注入する。canContinueは同親が元opaque leaseとgenerationを照合する関数で、既受付の継続だけを閉鎖中に通す。既定は拒否。callbackの本人性/相関は固有channelが毎回検査し、新root枠へ転用しない。requestと後続initializeはcaller Promiseだけでなく`.completion`を追跡する。quiesce期限も実completionを切らず保持する。既子の全OS/IPC/pipe終了後だけreapedを通知し、次子を起こす。
 
 initializeParams({generation,mode,handoff})は初回bootstrap、採用済起動/交換はrestoreを固有paramsへ変換する。usageのsettings/subscriptions/services段階は同親がinitialize(stage)で進め、交換はexportHandoff(channel)から得た同private handoffを一回のrestoreへ渡す。snapshot start/end/abort・権限はcreateChannelの閉closureへ注入する。本文/path/envをHTTPや更新DTOへ追加しない。
 
-quiesce失敗/60秒未終端は旧resume、新子0・kill0・unknown再送0。新版ready/保存/resume失敗時は未受付candidateをOS終了まで回収し、旧固定版と同handoffから再生成する。既にresume済みで終端不明ならkillで済ませずunavailableに保持し二重writerを作らない。closeは起動/交換中operationと既writerを回収し、新子の起動を止める。exitの5秒killはquiesce成功後だけ。
+quiesce失敗/60秒未終端は旧resume、新子0・kill0・unknown再送0。新版ready/保存/resume失敗時は未受付candidateをOS終了まで回収し、旧固定版と同handoffから再生成する。A retained resumed writer enters shared lifecycle retry; it is not killed as a shortcut, and real writer/effect ownership is preserved. closeは起動/交換中operationと既writerを回収し、新子の起動を止める。exitの5秒killはquiesce成功後だけ。
 
 admission.drainが明示busyを返した時は、子quiesceへ進まず同DRAIN_TIMEOUTで旧resumeへ戻る。
 
@@ -90,7 +132,7 @@ flowchart LR
   References --> FullDrain
 ```
 
-共通3componentの再生成試行は既consoleへ`MODULE_CHILD_RECOVERY`を記録する。固定component/stage/event、safe整数attempt、既runner/admissionの安全な件数とclosed/unconfirmed、閉failureCode又はnullだけ。operation/mutex/runner/prepare/recover_admission/spawn/channel/initialize/ready/restore/resumeの各待機開始と試行完了・失敗・不要時skipを残し、未完待機は最後の段階として識別する。各試行の遷移時だけで定期ログは作らず、1秒から最大30秒の再試行契約を維持する。
+共通3componentの再生成試行は既consoleへ`MODULE_CHILD_RECOVERY`を記録する。固定component/stage/event、safe整数attempt、既runner/admissionの安全な件数とclosed/unconfirmed、閉failureCode又はnullだけ。operation/mutex/runner/prepare/recover_admission/spawn/channel/initialize/ready/restore/resumeの各待機開始と試行完了・失敗・不要時skipを残し、未完待機は最後の段階として識別する。Recovery evidence is deduplicated by stage/event during one recovery episode, so retry attempts do not repeat it; the shared1–30-second schedule is retained.
 
 `local_mutex`はcontroller内排他の取得/拒否地点、既`mutex`はその取得後の親共有排他を表す。controller排他の競合は既UPDATE_IN_PROGRESSで即時拒否する。両者の間に新しい排他や期限を設けず、元Promise・実completion・例外を保持する。lostはtimer登録呼出への到達で、復旧完了又は全復帰期限ではない。
 
@@ -179,17 +221,17 @@ flowchart LR
   Incoming --> Exit[N102 exitWriter / writerClosed ACK＋completion]
   Exit --> OS[実OS IPC 全owned pipe終端]
   OS --> Parent[親incoming effect reaped終端]
-  Parent --> Both{正式exit ACKも確認済み}
-  Both -->|yes| Lost[failedWriterReaped / 既Q lost]
-  Both -->|no| Unknown[unavailable / 同旧世代保持]
+  Parent --> Lost[failedWriterReaped / 共通lifecycle lost]
+  Quiesce -->|生存子への失敗| Backoff[共通backoff / 同世代の退役stage再試行]
+  Backoff --> Quiesce
   Lost --> Return[available false snapshotを返し共有mutex解放]
   Return --> Q[既Q timer / 同採用版restore ready resume]
   Native[Kiro: 元native watch opaque 同Bot占有] --> Retained[元実参照のまま保持]
   Retained --> Q
 ```
 
-N102正式channel.control('quiesceWriter',{},60000)はexact {writerQuiesced:true}と同Promiseの実.completionを要求する。既受付writer保存とreverse effect/event終端だけを待ち、全native/global admission drainや全runner drainに読み替えない。親drainIncomingも実完了し、同target/current failedを再検査後だけcontrol('exitWriter',{},5000)へ進む。exact {writerClosed:true}と実.completion、実OS/IPC/pipe/incoming/reapedを全て要する。子が先に閉じてもACK未確認を終了証拠へ補完しない。
+N102正式channel.control('quiesceWriter',{},60000)はexact {writerQuiesced:true}と同Promiseの実.completionを要求する。既受付writer保存とreverse effect/event終端だけを待ち、全native/global admission drainや全runner drainに読み替えない。親drainIncomingも実完了し、同target/current failedを再検査後だけcontrol('exitWriter',{},5000)へ進む。exitWriterにはexact {writerClosed:true}と実.completionを検証し、復帰には実OS/IPC/pipe/incoming/reaped完了を要する。ACK欠測を成功ACKへ補完せず、子の実終了と親effects/reaped完了は別の実観測として復帰に使う。
 
-同instanceは退役を一回だけ開始する。開始後の新request/callbackは拒否し、保存/ACK不明・不正DTO・世代変更は停止前なら停止せずunavailable、終了ACKが不明なままOS/barrierが終わってもQへ進めない。caller期限が先にrejectしても実.completionまでlocal排他を保持し、期限kill/強制resume/failed手消去/偽native finish/元要求再送はない。親closeは従来の全体close契約を維持する。
+同instanceの退役は直列化し、失敗したlifecycle stageだけ再試行できる。開始後の新request/callbackは拒否する。生存writerは同世代のquiesceWriter実ACKと保存/effect終端を確認してからexitWriterを要求し、失敗は共通backoffで同じ退役stageを再試行する。実OS/IPC/pipe終了と親incoming/reaped完了を観測済みなら、exit ACKの欠測だけで新世代への復帰を止めない。caller期限が先にrejectしても実.completionまでlocal排他を保持し、期限kill/強制resume/failed手消去/偽native finish/元要求再送はない。親closeは従来の全体close契約を維持する。
 
 返値は旧writerの全barrierと既Q lost接続時の既snapshotでavailable=false。同共有mutexを解放してから既Qが同mutexを取得して新子を作るため、新readyを退役callback内で待たない。admission.snapshot.unconfirmedは旧retiredFailed/nativeUnknownを含むので新resumeの追加拒否に使わず、既recoverFailedGeneration/resumeのcurrent failed検査と元native/watch実参照を保持する。writer専用保存/effect分類と二control/子ACKは[conversation正本](../conversation/process.md)、通知/同親bindingはintegration、元native/同Bot占有は[execution正本](../execution/conversation-lifetimes.md)が所有する。

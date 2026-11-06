@@ -132,12 +132,12 @@ test('closing during factory lookup cannot initialize a future engine', async t 
 })
 
 
-test('a constructor without a cleanup handle fences rollback and close rather than guessing it had no effects', async t => {
+test('a constructor failure without an accepted engine restores the retained factory', async t => {
   const f = await fixture(t, { failConstruct: true })
   await assert.rejects(f.controller.replace(badVersion))
-  assert.equal(f.created.length, 1); assert.equal(f.created[0].retired, true)
-  assert.equal(f.controller.snapshot().available, false)
-  await assert.rejects(f.controller.close(), { code: 'EXECUTION_CLEANUP_UNCONFIRMED' })
+  assert.equal(f.created.length, 2); assert.equal(f.created[0].retired, true)
+  assert.equal(f.controller.snapshot().available, true)
+  await f.controller.close()
 })
 
 test('failed candidate adoption is rolled back only after candidate close and durable old selection ACK', async t => {

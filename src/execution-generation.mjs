@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { createModuleChildRestart } from './module-child-restart.mjs'
 import { EXECUTION_STATE_COMPATIBILITY } from './execution-dispatcher.mjs'
 export { EXECUTION_STATE_COMPATIBILITY }
 
@@ -15,14 +16,50 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
   currentVersionId = null, previousVersionId = null, exchangeMutex = null, onState = () => {} }) {
   if (typeof loadFactory !== 'function' || typeof onAdopt !== 'function' || !valid(currentVersionId) || !valid(previousVersionId))
     throw fail('OPTIONS_INVALID', 400)
-  let started = false, unsafe = false
   let instance = null, phase = 'unavailable', available = false, closed = false, operation = null, closing = null
   let builtinSourceCommit = null, reservation = null, startingReservation = false, update = null
+  let recoveryState = null
+  const recovery = createModuleChildRestart(async () => {
+    await operation?.catch(() => {})
+    if (closed || available) return
+    await exchange(async () => {
+      if (closed || available) return
+      try {
+        const retained = instance, saved = recoveryState
+        if (retained?.ready && !retained.retiring && (!saved || retained.factory === saved.factory)) {
+          if (saved) {
+            await adopt(saved.selection)
+            currentVersionId = saved.selection.currentVersionId; previousVersionId = saved.selection.previousVersionId
+          }
+          state('quiescing')
+          await resume(retained)
+          return
+        }
+        if (retained) await dispose(retained)
+        if (closed) return
+        const factory = saved?.factory ?? await load(currentVersionId)
+        if (closed) return
+        instance = make(factory, saved?.handoff)
+        await initialize(instance)
+        if (closed) return
+        if (saved) {
+          await adopt(saved.selection)
+          currentVersionId = saved.selection.currentVersionId; previousVersionId = saved.selection.previousVersionId
+        }
+        state('running', true)
+      } catch (error) { state(closed ? 'closed' : 'unavailable'); throw error }
+    })
+  }, 'execution')
   const active = new Set()
   const snapshot = () => ({ currentVersionId, previousVersionId, builtinSourceCommit,
     generation: instance?.generation ?? null, available, phase, exchanging: operation !== null,
     protocolVersion: 1, stateCompatibility: EXECUTION_STATE_COMPATIBILITY, update: update ? { ...update } : null })
-  const state = (next, usable = false) => { phase = next; available = usable; try { onState(snapshot()) } catch {} }
+  const state = (next, usable = false) => {
+    phase = next; available = usable
+    if (usable) { recoveryState = null; recovery.running() }
+    else if (next === 'unavailable' && !closed) recovery.lost()
+    try { onState(snapshot()) } catch {}
+  }
   const track = promise => {
     const done = promise?.completion ?? promise
     if (done?.then) { active.add(done); done.then(() => active.delete(done), () => active.delete(done)) }
@@ -39,17 +76,18 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
   }
   const make = (factory, handoff) => {
     const generation = `${factory.versionId ?? 'builtin'}:${randomUUID()}`
-    unsafe = true
     const engine = factory.createExecutionDispatcher({ generation, ports, handoff, backgroundSummary, requestRestartSummary })
     if (!engine || !['validateRequest', 'dispatch', 'project', 'control', 'exportState', 'disconnect'].every(key => typeof engine[key] === 'function'))
       throw fail('FACTORY_INVALID')
-    unsafe = false
     return { engine, generation, factory, initialized: false, quiesced: false }
   }
   const initialize = async target => {
-    const result = await within(target.engine.control('initialize'), 45_000, 'INITIALIZE_TIMEOUT')
-    target.initialized = true
-    if (result?.stateCompatibility !== EXECUTION_STATE_COMPATIBILITY) throw fail('STATE_INCOMPATIBLE')
+    target.initializing = Promise.resolve(target.engine.control('initialize')).then(result => {
+      target.initialized = true
+      if (result?.stateCompatibility !== EXECUTION_STATE_COMPATIBILITY) throw fail('STATE_INCOMPATIBLE')
+      target.ready = true
+    })
+    await within(target.initializing, 45_000, 'INITIALIZE_TIMEOUT')
   }
   const quiesce = async target => {
     const started = performance.now()
@@ -70,7 +108,9 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
     target.quiesced = false; state('running', true)
   }
   const dispose = async target => {
-    if (!target) throw fail('CLEANUP_UNCONFIRMED')
+    if (!target) return
+    target.retiring = true
+    await target.initializing?.catch(() => {})
     if (target.initialized && !target.quiesced) await quiesce(target)
     if ((await within(target.engine.disconnect(), 5000, 'CLEANUP_UNCONFIRMED'))?.closed !== true) throw fail('CLEANUP_UNCONFIRMED')
     if (instance === target) instance = null
@@ -89,9 +129,9 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
     return pending
   }
   const exchange = action => exclusive(() => exchangeMutex ? exchangeMutex.runExclusive(action) : action())
-  const start = () => exchange(async () => {
-    if (started || instance || closed) throw fail('NOT_ACCEPTING')
-    started = true; state('starting')
+  const startAttempt = () => exchange(async () => {
+    if (instance || closed) throw fail('NOT_ACCEPTING')
+    state('starting')
     try {
       const factory = await load(currentVersionId)
       if (closed) throw fail('CLOSED')
@@ -101,9 +141,13 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
       state('running', true)
       return snapshot()
     } catch (error) {
-      try { await dispose(instance) } catch { /* An unconfirmed candidate fences all subsequent admission. */ }
+      try { await dispose(instance) } catch { /* Lifecycle recovery retains the actual candidate for cleanup. */ }
       state(closed ? 'closed' : 'unavailable'); throw error
     }
+  })
+  const start = () => available ? Promise.resolve(snapshot()) : startAttempt().catch(error => {
+    if (closed || phase !== 'unavailable') throw error
+    return recovery.wait().then(() => { if (closed) throw error; return snapshot() })
   })
   const requireCurrent = () => {
     if (!available || closed || !instance) throw fail('NOT_ACCEPTING')
@@ -131,6 +175,7 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
         throw error
       }
       // From this point the retired instance is never resumed.
+      recoveryState = { factory: old.factory, handoff, selection: oldSelection }
       try { await dispose(old) } catch (error) { state('unavailable'); throw error }
       if (closed) { state('closed'); throw fail('CLOSED') }
       state('restoring')
@@ -148,7 +193,6 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
       } catch (error) {
         const errors = [error]
         try {
-          // If no handle or no closed ACK exists, never construct another engine.
           await dispose(candidate)
           if (closed) throw fail('CLOSED')
           const restored = make(old.factory, handoff); instance = restored
@@ -186,9 +230,8 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
     } }
   }
   const close = () => closing ??= (async () => {
-    closed = true; reservation?.cancel?.(); state('closing')
+    closed = true; recovery.close(); reservation?.cancel?.(); state('closing')
     await operation?.catch(() => {})
-    if (unsafe) { state('unavailable'); throw fail('CLEANUP_UNCONFIRMED') }
     if (instance) {
       try { await dispose(instance) }
       catch (error) { state('unavailable'); throw error }

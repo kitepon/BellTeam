@@ -86,7 +86,7 @@ test('same-target reservations terminate and snapshot callers cannot change the 
   assert.equal(f.calls.length, 1)
 })
 
-test('a mismatched result generation is unknown and stops new memory operations', async t => {
+test('a mismatched result generation fails only that memory request', async t => {
   const f = await fixture(t)
   // Use the real runner response guard with a second isolated controller.
   const controller = createMemoryProcess({ root: f.root, run: async (_node, _args, options) => {
@@ -96,8 +96,8 @@ test('a mismatched result generation is unknown and stops new memory operations'
   } })
   t.after(() => controller.close())
   await assert.rejects(controller.request('recallMemory', { args: [{}], profiles: [] }), { code: 'MEMORY_RESULT_UNCONFIRMED', outcome: 'unknown' })
-  assert.equal(controller.snapshot().available, false)
-  await assert.rejects(controller.request('remember', { args: [{}], profiles: [] }), { code: 'MEMORY_NOT_ACCEPTED' })
+  assert.equal(controller.snapshot().available, true)
+  await assert.rejects(controller.request('remember', { args: [{}], profiles: [] }), { code: 'MEMORY_RESULT_UNCONFIRMED' })
 })
 
 test('memory artifact uses exact real storage/ICU compatibility and requires the selected entry closure', () => {
