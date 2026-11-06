@@ -108,6 +108,7 @@
     "src/conversation-authority.mjs",
     "src/conversation-assembly.mjs",
     "src/module-child-exit-reporter.mjs",
-    "src/background-summary-assembly.mjs"
+    "src/background-summary-assembly.mjs",
+    "src/json-file.mjs"
   ]
 }
