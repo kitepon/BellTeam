@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-06T00:56:11Z",
-  "expiresAt": "2026-11-13T00:56:11Z",
+  "publishedAt": "2026-11-06T22:05:02Z",
+  "expiresAt": "2026-11-13T22:05:02Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "494861b5f424a799bb99eb92b3808fd44ec6a95a",
-      "versionId": "62ed50bb88081d4dfbee0742b3c431d669f6be86d54fe60754bdbe62d29e0648",
+      "sourceCommit": "ecfc1dd6b50a91230f08122d69fa1af864af4c53",
+      "versionId": "b1d885fbb4bfa1d70a8d31574ad123a67571c29ebfd0440c02173aac902da4bc",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261106T005219Z/web-gateway-494861b5f424a799bb99eb92b3808fd44ec6a95a-linux-amd64.tar.gz",
-          "sha256": "62ed50bb88081d4dfbee0742b3c431d669f6be86d54fe60754bdbe62d29e0648",
-          "bytes": 4982819
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261106T220430Z/web-gateway-ecfc1dd6b50a91230f08122d69fa1af864af4c53-linux-amd64.tar.gz",
+          "sha256": "b1d885fbb4bfa1d70a8d31574ad123a67571c29ebfd0440c02173aac902da4bc",
+          "bytes": 4998824
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261106T005219Z/web-gateway-494861b5f424a799bb99eb92b3808fd44ec6a95a-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "a88fdca4cdf03996087313b61c03ab153acf90677284f9d957a65473eb266f2f",
-          "bytes": 11209
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261106T220430Z/web-gateway-ecfc1dd6b50a91230f08122d69fa1af864af4c53-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "16882414b50dbcbd1ce80b91492bb99f71c928c6a091df9bbaa175b34342e87d",
+          "bytes": 11099
         },
-        "signerCommit": "494861b5f424a799bb99eb92b3808fd44ec6a95a"
+        "signerCommit": "ecfc1dd6b50a91230f08122d69fa1af864af4c53"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "削除されたBot・ルームのブラウザ既読記録を、一覧の正常取得後に回収します。"
+        "更新ジョブのID・状態・失敗理由を、保存された記録のとおりに表示します。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "494861b5f424a799bb99eb92b3808fd44ec6a95a",
-      "versionId": "2b1710e486a6ae2bb865dafff5cb3079b39058d6dbb0bde850853c4607668c61",
+      "sourceCommit": "ecfc1dd6b50a91230f08122d69fa1af864af4c53",
+      "versionId": "3a9508cccd247c87a3e650bc655e896a072f722fa034fd7dc8347cf7b443fc2d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261106T005219Z/web-gateway-494861b5f424a799bb99eb92b3808fd44ec6a95a-linux-arm64.tar.gz",
-          "sha256": "2b1710e486a6ae2bb865dafff5cb3079b39058d6dbb0bde850853c4607668c61",
-          "bytes": 4982819
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261106T220430Z/web-gateway-ecfc1dd6b50a91230f08122d69fa1af864af4c53-linux-arm64.tar.gz",
+          "sha256": "3a9508cccd247c87a3e650bc655e896a072f722fa034fd7dc8347cf7b443fc2d",
+          "bytes": 4998824
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261106T005219Z/web-gateway-494861b5f424a799bb99eb92b3808fd44ec6a95a-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "79bfd3cbbb4e48161942de6f98be66f118d7c69ee0f4880d9a8bb2895150479b",
-          "bytes": 11099
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261106T220430Z/web-gateway-ecfc1dd6b50a91230f08122d69fa1af864af4c53-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "eca3b92d8921179cf2e2e4b8d32c473ed1b93e5e62b112c8ff6762fbcf7592e5",
+          "bytes": 11146
         },
-        "signerCommit": "494861b5f424a799bb99eb92b3808fd44ec6a95a"
+        "signerCommit": "ecfc1dd6b50a91230f08122d69fa1af864af4c53"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "削除されたBot・ルームのブラウザ既読記録を、一覧の正常取得後に回収します。"
+        "更新ジョブのID・状態・失敗理由を、保存された記録のとおりに表示します。"
       ]
     },
     {
