@@ -9,7 +9,8 @@ flowchart TD
   Install[公開install.sh / .env / Compose標準追加構成] --> Normal[通常bellteamと追加service / 既control RO]
   Install --> Backend[同imageのmodule-installer service]
   Normal --> Socket[同projectのsocket volume / normal RO]
-  Socket --> Backend
+  Socket --> Capacity[Shared Server / 16 active handlers / wait for slot]
+  Capacity --> Backend
   Backend --> Ledger[root private ledger / 同UUID plan-start-get]
   Backend --> Get[get / ledger排他解放後の原本再読]
   Get --> Ledger
@@ -118,3 +119,5 @@ shortcut: 完全receiptは初回切替先sourceへ固定、別sourceへの再切
 ### 正規private volumeのstorage照合
 
 固定helperの第4引数は凍結normalの同親data/home bindから導出したruntime/server-only/state-dataだけ。既installerのpermission probeが選ぶEngine内local volume（Options null/{}）又は同project label＋exact Options {type:none,o:bind,device:固定device}のprivate volumeを受け入れる。module-updaterはlocal/noOptionsだけ。任意device/driver/追加Options/追加mountを許可せず、private bindの正規形を一般bind許可へ広げない。Docker socket以外のHost bindをhelperへ増設しない。公開20key/元worker namespace/排他/prepareと完全receiptの意味は同じ。
+
+The socket capacity and safe exception logging contract is owned by [the shared runtime Server](container-update.md#socket-capacity-and-diagnostics). Module installation uses that same handler; source supply and parent apply remain separate.

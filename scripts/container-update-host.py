@@ -652,7 +652,8 @@ class Handler(socketserver.StreamRequestHandler):
             result = {'ok': True, 'value': self.server.updater.dispatch(decode(raw))}
         except Failure as error:
             result = {'ok': False, 'error': {'code': error.code, 'status': error.status, 'outcome': error.outcome}}
-        except Exception:
+        except Exception as error:
+            print(json.dumps({'code': 'HOST_UPDATE_REQUEST_FAILED', 'exception': type(error).__name__}), file=sys.stderr, flush=True)
             result = {'ok': False, 'error': {'code': 'HOST_UPDATE_UNAVAILABLE', 'status': 503, 'outcome': 'unknown'}}
         raw = (json.dumps(result, ensure_ascii=False, separators=(',', ':')) + '\n').encode()
         if len(raw) > LIMIT:
@@ -667,8 +668,8 @@ class Server(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
         self.updater, self.slots = updater, threading.BoundedSemaphore(16)
         super().__init__(address, Handler)
     def process_request(self, request, client_address):
-        if not self.slots.acquire(blocking=False):
-            request.close(); return
+        # Bound active handlers without discarding a connected request during catalog fan-out.
+        self.slots.acquire()
         try: super().process_request(request, client_address)
         except BaseException:
             self.slots.release(); raise
