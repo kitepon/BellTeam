@@ -3,7 +3,8 @@ import test from 'node:test'
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createMemoryProcess } from '../src/memory-process.mjs'
+import { createMemoryProcess, MEMORY_READY_PROBE } from '../src/memory-process.mjs'
+import { BellTeamMemory } from '../src/memory-service.mjs'
 import { MEMORY_STATE_COMPATIBILITY } from '../src/memory/state-compatibility.mjs'
 import { validateMemoryReleaseManifest } from '../src/memory-release.mjs'
 
@@ -18,7 +19,7 @@ async function fixture(t, hook = async () => {}) {
       protocolVersion: 1, stateCompatibility: MEMORY_STATE_COMPATIBILITY }),
     run: async (node, args, options) => {
       const request = JSON.parse(options.input), call = { entry: args[0], ...request }
-      if (request.method !== 'recallMemory' || request.params?.args?.[0]?.query !== '') calls.push(call)
+      if (request.method !== 'recallMemory' || request.params?.args?.[0]?.query !== MEMORY_READY_PROBE.args[0].query) calls.push(call)
       const value = await hook(call)
       return { stdout: JSON.stringify({ protocolVersion: 1, generation: request.generation,
         stateCompatibility: MEMORY_STATE_COMPATIBILITY, result: request.method === null ? { restored: true } : value ?? null }) }
@@ -92,7 +93,7 @@ test('a mismatched result generation fails only that memory request', async t =>
   // Use the real runner response guard with a second isolated controller.
   const controller = createMemoryProcess({ root: f.root, run: async (_node, _args, options) => {
     const request = JSON.parse(options.input)
-    return { stdout: JSON.stringify({ protocolVersion: 1, generation: request.method === null || request.params?.args?.[0]?.query === '' ? request.generation : 'wrong',
+    return { stdout: JSON.stringify({ protocolVersion: 1, generation: request.method === null || request.params?.args?.[0]?.query === MEMORY_READY_PROBE.args[0].query ? request.generation : 'wrong',
       stateCompatibility: MEMORY_STATE_COMPATIBILITY, result: request.method === null ? { restored: true } : null }) }
   } })
   t.after(() => controller.close())
@@ -113,4 +114,13 @@ test('memory artifact uses exact real storage/ICU compatibility and requires the
   assert.throws(() => validateMemoryReleaseManifest(incompatible), { code: 'MEMORY_STATE_INCOMPATIBLE' })
   const missing = structuredClone(manifest); missing.files.shift()
   assert.throws(() => validateMemoryReleaseManifest(missing), { code: 'GATEWAY_RELEASE_INVENTORY_INVALID' })
+})
+
+test('the ready probe read is accepted by the real memory service on an empty root', async t => {
+  // Contact check against the real validator: a fake child cannot prove the probe arguments are valid.
+  const root = await mkdtemp(join(tmpdir(), 'memory-ready-probe-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const memory = new BellTeamMemory({ root, registry: new Map() })
+  assert.deepEqual(await memory.recallMemory(MEMORY_READY_PROBE.args[0]), { scope: 'shared', items: [] })
+  await assert.rejects(memory.recallMemory({ ...MEMORY_READY_PROBE.args[0], query: '' }), { message: 'SEARCH_QUERY_INVALID' })
 })

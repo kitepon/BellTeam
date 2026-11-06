@@ -11,6 +11,8 @@ import { prepareMemoryRelease } from './memory-release.mjs'
 import { writeAtomic } from './json-file.mjs'
 import { createModuleChildRestart } from './module-child-restart.mjs'
 
+// Ready probe read: the real search validator rejects an empty query, so a fixed word is required.
+export const MEMORY_READY_PROBE = Object.freeze({ args: [Object.freeze({ scope: 'shared', query: 'ready', limit: 1 })], profiles: [] })
 const versionValid = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value)
 const failure = (code, outcome = 'not_accepted') => Object.assign(new Error(code), { code, status: 503, outcome })
 const within = async (task, code) => {
@@ -70,7 +72,7 @@ export function createMemoryProcess({ root, run = createSeatProcessRunner(root, 
     recovery.restarting()
     const value = await execute(target, epoch, null, null)
     if (!value || Object.keys(value).join(',') !== 'restored' || value.restored !== true) throw failure('MEMORY_RESTORE_INVALID')
-    await probeModuleReady(() => execute(target, epoch, 'recallMemory', { args: [{ scope: 'shared', query: '', limit: 1 }], profiles: [] }))
+    await probeModuleReady(() => execute(target, epoch, 'recallMemory', structuredClone(MEMORY_READY_PROBE)))
   }
   const readAdoption = async () => {
     let file
