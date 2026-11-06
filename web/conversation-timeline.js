@@ -4,6 +4,15 @@ import { richTextHtml } from './rich-text.js?v=__ASSET_VERSION__'
 import { openImageViewer, renderImageStack } from './image-gallery.js?v=__ASSET_VERSION__'
 import { applyAvatar, dayLabel, initials, memberDisplay, formatTime, formatDateTime, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
 
+const deliveryFailureMessages = new Map([
+  ['BOT_OBSERVATION_FAILED', '席の状態を確認できず、送信できませんでした。席を再起動してください。'],
+  ['BOT_CONFIGURATION_FAILED', '席の設定を反映できず、送信できませんでした。設定を確認してください。'],
+  ['BOT_LAUNCH_FAILED', '席を起動できず、送信できませんでした。席を再起動してください。'],
+  ['BOT_SEND_FAILED', '席への送信に失敗しました。送信結果を確認してください。'],
+  ['BOT_DELIVERY_FAILED', '送信に失敗しました。会話を確認してください。'],
+  ['BOT_SESSION_UNCONFIRMED', '席の状態を確認できず、送信できませんでした。席を再起動してください。'],
+])
+
 export function createConversationTimeline({ timeline, latestButton, api, messageImages, getBot, isStopping, onStop, onQueueChange }) {
   let target = null
   const avatarColors = new Map()
@@ -258,10 +267,18 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       const verb = item.direction === 'sent' ? 'へメッセージを送りました' : 'からメッセージを受け取りました'
       const peer = item.peerPosition ? `${item.peerName} ${item.peerPosition}` : item.peerName
       details.innerHTML = `<summary>${escapeHtml(peer)}${verb}</summary><div class="peer-detail"><strong>${formatDateTime(item.at)}</strong>${richTextHtml(item.message)}</div>`
-      if (!queued.length) return details
+      const failed = item.delivery === 'failed' && !trackingCompletionUnknown(item)
+      if (!queued.length && !failed) return details
       const wrapper = document.createElement('div')
       wrapper.className = 'queued-peer'
-      wrapper.append(details, renderQueueStatus(queued))
+      wrapper.append(details)
+      if (queued.length) wrapper.append(renderQueueStatus(queued))
+      else {
+        const reason = document.createElement('p')
+        reason.className = 'form-error'
+        reason.textContent = deliveryLabel(item)
+        wrapper.append(reason)
+      }
       return wrapper
     }
     const wrapper = document.createElement('div')
@@ -362,8 +379,20 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     for (const item of items) {
       const row = document.createElement('div')
       const label = document.createElement('span')
-      label.textContent = `${item.botName} · ${item.status === 'queued' ? '送信待ち' : '処理中'}`
+      const failed = item.status === 'failed'
+      label.textContent = `${item.botName} · ${failed ? '配達失敗' : item.status === 'queued' ? '送信待ち' : '処理中'}`
       row.append(label)
+      if (failed) {
+        label.className = 'form-error'
+        const message = deliveryFailureMessages.get(item.errorCode)
+        if (message) {
+          const reason = document.createElement('span')
+          reason.textContent = message
+          row.append(reason)
+        }
+        list.append(row)
+        continue
+      }
       const stop = document.createElement('button')
       stop.type = 'button'
       stop.textContent = '■'
@@ -408,6 +437,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       image_urls: record.image_urls,
       delivery,
       deliveryTracking: tracking,
+      delivery_error: routing?.status !== 'failed' ? failures.find(item => failedDeliveryReason(item))?.delivery_error : undefined,
     }
   }
 
@@ -418,9 +448,15 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
 
   function deliveryLabel(item) {
     if (trackingCompletionUnknown(item)) return target?.type === 'room' ? '完了未確認の宛先あり' : '受付済み・完了未確認'
+    const reason = failedDeliveryReason(item)
+    if (reason) return reason
     return new Map([
       ['queued', '送信待ち'], ['running', '処理中'], ['delivered', '配達済み'], ['failed', '配達失敗'], ['stopped', '停止'],
     ]).get(item.delivery) ?? ''
+  }
+
+  function failedDeliveryReason(item) {
+    return item.delivery === 'failed' && !trackingCompletionUnknown(item) ? deliveryFailureMessages.get(item.delivery_error?.code) : undefined
   }
 
   // 画像の取得とURLはcacheが所有し、履歴へ完了した項目だけ返す。
@@ -500,7 +536,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   return { revealRequest, open(value) { target = { ...value }; return readHistory(openTimeline) },
     refresh() { return target ? readHistory(refreshTimeline) : Promise.resolve(true) }, close,
     updateTarget(value) { if (target?.type === value.type && target.id === value.id) target = { ...value } },
-    isBusy(id) { return state.timelineQueue.some(item => item.botId === id) },
+    isBusy(id) { return state.timelineQueue.some(item => item.botId === id && item.status !== 'failed') },
     updateStops() { for (const button of timeline.querySelectorAll('[data-stop-bot-id]')) button.disabled = isStopping(button.dataset.stopBotId) },
   }
 }
